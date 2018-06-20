@@ -129,14 +129,14 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *drawing_pass;
 	struct DRWPass *mix_pass;
 	struct DRWPass *mix_pass_noblend;
-	struct DRWPass *painting_pass;
+	struct DRWPass *background_pass;
 	struct DRWPass *paper_pass;
 } GPENCIL_PassList;
 
 typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *main;
 	struct GPUFrameBuffer *temp_fb_a;
-	struct GPUFrameBuffer *painting_fb;
+	struct GPUFrameBuffer *background_fb;
 
 	struct GPUFrameBuffer *multisample_fb;
 } GPENCIL_FramebufferList;
@@ -204,8 +204,8 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_paper_sh;
 
 	/* textures */
-	struct GPUTexture *painting_depth_tx;
-	struct GPUTexture *painting_color_tx;
+	struct GPUTexture *background_depth_tx;
+	struct GPUTexture *background_color_tx;
 
 	struct GPUTexture *gpencil_blank_texture;
 

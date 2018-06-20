@@ -130,13 +130,13 @@ static void GPENCIL_create_framebuffers(void *vedata)
 			});
 
 		/* painting framebuffer to speed up drawing process (always 16 bits) */
-		e_data.painting_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
+		e_data.background_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_object_type);
-		e_data.painting_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA16F,
+		e_data.background_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA16F,
 			&draw_engine_object_type);
-		GPU_framebuffer_ensure_config(&fbl->painting_fb, {
-			GPU_ATTACHMENT_TEXTURE(e_data.painting_depth_tx),
-			GPU_ATTACHMENT_TEXTURE(e_data.painting_color_tx)
+		GPU_framebuffer_ensure_config(&fbl->background_fb, {
+			GPU_ATTACHMENT_TEXTURE(e_data.background_depth_tx),
+			GPU_ATTACHMENT_TEXTURE(e_data.background_color_tx)
 			});
 	}
 }
@@ -376,7 +376,7 @@ void GPENCIL_cache_init(void *vedata)
 		/* mix pass no blend used to copy between passes. A separated pass is required
 		 * because if the mix pass is used, the acumulation of blend degrade the colors.
 		 *
-		 * This pass is used too to take the snapshot used for painting_pass. This image
+		 * This pass is used too to take the snapshot used for background_pass. This image
 		 * will be used as the background while the user is drawing.
 		 */
 		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
@@ -392,11 +392,11 @@ void GPENCIL_cache_init(void *vedata)
 		 * In this way, the previous strokes don't need to be redraw and the drawing process
 		 * is far to agile.
 		 */
-		psl->painting_pass = DRW_pass_create("GPencil Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->painting_pass);
+		psl->background_pass = DRW_pass_create("GPencil Painting Session Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		DRWShadingGroup *painting_shgrp = DRW_shgroup_create(e_data.gpencil_painting_sh, psl->background_pass);
 		DRW_shgroup_call_add(painting_shgrp, quad, NULL);
-		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.painting_color_tx);
-		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.painting_depth_tx);
+		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeColor", &e_data.background_color_tx);
+		DRW_shgroup_uniform_texture_ref(painting_shgrp, "strokeDepth", &e_data.background_depth_tx);
 
 		/* pass for drawing paper (only if viewport)
 		 * In render, the v3d is null
@@ -519,10 +519,10 @@ static int gpencil_object_cache_compare_zdepth(const void *a1, const void *a2)
 static void gpencil_prepare_fast_drawing(GPENCIL_StorageList *stl, DefaultFramebufferList *dfbl, GPENCIL_FramebufferList *fbl, DRWPass *pass, float clearcol[4])
 {
 	if (stl->g_data->session_flag & (GP_DRW_PAINT_IDLE | GP_DRW_PAINT_FILLING)) {
-		GPU_framebuffer_bind(fbl->painting_fb);
+		GPU_framebuffer_bind(fbl->background_fb);
 		/* clean only in first loop cycle */
 		if (stl->g_data->session_flag & GP_DRW_PAINT_IDLE) {
-			GPU_framebuffer_clear_color_depth(fbl->painting_fb, clearcol, 1.0f);
+			GPU_framebuffer_clear_color_depth(fbl->background_fb, clearcol, 1.0f);
 			stl->g_data->session_flag = GP_DRW_PAINT_FILLING;
 		}
 		/* repeat pass to fill temp texture */
@@ -586,7 +586,7 @@ void GPENCIL_draw_scene(void *ved)
 
 		MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
 
-		DRW_draw_pass(psl->painting_pass);
+		DRW_draw_pass(psl->background_pass);
 		DRW_draw_pass(psl->drawing_pass);
 
 		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, dfbl->default_fb, dtxl);
@@ -602,8 +602,8 @@ void GPENCIL_draw_scene(void *ved)
 		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_depth_tx_a, 0, 0);
 		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_color_tx_a, 0, 0);
 
-		GPU_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_depth_tx, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->painting_fb, e_data.painting_color_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->background_fb, e_data.background_depth_tx, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->background_fb, e_data.background_color_tx, 0, 0);
 
 		/* Draw all pending objects */
 		if (stl->g_data->gp_cache_used > 0) {
@@ -670,8 +670,8 @@ void GPENCIL_draw_scene(void *ved)
 
 	/* detach temp textures */
 	if (DRW_state_is_fbo()) {
-		GPU_framebuffer_texture_detach(fbl->painting_fb, e_data.painting_depth_tx);
-		GPU_framebuffer_texture_detach(fbl->painting_fb, e_data.painting_color_tx);
+		GPU_framebuffer_texture_detach(fbl->background_fb, e_data.background_depth_tx);
+		GPU_framebuffer_texture_detach(fbl->background_fb, e_data.background_color_tx);
 
 		/* attach again default framebuffer after detach textures */
 		if (!is_render) {
