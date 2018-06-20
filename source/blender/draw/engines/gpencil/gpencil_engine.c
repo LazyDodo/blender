@@ -76,7 +76,7 @@ void DRW_gpencil_multisample_ensure(GPENCIL_Data *vedata, int rect_w, int rect_h
 {
 	GPENCIL_FramebufferList *fbl = vedata->fbl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	GPENCIL_TextureList *txl = ((GPENCIL_Data *)vedata)->txl;
 
 	short samples = stl->storage->multisamples;
 
@@ -84,15 +84,15 @@ void DRW_gpencil_multisample_ensure(GPENCIL_Data *vedata, int rect_w, int rect_h
 		if (!fbl->multisample_fb) {
 			fbl->multisample_fb = GPU_framebuffer_create();
 			if (fbl->multisample_fb) {
-				if (dtxl->multisample_color == NULL) {
-					dtxl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA8, NULL, samples, NULL);
+				if (txl->multisample_color == NULL) {
+					txl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA8, NULL, samples, NULL);
 				}
-				if (dtxl->multisample_depth == NULL) {
-					dtxl->multisample_depth = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_DEPTH24_STENCIL8, NULL, samples, NULL);
+				if (txl->multisample_depth == NULL) {
+					txl->multisample_depth = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_DEPTH24_STENCIL8, NULL, samples, NULL);
 				}
 				GPU_framebuffer_ensure_config(&fbl->multisample_fb, {
-					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_depth),
-					GPU_ATTACHMENT_TEXTURE(dtxl->multisample_color)
+					GPU_ATTACHMENT_TEXTURE(txl->multisample_depth),
+					GPU_ATTACHMENT_TEXTURE(txl->multisample_color)
 					});
 				if (!GPU_framebuffer_check_valid(fbl->multisample_fb, NULL)) {
 					GPU_framebuffer_free(fbl->multisample_fb);
@@ -560,7 +560,7 @@ void GPENCIL_draw_scene(void *ved)
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	GPENCIL_TextureList *txl = ((GPENCIL_Data *)vedata)->txl;
 
 	int init_grp, end_grp;
 	tGPencilObjectCache *cache;
@@ -579,7 +579,6 @@ void GPENCIL_draw_scene(void *ved)
 		}
 	}
 
-
 	/* if we have a painting session, we use fast viewport drawing method */
 	if ((!is_render) && (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING)) {
 		GPU_framebuffer_bind(dfbl->default_fb);
@@ -589,7 +588,7 @@ void GPENCIL_draw_scene(void *ved)
 		DRW_draw_pass(psl->background_pass);
 		DRW_draw_pass(psl->drawing_pass);
 
-		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, dfbl->default_fb, dtxl);
+		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, dfbl->default_fb, txl);
 
 		/* free memory */
 		gpencil_free_obj_list(stl);
@@ -632,7 +631,7 @@ void GPENCIL_draw_scene(void *ved)
 						stl->shgroups[init_grp].shgrps_fill != NULL ? stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
 						stl->shgroups[end_grp].shgrps_stroke);
 
-					MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, dtxl);
+					MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
 				}
 				/* Current buffer drawing */
 				if ((!is_render) && (gpd->sbuffer_size > 0)) {
