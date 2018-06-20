@@ -216,11 +216,11 @@ static int gpencil_modifier_apply_obdata(ReportList *reports, Main *bmain, Depsg
 		if (ELEM(NULL, ob, ob->data)) {
 			return 0;
 		}
-		else if (mti->gp_bakeModifier == NULL) {
+		else if (mti->bakeModifier == NULL) {
 			BKE_report(reports, RPT_ERROR, "Not implemented");
 			return 0;
 		}
-		mti->gp_bakeModifier(bmain, depsgraph, md, ob);
+		mti->bakeModifier(bmain, depsgraph, md, ob);
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	}
 	else {

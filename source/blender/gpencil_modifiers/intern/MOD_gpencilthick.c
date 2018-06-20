@@ -87,7 +87,7 @@ static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 }
 
 /* change stroke thickness */
-static void gp_deformStroke(
+static void deformStroke(
         GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
@@ -132,7 +132,7 @@ static void gp_deformStroke(
 	}
 }
 
-static void gp_bakeModifier(
+static void bakeModifier(
 		struct Main *UNUSED(bmain), Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
@@ -141,7 +141,7 @@ static void gp_bakeModifier(
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				gp_deformStroke(md, depsgraph, ob, gpl, gps);
+				deformStroke(md, depsgraph, ob, gpl, gps);
 			}
 		}
 	}
@@ -156,9 +156,9 @@ GpencilModifierTypeInfo modifierType_Gpencil_Thick = {
 
 	/* copyData */          copyData,
 
-	/* gp_deformStroke */    gp_deformStroke,
-	/* gp_generateStrokes */ NULL,
-	/* gp_bakeModifier */    gp_bakeModifier,
+	/* deformStroke */    deformStroke,
+	/* generateStrokes */ NULL,
+	/* bakeModifier */    bakeModifier,
 
 	/* initData */          initData,
 	/* freeData */          freeData,

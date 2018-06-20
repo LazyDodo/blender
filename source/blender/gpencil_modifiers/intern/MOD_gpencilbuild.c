@@ -402,7 +402,7 @@ static void build_concurrent(BuildGpencilModifierData *mmd, bGPDframe *gpf, floa
 /* --------------------------------------------- */
 
 /* Entry-point for Build Modifier */
-static void gp_generateStrokes(
+static void generateStrokes(
         GpencilModifierData *md, Depsgraph *depsgraph,
         Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf)
 {
@@ -518,7 +518,7 @@ static void gp_generateStrokes(
  * which would in turn break how the modifier functions.
  */
 #if 0
-static void gp_bakeModifier(
+static void bakeModifier(
 		Main *bmain, const Depsgraph *UNUSED(depsgraph),
         GpencilModifierData *md, Object *ob)
 {
@@ -543,9 +543,9 @@ GpencilModifierTypeInfo modifierType_Gpencil_Build = {
 
 	/* copyData */          copyData,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   gp_generateStrokes,
-	/* gp_bakeModifier */      NULL,
+	/* deformStroke */      NULL,
+	/* generateStrokes */   generateStrokes,
+	/* bakeModifier */      NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

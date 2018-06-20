@@ -197,7 +197,7 @@ static void generate_geometry(
 	MEM_SAFE_FREE(valid_strokes);
 }
 
-/* gp_bakeModifier - "Bake to Data" Mode */
+/* bakeModifier - "Bake to Data" Mode */
 static void bakeModifierGP_strokes(
         Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
@@ -231,7 +231,7 @@ static Object *array_instance_add_ob_copy(Main *bmain, Scene *scene, Object *fro
 	return ob;
 }
 
-/* gp_bakeModifier - "Make Objects" Mode */
+/* bakeModifier - "Make Objects" Mode */
 static void bakeModifierGP_objects(Main *bmain, Depsgraph *depsgraph, GpencilModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
@@ -298,8 +298,8 @@ static void bakeModifierGP_objects(Main *bmain, Depsgraph *depsgraph, GpencilMod
 
 /* -------------------------------- */
 
-/* Generic "gp_generateStrokes" callback */
-static void gp_generateStrokes(
+/* Generic "generateStrokes" callback */
+static void generateStrokes(
         GpencilModifierData *md, Depsgraph *depsgraph,
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
@@ -318,8 +318,8 @@ static void gp_generateStrokes(
 	}
 }
 
-/* Generic "gp_bakeModifier" callback */
-static void gp_bakeModifier(
+/* Generic "bakeModifier" callback */
+static void bakeModifier(
 		Main *bmain, Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
@@ -345,9 +345,9 @@ GpencilModifierTypeInfo modifierType_Gpencil_Instance = {
 
 	/* copyData */          copyData,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   gp_generateStrokes,
-	/* gp_bakeModifier */    gp_bakeModifier,
+	/* deformStroke */      NULL,
+	/* generateStrokes */   generateStrokes,
+	/* bakeModifier */    bakeModifier,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

@@ -1805,8 +1805,8 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				/* Apply all GP modifiers before */
 				for (GpencilModifierData *md = base->object->greasepencil_modifiers.first; md; md = md->next) {
 					const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
-					if (mti->gp_bakeModifier) {
-						mti->gp_bakeModifier(bmain, depsgraph, md, base->object);
+					if (mti->bakeModifier) {
+						mti->bakeModifier(bmain, depsgraph, md, base->object);
 					}
 				}
 

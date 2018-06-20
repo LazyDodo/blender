@@ -1237,7 +1237,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 }
 
 /* Helper for gpencil_instance_modifiers()
- * See also MOD_gpencilinstance.c -> gp_bakeModifier()
+ * See also MOD_gpencilinstance.c -> bakeModifier()
  */
 static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object *ob, InstanceGpencilModifierData *mmd)
 {
