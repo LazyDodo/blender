@@ -39,6 +39,7 @@
 #include "DNA_object_force_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_texture_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_alloca.h"
@@ -57,6 +58,7 @@
 #include "BKE_colortools.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_idcode.h"
 #include "BKE_idprop.h"
 #include "BKE_layer.h"
@@ -1531,6 +1533,128 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 	return NULL;
 }
 
+static uiLayout *gpencil_draw_modifier(uiLayout *layout, Scene *scene, Object *ob,
+									   GpencilModifierData *md)
+{
+	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+	PointerRNA ptr;
+	uiBlock *block;
+	uiLayout *box, *column, *row, *sub;
+	uiLayout *result = NULL;
+
+	/* create RNA pointer */
+	RNA_pointer_create(&ob->id, &RNA_GpencilModifier, md, &ptr);
+
+	column = uiLayoutColumn(layout, true);
+	uiLayoutSetContextPointer(column, "modifier", &ptr);
+
+	/* rounded header ------------------------------------------------------------------- */
+	box = uiLayoutBox(column);
+
+	row = uiLayoutRow(box, false);
+	block = uiLayoutGetBlock(row);
+
+	UI_block_emboss_set(block, UI_EMBOSS_NONE);
+	/* Open/Close .................................  */
+	uiItemR(row, &ptr, "show_expanded", 0, "", ICON_NONE);
+
+	/* modifier-type icon */
+	uiItemL(row, "", RNA_struct_ui_icon(ptr.type));
+	UI_block_emboss_set(block, UI_EMBOSS);
+
+	/* modifier name */
+	if (mti->isDisabled && mti->isDisabled(md, 0)) {
+		uiLayoutSetRedAlert(row, true);
+	}
+	uiItemR(row, &ptr, "name", 0, "", ICON_NONE);
+	uiLayoutSetRedAlert(row, false);
+
+	/* mode enabling buttons */
+	UI_block_align_begin(block);
+		uiItemR(row, &ptr, "show_render", 0, "", ICON_NONE);
+		uiItemR(row, &ptr, "show_viewport", 0, "", ICON_NONE);
+
+	if (mti->flags & eGpencilModifierTypeFlag_SupportsEditmode) {
+		sub = uiLayoutRow(row, true);
+		uiLayoutSetActive(sub, false);
+		uiItemR(sub, &ptr, "show_in_editmode", 0, "", ICON_NONE);
+	}
+
+	UI_block_align_end(block);
+
+	/* Up/Down + Delete ........................... */
+	UI_block_align_begin(block);
+	uiItemO(row, "", ICON_TRIA_UP, "OBJECT_OT_gpencil_modifier_move_up");
+	uiItemO(row, "", ICON_TRIA_DOWN, "OBJECT_OT_gpencil_modifier_move_down");
+	UI_block_align_end(block);
+
+	UI_block_emboss_set(block, UI_EMBOSS_NONE);
+	uiItemO(row, "", ICON_X, "OBJECT_OT_gpencil_modifier_remove");
+	UI_block_emboss_set(block, UI_EMBOSS);
+
+	/* modifier settings (under the header) --------------------------------------------------- */
+	if (md->mode & eGpencilModifierMode_Expanded) {
+		/* apply/convert/copy */
+		box = uiLayoutBox(column);
+		row = uiLayoutRow(box, false);
+
+		/* only here obdata, the rest of modifiers is ob level */
+		UI_block_lock_set(block, BKE_object_obdata_is_libdata(ob), ERROR_LIBDATA_MESSAGE);
+
+		uiLayoutSetOperatorContext(row, WM_OP_INVOKE_DEFAULT);
+		uiItemEnumO(row, "OBJECT_OT_gpencil_modifier_apply", CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Apply"),
+			0, "apply_as", MODIFIER_APPLY_DATA);
+
+		uiItemO(row, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Copy"), ICON_NONE,
+			"OBJECT_OT_gpencil_modifier_copy");
+	
+		/* result is the layout block inside the box, that we return so that modifier settings can be drawn */
+		result = uiLayoutColumn(box, false);
+		block = uiLayoutAbsoluteBlock(box);
+	}
+
+	/* error messages */
+	if (md->error) {
+		box = uiLayoutBox(column);
+		row = uiLayoutRow(box, false);
+		uiItemL(row, md->error, ICON_ERROR);
+	}
+
+	return result;
+}
+
+uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
+{
+	Scene *scene = CTX_data_scene(C);
+	Object *ob;
+	GpencilModifierData *md, *vmd;
+	int i;
+	
+	/* verify we have valid data */
+	if (!RNA_struct_is_a(ptr->type, &RNA_GpencilModifier)) {
+		RNA_warning("Expected modifier on object");
+		return NULL;
+	}
+
+	ob = ptr->id.data;
+	md = ptr->data;
+
+	if (!ob || !(GS(ob->id.name) == ID_OB)) {
+		RNA_warning("Expected modifier on object");
+		return NULL;
+	}
+
+	UI_block_lock_set(uiLayoutGetBlock(layout), (ob && ID_IS_LINKED(ob)), ERROR_LIBDATA_MESSAGE);
+
+	/* find modifier and draw it */
+	vmd = ob->greasepencil_modifiers.first;
+	for (i = 0; vmd; i++, vmd = vmd->next) {
+		if (md == vmd)
+			return gpencil_draw_modifier(layout, scene, ob, md);
+	}
+
+	return NULL;
+}
 
 /************************ Redo Buttons Template *************************/
 

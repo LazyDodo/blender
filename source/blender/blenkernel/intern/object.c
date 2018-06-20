@@ -41,6 +41,7 @@
 #include "DNA_camera_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 #include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -256,17 +257,8 @@ bool BKE_object_support_modifier_type_check(const Object *ob, int modifier_type)
 	mti = modifierType_getInfo(modifier_type);
 
 	/* only geometry objects should be able to get modifiers [#25291] */
-	if (!ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_LATTICE, OB_GPENCIL)) {
+	if (!ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_LATTICE)) {
 		return false;
-	}
-
-	if (ob->type == OB_GPENCIL) {
-		if (mti->flags & eModifierTypeFlag_GpencilMod) {
-			return true;
-		}
-		else {
-			return false;
-		}
 	}
 
 	if (ob->type == OB_LATTICE && (mti->flags & eModifierTypeFlag_AcceptsLattice) == 0) {

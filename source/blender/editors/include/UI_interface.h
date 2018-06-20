@@ -1026,6 +1026,7 @@ void uiTemplateSearchPreview(
 void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
                            struct PointerRNA *root_ptr, const char *text);
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
+uiLayout *uiTemplateGpencilModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
 void uiTemplateOperatorRedoProperties(uiLayout *layout, const struct bContext *C);
 

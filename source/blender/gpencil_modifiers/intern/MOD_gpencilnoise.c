@@ -41,21 +41,22 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_modifier_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
-#include "BKE_modifier.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_object.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
 	NoiseGpencilModifierData *gpmd = (NoiseGpencilModifierData *)md;
 	gpmd->pass_index = 0;
@@ -78,7 +79,7 @@ static void initData(ModifierData *md)
 	gpmd->vrand2 = 1.0;
 }
 
-static void freeData(ModifierData *md)
+static void freeData(GpencilModifierData *md)
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 
@@ -87,12 +88,12 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
-static bool dependsOnTime(ModifierData *md)
+static bool dependsOnTime(GpencilModifierData *md)
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 	return (mmd->flag & GP_NOISE_USE_RANDOM) != 0;
@@ -100,7 +101,7 @@ static bool dependsOnTime(ModifierData *md)
 
 /* aply noise effect based on stroke direction */
 static void gp_deformStroke(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *depsgraph,
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
@@ -109,7 +110,7 @@ static void gp_deformStroke(
 	float shift, vran, vdir;
 	float normal[3];
 	float vec1[3], vec2[3];
-	Scene *scene = NULL;
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	int sc_frame = 0;
 	int sc_diff = 0;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
@@ -122,8 +123,7 @@ static void gp_deformStroke(
 		return;
 	}
 
-	scene = mmd->modifier.scene;
-	sc_frame = (scene) ? CFRA : 0;
+	sc_frame = (int)DEG_get_ctime(depsgraph);
 
 	zero_v3(vec2);
 
@@ -244,7 +244,7 @@ static void gp_deformStroke(
 
 static void gp_bakeModifier(
         struct Main *UNUSED(bmain), Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 
@@ -257,40 +257,24 @@ static void gp_bakeModifier(
 	}
 }
 
-ModifierTypeInfo modifierType_Gpencil_Noise = {
+GpencilModifierTypeInfo modifierType_Gpencil_Noise = {
 	/* name */              "Noise",
 	/* structName */        "NoiseGpencilModifierData",
 	/* structSize */        sizeof(NoiseGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             eGpencilModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      gp_deformStroke,
 	/* gp_generateStrokes */   NULL,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     dependsOnTime,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

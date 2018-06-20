@@ -118,6 +118,7 @@
 #include "DNA_genfile.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 #include "DNA_fileglobal_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
@@ -165,6 +166,7 @@
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
 #include "BKE_global.h" // for G
+#include "BKE_gpencil_modifier.h"
 #include "BKE_idcode.h"
 #include "BKE_library.h" // for  set_listbasepointers
 #include "BKE_library_override.h"
@@ -1613,20 +1615,6 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 
 			writedata(wd, DATA, sizeof(int) * hmd->totindex, hmd->indexar);
 		}
-		else if (md->type == eModifierType_Gpencil_Thick) {
-			ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
-
-			if (gpmd->curve_thickness) {
-				write_curvemapping(wd, gpmd->curve_thickness);
-			}
-		}
-		else if (md->type == eModifierType_Gpencil_Hook) {
-			HookGpencilModifierData *gpmd = (HookGpencilModifierData *)md;
-
-			if (gpmd->curfalloff) {
-				write_curvemapping(wd, gpmd->curfalloff);
-			}
-		}
 		else if (md->type == eModifierType_Cloth) {
 			ClothModifierData *clmd = (ClothModifierData *)md;
 
@@ -1776,6 +1764,39 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 	}
 }
 
+static void write_gpencil_modifiers(WriteData *wd, ListBase *modbase)
+{
+	GpencilModifierData *md;
+
+	if (modbase == NULL) {
+		return;
+	}
+
+	for (md = modbase->first; md; md = md->next) {
+		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+		if (mti == NULL) {
+			return;
+		}
+
+		writestruct_id(wd, DATA, mti->struct_name, 1, md);
+
+		if (md->type == eGpencilModifierType_Thick) {
+			ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
+
+			if (gpmd->curve_thickness) {
+				write_curvemapping(wd, gpmd->curve_thickness);
+			}
+		}
+		else if (md->type == eGpencilModifierType_Hook) {
+			HookGpencilModifierData *gpmd = (HookGpencilModifierData *)md;
+
+			if (gpmd->curfalloff) {
+				write_curvemapping(wd, gpmd->curfalloff);
+			}
+		}
+	}
+}
+
 static void write_object(WriteData *wd, Object *ob)
 {
 	if (ob->id.us > 0 || wd->use_memfile) {
@@ -1826,6 +1847,7 @@ static void write_object(WriteData *wd, Object *ob)
 
 		write_particlesystems(wd, &ob->particlesystem);
 		write_modifiers(wd, &ob->modifiers);
+		write_gpencil_modifiers(wd, &ob->greasepencil_modifiers);
 
 		writelist(wd, DATA, LinkData, &ob->pc_ids);
 		writelist(wd, DATA, LodLevel, &ob->lodlevels);

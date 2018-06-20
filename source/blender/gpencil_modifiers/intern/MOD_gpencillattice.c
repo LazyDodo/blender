@@ -34,12 +34,15 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
+#include "BKE_modifier.h"
 #include "BKE_lattice.h"
 #include "BKE_library_query.h"
 #include "BKE_scene.h"
@@ -48,13 +51,14 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
 	LatticeGpencilModifierData *gpmd = (LatticeGpencilModifierData *)md;
 	gpmd->pass_index = 0;
@@ -65,13 +69,13 @@ static void initData(ModifierData *md)
 	gpmd->strength = 1.0f;
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
 static void gp_deformStroke(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
@@ -108,13 +112,13 @@ static void gp_deformStroke(
  */
 static void gp_bakeModifier(
 		Main *bmain, Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
-	Scene *scene = md->scene;
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	struct LatticeDeformData *ldata = NULL;
 	bGPdata *gpd = ob->data;
-	int oldframe = CFRA;
+	int oldframe = (int)DEG_get_ctime(depsgraph);
 
 	if (mmd->object == NULL)
 		return;
@@ -149,7 +153,7 @@ static void gp_bakeModifier(
 	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 }
 
-static void freeData(ModifierData *md)
+static void freeData(GpencilModifierData *md)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 	struct LatticeDeformData *ldata = (struct LatticeDeformData *)mmd->cache_data;
@@ -159,14 +163,14 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
+static bool isDisabled(GpencilModifierData *md, int UNUSED(userRenderParams))
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
 
 	return !mmd->object;
 }
 
-static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
+static void updateDepsgraph(GpencilModifierData *md, const ModifierUpdateDepsgraphContext *ctx) 
 {
 	LatticeGpencilModifierData *lmd = (LatticeGpencilModifierData *)md;
 	if (lmd->object != NULL) {
@@ -177,7 +181,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 static void foreachObjectLink(
-        ModifierData *md, Object *ob,
+        GpencilModifierData *md, Object *ob,
         ObjectWalkFunc walk, void *userData)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
@@ -185,40 +189,24 @@ static void foreachObjectLink(
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
-ModifierTypeInfo modifierType_Gpencil_Lattice = {
+GpencilModifierTypeInfo modifierType_Gpencil_Lattice = {
 	/* name */              "Lattice",
 	/* structName */        "LatticeGpencilModifierData",
 	/* structSize */        sizeof(LatticeGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_Single | eModifierTypeFlag_SupportsEditmode,
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             eGpencilModifierTypeFlag_Single | eGpencilModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      gp_deformStroke,
 	/* gp_generateStrokes */   NULL,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ foreachObjectLink,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

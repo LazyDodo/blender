@@ -30,6 +30,7 @@
 
 #include "BKE_brush.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_image.h"
 #include "BKE_material.h"
 
@@ -39,7 +40,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_material_types.h"
 #include "DNA_view3d_types.h"
-#include "DNA_modifier_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
  /* If builtin shaders are needed */
 #include "GPU_shader.h"
@@ -753,7 +754,7 @@ static void gpencil_draw_strokes(
 	copy_m4_m4(derived_gpf->runtime.viewmatrix, viewmatrix);
 
 	/* apply geometry modifiers */
-	if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
+	if ((cache->is_dirty) && (ob->greasepencil_modifiers.first) && (!is_multiedit)) {
 		if (!stl->storage->simplify_modif) {
 			if (BKE_gpencil_has_geometry_modifiers(ob)) {
 				BKE_gpencil_geometry_modifiers(depsgraph, ob, gpl, derived_gpf, stl->storage->is_render);
@@ -834,7 +835,7 @@ static void gpencil_draw_strokes(
 			copy_v4_v4(gps->runtime.tmp_fill_rgba, gp_style->fill_rgba);
 
 			/* apply modifiers (only modify geometry, but not create ) */
-			if ((cache->is_dirty) && (ob->modifiers.first) && (!is_multiedit)) {
+			if ((cache->is_dirty) && (ob->greasepencil_modifiers.first) && (!is_multiedit)) {
 				if (!stl->storage->simplify_modif) {
 					BKE_gpencil_stroke_modifiers(depsgraph, ob, gpl, derived_gpf, gps, stl->storage->is_render);
 				}
@@ -1175,7 +1176,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 
 	/* init general modifiers data */
 	if (!stl->storage->simplify_modif) {
-		if ((cache->is_dirty) && (ob->modifiers.first)) {
+		if ((cache->is_dirty) && (ob->greasepencil_modifiers.first)) {
 			BKE_gpencil_lattice_init(ob);
 		}
 	}
@@ -1228,7 +1229,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	}
 
 	/* clear any lattice data */
-	if ((cache->is_dirty) && (ob->modifiers.first)) {
+	if ((cache->is_dirty) && (ob->greasepencil_modifiers.first)) {
 		BKE_gpencil_lattice_clear(ob);
 	}
 
@@ -1297,11 +1298,11 @@ void gpencil_instance_modifiers(GPENCIL_StorageList *stl, Object *ob)
 		}
 	}
 
-	for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
-		if (((md->mode & eModifierMode_Realtime) && (stl->storage->is_render == false)) ||
-		    ((md->mode & eModifierMode_Render) && (stl->storage->is_render == true)))
+	for (GpencilModifierData *md = ob->greasepencil_modifiers.first; md; md = md->next) {
+		if (((md->mode & eGpencilModifierMode_Realtime) && (stl->storage->is_render == false)) ||
+		    ((md->mode & eGpencilModifierMode_Render) && (stl->storage->is_render == true)))
 		{
-			if (md->type == eModifierType_Gpencil_Instance) {
+			if (md->type == eGpencilModifierType_Instance) {
 				InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
 
 				/* Only add instances if the "Make Objects" flag is set

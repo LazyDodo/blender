@@ -35,7 +35,6 @@
 struct ID;
 struct Depsgraph;
 struct DerivedMesh;
-struct bContext; /* NOTE: gp_bakeModifier() - called from UI - needs to create new datablocks, hence the need for this */
 struct Mesh;
 struct Object;
 struct Scene;
@@ -46,9 +45,6 @@ struct Main;
 struct ModifierData;
 struct BMEditMesh;
 struct DepsNodeHandle;
-struct bGPDlayer;
-struct bGPDframe;
-struct bGPDstroke;
 
 typedef enum {
 	/* Should not be used, only for None modifier type */
@@ -74,8 +70,6 @@ typedef enum {
 	 * of the object, rather some of its CustomData layers.
 	 * E.g. UVProject and WeightVG modifiers. */
 	eModifierTypeType_NonGeometrical,
-	/* special mode for grease pencil modifiers */
-	eModifierTypeType_Gpencil,
 } ModifierTypeType;
 
 typedef enum {
@@ -110,8 +104,6 @@ typedef enum {
 	/* For modifiers that use CD_PREVIEW_MCOL for preview. */
 	eModifierTypeFlag_UsesPreview = (1 << 9),
 	eModifierTypeFlag_AcceptsLattice = (1 << 10),
-	/* Grease pencil modifiers (do not change mesh, only is placeholder) */
-	eModifierTypeFlag_GpencilMod = (1 << 11),
 } ModifierTypeFlag;
 
 /* IMPORTANT! Keep ObjectWalkFunc and IDWalkFunc signatures compatible. */
@@ -280,45 +272,6 @@ typedef struct ModifierTypeInfo {
 	                                struct BMEditMesh *editData,
 	                                struct Mesh *mesh);
 
-
-	/******************* GP modifier functions *********************/
-
-	/* Callback for GP "stroke" modifiers that operate on the
-	 * shape and parameters of the provided strokes (e.g. Thickness, Noise, etc.)
-	 *
-	 * The gpl parameter contains the GP layer that the strokes come from.
-	 * While access is provided to this data, you should not directly access
-	 * the gpl->frames data from the modifier. Instead, use the gpf parameter
-	 * instead.
-	 *
-	 * The gps parameter contains the GP stroke to operate on. This is usually a copy
-	 * of the original (unmodified and saved to files) stroke data.
-	 */
-	void (*gp_deformStroke)(struct ModifierData *md, struct Depsgraph *depsgraph,
-	                     struct Object *ob, struct bGPDlayer *gpl, struct bGPDstroke *gps);
-
-	/* Callback for GP "geometry" modifiers that create extra geometry
-	 * in the frame (e.g. Array)
-	 *
-	 * The gpf parameter contains the GP frame/strokes to operate on. This is
-	 * usually a copy of the original (unmodified and saved to files) stroke data.
-	 * Modifiers should only add any generated strokes to this frame (and not one accessed
-	 * via the gpl parameter).
-	 *
-	 * The modifier_index parameter indicates where the modifier is
-	 * in the modifier stack in relation to other modifiers.
-	 */
-	void (*gp_generateStrokes)(struct ModifierData *md, struct Depsgraph *depsgraph,
-	                        struct Object *ob, struct bGPDlayer *gpl, struct bGPDframe *gpf);
-
-	/* Bake-down GP modifier's effects into the GP datablock.
-	 *
-	 * This gets called when the user clicks the "Apply" button in the UI.
-	 * As such, this callback needs to go through all layers/frames in the
-	 * datablock, mutating the geometry and/or creating new datablocks/objects
-	 */
-	void (*gp_bakeModifier)(struct Main *bmain, struct Depsgraph *depsgraph,
-                           struct ModifierData *md, struct Object *ob);
 
 	/********************* Optional functions *********************/
 

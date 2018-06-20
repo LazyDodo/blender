@@ -108,25 +108,9 @@ set(SRC
 
 	MOD_modifiertypes.h
 	intern/MOD_fluidsim_util.h
-	intern/MOD_gpencil_util.h
 	intern/MOD_meshcache_util.h
 	intern/MOD_util.h
 	intern/MOD_weightvg_util.h
-
-	intern/MOD_gpencil_util.c
-	intern/MOD_gpencilnoise.c
-	intern/MOD_gpencilsubdiv.c
-	intern/MOD_gpencilsimplify.c
-	intern/MOD_gpencilthick.c
-	intern/MOD_gpenciltint.c
-	intern/MOD_gpencilcolor.c
-	intern/MOD_gpencilinstance.c
-	intern/MOD_gpencilbuild.c
-	intern/MOD_gpencilopacity.c
-	intern/MOD_gpencillattice.c
-	intern/MOD_gpencilsmooth.c
-	intern/MOD_gpencilhook.c
-	intern/MOD_gpenciloffset.c
 )
 
 if(WITH_ALEMBIC)

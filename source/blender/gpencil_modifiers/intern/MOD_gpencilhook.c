@@ -34,6 +34,8 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
+#include "DNA_modifier_types.h"
 #include "BLI_math.h"
 
 #include "BLI_utildefines.h"
@@ -43,6 +45,8 @@
 #include "BKE_colortools.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
+#include "BKE_modifier.h"
 #include "BKE_library_query.h"
 #include "BKE_scene.h"
 #include "BKE_main.h"
@@ -50,11 +54,12 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 /* temp struct to hold data */
 struct GPHookData_cb {
@@ -74,7 +79,7 @@ struct GPHookData_cb {
 	float mat[4][4];
 };
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
 	HookGpencilModifierData *gpmd = (HookGpencilModifierData *)md;
 	gpmd->pass_index = 0;
@@ -89,7 +94,7 @@ static void initData(ModifierData *md)
 	}
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
 	HookGpencilModifierData *gmd = (HookGpencilModifierData *)md;
 	HookGpencilModifierData *tgmd = (HookGpencilModifierData *)target;
@@ -99,7 +104,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 		tgmd->curfalloff = NULL;
 	}
 
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 
 	tgmd->curfalloff = curvemapping_copy(gmd->curfalloff);
 }
@@ -190,7 +195,7 @@ static void gp_hook_co_apply(struct GPHookData_cb *tData, float weight, bGPDspoi
 
 /* deform stroke */
 static void gp_deformStroke(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
@@ -261,12 +266,12 @@ static void gp_deformStroke(
  */
 static void gp_bakeModifier(
 		Main *bmain, Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
-	Scene *scene = md->scene;
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	bGPdata *gpd = ob->data;
-	int oldframe = CFRA;
+	int oldframe = (int)DEG_get_ctime(depsgraph);
 
 	if (mmd->object == NULL)
 		return;
@@ -291,7 +296,7 @@ static void gp_bakeModifier(
 	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 }
 
-static void freeData(ModifierData *md)
+static void freeData(GpencilModifierData *md)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 
@@ -300,14 +305,14 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
+static bool isDisabled(GpencilModifierData *md, int UNUSED(userRenderParams))
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
 
 	return !mmd->object;
 }
 
-static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
+static void updateDepsgraph(GpencilModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	HookGpencilModifierData *lmd = (HookGpencilModifierData *)md;
 	if (lmd->object != NULL) {
@@ -318,7 +323,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 static void foreachObjectLink(
-        ModifierData *md, Object *ob,
+        GpencilModifierData *md, Object *ob,
         ObjectWalkFunc walk, void *userData)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;
@@ -326,40 +331,24 @@ static void foreachObjectLink(
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
-ModifierTypeInfo modifierType_Gpencil_Hook = {
+GpencilModifierTypeInfo modifierType_Gpencil_Hook = {
 	/* name */              "Hook",
 	/* structName */        "HookGpencilModifierData",
 	/* structSize */        sizeof(HookGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod,
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             0,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      gp_deformStroke,
 	/* gp_generateStrokes */   NULL,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ foreachObjectLink,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

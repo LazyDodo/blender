@@ -191,6 +191,7 @@ typedef struct Object {
 	ListBase effect  DNA_DEPRECATED;             // XXX deprecated... keep for readfile
 	ListBase defbase;   /* list of bDeformGroup (vertex groups) names and flag only */
 	ListBase modifiers; /* list of ModifierData structures */
+	ListBase greasepencil_modifiers; /* list of GpencilModifierData structures */
 	ListBase fmaps;     /* list of facemaps */
 
 	int mode;           /* Local object mode */

@@ -176,6 +176,14 @@ void OBJECT_OT_skin_armature_create(struct wmOperatorType *ot);
 void OBJECT_OT_laplaciandeform_bind(struct wmOperatorType *ot);
 void OBJECT_OT_surfacedeform_bind(struct wmOperatorType *ot);
 
+/* grease pencil modifiers */
+void OBJECT_OT_gpencil_modifier_add(struct wmOperatorType *ot);
+void OBJECT_OT_gpencil_modifier_remove(struct wmOperatorType *ot);
+void OBJECT_OT_gpencil_modifier_move_up(struct wmOperatorType *ot);
+void OBJECT_OT_gpencil_modifier_move_down(struct wmOperatorType *ot);
+void OBJECT_OT_gpencil_modifier_apply(struct wmOperatorType *ot);
+void OBJECT_OT_gpencil_modifier_copy(struct wmOperatorType *ot);
+
 /* object_constraint.c */
 void OBJECT_OT_constraint_add(struct wmOperatorType *ot);
 void OBJECT_OT_constraint_add_with_targets(struct wmOperatorType *ot);

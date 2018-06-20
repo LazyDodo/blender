@@ -33,6 +33,7 @@
 
 struct CurveMapping;
 struct Depsgraph;
+struct GpencilModifierData;
 struct ToolSettings;
 struct ListBase;
 struct bGPdata;
@@ -114,10 +115,6 @@ struct bGPDstroke *BKE_gpencil_add_stroke(struct bGPDframe *gpf, int mat_idx, in
 #define GPENCIL_ALPHA_OPACITY_THRESH 0.001f
 #define GPENCIL_STRENGTH_MIN 0.003f
 
-#define GPENCIL_MODIFIER_ACTIVE(_md, _is_render) (((_md->mode & eModifierMode_Realtime) && (_is_render == false)) || \
-												  ((_md->mode & eModifierMode_Render) && (_is_render == true)))
-#define GPENCIL_MODIFIER_EDIT(_md, _is_edit) (((_md->mode & eModifierMode_Editmode) == 0) && (_is_edit))
-
 bool gpencil_layer_is_editable(const struct bGPDlayer *gpl);
 
 /* How gpencil_layer_getframe() should behave when there
@@ -161,21 +158,6 @@ void BKE_gpencil_stroke_weights_duplicate(struct bGPDstroke *gps_src, struct bGP
 
 /* GPencil geometry evaluation */
 void BKE_gpencil_eval_geometry(struct Depsgraph *depsgraph, struct bGPdata *gpd);
-
-/* modifiers */
-bool BKE_gpencil_has_geometry_modifiers(struct Object *ob);
-
-void BKE_gpencil_stroke_modifiers(
-		struct Depsgraph *depsgraph, struct Object *ob,
-		struct bGPDlayer *gpl, struct bGPDframe *gpf, struct bGPDstroke *gps, bool is_render);
-void BKE_gpencil_geometry_modifiers(
-		struct Depsgraph *depsgraph, struct Object *ob,
-		struct bGPDlayer *gpl, struct bGPDframe *gpf, bool is_render);
-
-void BKE_gpencil_instance_modifier_instance_tfm(struct InstanceGpencilModifierData *mmd, const int elem_idx[3], float r_mat[4][4]);
-
-void BKE_gpencil_lattice_init(struct Object *ob);
-void BKE_gpencil_lattice_clear(struct Object *ob);
 
 /* stroke geometry utilities */
 void BKE_gpencil_stroke_normal(const struct bGPDstroke *gps, float r_normal[3]);

@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpenciltint.c
+/** \file blender/modifiers/intern/MOD_gpencilcolor.c
  *  \ingroup modifiers
  */
 
@@ -33,83 +33,78 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_ghash.h"
+#include "BLI_math_color.h"
 #include "BLI_math_vector.h"
 #include "BLI_utildefines.h"
 
-#include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_context.h"
 #include "BKE_gpencil.h"
-#include "BKE_material.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 
 #include "DEG_depsgraph.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
-	TintGpencilModifierData *gpmd = (TintGpencilModifierData *)md;
+	ColorGpencilModifierData *gpmd = (ColorGpencilModifierData *)md;
 	gpmd->pass_index = 0;
-	gpmd->factor = 0;
+	ARRAY_SET_ITEMS(gpmd->hsv, 1.0f, 1.0f, 1.0f);
 	gpmd->layername[0] = '\0';
-	gpmd->flag |= GP_TINT_CREATE_COLORS;
+	gpmd->flag |= GP_COLOR_CREATE_COLORS;
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
-/* tint strokes */
+/* color correction strokes */
 static void gp_deformStroke(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
+
+	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
+	float hsv[3], factor[3];
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 1, gpl, gps,
-	        mmd->flag & GP_TINT_INVERT_LAYER, mmd->flag & GP_TINT_INVERT_PASS))
+	        mmd->flag & GP_COLOR_INVERT_LAYER, mmd->flag & GP_COLOR_INVERT_PASS))
 	{
 		return;
 	}
 
-	interp_v3_v3v3(gps->runtime.tmp_stroke_rgba, gps->runtime.tmp_stroke_rgba, mmd->rgb, mmd->factor);
-	interp_v3_v3v3(gps->runtime.tmp_fill_rgba, gps->runtime.tmp_fill_rgba, mmd->rgb, mmd->factor);
+	copy_v3_v3(factor, mmd->hsv);
+	add_v3_fl(factor, -1.0f);
 
-	/* if factor is > 1, the alpha must be changed to get full tint */
-	if (mmd->factor > 1.0f) {
-		gps->runtime.tmp_stroke_rgba[3] += mmd->factor - 1.0f;
-		if (gps->runtime.tmp_fill_rgba[3] > 1e-5) {
-			gps->runtime.tmp_fill_rgba[3] += mmd->factor - 1.0f;
-		}
-	}
+	rgb_to_hsv_v(gps->runtime.tmp_stroke_rgba, hsv);
+	add_v3_v3(hsv, factor);
+	CLAMP3(hsv, 0.0f, 1.0f);
+	hsv_to_rgb_v(hsv, gps->runtime.tmp_stroke_rgba);
 
-	CLAMP4(gps->runtime.tmp_stroke_rgba, 0.0f, 1.0f);
-	CLAMP4(gps->runtime.tmp_fill_rgba, 0.0f, 1.0f);
-
-	/* if factor > 1.0, affect the strength of the stroke */
-	if (mmd->factor > 1.0f) {
-		for (int i = 0; i < gps->totpoints; i++) {
-			bGPDspoint *pt = &gps->points[i];
-			pt->strength += mmd->factor - 1.0f;
-			CLAMP(pt->strength, 0.0f, 1.0f);
-		}
-	}
+	rgb_to_hsv_v(gps->runtime.tmp_fill_rgba, hsv);
+	add_v3_v3(hsv, factor);
+	CLAMP3(hsv, 0.0f, 1.0f);
+	hsv_to_rgb_v(hsv, gps->runtime.tmp_fill_rgba);
 }
 
 static void gp_bakeModifier(
 		Main *bmain, Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
-	TintGpencilModifierData *mmd = (TintGpencilModifierData *)md;
+	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
 	bGPdata *gpd = ob->data;
 
-	GHash *gh_color = BLI_ghash_str_new("GP_Tint modifier");
+	GHash *gh_color = BLI_ghash_str_new("GP_Color modifier");
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
@@ -127,7 +122,7 @@ static void gp_bakeModifier(
 
 				/* look for color */
 				if (mmd->flag & GP_TINT_CREATE_COLORS) {
-					Material *newmat = (Material *)BLI_ghash_lookup(gh_color, mat->id.name);
+					Material *newmat = BLI_ghash_lookup(gh_color, mat->id.name);
 					if (newmat == NULL) {
 						BKE_object_material_slot_add(bmain, ob);
 						newmat = BKE_material_copy(bmain, mat);
@@ -159,40 +154,24 @@ static void gp_bakeModifier(
 	}
 }
 
-ModifierTypeInfo modifierType_Gpencil_Tint = {
-	/* name */              "Tint",
-	/* structName */        "TintGpencilModifierData",
-	/* structSize */        sizeof(TintGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
+GpencilModifierTypeInfo modifierType_Gpencil_Color = {
+	/* name */              "Hue/Saturation",
+	/* structName */        "ColorGpencilModifierData",
+	/* structSize */        sizeof(ColorGpencilModifierData),
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             eGpencilModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      gp_deformStroke,
 	/* gp_generateStrokes */   NULL,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

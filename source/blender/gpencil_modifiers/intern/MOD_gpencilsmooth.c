@@ -24,87 +24,98 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpenciloffset.c
+/** \file blender/modifiers/intern/MOD_gpencilsmooth.c
  *  \ingroup modifiers
  */
 
 #include <stdio.h>
 
 #include "DNA_meshdata_types.h"
-#include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
-#include "BLI_utildefines.h"
-#include "BLI_math.h"
-
-#include "BKE_colortools.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 
 #include "DEG_depsgraph.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
-	OffsetGpencilModifierData *gpmd = (OffsetGpencilModifierData *)md;
+	SmoothGpencilModifierData *gpmd = (SmoothGpencilModifierData *)md;
 	gpmd->pass_index = 0;
+	gpmd->flag |= GP_SMOOTH_MOD_LOCATION;
+	gpmd->factor = 0.5f;
 	gpmd->layername[0] = '\0';
 	gpmd->vgname[0] = '\0';
-	ARRAY_SET_ITEMS(gpmd->loc, 0.0f, 0.0f, 0.0f);
-	ARRAY_SET_ITEMS(gpmd->rot, 0.0f, 0.0f, 0.0f);
-	ARRAY_SET_ITEMS(gpmd->scale, 0.0f, 0.0f, 0.0f);
+	gpmd->step = 1;
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
-/* change stroke offsetness */
+/* aply smooth effect based on stroke direction */
 static void gp_deformStroke(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
-	OffsetGpencilModifierData *mmd = (OffsetGpencilModifierData *)md;
+	SmoothGpencilModifierData *mmd = (SmoothGpencilModifierData *)md;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
-
-	float mat[4][4];
-	float loc[3], rot[3], scale[3];
+	float weight = 1.0f;
+	float val;
 
 	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 1, gpl, gps,
-	        mmd->flag & GP_OFFSET_INVERT_LAYER, mmd->flag & GP_OFFSET_INVERT_PASS))
+	        mmd->layername, mmd->pass_index, 3, gpl, gps,
+	        mmd->flag & GP_SMOOTH_INVERT_LAYER, mmd->flag & GP_SMOOTH_INVERT_PASS))
 	{
 		return;
 	}
 
-	for (int i = 0; i < gps->totpoints; i++) {
-		bGPDspoint *pt = &gps->points[i];
-		MDeformVert *dvert = &gps->dvert[i];
+	/* smooth stroke */
+	if (mmd->factor > 0.0f) {
+		for (int r = 0; r < mmd->step; r++) {
+			for (int i = 0; i < gps->totpoints; i++) {
+				// bGPDspoint *pt = &gps->points[i];
+				MDeformVert *dvert = &gps->dvert[i];
 
-		/* verify vertex group */
-		float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_OFFSET_INVERT_VGROUP) == 0), vindex);
-		if (weight < 0) {
-			continue;
+				/* verify vertex group */
+				weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_SMOOTH_INVERT_VGROUP) == 0), vindex);
+				if (weight < 0) {
+					continue;
+				}
+
+				val = mmd->factor * weight;
+				/* perform smoothing */
+				if (mmd->flag & GP_SMOOTH_MOD_LOCATION) {
+					BKE_gpencil_smooth_stroke(gps, i, val);
+				}
+				if (mmd->flag & GP_SMOOTH_MOD_STRENGTH) {
+					BKE_gpencil_smooth_stroke_strength(gps, i, val);
+				}
+				if ((mmd->flag & GP_SMOOTH_MOD_THICKNESS)  && (val > 0)) {
+					/* thickness need to repeat process several times */
+					for (int r2 = 0; r2 < r * 10; r2++) {
+						BKE_gpencil_smooth_stroke_thickness(gps, i, val);
+					}
+				}
+				if (mmd->flag & GP_SMOOTH_MOD_UV) {
+					BKE_gpencil_smooth_stroke_uv(gps, i, val);
+				}
+			}
 		}
-		/* calculate matrix */
-		mul_v3_v3fl(loc, mmd->loc, weight);
-		mul_v3_v3fl(rot, mmd->rot, weight);
-		mul_v3_v3fl(scale, mmd->scale, weight);
-		add_v3_fl(scale, 1.0);
-		loc_eul_size_to_mat4(mat, loc, rot, scale);
-
-		mul_m4_v3(mat, &pt->x);
 	}
 }
 
 static void gp_bakeModifier(
 		struct Main *UNUSED(bmain), Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 
@@ -117,40 +128,24 @@ static void gp_bakeModifier(
 	}
 }
 
-ModifierTypeInfo modifierType_Gpencil_Offset = {
-	/* name */              "Offset",
-	/* structName */        "OffsetGpencilModifierData",
-	/* structSize */        sizeof(OffsetGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
+GpencilModifierTypeInfo modifierType_Gpencil_Smooth = {
+	/* name */              "Smooth",
+	/* structName */        "SmoothGpencilModifierData",
+	/* structSize */        sizeof(SmoothGpencilModifierData),
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             eGpencilModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      gp_deformStroke,
 	/* gp_generateStrokes */   NULL,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

@@ -368,10 +368,6 @@ ModifierTypeInfo modifierType_Mirror = {
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   NULL,
-	/* gp_bakeModifier */      NULL,
-
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

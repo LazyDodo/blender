@@ -36,6 +36,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
@@ -43,17 +44,18 @@
 
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
 	BuildGpencilModifierData *gpmd = (BuildGpencilModifierData *)md;
-
+	
 	/* We deliberately set this range to the half the default
 	 * frame-range to have an immediate effect ot suggest use-cases
 	 */
@@ -65,12 +67,12 @@ static void initData(ModifierData *md)
 	gpmd->length = 100.0f;
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
-static bool dependsOnTime(ModifierData *UNUSED(md))
+static bool dependsOnTime(GpencilModifierData *UNUSED(md))
 {
 	return true;
 }
@@ -401,7 +403,7 @@ static void build_concurrent(BuildGpencilModifierData *mmd, bGPDframe *gpf, floa
 
 /* Entry-point for Build Modifier */
 static void gp_generateStrokes(
-        ModifierData *md, Depsgraph *depsgraph,
+        GpencilModifierData *md, Depsgraph *depsgraph,
         Object *UNUSED(ob), bGPDlayer *gpl, bGPDframe *gpf)
 {
 	BuildGpencilModifierData *mmd = (BuildGpencilModifierData *)md;
@@ -518,7 +520,7 @@ static void gp_generateStrokes(
 #if 0
 static void gp_bakeModifier(
 		Main *bmain, const Depsgraph *UNUSED(depsgraph),
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 
@@ -532,40 +534,24 @@ static void gp_bakeModifier(
 
 /* ******************************************** */
 
-ModifierTypeInfo modifierType_Gpencil_Build = {
+GpencilModifierTypeInfo modifierType_Gpencil_Build = {
 	/* name */              "Build",
 	/* structName */        "BuildGpencilModifierData",
 	/* structSize */        sizeof(BuildGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod,
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             0,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      NULL,
 	/* gp_generateStrokes */   gp_generateStrokes,
 	/* gp_bakeModifier */      NULL,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     dependsOnTime,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

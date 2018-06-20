@@ -34,6 +34,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_utildefines.h"
 
@@ -41,13 +42,14 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 
 #include "DEG_depsgraph.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
 	ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 	gpmd->pass_index = 0;
@@ -60,7 +62,7 @@ static void initData(ModifierData *md)
 	}
 }
 
-static void freeData(ModifierData *md)
+static void freeData(GpencilModifierData *md)
 {
 	ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
 
@@ -69,7 +71,7 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
 	ThickGpencilModifierData *gmd = (ThickGpencilModifierData *)md;
 	ThickGpencilModifierData *tgmd = (ThickGpencilModifierData *)target;
@@ -79,14 +81,14 @@ static void copyData(const ModifierData *md, ModifierData *target)
 		tgmd->curve_thickness = NULL;
 	}
 
-	modifier_copyData_generic(md, target);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 
 	tgmd->curve_thickness = curvemapping_copy(gmd->curve_thickness);
 }
 
 /* change stroke thickness */
 static void gp_deformStroke(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	ThickGpencilModifierData *mmd = (ThickGpencilModifierData *)md;
@@ -132,7 +134,7 @@ static void gp_deformStroke(
 
 static void gp_bakeModifier(
 		struct Main *UNUSED(bmain), Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 
@@ -145,40 +147,24 @@ static void gp_bakeModifier(
 	}
 }
 
-ModifierTypeInfo modifierType_Gpencil_Thick = {
+GpencilModifierTypeInfo modifierType_Gpencil_Thick = {
 	/* name */              "Thickness",
 	/* structName */        "ThickGpencilModifierData",
 	/* structSize */        sizeof(ThickGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             eGpencilModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
 
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
-
-	/* gp_deformStroke */      gp_deformStroke,
-	/* gp_generateStrokes */   NULL,
+	/* gp_deformStroke */    gp_deformStroke,
+	/* gp_generateStrokes */ NULL,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,

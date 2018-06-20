@@ -626,16 +626,19 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_freestyle
 		bf_ikplugin
 		bf_modifiers
+		bf_gpencil_modifiers
 		bf_alembic
 		bf_bmesh
 		bf_gpu
 		bf_draw
 		bf_blenloader
 		bf_blenkernel
+		bf_gpencil_modifiers
 		bf_physics
 		bf_nodes
 		bf_rna
 		bf_editor_manipulator_library  # rna -> manipulator bad-level calls
+		bf_editor_object # rna -> dependency issue
 		bf_python
 		bf_imbuf
 		bf_blenlib

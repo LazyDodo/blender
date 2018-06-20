@@ -786,10 +786,6 @@ ModifierTypeInfo modifierType_Array = {
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   NULL,
-	/* gp_bakeModifier */      NULL,
-
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

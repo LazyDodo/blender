@@ -32,6 +32,11 @@ class ModifierButtonsPanel:
 class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
     bl_label = "Modifiers"
 
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return ob and ob.type != 'GPENCIL'
+
     def draw(self, context):
         layout = self.layout
 
@@ -1562,6 +1567,32 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if md.rest_source == 'BIND':
             layout.operator("object.correctivesmooth_bind", text="Unbind" if is_bind else "Bind")
 
+
+class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
+    bl_label = "Modifiers"
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return ob and ob.type == 'GPENCIL'
+
+    def draw(self, context):
+        layout = self.layout
+
+        ob = context.object
+
+        layout.operator_menu_enum("object.gpencil_modifier_add", "type")
+
+        for md in ob.grease_pencil_modifiers:
+            box = layout.template_greasepencil_modifier(md)
+            if box:
+                # match enum type to our functions, avoids a lookup table.
+                getattr(self, md.type)(box, ob, md)
+
+    # the mt.type enum is (ab)used for a lookup on function names
+    # ...to avoid lengthy if statements
+    # so each type must have a function here.
+
     def GP_NOISE(self, layout, ob, md):
         gpd = ob.data
         split = layout.split()
@@ -1849,10 +1880,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop_search(md, "layer", gpd, "layers", text="", icon='GREASEPENCIL')
         row.prop(md, "invert_layers", text="", icon="ARROW_LEFTRIGHT")
 
-#        row = col.row(align=True)
-#        row.prop(md, "pass_index", text="Pass")
-#        row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
-
     def GP_LATTICE(self, layout, ob, md):
         gpd = ob.data
         split = layout.split()
@@ -1953,9 +1980,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "pass_index", text="Pass")
         row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
 
-
 classes = (
     DATA_PT_modifiers,
+    DATA_PT_gpencil_modifiers,
 )
 
 if __name__ == "__main__":  # only for live edit.

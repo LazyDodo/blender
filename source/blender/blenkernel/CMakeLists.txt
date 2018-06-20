@@ -38,6 +38,7 @@ set(INC
 	../makesrna
 	../bmesh
 	../modifiers
+	../gpencil_modifiers
 	../nodes
 	../physics
 	../render/extern/include
@@ -254,6 +255,7 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
+	BKE_gpencil_modifier.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h

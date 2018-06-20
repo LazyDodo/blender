@@ -559,10 +559,6 @@ ModifierTypeInfo modifierType_LaplacianSmooth = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   NULL,
-	/* gp_bakeModifier */      NULL,
-
 	/* initData */          init_data,
 	/* requiredDataMask */  required_data_mask,
 	/* freeData */          NULL,

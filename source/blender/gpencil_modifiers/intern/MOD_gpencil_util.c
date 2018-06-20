@@ -42,17 +42,37 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_modifier_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BKE_global.h"
 #include "BKE_object.h"
 #include "BKE_lattice.h"
 #include "BKE_material.h"
 #include "BKE_gpencil.h"
-#include "BKE_modifier.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_colortools.h"
 
+#include "MOD_gpencil_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+
+void gpencil_modifier_type_init(GpencilModifierTypeInfo *types[])
+{
+#define INIT_GP_TYPE(typeName) (types[eGpencilModifierType_##typeName] = &modifierType_Gpencil_##typeName)
+	INIT_GP_TYPE(Noise);
+	INIT_GP_TYPE(Subdiv);
+	INIT_GP_TYPE(Simplify);
+	INIT_GP_TYPE(Thick);
+	INIT_GP_TYPE(Tint);
+	INIT_GP_TYPE(Color);
+	INIT_GP_TYPE(Instance);
+	INIT_GP_TYPE(Build);
+	INIT_GP_TYPE(Opacity);
+	INIT_GP_TYPE(Lattice);
+	INIT_GP_TYPE(Smooth);
+	INIT_GP_TYPE(Hook);
+	INIT_GP_TYPE(Offset);
+#undef INIT_GP_TYPE
+}
 
 /* verify if valid layer and pass index */
 bool is_stroke_affected_by_modifier(

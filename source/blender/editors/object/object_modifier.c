@@ -658,17 +658,6 @@ static int modifier_apply_obdata(ReportList *reports, Main *bmain, Depsgraph *de
 
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	}
-	else if (ob->type == OB_GPENCIL) {
-		if (ELEM(NULL, ob, ob->data)) {
-			return 0;
-		}
-		else if (mti->gp_bakeModifier == NULL) {
-			BKE_report(reports, RPT_ERROR, "Not implemented");
-			return 0;
-		}
-		mti->gp_bakeModifier(bmain, depsgraph, md, ob);
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-	}
 	else {
 		BKE_report(reports, RPT_ERROR, "Cannot apply modifier for this object type");
 		return 0;

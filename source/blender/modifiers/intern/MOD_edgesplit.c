@@ -167,10 +167,6 @@ ModifierTypeInfo modifierType_EdgeSplit = {
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   NULL,
-	/* gp_bakeModifier */      NULL,
-
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

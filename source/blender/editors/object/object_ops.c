@@ -147,6 +147,14 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_skin_radii_equalize);
 	WM_operatortype_append(OBJECT_OT_skin_armature_create);
 
+	/* grease pencil modifiers */
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_add);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_remove);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_move_up);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_move_down);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_apply);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_copy);
+
 	WM_operatortype_append(OBJECT_OT_correctivesmooth_bind);
 	WM_operatortype_append(OBJECT_OT_meshdeform_bind);
 	WM_operatortype_append(OBJECT_OT_explode_refresh);

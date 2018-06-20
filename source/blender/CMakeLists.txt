@@ -44,6 +44,7 @@ set(SRC_DNA_INC
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_fileglobal_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_freestyle_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_genfile.h
+	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_gpencil_modifier_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_gpencil_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_gpu_types.h
 	${CMAKE_CURRENT_SOURCE_DIR}/makesdna/DNA_group_types.h
@@ -112,6 +113,7 @@ add_subdirectory(gpu)
 add_subdirectory(imbuf)
 add_subdirectory(nodes)
 add_subdirectory(modifiers)
+add_subdirectory(gpencil_modifiers)
 add_subdirectory(makesdna)
 add_subdirectory(makesrna)
 

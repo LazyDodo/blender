@@ -65,6 +65,7 @@
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
@@ -1802,8 +1803,8 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 				bGPdata *gpd_src = base->object->data;
 
 				/* Apply all GP modifiers before */
-				for (ModifierData *md = base->object->modifiers.first; md; md = md->next) {
-					const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+				for (GpencilModifierData *md = base->object->greasepencil_modifiers.first; md; md = md->next) {
+					const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
 					if (mti->gp_bakeModifier) {
 						mti->gp_bakeModifier(bmain, depsgraph, md, base->object);
 					}

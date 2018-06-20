@@ -285,10 +285,6 @@ ModifierTypeInfo modifierType_Collision = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   NULL,
-	/* gp_bakeModifier */      NULL,
-
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,

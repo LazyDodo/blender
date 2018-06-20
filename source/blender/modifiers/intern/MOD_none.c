@@ -72,10 +72,6 @@ ModifierTypeInfo modifierType_None = {
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
 
-	/* gp_deformStroke */      NULL,
-	/* gp_generateStrokes */   NULL,
-	/* gp_bakeModifier */      NULL,
-
 	/* initData */          NULL,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

@@ -35,6 +35,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_rand.h"
@@ -42,6 +43,7 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_object.h"
@@ -52,11 +54,12 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
-#include "MOD_modifiertypes.h"
 #include "MOD_gpencil_util.h"
+#include "MOD_gpencil_modifiertypes.h"
 
-static void initData(ModifierData *md)
+static void initData(GpencilModifierData *md)
 {
 	InstanceGpencilModifierData *gpmd = (InstanceGpencilModifierData *)md;
 	gpmd->count[0] = 1;
@@ -81,52 +84,9 @@ static void initData(ModifierData *md)
 	gpmd->rnd[0] = 1;
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 {
-	modifier_copyData_generic(md, target);
-}
-
-/* -------------------------------- */
-
-/* helper function for per-instance positioning */
-void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd, const int elem_idx[3], float r_mat[4][4])
-{
-	float offset[3], rot[3], scale[3];
-	int ri = mmd->rnd[0];
-	float factor;
-
-	offset[0] = mmd->offset[0] * elem_idx[0];
-	offset[1] = mmd->offset[1] * elem_idx[1];
-	offset[2] = mmd->offset[2] * elem_idx[2];
-
-	/* rotation */
-	if (mmd->flag & GP_INSTANCE_RANDOM_ROT) {
-		factor = mmd->rnd_rot * mmd->rnd[ri];
-		mul_v3_v3fl(rot, mmd->rot, factor);
-		add_v3_v3(rot, mmd->rot);
-	}
-	else {
-		copy_v3_v3(rot, mmd->rot);
-	}
-
-	/* scale */
-	if (mmd->flag & GP_INSTANCE_RANDOM_SIZE) {
-		factor = mmd->rnd_size * mmd->rnd[ri];
-		mul_v3_v3fl(scale, mmd->scale, factor);
-		add_v3_v3(scale, mmd->scale);
-	}
-	else {
-		copy_v3_v3(scale, mmd->scale);
-	}
-
-	/* advance random index */
-	mmd->rnd[0]++;
-	if (mmd->rnd[0] > 19) {
-		mmd->rnd[0] = 1;
-	}
-
-	/* calculate matrix */
-	loc_eul_size_to_mat4(r_mat, offset, rot, scale);
+	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
 /* -------------------------------- */
@@ -134,7 +94,7 @@ void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd
 /* array modifier - generate geometry callback (for viewport/rendering) */
 /* TODO: How to skip this for the simplify options?   -->  !GP_SIMPLIFY_MODIF(ts, playing) */
 static void generate_geometry(
-        ModifierData *md, Depsgraph *UNUSED(depsgraph),
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
@@ -240,7 +200,7 @@ static void generate_geometry(
 /* gp_bakeModifier - "Bake to Data" Mode */
 static void bakeModifierGP_strokes(
         Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 
@@ -272,10 +232,10 @@ static Object *array_instance_add_ob_copy(Main *bmain, Scene *scene, Object *fro
 }
 
 /* gp_bakeModifier - "Make Objects" Mode */
-static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
+static void bakeModifierGP_objects(Main *bmain, Depsgraph *depsgraph, GpencilModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	Scene *scene = md->scene;
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	/* reset random */
 	mmd->rnd[0] = 1;
 
@@ -284,8 +244,8 @@ static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
 		for (int y = 0; y < mmd->count[1]; y++) {
 			for (int z = 0; z < mmd->count[2]; z++) {
 				Object *newob;
-				ModifierData *fmd;
-
+				GpencilModifierData *fmd;
+				
 				const int elem_idx[3] = {x, y, z};
 				float mat[4][4], finalmat[4][4];
 				int sh;
@@ -319,10 +279,10 @@ static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
 				newob = array_instance_add_ob_copy(bmain, scene, ob);
 
 				/* remove array on destination object */
-				fmd = (ModifierData *)BLI_findstring(&newob->modifiers, md->name, offsetof(ModifierData, name));
+				fmd = (GpencilModifierData *)BLI_findstring(&newob->modifiers, md->name, offsetof(GpencilModifierData, name));
 				if (fmd) {
 					BLI_remlink(&newob->modifiers, fmd);
-					modifier_free(fmd);
+					BKE_gpencil_modifier_free(fmd);
 				}
 
 				/* copy transforms to destination object */
@@ -340,12 +300,12 @@ static void bakeModifierGP_objects(Main *bmain, ModifierData *md, Object *ob)
 
 /* Generic "gp_generateStrokes" callback */
 static void gp_generateStrokes(
-        ModifierData *md, Depsgraph *depsgraph,
+        GpencilModifierData *md, Depsgraph *depsgraph,
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-
-	/* When the "make_objects" flag is set, this modifier is handled as part of the
+	
+	/* When the "make_objects" flag is set, this modifier is handled as part of the 
 	 * draw engine instead. The main benefit is that the instances won't suffer from
 	 * z-ordering problems.
 	 *
@@ -361,55 +321,39 @@ static void gp_generateStrokes(
 /* Generic "gp_bakeModifier" callback */
 static void gp_bakeModifier(
 		Main *bmain, Depsgraph *depsgraph,
-        ModifierData *md, Object *ob)
+        GpencilModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-
+	
 	/* Create new objects or add all to current datablock.
 	 * Sometimes it's useful to have the option to do either of these...
 	 */
 	if (mmd->flag & GP_INSTANCE_MAKE_OBJECTS) {
-		bakeModifierGP_objects(bmain, md, ob);
+		bakeModifierGP_objects(bmain, depsgraph, md, ob);
 	}
 	else {
 		bakeModifierGP_strokes(depsgraph, md, ob);
 	}
 }
 
-ModifierTypeInfo modifierType_Gpencil_Instance = {
+GpencilModifierTypeInfo modifierType_Gpencil_Instance = {
 	/* name */              "Instance",
 	/* structName */        "InstanceGpencilModifierData",
 	/* structSize */        sizeof(InstanceGpencilModifierData),
-	/* type */              eModifierTypeType_Gpencil,
-	/* flags */             eModifierTypeFlag_GpencilMod | eModifierTypeFlag_SupportsEditmode,
+	/* type */              eGpencilModifierTypeType_Gpencil,
+	/* flags */             0,
 
 	/* copyData */          copyData,
-
-	/* deformVerts_DM */    NULL,
-	/* deformMatrices_DM */ NULL,
-	/* deformVertsEM_DM */  NULL,
-	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
-
-	/* deformVerts */       NULL,
-	/* deformMatrices */    NULL,
-	/* deformVertsEM */     NULL,
-	/* deformMatricesEM */  NULL,
-	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* gp_deformStroke */      NULL,
 	/* gp_generateStrokes */   gp_generateStrokes,
 	/* gp_bakeModifier */    gp_bakeModifier,
 
 	/* initData */          initData,
-	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
-	/* dependsOnNormals */	NULL,
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,
