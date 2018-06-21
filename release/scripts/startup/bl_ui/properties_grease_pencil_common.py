@@ -820,7 +820,7 @@ class GPENCIL_MT_color_specials(Menu):
 
 
 class GreasePencilDataPanel:
-    bl_label = "Grease Pencil Layers"
+    bl_label = "Annotations"
     bl_region_type = 'UI'
 
     @classmethod
@@ -828,22 +828,22 @@ class GreasePencilDataPanel:
         if context.gpencil_data is None:
             return False
 
-        if context.space_data.type in {'VIEW_3D', 'PROPERTIES'}:
-            if context.space_data.context == 'DATA':
-                if context.object.type != 'GPENCIL':
-                    return False
+        # Don't show for GP Object
+        # XXX: Needs review when we get annotations fully working
+        ob = context.object
+        if ob and ob.type == 'GPENCIL':
+            return False
 
         return True
 
     @staticmethod
     def draw_header(self, context):
-        if context.space_data.type != 'PROPERTIES':
-            self.layout.prop(context.space_data, "show_grease_pencil", text="")
+        self.layout.prop(context.space_data, "show_grease_pencil", text="")
 
     @staticmethod
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
+        #layout.use_property_split = True
         layout.use_property_decorate = False
 
         # owner of Grease Pencil data
@@ -854,8 +854,7 @@ class GreasePencilDataPanel:
         if context.space_data.type == 'CLIP_EDITOR':
             layout.row().prop(context.space_data, "grease_pencil_source", expand=True)
         # Grease Pencil data selector
-        if context.space_data.type != 'PROPERTIES':
-            layout.template_ID(gpd_owner, "grease_pencil", new="gpencil.data_add", unlink="gpencil.data_unlink")
+        layout.template_ID(gpd_owner, "grease_pencil", new="gpencil.data_add", unlink="gpencil.data_unlink")
 
         # Grease Pencil data...
         if (gpd is None) or (not gpd.layers):
