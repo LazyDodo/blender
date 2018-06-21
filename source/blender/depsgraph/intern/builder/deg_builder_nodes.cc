@@ -511,6 +511,12 @@ void DepsgraphNodeBuilder::build_object(int base_index,
 		data.builder = this;
 		modifiers_foreachIDLink(object, modifier_walk, &data);
 	}
+	/* Grease Pencil Modifiers. */
+	if (object->modifiers.first != NULL) {
+		BuilderWalkUserData data;
+		data.builder = this;
+		BKE_gpencil_modifiers_foreachIDLink(object, modifier_walk, &data);
+	}
 	/* Constraints. */
 	if (object->constraints.first != NULL) {
 		BuilderWalkUserData data;

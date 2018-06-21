@@ -537,6 +537,12 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 		data.builder = this;
 		modifiers_foreachIDLink(object, modifier_walk, &data);
 	}
+	/* Grease Pencil Modifiers. */
+	if (object->greasepencil_modifiers.first != NULL) {
+		BuilderWalkUserData data;
+		data.builder = this;
+		BKE_gpencil_modifiers_foreachIDLink(object, modifier_walk, &data);
+	}
 	/* Constraints. */
 	if (object->constraints.first != NULL) {
 		BuilderWalkUserData data;
