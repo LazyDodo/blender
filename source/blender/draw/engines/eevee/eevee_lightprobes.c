@@ -456,21 +456,33 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_BACK;
 		psl->probe_display = DRW_pass_create("LightProbe Display", state);
 
-		DRW_shgroup_instance_format(e_data.format_probe_display_cube, {
-		    {"probe_id",       DRW_ATTRIB_INT, 1},
-		    {"probe_location", DRW_ATTRIB_FLOAT, 3},
-		    {"sphere_size",    DRW_ATTRIB_FLOAT, 1},
-		});
-
-		DRWShadingGroup *grp = DRW_shgroup_instance_create(
+		/* Cube Display */
+		DRWShadingGroup *grp = DRW_shgroup_empty_tri_batch_create(
 		        e_data.probe_cube_display_sh,
 		        psl->probe_display,
-		        DRW_cache_sphere_get(),
-		        e_data.format_probe_display_cube);
-		stl->g_data->cube_display_shgrp = grp;
+		        GPU_texture_layers(lcache->cube_tx) * 2);
 		DRW_shgroup_uniform_texture_ref(grp, "probeCubes", &lcache->cube_tx);
 		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
+		DRW_shgroup_uniform_vec3(grp, "screen_vecs[0]", DRW_viewport_screenvecs_get(), 2);
 
+		/* Grid Display */
+		EEVEE_LightGrid *egrid = lcache->grid_data + 1;
+		for (int p = 1; p < lcache->grid_count; ++p, egrid++) {
+			DRWShadingGroup *shgrp = DRW_shgroup_create(e_data.probe_grid_display_sh, psl->probe_display);
+			DRW_shgroup_uniform_int(shgrp, "offset", &egrid->offset, 1);
+			DRW_shgroup_uniform_ivec3(shgrp, "grid_resolution", egrid->resolution, 1);
+			DRW_shgroup_uniform_vec3(shgrp, "corner", egrid->corner, 1);
+			DRW_shgroup_uniform_vec3(shgrp, "increment_x", egrid->increment_x, 1);
+			DRW_shgroup_uniform_vec3(shgrp, "increment_y", egrid->increment_y, 1);
+			DRW_shgroup_uniform_vec3(shgrp, "increment_z", egrid->increment_z, 1);
+			DRW_shgroup_uniform_vec3(shgrp, "screen_vecs[0]", DRW_viewport_screenvecs_get(), 2);
+			DRW_shgroup_uniform_texture_ref(shgrp, "irradianceGrid", &lcache->grid_tx);
+			DRW_shgroup_uniform_float_copy(shgrp, "sphere_size", 1.0f); /* TODO param */
+			int tri_count = egrid->resolution[0] * egrid->resolution[1] * egrid->resolution[2] * 2;
+			DRW_shgroup_call_procedural_triangles_add(shgrp, tri_count, NULL);
+		}
+
+		/* Planar Display */
 		DRW_shgroup_instance_format(e_data.format_probe_display_planar, {
 		    {"probe_id", DRW_ATTRIB_INT, 1},
 		    {"probe_mat", DRW_ATTRIB_FLOAT, 16},

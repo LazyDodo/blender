@@ -289,7 +289,7 @@ static void eevee_draw_background(void *vedata)
 		EEVEE_subsurface_compute(sldata, vedata);
 		EEVEE_reflection_compute(sldata, vedata);
 		EEVEE_occlusion_draw_debug(sldata, vedata);
-		// DRW_draw_pass(psl->probe_display);
+		DRW_draw_pass(psl->probe_display);
 		EEVEE_refraction_compute(sldata, vedata);
 
 		/* Opaque refraction */
