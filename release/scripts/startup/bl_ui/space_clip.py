@@ -24,10 +24,6 @@ from bpy.app.translations import pgettext_iface as iface_
 from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
         GreasePencilDrawingToolsPanel,
-        GreasePencilStrokeEditPanel,
-        GreasePencilStrokeSculptPanel,
-        GreasePencilPaletteColorPanel,
-        GreasePencilBrushCurvesPanel,
         GreasePencilDataPanel)
 
 
@@ -1145,11 +1141,6 @@ class CLIP_PT_grease_pencil(GreasePencilDataPanel, CLIP_PT_clip_view_panel, Pane
     # NOTE: this is just a wrapper around the generic GP Panel
     # But, this should only be visible in "clip" view
 
-
-# Grease Pencil palette colors
-class CLIP_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-    bl_region_type = 'TOOLS'
 
 # Grease Pencil drawing tools
 class CLIP_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
