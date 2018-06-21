@@ -67,13 +67,62 @@ class DATA_PT_gpencil(DataButtonsPanel, Panel):
         layout.template_ID(gpd_owner, "data", new="gpencil.data_add", unlink="gpencil.data_unlink")
 
 
-class DATA_PT_gpencil_datapanel(GreasePencilDataPanel, Panel):
+class DATA_PT_gpencil_datapanel(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_label = "Layers"
 
-    # NOTE: this is just a wrapper around the generic GP Panel
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        gpd = context.gpencil_data
+
+        # Grease Pencil data...
+        if (gpd is None) or (not gpd.layers):
+            layout.operator("gpencil.layer_add", text="New Layer")
+        else:
+            self.draw_layers(context, layout, gpd)
+
+    def draw_layers(self, context, layout, gpd):
+        row = layout.row()
+
+        col = row.column()
+        if len(gpd.layers) >= 2:
+            layer_rows = 5
+        else:
+            layer_rows = 2
+        col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index", rows=layer_rows)
+
+        col = row.column()
+
+        sub = col.column(align=True)
+        sub.operator("gpencil.layer_add", icon='ZOOMIN', text="")
+        sub.operator("gpencil.layer_remove", icon='ZOOMOUT', text="")
+
+        gpl = context.active_gpencil_layer
+        if gpl:
+            sub.menu("GPENCIL_MT_layer_specials", icon='DOWNARROW_HLT', text="")
+
+            if len(gpd.layers) > 1:
+                col.separator()
+
+                sub = col.column(align=True)
+                sub.operator("gpencil.layer_move", icon='TRIA_UP', text="").type = 'UP'
+                sub.operator("gpencil.layer_move", icon='TRIA_DOWN', text="").type = 'DOWN'
+
+                col.separator()
+
+                sub = col.column(align=True)
+                sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
+                sub.operator("gpencil.layer_isolate", icon='RESTRICT_VIEW_OFF', text="").affect_visibility = True
+
+        row = layout.row(align=True)
+        if gpl:
+            row.prop(gpl, "opacity", text="Opacity", slider=True)
 
 
 class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
