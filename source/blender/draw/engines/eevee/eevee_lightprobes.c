@@ -301,6 +301,7 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, GPUTexture *rt_color, GPUTexture *rt_depth)
 {
 	EEVEE_PassList *psl = vedata->psl;
+	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 
 	{
@@ -356,6 +357,16 @@ void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
 		DRW_shgroup_uniform_float(grp, "farClip", &pinfo->far_clip, 1);
 		DRW_shgroup_uniform_texture(grp, "texHammersley", e_data.hammersley);
 		DRW_shgroup_uniform_texture(grp, "probeDepth", rt_depth);
+
+		struct Gwn_Batch *geom = DRW_cache_fullscreen_quad_get();
+		DRW_shgroup_call_add(grp, geom, NULL);
+	}
+
+	{
+		psl->probe_grid_fill = DRW_pass_create("LightProbe Grid Floodfill", DRW_STATE_WRITE_COLOR);
+
+		DRWShadingGroup *grp = DRW_shgroup_create(e_data.probe_grid_fill_sh, psl->probe_grid_fill);
+		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &light_cache->grid_tx);
 
 		struct Gwn_Batch *geom = DRW_cache_fullscreen_quad_get();
 		DRW_shgroup_call_add(grp, geom, NULL);
