@@ -467,6 +467,7 @@ class SCENE_PT_simplify(SceneButtonsPanel, Panel):
 class SCENE_PT_gp_simplify(SceneButtonsPanel, Panel):
     bl_label = "Simplify Grease Pencil"
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context):
         rd = context.scene.render
