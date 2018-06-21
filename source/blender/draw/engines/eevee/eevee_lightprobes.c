@@ -211,7 +211,7 @@ static void lightprobe_shaders_init(void)
 	        datatoc_common_view_lib_glsl,
 	        datatoc_lightprobe_cube_display_vert_glsl);
 
-	e_data.probe_cube_display_sh = DRW_shader_create(vert_str, NULL, shader_str, NULL);
+	e_data.probe_cube_display_sh = DRW_shader_create(vert_str, NULL, shader_str, SHADER_DEFINES);
 
 	MEM_freeN(vert_str);
 	MEM_freeN(shader_str);
@@ -457,13 +457,14 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		psl->probe_display = DRW_pass_create("LightProbe Display", state);
 
 		/* Cube Display */
-		DRWShadingGroup *grp = DRW_shgroup_empty_tri_batch_create(
-		        e_data.probe_cube_display_sh,
-		        psl->probe_display,
-		        GPU_texture_layers(lcache->cube_tx) * 2);
+		int cube_count = GPU_texture_layers(lcache->cube_tx) - 1; /* don't count the world. */
+		DRWShadingGroup *grp = DRW_shgroup_empty_tri_batch_create(e_data.probe_cube_display_sh,
+		                                                          psl->probe_display, cube_count * 2);
 		DRW_shgroup_uniform_texture_ref(grp, "probeCubes", &lcache->cube_tx);
+		DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
 		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 		DRW_shgroup_uniform_vec3(grp, "screen_vecs[0]", DRW_viewport_screenvecs_get(), 2);
+		DRW_shgroup_uniform_float_copy(grp, "sphere_size", 0.2f); /* TODO param */
 
 		/* Grid Display */
 		EEVEE_LightGrid *egrid = lcache->grid_data + 1;

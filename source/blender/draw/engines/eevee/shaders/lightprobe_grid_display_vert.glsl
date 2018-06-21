@@ -45,4 +45,5 @@ void main()
 	ws_cell_location += screen_pos * 0.02 * sphere_size;
 
 	gl_Position = ViewProjectionMatrix * vec4(ws_cell_location , 1.0);
+	gl_Position.z += 0.0001; /* Small bias to let the icon draw without zfighting */
 }
