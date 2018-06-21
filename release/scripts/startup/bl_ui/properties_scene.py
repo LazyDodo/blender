@@ -524,11 +524,11 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
 
                 split = layout.split()
                 col = split.column()
-                col.prop(active_layer, "color")
+                col.prop(active_layer, "color", text="")
                 col = split.column()
-                layout.prop(active_layer, "thickness")
+                col.prop(active_layer, "thickness")
 
-                if lanpr.line_thickness > 0.01:
+                if active_layer.thickness > 0.01:
                     col = layout.column()
                     col.label(text="Enable:")
                     row = col.row(align=True)
