@@ -1779,6 +1779,9 @@ static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl
 			copy_v3_v3(prb_data->probe_cube_mat[3], ob->obmat[3]);
 
 			DRWShadingGroup *grp = shgroup_theme_id_to_probe_cube_outline_shgrp(stl, theme_id);
+			/* TODO remove or change the drawing of the cube probes. Theses line draws nothing on purpose
+			 * to keep the call ids correct. */
+			zero_m4(prb_data->probe_cube_mat);
 			DRW_shgroup_call_dynamic_add(grp, call_id, &prb_data->draw_size, prb_data->probe_cube_mat);
 		}
 		else {
