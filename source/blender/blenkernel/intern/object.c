@@ -3793,6 +3793,47 @@ bool BKE_object_modifier_use_time(Object *ob, ModifierData *md)
 	return false;
 }
 
+bool BKE_object_modifier_gpencil_use_time(Object *ob, GpencilModifierData *md)
+{
+	if (BKE_gpencil_modifier_dependsOnTime(md)) {
+		return true;
+	}
+
+	/* Check whether modifier is animated. */
+	/* TODO (Aligorith): this should be handled as part of build_animdata() */
+	if (ob->adt) {
+		AnimData *adt = ob->adt;
+		FCurve *fcu;
+
+		char pattern[MAX_NAME + 32];
+		BLI_snprintf(pattern, sizeof(pattern), "grease_pencil_modifiers[\"%s\"]", md->name);
+
+		/* action - check for F-Curves with paths containing 'grease_pencil_modifiers[' */
+		if (adt->action) {
+			for (fcu = (FCurve *)adt->action->curves.first;
+				fcu != NULL;
+				fcu = (FCurve *)fcu->next)
+			{
+				if (fcu->rna_path && strstr(fcu->rna_path, pattern))
+					return true;
+			}
+		}
+
+		/* This here allows modifier properties to get driven and still update properly
+		*
+		*/
+		for (fcu = (FCurve *)adt->drivers.first;
+			fcu != NULL;
+			fcu = (FCurve *)fcu->next)
+		{
+			if (fcu->rna_path && strstr(fcu->rna_path, pattern))
+				return true;
+		}
+	}
+
+	return false;
+}
+
 /* set "ignore cache" flag for all caches on this object */
 static void object_cacheIgnoreClear(Object *ob, int state)
 {

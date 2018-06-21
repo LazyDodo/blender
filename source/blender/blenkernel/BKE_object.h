@@ -73,6 +73,7 @@ void BKE_object_free_caches(struct Object *object);
 
 void BKE_object_modifier_hook_reset(struct Object *ob, struct HookModifierData *hmd);
 void BKE_object_modifier_gpencil_hook_reset(struct Object *ob, struct HookGpencilModifierData *hmd);
+bool BKE_object_modifier_gpencil_use_time(struct Object *ob, struct GpencilModifierData *md);
 
 bool BKE_object_support_modifier_type_check(const struct Object *ob, int modifier_type);
 

@@ -524,6 +524,13 @@ bool BKE_gpencil_modifier_unique_name(ListBase *modifiers, GpencilModifierData *
 	return false;
 }
 
+bool BKE_gpencil_modifier_dependsOnTime(GpencilModifierData *md)
+{
+	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+
+	return mti->dependsOnTime && mti->dependsOnTime(md);
+}
+
 const GpencilModifierTypeInfo *BKE_gpencil_modifierType_getInfo(GpencilModifierType type)
 {
 	/* type unsigned, no need to check < 0 */

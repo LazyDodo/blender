@@ -84,6 +84,7 @@ extern "C" {
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_modifier.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_node.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
@@ -1762,6 +1763,24 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 			}
 			if (md->type == eModifierType_Cloth) {
 				build_cloth(object, md);
+			}
+		}
+	}
+	/* Grease Pencil Modifiers */
+	if (object->greasepencil_modifiers.first != NULL) {
+		ModifierUpdateDepsgraphContext ctx = {};
+		ctx.scene = scene_;
+		ctx.object = object;
+		LISTBASE_FOREACH(GpencilModifierData *, md, &object->greasepencil_modifiers) {
+			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo((GpencilModifierType)md->type);
+			if (mti->updateDepsgraph) {
+				DepsNodeHandle handle = create_node_handle(obdata_ubereval_key);
+				ctx.node = reinterpret_cast< ::DepsNodeHandle* >(&handle);
+				mti->updateDepsgraph(md, &ctx);
+			}
+			if (BKE_object_modifier_gpencil_use_time(object, md)) {
+				TimeSourceKey time_src_key;
+				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
 			}
 		}
 	}

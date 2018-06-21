@@ -232,6 +232,7 @@ struct GpencilModifierData  *BKE_gpencil_modifier_new(int type);
 void BKE_gpencil_modifier_free_ex(struct GpencilModifierData *md, const int flag);
 void BKE_gpencil_modifier_free(struct GpencilModifierData *md);
 bool BKE_gpencil_modifier_unique_name(struct ListBase *modifiers, struct GpencilModifierData *gmd);
+bool BKE_gpencil_modifier_dependsOnTime(struct GpencilModifierData *md);
 struct GpencilModifierData *BKE_gpencil_modifiers_findByType(struct Object *ob, GpencilModifierType type);
 struct GpencilModifierData *BKE_gpencil_modifiers_findByName(struct Object *ob, const char *name);
 void BKE_gpencil_modifier_copyData_generic(const struct GpencilModifierData *md_src, struct GpencilModifierData *md_dst);
