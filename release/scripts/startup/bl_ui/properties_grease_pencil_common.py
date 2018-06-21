@@ -75,6 +75,7 @@ def gpencil_active_brush_settings_simple(context, layout):
     row.prop(brush, "angle_factor", text="Factor", slider=True)
 
 
+# XXX: To be replaced with active tools
 class GreasePencilDrawingToolsPanel:
     # subclass must set
     # bl_space_type = 'IMAGE_EDITOR'
@@ -84,8 +85,7 @@ class GreasePencilDrawingToolsPanel:
 
     @classmethod
     def poll(cls, context):
-        # XXX - disabled in 2.8 branch.
-        return False
+        return True
 
     @staticmethod
     def draw(self, context):
@@ -942,29 +942,6 @@ class GreasePencilOnionPanel:
             subrow.active = gp.onion_mode in ('RELATIVE', 'SELECTED')
             subrow.prop(gp, "use_onion_loop", text="Loop")
 
-###############################
-
-# FIXME: Placeholder - Annotation views shouldn't use this anymore...
-class GreasePencilDeprecatedUIPanel:
-    bl_region_type = 'TOOLS'
-
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        layout.label("FIXME: Placeholder for deprecated functionality", icon='ERROR')
-
-
-class GreasePencilPaletteColorPanel(GreasePencilDeprecatedUIPanel):
-    bl_label = "Grease Pencil Colors"
-
-
-# FIXME: Placeholder - Annotation views shouldn't use this anymore...
-class GreasePencilBrushCurvesPanel(GreasePencilDeprecatedUIPanel):
-    bl_label = "Grease Pencil Brush Curves"
-
-
-class GreasePencilBrushPanel(GreasePencilDeprecatedUIPanel):
-    bl_label = "Grease Pencil Brushes"
 
 ###############################
 

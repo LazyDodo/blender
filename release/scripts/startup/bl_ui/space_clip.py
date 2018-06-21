@@ -26,7 +26,6 @@ from .properties_grease_pencil_common import (
         GreasePencilDrawingToolsPanel,
         GreasePencilStrokeEditPanel,
         GreasePencilStrokeSculptPanel,
-        GreasePencilBrushPanel,
         GreasePencilPaletteColorPanel,
         GreasePencilBrushCurvesPanel,
         GreasePencilDataPanel)
@@ -1158,29 +1157,6 @@ class CLIP_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
     bl_region_type = 'TOOLS'
 
 
-# Grease Pencil stroke editing tools
-class CLIP_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-    bl_region_type = 'TOOLS'
-
-
-# Grease Pencil stroke sculpting tools
-class CLIP_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-    bl_region_type = 'TOOLS'
-
-
-# Grease Pencil drawing brushes
-class CLIP_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-    bl_region_type = 'TOOLS'
-
-
-# Grease Pencil drawing curves
-class CLIP_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-    bl_region_type = 'TOOLS'
-
 
 class CLIP_MT_view(Menu):
     bl_label = "View"
@@ -1508,12 +1484,7 @@ classes = (
     CLIP_PT_footage_info,
     CLIP_PT_tools_scenesetup,
     CLIP_PT_grease_pencil,
-    CLIP_PT_grease_pencil_palettecolor,
     CLIP_PT_tools_grease_pencil_draw,
-    CLIP_PT_tools_grease_pencil_edit,
-    CLIP_PT_tools_grease_pencil_sculpt,
-    CLIP_PT_tools_grease_pencil_brush,
-    CLIP_PT_tools_grease_pencil_brushcurves,
     CLIP_MT_view,
     CLIP_MT_clip,
     CLIP_MT_proxy,

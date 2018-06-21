@@ -24,11 +24,6 @@ from bpy.app.translations import pgettext_iface as iface_
 from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
         GreasePencilDrawingToolsPanel,
-        GreasePencilStrokeEditPanel,
-        GreasePencilStrokeSculptPanel,
-        GreasePencilBrushPanel,
-        GreasePencilPaletteColorPanel,
-        GreasePencilBrushCurvesPanel,
         GreasePencilDataPanel,
         GreasePencilToolsPanel
         )
@@ -532,43 +527,6 @@ class NODE_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
     bl_region_type = 'TOOLS'
 
 
-# Grease Pencil stroke editing tools
-class NODE_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-
-# Grease Pencil stroke sculpting tools
-class NODE_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-# Grease Pencil drawing brushes
-
-
-class NODE_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-# Grease Pencil palette colors
-class NODE_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-    # NOTE: this is just a wrapper around the generic GP Panel
-
-    @classmethod
-    def poll(cls, context):
-        snode = context.space_data
-        return snode is not None and snode.node_tree is not None
-
-# Grease Pencil drawing curves
-
-
-class NODE_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
 # -----------------------------
 
 
@@ -593,13 +551,8 @@ classes = (
     NODE_PT_quality,
     NODE_UL_interface_sockets,
     NODE_PT_grease_pencil,
-    NODE_PT_grease_pencil_palettecolor,
     NODE_PT_grease_pencil_tools,
     NODE_PT_tools_grease_pencil_draw,
-    NODE_PT_tools_grease_pencil_edit,
-    NODE_PT_tools_grease_pencil_sculpt,
-    NODE_PT_tools_grease_pencil_brush,
-    NODE_PT_tools_grease_pencil_brushcurves,
 )
 
 
