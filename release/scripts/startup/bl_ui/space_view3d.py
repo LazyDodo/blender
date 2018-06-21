@@ -2821,10 +2821,10 @@ class VIEW3D_MT_edit_mesh_edges_data(Menu):
 
         layout.separator()
 
-        if with_freestyle:
-            layout.operator("mesh.mark_freestyle_edge").clear = False
-            layout.operator("mesh.mark_freestyle_edge", text="Clear Freestyle Edge").clear = True
-            layout.separator()
+        #if with_freestyle:     we still presere freestyle mark functions.
+        layout.operator("mesh.mark_freestyle_edge").clear = False
+        layout.operator("mesh.mark_freestyle_edge", text="Clear Freestyle Edge").clear = True
+        layout.separator()
 
 
 class VIEW3D_MT_edit_mesh_edges(Menu):

@@ -6748,7 +6748,8 @@ void MESH_OT_symmetry_snap(struct wmOperatorType *ot)
 
 /** \} */
 
-#ifdef WITH_FREESTYLE
+/* preserve the edge marking capability */
+//#ifdef WITH_FREESTYLE
 
 /* -------------------------------------------------------------------- */
 /** \name Mark Edge (FreeStyle) Operator
@@ -6918,4 +6919,4 @@ void MESH_OT_mark_freestyle_face(wmOperatorType *ot)
 
 /** \} */
 
-#endif  /* WITH_FREESTYLE */
+//#endif  /* WITH_FREESTYLE */
