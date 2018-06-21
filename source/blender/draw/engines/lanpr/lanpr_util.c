@@ -8,63 +8,14 @@ Author(s):WuYiming - xp8110@outlook.com
 #define _CRT_SEQURE_NO_WARNINGS
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
-#include "NUL_Util.h"
+//#include <time.h>
+#include "lanpr_util.h"
+#include "lanpr_all.h"
+#include <math.h>
 
 nSafeStringCollection SSC;
 
-extern NUL MAIN;
 
-
-struct tm* nulGetFullTime() {
-	time_t t = time(0);
-	return localtime(&t);
-}
-
-void nulRecordTime(nTimeRecorder* tr) {
-	//GetSystemTime(&tr->Time);
-	//time(&tr->At);
-	tr->At = clock();
-}
-real nulTimeElapsedSecondsf(nTimeRecorder* End, nTimeRecorder* Begin) {
-	return (real)(End->At - Begin->At) / CLOCKS_PER_SEC;
-}
-int nulTimeElapsedMilliseconds(nTimeRecorder* End, nTimeRecorder* Begin) {
-	return(
-		End->Time.wMilliseconds - Begin->Time.wMilliseconds +
-		(End->Time.wSecond - Begin->Time.wSecond) * 1000 +
-		(End->Time.wMinute - Begin->Time.wMinute) * 60000 +
-		(End->Time.wHour - Begin->Time.wHour) * 3600000
-		);
-}
-
-void nulSetAuthorInfo(char* Name,char* CopyrightString){
-	strSafeSet(&MAIN.Author.Name, Name);
-	strSafeSet(&MAIN.Author.CopyrightString, CopyrightString);
-}
-
-void nutCreateNUID(nHyperItem* hi) {
-	sprintf(hi->NUID.String, "%hd%02hd%02hd%02hd%02hd%02hd%08X", NUL_HYPER_CREATED_TIME(hi), hi);
-}
-void nutMakeHyperData(nHyperItem* hi) {
-	struct tm *time;
-	time = nulGetFullTime();
-	hi->CreatedBy = &MAIN.Author;
-	hi->TimeCreated.Year = time->tm_year + 1900;
-	hi->TimeCreated.Month = time->tm_mon + 1;
-	hi->TimeCreated.Day = time->tm_mday;
-	hi->TimeCreated.Hour = time->tm_hour;
-	hi->TimeCreated.Minute = time->tm_min;
-	hi->TimeCreated.Second = time->tm_sec;
-	memcpy(&hi->TimeModified, &hi->TimeCreated, sizeof(nTimeInfo));
-	nutCreateNUID(hi);
-}
-void* nutCallocHyper(int size, int num){
-	nHyperItem *hi = calloc(size, num);
-	nutMakeHyperData(hi);
-	hi->DBInst = nul_AddDBInst(hi, hi->NUID.String, hi);
-	return hi;
-}
 
 void* nutCalloc(int size, int num) {
 	return calloc(size, num);
@@ -104,61 +55,6 @@ void* lstPopSingle(void** Head, nListSingle* Item) {
 	return *Head;
 }
 
-//inline void lstAppendItem(nListHandle* Handle, void* Item){
-//
-//	nListItem* li = Item;
-//
-//	li->pNext = li->pPrev = 0;
-//
-//	if (!Handle->pFirst)
-//		Handle->pFirst = Item;
-//
-//	if (Handle->pLast)
-//		((nListItem*)Handle->pLast)->pNext = li;
-//
-//	li->pPrev = Handle->pLast;
-//	li->pNext = 0;
-//	Handle->pLast = li;
-//
-//};
-//inline void lstPushItem(nListHandle* Handle, void* Item){
-//
-//	nListItem* li = Item;
-//
-//	li->pNext = li->pPrev = 0;
-//
-//	if (!Handle->pLast)
-//		Handle->pLast = Item;
-//
-//	li->pNext = Handle->pFirst;
-//
-//	if (Handle->pFirst)
-//		((nListItem*)Handle->pFirst)->pPrev = Item;
-//
-//	Handle->pFirst = li;
-//
-//};
-//inline void* lstPopItem(nListHandle* Handle){
-//	void* popitem;
-//	nListItem* next;
-//	if (!Handle->pFirst)
-//		return 0;
-//
-//	popitem = Handle->pFirst;
-//
-//	next = ((nListItem*)Handle->pFirst)->pNext;
-//	if (!next){
-//		Handle->pFirst = 0;
-//		Handle->pLast = 0;
-//	}
-//	else{
-//		Handle->pFirst = next;
-//		if (next)
-//			next->pPrev = 0;
-//	};
-//
-//	return popitem;
-//};
 int   lstHaveItemInList(nListHandle* Handle){
 	if (Handle->pFirst)
 		return 1;
@@ -484,7 +380,7 @@ void* lstPopPointerOnly(nListHandle* h) {
 	return rev;
 }
 void lstRemovePointerItemOnly(nListHandle* h, nListItemPointer* lip) {
-	lstRemoveItem(h, lip);
+	lstRemoveItem(h, (void*)lip);
 	FreeMem(lip);
 }
 void lstRemovePointerOnly(nListHandle* h, void* p) {
@@ -528,7 +424,7 @@ void* lstPopPointer(nListHandle* h) {
 	return rev;
 }
 void lstRemovePointerItem(nListHandle* h, nListItemPointer* lip) {
-	lstRemoveItem(h, lip);
+	lstRemoveItem(h, (void*)lip);
 	memFree(lip);
 }
 void lstRemovePointer(nListHandle* h, void* p) {
@@ -580,7 +476,7 @@ void* lstPopPointerNoFree(nListHandle* h) {
 	return rev;
 }
 void lstRemovePointerItemNoFree(nListHandle* h, nListItemPointer* lip) {
-	lstRemoveItem(h, lip);
+	lstRemoveItem(h, (void*)lip);
 }
 
 
@@ -859,7 +755,7 @@ void lstAddElement(nListHandle* hlst, void* ext){
 void lstDestroyElementList(nListHandle* hlst){
 	nElementListItem* eli,*NextEli;
 	for (eli = hlst->pFirst; eli; eli = NextEli){
-		lstRemoveItem(hlst, eli);
+		lstRemoveItem(hlst, (void*)eli);
 		NextEli = eli->Item.pNext;
 		FreeMem(eli);
 	}
@@ -904,17 +800,6 @@ nListItem* hsh256FindItemCSTR(nHash256* hash, nCompareFunc func, char* buckle){
 	return lstFindItem(buckle, func, &hash->Entries[hsh]);
 }
 
-
-void memResetByteCount() {
-	MAIN.ByteCount = 0;
-	MAIN.TotalByteCount = 0;
-}
-int memGetByteCount() {
-	return MAIN.ByteCount;
-}
-int memGetTotalByteCount() {
-	return MAIN.TotalByteCount;
-}
 void memInitPool(nMemoryPool* mph, int NodeSize) {
 	int Count = 4096;
 
@@ -923,16 +808,7 @@ void memInitPool(nMemoryPool* mph, int NodeSize) {
 	mph->NodeSize = NodeSize;
 	mph->CountPerPool = Count;
 
-	return mph;
-}
-nMemoryPool* memInitGlobalPool(int NodeSize) {
-	nMemoryPool* mph = calloc(1, sizeof(nMemoryPool));
-	memInitPool(mph, NodeSize);
-
-	u8bit Buckle = NodeSize;
-	lstAppendItem(&MAIN.GlobalMemPool.Entries[Buckle], mph);
-
-	return mph;
+	return;
 }
 void memInitPoolSmall(nMemoryPool* mph, int NodeSize) {
 	int Count = 16;
@@ -942,7 +818,7 @@ void memInitPoolSmall(nMemoryPool* mph, int NodeSize) {
 	mph->NodeSize = NodeSize;
 	mph->CountPerPool = Count;
 
-	return mph;
+	return;
 }
 inline nMemoryPoolPart* memNewPoolPart(nMemoryPool* mph) {
 
@@ -962,97 +838,38 @@ inline nMemoryPoolPart* memNewPoolPart(nMemoryPool* mph) {
 
 	mp->FreeMemoryNodes.pFirst = mp->FreeMemoryNodes.pLast = BeginMem;
 
-	mpn = ((BYTE*)BeginMem);
+	mpn = (void*)((BYTE*)BeginMem);
 	mpn->InPool = mp;
 
 	for (i = 1; i < NodeCount; i++) {
-		mpn = ((BYTE*)BeginMem) + RealNodeSize*i;
+		mpn = (void*)(((BYTE*)BeginMem) + RealNodeSize*i);
 		mpn->InPool = mp;
 		lstAppendItem(&mp->FreeMemoryNodes, mpn);
 	}
 	lstPushItem(&mph->Pools, mp);
 
-	MAIN.TotalByteCount += TotalSize;
-
 	return mp;
 }
-inline void* memAquireH(nMemoryPool* Handle) {
-	nMemoryPoolPart* mp = Handle->Pools.pFirst;
-	nMemoryPoolNode* mpn;
-	
-	if (!mp || !mp->FreeMemoryNodes.pFirst) {
-		//if (!mp) {
-			mp = memNewPoolPart(Handle);
-		//	break;
-		//}
-		//mp = mp->Item.pNext;
-	}
 
-	if (!mp) return 0;
-
-	mpn = mp->FreeMemoryNodes.pFirst;
-
-	lstRemoveItem(&mp->FreeMemoryNodes, mpn);
-	lstAppendItem(&mp->MemoryNodes, mpn);
-
-	MAIN.ByteCount += Handle->NodeSize;
-	
-	return (((BYTE*)mpn) + sizeof(nMemoryPoolNode));
-}
-void* memAquireOnly(int Size) {
-	nMemoryPool* mp;
-	u8bit Buckle = Size;
-
-	mp = MAIN.GlobalMemPool.Entries[Buckle].pFirst;
-
-	while (mp && mp->NodeSize != Size) mp = mp->Item.pNext;
-
-	if (!mp) mp = memInitGlobalPool(Size);
-
-	return memAquireH(mp);
-}
-void* memAquire(int Size) {
-	char* mem = memAquireOnly(Size);
-	nMemoryPoolNode* mpn = mem - sizeof(nMemoryPoolNode);
-	mpn->DBInst = nul_AddDBInst(mem, 0, mem);
-	return mem;
-}
-void* memAquireHyper(int Size) {
-	char* mem = memAquireOnly(Size);
-	nMemoryPoolNode* mpn = mem - sizeof(nMemoryPoolNode);
-	nutMakeHyperData(mem);
-	((nHyperItem*)mem)->DBInst = mpn->DBInst;
-	mpn->DBInst = nul_AddDBInst(mem, ((nHyperItem*)mem)->NUID.String, mem);
-	return mem;
-}
-void* memAquireHyper1(int Size) {
-	char* mem = memAquireOnly(Size);
-	nMemoryPoolNode* mpn = mem - sizeof(nMemoryPoolNode);
-	mpn->DBInst = nul_AddDBInst(mem, 0, mem);
-	((nHyperLevel1*)mem)->DBInst = mpn->DBInst;
-	return mem;
-}
 nDBInst* memGetDBInst(void* mem) {
-	nMemoryPoolNode* mpn = ((BYTE*)mem) - sizeof(nMemoryPoolNode);
+	nMemoryPoolNode* mpn = (void*)(((BYTE*)mem) - sizeof(nMemoryPoolNode));
 	return mpn->DBInst;
 }
 void memAssignDBInst(void* mem, nDBInst* DBInst) {
-	nMemoryPoolNode* mpn = ((BYTE*)mem) - sizeof(nMemoryPoolNode);
+	nMemoryPoolNode* mpn = (void*)(((BYTE*)mem) - sizeof(nMemoryPoolNode));
 	mpn->DBInst = DBInst;
 }
 void memFree(void* Data) {
-	if (!Data)return 0;
-	nMemoryPoolNode* mpn = ((BYTE*)Data) - sizeof(nMemoryPoolNode);
+	if (!Data)return;
+	nMemoryPoolNode* mpn = (void*)(((BYTE*)Data) - sizeof(nMemoryPoolNode));
 	nMemoryPoolPart* mp = mpn->InPool;
 	nMemoryPool* mph = mp->PoolRoot;
-	lstRemoveItem(&mp->MemoryNodes, mpn);
-	lstAppendItem(&mp->FreeMemoryNodes, mpn);
+	lstRemoveItem(&mp->MemoryNodes, (void*)mpn);
+	lstAppendItem(&mp->FreeMemoryNodes, (void*)mpn);
 	memset(Data, 0, mph->NodeSize);
-	MAIN.ByteCount -= mph->NodeSize;
 	if (!mp->MemoryNodes.pFirst) {
-		lstRemoveItem(&mph->Pools, mp);
+		lstRemoveItem(&mph->Pools, (void*)mp);
 		FreeMem(mp);
-		MAIN.TotalByteCount -= ((mph->NodeSize + sizeof(nMemoryPoolNode))*mph->CountPerPool+sizeof(nMemoryPoolPart));
 	}
 	//if (!mph->Pools.pFirst) {
 	//	mph->CountPerPool = 0;
@@ -1061,7 +878,7 @@ void memFree(void* Data) {
 }
 void memDestroyPool(nMemoryPool* Handle) {
 	nMemoryPool* mp;
-	while ((mp = lstPopItem(Handle))) {
+	while ((mp = lstPopItem(&Handle->Pools))) {
 		FreeMem(mp);
 	}
 }
@@ -1089,7 +906,7 @@ void* memStaticAquireThread(nStaticMemoryPool*smp, int size) {
 	nStaticMemoryPoolNode* smpn = smp->Pools.pFirst;
 	void* ret;
 
-	EnterCriticalSection(&smp->csMem);
+	//EnterCriticalSection(&smp->csMem);
 
 	if (!smpn || (smpn->UsedByte + size) > NUL_MEMORY_POOL_128MB)
 		smpn = memNewStaticPool(smp);
@@ -1098,7 +915,7 @@ void* memStaticAquireThread(nStaticMemoryPool*smp, int size) {
 
 	smpn->UsedByte += size;
 
-	LeaveCriticalSection(&smp->csMem);
+	//LeaveCriticalSection(&smp->csMem);
 
 	return ret;
 }
@@ -1114,169 +931,6 @@ void* memStaticDestroy(nStaticMemoryPool*smp) {
 
 	return ret;
 }
-
-
-//=======================================================================[ AVL Tree ]
-
-#define AVL_HEIGHT(node)\
-(node?node->Height:0)
-
-nAVLNodeReal64* nAVRTreeRightRotate(nAVLNodeReal64* y) {
-	nAVLNodeReal64* x = y->Smaller;
-	nAVLNodeReal64* T2 = x->Greater;
-
-	x->Greater = y;
-	y->Smaller = T2;
-
-	x->Height = max(AVL_HEIGHT(x->Smaller), AVL_HEIGHT(x->Greater)) + 1;
-	y->Height = max(AVL_HEIGHT(y->Smaller), AVL_HEIGHT(y->Greater)) + 1;
-
-	return x;
-}
-nAVLNodeReal64* nAVRTreeLeftRotate(nAVLNodeReal64* x) {
-	nAVLNodeReal64* y = x->Greater;
-	nAVLNodeReal64* T2 = y->Smaller;
-
-	y->Smaller = x;
-	x->Greater = T2;
-
-	x->Height = max(AVL_HEIGHT(x->Smaller), AVL_HEIGHT(x->Greater)) + 1;
-	y->Height = max(AVL_HEIGHT(y->Smaller), AVL_HEIGHT(y->Greater)) + 1;
-
-	return y;
-}
-
-nAVLNodeReal64* nAVLTreeInsertNode(nAVLNodeReal64* Root, nAVLNodeReal64* Node) {
-	if (!Root) return Node;
-
-	if (Node->Value < Root->Value) {
-		Root->Smaller = nAVLTreeInsertNode(Root->Smaller, Node);
-		if (Root->Smaller == Root->Smaller) return Root;
-	}elif(Node->Value > Root->Value) {
-		Root->Greater = nAVLTreeInsertNode(Root->Greater, Node);
-		if (Root->Greater == Root->Greater) return Root;
-	}else return Root;
-
-	int HS = AVL_HEIGHT(Root->Smaller);
-	int HG = AVL_HEIGHT(Root->Greater);
-
-	Root->Height = max(HS, HG) + 1;
-
-	int BalanceStatus = HS - HG;
-
-	if (BalanceStatus > 1 && Node->Value > Root->Smaller->Value) {
-		Root->Smaller = nAVRTreeLeftRotate(Root->Smaller);
-		return nAVRTreeRightRotate(Root);
-	}
-
-	if (BalanceStatus < -1 && Node->Value < Root->Greater->Value) {
-		Root->Greater = nAVRTreeRightRotate(Root->Greater);
-		return nAVRTreeLeftRotate(Root);
-	}
-
-	if (BalanceStatus > 1 && Node->Value <= Root->Smaller->Value) {
-		return nAVRTreeRightRotate(Root);
-	}
-
-	if (BalanceStatus < -1 && Node->Value >= Root->Greater->Value) {
-		return nAVRTreeLeftRotate(Root);
-	}
-
-	return Root;
-}
-nAVLNodeReal64* nAVLTreeLookupJustSmaller(nAVLNodeReal64* Root, real Value) {
-	nAVLNodeReal64* anr = Root;
-	while (anr) {
-		if (anr->Value >= Value) {
-			if (!anr->Smaller) return 0;
-			if (anr->Smaller->Value <= Value) {
-				anr = anr->Smaller;
-				continue;
-			}
-		}else {
-			if (!anr->Greater) return anr;
-			else {
-				if (anr->Greater->Value <= Value) {
-					anr = anr->Greater;
-					continue;
-				}else {
-					if (anr->Greater->Smaller) { anr = anr->Greater->Smaller; continue; }
-					else return anr;
-				}
-			}
-		}
-	}
-	return 0;
-}
-nAVLNodeReal64* nAVLTreeLookupJustGreater(nAVLNodeReal64* Root, real Value) {
-	nAVLNodeReal64* anr = Root;
-	while (anr) {
-		if (anr->Value <= Value) {
-			if (!anr->Greater) return 0;
-			if (anr->Greater->Value >= Value) {
-				anr = anr->Greater;
-				continue;
-			}
-		}
-		else {
-			if (!anr->Smaller) return anr;
-			else {
-				if (anr->Smaller->Value >= Value) {
-					anr = anr->Smaller;
-					continue;
-				}
-				else {
-					if (anr->Smaller->Greater) { anr = anr->Smaller->Greater; continue; }
-					else return anr;
-				}
-			}
-		}
-	}
-	return 0;
-}
-nAVLNodeReal64* nAVLTreeInsert(nAVLTreeReal64* Tree, real Value) {
-	nAVLNodeReal64* anr = memAquireH(&Tree->MemoryPool,sizeof(nAVLNodeReal64));
-	nAVLNodeReal64* Result;
-	anr->Value = Value;
-	anr->Height = 0;
-
-	Result = nAVLTreeInsertNode(Tree->Root, anr);
-		
-	Tree->Root = Result;
-	Tree->ItemCount++;
-
-	return anr;
-};
-
-void nAVLTreePrintPreOrderRecursive(nAVLNodeReal64* Root) {
-	if (!Root) return;
-	printf("%lf ", Root->Value);
-	nAVLTreePrintPreOrderRecursive(Root->Smaller);
-	nAVLTreePrintPreOrderRecursive(Root->Greater);
-}
-void nAVLTreePrintPreOrder(nAVLTreeReal64* Tree) {
-	nAVLTreePrintPreOrderRecursive(Tree->Root);
-}
-void nAVLTreeMakeListUpOrderRecursive(nAVLNodeReal64* Root, nListHandle* Result) {
-	if (!Root) return;
-	nAVLTreeMakeListUpOrderRecursive(Root->Smaller,Result);
-	lstAppendPointer(Result, Root->Pointer);
-	nAVLTreeMakeListUpOrderRecursive(Root->Greater,Result);
-}
-void nAVLTreeMakeListUpOrder(nAVLTreeReal64* Tree, nListHandle* Result) {
-	nAVLTreePrintPreOrderRecursive(Tree->Root);
-}
-
-void nAVLTreeDestroyRecursive(nAVLNodeReal64* Root) {
-	if (!Root) return;
-	nAVLTreeDestroyRecursive(Root->Smaller);
-	nAVLTreeDestroyRecursive(Root->Greater);
-}
-void nAVLTreeDestroy(nAVLTreeReal64* Tree) {
-	nAVLTreeDestroyRecursive(Tree->Root);
-	memDestroyPool(&Tree->MemoryPool);
-}
-
 
 //=======================================================================[str]
 
@@ -1382,7 +1036,7 @@ int strHeadOfStringMatch(char* Str, char* SubStr) {
 	return 1;
 }
 int strSkipSegmet(char** pivot, char* content) {
-	if (!pivot || !(*pivot) || !(*(*pivot)) || !content) return;
+	if (!pivot || !(*pivot) || !(*(*pivot)) || !content) return 0;
 
 	if (strHeadOfStringMatch(*pivot, content)) {
 		(*pivot) += strlen(content);
@@ -1647,12 +1301,6 @@ void strPrintIntAfter(char* dest, int LenthLim, int data){
 	sprintf(&temp[0], "%d", data);
 	strcat(dest, temp);
 }
-void strToWideChar(wchar_t* destBuf,char* srcBuf) {
-	int len = strlen(srcBuf);
-	MultiByteToWideChar(CP_ACP, 0, srcBuf, strlen(srcBuf), destBuf, 128);
-	destBuf[len] = '\0';
-}
-
 int  strIsTheSame(char* src, char*dest) {
 	return (src && !strcmp(src, dest));
 }
@@ -1661,7 +1309,7 @@ int  strIsTheSame(char* src, char*dest) {
 void strSafeDestroy(nSafeString** ss) {
 	if (!*ss)
 		return;
-	lstRemoveItem(&SSC.SafeStrings, *ss);
+	lstRemoveItem(&SSC.SafeStrings, (void*)*ss);
 	memFree((*ss)->Ptr);
 	memFree(*ss);
 }
@@ -1678,374 +1326,480 @@ void strSafeSet(nSafeString** ss, char* Content) {
 }
 
 
+// =================================================
 
-nStringEdit* strBeginEdit(char* FullStr) {
-	char* p = FullStr;
-	nStringEdit* se = CreateNew(nStringEdit);
-	if (FullStr && FullStr[0]) {
-		while ((*p)) {
-			nStringLine* sl = CreateNew(nStringLine);
-			p += (strGetStringTerminateBy(p, '\n', sl->Buf) + 1);
-			lstAppendItem(&se->Lines, sl);
+
+void tMatLoadIdentity44d(tnsMatrix44d m) {
+	memset(m, 0, sizeof(tnsMatrix44d));
+	m[0] = 1.0f;
+	m[5] = 1.0f;
+	m[10] = 1.0f;
+	m[15] = 1.0f;
+};
+
+real tMatDistIdv2(real x1, real y1, real x2, real y2) {
+	real x = x2 - x1, y = y2 - y1;
+	return sqrt((x*x + y*y));
+}
+real tMatDist3dv(tnsVector3d l, tnsVector3d r) {
+	real x = r[0] - l[0];
+	real y = r[1] - l[1];
+	real z = r[2] - l[2];
+	return sqrt(x*x + y*y + z*z);
+}
+real tMatDist2dv(tnsVector2d l, tnsVector2d r) {
+	real x = r[0] - l[0];
+	real y = r[1] - l[1];
+	return sqrt(x*x + y*y);
+}
+
+real tMatLength3d(tnsVector3d l) {
+	return (sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]));
+}
+real tMatLength2d(tnsVector3d l) {
+	return (sqrt(l[0] * l[0] + l[1] * l[1]));
+}
+void tMatNormalize3d(tnsVector3d result, tnsVector3d l) {
+	real r = sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
+	result[0] = l[0] / r;
+	result[1] = l[1] / r;
+	result[2] = l[2] / r;
+}
+void tMatNormalize2d(tnsVector2d result, tnsVector2d l) {
+	real r = sqrt(l[0] * l[0] + l[1] * l[1]);
+	result[0] = l[0] / r;
+	result[1] = l[1] / r;
+}
+void tMatNormalizeSelf3d(tnsVector3d result) {
+	real r = sqrt(result[0] * result[0] + result[1] * result[1] + result[2] * result[2]);
+	result[0] /= r;
+	result[1] /= r;
+	result[2] /= r;
+}
+real tMatDot3d(tnsVector3d l, tnsVector3d r, int normalize) {
+	tnsVector3d ln, rn;
+	if (normalize) {
+		tMatNormalize3d(ln, l); tMatNormalize3d(rn, r);
+		return (ln[0] * rn[0] + ln[1] * rn[1] + ln[2] * rn[2]);
+	}
+	return (l[0] * r[0] + l[1] * r[1] + l[2] * r[2]);
+}
+real tMatDot2d(tnsVector2d l, tnsVector2d r, int normalize) {
+	tnsVector3d ln, rn;
+	if (normalize) {
+		tMatNormalize2d(ln, l); tMatNormalize2d(rn, r);
+		return (ln[0] * rn[0] + ln[1] * rn[1]);
+	}
+	return (l[0] * r[0] + l[1] * r[1]);
+}
+real tMatVectorCross3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+	result[0] = l[1] * r[2] - l[2] * r[1];
+	result[1] = l[2] * r[0] - l[0] * r[2];
+	result[2] = l[0] * r[1] - l[1] * r[0];
+	return tMatLength3d(result);
+}
+void tMatVectorCrossOnly3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+	result[0] = l[1] * r[2] - l[2] * r[1];
+	result[1] = l[2] * r[0] - l[0] * r[2];
+	result[2] = l[0] * r[1] - l[1] * r[0];
+}
+real tMatAngleRad3d(tnsVector3d from, tnsVector3d to, tnsVector3d PositiveReference) {
+	if (PositiveReference) {
+		tnsVector3d res;
+		tMatVectorCross3d(res, from, to);
+		if (tMatDot3d(res, PositiveReference, 1)>0)
+			return acosf(tMatDot3d(from, to, 1));
+		else
+			return -acosf(tMatDot3d(from, to, 1));
+	}
+	return acosf(tMatDot3d(from, to, 1));
+}
+void tMatApplyRotation33d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+	result[0] = mat[0] * v[0] + mat[1] * v[1] + mat[2] * v[2];
+	result[1] = mat[3] * v[0] + mat[4] * v[1] + mat[5] * v[2];
+	result[2] = mat[6] * v[0] + mat[7] * v[1] + mat[8] * v[2];
+}
+void tMatApplyRotation43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+	result[0] = mat[0] * v[0] + mat[1] * v[1] + mat[2] * v[2];
+	result[1] = mat[4] * v[0] + mat[5] * v[1] + mat[6] * v[2];
+	result[2] = mat[8] * v[0] + mat[9] * v[1] + mat[10] * v[2];
+}
+void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+	real w;
+	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
+	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
+	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
+	w = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
+	result[0] /= w;
+	result[1] /= w;
+	result[2] /= w;
+}
+void tMatApplyNormalTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+	real w;
+	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
+	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
+	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
+}
+void tMatApplyTransform44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
+	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
+	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
+	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
+	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
+}
+void tMatApplyTransform44dTrue(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
+	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * v[3];
+	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * v[3];
+	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * v[3];
+	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * v[3];
+}
+
+void tMatRemoveTranslation44d(tnsMatrix44d result, tnsMatrix44d mat) {
+	tMatLoadIdentity44d(result);
+	result[0] = mat[0];
+	result[1] = mat[1];
+	result[2] = mat[2];
+	result[4] = mat[4];
+	result[5] = mat[5];
+	result[6] = mat[6];
+	result[8] = mat[8];
+	result[9] = mat[9];
+	result[10] = mat[10];
+}
+void tMatClearTranslation44d(tnsMatrix44d mat) {
+	mat[3] = 0;
+	mat[7] = 0;
+	mat[11] = 0;
+}
+
+
+void tMatExtractXYZEuler44d(tnsMatrix44d mat, real* x_result, real* y_result, real* z_result) {
+	real xRot, yRot, zRot;
+
+	if (mat[2] < 1) {
+		if (mat[2] > -1) {
+			yRot = asin(mat[2]);
+			xRot = atan2(-mat[6], mat[10]);
+			zRot = atan2(-mat[1], mat[0]);
+		}
+		else {
+			yRot = -TNS_PI / 2;
+			xRot = -atan2(-mat[4], mat[5]);
+			zRot = 0;
 		}
 	}
-	if (!se->Lines.pFirst) {
-		nStringLine* sl = CreateNew(nStringLine);
-		lstAppendItem(&se->Lines, sl);
+	else {
+		yRot = TNS_PI / 2;
+		xRot = atan2(-mat[4], mat[5]);
+		zRot = 0;
 	}
-	se->BeginLine = -1;
-	se->BeginBefore = -1;
-	se->EndLine = -1;
-	se->EndBefore = -1;
-	se->CusorLine = 0;
-	se->CusorBefore = strlen(((nStringLine*)se->Lines.pFirst)->Buf);
-	return se;
+
+	(*x_result) = -xRot;
+	(*y_result) = -yRot;
+	(*z_result) = -zRot;
 }
-void strEndEdit(nStringEdit* se,char* Result) {
-	char* p;
-	nStringLine* sl, *NextSl;
-	if (!se) return;
-	sl = se->Lines.pFirst;
-	while (sl) {
-		NextSl = sl->Item.pNext;
-		strcat(Result, sl->Buf);
-		lstRemoveItem(&se->Lines,sl);
-		FreeMem(sl);
-		sl = NextSl;
-	}
-	FreeMem(se);
+void tMatExtractLocation44d(tnsMatrix44d mat, real* x_result, real* y_result, real* z_result) {
+	*x_result = mat[12];
+	*y_result = mat[13];
+	*z_result = mat[14];
 }
-void strRemoveLine(nStringEdit* se, nStringLine* sl) {
-	lstRemoveItem(&se->Lines, sl);
-	FreeMem(sl);
+void tMatExtractUniformScale44d(tnsMatrix44d mat, real* result) {
+	tnsVector3d v = { mat[0],mat[1],mat[2] };
+	*result = tMatLength3d(v);
 }
-void strRemoveLineI(nStringEdit* se, int LineIndex) {
-	int i = 0;
-	nStringLine* sl = se->Lines.pFirst, *NextSl;
-	while (sl) {
-		NextSl = sl->Item.pNext;
-		if (i == LineIndex) {
-			strRemoveLine(se, sl);
-			break;
+
+
+
+#define L(row,col)  l[(col<<2)+row]
+#define R(row,col)  r[(col<<2)+row]
+#define P(row,col)  result[(col<<2)+row]
+
+void tMatPrintMatrix44d(tnsMatrix44d l) {
+	int i, j;
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 4; j++) {
+			printf("%.5f ", L(i, j));
 		}
-		i++;
-		sl = NextSl;
+		printf("\n");
 	}
 }
-void strSetCusor(nStringEdit* se, int LineIndex, int BeforeIndex) {
-	int maxbefore;
-	if (!se) return;
 
-	maxbefore = strlen(strGetCursorLine(se)->Buf) + 1;
-
-	BeforeIndex = BeforeIndex < 0 ? 0 : BeforeIndex>maxbefore ? maxbefore : BeforeIndex;
-
-	se->CusorBefore = BeforeIndex;
-	se->CusorLine = LineIndex;
-	se->BeginLine = -1;
-	se->BeginBefore = -1;
-	se->EndLine = -1;
-	se->EndBefore = -1;
+void tMatCopyMatrix44d(tnsMatrix44d from, tnsMatrix44d to) {
+	memcpy(to, from, sizeof(tnsMatrix44d));
 }
-void strMoveCusor(nStringEdit* se, int Left) {
-	int maxbefore;
-	int BeforeIndex;
-	int width=1;
-	nStringLine* sl;
-	if (!se) return;
-
-	sl = strGetCursorLine(se);
-
-	maxbefore = strlen(sl->Buf) + 1;
-
-	BeforeIndex = se->CusorBefore - (Left ? 1 : -1);
-	if (Left) {
-		if (BeforeIndex && sl->Buf[BeforeIndex]<0 && sl->Buf[BeforeIndex - 1] < 0)
-			BeforeIndex--;
-	}else{
-		if (sl->Buf[BeforeIndex - 1] < 0)
-			BeforeIndex++;
+void tMatMultiply44d(tnsMatrix44d result, tnsMatrix44d l, tnsMatrix44d r) {
+	int i;
+	for (i = 0; i < 4; i++) {
+		real ai0 = L(i, 0), ai1 = L(i, 1), ai2 = L(i, 2), ai3 = L(i, 3);
+		P(i, 0) = ai0 * R(0, 0) + ai1 * R(1, 0) + ai2 * R(2, 0) + ai3 * R(3, 0);
+		P(i, 1) = ai0 * R(0, 1) + ai1 * R(1, 1) + ai2 * R(2, 1) + ai3 * R(3, 1);
+		P(i, 2) = ai0 * R(0, 2) + ai1 * R(1, 2) + ai2 * R(2, 2) + ai3 * R(3, 2);
+		P(i, 3) = ai0 * R(0, 3) + ai1 * R(1, 3) + ai2 * R(2, 3) + ai3 * R(3, 3);
 	}
+};
+void tMatInverse44d(tnsMatrix44d inverse, tnsMatrix44d mat) {
+	int i, j, k;
+	double temp;
+	tnsMatrix44d tempmat;
+	real max;
+	int maxj;
 
-	BeforeIndex = BeforeIndex < 0 ? 0 : BeforeIndex>maxbefore ? maxbefore : BeforeIndex;
+	tMatLoadIdentity44d(inverse);
 
-	se->CusorBefore = BeforeIndex;
-	se->BeginLine = -1;
-	se->BeginBefore = -1;
-	se->EndLine = -1;
-	se->EndBefore = -1;
-}
+	tMatCopyMatrix44d(mat, tempmat);
 
-void strSelect(nStringEdit* se, int BeginLine, int BeginBefore, int EndLine, int EndBefore) {
-	if (!se) return;
-	se->BeginLine = BeginLine;
-	se->BeginBefore = BeginBefore;
-	se->EndLine = EndLine;
-	se->EndBefore = EndBefore;
-	se->CusorBefore = -1;
-	se->CusorLine = -1;
-}
-void strSelectLineAll(nStringEdit* se) {
-	if (!se) return;
-	nStringLine* sl;
-	int len;
-	if (se->CusorLine == -1) sl = strGetBeginLine(se);
-	else sl = strGetCursorLine(se);
-	len = strlen(sl->Buf);
-
-	se->EndBefore = len;
-	se->BeginBefore = 0;
-
-	se->CusorBefore = -1;
-	se->CusorLine = -1;
-}
-void strDeselectAll(nStringEdit* se) {
-	if (!se) return;
-	nStringLine* sl;
-	int len;
-	if (se->CusorLine == -1) sl = strGetBeginLine(se);
-	else sl = strGetCursorLine(se);
-	len = strlen(sl->Buf);
-
-	se->EndBefore = -1;
-	se->BeginBefore = -1;
-
-	se->CusorBefore = len;
-	se->CusorLine = -1;
-}
-void strPanFoward(char* str, int Before, int Offset) {
-	int len = strlen(str);
-	int i = len + 1;
-	for (i; i >= Before; i--) {
-		str[i + Offset] = str[i];
-	}
-}
-void strSquishBackward(char* str, int Before,int EndBefore) {
-	int len = strlen(str);
-	int i = Before;
-	int Offset = Before - EndBefore;
-	if (Before <= 0) return;
-	for (i; i <=len; i++) {
-		str[i - Offset] = str[i];
-	}
-}
-void strClearSelection(nStringEdit* se) {
-	//if (se->EndLine == -1) return;
-	if (se->BeginLine != se->EndLine) {
-		int i = 0;
-		nStringLine* sl = se->Lines.pFirst, *NextSl;
-		while (sl) {
-			NextSl = sl->Item.pNext;
-			if (i == se->BeginLine) {
-				sl->Buf[i] = '\n';
-				sl->Buf[i + 1] = '\0';
+	for (i = 0; i < 4; i++) {
+		/* Look for row with max pivot */
+		max = fabsf(tempmat[i * 5]);
+		maxj = i;
+		for (j = i + 1; j < 4; j++) {
+			if (fabsf(tempmat[j * 4 + i]) > max) {
+				max = fabsf(tempmat[j * 4 + i]);
+				maxj = j;
 			}
-			else if (i > se->BeginLine && i < se->EndLine) {
-				strRemoveLine(se, sl);
+		}
+
+		/* Swap rows if necessary */
+		if (maxj != i) {
+			for (k = 0; k < 4; k++) {
+				real t;
+				t = tempmat[i * 4 + k];
+				tempmat[i * 4 + k] = tempmat[maxj * 4 + k];
+				tempmat[maxj * 4 + k] = t;
+
+				t = inverse[i * 4 + k];
+				inverse[i * 4 + k] = inverse[maxj * 4 + k];
+				inverse[maxj * 4 + k] = t;
 			}
-			else if (i == se->EndLine) {
-				strSquishBackward(sl->Buf, se->EndBefore, 0);
-				se->CusorLine = i;
-				se->CusorBefore = 0;
-				se->BeginLine = -1;
-				se->BeginBefore = -1;
-				se->EndLine = -1;
-				se->EndBefore = -1;
+		}
+
+		//if (UNLIKELY(tempmat[i][i] == 0.0f)) {
+		//	return false;  /* No non-zero pivot */
+		//}
+
+		temp = (double)tempmat[i * 5];
+		for (k = 0; k < 4; k++) {
+			tempmat[i * 4 + k] = (real)((double)tempmat[i * 4 + k] / temp);
+			inverse[i * 4 + k] = (real)((double)inverse[i * 4 + k] / temp);
+		}
+		for (j = 0; j < 4; j++) {
+			if (j != i) {
+				temp = tempmat[j * 4 + i];
+				for (k = 0; k < 4; k++) {
+					tempmat[j * 4 + k] -= (real)((double)tempmat[i * 4 + k] * temp);
+					inverse[j * 4 + k] -= (real)((double)inverse[i * 4 + k] * temp);
+				}
 			}
-			if (i > se->EndLine) break;
-			i++;
-			sl = NextSl;
-		}
-	}else{
-		int i = 0;
-		nStringLine* sl = se->Lines.pFirst, *NextSl;
-		while (sl) {
-			NextSl = sl->Item.pNext;
-			//if (i == se->EndLine) {
-				strSquishBackward(sl->Buf, se->EndBefore, se->BeginBefore);
-				se->CusorLine = i;
-				se->CusorBefore = se->BeginBefore;
-				se->BeginLine = -1;
-				se->BeginBefore = -1;
-				se->EndLine = -1;
-				se->EndBefore = -1;
-				break;
-			//}
-			i++;
-			sl = NextSl;
 		}
 	}
 }
-nStringLine* strGetCursorLine(nStringEdit* se) {
-	if (!se || se->CusorBefore <= -1) return  se->Lines.pFirst;
-	int i = 0;
-	nStringLine* sl = se->Lines.pFirst, *NextSl;
-	while (sl) {
-		NextSl = sl->Item.pNext;
-		if (i == se->CusorLine) {
-			return sl;
-		}
-		i++;
-		sl = NextSl;
-	}
-	return se->Lines.pFirst;
+void tMatMakeTranslationMatrix44d(tnsMatrix44d mTrans, real x, real y, real z) {
+	tMatLoadIdentity44d(mTrans);
+	mTrans[12] = x;
+	mTrans[13] = y;
+	mTrans[14] = z;
 }
-nStringLine* strGetBeginLine(nStringEdit* se) {
-	if (!se || se->BeginLine <= -1) return  se->Lines.pFirst;
-	int i = 0;
-	nStringLine* sl = se->Lines.pFirst, *NextSl;
-	while (sl) {
-		NextSl = sl->Item.pNext;
-		if (i == se->BeginLine) {
-			return sl;
-		}
-		i++;
-		sl = NextSl;
-	}
-	return se->Lines.pFirst;
+void tMatMakePerspectiveMatrix44d(tnsMatrix44d mProjection, real fFov_rad, real fAspect, real zMin, real zMax) {
+	real yMax = zMin * tanf(fFov_rad * 0.5f);
+	real yMin = -yMax;
+	real xMin = yMin * fAspect;
+	real xMax = -xMin;
+
+	tMatLoadIdentity44d(mProjection);
+
+	mProjection[0] = (2.0f * zMin) / (xMax - xMin);
+	mProjection[5] = (2.0f * zMin) / (yMax - yMin);
+	mProjection[8] = (xMax + xMin) / (xMax - xMin);
+	mProjection[9] = (yMax + yMin) / (yMax - yMin);
+	mProjection[10] = -((zMax + zMin) / (zMax - zMin));
+	mProjection[11] = -1.0f;
+	mProjection[14] = -((2.0f * (zMax*zMin)) / (zMax - zMin));
+	mProjection[15] = 0.0f;
 }
-void strInsertChar(nStringEdit* se,char a) {
-	nStringLine* sl;
-	if (se->CusorBefore == -1) {
-		strClearSelection(se);
-	}
-	sl = strGetCursorLine(se);
-	strPanFoward(sl->Buf, se->CusorBefore, 1);
-	sl->Buf[se->CusorBefore] = a;
-	se->CusorBefore += 1;
+void tMatMakeZTrackingMatrix44d(tnsMatrix44d mat, tnsVector3d this, tnsVector3d that, tnsVector3d up) {
+	tnsVector4d fwd, l, t, rt;
+	fwd[3] = l[3] = t[3] = rt[3] = 1;
+	t[0] = up[0];
+	t[1] = up[1];
+	t[2] = up[2];
+	fwd[0] = that[0] - this[0];
+	fwd[1] = that[1] - this[1];
+	fwd[2] = that[2] - this[2];
+
+	tMatLoadIdentity44d(mat);
+
+	tMatVectorCross3d(l, t, fwd);
+	tMatVectorCross3d(rt, fwd, l);
+
+	tMatNormalizeSelf3d(l);
+	tMatNormalizeSelf3d(rt);
+	tMatNormalizeSelf3d(fwd);
+
+	mat[0] = l[0];
+	mat[1] = l[1];
+	mat[2] = l[2];
+
+	mat[4] = rt[0];
+	mat[5] = rt[1];
+	mat[6] = rt[2];
+
+	mat[8] = fwd[0];
+	mat[9] = fwd[1];
+	mat[10] = fwd[2];
 }
-void strBackspace(nStringEdit* se) {
-	nStringLine* sl;
-	int width = 1;
-	if (se->CusorBefore == -1) {
-		strClearSelection(se);
-	}else {
-		nStringLine* sl;
-		sl = strGetCursorLine(se);
-		if (se->CusorBefore > 1 && sl->Buf[se->CusorBefore - 2] < 0)width = 2;
-		strSquishBackward(sl->Buf, se->CusorBefore, se->CusorBefore-width);
-		se->CusorBefore -= width;
-		if (se->CusorBefore <= -1) se->CusorBefore = 0;
-	}
+void tMatMakeZTrackingMatrixDelta44d(tnsMatrix44d mat, tnsVector3d delta, tnsVector3d up) {
+	tnsVector4d fwd, l, t, rt;
+	fwd[3] = l[3] = t[3] = rt[3] = 1;
+	t[0] = up[0];
+	t[1] = up[1];
+	t[2] = up[2];
+	fwd[0] = delta[0];
+	fwd[1] = delta[1];
+	fwd[2] = delta[2];
+
+	tMatLoadIdentity44d(mat);
+
+	tMatVectorCross3d(l, t, fwd);
+	tMatVectorCross3d(rt, fwd, l);
+
+	tMatNormalizeSelf3d(l);
+	tMatNormalizeSelf3d(rt);
+	tMatNormalizeSelf3d(fwd);
+
+	mat[0] = l[0];
+	mat[1] = l[1];
+	mat[2] = l[2];
+
+	mat[4] = rt[0];
+	mat[5] = rt[1];
+	mat[6] = rt[2];
+
+	mat[8] = fwd[0];
+	mat[9] = fwd[1];
+	mat[10] = fwd[2];
 }
+void tMatMakeOrthographicMatrix44d(tnsMatrix44d mProjection, real xMin, real xMax, real yMin, real yMax, real zMin, real zMax) {
+	tMatLoadIdentity44d(mProjection);
 
-
-//======================================================[ translation ]
-
-void transNewLanguage(const char* LanguageID) {
-	nTranslationNode* tn = CreateNew(nTranslationNode);
-	strSafeSet(&tn->LanguageName, LanguageID);
-
-	lstAppendItem(&MAIN.Translation.Languages, tn);
-	
-	MAIN.Translation.CurrentLanguage = tn;
+	mProjection[0] = 2.0f / (xMax - xMin);
+	mProjection[5] = 2.0f / (yMax - yMin);
+	mProjection[10] = -2.0f / (zMax - zMin);
+	mProjection[12] = -((xMax + xMin) / (xMax - xMin));
+	mProjection[13] = -((yMax + yMin) / (yMax - yMin));
+	mProjection[14] = -((zMax + zMin) / (zMax - zMin));
+	mProjection[15] = 1.0f;
 }
-void transSetLanguage(const char* LanguageID) {
-	nTranslationNode* tn;
+void tMatMakeRotationMatrix44d(tnsMatrix44d m, real angle_rad, real x, real y, real z)
+{
+	real mag, s, c;
+	real xx, yy, zz, xy, yz, zx, xs, ys, zs, one_c;
 
-	if (!LanguageID) {
-		MAIN.Translation.CurrentLanguage = 0;
+	s = (real)sin(angle_rad);
+	c = (real)cos(angle_rad);
+
+	mag = (real)sqrt(x*x + y*y + z*z);
+
+	// Identity matrix
+	if (mag == 0.0f) {
+		tMatLoadIdentity44d(m);
 		return;
 	}
 
-	for (tn = MAIN.Translation.Languages.pFirst; tn; tn = tn->Item.pNext) {
-		if (!strcmp(tn->LanguageName->Ptr, LanguageID)) {
-			MAIN.Translation.CurrentLanguage = tn;
-			break;
-		}
-	}
+	// Rotation matrix is normalized
+	x /= mag;
+	y /= mag;
+	z /= mag;
+
+#define M(row,col)  m[col*4+row]
+
+	xx = x * x;
+	yy = y * y;
+	zz = z * z;
+	xy = x * y;
+	yz = y * z;
+	zx = z * x;
+	xs = x * s;
+	ys = y * s;
+	zs = z * s;
+	one_c = 1.0f - c;
+
+	M(0, 0) = (one_c * xx) + c;
+	M(0, 1) = (one_c * xy) + zs;
+	M(0, 2) = (one_c * zx) + ys;
+	M(0, 3) = 0.0f;
+
+	M(1, 0) = (one_c * xy) - zs;
+	M(1, 1) = (one_c * yy) + c;
+	M(1, 2) = (one_c * yz) + xs;
+	M(1, 3) = 0.0f;
+
+	M(2, 0) = (one_c * zx) + ys;
+	M(2, 1) = (one_c * yz) - xs;
+	M(2, 2) = (one_c * zz) + c;
+	M(2, 3) = 0.0f;
+
+	M(3, 0) = 0.0f;
+	M(3, 1) = 0.0f;
+	M(3, 2) = 0.0f;
+	M(3, 3) = 1.0f;
+
+#undef M
 }
-void transDumpMissMatchRecord(const char* filename) {
-	nTranslationMatch* tm;
-	nListHandle* lst;
-	int i;
-
-	FILE* f = fopen(filename, "w");
-	if (!f) return;
-
-	for (i = 0; i < 256; i++) {
-		lst = &MAIN.Translation.MisMatches.Entries[i];
-		for (tm = lst->pFirst; tm; tm = tm->Item.pNext) {
-			fprintf(f, "transNewEntry(\"%s\",\"\");\n",tm->Target);
-		}
-	}
-
-	fclose(f);
+void tMatMakeRotationXMatrix44d(tnsMatrix44d m, real angle_rad) {
+	tMatLoadIdentity44d(m);
+	m[5] = cos(angle_rad);
+	m[6] = sin(angle_rad);
+	m[9] = -sin(angle_rad);
+	m[10] = cos(angle_rad);
 }
-int IsThisTranslationMatch(nTranslationMatch* tm, char* p) {
-	return (tm->Target && !strcmp(tm->Target, p));
+void tMatMakeRotationYMatrix44d(tnsMatrix44d m, real angle_rad) {
+	tMatLoadIdentity44d(m);
+	m[0] = cos(angle_rad);
+	m[2] = -sin(angle_rad);
+	m[8] = sin(angle_rad);
+	m[10] = cos(angle_rad);
 }
-void transNewEntry(const char* Target, const char* replacement) {
-	nTranslationMatch* tm = memAquireOnly(sizeof(nTranslationMatch));
-	tm->Target = Target;
-	tm->Replacement = replacement;
-	hsh256InsertItemCSTR(&MAIN.Translation.CurrentLanguage->Matches, tm, Target);
+void tMatMakeRotationZMatrix44d(tnsMatrix44d m, real angle_rad) {
+	tMatLoadIdentity44d(m);
+	m[0] = cos(angle_rad);
+	m[1] = sin(angle_rad);
+	m[4] = -sin(angle_rad);
+	m[5] = cos(angle_rad);
 }
-void transNewMissEntry(const char* Target) {
-	if (!hsh256FindItemCSTR(&MAIN.Translation.MisMatches, IsThisTranslationMatch, Target)) {
-		nTranslationMatch* tm = memAquireOnly(sizeof(nTranslationMatch));
-		tm->Target = Target;
-		hsh256InsertItemCSTR(&MAIN.Translation.MisMatches, tm, Target);
-	}
+void tMatMakeScaleMatrix44d(tnsMatrix44d m, real x, real y, real z) {
+	tMatLoadIdentity44d(m);
+	m[0] = x;
+	m[5] = y;
+	m[10] = z;
 }
-char* transLate(char* Target) {
-	if (!MAIN.Translation.CurrentLanguage || !MAIN.Translation.EnableTranslation) return Target;
-	nTranslationMatch* tm = hsh256FindItemCSTR(&MAIN.Translation.CurrentLanguage->Matches, IsThisTranslationMatch, Target);
-	if (!tm) {
-		transNewMissEntry(Target);
-		return Target;
-	}
-	return tm->Replacement;
-}
-void transState(void* UNUSED, int val) {
-	if (val) MAIN.Translation.EnableTranslation = 1;
-	else MAIN.Translation.EnableTranslation = 0;
-
-	nulRedrawCurrentWindow();
+void tMatMakeViewportMatrix44d(tnsMatrix44d m, real w, real h, real Far, real Near) {
+	tMatLoadIdentity44d(m);
+	m[0] = w / 2;
+	m[5] = h / 2;
+	m[10] = (Far - Near) / 2;
+	m[12] = w / 2;
+	m[13] = h / 2;
+	m[14] = (Far + Near) / 2;
+	m[15] = 1;
+	//m[0] = 2/w;
+	//m[5] = 2/h;
+	//m[10] = 1;
+	//m[12] = 2/w;
+	//m[13] = 2/h;
+	//m[14] = 1;
+	//m[15] = 1;
 }
 
 
-
-//=========================================================[ Internet ]
-
-void nulOpenInternetLink(char* link) {
-	HKEY hkRoot, hSubKey;
-	char ValueName[256];
-	unsigned char DataValue[256];
-	unsigned long cbValueName = 256;
-	unsigned long cbDataValue = 256;
-	char ShellChar[512];
-	DWORD dwType;
-
-	ShellExecute(0, "open", link, 0, 0, SW_SHOWNORMAL);
-
-	return;
+real tnsLinearInterpolate(real L, real R, real T) {
+	return tnsLinearItp(L, R, T);
+}
+void tnsLinearInterpolate2dv(real* L, real* R, real T, real* Result) {
+	Result[0] = tnsLinearItp(L[0], R[0], T);
+	Result[1] = tnsLinearItp(L[1], R[1], T);
+}
+void tnsLinearInterpolate3dv(real* L, real* R, real T, real* Result) {
+	Result[0] = tnsLinearItp(L[0], R[0], T);
+	Result[1] = tnsLinearItp(L[1], R[1], T);
+	Result[2] = tnsLinearItp(L[2], R[2], T);
 }
 
-
-//===========================================================[ deprecated ]
-
-void nulSendPanic(char* message){
-	MessageBox(0, \
-		message  
-		, "SYSTEM_ERROR", 0);                                                       
-	exit(0);
-}
-
-//===========================================================[ file util ]
-
-char* txtReadFileAsString(char* FileName) {
-	FILE* f = fopen(FileName, "r");
-	int length;
-	fseek(f, 0, SEEK_END);
-	length = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	char* buffer = CreateNewBuffer(char, length);
-
-	fread(buffer, sizeof(char), length, f);
-
-	fclose(f);
-
-	return buffer;
-}

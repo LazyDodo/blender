@@ -1499,8 +1499,8 @@ typedef struct SceneLANPR{
 
 	/* offline render */
 
-	struct LANPR_RenderBuffer *render_buffer;// created when needed.
-	ListBase                   line_style_layers; /* now here!!! */
+	struct LANPR_RenderBuffer *render_buffer;      /* created when needed. for offline rendering */
+	ListBase                   line_style_layers;  /* now here!!! */
 	struct LANPR_LineStyle    *active_layer;
 
 } SceneLANPR;

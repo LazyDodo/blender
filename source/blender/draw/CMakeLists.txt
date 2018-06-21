@@ -121,6 +121,7 @@ set(SRC
 	engines/lanpr/lanpr_engine.c
 	engines/lanpr/lanpr_snake.c
 	engines/lanpr/lanpr_ops.c
+	engines/lanpr/lanpr_util.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -142,8 +143,7 @@ set(SRC
 	engines/eevee/eevee_private.h
 	engines/external/external_engine.h
 
-	#engines/lanpr/NUL_TNS.h
-	engines/lanpr/NUL_Util.h
+	engines/lanpr/lanpr_util.h
 	engines/lanpr/lanpr_all.h
 )
 

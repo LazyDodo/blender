@@ -1,13 +1,36 @@
 #pragma once
 
-#include "NUL_Util.h"
+#include "lanpr_util.h"
 #include "BLI_mempool.h"
-#include "GPU_framebuffer.h"
+//#include "GPU_framebuffer.h"
 #include "GPU_batch.h"
 #include "GPU_framebuffer.h"
 #include "GPU_shader.h"
 #include "GPU_uniformbuffer.h"
 #include "GPU_viewport.h"
+#include "DNA_listbase.h"
+#include "DRW_render.h"
+#include "BKE_object.h"
+#include "DNA_mesh_types.h"
+#include "DNA_camera_types.h"
+#include "GPU_immediate.h"
+#include "GPU_immediate_util.h"
+#include "GPU_framebuffer.h"
+#include "DNA_lanpr_types.h"
+#include "DNA_meshdata_types.h"
+#include "BKE_customdata.h"
+#include "DEG_depsgraph_query.h"
+#include "GPU_draw.h"
+
+#include "GPU_batch.h"
+#include "GPU_framebuffer.h"
+#include "GPU_shader.h"
+#include "GPU_uniformbuffer.h"
+#include "GPU_viewport.h"
+#include "bmesh.h"
+
+#include "WM_types.h"
+#include "WM_api.h"
 
 
 
@@ -202,27 +225,36 @@ typedef struct LANPR_Data {
 
 
 
-typedef struct tnsRenderTaskInfo {
+/* Below ported from NUL_TNS.h */
+
+#define TNS_THREAD_LINE_COUNT 10000
+
+#define TNS_CALCULATION_IDLE         0
+#define TNS_CALCULATION_GEOMETRY     1
+#define TNS_CALCULATION_CONTOUR      2
+#define TNS_CALCULATION_INTERSECTION 3
+#define TNS_CALCULATION_OCCLUTION    4
+#define TNS_CALCULATION_FINISHED     100
+
+typedef struct LANPR_RenderTaskInfo {
 	//thrd_t           ThreadHandle;
 
-	//tnsRenderBuffer* RenderBuffer;
+	struct LANPR_RenderBuffer* RenderBuffer;
 	int              ThreadID;
 
-	//nListItemPointer* Contour;
-	//nListHandle       ContourPointers;
+	struct nListItemPointer* Contour;
+	nListHandle       ContourPointers;
 
-	//nListItemPointer* Intersection;
-	//nListHandle       IntersectionPointers;
+	struct nListItemPointer* Intersection;
+	nListHandle       IntersectionPointers;
 
-	//nListItemPointer* Crease;
-	//nListHandle       CreasePointers;
+	struct nListItemPointer* Crease;
+	nListHandle       CreasePointers;
 
-	//nListItemPointer* Material;
-	//nListHandle       MaterialPointers;
+	struct nListItemPointer* Material;
+	nListHandle       MaterialPointers;
 
-} tnsRenderTaskInfo;
-
-/* Below ported from NUL_TNS.h */
+} LANPR_RenderTaskInfo;
 
 typedef struct LANPR_RenderBuffer {
 	struct LANPR_RenderBuffer *prev, *next;
@@ -230,21 +262,36 @@ typedef struct LANPR_RenderBuffer {
 	//nSafeString*       Name;
 
 	//tnsFrameBuffer*    FrameBuffer;
+	//now we move frame buffer content here
+    int W, H;
+	int SubPixelSample;//1,2,3,4, Use Squared Value.
+	int TileSizeW, TileSizeH;
+	int TileCountX, TileCountY;
+	real  WidthPerTile, HeightPerTile;
+	//tnsMatrix44d    ViewProjection;
+	//tnsMatrix44d    VPInverse;
 
-	//tnsBoundingArea*   InitialBoundingAreas;
-	//u32bit             BoundingAreaCount;
+	nSafeString*    OutputFolder;//end with a slash;
+	nSafeString*    ImagePrefix;
+	nSafeString*    ImageNameConnector;
+
+	int             OutputMode;
+	int             OutputAALevel;
+
+	struct LANPR_BoundingArea*   InitialBoundingAreas;
+	u32bit             BoundingAreaCount;
 	//u32bit             BaVBO;
 	//u32bit           BaFillVBO;
 
-	ListBase           VertexBufferPointers;
-	ListBase           TriangleBufferPointers;
+	nListHandle           VertexBufferPointers;
+	nListHandle           TriangleBufferPointers;
 	
-	ListBase           AllRenderLines;
+	nListHandle           AllRenderLines;
 
-	//nListHandle     IntersectingVertexBuffer;
+	nListHandle     IntersectingVertexBuffer;
 
-    /* BLI_xx equ? */
-	//nStaticMemoryPool  RenderDataPool;
+    /* use own-implemented one */
+	nStaticMemoryPool  RenderDataPool;
 
 	//render status
 
@@ -254,23 +301,23 @@ typedef struct LANPR_RenderBuffer {
 
 	u32bit          ContourCount;
 	u32bit          ContourProcessed;
-	//nListItemPointer* ContourManaged;
-	ListBase        Contours;
+	nListItemPointer* ContourManaged;
+	nListHandle        Contours;
 
 	u32bit          IntersectionCount;
 	u32bit          IntersectionProcessed;
-	//nListItemPointer* IntersectionManaged;
-	ListBase        IntersectionLines;
+	nListItemPointer* IntersectionManaged;
+	nListHandle        IntersectionLines;
 
 	u32bit          CreaseCount;
 	u32bit          CreaseProcessed;
-	//nListItemPointer* CreaseManaged;
-	ListBase        CreaseLines;
+	nListItemPointer* CreaseManaged;
+	nListHandle        CreaseLines;
 
 	u32bit          MaterialLineCount;
 	u32bit          MaterialProcessed;
-	//nListItemPointer* MaterialManaged;
-	ListBase        MaterialLines;
+	nListItemPointer* MaterialManaged;
+	nListHandle        MaterialLines;
 
 	//CRITICAL_SECTION csInfo;
 	//CRITICAL_SECTION csData;
@@ -298,12 +345,12 @@ typedef struct LANPR_RenderBuffer {
 	int             ShowMaterial;
 	int             OverrideDisplay;
 
-	ListBase        DrawCommands;
+	nListHandle        DrawCommands;
 
 	//tnsRenderBufferPreviewNode RenderPreview[32];
 
-	Scene*          Scene;
-	//tnsCamera* Camera;
+	struct Scene*          Scene;
+	struct Camera*         Camera;
 
 	//tnsRenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
@@ -313,7 +360,7 @@ typedef struct LANPR_RenderBuffer {
 #define TNS_CULL_USED    1
 
 typedef struct LANPR_RenderTriangle {
-	Link              Item;
+	nListItem              Item;
 	struct LANPR_RenderVert* V[3];
 	struct LANPR_RenderLine* RL[3];
 	real              GN[3];
@@ -330,23 +377,23 @@ typedef struct LANPR_RenderTriangleThread {
 }LANPR_RenderTriangleThread;
 
 typedef struct LANPR_RenderElementLinkNode {
-	Link      Item;
+	nListItem      Item;
 	void*     Pointer;
 	int       ElementCount;
 	void*     ObjectRef;
 	char      Additional;
 }LANPR_RenderElementLinkNode;
 
-typedef struct LANPR_tnsRenderLineSegment {
-	Link      Item;
+typedef struct LANPR_RenderLineSegment {
+	nListItem      Item;
 	//real     Begin, End;  // 0->At[L] 1->At[R]
 	real      at;
 	u8bit     OccludeLevel;//after
 	int       PreviewIndex;
-}LANPR_tnsRenderLineSegment;
+}LANPR_RenderLineSegment;
 
-struct LANPR_RenderVert{
-	Link   Item;
+typedef struct LANPR_RenderVert{
+	nListItem   Item;
 	real GLocation[4];
 	real FrameBufferCoord[4];
 	int FrameBufferCoordi[2];
@@ -360,10 +407,10 @@ struct LANPR_RenderVert{
 }LANPR_RenderVert;
 
 typedef struct LANPR_RenderLine {
-	Link            Item;
+	nListItem            Item;
 	struct LANPR_RenderVert *L, *R;
 	struct LANPR_RenderTriangle *TL, *TR;
-	ListBase        Segments;
+	nListHandle      Segments;
 	//tnsEdge*       Edge;//should be edge material
 	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
 	char            MinOcclude;
@@ -378,13 +425,13 @@ typedef struct LANPR_BoundingArea {
 	
 	struct LANPR_BoundingArea* Child;//1,2,3,4 quadrant
 
-	ListBase    LP;
-	ListBase    RP;
-	ListBase    UP;
-	ListBase    BP;
+	nListHandle    LP;
+	nListHandle    RP;
+	nListHandle    UP;
+	nListHandle    BP;
 
 	int         TriangleCount;
-	ListBase    AssociatedTriangles;
+	nListHandle    AssociatedTriangles;
 }LANPR_BoundingArea;
 
 typedef struct LANPR_RenderSubPixel {
@@ -398,8 +445,8 @@ typedef struct LANPR_RenderTile {
 	int                SubX, SubY, SubXLim, SubYLim;//lower Left Corner As 0
 	real               FX, FY, FXLim, FYLim;  //ratio;
 	//LANPR_RenderSubPixel* FirstPixel;            //lower Left Corner As 0
-	ListBase           AssociatedTriangles;   //lstptrs
-	ListBase           AssociatedLines;       //lstptrs
+	nListHandle        AssociatedTriangles;   //lstptrs
+	nListHandle        AssociatedLines;       //lstptrs
 	char               Rendered;
 }LANPR_RenderTile;
 
@@ -420,6 +467,9 @@ extern RenderEngineType DRW_engine_viewport_lanpr_type;
 #define LANPR_DISABLE_TIP_EXTEND       0
 #define LANPR_ENABLE_TIP_EXTEND        1
 
+
+#define tnsLinearItp(L,R,T)\
+((L)*(1.0f - (T)) + (R)*(T))
 
 
 #define TNS_TILE(tile,r,c,CCount)\
@@ -472,18 +522,207 @@ a=a<Min?Min:(a>Max?Max:a)
 #define TNS_FLOAT_CLOSE_ENOUGH_WIDER(a,b)\
 (((a)+0.0000001)>=(b) && ((a)-0.0000001)<=(b))
 
-
-#define TNS_FRAMEBUFFER_PIXEL(FrameBuffer,Row,Column)\
-&((FrameBuffer)->Pixels[Row*FrameBuffer->TileSizeW*FrameBuffer->W*FrameBuffer->SubPixelSample + Column*FrameBuffer->H*FrameBuffer->TileSizeH*FrameBuffer->SubPixelSample])
-
 #define TNS_IN_TILE_X(RenderTile,Fx)\
 (RenderTile->FX<=Fx && RenderTile->FXLim>=Fx)
 
 #define TNS_IN_TILE_Y(RenderTile,Fy)\
 (RenderTile->FY<=Fy && RenderTile->FYLim>=Fy)
 
+
 #define TNS_IN_TILE(RenderTile,Fx,Fy)\
 (TNS_IN_TILE_X(RenderTile,Fx) && TNS_IN_TILE_Y(RenderTile,Fy))
+
+__inline void tMatConvert44df(tnsMatrix44d from, tnsMatrix44f to) {
+	to[0] = from[0];
+	to[1] = from[1];
+	to[2] = from[2];
+	to[3] = from[3];
+	to[4] = from[4];
+	to[5] = from[5];
+	to[6] = from[6];
+	to[7] = from[7];
+	to[8] = from[8];
+	to[9] = from[9];
+	to[10] = from[10];
+	to[11] = from[11];
+	to[12] = from[12];
+	to[13] = from[13];
+	to[14] = from[14];
+	to[15] = from[15];
+}
+
+__inline int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle* rt, LANPR_RenderLine* rl) {
+	if (TNS_MAX3(rt->V[0]->FrameBufferCoord[2], rt->V[1]->FrameBufferCoord[2], rt->V[2]->FrameBufferCoord[2]) > TNS_MIN2(rl->L->FrameBufferCoord[2], rl->R->FrameBufferCoord[2])) return 0;
+	if (TNS_MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) < TNS_MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
+	if (TNS_MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) > TNS_MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
+	if (TNS_MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]) < TNS_MIN2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1])) return 0;
+	if (TNS_MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]) > TNS_MAX2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1])) return 0;
+	return 1;
+}
+
+double tMatGetLinearRatio(real L, real R, real FromL);
+__inline int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector2d b1, tnsVector2d b2, double* aRatio) {
+	double k1, k2;
+	double x;
+	double y;
+	double Ratio;
+	double xDiff = (a2[0] - a1[0]);// +DBL_EPSILON;
+	double xDiff2 = (b2[0] - b1[0]);
+
+	if (xDiff == 0) {
+		if (xDiff2 == 0) {
+			*aRatio = 0;
+			return 0;
+		}
+		double r2 = tMatGetLinearRatio(b1[0], b2[0], a1[0]);
+		y = tnsLinearItp(b1[1], b2[1], r2);
+		*aRatio = Ratio = tMatGetLinearRatio(a1[1], a2[1], y);
+	}
+	else {
+		if (xDiff2 == 0) {
+			Ratio = tMatGetLinearRatio(a1[0], a2[0], b1[0]);
+			//y = tnsLinearItp(a1[1], a2[1], r2);
+			*aRatio = Ratio;
+		}
+		else {
+			k1 = (a2[1] - a1[1]) / xDiff;
+			k2 = (b2[1] - b1[1]) / xDiff2;
+
+			if ((k1 == k2))
+				return 0;
+
+			x = (a1[1] - b1[1] - k1*a1[0] + k2*b1[0]) / (k2 - k1);
+
+			Ratio = (x - a1[0]) / xDiff;
+
+			*aRatio = Ratio;
+		}
+	}
+
+
+
+	if (b1[0] == b2[0]) {
+		y = tnsLinearItp(a1[1], a2[1], Ratio);
+		if (y > TNS_MAX2(b1[1], b2[1]) || y < TNS_MIN2(b1[1], b2[1])) return 0;
+	}
+	else
+		if (Ratio <= 0 || Ratio>1 ||
+			(b1[0]>b2[0] && x>b1[0]) ||
+			(b1[0]<b2[0] && x<b1[0]) ||
+			(b2[0]>b1[0] && x>b2[0]) ||
+			(b2[0]<b1[0] && x<b2[0]))
+			return 0;
+
+	return 1;
+}
+__inline double lanpr_GetLineZ(tnsVector3d L, tnsVector3d R, real Ratio) {
+	//double z = 1 / tnsLinearItp(1 / L[2], 1 / R[2], Ratio);
+	double z = tnsLinearItp(L[2], R[2], Ratio);
+	return z;
+}
+__inline double lanpr_GetLineZPoint(tnsVector3d L, tnsVector3d R, tnsVector3d FromL) {
+	double r = (FromL[0] - L[0]) / (R[0] - L[0]);
+	return tnsLinearItp(L[2], R[2], r);
+	//return 1 / tnsLinearItp(1 / L[2], 1 / R[2], r);
+}
+__inline double lanpr_GetLinearRatio(tnsVector3d L, tnsVector3d R, tnsVector3d FromL) {
+	double r = (FromL[0] - L[0]) / (R[0] - L[0]);
+	return r;
+}
+
+__inline double tMatGetLinearRatio(real L, real R, real FromL) {
+	double r = (FromL - L) / (R - L);
+	return r;
+}
+__inline void tMatVectorMinus2d(tnsVector2d result, tnsVector2d l, tnsVector2d r) {
+	result[0] = l[0] - r[0];
+	result[1] = l[1] - r[1];
+}
+
+__inline void tMatVectorMinus3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+	result[0] = l[0] - r[0];
+	result[1] = l[1] - r[1];
+	result[2] = l[2] - r[2];
+}
+__inline void tMatVectorSubtract3d(tnsVector3d l, tnsVector3d r) {
+	l[0] = l[0] - r[0];
+	l[1] = l[1] - r[1];
+	l[2] = l[2] - r[2];
+}
+__inline void tMatVectorPlus3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+	result[0] = l[0] + r[0];
+	result[1] = l[1] + r[1];
+	result[2] = l[2] + r[2];
+}
+__inline void tMatVectorAccum3d(tnsVector3d l, tnsVector3d r) {
+	l[0] = l[0] + r[0];
+	l[1] = l[1] + r[1];
+	l[2] = l[2] + r[2];
+}
+__inline void tMatVectorAccum2d(tnsVector2d l, tnsVector2d r) {
+	l[0] = l[0] + r[0];
+	l[1] = l[1] + r[1];
+}
+__inline void tMatVectorNegate3d(tnsVector3d result, tnsVector3d l) {
+	result[0] = -l[0];
+	result[1] = -l[1];
+	result[2] = -l[2];
+}
+__inline void tMatVectorNegateSelf3d(tnsVector3d l) {
+	l[0] = -l[0];
+	l[1] = -l[1];
+	l[2] = -l[2];
+}
+__inline void tMatVectorCopy2d(tnsVector2d from, tnsVector2d to) {
+	to[0] = from[0];
+	to[1] = from[1];
+}
+__inline void tMatVectorCopy3d(tnsVector3d from, tnsVector3d to) {
+	to[0] = from[0];
+	to[1] = from[1];
+	to[2] = from[2];
+}
+__inline void tMatVectorCopy4d(tnsVector4d from, tnsVector4d to) {
+	to[0] = from[0];
+	to[1] = from[1];
+	to[2] = from[2];
+	to[3] = from[3];
+}
+__inline void tMatVectorMultiSelf4d(tnsVector3d from, real num) {
+	from[0] *= num;
+	from[1] *= num;
+	from[2] *= num;
+	from[3] *= num;
+}
+__inline void tMatVectorMultiSelf3d(tnsVector3d from, real num) {
+	from[0] *= num;
+	from[1] *= num;
+	from[2] *= num;
+}
+__inline void tMatVectorMultiSelf2d(tnsVector3d from, real num) {
+	from[0] *= num;
+	from[1] *= num;
+}
+
+__inline real tMatDirectionToRad(tnsVector2d Dir) {
+	real arcc = acos(Dir[0]);
+	real arcs = asin(Dir[1]);
+
+	if (Dir[0] >= 0) {
+		if (Dir[1] >= 0) return arcc;
+		else return TNS_PI * 2 - arcc;
+	}
+	else {
+		if (Dir[1] >= 0) return arcs + TNS_PI / 2;
+		else return TNS_PI + arcs;
+	}
+}
+
+
+int lanpr_PointInsideTrianglef(tnsVector2d v, tnsVector2d v0, tnsVector2d v1, tnsVector2d v2);
+real lanpr_LinearInterpolate(real L, real R, real T);
+void lanpr_LinearInterpolate2dv(real* L, real* R, real T, real* Result);
+void lanpr_LinearInterpolate3dv(real* L, real* R, real T, real* Result);
 
 
 
