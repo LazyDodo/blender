@@ -76,7 +76,7 @@ class DATA_PT_gpencil_datapanel(Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
+        #layout.use_property_split = True
         layout.use_property_decorate = False
 
         gpd = context.gpencil_data
