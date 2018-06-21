@@ -2,6 +2,9 @@
 
 #include <string.h>
 //#include "lanpr_all.h"
+#include "BLI_listbase.h"
+#include "BLI_linklist.h"
+#include "BLI_threads.h"
 
 /*
 
@@ -272,7 +275,7 @@ STRUCTURE(nStaticMemoryPoolNode) {
 STRUCTURE(nStaticMemoryPool) {
 	int         EachSize;
 	nListHandle Pools;
-	//CRITICAL_SECTION csMem;
+	SpinLock csMem;
 };
 
 #define CreateNew(Type)\
@@ -517,6 +520,8 @@ int strIsTheSame(char* src, char*dest);
 
 void strSafeDestroy(nSafeString** ss);
 void strSafeSet(nSafeString** ss, char* Content);
+
+void tMatObmatTo16d(float obmat[4][4], tnsMatrix44d out);
 
 real tMatDistIdv2(real x1, real y1, real x2, real y2);
 real tMatDist3dv(tnsVector3d l, tnsVector3d r);

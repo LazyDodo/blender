@@ -341,7 +341,6 @@ int lanpr_GetTriangleBoundingTile(LANPR_RenderBuffer* rb, LANPR_RenderTriangle* 
 void lanpr_AddTriangles(LANPR_RenderBuffer* rb) {
 	LANPR_RenderElementLinkNode* reln;
 	LANPR_RenderTriangle* rt;
-	LANPR_RenderTile* tile;
 	tnsMatrix44d VP;
 	Camera* c = ((Camera*)rb->Scene->camera);
 	int i, lim;
@@ -607,8 +606,8 @@ int lanpr_MakeNextOcclusionTaskInfo(LANPR_RenderBuffer* rb, LANPR_RenderTaskInfo
 	int i;
 	int res = 0;
 
-	//EnterCriticalSection(&rb->csManagement);
-
+	BLI_spin_lock(&rb->csManagement);
+	
 	if (rb->ContourManaged) {
 		p = rb->ContourManaged;
 		rti->Contour = (void*)p;
@@ -673,7 +672,7 @@ int lanpr_MakeNextOcclusionTaskInfo(LANPR_RenderBuffer* rb, LANPR_RenderTaskInfo
 		rti->Material = 0;
 	}
 
-	//LeaveCriticalSection(&rb->csManagement);
+	BLI_spin_unlock(&rb->csManagement);
 
 	return res;
 }
@@ -683,7 +682,6 @@ void lanpr_CalculateSingleLineOcclusion(LANPR_RenderBuffer* rb, LANPR_RenderLine
 	LANPR_BoundingArea* nba = ba;
 	LANPR_RenderTriangleThread* rt;
 	nListItemPointer* lip;
-	LANPR_RenderVert* rv;
 	Camera* c = rb->Scene->camera->data;
 	real l, r;
 	real k = (rl->R->FrameBufferCoord[1] - rl->L->FrameBufferCoord[1]) / (rl->R->FrameBufferCoord[0] - rl->L->FrameBufferCoord[0] + 1e-30);
@@ -696,7 +694,7 @@ void lanpr_CalculateSingleLineOcclusion(LANPR_RenderBuffer* rb, LANPR_RenderLine
 			rt = lip->p;
 			//if (rt->Testing[ThreadID] == rl || rl->L->IntersectWith == rt || rl->R->IntersectWith == rt) continue;
 			rt->Testing[ThreadID] = rl;
-			if (lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(rt, rl, c, rb->ViewProjection, &l, &r)) {
+			if (lanpr_TriangleLineImageSpaceIntersectTestOnlyV2((void*)rt, rl, c, rb->ViewProjection, &l, &r)) {
 				lanpr_CutLineIntegrated(rb, rl, l, r);
 			}
 		}
@@ -706,7 +704,6 @@ void lanpr_CalculateSingleLineOcclusion(LANPR_RenderBuffer* rb, LANPR_RenderLine
 void THREAD_CalculateLineOcclusion(LANPR_RenderTaskInfo* rti) {
 	LANPR_RenderBuffer* rb = rti->RenderBuffer;
 	int ThreadId = rti->ThreadID;
-	LANPR_RenderLine* rl;
 	nListItemPointer* lip;
 	int count = 0;
 
@@ -774,67 +771,6 @@ int lanpr_BoundBoxCrosses(tnsVector4d xxyy1, tnsVector4d xxyy2) {
 
 	return 1;
 }
-int lanpr_LineCrossesTile(LANPR_RenderBuffer* fb, tnsVector2d L, tnsVector2d R, LANPR_RenderTile* Tile) {
-	real vx, vy;
-	tnsVector4d Converted;
-	real c1, c;
-
-	if ((Converted[0] = (real)Tile->SubX - (real)fb->W / 2) > TNS_MAX2(L[0], R[0])) return 0;
-	if ((Converted[1] = (real)Tile->SubXLim - (real)fb->W / 2) < TNS_MIN2(L[0], R[0])) return 0;
-	if ((Converted[2] = (real)Tile->SubY - (real)fb->H / 2) > TNS_MAX2(L[1], R[1])) return 0;
-	if ((Converted[3] = (real)Tile->SubYLim - (real)fb->H / 2) < TNS_MIN2(L[1], R[1])) return 0;
-
-	//LineBoundBox[0] = L[0];
-	//LineBoundBox[1] = R[0];
-	//LineBoundBox[2] = L[1];
-	//LineBoundBox[3] = R[1];
-
-	//if (!lanpr_BoundBoxCrosses(Converted, LineBoundBox))return 0;
-
-	//tMatVectorMinus2d(vec, L, R);
-	vx = L[0] - R[0];
-	vy = L[1] - R[1];
-
-	c1 = vx * (Converted[2] - L[1]) - vy * (Converted[0] - L[0]);
-	c = c1;
-
-	c1 = vx * (Converted[2] - L[1]) - vy * (Converted[1] - L[0]);
-	if (c1*c <= 0)return 1;
-	else c = c1;
-
-	c1 = vx * (Converted[3] - L[1]) - vy * (Converted[0] - L[0]);
-	if (c1*c <= 0)return 1;
-	else c = c1;
-
-	c1 = vx * (Converted[3] - L[1]) - vy * (Converted[1] - L[0]);
-	if (c1*c <= 0)return 1;
-	else c = c1;
-
-	//c1 = vec[0] * (Converted[2] - L[1]) - vec[1] * (Converted[0] - L[0]);
-	//if (c1*c < 0)return 1;
-
-	//test[0] = Converted[1]; test[1] = Converted[2];
-	//tMatVectorMinus2d(test, test, L);
-	//tMatVectorCrossOnly3d(CrossResult, vec, test);
-	//if (tMatDot3d(CrossResult, CrossResultSave, 0) < 0) 
-	//	return 1;
-	//else tMatVectorCopy3d(CrossResult, CrossResultSave);
-
-	//test[0] = Converted[0]; test[1] = Converted[3];
-	//tMatVectorMinus2d(test, test, L);
-	//tMatVectorCrossOnly3d(CrossResult, vec, test);
-	//if (tMatDot3d(CrossResult, CrossResultSave, 0) < 0)
-	//	return 1;
-	//else tMatVectorCopy3d(CrossResult, CrossResultSave);
-	//
-	//test[0] = Converted[1]; test[1] = Converted[3];
-	//tMatVectorMinus2d(test, test, L);
-	//tMatVectorCrossOnly3d(CrossResult, vec, test);
-	//if (tMatDot3d(CrossResult, CrossResultSave, 0) < 0) 
-	//	return 1;
-
-	return 0;
-}
 int lanpr_PointInsideTrianglef(tnsVector2d v, tnsVector2d v0, tnsVector2d v1, tnsVector2d v2) {
 	double cl, c;
 
@@ -889,7 +825,6 @@ int lanpr_PointTriangleRelation(tnsVector2d v, tnsVector2d v0, tnsVector2d v1, t
 	return 2;
 }
 int lanpr_PointInsideTriangle3d(tnsVector3d v, tnsVector3d v0, tnsVector3d v1, tnsVector3d v2) {
-	real cl, c;
 	tnsVector3d L, R;
 	tnsVector3d N1, N2;
 
@@ -997,7 +932,6 @@ void lanpr_CullTriangles(LANPR_RenderBuffer* rb) {
 	LANPR_RenderVert* rv;
 	LANPR_RenderElementLinkNode* reln, *veln, *teln;
 	LANPR_RenderLineSegment* rls;
-	tnsVector4d p1, p2;
 	real* MVInverse = rb->VPInverse;
 	int i;
 	real a;
@@ -1492,7 +1426,7 @@ void lanpr_CalculateRenderTriangleNormal(LANPR_RenderTriangle* rt) {
 	tMatVectorCross3d(rt->GN, L, R);
 	tMatNormalizeSelf3d(rt->GN);
 }
-void lanpr_MakeRenderGeometryBuffersRecursive(Object* o, real* MVMat, real* MVPMat, LANPR_RenderBuffer* rb, real HeightMultiply) {
+void lanpr_MakeRenderGeometryBuffersObject(Object* o, real* MVMat, real* MVPMat, LANPR_RenderBuffer* rb, real HeightMultiply) {
 	Object* oc;
 	Mesh* mo;
 	BMVert* v;
@@ -1557,19 +1491,20 @@ void lanpr_MakeRenderGeometryBuffersRecursive(Object* o, real* MVMat, real* MVPM
 	}
 
 	for (oc = o->ChildObjects.pFirst; oc; oc = oc->Item.pNext) {
-		lanpr_MakeRenderGeometryBuffersRecursive(oc, NewMV, NewMVP, rb, HeightMultiply);
+		lanpr_MakeRenderGeometryBuffersRecursive(oc, NewMV, NewMVP, rb);
 	}
 }
-void tnsMakeRenderGeometryBuffers(Scene* s, Camera* c, LANPR_RenderBuffer* rb, int HeightMultiply) {
+void lanpr_MakeRenderGeometryBuffers(Scene* s, Object* c/*camera*/, LANPR_RenderBuffer* rb) {
 	Object* o;
+	Collection* collection;
+	CollectionObject* co;
+	tnsMatrix44d obmat16;
 	tnsMatrix44d proj, view, result, inv;
-	LANPR_RenderBuffer* fb = rb;
-
 	if (!c) return;
 
-	memset(rb->Scene->MaterialPointers, 0, sizeof(void*) * 2048);
+	memset(rb->MaterialPointers, 0, sizeof(void*) * 2048);
 
-	real asp = ((real)fb->W / (real)fb->H);
+	real asp = ((real)rb->W / (real)rb->H);
 
 	if (c->type == CAM_PERSP) {
 		tMatMakePerspectiveMatrix44d(proj, c->FOV, asp, c->clipsta, c->clipend);
@@ -1582,20 +1517,23 @@ void tnsMakeRenderGeometryBuffers(Scene* s, Camera* c, LANPR_RenderBuffer* rb, i
 
 	//tObjApplySelfTransformMatrix(c, 0);
 	//tObjApplyGlobalTransformMatrixReverted(c);
-	tMatInverse44d(inv, c->Base.GlobalTransform);
+	tMatObmatTo16d(c->obmat, obmat16)
+	tMatInverse44d(inv, obmat16);
 	tMatMultiply44d(result, proj, inv);
 	memcpy(proj, result, sizeof(tnsMatrix44d));
-	memcpy(fb->ViewProjection, proj, sizeof(tnsMatrix44d));
+	memcpy(rb->ViewProjection, proj, sizeof(tnsMatrix44d));
 
-	tMatInverse44d(fb->VPInverse, fb->ViewProjection);
+	tMatInverse44d(rb->VPInverse, rb->ViewProjection);
 
 	void* a;
 	while (a = lstPopPointer(&rb->TriangleBufferPointers)) FreeMem(a);
 	while (a = lstPopPointer(&rb->VertexBufferPointers)) FreeMem(a);
 
-	for (o = s->Objects.pFirst; o; o = o->Item.pNext) {
-		//tObjApplyGlobalTransformMatrixRecursive(o);
-		lanpr_MakeRenderGeometryBuffersRecursive(o, view, proj, rb, (real)HeightMultiply);
+	for (collection = s->master_collection.first; collection; collection = collection->ID.next) {
+		for (co = collection->gobject.first; co; co = co->next) {
+			//tObjApplyGlobalTransformMatrixRecursive(o);
+			lanpr_MakeRenderGeometryBuffersObject(o, view, proj, rb);
+		}
 	}
 }
 
@@ -2247,8 +2185,8 @@ LANPR_RenderVert* lanpr_TriangleLineIntersectionTest(LANPR_RenderLine* rl, LANPR
 	//Result->IntersectingOnFace = Testing;
 	Result->EdgeUsed = 1;
 	//Result->IntersectL = L;
-	Result->V = R; //Caution!
-				   //Result->IntersectWith = rt;
+	Result->V = (void*)R; //Caution!
+				          //Result->IntersectWith = rt;
 	tMatVectorCopy3d(GLocation, Result->GLocation);
 
 	lstAppendItem(&Testing->IntersectingVerts, Result);
@@ -2579,6 +2517,11 @@ LANPR_RenderBuffer* lanpr_CreateRenderBuffer(SceneLANPR* lanpr) {
 
 	lanpr->render_buffer = rb;
 
+	BLI_spin_init(&rb->csData);
+	BLI_spin_init(&rb->csInfo);
+	BLI_spin_init(&rb->csManagement);
+	BLI_spin_init(&rb->RenderDataPool.csMem);
+
 	return rb;
 }
 
@@ -2597,8 +2540,17 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 
     rb = lanpr_CreateRenderBuffer(lanpr);
 
+	lanpr_MakeRenderGeometryBuffers(scene,scene->camera,rb);
+	
+	lanpr_CullTriangles(rb);
+
+	lanpr_PerspectiveDivision(rb);
+
 	lanpr_MakeInitialBoundingAreas(rb);
 
+	lanpr_ComputeSceneContours(rb);
+
+	lanpr_AddTriangles(rb);
 
 	return OPERATOR_FINISHED;
 }

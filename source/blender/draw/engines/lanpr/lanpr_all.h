@@ -22,6 +22,8 @@
 #include "DEG_depsgraph_query.h"
 #include "GPU_draw.h"
 
+#include "BLI_threads.h"
+
 #include "GPU_batch.h"
 #include "GPU_framebuffer.h"
 #include "GPU_shader.h"
@@ -293,6 +295,8 @@ typedef struct LANPR_RenderBuffer {
     /* use own-implemented one */
 	nStaticMemoryPool  RenderDataPool;
 
+	Material           *MaterialPointers[2048];
+
 	//render status
 
 	real            ViewVector[3];
@@ -319,9 +323,9 @@ typedef struct LANPR_RenderBuffer {
 	nListItemPointer* MaterialManaged;
 	nListHandle        MaterialLines;
 
-	//CRITICAL_SECTION csInfo;
-	//CRITICAL_SECTION csData;
-	//CRITICAL_SECTION csManagement;
+	SpinLock csInfo;
+	SpinLock csData;
+	SpinLock csManagement;
 
 	//settings
 

@@ -906,7 +906,7 @@ void* memStaticAquireThread(nStaticMemoryPool*smp, int size) {
 	nStaticMemoryPoolNode* smpn = smp->Pools.pFirst;
 	void* ret;
 
-	//EnterCriticalSection(&smp->csMem);
+	BLI_spin_lock(&smp->csMem);
 
 	if (!smpn || (smpn->UsedByte + size) > NUL_MEMORY_POOL_128MB)
 		smpn = memNewStaticPool(smp);
@@ -915,7 +915,7 @@ void* memStaticAquireThread(nStaticMemoryPool*smp, int size) {
 
 	smpn->UsedByte += size;
 
-	//LeaveCriticalSection(&smp->csMem);
+	BLI_spin_unlock(&smp->csMem);
 
 	return ret;
 }
@@ -1527,6 +1527,25 @@ void tMatPrintMatrix44d(tnsMatrix44d l) {
 		}
 		printf("\n");
 	}
+}
+
+void tMatObmatTo16d(float obmat[4][4], tnsMatrix44d out) {
+	out[0] = obmat[0][0];
+	out[1] = obmat[0][1];
+	out[2] = obmat[0][2];
+	out[3] = obmat[0][3];
+	out[4] = obmat[1][0];
+	out[5] = obmat[1][1];
+	out[6] = obmat[1][2];
+	out[7] = obmat[1][3];
+	out[8]  = obmat[2][0];
+	out[9]  = obmat[2][1];
+	out[10] = obmat[2][2];
+	out[11] = obmat[2][3];
+	out[12] = obmat[3][0];
+	out[13] = obmat[3][1];
+	out[14] = obmat[3][2];
+	out[15] = obmat[3][3];
 }
 
 void tMatCopyMatrix44d(tnsMatrix44d from, tnsMatrix44d to) {
