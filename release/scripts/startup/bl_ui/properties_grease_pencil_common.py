@@ -764,15 +764,6 @@ class GPENCIL_MT_layer_specials(Menu):
         layout.operator("gpencil.layer_merge", icon='NLA', text="Merge Down")
 
 
-class GPENCIL_MT_brush_specials(Menu):
-    bl_label = "Brush"
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("gpencil.brush_copy", icon='PASTEDOWN', text="Copy Current Drawing Brush")
-        layout.operator("gpencil.brush_presets_create", icon='HELP', text="Create a Set of Predefined Brushes")
-
-
 class GreasePencilDataPanel:
     bl_label = "Annotations"
     bl_region_type = 'UI'
@@ -954,7 +945,6 @@ classes = (
     GPENCIL_MT_gpencil_draw_specials,
     GPENCIL_UL_layer,
     GPENCIL_MT_layer_specials,
-    GPENCIL_MT_brush_specials,
 )
 
 if __name__ == "__main__":  # only for live edit.
