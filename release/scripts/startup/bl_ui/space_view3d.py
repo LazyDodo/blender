@@ -3685,7 +3685,7 @@ class VIEW3D_PT_shading_lighting(Panel):
         view = context.space_data
         shading = view.shading
 
-        if shading.type in ('SOLID', 'TEXTURED'):
+        if shading.type == 'SOLID':
             layout.row().prop(shading, "light", expand=True)
             if shading.light == 'STUDIO':
                 row = layout.row()
@@ -3702,7 +3702,7 @@ class VIEW3D_PT_shading_lighting(Panel):
                 sub.operator('VIEW3D_OT_toggle_matcap_flip', emboss=False, text="", icon='ARROW_LEFTRIGHT')
                 sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
 
-        elif shading.type in ('MATERIAL'):
+        elif shading.type == 'MATERIAL':
             row = layout.row()
             row.template_icon_view(shading, "studio_light", show_labels=True)
             sub = row.column()
@@ -3747,7 +3747,7 @@ class VIEW3D_PT_shading_options(Panel):
     def poll(cls, context):
         view = context.space_data
         shading = view.shading
-        return shading.type in ['SOLID', 'TEXTURED']
+        return shading.type == 'SOLID'
 
     def draw(self, context):
         layout = self.layout
@@ -3759,35 +3759,34 @@ class VIEW3D_PT_shading_options(Panel):
             row = layout.row()
             row.prop(shading, "show_specular_highlight")
 
-        if shading.type in ('SOLID', 'TEXTURED'):
-            row = layout.split(0.4)
-            row.prop(shading, "show_xray")
-            sub = row.row()
-            sub.active = shading.show_xray
-            sub.prop(shading, "xray_alpha", text="")
+        row = layout.split(0.4)
+        row.prop(shading, "show_xray")
+        sub = row.row()
+        sub.active = shading.show_xray
+        sub.prop(shading, "xray_alpha", text="")
 
-            row = layout.split(0.4)
-            row.active = not shading.show_xray
-            row.prop(shading, "show_shadows")
-            sub = row.row()
-            sub.active = shading.show_shadows and not shading.show_xray
-            sub.prop(shading, "shadow_intensity", text="")
+        row = layout.split(0.4)
+        row.active = not shading.show_xray
+        row.prop(shading, "show_shadows")
+        sub = row.row()
+        sub.active = shading.show_shadows and not shading.show_xray
+        sub.prop(shading, "shadow_intensity", text="")
 
-            row = layout.split(0.4)
-            row.active = not shading.show_xray
-            row.prop(shading, "show_cavity")
-            sub = row.column(align=True)
-            sub.active = not shading.show_xray and shading.show_cavity
-            sub.prop(shading, "cavity_ridge_factor")
-            sub.prop(shading, "cavity_valley_factor")
+        row = layout.split(0.4)
+        row.active = not shading.show_xray
+        row.prop(shading, "show_cavity")
+        sub = row.column(align=True)
+        sub.active = not shading.show_xray and shading.show_cavity
+        sub.prop(shading, "cavity_ridge_factor")
+        sub.prop(shading, "cavity_valley_factor")
 
-            row = layout.split(0.4)
-            row.prop(shading, "show_object_outline")
-            sub = row.row()
-            sub.active = shading.show_object_outline
-            sub.prop(shading, "object_outline_color", text="")
+        row = layout.split(0.4)
+        row.prop(shading, "show_object_outline")
+        sub = row.row()
+        sub.active = shading.show_object_outline
+        sub.prop(shading, "object_outline_color", text="")
 
-            layout.prop(view, "show_world")
+        layout.prop(view, "show_world")
 
 
 class VIEW3D_PT_overlay(Panel):
@@ -3885,6 +3884,7 @@ class VIEW3D_PT_overlay_edit_mesh(Panel):
         data = context.active_object.data
         statvis = tool_settings.statvis
         with_freestyle = bpy.app.build_options.freestyle
+        show_developer_ui = context.user_preferences.view.show_developer_ui
 
         col = layout.column()
         col.active = display_all
@@ -3907,7 +3907,7 @@ class VIEW3D_PT_overlay_edit_mesh(Panel):
         sub.prop(data, "show_extra_face_area", text="Face Area")
         sub.prop(data, "show_extra_face_angle", text="Face Angle")
 
-        if bpy.app.debug:
+        if show_developer_ui:
             sub.prop(data, "show_extra_indices", text="Indices")
 
         if with_freestyle:

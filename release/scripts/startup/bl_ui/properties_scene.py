@@ -372,6 +372,7 @@ class SCENE_PT_rigid_body_world(SceneButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         scene = context.scene
 
@@ -389,13 +390,11 @@ class SCENE_PT_rigid_body_world(SceneButtonsPanel, Panel):
             col.prop(rbw, "group")
             col.prop(rbw, "constraints")
 
-            split = col.split()
-
-            col = split.column()
+            col = col.column()
             col.prop(rbw, "time_scale", text="Speed")
             col.prop(rbw, "use_split_impulse")
 
-            col = split.column()
+            col = col.column()
             col.prop(rbw, "steps_per_second", text="Steps Per Second")
             col.prop(rbw, "solver_iterations", text="Solver Iterations")
 
