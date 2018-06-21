@@ -18,7 +18,7 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Panel, UIList
+from bpy.types import Menu, Panel, UIList
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
         GreasePencilDataPanel,
@@ -200,6 +200,32 @@ class DATA_PT_gpencil_onionpanel(Panel):
         GreasePencilOnionPanel.draw_settings(layout, gpd)
 
 
+class GPENCIL_MT_gpencil_vertex_group(Menu):
+    bl_label = "GP Vertex Groups"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator_context = 'EXEC_AREA'
+        layout.operator("object.vertex_group_add")
+
+        ob = context.active_object
+        if ob.vertex_groups.active:
+            layout.separator()
+
+            layout.operator("gpencil.vertex_group_assign", text="Assign to Active Group")
+            layout.operator("gpencil.vertex_group_remove_from", text="Remove from Active Group")
+
+            layout.separator()
+            layout.operator_menu_enum("object.vertex_group_set_active", "group", text="Set Active Group")
+            layout.operator("object.vertex_group_remove", text="Remove Active Group").all = False
+            layout.operator("object.vertex_group_remove", text="Remove All Groups").all = True
+
+            layout.separator()
+            layout.operator("gpencil.vertex_group_select", text="Select Points")
+            layout.operator("gpencil.vertex_group_deselect", text="Deselect Points")
+
+
 class GPENCIL_UL_vgroups(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         vgroup = item
@@ -296,6 +322,8 @@ classes = (
     DATA_PT_custom_props_gpencil,
 
     GPENCIL_UL_vgroups,
+    
+    GPENCIL_MT_gpencil_vertex_group,
 )
 
 if __name__ == "__main__":  # only for live edit.

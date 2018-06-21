@@ -706,32 +706,6 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
         layout.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
 
 
-class GPENCIL_MT_gpencil_vertex_group(Menu):
-    bl_label = "GP Vertex Groups"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator_context = 'EXEC_AREA'
-        layout.operator("object.vertex_group_add")
-
-        ob = context.active_object
-        if ob.vertex_groups.active:
-            layout.separator()
-
-            layout.operator("gpencil.vertex_group_assign", text="Assign to Active Group")
-            layout.operator("gpencil.vertex_group_remove_from", text="Remove from Active Group")
-
-            layout.separator()
-            layout.operator_menu_enum("object.vertex_group_set_active", "group", text="Set Active Group")
-            layout.operator("object.vertex_group_remove", text="Remove Active Group").all = False
-            layout.operator("object.vertex_group_remove", text="Remove All Groups").all = True
-
-            layout.separator()
-            layout.operator("gpencil.vertex_group_select", text="Select Points")
-            layout.operator("gpencil.vertex_group_deselect", text="Deselect Points")
-
-
 class GPENCIL_UL_layer(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.GPencilLayer)
@@ -797,26 +771,6 @@ class GPENCIL_MT_brush_specials(Menu):
         layout = self.layout
         layout.operator("gpencil.brush_copy", icon='PASTEDOWN', text="Copy Current Drawing Brush")
         layout.operator("gpencil.brush_presets_create", icon='HELP', text="Create a Set of Predefined Brushes")
-
-
-class GPENCIL_MT_color_specials(Menu):
-    bl_label = "Layer"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator("gpencil.color_reveal", icon='RESTRICT_VIEW_OFF', text="Show All")
-        layout.operator("gpencil.color_hide", icon='RESTRICT_VIEW_ON', text="Hide Others").unselected = True
-
-        layout.separator()
-
-        layout.operator("gpencil.color_lock_all", icon='LOCKED', text="Lock All")
-        layout.operator("gpencil.color_unlock_all", icon='UNLOCKED', text="UnLock All")
-
-        layout.separator()
-
-        layout.operator("gpencil.stroke_lock_color", icon='BORDER_RECT', text="Lock Unselected")
-        layout.operator("gpencil.lock_layer", icon='COLOR', text="Lock Unused")
 
 
 class GreasePencilDataPanel:
@@ -998,11 +952,9 @@ classes = (
     GPENCIL_MT_gpencil_edit_specials,
     GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
-    GPENCIL_MT_gpencil_vertex_group,
     GPENCIL_UL_layer,
     GPENCIL_MT_layer_specials,
     GPENCIL_MT_brush_specials,
-    GPENCIL_MT_color_specials,
 )
 
 if __name__ == "__main__":  # only for live edit.

@@ -18,7 +18,27 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Panel, UIList
+from bpy.types import Menu, Panel, UIList
+
+
+class GPENCIL_MT_color_specials(Menu):
+    bl_label = "Layer"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("gpencil.color_reveal", icon='RESTRICT_VIEW_OFF', text="Show All")
+        layout.operator("gpencil.color_hide", icon='RESTRICT_VIEW_ON', text="Hide Others").unselected = True
+
+        layout.separator()
+
+        layout.operator("gpencil.color_lock_all", icon='LOCKED', text="Lock All")
+        layout.operator("gpencil.color_unlock_all", icon='UNLOCKED', text="UnLock All")
+
+        layout.separator()
+
+        layout.operator("gpencil.stroke_lock_color", icon='BORDER_RECT', text="Lock Unselected")
+        layout.operator("gpencil.lock_layer", icon='COLOR', text="Lock Unused")
 
 
 class GPENCIL_UL_matslots(UIList):
@@ -137,6 +157,8 @@ class MATERIAL_PT_gpencil_slots(Panel):
             split.template_ID(space, "pin_id")
             split.separator()
 
+
+# XXX: Why is this panel here? Remove?
 class MATERIAL_PT_gpencil_surface(GPMaterialButtonsPanel, Panel):
     bl_label = "Surface"
 
@@ -272,6 +294,7 @@ class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
 
 classes = (
     GPENCIL_UL_matslots,
+    GPENCIL_MT_color_specials,
     MATERIAL_PT_gpencil_slots,
     MATERIAL_PT_gpencil_surface,
     MATERIAL_PT_gpencil_strokecolor,
