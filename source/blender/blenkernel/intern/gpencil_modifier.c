@@ -597,6 +597,34 @@ GpencilModifierData *BKE_gpencil_modifiers_findByType(Object *ob, GpencilModifie
 	return md;
 }
 
+void BKE_gpencil_modifiers_foreachIDLink(Object *ob, GreasePencilIDWalkFunc walk, void *userData)
+{
+	GpencilModifierData *md = ob->greasepencil_modifiers.first;
+
+	for (; md; md = md->next) {
+		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+
+		if (mti->foreachIDLink) mti->foreachIDLink(md, ob, walk, userData);
+		else if (mti->foreachObjectLink) {
+			/* each Object can masquerade as an ID, so this should be OK */
+			GreasePencilObjectWalkFunc fp = (GreasePencilObjectWalkFunc)walk;
+			mti->foreachObjectLink(md, ob, fp, userData);
+		}
+	}
+}
+
+void BKE_gpencil_modifiers_foreachTexLink(Object *ob, GreasePencilTexWalkFunc walk, void *userData)
+{
+	GpencilModifierData *md = ob->greasepencil_modifiers.first;
+
+	for (; md; md = md->next) {
+		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+
+		if (mti->foreachTexLink)
+			mti->foreachTexLink(md, ob, walk, userData);
+	}
+}
+
 GpencilModifierData *BKE_gpencil_modifiers_findByName(Object *ob, const char *name)
 {
 	return BLI_findstring(&(ob->greasepencil_modifiers), name, offsetof(GpencilModifierData, name));
