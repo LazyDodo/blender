@@ -268,8 +268,8 @@ typedef struct LANPR_RenderBuffer {
 	int TileSizeW, TileSizeH;
 	int TileCountX, TileCountY;
 	real  WidthPerTile, HeightPerTile;
-	//tnsMatrix44d    ViewProjection;
-	//tnsMatrix44d    VPInverse;
+	tnsMatrix44d    ViewProjection;
+	tnsMatrix44d    VPInverse;
 
 	nSafeString*    OutputFolder;//end with a slash;
 	nSafeString*    ImagePrefix;
@@ -350,7 +350,7 @@ typedef struct LANPR_RenderBuffer {
 	//tnsRenderBufferPreviewNode RenderPreview[32];
 
 	struct Scene*          Scene;
-	struct Camera*         Camera;
+	struct Object*         Camera;
 
 	//tnsRenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
@@ -366,9 +366,9 @@ typedef struct LANPR_RenderTriangle {
 	real              GN[3];
 	real              GC[3];
 	struct BMFace*           F;
-	ListBase          IntersectingVerts;
+	nListHandle       IntersectingVerts;
 	char              CullStatus;
-	struct LANPR_RenderLine* Testing;	//Should Be tRT** Testing[NumOfThreads]
+	struct LANPR_RenderTriangle* Testing;	//Should Be tRT** Testing[NumOfThreads]
 }LANPR_RenderTriangle;
 
 typedef struct LANPR_RenderTriangleThread {
@@ -399,7 +399,7 @@ typedef struct LANPR_RenderVert{
 	int FrameBufferCoordi[2];
 	struct BMVert*    V;           //Used As R When Intersecting
 	struct LANPR_RenderLine*     IntersectingLine;
-	struct LANPR_RenderVert*     IntersectintLine2;
+	struct LANPR_RenderLine*     IntersectintLine2;
 	struct LANPR_RenderTriangle* IntersectWith;     //   Positive 1         Negative 0
 	//tnsRenderTriangle* IntersectingOnFace;       //         <|               |>
 	char        Positive;             //                 L---->|----->R	 L---->|----->R

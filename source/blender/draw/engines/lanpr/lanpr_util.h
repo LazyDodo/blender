@@ -28,6 +28,7 @@ typedef real tnsMatrix44d[16];
 typedef real tnsVector2d[2];
 typedef real tnsVector3d[3];
 typedef real tnsVector4d[4];
+typedef float tnsVector3f[3];
 
 typedef int tnsVector2i[2];
 
@@ -533,6 +534,7 @@ void tMatApplyRotation43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyNormalTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyTransform44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v);
+void tMatApplyTransform43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v);
 void tMatApplyTransform44dTrue(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v);
 
 
