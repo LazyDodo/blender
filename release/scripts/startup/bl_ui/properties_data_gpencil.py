@@ -163,6 +163,7 @@ class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         gpl = context.active_gpencil_layer
         col = layout.column(align=True)

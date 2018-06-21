@@ -158,7 +158,7 @@ class MATERIAL_PT_gpencil_slots(Panel):
             split.separator()
 
 
-# XXX: Why is this panel here? Remove?
+# Used as parent for "Stroke" and "Fill" panels
 class MATERIAL_PT_gpencil_surface(GPMaterialButtonsPanel, Panel):
     bl_label = "Surface"
 
