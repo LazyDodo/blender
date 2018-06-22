@@ -1365,6 +1365,12 @@ void tMatNormalize3d(tnsVector3d result, tnsVector3d l) {
 	result[1] = l[1] / r;
 	result[2] = l[2] / r;
 }
+void tMatNormalize3f(tnsVector3f result, tnsVector3f l) {
+	float r = sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
+	result[0] = l[0] / r;
+	result[1] = l[1] / r;
+	result[2] = l[2] / r;
+}
 void tMatNormalize2d(tnsVector2d result, tnsVector2d l) {
 	real r = sqrt(l[0] * l[0] + l[1] * l[1]);
 	result[0] = l[0] / r;
@@ -1380,6 +1386,14 @@ real tMatDot3d(tnsVector3d l, tnsVector3d r, int normalize) {
 	tnsVector3d ln, rn;
 	if (normalize) {
 		tMatNormalize3d(ln, l); tMatNormalize3d(rn, r);
+		return (ln[0] * rn[0] + ln[1] * rn[1] + ln[2] * rn[2]);
+	}
+	return (l[0] * r[0] + l[1] * r[1] + l[2] * r[2]);
+}
+real tMatDot3df(tnsVector3d l, tnsVector3f r, int normalize) {
+	tnsVector3d ln; tnsVector3f rn;
+	if (normalize) {
+		tMatNormalize3d(ln, l); tMatNormalize3f(rn, r);
 		return (ln[0] * rn[0] + ln[1] * rn[1] + ln[2] * rn[2]);
 	}
 	return (l[0] * r[0] + l[1] * r[1] + l[2] * r[2]);
@@ -1435,6 +1449,12 @@ void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) 
 	result[2] /= w;
 }
 void tMatApplyNormalTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+	real w;
+	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
+	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
+	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
+}
+void tMatApplyNormalTransform43df(tnsVector3d result, tnsMatrix44d mat, tnsVector3f v) {
 	real w;
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
@@ -1815,14 +1835,14 @@ void tMatMakeViewportMatrix44d(tnsMatrix44d m, real w, real h, real Far, real Ne
 }
 
 
-real tnsLinearInterpolate(real L, real R, real T) {
+real lanpr_LinearInterpolate(real L, real R, real T) {
 	return tnsLinearItp(L, R, T);
 }
-void tnsLinearInterpolate2dv(real* L, real* R, real T, real* Result) {
+void lanpr_LinearInterpolate2dv(real* L, real* R, real T, real* Result) {
 	Result[0] = tnsLinearItp(L[0], R[0], T);
 	Result[1] = tnsLinearItp(L[1], R[1], T);
 }
-void tnsLinearInterpolate3dv(real* L, real* R, real T, real* Result) {
+void lanpr_LinearInterpolate3dv(real* L, real* R, real T, real* Result) {
 	Result[0] = tnsLinearItp(L[0], R[0], T);
 	Result[1] = tnsLinearItp(L[1], R[1], T);
 	Result[2] = tnsLinearItp(L[2], R[2], T);

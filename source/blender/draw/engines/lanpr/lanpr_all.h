@@ -286,8 +286,8 @@ typedef struct LANPR_RenderBuffer {
 	//u32bit           BaFillVBO;
 
 	nListHandle           VertexBufferPointers;
+	nListHandle           LineBufferPointers;
 	nListHandle           TriangleBufferPointers;
-	
 	nListHandle           AllRenderLines;
 
 	nListHandle     IntersectingVertexBuffer;
@@ -720,6 +720,20 @@ __inline real tMatDirectionToRad(tnsVector2d Dir) {
 		if (Dir[1] >= 0) return arcs + TNS_PI / 2;
 		else return TNS_PI + arcs;
 	}
+}
+
+
+__inline void tMatVectorConvert4fd(tnsVector4f from, tnsVector4d to) {
+	to[0] = from[0];
+	to[1] = from[1];
+	to[2] = from[2];
+	to[3] = from[3];
+}
+
+__inline void tMatVectorConvert3fd(tnsVector3f from, tnsVector3d to) {
+	to[0] = from[0];
+	to[1] = from[1];
+	to[2] = from[2];
 }
 
 

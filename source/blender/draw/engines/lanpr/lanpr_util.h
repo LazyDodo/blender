@@ -32,7 +32,7 @@ typedef real tnsVector2d[2];
 typedef real tnsVector3d[3];
 typedef real tnsVector4d[4];
 typedef float tnsVector3f[3];
-
+typedef float tnsVector4f[4];
 typedef int tnsVector2i[2];
 
 #define TNS_PI 3.1415926535897932384626433832795
@@ -279,16 +279,16 @@ STRUCTURE(nStaticMemoryPool) {
 };
 
 #define CreateNew(Type)\
-    nutCalloc(sizeof(Type),1)
+    MEM_callocN(sizeof(Type),"VOID")//nutCalloc(sizeof(Type),1)
 
 #define CreateNew_Size(size)\
     nutCalloc(size,1)
 
 #define CreateNewBuffer(Type,Num)\
-    nutCalloc(sizeof(Type),Num);
+    MEM_callocN(sizeof(Type)*Num,"VOID BUFFER")//nutCalloc(sizeof(Type),Num);
 
 #define FreeMem(ptr)\
-    nutFreeMem((&ptr))
+    MEM_freeN(ptr)//nutFreeMem((&ptr))
 
 #ifndef elif
 #define elif\
@@ -467,11 +467,12 @@ int memGetByteCount();
 void memInitPool(nMemoryPool* mph, int NodeSize);
 void memInitPoolSmall(nMemoryPool* mph, int NodeSize);
 nMemoryPoolPart* memNewPoolPart(nMemoryPool* mph);
-void* memAquireH(nMemoryPool* Handle);
-void* memAquireOnly(int Size);
-void* memAquire(int Size);
-void* memAquireHyper(int Size);
-void* memAquireHyper1(int Size);
+
+#define memAquireOnly(a)\
+MEM_callocN(a,"NONE")
+
+#define memAquire  memAquireOnly
+
 void memAssignDBInst(void* mem, nDBInst* DBInst);
 nDBInst* memGetDBInst(void* mem);
 void memFree(void* Data);
@@ -529,8 +530,10 @@ real tMatDist2dv(tnsVector2d l, tnsVector2d r);
 
 real tMatLength3d(tnsVector3d l); real tMatLength2d(tnsVector3d l);
 void tMatNormalize3d(tnsVector3d result, tnsVector3d l);
+void tMatNormalize3f(tnsVector3f result, tnsVector3f l);
 void tMatNormalizeSelf3d(tnsVector3d result);
 real tMatDot3d(tnsVector3d l, tnsVector3d r, int normalize);
+real tMatDot3df(tnsVector3d l, tnsVector3f r, int normalize);
 real tMatDot2d(tnsVector2d l, tnsVector2d r, int normalize);
 real tMatVectorCross3d(tnsVector3d result, tnsVector3d l, tnsVector3d r);
 real tMatAngleRad3d(tnsVector3d from, tnsVector3d to, tnsVector3d PositiveReference);
@@ -538,6 +541,7 @@ void tMatApplyRotation33d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyRotation43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyNormalTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
+void tMatApplyNormalTransform43df(tnsVector3d result, tnsMatrix44d mat, tnsVector3f v);
 void tMatApplyTransform44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v);
 void tMatApplyTransform43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v);
 void tMatApplyTransform44dTrue(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v);
@@ -551,6 +555,7 @@ void tMatMakeRotationMatrix44d(tnsMatrix44d m, real angle_rad, real x, real y, r
 void tMatMakeScaleMatrix44d(tnsMatrix44d m, real x, real y, real z);
 void tMatMakeViewportMatrix44d(tnsMatrix44d m, real w, real h);
 void tMatMultiply44d(tnsMatrix44d result, tnsMatrix44d l, tnsMatrix44d r);
+void tMatInverse44d(tnsMatrix44d inverse, tnsMatrix44d mat);
 void tMatMakeRotationXMatrix44d(tnsMatrix44d m, real angle_rad);
 void tMatMakeRotationYMatrix44d(tnsMatrix44d m, real angle_rad);
 void tMatMakeRotationZMatrix44d(tnsMatrix44d m, real angle_rad);
