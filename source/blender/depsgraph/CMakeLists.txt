@@ -68,6 +68,7 @@ set(SRC
 	intern/depsgraph_build.cc
 	intern/depsgraph_debug.cc
 	intern/depsgraph_eval.cc
+	intern/depsgraph_physics.cc
 	intern/depsgraph_query.cc
 	intern/depsgraph_query_foreach.cc
 	intern/depsgraph_query_iter.cc
@@ -77,6 +78,7 @@ set(SRC
 	DEG_depsgraph.h
 	DEG_depsgraph_build.h
 	DEG_depsgraph_debug.h
+	DEG_depsgraph_physics.h
 	DEG_depsgraph_query.h
 
 	intern/builder/deg_builder.h
