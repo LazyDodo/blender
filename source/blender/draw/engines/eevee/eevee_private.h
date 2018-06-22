@@ -439,8 +439,6 @@ typedef struct EEVEE_LightProbesInfo {
 	int cubemap_res;
 	int grid_initialized;
 	struct World *prev_world;
-	int update_world;
-	bool prev_wo_sh_compiled;
 	bool do_cube_update;
 	bool all_materials_updated;
 	/* For rendering probes */
@@ -673,6 +671,8 @@ typedef struct EEVEE_ViewLayerData {
 
 	struct EEVEE_ClipPlanesUniformBuffer clip_data;
 	struct GPUUniformBuffer *clip_ubo;
+
+	struct EEVEE_LightCache *fallback_lightcache;
 } EEVEE_ViewLayerData;
 
 /* ************ OBJECT DATA ************ */
@@ -750,7 +750,6 @@ typedef struct EEVEE_ObjectEngineData {
 
 typedef struct EEVEE_LightCache {
 	int flag;
-	int refcount;                    /* Light cache can be shared across scenes. Use refcount to know when to free. */
 
 	/* only a single cache for now */
 	int cube_count, grid_count;      /* Number of probes to use for rendering. */

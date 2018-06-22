@@ -656,14 +656,14 @@ struct GPUMaterial *EEVEE_material_world_lightprobe_get(struct Scene *scene, Wor
 	const void *engine = &DRW_engine_viewport_eevee_type;
 	const int options = VAR_WORLD_PROBE;
 
-	GPUMaterial *mat = DRW_shader_find_from_world(wo, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_world(wo, engine, options, false);
 	if (mat != NULL) {
 		return mat;
 	}
 	return DRW_shader_create_from_world(
 	        scene, wo, engine, options,
 	        datatoc_background_vert_glsl, NULL, e_data.frag_shader_lib,
-	        SHADER_DEFINES "#define PROBE_CAPTURE\n");
+	        SHADER_DEFINES "#define PROBE_CAPTURE\n", false);
 }
 
 struct GPUMaterial *EEVEE_material_world_background_get(struct Scene *scene, World *wo)
@@ -671,14 +671,14 @@ struct GPUMaterial *EEVEE_material_world_background_get(struct Scene *scene, Wor
 	const void *engine = &DRW_engine_viewport_eevee_type;
 	int options = VAR_WORLD_BACKGROUND;
 
-	GPUMaterial *mat = DRW_shader_find_from_world(wo, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_world(wo, engine, options, true);
 	if (mat != NULL) {
 		return mat;
 	}
 	return DRW_shader_create_from_world(
 	        scene, wo, engine, options,
 	        datatoc_background_vert_glsl, NULL, e_data.frag_shader_lib,
-	        SHADER_DEFINES "#define WORLD_BACKGROUND\n");
+	        SHADER_DEFINES "#define WORLD_BACKGROUND\n", true);
 }
 
 struct GPUMaterial *EEVEE_material_world_volume_get(struct Scene *scene, World *wo)
@@ -686,7 +686,7 @@ struct GPUMaterial *EEVEE_material_world_volume_get(struct Scene *scene, World *
 	const void *engine = &DRW_engine_viewport_eevee_type;
 	int options = VAR_WORLD_VOLUME;
 
-	GPUMaterial *mat = DRW_shader_find_from_world(wo, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_world(wo, engine, options, true);
 	if (mat != NULL) {
 		return mat;
 	}
@@ -696,7 +696,7 @@ struct GPUMaterial *EEVEE_material_world_volume_get(struct Scene *scene, World *
 	mat = DRW_shader_create_from_world(
 	        scene, wo, engine, options,
 	        datatoc_volumetric_vert_glsl, datatoc_volumetric_geom_glsl, e_data.volume_shader_lib,
-	        defines);
+	        defines, true);
 
 	MEM_freeN(defines);
 
@@ -721,7 +721,7 @@ struct GPUMaterial *EEVEE_material_mesh_get(
 
 	options |= eevee_material_shadow_option(shadow_method);
 
-	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options, true);
 	if (mat) {
 		return mat;
 	}
@@ -731,7 +731,7 @@ struct GPUMaterial *EEVEE_material_mesh_get(
 	mat = DRW_shader_create_from_material(
 	        scene, ma, engine, options,
 	        e_data.vert_shader_str, NULL, e_data.frag_shader_lib,
-	        defines);
+	        defines, true);
 
 	MEM_freeN(defines);
 
@@ -743,7 +743,7 @@ struct GPUMaterial *EEVEE_material_mesh_volume_get(struct Scene *scene, Material
 	const void *engine = &DRW_engine_viewport_eevee_type;
 	int options = VAR_MAT_VOLUME;
 
-	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options, true);
 	if (mat != NULL) {
 		return mat;
 	}
@@ -753,7 +753,7 @@ struct GPUMaterial *EEVEE_material_mesh_volume_get(struct Scene *scene, Material
 	mat = DRW_shader_create_from_material(
 	        scene, ma, engine, options,
 	        datatoc_volumetric_vert_glsl, datatoc_volumetric_geom_glsl, e_data.volume_shader_lib,
-	        defines);
+	        defines, true);
 
 	MEM_freeN(defines);
 
@@ -777,7 +777,7 @@ struct GPUMaterial *EEVEE_material_mesh_depth_get(
 	if (is_shadow)
 		options |= VAR_MAT_SHADOW;
 
-	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options, true);
 	if (mat) {
 		return mat;
 	}
@@ -793,7 +793,8 @@ struct GPUMaterial *EEVEE_material_mesh_depth_get(
 	        (is_shadow) ? datatoc_shadow_vert_glsl : e_data.vert_shader_str,
 	        NULL,
 	        frag_str,
-	        defines);
+	        defines,
+	        true);
 
 	MEM_freeN(frag_str);
 	MEM_freeN(defines);
@@ -809,7 +810,7 @@ struct GPUMaterial *EEVEE_material_hair_get(
 
 	options |= eevee_material_shadow_option(shadow_method);
 
-	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options);
+	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options, true);
 	if (mat) {
 		return mat;
 	}
@@ -819,7 +820,7 @@ struct GPUMaterial *EEVEE_material_hair_get(
 	mat = DRW_shader_create_from_material(
 	        scene, ma, engine, options,
 	        e_data.vert_shader_str, NULL, e_data.frag_shader_lib,
-	        defines);
+	        defines, true);
 
 	MEM_freeN(defines);
 

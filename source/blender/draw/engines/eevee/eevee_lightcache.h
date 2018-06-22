@@ -31,12 +31,16 @@
 struct ViewLayer;
 struct Scene;
 struct EEVEE_LightCache;
+struct EEVEE_ViewLayerData;
+struct EEVEE_Data;
 
 /* Light Bake */
 void *EEVEE_lightbake_job_data_alloc(struct Main *bmain, struct ViewLayer *viewlayer, struct Scene *scene, bool run_as_job);
 void EEVEE_lightbake_job_data_free(void *custom_data);
 void EEVEE_lightbake_update(void *custom_data);
 void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float *progress);
+
+void EEVEE_lightbake_update_world_quick(struct EEVEE_ViewLayerData *sldata, struct EEVEE_Data *vedata, const Scene *scene);
 
 /* Light Cache */
 struct EEVEE_LightCache *EEVEE_lightcache_create(const int grid_count, const int cube_count, const int cube_size, const int irr_size[3]);

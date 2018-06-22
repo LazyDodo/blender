@@ -28,6 +28,7 @@
 #include "DRW_render.h"
 
 #include "eevee_private.h"
+#include "eevee_lightcache.h"
 
 static void eevee_view_layer_data_free(void *storage)
 {
@@ -52,6 +53,11 @@ static void eevee_view_layer_data_free(void *storage)
 	MEM_SAFE_FREE(sldata->shcasters_buffers[0].flags);
 	MEM_SAFE_FREE(sldata->shcasters_buffers[1].shadow_casters);
 	MEM_SAFE_FREE(sldata->shcasters_buffers[1].flags);
+
+	if (sldata->fallback_lightcache) {
+		EEVEE_lightcache_free(sldata->fallback_lightcache);
+		sldata->fallback_lightcache = NULL;
+	}
 
 	/* Probes */
 	MEM_SAFE_FREE(sldata->probes);

@@ -128,6 +128,8 @@ typedef struct EEVEE_LightBake {
 	short *stop, *do_update;
 	float *progress;
 
+	bool resource_only;              /* For only handling the resources. */
+
 	void *gl_context, *gwn_context;  /* If running in parallel (in a separate thread), use this context. */
 } EEVEE_LightBake;
 
@@ -265,6 +267,24 @@ static void eevee_lightbake_count_probes(EEVEE_LightBake *lbake)
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 }
 
+static void eevee_lightbake_create_render_target(EEVEE_LightBake *lbake, int rt_res)
+{
+	lbake->rt_depth = DRW_texture_create_cube(rt_res, GPU_DEPTH_COMPONENT24, 0, NULL);
+	lbake->rt_color = DRW_texture_create_cube(rt_res, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
+
+	for (int i = 0; i < 6; ++i) {
+		GPU_framebuffer_ensure_config(&lbake->rt_fb[i], {
+			GPU_ATTACHMENT_TEXTURE_CUBEFACE(lbake->rt_depth, i),
+			GPU_ATTACHMENT_TEXTURE_CUBEFACE(lbake->rt_color, i)
+		});
+	}
+
+	GPU_framebuffer_ensure_config(&lbake->store_fb, {
+		GPU_ATTACHMENT_NONE,
+		GPU_ATTACHMENT_NONE
+	});
+}
+
 static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 {
 	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
@@ -285,20 +305,7 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 	lbake->grid_prev = DRW_texture_create_2D_array(lbake->irr_size[0], lbake->irr_size[1], lbake->irr_size[2],
 	                                               IRRADIANCE_FORMAT, DRW_TEX_FILTER, NULL);
 
-	lbake->rt_depth = DRW_texture_create_cube(lbake->rt_res, GPU_DEPTH_COMPONENT24, 0, NULL);
-	lbake->rt_color = DRW_texture_create_cube(lbake->rt_res, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP, NULL);
-
-	for (int i = 0; i < 6; ++i) {
-		GPU_framebuffer_ensure_config(&lbake->rt_fb[i], {
-			GPU_ATTACHMENT_TEXTURE_CUBEFACE(lbake->rt_depth, i),
-			GPU_ATTACHMENT_TEXTURE_CUBEFACE(lbake->rt_color, i)
-		});
-	}
-
-	GPU_framebuffer_ensure_config(&lbake->store_fb, {
-		GPU_ATTACHMENT_NONE,
-		GPU_ATTACHMENT_NONE
-	});
+	eevee_lightbake_create_render_target(lbake, lbake->rt_res);
 
 	/* Ensure Light Cache is ready to accept new data. If not recreate one.
 	 * WARNING: All the following must be threadsafe. It's currently protected
@@ -320,7 +327,7 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 		DEG_id_tag_update(&scene_orig->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
-	lcache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID;
+	lcache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID | LIGHTCACHE_BAKING;
 
 	/* Share light cache with the evaluated (baking) layer and the original layer.
 	 * This avoid full scene re-evaluation by depsgraph. */
@@ -374,7 +381,7 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 		DRW_opengl_render_context_enable(lbake->gl_context);
 		DRW_gawain_render_context_enable(lbake->gwn_context);
 	}
-	else {
+	else if (!lbake->resource_only) {
 		DRW_opengl_context_enable();
 	}
 
@@ -396,7 +403,7 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 		lbake->gwn_context = NULL;
 		lbake->gl_context = NULL;
 	}
-	else {
+	else if (!lbake->resource_only) {
 		DRW_opengl_context_disable();
 	}
 }
@@ -459,7 +466,7 @@ static void eevee_lightbake_copy_irradiance(EEVEE_LightBake *lbake, EEVEE_LightC
 	MEM_freeN(tex);
 }
 
-static void eevee_lightbake_render_world(void *ved, void *user_data)
+static void eevee_lightbake_render_world_sample(void *ved, void *user_data)
 {
 	EEVEE_Data *vedata = (EEVEE_Data *)ved;
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
@@ -617,7 +624,7 @@ static void eevee_lightbake_render_grid_sample(void *ved, void *user_data)
 	}
 }
 
-static void eevee_lightbake_render_probe(void *ved, void *user_data)
+static void eevee_lightbake_render_probe_sample(void *ved, void *user_data)
 {
 	EEVEE_Data *vedata = (EEVEE_Data *)ved;
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
@@ -721,7 +728,7 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 
 	/* Render world irradiance and reflection first */
 	if (lcache->flag & LIGHTCACHE_UPDATE_WORLD) {
-		lightbake_do_sample(lbake, eevee_lightbake_render_world);
+		lightbake_do_sample(lbake, eevee_lightbake_render_world_sample);
 	}
 
 	/* Render irradiance grids */
@@ -747,11 +754,42 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 		lbake->probe = lbake->cube_prb + 1;
 		lbake->cube = lcache->cube_data + 1;
 		for (lbake->cube_offset = 1; lbake->cube_offset < lbake->cube_count; ++lbake->cube_offset, lbake->probe++, lbake->cube++) {
-			lightbake_do_sample(lbake, eevee_lightbake_render_probe);
+			lightbake_do_sample(lbake, eevee_lightbake_render_probe_sample);
 		}
 	}
 
+	lcache->flag |= LIGHTCACHE_BAKED;
+
 	eevee_lightbake_delete_resources(lbake);
+}
+
+/* This is to update the world irradiance and reflection contribution from
+ * within the viewport drawing (does not have the overhead of a full light cache rebuild.) */
+void EEVEE_lightbake_update_world_quick(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, const Scene *scene)
+{
+	EEVEE_LightCache *lcache = vedata->stl->g_data->light_cache;
+
+	EEVEE_LightBake lbake = {
+		.resource_only = true
+	};
+
+	/* Create resources. */
+	eevee_lightbake_create_render_target(&lbake, scene->eevee.gi_cubemap_resolution);
+
+	EEVEE_lightbake_cache_init(sldata, vedata, lbake.rt_color, lbake.rt_depth);
+
+	EEVEE_lightbake_render_world(sldata, vedata, lbake.rt_fb);
+	EEVEE_lightbake_filter_glossy(sldata, vedata, lbake.rt_color, lbake.store_fb, 0, 1.0f);
+	EEVEE_lightbake_filter_diffuse(sldata, vedata, lbake.rt_color, lbake.store_fb, 0, 1.0f);
+
+	/* Don't hide grids if they are already rendered. */
+	lcache->grid_count = max_ii(1, lcache->grid_count);
+	lcache->cube_count = 1;
+
+	lcache->flag |= LIGHTCACHE_CUBE_READY | LIGHTCACHE_GRID_READY;
+	lcache->flag &= ~LIGHTCACHE_UPDATE_WORLD;
+
+	eevee_lightbake_delete_resources(&lbake);
 }
 
 /** \} */

@@ -46,6 +46,7 @@
 #include "DEG_depsgraph_query.h"
 
 #include "eevee_engine.h"
+#include "eevee_lightcache.h"
 #include "eevee_private.h"
 
 #include "ED_screen.h"
@@ -72,8 +73,6 @@ static struct {
 
 	struct Gwn_VertFormat *format_probe_display_cube;
 	struct Gwn_VertFormat *format_probe_display_planar;
-
-	EEVEE_LightCache dummy_cache;
 } e_data = {NULL}; /* Engine data */
 
 extern char datatoc_background_vert_glsl[];
@@ -251,35 +250,27 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		lightprobe_shaders_init();
 	}
 
-	/* XXX TODO remove only for testing */
-	if (e_data.dummy_cache.grid_tx == NULL) {
-#ifdef IRRADIANCE_SH_L2
-		/* we need a signed format for Spherical Harmonics */
-		int irradiance_format = GPU_RGBA16F;
-#else
-		int irradiance_format = GPU_RGBA8;
+	if ((scene_eval->eevee.light_cache == NULL) &&
+	    (sldata->fallback_lightcache == NULL)) {
+#if defined(IRRADIANCE_SH_L2)
+		int grid_res = 4;
+#elif defined(IRRADIANCE_CUBEMAP)
+		int grid_res = 8;
+#elif defined(IRRADIANCE_HL2)
+		int grid_res = 4;
 #endif
-		float rgba[4] = {0.0f, 1.0f, 0.0f, 0.0f};
-		e_data.dummy_cache.grid_tx = DRW_texture_create_2D_array(1, 1, 1, irradiance_format, DRW_TEX_FILTER, rgba);
-		e_data.dummy_cache.cube_tx = DRW_texture_create_2D_array(1, 1, 1, GPU_RGBA8, DRW_TEX_FILTER, rgba);
-		e_data.dummy_cache.cube_data = MEM_callocN(sizeof(EEVEE_LightProbe), "EEVEE Cube Data Cache");
-		e_data.dummy_cache.grid_data = MEM_callocN(sizeof(EEVEE_LightGrid), "EEVEE Grid Data Cache");
-		e_data.dummy_cache.cube_count = 1;
-		e_data.dummy_cache.grid_count = 1;
+		int cube_res = scene_eval->eevee.gi_cubemap_resolution;
+
+		sldata->fallback_lightcache = EEVEE_lightcache_create(1, 1, cube_res, (int[3]){grid_res, grid_res, 1});
 	}
+
+	stl->g_data->light_cache = (scene_eval->eevee.light_cache) ? scene_eval->eevee.light_cache : sldata->fallback_lightcache;
 
 	if (!sldata->probes) {
 		sldata->probes = MEM_callocN(sizeof(EEVEE_LightProbesInfo), "EEVEE_LightProbesInfo");
 		sldata->probe_ubo = DRW_uniformbuffer_create(sizeof(EEVEE_LightProbe) * MAX_PROBE, NULL);
 		sldata->grid_ubo = DRW_uniformbuffer_create(sizeof(EEVEE_LightGrid) * MAX_GRID, NULL);
 		sldata->planar_ubo = DRW_uniformbuffer_create(sizeof(EEVEE_PlanarReflection) * MAX_PLANAR, NULL);
-	}
-
-	if (scene_eval->eevee.light_cache) {
-		stl->g_data->light_cache = scene_eval->eevee.light_cache;
-	}
-	else {
-		stl->g_data->light_cache = &e_data.dummy_cache;
 	}
 
 	common_data->prb_num_planar = 0;
@@ -398,11 +389,9 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		/* END */
 		if (!grp && wo) {
 			col = &wo->horr;
-			bool wo_sh_compiled = true;
 
 			if (wo->use_nodes && wo->nodetree) {
 				static float error_col[3] = {1.0f, 0.0f, 1.0f};
-				static float compile_col[3] = {0.5f, 0.5f, 0.5f};
 				struct GPUMaterial *gpumat = EEVEE_material_world_lightprobe_get(scene, wo);
 
 				GPUMaterialStatus status = GPU_material_status(gpumat);
@@ -412,35 +401,12 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 						grp = DRW_shgroup_material_create(gpumat, psl->probe_background);
 						DRW_shgroup_uniform_float(grp, "backgroundAlpha", &stl->g_data->background_alpha, 1);
 						DRW_shgroup_call_add(grp, geom, NULL);
-						wo_sh_compiled = true;
 						break;
-					case GPU_MAT_QUEUED:
-						pinfo->all_materials_updated = false;
-						wo_sh_compiled = false;
-						/* TODO Bypass probe compilation. */
-						col = compile_col;
-						break;
-					case GPU_MAT_FAILED:
 					default:
-						wo_sh_compiled = true;
 						col = error_col;
 						break;
 				}
 			}
-
-			if (wo->update_flag != 0 || pinfo->prev_world != wo || pinfo->prev_wo_sh_compiled != wo_sh_compiled) {
-				pinfo->update_world |= PROBE_UPDATE_ALL;
-				pinfo->studiolight_index = 0;
-				pinfo->prev_wo_sh_compiled = wo_sh_compiled;
-				pinfo->prev_world = wo;
-			}
-			wo->update_flag = 0;
-		}
-		else if (pinfo->prev_world) {
-			pinfo->update_world |= PROBE_UPDATE_ALL;
-			pinfo->studiolight_index = 0;
-			pinfo->prev_wo_sh_compiled = false;
-			pinfo->prev_world = NULL;
 		}
 
 		/* Fallback if shader fails or if not using nodetree. */
@@ -606,9 +572,9 @@ static void eevee_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, E
 {
 	/* copy the entire cache for now (up to MAX_PROBE) */
 	/* TODO Frutum cull to only add visible probes. */
-	memcpy(pinfo->probe_data, lcache->cube_data, sizeof(EEVEE_LightProbe) * min_ii(lcache->cube_count, MAX_PROBE));
+	memcpy(pinfo->probe_data, lcache->cube_data, sizeof(EEVEE_LightProbe) * max_ii(1, min_ii(lcache->cube_count, MAX_PROBE)));
 	/* TODO compute the max number of grid based on sample count. */
-	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * min_ii(lcache->grid_count, MAX_GRID));
+	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * max_ii(1, min_ii(lcache->grid_count, MAX_GRID)));
 }
 
 void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
@@ -633,8 +599,8 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	/* For shading, save max level of the octahedron map */
 	int mipsize = GPU_texture_width(light_cache->cube_tx);
 	sldata->common_data.prb_lod_cube_max = (float)(floorf(log2f(mipsize)) - MIN_CUBE_LOD_LEVEL) - 1.0f;
-	sldata->common_data.prb_num_render_cube = light_cache->cube_count;
-	sldata->common_data.prb_num_render_grid = light_cache->grid_count;
+	sldata->common_data.prb_num_render_cube = max_ii(1, light_cache->cube_count);
+	sldata->common_data.prb_num_render_grid = max_ii(1, light_cache->grid_count);
 }
 
 /* -------------------------------------------------------------------- */
@@ -928,6 +894,13 @@ void EEVEE_lightbake_filter_visibility(
 
 void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
+
+	if (light_cache->flag & LIGHTCACHE_UPDATE_WORLD) {
+		EEVEE_lightbake_update_world_quick(sldata, vedata, scene_eval);
+	}
 }
 
 void EEVEE_lightprobes_free(void)
@@ -948,9 +921,4 @@ void EEVEE_lightprobes_free(void)
 	DRW_TEXTURE_FREE_SAFE(e_data.planar_pool_placeholder);
 	DRW_TEXTURE_FREE_SAFE(e_data.depth_placeholder);
 	DRW_TEXTURE_FREE_SAFE(e_data.depth_array_placeholder);
-
-	DRW_TEXTURE_FREE_SAFE(e_data.dummy_cache.grid_tx);
-	DRW_TEXTURE_FREE_SAFE(e_data.dummy_cache.cube_tx);
-	MEM_SAFE_FREE(e_data.dummy_cache.cube_data);
-	MEM_SAFE_FREE(e_data.dummy_cache.grid_data);
 }
