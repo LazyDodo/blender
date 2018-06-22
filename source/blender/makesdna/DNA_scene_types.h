@@ -1386,6 +1386,9 @@ typedef struct SceneEEVEE {
 	int gi_cubemap_resolution;
 	int gi_visibility_resolution;
 
+	float gi_cubemap_draw_size;
+	float gi_irradiance_draw_size;
+
 	int taa_samples;
 	int taa_render_samples;
 	int sss_samples;
@@ -2094,6 +2097,8 @@ enum {
 	SCE_EEVEE_SSR_ENABLED			= (1 << 14),
 	SCE_EEVEE_SSR_REFRACTION		= (1 << 15),
 	SCE_EEVEE_SSR_HALF_RESOLUTION	= (1 << 16),
+	SCE_EEVEE_SHOW_IRRADIANCE		= (1 << 17),
+	SCE_EEVEE_SHOW_CUBEMAPS			= (1 << 18),
 };
 
 /* SceneEEVEE->shadow_method */

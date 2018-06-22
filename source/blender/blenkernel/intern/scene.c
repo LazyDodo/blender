@@ -825,6 +825,8 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.gi_diffuse_bounces = 3;
 	sce->eevee.gi_cubemap_resolution = 512;
 	sce->eevee.gi_visibility_resolution = 32;
+	sce->eevee.gi_cubemap_draw_size = 0.2f;
+	sce->eevee.gi_irradiance_draw_size = 1.0f;
 
 	sce->eevee.taa_samples = 16;
 	sce->eevee.taa_render_samples = 64;

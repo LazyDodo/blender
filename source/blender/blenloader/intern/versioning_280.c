@@ -1526,5 +1526,11 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 
+		if (!DNA_struct_elem_find(fd->filesdna, "SceneEEVEE", "float", "gi_cubemap_draw_size")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				scene->eevee.gi_irradiance_draw_size = 0.2f;
+				scene->eevee.gi_cubemap_draw_size = 1.0f;
+			}
+		}
 	}
 }

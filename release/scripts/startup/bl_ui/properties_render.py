@@ -721,6 +721,23 @@ class RENDER_PT_eevee_indirect_lighting(RenderButtonsPanel, Panel):
         col.prop(props, "gi_cubemap_resolution")
         col.prop(props, "gi_visibility_resolution")
 
+        layout.use_property_split = False
+        row = layout.row(align=True)
+        row.label("Cubemap Display")
+        row.prop(props, "gi_cubemap_draw_size", text="Size")
+        if props.gi_show_cubemaps :
+            row.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_OFF')
+        else:
+            row.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_ON')
+
+        row = layout.row(align=True)
+        row.label("Irradiance Display")
+        row.prop(props, "gi_irradiance_draw_size", text="Size")
+        if props.gi_show_irradiance :
+            row.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_OFF')
+        else:
+            row.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_ON')
+
 
 class RENDER_PT_eevee_film(RenderButtonsPanel, Panel):
     bl_label = "Film"
