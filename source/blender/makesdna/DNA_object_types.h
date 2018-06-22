@@ -370,6 +370,8 @@ enum {
 	OB_ARMATURE   = 25,
 /* Grease Pencil object used in 3D view but not used for annotation in 2D */
 	OB_GPENCIL  = 26,
+
+	OB_TYPE_MAX,
 };
 
 /* ObjectDisplay.flag */
