@@ -533,7 +533,7 @@ static void compute_cell_id(
 				if (!(((r_local_cell[0] % prev_stride) == 0) &&
 				      ((r_local_cell[1] % prev_stride) == 0) &&
 				      ((r_local_cell[2] % prev_stride) == 0)) ||
-				      (i == 0))
+				      ((i == 0) && (lvl == max_lvl)))
 				{
 					if (visited_cells == cell_idx) {
 						return;
