@@ -536,7 +536,7 @@ static int modifier_apply_shape(
 
 	md->scene = scene;
 
-	if (mti->isDisabled && mti->isDisabled(md, 0)) {
+	if (mti->isDisabled && mti->isDisabled(scene, md, 0)) {
 		BKE_report(reports, RPT_ERROR, "Modifier is disabled, skipping apply");
 		return 0;
 	}
@@ -575,7 +575,7 @@ static int modifier_apply_shape(
 			/* if that was the first key block added, then it was the basis.
 			 * Initialize it with the mesh, and add another for the modifier */
 			kb = BKE_keyblock_add(key, NULL);
-			BKE_keyblock_convert_from_mesh(me, kb);
+			BKE_keyblock_convert_from_mesh(me, key, kb);
 		}
 
 		kb = BKE_keyblock_add(key, md->name);
@@ -596,7 +596,7 @@ static int modifier_apply_obdata(ReportList *reports, Main *bmain, Depsgraph *de
 
 	md->scene = scene;
 
-	if (mti->isDisabled && mti->isDisabled(md, 0)) {
+	if (mti->isDisabled && mti->isDisabled(scene, md, 0)) {
 		BKE_report(reports, RPT_ERROR, "Modifier is disabled, skipping apply");
 		return 0;
 	}
