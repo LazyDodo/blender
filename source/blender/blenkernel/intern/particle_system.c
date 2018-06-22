@@ -4211,7 +4211,9 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 {
 	ParticleSimulationData sim= {0};
 	ParticleSettings *part = psys->part;
+	ParticleSystem *psys_orig = psys_orig_get(psys);
 	float cfra;
+	ParticleSystemModifierData *psmd = psys_get_modifier(ob, psys);
 
 	/* drawdata is outdated after ANY change */
 	if (psys->pdd) psys->pdd->flag &= ~PARTICLE_DRAW_DATA_UPDATED;
@@ -4225,7 +4227,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	sim.scene = scene;
 	sim.ob = ob;
 	sim.psys = psys;
-	sim.psmd = psys_get_modifier(ob, psys);
+	sim.psmd = psmd;
 
 	/* system was already updated from modifier stack */
 	if (sim.psmd->flag & eParticleSystemFlag_psys_updated) {
@@ -4270,10 +4272,10 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 
 				free_hair(ob, psys, 0);
 
-				if (psys->edit && psys->free_edit) {
-					psys->free_edit(psys->edit);
-					psys->edit = NULL;
-					psys->free_edit = NULL;
+				if (psys_orig->edit && psys_orig->free_edit) {
+					psys_orig->free_edit(psys_orig->edit);
+					psys_orig->edit = NULL;
+					psys_orig->free_edit = NULL;
 				}
 
 				/* first step is negative so particles get killed and reset */
@@ -4367,6 +4369,22 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	if (psys->flag & PSYS_OB_ANIM_RESTORE) {
 		evaluate_emitter_anim(depsgraph, scene, ob, cfra);
 		psys->flag &= ~PSYS_OB_ANIM_RESTORE;
+	}
+
+	if (psys_orig->edit) {
+		psys_orig->edit->flags |= PT_CACHE_EDIT_UPDATE_PARTICLE_FROM_EVAL;
+	}
+
+	if (DEG_is_active(depsgraph)) {
+		if (psys_orig != psys) {
+			if (psys_orig->edit != NULL &&
+			    psys_orig->edit->psys == psys_orig)
+			{
+				psys_orig->edit->psys_eval = psys;
+				psys_orig->edit->psmd_eval = psmd;
+			}
+			psys_orig->flag = psys->flag;
+		}
 	}
 
 	psys->cfra = cfra;

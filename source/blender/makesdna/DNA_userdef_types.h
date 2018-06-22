@@ -253,7 +253,7 @@ typedef struct ThemeSpace {
 
 	char view_overlay[4];
 
-	char wire[4], wire_edit[4], wire_inactive[4], select[4];
+	char wire[4], wire_edit[4], select[4];
 	char lamp[4], speaker[4], empty[4], camera[4];
 	char active[4], group[4], group_active[4], transform[4];
 	char vertex[4], vertex_select[4], vertex_bevel[4], vertex_unreferenced[4];
@@ -361,7 +361,6 @@ typedef struct ThemeSpace {
 
 	char metadatabg[4];
 	char metadatatext[4];
-	int pad;
 } ThemeSpace;
 
 
@@ -633,7 +632,7 @@ typedef enum eUserPref_Flag {
 	USER_FLAG_DEPRECATED_7	= (1 << 7),  /* cleared */
 	USER_MAT_ON_OB			= (1 << 8),
 	USER_FLAG_DEPRECATED_9	= (1 << 9),   /* cleared */
-	USER_FLAG_DEPRECATED_10	= (1 << 10),  /* cleared */
+	USER_DEVELOPER_UI		= (1 << 10),
 	USER_TOOLTIPS			= (1 << 11),
 	USER_TWOBUTTONMOUSE		= (1 << 12),
 	USER_NONUMPAD			= (1 << 13),

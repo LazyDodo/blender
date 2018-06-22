@@ -458,6 +458,14 @@ void DepsgraphNodeBuilder::build_collection(
 	add_id_node(&collection->id);
 	/* Build collection objects. */
 	LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
+		if (allow_restrict_flags) {
+			const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
+					? OB_RESTRICT_VIEW
+					: OB_RESTRICT_RENDER;
+			if (cob->ob->restrictflag & restrict_flag) {
+				continue;
+			}
+		}
 		build_object(-1, cob->ob, DEG_ID_LINKED_INDIRECTLY);
 	}
 	/* Build child collections. */
@@ -530,8 +538,11 @@ void DepsgraphNodeBuilder::build_object(int base_index,
 		build_gpencil(object->gpd);
 	}
 	/* Proxy object to copy from. */
-	if (object->proxy_from) {
+	if (object->proxy_from != NULL) {
 		build_object(-1, object->proxy_from, DEG_ID_LINKED_INDIRECTLY);
+	}
+	if (object->proxy_group != NULL) {
+		build_object(-1, object->proxy_group, DEG_ID_LINKED_INDIRECTLY);
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {

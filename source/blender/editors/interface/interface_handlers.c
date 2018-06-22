@@ -58,6 +58,7 @@
 
 #include "PIL_time.h"
 
+#include "BKE_addon.h"
 #include "BKE_colorband.h"
 #include "BKE_blender_undo.h"
 #include "BKE_brush.h"
@@ -1300,7 +1301,6 @@ typedef struct uiDragToggleHandle {
 	bool is_init;
 	bool is_set;
 	float but_cent_start[2];
-	eButType but_type_start;
 
 	bool xy_lock[2];
 	int  xy_init[2];
@@ -1308,7 +1308,7 @@ typedef struct uiDragToggleHandle {
 } uiDragToggleHandle;
 
 static bool ui_drag_toggle_set_xy_xy(
-        bContext *C, ARegion *ar, const bool is_set, const eButType but_type_start,
+        bContext *C, ARegion *ar, const bool is_set,
         const int xy_src[2], const int xy_dst[2])
 {
 	/* popups such as layers won't re-evaluate on redraw */
@@ -1332,7 +1332,7 @@ static bool ui_drag_toggle_set_xy_xy(
 				if (BLI_rctf_isect_segment(&but->rect, xy_a_block, xy_b_block)) {
 
 					/* execute the button */
-					if (ui_drag_toggle_but_is_supported(but) && but->type == but_type_start) {
+					if (ui_drag_toggle_but_is_supported(but)) {
 						/* is it pressed? */
 						bool is_set_but = ui_drag_toggle_but_is_pushed(but);
 						if (is_set_but != is_set) {
@@ -1404,7 +1404,7 @@ static void ui_drag_toggle_set(bContext *C, uiDragToggleHandle *drag_info, const
 
 
 	/* touch all buttons between last mouse coord and this one */
-	do_draw = ui_drag_toggle_set_xy_xy(C, ar, drag_info->is_set, drag_info->but_type_start, drag_info->xy_last, xy);
+	do_draw = ui_drag_toggle_set_xy_xy(C, ar, drag_info->is_set, drag_info->xy_last, xy);
 
 	if (do_draw) {
 		ED_region_tag_redraw(ar);
@@ -1783,7 +1783,6 @@ static bool ui_but_drag_init(
 			drag_info->is_set = ui_drag_toggle_but_is_pushed(but);
 			drag_info->but_cent_start[0] = BLI_rctf_cent_x(&but->rect);
 			drag_info->but_cent_start[1] = BLI_rctf_cent_y(&but->rect);
-			drag_info->but_type_start = but->type;
 			copy_v2_v2_int(drag_info->xy_init, &event->x);
 			copy_v2_v2_int(drag_info->xy_last, &event->x);
 
@@ -4333,10 +4332,14 @@ static int ui_do_but_NUM(
 			retval = WM_UI_HANDLER_BREAK; /* allow accumulating values, otherwise scrolling gets preference */
 		else if (type == WHEELDOWNMOUSE && event->ctrl) {
 			mx = but->rect.xmin;
+			but->drawflag &= ~UI_BUT_ACTIVE_RIGHT;
+			but->drawflag |= UI_BUT_ACTIVE_LEFT;
 			click = 1;
 		}
 		else if (type == WHEELUPMOUSE && event->ctrl) {
 			mx = but->rect.xmax;
+			but->drawflag &= ~UI_BUT_ACTIVE_LEFT;
+			but->drawflag |= UI_BUT_ACTIVE_RIGHT;
 			click = 1;
 		}
 		else if (event->val == KM_PRESS) {
@@ -6711,13 +6714,33 @@ static void ui_but_menu_add_path_operators(uiLayout *layout, PointerRNA *ptr, Pr
 	RNA_string_set(&props_ptr, "filepath", dir);
 }
 
+static void ui_but_menu_lazy_init(
+        bContext *C, uiBut *but,
+        uiPopupMenu **pup_p, uiLayout **layout_p)
+{
+	if (*pup_p != NULL) {
+		return;
+	}
+
+	uiStringInfo label = {BUT_GET_LABEL, NULL};
+
+	/* highly unlikely getting the label ever fails */
+	UI_but_string_info_get(C, but, &label, NULL);
+
+	*pup_p = UI_popup_menu_begin(C, label.strinfo ? label.strinfo : "", ICON_NONE);
+	*layout_p = UI_popup_menu_layout(*pup_p);
+	if (label.strinfo) {
+		MEM_freeN(label.strinfo);
+	}
+	uiLayoutSetOperatorContext(*layout_p, WM_OP_INVOKE_DEFAULT);
+}
+
 static bool ui_but_menu(bContext *C, uiBut *but)
 {
-	uiPopupMenu *pup;
-	uiLayout *layout;
+	uiPopupMenu *pup = NULL;
+	uiLayout *layout = NULL;
 	MenuType *mt = WM_menutype_find("WM_MT_button_context", true);
 	bool is_array, is_array_component;
-	uiStringInfo label = {BUT_GET_LABEL, NULL};
 	wmOperatorType *ot;
 	PointerRNA op_ptr;
 
@@ -6729,17 +6752,8 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 		return false;
 	}
 
-	/* highly unlikely getting the label ever fails */
-	UI_but_string_info_get(C, but, &label, NULL);
-
-	pup = UI_popup_menu_begin(C, label.strinfo ? label.strinfo : "", ICON_NONE);
-	layout = UI_popup_menu_layout(pup);
-	if (label.strinfo)
-		MEM_freeN(label.strinfo);
-
-	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
-
 	if (but->rnapoin.data && but->rnaprop) {
+		ui_but_menu_lazy_init(C, but, &pup, &layout);
 		PointerRNA *ptr = &but->rnapoin;
 		PropertyRNA *prop = but->rnaprop;
 		const PropertyType type = RNA_property_type(prop);
@@ -6985,6 +6999,8 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 
 		/* We do have a shortcut, but only keyboard ones are editbale that way... */
 		if (kmi) {
+			ui_but_menu_lazy_init(C, but, &pup, &layout);
+
 			if (ISKEYBOARD(kmi->type)) {
 #if 0			/* would rather use a block but, but gets weirdly positioned... */
 				uiDefBlockBut(block, menu_change_shortcut, but, "Change Shortcut",
@@ -7011,6 +7027,8 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 		}
 		/* only show 'add' if there's a suitable key map for it to go in */
 		else if (WM_keymap_guess_opname(C, but->optype->idname)) {
+			ui_but_menu_lazy_init(C, but, &pup, &layout);
+
 			but2 = uiDefIconTextBut(block, UI_BTYPE_BUT, 0, ICON_HAND,
 			                        CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Add Shortcut"),
 			                        0, 0, w, UI_UNIT_Y, NULL, 0, 0, 0, 0, "");
@@ -7027,6 +7045,7 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 	if (ui_block_is_menu(but->block) == false) {
 		ARegion *ar = CTX_wm_region(C);
 		if (ar && (ar->regiontype == RGN_TYPE_HEADER)) {
+			ui_but_menu_lazy_init(C, but, &pup, &layout);
 			uiItemMenuF(layout, IFACE_("Header"), ICON_NONE, ED_screens_header_tools_menu_create, NULL);
 			uiItemS(layout);
 		}
@@ -7036,6 +7055,8 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 		char buf[512];
 
 		if (UI_but_online_manual_id(but, buf, sizeof(buf))) {
+			ui_but_menu_lazy_init(C, but, &pup, &layout);
+
 			PointerRNA ptr_props;
 			uiItemO(layout, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Online Manual"),
 			        ICON_URL, "WM_OT_doc_view_manual_ui_context");
@@ -7058,24 +7079,35 @@ static bool ui_but_menu(bContext *C, uiBut *but)
 	}
 
 	if (but->optype) {
+		ui_but_menu_lazy_init(C, but, &pup, &layout);
 		uiItemO(layout, NULL,
 		        ICON_NONE, "UI_OT_copy_python_command_button");
 	}
 
 	/* perhaps we should move this into (G.debug & G_DEBUG) - campbell */
-	if (ui_block_is_menu(but->block) == false) {
-		uiItemFullO(layout, "UI_OT_editsource", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+	if (U.flag & USER_DEVELOPER_UI) {
+		if (ui_block_is_menu(but->block) == false) {
+			ui_but_menu_lazy_init(C, but, &pup, &layout);
+			uiItemFullO(layout, "UI_OT_editsource", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+		}
 	}
-	uiItemFullO(layout, "UI_OT_edittranslation_init", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+
+	if (BKE_addon_find(&U.addons, "ui_translate")) {
+		ui_but_menu_lazy_init(C, but, &pup, &layout);
+		uiItemFullO(layout, "UI_OT_edittranslation_init", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, NULL);
+	}
 
 	mt = WM_menutype_find("WM_MT_button_context", true);
 	if (mt) {
+		ui_but_menu_lazy_init(C, but, &pup, &layout);
 		UI_menutype_draw(C, mt, uiLayoutColumn(layout, false));
 	}
 
-	UI_popup_menu_end(C, pup);
+	if (pup != NULL) {
+		UI_popup_menu_end(C, pup);
+	}
 
-	return true;
+	return (pup != NULL);
 }
 
 static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *event)
@@ -9589,6 +9621,11 @@ static int ui_handle_menu_event(
 	}
 #endif
 
+	/* Don't handle double click events, rehandle as regular press/release. */
+	if (retval == WM_UI_HANDLER_CONTINUE && event->val == KM_DBL_CLICK) {
+		return retval;
+	}
+
 	/* if we set a menu return value, ensure we continue passing this on to
 	 * lower menus and buttons, so always set continue then, and if we are
 	 * inside the region otherwise, ensure we swallow the event */
@@ -10169,6 +10206,7 @@ static int ui_handler_region_menu(bContext *C, const wmEvent *event, void *UNUSE
 {
 	ARegion *ar;
 	uiBut *but;
+	int retval = WM_UI_HANDLER_CONTINUE;
 
 	ar = CTX_wm_menu(C);
 	if (!ar)
@@ -10212,29 +10250,32 @@ static int ui_handler_region_menu(bContext *C, const wmEvent *event, void *UNUSE
 			if ((but_other->flag & UI_BUT_DISABLED) == 0) {
 				ui_handle_button_activate(C, ar, but_other, BUTTON_ACTIVATE_OVER);
 				button_activate_state(C, but_other, BUTTON_STATE_MENU_OPEN);
+				retval = WM_UI_HANDLER_BREAK;
 			}
 		}
 		else if (data->state == BUTTON_STATE_MENU_OPEN) {
-			int retval;
-
 			/* handle events for menus and their buttons recursively,
 			 * this will handle events from the top to the bottom menu */
-			if (data->menu)
+			if (data->menu) {
 				retval = ui_handle_menus_recursive(C, event, data->menu, 0, false, false, false);
+			}
 
 			/* handle events for the activated button */
 			if ((data->menu && (retval == WM_UI_HANDLER_CONTINUE)) ||
 			    (event->type == TIMER))
 			{
-				if (data->menu && data->menu->menuretval)
+				if (data->menu && data->menu->menuretval) {
 					ui_handle_button_return_submenu(C, event, but);
-				else
-					ui_handle_button_event(C, event, but);
+					retval = WM_UI_HANDLER_BREAK;
+				}
+				else {
+					retval = ui_handle_button_event(C, event, but);
+				}
 			}
 		}
 		else {
 			/* handle events for the activated button */
-			ui_handle_button_event(C, event, but);
+			retval = ui_handle_button_event(C, event, but);
 		}
 	}
 
@@ -10244,6 +10285,14 @@ static int ui_handler_region_menu(bContext *C, const wmEvent *event, void *UNUSE
 
 	/* delayed apply callbacks */
 	ui_apply_but_funcs_after(C);
+
+	/* Don't handle double-click events,
+	 * these will be converted into regular clicks which we handle. */
+	if (retval == WM_UI_HANDLER_CONTINUE) {
+		if (event->val == KM_DBL_CLICK) {
+			return WM_UI_HANDLER_CONTINUE;
+		}
+	}
 
 	/* we block all events, this is modal interaction */
 	return WM_UI_HANDLER_BREAK;

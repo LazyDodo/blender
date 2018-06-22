@@ -856,26 +856,18 @@ void DM_to_mesh(DerivedMesh *dm, Mesh *me, Object *ob, CustomDataMask mask, bool
 	}
 }
 
-void DM_to_meshkey(DerivedMesh *dm, Mesh *me, KeyBlock *kb)
+/** Utility function to convert an (evaluated) Mesh to a shape key block. */
+/* Just a shallow wrapper around BKE_keyblock_convert_from_mesh,
+ * that ensures both evaluated mesh and original one has same number of vertices. */
+void BKE_mesh_runtime_eval_to_meshkey(Mesh *me_deformed, Mesh *me, KeyBlock *kb)
 {
-	int a, totvert = dm->getNumVerts(dm);
-	float *fp;
-	MVert *mvert;
+	const int totvert = me_deformed->totvert;
 
 	if (totvert == 0 || me->totvert == 0 || me->totvert != totvert) {
 		return;
 	}
 
-	if (kb->data) MEM_freeN(kb->data);
-	kb->data = MEM_malloc_arrayN(me->key->elemsize, me->totvert, "kb->data");
-	kb->totelem = totvert;
-
-	fp = kb->data;
-	mvert = dm->getVertDataArray(dm, CD_MVERT);
-
-	for (a = 0; a < kb->totelem; a++, fp += 3, mvert++) {
-		copy_v3_v3(fp, mvert->co);
-	}
+	BKE_keyblock_convert_from_mesh(me_deformed, me->key, kb);
 }
 
 /**
@@ -3017,8 +3009,9 @@ static void mesh_build_data(
 	if ((ob->mode & OB_MODE_ALL_SCULPT) && ob->sculpt) {
 		/* create PBVH immediately (would be created on the fly too,
 		 * but this avoids waiting on first stroke) */
-
-		BKE_sculpt_update_mesh_elements(depsgraph, scene, scene->toolsettings->sculpt, ob, false, false);
+		/* XXX Disabled for now.
+		 * This can create horrible nasty bugs by generating re-entrant call of mesh_get_eval_final! */
+//		BKE_sculpt_update_mesh_elements(depsgraph, scene, scene->toolsettings->sculpt, ob, false, false);
 	}
 
 	BLI_assert(!(ob->derivedFinal->dirty & DM_DIRTY_NORMALS));
@@ -3055,14 +3048,14 @@ static void editbmesh_build_data(
 static CustomDataMask object_get_datamask(const Depsgraph *depsgraph, Object *ob, bool *r_need_mapping)
 {
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
-	Object *actob = view_layer->basact ? view_layer->basact->object : NULL;
+	Object *actob = view_layer->basact ? DEG_get_original_object(view_layer->basact->object) : NULL;
 	CustomDataMask mask = ob->customdata_mask;
 
 	if (r_need_mapping) {
 		*r_need_mapping = false;
 	}
 
-	if (ob == actob) {
+	if (DEG_get_original_object(ob) == actob) {
 		bool editing = BKE_paint_select_face_test(ob);
 
 		/* weight paint and face select need original indices because of selection buffer drawing */
