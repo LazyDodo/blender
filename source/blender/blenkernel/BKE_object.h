@@ -37,6 +37,7 @@ extern "C" {
 
 struct Base;
 struct Depsgraph;
+struct GpencilModifierData;
 struct Scene;
 struct ViewLayer;
 struct ID;

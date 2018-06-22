@@ -1533,7 +1533,7 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 	return NULL;
 }
 
-static uiLayout *gpencil_draw_modifier(uiLayout *layout, Scene *scene, Object *ob,
+static uiLayout *gpencil_draw_modifier(uiLayout *layout, Scene *UNSED(scene), Object *ob,
 									   GpencilModifierData *md)
 {
 	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
