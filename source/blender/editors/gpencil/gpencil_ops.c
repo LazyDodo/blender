@@ -562,9 +562,11 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_string_set(kmi->ptr, "data_path_primary", "user_preferences.edit.grease_pencil_eraser_radius");
 
-	/* menu draw specials (add two keys to make more easy for user) */
+	/* menu draw specials */
 	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_draw_specials", WKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_draw_specials", XKEY, KM_PRESS, 0, 0);
+
+	/* menu draw delete */
+	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_draw_delete", XKEY, KM_PRESS, 0, 0);
 
 	/* color picker */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_colorpick", PKEY, KM_PRESS, 0, 0);

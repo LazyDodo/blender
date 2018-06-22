@@ -641,11 +641,6 @@ class GPENCIL_MT_gpencil_edit_specials(Menu):
         layout.operator("gpencil.stroke_flip", text="Flip Direction")
 
         layout.separator()
-
-        layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes").mode = 'ACTIVE'
-        layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes all Frames").mode = 'ALL'
-
-        layout.separator()
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame All Layers").mode = 'ALL'
 
@@ -672,11 +667,6 @@ class GPENCIL_MT_gpencil_sculpt_specials(Menu):
         layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
         layout.operator("gpencil.stroke_simplify", text="Simplify Adaptative")
 
-        layout.separator()
-
-        layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes").mode = 'ACTIVE'
-        layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes all Frames").mode = 'ALL'
-
 
 class GPENCIL_MT_gpencil_draw_specials(Menu):
     bl_label = "GPencil Draw Specials"
@@ -689,12 +679,6 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
 
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame All Layers").mode = 'ALL'
-        layout.separator()
-        layout.operator("gpencil.active_frames_delete_all", text="Delete Frame")
-
-        layout.separator()
-        layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes").mode = 'ACTIVE'
-        layout.operator("gpencil.frame_clean_fill", text="Clean Boundary Strokes all Frames").mode = 'ALL'
 
         layout.separator()
         layout.operator("gpencil.primitive", text="Line", icon='IPO_CONSTANT').type = 'LINE'
@@ -704,6 +688,18 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
         # colors
         layout.separator()
         layout.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
+
+
+class GPENCIL_MT_gpencil_draw_delete(Menu):
+    bl_label = "GPencil Draw Delete"
+
+    def draw(self, context):
+        layout = self.layout
+        is_3d_view = context.space_data.type == 'VIEW_3D'
+
+        layout.operator_context = 'INVOKE_REGION_WIN'
+
+        layout.operator("gpencil.active_frames_delete_all", text="Delete Frame")
 
 
 class GPENCIL_UL_layer(UIList):
@@ -943,6 +939,7 @@ classes = (
     GPENCIL_MT_gpencil_edit_specials,
     GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
+    GPENCIL_MT_gpencil_draw_delete,
     GPENCIL_UL_layer,
     GPENCIL_MT_layer_specials,
 )
