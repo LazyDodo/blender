@@ -132,6 +132,7 @@
 #include "BKE_fcurve.h"
 #include "BKE_global.h" // for G
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_layer.h"
 #include "BKE_library.h" // for which_libbase
 #include "BKE_library_idmap.h"
@@ -4838,7 +4839,7 @@ static void direct_link_latt(FileData *fd, Lattice *lt)
 
 /* ************ READ OBJECT ***************** */
 
-static void lib_link_modifiers__linkModifiers(
+static void lib_link_modifiers_common(
         void *userData, Object *ob, ID **idpoin, int cb_flag)
 {
 	FileData *fd = userData;
@@ -4848,9 +4849,10 @@ static void lib_link_modifiers__linkModifiers(
 		id_us_plus_no_lib(*idpoin);
 	}
 }
+
 static void lib_link_modifiers(FileData *fd, Object *ob)
 {
-	modifiers_foreachIDLink(ob, lib_link_modifiers__linkModifiers, fd);
+	modifiers_foreachIDLink(ob, lib_link_modifiers_common, fd);
 
 	/* If linking from a library, clear 'local' static override flag. */
 	if (ob->id.lib != NULL) {
@@ -4859,6 +4861,18 @@ static void lib_link_modifiers(FileData *fd, Object *ob)
 		}
 	}
 
+}
+
+static void lib_link_gpencil_modifiers(FileData *fd, Object *ob)
+{
+	BKE_gpencil_modifiers_foreachIDLink(ob, lib_link_modifiers_common, fd);
+
+	/* If linking from a library, clear 'local' static override flag. */
+	if (ob->id.lib != NULL) {
+		for (GpencilModifierData *mod = ob->greasepencil_modifiers.first; mod != NULL; mod = mod->next) {
+			mod->flag &= ~eGpencilModifierFlag_StaticOverride_Local;
+		}
+	}
 }
 
 static void lib_link_object(FileData *fd, Main *main)
@@ -4997,6 +5011,7 @@ static void lib_link_object(FileData *fd, Main *main)
 
 			lib_link_particlesystems(fd, ob, &ob->id, &ob->particlesystem);
 			lib_link_modifiers(fd, ob);
+			lib_link_gpencil_modifiers(fd, ob);
 
 			if (ob->rigidbody_constraint) {
 				ob->rigidbody_constraint->ob1 = newlibadr(fd, ob->id.lib, ob->rigidbody_constraint->ob1);
@@ -9646,6 +9661,15 @@ static void expand_object(FileData *fd, Main *mainvar, Object *ob)
 		data.mainvar = mainvar;
 
 		modifiers_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
+	}
+
+	/* expand_object_expandModifier() */
+	if (ob->greasepencil_modifiers.first) {
+		struct { FileData *fd; Main *mainvar; } data;
+		data.fd = fd;
+		data.mainvar = mainvar;
+
+		BKE_gpencil_modifiers_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
 	}
 
 	expand_pose(fd, mainvar, ob->pose);
