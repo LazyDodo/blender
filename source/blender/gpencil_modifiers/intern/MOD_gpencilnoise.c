@@ -70,11 +70,6 @@ static void initData(GpencilModifierData *md)
 	gpmd->scene_frame = -999999;
 	gpmd->gp_frame = -999999;
 
-	/* Random generator, only init once. */
-	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= GET_UINT_FROM_POINTER(gpmd);
-	gpmd->rng = BLI_rng_new(rng_seed);
-
 	gpmd->vrand1 = 1.0;
 	gpmd->vrand2 = 1.0;
 }
@@ -83,7 +78,7 @@ static void freeData(GpencilModifierData *md)
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 
-	if (mmd->rng) {
+	if (mmd->rng != NULL) {
 		BLI_rng_free(mmd->rng);
 	}
 }
@@ -115,6 +110,13 @@ static void deformStroke(
 	int sc_diff = 0;
 	int vindex = defgroup_name_index(ob, mmd->vgname);
 	float weight = 1.0f;
+
+	/* Random generator, only init once. */
+	if (mmd->rng == NULL) {
+		uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+		rng_seed ^= GET_UINT_FROM_POINTER(mmd);
+		mmd->rng = BLI_rng_new(rng_seed);
+	}
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
