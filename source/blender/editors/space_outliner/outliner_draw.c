@@ -1262,7 +1262,7 @@ static void tselem_draw_icon(
 					}
 					break;
 				case OB_GPENCIL:
-					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_OB_GREASEPENCIL);
+					ICON_CLICK_DRAW(ICON_OUTLINER_OB_GREASEPENCIL); break;
 					break;
 			}
 		}
