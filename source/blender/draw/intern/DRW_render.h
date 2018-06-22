@@ -480,8 +480,6 @@ DrawData *DRW_drawdata_ensure(
 bool DRW_object_is_renderable(struct Object *ob);
 bool DRW_check_object_visible_within_active_context(struct Object *ob);
 bool DRW_object_is_flat_normal(const struct Object *ob);
-int  DRW_object_is_mode_shade(const struct Object *ob);
-int  DRW_object_is_paint_mode(const struct Object *ob);
 
 bool DRW_check_psys_visible_within_active_context(struct Object *object, struct ParticleSystem *psys);
 

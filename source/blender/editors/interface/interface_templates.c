@@ -1356,8 +1356,7 @@ static uiLayout *draw_modifier(
 		UI_block_emboss_set(block, UI_EMBOSS);
 
 		/* modifier name */
-		md->scene = scene;
-		if (mti->isDisabled && mti->isDisabled(md, 0)) {
+		if (mti->isDisabled && mti->isDisabled(scene, md, 0)) {
 			uiLayoutSetRedAlert(row, true);
 		}
 		uiItemR(row, &ptr, "name", 0, "", ICON_NONE);
@@ -1748,7 +1747,7 @@ static uiLayout *draw_constraint(uiLayout *layout, Object *ob, bConstraint *con)
 		/* enabled */
 		UI_block_emboss_set(block, UI_EMBOSS_NONE);
 		uiItemR(row, &ptr, "mute", 0, "",
-		        (con->flag & CONSTRAINT_OFF) ? ICON_RESTRICT_VIEW_ON : ICON_RESTRICT_VIEW_OFF);
+		        (con->flag & CONSTRAINT_OFF) ? ICON_HIDE_ON : ICON_HIDE_OFF);
 		UI_block_emboss_set(block, UI_EMBOSS);
 
 		uiLayoutSetOperatorContext(row, WM_OP_INVOKE_DEFAULT);
