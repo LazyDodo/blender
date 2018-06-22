@@ -43,9 +43,9 @@ void lanpr_init_atlas_inputs(void *ved){
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	SceneLANPR* lanpr=&draw_ctx->scene->lanpr;
+	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 
-	if(lanpr->reloaded || !txl->dpix_in_pl){
+	if (lanpr->reloaded || !txl->dpix_in_pl) {
 		DRW_texture_ensure_2D(&txl->dpix_in_pl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_pr, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
 		DRW_texture_ensure_2D(&txl->dpix_in_nl, TNS_DPIX_TEXTURE_SIZE, TNS_DPIX_TEXTURE_SIZE, GPU_RGBA32F, 0);
@@ -76,21 +76,21 @@ void lanpr_init_atlas_inputs(void *ved){
 		GPU_ATTACHMENT_LEAVE
 	});
 
-    if (!OneTime.dpix_transform_shader) {
-	OneTime.dpix_transform_shader = 
-		GPU_shader_create(
-			datatoc_lanpr_atlas_project_passthrough_vertex,
-			datatoc_lanpr_atlas_project_clip_fragment,
-			NULL,NULL,NULL);
-    }
+	if (!OneTime.dpix_transform_shader) {
+		OneTime.dpix_transform_shader =
+			GPU_shader_create(
+				datatoc_lanpr_atlas_project_passthrough_vertex,
+				datatoc_lanpr_atlas_project_clip_fragment,
+				NULL, NULL, NULL);
+	}
 	if (!OneTime.dpix_preview_shader) {
-	OneTime.dpix_preview_shader = 
-		GPU_shader_create(
-		    datatoc_lanpr_atlas_project_passthrough_vertex,
-			datatoc_lanpr_atlas_preview_fragment,
-			datatoc_lanpr_atlas_preview_geometry,
-			NULL,NULL);
-    }
+		OneTime.dpix_preview_shader =
+			GPU_shader_create(
+				datatoc_lanpr_atlas_project_passthrough_vertex,
+				datatoc_lanpr_atlas_preview_fragment,
+				datatoc_lanpr_atlas_preview_geometry,
+				NULL, NULL);
+	}
 }
 void lanpr_destroy_atlas(void *ved){
 	OneTime.ved = ved;
@@ -115,51 +115,51 @@ void lanpr_destroy_atlas(void *ved){
 	DRW_texture_free(txl->dpix_out_pr);
 }
 
-int lanpr_feed_atlas_data_obj(void* vedata,
-	float* AtlasPointsL, float* AtlasPointsR,
-	float* AtlasFaceNormalL, float* AtlasFaceNormalR,
-	float* AtlasEdgeMask,
-	Object* ob, int BeginIndex) {
+int lanpr_feed_atlas_data_obj(void *vedata,
+                              float *AtlasPointsL, float *AtlasPointsR,
+                              float *AtlasFaceNormalL, float *AtlasFaceNormalR,
+                              float *AtlasEdgeMask,
+                              Object *ob, int BeginIndex) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 
 	if (!DRW_object_is_renderable(ob)) return BeginIndex;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	if (ob == draw_ctx->object_edit) return BeginIndex;
-	if(ob->type != OB_MESH) return BeginIndex;
+	if (ob->type != OB_MESH) return BeginIndex;
 
-	Mesh* me = ob->data;
-	BMesh* bm;
-	struct BMFace *f1,*f2;
-	struct BMVert *v1,*v2;
+	Mesh *me = ob->data;
+	BMesh *bm;
+	struct BMFace *f1, *f2;
+	struct BMVert *v1, *v2;
 	struct BMEdge *e;
-	struct BMLoop *l1,*l2;
+	struct BMLoop *l1, *l2;
 	FreestyleEdge *fe;
-	int CanFindFreestyle=0;
-    int vert_count = me->totvert, edge_count = me->totedge, face_count = me->totface;
-	int i,idx;
+	int CanFindFreestyle = 0;
+	int vert_count = me->totvert, edge_count = me->totedge, face_count = me->totface;
+	int i, idx;
 
 	const BMAllocTemplate allocsize = BMALLOC_TEMPLATE_FROM_ME(me);
 	bm = BM_mesh_create(&allocsize,
-			            &((struct BMeshCreateParams){.use_toolflags = true,}));
-	BM_mesh_bm_from_me(bm, me, &((struct BMeshFromMeshParams){.calc_face_normal = true,}));
-	BM_mesh_elem_table_ensure(bm,BM_VERT|BM_EDGE|BM_FACE);
+	                    &((struct BMeshCreateParams) {.use_toolflags = true, }));
+	BM_mesh_bm_from_me(bm, me, &((struct BMeshFromMeshParams) {.calc_face_normal = true, }));
+	BM_mesh_elem_table_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 
 	if (CustomData_has_layer(&bm->edata, CD_FREESTYLE_EDGE)) {
-		CanFindFreestyle=1;
+		CanFindFreestyle = 1;
 	}
-	
-	for(i=0; i<edge_count; i++){
-		f1=0;
-		f2=0;
-		e = BM_edge_at_index(bm,i);
+
+	for (i = 0; i < edge_count; i++) {
+		f1 = 0;
+		f2 = 0;
+		e = BM_edge_at_index(bm, i);
 		v1 = e->v1;
 		v2 = e->v2;
 		l1 = e->l;
-		l2 = e->l?e->l->radial_next:0;
-		if(l1) f1 = l1->f;
-		if(l2) f2 = l2->f;
+		l2 = e->l ? e->l->radial_next : 0;
+		if (l1) f1 = l1->f;
+		if (l2) f2 = l2->f;
 
-		idx = (BeginIndex+i)*4;
+		idx = (BeginIndex + i) * 4;
 
 		AtlasPointsL[idx + 0] = v1->co[0];
 		AtlasPointsL[idx + 1] = v1->co[1];
@@ -171,32 +171,34 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 		AtlasPointsR[idx + 2] = v2->co[2];
 		AtlasPointsR[idx + 3] = 1;
 
-		if(CanFindFreestyle){
+		if (CanFindFreestyle) {
 			fe = CustomData_bmesh_get(&bm->edata, e->head.data, CD_FREESTYLE_EDGE);
-			if(fe->flag & FREESTYLE_EDGE_MARK) AtlasEdgeMask[idx + 1] = 1; // channel G
+			if (fe->flag & FREESTYLE_EDGE_MARK) AtlasEdgeMask[idx + 1] = 1; // channel G
 		}
 
-		if(f1){
+		if (f1) {
 			AtlasFaceNormalL[idx + 0] = f1->no[0];
 			AtlasFaceNormalL[idx + 1] = f1->no[1];
 			AtlasFaceNormalL[idx + 2] = f1->no[2];
 			AtlasFaceNormalL[idx + 3] = 1;
-		}else{
+		}
+		else {
 			AtlasFaceNormalL[idx + 0] = 0;
 			AtlasFaceNormalL[idx + 1] = 0;
 			AtlasFaceNormalL[idx + 2] = 0;
 			AtlasFaceNormalL[idx + 3] = 0;
 		}
 
-		if(f2 && f2!=f1){ // this is for edge condition
+		if (f2 && f2 != f1) { // this is for edge condition
 			AtlasFaceNormalR[idx + 0] = f2->no[0];
 			AtlasFaceNormalR[idx + 1] = f2->no[1];
 			AtlasFaceNormalR[idx + 2] = f2->no[2];
 			AtlasFaceNormalR[idx + 3] = 1;
 
-			if(f2->mat_nr!=f1->mat_nr) AtlasEdgeMask[idx] = 1; // channel R
+			if (f2->mat_nr != f1->mat_nr) AtlasEdgeMask[idx] = 1; // channel R
 
-		}else{
+		}
+		else {
 			AtlasFaceNormalR[idx + 0] = 0;
 			AtlasFaceNormalR[idx + 1] = 0;
 			AtlasFaceNormalR[idx + 2] = 0;
@@ -206,24 +208,24 @@ int lanpr_feed_atlas_data_obj(void* vedata,
 	}
 
 	BM_mesh_free(bm);
-	
+
 	return BeginIndex + edge_count;
 }
 
-void lanpr_dpix_index_to_coord(int index, float* x,float* y){
-    (*x) = tnsLinearItp(-1,1,(float)(index % TNS_DPIX_TEXTURE_SIZE+0.5)/(float)TNS_DPIX_TEXTURE_SIZE);
-	(*y) = tnsLinearItp(-1,1,(float)(index / TNS_DPIX_TEXTURE_SIZE+0.5)/(float)TNS_DPIX_TEXTURE_SIZE);
+void lanpr_dpix_index_to_coord(int index, float *x, float *y){
+	(*x) = tnsLinearItp(-1, 1, (float)(index % TNS_DPIX_TEXTURE_SIZE + 0.5) / (float)TNS_DPIX_TEXTURE_SIZE);
+	(*y) = tnsLinearItp(-1, 1, (float)(index / TNS_DPIX_TEXTURE_SIZE + 0.5) / (float)TNS_DPIX_TEXTURE_SIZE);
 }
 
-void lanpr_dpix_index_to_coord_absolute(int index, float* x,float* y){
-	(*x) = (float)(index % TNS_DPIX_TEXTURE_SIZE)+0.5;
-    (*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE)+0.5;
+void lanpr_dpix_index_to_coord_absolute(int index, float *x, float *y){
+	(*x) = (float)(index % TNS_DPIX_TEXTURE_SIZE) + 0.5;
+	(*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE) + 0.5;
 }
 
-int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginIndex) {
+int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginIndex) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
-	LANPR_PrivateData* pd = stl->g_data;
-	Mesh* me = ob->data;
+	LANPR_PrivateData *pd = stl->g_data;
+	Mesh *me = ob->data;
 	if (ob->type != OB_MESH) return BeginIndex;
 	int edge_count = me->totedge;
 	int i;
@@ -246,18 +248,18 @@ int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginInde
 	GWN_vertbuf_data_alloc(vbo, edge_count);
 	GWN_vertbuf_data_alloc(vbo2, edge_count);
 
-	for(i=0;i<edge_count;i++){
-        lanpr_dpix_index_to_coord(i+BeginIndex,&co[0],&co[1]);
+	for (i = 0; i < edge_count; i++) {
+		lanpr_dpix_index_to_coord(i + BeginIndex, &co[0], &co[1]);
 		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, co);
-		lanpr_dpix_index_to_coord_absolute(i+BeginIndex,&co[0],&co[1]);
+		lanpr_dpix_index_to_coord_absolute(i + BeginIndex, &co[0], &co[1]);
 		GWN_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
 	}
-	
-	Gwn_Batch* gb = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, 0, GWN_USAGE_STATIC|GWN_BATCH_OWNS_VBO);
-    Gwn_Batch* gb2 = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo2, 0, GWN_USAGE_STATIC|GWN_BATCH_OWNS_VBO);
+
+	Gwn_Batch *gb = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, 0, GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
+	Gwn_Batch *gb2 = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo2, 0, GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
 
 	LANPR_BatchItem *bi = BLI_mempool_alloc(pd->mp_batch_list);
-	BLI_addtail(&pd->dpix_batch_list,bi);
+	BLI_addtail(&pd->dpix_batch_list, bi);
 	bi->dpix_transform_batch = gb;
 	bi->dpix_preview_batch = gb2;
 	bi->ob = ob;
@@ -266,7 +268,7 @@ int lanpr_feed_atlas_trigger_preview_obj(void* vedata, Object* ob, int BeginInde
 }
 
 
-void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr){
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr){
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
@@ -274,28 +276,29 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
-	int texw = GPU_texture_width(txl->edge_intermediate) ,texh = GPU_texture_height(txl->edge_intermediate);;
-	int tsize = texw*texh;
+	int texw = GPU_texture_width(txl->edge_intermediate), texh = GPU_texture_height(txl->edge_intermediate);;
+	int tsize = texw * texh;
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	View3D *v3d = draw_ctx->v3d;
 	Object *camera;
-	if(v3d){
+	if (v3d) {
 		RegionView3D *rv3d = draw_ctx->rv3d;
 		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	}else{
+	}
+	else {
 		camera = scene->camera;
 	}
-		
+
 	pd->dpix_viewport[2] = texw;
 	pd->dpix_viewport[3] = texh;
 	pd->dpix_is_perspective = 1;
 	pd->dpix_sample_step = 1;
 	pd->dpix_buffer_width = TNS_DPIX_TEXTURE_SIZE;
-	pd->dpix_depth_offset=0.0001;
-	pd->dpix_znear = camera?((Camera*)camera->data)->clipsta:v3d->near;
-	pd->dpix_zfar = camera?((Camera*)camera->data)->clipend:v3d->far;
+	pd->dpix_depth_offset = 0.0001;
+	pd->dpix_znear = camera ? ((Camera *)camera->data)->clipsta : v3d->near;
+	pd->dpix_zfar = camera ? ((Camera *)camera->data)->clipend : v3d->far;
 
 	glPointSize(1);
 	glLineWidth(2);
@@ -309,5 +312,5 @@ void lanpr_dpix_draw_scene(LANPR_TextureList* txl, LANPR_FramebufferList * fbl, 
 
 	GPU_framebuffer_bind(dfbl->default_fb);
 	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
-	DRW_multisamples_resolve(txl->depth,txl->color);  
+	DRW_multisamples_resolve(txl->depth, txl->color);
 }
