@@ -157,6 +157,8 @@
 #include "BKE_colortools.h"
 #include "BKE_workspace.h"
 
+#include "DRW_engine.h"
+
 #include "DEG_depsgraph.h"
 
 #include "NOD_common.h"
@@ -2339,6 +2341,11 @@ static void direct_link_id(FileData *fd, ID *id)
 	if (id->override_static) {
 		id->override_static = newdataadr(fd, id->override_static);
 		link_list_ex(fd, &id->override_static->properties, direct_link_id_override_property_cb);
+	}
+
+	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+	if (drawdata) {
+		BLI_listbase_clear(drawdata);
 	}
 }
 
@@ -5571,7 +5578,6 @@ static void direct_link_object(FileData *fd, Object *ob)
 	ob->derivedFinal = NULL;
 	BKE_object_runtime_reset(ob);
 	BLI_listbase_clear(&ob->gpulamp);
-	BLI_listbase_clear(&ob->drawdata);
 	link_list(fd, &ob->pc_ids);
 
 	/* Runtime curve data  */

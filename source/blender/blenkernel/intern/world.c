@@ -53,6 +53,8 @@
 #include "BKE_node.h"
 #include "BKE_world.h"
 
+#include "DRW_engine.h"
+
 #include "DEG_depsgraph.h"
 
 #include "GPU_material.h"
@@ -61,6 +63,8 @@
 void BKE_world_free(World *wrld)
 {
 	BKE_animdata_free((ID *)wrld, false);
+
+	DRW_drawdata_free((ID *)wrld);
 
 	/* is no lib link block, but world extension */
 	if (wrld->nodetree) {
@@ -163,10 +167,3 @@ void BKE_world_make_local(Main *bmain, World *wrld, const bool lib_local)
 	BKE_id_make_local_generic(bmain, &wrld->id, true, lib_local);
 }
 
-void BKE_world_eval(struct Depsgraph *depsgraph, World *world)
-{
-	DEG_debug_print_eval(depsgraph, __func__, world->id.name, world);
-	if (!BLI_listbase_is_empty(&world->gpumaterial)) {
-		world->update_flag = 1;
-	}
-}

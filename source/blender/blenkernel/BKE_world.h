@@ -44,11 +44,5 @@ struct World *BKE_world_copy(struct Main *bmain, const struct World *wrld);
 struct World *BKE_world_localize(struct World *wrld);
 void BKE_world_make_local(struct Main *bmain, struct World *wrld, const bool lib_local);
 
-/* Evaluation. */
-
-struct Depsgraph;
-
-void BKE_world_eval(struct Depsgraph *depsgraph, struct World *world);
-
 #endif
 
