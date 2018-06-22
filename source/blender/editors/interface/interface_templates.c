@@ -1532,7 +1532,7 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 	return NULL;
 }
 
-static uiLayout *gpencil_draw_modifier(uiLayout *layout, Scene *UNSED(scene), Object *ob,
+static uiLayout *gpencil_draw_modifier(uiLayout *layout, Object *ob,
 									   GpencilModifierData *md)
 {
 	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
@@ -1622,9 +1622,8 @@ static uiLayout *gpencil_draw_modifier(uiLayout *layout, Scene *UNSED(scene), Ob
 	return result;
 }
 
-uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
+uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
-	Scene *scene = CTX_data_scene(C);
 	Object *ob;
 	GpencilModifierData *md, *vmd;
 	int i;
@@ -1649,7 +1648,7 @@ uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *C, PointerRNA *p
 	vmd = ob->greasepencil_modifiers.first;
 	for (i = 0; vmd; i++, vmd = vmd->next) {
 		if (md == vmd)
-			return gpencil_draw_modifier(layout, scene, ob, md);
+			return gpencil_draw_modifier(layout, ob, md);
 	}
 
 	return NULL;
