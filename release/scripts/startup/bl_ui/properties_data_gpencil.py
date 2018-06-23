@@ -73,6 +73,17 @@ class DATA_PT_gpencil_datapanel(Panel):
     bl_context = "data"
     bl_label = "Layers"
 
+    @classmethod
+    def poll(cls, context):
+        if context.gpencil_data is None:
+            return False
+
+        ob = context.object
+        if ob is not None and ob.type == 'GPENCIL':
+            return True
+
+        return False
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -323,7 +334,7 @@ classes = (
     DATA_PT_custom_props_gpencil,
 
     GPENCIL_UL_vgroups,
-    
+
     GPENCIL_MT_gpencil_vertex_group,
 )
 
