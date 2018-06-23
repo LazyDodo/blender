@@ -8329,9 +8329,13 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 									if (pt->flag & GP_SPOINT_SELECT)
 										td->flag |= TD_SELECTED;
 
-									/* for other transform modes (e.g. shrink-fatten), need to additional data */
-									td->val = &pt->pressure;
-									td->ival = pt->pressure;
+									/* for other transform modes (e.g. shrink-fatten), need to additional data
+									 * but never for scale or mirror
+									 */
+									if ((t->mode != TFM_RESIZE) && (t->mode != TFM_MIRROR)) {
+										td->val = &pt->pressure;
+										td->ival = pt->pressure;
+									}
 
 									/* screenspace needs special matrices... */
 									if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) == 0) {
