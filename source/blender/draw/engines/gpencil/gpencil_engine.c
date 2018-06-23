@@ -362,7 +362,7 @@ void GPENCIL_cache_init(void *vedata)
 		/* drawing buffer pass for drawing the stroke that is beeing drawing by the user. The data
 		 * is stored in sbuffer
 		 */
-		psl->drawing_pass = DRW_pass_create("GPencil Drawing Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		psl->drawing_pass = DRW_pass_create("GPencil Drawing Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
 
 		/* full screen pass to combine the result with default framebuffer */
 		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
