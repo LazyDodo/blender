@@ -227,8 +227,8 @@ static void eevee_lightbake_context_enable(EEVEE_LightBake *lbake)
 static void eevee_lightbake_context_disable(EEVEE_LightBake *lbake)
 {
 	if (lbake->gl_context) {
-		DRW_opengl_render_context_disable(lbake->gl_context);
 		DRW_gawain_render_context_disable(lbake->gwn_context);
+		DRW_opengl_render_context_disable(lbake->gl_context);
 	}
 	else {
 		DRW_opengl_context_disable();
