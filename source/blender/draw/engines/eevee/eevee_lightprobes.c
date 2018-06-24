@@ -905,7 +905,10 @@ void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
 
 	if (light_cache->flag & LIGHTCACHE_UPDATE_WORLD) {
+		DRWMatrixState saved_mats;
+		DRW_viewport_matrix_get_all(&saved_mats);
 		EEVEE_lightbake_update_world_quick(sldata, vedata, scene_eval);
+		DRW_viewport_matrix_override_set_all(&saved_mats);
 	}
 }
 

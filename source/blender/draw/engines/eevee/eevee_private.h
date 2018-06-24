@@ -275,6 +275,9 @@ typedef struct EEVEE_TextureList {
 	struct GPUTexture *volume_scatter_history;
 	struct GPUTexture *volume_transmittance_history;
 
+	struct GPUTexture *lookdev_grid_tx;
+	struct GPUTexture *lookdev_cube_tx;
+
 	struct GPUTexture *planar_pool;
 	struct GPUTexture *planar_depth;
 
@@ -291,6 +294,9 @@ typedef struct EEVEE_StorageList {
 
 	struct EEVEE_PrivateData *g_data;
 
+	struct EEVEE_LightCache *lookdev_lightcache;
+	struct EEVEE_LightProbe *lookdev_cube_data;
+	struct EEVEE_LightGrid  *lookdev_grid_data;
 } EEVEE_StorageList;
 
 /* ************ LIGHT UBO ************* */
