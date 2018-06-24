@@ -305,8 +305,6 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 	lbake->grid_prev = DRW_texture_create_2D_array(lbake->irr_size[0], lbake->irr_size[1], lbake->irr_size[2],
 	                                               IRRADIANCE_FORMAT, DRW_TEX_FILTER, NULL);
 
-	eevee_lightbake_create_render_target(lbake, lbake->rt_res);
-
 	/* Ensure Light Cache is ready to accept new data. If not recreate one.
 	 * WARNING: All the following must be threadsafe. It's currently protected
 	 * by the DRW mutex. */
@@ -720,6 +718,12 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 	lbake->stop = stop;
 	lbake->do_update = do_update;
 	lbake->progress = progress;
+
+	/* We need to create the FBOs in the right context.
+	 * We cannot do it in the main thread. */
+	eevee_lightbake_context_enable(lbake);
+	eevee_lightbake_create_render_target(lbake, lbake->rt_res);
+	eevee_lightbake_context_disable(lbake);
 
 	/* Gather all probes data */
 	eevee_lightbake_gather_probes(lbake);
