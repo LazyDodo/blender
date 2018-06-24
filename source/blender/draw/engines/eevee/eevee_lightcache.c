@@ -325,6 +325,8 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 		DEG_id_tag_update(&scene_orig->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
+	lcache->vis_res = lbake->vis_res;
+
 	lcache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID | LIGHTCACHE_BAKING;
 
 	/* Share light cache with the evaluated (baking) layer and the original layer.
@@ -483,7 +485,7 @@ static void eevee_lightbake_render_world_sample(void *ved, void *user_data)
 	GPU_framebuffer_texture_attach(lbake->store_fb, lbake->grid_prev, 0, 0);
 	GPU_framebuffer_bind(lbake->store_fb);
 	/* Clear to 1.0f for visibility. */
-	GPU_framebuffer_clear_color(lbake->store_fb, (float[4]){1.0f});
+	GPU_framebuffer_clear_color(lbake->store_fb, ((float[4]){1.0f, 1.0f, 1.0f, 1.0f}));
 	DRW_draw_pass(vedata->psl->probe_grid_fill);
 
 	SWAP(GPUTexture *, lbake->grid_prev, lcache->grid_tx);
@@ -609,11 +611,11 @@ static void eevee_lightbake_render_grid_sample(void *ved, void *user_data)
 	}
 
 	/* Update level for progressive update. */
-	if (lbake->bounce_curr == 0) {
-		egrid->level_bias = (float)(stride << 1);
-	}
-	else if (is_last_bounce_sample) {
+	if (is_last_bounce_sample) {
 		egrid->level_bias = 1.0f;
+	}
+	else if (lbake->bounce_curr == 0) {
+		egrid->level_bias = (float)(stride << 1);
 	}
 
 	/* Only run this for the last sample of a bounce. */

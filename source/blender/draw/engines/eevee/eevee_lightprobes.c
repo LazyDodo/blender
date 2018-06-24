@@ -380,7 +380,6 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		struct Gwn_Batch *geom = DRW_cache_fullscreen_quad_get();
 		DRWShadingGroup *grp = NULL;
 
-		const DRWContextState *draw_ctx = DRW_context_state_get();
 		Scene *scene = draw_ctx->scene;
 		World *wo = scene->world;
 
@@ -605,6 +604,7 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	/* For shading, save max level of the octahedron map */
 	int mipsize = GPU_texture_width(light_cache->cube_tx);
 	sldata->common_data.prb_lod_cube_max = (float)(floorf(log2f(mipsize)) - MIN_CUBE_LOD_LEVEL) - 1.0f;
+	sldata->common_data.prb_irradiance_vis_size = light_cache->vis_res;
 	sldata->common_data.prb_num_render_cube = max_ii(1, light_cache->cube_count);
 	sldata->common_data.prb_num_render_grid = max_ii(1, light_cache->grid_count);
 }

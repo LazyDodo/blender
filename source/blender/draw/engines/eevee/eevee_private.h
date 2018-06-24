@@ -757,6 +757,7 @@ typedef struct EEVEE_LightCache {
 
 	/* only a single cache for now */
 	int cube_count, grid_count;      /* Number of probes to use for rendering. */
+	int vis_res;                     /* Size of a visibility sample. */
 	/* We bake to and render with the same textures.
 	 * This prevent concurent use of it. In the future,
 	 * we could create a bigger texture containing multiple
