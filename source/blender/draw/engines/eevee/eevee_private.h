@@ -100,6 +100,7 @@ extern struct DrawEngineType draw_engine_eevee_type;
 
 #define OCTAHEDRAL_SIZE_FROM_CUBESIZE(cube_size) ((int)ceilf(sqrtf((cube_size * cube_size) * 6.0f)))
 #define MIN_CUBE_LOD_LEVEL 3
+#define MAX_PLANAR_LOD_LEVEL 9
 
 /* World shader variations */
 enum {
@@ -427,11 +428,17 @@ typedef struct EEVEE_PlanarReflection {
 	float clip_vec_y[3], attenuation_bias;
 	float clip_edge_x_pos, clip_edge_x_neg;
 	float clip_edge_y_pos, clip_edge_y_neg;
-	float facing_scale, facing_bias, pad[2];
-	float reflectionmat[4][4];
+	float facing_scale, facing_bias, clipsta, pad;
+	float reflectionmat[4][4]; /* Used for sampling the texture. */
+	float mtx[4][4]; /* Not used in shader. TODO move elsewhere. */
 } EEVEE_PlanarReflection;
 
 /* ************ PROBE DATA ************* */
+typedef struct EEVEE_LightProbeVisTest {
+	struct Collection *collection; /* Skip test if NULL */
+	bool invert;
+	bool cached; /* Reuse last test results */
+} EEVEE_LightProbeVisTest;
 
 typedef struct EEVEE_LightProbesInfo {
 	int num_cube, cache_num_cube;
@@ -465,15 +472,13 @@ typedef struct EEVEE_LightProbesInfo {
 	int shres;
 	int studiolight_index;
 	float studiolight_rot_z;
-	/* List of probes in the scene. */
-	/* XXX This is fragile, can get out of sync quickly. */
-	struct Object *probes_cube_ref[MAX_PROBE];
-	struct Object *probes_grid_ref[MAX_GRID];
-	struct Object *probes_planar_ref[MAX_PLANAR];
+	EEVEE_LightProbeVisTest planar_vis_tests[MAX_PLANAR];
 	/* UBO Storage : data used by UBO */
 	struct EEVEE_LightProbe probe_data[MAX_PROBE];
 	struct EEVEE_LightGrid grid_data[MAX_GRID];
 	struct EEVEE_PlanarReflection planar_data[MAX_PLANAR];
+	/* Probe Visibility Collection */
+	EEVEE_LightProbeVisTest vis_data;
 } EEVEE_LightProbesInfo;
 
 /* EEVEE_LightProbesInfo->update_flag */
@@ -682,6 +687,7 @@ typedef struct EEVEE_ViewLayerData {
 } EEVEE_ViewLayerData;
 
 /* ************ OBJECT DATA ************ */
+
 typedef struct EEVEE_LightData {
 	short light_id, shadow_id;
 } EEVEE_LightData;
@@ -717,6 +723,7 @@ typedef struct EEVEE_LampEngineData {
 typedef struct EEVEE_LightProbeEngineData {
 	DrawData dd;
 
+	/* TODO Remove this struct if not needed anymore. */
 	/* NOTE: need_full_update is set by dependency graph when the probe or it's
 	 * object is updated. This triggers full probe update, including it's
 	 * "progressive" GI refresh.
@@ -746,6 +753,7 @@ typedef struct EEVEE_ObjectEngineData {
 	DrawData dd;
 
 	Object *ob; /* self reference */
+	EEVEE_LightProbeVisTest *test_data;
 	bool ob_vis, ob_vis_dirty;
 
 	bool need_update;
@@ -886,7 +894,7 @@ bool EEVEE_lightprobes_obj_visibility_cb(bool vis_in, void *user_data);
 bool EEVEE_lightprobes_all_probes_ready(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
-void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, Object *ob);
+void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object *ob);
 void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_refresh_planar(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
@@ -910,6 +918,7 @@ void EEVEE_lightbake_filter_visibility(
 
 void EEVEE_lightprobes_grid_data_from_object(Object *ob, EEVEE_LightGrid *prb_data, int *offset);
 void EEVEE_lightprobes_cube_data_from_object(Object *ob, EEVEE_LightProbe *prb_data);
+void EEVEE_lightprobes_planar_data_from_object(Object *ob, EEVEE_PlanarReflection *eplanar, EEVEE_LightProbeVisTest *vis_test);
 
 /* eevee_depth_of_field.c */
 int EEVEE_depth_of_field_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object *camera);

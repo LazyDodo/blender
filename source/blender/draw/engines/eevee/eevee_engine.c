@@ -146,7 +146,7 @@ void EEVEE_cache_populate(void *vedata, Object *ob)
 				/* TODO: Special case for dupli objects because we cannot save the object pointer. */
 			}
 			else {
-				EEVEE_lightprobes_cache_add(sldata, ob);
+				EEVEE_lightprobes_cache_add(sldata, vedata, ob);
 			}
 		}
 		else if (ob->type == OB_LAMP) {
@@ -282,7 +282,9 @@ static void eevee_draw_background(void *vedata)
 		EEVEE_subsurface_compute(sldata, vedata);
 		EEVEE_reflection_compute(sldata, vedata);
 		EEVEE_occlusion_draw_debug(sldata, vedata);
-		DRW_draw_pass(psl->probe_display);
+		if (psl->probe_display) {
+			DRW_draw_pass(psl->probe_display);
+		}
 		EEVEE_refraction_compute(sldata, vedata);
 
 		/* Opaque refraction */

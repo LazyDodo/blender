@@ -256,7 +256,7 @@ void CLOSURE_NAME(
 		PlanarData pd = planars_data[i];
 
 		/* Fade on geometric normal. */
-		float fade = probe_attenuation_planar(pd, worldPosition, worldNormal, roughness);
+		float fade = probe_attenuation_planar(pd, worldPosition, (gl_FrontFacing) ? worldNormal : -worldNormal, roughness);
 
 		if (fade > 0.0) {
 			if (!(ssrToggle && ssr_id == outputSsrId)) {

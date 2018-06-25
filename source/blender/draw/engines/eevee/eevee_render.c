@@ -157,7 +157,7 @@ void EEVEE_render_cache(
 			EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
 		}
 		else if (ob->type == OB_LIGHTPROBE) {
-			EEVEE_lightprobes_cache_add(sldata, ob);
+			EEVEE_lightprobes_cache_add(sldata, vedata, ob);
 		}
 		else if (ob->type == OB_LAMP) {
 			EEVEE_lights_cache_add(sldata, ob);
