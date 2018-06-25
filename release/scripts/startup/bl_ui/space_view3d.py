@@ -62,7 +62,7 @@ class VIEW3D_HT_header(Header):
             # Particle edit
             if object_mode == 'EDIT' and obj.type == 'GROOM':
                 row = layout.row()
-                row.prop(toolsettings.groom_edit_settings, "mode", text="", expand=True)
+                row.prop(tool_settings.groom_edit_settings, "mode", text="", expand=True)
             elif object_mode == 'PARTICLE_EDIT':
                 row = layout.row()
                 row.prop(tool_settings.particle_edit, "select_mode", text="", expand=True)
