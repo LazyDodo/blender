@@ -1244,7 +1244,7 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 		/* XXX Really nasty locking. But else this could
 		 * be executed by the material previews thread
 		 * while rendering a viewport. */
-		BLI_mutex_lock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_lock(DST.gl_context_mutex);
 
 		/* Reset before using it. */
 		drw_state_prepare_clean_for_draw(&DST);
@@ -1272,7 +1272,7 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 
 		drw_engines_disable();
 
-		BLI_mutex_unlock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_unlock(DST.gl_context_mutex);
 	}
 }
 
@@ -2305,7 +2305,7 @@ void DRW_opengl_context_create(void)
 {
 	BLI_assert(DST.gl_context == NULL); /* Ensure it's called once */
 
-	BLI_mutex_init(&DST.gl_context_mutex);
+	DST.gl_context_mutex = BLI_ticket_mutex_alloc();
 	if (!G.background) {
 		immDeactivate();
 	}
@@ -2332,7 +2332,7 @@ void DRW_opengl_context_destroy(void)
 		GWN_context_active_set(DST.gwn_context);
 		GWN_context_discard(DST.gwn_context);
 		WM_opengl_context_dispose(DST.gl_context);
-		BLI_mutex_end(&DST.gl_context_mutex);
+		BLI_ticket_mutex_free(DST.gl_context_mutex);
 	}
 }
 
@@ -2342,7 +2342,7 @@ void DRW_opengl_context_enable(void)
 		/* IMPORTANT: We dont support immediate mode in render mode!
 		 * This shall remain in effect until immediate mode supports
 		 * multiple threads. */
-		BLI_mutex_lock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_lock(DST.gl_context_mutex);
 		if (BLI_thread_is_main()) {
 			if (!G.background) {
 				immDeactivate();
@@ -2376,7 +2376,7 @@ void DRW_opengl_context_disable(void)
 			GWN_context_active_set(NULL);
 		}
 
-		BLI_mutex_unlock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_unlock(DST.gl_context_mutex);
 	}
 }
 
@@ -2386,7 +2386,7 @@ void DRW_opengl_render_context_enable(void *re_gl_context)
 	BLI_assert(!BLI_thread_is_main());
 
 	/* TODO get rid of the blocking. Only here because of the static global DST. */
-	BLI_mutex_lock(&DST.gl_context_mutex);
+	BLI_ticket_mutex_lock(DST.gl_context_mutex);
 	WM_opengl_context_activate(re_gl_context);
 }
 
@@ -2395,7 +2395,7 @@ void DRW_opengl_render_context_disable(void *re_gl_context)
 	glFlush();
 	WM_opengl_context_release(re_gl_context);
 	/* TODO get rid of the blocking. */
-	BLI_mutex_unlock(&DST.gl_context_mutex);
+	BLI_ticket_mutex_unlock(DST.gl_context_mutex);
 }
 
 /* Needs to be called AFTER DRW_opengl_render_context_enable() */
