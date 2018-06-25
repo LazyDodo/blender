@@ -433,6 +433,7 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
 	pinfo->num_planar = 0;
+	pinfo->vis_data.collection = NULL;
 
 	{
 		psl->probe_background = DRW_pass_create("World Probe Background Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL);
@@ -757,18 +758,18 @@ static void lightbake_planar_compute_render_matrices(
         EEVEE_PlanarReflection *eplanar, DRWMatrixState *r_matstate, const float viewmat[4][4])
 {
 	/* Reflect Camera Matrix. */
-	mul_m4_m4m4(r_matstate->mat[DRW_MAT_VIEW], viewmat, eplanar->mtx);
+	mul_m4_m4m4(r_matstate->viewmat, viewmat, eplanar->mtx);
 	/* TODO FOV margin */
 	/* Temporal sampling jitter should be already applied to the DRW_MAT_WIN. */
-	DRW_viewport_matrix_get(r_matstate->mat[DRW_MAT_WIN], DRW_MAT_WIN);
+	DRW_viewport_matrix_get(r_matstate->winmat, DRW_MAT_WIN);
 	/* Apply Projection Matrix. */
-	mul_m4_m4m4(r_matstate->mat[DRW_MAT_PERS], r_matstate->mat[DRW_MAT_WIN], r_matstate->mat[DRW_MAT_VIEW]);
+	mul_m4_m4m4(r_matstate->persmat, r_matstate->winmat, r_matstate->viewmat);
 
 	/* This is the matrix used to reconstruct texture coordinates.
 	 * We use the original view matrix because it does not create
 	 * visual artifacts if receiver is not perfectly aligned with
 	 * the planar reflection probe. */
-	mul_m4_m4m4(eplanar->reflectionmat, r_matstate->mat[DRW_MAT_WIN], viewmat); /* TODO FOV margin */
+	mul_m4_m4m4(eplanar->reflectionmat, r_matstate->winmat, viewmat); /* TODO FOV margin */
 	/* Convert from [-1, 1] to [0, 1] (NDC to Texture coord). */
 	mul_m4_m4m4(eplanar->reflectionmat, texcomat, eplanar->reflectionmat);
 }
@@ -831,31 +832,25 @@ static void render_cubemap(
         const float pos[3], float clipsta, float clipend)
 {
 	DRWMatrixState matstate;
-	float (*viewmat)[4] = matstate.mat[DRW_MAT_VIEW];
-	float (*viewinv)[4] = matstate.mat[DRW_MAT_VIEWINV];
-	float (*persmat)[4] = matstate.mat[DRW_MAT_PERS];
-	float (*persinv)[4] = matstate.mat[DRW_MAT_PERSINV];
-	float (*winmat)[4] = matstate.mat[DRW_MAT_WIN];
-	float (*wininv)[4] = matstate.mat[DRW_MAT_WININV];
 
 	/* Move to capture position */
 	float posmat[4][4];
 	unit_m4(posmat);
 	negate_v3_v3(posmat[3], pos);
 
-	perspective_m4(winmat, -clipsta, clipsta, -clipsta, clipsta, clipsta, clipend);
-	invert_m4_m4(wininv, winmat);
+	perspective_m4(matstate.winmat, -clipsta, clipsta, -clipsta, clipsta, clipsta, clipend);
+	invert_m4_m4(matstate.wininv, matstate.winmat);
 
 	/* 1 - Render to each cubeface individually.
 	 * We do this instead of using geometry shader because a) it's faster,
 	 * b) it's easier than fixing the nodetree shaders (for view dependant effects). */
 	for (int i = 0; i < 6; ++i) {
 		/* Setup custom matrices */
-		mul_m4_m4m4(viewmat, cubefacemat[i], posmat);
-		mul_m4_m4m4(persmat, winmat, viewmat);
-		invert_m4_m4(persinv, persmat);
-		invert_m4_m4(viewinv, viewmat);
-		invert_m4_m4(wininv, winmat);
+		mul_m4_m4m4(matstate.viewmat, cubefacemat[i], posmat);
+		mul_m4_m4m4(matstate.persmat, matstate.winmat, matstate.viewmat);
+		invert_m4_m4(matstate.persinv, matstate.persmat);
+		invert_m4_m4(matstate.viewinv, matstate.viewmat);
+		invert_m4_m4(matstate.wininv, matstate.winmat);
 
 		DRW_viewport_matrix_override_set_all(&matstate);
 
@@ -868,12 +863,6 @@ static void render_reflections(
         EEVEE_PlanarReflection *planar_data, int ref_count)
 {
 	DRWMatrixState matstate;
-	float (*viewmat)[4] = matstate.mat[DRW_MAT_VIEW];
-	float (*viewinv)[4] = matstate.mat[DRW_MAT_VIEWINV];
-	float (*persmat)[4] = matstate.mat[DRW_MAT_PERS];
-	float (*persinv)[4] = matstate.mat[DRW_MAT_PERSINV];
-	float (*winmat)[4] = matstate.mat[DRW_MAT_WIN];
-	float (*wininv)[4] = matstate.mat[DRW_MAT_WININV];
 
 	float original_viewmat[4][4];
 	DRW_viewport_matrix_get(original_viewmat, DRW_MAT_VIEW);
@@ -881,9 +870,9 @@ static void render_reflections(
 	for (int i = 0; i < ref_count; ++i) {
 		/* Setup custom matrices */
 		lightbake_planar_compute_render_matrices(planar_data + i, &matstate, original_viewmat);
-		invert_m4_m4(persinv, persmat);
-		invert_m4_m4(viewinv, viewmat);
-		invert_m4_m4(wininv, winmat);
+		invert_m4_m4(matstate.persinv, matstate.persmat);
+		invert_m4_m4(matstate.viewinv, matstate.viewmat);
+		invert_m4_m4(matstate.wininv, matstate.winmat);
 		DRW_viewport_matrix_override_set_all(&matstate);
 
 		callback(i, user_data);

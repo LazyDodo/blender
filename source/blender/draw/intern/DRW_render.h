@@ -410,6 +410,7 @@ void DRW_pass_sort_shgroup_z(DRWPass *pass);
 
 /* Viewport */
 typedef enum {
+	/* keep in sync with the union struct DRWMatrixState. */
 	DRW_MAT_PERS = 0,
 	DRW_MAT_PERSINV,
 	DRW_MAT_VIEW,
@@ -421,7 +422,18 @@ typedef enum {
 } DRWViewportMatrixType;
 
 typedef struct DRWMatrixState {
-	float mat[DRW_MAT_COUNT][4][4];
+	union {
+		float mat[DRW_MAT_COUNT][4][4];
+		struct {
+			/* keep in sync with the enum DRWViewportMatrixType. */
+			float persmat[4][4];
+			float persinv[4][4];
+			float viewmat[4][4];
+			float viewinv[4][4];
+			float winmat[4][4];
+			float wininv[4][4];
+		};
+	};
 } DRWMatrixState;
 
 void DRW_viewport_init(const bContext *C);
