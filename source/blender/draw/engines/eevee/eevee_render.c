@@ -159,7 +159,7 @@ void EEVEE_render_cache(
 		RE_engine_update_stats(engine, NULL, info);
 	}
 
-	if (ob->base_flag & BASE_VISIBLED) {
+	if (ob->base_flag & BASE_VISIBLE) {
 		EEVEE_hair_cache_populate(vedata, sldata, ob, &cast_shadow);
 	}
 

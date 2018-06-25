@@ -45,6 +45,7 @@
 #include "BLI_threads.h"  /* for SpinLock */
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_physics.h"
 
 #include "intern/depsgraph_types.h"
 
@@ -227,9 +228,9 @@ struct Depsgraph {
 	int debug_flags;
 	string debug_name;
 
-	/* Cached list of effectors for collections and the scene created
-	 * along with relations, for fast lookup during evaluation. */
-	GHash *effector_relations;
+	/* Cached list of colliders/effectors for collections and the scene
+	 * created along with relations, for fast lookup during evaluation. */
+	GHash *physics_relations[DEG_PHYSICS_RELATIONS_NUM];
 };
 
 }  // namespace DEG

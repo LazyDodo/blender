@@ -46,6 +46,7 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_physics.h"
 #include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
@@ -69,9 +70,8 @@ static void updateDepsgraph(ModifierData *UNUSED(md), const ModifierUpdateDepsgr
 {
 	if (ctx->object->soft) {
 		/* Actual code uses ccd_build_deflector_hash */
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, ctx->object->soft->collision_group, eModifierType_Collision, NULL, false, "Softbody Collision");
-
-		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, ctx->object->soft->effector_weights, true, 0, "Softbody Field");
+		DEG_add_collision_relations(ctx->node, ctx->object, ctx->object->soft->collision_group, eModifierType_Collision, NULL, "Softbody Collision");
+		DEG_add_forcefield_relations(ctx->node, ctx->object, ctx->object->soft->effector_weights, true, 0, "Softbody Field");
 	}
 }
 

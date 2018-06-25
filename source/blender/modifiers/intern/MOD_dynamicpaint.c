@@ -43,6 +43,7 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_physics.h"
 #include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
@@ -125,11 +126,11 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	if (pmd->canvas != NULL) {
 		for (DynamicPaintSurface *surface = pmd->canvas->surfaces.first; surface; surface = surface->next) {
 			if (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) {
-				DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, surface->effector_weights, true, 0, "Dynamic Paint Field");
+				DEG_add_forcefield_relations(ctx->node, ctx->object, surface->effector_weights, true, 0, "Dynamic Paint Field");
 			}
 
 			/* Actual code uses custom loop over group/scene without layer checks in dynamicPaint_doStep */
-			DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, surface->brush_group,  eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
+			DEG_add_collision_relations(ctx->node, ctx->object, surface->brush_group,  eModifierType_DynamicPaint, is_brush_cb, "Dynamic Paint Brush");
 		}
 	}
 }
