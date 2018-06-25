@@ -183,10 +183,6 @@ void lanpr_ConnectNewBoundingAreas(LANPR_RenderBuffer *rb, LANPR_BoundingArea *R
 void lanpr_AssociateTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive);
 int lanpr_TriangleCalculateIntersectionsInTile(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba);
 
-int lanpr_GetRenderTriangleSize(LANPR_RenderBuffer *rb) {
-	return sizeof(LANPR_RenderTriangle) + (sizeof(LANPR_RenderLine *) * rb->ThreadCount);
-}
-
 void lanpr_SplitBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *Root) {
 	LANPR_BoundingArea *ba = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_BoundingArea) * 4);
 	LANPR_RenderTriangle *rt;
@@ -2508,11 +2504,361 @@ LANPR_RenderBuffer *lanpr_CreateRenderBuffer(SceneLANPR *lanpr) {
 	return rb;
 }
 
+void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineStyle *rdc);
+
+int lanpr_DrawEdgePreview(LANPR_RenderBuffer *rb, LANPR_LineStyle *OverrideLayer, Collection *OverrideGroup,
+                          real ThicknessScale, RenderEngine *e, GPUFrameBuffer *Off) {
+	//too many errors. later....
+}
+
+int lanpr_GetRenderTriangleSize(LANPR_RenderBuffer *rb) {
+	return sizeof(LANPR_RenderTriangle) + (sizeof(LANPR_RenderLine *) * rb->ThreadCount);
+}
+
+static char Message[] = "Please fill in these fields before exporting image:";
+static char MessageFolder[] = "    - Output folder";
+static char MessagePrefix[] = "    - File name prefix";
+static char MessageConnector[] = "    - File name connector";
+static char MessageLayerName[] = "    - One or more layers have empty/illegal names.";
+static char MessageSuccess[] = "Sucessfully Saved Image(s).";
+static char MessageHalfSuccess[] = "Some image(s) failed to save.";
+static char MessageFailed[] = "No saving action performed.";
+
+//int ACTINV_SaveRenderBufferPreview(nActuatorIntern* a, nEvent* e) {
+//	LANPR_RenderBuffer* rb = a->This->EndInstance;
+//	LANPR_LineStyle* rdc;
+//	char FullPath[1024] = "";
+//
+//	if (!rb) return;
+//
+//	tnsFrameBuffer *fb = rb->FrameBuffer;
+//
+//	if (fb->OutputMode == TNS_OUTPUT_MODE_COMBINED) {
+//		if ((!fb->OutputFolder || !fb->OutputFolder->Ptr) || (!fb->ImagePrefix || !fb->ImagePrefix->Ptr)) {
+//			nPanelMessageList List = {0};
+//			nulAddPanelMessage(&List, Message);
+//			if ((!fb->OutputFolder || !fb->OutputFolder->Ptr)) nulAddPanelMessage(&List, MessageFolder);
+//			if ((!fb->ImagePrefix || !fb->ImagePrefix->Ptr)) nulAddPanelMessage(&List, MessagePrefix);
+//			nulAddPanelMessage(&List, MessageFailed);
+//			nulEnableMultiMessagePanel(a, 0, "Caution", &List, e->x, e->y, 500, e);
+//			return NUL_FINISHED;
+//		}
+//		strcat(FullPath, fb->OutputFolder->Ptr);
+//		strcat(FullPath, fb->ImagePrefix->Ptr);
+//		lanpr_SaveRenderBufferPreviewAsImage(rb, FullPath, 0, 0);
+//	}elif(fb->OutputMode == TNS_OUTPUT_MODE_PER_LAYER) {
+//		nPanelMessageList List = { 0 };
+//		int unnamed = 0;
+//		if ((!fb->OutputFolder || !fb->OutputFolder->Ptr) || (!fb->ImagePrefix || !fb->ImagePrefix->Ptr)|| (!fb->ImageNameConnector || !fb->ImageNameConnector->Ptr)) {
+//			nulAddPanelMessage(&List, Message);
+//			if ((!fb->OutputFolder||!fb->OutputFolder->Ptr)) nulAddPanelMessage(&List, MessageFolder);
+//			if ((!fb->ImagePrefix|| !fb->ImagePrefix->Ptr)) nulAddPanelMessage(&List, MessagePrefix);
+//			if ((!fb->ImageNameConnector|| !fb->ImageNameConnector->Ptr)) nulAddPanelMessage(&List, MessageConnector);
+//			nulAddPanelMessage(&List, MessageFailed);
+//			nulEnableMultiMessagePanel(a, 0, "Caution", &List, e->x, e->y, 500, e);
+//			return NUL_FINISHED;
+//		}
+//		for (rdc = lanpr->line_style_layers.pFirst; rdc; rdc = rdc->Item.pNext) {
+//			FullPath[0] = 0;
+//			if ((!rdc->Name || !rdc->Name->Ptr) && !unnamed) {
+//				nulAddPanelMessage(&List, MessageHalfSuccess);
+//				nulAddPanelMessage(&List, MessageLayerName);
+//				unnamed = 1;
+//				continue;
+//			}
+//			strcat(FullPath, fb->OutputFolder->Ptr);
+//			strcat(FullPath, fb->ImagePrefix->Ptr);
+//			strcat(FullPath, fb->ImageNameConnector->Ptr);
+//			strcat(FullPath, rdc->Name->Ptr);
+//			lanpr_SaveRenderBufferPreviewAsImage(rb, FullPath, rdc, 0);
+//		}
+//		if(unnamed)nulEnableMultiMessagePanel(a, 0, "Caution", &List, e->x, e->y, 500, e);
+//	}
+//
+//	return NUL_FINISHED;
+//}
+//int ACTINV_SaveSingleLayer(nActuator* a, nEvent* e) {
+//	LANPR_LineStyle* rdc = a->This->EndInstance;
+//	char FullPath[1024] = "";
+//	int fail = 0;
+//
+//	if (!rdc)return;
+//
+//	tnsFrameBuffer* fb = rdc->ParentRB->FrameBuffer;
+//
+//	if (!fb) return;
+//
+//	nPanelMessageList List = { 0 };
+//
+//	if ((!fb->OutputFolder || !fb->OutputFolder->Ptr) || (!fb->ImagePrefix || !fb->ImagePrefix->Ptr) || (!fb->ImageNameConnector || !fb->ImageNameConnector->Ptr)) {
+//		nulAddPanelMessage(&List, Message);
+//		if ((!fb->OutputFolder || !fb->OutputFolder->Ptr)) nulAddPanelMessage(&List, MessageFolder);
+//		if ((!fb->ImagePrefix || !fb->ImagePrefix->Ptr)) nulAddPanelMessage(&List, MessagePrefix);
+//		if ((!fb->ImageNameConnector || !fb->ImageNameConnector->Ptr)) nulAddPanelMessage(&List, MessageConnector);
+//		fail = 1;
+//	}
+//	if (!rdc->Name || !rdc->Name->Ptr) {
+//		nulAddPanelMessage(&List, MessageHalfSuccess);
+//		nulAddPanelMessage(&List, MessageLayerName);
+//		fail = 1;
+//	}
+//	if (fail) {
+//		nulAddPanelMessage(&List, MessageFailed);
+//		nulEnableMultiMessagePanel(a, 0, "Caution", &List, e->x, e->y, 500, e);
+//		return NUL_FINISHED;
+//	}
+//
+//
+//	FullPath[0] = 0;
+//	strcat(FullPath, fb->OutputFolder->Ptr);
+//	strcat(FullPath, fb->ImagePrefix->Ptr);
+//	strcat(FullPath, fb->ImageNameConnector->Ptr);
+//	strcat(FullPath, rdc->Name->Ptr);
+//	lanpr_SaveRenderBufferPreviewAsImage(rdc->ParentRB, FullPath, rdc, 0);
+//
+//
+//	return NUL_FINISHED;
+//}
 
 
-void lanpr_generate_geom_buffer(struct Object *ob){
+
+long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, int OccludeLevel, Collection *OverrideGroup, int Exclusive) {
+	nListItemPointer *lip;
+	LANPR_RenderLine *rl;
+	LANPR_RenderLineSegment *rls;
+	Object *o;
+	int not = 0;
+	long Count = 0;
+	for (lip = LineList->pFirst; lip; lip = lip->pNext) {
+		rl = lip->p;
+		o = rl->ObjectRef;
+		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
+			if (OverrideGroup) {
+				//if (CollectionHaveObject(OverrideGroup, rl->ObjectRef) && Exclusive) continue;
+				//if (!CollectionHaveObject(OverrideGroup, rl->ObjectRef) && !Exclusive) continue;
+			}
+			if (rls->OccludeLevel == OccludeLevel) Count++;
+		}
+	}
+	return Count;
+}
+long lanpr_CountIntersectionSegmentCount(LANPR_RenderBuffer *rb) {
+	LANPR_RenderLine *rl;
+	LANPR_RenderLineSegment *rls;
+	long Count = 0;
+	for (rl = rb->IntersectionLines.pFirst; rl; rl = rl->Item.pNext) {
+		Count++;
+	}
+	return Count;
+}
+void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, int OccludeLevel, Collection *OverrideGroup, int Exclusive) {
+	nListItemPointer *lip;
+	LANPR_RenderLine *rl;
+	LANPR_RenderLineSegment *rls, *irls;
+	Object *o;
+	real W = rb->W / 2, H = rb->H / 2;
+	long i = 0;
+	float *V = VertexArray;
+	for (lip = LineList->pFirst; lip; lip = lip->pNext) {
+		rl = lip->p;
+		o = rl->ObjectRef;
+		if (OverrideGroup) {
+			//if (CollectionHaveObject(OverrideGroup, rl->ObjectRef) && Exclusive) continue;
+			//if (!CollectionHaveObject(OverrideGroup, rl->ObjectRef) && !Exclusive) continue;
+		}
+
+		//if(o) o->LineRenderingDone = 1;
+		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
+			if (rls->OccludeLevel == OccludeLevel) {
+				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at) * W;
+				V++;
+				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at) * H;
+				V++;
+				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->Item.pNext ? (irls = rls->Item.pNext)->at : 1) * W;
+				V++;
+				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->Item.pNext ? (irls = rls->Item.pNext)->at : 1) * H;
+				V++;
+			}
+		}
+	}
+	return V;
+}
+u32bit lanpr_MakeBoundingAreaVBORecursive(float *V, u32bit Begin, LANPR_BoundingArea *ba, float HalfW, float HalfH) {
+	u32bit Index = Begin;
+	if (ba->Child) {
+		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[0], HalfW, HalfH);
+		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[1], HalfW, HalfH);
+		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[2], HalfW, HalfH);
+		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[3], HalfW, HalfH);
+		return Index;
+	}
+	else {
+		float *v = &V[Begin];
+		v[0] = ba->L * HalfW; v[1] = ba->U * HalfH;
+		v[2] = ba->L * HalfW; v[3] = ba->B * HalfH;
+
+		v[4] = ba->L * HalfW; v[5] = ba->B * HalfH;
+		v[6] = ba->R * HalfW; v[7] = ba->B * HalfH;
+
+		v[8] = ba->R * HalfW; v[9] = ba->B * HalfH;
+		v[10] = ba->R * HalfW; v[11] = ba->U * HalfH;
+
+		v[12] = ba->R * HalfW; v[13] = ba->U * HalfH;
+		v[14] = ba->L * HalfW; v[15] = ba->U * HalfH;
+		return Index + 16;
+	}
+}
+
+//void lanpr_MakeMaterialPreviewVert(LANPR_RenderBuffer* rb, tnsMaterial* m, float* V, float* N) {
+//	LANPR_RenderElementLinkNode* reln;
+//	LANPR_RenderTriangle* rt;
+//	int W = rb->FrameBuffer->W / 2;
+//	int H = rb->FrameBuffer->H / 2;
+//	int TotalCount = 0;
+//	int i = 0;
+//
+//	for (reln = rb->TriangleBufferPointers.pFirst; reln; reln = reln->Item.pNext) {
+//		rt = reln->Pointer;
+//		int count = TotalCount + reln->ElementCount*9,ofst;
+//		if (i == m->PreviewVCount*3) break;
+//		for (i; i < count; i+=9) {
+//			ofst = i;
+//
+//			while (rt < (((LANPR_RenderTriangle*)reln->Pointer) + reln->ElementCount) && rt->F->MaterialID != m->ID) rt++;
+//
+//			if (rt >=((LANPR_RenderTriangle*)reln->Pointer) + reln->ElementCount) break;
+//
+//			V[ofst + 0] = rt->V[0]->FrameBufferCoord[0] * W; N[ofst + 0] = rt->GN[0];
+//			V[ofst + 1] = rt->V[0]->FrameBufferCoord[1] * H; N[ofst + 1] = rt->GN[1];
+//			V[ofst + 2] = -rt->V[0]->FrameBufferCoord[2]; N[ofst + 2] = rt->GN[2];
+//
+//			V[ofst + 3] = rt->V[1]->FrameBufferCoord[0] * W; N[ofst + 3] = rt->GN[0];
+//			V[ofst + 4] = rt->V[1]->FrameBufferCoord[1] * H; N[ofst + 4] = rt->GN[1];
+//			V[ofst + 5] = -rt->V[1]->FrameBufferCoord[2]; N[ofst + 5] = rt->GN[2];
+//
+//			V[ofst + 6] = rt->V[2]->FrameBufferCoord[0] * W; N[ofst + 6] = rt->GN[0];
+//			V[ofst + 7] = rt->V[2]->FrameBufferCoord[1] * H; N[ofst + 7] = rt->GN[1];
+//			V[ofst + 8] = -rt->V[2]->FrameBufferCoord[2]; N[ofst + 8] = rt->GN[2];
+//
+//			rt++;
+//		}
+//		TotalCount = i;
+//	}
+//}
+//void lanpr_MakeMaterialPreviewList(LANPR_RenderBuffer* rb) {
+//	tnsBatch* b;
+//	tnsMaterial* m;
+//	float* V,*N;
+//
+//	for (m = rb->Scene->Materials.pFirst; m; m = m->Item.pNext) {
+//		if (m->PreviewBatch) tnsDeleteBatch(m->PreviewBatch);
+//		if (!m->PreviewVCount) continue;
+//
+//		V = CreateNewBuffer(float, m->PreviewVCount * 3);
+//		N = CreateNewBuffer(float, m->PreviewVCount * 3);
+//
+//		lanpr_MakeMaterialPreviewVert(rb, m, V, N);
+//
+//		m->PreviewBatch = b = tnsCreateBatch(m->PreviewVCount, 3, V, N);
+//		tnsCreateCommand(b, m->PreviewVCount, 3, GL_TRIANGLES, GL_UNSIGNED_INT, 0);
+//
+//		FreeMem(V); FreeMem(N);
+//	}
+//}
+
+
+void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineStyle *rdc) {
+	int Count = 0;
+	int level;
+	float *V, *tv, *N;;
+
+	if (!rb || !rb->Scene) return;
+
+	if (rdc->VBO) {
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glDeleteBuffers(1, &rdc->VBO);
+	}
+	if (rdc->NBO) {
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glDeleteBuffers(1, &rdc->NBO);
+	}
+
+	if (rdc->type == TNS_COMMAND_LINE) {
+		glGenBuffers(1, &rdc->VBO);
+		glBindBuffer(GL_ARRAY_BUFFER, rdc->VBO);
+
+		for (level = rdc->qi_begin; level <= rdc->qi_end; level++) {
+			//if (rdc->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+			//if (rdc->enable_intersection) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+			//if (rdc->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+			//if (rdc->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+		}
+
+		rdc->VertCount = Count * 2;
+
+		tv = V = CreateNewBuffer(float, 4 * Count);
+
+		for (level = rdc->qi_begin; level <= rdc->qi_end; level++) {
+			//if (rdc->enable_crease)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+			//if (rdc->enable_intersection)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+			//if (rdc->enable_crease)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+			//if (rdc->enable_material_seperate)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
+		}
+
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * Count, V, GL_DYNAMIC_DRAW);
+
+		FreeMem(V);
+		return;
+	}
+
+	//if (rdc->type == TNS_COMMAND_MATERIAL || rdc->type == TNS_COMMAND_EDGE) {
+	//	if (!rdc->MaterialRef) {
+	//		rdc->VertCount = 0;
+	//		return;
+	//	}
+
+	//	//Count = lanpr_CountMaterialTriangles(&rb->Scene->Objects.pFirst, rdc->MaterialRef, rdc->OverrideGroup, rdc->ExcludeGroup);
+
+	//	if (Count) {
+	//		rdc->VertCount = Count;
+
+	//		V = CreateNewBuffer(float, 9 * Count);
+	//		N = CreateNewBuffer(float, 9 * Count);
+
+	//		lanpr_MakeMaterialPoints(rb, V, N, 0, &rb->Scene->Objects.pFirst, rdc->MaterialRef, rdc->OverrideGroup, rdc->ExcludeGroup);
+
+	//		glGenBuffers(1, &rdc->VBO);
+	//		glBindBuffer(GL_ARRAY_BUFFER, rdc->VBO);
+	//		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 9 * Count, V, GL_DYNAMIC_DRAW);
+
+	//		glGenBuffers(1, &rdc->NBO);
+	//		glBindBuffer(GL_ARRAY_BUFFER, rdc->NBO);
+	//		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 9 * Count, N, GL_DYNAMIC_DRAW);
+
+	//		FreeMem(V);
+	//		FreeMem(N);
+
+	//		return;
+	//	}
+	//
+	//}
 
 }
+void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
+	LANPR_LineStyle *rdc;
+	if (!lanpr) return;
+	//tnsCleanObjectFinishMarks(rb->Scene);
+	//for (rdc = lanpr->line_style_layers.pLast; rdc; rdc = rdc->Item.pPrev) {
+	//	lanpr_RebuildRenderDrawCommand(rb, rdc);
+	//}
+	//nulNotifyUsers("tns.render_buffer_list");
+}
+
+
+
+
+
+/* ============================================ operators ========================================= */
 
 static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperator *op){
 	Scene *scene = CTX_data_scene(C);
@@ -2546,7 +2892,6 @@ static void lanpr_compute_feature_lines_cancel(struct bContext *C, struct wmOper
 	return;
 }
 
-
 void SCENE_OT_lanpr_calculate_feature_lines(struct wmOperatorType *ot){
 
 	/* identifiers */
@@ -2560,11 +2905,6 @@ void SCENE_OT_lanpr_calculate_feature_lines(struct wmOperatorType *ot){
 	ot->cancel = lanpr_compute_feature_lines_cancel;
 	ot->exec = lanpr_compute_feature_lines_exec;
 }
-
-
-
-
-/* internal */
 
 LANPR_LineStyle *lanpr_new_line_layer(SceneLANPR *lanpr){
 	LANPR_LineStyle *ls = MEM_callocN(sizeof(LANPR_LineStyle), "Line Style");
@@ -2581,6 +2921,89 @@ static int lanpr_add_line_layer_exec(struct bContext *C, struct wmOperator *op){
 
 	return OPERATOR_FINISHED;
 }
+int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	LANPR_LineStyle *rdc = lanpr->active_layer;
+
+	if (!rdc) return OPERATOR_FINISHED;
+
+	lstRemoveItem((void *)&scene->lanpr.line_style_layers, (void *)rdc);
+
+	//glBindBuffer(GL_ARRAY_BUFFER, 0);
+	//glDeleteBuffers(1, &rdc->VBO);
+
+	memFree(rdc);
+
+	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
+
+	return OPERATOR_FINISHED;
+}
+int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	LANPR_LineStyle *rdc = lanpr->active_layer;
+
+	if (!rdc) return OPERATOR_FINISHED;
+
+	//if (strArgumentMatch(a->ExtraInstructionsP, "direction", "up")) {
+	//lstMoveUp(&rdc->Parentlanpr->line_style_layers, rdc);
+	//}elif(strArgumentMatch(a->ExtraInstructionsP, "direction", "down")) {
+	//lstMoveDown(&rdc->Parentlanpr->line_style_layers, rdc);
+	//}
+
+	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
+	//nulNotifyUsers("tns.render_buffer_list");
+
+
+	return OPERATOR_FINISHED;
+}
+int lanpr_rebuild_all_commands_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	lanpr_RebuildAllCommand(lanpr);
+	return OPERATOR_FINISHED;
+}
+int lanpr_auto_create_line_layer(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	LANPR_LineStyle *rdc;
+
+	rdc = lanpr_new_line_layer(lanpr);
+	rdc->thickness = 2;
+
+	lstAppendItem((void *)&lanpr->line_style_layers, rdc);
+
+	rdc = lanpr_new_line_layer(lanpr);
+	rdc->qi_begin = 1;
+	rdc->qi_end = 1;
+	rdc->color[0] = 0.314;
+	rdc->color[1] = 0.596;
+	rdc->color[2] = 1;
+
+	lstAppendItem((void *)&lanpr->line_style_layers, rdc);
+
+	rdc = lanpr_new_line_layer(lanpr);
+	rdc->qi_begin = 2;
+	rdc->qi_end = 2;
+	rdc->color[0] = 0.135;
+	rdc->color[1] = 0.304;
+	rdc->color[2] = 0.508;
+
+
+	lstAppendItem((void *)&lanpr->line_style_layers, rdc);
+
+	lanpr_RebuildAllCommand(lanpr);
+
+	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
+
+	return OPERATOR_FINISHED;
+}
+
 
 
 void SCENE_OT_lanpr_add_line_layer(struct wmOperatorType *ot){
@@ -2592,13 +3015,6 @@ void SCENE_OT_lanpr_add_line_layer(struct wmOperatorType *ot){
 	ot->exec = lanpr_add_line_layer_exec;
 
 }
-
-static int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op){
-
-	return OPERATOR_FINISHED;
-}
-
-
 void SCENE_OT_lanpr_delete_line_layer(struct wmOperatorType *ot){
 
 	ot->name = "Delete line layer";

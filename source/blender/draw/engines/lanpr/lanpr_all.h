@@ -238,6 +238,14 @@ typedef struct LANPR_Data {
 #define TNS_CALCULATION_OCCLUTION    4
 #define TNS_CALCULATION_FINISHED     100
 
+#define TNS_OVERRIDE_DISPLAY_NULL 0
+#define TNS_OVERRIDE_DISPLAY_SHOW 1
+#define TNS_OVERRIDE_DISPLAY_HIDE 2
+#define TNS_OVERRIDE_DISPLAY_SWAP 3
+
+#define NUL_LINE_WIDTH_WARNING_TOO_WIDE   1
+#define NUL_LINE_WIDTH_WARNING_TOO_THIN   2
+
 typedef struct LANPR_RenderTaskInfo {
 	//thrd_t           ThreadHandle;
 
@@ -351,12 +359,12 @@ typedef struct LANPR_RenderBuffer {
 
 	nListHandle DrawCommands;
 
-	//tnsRenderBufferPreviewNode RenderPreview[32];
+	//LANPR_RenderBufferPreviewNode RenderPreview[32];
 
 	struct Scene *Scene;
 	struct Object *Camera;
 
-	//tnsRenderTriangles are in mesh object.
+	//LANPR_RenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
 
 
@@ -405,7 +413,7 @@ typedef struct LANPR_RenderVert {
 	struct LANPR_RenderLine *IntersectingLine;
 	struct LANPR_RenderLine *IntersectintLine2;
 	struct LANPR_RenderTriangle *IntersectWith;     //   Positive 1         Negative 0
-	//tnsRenderTriangle* IntersectingOnFace;       //         <|               |>
+	//LANPR_RenderTriangle* IntersectingOnFace;       //         <|               |>
 	char Positive;                    //                 L---->|----->R	 L---->|----->R
 	char EdgeUsed;                    //                      <|		       |>
 }LANPR_RenderVert;
@@ -416,7 +424,7 @@ typedef struct LANPR_RenderLine {
 	struct LANPR_RenderTriangle *TL, *TR;
 	nListHandle Segments;
 	//tnsEdge*       Edge;//should be edge material
-	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
+	//LANPR_RenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
 	char MinOcclude;
 	struct Object *ObjectRef;
 	//char            IgnoreConnectedFace;
@@ -444,15 +452,20 @@ typedef struct LANPR_RenderSubPixel {
 	real Weight[3];                   //belongto->vp 1 2 3
 }LANPR_RenderSubPixel;
 
-typedef struct LANPR_RenderTile {
-	int Row, Column;
-	int SubX, SubY, SubXLim, SubYLim;               //lower Left Corner As 0
-	real FX, FY, FXLim, FYLim;                //ratio;
-	//LANPR_RenderSubPixel* FirstPixel;            //lower Left Corner As 0
-	nListHandle AssociatedTriangles;          //lstptrs
-	nListHandle AssociatedLines;              //lstptrs
-	char Rendered;
-}LANPR_RenderTile;
+
+#define TNS_COMMAND_LINE     0
+#define TNS_COMMAND_MATERIAL 1
+#define TNS_COMMAND_EDGE     2
+
+
+#define TNS_TRANSPARENCY_DRAW_SIMPLE  0
+#define TNS_TRANSPARENCY_DRAW_LAYERED 1
+
+#define TNS_OVERRIDE_ONLY                     0
+#define TNS_OVERRIDE_EXCLUDE                  1
+//#define TNS_OVERRIDE_ALL_OTHERS_OUTSIDE_GROUP 2
+//#define TNS_OVERRIDE_ALL_OTHERS_IN_GROUP      3
+//#define TNS_OVERRIDE_ALL_OTHERS               4
 
 
 extern RenderEngineType DRW_engine_viewport_lanpr_type;

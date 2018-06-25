@@ -73,6 +73,10 @@ typedef struct LANPR_LineStyleComponent{
 
 typedef struct LANPR_LineStyle{
     struct LANPR_LineStyle *next, *prev;
+
+	int      what;
+
+	int      type;
     
     int      use_qi_range;
 
@@ -101,6 +105,12 @@ typedef struct LANPR_LineStyle{
     int      logic_mode; /* for component evaluation */
 
     ListBase components;
+
+	int         DrawThisCommand;
+
+	unsigned int VBO;
+	unsigned int NBO;
+	int         VertCount;
 
 }LANPR_LineStyle;
 
