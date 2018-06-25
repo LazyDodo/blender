@@ -2345,7 +2345,7 @@ static void direct_link_id(FileData *fd, ID *id)
 
 	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
 	if (drawdata) {
-		BLI_listbase_clear(drawdata);
+		BLI_listbase_clear((ListBase *)drawdata);
 	}
 }
 
