@@ -495,7 +495,7 @@ static void rna_SpaceView3D_lock_camera_and_layers_set(PointerRNA *ptr, int valu
 	v3d->scenelock = value;
 
 	if (value) {
-		Scene *scene = ED_screen_scene_find(sc, G.main->wm.first);
+		Scene *scene = ED_screen_scene_find(sc, G_MAIN->wm.first);
 		int bit;
 
 		v3d->lay = scene->lay;
@@ -517,7 +517,7 @@ static View3DCursor *rna_View3D_Cursor_get_from_scene_or_localview(PointerRNA *p
 {
 	View3D *v3d = (View3D *)(ptr->data);
 	bScreen *screen = ptr->id.data;
-	Scene *scene = ED_screen_scene_find(screen, G.main->wm.first);
+	Scene *scene = ED_screen_scene_find(screen, G_MAIN->wm.first);
 	return ED_view3d_cursor3d_get(scene, v3d);
 }
 
@@ -549,7 +549,7 @@ static float rna_View3DOverlay_GridScaleUnit_get(PointerRNA *ptr)
 {
 	View3D *v3d = (View3D *)(ptr->data);
 	bScreen *screen = ptr->id.data;
-	Scene *scene = ED_screen_scene_find(screen, G.main->wm.first);
+	Scene *scene = ED_screen_scene_find(screen, G_MAIN->wm.first);
 
 	return ED_view3d_grid_scale(scene, v3d, NULL);
 }
@@ -680,7 +680,7 @@ static void rna_RegionView3D_view_matrix_set(PointerRNA *ptr, const float *value
 static int rna_3DViewShading_type_get(PointerRNA *ptr)
 {
 	bScreen *screen = ptr->id.data;
-	Scene *scene = WM_windows_scene_get_from_screen(G.main->wm.first, screen);
+	Scene *scene = WM_windows_scene_get_from_screen(G_MAIN->wm.first, screen);
 	RenderEngineType *type = RE_engines_find(scene->r.engine);
 	View3D *v3d = (View3D *)ptr->data;
 
@@ -967,7 +967,7 @@ static int rna_SpaceImageEditor_show_uvedit_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
-	wmWindow *win = ED_screen_window_find(sc, G.main->wm.first);
+	wmWindow *win = ED_screen_window_find(sc, G_MAIN->wm.first);
 	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 	return ED_space_image_show_uvedit(sima, obedit);
@@ -977,7 +977,7 @@ static int rna_SpaceImageEditor_show_maskedit_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
-	wmWindow *win = ED_screen_window_find(sc, G.main->wm.first);
+	wmWindow *win = ED_screen_window_find(sc, G_MAIN->wm.first);
 	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	return ED_space_image_check_show_maskedit(sima, view_layer);
 }
@@ -987,10 +987,12 @@ static void rna_SpaceImageEditor_image_set(PointerRNA *ptr, PointerRNA value)
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
 	wmWindow *win;
-	Scene *scene = ED_screen_scene_find_with_window(sc, G.main->wm.first, &win);
+	Scene *scene = ED_screen_scene_find_with_window(sc, G_MAIN->wm.first, &win);
 	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
-	ED_space_image_set(G.main, sima, scene, obedit, (Image *)value.data);
+
+	BLI_assert(BKE_id_is_in_gobal_main(value.data));
+	ED_space_image_set(G_MAIN, sima, scene, obedit, (Image *)value.data);
 }
 
 static void rna_SpaceImageEditor_mask_set(PointerRNA *ptr, PointerRNA value)
@@ -2716,6 +2718,27 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "overlay.arm_flag", V3D_OVERLAY_ARM_TRANSP_BONES);
 	RNA_def_property_ui_text(prop, "Transparent Bones", "Display bones as transparent");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "texture_paint_mode_opacity", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "overlay.texture_paint_mode_opacity");
+	RNA_def_property_float_default(prop, 0.8f);
+	RNA_def_property_ui_text(prop, "Texture Opacity", "Opacity of the texture paint mode overlay");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "vertex_paint_mode_opacity", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "overlay.vertex_paint_mode_opacity");
+	RNA_def_property_float_default(prop, 0.8f);
+	RNA_def_property_ui_text(prop, "Vertex Paint Opacity", "Opacity of the vertex paint mode overlay");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "weight_paint_mode_opacity", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "overlay.weight_paint_mode_opacity");
+	RNA_def_property_float_default(prop, 0.8f);
+	RNA_def_property_ui_text(prop, "Weight Paint Opacity", "Opacity of the weight paint mode overlay");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 }
 
 static void rna_def_space_view3d(BlenderRNA *brna)
@@ -2851,11 +2874,6 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_textured_solid", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag2", V3D_SOLID_TEX);
 	RNA_def_property_ui_text(prop, "Textured Solid", "Display face-assigned textures in solid view");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "show_mode_shade_override", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag2", V3D_SHOW_MODE_SHADE_OVERRIDE);
-	RNA_def_property_ui_text(prop, "Full Shading", "Use full shading for mode drawing (to view final result)");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "show_occlude_wire", PROP_BOOLEAN, PROP_NONE);

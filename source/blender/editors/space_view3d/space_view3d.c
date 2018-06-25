@@ -335,6 +335,9 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->overlay.flag = V3D_OVERLAY_LOOK_DEV;
 	v3d->overlay.wireframe_threshold = 0.5f;
 	v3d->overlay.bone_selection_alpha = 0.5f;
+	v3d->overlay.texture_paint_mode_opacity = 0.8;
+	v3d->overlay.weight_paint_mode_opacity = 0.8;
+	v3d->overlay.vertex_paint_mode_opacity = 0.8;
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 
@@ -1537,11 +1540,6 @@ void ED_spacetype_view3d(void)
 	art->init = view3d_tools_region_init;
 	art->draw = view3d_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);
-
-#if 0
-	/* unfinished still */
-	view3d_toolshelf_register(art);
-#endif
 
 	/* regions: header */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype view3d header region");
