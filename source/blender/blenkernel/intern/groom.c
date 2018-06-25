@@ -36,6 +36,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BLI_array.h"
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
@@ -859,6 +860,68 @@ void BKE_groom_hair_distribute(const Depsgraph *depsgraph, Groom *groom, unsigne
 	}
 }
 
+typedef struct GroomGuideVertex
+{
+	int flag;
+	float co[3];
+} GroomGuideVertex;
+
+static void groom_guide_buffer_reserve(int reserve, GroomGuideVertex **r_verts, int *r_totalloc)
+{
+	if (reserve > *r_totalloc)
+	{
+		static const int blocksize = 1024;
+		int totalloc = (int)((reserve + blocksize - 1) / blocksize) * blocksize;
+		
+		*r_verts = MEM_reallocN_id(*r_verts, sizeof(**r_verts) * totalloc, __func__);
+		*r_totalloc = totalloc;
+	}
+}
+
+/* Generate vertices for the curve based on a guide function.
+ * The guide function maps 1D parametric space to a continuous 3D position and direction.
+ * 
+ * \param stepsize      Desired distance between guide curve vertices
+ * \param maxverts      Maximum number of allowed vertices
+ * \param r_verts       Array of vertices generated for the guide curve
+ * \param r_numverts    Reserved size of the vertex array
+ * \param r_numused     Number of vertices in the guide curve
+ */
+static void groom_guide_curve_discretize(
+        const GroomRegion *region,
+        int guide_idx,
+        float stepsize,
+        int maxverts,
+        GroomGuideVertex **r_verts,
+        int *r_totalloc,
+        int *r_totverts)
+{
+	const GroomBundle *bundle = &region->bundle;
+	const int shapesize = region->numverts;
+	const int curvesize = bundle->curvesize;
+	const float *weights = &bundle->guide_shape_weights[guide_idx * shapesize];
+
+	int totverts = *r_totverts;
+	for (int i = 0; i < curvesize; ++i)
+	{
+		if (*r_totverts < maxverts)
+		{
+			totverts += 1;
+			groom_guide_buffer_reserve(totverts, r_verts, r_totalloc);
+			
+			GroomGuideVertex *v = &((*r_verts)[totverts - 1]);
+			/* Compute barycentric guide location from shape */
+			zero_v3(v->co);
+			for (int j = 0; j < shapesize; ++j)
+			{
+				madd_v3_v3fl(v->co, bundle->curvecache[j * curvesize + i].co, weights[j]);
+			}
+			v->flag = 0;
+		}
+	}
+	*r_totverts = totverts;
+}
+
 void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom)
 {
 	struct HairSystem *hsys = groom->hair_system;
@@ -872,50 +935,64 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 		totguides += bundle->totguides;
 	}
 	
-	/* First declare all guide curves and lengths */
-	BKE_hair_guide_curves_begin(hsys, totguides);
-	for (const GroomRegion *region = regions->first; region; region = region->next)
+	GroomGuideVertex *verts = NULL;
+	int totalloc = 0;
+	//groom_guide_buffer_reserve(totverts_est, &verts, &totalloc);
+	
+	int *numverts = MEM_callocN(sizeof(int) * totguides, __func__);
+	int totverts = 0;
+	// TODO multithreading here
 	{
-		const GroomBundle *bundle = &region->bundle;
-		const int curvesize = bundle->curvesize;
-		for (int i = 0; i < bundle->totguides; ++i)
+		static const float stepsize = 0.01f;
+		static const int maxverts = 100000;
+		int guide_idx = 0;
+		for (const GroomRegion *region = regions->first; region; region = region->next)
 		{
-			/* TODO implement optional factors using scalp textures/vgroups */
-			float taper_length = region->taper_length;
-			float taper_thickness = region->taper_thickness;
-			
-			BKE_hair_set_guide_curve(hsys, i, &bundle->guides[i].root, curvesize,
-			                         taper_length, taper_thickness);
+			const GroomBundle *bundle = &region->bundle;
+			for (int i = 0; i < bundle->totguides; ++i)
+			{
+				const int prev_totverts = totverts;
+				groom_guide_curve_discretize(region, i, stepsize, maxverts, &verts, &totalloc, &totverts);
+				numverts[guide_idx] = totverts - prev_totverts;
+				
+				++guide_idx;
+			}
+		}
+	}
+	
+	/* Declare all guide curves and lengths */
+	BKE_hair_guide_curves_begin(hsys, totguides);
+	{
+		int guide_idx = 0;
+		for (const GroomRegion *region = regions->first; region; region = region->next)
+		{
+			const GroomBundle *bundle = &region->bundle;
+			for (int i = 0; i < bundle->totguides; ++i)
+			{
+				/* TODO implement optional factors using scalp textures/vgroups */
+				float taper_length = region->taper_length;
+				float taper_thickness = region->taper_thickness;
+				
+				BKE_hair_set_guide_curve(
+				            hsys,
+				            i,
+				            &bundle->guides[i].root,
+				            numverts[guide_idx],
+				            taper_length,
+				            taper_thickness);
+				++guide_idx;
+			}
 		}
 	}
 	BKE_hair_guide_curves_end(hsys);
 	
-	int idx = 0;
-	for (const GroomRegion *region = regions->first; region; region = region->next)
+	for (int i = 0; i < totverts; ++i)
 	{
-		const GroomBundle *bundle = &region->bundle;
-		const int shapesize = region->numverts;
-		const int curvesize = bundle->curvesize;
-		const float *weights = bundle->guide_shape_weights;
-		float co[3];
-		for (int guide_idx = 0; guide_idx < bundle->totguides; ++guide_idx)
-		{
-			for (int j = 0; j < curvesize; ++j)
-			{
-				/* Compute barycentric guide location from shape */
-				zero_v3(co);
-				for (int k = 0; k < shapesize; ++k)
-				{
-					madd_v3_v3fl(co, bundle->curvecache[k * curvesize + j].co, weights[k]);
-				}
-				
-				BKE_hair_set_guide_vertex(hsys, idx, 0, co);
-				++idx;
-			}
-			
-			weights += shapesize;
-		}
+		BKE_hair_set_guide_vertex(hsys, i, verts[i].flag, verts[i].co);
 	}
+	
+	MEM_freeN(numverts);
+	MEM_freeN(verts);
 	
 	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
 	if (scalp)

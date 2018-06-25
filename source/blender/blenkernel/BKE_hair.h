@@ -57,6 +57,12 @@ void BKE_hair_free(struct HairSystem *hsys);
 
 /* Allocate buffers for defining guide curves
  * \param totcurves Number of guide curves to allocate
+ * \param totverts Number of guide curve vertices to allocate
+ */
+void BKE_hair_guide_curves_alloc(struct HairSystem *hsys, int totcurves, int totverts);
+
+/* Allocate buffers for defining guide curves
+ * \param totcurves Number of guide curves to allocate
  */
 void BKE_hair_guide_curves_begin(struct HairSystem *hsys, int totcurves);
 
