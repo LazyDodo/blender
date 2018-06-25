@@ -54,6 +54,7 @@
 #include "BKE_modifier.h"
 #include "BKE_pointcache.h"
 
+#include "DEG_depsgraph_physics.h"
 #include "DEG_depsgraph_query.h"
 
 #include "MOD_util.h"
@@ -135,10 +136,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 {
 	ClothModifierData *clmd = (ClothModifierData *)md;
 	if (clmd != NULL) {
-		/* Actual code uses get_collisionobjects */
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, clmd->coll_parms->group, eModifierType_Collision, NULL, true, "Cloth Collision");
-
-		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
+		DEG_add_collision_relations(ctx->node, ctx->object, clmd->coll_parms->group, eModifierType_Collision, NULL, "Cloth Collision");
+		DEG_add_forcefield_relations(ctx->node, ctx->object, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
 	}
 }
 

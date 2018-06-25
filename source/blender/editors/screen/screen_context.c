@@ -118,7 +118,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "selectable_objects")) {
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if (((base->flag & BASE_VISIBLED) != 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+			if (((base->flag & BASE_VISIBLE) != 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
 				CTX_data_id_list_add(result, &base->object->id);
 			}
 		}
@@ -168,7 +168,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	}
 	else if (CTX_data_equals(member, "selectable_bases")) {
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if ((base->flag & BASE_SELECTABLED) != 0) {
+			if ((base->flag & BASE_SELECTABLE) != 0) {
 				CTX_data_list_add(result, &scene->id, &RNA_ObjectBase, base);
 			}
 		}
@@ -198,7 +198,7 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 	else if (CTX_data_equals(member, "editable_bases")) {
 		/* Visible + Editable, but not necessarily selected */
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if ((base->flag & BASE_VISIBLED) != 0) {
+			if ((base->flag & BASE_VISIBLE) != 0) {
 				if (0 == BKE_object_is_libdata(base->object)) {
 					CTX_data_list_add(result, &scene->id, &RNA_ObjectBase, base);
 				}

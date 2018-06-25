@@ -434,6 +434,9 @@ void BKE_object_free_caches(Object *object)
 		}
 	}
 
+	BKE_object_free_derived_caches(object);
+	update_flag |= OB_RECALC_DATA;
+
 	/* Tag object for update, so once memory critical operation is over and
 	 * scene update routines are back to it's business the object will be
 	 * guaranteed to be in a known state.
@@ -630,7 +633,7 @@ bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode)
  */
 bool BKE_object_is_visible(Object *ob, const eObjectVisibilityCheck mode)
 {
-	if ((ob->base_flag & BASE_VISIBLED) == 0) {
+	if ((ob->base_flag & BASE_VISIBLE) == 0) {
 		return false;
 	}
 
