@@ -414,6 +414,7 @@ static void eevee_lightbake_cache_create(EEVEE_Data *vedata, EEVEE_LightBake *lb
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_FramebufferList *fbl = vedata->fbl;
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
+	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
 	/* Disable all effects BUT high bitdepth shadows. */
 	scene_eval->eevee.flag &= SCE_EEVEE_SHADOW_HIGH_BITDEPTH;
@@ -445,6 +446,12 @@ static void eevee_lightbake_cache_create(EEVEE_Data *vedata, EEVEE_LightBake *lb
 
 	EEVEE_lightbake_cache_init(sldata, vedata, lbake->rt_color, lbake->rt_depth);
 
+	if (lbake->probe) {
+		LightProbe *prb = *lbake->probe;
+		pinfo->vis_data.collection = prb->visibility_grp;
+		pinfo->vis_data.invert = prb->flag & LIGHTPROBE_FLAG_INVERT_GROUP;
+		pinfo->vis_data.cached = false;
+	}
 	DRW_render_object_iter(vedata, NULL, lbake->depsgraph, EEVEE_render_cache);
 
 	EEVEE_materials_cache_finish(vedata);
@@ -734,6 +741,7 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 
 	/* Render world irradiance and reflection first */
 	if (lcache->flag & LIGHTCACHE_UPDATE_WORLD) {
+		lbake->probe = NULL;
 		lightbake_do_sample(lbake, eevee_lightbake_render_world_sample);
 	}
 

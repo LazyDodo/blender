@@ -140,7 +140,18 @@ void EEVEE_render_cache(
         struct RenderEngine *engine, struct Depsgraph *UNUSED(depsgraph))
 {
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
+	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 	bool cast_shadow = false;
+
+	if (pinfo->vis_data.collection) {
+		/* Used for rendering probe with visibility groups. */
+		bool ob_vis = BKE_collection_has_object_recursive(pinfo->vis_data.collection, ob);
+		ob_vis = (pinfo->vis_data.invert) ? !ob_vis : ob_vis;
+
+		if (!ob_vis) {
+			return;
+		}
+	}
 
 	if (engine) {
 		char info[42];
