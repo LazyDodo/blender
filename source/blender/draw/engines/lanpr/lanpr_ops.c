@@ -17,6 +17,7 @@
 #include "BKE_customdata.h"
 #include "DEG_depsgraph_query.h"
 #include "BKE_camera.h"
+#include "BKE_collection.h"
 #include "GPU_draw.h"
 
 #include "GPU_batch.h"
@@ -2504,7 +2505,7 @@ LANPR_RenderBuffer *lanpr_CreateRenderBuffer(SceneLANPR *lanpr) {
 	return rb;
 }
 
-void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *rdc);
+void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll);
 
 int lanpr_DrawEdgePreview(LANPR_RenderBuffer *rb, LANPR_LineLayer *OverrideLayer, Collection *OverrideGroup,
                           real ThicknessScale, RenderEngine *e, GPUFrameBuffer *Off) {
@@ -2526,7 +2527,7 @@ static char MessageFailed[] = "No saving action performed.";
 
 //int ACTINV_SaveRenderBufferPreview(nActuatorIntern* a, nEvent* e) {
 //	LANPR_RenderBuffer* rb = a->This->EndInstance;
-//	LANPR_LineStyle* rdc;
+//	LANPR_LineStyle* ll;
 //	char FullPath[1024] = "";
 //
 //	if (!rb) return;
@@ -2558,9 +2559,9 @@ static char MessageFailed[] = "No saving action performed.";
 //			nulEnableMultiMessagePanel(a, 0, "Caution", &List, e->x, e->y, 500, e);
 //			return NUL_FINISHED;
 //		}
-//		for (rdc = lanpr->line_style_layers.pFirst; rdc; rdc = rdc->Item.pNext) {
+//		for (ll = lanpr->line_layers.pFirst; ll; ll = ll->Item.pNext) {
 //			FullPath[0] = 0;
-//			if ((!rdc->Name || !rdc->Name->Ptr) && !unnamed) {
+//			if ((!ll->Name || !ll->Name->Ptr) && !unnamed) {
 //				nulAddPanelMessage(&List, MessageHalfSuccess);
 //				nulAddPanelMessage(&List, MessageLayerName);
 //				unnamed = 1;
@@ -2569,8 +2570,8 @@ static char MessageFailed[] = "No saving action performed.";
 //			strcat(FullPath, fb->OutputFolder->Ptr);
 //			strcat(FullPath, fb->ImagePrefix->Ptr);
 //			strcat(FullPath, fb->ImageNameConnector->Ptr);
-//			strcat(FullPath, rdc->Name->Ptr);
-//			lanpr_SaveRenderBufferPreviewAsImage(rb, FullPath, rdc, 0);
+//			strcat(FullPath, ll->Name->Ptr);
+//			lanpr_SaveRenderBufferPreviewAsImage(rb, FullPath, ll, 0);
 //		}
 //		if(unnamed)nulEnableMultiMessagePanel(a, 0, "Caution", &List, e->x, e->y, 500, e);
 //	}
@@ -2578,13 +2579,13 @@ static char MessageFailed[] = "No saving action performed.";
 //	return NUL_FINISHED;
 //}
 //int ACTINV_SaveSingleLayer(nActuator* a, nEvent* e) {
-//	LANPR_LineStyle* rdc = a->This->EndInstance;
+//	LANPR_LineStyle* ll = a->This->EndInstance;
 //	char FullPath[1024] = "";
 //	int fail = 0;
 //
-//	if (!rdc)return;
+//	if (!ll)return;
 //
-//	tnsFrameBuffer* fb = rdc->ParentRB->FrameBuffer;
+//	tnsFrameBuffer* fb = ll->ParentRB->FrameBuffer;
 //
 //	if (!fb) return;
 //
@@ -2597,7 +2598,7 @@ static char MessageFailed[] = "No saving action performed.";
 //		if ((!fb->ImageNameConnector || !fb->ImageNameConnector->Ptr)) nulAddPanelMessage(&List, MessageConnector);
 //		fail = 1;
 //	}
-//	if (!rdc->Name || !rdc->Name->Ptr) {
+//	if (!ll->Name || !ll->Name->Ptr) {
 //		nulAddPanelMessage(&List, MessageHalfSuccess);
 //		nulAddPanelMessage(&List, MessageLayerName);
 //		fail = 1;
@@ -2613,8 +2614,8 @@ static char MessageFailed[] = "No saving action performed.";
 //	strcat(FullPath, fb->OutputFolder->Ptr);
 //	strcat(FullPath, fb->ImagePrefix->Ptr);
 //	strcat(FullPath, fb->ImageNameConnector->Ptr);
-//	strcat(FullPath, rdc->Name->Ptr);
-//	lanpr_SaveRenderBufferPreviewAsImage(rdc->ParentRB, FullPath, rdc, 0);
+//	strcat(FullPath, ll->Name->Ptr);
+//	lanpr_SaveRenderBufferPreviewAsImage(ll->ParentRB, FullPath, ll, 0);
 //
 //
 //	return NUL_FINISHED;
@@ -2622,7 +2623,7 @@ static char MessageFailed[] = "No saving action performed.";
 
 
 
-long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, int OccludeLevel, Collection *OverrideGroup, int Exclusive) {
+long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, int qi_begin, int qi_end) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls;
@@ -2633,11 +2634,11 @@ long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, int OccludeLevel,
 		rl = lip->p;
 		o = rl->ObjectRef;
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
-			if (OverrideGroup) {
-				//if (CollectionHaveObject(OverrideGroup, rl->ObjectRef) && Exclusive) continue;
-				//if (!CollectionHaveObject(OverrideGroup, rl->ObjectRef) && !Exclusive) continue;
-			}
-			if (rls->OccludeLevel == OccludeLevel) Count++;
+			//if (OverrideGroup) {
+			//	if (Exclusive && BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
+			//	if (!Exclusive && !BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
+			//}
+			if (rls->OccludeLevel >= qi_begin && rls->OccludeLevel<= qi_end) Count++;
 		}
 	}
 	return Count;
@@ -2651,7 +2652,7 @@ long lanpr_CountIntersectionSegmentCount(LANPR_RenderBuffer *rb) {
 	}
 	return Count;
 }
-void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, int OccludeLevel, Collection *OverrideGroup, int Exclusive) {
+void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, int qi_begin, int qi_end) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls, *irls;
@@ -2662,14 +2663,13 @@ void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *Line
 	for (lip = LineList->pFirst; lip; lip = lip->pNext) {
 		rl = lip->p;
 		o = rl->ObjectRef;
-		if (OverrideGroup) {
-			//if (CollectionHaveObject(OverrideGroup, rl->ObjectRef) && Exclusive) continue;
-			//if (!CollectionHaveObject(OverrideGroup, rl->ObjectRef) && !Exclusive) continue;
-		}
+		//if (OverrideGroup) {
+		//	if (Exclusive && BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
+		//	if (!Exclusive && !BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
+		//}
 
-		//if(o) o->LineRenderingDone = 1;
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
-			if (rls->OccludeLevel == OccludeLevel) {
+			if (rls->OccludeLevel >= qi_begin && rls->OccludeLevel<= qi_end) {
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at) * W;
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at) * H;
@@ -2767,93 +2767,88 @@ u32bit lanpr_MakeBoundingAreaVBORecursive(float *V, u32bit Begin, LANPR_Bounding
 //}
 
 
-void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *rdc) {
+/* ============================================ viewport display ================================================= */
+
+void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll) {
 	int Count = 0;
 	int level;
 	float *V, *tv, *N;;
 
-	if (!rb || !rb->Scene) return;
+	if (ll->type == TNS_COMMAND_LINE) {
+		glGenBuffers(1, &ll->VBO);
+		glBindBuffer(GL_ARRAY_BUFFER, ll->VBO);
 
-	if (rdc->VBO) {
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glDeleteBuffers(1, &rdc->VBO);
-	}
-	if (rdc->NBO) {
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glDeleteBuffers(1, &rdc->NBO);
-	}
+		if (ll->enable_contour)           Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll->qi_begin, ll->qi_end);
+		if (ll->enable_crease)            Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll->qi_begin, ll->qi_end);
+		if (ll->enable_intersection)      Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll->qi_begin, ll->qi_end);
+		if (ll->enable_edge_mark)         Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll->qi_begin, ll->qi_end);
+		if (ll->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, ll->qi_begin, ll->qi_end);
 
-	if (rdc->type == TNS_COMMAND_LINE) {
-		glGenBuffers(1, &rdc->VBO);
-		glBindBuffer(GL_ARRAY_BUFFER, rdc->VBO);
-
-		for (level = rdc->qi_begin; level <= rdc->qi_end; level++) {
-			//if (rdc->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-			//if (rdc->enable_intersection) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-			//if (rdc->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-			//if (rdc->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-		}
-
-		rdc->VertCount = Count * 2;
+		ll->VertCount = Count * 2;
 
 		tv = V = CreateNewBuffer(float, 4 * Count);
 
-		for (level = rdc->qi_begin; level <= rdc->qi_end; level++) {
-			//if (rdc->enable_crease)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-			//if (rdc->enable_intersection)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-			//if (rdc->enable_crease)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-			//if (rdc->enable_material_seperate)tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, level, rdc->OverrideGroup, rdc->ExcludeGroup);
-		}
-
-		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * Count, V, GL_DYNAMIC_DRAW);
+		if (ll->enable_contour)           tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll->qi_begin, ll->qi_end);
+		if (ll->enable_crease)            tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll->qi_begin, ll->qi_end);
+		if (ll->enable_intersection)      tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll->qi_begin, ll->qi_end);
+		if (ll->enable_edge_mark)         tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll->qi_begin, ll->qi_end);
+		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll->qi_begin, ll->qi_end);
 
 		FreeMem(V);
 		return;
 	}
 
-	//if (rdc->type == TNS_COMMAND_MATERIAL || rdc->type == TNS_COMMAND_EDGE) {
-	//	if (!rdc->MaterialRef) {
-	//		rdc->VertCount = 0;
-	//		return;
-	//	}
-
-	//	//Count = lanpr_CountMaterialTriangles(&rb->Scene->Objects.pFirst, rdc->MaterialRef, rdc->OverrideGroup, rdc->ExcludeGroup);
-
-	//	if (Count) {
-	//		rdc->VertCount = Count;
-
-	//		V = CreateNewBuffer(float, 9 * Count);
-	//		N = CreateNewBuffer(float, 9 * Count);
-
-	//		lanpr_MakeMaterialPoints(rb, V, N, 0, &rb->Scene->Objects.pFirst, rdc->MaterialRef, rdc->OverrideGroup, rdc->ExcludeGroup);
-
-	//		glGenBuffers(1, &rdc->VBO);
-	//		glBindBuffer(GL_ARRAY_BUFFER, rdc->VBO);
-	//		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 9 * Count, V, GL_DYNAMIC_DRAW);
-
-	//		glGenBuffers(1, &rdc->NBO);
-	//		glBindBuffer(GL_ARRAY_BUFFER, rdc->NBO);
-	//		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 9 * Count, N, GL_DYNAMIC_DRAW);
-
-	//		FreeMem(V);
-	//		FreeMem(N);
-
-	//		return;
-	//	}
-	//
+	//if (ll->type == TNS_COMMAND_MATERIAL || ll->type == TNS_COMMAND_EDGE) {
+		// later implement ....
 	//}
 
 }
 void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
-	LANPR_LineLayer *rdc;
+	LANPR_LineLayer *ll;
 	if (!lanpr) return;
-	//tnsCleanObjectFinishMarks(rb->Scene);
-	//for (rdc = lanpr->line_style_layers.pLast; rdc; rdc = rdc->Item.pPrev) {
-	//	lanpr_RebuildRenderDrawCommand(rb, rdc);
-	//}
-	//nulNotifyUsers("tns.render_buffer_list");
+
+	for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+		if (ll->batch) GWN_batch_discard(ll->batch);
+		lanpr_RebuildRenderDrawCommand(lanpr->render_buffer,ll);
+	}
+
 }
 
+void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr) {
+	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float clear_depth = 1.0f;
+	uint clear_stencil = 0xFF;
+
+	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+
+	int texw = GPU_texture_width(txl->edge_intermediate), texh = GPU_texture_height(txl->edge_intermediate);;
+	int tsize = texw * texh;
+
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	View3D *v3d = draw_ctx->v3d;
+	Object *camera;
+	if (v3d) {
+		RegionView3D *rv3d = draw_ctx->rv3d;
+		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	}
+	else {
+		camera = scene->camera;
+	}
+
+	GPU_framebuffer_bind(fbl->dpix_transform);
+	DRW_draw_pass(psl->dpix_transform_pass);
+
+	GPU_framebuffer_bind(fbl->dpix_preview);
+	GPUFrameBufferBits clear_bits = GPU_COLOR_BIT;
+	GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+	DRW_draw_pass(psl->dpix_preview_pass);
+
+	GPU_framebuffer_bind(dfbl->default_fb);
+	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+	DRW_multisamples_resolve(txl->depth, txl->color);
+}
 
 
 
@@ -2886,7 +2881,6 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 
 	return OPERATOR_FINISHED;
 }
-
 static void lanpr_compute_feature_lines_cancel(struct bContext *C, struct wmOperator *op){
 
 	return;
@@ -2908,7 +2902,7 @@ void SCENE_OT_lanpr_calculate_feature_lines(struct wmOperatorType *ot){
 
 LANPR_LineLayer *lanpr_new_line_layer(SceneLANPR *lanpr){
 	LANPR_LineLayer *ls = MEM_callocN(sizeof(LANPR_LineLayer), "Line Style");
-	BLI_addtail(&lanpr->line_style_layers, ls);
+	BLI_addtail(&lanpr->line_layers, ls);
 	lanpr->active_layer = ls;
 	return ls;
 }
@@ -2925,16 +2919,16 @@ int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
-	LANPR_LineLayer *rdc = lanpr->active_layer;
+	LANPR_LineLayer *ll = lanpr->active_layer;
 
-	if (!rdc) return OPERATOR_FINISHED;
+	if (!ll) return OPERATOR_FINISHED;
 
-	lstRemoveItem((void *)&scene->lanpr.line_style_layers, (void *)rdc);
+	lstRemoveItem((void *)&scene->lanpr.line_layers, (void *)ll);
 
 	//glBindBuffer(GL_ARRAY_BUFFER, 0);
-	//glDeleteBuffers(1, &rdc->VBO);
+	//glDeleteBuffers(1, &ll->VBO);
 
-	memFree(rdc);
+	memFree(ll);
 
 	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
 
@@ -2944,14 +2938,14 @@ int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
-	LANPR_LineLayer *rdc = lanpr->active_layer;
+	LANPR_LineLayer *ll = lanpr->active_layer;
 
-	if (!rdc) return OPERATOR_FINISHED;
+	if (!ll) return OPERATOR_FINISHED;
 
 	//if (strArgumentMatch(a->ExtraInstructionsP, "direction", "up")) {
-	//lstMoveUp(&rdc->Parentlanpr->line_style_layers, rdc);
+	//lstMoveUp(&ll->Parentlanpr->line_layers, ll);
 	//}elif(strArgumentMatch(a->ExtraInstructionsP, "direction", "down")) {
-	//lstMoveDown(&rdc->Parentlanpr->line_style_layers, rdc);
+	//lstMoveDown(&ll->Parentlanpr->line_layers, ll);
 	//}
 
 	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
@@ -2967,35 +2961,35 @@ int lanpr_rebuild_all_commands_exec(struct bContext *C, struct wmOperator *op) {
 	lanpr_RebuildAllCommand(lanpr);
 	return OPERATOR_FINISHED;
 }
-int lanpr_auto_create_line_layer(struct bContext *C, struct wmOperator *op) {
+int lanpr_auto_create_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
-	LANPR_LineLayer *rdc;
+	LANPR_LineLayer *ll;
 
-	rdc = lanpr_new_line_layer(lanpr);
-	rdc->thickness = 2;
+	ll = lanpr_new_line_layer(lanpr);
+	ll->thickness = 2;
 
-	lstAppendItem((void *)&lanpr->line_style_layers, rdc);
+	lstAppendItem((void *)&lanpr->line_layers, ll);
 
-	rdc = lanpr_new_line_layer(lanpr);
-	rdc->qi_begin = 1;
-	rdc->qi_end = 1;
-	rdc->color[0] = 0.314;
-	rdc->color[1] = 0.596;
-	rdc->color[2] = 1;
+	ll = lanpr_new_line_layer(lanpr);
+	ll->qi_begin = 1;
+	ll->qi_end = 1;
+	ll->color[0] = 0.314;
+	ll->color[1] = 0.596;
+	ll->color[2] = 1;
 
-	lstAppendItem((void *)&lanpr->line_style_layers, rdc);
+	lstAppendItem((void *)&lanpr->line_layers, ll);
 
-	rdc = lanpr_new_line_layer(lanpr);
-	rdc->qi_begin = 2;
-	rdc->qi_end = 2;
-	rdc->color[0] = 0.135;
-	rdc->color[1] = 0.304;
-	rdc->color[2] = 0.508;
+	ll = lanpr_new_line_layer(lanpr);
+	ll->qi_begin = 2;
+	ll->qi_end = 2;
+	ll->color[0] = 0.135;
+	ll->color[1] = 0.304;
+	ll->color[2] = 0.508;
 
 
-	lstAppendItem((void *)&lanpr->line_style_layers, rdc);
+	lstAppendItem((void *)&lanpr->line_layers, ll);
 
 	lanpr_RebuildAllCommand(lanpr);
 
@@ -3022,5 +3016,34 @@ void SCENE_OT_lanpr_delete_line_layer(struct wmOperatorType *ot){
 	ot->idname = "SCENE_OT_lanpr_delete_line_layer";
 
 	ot->exec = lanpr_delete_line_layer_exec;
+
+}
+void SCENE_OT_lanpr_rebuild_all_commands(struct wmOperatorType *ot) {
+
+	ot->name = "Refresh Drawing Commands";
+	ot->description = "Refresh LANPR line layer drawing commands";
+	ot->idname = "SCENE_OT_lanpr_rebuild_all_commands";
+
+	ot->exec = lanpr_rebuild_all_commands_exec;
+
+}
+void SCENE_OT_lanpr_auto_create_line_layer(struct wmOperatorType *ot) {
+
+	ot->name = "Auto Create Line Layer";
+	ot->description = "Automatically create defalt line layer config";
+	ot->idname = "SCENE_OT_lanpr_auto_create_line_layer";
+
+	ot->exec = lanpr_auto_create_line_layer_exec;
+
+}
+void SCENE_OT_lanpr_move_line_layer(struct wmOperatorType *ot) {
+
+	ot->name = "Move Line Layer";
+	ot->description = "Move LANPR line layer up and down";
+	ot->idname = "SCENE_OT_lanpr_move_line_layer";
+
+	//this need property to assign up/down direction
+
+	ot->exec = lanpr_move_line_layer_exec;
 
 }

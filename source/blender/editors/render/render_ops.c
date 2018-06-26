@@ -86,7 +86,9 @@ void ED_operatortypes_render(void)
     WM_operatortype_append(SCENE_OT_lanpr_calculate_feature_lines);
     WM_operatortype_append(SCENE_OT_lanpr_add_line_layer);
     WM_operatortype_append(SCENE_OT_lanpr_delete_line_layer);
-
+	WM_operatortype_append(SCENE_OT_lanpr_rebuild_all_commands);
+	WM_operatortype_append(SCENE_OT_lanpr_auto_create_line_layer);
+	WM_operatortype_append(SCENE_OT_lanpr_move_line_layer);
     
 
 	WM_operatortype_append(TEXTURE_OT_slot_copy);

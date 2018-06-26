@@ -34,13 +34,15 @@
 
 #include "DNA_listBase.h"
 #include "DNA_ID.h"
+#include "DNA_group_types.h"
 
 struct Object;
 struct Material;
 struct Collection;
 
-#define LANPR_MASTER_MODE_DPIX         0
-#define LANPR_MASTER_MODE_SNAKE        1
+#define LANPR_MASTER_MODE_SOFTWARE     0
+#define LANPR_MASTER_MODE_DPIX         1
+#define LANPR_MASTER_MODE_SNAKE        2
 
 #define LANPR_POST_PROCESSING_DISABLED 0
 #define LANPR_POST_PROCESSING_ENABLED  1
@@ -85,6 +87,7 @@ typedef struct LANPR_LineLayer{
 
     int      use_differnt_style;
 
+	int      enable_contour;
     int      enable_crease;
 	int      enable_edge_mark;
 	int      enable_material_seperate;
@@ -104,6 +107,8 @@ typedef struct LANPR_LineLayer{
 
     int      logic_mode; /* for component evaluation */
 
+    int      a;
+
     ListBase components;
 
 	int         DrawThisCommand;
@@ -111,6 +116,8 @@ typedef struct LANPR_LineLayer{
 	unsigned int VBO;
 	unsigned int NBO;
 	int         VertCount;
+
+	struct Gwn_Batch  *batch;
 
 }LANPR_LineLayer;
 

@@ -323,6 +323,11 @@ typedef struct LANPR_RenderBuffer {
 	nListItemPointer *MaterialManaged;
 	nListHandle MaterialLines;
 
+	u32bit EdgeMarkCount;
+	u32bit EdgeMarkProcessed;
+	nListItemPointer *EdgeMarkManaged;
+	nListHandle EdgeMarks;
+
 	SpinLock csInfo;
 	SpinLock csData;
 	SpinLock csManagement;
@@ -349,7 +354,7 @@ typedef struct LANPR_RenderBuffer {
 	int ShowMaterial;
 	int OverrideDisplay;
 
-	nListHandle DrawCommands;
+	//nListHandle DrawCommands; /* not used now */
 
 	//tnsRenderBufferPreviewNode RenderPreview[32];
 
@@ -459,69 +464,8 @@ typedef struct LANPR_RenderSubPixel {
 //#define TNS_OVERRIDE_ALL_OTHERS_IN_GROUP      3
 //#define TNS_OVERRIDE_ALL_OTHERS               4
 
-typedef struct LANPR_RenderDrawCommand {
-	nListItem           Item;
-	LANPR_RenderBuffer* ParentRB;
-
-	int              Type;
-
-	nSafeString*     Name;
-
-	tnsVector4d Color;
-	real        Thickness;
-	int         OccludeBegin, OccludeEnd;
-
-	int         UseStipple;
-	u16bit      StipplePattern;
-	u8bit       StippleSize;
-	int         DrawThisCommand;
-
-	int         DrawContour;
-	int         DrawCrease;
-	int         DrawIntersections;
-	int         DrawMaterialLines;
-
-	GLuint      VBO;
-	GLuint      NBO;
-	int         VertCount;
-
-	int          OverrideColor;
-	Material*    MaterialRef;
-	nSafeString* ReadMaterialName;
-
-	Collection*  OverrideGroup; // I'll correct the name to "collection" later.
-	nSafeString* ReadGroupName;
-	int          ExcludeGroup;
-
-	real         NormalEdgeClamp;
-	real         NormalEdgeStrength;
-	real         DepthEdgeClamp;
-	real         DepthEdgeStrength;
-
-	int          ClearDepthBuffer;
-	
-	int          DepthTest;
-
-	int          TransparencyMode;
-	real         Transparency;
-}LANPR_RenderDrawCommand;
-
-
 extern RenderEngineType DRW_engine_viewport_lanpr_type;
 
-
-
-#define LANPR_MASTER_MODE_DPIX         0
-#define LANPR_MASTER_MODE_SNAKE        1
-
-#define LANPR_POST_PROCESSING_DISABLED 0
-#define LANPR_POST_PROCESSING_ENABLED  1
-
-#define LANPR_USE_DIFFERENT_TAPER      0
-#define LANPR_USE_SAME_TAPER           1
-
-#define LANPR_DISABLE_TIP_EXTEND       0
-#define LANPR_ENABLE_TIP_EXTEND        1
 
 
 #define tnsLinearItp(L, R, T) \

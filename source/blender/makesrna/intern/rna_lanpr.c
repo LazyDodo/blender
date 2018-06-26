@@ -99,6 +99,9 @@ void RNA_def_lanpr(BlenderRNA *brna){
     prop = RNA_def_property(srna, "use_qi_range", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "QI Range", "Use QI Range (occlusion levels) to select lines");
 
+	prop = RNA_def_property(srna, "enable_contour", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Enable Contour", "Draw contour lines");
+
     prop = RNA_def_property(srna, "enable_crease", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Enable Crease", "Draw crease lines");
 

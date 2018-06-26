@@ -2120,7 +2120,7 @@ void rna_lanpr_active_line_layer_index_range(
 {
 	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
 	*min = 0;
-	*max = max_ii(0, BLI_listbase_count(&lanpr->line_style_layers) - 1);
+	*max = max_ii(0, BLI_listbase_count(&lanpr->line_layers) - 1);
 }
 
 int rna_lanpr_active_line_layer_index_get(PointerRNA *ptr)
@@ -2128,7 +2128,7 @@ int rna_lanpr_active_line_layer_index_get(PointerRNA *ptr)
 	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
     LANPR_LineLayer* ls;
     int i=0;
-    for(ls = lanpr->line_style_layers.first;ls;ls=ls->next){
+    for(ls = lanpr->line_layers.first;ls;ls=ls->next){
         if(ls == lanpr->active_layer) return i;
         i++;
     }
@@ -2140,7 +2140,7 @@ void rna_lanpr_active_line_layer_index_set(PointerRNA *ptr, int value)
 	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
     LANPR_LineLayer* ls;
     int i=0;
-    for(ls = lanpr->line_style_layers.first;ls;ls=ls->next){
+    for(ls = lanpr->line_layers.first;ls;ls=ls->next){
         if(i==value){
             lanpr->active_layer=ls;
             return;
@@ -6195,6 +6195,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
     };
 
 	static const EnumPropertyItem rna_enum_lanpr_master_mode[] = {
+		{LANPR_MASTER_MODE_SOFTWARE, "SOFTWARE", ICON_MESH_CUBE, "Software", "Software edge calculation" },
 	    {LANPR_MASTER_MODE_DPIX, "DPIX", ICON_MESH_CUBE, "DPIX", "DPIX GPU edge calculation"},
         {LANPR_MASTER_MODE_SNAKE, "SNAKE", ICON_MESH_CUBE, "Snake", "Image filter and GPU tracing method"},
 	    {0, NULL, 0, NULL, NULL}
@@ -6453,7 +6454,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	/* here's the collection stuff.... */
 
 	prop = RNA_def_property(srna, "layers", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, "SceneLANPR", "line_style_layers", NULL);
+	RNA_def_property_collection_sdna(prop, "SceneLANPR", "line_layers", NULL);
 	RNA_def_property_struct_type(prop, "LANPR_LineLayer");
 	RNA_def_property_ui_text(prop, "Line Layers", "LANPR Line Layers");
 
