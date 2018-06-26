@@ -279,9 +279,9 @@ static void bakeModifierGP_objects(Main *bmain, Depsgraph *depsgraph, GpencilMod
 				newob = array_instance_add_ob_copy(bmain, scene, ob);
 
 				/* remove array on destination object */
-				fmd = (GpencilModifierData *)BLI_findstring(&newob->modifiers, md->name, offsetof(GpencilModifierData, name));
+				fmd = (GpencilModifierData *)BLI_findstring(&newob->greasepencil_modifiers, md->name, offsetof(GpencilModifierData, name));
 				if (fmd) {
-					BLI_remlink(&newob->modifiers, fmd);
+					BLI_remlink(&newob->greasepencil_modifiers, fmd);
 					BKE_gpencil_modifier_free(fmd);
 				}
 
