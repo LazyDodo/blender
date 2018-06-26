@@ -144,6 +144,7 @@ static void do_version_area_change_space_to_space_action(ScrArea *area, const Sc
 
 	saction->mode = SACTCONT_TIMELINE;
 	saction->ads.flag |= ADS_FLAG_SUMMARY_COLLAPSED;
+	saction->ads.filterflag |= ADS_FILTER_SUMMARY;
 }
 
 /**
@@ -501,7 +502,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 		}
 
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if ((base->flag & BASE_SELECTABLED) && (base->object->flag & SELECT)) {
+			if ((base->flag & BASE_SELECTABLE) && (base->object->flag & SELECT)) {
 				base->flag |= BASE_SELECTED;
 			}
 		}
@@ -530,7 +531,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 
 		/* convert selected bases */
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if ((base->flag & BASE_SELECTABLED) && (base->object->flag & SELECT)) {
+			if ((base->flag & BASE_SELECTABLE) && (base->object->flag & SELECT)) {
 				base->flag |= BASE_SELECTED;
 			}
 
@@ -1487,6 +1488,46 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						}
 					}
 				}
+			}
+		}
+
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_VIEW3D) {
+						View3D *v3d = (View3D *)sl;
+						if (v3d->drawtype == OB_TEXTURE) {
+							v3d->drawtype = OB_SOLID;
+							v3d->shading.light = V3D_LIGHTING_STUDIO;
+							v3d->shading.color_type = V3D_SHADING_TEXTURE_COLOR;
+						}
+					}
+				}
+			}
+		}
+
+	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "texture_paint_mode_opacity")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							float alpha = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 0.8f;
+							v3d->overlay.texture_paint_mode_opacity = alpha;
+							v3d->overlay.vertex_paint_mode_opacity = alpha;
+							v3d->overlay.weight_paint_mode_opacity = alpha;
+						}
+					}
+				}
+			}
+		}
+
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			if (scene->toolsettings->manipulator_flag == 0) {
+				scene->toolsettings->manipulator_flag = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
 			}
 		}
 	}

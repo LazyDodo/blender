@@ -60,6 +60,8 @@ struct Main;
 struct wmMsgBus;
 struct wmMsgSubscribeKey;
 struct wmMsgSubscribeValue;
+struct wmOperatorType;
+struct IDProperty;
 
 /* regions */
 void    ED_region_do_listen(
@@ -141,7 +143,6 @@ void    ED_area_tag_redraw_regiontype(ScrArea *sa, int type);
 void    ED_area_tag_refresh(ScrArea *sa);
 void    ED_area_do_refresh(struct bContext *C, ScrArea *sa);
 void    ED_area_azones_update(ScrArea *sa, const int mouse_xy[]);
-void    ED_area_headerprint(ScrArea *sa, const char *str);
 void    ED_area_newspace(struct bContext *C, ScrArea *sa, int type, const bool skip_ar_exit);
 void    ED_area_prevspace(struct bContext *C, ScrArea *sa);
 void    ED_area_swapspace(struct bContext *C, ScrArea *sa1, ScrArea *sa2);
@@ -242,6 +243,8 @@ void ED_workspace_object_mode_sync_from_object(
 void ED_workspace_object_mode_sync_from_scene(
         struct wmWindowManager *wm, WorkSpace *workspace, struct Scene *scene);
 
+void    ED_workspace_status_text(struct bContext *C, const char *str);
+
 /* anim */
 void    ED_update_for_newframe(struct Main *bmain, struct Depsgraph *depsgraph);
 
@@ -312,6 +315,21 @@ int     ED_operator_posemode_local(struct bContext *C);
 int     ED_operator_mask(struct bContext *C);
 int     ED_operator_camera(struct bContext *C);
 
+/* screen_user_menu.c */
+
+struct bUserMenu *ED_screen_user_menu_find(struct bContext *C);
+struct bUserMenu *ED_screen_user_menu_ensure(struct bContext *C);
+
+
+struct bUserMenuItem_Op *ED_screen_user_menu_item_find_operator(
+        struct ListBase *lb,
+        struct wmOperatorType *ot, struct IDProperty *prop, short opcontext);
+void ED_screen_user_menu_item_add_operator(
+        struct ListBase *lb, const char *ui_name,
+        struct wmOperatorType *ot, struct IDProperty *prop, short opcontext);
+void ED_screen_user_menu_item_remove(
+        struct ListBase *lb, struct bUserMenuItem *umi);
+void ED_screen_user_menu_register(void);
 
 /* Cache display helpers */
 
@@ -334,4 +352,3 @@ void ED_area_type_hud_ensure(struct bContext *C, struct ScrArea *sa);
 #define ED_KEYMAP_HEADER    64
 
 #endif /* __ED_SCREEN_H__ */
-

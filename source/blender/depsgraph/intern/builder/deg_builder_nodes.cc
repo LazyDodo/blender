@@ -66,6 +66,7 @@ extern "C" {
 #include "DNA_lightprobe_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_speaker_types.h"
 #include "DNA_texture_types.h"
 #include "DNA_world_types.h"
 
@@ -433,6 +434,9 @@ void DepsgraphNodeBuilder::build_id(ID *id) {
 		case ID_LT:
 			build_object_data_geometry_datablock(id);
 			break;
+		case ID_SPK:
+			build_speaker((Speaker *)id);
+			break;
 		default:
 			fprintf(stderr, "Unhandled ID %s\n", id->name);
 			BLI_assert(!"Should never happen");
@@ -461,9 +465,10 @@ void DepsgraphNodeBuilder::build_collection(
 	/* Build collection objects. */
 	LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
 		if (allow_restrict_flags) {
-			const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-					? OB_RESTRICT_VIEW
-					: OB_RESTRICT_RENDER;
+			const int restrict_flag = (
+			        (graph_->mode == DAG_EVAL_VIEWPORT) ?
+			        OB_RESTRICT_VIEW :
+			        OB_RESTRICT_RENDER);
 			if (cob->ob->restrictflag & restrict_flag) {
 				continue;
 			}
@@ -540,8 +545,11 @@ void DepsgraphNodeBuilder::build_object(int base_index,
 		build_gpencil(object->gpd);
 	}
 	/* Proxy object to copy from. */
-	if (object->proxy_from) {
+	if (object->proxy_from != NULL) {
 		build_object(-1, object->proxy_from, DEG_ID_LINKED_INDIRECTLY);
+	}
+	if (object->proxy_group != NULL) {
+		build_object(-1, object->proxy_group, DEG_ID_LINKED_INDIRECTLY);
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
@@ -615,6 +623,9 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 		case OB_LIGHTPROBE:
 			build_object_data_lightprobe(object);
 			break;
+		case OB_SPEAKER:
+			build_object_data_speaker(object);
+			break;
 		default:
 		{
 			ID *obdata = (ID *)object->data;
@@ -646,6 +657,16 @@ void DepsgraphNodeBuilder::build_object_data_lightprobe(Object *object)
 	                   DEG_NODE_TYPE_PARAMETERS,
 	                   NULL,
 	                   DEG_OPCODE_LIGHT_PROBE_EVAL);
+}
+
+void DepsgraphNodeBuilder::build_object_data_speaker(Object *object)
+{
+	Speaker *speaker = (Speaker *)object->data;
+	build_speaker(speaker);
+	add_operation_node(&object->id,
+	                   DEG_NODE_TYPE_PARAMETERS,
+	                   NULL,
+	                   DEG_OPCODE_SPEAKER_EVAL);
 }
 
 void DepsgraphNodeBuilder::build_object_transform(Object *object)
@@ -1474,6 +1495,19 @@ void DepsgraphNodeBuilder::build_lightprobe(LightProbe *probe)
 	                   DEG_OPCODE_LIGHT_PROBE_EVAL);
 
 	build_animdata(&probe->id);
+}
+
+void DepsgraphNodeBuilder::build_speaker(Speaker *speaker)
+{
+	if (built_map_.checkIsBuiltAndTag(speaker)) {
+		return;
+	}
+	/* Placeholder so we can add relations and tag ID node for update. */
+	add_operation_node(&speaker->id,
+	                   DEG_NODE_TYPE_PARAMETERS,
+	                   NULL,
+	                   DEG_OPCODE_SPEAKER_EVAL);
+	build_animdata(&speaker->id);
 }
 
 /* **** ID traversal callbacks functions **** */
