@@ -88,8 +88,6 @@ static void spacetype_free(SpaceType *st)
 	}
 
 	BLI_freelistN(&st->regiontypes);
-	BLI_freelistN(&st->toolshelf);
-
 }
 
 void BKE_spacetypes_free(void)
@@ -226,7 +224,6 @@ ARegion *BKE_area_region_copy(SpaceType *st, ARegion *ar)
 	newar->visible = 0;
 	newar->manipulator_map = NULL;
 	newar->regiontimer = NULL;
-	newar->headerstr = NULL;
 	newar->draw_buffer = NULL;
 
 	/* use optional regiondata callback */

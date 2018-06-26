@@ -10,7 +10,7 @@ in vec3 pos;
 in vec3 nor;
 in vec2 uv;
 #else /* HAIR_SHADER */
-#  ifdef OB_TEXTURE
+#  ifdef V3D_SHADING_TEXTURE_COLOR
 uniform samplerBuffer u; /* active texture layer */
 #  endif
 flat out float hair_rand;
@@ -24,7 +24,7 @@ in float curve_param;
 out vec3 normal_viewport;
 #endif
 
-#ifdef OB_TEXTURE
+#ifdef V3D_SHADING_TEXTURE_COLOR
 out vec2 uv_interp;
 #endif
 
@@ -53,7 +53,7 @@ void main()
 	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
 	hair_rand = integer_noise(fiber_index);
 #  else
-#    ifdef OB_TEXTURE
+#    ifdef V3D_SHADING_TEXTURE_COLOR
 	vec2 uv = hair_get_customdata_vec2(u);
 #    endif
 	float time, thick_time, thickness;
@@ -75,7 +75,7 @@ void main()
 	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
 #endif /* HAIR_SHADER */
 
-#ifdef OB_TEXTURE
+#ifdef V3D_SHADING_TEXTURE_COLOR
 	uv_interp = uv;
 #endif
 

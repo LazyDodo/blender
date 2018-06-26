@@ -496,7 +496,7 @@ static ParamHandle *construct_param_handle_subsurfed(Scene *scene, Object *ob, B
 	smd.subdivType = smd_real->subdivType;
 
 	initialDerived = CDDM_from_editbmesh(em, false, false);
-	derivedMesh = subsurf_make_derived_from_derived(initialDerived, &smd,
+	derivedMesh = subsurf_make_derived_from_derived(initialDerived, &smd, scene,
 	                                                NULL, SUBSURF_IN_EDIT_MODE);
 
 	initialDerived->release(initialDerived);
@@ -658,7 +658,7 @@ static void minimize_stretch_iteration(bContext *C, wmOperator *op, bool interac
 		if (sa) {
 			BLI_snprintf(str, sizeof(str),
 			             IFACE_("Minimize Stretch. Blend %.2f (Press + and -, or scroll wheel to set)"), ms->blend);
-			ED_area_headerprint(sa, str);
+			ED_workspace_status_text(C, str);
 		}
 
 		ms->lasttime = PIL_check_seconds_timer();
@@ -674,7 +674,7 @@ static void minimize_stretch_exit(bContext *C, wmOperator *op, bool cancel)
 	ScrArea *sa = CTX_wm_area(C);
 
 	if (sa)
-		ED_area_headerprint(sa, NULL);
+		ED_workspace_status_text(C, NULL);
 	if (ms->timer)
 		WM_event_remove_timer(CTX_wm_manager(C), CTX_wm_window(C), ms->timer);
 

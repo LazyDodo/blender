@@ -77,6 +77,7 @@ set(SRC
 	intern/blender.c
 	intern/blender_copybuffer.c
 	intern/blender_undo.c
+	intern/blender_user_menu.c
 	intern/blendfile.c
 	intern/bmfont.c
 	intern/boids.c
@@ -424,7 +425,7 @@ if(WITH_CODEC_FFMPEG)
 	)
 	add_definitions(-DWITH_FFMPEG)
 
-	remove_strict_flags_file(
+	remove_strict_c_flags_file(
 		intern/writeffmpeg.c
 	)
 endif()

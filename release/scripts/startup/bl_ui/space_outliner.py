@@ -38,15 +38,12 @@ class OUTLINER_HT_header(Header):
         layout.prop(space, "display_mode", icon_only=True)
 
         if display_mode in {'VIEW_LAYER'}:
-            layout.operator("outliner.collection_new", text="", icon="GROUP").nested = True
+            layout.operator("outliner.collection_new", text="", icon='GROUP').nested = True
 
         layout.separator_spacer()
 
         row = layout.row(align=True)
-        row.prop(space, "use_filter_search", text="")
-        sub = row.row(align=True)
-        sub.prop(space, "filter_text", text="")
-        sub.enabled = space.use_filter_search
+        row.prop(space, "filter_text", icon='VIEWZOOM', text="")
 
         layout.separator_spacer()
 
