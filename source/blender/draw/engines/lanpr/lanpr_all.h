@@ -238,14 +238,6 @@ typedef struct LANPR_Data {
 #define TNS_CALCULATION_OCCLUTION    4
 #define TNS_CALCULATION_FINISHED     100
 
-#define TNS_OVERRIDE_DISPLAY_NULL 0
-#define TNS_OVERRIDE_DISPLAY_SHOW 1
-#define TNS_OVERRIDE_DISPLAY_HIDE 2
-#define TNS_OVERRIDE_DISPLAY_SWAP 3
-
-#define NUL_LINE_WIDTH_WARNING_TOO_WIDE   1
-#define NUL_LINE_WIDTH_WARNING_TOO_THIN   2
-
 typedef struct LANPR_RenderTaskInfo {
 	//thrd_t           ThreadHandle;
 
@@ -359,12 +351,12 @@ typedef struct LANPR_RenderBuffer {
 
 	nListHandle DrawCommands;
 
-	//LANPR_RenderBufferPreviewNode RenderPreview[32];
+	//tnsRenderBufferPreviewNode RenderPreview[32];
 
 	struct Scene *Scene;
 	struct Object *Camera;
 
-	//LANPR_RenderTriangles are in mesh object.
+	//tnsRenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
 
 
@@ -413,7 +405,7 @@ typedef struct LANPR_RenderVert {
 	struct LANPR_RenderLine *IntersectingLine;
 	struct LANPR_RenderLine *IntersectintLine2;
 	struct LANPR_RenderTriangle *IntersectWith;     //   Positive 1         Negative 0
-	//LANPR_RenderTriangle* IntersectingOnFace;       //         <|               |>
+	//tnsRenderTriangle* IntersectingOnFace;       //         <|               |>
 	char Positive;                    //                 L---->|----->R	 L---->|----->R
 	char EdgeUsed;                    //                      <|		       |>
 }LANPR_RenderVert;
@@ -424,7 +416,7 @@ typedef struct LANPR_RenderLine {
 	struct LANPR_RenderTriangle *TL, *TR;
 	nListHandle Segments;
 	//tnsEdge*       Edge;//should be edge material
-	//LANPR_RenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
+	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
 	char MinOcclude;
 	struct Object *ObjectRef;
 	//char            IgnoreConnectedFace;
@@ -466,6 +458,53 @@ typedef struct LANPR_RenderSubPixel {
 //#define TNS_OVERRIDE_ALL_OTHERS_OUTSIDE_GROUP 2
 //#define TNS_OVERRIDE_ALL_OTHERS_IN_GROUP      3
 //#define TNS_OVERRIDE_ALL_OTHERS               4
+
+typedef struct LANPR_RenderDrawCommand {
+	nListItem           Item;
+	LANPR_RenderBuffer* ParentRB;
+
+	int              Type;
+
+	nSafeString*     Name;
+
+	tnsVector4d Color;
+	real        Thickness;
+	int         OccludeBegin, OccludeEnd;
+
+	int         UseStipple;
+	u16bit      StipplePattern;
+	u8bit       StippleSize;
+	int         DrawThisCommand;
+
+	int         DrawContour;
+	int         DrawCrease;
+	int         DrawIntersections;
+	int         DrawMaterialLines;
+
+	GLuint      VBO;
+	GLuint      NBO;
+	int         VertCount;
+
+	int          OverrideColor;
+	Material*    MaterialRef;
+	nSafeString* ReadMaterialName;
+
+	Collection*  OverrideGroup; // I'll correct the name to "collection" later.
+	nSafeString* ReadGroupName;
+	int          ExcludeGroup;
+
+	real         NormalEdgeClamp;
+	real         NormalEdgeStrength;
+	real         DepthEdgeClamp;
+	real         DepthEdgeStrength;
+
+	int          ClearDepthBuffer;
+	
+	int          DepthTest;
+
+	int          TransparencyMode;
+	real         Transparency;
+}LANPR_RenderDrawCommand;
 
 
 extern RenderEngineType DRW_engine_viewport_lanpr_type;

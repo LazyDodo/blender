@@ -71,8 +71,8 @@ typedef struct LANPR_LineStyleComponent{
 
 }LANPR_LineStyleComponent;
 
-typedef struct LANPR_LineStyle{
-    struct LANPR_LineStyle *next, *prev;
+typedef struct LANPR_LineLayer{
+    struct LANPR_LineLayer *next, *prev;
 
 	int      what;
 
@@ -112,6 +112,6 @@ typedef struct LANPR_LineStyle{
 	unsigned int NBO;
 	int         VertCount;
 
-}LANPR_LineStyle;
+}LANPR_LineLayer;
 
 #endif

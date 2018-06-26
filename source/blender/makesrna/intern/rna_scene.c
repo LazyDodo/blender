@@ -2126,7 +2126,7 @@ void rna_lanpr_active_line_layer_index_range(
 int rna_lanpr_active_line_layer_index_get(PointerRNA *ptr)
 {
 	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
-    LANPR_LineStyle* ls;
+    LANPR_LineLayer* ls;
     int i=0;
     for(ls = lanpr->line_style_layers.first;ls;ls=ls->next){
         if(ls == lanpr->active_layer) return i;
@@ -2138,7 +2138,7 @@ int rna_lanpr_active_line_layer_index_get(PointerRNA *ptr)
 void rna_lanpr_active_line_layer_index_set(PointerRNA *ptr, int value)
 {
 	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
-    LANPR_LineStyle* ls;
+    LANPR_LineLayer* ls;
     int i=0;
     for(ls = lanpr->line_style_layers.first;ls;ls=ls->next){
         if(i==value){
@@ -2153,8 +2153,8 @@ void rna_lanpr_active_line_layer_index_set(PointerRNA *ptr, int value)
 PointerRNA rna_lanpr_active_line_layer_get(PointerRNA *ptr)
 {
 	SceneLANPR *lanpr = (SceneLANPR *)ptr->data;
-	LANPR_LineStyle *ls = lanpr->active_layer;
-	return rna_pointer_inherit_refine(ptr, &RNA_LANPR_LineStyle, ls);
+	LANPR_LineLayer *ls = lanpr->active_layer;
+	return rna_pointer_inherit_refine(ptr, &RNA_LANPR_LineLayer, ls);
 }
 
 void rna_lanpr_active_line_layer_set(PointerRNA *ptr, PointerRNA value)
@@ -6401,7 +6401,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
 
-	/* these shall go into LANPR_LineStyle layer */
+	/* these shall go into LANPR_LineLayer */
 
 	prop = RNA_def_property(srna, "enable_crease", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Enable Crease", "Draw crease lines");
@@ -6454,18 +6454,18 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "layers", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, "SceneLANPR", "line_style_layers", NULL);
-	RNA_def_property_struct_type(prop, "LANPR_LineStyle");
+	RNA_def_property_struct_type(prop, "LANPR_LineLayer");
 	RNA_def_property_ui_text(prop, "Line Layers", "LANPR Line Layers");
 
     /* this part I refered to gpencil's and freestyle's and it seems that there's no difference */
 	RNA_def_property_srna(prop, "LineLayers");
 	srna = RNA_def_struct(brna, "LineLayers", NULL);
 	RNA_def_struct_sdna(srna, "SceneLANPR");
-	RNA_def_struct_ui_text(srna, "LANPR Line Style", "");
+	RNA_def_struct_ui_text(srna, "LANPR Line Layers", "");
 
     /* this part when accessing in python using lanpr.layers.active_layer always return None */
 	prop = RNA_def_property(srna, "active_layer", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "LANPR_LineStyle");
+	RNA_def_property_struct_type(prop, "LANPR_LineLayer");
 	RNA_def_property_pointer_funcs(prop, "rna_lanpr_active_line_layer_get", "rna_lanpr_active_line_layer_set", NULL, NULL);
 	RNA_def_property_ui_text(prop, "Active Line Layer", "Active line layer being displayed");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);

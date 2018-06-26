@@ -2504,9 +2504,9 @@ LANPR_RenderBuffer *lanpr_CreateRenderBuffer(SceneLANPR *lanpr) {
 	return rb;
 }
 
-void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineStyle *rdc);
+void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *rdc);
 
-int lanpr_DrawEdgePreview(LANPR_RenderBuffer *rb, LANPR_LineStyle *OverrideLayer, Collection *OverrideGroup,
+int lanpr_DrawEdgePreview(LANPR_RenderBuffer *rb, LANPR_LineLayer *OverrideLayer, Collection *OverrideGroup,
                           real ThicknessScale, RenderEngine *e, GPUFrameBuffer *Off) {
 	//too many errors. later....
 }
@@ -2767,7 +2767,7 @@ u32bit lanpr_MakeBoundingAreaVBORecursive(float *V, u32bit Begin, LANPR_Bounding
 //}
 
 
-void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineStyle *rdc) {
+void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *rdc) {
 	int Count = 0;
 	int level;
 	float *V, *tv, *N;;
@@ -2845,7 +2845,7 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineStyle *rdc
 
 }
 void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
-	LANPR_LineStyle *rdc;
+	LANPR_LineLayer *rdc;
 	if (!lanpr) return;
 	//tnsCleanObjectFinishMarks(rb->Scene);
 	//for (rdc = lanpr->line_style_layers.pLast; rdc; rdc = rdc->Item.pPrev) {
@@ -2906,8 +2906,8 @@ void SCENE_OT_lanpr_calculate_feature_lines(struct wmOperatorType *ot){
 	ot->exec = lanpr_compute_feature_lines_exec;
 }
 
-LANPR_LineStyle *lanpr_new_line_layer(SceneLANPR *lanpr){
-	LANPR_LineStyle *ls = MEM_callocN(sizeof(LANPR_LineStyle), "Line Style");
+LANPR_LineLayer *lanpr_new_line_layer(SceneLANPR *lanpr){
+	LANPR_LineLayer *ls = MEM_callocN(sizeof(LANPR_LineLayer), "Line Style");
 	BLI_addtail(&lanpr->line_style_layers, ls);
 	lanpr->active_layer = ls;
 	return ls;
@@ -2925,7 +2925,7 @@ int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
-	LANPR_LineStyle *rdc = lanpr->active_layer;
+	LANPR_LineLayer *rdc = lanpr->active_layer;
 
 	if (!rdc) return OPERATOR_FINISHED;
 
@@ -2944,7 +2944,7 @@ int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
-	LANPR_LineStyle *rdc = lanpr->active_layer;
+	LANPR_LineLayer *rdc = lanpr->active_layer;
 
 	if (!rdc) return OPERATOR_FINISHED;
 
@@ -2971,7 +2971,7 @@ int lanpr_auto_create_line_layer(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
-	LANPR_LineStyle *rdc;
+	LANPR_LineLayer *rdc;
 
 	rdc = lanpr_new_line_layer(lanpr);
 	rdc->thickness = 2;
