@@ -374,12 +374,7 @@ void GPENCIL_OT_stroke_simplify_fixed(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_separate(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_split(struct wmOperatorType *ot);
 
-void GPENCIL_OT_brush_add(struct wmOperatorType *ot);
-void GPENCIL_OT_brush_remove(struct wmOperatorType *ot);
-void GPENCIL_OT_brush_change(struct wmOperatorType *ot);
-void GPENCIL_OT_brush_move(struct wmOperatorType *ot);
 void GPENCIL_OT_brush_presets_create(struct wmOperatorType *ot);
-void GPENCIL_OT_brush_copy(struct wmOperatorType *ot);
 void GPENCIL_OT_brush_select(struct wmOperatorType *ot);
 
 void GPENCIL_OT_sculpt_select(struct wmOperatorType *ot);
