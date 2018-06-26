@@ -34,6 +34,9 @@ extern char datatoc_lanpr_image_peel_fragment[];
 extern char datatoc_lanpr_line_connection_vertex[];
 extern char datatoc_lanpr_line_connection_fragment[];
 extern char datatoc_lanpr_line_connection_geometry[];
+extern char datatoc_lanpr_software_line_width_geometry[];
+extern char datatoc_lanpr_atlas_project_passthrough_vertex[];
+extern char datatoc_lanpr_atlas_preview_fragment[];
 
 
 
@@ -86,6 +89,8 @@ static void lanpr_engine_init(void *ved){
 
 		OneTime.InitComplete = 1;
 	}
+
+	/* SNAKE */
 
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->depth, GPU_DEPTH_COMPONENT32F, 8, 0);
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->color, GPU_RGBA32F, 8, 0);
@@ -153,7 +158,18 @@ static void lanpr_engine_init(void *ved){
 				NULL, NULL);
 	}
 
+	/* DPIX */
 	lanpr_init_atlas_inputs(ved);
+
+	/* SOFTWARE */
+	if (!OneTime.software_shader) {
+		OneTime.software_shader =
+			GPU_shader_create(
+				datatoc_lanpr_atlas_project_passthrough_vertex,
+				datatoc_lanpr_atlas_preview_fragment,
+				datatoc_lanpr_software_line_width_geometry,
+				NULL, NULL);
+	}
 
 }
 static void lanpr_engine_free(void){
@@ -251,7 +267,7 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
 	}
-	else {
+	elif (lanpr->master_mode == LANPR_MASTER_MODE_SNAKE) {
 		psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
 		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert0_tex", &txl->dpix_in_pl);
@@ -305,6 +321,15 @@ static void lanpr_cache_init(void *vedata){
 
 			pd->dpix_batch_list.first = pd->dpix_batch_list.last = 0;
 			BLI_mempool_clear(pd->mp_batch_list);
+		}
+	}elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
+		psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR);
+		LANPR_LineLayer* ll;
+		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
+			DRW_shgroup_uniform_float(ll->shgrp, "line_thickness", &ll->thickness, 1);
+			if(ll->batch) DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
 		}
 	}
 
@@ -370,13 +395,13 @@ static void lanpr_cache_finish(void *vedata){
 	}
 }
 
-static void lanpr_draw_scene(void *vedata){
+static void lanpr_draw_scene(void *vedata) {
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_FramebufferList *fbl = ((LANPR_Data *)vedata)->fbl;
 
-	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
 
@@ -405,8 +430,12 @@ static void lanpr_draw_scene(void *vedata){
 	if (lanpr->master_mode == LANPR_MASTER_MODE_DPIX) {
 		lanpr_dpix_draw_scene(txl, fbl, psl, stl->g_data, lanpr);
 	}
-	else {
+	elif(lanpr->master_mode == LANPR_MASTER_MODE_SNAKE) {
 		lanpr_snake_draw_scene(txl, fbl, psl, stl->g_data, lanpr);
+	}
+	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
+		GPU_framebuffer_bind(dfbl->default_fb);
+		DRW_draw_pass(psl->software_pass);
 	}
 }
 

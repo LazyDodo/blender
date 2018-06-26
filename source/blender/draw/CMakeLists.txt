@@ -239,6 +239,7 @@ data_to_c_simple(engines/lanpr/shaders/lanpr_line_connection.geometry SRC)
 data_to_c_simple(engines/lanpr/shaders/lanpr_line_connection.fragment SRC)
 data_to_c_simple(engines/lanpr/shaders/lanpr_snake_edge.fragment SRC)
 data_to_c_simple(engines/lanpr/shaders/lanpr_snake_multichannel.fragment SRC)
+data_to_c_simple(engines/lanpr/shaders/lanpr_software_line_width.geometry SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_hair_lib.glsl SRC)

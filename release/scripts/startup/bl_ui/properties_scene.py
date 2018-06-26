@@ -505,7 +505,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
 
         layout.prop(lanpr, "master_mode", expand=True) 
 
-        if lanpr.master_mode == "DPIX":
+        if lanpr.master_mode == "DPIX" or lanpr.master_mode == "SOFTWARE":
             layout.label(text="DPIX:")
             layout.prop(lanpr, "reloaded")
             layout.label(text="Effect Settings:")
@@ -520,7 +520,17 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
             row = layout.row()
             rows = 4
             layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=rows)
-            layout.operator("scene.lanpr_add_line_layer")
+            if active_layer:
+                split = layout.split()
+                col = split.column()
+                col.operator("scene.lanpr_add_line_layer")
+                col = split.column()
+                col.operator("scene.lanpr_rebuild_all_commands")
+            else:
+                layout.operator("scene.lanpr_add_line_layer")
+
+            if lanpr.master_mode == "SOFTWARE":
+                layout.operator("scene.lanpr_calculate")
             
             if active_layer:
 
@@ -534,50 +544,61 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                     col = layout.column()
                     col.label(text="Enable:")
                     row = col.row(align=True)
+                    row.prop(active_layer, "enable_contour", text="Contour", toggle=True)
                     row.prop(active_layer, "enable_crease", text="Crease", toggle=True)
                     row.prop(active_layer, "enable_edge_mark", text="Mark", toggle=True)
                     row.prop(active_layer, "enable_material_seperate", text="Material", toggle=True)
                     row.prop(active_layer, "enable_intersection", text="Intersection", toggle=True)
 
                     row = col.row(align=True)
-                    if lanpr.enable_crease:
+                    if active_layer.enable_contour:
+                        row.prop(active_layer, "color", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    if active_layer.enable_crease:
                         row.prop(active_layer, "crease_color", text="")
                     else:
                         row.label(text="OFF")
                     
-                    if lanpr.enable_edge_mark:
+                    if active_layer.enable_edge_mark:
                         row.prop(active_layer, "edge_mark_color", text="")
                     else:
                         row.label(text="OFF")
 
-                    if lanpr.enable_material_seperate:
+                    if active_layer.enable_material_seperate:
                         row.prop(active_layer, "material_color", text="")
                     else:
                         row.label(text="OFF")
 
-                    if lanpr.enable_intersection:
+                    if active_layer.enable_intersection:
                         row.prop(active_layer, "intersection_color", text="")
                     else:
                         row.label(text="OFF")
 
                     row = col.row(align=True)
-                    if lanpr.enable_crease:
-                        row.prop(active_layer, "line_thickness_crease", text="")
+                    if active_layer.enable_contour:
+                        row.prop(active_layer, "thickness", text="")
+                    else:
+                        row.label(text="OFF")
+
+                    if active_layer.enable_crease:
+                        row.prop(active_layer, "thickness_crease", text="")
                     else:
                         row.label(text="OFF")
                     
-                    if lanpr.enable_edge_mark:
-                        row.prop(active_layer, "line_thickness_edge_mark", text="")
+                    if active_layer.enable_edge_mark:
+                        row.prop(active_layer, "thickness_edge_mark", text="")
                     else:
                         row.label(text="OFF")
 
-                    if lanpr.enable_material_seperate:
-                        row.prop(active_layer, "line_thickness_material", text="")
+                    if active_layer.enable_material_seperate:
+                        row.prop(active_layer, "thickness_material", text="")
                     else:
                         row.label(text="OFF")
 
-                    if lanpr.enable_intersection:
-                        row.prop(active_layer, "intersection_material", text="")
+                    if active_layer.enable_intersection:
+                        row.prop(active_layer, "thickness_intersection", text="")
                     else:
                         row.label(text="OFF")
 

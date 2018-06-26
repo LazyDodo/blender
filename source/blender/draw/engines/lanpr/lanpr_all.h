@@ -52,16 +52,17 @@
 typedef struct LANPROneTimeInit {
 
 	/* Snake */
-
 	GPUShader *multichannel_shader;
 	GPUShader *edge_detect_shader;
 	GPUShader *edge_thinning_shader;
 	GPUShader *snake_connection_shader;
 
 	/* DPIX */
-
 	GPUShader *dpix_transform_shader;
 	GPUShader *dpix_preview_shader;
+
+	/* Software */
+	GPUShader *software_shader;
 
 	void *ved;
 
@@ -105,6 +106,9 @@ typedef struct LANPR_PassList {
 	struct DRWPass *dpix_transform_pass;
 	struct DRWPass *dpix_preview_pass;
 
+	/* SOFTWARE */
+	struct DRWPass *software_pass;
+
 } LANPR_PassList;
 
 typedef struct LANPR_FramebufferList {
@@ -147,6 +151,9 @@ typedef struct LANPR_PrivateData {
 
 	DRWShadingGroup *dpix_transform_shgrp;
 	DRWShadingGroup *dpix_preview_shgrp;
+
+	// moved into line layer.
+	//DRWShadingGroup *software_shgrp;
 
 	//snake
 

@@ -61,6 +61,8 @@ struct Collection;
 #define LANPR_COMPONENT_INCLUSIVE         0
 #define LANPR_COMPONENT_EXCLUSIVE         1
 
+struct DRWShadingGroup;
+
 typedef struct LANPR_LineStyleComponent{
     struct LANPR_LineStyleComponent *next, *prev;
 
@@ -110,6 +112,8 @@ typedef struct LANPR_LineLayer{
     int      a;
 
     ListBase components;
+
+	struct DRWShadingGroup *shgrp;
 
 	int         DrawThisCommand;
 
