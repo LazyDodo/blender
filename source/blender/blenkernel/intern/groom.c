@@ -1143,13 +1143,67 @@ static void groom_guide_buffer_reserve(int reserve, GroomGuideVertex **r_verts, 
 /* Generate vertices for the curve based on a guide function.
  * The guide function maps 1D parametric space to a continuous 3D position and direction.
  * 
- * \param stepsize      Desired distance between guide curve vertices
- * \param maxverts      Maximum number of allowed vertices
- * \param r_verts       Array of vertices generated for the guide curve
- * \param r_numverts    Reserved size of the vertex array
- * \param r_numused     Number of vertices in the guide curve
+ * \param numverts          Vertices per curve section
+ * \param maxverts          Maximum number of allowed vertices
+ * \param r_verts           Array of vertices generated for the guide curve
+ * \param r_numverts        Reserved size of the vertex array
+ * \param r_numused         Number of vertices in the guide curve
  */
-static void groom_guide_curve_discretize(
+static void groom_guide_curve_build_parametric(
+        const GroomRegion *region,
+        const Mesh *scalp,
+        int guide_idx,
+        int numverts,
+        int maxverts,
+        GroomGuideVertex **r_verts,
+        int *r_totalloc,
+        int *r_totverts)
+{
+	BLI_assert(*r_totverts <= maxverts);
+	if (*r_totverts == maxverts)
+	{
+		return;
+	}
+	
+	GroomGuideIterator iter;
+	if (!groom_guide_curve_start(&iter, region, scalp, guide_idx, numverts))
+	{
+		return;
+	}
+	
+	int totverts = *r_totverts;
+	for (;
+	     groom_guide_curve_valid(&iter);
+	     groom_guide_curve_next(&iter, region, scalp))
+	{
+		totverts += 1;
+		groom_guide_buffer_reserve(totverts, r_verts, r_totalloc);
+		
+		GroomGuideVertex *v = &((*r_verts)[totverts - 1]);
+		groom_guide_curve_get(&iter, v->co);
+		v->flag = 0;
+		
+		BLI_assert(totverts <= maxverts);
+		if (totverts == maxverts)
+		{
+			break;
+		}
+	}
+	
+	*r_totverts = totverts;
+}
+
+/* Generate vertices for the curve based on a guide function.
+ * The guide function maps 1D parametric space to a continuous 3D position and direction.
+ * 
+ * \param vertex_distance   Desired distance between guide curve vertices
+ * \param maxverts          Maximum number of allowed vertices
+ * \param numsteps          Steps per curve section to examine (more steps = better accuracy)
+ * \param r_verts           Array of vertices generated for the guide curve
+ * \param r_numverts        Reserved size of the vertex array
+ * \param r_numused         Number of vertices in the guide curve
+ */
+static void groom_guide_curve_build_arclength(
         const GroomRegion *region,
         const Mesh *scalp,
         int guide_idx,
@@ -1174,6 +1228,10 @@ static void groom_guide_curve_discretize(
 	
 	float cur[3], prev[3];
 	groom_guide_curve_get(&iter, prev);
+	if (groom_guide_curve_valid(&iter))
+	{
+		groom_guide_curve_next(&iter, region, scalp);
+	}
 	
 	double length = 0.0;
 	int totverts = *r_totverts;
@@ -1208,6 +1266,11 @@ static void groom_guide_curve_discretize(
 	*r_totverts = totverts;
 }
 
+typedef enum GroomGuideBuildMode {
+	GROOM_GUIDE_PARAMETRIC = 0,
+	GROOM_GUIDE_ARCLENGTH = 1,
+} GroomGuideBuildMode;
+
 void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom)
 {
 //#define DEBUG_TIME
@@ -1240,8 +1303,10 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 	TIMEIT_START(groom_guide_curve_discretize);
 #endif
 	{
+		GroomGuideBuildMode build_mode = GROOM_GUIDE_PARAMETRIC;
+		static const int spline_res = 64;
 		static const float vertex_distance = 0.05f;
-		static const int numsteps = 1000;
+		static const int numsteps = 100;
 		static const int maxverts = 1000000;
 		int guide_idx = 0;
 		for (const GroomRegion *region = regions->first; region; region = region->next)
@@ -1250,18 +1315,35 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 			for (int i = 0; i < bundle->totguides; ++i)
 			{
 				const int prev_totverts = totverts;
-				groom_guide_curve_discretize(
-				            region,
-				            scalp,
-				            i,
-				            vertex_distance,
-				            maxverts,
-				            numsteps,
-				            &verts,
-				            &totalloc,
-				            &totverts);
-				numverts[guide_idx] = totverts - prev_totverts;
 				
+				switch (build_mode)
+				{
+					case GROOM_GUIDE_PARAMETRIC:
+						groom_guide_curve_build_parametric(
+						            region,
+						            scalp,
+						            i,
+						            spline_res,
+						            maxverts,
+						            &verts,
+						            &totalloc,
+						            &totverts);
+						break;
+					case GROOM_GUIDE_ARCLENGTH:
+						groom_guide_curve_build_arclength(
+						            region,
+						            scalp,
+						            i,
+						            vertex_distance,
+						            maxverts,
+						            numsteps,
+						            &verts,
+						            &totalloc,
+						            &totverts);
+						break;
+				}
+				
+				numverts[guide_idx] = totverts - prev_totverts;
 				if (numverts[guide_idx] < 2)
 				{
 					--usedguides;
