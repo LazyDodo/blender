@@ -783,11 +783,6 @@ static void eevee_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, E
 	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * max_ii(1, min_ii(lcache->grid_count, MAX_GRID)));
 }
 
-bool EEVEE_lightprobes_all_probes_ready(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
-{
-	return true;
-}
-
 void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {
 	EEVEE_StorageList *stl = vedata->stl;

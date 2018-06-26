@@ -891,7 +891,6 @@ void EEVEE_lights_free(void);
 
 /* eevee_lightprobes.c */
 bool EEVEE_lightprobes_obj_visibility_cb(bool vis_in, void *user_data);
-bool EEVEE_lightprobes_all_probes_ready(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object *ob);
