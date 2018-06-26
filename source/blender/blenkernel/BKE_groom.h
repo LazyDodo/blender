@@ -42,6 +42,9 @@ struct Mesh;
 struct Object;
 struct Scene;
 
+
+/* === Groom Datablock === */
+
 void BKE_groom_init(struct Groom *groom);
 void *BKE_groom_add(struct Main *bmain, const char *name);
 

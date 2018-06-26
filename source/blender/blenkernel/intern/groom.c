@@ -68,6 +68,134 @@
 
 #include "bmesh.h"
 
+#include "PIL_time_utildefines.h"
+
+
+/* === Utility Spline Functions === */
+
+/* Calculate forward differencing increments for a cubic polynomial,
+ * based on input points a..d
+ */
+BLI_INLINE void groom_forward_diff_init(
+        const float a[3],
+        const float b[3],
+        const float c[3],
+        const float d[3],
+        double stepsize,
+        double r_q[4][3])
+{
+	double f = stepsize;
+	double ff = f * f;
+	double fff = f * ff;
+	
+	for (int k = 0; k < 3; ++k)
+	{
+		double na = (double)a[k] * fff;
+		double nb = (double)b[k] * ff;
+		double nc = (double)c[k] * f;
+		double nd = (double)d[k];
+		
+		r_q[0][k] = nd;
+		r_q[1][k] = na + nb + nc;
+		r_q[2][k] = 6 * na + 2 * nb;
+		r_q[3][k] = 6 * na;
+	}
+}
+
+/* Calculate forward differencing increments for a hermite spline,
+ * define tangents from segment direction.
+ * co0 and co3 may be NULL.
+ */
+BLI_INLINE void groom_forward_diff_init_hermite(
+        const float *co0,
+        const float *co1,
+        const float *co2,
+        const float *co3,
+        double stepsize,
+        double r_q[4][3])
+{
+	float a[3], b[3], c[3], d[3];
+	/* define tangents from segment direction */
+	float n1[3], n2[3];
+	
+	if (co0)
+	{
+		sub_v3_v3v3(n1, co2, co0);
+		mul_v3_fl(n1, 0.5f);
+	}
+	else
+	{
+		sub_v3_v3v3(n1, co2, co1);
+	}
+	
+	if (co3)
+	{
+		sub_v3_v3v3(n2, co3, co1);
+		mul_v3_fl(n2, 0.5f);
+	}
+	else
+	{
+		sub_v3_v3v3(n2, co2, co1);
+	}
+	
+	/* Hermite spline interpolation */
+	/* a = 2.0f * (co1 - co2) + n1 + n2 */
+	sub_v3_v3v3(a, co1, co2);
+	mul_v3_fl(a, 2.0f);
+	add_v3_v3(a, n1);
+	add_v3_v3(a, n2);
+	
+	/* b = 3.0f * (co2 - co1) - 2.0f * n1 - n2 */
+	sub_v3_v3v3(b, co2, co1);
+	mul_v3_fl(b, 3.0f);
+	madd_v3_v3fl(b, n1, -2.0f);
+	sub_v3_v3(b, n2);
+	
+	/* c = n1 */
+	copy_v3_v3(c, n1);
+	
+	/* d = co1 */
+	copy_v3_v3(d, co1);
+	
+	return groom_forward_diff_init(a, b, c, d, stepsize, r_q);
+}
+
+/* Calculate next cubic polynomial point using forward differencing */
+BLI_INLINE void groom_forward_diff_step(double q[4][3])
+{
+	for (int k = 0; k < 3; ++k)
+	{
+		q[0][k] += q[1][k];
+		q[1][k] += q[2][k];
+		q[2][k] += q[3][k];
+	}
+}
+
+/* Get the current point */
+BLI_INLINE void groom_forward_diff_get_point(const double q[4][3], float r_p[3])
+{
+	r_p[0] = (float)q[0][0];
+	r_p[1] = (float)q[0][1];
+	r_p[2] = (float)q[0][2];
+}
+
+/* Calculate full array of cubic polynomial points using forward differencing */
+static void groom_forward_diff_array(
+        double q[4][3],
+        float (*p)[3],
+        int it,
+        int stride)
+{
+	for (int i = 0; i <= it; i++) {
+		groom_forward_diff_get_point(q, *p);
+		
+		p = POINTER_OFFSET(p, stride);
+		groom_forward_diff_step(q);
+	}
+}
+
+
+/* === Groom Datablock === */
 
 void BKE_groom_init(Groom *groom)
 {
@@ -860,6 +988,28 @@ void BKE_groom_hair_distribute(const Depsgraph *depsgraph, Groom *groom, unsigne
 	}
 }
 
+static void groom_eval_shape_vertex(const GroomRegion *region, const Mesh *scalp, int vertex_idx, int section_idx, float r_co[3])
+{
+	if (section_idx == 0 && scalp && region->scalp_samples != NULL)
+	{
+		/* For bound regions use location on the scalp */
+		const MeshSample *bound_loc = &region->scalp_samples[vertex_idx];
+		float nor[3], tang[3];
+		BKE_mesh_sample_eval(scalp, bound_loc, r_co, nor, tang);
+	}
+	else
+	{
+		const GroomBundle *bundle = &region->bundle;
+		const GroomSection *section = &bundle->sections[section_idx];
+		const GroomSectionVertex *vertex = &bundle->verts[vertex_idx + section_idx * region->numverts];
+		
+		float tmp[3] = {0.0f, 0.0f, 0.0f};
+		copy_v2_v2(tmp, vertex->co);
+		mul_v3_m3v3(r_co, section->mat, tmp);
+		add_v3_v3(r_co, section->center);
+	}
+}
+
 typedef struct GroomGuideVertex
 {
 	int flag;
@@ -889,43 +1039,124 @@ static void groom_guide_buffer_reserve(int reserve, GroomGuideVertex **r_verts, 
  */
 static void groom_guide_curve_discretize(
         const GroomRegion *region,
+        const Mesh *scalp,
         int guide_idx,
-        float stepsize,
+        float vertex_distance,
         int maxverts,
+        int numsteps,
         GroomGuideVertex **r_verts,
         int *r_totalloc,
         int *r_totverts)
 {
+	BLI_assert(*r_totverts <= maxverts);
+	if (*r_totverts == maxverts)
+	{
+		return;
+	}
+	
 	const GroomBundle *bundle = &region->bundle;
+	if (bundle->totsections < 2)
+	{
+		return;
+	}
 	const int shapesize = region->numverts;
-	const int curvesize = bundle->curvesize;
 	const float *weights = &bundle->guide_shape_weights[guide_idx * shapesize];
+	double stepsize = 1.0 / numsteps;
 
 	int totverts = *r_totverts;
-	for (int i = 0; i < curvesize; ++i)
+	float co0[3], co1[3], co2[3], co3[3];
+	/* Compute barycentric guide location from shape */
+	zero_v3(co1);
+	zero_v3(co2);
+	for (int j = 0; j < shapesize; ++j)
 	{
-		if (*r_totverts < maxverts)
+		float shape_co[3];
+		groom_eval_shape_vertex(region, scalp, j, 0, shape_co);
+		madd_v3_v3fl(co1, shape_co, weights[j]);
+		groom_eval_shape_vertex(region, scalp, j, 1, shape_co);
+		madd_v3_v3fl(co2, shape_co, weights[j]);
+	}
+	for (int i = 0; i < bundle->totsections-1; ++i)
+	{
+		BLI_assert(totverts <= maxverts);
+		if (totverts == maxverts)
 		{
-			totverts += 1;
-			groom_guide_buffer_reserve(totverts, r_verts, r_totalloc);
-			
-			GroomGuideVertex *v = &((*r_verts)[totverts - 1]);
+			break;
+		}
+		
+		if (i < bundle->totsections-2)
+		{
 			/* Compute barycentric guide location from shape */
-			zero_v3(v->co);
+			zero_v3(co3);
 			for (int j = 0; j < shapesize; ++j)
 			{
-				madd_v3_v3fl(v->co, bundle->curvecache[j * curvesize + i].co, weights[j]);
+				float shape_co[3];
+				groom_eval_shape_vertex(region, scalp, j, i + 2, shape_co);
+				madd_v3_v3fl(co3, shape_co, weights[j]);
 			}
-			v->flag = 0;
 		}
+		
+		double q[4][3];
+		groom_forward_diff_init_hermite(
+					i > 0 ? co0 : NULL,
+					co1,
+					co2,
+					i < bundle->totsections-2 ? co3 : NULL,
+					stepsize,
+					q);
+		
+		float a[3], b[3];
+		float *cur = a, *prev = b;
+		
+		groom_forward_diff_get_point(q, prev);
+		
+		double length = 0.0;
+		float *tmp;
+		for (int j = 0; j < numsteps; ++j)
+		{
+			groom_forward_diff_get_point(q, cur);
+			length += len_v3v3(a, b);
+			if (length > (double)vertex_distance)
+			{
+				totverts += 1;
+				groom_guide_buffer_reserve(totverts, r_verts, r_totalloc);
+				
+				GroomGuideVertex *v = &((*r_verts)[totverts - 1]);
+				copy_v3_v3(v->co, cur);
+				v->flag = 0;
+				
+				BLI_assert(totverts <= maxverts);
+				if (totverts == maxverts)
+				{
+					break;
+				}
+				
+				length = 0.0;
+			}
+			
+			groom_forward_diff_step(q);
+			SWAP_TVAL(tmp, cur, prev);
+		}
+		
+		copy_v3_v3(co0, co1);
+		copy_v3_v3(co1, co2);
+		copy_v3_v3(co2, co3);
 	}
+	
 	*r_totverts = totverts;
 }
 
 void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom)
 {
+//#define DEBUG_TIME
+	
 	struct HairSystem *hsys = groom->hair_system;
 	const ListBase *regions = groom->editgroom ? &groom->editgroom->regions : &groom->regions;
+	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
+	
+#ifdef DEBUG_TIME
+	TIMEIT_START(BKE_groom_hair_update_guide_curves);
+#endif
 	
 	/* Count guides for all regions combined */
 	int totguides = 0;
@@ -941,10 +1172,15 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 	
 	int *numverts = MEM_callocN(sizeof(int) * totguides, __func__);
 	int totverts = 0;
+	int usedguides = totguides;
 	// TODO multithreading here
+#ifdef DEBUG_TIME
+	TIMEIT_START(groom_guide_curve_discretize);
+#endif
 	{
-		static const float stepsize = 0.01f;
-		static const int maxverts = 100000;
+		static const float vertex_distance = 0.05f;
+		static const int numsteps = 1000;
+		static const int maxverts = 1000000;
 		int guide_idx = 0;
 		for (const GroomRegion *region = regions->first; region; region = region->next)
 		{
@@ -952,16 +1188,36 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 			for (int i = 0; i < bundle->totguides; ++i)
 			{
 				const int prev_totverts = totverts;
-				groom_guide_curve_discretize(region, i, stepsize, maxverts, &verts, &totalloc, &totverts);
+				groom_guide_curve_discretize(
+				            region,
+				            scalp,
+				            i,
+				            vertex_distance,
+				            maxverts,
+				            numsteps,
+				            &verts,
+				            &totalloc,
+				            &totverts);
 				numverts[guide_idx] = totverts - prev_totverts;
+				
+				if (numverts[guide_idx] < 2)
+				{
+					--usedguides;
+				}
 				
 				++guide_idx;
 			}
 		}
 	}
+#ifdef DEBUG_TIME
+	TIMEIT_END(groom_guide_curve_discretize);
+#endif
 	
 	/* Declare all guide curves and lengths */
-	BKE_hair_guide_curves_begin(hsys, totguides);
+	BKE_hair_guide_curves_begin(hsys, usedguides);
+#ifdef DEBUG_TIME
+	TIMEIT_START(BKE_hair_set_guide_curve);
+#endif
 	{
 		int guide_idx = 0;
 		for (const GroomRegion *region = regions->first; region; region = region->next)
@@ -969,98 +1225,82 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 			const GroomBundle *bundle = &region->bundle;
 			for (int i = 0; i < bundle->totguides; ++i)
 			{
-				/* TODO implement optional factors using scalp textures/vgroups */
-				float taper_length = region->taper_length;
-				float taper_thickness = region->taper_thickness;
-				
-				BKE_hair_set_guide_curve(
-				            hsys,
-				            i,
-				            &bundle->guides[i].root,
-				            numverts[guide_idx],
-				            taper_length,
-				            taper_thickness);
+				if (numverts[guide_idx] >= 2)
+				{
+					/* TODO implement optional factors using scalp textures/vgroups */
+					float taper_length = region->taper_length;
+					float taper_thickness = region->taper_thickness;
+					
+					BKE_hair_set_guide_curve(
+					            hsys,
+					            i,
+					            &bundle->guides[i].root,
+					            numverts[guide_idx],
+					            taper_length,
+					            taper_thickness);
+				}
 				++guide_idx;
 			}
 		}
 	}
+#ifdef DEBUG_TIME
+	TIMEIT_END(BKE_hair_set_guide_curve);
+#endif
+
+#ifdef DEBUG_TIME
+	TIMEIT_START(BKE_hair_guide_curves_end);
+#endif
 	BKE_hair_guide_curves_end(hsys);
+#ifdef DEBUG_TIME
+	TIMEIT_END(BKE_hair_guide_curves_end);
+#endif
 	
+#ifdef DEBUG_TIME
+	TIMEIT_START(BKE_hair_set_guide_vertex);
+#endif
 	for (int i = 0; i < totverts; ++i)
 	{
 		BKE_hair_set_guide_vertex(hsys, i, verts[i].flag, verts[i].co);
 	}
+#ifdef DEBUG_TIME
+	TIMEIT_END(BKE_hair_set_guide_vertex);
+#endif
 	
 	MEM_freeN(numverts);
 	MEM_freeN(verts);
 	
-	const Mesh *scalp = BKE_groom_get_scalp(depsgraph, groom);
 	if (scalp)
 	{
+#ifdef DEBUG_TIME
+		TIMEIT_START(BKE_hair_bind_follicles);
+#endif
 		BKE_hair_bind_follicles(hsys, scalp);
+#ifdef DEBUG_TIME
+		TIMEIT_END(BKE_hair_bind_follicles);
+#endif
 	}
+	
+#ifdef DEBUG_TIME
+	TIMEIT_END(BKE_groom_hair_update_guide_curves);
+#endif
 }
 
 
 /* === Curve cache === */
 
-/* forward differencing method for cubic polynomial eval */
-static void groom_forward_diff_cubic(float a, float b, float c, float d, float *p, int it, int stride)
-{
-	float f = (float)it;
-	a *= 1.0f / (f*f*f);
-	b *= 1.0f / (f*f);
-	c *= 1.0f / (f);
-	
-	float q0 = d;
-	float q1 = a + b + c;
-	float q2 = 6 * a + 2 * b;
-	float q3 = 6 * a;
-
-	for (int i = 0; i <= it; i++) {
-		*p = q0;
-		p = POINTER_OFFSET(p, stride);
-		q0 += q1;
-		q1 += q2;
-		q2 += q3;
-	}
-}
-
 /* cubic bspline section eval */
-static void groom_eval_curve_cache_section(GroomCurveCache *cache, int curve_res, const float *co0, const float *co1, const float *co2, const float *co3)
+static void groom_eval_curve_section(
+        float (*points)[3],
+        int stride,
+        int curve_res,
+        const float *co0,
+        const float *co1,
+        const float *co2,
+        const float *co3)
 {
-	float a, b, c, d;
-	for (int k = 0; k < 3; ++k)
-	{
-		/* define tangents from segment direction */
-		float n1, n2;
-		
-		if (co0)
-		{
-			n1 = 0.5f * (co2[k] - co0[k]);
-		}
-		else
-		{
-			n1 = co2[k] - co1[k];
-		}
-		
-		if (co3)
-		{
-			n2 = 0.5f * (co3[k] - co1[k]);
-		}
-		else
-		{
-			n2 = co2[k] - co1[k];
-		}
-		
-		/* Hermite spline interpolation */
-		a = 2.0f * (co1[k] - co2[k]) + n1 + n2;
-		b = 3.0f * (co2[k] - co1[k]) - 2.0f * n1 - n2;
-		c = n1;
-		d = co1[k];
-		
-		groom_forward_diff_cubic(a, b, c, d, cache->co + k, curve_res, sizeof(*cache));
-	}
+	double q[4][3];
+	groom_forward_diff_init_hermite(co0, co1, co2, co3, 1.0 / (double)curve_res, q);
+	groom_forward_diff_array(q, points, curve_res, stride);
 }
 
 static void groom_eval_center_curve_section(
@@ -1080,29 +1320,7 @@ static void groom_eval_center_curve_section(
 		const float *co1 = section[0].center;
 		const float *co2 = section[1].center;
 		const float *co3 = (i < bundle->totsections - 2) ? section[2].center : NULL;
-		groom_eval_curve_cache_section(cache, curve_res, co0, co1, co2, co3);
-	}
-}
-
-static void groom_eval_shape_vertex(const GroomRegion *region, const Mesh *scalp, int vertex_idx, int section_idx, float r_co[3])
-{
-	if (section_idx == 0 && scalp && region->scalp_samples != NULL)
-	{
-		/* For bound regions use location on the scalp */
-		const MeshSample *bound_loc = &region->scalp_samples[vertex_idx];
-		float nor[3], tang[3];
-		BKE_mesh_sample_eval(scalp, bound_loc, r_co, nor, tang);
-	}
-	else
-	{
-		const GroomBundle *bundle = &region->bundle;
-		const GroomSection *section = &bundle->sections[section_idx];
-		const GroomSectionVertex *vertex = &bundle->verts[vertex_idx + section_idx * region->numverts];
-		
-		float tmp[3] = {0.0f, 0.0f, 0.0f};
-		copy_v2_v2(tmp, vertex->co);
-		mul_v3_m3v3(r_co, section->mat, tmp);
-		add_v3_v3(r_co, section->center);
+		groom_eval_curve_section(&cache->co, sizeof(*cache), curve_res, co0, co1, co2, co3);
 	}
 }
 
@@ -1142,7 +1360,7 @@ static void groom_eval_shape_curves(
 				co3 = vec3;
 			}
 			
-			groom_eval_curve_cache_section(cache, curve_res, co0, co1, co2, co3);
+			groom_eval_curve_section(&cache->co, sizeof(*cache), curve_res, co0, co1, co2, co3);
 		}
 	}
 }
