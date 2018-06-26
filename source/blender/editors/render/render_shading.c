@@ -738,6 +738,9 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 	if (WM_jobs_test(wm, scene, WM_JOB_TYPE_RENDER))
 		return OPERATOR_CANCELLED;
 
+	if (WM_jobs_test(wm, scene, WM_JOB_TYPE_LIGHT_BAKE))
+		return OPERATOR_CANCELLED;
+
 	/* TODO abort if selected engine is not eevee. */
 	void *rj = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, true);
 
@@ -747,7 +750,7 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 	}
 
 	wmJob *wm_job = WM_jobs_get(wm, CTX_wm_window(C), scene, "Bake Lighting",
-	                            WM_JOB_EXCL_RENDER | WM_JOB_PRIORITY | WM_JOB_PROGRESS, WM_JOB_TYPE_RENDER);
+	                            WM_JOB_EXCL_RENDER | WM_JOB_PRIORITY | WM_JOB_PROGRESS, WM_JOB_TYPE_LIGHT_BAKE);
 	WM_jobs_customdata_set(wm_job, rj, EEVEE_lightbake_job_data_free);
 	WM_jobs_timer(wm_job, 0.4, NC_OBJECT | ND_DRAW, 0);
 	WM_jobs_callbacks(wm_job, EEVEE_lightbake_job, NULL, EEVEE_lightbake_update, NULL);
@@ -766,7 +769,6 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 	WM_jobs_start(CTX_wm_manager(C), wm_job);
 
 	WM_cursor_wait(0);
-	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, scene);
 
 	return OPERATOR_RUNNING_MODAL;
 }
