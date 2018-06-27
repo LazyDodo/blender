@@ -177,7 +177,7 @@ BSDF_CLOSURE_CLASS_BEGIN(PrincipledSheen, principled_sheen, PrincipledSheenBsdf,
 	CLOSURE_FLOAT3_PARAM(PrincipledSheenClosure, params.N),
 BSDF_CLOSURE_CLASS_END(PrincipledSheen, principled_sheen)
 
-/* ZOOTOPIA'S HAIR */
+/* PRINCIPLED HAIR BSDF */
 
 //BSDF_CLOSURE_CLASS_BEGIN(PrincipledHair, principled_hair, PrincipledHairBSDF,
 //                         LABEL_GLOSSY)
@@ -526,7 +526,7 @@ public:
 		/* Technically, the MultiGGX closure may also transmit. However,
 		 * since this is set statically and only used for caustic flags, this
 		 * is probably as good as it gets. */
-		if(skip(sd, path_flag, LABEL_GLOSSY|LABEL_REFLECT)) {
+	    if(skip(sd, path_flag, LABEL_GLOSSY|LABEL_REFLECT)) {
 			return NULL;
 		}
 
@@ -818,7 +818,7 @@ public:
 	{
 		volume_extinction_setup(sd, weight);
 
-		HenyeyGreensteinVolume *volume = (HenyeyGreensteinVolume*)bsdf_alloc_osl(sd, sizeof(HenyeyGreensteinVolume), weight, &params);
+	    HenyeyGreensteinVolume *volume = (HenyeyGreensteinVolume*)bsdf_alloc_osl(sd, sizeof(HenyeyGreensteinVolume), weight, &params);
 		if(!volume) {
 			return;
 		}

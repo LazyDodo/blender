@@ -32,6 +32,7 @@
 #include "kernel/closure/bsdf_principled_sheen.h"
 #include "kernel/closure/bssrdf.h"
 #include "kernel/closure/volume.h"
+
 CCL_NAMESPACE_BEGIN
 
 /* Returns the square of the roughness of the closure if it has roughness,
@@ -133,12 +134,12 @@ ccl_device_inline int bsdf_sample(KernelGlobals *kg,
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_ID:
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_FRESNEL_ID:
 			label = bsdf_microfacet_multi_ggx_sample(kg, sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
-					eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
+			        eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
 			break;
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_GLASS_ID:
 		case CLOSURE_BSDF_MICROFACET_MULTI_GGX_GLASS_FRESNEL_ID:
 			label = bsdf_microfacet_multi_ggx_glass_sample(kg, sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
-					eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
+			        eval, omega_in,  &domega_in->dx, &domega_in->dy, pdf, &sd->lcg_state);
 			break;
 		case CLOSURE_BSDF_MICROFACET_BECKMANN_ID:
 		case CLOSURE_BSDF_MICROFACET_BECKMANN_ANISO_ID:
@@ -217,10 +218,10 @@ ccl_device
 ccl_device_inline
 #endif
 float3 bsdf_eval(KernelGlobals *kg,
-				 ShaderData *sd,
-				 const ShaderClosure *sc,
-				 const float3 omega_in,
-				 float *pdf)
+                 ShaderData *sd,
+                 const ShaderClosure *sc,
+                 const float3 omega_in,
+                 float *pdf)
 {
 	float3 eval;
 
