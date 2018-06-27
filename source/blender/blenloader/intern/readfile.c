@@ -2953,7 +2953,10 @@ static void direct_link_workspace(FileData *fd, WorkSpace *workspace, const Main
 	for (bToolRef *tref = workspace->tools.first; tref; tref = tref->next) {
 		tref->runtime = NULL;
 		tref->properties = newdataadr(fd, tref->properties);
+		IDP_DirectLinkGroup_OrFree(&tref->properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
 	}
+
+	workspace->status_text = NULL;
 }
 
 static void lib_link_workspace_instance_hook(FileData *fd, WorkSpaceInstanceHook *hook, ID *id)
@@ -5047,7 +5050,6 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 
 	for (md=lb->first; md; md=md->next) {
 		md->error = NULL;
-		md->scene = NULL;
 
 		/* if modifiers disappear, or for upward compatibility */
 		if (NULL == modifierType_getInfo(md->type))
@@ -6476,7 +6478,6 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	BLI_listbase_clear(&ar->panels_category);
 	BLI_listbase_clear(&ar->handlers);
 	BLI_listbase_clear(&ar->uiblocks);
-	ar->headerstr = NULL;
 	ar->visible = 0;
 	ar->type = NULL;
 	ar->do_draw = 0;
@@ -6959,6 +6960,7 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		win->ghostwin = NULL;
 		win->gwnctx = NULL;
 		win->eventstate = NULL;
+		win->cursor_keymap_status = NULL;
 		win->tweak = NULL;
 #ifdef WIN32
 		win->ime_data = NULL;
@@ -8692,6 +8694,7 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 	link_list(fd, &user->themes);
 	link_list(fd, &user->user_keymaps);
+	link_list(fd, &user->user_menus);
 	link_list(fd, &user->addons);
 	link_list(fd, &user->autoexec_paths);
 
@@ -8715,6 +8718,17 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 		for (kmi=keymap->items.first; kmi; kmi=kmi->next)
 			direct_link_keymapitem(fd, kmi);
+	}
+
+	for (bUserMenu *um = user->user_menus.first; um; um = um->next) {
+		link_list(fd, &um->items);
+		for (bUserMenuItem *umi = um->items.first; umi; umi = umi->next) {
+			if (umi->type == USER_MENU_TYPE_OPERATOR) {
+				bUserMenuItem_Op *umi_op = (bUserMenuItem_Op *)umi;
+				umi_op->prop = newdataadr(fd, umi_op->prop);
+				IDP_DirectLinkGroup_OrFree(&umi_op->prop, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
+			}
+		}
 	}
 
 	for (addon = user->addons.first; addon; addon = addon->next) {
@@ -10041,7 +10055,7 @@ static void add_loose_objects_to_scene(
 				if (flag & FILE_AUTOSELECT) {
 					/* Note that link_object_postprocess() already checks for FILE_AUTOSELECT flag,
 					 * but it will miss objects from non-instantiated collections... */
-					if (base->flag & BASE_SELECTABLED) {
+					if (base->flag & BASE_SELECTABLE) {
 						base->flag |= BASE_SELECTED;
 						BKE_scene_object_base_flag_sync_from_base(base);
 					}
@@ -10074,7 +10088,7 @@ static void add_collections_to_scene(
 				BKE_collection_object_add(bmain, active_collection, ob);
 				Base *base = BKE_view_layer_base_find(view_layer, ob);
 
-				if (base->flag & BASE_SELECTABLED) {
+				if (base->flag & BASE_SELECTABLE) {
 					base->flag |= BASE_SELECTED;
 				}
 
@@ -10185,7 +10199,7 @@ static void link_object_postprocess(ID *id, Main *bmain, Scene *scene, ViewLayer
 		BKE_scene_object_base_flag_sync_from_base(base);
 
 		if (flag & FILE_AUTOSELECT) {
-			if (base->flag & BASE_SELECTABLED) {
+			if (base->flag & BASE_SELECTABLE) {
 				base->flag |= BASE_SELECTED;
 				BKE_scene_object_base_flag_sync_from_base(base);
 			}

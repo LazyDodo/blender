@@ -5,6 +5,12 @@
 #include "UI_resources.h"
 
 
+void workbench_effect_info_init(WORKBENCH_EffectInfo *effect_info)
+{
+	effect_info->jitter_index = 0;
+	effect_info->view_updated = true;
+}
+
 void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -15,7 +21,6 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 	View3D *v3d = draw_ctx->v3d;
 	if (v3d) {
 		wpd->shading = v3d->shading;
-		wpd->drawtype = v3d->drawtype;
 		if (wpd->shading.light == V3D_LIGHTING_MATCAP) {
 			wpd->studio_light = BKE_studiolight_find(
 			        wpd->shading.matcap, STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
@@ -30,7 +35,6 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 		wpd->shading.light = V3D_LIGHTING_STUDIO;
 		wpd->shading.shadow_intensity = 0.5;
 		copy_v3_fl(wpd->shading.single_color, 0.8f);
-		wpd->drawtype = OB_SOLID;
 		wpd->studio_light = BKE_studiolight_find_first(STUDIOLIGHT_INTERNAL);
 	}
 	wpd->shadow_multiplier = 1.0 - wpd->shading.shadow_intensity;
@@ -67,7 +71,6 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 		const int ssao_samples = scene->display.matcap_ssao_samples;
 
 		float invproj[4][4];
-		float dfdyfacs[2];
 		const bool is_persp = DRW_viewport_is_persp_get();
 		/* view vectors for the corners of the view frustum.
 		 * Can be used to recreate the world space position easily */
@@ -79,12 +82,10 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 		int i;
 		const float *size = DRW_viewport_size_get();
 
-		DRW_state_dfdy_factors_get(dfdyfacs);
-
 		wpd->ssao_params[0] = ssao_samples;
 		wpd->ssao_params[1] = size[0] / 64.0;
 		wpd->ssao_params[2] = size[1] / 64.0;
-		wpd->ssao_params[3] = dfdyfacs[1]; /* dfdy sign for offscreen */
+		wpd->ssao_params[3] = 0;
 
 		/* distance, factor, factor, attenuation */
 		copy_v4_fl4(wpd->ssao_settings, scene->display.matcap_ssao_distance, wpd->shading.cavity_valley_factor, wpd->shading.cavity_ridge_factor, scene->display.matcap_ssao_attenuation);
@@ -155,8 +156,7 @@ void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, floa
 
 	copy_v3_v3(light_direction, scene->display.light_direction);
 	negate_v3(light_direction);
-
-	DRW_uniformbuffer_update(wpd->world_ubo, &wpd->world_data);
+	DRW_uniformbuffer_update(wpd->world_ubo, wd);
 }
 
 static void workbench_private_material_free(void *data)

@@ -876,11 +876,6 @@ void ED_region_exit(bContext *C, ARegion *ar)
 	WM_event_modal_handler_region_replace(win, ar, NULL);
 	WM_draw_region_free(ar);
 
-	if (ar->headerstr) {
-		MEM_freeN(ar->headerstr);
-		ar->headerstr = NULL;
-	}
-
 	if (ar->regiontimer) {
 		WM_event_remove_timer(wm, win, ar->regiontimer);
 		ar->regiontimer = NULL;
@@ -961,7 +956,7 @@ static void screen_cursor_set(wmWindow *win, const int xy[2])
 	ScrArea *sa;
 
 	for (sa = screen->areabase.first; sa; sa = sa->next)
-		if ((az = is_in_area_actionzone(sa, xy)))
+		if ((az = ED_area_actionzone_find_xy(sa, xy)))
 			break;
 
 	if (sa) {
@@ -1003,7 +998,7 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 		ED_screen_areas_iter(win, scr, area_iter) {
 			if (xy[0] > area_iter->totrct.xmin && xy[0] < area_iter->totrct.xmax) {
 				if (xy[1] > area_iter->totrct.ymin && xy[1] < area_iter->totrct.ymax) {
-					if (is_in_area_actionzone(area_iter, xy) == NULL) {
+					if (ED_area_actionzone_refresh_xy(area_iter, xy) == NULL) {
 						sa = area_iter;
 						break;
 					}
@@ -1073,7 +1068,7 @@ int ED_screen_area_active(const bContext *C)
 	ScrArea *sa = CTX_wm_area(C);
 
 	if (win && sc && sa) {
-		AZone *az = is_in_area_actionzone(sa, &win->eventstate->x);
+		AZone *az = ED_area_actionzone_find_xy(sa, &win->eventstate->x);
 		ARegion *ar;
 
 		if (az && az->type == AZONE_REGION)
@@ -1141,7 +1136,7 @@ static void screen_global_topbar_area_create(wmWindow *win)
 
 static void screen_global_statusbar_area_create(wmWindow *win)
 {
-	const short size_y = HEADERY;
+	const short size_y = 0.8f * HEADERY;
 	rcti rect;
 
 	BLI_rcti_init(&rect, 0, WM_window_pixels_x(win) - 1, 0, WM_window_pixels_y(win) - 1);
@@ -1419,7 +1414,7 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 		}
 
 		/* prevent hanging header prints */
-		ED_area_headerprint(sa, NULL);
+		ED_workspace_status_text(C, NULL);
 	}
 
 	if (sa && sa->full) {
@@ -1680,6 +1675,7 @@ void ED_update_for_newframe(Main *bmain, Depsgraph *depsgraph)
 		for (sc = bmain->screen.first; sc; sc = sc->id.next) {
 			BKE_screen_view3d_scene_sync(sc, scene);
 		}
+		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 #endif
 

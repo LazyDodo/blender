@@ -230,16 +230,16 @@ static const uint g_shape_preset_hold_action_face[2][3] = {{2, 0, 1}, {3, 5, 4}}
 static const int tria_ofs[ROUNDBOX_TRIA_MAX] = {
 	[ROUNDBOX_TRIA_NONE]              = 0,
 	[ROUNDBOX_TRIA_ARROWS]            = 0,
-	[ROUNDBOX_TRIA_SCROLL]            = 6,
-	[ROUNDBOX_TRIA_MENU]              = 22,
-	[ROUNDBOX_TRIA_CHECK]             = 28,
-	[ROUNDBOX_TRIA_HOLD_ACTION_ARROW] = 34,
+	[ROUNDBOX_TRIA_SCROLL]            = 12,
+	[ROUNDBOX_TRIA_MENU]              = 28,
+	[ROUNDBOX_TRIA_CHECK]             = 34,
+	[ROUNDBOX_TRIA_HOLD_ACTION_ARROW] = 40,
 };
 static const int tria_vcount[ROUNDBOX_TRIA_MAX] = {
 	[ROUNDBOX_TRIA_NONE]              = 0,
-	[ROUNDBOX_TRIA_ARROWS]            = 3,
+	[ROUNDBOX_TRIA_ARROWS]            = 6,
 	[ROUNDBOX_TRIA_SCROLL]            = 16,
-	[ROUNDBOX_TRIA_MENU]              = 3,
+	[ROUNDBOX_TRIA_MENU]              = 6,
 	[ROUNDBOX_TRIA_CHECK]             = 6,
 	[ROUNDBOX_TRIA_HOLD_ACTION_ARROW] = 3,
 };
@@ -296,8 +296,8 @@ static uint32_t set_tria_vertex(
         int tria_type, int tria_v, int tria_id, int jit_v)
 {
 	uint32_t *data = GWN_vertbuf_raw_step(vflag_step);
-	if (ELEM(tria_type, ROUNDBOX_TRIA_ARROWS, ROUNDBOX_TRIA_MENU)) {
-		tria_v += tria_id * 3;
+	if (ELEM(tria_type, ROUNDBOX_TRIA_ARROWS)) {
+		tria_v += tria_id * tria_vcount[ROUNDBOX_TRIA_ARROWS];
 	}
 	*data  = tria_ofs[tria_type] + tria_v;
 	*data |= jit_v << 6;
@@ -308,7 +308,7 @@ static uint32_t set_tria_vertex(
 
 static void roundbox_batch_add_tria(Gwn_VertBufRaw *vflag_step, int tria, uint32_t last_data)
 {
-	const int tria_num = ELEM(tria, ROUNDBOX_TRIA_CHECK, ROUNDBOX_TRIA_HOLD_ACTION_ARROW) ? 1 : 2;
+	const int tria_num = ELEM(tria, ROUNDBOX_TRIA_CHECK, ROUNDBOX_TRIA_HOLD_ACTION_ARROW, ROUNDBOX_TRIA_MENU) ? 1 : 2;
 	/* for each tria */
 	for (int t = 0; t < tria_num; ++t) {
 		for (int j = 0; j < WIDGET_AA_JITTER; j++) {
@@ -335,7 +335,7 @@ Gwn_Batch *ui_batch_roundbox_widget_get(int tria)
 		vcount += ((WIDGET_CURVE_RESOLU * 2) * 2) * WIDGET_AA_JITTER; /* emboss */
 		if (tria) {
 			vcount += (tria_vcount[tria] + 2) * WIDGET_AA_JITTER; /* tria1 */
-			if (!ELEM(tria, ROUNDBOX_TRIA_CHECK, ROUNDBOX_TRIA_HOLD_ACTION_ARROW)) {
+			if (!ELEM(tria, ROUNDBOX_TRIA_CHECK, ROUNDBOX_TRIA_HOLD_ACTION_ARROW, ROUNDBOX_TRIA_MENU)) {
 				vcount += (tria_vcount[tria] + 2) * WIDGET_AA_JITTER; /* tria2 */
 			}
 		}
@@ -1500,6 +1500,8 @@ float UI_text_clip_middle_ex(
 		BLF_disable(fstyle->uifont_id, BLF_KERNING_DEFAULT);
 	}
 
+	BLI_assert(strwidth <= okwidth);
+
 	return strwidth;
 }
 
@@ -2114,370 +2116,6 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 
 /* *********************** widget types ************************************* */
 
-static struct uiWidgetStateColors wcol_state_colors = {
-	{115, 190, 76, 255},
-	{90, 166, 51, 255},
-	{240, 235, 100, 255},
-	{215, 211, 75, 255},
-	{180, 0, 255, 255},
-	{153, 0, 230, 255},
-	{74, 137, 137, 255},
-	{49, 112, 112, 255},
-	0.5f, 0.0f
-};
-
-static struct uiWidgetColors wcol_num = {
-	{25, 25, 25, 255},
-	{180, 180, 180, 255},
-	{153, 153, 153, 255},
-	{90, 90, 90, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	1,
-	-20, 0,
-	0,
-	0.5f,
-};
-
-static struct uiWidgetColors wcol_numslider = {
-	{25, 25, 25, 255},
-	{180, 180, 180, 255},
-	{153, 153, 153, 255},
-	{128, 128, 128, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	1,
-	-20, 0,
-	0,
-	0.5f,
-};
-
-static struct uiWidgetColors wcol_text = {
-	{25, 25, 25, 255},
-	{153, 153, 153, 255},
-	{153, 153, 153, 255},
-	{90, 90, 90, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	1,
-	0, 25,
-	0,
-	0.2f,
-};
-
-static struct uiWidgetColors wcol_option = {
-	{0, 0, 0, 255},
-	{70, 70, 70, 255},
-	{70, 70, 70, 255},
-	{255, 255, 255, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	1,
-	15, -15,
-	0,
-	0.3333333f,
-};
-
-/* button that shows popup */
-static struct uiWidgetColors wcol_menu = {
-	{0, 0, 0, 255},
-	{70, 70, 70, 255},
-	{70, 70, 70, 255},
-	{255, 255, 255, 255},
-
-	{255, 255, 255, 255},
-	{204, 204, 204, 255},
-
-	1,
-	15, -15,
-	0,
-	0.2f,
-};
-
-/* button that starts pulldown */
-static struct uiWidgetColors wcol_pulldown = {
-	{0, 0, 0, 255},
-	{63, 63, 63, 255},
-	{86, 128, 194, 255},
-	{255, 255, 255, 255},
-
-	{0, 0, 0, 255},
-	{0, 0, 0, 255},
-
-	0,
-	25, -20,
-	0,
-	0.2f,
-};
-
-/* button inside menu */
-static struct uiWidgetColors wcol_menu_item = {
-	{0, 0, 0, 255},
-	{0, 0, 0, 0},
-	{86, 128, 194, 255},
-	{172, 172, 172, 128},
-
-	{255, 255, 255, 255},
-	{0, 0, 0, 255},
-
-	1,
-	38, 0,
-	0,
-	0.2f,
-};
-
-/* backdrop menu + title text color */
-static struct uiWidgetColors wcol_menu_back = {
-	{0, 0, 0, 255},
-	{25, 25, 25, 230},
-	{45, 45, 45, 230},
-	{100, 100, 100, 255},
-
-	{160, 160, 160, 255},
-	{255, 255, 255, 255},
-
-	0,
-	25, -20,
-	0,
-	0.25f,
-};
-
-/* pie menus */
-static struct uiWidgetColors wcol_pie_menu = {
-	{10, 10, 10, 200},
-	{25, 25, 25, 230},
-	{140, 140, 140, 255},
-	{45, 45, 45, 230},
-
-	{160, 160, 160, 255},
-	{255, 255, 255, 255},
-
-	1,
-	10, -10,
-	0,
-	0.5f,
-};
-
-
-/* tooltip color */
-static struct uiWidgetColors wcol_tooltip = {
-	{0, 0, 0, 255},
-	{25, 25, 25, 230},
-	{45, 45, 45, 230},
-	{100, 100, 100, 255},
-
-	{255, 255, 255, 255},
-	{255, 255, 255, 255},
-
-	0,
-	25, -20,
-	0,
-	0.25f,
-};
-
-static struct uiWidgetColors wcol_radio = {
-	{0, 0, 0, 255},
-	{70, 70, 70, 255},
-	{86, 128, 194, 255},
-	{255, 255, 255, 255},
-
-	{255, 255, 255, 255},
-	{0, 0, 0, 255},
-
-	1,
-	15, -15,
-	0,
-	0.2f,
-};
-
-static struct uiWidgetColors wcol_regular = {
-	{25, 25, 25, 255},
-	{153, 153, 153, 255},
-	{100, 100, 100, 255},
-	{25, 25, 25, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	0,
-	0, 0,
-	0,
-	0.25f,
-};
-
-static struct uiWidgetColors wcol_tool = {
-	{25, 25, 25, 255},
-	{153, 153, 153, 255},
-	{100, 100, 100, 255},
-	{25, 25, 25, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	1,
-	15, -15,
-	0,
-	0.2f,
-};
-
-static struct uiWidgetColors wcol_toolbar_item = {
-	.outline = {0x19, 0x19, 0x19, 0xff},
-	.inner = {0x46, 0x46, 0x46, 0xff},
-	.inner_sel = {0xcc, 0xcc, 0xcc, 0xff},
-	.item = {0x0, 0x0, 0x0, 0xff},
-
-	.text = {0xff, 0xff, 0xff, 0xff},
-	.text_sel = {0x33, 0x33, 0x33, 0xff},
-
-	.shaded = 0,
-	.shadetop = 0,
-	.shadedown = 0,
-	.alpha_check = 0,
-	.roundness = 0.3f,
-};
-
-static struct uiWidgetColors wcol_box = {
-	{25, 25, 25, 255},
-	{128, 128, 128, 255},
-	{100, 100, 100, 255},
-	{25, 25, 25, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	0,
-	0, 0,
-	0,
-	0.2f,
-};
-
-static struct uiWidgetColors wcol_toggle = {
-	{25, 25, 25, 255},
-	{153, 153, 153, 255},
-	{100, 100, 100, 255},
-	{25, 25, 25, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	0,
-	0, 0,
-	0,
-	0.25f,
-};
-
-static struct uiWidgetColors wcol_scroll = {
-	{50, 50, 50, 180},
-	{80, 80, 80, 180},
-	{100, 100, 100, 180},
-	{128, 128, 128, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	1,
-	5, -5,
-	0,
-	0.5f,
-};
-
-static struct uiWidgetColors wcol_progress = {
-	{0, 0, 0, 255},
-	{190, 190, 190, 255},
-	{100, 100, 100, 180},
-	{128, 128, 128, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	0,
-	0, 0,
-	0,
-	0.25f,
-};
-
-static struct uiWidgetColors wcol_list_item = {
-	{0, 0, 0, 255},
-	{0, 0, 0, 0},
-	{86, 128, 194, 255},
-	{90, 90, 90, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	0,
-	0, 0,
-	0,
-	0.2f,
-};
-
-struct uiWidgetColors wcol_tab = {
-	{60, 60, 60, 255},
-	{83, 83, 83, 255},
-	{114, 114, 114, 255},
-	{90, 90, 90, 255},
-
-	{0, 0, 0, 255},
-	{0, 0, 0, 255},
-
-	0,
-	0, 0,
-	0,
-	0.25f,
-};
-
-/* free wcol struct to play with */
-static struct uiWidgetColors wcol_tmp = {
-	{0, 0, 0, 255},
-	{128, 128, 128, 255},
-	{100, 100, 100, 255},
-	{25, 25, 25, 255},
-
-	{0, 0, 0, 255},
-	{255, 255, 255, 255},
-
-	0,
-	0, 0,
-	0,
-	0.25f,
-};
-
-
-/* called for theme init (new theme) and versions */
-void ui_widget_color_init(ThemeUI *tui)
-{
-	tui->wcol_regular = wcol_regular;
-	tui->wcol_tool = wcol_tool;
-	tui->wcol_toolbar_item = wcol_toolbar_item;
-	tui->wcol_text = wcol_text;
-	tui->wcol_radio = wcol_radio;
-	tui->wcol_tab = wcol_tab;
-	tui->wcol_option = wcol_option;
-	tui->wcol_toggle = wcol_toggle;
-	tui->wcol_num = wcol_num;
-	tui->wcol_numslider = wcol_numslider;
-	tui->wcol_menu = wcol_menu;
-	tui->wcol_pulldown = wcol_pulldown;
-	tui->wcol_menu_back = wcol_menu_back;
-	tui->wcol_pie_menu = wcol_pie_menu;
-	tui->wcol_tooltip = wcol_tooltip;
-	tui->wcol_menu_item = wcol_menu_item;
-	tui->wcol_box = wcol_box;
-	tui->wcol_scroll = wcol_scroll;
-	tui->wcol_list_item = wcol_list_item;
-	tui->wcol_progress = wcol_progress;
-
-	tui->wcol_state = wcol_state_colors;
-}
-
 /* ************ button callbacks, state ***************** */
 
 static void widget_state_blend(char cp[3], const char cpstate[3], const float fac)
@@ -2657,18 +2295,22 @@ static void widget_state_pie_menu_item(uiWidgetType *wt, int state)
 		copy_v4_v4_char(wt->wcol.inner, wt->wcol.item);
 		wt->wcol.inner[3] = 64;
 	}
-	/* regular disabled */
-	else if (state & (UI_BUT_DISABLED | UI_BUT_INACTIVE)) {
-		widget_state_blend(wt->wcol.text, wt->wcol.inner, 0.5f);
-	}
-	/* regular active */
-	else if (state & UI_SELECT) {
-		copy_v4_v4_char(wt->wcol.outline, wt->wcol.inner_sel);
-		copy_v3_v3_char(wt->wcol.text, wt->wcol.text_sel);
-	}
-	else if (state & UI_ACTIVE) {
-		copy_v4_v4_char(wt->wcol.inner, wt->wcol.item);
-		copy_v3_v3_char(wt->wcol.text, wt->wcol.text_sel);
+	else {
+		/* regular active */
+		if (state & (UI_SELECT | UI_ACTIVE)) {
+			copy_v3_v3_char(wt->wcol.text, wt->wcol.text_sel);
+		}
+		else if (state & (UI_BUT_DISABLED | UI_BUT_INACTIVE)) {
+			/* regular disabled */
+			widget_state_blend(wt->wcol.text, wt->wcol.inner, 0.5f);
+		}
+
+		if (state & UI_SELECT) {
+			copy_v4_v4_char(wt->wcol.outline, wt->wcol.inner_sel);
+		}
+		else if (state & UI_ACTIVE) {
+			copy_v4_v4_char(wt->wcol.inner, wt->wcol.item);
+		}
 	}
 }
 
@@ -2685,14 +2327,19 @@ static void widget_state_menu_item(uiWidgetType *wt, int state)
 		copy_v4_v4_char(wt->wcol.inner, wt->wcol.inner_sel);
 		wt->wcol.inner[3] = 64;
 	}
-	/* regular disabled */
-	else if (state & (UI_BUT_DISABLED | UI_BUT_INACTIVE)) {
-		widget_state_blend(wt->wcol.text, wt->wcol.inner, 0.5f);
-	}
-	/* regular active */
-	else if (state & UI_ACTIVE) {
-		copy_v4_v4_char(wt->wcol.inner, wt->wcol.inner_sel);
-		copy_v3_v3_char(wt->wcol.text, wt->wcol.text_sel);
+	else {
+		/* regular active */
+		if (state & UI_ACTIVE) {
+			copy_v3_v3_char(wt->wcol.text, wt->wcol.text_sel);
+		}
+		else if (state & (UI_BUT_DISABLED | UI_BUT_INACTIVE)) {
+			/* regular disabled */
+			widget_state_blend(wt->wcol.text, wt->wcol.inner, 0.5f);
+		}
+
+		if (state & UI_ACTIVE) {
+			copy_v4_v4_char(wt->wcol.inner, wt->wcol.inner_sel);
+		}
 	}
 }
 
@@ -3192,13 +2839,16 @@ static void ui_draw_but_HSV_v(uiBut *but, const rcti *rect)
 	round_box_edges(&wtb, UI_CNR_ALL, rect, rad);
 
 	/* setup temp colors */
-	wcol_tmp.outline[0] = wcol_tmp.outline[1] = wcol_tmp.outline[2] = 0;
-	wcol_tmp.inner[0] = wcol_tmp.inner[1] = wcol_tmp.inner[2] = 128;
-	wcol_tmp.shadetop = 127;
-	wcol_tmp.shadedown = -128;
-	wcol_tmp.shaded = 1;
-
-	widgetbase_draw(&wtb, &wcol_tmp);
+	widgetbase_draw(
+	        &wtb,
+	        &((uiWidgetColors){
+	            .outline = {0, 0, 0, 255},
+	            .inner = {128, 128, 128, 255},
+	            .shadetop = 127,
+	            .shadedown = -128,
+	            .shaded = 1,
+	        })
+	);
 
 	/* We are drawing on top of widget bases. Flush cache. */
 	glEnable(GL_BLEND);

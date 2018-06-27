@@ -378,17 +378,6 @@ int DM_release(DerivedMesh *dm);
  */
 void DM_to_mesh(DerivedMesh *dm, struct Mesh *me, struct Object *ob, CustomDataMask mask, bool take_ownership);
 
-struct BMEditMesh *DM_to_editbmesh(
-        struct DerivedMesh *dm,
-        struct BMEditMesh *existing, const bool do_tessellate);
-
-/* conversion to bmesh only */
-void          DM_to_bmesh_ex(struct DerivedMesh *dm, struct BMesh *bm, const bool calc_face_normal);
-struct BMesh *DM_to_bmesh(struct DerivedMesh *dm, const bool calc_face_normal);
-
-
-/** Utility function to convert a DerivedMesh to a shape key block */
-void DM_to_meshkey(DerivedMesh *dm, struct Mesh *me, struct KeyBlock *kb);
 
 void DM_set_only_copy(DerivedMesh *dm, CustomDataMask mask);
 
@@ -517,9 +506,6 @@ void DM_interp_poly_data(
         struct DerivedMesh *source, struct DerivedMesh *dest,
         int *src_indices,
         float *weights, int count, int dest_index);
-
-/* Temporary? A function to give a colorband to derivedmesh for vertexcolor ranges */
-void vDM_ColorBand_store(const struct ColorBand *coba, const char alert_color[4]);
 
 /* UNUSED */
 #if 0
