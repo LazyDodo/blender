@@ -364,7 +364,7 @@ static void gpencil_mouse_update_shift(tGPDinterpolate *tgpi, wmOperator *op, co
 }
 
 /* Helper: Draw status message while the user is running the operator */
-static void gpencil_interpolate_status_indicators(tGPDinterpolate *p)
+static void gpencil_interpolate_status_indicators(bContext *C, tGPDinterpolate *p)
 {
 	Scene *scene = p->scene;
 	char status_str[UI_MAX_DRAW_STR];
@@ -382,14 +382,14 @@ static void gpencil_interpolate_status_indicators(tGPDinterpolate *p)
 		BLI_snprintf(status_str, sizeof(status_str), "%s: %d %%", msg_str, (int)((p->init_factor + p->shift)  * 100.0f));
 	}
 
-	ED_area_headerprint(p->sa, status_str);
+	ED_workspace_status_text(C, status_str);
 }
 
 /* Update screen and stroke */
 static void gpencil_interpolate_update(bContext *C, wmOperator *op, tGPDinterpolate *tgpi)
 {
 	/* update shift indicator in header */
-	gpencil_interpolate_status_indicators(tgpi);
+	gpencil_interpolate_status_indicators(C, tgpi);
 	/* apply... */
 	tgpi->shift = RNA_float_get(op->ptr, "shift");
 	/* update points position */
@@ -416,7 +416,7 @@ static void gpencil_interpolate_exit(bContext *C, wmOperator *op)
 		}
 
 		/* clear status message area */
-		ED_area_headerprint(tgpi->sa, NULL);
+		ED_workspace_status_text(C, NULL);
 
 		/* finally, free memory used by temp data */
 		for (tgpil = tgpi->ilayers.first; tgpil; tgpil = tgpil->next) {
@@ -541,7 +541,7 @@ static int gpencil_interpolate_invoke(bContext *C, wmOperator *op, const wmEvent
 	WM_cursor_modal_set(win, BC_EW_SCROLLCURSOR);
 
 	/* update shift indicator in header */
-	gpencil_interpolate_status_indicators(tgpi);
+	gpencil_interpolate_status_indicators(C, tgpi);
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
@@ -566,7 +566,7 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
 		case RETKEY:
 		{
 			/* return to normal cursor and header status */
-			ED_area_headerprint(tgpi->sa, NULL);
+			ED_workspace_status_text(C, NULL);
 			WM_cursor_modal_restore(win);
 
 			/* insert keyframes as required... */
@@ -603,7 +603,7 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
 		case RIGHTMOUSE:
 		{
 			/* return to normal cursor and header status */
-			ED_area_headerprint(tgpi->sa, NULL);
+			ED_workspace_status_text(C, NULL);
 			WM_cursor_modal_restore(win);
 
 			/* clean up temp data */
