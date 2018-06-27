@@ -4128,9 +4128,15 @@ void IMAGE_OT_fill_tile(wmOperatorType *ot)
 
 static int image_select_tile_poll(bContext *C)
 {
+	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = CTX_data_edit_image(C);
 
-	return (ima && ima->source == IMA_SRC_TILED);
+	if (ima) {
+		return (ima->source == IMA_SRC_TILED);
+	}
+	else {
+		return (sima->tile_grid_shape[0] > 1) || (sima->tile_grid_shape[1] > 1);
+	}
 }
 
 static int image_select_tile_invoke(bContext *C, wmOperator *UNUSED(op), const wmEvent *event)
