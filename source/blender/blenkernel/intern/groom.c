@@ -437,6 +437,10 @@ GroomRegion* BKE_groom_region_add(Groom *groom)
 	GroomRegion *region = MEM_callocN(sizeof(GroomRegion), "groom region");
 	BLI_addtail(regions, region);
 	
+	region->bundle.guides_count = 100;
+	region->taper_length = 0.1f;
+	region->taper_thickness = 1.0f;
+	
 	return region;
 }
 

@@ -190,6 +190,7 @@ static void rna_def_groom_bundle(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "guides_count", PROP_INT, PROP_NONE);
 	RNA_def_property_range(prop, 1, INT_MAX);
+	RNA_def_property_int_default(prop, 100);
 	RNA_def_property_ui_range(prop, 1, 1000, 1, -1);
 	RNA_def_property_ui_text(prop, "Guides Count", "Number of hair guides to generate in this region");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
@@ -225,12 +226,14 @@ static void rna_def_groom_region(BlenderRNA *brna)
 	
 	prop = RNA_def_property(srna, "taper_length", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_range(prop, 1.0e-6f, 1.0e6f);
+	RNA_def_property_float_default(prop, 0.1f);
 	RNA_def_property_ui_range(prop, 0.01, 1.0, 0.01, 3);
 	RNA_def_property_ui_text(prop, "Taper Length", "Distance at which final thickness is reached");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
 	
 	prop = RNA_def_property(srna, "taper_thickness", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_range(prop, 1.0e-6f, 1.0e6f);
+	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_range(prop, 0.01, 1.0, 0.1, 3);
 	RNA_def_property_ui_text(prop, "Taper Thickness", "Relative thickness of the strand");
 	RNA_def_property_update(prop, NC_GROOM | ND_DRAW, "rna_Groom_update_data");
