@@ -1411,7 +1411,10 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 #endif
 	
 	MEM_freeN(numverts);
-	MEM_freeN(verts);
+	if (verts)
+	{
+		MEM_freeN(verts);
+	}
 	
 	if (scalp)
 	{
