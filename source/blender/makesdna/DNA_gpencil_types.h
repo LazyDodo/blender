@@ -137,10 +137,7 @@ typedef enum eGPDpalette_Flag {
 /* ***************************************** */
 /* GP Strokes */
 
-/* Grease-Pencil Annotations - 'Stroke'
- * 	-> A stroke represents a (simplified version) of the curve
- *	   drawn by the user in one 'mousedown'->'mouseup' operation
- */
+/* Runtime temp data for bGPDstroke */
 typedef struct bGPDstroke_runtime {
 	/* runtime final colors (result of original colors and modifiers) */
 	float tmp_stroke_rgba[4];
@@ -152,6 +149,10 @@ typedef struct bGPDstroke_runtime {
 	float multi_frame_falloff; /* runtime falloff factor (only for transform) */
 } bGPDstroke_runtime;
 
+/* Grease-Pencil Annotations - 'Stroke'
+ * 	-> A stroke represents a (simplified version) of the curve
+ *	   drawn by the user in one 'mousedown'->'mouseup' operation
+ */
 typedef struct bGPDstroke {
 	struct bGPDstroke *next, *prev;
 
@@ -199,13 +200,14 @@ typedef enum eGPDstroke_Flag {
 /* ***************************************** */
 /* GP Frame */
 
-/* Grease-Pencil Annotations - 'Frame'
- *	-> Acts as storage for the 'image' formed by strokes
- */
+/* Runtime temp data for bGPDframe */
 typedef struct bGPDframe_runtime {
 	float viewmatrix[4][4];     /* parent matrix for drawing */
 } bGPDframe_runtime;
 
+/* Grease-Pencil Annotations - 'Frame'
+ *	-> Acts as storage for the 'image' formed by strokes
+ */
 typedef struct bGPDframe {
 	struct bGPDframe *next, *prev;
 
@@ -230,11 +232,12 @@ typedef enum eGPDframe_Flag {
 /* ***************************************** */
 /* GP Layer */
 
-/* Grease-Pencil Annotations - 'Layer' */
+/* Runtime temp data for bGPDlayer */
 typedef struct bGPDlayer_runtime {
 	struct GHash *derived_data;     /* runtime data created by modifiers */
 } bGPDlayer_runtime;
 
+/* Grease-Pencil Annotations - 'Layer' */
 typedef struct bGPDlayer {
 	struct bGPDlayer *next, *prev;
 
@@ -294,12 +297,13 @@ typedef enum eGPDlayer_OnionFlag {
 /* ***************************************** */
 /* GP Datablock */
 
-/* Grease-Pencil Annotations - 'DataBlock' */
+/* Runtime temp data for bGPdata */
 typedef struct bGPdata_runtime {
 	/* Runtime Only - Drawing Manager cache */
 	struct GHash *batch_cache_data;
 } bGPdata_runtime;
 
+/* Grease-Pencil Annotations - 'DataBlock' */
 typedef struct bGPdata {
 	ID id;					/* Grease Pencil data is a datablock */
 	struct AnimData *adt;   /* animation data - for animating draw settings */
