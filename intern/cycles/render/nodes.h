@@ -606,28 +606,44 @@ public:
 	float temperature;
 };
 
+/* Interface between the I/O sockets and the SVM/OSL backend. */
 class PrincipledHairBsdfNode : public BsdfBaseNode {
 public:
 	SHADER_NODE_CLASS(PrincipledHairBsdfNode)
 	void attributes(Shader *shader, AttributeRequestSet *attributes);
 
+	/* Longitudinal roughness. */
 	float roughness_u;
+	/* Azimuthal roughness. */
 	float roughness_v;
+	/* Randomization factor for roughnesses. */
 	float roughness_randomization;
+	/* Longitudinal roughness factor for only the diffuse bounce (shiny undercoat). */
 	float primary_reflection_roughness;
+	/* Index of reflection. */
 	float ior;
+	/* Cuticle tilt angle. */
 	float offset;
+	/* Direct coloring's color. */
 	float3 color;
-	float eumelanin;
-	float pheomelanin;
+	/* Melanin concentration. */
+	float melanin_concentration;
+	/* Melanin redness ratio. */
+	float melanin_redness_ratio;
+	/* Dye color. */
 	float3 tint;
+	/* Randomization factor for melanin quantities. */
 	float color_randomization;
+	/* Absorption coefficient (unfiltered). */
 	float3 absorption_coefficient;
 
 	float3 normal;
 	float surface_mix_weight;
+	/* If socketed, here will be the given random number. */
 	float random;
+	/* Is there an available random source? */
 	bool socketedRandomSource;
+	/* Selected coloring parametrization. */
 	NodePrincipledHairParametrization parametrization;
 };
 

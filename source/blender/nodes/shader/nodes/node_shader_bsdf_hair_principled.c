@@ -53,11 +53,13 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_out[] = {
 	{	-1, 0, ""	}
 };
 
+/* Initialize the custom Parametrization property to Direct coloring. */
 static void node_shader_init_hair_principled(bNodeTree *UNUSED(ntree), bNode *node)
 {
 	node->custom1 = SHD_PRINCIPLED_HAIR_REFLECTANCE;
 }
 
+/* Triggers (in)visibility of some sockets when changing Parametrization. */
 static void node_shader_update_hair_principled(bNodeTree *UNUSED(ntree), bNode *node)
 {
 	bNodeSocket *sock;

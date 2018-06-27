@@ -757,6 +757,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				random = (stack_valid(random_ofs)) ? stack_load_float(stack, random_ofs) : __uint_as_float(data_node3.y);
 			}
 
+			// Random factors range: [-randomization/2, +randomization/2].
 			float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*color_randomization;
 			float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*roughness_randomization;
 
@@ -770,6 +771,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				param1 *= factor_random_roughness;
 				param2 *= factor_random_roughness;
 
+				// Benedikt Bitterli's melanin ratio remapping.
 				float eumelanin = melanin_qty*(1.0f-melanin_ratio);
 				float pheomelanin = melanin_qty*melanin_ratio;
 				eumelanin *= factor_random_color;

@@ -3067,15 +3067,17 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 {
 	NodeType* type = NodeType::add("principled_hair_bsdf", create, NodeType::SHADER);
 
+	// Initialize all sockets to their default values.
 	SOCKET_IN_COLOR(color, "Color", make_float3(0.8f, 0.8f, 0.8f));
-	SOCKET_IN_FLOAT(eumelanin, "Melanin", 1.3f);
-	SOCKET_IN_FLOAT(pheomelanin, "Melanin Redness", 1.0f);
+	SOCKET_IN_FLOAT(melanin_concentration, "Melanin", 1.3f);
+	SOCKET_IN_FLOAT(melanin_redness_ratio, "Melanin Redness", 1.0f);
 	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
 	SOCKET_IN_FLOAT(color_randomization, "Color Randomization", 0.0f);
 	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
 	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
 	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
 
+	// Parametrization is initialized via an enumeration (custom property).
 	static NodeEnum parametrization_enum;
 	parametrization_enum.insert("Direct coloring", NODE_PRINCIPLED_HAIR_REFLECTANCE);
 	parametrization_enum.insert("Melanin concentration", NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION);
@@ -3102,6 +3104,7 @@ PrincipledHairBsdfNode::PrincipledHairBsdfNode()
 	closure = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 }
 
+/* Enable retrieving Hair Info -> Random if Random isn't socketed. */
 void PrincipledHairBsdfNode::attributes(Shader *shader, AttributeRequestSet *attributes)
 {
 	socketedRandomSource = input("Random")->link;
@@ -3111,6 +3114,7 @@ void PrincipledHairBsdfNode::attributes(Shader *shader, AttributeRequestSet *att
 	ShaderNode::attributes(shader, attributes);
 }
 
+/* Prepares the input data for the SVM shader. */
 void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 {
 	compiler.add_node(NODE_CLOSURE_SET_WEIGHT, make_float3(1.0f, 1.0f, 1.0f));
@@ -3121,8 +3125,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *offset_in = input("Offset");
 	ShaderInput *primary_reflection_roughness_in = input("Undercoat Roughness");
 	ShaderInput *ior_in = input("IOR");
-	ShaderInput *eumelanin_in =  input("Melanin");
-	ShaderInput *pheomelanin_in = input("Melanin Redness");
+	ShaderInput *melanin_concentration_in =  input("Melanin");
+	ShaderInput *melanin_redness_ratio_in = input("Melanin Redness");
 	ShaderInput *color_randomization_in = input("Color Randomization");
 
 	int color_ofs = compiler.stack_assign(input("Color"));
@@ -3132,11 +3136,14 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *random_in = input("Random");
 	int attr_random = socketedRandomSource ? SVM_STACK_INVALID : compiler.attribute(ATTR_STD_CURVE_RANDOM);
 
+	/* Encode all parameters into data nodes. */
 	compiler.add_node(NODE_CLOSURE_BSDF,
+		/* Socket IDs can be packed 4 at a time into a single data packet */
 		compiler.encode_uchar4(closure,
 			compiler.stack_assign_if_linked(roughness_u_in),
 			compiler.stack_assign_if_linked(roughness_v_in),
 			compiler.closure_mix_weight_offset()),
+		/* The rest are stored as unsigned integers */
 		__float_as_uint(roughness_u),
 		__float_as_uint(roughness_v));
 
@@ -3152,12 +3159,12 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	compiler.add_node(
 		compiler.encode_uchar4(
 			compiler.stack_assign_if_linked(primary_reflection_roughness_in),
-			compiler.stack_assign_if_linked(eumelanin_in),
-			compiler.stack_assign_if_linked(pheomelanin_in),
+			compiler.stack_assign_if_linked(melanin_concentration_in),
+			compiler.stack_assign_if_linked(melanin_redness_ratio_in),
 			absorption_coefficient_ofs),
 		__float_as_uint(primary_reflection_roughness),
-		__float_as_uint(eumelanin),
-		__float_as_uint(pheomelanin));
+		__float_as_uint(melanin_concentration),
+		__float_as_uint(melanin_redness_ratio));
 
 	compiler.add_node(
 		compiler.encode_uchar4(
@@ -3180,9 +3187,11 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		SVM_STACK_INVALID);
 }
 
+/* Prepares the input data for the OSL shader. */
 void PrincipledHairBsdfNode::compile(OSLCompiler& compiler)
 {
 	if (!socketedRandomSource) {
+		// If no random source is available, retrieve it from OSL.
 		compiler.parameter("AttrRandom", "geom:curve_random");
 	}
 	compiler.parameter(this, "parametrization");
