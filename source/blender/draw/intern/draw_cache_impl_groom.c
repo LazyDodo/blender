@@ -480,6 +480,7 @@ static void groom_get_verts(
         bool use_curve_cache,
         Gwn_VertBuf *vbo,
         uint id_pos,
+        uint id_nor,
         uint id_flag)
 {
 	int vert_len = groom_count_verts(rdata->regions, parts, use_curve_cache);
@@ -554,6 +555,10 @@ static void groom_get_verts(
 						mul_m3_v3(section->mat, co);
 						add_v3_v3(co, section->center);
 						GWN_vertbuf_attr_set(vbo, id_pos, idx, co);
+					}
+					if (id_nor != GM_ATTR_ID_UNUSED)
+					{
+						GWN_vertbuf_attr_set(vbo, id_nor, idx, section->mat[2]);
 					}
 					if (id_flag != GM_ATTR_ID_UNUSED)
 					{
@@ -789,16 +794,17 @@ static Gwn_VertBuf *groom_batch_cache_get_pos(GroomRenderData *rdata, GroomBatch
 {
 	if (cache->pos == NULL) {
 		static Gwn_VertFormat format = { 0 };
-		static struct { uint pos, col; } attr_id;
+		static struct { uint pos, nor; } attr_id;
 		
 		GWN_vertformat_clear(&format);
 		
 		/* initialize vertex format */
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		
 		cache->pos = GWN_vertbuf_create_with_format(&format);
 		
-		groom_get_verts(rdata, parts, true, cache->pos, attr_id.pos, GM_ATTR_ID_UNUSED);
+		groom_get_verts(rdata, parts, true, cache->pos, attr_id.pos, attr_id.nor, GM_ATTR_ID_UNUSED);
 	}
 
 	return cache->pos;
@@ -826,16 +832,17 @@ static void groom_batch_cache_create_overlay_batches(GroomRenderData *rdata, Gro
 {
 	if (cache->overlay_verts == NULL) {
 		static Gwn_VertFormat format = { 0 };
-		static struct { uint pos, data; } attr_id;
+		static struct { uint pos, nor, data; } attr_id;
 		if (format.attrib_ct == 0) {
 			/* initialize vertex format */
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.data = GWN_vertformat_attr_add(&format, "data", GWN_COMP_U8, 1, GWN_FETCH_INT);
 		}
 		
 		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 		
-		groom_get_verts(rdata, parts, false, vbo, attr_id.pos, attr_id.data);
+		groom_get_verts(rdata, parts, false, vbo, attr_id.pos, attr_id.nor, attr_id.data);
 		
 		cache->overlay_verts = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
 	}	
