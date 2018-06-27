@@ -58,7 +58,7 @@
 /* ****************************************** */
 /* Grease Pencil Keymaps */
 
-/* Generic Drawing Keymap */
+/* Generic Drawing Keymap - Annotations */
 static void ed_keymap_gpencil_general(wmKeyConfig *keyconf)
 {
 	wmKeyMap *keymap = WM_keymap_find(keyconf, "Grease Pencil", 0, 0);
@@ -66,17 +66,17 @@ static void ed_keymap_gpencil_general(wmKeyConfig *keyconf)
 
 	/* Draw  --------------------------------------- */
 	/* draw */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_draw", LEFTMOUSE, KM_PRESS, 0, DKEY);
+	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_annotate", LEFTMOUSE, KM_PRESS, 0, DKEY);
 	RNA_enum_set(kmi->ptr, "mode", GP_PAINTMODE_DRAW);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	/* draw - straight lines */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_draw", LEFTMOUSE, KM_PRESS, KM_ALT, DKEY);
+	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_annotate", LEFTMOUSE, KM_PRESS, KM_ALT, DKEY);
 	RNA_enum_set(kmi->ptr, "mode", GP_PAINTMODE_DRAW_STRAIGHT);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	/* draw - poly lines */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_draw", LEFTMOUSE, KM_PRESS, KM_SHIFT | KM_ALT, DKEY);
+	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_annotate", LEFTMOUSE, KM_PRESS, KM_SHIFT | KM_ALT, DKEY);
 	RNA_enum_set(kmi->ptr, "mode", GP_PAINTMODE_DRAW_POLY);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 	/* Viewport Tools ------------------------------- */
@@ -645,6 +645,10 @@ void ED_keymap_gpencil(wmKeyConfig *keyconf)
 
 void ED_operatortypes_gpencil(void)
 {
+	/* Annotations -------------------- */
+
+	WM_operatortype_append(GPENCIL_OT_annotate);
+
 	/* Drawing ----------------------- */
 
 	WM_operatortype_append(GPENCIL_OT_draw);

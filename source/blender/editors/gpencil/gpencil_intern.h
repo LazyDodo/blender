@@ -261,6 +261,11 @@ const struct EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
 /* ***************************************************** */
 /* Operator Defines */
 
+/* annotations ------ */
+
+void GPENCIL_OT_annotate(struct wmOperatorType *ot);
+
+
 /* drawing ---------- */
 
 void GPENCIL_OT_draw(struct wmOperatorType *ot);

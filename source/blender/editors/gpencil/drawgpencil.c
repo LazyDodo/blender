@@ -1357,105 +1357,7 @@ static void gp_draw_strokes_edit(
 
 /* ----- General Drawing ------ */
 
-#if 0 /* GPXX: This must be disabled for annotations */
-/* draw onion-skinning for a layer */
-static void gp_draw_onionskins(tGPDdraw *tgpw)
-{
-	const float default_color[3] = {UNPACK3(U.gpencil_new_layer_col)};
-	const float alpha = 1.0f;
-	float color[4];
 
-	/* 1) Draw Previous Frames First */
-	if (tgpw->gpd->onion_flag & GP_ONION_GHOST_PREVCOL) {
-		copy_v3_v3(color, tgpw->gpl->gcolor_prev);
-	}
-	else {
-		copy_v3_v3(color, default_color);
-	}
-
-	if (tgpw->gpl->gstep > 0) {
-		/* draw previous frames first */
-		for (bGPDframe *gf = tgpw->gpf->prev; gf; gf = gf->prev) {
-			/* check if frame is drawable */
-			if ((tgpw->gpf->framenum - gf->framenum) <= tgpw->gpl->gstep) {
-				/* alpha decreases with distance from curframe index */
-				float fac = 1.0f - ((float)(tgpw->gpf->framenum - gf->framenum) / (float)(tgpw->gpl->gstep + 1));
-				color[3] = alpha * fac * 0.66f;
-
-				tgpw->t_gpf = gf;
-				tgpw->opacity = 1.0f;
-				copy_v4_v4(tgpw->tintcolor, color);
-				tgpw->onion = true;
-				tgpw->custonion = tgpw->gpd->onion_flag & GP_ONION_GHOST_PREVCOL;
-				gp_draw_strokes(tgpw);
-			}
-			else
-				break;
-		}
-	}
-	else if (tgpw->gpl->gstep == 0) {
-		/* draw the strokes for the ghost frames (at half of the alpha set by user) */
-		if (tgpw->gpf->prev) {
-			color[3] = (alpha / 7);
-
-			tgpw->t_gpf = tgpw->gpf->prev;
-			tgpw->opacity = 1.0f;
-			copy_v4_v4(tgpw->tintcolor, color);
-			tgpw->onion = true;
-			tgpw->custonion = tgpw->gpd->onion_flag & GP_ONION_GHOST_PREVCOL;
-			gp_draw_strokes(tgpw);
-		}
-	}
-	else {
-		/* don't draw - disabled */
-	}
-
-	/* 2) Now draw next frames */
-	if (tgpw->gpd->onion_flag & GP_ONION_GHOST_NEXTCOL) {
-		copy_v3_v3(color, tgpw->gpl->gcolor_next);
-	}
-	else {
-		copy_v3_v3(color, default_color);
-	}
-
-	if (tgpw->gpl->gstep_next > 0) {
-		/* now draw next frames */
-		for (bGPDframe *gf = tgpw->gpf->next; gf; gf = gf->next) {
-			/* check if frame is drawable */
-			if ((gf->framenum - tgpw->gpf->framenum) <= tgpw->gpl->gstep_next) {
-				/* alpha decreases with distance from curframe index */
-				float fac = 1.0f - ((float)(gf->framenum - tgpw->gpf->framenum) / (float)(tgpw->gpl->gstep_next + 1));
-				color[3] = alpha * fac * 0.66f;
-
-				tgpw->t_gpf = gf;
-				tgpw->opacity = 1.0f;
-				copy_v4_v4(tgpw->tintcolor, color);
-				tgpw->onion = true;
-				tgpw->custonion = tgpw->gpd->onion_flag & GP_ONION_GHOST_PREVCOL;
-				gp_draw_strokes(tgpw);
-			}
-			else
-				break;
-		}
-	}
-	else if (tgpw->gpl->gstep_next == 0) {
-		/* draw the strokes for the ghost frames (at half of the alpha set by user) */
-		if (tgpw->gpf->next) {
-			color[3] = (alpha / 4);
-
-			tgpw->t_gpf = tgpw->gpf->next;
-			tgpw->opacity = 1.0f;
-			copy_v4_v4(tgpw->tintcolor, color);
-			tgpw->onion = true;
-			tgpw->custonion = tgpw->gpd->onion_flag & GP_ONION_GHOST_PREVCOL;
-			gp_draw_strokes(tgpw);
-		}
-	}
-	else {
-		/* don't draw - disabled */
-	}
-}
-#endif
 /* draw interpolate strokes (used only while operator is running) */
 void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const int type)
 {
@@ -1637,23 +1539,6 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 		tgpw.custonion = false;
 		copy_m4_m4(tgpw.diff_mat, diff_mat);
 
-		/* Draw 'onionskins' (frame left + right)
-		 *   - It is only possible to show these if the option is enabled
-		 *   - The "no onions" flag prevents ghosts from appearing during animation playback/scrubbing
-		 *     and in renders
-		 *   - The per-layer "always show" flag however overrides the playback/render restriction,
-		 *     allowing artists to selectively turn onionskins on/off during playback
-		 */
-#if 0 /* GPXX: This must be disabled for annotations */
-		if ((gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
-		    ((dflag & GP_DRAWDATA_NO_ONIONS) == 0 || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
-		{
-			/* Drawing method - only immediately surrounding (gstep = 0),
-			 * or within a frame range on either side (gstep > 0)
-			 */
-			gp_draw_onionskins(&tgpw);
-		}
-#endif
 		/* draw the strokes already in active frame */
 		gp_draw_strokes(&tgpw);
 
@@ -1778,11 +1663,6 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 		ts = scene->toolsettings;
 		brush = BKE_brush_getactive_gpencil(ts);
 
-		if (spacetype == SPACE_CLIP && scene->clip) {
-			/* currently drawing only gpencil data from either clip or track, but not both - XXX fix logic behind */
-			gpd_source = (scene->clip->gpd ? scene->clip->gpd : NULL);
-		}
-
 		if (gpd_source) {
 			if (brush != NULL) {
 				gp_draw_data(rv3d, brush, ts->gp_sculpt.alpha, NULL, gpd_source,
@@ -1803,112 +1683,6 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 
 /* ----- Grease Pencil Sketches Drawing API ------ */
 
-/* ............................
- * XXX
- *	We need to review the calls below, since they may be/are not that suitable for
- *	the new ways that we intend to be drawing data...
- * ............................ */
-
-/* draw grease-pencil sketches to specified 2d-view that uses ibuf corrections */
-void ED_gpencil_draw_2dimage(const bContext *C)
-{
-	wmWindowManager *wm = CTX_wm_manager(C);
-	ScrArea *sa = CTX_wm_area(C);
-	ARegion *ar = CTX_wm_region(C);
-	RegionView3D *rv3d = ar->regiondata;
-	Scene *scene = CTX_data_scene(C);
-
-	int offsx, offsy, sizex, sizey;
-	int dflag = GP_DRAWDATA_NOSTATUS;
-
-	bGPdata *gpd = ED_gpencil_data_get_active(C); // XXX
-	if (gpd == NULL) return;
-
-	/* calculate rect */
-	switch (sa->spacetype) {
-		case SPACE_IMAGE: /* image */
-		case SPACE_CLIP: /* clip */
-		{
-			/* just draw using standard scaling (settings here are currently ignored anyways) */
-			/* FIXME: the opengl poly-strokes don't draw at right thickness when done this way, so disabled */
-			offsx = 0;
-			offsy = 0;
-			sizex = ar->winx;
-			sizey = ar->winy;
-
-			wmOrtho2(ar->v2d.cur.xmin, ar->v2d.cur.xmax, ar->v2d.cur.ymin, ar->v2d.cur.ymax);
-
-			dflag |= GP_DRAWDATA_ONLYV2D | GP_DRAWDATA_IEDITHACK;
-			break;
-		}
-		case SPACE_SEQ: /* sequence */
-		{
-			/* just draw using standard scaling (settings here are currently ignored anyways) */
-			offsx = 0;
-			offsy = 0;
-			sizex = ar->winx;
-			sizey = ar->winy;
-
-			/* NOTE: I2D was used in 2.4x, but the old settings for that have been deprecated
-			 * and everything moved to standard View2d
-			 */
-			dflag |= GP_DRAWDATA_ONLYV2D;
-			break;
-		}
-		default: /* for spacetype not yet handled */
-			offsx = 0;
-			offsy = 0;
-			sizex = ar->winx;
-			sizey = ar->winy;
-
-			dflag |= GP_DRAWDATA_ONLYI2D;
-			break;
-	}
-
-	if (ED_screen_animation_playing(wm)) {
-		/* don't show onionskins during animation playback/scrub (i.e. it obscures the poses)
-		 * OpenGL Renders (i.e. final output), or depth buffer (i.e. not real strokes)
-		 */
-		dflag |= GP_DRAWDATA_NO_ONIONS;
-	}
-
-	/* draw it! */
-	gp_draw_data_all(rv3d, scene, gpd, offsx, offsy, sizex, sizey, CFRA, dflag, sa->spacetype);
-}
-
-/* draw grease-pencil sketches to specified 2d-view assuming that matrices are already set correctly
- * Note: this gets called twice - first time with onlyv2d=true to draw 'canvas' strokes,
- * second time with onlyv2d=false for screen-aligned strokes */
-void ED_gpencil_draw_view2d(const bContext *C, bool onlyv2d)
-{
-	wmWindowManager *wm = CTX_wm_manager(C);
-	ScrArea *sa = CTX_wm_area(C);
-	ARegion *ar = CTX_wm_region(C);
-	RegionView3D *rv3d = ar->regiondata;
-	Scene *scene = CTX_data_scene(C);
-	int dflag = 0;
-
-	/* check that we have grease-pencil stuff to draw */
-	if (sa == NULL) return;
-	bGPdata *gpd = ED_gpencil_data_get_active(C); // XXX
-	if (gpd == NULL) return;
-
-	/* special hack for Image Editor */
-	/* FIXME: the opengl poly-strokes don't draw at right thickness when done this way, so disabled */
-	if (ELEM(sa->spacetype, SPACE_IMAGE, SPACE_CLIP))
-		dflag |= GP_DRAWDATA_IEDITHACK;
-
-	/* draw it! */
-	if (onlyv2d) dflag |= (GP_DRAWDATA_ONLYV2D | GP_DRAWDATA_NOSTATUS);
-	if (ED_screen_animation_playing(wm)) dflag |= GP_DRAWDATA_NO_ONIONS;
-
-	gp_draw_data_all(rv3d, scene, gpd, 0, 0, ar->winx, ar->winy, CFRA, dflag, sa->spacetype);
-
-	/* draw status text (if in screen/pixel-space) */
-	if (!onlyv2d) {
-		gp_draw_status_text(gpd, ar);
-	}
-}
 
 /* draw grease-pencil sketches to specified 3d-view assuming that matrices are already set correctly
  * Note: this gets called twice - first time with only3d=true to draw 3d-strokes,
