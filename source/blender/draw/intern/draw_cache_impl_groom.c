@@ -733,7 +733,11 @@ static void groom_get_faces(
 				{
 					for (int j = 0; j < rdata->section_tri_len; ++j, ++mtri)
 					{
-						GWN_indexbuf_add_tri_verts(&elb, mtri->tri[0], mtri->tri[1], mtri->tri[2]);
+						GWN_indexbuf_add_tri_verts(
+						            &elb,
+						            idx + mtri->tri[0],
+						            idx + mtri->tri[1],
+						            idx + mtri->tri[2]);
 					}
 				}
 				
