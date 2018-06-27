@@ -205,7 +205,7 @@ static void gpencil_primitive_draw_3d(const bContext *C, ARegion *UNUSED(ar), vo
 /* ----------------------- */
 
 /* Helper: Draw status message while the user is running the operator */
-static void gpencil_primitive_status_indicators(tGPDprimitive *tgpi)
+static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi)
 {
 	Scene *scene = tgpi->scene;
 	char status_str[UI_MAX_DRAW_STR];
@@ -249,7 +249,7 @@ static void gpencil_primitive_status_indicators(tGPDprimitive *tgpi)
 				         tgpi->bottom[0], tgpi->bottom[1]);
 		}
 	}
-	ED_area_headerprint(tgpi->sa, status_str);
+	ED_workspace_status_text(C, status_str);
 }
 
 /* ----------------------- */
@@ -389,7 +389,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 static void gpencil_primitive_update(bContext *C, wmOperator *op, tGPDprimitive *tgpi)
 {
 	/* update indicator in header */
-	gpencil_primitive_status_indicators(tgpi);
+	gpencil_primitive_status_indicators(C, tgpi);
 	/* apply... */
 	tgpi->type = RNA_enum_get(op->ptr, "type");
 	tgpi->tot_edges = RNA_int_get(op->ptr, "edges");
@@ -413,7 +413,7 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		}
 
 		/* clear status message area */
-		ED_area_headerprint(tgpi->sa, NULL);
+		ED_workspace_status_text(C, NULL);
 
 		/* finally, free memory used by temp data */
 		BKE_gpencil_free_strokes(tgpi->gpf);
@@ -508,7 +508,7 @@ static int gpencil_primitive_invoke(bContext *C, wmOperator *op, const wmEvent *
 	WM_cursor_modal_set(win, BC_CROSSCURSOR);
 
 	/* update sindicator in header */
-	gpencil_primitive_status_indicators(tgpi);
+	gpencil_primitive_status_indicators(C, tgpi);
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
@@ -525,7 +525,7 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 	bGPDstroke *gps;
 
 	/* return to normal cursor and header status */
-	ED_area_headerprint(tgpi->sa, NULL);
+	ED_workspace_status_text(C, NULL);
 	WM_cursor_modal_restore(win);
 
 	/* insert keyframes as required... */
@@ -591,7 +591,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case RIGHTMOUSE:
 		{
 			/* return to normal cursor and header status */
-			ED_area_headerprint(tgpi->sa, NULL);
+			ED_workspace_status_text(C, NULL);
 			WM_cursor_modal_restore(win);
 
 			/* clean up temp data */

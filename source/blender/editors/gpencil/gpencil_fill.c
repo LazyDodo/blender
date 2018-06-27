@@ -909,12 +909,12 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 /* ----------------------- */
 /* Drawing                 */
 /* Helper: Draw status message while the user is running the operator */
-static void gpencil_fill_status_indicators(tGPDfill *tgpf)
+static void gpencil_fill_status_indicators(bContext *C, tGPDfill *tgpf)
 {
 	char status_str[UI_MAX_DRAW_STR];
 
 	BLI_snprintf(status_str, sizeof(status_str), IFACE_("Fill: ESC/RMB cancel, LMB Fill, Shift Draw on Back"));
-	ED_area_headerprint(tgpf->sa, status_str);
+	ED_workspace_status_text(C, status_str);
 }
 
 /* draw boundary lines to see fill limits */
@@ -1034,7 +1034,7 @@ static void gpencil_fill_exit(bContext *C, wmOperator *op)
 	/* don't assume that operator data exists at all */
 	if (tgpf) {
 		/* clear status message area */
-		ED_area_headerprint(tgpf->sa, NULL);
+		ED_workspace_status_text(C, NULL);
 
 		MEM_SAFE_FREE(tgpf->sbuffer);
 		MEM_SAFE_FREE(tgpf->depth_arr);
@@ -1119,7 +1119,7 @@ static int gpencil_fill_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 
 	WM_cursor_modal_set(CTX_wm_window(C), BC_PAINTBRUSHCURSOR);
 
-	gpencil_fill_status_indicators(tgpf);
+	gpencil_fill_status_indicators(C, tgpf);
 
 	DEG_id_tag_update(&tgpf->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
