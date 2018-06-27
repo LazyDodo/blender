@@ -85,7 +85,7 @@ void DRW_gpencil_multisample_ensure(GPENCIL_Data *vedata, int rect_w, int rect_h
 			fbl->multisample_fb = GPU_framebuffer_create();
 			if (fbl->multisample_fb) {
 				if (txl->multisample_color == NULL) {
-					txl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA8, NULL, samples, NULL);
+					txl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA32F, NULL, samples, NULL);
 				}
 				if (txl->multisample_depth == NULL) {
 					txl->multisample_depth = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_DEPTH24_STENCIL8, NULL, samples, NULL);
