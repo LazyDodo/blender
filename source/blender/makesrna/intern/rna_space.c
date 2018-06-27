@@ -2179,6 +2179,14 @@ static void rna_def_space_image_uv(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Draw Modified Edges", "Draw edges after modifiers are applied");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 
+	prop = RNA_def_property(srna, "tile_grid_shape", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "tile_grid_shape");
+	RNA_def_property_array(prop, 2);
+	RNA_def_property_int_default(prop, 1);
+	RNA_def_property_range(prop, 1, 10);
+	RNA_def_property_ui_text(prop, "Tile Grid Shape", "How many tiles will be shown in the background");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
+
 	prop = RNA_def_property(srna, "show_other_objects", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SI_DRAW_OTHER);
 	RNA_def_property_ui_text(prop, "Draw Other Objects", "Draw other selected objects that share the same image");

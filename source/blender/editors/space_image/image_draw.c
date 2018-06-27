@@ -656,11 +656,9 @@ static void draw_image_paint_helpers(const bContext *C, ARegion *ar, Scene *scen
 }
 
 static void draw_udim_tile_grid(unsigned int pos_attr, unsigned int color_attr,
-                                ARegion *ar, int tile_number,
+                                ARegion *ar, int x, int y,
                                 float stepx, float stepy, const float color[3])
 {
-	int x = tile_number % 10;
-	int y = tile_number / 10;
 	float x1, y1;
 	UI_view2d_view_to_region_fl(&ar->v2d, x, y, &x1, &y1);
 	int gridpos[5][2] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}, {0, 0}};
@@ -672,42 +670,58 @@ static void draw_udim_tile_grid(unsigned int pos_attr, unsigned int color_attr,
 	}
 }
 
-static bool draw_image_udim_grid(ARegion *ar, SpaceImage *sima, float zoomx, float zoomy, bool draw_tilegrids)
+static void draw_image_tiles(ARegion *ar, SpaceImage *sima, Image *ima)
 {
-    Image *ima = ED_space_image(sima);
-
-    float stepx = BLI_rcti_size_x(&ar->v2d.mask) / BLI_rctf_size_x(&ar->v2d.cur);
-    float stepy = BLI_rcti_size_y(&ar->v2d.mask) / BLI_rctf_size_y(&ar->v2d.cur);
-
-	if (draw_tilegrids) {
-		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
-			int x = tile->tile_number % 10;
-			int y = tile->tile_number / 10;
-			ED_region_grid_draw(ar, zoomx, zoomy, x, y);
-		}
+	int num_tiles;
+	if (ima) {
+		num_tiles = BLI_listbase_count(&ima->tiles);
 	}
+	else {
+		num_tiles = sima->tile_grid_shape[0] * sima->tile_grid_shape[1];
+	}
+
+	if (num_tiles == 1) {
+		return;
+	}
+
+	float stepx = BLI_rcti_size_x(&ar->v2d.mask) / BLI_rctf_size_x(&ar->v2d.cur);
+	float stepy = BLI_rcti_size_y(&ar->v2d.mask) / BLI_rctf_size_y(&ar->v2d.cur);
 
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	int num_tiles = BLI_listbase_count(&ima->tiles);
-	immBegin(GWN_PRIM_LINES, 8*(num_tiles + 1));
+	immBegin(GWN_PRIM_LINES, 8*num_tiles);
 
 	float theme_color[3], selected_color[3];
-	UI_GetThemeColorShade3fv(TH_BACK, 20.0f, theme_color);
+	UI_GetThemeColorShade3fv(TH_BACK, 60.0f, theme_color);
 	UI_GetThemeColor3fv(TH_FACE_SELECT, selected_color);
 
-	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
-		draw_udim_tile_grid(pos, color, ar, tile->tile_number, stepx, stepy, theme_color);
-    }
-	draw_udim_tile_grid(pos, color, ar, sima->curtile, stepx, stepy, selected_color);
+	if (ima) {
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			int x = tile->tile_number % 10;
+			int y = tile->tile_number / 10;
+			draw_udim_tile_grid(pos, color, ar, x, y, stepx, stepy, theme_color);
+		}
+	}
+	else {
+		for (int y = 0; y < sima->tile_grid_shape[1]; y++) {
+			for (int x = 0; x < sima->tile_grid_shape[0]; x++) {
+				draw_udim_tile_grid(pos, color, ar, x, y, stepx, stepy, theme_color);
+			}
+		}
+	}
+
+	if (num_tiles > 1) {
+		int cur_x = sima->curtile % 10, cur_y = sima->curtile / 10;
+		draw_udim_tile_grid(pos, color, ar, cur_x, cur_y, stepx, stepy, selected_color);
+	}
 
 	immEnd();
 	immUnbindProgram();
 
-    return true;
+	return;
 }
 
 /* draw main image region */
@@ -776,11 +790,19 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	/* draw the image or grid */
 	if (ibuf == NULL) {
-		if (ima && ima->source == IMA_SRC_TILED) {
-			draw_image_udim_grid(ar, sima, zoomx, zoomy, true);
+		if (ima) {
+			LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+				int x = tile->tile_number % 10;
+				int y = tile->tile_number / 10;
+				ED_region_grid_draw(ar, zoomx, zoomy, x, y);
+			}
 		}
 		else {
-			ED_region_grid_draw(ar, zoomx, zoomy, 0.0f, 0.0f);
+			for (int y = 0; y < sima->tile_grid_shape[1]; y++) {
+				for (int x = 0; x < sima->tile_grid_shape[0]; x++) {
+					ED_region_grid_draw(ar, zoomx, zoomy, x, y);
+				}
+			}
 		}
 	}
 	else {
@@ -819,8 +841,9 @@ void draw_image_main(const bContext *C, ARegion *ar)
 			}
 			ED_space_image_release_buffer(sima, ibuf, lock);
 		}
-		draw_image_udim_grid(ar, sima, zoomx, zoomy, false);
 	}
+
+	draw_image_tiles(ar, sima, ima);
 
 	/* paint helpers */
 	if (show_paint)

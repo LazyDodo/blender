@@ -182,6 +182,9 @@ static SpaceLink *image_new(const ScrArea *UNUSED(area), const Scene *UNUSED(sce
 	scopes_new(&simage->scopes);
 	simage->sample_line_hist.height = 100;
 
+	simage->tile_grid_shape[0] = 1;
+	simage->tile_grid_shape[1] = 1;
+
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for image");
 

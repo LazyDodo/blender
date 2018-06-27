@@ -724,6 +724,10 @@ class IMAGE_PT_view_properties(Panel):
             row.active = uvedit.show_other_objects
             row.prop(uvedit, "other_uv_filter", text="Filter")
 
+            if ima is None:
+                row = layout.row()
+                row.prop(uvedit, "tile_grid_shape", text="Grid Shape")
+
 
 class IMAGE_UL_render_slots(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
