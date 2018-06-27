@@ -924,7 +924,7 @@ void GPU_texture_update_sub(
 			break;
 		default:
 			BLI_assert(!"tex->target mode not supported");
-		}
+	}
 
 	if (tex->bytesize == 1) {
 		glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
@@ -1259,45 +1259,4 @@ int GPU_texture_detach_framebuffer(GPUTexture *tex, GPUFrameBuffer *fb)
 
 	BLI_assert(!"Error: Texture: Framebuffer is not attached");
 	return 0;
-}
-
-void GPU_blend(bool enable)
-{
-	if (enable) {
-		glEnable(GL_BLEND);
-	}
-	else {
-		glDisable(GL_BLEND);
-	}
-}
-
-static GLenum gpu_get_gl_blendfunction(GPUBlendFunction blend)
-{
-	switch (blend)
-	{
-		case GPU_ONE:
-			return GL_ONE;
-		case GPU_SRC_ALPHA:
-			return GL_SRC_ALPHA;
-		case GPU_ONE_MINUS_SRC_ALPHA:
-			return GL_ONE_MINUS_SRC_ALPHA;
-		default:
-			BLI_assert(!"Unhandled blend mode");
-			return GL_ZERO;
-	}
-}
-
-void GPU_blend_set_func_separate(
-        GPUBlendFunction src_rgb, GPUBlendFunction dst_rgb,
-        GPUBlendFunction src_alpha, GPUBlendFunction dst_alpha)
-{
-	glBlendFuncSeparate(gpu_get_gl_blendfunction(src_rgb),
-		gpu_get_gl_blendfunction(dst_rgb),
-		gpu_get_gl_blendfunction(src_alpha),
-		gpu_get_gl_blendfunction(dst_alpha));
-}
-
-void GPU_blend_set_func(GPUBlendFunction sfactor, GPUBlendFunction dfactor)
-{
-	glBlendFunc(gpu_get_gl_blendfunction(sfactor), gpu_get_gl_blendfunction(dfactor));
 }

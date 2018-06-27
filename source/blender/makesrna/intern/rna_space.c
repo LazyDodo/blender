@@ -251,7 +251,7 @@ const EnumPropertyItem rna_enum_viewport_lighting_items[] = {
 };
 
 static const EnumPropertyItem rna_enum_shading_color_type_items[] = {
-	{V3D_SHADING_SINGLE_COLOR,   "SOLID",    0, "Single",   "Show scene in a single color"},
+	{V3D_SHADING_SINGLE_COLOR,   "SINGLE",   0, "Single",   "Show scene in a single color"},
 	{V3D_SHADING_MATERIAL_COLOR, "MATERIAL", 0, "Material", "Show material color"},
 	{V3D_SHADING_RANDOM_COLOR,   "RANDOM",   0, "Random",   "Show random object color"},
 	{V3D_SHADING_TEXTURE_COLOR,  "TEXTURE",  0, "Texture",  "Show texture"},
@@ -2238,7 +2238,7 @@ static void rna_def_space_outliner(BlenderRNA *brna)
 
 	static const EnumPropertyItem display_mode_items[] = {
 		{SO_SCENES, "SCENES", ICON_SCENE_DATA, "Scenes", "Display scenes and their view layers, collections and objects"},
-		{SO_VIEW_LAYER, "VIEW_LAYER",ICON_RENDER_RESULT, "View Layer", "Display collections and objects in the view layer"},
+		{SO_VIEW_LAYER, "VIEW_LAYER", ICON_RENDER_RESULT, "View Layer", "Display collections and objects in the view layer"},
 		{SO_SEQUENCE, "SEQUENCE", ICON_SEQUENCE, "Sequence", "Display sequence data-blocks"},
 		{SO_LIBRARIES, "LIBRARIES", ICON_FILE_BLEND, "Blender File", "Display data of current file and linked libraries"},
 		{SO_DATA_API, "DATA_API", ICON_RNA, "Data API", "Display low level Blender data and its properties"},
@@ -2295,12 +2295,6 @@ static void rna_def_space_outliner(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_OUTLINER, NULL);
 
 	/* Filters. */
-	prop = RNA_def_property(srna, "use_filter_search", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "filter", SO_FILTER_SEARCH);
-	RNA_def_property_ui_text(prop, "Search Name", "Filter searched elements");
-	RNA_def_property_ui_icon(prop, ICON_VIEWZOOM, 0);
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_OUTLINER, NULL);
-
 	prop = RNA_def_property(srna, "use_filter_object", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filter", SO_FILTER_NO_OBJECT);
 	RNA_def_property_ui_text(prop, "Filter Objects", "Show objects");
