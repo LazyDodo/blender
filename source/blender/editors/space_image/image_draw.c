@@ -828,6 +828,9 @@ void draw_image_main(const bContext *C, ARegion *ar)
 
 	if (ima && ima->source == IMA_SRC_TILED) {
 		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			if (tile->tile_number == 0)
+				continue;
+
 			ibuf = ED_space_image_acquire_buffer(sima, &lock, tile->tile_number);
 			if (ibuf) {
 				int x_pos = tile->tile_number % 10;

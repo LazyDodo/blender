@@ -2132,6 +2132,9 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 		char filepath[FILE_MAX];
 		BLI_strncpy(filepath, simopts->filepath, sizeof(filepath));
 		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			if (tile->tile_number == 0)
+				continue;
+
 			char head[FILE_MAX], tail[FILE_MAX];
 			unsigned short numlen;
 			BLI_stringdec(filepath, head, tail, &numlen);
