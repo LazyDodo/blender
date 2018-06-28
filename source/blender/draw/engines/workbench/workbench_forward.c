@@ -58,12 +58,15 @@ static struct {
 	struct GPUTexture *transparent_accum_tx; /* ref only, not alloced */
 	struct GPUTexture *transparent_revealage_tx; /* ref only, not alloced */
 	struct GPUTexture *composite_buffer_tx; /* ref only, not alloced */
+	struct GPUTexture *effect_buffer_tx; /* ref only, not alloced */
+
 	int next_object_id;
 	float normal_world_matrix[3][3];
 } e_data = {{NULL}};
 
 /* Shaders */
 extern char datatoc_common_hair_lib_glsl[];
+
 extern char datatoc_workbench_forward_composite_frag_glsl[];
 extern char datatoc_workbench_forward_depth_frag_glsl[];
 extern char datatoc_workbench_forward_transparent_accum_frag_glsl[];
@@ -259,6 +262,10 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		/* Alloc transient pointers */
 		stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
 	}
+	if (!stl->effects) {
+		stl->effects = MEM_mallocN(sizeof(*stl->effects), __func__);
+		workbench_effect_info_init(stl->effects);
+	}
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	workbench_private_data_init(wpd);
 	float light_direction[3];
@@ -280,6 +287,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		        forward_vert, NULL,
 		        forward_depth_frag, defines_hair);
 
+
 		e_data.checker_depth_sh = DRW_shader_create_fullscreen(
 		        datatoc_workbench_checkerboard_depth_frag_glsl, NULL);
 		MEM_freeN(forward_vert);
@@ -287,6 +295,9 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		MEM_freeN(defines);
 		MEM_freeN(defines_hair);
 	}
+	workbench_fxaa_engine_init();
+	workbench_taa_engine_init(vedata);
+
 	select_forward_shaders(wpd);
 
 	const float *viewport_size = DRW_viewport_size_get();
@@ -300,6 +311,8 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 	        size[0], size[1], GPU_R16F, &draw_engine_workbench_transparent);
 	e_data.composite_buffer_tx = DRW_texture_pool_query_2D(
 	        size[0], size[1], GPU_R11F_G11F_B10F, &draw_engine_workbench_transparent);
+	e_data.effect_buffer_tx = DRW_texture_pool_query_2D(
+	        size[0], size[1], GPU_RGBA16F, &draw_engine_workbench_solid);
 
 	GPU_framebuffer_ensure_config(&fbl->object_outline_fb, {
 		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
@@ -315,6 +328,10 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 	GPU_framebuffer_ensure_config(&fbl->composite_fb, {
 		GPU_ATTACHMENT_NONE,
 		GPU_ATTACHMENT_TEXTURE(e_data.composite_buffer_tx),
+	});
+	GPU_framebuffer_ensure_config(&fbl->effect_fb, {
+		GPU_ATTACHMENT_NONE,
+		GPU_ATTACHMENT_TEXTURE(e_data.effect_buffer_tx),
 	});
 
 	/* Transparency Accum */
@@ -342,6 +359,11 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		DRW_shgroup_uniform_vec2(grp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 	}
+
+	{
+		workbench_aa_create_pass(vedata, &e_data.effect_buffer_tx);
+	}
+
 	/* Checker Depth */
 	{
 		int state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS;
@@ -361,6 +383,8 @@ void workbench_forward_engine_free()
 	DRW_SHADER_FREE_SAFE(e_data.object_outline_sh);
 	DRW_SHADER_FREE_SAFE(e_data.object_outline_hair_sh);
 	DRW_SHADER_FREE_SAFE(e_data.checker_depth_sh);
+
+	workbench_fxaa_engine_free();
 }
 
 void workbench_forward_cache_init(WORKBENCH_Data *UNUSED(vedata))
@@ -560,6 +584,10 @@ void workbench_forward_draw_scene(WORKBENCH_Data *vedata)
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
+	if (TAA_ENABLED(wpd)) {
+		workbench_taa_draw_scene_start(vedata);
+	}
+
 	/* Write Depth + Object ID */
 	const float clear_outline[4] = {0.0f};
 	GPU_framebuffer_bind(fbl->object_outline_fb);
@@ -584,10 +612,10 @@ void workbench_forward_draw_scene(WORKBENCH_Data *vedata)
 	GPU_framebuffer_bind(fbl->composite_fb);
 	DRW_draw_pass(psl->composite_pass);
 
-	/* Color correct */
-	GPU_framebuffer_bind(dfbl->color_only_fb);
-	DRW_transform_to_display(e_data.composite_buffer_tx);
+	/* Color correct and Anti aliasing */
+	workbench_aa_draw_pass(vedata, e_data.composite_buffer_tx);
 
+	/* Apply checker pattern */
 	GPU_framebuffer_bind(dfbl->depth_only_fb);
 	DRW_draw_pass(psl->checker_depth_pass);
 

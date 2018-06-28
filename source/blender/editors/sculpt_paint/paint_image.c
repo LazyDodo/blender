@@ -46,6 +46,7 @@
 #include "IMB_imbuf_types.h"
 
 #include "DNA_brush_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 
@@ -54,6 +55,7 @@
 #include "BKE_brush.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
+#include "BKE_mesh.h"
 #include "BKE_node.h"
 #include "BKE_paint.h"
 #include "BKE_undo_system.h"
@@ -80,6 +82,7 @@
 
 #include "GPU_draw.h"
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "BIF_gl.h"
 
@@ -411,15 +414,15 @@ static void gradient_draw_line(bContext *UNUSED(C), int x, int y, void *customda
 	PaintOperation *pop = (PaintOperation *)customdata;
 
 	if (pop) {
-		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_BLEND);
+		GPU_line_smooth(true);
+		GPU_blend(true);
 
 		Gwn_VertFormat *format = immVertexFormat();
 		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
-		glLineWidth(4.0);
+		GPU_line_width(4.0);
 		immUniformColor4ub(0, 0, 0, 255);
 
 		immBegin(GWN_PRIM_LINES, 2);
@@ -427,7 +430,7 @@ static void gradient_draw_line(bContext *UNUSED(C), int x, int y, void *customda
 		immVertex2i(pos, pop->startmouse[0], pop->startmouse[1]);
 		immEnd();
 
-		glLineWidth(2.0);
+		GPU_line_width(2.0);
 		immUniformColor4ub(255, 255, 255, 255);
 
 		immBegin(GWN_PRIM_LINES, 2);
@@ -437,8 +440,8 @@ static void gradient_draw_line(bContext *UNUSED(C), int x, int y, void *customda
 
 		immUnbindProgram();
 
-		glDisable(GL_BLEND);
-		glDisable(GL_LINE_SMOOTH);
+		GPU_blend(false);
+		GPU_line_smooth(false);
 	}
 }
 
@@ -884,7 +887,7 @@ static void sample_color_update_header(SampleColorData *data, bContext *C)
 		             !data->sample_palette ?
 		             IFACE_("Brush. Use Left Click to sample for palette instead") :
 		             IFACE_("Palette. Use Left Click to sample more colors"));
-		ED_area_headerprint(sa, msg);
+		ED_workspace_status_text(C, msg);
 	}
 }
 
@@ -963,8 +966,6 @@ static int sample_color_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	Brush *brush = BKE_paint_brush(paint);
 
 	if ((event->type == data->event_type) && (event->val == KM_RELEASE)) {
-		ScrArea *sa = CTX_wm_area(C);
-
 		if (data->show_cursor) {
 			paint->flags |= PAINT_SHOW_BRUSH;
 		}
@@ -975,7 +976,7 @@ static int sample_color_modal(bContext *C, wmOperator *op, const wmEvent *event)
 		}
 		WM_cursor_modal_restore(CTX_wm_window(C));
 		MEM_freeN(data);
-		ED_area_headerprint(sa, NULL);
+		ED_workspace_status_text(C, NULL);
 
 		return OPERATOR_FINISHED;
 	}
@@ -1126,6 +1127,10 @@ static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 
 		toggle_paint_cursor(C, 1);
 	}
+
+	Mesh *me = BKE_mesh_from_object(ob);
+	BLI_assert(me != NULL);
+	DEG_id_tag_update(&me->id, DEG_TAG_COPY_ON_WRITE);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
 

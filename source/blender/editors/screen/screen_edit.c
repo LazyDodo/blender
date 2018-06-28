@@ -1141,7 +1141,7 @@ static void screen_global_topbar_area_create(wmWindow *win)
 
 static void screen_global_statusbar_area_create(wmWindow *win)
 {
-	const short size_y = HEADERY;
+	const short size_y = 0.8f * HEADERY;
 	rcti rect;
 
 	BLI_rcti_init(&rect, 0, WM_window_pixels_x(win) - 1, 0, WM_window_pixels_y(win) - 1);
@@ -1418,8 +1418,9 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 			}
 		}
 
-		/* prevent hanging header prints */
-		ED_area_headerprint(sa, NULL);
+		/* prevent hanging status prints */
+		ED_area_status_text(sa, NULL);
+		ED_workspace_status_text(C, NULL);
 	}
 
 	if (sa && sa->full) {

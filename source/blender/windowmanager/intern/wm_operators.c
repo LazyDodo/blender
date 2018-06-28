@@ -2304,20 +2304,12 @@ static void WM_OT_window_close(wmOperatorType *ot)
 
 static void WM_OT_window_new(wmOperatorType *ot)
 {
-	PropertyRNA *prop;
-
 	ot->name = "New Window";
 	ot->idname = "WM_OT_window_new";
 	ot->description = "Create a new Blender window";
 
 	ot->exec = wm_window_new_exec;
-	ot->invoke = wm_window_new_invoke;
 	ot->poll = wm_operator_winactive_normal;
-
-	prop = RNA_def_enum(ot->srna, "screen", DummyRNA_NULL_items, 0, "Screen", "");
-	RNA_def_enum_funcs(prop, wm_window_new_screen_itemf);
-	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
-	ot->prop = prop;
 }
 
 static void WM_OT_window_fullscreen_toggle(wmOperatorType *ot)
@@ -2447,38 +2439,37 @@ static void radial_control_update_header(wmOperator *op, bContext *C)
 	ScrArea *sa = CTX_wm_area(C);
 	Scene *scene = CTX_data_scene(C);
 
-	if (sa) {
-		if (hasNumInput(&rc->num_input)) {
-			char num_str[NUM_STR_REP_LEN];
-			outputNumInput(&rc->num_input, num_str, &scene->unit);
-			BLI_snprintf(msg, sizeof(msg), "%s: %s", RNA_property_ui_name(rc->prop), num_str);
-		}
-		else {
-			const char *ui_name = RNA_property_ui_name(rc->prop);
-			switch (rc->subtype) {
-				case PROP_NONE:
-				case PROP_DISTANCE:
-					BLI_snprintf(msg, sizeof(msg), "%s: %0.4f", ui_name, rc->current_value);
-					break;
-				case PROP_PIXEL:
-					BLI_snprintf(msg, sizeof(msg), "%s: %d", ui_name, (int)rc->current_value); /* XXX: round to nearest? */
-					break;
-				case PROP_PERCENTAGE:
-					BLI_snprintf(msg, sizeof(msg), "%s: %3.1f%%", ui_name, rc->current_value);
-					break;
-				case PROP_FACTOR:
-					BLI_snprintf(msg, sizeof(msg), "%s: %1.3f", ui_name, rc->current_value);
-					break;
-				case PROP_ANGLE:
-					BLI_snprintf(msg, sizeof(msg), "%s: %3.2f", ui_name, RAD2DEGF(rc->current_value));
-					break;
-				default:
-					BLI_snprintf(msg, sizeof(msg), "%s", ui_name); /* XXX: No value? */
-					break;
-			}
-		}
-		ED_area_headerprint(sa, msg);
+	if (hasNumInput(&rc->num_input)) {
+		char num_str[NUM_STR_REP_LEN];
+		outputNumInput(&rc->num_input, num_str, &scene->unit);
+		BLI_snprintf(msg, sizeof(msg), "%s: %s", RNA_property_ui_name(rc->prop), num_str);
 	}
+	else {
+		const char *ui_name = RNA_property_ui_name(rc->prop);
+		switch (rc->subtype) {
+			case PROP_NONE:
+			case PROP_DISTANCE:
+				BLI_snprintf(msg, sizeof(msg), "%s: %0.4f", ui_name, rc->current_value);
+				break;
+			case PROP_PIXEL:
+				BLI_snprintf(msg, sizeof(msg), "%s: %d", ui_name, (int)rc->current_value); /* XXX: round to nearest? */
+				break;
+			case PROP_PERCENTAGE:
+				BLI_snprintf(msg, sizeof(msg), "%s: %3.1f%%", ui_name, rc->current_value);
+				break;
+			case PROP_FACTOR:
+				BLI_snprintf(msg, sizeof(msg), "%s: %1.3f", ui_name, rc->current_value);
+				break;
+			case PROP_ANGLE:
+				BLI_snprintf(msg, sizeof(msg), "%s: %3.2f", ui_name, RAD2DEGF(rc->current_value));
+				break;
+			default:
+				BLI_snprintf(msg, sizeof(msg), "%s", ui_name); /* XXX: No value? */
+				break;
+		}
+	}
+
+	ED_area_status_text(sa, msg);
 }
 
 static void radial_control_set_initial_mouse(RadialControl *rc, const wmEvent *event)
@@ -3012,9 +3003,7 @@ static void radial_control_cancel(bContext *C, wmOperator *op)
 		rc->dial = NULL;
 	}
 
-	if (sa) {
-		ED_area_headerprint(sa, NULL);
-	}
+	ED_area_status_text(sa, NULL);
 
 	WM_paint_cursor_end(wm, rc->cursor);
 

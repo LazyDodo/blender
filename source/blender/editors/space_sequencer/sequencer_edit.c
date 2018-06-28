@@ -1534,7 +1534,7 @@ static void sequencer_slip_update_header(Scene *scene, ScrArea *sa, SlipData *da
 		}
 	}
 
-	ED_area_headerprint(sa, msg);
+	ED_area_status_text(sa, msg);
 }
 
 static int sequencer_slip_modal(bContext *C, wmOperator *op, const wmEvent *event)
@@ -1605,7 +1605,7 @@ static int sequencer_slip_modal(bContext *C, wmOperator *op, const wmEvent *even
 			MEM_freeN(data);
 			op->customdata = NULL;
 			if (sa) {
-				ED_area_headerprint(sa, NULL);
+				ED_area_status_text(sa, NULL);
 			}
 			WM_event_add_notifier(C, NC_SCENE | ND_SEQUENCER, scene);
 			return OPERATOR_FINISHED;
@@ -1638,7 +1638,7 @@ static int sequencer_slip_modal(bContext *C, wmOperator *op, const wmEvent *even
 			BKE_sequencer_free_imbuf(scene, &ed->seqbase, false);
 
 			if (sa) {
-				ED_area_headerprint(sa, NULL);
+				ED_area_status_text(sa, NULL);
 			}
 
 			return OPERATOR_CANCELLED;

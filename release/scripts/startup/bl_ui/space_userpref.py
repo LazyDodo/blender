@@ -550,8 +550,7 @@ class USERPREF_PT_system(Panel):
         col.prop(system, "use_region_overlap")
 
         col.separator()
-        col.label(text="Max Viewport Anti-aliasing Method")
-        col.prop(system, "max_anti_alias_method", text="")
+        col.prop(system, "gpu_viewport_quality")
 
         col.separator()
 
@@ -953,7 +952,7 @@ class USERPREF_PT_theme(Panel):
             col = split.column()
 
             for i, ui in enumerate(theme.bone_color_sets, 1):
-                col.label(text=iface_("Color Set %d:") % i, translate=False)
+                col.label(iface_(f"Color Set {i:d}"), translate=False)
 
                 row = col.row()
 

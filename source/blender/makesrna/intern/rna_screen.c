@@ -385,8 +385,8 @@ static void rna_def_area(BlenderRNA *brna)
 
 	RNA_def_function(srna, "tag_redraw", "ED_area_tag_redraw");
 
-	func = RNA_def_function(srna, "header_text_set", "ED_area_headerprint");
-	RNA_def_function_ui_description(func, "Set the header text");
+	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
+	RNA_def_function_ui_description(func, "Set the header status text");
 	RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, no argument clears the text");
 }
 

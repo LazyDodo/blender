@@ -32,6 +32,8 @@
 #ifndef __GPU_TEXTURE_H__
 #define __GPU_TEXTURE_H__
 
+#include "GPU_state.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -151,19 +153,6 @@ typedef enum GPUDataFormat {
 	GPU_DATA_10_11_11_REV,
 } GPUDataFormat;
 
-/* These map directly to the GL_ blend functions, to minimize API add as needed*/
-typedef enum GPUBlendFunction {
-	GPU_ONE,
-	GPU_SRC_ALPHA,
-	GPU_ONE_MINUS_SRC_ALPHA
-} GPUBlendFunction;
-
-/* These map directly to the GL_ filter functions, to minimize API add as needed*/
-typedef enum GPUFilterFunction {
-	GPU_NEAREST,
-	GPU_LINEAR
-} GPUFilterFunction;
-
 unsigned int GPU_texture_memory_usage_get(void);
 
 /* TODO make it static function again. (create function with GPUDataFormat exposed) */
@@ -242,10 +231,6 @@ bool GPU_texture_integer(const GPUTexture *tex);
 int GPU_texture_opengl_bindcode(const GPUTexture *tex);
 
 void GPU_texture_get_mipmap_size(GPUTexture *tex, int lvl, int *size);
-
-void GPU_blend(bool enable);
-void GPU_blend_set_func_separate(GPUBlendFunction src_rgb, GPUBlendFunction dst_rgb, GPUBlendFunction src_alpha, GPUBlendFunction dst_alpha);
-void GPU_blend_set_func(GPUBlendFunction sfactor, GPUBlendFunction dfactor);
 
 #ifdef __cplusplus
 }

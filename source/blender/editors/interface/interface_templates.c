@@ -4295,6 +4295,40 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
 	         NULL, 0.0f, 0.0f, 0, 0, "");
 }
 
+
+void uiTemplateInputStatus(uiLayout *layout, struct bContext *C)
+{
+	wmWindow *win = CTX_wm_window(C);
+	WorkSpace *workspace = CTX_wm_workspace(C);
+
+	/* Workspace status text has priority. */
+	if (workspace->status_text) {
+		uiItemL(layout, workspace->status_text, ICON_NONE);
+		return;
+	}
+
+	/* Otherwise should cursor keymap status. */
+	for (int i = 0; i < 3; i++) {
+		uiLayout *box = uiLayoutRow(layout, false);
+		uiLayout *col = uiLayoutColumn(box, false);
+		uiLayout *row = uiLayoutRow(col, true);
+		uiLayoutSetAlignment(row, UI_LAYOUT_ALIGN_LEFT);
+
+		const char *msg = WM_window_cursor_keymap_status_get(win, i, 0);
+		const char *msg_drag = WM_window_cursor_keymap_status_get(win, i, 1);
+
+		uiItemL(row, msg ? msg : "", (ICON_MOUSE_LMB + i));
+
+		if (msg_drag) {
+			uiItemL(row, msg_drag, ICON_MOUSE_DRAG);
+		}
+
+		/* Use trick with empty string to keep icons in same position. */
+		row = uiLayoutRow(col, false);
+		uiItemL(row, "                                                        ", ICON_NONE);
+	}
+}
+
 /********************************* Keymap *************************************/
 
 static void keymap_item_modified(bContext *UNUSED(C), void *kmi_p, void *UNUSED(unused))
