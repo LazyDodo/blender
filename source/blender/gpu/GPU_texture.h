@@ -142,6 +142,15 @@ typedef enum GPUTextureFormat {
 	GPU_DEPTH_COMPONENT16,
 } GPUTextureFormat;
 
+typedef enum GPUDataFormat {
+	GPU_DATA_FLOAT,
+	GPU_DATA_INT,
+	GPU_DATA_UNSIGNED_INT,
+	GPU_DATA_UNSIGNED_BYTE,
+	GPU_DATA_UNSIGNED_INT_24_8,
+	GPU_DATA_10_11_11_REV,
+} GPUDataFormat;
+
 /* These map directly to the GL_ blend functions, to minimize API add as needed*/
 typedef enum GPUBlendFunction {
 	GPU_ONE,
@@ -156,6 +165,12 @@ typedef enum GPUFilterFunction {
 } GPUFilterFunction;
 
 unsigned int GPU_texture_memory_usage_get(void);
+
+/* TODO make it static function again. (create function with GPUDataFormat exposed) */
+GPUTexture *GPU_texture_create_nD(
+        int w, int h, int d, int n, const void *pixels,
+        GPUTextureFormat tex_format, GPUDataFormat gpu_data_format, int samples,
+        const bool can_rescale, char err_out[256]);
 
 GPUTexture *GPU_texture_create_1D(
         int w, GPUTextureFormat data_type, const float *pixels, char err_out[256]);
@@ -179,12 +194,14 @@ GPUTexture *GPU_texture_from_blender(
         struct Image *ima, struct ImageUser *iuser, int textarget, bool is_data, double time);
 GPUTexture *GPU_texture_from_preview(struct PreviewImage *prv, int mipmap);
 
-void GPU_texture_update(GPUTexture *tex, const void *pixels);
+void GPU_texture_add_mipmap(GPUTexture *tex, GPUDataFormat gpu_data_format, int miplvl, const void *pixels);
+
+void GPU_texture_update(GPUTexture *tex, GPUDataFormat data_format, const void *pixels);
 void GPU_texture_update_sub(
-        GPUTexture *tex, const void *pixels,
+        GPUTexture *tex, GPUDataFormat gpu_data_format, const void *pixels,
         int offset_x, int offset_y, int offset_z, int width, int height, int depth);
 
-void *GPU_texture_read(GPUTexture *tex, int miplvl);
+void *GPU_texture_read(GPUTexture *tex, GPUDataFormat gpu_data_format, int miplvl);
 
 void GPU_invalid_tex_init(void);
 void GPU_invalid_tex_bind(int mode);
@@ -223,6 +240,8 @@ bool GPU_texture_depth(const GPUTexture *tex);
 bool GPU_texture_stencil(const GPUTexture *tex);
 bool GPU_texture_integer(const GPUTexture *tex);
 int GPU_texture_opengl_bindcode(const GPUTexture *tex);
+
+void GPU_texture_get_mipmap_size(GPUTexture *tex, int lvl, int *size);
 
 void GPU_blend(bool enable);
 void GPU_blend_set_func_separate(GPUBlendFunction src_rgb, GPUBlendFunction dst_rgb, GPUBlendFunction src_alpha, GPUBlendFunction dst_alpha);
