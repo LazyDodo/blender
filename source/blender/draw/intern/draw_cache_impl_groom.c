@@ -575,7 +575,6 @@ static void groom_get_verts(
 			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
-				
 				GroomCurveCache *cache = bundle->curvecache;
 				for (int i = 0; i < region->numverts; ++i)
 				{
@@ -710,7 +709,7 @@ static void groom_get_faces(
 	int vert_len = groom_count_verts(rdata->regions, parts, use_curve_cache);
 	int face_len = groom_count_faces(rdata->regions, parts, use_curve_cache);
 	
-	GWN_indexbuf_init_ex(&elb, GWN_PRIM_TRIS, face_len, vert_len, true);
+	GWN_indexbuf_init_ex(&elb, GWN_PRIM_TRIS, face_len * 3, vert_len, true);
 	
 	uint idx = 0;
 	if (parts & GM_RENDER_REGIONS)
@@ -754,35 +753,40 @@ static void groom_get_faces(
 	{
 		for (GroomRegion *region = rdata->regions->first; region; region = region->next)
 		{
-#if 0
 			/* Closed triangle strip around each section */
 			GroomBundle *bundle = &region->bundle;
-			if (use_curve_cache)
+			const int numshapeverts = region->numverts;
+			if (numshapeverts > 1)
 			{
-				GroomCurveCache *cache = bundle->curvecache;
-				const int numshapeverts = region->numverts;
-				if (numshapeverts > 1)
+				if (use_curve_cache)
 				{
 					for (int i = 0; i < numshapeverts; ++i)
 					{
-						for (int j = 0; j < bundle->curvesize - 1; ++j, ++cache)
+						const int idx0 = idx + bundle->curvesize * i;
+						const int idx1 = idx + bundle->curvesize * ((i + 1) % numshapeverts);
+						for (int j = 0; j < bundle->curvesize - 1; ++j)
 						{
-							GWN_indexbuf_add_tri_verts(&elb, idx + j, idx + curvesize + j, idx + j + 1);
+							GWN_indexbuf_add_tri_verts(&elb, idx0 + j, idx1 + j,     idx1 + j + 1);
+							GWN_indexbuf_add_tri_verts(&elb, idx0 + j, idx1 + j + 1, idx0 + j + 1);
 						}
 					}
 					idx += bundle->curvesize * numshapeverts;
 				}
-			}
-			else
-			{
-				GroomSection *section = bundle->sections;
-				for (int i = 0; i < bundle->totsections - 1; ++i, ++section)
+				else
 				{
-					GWN_indexbuf_add_line_verts(&elb, idx + i, idx + i + 1);
+					for (int i = 0; i < numshapeverts; ++i)
+					{
+						const int idx0 = idx + bundle->totsections * i;
+						const int idx1 = idx + bundle->totsections * ((i + 1) % numshapeverts);
+						for (int j = 0; j < bundle->totsections - 1; ++j)
+						{
+							GWN_indexbuf_add_tri_verts(&elb, idx0 + j, idx1 + j,     idx1 + j + 1);
+							GWN_indexbuf_add_tri_verts(&elb, idx0 + j, idx1 + j + 1, idx0 + j + 1);
+						}
+					}
+					idx += bundle->totverts;
 				}
-				idx += bundle->totsections;
 			}
-#endif
 		}
 	}
 	
