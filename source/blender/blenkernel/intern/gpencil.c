@@ -409,15 +409,23 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 	/* add to datablock */
 	BLI_addtail(&gpd->layers, gpl);
 
-	/* set basic settings */
-	copy_v4_v4(gpl->color, U.gpencil_new_layer_col);
-	/* Since GPv2 thickness must be 0 */
-	gpl->thickness = 0;
+	/* annotation vs GP Object behaviour is slightly different */
+	if (gpd->flag & GP_DATA_ANNOTATIONS) {
+		/* set default color of new strokes for this layer */
+		copy_v4_v4(gpl->color, U.gpencil_new_layer_col);
+		gpl->opacity = 1.0f;
 
-	gpl->opacity = 1.0f;
+		/* set default thickness of new strokes for this layer */
+		gpl->thickness = 3;
 
-	/* onion-skinning settings */
-	gpl->onion_flag |= GP_LAYER_ONIONSKIN;
+		/* onion-skinning settings */
+		gpl->onion_flag |= GP_LAYER_ONIONSKIN;
+	}
+	else {
+		/* thickness parameter represents "thickness change", not absolute thickness */
+		gpl->thickness = 0;
+		gpl->opacity = 1.0f;
+	}
 
 	/* auto-name */
 	BLI_strncpy(gpl->info, name, sizeof(gpl->info));

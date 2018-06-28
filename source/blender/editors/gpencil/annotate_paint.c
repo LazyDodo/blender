@@ -1206,8 +1206,10 @@ static bool gp_session_initdata(bContext *C, tGPsdata *p)
 	}
 	else {
 		/* if no existing GPencil block exists, add one */
-		if (*gpd_ptr == NULL)
-			*gpd_ptr = BKE_gpencil_data_addnew(bmain, "GPencil");
+		if (*gpd_ptr == NULL) {
+			*gpd_ptr = BKE_gpencil_data_addnew(bmain, "Notes");
+			(*gpd_ptr)->flag |= GP_DATA_ANNOTATIONS;
+		}
 		p->gpd = *gpd_ptr;
 	}
 
