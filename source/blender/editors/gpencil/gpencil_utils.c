@@ -1379,7 +1379,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
 		paintbrush = BKE_brush_getactive_gpencil(scene->toolsettings);
 		/* while drawing hide */
-		if ((gpd->sbuffer_size > 0) &&
+		if ((gpd->runtime.sbuffer_size > 0) &&
 		    (paintbrush) && ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
 		    ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
 		{

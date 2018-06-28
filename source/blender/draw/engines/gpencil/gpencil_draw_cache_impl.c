@@ -204,8 +204,8 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 	ToolSettings *ts = scene->toolsettings;
 	Object *ob = draw_ctx->obact;
 
-	tGPspoint *points = gpd->sbuffer;
-	int totpoints = gpd->sbuffer_size;
+	tGPspoint *points = gpd->runtime.sbuffer;
+	int totpoints = gpd->runtime.sbuffer_size;
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
@@ -238,17 +238,17 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 			if (totpoints > 1) {
 				ED_gpencil_tpoint_to_point(ar, origin, &points[1], &pt2);
 				gpencil_set_stroke_point(vbo, matrix, &pt2, idx,
-										 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
+										 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
 			}
 			else {
 				gpencil_set_stroke_point(vbo, matrix, &pt, idx,
-										 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
+										 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
 			}
 			idx++;
 		}
 		/* set point */
 		gpencil_set_stroke_point(vbo, matrix, &pt, idx,
-								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
+								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
 		idx++;
 	}
 
@@ -256,11 +256,11 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 	if (totpoints > 2) {
 		ED_gpencil_tpoint_to_point(ar, origin, &points[totpoints - 2], &pt2);
 		gpencil_set_stroke_point(vbo, matrix, &pt2, idx,
-								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
+								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
 	}
 	else {
 		gpencil_set_stroke_point(vbo, matrix, &pt, idx,
-								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
+								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
 	}
 
 	return GWN_batch_create_ex(GWN_PRIM_LINE_STRIP_ADJ, vbo, NULL, GWN_BATCH_OWNS_VBO);
@@ -277,8 +277,8 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 	ToolSettings *ts = scene->toolsettings;
 	Object *ob = draw_ctx->obact;
 
-	tGPspoint *points = gpd->sbuffer;
-	int totpoints = gpd->sbuffer_size;
+	tGPspoint *points = gpd->runtime.sbuffer;
+	int totpoints = gpd->runtime.sbuffer_size;
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
@@ -308,7 +308,8 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 
 		/* set point */
 		gpencil_set_stroke_point(vbo, matrix, &pt, idx,
-								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->scolor);
+								 pos_id, color_id, thickness_id, uvdata_id,
+								 thickness, gpd->runtime.scolor);
 		idx++;
 	}
 
@@ -322,8 +323,8 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 		return NULL;
 	}
 
-	const tGPspoint *points = gpd->sbuffer;
-	int totpoints = gpd->sbuffer_size;
+	const tGPspoint *points = gpd->runtime.sbuffer;
+	int totpoints = gpd->runtime.sbuffer_size;
 	if (totpoints < 3) {
 		return NULL;
 	}
@@ -378,7 +379,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 				tpt = &points[tmp_triangles[i][j]];
 				ED_gpencil_tpoint_to_point(ar, origin, tpt, &pt);
 				GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt.x);
-				GWN_vertbuf_attr_set(vbo, color_id, idx, gpd->sfill);
+				GWN_vertbuf_attr_set(vbo, color_id, idx, gpd->runtime.sfill);
 				idx++;
 			}
 		}

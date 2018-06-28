@@ -1569,12 +1569,16 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 			 * It should also be noted that sbuffer contains temporary point types
 			 * i.e. tGPspoints NOT bGPDspoints
 			 */
-			if (gpd->mode == GP_STYLE_MODE_DOTS) {
-				gp_draw_stroke_volumetric_buffer(gpd->sbuffer, gpd->sbuffer_size, lthick,
-				                                 dflag, gpd->scolor);
+			if (gpd->runtime.mode == GP_STYLE_MODE_DOTS) {
+				gp_draw_stroke_volumetric_buffer(gpd->runtime.sbuffer,
+												gpd->runtime.sbuffer_size, lthick,
+				                                dflag, gpd->runtime.scolor);
 			}
 			else {
-				gp_draw_stroke_buffer(gpd->sbuffer, gpd->sbuffer_size, lthick, dflag, gpd->sbuffer_sflag, gpd->scolor, gpd->sfill);
+				gp_draw_stroke_buffer(gpd->runtime.sbuffer,
+									gpd->runtime.sbuffer_size, lthick,
+									dflag, gpd->runtime.sbuffer_sflag,
+									gpd->runtime.scolor, gpd->runtime.sfill);
 			}
 		}
 	}

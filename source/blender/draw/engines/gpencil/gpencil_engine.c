@@ -332,7 +332,9 @@ void GPENCIL_cache_init(void *vedata)
 		    (obact_gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
 		    (stl->storage->playing == 0))
 		{
-			if (((obact_gpd->sbuffer_sflag & GP_STROKE_ERASER) == 0) && (obact_gpd->sbuffer_size > 1)) {
+			if (((obact_gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
+				(obact_gpd->runtime.sbuffer_size > 1))
+			{
 				stl->g_data->session_flag = GP_DRW_PAINT_PAINTING;
 			}
 			else {
@@ -634,7 +636,7 @@ void GPENCIL_draw_scene(void *ved)
 					MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
 				}
 				/* Current buffer drawing */
-				if ((!is_render) && (gpd->sbuffer_size > 0)) {
+				if ((!is_render) && (gpd->runtime.sbuffer_size > 0)) {
 					DRW_draw_pass(psl->drawing_pass);
 				}
 

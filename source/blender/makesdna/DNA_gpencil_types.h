@@ -299,8 +299,24 @@ typedef enum eGPDlayer_OnionFlag {
 
 /* Runtime temp data for bGPdata */
 typedef struct bGPdata_runtime {
-	/* Runtime Only - Drawing Manager cache */
+	/* Drawing Manager cache */
 	struct GHash *batch_cache_data;
+	void *sbuffer;				/* stroke buffer (can hold GP_STROKE_BUFFER_MAX) */
+
+	/* GP Object drawing */
+	float scolor[4];            /* buffer stroke color */
+	float sfill[4];             /* buffer fill color */
+	short mode;                 /* settings for color */
+	short bstroke_style;        /* buffer style for drawing strokes (used to select shader type) */
+	short bfill_style;          /* buffer style for filling areas (used to select shader type) */
+
+	/* Stroke Buffer data (only used during paint-session)
+	* 	- buffer must be initialized before use, but freed after
+	*	  whole paint operation is over
+	*/
+	short sbuffer_size;			/* number of elements currently in cache */
+	short sbuffer_sflag;		/* flags for stroke that cache represents */
+	char pad_[6];
 } bGPdata_runtime;
 
 /* Grease-Pencil Annotations - 'DataBlock' */
@@ -312,27 +328,11 @@ typedef struct bGPdata {
 	ListBase layers;		/* bGPDlayers */
 	int flag;				/* settings for this datablock */
 
-	/* Runtime Only - Stroke Buffer data (only used during paint-session)
-	 * 	- buffer must be initialized before use, but freed after
-	 *	  whole paint operation is over
-	 */
-	short sbuffer_size;			/* number of elements currently in cache */
-	short sbuffer_sflag;		/* flags for stroke that cache represents */
-	void *sbuffer;				/* stroke buffer (can hold GP_STROKE_BUFFER_MAX) */
-	/* Runtime Only - GP Object drawing */
-	/* GPXX: Move these to bGPdata_runtime... */
-	float scolor[4];            /* buffer color using palettes */
-	float sfill[4];             /* buffer fill color */
-	short mode;                 /* settings for palette color */
-	short bstroke_style;        /* buffer style for drawing strokes (used to select shader type) */
-	short bfill_style;          /* buffer style for filling areas (used to select shader type) */
-
 	short xray_mode;            /* xray mode for strokes (eGP_DepthOrdering) */
+	char pad_1[2];
 
 	/* Palettes */
 	ListBase palettes DNA_DEPRECATED;    /* list of bGPDpalette's   - Deprecated (2.78 - 2.79 only) */
-
-	bGPdata_runtime runtime;
 
 	/* 3D Viewport/Appearance Settings */
 	float pixfactor;            /* factor to define pixel size conversion */
@@ -357,7 +357,8 @@ typedef struct bGPdata {
 	short totframe;
 	short totstroke;
 	short totpoint;
-	char pad2[6];
+	char pad_2[6];
+	bGPdata_runtime runtime;
 } bGPdata;
 
 /* bGPdata->flag */

@@ -274,7 +274,7 @@ static int gpencil_draw_poll(bContext *C)
 static bool gpencil_project_check(tGPsdata *p)
 {
 	bGPdata *gpd = p->gpd;
-	return ((gpd->sbuffer_sflag & GP_STROKE_3DSPACE) && (*p->align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE)));
+	return ((gpd->runtime.sbuffer_sflag & GP_STROKE_3DSPACE) && (*p->align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE)));
 }
 
 /* ******************************************* */
@@ -303,7 +303,7 @@ static bool gp_stroke_filtermval(tGPsdata *p, const int mval[2], int pmval[2])
 	brush->gpencil_settings->flag &= ~GP_BRUSH_STABILIZE_MOUSE_TEMP;
 
 	/* if buffer is empty, just let this go through (i.e. so that dots will work) */
-	if (p->gpd->sbuffer_size == 0) {
+	if (p->gpd->runtime.sbuffer_size == 0) {
 		return true;
 	}
 	/* if lazy mouse, check minimum distance */
@@ -347,7 +347,7 @@ static void gp_reproject_toplane(tGPsdata *p, bGPDstroke *gps)
 	RegionView3D *rv3d = p->ar->regiondata;
 
 	/* verify the stroke mode is CURSOR 3d space mode */
-	if ((gpd->sbuffer_sflag & GP_STROKE_3DSPACE) == 0) {
+	if ((gpd->runtime.sbuffer_sflag & GP_STROKE_3DSPACE) == 0) {
 		return;
 	}
 	if ((*p->align_flag & GP_PROJECT_VIEWSPACE) == 0) {
@@ -369,7 +369,7 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 	bGPdata *gpd = p->gpd;
 
 	/* in 3d-space - pt->x/y/z are 3 side-by-side floats */
-	if (gpd->sbuffer_sflag & GP_STROKE_3DSPACE) {
+	if (gpd->runtime.sbuffer_sflag & GP_STROKE_3DSPACE) {
 		if (gpencil_project_check(p) && (ED_view3d_autodist_simple(p->ar, mval, out, 0, depth))) {
 			/* projecting onto 3D-Geometry
 			 *	- nothing more needs to be done here, since view_autodist_simple() has already done it
@@ -406,7 +406,7 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 	}
 
 	/* 2d - on 'canvas' (assume that p->v2d is set) */
-	else if ((gpd->sbuffer_sflag & GP_STROKE_2DSPACE) && (p->v2d)) {
+	else if ((gpd->runtime.sbuffer_sflag & GP_STROKE_2DSPACE) && (p->v2d)) {
 		UI_view2d_region_to_view(p->v2d, mval[0], mval[1], &out[0], &out[1]);
 		mul_v3_m4v3(out, p->imat, out);
 	}
@@ -438,7 +438,7 @@ static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int
 	/* Jitter is applied perpendicular to the mouse movement vector (2D space) */
 	float mvec[2], svec[2];
 	/* mouse movement in ints -> floats */
-	if (gpd->sbuffer_size > 1) {
+	if (gpd->runtime.sbuffer_size > 1) {
 		mvec[0] = (float)(mval[0] - (pt - 1)->x);
 		mvec[1] = (float)(mval[1] - (pt - 1)->y);
 		normalize_v2(mvec);
@@ -475,7 +475,7 @@ static void gp_brush_angle(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int 
 	float v0[2] = { cos(angle), sin(angle) }; /* angle vector of the brush with full thickness */
 
 	/* Apply to first point (only if there are 2 points because before no data to do it ) */
-	if (gpd->sbuffer_size == 1) {
+	if (gpd->runtime.sbuffer_size == 1) {
 		mvec[0] = (float)(mval[0] - (pt - 1)->x);
 		mvec[1] = (float)(mval[1] - (pt - 1)->y);
 		normalize_v2(mvec);
@@ -488,7 +488,7 @@ static void gp_brush_angle(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int 
 	}
 
 	/* apply from second point */
-	if (gpd->sbuffer_size >= 1) {
+	if (gpd->runtime.sbuffer_size >= 1) {
 		mvec[0] = (float)(mval[0] - (pt - 1)->x);
 		mvec[1] = (float)(mval[1] - (pt - 1)->y);
 		normalize_v2(mvec);
@@ -515,14 +515,14 @@ static void gp_brush_angle(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int 
 static void gp_smooth_buffer(tGPsdata *p, float inf, int idx)
 {
 	bGPdata *gpd = p->gpd;
-	short num_points = gpd->sbuffer_size;
+	short num_points = gpd->runtime.sbuffer_size;
 
 	/* Do nothing if not enough points to smooth out */
 	if ((num_points < 3) || (idx < 3) || (inf == 0.0f)) {
 		return;
 	}
 
-	tGPspoint *points = (tGPspoint *)gpd->sbuffer;
+	tGPspoint *points = (tGPspoint *)gpd->runtime.sbuffer;
 	float steps = 4.0f;
 	if (idx < 4) {
 		steps--;
@@ -577,9 +577,9 @@ static short gp_stroke_addpoint(
 	/* check painting mode */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
 		/* straight lines only - i.e. only store start and end point in buffer */
-		if (gpd->sbuffer_size == 0) {
+		if (gpd->runtime.sbuffer_size == 0) {
 			/* first point in buffer (start point) */
-			pt = (tGPspoint *)(gpd->sbuffer);
+			pt = (tGPspoint *)(gpd->runtime.sbuffer);
 
 			/* store settings */
 			copy_v2_v2_int(&pt->x, mval);
@@ -588,13 +588,13 @@ static short gp_stroke_addpoint(
 			pt->time = (float)(curtime - p->inittime);
 
 			/* increment buffer size */
-			gpd->sbuffer_size++;
+			gpd->runtime.sbuffer_size++;
 		}
 		else {
 			/* just reset the endpoint to the latest value
 			 *	- assume that pointers for this are always valid...
 			 */
-			pt = ((tGPspoint *)(gpd->sbuffer) + 1);
+			pt = ((tGPspoint *)(gpd->runtime.sbuffer) + 1);
 
 			/* store settings */
 			copy_v2_v2_int(&pt->x, mval);
@@ -603,7 +603,7 @@ static short gp_stroke_addpoint(
 			pt->time = (float)(curtime - p->inittime);
 
 			/* now the buffer has 2 points (and shouldn't be allowed to get any larger) */
-			gpd->sbuffer_size = 2;
+			gpd->runtime.sbuffer_size = 2;
 		}
 
 		/* tag depsgraph to update object */
@@ -614,11 +614,11 @@ static short gp_stroke_addpoint(
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW) { /* normal drawing */
 		/* check if still room in buffer */
-		if (gpd->sbuffer_size >= GP_STROKE_BUFFER_MAX)
+		if (gpd->runtime.sbuffer_size >= GP_STROKE_BUFFER_MAX)
 			return GP_STROKEADD_OVERFLOW;
 
 		/* get pointer to destination point */
-		pt = ((tGPspoint *)(gpd->sbuffer) + gpd->sbuffer_size);
+		pt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
 
 		/* store settings */
 		/* pressure */
@@ -704,9 +704,9 @@ static short gp_stroke_addpoint(
 		pt->time = (float)(curtime - p->inittime);
 
 		/* point uv (only 3d view) */
-		if ((p->sa->spacetype == SPACE_VIEW3D) && (gpd->sbuffer_size > 1)) {
+		if ((p->sa->spacetype == SPACE_VIEW3D) && (gpd->runtime.sbuffer_size > 1)) {
 			float pixsize = gp_style->texture_pixsize / 1000000.0f;
-			tGPspoint *ptb = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 2;
+			tGPspoint *ptb = (tGPspoint *)gpd->runtime.sbuffer + gpd->runtime.sbuffer_size - 2;
 			bGPDspoint spt, spt2;
 
 			/* get origin to reproject point */
@@ -732,12 +732,12 @@ static short gp_stroke_addpoint(
 		}
 
 		/* increment counters */
-		gpd->sbuffer_size++;
+		gpd->runtime.sbuffer_size++;
 
 		/* smooth while drawing previous points with a reduction factor for previous */
 		if (brush->gpencil_settings->active_smooth > 0.0f) {
 			for (int s = 0; s < 3; s++) {
-				gp_smooth_buffer(p, brush->gpencil_settings->active_smooth * ((3.0f - s) / 3.0f), gpd->sbuffer_size - s);
+				gp_smooth_buffer(p, brush->gpencil_settings->active_smooth * ((3.0f - s) / 3.0f), gpd->runtime.sbuffer_size - s);
 			}
 		}
 
@@ -745,7 +745,7 @@ static short gp_stroke_addpoint(
 		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 
 		/* check if another operation can still occur */
-		if (gpd->sbuffer_size == GP_STROKE_BUFFER_MAX)
+		if (gpd->runtime.sbuffer_size == GP_STROKE_BUFFER_MAX)
 			return GP_STROKEADD_FULL;
 		else
 			return GP_STROKEADD_NORMAL;
@@ -754,7 +754,7 @@ static short gp_stroke_addpoint(
 
 		bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
 		/* get pointer to destination point */
-		pt = (tGPspoint *)(gpd->sbuffer);
+		pt = (tGPspoint *)(gpd->runtime.sbuffer);
 
 		/* store settings */
 		copy_v2_v2_int(&pt->x, mval);
@@ -772,7 +772,7 @@ static short gp_stroke_addpoint(
 			MDeformVert *dvert;
 
 			/* first time point is adding to temporary buffer -- need to allocate new point in stroke */
-			if (gpd->sbuffer_size == 0) {
+			if (gpd->runtime.sbuffer_size == 0) {
 				gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (gps->totpoints + 1));
 				gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * (gps->totpoints + 1));
 				gps->totpoints++;
@@ -815,8 +815,8 @@ static short gp_stroke_addpoint(
 		}
 
 		/* increment counters */
-		if (gpd->sbuffer_size == 0)
-			gpd->sbuffer_size++;
+		if (gpd->runtime.sbuffer_size == 0)
+			gpd->runtime.sbuffer_size++;
 
 		/* tag depsgraph to update object */
 		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
@@ -835,9 +835,9 @@ static short gp_stroke_addpoint(
 static void gp_stroke_simplify(tGPsdata *p)
 {
 	bGPdata *gpd = p->gpd;
-	tGPspoint *old_points = (tGPspoint *)gpd->sbuffer;
-	short num_points = gpd->sbuffer_size;
-	short flag = gpd->sbuffer_sflag;
+	tGPspoint *old_points = (tGPspoint *)gpd->runtime.sbuffer;
+	short num_points = gpd->runtime.sbuffer_size;
+	short flag = gpd->runtime.sbuffer_sflag;
 	short i, j;
 
 	/* only simplify if simplification is enabled, and we're not doing a straight line */
@@ -852,9 +852,9 @@ static void gp_stroke_simplify(tGPsdata *p)
 	 *	- firstly set sbuffer to NULL, so a new one is allocated
 	 *	- secondly, reset flag after, as it gets cleared auto
 	 */
-	gpd->sbuffer = NULL;
+	gpd->runtime.sbuffer = NULL;
 	gp_session_validatebuffer(p);
-	gpd->sbuffer_sflag = flag;
+	gpd->runtime.sbuffer_sflag = flag;
 
 /* macro used in loop to get position of new point
  *	- used due to the mixture of datatypes in use here
@@ -925,14 +925,14 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	 *	- drawing straight-lines only requires the endpoints
 	 */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT)
-		totelem = (gpd->sbuffer_size >= 2) ? 2 : gpd->sbuffer_size;
+		totelem = (gpd->runtime.sbuffer_size >= 2) ? 2 : gpd->runtime.sbuffer_size;
 	else
-		totelem = gpd->sbuffer_size;
+		totelem = gpd->runtime.sbuffer_size;
 
 	/* exit with error if no valid points from this stroke */
 	if (totelem == 0) {
 		if (G.debug & G_DEBUG)
-			printf("Error: No valid points in stroke buffer to convert (tot=%d)\n", gpd->sbuffer_size);
+			printf("Error: No valid points in stroke buffer to convert (tot=%d)\n", gpd->runtime.sbuffer_size);
 		return;
 	}
 
@@ -955,7 +955,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	/* copy appropriate settings for stroke */
 	gps->totpoints = totelem;
 	gps->thickness = brush->size;
-	gps->flag = gpd->sbuffer_sflag;
+	gps->flag = gpd->runtime.sbuffer_sflag;
 	gps->inittime = p->inittime;
 
 	/* enable recalculation flag by default (only used if hq fill) */
@@ -982,7 +982,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		/* straight lines only -> only endpoints */
 		{
 			/* first point */
-			ptc = gpd->sbuffer;
+			ptc = gpd->runtime.sbuffer;
 
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, NULL);
@@ -1001,7 +1001,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 
 		if (totelem == 2) {
 			/* last point if applicable */
-			ptc = ((tGPspoint *)gpd->sbuffer) + (gpd->sbuffer_size - 1);
+			ptc = ((tGPspoint *)gpd->runtime.sbuffer) + (gpd->runtime.sbuffer_size - 1);
 
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, NULL);
@@ -1025,7 +1025,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
 		/* first point */
-		ptc = gpd->sbuffer;
+		ptc = gpd->runtime.sbuffer;
 
 		/* convert screen-coordinates to appropriate coordinates (and store them) */
 		gp_stroke_convertcoords(p, &ptc->x, &pt->x, NULL);
@@ -1052,9 +1052,9 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			int interp_depth = 0;
 			int found_depth = 0;
 
-			depth_arr = MEM_mallocN(sizeof(float) * gpd->sbuffer_size, "depth_points");
+			depth_arr = MEM_mallocN(sizeof(float) * gpd->runtime.sbuffer_size, "depth_points");
 
-			for (i = 0, ptc = gpd->sbuffer; i < gpd->sbuffer_size; i++, ptc++, pt++) {
+			for (i = 0, ptc = gpd->runtime.sbuffer; i < gpd->runtime.sbuffer_size; i++, ptc++, pt++) {
 				copy_v2_v2_int(mval, &ptc->x);
 
 				if ((ED_view3d_autodist_depth(p->ar, mval, depth_margin, depth_arr + i) == 0) &&
@@ -1071,7 +1071,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 
 			if (found_depth == false) {
 				/* eeh... not much we can do.. :/, ignore depth in this case, use the 3D cursor */
-				for (i = gpd->sbuffer_size - 1; i >= 0; i--)
+				for (i = gpd->runtime.sbuffer_size - 1; i >= 0; i--)
 					depth_arr[i] = 0.9999f;
 			}
 			else {
@@ -1080,13 +1080,13 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 					int first_valid = 0;
 					int last_valid = 0;
 
-					for (i = 0; i < gpd->sbuffer_size; i++) {
+					for (i = 0; i < gpd->runtime.sbuffer_size; i++) {
 						if (depth_arr[i] != FLT_MAX)
 							break;
 					}
 					first_valid = i;
 
-					for (i = gpd->sbuffer_size - 1; i >= 0; i--) {
+					for (i = gpd->runtime.sbuffer_size - 1; i >= 0; i--) {
 						if (depth_arr[i] != FLT_MAX)
 							break;
 					}
@@ -1100,7 +1100,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 				}
 
 				if (interp_depth) {
-					interp_sparse_array(depth_arr, gpd->sbuffer_size, FLT_MAX);
+					interp_sparse_array(depth_arr, gpd->runtime.sbuffer_size, FLT_MAX);
 				}
 			}
 		}
@@ -1108,7 +1108,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		pt = gps->points;
 
 		/* convert all points (normal behavior) */
-		for (i = 0, ptc = gpd->sbuffer; i < gpd->sbuffer_size && ptc; i++, ptc++, pt++) {
+		for (i = 0, ptc = gpd->runtime.sbuffer; i < gpd->runtime.sbuffer_size && ptc; i++, ptc++, pt++) {
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, depth_arr ? depth_arr + i : NULL);
 
@@ -1485,20 +1485,20 @@ static void gp_session_validatebuffer(tGPsdata *p)
 	Brush *brush = p->brush;
 
 	/* clear memory of buffer (or allocate it if starting a new session) */
-	if (gpd->sbuffer) {
+	if (gpd->runtime.sbuffer) {
 		/* printf("\t\tGP - reset sbuffer\n"); */
-		memset(gpd->sbuffer, 0, sizeof(tGPspoint) * GP_STROKE_BUFFER_MAX);
+		memset(gpd->runtime.sbuffer, 0, sizeof(tGPspoint) * GP_STROKE_BUFFER_MAX);
 	}
 	else {
 		/* printf("\t\tGP - allocate sbuffer\n"); */
-		gpd->sbuffer = MEM_callocN(sizeof(tGPspoint) * GP_STROKE_BUFFER_MAX, "gp_session_strokebuffer");
+		gpd->runtime.sbuffer = MEM_callocN(sizeof(tGPspoint) * GP_STROKE_BUFFER_MAX, "gp_session_strokebuffer");
 	}
 
 	/* reset indices */
-	gpd->sbuffer_size = 0;
+	gpd->runtime.sbuffer_size = 0;
 
 	/* reset flags */
-	gpd->sbuffer_sflag = 0;
+	gpd->runtime.sbuffer_sflag = 0;
 
 	/* reset inittime */
 	p->inittime = 0.0;
@@ -1623,16 +1623,16 @@ static void gp_init_colors(tGPsdata *p)
 	if (gp_style) {
 
 		/* set colors */
-		copy_v4_v4(gpd->scolor, gp_style->stroke_rgba);
-		copy_v4_v4(gpd->sfill, gp_style->fill_rgba);
+		copy_v4_v4(gpd->runtime.scolor, gp_style->stroke_rgba);
+		copy_v4_v4(gpd->runtime.sfill, gp_style->fill_rgba);
 		/* add some alpha to make easy the filling without hide strokes */
-		if (gpd->sfill[3] > 0.8f) {
-			gpd->sfill[3] = 0.8f;
+		if (gpd->runtime.sfill[3] > 0.8f) {
+			gpd->runtime.sfill[3] = 0.8f;
 		}
 
-		gpd->mode = (short)gp_style->mode;
-		gpd->bstroke_style = gp_style->stroke_style;
-		gpd->bfill_style = gp_style->fill_style;
+		gpd->runtime.mode = (short)gp_style->mode;
+		gpd->runtime.bstroke_style = gp_style->stroke_style;
+		gpd->runtime.bfill_style = gp_style->fill_style;
 	}
 }
 
@@ -1903,15 +1903,15 @@ static void gp_session_cleanup(tGPsdata *p)
 		return;
 
 	/* free stroke buffer */
-	if (gpd->sbuffer) {
+	if (gpd->runtime.sbuffer) {
 		/* printf("\t\tGP - free sbuffer\n"); */
-		MEM_freeN(gpd->sbuffer);
-		gpd->sbuffer = NULL;
+		MEM_freeN(gpd->runtime.sbuffer);
+		gpd->runtime.sbuffer = NULL;
 	}
 
 	/* clear flags */
-	gpd->sbuffer_size = 0;
-	gpd->sbuffer_sflag = 0;
+	gpd->runtime.sbuffer_size = 0;
+	gpd->runtime.sbuffer_sflag = 0;
 	p->inittime = 0.0;
 }
 
@@ -2024,7 +2024,7 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	/* set 'eraser' for this stroke if using eraser */
 	p->paintmode = paintmode;
 	if (p->paintmode == GP_PAINTMODE_ERASER) {
-		p->gpd->sbuffer_sflag |= GP_STROKE_ERASER;
+		p->gpd->runtime.sbuffer_sflag |= GP_STROKE_ERASER;
 
 		/* check if we should respect depth while erasing */
 		if (p->sa->spacetype == SPACE_VIEW3D) {
@@ -2035,7 +2035,7 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	}
 	else {
 		/* disable eraser flags - so that we can switch modes during a session */
-		p->gpd->sbuffer_sflag &= ~GP_STROKE_ERASER;
+		p->gpd->runtime.sbuffer_sflag &= ~GP_STROKE_ERASER;
 
 		if (p->sa->spacetype == SPACE_VIEW3D) {
 			if (p->gpl->flag & GP_LAYER_NO_XRAY) {
@@ -2046,9 +2046,9 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 
 	/* set special fill stroke mode */
 	if (p->disable_fill == true) {
-		p->gpd->sbuffer_sflag |= GP_STROKE_NOFILL;
+		p->gpd->runtime.sbuffer_sflag |= GP_STROKE_NOFILL;
 		/* replace stroke color with fill color */
-		copy_v4_v4(p->gpd->scolor, p->gpd->sfill);
+		copy_v4_v4(p->gpd->runtime.scolor, p->gpd->runtime.sfill);
 	}
 
 	/* set 'initial run' flag, which is only used to denote when a new stroke is starting */
@@ -2088,17 +2088,17 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 		switch (p->sa->spacetype) {
 			case SPACE_VIEW3D:
 			{
-				p->gpd->sbuffer_sflag |= GP_STROKE_3DSPACE;
+				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
 				break;
 			}
 			case SPACE_NODE:
 			{
-				p->gpd->sbuffer_sflag |= GP_STROKE_2DSPACE;
+				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
 				break;
 			}
 			case SPACE_SEQ:
 			{
-				p->gpd->sbuffer_sflag |= GP_STROKE_2DSPACE;
+				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
 				break;
 			}
 			case SPACE_IMAGE:
@@ -2112,17 +2112,17 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 				 */
 				if (ELEM(NULL, sima, sima->image)) {
 					/* make strokes be drawn in screen space */
-					p->gpd->sbuffer_sflag &= ~GP_STROKE_2DSPACE;
+					p->gpd->runtime.sbuffer_sflag &= ~GP_STROKE_2DSPACE;
 					*(p->align_flag) &= ~GP_PROJECT_VIEWSPACE;
 				}
 				else {
-					p->gpd->sbuffer_sflag |= GP_STROKE_2DSPACE;
+					p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
 				}
 				break;
 			}
 			case SPACE_CLIP:
 			{
-				p->gpd->sbuffer_sflag |= GP_STROKE_2DSPACE;
+				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
 				break;
 			}
 		}
@@ -2145,7 +2145,7 @@ static void gp_paint_strokeend(tGPsdata *p)
 	}
 
 	/* check if doing eraser or not */
-	if ((p->gpd->sbuffer_sflag & GP_STROKE_ERASER) == 0) {
+	if ((p->gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) {
 		/* simplify stroke before transferring? */
 		gp_stroke_simplify(p);
 
@@ -2453,15 +2453,15 @@ static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, Depsgra
 		p->opressure = p->pressure;
 		p->ocurtime = p->curtime;
 
-		pt = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 1;
+		pt = (tGPspoint *)gpd->runtime.sbuffer + gpd->runtime.sbuffer_size - 1;
 		if (p->paintmode != GP_PAINTMODE_ERASER) {
 			ED_gpencil_toggle_brush_cursor(C, true, &pt->x);
 		}
 	}
 	else if ((p->brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) &&
-	         (gpd->sbuffer_size > 0))
+	         (gpd->runtime.sbuffer_size > 0))
 	{
-		pt = (tGPspoint *)gpd->sbuffer + gpd->sbuffer_size - 1;
+		pt = (tGPspoint *)gpd->runtime.sbuffer + gpd->runtime.sbuffer_size - 1;
 		if (p->paintmode != GP_PAINTMODE_ERASER) {
 			ED_gpencil_toggle_brush_cursor(C, true, &pt->x);
 		}

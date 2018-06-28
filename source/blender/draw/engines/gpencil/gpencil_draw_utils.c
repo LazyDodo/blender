@@ -900,14 +900,14 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	/* Check if may need to draw the active stroke cache, only if this layer is the active layer
 	 * that is being edited. (Stroke buffer is currently stored in gp-data)
 	 */
-	if (ED_gpencil_session_active() && (gpd->sbuffer_size > 0)) {
-		if ((gpd->sbuffer_sflag & GP_STROKE_ERASER) == 0) {
+	if (ED_gpencil_session_active() && (gpd->runtime.sbuffer_size > 0)) {
+		if ((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) {
 			/* It should also be noted that sbuffer contains temporary point types
 			* i.e. tGPspoints NOT bGPDspoints
 			*/
 			short lthick = brush->size * obscale;
 			/* if only one point, don't need to draw buffer because the user has no time to see it */
-			if (gpd->sbuffer_size > 1) {
+			if (gpd->runtime.sbuffer_size > 1) {
 				if ((gp_style) && (gp_style->mode == GP_STYLE_MODE_LINE)) {
 					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_stroke_create(
 					        e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL, gpd, gp_style, -1, false);
@@ -918,7 +918,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 				}
 
 				/* use unit matrix because the buffer is in screen space and does not need conversion */
-				if (gpd->mode == GP_STYLE_MODE_LINE) {
+				if (gpd->runtime.mode == GP_STYLE_MODE_LINE) {
 					stl->g_data->batch_buffer_stroke = DRW_gpencil_get_buffer_stroke_geom(
 					        gpd, stl->storage->unit_matrix, lthick);
 				}
@@ -932,12 +932,12 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 				        stl->g_data->batch_buffer_stroke,
 				        stl->storage->unit_matrix);
 
-				if ((gpd->sbuffer_size >= 3) && (gpd->sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
-					((gpd->sbuffer_sflag & GP_STROKE_NOFILL) == 0))
+				if ((gpd->runtime.sbuffer_size >= 3) && (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
+					((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0))
 				{
 					/* if not solid, fill is simulated with solid color */
-					if (gpd->bfill_style > 0) {
-						gpd->sfill[3] = 0.5f;
+					if (gpd->runtime.bfill_style > 0) {
+						gpd->runtime.sfill[3] = 0.5f;
 					}
 					stl->g_data->shgrps_drawing_fill = DRW_shgroup_create(
 					        e_data->gpencil_drawing_fill_sh, psl->drawing_pass);
