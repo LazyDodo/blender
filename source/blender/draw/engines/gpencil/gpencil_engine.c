@@ -379,7 +379,7 @@ void GPENCIL_cache_init(void *vedata)
 		 * This pass is used too to take the snapshot used for background_pass. This image
 		 * will be used as the background while the user is drawing.
 		 */
-		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
+		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad, NULL);
 		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.temp_color_tx_a);
