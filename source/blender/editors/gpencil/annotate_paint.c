@@ -1682,9 +1682,7 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 	/* header prints */
 	switch (p->status) {
 		case GP_STATUS_PAINTING:
-			/* only print this for paint-sessions, otherwise it gets annoying */
-			if (GPENCIL_SKETCH_SESSIONS_ON(p->scene))
-				ED_workspace_status_text(C, IFACE_("Grease Pencil: Drawing/erasing stroke... Release to end stroke"));
+			// TODO: Indicate how to use Poly mode
 			break;
 
 		case GP_STATUS_IDLING:
@@ -2139,14 +2137,10 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			 *   is essential for ensuring that they can quickly return to that view
 			 */
 		}
-		else if ((ELEM(event->type, p->keymodifier)) && (event->val == KM_RELEASE)) {
-			/* enable continuous if release D key in mid drawing */
-			p->scene->toolsettings->gpencil_flags |= GP_TOOL_FLAG_PAINTSESSIONS_ON;
-		}
 		else if ((event->type == BKEY) && (event->val == KM_RELEASE)) {
 			/* Add Blank Frame
 			 * - Since this operator is non-modal, we can just call it here, and keep going...
-	         * - This operator is especially useful when animating
+			 * - This operator is especially useful when animating
 			 */
 			WM_operator_name_call(C, "GPENCIL_OT_blank_frame_add", WM_OP_EXEC_DEFAULT, NULL);
 			estate = OPERATOR_RUNNING_MODAL;
@@ -2188,10 +2182,8 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			int sketch = 0;
 
 			/* basically, this should be mouse-button up = end stroke
-			 * BUT what happens next depends on whether we 'painting sessions' is enabled
+			 * BUT, polyline drawing is an exception -- all knots should be added during one session
 			 */
-			sketch |= GPENCIL_SKETCH_SESSIONS_ON(p->scene);
-			/* polyline drawing is also 'sketching' -- all knots should be added during one session */
 			sketch |= (p->paintmode == GP_PAINTMODE_DRAW_POLY);
 
 			if (sketch) {
