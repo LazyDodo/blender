@@ -2214,7 +2214,7 @@ static void gpencil_draw_eraser(bContext *UNUSED(C), int x, int y, void *p_ptr)
 		immUnbindProgram();
 
 		GPU_blend(false);
-		GP_line_smooth(false);
+		GPU_line_smooth(false);
 	}
 }
 

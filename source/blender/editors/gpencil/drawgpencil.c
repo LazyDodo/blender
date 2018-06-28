@@ -1446,7 +1446,7 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 	tgpw.dflag = dflag;
 
 	/* turn on alpha-blending */
-	GPU_Blend(true);
+	GPU_blend(true);
 	/* calculate parent position */
 	ED_gpencil_parent_location(depsgraph, obact, tgpi->gpd, tgpi->gpl, tgpw.diff_mat);
 	if (tgpi->gpf) {
