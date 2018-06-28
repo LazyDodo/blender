@@ -1287,7 +1287,7 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	/* get active layer (or add a new one if non-existent) */
 	p->gpl = BKE_gpencil_layer_getactive(p->gpd);
 	if (p->gpl == NULL) {
-		p->gpl = BKE_gpencil_layer_addnew(p->gpd, "GP_Layer", true);
+		p->gpl = BKE_gpencil_layer_addnew(p->gpd, DATA_("Note"), true);
 
 		if (p->custom_color[3])
 			copy_v3_v3(p->gpl->color, p->custom_color);

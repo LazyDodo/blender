@@ -429,7 +429,11 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 
 	/* auto-name */
 	BLI_strncpy(gpl->info, name, sizeof(gpl->info));
-	BLI_uniquename(&gpd->layers, gpl, DATA_("GP_Layer"), '.', offsetof(bGPDlayer, info), sizeof(gpl->info));
+	BLI_uniquename(&gpd->layers, gpl,
+	               (gpd->flag & GP_DATA_ANNOTATIONS) ? DATA_("Note") : DATA_("GP_Layer"),
+	               '.',
+	               offsetof(bGPDlayer, info),
+	               sizeof(gpl->info));
 
 	/* make this one the active one */
 	if (setactive)
