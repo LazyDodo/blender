@@ -727,13 +727,13 @@ static void groom_get_faces(
 	}
 	if (parts & GM_RENDER_SECTIONS)
 	{
+		const MLoopTri *mtri = rdata->mlooptri;
 		for (GroomRegion *region = rdata->regions->first; region; region = region->next)
 		{
 			GroomBundle *bundle = &region->bundle;
 			const int numshapeverts = region->numverts;
 			if (numshapeverts > 1)
 			{
-				const MLoopTri *mtri = rdata->mlooptri;
 				int section_tri_len = poly_to_tri_count(1, region->numverts);
 				/* Skip the first section */
 				mtri += section_tri_len;
