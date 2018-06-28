@@ -484,7 +484,7 @@ class SCENE_PT_simplify_render(SceneButtonsPanel, Panel):
         col.prop(rd, "simplify_child_particles_render", text="Max Child Particles")
 
 
-class SCENE_PT_gp_simplify(SceneButtonsPanel, Panel):
+class SCENE_PT_simplify_greasepencil(SceneButtonsPanel, Panel):
     bl_label = "Simplify Grease Pencil"
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
     bl_options = {'DEFAULT_CLOSED'}
@@ -571,7 +571,7 @@ classes = (
     SCENE_PT_simplify,
     SCENE_PT_simplify_viewport,
     SCENE_PT_simplify_render,
-    SCENE_PT_gp_simplify,
+    SCENE_PT_simplify_greasepencil,
     SCENE_PT_custom_props,
 )
 
