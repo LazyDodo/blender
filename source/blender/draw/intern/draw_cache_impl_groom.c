@@ -157,10 +157,7 @@ static void groom_batch_cache_clear(Groom *groom)
 	GWN_BATCH_DISCARD_SAFE(cache->all_edges);
 	GWN_BATCH_DISCARD_SAFE(cache->all_triangles);
 	GWN_BATCH_DISCARD_SAFE(cache->overlay_verts);
-	for (int i = 0; i < cache->mat_len; ++i)
-	{
-		GWN_BATCH_DISCARD_SAFE(cache->shaded_triangles[i]);
-	}
+	/* Note: shaded_triangles[0] is already freed by cache->all_triangles */
 	MEM_SAFE_FREE(cache->shaded_triangles);
 	cache->mat_len = 0;
 
