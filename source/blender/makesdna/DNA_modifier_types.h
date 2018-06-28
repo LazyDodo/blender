@@ -90,6 +90,7 @@ typedef enum ModifierType {
 	eModifierType_CorrectiveSmooth  = 51,
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
+	eModifierType_MyBMesh           = 54,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -1494,6 +1495,13 @@ enum {
 	MOD_WIREFRAME_CREASE        = (1 << 5),
 };
 
+/* Modifier data stored in the blend file */
+typedef struct MyBMeshModifierData {
+	ModifierData modifier;
+	struct Object *camera_ob;
+	int flag;  /* options stored here */
+	short pad[2];
+} MyBMeshModifierData;
 
 typedef struct DataTransferModifierData {
 	ModifierData modifier;
@@ -1637,5 +1645,16 @@ enum {
 
 #define MOD_MESHSEQ_READ_ALL \
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
+
+enum {
+	MOD_MYBMESH_TRIANG = (1 << 0),
+	MOD_MYBMESH_FF_SPLIT = (1 << 1),
+	MOD_MYBMESH_CUSP_D = (1 << 2),
+	MOD_MYBMESH_CUSP_I = (1 << 3),
+	MOD_MYBMESH_FB_SPLIT = (1 << 4),
+	MOD_MYBMESH_RAD_I = (1 << 5),
+	MOD_MYBMESH_RAD_FLIP = (1 << 6),
+	MOD_MYBMESH_OPTI = (1 << 7),
+};
 
 #endif  /* __DNA_MODIFIER_TYPES_H__ */

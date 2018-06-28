@@ -426,6 +426,7 @@ extern StructRNA RNA_MovieTrackingStabilization;
 extern StructRNA RNA_MulticamSequence;
 extern StructRNA RNA_MultiresModifier;
 extern StructRNA RNA_MusgraveTexture;
+extern StructRNA RNA_MyBMeshModifier;
 extern StructRNA RNA_NandController;
 extern StructRNA RNA_NearSensor;
 extern StructRNA RNA_NlaStrip;

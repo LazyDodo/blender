@@ -1104,6 +1104,9 @@ static void tselem_draw_icon(
 					case eModifierType_Wireframe:
 						ICON_DRAW(ICON_MOD_WIREFRAME);
 						break;
+					case eModifierType_MyBMesh:
+						ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
+						 break;
 					case eModifierType_LaplacianDeform:
 						ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
 						break;
