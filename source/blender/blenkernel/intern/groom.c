@@ -165,9 +165,9 @@ BLI_INLINE void groom_forward_diff_step(double q[4][3])
 {
 	for (int k = 0; k < 3; ++k)
 	{
-		q[0][k] = q[1][k];
-		q[1][k] = q[2][k];
-		q[2][k] = q[3][k];
+		q[0][k] += q[1][k];
+		q[1][k] += q[2][k];
+		q[2][k] += q[3][k];
 	}
 }
 
