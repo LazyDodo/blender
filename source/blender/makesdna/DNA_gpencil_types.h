@@ -364,8 +364,12 @@ typedef struct bGPdata {
  *       changes made during the porting process.
  */
 typedef enum eGPdata_Flag {
-	/* don't allow painting to occur at all */
-	/* GP_DATA_LMBPLOCK  = (1 << 0), */
+	/* datablock is used for "annotations"
+	 * NOTE: This flag used to be used in 2.4x, but should hardly ever have been set.
+	 *       We can use this freely now, as all GP datablocks from pre-2.8 will get
+	 *       set on file load (as many old use cases are for "annotations" only)
+	 */
+	GP_DATA_ANNOTATIONS = (1 << 0),
 
 	/* show debugging info in viewport (i.e. status print) */
 	GP_DATA_DISPINFO	= (1 << 1),
