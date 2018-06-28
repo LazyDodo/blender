@@ -719,12 +719,12 @@ class GPENCIL_UL_annotation_layer(UIList):
             if gpl.lock:
                 layout.active = False
 
-            row = layout.row(align=True)
-            #row.prop(gpl, "color")
-            row.prop(gpl, "info", text="", emboss=False)
+            split = layout.split(percentage=0.2)
+            split.prop(gpl, "color", text="", emboss=True)
+            split.prop(gpl, "info", text="", emboss=False)
 
             row = layout.row(align=True)
-            row.prop(gpl, "lock", text="", emboss=False)
+            # row.prop(gpl, "lock", text="", emboss=False)
             row.prop(gpl, "hide", text="", emboss=False)
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'

@@ -247,7 +247,7 @@ typedef struct bGPDlayer {
 	short flag;				/* settings for layer */
 	short thickness;		/* current thickness to apply to strokes */
 
-	float color[4];			/* Color for strokes in layers (replaced by palettecolor). Only used for ruler (which uses GPencil internally) */
+	float color[4];			/* Color for strokes in layers. Used for annotations, and for ruler (which uses GPencil internally) */
 	float fill[4];			/* Fill color for strokes in layers.  Not used and replaced by palettecolor fill */
 
 	char info[128];			/* optional reference info about this layer (i.e. "director's comments, 12/3")
