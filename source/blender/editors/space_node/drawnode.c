@@ -1304,6 +1304,9 @@ static void node_shader_set_butfunc(bNodeType *ntype)
 		case SH_NODE_BSDF_HAIR:
 			ntype->draw_buttons = node_shader_buts_hair;
 			break;
+		case SH_NODE_BSDF_HAIR_PRINCIPLED:
+			ntype->draw_buttons = 	node_shader_buts_principled_hair;
+			break;
 		case SH_NODE_SCRIPT:
 			ntype->draw_buttons = node_shader_buts_script;
 			ntype->draw_buttons_ex = node_shader_buts_script_ex;
