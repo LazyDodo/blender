@@ -86,17 +86,8 @@ typedef enum eDrawStrokeFlags {
 	GP_DRAWDATA_IEDITHACK   = (1 << 4),   /* special hack for drawing strokes in Image Editor (weird coordinates) */
 	GP_DRAWDATA_NO_XRAY     = (1 << 5),   /* don't draw xray in 3D view (which is default) */
 	GP_DRAWDATA_NO_ONIONS   = (1 << 6),	  /* no onionskins should be drawn (for animation playback) */
-	GP_DRAWDATA_VOLUMETRIC	= (1 << 7),   /* draw strokes as "volumetric" circular billboards */
-	GP_DRAWDATA_FILL        = (1 << 8),   /* fill insides/bounded-regions of strokes */
-	GP_DRAWDATA_HQ_FILL     = (1 << 9)    /* Use high quality fill */
 } eDrawStrokeFlags;
 
-
-
-/* thickness above which we should use special drawing */
-#if 0
-#define GP_DRAWTHICKNESS_SPECIAL    3
-#endif
 
 /* conversion utility (float --> normalized unsigned byte) */
 #define F2UB(x) (unsigned char)(255.0f * x)
@@ -191,7 +182,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 				if (i != 0) {
 					immAttrib4ub(color, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(ink[3]));
 					immVertex2iv(pos, &(pt - 1)->x);
-					++draw_points;
+					draw_points++;
 				}
 
 				oldpressure = pt->pressure; /* reset our threshold */
@@ -923,7 +914,7 @@ static void gp_draw_data_all(Scene *scene, bGPdata *gpd, int offsx, int offsy, i
 			/* currently drawing only gpencil data from either clip or track, but not both - XXX fix logic behind */
 			gpd_source = (scene->clip->gpd ? scene->clip->gpd : NULL);
 		}
-		
+
 		alpha = ts->gp_sculpt.alpha;
 
 		if (gpd_source) {
