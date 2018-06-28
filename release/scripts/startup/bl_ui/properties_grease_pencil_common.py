@@ -279,10 +279,15 @@ class GreasePencilStrokeSculptPanel:
             layout.prop(brush, "direction", expand=True)
 
 
-
+# GP Object Tool Settings
 class GreasePencilAppearancePanel:
     bl_label = "Brush Appearance"
     bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.active_object
+        return ob and ob.type == 'GPENCIL'
 
     @staticmethod
     def draw(self, context):
@@ -290,7 +295,9 @@ class GreasePencilAppearancePanel:
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        if context.active_object.mode == 'GPENCIL_PAINT':
+        ob = context.active_object
+
+        if ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
 
@@ -310,7 +317,7 @@ class GreasePencilAppearancePanel:
             if gp_settings.gpencil_brush_type == 'FILL':
                 layout.prop(brush, "cursor_color_add", text="Color")
 
-        elif context.active_object.mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
+        elif ob.mode in ('GPENCIL_SCULPT', 'GPENCIL_WEIGHT'):
             settings = context.tool_settings.gpencil_sculpt
             brush = settings.brush
 
