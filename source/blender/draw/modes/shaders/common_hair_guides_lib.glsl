@@ -76,8 +76,8 @@ void calc_taper_factor(DeformParams params, float t, out DualFloat taper)
 void deform_clump(DualFloat taper, DualVec3 target, float thickness, inout vec3 co, inout vec3 tang)
 {
 	DualFloat factor;
-	factor.v = taper.v * thickness;
-	factor.dv = taper.dv * thickness;
+	factor.v = taper.v * (1.0 - thickness);
+	factor.dv = taper.dv * (1.0 - thickness);
 
 	vec3 nco;
 	vec3 ntang;
