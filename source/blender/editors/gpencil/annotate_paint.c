@@ -2158,14 +2158,6 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	if (ELEM(event->type, RETKEY, PADENTER, ESCKEY, SPACEKEY, EKEY)) {
 		/* exit() ends the current stroke before cleaning up */
 		/* printf("\t\tGP - end of paint op + end of stroke\n"); */
-		/* if drawing polygon and enable on back, must move stroke */
-		if (ts) {
-			if ((ts->gpencil_flags & GP_TOOL_FLAG_PAINT_ONBACK) && (p->paintmode == GP_PAINTMODE_DRAW_POLY)) {
-				if (p->flags & GP_PAINTFLAG_STROKEADDED) {
-					gpencil_move_last_stroke_to_back(C);
-				}
-			}
-		}
 		p->status = GP_STATUS_DONE;
 		estate = OPERATOR_FINISHED;
 	}
@@ -2220,14 +2212,6 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			}
 			else {
 				/* printf("\t\tGP - end of stroke + op\n"); */
-				/* if drawing polygon and enable on back, must move stroke */
-				if (ts) {
-					if ((ts->gpencil_flags & GP_TOOL_FLAG_PAINT_ONBACK) && (p->paintmode == GP_PAINTMODE_DRAW_POLY)) {
-						if (p->flags & GP_PAINTFLAG_STROKEADDED) {
-							gpencil_move_last_stroke_to_back(C);
-						}
-					}
-				}
 				p->status = GP_STATUS_DONE;
 				estate = OPERATOR_FINISHED;
 			}
@@ -2308,14 +2292,6 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				 * NOTE: Don't enter this case if an error occurred while finding the
 				 *       region (as above)
 				 */
-				/* if drawing polygon and enable on back, must move stroke */
-				if (ts) {
-					if ((ts->gpencil_flags & GP_TOOL_FLAG_PAINT_ONBACK) && (p->paintmode == GP_PAINTMODE_DRAW_POLY)) {
-						if (p->flags & GP_PAINTFLAG_STROKEADDED) {
-							gpencil_move_last_stroke_to_back(C);
-						}
-					}
-				}
 				p->status = GP_STATUS_DONE;
 				estate = OPERATOR_FINISHED;
 			}
