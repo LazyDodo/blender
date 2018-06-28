@@ -98,12 +98,12 @@ class GreasePencilDrawingToolsPanel:
 
         col.label(text="Draw:")
         row = col.row(align=True)
-        row.operator("gpencil.draw", icon='GREASEPENCIL', text="Draw").mode = 'DRAW'
-        row.operator("gpencil.draw", icon='FORCE_CURVE', text="Erase").mode = 'ERASER'  # XXX: Needs a dedicated icon
+        row.operator("gpencil.annotate", icon='GREASEPENCIL', text="Draw").mode = 'DRAW'
+        row.operator("gpencil.annotate", icon='FORCE_CURVE', text="Erase").mode = 'ERASER'  # XXX: Needs a dedicated icon
 
         row = col.row(align=True)
-        row.operator("gpencil.draw", icon='LINE_DATA', text="Line").mode = 'DRAW_STRAIGHT'
-        row.operator("gpencil.draw", icon='MESH_DATA', text="Poly").mode = 'DRAW_POLY'
+        row.operator("gpencil.annotate", icon='LINE_DATA', text="Line").mode = 'DRAW_STRAIGHT'
+        row.operator("gpencil.annotate", icon='MESH_DATA', text="Poly").mode = 'DRAW_POLY'
 
         col.separator()
 
@@ -111,10 +111,10 @@ class GreasePencilDrawingToolsPanel:
         sub.operator("gpencil.blank_frame_add", icon='NEW')
         sub.operator("gpencil.active_frames_delete_all", icon='X', text="Delete Frame(s)")
 
-        sub = col.column(align=True)
-        sub.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
-        sub.prop(context.tool_settings, "use_gpencil_continuous_drawing", text="Continuous Drawing")
-        sub.prop(context.tool_settings, "use_gpencil_draw_onback", text="Draw on Back")
+        #sub = col.column(align=True)
+        #sub.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
+        #sub.prop(context.tool_settings, "use_gpencil_continuous_drawing", text="Continuous Drawing")
+        #sub.prop(context.tool_settings, "use_gpencil_draw_onback", text="Draw on Back")
 
         col.separator()
         col.separator()
@@ -128,10 +128,10 @@ class GreasePencilDrawingToolsPanel:
             elif is_clip_editor:
                 row.prop(context.space_data, "grease_pencil_source", expand=True)
 
-        col.separator()
-        col.separator()
+        #col.separator()
+        #col.separator()
 
-        gpencil_stroke_placement_settings(context, col)
+        #gpencil_stroke_placement_settings(context, col)
 
         gpd = context.gpencil_data
 
