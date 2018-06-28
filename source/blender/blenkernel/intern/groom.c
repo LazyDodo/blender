@@ -1037,37 +1037,54 @@ typedef struct GroomGuideIterator
 	double q[4][3];
 } GroomGuideIterator;
 
-static void groom_guide_curve_section_init(
-        GroomGuideIterator *iter,
+static bool groom_guide_curve_get_section(
+        const GroomGuideIterator *iter,
         const GroomRegion *region,
         const Mesh *scalp,
         int section_idx,
         float r_co[3])
 {
 	const GroomBundle *bundle = &region->bundle;
-	const int shapesize = region->numverts;
 	
-	if (section_idx < bundle->totsections-2)
+	if (section_idx >= 0 && section_idx < bundle->totsections)
 	{
 		/* Compute barycentric guide location from shape */
+		const int shapesize = region->numverts;
 		zero_v3(r_co);
 		for (int j = 0; j < shapesize; ++j)
 		{
 			float shape_co[3];
-			groom_eval_shape_vertex(region, scalp, j, section_idx + 2, shape_co);
+			groom_eval_shape_vertex(region, scalp, j, section_idx, shape_co);
 			madd_v3_v3fl(r_co, shape_co, iter->weights[j]);
 		}
+		
+		return true;
 	}
 	
-	groom_forward_diff_init_hermite(
-	            section_idx > 0 ? iter->co0 : NULL,
-	            iter->co1,
-	            iter->co2,
-	            section_idx < bundle->totsections-2 ? iter->co3 : NULL,
-	            iter->stepsize,
-	            iter->q);
+	return false;
+}
+
+static void groom_guide_curve_section_init(
+        GroomGuideIterator *iter,
+        const GroomRegion *region,
+        const Mesh *scalp)
+{
+	const GroomBundle *bundle = &region->bundle;
+	
+	copy_v3_v3(iter->co0, iter->co1);
+	copy_v3_v3(iter->co1, iter->co2);
+	copy_v3_v3(iter->co2, iter->co3);
+	groom_guide_curve_get_section(iter, region, scalp, iter->section_idx + 2, iter->co3);
 	
 	iter->step = 0;
+	
+	groom_forward_diff_init_hermite(
+	            iter->section_idx > 0 ? iter->co0 : NULL,
+	            iter->co1,
+	            iter->co2,
+	            iter->section_idx < bundle->totsections-2 ? iter->co3 : NULL,
+	            iter->stepsize,
+	            iter->q);
 }
 
 static bool groom_guide_curve_start(
@@ -1089,11 +1106,12 @@ static bool groom_guide_curve_start(
 	iter->numsteps = numsteps;
 	iter->stepsize = 1.0 / (double)numsteps;
 	
-	groom_guide_curve_section_init(iter, region, scalp, -2, iter->co1);
-	groom_guide_curve_section_init(iter, region, scalp, -1, iter->co2);
-	groom_guide_curve_section_init(iter, region, scalp,  0, iter->co3);
-	
 	iter->section_idx = 0;
+	groom_guide_curve_get_section(iter, region, scalp, -1, iter->co1);
+	groom_guide_curve_get_section(iter, region, scalp, 0, iter->co2);
+	groom_guide_curve_get_section(iter, region, scalp, 1, iter->co3);
+	
+	groom_guide_curve_section_init(iter, region, scalp);
 	
 	return true;
 }
@@ -1119,10 +1137,7 @@ BLI_INLINE void groom_guide_curve_next(
 		
 		if (iter->section_idx < iter->totsections - 1)
 		{
-			copy_v3_v3(iter->co0, iter->co1);
-			copy_v3_v3(iter->co1, iter->co2);
-			copy_v3_v3(iter->co2, iter->co3);
-			groom_guide_curve_section_init(iter, region, scalp, iter->section_idx, iter->co3);
+			groom_guide_curve_section_init(iter, region, scalp);
 		}
 	}
 }
