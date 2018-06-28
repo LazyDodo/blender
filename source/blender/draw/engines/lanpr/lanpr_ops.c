@@ -1528,7 +1528,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 		bm = BM_mesh_create(&allocsize,
 		                    &((struct BMeshCreateParams) {.use_toolflags = true, }));
 		BM_mesh_bm_from_me(bm, o->data, &((struct BMeshFromMeshParams) {.calc_face_normal = true, }));
-		BM_mesh_triangulate(bm, MOD_TRIANGULATE_QUAD_BEAUTY, MOD_TRIANGULATE_NGON_EARCLIP, false, NULL, NULL, NULL);
+		BM_mesh_triangulate(bm, MOD_TRIANGULATE_QUAD_BEAUTY, MOD_TRIANGULATE_NGON_BEAUTY, false, NULL, NULL, NULL);
 		BM_mesh_elem_table_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 		BM_mesh_elem_index_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 
@@ -2034,8 +2034,8 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(LANPR_RenderTriangle *rt, LA
 	//}
 
 
-	DotLA = fabs(DotL); if (DotLA < 0) { DotLA = 0; DotL = 0; }
-	DotRA = fabs(DotR); if (DotRA < 0) { DotRA = 0; DotR = 0; }
+	DotLA = fabs(DotL); if (DotLA < DBL_EPSILON) { DotLA = 0; DotL = 0; }
+	DotRA = fabs(DotR); if (DotRA < DBL_EPSILON) { DotRA = 0; DotR = 0; }
 	if (DotL - DotR == 0) Cut = 100000;
 	else if (DotL * DotR <= 0) {
 		Cut = DotLA / fabs(DotL - DotR);
