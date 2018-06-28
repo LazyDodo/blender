@@ -36,7 +36,6 @@
 #include "BLI_threads.h"
 
 #include "BKE_global.h"
-#include "BKE_image.h"
 
 #include "GPU_batch.h"
 #include "GPU_debug.h"

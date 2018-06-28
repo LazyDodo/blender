@@ -79,7 +79,7 @@ static int node_shader_gpu_tex_image(GPUMaterial *mat, bNode *node, bNodeExecDat
 		LISTBASE_FOREACH(ImageTile *, tile, &ima->tiles) {
 			float tile_number = tile->tile_number;
 			GPU_link(mat, "node_tex_image_tile", map, GPU_uniform(&tile_number), GPU_image(ima, iuser, isdata, tile->tile_number),
-			         out[0].link, &out[0].link, &out[1].link);
+			                                     out[0].link, &out[0].link, &out[1].link);
 		}
 	}
 	else {
@@ -89,17 +89,17 @@ static int node_shader_gpu_tex_image(GPUMaterial *mat, bNode *node, bNodeExecDat
 				break;
 			case SHD_PROJ_BOX:
 				GPU_link(mat, "direction_transform_m4v3", GPU_builtin(GPU_VIEW_NORMAL),
-														GPU_builtin(GPU_INVERSE_VIEW_MATRIX),
-														&norm);
+				                                          GPU_builtin(GPU_INVERSE_VIEW_MATRIX),
+				                                          &norm);
 				GPU_link(mat, "direction_transform_m4v3", norm,
-														GPU_builtin(GPU_INVERSE_OBJECT_MATRIX),
-														&norm);
+				                                          GPU_builtin(GPU_INVERSE_OBJECT_MATRIX),
+				                                          &norm);
 				GPU_link(mat, "node_tex_image_box", in[0].link,
-													norm,
-													GPU_image(ima, iuser, isdata, 0),
-													GPU_uniform(&blend),
-													&out[0].link,
-													&out[1].link);
+				                                    norm,
+				                                    GPU_image(ima, iuser, isdata, 0),
+				                                    GPU_uniform(&blend),
+				                                    &out[0].link,
+				                                    &out[1].link);
 				break;
 			case SHD_PROJ_SPHERE:
 				GPU_link(mat, "point_texco_remap_square", in[0].link, &in[0].link);

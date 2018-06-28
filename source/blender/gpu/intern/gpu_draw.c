@@ -283,7 +283,7 @@ GPUTexture *GPU_texture_from_blender(Image *ima,
 	if (ima == NULL) {
 		return NULL;
 	}
-	
+
 	int gputex_type = (textarget == GL_TEXTURE_CUBE_MAP)? TEXTARGET_TEXTURE_CUBE_MAP : TEXTARGET_TEXTURE_2D;
 	ImageTile *tile = BKE_image_get_tile_from_iuser(ima, iuser);
 

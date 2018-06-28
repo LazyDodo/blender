@@ -1777,7 +1777,7 @@ void node_tex_image_tile(vec3 map, float tile_id, sampler2D ima, vec4 in_color, 
 		color = texture(ima, map.xy);
 	else
 		color = in_color;
-	
+
 	alpha = color.a;
 }
 

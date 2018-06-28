@@ -1374,7 +1374,7 @@ void paint_2d_stroke(void *ps, const float prev_mval[2], const float mval[2], co
 			continue;
 
 		ImBuf *ibuf = BKE_image_acquire_ibuf(s->image, &tile->iuser, NULL);
-		
+
 		/* OCIO_TODO: float buffers are now always linear, so always use color correction
 		*            this should probably be changed when texture painting color space is supported
 		*/

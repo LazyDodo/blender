@@ -170,7 +170,7 @@ static void imagecache_remove(Image *image, int index)
 {
 	if (!image->cache)
 		return;
-	
+
 	ImageCacheKey key;
 	key.index = index;
 	IMB_moviecache_remove(image->cache, &key);
