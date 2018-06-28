@@ -2338,9 +2338,18 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 {
 	/* header prints */
 	switch (p->status) {
-		case GP_STATUS_PAINTING:
-			// TODO: Indicate how to use "Poly" mode
-			break;
+		switch (p->paintmode) {
+				case GP_PAINTMODE_DRAW_POLY:
+					/* Provide usage tips, since this is modal, and unintuitive without hints */
+					ED_workspace_status_text(C, IFACE_("Annotation Create Poly: LMB click to place next stroke vertex | "
+					                                  "ESC/Enter to end  (or click outside this area)"));
+					break;
+				default:
+					/* Do nothing - the others are self explanatory, exit quickly once the mouse is released
+					 * Showing any text would just be annoying as it would flicker.
+					 */
+					break;
+			}
 
 		case GP_STATUS_IDLING:
 			/* print status info */
