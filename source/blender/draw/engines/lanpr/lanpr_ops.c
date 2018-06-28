@@ -2,6 +2,7 @@
 #include "DRW_render.h"
 #include "BLI_listbase.h"
 #include "BLI_linklist.h"
+#include "BLI_math_matrix.h"
 #include "lanpr_all.h"
 #include "lanpr_util.h"
 #include "DRW_render.h"
@@ -1472,7 +1473,7 @@ void lanpr_TransformRenderVert(BMVert *V, int index, LANPR_RenderVert *RVBuf, re
 	//rv->V = V;
 	//V->RV = rv;
 	tMatApplyTransform43df(rv->GLocation, MVMat, V->co);
-	tMatApplyTransform43df(rv->FrameBufferCoord, MVPMat, V->co);
+	tMatApplyTransform43dfND(rv->FrameBufferCoord, MVPMat, V->co);
 
 	//if(rv->FrameBufferCoord[2]>0)tMatVectorMultiSelf3d(rv->FrameBufferCoord, (1 / rv->FrameBufferCoord[3]));
 	//else tMatVectorMultiSelf3d(rv->FrameBufferCoord, -rv->FrameBufferCoord[3]);
@@ -1498,6 +1499,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 	tnsMatrix44d NewMVP;
 	tnsMatrix44d NewMV;
 	tnsMatrix44d SelfTransform;
+	tnsMatrix44d Normal;
 	LANPR_RenderElementLinkNode *reln;
 	Object *cam_object = rb->Scene->camera;
 	Camera *c = cam_object->data;
@@ -1505,6 +1507,8 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 	LANPR_RenderVert *orv;
 	LANPR_RenderLine *orl;
 	LANPR_RenderTriangle *ort;
+	FreestyleEdge *fe;
+	int CanFindFreestyle = 0;
 	int i;
 
 
@@ -1515,6 +1519,11 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 		tMatMultiply44d(NewMVP, MVPMat, SelfTransform);
 		tMatMultiply44d(NewMV, MVMat, SelfTransform);
 
+		invert_m4_m4(o->imat, o->obmat);
+		transpose_m4(o->imat);
+		tMatObmatTo16d(o->imat, Normal);
+
+
 		const BMAllocTemplate allocsize = BMALLOC_TEMPLATE_FROM_ME(((Mesh *)(o->data)));
 		bm = BM_mesh_create(&allocsize,
 		                    &((struct BMeshCreateParams) {.use_toolflags = true, }));
@@ -1522,6 +1531,10 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 		BM_mesh_triangulate(bm, MOD_TRIANGULATE_QUAD_BEAUTY, MOD_TRIANGULATE_NGON_EARCLIP, false, NULL, NULL, NULL);
 		BM_mesh_elem_table_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 		BM_mesh_elem_index_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
+
+		if (CustomData_has_layer(&bm->edata, CD_FREESTYLE_EDGE)) {
+			CanFindFreestyle = 1;
+		}
 
 		orv = MEM_callocN(sizeof(LANPR_RenderVert) * bm->totvert, "object render verts");
 		ort = MEM_callocN(bm->totface * rb->TriangleSize, "object render triangles");//CreateNewBuffer(LANPR_RenderTriangle, mo->TriangleCount);
@@ -1550,6 +1563,10 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 		rl = orl;
 		for (i = 0; i < bm->totedge; i++) {
 			e = BM_edge_at_index(bm, i);
+			if (CanFindFreestyle) {
+				fe = CustomData_bmesh_get(&bm->edata, e->head.data, CD_FREESTYLE_EDGE);
+				if (fe->flag & FREESTYLE_EDGE_MARK)rl->Flags |= LANPR_EDGE_FLAG_EDGE_MARK;
+			}
 			rl->L = &orv[BM_elem_index_get(e->v1)];
 			rl->R = &orv[BM_elem_index_get(e->v2)];
 			LANPR_RenderLineSegment *rls = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
@@ -1572,7 +1589,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 			rt->V[2] = &orv[BM_elem_index_get(loop->v)];
 			rt->RL[2] = &orl[BM_elem_index_get(loop->e)];
 
-			//rt->F = F;
+			rt->F = f;
 			rt->GN[0] = f->no[0];
 			rt->GN[1] = f->no[1];
 			rt->GN[2] = f->no[2];
@@ -1581,7 +1598,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 			tMatVectorAccum3d(rt->GC, rt->V[1]->FrameBufferCoord);
 			tMatVectorAccum3d(rt->GC, rt->V[2]->FrameBufferCoord);
 			tMatVectorMultiSelf3d(rt->GC, 1.0f / 3.0f);
-			tMatApplyNormalTransform43df(rt->GN, MVMat, f->no);
+			tMatApplyNormalTransform43df(rt->GN, Normal, f->no);
 			tMatNormalizeSelf3d(rt->GN);
 			lanpr_AssignRenderLineWithTriangle(rt);
 			//m = tnsGetIndexedMaterial(rb->Scene, f->MaterialID);
@@ -2017,8 +2034,8 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(LANPR_RenderTriangle *rt, LA
 	//}
 
 
-	DotLA = fabs(DotL); if (DotLA < DBL_EPSILON) { DotLA = 0; DotL = 0; }
-	DotRA = fabs(DotR); if (DotRA < DBL_EPSILON) { DotRA = 0; DotR = 0; }
+	DotLA = fabs(DotL); if (DotLA < 0) { DotLA = 0; DotL = 0; }
+	DotRA = fabs(DotR); if (DotRA < 0) { DotRA = 0; DotR = 0; }
 	if (DotL - DotR == 0) Cut = 100000;
 	else if (DotL * DotR <= 0) {
 		Cut = DotLA / fabs(DotL - DotR);
@@ -2397,7 +2414,7 @@ int lanpr_LineCrossesFrame(tnsVector2d L, tnsVector2d R) {
 }
 
 void lanpr_ComputeViewVector(LANPR_RenderBuffer *rb) {
-	tnsVector3d Direction = { 0, 0, -1 };
+	tnsVector3d Direction = { 0, 0, 1 };
 	tnsVector3d Trans;
 	tnsMatrix44d inv;
 	tnsMatrix44d obmat;
@@ -2437,6 +2454,11 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 		//if(rl->Testing)
 		//if (!lanpr_LineCrossesFrame(rl->L->FrameBufferCoord, rl->R->FrameBufferCoord))
 		//	continue;
+
+		if (rl->Flags & LANPR_EDGE_FLAG_EDGE_MARK) {
+			lstAppendPointerStatic(&rb->EdgeMarks, &rb->RenderDataPool, rl);
+			continue;
+		}
 
 		Add = 0; Dot1 = 0; Dot2 = 0;
 
@@ -2525,9 +2547,18 @@ void lanpr_DestroyRenderData(LANPR_RenderBuffer *rb) {
 		FreeMem(reln->Pointer);
 	}
 
+	while (reln = lstPopItem(&rb->LineBufferPointers)) {
+		FreeMem(reln->Pointer);
+	}
+
 	while (reln = lstPopItem(&rb->TriangleBufferPointers)) {
 		FreeMem(reln->Pointer);
 	}
+
+	BLI_spin_end(&rb->csData);
+	BLI_spin_end(&rb->csInfo);
+	BLI_spin_end(&rb->csManagement);
+	BLI_spin_end(&rb->RenderDataPool.csMem);
 
 	memStaticDestroy(&rb->RenderDataPool);
 }
@@ -2698,7 +2729,7 @@ long lanpr_CountIntersectionSegmentCount(LANPR_RenderBuffer *rb) {
 	}
 	return Count;
 }
-void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, int qi_begin, int qi_end) {
+void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, int qi_begin, int qi_end,float componet_id) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls, *irls;
@@ -2720,97 +2751,19 @@ void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *Line
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
 				V++;
+				*V = componet_id;
+				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->Item.pNext ? (irls = rls->Item.pNext)->at : 1);
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->Item.pNext ? (irls = rls->Item.pNext)->at : 1);
+				V++;
+				*V = componet_id;
 				V++;
 			}
 		}
 	}
 	return V;
 }
-u32bit lanpr_MakeBoundingAreaVBORecursive(float *V, u32bit Begin, LANPR_BoundingArea *ba, float HalfW, float HalfH) {
-	u32bit Index = Begin;
-	if (ba->Child) {
-		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[0], HalfW, HalfH);
-		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[1], HalfW, HalfH);
-		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[2], HalfW, HalfH);
-		Index = lanpr_MakeBoundingAreaVBORecursive(V, Index, &ba->Child[3], HalfW, HalfH);
-		return Index;
-	}
-	else {
-		float *v = &V[Begin];
-		v[0] = ba->L * HalfW; v[1] = ba->U * HalfH;
-		v[2] = ba->L * HalfW; v[3] = ba->B * HalfH;
-
-		v[4] = ba->L * HalfW; v[5] = ba->B * HalfH;
-		v[6] = ba->R * HalfW; v[7] = ba->B * HalfH;
-
-		v[8] = ba->R * HalfW; v[9] = ba->B * HalfH;
-		v[10] = ba->R * HalfW; v[11] = ba->U * HalfH;
-
-		v[12] = ba->R * HalfW; v[13] = ba->U * HalfH;
-		v[14] = ba->L * HalfW; v[15] = ba->U * HalfH;
-		return Index + 16;
-	}
-}
-
-//void lanpr_MakeMaterialPreviewVert(LANPR_RenderBuffer* rb, tnsMaterial* m, float* V, float* N) {
-//	LANPR_RenderElementLinkNode* reln;
-//	LANPR_RenderTriangle* rt;
-//	int W = rb->FrameBuffer->W / 2;
-//	int H = rb->FrameBuffer->H / 2;
-//	int TotalCount = 0;
-//	int i = 0;
-//
-//	for (reln = rb->TriangleBufferPointers.pFirst; reln; reln = reln->Item.pNext) {
-//		rt = reln->Pointer;
-//		int count = TotalCount + reln->ElementCount*9,ofst;
-//		if (i == m->PreviewVCount*3) break;
-//		for (i; i < count; i+=9) {
-//			ofst = i;
-//
-//			while (rt < (((LANPR_RenderTriangle*)reln->Pointer) + reln->ElementCount) && rt->F->MaterialID != m->ID) rt++;
-//
-//			if (rt >=((LANPR_RenderTriangle*)reln->Pointer) + reln->ElementCount) break;
-//
-//			V[ofst + 0] = rt->V[0]->FrameBufferCoord[0] * W; N[ofst + 0] = rt->GN[0];
-//			V[ofst + 1] = rt->V[0]->FrameBufferCoord[1] * H; N[ofst + 1] = rt->GN[1];
-//			V[ofst + 2] = -rt->V[0]->FrameBufferCoord[2]; N[ofst + 2] = rt->GN[2];
-//
-//			V[ofst + 3] = rt->V[1]->FrameBufferCoord[0] * W; N[ofst + 3] = rt->GN[0];
-//			V[ofst + 4] = rt->V[1]->FrameBufferCoord[1] * H; N[ofst + 4] = rt->GN[1];
-//			V[ofst + 5] = -rt->V[1]->FrameBufferCoord[2]; N[ofst + 5] = rt->GN[2];
-//
-//			V[ofst + 6] = rt->V[2]->FrameBufferCoord[0] * W; N[ofst + 6] = rt->GN[0];
-//			V[ofst + 7] = rt->V[2]->FrameBufferCoord[1] * H; N[ofst + 7] = rt->GN[1];
-//			V[ofst + 8] = -rt->V[2]->FrameBufferCoord[2]; N[ofst + 8] = rt->GN[2];
-//
-//			rt++;
-//		}
-//		TotalCount = i;
-//	}
-//}
-//void lanpr_MakeMaterialPreviewList(LANPR_RenderBuffer* rb) {
-//	tnsBatch* b;
-//	tnsMaterial* m;
-//	float* V,*N;
-//
-//	for (m = rb->Scene->Materials.pFirst; m; m = m->Item.pNext) {
-//		if (m->PreviewBatch) tnsDeleteBatch(m->PreviewBatch);
-//		if (!m->PreviewVCount) continue;
-//
-//		V = CreateNewBuffer(float, m->PreviewVCount * 3);
-//		N = CreateNewBuffer(float, m->PreviewVCount * 3);
-//
-//		lanpr_MakeMaterialPreviewVert(rb, m, V, N);
-//
-//		m->PreviewBatch = b = tnsCreateBatch(m->PreviewVCount, 3, V, N);
-//		tnsCreateCommand(b, m->PreviewVCount, 3, GL_TRIANGLES, GL_UNSIGNED_INT, 0);
-//
-//		FreeMem(V); FreeMem(N);
-//	}
-//}
 
 
 /* ============================================ viewport display ================================================= */
@@ -2825,7 +2778,7 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, uvs; } attr_id;
 		if (format.attrib_ct == 0) {
-			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
 		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
@@ -2840,16 +2793,17 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 
 		GWN_vertbuf_data_alloc(vbo, ll->VertCount);
 
-		tv = V = CreateNewBuffer(float, 4 * Count);
+		tv = V = CreateNewBuffer(float, 6 * Count);
 
-		if (ll->enable_contour)           tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll->qi_begin, ll->qi_end);
-		if (ll->enable_crease)            tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll->qi_begin, ll->qi_end);
-		if (ll->enable_intersection)      tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll->qi_begin, ll->qi_end);
-		if (ll->enable_edge_mark)         tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll->qi_begin, ll->qi_end);
-		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll->qi_begin, ll->qi_end);
+		if (ll->enable_contour)           tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll->qi_begin, ll->qi_end, 1.0f);
+		if (ll->enable_crease)            tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll->qi_begin, ll->qi_end, 2.0f);
+		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll->qi_begin, ll->qi_end, 3.0f);
+		if (ll->enable_edge_mark)         tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll->qi_begin, ll->qi_end, 4.0f);
+		if (ll->enable_intersection)      tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll->qi_begin, ll->qi_end, 5.0f);
+
 
 		for (i = 0; i < ll->VertCount; i++) {
-			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i*2]);
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i*3]);
 		}
 
 		FreeMem(V);
@@ -2917,6 +2871,17 @@ void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_Framebuffe
 
 /* ============================================ operators ========================================= */
 
+static int lanpr_clear_render_buffer_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+	LANPR_RenderBuffer *rb;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
+	
+	lanpr_DestroyRenderData(lanpr->render_buffer);
+
+	return OPERATOR_FINISHED;
+}
 static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperator *op){
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;

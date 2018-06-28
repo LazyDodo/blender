@@ -328,7 +328,15 @@ static void lanpr_cache_init(void *vedata){
 		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
 			DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
-			DRW_shgroup_uniform_float(ll->shgrp, "line_thickness", &ll->thickness, 1);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "edge_mark_color", ll->edge_mark_color, 1);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "intersection_color", ll->intersection_color, 1);
+			DRW_shgroup_uniform_float(ll->shgrp, "thickness", &ll->thickness, 1);
+			DRW_shgroup_uniform_float(ll->shgrp, "thickness_crease", &ll->thickness_crease, 1);
+			DRW_shgroup_uniform_float(ll->shgrp, "thickness_material", &ll->thickness_material, 1);
+			DRW_shgroup_uniform_float(ll->shgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
+			DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 			if(ll->batch) DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
 		}
 	}

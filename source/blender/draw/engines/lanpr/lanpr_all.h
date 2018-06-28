@@ -422,6 +422,8 @@ typedef struct LANPR_RenderVert {
 	char EdgeUsed;                    //                      <|		       |>
 }LANPR_RenderVert;
 
+#define LANPR_EDGE_FLAG_EDGE_MARK 1
+
 typedef struct LANPR_RenderLine {
 	nListItem Item;
 	struct LANPR_RenderVert *L, *R;
@@ -430,6 +432,7 @@ typedef struct LANPR_RenderLine {
 	//tnsEdge*       Edge;//should be edge material
 	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
 	char MinOcclude;
+	char Flags;
 	struct Object *ObjectRef;
 	//char            IgnoreConnectedFace;
 	//char            CullStatus;

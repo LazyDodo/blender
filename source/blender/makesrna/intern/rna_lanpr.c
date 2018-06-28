@@ -114,6 +114,17 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	prop = RNA_def_property(srna, "enable_intersection", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Enable intersection Lines", "Draw intersection lines");
 
+	prop = RNA_def_property(srna, "qi_begin", PROP_INT, PROP_NONE);
+	RNA_def_property_int_default(prop, 0);
+	RNA_def_property_ui_text(prop, "QI Begin", "QI Begin");
+	RNA_def_property_range(prop, 0, 128);
+
+	prop = RNA_def_property(srna, "qi_end", PROP_INT, PROP_NONE);
+	RNA_def_property_int_default(prop, 0);
+	RNA_def_property_ui_text(prop, "QI End", "QI End");
+	RNA_def_property_range(prop, 0, 128);
+
+
 	prop = RNA_def_property(srna, "thickness", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Thickness", "Master Thickness");

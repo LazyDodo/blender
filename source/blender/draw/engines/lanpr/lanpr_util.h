@@ -550,6 +550,7 @@ real tMatAngleRad3d(tnsVector3d from, tnsVector3d to, tnsVector3d PositiveRefere
 void tMatApplyRotation33d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyRotation43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
+void tMatApplyTransform43dfND(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v);
 void tMatApplyNormalTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v);
 void tMatApplyNormalTransform43df(tnsVector3d result, tnsMatrix44d mat, tnsVector3f v);
 void tMatApplyTransform44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v);

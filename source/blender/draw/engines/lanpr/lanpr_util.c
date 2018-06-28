@@ -886,7 +886,7 @@ void memDestroyPool(nMemoryPool *Handle) {
 }
 
 nStaticMemoryPoolNode *memNewStaticPool(nStaticMemoryPool *smp) {
-	nStaticMemoryPoolNode *smpn = calloc(1, NUL_MEMORY_POOL_128MB);
+	nStaticMemoryPoolNode *smpn = MEM_callocN(NUL_MEMORY_POOL_128MB,"mempool");
 	smpn->UsedByte = sizeof(nStaticMemoryPoolNode);
 	lstPushItem(&smp->Pools, smpn);
 	return smpn;
@@ -1469,11 +1469,21 @@ void tMatApplyTransform44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) 
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
 	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
 }
-void tMatApplyTransform43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
+void tMatApplyTransform43dfND(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
+	real w;
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
 	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
+}
+void tMatApplyTransform43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
+	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
+	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
+	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
+	real w = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
+	//result[0] /= w;
+	//result[1] /= w;
+	//result[2] /= w;
 }
 void tMatApplyTransform44dTrue(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * v[3];

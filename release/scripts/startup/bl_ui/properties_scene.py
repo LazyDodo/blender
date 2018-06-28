@@ -623,16 +623,26 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                     else:
                         row.label(text="OFF")
 
-                    layout.prop(lanpr, "crease_threshold")
-                    layout.prop(lanpr, "crease_fade_threshold")
+                    split = layout.split(align=True)
+                    col = split.column()
+                    layout.prop(active_layer, "qi_begin")
+                    col = split.column()
+                    layout.prop(active_layer, "qi_end")
+                
+                
+                layout.prop(lanpr, "crease_threshold")
 
-                    split = layout.split()
-                    col = split.column()
-                    col.prop(lanpr, "depth_width_influence")
-                    col.prop(lanpr, "depth_alpha_influence")
-                    col = split.column()
-                    col.prop(lanpr, "depth_width_curve")
-                    col.prop(lanpr, "depth_alpha_curve")
+                layout.label(text="Below INOP in software:")
+
+                layout.prop(lanpr, "crease_fade_threshold")
+
+                split = layout.split()
+                col = split.column()
+                col.prop(lanpr, "depth_width_influence")
+                col.prop(lanpr, "depth_alpha_influence")
+                col = split.column()
+                col.prop(lanpr, "depth_width_curve")
+                col.prop(lanpr, "depth_alpha_curve")
             
         else:
             layout.label(text="Snake:")
