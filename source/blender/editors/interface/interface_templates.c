@@ -4309,16 +4309,23 @@ void uiTemplateInputStatus(uiLayout *layout, struct bContext *C)
 
 	/* Otherwise should cursor keymap status. */
 	for (int i = 0; i < 3; i++) {
-		uiLayout *box = uiLayoutRow(layout, true);
-		for (int j = 0; j < 2; j++) {
-			const char *msg = WM_window_cursor_keymap_status_get(win, i, j);
-			if ((j == 0) || (msg != NULL)) {
-				uiItemL(box, msg, j == 0 ? (ICON_MOUSE_LMB + i) : ICON_MOUSE_DRAG);
-			}
+		uiLayout *box = uiLayoutRow(layout, false);
+		uiLayout *col = uiLayoutColumn(box, false);
+		uiLayout *row = uiLayoutRow(col, true);
+		uiLayoutSetAlignment(row, UI_LAYOUT_ALIGN_LEFT);
+
+		const char *msg = WM_window_cursor_keymap_status_get(win, i, 0);
+		const char *msg_drag = WM_window_cursor_keymap_status_get(win, i, 1);
+
+		uiItemL(row, msg ? msg : "", (ICON_MOUSE_LMB + i));
+
+		if (msg_drag) {
+			uiItemL(row, msg_drag, ICON_MOUSE_DRAG);
 		}
-		if (i != 2) {
-			uiItemSpacer(layout);
-		}
+
+		/* Use trick with empty string to keep icons in same position. */
+		row = uiLayoutRow(col, false);
+		uiItemL(row, "                                                        ", ICON_NONE);
 	}
 }
 
