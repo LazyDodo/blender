@@ -709,19 +709,36 @@ class GPENCIL_MT_gpencil_draw_delete(Menu):
         layout.operator("gpencil.active_frames_delete_all", text="Delete Frame")
 
 
+class GPENCIL_UL_annotation_layer(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        # assert(isinstance(item, bpy.types.GPencilLayer)
+        gpl = item
+        gpd = context.gpencil_data
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            if gpl.lock:
+                layout.active = False
+
+            row = layout.row(align=True)
+            #row.prop(gpl, "color")
+            row.prop(gpl, "info", text="", emboss=False)
+
+            row = layout.row(align=True)
+            row.prop(gpl, "lock", text="", emboss=False)
+            row.prop(gpl, "hide", text="", emboss=False)
+        elif self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+            layout.label(text="", icon_value=icon)
+
+
 class GreasePencilDataPanel:
-    bl_label = "Annotations"
+    bl_label = "Notes"
     bl_region_type = 'UI'
 
     @classmethod
     def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        # Don't show for GP Object
-        # XXX: Needs review when we get annotations fully working
-        ob = context.object
-        if ob and ob.type == 'GPENCIL':
+        # Show this panel as long as someone that might own this exists
+        if context.gpencil_data_owner is None:
             return False
 
         return True
@@ -737,6 +754,7 @@ class GreasePencilDataPanel:
         layout.use_property_decorate = False
 
         # owner of Grease Pencil data
+        # XXX: Review this for the 3D view when there's a GP object active
         gpd_owner = context.gpencil_data_owner
         gpd = context.gpencil_data
 
@@ -760,7 +778,7 @@ class GreasePencilDataPanel:
             layer_rows = 5
         else:
             layer_rows = 2
-        col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index", rows=layer_rows)
+        col.template_list("GPENCIL_UL_annotation_layer", "", gpd, "layers", gpd.layers, "active_index", rows=layer_rows)
 
         col = row.column()
 
@@ -770,8 +788,6 @@ class GreasePencilDataPanel:
 
         gpl = context.active_gpencil_layer
         if gpl:
-            sub.menu("GPENCIL_MT_layer_specials", icon='DOWNARROW_HLT', text="")
-
             if len(gpd.layers) > 1:
                 col.separator()
 
@@ -779,15 +795,24 @@ class GreasePencilDataPanel:
                 sub.operator("gpencil.layer_move", icon='TRIA_UP', text="").type = 'UP'
                 sub.operator("gpencil.layer_move", icon='TRIA_DOWN', text="").type = 'DOWN'
 
-                col.separator()
-
-                sub = col.column(align=True)
-                sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
-                sub.operator("gpencil.layer_isolate", icon='RESTRICT_VIEW_OFF', text="").affect_visibility = True
-
-        row = layout.row(align=True)
         if gpl:
+            row = layout.row(align=True)
             row.prop(gpl, "opacity", text="Opacity", slider=True)
+
+            layout.separator()
+
+            # Full-Row - Frame Locking (and Delete Frame)
+            row = layout.row(align=True)
+            row.active = not gpl.lock
+
+            if gpl.active_frame:
+                lock_status = iface_("Locked") if gpl.lock_frame else iface_("Unlocked")
+                lock_label = iface_("Frame: %d (%s)") % (gpl.active_frame.frame_number, lock_status)
+            else:
+                lock_label = iface_("Lock Frame")
+            row.prop(gpl, "lock_frame", text=lock_label, icon='UNLOCKED')
+            row.operator("gpencil.active_frame_delete", text="", icon='X')
+
 
 
 class GreasePencilOnionPanel:
@@ -883,12 +908,16 @@ classes = (
     GPENCIL_MT_pie_settings_palette,
     GPENCIL_MT_pie_tools_more,
     GPENCIL_MT_pie_sculpt,
+
     GPENCIL_MT_snap,
     GPENCIL_MT_separate,
+
     GPENCIL_MT_gpencil_edit_specials,
     GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
     GPENCIL_MT_gpencil_draw_delete,
+
+    GPENCIL_UL_annotation_layer,
 )
 
 if __name__ == "__main__":  # only for live edit.
