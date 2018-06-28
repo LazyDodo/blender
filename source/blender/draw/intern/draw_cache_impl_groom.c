@@ -378,7 +378,6 @@ typedef struct GroomRenderData
 	int curve_res;
 	
 	int tri_len;                    /* Total mlooptri array length */
-	int section_tri_len;        /* Number of looptri per section polygon */
 	struct MLoopTri *mlooptri;      /* Triangulation data for sections */
 } GroomRenderData;
 
@@ -404,10 +403,11 @@ static GroomRenderData* groom_render_data_create(Groom *groom)
 				totpoly += numpolys;
 				totvert += region->numverts * numpolys;
 				
-				rdata->section_tri_len = poly_to_tri_count(1, region->numverts);
-				rdata->tri_len = rdata->section_tri_len * numpolys;
-				/* Polygons are unconnected, no shared vertices */
-				BLI_assert(rdata->tri_len == poly_to_tri_count(numpolys, region->numverts * numpolys));
+				/* Polygons are unconnected, no shared vertices,
+				 * same vertex number for each section polygon.
+				 */
+				int section_tri_len = poly_to_tri_count(1, region->numverts);
+				rdata->tri_len += section_tri_len * numpolys;
 			}
 		}
 		
@@ -733,10 +733,11 @@ static void groom_get_faces(
 			if (numshapeverts > 1)
 			{
 				const MLoopTri *mtri = rdata->mlooptri;
+				int section_tri_len = poly_to_tri_count(1, region->numverts);
 				/* Skip the root section */
 				for (int i = 1; i < bundle->totsections; ++i)
 				{
-					for (int j = 0; j < rdata->section_tri_len; ++j, ++mtri)
+					for (int j = 0; j < section_tri_len; ++j, ++mtri)
 					{
 						GWN_indexbuf_add_tri_verts(
 						            &elb,

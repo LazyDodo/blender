@@ -1381,7 +1381,7 @@ void BKE_groom_hair_update_guide_curves(const Depsgraph *depsgraph, Groom *groom
 					
 					BKE_hair_set_guide_curve(
 					            hsys,
-					            i,
+					            guide_idx,
 					            &bundle->guides[i].root,
 					            numverts[guide_idx],
 					            taper_length,
