@@ -573,16 +573,58 @@ static void groom_get_verts(
 		for (GroomRegion *region = rdata->regions->first; region; region = region->next)
 		{
 			GroomBundle *bundle = &region->bundle;
+			int numshapeverts = region->numverts;
 			if (use_curve_cache)
 			{
 				GroomCurveCache *cache = bundle->curvecache;
-				for (int i = 0; i < region->numverts; ++i)
+				for (int i = 0; i < numshapeverts; ++i)
 				{
-					for (int j = 0; j < bundle->curvesize; ++j, ++cache)
+					const int curvesize = bundle->curvesize;
+					for (int j = 0; j < curvesize; ++j)
 					{
+						const int i0 = i > 0 ? i - 1 : numshapeverts - 1;
+						const int i1 = i;
+						const int i2 = i < numshapeverts - 1 ? i + 1 : 0;
+						const int j0 = j - 1;
+						const int j1 = j;
+						const int j2 = j + 1;
+						const GroomCurveCache *c00 = cache + i0 * curvesize + j0;
+						const GroomCurveCache *c10 = cache + i1 * curvesize + j0;
+						const GroomCurveCache *c20 = cache + i2 * curvesize + j0;
+						const GroomCurveCache *c01 = cache + i0 * curvesize + j1;
+						const GroomCurveCache *c11 = cache + i1 * curvesize + j1;
+						const GroomCurveCache *c21 = cache + i2 * curvesize + j1;
+						const GroomCurveCache *c02 = cache + i0 * curvesize + j2;
+						const GroomCurveCache *c12 = cache + i1 * curvesize + j2;
+						const GroomCurveCache *c22 = cache + i2 * curvesize + j2;
 						if (id_pos != GM_ATTR_ID_UNUSED)
 						{
-							GWN_vertbuf_attr_set(vbo, id_pos, idx, cache->co);
+							GWN_vertbuf_attr_set(vbo, id_pos, idx, c11->co);
+						}
+						if (id_nor != GM_ATTR_ID_UNUSED)
+						{
+							float fnor[3];
+							float vnor[3] = {0.0f, 0.0f, 0.0f};
+							float div = 1.0f;
+							if (j > 0)
+							{
+								normal_quad_v3(fnor, c00->co, c10->co, c11->co, c01->co);
+								add_v3_v3(vnor, fnor);
+								normal_quad_v3(fnor, c10->co, c20->co, c21->co, c11->co);
+								add_v3_v3(vnor, fnor);
+								div *= 0.5f;
+							}
+							if (j < curvesize-1)
+							{
+								normal_quad_v3(fnor, c01->co, c11->co, c12->co, c02->co);
+								add_v3_v3(vnor, fnor);
+								normal_quad_v3(fnor, c11->co, c21->co, c22->co, c12->co);
+								add_v3_v3(vnor, fnor);
+								div *= 0.5f;
+							}
+							mul_v3_fl(vnor, div);
+							
+							GWN_vertbuf_attr_set(vbo, id_nor, idx, vnor);
 						}
 						if (id_flag != GM_ATTR_ID_UNUSED)
 						{
@@ -600,7 +642,7 @@ static void groom_get_verts(
 				GroomSectionVertex *vertex = bundle->verts;
 				for (int i = 0; i < bundle->totsections; ++i, ++section)
 				{
-					for (int j = 0; j < region->numverts; ++j, ++vertex)
+					for (int j = 0; j < numshapeverts; ++j, ++vertex)
 					{
 						if (id_pos != GM_ATTR_ID_UNUSED)
 						{
