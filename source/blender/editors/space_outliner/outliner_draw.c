@@ -74,6 +74,7 @@
 #include "WM_types.h"
 
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "UI_interface.h"
 #include "UI_interface_icons.h"
@@ -745,7 +746,7 @@ static void outliner_draw_rnacols(ARegion *ar, int sizex)
 	float miny = v2d->cur.ymin;
 	if (miny < v2d->tot.ymin) miny = v2d->tot.ymin;
 
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 
 	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -861,9 +862,9 @@ static void tselem_draw_icon_uibut(struct DrawIconArg *arg, int icon)
 {
 	/* restrict column clip... it has been coded by simply overdrawing, doesnt work for buttons */
 	if (arg->x >= arg->xmax) {
-		glEnable(GL_BLEND);
+		GPU_blend(true);
 		UI_icon_draw_alpha(arg->x, arg->y, icon, arg->alpha);
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 	}
 	else {
 		uiBut *but = uiDefIconBut(
@@ -1419,7 +1420,7 @@ static void outliner_draw_iconrow_number(
 	                         (float)ys - UI_UNIT_Y * 0.095f + ufac,
 	                         number_text, text_col);
 	UI_fontstyle_set(fstyle);
-	glEnable(GL_BLEND); /* Roundbox and text drawing disables. */
+	GPU_blend(true); /* Roundbox and text drawing disables. */
 }
 
 static void outliner_draw_iconrow_doit(
@@ -1445,7 +1446,7 @@ static void outliner_draw_iconrow_doit(
 		                    (float)ys + UI_UNIT_Y - ufac,
 		                    (float)UI_UNIT_Y / 2.0f - ufac,
 		                    color);
-		glEnable(GL_BLEND); /* Roundbox disables. */
+		GPU_blend(true); /* Roundbox disables. */
 	}
 
 	/* No inlined icon should be clickable. */
@@ -1615,7 +1616,7 @@ static void outliner_draw_tree_element(
 		if ((soops->flag & SO_HIDE_RESTRICTCOLS) == 0)
 			xmax -= OL_TOGW + UI_UNIT_X;
 
-		glEnable(GL_BLEND);
+		GPU_blend(true);
 
 		/* colors for active/selected data */
 		if (tselem->type == 0) {
@@ -1678,7 +1679,7 @@ static void outliner_draw_tree_element(
 			        (float)startx + 2.0f * UI_UNIT_X - 1.0f * ufac,
 			        (float)*starty + UI_UNIT_Y - 1.0f * ufac,
 			        UI_UNIT_Y / 2.0f - 1.0f * ufac, color);
-			glEnable(GL_BLEND); /* roundbox disables it */
+			GPU_blend(true); /* roundbox disables it */
 
 			te->flag |= TE_ACTIVE; // for lookup in display hierarchies
 		}
@@ -1737,7 +1738,7 @@ static void outliner_draw_tree_element(
 			        alpha_fac);
 			offsx += UI_UNIT_X + 2 * ufac;
 		}
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 
 		/* name */
 		if ((tselem->flag & TSE_TEXTBUT) == 0) {
@@ -1770,7 +1771,7 @@ static void outliner_draw_tree_element(
 				else if (tselem->type != TSE_R_LAYER) {
 					int tempx = startx + offsx;
 
-					glEnable(GL_BLEND);
+					GPU_blend(true);
 
 					/* divider */
 					{
@@ -1794,7 +1795,7 @@ static void outliner_draw_tree_element(
 					        C, block, fstyle, scene, view_layer, soops, &te->subtree, 0, xmax, &tempx,
 					        *starty, alpha_fac);
 
-					glDisable(GL_BLEND);
+					GPU_blend(false);
 				}
 			}
 		}
@@ -1844,14 +1845,14 @@ static void outliner_draw_tree_element_floating(
 
 	UI_GetThemeColorShade4fv(TH_BACK, -40, col);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 
 	if (ELEM(te_floating->drag_data->insert_type, TE_INSERT_BEFORE, TE_INSERT_AFTER)) {
 		if (te_floating->drag_data->insert_type == TE_INSERT_BEFORE) {
 			coord_y += UI_UNIT_Y;
 		}
 		immUniformColor4fv(col);
-		glLineWidth(line_width);
+		GPU_line_width(line_width);
 
 		immBegin(GWN_PRIM_LINE_STRIP, 2);
 		immVertex2f(pos, coord_x, coord_y);
@@ -1870,7 +1871,7 @@ static void outliner_draw_tree_element_floating(
 		immEnd();
 	}
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 	immUnbindProgram();
 }
 
@@ -1944,9 +1945,9 @@ static void outliner_draw_hierarchy_lines(SpaceOops *soops, ListBase *lb, int st
 	UI_GetThemeColorBlend3ubv(TH_BACK, TH_TEXT, 0.4f, col);
 	col[3] = 255;
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 	outliner_draw_hierarchy_lines_recursive(pos, soops, lb, startx, col, false, starty);
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 
 	immUnbindProgram();
 }
@@ -2041,7 +2042,7 @@ static void outliner_draw_highlights(ARegion *ar, SpaceOops *soops, int startx, 
 	UI_GetThemeColor4fv(TH_MATCH, col_searchmatch);
 	col_searchmatch[3] = 0.5f;
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -2049,7 +2050,7 @@ static void outliner_draw_highlights(ARegion *ar, SpaceOops *soops, int startx, 
 	        pos, ar, soops, &soops->tree, col_selection, col_highlight, col_searchmatch,
 	        startx, starty);
 	immUnbindProgram();
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 }
 
 static void outliner_draw_tree(
@@ -2061,7 +2062,7 @@ static void outliner_draw_tree(
 	TreeElement *te_floating = NULL;
 	int starty, startx;
 
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // only once
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA); // only once
 
 	if (soops->outlinevis == SO_DATA_API) {
 		/* struct marks */
@@ -2075,13 +2076,13 @@ static void outliner_draw_tree(
 	outliner_draw_highlights(ar, soops, startx, &starty);
 
 	/* set scissor so tree elements or lines can't overlap restriction icons */
-	GLfloat scissor[4] = {0};
+	float scissor[4] = {0};
 	if (has_restrict_icons) {
 		int mask_x = BLI_rcti_size_x(&ar->v2d.mask) - (int)OL_TOGW + 1;
 		CLAMP_MIN(mask_x, 0);
 
-		glGetFloatv(GL_SCISSOR_BOX, scissor);
-		glScissor(0, 0, mask_x, ar->winy);
+		GPU_scissor_getf(scissor);
+		GPU_scissor(0, 0, mask_x, ar->winy);
 	}
 
 	// gray hierarchy lines
@@ -2105,7 +2106,7 @@ static void outliner_draw_tree(
 
 	if (has_restrict_icons) {
 		/* reset scissor */
-		glScissor(UNPACK4(scissor));
+		GPU_scissor(UNPACK4(scissor));
 	}
 }
 
@@ -2147,7 +2148,7 @@ static void outliner_back(ARegion *ar)
 
 static void outliner_draw_restrictcols(ARegion *ar)
 {
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 
 	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);

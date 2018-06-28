@@ -101,6 +101,8 @@
 #include "GPU_immediate_util.h"
 #include "GPU_batch.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
+#include "GPU_framebuffer.h"
 
 #include "ED_mesh.h"
 #include "ED_particle.h"
@@ -290,7 +292,7 @@ static void bbs_obmode_mesh_verts(Object *ob, DerivedMesh *dm, int offset)
 
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR_U32);
 
-	glPointSize(UI_GetThemeValuef(TH_VERTEX_SIZE));
+	GPU_point_size(UI_GetThemeValuef(TH_VERTEX_SIZE));
 
 	immBeginAtMost(GWN_PRIM_POINTS, imm_len);
 	dm->foreachMappedVert(dm, bbs_obmode_mesh_verts__mapFunc, &data, DM_FOREACH_NOP);
@@ -333,7 +335,7 @@ static void bbs_mesh_verts(BMEditMesh *em, DerivedMesh *dm, int offset)
 
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR_U32);
 
-	glPointSize(UI_GetThemeValuef(TH_VERTEX_SIZE));
+	GPU_point_size(UI_GetThemeValuef(TH_VERTEX_SIZE));
 
 	immBeginAtMost(GWN_PRIM_POINTS, em->bm->totvert);
 	dm->foreachMappedVert(dm, bbs_mesh_verts__mapFunc, &data, DM_FOREACH_NOP);
@@ -344,7 +346,7 @@ static void bbs_mesh_verts(BMEditMesh *em, DerivedMesh *dm, int offset)
 #else
 static void bbs_mesh_verts(BMEditMesh *em, DerivedMesh *UNUSED(dm), int offset)
 {
-	glPointSize(UI_GetThemeValuef(TH_VERTEX_SIZE));
+	GPU_point_size(UI_GetThemeValuef(TH_VERTEX_SIZE));
 
 	Mesh *me = em->ob->data;
 	Gwn_Batch *batch = DRW_mesh_batch_cache_get_verts_with_select_id(me, offset);
@@ -385,7 +387,7 @@ static void bbs_mesh_wire(BMEditMesh *em, DerivedMesh *dm, int offset)
 
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR_U32);
 
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 
 	immBeginAtMost(GWN_PRIM_LINES, imm_len);
 	dm->foreachMappedEdge(dm, bbs_mesh_wire__mapFunc, &data);
@@ -396,7 +398,7 @@ static void bbs_mesh_wire(BMEditMesh *em, DerivedMesh *dm, int offset)
 #else
 static void bbs_mesh_wire(BMEditMesh *em, DerivedMesh *UNUSED(dm), int offset)
 {
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 
 	Mesh *me = em->ob->data;
 	Gwn_Batch *batch = DRW_mesh_batch_cache_get_edges_with_select_id(me, offset);
@@ -504,7 +506,7 @@ static void bbs_mesh_face_dot(BMEditMesh *em, DerivedMesh *dm)
 
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR_U32);
 
-	glPointSize(UI_GetThemeValuef(TH_FACEDOT_SIZE));
+	GPU_point_size(UI_GetThemeValuef(TH_FACEDOT_SIZE));
 
 	immBeginAtMost(GWN_PRIM_POINTS, em->bm->totface);
 	dm->foreachMappedFaceCenter(dm, bbs_mesh_solid__drawCenter, &data, DM_FOREACH_NOP);
@@ -622,8 +624,8 @@ void draw_object_backbufsel(
 
 	gpuMultMatrix(ob->obmat);
 
-	glClearDepth(1.0); glClear(GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
+	glClearDepth(1.0); GPU_clear(GPU_DEPTH_BIT);
+	GPU_depth_test(true);
 
 	switch (ob->type) {
 		case OB_MESH:
@@ -723,7 +725,7 @@ void ED_draw_object_facemap(
 	glColor4fv(col);
 
 	gpuPushAttrib(GL_ENABLE_BIT);
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 	glDisable(GL_LIGHTING);
 
 	/* always draw using backface culling */
@@ -753,8 +755,8 @@ void ED_draw_object_facemap(
 		immUniformColor4fv(col);
 
 		/* XXX, alpha isn't working yet, not sure why. */
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_BLEND);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+		GPU_blend(true);
 
 		MVert *mvert;
 
@@ -811,7 +813,7 @@ void ED_draw_object_facemap(
 
 		immUnbindProgram();
 
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 	}
 #endif
 

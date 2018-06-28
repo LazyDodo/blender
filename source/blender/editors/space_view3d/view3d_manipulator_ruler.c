@@ -67,6 +67,7 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_select.h"
+#include "GPU_state.h"
 
 #include "BLF_api.h"
 
@@ -524,7 +525,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 	float color_back[4] = {1.0f, 1.0f, 1.0f, 0.5f};
 
 	/* anti-aliased lines for more consistent appearance */
-	glEnable(GL_LINE_SMOOTH);
+	GPU_line_smooth(true);
 
 	BLF_enable(blf_mono_font, BLF_ROTATION);
 	BLF_size(blf_mono_font, 14 * U.pixelsize, U.dpi);
@@ -543,7 +544,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		ED_view3d_project_float_global(ar, ruler_item->co[j], co_ss[j], V3D_PROJ_TEST_NOP);
 	}
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 
 	const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
@@ -551,7 +552,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 		float viewport_size[4];
-		glGetFloatv(GL_VIEWPORT, viewport_size);
+		GPU_viewport_size_getf(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 		immUniform1i("num_colors", 2);  /* "advanced" mode */
@@ -630,7 +631,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 			rot_90_vec_b[1] =  dir_ruler[0];
 			normalize_v2(rot_90_vec_b);
 
-			glEnable(GL_BLEND);
+			GPU_blend(true);
 
 			immUniformColor3ubv(color_wire);
 
@@ -654,7 +655,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 
 			immEnd();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 
 		immUnbindProgram();
@@ -691,7 +692,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 		float viewport_size[4];
-		glGetFloatv(GL_VIEWPORT, viewport_size);
+		GPU_viewport_size_getf(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 		immUniform1i("num_colors", 2);  /* "advanced" mode */
@@ -719,7 +720,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 
 			normalize_v2(rot_90_vec);
 
-			glEnable(GL_BLEND);
+			GPU_blend(true);
 
 			immUniformColor3ubv(color_wire);
 
@@ -737,7 +738,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 
 			immEnd();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 
 		immUnbindProgram();
@@ -773,7 +774,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		}
 	}
 
-	glDisable(GL_LINE_SMOOTH);
+	GPU_line_smooth(false);
 
 	BLF_disable(blf_mono_font, BLF_ROTATION);
 

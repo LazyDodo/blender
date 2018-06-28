@@ -99,7 +99,11 @@ class IMAGE_MT_view(Menu):
         ratios = ((1, 8), (1, 4), (1, 2), (1, 1), (2, 1), (4, 1), (8, 1))
 
         for a, b in ratios:
-            layout.operator("image.view_zoom_ratio", text=iface_("Zoom %d:%d") % (a, b), translate=False).ratio = a / b
+            layout.operator(
+                "image.view_zoom_ratio",
+                text=iface_(f"Zoom {a:d}:{b:d}"),
+                translate=False,
+            ).ratio = a / b
 
         layout.separator()
 
@@ -475,6 +479,10 @@ class IMAGE_HT_header(Header):
 
         layout.prop(sima, "mode", text="")
 
+        MASK_MT_editor_menus.draw_collapsible(context, layout)
+
+        layout.separator_spacer()
+
         layout.template_ID(sima, "image", new="image.new", open="image.open")
         if not show_render:
             layout.prop(sima, "use_image_pin", text="")
@@ -482,6 +490,8 @@ class IMAGE_HT_header(Header):
         if show_maskedit:
             row = layout.row()
             row.template_ID(sima, "mask", new="mask.new")
+
+        layout.separator_spacer()
 
         # uv editing
         if show_uvedit:
@@ -494,10 +504,6 @@ class IMAGE_HT_header(Header):
             else:
                 layout.prop(toolsettings, "uv_select_mode", text="", expand=True)
                 layout.prop(uvedit, "sticky_select_mode", icon_only=True)
-
-        MASK_MT_editor_menus.draw_collapsible(context, layout)
-
-        layout.separator_spacer()
 
         if show_uvedit or show_maskedit or mode == 'PAINT':
             layout.prop(sima, "use_realtime_update", icon_only=True, icon='LOCKED')

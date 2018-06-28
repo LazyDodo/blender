@@ -81,6 +81,7 @@
 
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
+#include "GPU_state.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -2180,8 +2181,40 @@ static void gpencil_draw_eraser(bContext *UNUSED(C), int x, int y, void *p_ptr)
 {
 	tGPsdata *p = (tGPsdata *)p_ptr;
 
-	if ((p) && (p->paintmode == GP_PAINTMODE_ERASER)) {
-		ED_gpencil_brush_draw_eraser(p->eraser, x, y);
+	if (p->paintmode == GP_PAINTMODE_ERASER) {
+		Gwn_VertFormat *format = immVertexFormat();
+		const uint shdr_pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+
+		GPU_line_smooth(true);
+		GPU_blend(true);
+		GPU_blend_set_func_separate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
+		immUniformColor4ub(255, 100, 100, 20);
+		imm_draw_circle_fill_2d(shdr_pos, x, y, p->radius, 40);
+
+		immUnbindProgram();
+
+		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
+
+		float viewport_size[4];
+		GPU_viewport_size_getf(viewport_size);
+		immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
+
+		immUniformColor4f(1.0f, 0.39f, 0.39f, 0.78f);
+		immUniform1i("num_colors", 0);  /* "simple" mode */
+		immUniform1f("dash_width", 12.0f);
+		immUniform1f("dash_factor", 0.5f);
+
+		imm_draw_circle_wire_2d(shdr_pos, x, y, p->radius,
+		                     /* XXX Dashed shader gives bad results with sets of small segments currently,
+		                      *     temp hack around the issue. :( */
+		                     max_ii(8, p->radius / 2));  /* was fixed 40 */
+
+		immUnbindProgram();
+
+		GPU_blend(false);
+		GP_line_smooth(false);
 	}
 }
 
