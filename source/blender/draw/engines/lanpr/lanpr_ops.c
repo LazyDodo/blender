@@ -1463,7 +1463,7 @@ void lanpr_PerspectiveDivision(LANPR_RenderBuffer *rb) {
 		for (i = 0; i < reln->ElementCount; i++) {
 			//if (rv->FrameBufferCoord[2] < -DBL_EPSILON) continue;
 			tMatVectorMultiSelf3d(rv[i].FrameBufferCoord, 1 / rv[i].FrameBufferCoord[3]);
-			rv[i].FrameBufferCoord[2] = cam->clipsta * cam->clipend / (cam->clipend - fabs(rv[i].FrameBufferCoord[2]) * (cam->clipend - cam->clipsta));
+			//rv[i].FrameBufferCoord[2] = cam->clipsta * cam->clipend / (cam->clipend - fabs(rv[i].FrameBufferCoord[2]) * (cam->clipend - cam->clipsta));
 		}
 	}
 }
