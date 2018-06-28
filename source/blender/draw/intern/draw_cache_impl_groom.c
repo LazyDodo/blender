@@ -499,7 +499,8 @@ static void groom_get_verts(
 			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
-				GroomCurveCache *cache = bundle->curvecache;
+				/* curvecache has numverts+1 curves, the last one is the center curve */
+				GroomCurveCache *cache = bundle->curvecache + bundle->curvesize * region->numverts;
 				for (int i = 0; i < bundle->curvesize; ++i, ++cache)
 				{
 					if (id_pos != GM_ATTR_ID_UNUSED)
@@ -652,8 +653,7 @@ static void groom_get_edges(
 			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
-				GroomCurveCache *cache = bundle->curvecache;
-				for (int i = 0; i < bundle->curvesize - 1; ++i, ++cache)
+				for (int i = 0; i < bundle->curvesize - 1; ++i)
 				{
 					GWN_indexbuf_add_line_verts(&elb, idx + i, idx + i + 1);
 				}
