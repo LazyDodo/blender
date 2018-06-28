@@ -319,6 +319,8 @@ typedef struct bGPdata {
 	short sbuffer_size;			/* number of elements currently in cache */
 	short sbuffer_sflag;		/* flags for stroke that cache represents */
 	void *sbuffer;				/* stroke buffer (can hold GP_STROKE_BUFFER_MAX) */
+	/* Runtime Only - GP Object drawing */
+	/* GPXX: Move these to bGPdata_runtime... */
 	float scolor[4];            /* buffer color using palettes */
 	float sfill[4];             /* buffer fill color */
 	short mode;                 /* settings for palette color */
