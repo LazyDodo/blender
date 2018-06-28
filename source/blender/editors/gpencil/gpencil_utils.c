@@ -88,7 +88,7 @@
 /* Get pointer to active Grease Pencil datablock, and an RNA-pointer to trace back to whatever owns it,
  * when context info is not available.
  */
-bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object *ob, PointerRNA *r_ptr)
+bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Scene *scene, Object *ob, PointerRNA *r_ptr)
 {
 	/* if there's an active area, check if the particular editor may
 	 * have defined any special Grease Pencil context for editing...
@@ -97,18 +97,35 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 		SpaceLink *sl = sa->spacedata.first;
 
 		switch (sa->spacetype) {
-			case SPACE_VIEW3D: /* 3D-View */
+			/* XXX: Should we reduce reliance on context.gpencil_data for these cases? */
 			case SPACE_BUTS: /* properties */
 			case SPACE_INFO: /* header info (needed after workspaces merge) */
 			case SPACE_TOPBAR: /* Topbar (needed after topbar merge) */
 			{
-				/* return obgpencil datablock */
 				if (ob && (ob->type == OB_GPENCIL)) {
+					/* GP Object */
 					if (r_ptr) RNA_id_pointer_create(&ob->id, r_ptr);
 					return (bGPdata **)&ob->data;
 				}
 				else {
 					return NULL;
+				}
+
+				break;
+			}
+
+			case SPACE_VIEW3D: /* 3D-View */
+			{
+				if (ob && (ob->type == OB_GPENCIL)) {
+					/* GP Object */
+					if (r_ptr) RNA_id_pointer_create(&ob->id, r_ptr);
+					return (bGPdata **)&ob->data;
+				}
+				else {
+					/* Annotations */
+					/* XXX: */
+					if (r_ptr) RNA_id_pointer_create(&scene->id, r_ptr);
+					return &scene->gpd;
 				}
 
 				break;
@@ -179,18 +196,19 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Object
 bGPdata **ED_gpencil_data_get_pointers(const bContext *C, PointerRNA *r_ptr)
 {
 	ID *screen_id = (ID *)CTX_wm_screen(C);
+	Scene *scene = CTX_data_scene(C);
 	ScrArea *sa = CTX_wm_area(C);
 	Object *ob = CTX_data_active_object(C);
 
-	return ED_gpencil_data_get_pointers_direct(screen_id, sa, ob, r_ptr);
+	return ED_gpencil_data_get_pointers_direct(screen_id, sa, scene, ob, r_ptr);
 }
 
 /* -------------------------------------------------------- */
 
 /* Get the active Grease Pencil datablock, when context is not available */
-bGPdata *ED_gpencil_data_get_active_direct(ID *screen_id, ScrArea *sa, Object *ob)
+bGPdata *ED_gpencil_data_get_active_direct(ID *screen_id, ScrArea *sa, Scene *scene, Object *ob)
 {
-	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers_direct(screen_id, sa, ob, NULL);
+	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers_direct(screen_id, sa, scene, ob, NULL);
 	return (gpd_ptr) ? *(gpd_ptr) : NULL;
 }
 
@@ -219,11 +237,12 @@ bGPdata *ED_gpencil_data_get_active_evaluated(const bContext *C)
 	ScrArea *sa = CTX_wm_area(C);
 
 	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
 	Object *ob = CTX_data_active_object(C);
 	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 
 	/* if (ob && ob->type == OB_GPENCIL) BLI_assert(ob_eval->data == DEG_get_evaluated_id(ob->data)); */
-	return ED_gpencil_data_get_active_direct(screen_id, sa, ob_eval);
+	return ED_gpencil_data_get_active_direct(screen_id, sa, scene_eval, ob_eval);
 }
 
 /* -------------------------------------------------------- */
