@@ -1476,7 +1476,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	glDisable(GL_LINE_SMOOTH);
 
 	/* Draw line for lazy mouse */
-	if (last_mouse_position) {
+	if ((last_mouse_position) &&
+		(paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP))
+	{
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_BLEND);
 
