@@ -702,64 +702,6 @@ class GPENCIL_MT_gpencil_draw_delete(Menu):
         layout.operator("gpencil.active_frames_delete_all", text="Delete Frame")
 
 
-class GPENCIL_UL_layer(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        # assert(isinstance(item, bpy.types.GPencilLayer)
-        gpl = item
-        gpd = context.gpencil_data
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            if gpl.lock:
-                layout.active = False
-
-            row = layout.row(align=True)
-            if gpl.is_parented:
-                icon = 'BONE_DATA'
-            else:
-                icon = 'BLANK1'
-
-            row.label(text="", icon=icon)
-            row.prop(gpl, "info", text="", emboss=False)
-
-            row = layout.row(align=True)
-            row.prop(gpl, "lock", text="", emboss=False)
-            row.prop(gpl, "hide", text="", emboss=False)
-            row.prop(gpl, "unlock_color", text="", emboss=False)
-            if gpl.use_onion_skinning is False:
-                icon = 'GHOST_DISABLED'
-            else:
-                icon = 'GHOST_ENABLED'
-            subrow = row.row(align=True)
-            subrow.prop(gpl, "use_onion_skinning", text="", icon=icon, emboss=False)
-            subrow.active = gpd.use_onion_skinning
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon_value=icon)
-
-
-class GPENCIL_MT_layer_specials(Menu):
-    bl_label = "Layer"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator("gpencil.layer_duplicate", icon='COPY_ID')  # XXX: needs a dedicated icon
-
-        layout.separator()
-
-        layout.operator("gpencil.reveal", icon='RESTRICT_VIEW_OFF', text="Show All")
-        layout.operator("gpencil.hide", icon='RESTRICT_VIEW_ON', text="Hide Others").unselected = True
-
-        layout.separator()
-
-        layout.operator("gpencil.lock_all", icon='LOCKED', text="Lock All")
-        layout.operator("gpencil.unlock_all", icon='UNLOCKED', text="UnLock All")
-
-        layout.separator()
-
-        layout.operator("gpencil.layer_merge", icon='NLA', text="Merge Down")
-
-
 class GreasePencilDataPanel:
     bl_label = "Annotations"
     bl_region_type = 'UI'
@@ -940,8 +882,6 @@ classes = (
     GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
     GPENCIL_MT_gpencil_draw_delete,
-    GPENCIL_UL_layer,
-    GPENCIL_MT_layer_specials,
 )
 
 if __name__ == "__main__":  # only for live edit.

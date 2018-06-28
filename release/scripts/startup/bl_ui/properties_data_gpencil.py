@@ -67,6 +67,64 @@ class DATA_PT_gpencil(DataButtonsPanel, Panel):
         layout.template_ID(gpd_owner, "data", new="gpencil.data_add", unlink="gpencil.data_unlink")
 
 
+class GPENCIL_UL_layer(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        # assert(isinstance(item, bpy.types.GPencilLayer)
+        gpl = item
+        gpd = context.gpencil_data
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            if gpl.lock:
+                layout.active = False
+
+            row = layout.row(align=True)
+            if gpl.is_parented:
+                icon = 'BONE_DATA'
+            else:
+                icon = 'BLANK1'
+
+            row.label(text="", icon=icon)
+            row.prop(gpl, "info", text="", emboss=False)
+
+            row = layout.row(align=True)
+            row.prop(gpl, "lock", text="", emboss=False)
+            row.prop(gpl, "hide", text="", emboss=False)
+            row.prop(gpl, "unlock_color", text="", emboss=False)
+            if gpl.use_onion_skinning is False:
+                icon = 'GHOST_DISABLED'
+            else:
+                icon = 'GHOST_ENABLED'
+            subrow = row.row(align=True)
+            subrow.prop(gpl, "use_onion_skinning", text="", icon=icon, emboss=False)
+            subrow.active = gpd.use_onion_skinning
+        elif self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+            layout.label(text="", icon_value=icon)
+
+
+class GPENCIL_MT_layer_specials(Menu):
+    bl_label = "Layer"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("gpencil.layer_duplicate", icon='COPY_ID')  # XXX: needs a dedicated icon
+
+        layout.separator()
+
+        layout.operator("gpencil.reveal", icon='RESTRICT_VIEW_OFF', text="Show All")
+        layout.operator("gpencil.hide", icon='RESTRICT_VIEW_ON', text="Hide Others").unselected = True
+
+        layout.separator()
+
+        layout.operator("gpencil.lock_all", icon='LOCKED', text="Lock All")
+        layout.operator("gpencil.unlock_all", icon='UNLOCKED', text="UnLock All")
+
+        layout.separator()
+
+        layout.operator("gpencil.layer_merge", icon='NLA', text="Merge Down")
+
+
 class DATA_PT_gpencil_datapanel(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -333,8 +391,10 @@ classes = (
     DATA_PT_gpencil_display,
     DATA_PT_custom_props_gpencil,
 
+    GPENCIL_UL_layer,
     GPENCIL_UL_vgroups,
 
+    GPENCIL_MT_layer_specials,
     GPENCIL_MT_gpencil_vertex_group,
 )
 
