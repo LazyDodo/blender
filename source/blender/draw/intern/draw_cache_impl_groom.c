@@ -395,11 +395,11 @@ static GroomRenderData* groom_render_data_create(Groom *groom)
 		int totvert = 0;
 		for (GroomRegion *region = regions->first; region; region = region->next)
 		{
-			/* Polygon on each section, except the first */
+			/* Polygon on each section */
 			GroomBundle *bundle = &region->bundle;
 			if (region->numverts > 2)
 			{
-				int numpolys = bundle->totsections - 1;
+				int numpolys = bundle->totsections;
 				totpoly += numpolys;
 				totvert += region->numverts * numpolys;
 				
@@ -425,9 +425,8 @@ static GroomRenderData* groom_render_data_create(Groom *groom)
 				GroomBundle *bundle = &region->bundle;
 				if (region->numverts > 2)
 				{
-					/* Skip the root section */
-					const GroomSectionVertex *vert = &bundle->verts[region->numverts];
-					for (int i = 1; i < bundle->totsections; ++i)
+					const GroomSectionVertex *vert = bundle->verts;
+					for (int i = 0; i < bundle->totsections; ++i)
 					{
 						mpolys[ipoly].loopstart = ivert;
 						mpolys[ipoly].totloop = region->numverts;
@@ -579,6 +578,7 @@ static void groom_get_verts(
 			GroomBundle *bundle = &region->bundle;
 			if (use_curve_cache)
 			{
+				
 				GroomCurveCache *cache = bundle->curvecache;
 				for (int i = 0; i < region->numverts; ++i)
 				{
@@ -678,7 +678,8 @@ static void groom_get_edges(
 			const int numshapeverts = region->numverts;
 			if (numshapeverts > 1)
 			{
-				for (int i = 0; i < bundle->totsections; ++i)
+				/* Skip the first section */
+				for (int i = 1; i < bundle->totsections; ++i)
 				{
 					uint idx0 = idx + i * numshapeverts;
 					for (int j = 0; j < numshapeverts - 1; ++j)
@@ -734,7 +735,8 @@ static void groom_get_faces(
 			{
 				const MLoopTri *mtri = rdata->mlooptri;
 				int section_tri_len = poly_to_tri_count(1, region->numverts);
-				/* Skip the root section */
+				/* Skip the first section */
+				mtri += section_tri_len;
 				for (int i = 1; i < bundle->totsections; ++i)
 				{
 					for (int j = 0; j < section_tri_len; ++j, ++mtri)
