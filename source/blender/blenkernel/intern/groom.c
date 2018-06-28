@@ -163,12 +163,9 @@ BLI_INLINE void groom_forward_diff_init_hermite(
 /* Calculate next cubic polynomial point using forward differencing */
 BLI_INLINE void groom_forward_diff_step(double q[4][3])
 {
-	for (int k = 0; k < 3; ++k)
-	{
-		q[0][k] += q[1][k];
-		q[1][k] += q[2][k];
-		q[2][k] += q[3][k];
-	}
+	add_v3_v3(q[0], q[1]);
+	add_v3_v3(q[1], q[2]);
+	add_v3_v3(q[2], q[3]);
 }
 
 /* Get the current point */
@@ -177,6 +174,22 @@ BLI_INLINE void groom_forward_diff_get_point(const double q[4][3], float r_p[3])
 	r_p[0] = (float)q[0][0];
 	r_p[1] = (float)q[0][1];
 	r_p[2] = (float)q[0][2];
+}
+
+/* Get the current 1st derivative */
+BLI_INLINE void groom_forward_diff_get_tangent(const double q[4][3], float r_dp[3])
+{
+	r_dp[0] = (float)q[1][0];
+	r_dp[1] = (float)q[1][1];
+	r_dp[2] = (float)q[1][2];
+}
+
+/* Get the current 2nd derivative */
+BLI_INLINE void groom_forward_diff_get_curvature(const double q[4][3], float r_ddp[3])
+{
+	r_ddp[0] = (float)q[2][0];
+	r_ddp[1] = (float)q[2][1];
+	r_ddp[2] = (float)q[2][2];
 }
 
 /* Calculate full array of cubic polynomial points using forward differencing */
