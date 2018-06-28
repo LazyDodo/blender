@@ -440,6 +440,7 @@ static short gp_stroke_addpoint(
 		pt = ((tGPspoint *)(gpd->sbuffer) + gpd->sbuffer_size);
 
 		/* store settings */
+		copy_v2_v2_int(&pt->x, mval);
 		pt->pressure = pressure;
 		pt->strength = 1.0f;  /* unused for annotations, but initialise for easier conversions to GP Object */
 
