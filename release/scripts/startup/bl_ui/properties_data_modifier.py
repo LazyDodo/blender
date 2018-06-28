@@ -624,6 +624,31 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             row.operator("object.multires_external_save", text="Save External...")
             row.label()
 
+    def MY_BMESH(self, layout, ob, md):
+        split = layout.split(percentage=0.25)
+
+        col = split.column()
+        col.label(text="§6.1:")
+        col.prop(md, "do_tri")
+        col.prop(md, "do_ff_bb_split")
+
+        col = split.column()
+        col.label(text="§6.2:")
+        col.prop(md, "do_cusp_dect")
+        col.prop(md, "do_insert")
+        col.prop(md, "do_cusp_insert")
+
+        col = split.column()
+        col.label(text="§6.3:")
+        col.prop(md, "do_rad_insert")
+        col.prop(md, "do_rad_flip")
+        col.prop(md, "do_opti")
+
+
+        col = layout.column()
+        col.label(text="Camera Object:")
+        col.prop(md, "camera_object", text="")
+
     def OCEAN(self, layout, ob, md):
         if not bpy.app.build_options.mod_oceansim:
             layout.label("Built without OceanSim modifier")
