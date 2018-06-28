@@ -318,12 +318,15 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 #elif defined(IRRADIANCE_HL2)
 		int grid_res = 4;
 #endif
-		int cube_res = scene_eval->eevee.gi_cubemap_resolution;
+		int cube_res = OCTAHEDRAL_SIZE_FROM_CUBESIZE(scene_eval->eevee.gi_cubemap_resolution);
+		int vis_res = scene_eval->eevee.gi_visibility_resolution;
 
-		sldata->fallback_lightcache = EEVEE_lightcache_create(1, 1, cube_res, (int[3]){grid_res, grid_res, 1});
+		sldata->fallback_lightcache = EEVEE_lightcache_create(1, 1, cube_res, vis_res, (int[3]){grid_res, grid_res, 1});
 	}
 
 	stl->g_data->light_cache = (scene_eval->eevee.light_cache) ? scene_eval->eevee.light_cache : sldata->fallback_lightcache;
+
+	EEVEE_lightcache_load(stl->g_data->light_cache);
 
 	if (!sldata->probes) {
 		sldata->probes = MEM_callocN(sizeof(EEVEE_LightProbesInfo), "EEVEE_LightProbesInfo");
@@ -350,7 +353,7 @@ void EEVEE_lightprobes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, GPUTexture *rt_color, GPUTexture *rt_depth)
 {
 	EEVEE_PassList *psl = vedata->psl;
-	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
+	LightCache *light_cache = vedata->stl->g_data->light_cache;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 
 	{
@@ -415,7 +418,7 @@ void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
 		psl->probe_grid_fill = DRW_pass_create("LightProbe Grid Floodfill", DRW_STATE_WRITE_COLOR);
 
 		DRWShadingGroup *grp = DRW_shgroup_create(e_data.probe_grid_fill_sh, psl->probe_grid_fill);
-		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &light_cache->grid_tx);
+		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &light_cache->grid_tx.tex);
 
 		struct Gwn_Batch *geom = DRW_cache_fullscreen_quad_get();
 		DRW_shgroup_call_add(grp, geom, NULL);
@@ -428,7 +431,7 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
-	EEVEE_LightCache *lcache = stl->g_data->light_cache;
+	LightCache *lcache = stl->g_data->light_cache;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
@@ -486,10 +489,10 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 
 		/* Cube Display */
 		if (scene_eval->eevee.flag & SCE_EEVEE_SHOW_CUBEMAPS) {
-			int cube_count = GPU_texture_layers(lcache->cube_tx) - 1; /* don't count the world. */
+			int cube_len = GPU_texture_layers(lcache->cube_tx.tex) - 1; /* don't count the world. */
 			DRWShadingGroup *grp = DRW_shgroup_empty_tri_batch_create(e_data.probe_cube_display_sh,
-			                                                          psl->probe_display, cube_count * 2);
-			DRW_shgroup_uniform_texture_ref(grp, "probeCubes", &lcache->cube_tx);
+			                                                          psl->probe_display, cube_len * 2);
+			DRW_shgroup_uniform_texture_ref(grp, "probeCubes", &lcache->cube_tx.tex);
 			DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
 			DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 			DRW_shgroup_uniform_vec3(grp, "screen_vecs[0]", DRW_viewport_screenvecs_get(), 2);
@@ -499,7 +502,7 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		/* Grid Display */
 		if (scene_eval->eevee.flag & SCE_EEVEE_SHOW_IRRADIANCE) {
 			EEVEE_LightGrid *egrid = lcache->grid_data + 1;
-			for (int p = 1; p < lcache->grid_count; ++p, egrid++) {
+			for (int p = 1; p < lcache->grid_len; ++p, egrid++) {
 				DRWShadingGroup *shgrp = DRW_shgroup_create(e_data.probe_grid_display_sh, psl->probe_display);
 				DRW_shgroup_uniform_int(shgrp, "offset", &egrid->offset, 1);
 				DRW_shgroup_uniform_ivec3(shgrp, "grid_resolution", egrid->resolution, 1);
@@ -508,7 +511,7 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 				DRW_shgroup_uniform_vec3(shgrp, "increment_y", egrid->increment_y, 1);
 				DRW_shgroup_uniform_vec3(shgrp, "increment_z", egrid->increment_z, 1);
 				DRW_shgroup_uniform_vec3(shgrp, "screen_vecs[0]", DRW_viewport_screenvecs_get(), 2);
-				DRW_shgroup_uniform_texture_ref(shgrp, "irradianceGrid", &lcache->grid_tx);
+				DRW_shgroup_uniform_texture_ref(shgrp, "irradianceGrid", &lcache->grid_tx.tex);
 				DRW_shgroup_uniform_float_copy(shgrp, "sphere_size", scene_eval->eevee.gi_irradiance_draw_size * 0.5f);
 				int tri_count = egrid->resolution[0] * egrid->resolution[1] * egrid->resolution[2] * 2;
 				DRW_shgroup_call_procedural_triangles_add(shgrp, tri_count, NULL);
@@ -774,19 +777,19 @@ static void lightbake_planar_compute_render_matrices(
 	mul_m4_m4m4(eplanar->reflectionmat, texcomat, eplanar->reflectionmat);
 }
 
-static void eevee_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, EEVEE_LightCache *lcache)
+static void eevee_lightprobes_extract_from_cache(EEVEE_LightProbesInfo *pinfo, LightCache *lcache)
 {
 	/* copy the entire cache for now (up to MAX_PROBE) */
 	/* TODO Frutum cull to only add visible probes. */
-	memcpy(pinfo->probe_data, lcache->cube_data, sizeof(EEVEE_LightProbe) * max_ii(1, min_ii(lcache->cube_count, MAX_PROBE)));
+	memcpy(pinfo->probe_data, lcache->cube_data, sizeof(EEVEE_LightProbe) * max_ii(1, min_ii(lcache->cube_len, MAX_PROBE)));
 	/* TODO compute the max number of grid based on sample count. */
-	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * max_ii(1, min_ii(lcache->grid_count, MAX_GRID)));
+	memcpy(pinfo->grid_data, lcache->grid_data, sizeof(EEVEE_LightGrid) * max_ii(1, min_ii(lcache->grid_len, MAX_GRID)));
 }
 
 void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {
 	EEVEE_StorageList *stl = vedata->stl;
-	EEVEE_LightCache *light_cache = stl->g_data->light_cache;
+	LightCache *light_cache = stl->g_data->light_cache;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
 
 	eevee_lightprobes_extract_from_cache(sldata->probes, light_cache);
@@ -795,12 +798,12 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	DRW_uniformbuffer_update(sldata->grid_ubo, &sldata->probes->grid_data);
 
 	/* For shading, save max level of the octahedron map */
-	int mipsize = GPU_texture_width(light_cache->cube_tx);
-	sldata->common_data.prb_lod_cube_max = (float)(floorf(log2f(mipsize)) - MIN_CUBE_LOD_LEVEL) - 1.0f;
+	int mipsize = GPU_texture_width(light_cache->cube_tx.tex);
+	sldata->common_data.prb_lod_cube_max = (float)light_cache->mips_len - 1.0f;
 	sldata->common_data.prb_lod_planar_max = (float)MAX_PLANAR_LOD_LEVEL;
 	sldata->common_data.prb_irradiance_vis_size = light_cache->vis_res;
-	sldata->common_data.prb_num_render_cube = max_ii(1, light_cache->cube_count);
-	sldata->common_data.prb_num_render_grid = max_ii(1, light_cache->grid_count);
+	sldata->common_data.prb_num_render_cube = max_ii(1, light_cache->cube_len);
+	sldata->common_data.prb_num_render_grid = max_ii(1, light_cache->grid_len);
 	sldata->common_data.prb_num_planar = pinfo->num_planar;
 
 	if (pinfo->num_planar != pinfo->cache_num_planar) {
@@ -1027,15 +1030,15 @@ static void eevee_lightbake_render_scene_to_planars(
 /** \name Filtering
  * \{ */
 
-/* Glossy filter rt_color to light_cache->cube_tx at index probe_idx */
+/* Glossy filter rt_color to light_cache->cube_tx.tex at index probe_idx */
 void EEVEE_lightbake_filter_glossy(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
         struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
-        int probe_idx, float intensity)
+        int probe_idx, float intensity, int maxlevel)
 {
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
-	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
+	LightCache *light_cache = vedata->stl->g_data->light_cache;
 
 	float target_size = (float)GPU_texture_width(rt_color);
 
@@ -1054,13 +1057,11 @@ void EEVEE_lightbake_filter_glossy(
 	EEVEE_downsample_cube_buffer(vedata, rt_color, (int)(pinfo->lod_rt_max));
 
 	/* 3 - Render to probe array to the specified layer, do prefiltering. */
-	int mipsize = GPU_texture_width(light_cache->cube_tx);
-	const int maxlevel = (int)floorf(log2f(mipsize));
-	const int min_lod_level = MIN_CUBE_LOD_LEVEL;
-	for (int i = 0; i < maxlevel - min_lod_level; i++) {
+	int mipsize = GPU_texture_width(light_cache->cube_tx.tex);
+	for (int i = 0; i < maxlevel + 1; i++) {
 		float bias = (i == 0) ? -1.0f : 1.0f;
 		pinfo->texel_size = 1.0f / (float)mipsize;
-		pinfo->padding_size = (float)(1 << (maxlevel - min_lod_level - 1 - i));
+		pinfo->padding_size = (float)(1 << (maxlevel - i - 1));
 		/* XXX : WHY THE HECK DO WE NEED THIS ??? */
 		/* padding is incorrect without this! float precision issue? */
 		if (pinfo->padding_size > 32) {
@@ -1076,7 +1077,7 @@ void EEVEE_lightbake_filter_glossy(
 			pinfo->padding_size += 1;
 		}
 		pinfo->layer = probe_idx;
-		pinfo->roughness = (float)i / ((float)maxlevel - 4.0f);
+		pinfo->roughness = i / (float)maxlevel;
 		pinfo->roughness *= pinfo->roughness; /* Disney Roughness */
 		pinfo->roughness *= pinfo->roughness; /* Distribute Roughness accros lod more evenly */
 		CLAMP(pinfo->roughness, 1e-8f, 0.99999f); /* Avoid artifacts */
@@ -1098,7 +1099,7 @@ void EEVEE_lightbake_filter_glossy(
 
 		GPU_framebuffer_ensure_config(&fb, {
 			GPU_ATTACHMENT_NONE,
-			GPU_ATTACHMENT_TEXTURE_MIP(light_cache->cube_tx, i)
+			GPU_ATTACHMENT_TEXTURE_MIP(light_cache->cube_tx.tex, i)
 		});
 		GPU_framebuffer_bind(fb);
 		GPU_framebuffer_viewport_set(fb, 0, 0, mipsize, mipsize);
@@ -1109,7 +1110,7 @@ void EEVEE_lightbake_filter_glossy(
 	}
 }
 
-/* Diffuse filter rt_color to light_cache->grid_tx at index grid_offset */
+/* Diffuse filter rt_color to light_cache->grid_tx.tex at index grid_offset */
 void EEVEE_lightbake_filter_diffuse(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
         struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
@@ -1117,7 +1118,7 @@ void EEVEE_lightbake_filter_diffuse(
 {
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
-	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
+	LightCache *light_cache = vedata->stl->g_data->light_cache;
 
 	float target_size = (float)GPU_texture_width(rt_color);
 
@@ -1135,7 +1136,7 @@ void EEVEE_lightbake_filter_diffuse(
 	pinfo->samples_ct = 1024.0f;
 #endif
 
-	int cell_per_row = GPU_texture_width(light_cache->grid_tx) / size[0];
+	int cell_per_row = GPU_texture_width(light_cache->grid_tx.tex) / size[0];
 	int x = size[0] * (grid_offset % cell_per_row);
 	int y = size[1] * (grid_offset / cell_per_row);
 
@@ -1161,14 +1162,14 @@ void EEVEE_lightbake_filter_diffuse(
 
 	GPU_framebuffer_ensure_config(&fb, {
 		GPU_ATTACHMENT_NONE,
-		GPU_ATTACHMENT_TEXTURE_LAYER(light_cache->grid_tx, 0)
+		GPU_ATTACHMENT_TEXTURE_LAYER(light_cache->grid_tx.tex, 0)
 	});
 	GPU_framebuffer_bind(fb);
 	GPU_framebuffer_viewport_set(fb, x, y, size[0], size[1]);
 	DRW_draw_pass(psl->probe_diffuse_compute);
 }
 
-/* Filter rt_depth to light_cache->grid_tx at index grid_offset */
+/* Filter rt_depth to light_cache->grid_tx.tex at index grid_offset */
 void EEVEE_lightbake_filter_visibility(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
         struct GPUTexture *UNUSED(rt_depth), struct GPUFrameBuffer *fb,
@@ -1177,7 +1178,7 @@ void EEVEE_lightbake_filter_visibility(
 {
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
-	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
+	LightCache *light_cache = vedata->stl->g_data->light_cache;
 
 	pinfo->samples_ct = 512.0f; /* TODO refine */
 	pinfo->invsamples_ct = 1.0f / pinfo->samples_ct;
@@ -1188,15 +1189,15 @@ void EEVEE_lightbake_filter_visibility(
 	pinfo->far_clip = -clipend;
 	pinfo->texel_size = 1.0f / (float)vis_size;
 
-	int cell_per_col = GPU_texture_height(light_cache->grid_tx) / vis_size;
-	int cell_per_row = GPU_texture_width(light_cache->grid_tx) / vis_size;
+	int cell_per_col = GPU_texture_height(light_cache->grid_tx.tex) / vis_size;
+	int cell_per_row = GPU_texture_width(light_cache->grid_tx.tex) / vis_size;
 	int x = vis_size * (grid_offset % cell_per_row);
 	int y = vis_size * ((grid_offset / cell_per_row) % cell_per_col);
 	int layer = 1 + ((grid_offset / cell_per_row) / cell_per_col);
 
 	GPU_framebuffer_ensure_config(&fb, {
 		GPU_ATTACHMENT_NONE,
-		GPU_ATTACHMENT_TEXTURE_LAYER(light_cache->grid_tx, layer)
+		GPU_ATTACHMENT_TEXTURE_LAYER(light_cache->grid_tx.tex, layer)
 	});
 	GPU_framebuffer_bind(fb);
 	GPU_framebuffer_viewport_set(fb, x, y, vis_size, vis_size);
@@ -1297,7 +1298,7 @@ void EEVEE_lightprobes_refresh(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
-	EEVEE_LightCache *light_cache = vedata->stl->g_data->light_cache;
+	LightCache *light_cache = vedata->stl->g_data->light_cache;
 
 	if (light_cache->flag & LIGHTCACHE_UPDATE_WORLD) {
 		DRWMatrixState saved_mats;

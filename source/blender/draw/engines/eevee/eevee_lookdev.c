@@ -81,9 +81,10 @@ void EEVEE_lookdev_cache_init(
 #elif defined(IRRADIANCE_HL2)
 				int grid_res = 4;
 #endif
-				int cube_res = scene_eval->eevee.gi_cubemap_resolution;
+				int cube_res = OCTAHEDRAL_SIZE_FROM_CUBESIZE(scene_eval->eevee.gi_cubemap_resolution);
+				int vis_res = scene_eval->eevee.gi_visibility_resolution;
 
-				stl->lookdev_lightcache = EEVEE_lightcache_create(1, 1, cube_res, (int[3]){grid_res, grid_res, 1});
+				stl->lookdev_lightcache = EEVEE_lightcache_create(1, 1, cube_res, vis_res, (int[3]){grid_res, grid_res, 1});
 
 				/* We do this to use a special light cache for lookdev.
 				 * This lightcache needs to be per viewport. But we need to
@@ -92,8 +93,9 @@ void EEVEE_lookdev_cache_init(
 				 * to the stl. */
 				stl->lookdev_grid_data = stl->lookdev_lightcache->grid_data;
 				stl->lookdev_cube_data = stl->lookdev_lightcache->cube_data;
-				txl->lookdev_grid_tx = stl->lookdev_lightcache->grid_tx;
-				txl->lookdev_cube_tx = stl->lookdev_lightcache->cube_tx;
+				stl->lookdev_cube_mips = stl->lookdev_lightcache->cube_mips;
+				txl->lookdev_grid_tx = stl->lookdev_lightcache->grid_tx.tex;
+				txl->lookdev_cube_tx = stl->lookdev_lightcache->cube_tx.tex;
 			}
 
 			stl->g_data->light_cache = stl->lookdev_lightcache;

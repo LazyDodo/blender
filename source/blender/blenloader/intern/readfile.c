@@ -1649,7 +1649,7 @@ void blo_make_scene_pointer_map(FileData *fd, Main *oldmain)
 
 	for (; sce; sce = sce->id.next) {
 		if (sce->eevee.light_cache) {
-			struct EEVEE_LightCache *light_cache = sce->eevee.light_cache;
+			struct LightCache *light_cache = sce->eevee.light_cache;
 			oldnewmap_insert(fd->scenemap, light_cache, light_cache, 0);
 		}
 	}
@@ -5827,6 +5827,41 @@ static void lib_link_sequence_modifiers(FileData *fd, Scene *scene, ListBase *lb
 	}
 }
 
+static void direct_link_lightcache_texture(FileData *fd, LightCacheTexture *lctex)
+{
+	lctex->tex = NULL;
+
+	if (lctex->data) {
+		lctex->data = newdataadr(fd, lctex->data);
+		if (fd->flags & FD_FLAGS_SWITCH_ENDIAN) {
+			int data_size = lctex->components * lctex->tex_size[0] * lctex->tex_size[1] * lctex->tex_size[2];
+
+			if (lctex->data_type == LIGHTCACHETEX_FLOAT) {
+				BLI_endian_switch_float_array((float *)lctex->data, data_size * sizeof(float));
+			}
+			else if (lctex->data_type == LIGHTCACHETEX_UINT) {
+				BLI_endian_switch_uint32_array((unsigned int *)lctex->data, data_size * sizeof(unsigned int));
+			}
+		}
+	}
+}
+
+static void direct_link_lightcache(FileData *fd, LightCache *cache)
+{
+	direct_link_lightcache_texture(fd, &cache->cube_tx);
+	direct_link_lightcache_texture(fd, &cache->grid_tx);
+
+	if (cache->cube_mips) {
+		cache->cube_mips = newdataadr(fd, cache->cube_mips);
+		for (int i = 0; i < cache->mips_len; ++i) {
+			direct_link_lightcache_texture(fd, &cache->cube_mips[i]);
+		}
+	}
+
+	cache->cube_data = newdataadr(fd, cache->cube_data);
+	cache->grid_data = newdataadr(fd, cache->grid_data);
+}
+
 /* check for cyclic set-scene,
  * libs can cause this case which is normally prevented, see (T#####) */
 #define USE_SETSCENE_CHECK
@@ -6370,8 +6405,18 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		direct_link_view_layer(fd, view_layer);
 	}
 
-	if (fd->scenemap) sce->eevee.light_cache = newsceadr(fd, sce->eevee.light_cache);
-	else sce->eevee.light_cache = NULL;
+	if (fd->memfile) {
+		/* If it's undo try to recover the cache. */
+		if (fd->scenemap) sce->eevee.light_cache = newsceadr(fd, sce->eevee.light_cache);
+		else sce->eevee.light_cache = NULL;
+	}
+	else {
+		/* else read the cache from file. */
+		if (sce->eevee.light_cache) {
+			sce->eevee.light_cache = newdataadr(fd, sce->eevee.light_cache);
+			direct_link_lightcache(fd, sce->eevee.light_cache);
+		}
+	}
 
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);
 	IDP_DirectLinkGroup_OrFree(&sce->layer_properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);

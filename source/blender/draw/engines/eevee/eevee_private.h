@@ -26,6 +26,8 @@
 #ifndef __EEVEE_PRIVATE_H__
 #define __EEVEE_PRIVATE_H__
 
+#include "DNA_lightprobe_types.h"
+
 struct Object;
 struct EEVEE_BoundSphere;
 struct EEVEE_ShadowCasterBuffer;
@@ -135,6 +137,27 @@ enum {
 	VAR_MAT_TRANSLUC    = (1 << 16),
 	VAR_MAT_SSSALBED    = (1 << 17),
 };
+
+/* ************ PROBE UBO ************* */
+
+/* They are the same struct as their Cache siblings.
+ * typedef'ing just to keep the naming consistent with
+ * other eevee types. */
+typedef LightProbeCache EEVEE_LightProbe;
+typedef LightGridCache EEVEE_LightGrid;
+
+typedef struct EEVEE_PlanarReflection {
+	float plane_equation[4];
+	float clip_vec_x[3], attenuation_scale;
+	float clip_vec_y[3], attenuation_bias;
+	float clip_edge_x_pos, clip_edge_x_neg;
+	float clip_edge_y_pos, clip_edge_y_neg;
+	float facing_scale, facing_bias, clipsta, pad;
+	float reflectionmat[4][4]; /* Used for sampling the texture. */
+	float mtx[4][4]; /* Not used in shader. TODO move elsewhere. */
+} EEVEE_PlanarReflection;
+
+/* --------------------------------------- */
 
 typedef struct EEVEE_BoundSphere {
 	float center[3], radius;
@@ -295,9 +318,10 @@ typedef struct EEVEE_StorageList {
 
 	struct EEVEE_PrivateData *g_data;
 
-	struct EEVEE_LightCache *lookdev_lightcache;
-	struct EEVEE_LightProbe *lookdev_cube_data;
-	struct EEVEE_LightGrid  *lookdev_grid_data;
+	struct LightCache *lookdev_lightcache;
+	EEVEE_LightProbe *lookdev_cube_data;
+	EEVEE_LightProbe *lookdev_cube_mips;
+	EEVEE_LightGrid  *lookdev_grid_data;
 } EEVEE_StorageList;
 
 /* ************ LIGHT UBO ************* */
@@ -402,37 +426,6 @@ enum {
 	LIGHT_UPDATE_SHADOW_CUBE = (1 << 0),
 };
 
-/* ************ PROBE UBO ************* */
-typedef struct EEVEE_LightProbe {
-	float position[3], parallax_type;
-	float attenuation_fac;
-	float attenuation_type;
-	float pad3[2];
-	float attenuationmat[4][4];
-	float parallaxmat[4][4];
-} EEVEE_LightProbe;
-
-typedef struct EEVEE_LightGrid {
-	float mat[4][4];
-	int resolution[3], offset; /* offset to the first irradiance sample in the pool. */
-	float corner[3], attenuation_scale;
-	float increment_x[3], attenuation_bias; /* world space vector between 2 opposite cells */
-	float increment_y[3], level_bias;
-	float increment_z[3], pad4;
-	float visibility_bias, visibility_bleed, visibility_range, pad5;
-} EEVEE_LightGrid;
-
-typedef struct EEVEE_PlanarReflection {
-	float plane_equation[4];
-	float clip_vec_x[3], attenuation_scale;
-	float clip_vec_y[3], attenuation_bias;
-	float clip_edge_x_pos, clip_edge_x_neg;
-	float clip_edge_y_pos, clip_edge_y_neg;
-	float facing_scale, facing_bias, clipsta, pad;
-	float reflectionmat[4][4]; /* Used for sampling the texture. */
-	float mtx[4][4]; /* Not used in shader. TODO move elsewhere. */
-} EEVEE_PlanarReflection;
-
 /* ************ PROBE DATA ************* */
 typedef struct EEVEE_LightProbeVisTest {
 	struct Collection *collection; /* Skip test if NULL */
@@ -474,9 +467,9 @@ typedef struct EEVEE_LightProbesInfo {
 	float studiolight_rot_z;
 	EEVEE_LightProbeVisTest planar_vis_tests[MAX_PLANAR];
 	/* UBO Storage : data used by UBO */
-	struct EEVEE_LightProbe probe_data[MAX_PROBE];
-	struct EEVEE_LightGrid grid_data[MAX_GRID];
-	struct EEVEE_PlanarReflection planar_data[MAX_PLANAR];
+	EEVEE_LightProbe probe_data[MAX_PROBE];
+	EEVEE_LightGrid grid_data[MAX_GRID];
+	EEVEE_PlanarReflection planar_data[MAX_PLANAR];
 	/* Probe Visibility Collection */
 	EEVEE_LightProbeVisTest vis_data;
 } EEVEE_LightProbesInfo;
@@ -683,7 +676,7 @@ typedef struct EEVEE_ViewLayerData {
 	struct EEVEE_ClipPlanesUniformBuffer clip_data;
 	struct GPUUniformBuffer *clip_ubo;
 
-	struct EEVEE_LightCache *fallback_lightcache;
+	struct LightCache *fallback_lightcache;
 } EEVEE_ViewLayerData;
 
 /* ************ OBJECT DATA ************ */
@@ -764,38 +757,6 @@ typedef struct EEVEE_WorldEngineData {
 	DrawData dd;
 } EEVEE_WorldEngineData;
 
-/* ************ Light Cache ********** */
-
-typedef struct EEVEE_LightCache {
-	int flag;
-
-	/* only a single cache for now */
-	int cube_count, grid_count;      /* Number of probes to use for rendering. */
-	int vis_res;                     /* Size of a visibility sample. */
-	/* We bake to and render with the same textures.
-	 * This prevent concurent use of it. In the future,
-	 * we could create a bigger texture containing multiple
-	 * caches (for animation) and interpolate between the caches
-	 * overtime to another texture. */
-	GPUTexture *grid_tx;
-	GPUTexture *cube_tx;
-	/* All lightprobes data contained in the cache. */
-	EEVEE_LightProbe *cube_data;
-	EEVEE_LightGrid  *grid_data;
-} EEVEE_LightCache;
-
-/* EEVEE_LightCache->flag */
-enum {
-	LIGHTCACHE_BAKED            = (1 << 0),
-	LIGHTCACHE_BAKING           = (1 << 1),
-	LIGHTCACHE_CUBE_READY       = (1 << 2),
-	LIGHTCACHE_GRID_READY       = (1 << 3),
-	/* Update tagging */
-	LIGHTCACHE_UPDATE_CUBE      = (1 << 4),
-	LIGHTCACHE_UPDATE_GRID      = (1 << 5),
-	LIGHTCACHE_UPDATE_WORLD     = (1 << 6),
-};
-
 /* *********************************** */
 
 typedef struct EEVEE_Data {
@@ -821,7 +782,7 @@ typedef struct EEVEE_PrivateData {
 	struct GHash *material_hash;
 	float background_alpha; /* TODO find a better place for this. */
 	/* Chosen lightcache: can come from Lookdev or the viewlayer. */
-	struct EEVEE_LightCache *light_cache;
+	struct LightCache *light_cache;
 	/* For planar probes */
 	float planar_texel_size[2];
 	/* For double buffering */
@@ -907,7 +868,7 @@ void EEVEE_lightbake_render_scene(
         const float pos[3], float near_clip, float far_clip);
 void EEVEE_lightbake_filter_glossy(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
-        int probe_idx, float intensity);
+        int probe_idx, float intensity, int maxlevel);
 void EEVEE_lightbake_filter_diffuse(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
         int grid_offset, float intensity);

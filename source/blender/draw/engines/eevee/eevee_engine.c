@@ -388,7 +388,7 @@ static void eevee_id_object_update(void *UNUSED(vedata), Object *object)
 static void eevee_id_world_update(void *vedata, World *wo)
 {
 	EEVEE_StorageList *stl = ((EEVEE_Data *)vedata)->stl;
-	EEVEE_LightCache *lcache = stl->g_data->light_cache;
+	LightCache *lcache = stl->g_data->light_cache;
 
 	EEVEE_WorldEngineData *wedata = EEVEE_world_data_ensure(wo);
 
