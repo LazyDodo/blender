@@ -163,9 +163,12 @@ BLI_INLINE void groom_forward_diff_init_hermite(
 /* Calculate next cubic polynomial point using forward differencing */
 BLI_INLINE void groom_forward_diff_step(double q[4][3])
 {
-	add_v3_v3(q[0], q[1]);
-	add_v3_v3(q[1], q[2]);
-	add_v3_v3(q[2], q[3]);
+	for (int k = 0; k < 3; ++k)
+	{
+		q[0][k] = q[1][k];
+		q[1][k] = q[2][k];
+		q[2][k] = q[3][k];
+	}
 }
 
 /* Get the current point */
