@@ -6454,7 +6454,7 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	/* here's the collection stuff.... */
 
 	prop = RNA_def_property(srna, "layers", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, "SceneLANPR", "line_layers", NULL);
+	RNA_def_property_collection_sdna(prop, NULL, "line_layers", NULL);
 	RNA_def_property_struct_type(prop, "LANPR_LineLayer");
 	RNA_def_property_ui_text(prop, "Line Layers", "LANPR Line Layers");
 
@@ -6464,7 +6464,6 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "SceneLANPR");
 	RNA_def_struct_ui_text(srna, "LANPR Line Layers", "");
 
-    /* this part when accessing in python using lanpr.layers.active_layer always return None */
 	prop = RNA_def_property(srna, "active_layer", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "LANPR_LineLayer");
 	RNA_def_property_pointer_funcs(prop, "rna_lanpr_active_line_layer_get", "rna_lanpr_active_line_layer_set", NULL, NULL);

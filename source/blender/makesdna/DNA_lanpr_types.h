@@ -64,6 +64,7 @@ struct Collection;
 struct DRWShadingGroup;
 
 typedef struct LANPR_LineStyleComponent{
+    //struct ID Item;
     struct LANPR_LineStyleComponent *next, *prev;
 
     struct Object     *object_select;
@@ -76,6 +77,7 @@ typedef struct LANPR_LineStyleComponent{
 }LANPR_LineStyleComponent;
 
 typedef struct LANPR_LineLayer{
+    //struct ID Item;
     struct LANPR_LineLayer *next, *prev;
 
 	int      what;
