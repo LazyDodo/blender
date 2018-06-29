@@ -668,6 +668,7 @@ static void workbench_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
 	
 	Image *image = NULL;
 	Material *mat = give_current_material(ob, groom->material_index);
@@ -678,14 +679,10 @@ static void workbench_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
 	struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
 	                           ? wpd->prepass_solid_hair_fibers_sh
 	                           : wpd->prepass_texture_hair_fibers_sh;
-
-	struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
-
 	DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(
-	                             draw_ctx->scene, ob, groom->hair_system, scalp,
-	                             draw_set, psl->prepass_hair_pass,
+	                             draw_ctx->scene, ob, groom->hair_system, scalp, draw_set,
+	                             psl->prepass_hair_pass,
 	                             shader);
-
 	DRW_shgroup_stencil_mask(shgrp, 0xFF);
 	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
 	DRW_shgroup_uniform_block(shgrp, "material_block", material->material_ubo);

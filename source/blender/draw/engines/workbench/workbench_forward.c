@@ -478,6 +478,7 @@ static void workbench_forward_cache_populate_groom(WORKBENCH_Data *vedata, Objec
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
 
 	Image *image = NULL;
 	Material *mat = give_current_material(ob, groom->material_index);
@@ -486,34 +487,35 @@ static void workbench_forward_cache_populate_groom(WORKBENCH_Data *vedata, Objec
 	WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 	
 	struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
-	        ? wpd->transparent_accum_hair_fibers_sh
-	        : wpd->transparent_accum_texture_hair_fibers_sh;
-
-	struct Mesh *scalp = BKE_groom_get_scalp(draw_ctx->depsgraph, groom);
-
+	                           ? wpd->transparent_accum_hair_fibers_sh
+	                           : wpd->transparent_accum_texture_hair_fibers_sh;
 	DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(
-	                             draw_ctx->scene, ob, groom->hair_system, scalp,
-	                             draw_set, psl->transparent_accum_pass,
+	                             draw_ctx->scene, ob, groom->hair_system, scalp, draw_set,
+	                             psl->transparent_accum_pass,
 	                             shader);
 	workbench_material_set_normal_world_matrix(shgrp, wpd, e_data.normal_world_matrix);
 	DRW_shgroup_uniform_block(shgrp, "world_block", wpd->world_ubo);
 	DRW_shgroup_uniform_block(shgrp, "material_block", material->material_ubo);
-	DRW_shgroup_uniform_float(shgrp, "alpha", &wpd->shading.xray_alpha, 1);
+	DRW_shgroup_uniform_vec4(shgrp, "viewvecs[0]", (float *)wpd->viewvecs, 3);
+	/* Hairs have lots of layer and can rapidly become the most prominent surface.
+	 * So lower their alpha artificially. */
+	float hair_alpha = wpd->shading.xray_alpha * 0.33f;
+	DRW_shgroup_uniform_float_copy(shgrp, "alpha", hair_alpha);
 	if (image) {
 		GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, 0.0f);
 		DRW_shgroup_uniform_texture(shgrp, "image", tex);
 	}
-#ifdef WORKBENCH_REVEALAGE_ENABLED
-	shgrp = DRW_shgroup_hair_fibers_create(
-	            draw_ctx->scene, ob, groom->hair_system, scalp,
-	            draw_set, psl->transparent_revealage_pass,
-	            e_data.transparent_revealage_hair_sh);
-	DRW_shgroup_uniform_float(shgrp, "alpha", &wpd->shading.xray_alpha, 1);
-#endif
+	if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
+		BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
+		DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+	}
+	if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
+		DRW_shgroup_uniform_vec2(shgrp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
+	}
 	shgrp = DRW_shgroup_hair_fibers_create(
 	            draw_ctx->scene, ob, groom->hair_system, scalp,
 	            draw_set, vedata->psl->object_outline_pass,
-	            e_data.object_outline_hair_sh);
+	            e_data.object_outline_hair_fibers_sh);
 	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
 }
 
@@ -537,7 +539,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	}
 
 	WORKBENCH_MaterialData *material;
-	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
+	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL, OB_GROOM)) {
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		const bool is_active = (ob == draw_ctx->obact);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;

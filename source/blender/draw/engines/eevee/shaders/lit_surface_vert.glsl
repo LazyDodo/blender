@@ -49,6 +49,7 @@ void main()
 	bool is_persp = (ProjectionMatrix[3][3] == 0.0);
 
 #  ifdef HAIR_SHADER_FIBERS
+	hairStrandID = fiber_index;
 	vec3 pos, tang, binor;
 	hair_fiber_get_vertex(
 	        fiber_index, curve_param,
@@ -60,7 +61,7 @@ void main()
 	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
 	viewPosition = (ModelViewMatrix * vec4(pos, 1.0)).xyz;
 	worldPosition = (ModelMatrix * vec4(pos, 1.0)).xyz;
-	hairTangent = (ModelMatrix * vec4(tang, 0.0)).xyz;
+	hairTangent = normalize((ModelMatrix * vec4(tang, 0.0)).xyz);
 	worldNormal = (ModelMatrix * vec4(nor, 0.0)).xyz;
 	viewNormal = normalize(mat3(ViewMatrix) * worldNormal);
 #  else

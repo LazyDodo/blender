@@ -48,12 +48,13 @@ const char* DRW_hair_shader_defines(void)
 }
 
 static DRWShadingGroup *drw_shgroup_create_hair_fibers_ex(
-        Scene *UNUSED(scene), Object *object, HairSystem *hsys, struct Mesh *scalp,
+        Scene *scene, Object *object, HairSystem *hsys, struct Mesh *scalp,
         const HairDrawSettings *draw_set, DRWPass *hair_pass,
         struct GPUMaterial *gpu_mat, GPUShader *gpu_shader)
 {
 	/* TODO */
 	const int subdiv = 0;
+	int thickness_res = (scene->r.hair_type == SCE_HAIR_SHAPE_STRAND) ? 1 : 2;
 	
 	HairExportCache *hair_export = BKE_hair_export_cache_new();
 	BKE_hair_export_cache_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
@@ -85,6 +86,7 @@ static DRWShadingGroup *drw_shgroup_create_hair_fibers_ex(
 	DRW_shgroup_uniform_int(shgrp, "strand_vertex_start", &fiber_buffer->strand_vertex_start, 1);
 	DRW_shgroup_uniform_int(shgrp, "fiber_start", &fiber_buffer->fiber_start, 1);
 
+	DRW_shgroup_uniform_int_copy(shgrp, "hairThicknessRes", thickness_res);
 	DRW_shgroup_uniform_float(shgrp, "hairRadShape", &draw_set->shape, 1);
 	DRW_shgroup_uniform_float_copy(shgrp, "hairRadRoot", draw_set->root_radius * draw_set->radius_scale* 0.5f);
 	DRW_shgroup_uniform_float_copy(shgrp, "hairRadTip", draw_set->tip_radius * draw_set->radius_scale * 0.5f);
