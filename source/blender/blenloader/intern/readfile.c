@@ -5368,15 +5368,15 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				}
 			}
 		}
-		else if (md->type == eModifierType_Fur) {
-			FurModifierData *fmd = (FurModifierData *)md;
+		else if (md->type == eModifierType_Hair) {
+			HairModifierData *hmd = (HairModifierData *)md;
 			
-			fmd->hair_system = newdataadr(fd, fmd->hair_system);
-			direct_link_hair(fd, fmd->hair_system);
+			hmd->hair_system = newdataadr(fd, hmd->hair_system);
+			direct_link_hair(fd, hmd->hair_system);
 			
-			fmd->draw_settings = newdataadr(fd, fmd->draw_settings);
+			hmd->draw_settings = newdataadr(fd, hmd->draw_settings);
 
-			BLI_listbase_clear(&fmd->guide_curves); // runtime
+			BLI_listbase_clear(&hmd->guide_curves); // runtime
 		}
 	}
 }

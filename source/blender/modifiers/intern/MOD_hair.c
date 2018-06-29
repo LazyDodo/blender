@@ -52,68 +52,60 @@
 
 static void initData(ModifierData *md)
 {
-	FurModifierData *fmd = (FurModifierData *) md;
+	HairModifierData *hmd = (HairModifierData *) md;
 	
-	fmd->hair_system = BKE_hair_new();
+	hmd->hair_system = BKE_hair_new();
 	
-	fmd->flag |= 0;
+	hmd->flag |= 0;
 	
-	fmd->follicle_count = 100000;
+	hmd->follicle_count = 100000;
 	
-	fmd->draw_settings = BKE_hair_draw_settings_new();
+	hmd->draw_settings = BKE_hair_draw_settings_new();
 }
 
 static void copyData(const ModifierData *md, ModifierData *target)
 {
-	const FurModifierData *fmd = (FurModifierData *) md;
-	FurModifierData *tfmd = (FurModifierData *) target;
-
-	if (tfmd->hair_system) {
-		BKE_hair_free(tfmd->hair_system);
-	}
-	if (tfmd->draw_settings)
-	{
-		BKE_hair_draw_settings_free(tfmd->draw_settings);
-	}
+	const HairModifierData *hmd = (HairModifierData *) md;
+	HairModifierData *tfmd = (HairModifierData *) target;
 
 	modifier_copyData_generic(md, target);
 	
-	if (fmd->hair_system) {
-		tfmd->hair_system = BKE_hair_copy(fmd->hair_system);
+	if (hmd->hair_system) {
+		tfmd->hair_system = BKE_hair_copy(hmd->hair_system);
 	}
-	if (fmd->draw_settings)
+	if (hmd->draw_settings)
 	{
-		tfmd->draw_settings = BKE_hair_draw_settings_copy(fmd->draw_settings);
+		tfmd->draw_settings = BKE_hair_draw_settings_copy(hmd->draw_settings);
 	}
 }
 
 static void freeData(ModifierData *md)
 {
-	FurModifierData *fmd = (FurModifierData *) md;
+	HairModifierData *hmd = (HairModifierData *) md;
 	
-	if (fmd->hair_system) {
-		BKE_hair_free(fmd->hair_system);
+	if (hmd->hair_system) {
+		BKE_hair_free(hmd->hair_system);
 	}
-	if (fmd->draw_settings)
+	if (hmd->draw_settings)
 	{
-		BKE_hair_draw_settings_free(fmd->draw_settings);
+		BKE_hair_draw_settings_free(hmd->draw_settings);
 	}
-	for (FurModifierGuideCurve *curve = fmd->guide_curves.first; curve; curve = curve->next)
+	for (HairModifierGuideCurve *curve = hmd->guide_curves.first; curve; curve = curve->next)
 	{
 		if (curve->verts)
 		{
 			MEM_freeN(curve->verts);
 		}
 	}
-	BLI_freelistN(&fmd->guide_curves);
+	BLI_freelistN(&hmd->guide_curves);
 }
 
 static struct Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
                                   struct Mesh *mesh)
 {
-	FurModifierData *fmd = (FurModifierData *) md;
+	HairModifierData *hmd = (HairModifierData *) md;
 	
-	UNUSED_VARS(fmd, ctx);
+	UNUSED_VARS(hmd, ctx);
 	
 	return mesh;
 }
@@ -124,8 +116,8 @@ static void foreachObjectLink(
         ObjectWalkFunc walk,
         void *userData)
 {
-	FurModifierData *fmd = (FurModifierData *) md;
-	UNUSED_VARS(ob, walk, userData, fmd);
+	HairModifierData *hmd = (HairModifierData *) md;
+	UNUSED_VARS(ob, walk, userData, hmd);
 }
 
 static void foreachIDLink(
@@ -134,16 +126,16 @@ static void foreachIDLink(
         IDWalkFunc walk,
         void *userData)
 {
-	FurModifierData *fmd = (FurModifierData *) md;
-	UNUSED_VARS(fmd);
+	HairModifierData *hmd = (HairModifierData *) md;
+	UNUSED_VARS(hmd);
 	
 	foreachObjectLink(md, ob, (ObjectWalkFunc)walk, userData);
 }
 
-ModifierTypeInfo modifierType_Fur = {
-	/* name */              "Fur",
-	/* structName */        "FurModifierData",
-	/* structSize */        sizeof(FurModifierData),
+ModifierTypeInfo modifierType_Hair = {
+	/* name */              "Hair",
+	/* structName */        "HairModifierData",
+	/* structSize */        sizeof(HairModifierData),
 	/* type */              eModifierTypeType_NonGeometrical,
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode,

@@ -1789,16 +1789,16 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 				}
 			}
 		}
-		else if (md->type == eModifierType_Fur) {
-			FurModifierData *fmd = (FurModifierData *)md;
+		else if (md->type == eModifierType_Hair) {
+			HairModifierData *hmd = (HairModifierData *)md;
 			
-			if (fmd->hair_system) {
-				writestruct(wd, DATA, HairSystem, 1, fmd->hair_system);
-				write_hair(wd, fmd->hair_system);
+			if (hmd->hair_system) {
+				writestruct(wd, DATA, HairSystem, 1, hmd->hair_system);
+				write_hair(wd, hmd->hair_system);
 			}
-			if (fmd->draw_settings)
+			if (hmd->draw_settings)
 			{
-				writestruct(wd, DATA, HairDrawSettings, 1, fmd->draw_settings);
+				writestruct(wd, DATA, HairDrawSettings, 1, hmd->draw_settings);
 			}
 		}
 	}

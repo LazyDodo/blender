@@ -2296,16 +2296,16 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		{
 			for (ModifierData *md = ob->modifiers.first; md; md = md->next)
 			{
-				if (md->type == eModifierType_Fur)
+				if (md->type == eModifierType_Hair)
 				{
-					FurModifierData *fmd = (FurModifierData*)md;
+					HairModifierData *hmd = (HairModifierData*)md;
 					
 					if (!modifier_isEnabled(draw_ctx->scene, md, eModifierMode_Realtime))
 					{
 						continue;
 					}
 					
-					DRW_shgroup_hair(ob, fmd->hair_system, fmd->draw_settings, scalp, stl->g_data->hair_verts, stl->g_data->hair_edges);
+					DRW_shgroup_hair(ob, hmd->hair_system, hmd->draw_settings, scalp, stl->g_data->hair_verts, stl->g_data->hair_edges);
 				}
 			}
 		}

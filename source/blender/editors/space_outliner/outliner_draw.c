@@ -1112,7 +1112,7 @@ static void tselem_draw_icon(
 					case eModifierType_NormalEdit:
 						ICON_DRAW(ICON_MOD_NORMALEDIT);
 						break;
-					case eModifierType_Fur:
+					case eModifierType_Hair:
 						ICON_DRAW(ICON_STRANDS);
 						break;
 					/* Default */

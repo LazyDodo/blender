@@ -1823,13 +1823,13 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 					material_particle_hair(vedata, sldata, ob, psys, md);
 					*cast_shadow = true;
 				}
-				else if (md->type == eModifierType_Fur) {
-					FurModifierData *fmd = (FurModifierData *)md;
+				else if (md->type == eModifierType_Hair) {
+					HairModifierData *hmd = (HairModifierData *)md;
 					
 					const int material_index = 1; /* TODO */
 					Material *material = give_current_material(ob, material_index);
 					
-					material_hair(vedata, sldata, ob, fmd->hair_system, fmd->draw_settings, material, ob->data);
+					material_hair(vedata, sldata, ob, hmd->hair_system, hmd->draw_settings, material, ob->data);
 				}
 			}
 		}
