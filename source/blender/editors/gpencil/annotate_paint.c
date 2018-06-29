@@ -1210,6 +1210,8 @@ static bool gp_session_initdata(bContext *C, tGPsdata *p)
 		if (*gpd_ptr == NULL) {
 			*gpd_ptr = BKE_gpencil_data_addnew(bmain, "Notes");
 			(*gpd_ptr)->flag |= GP_DATA_ANNOTATIONS;
+			/* annotations always in front of all objects */
+			(*gpd_ptr)->xray_mode = GP_XRAY_FRONT;
 		}
 		p->gpd = *gpd_ptr;
 	}
