@@ -98,6 +98,10 @@ static void lanpr_engine_init(void *ved){
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->normal, GPU_RGBA32F, 8, 0);
 	DRW_texture_ensure_fullscreen_2D_multisample(&txl->edge_intermediate, GPU_RGBA32F, 8, 0);
 
+	DRW_texture_ensure_fullscreen_2D_multisample(&txl->ms_resolve_depth, GPU_DEPTH_COMPONENT32F, 8, 0);
+	DRW_texture_ensure_fullscreen_2D_multisample(&txl->ms_resolve_color, GPU_RGBA32F, 8, 0);
+
+
 	GPU_framebuffer_ensure_config(&fbl->passes, {
 		GPU_ATTACHMENT_TEXTURE(txl->depth),
 		GPU_ATTACHMENT_TEXTURE(txl->color),
@@ -173,8 +177,8 @@ static void lanpr_engine_init(void *ved){
 	}
 
 	GPU_framebuffer_ensure_config(&fbl->software_ms, {
-		GPU_ATTACHMENT_TEXTURE(txl->depth),
-		GPU_ATTACHMENT_TEXTURE(txl->color),
+		GPU_ATTACHMENT_TEXTURE(txl->ms_resolve_depth),
+		GPU_ATTACHMENT_TEXTURE(txl->ms_resolve_color),
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
@@ -197,11 +201,14 @@ static void lanpr_engine_free(void){
 	GPU_framebuffer_free(fbl->passes);
 	GPU_framebuffer_free(fbl->edge_intermediate);
 	GPU_framebuffer_free(fbl->edge_thinning);
+	GPU_framebuffer_free(fbl->software_ms);
 
 	DRW_texture_free(txl->depth);
 	DRW_texture_free(txl->color);
 	DRW_texture_free(txl->normal);
 	DRW_texture_free(txl->edge_intermediate);
+	DRW_texture_free(txl->ms_resolve_depth);
+	DRW_texture_free(txl->ms_resolve_color);
 
 	BLI_mempool_destroy(stl->g_data->mp_line_strip);
 	BLI_mempool_destroy(stl->g_data->mp_line_strip_point);
@@ -278,7 +285,7 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
 	}
-	elif (lanpr->master_mode == LANPR_MASTER_MODE_SNAKE && lanpr->active_layer) {
+	elif (lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer) {
 		LANPR_LineLayer* ll = lanpr->active_layer;
 		psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
 		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
@@ -296,6 +303,7 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_crease", &ll->enable_crease, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_material", &ll->enable_material_seperate, 1);
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_edge_mark", &ll->enable_edge_mark, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_intersection", &ll->enable_intersection, 1);
 
 		psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
@@ -307,6 +315,7 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "crease_color", ll->crease_color, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "material_color", ll->material_color, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "edge_mark_color", ll->edge_mark_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "intersection_color", ll->intersection_color, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "background_color", lanpr->background_color, 1);
 		//DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "line_color", ll->line_color, 1); //we have color
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);
@@ -318,6 +327,7 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_crease", &ll->thickness_crease, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_material", &ll->thickness_material, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_edge_mark", &ll->thickness_edge_mark, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_intersection", &ll->thickness_intersection, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zNear", &stl->g_data->dpix_znear, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zFar", &stl->g_data->dpix_zfar, 1);
 
@@ -391,6 +401,8 @@ static void lanpr_cache_finish(void *vedata){
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
+	float mat[4][4];
+	unit_m4(mat);
 
 	LANPR_BatchItem *bi;
 	for (bi = pd->dpix_batch_list.first; bi; bi = (void *)bi->Item.next) {
@@ -398,7 +410,12 @@ static void lanpr_cache_finish(void *vedata){
 		DRW_shgroup_call_add(pd->dpix_preview_shgrp, bi->dpix_preview_batch, 0);
 	}
 
-	if (lanpr->reloaded && lanpr->master_mode == LANPR_MASTER_MODE_DPIX) {
+	if (lanpr->reloaded && lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer) {
+		if (lanpr->render_buffer) {
+			lanpr_feed_atlas_data_intersection_cache(vedata, pd->atlas_pl, pd->atlas_pr, pd->atlas_nl, pd->atlas_nr, pd->atlas_edge_mask, pd->begin_index);
+			lanpr_create_atlas_intersection_preview(vedata, pd->begin_index);
+		}
+
 		GPU_texture_update(txl->dpix_in_pl, pd->atlas_pl);
 		GPU_texture_update(txl->dpix_in_pr, pd->atlas_pr);
 		GPU_texture_update(txl->dpix_in_nl, pd->atlas_nl);
@@ -412,6 +429,12 @@ static void lanpr_cache_finish(void *vedata){
 		MEM_freeN(pd->atlas_edge_mask);
 		pd->atlas_pl = 0;
 		lanpr->reloaded = 0;
+
+	}
+
+	if (lanpr->render_buffer && lanpr->render_buffer->DPIXIntersectionBatch) {
+		DRW_shgroup_call_add(pd->dpix_transform_shgrp, lanpr->render_buffer->DPIXIntersectionTransformBatch, 0);
+		DRW_shgroup_call_add(pd->dpix_preview_shgrp, lanpr->render_buffer->DPIXIntersectionBatch, 0);
 	}
 }
 
@@ -451,11 +474,13 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 		lanpr_snake_draw_scene(txl, fbl, psl, stl->g_data, lanpr, dfb);
 	}
 	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
-		GPU_framebuffer_bind(dfb);
 
-		DRW_draw_pass(psl->color_pass);
-
+		//DRW_draw_pass(psl->color_pass);
+		GPU_framebuffer_bind(fbl->software_ms);
 		DRW_draw_pass(psl->software_pass);
+
+		GPU_framebuffer_bind(dfb);
+		DRW_multisamples_resolve(txl->ms_resolve_depth,txl->ms_resolve_color);
 
 	}
 }
@@ -489,12 +514,12 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
-	DRW_texture_ensure_fullscreen_2D(&txl->ms_resolve_depth, GPU_DEPTH_COMPONENT32F, 0);
-	DRW_texture_ensure_fullscreen_2D(&txl->ms_resolve_color, GPU_RGBA32F, 0);
+	DRW_texture_ensure_fullscreen_2D(&dtxl->depth, GPU_DEPTH_COMPONENT32F, 0);
+	DRW_texture_ensure_fullscreen_2D(&dtxl->color, GPU_RGBA32F, 0);
 
-	GPU_framebuffer_ensure_config(&fbl->ms_resolve, {
-		GPU_ATTACHMENT_TEXTURE(txl->ms_resolve_depth),
-		GPU_ATTACHMENT_TEXTURE(txl->ms_resolve_color),
+	GPU_framebuffer_ensure_config(&dfbl->default_fb, {
+		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
+		GPU_ATTACHMENT_TEXTURE(dtxl->color),
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
@@ -508,13 +533,13 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
 	lanpr_cache_finish(vedata);
 
-	lanpr_draw_scene_exec(vedata, fbl->ms_resolve);
+	lanpr_draw_scene_exec(vedata, dfbl->default_fb);
 
 	// read it back so we can again display and save it.
 	const char *viewname = RE_GetActiveRenderView(engine->re);
 	RenderPass *rp = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
-	GPU_framebuffer_bind(fbl->ms_resolve);
-	GPU_framebuffer_read_color(fbl->ms_resolve,
+	GPU_framebuffer_bind(dfbl->default_fb);
+	GPU_framebuffer_read_color(dfbl->default_fb,
 	                           rect->xmin, rect->ymin,
 	                           BLI_rcti_size_x(rect), BLI_rcti_size_y(rect),
 	                           4, 0, rp->rect);

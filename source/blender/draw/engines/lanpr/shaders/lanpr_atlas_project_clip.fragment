@@ -8,6 +8,7 @@ uniform mat4 ProjectionMatrixInverse;
 uniform int enable_crease;
 uniform int enable_material;
 uniform int enable_edge_mark;
+uniform int enable_intersection;
 
 uniform float crease_threshold;
 uniform float crease_fade_threshold;
@@ -364,6 +365,7 @@ bool testProfileEdge( ivec2 texcoord, vec3 world_position )
            ((enable_crease>0) && (is_crease>0)) ||
            ((enable_material>0) && (edge_mask.r>0)) ||
            ((enable_edge_mark>0) && (edge_mask.g>0)) ||
+           ((enable_intersection>0) && (edge_mask.b>0)) ||
            false;
 }
 

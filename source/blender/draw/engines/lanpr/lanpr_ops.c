@@ -2300,6 +2300,7 @@ LANPR_RenderLine *lanpr_TriangleGenerateIntersectionLineOnly(LANPR_RenderBuffer 
 
 	}
 	else {
+		if (!rt->RL[0] || !rt->RL[1] || !rt->RL[2]) return 0; // shouldn't need this, there must be problems in culling.
 		E0T = lanpr_TriangleLineIntersectionTest(rt->RL[0], rt, Testing, 0); if (E0T && (!(*Next))) { (*Next) = E0T; (*Next)->IntersectingLine = rt->RL[0];  Next = &R; }
 		E1T = lanpr_TriangleLineIntersectionTest(rt->RL[1], rt, Testing, L); if (E1T && (!(*Next))) { (*Next) = E1T; (*Next)->IntersectingLine = rt->RL[1];  Next = &R; }
 		if (!(*Next)) E2T = lanpr_TriangleLineIntersectionTest(rt->RL[2], rt, Testing, L); if (E2T && (!(*Next))) { (*Next) = E2T; (*Next)->IntersectingLine = rt->RL[2];  Next = &R; }
@@ -2333,7 +2334,7 @@ LANPR_RenderLine *lanpr_TriangleGenerateIntersectionLineOnly(LANPR_RenderBuffer 
 
 	//tnsglobal_TriangleIntersectionCount++;
 
-	//rb->IntersectionCount++;
+	rb->IntersectionCount++;
 
 	return Result;
 }

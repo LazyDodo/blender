@@ -24,10 +24,12 @@ uniform vec4 background_color;
 uniform vec4 crease_color;
 uniform vec4 material_color;
 uniform vec4 edge_mark_color;
+uniform vec4 intersection_color;
 
 uniform float line_thickness_crease;
 uniform float line_thickness_material;
 uniform float line_thickness_edge_mark;
+uniform float line_thickness_intersection;
 
 float use_thickness = line_thickness;
 
@@ -98,9 +100,10 @@ void main() {
 
 	int is_crease=0;
 
-	if(edge_mask.g>0)      { use_color = edge_mark_color; use_thickness = line_thickness*line_thickness_edge_mark; }
-	else if(edge_mask.r>0) { use_color = material_color;  use_thickness = line_thickness*line_thickness_material;  }
-    else if(p1.w!=p2.w)    { use_color = crease_color;    use_thickness = line_thickness*line_thickness_crease; is_crease=1; }
+	if(edge_mask.g>0)      { use_color = edge_mark_color;     use_thickness = line_thickness*line_thickness_edge_mark; }
+	else if(edge_mask.r>0) { use_color = material_color;      use_thickness = line_thickness*line_thickness_material;  }
+	else if(edge_mask.b>0) { use_color = intersection_color;  use_thickness = line_thickness*line_thickness_intersection;  }
+    else if(p1.w!=p2.w)    { use_color = crease_color;        use_thickness = line_thickness*line_thickness_crease; is_crease=1; }
 
 	draw_line(p1,p2,is_crease);
 }
