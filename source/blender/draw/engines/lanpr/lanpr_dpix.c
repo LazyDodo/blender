@@ -273,6 +273,8 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
 
+	if (!lanpr->active_layer) return; /* return early in case we don't have line layers. DPIX only use the first layer. */
+
 	int texw = GPU_texture_width(txl->edge_intermediate), texh = GPU_texture_height(txl->edge_intermediate);;
 	int tsize = texw * texh;
 

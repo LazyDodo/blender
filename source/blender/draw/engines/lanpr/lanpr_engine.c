@@ -66,25 +66,25 @@ static void lanpr_engine_init(void *ved){
 	}
 
 	if (!OneTime.InitComplete) {
-		lanpr->depth_clamp = 0.01;
-		lanpr->depth_strength = 800;
-		lanpr->normal_clamp = 2;
-		lanpr->normal_strength = 10;
-		lanpr->line_thickness = 2;
-		lanpr->taper_left_distance = 20;
-		lanpr->taper_left_strength = 0.9;
-		lanpr->taper_right_distance = 20;
-		lanpr->taper_right_strength = 0.9;
+		//lanpr->depth_clamp = 0.01;
+		//lanpr->depth_strength = 800;
+		//lanpr->normal_clamp = 2;
+		//lanpr->normal_strength = 10;
+		//lanpr->line_thickness = 2;
+		//lanpr->taper_left_distance = 20;
+		//lanpr->taper_left_strength = 0.9;
+		//lanpr->taper_right_distance = 20;
+		//lanpr->taper_right_strength = 0.9;
 
-		lanpr->line_color[0] = 0.22;
-		lanpr->line_color[1] = 0.29;
-		lanpr->line_color[2] = 0.53;
-		lanpr->line_color[3] = 1;
+		//lanpr->line_color[0] = 0.22;
+		//lanpr->line_color[1] = 0.29;
+		//lanpr->line_color[2] = 0.53;
+		//lanpr->line_color[3] = 1;
 
-		lanpr->background_color[0] = 0.59;
-		lanpr->background_color[1] = 0.90;
-		lanpr->background_color[2] = 0.51;
-		lanpr->background_color[3] = 1;
+		//lanpr->background_color[0] = 0.59;
+		//lanpr->background_color[1] = 0.90;
+		//lanpr->background_color[2] = 0.51;
+		//lanpr->background_color[3] = 1;
 
 		lanpr->reloaded = 1;
 
@@ -278,7 +278,8 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
 	}
-	elif (lanpr->master_mode == LANPR_MASTER_MODE_SNAKE) {
+	elif (lanpr->master_mode == LANPR_MASTER_MODE_SNAKE && lanpr->active_layer) {
+		LANPR_LineLayer* ll = lanpr->active_layer;
 		psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
 		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert0_tex", &txl->dpix_in_pl);
@@ -292,9 +293,9 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "buffer_width", &stl->g_data->dpix_buffer_width, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_transform_shgrp, "crease_threshold", &lanpr->crease_threshold, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_transform_shgrp, "crease_fade_threshold", &lanpr->crease_fade_threshold, 1);
-		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_crease", &lanpr->enable_crease, 1);
-		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_material", &lanpr->enable_material_seperate, 1);
-		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_edge_mark", &lanpr->enable_edge_mark, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_crease", &ll->enable_crease, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_material", &ll->enable_material_seperate, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_transform_shgrp, "enable_edge_mark", &ll->enable_edge_mark, 1);
 
 		psl->dpix_preview_pass = DRW_pass_create("DPIX Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(OneTime.dpix_preview_shader, psl->dpix_preview_pass);
@@ -302,21 +303,21 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert1_tex", &txl->dpix_out_pr);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "edge_mask_tex", &txl->dpix_in_edge_mask);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
-		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", lanpr->line_color, 1);
-		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "crease_color", lanpr->crease_color, 1);
-		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "material_color", lanpr->material_color, 1);
-		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "edge_mark_color", lanpr->edge_mark_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", ll->color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "crease_color", ll->crease_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "material_color", ll->material_color, 1);
+		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "edge_mark_color", ll->edge_mark_color, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "background_color", lanpr->background_color, 1);
-		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "background_color", lanpr->line_color, 1);
+		//DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "line_color", ll->line_color, 1); //we have color
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_offset", &stl->g_data->dpix_depth_offset, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_width_influence", &lanpr->depth_width_influence, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_width_curve", &lanpr->depth_width_curve, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_alpha_influence", &lanpr->depth_alpha_influence, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "depth_alpha_curve", &lanpr->depth_alpha_curve, 1);
-		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness", &lanpr->line_thickness, 1);
-		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_crease", &lanpr->line_thickness_crease, 1);
-		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_material", &lanpr->line_thickness_material, 1);
-		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_edge_mark", &lanpr->line_thickness_edge_mark, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness", &ll->thickness, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_crease", &ll->thickness_crease, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_material", &ll->thickness_material, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_edge_mark", &ll->thickness_edge_mark, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zNear", &stl->g_data->dpix_znear, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zFar", &stl->g_data->dpix_zfar, 1);
 
@@ -373,7 +374,7 @@ static void lanpr_cache_populate(void *vedata, Object *ob){
 		DRW_shgroup_call_object_add(stl->g_data->multipass_shgrp, geom, ob);
 	}
 
-	if (lanpr->master_mode == LANPR_MASTER_MODE_DPIX) {
+	if (lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer) {
 		int idx = pd->begin_index;
 		if (lanpr->reloaded) {
 			pd->begin_index = lanpr_feed_atlas_data_obj(vedata, pd->atlas_pl, pd->atlas_pr, pd->atlas_nl, pd->atlas_nr, pd->atlas_edge_mask, ob, idx);

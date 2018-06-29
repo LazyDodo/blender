@@ -1443,7 +1443,7 @@ typedef struct SceneLANPR{
     int enable_vector_trace;
 	int display_thinning_result;
 
-	int SizeCompensate;
+	//int SizeCompensate;
 
 	float depth_clamp;
 	float depth_strength;
@@ -1451,12 +1451,6 @@ typedef struct SceneLANPR{
 	float normal_strength;
 
 	float line_thickness;
-
-    /* these are deprecated */
-	/* line style layer */
-	float line_thickness_crease;
-	float line_thickness_material;
-	float line_thickness_edge_mark;
 
 	int   use_same_taper;
 	float taper_left_distance;
@@ -1479,21 +1473,10 @@ typedef struct SceneLANPR{
 	float line_color[4];
 	float background_color[4];
 
-	float crease_color[4];    /* these should go into LANPR_LineStyle layer, */
-    float material_color[4];  /* currently are just here for demonstrating purpose */
-    float edge_mark_color[4]; /* furthur design needed */
-
 	float depth_width_influence;
 	float depth_width_curve;
 	float depth_alpha_influence;
 	float depth_alpha_curve;
-
-    /* line components */
-	
-	int   enable_crease;
-	int   enable_edge_mark;
-	int   enable_material_seperate;
-	int   enable_intersection;
 
 	/* states (needs optimization) */
 

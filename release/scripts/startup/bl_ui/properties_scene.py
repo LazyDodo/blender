@@ -529,29 +529,23 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         if lanpr.master_mode == "DPIX" or lanpr.master_mode == "SOFTWARE":
             layout.label(text="DPIX:")
             layout.prop(lanpr, "reloaded")
-            layout.label(text="Effect Settings:")
+
             
-            split = layout.split()
-            col = split.column()
-            col.prop(lanpr, "background_color")
-            col = split.column()
-            col.prop(lanpr, "line_color")
-
-            layout.label(text="Layer Composition:")
-            row = layout.row()
             rows = 4
-            layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=rows)
-            if active_layer:
-                split = layout.split()
-                col = split.column()
-                col.operator("scene.lanpr_add_line_layer")
-                col = split.column()
-                col.operator("scene.lanpr_rebuild_all_commands")
-            else:
-                layout.operator("scene.lanpr_add_line_layer")
-
             if lanpr.master_mode == "SOFTWARE":
-                layout.operator("scene.lanpr_calculate")
+                layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
+                layout.label(text="Layer Composition:")
+                layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=rows)
+                if active_layer:
+                    split = layout.split()
+                    col = split.column()
+                    col.operator("scene.lanpr_add_line_layer")
+                    col = split.column()
+                    col.operator("scene.lanpr_rebuild_all_commands")
+                else:
+                    layout.operator("scene.lanpr_add_line_layer")
+            elif not lanpr.layers.active_layer:
+                layout.operator("scene.lanpr_add_line_layer")
             
             if active_layer:
 
