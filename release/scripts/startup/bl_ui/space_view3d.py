@@ -20,6 +20,7 @@
 import bpy
 from bpy.types import Header, Menu, Panel
 from .properties_paint_common import UnifiedPaintPanel
+from .properties_grease_pencil_common import GreasePencilDataPanel
 from bpy.app.translations import contexts as i18n_contexts
 
 
@@ -4129,6 +4130,14 @@ class VIEW3D_PT_quad_view(Panel):
         row.prop(region, "use_box_clip")
 
 
+# Annotation properties
+class VIEW3D_PT_grease_pencil(GreasePencilDataPanel, Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    # NOTE: this is just a wrapper around the generic GP Panel
+
+
 # TODO: Move to Overlays popover (when in GP Object Draw Mode)
 class VIEW3D_PT_gp_paper(Panel):
     bl_space_type = 'VIEW_3D'
@@ -4426,6 +4435,7 @@ classes = (
     VIEW3D_MT_view_pie,
     VIEW3D_PT_view3d_properties,
     VIEW3D_PT_view3d_cursor,
+    VIEW3D_PT_grease_pencil,
     VIEW3D_PT_gp_paper,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,

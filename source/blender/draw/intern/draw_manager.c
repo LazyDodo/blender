@@ -47,6 +47,7 @@
 
 #include "ED_space_api.h"
 #include "ED_screen.h"
+#include "ED_gpencil.h"
 #include "ED_particle.h"
 #include "ED_view3d.h"
 
@@ -1246,6 +1247,7 @@ void DRW_draw_render_loop_ex(
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	RegionView3D *rv3d = ar->regiondata;
+	bool do_annotations = (v3d->flag2 & V3D_SHOW_GPENCIL) != 0;
 
 	DST.draw_ctx.evil_C = evil_C;
 
@@ -1338,6 +1340,17 @@ void DRW_draw_render_loop_ex(
 
 	drw_engines_draw_scene();
 
+	/* annotations - temporary drawing buffer (3d space) */
+	/* XXX: Or should we use a proper draw/overlay engine for this case? */
+	if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+	    (do_annotations))
+	{
+		glDisable(GL_DEPTH_TEST);
+		/* XXX: as scene->gpd is not copied for COW yet */
+		ED_gpencil_draw_view3d_annotations(DEG_get_input_scene(depsgraph), depsgraph, v3d, ar, true);
+		glEnable(GL_DEPTH_TEST);
+	}
+
 	DRW_draw_callbacks_post_scene();
 	if (DST.draw_ctx.evil_C) {
 		ED_region_draw_cb_draw(DST.draw_ctx.evil_C, DST.draw_ctx.ar, REGION_DRAW_POST_VIEW);
@@ -1361,6 +1374,17 @@ void DRW_draw_render_loop_ex(
 		}
 
 		DRW_draw_region_info();
+
+		/* annotations - temporary drawing buffer (screenspace) */
+		/* XXX: Or should we use a proper draw/overlay engine for this case? */
+		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+		    (do_annotations))
+		{
+			glDisable(GL_DEPTH_TEST);
+			/* XXX: as scene->gpd is not copied for COW yet */
+			ED_gpencil_draw_view3d_annotations(DEG_get_input_scene(depsgraph), depsgraph, v3d, ar, false);
+			glEnable(GL_DEPTH_TEST);
+		}
 
 		if ((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) {
 			/* Draw 2D after region info so we can draw on top of the camera passepartout overlay.

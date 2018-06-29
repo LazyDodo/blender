@@ -1038,25 +1038,22 @@ void ED_gpencil_draw_view2d(const bContext *C, bool onlyv2d)
 	}
 }
 
-#if 0 // XXX: Reinstate, after renaming the functions
 
-/* draw grease-pencil sketches to specified 3d-view assuming that matrices are already set correctly
+/* draw annotations sketches to specified 3d-view assuming that matrices are already set correctly
  * Note: this gets called twice - first time with only3d=true to draw 3d-strokes,
  * second time with only3d=false for screen-aligned strokes */
-void ED_gpencil_draw_view3d(wmWindowManager *wm,
-                            Scene *scene,
-                            ViewLayer *view_layer,
-                            struct Depsgraph *depsgraph,
-                            View3D *v3d,
-                            ARegion *ar,
-                            bool only3d)
+void ED_gpencil_draw_view3d_annotations(
+        Scene *scene, struct Depsgraph *depsgraph,
+        View3D *v3d, ARegion *ar,
+        bool only3d)
 {
 	int dflag = 0;
 	RegionView3D *rv3d = ar->regiondata;
 	int offsx,  offsy,  winx,  winy;
 
 	/* check that we have grease-pencil stuff to draw */
-	bGPdata *gpd = ED_gpencil_data_get_active_v3d(scene, view_layer);
+	/* XXX: Hardcoded reference here may get out of sync if we change how we fetch annotation data */
+	bGPdata *gpd = scene->gpd;
 	if (gpd == NULL) return;
 
 	/* when rendering to the offscreen buffer we don't want to
@@ -1094,6 +1091,8 @@ void ED_gpencil_draw_view3d(wmWindowManager *wm,
 	/* draw it! */
 	gp_draw_data_all(scene, gpd, offsx, offsy, winx, winy, CFRA, dflag, v3d->spacetype);
 }
+
+#if 0 // XXX: Reinstate, after renaming the functions
 
 void ED_gpencil_draw_ex(Scene *scene, bGPdata *gpd, int winx, int winy, const int cfra, const char spacetype)
 {
