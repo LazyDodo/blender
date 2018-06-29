@@ -121,9 +121,9 @@ static void GPENCIL_create_framebuffers(void *vedata)
 
 		/* temp textures */
 		e_data.temp_depth_tx_a = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
-			&draw_engine_object_type);
+			&draw_engine_gpencil_type);
 		e_data.temp_color_tx_a = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
-			&draw_engine_object_type);
+			&draw_engine_gpencil_type);
 		GPU_framebuffer_ensure_config(&fbl->temp_fb_a, {
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_a),
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_a)
@@ -131,9 +131,9 @@ static void GPENCIL_create_framebuffers(void *vedata)
 
 		/* background framebuffer to speed up drawing process (always 16 bits) */
 		e_data.background_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
-			&draw_engine_object_type);
+			&draw_engine_gpencil_type);
 		e_data.background_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA16F,
-			&draw_engine_object_type);
+			&draw_engine_gpencil_type);
 		GPU_framebuffer_ensure_config(&fbl->background_fb, {
 			GPU_ATTACHMENT_TEXTURE(e_data.background_depth_tx),
 			GPU_ATTACHMENT_TEXTURE(e_data.background_color_tx)
