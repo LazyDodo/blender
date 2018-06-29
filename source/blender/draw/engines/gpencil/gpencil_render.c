@@ -253,13 +253,13 @@ void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct RenderLa
 	int imgsize = BLI_rcti_size_x(rect) * BLI_rcti_size_y(rect);
 
 	/* save previous render data */
-	RenderPass *rp_color_src = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
-	RenderPass *rp_depth_src = RE_pass_find_by_name(render_layer, RE_PASSNAME_Z, viewname);
-	float *rect_color_src = NULL;
-	float *rect_depth_src = NULL;
-	if ((rp_color_src) && (rp_depth_src) && (rp_color_src->rect) && (rp_depth_src->rect)) {
-		rect_color_src = MEM_dupallocN(rp_color_src->rect);
-		rect_depth_src = MEM_dupallocN(rp_depth_src->rect);
+	RenderPass *rpass_color_src = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
+	RenderPass *rpass_depth_src = RE_pass_find_by_name(render_layer, RE_PASSNAME_Z, viewname);
+	float *src_rect_color_data = NULL;
+	float *src_rect_depth_data = NULL;
+	if ((rpass_color_src) && (rpass_depth_src) && (rpass_color_src->rect) && (rpass_depth_src->rect)) {
+		src_rect_color_data = MEM_dupallocN(rpass_color_src->rect);
+		src_rect_depth_data = MEM_dupallocN(rpass_depth_src->rect);
 	}
 	else {
 		/* TODO: put this message in a better place */
@@ -297,52 +297,53 @@ void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct RenderLa
 	 }
 
 	/* merge previous render image with new GP image */
-	if (rect_color_src) {
-		RenderPass *rp_color_gp = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
-		RenderPass *rp_depth_gp = RE_pass_find_by_name(render_layer, RE_PASSNAME_Z, viewname);
-		float *rect_color_gp = rp_color_gp->rect;
-		float *rect_depth_gp = rp_depth_gp->rect;
-		float *gp_rgba;
-		float *gp_depth;
-		float *src_rgba;
-		float *src_depth;
+	if (src_rect_color_data) {
+		RenderPass *rpass_color_gp = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
+		RenderPass *rpass_depth_gp = RE_pass_find_by_name(render_layer, RE_PASSNAME_Z, viewname);
+		float *gp_rect_color_data = rpass_color_gp->rect;
+		float *gp_rect_depth_data = rpass_depth_gp->rect;
+		float *gp_pixel_rgba;
+		float *gp_pixel_depth;
+		float *src_pixel_rgba;
+		float *src_pixel_depth;
 		float tmp[4];
 
 		for (int i = 0; i < imgsize; i++) {
-			gp_rgba = &rect_color_gp[i * 4];
-			gp_depth = &rect_depth_gp[i];
-			src_rgba = &rect_color_src[i * 4];
-			src_depth = &rect_depth_src[i];
+			gp_pixel_rgba = &gp_rect_color_data[i * 4];
+			gp_pixel_depth = &gp_rect_depth_data[i];
+
+			src_pixel_rgba = &src_rect_color_data[i * 4];
+			src_pixel_depth = &src_rect_depth_data[i];
 
 			/* check grease pencil render transparency */
-			if (gp_rgba[3] > 0.0f) {
-				copy_v4_v4(tmp, gp_rgba);
-				if (src_rgba[3] > 0.0f) {
+			if (gp_pixel_rgba[3] > 0.0f) {
+				copy_v4_v4(tmp, gp_pixel_rgba);
+				if (src_pixel_rgba[3] > 0.0f) {
 					/* copy source color on back */
-					copy_v4_v4(gp_rgba, src_rgba);
+					copy_v4_v4(gp_pixel_rgba, src_pixel_rgba);
 					/* check z-depth */
-					if (gp_depth[0] > src_depth[0]) {
+					if (gp_pixel_depth[0] > src_pixel_depth[0]) {
 						/* copy source z-depth */
-						gp_depth[0] = src_depth[0];
+						gp_pixel_depth[0] = src_pixel_depth[0];
 						/* blend gp render */
-						blend_pixel(tmp, gp_rgba);
+						blend_pixel(tmp, gp_pixel_rgba);
 						/* blend object on top */
-						blend_pixel(src_rgba, gp_rgba);
+						blend_pixel(src_pixel_rgba, gp_pixel_rgba);
 					}
 					else {
 						/* blend gp render */
-						blend_pixel(tmp, gp_rgba);
+						blend_pixel(tmp, gp_pixel_rgba);
 					}
 				}
 			}
 			else {
-				copy_v4_v4(gp_rgba, src_rgba);
-				gp_depth[0] = src_depth[0];
+				copy_v4_v4(gp_pixel_rgba, src_pixel_rgba);
+				gp_pixel_depth[0] = src_pixel_depth[0];
 			}
 		}
 
 		/* free memory */
-		MEM_SAFE_FREE(rect_color_src);
-		MEM_SAFE_FREE(rect_depth_src);
+		MEM_SAFE_FREE(src_rect_color_data);
+		MEM_SAFE_FREE(src_rect_depth_data);
 	}
 }
