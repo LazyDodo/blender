@@ -51,6 +51,7 @@
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 #include "BKE_mesh.h"
+#include "BKE_mesh_mapping.h"
 #include "BKE_deform.h"
 
 #include "bmesh.h"
@@ -65,6 +66,9 @@
 
 #include "opensubdiv_capi.h"
 #include "opensubdiv_converter_capi.h"
+
+#include "PIL_time.h"
+#include "PIL_time_utildefines.h"
 
 struct OpenSubdiv_EvaluatorDescr;
 
@@ -234,7 +238,7 @@ static BMVert* split_edge_and_move_nor(BMesh *bm, BMEdge *edge, const float new_
 	BM_ITER_ELEM_INDEX (face, &iter, edge, BM_FACES_OF_EDGE, i){
 		face_arr[i] = face;
 	}
-	printf("Split edge!\n");
+	//printf("Split edge!\n");
 
 	//TODO perhaps use BM_edge_split instead?
     vert = bmesh_kernel_split_edge_make_vert(bm, edge->v1, edge, NULL);
@@ -741,7 +745,7 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 			if( dot_v3v3( old_no, no ) < 0.5f ){
 				//Big change in normal dir, potential fold, abort
 				copy_v3_v3(vert->co, old_loc);
-				printf("Skipped shift vert!\n");
+				//printf("Skipped shift vert!\n");
 				BLI_buffer_free(&old_normals);
 				return false;
 			}
@@ -1354,7 +1358,7 @@ static void search_edge( const int i, BMEdge *e, MeshData *m_d){
 		if(diff_faces) {
 			//The edge spawns over multiple original edges, try to interpolate along this edge.
 			//If it fails, do not insert any new verts here
-			printf("Mult face search\n");
+			//printf("Mult face search\n");
 			mult_face_search( f, f2, v1_uv, v2_uv, e, m_d );
 			return;
 		}
@@ -1408,7 +1412,7 @@ static void contour_insertion( MeshData *m_d ) {
 				Cusp cusp = BLI_buffer_at(m_d->cusp_edges, Cusp, cusp_i);
 				if(cusp.cusp_e == e){
 					//Do not split this edge yet
-					printf("skipped cusp edge\n");
+					//printf("skipped cusp edge\n");
 					cont = true;
 					break;
 				}
@@ -1731,7 +1735,7 @@ static void cusp_detection( MeshData *m_d ){
 						BMEdge *edge;
 						BMVert *cusp_e_vert;
 
-						printf("Found a cusp point!\n");
+						//printf("Found a cusp point!\n");
 						if(b_arr[0] == b_arr[1]){
 							uv_1[0] = u_arr[0];
 							uv_2[0] = u_arr[1];
@@ -1774,7 +1778,7 @@ static void cusp_detection( MeshData *m_d ){
 							int v2_idx = BM_elem_index_get(edge->v2);
 
 							if( isect_line_line_v2_point( uv_1, uv_2, uv_3, cusp_uv, edge_uv ) != ISECT_LINE_LINE_CROSS ){
-								printf("Couldn't find intersection point to edge from cusp!\n");
+								//printf("Couldn't find intersection point to edge from cusp!\n");
 								//TODO this is a big error so quit instead
 								continue;
 							}
@@ -1812,7 +1816,7 @@ static void cusp_detection( MeshData *m_d ){
 									add_shifted_vert( edge_vert , orig_face, edge_uv, m_d );
 									BLI_buffer_append(m_d->cusp_edges, Cusp, cusp);
 
-									printf("Used existing edge for cusp!\n");
+									//printf("Used existing edge for cusp!\n");
 									continue;
 								}
 							}
@@ -1859,7 +1863,7 @@ static void cusp_detection( MeshData *m_d ){
 									cusp_e = NULL;
 								}
 								if(cusp_e == NULL){
-									printf("No cusp edge found!!!\n");
+									//printf("No cusp edge found!!!\n");
 								} else {
 									cusp.cusp_e = cusp_e;
 									BLI_buffer_append(m_d->cusp_edges, Cusp, cusp);
@@ -2085,7 +2089,7 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 
 	if( rot_edge ){
 		BM_edge_rotate(m_d->bm, edge, true, 0);
-		printf("rotated edge!\n");
+		//printf("rotated edge!\n");
 	}
 
 	return true;
@@ -2143,7 +2147,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 
 	if( !found_vert ){
 		//We can't easily interpolate this edge, do not try to insert a new vertex here
-		printf("Couldn't find any suitable interpolation vertex!\n");
+		//printf("Couldn't find any suitable interpolation vertex!\n");
 		return;
 	}
 
@@ -2497,7 +2501,7 @@ static void radial_insertion( MeshData *m_d ){
 					interp_v3_v3v3(edge2_mid, co_arr[CC_idx], co_arr[ mod_i(CC_idx+1, 3) ], 0.5f);
 					mid_v3_v3v3v3(cent, co_arr[0], co_arr[1], co_arr[2]);
 
-					printf("Diff faces\n");
+					//printf("Diff faces\n");
 					mult_radi_search(&faces, cent, edge1_mid, edge2_mid, val_1, val_2, is_B, rad_plane_no, co_arr[CC_idx], f, m_d);
 					BLI_buffer_free(&faces);
 				}
@@ -2569,7 +2573,7 @@ static void radial_flip( MeshData *m_d ){
 			// IE check for mesh border edges etc
 			if( !BM_edge_rotate_check(e) ){
 				//Not possible, bail
-				printf("Couldn't rotate edge!\n");
+				//printf("Couldn't rotate edge!\n");
 				continue;
 			}
 
@@ -2608,7 +2612,7 @@ static void radial_flip( MeshData *m_d ){
 					}
 				}
 
-				printf("Try to dissolve vert!\n");
+				//printf("Try to dissolve vert!\n");
 
 				{
 					int edge_count = BM_vert_edge_count(edge_vert);
@@ -2703,7 +2707,7 @@ static void radial_flip( MeshData *m_d ){
 					//Count down m_d->radi_start_idx because we have fewer verts after the dissolve;
 					flips++;
 					m_d->radi_start_idx -= 1;
-					printf("Dissolved vert!\n");
+					//printf("Dissolved vert!\n");
 				}
 
 			}
@@ -3292,7 +3296,7 @@ static void optimization( MeshData *m_d ){
 					}
 
 					end_radius = end_radius / (float)edge_count;
-					end_radius = end_radius / 2.0f;
+					//end_radius = end_radius / 2.0f;
 
 					{
 						// radius = b * theta
@@ -3371,7 +3375,6 @@ static void optimization( MeshData *m_d ){
 			}
 		}
 	}
-    BM_mesh_elem_index_ensure(m_d->bm, BM_VERT | BM_FACE); // For debugging
 
 	// 4. Edge Splitting
 	{
@@ -3389,7 +3392,7 @@ static void optimization( MeshData *m_d ){
 				continue;
 			}
 
-			printf("Edge wigg face idx: %d\n", BM_elem_index_get(inface->face));
+			//printf("Edge wigg face idx: %d\n", BM_elem_index_get(inface->face));
 
 			BM_ITER_ELEM (edge, &iter_v, inface->face, BM_EDGES_OF_FACE) {
 				BMVert *orig_v = NULL;
@@ -3614,8 +3617,23 @@ static void optimization( MeshData *m_d ){
 /**
  * Opensubdiv stuff
  */
+
+/* Use mesh element mapping structures during conversion.
+ * Uses more memory but is much faster than naive algorithm.
+ */
+#define USE_MESH_ELEMENT_MAPPING
+
 typedef struct ConvBMStorage {
 	BMesh *bm;
+#ifdef USE_MESH_ELEMENT_MAPPING
+	MeshElemMap *vert_edge_map,
+	            *vert_poly_map,
+	            *edge_poly_map;
+	int *vert_edge_mem,
+	    *vert_poly_mem,
+	    *edge_poly_mem;
+#endif
+
 } ConvBMStorage;
 
 static OpenSubdiv_SchemeType conv_bm_get_type(
@@ -3708,6 +3726,7 @@ static int conv_bm_get_num_edge_faces(const OpenSubdiv_Converter *converter,
                                       int edge)
 {
 	ConvBMStorage *storage = converter->user_data;
+#ifndef USE_MESH_ELEMENT_MAPPING
 	BMesh *bm = storage->bm;
 	BMEdge *e = BM_edge_at_index_find(bm, edge);
 
@@ -3719,6 +3738,9 @@ static int conv_bm_get_num_edge_faces(const OpenSubdiv_Converter *converter,
 	}
 
 	return num;
+#else
+	return storage->edge_poly_map[edge].count;
+#endif
 }
 
 static void conv_bm_get_edge_faces(const OpenSubdiv_Converter *converter,
@@ -3726,6 +3748,7 @@ static void conv_bm_get_edge_faces(const OpenSubdiv_Converter *converter,
                                    int *edge_faces)
 {
 	ConvBMStorage *storage = converter->user_data;
+#ifndef USE_MESH_ELEMENT_MAPPING
 	BMesh *bm = storage->bm;
 	BMEdge *e = BM_edge_at_index_find(bm, edge);
 
@@ -3736,7 +3759,11 @@ static void conv_bm_get_edge_faces(const OpenSubdiv_Converter *converter,
 	BM_ITER_ELEM_INDEX (cur_face, &iter_f, e, BM_FACES_OF_EDGE, idx) {
 		edge_faces[idx] = BM_elem_index_get(cur_face);
 	}
-
+#else
+	memcpy(edge_faces,
+	       storage->edge_poly_map[edge].indices,
+	       sizeof(int) * storage->edge_poly_map[edge].count);
+#endif
 }
 
 static float conv_bm_get_edge_sharpness(const OpenSubdiv_Converter *converter,
@@ -3752,6 +3779,7 @@ static int conv_bm_get_num_vert_edges(const OpenSubdiv_Converter *converter,
 {
 	ConvBMStorage *storage = converter->user_data;
 
+#ifndef USE_MESH_ELEMENT_MAPPING
 	BMesh *bm = storage->bm;
 	BMVert *v = BM_vert_at_index_find(bm, vert);
 
@@ -3763,6 +3791,9 @@ static int conv_bm_get_num_vert_edges(const OpenSubdiv_Converter *converter,
 	}
 
 	return num;
+#else
+	return storage->vert_edge_map[vert].count;
+#endif
 }
 
 static void conv_bm_get_vert_edges(const OpenSubdiv_Converter *converter,
@@ -3771,6 +3802,7 @@ static void conv_bm_get_vert_edges(const OpenSubdiv_Converter *converter,
 {
 	ConvBMStorage *storage = converter->user_data;
 
+#ifndef USE_MESH_ELEMENT_MAPPING
 	BMesh *bm = storage->bm;
 	BMVert *v = BM_vert_at_index_find(bm, vert);
 
@@ -3780,6 +3812,11 @@ static void conv_bm_get_vert_edges(const OpenSubdiv_Converter *converter,
 	BM_ITER_ELEM_INDEX (cur_edge, &iter_e, v, BM_EDGES_OF_VERT, idx) {
 		vert_edges[idx] = BM_elem_index_get(cur_edge);
 	}
+#else
+	memcpy(vert_edges,
+	       storage->vert_edge_map[vert].indices,
+	       sizeof(int) * storage->vert_edge_map[vert].count);
+#endif
 }
 
 static int conv_bm_get_num_vert_faces(const OpenSubdiv_Converter *converter,
@@ -3787,6 +3824,7 @@ static int conv_bm_get_num_vert_faces(const OpenSubdiv_Converter *converter,
 {
 	ConvBMStorage *storage = converter->user_data;
 
+#ifndef USE_MESH_ELEMENT_MAPPING
 	BMesh *bm = storage->bm;
 	BMVert *v = BM_vert_at_index_find(bm, vert);
 
@@ -3798,6 +3836,9 @@ static int conv_bm_get_num_vert_faces(const OpenSubdiv_Converter *converter,
 	}
 
 	return num;
+#else
+	return storage->vert_poly_map[vert].count;
+#endif
 }
 
 static void conv_bm_get_vert_faces(const OpenSubdiv_Converter *converter,
@@ -3806,6 +3847,7 @@ static void conv_bm_get_vert_faces(const OpenSubdiv_Converter *converter,
 {
 	ConvBMStorage *storage = converter->user_data;
 
+#ifndef USE_MESH_ELEMENT_MAPPING
 	BMesh *bm = storage->bm;
 	BMVert *v = BM_vert_at_index_find(bm, vert);
 
@@ -3815,7 +3857,11 @@ static void conv_bm_get_vert_faces(const OpenSubdiv_Converter *converter,
 	BM_ITER_ELEM_INDEX (cur_face, &iter_f, v, BM_FACES_OF_VERT, idx) {
 		vert_faces[idx] = BM_elem_index_get(cur_face);
 	}
-
+#else
+	memcpy(vert_faces,
+	       storage->vert_poly_map[vert].indices,
+	       sizeof(int) * storage->vert_poly_map[vert].count);
+#endif
 }
 
 static int conv_bm_get_num_uv_layers(const OpenSubdiv_Converter *converter)
@@ -3826,11 +3872,20 @@ static int conv_bm_get_num_uv_layers(const OpenSubdiv_Converter *converter)
 static void conv_bm_free_user_data(const OpenSubdiv_Converter *converter)
 {
 	ConvBMStorage *user_data = converter->user_data;
+#ifdef USE_MESH_ELEMENT_MAPPING
+	MEM_freeN(user_data->vert_edge_map);
+	MEM_freeN(user_data->vert_edge_mem);
+	MEM_freeN(user_data->vert_poly_map);
+	MEM_freeN(user_data->vert_poly_mem);
+	MEM_freeN(user_data->edge_poly_map);
+	MEM_freeN(user_data->edge_poly_mem);
+#endif
 	MEM_freeN(user_data);
 }
 
 static void converter_setup_from_bmesh(
         BMesh *bm,
+		Mesh *mesh,
         OpenSubdiv_Converter *converter)
 {
 	ConvBMStorage *user_data;
@@ -3864,11 +3919,46 @@ static void converter_setup_from_bmesh(
 
 	converter->free_user_data = conv_bm_free_user_data;
 	converter->user_data = user_data;
+
+	//TODO Mesh data type is only used if element mapping is used perhaps clean this up a bit?
+#ifdef USE_MESH_ELEMENT_MAPPING
+	{
+		const MEdge *medge = mesh->medge;
+		const MLoop *mloop = mesh->mloop;
+		const MPoly *mpoly = mesh->mpoly;
+		const int num_vert = bm->totvert,
+		          num_edge = bm->totedge,
+		          num_loop = bm->totloop,
+		          num_poly = bm->totface;
+		BKE_mesh_vert_edge_map_create(&user_data->vert_edge_map,
+		                              &user_data->vert_edge_mem,
+		                              medge,
+		                              num_vert,
+		                              num_edge);
+
+		BKE_mesh_vert_poly_map_create(&user_data->vert_poly_map,
+		                              &user_data->vert_poly_mem,
+		                              mpoly,
+		                              mloop,
+		                              num_vert,
+		                              num_poly,
+		                              num_loop);
+
+		BKE_mesh_edge_poly_map_create(&user_data->edge_poly_map,
+		                              &user_data->edge_poly_mem,
+		                              medge,
+		                              num_edge,
+		                              mpoly,
+		                              num_poly,
+		                              mloop,
+		                              num_loop);
+	}
+#endif  /* USE_MESH_ELEMENT_MAPPING */
 }
 
 //Opensubdiv end
 
-static struct OpenSubdiv_EvaluatorDescr *create_osd_eval(BMesh *bm){
+static struct OpenSubdiv_EvaluatorDescr *create_osd_eval(BMesh *bm, Mesh *mesh){
 
 	struct OpenSubdiv_EvaluatorDescr *osd_evaluator;
 	int subdiv_levels = 1; //Need at least one subdiv level to compute the limit surface
@@ -3876,7 +3966,7 @@ static struct OpenSubdiv_EvaluatorDescr *create_osd_eval(BMesh *bm){
 	OpenSubdiv_Converter converter;
 	OpenSubdiv_TopologyRefinerDescr *topology_refiner;
 
-	converter_setup_from_bmesh(bm, &converter);
+	converter_setup_from_bmesh(bm, mesh, &converter);
 
 	topology_refiner = openSubdiv_createTopologyRefinerDescr(&converter);
 
@@ -4012,6 +4102,9 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 	         &((struct BMeshCreateParams){0}),
 	         &((struct BMeshFromMeshParams){.calc_face_normal = true,}));
 
+
+	TIMEIT_START(quad_check);
+
 	//TODO use this to check if we need to subdivide the mesh to get a quad mesh.
 	{
 		BMIter iter;
@@ -4039,12 +4132,18 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 
 		return result;
 	}
+	TIMEIT_END(quad_check);
 
+	TIMEIT_START(osd_create);
 
-	osd_eval = create_osd_eval(bm);
+	osd_eval = create_osd_eval(bm, mesh);
+
+	TIMEIT_END(osd_create);
 
 	// (6.1) Initialization
+	TIMEIT_START(vert_limit);
 	verts_to_limit(bm, osd_eval);
+	TIMEIT_END(vert_limit);
 	//Keep a copy of the quad mesh
 	bm_orig = BM_mesh_copy(bm);
 
@@ -4088,21 +4187,29 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
         create_vert_mapping(&mesh_data);
 
 		if (mmd->flag & MOD_MYBMESH_FF_SPLIT) {
+			TIMEIT_START(split_bb_ff);
 			split_BB_FF_edges(&mesh_data);
+			TIMEIT_END(split_bb_ff);
 		}
 		// (6.2) Contour Insertion
 
 		if (mmd->flag & MOD_MYBMESH_CUSP_D) {
 			mesh_data.is_cusp = true;
+			TIMEIT_START(cusp_detect);
 			cusp_detection(&mesh_data);
+			TIMEIT_END(cusp_detect);
 			mesh_data.is_cusp = false;
 		}
 
 		if (mmd->flag & MOD_MYBMESH_FB_SPLIT) {
+			TIMEIT_START(contour_insert);
 			contour_insertion(&mesh_data);
+			TIMEIT_END(contour_insert);
 		}
 		if (mmd->flag & MOD_MYBMESH_CUSP_I) {
+			TIMEIT_START(cusp_insert);
 			cusp_insertion(&mesh_data);
+			TIMEIT_END(cusp_insert);
 		}
 
 		// (6.3) Radialization
@@ -4110,11 +4217,15 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 		mesh_data.radi_start_idx = BM_mesh_elem_count(bm, BM_VERT);
 
 		if (mmd->flag & MOD_MYBMESH_RAD_I){
+			TIMEIT_START(radi_insert);
 			radial_insertion(&mesh_data);
+			TIMEIT_END(radi_insert);
 		}
 
 		if (mmd->flag & MOD_MYBMESH_RAD_FLIP){
+			TIMEIT_START(radi_flip);
 			radial_flip(&mesh_data);
+			TIMEIT_END(radi_flip);
 		}
 
 		//Recalculate normals
@@ -4122,13 +4233,17 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 
 		// (6.4) Optimization
 		if (mmd->flag & MOD_MYBMESH_OPTI){
+			TIMEIT_START(opti);
 			optimization(&mesh_data);
+			TIMEIT_END(opti);
 			//Recalculate normals
 			recalc_face_normals(bm);
 		}
 
+		TIMEIT_START(debug_color);
 		debug_colorize(bm, cam_loc);
 		debug_colorize_radi(&mesh_data);
+		TIMEIT_END(debug_color);
 		BLI_ghash_free(mesh_data.vert_hash, NULL, NULL);
 		BLI_buffer_free(&new_vert_buffer);
 		BLI_buffer_free(&shifted_verts);
