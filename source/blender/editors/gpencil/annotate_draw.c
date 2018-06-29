@@ -1091,13 +1091,6 @@ void ED_gpencil_draw_view3d(wmWindowManager *wm,
 		dflag |= GP_DRAWDATA_NOSTATUS;
 	}
 
-	if ((wm == NULL) || ED_screen_animation_playing(wm)) {
-		/* don't show onionskins during animation playback/scrub (i.e. it obscures the poses)
-		 * OpenGL Renders (i.e. final output), or depth buffer (i.e. not real strokes)
-		 */
-		dflag |= GP_DRAWDATA_NO_ONIONS;
-	}
-
 	/* draw it! */
 	gp_draw_data_all(scene, gpd, offsx, offsy, winx, winy, CFRA, dflag, v3d->spacetype);
 }

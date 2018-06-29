@@ -4129,6 +4129,7 @@ class VIEW3D_PT_quad_view(Panel):
         row.prop(region, "use_box_clip")
 
 
+# TODO: Move to Overlays popover (when in GP Object Draw Mode)
 class VIEW3D_PT_gp_paper(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -4270,6 +4271,7 @@ class VIEW3D_PT_context_properties(Panel):
 
 
 # Grease Pencil multiframe falloff tools
+# FIXME: Name breaks conventions
 class VIEW3D_PT_GreasePencilMultiFrame(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'

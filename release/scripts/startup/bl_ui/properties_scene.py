@@ -31,9 +31,6 @@ from .properties_physics_common import (
         point_cache_ui,
         effector_weights_ui,
         )
-from .properties_grease_pencil_common import (
-        GreasePencilDataPanel
-        )
 
 
 class SCENE_PT_units_length_presets(PresetMenu):
