@@ -68,14 +68,6 @@ static void copyData(const ModifierData *md, ModifierData *target)
 	const HairModifierData *hmd = (HairModifierData *) md;
 	HairModifierData *tfmd = (HairModifierData *) target;
 
-	if (tfmd->hair_system) {
-		BKE_hair_free(tfmd->hair_system);
-	}
-	if (tfmd->draw_settings)
-	{
-		BKE_hair_draw_settings_free(tfmd->draw_settings);
-	}
-
 	modifier_copyData_generic(md, target);
 	
 	if (hmd->hair_system) {
