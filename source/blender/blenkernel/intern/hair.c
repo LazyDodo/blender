@@ -73,13 +73,13 @@ HairSystem* BKE_hair_copy(HairSystem *hsys)
 		nhsys->pattern->follicles = MEM_dupallocN(hsys->pattern->follicles);
 	}
 	
-	if (hsys->guides.curves)
+	if (hsys->curve_data.curves)
 	{
-		nhsys->guides.curves = MEM_dupallocN(hsys->guides.curves);
+		nhsys->curve_data.curves = MEM_dupallocN(hsys->curve_data.curves);
 	}
-	if (hsys->guides.verts)
+	if (hsys->curve_data.verts)
 	{
-		nhsys->guides.verts = MEM_dupallocN(hsys->guides.verts);
+		nhsys->curve_data.verts = MEM_dupallocN(hsys->curve_data.verts);
 	}
 	
 	nhsys->draw_batch_cache = NULL;
@@ -92,13 +92,13 @@ void BKE_hair_free(HairSystem *hsys)
 {
 	BKE_hair_batch_cache_free(hsys);
 	
-	if (hsys->guides.curves)
+	if (hsys->curve_data.curves)
 	{
-		MEM_freeN(hsys->guides.curves);
+		MEM_freeN(hsys->curve_data.curves);
 	}
-	if (hsys->guides.verts)
+	if (hsys->curve_data.verts)
 	{
-		MEM_freeN(hsys->guides.verts);
+		MEM_freeN(hsys->curve_data.verts);
 	}
 	
 	if (hsys->pattern)
@@ -216,24 +216,24 @@ void BKE_hair_generate_follicles_ex(
 
 /* ================================= */
 
-void BKE_hair_guide_curves_begin(HairSystem *hsys, int totcurves)
+void BKE_hair_fiber_curves_begin(HairSystem *hsys, int totcurves)
 {
-	if (totcurves != hsys->guides.totcurves)
+	if (totcurves != hsys->curve_data.totcurves)
 	{
-		hsys->guides.curves = MEM_reallocN(hsys->guides.curves, sizeof(HairGuideCurve) * totcurves);
-		hsys->guides.totcurves = totcurves;
+		hsys->curve_data.curves = MEM_reallocN(hsys->curve_data.curves, sizeof(HairFiberCurve) * totcurves);
+		hsys->curve_data.totcurves = totcurves;
 
 		hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	}
 }
 
-void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mesh_sample, int numverts,
+void BKE_hair_set_fiber_curve(HairSystem *hsys, int index, const MeshSample *mesh_sample, int numverts,
                               float taper_length, float taper_thickness)
 {
-	BLI_assert(index <= hsys->guides.totcurves);
+	BLI_assert(index <= hsys->curve_data.totcurves);
 	
-	HairGuideCurve *curve = &hsys->guides.curves[index];
+	HairFiberCurve *curve = &hsys->curve_data.curves[index];
 	memcpy(&curve->mesh_sample, mesh_sample, sizeof(MeshSample));
 	curve->numverts = numverts;
 	curve->taper_length = taper_length;
@@ -246,83 +246,83 @@ void BKE_hair_set_guide_curve(HairSystem *hsys, int index, const MeshSample *mes
 /* Calculate vertex start indices on all curves based on length.
  * Returns the total number of vertices.
  */
-static int hair_guide_calc_vertstart(HairSystem *hsys)
+static int hair_curve_calc_vertstart(HairSystem *hsys)
 {
 	/* Recalculate vertex count and start offsets in curves */
 	int vertstart = 0;
-	for (int i = 0; i < hsys->guides.totcurves; ++i)
+	for (int i = 0; i < hsys->curve_data.totcurves; ++i)
 	{
-		hsys->guides.curves[i].vertstart = vertstart;
-		vertstart += hsys->guides.curves[i].numverts;
+		hsys->curve_data.curves[i].vertstart = vertstart;
+		vertstart += hsys->curve_data.curves[i].numverts;
 	}
 	
 	return vertstart;
 }
 
-void BKE_hair_guide_curves_end(HairSystem *hsys)
+void BKE_hair_fiber_curves_end(HairSystem *hsys)
 {
-	const int totverts = hair_guide_calc_vertstart(hsys);
+	const int totverts = hair_curve_calc_vertstart(hsys);
 
-	if (totverts != hsys->guides.totverts)
+	if (totverts != hsys->curve_data.totverts)
 	{
-		hsys->guides.verts = MEM_reallocN(hsys->guides.verts, sizeof(HairGuideVertex) * totverts);
-		hsys->guides.totverts = totverts;
+		hsys->curve_data.verts = MEM_reallocN(hsys->curve_data.verts, sizeof(HairFiberVertex) * totverts);
+		hsys->curve_data.totverts = totverts;
 
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	}
 }
 
-void BKE_hair_set_guide_vertex(HairSystem *hsys, int index, int flag, const float co[3])
+void BKE_hair_set_fiber_vertex(HairSystem *hsys, int index, int flag, const float co[3])
 {
-	BLI_assert(index <= hsys->guides.totverts);
+	BLI_assert(index <= hsys->curve_data.totverts);
 	
-	HairGuideVertex *vertex = &hsys->guides.verts[index];
+	HairFiberVertex *vertex = &hsys->curve_data.verts[index];
 	vertex->flag = flag;
 	copy_v3_v3(vertex->co, co);
 	
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
-void BKE_hair_set_hair_guides(HairSystem *hsys, HairGuideData *guides)
+void BKE_hair_set_fiber_curves(HairSystem *hsys, HairCurveData *curves)
 {
-	if (hsys->guides.curves)
+	if (hsys->curve_data.curves)
 	{
-		MEM_freeN(hsys->guides.curves);
+		MEM_freeN(hsys->curve_data.curves);
 	}
-	hsys->guides.curves = MEM_dupallocN(hsys->guides.curves);
-	hsys->guides.totcurves = guides->totcurves;
+	hsys->curve_data.curves = MEM_dupallocN(hsys->curve_data.curves);
+	hsys->curve_data.totcurves = curves->totcurves;
 
-	if (hsys->guides.verts)
+	if (hsys->curve_data.verts)
 	{
-		MEM_freeN(hsys->guides.verts);
+		MEM_freeN(hsys->curve_data.verts);
 	}
-	hsys->guides.verts = MEM_dupallocN(hsys->guides.verts);
-	hsys->guides.totverts = guides->totverts;
+	hsys->curve_data.verts = MEM_dupallocN(hsys->curve_data.verts);
+	hsys->curve_data.totverts = curves->totverts;
 
 #ifndef NDEBUG
-	const int vertcount = hair_guide_calc_vertstart(hsys);
-	BLI_assert(vertcount <= hsys->guides.totverts);
+	const int vertcount = hair_curve_calc_vertstart(hsys);
+	BLI_assert(vertcount <= hsys->curve_data.totverts);
 #endif
 
 	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
-void BKE_hair_clear_guides(HairSystem *hsys)
+void BKE_hair_clear_fiber_curves(HairSystem *hsys)
 {
-	if (hsys->guides.curves)
+	if (hsys->curve_data.curves)
 	{
-		MEM_freeN(hsys->guides.curves);
-		hsys->guides.curves = NULL;
+		MEM_freeN(hsys->curve_data.curves);
+		hsys->curve_data.curves = NULL;
 	}
-	hsys->guides.totcurves = 0;
+	hsys->curve_data.totcurves = 0;
 
-	if (hsys->guides.verts)
+	if (hsys->curve_data.verts)
 	{
-		MEM_freeN(hsys->guides.verts);
-		hsys->guides.verts = NULL;
+		MEM_freeN(hsys->curve_data.verts);
+		hsys->curve_data.verts = NULL;
 	}
-	hsys->guides.totverts = 0;
+	hsys->curve_data.totverts = 0;
 
 	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
@@ -428,8 +428,8 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 		return true;
 	}
 	
-	const int num_strands = hsys->guides.totcurves;
-	/* Need at least one guide curve for binding */
+	const int num_strands = hsys->curve_data.totcurves;
+	/* Need at least one curve for binding */
 	if (num_strands == 0)
 	{
 		HairFollicle *follicle = pattern->follicles;
@@ -449,7 +449,7 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 		for (int i = 0; i < num_strands; ++i)
 		{
 			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval(scalp, &hsys->guides.curves[i].mesh_sample, strandloc[i], nor, tang))
+			if (!BKE_mesh_sample_eval(scalp, &hsys->curve_data.curves[i].mesh_sample, strandloc[i], nor, tang))
 			{
 				zero_v3(strandloc[i]);
 			}
@@ -497,8 +497,8 @@ BLI_INLINE int hair_get_strand_subdiv_numverts(int numstrands, int numverts, int
 }
 
 /* Subdivide a curve */
-static int hair_guide_subdivide(const HairGuideCurve* curve, const HairGuideVertex* verts,
-                                int subdiv, const float rootpos[3], HairGuideVertex *r_verts)
+static int hair_curve_subdivide(const HairFiberCurve* curve, const HairFiberVertex* verts,
+                                int subdiv, const float rootpos[3], HairFiberVertex *r_verts)
 {
 	{
 		/* Move vertex positions from the dense array to their initial configuration for subdivision.
@@ -510,7 +510,7 @@ static int hair_guide_subdivide(const HairGuideCurve* curve, const HairGuideVert
 		float offset[3];
 		sub_v3_v3v3(offset, rootpos, verts[0].co);
 		
-		HairGuideVertex *dst = r_verts;
+		HairFiberVertex *dst = r_verts;
 		for (int i = 0; i < curve->numverts; ++i) {
 			add_v3_v3v3(dst->co, verts[i].co, offset);
 			dst += step;
@@ -547,7 +547,7 @@ static int hair_guide_subdivide(const HairGuideCurve* curve, const HairGuideVert
 }
 
 /* Calculate tangent and normal vector changes from one segment to the next */
-static void hair_guide_transport_frame(const float co1[3], const float co2[3],
+static void hair_curve_transport_frame(const float co1[3], const float co2[3],
                                        float prev_tang[3], float prev_nor[3],
                                        float r_tang[3], float r_nor[3])
 {
@@ -565,7 +565,7 @@ static void hair_guide_transport_frame(const float co1[3], const float co2[3],
 }
 
 /* Calculate tangent and normal vectors for all vertices on a curve */
-static void hair_guide_calc_vectors(const HairGuideVertex* verts, int numverts, float rootmat[3][3],
+static void hair_curve_calc_vectors(const HairFiberVertex* verts, int numverts, float rootmat[3][3],
                                     float (*r_tangents)[3], float (*r_normals)[3])
 {
 	BLI_assert(numverts >= 2);
@@ -575,20 +575,20 @@ static void hair_guide_calc_vectors(const HairGuideVertex* verts, int numverts, 
 	copy_v3_v3(prev_tang, rootmat[2]);
 	copy_v3_v3(prev_nor, rootmat[0]);
 	
-	hair_guide_transport_frame(
+	hair_curve_transport_frame(
 	        verts[0].co, verts[1].co,
 	        prev_tang, prev_nor,
 	        r_tangents[0], r_normals[0]);
 	
 	for (int i = 1; i < numverts - 1; ++i)
 	{
-		hair_guide_transport_frame(
+		hair_curve_transport_frame(
 		        verts[i-1].co, verts[i+1].co,
 		        prev_tang, prev_nor,
 		        r_tangents[i], r_normals[i]);
 	}
 	
-	hair_guide_transport_frame(
+	hair_curve_transport_frame(
 	        verts[numverts-2].co, verts[numverts-1].co,
 	        prev_tang, prev_nor,
 	        r_tangents[numverts-1], r_normals[numverts-1]);
@@ -609,13 +609,13 @@ HairExportCache* BKE_hair_export_cache_new(void)
 static int hair_export_cache_get_required_updates(const HairExportCache *cache)
 {
 	int data = 0;
-	if (!cache->guide_curves)
+	if (!cache->fiber_curves)
 	{
-		data |= HAIR_EXPORT_GUIDE_CURVES;
+		data |= HAIR_EXPORT_FIBER_CURVES;
 	}
-	if (!cache->guide_verts || !cache->guide_normals || !cache->guide_tangents)
+	if (!cache->fiber_verts || !cache->fiber_normals || !cache->fiber_tangents)
 	{
-		data |= HAIR_EXPORT_GUIDE_VERTICES;
+		data |= HAIR_EXPORT_FIBER_VERTICES;
 	}
 	if (!cache->follicles)
 	{
@@ -638,8 +638,8 @@ static int hair_export_cache_get_dependencies(int data)
 {
 	/* Ordering here is important to account for recursive dependencies */
 	
-	if (data & HAIR_EXPORT_GUIDE_CURVES)
-		data |= HAIR_EXPORT_GUIDE_VERTICES | HAIR_EXPORT_FOLLICLE_BINDING;
+	if (data & HAIR_EXPORT_FIBER_CURVES)
+		data |= HAIR_EXPORT_FIBER_VERTICES | HAIR_EXPORT_FOLLICLE_BINDING;
 	
 	if (data & HAIR_EXPORT_FOLLICLE_BINDING)
 		data |= HAIR_EXPORT_FIBER_ROOT_POSITIONS | HAIR_EXPORT_FIBER_VERTEX_COUNTS;
@@ -664,41 +664,41 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 	/* Only update invalidated parts */
 	data &= uncached;
 	
-	if (data & HAIR_EXPORT_GUIDE_CURVES)
+	if (data & HAIR_EXPORT_FIBER_CURVES)
 	{
-		/* Cache subdivided guide curves */
-		const int totguidecurves = cache->totguidecurves = hsys->guides.totcurves;
-		cache->guide_curves = MEM_reallocN_id(cache->guide_curves, sizeof(HairGuideCurve) * totguidecurves, "hair export guide curves");
+		/* Cache subdivided curves */
+		const int totcurves = cache->totcurves = hsys->curve_data.totcurves;
+		cache->fiber_curves = MEM_reallocN_id(cache->fiber_curves, sizeof(HairFiberCurve) * totcurves, "hair export curves");
 		
-		int totguideverts = 0;
-		for (int i = 0; i < totguidecurves; ++i) {
-			const HairGuideCurve *curve_orig = &hsys->guides.curves[i];
-			HairGuideCurve *curve = &cache->guide_curves[i];
+		int totverts = 0;
+		for (int i = 0; i < totcurves; ++i) {
+			const HairFiberCurve *curve_orig = &hsys->curve_data.curves[i];
+			HairFiberCurve *curve = &cache->fiber_curves[i];
 			
-			memcpy(curve, curve_orig, sizeof(HairGuideCurve));
+			memcpy(curve, curve_orig, sizeof(HairFiberCurve));
 			curve->numverts = hair_get_strand_subdiv_length(curve_orig->numverts, subdiv);
-			curve->vertstart = totguideverts;
+			curve->vertstart = totverts;
 			
-			totguideverts  += curve->numverts;
+			totverts  += curve->numverts;
 		}
-		cache->totguideverts = totguideverts;
+		cache->totverts = totverts;
 	}
 	
-	if (data & HAIR_EXPORT_GUIDE_VERTICES)
+	if (data & HAIR_EXPORT_FIBER_VERTICES)
 	{
-		const int totguidecurves = cache->totguidecurves;
-		const int totguideverts = cache->totguideverts;
-		cache->guide_verts = MEM_reallocN_id(cache->guide_verts, sizeof(HairGuideVertex) * totguideverts, "hair export guide verts");
-		cache->guide_tangents = MEM_reallocN_id(cache->guide_tangents, sizeof(float[3]) * totguideverts, "hair export guide tangents");
-		cache->guide_normals = MEM_reallocN_id(cache->guide_normals, sizeof(float[3]) * totguideverts, "hair export guide normals");
+		const int totcurves = cache->totcurves;
+		const int totverts = cache->totverts;
+		cache->fiber_verts = MEM_reallocN_id(cache->fiber_verts, sizeof(HairFiberVertex) * totverts, "hair export verts");
+		cache->fiber_tangents = MEM_reallocN_id(cache->fiber_tangents, sizeof(float[3]) * totverts, "hair export tangents");
+		cache->fiber_normals = MEM_reallocN_id(cache->fiber_normals, sizeof(float[3]) * totverts, "hair export normals");
 		
-		for (int i = 0; i < totguidecurves; ++i) {
-			const HairGuideCurve *curve_orig = &hsys->guides.curves[i];
-			const HairGuideVertex *verts_orig = &hsys->guides.verts[curve_orig->vertstart];
-			const HairGuideCurve *curve = &cache->guide_curves[i];
-			HairGuideVertex *verts = &cache->guide_verts[curve->vertstart];
-			float (*tangents)[3] = &cache->guide_tangents[curve->vertstart];
-			float (*normals)[3] = &cache->guide_normals[curve->vertstart];
+		for (int i = 0; i < totcurves; ++i) {
+			const HairFiberCurve *curve_orig = &hsys->curve_data.curves[i];
+			const HairFiberVertex *verts_orig = &hsys->curve_data.verts[curve_orig->vertstart];
+			const HairFiberCurve *curve = &cache->fiber_curves[i];
+			HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
+			float (*tangents)[3] = &cache->fiber_tangents[curve->vertstart];
+			float (*normals)[3] = &cache->fiber_normals[curve->vertstart];
 			
 			/* Root matrix for offsetting to the scalp surface and for initial normal direction */
 			float rootpos[3];
@@ -706,9 +706,9 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
 			cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
 			
-			hair_guide_subdivide(curve_orig, verts_orig, subdiv, rootpos, verts);
+			hair_curve_subdivide(curve_orig, verts_orig, subdiv, rootpos, verts);
 			
-			hair_guide_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
+			hair_curve_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
 		}
 	}
 
@@ -722,8 +722,8 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 
 		if (data & HAIR_EXPORT_FIBER_VERTEX_COUNTS)
 		{
-			/* Calculate the length of each fiber from the weighted average of its guide strands */
-			const int totguidecurves = cache->totguidecurves;
+			/* Calculate the length of each fiber from the weighted average of its parents */
+			const int totcurves = cache->totcurves;
 			const int totfibercurves = cache->totfibercurves;
 			
 			cache->fiber_numverts = MEM_reallocN_id(cache->fiber_numverts, sizeof(int) * totfibercurves, "fiber numverts");
@@ -739,9 +739,9 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 					if (si == HAIR_STRAND_INDEX_NONE || sw == 0.0f) {
 						break;
 					}
-					BLI_assert(si < totguidecurves);
+					BLI_assert(si < totcurves);
 					
-					fiblen += (float)cache->guide_curves[si].numverts * sw;
+					fiblen += (float)cache->fiber_curves[si].numverts * sw;
 				}
 				
 				/* Use rounded number of segments */
@@ -792,21 +792,21 @@ void BKE_hair_export_cache_free(HairExportCache *cache)
 	{
 		MEM_freeN(cache->fiber_numverts);
 	}
-	if (cache->guide_curves)
+	if (cache->fiber_curves)
 	{
-		MEM_freeN(cache->guide_curves);
+		MEM_freeN(cache->fiber_curves);
 	}
-	if (cache->guide_verts)
+	if (cache->fiber_verts)
 	{
-		MEM_freeN(cache->guide_verts);
+		MEM_freeN(cache->fiber_verts);
 	}
-	if (cache->guide_tangents)
+	if (cache->fiber_tangents)
 	{
-		MEM_freeN(cache->guide_tangents);
+		MEM_freeN(cache->fiber_tangents);
 	}
-	if (cache->guide_normals)
+	if (cache->fiber_normals)
 	{
-		MEM_freeN(cache->guide_normals);
+		MEM_freeN(cache->fiber_normals);
 	}
 	if (cache->fiber_root_position)
 	{
@@ -833,30 +833,30 @@ void BKE_hair_export_cache_invalidate(HairExportCache *cache, int invalidate)
 	/* Include dependencies */
 	int data = hair_export_cache_get_dependencies(invalidate);
 
-	if (data & HAIR_EXPORT_GUIDE_CURVES)
+	if (data & HAIR_EXPORT_FIBER_CURVES)
 	{
-		if (cache->guide_curves)
+		if (cache->fiber_curves)
 		{
-			MEM_freeN(cache->guide_curves);
-			cache->guide_curves = 0;
+			MEM_freeN(cache->fiber_curves);
+			cache->fiber_curves = 0;
 		}
 	}
-	if (data & HAIR_EXPORT_GUIDE_VERTICES)
+	if (data & HAIR_EXPORT_FIBER_VERTICES)
 	{
-		if (cache->guide_verts)
+		if (cache->fiber_verts)
 		{
-			MEM_freeN(cache->guide_verts);
-			cache->guide_verts = NULL;
+			MEM_freeN(cache->fiber_verts);
+			cache->fiber_verts = NULL;
 		}
-		if (cache->guide_tangents)
+		if (cache->fiber_tangents)
 		{
-			MEM_freeN(cache->guide_tangents);
-			cache->guide_tangents = NULL;
+			MEM_freeN(cache->fiber_tangents);
+			cache->fiber_tangents = NULL;
 		}
-		if (cache->guide_normals)
+		if (cache->fiber_normals)
 		{
-			MEM_freeN(cache->guide_normals);
-			cache->guide_tangents = NULL;
+			MEM_freeN(cache->fiber_normals);
+			cache->fiber_tangents = NULL;
 		}
 	}
 	if (data & HAIR_EXPORT_FOLLICLE_BINDING)

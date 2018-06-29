@@ -228,7 +228,7 @@ data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_hair_lib.glsl SRC)
-data_to_c_simple(modes/shaders/common_hair_guides_lib.glsl SRC)
+data_to_c_simple(modes/shaders/common_hair_fibers_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_hair_refine_vert.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)

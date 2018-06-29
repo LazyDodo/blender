@@ -241,7 +241,6 @@ typedef struct OBJECT_PrivateData {
 
 	/* Hair Systems */
 	DRWShadingGroup *hair_verts;
-	DRWShadingGroup *hair_edges;
 
 	/* Outlines id offset */
 	int id_ofs_active;
@@ -1322,10 +1321,6 @@ static void OBJECT_cache_init(void *vedata)
 		DRW_shgroup_uniform_vec4(stl->g_data->hair_verts, "color", ts.colorVertex, 1);
 		DRW_shgroup_uniform_float(stl->g_data->hair_verts, "size", &ts.sizeVertex, 1);
 		DRW_shgroup_state_enable(stl->g_data->hair_verts, DRW_STATE_POINT);
-
-		GPUShader *sh_edges = GPU_shader_get_builtin_shader(GPU_SHADER_3D_UNIFORM_COLOR);
-		stl->g_data->hair_edges = DRW_shgroup_create(sh_edges, psl->hair);
-		DRW_shgroup_uniform_vec4(stl->g_data->hair_edges, "color", ts.colorWire, 1);
 	}
 
 	{
@@ -2284,7 +2279,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 						continue;
 					}
 					
-					DRW_shgroup_hair(ob, hmd->hair_system, hmd->draw_settings, scalp, stl->g_data->hair_verts, stl->g_data->hair_edges);
+					DRW_shgroup_hair(ob, hmd->hair_system, hmd->draw_settings, scalp, stl->g_data->hair_verts);
 				}
 			}
 		}

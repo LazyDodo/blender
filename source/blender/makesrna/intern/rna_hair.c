@@ -161,9 +161,9 @@ static void rna_def_hair_draw_settings(BlenderRNA *brna)
 	    {0, NULL, 0, NULL, NULL}
 	};
 	
-	static const EnumPropertyItem guide_mode_items[] = {
-	    {HAIR_DRAW_GUIDE_NONE, "NONE", 0, "None", ""},
-	    {HAIR_DRAW_GUIDE_CURVES, "CURVES", 0, "Curves", "Draw guide curves"},
+	static const EnumPropertyItem fiber_mode_items[] = {
+	    {HAIR_DRAW_FIBER_NONE, "NONE", 0, "None", ""},
+	    {HAIR_DRAW_FIBER_CURVES, "CURVES", 0, "Curves", "Draw fiber curves"},
 	    {0, NULL, 0, NULL, NULL}
 	};
 	
@@ -176,9 +176,9 @@ static void rna_def_hair_draw_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Follicle Mode", "Draw follicles on the scalp surface");
 	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
 	
-	prop = RNA_def_property(srna, "guide_mode", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, guide_mode_items);
-	RNA_def_property_ui_text(prop, "Guide Mode", "Draw guide curves");
+	prop = RNA_def_property(srna, "fiber_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, fiber_mode_items);
+	RNA_def_property_ui_text(prop, "Fiber Mode", "Draw fiber curves");
 	RNA_def_property_update(prop, 0, "rna_HairDrawSettings_update");
 	
 	/* hair shape */

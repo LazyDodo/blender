@@ -1642,16 +1642,16 @@ enum {
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
 
 /* Hair modifier */
-typedef struct HairModifierGuideCurve {
-	struct HairModifierGuideCurve *next, *prev;
+typedef struct HairModifierFiberCurve {
+	struct HairModifierFiberCurve *next, *prev;
 	
 	/* Index for the mesh sample buffer */
 	int mesh_sample_index;
 	/* Number of vertices in the curve */
 	int numverts;
 	/* Vertex array */
-	struct HairGuideVertex *verts;
-} HairModifierGuideCurve;
+	struct HairFiberVertex *verts;
+} HairModifierFiberCurve;
 
 typedef struct HairModifierData {
 	ModifierData modifier;
@@ -1666,7 +1666,7 @@ typedef struct HairModifierData {
 	int follicle_seed;
 	int follicle_count;
 
-	ListBase guide_curves;
+	ListBase fiber_curves;
 } HairModifierData;
 
 #endif  /* __DNA_MODIFIER_TYPES_H__ */

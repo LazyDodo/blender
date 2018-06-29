@@ -49,7 +49,7 @@ HairDrawSettings* BKE_hair_draw_settings_new(void)
 	HairDrawSettings *draw_settings = MEM_callocN(sizeof(HairDrawSettings), "hair draw settings");
 	
 	draw_settings->follicle_mode = HAIR_DRAW_FOLLICLE_POINTS;
-	draw_settings->guide_mode = HAIR_DRAW_GUIDE_CURVES;
+	draw_settings->fiber_mode = HAIR_DRAW_FIBER_CURVES;
 	draw_settings->shape_flag = HAIR_DRAW_CLOSE_TIP;
 	draw_settings->shape = 0.0f;
 	draw_settings->root_radius = 1.0f;
@@ -103,11 +103,11 @@ static void hair_get_strand_buffer(
         HairStrandMapTextureBuffer *strand_map_buffer,
         HairStrandVertexTextureBuffer *strand_vertex_buffer)
 {
-	for (int i = 0; i < cache->totguidecurves; ++i) {
-		const HairGuideCurve *curve = &cache->guide_curves[i];
-		const HairGuideVertex *verts = &cache->guide_verts[curve->vertstart];
-		const float (*tangents)[3] = &cache->guide_tangents[curve->vertstart];
-		const float (*normals)[3] = &cache->guide_normals[curve->vertstart];
+	for (int i = 0; i < cache->totcurves; ++i) {
+		const HairFiberCurve *curve = &cache->fiber_curves[i];
+		const HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
+		const float (*tangents)[3] = &cache->fiber_tangents[curve->vertstart];
+		const float (*normals)[3] = &cache->fiber_normals[curve->vertstart];
 		HairStrandMapTextureBuffer *smap = &strand_map_buffer[i];
 		HairStrandVertexTextureBuffer *svert = &strand_vertex_buffer[curve->vertstart];
 		
@@ -157,8 +157,8 @@ void BKE_hair_get_texture_buffer_size(
         int *r_fiber_start)
 {
 	*r_strand_map_start = 0;
-	*r_strand_vertex_start = *r_strand_map_start + cache->totguidecurves * sizeof(HairStrandMapTextureBuffer);
-	*r_fiber_start = *r_strand_vertex_start + cache->totguideverts * sizeof(HairStrandVertexTextureBuffer);
+	*r_strand_vertex_start = *r_strand_map_start + cache->totcurves * sizeof(HairStrandMapTextureBuffer);
+	*r_fiber_start = *r_strand_vertex_start + cache->totverts * sizeof(HairStrandVertexTextureBuffer);
 	*r_size = *r_fiber_start + cache->totfibercurves * sizeof(HairFiberTextureBuffer);
 }
 
@@ -202,13 +202,13 @@ void BKE_hair_batch_cache_free(HairSystem* hsys)
 /* === Fiber Curve Interpolation === */
 
 /* NOTE: Keep this code in sync with the GLSL version!
- * see common_hair_guides_lib.glsl
+ * see common_hair_fibers_lib.glsl
  */
 
 static void interpolate_parent_curve(
         float curve_param,
         int numverts,
-        const HairGuideVertex *verts,
+        const HairFiberVertex *verts,
         const float (*tangents)[3],
         const float (*normals)[3],
         float r_co[3],
@@ -244,7 +244,7 @@ static void interpolate_parent_curve(
 static void hair_fiber_interpolate_vertex(
         float curve_param,
         int parent_numverts,
-        const HairGuideVertex *parent_verts,
+        const HairFiberVertex *parent_verts,
         const float (*parent_tangents)[3],
         const float (*parent_normals)[3],
         float parent_weight,
@@ -305,11 +305,11 @@ static void hair_fiber_interpolate(
 		}
 		
 		const float parent_weight = cache->follicles[fiber_index].parent_weight[k];
-		const int parent_numverts = cache->guide_curves[parent_index].numverts;
-		const int parent_vertstart = cache->guide_curves[parent_index].vertstart;
-		const HairGuideVertex *parent_verts = &cache->guide_verts[parent_vertstart];
-		const float (*parent_tangents)[3] = &cache->guide_tangents[parent_vertstart];
-		const float (*parent_normals)[3] = &cache->guide_normals[parent_vertstart];
+		const int parent_numverts = cache->fiber_curves[parent_index].numverts;
+		const int parent_vertstart = cache->fiber_curves[parent_index].vertstart;
+		const HairFiberVertex *parent_verts = &cache->fiber_verts[parent_vertstart];
+		const float (*parent_tangents)[3] = &cache->fiber_tangents[parent_vertstart];
+		const float (*parent_normals)[3] = &cache->fiber_normals[parent_vertstart];
 		
 		float *vert = r_vertco;
 		float curve_param = 0.0f;

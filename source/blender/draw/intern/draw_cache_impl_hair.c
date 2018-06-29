@@ -80,10 +80,6 @@ typedef struct HairBatchCache {
 	Gwn_IndexBuf *follicle_edges;
 	Gwn_Batch *follicles;
 	
-	Gwn_VertBuf *guide_curve_verts;
-	Gwn_IndexBuf *guide_curve_edges;
-	Gwn_Batch *guide_curves;
-	
 	/* settings to determine if cache is invalid */
 	bool is_dirty;
 } HairBatchCache;
@@ -165,10 +161,6 @@ static void hair_batch_cache_clear(HairSystem *hsys)
 		GWN_BATCH_DISCARD_SAFE(cache->follicles);
 		GWN_VERTBUF_DISCARD_SAFE(cache->follicle_verts);
 		GWN_INDEXBUF_DISCARD_SAFE(cache->follicle_edges);
-		
-		GWN_BATCH_DISCARD_SAFE(cache->guide_curves);
-		GWN_VERTBUF_DISCARD_SAFE(cache->guide_curve_verts);
-		GWN_INDEXBUF_DISCARD_SAFE(cache->guide_curve_edges);
 		
 		{
 			DRWHairFiberTextureBuffer *buffer = &cache->texbuffer;
@@ -366,68 +358,4 @@ Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys, const Hair
 	}
 
 	return cache->follicles;
-}
-
-static void hair_batch_cache_ensure_guide_curves(
-        const HairExportCache *hair_export,
-        eHairDrawGuideMode mode,
-        HairBatchCache *cache)
-{
-	GWN_VERTBUF_DISCARD_SAFE(cache->guide_curve_verts);
-	GWN_INDEXBUF_DISCARD_SAFE(cache->guide_curve_edges);
-	
-	const unsigned int point_count = hair_export->totguideverts;
-	/* One segment for each point, plus one for primitive restart index */
-	const unsigned int elems_count = hair_export->totguideverts + hair_export->totguidecurves;
-	
-	static Gwn_VertFormat format = { 0 };
-	static unsigned pos_id;
-	
-	/* initialize vertex format */
-	if (format.attrib_ct == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	}
-	
-	cache->guide_curve_verts = GWN_vertbuf_create_with_format(&format);
-	
-	GWN_vertbuf_data_alloc(cache->guide_curve_verts, point_count);
-	
-	Gwn_IndexBufBuilder elb;
-	GWN_indexbuf_init_ex(&elb,
-	                     GWN_PRIM_LINE_STRIP,
-	                     elems_count, point_count,
-	                     true);
-
-	unsigned int idx = 0;
-	const HairGuideCurve *curve = hair_export->guide_curves;
-	for (int i = 0; i < hair_export->totguidecurves; ++i, ++curve) {
-		const HairGuideVertex *vert = &hair_export->guide_verts[curve->vertstart];
-		for (int j = 0; j < curve->numverts; ++j, ++vert)
-		{
-			GWN_vertbuf_attr_set(cache->guide_curve_verts, pos_id, idx, vert->co);
-			
-			GWN_indexbuf_add_generic_vert(&elb, idx);
-			
-			++idx;
-		}
-		
-		GWN_indexbuf_add_primitive_restart(&elb);
-	}
-	
-	cache->guide_curve_edges = GWN_indexbuf_build(&elb);
-
-	UNUSED_VARS(mode);
-}
-
-Gwn_Batch *DRW_hair_batch_cache_get_guide_curve_edges(HairSystem *hsys, const HairExportCache *hair_export)
-{
-	HairBatchCache *cache = hair_batch_cache_get(hsys);
-
-	if (cache->guide_curves == NULL) {
-		hair_batch_cache_ensure_guide_curves(hair_export, HAIR_DRAW_GUIDE_CURVES, cache);
-		
-		cache->guide_curves = GWN_batch_create(GWN_PRIM_LINE_STRIP, cache->guide_curve_verts, cache->guide_curve_edges);
-	}
-
-	return cache->guide_curves;
 }

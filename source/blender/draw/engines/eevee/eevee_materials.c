@@ -91,7 +91,7 @@ extern char datatoc_bsdf_common_lib_glsl[];
 extern char datatoc_bsdf_sampling_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
 extern char datatoc_common_hair_lib_glsl[];
-extern char datatoc_common_hair_guides_lib_glsl[];
+extern char datatoc_common_hair_fibers_lib_glsl[];
 extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_irradiance_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
@@ -588,7 +588,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		e_data.vert_shader_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_common_hair_guides_lib_glsl,
+		        datatoc_common_hair_fibers_lib_glsl,
 		        datatoc_lit_surface_vert_glsl);
 
 		e_data.default_background = DRW_shader_create(
@@ -610,7 +610,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		char *hair_fiber_vert_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_common_hair_guides_lib_glsl,
+		        datatoc_common_hair_fibers_lib_glsl,
 		        datatoc_prepass_vert_glsl);
 
 		e_data.default_prepass_hair_fiber_sh = DRW_shader_create(
@@ -1541,6 +1541,11 @@ static void material_hair(
 	Scene *scene = draw_ctx->scene;
 	float mat[4][4];
 	copy_m4_m4(mat, ob->obmat);
+	
+	if (draw_set->fiber_mode != HAIR_DRAW_FIBER_CURVES)
+	{
+		return;
+	}
 	
 	if (ma == NULL) {
 		ma = &defmaterial;

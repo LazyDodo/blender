@@ -85,7 +85,7 @@ static struct {
 
 /* Shaders */
 extern char datatoc_common_hair_lib_glsl[];
-extern char datatoc_common_hair_guides_lib_glsl[];
+extern char datatoc_common_hair_fibers_lib_glsl[];
 
 extern char datatoc_workbench_prepass_vert_glsl[];
 extern char datatoc_workbench_prepass_frag_glsl[];
@@ -150,7 +150,7 @@ static char *workbench_build_prepass_vert(void)
 	DynStr *ds = BLI_dynstr_new();
 
 	BLI_dynstr_append(ds, datatoc_common_hair_lib_glsl);
-	BLI_dynstr_append(ds, datatoc_common_hair_guides_lib_glsl);
+	BLI_dynstr_append(ds, datatoc_common_hair_fibers_lib_glsl);
 	BLI_dynstr_append(ds, datatoc_workbench_prepass_vert_glsl);
 
 	str = BLI_dynstr_get_cstring(ds);

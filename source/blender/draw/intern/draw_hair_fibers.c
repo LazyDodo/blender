@@ -117,11 +117,10 @@ void DRW_shgroup_hair(
         HairSystem *hsys,
         HairDrawSettings *draw_settings,
         struct Mesh *scalp,
-        DRWShadingGroup *shgrp_verts,
-        DRWShadingGroup *shgrp_edges)
+        DRWShadingGroup *shgrp_verts)
 {
 	HairExportCache *hair_export = BKE_hair_export_cache_new();
-	BKE_hair_export_cache_update(hair_export, hsys, 0, scalp, HAIR_EXPORT_GUIDE_CURVES | HAIR_EXPORT_GUIDE_VERTICES);
+	BKE_hair_export_cache_update(hair_export, hsys, 0, scalp, HAIR_EXPORT_FIBER_CURVES | HAIR_EXPORT_FIBER_VERTICES);
 	
 	switch (draw_settings->follicle_mode)
 	{
@@ -131,18 +130,6 @@ void DRW_shgroup_hair(
 		{
 			struct Gwn_Batch *geom = DRW_cache_hair_get_follicle_points(hsys, hair_export);
 			DRW_shgroup_call_add(shgrp_verts, geom, ob->obmat);
-			break;
-		}
-	}
-
-	switch (draw_settings->guide_mode)
-	{
-		case HAIR_DRAW_GUIDE_NONE:
-			break;
-		case HAIR_DRAW_GUIDE_CURVES:
-		{
-			struct Gwn_Batch *geom = DRW_cache_hair_get_guide_curve_edges(hsys, hair_export);
-			DRW_shgroup_call_add(shgrp_edges, geom, ob->obmat);
 			break;
 		}
 	}

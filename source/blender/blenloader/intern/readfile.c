@@ -5039,8 +5039,8 @@ static void direct_link_hair(FileData *fd, HairSystem* hsys)
 		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
 	}
 	
-	hsys->guides.curves = newdataadr(fd, hsys->guides.curves);
-	hsys->guides.verts = newdataadr(fd, hsys->guides.verts);
+	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);
+	hsys->curve_data.verts = newdataadr(fd, hsys->curve_data.verts);
 	
 	hsys->draw_batch_cache = NULL;
 	hsys->draw_texture_cache = NULL;
@@ -5375,7 +5375,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 			
 			hmd->draw_settings = newdataadr(fd, hmd->draw_settings);
 
-			BLI_listbase_clear(&hmd->guide_curves); // runtime
+			BLI_listbase_clear(&hmd->fiber_curves); // runtime
 		}
 	}
 }

@@ -193,7 +193,6 @@ struct Gwn_Batch *DRW_cache_particles_get_prim(int type);
 struct Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export,
                                             const struct DRWHairFiberTextureBuffer **r_buffer);
 struct Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, const struct HairExportCache *hair_export);
-struct Gwn_Batch *DRW_cache_hair_get_guide_curve_edges(struct HairSystem *hsys, const struct HairExportCache *hair_export);
 
 /* Metaball */
 struct Gwn_Batch *DRW_cache_mball_surface_get(struct Object *ob);

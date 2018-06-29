@@ -3129,11 +3129,6 @@ Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, const str
 	return DRW_hair_batch_cache_get_follicle_points(hsys, hair_export);
 }
 
-Gwn_Batch *DRW_cache_hair_get_guide_curve_edges(struct HairSystem *hsys, const struct HairExportCache *hair_export)
-{
-	return DRW_hair_batch_cache_get_guide_curve_edges(hsys, hair_export);
-}
-
 /* 3D cursor */
 Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines)
 {

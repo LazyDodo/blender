@@ -90,14 +90,14 @@ static void freeData(ModifierData *md)
 	{
 		BKE_hair_draw_settings_free(hmd->draw_settings);
 	}
-	for (HairModifierGuideCurve *curve = hmd->guide_curves.first; curve; curve = curve->next)
+	for (HairModifierFiberCurve *curve = hmd->fiber_curves.first; curve; curve = curve->next)
 	{
 		if (curve->verts)
 		{
 			MEM_freeN(curve->verts);
 		}
 	}
-	BLI_freelistN(&hmd->guide_curves);
+	BLI_freelistN(&hmd->fiber_curves);
 }
 
 static struct Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,

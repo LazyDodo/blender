@@ -219,7 +219,6 @@ void DRW_shgroup_hair(
         struct HairSystem *hsys,
         struct HairDrawSettings *draw_settings,
         struct Mesh *scalp,
-        struct DRWShadingGroup *shgrp_verts,
-        struct DRWShadingGroup *shgrp_edges);
+        struct DRWShadingGroup *shgrp_verts);
 
 #endif /* __DRAW_COMMON_H__ */
