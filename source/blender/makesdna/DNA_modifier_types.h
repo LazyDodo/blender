@@ -90,7 +90,7 @@ typedef enum ModifierType {
 	eModifierType_CorrectiveSmooth  = 51,
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
-	eModifierType_Fur               = 54,
+	eModifierType_Hair              = 54,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -1641,9 +1641,9 @@ enum {
 #define MOD_MESHSEQ_READ_ALL \
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
 
-/* Fur modifier */
-typedef struct FurModifierGuideCurve {
-	struct FurModifierGuideCurve *next, *prev;
+/* Hair modifier */
+typedef struct HairModifierGuideCurve {
+	struct HairModifierGuideCurve *next, *prev;
 	
 	/* Index for the mesh sample buffer */
 	int mesh_sample_index;
@@ -1651,9 +1651,9 @@ typedef struct FurModifierGuideCurve {
 	int numverts;
 	/* Vertex array */
 	struct HairGuideVertex *verts;
-} FurModifierGuideCurve;
+} HairModifierGuideCurve;
 
-typedef struct FurModifierData {
+typedef struct HairModifierData {
 	ModifierData modifier;
 	
 	int flag;
@@ -1667,6 +1667,6 @@ typedef struct FurModifierData {
 	int follicle_count;
 
 	ListBase guide_curves;
-} FurModifierData;
+} HairModifierData;
 
 #endif  /* __DNA_MODIFIER_TYPES_H__ */

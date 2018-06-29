@@ -2429,22 +2429,22 @@ void OBJECT_OT_surfacedeform_bind(wmOperatorType *ot)
 	edit_modifier_properties(ot);
 }
 
-/************************ Fur follicle generate operator *********************/
+/************************ Hair follicle generate operator *********************/
 
-static int fur_generate_follicles_poll(bContext *C)
+static int hair_generate_follicles_poll(bContext *C)
 {
-	return edit_modifier_poll_generic(C, &RNA_FurModifier, 0);
+	return edit_modifier_poll_generic(C, &RNA_HairModifier, 0);
 }
 
-static int fur_generate_follicles_exec(bContext *C, wmOperator *op)
+static int hair_generate_follicles_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_active_context(C);
-	FurModifierData *fmd = (FurModifierData *)edit_modifier_property_get(op, ob, eModifierType_Fur);
+	HairModifierData *hmd = (HairModifierData *)edit_modifier_property_get(op, ob, eModifierType_Hair);
 
-	if (!fmd)
+	if (!hmd)
 		return OPERATOR_CANCELLED;
 
-	BLI_assert(fmd->hair_system != NULL);
+	BLI_assert(hmd->hair_system != NULL);
 	
 	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	
@@ -2452,12 +2452,12 @@ static int fur_generate_follicles_exec(bContext *C, wmOperator *op)
 	Mesh *scalp = (Mesh *)DEG_get_evaluated_id(depsgraph, ob->data);
 	
 	BKE_hair_generate_follicles(
-	            fmd->hair_system,
+	            hmd->hair_system,
 	            scalp,
-	            (unsigned int)fmd->follicle_seed,
-	            fmd->follicle_count);
+	            (unsigned int)hmd->follicle_seed,
+	            hmd->follicle_count);
 	
-	BKE_hair_bind_follicles(fmd->hair_system, scalp);
+	BKE_hair_bind_follicles(hmd->hair_system, scalp);
 	
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
@@ -2465,25 +2465,25 @@ static int fur_generate_follicles_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static int fur_generate_follicles_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+static int hair_generate_follicles_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	if (edit_modifier_invoke_properties(C, op))
-		return fur_generate_follicles_exec(C, op);
+		return hair_generate_follicles_exec(C, op);
 	else
 		return OPERATOR_CANCELLED;
 }
 
-void OBJECT_OT_fur_generate_follicles(wmOperatorType *ot)
+void OBJECT_OT_hair_generate_follicles(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Fur Follicles Generate";
-	ot->description = "Generate hair follicles for a fur modifier";
-	ot->idname = "OBJECT_OT_fur_generate_follicles";
+	ot->name = "Hair Follicles Generate";
+	ot->description = "Generate hair follicles for a hair modifier";
+	ot->idname = "OBJECT_OT_hair_generate_follicles";
 
 	/* api callbacks */
-	ot->poll = fur_generate_follicles_poll;
-	ot->invoke = fur_generate_follicles_invoke;
-	ot->exec = fur_generate_follicles_exec;
+	ot->poll = hair_generate_follicles_poll;
+	ot->invoke = hair_generate_follicles_invoke;
+	ot->exec = hair_generate_follicles_exec;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
