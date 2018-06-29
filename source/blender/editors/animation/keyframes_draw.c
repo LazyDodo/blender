@@ -1060,4 +1060,3 @@ void mask_to_keylist(bDopeSheet *UNUSED(ads), MaskLayer *masklay, DLRBT_Tree *ke
 		}
 	}
 }
-

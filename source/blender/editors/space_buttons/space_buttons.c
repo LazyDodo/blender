@@ -659,4 +659,3 @@ void ED_spacetype_buttons(void)
 
 	BKE_spacetype_register(st);
 }
-

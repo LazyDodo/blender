@@ -127,4 +127,3 @@ void BKE_brush_scale_size(
 void BKE_brush_debug_print_state(struct Brush *br);
 
 #endif
-

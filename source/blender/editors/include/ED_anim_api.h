@@ -729,4 +729,3 @@ void ED_drivers_editor_init(struct bContext *C, struct ScrArea *sa);
 /* ************************************************ */
 
 #endif /* __ED_ANIM_API_H__ */
-
