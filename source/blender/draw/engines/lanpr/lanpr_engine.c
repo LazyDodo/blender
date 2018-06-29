@@ -2,6 +2,7 @@
 #include "DRW_render.h"
 #include "BLI_listbase.h"
 #include "BLI_linklist.h"
+#include "BLI_math_matrix.h"
 #include "lanpr_all.h"
 #include "DRW_render.h"
 #include "BKE_object.h"
@@ -171,6 +172,16 @@ static void lanpr_engine_init(void *ved){
 				NULL, NULL);
 	}
 
+	GPU_framebuffer_ensure_config(&fbl->software_ms, {
+		GPU_ATTACHMENT_TEXTURE(txl->depth),
+		GPU_ATTACHMENT_TEXTURE(txl->color),
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE
+	});
+
 }
 static void lanpr_engine_free(void){
 	void *ved = OneTime.ved;
@@ -323,7 +334,7 @@ static void lanpr_cache_init(void *vedata){
 			BLI_mempool_clear(pd->mp_batch_list);
 		}
 	}elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
-		psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR);
+		psl->software_pass = DRW_pass_create("Software Render Preview",  DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
 		LANPR_LineLayer* ll;
 		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
@@ -403,7 +414,7 @@ static void lanpr_cache_finish(void *vedata){
 	}
 }
 
-static void lanpr_draw_scene(void *vedata) {
+static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
@@ -413,14 +424,9 @@ static void lanpr_draw_scene(void *vedata) {
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
 
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
-
 	GPU_framebuffer_bind(fbl->passes);
 	GPUFrameBufferBits clear_bits = GPU_DEPTH_BIT | GPU_COLOR_BIT;
 	GPU_framebuffer_clear(fbl->passes, clear_bits, clear_col, clear_depth, clear_stencil);
-
-	DRW_draw_pass(psl->color_pass);
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
@@ -436,15 +442,26 @@ static void lanpr_draw_scene(void *vedata) {
 	}
 
 	if (lanpr->master_mode == LANPR_MASTER_MODE_DPIX) {
-		lanpr_dpix_draw_scene(txl, fbl, psl, stl->g_data, lanpr);
+		DRW_draw_pass(psl->color_pass);
+		lanpr_dpix_draw_scene(txl, fbl, psl, stl->g_data, lanpr, dfb);
 	}
 	elif(lanpr->master_mode == LANPR_MASTER_MODE_SNAKE) {
-		lanpr_snake_draw_scene(txl, fbl, psl, stl->g_data, lanpr);
+		DRW_draw_pass(psl->color_pass);
+		lanpr_snake_draw_scene(txl, fbl, psl, stl->g_data, lanpr, dfb);
 	}
 	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(dfb);
+
+		DRW_draw_pass(psl->color_pass);
+
 		DRW_draw_pass(psl->software_pass);
+
 	}
+}
+
+static void lanpr_draw_scene(void *vedata) {
+	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
+	lanpr_draw_scene_exec(vedata, dfbl->default_fb);
 }
 
 void LANPR_render_cache(
@@ -471,18 +488,18 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 
-	/* TODO 32 bit depth */
-	DRW_texture_ensure_fullscreen_2D(&dtxl->depth, GPU_DEPTH_COMPONENT32F, 0);
-	DRW_texture_ensure_fullscreen_2D(&dtxl->color, GPU_RGBA32F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
+	DRW_texture_ensure_fullscreen_2D(&txl->ms_resolve_depth, GPU_DEPTH_COMPONENT32F, 0);
+	DRW_texture_ensure_fullscreen_2D(&txl->ms_resolve_color, GPU_RGBA32F, 0);
 
-	GPU_framebuffer_ensure_config(&dfbl->default_fb, {
-		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
-		GPU_ATTACHMENT_TEXTURE(dtxl->color),
+	GPU_framebuffer_ensure_config(&fbl->ms_resolve, {
+		GPU_ATTACHMENT_TEXTURE(txl->ms_resolve_depth),
+		GPU_ATTACHMENT_TEXTURE(txl->ms_resolve_color),
+		GPU_ATTACHMENT_LEAVE,
+		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE
 	});
-
 	scene->lanpr.reloaded = 1;
 
 	lanpr_engine_init(vedata);
@@ -490,14 +507,13 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
 	lanpr_cache_finish(vedata);
 
-	lanpr_draw_scene(vedata);
-
+	lanpr_draw_scene_exec(vedata, fbl->ms_resolve);
 
 	// read it back so we can again display and save it.
 	const char *viewname = RE_GetActiveRenderView(engine->re);
 	RenderPass *rp = RE_pass_find_by_name(render_layer, RE_PASSNAME_COMBINED, viewname);
-	GPU_framebuffer_bind(dfbl->default_fb);
-	GPU_framebuffer_read_color(dfbl->default_fb,
+	GPU_framebuffer_bind(fbl->ms_resolve);
+	GPU_framebuffer_read_color(fbl->ms_resolve,
 	                           rect->xmin, rect->ymin,
 	                           BLI_rcti_size_x(rect), BLI_rcti_size_y(rect),
 	                           4, 0, rp->rect);

@@ -268,13 +268,10 @@ int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginInde
 }
 
 
-void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr){
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB) {
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
-
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
 	int texw = GPU_texture_width(txl->edge_intermediate), texh = GPU_texture_height(txl->edge_intermediate);;
 	int tsize = texw * texh;
@@ -310,7 +307,7 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	GPU_framebuffer_clear(fbl->dpix_preview, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 	DRW_draw_pass(psl->dpix_preview_pass);
 
-	GPU_framebuffer_bind(dfbl->default_fb);
-	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+	GPU_framebuffer_bind(DefaultFB);
+	GPU_framebuffer_clear(DefaultFB, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 	DRW_multisamples_resolve(txl->depth, txl->color);
 }

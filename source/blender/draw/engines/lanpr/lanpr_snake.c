@@ -302,14 +302,11 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 	return GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
 }
 
-void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr){
+void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB){
 	GPUFrameBufferBits clear_bits = GPU_COLOR_BIT | GPU_DEPTH_BIT;
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
-
-	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
@@ -334,7 +331,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	DRW_draw_pass(psl->edge_intermediate);
 
 	if ((!lanpr->enable_vector_trace) && (!lanpr->display_thinning_result)) {
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(DefaultFB);
 		DRW_multisamples_resolve(txl->depth, txl->edge_intermediate);
 		return;
 	}
@@ -342,30 +339,30 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	if (lanpr->display_thinning_result || lanpr->enable_vector_trace) {
 		pd->stage = 0;
 
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(DefaultFB);
 		DRW_multisamples_resolve(txl->depth, txl->edge_intermediate);
 
 		GPU_framebuffer_bind(fbl->edge_thinning);
 		DRW_draw_pass(psl->edge_thinning);
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(DefaultFB);
 		DRW_multisamples_resolve(txl->depth, txl->color);
 
 		pd->stage = 1;
 		GPU_framebuffer_bind(fbl->edge_thinning);
 		DRW_draw_pass(psl->edge_thinning);
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(DefaultFB);
 		DRW_multisamples_resolve(txl->depth, txl->color);
 
 		pd->stage = 0;
 		GPU_framebuffer_bind(fbl->edge_thinning);
 		DRW_draw_pass(psl->edge_thinning);
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(DefaultFB);
 		DRW_multisamples_resolve(txl->depth, txl->color);
 
 		pd->stage = 1;
 		GPU_framebuffer_bind(fbl->edge_thinning);
 		DRW_draw_pass(psl->edge_thinning);
-		GPU_framebuffer_bind(dfbl->default_fb);
+		GPU_framebuffer_bind(DefaultFB);
 		DRW_multisamples_resolve(txl->depth, txl->color);
 
 		if (!lanpr->enable_vector_trace) return;
@@ -390,8 +387,8 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 		pd->height = texh;
 	}
 
-	GPU_framebuffer_bind(dfbl->default_fb);
-	GPU_framebuffer_read_color(dfbl->default_fb, 0, 0, texw, texh, 1, 0, pd->line_result);
+	GPU_framebuffer_bind(DefaultFB);
+	GPU_framebuffer_read_color(DefaultFB, 0, 0, texw, texh, 1, 0, pd->line_result);
 
 	float sample;
 	int h, w;
@@ -433,8 +430,8 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 		}
 	}
 
-	GPU_framebuffer_bind(dfbl->default_fb);
-	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+	GPU_framebuffer_bind(DefaultFB);
+	GPU_framebuffer_clear(DefaultFB, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 
 	GPU_framebuffer_bind(fbl->edge_intermediate);
 	clear_bits = GPU_COLOR_BIT;
@@ -468,6 +465,6 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	pd->erased_samples.first = pd->erased_samples.last = 0;
 	pd->line_strips.first = pd->line_strips.last = 0;
 
-	GPU_framebuffer_bind(dfbl->default_fb);
+	GPU_framebuffer_bind(DefaultFB);
 	DRW_multisamples_resolve(txl->depth, txl->edge_intermediate);
 }

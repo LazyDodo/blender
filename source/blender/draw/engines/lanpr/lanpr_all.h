@@ -122,6 +122,12 @@ typedef struct LANPR_FramebufferList {
 	struct GPUFrameBuffer *dpix_transform;
 	struct GPUFrameBuffer *dpix_preview;
 
+	/* Software */
+	struct GPUFrameBuffer *software_ms;
+
+	/* MS Resolve */
+	struct GPUFrameBuffer *ms_resolve;
+
 } LANPR_FramebufferList;
 
 typedef struct LANPR_TextureList {
@@ -140,6 +146,10 @@ typedef struct LANPR_TextureList {
 	struct GPUTexture *dpix_out_pl;
 	struct GPUTexture *dpix_out_pr;
 	struct GPUTexture *dpix_out_length;
+
+	/* multisample resolve */
+	struct GPUTexture *ms_resolve_depth;
+	struct GPUTexture *ms_resolve_color;
 
 } LANPR_TextureList;
 
@@ -763,9 +773,8 @@ int lanpr_feed_atlas_data_obj(void *vedata,
                               Object *ob, int BeginIndex);
 int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginIndex);
 
-void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr);
-
+//DPIX
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB);
 
 //snake
-
-void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr);
+void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB);
