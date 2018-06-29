@@ -135,6 +135,6 @@ void main()
 		gl_FragDepth = gl_FragCoord.z;
 	}
 	if  (xraymode == GP_XRAY_BACK) {
-		gl_FragDepth = 1.0;
+		gl_FragDepth = 0.999999;
 	}
 }

@@ -39,7 +39,7 @@ float getZdepth(vec4 point)
 		return (point.z / point.w);
 	}
 	if  (xraymode == GP_XRAY_BACK) {
-		return 1.0;
+		return 0.999999;
 	}
 
 	/* in front by default */
