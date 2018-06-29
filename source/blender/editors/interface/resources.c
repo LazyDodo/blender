@@ -62,6 +62,7 @@
 #include "UI_interface_icons.h"
 
 #include "interface_intern.h"
+#include "GPU_framebuffer.h"
 
 
 extern const bTheme U_theme_default;
@@ -1274,14 +1275,14 @@ void UI_ThemeClearColor(int colorid)
 	float col[3];
 
 	UI_GetThemeColor3fv(colorid, col);
-	glClearColor(col[0], col[1], col[2], 0.0f);
+	GPU_clear_color(col[0], col[1], col[2], 0.0f);
 }
 
 void UI_ThemeClearColorAlpha(int colorid, float alpha)
 {
 	float col[3];
 	UI_GetThemeColor3fv(colorid, col);
-	glClearColor(col[0], col[1], col[2], alpha);
+	GPU_clear_color(col[0], col[1], col[2], alpha);
 }
 
 
@@ -1512,10 +1513,6 @@ void init_userdef_do_versions(Main *bmain)
 		if (U.dbl_click_time == 0) {
 			U.dbl_click_time = 350;
 		}
-		if (U.scrcastfps == 0) {
-			U.scrcastfps = 10;
-			U.scrcastwait = 50;
-		}
 		if (U.v2d_min_gridsize == 0) {
 			U.v2d_min_gridsize = 35;
 		}
@@ -1584,7 +1581,7 @@ void init_userdef_do_versions(Main *bmain)
 	}
 
 
-	if (!USER_VERSION_ATLEAST(278, 20)) {
+	if (!USER_VERSION_ATLEAST(280, 20)) {
 		U.gpu_viewport_quality = 0.6f;
 
 		/* Reset theme, old themes will not be compatible with minor version updates from now on. */

@@ -74,6 +74,7 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "ED_image.h"
 #include "ED_keyframing.h"
@@ -651,7 +652,7 @@ static void viewRedrawForce(const bContext *C, TransInfo *t)
 
 static void viewRedrawPost(bContext *C, TransInfo *t)
 {
-	ED_workspace_status_text(t->context, NULL);
+	ED_area_status_text(t->sa, NULL);
 
 	if (t->spacetype == SPACE_VIEW3D) {
 		/* if autokeying is enabled, send notifiers that keyframes were added */
@@ -1751,12 +1752,12 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			UNUSED_VARS_NDEBUG(shdr_pos); /* silence warning */
 			BLI_assert(shdr_pos == POS_INDEX);
 
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 			float viewport_size[4];
-			glGetFloatv(GL_VIEWPORT, viewport_size);
+			GPU_viewport_size_getf(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 			immUniform1i("num_colors", 0);  /* "simple" mode */
@@ -1785,7 +1786,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				gpuTranslate3fv(mval);
 				gpuRotateAxis(-RAD2DEGF(atan2f(cent[0] - tmval[0], cent[1] - tmval[1])), 'Z');
 
-				glLineWidth(3.0f);
+				GPU_line_width(3.0f);
 				drawArrow(UP, 5, 10, 5);
 				drawArrow(DOWN, 5, 10, 5);
 				break;
@@ -1793,7 +1794,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 				gpuTranslate3fv(mval);
 
-				glLineWidth(3.0f);
+				GPU_line_width(3.0f);
 				drawArrow(RIGHT, 5, 10, 5);
 				drawArrow(LEFT, 5, 10, 5);
 				break;
@@ -1802,7 +1803,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 				gpuTranslate3fv(mval);
 
-				glLineWidth(3.0f);
+				GPU_line_width(3.0f);
 				drawArrow(UP, 5, 10, 5);
 				drawArrow(DOWN, 5, 10, 5);
 				break;
@@ -1818,7 +1819,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 				gpuTranslate3f(cent[0] - tmval[0] + mval[0], cent[1] - tmval[1] + mval[1], 0);
 
-				glLineWidth(3.0f);
+				GPU_line_width(3.0f);
 				drawArc(dist, angle - delta_angle, angle - spacing_angle, 10);
 				drawArc(dist, angle + spacing_angle, angle + delta_angle, 10);
 
@@ -1844,16 +1845,16 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 				gpuTranslate3fv(mval);
 
-				glLineWidth(3.0f);
+				GPU_line_width(3.0f);
 
 				UI_make_axis_color(col, col2, 'X');
-				immUniformColor3ubv((GLubyte *)col2);
+				immUniformColor3ubv(col2);
 
 				drawArrow(RIGHT, 5, 10, 5);
 				drawArrow(LEFT, 5, 10, 5);
 
 				UI_make_axis_color(col, col2, 'Y');
-				immUniformColor3ubv((GLubyte *)col2);
+				immUniformColor3ubv(col2);
 
 				drawArrow(UP, 5, 10, 5);
 				drawArrow(DOWN, 5, 10, 5);
@@ -1870,7 +1871,7 @@ static void drawTransformView(const struct bContext *C, ARegion *UNUSED(ar), voi
 {
 	TransInfo *t = arg;
 
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 
 	drawConstraint(t);
 	drawPropCircle(C, t);
@@ -1910,15 +1911,15 @@ static void drawAutoKeyWarning(TransInfo *UNUSED(t), ARegion *ar)
 #endif
 
 	/* autokey recording icon... */
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
 
 	xco -= U.widget_unit;
 	yco -= (int)printable_size[1] / 2;
 
 	UI_icon_draw(xco, yco, ICON_REC);
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 }
 
 static void drawTransformPixel(const struct bContext *UNUSED(C), ARegion *ar, void *arg)
@@ -3128,7 +3129,7 @@ static void Bend(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -3282,7 +3283,7 @@ static void applyShear(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -3561,7 +3562,7 @@ static void applyResize(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -3664,7 +3665,7 @@ static void applySkinResize(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -3762,7 +3763,7 @@ static void applyToSphere(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4121,7 +4122,7 @@ static void applyRotation(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4238,7 +4239,7 @@ static void applyTrackball(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4567,7 +4568,7 @@ static void applyTranslation(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4669,7 +4670,7 @@ static void applyShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4748,7 +4749,7 @@ static void applyTilt(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4829,7 +4830,7 @@ static void applyCurveShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -4935,7 +4936,7 @@ static void applyMaskShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -5016,7 +5017,7 @@ static void applyGPShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -5111,7 +5112,7 @@ static void applyPushPull(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -5193,7 +5194,7 @@ static void applyBevelWeight(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -5278,7 +5279,7 @@ static void applyCrease(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -5401,7 +5402,7 @@ static void applyBoneSize(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -5478,7 +5479,7 @@ static void applyBoneEnvelope(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -6975,10 +6976,10 @@ static void drawEdgeSlide(TransInfo *t)
 			const float line_size = UI_GetThemeValuef(TH_OUTLINE_WIDTH) + 0.5f;
 
 			if (v3d && v3d->zbuf)
-				glDisable(GL_DEPTH_TEST);
+				GPU_depth_test(false);
 
-			glEnable(GL_BLEND);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend(true);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 			gpuPushMatrix();
 			gpuMultMatrix(TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->obmat);
@@ -6998,7 +6999,7 @@ static void drawEdgeSlide(TransInfo *t)
 				add_v3_v3v3(co_a, curr_sv->v_co_orig, curr_sv->dir_side[0]);
 				add_v3_v3v3(co_b, curr_sv->v_co_orig, curr_sv->dir_side[1]);
 
-				glLineWidth(line_size);
+				GPU_line_width(line_size);
 				immUniformThemeColorShadeAlpha(TH_EDGE_SELECT, 80, alpha_shade);
 				immBeginAtMost(GWN_PRIM_LINES, 4);
 				if (curr_sv->v_side[0]) {
@@ -7012,7 +7013,7 @@ static void drawEdgeSlide(TransInfo *t)
 				immEnd();
 
 				immUniformThemeColorShadeAlpha(TH_SELECT, -30, alpha_shade);
-				glPointSize(ctrl_size);
+				GPU_point_size(ctrl_size);
 				immBegin(GWN_PRIM_POINTS, 1);
 				if (slp->flipped) {
 					if (curr_sv->v_side[1]) immVertex3fv(pos, curr_sv->v_side[1]->co);
@@ -7023,7 +7024,7 @@ static void drawEdgeSlide(TransInfo *t)
 				immEnd();
 
 				immUniformThemeColorShadeAlpha(TH_SELECT, 255, alpha_shade);
-				glPointSize(guide_size);
+				GPU_point_size(guide_size);
 				immBegin(GWN_PRIM_POINTS, 1);
 				interp_line_v3_v3v3v3(co_mark, co_b, curr_sv->v_co_orig, co_a, fac);
 				immVertex3fv(pos, co_mark);
@@ -7036,7 +7037,7 @@ static void drawEdgeSlide(TransInfo *t)
 					int i;
 					const int alpha_shade = -160;
 
-					glLineWidth(line_size);
+					GPU_line_width(line_size);
 					immUniformThemeColorShadeAlpha(TH_EDGE_SELECT, 80, alpha_shade);
 					immBegin(GWN_PRIM_LINES, sld->totsv * 2);
 
@@ -7071,10 +7072,10 @@ static void drawEdgeSlide(TransInfo *t)
 
 			gpuPopMatrix();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 
 			if (v3d && v3d->zbuf)
-				glEnable(GL_DEPTH_TEST);
+				GPU_depth_test(true);
 		}
 	}
 }
@@ -7204,7 +7205,7 @@ static void applyEdgeSlide(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -7611,15 +7612,15 @@ static void drawVertSlide(TransInfo *t)
 			int i;
 
 			if (v3d && v3d->zbuf)
-				glDisable(GL_DEPTH_TEST);
+				GPU_depth_test(false);
 
-			glEnable(GL_BLEND);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend(true);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 			gpuPushMatrix();
 			gpuMultMatrix(TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->obmat);
 
-			glLineWidth(line_size);
+			GPU_line_width(line_size);
 
 			const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
@@ -7650,7 +7651,7 @@ static void drawVertSlide(TransInfo *t)
 			}
 			immEnd();
 
-			glPointSize(ctrl_size);
+			GPU_point_size(ctrl_size);
 
 			immBegin(GWN_PRIM_POINTS, 1);
 			immVertex3fv(shdr_pos, (slp->flipped && slp->use_even) ?
@@ -7682,12 +7683,12 @@ static void drawVertSlide(TransInfo *t)
 
 				add_v3_v3(co_dest_3d, curr_sv->co_orig_3d);
 
-				glLineWidth(1.0f);
+				GPU_line_width(1.0f);
 
 				immBindBuiltinProgram(GPU_SHADER_3D_LINE_DASHED_UNIFORM_COLOR);
 
 				float viewport_size[4];
-				glGetFloatv(GL_VIEWPORT, viewport_size);
+				GPU_viewport_size_getf(viewport_size);
 				immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 				immUniform1i("num_colors", 0);  /* "simple" mode */
@@ -7706,7 +7707,7 @@ static void drawVertSlide(TransInfo *t)
 			gpuPopMatrix();
 
 			if (v3d && v3d->zbuf)
-				glEnable(GL_DEPTH_TEST);
+				GPU_depth_test(true);
 		}
 	}
 }
@@ -7803,7 +7804,7 @@ static void applyVertSlide(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -7877,7 +7878,7 @@ static void applyBoneRoll(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -7968,7 +7969,7 @@ static void applyBakeTime(TransInfo *t, const int mval[2])
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -8029,7 +8030,7 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
 
 		recalcData(t);
 
-		ED_workspace_status_text(t->context, str);
+		ED_area_status_text(t->sa, str);
 	}
 	else {
 		size[0] = size[1] = size[2] = 1;
@@ -8052,9 +8053,9 @@ static void applyMirror(TransInfo *t, const int UNUSED(mval[2]))
 		recalcData(t);
 
 		if (t->flag & T_2D_EDIT)
-			ED_workspace_status_text(t->context, IFACE_("Select a mirror axis (X, Y)"));
+			ED_area_status_text(t->sa, IFACE_("Select a mirror axis (X, Y)"));
 		else
-			ED_workspace_status_text(t->context, IFACE_("Select a mirror axis (X, Y, Z)"));
+			ED_area_status_text(t->sa, IFACE_("Select a mirror axis (X, Y, Z)"));
 	}
 }
 /** \} */
@@ -8116,7 +8117,7 @@ static void applyAlign(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, IFACE_("Align"));
+	ED_area_status_text(t->sa, IFACE_("Align"));
 }
 /** \} */
 
@@ -8215,7 +8216,7 @@ static void applySeqSlide(TransInfo *t, const int mval[2])
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -8499,7 +8500,7 @@ static void applyTimeTranslate(TransInfo *t, const int mval[2])
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -8689,7 +8690,7 @@ static void applyTimeSlide(TransInfo *t, const int mval[2])
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
@@ -8810,7 +8811,7 @@ static void applyTimeScale(TransInfo *t, const int UNUSED(mval[2]))
 
 	recalcData(t);
 
-	ED_workspace_status_text(t->context, str);
+	ED_area_status_text(t->sa, str);
 }
 /** \} */
 
