@@ -1066,7 +1066,7 @@ bool ED_region_is_overlap(int spacetype, int regiontype)
 	return 0;
 }
 
-static void region_rect_recursive(wmWindow *win, ScrArea *sa, ARegion *ar, rcti *remainder, rcti *overlap_remainder, int quad)
+static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rcti *overlap_remainder, int quad)
 {
 	rcti *remainder_prev = remainder;
 	int prefsizex, prefsizey;
@@ -1317,7 +1317,7 @@ static void region_rect_recursive(wmWindow *win, ScrArea *sa, ARegion *ar, rcti 
 		*overlap_remainder = *remainder;
 	}
 
-	region_rect_recursive(win, sa, ar->next, remainder, overlap_remainder, quad);
+	region_rect_recursive(sa, ar->next, remainder, overlap_remainder, quad);
 }
 
 static void area_calc_totrct(ScrArea *sa, const rcti *window_rect)
@@ -1461,7 +1461,7 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 	/* region rect sizes */
 	rect = area->totrct;
 	overlap_rect = rect;
-	region_rect_recursive(win, area, area->regionbase.first, &rect, &overlap_rect, 0);
+	region_rect_recursive(area, area->regionbase.first, &rect, &overlap_rect, 0);
 
 	for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 		region_subwindow(ar);
@@ -1507,7 +1507,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 	/* region rect sizes */
 	rect = sa->totrct;
 	overlap_rect = rect;
-	region_rect_recursive(win, sa, sa->regionbase.first, &rect, &overlap_rect, 0);
+	region_rect_recursive(sa, sa->regionbase.first, &rect, &overlap_rect, 0);
 	sa->flag &= ~AREA_FLAG_REGION_SIZE_UPDATE;
 
 	/* default area handlers */
