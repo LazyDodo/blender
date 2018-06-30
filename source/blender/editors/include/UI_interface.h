@@ -402,6 +402,15 @@ typedef void (*uiMenuHandleFunc)(struct bContext *C, void *arg, int event);
  */
 typedef bool (*uiMenuStepFunc)(struct bContext *C, int direction, void *arg1);
 
+
+/* interface_query.c */
+bool UI_but_is_tool(const uiBut *but);
+#define UI_but_is_decorator(but) \
+	((but)->func == ui_but_anim_decorate_cb)
+
+bool UI_block_is_empty(const uiBlock *block);
+
+
 /* interface_region_menu_popup.c */
 /* Popup Menus
  *
@@ -534,8 +543,6 @@ void    UI_block_order_flip(uiBlock *block);
 void    UI_block_flag_enable(uiBlock *block, int flag);
 void    UI_block_flag_disable(uiBlock *block, int flag);
 void    UI_block_translate(uiBlock *block, int x, int y);
-
-bool    UI_block_is_empty(const uiBlock *block);
 
 int     UI_but_return_value_get(uiBut *but);
 
@@ -1134,7 +1141,7 @@ void uiItemsFullEnumO_items(
 
 void uiItemL(uiLayout *layout, const char *name, int icon); /* label */
 void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int icon); /* label icon for dragging */
-void uiItemM(uiLayout *layout, struct bContext *C, const char *menuname, const char *name, int icon); /* menu */
+void uiItemM(uiLayout *layout, const char *menuname, const char *name, int icon); /* menu */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
 void uiItemSpacer(uiLayout *layout); /* Special separator. */
@@ -1262,9 +1269,5 @@ void UI_widgetbase_draw_cache_end(void);
 
 /* Support click-drag motion which presses the button and closes a popover (like a menu). */
 #define USE_UI_POPOVER_ONCE
-
-bool UI_but_is_tool(const uiBut *but);
-#define UI_but_is_decorator(but) \
-	((but)->func == ui_but_anim_decorate_cb)
 
 #endif  /* __UI_INTERFACE_H__ */

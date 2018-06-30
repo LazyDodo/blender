@@ -1235,8 +1235,11 @@ static void area_move_set_limits(
 	if (use_bigger_smaller_snap != NULL) {
 		*use_bigger_smaller_snap = false;
 		for (ScrArea *area = win->global_areas.areabase.first; area; area = area->next) {
-			const int size_min = ED_area_global_min_size_y(area) - 1;
-			const int size_max = ED_area_global_max_size_y(area) - 1;
+			int size_min = ED_area_global_min_size_y(area) - 1;
+			int size_max = ED_area_global_max_size_y(area) - 1;
+
+			size_min = MAX2(size_min, 0);
+			BLI_assert(size_min < size_max);
 
 			/* logic here is only tested for lower edge :) */
 			/* left edge */
@@ -1412,7 +1415,8 @@ static int area_snap_calc_location(
 			break;
 	}
 
-	BLI_assert(IN_RANGE_INCL(final_loc, origval - smaller, origval + bigger));
+	BLI_assert(ELEM(snap_type, SNAP_BIGGER_SMALLER_ONLY) ||
+	           IN_RANGE_INCL(final_loc, origval - smaller, origval + bigger));
 
 	return final_loc;
 }
@@ -1429,7 +1433,9 @@ static void area_move_apply_do(
 	short final_loc = -1;
 	bool doredraw = false;
 
-	CLAMP(delta, -smaller, bigger);
+	if (snap_type != SNAP_BIGGER_SMALLER_ONLY) {
+		CLAMP(delta, -smaller, bigger);
+	}
 
 	if (snap_type == SNAP_NONE) {
 		final_loc = origval + delta;
@@ -1753,6 +1759,7 @@ static ScrEdge *area_findsharededge(bScreen *screen, ScrArea *sa, ScrArea *sb)
 /* do the split, return success */
 static int area_split_apply(bContext *C, wmOperator *op)
 {
+	const wmWindow *win = CTX_wm_window(C);
 	bScreen *sc = CTX_wm_screen(C);
 	sAreaSplitData *sd = (sAreaSplitData *)op->customdata;
 	float fac;
@@ -1761,16 +1768,15 @@ static int area_split_apply(bContext *C, wmOperator *op)
 	fac = RNA_float_get(op->ptr, "factor");
 	dir = RNA_enum_get(op->ptr, "direction");
 
-	sd->narea = area_split(CTX_wm_window(C), sc, sd->sarea, dir, fac, 0); /* 0 = no merge */
+	sd->narea = area_split(win, sc, sd->sarea, dir, fac, 0); /* 0 = no merge */
 
 	if (sd->narea) {
-		ScrVert *sv;
-
 		sd->nedge = area_findsharededge(sc, sd->sarea, sd->narea);
 
 		/* select newly created edge, prepare for moving edge */
-		for (sv = sc->vertbase.first; sv; sv = sv->next)
+		ED_screen_verts_iter(win, sc, sv) {
 			sv->editflag = 0;
+		}
 
 		sd->nedge->v1->editflag = 1;
 		sd->nedge->v2->editflag = 1;
