@@ -20,7 +20,7 @@
 import bpy
 from bpy.types import Panel
 from bpy.app.translations import pgettext_iface as iface_
-
+from .properties_hair_common import draw_hair_display_settings
 
 class ModifierButtonsPanel:
     bl_space_type = 'PROPERTIES'
@@ -1580,9 +1580,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(hsys, "material_slot", text="")
 
         col = layout.column()
-        col.label("Drawing:")
-        ds = md.draw_settings
-        col.prop(ds, "follicle_mode", expand=True)
+        col.label("Display Settings:")
+        draw_hair_display_settings(col, md.draw_settings)
 
 
 classes = (
