@@ -1562,7 +1562,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if md.rest_source == 'BIND':
             layout.operator("object.correctivesmooth_bind", text="Unbind" if is_bind else "Bind")
 
-    def FUR(self, layout, ob, md):
+    def HAIR(self, layout, ob, md):
         hsys = md.hair_system
 
         split = layout.split()
@@ -1571,7 +1571,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label("Follicles:")
         col.prop(md, "follicle_seed")
         col.prop(md, "follicle_count")
-        col.operator("object.fur_generate_follicles", text="Generate")
+        col.operator("object.hair_generate_follicles", text="Generate")
 
         col = split.column()
 

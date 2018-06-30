@@ -28,7 +28,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_fur.c
+/** \file blender/modifiers/intern/MOD_hair.c
  *  \ingroup modifiers
  */
 
