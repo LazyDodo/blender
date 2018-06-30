@@ -4359,6 +4359,7 @@ static void def_hair(StructRNA *srna)
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 }
 
+/* RNA initialization for the custom property. */
 static void def_hair_principled(StructRNA *srna)
 {
 	PropertyRNA *prop;
@@ -4368,6 +4369,8 @@ static void def_hair_principled(StructRNA *srna)
 	RNA_def_property_ui_text(prop, "Color parametrization", "Select the shader's color parametrization");
 	RNA_def_property_enum_items(prop, node_principled_hair_items);
 	RNA_def_property_enum_default(prop, SHD_PRINCIPLED_HAIR_REFLECTANCE);
+	/* Upon editing, update both the node data AND the UI representation */
+	/* (This effectively shows/hides the relevant sockets) */
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNodeHairPrincipled_update");
 }
 
