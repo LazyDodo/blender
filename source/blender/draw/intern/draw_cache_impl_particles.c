@@ -162,37 +162,6 @@ static void particle_batch_cache_clear_point(ParticlePointCache *point_cache)
 	GWN_VERTBUF_DISCARD_SAFE(point_cache->pos);
 }
 
-static void particle_batch_cache_clear_hair(ParticleHairCache *hair_cache)
-{
-	/* TODO more granular update tagging. */
-	GWN_VERTBUF_DISCARD_SAFE(hair_cache->proc_point_buf);
-	DRW_TEXTURE_FREE_SAFE(hair_cache->point_tex);
-
-	GWN_VERTBUF_DISCARD_SAFE(hair_cache->proc_strand_buf);
-	DRW_TEXTURE_FREE_SAFE(hair_cache->strand_tex);
-
-	for (int i = 0; i < MAX_MTFACE; ++i) {
-		GWN_VERTBUF_DISCARD_SAFE(hair_cache->proc_uv_buf[i]);
-		DRW_TEXTURE_FREE_SAFE(hair_cache->uv_tex[i]);
-	}
-	for (int i = 0; i < MAX_MCOL; ++i) {
-		GWN_VERTBUF_DISCARD_SAFE(hair_cache->proc_col_buf[i]);
-		DRW_TEXTURE_FREE_SAFE(hair_cache->col_tex[i]);
-	}
-	for (int i = 0; i < MAX_HAIR_SUBDIV; ++i) {
-		GWN_VERTBUF_DISCARD_SAFE(hair_cache->final[i].proc_buf);
-		DRW_TEXTURE_FREE_SAFE(hair_cache->final[i].proc_tex);
-		for (int j = 0; j < MAX_THICKRES; ++j) {
-			GWN_BATCH_DISCARD_SAFE(hair_cache->final[i].proc_hairs[j]);
-		}
-	}
-
-	/* "Normal" legacy hairs */
-	GWN_BATCH_DISCARD_SAFE(hair_cache->hairs);
-	GWN_VERTBUF_DISCARD_SAFE(hair_cache->pos);
-	GWN_INDEXBUF_DISCARD_SAFE(hair_cache->indices);
-}
-
 static void particle_batch_cache_clear(ParticleSystem *psys)
 {
 	ParticleBatchCache *cache = psys->batch_cache;

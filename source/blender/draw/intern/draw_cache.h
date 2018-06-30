@@ -33,7 +33,6 @@ struct Object;
 struct PTCacheEdit;
 struct HairSystem;
 struct HairExportCache;
-struct DRWHairFiberTextureBuffer;
 
 void DRW_shape_cache_free(void);
 void DRW_shape_cache_reset(void);
@@ -190,8 +189,7 @@ struct Gwn_Batch *DRW_cache_particles_get_edit_tip_points(
 struct Gwn_Batch *DRW_cache_particles_get_prim(int type);
 
 /* Hair */
-struct Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export,
-                                            const struct DRWHairFiberTextureBuffer **r_buffer);
+struct Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export);
 struct Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, const struct HairExportCache *hair_export);
 
 /* Metaball */

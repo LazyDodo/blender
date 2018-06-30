@@ -3118,10 +3118,9 @@ Gwn_Batch *DRW_cache_particles_get_prim(int type)
 
 /** \name Hair */
 
-Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export,
-                                     const struct DRWHairFiberTextureBuffer **r_buffer)
+Gwn_Batch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export)
 {
-	return DRW_hair_batch_cache_get_fibers(hsys, hair_export, r_buffer);
+	return DRW_hair_batch_cache_get_fibers(hsys, hair_export);
 }
 
 Gwn_Batch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, const struct HairExportCache *hair_export)

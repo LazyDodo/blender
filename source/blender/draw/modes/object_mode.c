@@ -2264,27 +2264,6 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			break;
 	}
 
-	{
-		struct Mesh *scalp = ob->data;
-		if (scalp)
-		{
-			for (ModifierData *md = ob->modifiers.first; md; md = md->next)
-			{
-				if (md->type == eModifierType_Hair)
-				{
-					HairModifierData *hmd = (HairModifierData*)md;
-					
-					if (!modifier_isEnabled(draw_ctx->scene, md, eModifierMode_Realtime))
-					{
-						continue;
-					}
-					
-					DRW_shgroup_hair(ob, hmd->hair_system, hmd->draw_settings, scalp, stl->g_data->hair_verts);
-				}
-			}
-		}
-	}
-
 	if (ob->pd && ob->pd->forcefield) {
 		DRW_shgroup_forcefield(stl, ob, view_layer);
 	}
