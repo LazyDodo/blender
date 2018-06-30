@@ -2461,7 +2461,8 @@ static int hair_generate_follicles_exec(bContext *C, wmOperator *op)
 	
 	{
 		const int numverts = 5;
-		const float taper_length = 0.1f;
+		const float hairlen = 0.05f;
+		const float taper_length = 0.02f;
 		const float taper_thickness = 0.8f;
 		BKE_hair_fiber_curves_begin(hsys, hsys->pattern->num_follicles);
 		for (int i = 0; i < hsys->pattern->num_follicles; ++i)
@@ -2475,8 +2476,8 @@ static int hair_generate_follicles_exec(bContext *C, wmOperator *op)
 			BKE_mesh_sample_eval(scalp, &hsys->pattern->follicles[i].mesh_sample, loc, nor, tan);
 			for (int j = 0; j < numverts; ++j)
 			{
-				madd_v3_v3fl(loc, nor, 1.0f/(numverts-1));
-				BKE_hair_set_fiber_vertex(hsys, i, 0, loc);
+				madd_v3_v3fl(loc, nor, hairlen / (numverts-1));
+				BKE_hair_set_fiber_vertex(hsys, i * numverts + j, 0, loc);
 			}
 		}
 	}
