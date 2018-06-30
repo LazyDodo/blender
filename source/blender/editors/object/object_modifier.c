@@ -2467,7 +2467,7 @@ static int hair_generate_follicles_exec(bContext *C, wmOperator *op)
 		BKE_hair_fiber_curves_begin(hsys, hsys->pattern->num_follicles);
 		for (int i = 0; i < hsys->pattern->num_follicles; ++i)
 		{
-			BKE_hair_set_fiber_curve(hsys, i, &hsys->pattern->follicles[i].mesh_sample, numverts, taper_length, taper_thickness);
+			BKE_hair_set_fiber_curve(hsys, i, numverts, taper_length, taper_thickness);
 		}
 		BKE_hair_fiber_curves_end(hsys);
 		for (int i = 0; i < hsys->pattern->num_follicles; ++i)

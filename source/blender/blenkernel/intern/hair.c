@@ -228,13 +228,12 @@ void BKE_hair_fiber_curves_begin(HairSystem *hsys, int totcurves)
 	}
 }
 
-void BKE_hair_set_fiber_curve(HairSystem *hsys, int index, const MeshSample *mesh_sample, int numverts,
+void BKE_hair_set_fiber_curve(HairSystem *hsys, int index, int numverts,
                               float taper_length, float taper_thickness)
 {
 	BLI_assert(index <= hsys->curve_data.totcurves);
 	
 	HairFiberCurve *curve = &hsys->curve_data.curves[index];
-	memcpy(&curve->mesh_sample, mesh_sample, sizeof(MeshSample));
 	curve->numverts = numverts;
 	curve->taper_length = taper_length;
 	curve->taper_thickness = taper_thickness;
@@ -359,22 +358,12 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 		return false;
 	}
 	
-	float (*strandloc)[3] = MEM_mallocN(sizeof(float) * 3 * num_strands, "strand locations");
-	{
-		for (int i = 0; i < num_strands; ++i)
-		{
-			float nor[3], tang[3];
-			if (!BKE_mesh_sample_eval(scalp, &hsys->curve_data.curves[i].mesh_sample, strandloc[i], nor, tang))
-			{
-				zero_v3(strandloc[i]);
-			}
-		}
-	}
-	
 	KDTree *tree = BLI_kdtree_new(num_strands);
 	for (int c = 0; c < num_strands; ++c)
 	{
-		BLI_kdtree_insert(tree, c, strandloc[c]);
+		const int vertstart = hsys->curve_data.curves[c].vertstart;
+		const float *rootco = hsys->curve_data.verts[vertstart].co;
+		BLI_kdtree_insert(tree, c, rootco);
 	}
 	BLI_kdtree_balance(tree);
 	
@@ -391,7 +380,6 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 	}
 	
 	BLI_kdtree_free(tree);
-	MEM_freeN(strandloc);
 	
 	return true;
 }
@@ -412,21 +400,18 @@ BLI_INLINE int hair_get_strand_subdiv_numverts(int numstrands, int numverts, int
 
 /* Subdivide a curve */
 static int hair_curve_subdivide(const HairFiberCurve* curve, const HairFiberVertex* verts,
-                                int subdiv, const float rootpos[3], HairFiberVertex *r_verts)
+                                int subdiv, HairFiberVertex *r_verts)
 {
 	{
 		/* Move vertex positions from the dense array to their initial configuration for subdivision.
 		 * Also add offset to ensure the curve starts on the scalp surface.
 		 */
 		const int step = (1 << subdiv);
-		
 		BLI_assert(curve->numverts > 0);
-		float offset[3];
-		sub_v3_v3v3(offset, rootpos, verts[0].co);
 		
 		HairFiberVertex *dst = r_verts;
 		for (int i = 0; i < curve->numverts; ++i) {
-			add_v3_v3v3(dst->co, verts[i].co, offset);
+			copy_v3_v3(dst->co, verts[i].co);
 			dst += step;
 		}
 	}
@@ -479,15 +464,13 @@ static void hair_curve_transport_frame(const float co1[3], const float co2[3],
 }
 
 /* Calculate tangent and normal vectors for all vertices on a curve */
-static void hair_curve_calc_vectors(const HairFiberVertex* verts, int numverts, float rootmat[3][3],
+static void hair_curve_calc_vectors(const HairFiberVertex* verts, int numverts,
                                     float (*r_tangents)[3], float (*r_normals)[3])
 {
 	BLI_assert(numverts >= 2);
 	
-	float prev_tang[3], prev_nor[3];
-	
-	copy_v3_v3(prev_tang, rootmat[2]);
-	copy_v3_v3(prev_nor, rootmat[0]);
+	float prev_tang[3] = {0.0f, 0.0f, 1.0f};
+	float prev_nor[3] = {1.0f, 0.0f, 0.0f};
 	
 	hair_curve_transport_frame(
 	        verts[0].co, verts[1].co,
@@ -610,15 +593,9 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			float (*tangents)[3] = &cache->fiber_tangents[curve->vertstart];
 			float (*normals)[3] = &cache->fiber_normals[curve->vertstart];
 			
-			/* Root matrix for offsetting to the scalp surface and for initial normal direction */
-			float rootpos[3];
-			float rootmat[3][3];
-			BKE_mesh_sample_eval(scalp, &curve->mesh_sample, rootpos, rootmat[2], rootmat[0]);
-			cross_v3_v3v3(rootmat[1], rootmat[2], rootmat[0]);
+			hair_curve_subdivide(curve_orig, verts_orig, subdiv, verts);
 			
-			hair_curve_subdivide(curve_orig, verts_orig, subdiv, rootpos, verts);
-			
-			hair_curve_calc_vectors(verts, curve->numverts, rootmat, tangents, normals);
+			hair_curve_calc_vectors(verts, curve->numverts, tangents, normals);
 		}
 	}
 

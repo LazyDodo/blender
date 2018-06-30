@@ -1224,14 +1224,11 @@ static void rna_Hair_fiber_curves_apply(ID *id, HairModifierData *hmd, bContext 
 	const int totcurves = BLI_listbase_count(&hmd->fiber_curves);
 	int i = 0;
 	
-	MeshSample msample;
-	memset(&msample, 0, sizeof(msample));
-	
 	BKE_hair_fiber_curves_begin(hmd->hair_system, totcurves);
 	i = 0;
 	for (HairModifierFiberCurve *curve = hmd->fiber_curves.first; curve; curve = curve->next, ++i)
 	{
-		BKE_hair_set_fiber_curve(hmd->hair_system, i, &msample, curve->numverts, 0.1, 1.0);
+		BKE_hair_set_fiber_curve(hmd->hair_system, i, curve->numverts, 0.1, 1.0);
 	}
 	BKE_hair_fiber_curves_end(hmd->hair_system);
 	

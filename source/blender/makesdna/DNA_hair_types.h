@@ -52,7 +52,6 @@ typedef struct HairPattern {
 } HairPattern;
 
 typedef struct HairFiberCurve {
-	MeshSample mesh_sample;             /* Sample on the scalp mesh for the root vertex */
 	int vertstart;                      /* Offset in the vertex array where the curve starts */
 	int numverts;                       /* Number of vertices in the curve */
 

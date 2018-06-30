@@ -65,7 +65,7 @@ void BKE_hair_fiber_curves_begin(struct HairSystem *hsys, int totcurves);
  * \param mesh_sample Origin of the fiber curve on the scalp mesh.
  * \param numverts Number of vertices in this fiber curve
  */
-void BKE_hair_set_fiber_curve(struct HairSystem *hsys, int index, const struct MeshSample *mesh_sample, int numverts,
+void BKE_hair_set_fiber_curve(struct HairSystem *hsys, int index, int numverts,
                               float taper_length, float taper_thickness);
 
 /* Finalize fiber curve update */
