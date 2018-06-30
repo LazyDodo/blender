@@ -330,90 +330,6 @@ void BKE_hair_clear_fiber_curves(HairSystem *hsys)
 
 /* ================================= */
 
-BLI_INLINE void hair_fiber_verify_weights(HairFollicle *follicle)
-{
-	const float *w = follicle->parent_weight;
-	
-	BLI_assert(w[0] >= 0.0f && w[1] >= 0.0f && w[2] >= 0.0f && w[3] >= 0.0f);
-	float sum = w[0] + w[1] + w[2] + w[3];
-	float epsilon = 1.0e-2;
-	BLI_assert(sum > 1.0f - epsilon && sum < 1.0f + epsilon);
-	UNUSED_VARS(sum, epsilon);
-	
-	BLI_assert(w[0] >= w[1] && w[1] >= w[2] && w[2] >= w[3]);
-}
-
-static void hair_fiber_sort_weights(HairFollicle *follicle)
-{
-	unsigned int *idx = follicle->parent_index;
-	float *w = follicle->parent_weight;
-
-#define FIBERSWAP(a, b) \
-	SWAP(unsigned int, idx[a], idx[b]); \
-	SWAP(float, w[a], w[b]);
-
-	for (int k = 0; k < 3; ++k) {
-		int maxi = k;
-		float maxw = w[k];
-		for (int i = k+1; i < 4; ++i) {
-			if (w[i] > maxw) {
-				maxi = i;
-				maxw = w[i];
-			}
-		}
-		if (maxi != k)
-			FIBERSWAP(k, maxi);
-	}
-	
-#undef FIBERSWAP
-}
-
-static void hair_fiber_find_closest_strand(
-        HairFollicle *follicle,
-        const float loc[3],
-        const KDTree *tree,
-        const float (*strandloc)[3])
-{
-	/* Use the 3 closest strands for interpolation.
-	 * Note that we have up to 4 possible weights, but we
-	 * only look for a triangle with this method.
-	 */
-	KDTreeNearest nearest[3];
-	const float *sloc[3] = {NULL};
-	int k, found = BLI_kdtree_find_nearest_n(tree, loc, nearest, 3);
-	for (k = 0; k < found; ++k) {
-		follicle->parent_index[k] = (unsigned int)nearest[k].index;
-		sloc[k] = strandloc[nearest[k].index];
-	}
-	for (; k < 4; ++k) {
-		follicle->parent_index[k] = HAIR_STRAND_INDEX_NONE;
-		follicle->parent_weight[k] = 0.0f;
-	}
-	
-	/* calculate barycentric interpolation weights */
-	if (found == 3) {
-		float closest[3];
-		closest_on_tri_to_point_v3(closest, loc, sloc[0], sloc[1], sloc[2]);
-		
-		float w[3];
-		interp_weights_tri_v3(w, sloc[0], sloc[1], sloc[2], closest);
-		copy_v3_v3(follicle->parent_weight, w);
-		/* float precisions issues can cause slightly negative weights */
-		CLAMP3(follicle->parent_weight, 0.0f, 1.0f);
-	}
-	else if (found == 2) {
-		follicle->parent_weight[1] = line_point_factor_v3(loc, sloc[0], sloc[1]);
-		follicle->parent_weight[0] = 1.0f - follicle->parent_weight[1];
-		/* float precisions issues can cause slightly negative weights */
-		CLAMP2(follicle->parent_weight, 0.0f, 1.0f);
-	}
-	else if (found == 1) {
-		follicle->parent_weight[0] = 1.0f;
-	}
-	
-	hair_fiber_sort_weights(follicle);
-}
-
 bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 {
 	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING))
@@ -437,8 +353,7 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 		{
 			for (int k = 0; k < 4; ++k)
 			{
-				follicle->parent_index[k] = HAIR_STRAND_INDEX_NONE;
-				follicle->parent_weight[k] = 0.0f;
+				follicle->curve = HAIR_CURVE_INDEX_NONE;
 			}
 		}
 		return false;
@@ -470,8 +385,7 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 			float loc[3], nor[3], tang[3];
 			if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang))
 			{
-				hair_fiber_find_closest_strand(follicle, loc, tree, strandloc);
-				hair_fiber_verify_weights(follicle);
+				follicle->curve = BLI_kdtree_find_nearest(tree, loc, NULL);
 			}
 		}
 	}
@@ -621,13 +535,9 @@ static int hair_export_cache_get_required_updates(const HairExportCache *cache)
 	{
 		data |= HAIR_EXPORT_FOLLICLE_BINDING;
 	}
-	if (!cache->fiber_root_position)
+	if (!cache->follicle_root_position)
 	{
-		data |= HAIR_EXPORT_FIBER_ROOT_POSITIONS;
-	}
-	if (!cache->fiber_numverts)
-	{
-		data |= HAIR_EXPORT_FIBER_VERTEX_COUNTS;
+		data |= HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS;
 	}
 	return data;
 }
@@ -642,7 +552,7 @@ static int hair_export_cache_get_dependencies(int data)
 		data |= HAIR_EXPORT_FIBER_VERTICES | HAIR_EXPORT_FOLLICLE_BINDING;
 	
 	if (data & HAIR_EXPORT_FOLLICLE_BINDING)
-		data |= HAIR_EXPORT_FIBER_ROOT_POSITIONS | HAIR_EXPORT_FIBER_VERTEX_COUNTS;
+		data |= HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS;
 	
 	return data;
 }
@@ -717,67 +627,31 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 		if (data & HAIR_EXPORT_FOLLICLE_BINDING)
 		{
 			cache->follicles = hsys->pattern->follicles;
-			cache->totfibercurves = hsys->pattern->num_follicles;
+			cache->totfollicles = hsys->pattern->num_follicles;
 		}
 
-		if (data & HAIR_EXPORT_FIBER_VERTEX_COUNTS)
+		if (data & HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS)
 		{
-			/* Calculate the length of each fiber from the weighted average of its parents */
-			const int totcurves = cache->totcurves;
-			const int totfibercurves = cache->totfibercurves;
+			const int totfibercurves = cache->totfollicles;
 			
-			cache->fiber_numverts = MEM_reallocN_id(cache->fiber_numverts, sizeof(int) * totfibercurves, "fiber numverts");
-			cache->totfiberverts = 0;
-			
-			const HairFollicle *follicle = hsys->pattern->follicles;
-			for (int i = 0; i < totfibercurves; ++i, ++follicle) {
-				float fiblen = 0.0f;
-				
-				for (int k = 0; k < 4; ++k) {
-					const int si = follicle->parent_index[k];
-					const float sw = follicle->parent_weight[k];
-					if (si == HAIR_STRAND_INDEX_NONE || sw == 0.0f) {
-						break;
-					}
-					BLI_assert(si < totcurves);
-					
-					fiblen += (float)cache->fiber_curves[si].numverts * sw;
-				}
-				
-				/* Use rounded number of segments */
-				const int numverts = (int)(fiblen + 0.5f);
-				cache->fiber_numverts[i] = numverts;
-				cache->totfiberverts += numverts;
-			}
-		}
-
-		if (data & HAIR_EXPORT_FIBER_ROOT_POSITIONS)
-		{
-			const int totfibercurves = cache->totfibercurves;
-			
-			cache->fiber_root_position = MEM_reallocN_id(cache->fiber_root_position, sizeof(float[3]) * totfibercurves, "fiber root position");
+			cache->follicle_root_position = MEM_reallocN_id(cache->follicle_root_position, sizeof(float[3]) * totfibercurves, "fiber root position");
 			const HairFollicle *follicle = hsys->pattern->follicles;
 			for (int i = 0; i < totfibercurves; ++i, ++follicle) {
 				/* Cache fiber root position */
 				float nor[3], tang[3];
-				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->fiber_root_position[i], nor, tang);
+				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->follicle_root_position[i], nor, tang);
 			}
 		}
 	}
 	else
 	{
 		cache->follicles = NULL;
-		cache->totfibercurves = 0;
+		cache->totfollicles = 0;
 		
-		if (cache->fiber_numverts)
+		if (cache->follicle_root_position)
 		{
-			MEM_freeN(cache->fiber_numverts);
-			cache->fiber_numverts = NULL;
-		}
-		if (cache->fiber_root_position)
-		{
-			MEM_freeN(cache->fiber_root_position);
-			cache->fiber_root_position = NULL;
+			MEM_freeN(cache->follicle_root_position);
+			cache->follicle_root_position = NULL;
 		}
 	}
 	
@@ -788,10 +662,6 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 
 void BKE_hair_export_cache_free(HairExportCache *cache)
 {
-	if (cache->fiber_numverts)
-	{
-		MEM_freeN(cache->fiber_numverts);
-	}
 	if (cache->fiber_curves)
 	{
 		MEM_freeN(cache->fiber_curves);
@@ -808,9 +678,9 @@ void BKE_hair_export_cache_free(HairExportCache *cache)
 	{
 		MEM_freeN(cache->fiber_normals);
 	}
-	if (cache->fiber_root_position)
+	if (cache->follicle_root_position)
 	{
-		MEM_freeN(cache->fiber_root_position);
+		MEM_freeN(cache->follicle_root_position);
 	}
 	MEM_freeN(cache);
 }
@@ -863,20 +733,12 @@ void BKE_hair_export_cache_invalidate(HairExportCache *cache, int invalidate)
 	{
 		cache->follicles = NULL;
 	}
-	if (data & HAIR_EXPORT_FIBER_ROOT_POSITIONS)
+	if (data & HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS)
 	{
-		if (cache->fiber_root_position)
+		if (cache->follicle_root_position)
 		{
-			MEM_freeN(cache->fiber_root_position);
-			cache->fiber_root_position = NULL;
-		}
-	}
-	if (data & HAIR_EXPORT_FIBER_VERTEX_COUNTS)
-	{
-		if (cache->fiber_numverts)
-		{
-			MEM_freeN(cache->fiber_numverts);
-			cache->fiber_numverts = NULL;
+			MEM_freeN(cache->follicle_root_position);
+			cache->follicle_root_position = NULL;
 		}
 	}
 }

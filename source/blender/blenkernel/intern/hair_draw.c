@@ -135,17 +135,20 @@ static void hair_get_strand_buffer(
 static void hair_get_fiber_buffer(const HairExportCache *cache,
                                   HairFiberTextureBuffer *fiber_buf)
 {
-	const int totfibers = cache->totfibercurves;
+	const int totfibers = cache->totfollicles;
 	const HairFollicle *follicle = cache->follicles;
 	HairFiberTextureBuffer *fb = fiber_buf;
 	for (int i = 0; i < totfibers; ++i, ++fb, ++follicle) {
-		copy_v3_v3(fb->root_position, cache->fiber_root_position[i]);
+		copy_v3_v3(fb->root_position, cache->follicle_root_position[i]);
 		
-		for (int k = 0; k < 4; ++k)
-		{
-			fb->parent_index[k] = follicle->parent_index[k];
-			fb->parent_weight[k] = follicle->parent_weight[k];
-		}
+		fb->parent_index[0] = follicle->curve;
+		fb->parent_index[1] = HAIR_CURVE_INDEX_NONE;
+		fb->parent_index[2] = HAIR_CURVE_INDEX_NONE;
+		fb->parent_index[3] = HAIR_CURVE_INDEX_NONE;
+		fb->parent_weight[0] = 1.0f;
+		fb->parent_weight[1] = 0.0f;
+		fb->parent_weight[2] = 0.0f;
+		fb->parent_weight[3] = 0.0f;
 	}
 }
 
@@ -159,7 +162,7 @@ void BKE_hair_get_texture_buffer_size(
 	*r_strand_map_start = 0;
 	*r_strand_vertex_start = *r_strand_map_start + cache->totcurves * sizeof(HairStrandMapTextureBuffer);
 	*r_fiber_start = *r_strand_vertex_start + cache->totverts * sizeof(HairStrandVertexTextureBuffer);
-	*r_size = *r_fiber_start + cache->totfibercurves * sizeof(HairFiberTextureBuffer);
+	*r_size = *r_fiber_start + cache->totfollicles * sizeof(HairFiberTextureBuffer);
 }
 
 void BKE_hair_get_texture_buffer(
@@ -205,143 +208,62 @@ void BKE_hair_batch_cache_free(HairSystem* hsys)
  * see common_hair_fibers_lib.glsl
  */
 
-static void interpolate_parent_curve(
-        float curve_param,
-        int numverts,
-        const HairFiberVertex *verts,
-        const float (*tangents)[3],
-        const float (*normals)[3],
-        float r_co[3],
-        float r_tang[3],
-        float r_nor[3])
-{
-	float maxlen = (float)(numverts - 1);
-	float arclength = curve_param * maxlen;
-	int segment = (int)(arclength);
-	float lerpfac;
-	if (segment < numverts-1)
-	{
-		lerpfac = arclength - floor(arclength);
-	}
-	else
-	{
-		segment = numverts-2;
-		lerpfac = 1.0f;
-	}
-	
-	mul_v3_v3fl(r_co, verts[segment].co, 1.0f - lerpfac);
-	madd_v3_v3fl(r_co, verts[segment + 1].co, lerpfac);
-	// Make relative to the parent root
-	sub_v3_v3(r_co, verts[0].co);
-	
-	mul_v3_v3fl(r_tang, tangents[segment], 1.0f - lerpfac);
-	madd_v3_v3fl(r_tang, tangents[segment + 1], lerpfac);
-	
-	mul_v3_v3fl(r_nor, normals[segment], 1.0f - lerpfac);
-	madd_v3_v3fl(r_nor, normals[segment + 1], lerpfac);
-}
-
-static void hair_fiber_interpolate_vertex(
-        float curve_param,
-        int parent_numverts,
-        const HairFiberVertex *parent_verts,
-        const float (*parent_tangents)[3],
-        const float (*parent_normals)[3],
-        float parent_weight,
-        float r_co[3],
-        float r_tangent[3],
-        float r_target_matrix[3][3])
-{
-	float pco[3], ptang[3], pnor[3];
-	interpolate_parent_curve(
-	            curve_param,
-	            parent_numverts,
-	            parent_verts,
-	            parent_tangents,
-	            parent_normals,
-	            pco,
-	            ptang,
-	            pnor);
-	
-	madd_v3_v3fl(r_co, pco, parent_weight);
-	normalize_v3(ptang);
-	madd_v3_v3fl(r_tangent, ptang, parent_weight);
-	
-	if (r_target_matrix)
-	{
-		copy_v3_v3(r_target_matrix[0], pnor);
-		copy_v3_v3(r_target_matrix[1], ptang);
-		add_v3_v3v3(r_target_matrix[2], pco, parent_verts[0].co);
-	}
-}
-
-static void hair_fiber_interpolate(
-        const HairExportCache* cache,
-        int fiber_index,
+/* Subdivide a curve */
+static int hair_curve_subdivide(
+        const HairFiberCurve* curve,
+        const HairFiberVertex* verts,
+        int subdiv,
         int vertco_stride,
         float *r_vertco)
 {
-	const int numverts = cache->fiber_numverts[fiber_index];
-	BLI_assert(numverts >= 2);
-	const float dcurve_param = 1.0f / (numverts - 1);
-	const float *rootco = cache->fiber_root_position[fiber_index];
-	
-	// Initialize
 	{
-		float *vert = r_vertco;
-		for (int i = 0; i < numverts; ++i, vert = POINTER_OFFSET(vert, vertco_stride))
-		{
-			zero_v3(vert);
+		/* Move vertex positions from the dense array to their initial configuration for subdivision.
+		 * Also add offset to ensure the curve starts on the scalp surface.
+		 */
+		const int step = (1 << subdiv) * vertco_stride;
+		BLI_assert(curve->numverts > 0);
+		
+		float *dst = r_vertco;
+		for (int i = 0; i < curve->numverts; ++i) {
+			copy_v3_v3(dst, verts[i].co);
+			dst = POINTER_OFFSET(dst, step);
 		}
 	}
 	
-	// Add weighted data from each parent
-	for (int k = 0; k < 4; ++k)
-	{
-		const unsigned int parent_index = cache->follicles[fiber_index].parent_index[k];
-		if (parent_index == HAIR_STRAND_INDEX_NONE)
+	/* Subdivide */
+	for (int d = 0; d < subdiv; ++d) {
+		const int num_edges = (curve->numverts - 1) << d;
+		const int hstep = (1 << (subdiv - d - 1)) * vertco_stride;
+		const int step = (1 << (subdiv - d)) * vertco_stride;
+		
+		/* Calculate edge points */
 		{
-			continue;
+			float *p = r_vertco;
+			for (int k = 0; k < num_edges; ++k) {
+				float *ps = POINTER_OFFSET(p, step);
+				float *ph = POINTER_OFFSET(p, hstep);
+				add_v3_v3v3(ph, p, ps);
+				mul_v3_fl(ph, 0.5f);
+				p = ps;
+			}
 		}
 		
-		const float parent_weight = cache->follicles[fiber_index].parent_weight[k];
-		const int parent_numverts = cache->fiber_curves[parent_index].numverts;
-		const int parent_vertstart = cache->fiber_curves[parent_index].vertstart;
-		const HairFiberVertex *parent_verts = &cache->fiber_verts[parent_vertstart];
-		const float (*parent_tangents)[3] = &cache->fiber_tangents[parent_vertstart];
-		const float (*parent_normals)[3] = &cache->fiber_normals[parent_vertstart];
-		
-		float *vert = r_vertco;
-		float curve_param = 0.0f;
-		for (int i = 0; i < numverts; ++i, vert = POINTER_OFFSET(vert, vertco_stride))
+		/* Move original points */
 		{
-			float tangent[3];
-			float target_matrix[3][3];
-			
-			hair_fiber_interpolate_vertex(
-			            curve_param,
-			            parent_numverts,
-			            parent_verts,
-			            parent_tangents,
-			            parent_normals,
-			            parent_weight,
-			            vert,
-			            tangent,
-			            target_matrix);
-			
-			curve_param += dcurve_param;
+			float *p = r_vertco;
+			for (int k = 1; k < num_edges; ++k) {
+				float *ps = POINTER_OFFSET(p, step);
+				float *ph = POINTER_OFFSET(p, hstep);
+				float *hp = POINTER_OFFSET(p, -hstep);
+				add_v3_v3v3(p, hp, ph);
+				mul_v3_fl(p, 0.5f);
+				p = ps;
+			}
 		}
 	}
 	
-	/* Offset to the root
-	 * Normalize tangents
-	 */
-	float *vert = r_vertco;
-	for (int i = 0; i < numverts; ++i, vert = POINTER_OFFSET(vert, vertco_stride))
-	{
-		add_v3_v3(vert, rootco);
-//		r_tangent = normalize(r_tangent);
-	}
+	const int num_verts = ((curve->numverts - 1) << subdiv) + 1;
+	return num_verts;
 }
 
 /* === Render API === */
@@ -349,11 +271,18 @@ static void hair_fiber_interpolate(
 /* Calculate required size for render buffers. */
 void BKE_hair_render_get_buffer_size(
         const HairExportCache* cache,
+        int subdiv,
         int *r_totcurves,
         int *r_totverts)
 {
-	*r_totcurves = cache->totfibercurves;
-	*r_totverts = cache->totfiberverts;
+	*r_totcurves = cache->totfollicles;
+	
+	const int subdiv_factor = 1 << subdiv;
+	for (int i = 0; i < cache->totfollicles; ++i)
+	{
+		const int numverts = cache->fiber_curves[cache->follicles[i].curve].numverts;
+		*r_totverts = (numverts - 1) * subdiv_factor + 1;
+	}
 }
 
 /* Create render data in existing buffers.
@@ -361,6 +290,7 @@ void BKE_hair_render_get_buffer_size(
  */
 void BKE_hair_render_fill_buffers(
         const HairExportCache* cache,
+        int subdiv,
         int vertco_stride,
         int *r_curvestart,
         int *r_curvelen,
@@ -368,13 +298,15 @@ void BKE_hair_render_fill_buffers(
 {
 	int vertstart = 0;
 	float *vert = r_vertco;
-	for (int i = 0; i < cache->totfibercurves; ++i)
+	for (int i = 0; i < cache->totfollicles; ++i)
 	{
-		const int numverts = cache->fiber_numverts[i];
+		const HairFiberCurve *curve = &cache->fiber_curves[cache->follicles[i].curve];
+		const HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
+		const int numverts = curve->numverts;
 		r_curvestart[i] = vertstart;
 		r_curvelen[i] = numverts;
 		
-		hair_fiber_interpolate(cache, i, vertco_stride, vert);
+		hair_curve_subdivide(curve, verts, subdiv, vertco_stride, vert);
 		
 		vertstart += numverts;
 		vert = POINTER_OFFSET(vert, vertco_stride * numverts);

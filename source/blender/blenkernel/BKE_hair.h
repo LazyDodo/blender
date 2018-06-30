@@ -34,7 +34,7 @@
 
 #include "BLI_utildefines.h"
 
-static const unsigned int HAIR_STRAND_INDEX_NONE = 0xFFFFFFFF;
+static const unsigned int HAIR_CURVE_INDEX_NONE = 0xFFFFFFFF;
 
 struct HairFollicle;
 struct HairPattern;
@@ -141,12 +141,9 @@ typedef struct HairExportCache
 	float (*fiber_tangents)[3];             /* Tangent vectors on fiber curves */
 	float (*fiber_normals)[3];              /* Normal vectors on fiber curves */
 	
-	/* Per fiber data */
-	int totfibercurves;
-	int totfiberverts;
-	int *fiber_numverts;                    /* Number of vertices in each fiber */
-	float (*fiber_root_position)[3];        /* Root position of each fiber */
-	
+	/* Per follicle data */
+	int totfollicles;
+	float (*follicle_root_position)[3];     /* Root position of each follicle */
 	const struct HairFollicle *follicles;
 } HairExportCache;
 
@@ -154,19 +151,16 @@ typedef struct HairExportCache
 typedef enum eHairExportCacheUpdateFlags
 {
 	/* Follicle placement on the scalp mesh */
-	HAIR_EXPORT_FIBER_ROOT_POSITIONS      = (1 << 0),
-	/* Fiber vertex counts */
-	HAIR_EXPORT_FIBER_VERTEX_COUNTS     = (1 << 1),
-	/* Follicle parent indices and weights */
-	HAIR_EXPORT_FOLLICLE_BINDING        = (1 << 2),
+	HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS      = (1 << 0),
+	/* Follicle curve index */
+	HAIR_EXPORT_FOLLICLE_BINDING        = (1 << 1),
 	/* Fiber vertex positions (deform only) */
-	HAIR_EXPORT_FIBER_VERTICES          = (1 << 3),
+	HAIR_EXPORT_FIBER_VERTICES          = (1 << 2),
 	/* Fiber curve number and vertex counts (topology changes) */
-	HAIR_EXPORT_FIBER_CURVES            = (1 << 4),
+	HAIR_EXPORT_FIBER_CURVES            = (1 << 3),
 	
 	HAIR_EXPORT_ALL                     =
-	    HAIR_EXPORT_FIBER_ROOT_POSITIONS |
-	    HAIR_EXPORT_FIBER_VERTEX_COUNTS |
+	    HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS |
 	    HAIR_EXPORT_FOLLICLE_BINDING |
 	    HAIR_EXPORT_FIBER_VERTICES |
 	    HAIR_EXPORT_FIBER_CURVES,
@@ -174,8 +168,7 @@ typedef enum eHairExportCacheUpdateFlags
 	    HAIR_EXPORT_FIBER_VERTICES |
 	    HAIR_EXPORT_FIBER_CURVES,
 	HAIR_EXPORT_FOLLICLES               =
-	    HAIR_EXPORT_FIBER_ROOT_POSITIONS |
-	    HAIR_EXPORT_FIBER_VERTEX_COUNTS |
+	    HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS |
 	    HAIR_EXPORT_FOLLICLE_BINDING,
 } eHairExportCacheUpdateFlags;
 
@@ -227,6 +220,7 @@ void BKE_hair_get_texture_buffer(
 /* Calculate required size for render buffers. */
 void BKE_hair_render_get_buffer_size(
         const struct HairExportCache* cache,
+        int subdiv,
         int *r_totcurves,
         int *r_totverts);
 
@@ -235,6 +229,7 @@ void BKE_hair_render_get_buffer_size(
  */
 void BKE_hair_render_fill_buffers(
         const struct HairExportCache* cache,
+        int subdiv,
         int vertco_stride,
         int *r_curvestart,
         int *r_curvelen,

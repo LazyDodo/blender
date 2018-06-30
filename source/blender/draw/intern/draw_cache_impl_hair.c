@@ -183,6 +183,16 @@ void DRW_hair_batch_cache_free(HairSystem *hsys)
 	MEM_SAFE_FREE(hsys->draw_batch_cache);
 }
 
+static int hair_batch_cache_count_points(const HairExportCache *hair_export)
+{
+	int totpoints = 0;
+	for (int i = 0; i < hair_export->totfollicles; ++i)
+	{
+		totpoints += hair_export->fiber_curves[hair_export->follicles[i].curve].numverts;
+	}
+	return totpoints;
+}
+
 static void hair_batch_cache_ensure_fibers(const HairExportCache *hair_export, HairBatchCache *cache)
 {
 	TIMEIT_START(hair_batch_cache_ensure_fibers);
@@ -190,8 +200,8 @@ static void hair_batch_cache_ensure_fibers(const HairExportCache *hair_export, H
 	GWN_VERTBUF_DISCARD_SAFE(cache->fiber_verts);
 	GWN_INDEXBUF_DISCARD_SAFE(cache->fiber_edges);
 	
-	const int totfibers = hair_export->totfibercurves;
-	const int totpoint = hair_export->totfiberverts;
+	const int totfibers = hair_export->totfollicles;
+	const int totpoint = hair_batch_cache_count_points(hair_export);
 	const int totseg = totpoint - totfibers;
 	
 	static Gwn_VertFormat format = { 0 };
@@ -224,7 +234,7 @@ static void hair_batch_cache_ensure_fibers(const HairExportCache *hair_export, H
 	TIMEIT_BLOCK_INIT(GWN_indexbuf_add_tri_verts);
 	int vi = 0;
 	for (int i = 0; i < totfibers; ++i) {
-		const int fiblen = hair_export->fiber_numverts[i];
+		const int fiblen = hair_export->fiber_curves[hair_export->follicles[i].curve].numverts;
 		const float da = fiblen > 1 ? 1.0f / (fiblen-1) : 0.0f;
 		
 		float a = 0.0f;
@@ -325,7 +335,7 @@ static void hair_batch_cache_ensure_follicles(
 	GWN_VERTBUF_DISCARD_SAFE(cache->follicle_verts);
 	GWN_INDEXBUF_DISCARD_SAFE(cache->follicle_edges);
 	
-	const unsigned int point_count = hair_export->totfibercurves;
+	const unsigned int point_count = hair_export->totfollicles;
 	
 	static Gwn_VertFormat format = { 0 };
 	static unsigned pos_id;
@@ -339,8 +349,8 @@ static void hair_batch_cache_ensure_follicles(
 	
 	GWN_vertbuf_data_alloc(cache->follicle_verts, point_count);
 	
-	float (*root_co)[3] = hair_export->fiber_root_position;
-	for (int i = 0; i < hair_export->totfibercurves; ++i, ++root_co) {
+	float (*root_co)[3] = hair_export->follicle_root_position;
+	for (int i = 0; i < hair_export->totfollicles; ++i, ++root_co) {
 		GWN_vertbuf_attr_set(cache->follicle_verts, pos_id, (unsigned int)i, *root_co);
 	}
 	

@@ -39,12 +39,9 @@ extern "C" {
 
 /* Root point (follicle) of a hair on a surface */
 typedef struct HairFollicle {
-	/* Sample on the scalp mesh for the root vertex */
-	MeshSample mesh_sample;
-	/* Parent curve indices for shape interpolation */
-	unsigned int parent_index[4];
-	/* Parent curve weights for shape interpolation */
-	float parent_weight[4];
+	MeshSample mesh_sample;     /* Sample on the scalp mesh for the root vertex */
+	unsigned int curve;         /* Index of the curve used by the fiber */
+	int pad;
 } HairFollicle;
 
 /* Collection of hair roots on a surface */
