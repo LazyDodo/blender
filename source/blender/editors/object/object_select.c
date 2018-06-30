@@ -50,8 +50,8 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_collection.h"
 #include "BKE_context.h"
-#include "BKE_group.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
@@ -88,7 +88,7 @@
  * this takes into account the 'restrict selection in 3d view' flag.
  * deselect works always, the restriction just prevents selection */
 
-/* Note: send a NC_SCENE|ND_OB_SELECT notifier yourself! (or 
+/* Note: send a NC_SCENE|ND_OB_SELECT notifier yourself! (or
  * or a NC_SCENE|ND_OB_VISIBLE in case of visibility toggling */
 
 void ED_object_base_select(Base *base, eObjectSelect_Mode mode)
@@ -100,7 +100,7 @@ void ED_object_base_select(Base *base, eObjectSelect_Mode mode)
 	if (base) {
 		switch (mode) {
 			case BA_SELECT:
-				if ((base->flag & BASE_SELECTABLED) != 0) {
+				if ((base->flag & BASE_SELECTABLE) != 0) {
 					base->flag |= BASE_SELECTED;
 				}
 				break;
@@ -129,6 +129,7 @@ void ED_object_base_activate(bContext *C, Base *base)
 	else {
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, NULL);
 	}
+	DEG_id_tag_update(&CTX_data_scene(C)->id, DEG_TAG_SELECT_UPDATE);
 }
 
 /********************** Selection Operators **********************/
@@ -143,7 +144,7 @@ static int objects_selectable_poll(bContext *C)
 		return 0;
 	if (obact && obact->mode)
 		return 0;
-	
+
 	return 1;
 }
 
@@ -152,10 +153,10 @@ static int objects_selectable_poll(bContext *C)
 static int object_select_by_type_exec(bContext *C, wmOperator *op)
 {
 	short obtype, extend;
-	
+
 	obtype = RNA_enum_get(op->ptr, "type");
 	extend = RNA_boolean_get(op->ptr, "extend");
-		
+
 	if (extend == 0) {
 		CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 		{
@@ -163,7 +164,7 @@ static int object_select_by_type_exec(bContext *C, wmOperator *op)
 		}
 		CTX_DATA_END;
 	}
-	
+
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
 		if (base->object->type == obtype) {
@@ -171,9 +172,11 @@ static int object_select_by_type_exec(bContext *C, wmOperator *op)
 		}
 	}
 	CTX_DATA_END;
-	
-	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
-	
+
+	Scene *scene = CTX_data_scene(C);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
+
 	return OPERATOR_FINISHED;
 }
 
@@ -183,15 +186,15 @@ void OBJECT_OT_select_by_type(wmOperatorType *ot)
 	ot->name = "Select By Type";
 	ot->description = "Select all visible objects that are of a type";
 	ot->idname = "OBJECT_OT_select_by_type";
-	
+
 	/* api callbacks */
 	ot->invoke = WM_menu_invoke;
 	ot->exec = object_select_by_type_exec;
 	ot->poll = objects_selectable_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	RNA_def_boolean(ot->srna, "extend", false, "Extend", "Extend selection instead of deselecting everything first");
 	ot->prop = RNA_def_enum(ot->srna, "type", rna_enum_object_type_items, 1, "Type", "");
@@ -226,7 +229,7 @@ static bool object_select_all_by_obdata(bContext *C, void *obdata)
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
 			if (base->object->data == obdata) {
 				ED_object_base_select(base, BA_SELECT);
 				changed = true;
@@ -244,7 +247,7 @@ static bool object_select_all_by_material(bContext *C, Material *mat)
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
 			Object *ob = base->object;
 			Material *mat1;
 			int a;
@@ -267,12 +270,12 @@ static bool object_select_all_by_material(bContext *C, Material *mat)
 static bool object_select_all_by_dup_group(bContext *C, Object *ob)
 {
 	bool changed = false;
-	Group *dup_group = (ob->transflag & OB_DUPLIGROUP) ? ob->dup_group : NULL;
+	Collection *dup_group = (ob->transflag & OB_DUPLICOLLECTION) ? ob->dup_group : NULL;
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
-			Group *dup_group_other = (base->object->transflag & OB_DUPLIGROUP) ? base->object->dup_group : NULL;
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
+			Collection *dup_group_other = (base->object->transflag & OB_DUPLICOLLECTION) ? base->object->dup_group : NULL;
 			if (dup_group == dup_group_other) {
 				ED_object_base_select(base, BA_SELECT);
 				changed = true;
@@ -291,10 +294,10 @@ static bool object_select_all_by_particle(bContext *C, Object *ob)
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
 			/* loop through other particles*/
 			ParticleSystem *psys;
-			
+
 			for (psys = base->object->particlesystem.first; psys; psys = psys->next) {
 				if (psys->part == psys_act->part) {
 					ED_object_base_select(base, BA_SELECT);
@@ -319,7 +322,7 @@ static bool object_select_all_by_library(bContext *C, Library *lib)
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
 			if (lib == base->object->id.lib) {
 				ED_object_base_select(base, BA_SELECT);
 				changed = true;
@@ -337,7 +340,7 @@ static bool object_select_all_by_library_obdata(bContext *C, Library *lib)
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
 			if (base->object->data && lib == ((ID *)base->object->data)->lib) {
 				ED_object_base_select(base, BA_SELECT);
 				changed = true;
@@ -365,7 +368,9 @@ void ED_object_select_linked_by_id(bContext *C, ID *id)
 	}
 
 	if (changed) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
+		Scene *scene = CTX_data_scene(C);
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 }
 
@@ -378,7 +383,7 @@ static int object_select_linked_exec(bContext *C, wmOperator *op)
 	bool changed = false, extend;
 
 	extend = RNA_boolean_get(op->ptr, "extend");
-	
+
 	if (extend == 0) {
 		CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 		{
@@ -386,13 +391,13 @@ static int object_select_linked_exec(bContext *C, wmOperator *op)
 		}
 		CTX_DATA_END;
 	}
-	
+
 	ob = OBACT(view_layer);
 	if (ob == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "No active object");
 		return OPERATOR_CANCELLED;
 	}
-	
+
 	if (nr == OBJECT_SELECT_LINKED_IPO) {
 		// XXX old animation system
 		//if (ob->ipo == 0) return OPERATOR_CANCELLED;
@@ -439,10 +444,11 @@ static int object_select_linked_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	if (changed) {
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
-	
+
 	return OPERATOR_CANCELLED;
 }
 
@@ -452,15 +458,15 @@ void OBJECT_OT_select_linked(wmOperatorType *ot)
 	ot->name = "Select Linked";
 	ot->description = "Select all visible objects that are linked";
 	ot->idname = "OBJECT_OT_select_linked";
-	
+
 	/* api callbacks */
 	ot->invoke = WM_menu_invoke;
 	ot->exec = object_select_linked_exec;
 	ot->poll = objects_selectable_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	RNA_def_boolean(ot->srna, "extend", false, "Extend", "Extend selection instead of deselecting everything first");
 	ot->prop = RNA_def_enum(ot->srna, "type", prop_select_linked_types, 0, "Type", "");
@@ -475,7 +481,6 @@ enum {
 	OBJECT_GRPSEL_SIBLINGS           =  3,
 	OBJECT_GRPSEL_TYPE               =  4,
 	OBJECT_GRPSEL_COLLECTION         =  5,
-	OBJECT_GRPSEL_GROUP              =  6,
 	OBJECT_GRPSEL_HOOK               =  7,
 	OBJECT_GRPSEL_PASS               =  8,
 	OBJECT_GRPSEL_COLOR              =  9,
@@ -490,7 +495,6 @@ static const EnumPropertyItem prop_select_grouped_types[] = {
 	{OBJECT_GRPSEL_SIBLINGS, "SIBLINGS", 0, "Siblings", "Shared Parent"},
 	{OBJECT_GRPSEL_TYPE, "TYPE", 0, "Type", "Shared object type"},
 	{OBJECT_GRPSEL_COLLECTION, "COLLECTION", 0, "Collection", "Shared collection"},
-	{OBJECT_GRPSEL_GROUP, "GROUP", 0, "Group", "Shared group"},
 	{OBJECT_GRPSEL_HOOK, "HOOK", 0, "Hook", ""},
 	{OBJECT_GRPSEL_PASS, "PASS", 0, "Pass", "Render pass Index"},
 	{OBJECT_GRPSEL_COLOR, "COLOR", 0, "Color", "Object Color"},
@@ -542,30 +546,30 @@ static bool select_grouped_parent(bContext *C) /* Makes parent active and de-sel
 }
 
 
-#define GROUP_MENU_MAX  24
-static bool select_grouped_group(bContext *C, Object *ob)  /* Select objects in the same group as the active */
+#define COLLECTION_MENU_MAX  24
+static bool select_grouped_collection(bContext *C, Object *ob)  /* Select objects in the same group as the active */
 {
 	bool changed = false;
-	Group *group, *ob_groups[GROUP_MENU_MAX];
-	int group_count = 0, i;
+	Collection *collection, *ob_collections[COLLECTION_MENU_MAX];
+	int collection_count = 0, i;
 	uiPopupMenu *pup;
 	uiLayout *layout;
 
-	for (group = CTX_data_main(C)->group.first; group && group_count < GROUP_MENU_MAX; group = group->id.next) {
-		if (BKE_group_object_exists(group, ob)) {
-			ob_groups[group_count] = group;
-			group_count++;
+	for (collection = CTX_data_main(C)->collection.first; collection && collection_count < COLLECTION_MENU_MAX; collection = collection->id.next) {
+		if (BKE_collection_has_object(collection, ob)) {
+			ob_collections[collection_count] = collection;
+			collection_count++;
 		}
 	}
 
-	if (!group_count)
+	if (!collection_count)
 		return 0;
-	else if (group_count == 1) {
-		group = ob_groups[0];
+	else if (collection_count == 1) {
+		collection = ob_collections[0];
 		CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 		{
-			if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
-				if (BKE_group_object_exists(group, base->object)) {
+			if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
+				if (BKE_collection_has_object(collection, base->object)) {
 					ED_object_base_select(base, BA_SELECT);
 					changed = true;
 				}
@@ -576,12 +580,12 @@ static bool select_grouped_group(bContext *C, Object *ob)  /* Select objects in 
 	}
 
 	/* build the menu. */
-	pup = UI_popup_menu_begin(C, IFACE_("Select Group"), ICON_NONE);
+	pup = UI_popup_menu_begin(C, IFACE_("Select Collection"), ICON_NONE);
 	layout = UI_popup_menu_layout(pup);
 
-	for (i = 0; i < group_count; i++) {
-		group = ob_groups[i];
-		uiItemStringO(layout, group->id.name + 2, 0, "OBJECT_OT_select_same_group", "group", group->id.name + 2);
+	for (i = 0; i < collection_count; i++) {
+		collection = ob_collections[i];
+		uiItemStringO(layout, collection->id.name + 2, 0, "OBJECT_OT_select_same_collection", "collection", collection->id.name + 2);
 	}
 
 	UI_popup_menu_end(C, pup);
@@ -662,60 +666,6 @@ static bool select_grouped_type(bContext *C, Object *ob)
 	return changed;
 }
 
-#define COLLECTION_MENU_MAX  24
-static bool select_grouped_collection(bContext *C, Object *ob)  /* Select objects in the same collection as the active */
-{
-	typedef struct EnumeratedCollection {
-		struct SceneCollection *collection;
-		int index;
-	} EnumeratedCollection;
-
-	bool changed = false;
-	SceneCollection *collection;
-	EnumeratedCollection ob_collections[COLLECTION_MENU_MAX];
-	int collection_count = 0, i;
-	uiPopupMenu *pup;
-	uiLayout *layout;
-
-	i = 0;
-	FOREACH_SCENE_COLLECTION_BEGIN(CTX_data_scene(C), scene_collection)
-	{
-		if (BKE_collection_object_exists(scene_collection, ob)) {
-			ob_collections[collection_count].index = i;
-			ob_collections[collection_count].collection = scene_collection;
-			if (++collection_count >= COLLECTION_MENU_MAX) {
-				break;
-			}
-		}
-		i++;
-	}
-	FOREACH_SCENE_COLLECTION_END;
-
-	if (!collection_count) {
-		return 0;
-	}
-	else if (collection_count == 1) {
-		collection = ob_collections[0].collection;
-		return BKE_collection_objects_select(CTX_data_view_layer(C), collection);
-	}
-
-	/* build the menu. */
-	pup = UI_popup_menu_begin(C, IFACE_("Select Collection"), ICON_NONE);
-	layout = UI_popup_menu_layout(pup);
-
-	for (i = 0; i < collection_count; i++) {
-		uiItemIntO(layout,
-		           ob_collections[i].collection->name,
-		           ICON_NONE,
-		           "OBJECT_OT_select_same_collection",
-		           "collection_index",
-		           ob_collections[i].index);
-	}
-
-	UI_popup_menu_end(C, pup);
-	return changed;  /* The operator already handle this! */
-}
-
 static bool select_grouped_index_object(bContext *C, Object *ob)
 {
 	bool changed = false;
@@ -750,7 +700,7 @@ static bool select_grouped_keyingset(bContext *C, Object *UNUSED(ob), ReportList
 {
 	KeyingSet *ks = ANIM_scene_get_active_keyingset(CTX_data_scene(C));
 	bool changed = false;
-	
+
 	/* firstly, validate KeyingSet */
 	if (ks == NULL) {
 		BKE_report(reports, RPT_ERROR, "No active Keying Set to use");
@@ -759,7 +709,7 @@ static bool select_grouped_keyingset(bContext *C, Object *UNUSED(ob), ReportList
 	else if (ANIM_validate_keyingset(C, NULL, ks) != 0) {
 		if (ks->paths.first == NULL) {
 			if ((ks->flag & KEYINGSET_ABSOLUTE) == 0) {
-				BKE_report(reports, RPT_ERROR, 
+				BKE_report(reports, RPT_ERROR,
 				           "Use another Keying Set, as the active one depends on the currently "
 				           "selected objects or cannot find any targets due to unsuitable context");
 			}
@@ -769,7 +719,7 @@ static bool select_grouped_keyingset(bContext *C, Object *UNUSED(ob), ReportList
 		}
 		return false;
 	}
-	
+
 	/* select each object that Keying Set refers to */
 	/* TODO: perhaps to be more in line with the rest of these, we should only take objects
 	 * if the passed in object is included in this too */
@@ -778,8 +728,8 @@ static bool select_grouped_keyingset(bContext *C, Object *UNUSED(ob), ReportList
 		/* only check for this object if it isn't selected already, to limit time wasted */
 		if ((base->flag & BASE_SELECTED) == 0) {
 			KS_Path *ksp;
-			
-			/* this is the slow way... we could end up with > 500 items here, 
+
+			/* this is the slow way... we could end up with > 500 items here,
 			 * with none matching, but end up doing this on 1000 objects...
 			 */
 			for (ksp = ks->paths.first; ksp; ksp = ksp->next) {
@@ -793,7 +743,7 @@ static bool select_grouped_keyingset(bContext *C, Object *UNUSED(ob), ReportList
 		}
 	}
 	CTX_DATA_END;
-		
+
 	return changed;
 }
 
@@ -841,9 +791,6 @@ static int object_select_grouped_exec(bContext *C, wmOperator *op)
 		case OBJECT_GRPSEL_COLLECTION:
 			changed |= select_grouped_collection(C, ob);
 			break;
-		case OBJECT_GRPSEL_GROUP:
-			changed |= select_grouped_group(C, ob);
-			break;
 		case OBJECT_GRPSEL_HOOK:
 			changed |= select_grouped_object_hooks(C, ob);
 			break;
@@ -868,6 +815,7 @@ static int object_select_grouped_exec(bContext *C, wmOperator *op)
 	}
 
 	if (changed) {
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
@@ -881,15 +829,15 @@ void OBJECT_OT_select_grouped(wmOperatorType *ot)
 	ot->name = "Select Grouped";
 	ot->description = "Select all visible objects grouped by various properties";
 	ot->idname = "OBJECT_OT_select_grouped";
-	
+
 	/* api callbacks */
 	ot->invoke = WM_menu_invoke;
 	ot->exec = object_select_grouped_exec;
 	ot->poll = objects_selectable_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	RNA_def_boolean(ot->srna, "extend", false, "Extend", "Extend selection instead of deselecting everything first");
 	ot->prop = RNA_def_enum(ot->srna, "type", prop_select_grouped_types, 0, "Type", "");
@@ -900,7 +848,7 @@ void OBJECT_OT_select_grouped(wmOperatorType *ot)
 static int object_select_all_exec(bContext *C, wmOperator *op)
 {
 	int action = RNA_enum_get(op->ptr, "action");
-	
+
 	/* passthrough if no objects are visible */
 	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
 
@@ -936,107 +884,70 @@ static int object_select_all_exec(bContext *C, wmOperator *op)
 		}
 	}
 	CTX_DATA_END;
-	
-	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
-	
+
+	Scene *scene = CTX_data_scene(C);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
+
 	return OPERATOR_FINISHED;
 }
 
 void OBJECT_OT_select_all(wmOperatorType *ot)
 {
-	
+
 	/* identifiers */
 	ot->name = "(De)select All";
 	ot->description = "Change selection of all visible objects in scene";
 	ot->idname = "OBJECT_OT_select_all";
-	
+
 	/* api callbacks */
 	ot->exec = object_select_all_exec;
 	ot->poll = objects_selectable_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	WM_operator_properties_select_all(ot);
 }
 
-/**************************** Select In The Same Group ****************************/
+/**************************** Select In The Same Collection ****************************/
 
-static int object_select_same_group_exec(bContext *C, wmOperator *op)
+static int object_select_same_collection_exec(bContext *C, wmOperator *op)
 {
-	Group *group;
-	char group_name[MAX_ID_NAME];
+	Main *bmain = CTX_data_main(C);
+	Collection *collection;
+	char collection_name[MAX_ID_NAME];
 
 	/* passthrough if no objects are visible */
 	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
 
-	RNA_string_get(op->ptr, "group", group_name);
+	RNA_string_get(op->ptr, "collection", collection_name);
 
-	group = (Group *)BKE_libblock_find_name(ID_GR, group_name);
+	collection = (Collection *)BKE_libblock_find_name(bmain, ID_GR, collection_name);
 
-	if (!group) {
+	if (!collection) {
 		return OPERATOR_PASS_THROUGH;
 	}
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
 	{
-		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLED) != 0)) {
-			if (BKE_group_object_exists(group, base->object)) {
+		if (((base->flag & BASE_SELECTED) == 0) && ((base->flag & BASE_SELECTABLE) != 0)) {
+			if (BKE_collection_has_object(collection, base->object)) {
 				ED_object_base_select(base, BA_SELECT);
 			}
 		}
 	}
 	CTX_DATA_END;
 
-	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
-	
-	return OPERATOR_FINISHED;
-}
-
-void OBJECT_OT_select_same_group(wmOperatorType *ot)
-{
-	
-	/* identifiers */
-	ot->name = "Select Same Group";
-	ot->description = "Select object in the same group";
-	ot->idname = "OBJECT_OT_select_same_group";
-	
-	/* api callbacks */
-	ot->exec = object_select_same_group_exec;
-	ot->poll = objects_selectable_poll;
-	
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	RNA_def_string(ot->srna, "group", NULL, MAX_ID_NAME, "Group", "Name of the group to select");
-}
-
-/**************************** Select In The Same Collection ****************************/
-
-static int object_select_same_collection_exec(bContext *C, wmOperator *op)
-{
-	SceneCollection *collection;
-
-	/* passthrough if no objects are visible */
-	if (CTX_DATA_COUNT(C, visible_bases) == 0) return OPERATOR_PASS_THROUGH;
-
-	int collection_index = RNA_int_get(op->ptr, "collection_index");
-	collection = BKE_collection_from_index(CTX_data_scene(C), collection_index);
-
-	if (!collection) {
-		return OPERATOR_PASS_THROUGH;
-	}
-
-	if (BKE_collection_objects_select(CTX_data_view_layer(C), collection)) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
-	}
+	Scene *scene = CTX_data_scene(C);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
 }
 
 void OBJECT_OT_select_same_collection(wmOperatorType *ot)
 {
-	PropertyRNA *prop;
 
 	/* identifiers */
 	ot->name = "Select Same Collection";
@@ -1050,27 +961,27 @@ void OBJECT_OT_select_same_collection(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	prop = RNA_def_int(ot->srna, "collection_index", -1, -1, INT_MAX,
-	                   "Collection Index", "Index of the collection to select", 0, INT_MAX);
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_string(ot->srna, "collection", NULL, MAX_ID_NAME, "Collection", "Name of the collection to select");
 }
+
 /**************************** Select Mirror ****************************/
 static int object_select_mirror_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	bool extend;
-	
+
 	extend = RNA_boolean_get(op->ptr, "extend");
-	
+
 	CTX_DATA_BEGIN (C, Base *, primbase, selected_bases)
 	{
 		char name_flip[MAXBONENAME];
 
 		BLI_string_flip_side_name(name_flip, primbase->object->id.name + 2, true, sizeof(name_flip));
-		
+
 		if (!STREQ(name_flip, primbase->object->id.name + 2)) {
-			Object *ob = (Object *)BKE_libblock_find_name(ID_OB, name_flip);
+			Object *ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, name_flip);
 			if (ob) {
 				Base *secbase = BKE_view_layer_base_find(view_layer, ob);
 
@@ -1079,33 +990,34 @@ static int object_select_mirror_exec(bContext *C, wmOperator *op)
 				}
 			}
 		}
-		
+
 		if (extend == false) ED_object_base_select(primbase, BA_DESELECT);
-		
+
 	}
 	CTX_DATA_END;
-	
+
 	/* undo? */
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
-	
+
 	return OPERATOR_FINISHED;
 }
 
 void OBJECT_OT_select_mirror(wmOperatorType *ot)
 {
-	
+
 	/* identifiers */
 	ot->name = "Select Mirror";
 	ot->description = "Select the Mirror objects of the selected object eg. L.sword -> R.sword";
 	ot->idname = "OBJECT_OT_select_mirror";
-	
+
 	/* api callbacks */
 	ot->exec = object_select_mirror_exec;
 	ot->poll = objects_selectable_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	RNA_def_boolean(ot->srna, "extend", 0, "Extend", "Extend selection instead of deselecting everything first");
 }
 
@@ -1173,7 +1085,9 @@ static int object_select_more_exec(bContext *C, wmOperator *UNUSED(op))
 	bool changed = object_select_more_less(C, true);
 
 	if (changed) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
+		Scene *scene = CTX_data_scene(C);
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
 	else {
@@ -1201,7 +1115,9 @@ static int object_select_less_exec(bContext *C, wmOperator *UNUSED(op))
 	bool changed = object_select_more_less(C, false);
 
 	if (changed) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
+		Scene *scene = CTX_data_scene(C);
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
 	else {
@@ -1230,7 +1146,7 @@ void OBJECT_OT_select_less(wmOperatorType *ot)
 /**************************** Select Random ****************************/
 
 static int object_select_random_exec(bContext *C, wmOperator *op)
-{	
+{
 	const float randfac = RNA_float_get(op->ptr, "percent") / 100.0f;
 	const int seed = WM_operator_properties_select_random_seed_increment_get(op);
 	const bool select = (RNA_enum_get(op->ptr, "action") == SEL_SELECT);
@@ -1247,8 +1163,10 @@ static int object_select_random_exec(bContext *C, wmOperator *op)
 
 	BLI_rng_free(rng);
 
-	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, CTX_data_scene(C));
-	
+	Scene *scene = CTX_data_scene(C);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
+
 	return OPERATOR_FINISHED;
 }
 
@@ -1258,15 +1176,15 @@ void OBJECT_OT_select_random(wmOperatorType *ot)
 	ot->name = "Select Random";
 	ot->description = "Set select on random visible objects";
 	ot->idname = "OBJECT_OT_select_random";
-	
+
 	/* api callbacks */
 	/*ot->invoke = object_select_random_invoke XXX - need a number popup ;*/
 	ot->exec = object_select_random_exec;
 	ot->poll = objects_selectable_poll;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	WM_operator_properties_select_random(ot);
 }

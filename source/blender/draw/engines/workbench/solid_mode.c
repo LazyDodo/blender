@@ -37,43 +37,49 @@
 static void workbench_solid_engine_init(void *vedata)
 {
 	WORKBENCH_Data *data = vedata;
-	workbench_materials_engine_init(data);
+	workbench_deferred_engine_init(data);
 }
 
 static void workbench_solid_cache_init(void *vedata)
 {
 
 	WORKBENCH_Data *data = vedata;
-	workbench_materials_cache_init(data);
+	workbench_deferred_cache_init(data);
 }
 
 static void workbench_solid_cache_populate(void *vedata, Object *ob)
 {
 	WORKBENCH_Data *data = vedata;
-	workbench_materials_solid_cache_populate(data, ob);
+	workbench_deferred_solid_cache_populate(data, ob);
 }
 
 static void workbench_solid_cache_finish(void *vedata)
 {
 	WORKBENCH_Data *data = vedata;
-	workbench_materials_cache_finish(data);
+	workbench_deferred_cache_finish(data);
 }
 
 static void workbench_solid_draw_background(void *vedata)
 {
 	WORKBENCH_Data *data = vedata;
-	workbench_materials_draw_background(data);
+	workbench_deferred_draw_background(data);
 }
 
 static void workbench_solid_draw_scene(void *vedata)
 {
 	WORKBENCH_Data *data = vedata;
-	workbench_materials_draw_scene(data);
+	workbench_deferred_draw_scene(data);
 }
 
 static void workbench_solid_engine_free(void)
 {
-	workbench_materials_engine_free();
+	workbench_deferred_engine_free();
+}
+
+static void workbench_solid_view_update(void *vedata)
+{
+	WORKBENCH_Data *data = vedata;
+	workbench_taa_view_updated(data);
 }
 
 static const DrawEngineDataSize workbench_data_size = DRW_VIEWPORT_DATA_SIZE(WORKBENCH_Data);
@@ -89,8 +95,7 @@ DrawEngineType draw_engine_workbench_solid = {
 	&workbench_solid_cache_finish,
 	&workbench_solid_draw_background,
 	&workbench_solid_draw_scene,
-	NULL,
+	&workbench_solid_view_update,
 	NULL,
 	NULL,
 };
-

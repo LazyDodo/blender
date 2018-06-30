@@ -102,6 +102,25 @@ void drw_state_set(DRWState state)
 		}
 	}
 
+	/* Raster Discard */
+	{
+		if (CHANGED_ANY(DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR |
+		                DRW_STATE_WRITE_STENCIL |
+		                DRW_STATE_WRITE_STENCIL_SHADOW_PASS |
+		                DRW_STATE_WRITE_STENCIL_SHADOW_FAIL))
+		{
+			if ((state & (DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR |
+			              DRW_STATE_WRITE_STENCIL | DRW_STATE_WRITE_STENCIL_SHADOW_PASS |
+			              DRW_STATE_WRITE_STENCIL_SHADOW_FAIL)) != 0)
+			{
+				glDisable(GL_RASTERIZER_DISCARD);
+			}
+			else {
+				glEnable(GL_RASTERIZER_DISCARD);
+			}
+		}
+	}
+
 	/* Cull */
 	{
 		DRWState test;
@@ -132,13 +151,17 @@ void drw_state_set(DRWState state)
 	{
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
-		        DRW_STATE_DEPTH_LESS | DRW_STATE_DEPTH_EQUAL | DRW_STATE_DEPTH_GREATER | DRW_STATE_DEPTH_ALWAYS,
+		        DRW_STATE_DEPTH_LESS | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_DEPTH_EQUAL |
+		        DRW_STATE_DEPTH_GREATER | DRW_STATE_DEPTH_GREATER_EQUAL | DRW_STATE_DEPTH_ALWAYS,
 		        test))
 		{
 			if (test) {
 				glEnable(GL_DEPTH_TEST);
 
 				if (state & DRW_STATE_DEPTH_LESS) {
+					glDepthFunc(GL_LESS);
+				}
+				else if (state & DRW_STATE_DEPTH_LESS_EQUAL) {
 					glDepthFunc(GL_LEQUAL);
 				}
 				else if (state & DRW_STATE_DEPTH_EQUAL) {
@@ -146,6 +169,9 @@ void drw_state_set(DRWState state)
 				}
 				else if (state & DRW_STATE_DEPTH_GREATER) {
 					glDepthFunc(GL_GREATER);
+				}
+				else if (state & DRW_STATE_DEPTH_GREATER_EQUAL) {
+					glDepthFunc(GL_GEQUAL);
 				}
 				else if (state & DRW_STATE_DEPTH_ALWAYS) {
 					glDepthFunc(GL_ALWAYS);
@@ -195,7 +221,8 @@ void drw_state_set(DRWState state)
 		int test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_BLEND | DRW_STATE_BLEND_PREMUL | DRW_STATE_ADDITIVE |
-		        DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION | DRW_STATE_ADDITIVE_FULL,
+		        DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION | DRW_STATE_ADDITIVE_FULL |
+		        DRW_STATE_BLEND_OIT,
 		        test))
 		{
 			if (test) {
@@ -213,6 +240,10 @@ void drw_state_set(DRWState state)
 				}
 				else if ((state & DRW_STATE_TRANSMISSION) != 0) {
 					glBlendFunc(GL_ONE, GL_SRC_ALPHA);
+				}
+				else if ((state & DRW_STATE_BLEND_OIT) != 0) {
+					glBlendFuncSeparate(GL_ONE, GL_ONE, /* RGB */
+					                    GL_ZERO, GL_ONE_MINUS_SRC_ALPHA); /* Alpha */
 				}
 				else if ((state & DRW_STATE_ADDITIVE) != 0) {
 					/* Do not let alpha accumulate but premult the source RGB by it. */
@@ -283,7 +314,8 @@ void drw_state_set(DRWState state)
 		DRWState test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_WRITE_STENCIL |
-		        DRW_STATE_WRITE_STENCIL_SHADOW |
+		        DRW_STATE_WRITE_STENCIL_SHADOW_PASS |
+		        DRW_STATE_WRITE_STENCIL_SHADOW_FAIL |
 		        DRW_STATE_STENCIL_EQUAL |
 		        DRW_STATE_STENCIL_NEQUAL,
 		        test))
@@ -295,10 +327,15 @@ void drw_state_set(DRWState state)
 					glStencilMask(0xFF);
 					glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 				}
-				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW) != 0) {
+				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW_PASS) != 0) {
 					glStencilMask(0xFF);
-					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_INCR_WRAP, GL_KEEP);
-					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+				}
+				else if ((state & DRW_STATE_WRITE_STENCIL_SHADOW_FAIL) != 0) {
+					glStencilMask(0xFF);
+					glStencilOpSeparate(GL_BACK,  GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+					glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_INCR_WRAP, GL_KEEP);
 				}
 				/* Stencil Test */
 				else if ((state & (DRW_STATE_STENCIL_EQUAL | DRW_STATE_STENCIL_NEQUAL)) != 0) {
@@ -480,12 +517,12 @@ static void draw_clipping_setup_from_view(void)
 	for (int p = 0; p < 6; p++) {
 		int q, r;
 		switch (p) {
-			case 0:  q = 1; r = 2; break;
-			case 1:  q = 0; r = 5; break;
-			case 2:  q = 1; r = 5; break;
-			case 3:  q = 2; r = 6; break;
-			case 4:  q = 0; r = 3; break;
-			default: q = 4; r = 7; break;
+			case 0:  q = 1; r = 2; break; /* -X */
+			case 1:  q = 0; r = 5; break; /* -Y */
+			case 2:  q = 1; r = 5; break; /* +Z (far) */
+			case 3:  q = 2; r = 6; break; /* +Y */
+			case 4:  q = 0; r = 3; break; /* -Z (near) */
+			default: q = 4; r = 7; break; /* +X */
 		}
 		if (DST.frontface == GL_CW) {
 			SWAP(int, q, r);
@@ -671,6 +708,19 @@ bool DRW_culling_plane_test(float plane[4])
 	return false;
 }
 
+void DRW_culling_frustum_corners_get(BoundBox *corners)
+{
+	draw_clipping_setup_from_view();
+	memcpy(corners, &DST.clipping.frustum_corners, sizeof(BoundBox));
+}
+
+/* See draw_clipping_setup_from_view() for the plane order. */
+void DRW_culling_frustum_planes_get(float planes[6][4])
+{
+	draw_clipping_setup_from_view();
+	memcpy(planes, &DST.clipping.frustum_planes, sizeof(DST.clipping.frustum_planes));
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -705,12 +755,14 @@ static void draw_matrices_model_prepare(DRWCallState *st)
 	}
 
 	/* No need to go further the call will not be used. */
-	if (st->flag & DRW_CALL_CULLED)
+	if ((st->flag & DRW_CALL_CULLED) != 0 &&
+	    (st->flag & DRW_CALL_BYPASS_CULLING) == 0)
+	{
 		return;
-
+	}
 	/* Order matters */
 	if (st->matflag & (DRW_CALL_MODELVIEW | DRW_CALL_MODELVIEWINVERSE |
-	                  DRW_CALL_NORMALVIEW | DRW_CALL_EYEVEC))
+	                   DRW_CALL_NORMALVIEW | DRW_CALL_EYEVEC))
 	{
 		mul_m4_m4m4(st->modelview, DST.view_data.matstate.mat[DRW_MAT_VIEW], st->model);
 	}
@@ -778,6 +830,7 @@ static void draw_geometry_execute_ex(
         DRWShadingGroup *shgroup, Gwn_Batch *geom, uint start, uint count, bool draw_instance)
 {
 	/* Special case: empty drawcall, placement is done via shader, don't bind anything. */
+	/* TODO use DRW_CALL_PROCEDURAL instead */
 	if (geom == NULL) {
 		BLI_assert(shgroup->type == DRW_SHG_TRIANGLE_BATCH); /* Add other type if needed. */
 		/* Shader is already bound. */
@@ -786,7 +839,8 @@ static void draw_geometry_execute_ex(
 	}
 
 	/* step 2 : bind vertex array & draw */
-	GWN_batch_program_set_no_use(geom, GPU_shader_get_program(shgroup->shader), GPU_shader_get_interface(shgroup->shader));
+	GWN_batch_program_set_no_use(
+	        geom, GPU_shader_get_program(shgroup->shader), GPU_shader_get_interface(shgroup->shader));
 	/* XXX hacking gawain. we don't want to call glUseProgram! (huge performance loss) */
 	geom->program_in_use = true;
 
@@ -900,11 +954,19 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	int val;
 	float fval;
 	const bool shader_changed = (DST.shader != shgroup->shader);
+	bool use_tfeedback = false;
 
 	if (shader_changed) {
 		if (DST.shader) GPU_shader_unbind();
 		GPU_shader_bind(shgroup->shader);
 		DST.shader = shgroup->shader;
+	}
+
+	if ((pass_state & DRW_STATE_TRANS_FEEDBACK) != 0 &&
+	    (shgroup->type == DRW_SHG_FEEDBACK_TRANSFORM))
+	{
+		use_tfeedback = GPU_shader_transform_feedback_enable(shgroup->shader,
+		                                                     shgroup->tfeedback_target->vbo_id);
 	}
 
 	release_ubo_slots(shader_changed);
@@ -992,7 +1054,10 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	int *select_id = NULL;                                           \
 	if (G.f & G_PICKSEL) {                                           \
 		if (_shgroup->override_selectid == -1) {                        \
-			select_id = DRW_instance_data_get(_shgroup->inst_selectid); \
+			/* Hack : get vbo data without actually drawing. */     \
+			Gwn_VertBufRaw raw;                   \
+			GWN_vertbuf_attr_get_raw_data(_shgroup->inst_selectid, 0, &raw); \
+			select_id = GWN_vertbuf_raw_step(&raw);                               \
 			switch (_shgroup->type) {                                             \
 				case DRW_SHG_TRIANGLE_BATCH: _count = 3; break;                   \
 				case DRW_SHG_LINE_BATCH: _count = 2; break;                       \
@@ -1023,7 +1088,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 #endif
 
 	/* Rendering Calls */
-	if (!ELEM(shgroup->type, DRW_SHG_NORMAL)) {
+	if (!ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM)) {
 		/* Replacing multiple calls with only one */
 		if (ELEM(shgroup->type, DRW_SHG_INSTANCE, DRW_SHG_INSTANCE_EXTERNAL)) {
 			if (shgroup->type == DRW_SHG_INSTANCE_EXTERNAL) {
@@ -1067,8 +1132,11 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 			draw_visibility_eval(call->state);
 			draw_matrices_model_prepare(call->state);
 
-			if ((call->state->flag & DRW_CALL_CULLED) != 0)
+			if ((call->state->flag & DRW_CALL_CULLED) != 0 &&
+			    (call->state->flag & DRW_CALL_BYPASS_CULLING) == 0)
+			{
 				continue;
+			}
 
 			/* XXX small exception/optimisation for outline rendering. */
 			if (shgroup->callid != -1) {
@@ -1090,11 +1158,17 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 				case DRW_CALL_SINGLE:
 					draw_geometry_execute(shgroup, call->single.geometry);
 					break;
+				case DRW_CALL_RANGE:
+					draw_geometry_execute_ex(shgroup, call->range.geometry, call->range.start, call->range.count, false);
+					break;
 				case DRW_CALL_INSTANCES:
 					draw_geometry_execute_ex(shgroup, call->instances.geometry, 0, *call->instances.count, true);
 					break;
 				case DRW_CALL_GENERATE:
 					call->generate.geometry_fn(shgroup, draw_geometry_execute, call->generate.user_data);
+					break;
+				case DRW_CALL_PROCEDURAL:
+					GWN_draw_primitive(call->procedural.prim_type, call->procedural.vert_count);
 					break;
 				default:
 					BLI_assert(0);
@@ -1102,6 +1176,10 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 		}
 		/* Reset state */
 		glFrontFace(DST.frontface);
+	}
+
+	if (use_tfeedback) {
+		GPU_shader_transform_feedback_disable(shgroup->shader);
 	}
 
 	/* TODO: remove, (currently causes alpha issue with sculpt, need to investigate) */

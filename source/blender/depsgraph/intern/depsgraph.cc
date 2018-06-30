@@ -70,18 +70,6 @@ extern "C" {
 #include "intern/depsgraph_intern.h"
 #include "util/deg_util_foreach.h"
 
-static bool use_copy_on_write = false;
-
-bool DEG_depsgraph_use_copy_on_write(void)
-{
-	return use_copy_on_write;
-}
-
-void DEG_depsgraph_enable_copy_on_write(void)
-{
-	use_copy_on_write = true;
-}
-
 namespace DEG {
 
 static DEG_EditorUpdateIDCb deg_editor_update_id_cb = NULL;
@@ -104,12 +92,15 @@ Depsgraph::Depsgraph(Scene *scene,
     view_layer(view_layer),
     mode(mode),
     ctime(BKE_scene_frame_get(scene)),
-    scene_cow(NULL)
+    scene_cow(NULL),
+    is_active(false)
 {
 	BLI_spin_init(&lock);
 	id_hash = BLI_ghash_ptr_new("Depsgraph id hash");
 	entry_tags = BLI_gset_ptr_new("Depsgraph entry_tags");
 	debug_flags = G.debug;
+	memset(id_type_updated, 0, sizeof(id_type_updated));
+	memset(physics_relations, 0, sizeof(physics_relations));
 }
 
 Depsgraph::~Depsgraph()
@@ -320,7 +311,7 @@ IDDepsNode *Depsgraph::find_id_node(const ID *id) const
 
 IDDepsNode *Depsgraph::add_id_node(ID *id, ID *id_cow_hint)
 {
-	BLI_assert((id->tag & LIB_TAG_COPY_ON_WRITE) == 0);
+	BLI_assert((id->tag & LIB_TAG_COPIED_ON_WRITE) == 0);
 	IDDepsNode *id_node = find_id_node(id);
 	if (!id_node) {
 		DepsNodeFactory *factory = deg_type_get_factory(DEG_NODE_TYPE_ID_REF);
@@ -337,33 +328,41 @@ IDDepsNode *Depsgraph::add_id_node(ID *id, ID *id_cow_hint)
 	return id_node;
 }
 
+void Depsgraph::clear_id_nodes_conditional(const std::function <bool (ID_Type id_type)>& filter)
+{
+	foreach (IDDepsNode *id_node, id_nodes) {
+		if (id_node->id_cow == NULL) {
+			/* This means builder "stole" ownership of the copy-on-written
+			 * datablock for her own dirty needs.
+			 */
+			continue;
+		}
+		if (!deg_copy_on_write_is_expanded(id_node->id_cow)) {
+			continue;
+		}
+		const ID_Type id_type = GS(id_node->id_cow->name);
+		if (filter(id_type)) {
+			id_node->destroy();
+		}
+	}
+}
+
 void Depsgraph::clear_id_nodes()
 {
 	/* Free memory used by ID nodes. */
-	if (use_copy_on_write) {
-		/* Stupid workaround to ensure we free IDs in a proper order. */
-		foreach (IDDepsNode *id_node, id_nodes) {
-			if (id_node->id_cow == NULL) {
-				/* This means builder "stole" ownership of the copy-on-written
-				 * datablock for her own dirty needs.
-				 */
-				continue;
-			}
-			if (!deg_copy_on_write_is_expanded(id_node->id_cow)) {
-				continue;
-			}
-			const ID_Type id_type = GS(id_node->id_cow->name);
-			if (id_type != ID_PA) {
-				id_node->destroy();
-			}
-		}
-	}
+
+	/* Stupid workaround to ensure we free IDs in a proper order. */
+	clear_id_nodes_conditional([](ID_Type id_type) { return id_type == ID_SCE; });
+	clear_id_nodes_conditional([](ID_Type id_type) { return id_type != ID_PA; });
+
 	foreach (IDDepsNode *id_node, id_nodes) {
 		OBJECT_GUARDED_DELETE(id_node, IDDepsNode);
 	}
 	/* Clear containers. */
 	BLI_ghash_clear(id_hash, NULL, NULL);
 	id_nodes.clear();
+	/* Clear physics relation caches. */
+	deg_clear_physics_relations(this);
 }
 
 /* Add new relationship between two nodes. */
@@ -510,7 +509,7 @@ ID *Depsgraph::get_cow_id(const ID *id_orig) const
 		 * We try to enforce that in debug builds, for for release we play a bit
 		 * safer game here.
 		 */
-		if ((id_orig->tag & LIB_TAG_COPY_ON_WRITE) == 0) {
+		if ((id_orig->tag & LIB_TAG_COPIED_ON_WRITE) == 0) {
 			/* TODO(sergey): This is nice sanity check to have, but it fails
 			 * in following situations:
 			 *
@@ -598,6 +597,34 @@ void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
 {
 	DEG::deg_editor_update_id_cb = id_func;
 	DEG::deg_editor_update_scene_cb = scene_func;
+}
+
+bool DEG_is_active(const struct Depsgraph *depsgraph)
+{
+	if (depsgraph == NULL) {
+		/* Happens for such cases as work object in what_does_obaction(),
+		 * and sine render pipeline parts. Shouldn't really be accepting
+		 * NULL depsgraph, but is quite hard to get proper one in those
+		 * cases.
+		 */
+		return false;
+	}
+	const DEG::Depsgraph *deg_graph =
+	        reinterpret_cast<const DEG::Depsgraph *>(depsgraph);
+	return deg_graph->is_active;
+}
+
+void DEG_make_active(struct Depsgraph *depsgraph)
+{
+	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(depsgraph);
+	deg_graph->is_active = true;
+	/* TODO(sergey): Copy data from evaluated state to original. */
+}
+
+void DEG_make_inactive(struct Depsgraph *depsgraph)
+{
+	DEG::Depsgraph *deg_graph = reinterpret_cast<DEG::Depsgraph *>(depsgraph);
+	deg_graph->is_active = false;
 }
 
 /* Evaluation and debug */
@@ -696,30 +723,26 @@ void DEG_debug_print_eval_parent_typed(struct Depsgraph *depsgraph,
                                        const char *function_name,
                                        const char *object_name,
                                        const void *object_address,
-                                       const char *object_type,
                                        const char *parent_comment,
                                        const char *parent_name,
-                                       const void *parent_address,
-                                       const char *parent_type)
+                                       const void *parent_address)
 {
 	if ((DEG_debug_flags_get(depsgraph) & G_DEBUG_DEPSGRAPH_EVAL) == 0) {
 		return;
 	}
 	fprintf(stdout,
-	        "%s%s on %s %s(%p)%s [%s] %s %s %s(%p)%s %s\n",
+	        "%s%s on %s %s(%p) [%s] %s %s %s(%p)%s\n",
 	        depsgraph_name_for_logging(depsgraph).c_str(),
 	        function_name,
 	        object_name,
 	        DEG::deg_color_for_pointer(object_address).c_str(),
 	        object_address,
-	        object_type,
 	        DEG::deg_color_end().c_str(),
 	        parent_comment,
 	        parent_name,
 	        DEG::deg_color_for_pointer(parent_address).c_str(),
 	        parent_address,
-	        DEG::deg_color_end().c_str(),
-	        parent_type);
+	        DEG::deg_color_end().c_str());
 	fflush(stdout);
 }
 

@@ -54,26 +54,22 @@ typedef struct TexPaintSlot {
 	int pad;
 } TexPaintSlot;
 
-/* Clay engine */
-
-/* MaterialRuntimeClay.flag */
-#define CLAY_OUTDATED		1
-
-/* MaterialEngineSettingsClay.type */
-#define CLAY_MATCAP_NONE		0
-#define CLAY_MATCAP_SIMPLE		1
-#define CLAY_MATCAP_COMPLETE	2
-
 typedef struct Material {
 	ID id;
-	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */ 
-	
+	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */
+
 	short flag, pad1[7];
 
 	/* Colors from Blender Internal that we are still using. */
 	float r, g, b;
 	float specr, specg, specb;
-	float alpha, ray_mirror, spec, gloss_mir;
+	float alpha DNA_DEPRECATED;
+	float ray_mirror  DNA_DEPRECATED;
+	float spec;
+	float gloss_mir  DNA_DEPRECATED; /* renamed and inversed to roughness */
+	float roughness;
+	float metallic;
+	float pad4[2];
 
 	/* Ror buttons and render. */
 	char pr_type, use_nodes;
@@ -127,7 +123,7 @@ typedef struct Material {
 		/* for dopesheet */
 #define MA_DS_EXPAND	2
 		/* for dopesheet (texture stack expander)
-		 * NOTE: this must have the same value as other texture stacks, 
+		 * NOTE: this must have the same value as other texture stacks,
 		 * otherwise anim-editors will not read correctly
 		 */
 #define MA_DS_SHOW_TEXS	4
@@ -149,8 +145,8 @@ typedef struct Material {
 #define MA_RAMP_SAT			13
 #define MA_RAMP_VAL			14
 #define MA_RAMP_COLOR		15
-#define MA_RAMP_SOFT        16 
-#define MA_RAMP_LINEAR      17 
+#define MA_RAMP_SOFT        16
+#define MA_RAMP_LINEAR      17
 
 /* texco */
 #define TEXCO_ORCO		1
@@ -234,4 +230,3 @@ enum {
 };
 
 #endif
-

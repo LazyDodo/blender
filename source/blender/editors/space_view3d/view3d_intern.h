@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -41,7 +41,6 @@ struct Base;
 struct BoundBox;
 struct Gwn_Batch;
 struct Depsgraph;
-struct DerivedMesh;
 struct Object;
 struct SmokeDomainSettings;
 struct bAnimVizSettings;
@@ -65,6 +64,8 @@ enum {
 
 /* view3d_header.c */
 void VIEW3D_OT_layers(struct wmOperatorType *ot);
+void VIEW3D_OT_toggle_xray_draw_option(struct wmOperatorType *ot);
+void VIEW3D_OT_toggle_matcap_flip(struct wmOperatorType *ot);
 
 /* view3d_ops.c */
 void view3d_operatortypes(void);
@@ -132,7 +133,10 @@ void VIEW3D_OT_walk(struct wmOperatorType *ot);
 void VIEW3D_OT_ruler(struct wmOperatorType *ot);
 
 /* drawobject.c */
-void draw_object_backbufsel(struct Depsgraph *depsgraph, Scene *scene, View3D *v3d, RegionView3D *rv3d, struct Object *ob);
+void draw_object_backbufsel(
+        struct Depsgraph *depsgraph, Scene *scene,
+        View3D *v3d, RegionView3D *rv3d, struct Object *ob,
+        short select_mode);
 
 int view3d_effective_drawtype(const struct View3D *v3d);
 
@@ -182,6 +186,7 @@ typedef struct V3D_SmoothParams {
 } V3D_SmoothParams;
 
 void ED_view3d_smooth_view_ex(
+        const struct Depsgraph *depsgraph,
         struct wmWindowManager *wm, struct wmWindow *win, struct ScrArea *sa,
         struct View3D *v3d, struct ARegion *ar, const int smooth_viewtx,
         const V3D_SmoothParams *sview);
@@ -229,7 +234,6 @@ struct Object *ED_view3d_cameracontrol_object_get(
 
 /* view3d_toolbar.c */
 void VIEW3D_OT_toolshelf(struct wmOperatorType *ot);
-void view3d_toolshelf_register(struct ARegionType *art);
 
 /* view3d_snap.c */
 bool ED_view3d_minmax_verts(struct Object *obedit, float min[3], float max[3]);

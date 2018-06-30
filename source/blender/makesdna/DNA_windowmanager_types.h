@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -232,6 +232,9 @@ typedef struct wmWindow {
 
 	/* custom drawing callbacks */
 	ListBase drawcalls;
+
+	/* Private runtime info to show text in the status bar. */
+	void *cursor_keymap_status;
 } wmWindow;
 
 #ifdef ime_data
@@ -239,7 +242,7 @@ typedef struct wmWindow {
 #endif
 
 /* These two Lines with # tell makesdna this struct can be excluded. */
-/* should be something like DNA_EXCLUDE 
+/* should be something like DNA_EXCLUDE
  * but the preprocessor first removes all comments, spaces etc */
 #
 #
@@ -377,11 +380,6 @@ typedef struct wmOperator {
 	struct wmOperator *opm;       /* current running macro, not saved */
 	struct uiLayout *layout;      /* runtime for drawing */
 	short flag, pad[3];
-
-	/* Screen context the operator was finished in. It gets temporarily
-	 * restored during operator repeat. Only set for registered operators. */
-	struct ScrArea *execution_area;
-	struct ARegion *execution_region;
 } wmOperator;
 
 /* operator type return flags: exec(), invoke() modal(), return values */

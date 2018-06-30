@@ -21,6 +21,7 @@ import bpy
 import nodeitems_utils
 from bpy.types import Header, Menu, Panel
 from bpy.app.translations import pgettext_iface as iface_
+from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
     GreasePencilDrawingToolsPanel,
     GreasePencilStrokeEditPanel,
@@ -48,15 +49,24 @@ class NODE_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
-        layout.prop(snode, "tree_type", text="")
-
-        NODE_MT_editor_menus.draw_collapsible(context, layout)
+        # Now expanded via the 'ui_type'
+        # layout.prop(snode, "tree_type", text="")
 
         if snode.tree_type == 'ShaderNodeTree':
             layout.prop(snode, "shader_type", text="", expand=True)
 
             ob = context.object
             if snode.shader_type == 'OBJECT' and ob:
+
+                NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+                # No shader nodes for Eevee lamps
+                if snode_id and not (context.engine == 'BLENDER_EEVEE' and ob.type == 'LAMP'):
+                    row = layout.row()
+                    row.prop(snode_id, "use_nodes")
+
+                layout.separator_spacer()
+
                 row = layout.row()
                 # disable material slot buttons when pinned, cannot find correct slot within id_from (#36589)
                 row.enabled = not snode.pin
@@ -67,50 +77,74 @@ class NODE_HT_header(Header):
                 if id_from and ob.type != 'LAMP':
                     row.template_ID(id_from, "active_material", new="material.new")
 
-                # No shader nodes for Eevee lamps
-                if snode_id and not (context.engine == 'BLENDER_EEVEE' and ob.type == 'LAMP'):
-                    layout.prop(snode_id, "use_nodes")
-
             if snode.shader_type == 'WORLD':
+
+                NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+                if snode_id:
+                    row = layout.row()
+                    row.prop(snode_id, "use_nodes")
+
+                layout.separator_spacer()
+
                 row = layout.row()
                 row.enabled = not snode.pin
                 row.template_ID(scene, "world", new="world.new")
-                if snode_id:
-                    row.prop(snode_id, "use_nodes")
 
             if snode.shader_type == 'LINESTYLE':
                 view_layer = context.view_layer
                 lineset = view_layer.freestyle_settings.linesets.active
+
                 if lineset is not None:
+                    NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+                    if snode_id:
+                        row = layout.row()
+                        row.prop(snode_id, "use_nodes")
+
+                    layout.separator_spacer()
+
                     row = layout.row()
                     row.enabled = not snode.pin
                     row.template_ID(lineset, "linestyle", new="scene.freestyle_linestyle_new")
-                    if snode_id:
-                        row.prop(snode_id, "use_nodes")
 
         elif snode.tree_type == 'TextureNodeTree':
             layout.prop(snode, "texture_type", text="", expand=True)
+
+            NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+            if snode_id:
+                layout.prop(snode_id, "use_nodes")
+
+            layout.separator_spacer()
 
             if id_from:
                 if snode.texture_type == 'BRUSH':
                     layout.template_ID(id_from, "texture", new="texture.new")
                 else:
                     layout.template_ID(id_from, "active_texture", new="texture.new")
+
+        elif snode.tree_type == 'CompositorNodeTree':
+
+            NODE_MT_editor_menus.draw_collapsible(context, layout)
+
             if snode_id:
                 layout.prop(snode_id, "use_nodes")
 
-        elif snode.tree_type == 'CompositorNodeTree':
-            if snode_id:
-                layout.prop(snode_id, "use_nodes")
+            layout.prop(snode, "use_auto_render")
             layout.prop(snode, "show_backdrop")
             if snode.show_backdrop:
                 row = layout.row(align=True)
                 row.prop(snode, "backdrop_channels", text="", expand=True)
-            layout.prop(snode, "use_auto_render")
 
         else:
             # Custom node tree is edited as independent ID block
+            NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+            layout.separator_spacer()
+
             layout.template_ID(snode, "node_tree", new="node.new_node_tree")
+        layout.separator_spacer()
 
         layout.prop(snode, "pin", text="")
         layout.operator("node.tree_path_parent", text="", icon='FILE_PARENT')
@@ -193,9 +227,7 @@ class NODE_MT_view(Menu):
 
         layout.separator()
 
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class NODE_MT_select(Menu):
@@ -274,12 +306,12 @@ class NODE_MT_node(Menu):
         layout.operator("node.read_fullsamplelayers")
 
 
-class NODE_MT_node_color_presets(Menu):
+class NODE_PT_node_color_presets(PresetMenu):
     """Predefined node color"""
     bl_label = "Color Presets"
     preset_subdir = "node_color"
     preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
+    preset_add_operator = "node.node_color_preset_add"
 
 
 class NODE_MT_node_color_specials(Menu):
@@ -289,6 +321,41 @@ class NODE_MT_node_color_specials(Menu):
         layout = self.layout
 
         layout.operator("node.node_copy_color", icon='COPY_ID')
+
+
+class NODE_MT_specials(Menu):
+    bl_label = "Node Context Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator_context = 'INVOKE_DEFAULT'
+        layout.operator("node.duplicate_move")
+        layout.operator("node.delete")
+        layout.operator_context = 'EXEC_DEFAULT'
+
+        layout.operator("node.delete_reconnect")
+
+        layout.separator()
+
+        layout.operator("node.link_make").replace = False
+        layout.operator("node.link_make", text="Make and Replace Links").replace = True
+        layout.operator("node.links_detach")
+
+        layout.separator()
+
+        layout.operator("node.group_make", text="Group")
+        layout.operator("node.group_ungroup", text="Ungroup")
+        layout.operator("node.group_edit").exit = False
+
+        layout.separator()
+
+        layout.operator("node.hide_toggle")
+        layout.operator("node.mute_toggle")
+        layout.operator("node.preview_toggle")
+        layout.operator("node.hide_socket_toggle")
+        layout.operator("node.options_toggle")
+        layout.operator("node.collapse_hide_unused_toggle")
 
 
 class NODE_PT_active_node_generic(Panel):
@@ -323,6 +390,9 @@ class NODE_PT_active_node_color(Panel):
         node = context.active_node
         self.layout.prop(node, "use_custom_color", text="")
 
+    def draw_header_preset(self, context):
+        NODE_PT_node_color_presets.draw_panel_header(self.layout)
+
     def draw(self, context):
         layout = self.layout
         node = context.active_node
@@ -330,13 +400,8 @@ class NODE_PT_active_node_color(Panel):
         layout.enabled = node.use_custom_color
 
         row = layout.row()
-        col = row.column()
-        col.menu("NODE_MT_node_color_presets")
-        col.prop(node, "color", text="")
-        col = row.column(align=True)
-        col.operator("node.node_color_preset_add", text="", icon='ZOOMIN').remove_active = False
-        col.operator("node.node_color_preset_add", text="", icon='ZOOMOUT').remove_active = True
-        col.menu("NODE_MT_node_color_specials", text="", icon='DOWNARROW_HLT')
+        row.prop(node, "color", text="")
+        row.menu("NODE_MT_node_color_specials", text="", icon='DOWNARROW_HLT')
 
 
 class NODE_PT_active_node_properties(Panel):
@@ -508,11 +573,15 @@ class NODE_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
     bl_region_type = 'TOOLS'
 
 # Grease Pencil drawing brushes
+
+
 class NODE_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'TOOLS'
 
 # Grease Pencil drawing curves
+
+
 class NODE_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'TOOLS'
@@ -523,6 +592,7 @@ class NODE_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Pane
 def node_draw_tree_view(layout, context):
     pass
 
+
 classes = (
     NODE_HT_header,
     NODE_MT_editor_menus,
@@ -530,8 +600,9 @@ classes = (
     NODE_MT_view,
     NODE_MT_select,
     NODE_MT_node,
-    NODE_MT_node_color_presets,
+    NODE_PT_node_color_presets,
     NODE_MT_node_color_specials,
+    NODE_MT_specials,
     NODE_PT_active_node_generic,
     NODE_PT_active_node_color,
     NODE_PT_active_node_properties,

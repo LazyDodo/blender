@@ -45,6 +45,7 @@ struct View3D;
 struct SoftBody;
 struct MovieClip;
 struct Main;
+struct Mesh;
 struct RigidBodyWorld;
 struct HookModifierData;
 struct ModifierData;
@@ -65,24 +66,27 @@ void BKE_object_free_curve_cache(struct Object *ob);
 
 void BKE_object_free(struct Object *ob);
 void BKE_object_free_derived_caches(struct Object *ob);
+void BKE_object_free_derived_mesh_caches(struct Object *ob);
 void BKE_object_free_caches(struct Object *object);
 
 void BKE_object_modifier_hook_reset(struct Object *ob, struct HookModifierData *hmd);
 
 bool BKE_object_support_modifier_type_check(const struct Object *ob, int modifier_type);
 
-void BKE_object_link_modifiers(struct Object *ob_dst, const struct Object *ob_src);
+void BKE_object_link_modifiers(struct Scene *scene, struct Object *ob_dst, const struct Object *ob_src);
 void BKE_object_free_modifiers(struct Object *ob, const int flag);
 
 void BKE_object_make_proxy(struct Object *ob, struct Object *target, struct Object *gob);
 void BKE_object_copy_proxy_drivers(struct Object *ob, struct Object *target);
 
-bool BKE_object_exists_check(const struct Object *obtest);
+bool BKE_object_exists_check(struct Main *bmain, const struct Object *obtest);
 bool BKE_object_is_in_editmode(const struct Object *ob);
 bool BKE_object_is_in_editmode_vgroup(const struct Object *ob);
-bool BKE_object_is_in_editmode_and_selected(const struct Object *ob);
 bool BKE_object_is_in_wpaint_select_vert(const struct Object *ob);
 bool BKE_object_has_mode_data(const struct Object *ob, eObjectMode object_mode);
+bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode);
+
+bool BKE_object_data_is_in_editmode(const struct ID *id);
 
 typedef enum eObjectVisibilityCheck {
 	OB_VISIBILITY_CHECK_FOR_VIEWPORT,
@@ -125,6 +129,7 @@ void BKE_object_mat3_to_rot(struct Object *ob, float mat[3][3], bool use_compat)
 void BKE_object_to_mat3(struct Object *ob, float mat[3][3]);
 void BKE_object_to_mat4(struct Object *ob, float mat[4][4]);
 void BKE_object_apply_mat4(struct Object *ob, float mat[4][4], const bool use_compat, const bool use_parent);
+void BKE_object_apply_mat4_ex(struct Object *ob, float mat[4][4], struct Object *parent, float parentinv[4][4], const bool use_compat);
 void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4]);
 
 bool BKE_object_pose_context_check(const struct Object *ob);
@@ -140,7 +145,7 @@ struct Base **BKE_object_pose_base_array_get_unique(struct ViewLayer *view_layer
 struct Base **BKE_object_pose_base_array_get(struct ViewLayer *view_layer, unsigned int *r_bases_len);
 
 void BKE_object_get_parent_matrix(
-        struct Scene *scene, struct Object *ob,
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         struct Object *par, float parentmat[4][4]);
 void BKE_object_where_is_calc(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob);
@@ -152,7 +157,8 @@ void BKE_object_where_is_calc_time(
 void BKE_object_where_is_calc_time_ex(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float ctime,
         struct RigidBodyWorld *rbw, float r_originmat[3][3]);
-void BKE_object_where_is_calc_mat4(struct Scene *scene, struct Object *ob, float obmat[4][4]);
+void BKE_object_where_is_calc_mat4(
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float obmat[4][4]);
 
 /* possibly belong in own moduke? */
 struct BoundBox *BKE_boundbox_alloc_unit(void);
@@ -177,8 +183,6 @@ void BKE_object_foreach_display_point(
         void (*func_cb)(const float[3], void *), void *user_data);
 void BKE_scene_foreach_display_point(
         struct Depsgraph *depsgraph,
-        struct Scene *scene,
-        struct ViewLayer *view_layer,
         void (*func_cb)(const float[3], void *), void *user_data);
 
 bool BKE_object_parent_loop_check(const struct Object *parent, const struct Object *ob);
@@ -252,12 +256,10 @@ void BKE_object_eval_flush_base_flags(
         struct Object *object, int base_index,
         const bool is_from_set);
 
-void BKE_object_handle_data_update(
-        struct Depsgraph *depsgraph,
+void BKE_object_handle_data_update(struct Depsgraph *depsgraph,
         struct Scene *scene,
         struct Object *ob);
-void BKE_object_handle_update(
-        struct Depsgraph *depsgraph,
+void BKE_object_handle_update(struct Depsgraph *depsgraph,
         struct Scene *scene, struct Object *ob);
 void BKE_object_handle_update_ex(
         struct Depsgraph *depsgraph,
@@ -268,9 +270,14 @@ void BKE_object_sculpt_modifiers_changed(struct Object *ob);
 
 int BKE_object_obdata_texspace_get(struct Object *ob, short **r_texflag, float **r_loc, float **r_size, float **r_rot);
 
+struct Mesh *BKE_object_get_evaluated_mesh(const struct Depsgraph *depsgraph, struct Object *ob);
+struct Mesh *BKE_object_get_final_mesh(struct Object *object);
+struct Mesh *BKE_object_get_pre_modified_mesh(struct Object *object);
+struct Mesh *BKE_object_get_original_mesh(struct Object *object);
+
 int BKE_object_insert_ptcache(struct Object *ob);
 void BKE_object_delete_ptcache(struct Object *ob, int index);
-struct KeyBlock *BKE_object_shapekey_insert(struct Object *ob, const char *name, const bool from_mix);
+struct KeyBlock *BKE_object_shapekey_insert(struct Main *bmain, struct Object *ob, const char *name, const bool from_mix);
 bool BKE_object_shapekey_remove(struct Main *bmain, struct Object *ob, struct KeyBlock *kb);
 bool BKE_object_shapekey_free(struct Main *bmain, struct Object *ob);
 
@@ -287,6 +294,8 @@ void BKE_object_relink(struct Object *ob);
 void BKE_object_data_relink(struct Object *ob);
 
 struct MovieClip *BKE_object_movieclip_get(struct Scene *scene, struct Object *ob, bool use_default);
+
+void BKE_object_runtime_reset(struct Object *object);
 
 /* this function returns a superset of the scenes selection based on relationships */
 
@@ -308,8 +317,8 @@ typedef enum eObjectSet {
 
 struct LinkNode *BKE_object_relational_superset(
         struct ViewLayer *view_layer, eObjectSet objectSet, eObRelationTypes includeFilter);
-struct LinkNode *BKE_object_groups(struct Object *ob);
-void             BKE_object_groups_clear(struct Object *object);
+struct LinkNode *BKE_object_groups(struct Main *bmain, struct Object *ob);
+void             BKE_object_groups_clear(struct Main *bmain, struct Object *object);
 
 struct KDTree *BKE_object_as_kdtree(struct Object *ob, int *r_tot);
 

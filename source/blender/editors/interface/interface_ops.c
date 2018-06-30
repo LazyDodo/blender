@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,7 +17,7 @@
  *
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
- * 
+ *
  * Contributor(s): Blender Foundation, Joshua Leung
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -78,7 +78,7 @@ static int reset_default_theme_exec(bContext *C, wmOperator *UNUSED(op))
 	ui_theme_init_default();
 	ui_style_init_default();
 	WM_event_add_notifier(C, NC_WINDOW, NULL);
-	
+
 	return OPERATOR_FINISHED;
 }
 
@@ -88,10 +88,10 @@ static void UI_OT_reset_default_theme(wmOperatorType *ot)
 	ot->name = "Reset to Default Theme";
 	ot->idname = "UI_OT_reset_default_theme";
 	ot->description = "Reset to the default theme colors";
-	
+
 	/* callbacks */
 	ot->exec = reset_default_theme_exec;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER;
 }
@@ -109,7 +109,7 @@ static int copy_data_path_button_poll(bContext *C)
 
 	if (ptr.id.data && ptr.data && prop) {
 		path = RNA_path_from_ID_to_property(&ptr, prop);
-		
+
 		if (path) {
 			MEM_freeN(path);
 			return 1;
@@ -255,7 +255,7 @@ static int reset_default_button_poll(bContext *C)
 	int index;
 
 	UI_context_active_but_prop_get(C, &ptr, &prop, &index);
-	
+
 	return (ptr.data && prop && RNA_property_editable(&ptr, prop));
 }
 
@@ -268,7 +268,7 @@ static int reset_default_button_exec(bContext *C, wmOperator *op)
 
 	/* try to reset the nominated setting to its default value */
 	UI_context_active_but_prop_get(C, &ptr, &prop, &index);
-	
+
 	/* if there is a valid property that is editable... */
 	if (ptr.data && prop && RNA_property_editable(&ptr, prop)) {
 		if (RNA_property_reset(&ptr, prop, (all) ? -1 : index))
@@ -291,7 +291,7 @@ static void UI_OT_reset_default_button(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_UNDO;
-	
+
 	/* properties */
 	RNA_def_boolean(ot->srna, "all", 1, "All", "Reset to default values all elements of the array");
 }
@@ -464,6 +464,7 @@ static int override_remove_button_poll(bContext *C)
 
 static int override_remove_button_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	PointerRNA ptr, id_refptr, src;
 	PropertyRNA *prop;
 	int index;
@@ -505,7 +506,7 @@ static int override_remove_button_exec(bContext *C, wmOperator *op)
 		}
 		BKE_override_static_property_operation_delete(oprop, opop);
 		if (!is_template) {
-			RNA_property_copy(&ptr, &src, prop, index);
+			RNA_property_copy(bmain, &ptr, &src, prop, index);
 		}
 		if (BLI_listbase_is_empty(&oprop->operations)) {
 			BKE_override_static_property_delete(id->override_static, oprop);
@@ -515,7 +516,7 @@ static int override_remove_button_exec(bContext *C, wmOperator *op)
 		/* Just remove whole generic override operation of this property. */
 		BKE_override_static_property_delete(id->override_static, oprop);
 		if (!is_template) {
-			RNA_property_copy(&ptr, &src, prop, -1);
+			RNA_property_copy(bmain, &ptr, &src, prop, -1);
 		}
 	}
 
@@ -699,6 +700,7 @@ bool UI_context_copy_to_selected_list(
  */
 static bool copy_to_selected_button(bContext *C, bool all, bool poll)
 {
+	Main *bmain = CTX_data_main(C);
 	PointerRNA ptr, lptr, idptr;
 	PropertyRNA *prop, *lprop;
 	bool success = false;
@@ -747,7 +749,7 @@ static bool copy_to_selected_button(bContext *C, bool all, bool poll)
 								break;
 							}
 							else {
-								if (RNA_property_copy(&lptr, &ptr, prop, (all) ? -1 : index)) {
+								if (RNA_property_copy(bmain, &lptr, &ptr, prop, (all) ? -1 : index)) {
 									RNA_property_update(C, &lptr, prop);
 									success = true;
 								}
@@ -800,7 +802,7 @@ static void UI_OT_copy_to_selected_button(wmOperatorType *ot)
 
 /* Reports to Textblock Operator ------------------------ */
 
-/* FIXME: this is just a temporary operator so that we can see all the reports somewhere 
+/* FIXME: this is just a temporary operator so that we can see all the reports somewhere
  * when there are too many to display...
  */
 
@@ -815,10 +817,10 @@ static int reports_to_text_exec(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 	Text *txt;
 	char *str;
-	
+
 	/* create new text-block to write to */
 	txt = BKE_text_add(bmain, "Recent Reports");
-	
+
 	/* convert entire list to a display string, and add this to the text-block
 	 *	- if commandline debug option enabled, show debug reports too
 	 *	- otherwise, up to info (which is what users normally see)
@@ -843,7 +845,7 @@ static void UI_OT_reports_to_textblock(wmOperatorType *ot)
 	ot->name = "Reports to Text Block";
 	ot->idname = "UI_OT_reports_to_textblock";
 	ot->description = "Write the reports ";
-	
+
 	/* callbacks */
 	ot->poll = reports_to_text_poll;
 	ot->exec = reports_to_text_exec;
@@ -957,7 +959,7 @@ static int editsource_text_edit(
 	}
 
 	if (text == NULL) {
-		text = BKE_text_load(bmain, filepath, bmain->name);
+		text = BKE_text_load(bmain, filepath, BKE_main_blendfile_path(bmain));
 		id_us_ensure_real(&text->id);
 	}
 
@@ -1004,6 +1006,7 @@ static int editsource_exec(bContext *C, wmOperator *op)
 		ui_editsource_active_but_set(but);
 
 		/* redraw and get active button python info */
+		ED_region_do_layout(C, ar);
 		ED_region_do_draw(C, ar);
 		ar->do_draw = false;
 

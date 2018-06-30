@@ -96,10 +96,10 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 
 	/* Set the pers & view matrix. */
 	/* TODO(sergey): Shall render hold pointer to an evaluated camera instead? */
-	struct Object *camera = DEG_get_evaluated_object(depsgraph, RE_GetCamera(engine->re));
+	struct Object *ob_camera_eval = DEG_get_evaluated_object(depsgraph, RE_GetCamera(engine->re));
 	float frame = BKE_scene_frame_get(scene);
-	RE_GetCameraWindow(engine->re, camera, frame, g_data->winmat);
-	RE_GetCameraModelMatrix(engine->re, camera, g_data->viewinv);
+	RE_GetCameraWindow(engine->re, ob_camera_eval, frame, g_data->winmat);
+	RE_GetCameraModelMatrix(engine->re, ob_camera_eval, g_data->viewinv);
 
 	invert_m4_m4(g_data->viewmat, g_data->viewinv);
 	mul_m4_m4m4(g_data->persmat, g_data->winmat, g_data->viewmat);
@@ -114,7 +114,7 @@ void EEVEE_render_init(EEVEE_Data *ved, RenderEngine *engine, struct Depsgraph *
 	DRW_viewport_matrix_override_set(g_data->viewinv, DRW_MAT_VIEWINV);
 
 	/* EEVEE_effects_init needs to go first for TAA */
-	EEVEE_effects_init(sldata, vedata, camera);
+	EEVEE_effects_init(sldata, vedata, ob_camera_eval);
 	EEVEE_materials_init(sldata, stl, fbl);
 	EEVEE_lights_init(sldata);
 	EEVEE_lightprobes_init(sldata, vedata);
@@ -143,25 +143,26 @@ void EEVEE_render_cache(
 	char info[42];
 	BLI_snprintf(info, sizeof(info), "Syncing %s", ob->id.name + 2);
 	RE_engine_update_stats(engine, NULL, info);
+	bool cast_shadow = false;
 
-	if (DRW_check_object_visible_within_active_context(ob) == false) {
-		return;
+	if (ob->base_flag & BASE_VISIBLE) {
+		EEVEE_hair_cache_populate(vedata, sldata, ob, &cast_shadow);
 	}
 
-	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT)) {
-		bool cast_shadow;
-
-		EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
-
-		if (cast_shadow) {
-			EEVEE_lights_cache_shcaster_object_add(sldata, ob);
+	if (DRW_check_object_visible_within_active_context(ob)) {
+		if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
+			EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
+		}
+		else if (ob->type == OB_LIGHTPROBE) {
+			EEVEE_lightprobes_cache_add(sldata, ob);
+		}
+		else if (ob->type == OB_LAMP) {
+			EEVEE_lights_cache_add(sldata, ob);
 		}
 	}
-	else if (ob->type == OB_LIGHTPROBE) {
-		EEVEE_lightprobes_cache_add(sldata, ob);
-	}
-	else if (ob->type == OB_LAMP) {
-		EEVEE_lights_cache_add(sldata, ob);
+
+	if (cast_shadow) {
+		EEVEE_lights_cache_shcaster_object_add(sldata, ob);
 	}
 }
 
@@ -400,6 +401,7 @@ static void eevee_render_draw_background(EEVEE_Data *vedata)
 void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl, const rcti *rect)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	ViewLayer *view_layer = draw_ctx->view_layer;
 	const char *viewname = RE_GetActiveRenderView(engine->re);
 	EEVEE_PassList *psl = vedata->psl;
@@ -420,6 +422,11 @@ void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl
 	/* Push instances attribs to the GPU. */
 	DRW_render_instance_buffer_finish();
 
+	/* Need to be called after DRW_render_instance_buffer_finish() */
+	/* Also we weed to have a correct fbo bound for DRW_hair_update */
+	GPU_framebuffer_bind(fbl->main_fb);
+	DRW_hair_update();
+
 	if ((view_layer->passflag & (SCE_PASS_SUBSURFACE_COLOR |
 	                             SCE_PASS_SUBSURFACE_DIRECT |
 	                             SCE_PASS_SUBSURFACE_INDIRECT)) != 0)
@@ -435,8 +442,7 @@ void EEVEE_render_draw(EEVEE_Data *vedata, RenderEngine *engine, RenderLayer *rl
 		EEVEE_occlusion_output_init(sldata, vedata);
 	}
 
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, RE_engine_id_BLENDER_EEVEE);
-	uint tot_sample = BKE_collection_engine_property_value_get_int(props, "taa_render_samples");
+	uint tot_sample = scene_eval->eevee.taa_render_samples;
 	uint render_samples = 0;
 
 	if (RE_engine_test_break(engine)) {

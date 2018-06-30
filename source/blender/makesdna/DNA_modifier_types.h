@@ -33,6 +33,7 @@
  */
 
 struct Mesh;
+struct Scene;
 
 typedef enum ModifierType {
 	eModifierType_None              = 0,
@@ -112,9 +113,6 @@ typedef struct ModifierData {
 	short pad;
 	char name[64];  /* MAX_NAME */
 
-	/* XXX for timing info set by caller... solve later? (ton) */
-	struct Scene *scene;
-
 	char *error;
 } ModifierData;
 
@@ -183,7 +181,7 @@ typedef struct BuildModifierData {
 
 	float start, length;
 	short flag;
-	
+
 	short randomize;      /* (bool) whether order of vertices is randomized - legacy files (for readfile conversion) */
 	int seed;             /* (int) random seed */
 } BuildModifierData;
@@ -607,7 +605,6 @@ typedef struct SoftbodyModifierData {
 typedef struct ClothModifierData {
 	ModifierData modifier;
 
-	struct Scene *scene;                  /* the context, time etc is here */
 	struct Cloth *clothObject;            /* The internal data structure for cloth. */
 	struct ClothSimSettings *sim_parms;   /* definition is in DNA_cloth_types.h */
 	struct ClothCollSettings *coll_parms; /* definition is in DNA_cloth_types.h */
@@ -620,7 +617,7 @@ typedef struct ClothModifierData {
 	float hair_grid_max[3];
 	int hair_grid_res[3];
 	float hair_grid_cellsize;
-	
+
 	struct ClothSolverResult *solver_result;
 } ClothModifierData;
 
@@ -651,7 +648,7 @@ typedef struct SurfaceModifierData {
 	struct MVert *x; /* old position */
 	struct MVert *v; /* velocity */
 
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 
 	struct BVHTreeFromMesh *bvhtree; /* bounding volume hierarchy of the mesh faces */
 
@@ -738,8 +735,8 @@ typedef struct ParticleSystemModifierData {
 	ModifierData modifier;
 
 	struct ParticleSystem *psys;
-	struct DerivedMesh *dm_final;  /* Final DM - its topology may differ from orig mesh. */
-	struct DerivedMesh *dm_deformed;  /* Deformed-onle DM - its topology is same as orig mesh one. */
+	struct Mesh *mesh_final;  /* Final Mesh - its topology may differ from orig mesh. */
+	struct Mesh *mesh_original;  /* Original mesh that particles are attached to. */
 	int totdmvert, totdmedge, totdmface;
 	short flag, pad;
 } ParticleSystemModifierData;
@@ -968,7 +965,7 @@ typedef struct OceanModifierData {
 
 	struct Ocean *ocean;
 	struct OceanCache *oceancache;
-	
+
 	int resolution;
 	int spatial_size;
 
@@ -1567,6 +1564,7 @@ enum {
 enum {
 	MOD_NORMALEDIT_INVERT_VGROUP            = (1 << 0),
 	MOD_NORMALEDIT_USE_DIRECTION_PARALLEL   = (1 << 1),
+	MOD_NORMALEDIT_NO_POLYNORS_FIX             = (1 << 2),
 };
 
 /* NormalEditModifierData.mix_mode */
@@ -1614,6 +1612,7 @@ typedef struct SDefVert {
 typedef struct SurfaceDeformModifierData {
 	ModifierData modifier;
 
+	struct Depsgraph *depsgraph;
 	struct Object *target;	/* bind target object */
 	SDefVert *verts;		/* vertex bind data */
 	float falloff;

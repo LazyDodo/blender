@@ -50,6 +50,7 @@
 #include "BKE_cdderivedmesh.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_lattice.h"
+#include "BKE_library.h"
 #include "BKE_modifier.h"
 
 #include "BKE_deform.h"
@@ -165,7 +166,7 @@ static void shrinkwrap_calc_nearest_vertex(ShrinkwrapCalcData *calc)
 		OUT_OF_MEMORY();
 		return;
 	}
-	
+
 	/* Setup nearest */
 	nearest.index = -1;
 	nearest.dist_sq = FLT_MAX;
@@ -299,7 +300,7 @@ static void shrinkwrap_calc_normal_projection_cb_ex(
 	}
 
 	if (calc->vert) {
-		/* calc->vert contains verts from derivedMesh  */
+		/* calc->vert contains verts from evaluated mesh.  */
 		/* this coordinated are deformed by vertexCos only for normal projection (to get correct normals) */
 		/* for other cases calc->varts contains undeformed coordinates and vertexCos should be used */
 		if (calc->smd->projAxis == MOD_SHRINKWRAP_PROJECT_OVER_NORMAL) {
@@ -356,7 +357,7 @@ static void shrinkwrap_calc_normal_projection_cb_ex(
 	/* don't set the initial dist (which is more efficient),
 	 * because its calculated in the targets space, we want the dist in our own space */
 	if (proj_limit_squared != 0.0f) {
-		if (len_squared_v3v3(hit->co, co) > proj_limit_squared) {
+		if (hit->index != -1 && len_squared_v3v3(hit->co, co) > proj_limit_squared) {
 			hit->index = -1;
 		}
 	}
@@ -367,7 +368,7 @@ static void shrinkwrap_calc_normal_projection_cb_ex(
 	}
 }
 
-static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc, const ModifierEvalContext *ctx)
+static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc)
 {
 	/* Options about projection direction */
 	float proj_axis[3]      = {0.0f, 0.0f, 0.0f};
@@ -382,6 +383,7 @@ static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc, const Mo
 
 	/* auxiliary target */
 	Mesh *auxMesh = NULL;
+	bool auxMesh_free;
 	void *auxData = NULL;
 	SpaceTransform local2aux;
 
@@ -414,7 +416,7 @@ static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc, const Mo
 	}
 
 	if (calc->smd->auxTarget) {
-		auxMesh = BKE_modifier_get_evaluated_mesh_from_object(calc->smd->auxTarget, ctx->flag);
+		auxMesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(calc->smd->auxTarget, &auxMesh_free);
 		if (!auxMesh)
 			return;
 		BLI_SPACE_TRANSFORM_SETUP(&local2aux, calc->ob, calc->smd->auxTarget);
@@ -446,7 +448,7 @@ static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc, const Mo
 				auxData = &auxdata_stack.dmtreedata;
 			}
 		}
-		/* After sucessufuly build the trees, start projection vertexs */
+		/* After successfully build the trees, start projection vertices. */
 		ShrinkwrapCalcCBData data = {
 			.calc = calc,
 			.treeData = treeData, .targ_tree = targ_tree, .targ_callback = targ_callback,
@@ -481,6 +483,9 @@ static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc, const Mo
 		else {
 			free_bvhtree_from_mesh(auxData);
 		}
+	}
+	if (auxMesh != NULL && auxMesh_free) {
+		BKE_id_free(NULL, auxMesh);
 	}
 }
 
@@ -595,12 +600,13 @@ static void shrinkwrap_calc_nearest_surface_point(ShrinkwrapCalcData *calc)
 }
 
 /* Main shrinkwrap function */
-void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, Object *ob, Mesh *mesh,
-                               float (*vertexCos)[3], int numVerts, const ModifierEvalContext *ctx)
+void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, struct Scene *scene, Object *ob, Mesh *mesh,
+                               float (*vertexCos)[3], int numVerts)
 {
 
 	DerivedMesh *ss_mesh    = NULL;
 	ShrinkwrapCalcData calc = NULL_ShrinkwrapCalcData;
+	bool target_free;
 
 	/* remove loop dependencies on derived meshes (TODO should this be done elsewhere?) */
 	if (smd->target == ob) smd->target = NULL;
@@ -625,7 +631,7 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, Object *ob, Mesh *me
 
 
 	if (smd->target) {
-		calc.target = BKE_modifier_get_evaluated_mesh_from_object(smd->target, ctx->flag);
+		calc.target = BKE_modifier_get_evaluated_mesh_from_evaluated_object(smd->target, &target_free);
 
 		/* TODO there might be several "bugs" on non-uniform scales matrixs
 		 * because it will no longer be nearest surface, not sphere projection
@@ -654,7 +660,7 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, Object *ob, Mesh *me
 			/* TODO to be moved to Mesh once we are done with changes in subsurf code. */
 			DerivedMesh *dm = CDDM_from_mesh(mesh);
 
-			ss_mesh = subsurf_make_derived_from_derived(dm, &ssmd, NULL, (ob->mode & OB_MODE_EDIT) ? SUBSURF_IN_EDIT_MODE : 0);
+			ss_mesh = subsurf_make_derived_from_derived(dm, &ssmd, scene, NULL, (ob->mode & OB_MODE_EDIT) ? SUBSURF_IN_EDIT_MODE : 0);
 
 			if (ss_mesh) {
 				calc.vert = ss_mesh->getVertDataArray(ss_mesh, CD_MVERT);
@@ -681,7 +687,7 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, Object *ob, Mesh *me
 				break;
 
 			case MOD_SHRINKWRAP_PROJECT:
-				TIMEIT_BENCH(shrinkwrap_calc_normal_projection(&calc, ctx), deform_project);
+				TIMEIT_BENCH(shrinkwrap_calc_normal_projection(&calc), deform_project);
 				break;
 
 			case MOD_SHRINKWRAP_NEAREST_VERTEX:
@@ -693,4 +699,8 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, Object *ob, Mesh *me
 	/* free memory */
 	if (ss_mesh)
 		ss_mesh->release(ss_mesh);
+
+	if (target_free && calc.target) {
+		BKE_id_free(NULL, calc.target);
+	}
 }

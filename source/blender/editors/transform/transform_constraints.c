@@ -44,6 +44,7 @@
 
 #include "GPU_immediate.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
@@ -171,7 +172,7 @@ static void postConstraintChecks(TransInfo *t, float vec[3], float pvec[3])
 	mul_m3_v3(t->con.mtx, vec);
 }
 
-static void viewAxisCorrectCenter(TransInfo *t, float t_con_center[3])
+static void viewAxisCorrectCenter(const TransInfo *t, float t_con_center[3])
 {
 	if (t->spacetype == SPACE_VIEW3D) {
 		// View3D *v3d = t->sa->spacedata.first;
@@ -195,7 +196,10 @@ static void viewAxisCorrectCenter(TransInfo *t, float t_con_center[3])
 	}
 }
 
-static void axisProjection(TransInfo *t, const float axis[3], const float in[3], float out[3])
+/**
+ * Axis calculation taking the view into account, correcting view-aligned axis.
+ */
+static void axisProjection(const TransInfo *t, const float axis[3], const float in[3], float out[3])
 {
 	float norm[3], vec[3], factor, angle;
 	float t_con_center[3];
@@ -213,12 +217,11 @@ static void axisProjection(TransInfo *t, const float axis[3], const float in[3],
 	if (angle > (float)M_PI_2) {
 		angle = (float)M_PI - angle;
 	}
-	angle = RAD2DEGF(angle);
 
 	/* For when view is parallel to constraint... will cause NaNs otherwise
 	 * So we take vertical motion in 3D space and apply it to the
 	 * constraint axis. Nice for camera grab + MMB */
-	if (angle < 5.0f) {
+	if (angle < DEG2RADF(5.0f)) {
 		project_v3_v3v3(vec, in, t->viewinv[1]);
 		factor = dot_v3v3(t->viewinv[1], vec) * 2.0f;
 		/* since camera distance is quite relative, use quadratic relationship. holding shift can compensate */
@@ -277,7 +280,7 @@ static void axisProjection(TransInfo *t, const float axis[3], const float in[3],
  * Return true if the 2x axis are both aligned when projected into the view.
  * In this case, we can't usefully project the cursor onto the plane.
  */
-static bool isPlaneProjectionViewAligned(TransInfo *t)
+static bool isPlaneProjectionViewAligned(const TransInfo *t)
 {
 	const float eps = 0.001f;
 	const float *constraint_vector[2];
@@ -303,7 +306,7 @@ static bool isPlaneProjectionViewAligned(TransInfo *t)
 	return fabsf(factor) < eps;
 }
 
-static void planeProjection(TransInfo *t, const float in[3], float out[3])
+static void planeProjection(const TransInfo *t, const float in[3], float out[3])
 {
 	float vec[3], factor, norm[3];
 
@@ -341,8 +344,7 @@ static void applyAxisConstraintVec(
 		mul_m3_v3(t->con.pmtx, out);
 
 		// With snap, a projection is alright, no need to correct for view alignment
-		if (!(!ELEM(t->tsnap.mode, SCE_SNAP_MODE_INCREMENT, SCE_SNAP_MODE_GRID) && activeSnap(t))) {
-
+		if (!validSnap(t)) {
 			const int dims = getConstraintSpaceDimension(t);
 			if (dims == 2) {
 				if (!is_zero_v3(out)) {
@@ -558,7 +560,7 @@ static void applyObjectConstraintRot(
 
 		/* on setup call, use first object */
 		if (td == NULL) {
-			td = tc->data;
+			td = TRANS_DATA_CONTAINER_FIRST_OK(t)->data;
 		}
 
 		if (t->flag & T_EDIT) {
@@ -741,16 +743,16 @@ void drawConstraint(TransInfo *t)
 			drawLine(t, t->center_global, tc->mtx[1], 'Y', 0);
 			drawLine(t, t->center_global, tc->mtx[2], 'Z', 0);
 
-			depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
+			depth_test_enabled = GPU_depth_test_enabled();
 			if (depth_test_enabled)
-				glDisable(GL_DEPTH_TEST);
+				GPU_depth_test(false);
 
 			const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_LINE_DASHED_UNIFORM_COLOR);
 
 			float viewport_size[4];
-			glGetFloatv(GL_VIEWPORT, viewport_size);
+			GPU_viewport_size_getf(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 			immUniform1i("num_colors", 0);  /* "simple" mode */
@@ -766,7 +768,7 @@ void drawConstraint(TransInfo *t)
 			immUnbindProgram();
 
 			if (depth_test_enabled)
-				glEnable(GL_DEPTH_TEST);
+				GPU_depth_test(true);
 		}
 
 		if (tc->mode & CON_AXIS0) {
@@ -817,9 +819,9 @@ void drawPropCircle(const struct bContext *C, TransInfo *t)
 			gpuScale2f(1.0f, (ysize / xsize) * (xmask / ymask));
 		}
 
-		depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
+		depth_test_enabled = GPU_depth_test_enabled();
 		if (depth_test_enabled)
-			glDisable(GL_DEPTH_TEST);
+			GPU_depth_test(false);
 
 		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
@@ -833,7 +835,7 @@ void drawPropCircle(const struct bContext *C, TransInfo *t)
 		immUnbindProgram();
 
 		if (depth_test_enabled)
-			glEnable(GL_DEPTH_TEST);
+			GPU_depth_test(true);
 
 		gpuPopMatrix();
 	}

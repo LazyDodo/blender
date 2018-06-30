@@ -80,7 +80,7 @@ struct MLoopTri_Store {
 };
 
 /* not saved in file! */
-typedef struct MeshRuntime {
+typedef struct Mesh_Runtime {
 	struct EditMeshData *edit_data;
 	void *batch_cache;
 
@@ -93,14 +93,17 @@ typedef struct MeshRuntime {
 
 	/** 'BVHCache', for 'BKE_bvhutil.c' */
 	struct LinkNode *bvh_cache;
-} MeshRuntime;
+
+	int deformed_only; /* set by modifier stack if only deformed from original */
+	char padding[4];
+} Mesh_Runtime;
 
 typedef struct Mesh {
 	ID id;
 	struct AnimData *adt;		/* animation data (must be immediately after id for utilities to use it) */
 
 	struct BoundBox *bb;
-	
+
 	struct Ipo *ipo  DNA_DEPRECATED;  /* old animation system, deprecated for 2.5 */
 	struct Key *key;
 	struct Material **mat;
@@ -147,7 +150,7 @@ typedef struct Mesh {
 	 * this means the active face must always be selected, this is to keep track
 	 * of the last selected face and is similar to the old active face flag where
 	 * the face does not need to be selected, -1 is inactive */
-	int act_face; 
+	int act_face;
 
 	/* texture space, copied as one block in editobject.c */
 	float loc[3];
@@ -170,7 +173,7 @@ typedef struct Mesh {
 
 	struct Multires *mr DNA_DEPRECATED; /* deprecated multiresolution modeling data, only keep for loading old files */
 
-	MeshRuntime runtime;
+	Mesh_Runtime runtime;
 } Mesh;
 
 /* deprecated by MTFace, only here for file reading */

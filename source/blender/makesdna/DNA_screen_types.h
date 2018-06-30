@@ -79,7 +79,7 @@ typedef struct bScreen {
 	char skip_handling;					/* set to delay screen handling after switching back from maximized area */
 	char scrubbing;						/* set when scrubbing to avoid some costly updates */
 	char pad[3];
-	
+
 	struct ARegion *active_region;		/* active region that has mouse focus */
 
 	struct wmTimer *animtimer;			/* if set, screen has timer handler added in window */
@@ -121,7 +121,9 @@ typedef struct Panel {		/* the part from uiBlock that needs saved in file */
 
 	char panelname[64], tabname[64];	/* defined as UI_MAX_NAME_STR */
 	char drawname[64];					/* panelname is identifier for restoring location */
-	int ofsx, ofsy, sizex, sizey;
+	int ofsx, ofsy;                     /* offset within the region */
+	int sizex, sizey;                   /* panel size including children */
+	int blocksizex, blocksizey;         /* panel size excluding children */
 	short labelofs, pad;
 	short flag, runtime_flag;
 	short control;
@@ -129,6 +131,7 @@ typedef struct Panel {		/* the part from uiBlock that needs saved in file */
 	int sortorder;			/* panels are aligned according to increasing sortorder */
 	struct Panel *paneltab;		/* this panel is tabbed in *paneltab */
 	void *activedata;			/* runtime for panel manipulation */
+	ListBase children;          /* sub panels */
 } Panel;
 
 
@@ -250,7 +253,7 @@ typedef struct uiPreview {           /* some preview UI data need to be saved in
 } uiPreview;
 
 /* These two lines with # tell makesdna this struct can be excluded.
- * Should be: #ifndef WITH_TOPBAR_WRITING */
+ * Should be: #ifndef WITH_GLOBAL_AREA_WRITING */
 #
 #
 typedef struct ScrGlobalAreaData {
@@ -263,17 +266,30 @@ typedef struct ScrGlobalAreaData {
 	 * if they are 'collapsed' or not. Value is set on area creation and not
 	 * touched afterwards. */
 	short size_min, size_max;
+	short align; /* GlobalAreaAlign */
 
 	short flag; /* GlobalAreaFlag */
+	short pad;
 } ScrGlobalAreaData;
 
 enum GlobalAreaFlag {
 	GLOBAL_AREA_IS_HIDDEN = (1 << 0),
 };
 
+typedef enum GlobalAreaAlign {
+	GLOBAL_AREA_ALIGN_TOP,
+	GLOBAL_AREA_ALIGN_BOTTOM,
+} GlobalAreaAlign;
+
+typedef struct ScrArea_Runtime {
+	struct bToolRef *tool;
+	char          is_tool_set;
+	char _pad0[7];
+} ScrArea_Runtime;
+
 typedef struct ScrArea {
 	struct ScrArea *next, *prev;
-	
+
 	ScrVert *v1, *v2, *v3, *v4;		/* ordered (bl, tl, tr, br) */
 	bScreen *full;			/* if area==full, this is the parent */
 
@@ -284,16 +300,17 @@ typedef struct ScrArea {
 	 * SPACE_EMPTY. Also, versioning uses it to nicely replace deprecated
 	 * editors. It's been there for ages, name doesn't fit any more... */
 	char butspacetype;  /* eSpace_Type (SPACE_FOO) */
+	short butspacetype_subtype;
 
 	short winx, winy;				/* size */
 
-	short headertype DNA_DEPRECATED;/* OLD! 0=no header, 1= down, 2= up */
-	short do_refresh;				/* private, for spacetype refresh callback */
+	char headertype DNA_DEPRECATED;/* OLD! 0=no header, 1= down, 2= up */
+	char do_refresh;				/* private, for spacetype refresh callback */
 	short flag;
 	short region_active_win;		/* index of last used region of 'RGN_TYPE_WINDOW'
 									 * runtime variable, updated by executing operators */
 	char temp, pad;
-	
+
 	struct SpaceType *type;		/* callbacks for this space type */
 
 	/* Non-NULL if this area is global. */
@@ -311,32 +328,40 @@ typedef struct ScrArea {
 	ListBase handlers;   /* wmEventHandler */
 
 	ListBase actionzones;	/* AZone */
+
+	ScrArea_Runtime runtime;
 } ScrArea;
+
+
+typedef struct ARegion_Runtime {
+	/* Panel category to use between 'layout' and 'draw'. */
+	const char *category;
+} ARegion_Runtime;
 
 typedef struct ARegion {
 	struct ARegion *next, *prev;
-	
+
 	View2D v2d;					/* 2D-View scrolling/zoom info (most regions are 2d anyways) */
 	rcti winrct;				/* coordinates of region */
 	rcti drawrct;				/* runtime for partial redraw, same or smaller than winrct */
 	short winx, winy;			/* size */
-	
+
 	short visible;              /* region is currently visible on screen */
 	short regiontype;			/* window, header, etc. identifier for drawing */
 	short alignment;			/* how it should split */
 	short flag;					/* hide, ... */
-	
+
 	float fsize;				/* current split size in float (unused) */
 	short sizex, sizey;			/* current split size in pixels (if zero it uses regiontype) */
-	
+
 	short do_draw;				/* private, cached notifier events */
 	short do_draw_overlay;		/* private, cached notifier events */
 	short overlap;				/* private, set for indicate drawing overlapped */
 	short flagfullscreen;		/* temporary copy of flag settings for clean fullscreen */
 	short pad1, pad2;
-	
+
 	struct ARegionType *type;	/* callbacks for this region type */
-	
+
 	ListBase uiblocks;			/* uiBlock */
 	ListBase panels;			/* Panel */
 	ListBase panels_category_active;	/* Stack of panel categories */
@@ -352,6 +377,8 @@ typedef struct ARegion {
 
 	char *headerstr;			/* use this string to draw info */
 	void *regiondata;			/* XXX 2.50, need spacedata equivalent? */
+
+	ARegion_Runtime runtime;
 } ARegion;
 
 /* area->flag */
@@ -395,6 +422,7 @@ enum {
 	/*PNL_TABBED    = (1 << 3), */ /*UNUSED*/
 	PNL_OVERLAP     = (1 << 4),
 	PNL_PIN         = (1 << 5),
+	PNL_POPOVER     = (1 << 6),
 };
 
 /* Panel->snap - for snapping to screen edges */
@@ -459,7 +487,8 @@ enum {
 	RGN_TYPE_UI = 4,
 	RGN_TYPE_TOOLS = 5,
 	RGN_TYPE_TOOL_PROPS = 6,
-	RGN_TYPE_PREVIEW = 7
+	RGN_TYPE_PREVIEW = 7,
+	RGN_TYPE_HUD = 8,
 };
 /* use for function args */
 #define RGN_TYPE_ANY -1
@@ -484,7 +513,9 @@ enum {
 	/* Force delayed reinit of region size data, so that region size is calculated
 	 * just big enough to show all its content (if enough space is available).
 	 * Note that only ED_region_header supports this right now. */
-	RGN_FLAG_DYNAMIC_SIZE     = (1 << 2),
+	RGN_FLAG_DYNAMIC_SIZE       = (1 << 2),
+	/* Region data is NULL'd on read, never written. */
+	RGN_FLAG_TEMP_REGIONDATA    = (1 << 3),
 };
 
 /* region do_draw */
@@ -492,5 +523,5 @@ enum {
 #define RGN_DRAW_PARTIAL	2
 #define RGN_DRAWING			4
 #define RGN_DRAW_REFRESH_UI	8  /* re-create uiBlock's where possible */
+#define RGN_DRAW_NO_REBUILD	16
 #endif
-

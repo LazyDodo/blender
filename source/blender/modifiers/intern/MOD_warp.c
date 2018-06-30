@@ -45,6 +45,9 @@
 #include "BKE_texture.h"
 #include "BKE_colortools.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
 #include "RE_shader_ext.h"
 
 #include "MOD_util.h"
@@ -106,7 +109,7 @@ static void freeData(ModifierData *md)
 }
 
 
-static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, int UNUSED(userRenderParams))
 {
 	WarpModifierData *wmd = (WarpModifierData *) md;
 
@@ -149,9 +152,11 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 static void warpModifier_do(
-        WarpModifierData *wmd, Object *ob,
+        WarpModifierData *wmd, const ModifierEvalContext *ctx,
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
+	Object *ob = ctx->object;
+	Depsgraph *depsgraph = ctx->depsgraph;
 	float obinv[4][4];
 	float mat_from[4][4];
 	float mat_from_inv[4][4];
@@ -173,7 +178,7 @@ static void warpModifier_do(
 	if (!(wmd->object_from && wmd->object_to))
 		return;
 
-	modifier_get_vgroup_mesh(ob, mesh, wmd->defgrp_name, &dvert, &defgrp_index);
+	MOD_get_vgroup(ob, mesh, wmd->defgrp_name, &dvert, &defgrp_index);
 	if (dvert == NULL) {
 		defgrp_index = -1;
 	}
@@ -211,9 +216,9 @@ static void warpModifier_do(
 
 	if (wmd->texture) {
 		tex_co = MEM_malloc_arrayN(numVerts, sizeof(*tex_co), "warpModifier_do tex_co");
-		get_texture_coords_mesh((MappingInfoModifierData *)wmd, ob, mesh, vertexCos, tex_co);
+		MOD_get_texture_coords((MappingInfoModifierData *)wmd, ob, mesh, vertexCos, tex_co);
 
-		modifier_init_texture(wmd->modifier.scene, wmd->texture);
+		MOD_init_texture(depsgraph, wmd->texture);
 	}
 
 	for (i = 0; i < numVerts; i++) {
@@ -267,9 +272,10 @@ static void warpModifier_do(
 			fac *= weight;
 
 			if (tex_co) {
+				struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
 				TexResult texres;
 				texres.nor = NULL;
-				BKE_texture_get_value(wmd->modifier.scene, wmd->texture, tex_co[i], &texres, false);
+				BKE_texture_get_value(scene, wmd->texture, tex_co[i], &texres, false);
 				fac *= texres.tin;
 			}
 
@@ -316,7 +322,7 @@ static void deformVerts(
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
-	warpModifier_do((WarpModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
+	warpModifier_do((WarpModifierData *)md, ctx, mesh_src, vertexCos, numVerts);
 }
 
 static void deformVertsEM(
@@ -331,7 +337,7 @@ static void deformVertsEM(
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
-	warpModifier_do((WarpModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
+	warpModifier_do((WarpModifierData *)md, ctx, mesh_src, vertexCos, numVerts);
 
 	if (!mesh) {
 		BKE_id_free(NULL, mesh_src);

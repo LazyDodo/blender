@@ -65,6 +65,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 #include "WM_message.h"
+#include "WM_toolsystem.h"
 
 #include "ED_armature.h"
 #include "ED_curve.h"
@@ -106,8 +107,15 @@
 #define MAN_SCALE_C		(MAN_SCALE_X | MAN_SCALE_Y | MAN_SCALE_Z)
 
 /* threshold for testing view aligned manipulator axis */
-#define TW_AXIS_DOT_MIN 0.02f
-#define TW_AXIS_DOT_MAX 0.1f
+struct {
+	float min, max;
+} g_tw_axis_range[2] = {
+	/* Regular range */
+	{0.02f, 0.1f},
+	/* Use a different range because we flip the dot product,
+	 * also the view aligned planes are harder to see so hiding early is preferred. */
+	{0.175f,  0.25f},
+};
 
 /* axes as index */
 enum {
@@ -151,17 +159,14 @@ enum {
 	MAN_AXES_SCALE,
 };
 
-/* naming from old blender we may combine. */
-enum {
-	V3D_MANIP_TRANSLATE      = 1,
-	V3D_MANIP_ROTATE         = 2,
-	V3D_MANIP_SCALE          = 4,
-};
-
-
 typedef struct ManipulatorGroup {
 	bool all_hidden;
 	int twtype;
+
+	/* Users may change the twtype, detect changes to re-setup manipulator options. */
+	int twtype_init;
+	int twtype_prev;
+	int use_twtype_refresh;
 
 	struct wmManipulator *manipulators[MAN_AXIS_LAST];
 } ManipulatorGroup;
@@ -246,22 +251,24 @@ static bool manipulator_is_axis_visible(
         const RegionView3D *rv3d, const int twtype,
         const float idot[3], const int axis_type, const int axis_idx)
 {
-	bool is_plane = false;
-	const uint aidx_norm = manipulator_orientation_axis(axis_idx, &is_plane);
-	/* don't draw axis perpendicular to the view */
-	if (aidx_norm < 3) {
-		float idot_axis = idot[aidx_norm];
-		if (is_plane) {
-			idot_axis = 1.0f - idot_axis;
-		}
-		if (idot_axis < TW_AXIS_DOT_MIN) {
-			return false;
+	if ((axis_idx >= MAN_AXIS_RANGE_ROT_START && axis_idx < MAN_AXIS_RANGE_ROT_END) == 0) {
+		bool is_plane = false;
+		const uint aidx_norm = manipulator_orientation_axis(axis_idx, &is_plane);
+		/* don't draw axis perpendicular to the view */
+		if (aidx_norm < 3) {
+			float idot_axis = idot[aidx_norm];
+			if (is_plane) {
+				idot_axis = 1.0f - idot_axis;
+			}
+			if (idot_axis < g_tw_axis_range[is_plane].min) {
+				return false;
+			}
 		}
 	}
 
-	if ((axis_type == MAN_AXES_TRANSLATE && !(twtype & V3D_MANIP_TRANSLATE)) ||
-	    (axis_type == MAN_AXES_ROTATE && !(twtype & V3D_MANIP_ROTATE)) ||
-	    (axis_type == MAN_AXES_SCALE && !(twtype & V3D_MANIP_SCALE)))
+	if ((axis_type == MAN_AXES_TRANSLATE && !(twtype & SCE_MANIP_TRANSLATE)) ||
+	    (axis_type == MAN_AXES_ROTATE && !(twtype & SCE_MANIP_ROTATE)) ||
+	    (axis_type == MAN_AXES_SCALE && !(twtype & SCE_MANIP_SCALE)))
 	{
 		return false;
 	}
@@ -291,34 +298,34 @@ static bool manipulator_is_axis_visible(
 		case MAN_AXIS_SCALE_Z:
 			return (rv3d->twdrawflag & MAN_SCALE_Z);
 		case MAN_AXIS_SCALE_C:
-			return (rv3d->twdrawflag & MAN_SCALE_C && (twtype & V3D_MANIP_TRANSLATE) == 0);
+			return (rv3d->twdrawflag & MAN_SCALE_C && (twtype & SCE_MANIP_TRANSLATE) == 0);
 		case MAN_AXIS_TRANS_XY:
 			return (rv3d->twdrawflag & MAN_TRANS_X &&
 			        rv3d->twdrawflag & MAN_TRANS_Y &&
-			        (twtype & V3D_MANIP_ROTATE) == 0);
+			        (twtype & SCE_MANIP_ROTATE) == 0);
 		case MAN_AXIS_TRANS_YZ:
 			return (rv3d->twdrawflag & MAN_TRANS_Y &&
 			        rv3d->twdrawflag & MAN_TRANS_Z &&
-			        (twtype & V3D_MANIP_ROTATE) == 0);
+			        (twtype & SCE_MANIP_ROTATE) == 0);
 		case MAN_AXIS_TRANS_ZX:
 			return (rv3d->twdrawflag & MAN_TRANS_Z &&
 			        rv3d->twdrawflag & MAN_TRANS_X &&
-			        (twtype & V3D_MANIP_ROTATE) == 0);
+			        (twtype & SCE_MANIP_ROTATE) == 0);
 		case MAN_AXIS_SCALE_XY:
 			return (rv3d->twdrawflag & MAN_SCALE_X &&
 			        rv3d->twdrawflag & MAN_SCALE_Y &&
-			        (twtype & V3D_MANIP_TRANSLATE) == 0 &&
-			        (twtype & V3D_MANIP_ROTATE) == 0);
+			        (twtype & SCE_MANIP_TRANSLATE) == 0 &&
+			        (twtype & SCE_MANIP_ROTATE) == 0);
 		case MAN_AXIS_SCALE_YZ:
 			return (rv3d->twdrawflag & MAN_SCALE_Y &&
 			        rv3d->twdrawflag & MAN_SCALE_Z &&
-			        (twtype & V3D_MANIP_TRANSLATE) == 0 &&
-			        (twtype & V3D_MANIP_ROTATE) == 0);
+			        (twtype & SCE_MANIP_TRANSLATE) == 0 &&
+			        (twtype & SCE_MANIP_ROTATE) == 0);
 		case MAN_AXIS_SCALE_ZX:
 			return (rv3d->twdrawflag & MAN_SCALE_Z &&
 			        rv3d->twdrawflag & MAN_SCALE_X &&
-			        (twtype & V3D_MANIP_TRANSLATE) == 0 &&
-			        (twtype & V3D_MANIP_ROTATE) == 0);
+			        (twtype & SCE_MANIP_TRANSLATE) == 0 &&
+			        (twtype & SCE_MANIP_ROTATE) == 0);
 	}
 	return false;
 }
@@ -332,21 +339,30 @@ static void manipulator_get_axis_color(
 	const float alpha_hi = 1.0f;
 	float alpha_fac;
 
-	bool is_plane = false;
-	const int axis_idx_norm = manipulator_orientation_axis(axis_idx, &is_plane);
-	/* get alpha fac based on axis angle, to fade axis out when hiding it because it points towards view */
-	if (axis_idx_norm < 3) {
-		float idot_axis = idot[axis_idx_norm];
-		if (is_plane) {
-			idot_axis = 1.0f - idot_axis;
-		}
-		alpha_fac = (idot_axis > TW_AXIS_DOT_MAX) ?
-		        1.0f : (idot_axis < TW_AXIS_DOT_MIN) ?
-		        0.0f : ((idot_axis - TW_AXIS_DOT_MIN) / (TW_AXIS_DOT_MAX - TW_AXIS_DOT_MIN));
-	}
-	else {
+	if (axis_idx >= MAN_AXIS_RANGE_ROT_START && axis_idx < MAN_AXIS_RANGE_ROT_END) {
+		/* Never fade rotation rings. */
 		/* trackball rotation axis is a special case, we only draw a slight overlay */
 		alpha_fac = (axis_idx == MAN_AXIS_ROT_T) ? 0.1f : 1.0f;
+	}
+	else {
+		bool is_plane = false;
+		const int axis_idx_norm = manipulator_orientation_axis(axis_idx, &is_plane);
+		/* get alpha fac based on axis angle, to fade axis out when hiding it because it points towards view */
+		if (axis_idx_norm < 3) {
+			const float idot_min = g_tw_axis_range[is_plane].min;
+			const float idot_max = g_tw_axis_range[is_plane].max;
+			float idot_axis = idot[axis_idx_norm];
+			if (is_plane) {
+				idot_axis = 1.0f - idot_axis;
+			}
+			alpha_fac = (
+			        (idot_axis > idot_max) ?
+			        1.0f : (idot_axis < idot_min) ?
+			        0.0f : ((idot_axis - idot_min) / (idot_max - idot_min)));
+		}
+		else {
+			alpha_fac = 1.0f;
+		}
 	}
 
 	switch (axis_idx) {
@@ -585,7 +601,6 @@ int ED_transform_calc_manipulator_stats(
         const struct TransformCalcParams *params,
         struct TransformBounds *tbounds)
 {
-	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 	Scene *scene = CTX_data_scene(C);
@@ -595,8 +610,6 @@ int ED_transform_calc_manipulator_stats(
 	RegionView3D *rv3d = ar->regiondata;
 	Base *base;
 	Object *ob = OBACT(view_layer);
-	const Object *ob_eval = NULL;
-	const Object *obedit_eval = NULL;
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
 	int a, totsel = 0;
@@ -610,9 +623,6 @@ int ED_transform_calc_manipulator_stats(
 	zero_v3(rv3d->tw_axis_max);
 
 	rv3d->twdrawflag = 0xFFFF;
-
-	ob_eval = DEG_get_evaluated_object(depsgraph, ob);
-	obedit_eval = DEG_get_evaluated_object(depsgraph, obedit);
 
 	/* global, local or normal orientation?
 	 * if we could check 'totsel' now, this should be skipped with no selection. */
@@ -658,7 +668,7 @@ int ED_transform_calc_manipulator_stats(
 					copy_m4_m3(rv3d->twmat, mat);
 					break;
 				}
-				copy_m4_m4(rv3d->twmat, ob_eval->obmat);
+				copy_m4_m4(rv3d->twmat, ob->obmat);
 				normalize_m4(rv3d->twmat);
 				break;
 			}
@@ -698,7 +708,7 @@ int ED_transform_calc_manipulator_stats(
 	copy_m3_m4(tbounds->axis, rv3d->twmat);
 	if (params->use_local_axis && (ob && ob->mode & OB_MODE_EDIT)) {
 		float diff_mat[3][3];
-		copy_m3_m4(diff_mat, ob_eval->obmat);
+		copy_m3_m4(diff_mat, ob->obmat);
 		normalize_m3(diff_mat);
 		invert_m3(diff_mat);
 		mul_m3_m3m3(tbounds->axis, tbounds->axis, diff_mat);
@@ -761,7 +771,6 @@ int ED_transform_calc_manipulator_stats(
 	}
 	else if (obedit) {
 		ob = obedit;
-		ob_eval = obedit_eval;
 		if (obedit->type == OB_MESH) {
 			BMEditMesh *em = BKE_editmesh_from_object(obedit);
 			BMEditSelection ese;
@@ -936,9 +945,9 @@ int ED_transform_calc_manipulator_stats(
 		/* selection center */
 		if (totsel) {
 			mul_v3_fl(tbounds->center, 1.0f / (float)totsel);   // centroid!
-			mul_m4_v3(obedit_eval->obmat, tbounds->center);
-			mul_m4_v3(obedit_eval->obmat, tbounds->min);
-			mul_m4_v3(obedit_eval->obmat, tbounds->max);
+			mul_m4_v3(obedit->obmat, tbounds->center);
+			mul_m4_v3(obedit->obmat, tbounds->min);
+			mul_m4_v3(obedit->obmat, tbounds->max);
 		}
 	}
 	else if (ob && (ob->mode & OB_MODE_POSE)) {
@@ -957,7 +966,7 @@ int ED_transform_calc_manipulator_stats(
 			}
 		}
 		else {
-			totsel = count_set_pose_transflags(&mode, 0, ob);
+			totsel = count_set_pose_transflags(ob, mode, V3D_AROUND_CENTER_BOUNDS, NULL);
 
 			if (totsel) {
 				/* use channels to get stats */
@@ -974,9 +983,9 @@ int ED_transform_calc_manipulator_stats(
 
 		if (ok) {
 			mul_v3_fl(tbounds->center, 1.0f / (float)totsel);   // centroid!
-			mul_m4_v3(ob_eval->obmat, tbounds->center);
-			mul_m4_v3(ob_eval->obmat, tbounds->min);
-			mul_m4_v3(ob_eval->obmat, tbounds->max);
+			mul_m4_v3(ob->obmat, tbounds->center);
+			mul_m4_v3(ob->obmat, tbounds->min);
+			mul_m4_v3(ob->obmat, tbounds->max);
 		}
 	}
 	else if (ob && (ob->mode & OB_MODE_ALL_PAINT)) {
@@ -1017,18 +1026,16 @@ int ED_transform_calc_manipulator_stats(
 			if (!TESTBASELIB(base)) {
 				continue;
 			}
-			const Object *base_object_eval = DEG_get_evaluated_object(depsgraph, base->object);
 			if (ob == NULL) {
 				ob = base->object;
-				ob_eval = base_object_eval;
 			}
-			if (params->use_only_center || base_object_eval->bb == NULL) {
-				calc_tw_center(tbounds, base_object_eval->obmat[3]);
+			if (params->use_only_center || base->object->bb == NULL) {
+				calc_tw_center(tbounds, base->object->obmat[3]);
 			}
 			else {
 				for (uint j = 0; j < 8; j++) {
 					float co[3];
-					mul_v3_m4v3(co, base_object_eval->obmat, base_object_eval->bb->vec[j]);
+					mul_v3_m4v3(co, base->object->obmat, base->object->bb->vec[j]);
 					calc_tw_center(tbounds, co);
 				}
 			}
@@ -1112,15 +1119,15 @@ static void manipulator_line_range(const int twtype, const short axis_type, floa
 
 	switch (axis_type) {
 		case MAN_AXES_TRANSLATE:
-			if (twtype & V3D_MANIP_SCALE) {
+			if (twtype & SCE_MANIP_SCALE) {
 				*r_start = *r_len - ofs + 0.075f;
 			}
-			if (twtype & V3D_MANIP_ROTATE) {
+			if (twtype & SCE_MANIP_ROTATE) {
 				*r_len += ofs;
 			}
 			break;
 		case MAN_AXES_SCALE:
-			if (twtype & (V3D_MANIP_TRANSLATE | V3D_MANIP_ROTATE)) {
+			if (twtype & (SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE)) {
 				*r_len -= ofs + 0.025f;
 			}
 			break;
@@ -1131,7 +1138,7 @@ static void manipulator_line_range(const int twtype, const short axis_type, floa
 
 static void manipulator_xform_message_subscribe(
         wmManipulatorGroup *mgroup, struct wmMsgBus *mbus,
-        Scene *scene, bScreen *screen, ScrArea *sa, ARegion *ar, const void *type_fn)
+        Scene *scene, bScreen *UNUSED(screen), ScrArea *UNUSED(sa), ARegion *ar, const void *type_fn)
 {
 	/* Subscribe to view properties */
 	wmMsgSubscribeValue msg_sub_value_mpr_tag_refresh = {
@@ -1157,16 +1164,18 @@ static void manipulator_xform_message_subscribe(
 		}
 	}
 
-	PointerRNA space_ptr;
-	RNA_pointer_create(&screen->id, &RNA_SpaceView3D, sa->spacedata.first, &space_ptr);
+	PointerRNA toolsettings_ptr;
+	RNA_pointer_create(&scene->id, &RNA_ToolSettings, scene->toolsettings, &toolsettings_ptr);
 
 	if (type_fn == TRANSFORM_WGT_manipulator) {
 		extern PropertyRNA rna_ToolSettings_transform_pivot_point;
+		extern PropertyRNA rna_ToolSettings_use_manipulator_mode;
 		const PropertyRNA *props[] = {
-			&rna_ToolSettings_transform_pivot_point
+			&rna_ToolSettings_transform_pivot_point,
+			&rna_ToolSettings_use_manipulator_mode,
 		};
 		for (int i = 0; i < ARRAY_SIZE(props); i++) {
-			WM_msg_subscribe_rna(mbus, &space_ptr, props[i], &msg_sub_value_mpr_tag_refresh, __func__);
+			WM_msg_subscribe_rna(mbus, &toolsettings_ptr, props[i], &msg_sub_value_mpr_tag_refresh, __func__);
 		}
 	}
 	else if (type_fn == VIEW3D_WGT_xform_cage) {
@@ -1246,9 +1255,14 @@ static ManipulatorGroup *manipulatorgroup_init(wmManipulatorGroup *mgroup)
  * Custom handler for manipulator widgets
  */
 static int manipulator_modal(
-        bContext *C, wmManipulator *widget, const wmEvent *UNUSED(event),
+        bContext *C, wmManipulator *widget, const wmEvent *event,
         eWM_ManipulatorTweak UNUSED(tweak_flag))
 {
+	/* Avoid unnecessary updates, partially address: T55458. */
+	if (ELEM(event->type, TIMER, INBETWEEN_MOUSEMOVE)) {
+		return OPERATOR_RUNNING_MODAL;
+	}
+
 	const ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = sa->spacedata.first;
@@ -1270,41 +1284,12 @@ static int manipulator_modal(
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup *mgroup)
+static void manipulatorgroup_init_properties_from_twtype(wmManipulatorGroup *mgroup)
 {
-	ManipulatorGroup *man = manipulatorgroup_init(mgroup);
 	struct {
 		wmOperatorType *translate, *rotate, *trackball, *resize;
 	} ot_store = {NULL};
-
-	mgroup->customdata = man;
-
-	{
-		/* TODO: support mixing modes again? - it's supported but tool system makes it unobvious. */
-		man->twtype = 0;
-		WorkSpace *workspace = CTX_wm_workspace(C);
-		ScrArea *sa = CTX_wm_area(C);
-		wmKeyMap *km = WM_keymap_find_all(C, workspace->tool.keymap, sa->spacetype, RGN_TYPE_WINDOW);
-		/* Weak, check first event */
-		wmKeyMapItem *kmi = km ? km->items.first : NULL;
-
-		if (kmi == NULL) {
-			man->twtype |= V3D_MANIP_TRANSLATE | V3D_MANIP_ROTATE | V3D_MANIP_SCALE;
-		}
-		else if (STREQ(kmi->idname, "TRANSFORM_OT_translate")) {
-			man->twtype |= V3D_MANIP_TRANSLATE;
-		}
-		else if (STREQ(kmi->idname, "TRANSFORM_OT_rotate")) {
-			man->twtype |= V3D_MANIP_ROTATE;
-		}
-		else if (STREQ(kmi->idname, "TRANSFORM_OT_resize")) {
-			man->twtype |= V3D_MANIP_SCALE;
-		}
-		BLI_assert(man->twtype != 0);
-	}
-
-	/* *** set properties for axes *** */
-
+	ManipulatorGroup *man = mgroup->customdata;
 	MAN_ITER_AXES_BEGIN(axis, axis_idx)
 	{
 		const short axis_type = manipulator_get_axis_type(axis_idx);
@@ -1323,6 +1308,14 @@ static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup 
 			case MAN_AXIS_SCALE_X:
 			case MAN_AXIS_SCALE_Y:
 			case MAN_AXIS_SCALE_Z:
+				if (axis_idx >= MAN_AXIS_RANGE_TRANS_START && axis_idx < MAN_AXIS_RANGE_TRANS_END) {
+					int draw_options = 0;
+					if ((man->twtype & (SCE_MANIP_ROTATE | SCE_MANIP_SCALE)) == 0) {
+						draw_options |= ED_MANIPULATOR_ARROW_DRAW_FLAG_STEM;
+					}
+					RNA_enum_set(axis->ptr, "draw_options", draw_options);
+				}
+
 				WM_manipulator_set_line_width(axis, MANIPULATOR_AXIS_LINE_WIDTH);
 				break;
 			case MAN_AXIS_ROT_X:
@@ -1356,6 +1349,7 @@ static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup 
 				}
 				else if (axis_idx == MAN_AXIS_ROT_C) {
 					WM_manipulator_set_flag(axis, WM_MANIPULATOR_DRAW_VALUE, true);
+					WM_manipulator_set_scale(axis, 1.2f);
 				}
 				else {
 					WM_manipulator_set_scale(axis, 0.2f);
@@ -1410,6 +1404,39 @@ static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup 
 	MAN_ITER_AXES_END;
 }
 
+static void WIDGETGROUP_manipulator_setup(const bContext *C, wmManipulatorGroup *mgroup)
+{
+	ManipulatorGroup *man = manipulatorgroup_init(mgroup);
+
+	mgroup->customdata = man;
+
+	{
+		man->twtype = 0;
+		ScrArea *sa = CTX_wm_area(C);
+		const bToolRef *tref = sa->runtime.tool;
+
+		if (tref == NULL || STREQ(tref->idname, "Transform")) {
+			/* Setup all manipulators, they can be toggled via 'ToolSettings.manipulator_flag' */
+			man->twtype = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
+			man->use_twtype_refresh = true;
+		}
+		else if (STREQ(tref->idname, "Move")) {
+			man->twtype |= SCE_MANIP_TRANSLATE;
+		}
+		else if (STREQ(tref->idname, "Rotate")) {
+			man->twtype |= SCE_MANIP_ROTATE;
+		}
+		else if (STREQ(tref->idname, "Scale")) {
+			man->twtype |= SCE_MANIP_SCALE;
+		}
+		BLI_assert(man->twtype != 0);
+		man->twtype_init = man->twtype;
+	}
+
+	/* *** set properties for axes *** */
+	manipulatorgroup_init_properties_from_twtype(mgroup);
+}
+
 static void WIDGETGROUP_manipulator_refresh(const bContext *C, wmManipulatorGroup *mgroup)
 {
 	ManipulatorGroup *man = mgroup->customdata;
@@ -1418,6 +1445,15 @@ static void WIDGETGROUP_manipulator_refresh(const bContext *C, wmManipulatorGrou
 	View3D *v3d = sa->spacedata.first;
 	RegionView3D *rv3d = ar->regiondata;
 	struct TransformBounds tbounds;
+
+	if (man->use_twtype_refresh) {
+		Scene *scene = CTX_data_scene(C);
+		man->twtype = scene->toolsettings->manipulator_flag & man->twtype_init;
+		if (man->twtype != man->twtype_prev) {
+			man->twtype_prev = man->twtype;
+			manipulatorgroup_init_properties_from_twtype(mgroup);
+		}
+	}
 
 	/* skip, we don't draw anything anyway */
 	if ((man->all_hidden =
@@ -1455,6 +1491,13 @@ static void WIDGETGROUP_manipulator_refresh(const bContext *C, wmManipulatorGrou
 
 				WM_manipulator_set_matrix_rotation_from_z_axis(axis, rv3d->twmat[aidx_norm]);
 				RNA_float_set(axis->ptr, "length", len);
+
+				if (axis_idx >= MAN_AXIS_RANGE_TRANS_START && axis_idx < MAN_AXIS_RANGE_TRANS_END) {
+					if (man->twtype & SCE_MANIP_ROTATE) {
+						/* Avoid rotate and translate arrows overlap. */
+						start_co[2] += 0.215f;
+					}
+				}
 				WM_manipulator_set_matrix_offset_location(axis, start_co);
 				WM_manipulator_set_flag(axis, WM_MANIPULATOR_DRAW_OFFSET_SCALE, true);
 				break;
@@ -1546,14 +1589,10 @@ static void WIDGETGROUP_manipulator_draw_prepare(const bContext *C, wmManipulato
 static bool WIDGETGROUP_manipulator_poll(const struct bContext *C, struct wmManipulatorGroupType *wgt)
 {
 	/* it's a given we only use this in 3D view */
-	ScrArea *sa = CTX_wm_area(C);
-	View3D *v3d = sa->spacedata.first;
-	if (v3d && ((v3d->twflag & V3D_MANIPULATOR_DRAW)) == 0) {
-		return false;
-	}
-
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	if (!STREQ(workspace->tool.manipulator_group, "TRANSFORM_WGT_manipulator")) {
+	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
+	if ((tref_rt == NULL) ||
+	    !STREQ(wgt->idname, tref_rt->manipulator_group))
+	{
 		WM_manipulator_group_type_unlink_delayed_ptr(wgt);
 		return false;
 	}
@@ -1590,14 +1629,8 @@ struct XFormCageWidgetGroup {
 
 static bool WIDGETGROUP_xform_cage_poll(const bContext *C, wmManipulatorGroupType *wgt)
 {
-	ScrArea *sa = CTX_wm_area(C);
-	View3D *v3d = sa->spacedata.first;
-	if (v3d && ((v3d->twflag & V3D_MANIPULATOR_DRAW)) == 0) {
-		return false;
-	}
-
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	if (!STREQ(wgt->idname, workspace->tool.manipulator_group)) {
+	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
+	if (!STREQ(wgt->idname, tref_rt->manipulator_group)) {
 		WM_manipulator_group_type_unlink_delayed_ptr(wgt);
 		return false;
 	}

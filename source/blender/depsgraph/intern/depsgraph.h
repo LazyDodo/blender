@@ -36,9 +36,16 @@
 
 #pragma once
 
+#include <stdlib.h>
+
+#include "DNA_ID.h" /* for ID_Type */
+
+#include "BKE_library.h" /* for MAX_LIBARRAY */
+
 #include "BLI_threads.h"  /* for SpinLock */
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_physics.h"
 
 #include "intern/depsgraph_types.h"
 
@@ -124,6 +131,7 @@ struct Depsgraph {
 	IDDepsNode *find_id_node(const ID *id) const;
 	IDDepsNode *add_id_node(ID *id, ID *id_cow_hint = NULL);
 	void clear_id_nodes();
+	void clear_id_nodes_conditional(const std::function <bool (ID_Type id_type)>& filter);
 
 	/* Add new relationship between two nodes. */
 	DepsRelation *add_new_relation(OperationDepsNode *from,
@@ -174,6 +182,9 @@ struct Depsgraph {
 	/* Indicates whether relations needs to be updated. */
 	bool need_update;
 
+	/* Indicates which ID types were updated. */
+	char id_type_updated[MAX_LIBARRAY];
+
 	/* Quick-Access Temp Data ............. */
 
 	/* Nodes which have been tagged as "directly modified". */
@@ -203,9 +214,23 @@ struct Depsgraph {
 	 */
 	Scene *scene_cow;
 
+	/* Active dependency graph is a dependency graph which is used by the
+	 * currently active window. When dependency graph is active, it is allowed
+	 * for evaluation functions to write animation f-curve result, drivers
+	 * result and other selective things (object matrix?) to original object.
+	 *
+	 * This way we simplify operators, which don't need to worry about where
+	 * to read stuff from.
+	 */
+	bool is_active;
+
 	/* NITE: Corresponds to G_DEBUG_DEPSGRAPH_* flags. */
 	int debug_flags;
 	string debug_name;
+
+	/* Cached list of colliders/effectors for collections and the scene
+	 * created along with relations, for fast lookup during evaluation. */
+	GHash *physics_relations[DEG_PHYSICS_RELATIONS_NUM];
 };
 
 }  // namespace DEG

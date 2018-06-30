@@ -68,7 +68,7 @@ void sequencer_operatortypes(void)
 	WM_operatortype_append(SEQUENCER_OT_meta_toggle);
 	WM_operatortype_append(SEQUENCER_OT_meta_make);
 	WM_operatortype_append(SEQUENCER_OT_meta_separate);
-	
+
 	WM_operatortype_append(SEQUENCER_OT_gap_remove);
 	WM_operatortype_append(SEQUENCER_OT_gap_insert);
 	WM_operatortype_append(SEQUENCER_OT_snap);
@@ -135,7 +135,7 @@ void sequencer_keymap(wmKeyConfig *keyconf)
 {
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
-	
+
 	/* Common items ------------------------------------------------------------------ */
 	keymap = WM_keymap_find(keyconf, "SequencerCommon", SPACE_SEQ, 0);
 
@@ -183,7 +183,9 @@ void sequencer_keymap(wmKeyConfig *keyconf)
 
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_duplicate_move", DKEY, KM_PRESS, KM_SHIFT, 0);
 
+#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_delete", XKEY, KM_PRESS, 0, 0);
+#endif
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_delete", DELKEY, KM_PRESS, 0, 0);
 
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_copy", CKEY, KM_PRESS, KM_CTRL, 0);
@@ -228,7 +230,7 @@ void sequencer_keymap(wmKeyConfig *keyconf)
 	RNA_boolean_set(WM_keymap_add_item(keymap, "SEQUENCER_OT_gap_remove", BACKSPACEKEY, KM_PRESS, 0, 0)->ptr, "all", false);
 	RNA_boolean_set(WM_keymap_add_item(keymap, "SEQUENCER_OT_gap_remove", BACKSPACEKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "all", true);
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_gap_insert", EQUALKEY, KM_PRESS, KM_SHIFT, 0);
-	
+
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
 	WM_keymap_add_item(keymap, "SEQUENCER_OT_swap_inputs", SKEY, KM_PRESS, KM_ALT, 0);
 

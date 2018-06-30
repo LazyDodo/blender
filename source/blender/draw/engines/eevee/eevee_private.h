@@ -92,6 +92,11 @@ extern struct DrawEngineType draw_engine_eevee_type;
 	}                                              \
 } ((void)0)
 
+#define OVERLAY_ENABLED(v3d) ((v3d) && (v3d->flag2 & V3D_RENDER_OVERRIDE) == 0)
+#define LOOK_DEV_MODE_ENABLED(v3d) ((v3d) && (v3d->drawtype == OB_MATERIAL))
+#define LOOK_DEV_OVERLAY_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && OVERLAY_ENABLED(v3d) && ((v3d->overlay.flag & V3D_OVERLAY_LOOK_DEV) > 0))
+#define USE_SCENE_LIGHT(v3d) ((!v3d) || (!LOOK_DEV_MODE_ENABLED(v3d)) || ((LOOK_DEV_MODE_ENABLED(v3d) && (v3d->shading.flag & V3D_SHADING_SCENE_LIGHT))))
+
 /* World shader variations */
 enum {
 	VAR_WORLD_BACKGROUND    = 0,
@@ -101,35 +106,29 @@ enum {
 
 /* Material shader variations */
 enum {
-	VAR_MAT_MESH     = (1 << 0),
-	VAR_MAT_PROBE    = (1 << 1),
-	VAR_MAT_HAIR     = (1 << 2),
-	VAR_MAT_FLAT     = (1 << 3),
-	VAR_MAT_BLEND    = (1 << 4),
-	VAR_MAT_VSM      = (1 << 5),
-	VAR_MAT_ESM      = (1 << 6),
-	VAR_MAT_VOLUME   = (1 << 7),
+	VAR_MAT_MESH        = (1 << 0),
+	VAR_MAT_PROBE       = (1 << 1),
+	VAR_MAT_HAIR        = (1 << 2),
+	VAR_MAT_FLAT        = (1 << 3),
+	VAR_MAT_BLEND       = (1 << 4),
+	VAR_MAT_VSM         = (1 << 5),
+	VAR_MAT_ESM         = (1 << 6),
+	VAR_MAT_VOLUME      = (1 << 7),
+	VAR_MAT_LOOKDEV = (1 << 8),
 	/* Max number of variation */
 	/* IMPORTANT : Leave it last and set
 	 * it's value accordingly. */
-	VAR_MAT_MAX      = (1 << 8),
+	VAR_MAT_MAX         = (1 << 9),
 	/* These are options that are not counted in VAR_MAT_MAX
 	 * because they are not cumulative with the others above. */
-	VAR_MAT_CLIP     = (1 << 9),
-	VAR_MAT_HASH     = (1 << 10),
-	VAR_MAT_MULT     = (1 << 11),
-	VAR_MAT_SHADOW   = (1 << 12),
-	VAR_MAT_REFRACT  = (1 << 13),
-	VAR_MAT_SSS      = (1 << 14),
-	VAR_MAT_TRANSLUC = (1 << 15),
-	VAR_MAT_SSSALBED = (1 << 16),
-};
-
-/* Shadow Technique */
-enum {
-	SHADOW_ESM = 1,
-	SHADOW_VSM = 2,
-	SHADOW_METHOD_MAX = 3,
+	VAR_MAT_CLIP        = (1 << 10),
+	VAR_MAT_HASH        = (1 << 11),
+	VAR_MAT_MULT        = (1 << 12),
+	VAR_MAT_SHADOW      = (1 << 13),
+	VAR_MAT_REFRACT     = (1 << 14),
+	VAR_MAT_SSS         = (1 << 15),
+	VAR_MAT_TRANSLUC    = (1 << 16),
+	VAR_MAT_SSSALBED    = (1 << 17),
 };
 
 typedef struct EEVEE_BoundSphere {
@@ -145,8 +144,10 @@ typedef struct EEVEE_PassList {
 	struct DRWPass *shadow_pass;
 	struct DRWPass *shadow_cube_copy_pass;
 	struct DRWPass *shadow_cube_store_pass;
+	struct DRWPass *shadow_cube_store_high_pass;
 	struct DRWPass *shadow_cascade_copy_pass;
 	struct DRWPass *shadow_cascade_store_pass;
+	struct DRWPass *shadow_cascade_store_high_pass;
 
 	/* Probes */
 	struct DRWPass *probe_background;
@@ -212,6 +213,7 @@ typedef struct EEVEE_PassList {
 	struct DRWPass *transparent_pass;
 	struct DRWPass *background_pass;
 	struct DRWPass *update_noise_pass;
+	struct DRWPass *lookdev_pass;
 } EEVEE_PassList;
 
 typedef struct EEVEE_FramebufferList {
@@ -284,6 +286,7 @@ typedef struct EEVEE_StorageList {
 	struct EEVEE_EffectsInfo *effects;
 
 	struct EEVEE_PrivateData *g_data;
+
 } EEVEE_StorageList;
 
 /* ************ LIGHT UBO ************* */
@@ -295,6 +298,9 @@ typedef struct EEVEE_Light {
 	float upvec[3], sizey;
 	float forwardvec[3], lamptype;
 } EEVEE_Light;
+
+/* Special type for elliptic area lamps, matches lamps_lib.glsl */
+#define LAMPTYPE_AREA_ELLIPSE 100.0f
 
 typedef struct EEVEE_Shadow {
 	float near, far, bias, exp;
@@ -420,7 +426,7 @@ typedef struct EEVEE_PlanarReflection {
 typedef struct EEVEE_LightProbeVisTest {
 	bool invert;
 	bool cached; /* Reuse last test results */
-	struct Group *group; /* Skip test if NULL */
+	struct Collection *collection; /* Skip test if NULL */
 } EEVEE_LightProbeVisTest;
 
 typedef struct EEVEE_LightProbesInfo {
@@ -456,6 +462,8 @@ typedef struct EEVEE_LightProbesInfo {
 	float visibility_blur;
 	float intensity_fac;
 	int shres;
+	int studiolight_index;
+	float studiolight_rot_z;
 	/* List of probes in the scene. */
 	/* XXX This is fragile, can get out of sync quickly. */
 	struct Object *probes_cube_ref[MAX_PROBE];
@@ -465,7 +473,7 @@ typedef struct EEVEE_LightProbesInfo {
 	struct EEVEE_LightProbe probe_data[MAX_PROBE];
 	struct EEVEE_LightGrid grid_data[MAX_GRID];
 	struct EEVEE_PlanarReflection planar_data[MAX_PLANAR];
-	/* Probe Visibility Group */
+	/* Probe Visibility Collection */
 	EEVEE_LightProbeVisTest vis_data;
 } EEVEE_LightProbesInfo;
 
@@ -776,7 +784,6 @@ typedef struct EEVEE_PrivateData {
 	struct DRWShadingGroup *cube_display_shgrp;
 	struct DRWShadingGroup *planar_display_shgrp;
 	struct GHash *material_hash;
-	struct GHash *hair_material_hash;
 	float background_alpha; /* TODO find a better place for this. */
 	/* For planar probes */
 	float planar_texel_size[2];
@@ -787,6 +794,8 @@ typedef struct EEVEE_PrivateData {
 	float persmat[4][4], persinv[4][4];
 	float viewmat[4][4], viewinv[4][4];
 	float winmat[4][4], wininv[4][4];
+	float studiolight_matrix[3][3];
+
 	/* Mist Settings */
 	float mist_start, mist_inv_dist, mist_falloff;
 } EEVEE_PrivateData; /* Transient data */
@@ -806,6 +815,7 @@ struct GPUTexture *EEVEE_materials_get_util_tex(void); /* XXX */
 void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, EEVEE_FramebufferList *fbl);
 void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, Object *ob, bool *cast_shadow);
+void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, Object *ob, bool *cast_shadow);
 void EEVEE_materials_cache_finish(EEVEE_Data *vedata);
 struct GPUMaterial *EEVEE_material_world_lightprobe_get(struct Scene *scene, struct World *wo);
 struct GPUMaterial *EEVEE_material_world_background_get(struct Scene *scene, struct World *wo);
@@ -813,8 +823,10 @@ struct GPUMaterial *EEVEE_material_world_volume_get(struct Scene *scene, struct 
 struct GPUMaterial *EEVEE_material_mesh_get(
         struct Scene *scene, Material *ma, EEVEE_Data *vedata,
         bool use_blend, bool use_multiply, bool use_refract, bool use_sss, bool use_translucency, int shadow_method);
-struct GPUMaterial *EEVEE_material_mesh_volume_get(struct Scene *scene, Material *ma);
-struct GPUMaterial *EEVEE_material_mesh_depth_get(struct Scene *scene, Material *ma, bool use_hashed_alpha, bool is_shadow);
+struct GPUMaterial *EEVEE_material_mesh_volume_get(
+        struct Scene *scene, Material *ma);
+struct GPUMaterial *EEVEE_material_mesh_depth_get(
+        struct Scene *scene, Material *ma, bool use_hashed_alpha, bool is_shadow);
 struct GPUMaterial *EEVEE_material_hair_get(struct Scene *scene, Material *ma, int shadow_method);
 void EEVEE_materials_free(void);
 void EEVEE_draw_default_passes(EEVEE_PassList *psl);
@@ -930,6 +942,10 @@ void EEVEE_render_init(EEVEE_Data *vedata, struct RenderEngine *engine, struct D
 void EEVEE_render_cache(void *vedata, struct Object *ob, struct RenderEngine *engine, struct Depsgraph *depsgraph);
 void EEVEE_render_draw(EEVEE_Data *vedata, struct RenderEngine *engine, struct RenderLayer *render_layer, const struct rcti *rect);
 void EEVEE_render_update_passes(struct RenderEngine *engine, struct Scene *scene, struct ViewLayer *view_layer);
+
+/** eevee_lookdev.c */
+void EEVEE_lookdev_cache_init(EEVEE_Data *vedata, DRWShadingGroup **grp, GPUShader *shader, DRWPass *pass, struct World *world, EEVEE_LightProbesInfo *pinfo);
+void EEVEE_lookdev_draw_background(EEVEE_Data *vedata);
 
 /* Shadow Matrix */
 static const float texcomat[4][4] = { /* From NDC to TexCo */

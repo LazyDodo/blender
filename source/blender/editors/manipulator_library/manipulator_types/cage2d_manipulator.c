@@ -49,6 +49,7 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_select.h"
+#include "GPU_state.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -66,16 +67,6 @@
 #define MANIPULATOR_RESIZER_SIZE 10.0f
 #define MANIPULATOR_MARGIN_OFFSET_SCALE 1.5f
 
-static void manipulator_calc_matrix_final_no_offset(
-        const wmManipulator *mpr, float orig_matrix_final_no_offset[4][4])
-{
-	float mat_identity[4][4];
-	struct WM_ManipulatorMatrixParams params = {NULL};
-	unit_m4(mat_identity);
-	params.matrix_offset = mat_identity;
-	WM_manipulator_calc_matrix_final_params(mpr, &params, orig_matrix_final_no_offset);
-}
-
 static void manipulator_calc_rect_view_scale(
         const wmManipulator *mpr, const float dims[2], float scale[2])
 {
@@ -88,7 +79,7 @@ static void manipulator_calc_rect_view_scale(
 		asp[1] = dims[0] / dims[1];
 	}
 	float x_axis[3], y_axis[3];
-	manipulator_calc_matrix_final_no_offset(mpr, matrix_final_no_offset);
+	WM_manipulator_calc_matrix_final_no_offset(mpr, matrix_final_no_offset);
 	mul_v3_mat3_m4v3(x_axis, matrix_final_no_offset, mpr->matrix_offset[0]);
 	mul_v3_mat3_m4v3(y_axis, matrix_final_no_offset, mpr->matrix_offset[1]);
 
@@ -430,7 +421,7 @@ static void cage2d_draw_box_interaction(
 		}
 		else {
 			BLI_assert(ELEM(prim_type, GWN_PRIM_LINE_STRIP, GWN_PRIM_LINES));
-			glLineWidth(line_width + 3.0f);
+			GPU_line_width(line_width + 3.0f);
 
 			immBegin(prim_type, verts_len);
 			immAttrib3f(attr_id.col, 0.0f, 0.0f, 0.0f);
@@ -439,7 +430,7 @@ static void cage2d_draw_box_interaction(
 			}
 			immEnd();
 
-			glLineWidth(line_width);
+			GPU_line_width(line_width);
 
 			immBegin(prim_type, verts_len);
 			immAttrib3fv(attr_id.col, color);
@@ -568,14 +559,14 @@ static void manipulator_cage2d_draw_intern(
 
 	/* Handy for quick testing draw (if it's outside bounds). */
 	if (false) {
-		glEnable(GL_BLEND);
+		GPU_blend(true);
 		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor4fv((const float[4]){1, 1, 1, 0.5f});
 		float s = 0.5f;
 		immRectf(pos, -s, -s, s, s);
 		immUnbindProgram();
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 	}
 
 	if (select) {
@@ -620,13 +611,13 @@ static void manipulator_cage2d_draw_intern(
 		};
 		if (draw_style == ED_MANIPULATOR_CAGE2D_STYLE_BOX) {
 			/* corner manipulators */
-			glLineWidth(mpr->line_width + 3.0f);
+			GPU_line_width(mpr->line_width + 3.0f);
 			cage2d_draw_box_corners(&r, margin, (const float[3]){0, 0, 0});
 
 			/* corner manipulators */
 			float color[4];
 			manipulator_color_get(mpr, highlight, color);
-			glLineWidth(mpr->line_width);
+			GPU_line_width(mpr->line_width);
 			cage2d_draw_box_corners(&r, margin, color);
 
 			bool show = false;
@@ -655,12 +646,12 @@ static void manipulator_cage2d_draw_intern(
 			float color[4];
 			manipulator_color_get(mpr, highlight, color);
 
-			glEnable(GL_LINE_SMOOTH);
-			glEnable(GL_BLEND);
+			GPU_line_smooth(true);
+			GPU_blend(true);
 
-			glLineWidth(mpr->line_width + 3.0f);
+			GPU_line_width(mpr->line_width + 3.0f);
 			cage2d_draw_circle_wire(&r, margin, (const float[3]){0, 0, 0}, transform_flag, draw_options);
-			glLineWidth(mpr->line_width);
+			GPU_line_width(mpr->line_width);
 			cage2d_draw_circle_wire(&r, margin, color, transform_flag, draw_options);
 
 
@@ -668,15 +659,15 @@ static void manipulator_cage2d_draw_intern(
 			cage2d_draw_circle_handles(&r, margin, color, transform_flag, true);
 			cage2d_draw_circle_handles(&r, margin, (const float[3]){0, 0, 0}, transform_flag, false);
 
-			glDisable(GL_BLEND);
-			glDisable(GL_LINE_SMOOTH);
+			GPU_blend(false);
+			GPU_line_smooth(false);
 		}
 		else {
 			BLI_assert(0);
 		}
 	}
 
-	glLineWidth(1.0);
+	GPU_line_width(1.0);
 	gpuPopMatrix();
 }
 
@@ -841,7 +832,7 @@ static int manipulator_cage2d_invoke(
 	RectTransformInteraction *data = MEM_callocN(sizeof(RectTransformInteraction), "cage_interaction");
 
 	copy_m4_m4(data->orig_matrix_offset, mpr->matrix_offset);
-	manipulator_calc_matrix_final_no_offset(mpr, data->orig_matrix_final_no_offset);
+	WM_manipulator_calc_matrix_final_no_offset(mpr, data->orig_matrix_final_no_offset);
 
 	if (manipulator_window_project_2d(
 	        C, mpr, (const float[2]){UNPACK2(event->mval)}, 2, false, data->orig_mouse) == 0)

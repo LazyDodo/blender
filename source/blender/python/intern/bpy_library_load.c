@@ -205,7 +205,7 @@ static PyObject *bpy_lib_load(PyObject *UNUSED(self), PyObject *args, PyObject *
 
 	BLI_strncpy(ret->relpath, filename, sizeof(ret->relpath));
 	BLI_strncpy(ret->abspath, filename, sizeof(ret->abspath));
-	BLI_path_abs(ret->abspath, bmain->name);
+	BLI_path_abs(ret->abspath, BKE_main_blendfile_path(bmain));
 
 	ret->blo_handle = NULL;
 	ret->flag = ((is_link ? FILE_LINK : 0) |
@@ -403,7 +403,7 @@ static PyObject *bpy_lib_exit(BPy_Library *self, PyObject *UNUSED(args))
 	}
 	else {
 		Library *lib = mainl->curlib; /* newly added lib, assign before append end */
-		BLO_library_link_end(mainl, &(self->blo_handle), self->flag, NULL, NULL);
+		BLO_library_link_end(mainl, &(self->blo_handle), self->flag, NULL, NULL, NULL);
 		BLO_blendhandle_close(self->blo_handle);
 		self->blo_handle = NULL;
 

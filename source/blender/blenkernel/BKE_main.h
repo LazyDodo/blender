@@ -112,7 +112,7 @@ typedef struct Main {
 	ListBase speaker;
 	ListBase lightprobe;
 	ListBase sound;
-	ListBase group;
+	ListBase collection;
 	ListBase armature;
 	ListBase action;
 	ListBase nodetree;
@@ -127,8 +127,6 @@ typedef struct Main {
 	ListBase linestyle;
 	ListBase cachefiles;
 	ListBase workspaces;
-
-	char id_tag_update[MAX_LIBARRAY];
 
 	/* Must be generated, used and freed by same code - never assume this is valid data unless you know
 	 * when, who and how it was created.

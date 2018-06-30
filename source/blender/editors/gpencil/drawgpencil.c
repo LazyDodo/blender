@@ -64,6 +64,7 @@
 
 #include "GPU_immediate.h"
 #include "GPU_draw.h"
+#include "GPU_state.h"
 
 #include "ED_gpencil.h"
 #include "ED_screen.h"
@@ -215,7 +216,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 
 	if (totpoints == 1) {
 		/* if drawing a single point, draw it larger */
-		glPointSize((float)(thickness + 2) * points->pressure);
+		GPU_point_size((float)(thickness + 2) * points->pressure);
 		immBindBuiltinProgram(GPU_SHADER_3D_POINT_FIXED_SIZE_VARYING_COLOR);
 		immBegin(GWN_PRIM_POINTS, 1);
 		gp_set_tpoint_varying_color(pt, ink, color);
@@ -225,7 +226,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 		float oldpressure = points[0].pressure;
 
 		/* draw stroke curve */
-		glLineWidth(max_ff(oldpressure * thickness, 1.0));
+		GPU_line_width(max_ff(oldpressure * thickness, 1.0));
 		immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 		immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints);
 
@@ -245,11 +246,11 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 				immEnd();
 				draw_points = 0;
 
-				glLineWidth(max_ff(pt->pressure * thickness, 1.0f));
+				GPU_line_width(max_ff(pt->pressure * thickness, 1.0f));
 				immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints - i + 1);
 
 				/* need to roll-back one point to ensure that there are no gaps in the stroke */
-				if (i != 0) { 
+				if (i != 0) {
 					gp_set_tpoint_varying_color(pt - 1, ink, color);
 					immVertex2iv(pos, &(pt - 1)->x);
 					++draw_points;
@@ -389,7 +390,7 @@ static void gp_draw_stroke_volumetric_3d(
 
 	const bGPDspoint *pt = points;
 	for (int i = 0; i < totpoints && pt; i++, pt++) {
-		gp_set_point_varying_color(pt, ink, color);		
+		gp_set_point_varying_color(pt, ink, color);
 		immAttrib1f(size, pt->pressure * thickness); /* TODO: scale based on view transform */
 		immVertex3fv(pos, &pt->x);                   /* we can adjust size in vertex shader based on view/projection! */
 	}
@@ -625,7 +626,7 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 	/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
 
 	/* draw stroke curve */
-	glLineWidth(max_ff(curpressure * thickness, 1.0f));
+	GPU_line_width(max_ff(curpressure * thickness, 1.0f));
 	immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints + cyclic_add);
 	const bGPDspoint *pt = points;
 	for (int i = 0; i < totpoints; i++, pt++) {
@@ -646,11 +647,11 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 			draw_points = 0;
 
 			curpressure = pt->pressure;
-			glLineWidth(max_ff(curpressure * thickness, 1.0f));
+			GPU_line_width(max_ff(curpressure * thickness, 1.0f));
 			immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints - i + 1 + cyclic_add);
 
 			/* need to roll-back one point to ensure that there are no gaps in the stroke */
-			if (i != 0) { 
+			if (i != 0) {
 				const bGPDspoint *pt2 = pt - 1;
 				mul_v3_m4v3(fpt, diff_mat, &pt2->x);
 				gp_set_point_varying_color(pt2, ink, color);
@@ -941,7 +942,7 @@ static void gp_draw_strokes(
 			if (no_xray) {
 				glGetIntegerv(GL_DEPTH_WRITEMASK, &mask_orig);
 				glDepthMask(0);
-				glEnable(GL_DEPTH_TEST);
+				GPU_depth_test(true);
 
 				/* first arg is normally rv3d->dist, but this isn't
 				 * available here and seems to work quite well without */
@@ -1005,7 +1006,7 @@ static void gp_draw_strokes(
 			}
 			if (no_xray) {
 				glDepthMask(mask_orig);
-				glDisable(GL_DEPTH_TEST);
+				GPU_depth_test(false);
 
 				bglPolygonOffset(0.0, 0.0);
 			}
@@ -1090,7 +1091,7 @@ static void gp_draw_strokes_edit(
 		if (no_xray) {
 			glGetIntegerv(GL_DEPTH_WRITEMASK, &mask_orig);
 			glDepthMask(0);
-			glEnable(GL_DEPTH_TEST);
+			GPU_depth_test(true);
 
 			/* first arg is normally rv3d->dist, but this isn't
 			 * available here and seems to work quite well without */
@@ -1215,7 +1216,7 @@ static void gp_draw_strokes_edit(
 	if (dflag & GP_DRAWDATA_ONLY3D) {
 		if (no_xray) {
 			glDepthMask(mask_orig);
-			glDisable(GL_DEPTH_TEST);
+			GPU_depth_test(false);
 
 			bglPolygonOffset(0.0, 0.0);
 #if 0
@@ -1322,14 +1323,14 @@ void ED_gp_draw_interpolation(tGPDinterpolate *tgpi, const int type)
 
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, color);
 	color[3] = 0.6f;
-	int dflag = 0; 
+	int dflag = 0;
 	/* if 3d stuff, enable flags */
 	if (type == REGION_DRAW_POST_VIEW) {
 		dflag |= (GP_DRAWDATA_ONLY3D | GP_DRAWDATA_NOSTATUS);
 	}
 
 	/* turn on alpha-blending */
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 	for (tgpil = tgpi->ilayers.first; tgpil; tgpil = tgpil->next) {
 		/* calculate parent position */
 		ED_gpencil_parent_location(tgpil->gpl, diff_mat);
@@ -1338,7 +1339,7 @@ void ED_gp_draw_interpolation(tGPDinterpolate *tgpi, const int type)
 				tgpil->gpl->thickness, 1.0f, color, true, true, diff_mat);
 		}
 	}
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 }
 
 /* loop over gpencil data layers, drawing them */
@@ -1365,8 +1366,8 @@ static void gp_draw_data_layers(
 			continue;
 
 		/* set basic stroke thickness */
-		glLineWidth(lthick);
-		
+		GPU_line_width(lthick);
+
 		/* Add layer drawing settings to the set of "draw flags"
 		 * NOTE: If the setting doesn't apply, it *must* be cleared,
 		 *       as dflag's carry over from the previous layer
@@ -1386,7 +1387,7 @@ static void gp_draw_data_layers(
 		GP_DRAWFLAG_APPLY((gpl->flag & GP_LAYER_HQ_FILL), GP_DRAWDATA_HQ_FILL);
 
 #undef GP_DRAWFLAG_APPLY
-		
+
 		/* Draw 'onionskins' (frame left + right)
 		 *   - It is only possible to show these if the option is enabled
 		 *   - The "no onions" flag prevents ghosts from appearing during animation playback/scrubbing
@@ -1394,8 +1395,8 @@ static void gp_draw_data_layers(
 		 *   - The per-layer "always show" flag however overrides the playback/render restriction,
 		 *     allowing artists to selectively turn onionskins on/off during playback
 		 */
-		if ((gpl->flag & GP_LAYER_ONIONSKIN) && 
-		    ((dflag & GP_DRAWDATA_NO_ONIONS) == 0 || (gpl->flag & GP_LAYER_GHOST_ALWAYS))) 
+		if ((gpl->flag & GP_LAYER_ONIONSKIN) &&
+		    ((dflag & GP_DRAWDATA_NO_ONIONS) == 0 || (gpl->flag & GP_LAYER_GHOST_ALWAYS)))
 		{
 			/* Drawing method - only immediately surrounding (gstep = 0),
 			 * or within a frame range on either side (gstep > 0)
@@ -1430,7 +1431,7 @@ static void gp_draw_data_layers(
 		{
 			/* Buffer stroke needs to be drawn with a different linestyle
 			 * to help differentiate them from normal strokes.
-			 * 
+			 *
 			 * It should also be noted that sbuffer contains temporary point types
 			 * i.e. tGPspoints NOT bGPDspoints
 			 */
@@ -1465,7 +1466,7 @@ static void gp_draw_status_text(const bGPdata *gpd, ARegion *ar)
 		int font_id = BLF_default();
 
 		BLF_width_and_height(font_id, printable, BLF_DRAW_STR_DUMMY_MAX, &printable_size[0], &printable_size[1]);
-		
+
 		int xco = (rect.xmax - U.widget_unit) - (int)printable_size[0];
 		int yco = (rect.ymax - U.widget_unit);
 
@@ -1479,15 +1480,15 @@ static void gp_draw_status_text(const bGPdata *gpd, ARegion *ar)
 
 		/* grease pencil icon... */
 		// XXX: is this too intrusive?
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_BLEND);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+		GPU_blend(true);
 
 		xco -= U.widget_unit;
 		yco -= (int)printable_size[1] / 2;
 
 		UI_icon_draw(xco, yco, ICON_GREASEPENCIL);
 
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 	}
 }
 
@@ -1497,23 +1498,23 @@ static void gp_draw_data(
         int offsx, int offsy, int winx, int winy, int cfra, int dflag)
 {
 	/* turn on smooth lines (i.e. anti-aliasing) */
-	glEnable(GL_LINE_SMOOTH);
+	GPU_line_smooth(true);
 
-	/* XXX: turn on some way of ensuring that the polygon edges get smoothed 
+	/* XXX: turn on some way of ensuring that the polygon edges get smoothed
 	 *      GL_POLYGON_SMOOTH is nasty and shouldn't be used, as it ends up
 	 *      creating internal white rays due to the ways it accumulates stuff
 	 */
 
 	/* turn on alpha-blending */
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
 
 	/* draw! */
 	gp_draw_data_layers(brush, alpha, gpd, offsx, offsy, winx, winy, cfra, dflag);
 
 	/* turn off alpha blending, then smooth lines */
-	glDisable(GL_BLEND); // alpha blending
-	glDisable(GL_LINE_SMOOTH); // smooth lines
+	GPU_blend(false); // alpha blending
+	GPU_line_smooth(false); // smooth lines
 }
 
 /* if we have strokes for scenes (3d view)/clips (movie clip editor)
@@ -1643,7 +1644,7 @@ void ED_gpencil_draw_view2d(const bContext *C, bool onlyv2d)
 	ARegion *ar = CTX_wm_region(C);
 	Scene *scene = CTX_data_scene(C);
 	int dflag = 0;
-	
+
 	/* check that we have grease-pencil stuff to draw */
 	if (sa == NULL) return;
 	bGPdata *gpd = ED_gpencil_data_get_active(C); // XXX
@@ -1725,7 +1726,7 @@ void ED_gpencil_draw_view3d(wmWindowManager *wm,
 	}
 
 	/* draw it! */
-	gp_draw_data_all(scene, gpd, offsx, offsy, winx, winy, CFRA, dflag, v3d->spacetype);	
+	gp_draw_data_all(scene, gpd, offsx, offsy, winx, winy, CFRA, dflag, v3d->spacetype);
 }
 
 void ED_gpencil_draw_ex(Scene *scene, bGPdata *gpd, int winx, int winy, const int cfra, const char spacetype)

@@ -48,7 +48,7 @@
 #include "BLI_buffer.h"
 #include "BLI_bitmap.h"
 
-#include "BKE_DerivedMesh.h"
+#include "BKE_deform.h"
 #include "BKE_editmesh.h"
 #include "BKE_material.h"
 #include "BKE_layer.h"
@@ -64,6 +64,7 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "ED_image.h"
 #include "ED_mesh.h"
@@ -87,6 +88,8 @@ void ED_image_draw_cursor(ARegion *ar, const float cursor[2])
 	x_fac = zoom[0];
 	y_fac = zoom[1];
 
+	GPU_line_width(1.0f);
+
 	gpuTranslate2fv(cursor);
 
 	const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -94,7 +97,7 @@ void ED_image_draw_cursor(ARegion *ar, const float cursor[2])
 	immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 	float viewport_size[4];
-	glGetFloatv(GL_VIEWPORT, viewport_size);
+	GPU_viewport_size_getf(viewport_size);
 	immUniform2f("viewport_size", viewport_size[2] / UI_DPI_FAC, viewport_size[3] / UI_DPI_FAC);
 
 	immUniform1i("num_colors", 2);  /* "advanced" mode */
@@ -194,12 +197,12 @@ static void draw_uvs_stretch(SpaceImage *sima, Scene *scene, Object *obedit, BME
 	BLI_buffer_declare_static(vec2f, tf_uvorig_buf, BLI_BUFFER_NOP, BM_DEFAULT_NGON_STACK_SIZE);
 
 	ED_space_image_get_uv_aspect(sima, &aspx, &aspy);
-	
+
 	switch (sima->dt_uvstretch) {
 		case SI_UVDT_STRETCH_AREA:
 		{
 			float totarea = 0.0f, totuvarea = 0.0f, areadiff, uvarea, area;
-			
+
 			BM_ITER_MESH (efa, &iter, bm, BM_FACES_OF_MESH) {
 				const int efa_len = efa->len;
 				float (*tf_uv)[2]     = (float (*)[2])BLI_buffer_reinit_data(&tf_uv_buf,     vec2f, efa_len);
@@ -214,7 +217,7 @@ static void draw_uvs_stretch(SpaceImage *sima, Scene *scene, Object *obedit, BME
 
 				totarea += BM_face_calc_area(efa);
 				totuvarea += area_poly_v2(tf_uv, efa->len);
-				
+
 				if (uvedit_face_visible_test(scene, obedit, ima, efa)) {
 					BM_elem_flag_enable(efa, BM_ELEM_TAG);
 				}
@@ -266,17 +269,17 @@ static void draw_uvs_stretch(SpaceImage *sima, Scene *scene, Object *obedit, BME
 						uv_poly_copy_aspect(tf_uvorig, tf_uv, aspx, aspy, efa->len);
 
 						uvarea = area_poly_v2(tf_uv, efa->len) / totuvarea;
-						
+
 						if (area < FLT_EPSILON || uvarea < FLT_EPSILON)
 							areadiff = 1.0f;
 						else if (area > uvarea)
 							areadiff = 1.0f - (uvarea / area);
 						else
 							areadiff = 1.0f - (area / uvarea);
-						
-						weight_to_rgb(col, areadiff);
+
+						BKE_defvert_weight_to_rgb(col, areadiff);
 						immUniformColor3fv(col);
-						
+
 						/* TODO: use editmesh tessface */
 						immBegin(GWN_PRIM_TRI_FAN, efa->len);
 
@@ -354,7 +357,7 @@ static void draw_uvs_stretch(SpaceImage *sima, Scene *scene, Object *obedit, BME
 					BM_ITER_ELEM_INDEX (l, &liter, efa, BM_LOOPS_OF_FACE, i) {
 						luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
 						a = fabsf(uvang[i] - ang[i]) / (float)M_PI;
-						weight_to_rgb(col, 1.0f - pow2f(1.0f - a));
+						BKE_defvert_weight_to_rgb(col, 1.0f - pow2f(1.0f - a));
 						immAttrib3fv(color, col);
 						immVertex2fv(pos, luv->uv);
 					}
@@ -415,10 +418,6 @@ static void draw_uvs_lineloop_bmfaces(BMesh *bm, const int cd_loop_uv_offset, co
 	}
 	GWN_batch_program_use_end(loop_batch);
 	GWN_batch_discard(loop_batch);
-
-	immUnbindProgram();
-
-	immEnd();
 }
 
 static void draw_uvs_lineloop_mpoly(Mesh *me, MPoly *mpoly, unsigned int pos)
@@ -459,7 +458,7 @@ static void draw_uvs_other_mesh(Object *ob, const Image *curimage,
 
 	for (a = 0; a < totcol; a++) {
 		Image *image;
-		
+
 		/* if no materials, assume a default material with no image */
 		if (ob->totcol)
 			ED_object_get_active_image(ob, a + 1, &image, NULL, NULL, NULL);
@@ -504,7 +503,7 @@ static void draw_uvs_other(ViewLayer *view_layer, Object *obedit, const Image *c
 
 	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 		if (((base->flag & BASE_SELECTED) != 0) &&
-		    ((base->flag & BASE_VISIBLED) != 0))
+		    ((base->flag & BASE_VISIBLE) != 0))
 		{
 			Object *ob = base->object;
 			if ((ob->type == OB_MESH) && (ob != obedit) && ((Mesh *)ob->data)->mloopuv) {
@@ -606,7 +605,7 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 		interpedges = (ts->selectmode & SCE_SELECT_VERTEX);
 	else
 		interpedges = (ts->uv_selectmode == UV_SELECT_VERTEX);
-	
+
 	/* draw other uvs */
 	if (sima->flag & SI_DRAW_OTHER) {
 		Image *curimage;
@@ -622,21 +621,21 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 	}
 
 	/* 1. draw shadow mesh */
-	
+
 	if (sima->flag & SI_DRAWSHADOW) {
-		Object *ob_cage = DEG_get_evaluated_object(depsgraph, obedit);
+		Object *ob_cage_eval = DEG_get_evaluated_object(depsgraph, obedit);
 		/* XXX TODO: Need to check if shadow mesh is different than original mesh. */
-		bool is_cage_like_final_meshes = (ob_cage == obedit);
+		bool is_cage_like_final_meshes = (ob_cage_eval == obedit);
 
 		/* When sync selection is enabled, all faces are drawn (except for hidden)
 		 * so if cage is the same as the final, there is no point in drawing this. */
 		if (((ts->uv_flag & UV_SYNC_SELECTION) == 0) || is_cage_like_final_meshes) {
-			draw_uvs_shadow(ob_cage);
+			draw_uvs_shadow(ob_cage_eval);
 		}
 	}
 
 	/* 2. draw colored faces */
-	
+
 	if (sima->flag & SI_DRAW_STRETCH) {
 		draw_uvs_stretch(sima, scene, obedit, em, efa_act);
 	}
@@ -656,8 +655,8 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 			/* draw transparent faces */
 			UI_GetThemeColor4fv(TH_FACE, col1);
 			UI_GetThemeColor4fv(TH_FACE_SELECT, col2);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-			glEnable(GL_BLEND);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+			GPU_blend(true);
 
 			Gwn_VertFormat *format = immVertexFormat();
 			pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -693,7 +692,7 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 
 			immUnbindProgram();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 		else {
 			if (efa_act && !uvedit_face_visible_test(scene, obedit, ima, efa_act)) {
@@ -708,9 +707,9 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 	/* 4. draw edges */
 
 	if (sima->flag & SI_SMOOTH_UV) {
-		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_BLEND);
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		GPU_line_smooth(true);
+		GPU_blend(true);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	}
 
 	pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -721,13 +720,13 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 			immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 			float viewport_size[4];
-			glGetFloatv(GL_VIEWPORT, viewport_size);
+			GPU_viewport_size_getf(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2] / UI_DPI_FAC, viewport_size[3] / UI_DPI_FAC);
 
 			immUniform1i("num_colors", 2);  /* "advanced" mode */
 			immUniformArray4fv("colors", (float *)(float[][4]){{0.56f, 0.56f, 0.56f, 1.0f}, {0.07f, 0.07f, 0.07f, 1.0f}}, 2);
 			immUniform1f("dash_width", 4.0f);
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			break;
 		}
@@ -740,13 +739,13 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 			else {
 				immUniformColor3f(0.0f, 0.0f, 0.0f);
 			}
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			break;
 		case SI_UVDT_OUTLINE:
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 			imm_cpack(0x0);
-			glLineWidth(3.0f);
+			GPU_line_width(3.0f);
 
 			break;
 	}
@@ -782,7 +781,7 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 
 
 		if (sima->dt_uv == SI_UVDT_OUTLINE) {
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 			UI_GetThemeColor4fv(TH_WIRE_EDIT, col2);
 
 			if (me->drawflag & ME_DRAWEDGES) {
@@ -885,8 +884,8 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 	GWN_batch_discard(loop_batch);
 
 	if (sima->flag & SI_SMOOTH_UV) {
-		glDisable(GL_LINE_SMOOTH);
-		glDisable(GL_BLEND);
+		GPU_line_smooth(false);
+		GPU_blend(false);
 	}
 
 	/* 5. draw face centers */
@@ -902,8 +901,8 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
 		pointsize = UI_GetThemeValuef(TH_FACEDOT_SIZE);
-		glPointSize(pointsize);
-		
+		GPU_point_size(pointsize);
+
 		immBeginAtMost(GWN_PRIM_POINTS, bm->totface);
 
 		/* unselected faces */
@@ -954,7 +953,7 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 	}
 
 	/* 6. draw uv vertices */
-	
+
 	if (drawfaces != 2) { /* 2 means Mesh Face Mode */
 		pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
@@ -963,7 +962,7 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 		/* unselected uvs */
 		immUniformThemeColor(TH_VERTEX);
 		pointsize = UI_GetThemeValuef(TH_VERTEX_SIZE);
-		glPointSize(pointsize);
+		GPU_point_size(pointsize);
 
 		immBeginAtMost(GWN_PRIM_POINTS, bm->totloop);
 
@@ -979,12 +978,12 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 		}
 
 		immEnd();
-	
+
 		/* pinned uvs */
 		/* give odd pointsizes odd pin pointsizes */
-		glPointSize(pointsize * 2 + (((int)pointsize % 2) ? (-1) : 0));
+		GPU_point_size(pointsize * 2 + (((int)pointsize % 2) ? (-1) : 0));
 		imm_cpack(0xFF);
-	
+
 		immBeginAtMost(GWN_PRIM_POINTS, bm->totloop);
 
 		BM_ITER_MESH (efa, &iter, bm, BM_FACES_OF_MESH) {
@@ -1000,11 +999,11 @@ static void draw_uvs(SpaceImage *sima, Scene *scene, ViewLayer *view_layer, Obje
 		}
 
 		immEnd();
-	
+
 		/* selected uvs */
 		immUniformThemeColor(TH_VERTEX_SELECT);
-		glPointSize(pointsize);
-	
+		GPU_point_size(pointsize);
+
 		immBeginAtMost(GWN_PRIM_POINTS, bm->totloop);
 
 		BM_ITER_MESH (efa, &iter, bm, BM_FACES_OF_MESH) {
@@ -1037,10 +1036,10 @@ static void draw_uv_shadows_get(
 
 	if ((sima->mode == SI_MODE_PAINT) && obedit && obedit->type == OB_MESH) {
 		struct BMEditMesh *em = BKE_editmesh_from_object(obedit);
-		
+
 		*show_shadow = EDBM_uv_check(em);
 	}
-	
+
 	*show_texpaint = (ob && ob->type == OB_MESH && ob->mode == OB_MODE_TEXTURE_PAINT);
 }
 
@@ -1065,7 +1064,7 @@ void ED_uvedit_draw_main(
 				Object *ob_iter = objects[ob_index];
 				draw_uvs(sima, scene, view_layer, ob_iter, depsgraph);
 			}
-			MEM_SAFE_FREE(objects);
+			MEM_freeN(objects);
 		}
 		else {
 			draw_uvs_texpaint(sima, scene, view_layer, obact);
@@ -1075,4 +1074,3 @@ void ED_uvedit_draw_main(
 			ED_image_draw_cursor(ar, sima->cursor);
 	}
 }
-

@@ -31,8 +31,10 @@
 #include "BLT_translation.h"
 
 #include "BKE_context.h"
-#include "BKE_object.h"
 #include "BKE_gpencil.h"
+#include "BKE_main.h"
+
+#include "BKE_object.h"
 #include "BKE_unit.h"
 
 #include "DNA_object_types.h"
@@ -54,12 +56,14 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 #include "view3d_intern.h"  /* own include */
 
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_select.h"
+#include "GPU_state.h"
 
 #include "BLF_api.h"
 
@@ -262,6 +266,7 @@ static bool view3d_ruler_pick(
  */
 static void ruler_state_set(bContext *C, RulerInfo *ruler_info, int state)
 {
+	Main *bmain = CTX_data_main(C);
 	if (state == ruler_info->state) {
 		return;
 	}
@@ -277,7 +282,7 @@ static void ruler_state_set(bContext *C, RulerInfo *ruler_info, int state)
 	}
 	else if (state == RULER_STATE_DRAG) {
 		ruler_info->snap_context = ED_transform_snap_object_context_create_view3d(
-		        CTX_data_main(C), CTX_data_scene(C), CTX_data_depsgraph(C), 0,
+		        bmain, CTX_data_scene(C), CTX_data_depsgraph(C), 0,
 		        ruler_info->ar, CTX_wm_view3d(C));
 	}
 	else {
@@ -320,14 +325,14 @@ static bool view3d_ruler_item_mousemove(
 
 			co_other = ruler_item->co[inter->co_index == 0 ? 2 : 0];
 
-			if (ED_transform_snap_object_project_view3d_mixed(
+			if (ED_transform_snap_object_project_view3d(
 			        ruler_info->snap_context,
-			        SCE_SELECT_FACE,
+			        SCE_SNAP_MODE_FACE,
 			        &(const struct SnapObjectParams){
 			            .snap_select = SNAP_ALL,
 			            .use_object_edit_cage = true,
 			        },
-			        mval_fl, &dist_px, true,
+			        mval_fl, &dist_px,
 			        co, ray_normal))
 			{
 				negate_v3(ray_normal);
@@ -344,19 +349,17 @@ static bool view3d_ruler_item_mousemove(
 			}
 		}
 		else if (do_snap) {
-			// Scene *scene = CTX_data_scene(C);
-			View3D *v3d = ruler_info->sa->spacedata.first;
 			const float mval_fl[2] = {UNPACK2(mval)};
-			bool use_depth = (v3d->drawtype >= OB_SOLID);
 
-			if (ED_transform_snap_object_project_view3d_mixed(
+			if (ED_transform_snap_object_project_view3d(
 			        ruler_info->snap_context,
-			        (SCE_SELECT_VERTEX | SCE_SELECT_EDGE) | (use_depth ? SCE_SELECT_FACE : 0),
+			        (SCE_SNAP_MODE_VERTEX | SCE_SNAP_MODE_EDGE | SCE_SNAP_MODE_FACE),
 			        &(const struct SnapObjectParams){
 			            .snap_select = SNAP_ALL,
 			            .use_object_edit_cage = true,
+			            .use_occlusion_test = true,
 			        },
-			        mval_fl, &dist_px, use_depth,
+			        mval_fl, &dist_px,
 			        co, NULL))
 			{
 				ruler_info->snap_flag |= RULER_SNAP_OK;
@@ -380,6 +383,7 @@ static bool view3d_ruler_item_mousemove(
 static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 {
 	// RulerInfo *ruler_info = mgroup->customdata;
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
@@ -391,7 +395,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 	bool changed = false;
 
 	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew("GPencil");
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "GPencil");
 	}
 
 	gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
@@ -523,7 +527,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 	float color_back[4] = {1.0f, 1.0f, 1.0f, 0.5f};
 
 	/* anti-aliased lines for more consistent appearance */
-	glEnable(GL_LINE_SMOOTH);
+	GPU_line_smooth(true);
 
 	BLF_enable(blf_mono_font, BLF_ROTATION);
 	BLF_size(blf_mono_font, 14 * U.pixelsize, U.dpi);
@@ -542,7 +546,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		ED_view3d_project_float_global(ar, ruler_item->co[j], co_ss[j], V3D_PROJ_TEST_NOP);
 	}
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 
 	const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
@@ -550,7 +554,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 		float viewport_size[4];
-		glGetFloatv(GL_VIEWPORT, viewport_size);
+		GPU_viewport_size_getf(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 		immUniform1i("num_colors", 2);  /* "advanced" mode */
@@ -629,7 +633,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 			rot_90_vec_b[1] =  dir_ruler[0];
 			normalize_v2(rot_90_vec_b);
 
-			glEnable(GL_BLEND);
+			GPU_blend(true);
 
 			immUniformColor3ubv(color_wire);
 
@@ -653,7 +657,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 
 			immEnd();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 
 		immUnbindProgram();
@@ -690,7 +694,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 		float viewport_size[4];
-		glGetFloatv(GL_VIEWPORT, viewport_size);
+		GPU_viewport_size_getf(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 		immUniform1i("num_colors", 2);  /* "advanced" mode */
@@ -718,7 +722,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 
 			normalize_v2(rot_90_vec);
 
-			glEnable(GL_BLEND);
+			GPU_blend(true);
 
 			immUniformColor3ubv(color_wire);
 
@@ -736,7 +740,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 
 			immEnd();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 
 		immUnbindProgram();
@@ -772,7 +776,7 @@ static void manipulator_ruler_draw(const bContext *C, wmManipulator *mpr)
 		}
 	}
 
-	glDisable(GL_LINE_SMOOTH);
+	GPU_line_smooth(false);
 
 	BLF_disable(blf_mono_font, BLF_ROTATION);
 
@@ -980,8 +984,10 @@ void VIEW3D_WT_ruler_item(wmManipulatorType *wt)
 
 static bool WIDGETGROUP_ruler_poll(const bContext *C, wmManipulatorGroupType *wgt)
 {
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	if (!STREQ(wgt->idname, workspace->tool.manipulator_group)) {
+	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
+	if ((tref_rt == NULL) ||
+	    !STREQ(wgt->idname, tref_rt->manipulator_group))
+	{
 		WM_manipulator_group_type_unlink_delayed_ptr(wgt);
 		return false;
 	}
@@ -1028,8 +1034,9 @@ void VIEW3D_WGT_ruler(wmManipulatorGroupType *wgt)
 
 static int view3d_ruler_poll(bContext *C)
 {
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	if (!STREQ(view3d_wgt_ruler_id, workspace->tool.manipulator_group) ||
+	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
+	if ((tref_rt == NULL) ||
+	    !STREQ(view3d_wgt_ruler_id, tref_rt->manipulator_group) ||
 	    CTX_wm_region_view3d(C) == NULL)
 	{
 		return false;

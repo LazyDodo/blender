@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -50,6 +50,7 @@
 
 #include "BKE_context.h"
 #include "BKE_image.h"
+#include "BKE_main.h"
 #include "BKE_screen.h"
 #include "BKE_scene.h"
 #include "BKE_workspace.h"
@@ -118,7 +119,7 @@ static void wm_paintcursor_draw(bContext *C, ARegion *ar)
 }
 
 
-static bool wm_draw_region_stereo_set(ScrArea *sa, ARegion *ar, eStereoViews sview)
+static bool wm_draw_region_stereo_set(Main *bmain, ScrArea *sa, ARegion *ar, eStereoViews sview)
 {
 	/* We could detect better when stereo is actually needed, by inspecting the
 	 * image in the image editor and sequencer. */
@@ -149,7 +150,7 @@ static bool wm_draw_region_stereo_set(ScrArea *sa, ARegion *ar, eStereoViews svi
 		{
 			SpaceNode *snode = sa->spacedata.first;
 			if ((snode->flag & SNODE_BACKDRAW) && ED_node_is_compositor(snode)) {
-				Image *ima = BKE_image_verify_viewer(IMA_TYPE_COMPOSITE, "Viewer Node");
+				Image *ima = BKE_image_verify_viewer(bmain, IMA_TYPE_COMPOSITE, "Viewer Node");
 				ima->eye = sview;
 				return true;
 			}
@@ -251,7 +252,7 @@ static void wm_draw_callbacks(wmWindow *win)
 
 
 /************************* Region drawing. ********************************
- * 
+ *
  * Each region draws into its own framebuffer, which is then blit on the
  * window draw buffer. This helps with fast redrawing if only some regions
  * change. It also means we can share a single context for multiple windows,
@@ -488,6 +489,7 @@ GPUViewport *WM_draw_region_get_bound_viewport(ARegion *ar)
 
 static void wm_draw_window_offscreen(bContext *C, wmWindow *win, bool stereo)
 {
+	Main *bmain = CTX_data_main(C);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	bScreen *screen = WM_window_get_active_screen(win);
 
@@ -512,7 +514,7 @@ static void wm_draw_window_offscreen(bContext *C, wmWindow *win, bool stereo)
 				CTX_wm_region_set(C, ar);
 				bool use_viewport = wm_region_use_viewport(sa, ar);
 
-				if (stereo && wm_draw_region_stereo_set(sa, ar, STEREO_LEFT_ID)) {
+				if (stereo && wm_draw_region_stereo_set(bmain, sa, ar, STEREO_LEFT_ID)) {
 					wm_draw_region_buffer_create(ar, true, use_viewport);
 
 					for (int view = 0; view < 2; view++) {
@@ -522,7 +524,7 @@ static void wm_draw_window_offscreen(bContext *C, wmWindow *win, bool stereo)
 						}
 						else {
 							sview = STEREO_RIGHT_ID;
-							wm_draw_region_stereo_set(sa, ar, sview);
+							wm_draw_region_stereo_set(bmain, sa, ar, sview);
 						}
 
 						wm_draw_region_bind(ar, view);
@@ -755,7 +757,7 @@ static bool wm_draw_update_test_window(wmWindow *win)
 
 	if (do_draw)
 		return true;
-	
+
 	if (screen->do_refresh)
 		return true;
 	if (screen->do_draw)
@@ -766,7 +768,7 @@ static bool wm_draw_update_test_window(wmWindow *win)
 		return true;
 	if (screen->do_draw_drag)
 		return true;
-	
+
 	return false;
 }
 
@@ -780,6 +782,7 @@ void WM_paint_cursor_tag_redraw(wmWindow *win, ARegion *UNUSED(ar))
 
 void wm_draw_update(bContext *C)
 {
+	Main *bmain = CTX_data_main(C);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win;
 
@@ -787,8 +790,8 @@ void wm_draw_update(bContext *C)
 	BKE_subsurf_free_unused_buffers();
 #endif
 
-	GPU_free_unused_buffers();
-	
+	GPU_free_unused_buffers(bmain);
+
 	for (win = wm->windows.first; win; win = win->next) {
 #ifdef WIN32
 		GHOST_TWindowState state = GHOST_GetWindowState(win->ghostwin);
@@ -806,12 +809,11 @@ void wm_draw_update(bContext *C)
 			bScreen *screen = WM_window_get_active_screen(win);
 
 			CTX_wm_window_set(C, win);
-			
+
 			/* sets context window+screen */
 			wm_window_make_drawable(wm, win);
 
 			/* notifiers for screen redraw */
-			ED_screen_set_active_region(C, &win->eventstate->x);
 			ED_screen_ensure_updated(wm, win, screen);
 
 			wm_draw_window(C, win);
@@ -819,7 +821,7 @@ void wm_draw_update(bContext *C)
 			screen->do_draw_gesture = false;
 			screen->do_draw_paintcursor = false;
 			screen->do_draw_drag = false;
-		
+
 			wm_window_swap_buffers(win);
 
 			CTX_wm_window_set(C, NULL);
@@ -851,4 +853,3 @@ void WM_redraw_windows(bContext *C)
 	CTX_wm_area_set(C, area_prev);
 	CTX_wm_region_set(C, ar_prev);
 }
-

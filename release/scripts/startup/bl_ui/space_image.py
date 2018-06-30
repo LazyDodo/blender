@@ -19,7 +19,7 @@
 # <pep8 compliant>
 import bpy
 import math
-from bpy.types import Header, Menu, Panel
+from bpy.types import Header, Menu, Panel, UIList
 from .properties_paint_common import (
     UnifiedPaintPanel,
     brush_texture_settings,
@@ -104,7 +104,11 @@ class IMAGE_MT_view(Menu):
         ratios = ((1, 8), (1, 4), (1, 2), (1, 1), (2, 1), (4, 1), (8, 1))
 
         for a, b in ratios:
-            layout.operator("image.view_zoom_ratio", text=iface_("Zoom %d:%d") % (a, b), translate=False).ratio = a / b
+            layout.operator(
+                "image.view_zoom_ratio",
+                text=iface_(f"Zoom {a:d}:{b:d}"),
+                translate=False,
+            ).ratio = a / b
 
         layout.separator()
 
@@ -126,9 +130,7 @@ class IMAGE_MT_view(Menu):
             layout.operator("image.cycle_render_slot", text="Render Slot Cycle Previous").reverse = True
             layout.separator()
 
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class IMAGE_MT_select(Menu):
@@ -424,6 +426,43 @@ class IMAGE_MT_uvs_select_mode(Menu):
             props.data_path = "tool_settings.uv_select_mode"
 
 
+class IMAGE_MT_specials(Menu):
+    bl_label = "UV Context Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        sima = context.space_data
+
+        # UV Edit Mode
+        if sima.show_uvedit:
+            layout.operator("uv.unwrap")
+            layout.operator("uv.follow_active_quads")
+
+            layout.separator()
+
+            layout.operator("uv.pin").clear = False
+            layout.operator("uv.pin", text="Unpin").clear = True
+
+            layout.separator()
+
+            layout.operator("uv.weld")
+            layout.operator("uv.stitch")
+
+            layout.separator()
+
+            layout.operator_enum("uv.align", "axis")  # W, 2/3/4
+
+            layout.separator()
+
+            layout.operator("transform.mirror", text="Mirror X").constraint_axis[0] = True
+            layout.operator("transform.mirror", text="Mirror Y").constraint_axis[1] = True
+
+            layout.separator()
+
+            layout.menu("IMAGE_MT_uvs_snap")
+
+
 class IMAGE_HT_header(Header):
     bl_space_type = 'IMAGE_EDITOR'
 
@@ -445,18 +484,6 @@ class IMAGE_HT_header(Header):
 
         layout.prop(sima, "mode", text="")
 
-        MASK_MT_editor_menus.draw_collapsible(context, layout)
-
-        layout.template_ID(sima, "image", new="image.new", open="image.open")
-        if not show_render:
-            layout.prop(sima, "use_image_pin", text="")
-
-        if show_maskedit:
-            row = layout.row()
-            row.template_ID(sima, "mask", new="mask.new")
-
-        layout.prop(sima, "pivot_point", icon_only=True)
-
         # uv editing
         if show_uvedit:
             uvedit = sima.uv_editor
@@ -469,10 +496,35 @@ class IMAGE_HT_header(Header):
                 layout.prop(toolsettings, "uv_select_mode", text="", expand=True)
                 layout.prop(uvedit, "sticky_select_mode", icon_only=True)
 
+        MASK_MT_editor_menus.draw_collapsible(context, layout)
+
+        layout.separator_spacer()
+
+        layout.template_ID(sima, "image", new="image.new", open="image.open")
+        if not show_render:
+            layout.prop(sima, "use_image_pin", text="")
+
+        if show_maskedit:
+            row = layout.row()
+            row.template_ID(sima, "mask", new="mask.new")
+
+        layout.separator_spacer()
+
+        if show_uvedit or show_maskedit or mode == 'PAINT':
+            layout.prop(sima, "use_realtime_update", icon_only=True, icon='LOCKED')
+
+        if show_uvedit:
+            uvedit = sima.uv_editor
+
+            mesh = context.edit_object.data
+            layout.prop_search(mesh.uv_layers, "active", mesh, "uv_layers", text="")
+
             row = layout.row(align=True)
             row.prop(toolsettings, "proportional_edit", icon_only=True)
-            if toolsettings.proportional_edit != 'DISABLED':
-                row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
+            # if toolsettings.proportional_edit != 'DISABLED':
+            sub = row.row(align=True)
+            sub.active = toolsettings.proportional_edit != 'DISABLED'
+            sub.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
 
             row = layout.row(align=True)
             row.prop(toolsettings, "use_snap", text="")
@@ -480,8 +532,7 @@ class IMAGE_HT_header(Header):
             if toolsettings.snap_uv_element != 'INCREMENT':
                 row.prop(toolsettings, "snap_target", text="")
 
-            mesh = context.edit_object.data
-            layout.prop_search(mesh.uv_layers, "active", mesh, "uv_layers", text="")
+        layout.prop(sima, "pivot_point", icon_only=True)
 
         if ima:
             if ima.is_stereo_3d:
@@ -500,9 +551,6 @@ class IMAGE_HT_header(Header):
                 row.operator("image.record_composite", icon='REC')
             if ima.type == 'COMPOSITE' and ima.source in {'MOVIE', 'SEQUENCE'}:
                 row.operator("image.play_composite", icon='PLAY')
-
-        if show_uvedit or show_maskedit or mode == 'PAINT':
-            layout.prop(sima, "use_realtime_update", icon_only=True, icon='LOCKED')
 
 
 class MASK_MT_editor_menus(Menu):
@@ -586,6 +634,7 @@ class IMAGE_PT_tools_mask(MASK_PT_tools, Panel):
     bl_region_type = 'TOOLS'
     bl_category = 'Mask'
 
+
 class IMAGE_PT_tools_mask_add(MASK_PT_add, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'TOOLS'
@@ -645,11 +694,11 @@ class IMAGE_PT_view_properties(Panel):
             col.label(text="Coordinates:")
             col.prop(sima, "show_repeat", text="Repeat")
             if show_uvedit:
-                col.prop(uvedit, "show_normalized_coords", text="Normalized")
+                col.prop(uvedit, "show_pixel_coords", text="Pixel")
 
         elif show_uvedit:
             col.label(text="Coordinates:")
-            col.prop(uvedit, "show_normalized_coords", text="Normalized")
+            col.prop(uvedit, "show_pixel_coords", text="Pixel")
 
         if show_uvedit or show_maskedit:
             col = layout.column()
@@ -681,10 +730,41 @@ class IMAGE_PT_view_properties(Panel):
             row.active = uvedit.show_other_objects
             row.prop(uvedit, "other_uv_filter", text="Filter")
 
-        if show_render and ima:
-            layout.separator()
-            render_slot = ima.render_slots.active
-            layout.prop(render_slot, "name", text="Slot Name")
+
+class IMAGE_UL_render_slots(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        slot = item
+        layout.prop(slot, "name", text="", emboss=False)
+
+
+class IMAGE_PT_render_slots(Panel):
+    bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'UI'
+    bl_label = "Render Slots"
+
+    @classmethod
+    def poll(cls, context):
+        sima = context.space_data
+        return (sima and sima.image and sima.show_render)
+
+    def draw(self, context):
+        layout = self.layout
+
+        sima = context.space_data
+        ima = sima.image
+
+        row = layout.row()
+
+        col = row.column()
+        col.template_list("IMAGE_UL_render_slots", "render_slots", ima, "render_slots", ima.render_slots, "active_index", rows=3)
+
+        col = row.column(align=True)
+        col.operator("image.add_render_slot", icon='ZOOMIN', text="")
+        col.operator("image.remove_render_slot", icon='ZOOMOUT', text="")
+
+        col.separator()
+
+        col.operator("image.clear_render_slot", icon='X', text="")
 
 
 class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):
@@ -1129,8 +1209,6 @@ class IMAGE_PT_uv_sculpt(Panel, ImagePaintPanel):
         col.prop(uvsculpt, "show_brush")
 
 
-
-
 class IMAGE_PT_options_uvs(Panel, UVToolsPanel):
     bl_label = "UV Options"
     bl_category = "Options"
@@ -1310,6 +1388,7 @@ classes = (
     IMAGE_MT_uvs_mirror,
     IMAGE_MT_uvs_weldalign,
     IMAGE_MT_uvs_select_mode,
+    IMAGE_MT_specials,
     IMAGE_HT_header,
     MASK_MT_editor_menus,
     IMAGE_PT_mask,
@@ -1319,6 +1398,8 @@ classes = (
     IMAGE_PT_active_mask_spline,
     IMAGE_PT_active_mask_point,
     IMAGE_PT_image_properties,
+    IMAGE_UL_render_slots,
+    IMAGE_PT_render_slots,
     IMAGE_PT_view_properties,
     IMAGE_PT_tools_transform_uvs,
     IMAGE_PT_tools_align_uvs,

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -44,6 +44,7 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_key.h"
+#include "BKE_main.h"
 #include "BKE_scene.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
@@ -79,6 +80,8 @@
 #include "GPU_immediate_util.h"
 #include "GPU_material.h"
 #include "GPU_viewport.h"
+#include "GPU_state.h"
+#include "GPU_framebuffer.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -302,6 +305,7 @@ static void view3d_camera_border(
 {
 	CameraParams params;
 	rctf rect_view, rect_camera;
+	Object *camera_eval = DEG_get_evaluated_object(depsgraph, v3d->camera);
 
 	/* get viewport viewplane */
 	BKE_camera_params_init(&params);
@@ -316,7 +320,7 @@ static void view3d_camera_border(
 	/* fallback for non camera objects */
 	params.clipsta = v3d->near;
 	params.clipend = v3d->far;
-	BKE_camera_params_from_object(&params, v3d->camera);
+	BKE_camera_params_from_object(&params, camera_eval);
 	if (no_shift) {
 		params.shiftx = 0.0f;
 		params.shifty = 0.0f;
@@ -440,15 +444,15 @@ static void drawviewborder(Scene *scene, Depsgraph *depsgraph, ARegion *ar, View
 		return;
 	if (v3d->camera->type == OB_CAMERA)
 		ca = v3d->camera->data;
-	
+
 	ED_view3d_calc_camera_border(scene, depsgraph, ar, v3d, rv3d, &viewborder, false);
 	/* the offsets */
 	x1 = viewborder.xmin;
 	y1 = viewborder.ymin;
 	x2 = viewborder.xmax;
 	y2 = viewborder.ymax;
-	
-	glLineWidth(1.0f);
+
+	GPU_line_width(1.0f);
 
 	/* apply offsets so the real 3D camera shows through */
 
@@ -476,8 +480,8 @@ static void drawviewborder(Scene *scene, Depsgraph *depsgraph, ARegion *ar, View
 			float alpha = 1.0f;
 
 			if (ca->passepartalpha != 1.0f) {
-				glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-				glEnable(GL_BLEND);
+				GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+				GPU_blend(true);
 				alpha = ca->passepartalpha;
 			}
 
@@ -492,7 +496,7 @@ static void drawviewborder(Scene *scene, Depsgraph *depsgraph, ARegion *ar, View
 			if (y2i > 0.0f)
 				immRectf(shdr_pos, x1i, y1i, x2i, 0.0f);
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 
 		immUniformThemeColor(TH_BACK);
@@ -514,7 +518,7 @@ static void drawviewborder(Scene *scene, Depsgraph *depsgraph, ARegion *ar, View
 
 	{
 		float viewport_size[4];
-		glGetFloatv(GL_VIEWPORT, viewport_size);
+		GPU_viewport_size_getf(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 		immUniform1i("num_colors", 0);  /* "simple" mode */
@@ -646,7 +650,7 @@ static void drawviewborder(Scene *scene, Depsgraph *depsgraph, ARegion *ar, View
 
 			/* draw */
 			immUniformThemeColorShade(TH_VIEW_OVERLAY, 100);
-			
+
 			/* TODO Was using UI_draw_roundbox_4fv(false, rect.xmin, rect.ymin, rect.xmax, rect.ymax, 2.0f, color).
 			 * We'll probably need a new imm_draw_line_roundbox_dashed dor that - though in practice the
 			 * 2.0f round corner effect was nearly not visible anyway... */
@@ -671,12 +675,12 @@ static void drawrenderborder(ARegion *ar, View3D *v3d)
 	/* use the same program for everything */
 	uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 	float viewport_size[4];
-	glGetFloatv(GL_VIEWPORT, viewport_size);
+	GPU_viewport_size_getf(viewport_size);
 	immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 	immUniform1i("num_colors", 0);  /* "simple" mode */
@@ -715,7 +719,7 @@ void ED_view3d_draw_depth(
 
 	ED_view3d_draw_setup_view(NULL, depsgraph, scene, ar, v3d, NULL, NULL, NULL);
 
-	glClear(GL_DEPTH_BUFFER_BIT);
+	GPU_clear(GPU_DEPTH_BIT);
 
 	if (rv3d->rflag & RV3D_CLIPPING) {
 		ED_view3d_clipping_set(rv3d);
@@ -724,7 +728,7 @@ void ED_view3d_draw_depth(
 	rv3d->rflag |= RV3D_ZOFFSET_DISABLED;
 
 	v3d->zbuf = true;
-	glEnable(GL_DEPTH_TEST);
+	GPU_depth_test(true);
 
 	DRW_draw_depth_loop(depsgraph, ar, v3d);
 
@@ -734,7 +738,7 @@ void ED_view3d_draw_depth(
 	rv3d->rflag &= ~RV3D_ZOFFSET_DISABLED;
 
 	v3d->zbuf = zbuf;
-	if (!v3d->zbuf) glDisable(GL_DEPTH_TEST);
+	if (!v3d->zbuf) GPU_depth_test(false);
 
 	U.glalphaclip = glalphaclip;
 	v3d->flag = flag;
@@ -776,8 +780,13 @@ static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 	const float k = U.rvisize * U.pixelsize;  /* axis size */
 	const int bright = - 20 * (10 - U.rvibright);  /* axis alpha offset (rvibright has range 0-10) */
 
-	const float startx = rect->xmin + k + 1.0f;  /* axis center in screen coordinates, x=y */
-	const float starty = rect->ymin + k + 1.0f;
+	/* Axis center in screen coordinates.
+	 *
+	 * - Unit size offset so small text doesn't draw outside the screen
+	 * - Extra X offset because of the panel expander.
+	 */
+	const float startx = rect->xmax - (k + UI_UNIT_X * 1.5);
+	const float starty = rect->ymax - (k + UI_UNIT_Y);
 
 	float axis_pos[3][2];
 	unsigned char axis_col[3][4];
@@ -801,10 +810,10 @@ static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 	}
 
 	/* draw axis lines */
-	glLineWidth(2.0f);
-	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_line_width(2.0f);
+	GPU_line_smooth(true);
+	GPU_blend(true);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	Gwn_VertFormat *format = immVertexFormat();
 	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -824,7 +833,7 @@ static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 
 	immEnd();
 	immUnbindProgram();
-	glDisable(GL_LINE_SMOOTH);
+	GPU_line_smooth(false);
 
 	/* draw axis names */
 	for (int axis_i = 0; axis_i < 3; axis_i++) {
@@ -847,8 +856,8 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 
 	negate_v3_v3(o, rv3d->ofs);
 
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	glDepthMask(GL_FALSE);  /* don't overwrite zbuf */
 
 	Gwn_VertFormat *format = immVertexFormat();
@@ -884,7 +893,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 		sub_v3_v3v3(end, o, scaled_axis);
 		immVertex3fv(pos, end);
 		immEnd();
-		
+
 		/* -- draw ring around rotation center -- */
 		{
 #define     ROT_AXIS_DETAIL 13
@@ -931,7 +940,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 
 	/* -- draw rotation center -- */
 	immBindBuiltinProgram(GPU_SHADER_3D_POINT_FIXED_SIZE_VARYING_COLOR);
-	glPointSize(5.0f);
+	GPU_point_size(5.0f);
 	immBegin(GWN_PRIM_POINTS, 1);
 	immAttrib4ubv(col, color);
 	immVertex3fv(pos, o);
@@ -945,7 +954,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 	/* ^^ just playing around, does not work */
 #endif
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 	glDepthMask(GL_TRUE);
 }
 #endif /* WITH_INPUT_NDOF */
@@ -1078,7 +1087,6 @@ static void draw_selected_name(Scene *scene, Object *ob, rcti *rect)
 
 	char info[300];
 	char *s = info;
-	short offset = 1.5f * UI_UNIT_X + rect->xmin;
 
 	s += sprintf(s, "(%d)", cfra);
 
@@ -1169,10 +1177,7 @@ static void draw_selected_name(Scene *scene, Object *ob, rcti *rect)
 		s += sprintf(s, " <%s>", markern);
 	}
 
-	if (U.uiflag & USER_SHOW_ROTVIEWICON)
-		offset = U.widget_unit + (U.rvisize * 2) + rect->xmin;
-
-	BLF_draw_default(offset, 0.5f * U.widget_unit, 0.0f, info, sizeof(info));
+	BLF_draw_default(rect->xmin + UI_UNIT_X, rect->ymax - (2 * U.widget_unit), 0.0f, info, sizeof(info));
 }
 
 /* ******************** view loop ***************** */
@@ -1180,7 +1185,7 @@ static void draw_selected_name(Scene *scene, Object *ob, rcti *rect)
 /**
 * Information drawn on top of the solid plates and composed data
 */
-void view3d_draw_region_info(const bContext *C, ARegion *ar, const int offset)
+void view3d_draw_region_info(const bContext *C, ARegion *ar, const int UNUSED(offset))
 {
 	RegionView3D *rv3d = ar->regiondata;
 	View3D *v3d = CTX_wm_view3d(C);
@@ -1194,45 +1199,53 @@ void view3d_draw_region_info(const bContext *C, ARegion *ar, const int offset)
 	rcti rect;
 	ED_region_visible_rect(ar, &rect);
 
-	/* Leave room for previously drawn info. */
-	rect.ymax -= offset;
 
 	view3d_draw_border(C, ar);
 	view3d_draw_grease_pencil(C);
 
 	BLF_batch_draw_begin();
 
-	if (U.uiflag & USER_SHOW_ROTVIEWICON) {
+	if (((U.uiflag & USER_SHOW_ROTVIEWICON) != 0) &&
+	    ((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+	    /* No need to display manipulator and this info. */
+	    ((U.manipulator_flag & USER_MANIPULATOR_DRAW_NAVIGATE) == 0))
+	{
 		draw_view_axis(rv3d, &rect);
 	}
 
-	if ((U.uiflag & USER_SHOW_FPS) && ED_screen_animation_no_scrub(wm)) {
-		ED_scene_draw_fps(scene, &rect);
-	}
-	else if (U.uiflag & USER_SHOW_VIEWPORTNAME) {
-		draw_viewport_name(ar, v3d, &rect);
-	}
-
-	if (U.uiflag & USER_DRAWVIEWINFO) {
-		ViewLayer *view_layer = CTX_data_view_layer(C);
-		Object *ob = OBACT(view_layer);
-		draw_selected_name(scene, ob, &rect);
-	}
-
-#if 0 /* TODO */
-	if (grid_unit) { /* draw below the viewport name */
-		char numstr[32] = "";
-
-		UI_FontThemeColor(BLF_default(), TH_TEXT_HI);
-		if (v3d->grid != 1.0f) {
-			BLI_snprintf(numstr, sizeof(numstr), "%s x %.4g", grid_unit, v3d->grid);
+	if ((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0 &&
+	    (v3d->overlay.flag & V3D_OVERLAY_HIDE_TEXT) == 0)
+	{
+		if ((U.uiflag & USER_SHOW_FPS) && ED_screen_animation_no_scrub(wm)) {
+			ED_scene_draw_fps(scene, &rect);
+		}
+		else if (U.uiflag & USER_SHOW_VIEWPORTNAME) {
+			draw_viewport_name(ar, v3d, &rect);
 		}
 
-		BLF_draw_default_ascii(rect.xmin + U.widget_unit,
-		                       rect.ymax - (USER_SHOW_VIEWPORTNAME ? 2 * U.widget_unit : U.widget_unit), 0.0f,
-		                       numstr[0] ? numstr : grid_unit, sizeof(numstr));
-	}
+		if (U.uiflag & USER_DRAWVIEWINFO) {
+			ViewLayer *view_layer = CTX_data_view_layer(C);
+			Object *ob = OBACT(view_layer);
+			draw_selected_name(scene, ob, &rect);
+		}
+
+#if 0 /* TODO */
+		if (grid_unit) { /* draw below the viewport name */
+			char numstr[32] = "";
+
+			UI_FontThemeColor(BLF_default(), TH_TEXT_HI);
+			if (v3d->grid != 1.0f) {
+				BLI_snprintf(numstr, sizeof(numstr), "%s x %.4g", grid_unit, v3d->grid);
+			}
+
+			BLF_draw_default_ascii(
+			        rect.xmin + U.widget_unit,
+			        rect.ymax - (USER_SHOW_VIEWPORTNAME ? 2 * U.widget_unit : U.widget_unit), 0.0f,
+			        numstr[0] ? numstr : grid_unit, sizeof(numstr));
+		}
 #endif
+	}
+
 	BLF_batch_draw_end();
 }
 
@@ -1247,7 +1260,7 @@ static void view3d_draw_view(const bContext *C, ARegion *ar)
 RenderEngineType *ED_view3d_engine_type(Scene *scene, int drawtype)
 {
 	/*
-	 * Tempory viewport draw modes until we have a proper system. 
+	 * Tempory viewport draw modes until we have a proper system.
 	 * all modes are done in the draw manager, except
 	 * cycles material as it is an external render engine.
 	 */
@@ -1259,11 +1272,12 @@ RenderEngineType *ED_view3d_engine_type(Scene *scene, int drawtype)
 
 void view3d_main_region_draw(const bContext *C, ARegion *ar)
 {
+	Main *bmain = CTX_data_main(C);
 	View3D *v3d = CTX_wm_view3d(C);
 
 	view3d_draw_view(C, ar);
 
-	GPU_free_images_old();
+	GPU_free_images_old(bmain);
 	GPU_pass_cache_garbage_collect();
 
 	/* XXX This is in order to draw UI batches with the DRW
@@ -1271,7 +1285,7 @@ void view3d_main_region_draw(const bContext *C, ARegion *ar)
 	gpu_batch_presets_reset();
 
 	/* No depth test for drawing action zones afterwards. */
-	glDisable(GL_DEPTH_TEST);
+	GPU_depth_test(false);
 
 	v3d->flag |= V3D_INVALID_BACKBUF;
 }
@@ -1336,7 +1350,7 @@ void ED_view3d_draw_offscreen(
 	if ((v3d->flag2 & V3D_RENDER_SHADOW) == 0) {
 		/* free images which can have changed on frame-change
 		 * warning! can be slow so only free animated images - campbell */
-		GPU_free_images_anim();
+		GPU_free_images_anim(G.main);  /* XXX :((( */
 	}
 
 	gpuPushProjectionMatrix();
@@ -1417,13 +1431,16 @@ ImBuf *ED_view3d_draw_offscreen_imbuf(
 	if (rv3d->persp == RV3D_CAMOB && v3d->camera) {
 		CameraParams params;
 		Object *camera = BKE_camera_multiview_render(scene, v3d->camera, viewname);
+		const Object *camera_eval = DEG_get_evaluated_object(
+		                                depsgraph,
+		                                camera);
 
 		BKE_camera_params_init(&params);
 		/* fallback for non camera objects */
 		params.clipsta = v3d->near;
 		params.clipend = v3d->far;
-		BKE_camera_params_from_object(&params, camera);
-		BKE_camera_multiview_params(&scene->r, &params, camera, viewname);
+		BKE_camera_params_from_object(&params, camera_eval);
+		BKE_camera_multiview_params(&scene->r, &params, camera_eval, viewname);
 		BKE_camera_params_compute_viewplane(&params, sizex, sizey, scene->r.xasp, scene->r.yasp);
 		BKE_camera_params_compute_matrix(&params);
 
@@ -1597,11 +1614,13 @@ ImBuf *ED_view3d_draw_offscreen_imbuf_simple(
 
 	{
 		CameraParams params;
-		Object *view_camera = BKE_camera_multiview_render(scene, v3d.camera, viewname);
+		const Object *view_camera_eval = DEG_get_evaluated_object(
+		                                     depsgraph,
+		                                     BKE_camera_multiview_render(scene, v3d.camera, viewname));
 
 		BKE_camera_params_init(&params);
-		BKE_camera_params_from_object(&params, view_camera);
-		BKE_camera_multiview_params(&scene->r, &params, view_camera, viewname);
+		BKE_camera_params_from_object(&params, view_camera_eval);
+		BKE_camera_multiview_params(&scene->r, &params, view_camera_eval, viewname);
 		BKE_camera_params_compute_viewplane(&params, width, height, scene->r.xasp, scene->r.yasp);
 		BKE_camera_params_compute_matrix(&params);
 

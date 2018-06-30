@@ -61,7 +61,6 @@
 #include "BLI_bitmap.h"
 #include "BLI_rect.h"
 
-#include "BKE_DerivedMesh.h"
 #include "BKE_action.h"
 #include "BKE_armature.h"
 #include "BKE_constraint.h"
@@ -303,32 +302,28 @@ static void createTransTexspace(TransInfo *t)
 	ob = OBACT(view_layer);
 
 	if (ob == NULL) { // Shouldn't logically happen, but still...
-		t->data_len_all = 0;
 		return;
 	}
 
 	id = ob->data;
 	if (id == NULL || !ELEM(GS(id->name), ID_ME, ID_CU, ID_MB)) {
 		BKE_report(t->reports, RPT_ERROR, "Unsupported object type for text-space transform");
-		t->data_len_all = 0;
 		return;
 	}
 
 	if (BKE_object_obdata_is_libdata(ob)) {
 		BKE_report(t->reports, RPT_ERROR, "Linked data can't text-space transform");
-		t->data_len_all = 0;
 		return;
 	}
 
 
 	{
-		TransDataContainer *tc = t->data_container = MEM_callocN(sizeof(*t->data_container), __func__);
+		BLI_assert(t->data_container_len == 1);
+		TransDataContainer *tc = t->data_container;
 		tc->data_len = 1;
 		td = tc->data = MEM_callocN(sizeof(TransData), "TransTexspace");
 		td->ext = tc->data_ext = MEM_callocN(sizeof(TransDataExtension), "TransTexspace");
 	}
-
-	t->data_len_all = 1;
 
 	td->flag = TD_SELECTED;
 	copy_v3_v3(td->center, ob->obmat[3]);
@@ -347,6 +342,43 @@ static void createTransTexspace(TransInfo *t)
 	copy_v3_v3(td->iloc, td->loc);
 	copy_v3_v3(td->ext->irot, td->ext->rot);
 	copy_v3_v3(td->ext->isize, td->ext->size);
+}
+
+static void createTransCursor3D(TransInfo *t)
+{
+	TransData *td;
+
+	Scene *scene = t->scene;
+	View3D *v3d = ((t->spacetype == SPACE_VIEW3D) && (t->ar->regiontype == RGN_TYPE_WINDOW)) ? t->view : NULL;
+	View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
+
+	if ((cursor == &scene->cursor) && ID_IS_LINKED(scene)) {
+		BKE_report(t->reports, RPT_ERROR, "Linked data can't text-space transform");
+		return;
+	}
+
+	{
+		BLI_assert(t->data_container_len == 1);
+		TransDataContainer *tc = t->data_container;
+		tc->data_len = 1;
+		td = tc->data = MEM_callocN(sizeof(TransData), "TransTexspace");
+		td->ext = tc->data_ext = MEM_callocN(sizeof(TransDataExtension), "TransTexspace");
+	}
+
+	td->flag = TD_SELECTED;
+	copy_v3_v3(td->center, cursor->location);
+	td->ob = NULL;
+
+	unit_m3(td->mtx);
+	quat_to_mat3(td->axismtx, cursor->rotation);
+	normalize_m3(td->axismtx);
+	pseudoinverse_m3_m3(td->smtx, td->mtx, PSEUDOINVERSE_EPSILON);
+
+	td->loc = cursor->location;
+	copy_v3_v3(td->iloc, cursor->location);
+
+	td->ext->quat = cursor->rotation;
+	copy_qt_qt(td->ext->iquat, cursor->rotation);
 }
 
 /* ********************* edge (for crease) ***** */
@@ -715,12 +747,11 @@ static void bone_children_clear_transflag(int mode, short around, ListBase *lb)
 
 /* sets transform flags in the bones
  * returns total number of bones with BONE_TRANSFORM */
-int count_set_pose_transflags(int *out_mode, short around, Object *ob)
+int count_set_pose_transflags(Object *ob, const int mode, short around, bool has_translate_rotate[2])
 {
 	bArmature *arm = ob->data;
 	bPoseChannel *pchan;
 	Bone *bone;
-	int mode = *out_mode;
 	int total = 0;
 
 	for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
@@ -748,39 +779,31 @@ int count_set_pose_transflags(int *out_mode, short around, Object *ob)
 		}
 	}
 	/* now count, and check if we have autoIK or have to switch from translate to rotate */
-	bool has_translation = false, has_rotation = false;
-
 	for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 		bone = pchan->bone;
 		if (bone->flag & BONE_TRANSFORM) {
 			total++;
 
-			if (mode == TFM_TRANSLATION) {
+			if (has_translate_rotate != NULL) {
 				if (has_targetless_ik(pchan) == NULL) {
 					if (pchan->parent && (pchan->bone->flag & BONE_CONNECTED)) {
-						if (pchan->bone->flag & BONE_HINGE_CHILD_TRANSFORM)
-							has_translation = true;
+						if (pchan->bone->flag & BONE_HINGE_CHILD_TRANSFORM) {
+							has_translate_rotate[0] = true;
+						}
 					}
 					else {
-						if ((pchan->protectflag & OB_LOCK_LOC) != OB_LOCK_LOC)
-							has_translation = true;
+						if ((pchan->protectflag & OB_LOCK_LOC) != OB_LOCK_LOC) {
+							has_translate_rotate[0] = true;
+						}
 					}
-					if ((pchan->protectflag & OB_LOCK_ROT) != OB_LOCK_ROT)
-						has_rotation = true;
+					if ((pchan->protectflag & OB_LOCK_ROT) != OB_LOCK_ROT) {
+						has_translate_rotate[1] = true;
+					}
 				}
-				else
-					has_translation = true;
+				else {
+					has_translate_rotate[1] = true;
+				}
 			}
-		}
-	}
-
-	/* if there are no translatable bones, do rotation */
-	if (mode == TFM_TRANSLATION && !has_translation) {
-		if (has_rotation) {
-			*out_mode = TFM_ROTATION;
-		}
-		else {
-			*out_mode = TFM_RESIZE;
 		}
 	}
 
@@ -827,6 +850,8 @@ static bool pchan_autoik_adjust(bPoseChannel *pchan, short chainlen)
 /* change the chain-length of auto-ik */
 void transform_autoik_update(TransInfo *t, short mode)
 {
+	Main *bmain = CTX_data_main(t->context);
+
 	short *chainlen = &t->settings->autoik_chainlen;
 	bPoseChannel *pchan;
 
@@ -863,12 +888,12 @@ void transform_autoik_update(TransInfo *t, short mode)
 
 	if (changed) {
 		/* TODO(sergey): Consider doing partial update only. */
-		DEG_relations_tag_update(G.main);
+		DEG_relations_tag_update(bmain);
 	}
 }
 
 /* frees temporal IKs */
-static void pose_grab_with_ik_clear(Object *ob)
+static void pose_grab_with_ik_clear(Main *bmain, Object *ob)
 {
 	bKinematicConstraint *data;
 	bPoseChannel *pchan;
@@ -906,7 +931,7 @@ static void pose_grab_with_ik_clear(Object *ob)
 
 	if (relations_changed) {
 		/* TODO(sergey): Consider doing partial update only. */
-		DEG_relations_tag_update(G.main);
+		DEG_relations_tag_update(bmain);
 	}
 }
 
@@ -1014,7 +1039,7 @@ static short pose_grab_with_ik_children(bPose *pose, Bone *bone)
 }
 
 /* main call which adds temporal IK chains */
-static short pose_grab_with_ik(Object *ob)
+static short pose_grab_with_ik(Main *bmain, Object *ob)
 {
 	bArmature *arm;
 	bPoseChannel *pchan, *parent;
@@ -1060,8 +1085,8 @@ static short pose_grab_with_ik(Object *ob)
 	/* iTaSC needs clear for new IK constraints */
 	if (tot_ik) {
 		BIK_clear_data(ob->pose);
-		/* TODO(sergey): Consuder doing partial update only. */
-		DEG_relations_tag_update(G.main);
+		/* TODO(sergey): Consider doing partial update only. */
+		DEG_relations_tag_update(bmain);
 	}
 
 	return (tot_ik) ? 1 : 0;
@@ -1084,19 +1109,18 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 			tc->poseobj = objects[th_index];
 		}
 	}
+	Main *bmain = CTX_data_main(t->context);
 
 	t->data_len_all = 0;
+
+	bool has_translate_rotate_buf[2] = {false, false};
+	bool *has_translate_rotate = (t->mode == TFM_TRANSLATION) ? has_translate_rotate_buf : NULL;
 
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 		Object *ob = tc->poseobj;
 
 		bArmature *arm;
-		bPoseChannel *pchan;
-		TransData *td;
-		TransDataExtension *tdx;
 		short ik_on = 0;
-		int i;
-
 
 		/* check validity of state */
 		arm = BKE_armature_from_object(tc->poseobj);
@@ -1113,16 +1137,34 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 
 		/* do we need to add temporal IK chains? */
 		if ((arm->flag & ARM_AUTO_IK) && t->mode == TFM_TRANSLATION) {
-			ik_on = pose_grab_with_ik(ob);
+			ik_on = pose_grab_with_ik(bmain, ob);
 			if (ik_on) t->flag |= T_AUTOIK;
 		}
 
 		/* set flags and count total (warning, can change transform to rotate) */
-		tc->data_len = count_set_pose_transflags(&t->mode, t->around, ob);
+		tc->data_len = count_set_pose_transflags(ob, t->mode, t->around, has_translate_rotate);
+		/* len may be zero, skip next iteration. */
+	}
 
+	/* if there are no translatable bones, do rotation */
+	if ((t->mode == TFM_TRANSLATION) && !has_translate_rotate[0]) {
+		if (has_translate_rotate[1]) {
+			t->mode = TFM_ROTATION;
+		}
+		else {
+			t->mode = TFM_RESIZE;
+		}
+	}
+
+	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 		if (tc->data_len == 0) {
 			continue;
 		}
+		Object *ob = tc->poseobj;
+		TransData *td;
+		TransDataExtension *tdx;
+		short ik_on = 0;
+		int i;
 
 		tc->poseobj = ob; /* we also allow non-active objects to be transformed, in weightpaint */
 
@@ -1136,7 +1178,7 @@ static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
 
 		/* use pose channels to fill trans data */
 		td = tc->data;
-		for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+		for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 			if (pchan->bone->flag & BONE_TRANSFORM) {
 				add_pose_transdata(t, pchan, ob, tc, td);
 				td++;
@@ -1212,7 +1254,7 @@ static void createTransArmatureVerts(TransInfo *t)
 		bool mirror = ((arm->flag & ARM_MIRROR_EDIT) != 0);
 		int total_mirrored = 0, i;
 		int oldtot;
-		BoneInitData *bid;
+		BoneInitData *bid = NULL;
 
 		tc->data_len = 0;
 		for (ebo = edbo->first; ebo; ebo = ebo->next) {
@@ -2023,7 +2065,7 @@ static void createTransParticleVerts(bContext *C, TransInfo *t)
 			if (!(point->flag & PEP_TRANSFORM)) continue;
 
 			if (psys && !(psys->flag & PSYS_GLOBAL_HAIR))
-				psys_mat_hair_to_global(ob, psmd->dm_final, psys->part->from, psys->particles + i, mat);
+				psys_mat_hair_to_global(ob, psmd->mesh_final, psys->part->from, psys->particles + i, mat);
 
 			for (k = 0, key = point->keys; k < point->totkey; k++, key++) {
 				if (key->flag & PEK_USE_WCO) {
@@ -2077,7 +2119,6 @@ static void createTransParticleVerts(bContext *C, TransInfo *t)
 void flushTransParticles(TransInfo *t)
 {
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-
 		Scene *scene = t->scene;
 		ViewLayer *view_layer = t->view_layer;
 		Object *ob = OBACT(view_layer);
@@ -2101,7 +2142,7 @@ void flushTransParticles(TransInfo *t)
 			if (!(point->flag & PEP_TRANSFORM)) continue;
 
 			if (psys && !(psys->flag & PSYS_GLOBAL_HAIR)) {
-				psys_mat_hair_to_global(ob, psmd->dm_final, psys->part->from, psys->particles + i, mat);
+				psys_mat_hair_to_global(ob, psmd->mesh_final, psys->part->from, psys->particles + i, mat);
 				invert_m4_m4(imat, mat);
 
 				for (k = 0, key = point->keys; k < point->totkey; k++, key++) {
@@ -5736,8 +5777,7 @@ static void trans_object_base_deps_flag_finish(ViewLayer *view_layer)
 /* it deselects Bases, so we have to call the clear function always after */
 static void set_trans_object_base_flags(TransInfo *t)
 {
-	/* TODO(sergey): Get rid of global, use explicit main. */
-	Main *bmain = G.main;
+	Main *bmain = CTX_data_main(t->context);
 	ViewLayer *view_layer = t->view_layer;
 	Scene *scene = t->scene;
 	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
@@ -5883,11 +5923,13 @@ static void clear_trans_object_base_flags(TransInfo *t)
 // NOTE: context may not always be available, so must check before using it as it's a luxury for a few cases
 void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, Object *ob, int tmode)
 {
+	Main *bmain = CTX_data_main(C);
 	ID *id = &ob->id;
 	FCurve *fcu;
 
 	// TODO: this should probably be done per channel instead...
 	if (autokeyframe_cfra_can_key(scene, id)) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		ReportList *reports = CTX_wm_reports(C);
 		ToolSettings *ts = scene->toolsettings;
 		KeyingSet *active_ks = ANIM_scene_get_active_keyingset(scene);
@@ -5914,7 +5956,7 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, O
 			if (adt && adt->action) {
 				for (fcu = adt->action->curves.first; fcu; fcu = fcu->next) {
 					fcu->flag &= ~FCURVE_SELECTED;
-					insert_keyframe(reports, id, adt->action,
+					insert_keyframe(bmain, depsgraph, reports, id, adt->action,
 					                (fcu->grp ? fcu->grp->name : NULL),
 					                fcu->rna_path, fcu->array_index, cfra,
 					                ts->keyframe_type, flag);
@@ -6003,6 +6045,7 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, O
 // NOTE: context may not always be available, so must check before using it as it's a luxury for a few cases
 void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode, short targetless_ik)
 {
+	Main *bmain = CTX_data_main(C);
 	ID *id = &ob->id;
 	AnimData *adt = ob->adt;
 	bAction *act = (adt) ? adt->action : NULL;
@@ -6012,6 +6055,7 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode,
 
 	// TODO: this should probably be done per channel instead...
 	if (autokeyframe_cfra_can_key(scene, id)) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		ReportList *reports = CTX_wm_reports(C);
 		ToolSettings *ts = scene->toolsettings;
 		KeyingSet *active_ks = ANIM_scene_get_active_keyingset(scene);
@@ -6055,7 +6099,7 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode,
 								 * NOTE: this will do constraints too, but those are ok to do here too?
 								 */
 								if (pchanName && STREQ(pchanName, pchan->name)) {
-									insert_keyframe(reports, id, act,
+									insert_keyframe(bmain, depsgraph, reports, id, act,
 									                ((fcu->grp) ? (fcu->grp->name) : (NULL)),
 									                fcu->rna_path, fcu->array_index, cfra,
 									                ts->keyframe_type, flag);
@@ -6285,6 +6329,9 @@ static void special_aftertrans_update__mesh(bContext *UNUSED(C), TransInfo *t)
  * */
 void special_aftertrans_update(bContext *C, TransInfo *t)
 {
+	Main *bmain = CTX_data_main(t->context);
+	BLI_assert(bmain == CTX_data_main(C));
+
 	Object *ob;
 //	short redrawipo=0, resetslowpar=1;
 	const bool canceled = (t->state == TRANS_CANCEL);
@@ -6380,7 +6427,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 		if (canceled == 0) {
 			ED_node_post_apply_transform(C, snode->edittree);
 
-			ED_node_link_insert(t->sa);
+			ED_node_link_insert(bmain, t->sa);
 		}
 
 		/* clear link line */
@@ -6473,7 +6520,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 
 				// XXX: BAD! this get gpencil datablocks directly from main db...
 				// but that's how this currently works :/
-				for (gpd = G.main->gpencil.first; gpd; gpd = gpd->id.next) {
+				for (gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 					if (ID_REAL_USERS(gpd))
 						posttrans_gpd_clean(gpd);
 				}
@@ -6493,7 +6540,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 
 				// XXX: BAD! this get gpencil datablocks directly from main db...
 				// but that's how this currently works :/
-				for (mask = G.main->mask.first; mask; mask = mask->id.next) {
+				for (mask = bmain->mask.first; mask; mask = mask->id.next) {
 					if (ID_REAL_USERS(mask))
 						posttrans_mask_clean(mask);
 				}
@@ -6642,8 +6689,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			}
 
 			/* set BONE_TRANSFORM flags for autokey, manipulator draw might have changed them */
-			if (!canceled && (t->mode != TFM_DUMMY))
-				count_set_pose_transflags(&t->mode, t->around, ob);
+			if (!canceled && (t->mode != TFM_DUMMY)) {
+				count_set_pose_transflags(ob, t->mode, t->around, NULL);
+			}
 
 			/* if target-less IK grabbing, we calculate the pchan transforms and clear flag */
 			if (!canceled && t->mode == TFM_TRANSLATION)
@@ -6657,7 +6705,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			}
 
 			if (t->mode == TFM_TRANSLATION)
-				pose_grab_with_ik_clear(ob);
+				pose_grab_with_ik_clear(bmain, ob);
 
 			/* automatic inserting of keys and unkeyed tagging - only if transform wasn't canceled (or TFM_DUMMY) */
 			if (!canceled && (t->mode != TFM_DUMMY)) {
@@ -6685,6 +6733,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 	         (ob->mode & OB_MODE_PARTICLE_EDIT) &&
 	         PE_get_current(t->scene, ob))
 	{
+		/* do nothing */
+	}
+	else if (t->flag & T_CURSOR) {
 		/* do nothing */
 	}
 	else { /* Objects */
@@ -8319,8 +8370,16 @@ void createTransData(bContext *C, TransInfo *t)
 	t->data_len_all = -1;
 
 	/* if tests must match recalcData for correct updates */
-	if (t->options & CTX_TEXTURE) {
+	if (t->options & CTX_CURSOR) {
+		t->flag |= T_CURSOR;
+		t->obedit_type = -1;
+
+		createTransCursor3D(t);
+		countAndCleanTransDataContainer(t);
+	}
+	else if (t->options & CTX_TEXTURE) {
 		t->flag |= T_TEXTURE;
+		t->obedit_type = -1;
 
 		createTransTexspace(t);
 		countAndCleanTransDataContainer(t);
@@ -8392,6 +8451,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_ACTION) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
 
 		createTransActionData(C, t);
 		countAndCleanTransDataContainer(t);
@@ -8404,17 +8464,23 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_NLA) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		createTransNlaData(C, t);
 		countAndCleanTransDataContainer(t);
 	}
 	else if (t->spacetype == SPACE_SEQ) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		t->num.flag |= NUM_NO_FRACTION; /* sequencer has no use for floating point transformations */
 		createTransSeqData(C, t);
 		countAndCleanTransDataContainer(t);
 	}
 	else if (t->spacetype == SPACE_IPO) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		createTransGraphEditData(C, t);
 		countAndCleanTransDataContainer(t);
 
@@ -8426,6 +8492,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_NODE) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
 
 		createTransNodeData(C, t);
 		countAndCleanTransDataContainer(t);
@@ -8438,6 +8505,8 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_CLIP) {
 		t->flag |= T_POINTS | T_2D_EDIT;
+		t->obedit_type = -1;
+
 		if (t->options & CTX_MOVIECLIP) {
 			createTransTrackingData(C, t);
 			countAndCleanTransDataContainer(t);
@@ -8507,6 +8576,7 @@ void createTransData(bContext *C, TransInfo *t)
 		if (t->mode == TFM_BONESIZE) {
 			t->flag &= ~(T_EDIT | T_POINTS);
 			t->flag |= T_POSE;
+			t->obedit_type = -1;
 
 			FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 				tc->poseobj = tc->obedit;
@@ -8538,7 +8608,10 @@ void createTransData(bContext *C, TransInfo *t)
 					countAndCleanTransDataContainer(t);
 				}
 			}
-
+		}
+		/* Mark as initialized if above checks fail. */
+		if (t->data_len_all == -1) {
+			t->data_len_all = 0;
 		}
 	}
 	else if (ob && (ob->mode & OB_MODE_PARTICLE_EDIT) && PE_start_edit(PE_get_current(scene, ob))) {
@@ -8557,6 +8630,10 @@ void createTransData(bContext *C, TransInfo *t)
 			t->flag |= T_POINTS | T_2D_EDIT;
 			createTransPaintCurveVerts(C, t);
 			countAndCleanTransDataContainer(t);
+		}
+		/* Mark as initialized if above checks fail. */
+		if (t->data_len_all == -1) {
+			t->data_len_all = 0;
 		}
 	}
 	else {
@@ -8585,4 +8662,6 @@ void createTransData(bContext *C, TransInfo *t)
 
 	/* Check that 'countAndCleanTransDataContainer' ran. */
 	BLI_assert(t->data_len_all != -1);
+
+	BLI_assert((!(t->flag & T_EDIT)) == (!(t->obedit_type != -1)));
 }

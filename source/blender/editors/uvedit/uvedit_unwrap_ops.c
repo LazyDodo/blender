@@ -147,7 +147,7 @@ static bool ED_uvedit_ensure_uvs(bContext *C, Scene *UNUSED(scene), Object *obed
 			}
 		}
 	}
-	
+
 	/* select new UV's (ignore UV_SYNC_SELECTION in this case) */
 	BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
 		BMIter liter;
@@ -170,7 +170,7 @@ static bool uvedit_have_selection(Scene *scene, BMEditMesh *em, bool implicit)
 	BMLoop *l;
 	BMIter iter, liter;
 	const int cd_loop_uv_offset  = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
-	
+
 	if (cd_loop_uv_offset == -1) {
 		return (em->bm->totfacesel != 0);
 	}
@@ -184,15 +184,15 @@ static bool uvedit_have_selection(Scene *scene, BMEditMesh *em, bool implicit)
 		}
 		else if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
 			continue;
-	
+
 		BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
 			if (uvedit_uv_select_test(scene, l, cd_loop_uv_offset))
 				break;
 		}
-		
+
 		if (implicit && !l)
 			continue;
-		
+
 		return true;
 	}
 
@@ -277,7 +277,7 @@ static ParamHandle *construct_param_handle(
 	BMEdge *eed;
 	BMIter iter, liter;
 	int i;
-	
+
 	const int cd_loop_uv_offset = CustomData_get_offset(&bm->ldata, CD_MLOOPUV);
 
 	handle = param_construct_begin();
@@ -290,10 +290,10 @@ static ParamHandle *construct_param_handle(
 		if (aspx != aspy)
 			param_aspect_ratio(handle, aspx, aspy);
 	}
-	
+
 	/* we need the vert indices */
 	BM_mesh_elem_index_ensure(bm, BM_VERT);
-	
+
 	BM_ITER_MESH_INDEX (efa, &iter, bm, BM_FACES_OF_MESH, i) {
 
 		if ((BM_elem_flag_test(efa, BM_ELEM_HIDDEN)) || (sel && BM_elem_flag_test(efa, BM_ELEM_SELECT) == 0)) {
@@ -494,9 +494,9 @@ static ParamHandle *construct_param_handle_subsurfed(Scene *scene, Object *ob, B
 
 	smd.levels = smd_real->levels;
 	smd.subdivType = smd_real->subdivType;
-		
+
 	initialDerived = CDDM_from_editbmesh(em, false, false);
-	derivedMesh = subsurf_make_derived_from_derived(initialDerived, &smd,
+	derivedMesh = subsurf_make_derived_from_derived(initialDerived, &smd, scene,
 	                                                NULL, SUBSURF_IN_EDIT_MODE);
 
 	initialDerived->release(initialDerived);
@@ -563,7 +563,7 @@ static ParamHandle *construct_param_handle_subsurfed(Scene *scene, Object *ob, B
 		co[1] = subsurfedVerts[mloop[1].v].co;
 		co[2] = subsurfedVerts[mloop[2].v].co;
 		co[3] = subsurfedVerts[mloop[3].v].co;
-		
+
 		/* This is where all the magic is done. If the vertex exists in the, we pass the original uv pointer to the solver, thus
 		 * flushing the solution to the edit mesh. */
 		texface_from_original_index(origFace, origVertIndices[mloop[0].v], &uv[0], &pin[0], &select[0], scene, cd_loop_uv_offset);
@@ -656,9 +656,9 @@ static void minimize_stretch_iteration(bContext *C, wmOperator *op, bool interac
 		param_flush(ms->handle);
 
 		if (sa) {
-			BLI_snprintf(str, sizeof(str),
-			             IFACE_("Minimize Stretch. Blend %.2f (Press + and -, or scroll wheel to set)"), ms->blend);
-			ED_area_headerprint(sa, str);
+			BLI_snprintf(str, sizeof(str), IFACE_("Minimize Stretch. Blend %.2f"), ms->blend);
+			ED_area_status_text(sa, str);
+			ED_workspace_status_text(C, IFACE_("Press + and -, or scroll wheel to set blending"));
 		}
 
 		ms->lasttime = PIL_check_seconds_timer();
@@ -673,8 +673,9 @@ static void minimize_stretch_exit(bContext *C, wmOperator *op, bool cancel)
 	MinStretch *ms = op->customdata;
 	ScrArea *sa = CTX_wm_area(C);
 
-	if (sa)
-		ED_area_headerprint(sa, NULL);
+	ED_area_status_text(sa, NULL);
+	ED_workspace_status_text(C, NULL);
+
 	if (ms->timer)
 		WM_event_remove_timer(CTX_wm_manager(C), CTX_wm_window(C), ms->timer);
 
@@ -791,7 +792,7 @@ void UV_OT_minimize_stretch(wmOperatorType *ot)
 	ot->idname = "UV_OT_minimize_stretch";
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_GRAB_CURSOR | OPTYPE_BLOCKING;
 	ot->description = "Reduce UV stretching by relaxing angles";
-	
+
 	/* api callbacks */
 	ot->exec = minimize_stretch_exec;
 	ot->invoke = minimize_stretch_invoke;
@@ -839,7 +840,7 @@ static int pack_islands_exec(bContext *C, wmOperator *op)
 	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, &objects_len);
 
 	if (!uvedit_have_selection_multi(scene, objects, objects_len, true)) {
-		MEM_SAFE_FREE(objects);
+		MEM_freeN(objects);
 		return OPERATOR_CANCELLED;
 	}
 
@@ -856,7 +857,7 @@ static int pack_islands_exec(bContext *C, wmOperator *op)
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	}
 
-	MEM_SAFE_FREE(objects);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -869,7 +870,7 @@ void UV_OT_pack_islands(wmOperatorType *ot)
 	ot->description = "Transform all islands so that they fill up the UV space as much as possible";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = pack_islands_exec;
 	ot->poll = ED_operator_uvedit;
@@ -897,7 +898,7 @@ static int average_islands_scale_exec(bContext *C, wmOperator *UNUSED(op))
 	param_average(handle);
 	param_flush(handle);
 	param_delete(handle);
-	
+
 	DEG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 
@@ -912,7 +913,7 @@ void UV_OT_average_islands_scale(wmOperatorType *ot)
 	ot->description = "Average the size of separate UV islands, based on their area in 3D space";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = average_islands_scale_exec;
 	ot->poll = ED_operator_uvedit;
@@ -950,7 +951,7 @@ void ED_uvedit_live_unwrap_re_solve(void)
 		param_flush(liveHandle);
 	}
 }
-	
+
 void ED_uvedit_live_unwrap_end(short cancel)
 {
 	if (liveHandle) {
@@ -1139,7 +1140,7 @@ static void uv_map_transform(bContext *C, wmOperator *op, float rotmat[4][4])
 	/* be compatible to the "old" sphere/cylinder mode */
 	if (direction == ALIGN_TO_OBJECT)
 		unit_m4(rotmat);
-	else 
+	else
 		uv_map_rotation_matrix(rotmat, rv3d, obedit, upangledeg, sideangledeg, radius);
 
 }
@@ -1174,21 +1175,21 @@ static void correct_uv_aspect(Scene *scene, Object *ob, BMEditMesh *em)
 	MLoopUV *luv;
 	BMFace *efa;
 	float scale, aspx, aspy;
-	
+
 	const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
 
 	ED_uvedit_get_aspect(scene, ob, em->bm, &aspx, &aspy);
-	
+
 	if (aspx == aspy)
 		return;
-		
+
 	if (aspx > aspy) {
 		scale = aspy / aspx;
 
 		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
 			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
 				continue;
-			
+
 			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
 				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
 				luv->uv[0] = ((luv->uv[0] - 0.5f) * scale) + 0.5f;
@@ -1201,7 +1202,7 @@ static void correct_uv_aspect(Scene *scene, Object *ob, BMEditMesh *em)
 		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
 			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
 				continue;
-			
+
 			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
 				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
 				luv->uv[1] = ((luv->uv[1] - 0.5f) * scale) + 0.5f;
@@ -1222,7 +1223,7 @@ static void uv_map_clip_correct_properties(wmOperatorType *ot)
 	                "Scale UV coordinates to bounds after unwrapping");
 }
 
-static void uv_map_clip_correct(Scene *scene, Object *ob, BMEditMesh *em, wmOperator *op)
+static void uv_map_clip_correct_multi(Scene *scene, Object **objects, uint objects_len, wmOperator *op)
 {
 	BMFace *efa;
 	BMLoop *l;
@@ -1233,25 +1234,46 @@ static void uv_map_clip_correct(Scene *scene, Object *ob, BMEditMesh *em, wmOper
 	const bool clip_to_bounds = RNA_boolean_get(op->ptr, "clip_to_bounds");
 	const bool scale_to_bounds = RNA_boolean_get(op->ptr, "scale_to_bounds");
 
-	const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
+	INIT_MINMAX2(min, max);
 
-	/* correct for image aspect ratio */
-	if (correct_aspect)
-		correct_uv_aspect(scene, ob, em);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
 
-	if (scale_to_bounds) {
-		INIT_MINMAX2(min, max);
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
 
-		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
-				continue;
+		/* correct for image aspect ratio */
+		if (correct_aspect)
+			correct_uv_aspect(scene, ob, em);
 
-			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
-				minmax_v2v2_v2(min, max, luv->uv);
+		if (scale_to_bounds) {
+			/* find uv limits */
+			BM_ITER_MESH(efa, &iter, em->bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+					continue;
+
+				BM_ITER_ELEM(l, &liter, efa, BM_LOOPS_OF_FACE) {
+					luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+					minmax_v2v2_v2(min, max, luv->uv);
+				}
 			}
 		}
+		else if (clip_to_bounds) {
+			/* clipping and wrapping */
+			BM_ITER_MESH(efa, &iter, em->bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+					continue;
 
+				BM_ITER_ELEM(l, &liter, efa, BM_LOOPS_OF_FACE) {
+					luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+					CLAMP(luv->uv[0], 0.0f, 1.0f);
+					CLAMP(luv->uv[1], 0.0f, 1.0f);
+				}
+			}
+		}
+	}
+
+	if (scale_to_bounds) {
 		/* rescale UV to be in 1/1 */
 		dx = (max[0] - min[0]);
 		dy = (max[1] - min[1]);
@@ -1261,31 +1283,30 @@ static void uv_map_clip_correct(Scene *scene, Object *ob, BMEditMesh *em, wmOper
 		if (dy > 0.0f)
 			dy = 1.0f / dy;
 
-		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
-				continue;
+		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+			Object *ob = objects[ob_index];
 
-			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+			BMEditMesh *em = BKE_editmesh_from_object(ob);
+			const int cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
 
-				luv->uv[0] = (luv->uv[0] - min[0]) * dx;
-				luv->uv[1] = (luv->uv[1] - min[1]) * dy;
+			BM_ITER_MESH(efa, &iter, em->bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
+					continue;
+
+				BM_ITER_ELEM(l, &liter, efa, BM_LOOPS_OF_FACE) {
+					luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
+
+					luv->uv[0] = (luv->uv[0] - min[0]) * dx;
+					luv->uv[1] = (luv->uv[1] - min[1]) * dy;
+				}
 			}
 		}
 	}
-	else if (clip_to_bounds) {
-		/* clipping and wrapping */
-		BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
-			if (!BM_elem_flag_test(efa, BM_ELEM_SELECT))
-				continue;
+}
 
-			BM_ITER_ELEM (l, &liter, efa, BM_LOOPS_OF_FACE) {
-				luv = BM_ELEM_CD_GET_VOID_P(l, cd_loop_uv_offset);
-				CLAMP(luv->uv[0], 0.0f, 1.0f);
-				CLAMP(luv->uv[1], 0.0f, 1.0f);
-			}
-		}
-	}
+static void uv_map_clip_correct(Scene *scene, Object *ob, wmOperator *op)
+{
+	uv_map_clip_correct_multi(scene, &ob, 1, op);
 }
 
 /* ******************** Unwrap operator **************** */
@@ -1337,7 +1358,7 @@ static int unwrap_exec(bContext *C, wmOperator *op)
 	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
 	if (!uvedit_have_selection_multi(scene, objects, objects_len, implicit)) {
-		MEM_SAFE_FREE(objects);
+		MEM_freeN(objects);
 		return OPERATOR_CANCELLED;
 	}
 
@@ -1398,7 +1419,7 @@ static int unwrap_exec(bContext *C, wmOperator *op)
 
 	ED_uvedit_pack_islands_multi(scene, objects, objects_len, true, true, true);
 
-	MEM_SAFE_FREE(objects);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -1416,7 +1437,7 @@ void UV_OT_unwrap(wmOperatorType *ot)
 	ot->description = "Unwrap the mesh of the object being edited";
 	ot->idname = "UV_OT_unwrap";
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = unwrap_exec;
 	ot->poll = ED_operator_uvmap;
@@ -1466,9 +1487,9 @@ static int uv_from_view_exec(bContext *C, wmOperator *op)
 	float rotmat[4][4];
 	bool changed_multi = false;
 
+	/* Note: objects that aren't touched are set to NULL (to skip clipping). */
 	uint objects_len = 0;
 	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
-
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -1534,13 +1555,21 @@ static int uv_from_view_exec(bContext *C, wmOperator *op)
 
 		if (changed) {
 			changed_multi = true;
-			uv_map_clip_correct(scene, obedit, em, op);
-
 			DEG_id_tag_update(obedit->data, 0);
 			WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 		}
+		else {
+			ARRAY_DELETE_REORDER_LAST(objects, ob_index, 1, objects_len);
+			objects_len -= 1;
+			ob_index -= 1;
+		}
 	}
-	MEM_SAFE_FREE(objects);
+
+	if (changed_multi) {
+		uv_map_clip_correct_multi(scene, objects, objects_len, op);
+	}
+
+	MEM_freeN(objects);
 
 	if (changed_multi) {
 		return OPERATOR_FINISHED;
@@ -1568,7 +1597,7 @@ void UV_OT_project_from_view(wmOperatorType *ot)
 	ot->description = "Project the UV vertices of the mesh as seen in current 3D view";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->invoke = uv_from_view_invoke;
 	ot->exec = uv_from_view_exec;
@@ -1623,7 +1652,7 @@ void UV_OT_reset(wmOperatorType *ot)
 	ot->description = "Reset UV projection";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = reset_exec;
 	ot->poll = ED_operator_uvmap;
@@ -1642,7 +1671,7 @@ static void uv_sphere_project(float target[2], float source[3], float center[3],
 
 	/* split line is always zero */
 	if (target[0] >= 1.0f)
-		target[0] -= 1.0f;  
+		target[0] -= 1.0f;
 }
 
 static void uv_map_mirror(BMEditMesh *em, BMFace *efa)
@@ -1718,7 +1747,7 @@ static int sphere_project_exec(bContext *C, wmOperator *op)
 			uv_map_mirror(em, efa);
 		}
 
-		uv_map_clip_correct(scene, obedit, em, op);
+		uv_map_clip_correct(scene, obedit, op);
 
 		DEG_id_tag_update(obedit->data, 0);
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
@@ -1736,7 +1765,7 @@ void UV_OT_sphere_project(wmOperatorType *ot)
 	ot->description = "Project the UV vertices of the mesh over the curved surface of a sphere";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = sphere_project_exec;
 	ot->poll = ED_operator_uvmap;
@@ -1759,7 +1788,7 @@ static void uv_cylinder_project(float target[2], float source[3], float center[3
 
 	/* split line is always zero */
 	if (target[0] >= 1.0f)
-		target[0] -= 1.0f;  
+		target[0] -= 1.0f;
 }
 
 static int cylinder_project_exec(bContext *C, wmOperator *op)
@@ -1806,7 +1835,7 @@ static int cylinder_project_exec(bContext *C, wmOperator *op)
 			uv_map_mirror(em, efa);
 		}
 
-		uv_map_clip_correct(scene, obedit, em, op);
+		uv_map_clip_correct(scene, obedit, op);
 
 		DEG_id_tag_update(obedit->data, 0);
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
@@ -1824,7 +1853,7 @@ void UV_OT_cylinder_project(wmOperatorType *ot)
 	ot->description = "Project the UV vertices of the mesh over the curved wall of a cylinder";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = cylinder_project_exec;
 	ot->poll = ED_operator_uvmap;
@@ -1923,7 +1952,7 @@ static int cube_project_exec(bContext *C, wmOperator *op)
 
 		ED_uvedit_unwrap_cube_project(em->bm, cube_size, true, center);
 
-		uv_map_clip_correct(scene, obedit, em, op);
+		uv_map_clip_correct(scene, obedit, op);
 
 		DEG_id_tag_update(obedit->data, 0);
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
@@ -1941,7 +1970,7 @@ void UV_OT_cube_project(wmOperatorType *ot)
 	ot->description = "Project the UV vertices of the mesh over the six faces of a cube";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* api callbacks */
 	ot->exec = cube_project_exec;
 	ot->poll = ED_operator_uvmap;

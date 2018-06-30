@@ -168,7 +168,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if bpy.app.debug:
             layout.prop(md, "debug_options")
 
-
     def BUILD(self, layout, ob, md):
         split = layout.split()
 
@@ -328,7 +327,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             row.prop(md, "delimit")
             layout_info = layout
 
-        layout_info.label(text=iface_("Faces: %d") % md.face_count, translate=False)
+        layout_info.label(
+            text=iface_("Face Count: {:,}".format(md.face_count)),
+            translate=False,
+        )
 
     def DISPLACE(self, layout, ob, md):
         has_texture = (md.texture is not None)
@@ -990,7 +992,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
             render = max(scene.cycles.dicing_rate * ob.cycles.dicing_rate, 0.1)
             preview = max(scene.cycles.preview_dicing_rate * ob.cycles.dicing_rate, 0.1)
-            col.label("Render %.2f px, Preview %.2f px" % (render, preview))
+            col.label(f"Render {render:10.2f} px, Preview {preview:10.2f} px")
 
     def SURFACE(self, layout, ob, md):
         layout.label(text="Settings are inside the Physics tab")
@@ -1501,6 +1503,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def NORMAL_EDIT(self, layout, ob, md):
         has_vgroup = bool(md.vertex_group)
+        do_polynors_fix = not md.no_polynors_fix
         needs_object_offset = (((md.mode == 'RADIAL') and not md.target) or
                                ((md.mode == 'DIRECTIONAL') and md.use_direction_parallel))
 
@@ -1530,7 +1533,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         sub = row.row(align=True)
         sub.active = has_vgroup
         sub.prop(md, "invert_vertex_group", text="", icon='ARROW_LEFTRIGHT')
-        subcol.prop(md, "mix_limit")
+        row = subcol.row(align=True)
+        row.prop(md, "mix_limit")
+        row.prop(md, "no_polynors_fix", text="", icon='UNLOCKED' if do_polynors_fix else 'LOCKED')
 
     def CORRECTIVE_SMOOTH(self, layout, ob, md):
         is_bind = md.is_bind

@@ -78,6 +78,7 @@
 #include "ED_datafiles.h"
 
 #include "WM_api.h"
+#include "WM_toolsystem.h"
 
 #include "RNA_define.h"
 
@@ -235,6 +236,11 @@ int main(
 	struct CreatorAtExitData app_init_data = {NULL};
 	BKE_blender_atexit_register(callback_main_atexit, &app_init_data);
 
+	/* Unbuffered stdout makes stdout and stderr better synchronised, and helps
+	 * when stepping through code in a debugger (prints are immediately
+	 * visible). */
+	setvbuf(stdout, NULL, _IONBF, 0);
+
 #ifdef WIN32
 	/* We delay loading of openmp so we can set the policy here. */
 # if defined(_MSC_VER)
@@ -332,7 +338,7 @@ int main(
 #endif
 
 	main_callback_setup();
-	
+
 #if defined(__APPLE__) && !defined(WITH_PYTHON_MODULE)
 	/* patch to ignore argument finder gives us (pid?) */
 	if (argc == 2 && STREQLEN(argv[1], "-psn_", 5)) {
@@ -347,7 +353,7 @@ int main(
 		}
 	}
 #endif
-	
+
 #ifdef __FreeBSD__
 	fpsetmask(0);
 #endif
@@ -369,7 +375,7 @@ int main(
 
 	BKE_brush_system_init();
 	RE_texture_rng_init();
-	
+
 
 	BLI_callback_global_init();
 
@@ -417,7 +423,7 @@ int main(
 	/* Initialize ffmpeg if built in, also needed for bg mode if videos are
 	 * rendered via ffmpeg */
 	BKE_sound_init_once();
-	
+
 	init_def_material();
 
 	if (G.background == 0) {
@@ -453,9 +459,14 @@ int main(
 #else
 	printf("\n* WARNING * - Blender compiled without Python!\nthis is not intended for typical usage\n\n");
 #endif
-	
+
 	CTX_py_init_set(C, 1);
 	WM_keymap_init(C);
+
+	/* Called on load, however Python is not yet initialized, so call again here. */
+	if (!G.background) {
+		WM_toolsystem_init(C);
+	}
 
 #ifdef WITH_FREESTYLE
 	/* initialize Freestyle */
@@ -466,7 +477,7 @@ int main(
 	/* OK we are ready for it */
 #ifndef WITH_PYTHON_MODULE
 	main_args_setup_post(C, ba);
-	
+
 	if (G.background == 0) {
 		if (!G.file_loaded)
 			if (U.uiflag2 & USER_KEEP_SESSION)

@@ -77,6 +77,7 @@ set(SRC
 	intern/blender.c
 	intern/blender_copybuffer.c
 	intern/blender_undo.c
+	intern/blender_user_menu.c
 	intern/blendfile.c
 	intern/bmfont.c
 	intern/boids.c
@@ -114,7 +115,6 @@ set(SRC
 	intern/font.c
 	intern/freestyle.c
 	intern/gpencil.c
-	intern/group.c
 	intern/icons.c
 	intern/icons_rasterize.c
 	intern/idcode.c
@@ -141,6 +141,7 @@ set(SRC
 	intern/mesh.c
 	intern/mesh_convert.c
 	intern/mesh_evaluate.c
+	intern/mesh_iterators.c
 	intern/mesh_mapping.c
 	intern/mesh_merge.c
 	intern/mesh_remap.c
@@ -148,7 +149,6 @@ set(SRC
 	intern/mesh_tangent.c
 	intern/mesh_validate.c
 	intern/modifier.c
-	intern/modifiers_bmesh.c
 	intern/movieclip.c
 	intern/multires.c
 	intern/nla.c
@@ -253,7 +253,6 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
-	BKE_group.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
@@ -274,6 +273,7 @@ set(SRC
 	BKE_mball.h
 	BKE_mball_tessellate.h
 	BKE_mesh.h
+	BKE_mesh_iterators.h
 	BKE_mesh_mapping.h
 	BKE_mesh_remap.h
 	BKE_mesh_tangent.h
@@ -419,7 +419,7 @@ if(WITH_CODEC_FFMPEG)
 	)
 	add_definitions(-DWITH_FFMPEG)
 
-	remove_strict_flags_file(
+	remove_strict_c_flags_file(
 		intern/writeffmpeg.c
 	)
 endif()

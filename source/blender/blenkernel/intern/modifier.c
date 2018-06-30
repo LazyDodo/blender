@@ -60,20 +60,23 @@
 
 #include "BKE_appdir.h"
 #include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
+#include "BKE_global.h"
 #include "BKE_idcode.h"
 #include "BKE_key.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_mesh.h"
 #include "BKE_multires.h"
+#include "BKE_object.h"
 #include "BKE_DerivedMesh.h"
 
 /* may move these, only for modifier_path_relbase */
-#include "BKE_global.h" /* ugh, G.main->name only */
 #include "BKE_main.h"
 /* end */
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
@@ -127,7 +130,7 @@ ModifierData *modifier_new(int type)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(type);
 	ModifierData *md = MEM_callocN(mti->structSize, mti->structName);
-	
+
 	/* note, this name must be made unique later */
 	BLI_strncpy(md->name, DATA_(mti->name), sizeof(md->name));
 
@@ -346,9 +349,7 @@ bool modifier_supportsCage(struct Scene *scene, ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
-	md->scene = scene;
-
-	return ((!mti->isDisabled || !mti->isDisabled(md, 0)) &&
+	return ((!mti->isDisabled || !mti->isDisabled(scene, md, 0)) &&
 	        (mti->flags & eModifierTypeFlag_SupportsEditmode) &&
 	        modifier_supportsMapping(md));
 }
@@ -357,11 +358,9 @@ bool modifier_couldBeCage(struct Scene *scene, ModifierData *md)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
-	md->scene = scene;
-
 	return ((md->mode & eModifierMode_Realtime) &&
 	        (md->mode & eModifierMode_Editmode) &&
-	        (!mti->isDisabled || !mti->isDisabled(md, 0)) &&
+	        (!mti->isDisabled || !mti->isDisabled(scene, md, 0)) &&
 	        modifier_supportsMapping(md));
 }
 
@@ -397,9 +396,9 @@ void modifier_setError(ModifierData *md, const char *_format, ...)
 
 /* used for buttons, to find out if the 'draw deformed in editmode' option is
  * there
- * 
+ *
  * also used in transform_conversion.c, to detect CrazySpace [tm] (2nd arg
- * then is NULL) 
+ * then is NULL)
  * also used for some mesh tools to give warnings
  */
 int modifiers_getCageIndex(struct Scene *scene, Object *ob, int *r_lastPossibleCageIndex, bool is_virtual)
@@ -418,9 +417,7 @@ int modifiers_getCageIndex(struct Scene *scene, Object *ob, int *r_lastPossibleC
 		const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 		bool supports_mapping;
 
-		md->scene = scene;
-
-		if (mti->isDisabled && mti->isDisabled(md, 0)) continue;
+		if (mti->isDisabled && mti->isDisabled(scene, md, 0)) continue;
 		if (!(mti->flags & eModifierTypeFlag_SupportsEditmode)) continue;
 		if (md->mode & eModifierMode_DisableTemporary) continue;
 
@@ -476,17 +473,15 @@ bool modifiers_isParticleEnabled(Object *ob)
  *
  * \param scene Current scene, may be NULL, in which case isDisabled callback of the modifier is never called.
  */
-bool modifier_isEnabled(struct Scene *scene, ModifierData *md, int required_mode)
+bool modifier_isEnabled(const struct Scene *scene, ModifierData *md, int required_mode)
 {
 	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
-	md->scene = scene;
-
 	if ((md->mode & required_mode) != required_mode) return false;
-	if (scene != NULL && mti->isDisabled && mti->isDisabled(md, required_mode == eModifierMode_Render)) return false;
+	if (scene != NULL && mti->isDisabled && mti->isDisabled(scene, md, required_mode == eModifierMode_Render)) return false;
 	if (md->mode & eModifierMode_DisableTemporary) return false;
 	if ((required_mode & eModifierMode_Editmode) && !(mti->flags & eModifierTypeFlag_SupportsEditmode)) return false;
-	
+
 	return true;
 }
 
@@ -502,7 +497,7 @@ CDMaskLink *modifiers_calcDataMasks(struct Scene *scene, Object *ob, ModifierDat
 		const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 
 		curr = MEM_callocN(sizeof(CDMaskLink), "CDMaskLink");
-		
+
 		if (modifier_isEnabled(scene, md, required_mode)) {
 			if (mti->requiredDataMask)
 				curr->mask = mti->requiredDataMask(ob, md);
@@ -611,7 +606,7 @@ Object *modifiers_isDeformedByArmature(Object *ob)
 	VirtualModifierData virtualModifierData;
 	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
 	ArmatureModifierData *amd = NULL;
-	
+
 	/* return the first selected armature, this lets us use multiple armatures */
 	for (; md; md = md->next) {
 		if (md->type == eModifierType_Armature) {
@@ -620,10 +615,10 @@ Object *modifiers_isDeformedByArmature(Object *ob)
 				return amd->object;
 		}
 	}
-	
+
 	if (amd) /* if were still here then return the last armature */
 		return amd->object;
-	
+
 	return NULL;
 }
 
@@ -656,7 +651,7 @@ Object *modifiers_isDeformedByLattice(Object *ob)
 	VirtualModifierData virtualModifierData;
 	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
 	LatticeModifierData *lmd = NULL;
-	
+
 	/* return the first selected lattice, this lets us use multiple lattices */
 	for (; md; md = md->next) {
 		if (md->type == eModifierType_Lattice) {
@@ -665,10 +660,10 @@ Object *modifiers_isDeformedByLattice(Object *ob)
 				return lmd->object;
 		}
 	}
-	
+
 	if (lmd) /* if were still here then return the last lattice */
 		return lmd->object;
-	
+
 	return NULL;
 }
 
@@ -680,7 +675,7 @@ Object *modifiers_isDeformedByCurve(Object *ob)
 	VirtualModifierData virtualModifierData;
 	ModifierData *md = modifiers_getVirtualModifierList(ob, &virtualModifierData);
 	CurveModifierData *cmd = NULL;
-	
+
 	/* return the first selected curve, this lets us use multiple curves */
 	for (; md; md = md->next) {
 		if (md->type == eModifierType_Curve) {
@@ -689,10 +684,10 @@ Object *modifiers_isDeformedByCurve(Object *ob)
 				return cmd->object;
 		}
 	}
-	
+
 	if (cmd) /* if were still here then return the last curve */
 		return cmd->object;
-	
+
 	return NULL;
 }
 
@@ -794,10 +789,22 @@ void test_object_modifiers(Object *ob)
  * - else if the file has been saved return the blend file path.
  * - else if the file isn't saved and the ID isn't from a library, return the temp dir.
  */
-const char *modifier_path_relbase(Object *ob)
+const char *modifier_path_relbase(Main *bmain, Object *ob)
 {
 	if (G.relbase_valid || ID_IS_LINKED(ob)) {
-		return ID_BLEND_PATH(G.main, &ob->id);
+		return ID_BLEND_PATH(bmain, &ob->id);
+	}
+	else {
+		/* last resort, better then using "" which resolves to the current
+		 * working directory */
+		return BKE_tempdir_session();
+	}
+}
+
+const char *modifier_path_relbase_from_global(Object *ob)
+{
+	if (G.relbase_valid || ID_IS_LINKED(ob)) {
+		return ID_BLEND_PATH_FROM_GLOBAL(&ob->id);
 	}
 	else {
 		/* last resort, better then using "" which resolves to the current
@@ -890,7 +897,7 @@ void modifier_deformVerts(struct ModifierData *md, const ModifierEvalContext *ct
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformVerts_DM(md, ctx, dm, vertexCos, numVerts);
@@ -899,6 +906,19 @@ void modifier_deformVerts(struct ModifierData *md, const ModifierEvalContext *ct
 			dm->release(dm);
 		}
 	}
+}
+
+void modifier_deformVerts_ensure_normals(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct Mesh *mesh,
+	float (*vertexCos)[3], int numVerts)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+	BLI_assert(!mesh || CustomData_has_layer(&mesh->pdata, CD_NORMAL) == false);
+
+	if (mesh && mti->dependsOnNormals && mti->dependsOnNormals(md)) {
+		BKE_mesh_calc_normals(mesh);
+	}
+	modifier_deformVerts(md, ctx, mesh, vertexCos, numVerts);
 }
 
 void modifier_deformMatrices(struct ModifierData *md, const ModifierEvalContext *ctx,
@@ -913,7 +933,7 @@ void modifier_deformMatrices(struct ModifierData *md, const ModifierEvalContext 
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformMatrices_DM(md, ctx, dm, vertexCos, defMats, numVerts);
@@ -936,7 +956,7 @@ void modifier_deformVertsEM(struct ModifierData *md, const ModifierEvalContext *
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformVertsEM_DM(md, ctx, editData, dm, vertexCos, numVerts);
@@ -959,7 +979,7 @@ void modifier_deformMatricesEM(struct ModifierData *md, const ModifierEvalContex
 	else {
 		DerivedMesh *dm = NULL;
 		if (mesh) {
-			dm = CDDM_from_mesh(mesh);
+			dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 		}
 
 		mti->deformMatricesEM_DM(md, ctx, editData, dm, vertexCos, defMats, numVerts);
@@ -979,7 +999,7 @@ struct Mesh *modifier_applyModifier(struct ModifierData *md, const ModifierEvalC
 		return mti->applyModifier(md, ctx, mesh);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 
 		DerivedMesh *ndm = mti->applyModifier_DM(md, ctx, dm);
 
@@ -993,6 +1013,18 @@ struct Mesh *modifier_applyModifier(struct ModifierData *md, const ModifierEvalC
 	}
 }
 
+struct Mesh *modifier_applyModifier_ensure_normals(struct ModifierData *md, const ModifierEvalContext *ctx,
+	struct Mesh *mesh)
+{
+	const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
+	BLI_assert(CustomData_has_layer(&mesh->pdata, CD_NORMAL) == false);
+
+	if (mti->dependsOnNormals && mti->dependsOnNormals(md)) {
+		BKE_mesh_calc_normals(mesh);
+	}
+	return modifier_applyModifier(md, ctx, mesh);
+}
+
 struct Mesh *modifier_applyModifierEM(struct ModifierData *md, const ModifierEvalContext *ctx,
 	struct BMEditMesh *editData,
 	struct Mesh *mesh)
@@ -1003,7 +1035,7 @@ struct Mesh *modifier_applyModifierEM(struct ModifierData *md, const ModifierEva
 		return mti->applyModifierEM(md, ctx, editData, mesh);
 	}
 	else {
-		DerivedMesh *dm = CDDM_from_mesh(mesh);
+		DerivedMesh *dm = CDDM_from_mesh_ex(mesh, CD_REFERENCE, CD_MASK_EVERYTHING);
 
 		DerivedMesh *ndm = mti->applyModifierEM_DM(md, ctx, editData, dm);
 
@@ -1139,7 +1171,7 @@ struct DerivedMesh *modifier_applyModifier_DM_deprecated(struct ModifierData *md
 		struct Mesh *new_mesh = mti->applyModifier(md, ctx, mesh);
 
 		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
-		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
+		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE, CD_MASK_EVERYTHING);
 
 		if (new_mesh != mesh) {
 			BKE_id_free(NULL, new_mesh);
@@ -1172,7 +1204,7 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *
 		struct Mesh *new_mesh = mti->applyModifierEM(md, ctx, editData, mesh);
 
 		/* Make a DM that doesn't reference new_mesh so we can free the latter. */
-		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE);
+		DerivedMesh *ndm = CDDM_from_mesh_ex(new_mesh, CD_DUPLICATE, CD_MASK_EVERYTHING);
 
 		if (new_mesh != mesh) {
 			BKE_id_free(NULL, new_mesh);
@@ -1185,16 +1217,26 @@ struct DerivedMesh *modifier_applyModifierEM_DM_deprecated(struct ModifierData *
 	}
 }
 
-/** Get evaluated mesh for other object, which is used as an operand for the modifier,
- * i.e. second operand for boolean modifier.
+/**
+ * Get evaluated mesh for other evaluated object, which is used as an operand for the modifier,
+ * e.g. second operand for boolean modifier.
+ * Note thqt modifiers in stack always get fully evaluated COW ID pointers, never original ones. Makes things simpler.
  */
-Mesh *BKE_modifier_get_evaluated_mesh_from_object(Object *ob, const ModifierApplyFlag flag)
+Mesh *BKE_modifier_get_evaluated_mesh_from_evaluated_object(Object *ob_eval, bool *r_free_mesh)
 {
-	if (flag & MOD_APPLY_RENDER) {
-		/* TODO(sergey): Use proper derived render in the future. */
-		return ob->mesh_evaluated;
+	Mesh *me;
+
+	if ((ob_eval->type == OB_MESH) && (ob_eval->mode & OB_MODE_EDIT)) {
+		/* Note: currently we have no equivalent to derived cagemesh or even final dm in BMEditMesh...
+		 * This is TODO in core depsgraph/modifier stack code still. */
+		BMEditMesh *em = BKE_editmesh_from_object(ob_eval);
+		me = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
+		*r_free_mesh = true;
 	}
 	else {
-		return ob->mesh_evaluated;
+		me = ob_eval->runtime.mesh_eval;
+		*r_free_mesh = false;
 	}
+
+	return me;
 }

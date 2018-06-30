@@ -57,7 +57,6 @@
 #include "BKE_camera.h"
 #include "BKE_context.h"
 #include "BKE_customdata.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_image.h"
 #include "BKE_key.h"
 #include "BKE_layer.h"
@@ -105,6 +104,7 @@
 #include "GPU_immediate_util.h"
 #include "GPU_select.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "RE_engine.h"
 
@@ -163,7 +163,8 @@ bool ED_view3d_clipping_test(const RegionView3D *rv3d, const float co[3], const 
 static void backdrawview3d(
         struct Depsgraph *depsgraph, Scene *scene,
         ARegion *ar, View3D *v3d,
-        Object *obact, Object *obedit)
+        Object *obact, Object *obedit,
+        short select_mode)
 {
 	RegionView3D *rv3d = ar->regiondata;
 	Scene *scene_eval = (Scene *)DEG_get_evaluated_id(depsgraph, &scene->id);
@@ -245,16 +246,16 @@ static void backdrawview3d(
 	if (rv3d->gpuoffscreen)
 		GPU_offscreen_bind(rv3d->gpuoffscreen, true);
 	else
-		glScissor(ar->winrct.xmin, ar->winrct.ymin, BLI_rcti_size_x(&ar->winrct), BLI_rcti_size_y(&ar->winrct));
+		GPU_scissor(ar->winrct.xmin, ar->winrct.ymin, BLI_rcti_size_x(&ar->winrct), BLI_rcti_size_y(&ar->winrct));
 
-	glClearColor(0.0, 0.0, 0.0, 0.0);
+	GPU_clear_color(0.0, 0.0, 0.0, 0.0);
 	if (v3d->zbuf) {
-		glEnable(GL_DEPTH_TEST);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		GPU_depth_test(true);
+		GPU_clear(GPU_COLOR_BIT | GPU_DEPTH_BIT);
 	}
 	else {
-		glClear(GL_COLOR_BUFFER_BIT);
-		glDisable(GL_DEPTH_TEST);
+		GPU_clear(GPU_COLOR_BIT);
+		GPU_depth_test(false);
 	}
 
 	if (rv3d->rflag & RV3D_CLIPPING)
@@ -262,8 +263,8 @@ static void backdrawview3d(
 
 	G.f |= G_BACKBUFSEL;
 
-	if (obact_eval && ((obact_eval->base_flag & BASE_VISIBLED) != 0)) {
-		draw_object_backbufsel(depsgraph, scene_eval, v3d, rv3d, obact_eval);
+	if (obact_eval && ((obact_eval->base_flag & BASE_VISIBLE) != 0)) {
+		draw_object_backbufsel(depsgraph, scene_eval, v3d, rv3d, obact_eval, select_mode);
 	}
 
 	if (rv3d->gpuoffscreen)
@@ -273,7 +274,7 @@ static void backdrawview3d(
 
 	G.f &= ~G_BACKBUFSEL;
 	v3d->zbuf = false;
-	glDisable(GL_DEPTH_TEST);
+	GPU_depth_test(false);
 	glEnable(GL_DITHER);
 
 	if (rv3d->rflag & RV3D_CLIPPING)
@@ -301,11 +302,16 @@ static void view3d_opengl_read_Z_pixels(ARegion *ar, int x, int y, int w, int h,
 	glReadPixels(ar->winrct.xmin + x, ar->winrct.ymin + y, w, h, format, type, data);
 }
 
-void ED_view3d_backbuf_validate(ViewContext *vc)
+void ED_view3d_backbuf_validate_with_select_mode(ViewContext *vc, short select_mode)
 {
 	if (vc->v3d->flag & V3D_INVALID_BACKBUF) {
-		backdrawview3d(vc->depsgraph, vc->scene, vc->ar, vc->v3d, vc->obact, vc->obedit);
+		backdrawview3d(vc->depsgraph, vc->scene, vc->ar, vc->v3d, vc->obact, vc->obedit, select_mode);
 	}
+}
+
+void ED_view3d_backbuf_validate(ViewContext *vc)
+{
+	ED_view3d_backbuf_validate_with_select_mode(vc, -1);
 }
 
 /**
@@ -678,11 +684,11 @@ static void view3d_draw_bgpic(Scene *scene, Depsgraph *depsgraph,
 					ibuf = ibuf->mipmap[mip - 1];
 			}
 
-			if (v3d->zbuf) glDisable(GL_DEPTH_TEST);
+			if (v3d->zbuf) GPU_depth_test(false);
 			glDepthMask(GL_FALSE);
 
-			glEnable(GL_BLEND);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend(true);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 			gpuPushProjectionMatrix();
 			gpuPushMatrix();
@@ -709,10 +715,10 @@ static void view3d_draw_bgpic(Scene *scene, Depsgraph *depsgraph,
 			gpuPopProjectionMatrix();
 			gpuPopMatrix();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 
 			glDepthMask(GL_TRUE);
-			if (v3d->zbuf) glEnable(GL_DEPTH_TEST);
+			if (v3d->zbuf) GPU_depth_test(true);
 
 			if (freeibuf)
 				IMB_freeImBuf(freeibuf);
@@ -877,17 +883,17 @@ void ED_view3d_draw_depth_gpencil(
 	/* Setup view matrix. */
 	ED_view3d_draw_setup_view(NULL, depsgraph, scene, ar, v3d, NULL, NULL, NULL);
 
-	glClear(GL_DEPTH_BUFFER_BIT);
+	GPU_clear(GPU_DEPTH_BIT);
 
 	v3d->zbuf = true;
-	glEnable(GL_DEPTH_TEST);
+	GPU_depth_test(true);
 
 	if (v3d->flag2 & V3D_SHOW_GPENCIL) {
 		ED_gpencil_draw_view3d(NULL, scene, view_layer, depsgraph, v3d, ar, true);
 	}
 
 	v3d->zbuf = zbuf;
-	if (!zbuf) glDisable(GL_DEPTH_TEST);
+	if (!zbuf) GPU_depth_test(false);
 }
 
 /* *********************** customdata **************** */
@@ -1026,7 +1032,7 @@ void ED_scene_draw_fps(Scene *scene, const rcti *rect)
 static bool view3d_main_region_do_render_draw(const Scene *scene)
 {
 	RenderEngineType *type = RE_engines_find(scene->r.engine);
-	return (type && type->view_update && type->render_to_view);
+	return (type && type->view_update && type->view_draw);
 }
 
 bool ED_view3d_calc_render_border(const Scene *scene, Depsgraph *depsgraph, View3D *v3d, ARegion *ar, rcti *rect)

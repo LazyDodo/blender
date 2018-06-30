@@ -52,6 +52,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_util.h"
 
@@ -98,7 +99,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
-{	
+{
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *)md;
 	CustomDataMask dataMask = 0;
 
@@ -108,7 +109,7 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, int UNUSED(useRenderParams))
 {
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *) md;
 
@@ -225,8 +226,8 @@ static void meshdeform_vert_task(
 	const MDeformVert *dvert = data->dvert;
 	const int defgrp_index = data->defgrp_index;
 	const int *offsets = mmd->bindoffsets;
-	const MDefInfluence *influences = mmd->bindinfluences;
-	/*const*/ float (*dco)[3] = data->dco;
+	const MDefInfluence *__restrict influences = mmd->bindinfluences;
+	/*const*/ float (*__restrict dco)[3] = data->dco;
 	float (*vertexCos)[3] = data->vertexCos;
 	float co[3];
 	float weight, totweight, fac = 1.0f;
@@ -253,11 +254,12 @@ static void meshdeform_vert_task(
 		totweight = meshdeform_dynamic_bind(mmd, dco, co);
 	}
 	else {
-		int a;
 		totweight = 0.0f;
 		zero_v3(co);
+		int start = offsets[iter];
+		int end = offsets[iter + 1];
 
-		for (a = offsets[iter]; a < offsets[iter + 1]; a++) {
+		for (int a = start; a < end; a++) {
 			weight = influences[a].weight;
 			madd_v3_v3fl(co, dco[influences[a].vertex], weight);
 			totweight += weight;
@@ -275,10 +277,12 @@ static void meshdeform_vert_task(
 }
 
 static void meshdeformModifier_do(
-        ModifierData *md, Object *ob, Mesh *mesh,
+        ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *) md;
+	Object *ob = ctx->object;
+
 	Mesh *cagemesh;
 	MDeformVert *dvert = NULL;
 	float imat[4][4], cagemat[4][4], iobmat[4][4], icagemat[3][3], cmat[4][4];
@@ -291,7 +295,7 @@ static void meshdeformModifier_do(
 	if (!mmd->object || (!mmd->bindcagecos && !mmd->bindfunc))
 		return;
 
-	/* Get cage derivedmesh.
+	/* Get cage mesh.
 	 *
 	 * Only do this is the target object is in edit mode by itself, meaning
 	 * we don't allow linked edit meshes here.
@@ -301,25 +305,9 @@ static void meshdeformModifier_do(
 	 *
 	 * We'll support this case once granular dependency graph is landed.
 	 */
-	if (mmd->object->mode & OB_MODE_EDIT) {
-		BMEditMesh *em = BKE_editmesh_from_object(mmd->object);
-		cagemesh = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
-		free_cagemesh = true;
-	}
-	else {
-		cagemesh = BKE_modifier_get_evaluated_mesh_from_object(ob, md->mode & eModifierMode_Render ? MOD_APPLY_RENDER : 0);
-	}
+	cagemesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(mmd->object, &free_cagemesh);
 
-	/* if we don't have one computed, use derivedmesh from data
-	 * without any modifiers */
-	if (!cagemesh) {
-		cagemesh = get_mesh(mmd->object, NULL, NULL, NULL, false, false);
-		if (cagemesh) {
-			free_cagemesh = true;
-		}
-	}
-	
-	if (!cagemesh) {
+	if (cagemesh == NULL) {
 		modifier_setError(md, "Cannot get mesh from cage object");
 		return;
 	}
@@ -337,8 +325,9 @@ static void meshdeformModifier_do(
 
 		/* progress bar redraw can make this recursive .. */
 		if (!recursive) {
+			Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
 			recursive = 1;
-			mmd->bindfunc(md->scene, mmd, cagemesh, (float *)vertexCos, numVerts, cagemat);
+			mmd->bindfunc(scene, mmd, cagemesh, (float *)vertexCos, numVerts, cagemat);
 			recursive = 0;
 		}
 	}
@@ -385,7 +374,7 @@ static void meshdeformModifier_do(
 			copy_v3_v3(dco[a], co);
 	}
 
-	modifier_get_vgroup_mesh(ob, mesh, mmd->defgrp_name, &dvert, &defgrp_index);
+	MOD_get_vgroup(ob, mesh, mmd->defgrp_name, &dvert, &defgrp_index);
 
 	/* Initialize data to be pass to the for body function. */
 	data.mmd = mmd;
@@ -405,10 +394,12 @@ static void meshdeformModifier_do(
 	                        meshdeform_vert_task,
 	                        &settings);
 
-	/* release cage derivedmesh */
+	/* release cage mesh */
 	MEM_freeN(dco);
 	MEM_freeN(cagecos);
-	if (free_cagemesh) BKE_id_free(NULL, cagemesh);
+	if (cagemesh != NULL && free_cagemesh) {
+		BKE_id_free(NULL, cagemesh);
+	}
 }
 
 static void deformVerts(
@@ -417,11 +408,11 @@ static void deformVerts(
         float (*vertexCos)[3],
         int numVerts)
 {
-	Mesh *mesh_src = get_mesh(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
 
-	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
+	MOD_previous_vcos_store(md, vertexCos); /* if next modifier needs original vertices */
 
-	meshdeformModifier_do(md, ctx->object, mesh, vertexCos, numVerts);
+	meshdeformModifier_do(md, ctx, mesh_src, vertexCos, numVerts);
 
 	if (mesh_src && mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
@@ -435,9 +426,9 @@ static void deformVertsEM(
         float (*vertexCos)[3],
         int numVerts)
 {
-	Mesh *mesh_src = get_mesh(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
 
-	meshdeformModifier_do(md, ctx->object, mesh, vertexCos, numVerts);
+	meshdeformModifier_do(md, ctx, mesh_src, vertexCos, numVerts);
 
 	if (mesh_src && mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
@@ -455,7 +446,7 @@ void modifier_mdef_compact_influences(ModifierData *md)
 	weights = mmd->bindweights;
 	if (!weights)
 		return;
-	
+
 	totvert = mmd->totvert;
 	totcagevert = mmd->totcagevert;
 
@@ -501,7 +492,7 @@ void modifier_mdef_compact_influences(ModifierData *md)
 	}
 
 	mmd->bindoffsets[b] = totinfluence;
-	
+
 	/* free */
 	MEM_freeN(mmd->bindweights);
 	mmd->bindweights = NULL;

@@ -149,6 +149,8 @@ void RNA_def_property_collection_sdna(PropertyRNA *prop, const char *structname,
 
 void RNA_def_property_flag(PropertyRNA *prop, PropertyFlag flag);
 void RNA_def_property_clear_flag(PropertyRNA *prop, PropertyFlag flag);
+void RNA_def_property_override_flag(PropertyRNA *prop, PropertyOverrideFlag flag);
+void RNA_def_property_override_clear_flag(PropertyRNA *prop, PropertyOverrideFlag flag);
 void RNA_def_property_tags(PropertyRNA *prop, int tags);
 void RNA_def_property_subtype(PropertyRNA *prop, PropertySubType subtype);
 void RNA_def_property_array(PropertyRNA *prop, int length);
@@ -257,4 +259,3 @@ extern const int rna_matrix_dimsize_4x2[];
 #endif
 
 #endif /* __RNA_DEFINE_H__ */
-

@@ -31,7 +31,7 @@ elseif(NOT WITH_CPU_SSE)
 	set(CXX_HAS_SSE FALSE)
 	set(CXX_HAS_AVX FALSE)
 	set(CXX_HAS_AVX2 FALSE)
-elseif(WIN32 AND MSVC)
+elseif(WIN32 AND MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	set(CXX_HAS_SSE TRUE)
 	set(CXX_HAS_AVX TRUE)
 	set(CXX_HAS_AVX2 TRUE)
@@ -306,7 +306,7 @@ if(WITH_CYCLES_CUDA_BINARIES AND (NOT WITH_CYCLES_CUBIN_COMPILER))
 		elseif(${CUDA_VERSION} EQUAL "9.1")
 			set(MAX_MSVC 1911)
 		endif()
-		if(NOT MSVC_VERSION LESS ${MAX_MSVC})
+		if(NOT MSVC_VERSION LESS ${MAX_MSVC} OR CMAKE_C_COMPILER_ID MATCHES "Clang")
 			message(STATUS "nvcc not supported for this compiler version, using cycles_cubin_cc instead.")
 			set(WITH_CYCLES_CUBIN_COMPILER ON)
 		endif()
@@ -324,6 +324,14 @@ endif()
 
 if(WITH_CYCLES_NETWORK)
 	add_definitions(-DWITH_NETWORK)
+endif()
+
+if(WITH_OPENCOLORIO)
+	add_definitions(-DWITH_OCIO)
+	include_directories(
+		SYSTEM
+		${OPENCOLORIO_INCLUDE_DIRS}
+	)
 endif()
 
 if(WITH_CYCLES_STANDALONE OR WITH_CYCLES_NETWORK OR WITH_CYCLES_CUBIN_COMPILER)
@@ -347,4 +355,3 @@ endif()
 if(NOT WITH_BLENDER AND WITH_CYCLES_STANDALONE)
 	delayed_do_install(${CMAKE_BINARY_DIR}/bin)
 endif()
-

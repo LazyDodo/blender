@@ -45,6 +45,7 @@
 #include "RNA_enum_types.h"
 
 #include "WM_api.h"
+#include "WM_message.h"
 #include "WM_types.h"
 
 #include "UI_interface.h"
@@ -166,6 +167,9 @@ static int select_orientation_exec(bContext *C, wmOperator *op)
 	BIF_selectTransformOrientationValue(scene, orientation);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
+	WM_msg_publish_rna_prop(mbus, &scene->id, scene, Scene, transform_orientation);
 
 	return OPERATOR_FINISHED;
 }
@@ -534,7 +538,7 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 	if (flags & P_PROPORTIONAL) {
 		RNA_def_enum(ot->srna, "proportional", rna_enum_proportional_editing_items, 0, "Proportional Editing", "");
 		prop = RNA_def_enum(ot->srna, "proportional_edit_falloff", rna_enum_proportional_falloff_items, 0,
-		                    "Proportional Editing Falloff", "Falloff type for proportional editing mode");
+		                    "Proportional Falloff", "Falloff type for proportional editing mode");
 		RNA_def_property_translation_context(prop, BLT_I18NCONTEXT_ID_CURVE); /* Abusing id_curve :/ */
 		RNA_def_float(ot->srna, "proportional_size", 1, T_PROP_SIZE_MIN, T_PROP_SIZE_MAX,
 		              "Proportional Size", "", 0.001f, 100.0f);
@@ -560,17 +564,24 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 	}
 
 	if (flags & P_GPENCIL_EDIT) {
-		RNA_def_boolean(ot->srna, "gpencil_strokes", 0, "Edit Grease Pencil", "Edit selected Grease Pencil strokes");
+		prop = RNA_def_boolean(ot->srna, "gpencil_strokes", 0, "Edit Grease Pencil", "Edit selected Grease Pencil strokes");
+		RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
+	}
+
+	if (flags & P_CURSOR_EDIT) {
+		prop = RNA_def_boolean(ot->srna, "cursor_transform", 0, "Transform Cursor", "");
+		RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	}
 
 	if ((flags & P_OPTIONS) && !(flags & P_NO_TEXSPACE)) {
-		RNA_def_boolean(ot->srna, "texture_space", 0, "Edit Texture Space", "Edit Object data texture space");
+		prop = RNA_def_boolean(ot->srna, "texture_space", 0, "Edit Texture Space", "Edit Object data texture space");
+		RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 		prop = RNA_def_boolean(ot->srna, "remove_on_cancel", 0, "Remove on Cancel", "Remove elements on cancel");
-		RNA_def_property_flag(prop, PROP_HIDDEN);
+		RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	}
 
 	if (flags & P_CORRECT_UV) {
-		RNA_def_boolean(ot->srna, "correct_uv", 0, "Correct UVs", "Correct UV coordinates when transforming");
+		RNA_def_boolean(ot->srna, "correct_uv", true, "Correct UVs", "Correct UV coordinates when transforming");
 	}
 
 	if (flags & P_CENTER) {
@@ -609,7 +620,10 @@ static void TRANSFORM_OT_translate(struct wmOperatorType *ot)
 
 	WM_operatortype_props_advanced_begin(ot);
 
-	Transform_Properties(ot, P_CONSTRAINT | P_PROPORTIONAL | P_MIRROR | P_ALIGN_SNAP | P_OPTIONS | P_GPENCIL_EDIT);
+	Transform_Properties(
+	        ot,
+	        P_CONSTRAINT | P_PROPORTIONAL | P_MIRROR | P_ALIGN_SNAP | P_OPTIONS |
+	        P_GPENCIL_EDIT | P_CURSOR_EDIT);
 }
 
 static void TRANSFORM_OT_resize(struct wmOperatorType *ot)
@@ -1107,17 +1121,16 @@ void transform_keymap_for_space(wmKeyConfig *keyconf, wmKeyMap *keymap, int spac
 			kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
 			RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_snap");
 
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", TABKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.snap_element");
-
 			/* Will fall-through to texture-space transform. */
 			kmi = WM_keymap_add_item(keymap, "OBJECT_OT_transform_axis_target", TKEY, KM_PRESS, KM_SHIFT, 0);
 
+#ifdef USE_WM_KEYMAP_27X
 			kmi = WM_keymap_add_item(keymap, OP_TRANSLATION, TKEY, KM_PRESS, KM_SHIFT, 0);
 			RNA_boolean_set(kmi->ptr, "texture_space", true);
 
 			kmi = WM_keymap_add_item(keymap, OP_RESIZE, TKEY, KM_PRESS, KM_SHIFT | KM_ALT, 0);
 			RNA_boolean_set(kmi->ptr, "texture_space", true);
+#endif
 
 			WM_keymap_add_item(keymap, OP_SKIN_RESIZE, AKEY, KM_PRESS, KM_CTRL, 0);
 
@@ -1229,4 +1242,3 @@ void transform_keymap_for_space(wmKeyConfig *keyconf, wmKeyMap *keymap, int spac
 			break;
 	}
 }
-

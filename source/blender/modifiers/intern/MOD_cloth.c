@@ -36,6 +36,7 @@
 
 #include "DNA_cloth_types.h"
 #include "DNA_key_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 
@@ -44,39 +45,44 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_cloth.h"
-#include "BKE_cdderivedmesh.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_key.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_pointcache.h"
 
+#include "DEG_depsgraph_physics.h"
+#include "DEG_depsgraph_query.h"
+
 #include "MOD_util.h"
 
-static void initData(ModifierData *md) 
+static void initData(ModifierData *md)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+
 	clmd->sim_parms = MEM_callocN(sizeof(ClothSimSettings), "cloth sim parms");
 	clmd->coll_parms = MEM_callocN(sizeof(ClothCollSettings), "cloth coll parms");
 	clmd->point_cache = BKE_ptcache_add(&clmd->ptcaches);
-	
+
 	/* check for alloc failing */
 	if (!clmd->sim_parms || !clmd->coll_parms || !clmd->point_cache)
 		return;
-	
+
 	cloth_init(clmd);
 }
 
 static void deformVerts(
         ModifierData *md, const ModifierEvalContext *ctx,
-        DerivedMesh *derivedData, float (*vertexCos)[3],
+        Mesh *mesh, float (*vertexCos)[3],
         int numVerts)
 {
-	DerivedMesh *dm;
+	Mesh *mesh_src;
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+	Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+
 	/* check for alloc failing */
 	if (!clmd->sim_parms || !clmd->coll_parms) {
 		initData(md);
@@ -85,9 +91,20 @@ static void deformVerts(
 			return;
 	}
 
-	dm = get_dm(ctx->object, NULL, derivedData, NULL, false, false);
-	if (dm == derivedData)
-		dm = CDDM_copy(dm);
+	if (mesh == NULL) {
+		mesh_src = MOD_get_mesh_eval(ctx->object, NULL, NULL, NULL, false, false);
+	}
+	else {
+		/* Not possible to use get_mesh() in this case as we'll modify its vertices
+		 * and get_mesh() would return 'mesh' directly. */
+		BKE_id_copy_ex(
+		        NULL, (ID *)mesh, (ID **)&mesh_src,
+		        LIB_ID_CREATE_NO_MAIN |
+		        LIB_ID_CREATE_NO_USER_REFCOUNT |
+		        LIB_ID_CREATE_NO_DEG_TAG |
+		        LIB_ID_COPY_NO_PREVIEW,
+		        false);
+	}
 
 	/* TODO(sergey): For now it actually duplicates logic from DerivedMesh.c
 	 * and needs some more generic solution. But starting experimenting with
@@ -95,35 +112,32 @@ static void deformVerts(
 	 *
 	 * Also hopefully new cloth system will arrive soon..
 	 */
-	if (derivedData == NULL && clmd->sim_parms->shapekey_rest) {
+	if (mesh == NULL && clmd->sim_parms->shapekey_rest) {
 		KeyBlock *kb = BKE_keyblock_from_key(BKE_key_from_object(ctx->object),
 		                                     clmd->sim_parms->shapekey_rest);
 		if (kb && kb->data != NULL) {
 			float (*layerorco)[3];
-			if (!(layerorco = DM_get_vert_data_layer(dm, CD_CLOTH_ORCO))) {
-				DM_add_vert_layer(dm, CD_CLOTH_ORCO, CD_CALLOC, NULL);
-				layerorco = DM_get_vert_data_layer(dm, CD_CLOTH_ORCO);
+			if (!(layerorco = CustomData_get_layer(&mesh_src->vdata, CD_CLOTH_ORCO))) {
+				layerorco = CustomData_add_layer(&mesh_src->vdata, CD_CLOTH_ORCO, CD_CALLOC, NULL, mesh_src->totvert);
 			}
 
 			memcpy(layerorco, kb->data, sizeof(float) * 3 * numVerts);
 		}
 	}
 
-	CDDM_apply_vert_coords(dm, vertexCos);
+	BKE_mesh_apply_vert_coords(mesh_src, vertexCos);
 
-	clothModifier_do(clmd, ctx->depsgraph, md->scene, ctx->object, dm, vertexCos);
+	clothModifier_do(clmd, ctx->depsgraph, scene, ctx->object, mesh_src, vertexCos);
 
-	dm->release(dm);
+	BKE_id_free(NULL, mesh_src);
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ClothModifierData *clmd = (ClothModifierData *)md;
 	if (clmd != NULL) {
-		/* Actual code uses get_collisionobjects */
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, clmd->coll_parms->group, eModifierType_Collision, NULL, true, "Cloth Collision");
-
-		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
+		DEG_add_collision_relations(ctx->node, ctx->object, clmd->coll_parms->group, eModifierType_Collision, NULL, "Cloth Collision");
+		DEG_add_forcefield_relations(ctx->node, ctx->object, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
 	}
 }
 
@@ -154,7 +168,7 @@ static void copyData(const ModifierData *md, ModifierData *target)
 
 	if (tclmd->coll_parms)
 		MEM_freeN(tclmd->coll_parms);
-	
+
 	BKE_ptcache_free_list(&tclmd->ptcaches);
 	tclmd->point_cache = NULL;
 
@@ -177,13 +191,13 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
 static void freeData(ModifierData *md)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+
 	if (clmd) {
 		if (G.debug_value > 0)
 			printf("clothModifier_freeData\n");
-		
+
 		cloth_free_modifier_extern(clmd);
-		
+
 		if (clmd->sim_parms) {
 			if (clmd->sim_parms->effector_weights)
 				MEM_freeN(clmd->sim_parms->effector_weights);
@@ -191,13 +205,13 @@ static void freeData(ModifierData *md)
 		}
 		if (clmd->coll_parms)
 			MEM_freeN(clmd->coll_parms);
-		
+
 		BKE_ptcache_free_list(&clmd->ptcaches);
 		clmd->point_cache = NULL;
-		
+
 		if (clmd->hairdata)
 			MEM_freeN(clmd->hairdata);
-		
+
 		if (clmd->solver_result)
 			MEM_freeN(clmd->solver_result);
 	}
@@ -229,14 +243,14 @@ ModifierTypeInfo modifierType_Cloth = {
 
 	/* copyData */          copyData,
 
-	/* deformVerts_DM */    deformVerts,
+	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
 	/* applyModifierEM_DM */NULL,
 
-	/* deformVerts */       NULL,
+	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,

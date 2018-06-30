@@ -274,11 +274,15 @@ extern "C" {
 #define SQUARE(a)  ({ \
 	typeof(a) a_ = (a); \
 	((a_) * (a_)); })
+#define CUBE(a)  ({ \
+	typeof(a) a_ = (a); \
+	((a_) * (a_) * (a_)); })
 
 #else
 
 #define ABS(a)  ((a) < 0 ? (-(a)) : (a))
 #define SQUARE(a)  ((a) * (a))
+#define CUBE(a)  ((a) * (a) * (a))
 
 #endif
 
@@ -373,19 +377,48 @@ extern "C" {
 #define UNPACK4_EX(pre, a, post)  UNPACK3_EX(pre, a, post), (pre((a)[3])post)
 
 /* array helpers */
-#define ARRAY_LAST_ITEM(arr_start, arr_dtype, tot) \
-	(arr_dtype *)((char *)(arr_start) + (sizeof(*((arr_dtype *)NULL)) * (size_t)(tot - 1)))
+#define ARRAY_LAST_ITEM(arr_start, arr_dtype, arr_len) \
+	(arr_dtype *)((char *)(arr_start) + (sizeof(*((arr_dtype *)NULL)) * (size_t)(arr_len - 1)))
 
-#define ARRAY_HAS_ITEM(arr_item, arr_start, tot)  ( \
+#define ARRAY_HAS_ITEM(arr_item, arr_start, arr_len)  ( \
 	CHECK_TYPE_PAIR_INLINE(arr_start, arr_item), \
-	((unsigned int)((arr_item) - (arr_start)) < (unsigned int)(tot)))
+	((unsigned int)((arr_item) - (arr_start)) < (unsigned int)(arr_len)))
 
-#define ARRAY_DELETE(arr, index, tot_delete, tot)  { \
-		BLI_assert(index + tot_delete <= tot);  \
-		memmove(&(arr)[(index)], \
-		        &(arr)[(index) + (tot_delete)], \
-		         (((tot) - (index)) - (tot_delete)) * sizeof(*(arr))); \
-	} (void)0
+/**
+ * \note use faster #ARRAY_DELETE_REORDER_LAST when we can re-order.
+ */
+#define ARRAY_DELETE(arr, index, delete_len, arr_len) \
+	{ \
+		BLI_assert((&arr[index] >= arr) && ((index) + delete_len <= arr_len));  \
+		memmove(&(arr)[index], \
+		        &(arr)[(index) + (delete_len)], \
+		         (((arr_len) - (index)) - (delete_len)) * sizeof(*(arr))); \
+	} ((void)0)
+
+/**
+ * Re-ordering array removal.
+ *
+ * When removing single items this compiles down to:
+ * `if (index + 1 != arr_len) { arr[index] = arr[arr_len - 1]; }` (typical reordering removal),
+ * with removing multiple items, overlap is detected to avoid memcpy errors.
+ */
+#define ARRAY_DELETE_REORDER_LAST(arr, index, delete_len, arr_len) \
+	{ \
+		BLI_assert((&arr[index] >= arr) && ((index) + delete_len <= arr_len));  \
+		if ((index) + (delete_len) != (arr_len)) { \
+			if (((delete_len) == 1) || ((delete_len) <= ((arr_len) - ((index) + (delete_len))))) { \
+				memcpy(&(arr)[index], \
+				       &(arr)[(arr_len) - (delete_len)], \
+				       (delete_len) * sizeof(*(arr))); \
+			} \
+			else { \
+				memcpy(&(arr)[index], \
+				       &(arr)[(arr_len) - ((arr_len) - ((index) + (delete_len)))], \
+				       ((arr_len) - ((index) + (delete_len))) * sizeof(*(arr))); \
+			} \
+		} \
+	} ((void)0)
+
 
 /* assuming a static array */
 #if defined(__GNUC__) && !defined(__cplusplus) && !defined(__clang__) && !defined(__INTEL_COMPILER)
@@ -523,13 +556,13 @@ extern bool BLI_memory_is_zero(const void *arr, const size_t arr_size);
 
 
 /* UNUSED macro, for function argument */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 #else
 #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #  define UNUSED_FUNCTION(x) __attribute__((__unused__)) UNUSED_ ## x
 #else
 #  define UNUSED_FUNCTION(x) UNUSED_ ## x
@@ -599,6 +632,14 @@ extern bool BLI_memory_is_zero(const void *arr, const size_t arr_size);
 #  define LIKELY(x)       (x)
 #  define UNLIKELY(x)     (x)
 #endif
+
+/* Expands to an integer constant expression evaluating to a close upper bound
+ * on the number the number of decimal digits in a value expressible in the
+ * integer type given by the argument (if it is a type name) or the the integer
+ * type of the argument (if it is an expression). The meaning of the resulting
+ * expression is unspecified for other arguments.
+ * i.e: DECIMAL_DIGITS_BOUND(uchar) is equal to 3. */
+#define DECIMAL_DIGITS_BOUND(t) (241 * sizeof(t) / 100 + 1)
 
 #ifdef __cplusplus
 }

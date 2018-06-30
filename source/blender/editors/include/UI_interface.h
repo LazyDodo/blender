@@ -42,6 +42,7 @@ struct ID;
 struct IDProperty;
 struct ListBase;
 struct ARegion;
+struct ARegionType;
 struct ScrArea;
 struct bScreen;
 struct wmEvent;
@@ -75,6 +76,7 @@ struct wmEvent;
 struct wmManipulator;
 struct wmMsgBus;
 struct uiButtonGroup;
+struct wmKeyMap;
 
 typedef struct uiBut uiBut;
 typedef struct uiBlock uiBlock;
@@ -145,8 +147,9 @@ enum {
 #define UI_BLOCK_LIST_ITEM   (1 << 19)
 #define UI_BLOCK_RADIAL      (1 << 20)
 #define UI_BLOCK_POPOVER     (1 << 21)
+#define UI_BLOCK_POPOVER_ONCE (1 << 22)
 /** Always show keymaps, even for non-menus. */
-#define UI_BLOCK_SHOW_SHORTCUT_ALWAYS (1 << 22)
+#define UI_BLOCK_SHOW_SHORTCUT_ALWAYS (1 << 23)
 
 /* uiPopupBlockHandle->menuretval */
 #define UI_RETURN_CANCEL     (1 << 0)   /* cancel all menus cascading */
@@ -303,7 +306,8 @@ typedef enum {
 	UI_BTYPE_NODE_SOCKET            = (53 << 9),
 	UI_BTYPE_SEPR                   = (54 << 9),
 	UI_BTYPE_SEPR_LINE              = (55 << 9),
-	UI_BTYPE_GRIP                   = (56 << 9),  /* resize handle (resize uilist) */
+	UI_BTYPE_SEPR_SPACER            = (56 << 9),  /* Dynamically fill available space. */
+	UI_BTYPE_GRIP                   = (57 << 9),  /* resize handle (resize uilist) */
 } eButType;
 
 #define BUTTYPE     (63 << 9)
@@ -399,6 +403,15 @@ typedef void (*uiMenuHandleFunc)(struct bContext *C, void *arg, int event);
  */
 typedef bool (*uiMenuStepFunc)(struct bContext *C, int direction, void *arg1);
 
+
+/* interface_query.c */
+bool UI_but_is_tool(const uiBut *but);
+#define UI_but_is_decorator(but) \
+	((but)->func == ui_but_anim_decorate_cb)
+
+bool UI_block_is_empty(const uiBlock *block);
+
+
 /* interface_region_menu_popup.c */
 /* Popup Menus
  *
@@ -415,6 +428,7 @@ uiPopupMenu *UI_popup_menu_begin_ex(
         struct bContext *C, const char *title, const char *block_name,
         int icon) ATTR_NONNULL();
 void UI_popup_menu_end(struct bContext *C, struct uiPopupMenu *head);
+bool UI_popup_menu_end_or_cancel(struct bContext *C, struct uiPopupMenu *head);
 struct uiLayout *UI_popup_menu_layout(uiPopupMenu *head);
 
 void UI_popup_menu_reports(struct bContext *C, struct ReportList *reports) ATTR_NONNULL();
@@ -427,9 +441,14 @@ void UI_popup_menu_but_set(uiPopupMenu *pup, struct ARegion *butregion, uiBut *b
 
 typedef struct uiPopover uiPopover;
 
-uiPopover *UI_popover_begin(struct bContext *C) ATTR_NONNULL();
-void UI_popover_end(struct bContext *C, struct uiPopover *head);
+int UI_popover_panel_invoke(
+        struct bContext *C, int space_id, int region_id, const char *idname,
+        bool keep_open, struct ReportList *reports);
+
+uiPopover *UI_popover_begin(struct bContext *C) ATTR_NONNULL(1);
+void UI_popover_end(struct bContext *C, struct uiPopover *head, struct wmKeyMap *keymap);
 struct uiLayout *UI_popover_layout(uiPopover *head);
+void UI_popover_once_clear(uiPopover *pup);
 
 /* interface_region_menu_pie.c */
 /* Pie menus */
@@ -469,7 +488,7 @@ void UI_popup_block_close(struct bContext *C, struct wmWindow *win, uiBlock *blo
  *
  * Functions for creating, drawing and freeing blocks. A Block is a
  * container of buttons and used for various purposes.
- * 
+ *
  * Begin/Define Buttons/End/Draw is the typical order in which these
  * function should be called, though for popup blocks Draw is left out.
  * Freeing blocks is done by the screen/ module automatically.
@@ -483,8 +502,6 @@ void UI_block_draw(const struct bContext *C, struct uiBlock *block);
 void UI_blocklist_update_window_matrix(const struct bContext *C, const struct ListBase *lb);
 void UI_blocklist_draw(const struct bContext *C, const struct ListBase *lb);
 void UI_block_update_from_old(const struct bContext *C, struct uiBlock *block);
-
-uiBlock *UI_block_find_in_region(const char *name, struct ARegion *ar);
 
 void UI_block_emboss_set(uiBlock *block, char dt);
 
@@ -526,6 +543,7 @@ void    UI_block_direction_set(uiBlock *block, char direction);
 void    UI_block_order_flip(uiBlock *block);
 void    UI_block_flag_enable(uiBlock *block, int flag);
 void    UI_block_flag_disable(uiBlock *block, int flag);
+void    UI_block_translate(uiBlock *block, int x, int y);
 
 int     UI_but_return_value_get(uiBut *but);
 
@@ -574,7 +592,7 @@ bool UI_but_online_manual_id_from_active(
  * - R: RNA
  * - O: operator */
 
-uiBut *uiDefBut(uiBlock *block, 
+uiBut *uiDefBut(uiBlock *block,
                 int type, int retval, const char *str,
                 int x1, int y1,
                 short x2, short y2,
@@ -594,7 +612,7 @@ uiBut *uiDefButR_prop(uiBlock *block, int type, int retval, const char *str, int
 uiBut *uiDefButO(uiBlock *block, int type, const char *opname, int opcontext, const char *str, int x, int y, short width, short height, const char *tip);
 uiBut *uiDefButO_ptr(uiBlock *block, int type, struct wmOperatorType *ot, int opcontext, const char *str, int x, int y, short width, short height, const char *tip);
 
-uiBut *uiDefIconBut(uiBlock *block, 
+uiBut *uiDefIconBut(uiBlock *block,
                     int type, int retval, int icon,
                     int x1, int y1,
                     short x2, short y2,
@@ -659,7 +677,7 @@ enum {
 typedef struct uiStringInfo {
 	int type;
 	char *strinfo;
-} uiStringInfo; 
+} uiStringInfo;
 
 /* Note: Expects pointers to uiStringInfo structs as parameters.
  *       Will fill them with translated strings, when possible.
@@ -821,11 +839,14 @@ void UI_panels_begin(const struct bContext *C, struct ARegion *ar);
 void UI_panels_end(const struct bContext *C, struct ARegion *ar, int *x, int *y);
 void UI_panels_draw(const struct bContext *C, struct ARegion *ar);
 
-struct Panel *UI_panel_find_by_type(struct ARegion *ar, struct PanelType *pt);
-struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, uiBlock *block,
-                             struct PanelType *pt, struct Panel *pa, bool *r_open);
+struct Panel *UI_panel_find_by_type(struct ListBase *lb, struct PanelType *pt);
+struct Panel *UI_panel_begin(struct ScrArea *sa, struct ARegion *ar, struct ListBase *lb,
+                             uiBlock *block, struct PanelType *pt, struct Panel *pa,
+                             bool *r_open);
 void UI_panel_end(uiBlock *block, int width, int height);
 void UI_panels_scale(struct ARegion *ar, float new_width);
+void UI_panel_label_offset(struct uiBlock *block, int *x, int *y);
+int UI_panel_size_y(const struct Panel *pa);
 
 bool                       UI_panel_category_is_visible(struct ARegion *ar);
 void                       UI_panel_category_add(struct ARegion *ar, const char *name);
@@ -837,6 +858,8 @@ struct PanelCategoryDyn   *UI_panel_category_find_mouse_over_ex(struct ARegion *
 struct PanelCategoryDyn   *UI_panel_category_find_mouse_over(struct ARegion *ar, const struct wmEvent *event);
 void                       UI_panel_category_clear_all(struct ARegion *ar);
 void                       UI_panel_category_draw_all(struct ARegion *ar, const char *category_id_active);
+
+struct PanelType *UI_paneltype_find(int space_id, int region_id, const char *idname);
 
 /* Handlers
  *
@@ -855,7 +878,7 @@ void UI_popup_handlers_remove_all(struct bContext *C, struct ListBase *handlers)
  * be used to reinitialize some internal state if user preferences change. */
 
 void UI_init(void);
-void UI_init_userdef(void);
+void UI_init_userdef(struct Main *bmain);
 void UI_reinit_font(void);
 void UI_exit(void);
 
@@ -899,6 +922,7 @@ void UI_exit(void);
 #define UI_ITEM_O_DEPRESS       (1 << 9)
 #define UI_ITEM_R_COMPACT       (1 << 10)
 
+#define UI_HEADER_OFFSET ((void)0, 0.2f * UI_UNIT_X)
 
 /* uiLayoutOperatorButs flags */
 enum {
@@ -938,10 +962,10 @@ uiBlock *uiLayoutGetBlock(uiLayout *layout);
 void uiLayoutSetFunc(uiLayout *layout, uiMenuHandleFunc handlefunc, void *argv);
 void uiLayoutSetContextPointer(uiLayout *layout, const char *name, struct PointerRNA *ptr);
 void uiLayoutContextCopy(uiLayout *layout, struct bContextStore *context);
-const char *uiLayoutIntrospect(uiLayout *layout); // XXX - testing
 struct MenuType *UI_but_menutype_get(uiBut *but);
 struct PanelType *UI_but_paneltype_get(uiBut *but);
 void UI_menutype_draw(struct bContext *C, struct MenuType *mt, struct uiLayout *layout);
+void UI_paneltype_draw(struct bContext *C, struct PanelType *pt, struct uiLayout *layout);
 
 /* Only for convenience. */
 void uiLayoutSetContextFromBut(uiLayout *layout, uiBut *but);
@@ -955,6 +979,8 @@ void uiLayoutSetKeepAspect(uiLayout *layout, bool keepaspect);
 void uiLayoutSetScaleX(uiLayout *layout, float scale);
 void uiLayoutSetScaleY(uiLayout *layout, float scale);
 void uiLayoutSetEmboss(uiLayout *layout, char emboss);
+void uiLayoutSetPropSep(uiLayout *layout, bool is_sep);
+void uiLayoutSetPropDecorate(uiLayout *layout, bool is_sep);
 
 int uiLayoutGetOperatorContext(uiLayout *layout);
 bool uiLayoutGetActive(uiLayout *layout);
@@ -966,11 +992,15 @@ int uiLayoutGetWidth(uiLayout *layout);
 float uiLayoutGetScaleX(uiLayout *layout);
 float uiLayoutGetScaleY(uiLayout *layout);
 int uiLayoutGetEmboss(uiLayout *layout);
+bool uiLayoutGetPropSep(uiLayout *layout);
+bool uiLayoutGetPropDecorate(uiLayout *layout);
 
 /* layout specifiers */
 uiLayout *uiLayoutRow(uiLayout *layout, int align);
 uiLayout *uiLayoutColumn(uiLayout *layout, int align);
 uiLayout *uiLayoutColumnFlow(uiLayout *layout, int number, int align);
+uiLayout *uiLayoutGridFlow(
+        uiLayout *layout, int row_major, int num_columns, int even_columns, int even_rows, int align);
 uiLayout *uiLayoutBox(uiLayout *layout);
 uiLayout *uiLayoutListBox(uiLayout *layout, struct uiList *ui_list, struct PointerRNA *ptr, struct PropertyRNA *prop,
                           struct PointerRNA *actptr, struct PropertyRNA *actprop);
@@ -996,7 +1026,7 @@ void uiTemplateIDTabs(
         PointerRNA *ptr, const char *propname,
         const char *newop, const char *openop, const char *unlinkop,
         int filter);
-void uiTemplateAnyID(uiLayout *layout, struct PointerRNA *ptr, const char *propname, 
+void uiTemplateAnyID(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
                      const char *proptypename, const char *text);
 void uiTemplateSearch(
         uiLayout *layout, struct bContext *C,
@@ -1009,7 +1039,7 @@ void uiTemplateSearchPreview(
         struct PointerRNA *searchptr, const char *searchpropname,
         const char *newop, const char *unlinkop,
         const int rows, const int cols);
-void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char *propname, 
+void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char *propname,
                            struct PointerRNA *root_ptr, const char *text);
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
@@ -1019,6 +1049,7 @@ uiLayout *uiTemplateConstraint(uiLayout *layout, struct PointerRNA *ptr);
 void uiTemplatePreview(uiLayout *layout, struct bContext *C, struct ID *id, int show_buttons, struct ID *parent,
                        struct MTex *slot, const char *preview_id);
 void uiTemplateColorRamp(uiLayout *layout, struct PointerRNA *ptr, const char *propname, int expand);
+void uiTemplateIcon(uiLayout *layout, int icon_value, float icon_scale);
 void uiTemplateIconView(uiLayout *layout, struct PointerRNA *ptr, const char *propname, int show_labels, float icon_scale);
 void uiTemplateHistogram(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateWaveform(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
@@ -1047,6 +1078,7 @@ void uiTemplateHeader3D_mode(uiLayout *layout, struct bContext *C);
 void uiTemplateHeader3D(uiLayout *layout, struct bContext *C);
 void uiTemplateEditModeSelection(uiLayout *layout, struct bContext *C);
 void uiTemplateReportsBanner(uiLayout *layout, struct bContext *C);
+void uiTemplateInputStatus(uiLayout *layout, struct bContext *C);
 void uiTemplateKeymapItemProperties(uiLayout *layout, struct PointerRNA *ptr);
 void uiTemplateComponentMenu(uiLayout *layout, struct PointerRNA *ptr, const char *propname, const char *name);
 void uiTemplateNodeSocket(uiLayout *layout, struct bContext *C, float *color);
@@ -1114,9 +1146,10 @@ void uiItemsFullEnumO_items(
 
 void uiItemL(uiLayout *layout, const char *name, int icon); /* label */
 void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int icon); /* label icon for dragging */
-void uiItemM(uiLayout *layout, struct bContext *C, const char *menuname, const char *name, int icon); /* menu */
+void uiItemM(uiLayout *layout, const char *menuname, const char *name, int icon); /* menu */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
+void uiItemSpacer(uiLayout *layout); /* Special separator. */
 
 void uiItemPopoverPanel_ptr(
         uiLayout *layout, struct bContext *C,
@@ -1237,8 +1270,9 @@ void UI_widgetbase_draw_cache_flush(void);
 void UI_widgetbase_draw_cache_end(void);
 
 /* Special drawing for toolbar, mainly workarounds for inflexible icon sizing. */
-#define USE_TOOLBAR_HACK
+#define USE_UI_TOOLBAR_HACK
 
-bool UI_but_is_tool(const uiBut *but);
+/* Support click-drag motion which presses the button and closes a popover (like a menu). */
+#define USE_UI_POPOVER_ONCE
 
 #endif  /* __UI_INTERFACE_H__ */

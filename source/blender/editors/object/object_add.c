@@ -71,7 +71,6 @@
 #include "BKE_displist.h"
 #include "BKE_effect.h"
 #include "BKE_font.h"
-#include "BKE_group.h"
 #include "BKE_lamp.h"
 #include "BKE_lattice.h"
 #include "BKE_layer.h"
@@ -83,6 +82,7 @@
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_nla.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
@@ -306,7 +306,7 @@ void ED_object_add_generic_props(wmOperatorType *ot, bool do_editmode)
 
 void ED_object_add_mesh_props(wmOperatorType *ot)
 {
-	RNA_def_boolean(ot->srna, "calc_uvs", false, "Generate UVs", "Generate a default UV map");
+	RNA_def_boolean(ot->srna, "calc_uvs", true, "Generate UVs", "Generate a default UV map");
 }
 
 bool ED_object_add_generic_get_opts(bContext *C, wmOperator *op, const char view_align_axis,
@@ -424,8 +424,9 @@ Object *ED_object_add_type(
 	Object *ob;
 
 	/* for as long scene has editmode... */
-	if (CTX_data_edit_object(C)) 
-		ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR | EM_DO_UNDO);  /* freedata, and undo */
+	if (CTX_data_edit_object(C)) {
+		ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);
+	}
 
 	/* deselects all, sets scene->basact */
 	ob = BKE_object_add(bmain, scene, view_layer, type, name);
@@ -930,6 +931,7 @@ static int empty_drop_named_image_invoke(bContext *C, wmOperator *op, const wmEv
 	/* if empty under cursor, then set object */
 	if (base && base->object->type == OB_EMPTY) {
 		ob = base->object;
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else {
@@ -944,7 +946,7 @@ static int empty_drop_named_image_invoke(bContext *C, wmOperator *op, const wmEv
 
 		/* add under the mouse */
 		ED_object_location_from_view(C, ob->loc);
-		ED_view3d_cursor3d_position(C, ob->loc, event->mval);
+		ED_view3d_cursor3d_position(C, event->mval, false, ob->loc);
 	}
 
 	BKE_object_empty_draw_type_set(ob, OB_EMPTY_IMAGE);
@@ -1011,7 +1013,21 @@ static int object_lamp_add_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	ob = ED_object_add_type(C, OB_LAMP, get_lamp_defname(type), loc, rot, false, layer);
-	BKE_object_obdata_size_init(ob, RNA_float_get(op->ptr, "radius"));
+
+	float size = RNA_float_get(op->ptr, "radius");
+	/* Better defaults for lamp size. */
+	switch (type) {
+		case LA_LOCAL:
+		case LA_SPOT:
+			break;
+		case LA_AREA:
+			size *= 4.0f;
+			break;
+		default:
+			size *= 0.5f;
+			break;
+	}
+	BKE_object_obdata_size_init(ob, size);
 
 	la = (Lamp *)ob->data;
 	la->type = type;
@@ -1047,48 +1063,55 @@ void OBJECT_OT_lamp_add(wmOperatorType *ot)
 	ED_object_add_generic_props(ot, false);
 }
 
-/********************* Add Group Instance Operator ********************/
+/********************* Add Collection Instance Operator ********************/
 
-static int group_instance_add_exec(bContext *C, wmOperator *op)
+static int collection_instance_add_exec(bContext *C, wmOperator *op)
 {
-	Group *group;
+	Main *bmain = CTX_data_main(C);
+	Collection *collection;
 	unsigned int layer;
 	float loc[3], rot[3];
-	
+
 	if (RNA_struct_property_is_set(op->ptr, "name")) {
 		char name[MAX_ID_NAME - 2];
-		
+
 		RNA_string_get(op->ptr, "name", name);
-		group = (Group *)BKE_libblock_find_name(ID_GR, name);
-		
+		collection = (Collection *)BKE_libblock_find_name(bmain, ID_GR, name);
+
 		if (0 == RNA_struct_property_is_set(op->ptr, "location")) {
 			const wmEvent *event = CTX_wm_window(C)->eventstate;
 			ARegion *ar = CTX_wm_region(C);
 			const int mval[2] = {event->x - ar->winrct.xmin,
 			                     event->y - ar->winrct.ymin};
 			ED_object_location_from_view(C, loc);
-			ED_view3d_cursor3d_position(C, loc, mval);
+			ED_view3d_cursor3d_position(C, mval, false, loc);
 			RNA_float_set_array(op->ptr, "location", loc);
 		}
 	}
 	else
-		group = BLI_findlink(&CTX_data_main(C)->group, RNA_enum_get(op->ptr, "group"));
+		collection = BLI_findlink(&CTX_data_main(C)->collection, RNA_enum_get(op->ptr, "collection"));
 
 	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, NULL, &layer, NULL))
 		return OPERATOR_CANCELLED;
 
-	if (group) {
-		Main *bmain = CTX_data_main(C);
+	if (collection) {
 		Scene *scene = CTX_data_scene(C);
-		Object *ob = ED_object_add_type(C, OB_EMPTY, group->id.name + 2, loc, rot, false, layer);
-		ob->dup_group = group;
-		ob->transflag |= OB_DUPLIGROUP;
-		id_us_plus(&group->id);
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+
+		/* Avoid dependency cycles. */
+		LayerCollection *active_lc = BKE_layer_collection_get_active(view_layer);
+		while (BKE_collection_find_cycle(active_lc->collection, collection)) {
+			active_lc = BKE_layer_collection_activate_parent(view_layer, active_lc);
+		}
+
+		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, loc, rot, false, layer);
+		ob->dup_group = collection;
+		ob->transflag |= OB_DUPLICOLLECTION;
+		id_us_plus(&collection->id);
 
 		/* works without this except if you try render right after, see: 22027 */
 		DEG_relations_tag_update(bmain);
-		DEG_id_tag_update(&group->id, 0);
-
+		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
 		return OPERATOR_FINISHED;
@@ -1098,27 +1121,27 @@ static int group_instance_add_exec(bContext *C, wmOperator *op)
 }
 
 /* only used as menu */
-void OBJECT_OT_group_instance_add(wmOperatorType *ot)
+void OBJECT_OT_collection_instance_add(wmOperatorType *ot)
 {
 	PropertyRNA *prop;
 
 	/* identifiers */
-	ot->name = "Add Group Instance";
-	ot->description = "Add a dupligroup instance";
-	ot->idname = "OBJECT_OT_group_instance_add";
+	ot->name = "Add Collection Instance";
+	ot->description = "Add a collection instance";
+	ot->idname = "OBJECT_OT_collection_instance_add";
 
 	/* api callbacks */
 	ot->invoke = WM_enum_search_invoke;
-	ot->exec = group_instance_add_exec;
+	ot->exec = collection_instance_add_exec;
 	ot->poll = ED_operator_objectmode;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	RNA_def_string(ot->srna, "name", "Group", MAX_ID_NAME - 2, "Name", "Group name to add");
-	prop = RNA_def_enum(ot->srna, "group", DummyRNA_NULL_items, 0, "Group", "");
-	RNA_def_enum_funcs(prop, RNA_group_itemf);
+	RNA_def_string(ot->srna, "name", "Collection", MAX_ID_NAME - 2, "Name", "Collection name to add");
+	prop = RNA_def_enum(ot->srna, "collection", DummyRNA_NULL_items, 0, "Collection", "");
+	RNA_def_enum_funcs(prop, RNA_collection_itemf);
 	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
 	ot->prop = prop;
 	ED_object_add_generic_props(ot, false);
@@ -1196,7 +1219,7 @@ void ED_object_base_free_and_unlink(Main *bmain, Scene *scene, Object *ob)
 
 	DEG_id_tag_update_ex(bmain, &ob->id, DEG_TAG_BASE_FLAGS_UPDATE);
 
-	BKE_collections_object_remove(bmain, &scene->id, ob, true);
+	BKE_scene_collections_object_remove(bmain, scene, ob, true);
 }
 
 static int object_delete_exec(bContext *C, wmOperator *op)
@@ -1208,7 +1231,7 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 	const bool use_global = RNA_boolean_get(op->ptr, "use_global");
 	bool changed = false;
 
-	if (CTX_data_edit_object(C)) 
+	if (CTX_data_edit_object(C))
 		return OPERATOR_CANCELLED;
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_objects)
@@ -1282,9 +1305,10 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 
 		if (scene->id.tag & LIB_TAG_DOIT) {
 			scene->id.tag &= ~LIB_TAG_DOIT;
-			
+
 			DEG_relations_tag_update(bmain);
 
+			DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 			WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, scene);
 		}
@@ -1330,7 +1354,7 @@ static void copy_object_set_idnew(bContext *C)
 /********************* Make Duplicates Real ************************/
 
 /**
- * \note regarding hashing dupli-objects when using OB_DUPLIGROUP, skip the first member of #DupliObject.persistent_id
+ * \note regarding hashing dupli-objects when using OB_DUPLICOLLECTION, skip the first member of #DupliObject.persistent_id
  * since its a unique index and we only want to know if the group objects are from the same dupli-group instance.
  */
 static unsigned int dupliobject_group_hash(const void *ptr)
@@ -1345,7 +1369,7 @@ static unsigned int dupliobject_group_hash(const void *ptr)
 }
 
 /**
- * \note regarding hashing dupli-objects when NOT using OB_DUPLIGROUP, include the first member of #DupliObject.persistent_id
+ * \note regarding hashing dupli-objects when NOT using OB_DUPLICOLLECTION, include the first member of #DupliObject.persistent_id
  * since its the index of the vertex/face the object is instantiated on and we want to identify objects on the same vertex/face.
  */
 static unsigned int dupliobject_hash(const void *ptr)
@@ -1417,7 +1441,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 
 	dupli_gh = BLI_ghash_ptr_new(__func__);
 	if (use_hierarchy) {
-		if (base->object->transflag & OB_DUPLIGROUP) {
+		if (base->object->transflag & OB_DUPLICOLLECTION) {
 			parent_gh = BLI_ghash_new(dupliobject_group_hash, dupliobject_group_cmp, __func__);
 		}
 		else {
@@ -1437,7 +1461,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 			ob_dst->totcol = 0;
 		}
 
-		BKE_collection_object_add_from(scene, base->object, ob_dst);
+		BKE_collection_object_add_from(bmain, scene, base->object, ob_dst);
 		base_dst = BKE_view_layer_base_find(view_layer, ob_dst);
 		BLI_assert(base_dst != NULL);
 
@@ -1491,7 +1515,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 				 * they won't be read, this is simply for a hash lookup. */
 				DupliObject dob_key;
 				dob_key.ob = ob_src_par;
-				if (base->object->transflag & OB_DUPLIGROUP) {
+				if (base->object->transflag & OB_DUPLICOLLECTION) {
 					memcpy(&dob_key.persistent_id[1],
 					       &dob->persistent_id[1],
 					       sizeof(dob->persistent_id[1]) * (MAX_DUPLI_RECUR - 1));
@@ -1536,7 +1560,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 		}
 	}
 
-	if (base->object->transflag & OB_DUPLIGROUP && base->object->dup_group) {
+	if (base->object->transflag & OB_DUPLICOLLECTION && base->object->dup_group) {
 		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 			if (ob->proxy_group == base->object) {
 				ob->proxy = NULL;
@@ -1626,10 +1650,10 @@ static void convert_ensure_curve_cache(Depsgraph *depsgraph, Scene *scene, Objec
 	}
 }
 
-static void curvetomesh(Depsgraph *depsgraph, Scene *scene, Object *ob)
+static void curvetomesh(Main *bmain, Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
 	convert_ensure_curve_cache(depsgraph, scene, ob);
-	BKE_mesh_from_nurbs(ob); /* also does users */
+	BKE_mesh_from_nurbs(bmain, ob); /* also does users */
 
 	if (ob->type == OB_MESH) {
 		BKE_object_free_modifiers(ob, 0);
@@ -1658,7 +1682,7 @@ static Base *duplibase_for_convert(Main *bmain, Scene *scene, ViewLayer *view_la
 
 	obn = BKE_object_copy(bmain, ob);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
-	BKE_collection_object_add_from(scene, ob, obn);
+	BKE_collection_object_add_from(bmain, scene, ob, obn);
 
 	basen = BKE_view_layer_base_find(view_layer, obn);
 	ED_object_base_select(basen, BA_SELECT);
@@ -1776,7 +1800,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 				newob = ob;
 			}
 
-			BKE_mesh_to_curve(depsgraph, scene, newob);
+			BKE_mesh_to_curve(bmain, depsgraph, scene, newob);
 
 			if (newob->type == OB_CURVE) {
 				BKE_object_free_modifiers(newob, 0);   /* after derivedmesh calls! */
@@ -1837,7 +1861,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			 *               datablock, but for until we've got granular update
 			 *               lets take care by selves.
 			 */
-			BKE_vfont_to_curve(bmain, newob, FO_EDIT);
+			BKE_vfont_to_curve(newob, FO_EDIT);
 
 			newob->type = OB_CURVE;
 			cu->type = OB_CURVE;
@@ -1878,7 +1902,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			BKE_curve_curve_dimension_update(cu);
 
 			if (target == OB_MESH) {
-				curvetomesh(depsgraph, scene, newob);
+				curvetomesh(bmain, depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -1902,7 +1926,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 					newob = ob;
 				}
 
-				curvetomesh(depsgraph, scene, newob);
+				curvetomesh(bmain, depsgraph, scene, newob);
 
 				/* meshes doesn't use displist */
 				BKE_object_free_curve_cache(newob);
@@ -1990,9 +2014,6 @@ static int convert_exec(bContext *C, wmOperator *op)
 			}
 			FOREACH_SCENE_OBJECT_END;
 		}
-
-		/* delete object should renew depsgraph */
-		DEG_relations_tag_update(bmain);
 	}
 
 // XXX	ED_object_editmode_enter(C, 0);
@@ -2009,6 +2030,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	}
 
 	DEG_relations_tag_update(bmain);
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
@@ -2038,7 +2060,7 @@ void OBJECT_OT_convert(wmOperatorType *ot)
 
 /**************************** Duplicate ************************/
 
-/* 
+/*
  * dupflag: a flag made from constants declared in DNA_userdef_types.h
  * The flag tells adduplicate() whether to copy data linked to the object, or to reference the existing data.
  * U.dupflag for default operations or you can construct a flag as python does
@@ -2063,33 +2085,33 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 	}
 	else {
 		obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
-		DEG_id_tag_update(&obn->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+		DEG_id_tag_update(&obn->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 		base = BKE_view_layer_base_find(view_layer, ob);
-		if ((base != NULL) && (base->flag & BASE_VISIBLED)) {
-			BKE_collection_object_add_from(scene, ob, obn);
+		if ((base != NULL) && (base->flag & BASE_VISIBLE)) {
+			BKE_collection_object_add_from(bmain, scene, ob, obn);
 		}
 		else {
-			LayerCollection *layer_collection = BKE_layer_collection_get_active_ensure(scene, view_layer);
-			BKE_collection_object_add(&scene->id, layer_collection->scene_collection, obn);
+			LayerCollection *layer_collection = BKE_layer_collection_get_active(view_layer);
+			BKE_collection_object_add(bmain, layer_collection->collection, obn);
 		}
 		basen = BKE_view_layer_base_find(view_layer, obn);
 
-		/* 1) duplis should end up in same group as the original
-		 * 2) Rigid Body sim participants MUST always be part of a group...
+		/* 1) duplis should end up in same collection as the original
+		 * 2) Rigid Body sim participants MUST always be part of a collection...
 		 */
 		// XXX: is 2) really a good measure here?
-		if ((ob->flag & OB_FROMGROUP) != 0 || ob->rigidbody_object || ob->rigidbody_constraint) {
-			Group *group;
-			for (group = bmain->group.first; group; group = group->id.next) {
-				if (BKE_group_object_exists(group, ob))
-					BKE_group_object_add(group, obn);
+		if (ob->rigidbody_object || ob->rigidbody_constraint) {
+			Collection *collection;
+			for (collection = bmain->collection.first; collection; collection = collection->id.next) {
+				if (BKE_collection_has_object(collection, ob))
+					BKE_collection_object_add(bmain, collection, obn);
 			}
 		}
 
 		/* duplicates using userflags */
 		if (dupflag & USER_DUP_ACT) {
-			BKE_animdata_copy_id_action(&obn->id, true);
+			BKE_animdata_copy_id_action(bmain, &obn->id, true);
 		}
 
 		if (dupflag & USER_DUP_MAT) {
@@ -2103,7 +2125,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					id_us_min(id);
 
 					if (dupflag & USER_DUP_ACT) {
-						BKE_animdata_copy_id_action(&obn->mat[a]->id, true);
+						BKE_animdata_copy_id_action(bmain, &obn->mat[a]->id, true);
 					}
 				}
 			}
@@ -2119,7 +2141,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					}
 
 					if (dupflag & USER_DUP_ACT) {
-						BKE_animdata_copy_id_action(&psys->part->id, true);
+						BKE_animdata_copy_id_action(bmain, &psys->part->id, true);
 					}
 
 					id_us_min(id);
@@ -2247,9 +2269,9 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 			}
 
 			if (dupflag & USER_DUP_ACT) {
-				BKE_animdata_copy_id_action((ID *)obn->data, true);
+				BKE_animdata_copy_id_action(bmain, (ID *)obn->data, true);
 				if (key) {
-					BKE_animdata_copy_id_action((ID *)key, true);
+					BKE_animdata_copy_id_action(bmain, (ID *)key, true);
 				}
 			}
 
@@ -2344,8 +2366,7 @@ static int duplicate_exec(bContext *C, wmOperator *op)
 	BKE_main_id_clear_newpoins(bmain);
 
 	DEG_relations_tag_update(bmain);
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(&CTX_data_scene(C)->id, 0);
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_SELECT_UPDATE);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
@@ -2391,7 +2412,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 
 	/* find object, create fake base */
 	RNA_string_get(op->ptr, "name", name);
-	ob = (Object *)BKE_libblock_find_name(ID_OB, name);
+	ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, name);
 
 	if (ob == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "Object not found");
@@ -2414,9 +2435,9 @@ static int add_named_exec(bContext *C, wmOperator *op)
 		const int mval[2] = {event->x - ar->winrct.xmin,
 		                     event->y - ar->winrct.ymin};
 		ED_object_location_from_view(C, basen->object->loc);
-		ED_view3d_cursor3d_position(C, basen->object->loc, mval);
+		ED_view3d_cursor3d_position(C, mval, false, basen->object->loc);
 	}
-	
+
 	ED_object_base_select(basen, BA_SELECT);
 	ED_object_base_activate(C, basen);
 
@@ -2427,6 +2448,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 	/* TODO(sergey): Only update relations for the current scene. */
 	DEG_relations_tag_update(bmain);
 
+	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 

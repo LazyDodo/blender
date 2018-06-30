@@ -19,8 +19,15 @@
 # <pep8 compliant>
 
 import bpy
-from bpy.types import Menu, Operator
+from bpy.types import Menu, Operator, Panel, WindowManager
 from bpy.props import StringProperty, BoolProperty
+
+# For preset popover menu
+WindowManager.preset_name = StringProperty(
+    name="Preset Name",
+    description="Name for new preset",
+    default="New Preset"
+)
 
 
 class AddPresetBase:
@@ -35,21 +42,26 @@ class AddPresetBase:
     bl_options = {'REGISTER', 'INTERNAL'}
 
     name = StringProperty(
-            name="Name",
-            description="Name of the preset, used to make the path name",
-            maxlen=64,
-            options={'SKIP_SAVE'},
-            )
+        name="Name",
+        description="Name of the preset, used to make the path name",
+        maxlen=64,
+        options={'SKIP_SAVE'},
+    )
+    remove_name = BoolProperty(
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
     remove_active = BoolProperty(
-            default=False,
-            options={'HIDDEN', 'SKIP_SAVE'},
-            )
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
 
     # needed for mix-ins
     order = [
         "name",
+        "remove_name",
         "remove_active",
-        ]
+    ]
 
     @staticmethod
     def as_filename(name):  # could reuse for other presets
@@ -85,10 +97,16 @@ class AddPresetBase:
         else:
             ext = ".py"
 
-        if not self.remove_active:
-            name = self.name.strip()
+        name = self.name.strip()
+        if not (self.remove_name or self.remove_active):
+
             if not name:
                 return {'FINISHED'}
+
+            # Reset preset name
+            wm = bpy.data.window_managers[0]
+            if name == wm.preset_name:
+                wm.preset_name = 'New Preset'
 
             filename = self.as_filename(name)
 
@@ -155,15 +173,16 @@ class AddPresetBase:
             preset_menu_class.bl_label = bpy.path.display_name(filename)
 
         else:
-            preset_active = preset_menu_class.bl_label
+            if self.remove_active:
+                name = preset_menu_class.bl_label
 
             # fairly sloppy but convenient.
-            filepath = bpy.utils.preset_find(preset_active,
+            filepath = bpy.utils.preset_find(name,
                                              self.preset_subdir,
                                              ext=ext)
 
             if not filepath:
-                filepath = bpy.utils.preset_find(preset_active,
+                filepath = bpy.utils.preset_find(name,
                                                  self.preset_subdir,
                                                  display_name=True,
                                                  ext=ext)
@@ -194,7 +213,7 @@ class AddPresetBase:
         self.name = self.as_filename(self.name.strip())
 
     def invoke(self, context, event):
-        if not self.remove_active:
+        if not (self.remove_active or self.remove_name):
             wm = context.window_manager
             return wm.invoke_props_dialog(self)
         else:
@@ -207,14 +226,14 @@ class ExecutePreset(Operator):
     bl_label = "Execute a Python Preset"
 
     filepath = StringProperty(
-            subtype='FILE_PATH',
-            options={'SKIP_SAVE'},
-            )
+        subtype='FILE_PATH',
+        options={'SKIP_SAVE'},
+    )
     menu_idname = StringProperty(
-            name="Menu ID Name",
-            description="ID name of the menu this was called from",
-            options={'SKIP_SAVE'},
-            )
+        name="Menu ID Name",
+        description="ID name of the menu this was called from",
+        options={'SKIP_SAVE'},
+    )
 
     def execute(self, context):
         from os.path import basename, splitext
@@ -241,11 +260,49 @@ class ExecutePreset(Operator):
         return {'FINISHED'}
 
 
+class PresetMenu(Panel):
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'HEADER'
+    bl_label = "Presets"
+    path_menu = Menu.path_menu
+
+    @classmethod
+    def draw_panel_header(cls, layout):
+        layout.emboss = 'NONE'
+        layout.popover(
+            cls.bl_space_type,
+            cls.bl_region_type,
+            cls.__name__,
+            icon='PRESET',
+            text="",
+        )
+
+    @classmethod
+    def draw_menu(cls, layout, text=None):
+        if text is None:
+            text = cls.bl_label
+
+        layout.popover(
+            cls.bl_space_type,
+            cls.bl_region_type,
+            cls.__name__,
+            icon='PRESET',
+            text=text,
+        )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.emboss = 'PULLDOWN_MENU'
+        layout.operator_context = 'EXEC_DEFAULT'
+
+        Menu.draw_preset(self, context)
+
+
 class AddPresetRender(AddPresetBase, Operator):
     """Add or remove a Render Preset"""
     bl_idname = "render.preset_add"
     bl_label = "Add Render Preset"
-    preset_menu = "RENDER_MT_presets"
+    preset_menu = "RENDER_PT_presets"
 
     preset_defines = [
         "scene = bpy.context.scene"
@@ -268,7 +325,7 @@ class AddPresetCamera(AddPresetBase, Operator):
     """Add or remove a Camera Preset"""
     bl_idname = "camera.preset_add"
     bl_label = "Add Camera Preset"
-    preset_menu = "CAMERA_MT_presets"
+    preset_menu = "CAMERA_PT_presets"
 
     preset_defines = [
         "cam = bpy.context.camera"
@@ -277,10 +334,10 @@ class AddPresetCamera(AddPresetBase, Operator):
     preset_subdir = "camera"
 
     use_focal_length = BoolProperty(
-            name="Include Focal Length",
-            description="Include focal length into the preset",
-            options={'SKIP_SAVE'},
-            )
+        name="Include Focal Length",
+        description="Include focal length into the preset",
+        options={'SKIP_SAVE'},
+    )
 
     @property
     def preset_values(self):
@@ -299,7 +356,7 @@ class AddPresetSafeAreas(AddPresetBase, Operator):
     """Add or remove a Safe Areas Preset"""
     bl_idname = "safe_areas.preset_add"
     bl_label = "Add Safe Area Preset"
-    preset_menu = "SAFE_AREAS_MT_presets"
+    preset_menu = "SAFE_AREAS_PT_presets"
 
     preset_defines = [
         "safe_areas = bpy.context.scene.safe_areas"
@@ -319,7 +376,7 @@ class AddPresetCloth(AddPresetBase, Operator):
     """Add or remove a Cloth Preset"""
     bl_idname = "cloth.preset_add"
     bl_label = "Add Cloth Preset"
-    preset_menu = "CLOTH_MT_presets"
+    preset_menu = "CLOTH_PT_presets"
 
     preset_defines = [
         "cloth = bpy.context.cloth"
@@ -341,16 +398,16 @@ class AddPresetFluid(AddPresetBase, Operator):
     """Add or remove a Fluid Preset"""
     bl_idname = "fluid.preset_add"
     bl_label = "Add Fluid Preset"
-    preset_menu = "FLUID_MT_presets"
+    preset_menu = "FLUID_PT_presets"
 
     preset_defines = [
         "fluid = bpy.context.fluid"
-        ]
+    ]
 
     preset_values = [
         "fluid.settings.viscosity_base",
         "fluid.settings.viscosity_exponent",
-        ]
+    ]
 
     preset_subdir = "fluid"
 
@@ -359,7 +416,7 @@ class AddPresetHairDynamics(AddPresetBase, Operator):
     """Add or remove a Hair Dynamics Preset"""
     bl_idname = "particle.hair_dynamics_preset_add"
     bl_label = "Add Hair Dynamics Preset"
-    preset_menu = "PARTICLE_MT_hair_dynamics_presets"
+    preset_menu = "PARTICLE_PT_hair_dynamics_presets"
 
     preset_defines = [
         "psys = bpy.context.particle_system",
@@ -382,36 +439,7 @@ class AddPresetHairDynamics(AddPresetBase, Operator):
         "settings.density_strength",
         "settings.voxel_cell_size",
         "settings.pin_stiffness",
-        ]
-
-
-class AddPresetSunSky(AddPresetBase, Operator):
-    """Add or remove a Sky & Atmosphere Preset"""
-    bl_idname = "lamp.sunsky_preset_add"
-    bl_label = "Add Sunsky Preset"
-    preset_menu = "LAMP_MT_sunsky_presets"
-
-    preset_defines = [
-        "sky = bpy.context.lamp.sky"
     ]
-
-    preset_values = [
-        "sky.atmosphere_extinction",
-        "sky.atmosphere_inscattering",
-        "sky.atmosphere_turbidity",
-        "sky.backscattered_light",
-        "sky.horizon_brightness",
-        "sky.spread",
-        "sky.sun_brightness",
-        "sky.sun_intensity",
-        "sky.sun_size",
-        "sky.sky_blend",
-        "sky.sky_blend_type",
-        "sky.sky_color_space",
-        "sky.sky_exposure",
-    ]
-
-    preset_subdir = "sunsky"
 
 
 class AddPresetInteraction(AddPresetBase, Operator):
@@ -444,7 +472,7 @@ class AddPresetTrackingCamera(AddPresetBase, Operator):
     """Add or remove a Tracking Camera Intrinsics Preset"""
     bl_idname = "clip.camera_preset_add"
     bl_label = "Add Camera Preset"
-    preset_menu = "CLIP_MT_camera_presets"
+    preset_menu = "CLIP_PT_camera_presets"
 
     preset_defines = [
         "camera = bpy.context.edit_movieclip.tracking.camera"
@@ -453,11 +481,11 @@ class AddPresetTrackingCamera(AddPresetBase, Operator):
     preset_subdir = "tracking_camera"
 
     use_focal_length = BoolProperty(
-            name="Include Focal Length",
-            description="Include focal length into the preset",
-            options={'SKIP_SAVE'},
-            default=True
-            )
+        name="Include Focal Length",
+        description="Include focal length into the preset",
+        options={'SKIP_SAVE'},
+        default=True
+    )
 
     @property
     def preset_values(self):
@@ -478,7 +506,7 @@ class AddPresetTrackingTrackColor(AddPresetBase, Operator):
     """Add or remove a Clip Track Color Preset"""
     bl_idname = "clip.track_color_preset_add"
     bl_label = "Add Track Color Preset"
-    preset_menu = "CLIP_MT_track_color_presets"
+    preset_menu = "CLIP_PT_track_color_presets"
 
     preset_defines = [
         "track = bpy.context.edit_movieclip.tracking.tracks.active"
@@ -496,7 +524,7 @@ class AddPresetTrackingSettings(AddPresetBase, Operator):
     """Add or remove a motion tracking settings preset"""
     bl_idname = "clip.tracking_settings_preset_add"
     bl_label = "Add Tracking Settings Preset"
-    preset_menu = "CLIP_MT_tracking_settings_presets"
+    preset_menu = "CLIP_PT_tracking_settings_presets"
 
     preset_defines = [
         "settings = bpy.context.edit_movieclip.tracking.settings"
@@ -526,7 +554,7 @@ class AddPresetNodeColor(AddPresetBase, Operator):
     """Add or remove a Node Color Preset"""
     bl_idname = "node.node_color_preset_add"
     bl_label = "Add Node Color Preset"
-    preset_menu = "NODE_MT_node_color_presets"
+    preset_menu = "NODE_PT_node_color_presets"
 
     preset_defines = [
         "node = bpy.context.active_node"
@@ -578,10 +606,10 @@ class AddPresetOperator(AddPresetBase, Operator):
     preset_menu = "WM_MT_operator_presets"
 
     operator = StringProperty(
-            name="Operator",
-            maxlen=64,
-            options={'HIDDEN', 'SKIP_SAVE'},
-            )
+        name="Operator",
+        maxlen=64,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
 
     preset_defines = [
         "op = bpy.context.active_operator",
@@ -639,7 +667,7 @@ class AddPresetUnitsLength(AddPresetBase, Operator):
     """Add or remove length units preset"""
     bl_idname = "scene.units_length_preset_add"
     bl_label = "Add Length Units Preset"
-    preset_menu = "SCENE_MT_units_length_presets"
+    preset_menu = "SCENE_PT_units_length_presets"
 
     preset_defines = [
         "scene = bpy.context.scene"
@@ -665,7 +693,6 @@ classes = (
     AddPresetOperator,
     AddPresetRender,
     AddPresetSafeAreas,
-    AddPresetSunSky,
     AddPresetTrackingCamera,
     AddPresetTrackingSettings,
     AddPresetTrackingTrackColor,

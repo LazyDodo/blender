@@ -116,7 +116,7 @@ static void external_cache_init(void *vedata)
 
 	/* Depth Pass */
 	{
-		psl->depth_pass = DRW_pass_create("Depth Pass", DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		psl->depth_pass = DRW_pass_create("Depth Pass", DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 		stl->g_data->depth_shgrp = DRW_shgroup_create(e_data.depth_sh, psl->depth_pass);
 	}
 }
@@ -147,13 +147,13 @@ static void external_draw_scene_do(void *vedata)
 	ARegion *ar = draw_ctx->ar;
 	RenderEngineType *type;
 
-	DRW_state_reset_ex(DRW_STATE_DEFAULT & ~DRW_STATE_DEPTH_LESS);
+	DRW_state_reset_ex(DRW_STATE_DEFAULT & ~DRW_STATE_DEPTH_LESS_EQUAL);
 
 	/* Create render engine. */
 	if (!rv3d->render_engine) {
 		RenderEngineType *engine_type = draw_ctx->engine_type;
 
-		if (!(engine_type->view_update && engine_type->render_to_view)) {
+		if (!(engine_type->view_update && engine_type->view_draw)) {
 			return;
 		}
 
@@ -170,7 +170,7 @@ static void external_draw_scene_do(void *vedata)
 
 	/* Render result draw. */
 	type = rv3d->render_engine->type;
-	type->render_to_view(rv3d->render_engine, draw_ctx->evil_C);
+	type->view_draw(rv3d->render_engine, draw_ctx->evil_C);
 
 	gpuPopProjectionMatrix();
 
@@ -226,7 +226,7 @@ DrawEngineType draw_engine_external_type = {
 RenderEngineType DRW_engine_viewport_external_type = {
 	NULL, NULL,
 	EXTERNAL_ENGINE, N_("External"), RE_INTERNAL,
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	&draw_engine_external_type,
 	{NULL, NULL, NULL}
 };

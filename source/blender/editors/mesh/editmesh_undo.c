@@ -27,6 +27,7 @@
 #include "CLG_log.h"
 
 #include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_key_types.h"
 #include "DNA_layer_types.h"
@@ -35,7 +36,6 @@
 #include "BLI_array_utils.h"
 #include "BLI_alloca.h"
 
-#include "BKE_DerivedMesh.h"
 #include "BKE_context.h"
 #include "BKE_key.h"
 #include "BKE_layer.h"
@@ -511,8 +511,8 @@ static void *undomesh_from_editmesh(UndoMesh *um, BMEditMesh *em, Key *key)
 	/* BM_mesh_validate(em->bm); */ /* for troubleshooting */
 
 	BM_mesh_bm_to_me(
-	        em->bm, &um->me, (&(struct BMeshToMeshParams){
-	            /* Undo code should not be manipulating 'G.main->object' hooks/vertex-parent. */
+	        NULL, em->bm, &um->me, (&(struct BMeshToMeshParams){
+	            /* Undo code should not be manipulating 'G_MAIN->object' hooks/vertex-parent. */
 	            .calc_object_remap = false,
 	            .cd_mask_extra = CD_MASK_SHAPE_KEYINDEX,
 	        }));

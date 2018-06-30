@@ -351,7 +351,8 @@ void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode)
 		case HLP_NONE:
 			/* INPUT_VECTOR, INPUT_CUSTOM_RATIO, INPUT_CUSTOM_RATIO_FLIP */
 			if (t->flag & T_MODAL) {
-				WM_cursor_set(win, BC_NSEW_SCROLLCURSOR);
+				t->flag |= T_MODAL_CURSOR_SET;
+				WM_cursor_modal_set(win, BC_NSEW_SCROLLCURSOR);
 			}
 			break;
 		case HLP_SPRING:
@@ -360,7 +361,8 @@ void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode)
 		case HLP_HARROW:
 		case HLP_VARROW:
 			if (t->flag & T_MODAL) {
-				WM_cursor_set(win, CURSOR_NONE);
+				t->flag |= T_MODAL_CURSOR_SET;
+				WM_cursor_modal_set(win, CURSOR_NONE);
 			}
 			break;
 		default:
@@ -373,8 +375,11 @@ void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode)
 		MEM_freeN(mi_data_prev);
 	}
 
-	/* bootstrap mouse input with initial values */
-	applyMouseInput(t, mi, mi->imval, t->values);
+	/* Don't write into the values when non-modal because they are already set from operator redo values. */
+	if (t->flag & T_MODAL) {
+		/* bootstrap mouse input with initial values */
+		applyMouseInput(t, mi, mi->imval, t->values);
+	}
 }
 
 void setInputPostFct(MouseInput *mi, void (*post)(struct TransInfo *t, float values[3]))

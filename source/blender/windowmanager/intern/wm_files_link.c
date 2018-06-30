@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -115,7 +115,7 @@ static int wm_link_append_invoke(bContext *C, wmOperator *op, const wmEvent *UNU
 		}
 		else if (G.relbase_valid) {
 			char path[FILE_MAX];
-			BLI_strncpy(path, G.main->name, sizeof(G.main->name));
+			BLI_strncpy(path, BKE_main_blendfile_path_from_global(), sizeof(path));
 			BLI_parent_dir(path);
 			RNA_string_set(op->ptr, "filepath", path);
 		}
@@ -137,7 +137,7 @@ static short wm_link_append_flag(wmOperator *op)
 		flag |= FILE_RELPATH;
 	if (RNA_boolean_get(op->ptr, "link"))
 		flag |= FILE_LINK;
-	if (RNA_boolean_get(op->ptr, "instance_groups"))
+	if (RNA_boolean_get(op->ptr, "instance_collections"))
 		flag |= FILE_GROUP_INSTANCE;
 
 	return flag;
@@ -259,7 +259,7 @@ static void wm_link_do(
 				continue;
 			}
 
-			new_id = BLO_library_link_named_part_ex(mainl, &bh, item->idcode, item->name, flag, scene, view_layer);
+			new_id = BLO_library_link_named_part_ex(mainl, &bh, item->idcode, item->name, flag, bmain, scene, view_layer);
 
 			if (new_id) {
 				/* If the link is successful, clear item's libs 'todo' flags.
@@ -269,7 +269,7 @@ static void wm_link_do(
 			}
 		}
 
-		BLO_library_link_end(mainl, &bh, flag, scene, view_layer);
+		BLO_library_link_end(mainl, &bh, flag, bmain, scene, view_layer);
 		BLO_blendhandle_close(bh);
 	}
 }
@@ -333,7 +333,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		BKE_reportf(op->reports, RPT_ERROR, "'%s': nothing indicated", path);
 		return OPERATOR_CANCELLED;
 	}
-	else if (BLI_path_cmp(bmain->name, libname) == 0) {
+	else if (BLI_path_cmp(BKE_main_blendfile_path(bmain), libname) == 0) {
 		BKE_reportf(op->reports, RPT_ERROR, "'%s': cannot use current file as library", path);
 		return OPERATOR_CANCELLED;
 	}
@@ -372,7 +372,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	if (view_layer && RNA_boolean_get(op->ptr, "autoselect")) {
 		BKE_view_layer_base_deselect_all(view_layer);
 	}
-	
+
 	/* tag everything, all untagged data can be made local
 	 * its also generally useful to know what is new
 	 *
@@ -521,8 +521,8 @@ static void wm_link_append_properties_common(wmOperatorType *ot, bool is_link)
 	prop = RNA_def_boolean(ot->srna, "active_collection", true,
 	                       "Active Collection", "Put new objects on the active collection");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-	prop = RNA_def_boolean(ot->srna, "instance_groups", is_link,
-	                       "Instance Groups", "Create Dupli-Group instances for each group");
+	prop = RNA_def_boolean(ot->srna, "instance_collections", is_link,
+	                       "Instance Collections", "Create instances for collections, rather than adding them directly to the scene");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
@@ -531,18 +531,18 @@ void WM_OT_link(wmOperatorType *ot)
 	ot->name = "Link from Library";
 	ot->idname = "WM_OT_link";
 	ot->description = "Link from a Library .blend file";
-	
+
 	ot->invoke = wm_link_append_invoke;
 	ot->exec = wm_link_append_exec;
 	ot->poll = wm_link_append_poll;
-	
+
 	ot->flag |= OPTYPE_UNDO;
 
 	WM_operator_properties_filesel(
 	        ot, FILE_TYPE_FOLDER | FILE_TYPE_BLENDER | FILE_TYPE_BLENDERLIB, FILE_LOADLIB, FILE_OPENFILE,
 	        WM_FILESEL_FILEPATH | WM_FILESEL_DIRECTORY | WM_FILESEL_FILENAME | WM_FILESEL_RELPATH | WM_FILESEL_FILES,
 	        FILE_DEFAULTDISPLAY, FILE_SORT_ALPHA);
-	
+
 	wm_link_append_properties_common(ot, true);
 }
 
@@ -580,7 +580,7 @@ static int wm_lib_relocate_invoke(bContext *C, wmOperator *op, const wmEvent *UN
 	char lib_name[MAX_NAME];
 
 	RNA_string_get(op->ptr, "library", lib_name);
-	lib = (Library *)BKE_libblock_find_name_ex(CTX_data_main(C), ID_LI, lib_name);
+	lib = (Library *)BKE_libblock_find_name(CTX_data_main(C), ID_LI, lib_name);
 
 	if (lib) {
 		if (lib->parent) {
@@ -822,7 +822,7 @@ static int wm_lib_relocate_exec_do(bContext *C, wmOperator *op, bool do_reload)
 	char lib_name[MAX_NAME];
 
 	RNA_string_get(op->ptr, "library", lib_name);
-	lib = (Library *)BKE_libblock_find_name_ex(CTX_data_main(C), ID_LI, lib_name);
+	lib = (Library *)BKE_libblock_find_name(CTX_data_main(C), ID_LI, lib_name);
 
 	if (lib) {
 		Main *bmain = CTX_data_main(C);

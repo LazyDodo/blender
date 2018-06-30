@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -144,7 +144,7 @@ static int buttons_context_path_world(ButsContextPath *path)
 	else if (buttons_context_path_scene(path)) {
 		scene = path->ptr[path->len - 1].data;
 		world = scene->world;
-		
+
 		if (world) {
 			RNA_id_pointer_create(&scene->world->id, &path->ptr[path->len]);
 			path->len++;
@@ -189,40 +189,6 @@ static int buttons_context_path_workspace(ButsContextPath *path)
 
 	/* This one just verifies. */
 	return RNA_struct_is_a(ptr->type, &RNA_WorkSpace);
-}
-
-static int buttons_context_path_collection(ButsContextPath *path, eSpaceButtons_Collection_Context collection_context)
-{
-	PointerRNA *ptr = &path->ptr[path->len - 1];
-
-	/* if we already have a (pinned) Collection, we're done */
-	if (RNA_struct_is_a(ptr->type, &RNA_LayerCollection)) {
-		return 1;
-	}
-	else if (RNA_struct_is_a(ptr->type, &RNA_ViewLayer)) {
-		ViewLayer *view_layer = ptr->data;
-
-		if (collection_context == SB_COLLECTION_CTX_GROUP) {
-			Object *ob = OBACT(view_layer);
-			if (ob && ob->dup_group) {
-				view_layer = ob->dup_group->view_layer;
-
-				/* Replace the view layer by the group in the context path. */
-				RNA_pointer_create(NULL, &RNA_Group, ob->dup_group, &path->ptr[path->len - 1]);
-			}
-		}
-
-		LayerCollection *layer_collection = BKE_layer_collection_get_active(view_layer);
-
-		if (layer_collection) {
-			RNA_pointer_create(NULL, &RNA_LayerCollection, layer_collection, &path->ptr[path->len]);
-			path->len++;
-			return 1;
-		}
-	}
-
-	/* no path to a collection possible */
-	return 0;
 }
 
 static int buttons_context_path_object(ButsContextPath *path)
@@ -455,7 +421,7 @@ static int buttons_context_path_texture(const bContext *C, ButsContextPath *path
 
 	if (!ct->user)
 		return 0;
-	
+
 	id = ct->user->id;
 
 	if (id) {
@@ -523,7 +489,7 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 	}
 	/* No pinned root, use scene as initial root. */
 	else {
-		if (mainb == BCONTEXT_WORKSPACE) {
+		if (ELEM(mainb, BCONTEXT_WORKSPACE, BCONTEXT_TOOL)) {
 			RNA_id_pointer_create(&workspace->id, &path->ptr[0]);
 			path->len++;
 		}
@@ -559,11 +525,9 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 		case BCONTEXT_WORLD:
 			found = buttons_context_path_world(path);
 			break;
+		case BCONTEXT_TOOL:
 		case BCONTEXT_WORKSPACE:
 			found = buttons_context_path_workspace(path);
-			break;
-		case BCONTEXT_COLLECTION:
-			found = buttons_context_path_collection(path, sbuts->collection_context);
 			break;
 		case BCONTEXT_OBJECT:
 		case BCONTEXT_PHYSICS:
@@ -609,7 +573,7 @@ static int buttons_shading_context(const bContext *C, int mainb)
 		return 1;
 	if (mainb == BCONTEXT_DATA && ob && ELEM(ob->type, OB_LAMP, OB_CAMERA))
 		return 1;
-	
+
 	return 0;
 }
 
@@ -623,7 +587,7 @@ static int buttons_shading_new_context(const bContext *C, int flag)
 		return BCONTEXT_DATA;
 	else if (flag & (1 << BCONTEXT_WORLD))
 		return BCONTEXT_WORLD;
-	
+
 	return BCONTEXT_RENDER;
 }
 
@@ -895,7 +859,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 	else if (CTX_data_equals(member, "particle_settings")) {
 		/* only available when pinned */
 		PointerRNA *ptr = get_pointer_type(path, &RNA_ParticleSettings);
-		
+
 		if (ptr && ptr->data) {
 			CTX_data_pointer_set(result, ptr->id.data, &RNA_ParticleSettings, ptr->data);
 			return 1;
@@ -903,7 +867,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 		else {
 			/* get settings from active particle system instead */
 			ptr = get_pointer_type(path, &RNA_ParticleSystem);
-			
+
 			if (ptr && ptr->data) {
 				ParticleSettings *part = ((ParticleSystem *)ptr->data)->part;
 				CTX_data_pointer_set(result, ptr->id.data, &RNA_ParticleSettings, part);
@@ -943,7 +907,7 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 			return 1;
 		}
 	}
-	
+
 	else if (CTX_data_equals(member, "smoke")) {
 		PointerRNA *ptr = get_pointer_type(path, &RNA_Object);
 
@@ -982,10 +946,6 @@ int buttons_context(const bContext *C, const char *member, bContextDataResult *r
 		set_pointer_type(path, result, &RNA_FreestyleLineStyle);
 		return 1;
 	}
-	else if (CTX_data_equals(member, "collection")) {
-		set_pointer_type(path, result, &RNA_LayerCollection);
-		return 1;
-	}
 	else {
 		return 0; /* not found */
 	}
@@ -1004,7 +964,7 @@ static void pin_cb(bContext *C, void *UNUSED(arg1), void *UNUSED(arg2))
 	}
 	else
 		sbuts->pinid = NULL;
-	
+
 	ED_area_tag_redraw(CTX_wm_area(C));
 }
 

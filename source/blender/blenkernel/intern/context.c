@@ -30,6 +30,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_group_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -83,7 +84,7 @@ struct bContext {
 		struct bContextStore *store;
 		const char *operator_poll_msg; /* reason for poll failing */
 	} wm;
-	
+
 	/* data context */
 	struct {
 		struct Main *main;
@@ -93,7 +94,7 @@ struct bContext {
 		int py_init; /* true if python is initialized */
 		void *py_context;
 	} data;
-	
+
 	/* data evaluation */
 #if 0
 	struct {
@@ -107,7 +108,7 @@ struct bContext {
 bContext *CTX_create(void)
 {
 	bContext *C;
-	
+
 	C = MEM_callocN(sizeof(bContext), "bContext");
 
 	return C;
@@ -423,7 +424,7 @@ PointerRNA CTX_data_pointer_get_type(const bContext *C, const char *member, Stru
 			       __func__, member, RNA_struct_identifier(ptr.type), RNA_struct_identifier(type));
 		}
 	}
-	
+
 	return PointerRNA_NULL;
 }
 
@@ -464,13 +465,13 @@ int CTX_data_get(const bContext *C, const char *member, PointerRNA *r_ptr, ListB
 static void data_dir_add(ListBase *lb, const char *member, const bool use_all)
 {
 	LinkData *link;
-	
+
 	if ((use_all == false) && STREQ(member, "scene")) /* exception */
 		return;
 
 	if (BLI_findstring(lb, member, offsetof(LinkData, data)))
 		return;
-	
+
 	link = MEM_callocN(sizeof(LinkData), "LinkData");
 	link->data = (void *)member;
 	BLI_addtail(lb, link);
@@ -949,7 +950,7 @@ LayerCollection *CTX_data_layer_collection(const bContext *C)
 	LayerCollection *layer_collection;
 
 	if (ctx_data_pointer_verify(C, "layer_collection", (void *)&layer_collection)) {
-		if (BKE_view_layer_has_collection(view_layer, layer_collection->scene_collection)) {
+		if (BKE_view_layer_has_collection(view_layer, layer_collection->collection)) {
 			return layer_collection;
 		}
 	}
@@ -958,21 +959,21 @@ LayerCollection *CTX_data_layer_collection(const bContext *C)
 	return BKE_layer_collection_get_active(view_layer);
 }
 
-SceneCollection *CTX_data_scene_collection(const bContext *C)
+Collection *CTX_data_collection(const bContext *C)
 {
-	SceneCollection *scene_collection;
-	if (ctx_data_pointer_verify(C, "scene_collection", (void *)&scene_collection)) {
-		return scene_collection;
+	Collection *collection;
+	if (ctx_data_pointer_verify(C, "collection", (void *)&collection)) {
+		return collection;
 	}
 
 	LayerCollection *layer_collection = CTX_data_layer_collection(C);
 	if (layer_collection) {
-		return layer_collection->scene_collection;
+		return layer_collection->collection;
 	}
 
 	/* fallback */
 	Scene *scene = CTX_data_scene(C);
-	return BKE_collection_master(&scene->id);
+	return BKE_collection_master(scene);
 }
 
 int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectMode object_mode)

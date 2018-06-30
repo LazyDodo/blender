@@ -19,15 +19,17 @@
 # <pep8 compliant>
 
 import bpy
-from bpy.types import Header, Menu
+from bpy.types import Header, Menu, Panel
+from .space_dopesheet import (
+    DopesheetFilterPopoverBase,
+    dopesheet_filter,
+)
 
 
 class GRAPH_HT_header(Header):
     bl_space_type = 'GRAPH_EDITOR'
 
     def draw(self, context):
-        from .space_dopesheet import dopesheet_filter
-
         layout = self.layout
         toolsettings = context.tool_settings
 
@@ -36,7 +38,16 @@ class GRAPH_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
-        layout.prop(st, "mode", text="")
+        # Now a exposed as a sub-space type
+        # layout.prop(st, "mode", text="")
+
+        layout.popover(
+            space_type='GRAPH_EDITOR',
+            region_type='HEADER',
+            panel_type="GRAPH_PT_filters",
+            text="",
+            icon='FILTER',
+        )
 
         GRAPH_MT_editor_menus.draw_collapsible(context, layout)
 
@@ -48,13 +59,13 @@ class GRAPH_HT_header(Header):
         sub.active = st.use_normalization
         sub.prop(st, "use_auto_normalization", icon='FILE_REFRESH', text="", toggle=True)
 
-        row = layout.row(align=True)
+        layout.separator_spacer()
 
-        row.prop(toolsettings, "use_proportional_fcurve",
-                 text="", icon_only=True)
-        if toolsettings.use_proportional_fcurve:
-            row.prop(toolsettings, "proportional_edit_falloff",
-                     text="", icon_only=True)
+        row = layout.row(align=True)
+        row.prop(toolsettings, "use_proportional_fcurve", text="", icon_only=True)
+        sub = row.row(align=True)
+        sub.active = toolsettings.use_proportional_fcurve
+        sub.prop(toolsettings, "proportional_edit_falloff", text="", icon_only=True)
 
         layout.prop(st, "auto_snap", text="")
         layout.prop(st, "pivot_point", icon_only=True)
@@ -69,6 +80,21 @@ class GRAPH_HT_header(Header):
             row.operator("graph.ghost_curves_clear", text="", icon='GHOST_DISABLED')
         else:
             row.operator("graph.ghost_curves_create", text="", icon='GHOST_ENABLED')
+
+
+class GRAPH_PT_filters(DopesheetFilterPopoverBase, Panel):
+    bl_space_type = 'GRAPH_EDITOR'
+    bl_region_type = 'HEADER'
+    bl_label = "Filters"
+
+    def draw(self, context):
+        layout = self.layout
+
+        DopesheetFilterPopoverBase.draw_generic_filters(context, layout)
+        layout.separator()
+        DopesheetFilterPopoverBase.draw_search_filters(context, layout)
+        layout.separator()
+        DopesheetFilterPopoverBase.draw_standard_filters(context, layout)
 
 
 class GRAPH_MT_editor_menus(Menu):
@@ -129,9 +155,7 @@ class GRAPH_MT_view(Menu):
         layout.operator("graph.view_frame")
 
         layout.separator()
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class GRAPH_MT_select(Menu):
@@ -301,6 +325,76 @@ class GRAPH_MT_delete(Menu):
         layout.operator("graph.clean").channels = False
         layout.operator("graph.clean", text="Clean Channels").channels = True
 
+
+class GRAPH_MT_specials(Menu):
+    bl_label = "F-Curve Context Menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("graph.copy", text="Copy")
+        layout.operator("graph.paste", text="Paste")
+        layout.operator("graph.paste", text="Paste Flipped").flipped = True
+
+        layout.separator()
+
+        layout.operator_menu_enum("graph.handle_type", "type", text="Handle Type")
+        layout.operator_menu_enum("graph.interpolation_type", "type", text="Interpolation Mode")
+        layout.operator_menu_enum("graph.easing_type", "type", text="Easing Type")
+
+        layout.separator()
+
+        layout.operator("graph.keyframe_insert").type = 'SEL'
+        layout.operator("graph.duplicate_move")
+        layout.operator("graph.delete")
+
+        layout.separator()
+
+        layout.operator_menu_enum("graph.mirror", "type", text="Mirror")
+        layout.operator_menu_enum("graph.snap", "type", text="Snap")
+
+
+class GRAPH_MT_channel_specials(Menu):
+    bl_label = "F-Curve Channel Context Menu"
+
+    def draw(self, context):
+        layout = self.layout
+        st = context.space_data
+
+        layout.separator()
+        layout.operator("anim.channels_setting_enable", text="Mute Channels").type = 'MUTE'
+        layout.operator("anim.channels_setting_disable", text="Unmute Channels").type = 'MUTE'
+        layout.separator()
+        layout.operator("anim.channels_setting_enable", text="Protect Channels").type = 'PROTECT'
+        layout.operator("anim.channels_setting_disable", text="Unprotect Channels").type = 'PROTECT'
+
+        layout.separator()
+        layout.operator("anim.channels_group")
+        layout.operator("anim.channels_ungroup")
+
+        layout.separator()
+        layout.operator("anim.channels_editable_toggle")
+        layout.operator_menu_enum("graph.extrapolation_type", "type", text="Extrapolation Mode")
+
+        layout.separator()
+        layout.operator("graph.hide", text="Hide Selected Curves").unselected = False
+        layout.operator("graph.hide", text="Hide Unselected Curves").unselected = True
+        layout.operator("graph.reveal")
+
+        layout.separator()
+        layout.operator("anim.channels_expand")
+        layout.operator("anim.channels_collapse")
+
+        layout.separator()
+        layout.operator_menu_enum("anim.channels_move", "direction", text="Move...")
+
+        layout.separator()
+
+        layout.operator("anim.channels_delete")
+        if st.mode == 'DRIVERS':
+            layout.operator("graph.driver_delete_invalid")
+
+
 classes = (
     GRAPH_HT_header,
     GRAPH_MT_editor_menus,
@@ -311,6 +405,9 @@ classes = (
     GRAPH_MT_key,
     GRAPH_MT_key_transform,
     GRAPH_MT_delete,
+    GRAPH_MT_specials,
+    GRAPH_MT_channel_specials,
+    GRAPH_PT_filters,
 )
 
 if __name__ == "__main__":  # only for live edit.

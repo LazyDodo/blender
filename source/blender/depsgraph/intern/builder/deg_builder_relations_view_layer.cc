@@ -69,6 +69,22 @@ extern "C" {
 
 namespace DEG {
 
+void DepsgraphRelationBuilder::build_layer_collections(ListBase *lb)
+{
+	const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		COLLECTION_RESTRICT_VIEW : COLLECTION_RESTRICT_RENDER;
+
+	for (LayerCollection *lc = (LayerCollection *)lb->first; lc; lc = lc->next) {
+		if ((lc->collection->flag & restrict_flag)) {
+			continue;
+		}
+		if ((lc->flag & LAYER_COLLECTION_EXCLUDE) == 0) {
+			build_collection(DEG_COLLECTION_OWNER_SCENE, NULL, lc->collection);
+		}
+		build_layer_collections(&lc->layer_collections);
+	}
+}
+
 void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_layer)
 {
 	/* Setup currently building context. */
@@ -78,9 +94,16 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 	 * passed to the evaluation functions. During relations builder we only
 	 * do NULL-pointer check of the base, so it's fine to pass original one.
 	 */
+	const int base_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		BASE_ENABLED_VIEWPORT : BASE_ENABLED_RENDER;
 	LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
-		build_object(base, base->object);
+		if (base->flag & base_flag) {
+			build_object(base, base->object);
+		}
 	}
+
+	build_layer_collections(&view_layer->layer_collections);
+
 	if (scene->camera != NULL) {
 		build_object(NULL, scene->camera);
 	}

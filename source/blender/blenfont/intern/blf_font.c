@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -183,16 +183,13 @@ void blf_batch_draw(void)
 	if (g_batch.glyph_len == 0)
 		return;
 
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	/* We need to flush widget base first to ensure correct ordering. */
 	UI_widgetbase_draw_cache_flush();
 
-	BLI_assert(g_batch.tex_bind_state != 0); /* must still be valid */
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, g_batch.tex_bind_state);
-
+	GPU_texture_bind(g_batch.tex_bind_state, 0);
 	GWN_vertbuf_vertex_count_set(g_batch.verts, g_batch.glyph_len);
 	GWN_vertbuf_use(g_batch.verts); /* send data */
 
@@ -201,7 +198,7 @@ void blf_batch_draw(void)
 	GWN_batch_uniform_1i(g_batch.batch, "glyph", 0);
 	GWN_batch_draw(g_batch.batch);
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 
 	/* restart to 1st vertex data pointers */
 	GWN_vertbuf_attr_get_raw_data(g_batch.verts, g_batch.pos_loc, &g_batch.pos_step);
@@ -553,7 +550,7 @@ static void blf_font_draw_buffer_ex(
 				width_clip -= chx + width_clip - buf_info->w;
 			if (height_clip + pen_y > buf_info->h)
 				height_clip -= pen_y + height_clip - buf_info->h;
-			
+
 			/* drawing below the image? */
 			if (pen_y < 0) {
 				yb_start += (g->pitch < 0) ? -pen_y : pen_y;
@@ -655,7 +652,7 @@ size_t blf_font_width_to_strlen(FontBLF *font, const char *str, size_t len, floa
 	int pen_x = 0;
 	size_t i = 0, i_prev;
 	GlyphBLF **glyph_ascii_table = font->glyph_cache->glyph_ascii_table;
-	const int width_i = (int)width + 1;
+	const int width_i = (int)width;
 	int width_new;
 
 	BLF_KERNING_VARS(font, has_kerning, kern_mode);
@@ -677,7 +674,7 @@ size_t blf_font_width_to_strlen(FontBLF *font, const char *str, size_t len, floa
 
 		pen_x += g->advance_i;
 
-		if (width_i < pen_x) {
+		if (width_i <= pen_x) {
 			break;
 		}
 

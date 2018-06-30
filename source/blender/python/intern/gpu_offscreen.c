@@ -35,6 +35,9 @@
 
 #include "WM_types.h"
 
+#include "BKE_global.h"
+#include "BKE_library.h"
+
 #include "ED_screen.h"
 
 #include "GPU_framebuffer.h"
@@ -192,6 +195,8 @@ static PyObject *pygpu_offscreen_draw_view3d(BPy_GPUOffScreen *self, PyObject *a
 	{
 		return NULL;
 	}
+
+	BLI_assert(BKE_id_is_in_gobal_main(&scene->id));
 
 	fx = GPU_fx_compositor_create();
 

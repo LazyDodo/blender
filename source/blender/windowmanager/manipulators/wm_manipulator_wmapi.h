@@ -77,7 +77,7 @@ void wm_manipulatormap_handler_context(bContext *C, struct wmEventHandler *handl
 struct wmManipulator *wm_manipulatormap_highlight_find(
         struct wmManipulatorMap *mmap, bContext *C, const struct wmEvent *event,
         int *r_part);
-void wm_manipulatormap_highlight_set(
+bool wm_manipulatormap_highlight_set(
         struct wmManipulatorMap *mmap, const bContext *C,
         struct wmManipulator *mpr, int part);
 struct wmManipulator *wm_manipulatormap_highlight_get(struct wmManipulatorMap *mmap);
@@ -95,4 +95,3 @@ struct ListBase *wm_manipulatormap_groups_get(wmManipulatorMap *mmap);
 void wm_manipulatormaptypes_free(void);
 
 #endif  /* __WM_MANIPULATOR_WMAPI_H__ */
-

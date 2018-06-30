@@ -28,7 +28,6 @@ if "bpy" in locals():
 
 _modules = [
     "properties_animviz",
-    "properties_collection",
     "properties_constraint",
     "properties_data_armature",
     "properties_data_bone",
@@ -82,13 +81,14 @@ _modules = [
     "space_outliner",
     "space_properties",
     "space_sequencer",
+    "space_statusbar",
     "space_text",
     "space_time",
     "space_topbar",
     "space_userpref",
     "space_view3d",
     "space_view3d_toolbar",
-    ]
+]
 
 import bpy
 
@@ -167,6 +167,8 @@ def unregister():
 
 # Define a default UIList, when a list does not need any custom drawing...
 # Keep in sync with its #defined name in UI_interface.h
+
+
 class UI_UL_list(bpy.types.UIList):
     # These are common filtering or ordering operations (same as the default C ones!).
     @staticmethod

@@ -66,6 +66,7 @@
 #include "GPU_matrix.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
+#include "GPU_batch.h"
 
 #include "DNA_scene_types.h"
 #include "ED_datafiles.h" /* for fonts */
@@ -101,7 +102,7 @@ typedef struct PlayState {
 
 	/* window and viewport size */
 	int win_x, win_y;
-	
+
 	/* current zoom level */
 	float zoom;
 
@@ -122,7 +123,7 @@ typedef struct PlayState {
 	bool  loading;
 	/* x/y image flip */
 	bool draw_flip[2];
-	
+
 	int fstep;
 
 	/* current picture */
@@ -134,7 +135,7 @@ typedef struct PlayState {
 
 	/* saves passing args */
 	struct ImBuf *curframe_ibuf;
-	
+
 	/* restarts player for file drop */
 	char dropped_file[FILE_MAX];
 } PlayState;
@@ -179,6 +180,7 @@ typedef enum eWS_Qual {
 static struct WindowStateGlobal {
 	GHOST_SystemHandle ghost_system;
 	void *ghost_window;
+	Gwn_Context *gwn_context;
 
 	/* events */
 	eWS_Qual qual;
@@ -195,7 +197,8 @@ static void playanim_window_get_size(int *r_width, int *r_height)
 static void playanim_gl_matrix(void)
 {
 	/* unified matrix, note it affects offset for drawing */
-	gpuOrtho2D(0.0f, 1.0f, 0.0f, 1.0f);
+	/* note! cannot use gpuOrtho2D here because shader ignores. */
+	gpuOrtho(0.0f, 1.0f, 0.0f, 1.0f, -1.0, 1.0f);
 }
 
 /* implementation */
@@ -946,13 +949,13 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr ps_void)
 		{
 			GHOST_TEventButtonData *bd = GHOST_GetEventData(evt);
 			int cx, cy, sizex, sizey, inside_window;
-			
+
 			GHOST_GetCursorPosition(g_WS.ghost_system, &cx, &cy);
 			GHOST_ScreenToClient(g_WS.ghost_window, cx, cy, &cx, &cy);
 			playanim_window_get_size(&sizex, &sizey);
 
 			inside_window = (cx >= 0 && cx < sizex && cy >= 0 && cy <= sizey);
-			
+
 			if (bd->button == GHOST_kButtonMaskLeft) {
 				if (type == GHOST_kEventButtonDown) {
 					if (inside_window) {
@@ -1016,23 +1019,23 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr ps_void)
 		case GHOST_kEventWindowMove:
 		{
 			float zoomx, zoomy;
-			
+
 			playanim_window_get_size(&ps->win_x, &ps->win_y);
 			GHOST_ActivateWindowDrawingContext(g_WS.ghost_window);
 
 			zoomx = (float) ps->win_x / ps->ibufx;
 			zoomy = (float) ps->win_y / ps->ibufy;
-			
+
 			/* zoom always show entire image */
 			ps->zoom = MIN2(zoomx, zoomy);
-			
+
 			/* zoom steps of 2 for speed */
 			ps->zoom = floor(ps->zoom + 0.5f);
 			if (ps->zoom < 1.0f) ps->zoom = 1.0f;
-			
+
 			glViewport(0, 0, ps->win_x, ps->win_y);
 			glScissor(0, 0, ps->win_x, ps->win_y);
-			
+
 			playanim_gl_matrix();
 
 			ptottime = 0.0;
@@ -1049,11 +1052,11 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr ps_void)
 		case GHOST_kEventDraggingDropDone:
 		{
 			GHOST_TEventDragnDropData *ddd = GHOST_GetEventData(evt);
-			
+
 			if (ddd->dataType == GHOST_kDragnDropTypeFilenames) {
 				GHOST_TStringArray *stra = ddd->data;
 				int a;
-				
+
 				for (a = 0; a < stra->count; a++) {
 					BLI_strncpy(ps->dropped_file, (char *)stra->strings[a], sizeof(ps->dropped_file));
 					ps->go = false;
@@ -1120,7 +1123,7 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 	int sfra = -1;
 	int efra = -1;
 	int totblock;
-	
+
 	PlayState ps = {0};
 
 	/* ps.doubleb   = true;*/ /* UNUSED */
@@ -1262,6 +1265,7 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 	//GHOST_ActivateWindowDrawingContext(g_WS.ghost_window);
 
 	/* initialize OpenGL immediate mode */
+	g_WS.gwn_context =  GWN_context_create();
 	immInit();
 
 	/* initialize the font */
@@ -1271,14 +1275,14 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 
 	ps.ibufx = ibuf->x;
 	ps.ibufy = ibuf->y;
-	
+
 	ps.win_x = ps.ibufx;
 	ps.win_y = ps.ibufy;
 
 	if (maxwinx % ibuf->x) maxwinx = ibuf->x * (1 + (maxwinx / ibuf->x));
 	if (maxwiny % ibuf->y) maxwiny = ibuf->y * (1 + (maxwiny / ibuf->y));
 
-	
+
 	glClearColor(0.1, 0.1, 0.1, 0.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1538,6 +1542,12 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 
 	immDestroy();
 
+	if (g_WS.gwn_context) {
+		GWN_context_active_set(g_WS.gwn_context);
+		GWN_context_discard(g_WS.gwn_context);
+		g_WS.gwn_context = NULL;
+	}
+
 	BLF_exit();
 
 	GHOST_DisposeWindow(g_WS.ghost_system, g_WS.ghost_window);
@@ -1547,7 +1557,7 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 		BLI_strncpy(filepath, ps.dropped_file, sizeof(filepath));
 		return filepath;
 	}
-	
+
 	IMB_exit();
 	BKE_images_exit();
 	DEG_free_node_types();
@@ -1560,7 +1570,7 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
 		MEM_printmemlist();
 #endif
 	}
-	
+
 	return NULL;
 }
 

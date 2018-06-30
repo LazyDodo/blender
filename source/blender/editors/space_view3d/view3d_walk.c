@@ -37,6 +37,7 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
+#include "BKE_main.h"
 #include "BKE_report.h"
 
 #include "BLT_translation.h"
@@ -403,7 +404,7 @@ static void walk_update_header(bContext *C, wmOperator *op, WalkInfo *walk)
 
 #undef WM_MODALKEY
 
-	ED_area_headerprint(CTX_wm_area(C), header);
+	ED_workspace_status_text(C, header);
 }
 
 static void walk_navigation_mode_set(bContext *C, wmOperator *op, WalkInfo *walk, eWalkMethod mode)
@@ -507,6 +508,7 @@ static float userdef_speed = -1.f;
 
 static bool initWalkInfo(bContext *C, WalkInfo *walk, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	wmWindow *win = CTX_wm_window(C);
 
 	walk->rv3d = CTX_wm_region_view3d(C);
@@ -602,7 +604,7 @@ static bool initWalkInfo(bContext *C, WalkInfo *walk, wmOperator *op)
 	walk->rv3d->rflag |= RV3D_NAVIGATING;
 
 	walk->snap_context = ED_transform_snap_object_context_create_view3d(
-	        CTX_data_main(C), walk->scene, CTX_data_depsgraph(C), 0,
+	        bmain, walk->scene, CTX_data_depsgraph(C), 0,
 	        walk->ar, walk->v3d);
 
 	walk->v3d_camera_control = ED_view3d_cameracontrol_acquire(
@@ -1434,7 +1436,7 @@ static int walk_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	}
 
 	if (ELEM(exit_code, OPERATOR_FINISHED, OPERATOR_CANCELLED))
-		ED_area_headerprint(CTX_wm_area(C), NULL);
+		ED_workspace_status_text(C, NULL);
 
 	return exit_code;
 }

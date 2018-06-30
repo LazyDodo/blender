@@ -173,10 +173,12 @@ set(SRC
 	shader/nodes/node_shader_fresnel.c
 	shader/nodes/node_shader_geometry.c
 	shader/nodes/node_shader_holdout.c
+	shader/nodes/node_shader_ies_light.c
 	shader/nodes/node_shader_layer_weight.c
 	shader/nodes/node_shader_light_falloff.c
 	shader/nodes/node_shader_light_path.c
 	shader/nodes/node_shader_mix_shader.c
+	shader/nodes/node_shader_shaderToRgb.c
 	shader/nodes/node_shader_normal_map.c
 	shader/nodes/node_shader_object_info.c
 	shader/nodes/node_shader_hair_info.c

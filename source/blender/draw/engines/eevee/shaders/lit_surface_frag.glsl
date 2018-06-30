@@ -21,6 +21,16 @@ in vec3 worldNormal;
 in vec3 viewNormal;
 #endif
 
+#ifdef HAIR_SHADER
+in vec3 hairTangent; /* world space */
+in float hairThickTime;
+in float hairThickness;
+in float hairTime;
+flat in int hairStrandID;
+
+uniform int hairThicknessRes = 1;
+#endif
+
 #endif /* LIT_SURFACE_UNIFORM */
 
 /** AUTO CONFIG
@@ -172,9 +182,15 @@ void CLOSURE_NAME(
 	/* -------------------- SCENE LAMPS LIGHTING ---------------------- */
 	/* ---------------------------------------------------------------- */
 
-#ifdef HAIR_SHADER
-	vec3 norm_view = cross(V, N);
-	norm_view = normalize(cross(norm_view, N)); /* Normal facing view */
+#ifdef CLOSURE_GLOSSY
+	vec2 lut_uv = lut_coords(dot(N, V), roughness);
+	vec4 ltc_mat = texture(utilTex, vec3(lut_uv, 0.0)).rgba;
+#endif
+
+#ifdef CLOSURE_CLEARCOAT
+	vec2 lut_uv_clear = lut_coords(dot(C_N, V), C_roughness);
+	vec4 ltc_mat_clear = texture(utilTex, vec3(lut_uv_clear, 0.0)).rgba;
+	vec3 out_spec_clear = vec3(0.0);
 #endif
 
 	for (int i = 0; i < MAX_LIGHT && i < laNumLight; ++i) {
@@ -186,29 +202,6 @@ void CLOSURE_NAME(
 
 		vec3 l_color_vis = ld.l_color * light_visibility(ld, worldPosition, viewPosition, viewNormal, l_vector);
 
-#ifdef HAIR_SHADER
-		vec3 norm_lamp, view_vec;
-		float occlu_trans, occlu;
-		light_hair_common(ld, N, V, l_vector, norm_view, occlu_trans, occlu, norm_lamp, view_vec);
-
-	#ifdef CLOSURE_DIFFUSE
-		out_diff += l_color_vis * light_diffuse(ld, -norm_lamp, V, l_vector) * occlu_trans;
-	#endif
-
-	#ifdef CLOSURE_SUBSURFACE
-		out_trans += ld.l_color * light_translucent(ld, worldPosition, -norm_lamp, l_vector, sss_scale) * occlu_trans;
-	#endif
-
-	#ifdef CLOSURE_GLOSSY
-		out_spec += l_color_vis * light_specular(ld, N, view_vec, l_vector, roughnessSquared, f0) * occlu * ld.l_spec;
-	#endif
-
-	#ifdef CLOSURE_CLEARCOAT
-		out_spec += l_color_vis * light_specular(ld, C_N, view_vec, l_vector, C_roughnessSquared, f0) * C_intensity * occlu * ld.l_spec;
-	#endif
-
-#else /* HAIR_SHADER */
-
 	#ifdef CLOSURE_DIFFUSE
 		out_diff += l_color_vis * light_diffuse(ld, N, V, l_vector);
 	#endif
@@ -218,21 +211,24 @@ void CLOSURE_NAME(
 	#endif
 
 	#ifdef CLOSURE_GLOSSY
-		out_spec += l_color_vis * light_specular(ld, N, V, l_vector, roughnessSquared, f0) * ld.l_spec;
+		out_spec += l_color_vis * light_specular(ld, ltc_mat, N, V, l_vector) * ld.l_spec;
 	#endif
 
 	#ifdef CLOSURE_CLEARCOAT
-		out_spec += l_color_vis * light_specular(ld, C_N, V, l_vector, C_roughnessSquared, f0) * C_intensity * ld.l_spec;
+		out_spec_clear += l_color_vis * light_specular(ld, ltc_mat_clear, C_N, V, l_vector) * C_intensity * ld.l_spec;
 	#endif
-
-#endif /* HAIR_SHADER */
 	}
 
-#ifdef HAIR_SHADER
-	N = -norm_view;
+#ifdef CLOSURE_GLOSSY
+	vec3 brdf_lut_lamps = texture(utilTex, vec3(lut_uv, 1.0)).rgb;
+	out_spec *= F_area(f0, brdf_lut_lamps.xy) * brdf_lut_lamps.z;
 #endif
 
-
+#ifdef CLOSURE_CLEARCOAT
+	vec3 brdf_lut_lamps_clear = texture(utilTex, vec3(lut_uv_clear, 1.0)).rgb;
+	out_spec_clear *= F_area(f0, brdf_lut_lamps_clear.xy) * brdf_lut_lamps_clear.z;
+	out_spec += out_spec_clear;
+#endif
 
 	/* ---------------------------------------------------------------- */
 	/* ---------------- SPECULAR ENVIRONMENT LIGHTING ----------------- */
@@ -378,7 +374,7 @@ void CLOSURE_NAME(
 		accumulate_light(trans, 1.0, refr_accum);
 	}
 	#endif
-#endif /* Specular probes */ 
+#endif /* Specular probes */
 
 
 	/* ---------------------------- */

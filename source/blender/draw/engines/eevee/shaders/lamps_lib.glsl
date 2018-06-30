@@ -15,11 +15,13 @@ layout(std140) uniform light_block {
 };
 
 /* type */
-#define POINT    0.0
-#define SUN      1.0
-#define SPOT     2.0
-#define HEMI     3.0
-#define AREA     4.0
+#define POINT          0.0
+#define SUN            1.0
+#define SPOT           2.0
+#define HEMI           3.0
+#define AREA_RECT      4.0
+/* Used to define the area lamp shape, doesn't directly correspond to a Blender lamp type. */
+#define AREA_ELLIPSE 100.0
 
 #if defined(SHADOW_VSM)
 #define ShadowSample vec2
@@ -174,7 +176,7 @@ float light_visibility(LightData ld, vec3 W,
 		vis *= spotmask;
 		vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 	}
-	else if (ld.l_type == AREA) {
+	else if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 		vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 	}
 
@@ -247,49 +249,70 @@ float light_visibility(LightData ld, vec3 W,
 	return vis;
 }
 
+#ifdef USE_LTC
 float light_diffuse(LightData ld, vec3 N, vec3 V, vec4 l_vector)
 {
-#ifdef USE_LTC
-	if (ld.l_type == SUN) {
-		return direct_diffuse_unit_disc(ld, N, V);
+	if (ld.l_type == AREA_RECT) {
+		vec3 corners[4];
+		corners[0] = normalize((l_vector.xyz + ld.l_right * -ld.l_sizex) + ld.l_up *  ld.l_sizey);
+		corners[1] = normalize((l_vector.xyz + ld.l_right * -ld.l_sizex) + ld.l_up * -ld.l_sizey);
+		corners[2] = normalize((l_vector.xyz + ld.l_right *  ld.l_sizex) + ld.l_up * -ld.l_sizey);
+		corners[3] = normalize((l_vector.xyz + ld.l_right *  ld.l_sizex) + ld.l_up *  ld.l_sizey);
+
+		return ltc_evaluate_quad(corners, N);
 	}
-	else if (ld.l_type == AREA) {
-		return direct_diffuse_rectangle(ld, N, V, l_vector);
+	else if (ld.l_type == AREA_ELLIPSE) {
+		vec3 points[3];
+		points[0] = (l_vector.xyz + ld.l_right * -ld.l_sizex) + ld.l_up * -ld.l_sizey;
+		points[1] = (l_vector.xyz + ld.l_right *  ld.l_sizex) + ld.l_up * -ld.l_sizey;
+		points[2] = (l_vector.xyz + ld.l_right *  ld.l_sizex) + ld.l_up *  ld.l_sizey;
+
+		return ltc_evaluate_disk(N, V, mat3(1.0), points);
 	}
 	else {
-		return direct_diffuse_sphere(ld, N, l_vector);
+		float radius = ld.l_radius;
+		radius /= (ld.l_type == SUN) ? 1.0 : l_vector.w;
+		vec3 L = (ld.l_type == SUN) ? -ld.l_forward : (l_vector.xyz / l_vector.w);
+
+		return ltc_evaluate_disk_simple(radius, dot(N, L));
 	}
-#else
-	if (ld.l_type == SUN) {
-		return direct_diffuse_sun(ld, N);
-	}
-	else {
-		return direct_diffuse_point(N, l_vector);
-	}
-#endif
 }
 
-vec3 light_specular(LightData ld, vec3 N, vec3 V, vec4 l_vector, float roughness, vec3 f0)
+float light_specular(LightData ld, vec4 ltc_mat, vec3 N, vec3 V, vec4 l_vector)
 {
-#ifdef USE_LTC
-	if (ld.l_type == SUN) {
-		return direct_ggx_unit_disc(ld, N, V, roughness, f0);
-	}
-	else if (ld.l_type == AREA) {
-		return direct_ggx_rectangle(ld, N, V, l_vector, roughness, f0);
-	}
-	else {
-		return direct_ggx_sphere(ld, N, V, l_vector, roughness, f0);
-	}
-#else
-	if (ld.l_type == SUN) {
-		return direct_ggx_sun(ld, N, V, roughness, f0);
+	if (ld.l_type == AREA_RECT) {
+		vec3 corners[4];
+		corners[0] = (l_vector.xyz + ld.l_right * -ld.l_sizex) + ld.l_up *  ld.l_sizey;
+		corners[1] = (l_vector.xyz + ld.l_right * -ld.l_sizex) + ld.l_up * -ld.l_sizey;
+		corners[2] = (l_vector.xyz + ld.l_right *  ld.l_sizex) + ld.l_up * -ld.l_sizey;
+		corners[3] = (l_vector.xyz + ld.l_right *  ld.l_sizex) + ld.l_up *  ld.l_sizey;
+
+		ltc_transform_quad(N, V, ltc_matrix(ltc_mat), corners);
+
+		return ltc_evaluate_quad(corners, vec3(0.0, 0.0, 1.0));
 	}
 	else {
-		return direct_ggx_point(N, V, l_vector, roughness, f0);
+		bool is_ellipse = (ld.l_type == AREA_ELLIPSE);
+		float radius_x = is_ellipse ? ld.l_sizex : ld.l_radius;
+		float radius_y = is_ellipse ? ld.l_sizey : ld.l_radius;
+
+		vec3 L = (ld.l_type == SUN) ? -ld.l_forward : l_vector.xyz;
+		vec3 Px = ld.l_right;
+		vec3 Py = ld.l_up;
+
+		if (ld.l_type == SPOT || ld.l_type == POINT) {
+			make_orthonormal_basis(l_vector.xyz / l_vector.w, Px, Py);
+		}
+
+		vec3 points[3];
+		points[0] = (L + Px * -radius_x) + Py * -radius_y;
+		points[1] = (L + Px *  radius_x) + Py * -radius_y;
+		points[2] = (L + Px *  radius_x) + Py *  radius_y;
+
+		return ltc_evaluate_disk(N, V, ltc_matrix(ltc_mat), points);
 	}
-#endif
 }
+#endif
 
 #define MAX_SSS_SAMPLES 65
 #define SSS_LUT_SIZE 64.0
@@ -373,8 +396,11 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 		/* XXX : Removing Area Power. */
 		/* TODO : put this out of the shader. */
 		float falloff;
-		if (ld.l_type == AREA) {
+		if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 			vis *= (ld.l_sizex * ld.l_sizey * 4.0 * M_PI) * (1.0 / 80.0);
+			if (ld.l_type == AREA_ELLIPSE) {
+				vis *= M_PI * 0.25;
+			}
 			vis *= 0.3 * 20.0 * max(0.0, dot(-ld.l_forward, l_vector.xyz / l_vector.w)); /* XXX ad hoc, empirical */
 			vis /= (l_vector.w * l_vector.w);
 			falloff = dot(N, l_vector.xyz / l_vector.w);
@@ -412,7 +438,7 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 			vis *= spotmask;
 			vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 		}
-		else if (ld.l_type == AREA) {
+		else if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 			vis *= step(0.0, -dot(l_vector.xyz, ld.l_forward));
 		}
 	}
@@ -423,31 +449,3 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 	return vis;
 #endif
 }
-
-#ifdef HAIR_SHADER
-void light_hair_common(
-        LightData ld, vec3 N, vec3 V, vec4 l_vector, vec3 norm_view,
-        out float occlu_trans, out float occlu,
-        out vec3 norm_lamp, out vec3 view_vec)
-{
-	const float transmission = 0.3; /* Uniform internal scattering factor */
-
-	vec3 lamp_vec;
-
-	if (ld.l_type == SUN || ld.l_type == AREA) {
-		lamp_vec = ld.l_forward;
-	}
-	else {
-		lamp_vec = -l_vector.xyz;
-	}
-
-	norm_lamp = cross(lamp_vec, N);
-	norm_lamp = normalize(cross(N, norm_lamp)); /* Normal facing lamp */
-
-	/* Rotate view vector onto the cross(tangent, light) plane */
-	view_vec = normalize(norm_lamp * dot(norm_view, V) + N * dot(N, V));
-
-	occlu = (dot(norm_view, norm_lamp) * 0.5 + 0.5);
-	occlu_trans = transmission + (occlu * (1.0 - transmission)); /* Includes transmission component */
-}
-#endif

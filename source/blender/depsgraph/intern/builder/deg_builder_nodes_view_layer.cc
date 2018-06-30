@@ -65,6 +65,22 @@ extern "C" {
 
 namespace DEG {
 
+void DepsgraphNodeBuilder::build_layer_collections(ListBase *lb)
+{
+	const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		COLLECTION_RESTRICT_VIEW : COLLECTION_RESTRICT_RENDER;
+
+	for (LayerCollection *lc = (LayerCollection *)lb->first; lc; lc = lc->next) {
+		if (lc->collection->flag & restrict_flag) {
+			continue;
+		}
+		if ((lc->flag & LAYER_COLLECTION_EXCLUDE) == 0) {
+			build_collection(DEG_COLLECTION_OWNER_SCENE, lc->collection);
+		}
+		build_layer_collections(&lc->layer_collections);
+	}
+}
+
 void DepsgraphNodeBuilder::build_view_layer(
         Scene *scene,
         ViewLayer *view_layer,
@@ -80,13 +96,7 @@ void DepsgraphNodeBuilder::build_view_layer(
 	scene_ = scene;
 	view_layer_ = view_layer;
 	/* Get pointer to a CoW version of scene ID. */
-	Scene *scene_cow;
-	if (DEG_depsgraph_use_copy_on_write()) {
-		scene_cow = get_cow_datablock(scene);
-	}
-	else {
-		scene_cow = scene;
-	}
+	Scene *scene_cow = get_cow_datablock(scene);
 	/* Scene objects. */
 	int select_color = 1;
 	/* NOTE: Base is used for function bindings as-is, so need to pass CoW base,
@@ -94,12 +104,17 @@ void DepsgraphNodeBuilder::build_view_layer(
 	 * tricks here iterating over the view layer.
 	 */
 	int base_index = 0;
+	const int base_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		BASE_ENABLED_VIEWPORT : BASE_ENABLED_RENDER;
 	LISTBASE_FOREACH(Base *, base, &view_layer->object_bases) {
 		/* object itself */
-		build_object(base_index, base->object, linked_state);
-		base->object->select_color = select_color++;
+		if (base->flag & base_flag) {
+			build_object(base_index, base->object, linked_state);
+			base->object->select_color = select_color++;
+		}
 		++base_index;
 	}
+	build_layer_collections(&view_layer->layer_collections);
 	if (scene->camera != NULL) {
 		build_object(-1, scene->camera, DEG_ID_LINKED_INDIRECTLY);
 	}
@@ -140,7 +155,7 @@ void DepsgraphNodeBuilder::build_view_layer(
 	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
 	                   function_bind(BKE_layer_eval_view_layer_indexed,
 	                                 _1,
-	                                 &scene_cow->id,
+	                                 scene_cow,
 	                                 view_layer_index_),
 	                   DEG_OPCODE_VIEW_LAYER_EVAL);
 	/* Parameters evaluation for scene relations mainly. */

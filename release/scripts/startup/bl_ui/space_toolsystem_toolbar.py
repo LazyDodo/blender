@@ -83,18 +83,40 @@ def generate_from_brushes_ex(
 class _defs_view3d_generic:
     @ToolDef.from_fn
     def cursor():
+        def draw_settings(context, layout, tool):
+            wm = context.window_manager
+            props = tool.operator_properties("view3d.cursor3d")
+            layout.prop(props, "use_depth")
+            layout.prop(props, "orientation")
+
         return dict(
             text="Cursor",
             icon="ops.generic.cursor",
             keymap=(
-                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK')),
+                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+                ("transform.translate",
+                 dict(release_confirm=True, cursor_transform=True),
+                 dict(type='EVT_TWEAK_A', value='ANY'),
+                 ),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def cursor_click():
+        return dict(
+            text="None",
+            icon="ops.generic.cursor",
+            keymap=(
+                # This is a dummy keymap entry, until particle system is properly working with toolsystem.
+                ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='CLICK', ctrl=True, alt=True, shift=True)),
             ),
         )
 
     @ToolDef.from_fn
     def ruler():
         return dict(
-            text="Ruler/Protractor",
+            text="Ruler",
             icon="ops.view3d.ruler",
             widget="VIEW3D_WGT_ruler",
             keymap=(
@@ -109,33 +131,39 @@ class _defs_transform:
     def translate():
         return dict(
             text="Move",
+            # cursor='SCROLL_XY',
             icon="ops.transform.translate",
             widget="TRANSFORM_WGT_manipulator",
-            keymap=(
-                ("transform.translate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            # TODO, implement as optional fallback manipulator
+            # keymap=(
+            #     ("transform.translate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            # ),
         )
 
     @ToolDef.from_fn
     def rotate():
         return dict(
             text="Rotate",
+            # cursor='SCROLL_XY',
             icon="ops.transform.rotate",
             widget="TRANSFORM_WGT_manipulator",
-            keymap=(
-                ("transform.rotate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            # TODO, implement as optional fallback manipulator
+            # keymap=(
+            #     ("transform.rotate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            # ),
         )
 
     @ToolDef.from_fn
     def scale():
         return dict(
             text="Scale",
+            # cursor='SCROLL_XY',
             icon="ops.transform.resize",
             widget="TRANSFORM_WGT_manipulator",
-            keymap=(
-                ("transform.resize", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            # TODO, implement as optional fallback manipulator
+            # keymap=(
+            #     ("transform.resize", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            # ),
         )
 
     @ToolDef.from_fn
@@ -148,11 +176,16 @@ class _defs_transform:
 
     @ToolDef.from_fn
     def transform():
+        def draw_settings(context, layout, tool):
+            tool_settings = context.tool_settings
+            layout.prop(tool_settings, "use_manipulator_mode")
+
         return dict(
             text="Transform",
             icon="ops.transform.transform",
             widget="TRANSFORM_WGT_manipulator",
             # No keymap default action, only for manipulators!
+            draw_settings=draw_settings,
         )
 
 
@@ -225,6 +258,32 @@ class _defs_edit_armature:
         )
 
     @ToolDef.from_fn
+    def bone_envelope():
+        return dict(
+            text="Bone Envelope",
+            icon="ops.transform.bone_envelope",
+            widget=None,
+            keymap=(
+                ("transform.transform",
+                 dict(release_confirm=True, mode='BONE_ENVELOPE'),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def bone_size():
+        return dict(
+            text="Bone Size",
+            icon="ops.transform.bone_size",
+            widget=None,
+            keymap=(
+                ("transform.transform",
+                 dict(release_confirm=True, mode='BONE_SIZE'),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
     def extrude():
         return dict(
             text="Extrude",
@@ -249,7 +308,6 @@ class _defs_edit_armature:
 
 class _defs_edit_mesh:
 
-
     @ToolDef.from_fn
     def cube_add():
         return dict(
@@ -264,9 +322,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def rip_region():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("mesh.rip_move")
+            props = tool.operator_properties("mesh.rip_move")
             props_macro = props.MESH_OT_rip
             layout.prop(props_macro, "use_fill")
 
@@ -364,9 +422,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def inset():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("mesh.inset")
+            props = tool.operator_properties("mesh.inset")
             layout.prop(props, "use_outset")
             layout.prop(props, "use_individual")
             layout.prop(props, "use_even_offset")
@@ -397,21 +455,14 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def extrude():
-        def draw_settings(context, layout):
-            wm = context.window_manager
-            props = wm.operator_properties_last("mesh.extrude_context_move")
-            props_xform = props.TRANSFORM_OT_translate
-            layout.prop(props_xform, "constraint_orientation")
-
         return dict(
             text="Extrude Region",
             icon="ops.mesh.extrude_region_move",
             widget="MESH_WGT_extrude",
             keymap=(
                 ("mesh.extrude_context_move", dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
-                 dict(type='ACTIONMOUSE', value='PRESS')),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
             ),
-            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -422,7 +473,7 @@ class _defs_edit_mesh:
             widget=None,
             keymap=(
                 ("mesh.extrude_faces_move", dict(TRANSFORM_OT_shrink_fatten=dict(release_confirm=True)),
-                 dict(type='ACTIONMOUSE', value='PRESS')),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
 
@@ -485,9 +536,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def shrink_fatten():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("transform.shrink_fatten")
+            props = tool.operator_properties("transform.shrink_fatten")
             layout.prop(props, "use_even_offset")
 
         return dict(
@@ -515,9 +566,9 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def knife():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("mesh.knife_tool")
+            props = tool.operator_properties("mesh.knife_tool")
             layout.prop(props, "use_occlude_geometry")
             layout.prop(props, "only_selected")
 
@@ -551,7 +602,7 @@ class _defs_edit_curve:
 
     @ToolDef.from_fn
     def draw():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             # Tool settings initialize operator options.
             tool_settings = context.tool_settings
             cps = tool_settings.curve_paint_settings
@@ -571,6 +622,7 @@ class _defs_edit_curve:
 
         return dict(
             text="Draw",
+            cursor='PAINT_BRUSH',
             icon=None,
             widget=None,
             keymap=(
@@ -587,6 +639,42 @@ class _defs_edit_curve:
             widget=None,
             keymap=(
                 ("curve.vertex_add", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+
+class _defs_pose:
+
+    @ToolDef.from_fn
+    def breakdown():
+        return dict(
+            text="Breakdowner",
+            icon="ops.pose.breakdowner",
+            widget=None,
+            keymap=(
+                ("pose.breakdown", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def push():
+        return dict(
+            text="Push",
+            icon="ops.pose.push",
+            widget=None,
+            keymap=(
+                ("pose.push", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def relax():
+        return dict(
+            text="Relax",
+            icon="ops.pose.relax",
+            widget=None,
+            keymap=(
+                ("pose.relax", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
             ),
         )
 
@@ -706,9 +794,9 @@ class _defs_weight_paint:
 
     @ToolDef.from_fn
     def gradient():
-        def draw_settings(context, layout):
+        def draw_settings(context, layout, tool):
             wm = context.window_manager
-            props = wm.operator_properties_last("paint.weight_gradient")
+            props = tool.operator_properties("paint.weight_gradient")
             layout.prop(props, "type")
 
         return dict(
@@ -722,6 +810,108 @@ class _defs_weight_paint:
         )
 
 
+class _defs_uv_select:
+
+    @ToolDef.from_fn
+    def border():
+        return dict(
+            text="Select Border",
+            icon="ops.generic.select_border",
+            widget=None,
+            keymap=(
+                ("uv.select_border",
+                 dict(deselect=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+                # ("uv.select_border",
+                #  dict(deselect=True),
+                #  dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def circle():
+        return dict(
+            text="Select Circle",
+            icon="ops.generic.select_circle",
+            widget=None,
+            keymap=(
+                ("uv.select_circle",
+                 dict(),  # dict(deselect=False),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+                # ("uv.select_circle",
+                #  dict(deselect=True),
+                #  dict(type='ACTIONMOUSE', value='PRESS', ctrl=True)),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def lasso():
+        return dict(
+            text="Select Lasso",
+            icon="ops.generic.select_lasso",
+            widget=None,
+            keymap=(
+                ("uv.select_lasso",
+                 dict(deselect=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+                # ("uv.select_lasso",
+                #  dict(deselect=True),
+                #  dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
+            ),
+        )
+
+
+class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
+    bl_space_type = 'IMAGE_EDITOR'
+    bl_region_type = 'TOOLS'
+    bl_category = "Tools"
+    bl_label = "Tools"  # not visible
+    bl_options = {'HIDE_HEADER'}
+
+    # Satisfy the 'ToolSelectPanelHelper' API.
+    keymap_prefix = "Image Editor Tool: "
+
+    @classmethod
+    def tools_from_context(cls, context, mode=None):
+        if mode is None:
+            mode = context.space_data.mode
+        for tools in (cls._tools[None], cls._tools.get(mode, ())):
+            for item in tools:
+                if not (type(item) is ToolDef) and callable(item):
+                    yield from item(context)
+                else:
+                    yield item
+
+    @classmethod
+    def tools_all(cls):
+        yield from cls._tools.items()
+
+    # for reuse
+    _tools_select = (
+        (
+            _defs_uv_select.border,
+            _defs_uv_select.circle,
+            _defs_uv_select.lasso,
+        ),
+    )
+
+    _tools = {
+        None: [
+            # for all modes
+        ],
+        'VIEW': [
+            *_tools_select,
+
+        ],
+        'MASK': [
+            None,
+        ],
+        'PAINT': [
+            _defs_texture_paint.generate_from_brushes,
+        ],
+    }
+
+
 class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
@@ -733,8 +923,10 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
     keymap_prefix = "3D View Tool: "
 
     @classmethod
-    def tools_from_context(cls, context):
-        for tools in (cls._tools[None], cls._tools.get(context.mode, ())):
+    def tools_from_context(cls, context, mode=None):
+        if mode is None:
+            mode = context.mode
+        for tools in (cls._tools[None], cls._tools.get(mode, ())):
             for item in tools:
                 if not (type(item) is ToolDef) and callable(item):
                     yield from item(context)
@@ -781,12 +973,22 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
         'POSE': [
             *_tools_select,
             *_tools_transform,
+            None,
+            (
+                _defs_pose.breakdown,
+                _defs_pose.push,
+                _defs_pose.relax,
+            )
         ],
         'EDIT_ARMATURE': [
             *_tools_select,
             None,
             *_tools_transform,
             _defs_edit_armature.roll,
+            (
+                _defs_edit_armature.bone_size,
+                _defs_edit_armature.bone_envelope,
+            ),
             None,
             (
                 _defs_edit_armature.extrude,
@@ -845,6 +1047,11 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_edit_curve.draw,
             _defs_edit_curve.extrude_cursor,
         ],
+        'PARTICLE': [
+            # TODO(campbell): use cursor click tool to allow paint tools to run,
+            # we need to integrate particle system tools properly.
+            _defs_view3d_generic.cursor_click,
+        ],
         'SCULPT': [
             _defs_sculpt.generate_from_brushes,
         ],
@@ -869,6 +1076,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
 
 classes = (
+    IMAGE_PT_tools_active,
     VIEW3D_PT_tools_active,
 )
 

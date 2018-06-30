@@ -99,14 +99,15 @@ bool ControllerExporter::add_instance_controller(Object *ob)
 	}
 
 	InstanceWriter::add_material_bindings(ins.getBindMaterial(), ob, this->export_settings->active_uv_only);
-		
+
 	ins.add();
 	return true;
 }
 
-void ControllerExporter::export_controllers(struct Depsgraph *depsgraph, Scene *sce)
+void ControllerExporter::export_controllers(Main *bmain, Depsgraph *depsgraph, Scene *sce)
 {
 	this->depsgraph = depsgraph;
+	m_bmain = bmain;
 	scene = sce;
 
 	openLibrary();
@@ -148,7 +149,7 @@ void ArmatureExporter::find_objects_using_armature(Object *ob_arm, std::vector<O
 	Base *base = (Base *) sce->base.first;
 	while (base) {
 		Object *ob = base->object;
-		
+
 		if (ob->type == OB_MESH && get_assigned_armature(ob) == ob_arm) {
 			objects.push_back(ob);
 		}
@@ -198,13 +199,17 @@ void ControllerExporter::export_skin_controller(Object *ob, Object *ob_arm)
 	bool use_instantiation = this->export_settings->use_object_instantiation;
 	Mesh *me;
 
-	me = bc_get_mesh_copy(depsgraph, scene,
+	if (((Mesh *)ob->data)->dvert == NULL) {
+		return;
+	}
+
+	me = bc_get_mesh_copy(
+				depsgraph,
+				scene,
 				ob,
 				this->export_settings->export_mesh_type,
 				this->export_settings->apply_modifiers,
 				this->export_settings->triangulate);
-	
-	if (!me->dvert) return;
 
 	std::string controller_name = id_name(ob_arm);
 	std::string controller_id = get_controller_id(ob_arm, ob);
@@ -246,7 +251,7 @@ void ControllerExporter::export_skin_controller(Object *ob, Object *ob_arm)
 			for (j = 0; j < vert->totweight; j++) {
 				int idx = vert->dw[j].def_nr;
 				if (idx >= joint_index_by_def_index.size()) {
-					// XXX: Maybe better find out where and 
+					// XXX: Maybe better find out where and
 					//      why the Out Of Bound indexes get created ?
 					oob_counter += 1;
 				}
@@ -289,7 +294,7 @@ void ControllerExporter::export_skin_controller(Object *ob, Object *ob_arm)
 	add_joints_element(&ob->defbase, joints_source_id, inv_bind_mat_source_id);
 	add_vertex_weights_element(weights_source_id, joints_source_id, vcounts, joints);
 
-	BKE_libblock_free_us(G.main, me);
+	BKE_id_free(NULL, me);
 
 	closeSkin();
 	closeController();
@@ -300,7 +305,9 @@ void ControllerExporter::export_morph_controller(Object *ob, Key *key)
 	bool use_instantiation = this->export_settings->use_object_instantiation;
 	Mesh *me;
 
-	me = bc_get_mesh_copy(depsgraph, scene,
+	me = bc_get_mesh_copy(
+				depsgraph,
+				scene,
 				ob,
 				this->export_settings->export_mesh_type,
 				this->export_settings->apply_modifiers,
@@ -314,7 +321,7 @@ void ControllerExporter::export_morph_controller(Object *ob, Key *key)
 
 	std::string targets_id = add_morph_targets(key, ob);
 	std::string morph_weights_id = add_morph_weights(key, ob);
-	
+
 	COLLADASW::TargetsElement targets(mSW);
 
 	COLLADASW::InputList &input = targets.getInputList();
@@ -325,8 +332,7 @@ void ControllerExporter::export_morph_controller(Object *ob, Key *key)
 	                                 COLLADASW::URI(COLLADABU::Utils::EMPTY_STRING, morph_weights_id)));
 	targets.add();
 
-	BKE_libblock_free_us(G.main, me);
-
+	BKE_id_free(NULL, me);
 
 	//support for animations
 	//can also try the base element and param alternative
@@ -376,7 +382,7 @@ std::string ControllerExporter::add_morph_weights(Key *key, Object *ob)
 
 	COLLADASW::SourceBase::ParameterNameList &param = source.getParameterNameList();
 	param.push_back("MORPH_WEIGHT");
-	
+
 	source.prepareToAppendValues();
 
 	KeyBlock *kb = (KeyBlock *)key->block.first;
@@ -396,7 +402,7 @@ void ControllerExporter::add_weight_extras(Key *key)
 {
 	// can also try the base element and param alternative
 	COLLADASW::BaseExtraTechnique extra;
-	
+
 	KeyBlock * kb = (KeyBlock *)key->block.first;
 	//skip the basis
 	kb = kb->next;
@@ -447,7 +453,7 @@ std::string ControllerExporter::add_joints_source(Object *ob_arm, ListBase *defb
 	source.setArrayId(source_id + ARRAY_ID_SUFFIX);
 	source.setAccessorCount(totjoint);
 	source.setAccessorStride(1);
-	
+
 	COLLADASW::SourceBase::ParameterNameList &param = source.getParameterNameList();
 	param.push_back("JOINT");
 
@@ -480,7 +486,7 @@ std::string ControllerExporter::add_inv_bind_mats_source(Object *ob_arm, ListBas
 	source.setArrayId(source_id + ARRAY_ID_SUFFIX);
 	source.setAccessorCount(totjoint); //BLI_listbase_count(defbase));
 	source.setAccessorStride(16);
-	
+
 	source.setParameterTypeName(&COLLADASW::CSWC::CSW_VALUE_TYPE_FLOAT4x4);
 	COLLADASW::SourceBase::ParameterNameList &param = source.getParameterNameList();
 	param.push_back("TRANSFORM");
@@ -509,7 +515,7 @@ std::string ControllerExporter::add_inv_bind_mats_source(Object *ob_arm, ListBas
 			float bind_mat[4][4]; /* derived from bone->arm_mat */
 
 			bool has_bindmat = bc_get_property_matrix(pchan->bone, "bind_mat", bind_mat);
-			
+
 			if (!has_bindmat) {
 
 				/* Have no bind matrix stored, try old style <= Blender 2.78 */
@@ -571,7 +577,7 @@ std::string ControllerExporter::add_weights_source(Mesh *me, const std::string& 
 	source.setArrayId(source_id + ARRAY_ID_SUFFIX);
 	source.setAccessorCount(weights.size());
 	source.setAccessorStride(1);
-	
+
 	COLLADASW::SourceBase::ParameterNameList &param = source.getParameterNameList();
 	param.push_back("WEIGHT");
 

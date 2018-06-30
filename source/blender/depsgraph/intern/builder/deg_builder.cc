@@ -30,11 +30,17 @@
 
 #include "intern/builder/deg_builder.h"
 
+#include "DNA_anim_types.h"
 #include "DNA_object_types.h"
 #include "DNA_ID.h"
 
+extern "C" {
+#include "BKE_animsys.h"
+}
+
 #include "intern/depsgraph.h"
 #include "intern/depsgraph_types.h"
+#include "intern/eval/deg_eval_copy_on_write.h"
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_id.h"
 
@@ -46,21 +52,24 @@ namespace DEG {
 
 void deg_graph_build_finalize(Main *bmain, Depsgraph *graph)
 {
-	const bool use_copy_on_write = DEG_depsgraph_use_copy_on_write();
 	/* Re-tag IDs for update if it was tagged before the relations
 	 * update tag.
 	 */
 	foreach (IDDepsNode *id_node, graph->id_nodes) {
 		ID *id = id_node->id_orig;
 		id_node->finalize_build(graph);
+		int flag = 0;
 		if ((id->recalc & ID_RECALC_ALL)) {
-			id_node->tag_update(graph);
+			AnimData *adt = BKE_animdata_from_id(id);
+			if (adt != NULL && (adt->recalc & ADT_RECALC_ANIM) != 0) {
+				flag |= DEG_TAG_TIME;
+			}
 		}
-		/* TODO(sergey): This is not ideal at all, since this forces
-		 * re-evaluaiton of the whole tree.
-		 */
-		if (use_copy_on_write) {
-			DEG_id_tag_update_ex(bmain, id_node->id_orig, DEG_TAG_COPY_ON_WRITE);
+		if (!deg_copy_on_write_is_expanded(id_node->id_cow)) {
+			flag |= DEG_TAG_COPY_ON_WRITE;
+		}
+		if (flag != 0) {
+			DEG_id_tag_update_ex(bmain, id_node->id_orig, flag);
 		}
 	}
 }

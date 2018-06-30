@@ -40,7 +40,6 @@
 #include "BLI_utildefines.h"
 #include "BLI_math.h"
 
-#include "BKE_cdderivedmesh.h"
 #include "BKE_library.h"
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
@@ -107,8 +106,7 @@ static Mesh *doEdgeSplit(Mesh *mesh, EdgeSplitModifierData *emd, const ModifierE
 
 	/* BM_mesh_validate(bm); */ /* for troubleshooting */
 
-	result = BKE_id_new_nomain(ID_ME, mesh->id.name);
-	BM_mesh_bm_to_me(bm, result, &((struct BMeshToMeshParams){0}));
+	result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 	BM_mesh_free(bm);
 
 	result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;

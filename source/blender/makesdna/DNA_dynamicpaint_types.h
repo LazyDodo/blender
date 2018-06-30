@@ -99,12 +99,12 @@ enum {
 };
 
 typedef struct DynamicPaintSurface {
-	
+
 	struct DynamicPaintSurface *next, *prev;
 	struct DynamicPaintCanvasSettings *canvas; /* for fast RNA access */
 	struct PaintSurfaceData *data;
 
-	struct Group *brush_group;
+	struct Collection *brush_group;
 	struct EffectorWeights *effector_weights;
 
 	/* cache */

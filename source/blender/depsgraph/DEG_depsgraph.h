@@ -42,9 +42,9 @@
  * Evaluation Engine
  * =================
  *
- * The evaluation takes the operation-nodes the Depsgraph has tagged for updating, 
+ * The evaluation takes the operation-nodes the Depsgraph has tagged for updating,
  * and schedules them up for being evaluated/executed such that the all dependency
- * relationship constraints are satisfied. 
+ * relationship constraints are satisfied.
  */
 
 /* ************************************************* */
@@ -70,8 +70,7 @@ struct ViewLayer;
 
 typedef enum eEvaluationMode {
 	DAG_EVAL_VIEWPORT       = 0,    /* evaluate for OpenGL viewport */
-	DAG_EVAL_PREVIEW        = 1,    /* evaluate for render with preview settings */
-	DAG_EVAL_RENDER         = 2,    /* evaluate for render purposes */
+	DAG_EVAL_RENDER         = 1,    /* evaluate for render purposes */
 } eEvaluationMode;
 
 /* DagNode->eval_flags */
@@ -90,9 +89,6 @@ enum {
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-bool DEG_depsgraph_use_copy_on_write(void);
-void DEG_depsgraph_enable_copy_on_write(void);
 
 /* ************************************************ */
 /* Depsgraph API */
@@ -173,7 +169,7 @@ void DEG_graph_id_tag_update(struct Main *bmain,
  */
 void DEG_id_type_tag(struct Main *bmain, short id_type);
 
-void DEG_ids_clear_recalc(struct Main *bmain);
+void DEG_ids_clear_recalc(struct Main *bmain, Depsgraph *depsgraph);
 
 /* Update Flushing ------------------------------- */
 
@@ -232,6 +228,12 @@ typedef void (*DEG_EditorUpdateSceneCb)(
 void DEG_editors_set_update_cb(DEG_EditorUpdateIDCb id_func,
                                DEG_EditorUpdateSceneCb scene_func);
 
+/* Evaluation  ----------------------------------- */
+
+bool DEG_is_active(const struct Depsgraph *depsgraph);
+void DEG_make_active(struct Depsgraph *depsgraph);
+void DEG_make_inactive(struct Depsgraph *depsgraph);
+
 /* Evaluation Debug ------------------------------ */
 
 void DEG_debug_print_begin(struct Depsgraph *depsgraph);
@@ -262,11 +264,9 @@ void DEG_debug_print_eval_parent_typed(struct Depsgraph *depsgraph,
                                        const char *function_name,
                                        const char *object_name,
                                        const void *object_address,
-                                       const char *object_type,
                                        const char *parent_comment,
                                        const char *parent_name,
-                                       const void *parent_address,
-                                       const char *parent_type);
+                                       const void *parent_address);
 
 void DEG_debug_print_eval_time(struct Depsgraph *depsgraph,
                                const char* function_name,

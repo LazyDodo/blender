@@ -27,12 +27,12 @@ typedef struct Gwn_IndexBuf {
 	unsigned index_ct;
 #if GWN_TRACK_INDEX_RANGE
 	Gwn_IndexBufType index_type;
-	GLenum gl_index_type;
+	uint32_t gl_index_type;
 	unsigned min_index;
 	unsigned max_index;
 	unsigned base_index;
 #endif
-	GLuint vbo_id; // 0 indicates not yet sent to VRAM
+	uint32_t vbo_id; // 0 indicates not yet sent to VRAM
 	bool use_prim_restart;
 } Gwn_IndexBuf;
 
@@ -61,6 +61,7 @@ void GWN_indexbuf_add_primitive_restart(Gwn_IndexBufBuilder*);
 void GWN_indexbuf_add_point_vert(Gwn_IndexBufBuilder*, unsigned v);
 void GWN_indexbuf_add_line_verts(Gwn_IndexBufBuilder*, unsigned v1, unsigned v2);
 void GWN_indexbuf_add_tri_verts(Gwn_IndexBufBuilder*, unsigned v1, unsigned v2, unsigned v3);
+void GWN_indexbuf_add_line_adj_verts(Gwn_IndexBufBuilder*, unsigned v1, unsigned v2, unsigned v3, unsigned v4);
 
 Gwn_IndexBuf* GWN_indexbuf_build(Gwn_IndexBufBuilder*);
 void GWN_indexbuf_build_in_place(Gwn_IndexBufBuilder*, Gwn_IndexBuf*);

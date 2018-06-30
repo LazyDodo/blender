@@ -87,9 +87,6 @@ void RE_engines_exit(void)
 
 	DRW_engines_free();
 
-	BKE_layer_collection_engine_settings_callback_free();
-	BKE_view_layer_engine_settings_callback_free();
-
 	for (type = R_engines.first; type; type = next) {
 		next = type->next;
 
@@ -104,18 +101,10 @@ void RE_engines_exit(void)
 	}
 }
 
-void RE_engines_register(Main *bmain, RenderEngineType *render_type)
+void RE_engines_register(RenderEngineType *render_type)
 {
 	if (render_type->draw_engine) {
 		DRW_engine_register(render_type->draw_engine);
-	}
-	if (render_type->collection_settings_create) {
-		BKE_layer_collection_engine_settings_callback_register(
-		            bmain, render_type->idname, render_type->collection_settings_create);
-	}
-	if (render_type->render_settings_create) {
-		BKE_view_layer_engine_settings_callback_register(
-		            bmain, render_type->idname, render_type->render_settings_create);
 	}
 	BLI_addtail(&R_engines, render_type);
 }
@@ -123,17 +112,17 @@ void RE_engines_register(Main *bmain, RenderEngineType *render_type)
 RenderEngineType *RE_engines_find(const char *idname)
 {
 	RenderEngineType *type;
-	
+
 	type = BLI_findstring(&R_engines, idname, offsetof(RenderEngineType, idname));
 	if (!type)
 		type = BLI_findstring(&R_engines, "BLENDER_EEVEE", offsetof(RenderEngineType, idname));
-	
+
 	return type;
 }
 
 bool RE_engine_is_external(Render *re)
 {
-	return (re->engine && re->engine->type && re->engine->type->render_to_image);
+	return (re->engine && re->engine->type && re->engine->type->render);
 }
 
 bool RE_engine_is_opengl(RenderEngineType *render_type)
@@ -331,7 +320,7 @@ int RE_engine_test_break(RenderEngine *engine)
 
 	if (re)
 		return re->test_break(re->tbh);
-	
+
 	return 0;
 }
 
@@ -508,7 +497,7 @@ static void engine_depsgraph_init(RenderEngine *engine, ViewLayer *view_layer)
 	engine->depsgraph = DEG_graph_new(scene, view_layer, DAG_EVAL_RENDER);
 	DEG_debug_name_set(engine->depsgraph, "RENDER");
 
-	BKE_scene_graph_update_tagged(engine->depsgraph, bmain);
+	BKE_scene_graph_update_for_newframe(engine->depsgraph, bmain);
 }
 
 static void engine_depsgraph_free(RenderEngine *engine)
@@ -524,6 +513,10 @@ void RE_engine_frame_set(RenderEngine *engine, int frame, float subframe)
 		return;
 	}
 
+#ifdef WITH_PYTHON
+	BPy_BEGIN_ALLOW_THREADS;
+#endif
+
 	Render *re = engine->re;
 	double cfra = (double)frame + (double)subframe;
 
@@ -531,15 +524,11 @@ void RE_engine_frame_set(RenderEngine *engine, int frame, float subframe)
 	BKE_scene_frame_set(re->scene, cfra);
 	BKE_scene_graph_update_for_newframe(engine->depsgraph, re->main);
 
-#ifdef WITH_PYTHON
-	BPy_BEGIN_ALLOW_THREADS;
-#endif
+	BKE_scene_camera_switch_update(re->scene);
 
 #ifdef WITH_PYTHON
 	BPy_END_ALLOW_THREADS;
 #endif
-
-	BKE_scene_camera_switch_update(re->scene);
 }
 
 /* Bake */
@@ -557,7 +546,7 @@ bool RE_bake_has_engine(Render *re)
 }
 
 bool RE_bake_engine(
-        Render *re, ViewLayer *view_layer, Object *object,
+        Render *re, Depsgraph *depsgraph, Object *object,
         const int object_id, const BakePixel pixel_array[],
         const size_t num_pixels, const int depth,
         const eScenePassType pass_type, const int pass_filter,
@@ -592,16 +581,15 @@ bool RE_bake_engine(
 	engine->tile_x = re->r.tilex;
 	engine->tile_y = re->r.tiley;
 
-	/* update is only called so we create the engine.session */
-	if (type->update)
-		type->update(engine, re->main, re->scene);
-
 	if (type->bake) {
-		engine_depsgraph_init(engine, view_layer);
+		engine->depsgraph = depsgraph;
+
+		/* update is only called so we create the engine.session */
+		if (type->update)
+			type->update(engine, re->main, engine->depsgraph);
 
 		type->bake(engine,
 		           engine->depsgraph,
-		           re->scene,
 		           object,
 		           pass_type,
 		           pass_filter,
@@ -611,7 +599,7 @@ bool RE_bake_engine(
 		           depth,
 		           result);
 
-		engine_depsgraph_free(engine);
+		engine->depsgraph = NULL;
 	}
 
 	engine->tile_x = 0;
@@ -644,7 +632,7 @@ int RE_engine_render(Render *re, int do_all)
 	bool persistent_data = (re->r.mode & R_PERSISTENT_DATA) != 0;
 
 	/* verify if we can render */
-	if (!type->render_to_image)
+	if (!type->render)
 		return 0;
 	if ((re->r.scemode & R_BUTS_PREVIEW) && !(type->flag & RE_USE_PREVIEW))
 		return 0;
@@ -726,22 +714,30 @@ int RE_engine_render(Render *re, int do_all)
 	if (re->result->do_exr_tile)
 		render_result_exr_file_begin(re);
 
-	if (type->update) {
-		type->update(engine, re->main, re->scene);
-	}
-
 	/* Clear UI drawing locks. */
 	if (re->draw_lock) {
 		re->draw_lock(re->dlh, 0);
 	}
 
-	if (type->render_to_image) {
+	if (type->render) {
 		FOREACH_VIEW_LAYER_TO_RENDER_BEGIN(re, view_layer_iter)
 		{
+			if (re->draw_lock) {
+				re->draw_lock(re->dlh, 1);
+			}
+
 			ViewLayer *view_layer = BLI_findstring(&re->scene->view_layers, view_layer_iter->name, offsetof(ViewLayer, name));
 			engine_depsgraph_init(engine, view_layer);
 
-			type->render_to_image(engine, engine->depsgraph);
+			if (type->update) {
+				type->update(engine, re->main, engine->depsgraph);
+			}
+
+			if (re->draw_lock) {
+				re->draw_lock(re->dlh, 0);
+			}
+
+			type->render(engine, engine->depsgraph);
 
 			engine_depsgraph_free(engine);
 		}
@@ -780,7 +776,7 @@ int RE_engine_render(Render *re, int do_all)
 
 	if (BKE_reports_contain(re->reports, RPT_ERROR))
 		G.is_break = true;
-	
+
 #ifdef WITH_FREESTYLE
 	if (re->r.mode & R_EDGE_FRS)
 		RE_RenderFreestyleExternal(re);
@@ -801,8 +797,9 @@ void RE_engine_register_pass(struct RenderEngine *engine, struct Scene *scene, s
 	/* Register the pass in all scenes that have a render layer node for this layer.
 	 * Since multiple scenes can be used in the compositor, the code must loop over all scenes
 	 * and check whether their nodetree has a node that needs to be updated. */
-	Scene *sce;
-	for (sce = G.main->scene.first; sce; sce = sce->id.next) {
+	/* NOTE: using G_MAIN seems valid here,
+	 * unless we want to register that for every other temp Main we could generate??? */
+	for (Scene *sce = G_MAIN->scene.first; sce; sce = sce->id.next) {
 		if (sce->nodetree) {
 			ntreeCompositRegisterPass(sce->nodetree, scene, view_layer, name, type);
 		}

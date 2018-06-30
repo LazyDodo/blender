@@ -41,7 +41,6 @@ struct Main;
 struct Mesh;
 struct Object;
 struct Scene;
-struct DerivedMesh;
 struct BPoint;
 struct MDeformVert;
 struct Depsgraph;
@@ -91,6 +90,8 @@ void BKE_lattice_center_median(struct Lattice *lt, float cent[3]);
 void BKE_lattice_center_bounds(struct Lattice *lt, float cent[3]);
 void BKE_lattice_translate(struct Lattice *lt, float offset[3], bool do_keys);
 void BKE_lattice_transform(struct Lattice *lt, float mat[4][4], bool do_keys);
+
+bool BKE_lattice_is_any_selected(const struct Lattice *lt);
 
 int  BKE_lattice_index_from_uvw(struct Lattice *lt, const int u, const int v, const int w);
 void BKE_lattice_index_to_uvw(struct Lattice *lt, const int index, int *r_u, int *r_v, int *r_w);

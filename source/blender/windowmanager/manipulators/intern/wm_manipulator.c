@@ -92,7 +92,7 @@ static wmManipulator *wm_manipulator_create(
 		IDPropertyTemplate val = {0};
 		mpr->properties = IDP_New(IDP_GROUP, &val, "wmManipulatorProperties");
 	}
-	RNA_pointer_create(G.main->wm.first, wt->srna, mpr->properties, mpr->ptr);
+	RNA_pointer_create(G_MAIN->wm.first, wt->srna, mpr->properties, mpr->ptr);
 
 	WM_manipulator_properties_sanitize(mpr->ptr, 0);
 
@@ -509,7 +509,7 @@ void wm_manipulator_calculate_scale(wmManipulator *mpr, const bContext *C)
 			}
 
 			/* Exclude matrix_offset from scale. */
-			scale *= ED_view3d_pixel_size(rv3d, matrix_world[3]) / U.pixelsize;
+			scale *= ED_view3d_pixel_size_no_ui_scale(rv3d, matrix_world[3]);
 		}
 		else {
 			scale *= 0.02f;
@@ -596,6 +596,22 @@ void WM_manipulator_calc_matrix_final_params(
 	}
 
 	mul_m4_m4m4(r_mat, matrix_space, final_matrix);
+}
+
+void WM_manipulator_calc_matrix_final_no_offset(const wmManipulator *mpr, float r_mat[4][4])
+{
+	float mat_identity[4][4];
+	unit_m4(mat_identity);
+
+	WM_manipulator_calc_matrix_final_params(
+	        mpr,
+	        &((struct WM_ManipulatorMatrixParams) {
+	            .matrix_space = NULL,
+	            .matrix_basis = NULL,
+	            .matrix_offset = mat_identity,
+	            .scale_final = NULL,
+	        }), r_mat
+	);
 }
 
 void WM_manipulator_calc_matrix_final(const wmManipulator *mpr, float r_mat[4][4])

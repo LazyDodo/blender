@@ -88,6 +88,7 @@
 #include "BLI_math_vector.h"
 
 #include "BKE_mesh.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_customdata.h"
 #include "BKE_multires.h"
 
@@ -547,8 +548,12 @@ BLI_INLINE void bmesh_quick_edgedraw_flag(MEdge *med, BMEdge *e)
 	}
 }
 
+/**
+ *
+ * \param bmain May be NULL in case \a calc_object_remap parameter option is not set.
+ */
 void BM_mesh_bm_to_me(
-        BMesh *bm, Mesh *me,
+        Main *bmain, BMesh *bm, Mesh *me,
         const struct BMeshToMeshParams *params)
 {
 	MLoop *mloop;
@@ -709,11 +714,12 @@ void BM_mesh_bm_to_me(
 
 	/* patch hook indices and vertex parents */
 	if (params->calc_object_remap && (ototvert > 0)) {
+		BLI_assert(bmain != NULL);
 		Object *ob;
 		ModifierData *md;
 		BMVert **vertMap = NULL;
 
-		for (ob = G.main->object.first; ob; ob = ob->id.next) {
+		for (ob = bmain->object.first; ob; ob = ob->id.next) {
 			if ((ob->parent) && (ob->parent->data == me) && ELEM(ob->partype, PARVERT1, PARVERT3)) {
 
 				if (vertMap == NULL) {

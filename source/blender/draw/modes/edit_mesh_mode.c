@@ -39,9 +39,13 @@
 
 #include "BKE_object.h"
 
+#include "BLI_dynstr.h"
+
+
 extern struct GPUUniformBuffer *globals_ubo; /* draw_common.c */
 extern struct GlobalsUboStorage ts; /* draw_common.c */
 
+extern char datatoc_edit_mesh_overlay_common_lib_glsl[];
 extern char datatoc_edit_mesh_overlay_frag_glsl[];
 extern char datatoc_edit_mesh_overlay_vert_glsl[];
 extern char datatoc_edit_mesh_overlay_geom_tri_glsl[];
@@ -87,16 +91,16 @@ typedef struct EDIT_MESH_Data {
 } EDIT_MESH_Data;
 
 /* *********** STATIC *********** */
+#define MAX_SHADERS 16
 
 static struct {
 	/* weight/vert-color */
 	GPUShader *vcolor_face_shader;
-	GPUShader *overlay_tri_sh;
-	GPUShader *overlay_tri_fast_sh;
-	GPUShader *overlay_tri_vcol_sh;
-	GPUShader *overlay_tri_vcol_fast_sh;
-	GPUShader *overlay_edge_sh;
-	GPUShader *overlay_edge_vcol_sh;
+
+	/* Geometry */
+	GPUShader *overlay_tri_sh_cache[MAX_SHADERS];
+	GPUShader *overlay_loose_edge_sh_cache[MAX_SHADERS];
+
 	GPUShader *overlay_vert_sh;
 	GPUShader *overlay_facedot_sh;
 	GPUShader *overlay_mix_sh;
@@ -130,9 +134,99 @@ typedef struct EDIT_MESH_PrivateData {
 	DRWShadingGroup *facedot_occluded_shgrp;
 	DRWShadingGroup *facefill_occluded_shgrp;
 
+	bool do_zbufclip;
 } EDIT_MESH_PrivateData; /* Transient data */
 
 /* *********** FUNCTIONS *********** */
+static int EDIT_MESH_sh_index(ToolSettings *tsettings, RegionView3D *rv3d, bool supports_fast_mode)
+{
+	int result = tsettings->selectmode << 1;
+	if (supports_fast_mode) {
+		SET_FLAG_FROM_TEST(result, (rv3d->rflag & RV3D_NAVIGATING), 1 << 0);
+	}
+	return result;
+}
+
+static char *EDIT_MESH_sh_defines(ToolSettings *tsettings, RegionView3D *rv3d, bool anti_alias)
+{
+	const int selectmode = tsettings->selectmode;
+	const int fast_mode = rv3d->rflag & RV3D_NAVIGATING;
+
+	char *str = NULL;
+	DynStr *ds = BLI_dynstr_new();
+
+	if (selectmode & SCE_SELECT_VERTEX) {
+		BLI_dynstr_append(ds, "#define VERTEX_SELECTION\n");
+	}
+
+	if (selectmode & SCE_SELECT_EDGE) {
+		BLI_dynstr_append(ds, "#define EDGE_SELECTION\n");
+	}
+
+	if (selectmode & SCE_SELECT_FACE) {
+		BLI_dynstr_append(ds, "#define FACE_SELECTION\n");
+	}
+
+	if (!fast_mode) {
+		BLI_dynstr_append(ds, "#define EDGE_FIX\n");
+	}
+
+	if (anti_alias) {
+		BLI_dynstr_append(ds, "#define ANTI_ALIASING\n");
+	}
+	BLI_dynstr_append(ds, "#define VERTEX_FACING\n");
+
+	str = BLI_dynstr_get_cstring(ds);
+	BLI_dynstr_free(ds);
+	return str;
+}
+static char *EDIT_MESH_sh_lib(void)
+{
+	char *str = NULL;
+	DynStr *ds = BLI_dynstr_new();
+
+	BLI_dynstr_append(ds, datatoc_common_globals_lib_glsl);
+	BLI_dynstr_append(ds, datatoc_edit_mesh_overlay_common_lib_glsl);
+
+	str = BLI_dynstr_get_cstring(ds);
+	BLI_dynstr_free(ds);
+	return str;
+}
+
+static GPUShader *EDIT_MESH_ensure_shader(ToolSettings *tsettings, RegionView3D *rv3d, bool fast_mode, bool looseedge)
+{
+	const int index = EDIT_MESH_sh_index(tsettings, rv3d, fast_mode);
+	if (looseedge) {
+		if (!e_data.overlay_loose_edge_sh_cache[index]) {
+			char *defines = EDIT_MESH_sh_defines(tsettings, rv3d, true);
+			char *lib = EDIT_MESH_sh_lib();
+			e_data.overlay_loose_edge_sh_cache[index] = DRW_shader_create_with_lib(
+			        datatoc_edit_mesh_overlay_vert_glsl,
+			        datatoc_edit_mesh_overlay_geom_edge_glsl,
+			        datatoc_edit_mesh_overlay_frag_glsl,
+			        lib,
+			        defines);
+			MEM_freeN(lib);
+			MEM_freeN(defines);
+		}
+		return e_data.overlay_loose_edge_sh_cache[index];
+	}
+	else {
+		if (!e_data.overlay_tri_sh_cache[index]) {
+			char *defines = EDIT_MESH_sh_defines(tsettings, rv3d, true);
+			char *lib = EDIT_MESH_sh_lib();
+			e_data.overlay_tri_sh_cache[index] = DRW_shader_create_with_lib(
+			        datatoc_edit_mesh_overlay_vert_glsl,
+			        datatoc_edit_mesh_overlay_geom_tri_glsl,
+			        datatoc_edit_mesh_overlay_frag_glsl,
+			        lib,
+			        defines);
+			MEM_freeN(lib);
+			MEM_freeN(defines);
+		}
+		return e_data.overlay_tri_sh_cache[index];
+	}
+}
 
 static void EDIT_MESH_engine_init(void *vedata)
 {
@@ -155,70 +249,14 @@ static void EDIT_MESH_engine_init(void *vedata)
 		e_data.vcolor_face_shader = GPU_shader_get_builtin_shader(GPU_SHADER_SIMPLE_LIGHTING_SMOOTH_COLOR_ALPHA);
 	}
 
-	if (!e_data.overlay_tri_sh) {
-		e_data.overlay_tri_sh = DRW_shader_create_with_lib(
-		        datatoc_edit_mesh_overlay_vert_glsl,
-		        datatoc_edit_mesh_overlay_geom_tri_glsl,
-		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
-		        "#define EDGE_FIX\n"
-		        "#define ANTI_ALIASING\n"
-		        "#define VERTEX_FACING");
-	}
-	if (!e_data.overlay_tri_fast_sh) {
-		e_data.overlay_tri_fast_sh = DRW_shader_create_with_lib(
-		        datatoc_edit_mesh_overlay_vert_glsl,
-		        datatoc_edit_mesh_overlay_geom_tri_glsl,
-		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
-		        "#define ANTI_ALIASING\n"
-		        "#define VERTEX_FACING\n");
-	}
-	if (!e_data.overlay_tri_vcol_sh) {
-		e_data.overlay_tri_vcol_sh = DRW_shader_create_with_lib(
-		        datatoc_edit_mesh_overlay_vert_glsl,
-		        datatoc_edit_mesh_overlay_geom_tri_glsl,
-		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
-		        "#define EDGE_FIX\n"
-		        "#define VERTEX_SELECTION\n"
-		        "#define ANTI_ALIASING\n"
-		        "#define VERTEX_FACING\n");
-	}
-	if (!e_data.overlay_tri_vcol_fast_sh) {
-		e_data.overlay_tri_vcol_fast_sh = DRW_shader_create_with_lib(
-		        datatoc_edit_mesh_overlay_vert_glsl,
-		        datatoc_edit_mesh_overlay_geom_tri_glsl,
-		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
-		        "#define VERTEX_SELECTION\n"
-		        "#define ANTI_ALIASING\n"
-		        "#define VERTEX_FACING\n");
-	}
-	if (!e_data.overlay_edge_sh) {
-		e_data.overlay_edge_sh = DRW_shader_create_with_lib(
-		        datatoc_edit_mesh_overlay_vert_glsl,
-		        datatoc_edit_mesh_overlay_geom_edge_glsl,
-		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
-		        "#define ANTI_ALIASING\n"
-		        "#define VERTEX_FACING\n");
-	}
-	if (!e_data.overlay_edge_vcol_sh) {
-		e_data.overlay_edge_vcol_sh = DRW_shader_create_with_lib(
-		        datatoc_edit_mesh_overlay_vert_glsl,
-		        datatoc_edit_mesh_overlay_geom_edge_glsl,
-		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
-		        "#define VERTEX_SELECTION\n"
-		        "#define VERTEX_FACING\n");
-	}
 	if (!e_data.overlay_vert_sh) {
+		char *lib = EDIT_MESH_sh_lib();
 		e_data.overlay_vert_sh = DRW_shader_create_with_lib(
 		        datatoc_edit_mesh_overlay_loosevert_vert_glsl, NULL,
 		        datatoc_edit_mesh_overlay_frag_glsl,
-		        datatoc_common_globals_lib_glsl,
+		        lib,
 		        "#define VERTEX_SELECTION\n");
+		MEM_freeN(lib);
 	}
 	if (!e_data.overlay_facedot_sh) {
 		e_data.overlay_facedot_sh = DRW_shader_create_with_lib(
@@ -272,22 +310,8 @@ static DRWPass *edit_mesh_create_overlay_pass(
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *tsettings = scene->toolsettings;
 
-	if ((tsettings->selectmode & SCE_SELECT_VERTEX) != 0) {
-		ledge_sh = e_data.overlay_edge_vcol_sh;
-
-		if ((rv3d->rflag & RV3D_NAVIGATING) != 0)
-			tri_sh = e_data.overlay_tri_vcol_fast_sh;
-		else
-			tri_sh = e_data.overlay_tri_vcol_sh;
-	}
-	else {
-		ledge_sh = e_data.overlay_edge_sh;
-
-		if ((rv3d->rflag & RV3D_NAVIGATING) != 0)
-			tri_sh = e_data.overlay_tri_fast_sh;
-		else
-			tri_sh = e_data.overlay_tri_sh;
-	}
+	ledge_sh = EDIT_MESH_ensure_shader(tsettings, rv3d, false, true);
+	tri_sh = EDIT_MESH_ensure_shader(tsettings, rv3d, true, false);
 
 	DRWPass *pass = DRW_pass_create(
 	        "Edit Mesh Face Overlay Pass",
@@ -329,8 +353,6 @@ static void EDIT_MESH_cache_init(void *vedata)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 
-	bool do_zbufclip = ((v3d->flag & V3D_ZBUF_SELECT) == 0);
-
 	static float zero = 0.0f;
 
 	if (!stl->g_data) {
@@ -338,10 +360,15 @@ static void EDIT_MESH_cache_init(void *vedata)
 		stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
 	}
 
+
+	const bool xray_enabled = ((draw_ctx->v3d->shading.flag & V3D_SHADING_XRAY) != 0) &&
+	                           (draw_ctx->v3d->drawtype < OB_MATERIAL);
+	stl->g_data->do_zbufclip = ((v3d->flag & V3D_ZBUF_SELECT) == 0) || xray_enabled;
+
 	{
 		psl->vcolor_faces = DRW_pass_create(
 		        "Vert Color Pass",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->fvcolor_shgrp = DRW_shgroup_create(e_data.vcolor_face_shader, psl->vcolor_faces);
 
@@ -357,7 +384,7 @@ static void EDIT_MESH_cache_init(void *vedata)
 		/* Complementary Depth Pass */
 		psl->depth_hidden_wire = DRW_pass_create(
 		        "Depth Pass Hidden Wire",
-		        DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_CULL_BACK);
+		        DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_CULL_BACK);
 		stl->g_data->depth_shgrp_hidden_wire = DRW_shgroup_create(e_data.depth_sh, psl->depth_hidden_wire);
 	}
 
@@ -365,7 +392,7 @@ static void EDIT_MESH_cache_init(void *vedata)
 		/* Normals */
 		psl->normals = DRW_pass_create(
 		        "Edit Mesh Normals Pass",
-		        DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS);
+		        DRW_STATE_WRITE_DEPTH | DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->fnormals_shgrp = DRW_shgroup_create(e_data.normals_face_sh, psl->normals);
 		DRW_shgroup_uniform_float(stl->g_data->fnormals_shgrp, "normalSize", &size_normal, 1);
@@ -380,16 +407,16 @@ static void EDIT_MESH_cache_init(void *vedata)
 		DRW_shgroup_uniform_vec4(stl->g_data->lnormals_shgrp, "color", ts.colorLNormal, 1);
 	}
 
-	if (!do_zbufclip) {
+	if (!stl->g_data->do_zbufclip) {
 		psl->edit_face_overlay = edit_mesh_create_overlay_pass(
-		        &face_mod, DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_DEPTH | DRW_STATE_BLEND,
+		        &face_mod, DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH | DRW_STATE_BLEND,
 		        &stl->g_data->face_overlay_shgrp, &stl->g_data->ledges_overlay_shgrp,
 		        &stl->g_data->lverts_overlay_shgrp, &stl->g_data->facedot_overlay_shgrp);
 	}
 	else {
 		/* We render all wires with depth and opaque to a new fbo and blend the result based on depth values */
 		psl->edit_face_occluded = edit_mesh_create_overlay_pass(
-		        &zero, DRW_STATE_DEPTH_LESS | DRW_STATE_WRITE_DEPTH,
+		        &zero, DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH,
 		        &stl->g_data->face_occluded_shgrp, &stl->g_data->ledges_occluded_shgrp,
 		        &stl->g_data->lverts_occluded_shgrp, &stl->g_data->facedot_occluded_shgrp);
 
@@ -397,7 +424,7 @@ static void EDIT_MESH_cache_init(void *vedata)
 		 * faces are alpha blended ) so we recover them in a new pass. */
 		psl->facefill_occlude = DRW_pass_create(
 		        "Front Face Color",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND);
 		stl->g_data->facefill_occluded_shgrp = DRW_shgroup_create(e_data.overlay_facefill_sh, psl->facefill_occlude);
 		DRW_shgroup_uniform_block(stl->g_data->facefill_occluded_shgrp, "globalsBlock", globals_ubo);
 
@@ -435,7 +462,7 @@ static void edit_mesh_add_ob_to_pass(
 		DRW_shgroup_call_add(lverts_shgrp, geo_ovl_lverts, ob->obmat);
 	}
 
-	if ((tsettings->selectmode & SCE_SELECT_FACE) != 0) {
+	if (facedot_shgrp && (tsettings->selectmode & SCE_SELECT_FACE) != 0 ) {
 		geo_ovl_fcenter = DRW_cache_face_centers_get(ob);
 		DRW_shgroup_call_add(facedot_shgrp, geo_ovl_fcenter, ob->obmat);
 	}
@@ -450,7 +477,7 @@ static void EDIT_MESH_cache_populate(void *vedata, Object *ob)
 	struct Gwn_Batch *geom;
 
 	if (ob->type == OB_MESH) {
-		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode_and_selected(ob)) {
+		if ((ob == draw_ctx->object_edit) || BKE_object_is_in_editmode(ob)) {
 			const Mesh *me = ob->data;
 			bool do_occlude_wire = (v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_OCCLUDE_WIRE) != 0;
 			bool do_show_weight = (v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_WEIGHT) != 0;
@@ -496,7 +523,7 @@ static void EDIT_MESH_cache_populate(void *vedata, Object *ob)
 				}
 			}
 
-			if ((v3d->flag & V3D_ZBUF_SELECT) == 0) {
+			if (stl->g_data->do_zbufclip) {
 				edit_mesh_add_ob_to_pass(
 				        scene, ob, stl->g_data->face_occluded_shgrp, stl->g_data->ledges_occluded_shgrp,
 				        stl->g_data->lverts_occluded_shgrp, stl->g_data->facedot_occluded_shgrp,
@@ -505,17 +532,20 @@ static void EDIT_MESH_cache_populate(void *vedata, Object *ob)
 			else {
 				edit_mesh_add_ob_to_pass(
 				        scene, ob, stl->g_data->face_overlay_shgrp, stl->g_data->ledges_overlay_shgrp,
-				        stl->g_data->lverts_overlay_shgrp, stl->g_data->facedot_overlay_shgrp, NULL);
+				        stl->g_data->lverts_overlay_shgrp, NULL, NULL);
 			}
 
 			/* 3D text overlay */
 			if (me->drawflag & (ME_DRAWEXTRA_EDGELEN |
 			                    ME_DRAWEXTRA_FACEAREA |
 			                    ME_DRAWEXTRA_FACEANG |
-			                    ME_DRAWEXTRA_EDGEANG))
+			                    ME_DRAWEXTRA_EDGEANG |
+			                    ME_DRAWEXTRA_INDICES))
 			{
-				DRW_edit_mesh_mode_text_measure_stats(
-				       draw_ctx->ar, v3d, ob, &scene->unit);
+				if (DRW_state_show_text()) {
+					DRW_edit_mesh_mode_text_measure_stats(
+					       draw_ctx->ar, v3d, ob, &scene->unit);
+				}
 			}
 		}
 	}
@@ -524,6 +554,7 @@ static void EDIT_MESH_cache_populate(void *vedata, Object *ob)
 static void EDIT_MESH_draw_scene(void *vedata)
 {
 	EDIT_MESH_PassList *psl = ((EDIT_MESH_Data *)vedata)->psl;
+	EDIT_MESH_StorageList *stl = ((EDIT_MESH_Data *)vedata)->stl;
 	EDIT_MESH_FramebufferList *fbl = ((EDIT_MESH_Data *)vedata)->fbl;
 	DefaultFramebufferList *dfbl = DRW_viewport_framebuffer_list_get();
 
@@ -531,7 +562,7 @@ static void EDIT_MESH_draw_scene(void *vedata)
 
 	DRW_draw_pass(psl->depth_hidden_wire);
 
-	if (psl->edit_face_occluded) {
+	if (stl->g_data->do_zbufclip) {
 		float clearcol[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		/* render facefill */
 		DRW_draw_pass(psl->facefill_occlude);
@@ -554,12 +585,6 @@ static void EDIT_MESH_draw_scene(void *vedata)
 
 static void EDIT_MESH_engine_free(void)
 {
-	DRW_SHADER_FREE_SAFE(e_data.overlay_tri_sh);
-	DRW_SHADER_FREE_SAFE(e_data.overlay_tri_fast_sh);
-	DRW_SHADER_FREE_SAFE(e_data.overlay_tri_vcol_sh);
-	DRW_SHADER_FREE_SAFE(e_data.overlay_tri_vcol_fast_sh);
-	DRW_SHADER_FREE_SAFE(e_data.overlay_edge_sh);
-	DRW_SHADER_FREE_SAFE(e_data.overlay_edge_vcol_sh);
 	DRW_SHADER_FREE_SAFE(e_data.overlay_vert_sh);
 	DRW_SHADER_FREE_SAFE(e_data.overlay_facedot_sh);
 	DRW_SHADER_FREE_SAFE(e_data.overlay_mix_sh);
@@ -567,6 +592,11 @@ static void EDIT_MESH_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.normals_loop_sh);
 	DRW_SHADER_FREE_SAFE(e_data.normals_face_sh);
 	DRW_SHADER_FREE_SAFE(e_data.normals_sh);
+
+	for (int i = 0; i < MAX_SHADERS; i++) {
+		DRW_SHADER_FREE_SAFE(e_data.overlay_tri_sh_cache[i]);
+		DRW_SHADER_FREE_SAFE(e_data.overlay_loose_edge_sh_cache[i]);
+	}
 }
 
 static const DrawEngineDataSize EDIT_MESH_data_size = DRW_VIEWPORT_DATA_SIZE(EDIT_MESH_Data);

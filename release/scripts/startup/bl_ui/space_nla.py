@@ -19,15 +19,17 @@
 # <pep8 compliant>
 
 import bpy
-from bpy.types import Header, Menu
+from bpy.types import Header, Menu, Panel
+from .space_dopesheet import (
+    DopesheetFilterPopoverBase,
+    dopesheet_filter,
+)
 
 
 class NLA_HT_header(Header):
     bl_space_type = 'NLA_EDITOR'
 
     def draw(self, context):
-        from .space_dopesheet import dopesheet_filter
-
         layout = self.layout
 
         st = context.space_data
@@ -35,11 +37,35 @@ class NLA_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
+        layout.popover(
+            space_type='NLA_EDITOR',
+            region_type='HEADER',
+            panel_type="NLA_PT_filters",
+            text="",
+            icon='FILTER',
+        )
+
         NLA_MT_editor_menus.draw_collapsible(context, layout)
 
         dopesheet_filter(layout, context)
 
+        layout.separator_spacer()
         layout.prop(st, "auto_snap", text="")
+
+
+class NLA_PT_filters(DopesheetFilterPopoverBase, Panel):
+    bl_space_type = 'NLA_EDITOR'
+    bl_region_type = 'HEADER'
+    bl_label = "Filters"
+
+    def draw(self, context):
+        layout = self.layout
+
+        DopesheetFilterPopoverBase.draw_generic_filters(context, layout)
+        layout.separator()
+        DopesheetFilterPopoverBase.draw_search_filters(context, layout)
+        layout.separator()
+        DopesheetFilterPopoverBase.draw_standard_filters(context, layout)
 
 
 class NLA_MT_editor_menus(Menu):
@@ -90,9 +116,7 @@ class NLA_MT_view(Menu):
         layout.operator("nla.view_frame")
 
         layout.separator()
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class NLA_MT_select(Menu):
@@ -219,6 +243,7 @@ classes = (
     NLA_MT_marker,
     NLA_MT_add,
     NLA_MT_edit_transform,
+    NLA_PT_filters,
 )
 
 if __name__ == "__main__":  # only for live edit.

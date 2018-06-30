@@ -70,7 +70,6 @@
 #include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
 #include "BKE_global.h"
-#include "BKE_group.h"
 #include "BKE_fcurve.h"
 #include "BKE_idprop.h"
 #include "BKE_lamp.h"
@@ -146,7 +145,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 		Mesh *me = obedit->data;
 		BMEditMesh *em;
 
-		EDBM_mesh_load(obedit);
+		EDBM_mesh_load(bmain, obedit);
 		EDBM_mesh_make(obedit, scene->toolsettings->selectmode, true);
 
 		DEG_id_tag_update(obedit->data, 0);
@@ -329,7 +328,7 @@ static int make_proxy_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	}
 	else {
 		/* error.. cannot continue */
-		BKE_report(op->reports, RPT_ERROR, "Can only make proxy for a referenced object or group");
+		BKE_report(op->reports, RPT_ERROR, "Can only make proxy for a referenced object or collection");
 		return OPERATOR_CANCELLED;
 	}
 
@@ -343,7 +342,8 @@ static int make_proxy_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 
 	if (gob->dup_group != NULL) {
-		Base *base = BLI_findlink(&gob->dup_group->view_layer->object_bases, RNA_enum_get(op->ptr, "object"));
+		const ListBase dup_group_objects = BKE_collection_object_cache_get(gob->dup_group);
+		Base *base = BLI_findlink(&dup_group_objects, RNA_enum_get(op->ptr, "object"));
 		ob = base->object;
 	}
 	else {
@@ -385,8 +385,8 @@ static int make_proxy_exec(bContext *C, wmOperator *op)
 }
 
 /* Generic itemf's for operators that take library args */
-static const EnumPropertyItem *proxy_group_object_itemf(bContext *C, PointerRNA *UNUSED(ptr),
-                                                  PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *proxy_collection_object_itemf(bContext *C, PointerRNA *UNUSED(ptr),
+                                                             PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem item_tmp = {0}, *item = NULL;
 	int totitem = 0;
@@ -397,13 +397,13 @@ static const EnumPropertyItem *proxy_group_object_itemf(bContext *C, PointerRNA 
 		return DummyRNA_DEFAULT_items;
 
 	/* find the object to affect */
-	FOREACH_GROUP_OBJECT_BEGIN(ob->dup_group, object)
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(ob->dup_group, object)
 	{
 		item_tmp.identifier = item_tmp.name = object->id.name + 2;
 		item_tmp.value = i++;
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
 	}
-	FOREACH_GROUP_OBJECT_END;
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
 	RNA_enum_item_end(&item, &totitem);
 	*r_free = true;
@@ -431,8 +431,8 @@ void OBJECT_OT_proxy_make(wmOperatorType *ot)
 	/* properties */
 	/* XXX, relies on hard coded ID at the moment */
 	prop = RNA_def_enum(ot->srna, "object", DummyRNA_DEFAULT_items, 0, "Proxy Object",
-	                    "Name of lib-linked/grouped object to make a proxy for");
-	RNA_def_enum_funcs(prop, proxy_group_object_itemf);
+	                    "Name of lib-linked/collection object to make a proxy for");
+	RNA_def_enum_funcs(prop, proxy_collection_object_itemf);
 	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
 	ot->prop = prop;
 }
@@ -640,7 +640,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 			/* if follow, add F-Curve for ctime (i.e. "eval_time") so that path-follow works */
 			if (partype == PAR_FOLLOW) {
 				/* get or create F-Curve */
-				bAction *act = verify_adt_action(&cu->id, 1);
+				bAction *act = verify_adt_action(bmain, &cu->id, 1);
 				FCurve *fcu = verify_fcurve(act, NULL, NULL, "eval_time", 0, 1);
 
 				/* setup dummy 'generator' modifier here to get 1-1 correspondence still working */
@@ -1343,7 +1343,8 @@ static void link_to_scene(Main *UNUSED(bmain), unsigned short UNUSED(nr))
 
 static int make_links_scene_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene_to = BLI_findlink(&CTX_data_main(C)->scene, RNA_enum_get(op->ptr, "scene"));
+	Main *bmain = CTX_data_main(C);
+	Scene *scene_to = BLI_findlink(&bmain->scene, RNA_enum_get(op->ptr, "scene"));
 
 	if (scene_to == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "Could not find scene");
@@ -1360,10 +1361,10 @@ static int make_links_scene_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	SceneCollection *sc_to = BKE_collection_master(&scene_to->id);
+	Collection *collection_to = BKE_collection_master(scene_to);
 	CTX_DATA_BEGIN (C, Base *, base, selected_bases)
 	{
-		BKE_collection_object_add(&scene_to->id, sc_to, base->object);
+		BKE_collection_object_add(bmain, collection_to, base->object);
 	}
 	CTX_DATA_END;
 
@@ -1379,7 +1380,7 @@ enum {
 	MAKE_LINKS_MATERIALS  = 2,
 	MAKE_LINKS_ANIMDATA   = 3,
 	MAKE_LINKS_GROUP      = 4,
-	MAKE_LINKS_DUPLIGROUP = 5,
+	MAKE_LINKS_DUPLICOLLECTION = 5,
 	MAKE_LINKS_MODIFIERS  = 6,
 	MAKE_LINKS_FONTS      = 7,
 };
@@ -1400,7 +1401,7 @@ static bool allow_make_links_data(const int type, Object *ob_src, Object *ob_dst
 			break;
 		case MAKE_LINKS_ANIMDATA:
 		case MAKE_LINKS_GROUP:
-		case MAKE_LINKS_DUPLIGROUP:
+		case MAKE_LINKS_DUPLICOLLECTION:
 			return true;
 		case MAKE_LINKS_MODIFIERS:
 			if (!ELEM(OB_EMPTY, ob_src->type, ob_dst->type)) {
@@ -1418,22 +1419,23 @@ static bool allow_make_links_data(const int type, Object *ob_src, Object *ob_dst
 
 static int make_links_data_exec(bContext *C, wmOperator *op)
 {
+	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
 	const int type = RNA_enum_get(op->ptr, "type");
 	Object *ob_src;
 	ID *obdata_id;
 	int a;
 
-	/* group */
-	LinkNode *ob_groups = NULL;
+	/* collection */
+	LinkNode *ob_collections = NULL;
 	bool is_cycle = false;
 	bool is_lib = false;
 
 	ob_src = ED_object_active_context(C);
 
-	/* avoid searching all groups in source object each time */
+	/* avoid searching all collections in source object each time */
 	if (type == MAKE_LINKS_GROUP) {
-		ob_groups = BKE_object_groups(ob_src);
+		ob_collections = BKE_object_groups(bmain, ob_src);
 	}
 
 	CTX_DATA_BEGIN (C, Base *, base_dst, selected_editable_bases)
@@ -1453,7 +1455,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						ob_dst->data = obdata_id;
 
 						/* if amount of material indices changed: */
-						test_object_materials(ob_dst, ob_dst->data);
+						test_object_materials(bmain, ob_dst, ob_dst->data);
 
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 						break;
@@ -1461,7 +1463,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						/* new approach, using functions from kernel */
 						for (a = 0; a < ob_src->totcol; a++) {
 							Material *ma = give_current_material(ob_src, a + 1);
-							assign_material(ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
+							assign_material(bmain, ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
 						}
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
 						break;
@@ -1478,15 +1480,15 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						break;
 					case MAKE_LINKS_GROUP:
 					{
-						LinkNode *group_node;
+						LinkNode *collection_node;
 
-						/* first clear groups */
-						BKE_object_groups_clear(ob_dst);
+						/* first clear collections */
+						BKE_object_groups_clear(bmain, ob_dst);
 
-						/* now add in the groups from the link nodes */
-						for (group_node = ob_groups; group_node; group_node = group_node->next) {
-							if (ob_dst->dup_group != group_node->link) {
-								BKE_group_object_add(group_node->link, ob_dst);
+						/* now add in the collections from the link nodes */
+						for (collection_node = ob_collections; collection_node; collection_node = collection_node->next) {
+							if (ob_dst->dup_group != collection_node->link) {
+								BKE_collection_object_add(bmain, collection_node->link, ob_dst);
 							}
 							else {
 								is_cycle = true;
@@ -1494,15 +1496,15 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						}
 						break;
 					}
-					case MAKE_LINKS_DUPLIGROUP:
+					case MAKE_LINKS_DUPLICOLLECTION:
 						ob_dst->dup_group = ob_src->dup_group;
 						if (ob_dst->dup_group) {
 							id_us_plus(&ob_dst->dup_group->id);
-							ob_dst->transflag |= OB_DUPLIGROUP;
+							ob_dst->transflag |= OB_DUPLICOLLECTION;
 						}
 						break;
 					case MAKE_LINKS_MODIFIERS:
-						BKE_object_link_modifiers(ob_dst, ob_src);
+						BKE_object_link_modifiers(scene, ob_dst, ob_src);
 						DEG_id_tag_update(&ob_dst->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
 						break;
 					case MAKE_LINKS_FONTS:
@@ -1542,12 +1544,12 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	if (type == MAKE_LINKS_GROUP) {
-		if (ob_groups) {
-			BLI_linklist_free(ob_groups, NULL);
+		if (ob_collections) {
+			BLI_linklist_free(ob_collections, NULL);
 		}
 
 		if (is_cycle) {
-			BKE_report(op->reports, RPT_WARNING, "Skipped some groups because of cycle detected");
+			BKE_report(op->reports, RPT_WARNING, "Skipped some collections because of cycle detected");
 		}
 	}
 
@@ -1595,7 +1597,7 @@ void OBJECT_OT_make_links_data(wmOperatorType *ot)
 		{MAKE_LINKS_MATERIALS,  "MATERIAL", 0, "Materials", ""},
 		{MAKE_LINKS_ANIMDATA,   "ANIMATION", 0, "Animation Data", ""},
 		{MAKE_LINKS_GROUP,      "GROUPS", 0, "Group", ""},
-		{MAKE_LINKS_DUPLIGROUP, "DUPLIGROUP", 0, "DupliGroup", ""},
+		{MAKE_LINKS_DUPLICOLLECTION, "DUPLICOLLECTION", 0, "DupliGroup", ""},
 		{MAKE_LINKS_MODIFIERS,  "MODIFIERS", 0, "Modifiers", ""},
 		{MAKE_LINKS_FONTS,      "FONTS", 0, "Fonts", ""},
 		{0, NULL, 0, NULL, NULL}};
@@ -1619,19 +1621,11 @@ void OBJECT_OT_make_links_data(wmOperatorType *ot)
 
 /**************************** Make Single User ********************************/
 
-static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob, const bool copy_groups)
+static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob)
 {
 	/* base gets copy of object */
 	Object *obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
 
-	if (copy_groups) {
-		if (ob->flag & OB_FROMGROUP) {
-			obn->flag |= OB_FROMGROUP;
-		}
-	}
-	else {
-		/* copy already clears */
-	}
 	/* remap gpencil parenting */
 
 	if (scene->gpd) {
@@ -1643,46 +1637,47 @@ static Object *single_object_users_object(Main *bmain, Scene *scene, Object *ob,
 		}
 	}
 
+	id_us_plus(&obn->id);
 	id_us_min(&ob->id);
 	return obn;
 }
 
-static void libblock_relink_scene_collection(SceneCollection *sc)
+static void libblock_relink_collection(Collection *collection)
 {
-	for (LinkData *link = sc->objects.first; link; link = link->next) {
-		BKE_libblock_relink_to_newid(link->data);
+	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+		BKE_libblock_relink_to_newid(&cob->ob->id);
 	}
 
-	for (SceneCollection *nsc = sc->scene_collections.first; nsc; nsc = nsc->next) {
-		libblock_relink_scene_collection(nsc);
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		libblock_relink_collection(child->collection);
 	}
 }
 
-static void single_object_users_scene_collection(Main *bmain, Scene *scene, SceneCollection *sc, const int flag, const bool copy_groups)
+static void single_object_users_collection(Main *bmain, Scene *scene, Collection *collection, const int flag, const bool copy_collections)
 {
-	for (LinkData *link = sc->objects.first; link; link = link->next) {
-		Object *ob = link->data;
+	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+		Object *ob = cob->ob;
 		/* an object may be in more than one collection */
 		if ((ob->id.newid == NULL) && ((ob->flag & flag) == flag)) {
 			if (!ID_IS_LINKED(ob) && ob->id.us > 1) {
-				link->data = single_object_users_object(bmain, scene, link->data, copy_groups);
+				cob->ob = single_object_users_object(bmain, scene, cob->ob);
 			}
 		}
 	}
 
-	for (SceneCollection *nsc = sc->scene_collections.first; nsc; nsc = nsc->next) {
-		single_object_users_scene_collection(bmain, scene, nsc, flag, copy_groups);
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		single_object_users_collection(bmain, scene, child->collection, flag, copy_collections);
 	}
 }
 
-/* Warning, sets ID->newid pointers of objects and groups, but does not clear them. */
-static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const int flag, const bool copy_groups)
+/* Warning, sets ID->newid pointers of objects and collections, but does not clear them. */
+static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const int flag, const bool copy_collections)
 {
-	Group *group, *groupn;
+	Collection *collection, *collectionn;
 
 	/* duplicate all the objects of the scene */
-	SceneCollection *msc = BKE_collection_master(&scene->id);
-	single_object_users_scene_collection(bmain, scene, msc, flag, copy_groups);
+	Collection *master_collection = BKE_collection_master(scene);
+	single_object_users_collection(bmain, scene, master_collection, flag, copy_collections);
 
 	/* loop over ViewLayers and assign the pointers accordingly */
 	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
@@ -1691,40 +1686,39 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 		}
 	}
 
-	/* duplicate groups that consist entirely of duplicated objects */
-	for (group = bmain->group.first; group; group = group->id.next) {
-		if (copy_groups && group->view_layer->object_bases.first) {
+	/* duplicate collections that consist entirely of duplicated objects */
+	for (collection = bmain->collection.first; collection; collection = collection->id.next) {
+		if (copy_collections) {
 			bool all_duplicated = true;
+			bool any_duplicated = false;
 
-			FOREACH_GROUP_OBJECT_BEGIN(group, object)
-			{
-				if (object->id.newid == NULL) {
+			for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+				any_duplicated = true;
+				if (cob->ob->id.newid == NULL) {
 					all_duplicated = false;
 					break;
 				}
 			}
-			FOREACH_GROUP_OBJECT_END;
 
-			if (all_duplicated) {
-				groupn = ID_NEW_SET(group, BKE_group_copy(bmain, group));
+			if (any_duplicated && all_duplicated) {
+				// TODO: test if this works, with child collections ..
+				collectionn = ID_NEW_SET(collection, BKE_collection_copy(bmain, NULL, collection));
 
-				FOREACH_GROUP_BASE_BEGIN(groupn, base)
-				{
-					base->object = (Object *)base->object->id.newid;
+				for (CollectionObject *cob = collectionn->gobject.first; cob; cob = cob->next) {
+					cob->ob = (Object *)cob->ob->id.newid;
 				}
-				FOREACH_GROUP_BASE_END
 			}
 		}
 	}
 
-	/* group pointers in scene */
+	/* collection pointers in scene */
 	BKE_scene_groups_relink(scene);
 
 	ID_NEW_REMAP(scene->camera);
 	if (v3d) ID_NEW_REMAP(v3d->camera);
 
-	/* object and group pointers */
-	libblock_relink_scene_collection(msc);
+	/* object and collection pointers */
+	libblock_relink_collection(master_collection);
 }
 
 /* not an especially efficient function, only added so the single user
@@ -1793,7 +1787,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 						/* Needed to remap texcomesh below. */
 						me = ob->data = ID_NEW_SET(ob->data, BKE_mesh_copy(bmain, ob->data));
 						if (me->key)  /* We do not need to set me->key->id.newid here... */
-							BKE_animdata_copy_id_action((ID *)me->key, false);
+							BKE_animdata_copy_id_action(bmain, (ID *)me->key, false);
 						break;
 					case OB_MBALL:
 						ob->data = ID_NEW_SET(ob->data, BKE_mball_copy(bmain, ob->data));
@@ -1805,12 +1799,12 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 						ID_NEW_REMAP(cu->bevobj);
 						ID_NEW_REMAP(cu->taperobj);
 						if (cu->key)  /* We do not need to set cu->key->id.newid here... */
-							BKE_animdata_copy_id_action((ID *)cu->key, false);
+							BKE_animdata_copy_id_action(bmain, (ID *)cu->key, false);
 						break;
 					case OB_LATTICE:
 						ob->data = lat = ID_NEW_SET(ob->data, BKE_lattice_copy(bmain, ob->data));
 						if (lat->key)  /* We do not need to set lat->key->id.newid here... */
-							BKE_animdata_copy_id_action((ID *)lat->key, false);
+							BKE_animdata_copy_id_action(bmain, (ID *)lat->key, false);
 						break;
 					case OB_ARMATURE:
 						DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -1837,7 +1831,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 				 * AnimData structure, which is not what we want.
 				 *                                             (sergey)
 				 */
-				BKE_animdata_copy_id_action((ID *)ob->data, false);
+				BKE_animdata_copy_id_action(bmain, (ID *)ob->data, false);
 
 				id_us_min(id);
 			}
@@ -1852,13 +1846,13 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 	}
 }
 
-static void single_object_action_users(Scene *scene, ViewLayer *view_layer, const int flag)
+static void single_object_action_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag)
 {
 	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
 	{
 		if (!ID_IS_LINKED(ob)) {
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-			BKE_animdata_copy_id_action(&ob->id, false);
+			BKE_animdata_copy_id_action(bmain, &ob->id, false);
 		}
 	}
 	FOREACH_OBJECT_FLAG_END;
@@ -1879,10 +1873,10 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 
 					if (ma->id.us > 1) {
 						man = BKE_material_copy(bmain, ma);
-						BKE_animdata_copy_id_action(&man->id, false);
+						BKE_animdata_copy_id_action(bmain, &man->id, false);
 
 						man->id.us = 0;
-						assign_material(ob, man, a, BKE_MAT_ASSIGN_USERPREF);
+						assign_material(bmain, ob, man, a, BKE_MAT_ASSIGN_USERPREF);
 					}
 				}
 			}
@@ -1917,13 +1911,13 @@ static void single_mat_users_expand(Main *bmain)
 }
 
 /* used for copying scenes */
-void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bool copy_groups)
+void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bool copy_collections)
 {
-	single_object_users(bmain, scene, NULL, 0, copy_groups);
+	single_object_users(bmain, scene, NULL, 0, copy_collections);
 
 	if (full) {
 		single_obdata_users(bmain, scene, NULL, 0);
-		single_object_action_users(scene, NULL, 0);
+		single_object_action_users(bmain, scene, NULL, 0);
 		single_mat_users_expand(bmain);
 	}
 
@@ -2038,7 +2032,7 @@ static void tag_localizable_objects(bContext *C, const int mode)
  * Instance indirectly referenced zero user objects,
  * otherwise they're lost on reload, see T40595.
  */
-static bool make_local_all__instance_indirect_unused(Main *bmain, Scene *scene, ViewLayer *view_layer, SceneCollection *sc)
+static bool make_local_all__instance_indirect_unused(Main *bmain, ViewLayer *view_layer, Collection *collection)
 {
 	Object *ob;
 	bool changed = false;
@@ -2049,7 +2043,7 @@ static bool make_local_all__instance_indirect_unused(Main *bmain, Scene *scene, 
 
 			id_us_plus(&ob->id);
 
-			BKE_collection_object_add(&scene->id, sc, ob);
+			BKE_collection_object_add(bmain, collection, ob);
 			base = BKE_view_layer_base_find(view_layer, ob);
 			base->flag |= BASE_SELECTED;
 			BKE_scene_object_base_flag_sync_from_base(base);
@@ -2117,7 +2111,6 @@ static void make_local_material_tag(Material *ma)
 static int make_local_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
-	Scene *scene = CTX_data_scene(C);
 	ParticleSystem *psys;
 	Material *ma, ***matarar;
 	const int mode = RNA_enum_get(op->ptr, "type");
@@ -2126,14 +2119,14 @@ static int make_local_exec(bContext *C, wmOperator *op)
 	/* Note: we (ab)use LIB_TAG_PRE_EXISTING to cherry pick which ID to make local... */
 	if (mode == MAKE_LOCAL_ALL) {
 		ViewLayer *view_layer = CTX_data_view_layer(C);
-		SceneCollection *scene_collection = CTX_data_scene_collection(C);
+		Collection *collection = CTX_data_collection(C);
 
 		BKE_main_id_tag_all(bmain, LIB_TAG_PRE_EXISTING, false);
 
 		/* De-select so the user can differentiate newly instanced from existing objects. */
 		BKE_view_layer_base_deselect_all(view_layer);
 
-		if (make_local_all__instance_indirect_unused(bmain, scene, view_layer, scene_collection)) {
+		if (make_local_all__instance_indirect_unused(bmain, view_layer, collection)) {
 			BKE_report(op->reports, RPT_INFO, "Orphan library objects added to the current scene to avoid loss");
 		}
 	}
@@ -2282,7 +2275,7 @@ static int make_override_static_invoke(bContext *C, wmOperator *op, const wmEven
 	}
 	else {
 		/* Error.. cannot continue. */
-		BKE_report(op->reports, RPT_ERROR, "Can only make static override for a referenced object or group");
+		BKE_report(op->reports, RPT_ERROR, "Can only make static override for a referenced object or collection");
 		return OPERATOR_CANCELLED;
 	}
 
@@ -2296,38 +2289,53 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 	bool success = false;
 
 	if (!ID_IS_LINKED(obact) && obact->dup_group != NULL && ID_IS_LINKED(obact->dup_group)) {
-		Base *base = BLI_findlink(&obact->dup_group->view_layer->object_bases, RNA_enum_get(op->ptr, "object"));
-		Object *obgroup = obact;
+		const ListBase dup_collection_objects = BKE_collection_object_cache_get(obact->dup_group);
+		Base *base = BLI_findlink(&dup_collection_objects, RNA_enum_get(op->ptr, "object"));
+		Object *obcollection = obact;
 		obact = base->object;
-		Group *group = obgroup->dup_group;
+		Collection *collection = obcollection->dup_group;
 
-		/* First, we make a static override of the linked group itself. */
-		group->id.tag |= LIB_TAG_DOIT;
+		/* First, we make a static override of the linked collection itself. */
+		collection->id.tag |= LIB_TAG_DOIT;
 
-		/* Then, we make static override of the whole set of objects in the group. */
-		FOREACH_GROUP_OBJECT_BEGIN(group, ob)
+		/* Then, we make static override of the whole set of objects in the Collection. */
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
 		{
 			ob->id.tag |= LIB_TAG_DOIT;
 		}
-		FOREACH_GROUP_OBJECT_END;
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+
+		/* Then, we remove (untag) bone shape objects, you shall never want to override those (hopefully)... */
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
+		{
+			if (ob->type == OB_ARMATURE && ob->pose != NULL) {
+				for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan != NULL; pchan = pchan->next) {
+					if (pchan->custom != NULL) {
+						pchan->custom->id.tag &= ~ LIB_TAG_DOIT;
+					}
+				}
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
 		success = BKE_override_static_create_from_tag(bmain);
 
 		/* Intantiate our newly overridden objects in scene, if not yet done. */
 		Scene *scene = CTX_data_scene(C);
 		ViewLayer *view_layer = CTX_data_view_layer(C);
-		Group *new_group = (Group *)group->id.newid;
-		FOREACH_GROUP_OBJECT_BEGIN(new_group, new_ob)
+		Collection *new_collection = (Collection *)collection->id.newid;
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(new_collection, new_ob)
 		{
-			if (new_ob != NULL && (base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL) {
-				BKE_collection_object_add_from(scene, obgroup, new_ob);
-				DEG_id_tag_update_ex(bmain, &new_ob->id, OB_RECALC_OB | DEG_TAG_BASE_FLAGS_UPDATE);
-				/* parent to 'group' empty */
+			if (new_ob != NULL && new_ob->id.override_static != NULL) {
+				if ((base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL) {
+					BKE_collection_object_add_from(bmain, scene, obcollection, new_ob);
+					DEG_id_tag_update_ex(bmain, &new_ob->id, DEG_TAG_TRANSFORM | DEG_TAG_BASE_FLAGS_UPDATE);
+				}
+				/* parent to 'collection' empty */
 				if (new_ob->parent == NULL) {
-					new_ob->parent = obgroup;
+					new_ob->parent = obcollection;
 				}
 				if (new_ob == (Object *)obact->id.newid) {
-					base = BKE_view_layer_base_find(view_layer, new_ob);
 					BKE_view_layer_base_select(view_layer, base);
 				}
 				else {
@@ -2335,13 +2343,13 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 					new_ob->id.override_static->flag &= ~STATICOVERRIDE_AUTO;
 				}
 				/* We still want to store all objects' current override status (i.e. change of parent). */
-				BKE_override_static_operations_create(&new_ob->id, true);
+				BKE_override_static_operations_create(bmain, &new_ob->id, true);
 			}
 		}
-		FOREACH_GROUP_OBJECT_END;
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
-		/* obgroup is no more dupligroup-ing, it merely parents whole group of overriding instantiated objects. */
-		obgroup->dup_group = NULL;
+		/* obcollection is no more duplicollection-ing, it merely parents whole collection of overriding instantiated objects. */
+		obcollection->dup_group = NULL;
 
 		/* Also, we'd likely want to lock by default things like transformations of implicitly overriden objects? */
 
@@ -2407,8 +2415,8 @@ void OBJECT_OT_make_override_static(wmOperatorType *ot)
 	/* properties */
 	PropertyRNA *prop;
 	prop = RNA_def_enum(ot->srna, "object", DummyRNA_DEFAULT_items, 0, "Override Object",
-	                    "Name of lib-linked/group object to make an override from");
-	RNA_def_enum_funcs(prop, proxy_group_object_itemf);
+	                    "Name of lib-linked/collection object to make an override from");
+	RNA_def_enum_funcs(prop, proxy_collection_object_itemf);
 	RNA_def_property_flag(prop, PROP_ENUM_NO_TRANSLATE);
 	ot->prop = prop;
 }
@@ -2425,16 +2433,16 @@ static int make_single_user_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	View3D *v3d = CTX_wm_view3d(C); /* ok if this is NULL */
 	const int flag = (RNA_enum_get(op->ptr, "type") == MAKE_SINGLE_USER_SELECTED) ? SELECT : 0;
-	const bool copy_groups = false;
+	const bool copy_collections = false;
 	bool update_deps = false;
 
 	if (RNA_boolean_get(op->ptr, "object")) {
 		if (flag == SELECT) {
 			BKE_view_layer_selected_objects_tag(view_layer, OB_DONE);
-			single_object_users(bmain, scene, v3d, OB_DONE, copy_groups);
+			single_object_users(bmain, scene, v3d, OB_DONE, copy_collections);
 		}
 		else {
-			single_object_users(bmain, scene, v3d, 0, copy_groups);
+			single_object_users(bmain, scene, v3d, 0, copy_collections);
 		}
 
 		/* needed since object relationships may have changed */
@@ -2450,7 +2458,7 @@ static int make_single_user_exec(bContext *C, wmOperator *op)
 	}
 
 	if (RNA_boolean_get(op->ptr, "animation")) {
-		single_object_action_users(scene, view_layer, flag);
+		single_object_action_users(bmain, scene, view_layer, flag);
 	}
 
 	BKE_main_id_clear_newpoins(bmain);
@@ -2495,16 +2503,17 @@ void OBJECT_OT_make_single_user(wmOperatorType *ot)
 
 static int drop_named_material_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
+	Main *bmain = CTX_data_main(C);
 	Base *base = ED_view3d_give_base_under_cursor(C, event->mval);
 	Material *ma;
 	char name[MAX_ID_NAME - 2];
 
 	RNA_string_get(op->ptr, "name", name);
-	ma = (Material *)BKE_libblock_find_name(ID_MA, name);
+	ma = (Material *)BKE_libblock_find_name(bmain, ID_MA, name);
 	if (base == NULL || ma == NULL)
 		return OPERATOR_CANCELLED;
 
-	assign_material(base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
+	assign_material(CTX_data_main(C), base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
 
 	DEG_id_tag_update(&base->object->id, OB_RECALC_OB);
 

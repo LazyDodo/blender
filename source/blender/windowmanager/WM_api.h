@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -47,6 +47,7 @@ extern "C" {
 #endif
 
 struct bContext;
+struct bToolRef_Runtime;
 struct GHashIterator;
 struct IDProperty;
 struct wmEvent;
@@ -68,7 +69,6 @@ struct ImageFormatData;
 struct ARegion;
 struct ScrArea;
 struct Main;
-struct bToolDef;
 struct ViewLayer;
 struct GPUViewport;
 struct uiButtonGroupType;
@@ -97,14 +97,14 @@ void		WM_main				(struct bContext *C) ATTR_NORETURN;
 
 void		WM_init_splash		(struct bContext *C);
 
-void		WM_init_opengl		(void);
+void		WM_init_opengl		(struct Main *bmain);
 
 void		WM_check			(struct bContext *C);
 
 int WM_window_pixels_x(const struct wmWindow *win);
 int WM_window_pixels_y(const struct wmWindow *win);
-int WM_window_screen_pixels_x(const struct wmWindow *win);
-int WM_window_screen_pixels_y(const struct wmWindow *win);
+void WM_window_rect_calc(const struct wmWindow *win, struct rcti *r_rect);
+void WM_window_screen_rect_calc(const struct wmWindow *win, struct rcti *r_rect);
 bool WM_window_is_fullscreen(struct wmWindow *win);
 
 void WM_windows_scene_data_sync(const ListBase *win_lb, struct Scene *scene) ATTR_NONNULL();
@@ -136,13 +136,14 @@ void WM_opengl_context_release(void *context);
 enum {
 	WM_WINDOW_RENDER = 1,
 	WM_WINDOW_USERPREFS,
+	WM_WINDOW_DRIVERS,
 	// WM_WINDOW_FILESEL // UNUSED
 };
 
 struct wmWindow	*WM_window_open(struct bContext *C, const struct rcti *rect);
 struct wmWindow *WM_window_open_temp(struct bContext *C, int x, int y, int sizex, int sizey, int type);
 void             WM_window_set_dpi(wmWindow *win);
-			
+
 bool		WM_stereo3d_enabled(struct wmWindow *win, bool only_fullscreen_test);
 
 
@@ -157,6 +158,7 @@ void        WM_lib_reload(struct Library *lib, struct bContext *C, struct Report
 
 			/* mouse cursors */
 void		WM_cursor_set(struct wmWindow *win, int curs);
+bool		WM_cursor_set_from_tool(struct wmWindow *win, const ScrArea *sa, const ARegion *ar);
 void		WM_cursor_modal_set(struct wmWindow *win, int curs);
 void		WM_cursor_modal_restore(struct wmWindow *win);
 void		WM_cursor_wait		(bool val);
@@ -189,6 +191,11 @@ struct wmEventHandler *WM_event_add_keymap_handler_bb(ListBase *handlers, wmKeyM
 struct wmEventHandler *WM_event_add_keymap_handler_priority(ListBase *handlers, wmKeyMap *keymap, int priority);
 
 void		WM_event_remove_keymap_handler(ListBase *handlers, wmKeyMap *keymap);
+
+void WM_event_set_keymap_handler_callback(
+        struct wmEventHandler *handler,
+        void (keymap_tag)(wmKeyMap *keymap, wmKeyMapItem *kmi, void *user_data),
+        void *user_data);
 
 typedef int (*wmUIHandlerFunc)(struct bContext *C, const struct wmEvent *event, void *userdata);
 typedef void (*wmUIHandlerRemoveFunc)(struct bContext *C, void *userdata);
@@ -507,7 +514,6 @@ enum {
 	WM_JOB_TYPE_COMPOSITE,
 	WM_JOB_TYPE_RENDER,
 	WM_JOB_TYPE_RENDER_PREVIEW,  /* UI preview */
-	WM_JOB_TYPE_SCREENCAST,
 	WM_JOB_TYPE_OBJECT_SIM_OCEAN,
 	WM_JOB_TYPE_OBJECT_SIM_FLUID,
 	WM_JOB_TYPE_OBJECT_BAKE_TEXTURE,
@@ -523,6 +529,7 @@ enum {
 	WM_JOB_TYPE_DPAINT_BAKE,
 	WM_JOB_TYPE_ALEMBIC,
 	WM_JOB_TYPE_SHADER_COMPILATION,
+	WM_JOB_TYPE_STUDIOLIGHT,
 	/* add as needed, screencast, seq proxy build
 	 * if having hard coded values is a problem */
 };
@@ -604,18 +611,8 @@ bool        WM_event_is_tablet(const struct wmEvent *event);
 bool        WM_event_is_ime_switch(const struct wmEvent *event);
 #endif
 
-/* wm_toolsystem.c  */
-void WM_toolsystem_unlink(struct bContext *C, struct WorkSpace *workspace);
-void WM_toolsystem_link(struct bContext *C, struct WorkSpace *workspace);
-void WM_toolsystem_refresh(struct bContext *C, struct WorkSpace *workspace);
-
-void WM_toolsystem_set(struct bContext *C, const struct bToolDef *tool);
-void WM_toolsystem_init(struct bContext *C);
-
-bool WM_toolsystem_active_tool_is_brush(const struct bContext *C);
-
-void WM_toolsystem_do_msg_notify_tag_refresh(
-        struct bContext *C, struct wmMsgSubscribeKey *msg_key, struct wmMsgSubscribeValue *msg_val);
+const char *WM_window_cursor_keymap_status_get(const struct wmWindow *win, int button_index, int type_index);
+void WM_window_cursor_keymap_status_refresh(struct bContext *C, struct wmWindow *win);
 
 /* wm_tooltip.c */
 typedef struct ARegion *(*wmTooltipInitFn)(struct bContext *, struct ARegion *, bool *);
@@ -633,4 +630,3 @@ void WM_tooltip_refresh(struct bContext *C, struct wmWindow *win);
 #endif
 
 #endif /* __WM_API_H__ */
-

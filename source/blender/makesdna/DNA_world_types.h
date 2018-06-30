@@ -50,9 +50,9 @@ struct MTex;
  * gravity, color model etc. It mixes rendering data and modeling data. */
 typedef struct World {
 	ID id;
-	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */ 
-	
-	short colormodel, totex;
+	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */
+
+	char _pad0[4];
 	short texact, mistype;
 
 	float horr, horg, horb;
@@ -64,7 +64,7 @@ typedef struct World {
 	 */
 	float exposure, exp, range;
 	float linfac, logfac;
-	
+
 	/**
 	 * Some world modes
 	 * bit 0: Do mist
@@ -76,10 +76,10 @@ typedef struct World {
 
 	/* ambient occlusion */
 	float aodist, aoenergy;
-	
+
 	/* assorted settings  */
 	short flag, pad3[3];
-	
+
 	struct Ipo *ipo  DNA_DEPRECATED;  /* old animation system, deprecated for 2.5 */
 	short pr_texture, use_nodes, pad;
 	short update_flag;          /* XXX temporary flag waiting for depsgraph proper tagging */
@@ -114,10 +114,9 @@ enum {
 
 /* flag */
 #define WO_DS_EXPAND	(1<<0)
-	/* NOTE: this must have the same value as MA_DS_SHOW_TEXS, 
+	/* NOTE: this must have the same value as MA_DS_SHOW_TEXS,
 	 * otherwise anim-editors will not read correctly
 	 */
 #define WO_DS_SHOW_TEXS	(1<<2)
 
 #endif
-

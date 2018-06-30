@@ -59,7 +59,7 @@ void BKE_lamp_init(Lamp *la)
 	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(la, id));
 
 	la->r = la->g = la->b = la->k = 1.0f;
-	la->haint = la->energy = 1.0f;
+	la->energy = 10.0f;
 	la->dist = 25.0f;
 	la->spotsize = DEG2RADF(45.0f);
 	la->spotblend = 0.15f;
@@ -72,7 +72,7 @@ void BKE_lamp_init(Lamp *la)
 	la->samp = 3;
 	la->bias = 1.0f;
 	la->soft = 3.0f;
-	la->area_size = la->area_sizey = la->area_sizez = 0.1f;
+	la->area_size = la->area_sizey = la->area_sizez = 0.25f;
 	la->buffers = 1;
 	la->preview = NULL;
 	la->falloff_type = LA_FALLOFF_INVSQUARE;
@@ -88,7 +88,8 @@ void BKE_lamp_init(Lamp *la)
 	la->contact_bias = 0.03f;
 	la->contact_spread = 0.2f;
 	la->contact_thickness = 0.5f;
-	
+	la->spec_fac = 1.0f;
+
 	curvemapping_initialize(la->curfalloff);
 }
 
@@ -151,7 +152,7 @@ Lamp *BKE_lamp_localize(Lamp *la)
 
 	if (la->nodetree)
 		lan->nodetree = ntreeLocalize(la->nodetree);
-	
+
 	lan->preview = NULL;
 
 	return lan;
@@ -174,7 +175,7 @@ void BKE_lamp_free(Lamp *la)
 		MEM_freeN(la->nodetree);
 		la->nodetree = NULL;
 	}
-	
+
 	BKE_previewimg_free(&la->preview);
 	BKE_icon_id_delete(&la->id);
 	la->id.icon_id = 0;

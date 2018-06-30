@@ -65,6 +65,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 #include "screen_intern.h"
 
@@ -109,7 +110,7 @@ static void workspace_change_update_view_layer(
         WorkSpace *workspace_new, const WorkSpace *workspace_old,
         Scene *scene)
 {
-	if (!BKE_workspace_view_layer_get(workspace_new, scene)) {
+	if (!BKE_workspace_view_layer_exists(workspace_new, scene)) {
 		BKE_workspace_view_layer_set(workspace_new, BKE_workspace_view_layer_get(workspace_old, scene), scene);
 	}
 }
@@ -130,7 +131,7 @@ static bool workspace_change_find_new_layout_cb(const WorkSpaceLayout *layout, v
 }
 
 static WorkSpaceLayout *workspace_change_get_new_layout(
-        WorkSpace *workspace_new, wmWindow *win)
+        Main *bmain, WorkSpace *workspace_new, wmWindow *win)
 {
 	/* ED_workspace_duplicate may have stored a layout to activate once the workspace gets activated. */
 	WorkSpaceLayout *layout_new;
@@ -154,7 +155,7 @@ static WorkSpaceLayout *workspace_change_get_new_layout(
 		                                   NULL, false);
 		if (!layout_temp) {
 			/* fallback solution: duplicate layout */
-			layout_temp = ED_workspace_layout_duplicate(workspace_new, layout_new, win);
+			layout_temp = ED_workspace_layout_duplicate(bmain, workspace_new, layout_new, win);
 		}
 		layout_new = layout_temp;
 	}
@@ -176,7 +177,7 @@ bool ED_workspace_change(
 {
 	Main *bmain = CTX_data_main(C);
 	WorkSpace *workspace_old = WM_window_get_active_workspace(win);
-	WorkSpaceLayout *layout_new = workspace_change_get_new_layout(workspace_new, win);
+	WorkSpaceLayout *layout_new = workspace_change_get_new_layout(bmain, workspace_new, win);
 	bScreen *screen_new = BKE_workspace_layout_screen_get(layout_new);
 	bScreen *screen_old = BKE_workspace_active_screen_get(win->workspace_hook);
 
@@ -198,11 +199,11 @@ bool ED_workspace_change(
 		screen_change_update(C, win, screen_new);
 		workspace_change_update(workspace_new, workspace_old, C, wm);
 
-		BLI_assert(BKE_workspace_view_layer_get(workspace_new, CTX_data_scene(C)) != NULL);
+		BLI_assert(BKE_workspace_view_layer_exists(workspace_new, CTX_data_scene(C)) != NULL);
 		BLI_assert(CTX_wm_workspace(C) == workspace_new);
 
-		WM_toolsystem_unlink(C, workspace_old);
-		WM_toolsystem_link(C, workspace_new);
+		WM_toolsystem_unlink_all(C, workspace_old);
+		WM_toolsystem_reinit_all(C, win);
 
 		return true;
 	}
@@ -224,10 +225,10 @@ WorkSpace *ED_workspace_duplicate(
 	        bmain, workspace_old->id.name + 2, scene,
 	        BKE_workspace_view_layer_get(workspace_old, scene));
 
-	workspace_new->tool = workspace_old->tool;
+	/* TODO(campbell): tools */
 
 	for (WorkSpaceLayout *layout_old = layouts_old->first; layout_old; layout_old = layout_old->next) {
-		WorkSpaceLayout *layout_new = ED_workspace_layout_duplicate(workspace_new, layout_old, win);
+		WorkSpaceLayout *layout_new = ED_workspace_layout_duplicate(bmain, workspace_new, layout_old, win);
 
 		if (layout_active_old == layout_old) {
 			win->workspace_hook->temp_layout_store = layout_new;
@@ -331,6 +332,12 @@ static void WORKSPACE_OT_workspace_delete(wmOperatorType *ot)
 	ot->exec = workspace_delete_exec;
 }
 
+static int workspace_append_activate_poll(bContext *C)
+{
+	wmOperatorType *ot = WM_operatortype_find("WM_OT_append", false);
+	return WM_operator_poll(C, ot);
+}
+
 static int workspace_append(bContext *C, const char *directory, const char *idname)
 {
 	wmOperatorType *ot = WM_operatortype_find("WM_OT_append", false);
@@ -385,6 +392,7 @@ static void WORKSPACE_OT_append_activate(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->exec = workspace_append_activate_exec;
+	ot->poll = workspace_append_activate_poll;
 
 	RNA_def_string(ot->srna, "idname", NULL, MAX_ID_NAME - 2, "Identifier",
 	               "Name of the workspace to append and activate");

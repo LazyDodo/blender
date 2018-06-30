@@ -73,6 +73,7 @@
 #include "BKE_deform.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_effect.h"
+#include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -892,7 +893,7 @@ static void obstacles_from_derivedmesh(
 }
 
 /* Animated obstacles: dx_step = ((x_new - x_old) / totalsteps) * substep */
-static void update_obstacles(Scene *scene, Object *ob, SmokeDomainSettings *sds, float dt,
+static void update_obstacles(Depsgraph *depsgraph, Object *ob, SmokeDomainSettings *sds, float dt,
                              int UNUSED(substep), int UNUSED(totalsteps))
 {
 	Object **collobjs = NULL;
@@ -932,7 +933,7 @@ static void update_obstacles(Scene *scene, Object *ob, SmokeDomainSettings *sds,
 	}
 
 
-	collobjs = get_collisionobjects(scene, ob, sds->coll_group, &numcollobj, eModifierType_Smoke);
+	collobjs = BKE_collision_objects_create(depsgraph, ob, sds->coll_group, &numcollobj, eModifierType_Smoke);
 
 	// update obstacle tags in cells
 	for (collIndex = 0; collIndex < numcollobj; collIndex++)
@@ -949,8 +950,7 @@ static void update_obstacles(Scene *scene, Object *ob, SmokeDomainSettings *sds,
 		}
 	}
 
-	if (collobjs)
-		MEM_freeN(collobjs);
+	BKE_collision_objects_free(collobjs);
 
 	/* obstacle cells should not contain any velocity from the smoke simulation */
 	for (z = 0; z < sds->res[0] * sds->res[1] * sds->res[2]; z++)
@@ -1811,7 +1811,7 @@ static void adjustDomainResolution(SmokeDomainSettings *sds, int new_shift[3], E
 				int zn = z - new_shift[2];
 				int index;
 				float max_den;
-				
+
 				/* skip if cell already belongs to new area */
 				if (xn >= min[0] && xn <= max[0] && yn >= min[1] && yn <= max[1] && zn >= min[2] && zn <= max[2])
 					continue;
@@ -2107,7 +2107,8 @@ BLI_INLINE void apply_inflow_fields(SmokeFlowSettings *sfs, float emission_value
 	}
 }
 
-static void update_flowsfluids(struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeDomainSettings *sds, float dt)
+static void update_flowsfluids(
+        struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeDomainSettings *sds, float dt)
 {
 	Object **flowobjs = NULL;
 	EmissionMap *emaps = NULL;
@@ -2149,7 +2150,7 @@ static void update_flowsfluids(struct Depsgraph *depsgraph, Scene *scene, Object
 		sds->p1[2] = sds->p0[2] + sds->cell_size[2] * sds->base_res[2];
 	}
 
-	flowobjs = get_collisionobjects(scene, ob, sds->fluid_group, &numflowobj, eModifierType_Smoke);
+	flowobjs = BKE_collision_objects_create(depsgraph, ob, sds->fluid_group, &numflowobj, eModifierType_Smoke);
 
 	/* init emission maps for each flow */
 	emaps = MEM_callocN(sizeof(struct EmissionMap) * numflowobj, "smoke_flow_maps");
@@ -2450,8 +2451,7 @@ static void update_flowsfluids(struct Depsgraph *depsgraph, Scene *scene, Object
 		}
 	}
 
-	if (flowobjs)
-		MEM_freeN(flowobjs);
+	BKE_collision_objects_free(flowobjs);
 	if (emaps)
 		MEM_freeN(emaps);
 }
@@ -2510,7 +2510,7 @@ static void update_effectors_task_cb(
 			mul_m4_v3(sds->obmat, voxelCenter);
 
 			pd_point_from_loc(data->scene, voxelCenter, vel, index, &epoint);
-			pdDoEffectors(data->effectors, NULL, sds->effector_weights, &epoint, retvel, NULL);
+			BKE_effectors_apply(data->effectors, NULL, sds->effector_weights, &epoint, retvel, NULL);
 
 			/* convert retvel to local space */
 			mag = len_v3(retvel);
@@ -2531,7 +2531,7 @@ static void update_effectors(struct Depsgraph *depsgraph, Scene *scene, Object *
 	ListBase *effectors;
 	/* make sure smoke flow influence is 0.0f */
 	sds->effector_weights->weight[PFIELD_SMOKEFLOW] = 0.0f;
-	effectors = pdInitEffectors(depsgraph, scene, ob, NULL, sds->effector_weights, true);
+	effectors = BKE_effectors_create(depsgraph, ob, NULL, sds->effector_weights);
 
 	if (effectors) {
 		// precalculate wind forces
@@ -2558,10 +2558,12 @@ static void update_effectors(struct Depsgraph *depsgraph, Scene *scene, Object *
 		                        &settings);
 	}
 
-	pdEndEffectors(&effectors);
+	BKE_effectors_free(effectors);
 }
 
-static void step(struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeModifierData *smd, DerivedMesh *domain_dm, float fps)
+static void step(
+        Depsgraph *depsgraph,
+        Scene *scene, Object *ob, SmokeModifierData *smd, DerivedMesh *domain_dm, float fps)
 {
 	SmokeDomainSettings *sds = smd->domain;
 	/* stability values copied from wturbulence.cpp */
@@ -2632,7 +2634,7 @@ static void step(struct Depsgraph *depsgraph, Scene *scene, Object *ob, SmokeMod
 	{
 		// calc animated obstacle velocities
 		update_flowsfluids(depsgraph, scene, ob, sds, dtSubdiv);
-		update_obstacles(scene, ob, sds, dtSubdiv, substep, totalSubsteps);
+		update_obstacles(depsgraph, ob, sds, dtSubdiv, substep, totalSubsteps);
 
 		if (sds->total_cells > 1) {
 			update_effectors(depsgraph, scene, ob, sds, dtSubdiv); // DG TODO? problem --> uses forces instead of velocity, need to check how they need to be changed with variable dt

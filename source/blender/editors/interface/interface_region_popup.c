@@ -63,13 +63,13 @@
 /**
  * Translate any popup regions (so we can drag them).
  */
-void ui_popup_translate(bContext *C, ARegion *ar, const int mdiff[2])
+void ui_popup_translate(ARegion *ar, const int mdiff[2])
 {
 	uiBlock *block;
 
 	BLI_rcti_translate(&ar->winrct, UNPACK2(mdiff));
 
-	ED_region_update_rect(C, ar);
+	ED_region_update_rect(ar);
 
 	ED_region_tag_redraw(ar);
 
@@ -560,7 +560,7 @@ uiBlock *ui_popup_block_refresh(
 			block->pie_data.pie_center_spawned[0] += x_offset;
 			block->pie_data.pie_center_spawned[1] += y_offset;
 
-			ui_block_translate(block, x_offset, y_offset);
+			UI_block_translate(block, x_offset, y_offset);
 
 			if (U.pie_initial_timeout > 0)
 				block->pie_data.flags |= UI_PIE_INITIAL_DIRECTION;
@@ -590,7 +590,7 @@ uiBlock *ui_popup_block_refresh(
 		 * the same height. */
 		if (handle->refresh && handle->prev_block_rect.ymax > block->rect.ymax) {
 			float offset = handle->prev_block_rect.ymax - block->rect.ymax;
-			ui_block_translate(block, 0, offset);
+			UI_block_translate(block, 0, offset);
 			block->rect.ymin = handle->prev_block_rect.ymin;
 		}
 
@@ -604,7 +604,15 @@ uiBlock *ui_popup_block_refresh(
 		ar->winrct.ymin = block->rect.ymin - margin;
 		ar->winrct.ymax = block->rect.ymax + UI_POPUP_MENU_TOP;
 
-		ui_block_translate(block, -ar->winrct.xmin, -ar->winrct.ymin);
+		UI_block_translate(block, -ar->winrct.xmin, -ar->winrct.ymin);
+
+		/* apply scroll offset */
+		if (handle->scrolloffset != 0.0f) {
+			for (uiBut *bt = block->buttons.first; bt; bt = bt->next) {
+				bt->rect.ymin += handle->scrolloffset;
+				bt->rect.ymax += handle->scrolloffset;
+			}
+		}
 	}
 
 	if (block_old) {
@@ -617,7 +625,7 @@ uiBlock *ui_popup_block_refresh(
 	ui_popup_block_scrolltest(block);
 
 	/* adds subwindow */
-	ED_region_init(C, ar);
+	ED_region_init(ar);
 
 	/* get winmat now that we actually have the subwindow */
 	wmGetProjectionMatrix(block->winmat, &ar->winrct);
@@ -625,7 +633,7 @@ uiBlock *ui_popup_block_refresh(
 	/* notify change and redraw */
 	ED_region_tag_redraw(ar);
 
-	ED_region_update_rect(C, ar);
+	ED_region_update_rect(ar);
 
 #ifdef DEBUG
 	window->eventstate = event_back;
@@ -696,6 +704,21 @@ uiPopupBlockHandle *ui_popup_block_create(
 
 void ui_popup_block_free(bContext *C, uiPopupBlockHandle *handle)
 {
+	/* If this popup is created from a popover which does NOT have keep-open flag set,
+	 * then close the popover too. We could extend this to other popup types too. */
+	ARegion *ar = handle->popup_create_vars.butregion;
+	if (ar != NULL) {
+		for (uiBlock *block = ar->uiblocks.first; block; block = block->next) {
+			if (block->handle &&
+			    (block->flag & UI_BLOCK_POPOVER) &&
+			    (block->flag & UI_BLOCK_KEEP_OPEN) == 0)
+			{
+				uiPopupBlockHandle *menu = block->handle;
+				menu->menuretval = UI_RETURN_OK;
+			}
+		}
+	}
+
 	if (handle->popup_create_vars.free_func) {
 		handle->popup_create_vars.free_func(handle, handle->popup_create_vars.arg);
 	}

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,7 +17,7 @@
  *
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -53,6 +53,11 @@ void ED_keymap_uvedit(struct wmKeyConfig *keyconf);
 bool ED_uvedit_minmax(struct Scene *scene, struct Image *ima, struct Object *obedit, float min[2], float max[2]);
 bool ED_uvedit_center(Scene *scene, Image *ima, struct Object *obedit, float cent[2], char mode);
 void ED_uvedit_select_all(struct BMesh *bm);
+
+bool ED_uvedit_minmax_multi(
+        struct Scene *scene, struct Image *ima, struct Object **objects_edit, uint objects_len, float r_min[2], float r_max[2]);
+bool ED_uvedit_center_multi(
+        Scene *scene, Image *ima, struct Object **objects_edit, uint objects_len, float r_cent[2], char mode);
 
 bool ED_object_get_active_image(
         struct Object *ob, int mat_nr,
@@ -140,4 +145,3 @@ void ED_uvedit_draw_main(
 void ED_uvedit_buttons_register(struct ARegionType *art);
 
 #endif /* __ED_UVEDIT_H__ */
-

@@ -23,6 +23,14 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
+# WITH_OPENGL limits the visibility of the opengl headers to just gawain and bg_gpu,
+# to more easily highlight codepadths in other libraries that need to be refactored,
+# bf_gpu is allowed to have opengl regardless of this option.
+
+if(NOT WITH_OPENGL)
+	add_definitions(-DWITH_OPENGL)
+endif()
+
 set(INC
 	.
 	../blenkernel
@@ -68,6 +76,7 @@ set(SRC
 	intern/gpu_select_pick.c
 	intern/gpu_select_sample_query.c
 	intern/gpu_shader.c
+	intern/gpu_state.c
 	intern/gpu_texture.c
 	intern/gpu_uniformbuffer.c
 	intern/gpu_viewport.c
@@ -109,6 +118,7 @@ set(SRC
 	GPU_matrix.h
 	GPU_select.h
 	GPU_shader.h
+	GPU_state.h
 	GPU_texture.h
 	GPU_uniformbuffer.h
 	GPU_viewport.h
@@ -246,4 +256,3 @@ if(WITH_OPENSUBDIV)
 endif()
 
 blender_add_lib(bf_gpu "${SRC}" "${INC}" "${INC_SYS}")
-

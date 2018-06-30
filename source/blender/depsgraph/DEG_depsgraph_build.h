@@ -42,7 +42,7 @@ struct Depsgraph;
 
 struct CacheFile;
 struct EffectorWeights;
-struct Group;
+struct Collection;
 struct Main;
 struct ModifierData;
 struct Object;
@@ -152,25 +152,6 @@ void DEG_add_object_cache_relation(struct DepsNodeHandle *handle,
 
 struct Depsgraph *DEG_get_graph_from_handle(struct DepsNodeHandle *handle);
 void DEG_add_special_eval_flag(struct Depsgraph *graph, struct ID *id, short flag);
-
-/* Utility functions for physics modifiers */
-typedef bool (*DEG_CollobjFilterFunction)(struct Object *obj, struct ModifierData *md);
-
-void DEG_add_collision_relations(struct DepsNodeHandle *handle,
-                                 struct Scene *scene,
-                                 struct Object *object,
-                                 struct Group *group,
-                                 unsigned int modifier_type,
-                                 DEG_CollobjFilterFunction fn,
-                                 bool dupli,
-                                 const char *name);
-void DEG_add_forcefield_relations(struct DepsNodeHandle *handle,
-                                  struct Scene *scene,
-                                  struct Object *object,
-                                  struct EffectorWeights *eff,
-                                  bool add_absorption,
-                                  int skip_forcefield,
-                                  const char *name);
 
 /* ************************************************ */
 

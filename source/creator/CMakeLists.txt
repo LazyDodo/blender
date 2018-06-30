@@ -259,14 +259,29 @@ endif()
 set(BLENDER_TEXT_FILES
 	${CMAKE_SOURCE_DIR}/release/text/GPL-license.txt
 	${CMAKE_SOURCE_DIR}/release/text/GPL3-license.txt
-	${CMAKE_SOURCE_DIR}/release/text/Python-license.txt
 	${CMAKE_SOURCE_DIR}/release/text/copyright.txt
-	${CMAKE_SOURCE_DIR}/release/text/jemalloc-license.txt
-	${CMAKE_SOURCE_DIR}/release/text/ocio-license.txt
 	# generate this file
 	# ${CMAKE_SOURCE_DIR}/release/text/readme.html
 	${CMAKE_SOURCE_DIR}/release/datafiles/LICENSE-bfont.ttf.txt
 )
+
+if(WITH_PYTHON)
+	list(APPEND BLENDER_TEXT_FILES
+		${CMAKE_SOURCE_DIR}/release/text/Python-license.txt
+	)
+endif()
+
+if(WITH_OPENCOLORIO)
+	list(APPEND BLENDER_TEXT_FILES
+		${CMAKE_SOURCE_DIR}/release/text/ocio-license.txt
+	)
+endif()
+
+if(WITH_MEM_JEMALLOC)
+	list(APPEND BLENDER_TEXT_FILES
+		${CMAKE_SOURCE_DIR}/release/text/jemalloc-license.txt
+	)
+endif()
 
 if(WITH_INTERNATIONAL)
 	list(APPEND BLENDER_TEXT_FILES
@@ -320,7 +335,7 @@ install(
 
 if(WITH_PYTHON)
 	# install(CODE "message(\"copying blender scripts...\")")
-	
+
 	# exclude addons_contrib if release
 	if("${BLENDER_VERSION_CYCLE}" STREQUAL "release" OR
 	   "${BLENDER_VERSION_CYCLE}" STREQUAL "rc")
@@ -346,7 +361,7 @@ if(WITH_PYTHON)
 		PATTERN "${ADDON_EXCLUDE_CONDITIONAL}" EXCLUDE
 		PATTERN "${FREESTYLE_EXCLUDE_CONDITIONAL}" EXCLUDE
 	)
-	
+
 	unset(ADDON_EXCLUDE_CONDITIONAL)
 	unset(FREESTYLE_EXCLUDE_CONDITIONAL)
 endif()
@@ -633,7 +648,7 @@ if(UNIX AND NOT APPLE)
 				unset(_suffix)
 			endif()
 			unset(_target_LIB)
-			
+
 		endif()
 	endif()
 elseif(WIN32)
@@ -797,7 +812,7 @@ elseif(WIN32)
 			DESTINATION "."
 		)
 	endif()
-	
+
 	if(WITH_SYSTEM_AUDASPACE)
 		install(
 			FILES
@@ -814,7 +829,7 @@ elseif(WIN32)
 			DESTINATION "."
 		)
 	endif()
-		
+
 	install( # x86 builds can run on x64 Windows, so this is required at all times
 		FILES ${LIBDIR}/thumbhandler/lib/BlendThumb64.dll
 		DESTINATION "."

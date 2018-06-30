@@ -43,7 +43,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_dynamicpaint_types.h"
-#include "DNA_group_types.h" /*GroupObject*/
+#include "DNA_group_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -55,6 +55,8 @@
 #include "BKE_animsys.h"
 #include "BKE_armature.h"
 #include "BKE_bvhutils.h"   /* bvh tree */
+#include "BKE_collection.h"
+#include "BKE_collision.h"
 #include "BKE_colorband.h"
 #include "BKE_cdderivedmesh.h"
 #include "BKE_constraint.h"
@@ -489,33 +491,17 @@ static void scene_setSubframe(Scene *scene, float subframe)
 	scene->r.subframe = subframe;
 }
 
-static int surface_getBrushFlags(DynamicPaintSurface *surface, const ViewLayer *view_layer)
+static int surface_getBrushFlags(DynamicPaintSurface *surface, Depsgraph *depsgraph)
 {
-	Base *base = NULL;
-	Object *brushObj = NULL;
-	ModifierData *md = NULL;
+	unsigned int numobjects;
+	Object **objects = BKE_collision_objects_create(depsgraph, NULL, surface->brush_group, &numobjects, eModifierType_DynamicPaint);
 
 	int flags = 0;
 
-	if (surface->brush_group)
-		base = FIRSTBASE(surface->brush_group->view_layer);
-	else
-		base = FIRSTBASE(view_layer);
+	for (int i = 0; i < numobjects; i++) {
+		Object *brushObj = objects[i];
 
-	while (base) {
-		brushObj = NULL;
-
-		/* select object */
-		brushObj = base->object;
-
-		/* next item */
-		base = base->next;
-
-		if (!brushObj) {
-			continue;
-		}
-
-		md = modifiers_findByType(brushObj, eModifierType_DynamicPaint);
+		ModifierData *md = modifiers_findByType(brushObj, eModifierType_DynamicPaint);
 		if (md && md->mode & (eModifierMode_Realtime | eModifierMode_Render)) {
 			DynamicPaintModifierData *pmd2 = (DynamicPaintModifierData *)md;
 
@@ -527,6 +513,8 @@ static int surface_getBrushFlags(DynamicPaintSurface *surface, const ViewLayer *
 			}
 		}
 	}
+
+	BKE_collision_objects_free(objects);
 
 	return flags;
 }
@@ -3220,7 +3208,7 @@ void dynamicPaint_outputSurfaceImage(DynamicPaintSurface *surface, char *filenam
 	BKE_image_path_ensure_ext_from_imtype(output_file, format);
 
 	/* Validate output file path	*/
-	BLI_path_abs(output_file, G.main->name);
+	BLI_path_abs(output_file, BKE_main_blendfile_path_from_global());
 	BLI_make_existing_file(output_file);
 
 	/* Init image buffer	*/
@@ -3649,7 +3637,7 @@ static void dynamic_paint_brush_velocity_compute_cb(
 }
 
 static void dynamicPaint_brushMeshCalculateVelocity(
-        struct Depsgraph *depsgraph, Scene *scene,
+        Depsgraph *depsgraph, Scene *scene,
         Object *ob, DynamicPaintBrushSettings *brush, Vec3f **brushVel, float timescale)
 {
 	float prev_obmat[4][4];
@@ -3714,7 +3702,8 @@ static void dynamicPaint_brushMeshCalculateVelocity(
 }
 
 /* calculate velocity for object center point */
-static void dynamicPaint_brushObjectCalculateVelocity(struct Depsgraph *depsgraph, Scene *scene, Object *ob, Vec3f *brushVel, float timescale)
+static void dynamicPaint_brushObjectCalculateVelocity(
+        Depsgraph *depsgraph, Scene *scene, Object *ob, Vec3f *brushVel, float timescale)
 {
 	float prev_obmat[4][4];
 	float cur_loc[3] = {0.0f}, prev_loc[3] = {0.0f};
@@ -4100,7 +4089,7 @@ static void dynamic_paint_paint_mesh_cell_point_cb_ex(
 	}
 }
 
-static int dynamicPaint_paintMesh(struct Depsgraph *depsgraph, DynamicPaintSurface *surface,
+static int dynamicPaint_paintMesh(Depsgraph *depsgraph, DynamicPaintSurface *surface,
                                   DynamicPaintBrushSettings *brush,
                                   Object *brushOb,
                                   Scene *scene,
@@ -4588,7 +4577,7 @@ static void dynamic_paint_paint_single_point_cb_ex(
 }
 
 static int dynamicPaint_paintSinglePoint(
-        struct Depsgraph *depsgraph, DynamicPaintSurface *surface, float *pointCoord, DynamicPaintBrushSettings *brush,
+        Depsgraph *depsgraph, DynamicPaintSurface *surface, float *pointCoord, DynamicPaintBrushSettings *brush,
         Object *brushOb, Scene *scene, float timescale)
 {
 	PaintSurfaceData *sData = surface->data;
@@ -4889,7 +4878,7 @@ static void dynamic_paint_prepare_effect_cb(
 		EffectedPoint epoint;
 		pd_point_from_loc(scene, realCoord[bData->s_pos[index]].v, vel, index, &epoint);
 		epoint.vel_to_sec = 1.0f;
-		pdDoEffectors(effectors, NULL, surface->effector_weights, &epoint, forc, NULL);
+		BKE_effectors_apply(effectors, NULL, surface->effector_weights, &epoint, forc, NULL);
 	}
 
 	/* if global gravity is enabled, add it too */
@@ -4929,7 +4918,7 @@ static int dynamicPaint_prepareEffectStep(
 
 	/* Init force data if required */
 	if (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) {
-		ListBase *effectors = pdInitEffectors(depsgraph, scene, ob, NULL, surface->effector_weights, true);
+		ListBase *effectors = BKE_effectors_create(depsgraph, ob, NULL, surface->effector_weights);
 
 		/* allocate memory for force data (dir vector + strength) */
 		*force = MEM_mallocN(sData->total_points * 4 * sizeof(float), "PaintEffectForces");
@@ -4953,7 +4942,7 @@ static int dynamicPaint_prepareEffectStep(
 			}
 			average_force /= sData->total_points;
 		}
-		pdEndEffectors(&effectors);
+		BKE_effectors_free(effectors);
 	}
 
 	/* Get number of required steps using average point distance
@@ -5761,7 +5750,7 @@ static void dynamic_paint_generate_bake_data_cb(
 	}
 }
 
-static int dynamicPaint_generateBakeData(DynamicPaintSurface *surface, const ViewLayer *view_layer, Object *ob)
+static int dynamicPaint_generateBakeData(DynamicPaintSurface *surface, Depsgraph *depsgraph, Object *ob)
 {
 	PaintSurfaceData *sData = surface->data;
 	PaintBakeData *bData = sData->bData;
@@ -5769,7 +5758,7 @@ static int dynamicPaint_generateBakeData(DynamicPaintSurface *surface, const Vie
 	int index;
 	bool new_bdata = false;
 	const bool do_velocity_data = ((surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) ||
-	                               (surface_getBrushFlags(surface, view_layer) & BRUSH_USES_VELOCITY));
+	                               (surface_getBrushFlags(surface, depsgraph) & BRUSH_USES_VELOCITY));
 	const bool do_accel_data = (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) != 0;
 
 	int canvasNumOfVerts = dm->getNumVerts(dm);
@@ -5886,11 +5875,14 @@ static int dynamicPaint_generateBakeData(DynamicPaintSurface *surface, const Vie
 /*
  * Do Dynamic Paint step. Paints scene brush objects of current state/frame to the surface.
  */
-static int dynamicPaint_doStep(struct Depsgraph *depsgraph, Scene *scene, Object *ob, DynamicPaintSurface *surface, float timescale, float subframe)
+static int dynamicPaint_doStep(
+        Depsgraph *depsgraph, Scene *scene,
+        Object *ob, DynamicPaintSurface *surface, float timescale, float subframe)
 {
 	PaintSurfaceData *sData = surface->data;
 	PaintBakeData *bData = sData->bData;
 	DynamicPaintCanvasSettings *canvas = surface->canvas;
+	const bool for_render = (DEG_get_mode(depsgraph) == DAG_EVAL_RENDER);
 	int ret = 1;
 
 	if (sData->total_points < 1)
@@ -5911,36 +5903,18 @@ static int dynamicPaint_doStep(struct Depsgraph *depsgraph, Scene *scene, Object
 	 * Loop through surface's target paint objects and do painting
 	 */
 	{
-		Base *base = NULL;
-		Object *brushObj = NULL;
-		ModifierData *md = NULL;
-		ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+		unsigned int numobjects;
+		Object **objects = BKE_collision_objects_create(depsgraph, NULL, surface->brush_group, &numobjects, eModifierType_DynamicPaint);
 
 		/* backup current scene frame */
 		int scene_frame = scene->r.cfra;
 		float scene_subframe = scene->r.subframe;
 
-		/* either from group or from all objects */
-		if (surface->brush_group)
-			base = FIRSTBASE(surface->brush_group->view_layer);
-		else
-			base = FIRSTBASE(view_layer);
-
-		while (base) {
-			brushObj = NULL;
-			/* select object */
-			brushObj = base->object;
-
-			/* next item */
-			base = base->next;
-
-			if (!brushObj) {
-				/* skip item */
-				continue;
-			}
+		for (int i = 0; i < numobjects; i++) {
+			Object *brushObj = objects[i];
 
 			/* check if target has an active dp modifier	*/
-			md = modifiers_findByType(brushObj, eModifierType_DynamicPaint);
+			ModifierData *md = modifiers_findByType(brushObj, eModifierType_DynamicPaint);
 			if (md && md->mode & (eModifierMode_Realtime | eModifierMode_Render)) {
 				DynamicPaintModifierData *pmd2 = (DynamicPaintModifierData *)md;
 				/* make sure we're dealing with a brush	*/
@@ -5968,10 +5942,10 @@ static int dynamicPaint_doStep(struct Depsgraph *depsgraph, Scene *scene, Object
 					/* Apply brush on the surface depending on it's collision type */
 					if (brush->psys && brush->psys->part &&
 					    ELEM(brush->psys->part->type, PART_EMITTER, PART_FLUID) &&
-					    psys_check_enabled(brushObj, brush->psys, G.is_rendering))
+					    psys_check_enabled(brushObj, brush->psys, for_render))
 					{
 						/* Paint a particle system */
-						BKE_animsys_evaluate_animdata(scene, &brush->psys->part->id, brush->psys->part->adt,
+						BKE_animsys_evaluate_animdata(depsgraph, scene, &brush->psys->part->id, brush->psys->part->adt,
 						                              BKE_scene_frame_get(scene), ADT_RECALC_ANIM);
 						dynamicPaint_paintParticles(surface, brush->psys, brush, timescale);
 					}
@@ -6002,6 +5976,8 @@ static int dynamicPaint_doStep(struct Depsgraph *depsgraph, Scene *scene, Object
 				}
 			}
 		}
+
+		BKE_collision_objects_free(objects);
 	}
 
 	/* surfaces operations that use adjacency data */
@@ -6058,8 +6034,7 @@ int dynamicPaint_calculateFrame(
 		dynamicPaint_applySurfaceDisplace(surface, surface->canvas->dm);
 
 	/* update bake data */
-	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
-	dynamicPaint_generateBakeData(surface, view_layer, cObject);
+	dynamicPaint_generateBakeData(surface, depsgraph, cObject);
 
 	/* don't do substeps for first frame */
 	if (surface->substeps && (frame != surface->start_frame)) {

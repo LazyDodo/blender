@@ -460,7 +460,7 @@ void GPU_pbvh_grid_buffers_update(
 						vbo_index += 1;
 					}
 				}
-				
+
 				if (!buffers->smooth) {
 					for (j = 0; j < key->grid_size - 1; j++) {
 						for (k = 0; k < key->grid_size - 1; k++) {
@@ -791,11 +791,14 @@ void GPU_pbvh_bmesh_buffers_update(
 	tottri = gpu_bmesh_face_visible_count(bm_faces);
 
 	if (buffers->smooth) {
+		/* Smooth needs to recreate index buffer, so we have to invalidate the batch. */
+		GWN_BATCH_DISCARD_SAFE(buffers->triangles);
 		/* Count visible vertices */
 		totvert = gpu_bmesh_vert_visible_count(bm_unique_verts, bm_other_verts);
 	}
-	else
+	else {
 		totvert = tottri * 3;
+	}
 
 	if (!tottri) {
 		buffers->tot_tri = 0;
@@ -865,7 +868,7 @@ void GPU_pbvh_bmesh_buffers_update(
 						fmask += BM_ELEM_CD_GET_FLOAT(v[i], cd_vert_mask_offset);
 					}
 					fmask /= 3.0f;
-					
+
 					for (i = 0; i < 3; i++) {
 						gpu_bmesh_vert_to_buffer_copy__gwn(
 						        v[i], buffers->vert_buf,
@@ -905,13 +908,11 @@ void GPU_pbvh_bmesh_buffers_update(
 				BMFace *f = BLI_gsetIterator_getKey(&gs_iter);
 
 				if (!BM_elem_flag_test(f, BM_ELEM_HIDDEN)) {
-					BMLoop *l_iter;
-					BMLoop *l_first;
+					BMVert *v[3];
 
-					l_iter = l_first = BM_FACE_FIRST_LOOP(f);
-					do {
-						GWN_indexbuf_add_generic_vert(&elb, BM_elem_index_get(l_iter->v));
-					} while ((l_iter = l_iter->next) != l_first);
+					BM_face_as_array_vert_tri(f, v);
+					GWN_indexbuf_add_tri_verts(
+					            &elb, BM_elem_index_get(v[0]), BM_elem_index_get(v[1]), BM_elem_index_get(v[2]));
 				}
 			}
 

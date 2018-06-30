@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -76,7 +76,11 @@ void OBJECT_OT_drop_named_material(struct wmOperatorType *ot);
 void OBJECT_OT_unlink_data(struct wmOperatorType *ot);
 
 /* object_edit.c */
+void OBJECT_OT_hide_view_set(struct wmOperatorType *ot);
+void OBJECT_OT_hide_view_clear(struct wmOperatorType *ot);
+void OBJECT_OT_hide_collection(struct wmOperatorType *ot);
 void OBJECT_OT_mode_set(struct wmOperatorType *ot);
+void OBJECT_OT_mode_set_or_submode(struct wmOperatorType *ot);
 void OBJECT_OT_editmode_toggle(struct wmOperatorType *ot);
 void OBJECT_OT_posemode_toggle(struct wmOperatorType *ot);
 void OBJECT_OT_proxy_make(struct wmOperatorType *ot);
@@ -88,6 +92,7 @@ void OBJECT_OT_paths_clear(struct wmOperatorType *ot);
 void OBJECT_OT_forcefield_toggle(struct wmOperatorType *ot);
 
 void OBJECT_OT_move_to_collection(struct wmOperatorType *ot);
+void OBJECT_OT_link_to_collection(struct wmOperatorType *ot);
 
 /* object_select.c */
 void OBJECT_OT_select_all(struct wmOperatorType *ot);
@@ -99,7 +104,6 @@ void OBJECT_OT_select_grouped(struct wmOperatorType *ot);
 void OBJECT_OT_select_mirror(struct wmOperatorType *ot);
 void OBJECT_OT_select_more(struct wmOperatorType *ot);
 void OBJECT_OT_select_less(struct wmOperatorType *ot);
-void OBJECT_OT_select_same_group(struct wmOperatorType *ot);
 void OBJECT_OT_select_same_collection(struct wmOperatorType *ot);
 
 /* object_add.c */
@@ -115,7 +119,7 @@ void OBJECT_OT_lamp_add(struct wmOperatorType *ot);
 void OBJECT_OT_effector_add(struct wmOperatorType *ot);
 void OBJECT_OT_camera_add(struct wmOperatorType *ot);
 void OBJECT_OT_speaker_add(struct wmOperatorType *ot);
-void OBJECT_OT_group_instance_add(struct wmOperatorType *ot);
+void OBJECT_OT_collection_instance_add(struct wmOperatorType *ot);
 
 void OBJECT_OT_duplicates_make_real(struct wmOperatorType *ot);
 void OBJECT_OT_duplicate(struct wmOperatorType *ot);
@@ -134,11 +138,11 @@ void OBJECT_OT_hook_reset(struct wmOperatorType *ot);
 void OBJECT_OT_hook_recenter(struct wmOperatorType *ot);
 
 /* object_group.c */
-void GROUP_OT_create(struct wmOperatorType *ot);
-void GROUP_OT_objects_remove_all(struct wmOperatorType *ot);
-void GROUP_OT_objects_remove(struct wmOperatorType *ot);
-void GROUP_OT_objects_add_active(struct wmOperatorType *ot);
-void GROUP_OT_objects_remove_active(struct wmOperatorType *ot);
+void COLLECTION_OT_create(struct wmOperatorType *ot);
+void COLLECTION_OT_objects_remove_all(struct wmOperatorType *ot);
+void COLLECTION_OT_objects_remove(struct wmOperatorType *ot);
+void COLLECTION_OT_objects_add_active(struct wmOperatorType *ot);
+void COLLECTION_OT_objects_remove_active(struct wmOperatorType *ot);
 
 /* object_modifier.c */
 int edit_modifier_poll_generic(struct bContext *C, struct StructRNA *rna_type, int obtype_flag);
@@ -251,11 +255,11 @@ void OBJECT_OT_shape_key_mirror(struct wmOperatorType *ot);
 void OBJECT_OT_shape_key_move(struct wmOperatorType *ot);
 
 /* object_group.c */
-void OBJECT_OT_group_add(struct wmOperatorType *ot);
-void OBJECT_OT_group_link(struct wmOperatorType *ot);
-void OBJECT_OT_group_remove(struct wmOperatorType *ot);
-void OBJECT_OT_group_unlink(struct wmOperatorType *ot);
-void OBJECT_OT_grouped_select(struct wmOperatorType *ot);
+void OBJECT_OT_collection_add(struct wmOperatorType *ot);
+void OBJECT_OT_collection_link(struct wmOperatorType *ot);
+void OBJECT_OT_collection_remove(struct wmOperatorType *ot);
+void OBJECT_OT_collection_unlink(struct wmOperatorType *ot);
+void OBJECT_OT_collection_objects_select(struct wmOperatorType *ot);
 
 /* object_bake.c */
 void OBJECT_OT_bake_image(wmOperatorType *ot);
@@ -269,4 +273,3 @@ void OBJECT_OT_data_transfer(struct wmOperatorType *ot);
 void OBJECT_OT_datalayout_transfer(struct wmOperatorType *ot);
 
 #endif /* __OBJECT_INTERN_H__ */
-

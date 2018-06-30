@@ -47,36 +47,33 @@ struct MTex;
 
 typedef struct Lamp {
 	ID id;
-	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */ 
-	
+	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */
+
 	short type, flag;
 	int mode;
-	
-	short colormodel, totex;
+
 	float r, g, b, k;
 	float shdwr, shdwg, shdwb, shdwpad;
-	
+
 	float energy, dist, spotsize, spotblend;
-	float haint;
-	
-	
+
 	float att1, att2;	/* Quad1 and Quad2 attenuation */
 	float coeff_const, coeff_lin, coeff_quad, coeff_pad;
 	struct CurveMapping *curfalloff;
 	short falloff_type;
 	short pad2;
-	
+
 	float clipsta, clipend;
 	float bias, soft, bleedbias, bleedexp;
 	short bufsize, samp, buffers, filtertype;
 	char bufflag, buftype;
-	
+
 	short area_shape;
 	float area_size, area_sizey, area_sizez;
-	
+
 	/* texact is for buttons */
 	short texact, shadhalostep;
-	
+
 	struct Ipo *ipo  DNA_DEPRECATED;  /* old animation system, deprecated for 2.5 */
 	short pr_texture, use_nodes;
 	char pad6[4];
@@ -102,7 +99,7 @@ typedef struct Lamp {
 
 /* flag */
 #define LA_DS_EXPAND	1
-	/* NOTE: this must have the same value as MA_DS_SHOW_TEXS, 
+	/* NOTE: this must have the same value as MA_DS_SHOW_TEXS,
 	 * otherwise anim-editors will not read correctly
 	 */
 #define LA_DS_SHOW_TEXS	4
@@ -151,6 +148,7 @@ typedef struct Lamp {
 #define LA_AREA_RECT	1
 #define LA_AREA_CUBE	2
 #define LA_AREA_BOX		3
+#define LA_AREA_DISK	4
+#define LA_AREA_ELLIPSE	5
 
 #endif /* __DNA_LAMP_TYPES_H__ */
-

@@ -23,7 +23,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-set(INC 
+set(INC
 	.
 	../blenfont
 	../blenkernel
@@ -47,6 +47,7 @@ set(INC_SYS
 )
 
 set(SRC
+	${CMAKE_SOURCE_DIR}/release/datafiles/userdef/userdef_default_theme.c
 	intern/blend_validate.c
 	intern/readblenentry.c
 	intern/readfile.c
@@ -80,10 +81,6 @@ endif()
 
 if(WITH_INTERNATIONAL)
 	add_definitions(-DWITH_INTERNATIONAL)
-endif()
-
-if(WITH_CLAY_ENGINE)
-	add_definitions(-DWITH_CLAY_ENGINE)
 endif()
 
 if(WITH_CODEC_FFMPEG)

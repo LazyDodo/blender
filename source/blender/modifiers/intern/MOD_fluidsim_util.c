@@ -48,9 +48,13 @@
 
 #include "BKE_fluidsim.h" /* ensure definitions here match */
 #include "BKE_cdderivedmesh.h"
+#include "BKE_main.h"
 #ifdef WITH_MOD_FLUID
 #  include "BKE_global.h"
 #endif
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_fluidsim_util.h"
 #include "MOD_modifiertypes.h"
@@ -68,10 +72,10 @@ void fluidsim_init(FluidsimModifierData *fluidmd)
 		FluidsimSettings *fss = MEM_callocN(sizeof(FluidsimSettings), "fluidsimsettings");
 
 		fluidmd->fss = fss;
-		
+
 		if (!fss)
 			return;
-		
+
 		fss->fmd = fluidmd;
 		fss->type = OB_FLUIDSIM_ENABLE;
 		fss->threads = 0;
@@ -85,12 +89,12 @@ void fluidsim_init(FluidsimModifierData *fluidmd)
 
 		fss->viscosityValue = 1.0;
 		fss->viscosityExponent = 6;
-		
+
 		fss->grav[0] = 0.0;
 		fss->grav[1] = 0.0;
 		fss->grav[2] = -9.81;
 
-		fss->animStart = 0.0; 
+		fss->animStart = 0.0;
 		fss->animEnd = 4.0;
 		fss->animRate = 1.0;
 		fss->gstar = 0.005; // used as normgstar
@@ -126,18 +130,18 @@ void fluidsim_init(FluidsimModifierData *fluidmd)
 		fss->cpsTimeStart = fss->animStart;
 		fss->cpsTimeEnd = fss->animEnd;
 		fss->cpsQuality = 10.0; // 1.0 / 10.0 => means 0.1 width
-		
+
 		/*
 		 * BAD TODO: this is done in buttons_object.c in the moment
 		 * Mesh *mesh = ob->data;
 		 * // calculate bounding box
 		 * fluid_get_bb(mesh->mvert, mesh->totvert, ob->obmat, fss->bbStart, fss->bbSize);
 		 */
-		
+
 		fss->meshVelocities = NULL;
-		
+
 		fss->lastgoodframe = -1;
-		
+
 		fss->flag |= OB_FLUIDSIM_ACTIVE;
 
 	}
@@ -159,7 +163,7 @@ void fluidsim_free(FluidsimModifierData *fluidmd)
 	/* Seems to never be used, but for sqke of consistency... */
 	BLI_assert(fluidmd->point_cache == NULL);
 	fluidmd->point_cache = NULL;
-	
+
 	return;
 }
 
@@ -430,7 +434,7 @@ static DerivedMesh *fluidsim_read_cache(
         Object *ob, DerivedMesh *orgdm,
         FluidsimModifierData *fluidmd, int framenr, int useRenderParams)
 {
-	int curFrame = framenr /* - 1 */ /*scene->r.sfra*/; /* start with 0 at start frame */ 
+	int curFrame = framenr /* - 1 */ /*scene->r.sfra*/; /* start with 0 at start frame */
 	/*  why start with 0 as start frame?? Animations + time are frozen for frame 0 anyway. (See physics_fluid.c for that. - DG */
 	/* If we start with frame 0, we need to remap all animation channels, too, because they will all be 1 frame late if using frame-1! - DG */
 
@@ -462,7 +466,7 @@ static DerivedMesh *fluidsim_read_cache(
 	/* offset baked frame */
 	curFrame += fss->frameOffset;
 
-	BLI_path_abs(targetFile, modifier_path_relbase(ob));
+	BLI_path_abs(targetFile, modifier_path_relbase_from_global(ob));
 	BLI_path_frame(targetFile, curFrame, 0); // fixed #frame-no
 
 	/* assign material + flags to new dm
@@ -512,18 +516,21 @@ static DerivedMesh *fluidsim_read_cache(
 #endif // WITH_MOD_FLUID
 
 DerivedMesh *fluidsimModifier_do(
-        FluidsimModifierData *fluidmd, Scene *scene,
-        Object *ob,
-        DerivedMesh *dm,
-        int useRenderParams, int UNUSED(isFinalCalc))
+        FluidsimModifierData *fluidmd,
+        const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 #ifdef WITH_MOD_FLUID
+	Object *ob = ctx->object;
+	Depsgraph *depsgraph = ctx->depsgraph;
+	const bool useRenderParams = (ctx->flag & MOD_APPLY_RENDER) != 0;
+//	const bool isFinalCalc = (ctx->flag & MOD_APPLY_USECACHE) != 0;
 	DerivedMesh *result = NULL;
 	int framenr;
 	FluidsimSettings *fss = NULL;
 
-	framenr = (int)scene->r.cfra;
-	
+	framenr = (int)DEG_get_ctime(depsgraph);
+
 	/* only handle fluidsim domains */
 	if (fluidmd && fluidmd->fss && (fluidmd->fss->type != OB_FLUIDSIM_DOMAIN))
 		return dm;
@@ -542,20 +549,18 @@ DerivedMesh *fluidsimModifier_do(
 		framenr = fss->lastgoodframe - framenr + 1;
 		CLAMP(framenr, 1, fss->lastgoodframe);
 	}
-	
+
 	/* try to read from cache */
 	/* if the frame is there, fine, otherwise don't do anything */
 	if ((result = fluidsim_read_cache(ob, dm, fluidmd, framenr, useRenderParams)))
 		return result;
-	
+
 	return dm;
 #else
 	/* unused */
 	(void)fluidmd;
-	(void)scene;
-	(void)ob;
+	(void)ctx;
 	(void)dm;
-	(void)useRenderParams;
 	return NULL;
 #endif
 }

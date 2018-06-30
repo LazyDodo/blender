@@ -64,6 +64,7 @@ void DRW_globals_update(void)
 	UI_GetThemeColor4fv(TH_VERTEX_SELECT, ts.colorVertexSelect);
 	UI_GetThemeColor4fv(TH_EDITMESH_ACTIVE, ts.colorEditMeshActive);
 	UI_GetThemeColor4fv(TH_EDGE_SELECT, ts.colorEdgeSelect);
+
 	UI_GetThemeColor4fv(TH_EDGE_SEAM, ts.colorEdgeSeam);
 	UI_GetThemeColor4fv(TH_EDGE_SHARP, ts.colorEdgeSharp);
 	UI_GetThemeColor4fv(TH_EDGE_CREASE, ts.colorEdgeCrease);
@@ -92,6 +93,10 @@ void DRW_globals_update(void)
 	UI_GetThemeColor4fv(TH_NURB_SEL_ULINE, ts.colorNurbSelUline);
 	UI_GetThemeColor4fv(TH_ACTIVE_SPLINE, ts.colorActiveSpline);
 
+	UI_GetThemeColor4fv(TH_BONE_POSE, ts.colorBonePose);
+
+	UI_GetThemeColor4fv(TH_CFRAME, ts.colorCurrentFrame);
+
 	/* Grid */
 	UI_GetThemeColorShade4fv(TH_GRID, 10, ts.colorGrid);
 	/* emphasise division lines lighter instead of darker, if background is darker than grid */
@@ -114,8 +119,8 @@ void DRW_globals_update(void)
 	ts.sizeLampCircleShadow = ts.sizeLampCircle + U.pixelsize * 3.0f;
 
 	/* M_SQRT2 to be at least the same size of the old square */
-	ts.sizeVertex = ceilf(UI_GetThemeValuef(TH_VERTEX_SIZE) * (float)M_SQRT2 / 2.0f);
-	ts.sizeFaceDot = ceilf(UI_GetThemeValuef(TH_FACEDOT_SIZE) * (float)M_SQRT2);
+	ts.sizeVertex = max_ff(1.0f, UI_GetThemeValuef(TH_VERTEX_SIZE) * (float)M_SQRT2 / 2.0f);
+	ts.sizeFaceDot = UI_GetThemeValuef(TH_FACEDOT_SIZE);
 	ts.sizeEdge = 1.0f / 2.0f; /* TODO Theme */
 	ts.sizeEdgeFix = 0.5f + 2.0f * (2.0f * (MAX2(ts.sizeVertex, ts.sizeEdge)) * (float)M_SQRT1_2);
 
@@ -153,6 +158,10 @@ void DRW_globals_update(void)
 
 /* ********************************* SHGROUP ************************************* */
 
+extern char datatoc_animviz_mpath_lines_vert_glsl[];
+extern char datatoc_animviz_mpath_lines_geom_glsl[];
+extern char datatoc_animviz_mpath_points_vert_glsl[];
+
 extern char datatoc_armature_axes_vert_glsl[];
 extern char datatoc_armature_sphere_solid_vert_glsl[];
 extern char datatoc_armature_sphere_solid_frag_glsl[];
@@ -167,7 +176,12 @@ extern char datatoc_armature_shape_outline_vert_glsl[];
 extern char datatoc_armature_shape_outline_geom_glsl[];
 extern char datatoc_armature_stick_vert_glsl[];
 extern char datatoc_armature_stick_frag_glsl[];
+
+extern char datatoc_common_globals_lib_glsl[];
+
 extern char datatoc_gpu_shader_flat_color_frag_glsl[];
+extern char datatoc_gpu_shader_3D_smooth_color_frag_glsl[];
+extern char datatoc_gpu_shader_point_varying_color_frag_glsl[];
 
 extern char datatoc_object_mball_handles_vert_glsl[];
 
@@ -181,6 +195,9 @@ static struct {
 	struct GPUShader *bone_sphere;
 	struct GPUShader *bone_sphere_outline;
 	struct GPUShader *bone_stick;
+
+	struct GPUShader *mpath_line_sh;
+	struct GPUShader *mpath_points_sh;
 
 	struct GPUShader *mball_handles;
 } g_shaders = {NULL};
@@ -203,6 +220,7 @@ static struct {
 	struct Gwn_VertFormat *instance_bone_envelope_distance;
 	struct Gwn_VertFormat *instance_bone_envelope_outline;
 	struct Gwn_VertFormat *instance_mball_handles;
+	struct Gwn_VertFormat *dynlines_color;
 } g_formats = {NULL};
 
 void DRW_globals_free(void)
@@ -216,6 +234,20 @@ void DRW_globals_free(void)
 	for (int i = 0; i < sizeof(g_shaders) / sizeof(void *); ++i, ++shader) {
 		DRW_SHADER_FREE_SAFE(*shader);
 	}
+}
+
+DRWShadingGroup *shgroup_dynlines_flat_color(DRWPass *pass)
+{
+	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_FLAT_COLOR);
+
+	DRW_shgroup_instance_format(g_formats.dynlines_color, {
+		{"pos",       DRW_ATTRIB_FLOAT, 3},
+		{"color",     DRW_ATTRIB_FLOAT, 4}
+	});
+
+	DRWShadingGroup *grp = DRW_shgroup_line_batch_create_with_format(sh, pass, g_formats.dynlines_color);
+
+	return grp;
 }
 
 DRWShadingGroup *shgroup_dynlines_dashed_uniform_color(DRWPass *pass, float color[4])
@@ -273,7 +305,7 @@ DRWShadingGroup *shgroup_instance_screenspace(DRWPass *pass, struct Gwn_Batch *g
 
 	DRW_shgroup_instance_format(g_formats.instance_screenspace, {
 		{"world_pos", DRW_ATTRIB_FLOAT, 3},
-		{"color"    , DRW_ATTRIB_FLOAT, 3}
+		{"color",     DRW_ATTRIB_FLOAT, 3}
 	});
 
 	DRWShadingGroup *grp = DRW_shgroup_instance_create(sh, pass, geom, g_formats.instance_screenspace);
@@ -292,7 +324,7 @@ DRWShadingGroup *shgroup_instance_solid(DRWPass *pass, struct Gwn_Batch *geom)
 
 	DRW_shgroup_instance_format(g_formats.instance_color, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"color"              , DRW_ATTRIB_FLOAT, 4}
+		{"color",               DRW_ATTRIB_FLOAT, 4}
 	});
 
 	DRWShadingGroup *grp = DRW_shgroup_instance_create(sh, pass, geom, g_formats.instance_color);
@@ -307,7 +339,7 @@ DRWShadingGroup *shgroup_instance_wire(DRWPass *pass, struct Gwn_Batch *geom)
 
 	DRW_shgroup_instance_format(g_formats.instance_color, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"color"              , DRW_ATTRIB_FLOAT, 4}
+		{"color",               DRW_ATTRIB_FLOAT, 4}
 	});
 
 	DRWShadingGroup *grp = DRW_shgroup_instance_create(sh, pass, geom, g_formats.instance_color);
@@ -320,8 +352,8 @@ DRWShadingGroup *shgroup_instance_screen_aligned(DRWPass *pass, struct Gwn_Batch
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_INSTANCE_SCREEN_ALIGNED);
 
 	DRW_shgroup_instance_format(g_formats.instance_screen_aligned, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
-		{"size"               , DRW_ATTRIB_FLOAT, 1},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
+		{"size",                DRW_ATTRIB_FLOAT, 1},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -336,8 +368,8 @@ DRWShadingGroup *shgroup_instance_axis_names(DRWPass *pass, struct Gwn_Batch *ge
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_INSTANCE_SCREEN_ALIGNED_AXIS);
 
 	DRW_shgroup_instance_format(g_formats.instance_screen_aligned, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
-		{"size"               , DRW_ATTRIB_FLOAT, 1},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
+		{"size",                DRW_ATTRIB_FLOAT, 1},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -352,8 +384,8 @@ DRWShadingGroup *shgroup_instance_scaled(DRWPass *pass, struct Gwn_Batch *geom)
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SCALE);
 
 	DRW_shgroup_instance_format(g_formats.instance_scaled, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
-		{"size"               , DRW_ATTRIB_FLOAT, 3},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
+		{"size",                DRW_ATTRIB_FLOAT, 3},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -367,8 +399,8 @@ DRWShadingGroup *shgroup_instance(DRWPass *pass, struct Gwn_Batch *geom)
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SIZE);
 
 	DRW_shgroup_instance_format(g_formats.instance_sized, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
-		{"size"               , DRW_ATTRIB_FLOAT, 1},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
+		{"size",                DRW_ATTRIB_FLOAT, 1},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -382,8 +414,8 @@ DRWShadingGroup *shgroup_instance_outline(DRWPass *pass, struct Gwn_Batch *geom,
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_VARIYING_ID_VARIYING_SIZE);
 
 	DRW_shgroup_instance_format(g_formats.instance_outline, {
-		{"callId"             , DRW_ATTRIB_INT,   1},
-		{"size"               , DRW_ATTRIB_FLOAT, 1},
+		{"callId",              DRW_ATTRIB_INT,   1},
+		{"size",                DRW_ATTRIB_FLOAT, 1},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -398,10 +430,10 @@ DRWShadingGroup *shgroup_camera_instance(DRWPass *pass, struct Gwn_Batch *geom)
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_CAMERA);
 
 	DRW_shgroup_instance_format(g_formats.instance_camera, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
-		{"corners"            , DRW_ATTRIB_FLOAT, 8},
-		{"depth"              , DRW_ATTRIB_FLOAT, 1},
-		{"tria"               , DRW_ATTRIB_FLOAT, 4},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
+		{"corners",             DRW_ATTRIB_FLOAT, 8},
+		{"depth",               DRW_ATTRIB_FLOAT, 1},
+		{"tria",                DRW_ATTRIB_FLOAT, 4},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -416,9 +448,9 @@ DRWShadingGroup *shgroup_distance_lines_instance(DRWPass *pass, struct Gwn_Batch
 	static float point_size = 4.0f;
 
 	DRW_shgroup_instance_format(g_formats.instance_distance_lines, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
-		{"start"              , DRW_ATTRIB_FLOAT, 1},
-		{"end"                , DRW_ATTRIB_FLOAT, 1},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
+		{"start",               DRW_ATTRIB_FLOAT, 1},
+		{"end",                 DRW_ATTRIB_FLOAT, 1},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -435,7 +467,7 @@ DRWShadingGroup *shgroup_spot_instance(DRWPass *pass, struct Gwn_Batch *geom)
 	static const int False = false;
 
 	DRW_shgroup_instance_format(g_formats.instance_spot, {
-		{"color"              , DRW_ATTRIB_FLOAT, 3},
+		{"color",               DRW_ATTRIB_FLOAT, 3},
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 	});
 
@@ -457,12 +489,13 @@ DRWShadingGroup *shgroup_instance_bone_axes(DRWPass *pass)
 
 	DRW_shgroup_instance_format(g_formats.instance_color, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"color"              , DRW_ATTRIB_FLOAT, 4}
+		{"color",               DRW_ATTRIB_FLOAT, 4}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_axes,
-	                                                   pass, DRW_cache_bone_arrows_get(),
-	                                                   g_formats.instance_color);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_axes,
+	        pass, DRW_cache_bone_arrows_get(),
+	        g_formats.instance_color);
 	DRW_shgroup_uniform_vec3(grp, "screenVecs[0]", DRW_viewport_screenvecs_get(), 2);
 
 	return grp;
@@ -477,15 +510,16 @@ DRWShadingGroup *shgroup_instance_bone_envelope_outline(DRWPass *pass)
 	}
 
 	DRW_shgroup_instance_format(g_formats.instance_bone_envelope_outline, {
-		{"headSphere"          , DRW_ATTRIB_FLOAT, 4},
-		{"tailSphere"          , DRW_ATTRIB_FLOAT, 4},
-		{"outlineColorSize"    , DRW_ATTRIB_FLOAT, 4},
-		{"xAxis"               , DRW_ATTRIB_FLOAT, 3}
+		{"headSphere",           DRW_ATTRIB_FLOAT, 4},
+		{"tailSphere",           DRW_ATTRIB_FLOAT, 4},
+		{"outlineColorSize",     DRW_ATTRIB_FLOAT, 4},
+		{"xAxis",                DRW_ATTRIB_FLOAT, 3}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_envelope_outline,
-	                                                   pass, DRW_cache_bone_envelope_outline_get(),
-	                                                   g_formats.instance_bone_envelope_outline);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_envelope_outline,
+	        pass, DRW_cache_bone_envelope_outline_get(),
+	        g_formats.instance_bone_envelope_outline);
 	DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
 
 	return grp;
@@ -500,14 +534,15 @@ DRWShadingGroup *shgroup_instance_bone_envelope_distance(DRWPass *pass)
 	}
 
 	DRW_shgroup_instance_format(g_formats.instance_bone_envelope_distance, {
-		{"headSphere"          , DRW_ATTRIB_FLOAT, 4},
-		{"tailSphere"          , DRW_ATTRIB_FLOAT, 4},
-		{"xAxis"               , DRW_ATTRIB_FLOAT, 3}
+		{"headSphere",           DRW_ATTRIB_FLOAT, 4},
+		{"tailSphere",           DRW_ATTRIB_FLOAT, 4},
+		{"xAxis",                DRW_ATTRIB_FLOAT, 3}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_envelope_distance,
-	                                                   pass, DRW_cache_bone_envelope_solid_get(),
-	                                                   g_formats.instance_bone_envelope_distance);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_envelope_distance,
+	        pass, DRW_cache_bone_envelope_solid_get(),
+	        g_formats.instance_bone_envelope_distance);
 
 	return grp;
 }
@@ -521,16 +556,17 @@ DRWShadingGroup *shgroup_instance_bone_envelope_solid(DRWPass *pass)
 	}
 
 	DRW_shgroup_instance_format(g_formats.instance_bone_envelope, {
-		{"headSphere"          , DRW_ATTRIB_FLOAT, 4},
-		{"tailSphere"          , DRW_ATTRIB_FLOAT, 4},
-		{"boneColor"           , DRW_ATTRIB_FLOAT, 3},
-		{"stateColor"          , DRW_ATTRIB_FLOAT, 3},
-		{"xAxis"               , DRW_ATTRIB_FLOAT, 3}
+		{"headSphere",           DRW_ATTRIB_FLOAT, 4},
+		{"tailSphere",           DRW_ATTRIB_FLOAT, 4},
+		{"boneColor",            DRW_ATTRIB_FLOAT, 3},
+		{"stateColor",           DRW_ATTRIB_FLOAT, 3},
+		{"xAxis",                DRW_ATTRIB_FLOAT, 3}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_envelope,
-	                                                   pass, DRW_cache_bone_envelope_solid_get(),
-	                                                   g_formats.instance_bone_envelope);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_envelope,
+	        pass, DRW_cache_bone_envelope_solid_get(),
+	        g_formats.instance_bone_envelope);
 
 	return grp;
 }
@@ -544,14 +580,15 @@ DRWShadingGroup *shgroup_instance_mball_handles(DRWPass *pass)
 	}
 
 	DRW_shgroup_instance_format(g_formats.instance_mball_handles, {
-		{"ScaleTranslationMatrix" , DRW_ATTRIB_FLOAT, 12},
-		{"radius"                 , DRW_ATTRIB_FLOAT, 1},
-		{"color"                  , DRW_ATTRIB_FLOAT, 3}
+		{"ScaleTranslationMatrix",  DRW_ATTRIB_FLOAT, 12},
+		{"radius",                  DRW_ATTRIB_FLOAT, 1},
+		{"color",                   DRW_ATTRIB_FLOAT, 3}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.mball_handles, pass,
-	                                                   DRW_cache_screenspace_circle_get(),
-	                                                   g_formats.instance_mball_handles);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.mball_handles, pass,
+	        DRW_cache_screenspace_circle_get(),
+	        g_formats.instance_mball_handles);
 	DRW_shgroup_uniform_vec3(grp, "screen_vecs[0]", DRW_viewport_screenvecs_get(), 2);
 
 	return grp;
@@ -570,11 +607,12 @@ DRWShadingGroup *shgroup_instance_bone_shape_outline(DRWPass *pass, struct Gwn_B
 
 	DRW_shgroup_instance_format(g_formats.instance_bone_outline, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"outlineColorSize"   , DRW_ATTRIB_FLOAT, 4}
+		{"outlineColorSize",    DRW_ATTRIB_FLOAT, 4}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.shape_outline,
-	                                                   pass, geom, g_formats.instance_bone_outline);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.shape_outline,
+	        pass, geom, g_formats.instance_bone_outline);
 	DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
 
 	return grp;
@@ -590,12 +628,13 @@ DRWShadingGroup *shgroup_instance_bone_shape_solid(DRWPass *pass, struct Gwn_Bat
 
 	DRW_shgroup_instance_format(g_formats.instance_bone, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"boneColor"           , DRW_ATTRIB_FLOAT, 3},
-		{"stateColor"          , DRW_ATTRIB_FLOAT, 3}
+		{"boneColor",            DRW_ATTRIB_FLOAT, 3},
+		{"stateColor",           DRW_ATTRIB_FLOAT, 3}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.shape_solid,
-	                                                   pass, geom, g_formats.instance_bone);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.shape_solid,
+	        pass, geom, g_formats.instance_bone);
 	DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
 
 	return grp;
@@ -611,12 +650,13 @@ DRWShadingGroup *shgroup_instance_bone_sphere_solid(DRWPass *pass)
 
 	DRW_shgroup_instance_format(g_formats.instance_bone, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"boneColor"           , DRW_ATTRIB_FLOAT, 3},
-		{"stateColor"          , DRW_ATTRIB_FLOAT, 3}
+		{"boneColor",           DRW_ATTRIB_FLOAT, 3},
+		{"stateColor",          DRW_ATTRIB_FLOAT, 3}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_sphere,
-	                                                   pass, DRW_cache_bone_point_get(), g_formats.instance_bone);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_sphere,
+	        pass, DRW_cache_bone_point_get(), g_formats.instance_bone);
 
 	return grp;
 }
@@ -631,12 +671,13 @@ DRWShadingGroup *shgroup_instance_bone_sphere_outline(DRWPass *pass)
 
 	DRW_shgroup_instance_format(g_formats.instance_bone_outline, {
 		{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
-		{"outlineColorSize"   , DRW_ATTRIB_FLOAT, 4}
+		{"outlineColorSize",    DRW_ATTRIB_FLOAT, 4}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_sphere_outline,
-	                                                   pass, DRW_cache_bone_point_wire_outline_get(),
-	                                                   g_formats.instance_bone_outline);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_sphere_outline,
+	        pass, DRW_cache_bone_point_wire_outline_get(),
+	        g_formats.instance_bone_outline);
 	DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
 
 	return grp;
@@ -652,19 +693,47 @@ DRWShadingGroup *shgroup_instance_bone_stick(DRWPass *pass)
 
 	DRW_shgroup_instance_format(g_formats.instance_bone_stick, {
 		{"boneStart", DRW_ATTRIB_FLOAT, 3},
-		{"boneEnd"  , DRW_ATTRIB_FLOAT, 3},
+		{"boneEnd",   DRW_ATTRIB_FLOAT, 3},
 		{"wireColor", DRW_ATTRIB_FLOAT, 4}, /* TODO port theses to uchar color */
 		{"boneColor", DRW_ATTRIB_FLOAT, 4},
 		{"headColor", DRW_ATTRIB_FLOAT, 4},
 		{"tailColor", DRW_ATTRIB_FLOAT, 4}
 	});
 
-	DRWShadingGroup *grp = DRW_shgroup_instance_create(g_shaders.bone_stick,
-	                                                   pass, DRW_cache_bone_stick_get(),
-	                                                   g_formats.instance_bone_stick);
+	DRWShadingGroup *grp = DRW_shgroup_instance_create(
+	        g_shaders.bone_stick,
+	        pass, DRW_cache_bone_stick_get(),
+	        g_formats.instance_bone_stick);
 	DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
 
 	return grp;
+}
+
+struct GPUShader *mpath_line_shader_get(void)
+{
+	if (g_shaders.mpath_line_sh == NULL) {
+		g_shaders.mpath_line_sh = DRW_shader_create_with_lib(
+		        datatoc_animviz_mpath_lines_vert_glsl,
+		        datatoc_animviz_mpath_lines_geom_glsl,
+		        datatoc_gpu_shader_3D_smooth_color_frag_glsl,
+		        datatoc_common_globals_lib_glsl,
+		        NULL);
+	}
+	return g_shaders.mpath_line_sh;
+}
+
+
+struct GPUShader *mpath_points_shader_get(void)
+{
+	if (g_shaders.mpath_points_sh == NULL) {
+		g_shaders.mpath_points_sh = DRW_shader_create_with_lib(
+		        datatoc_animviz_mpath_points_vert_glsl,
+		        NULL,
+		        datatoc_gpu_shader_point_varying_color_frag_glsl,
+		        datatoc_common_globals_lib_glsl,
+		        NULL);
+	}
+	return g_shaders.mpath_points_sh;
 }
 
 /* ******************************************** COLOR UTILS *********************************************** */
@@ -712,10 +781,10 @@ int DRW_object_wire_theme_get(Object *ob, ViewLayer *view_layer, float **r_color
 			case TH_ACTIVE:       *r_color = ts.colorActive; break;
 			case TH_SELECT:       *r_color = ts.colorSelect; break;
 			case TH_TRANSFORM:    *r_color = ts.colorTransform; break;
-			case OB_SPEAKER:      *r_color = ts.colorSpeaker; break;
-			case OB_CAMERA:       *r_color = ts.colorCamera; break;
-			case OB_EMPTY:        *r_color = ts.colorEmpty; break;
-			case OB_LAMP:         *r_color = ts.colorLamp; break;
+			case TH_SPEAKER:      *r_color = ts.colorSpeaker; break;
+			case TH_CAMERA:       *r_color = ts.colorCamera; break;
+			case TH_EMPTY:        *r_color = ts.colorEmpty; break;
+			case TH_LAMP:         *r_color = ts.colorLamp; break;
 			default:              *r_color = ts.colorWire; break;
 		}
 	}
@@ -734,10 +803,10 @@ float *DRW_color_background_blend_get(int theme_id)
 		case TH_ACTIVE:       ret = colors[1]; break;
 		case TH_SELECT:       ret = colors[2]; break;
 		case TH_TRANSFORM:    ret = colors[5]; break;
-		case OB_SPEAKER:      ret = colors[6]; break;
-		case OB_CAMERA:       ret = colors[7]; break;
-		case OB_EMPTY:        ret = colors[8]; break;
-		case OB_LAMP:         ret = colors[9]; break;
+		case TH_SPEAKER:      ret = colors[6]; break;
+		case TH_CAMERA:       ret = colors[7]; break;
+		case TH_EMPTY:        ret = colors[8]; break;
+		case TH_LAMP:         ret = colors[9]; break;
 		default:              ret = colors[10]; break;
 	}
 

@@ -83,21 +83,18 @@ class SEQUENCER_HT_header(Header):
 
         SEQUENCER_MT_editor_menus.draw_collapsible(context, layout)
 
-        row = layout.row(align=True)
-        row.prop(scene, "use_preview_range", text="", toggle=True)
-        row.prop(scene, "lock_frame_selection_to_range", text="", toggle=True)
+        layout.separator_spacer()
+
+        layout.template_running_jobs()
 
         if st.view_type in {'PREVIEW', 'SEQUENCER_PREVIEW'}:
             layout.prop(st, "display_mode", expand=True, text="")
 
         if st.view_type == 'SEQUENCER':
-            row = layout.row(align=True)
-            row.operator("sequencer.copy", text="", icon='COPYDOWN')
-            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
-
             layout.separator()
-            layout.operator("sequencer.refresh_all")
             layout.prop(st, "show_backdrop")
+            layout.operator("sequencer.refresh_all")
+
         else:
             if st.view_type == 'SEQUENCER_PREVIEW':
                 layout.separator()
@@ -134,7 +131,11 @@ class SEQUENCER_HT_header(Header):
         props.animation = True
         props.sequencer = True
 
-        layout.template_running_jobs()
+        if st.view_type == 'SEQUENCER':
+
+            row = layout.row(align=True)
+            row.operator("sequencer.copy", text="", icon='COPYDOWN')
+            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
 
 
 class SEQUENCER_MT_editor_menus(Menu):
@@ -237,9 +238,7 @@ class SEQUENCER_MT_view(Menu):
             layout.prop(st, "use_marker_sync")
             layout.separator()
 
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class SEQUENCER_MT_select(Menu):
@@ -430,10 +429,6 @@ class SEQUENCER_MT_strip(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_REGION_WIN'
-
-        layout.operator("ed.undo")
-        layout.operator("ed.redo")
-        layout.operator("ed.undo_history")
 
         layout.separator()
         layout.menu("SEQUENCER_MT_strip_transform")
@@ -708,11 +703,11 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
                     if i == strip.multicam_source:
                         sub = row.row(align=True)
                         sub.enabled = False
-                        sub.operator("sequencer.cut_multicam", text="%d" % i).camera = i
+                        sub.operator("sequencer.cut_multicam", text=f"{i:d}").camera = i
                     else:
                         sub_1 = row.row(align=True)
                         sub_1.enabled = True
-                        sub_1.operator("sequencer.cut_multicam", text="%d" % i).camera = i
+                        sub_1.operator("sequencer.cut_multicam", text=f"{i:d}").camera = i
 
                 if strip.channel > BT_ROW and (strip_channel - 1) % BT_ROW:
                     for i in range(strip.channel, strip_channel + ((BT_ROW + 1 - strip_channel) % BT_ROW)):

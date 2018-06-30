@@ -34,6 +34,7 @@
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_fcurve.h"
+#include "BKE_main.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -52,6 +53,7 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "curve_intern.h"
 
@@ -432,15 +434,15 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 
-			glEnable(GL_BLEND);
-			glEnable(GL_LINE_SMOOTH);
+			GPU_blend(true);
+			GPU_line_smooth(true);
 
 			imm_cpack(0x0);
 			immBegin(GWN_PRIM_LINE_STRIP, stroke_len);
-			glLineWidth(3.0f);
+			GPU_line_width(3.0f);
 
 			if (v3d->zbuf) {
-				glDisable(GL_DEPTH_TEST);
+				GPU_depth_test(false);
 			}
 
 			for (int i = 0; i < stroke_len; i++) {
@@ -451,7 +453,7 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 
 			imm_cpack(0xffffffff);
 			immBegin(GWN_PRIM_LINE_STRIP, stroke_len);
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			for (int i = 0; i < stroke_len; i++) {
 				immVertex3fv(pos, coord_array[i]);
@@ -460,11 +462,11 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 			immEnd();
 
 			if (v3d->zbuf) {
-				glEnable(GL_DEPTH_TEST);
+				GPU_depth_test(true);
 			}
 
-			glDisable(GL_BLEND);
-			glDisable(GL_LINE_SMOOTH);
+			GPU_blend(false);
+			GPU_line_smooth(false);
 
 			immUnbindProgram();
 		}
@@ -616,6 +618,7 @@ static bool curve_draw_init(bContext *C, wmOperator *op, bool is_invoke)
 		}
 	}
 	else {
+		cdd->vc.bmain = CTX_data_main(C);
 		cdd->vc.depsgraph = CTX_data_depsgraph(C);
 		cdd->vc.scene = CTX_data_scene(C);
 		cdd->vc.view_layer = CTX_data_view_layer(C);
@@ -1007,8 +1010,15 @@ static int curve_draw_exec(bContext *C, wmOperator *op)
 		const struct StrokeElem *selem;
 
 		nu->pntsu = stroke_len;
+		nu->pntsv = 1;
 		nu->type = CU_POLY;
 		nu->bp = MEM_callocN(nu->pntsu * sizeof(BPoint), __func__);
+
+		/* Misc settings. */
+		nu->resolu = cu->resolu;
+		nu->resolv = 1;
+		nu->orderu = 4;
+		nu->orderv = 1;
 
 		BPoint *bp = nu->bp;
 

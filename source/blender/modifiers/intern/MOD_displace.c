@@ -52,6 +52,9 @@
 #include "BKE_deform.h"
 #include "BKE_object.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
 #include "MEM_guardedalloc.h"
 
 #include "MOD_util.h"
@@ -135,7 +138,7 @@ static void foreachTexLink(
 	walk(userData, ob, md, "texture");
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, int UNUSED(useRenderParams))
 {
 	DisplaceModifierData *dmd = (DisplaceModifierData *) md;
 	return ((!dmd->texture && dmd->direction == MOD_DISP_DIR_RGB_XYZ) || dmd->strength == 0.0f);
@@ -157,6 +160,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 
 typedef struct DisplaceUserdata {
 	/*const*/ DisplaceModifierData *dmd;
+	struct Scene *scene;
 	struct ImagePool *pool;
 	MDeformVert *dvert;
 	float weight;
@@ -203,7 +207,7 @@ static void displaceModifier_do_task(
 
 	if (dmd->texture) {
 		texres.nor = NULL;
-		BKE_texture_get_value_ex(dmd->modifier.scene, dmd->texture, tex_co[iter], &texres, data->pool, false);
+		BKE_texture_get_value_ex(data->scene, dmd->texture, tex_co[iter], &texres, data->pool, false);
 		delta = texres.tin - dmd->midlevel;
 	}
 	else {
@@ -269,11 +273,12 @@ static void displaceModifier_do_task(
 	}
 }
 
-/* dm must be a CDDerivedMesh */
 static void displaceModifier_do(
-        DisplaceModifierData *dmd, Object *ob,
+        DisplaceModifierData *dmd, const ModifierEvalContext *ctx,
         Mesh *mesh, float (*vertexCos)[3], const int numVerts)
 {
+	Object *ob = ctx->object;
+	Depsgraph *depsgraph = ctx->depsgraph;
 	MVert *mvert;
 	MDeformVert *dvert;
 	int direction = dmd->direction;
@@ -288,14 +293,14 @@ static void displaceModifier_do(
 	if (dmd->strength == 0.0f) return;
 
 	mvert = mesh->mvert;
-	modifier_get_vgroup_mesh(ob, mesh, dmd->defgrp_name, &dvert, &defgrp_index);
+	MOD_get_vgroup(ob, mesh, dmd->defgrp_name, &dvert, &defgrp_index);
 
 	if (dmd->texture) {
 		tex_co = MEM_calloc_arrayN((size_t)numVerts, sizeof(*tex_co),
 		                     "displaceModifier_do tex_co");
-		get_texture_coords_mesh((MappingInfoModifierData *)dmd, ob, mesh, vertexCos, tex_co);
+		MOD_get_texture_coords((MappingInfoModifierData *)dmd, ob, mesh, vertexCos, tex_co);
 
-		modifier_init_texture(dmd->modifier.scene, dmd->texture);
+		MOD_init_texture(depsgraph, dmd->texture);
 	}
 	else {
 		tex_co = NULL;
@@ -327,6 +332,7 @@ static void displaceModifier_do(
 	}
 
 	DisplaceUserdata data = {NULL};
+	data.scene = DEG_get_evaluated_scene(ctx->depsgraph);
 	data.dmd = dmd;
 	data.dvert = dvert;
 	data.weight = weight;
@@ -370,12 +376,11 @@ static void deformVerts(
         float (*vertexCos)[3],
         int numVerts)
 {
-	Mesh *mesh_src = get_mesh(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
-	displaceModifier_do((DisplaceModifierData *)md, ctx->object, mesh_src,
-	                    vertexCos, numVerts);
+	displaceModifier_do((DisplaceModifierData *)md, ctx, mesh_src, vertexCos, numVerts);
 
 	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
@@ -386,11 +391,11 @@ static void deformVertsEM(
         ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *editData,
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	Mesh *mesh_src = get_mesh(ctx->object, editData, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, editData, mesh, NULL, false, false);
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
-	displaceModifier_do((DisplaceModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
+	displaceModifier_do((DisplaceModifierData *)md, ctx, mesh_src, vertexCos, numVerts);
 
 	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);

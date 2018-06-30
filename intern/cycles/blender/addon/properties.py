@@ -128,6 +128,12 @@ enum_volume_interpolation = (
     ('CUBIC', "Cubic", "Smoothed high quality interpolation, but slower")
     )
 
+enum_world_mis = (
+    ('NONE', "None", "Don't sample the background, faster but might cause noise for non-solid backgrounds"),
+    ('AUTOMATIC', "Auto", "Automatically try to determine the best setting"),
+    ('MANUAL', "Manual", "Manually set the resolution of the sampling map, higher values are slower and require more memory but reduce noise")
+    )
+
 enum_device_type = (
     ('CPU', "CPU", "CPU", 0),
     ('CUDA', "CUDA", "CUDA", 1),
@@ -932,15 +938,15 @@ class CyclesWorldSettings(bpy.types.PropertyGroup):
                 description="Cycles world settings",
                 type=cls,
                 )
-        cls.sample_as_light = BoolProperty(
-                name="Multiple Importance Sample",
-                description="Use multiple importance sampling for the environment, "
-                            "enabling for non-solid colors is recommended",
-                default=True,
+        cls.sampling_method = EnumProperty(
+                name="Sampling method",
+                description="How to sample the background light",
+                items=enum_world_mis,
+                default='AUTOMATIC',
                 )
         cls.sample_map_resolution = IntProperty(
                 name="Map Resolution",
-                description="Importance map size is resolution x resolution; "
+                description="Importance map size is resolution x resolution/2; "
                             "higher values potentially produce less noise, at the cost of memory and speed",
                 min=4, max=8192,
                 default=1024,
@@ -1154,7 +1160,7 @@ class CyclesCurveRenderSettings(bpy.types.PropertyGroup):
                 default='THICK',
                 )
         cls.cull_backfacing = BoolProperty(
-                name="Cull back-faces",
+                name="Cull Back-faces",
                 description="Do not test the back-face of each strand",
                 default=True,
                 )
@@ -1330,49 +1336,6 @@ class CyclesRenderLayerSettings(bpy.types.PropertyGroup):
         del bpy.types.ViewLayer.cycles
 
 
-class CyclesCurveSettings(bpy.types.PropertyGroup):
-    @classmethod
-    def register(cls):
-        bpy.types.ParticleSettings.cycles = PointerProperty(
-                name="Cycles Hair Settings",
-                description="Cycles hair settings",
-                type=cls,
-                )
-        cls.radius_scale = FloatProperty(
-                name="Radius Scaling",
-                description="Multiplier of width properties",
-                min=0.0, max=1000.0,
-                default=0.01,
-                )
-        cls.root_width = FloatProperty(
-                name="Root Size",
-                description="Strand's width at root",
-                min=0.0, max=1000.0,
-                default=1.0,
-                )
-        cls.tip_width = FloatProperty(
-                name="Tip Multiplier",
-                description="Strand's width at tip",
-                min=0.0, max=1000.0,
-                default=0.0,
-                )
-        cls.shape = FloatProperty(
-                name="Strand Shape",
-                description="Strand shape parameter",
-                min=-1.0, max=1.0,
-                default=0.0,
-                )
-        cls.use_closetip = BoolProperty(
-                name="Close tip",
-                description="Set tip radius to zero",
-                default=True,
-                )
-
-    @classmethod
-    def unregister(cls):
-        del bpy.types.ParticleSettings.cycles
-
-
 class CyclesDeviceSettings(bpy.types.PropertyGroup):
     @classmethod
     def register(cls):
@@ -1503,7 +1466,6 @@ def register():
     bpy.utils.register_class(CyclesMeshSettings)
     bpy.utils.register_class(CyclesObjectSettings)
     bpy.utils.register_class(CyclesCurveRenderSettings)
-    bpy.utils.register_class(CyclesCurveSettings)
     bpy.utils.register_class(CyclesDeviceSettings)
     bpy.utils.register_class(CyclesPreferences)
     bpy.utils.register_class(CyclesRenderLayerSettings)
@@ -1519,7 +1481,6 @@ def unregister():
     bpy.utils.unregister_class(CyclesObjectSettings)
     bpy.utils.unregister_class(CyclesVisibilitySettings)
     bpy.utils.unregister_class(CyclesCurveRenderSettings)
-    bpy.utils.unregister_class(CyclesCurveSettings)
     bpy.utils.unregister_class(CyclesDeviceSettings)
     bpy.utils.unregister_class(CyclesPreferences)
     bpy.utils.unregister_class(CyclesRenderLayerSettings)

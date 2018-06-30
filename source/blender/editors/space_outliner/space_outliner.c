@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -63,12 +63,13 @@
 
 
 #include "outliner_intern.h"
+#include "GPU_framebuffer.h"
 
 static void outliner_main_region_init(wmWindowManager *wm, ARegion *ar)
 {
 	ListBase *lb;
 	wmKeyMap *keymap;
-	
+
 	/* make sure we keep the hide flags */
 	ar->v2d.scroll |= (V2D_SCROLL_RIGHT | V2D_SCROLL_BOTTOM);
 	ar->v2d.scroll &= ~(V2D_SCROLL_LEFT | V2D_SCROLL_TOP);	/* prevent any noise of past */
@@ -81,7 +82,7 @@ static void outliner_main_region_init(wmWindowManager *wm, ARegion *ar)
 	ar->v2d.minzoom = ar->v2d.maxzoom = 1.0f;
 
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_LIST, ar->winx, ar->winy);
-	
+
 	/* own keymap */
 	keymap = WM_keymap_find(wm->defaultconf, "Outliner", SPACE_OUTLINER, 0);
 	/* don't pass on view2d mask, it's always set with scrollbar space, hide fails */
@@ -138,10 +139,6 @@ static int outliner_parent_drop_poll(bContext *C, wmDrag *drag, const wmEvent *e
 					}
 				}
 			}
-			else if (ELEM(tselem->type, TSE_LAYER_COLLECTION, TSE_SCENE_COLLECTION)) {
-				/* support adding object from different scene to collection */
-				return 1;
-			}
 		}
 	}
 	return 0;
@@ -163,7 +160,7 @@ static int outliner_parent_clear_poll(bContext *C, wmDrag *drag, const wmEvent *
 
 	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fmval[0], &fmval[1]);
 
-	if (!ELEM(soops->outlinevis, SO_SCENES, SO_GROUPS, SO_COLLECTIONS)) {
+	if (!ELEM(soops->outlinevis, SO_VIEW_LAYER)) {
 		return false;
 	}
 
@@ -250,7 +247,7 @@ static void outliner_material_drop_copy(wmDrag *drag, wmDropBox *drop)
 	RNA_string_set(drop->ptr, "material", id->name + 2);
 }
 
-static int outliner_group_link_poll(bContext *C, wmDrag *drag, const wmEvent *event)
+static int outliner_collection_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
 {
 	ARegion *ar = CTX_wm_region(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
@@ -259,19 +256,19 @@ static int outliner_group_link_poll(bContext *C, wmDrag *drag, const wmEvent *ev
 
 	if (drag->type == WM_DRAG_ID) {
 		ID *id = drag->poin;
-		if (GS(id->name) == ID_OB) {
+		if (ELEM(GS(id->name), ID_OB, ID_GR)) {
 			/* Ensure item under cursor is valid drop target */
 			TreeElement *te = outliner_dropzone_find(soops, fmval, true);
-			return (te && te->idcode == ID_GR && TREESTORE(te)->type == 0);
+			return (te && outliner_is_collection_tree_element(te));
 		}
 	}
 	return 0;
 }
 
-static void outliner_group_link_copy(wmDrag *drag, wmDropBox *drop)
+static void outliner_collection_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
 	ID *id = drag->poin;
-	RNA_string_set(drop->ptr, "object", id->name + 2);
+	RNA_string_set(drop->ptr, "child", id->name + 2);
 }
 
 /* region dropbox definition */
@@ -283,23 +280,23 @@ static void outliner_dropboxes(void)
 	WM_dropbox_add(lb, "OUTLINER_OT_parent_clear", outliner_parent_clear_poll, outliner_parent_clear_copy);
 	WM_dropbox_add(lb, "OUTLINER_OT_scene_drop", outliner_scene_drop_poll, outliner_scene_drop_copy);
 	WM_dropbox_add(lb, "OUTLINER_OT_material_drop", outliner_material_drop_poll, outliner_material_drop_copy);
-	WM_dropbox_add(lb, "OUTLINER_OT_group_link", outliner_group_link_poll, outliner_group_link_copy);
+	WM_dropbox_add(lb, "OUTLINER_OT_collection_drop", outliner_collection_drop_poll, outliner_collection_drop_copy);
 }
 
 static void outliner_main_region_draw(const bContext *C, ARegion *ar)
 {
 	View2D *v2d = &ar->v2d;
 	View2DScrollers *scrollers;
-	
+
 	/* clear */
 	UI_ThemeClearColor(TH_BACK);
-	glClear(GL_COLOR_BUFFER_BIT);
-	
+	GPU_clear(GPU_COLOR_BIT);
+
 	draw_outliner(C);
-	
+
 	/* reset view matrix */
 	UI_view2d_view_restore(C);
-	
+
 	/* scrollers */
 	scrollers = UI_view2d_scrollers_calc(C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
@@ -309,7 +306,7 @@ static void outliner_main_region_draw(const bContext *C, ARegion *ar)
 
 static void outliner_main_region_free(ARegion *UNUSED(ar))
 {
-	
+
 }
 
 static void outliner_main_region_listener(
@@ -422,7 +419,7 @@ static void outliner_main_region_listener(
 			}
 			break;
 	}
-	
+
 }
 
 static void outliner_main_region_message_subscribe(
@@ -438,7 +435,7 @@ static void outliner_main_region_message_subscribe(
 		.notify = ED_region_do_msg_notify_tag_redraw,
 	};
 
-	if (soops->outlinevis == SO_COLLECTIONS) {
+	if (ELEM(soops->outlinevis, SO_VIEW_LAYER, SO_SCENES)) {
 		WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
 	}
 }
@@ -487,20 +484,21 @@ static SpaceLink *outliner_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 
 	soutliner = MEM_callocN(sizeof(SpaceOops), "initoutliner");
 	soutliner->spacetype = SPACE_OUTLINER;
-	
+	soutliner->filter_id_type = ID_GR;
+
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for outliner");
-	
+
 	BLI_addtail(&soutliner->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_BOTTOM;
-	
+	ar->alignment = RGN_ALIGN_TOP;
+
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for outliner");
-	
+
 	BLI_addtail(&soutliner->regionbase, ar);
 	ar->regiontype = RGN_TYPE_WINDOW;
-	
+
 	return (SpaceLink *)soutliner;
 }
 
@@ -508,7 +506,7 @@ static SpaceLink *outliner_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 static void outliner_free(SpaceLink *sl)
 {
 	SpaceOops *soutliner = (SpaceOops *)sl;
-	
+
 	outliner_free_tree(&soutliner->tree);
 	if (soutliner->treestore) {
 		BLI_mempool_destroy(soutliner->treestore);
@@ -521,7 +519,7 @@ static void outliner_free(SpaceLink *sl)
 /* spacetype; init callback */
 static void outliner_init(wmWindowManager *UNUSED(wm), ScrArea *UNUSED(sa))
 {
-	
+
 }
 
 static SpaceLink *outliner_duplicate(SpaceLink *sl)
@@ -532,7 +530,7 @@ static SpaceLink *outliner_duplicate(SpaceLink *sl)
 	BLI_listbase_clear(&soutlinern->tree);
 	soutlinern->treestore = NULL;
 	soutlinern->treehash = NULL;
-	
+
 	return (SpaceLink *)soutlinern;
 }
 
@@ -574,10 +572,10 @@ void ED_spacetype_outliner(void)
 {
 	SpaceType *st = MEM_callocN(sizeof(SpaceType), "spacetype time");
 	ARegionType *art;
-	
+
 	st->spaceid = SPACE_OUTLINER;
 	strncpy(st->name, "Outliner", BKE_ST_MAXNAME);
-	
+
 	st->new = outliner_new;
 	st->free = outliner_free;
 	st->init = outliner_init;
@@ -591,26 +589,25 @@ void ED_spacetype_outliner(void)
 	art = MEM_callocN(sizeof(ARegionType), "spacetype outliner region");
 	art->regionid = RGN_TYPE_WINDOW;
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_VIEW2D | ED_KEYMAP_FRAMES;
-	
+
 	art->init = outliner_main_region_init;
 	art->draw = outliner_main_region_draw;
 	art->free = outliner_main_region_free;
 	art->listener = outliner_main_region_listener;
 	art->message_subscribe = outliner_main_region_message_subscribe;
 	BLI_addhead(&st->regiontypes, art);
-	
+
 	/* regions: header */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype outliner header region");
 	art->regionid = RGN_TYPE_HEADER;
 	art->prefsizey = HEADERY;
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_VIEW2D | ED_KEYMAP_FRAMES | ED_KEYMAP_HEADER;
-	
+
 	art->init = outliner_header_region_init;
 	art->draw = outliner_header_region_draw;
 	art->free = outliner_header_region_free;
 	art->listener = outliner_header_region_listener;
 	BLI_addhead(&st->regiontypes, art);
-	
+
 	BKE_spacetype_register(st);
 }
-

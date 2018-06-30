@@ -122,6 +122,7 @@ set(APISRC
 	rna_vfont_api.c
 	rna_wm_api.c
 	rna_wm_manipulator_api.c
+	rna_workspace_api.c
 )
 
 string(REGEX REPLACE "rna_([a-zA-Z0-9_-]*).c" "${CMAKE_CURRENT_BINARY_DIR}/rna_\\1_gen.c" GENSRC "${DEFSRC}")
@@ -184,10 +185,6 @@ if(WITH_PYTHON)
 	list(APPEND INC
 		../../python
 	)
-endif()
-
-if(WITH_CLAY_ENGINE)
-	add_definitions(-DWITH_CLAY_ENGINE)
 endif()
 
 if(WITH_IMAGE_OPENEXR)
@@ -351,6 +348,7 @@ blender_include_dirs_sys(
 )
 
 add_cc_flags_custom_test(makesrna)
+setup_platform_linker_flags()
 
 add_executable(makesrna ${SRC} ${SRC_RNA_INC} ${SRC_DNA_INC})
 

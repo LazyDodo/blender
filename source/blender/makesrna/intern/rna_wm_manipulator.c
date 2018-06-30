@@ -74,6 +74,7 @@
 /** \name Manipulator API
  * \{ */
 
+#ifdef WITH_PYTHON
 static void rna_manipulator_draw_cb(
         const struct bContext *C, struct wmManipulator *mpr)
 {
@@ -238,6 +239,8 @@ static void rna_manipulator_select_refresh_cb(
 	RNA_parameter_list_free(&list);
 }
 
+#endif  /* WITH_PYTHON */
+
 /* just to work around 'const char *' warning and to ensure this is a python op */
 static void rna_Manipulator_bl_idname_set(PointerRNA *ptr, const char *value)
 {
@@ -258,7 +261,7 @@ static wmManipulator *rna_ManipulatorProperties_find_operator(PointerRNA *ptr)
 #endif
 
 	/* We could try workaruond this lookup, but not trivial. */
-	for (bScreen *screen = G.main->screen.first; screen; screen = screen->id.next) {
+	for (bScreen *screen = G_MAIN->screen.first; screen; screen = screen->id.next) {
 		IDProperty *properties = ptr->data;
 		for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
 			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {

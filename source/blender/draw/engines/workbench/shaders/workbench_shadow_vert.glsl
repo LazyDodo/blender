@@ -1,23 +1,21 @@
-#define EPSILON 0.000001
-#define INFINITE 100.0
+#define INFINITE 1000.0
 
-uniform mat4 ModelMatrixInverse;
 uniform mat4 ModelViewProjectionMatrix;
-uniform vec3 lightDirection = vec3(0.57, 0.57, -0.57);
 
-in vec4 pos;
+uniform vec3 lightDirection = vec3(0.57, 0.57, -0.57);
+uniform float lightDistance = 1e4;
+
+in vec3 pos;
 
 out VertexData {
-	flat vec4 lightDirectionMS;
-	vec4 frontPosition;
+	vec3 pos;           /* local position */
+	vec4 frontPosition; /* final ndc position */
 	vec4 backPosition;
-} vertexData;
+} vData;
 
 void main()
 {
-	gl_Position = pos;
-	vertexData.lightDirectionMS = normalize(ModelMatrixInverse * vec4(lightDirection, 0.0));
-	vertexData.lightDirectionMS.w = 0.0;
-	vertexData.frontPosition = ModelViewProjectionMatrix * (pos + vertexData.lightDirectionMS * EPSILON);
-	vertexData.backPosition = ModelViewProjectionMatrix * (pos + vertexData.lightDirectionMS * INFINITE);
+	vData.pos = pos;
+	vData.frontPosition = ModelViewProjectionMatrix * vec4(pos, 1.0);
+	vData.backPosition  = ModelViewProjectionMatrix * vec4(pos + lightDirection * lightDistance, 1.0);
 }

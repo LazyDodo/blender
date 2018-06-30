@@ -142,6 +142,7 @@ void RNA_def_brush(struct BlenderRNA *brna);
 void RNA_def_cachefile(struct BlenderRNA *brna);
 void RNA_def_camera(struct BlenderRNA *brna);
 void RNA_def_cloth(struct BlenderRNA *brna);
+void RNA_def_collections(struct BlenderRNA *brna);
 void RNA_def_color(struct BlenderRNA *brna);
 void RNA_def_constraint(struct BlenderRNA *brna);
 void RNA_def_context(struct BlenderRNA *brna);
@@ -152,7 +153,6 @@ void RNA_def_dynamic_paint(struct BlenderRNA *brna);
 void RNA_def_fluidsim(struct BlenderRNA *brna);
 void RNA_def_fcurve(struct BlenderRNA *brna);
 void RNA_def_gpencil(struct BlenderRNA *brna);
-void RNA_def_group(struct BlenderRNA *brna);
 void RNA_def_image(struct BlenderRNA *brna);
 void RNA_def_key(struct BlenderRNA *brna);
 void RNA_def_lamp(struct BlenderRNA *brna);
@@ -205,9 +205,11 @@ void RNA_def_mask(struct BlenderRNA *brna);
 void rna_def_animdata_common(struct StructRNA *srna);
 
 bool rna_AnimaData_override_apply(
+        struct Main *bmain,
         struct PointerRNA *ptr_local, struct PointerRNA *ptr_reference, struct PointerRNA *ptr_storage,
         struct PropertyRNA *prop_local, struct PropertyRNA *prop_reference, struct PropertyRNA *prop_storage,
         const int len_local, const int len_reference, const int len_storage,
+        struct PointerRNA *ptr_item_local, struct PointerRNA *ptr_item_reference, struct PointerRNA *ptr_item_storage,
         struct IDOverrideStaticPropertyOperation *opop);
 
 void rna_def_animviz_common(struct StructRNA *srna);
@@ -342,6 +344,8 @@ void RNA_api_sequences(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_api_sequence_elements(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_api_sound(struct StructRNA *srna);
 void RNA_api_vfont(struct StructRNA *srna);
+void RNA_api_workspace(struct StructRNA *srna);
+void RNA_api_workspace_tool(struct StructRNA *srna);
 
 /* main collection functions */
 void RNA_def_main_cameras(BlenderRNA *brna, PropertyRNA *cprop);
@@ -362,7 +366,7 @@ void RNA_def_main_fonts(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_textures(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_brushes(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop);
-void RNA_def_main_groups(BlenderRNA *brna, PropertyRNA *cprop);
+void RNA_def_main_collections(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_texts(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_speakers(BlenderRNA *brna, PropertyRNA *cprop);
 void RNA_def_main_sounds(BlenderRNA *brna, PropertyRNA *cprop);
@@ -408,6 +412,7 @@ struct PropertyRNA *rna_ensure_property_realdata(struct PropertyRNA **prop, stru
  *       Not obvious though, those are fairly more complicated than basic SDNA access.
  */
 int rna_property_override_diff_default(
+        struct Main *bmain,
         struct PointerRNA *ptr_a, struct PointerRNA *ptr_b,
         struct PropertyRNA *prop_a, struct PropertyRNA *prop_b,
         const int len_a, const int len_b,
@@ -416,15 +421,18 @@ int rna_property_override_diff_default(
         const int flags, bool *r_override_changed);
 
 bool rna_property_override_store_default(
+        struct Main *bmain,
         struct PointerRNA *ptr_local, struct PointerRNA *ptr_reference, struct PointerRNA *ptr_storage,
         struct PropertyRNA *prop_local, struct PropertyRNA *prop_reference, struct PropertyRNA *prop_storage,
         const int len_local, const int len_reference, const int len_storage,
         struct IDOverrideStaticPropertyOperation *opop);
 
 bool rna_property_override_apply_default(
+        struct Main *bmain,
         struct PointerRNA *ptr_dst, struct PointerRNA *ptr_src, struct PointerRNA *ptr_storage,
         struct PropertyRNA *prop_dst, struct PropertyRNA *prop_src, struct PropertyRNA *prop_storage,
         const int len_dst, const int len_src, const int len_storage,
+        struct PointerRNA *ptr_item_dst, struct PointerRNA *ptr_item_src, struct PointerRNA *ptr_item_storage,
         struct IDOverrideStaticPropertyOperation *opop);
 
 

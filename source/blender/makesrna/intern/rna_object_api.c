@@ -68,7 +68,6 @@ static const EnumPropertyItem space_items[] = {
 
 #include "BKE_anim.h"
 #include "BKE_bvhutils.h"
-#include "BKE_cdderivedmesh.h"
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_customdata.h"
@@ -88,6 +87,8 @@ static const EnumPropertyItem space_items[] = {
 #include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_view3d_types.h"
+
+#include "DEG_depsgraph_query.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -144,7 +145,7 @@ static int rna_Object_visible_get(Object *ob, bContext *C, ReportList *reports)
 		return -1;
 	}
 
-	return ((base->flag & BASE_VISIBLED) != 0) ? 1 : 0;
+	return ((base->flag & BASE_VISIBLE) != 0) ? 1 : 0;
 }
 
 /* Convert a given matrix from a space to another (using the object and/or a bone as reference). */
@@ -173,13 +174,14 @@ static void rna_Object_mat_convert_space(Object *ob, ReportList *reports, bPoseC
 }
 
 static void rna_Object_calc_matrix_camera(
-        Object *ob, float mat_ret[16], int width, int height, float scalex, float scaley)
+        Object *ob, Depsgraph *depsgraph, float mat_ret[16], int width, int height, float scalex, float scaley)
 {
+	const Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	CameraParams params;
 
 	/* setup parameters */
 	BKE_camera_params_init(&params);
-	BKE_camera_params_from_object(&params, ob);
+	BKE_camera_params_from_object(&params, ob_eval);
 
 	/* compute matrix, viewplane, .. */
 	BKE_camera_params_compute_viewplane(&params, width, height, scalex, scaley);
@@ -189,9 +191,9 @@ static void rna_Object_calc_matrix_camera(
 }
 
 static void rna_Object_camera_fit_coords(
-        Object *ob, Scene *scene, int num_cos, float *cos, float co_ret[3], float *scale_ret)
+        Object *ob, Depsgraph *depsgraph, int num_cos, float *cos, float co_ret[3], float *scale_ret)
 {
-	BKE_camera_view_frame_fit_to_coords(scene, (const float (*)[3])cos, num_cos / 3, ob, co_ret, scale_ret);
+	BKE_camera_view_frame_fit_to_coords(depsgraph, (const float (*)[3])cos, num_cos / 3, ob, co_ret, scale_ret);
 }
 
 /* copied from Mesh_getFromObject and adapted to RNA interface */
@@ -208,14 +210,15 @@ static Mesh *rna_Object_to_mesh(
 static PointerRNA rna_Object_shape_key_add(Object *ob, bContext *C, ReportList *reports,
                                            const char *name, int from_mix)
 {
+	Main *bmain = CTX_data_main(C);
 	KeyBlock *kb = NULL;
 
-	if ((kb = BKE_object_shapekey_insert(ob, name, from_mix))) {
+	if ((kb = BKE_object_shapekey_insert(bmain, ob, name, from_mix))) {
 		PointerRNA keyptr;
 
 		RNA_pointer_create((ID *)ob->data, &RNA_ShapeKey, kb, &keyptr);
 		WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
-		
+
 		return keyptr;
 	}
 	else {
@@ -285,9 +288,9 @@ static void rna_Mesh_assign_verts_to_group(Object *ob, bDeformGroup *group, int 
 #endif
 
 /* don't call inside a loop */
-static int dm_looptri_to_poly_index(DerivedMesh *dm, const MLoopTri *lt)
+static int mesh_looptri_to_poly_index(Mesh *me_eval, const MLoopTri *lt)
 {
-	const int *index_mp_to_orig = dm->getPolyDataArray(dm, CD_ORIGINDEX);
+	const int *index_mp_to_orig = CustomData_get_layer(&me_eval->pdata, CD_ORIGINDEX);
 	return index_mp_to_orig ? index_mp_to_orig[lt->poly] : lt->poly;
 }
 
@@ -298,7 +301,7 @@ static void rna_Object_ray_cast(
 {
 	bool success = false;
 
-	if (ob->derivedFinal == NULL) {
+	if (ob->runtime.mesh_eval == NULL) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' has no mesh data to be used for ray casting", ob->id.name + 2);
 		return;
 	}
@@ -311,7 +314,7 @@ static void rna_Object_ray_cast(
 		BVHTreeFromMesh treeData = {NULL};
 
 		/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-		bvhtree_from_mesh_get(&treeData, ob->derivedFinal, BVHTREE_FROM_LOOPTRI, 4);
+		BKE_bvhtree_from_mesh_get(&treeData, ob->runtime.mesh_eval, BVHTREE_FROM_LOOPTRI, 4);
 
 		/* may fail if the mesh has no faces, in that case the ray-cast misses */
 		if (treeData.tree != NULL) {
@@ -331,7 +334,7 @@ static void rna_Object_ray_cast(
 
 					copy_v3_v3(r_location, hit.co);
 					copy_v3_v3(r_normal, hit.no);
-					*r_index = dm_looptri_to_poly_index(ob->derivedFinal, &treeData.looptri[hit.index]);
+					*r_index = mesh_looptri_to_poly_index(ob->runtime.mesh_eval, &treeData.looptri[hit.index]);
 				}
 			}
 
@@ -352,15 +355,15 @@ static void rna_Object_closest_point_on_mesh(
         int *r_success, float r_location[3], float r_normal[3], int *r_index)
 {
 	BVHTreeFromMesh treeData = {NULL};
-	
-	if (ob->derivedFinal == NULL) {
+
+	if (ob->runtime.mesh_eval == NULL) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' has no mesh data to be used for finding nearest point",
 		            ob->id.name + 2);
 		return;
 	}
 
 	/* no need to managing allocation or freeing of the BVH data. this is generated and freed as needed */
-	bvhtree_from_mesh_get(&treeData, ob->derivedFinal, BVHTREE_FROM_LOOPTRI, 4);
+	BKE_bvhtree_from_mesh_get(&treeData, ob->runtime.mesh_eval, BVHTREE_FROM_LOOPTRI, 4);
 
 	if (treeData.tree == NULL) {
 		BKE_reportf(reports, RPT_ERROR, "Object '%s' could not create internal data for finding nearest point",
@@ -378,7 +381,7 @@ static void rna_Object_closest_point_on_mesh(
 
 			copy_v3_v3(r_location, nearest.co);
 			copy_v3_v3(r_normal, nearest.no);
-			*r_index = dm_looptri_to_poly_index(ob->derivedFinal, &treeData.looptri[nearest.index]);
+			*r_index = mesh_looptri_to_poly_index(ob->runtime.mesh_eval, &treeData.looptri[nearest.index]);
 
 			goto finally;
 		}
@@ -405,10 +408,12 @@ static int rna_Object_is_deform_modified(Object *ob, Scene *scene, int settings)
 }
 
 #ifndef NDEBUG
-void rna_Object_dm_info(struct Object *ob, int type, char *result)
+
+#include "BKE_mesh_runtime.h"
+
+void rna_Object_me_eval_info(struct Object *ob, int type, char *result)
 {
-	DerivedMesh *dm = NULL;
-	bool dm_release = false;
+	Mesh *me_eval = NULL;
 	char *ret = NULL;
 
 	result[0] = '\0';
@@ -416,24 +421,19 @@ void rna_Object_dm_info(struct Object *ob, int type, char *result)
 	switch (type) {
 		case 0:
 			if (ob->type == OB_MESH) {
-				dm = CDDM_from_mesh(ob->data);
-				ret = DM_debug_info(dm);
-				dm_release = true;
+				me_eval = ob->data;
 			}
 			break;
 		case 1:
-			dm = ob->derivedDeform;
+			me_eval = ob->runtime.mesh_deform_eval;
 			break;
 		case 2:
-			dm = ob->derivedFinal;
+			me_eval = ob->runtime.mesh_eval;
 			break;
 	}
 
-	if (dm) {
-		ret = DM_debug_info(dm);
-		if (dm_release) {
-			dm->release(dm);
-		}
+	if (me_eval) {
+		ret = BKE_mesh_runtime_debug_info(me_eval);
 		if (ret) {
 			strcpy(result, ret);
 			MEM_freeN(ret);
@@ -442,10 +442,10 @@ void rna_Object_dm_info(struct Object *ob, int type, char *result)
 }
 #endif /* NDEBUG */
 
-static int rna_Object_update_from_editmode(Object *ob)
+static int rna_Object_update_from_editmode(Object *ob, Main *bmain)
 {
 	/* fail gracefully if we aren't in edit-mode. */
-	return ED_object_editmode_load(ob);
+	return ED_object_editmode_load(bmain, ob);
 }
 #else /* RNA_RUNTIME */
 
@@ -518,6 +518,9 @@ void RNA_api_object(StructRNA *srna)
 	func = RNA_def_function(srna, "calc_matrix_camera", "rna_Object_calc_matrix_camera");
 	RNA_def_function_ui_description(func, "Generate the camera projection matrix of this object "
 	                                      "(mostly useful for Camera and Lamp types)");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "",
+	                       "Depsgraph to get evaluated data from");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_property(func, "result", PROP_FLOAT, PROP_MATRIX);
 	RNA_def_property_multi_array(parm, 2, rna_matrix_dimsize_4x4);
 	RNA_def_property_ui_text(parm, "", "The camera projection matrix");
@@ -530,7 +533,8 @@ void RNA_api_object(StructRNA *srna)
 	func = RNA_def_function(srna, "camera_fit_coords", "rna_Object_camera_fit_coords");
 	RNA_def_function_ui_description(func, "Compute the coordinate (and scale for ortho cameras) "
 	                                      "given object should be to 'see' all given coordinates");
-	parm = RNA_def_pointer(func, "scene", "Scene", "", "Scene to get render size information from, if available");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "",
+	                       "Depsgraph to get evaluated data from");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_float_array(func, "coordinates", 1, NULL, -FLT_MAX, FLT_MAX, "", "Coordinates to fit in",
 	                           -FLT_MAX, FLT_MAX);
@@ -584,7 +588,7 @@ void RNA_api_object(StructRNA *srna)
 	func = RNA_def_function(srna, "ray_cast", "rna_Object_ray_cast");
 	RNA_def_function_ui_description(func, "Cast a ray onto in object space");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	
+
 	/* ray start and end */
 	parm = RNA_def_float_vector(func, "origin", 3, NULL, -FLT_MAX, FLT_MAX, "", "", -1e4, 1e4);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -656,7 +660,7 @@ void RNA_api_object(StructRNA *srna)
 
 #ifndef NDEBUG
 	/* mesh */
-	func = RNA_def_function(srna, "dm_info", "rna_Object_dm_info");
+	func = RNA_def_function(srna, "dm_info", "rna_Object_me_eval_info");
 	RNA_def_function_ui_description(func, "Returns a string for derived mesh data");
 
 	parm = RNA_def_enum(func, "type", mesh_dm_info_items, 0, "", "Modifier settings to apply");
@@ -669,6 +673,7 @@ void RNA_api_object(StructRNA *srna)
 
 	func = RNA_def_function(srna, "update_from_editmode", "rna_Object_update_from_editmode");
 	RNA_def_function_ui_description(func, "Load the objects edit-mode data into the object data");
+	RNA_def_function_flag(func, FUNC_USE_MAIN);
 	parm = RNA_def_boolean(func, "result", 0, "", "Success");
 	RNA_def_function_return(func, parm);
 

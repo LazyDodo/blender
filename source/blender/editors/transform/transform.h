@@ -65,6 +65,7 @@ struct wmEvent;
 struct wmTimer;
 struct ARegion;
 struct ReportList;
+struct RNG;
 struct EditBone;
 struct RenderEngineType;
 struct SnapObjectContext;
@@ -536,6 +537,9 @@ typedef struct TransInfo {
 	void		*draw_handle_pixel;
 	void		*draw_handle_cursor;
 
+	/** Currently only used for random curve of proportional editing. */
+	struct RNG *rng;
+
 	/** Typically for mode settings. */
 	TransCustomDataContainer custom;
 } TransInfo;
@@ -551,11 +555,14 @@ typedef struct TransInfo {
 
 /* transinfo->flag */
 #define T_OBJECT		(1 << 0)
+/** \note We could remove 'T_EDIT' and use 'obedit_type', for now ensure they're in sync. */
 #define T_EDIT			(1 << 1)
 #define T_POSE			(1 << 2)
 #define T_TEXTURE		(1 << 3)
 	/* transforming the camera while in camera view */
 #define T_CAMERA		(1 << 4)
+	/* transforming the 3D cursor. */
+#define T_CURSOR		(1 << 5)
 		 // trans on points, having no rotation/scale
 #define T_POINTS		(1 << 6)
 /**
@@ -599,6 +606,8 @@ typedef struct TransInfo {
 
 	/** #TransInfo.center has been set, don't change it. */
 #define T_OVERRIDE_CENTER	(1 << 25)
+
+#define T_MODAL_CURSOR_SET	(1 << 26)
 
 /* TransInfo->modifiers */
 #define	MOD_CONSTRAINT_SELECT	0x01
@@ -717,7 +726,7 @@ int  special_transform_moving(TransInfo *t);
 void transform_autoik_update(TransInfo *t, short mode);
 bool transdata_check_local_islands(TransInfo *t, short around);
 
-int count_set_pose_transflags(int *out_mode, short around, struct Object *ob);
+int count_set_pose_transflags(struct Object *ob, const int mode, const short around, bool has_translate_rotate[2]);
 
 /* auto-keying stuff used by special_aftertrans_update */
 void autokeyframe_ob_cb_func(
@@ -843,7 +852,7 @@ bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3]);
 
 void calculatePropRatio(TransInfo *t);
 
-void getViewVector(TransInfo *t, float coord[3], float vec[3]);
+void getViewVector(const TransInfo *t, const float coord[3], float vec[3]);
 
 void transform_data_ext_rotate(TransData *td, float mat[3][3], bool use_drot);
 
@@ -877,10 +886,9 @@ void freeVertSlideVerts(TransInfo *t, TransDataContainer *tc, TransCustomData *c
 void projectVertSlideData(TransInfo *t, bool is_final);
 
 
-/* TODO. transform_queries.c */
+/* TODO. transform_query.c */
 bool checkUseAxisMatrix(TransInfo *t);
 
-#define TRANSFORM_DIST_MAX_PX 1000.0f
 #define TRANSFORM_SNAP_MAX_PX 100.0f
 #define TRANSFORM_DIST_INVALID -FLT_MAX
 

@@ -51,13 +51,13 @@
  * \{ */
 
 /* Offset from screen edge. */
-#define MANIPULATOR_OFFSET_FAC 2.5
+#define MANIPULATOR_OFFSET_FAC 1.5f
 /* Size of main icon. */
 #define MANIPULATOR_SIZE 64
 /* Factor for size of smaller button. */
-#define MANIPULATOR_MINI_FAC 0.5
+#define MANIPULATOR_MINI_FAC 0.35f
 /* How much mini buttons offset from the primary. */
-#define MANIPULATOR_MINI_OFFSET_FAC 0.6666f
+#define MANIPULATOR_MINI_OFFSET_FAC 0.42f
 
 
 enum {
@@ -166,20 +166,23 @@ struct NavigateWidgetGroup {
 	wmManipulator *mpr_array[MPR_TOTAL];
 	/* Store the view state to check for changes. */
 	struct {
-		struct {
-			short winx, winy;
-		} ar;
+		rcti rect_visible;
 		struct {
 			char is_persp;
+			char is_camera;
 			char viewlock;
 		} rv3d;
 	} state;
 	int region_size[2];
-	bool is_persp;
 };
 
-static bool WIDGETGROUP_navigate_poll(const bContext *UNUSED(C), wmManipulatorGroupType *UNUSED(wgt))
+static bool WIDGETGROUP_navigate_poll(const bContext *C, wmManipulatorGroupType *UNUSED(wgt))
 {
+	View3D *v3d = CTX_wm_view3d(C);
+	if (v3d->flag2 & V3D_RENDER_OVERRIDE) {
+		return false;
+	}
+
 	if (U.manipulator_flag & USER_MANIPULATOR_DRAW_NAVIGATE) {
 		return true;
 	}
@@ -211,6 +214,7 @@ static void WIDGETGROUP_navigate_setup(const bContext *UNUSED(C), wmManipulatorG
 			RNA_property_string_set_bytes(
 			        mpr->ptr, prop,
 			        (const char *)info->shape, info->shape_size);
+			RNA_enum_set(mpr->ptr, "draw_options", ED_MANIPULATOR_BUTTON_SHOW_OUTLINE);
 		}
 
 		wmOperatorType *ot = WM_operatortype_find(info->opname, true);
@@ -276,25 +280,38 @@ static void WIDGETGROUP_navigate_draw_prepare(const bContext *C, wmManipulatorGr
 		copy_v3_v3(navgroup->mpr_array[MPR_ROTATE]->matrix_offset[i], rv3d->viewmat[i]);
 	}
 
-	if ((navgroup->state.ar.winx == ar->winx) &&
-	    (navgroup->state.ar.winy == ar->winy) &&
+	rcti rect_visible;
+	ED_region_visible_rect(ar, &rect_visible);
+
+	if ((navgroup->state.rect_visible.xmax == rect_visible.xmax) &&
+	    (navgroup->state.rect_visible.ymax == rect_visible.ymax) &&
 	    (navgroup->state.rv3d.is_persp == rv3d->is_persp) &&
+	    (navgroup->state.rv3d.is_camera == (rv3d->persp == RV3D_CAMOB)) &&
 	    (navgroup->state.rv3d.viewlock == rv3d->viewlock))
 	{
 		return;
 	}
 
-
-	navgroup->state.ar.winx = ar->winx;
-	navgroup->state.ar.winy = ar->winy;
+	navgroup->state.rect_visible = rect_visible;
 	navgroup->state.rv3d.is_persp = rv3d->is_persp;
+	navgroup->state.rv3d.is_camera = (rv3d->persp == RV3D_CAMOB);
 	navgroup->state.rv3d.viewlock = rv3d->viewlock;
 
-
+	const bool show_rotate = (
+	        ((rv3d->viewlock & RV3D_LOCKED) == 0) &&
+	        (navgroup->state.rv3d.is_camera == false));
+	const bool show_fixed_offset = navgroup->state.rv3d.is_camera;
 	const float icon_size = MANIPULATOR_SIZE;
-	const float icon_offset = (icon_size / 2.0) * MANIPULATOR_OFFSET_FAC * UI_DPI_FAC;
+	const float icon_offset = (icon_size * 0.52f) * MANIPULATOR_OFFSET_FAC * UI_DPI_FAC;
 	const float icon_offset_mini = icon_size * MANIPULATOR_MINI_OFFSET_FAC * UI_DPI_FAC;
-	const float co[2] = {ar->winx - icon_offset, ar->winy - icon_offset};
+	const float co_rotate[2] = {
+		rect_visible.xmax - icon_offset,
+		rect_visible.ymax - icon_offset,
+	};
+	const float co[2] = {
+		rect_visible.xmax - ((show_rotate || show_fixed_offset) ? (icon_offset * 2.0f) : (icon_offset_mini * 0.75f)),
+		rect_visible.ymax - icon_offset_mini * 0.75f,
+	};
 
 	wmManipulator *mpr;
 
@@ -303,43 +320,38 @@ static void WIDGETGROUP_navigate_draw_prepare(const bContext *C, wmManipulatorGr
 		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, true);
 	}
 
-	if ((rv3d->viewlock & RV3D_LOCKED) == 0) {
+	/* RV3D_LOCKED or Camera: only show supported buttons. */
+	if (show_rotate) {
 		mpr = navgroup->mpr_array[MPR_ROTATE];
-		mpr->matrix_basis[3][0] = co[0];
+		mpr->matrix_basis[3][0] = co_rotate[0];
+		mpr->matrix_basis[3][1] = co_rotate[1];
+		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
+	}
+
+	int icon_mini_slot = 0;
+
+	mpr = navgroup->mpr_array[MPR_ZOOM];
+	mpr->matrix_basis[3][0] = co[0] - (icon_offset_mini * icon_mini_slot++);
+	mpr->matrix_basis[3][1] = co[1];
+	WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
+
+	mpr = navgroup->mpr_array[MPR_MOVE];
+	mpr->matrix_basis[3][0] = co[0] - (icon_offset_mini * icon_mini_slot++);
+	mpr->matrix_basis[3][1] = co[1];
+	WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
+
+	if ((rv3d->viewlock & RV3D_LOCKED) == 0) {
+		mpr = navgroup->mpr_array[MPR_CAMERA];
+		mpr->matrix_basis[3][0] = co[0] - (icon_offset_mini * icon_mini_slot++);
 		mpr->matrix_basis[3][1] = co[1];
 		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
 
-		mpr = navgroup->mpr_array[MPR_MOVE];
-		mpr->matrix_basis[3][0] = co[0] + icon_offset_mini;
-		mpr->matrix_basis[3][1] = co[1] - icon_offset_mini;
-		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
-
-		mpr = navgroup->mpr_array[MPR_ZOOM];
-		mpr->matrix_basis[3][0] = co[0] - icon_offset_mini;
-		mpr->matrix_basis[3][1] = co[1] - icon_offset_mini;
-		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
-
-		mpr = navgroup->mpr_array[rv3d->is_persp ? MPR_ORTHO : MPR_PERSP];
-		mpr->matrix_basis[3][0] = co[0] + icon_offset_mini;
-		mpr->matrix_basis[3][1] = co[1] + icon_offset_mini;
-		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
-
-		mpr = navgroup->mpr_array[MPR_CAMERA];
-		mpr->matrix_basis[3][0] = co[0] - icon_offset_mini;
-		mpr->matrix_basis[3][1] = co[1] + icon_offset_mini;
-		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
-	}
-	else {
-		/* RV3D_LOCKED: only show supported buttons. */
-		mpr = navgroup->mpr_array[MPR_MOVE];
-		mpr->matrix_basis[3][0] = co[0] + icon_offset_mini;
-		mpr->matrix_basis[3][1] = co[1] + icon_offset_mini;
-		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
-
-		mpr = navgroup->mpr_array[MPR_ZOOM];
-		mpr->matrix_basis[3][0] = co[0];
-		mpr->matrix_basis[3][1] = co[1] + icon_offset_mini;
-		WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
+		if (navgroup->state.rv3d.is_camera == false) {
+			mpr = navgroup->mpr_array[rv3d->is_persp ? MPR_PERSP : MPR_ORTHO];
+			mpr->matrix_basis[3][0] = co[0] - (icon_offset_mini * icon_mini_slot++);
+			mpr->matrix_basis[3][1] = co[1];
+			WM_manipulator_set_flag(mpr, WM_MANIPULATOR_HIDDEN, false);
+		}
 	}
 }
 

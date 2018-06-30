@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -34,9 +34,11 @@
 #include "DNA_curve_types.h"
 #include "DNA_group_types.h"
 #include "DNA_lattice_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_scene_types.h"
 
+#include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
@@ -47,7 +49,6 @@
 #include "BKE_blender_version.h"
 #include "BKE_curve.h"
 #include "BKE_displist.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_key.h"
 #include "BKE_layer.h"
 #include "BKE_paint.h"
@@ -69,7 +70,7 @@ typedef struct SceneStats {
 	int totface, totfacesel;
 	int totbone, totbonesel;
 	int totobj,  totobjsel;
-	int totlamp, totlampsel; 
+	int totlamp, totlampsel;
 	int tottri;
 
 	char infostr[MAX_INFO_LEN];
@@ -91,15 +92,15 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 	switch (ob->type) {
 		case OB_MESH:
 		{
-			/* we assume derivedmesh is already built, this strictly does stats now. */
-			DerivedMesh *dm = ob->derivedFinal;
+			/* we assume evaluated mesh is already built, this strictly does stats now. */
+			Mesh *me_eval = ob->runtime.mesh_eval;
 			int totvert, totedge, totface, totloop;
 
-			if (dm) {
-				totvert = dm->getNumVerts(dm);
-				totedge = dm->getNumEdges(dm);
-				totface = dm->getNumPolys(dm);
-				totloop = dm->getNumLoops(dm);
+			if (me_eval) {
+				totvert = me_eval->totvert;
+				totedge = me_eval->totedge;
+				totface = me_eval->totpoly;
+				totloop = me_eval->totloop;
 
 				stats->totvert += totvert * totob;
 				stats->totedge += totedge * totob;
@@ -153,10 +154,10 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 
 		stats->totvert = em->bm->totvert;
 		stats->totvertsel = em->bm->totvertsel;
-		
+
 		stats->totedge = em->bm->totedge;
 		stats->totedgesel = em->bm->totedgesel;
-		
+
 		stats->totface = em->bm->totface;
 		stats->totfacesel = em->bm->totfacesel;
 
@@ -169,15 +170,15 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 
 		for (ebo = arm->edbo->first; ebo; ebo = ebo->next) {
 			stats->totbone++;
-			
+
 			if ((ebo->flag & BONE_CONNECTED) && ebo->parent)
 				stats->totvert--;
-			
+
 			if (ebo->flag & BONE_TIPSEL)
 				stats->totvertsel++;
 			if (ebo->flag & BONE_ROOTSEL)
 				stats->totvertsel++;
-			
+
 			if (ebo->flag & BONE_SELECTED) stats->totbonesel++;
 
 			/* if this is a connected child and it's parent is being moved, remove our root */
@@ -226,7 +227,7 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 		/* MetaBall Edit */
 		MetaBall *mball = obedit->data;
 		MetaElem *ml;
-		
+
 		for (ml = mball->editelems->first; ml; ml = ml->next) {
 			stats->totvert++;
 			if (ml->flag & SELECT) stats->totvertsel++;
@@ -240,7 +241,7 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 		int a;
 
 		bp = editlatt->def;
-		
+
 		a = editlatt->pntsu * editlatt->pntsv * editlatt->pntsw;
 		while (a--) {
 			stats->totvert++;
@@ -271,36 +272,26 @@ static void stats_object_sculpt_dynamic_topology(Object *ob, SceneStats *stats)
 	stats->tottri = ob->sculpt->bm->totface;
 }
 
-static void stats_dupli_object_group_count(SceneCollection *scene_collection, int *count)
+static void stats_dupli_object_group_count(Collection *collection, int *count)
 {
-	for (LinkData *link = scene_collection->objects.first; link; link = link->next) {
-		(*count)++;
-	}
+	*count += BLI_listbase_count(&collection->gobject);
 
-	SceneCollection *scene_collection_nested;
-	for (scene_collection_nested = scene_collection->scene_collections.first;
-	     scene_collection_nested;
-	     scene_collection_nested = scene_collection_nested->next)
-	{
-		stats_dupli_object_group_count(scene_collection_nested, count);
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		stats_dupli_object_group_count(child->collection, count);
 	}
 }
 
-static void stats_dupli_object_group_doit(SceneCollection *scene_collection, SceneStats *stats, ParticleSystem *psys,
+static void stats_dupli_object_group_doit(Collection *collection, SceneStats *stats, ParticleSystem *psys,
                                           const int totgroup, int *cur)
 {
-	for (LinkData *link = scene_collection->objects.first; link; link = link->next) {
+	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
 		int tot = count_particles_mod(psys, totgroup, *cur);
-		stats_object(link->data, 0, tot, stats);
+		stats_object(cob->ob, 0, tot, stats);
 		(*cur)++;
 	}
 
-	SceneCollection *scene_collection_nested;
-	for (scene_collection_nested = scene_collection->scene_collections.first;
-	     scene_collection_nested;
-	     scene_collection_nested = scene_collection_nested->next)
-	{
-		stats_dupli_object_group_doit(scene_collection_nested, stats, psys, totgroup, cur);
+	for (CollectionChild *child = collection->children.first; child; child = child->next) {
+		stats_dupli_object_group_doit(child->collection, stats, psys, totgroup, cur);
 	}
 }
 
@@ -323,12 +314,12 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 			else if (part->draw_as == PART_DRAW_GR && part->dup_group) {
 				int totgroup = 0, cur = 0;
 
-				SceneCollection *scene_collection = part->dup_group->collection;
-				stats_dupli_object_group_count(scene_collection, &totgroup);
-				stats_dupli_object_group_doit(scene_collection, stats, psys, totgroup, &cur);
+				Collection *collection = part->dup_group;
+				stats_dupli_object_group_count(collection, &totgroup);
+				stats_dupli_object_group_doit(collection, stats, psys, totgroup, &cur);
 			}
 		}
-		
+
 		stats_object(ob, base->flag & BASE_SELECTED, 1, stats);
 		stats->totobj++;
 	}
@@ -353,7 +344,7 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 		stats->totobj += tot;
 		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
 	}
-	else if ((ob->transflag & OB_DUPLIGROUP) && ob->dup_group) {
+	else if ((ob->transflag & OB_DUPLICOLLECTION) && ob->dup_group) {
 		/* Dupli Group */
 		int tot = count_duplilist(ob);
 		stats->totobj += tot;
@@ -396,7 +387,7 @@ static void stats_update(ViewLayer *view_layer)
 	else {
 		/* Objects */
 		for (base = view_layer->object_bases.first; base; base = base->next)
-			if (base->flag & BASE_VISIBLED) {
+			if (base->flag & BASE_VISIBLE) {
 				stats_dupli_object(base, base->object, &stats);
 			}
 	}
@@ -419,6 +410,7 @@ static void stats_string(ViewLayer *view_layer)
 	uintptr_t mem_in_use, mmap_in_use;
 	char memstr[MAX_INFO_MEM_LEN];
 	char gpumemstr[MAX_INFO_MEM_LEN] = "";
+	char formatted_mem[15];
 	char *s;
 	size_t ofs = 0;
 
@@ -454,27 +446,34 @@ static void stats_string(ViewLayer *view_layer)
 
 
 	/* get memory statistics */
-	ofs = BLI_snprintf(memstr, MAX_INFO_MEM_LEN, IFACE_(" | Mem:%.2fM"),
-	                    (double)((mem_in_use - mmap_in_use) >> 10) / 1024.0);
-	if (mmap_in_use)
-		BLI_snprintf(memstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_(" (%.2fM)"), (double)((mmap_in_use) >> 10) / 1024.0);
+	BLI_str_format_byte_unit(formatted_mem, mem_in_use - mmap_in_use, true);
+	ofs = BLI_snprintf(memstr, MAX_INFO_MEM_LEN, IFACE_(" | Mem: %s"), formatted_mem);
+
+	if (mmap_in_use) {
+		BLI_str_format_byte_unit(formatted_mem, mmap_in_use, true);
+		BLI_snprintf(memstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_(" (%s)"), formatted_mem);
+	}
 
 	if (GPU_mem_stats_supported()) {
 		int gpu_free_mem, gpu_tot_memory;
 
 		GPU_mem_stats_get(&gpu_tot_memory, &gpu_free_mem);
 
-		ofs = BLI_snprintf(gpumemstr, MAX_INFO_MEM_LEN, IFACE_(" | Free GPU Mem:%.2fM"), (double)((gpu_free_mem)) / 1024.0);
+		BLI_str_format_byte_unit(formatted_mem, gpu_free_mem, true);
+		ofs = BLI_snprintf(gpumemstr, MAX_INFO_MEM_LEN, IFACE_(" | Free GPU Mem: %s"), formatted_mem);
 
 		if (gpu_tot_memory) {
-			BLI_snprintf(gpumemstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_("/%.2fM"), (double)((gpu_tot_memory)) / 1024.0);
+			BLI_str_format_byte_unit(formatted_mem, gpu_tot_memory, true);
+			BLI_snprintf(gpumemstr + ofs, MAX_INFO_MEM_LEN - ofs, IFACE_("/%s"), formatted_mem);
 		}
 	}
 
 	s = stats->infostr;
 	ofs = 0;
 
-	ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", versionstr);
+	if (ob) {
+		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", ob->id.name + 2);
+	}
 
 	if (obedit) {
 		if (BKE_keyblock_from_object(obedit))
@@ -508,15 +507,13 @@ static void stats_string(ViewLayer *view_layer)
 	}
 	else {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs,
-		                    IFACE_("Verts:%s | Faces:%s | Tris:%s | Objects:%s/%s | Lamps:%s/%s%s%s"),
+		                    IFACE_("Verts:%s | Faces:%s | Tris:%s | Objects:%s/%s%s%s"),
 		                    stats_fmt.totvert, stats_fmt.totface,
 		                    stats_fmt.tottri, stats_fmt.totobjsel,
-		                    stats_fmt.totobj, stats_fmt.totlampsel,
-		                    stats_fmt.totlamp, memstr, gpumemstr);
+		                    stats_fmt.totobj, memstr, gpumemstr);
 	}
 
-	if (ob)
-		BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, " | %s", ob->id.name + 2);
+	ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, " | %s", versionstr);
 #undef MAX_INFO_MEM_LEN
 }
 
