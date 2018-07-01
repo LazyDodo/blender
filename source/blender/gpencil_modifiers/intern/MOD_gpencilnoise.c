@@ -105,7 +105,9 @@ static void deformStroke(
 	float shift, vran, vdir;
 	float normal[3];
 	float vec1[3], vec2[3];
+#if 0
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
+#endif
 	int sc_frame = 0;
 	int sc_diff = 0;
 	int vindex = defgroup_name_index(ob, mmd->vgname);

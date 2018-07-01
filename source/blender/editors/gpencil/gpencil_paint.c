@@ -2371,6 +2371,8 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 {
 	/* header prints */
 	switch (p->status) {
+
+#if 0 /* FIXME, this never runs! */
 		switch (p->paintmode) {
 				case GP_PAINTMODE_DRAW_POLY:
 					/* Provide usage tips, since this is modal, and unintuitive without hints */
@@ -2383,6 +2385,7 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 					 */
 					break;
 			}
+#endif
 
 		case GP_STATUS_IDLING:
 			/* print status info */
@@ -2413,6 +2416,8 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 		case GP_STATUS_DONE:
 			/* clear status string */
 			ED_workspace_status_text(C, NULL);
+			break;
+		case GP_STATUS_PAINTING:
 			break;
 	}
 }

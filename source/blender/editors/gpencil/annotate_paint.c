@@ -457,7 +457,9 @@ static short gp_stroke_addpoint(
 			return GP_STROKEADD_NORMAL;
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
+#if 0
 		bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
+#endif
 		/* get pointer to destination point */
 		pt = (tGPspoint *)(gpd->runtime.sbuffer);
 
@@ -822,8 +824,6 @@ static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, cons
 	    (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH))
 	{
 		RegionView3D *rv3d = p->ar->regiondata;
-		bGPDlayer *gpl = p->gpl;
-
 		const int mval[2] = {x, y};
 		float mval_3d[3];
 
@@ -859,7 +859,7 @@ static float gp_stroke_eraser_calc_influence(tGPsdata *p, const int mval[2], con
 /* eraser tool - evaluation per stroke */
 /* TODO: this could really do with some optimization (KD-Tree/BVH?) */
 static void gp_stroke_eraser_dostroke(tGPsdata *p,
-                                      bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
+                                      bGPDlayer *UNUSED(gpl), bGPDframe *gpf, bGPDstroke *gps,
                                       const int mval[2], const int mvalo[2],
                                       const int radius, const rcti *rect)
 {
@@ -880,7 +880,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 		/* only process if it hasn't been masked out... */
 		if (!(p->flags & GP_PAINTFLAG_SELECTMASK) || (gps->points->flag & GP_SPOINT_SELECT)) {
 			gp_point_to_xy(&p->gsc, gps, gps->points, &pc1[0], &pc1[1]);
-	
+
 			/* do boundbox check first */
 			if ((!ELEM(V2D_IS_CLIPPED, pc1[0], pc1[1])) && BLI_rcti_isect_pt(rect, pc1[0], pc1[1])) {
 				/* only check if point is inside */
@@ -2114,7 +2114,6 @@ static void gpencil_move_last_stroke_to_back(bContext *C)
 static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	tGPsdata *p = op->customdata;
-	ToolSettings *ts = CTX_data_tool_settings(C);
 	int estate = OPERATOR_PASS_THROUGH; /* default exit state - pass through to support MMB view nav, etc. */
 
 	/* if (event->type == NDOF_MOTION)
