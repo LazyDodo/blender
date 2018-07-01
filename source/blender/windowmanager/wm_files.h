@@ -71,4 +71,3 @@ void        WM_OT_assets_update_check(struct wmOperatorType *ot);
 void        WM_OT_assets_reload(struct wmOperatorType *ot);
 
 #endif /* __WM_FILES_H__ */
-

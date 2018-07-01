@@ -84,6 +84,7 @@ bool ED_rigidbody_constraint_add(Main *bmain, Scene *scene, Object *ob, int type
 	/* create constraint group if it doesn't already exits */
 	if (rbw->constraints == NULL) {
 		rbw->constraints = BKE_collection_add(bmain, NULL, "RigidBodyConstraints");
+		id_fake_user_set(&rbw->constraints->id);
 	}
 	/* make rigidbody constraint settings */
 	ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, type);
@@ -94,6 +95,8 @@ bool ED_rigidbody_constraint_add(Main *bmain, Scene *scene, Object *ob, int type
 
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+	DEG_id_tag_update(&rbw->constraints->id, DEG_TAG_COPY_ON_WRITE);
+
 	return true;
 }
 
@@ -102,8 +105,10 @@ void ED_rigidbody_constraint_remove(Main *bmain, Scene *scene, Object *ob)
 	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
 
 	BKE_rigidbody_remove_constraint(scene, ob);
-	if (rbw)
+	if (rbw) {
 		BKE_collection_object_remove(bmain, rbw->constraints, ob, false);
+		DEG_id_tag_update(&rbw->constraints->id, DEG_TAG_COPY_ON_WRITE);
+	}
 
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);

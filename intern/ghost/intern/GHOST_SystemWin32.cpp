@@ -316,18 +316,29 @@ GHOST_IContext *GHOST_SystemWin32::createOffscreenContext()
 
 	GHOST_Context *context;
 
+	HWND wnd = CreateWindowA("STATIC",
+		"BlenderGLEW",
+		WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+		0, 0, 64, 64,
+		NULL, NULL,
+		GetModuleHandle(NULL), NULL
+	);
+
+	HDC  mHDC = GetDC(wnd);
+	HDC  prev_hdc = wglGetCurrentDC();
+	HGLRC prev_context = wglGetCurrentContext();
 #if defined(WITH_GL_PROFILE_CORE)
 	for (int minor = 5; minor >= 0; --minor) {
 			context = new GHOST_ContextWGL(
 			    false, true, 0,
-			    NULL, NULL,
+			    wnd, mHDC,
 			    WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 			    4, minor,
 			    (debug_context ? WGL_CONTEXT_DEBUG_BIT_ARB : 0),
 			    GHOST_OPENGL_WGL_RESET_NOTIFICATION_STRATEGY);
 
 			if (context->initializeDrawingContext()) {
-				return context;
+				goto finished;
 			}
 			else {
 				delete context;
@@ -336,14 +347,14 @@ GHOST_IContext *GHOST_SystemWin32::createOffscreenContext()
 
 		context = new GHOST_ContextWGL(
 		    false, true, 0,
-		    NULL, NULL,
+		    wnd, mHDC,
 		    WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 		    3, 3,
 		    (debug_context ? WGL_CONTEXT_DEBUG_BIT_ARB : 0),
 		    GHOST_OPENGL_WGL_RESET_NOTIFICATION_STRATEGY);
 
 		if (context->initializeDrawingContext()) {
-			return context;
+			goto finished;
 		}
 		else {
 			MessageBox(
@@ -376,8 +387,9 @@ GHOST_IContext *GHOST_SystemWin32::createOffscreenContext()
 #else
 #  error // must specify either core or compat at build time
 #endif
-
-	return NULL;
+finished:
+	wglMakeCurrent(prev_hdc, prev_context);
+	return context;
 }
 
 /**

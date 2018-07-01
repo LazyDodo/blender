@@ -193,7 +193,8 @@ static void stats_background(void *UNUSED(arg), RenderStats *rs)
 	/* Flush stdout to be sure python callbacks are printing stuff after blender. */
 	fflush(stdout);
 
-	BLI_callback_exec(G.main, NULL, BLI_CB_EVT_RENDER_STATS);
+	/* NOTE: using G_MAIN seems valid here??? Not sure it's actually even used anyway, we could as well pass NULL? */
+	BLI_callback_exec(G_MAIN, NULL, BLI_CB_EVT_RENDER_STATS);
 
 	fputc('\n', stdout);
 	fflush(stdout);
@@ -1029,13 +1030,10 @@ void RE_test_break_cb(Render *re, void *handle, int (*f)(void *handle))
 
 /* ********* GL Context ******** */
 
-/* Create the gl context of the Render.
- * It will be free by the render itself. */
 void RE_gl_context_create(Render *re)
 {
 	/* Needs to be created in the main ogl thread. */
 	re->gl_context = WM_opengl_context_create();
-	re->gl_context_ownership = true;
 }
 
 void RE_gl_context_destroy(Render *re)
@@ -1047,20 +1045,9 @@ void RE_gl_context_destroy(Render *re)
 		re->gwn_context = NULL;
 	}
 	if (re->gl_context) {
-		if (re->gl_context_ownership) {
-			WM_opengl_context_dispose(re->gl_context);
-		}
+		WM_opengl_context_dispose(re->gl_context);
 		re->gl_context = NULL;
 	}
-}
-
-/* Manually set the gl context of the Render.
- * It won't be free by the render itself. */
-void RE_gl_context_set(Render *re, void *gl_context)
-{
-	BLI_assert(gl_context); /* Cannot set NULL */
-	re->gl_context = gl_context;
-	re->gl_context_ownership = false;
 }
 
 void *RE_gl_context_get(Render *re)
@@ -2325,7 +2312,8 @@ static int do_write_image_or_movie(Render *re, Main *bmain, Scene *scene, bMovie
 	/* Flush stdout to be sure python callbacks are printing stuff after blender. */
 	fflush(stdout);
 
-	BLI_callback_exec(re->main, NULL, BLI_CB_EVT_RENDER_STATS);
+	/* NOTE: using G_MAIN seems valid here??? Not sure it's actually even used anyway, we could as well pass NULL? */
+	BLI_callback_exec(G_MAIN, NULL, BLI_CB_EVT_RENDER_STATS);
 
 	BLI_timecode_string_from_time_simple(name, sizeof(name), re->i.lastframetime - render_time);
 	printf(" (Saving: %s)\n", name);
@@ -2644,9 +2632,6 @@ void RE_PreviewRender(Render *re, Main *bmain, Scene *sce)
 	RE_SetCamera(re, camera);
 
 	do_render_3d(re);
-
-	/* Destroy the opengl context in the correct thread. */
-	RE_gl_context_destroy(re);
 }
 
 /* note; repeated win/disprect calc... solve that nicer, also in compo */

@@ -2953,7 +2953,10 @@ static void direct_link_workspace(FileData *fd, WorkSpace *workspace, const Main
 	for (bToolRef *tref = workspace->tools.first; tref; tref = tref->next) {
 		tref->runtime = NULL;
 		tref->properties = newdataadr(fd, tref->properties);
+		IDP_DirectLinkGroup_OrFree(&tref->properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
 	}
+
+	workspace->status_text = NULL;
 }
 
 static void lib_link_workspace_instance_hook(FileData *fd, WorkSpaceInstanceHook *hook, ID *id)
@@ -3937,8 +3940,9 @@ static void direct_link_image(FileData *fd, Image *ima)
 		}
 	}
 	else {
-		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
+		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots) {
 			slot->render = NULL;
+		}
 		ima->last_render_slot = ima->render_slot;
 	}
 
@@ -4251,40 +4255,8 @@ static void lib_link_particlesettings(FileData *fd, Main *main)
 			}
 
 			if (part->dupliweights.first && part->dup_group) {
-				ParticleDupliWeight *dw;
-				int index_ok = 0;
-				/* check for old files without indices (all indexes 0) */
-				if (BLI_listbase_is_single(&part->dupliweights)) {
-					/* special case for only one object in the group */
-					index_ok = 1;
-				}
-				else {
-					for (dw = part->dupliweights.first; dw; dw = dw->next) {
-						if (dw->index > 0) {
-							index_ok = 1;
-							break;
-						}
-					}
-				}
-
-				if (index_ok) {
-					/* if we have indexes, let's use them */
-					for (dw = part->dupliweights.first; dw; dw = dw->next) {
-						/* Do not try to restore pointer here, we have to search for group objects in another
-						 * separated step.
-						 * Reason is, the used group may be linked from another library, which has not yet
-						 * been 'lib_linked'.
-						 * Since dw->ob is not considered as an object user (it does not make objet directly linked),
-						 * we may have no valid way to retrieve it yet.
-						 * See T49273. */
-						dw->ob = NULL;
-					}
-				}
-				else {
-					/* otherwise try to get objects from own library (won't work on library linked groups) */
-					for (dw = part->dupliweights.first; dw; dw = dw->next) {
-						dw->ob = newlibadr(fd, part->id.lib, dw->ob);
-					}
+				for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
+					dw->ob = newlibadr(fd, part->id.lib, dw->ob);
 				}
 			}
 			else {
@@ -5039,7 +5011,6 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 
 	for (md=lb->first; md; md=md->next) {
 		md->error = NULL;
-		md->scene = NULL;
 
 		/* if modifiers disappear, or for upward compatibility */
 		if (NULL == modifierType_getInfo(md->type))
@@ -5482,12 +5453,8 @@ static void direct_link_object(FileData *fd, Object *ob)
 	ob->rigidbody_object = newdataadr(fd, ob->rigidbody_object);
 	if (ob->rigidbody_object) {
 		RigidBodyOb *rbo = ob->rigidbody_object;
-
-		/* must nullify the references to physics sim objects, since they no-longer exist
-		 * (and will need to be recalculated)
-		 */
-		rbo->physics_object = NULL;
-		rbo->physics_shape = NULL;
+		/* Allocate runtime-only struct */
+		rbo->shared = MEM_callocN(sizeof(*rbo->shared), "RigidBodyObShared");
 	}
 	ob->rigidbody_constraint = newdataadr(fd, ob->rigidbody_constraint);
 	if (ob->rigidbody_constraint)
@@ -5622,9 +5589,6 @@ static void lib_link_layer_collection(FileData *fd, Library *lib, LayerCollectio
 
 static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_layer)
 {
-	/* tag scene layer to update for collection tree evaluation */
-	view_layer->flag |= VIEW_LAYER_ENGINE_DIRTY;
-
 	for (FreestyleModuleConfig *fmc = view_layer->freestyle_config.modules.first; fmc; fmc = fmc->next) {
 		fmc->script = newlibadr(fd, lib, fmc->script);
 	}
@@ -5639,7 +5603,6 @@ static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_laye
 
 		/* we only bump the use count for the collection objects */
 		base->object = newlibadr(fd, lib, base->object);
-		base->flag |= BASE_DIRTY_ENGINE_SETTINGS;
 
 		if (base->object == NULL) {
 			/* Free in case linked object got lost. */
@@ -6290,10 +6253,34 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	sce->rigidbody_world = newdataadr(fd, sce->rigidbody_world);
 	rbw = sce->rigidbody_world;
 	if (rbw) {
-		/* must nullify the reference to physics sim object, since it no-longer exist
-		 * (and will need to be recalculated)
-		 */
-		rbw->physics_world = NULL;
+		rbw->shared = newdataadr(fd, rbw->shared);
+
+		if (rbw->shared == NULL) {
+			/* Link deprecated caches if they exist, so we can use them for versioning.
+			 * We should only do this when rbw->shared == NULL, because those pointers
+			 * are always set (for compatibility with older Blenders). We mustn't link
+			 * the same pointcache twice. */
+			direct_link_pointcache_list(fd, &rbw->ptcaches, &rbw->pointcache, false);
+
+			/* make sure simulation starts from the beginning after loading file */
+			if (rbw->pointcache) {
+				rbw->ltime = (float)rbw->pointcache->startframe;
+			}
+		}
+		else {
+			/* must nullify the reference to physics sim object, since it no-longer exist
+			 * (and will need to be recalculated)
+			 */
+			rbw->shared->physics_world = NULL;
+
+			/* link caches */
+			direct_link_pointcache_list(fd, &rbw->shared->ptcaches, &rbw->shared->pointcache, false);
+
+			/* make sure simulation starts from the beginning after loading file */
+			if (rbw->shared->pointcache) {
+				rbw->ltime = (float)rbw->shared->pointcache->startframe;
+			}
+		}
 		rbw->objects = NULL;
 		rbw->numbodies = 0;
 
@@ -6301,13 +6288,6 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		rbw->effector_weights = newdataadr(fd, rbw->effector_weights);
 		if (!rbw->effector_weights)
 			rbw->effector_weights = BKE_add_effector_weights(NULL);
-
-		/* link cache */
-		direct_link_pointcache_list(fd, &rbw->ptcaches, &rbw->pointcache, false);
-		/* make sure simulation starts from the beginning after loading file */
-		if (rbw->pointcache) {
-			rbw->ltime = (float)rbw->pointcache->startframe;
-		}
 	}
 
 	sce->preview = direct_link_preview_image(fd, sce->preview);
@@ -6955,6 +6935,7 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		win->ghostwin = NULL;
 		win->gwnctx = NULL;
 		win->eventstate = NULL;
+		win->cursor_keymap_status = NULL;
 		win->tweak = NULL;
 #ifdef WIN32
 		win->ime_data = NULL;
@@ -8721,6 +8702,7 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 	link_list(fd, &user->themes);
 	link_list(fd, &user->user_keymaps);
+	link_list(fd, &user->user_menus);
 	link_list(fd, &user->addons);
 	link_list(fd, &user->autoexec_paths);
 
@@ -8744,6 +8726,17 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 		for (kmi=keymap->items.first; kmi; kmi=kmi->next)
 			direct_link_keymapitem(fd, kmi);
+	}
+
+	for (bUserMenu *um = user->user_menus.first; um; um = um->next) {
+		link_list(fd, &um->items);
+		for (bUserMenuItem *umi = um->items.first; umi; umi = umi->next) {
+			if (umi->type == USER_MENU_TYPE_OPERATOR) {
+				bUserMenuItem_Op *umi_op = (bUserMenuItem_Op *)umi;
+				umi_op->prop = newdataadr(fd, umi_op->prop);
+				IDP_DirectLinkGroup_OrFree(&umi_op->prop, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
+			}
+		}
 	}
 
 	for (addon = user->addons.first; addon; addon = addon->next) {
@@ -9322,6 +9315,10 @@ static void expand_particlesettings(FileData *fd, Main *mainvar, ParticleSetting
 				}
 			}
 		}
+	}
+
+	for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
+		expand_doit(fd, mainvar, dw->ob);
 	}
 }
 
@@ -10072,7 +10069,7 @@ static void add_loose_objects_to_scene(
 				if (flag & FILE_AUTOSELECT) {
 					/* Note that link_object_postprocess() already checks for FILE_AUTOSELECT flag,
 					 * but it will miss objects from non-instantiated collections... */
-					if (base->flag & BASE_SELECTABLED) {
+					if (base->flag & BASE_SELECTABLE) {
 						base->flag |= BASE_SELECTED;
 						BKE_scene_object_base_flag_sync_from_base(base);
 					}
@@ -10105,7 +10102,7 @@ static void add_collections_to_scene(
 				BKE_collection_object_add(bmain, active_collection, ob);
 				Base *base = BKE_view_layer_base_find(view_layer, ob);
 
-				if (base->flag & BASE_SELECTABLED) {
+				if (base->flag & BASE_SELECTABLE) {
 					base->flag |= BASE_SELECTED;
 				}
 
@@ -10216,7 +10213,7 @@ static void link_object_postprocess(ID *id, Main *bmain, Scene *scene, ViewLayer
 		BKE_scene_object_base_flag_sync_from_base(base);
 
 		if (flag & FILE_AUTOSELECT) {
-			if (base->flag & BASE_SELECTABLED) {
+			if (base->flag & BASE_SELECTABLE) {
 				base->flag |= BASE_SELECTED;
 				BKE_scene_object_base_flag_sync_from_base(base);
 			}

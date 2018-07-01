@@ -100,6 +100,13 @@ void BLO_update_defaults_userpref_blend(void)
 	bAddon *bext = MEM_callocN(sizeof(bAddon), "bAddon");
 	BLI_strncpy(bext->module, "amber", sizeof(bext->module));
 	BLI_addtail(&U.addons, bext);
+
+	/* Ignore the theme saved in the blend file,
+	 * instead use the theme from 'userdef_default_theme.c' */
+	{
+		bTheme *theme = U.themes.first;
+		memcpy(theme, &U_theme_default, sizeof(bTheme));
+	}
 }
 
 /**
@@ -146,6 +153,8 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 
 		if (scene->toolsettings) {
 			ToolSettings *ts = scene->toolsettings;
+
+			ts->object_flag |= SCE_OBJECT_MODE_LOCK;
 
 			ts->uvcalc_flag |= UVCALC_TRANSFORM_CORRECT;
 
@@ -408,4 +417,3 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		}
 	}
 }
-

@@ -308,7 +308,8 @@ bool ED_image_slot_cycle(struct Image *image, int direction)
 		slot = (cur + ((direction == -1) ? -i : i)) % num_slots;
 		if (slot < 0) slot += num_slots;
 
-		if (BKE_image_get_renderslot(image, slot)->render || slot == image->last_render_slot) {
+		RenderSlot *render_slot = BKE_image_get_renderslot(image, slot);
+		if ((render_slot && render_slot->render) || slot == image->last_render_slot) {
 			image->render_slot = slot;
 			break;
 		}
@@ -423,4 +424,3 @@ int ED_space_image_maskedit_mask_poll(bContext *C)
 
 	return false;
 }
-

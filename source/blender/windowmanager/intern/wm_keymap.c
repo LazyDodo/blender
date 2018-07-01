@@ -166,7 +166,8 @@ static void wm_keyconfig_properties_update_ot(ListBase *km_lb)
 static bool wm_keymap_item_equals_result(wmKeyMapItem *a, wmKeyMapItem *b)
 {
 	return (STREQ(a->idname, b->idname) &&
-	        RNA_struct_equals(a->ptr, b->ptr, RNA_EQ_UNSET_MATCH_NONE) &&
+	        /* We do not really care about which Main we pass here, tbh. */
+	        RNA_struct_equals(G_MAIN, a->ptr, b->ptr, RNA_EQ_UNSET_MATCH_NONE) &&
 	        (a->flag & KMI_INACTIVE) == (b->flag & KMI_INACTIVE) &&
 	        a->propvalue == b->propvalue);
 }
@@ -992,11 +993,7 @@ int WM_keymap_item_raw_to_string(
 	    alt == KM_ANY &&
 	    oskey == KM_ANY)
 	{
-		/* make it implicit in case of compact result expected. */
-		if (!compact) {
-			ADD_SEP;
-			p += BLI_strcpy_rlen(p, IFACE_("Any"));
-		}
+		/* Don't show anything for any mapping. */
 	}
 	else {
 		if (shift) {

@@ -61,6 +61,7 @@
 
 #include "GPU_glew.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "BLF_api.h"
 #include "BLT_translation.h"
@@ -103,18 +104,6 @@ static void ui_but_to_pixelrect(struct rcti *rect, const struct ARegion *ar, str
  */
 
 static void ui_but_free(const bContext *C, uiBut *but);
-
-bool ui_block_is_menu(const uiBlock *block)
-{
-	return (((block->flag & UI_BLOCK_LOOP) != 0) &&
-	        /* non-menu popups use keep-open, so check this is off */
-	        ((block->flag & UI_BLOCK_KEEP_OPEN) == 0));
-}
-
-bool ui_block_is_pie_menu(const uiBlock *block)
-{
-	return ((block->flag & UI_BLOCK_RADIAL) != 0);
-}
 
 static bool ui_but_is_unit_radians_ex(UnitSettings *unit, const int unit_type)
 {
@@ -1381,7 +1370,7 @@ void UI_block_draw(const bContext *C, uiBlock *block)
 		UI_block_end(C, block);
 
 	/* we set this only once */
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	/* scale fonts */
 	ui_fontscale(&style.paneltitle.points, block->aspect);
@@ -4799,4 +4788,3 @@ void UI_exit(void)
 	ui_resources_free();
 	ui_but_clipboard_free();
 }
-

@@ -256,7 +256,8 @@ struct LatticeDeformData *psys_create_lattice_deform_data(ParticleSimulationData
 	if (psys_in_edit_mode(sim->depsgraph, sim->psys) == 0) {
 		Object *lattice = NULL;
 		ModifierData *md = (ModifierData *)psys_get_modifier(sim->ob, sim->psys);
-		int mode = G.is_rendering ? eModifierMode_Render : eModifierMode_Realtime;
+		bool for_render = DEG_get_mode(sim->depsgraph) == DAG_EVAL_RENDER;
+		int mode = for_render ? eModifierMode_Render : eModifierMode_Realtime;
 
 		for (; md; md = md->next) {
 			if (md->type == eModifierType_Lattice) {
@@ -349,73 +350,84 @@ bool psys_check_edited(ParticleSystem *psys)
 		return (psys->pointcache->edit && psys->pointcache->edit->edited);
 }
 
+void psys_find_group_weights(ParticleSettings *part)
+{
+	/* Find object pointers based on index. If the collection is linked from
+	 * another library linking may not have the object pointers available on
+	 * file load, so we have to retrieve them later. See T49273. */
+	const ListBase dup_group_objects = BKE_collection_object_cache_get(part->dup_group);
+
+	for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
+		if (dw->ob == NULL) {
+			Base *base = BLI_findlink(&dup_group_objects, dw->index);
+			if (base != NULL) {
+				dw->ob = base->object;
+			}
+		}
+	}
+}
+
 void psys_check_group_weights(ParticleSettings *part)
 {
 	ParticleDupliWeight *dw, *tdw;
-	int current = 0;
 
 	if (part->ren_as != PART_DRAW_GR || !part->dup_group) {
 		BLI_freelistN(&part->dupliweights);
 		return;
 	}
 
-	const ListBase dup_group_objects = BKE_collection_object_cache_get(part->dup_group);
-	if (dup_group_objects.first) {
-		/* First try to find NULL objects from their index,
-		 * and remove all weights that don't have an object in the group. */
-		dw = part->dupliweights.first;
-		while (dw) {
-			if (dw->ob == NULL || !BKE_collection_has_object_recursive(part->dup_group, dw->ob)) {
-				Base *base = BLI_findlink(&dup_group_objects, dw->index);
-				if (base != NULL) {
-					dw->ob = base->object;
-				}
-				else {
-					tdw = dw->next;
-					BLI_freelinkN(&part->dupliweights, dw);
-					dw = tdw;
-				}
-			}
-			else {
-				dw = dw->next;
-			}
+	/* Find object pointers. */
+	psys_find_group_weights(part);
+
+	/* Remove NULL objects, that were removed from the collection. */
+	dw = part->dupliweights.first;
+	while (dw) {
+		if (dw->ob == NULL || !BKE_collection_has_object_recursive(part->dup_group, dw->ob)) {
+			tdw = dw->next;
+			BLI_freelinkN(&part->dupliweights, dw);
+			dw = tdw;
 		}
-
-		/* then add objects in the group to new list */
-		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(part->dup_group, object)
-		{
-			dw = part->dupliweights.first;
-			while (dw && dw->ob != object) {
-				dw = dw->next;
-			}
-
-			if (!dw) {
-				dw = MEM_callocN(sizeof(ParticleDupliWeight), "ParticleDupliWeight");
-				dw->ob = object;
-				dw->count = 1;
-				BLI_addtail(&part->dupliweights, dw);
-			}
-		}
-		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
-
-		dw = part->dupliweights.first;
-		for (; dw; dw = dw->next) {
-			if (dw->flag & PART_DUPLIW_CURRENT) {
-				current = 1;
-				break;
-			}
-		}
-
-		if (!current) {
-			dw = part->dupliweights.first;
-			if (dw)
-				dw->flag |= PART_DUPLIW_CURRENT;
+		else {
+			dw = dw->next;
 		}
 	}
-	else {
-		BLI_freelistN(&part->dupliweights);
+
+	/* Add new objects in the collection. */
+	int index = 0;
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(part->dup_group, object)
+	{
+		dw = part->dupliweights.first;
+		while (dw && dw->ob != object) {
+			dw = dw->next;
+		}
+
+		if (!dw) {
+			dw = MEM_callocN(sizeof(ParticleDupliWeight), "ParticleDupliWeight");
+			dw->ob = object;
+			dw->count = 1;
+			BLI_addtail(&part->dupliweights, dw);
+		}
+
+		dw->index = index++;
+	}
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+
+	/* Ensure there is an element marked as current. */
+	int current = 0;
+	for (dw = part->dupliweights.first; dw; dw = dw->next) {
+		if (dw->flag & PART_DUPLIW_CURRENT) {
+			current = 1;
+			break;
+		}
+	}
+
+	if (!current) {
+		dw = part->dupliweights.first;
+		if (dw)
+			dw->flag |= PART_DUPLIW_CURRENT;
 	}
 }
+
 int psys_uses_gravity(ParticleSimulationData *sim)
 {
 	return sim->scene->physics_settings.flag & PHYS_GLOBAL_GRAVITY && sim->psys->part && sim->psys->part->effector_weights->global_gravity != 0.0f;
@@ -640,7 +652,7 @@ void psys_free(Object *ob, ParticleSystem *psys)
 		if (psys->fluid_springs)
 			MEM_freeN(psys->fluid_springs);
 
-		pdEndEffectors(&psys->effectors);
+		BKE_effectors_free(psys->effectors);
 
 		if (psys->pdd) {
 			psys_free_pdd(psys);
@@ -650,6 +662,51 @@ void psys_free(Object *ob, ParticleSystem *psys)
 		BKE_particle_batch_cache_free(psys);
 
 		MEM_freeN(psys);
+	}
+}
+
+void psys_copy_particles(ParticleSystem *psys_dst, ParticleSystem *psys_src)
+{
+	/* Free existing particles. */
+	if (psys_dst->particles != psys_src->particles) {
+		psys_free_particles(psys_dst);
+	}
+	if (psys_dst->child != psys_src->child) {
+		psys_free_children(psys_dst);
+	}
+	/* Restore counters. */
+	psys_dst->totpart = psys_src->totpart;
+	psys_dst->totchild = psys_src->totchild;
+	/* Copy particles and children. */
+	psys_dst->particles = MEM_dupallocN(psys_src->particles);
+	psys_dst->child = MEM_dupallocN(psys_src->child);
+	if (psys_dst->part->type == PART_HAIR) {
+		ParticleData *pa;
+		int p;
+		for (p = 0, pa = psys_dst->particles; p < psys_dst->totpart; p++, pa++) {
+			pa->hair = MEM_dupallocN(pa->hair);
+		}
+	}
+	if (psys_dst->particles && (psys_dst->particles->keys || psys_dst->particles->boid)) {
+		ParticleKey *key = psys_dst->particles->keys;
+		BoidParticle *boid = psys_dst->particles->boid;
+		ParticleData *pa;
+		int p;
+		if (key != NULL) {
+			key = MEM_dupallocN(key);
+		}
+		if (boid != NULL) {
+			boid = MEM_dupallocN(boid);
+		}
+		for (p = 0, pa = psys_dst->particles; p < psys_dst->totpart; p++, pa++) {
+			if (boid != NULL) {
+				pa->boid = boid++;
+			}
+			if (key != NULL) {
+				pa->keys = key;
+				key += pa->totkey;
+			}
+		}
 	}
 }
 
@@ -1796,7 +1853,7 @@ static void do_path_effectors(ParticleSimulationData *sim, int i, ParticleCacheK
 	copy_qt_qt(eff_key.rot, (ca - 1)->rot);
 
 	pd_point_from_particle(sim, sim->psys->particles + i, &eff_key, &epoint);
-	pdDoEffectors(sim->psys->effectors, sim->colliders, sim->psys->part->effector_weights, &epoint, force, NULL);
+	BKE_effectors_apply(sim->psys->effectors, sim->colliders, sim->psys->part->effector_weights, &epoint, force, NULL);
 
 	mul_v3_fl(force, effector * powf((float)k / (float)steps, 100.0f * sim->psys->part->eff_hair) / (float)steps);
 
@@ -2710,7 +2767,7 @@ static void psys_cache_edit_paths_iter(
 		/* selection coloring in edit mode */
 		if (use_weight) {
 			if (k == 0) {
-				weight_to_rgb(ca->col, pind.hkey[1]->weight);
+				BKE_defvert_weight_to_rgb(ca->col, pind.hkey[1]->weight);
 			}
 			else {
 				/* warning: copied from 'do_particle_interpolation' (without 'mvert' array stepping) */
@@ -2732,8 +2789,8 @@ static void psys_cache_edit_paths_iter(
 				float w1[3], w2[3];
 				keytime = (t - (*pind.ekey[0]->time)) / ((*pind.ekey[1]->time) - (*pind.ekey[0]->time));
 
-				weight_to_rgb(w1, pind.hkey[0]->weight);
-				weight_to_rgb(w2, pind.hkey[1]->weight);
+				BKE_defvert_weight_to_rgb(w1, pind.hkey[0]->weight);
+				BKE_defvert_weight_to_rgb(w2, pind.hkey[1]->weight);
 
 				interp_v3_v3v3(ca->col, w1, w2, keytime);
 			}
@@ -2779,7 +2836,6 @@ void psys_cache_edit_paths(Depsgraph *depsgraph, Scene *scene, Object *ob, PTCac
 	ParticleEditSettings *pset = &scene->toolsettings->particle;
 
 	ParticleSystem *psys = edit->psys;
-	ParticleSystemModifierData *psmd = psys_get_modifier(ob, psys);
 
 	ParticleData *pa = psys ? psys->particles : NULL;
 
@@ -2806,7 +2862,7 @@ void psys_cache_edit_paths(Depsgraph *depsgraph, Scene *scene, Object *ob, PTCac
 	CacheEditrPathsIterData iter_data;
 	iter_data.object = ob;
 	iter_data.edit = edit;
-	iter_data.psmd = psmd;
+	iter_data.psmd = edit->psmd_eval;
 	iter_data.pa = pa;
 	iter_data.segments = segments;
 	iter_data.use_weight = use_weight;
@@ -2836,7 +2892,7 @@ void psys_cache_edit_paths(Depsgraph *depsgraph, Scene *scene, Object *ob, PTCac
 		sim.scene = scene;
 		sim.ob = ob;
 		sim.psys = psys;
-		sim.psmd = psys_get_modifier(ob, psys);
+		sim.psmd = edit->psmd_eval;
 
 		psys_cache_child_paths(&sim, cfra, true, use_render_params);
 	}

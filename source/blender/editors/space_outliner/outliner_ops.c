@@ -41,6 +41,7 @@
 #include "BKE_main.h"
 
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "RNA_access.h"
 
@@ -346,9 +347,9 @@ static void outliner_drag_drop_tooltip_cb(const wmWindow *win, void *vdata)
 	const float col_fg[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 	const float col_bg[4] = {0.0f, 0.0f, 0.0f, 0.2f};
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 	UI_fontstyle_draw_simple_backdrop(fstyle, x, y, tooltip, col_fg, col_bg);
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 }
 
 static int outliner_item_drag_drop_invoke(bContext *C, wmOperator *op, const wmEvent *event)
@@ -555,11 +556,21 @@ void outliner_keymap(wmKeyConfig *keyconf)
 	WM_keymap_verify_item(keymap, "OUTLINER_OT_drivers_delete_selected", DKEY, KM_PRESS, KM_ALT, 0);
 
 	WM_keymap_verify_item(keymap, "OUTLINER_OT_collection_new", CKEY, KM_PRESS, 0, 0);
+#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_verify_item(keymap, "OUTLINER_OT_collection_delete", XKEY, KM_PRESS, 0, 0);
+#else
+	WM_keymap_verify_item(keymap, "OUTLINER_OT_collection_delete", DELKEY, KM_PRESS, 0, 0);
+#endif
 
 	WM_keymap_verify_item(keymap, "OBJECT_OT_move_to_collection", MKEY, KM_PRESS, 0, 0);
 	WM_keymap_verify_item(keymap, "OBJECT_OT_link_to_collection", MKEY, KM_PRESS, KM_SHIFT, 0);
 
+	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_hide_view_clear", HKEY, KM_PRESS, KM_ALT, 0);
+	RNA_boolean_set(kmi->ptr, "select", false);
+	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_hide_view_set", HKEY, KM_PRESS, 0, 0);
+	RNA_boolean_set(kmi->ptr, "unselected", false);
+	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_hide_view_set", HKEY, KM_PRESS, KM_SHIFT, 0);
+	RNA_boolean_set(kmi->ptr, "unselected", true);
+
 	outliner_item_drag_drop_modal_keymap(keyconf);
 }
-

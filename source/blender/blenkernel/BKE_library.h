@@ -210,6 +210,8 @@ void BKE_library_make_local(
 void BKE_id_tag_set_atomic(struct ID *id, int tag);
 void BKE_id_tag_clear_atomic(struct ID *id, int tag);
 
+bool BKE_id_is_in_gobal_main(struct ID *id);
+
 void BKE_library_asset_repository_init(struct Library *lib, const struct AssetEngineType *aet, const char *repo_root);
 void BKE_library_asset_repository_clear(struct Library *lib);
 void BKE_library_asset_repository_free(struct Library *lib);

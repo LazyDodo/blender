@@ -48,6 +48,11 @@ struct ColorBand;
 
 #define MAX_STYLE_NAME	64
 
+#define GPU_VIEWPORT_QUALITY_FXAA 0.10f
+#define GPU_VIEWPORT_QUALITY_TAA8 0.25f
+#define GPU_VIEWPORT_QUALITY_TAA16 0.6f
+#define GPU_VIEWPORT_QUALITY_TAA32 0.8f
+
 /* default offered by Blender.
  * uiFont.uifont_id */
 typedef enum eUIFont_ID {
@@ -253,7 +258,7 @@ typedef struct ThemeSpace {
 
 	char view_overlay[4];
 
-	char wire[4], wire_edit[4], wire_inactive[4], select[4];
+	char wire[4], wire_edit[4], select[4];
 	char lamp[4], speaker[4], empty[4], camera[4];
 	char active[4], group[4], group_active[4], transform[4];
 	char vertex[4], vertex_select[4], vertex_bevel[4], vertex_unreferenced[4];
@@ -361,7 +366,6 @@ typedef struct ThemeSpace {
 
 	char metadatabg[4];
 	char metadatatext[4];
-	int pad;
 } ThemeSpace;
 
 
@@ -430,6 +434,51 @@ typedef struct bPathCompare {
 	char path[768];  /* FILE_MAXDIR */
 	char flag, pad[7];
 } bPathCompare;
+
+typedef struct bUserMenu {
+	struct bUserMenu *next, *prev;
+	char space_type;
+	char _pad0[7];
+	char context[64];
+	/* bUserMenuItem */
+	ListBase items;
+} bUserMenu;
+
+/* May be part of bUserMenu or other list. */
+typedef struct bUserMenuItem {
+	struct bUserMenuItem *next, *prev;
+	char ui_name[64];
+	char type;
+	char _pad0[7];
+} bUserMenuItem;
+
+typedef struct bUserMenuItem_Op {
+	bUserMenuItem item;
+	char op_idname[64];
+	struct IDProperty *prop;
+	char opcontext;
+	char _pad0[7];
+} bUserMenuItem_Op;
+
+typedef struct bUserMenuItem_Menu {
+	bUserMenuItem item;
+	char mt_idname[64];
+} bUserMenuItem_Menu;
+
+typedef struct bUserMenuItem_Prop {
+	bUserMenuItem item;
+	char context_data_path[256];
+	char prop_id[64];
+	int  prop_index;
+	char _pad0[4];
+} bUserMenuItem_Prop;
+
+enum {
+	USER_MENU_TYPE_SEP = 1,
+	USER_MENU_TYPE_OPERATOR = 2,
+	USER_MENU_TYPE_MENU = 3,
+	USER_MENU_TYPE_PROP = 4,
+};
 
 typedef struct SolidLight {
 	int flag, pad;
@@ -512,12 +561,14 @@ typedef struct UserDef {
 	struct ListBase user_keymaps;
 	struct ListBase addons;
 	struct ListBase autoexec_paths;
+	struct ListBase user_menus; /* bUserMenu */
+
 	char keyconfigstr[64];
 
 	short undosteps;
 	short pad1;
 	int undomemory;
-	int pad3;
+	float gpu_viewport_quality;
 	short gp_manhattendist, gp_euclideandist, gp_eraser;
 	short gp_settings;  /* eGP_UserdefSettings */
 	short tb_leftmouse, tb_rightmouse;
@@ -542,14 +593,13 @@ typedef struct UserDef {
 	char  keyhandles_new;	/* handle types for newly added keyframes */
 	char  gpu_select_method;
 	char  gpu_select_pick_deph;
-	char  gpu_viewport_antialias;
+	char  pad0;
 	char  view_frame_type;  /* eZoomFrame_Mode */
 
 	int view_frame_keyframes; /* number of keyframes to zoom around current frame */
 	float view_frame_seconds; /* seconds to zoom around current frame */
 
-	short scrcastfps;		/* frame rate for screencast to be played back */
-	short scrcastwait;		/* milliseconds between screencast snapshots */
+	char _pad1[4];
 
 	short widget_unit;		/* private, defaults to 20 for 72 DPI setting */
 	short anisotropic_filter;
@@ -633,7 +683,7 @@ typedef enum eUserPref_Flag {
 	USER_FLAG_DEPRECATED_7	= (1 << 7),  /* cleared */
 	USER_MAT_ON_OB			= (1 << 8),
 	USER_FLAG_DEPRECATED_9	= (1 << 9),   /* cleared */
-	USER_FLAG_DEPRECATED_10	= (1 << 10),  /* cleared */
+	USER_DEVELOPER_UI		= (1 << 10),
 	USER_TOOLTIPS			= (1 << 11),
 	USER_TWOBUTTONMOUSE		= (1 << 12),
 	USER_NONUMPAD			= (1 << 13),
@@ -805,8 +855,9 @@ typedef enum eOpenGL_SelectOptions {
 
 /* max anti alias draw method UserDef.gpu_viewport_antialias */
 typedef enum eOpenGL_AntiAliasMethod {
-	USER_AA_NONE = 0,
-	USER_AA_FXAA = 1,
+	USER_AA_NONE  = 0,
+	USER_AA_FXAA  = 1,
+	USER_AA_TAA8  = 2,
 } eOpenGL_AntiAliasMethod;
 
 /* text draw options

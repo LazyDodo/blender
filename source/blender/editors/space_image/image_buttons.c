@@ -710,7 +710,7 @@ static void uiblock_layer_pass_buttons(
 	if (render_slot) {
 		char str[64];
 		RenderSlot *slot = BKE_image_get_renderslot(image, *render_slot);
-		if (slot->name[0] != '\0') {
+		if (slot && slot->name[0] != '\0') {
 			BLI_strncpy(str, slot->name, sizeof(str));
 		}
 		else {
@@ -1349,4 +1349,3 @@ void IMAGE_OT_toolshelf(wmOperatorType *ot)
 	/* flags */
 	ot->flag = 0;
 }
-

@@ -60,6 +60,7 @@
 #include "ED_undo.h"
 
 #include "interface_intern.h"
+#include "GPU_framebuffer.h"
 
 
 /* -------------------------------------------------------------------- */
@@ -194,8 +195,8 @@ static void hud_region_draw(const bContext *C, ARegion *ar)
 {
 	UI_view2d_view_ortho(&ar->v2d);
 	wmOrtho2_region_pixelspace(ar);
-	glClearColor(0, 0, 0, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	GPU_clear_color(0, 0, 0, 0.0f);
+	GPU_clear(GPU_COLOR_BIT);
 
 	if ((ar->flag & RGN_FLAG_HIDDEN) == 0) {
 		float color[4];
@@ -329,7 +330,10 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 
 	/* We shouldn't need to do this every time :S */
 	/* XXX, this is evil! - it also makes the menu show on first draw. :( */
+	ARegion *ar_prev = CTX_wm_region(C);
+	CTX_wm_region_set((bContext *)C, ar);
 	hud_region_layout(C, ar);
+	CTX_wm_region_set((bContext *)C, ar_prev);
 }
 
 /** \} */

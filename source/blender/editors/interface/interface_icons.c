@@ -37,6 +37,7 @@
 #include "GPU_matrix.h"
 #include "GPU_batch.h"
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
@@ -76,6 +77,9 @@
 
 #include "UI_interface.h"
 #include "UI_interface_icons.h"
+
+#include "WM_api.h"
+#include "WM_types.h"
 
 #include "interface_intern.h"
 
@@ -734,14 +738,7 @@ static DrawInfo *icon_create_drawinfo(Icon *icon)
 		di->type = ICON_TYPE_GEOM;
 	}
 	else if (icon_data_type == ICON_DATA_STUDIOLIGHT) {
-		const int STUDIOLIGHT_SIZE = 96;
-		StudioLight *sl = icon->obj;
 		di->type = ICON_TYPE_BUFFER;
-		IconImage *img = MEM_mallocN(sizeof(IconImage), __func__);
-		img->w = STUDIOLIGHT_SIZE;
-		img->h = STUDIOLIGHT_SIZE;
-		img->rect = BKE_studiolight_preview(sl, STUDIOLIGHT_SIZE, icon->id_type);
-		di->data.buffer.image = img;
 	}
 	else {
 		BLI_assert(0);
@@ -846,6 +843,41 @@ static void icon_create_rect(struct PreviewImage *prv_img, enum eIconSizes size)
 static void ui_id_preview_image_render_size(
         const bContext *C, Scene *scene, ID *id, PreviewImage *pi, int size, const bool use_job);
 
+static void ui_studiolight_icon_job_exec(void *customdata, short *UNUSED(stop), short *UNUSED(do_update), float *UNUSED(progress))
+{
+	Icon **tmp = (Icon **)customdata;
+	Icon *icon = *tmp;
+	DrawInfo *di = icon_ensure_drawinfo(icon);
+	StudioLight *sl = icon->obj;
+	BKE_studiolight_preview(di->data.buffer.image->rect, sl, icon->id_type);
+}
+
+static void ui_studiolight_kill_icon_preview_job(wmWindowManager *wm, int icon_id)
+{
+	Icon *icon = BKE_icon_get(icon_id);
+	WM_jobs_kill_type(wm, icon, WM_JOB_TYPE_STUDIOLIGHT);
+	icon->obj = NULL;
+}
+
+static void ui_studiolight_free_function(StudioLight *sl, void *data)
+{
+	wmWindowManager *wm = data;
+
+	// get icons_id, get icons and kill wm jobs
+	if (sl->icon_id_radiance) {
+		ui_studiolight_kill_icon_preview_job(wm, sl->icon_id_radiance);
+	}
+	if (sl->icon_id_irradiance) {
+		ui_studiolight_kill_icon_preview_job(wm, sl->icon_id_irradiance);
+	}
+	if (sl->icon_id_matcap) {
+		ui_studiolight_kill_icon_preview_job(wm, sl->icon_id_matcap);
+	}
+	if (sl->icon_id_matcap_flipped) {
+		ui_studiolight_kill_icon_preview_job(wm, sl->icon_id_matcap_flipped);
+	}
+}
+
 void ui_icon_ensure_deferred(const bContext *C, const int icon_id, const bool big)
 {
 	Icon *icon = BKE_icon_get(icon_id);
@@ -868,6 +900,33 @@ void ui_icon_ensure_deferred(const bContext *C, const int icon_id, const bool bi
 
 						if (id || (prv->tag & PRV_TAG_DEFFERED) != 0) {
 							ui_id_preview_image_render_size(C, NULL, id, prv, size, use_jobs);
+						}
+					}
+					break;
+				}
+				case ICON_TYPE_BUFFER:
+				{
+					if (icon->obj_type == ICON_DATA_STUDIOLIGHT) {
+						if (di->data.buffer.image == NULL) {
+							wmWindowManager *wm = CTX_wm_manager(C);
+							StudioLight *sl = icon->obj;
+							BKE_studiolight_set_free_function(sl, &ui_studiolight_free_function, wm);
+							IconImage *img = MEM_mallocN(sizeof(IconImage), __func__);
+
+							img->w = STUDIOLIGHT_ICON_SIZE;
+							img->h = STUDIOLIGHT_ICON_SIZE;
+							size_t size = STUDIOLIGHT_ICON_SIZE * STUDIOLIGHT_ICON_SIZE * sizeof(uint);
+							img->rect = MEM_mallocN(size, __func__);
+							memset(img->rect, 0, size);
+							di->data.buffer.image = img;
+
+							wmJob *wm_job = WM_jobs_get(wm, CTX_wm_window(C), icon, "StudioLight Icon", 0, WM_JOB_TYPE_STUDIOLIGHT);
+							Icon **tmp = MEM_callocN(sizeof(Icon *), __func__);
+							*tmp = icon;
+							WM_jobs_customdata_set(wm_job, tmp, MEM_freeN);
+							WM_jobs_timer(wm_job, 0.01, 0, NC_WINDOW);
+							WM_jobs_callbacks(wm_job, ui_studiolight_icon_job_exec, NULL, NULL, NULL);
+							WM_jobs_start(CTX_wm_manager(C), wm_job);
 						}
 					}
 					break;
@@ -1048,10 +1107,10 @@ static void icon_draw_cache_flush_ex(void)
 		return;
 
 	/* We need to flush widget base first to ensure correct ordering. */
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	UI_widgetbase_draw_cache_flush();
 
-	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend_set_func(GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, icongltex.id);
@@ -1081,12 +1140,12 @@ void UI_icon_draw_cache_end(void)
 	if (g_icon_draw_cache.calls == 0)
 		return;
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 
 	icon_draw_cache_flush_ex();
 
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glDisable(GL_BLEND);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(false);
 }
 
 static void icon_draw_texture_cached(
@@ -1129,7 +1188,7 @@ static void icon_draw_texture(
 	}
 
 	/* We need to flush widget base first to ensure correct ordering. */
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	UI_widgetbase_draw_cache_flush();
 
 	float x1, x2, y1, y2;
@@ -1233,14 +1292,14 @@ static void icon_draw_size(
 		}
 		glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		icon_draw_rect(x, y, w, h, aspect, w, h, ibuf->rect, alpha, rgb, desaturate);
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (di->type == ICON_TYPE_TEXTURE) {
 		/* texture image use premul alpha for correct scaling */
-		glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		GPU_blend_set_func(GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 		icon_draw_texture(x, y, (float)w, (float)h, di->data.texture.x, di->data.texture.y,
 		                  di->data.texture.w, di->data.texture.h, alpha, rgb);
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (di->type == ICON_TYPE_BUFFER) {
 		/* it is a builtin icon */
@@ -1250,9 +1309,9 @@ static void icon_draw_size(
 #endif
 		if (!iimg->rect) return;  /* something has gone wrong! */
 
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 		icon_draw_rect(x, y, w, h, aspect, iimg->w, iimg->h, iimg->rect, alpha, rgb, desaturate);
-		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	}
 	else if (di->type == ICON_TYPE_PREVIEW) {
 		PreviewImage *pi = (icon->id_type != 0) ? BKE_previewimg_id_ensure((ID *)icon->obj) : icon->obj;
@@ -1262,10 +1321,10 @@ static void icon_draw_size(
 			if (!pi->rect[size]) return;  /* something has gone wrong! */
 
 			/* preview images use premul alpha ... */
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 			icon_draw_rect(x, y, w, h, aspect, pi->w[size], pi->h[size], pi->rect[size], alpha, rgb, desaturate);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 		}
 	}
 }
@@ -1589,4 +1648,3 @@ void UI_icon_draw_preview_aspect_size(float x, float y, int icon_id, float aspec
 {
 	icon_draw_size(x, y, icon_id, aspect, alpha, NULL, ICON_SIZE_PREVIEW, size, false);
 }
-

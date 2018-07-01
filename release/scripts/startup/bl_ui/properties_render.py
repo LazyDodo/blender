@@ -23,14 +23,14 @@ from bpy.types import Menu, Panel, UIList
 from bl_operators.presets import PresetMenu
 
 
-class RENDER_MT_presets(PresetMenu):
+class RENDER_PT_presets(PresetMenu):
     bl_label = "Render Presets"
     preset_subdir = "render"
     preset_operator = "script.execute_preset"
     preset_add_operator = "render.preset_add"
 
 
-class RENDER_MT_ffmpeg_presets(PresetMenu):
+class RENDER_PT_ffmpeg_presets(PresetMenu):
     bl_label = "FFMPEG Presets"
     preset_subdir = "ffmpeg"
     preset_operator = "script.python_file_run"
@@ -68,6 +68,7 @@ class RENDER_PT_context(Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         scene = context.scene
         rd = scene.render
@@ -84,7 +85,7 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
     _preset_class = None
 
     def draw_header_preset(self, context):
-        RENDER_MT_presets.draw_panel_header(self.layout)
+        RENDER_PT_presets.draw_panel_header(self.layout)
 
     @staticmethod
     def _draw_framerate_label(*args):
@@ -103,10 +104,10 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         custom_framerate = (fps_rate not in {23.98, 24, 25, 29.97, 30, 50, 59.94, 60})
 
         if custom_framerate is True:
-            fps_label_text = "Custom (%r fps)" % fps_rate
+            fps_label_text = f"Custom ({fps_rate!r} fps)"
             show_framerate = True
         else:
-            fps_label_text = "%r fps" % fps_rate
+            fps_label_text = f"{fps_rate!r} fps"
             show_framerate = (preset_label == "Custom")
 
         RENDER_PT_dimensions._frame_rate_args_prev = args
@@ -204,7 +205,8 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
 
         rd = context.scene.render
 
@@ -299,7 +301,7 @@ class RENDER_PT_encoding(RenderButtonsPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw_header_preset(self, context):
-        RENDER_MT_ffmpeg_presets.draw_panel_header(self.layout)
+        RENDER_PT_ffmpeg_presets.draw_panel_header(self.layout)
 
     @classmethod
     def poll(cls, context):
@@ -670,8 +672,8 @@ class RENDER_PT_eevee_shadows(RenderButtonsPanel, Panel):
 
         col = layout.column()
         col.prop(props, "shadow_method")
-        col.prop(props, "shadow_cube_size")
-        col.prop(props, "shadow_cascade_size")
+        col.prop(props, "shadow_cube_size", text="Cube Size")
+        col.prop(props, "shadow_cascade_size", text="Cascade Size")
         col.prop(props, "use_shadow_high_bitdepth")
 
 
@@ -717,7 +719,7 @@ class RENDER_PT_eevee_indirect_lighting(RenderButtonsPanel, Panel):
         col = layout.column()
         col.prop(props, "gi_diffuse_bounces")
         col.prop(props, "gi_cubemap_resolution")
-        col.prop(props, "gi_visibility_resolution")
+        col.prop(props, "gi_visibility_resolution", text="Diffuse Occlusion")
 
 
 class RENDER_PT_eevee_film(RenderButtonsPanel, Panel):
@@ -763,8 +765,8 @@ class RENDER_PT_hair(RenderButtonsPanel, Panel):
 
 
 classes = (
-    RENDER_MT_presets,
-    RENDER_MT_ffmpeg_presets,
+    RENDER_PT_presets,
+    RENDER_PT_ffmpeg_presets,
     RENDER_MT_framerate_presets,
     RENDER_PT_context,
     RENDER_PT_dimensions,

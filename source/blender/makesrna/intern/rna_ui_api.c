@@ -262,7 +262,7 @@ static void rna_uiItemL(
 }
 
 static void rna_uiItemM(
-        uiLayout *layout, bContext *C, const char *menuname, const char *name, const char *text_ctxt,
+        uiLayout *layout, const char *menuname, const char *name, const char *text_ctxt,
         int translate, int icon, int icon_value)
 {
 	/* Get translated name (label). */
@@ -272,7 +272,7 @@ static void rna_uiItemM(
 		icon = icon_value;
 	}
 
-	uiItemM(layout, C, menuname, name, icon);
+	uiItemM(layout, menuname, name, icon);
 }
 
 static void rna_uiItemPopoverPanel(
@@ -520,7 +520,7 @@ void RNA_api_ui_layout(StructRNA *srna)
 
 	func = RNA_def_function(srna, "grid_flow", "uiLayoutGridFlow");
 	RNA_def_boolean(func, "row_major", false, "", "Fill row by row, instead of column by column");
-	RNA_def_int(func, "num_columns", 0, INT_MIN, INT_MAX, "",
+	RNA_def_int(func, "columns", 0, INT_MIN, INT_MAX, "",
 	            "Number of columns, positive are absolute fixed numbers, 0 is automatic, negative are "
 	            "automatic multiple numbers along major axis (e.g. -2 will only produce 2, 4, 6 etc. "
 	            "columns for row major layout, and 2, 4, 6 etc. rows for column major layout)",
@@ -709,7 +709,6 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_property_ui_text(parm, "Icon Value", "Override automatic icon of the item");
 
 	func = RNA_def_function(srna, "menu", "rna_uiItemM");
-	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
 	parm = RNA_def_string(func, "menu", NULL, 0, "", "Identifier of the menu");
 	api_ui_item_common(func);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -1019,6 +1018,9 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_function_ui_description(func, "Inserts common 3DView Edit modes header UI (selector for selection mode)");
 
 	func = RNA_def_function(srna, "template_reports_banner", "uiTemplateReportsBanner");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
+
+	func = RNA_def_function(srna, "template_input_status", "uiTemplateInputStatus");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
 
 	func = RNA_def_function(srna, "template_node_link", "uiTemplateNodeLink");

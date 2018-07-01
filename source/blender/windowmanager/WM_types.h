@@ -273,7 +273,6 @@ typedef struct wmNotifier {
 	/* NC_SCREEN */
 #define ND_LAYOUTBROWSE		(1<<16)
 #define ND_LAYOUTDELETE		(2<<16)
-#define ND_SCREENCAST		(3<<16)
 #define ND_ANIMPLAY			(4<<16)
 #define ND_GPENCIL			(5<<16)
 #define ND_EDITOR_CHANGED	(6<<16) /*sent to new editors after switching to them*/
@@ -733,4 +732,3 @@ extern struct CLG_LogRef *WM_LOG_MSGBUS_SUB;
 #endif
 
 #endif /* __WM_TYPES_H__ */
-

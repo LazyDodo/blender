@@ -63,6 +63,7 @@
 #include "UI_view2d.h"
 
 #include "nla_intern.h" /* own include */
+#include "GPU_framebuffer.h"
 
 /* ******************** manage regions ********************* */
 
@@ -178,14 +179,14 @@ static void nla_free(SpaceLink *sl)
 
 
 /* spacetype; init callback */
-static void nla_init(struct wmWindowManager *UNUSED(wm), ScrArea *sa)
+static void nla_init(struct wmWindowManager *wm, ScrArea *sa)
 {
 	SpaceNla *snla = (SpaceNla *)sa->spacedata.first;
 
 	/* init dopesheet data if non-existent (i.e. for old files) */
 	if (snla->ads == NULL) {
 		snla->ads = MEM_callocN(sizeof(bDopeSheet), "NlaEdit DopeSheet");
-		snla->ads->source = (ID *)G.main->scene.first; // XXX this is bad, but we need this to be set correct
+		snla->ads->source = (ID *)WM_window_get_active_scene(wm->winactive);
 	}
 
 	ED_area_tag_refresh(sa);
@@ -232,7 +233,7 @@ static void nla_channel_region_draw(const bContext *C, ARegion *ar)
 
 	/* clear and setup matrix */
 	UI_ThemeClearColor(TH_BACK);
-	glClear(GL_COLOR_BUFFER_BIT);
+	GPU_clear(GPU_COLOR_BIT);
 
 	UI_view2d_view_ortho(v2d);
 
@@ -278,7 +279,7 @@ static void nla_main_region_draw(const bContext *C, ARegion *ar)
 
 	/* clear and setup matrix */
 	UI_ThemeClearColor(TH_BACK);
-	glClear(GL_COLOR_BUFFER_BIT);
+	GPU_clear(GPU_COLOR_BIT);
 
 	UI_view2d_view_ortho(v2d);
 

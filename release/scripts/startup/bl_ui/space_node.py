@@ -57,6 +57,16 @@ class NODE_HT_header(Header):
 
             ob = context.object
             if snode.shader_type == 'OBJECT' and ob:
+
+                NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+                # No shader nodes for Eevee lamps
+                if snode_id and not (context.engine == 'BLENDER_EEVEE' and ob.type == 'LAMP'):
+                    row = layout.row()
+                    row.prop(snode_id, "use_nodes")
+
+                layout.separator_spacer()
+
                 row = layout.row()
                 # disable material slot buttons when pinned, cannot find correct slot within id_from (#36589)
                 row.enabled = not snode.pin
@@ -67,37 +77,46 @@ class NODE_HT_header(Header):
                 if id_from and ob.type != 'LAMP':
                     row.template_ID(id_from, "active_material", new="material.new")
 
-                # No shader nodes for Eevee lamps
-                if snode_id and not (context.engine == 'BLENDER_EEVEE' and ob.type == 'LAMP'):
-                    row.prop(snode_id, "use_nodes")
+            if snode.shader_type == 'WORLD':
 
                 NODE_MT_editor_menus.draw_collapsible(context, layout)
 
-            if snode.shader_type == 'WORLD':
+                if snode_id:
+                    row = layout.row()
+                    row.prop(snode_id, "use_nodes")
+
+                layout.separator_spacer()
+
                 row = layout.row()
                 row.enabled = not snode.pin
                 row.template_ID(scene, "world", new="world.new")
 
-                if snode_id:
-                    row.prop(snode_id, "use_nodes")
-
-                NODE_MT_editor_menus.draw_collapsible(context, layout)
-
             if snode.shader_type == 'LINESTYLE':
                 view_layer = context.view_layer
                 lineset = view_layer.freestyle_settings.linesets.active
+
                 if lineset is not None:
+                    NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+                    if snode_id:
+                        row = layout.row()
+                        row.prop(snode_id, "use_nodes")
+
+                    layout.separator_spacer()
+
                     row = layout.row()
                     row.enabled = not snode.pin
                     row.template_ID(lineset, "linestyle", new="scene.freestyle_linestyle_new")
 
-                    NODE_MT_editor_menus.draw_collapsible(context, layout)
-
-                    if snode_id:
-                        row.prop(snode_id, "use_nodes")
-
         elif snode.tree_type == 'TextureNodeTree':
             layout.prop(snode, "texture_type", text="", expand=True)
+
+            NODE_MT_editor_menus.draw_collapsible(context, layout)
+
+            if snode_id:
+                layout.prop(snode_id, "use_nodes")
+
+            layout.separator_spacer()
 
             if id_from:
                 if snode.texture_type == 'BRUSH':
@@ -105,17 +124,12 @@ class NODE_HT_header(Header):
                 else:
                     layout.template_ID(id_from, "active_texture", new="texture.new")
 
-            if snode_id:
-                layout.prop(snode_id, "use_nodes")
-
-            NODE_MT_editor_menus.draw_collapsible(context, layout)
-
         elif snode.tree_type == 'CompositorNodeTree':
 
+            NODE_MT_editor_menus.draw_collapsible(context, layout)
+
             if snode_id:
                 layout.prop(snode_id, "use_nodes")
-
-            NODE_MT_editor_menus.draw_collapsible(context, layout)
 
             layout.prop(snode, "use_auto_render")
             layout.prop(snode, "show_backdrop")
@@ -125,9 +139,11 @@ class NODE_HT_header(Header):
 
         else:
             # Custom node tree is edited as independent ID block
-            layout.template_ID(snode, "node_tree", new="node.new_node_tree")
             NODE_MT_editor_menus.draw_collapsible(context, layout)
 
+            layout.separator_spacer()
+
+            layout.template_ID(snode, "node_tree", new="node.new_node_tree")
         layout.separator_spacer()
 
         layout.prop(snode, "pin", text="")
@@ -290,7 +306,7 @@ class NODE_MT_node(Menu):
         layout.operator("node.read_fullsamplelayers")
 
 
-class NODE_MT_node_color_presets(PresetMenu):
+class NODE_PT_node_color_presets(PresetMenu):
     """Predefined node color"""
     bl_label = "Color Presets"
     preset_subdir = "node_color"
@@ -375,7 +391,7 @@ class NODE_PT_active_node_color(Panel):
         self.layout.prop(node, "use_custom_color", text="")
 
     def draw_header_preset(self, context):
-        NODE_MT_node_color_presets.draw_panel_header(self.layout)
+        NODE_PT_node_color_presets.draw_panel_header(self.layout)
 
     def draw(self, context):
         layout = self.layout
@@ -584,7 +600,7 @@ classes = (
     NODE_MT_view,
     NODE_MT_select,
     NODE_MT_node,
-    NODE_MT_node_color_presets,
+    NODE_PT_node_color_presets,
     NODE_MT_node_color_specials,
     NODE_MT_specials,
     NODE_PT_active_node_generic,

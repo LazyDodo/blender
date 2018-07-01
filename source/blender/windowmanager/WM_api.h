@@ -96,7 +96,7 @@ void		WM_main				(struct bContext *C) ATTR_NORETURN;
 
 void		WM_init_splash		(struct bContext *C);
 
-void		WM_init_opengl		(void);
+void		WM_init_opengl		(struct Main *bmain);
 
 void		WM_check			(struct bContext *C);
 
@@ -422,6 +422,7 @@ char		*WM_prop_pystring_assign(struct bContext *C, struct PointerRNA *ptr, struc
 void		WM_operator_bl_idname(char *to, const char *from);
 void		WM_operator_py_idname(char *to, const char *from);
 bool        WM_operator_py_idname_ok_or_report(struct ReportList *reports, const char *classname, const char *idname);
+const char *WM_context_member_from_ptr(struct bContext *C, const struct PointerRNA *ptr);
 
 /* *************** uilist types ******************** */
 void                WM_uilisttype_init(void);
@@ -504,7 +505,6 @@ enum {
 	WM_JOB_TYPE_COMPOSITE,
 	WM_JOB_TYPE_RENDER,
 	WM_JOB_TYPE_RENDER_PREVIEW,  /* UI preview */
-	WM_JOB_TYPE_SCREENCAST,
 	WM_JOB_TYPE_OBJECT_SIM_OCEAN,
 	WM_JOB_TYPE_OBJECT_SIM_FLUID,
 	WM_JOB_TYPE_OBJECT_BAKE_TEXTURE,
@@ -520,6 +520,7 @@ enum {
 	WM_JOB_TYPE_DPAINT_BAKE,
 	WM_JOB_TYPE_ALEMBIC,
 	WM_JOB_TYPE_SHADER_COMPILATION,
+	WM_JOB_TYPE_STUDIOLIGHT,
 	WM_JOB_TYPE_ASSET_UPDATECHECK,
 	/* add as needed, screencast, seq proxy build
 	 * if having hard coded values is a problem */
@@ -602,6 +603,9 @@ bool        WM_event_is_tablet(const struct wmEvent *event);
 bool        WM_event_is_ime_switch(const struct wmEvent *event);
 #endif
 
+const char *WM_window_cursor_keymap_status_get(const struct wmWindow *win, int button_index, int type_index);
+void WM_window_cursor_keymap_status_refresh(struct bContext *C, struct wmWindow *win);
+
 /* wm_tooltip.c */
 typedef struct ARegion *(*wmTooltipInitFn)(struct bContext *, struct ARegion *, bool *);
 
@@ -618,4 +622,3 @@ void WM_tooltip_refresh(struct bContext *C, struct wmWindow *win);
 #endif
 
 #endif /* __WM_API_H__ */
-

@@ -59,6 +59,7 @@
 
 #include "text_format.h"
 #include "text_intern.h"  /* own include */
+#include "GPU_framebuffer.h"
 
 /* ******************** default callbacks for text space ***************** */
 
@@ -299,7 +300,11 @@ static void text_keymap(struct wmKeyConfig *keyconf)
 	RNA_string_set(kmi->ptr, "data_path", "space_data.font_size");
 	RNA_boolean_set(kmi->ptr, "reverse", true);
 
+#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "TEXT_OT_new", NKEY, KM_PRESS, KM_CTRL, 0);
+#else
+	WM_keymap_add_item(keymap, "TEXT_OT_new", NKEY, KM_PRESS, KM_ALT, 0);
+#endif
 	WM_keymap_add_item(keymap, "TEXT_OT_open", OKEY, KM_PRESS, KM_ALT, 0);
 	WM_keymap_add_item(keymap, "TEXT_OT_reload", RKEY, KM_PRESS, KM_ALT, 0);
 	WM_keymap_add_item(keymap, "TEXT_OT_save", SKEY, KM_PRESS, KM_ALT, 0);
@@ -441,7 +446,7 @@ static void text_main_region_draw(const bContext *C, ARegion *ar)
 
 	/* clear and setup matrix */
 	UI_ThemeClearColor(TH_BACK);
-	glClear(GL_COLOR_BUFFER_BIT);
+	GPU_clear(GPU_COLOR_BIT);
 
 	// UI_view2d_view_ortho(v2d);
 
@@ -640,4 +645,3 @@ void ED_spacetype_text(void)
 	ED_text_format_register_pov();
 	ED_text_format_register_pov_ini();
 }
-

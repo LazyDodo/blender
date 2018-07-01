@@ -50,22 +50,24 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        flow = layout.grid_flow(row_major=True, num_columns=0, even_columns=True, even_rows=False, align=False)
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         ob = context.object
 
         col = flow.column()
         row = col.row(align=True)
         row.prop(ob, "location")
-        row.prop(ob, "lock_location", text="")
+        row.use_property_decorate = False
+        row.prop(ob, "lock_location", text="", emboss=False)
 
         if ob.rotation_mode == 'QUATERNION':
             col = flow.column()
             row = col.row(align=True)
             row.prop(ob, "rotation_quaternion", text="Rotation")
             sub = row.column(align=True)
-            sub.prop(ob, "lock_rotation_w", text="")
-            sub.prop(ob, "lock_rotation", text="")
+            sub.use_property_decorate = False
+            sub.prop(ob, "lock_rotation_w", text="", emboss=False)
+            sub.prop(ob, "lock_rotation", text="", emboss=False)
         elif ob.rotation_mode == 'AXIS_ANGLE':
             # row.column().label(text="Rotation")
             #row.column().prop(pchan, "rotation_angle", text="Angle")
@@ -75,20 +77,25 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
             row.prop(ob, "rotation_axis_angle", text="Rotation")
 
             sub = row.column(align=True)
-            sub.prop(ob, "lock_rotation_w", text="")
-            sub.prop(ob, "lock_rotation", text="")
+            sub.use_property_decorate = False
+            sub.prop(ob, "lock_rotation_w", text="", emboss=False)
+            sub.prop(ob, "lock_rotation", text="", emboss=False)
         else:
             col = flow.column()
             row = col.row(align=True)
             row.prop(ob, "rotation_euler", text="Rotation")
-            row.prop(ob, "lock_rotation", text="")
+            row.use_property_decorate = False
+            row.prop(ob, "lock_rotation", text="", emboss=False)
 
         col = flow.column()
         row = col.row(align=True)
         row.prop(ob, "scale")
-        row.prop(ob, "lock_scale", text="")
+        row.use_property_decorate = False
+        row.prop(ob, "lock_scale", text="", emboss=False)
 
-        layout.prop(ob, "rotation_mode")
+        row = layout.row(align=True)
+        row.prop(ob, "rotation_mode")
+        row.label(text="", icon='BLANK1')
 
 
 class OBJECT_PT_delta_transform(ObjectButtonsPanel, Panel):
@@ -99,7 +106,7 @@ class OBJECT_PT_delta_transform(ObjectButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, num_columns=0, even_columns=True, even_rows=True, align=False)
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=True, align=False)
 
         ob = context.object
 
@@ -129,7 +136,7 @@ class OBJECT_PT_relations(ObjectButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, num_columns=0, even_columns=True, even_rows=False, align=False)
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         ob = context.object
 
@@ -215,7 +222,7 @@ class OBJECT_PT_display(ObjectButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, num_columns=0, even_columns=True, even_rows=False, align=False)
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         obj = context.object
         obj_type = obj.type
@@ -278,7 +285,7 @@ class OBJECT_PT_duplication(ObjectButtonsPanel, Panel):
         row.prop(ob, "dupli_type", expand=True)
 
         layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, num_columns=0, even_columns=True, even_rows=False, align=False)
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         if ob.dupli_type == 'FRAMES':
 

@@ -50,7 +50,6 @@ struct Main;
 struct Object;
 struct Scene;
 struct Depsgraph;
-struct DerivedMesh;
 struct ModifierData;
 struct MTFace;
 struct MCol;
@@ -309,6 +308,7 @@ bool psys_in_edit_mode(struct Depsgraph *depsgraph, struct ParticleSystem *psys)
 bool psys_check_enabled(struct Object *ob, struct ParticleSystem *psys, const bool use_render_params);
 bool psys_check_edited(struct ParticleSystem *psys);
 
+void psys_find_group_weights(struct ParticleSettings *part);
 void psys_check_group_weights(struct ParticleSettings *part);
 int psys_uses_gravity(struct ParticleSimulationData *sim);
 void BKE_particlesettings_fluid_default_settings(struct ParticleSettings *part);
@@ -317,6 +317,9 @@ void BKE_particlesettings_fluid_default_settings(struct ParticleSettings *part);
 void BKE_particlesettings_free(struct ParticleSettings *part);
 void psys_free_path_cache(struct ParticleSystem *psys, struct PTCacheEdit *edit);
 void psys_free(struct Object *ob, struct ParticleSystem *psys);
+
+/* Copy. */
+void psys_copy_particles(struct ParticleSystem *psys_dst, struct ParticleSystem *psys_src);
 
 bool psys_render_simplify_params(struct ParticleSystem *psys, struct ChildParticle *cpa, float *params);
 

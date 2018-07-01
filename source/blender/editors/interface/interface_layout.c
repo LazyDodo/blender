@@ -67,6 +67,9 @@
 /* Show an icon button after each RNA button to use to quickly set keyframes,
  * this is a way to display animation/driven/override status, see T54951. */
 #define UI_PROP_DECORATE
+/* Alternate draw mode where some buttons can use single icon width,
+ * giving more room for the text at the expense of nicely aligned text. */
+#define UI_PROP_SEP_ICON_WIDTH_EXCEPTION
 
 /************************ Structs and Defines *************************/
 
@@ -183,7 +186,7 @@ typedef struct uiLayoutItemGridFlow {
 	/* If positive, absolute fixed number of columns.
 	 * If 0, fully automatic (based on available width).
 	 * If negative, automatic but only generates number of columns/rows multiple of given (absolute) value. */
-	int num_columns;
+	int columns_len;
 
 	/* Pure internal runtime storage. */
 	int tot_items, tot_columns, tot_rows;
@@ -1584,7 +1587,7 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 		if (ui_decorate.use_prop_decorate) {
 			layout_row = uiLayoutRow(layout, true);
 			layout_row->space = 0;
-			ui_decorate.len = 1;
+			ui_decorate.len = max_ii(1, len);
 		}
 #endif  /* UI_PROP_DECORATE */
 
@@ -1595,9 +1598,19 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 		}
 		else {
 			const PropertySubType subtype = RNA_property_subtype(prop);
-			uiLayout *layout_split = uiLayoutSplit(
-			        layout_row ? layout_row : layout,
-			        UI_ITEM_PROP_SEP_DIVIDE, true);
+			uiLayout *layout_split;
+#ifdef UI_PROP_SEP_ICON_WIDTH_EXCEPTION
+			if (type == PROP_BOOLEAN && (icon == ICON_NONE) && !icon_only) {
+				w = UI_UNIT_X;
+				layout_split = uiLayoutRow(layout_row ? layout_row : layout, true);
+			}
+			else
+#endif  /* UI_PROP_SEP_ICON_WIDTH_EXCEPTION */
+			{
+				layout_split = uiLayoutSplit(
+				        layout_row ? layout_row : layout,
+				        UI_ITEM_PROP_SEP_DIVIDE, true);
+			}
 			layout_split->space = 0;
 			uiLayout *layout_sub = uiLayoutColumn(layout_split, true);
 			layout_sub->space = 0;
@@ -1623,10 +1636,6 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 					but->drawflag |= UI_BUT_TEXT_RIGHT;
 					but->drawflag &= ~UI_BUT_TEXT_LEFT;
 				}
-
-#ifdef UI_PROP_DECORATE
-				ui_decorate.len = len;
-#endif
 			}
 			else {
 				if (name) {
@@ -1701,7 +1710,7 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 	}
 
 	/* Mark non-embossed textfields inside a listbox. */
-	if (but && (block->flag & UI_BLOCK_LIST_ITEM) && (but->dt & UI_EMBOSS_NONE)) {
+	if (but && (block->flag & UI_BLOCK_LIST_ITEM) && (but->type == UI_BTYPE_TEXT) && (but->dt & UI_EMBOSS_NONE)) {
 		UI_but_flag_enable(but, UI_BUT_LIST_ITEM);
 	}
 
@@ -2104,7 +2113,7 @@ static uiBut *ui_item_menu(
 	return but;
 }
 
-void uiItemM(uiLayout *layout, bContext *UNUSED(C), const char *menuname, const char *name, int icon)
+void uiItemM(uiLayout *layout, const char *menuname, const char *name, int icon)
 {
 	MenuType *mt;
 
@@ -3175,12 +3184,12 @@ static void ui_litem_estimate_grid_flow(uiLayout *litem)
 		              .litem_y = litem->y,
 		              .space_x = space_x,
 		              .space_y = space_y,
-		          }),
+		        }),
 		        &((UILayoutGridFlowOutput) {
 		              .tot_items = &gflow->tot_items,
 		              .global_avg_w = &avg_w,
 		              .global_max_h = &max_h,
-		          }));
+		        }));
 
 		if (gflow->tot_items == 0) {
 			litem->w = litem->h = 0;
@@ -3191,8 +3200,8 @@ static void ui_litem_estimate_grid_flow(uiLayout *litem)
 		/* Even in varying column width case, we fix our columns number from weighted average width of items,
 		 * a proper solving of required width would be too costly, and this should give reasonably good results
 		 * in all resonable cases... */
-		if (gflow->num_columns > 0) {
-			gflow->tot_columns = gflow->num_columns;
+		if (gflow->columns_len > 0) {
+			gflow->tot_columns = gflow->columns_len;
 		}
 		else {
 			if (avg_w == 0.0f) {
@@ -3209,7 +3218,7 @@ static void ui_litem_estimate_grid_flow(uiLayout *litem)
 		 * Note that modulo does not prevent ending with fewer columns/rows than modulo, if mandatory
 		 * to avoid empty column/row. */
 		{
-			const int modulo = (gflow->num_columns < -1) ? -gflow->num_columns : 0;
+			const int modulo = (gflow->columns_len < -1) ? -gflow->columns_len : 0;
 			const int step = modulo ? modulo : 1;
 
 			if (gflow->row_major) {
@@ -3262,11 +3271,11 @@ static void ui_litem_estimate_grid_flow(uiLayout *litem)
 		              .space_y = space_y,
 		              .tot_columns = gflow->tot_columns,
 		              .tot_rows = gflow->tot_rows,
-		          }),
+		        }),
 		        &((UILayoutGridFlowOutput) {
 		              .tot_w = &tot_w,
 		              .tot_h = &tot_h,
-		          }));
+		        }));
 
 		litem->w = tot_w;
 		litem->h = tot_h;
@@ -3310,13 +3319,13 @@ static void ui_litem_layout_grid_flow(uiLayout *litem)
 	              .space_y = space_y,
 	              .tot_columns = gflow->tot_columns,
 	              .tot_rows = gflow->tot_rows,
-	          }),
+	        }),
 	        &((UILayoutGridFlowOutput) {
 	              .cos_x_array = cos_x,
 	              .cos_y_array = cos_y,
 	              .widths_array = widths,
 	              .heights_array = heights,
-	          }));
+	        }));
 
 	for (item = litem->items.first, i = 0; item; item = item->next, i++) {
 		const int col = gflow->row_major ? i % gflow->tot_columns : i / gflow->tot_rows;
@@ -3571,7 +3580,7 @@ uiLayout *uiLayoutColumnFlow(uiLayout *layout, int number, int align)
 }
 
 uiLayout *uiLayoutGridFlow(
-        uiLayout *layout, int row_major, int num_columns, int even_columns, int even_rows, int align)
+        uiLayout *layout, int row_major, int columns_len, int even_columns, int even_rows, int align)
 {
 	uiLayoutItemGridFlow *flow;
 
@@ -3581,7 +3590,7 @@ uiLayout *uiLayoutGridFlow(
 
 	flow->litem.space = (flow->litem.align) ? 0 : layout->root->style->columnspace;
 	flow->row_major = row_major;
-	flow->num_columns = num_columns;
+	flow->columns_len = columns_len;
 	flow->even_columns = even_columns;
 	flow->even_rows = even_rows;
 
@@ -3852,6 +3861,11 @@ static void ui_item_scale(uiLayout *litem, const float scale[2])
 	int x, y, w, h;
 
 	for (item = litem->items.last; item; item = item->prev) {
+		if (item->type != ITEM_BUTTON) {
+			uiLayout *subitem = (uiLayout *)item;
+			ui_item_scale(subitem, scale);
+		}
+
 		ui_item_size(item, &w, &h);
 		ui_item_offset(item, &x, &y);
 
@@ -4296,6 +4310,9 @@ static void ui_paneltype_draw_impl(
 	panel->type = pt;
 	panel->flag = PNL_POPOVER;
 
+	uiLayout *last_item = layout->items.last;
+
+	/* Draw main panel. */
 	if (show_header) {
 		uiLayout *row = uiLayoutRow(layout, false);
 		if (pt->draw_header) {
@@ -4312,19 +4329,21 @@ static void ui_paneltype_draw_impl(
 
 	MEM_freeN(panel);
 
-	PanelType *pt_iter = pt;
-	while (pt_iter->prev) {
-		pt_iter = pt_iter->prev;
-	}
-	do {
-		if (pt_iter != pt && STREQ(pt_iter->parent_id, pt->idname)) {
-			if (pt_iter->poll == NULL || pt_iter->poll(C, pt_iter)) {
+	/* Draw child panels. */
+	for (LinkData *link = pt->children.first; link; link = link->next) {
+		PanelType *child_pt = link->data;
+
+		if (child_pt->poll == NULL || child_pt->poll(C, child_pt)) {
+			/* Add space if something was added to the layout. */
+			if (last_item != layout->items.last) {
 				uiItemS(layout);
-				uiLayout *col = uiLayoutColumn(layout, false);
-				ui_paneltype_draw_impl(C, pt_iter, col, true);
+				last_item = layout->items.last;
 			}
+
+			uiLayout *col = uiLayoutColumn(layout, false);
+			ui_paneltype_draw_impl(C, child_pt, col, true);
 		}
-	} while ((pt_iter = pt_iter->next));
+	}
 }
 
 /**

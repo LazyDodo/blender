@@ -93,7 +93,8 @@ static void rna_Image_source_set(PointerRNA *ptr, int value)
 
 	if (value != ima->source) {
 		ima->source = value;
-		BKE_image_signal(G.main, ima, NULL, IMA_SIGNAL_SRC_CHANGE);
+		BLI_assert(BKE_id_is_in_gobal_main(&ima->id));
+		BKE_image_signal(G_MAIN, ima, NULL, IMA_SIGNAL_SRC_CHANGE);
 		DEG_id_tag_update(&ima->id, 0);
 	}
 }
@@ -648,7 +649,7 @@ static void rna_def_render_slots(BlenderRNA *brna, PropertyRNA *cprop)
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "RenderSlot");
 	RNA_def_property_pointer_funcs(prop, "rna_render_slots_active_get", "rna_render_slots_active_set", NULL, NULL);
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_NULL);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Active", "Active render slot of the image");
 	RNA_def_property_update(prop, NC_IMAGE | ND_DISPLAY, NULL);
 

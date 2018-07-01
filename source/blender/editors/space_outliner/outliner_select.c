@@ -155,6 +155,20 @@ static void do_outliner_activate_pose(bContext *C, ViewLayer *view_layer, Base *
 	}
 }
 
+/* For draw callback to run mode switching */
+void outliner_object_mode_toggle(
+        bContext *C, Scene *scene, ViewLayer *view_layer,
+        Base *base)
+{
+	Object *obact = OBACT(view_layer);
+	if (obact->mode & OB_MODE_EDIT) {
+		do_outliner_activate_obdata(C, scene, view_layer, base);
+	}
+	else if (obact->mode & OB_MODE_POSE) {
+		do_outliner_activate_pose(C, view_layer, base);
+	}
+}
+
 /* ****************************************************** */
 /* Outliner Element Selection/Activation on Click */
 
@@ -192,7 +206,7 @@ static void do_outliner_object_select_recursive(ViewLayer *view_layer, Object *o
 
 	for (base = FIRSTBASE(view_layer); base; base = base->next) {
 		Object *ob = base->object;
-		if ((((base->flag & BASE_VISIBLED) == 0) && BKE_object_is_child_recursive(ob_parent, ob))) {
+		if ((((base->flag & BASE_VISIBLE) == 0) && BKE_object_is_child_recursive(ob_parent, ob))) {
 			ED_object_base_select(base, select ? BA_SELECT : BA_DESELECT);
 		}
 	}
@@ -255,22 +269,22 @@ static eOLDrawState tree_element_set_active_object(
 	/* find associated base in current scene */
 	base = BKE_view_layer_base_find(view_layer, ob);
 
-#ifdef USE_OBJECT_MODE_STRICT
-	if (base != NULL) {
-		Object *obact = OBACT(view_layer);
-		const eObjectMode object_mode = obact ? obact->mode : OB_MODE_OBJECT;
-		if (base && !BKE_object_is_mode_compat(base->object, object_mode)) {
-			if (object_mode == OB_MODE_OBJECT) {
-				struct Main *bmain = CTX_data_main(C);
-				Depsgraph *depsgraph = CTX_data_depsgraph(C);
-				ED_object_mode_generic_exit(bmain, depsgraph, scene, base->object);
-			}
-			if (!BKE_object_is_mode_compat(base->object, object_mode)) {
-				base = NULL;
+	if (scene->toolsettings->object_flag & SCE_OBJECT_MODE_LOCK) {
+		if (base != NULL) {
+			Object *obact = OBACT(view_layer);
+			const eObjectMode object_mode = obact ? obact->mode : OB_MODE_OBJECT;
+			if (base && !BKE_object_is_mode_compat(base->object, object_mode)) {
+				if (object_mode == OB_MODE_OBJECT) {
+					struct Main *bmain = CTX_data_main(C);
+					Depsgraph *depsgraph = CTX_data_depsgraph(C);
+					ED_object_mode_generic_exit(bmain, depsgraph, scene, base->object);
+				}
+				if (!BKE_object_is_mode_compat(base->object, object_mode)) {
+					base = NULL;
+				}
 			}
 		}
 	}
-#endif
 
 	if (base) {
 		if (set == OL_SETSEL_EXTEND) {
@@ -282,13 +296,11 @@ static eOLDrawState tree_element_set_active_object(
 		}
 		else {
 			/* deleselect all */
-#ifdef USE_OBJECT_MODE_STRICT
+
 			/* Only in object mode so we can switch the active object,
 			 * keeping all objects in the current 'mode' selected, useful for multi-pose/edit mode.
 			 * This keeps the convention that all objects in the current mode are also selected. see T55246. */
-			if (ob->mode == OB_MODE_OBJECT)
-#endif
-			{
+			if ((scene->toolsettings->object_flag & SCE_OBJECT_MODE_LOCK) ? (ob->mode == OB_MODE_OBJECT) : true) {
 				BKE_view_layer_base_deselect_all(view_layer);
 			}
 			ED_object_base_select(base, BA_SELECT);
@@ -988,7 +1000,7 @@ static void do_outliner_item_activate_tree_element(
 			Object *ob = (Object *)outliner_search_back(soops, te, ID_OB);
 			if ((ob != NULL) && (ob->data == tselem->id)) {
 				Base *base = BKE_view_layer_base_find(view_layer, ob);
-				if ((base != NULL) && (base->flag & BASE_VISIBLED)) {
+				if ((base != NULL) && (base->flag & BASE_VISIBLE)) {
 					do_outliner_activate_obdata(C, scene, view_layer, base);
 				}
 			}
@@ -1130,9 +1142,9 @@ static int outliner_item_activate_invoke(bContext *C, wmOperator *op, const wmEv
 
 void OUTLINER_OT_item_activate(wmOperatorType *ot)
 {
-	ot->name = "Activate Item";
+	ot->name = "Select";
 	ot->idname = "OUTLINER_OT_item_activate";
-	ot->description = "Handle mouse clicks to activate/select items";
+	ot->description = "Handle mouse clicks to select and activate items";
 
 	ot->invoke = outliner_item_activate_invoke;
 

@@ -65,7 +65,6 @@
 #include "BKE_blender_undo.h"
 #include "BKE_context.h"
 #include "BKE_screen.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_icons.h"
 #include "BKE_library.h"
@@ -169,7 +168,7 @@ bool wm_start_with_console = false; /* used in creator.c */
  **/
 static bool opengl_is_init = false;
 
-void WM_init_opengl(void)
+void WM_init_opengl(Main *bmain)
 {
 	/* must be called only once */
 	BLI_assert(opengl_is_init == false);
@@ -183,10 +182,10 @@ void WM_init_opengl(void)
 	DRW_opengl_context_create();
 
 	GPU_init();
-	GPU_set_mipmap(true);
+	GPU_set_mipmap(bmain, true);
 	GPU_set_linear_mipmap(true);
-	GPU_set_anisotropic(U.anisotropic_filter);
-	GPU_set_gpu_mipmapping(U.use_gpu_mipmap);
+	GPU_set_anisotropic(bmain, U.anisotropic_filter);
+	GPU_set_gpu_mipmapping(bmain, U.use_gpu_mipmap);
 
 	GPU_pass_cache_init();
 
@@ -252,7 +251,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 		/* sets 3D mouse deadzone */
 		WM_ndof_deadzone_set(U.ndof_deadzone);
 #endif
-		WM_init_opengl();
+		WM_init_opengl(G_MAIN);
 
 		UI_init();
 		BKE_studiolight_init();
@@ -495,7 +494,7 @@ void WM_exit_ext(bContext *C, const bool do_python)
 		BKE_subsurf_osd_cleanup();
 #endif
 
-		GPU_free_unused_buffers();
+		GPU_free_unused_buffers(G_MAIN);
 
 		GPU_exit();
 	}
@@ -521,7 +520,6 @@ void WM_exit_ext(bContext *C, const bool do_python)
 		GPU_pass_cache_free();
 		DRW_opengl_context_destroy();
 	}
-	BKE_studiolight_free();
 
 #ifdef WITH_INTERNATIONAL
 	BLF_free_unifont();

@@ -70,7 +70,6 @@
 
 #include "BKE_animsys.h"
 #include "BKE_boids.h"
-#include "BKE_cdderivedmesh.h"
 #include "BKE_collision.h"
 #include "BKE_colortools.h"
 #include "BKE_effect.h"
@@ -81,7 +80,6 @@
 #include "BKE_particle.h"
 
 #include "BKE_collection.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_object.h"
 #include "BKE_material.h"
 #include "BKE_cloth.h"
@@ -93,6 +91,7 @@
 #include "BKE_bvhutils.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_physics.h"
 #include "DEG_depsgraph_query.h"
 
 #include "PIL_time.h"
@@ -327,7 +326,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, Partic
 
 	/* CACHE LOCATIONS */
 	if (!mesh_final->runtime.deformed_only) {
-		/* Will use later to speed up subsurf/derivedmesh */
+		/* Will use later to speed up subsurf/evaluated mesh. */
 		LinkNode *node, *nodedmelem, **nodearray;
 		int totdmelem, totelem, i, *origindex, *origindex_poly = NULL;
 
@@ -1307,9 +1306,10 @@ void psys_update_particle_tree(ParticleSystem *psys, float cfra)
 
 static void psys_update_effectors(ParticleSimulationData *sim)
 {
-	pdEndEffectors(&sim->psys->effectors);
-	sim->psys->effectors = pdInitEffectors(sim->depsgraph, sim->scene, sim->ob, sim->psys,
-	                                       sim->psys->part->effector_weights, true);
+	BKE_effectors_free(sim->psys->effectors);
+	sim->psys->effectors = BKE_effectors_create(sim->depsgraph,
+	                                            sim->ob, sim->psys,
+	                                            sim->psys->part->effector_weights);
 	precalc_guides(sim, sim->psys->effectors);
 }
 
@@ -2066,7 +2066,7 @@ static void basic_force_cb(void *efdata_v, ParticleKey *state, float *force, flo
 	/* add effectors */
 	pd_point_from_particle(efdata->sim, efdata->pa, state, &epoint);
 	if (part->type != PART_HAIR || part->effector_weights->flag & EFF_WEIGHT_DO_HAIR)
-		pdDoEffectors(sim->psys->effectors, sim->colliders, part->effector_weights, &epoint, force, impulse);
+		BKE_effectors_apply(sim->psys->effectors, sim->colliders, part->effector_weights, &epoint, force, impulse);
 
 	mul_v3_fl(force, efdata->ptex.field);
 	mul_v3_fl(impulse, efdata->ptex.field);
@@ -2957,18 +2957,20 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 
 
 	/* particle instance modifier with "path" option need cached paths even if particle system doesn't */
-	FOREACH_SCENE_OBJECT_BEGIN(sim->scene, ob)
-	{
-		ModifierData *md = modifiers_findByType(ob, eModifierType_ParticleInstance);
-		if (md) {
-			ParticleInstanceModifierData *pimd = (ParticleInstanceModifierData *)md;
-			if (pimd->flag & eParticleInstanceFlag_Path && pimd->ob == sim->ob && pimd->psys == (psys - (ParticleSystem*)sim->ob->particlesystem.first)) {
-				skip = 0;
-				break;
+	if (skip) {
+		FOREACH_SCENE_OBJECT_BEGIN(sim->scene, ob)
+		{
+			ModifierData *md = modifiers_findByType(ob, eModifierType_ParticleInstance);
+			if (md) {
+				ParticleInstanceModifierData *pimd = (ParticleInstanceModifierData *)md;
+				if (pimd->flag & eParticleInstanceFlag_Path && pimd->ob == sim->ob && pimd->psys == (psys - (ParticleSystem*)sim->ob->particlesystem.first)) {
+					skip = 0;
+					break;
+				}
 			}
 		}
+		FOREACH_SCENE_OBJECT_END;
 	}
-	FOREACH_SCENE_OBJECT_END;
 
 	if (!skip) {
 		psys_cache_paths(sim, cfra, use_render_params);
@@ -3536,7 +3538,7 @@ static void dynamics_step(ParticleSimulationData *sim, float cfra)
 	psys_update_effectors(sim);
 
 	if (part->type != PART_HAIR)
-		sim->colliders = get_collider_cache(sim->scene, sim->ob, part->collision_group);
+		sim->colliders = BKE_collider_cache_create(sim->depsgraph, sim->ob, part->collision_group);
 
 	/* initialize physics type specific stuff */
 	switch (part->phystype) {
@@ -3743,7 +3745,7 @@ static void dynamics_step(ParticleSimulationData *sim, float cfra)
 			pa->state.time=cfra;
 	}
 
-	free_collider_cache(&sim->colliders);
+	BKE_collider_cache_free(&sim->colliders);
 	BLI_rng_free(sim->rng);
 	sim->rng = NULL;
 }
@@ -3810,7 +3812,7 @@ static void cached_step(ParticleSimulationData *sim, float cfra, const bool use_
 }
 
 static void particles_fluid_step(
-        Main *bmain, ParticleSimulationData *sim, int UNUSED(cfra), const bool use_render_params)
+        ParticleSimulationData *sim, int UNUSED(cfra), const bool use_render_params)
 {
 	ParticleSystem *psys = sim->psys;
 	if (psys->particles) {
@@ -3841,7 +3843,7 @@ static void particles_fluid_step(
 			// ok, start loading
 			BLI_join_dirfile(filename, sizeof(filename), fss->surfdataPath, OB_FLUIDSIM_SURF_PARTICLES_FNAME);
 
-			BLI_path_abs(filename, modifier_path_relbase(bmain, sim->ob));
+			BLI_path_abs(filename, modifier_path_relbase_from_global(sim->ob));
 
 			BLI_path_frame(filename, curFrame, 0); // fixed #frame-no
 
@@ -3915,7 +3917,7 @@ static void particles_fluid_step(
 		} // fluid sim particles done
 	}
 #else
-	UNUSED_VARS(bmain, use_render_params);
+	UNUSED_VARS(use_render_params);
 #endif // WITH_MOD_FLUID
 }
 
@@ -4211,7 +4213,9 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 {
 	ParticleSimulationData sim= {0};
 	ParticleSettings *part = psys->part;
+	ParticleSystem *psys_orig = psys_orig_get(psys);
 	float cfra;
+	ParticleSystemModifierData *psmd = psys_get_modifier(ob, psys);
 
 	/* drawdata is outdated after ANY change */
 	if (psys->pdd) psys->pdd->flag &= ~PARTICLE_DRAW_DATA_UPDATED;
@@ -4219,25 +4223,13 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	if (!psys_check_enabled(ob, psys, use_render_params))
 		return;
 
-	if (DEG_is_active(depsgraph)) {
-		if (psys->orig_psys != NULL && psys->orig_psys->edit != NULL) {
-			psys_cache_edit_paths(
-			        depsgraph,
-			        (Scene *)DEG_get_original_id(&scene->id),
-			        DEG_get_original_object(ob),
-			        psys->orig_psys->edit,
-			        DEG_get_ctime(depsgraph),
-			        DEG_get_mode(depsgraph) == DAG_EVAL_RENDER);
-		}
-	}
-
 	cfra = DEG_get_ctime(depsgraph);
 
 	sim.depsgraph = depsgraph;
 	sim.scene = scene;
 	sim.ob = ob;
 	sim.psys = psys;
-	sim.psmd = psys_get_modifier(ob, psys);
+	sim.psmd = psmd;
 
 	/* system was already updated from modifier stack */
 	if (sim.psmd->flag & eParticleSystemFlag_psys_updated) {
@@ -4282,10 +4274,10 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 
 				free_hair(ob, psys, 0);
 
-				if (psys->edit && psys->free_edit) {
-					psys->free_edit(psys->edit);
-					psys->edit = NULL;
-					psys->free_edit = NULL;
+				if (psys_orig->edit && psys_orig->free_edit) {
+					psys_orig->free_edit(psys_orig->edit);
+					psys_orig->edit = NULL;
+					psys_orig->free_edit = NULL;
 				}
 
 				/* first step is negative so particles get killed and reset */
@@ -4313,7 +4305,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 		}
 		case PART_FLUID:
 		{
-			particles_fluid_step(G.main  /* Yuck :/ */, &sim, (int)cfra, use_render_params);
+			particles_fluid_step(&sim, (int)cfra, use_render_params);
 			break;
 		}
 		default:
@@ -4379,6 +4371,22 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	if (psys->flag & PSYS_OB_ANIM_RESTORE) {
 		evaluate_emitter_anim(depsgraph, scene, ob, cfra);
 		psys->flag &= ~PSYS_OB_ANIM_RESTORE;
+	}
+
+	if (psys_orig->edit) {
+		psys_orig->edit->flags |= PT_CACHE_EDIT_UPDATE_PARTICLE_FROM_EVAL;
+	}
+
+	if (DEG_is_active(depsgraph)) {
+		if (psys_orig != psys) {
+			if (psys_orig->edit != NULL &&
+			    psys_orig->edit->psys == psys_orig)
+			{
+				psys_orig->edit->psys_eval = psys;
+				psys_orig->edit->psmd_eval = psmd;
+			}
+			psys_orig->flag = psys->flag;
+		}
 	}
 
 	psys->cfra = cfra;
