@@ -783,7 +783,7 @@ class GreasePencilDataPanel:
         col = row.column()
 
         sub = col.column(align=True)
-        sub.operator("gpencil.layer_add", icon='ZOOMIN', text="")
+        sub.operator("gpencil.layer_add", icon='ZOOMIN', text="").annotation = True
         sub.operator("gpencil.layer_remove", icon='ZOOMOUT', text="")
 
         gpl = context.active_gpencil_layer
