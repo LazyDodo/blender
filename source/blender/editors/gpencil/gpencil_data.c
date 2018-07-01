@@ -2410,4 +2410,3 @@ void GPENCIL_OT_color_choose(wmOperatorType *ot)
 	/* properties */
 	RNA_def_int(ot->srna, "index", 0, 0, INT_MAX, "Index", "Index of Color", 0, INT_MAX);
 }
-

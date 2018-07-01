@@ -139,4 +139,3 @@ float get_modifier_point_weight(MDeformVert *dvert, int inverse, int vindex)
 
 	return weight;
 }
-

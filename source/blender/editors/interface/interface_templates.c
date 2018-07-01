@@ -1606,7 +1606,7 @@ static uiLayout *gpencil_draw_modifier(uiLayout *layout, Object *ob,
 
 		uiItemO(row, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Copy"), ICON_NONE,
 			"OBJECT_OT_gpencil_modifier_copy");
-	
+
 		/* result is the layout block inside the box, that we return so that modifier settings can be drawn */
 		result = uiLayoutColumn(box, false);
 		block = uiLayoutAbsoluteBlock(box);
@@ -1627,7 +1627,7 @@ uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *UNUSED(C), Point
 	Object *ob;
 	GpencilModifierData *md, *vmd;
 	int i;
-	
+
 	/* verify we have valid data */
 	if (!RNA_struct_is_a(ptr->type, &RNA_GpencilModifier)) {
 		RNA_warning("Expected modifier on object");

@@ -327,7 +327,7 @@ typedef struct SimplifyGpencilModifierData {
 	int flag;                    /* flags */
 	float factor;                /* factor of simplify */
 	short mode;                  /* type of simplify */
-	short step;                  /* every n vertex to keep */ 
+	short step;                  /* every n vertex to keep */
 } SimplifyGpencilModifierData;
 
 typedef enum eSimplifyGpencil_Flag {

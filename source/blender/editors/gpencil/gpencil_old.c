@@ -217,4 +217,3 @@ void GPENCIL_OT_convert_old_files(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
-

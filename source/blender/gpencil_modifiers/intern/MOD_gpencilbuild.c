@@ -55,7 +55,7 @@
 static void initData(GpencilModifierData *md)
 {
 	BuildGpencilModifierData *gpmd = (BuildGpencilModifierData *)md;
-	
+
 	/* We deliberately set this range to the half the default
 	 * frame-range to have an immediate effect ot suggest use-cases
 	 */

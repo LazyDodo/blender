@@ -1225,7 +1225,7 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Edit Mode", "Display modifier in Edit mode");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 	RNA_def_property_ui_icon(prop, ICON_EDITMODE_HLT, 0);
-	
+
 	prop = RNA_def_property(srna, "show_expanded", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eGpencilModifierMode_Expanded);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);

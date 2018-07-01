@@ -50,7 +50,7 @@ struct bGPDstroke;
 struct ModifierUpdateDepsgraphContext;
 
 #define GPENCIL_MODIFIER_ACTIVE(_md, _is_render) (((_md->mode & eGpencilModifierMode_Realtime) && (_is_render == false)) || \
-												  ((_md->mode & eGpencilModifierMode_Render) && (_is_render == true))) 
+												  ((_md->mode & eGpencilModifierMode_Render) && (_is_render == true)))
 #define GPENCIL_MODIFIER_EDIT(_md, _is_edit) (((_md->mode & eGpencilModifierMode_Editmode) == 0) && (_is_edit))
 
 typedef enum {
@@ -112,7 +112,7 @@ typedef struct GpencilModifierTypeInfo {
 	 * level settings to the target modifier.
 	 */
 	void (*copyData)(const struct GpencilModifierData *md, struct GpencilModifierData *target);
-	
+
 	/* Callback for GP "stroke" modifiers that operate on the
 	 * shape and parameters of the provided strokes (e.g. Thickness, Noise, etc.)
 	 *
@@ -154,7 +154,7 @@ typedef struct GpencilModifierTypeInfo {
 
 	/* Initialize new instance data for this modifier type, this function
 	 * should set modifier variables to their default values.
-	 * 
+	 *
 	 * This function is optional.
 	 */
 	void (*initData)(struct GpencilModifierData *md);
@@ -182,7 +182,7 @@ typedef struct GpencilModifierTypeInfo {
 	 */
 	void (*updateDepsgraph)(struct GpencilModifierData *md,
 	                        const struct ModifierUpdateDepsgraphContext *ctx);
- 
+
 	/* Should return true if the modifier needs to be recalculated on time
 	 * changes.
 	 *

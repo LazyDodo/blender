@@ -1627,4 +1627,3 @@ void BKE_gpencil_stats_update(bGPdata *gpd)
 	}
 
 }
-

@@ -235,7 +235,7 @@ int ED_object_gpencil_modifier_apply(
 	Main *bmain, ReportList *reports, Depsgraph *depsgraph,
 	Scene *scene, Object *ob, GpencilModifierData *md, int UNUSED(mode))
 {
-	
+
 	if (ob->type == OB_GPENCIL) {
 		if (ob->mode != OB_MODE_OBJECT) {
 			BKE_report(reports, RPT_ERROR, "Modifiers cannot be applied in paint, sculpt or edit mode");
@@ -632,4 +632,3 @@ void OBJECT_OT_gpencil_modifier_copy(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
 	gpencil_edit_modifier_properties(ot);
 }
-

@@ -65,7 +65,7 @@ static void deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SimplifyGpencilModifierData *mmd = (SimplifyGpencilModifierData *)md;
-	
+
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 4, gpl, gps,
 	        mmd->flag & GP_SIMPLIFY_INVERT_LAYER, mmd->flag & GP_SIMPLIFY_INVERT_PASS))

@@ -905,7 +905,7 @@ static void gp_draw_data_all(Scene *scene, bGPdata *gpd, int offsx, int offsy, i
 {
 	bGPdata *gpd_source = NULL;
 	float alpha = 1.0f;
-	
+
 	if (scene) {
 		ToolSettings *ts = scene->toolsettings;
 

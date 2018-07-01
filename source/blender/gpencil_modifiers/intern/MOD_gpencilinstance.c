@@ -245,7 +245,7 @@ static void bakeModifierGP_objects(Main *bmain, Depsgraph *depsgraph, GpencilMod
 			for (int z = 0; z < mmd->count[2]; z++) {
 				Object *newob;
 				GpencilModifierData *fmd;
-				
+
 				const int elem_idx[3] = {x, y, z};
 				float mat[4][4], finalmat[4][4];
 				int sh;
@@ -304,8 +304,8 @@ static void generateStrokes(
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	
-	/* When the "make_objects" flag is set, this modifier is handled as part of the 
+
+	/* When the "make_objects" flag is set, this modifier is handled as part of the
 	 * draw engine instead. The main benefit is that the instances won't suffer from
 	 * z-ordering problems.
 	 *
@@ -324,7 +324,7 @@ static void bakeModifier(
         GpencilModifierData *md, Object *ob)
 {
 	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	
+
 	/* Create new objects or add all to current datablock.
 	 * Sometimes it's useful to have the option to do either of these...
 	 */

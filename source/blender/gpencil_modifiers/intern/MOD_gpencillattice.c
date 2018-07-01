@@ -170,7 +170,7 @@ static bool isDisabled(GpencilModifierData *md, int UNUSED(userRenderParams))
 	return !mmd->object;
 }
 
-static void updateDepsgraph(GpencilModifierData *md, const ModifierUpdateDepsgraphContext *ctx) 
+static void updateDepsgraph(GpencilModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	LatticeGpencilModifierData *lmd = (LatticeGpencilModifierData *)md;
 	if (lmd->object != NULL) {

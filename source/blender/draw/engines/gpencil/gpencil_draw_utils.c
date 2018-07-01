@@ -1315,4 +1315,3 @@ void gpencil_instance_modifiers(GPENCIL_StorageList *stl, Object *ob)
 		}
 	}
 }
-

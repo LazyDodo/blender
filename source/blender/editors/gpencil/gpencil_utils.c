@@ -1717,4 +1717,3 @@ void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 	}
 }
 /* ******************************************************** */
-

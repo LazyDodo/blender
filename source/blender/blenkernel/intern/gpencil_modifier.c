@@ -368,7 +368,7 @@ bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 	GpencilModifierData *md;
 	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
 		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
-		
+
 		if (mti && mti->generateStrokes) {
 			return true;
 		}
@@ -387,7 +387,7 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
 		{
 			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
-			
+
 			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
 				continue;
 			}
@@ -410,7 +410,7 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
 		{
 			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
-			
+
 			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
 				continue;
 			}
