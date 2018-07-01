@@ -1326,7 +1326,7 @@ void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 	immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 	immUniformColor4f(1.0f, 0.39f, 0.39f, 0.78f);
-	immUniform1i("num_colors", 0);  /* "simple" mode */
+	immUniform1i("colors_len", 0);  /* "simple" mode */
 	immUniform1f("dash_width", 12.0f);
 	immUniform1f("dash_factor", 0.5f);
 
