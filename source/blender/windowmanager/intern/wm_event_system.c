@@ -2351,9 +2351,6 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 										drop->copy(drag, drop);
 									}
 
-									/* free the drags before calling operator */
-									WM_drag_free_list(lb);
-
 									event->customdata = NULL;
 									event->custom = 0;
 
