@@ -94,7 +94,7 @@ static void free_palettes(ListBase *list)
 }
 
 /* ***************** Convert old 2.7 files to 2.8 ************************ */
-static int gpencil_convert_old_files_poll(bContext *C)
+static bool gpencil_convert_old_files_poll(bContext *C)
 {
 	Scene *scene = CTX_data_scene(C);
 

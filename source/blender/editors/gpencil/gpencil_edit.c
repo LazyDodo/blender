@@ -182,7 +182,7 @@ void GPENCIL_OT_editmode_toggle(wmOperatorType *ot)
 
 /* Stroke Paint Mode Management */
 
-static int gpencil_paintmode_toggle_poll(bContext *C)
+static bool gpencil_paintmode_toggle_poll(bContext *C)
 {
 	/* if using gpencil object, use this gpd */
 	Object *ob = CTX_data_active_object(C);
@@ -271,7 +271,7 @@ void GPENCIL_OT_paintmode_toggle(wmOperatorType *ot)
 
 /* Stroke Sculpt Mode Management */
 
-static int gpencil_sculptmode_toggle_poll(bContext *C)
+static bool gpencil_sculptmode_toggle_poll(bContext *C)
 {
 	/* if using gpencil object, use this gpd */
 	Object *ob = CTX_data_active_object(C);
@@ -351,7 +351,7 @@ void GPENCIL_OT_sculptmode_toggle(wmOperatorType *ot)
 
 /* Stroke Weight Paint Mode Management */
 
-static int gpencil_weightmode_toggle_poll(bContext *C)
+static bool gpencil_weightmode_toggle_poll(bContext *C)
 {
 	/* if using gpencil object, use this gpd */
 	Object *ob = CTX_data_active_object(C);
@@ -440,7 +440,7 @@ static bool gp_stroke_edit_poll(bContext *C)
 }
 
 /* poll callback to verify edit mode in 3D view only */
-static int gp_strokes_edit3d_poll(bContext *C)
+static bool gp_strokes_edit3d_poll(bContext *C)
 {
 	/* 2 Requirements:
 	*  - 1) Editable GP data

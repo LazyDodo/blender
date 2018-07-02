@@ -93,7 +93,7 @@
 /* Core/Shared Utilities */
 
 /* Poll callback for primitive operators */
-static int gpencil_primitive_add_poll(bContext *C)
+static bool gpencil_primitive_add_poll(bContext *C)
 {
 	/* only 3D view */
 	ScrArea *sa = CTX_wm_area(C);

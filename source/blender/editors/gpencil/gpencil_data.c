@@ -1367,7 +1367,7 @@ void GPENCIL_OT_sculpt_select(wmOperatorType *ot)
 
 /*********************** Vertex Groups ***********************************/
 
-static int gpencil_vertex_group_poll(bContext *C)
+static bool gpencil_vertex_group_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 
@@ -1385,7 +1385,7 @@ static int gpencil_vertex_group_poll(bContext *C)
 	return false;
 }
 
-static int gpencil_vertex_group_weight_poll(bContext *C)
+static bool gpencil_vertex_group_weight_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 
@@ -1973,7 +1973,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 }
 
 /* Color Handle operator */
-static int gpencil_active_color_poll(bContext *C)
+static bool gpencil_active_color_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 	if (ob && ob->data && (ob->type == OB_GPENCIL)) {

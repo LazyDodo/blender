@@ -941,7 +941,7 @@ static void gpencil_fill_draw_3d(const bContext *C, ARegion *UNUSED(ar), void *a
 }
 
 /* check if context is suitable for filling */
-static int gpencil_fill_poll(bContext *C)
+static bool gpencil_fill_poll(bContext *C)
 {
 	if (ED_operator_regionactive(C)) {
 		ScrArea *sa = CTX_wm_area(C);

@@ -227,7 +227,7 @@ void gp_stroke_convertcoords_tpoint(struct Scene *scene, struct ARegion *ar,
 bool gp_add_poll(struct bContext *C);
 bool gp_active_layer_poll(struct bContext *C);
 bool gp_active_brush_poll(struct bContext *C);
-boll gp_brush_crt_presets_poll(bContext *C);
+bool gp_brush_crt_presets_poll(bContext *C);
 
 /* Copy/Paste Buffer --------------------------------- */
 /* gpencil_edit.c */

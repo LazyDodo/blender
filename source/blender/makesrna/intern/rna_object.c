@@ -1488,7 +1488,7 @@ bool rna_Lamp_object_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
 	return ((Object *)value.id.data)->type == OB_LAMP;
 }
 
-int rna_GPencil_object_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
+bool rna_GPencil_object_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
 {
 	return ((Object *)value.id.data)->type == OB_GPENCIL;
 }

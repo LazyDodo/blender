@@ -270,7 +270,7 @@ static void gpencil_colorpick_draw_3d(const bContext *C, ARegion *UNUSED(ar), vo
 }
 
 /* check if context is suitable */
-static int gpencil_colorpick_poll(bContext *C)
+static bool gpencil_colorpick_poll(bContext *C)
 {
 	if (ED_operator_regionactive(C)) {
 		ScrArea *sa = CTX_wm_area(C);

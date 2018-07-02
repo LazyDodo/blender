@@ -382,7 +382,7 @@ static int gpencil_edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, 
 	return 1;
 }
 
-static int gpencil_edit_modifier_poll(bContext *C)
+static bool gpencil_edit_modifier_poll(bContext *C)
 {
 	return gpencil_edit_modifier_poll_generic(C, &RNA_GpencilModifier, 0);
 }

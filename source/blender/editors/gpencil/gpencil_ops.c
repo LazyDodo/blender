@@ -117,7 +117,7 @@ static bool gp_stroke_editmode_poll(bContext *C)
 }
 
 /* Poll callback for stroke painting mode */
-static int gp_stroke_paintmode_poll(bContext *C)
+static bool gp_stroke_paintmode_poll(bContext *C)
 {
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
@@ -125,7 +125,7 @@ static int gp_stroke_paintmode_poll(bContext *C)
 }
 
 /* Poll callback for stroke painting (draw brush) */
-static int gp_stroke_paintmode_draw_poll(bContext *C)
+static bool gp_stroke_paintmode_draw_poll(bContext *C)
 {
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
@@ -136,7 +136,7 @@ static int gp_stroke_paintmode_draw_poll(bContext *C)
 }
 
 /* Poll callback for stroke painting (erase brush) */
-static int gp_stroke_paintmode_erase_poll(bContext *C)
+static bool gp_stroke_paintmode_erase_poll(bContext *C)
 {
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
@@ -147,7 +147,7 @@ static int gp_stroke_paintmode_erase_poll(bContext *C)
 }
 
 /* Poll callback for stroke painting (fill) */
-static int gp_stroke_paintmode_fill_poll(bContext *C)
+static bool gp_stroke_paintmode_fill_poll(bContext *C)
 {
 	/* TODO: limit this to mode, but review 2D editors */
 	bGPdata *gpd = CTX_data_gpencil_data(C);
@@ -158,7 +158,7 @@ static int gp_stroke_paintmode_fill_poll(bContext *C)
 }
 
 /* Poll callback for stroke sculpting mode */
-static int gp_stroke_sculptmode_poll(bContext *C)
+static bool gp_stroke_sculptmode_poll(bContext *C)
 {
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	Object *ob = CTX_data_active_object(C);
@@ -179,7 +179,7 @@ static int gp_stroke_sculptmode_poll(bContext *C)
 }
 
 /* Poll callback for stroke weight paint mode */
-static int gp_stroke_weightmode_poll(bContext *C)
+static bool gp_stroke_weightmode_poll(bContext *C)
 {
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	Object *ob = CTX_data_active_object(C);
