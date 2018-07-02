@@ -197,10 +197,16 @@ static void ui_template_sortable_id_tabs(
 		group->reordered_indices = MEM_recallocN(
 		                               group->reordered_indices, sizeof(*group->reordered_indices) * group->tot_items);
 		ui_button_group_find_new_items(group, &items, old_tot_items, &new_items);
+
 		/* Add new items at the end of the list. */
-		const int tot_new_items = ABS(group->tot_items - old_tot_items);
+		const int tot_new_items = group->tot_items - old_tot_items;
+
+		BLI_assert(BLI_listbase_count(&new_items) == tot_new_items);
 		int i = 0;
 		for (uiButtonGroupItemInfo *new_item = new_items.first; new_item; new_item = new_item->next, i++) {
+			for (int j = group->tot_items - tot_new_items + i; j > new_item->position_index; j--) {
+				group->reordered_indices[j] = group->reordered_indices[j - 1];
+			}
 			group->reordered_indices[new_item->position_index] = group->tot_items - tot_new_items + i;
 		}
 		BLI_freelistN(&new_items);
