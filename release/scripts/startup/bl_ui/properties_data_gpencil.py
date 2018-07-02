@@ -64,7 +64,7 @@ class DATA_PT_gpencil(DataButtonsPanel, Panel):
         gpd_owner = context.gpencil_data_owner
         gpd = context.gpencil_data
 
-        layout.template_ID(gpd_owner, "data", new="gpencil.data_add", unlink="gpencil.data_unlink")
+        layout.template_ID(gpd_owner, "data")
 
 
 class GPENCIL_UL_layer(UIList):
