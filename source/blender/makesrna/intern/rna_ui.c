@@ -123,7 +123,7 @@ static int panel_poll(const bContext *C, PanelType *pt)
 	pt->ext.call((bContext *)C, &ptr, func, &list);
 
 	RNA_parameter_get_lookup(&list, "visible", &ret);
-	visible = *(int *)ret;
+	visible = *(bool *)ret;
 
 	RNA_parameter_list_free(&list);
 
@@ -708,7 +708,7 @@ static int menu_poll(const bContext *C, MenuType *pt)
 	pt->ext.call((bContext *)C, &ptr, func, &list);
 
 	RNA_parameter_get_lookup(&list, "visible", &ret);
-	visible = *(int *)ret;
+	visible = *(bool *)ret;
 
 	RNA_parameter_list_free(&list);
 
@@ -1437,4 +1437,3 @@ void RNA_def_ui(BlenderRNA *brna)
 }
 
 #endif /* RNA_RUNTIME */
-

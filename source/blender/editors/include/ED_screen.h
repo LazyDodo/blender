@@ -62,6 +62,8 @@ struct wmMsgSubscribeKey;
 struct wmMsgSubscribeValue;
 struct wmOperatorType;
 struct IDProperty;
+struct MenuType;
+struct PropertyRNA;
 
 /* regions */
 void    ED_region_do_listen(
@@ -150,6 +152,8 @@ void    ED_area_swapspace(struct bContext *C, ScrArea *sa1, ScrArea *sa2);
 int     ED_area_headersize(void);
 int     ED_area_header_alignment(const ScrArea *area);
 int     ED_area_global_size_y(const ScrArea *area);
+int     ED_area_global_min_size_y(const ScrArea *area);
+int     ED_area_global_max_size_y(const ScrArea *area);
 bool    ED_area_is_global(const ScrArea *area);
 int     ED_region_global_size_y(void);
 void    ED_area_update_region_sizes(struct wmWindowManager *wm, struct wmWindow *win, struct ScrArea *area);
@@ -323,10 +327,24 @@ struct bUserMenu *ED_screen_user_menu_ensure(struct bContext *C);
 
 struct bUserMenuItem_Op *ED_screen_user_menu_item_find_operator(
         struct ListBase *lb,
-        struct wmOperatorType *ot, struct IDProperty *prop, short opcontext);
+        const struct wmOperatorType *ot, struct IDProperty *prop, short opcontext);
+struct bUserMenuItem_Menu *ED_screen_user_menu_item_find_menu(
+        struct ListBase *lb,
+        const struct MenuType *mt);
+struct bUserMenuItem_Prop *ED_screen_user_menu_item_find_prop(
+        struct ListBase *lb,
+        const char *context_data_path, const char *prop_id, int prop_index);
+
 void ED_screen_user_menu_item_add_operator(
         struct ListBase *lb, const char *ui_name,
-        struct wmOperatorType *ot, struct IDProperty *prop, short opcontext);
+        const struct wmOperatorType *ot, const struct IDProperty *prop, short opcontext);
+void ED_screen_user_menu_item_add_menu(
+        struct ListBase *lb, const char *ui_name,
+        const struct MenuType *mt);
+void ED_screen_user_menu_item_add_prop(
+        ListBase *lb, const char *ui_name,
+        const char *context_data_path, const char *prop_id, int prop_index);
+
 void ED_screen_user_menu_item_remove(
         struct ListBase *lb, struct bUserMenuItem *umi);
 void ED_screen_user_menu_register(void);
