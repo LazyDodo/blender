@@ -1247,9 +1247,6 @@ void BKE_animdata_fix_paths_rename_all(ID *ref_id, const char *prefix, const cha
 	/* grease pencil */
 	RENAMEFIX_ANIM_IDS(bmain->gpencil.first);
 
-	/* palettes */
-	RENAMEFIX_ANIM_IDS(bmain->palettes.first);
-
 	/* cache files */
 	RENAMEFIX_ANIM_IDS(bmain->cachefiles.first);
 
