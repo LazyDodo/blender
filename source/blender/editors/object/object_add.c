@@ -1771,7 +1771,7 @@ static void curvetomesh(Main *bmain, Depsgraph *depsgraph, Scene *scene, Object 
 	}
 }
 
-static int convert_poll(bContext *C)
+static bool convert_poll(bContext *C)
 {
 	Scene *scene = CTX_data_scene(C);
 	Base *base_act = CTX_data_active_base(C);
@@ -2600,7 +2600,7 @@ void OBJECT_OT_add_named(wmOperatorType *ot)
 
 /**************************** Join *************************/
 
-static int join_poll(bContext *C)
+static bool join_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 
@@ -2661,7 +2661,7 @@ void OBJECT_OT_join(wmOperatorType *ot)
 
 /**************************** Join as Shape Key*************************/
 
-static int join_shapes_poll(bContext *C)
+static bool join_shapes_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 

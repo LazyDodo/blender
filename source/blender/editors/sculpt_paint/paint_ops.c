@@ -228,7 +228,7 @@ static void PALETTE_OT_new(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-static int palette_poll(bContext *C)
+static bool palette_poll(bContext *C)
 {
 	Paint *paint = BKE_paint_get_active_from_context(C);
 
@@ -837,7 +837,7 @@ static int stencil_control_modal(bContext *C, wmOperator *op, const wmEvent *eve
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static int stencil_control_poll(bContext *C)
+static bool stencil_control_poll(bContext *C)
 {
 	ePaintMode mode = BKE_paintmode_get_active_from_context(C);
 
