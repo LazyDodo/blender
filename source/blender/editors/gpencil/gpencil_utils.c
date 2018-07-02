@@ -247,6 +247,20 @@ bGPdata *ED_gpencil_data_get_active_evaluated(const bContext *C)
 
 /* -------------------------------------------------------- */
 
+/**
+ * Utility to check whether the r_ptr output of ED_gpencil_data_get_pointers()
+ * is for annotation usage.
+ */
+bool ED_gpencil_data_owner_is_annotation(PointerRNA *owner_ptr)
+{
+	/* Key Assumption: If the pointer is an object, we're dealing with a GP Object's data.
+	 * Otherwise, the GP datablock is being used for annotations (i.e. everywhere else)
+	 */
+	return ((owner_ptr) && (owner_ptr->type != &RNA_Object));
+}
+
+/* -------------------------------------------------------- */
+
 // XXX: this should be removed... We really shouldn't duplicate logic like this!
 bGPdata *ED_gpencil_data_get_active_v3d(ViewLayer *view_layer)
 {
@@ -259,8 +273,6 @@ bGPdata *ED_gpencil_data_get_active_v3d(ViewLayer *view_layer)
 	if (base && TESTBASE(base)) {
 		if (base->object->type == OB_GPENCIL)
 			gpd = base->object->data;
-		else
-			gpd = base->object->gpd;
 	}
 	return gpd ? gpd : NULL;
 }

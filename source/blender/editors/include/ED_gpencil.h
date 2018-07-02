@@ -109,6 +109,8 @@ struct bGPdata *ED_gpencil_data_get_active_direct(
         struct Scene *scene,
         struct Object *ob);
 
+bool ED_gpencil_data_owner_is_annotation(struct PointerRNA *owner_ptr);
+
 /* 3D View */
 struct bGPdata  *ED_gpencil_data_get_active_v3d(struct ViewLayer *view_layer);
 
