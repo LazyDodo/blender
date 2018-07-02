@@ -510,9 +510,10 @@ class LANPR_linesets(UIList):
             layout.alignment = 'CENTER'
             layout.label("", icon_value=icon)
 
-class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
+class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_CLAY'}
-    bl_label = "LANPR AHOY"
+    bl_label = "LANPR"
+    bl_options = {'DEFAULT_CLOSED'}
     
     @classmethod
     def poll(cls, context):
@@ -522,15 +523,14 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
         layout = self.layout
         scene = context.scene
         lanpr = scene.lanpr
-        active_layer = lanpr.layers.active_layer #this is alwas none.
+        active_layer = lanpr.layers.active_layer
 
         layout.prop(lanpr, "master_mode", expand=True) 
 
         if lanpr.master_mode == "DPIX" or lanpr.master_mode == "SOFTWARE":
-            layout.label(text="DPIX:")
-            layout.prop(lanpr, "reloaded")
+            if lanpr.master_mode == "DPIX":
+                layout.prop(lanpr, "reloaded")
 
-            
             rows = 4
             if lanpr.master_mode == "SOFTWARE":
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
@@ -539,169 +539,186 @@ class SCENE_PT_lanpr(SceneButtonsPanel, PropertyPanel, Panel):
                 if active_layer:
                     split = layout.split()
                     col = split.column()
-                    col.operator("scene.lanpr_add_line_layer")
+                    col.operator("scene.lanpr_add_line_layer", icon="ZOOMIN")
                     col = split.column()
-                    col.operator("scene.lanpr_rebuild_all_commands")
+                    col.operator("scene.lanpr_delete_line_layer", icon="ZOOMOUT")
+                    layout.operator("scene.lanpr_rebuild_all_commands")
                 else:
                     layout.operator("scene.lanpr_add_line_layer")
             elif not lanpr.layers.active_layer:
                 layout.operator("scene.lanpr_add_line_layer")
             
-            if active_layer:
-
-                split = layout.split()
-                col = split.column()
-                col.prop(active_layer, "color", text="")
-                col = split.column()
-                col.prop(active_layer, "thickness")
-
-                if active_layer.thickness > 0.01:
-                    col = layout.column()
-                    col.label(text="Enable:")
-                    row = col.row(align=True)
-                    row.prop(active_layer, "enable_contour", text="Contour", toggle=True)
-                    row.prop(active_layer, "enable_crease", text="Crease", toggle=True)
-                    row.prop(active_layer, "enable_edge_mark", text="Mark", toggle=True)
-                    row.prop(active_layer, "enable_material_seperate", text="Material", toggle=True)
-                    row.prop(active_layer, "enable_intersection", text="Intersection", toggle=True)
-
-                    row = col.row(align=True)
-                    if active_layer.enable_contour:
-                        row.prop(active_layer, "color", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    if active_layer.enable_crease:
-                        row.prop(active_layer, "crease_color", text="")
-                    else:
-                        row.label(text="OFF")
-                    
-                    if active_layer.enable_edge_mark:
-                        row.prop(active_layer, "edge_mark_color", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    if active_layer.enable_material_seperate:
-                        row.prop(active_layer, "material_color", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    if active_layer.enable_intersection:
-                        row.prop(active_layer, "intersection_color", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    row = col.row(align=True)
-                    if active_layer.enable_contour:
-                        row.prop(active_layer, "thickness", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    if active_layer.enable_crease:
-                        row.prop(active_layer, "thickness_crease", text="")
-                    else:
-                        row.label(text="OFF")
-                    
-                    if active_layer.enable_edge_mark:
-                        row.prop(active_layer, "thickness_edge_mark", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    if active_layer.enable_material_seperate:
-                        row.prop(active_layer, "thickness_material", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    if active_layer.enable_intersection:
-                        row.prop(active_layer, "thickness_intersection", text="")
-                    else:
-                        row.label(text="OFF")
-
-                    split = layout.split(align=True)
-                    col = split.column()
-                    layout.prop(active_layer, "qi_begin")
-                    col = split.column()
-                    layout.prop(active_layer, "qi_end")
-                
-                
-                layout.prop(lanpr, "crease_threshold")
-
-                layout.label(text="Below INOP in software:")
-
-                layout.prop(lanpr, "crease_fade_threshold")
-
-                split = layout.split()
-                col = split.column()
-                col.prop(lanpr, "depth_width_influence")
-                col.prop(lanpr, "depth_alpha_influence")
-                col = split.column()
-                col.prop(lanpr, "depth_width_curve")
-                col.prop(lanpr, "depth_alpha_curve")
-            
         else:
-            layout.label(text="Snake:")
-            layout.prop(lanpr, "enable_vector_trace")
+            layout.label(text="Vectorization:")
+            layout.prop(lanpr, "enable_vector_trace", expand = True)
 
-            if lanpr.enable_vector_trace == "DISABLED":
-                layout.prop(lanpr, "display_thinning_result")
+            #col = layout.column()
+            #col.label(text="Enable:")
+            #row = col.row(align=True)
+            #row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
+            #row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
 
-            layout.prop(lanpr, "depth_clamp")
-            layout.prop(lanpr, "depth_strength")
-            layout.prop(lanpr, "normal_clamp")
-            layout.prop(lanpr, "normal_strength")
 
-            col = layout.column()
-            col.label(text="Enable:")
-            row = col.row(align=True)
-            row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
-            row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
+class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
+    bl_label = "Types"
+    bl_parent_id = "SCENE_PT_lanpr"
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
 
-            if lanpr.enable_vector_trace == "ENABLED":
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        lanpr = scene.lanpr
+        active_layer = lanpr.layers.active_layer
+        return active_layer and lanpr.master_mode != "SNAKE"
 
-                split = layout.split()
-                col = split.column()
-                col.prop(lanpr, "background_color")
-                col = split.column()
-                col.prop(lanpr, "line_color")
-                
-                layout.label(text="Thickness:")
-                layout.prop(lanpr, "line_thickness")
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        lanpr = scene.lanpr
+        active_layer = lanpr.layers.active_layer
 
-                layout.label(text="Effect Settings:")
+        split = layout.split(percentage=0.3)
+        col = split.column()
+        col.prop(active_layer, "enable_contour", text="Contour", toggle=True)
+        col.prop(active_layer, "enable_crease", text="Crease", toggle=True)
+        col.prop(active_layer, "enable_edge_mark", text="Mark", toggle=True)
+        col.prop(active_layer, "enable_material_seperate", text="Material", toggle=True)
+        col.prop(active_layer, "enable_intersection", text="Intersection", toggle=True)
+        col = split.column()
+        row = col.row(align = True)
+        row.enabled = active_layer.enable_contour
+        row.prop(active_layer, "color", text="")
+        row.prop(active_layer, "thickness", text="")
+        row = col.row(align = True)
+        row.enabled = active_layer.enable_crease
+        row.prop(active_layer, "crease_color", text="")
+        row.prop(active_layer, "thickness_crease", text="")
+        row = col.row(align = True)
+        row.enabled = active_layer.enable_edge_mark
+        row.prop(active_layer, "edge_mark_color", text="")
+        row.prop(active_layer, "thickness_edge_mark", text="")
+        row = col.row(align = True)
+        row.enabled = active_layer.enable_material_seperate
+        row.prop(active_layer, "material_color", text="")
+        row.prop(active_layer, "thickness_material", text="")
+        row = col.row(align = True)
+        row.enabled = active_layer.enable_intersection
+        row.prop(active_layer, "intersection_color", text="")
+        row.prop(active_layer, "thickness_intersection", text="")
 
-                split = layout.split()
-                col = split.column()
-                col.prop(lanpr, "depth_width_influence")
-                col.prop(lanpr, "depth_alpha_influence")
-                col = split.column()
-                col.prop(lanpr, "depth_width_curve")
-                col.prop(lanpr, "depth_alpha_curve")
-                
-                layout.prop(lanpr, "use_same_taper")
+        if lanpr.master_mode == "DPIX" and active_layer.enable_intersection:
+            row = col.row()
+            row.operator("scene.lanpr_calculate", text= "Recalculate Intersections")
 
-                if lanpr.use_same_taper == "DISABLED":
-                    split = layout.split()
-                    col = split.column()
-                    col.label(text="Left:")
-                    col.prop(lanpr,"taper_left_distance")
-                    col.prop(lanpr,"taper_left_strength")
-                    col = split.column()
-                    col.label(text="Right:")
-                    col.prop(lanpr,"taper_right_distance")
-                    col.prop(lanpr,"taper_right_strength")
-                else:
-                    layout.prop(lanpr,"taper_left_distance")
-                    layout.prop(lanpr,"taper_left_strength") 
+        if lanpr.master_mode == "SOFTWARE":
+            row = layout.row(align=True)
+            row.prop(active_layer, "qi_begin")
+            row.prop(active_layer, "qi_end")
 
-                layout.prop(lanpr, "enable_tip_extend")
-                if lanpr.enable_tip_extend == "ENABLED":
-                    layout.prop(lanpr,"extend_length")
-            
-            else: #disabled vectorization
-                layout.label(text="Adjust values to avoid large pure white regions!")
+class SCENE_PT_lanpr_line_effects(SceneButtonsPanel, Panel):
+    bl_label = "Effects"
+    bl_parent_id = "SCENE_PT_lanpr"
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
 
-             
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        lanpr = scene.lanpr
+        return lanpr.master_mode == "DPIX"
 
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        lanpr = scene.lanpr
+        active_layer = lanpr.layers.active_layer
+
+        row = layout.row(align = True)
+        row.prop(lanpr, "crease_threshold")
+        row.prop(lanpr, "crease_fade_threshold")
+        row = layout.row(align = True)
+        row.prop(lanpr, "depth_width_influence")
+        row.prop(lanpr, "depth_width_curve")
+        row = layout.row(align = True)
+        row.prop(lanpr, "depth_alpha_influence")
+        row.prop(lanpr, "depth_alpha_curve")
+
+class SCENE_PT_lanpr_snake_sobel_parameters(SceneButtonsPanel, Panel):
+    bl_label = "Sobel Parameters"
+    bl_parent_id = "SCENE_PT_lanpr"
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        lanpr = scene.lanpr
+        return lanpr.master_mode == "SNAKE"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        lanpr = scene.lanpr
+        layout.prop(lanpr, "depth_clamp")
+        layout.prop(lanpr, "depth_strength")
+        layout.prop(lanpr, "normal_clamp")
+        layout.prop(lanpr, "normal_strength")
+        if lanpr.enable_vector_trace == "DISABLED":
+            layout.prop(lanpr, "display_thinning_result")
+
+class SCENE_PT_lanpr_snake_settings(SceneButtonsPanel, Panel):
+    bl_label = "Snake Settings"
+    bl_parent_id = "SCENE_PT_lanpr"
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        lanpr = scene.lanpr
+        return lanpr.master_mode == "SNAKE" and lanpr.enable_vector_trace == "ENABLED"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        lanpr = scene.lanpr
+
+        split = layout.split()
+        col = split.column()
+        col.prop(lanpr, "background_color")
+        col = split.column()
+        col.prop(lanpr, "line_color")
+        
+        layout.prop(lanpr, "line_thickness")
+
+        split = layout.split()
+        col = split.column()
+        col.prop(lanpr, "depth_width_influence")
+        col.prop(lanpr, "depth_alpha_influence")
+        col = split.column()
+        col.prop(lanpr, "depth_width_curve")
+        col.prop(lanpr, "depth_alpha_curve")
+        
+        layout.label(text="Taper:")
+        layout.prop(lanpr, "use_same_taper", expand = True)
+        if lanpr.use_same_taper == "DISABLED":
+            split = layout.split()
+            col = split.column(align = True)
+            col.label(text="Left:")
+            col.prop(lanpr,"taper_left_distance")
+            col.prop(lanpr,"taper_left_strength")
+            col = split.column(align = True)
+            col.label(text="Right:")
+            col.prop(lanpr,"taper_right_distance")
+            col.prop(lanpr,"taper_right_strength")
+        else:
+            split = layout.split()
+            col = split.column(align = True)
+            col.prop(lanpr,"taper_left_distance")
+            col.prop(lanpr,"taper_left_strength") 
+
+        layout.label(text="Tip Extend:")
+        layout.prop(lanpr, "enable_tip_extend",  expand = True)
+        if lanpr.enable_tip_extend == "ENABLED":
+            layout.label(text="---INOP---")
+            layout.prop(lanpr,"extend_length")
 
 
 class SCENE_PT_viewport_display_ssao(SceneButtonsPanel, Panel):
@@ -746,9 +763,14 @@ classes = (
     SCENE_PT_rigid_body_field_weights,
     SCENE_PT_simplify,
     SCENE_PT_simplify_viewport,
-    SCENE_PT_lanpr,
     SCENE_PT_simplify_render,
     SCENE_PT_custom_props,
+
+    SCENE_PT_lanpr,
+    SCENE_PT_lanpr_line_types,
+    SCENE_PT_lanpr_line_effects,
+    SCENE_PT_lanpr_snake_sobel_parameters,
+    SCENE_PT_lanpr_snake_settings,
 
     LANPR_linesets,
 )

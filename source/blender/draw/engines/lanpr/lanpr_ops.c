@@ -2934,10 +2934,10 @@ void SCENE_OT_lanpr_calculate_feature_lines(struct wmOperatorType *ot){
 }
 
 LANPR_LineLayer *lanpr_new_line_layer(SceneLANPR *lanpr){
-	LANPR_LineLayer *ls = MEM_callocN(sizeof(LANPR_LineLayer), "Line Style");
-	BLI_addtail(&lanpr->line_layers, ls);
-	lanpr->active_layer = ls;
-	return ls;
+	LANPR_LineLayer *ll = MEM_callocN(sizeof(LANPR_LineLayer), "Line Layer");
+	BLI_addtail(&lanpr->line_layers, ll);
+	lanpr->active_layer = ll;
+	return ll;
 }
 
 static int lanpr_add_line_layer_exec(struct bContext *C, struct wmOperator *op){
@@ -2956,14 +2956,15 @@ int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 
 	if (!ll) return OPERATOR_FINISHED;
 
-	lstRemoveItem((void *)&scene->lanpr.line_layers, (void *)ll);
+	if (ll->prev)lanpr->active_layer = ll->prev;
+	elif (ll->next) lanpr->active_layer = ll->next;
+	else lanpr->active_layer = 0;
 
-	//glBindBuffer(GL_ARRAY_BUFFER, 0);
-	//glDeleteBuffers(1, &ll->VBO);
+	BLI_remlink(&scene->lanpr.line_layers, ll);
 
-	memFree(ll);
+	if (ll->batch) GWN_batch_discard(ll->batch);
 
-	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
+	MEM_freeN(ll);
 
 	return OPERATOR_FINISHED;
 }
@@ -2980,10 +2981,6 @@ int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	//}elif(strArgumentMatch(a->ExtraInstructionsP, "direction", "down")) {
 	//lstMoveDown(&ll->Parentlanpr->line_layers, ll);
 	//}
-
-	//nulNotifyUsers("tns.render_buffer_list.draw_commands");
-	//nulNotifyUsers("tns.render_buffer_list");
-
 
 	return OPERATOR_FINISHED;
 }
