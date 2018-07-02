@@ -4756,6 +4756,157 @@ void UI_but_string_info_get(bContext *C, uiBut *but, ...)
 	}
 }
 
+
+/* -------------------------------------------------------------------- */
+/**
+ * \name Button Group
+ * \brief Generate buttons with custom, storable order.
+ *
+ * Button groups have the following key characteristics:
+ * * Sortable: Contained buttons can be sorted.
+ * * Generates: They in fact do not contain buttons, but manage info on how to
+ *   create and sort buttons on runtime.
+ * * Storable: The mapping for custom sorting is written into files, alongside
+ *   an identifier for this specific group. That way the group can be
+ *   identified and the custom sorting re-applied after reading files.
+ *
+ * Maybe button group is a bit of a misleading term, since it doesn't actually
+ * store the buttons itself.
+ * Via a callback a button-group gathers information from which another
+ * callback can create the buttons then. In-between those two callbacks the
+ * items are sorted in a customizable way.
+ *
+ * \{ */
+
+uiButtonGroup *UI_button_group_ensure(ARegion *region, const char *name, void *custom_data)
+{
+	uiButtonGroup *group;
+
+	for (group = region->button_groups.first; group; group = group->next) {
+		if (STREQ(group->type->idname, name) && group->type->identify(group, custom_data)) {
+			return group;
+		}
+	}
+
+	group = MEM_callocN(sizeof(*group), __func__);
+	group->type = WM_uibuttongrouptype_find(name, false);
+	BLI_addtail(&region->button_groups, group);
+
+	return group;
+}
+
+typedef struct SortedButtonGroupItemInfo {
+	struct SortedButtonGroupItemInfo *next, *prev;
+
+	uiButtonGroupItemInfo *item;
+	int new_position_index;
+} SortedButtonGroupItemInfo;
+
+static int ui_button_group_items_cmp(const void *a, const void *b)
+{
+	const SortedButtonGroupItemInfo *item_a = a, *item_b = b;
+	return item_a->new_position_index > item_b->new_position_index ? 1 : 0;
+}
+
+static void ui_button_group_sort(
+        const uiButtonGroup *group, const ListBase *items,
+        ListBase *r_sorted_items)
+{
+	int i = 0;
+	for (uiButtonGroupItemInfo *item = items->first; item; item = item->next, i++) {
+		SortedButtonGroupItemInfo *sort_item = MEM_callocN(sizeof(*sort_item), __func__);
+
+		sort_item->item = item;
+		sort_item->new_position_index = group->reordered_indices[i];
+		BLI_addtail(r_sorted_items, sort_item);
+	}
+	BLI_listbase_sort(r_sorted_items, ui_button_group_items_cmp);
+}
+
+static void ui_button_group_find_added_items(
+        const uiButtonGroup *group, const ListBase *items,
+        const int prev_tot_items,
+        ListBase *r_added_items)
+{
+	const int difference = group->tot_items - prev_tot_items;
+
+	if (difference == 0) {
+		return;
+	}
+
+	if (difference > 0) {
+		for (uiButtonGroupItemInfo *item = items->first; item; item = item->next) {
+			const bool has_item = BLI_findptr(&group->items, item->data,
+			                                  offsetof(uiButtonGroupItemInfo, data)) != NULL;
+			if (!has_item) {
+				uiButtonGroupItemInfo *item_new = MEM_dupallocN(item);
+				BLI_addtail(r_added_items, item_new);
+			}
+		}
+	}
+}
+
+static void ui_button_group_handle_added_or_removed_items(
+        uiButtonGroup *group, const ListBase *new_items,
+        int old_tot_items)
+{
+	ListBase added_items = {NULL, NULL};
+
+	group->reordered_indices = MEM_recallocN(
+	                               group->reordered_indices, sizeof(*group->reordered_indices) * group->tot_items);
+	ui_button_group_find_added_items(group, new_items, old_tot_items, &added_items);
+
+	/* Add new items at the end of the list. */
+	const int tot_new_items = group->tot_items - old_tot_items;
+
+	BLI_assert(BLI_listbase_count(&added_items) == tot_new_items);
+	int i = 0;
+	for (uiButtonGroupItemInfo *new_item = added_items.first; new_item; new_item = new_item->next, i++) {
+		for (int j = group->tot_items - tot_new_items + i; j > new_item->position_index; j--) {
+			group->reordered_indices[j] = group->reordered_indices[j - 1];
+		}
+		group->reordered_indices[new_item->position_index] = group->tot_items - tot_new_items + i;
+	}
+	BLI_freelistN(&added_items);
+
+	/* TODO support removing items */
+}
+
+void UI_button_group_add_sorted_items(uiButtonGroup *group, uiBlock *block, void *custom_data)
+{
+	const int old_tot_items = group->tot_items;
+	ListBase new_items = {NULL, NULL};
+	ListBase sorted_items = {NULL, NULL};
+
+	group->type->items(custom_data, &new_items);
+	group->tot_items = BLI_listbase_count(&new_items);
+
+	if (!group->reordered_indices || (group->tot_items != old_tot_items)) {
+		ui_button_group_handle_added_or_removed_items(group, &new_items, old_tot_items);
+	}
+
+	ui_button_group_sort(group, &new_items, &sorted_items);
+
+	UI_block_button_group_begin(block, group);
+	for (SortedButtonGroupItemInfo *sorted_item = sorted_items.first; sorted_item; sorted_item = sorted_item->next) {
+		group->type->item_draw(block, custom_data, sorted_item->item);
+	}
+	UI_block_button_group_end(block);
+
+	BLI_freelistN(&sorted_items);
+	BLI_freelistN(&group->items);
+	group->items = new_items;
+}
+
+void UI_button_group_item_add(void *data, ListBase *items)
+{
+	uiButtonGroupItemInfo *item = MEM_callocN(sizeof(*item), __func__);
+
+	BLI_addtail(items, item);
+	item->data = data;
+	item->position_index = item->prev ? ((uiButtonGroupItemInfo *)item->prev)->position_index + 1 : 0;
+}
+
 void UI_block_button_group_begin(uiBlock *block, uiButtonGroup *group)
 {
 	BLI_assert(block->current_group == NULL);

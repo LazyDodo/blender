@@ -225,6 +225,11 @@ typedef struct uiButtonGroupItemInfo {
 	void *data;
 } uiButtonGroupItemInfo;
 
+/* TODO Better name for this? Alternatives:
+ * * uiSortedButtonGenerator
+ * * uiButtonGroupGenerator
+ * * uiStorableItems
+ */
 typedef struct uiButtonGroup {
 	struct uiButtonGroup *next, *prev;
 

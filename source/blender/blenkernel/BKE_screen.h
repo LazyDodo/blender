@@ -259,7 +259,7 @@ typedef struct uiListType {
 } uiListType;
 
 typedef bool (*uiButtonGroupIdentifyFunc)(struct uiButtonGroup *, void *);
-typedef void (*uiButtonGroupItemsFunc)(struct uiButtonGroup *, void *, ListBase *);
+typedef void (*uiButtonGroupItemsFunc)(void *, ListBase *);
 typedef void (*uiButtonGroupItemDrawFunc)(struct uiBlock *, void *, struct uiButtonGroupItemInfo *);
 
 typedef struct uiButtonGroupType {

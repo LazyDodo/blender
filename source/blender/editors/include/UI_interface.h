@@ -810,6 +810,9 @@ void UI_but_focus_on_enter_event(struct wmWindow *win, uiBut *but);
 
 void UI_but_func_hold_set(uiBut *but, uiButHandleHoldFunc func, void *argN);
 
+struct uiButtonGroup *UI_button_group_ensure(struct ARegion *region, const char *name, void *custom_data);
+void UI_button_group_add_sorted_items(struct uiButtonGroup *group, uiBlock *block, void *custom_data);
+void UI_button_group_item_add(void *data, ListBase *items);
 void UI_block_button_group_begin(uiBlock *block, struct uiButtonGroup *group);
 void UI_block_button_group_end(uiBlock *block);
 
