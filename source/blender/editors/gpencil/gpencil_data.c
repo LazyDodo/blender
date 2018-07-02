@@ -198,7 +198,6 @@ void GPENCIL_OT_data_unlink(wmOperatorType *ot)
 /* add new layer - wrapper around API */
 static int gp_layer_add_exec(bContext *C, wmOperator *op)
 {
-	bool is_annotation = RNA_boolean_get(op->ptr, "annotation");
 	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, NULL);
 
 	/* if there's no existing Grease-Pencil data there, add some */
@@ -208,24 +207,14 @@ static int gp_layer_add_exec(bContext *C, wmOperator *op)
 	}
 	if (*gpd_ptr == NULL) {
 		Main *bmain = CTX_data_main(C);
-		if (!is_annotation) {
-			*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("GPencil"));
-		}
-		else {
-			*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("Notes"));
-		}
+		*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("GPencil"));
 	}
 
 	/* add default sets of colors and brushes */
 	ED_gpencil_add_defaults(C);
 
 	/* add new layer now */
-	if (!is_annotation) {
-		BKE_gpencil_layer_addnew(*gpd_ptr, DATA_("GP_Layer"), true);
-	}
-	else {
-		BKE_gpencil_layer_addnew(*gpd_ptr, DATA_("Note"), true);
-	}
+	BKE_gpencil_layer_addnew(*gpd_ptr, DATA_("GP_Layer"), true);
 
 	/* notifiers */
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -238,17 +227,13 @@ void GPENCIL_OT_layer_add(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Add New Layer";
 	ot->idname = "GPENCIL_OT_layer_add";
-	ot->description = "Add new layer or note for the active data-block";
+	ot->description = "Add new Grease Pencil layer for the active Grease Pencil data-block";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* callbacks */
 	ot->exec = gp_layer_add_exec;
 	ot->poll = gp_add_poll;
-
-	/* parameters */
-	ot->prop = RNA_def_boolean(ot->srna, "annotation", false, "Annotation", "");
-	RNA_def_property_flag(ot->prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 /* ******************* Remove Active Layer ************************* */
