@@ -332,12 +332,8 @@ class GreasePencilAnimationPanel:
 
     @classmethod
     def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-        elif context.active_object.mode == 'OBJECT':
-            return False
-
-        return True
+        ob = context.active_object
+        return ob and ob.type == 'GPENCIL' and ob.mode != 'OBJECT'
 
     @staticmethod
     def draw(self, context):
