@@ -1705,7 +1705,7 @@ static void drawArc(float size, float angle_start, float angle_end, int segments
 	immEnd();
 }
 
-static int helpline_poll(bContext *C)
+static bool helpline_poll(bContext *C)
 {
 	ARegion *ar = CTX_wm_region(C);
 
@@ -1760,7 +1760,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			GPU_viewport_size_getf(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
-			immUniform1i("num_colors", 0);  /* "simple" mode */
+			immUniform1i("colors_len", 0);  /* "simple" mode */
 			immUniformThemeColor(TH_VIEW_OVERLAY);
 			immUniform1f("dash_width", 6.0f);
 			immUniform1f("dash_factor", 0.5f);
@@ -1951,7 +1951,7 @@ static void drawTransformPixel(const struct bContext *UNUSED(C), ARegion *ar, vo
 void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	int constraint_axis[3] = {0, 0, 0};
+	bool constraint_axis[3] = {false, false, false};
 	int proportional = 0;
 	PropertyRNA *prop;
 
@@ -2073,13 +2073,13 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 
 		if (t->con.mode & CON_APPLY) {
 			if (t->con.mode & CON_AXIS0) {
-				constraint_axis[0] = 1;
+				constraint_axis[0] = true;
 			}
 			if (t->con.mode & CON_AXIS1) {
-				constraint_axis[1] = 1;
+				constraint_axis[1] = true;
 			}
 			if (t->con.mode & CON_AXIS2) {
-				constraint_axis[2] = 1;
+				constraint_axis[2] = true;
 			}
 		}
 
@@ -2269,7 +2269,7 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 
 	/* Constraint init from operator */
 	if ((prop = RNA_struct_find_property(op->ptr, "constraint_axis")) && RNA_property_is_set(op->ptr, prop)) {
-		int constraint_axis[3];
+		bool constraint_axis[3];
 
 		RNA_property_boolean_get_array(op->ptr, prop, constraint_axis);
 
@@ -7691,7 +7691,7 @@ static void drawVertSlide(TransInfo *t)
 				GPU_viewport_size_getf(viewport_size);
 				immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
-				immUniform1i("num_colors", 0);  /* "simple" mode */
+				immUniform1i("colors_len", 0);  /* "simple" mode */
 				immUniformColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 				immUniform1f("dash_width", 6.0f);
 				immUniform1f("dash_factor", 0.5f);

@@ -805,7 +805,7 @@ bool WM_operator_pystring_abbreviate(char *str, int str_len_max)
 
 /* return NULL if no match is found */
 #if 0
-static const char *wm_context_member_from_ptr(bContext *C, PointerRNA *ptr)
+static const char *wm_context_member_from_ptr(bContext *C, const PointerRNA *ptr)
 {
 	/* loop over all context items and do 2 checks
 	 *
@@ -860,7 +860,7 @@ static const char *wm_context_member_from_ptr(bContext *C, PointerRNA *ptr)
 
 /* use hard coded checks for now */
 
-static const char *wm_context_member_from_ptr(bContext *C, PointerRNA *ptr)
+static const char *wm_context_member_from_ptr(bContext *C, const PointerRNA *ptr)
 {
 	const char *member_id = NULL;
 
@@ -983,6 +983,11 @@ static char *wm_prop_pystring_from_context(bContext *C, PointerRNA *ptr, Propert
 		}
 	}
 	return ret;
+}
+
+const char *WM_context_member_from_ptr(bContext *C, const PointerRNA *ptr)
+{
+	return wm_context_member_from_ptr(C, ptr);
 }
 
 char *WM_prop_pystring_assign(bContext *C, PointerRNA *ptr, PropertyRNA *prop, int index)
@@ -1354,7 +1359,7 @@ bool WM_operator_filesel_ensure_ext_imtype(wmOperator *op, const struct ImageFor
 }
 
 /* op->poll */
-int WM_operator_winactive(bContext *C)
+bool WM_operator_winactive(bContext *C)
 {
 	if (CTX_wm_window(C) == NULL) return 0;
 	return 1;
@@ -2150,7 +2155,7 @@ static int wm_search_menu_invoke(bContext *C, wmOperator *UNUSED(op), const wmEv
 }
 
 /* op->poll */
-static int wm_search_menu_poll(bContext *C)
+static bool wm_search_menu_poll(bContext *C)
 {
 	if (CTX_wm_window(C) == NULL) {
 		return 0;
@@ -2271,7 +2276,7 @@ static void WM_OT_call_panel(wmOperatorType *ot)
 
 /* this poll functions is needed in place of WM_operator_winactive
  * while it crashes on full screen */
-static int wm_operator_winactive_normal(bContext *C)
+static bool wm_operator_winactive_normal(bContext *C)
 {
 	wmWindow *win = CTX_wm_window(C);
 	bScreen *screen;
@@ -2371,8 +2376,9 @@ static void WM_OT_console_toggle(wmOperatorType *ot)
  * - draw(bContext): drawing callback for paint cursor
  */
 
-void *WM_paint_cursor_activate(wmWindowManager *wm, int (*poll)(bContext *C),
-                               wmPaintCursorDraw draw, void *customdata)
+void *WM_paint_cursor_activate(
+        wmWindowManager *wm, bool (*poll)(bContext *C),
+        wmPaintCursorDraw draw, void *customdata)
 {
 	wmPaintCursor *pc = MEM_callocN(sizeof(wmPaintCursor), "paint cursor");
 
@@ -3981,11 +3987,14 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 	/* debug/testing */
 	WM_keymap_verify_item(keymap, "WM_OT_redraw_timer", TKEY, KM_PRESS, KM_ALT | KM_CTRL, 0);
 	WM_keymap_verify_item(keymap, "WM_OT_debug_menu", DKEY, KM_PRESS, KM_ALT | KM_CTRL, 0);
+#else
+	WM_keymap_add_item(keymap, "WM_OT_doc_view_manual_ui_context", F1KEY, KM_PRESS, 0, 0);
+	WM_keymap_add_menu(keymap, "TOPBAR_MT_file_specials", F2KEY, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "WM_OT_search_menu", F3KEY, KM_PRESS, 0, 0);
+	WM_keymap_add_menu(keymap, "TOPBAR_MT_window_specials", F4KEY, KM_PRESS, 0, 0);
 #endif
 
 	/* menus that can be accessed anywhere in blender */
-
-	WM_keymap_add_item(keymap, "WM_OT_search_menu", F3KEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "WM_OT_search_menu", ACCENTGRAVEKEY, KM_CLICK, 0, 0);
 
 	WM_keymap_add_menu(keymap, "SCREEN_MT_user_menu", QKEY, KM_PRESS, 0, 0);

@@ -184,7 +184,7 @@ static void PALETTE_OT_new(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-static int palette_poll(bContext *C)
+static bool palette_poll(bContext *C)
 {
 	Paint *paint = BKE_paint_get_active_from_context(C);
 
@@ -794,7 +794,7 @@ static int stencil_control_modal(bContext *C, wmOperator *op, const wmEvent *eve
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static int stencil_control_poll(bContext *C)
+static bool stencil_control_poll(bContext *C)
 {
 	ePaintMode mode = BKE_paintmode_get_active_from_context(C);
 
@@ -1230,9 +1230,8 @@ static void paint_keymap_curve(wmKeyMap *keymap)
 	RNA_boolean_set(kmi->ptr, "toggle", true);
 
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_cursor", ACTIONMOUSE, KM_PRESS, 0, 0);
-#ifdef USE_WM_KEYMAP_27X
+
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_delete_point", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_delete_point", DELKEY, KM_PRESS, 0, 0);
 
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_draw", RETKEY, KM_PRESS, 0, 0);
