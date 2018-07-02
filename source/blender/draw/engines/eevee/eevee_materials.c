@@ -1514,10 +1514,16 @@ static void material_hair(
 	}
 	
 	{
-		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_create(ob, hsys, scalp, draw_set, psl->depth_pass, e_data.default_hair_prepass_sh);
+		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_create(
+		            ob, hsys, scalp, draw_set,
+		            psl->depth_pass,
+		            e_data.default_hair_prepass_sh);
 	}
 	{
-		DRWShadingGroup *shgrp = DRW_shgroup_hair_create(ob, hsys, scalp, draw_set, psl->depth_pass_clip, e_data.default_hair_prepass_clip_sh);
+		DRWShadingGroup *shgrp = DRW_shgroup_hair_create(
+		                             ob, hsys, scalp, draw_set,
+		                             psl->depth_pass_clip,
+		                             e_data.default_hair_prepass_clip_sh);
 		DRW_shgroup_uniform_block(shgrp, "clip_block", sldata->clip_ubo);
 	}
 	

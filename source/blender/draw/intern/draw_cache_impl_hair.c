@@ -125,7 +125,9 @@ void DRW_hair_batch_cache_dirty(HairSystem *hsys, int mode)
 static void hair_batch_cache_clear(HairSystem *hsys)
 {
 	HairBatchCache *cache = hsys->draw_batch_cache;
-	particle_batch_cache_clear_hair(&cache->hair);
+	if (cache) {
+		particle_batch_cache_clear_hair(&cache->hair);
+	}
 }
 
 void DRW_hair_batch_cache_free(HairSystem *hsys)
@@ -213,10 +215,10 @@ static void hair_batch_cache_ensure_procedural_strand_data(
         const HairExportCache *hair_export,
         ParticleHairCache *cache)
 {
-#if 0 // TODO
 	int active_uv = 0;
 	int active_col = 0;
 
+#if 0 // TODO
 	ParticleSystemModifierData *psmd = (ParticleSystemModifierData *)md;
 
 	if (psmd != NULL && psmd->mesh_final != NULL) {
@@ -229,6 +231,7 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 			active_col = CustomData_get_active_layer(&psmd->mesh_final->ldata, CD_MLOOPCOL);
 		}
 	}
+#endif
 
 	Gwn_VertBufRaw data_step;
 	Gwn_VertBufRaw uv_step[MAX_MTFACE];
@@ -256,6 +259,7 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 	GWN_vertbuf_data_alloc(cache->proc_strand_buf, cache->strands_count);
 	GWN_vertbuf_attr_get_raw_data(cache->proc_strand_buf, data_id, &data_step);
 
+#if 0 // TODO
 	/* UV layers */
 	for (int i = 0; i < cache->num_uv_layers; i++) {
 		cache->proc_uv_buf[i] = GWN_vertbuf_create_with_format(&format_uv);
@@ -351,8 +355,6 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 		}
 		MEM_freeN(parent_mcol);
 	}
-#else
-	UNUSED_VARS(hair_export);
 #endif
 
 	/* Create vbo immediatly to bind to texture buffer. */
@@ -490,4 +492,18 @@ bool hair_ensure_procedural_data(
 	BKE_hair_export_cache_free(hair_export);
 
 	return need_ft_update;
+}
+
+Gwn_Batch *DRW_hair_batch_cache_get_fibers(HairSystem *hsys, const HairExportCache *hair_export)
+{
+	// TODO
+	UNUSED_VARS(hsys, hair_export);
+	return NULL;
+}
+
+Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys, const HairExportCache *hair_export)
+{
+	// TODO
+	UNUSED_VARS(hsys, hair_export);
+	return NULL;
 }
