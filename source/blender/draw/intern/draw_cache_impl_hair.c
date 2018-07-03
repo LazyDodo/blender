@@ -211,6 +211,85 @@ static void hair_batch_cache_ensure_procedural_pos(
 	cache->point_tex = GPU_texture_create_from_vertbuf(cache->proc_point_buf);
 }
 
+static void hair_pack_mcol(MCol *mcol, unsigned short r_scol[3])
+{
+	/* Convert to linear ushort and swizzle */
+	r_scol[0] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->b]);
+	r_scol[1] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->g]);
+	r_scol[2] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->r]);
+}
+
+static int hair_batch_cache_fill_strands_data(
+        const HairExportCache *hair_export,
+        Gwn_VertBufRaw *data_step,
+        Gwn_VertBufRaw *uv_step, int num_uv_layers,
+        Gwn_VertBufRaw *col_step, int num_col_layers)
+{
+	int curr_point = 0;
+	for (int i = 0; i < hair_export->totcurves; i++) {
+		const HairFiberCurve *curve = &hair_export->fiber_curves[i];
+		if (curve->numverts < 2) {
+			continue;
+		}
+
+		uint *seg_data = (uint *)GWN_vertbuf_raw_step(data_step);
+		const uint numseg = curve->numverts - 1;
+		*seg_data = (curr_point & 0xFFFFFF) | (numseg << 24);
+		curr_point += curve->numverts;
+
+		float (*uv)[2] = NULL;
+		MCol *mcol = NULL;
+		
+#if 0
+		particle_calculate_uvs(
+				psys, psmd,
+				is_simple, num_uv_layers,
+				is_child ? psys->child[i].parent : i,
+				is_child ? i : -1,
+				mtfaces,
+				*r_parent_uvs, &uv);
+
+		particle_calculate_mcol(
+				psys, psmd,
+				is_simple, num_col_layers,
+				is_child ? psys->child[i].parent : i,
+				is_child ? i : -1,
+				mcols,
+				*r_parent_mcol, &mcol);
+#else
+		/* XXX dummy uvs and mcols, TODO */
+		uv = MEM_mallocN(sizeof(*uv) * num_uv_layers, __func__);
+		mcol = MEM_mallocN(sizeof(*mcol) * num_col_layers, __func__);
+		for (int k = 0; k < num_uv_layers; k++) {
+			zero_v3(uv[k]);
+		}
+		for (int k = 0; k < num_col_layers; k++) {
+			mcol[k].a = 255;
+			mcol[k].r = 255;
+			mcol[k].g = 0;
+			mcol[k].b = 255;
+		}
+#endif
+		
+		for (int k = 0; k < num_uv_layers; k++) {
+			float *t_uv = (float *)GWN_vertbuf_raw_step(uv_step + k);
+			copy_v2_v2(t_uv, uv[k]);
+		}
+		for (int k = 0; k < num_col_layers; k++) {
+			unsigned short *scol = (unsigned short *)GWN_vertbuf_raw_step(col_step + k);
+			hair_pack_mcol(&mcol[k], scol);
+		}
+		
+		if (uv) {
+			MEM_freeN(uv);
+		}
+		if (mcol) {
+			MEM_freeN(mcol);
+		}
+	}
+	return curr_point;
+}
+
 static void hair_batch_cache_ensure_procedural_strand_data(
         const HairExportCache *hair_export,
         ParticleHairCache *cache)
@@ -239,8 +318,6 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 
 	MTFace *mtfaces[MAX_MTFACE] = {NULL};
 	MCol *mcols[MAX_MCOL] = {NULL};
-	float (**parent_uvs)[2] = NULL;
-	MCol **parent_mcol = NULL;
 
 	Gwn_VertFormat format_data = {0};
 	uint data_id = GWN_vertformat_attr_add(&format_data, "data", GWN_COMP_U32, 1, GWN_FETCH_INT);
@@ -310,52 +387,13 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 			}
 		}
 	}
-
-	if (edit != NULL && edit->pathcache != NULL) {
-		particle_batch_cache_fill_strands_data(
-		        psys, psmd, edit->pathcache, PARTICLE_SOURCE_PARENT,
-		        0, edit->totcached,
-		        &data_step,
-		        &parent_uvs, uv_step, (MTFace **)mtfaces, cache->num_uv_layers,
-		        &parent_mcol, col_step, (MCol **)mcols, cache->num_col_layers);
-	}
-	else {
-		int curr_point = 0;
-		if ((psys->pathcache != NULL) &&
-		    (!psys->childcache || (psys->part->draw & PART_DRAW_PARENT)))
-		{
-			curr_point = particle_batch_cache_fill_strands_data(
-			        psys, psmd, psys->pathcache, PARTICLE_SOURCE_PARENT,
-			        0, psys->totpart,
-			        &data_step,
-			        &parent_uvs, uv_step, (MTFace **)mtfaces, cache->num_uv_layers,
-			        &parent_mcol, col_step, (MCol **)mcols, cache->num_col_layers);
-		}
-		if (psys->childcache) {
-			const int child_count = psys->totchild * psys->part->disp / 100;
-			curr_point = particle_batch_cache_fill_strands_data(
-			        psys, psmd, psys->childcache, PARTICLE_SOURCE_CHILDREN,
-			        curr_point, child_count,
-			        &data_step,
-			        &parent_uvs, uv_step, (MTFace **)mtfaces, cache->num_uv_layers,
-			        &parent_mcol, col_step, (MCol **)mcols, cache->num_col_layers);
-		}
-	}
-	/* Cleanup. */
-	if (parent_uvs != NULL) {
-		/* TODO(sergey): For edit mode it should be edit->totcached. */
-		for (int i = 0; i < psys->totpart; i++) {
-			MEM_SAFE_FREE(parent_uvs[i]);
-		}
-		MEM_freeN(parent_uvs);
-	}
-	if (parent_mcol != NULL) {
-		for (int i = 0; i < psys->totpart; i++) {
-			MEM_SAFE_FREE(parent_mcol[i]);
-		}
-		MEM_freeN(parent_mcol);
-	}
 #endif
+
+	hair_batch_cache_fill_strands_data(
+	            hair_export,
+	            &data_step,
+	            uv_step, cache->num_uv_layers,
+	            col_step, cache->num_col_layers);
 
 	/* Create vbo immediatly to bind to texture buffer. */
 	GWN_vertbuf_use(cache->proc_strand_buf);
@@ -476,16 +514,16 @@ bool hair_ensure_procedural_data(
 	}
 
 	/* Refreshed if active layer or custom data changes. */
-	if ((*r_hair_cache)->strand_tex == NULL) {
+	if (cache->hair.strand_tex == NULL) {
 		hair_batch_cache_ensure_procedural_strand_data(hair_export, &cache->hair);
 	}
 
 	/* Refreshed only on subdiv count change. */
-	if ((*r_hair_cache)->final[subdiv].proc_buf == NULL) {
+	if (cache->hair.final[subdiv].proc_buf == NULL) {
 		hair_batch_cache_ensure_procedural_final_points(&cache->hair, subdiv);
 		need_ft_update = true;
 	}
-	if ((*r_hair_cache)->final[subdiv].proc_hairs[thickness_res - 1] == NULL) {
+	if (cache->hair.final[subdiv].proc_hairs[thickness_res - 1] == NULL) {
 		hair_batch_cache_ensure_procedural_indices(hair_export, &cache->hair, thickness_res, subdiv);
 	}
 
