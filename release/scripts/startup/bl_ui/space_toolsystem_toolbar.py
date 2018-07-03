@@ -125,6 +125,77 @@ class _defs_view3d_generic:
         )
 
 
+class _defs_annotate:
+    @classmethod
+    def draw_settings_common(cls, context, layout, tool):
+        pass
+
+    @ToolDef.from_fn
+    def scribble():
+        def draw_settings(context, layout, tool):
+            pass
+
+        return dict(
+            text="Annotate (Scribble)",
+            icon="ops.gpencil.draw",
+            keymap=(
+                ("gpencil.annotate",
+                 dict(mode='DRAW', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def line():
+        def draw_settings(context, layout, tool):
+            # XXX: Reuse
+            pass
+
+        return dict(
+            text="Draw Line",
+            icon="ops.gpencil.drawline",
+            keymap=(
+                ("gpencil.annotate",
+                 dict(mode='DRAW_STRAIGHT', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def poly():
+        def draw_settings(context, layout, tool):
+            # XXX: Reuse
+            pass
+
+        return dict(
+            text="Draw Polygon",
+            icon="ops.gpencil.drawpoly",
+            keymap=(
+                ("gpencil.annotate",
+                 dict(mode='DRAW_POLY', wait_for_input=False),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def eraser():
+        def draw_settings(context, layout, tool):
+            # XXX: Reuse
+            pass
+
+        return dict(
+            text="Eraser",
+            icon="ops.gpencil.draweraser",
+            #cursor='...',  # XXX: Always show brush circle when enabled
+            keymap=(
+                ("gpencil.annotate",
+                 dict(mode='ERASER', wait_for_input=False),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+
 class _defs_transform:
 
     @ToolDef.from_fn
@@ -960,6 +1031,15 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
         ),
     )
 
+    _tools_annotate = (
+        (
+            _defs_annotate.scribble,
+            _defs_annotate.line,
+            _defs_annotate.poly,
+            _defs_annotate.eraser,
+        ),
+    )
+
     _tools = {
         None: [
             _defs_view3d_generic.cursor,
@@ -969,21 +1049,27 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             *_tools_select,
             None,
             *_tools_transform,
+            None,
+            *_tools_annotate,
         ],
         'POSE': [
             *_tools_select,
             *_tools_transform,
             None,
+            *_tools_annotate,
+            None,
             (
                 _defs_pose.breakdown,
                 _defs_pose.push,
                 _defs_pose.relax,
-            )
+            ),
         ],
         'EDIT_ARMATURE': [
             *_tools_select,
             None,
             *_tools_transform,
+            None,
+            *_tools_annotate,
             _defs_edit_armature.roll,
             (
                 _defs_edit_armature.bone_size,
@@ -993,12 +1079,14 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             (
                 _defs_edit_armature.extrude,
                 _defs_edit_armature.extrude_cursor,
-            )
+            ),
         ],
         'EDIT_MESH': [
             *_tools_select,
             None,
             *_tools_transform,
+            None,
+            *_tools_annotate,
             None,
             _defs_edit_mesh.cube_add,
             None,
@@ -1043,6 +1131,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             *_tools_select,
             None,
             *_tools_transform,
+            None,
+            *_tools_annotate,
             None,
             _defs_edit_curve.draw,
             _defs_edit_curve.extrude_cursor,
