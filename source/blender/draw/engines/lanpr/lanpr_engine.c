@@ -477,6 +477,8 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 
 		//DRW_draw_pass(psl->color_pass);
 		GPU_framebuffer_bind(fbl->software_ms);
+		// almost forgot
+	    GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 		DRW_draw_pass(psl->software_pass);
 
 		GPU_framebuffer_bind(dfb);

@@ -540,8 +540,10 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                     split = layout.split()
                     col = split.column()
                     col.operator("scene.lanpr_add_line_layer", icon="ZOOMIN")
-                    col = split.column()
                     col.operator("scene.lanpr_delete_line_layer", icon="ZOOMOUT")
+                    col = split.column()
+                    col.operator("scene.lanpr_move_line_layer", icon="TRIA_UP").direction = "UP"
+                    col.operator("scene.lanpr_move_line_layer", icon="TRIA_DOWN").direction = "DOWN"
                     layout.operator("scene.lanpr_rebuild_all_commands")
                 else:
                     layout.operator("scene.lanpr_add_line_layer")
@@ -634,7 +636,8 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
         active_layer = lanpr.layers.active_layer
 
         layout.operator("scene.lanpr_add_line_component", icon = "ZOOMIN")
-
+        
+        i=0
         for c in active_layer.components:
             split = layout.split(percentage=0.85)
             col = split.column()
@@ -649,7 +652,8 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
             elif c.component_mode == "COLLECTION":
                 cl.prop(c,"collection_select", text = "")
             col = split.column()
-            col.label(text = "X")
+            col.operator("scene.lanpr_delete_line_component", text="", icon = "ZOOMOUT").index=i
+            i=i+1
 
 
 class SCENE_PT_lanpr_line_effects(SceneButtonsPanel, Panel):

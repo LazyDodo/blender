@@ -34,6 +34,8 @@
 #include "WM_api.h"
 
 #include <math.h>
+#include "RNA_access.h"
+#include "RNA_define.h"
 
 /*
 
@@ -1589,7 +1591,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 			rt->V[2] = &orv[BM_elem_index_get(loop->v)];
 			rt->RL[2] = &orl[BM_elem_index_get(loop->e)];
 
-			rt->F = f;
+			rt->MaterialID = f->mat_nr;
 			rt->GN[0] = f->no[0];
 			rt->GN[1] = f->no[1];
 			rt->GN[2] = f->no[2];
@@ -2474,7 +2476,7 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 		if (!Add) {
 			if ((Result = Dot1 * Dot2) <= 0) Add = 1;
 			elif(tMatDot3d(rl->TL->GN, rl->TR->GN, 0) < 0.7) Add = 2;
-			//elif(rl->TL && rl->TR && rl->TL->F && rl->TR->F && rl->TL->F->MaterialID != rl->TR->F->MaterialID) Add = 3;
+			elif(rl->TL && rl->TR && rl->TL->MaterialID != rl->TR->MaterialID) Add = 3;
 		}
 
 		if (Add == 1) {
@@ -2706,12 +2708,13 @@ int lanpr_CountThisLine(LANPR_RenderLine* rl, LANPR_LineLayer* ll) {
 	if (!llc) return 1;
 	for (llc; llc; llc = llc->next) {
 		if (llc->component_mode == LANPR_COMPONENT_MODE_ALL) { OrResult = 1; }
-		elif(llc->component_mode == LANPR_COMPONENT_MODE_OBJECT) {
-			if (rl->ObjectRef->id.orig_id == &llc->object_select->id) { OrResult = 1;}
+		elif(llc->component_mode == LANPR_COMPONENT_MODE_OBJECT && llc->object_select) {
+			if (rl->ObjectRef && rl->ObjectRef->id.orig_id == &llc->object_select->id) { OrResult = 1;}
 			else { AndResult = 0; }
-		}elif(llc->component_mode == LANPR_COMPONENT_MODE_MATERIAL) {
-			OrResult = 1;
-		}elif(llc->component_mode == LANPR_COMPONENT_MODE_COLLECTION) {
+		}elif(llc->component_mode == LANPR_COMPONENT_MODE_MATERIAL && llc->material_select) {
+			if ((rl->TL && rl->TL->MaterialID == llc->material_select->index)||(rl->TR && rl->TR->MaterialID == llc->material_select->index) || (!rl->TL && !rl->TR)) { OrResult = 1; }
+			else { AndResult = 0; }
+		}elif(llc->component_mode == LANPR_COMPONENT_MODE_COLLECTION && llc->collection_select) {
 			if(BKE_collection_has_object(llc->collection_select, (Object*)rl->ObjectRef->id.orig_id)) { OrResult = 1; }
 			else { AndResult = 0; }
 		}
@@ -2997,11 +3000,15 @@ int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 
 	if (!ll) return OPERATOR_FINISHED;
 
-	//if (strArgumentMatch(a->ExtraInstructionsP, "direction", "up")) {
-	//lstMoveUp(&ll->Parentlanpr->line_layers, ll);
-	//}elif(strArgumentMatch(a->ExtraInstructionsP, "direction", "down")) {
-	//lstMoveDown(&ll->Parentlanpr->line_layers, ll);
-	//}
+	int dir = RNA_enum_get(op->ptr, "direction");
+
+	if (dir == 1 && ll->prev) {
+		BLI_remlink(&lanpr->line_layers, ll);
+		BLI_insertlinkbefore(&lanpr->line_layers, ll->prev, ll);
+	}elif(dir == -1 && ll->next) {
+		BLI_remlink(&lanpr->line_layers, ll);
+		BLI_insertlinkafter(&lanpr->line_layers, ll->next, ll);
+	}
 
 	return OPERATOR_FINISHED;
 }
@@ -3016,8 +3023,23 @@ int lanpr_add_line_component_exec(struct bContext *C, struct wmOperator *op) {
 int lanpr_delete_line_component_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
+	LANPR_LineLayer* ll = lanpr->active_layer;
+	LANPR_LineLayerComponent* llc;
+	int i = 0;
 
-	// need property access
+	if (!ll) return;
+
+	int index = RNA_int_get(op->ptr, "index");
+
+	for (llc = ll->components.first; llc; llc = llc->next) {
+		if (index == i) break;
+		i++;
+	}
+
+	if (llc) {
+		BLI_remlink(&ll->components, llc);
+		MEM_freeN(llc);
+	}
 
 	return OPERATOR_FINISHED;
 }
@@ -3104,6 +3126,11 @@ void SCENE_OT_lanpr_auto_create_line_layer(struct wmOperatorType *ot) {
 
 }
 void SCENE_OT_lanpr_move_line_layer(struct wmOperatorType *ot) {
+	static const EnumPropertyItem line_layer_move[] = {
+		{ 1, "UP", 0, "Up", "" },
+		{ -1, "DOWN", 0, "Down", "" },
+		{ 0, NULL, 0, NULL, NULL }
+	};
 
 	ot->name = "Move Line Layer";
 	ot->description = "Move LANPR line layer up and down";
@@ -3113,6 +3140,8 @@ void SCENE_OT_lanpr_move_line_layer(struct wmOperatorType *ot) {
 
 	ot->exec = lanpr_move_line_layer_exec;
 
+	RNA_def_enum(ot->srna, "direction", line_layer_move, 0, "Direction",
+		"Direction to move the active line layer towards");
 }
 
 void SCENE_OT_lanpr_add_line_component(struct wmOperatorType *ot) {
@@ -3132,4 +3161,5 @@ void SCENE_OT_lanpr_delete_line_component(struct wmOperatorType *ot) {
 
 	ot->exec = lanpr_delete_line_component_exec;
 
+	RNA_def_int(ot->srna, "index", 0, 0, 10000, "index", "index of this line component", 0, 10000);
 }

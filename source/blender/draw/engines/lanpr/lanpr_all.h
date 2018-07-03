@@ -391,7 +391,8 @@ typedef struct LANPR_RenderTriangle {
 	struct LANPR_RenderLine *RL[3];
 	real GN[3];
 	real GC[3];
-	struct BMFace *F;
+	//struct BMFace *F;
+	short MaterialID;
 	nListHandle IntersectingVerts;
 	char CullStatus;
 	struct LANPR_RenderTriangle *Testing;   //Should Be tRT** Testing[NumOfThreads]
