@@ -79,7 +79,8 @@ class VIEW3D_HT_header(Header):
 
         # Grease Pencil
         # GPXX this is a hack while we merge to keep all running
-        if context.active_object and context.gpencil_data and context.active_object.type == 'GPENCIL':
+        # XXX: Should these buttons show up in Object Mode at all?
+        if obj and obj.type == 'GPENCIL' and context.gpencil_data:
             gpd = context.gpencil_data
 
             if gpd.is_stroke_paint_mode:
@@ -106,7 +107,7 @@ class VIEW3D_HT_header(Header):
                 sub.popover(
                     space_type='VIEW_3D',
                     region_type='HEADER',
-                    panel_type="VIEW3D_PT_GreasePencilMultiFrame",
+                    panel_type="VIEw3D_PT_gpencil_multi_frame",
                     text="Multiframe"
                 )
 
@@ -4268,9 +4269,8 @@ class VIEW3D_PT_context_properties(Panel):
             rna_prop_ui.draw(self.layout, context, member, object, False)
 
 
-# Grease Pencil multiframe falloff tools
-# FIXME: Name breaks conventions
-class VIEW3D_PT_GreasePencilMultiFrame(Panel):
+# Grease Pencil Object - Multiframe falloff tools
+class VIEw3D_PT_gpencil_multi_frame(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = "Multi Frame"
@@ -4426,7 +4426,7 @@ classes = (
     VIEW3D_PT_view3d_cursor,
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_gp_paper,
-    VIEW3D_PT_GreasePencilMultiFrame,
+    VIEw3D_PT_gpencil_multi_frame,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
     VIEW3D_PT_shading,
