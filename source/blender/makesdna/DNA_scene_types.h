@@ -1269,14 +1269,13 @@ typedef struct ToolSettings {
 
 	/* Grease Pencil */
 	char gpencil_flags;		/* flags/options for how the tool works */
-	char gpencil_src;		/* for main 3D view Grease Pencil, where data comes from */ /* DEPRECATED */
 
 	char gpencil_v3d_align; /* stroke placement settings: 3D View */
 	char gpencil_v2d_align; /*                          : General 2D Editor */
 	char gpencil_seq_align; /*                          : Sequencer Preview */
 	char gpencil_ima_align; /*                          : Image Editor */
 
-	char _pad3[3];
+	char _pad3[4];
 
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;

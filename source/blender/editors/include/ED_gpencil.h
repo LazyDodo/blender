@@ -212,8 +212,8 @@ void ED_gpencil_add_defaults(struct bContext *C);
 /* set object modes */
 void ED_gpencil_setup_modes(struct bContext *C, struct bGPdata *gpd, int newmode);
 
-void ED_gp_project_stroke_to_plane(struct Object *ob, struct RegionView3D *rv3d, struct bGPDstroke *gps, const float origin[3], const int axis, char type);
-void ED_gp_project_point_to_plane(struct Object *ob, struct RegionView3D *rv3d, const float origin[3], const int axis, char type, struct bGPDspoint *pt);
+void ED_gp_project_stroke_to_plane(struct Object *ob, struct RegionView3D *rv3d, struct bGPDstroke *gps, const float origin[3], const int axis);
+void ED_gp_project_point_to_plane(struct Object *ob, struct RegionView3D *rv3d, const float origin[3], const int axis, struct bGPDspoint *pt);
 void ED_gp_get_drawing_reference(struct View3D *v3d, struct Scene *scene, struct Object *ob, struct bGPDlayer *gpl, char align_flag, float vec[3]);
 
 /* set sculpt cursor */

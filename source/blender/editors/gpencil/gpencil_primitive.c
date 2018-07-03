@@ -365,7 +365,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		for (int i = 0; i < gps->totpoints; i++, tpt++) {
 			ED_gp_project_point_to_plane(tgpi->ob, tgpi->rv3d, origin,
 			                             ts->gp_sculpt.lock_axis - 1,
-			                             ts->gpencil_src, tpt);
+			                             tpt);
 		}
 	}
 

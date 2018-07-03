@@ -360,7 +360,7 @@ static void gp_reproject_toplane(tGPsdata *p, bGPDstroke *gps)
 
 	/* get drawing origin */
 	gp_get_3d_reference(p, origin);
-	ED_gp_project_stroke_to_plane(obact, rv3d, gps, origin, p->lock_axis - 1, p->scene->toolsettings->gpencil_src);
+	ED_gp_project_stroke_to_plane(obact, rv3d, gps, origin, p->lock_axis - 1);
 }
 
 /* convert screen-coordinates to buffer-coordinates */
@@ -715,11 +715,11 @@ static short gp_stroke_addpoint(
 			gp_get_3d_reference(p, origin);
 			/* reproject current */
 			ED_gpencil_tpoint_to_point(p->ar, origin, pt, &spt);
-			ED_gp_project_point_to_plane(obact, rv3d, origin, ts->gp_sculpt.lock_axis - 1, ts->gpencil_src, &spt);
+			ED_gp_project_point_to_plane(obact, rv3d, origin, ts->gp_sculpt.lock_axis - 1, &spt);
 
 			/* reproject previous */
 			ED_gpencil_tpoint_to_point(p->ar, origin, ptb, &spt2);
-			ED_gp_project_point_to_plane(obact, rv3d, origin, ts->gp_sculpt.lock_axis - 1, ts->gpencil_src, &spt2);
+			ED_gp_project_point_to_plane(obact, rv3d, origin, ts->gp_sculpt.lock_axis - 1, &spt2);
 
 			p->totpixlen += len_v3v3(&spt.x, &spt2.x) / pixsize;
 			pt->uv_fac = p->totpixlen;

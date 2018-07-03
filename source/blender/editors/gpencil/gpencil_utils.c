@@ -834,7 +834,7 @@ void ED_gp_get_drawing_reference(View3D *v3d, Scene *scene, Object *ob, bGPDlaye
 /**
  * Reproject all points of the stroke to a plane locked to axis to avoid stroke offset
  */
-void ED_gp_project_stroke_to_plane(Object *ob, RegionView3D *rv3d, bGPDstroke *gps, const float origin[3], const int axis, char UNUSED(type))
+void ED_gp_project_stroke_to_plane(Object *ob, RegionView3D *rv3d, bGPDstroke *gps, const float origin[3], const int axis)
 {
 	float plane_normal[3];
 	float vn[3];
@@ -880,7 +880,7 @@ void ED_gp_project_stroke_to_plane(Object *ob, RegionView3D *rv3d, bGPDstroke *g
  * Reproject given point to a plane locked to axis to avoid stroke offset
  * \param[in, out] pt : Point to affect
  */
-void ED_gp_project_point_to_plane(Object *ob, RegionView3D *rv3d, const float origin[3], const int axis, char UNUSED(type), bGPDspoint *pt)
+void ED_gp_project_point_to_plane(Object *ob, RegionView3D *rv3d, const float origin[3], const int axis, bGPDspoint *pt)
 {
 	float plane_normal[3];
 	float vn[3];

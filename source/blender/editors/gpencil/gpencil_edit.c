@@ -2760,7 +2760,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 						ED_gp_get_drawing_reference(v3d, scene, ob, gpl,
 							ts->gpencil_v3d_align, origin);
 						ED_gp_project_point_to_plane(ob, rv3d, origin,
-							lock_axis - 1, ts->gpencil_src, &pt2);
+							lock_axis - 1, &pt2);
 
 						copy_v3_v3(&pt->x, &pt2.x);
 

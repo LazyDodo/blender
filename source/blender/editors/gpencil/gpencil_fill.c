@@ -891,7 +891,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		ED_gp_get_drawing_reference(tgpf->v3d, tgpf->scene, tgpf->ob, tgpf->gpl,
 			ts->gpencil_v3d_align, origin);
 		ED_gp_project_stroke_to_plane(tgpf->ob, tgpf->rv3d, gps, origin,
-			tgpf->lock_axis - 1, ts->gpencil_src);
+			tgpf->lock_axis - 1);
 	}
 
 	/* if parented change position relative to parent object */
