@@ -405,24 +405,6 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 			}
 		}
 	}
-
-	/* 2d - on 'canvas' (assume that p->v2d is set) */
-	else if ((gpd->runtime.sbuffer_sflag & GP_STROKE_2DSPACE) && (p->v2d)) {
-		UI_view2d_region_to_view(p->v2d, mval[0], mval[1], &out[0], &out[1]);
-		mul_v3_m4v3(out, p->imat, out);
-	}
-
-	/* 2d - relative to screen (viewport area) */
-	else {
-		if (p->subrect == NULL) { /* normal 3D view */
-			out[0] = (float)(mval[0]) / (float)(p->ar->winx) * 100;
-			out[1] = (float)(mval[1]) / (float)(p->ar->winy) * 100;
-		}
-		else { /* camera view, use subrect */
-			out[0] = ((mval[0] - p->subrect->xmin) / BLI_rctf_size_x(p->subrect)) * 100;
-			out[1] = ((mval[1] - p->subrect->ymin) / BLI_rctf_size_y(p->subrect)) * 100;
-		}
-	}
 }
 
 /* apply jitter to stroke */
@@ -1700,90 +1682,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 
 			break;
 		}
-		case SPACE_NODE:
-		{
-			/* SpaceNode *snode = curarea->spacedata.first; */
-
-			/* set current area */
-			p->sa = curarea;
-			p->ar = ar;
-			p->v2d = &ar->v2d;
-			p->align_flag = &ts->gpencil_v2d_align;
-			break;
-		}
-		case SPACE_SEQ:
-		{
-			SpaceSeq *sseq = curarea->spacedata.first;
-
-			/* set current area */
-			p->sa = curarea;
-			p->ar = ar;
-			p->v2d = &ar->v2d;
-			p->align_flag = &ts->gpencil_seq_align;
-
-			/* check that gpencil data is allowed to be drawn */
-			if (sseq->mainb == SEQ_DRAW_SEQUENCE) {
-				p->status = GP_STATUS_ERROR;
-				if (G.debug & G_DEBUG)
-					printf("Error: In active view (sequencer), active mode doesn't support Grease Pencil\n");
-				return 0;
-			}
-			break;
-		}
-		case SPACE_IMAGE:
-		{
-			/* SpaceImage *sima = curarea->spacedata.first; */
-
-			/* set the current area */
-			p->sa = curarea;
-			p->ar = ar;
-			p->v2d = &ar->v2d;
-			p->align_flag = &ts->gpencil_ima_align;
-			break;
-		}
-		case SPACE_CLIP:
-		{
-			SpaceClip *sc = curarea->spacedata.first;
-			MovieClip *clip = ED_space_clip_get_clip(sc);
-
-			if (clip == NULL) {
-				p->status = GP_STATUS_ERROR;
-				return false;
-			}
-
-			/* set the current area */
-			p->sa = curarea;
-			p->ar = ar;
-			p->v2d = &ar->v2d;
-			p->align_flag = &ts->gpencil_v2d_align;
-
-			invert_m4_m4(p->imat, sc->unistabmat);
-
-			/* custom color for new layer */
-			p->custom_color[0] = 1.0f;
-			p->custom_color[1] = 0.0f;
-			p->custom_color[2] = 0.5f;
-			p->custom_color[3] = 0.9f;
-
-			if (sc->gpencil_src == SC_GPENCIL_SRC_TRACK) {
-				int framenr = ED_space_clip_get_clip_frame_number(sc);
-				MovieTrackingTrack *track = BKE_tracking_track_get_active(&clip->tracking);
-				MovieTrackingMarker *marker = track ? BKE_tracking_marker_get(track, framenr) : NULL;
-
-				if (marker) {
-					p->imat[3][0] -= marker->pos[0];
-					p->imat[3][1] -= marker->pos[1];
-				}
-				else {
-					p->status = GP_STATUS_ERROR;
-					return false;
-				}
-			}
-
-			invert_m4_m4(p->mat, p->imat);
-			copy_m4_m4(p->gsc.mat, p->mat);
-			break;
-		}
+		
 		/* unsupported views */
 		default:
 		{
@@ -2064,40 +1963,6 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 			case SPACE_VIEW3D:
 			{
 				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
-				break;
-			}
-			case SPACE_NODE:
-			{
-				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
-				break;
-			}
-			case SPACE_SEQ:
-			{
-				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
-				break;
-			}
-			case SPACE_IMAGE:
-			{
-				SpaceImage *sima = (SpaceImage *)p->sa->spacedata.first;
-
-				/* only set these flags if the image editor doesn't have an image active,
-				 * otherwise user will be confused by strokes not appearing after they're drawn
-				 *
-				 * Admittedly, this is a bit hacky, but it works much nicer from an ergonomic standpoint!
-				 */
-				if (ELEM(NULL, sima, sima->image)) {
-					/* make strokes be drawn in screen space */
-					p->gpd->runtime.sbuffer_sflag &= ~GP_STROKE_2DSPACE;
-					*(p->align_flag) &= ~GP_PROJECT_VIEWSPACE;
-				}
-				else {
-					p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
-				}
-				break;
-			}
-			case SPACE_CLIP:
-			{
-				p->gpd->runtime.sbuffer_sflag |= GP_STROKE_2DSPACE;
 				break;
 			}
 		}
