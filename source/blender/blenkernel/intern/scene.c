@@ -425,10 +425,9 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 		/* NOTE: part of SCE_COPY_LINK_DATA and SCE_COPY_FULL operations
 		 * are done outside of blenkernel with ED_object_single_users! */
 
-		/*  camera and gp_object  */
+		/*  camera   */
 		if (ELEM(type, SCE_COPY_LINK_DATA, SCE_COPY_FULL)) {
 			ID_NEW_REMAP(sce_copy->camera);
-			ID_NEW_REMAP(sce_copy->gp_object);
 		}
 
 		return sce_copy;

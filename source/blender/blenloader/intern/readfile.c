@@ -5892,7 +5892,6 @@ static void lib_link_scene(FileData *fd, Main *main)
 			sce->world = newlibadr_us(fd, sce->id.lib, sce->world);
 			sce->set = newlibadr(fd, sce->id.lib, sce->set);
 			sce->gpd = newlibadr_us(fd, sce->id.lib, sce->gpd);
-			sce->gp_object = newlibadr(fd, sce->id.lib, sce->gp_object);
 
 			link_paint(fd, sce, &sce->toolsettings->sculpt->paint);
 			link_paint(fd, sce, &sce->toolsettings->vpaint->paint);
@@ -9803,8 +9802,6 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 
 	if (sce->gpd)
 		expand_doit(fd, mainvar, sce->gpd);
-
-	expand_doit(fd, mainvar, sce->gp_object);
 
 	if (sce->ed) {
 		Sequence *seq;

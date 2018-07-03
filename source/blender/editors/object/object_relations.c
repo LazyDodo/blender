@@ -1709,9 +1709,6 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 	ID_NEW_REMAP(scene->camera);
 	if (v3d) ID_NEW_REMAP(v3d->camera);
 
-	/* gp_object */
-	ID_NEW_REMAP(scene->gp_object);
-
 	/* object and collection pointers */
 	libblock_relink_collection(master_collection);
 }

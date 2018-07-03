@@ -1534,8 +1534,6 @@ typedef struct Scene {
 	uint64_t customdata_mask_modal; /* XXX. same as above but for temp operator use (gl renders) */
 
 
-	struct Object *gp_object;     /* default GP object for annotations */
-
 	/* Color Management */
 	ColorManagedViewSettings view_settings;
 	ColorManagedDisplaySettings display_settings;

@@ -1689,37 +1689,11 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 				return 0;
 			}
 
-			/* if active object doesn't exist or it's not a Grease Pencil object,
-			 * use the scene's gp_object (), or create one if it doesn't exist
-			 */
+			/* if active object doesn't exist or isn't a GP Object, create one */
 			float *cur = ED_view3d_cursor3d_get(p->scene, v3d)->location;
 			if ((!obact) || (obact->type != OB_GPENCIL)) {
-				if (p->scene->gp_object) {
-					/* use existing default */
-					/* XXX: This will still lose whatever mode we were in before,
-					 *      making GP less convenient for annotations than it used to be
-					 */
-					obact = p->scene->gp_object;
-
-					/* temporarily activate the object */
-					ViewLayer *view_layer = CTX_data_view_layer(C);
-					Base *base = BKE_view_layer_base_find(view_layer, obact);
-					if (base) {
-						if (CTX_data_edit_object(C))
-							ED_object_editmode_exit(C, EM_FREEDATA | EM_WAITCURSOR);  /* freedata, and undo */
-
-						view_layer->basact = base;
-						ED_object_base_activate(C, base);
-					}
-					else {
-						printf("ERROR: Couldn't find base for active gp_object (view_layer = %p, obact = %s)\n", view_layer, obact->id.name);
-					}
-				}
-				else {
-					/* create new default object */
-					obact = ED_add_gpencil_object(C, p->scene, cur);
-					p->scene->gp_object = obact;
-				}
+				/* create new default object */
+				obact = ED_add_gpencil_object(C, p->scene, cur);
 			}
 			/* assign object after all checks to be sure we have one active */
 			p->ob = obact;
