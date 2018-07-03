@@ -124,8 +124,6 @@ class VIEW3D_HT_header(Header):
 
             view = context.space_data
             row = layout.row()
-            row.prop(view, "use_gpencil_paper", text="", icon='GHOST')
-
             row.prop(gpd, "use_onion_skinning", text="Onion Skins", icon='PARTICLE_PATH')
             row.prop(gpd, "show_edit_lines", text="", icon="PARTICLE_POINT")
 
@@ -4120,6 +4118,39 @@ class VIEW3D_PT_overlay_paint(Panel):
             col.prop(overlay, "show_paint_wire")
 
 
+class VIEW3D_PT_overlay_gpencil_paper(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_parent_id = 'VIEW3D_PT_overlay'
+    bl_label = ""
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT'}
+
+    def draw_header(self, context):
+        view = context.space_data
+        self.layout.prop(view, "use_gpencil_paper", text="Drawing Paper")
+
+    def draw(self, context):
+        layout = self.layout
+        view = context.space_data
+        layout.active = view.use_gpencil_paper
+
+        row = layout.row()
+        row.prop(view, "gp_paper_color", text="Color")
+        row = layout.row()
+        row.prop(view, "gp_paper_opacity", text="Opacity")
+
+        row = layout.row(align=False)
+        row.prop(view, "use_gpencil_grid", text="Display Grid")
+
+        row = layout.row(align=False)
+        col = row.column(align=True)
+        col.enabled = view.use_gpencil_grid
+        col.prop(view, "gpencil_grid_size", text="")
+
+
 class VIEW3D_PT_quad_view(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -4153,41 +4184,6 @@ class VIEW3D_PT_grease_pencil(GreasePencilDataPanel, Panel):
     bl_region_type = 'UI'
 
     # NOTE: this is just a wrapper around the generic GP Panel
-
-
-# TODO: Move to Overlays popover (when in GP Object Draw Mode)
-class VIEW3D_PT_gp_paper(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_label = "Grease Pencil Paper"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        view = context.space_data
-        return (view and context.active_object and context.gpencil_data)
-
-    def draw_header(self, context):
-        view = context.space_data
-        self.layout.prop(view, "use_gpencil_paper", text="")
-
-    def draw(self, context):
-        layout = self.layout
-        view = context.space_data
-        layout.active = view.use_gpencil_paper
-
-        row = layout.row()
-        row.prop(view, "gp_paper_color", text="Color")
-        row = layout.row()
-        row.prop(view, "gp_paper_opacity", text="Opacity")
-
-        row = layout.row(align=False)
-        row.prop(view, "use_gpencil_grid", text="Display Grid")
-
-        row = layout.row(align=False)
-        col = row.column(align=True)
-        col.enabled = view.use_gpencil_grid
-        col.prop(view, "gpencil_grid_size", text="")
 
 
 class VIEW3D_PT_view3d_stereo(Panel):
@@ -4425,7 +4421,6 @@ classes = (
     VIEW3D_PT_view3d_properties,
     VIEW3D_PT_view3d_cursor,
     VIEW3D_PT_grease_pencil,
-    VIEW3D_PT_gp_paper,
     VIEw3D_PT_gpencil_multi_frame,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
@@ -4440,6 +4435,7 @@ classes = (
     VIEW3D_PT_overlay_pose,
     VIEW3D_PT_overlay_paint,
     VIEW3D_PT_overlay_sculpt,
+    VIEW3D_PT_overlay_gpencil_paper,
     VIEW3D_PT_context_properties,
 )
 
