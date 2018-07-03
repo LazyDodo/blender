@@ -107,7 +107,7 @@ class VIEW3D_HT_header(Header):
                 sub.popover(
                     space_type='VIEW_3D',
                     region_type='HEADER',
-                    panel_type="VIEw3D_PT_gpencil_multi_frame",
+                    panel_type="VIEW3D_PT_gpencil_multi_frame",
                     text="Multiframe"
                 )
 
@@ -4266,7 +4266,7 @@ class VIEW3D_PT_context_properties(Panel):
 
 
 # Grease Pencil Object - Multiframe falloff tools
-class VIEw3D_PT_gpencil_multi_frame(Panel):
+class VIEW3D_PT_gpencil_multi_frame(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = "Multi Frame"
@@ -4421,7 +4421,7 @@ classes = (
     VIEW3D_PT_view3d_properties,
     VIEW3D_PT_view3d_cursor,
     VIEW3D_PT_grease_pencil,
-    VIEw3D_PT_gpencil_multi_frame,
+    VIEW3D_PT_gpencil_multi_frame,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
     VIEW3D_PT_shading,
