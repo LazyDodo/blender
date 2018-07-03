@@ -449,6 +449,7 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 				mesh->motion_steps = motion_steps;
 			}
 
+			object->motion.clear();
 			object->motion.resize(motion_steps, transform_empty());
 
 			if(motion_steps) {

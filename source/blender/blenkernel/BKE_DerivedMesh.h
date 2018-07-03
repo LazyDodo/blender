@@ -378,14 +378,6 @@ int DM_release(DerivedMesh *dm);
  */
 void DM_to_mesh(DerivedMesh *dm, struct Mesh *me, struct Object *ob, CustomDataMask mask, bool take_ownership);
 
-struct BMEditMesh *DM_to_editbmesh(
-        struct DerivedMesh *dm,
-        struct BMEditMesh *existing, const bool do_tessellate);
-
-/* conversion to bmesh only */
-void          DM_to_bmesh_ex(struct DerivedMesh *dm, struct BMesh *bm, const bool calc_face_normal);
-struct BMesh *DM_to_bmesh(struct DerivedMesh *dm, const bool calc_face_normal);
-
 
 void DM_set_only_copy(DerivedMesh *dm, CustomDataMask mask);
 
@@ -574,7 +566,6 @@ void makeDerivedMesh(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct BMEditMesh *em,
         CustomDataMask dataMask, const bool build_shapekey_layers);
 
-void weight_to_rgb(float r_rgb[3], const float weight);
 /** Update the weight MCOL preview layer.
  * If weights are NULL, use object's active vgroup(s).
  * Else, weights must be an array of weight float values.
