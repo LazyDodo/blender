@@ -57,14 +57,18 @@ struct Collection;
 #define LANPR_COMPONENT_MODE_OBJECT       1
 #define LANPR_COMPONENT_MODE_MATERIAL     2
 #define LANPR_COMPONENT_MODE_COLLECTION   3
+//#define LANPR_COMPONENT_MODE_REST         4 // use _ALL
 
 #define LANPR_COMPONENT_INCLUSIVE         0
 #define LANPR_COMPONENT_EXCLUSIVE         1
 
+#define LANPR_COMPONENT_LOGIG_OR          0
+#define LANPR_COMPONENT_LOGIC_AND         1
+
 struct DRWShadingGroup;
 
-typedef struct LANPR_LineStyleComponent{
-    struct LANPR_LineStyleComponent *next, *prev;
+typedef struct LANPR_LineLayerComponent{
+    struct LANPR_LineLayerComponent *next, *prev;
 
     struct Object     *object_select;
     struct Material   *material_select;
@@ -73,7 +77,7 @@ typedef struct LANPR_LineStyleComponent{
     int               component_mode;
     int               what;
 
-}LANPR_LineStyleComponent;
+}LANPR_LineLayerComponent;
 
 typedef struct LANPR_LineLayer{
     struct LANPR_LineLayer *next, *prev;

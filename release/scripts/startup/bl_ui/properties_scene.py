@@ -586,7 +586,7 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
         col.prop(active_layer, "enable_intersection", text="Intersection", toggle=True)
         col = split.column()
         row = col.row(align = True)
-        row.enabled = active_layer.enable_contour
+        #row.enabled = active_layer.enable_contour this is always enabled now
         row.prop(active_layer, "color", text="")
         row.prop(active_layer, "thickness", text="")
         row = col.row(align = True)
@@ -614,6 +614,43 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
             row = layout.row(align=True)
             row.prop(active_layer, "qi_begin")
             row.prop(active_layer, "qi_end")
+
+class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
+    bl_label = "Including"
+    bl_parent_id = "SCENE_PT_lanpr"
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        lanpr = scene.lanpr
+        active_layer = lanpr.layers.active_layer
+        return active_layer and lanpr.master_mode == "SOFTWARE"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        lanpr = scene.lanpr
+        active_layer = lanpr.layers.active_layer
+
+        layout.operator("scene.lanpr_add_line_component", icon = "ZOOMIN")
+
+        for c in active_layer.components:
+            split = layout.split(percentage=0.85)
+            col = split.column()
+            sp2 = col.split(percentage=0.4)
+            cl = sp2.column()
+            cl.prop(c,"component_mode", text = "")
+            cl = sp2.column()
+            if c.component_mode == "OBJECT":
+                cl.prop(c,"object_select", text = "")
+            elif c.component_mode == "MATERIAL":
+                cl.prop(c,"material_select", text = "")
+            elif c.component_mode == "COLLECTION":
+                cl.prop(c,"collection_select", text = "")
+            col = split.column()
+            col.label(text = "X")
+
 
 class SCENE_PT_lanpr_line_effects(SceneButtonsPanel, Panel):
     bl_label = "Effects"
@@ -768,6 +805,7 @@ classes = (
 
     SCENE_PT_lanpr,
     SCENE_PT_lanpr_line_types,
+    SCENE_PT_lanpr_line_components,
     SCENE_PT_lanpr_line_effects,
     SCENE_PT_lanpr_snake_sobel_parameters,
     SCENE_PT_lanpr_snake_settings,

@@ -2700,8 +2700,26 @@ static char MessageFailed[] = "No saving action performed.";
 //}
 
 
-
-long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, int qi_begin, int qi_end) {
+int lanpr_CountThisLine(LANPR_RenderLine* rl, LANPR_LineLayer* ll) {
+	LANPR_LineLayerComponent* llc = ll->components.first;
+	int AndResult = 1, OrResult = 0;
+	if (!llc) return 1;
+	for (llc; llc; llc = llc->next) {
+		if (llc->component_mode == LANPR_COMPONENT_MODE_ALL) { OrResult = 1; }
+		elif(llc->component_mode == LANPR_COMPONENT_MODE_OBJECT) {
+			if (rl->ObjectRef->id.orig_id == &llc->object_select->id) { OrResult = 1;}
+			else { AndResult = 0; }
+		}elif(llc->component_mode == LANPR_COMPONENT_MODE_MATERIAL) {
+			OrResult = 1;
+		}elif(llc->component_mode == LANPR_COMPONENT_MODE_COLLECTION) {
+			if(BKE_collection_has_object(llc->collection_select, (Object*)rl->ObjectRef->id.orig_id)) { OrResult = 1; }
+			else { AndResult = 0; }
+		}
+	}
+	if (ll->logic_mode == LANPR_COMPONENT_LOGIG_OR) return OrResult;
+	else return AndResult;
+}
+long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, LANPR_LineLayer* ll) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls;
@@ -2710,13 +2728,11 @@ long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, int qi_begin, int
 	long Count = 0;
 	for (lip = LineList->pFirst; lip; lip = lip->pNext) {
 		rl = lip->p;
-		o = rl->ObjectRef;
+		if (!lanpr_CountThisLine(rl, ll)) continue;
+
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
-			//if (OverrideGroup) {
-			//	if (Exclusive && BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
-			//	if (!Exclusive && !BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
-			//}
-			if (rls->OccludeLevel >= qi_begin && rls->OccludeLevel<= qi_end) Count++;
+
+			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel<= ll->qi_end) Count++;
 		}
 	}
 	return Count;
@@ -2730,7 +2746,7 @@ long lanpr_CountIntersectionSegmentCount(LANPR_RenderBuffer *rb) {
 	}
 	return Count;
 }
-void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, int qi_begin, int qi_end,float componet_id) {
+void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, LANPR_LineLayer* ll, float componet_id) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls, *irls;
@@ -2740,14 +2756,10 @@ void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *Line
 	float *V = VertexArray;
 	for (lip = LineList->pFirst; lip; lip = lip->pNext) {
 		rl = lip->p;
-		o = rl->ObjectRef;
-		//if (OverrideGroup) {
-		//	if (Exclusive && BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
-		//	if (!Exclusive && !BKE_collection_has_object(OverrideGroup, rl->ObjectRef)) continue;
-		//}
+		if (!lanpr_CountThisLine(rl, ll)) continue;
 
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
-			if (rls->OccludeLevel >= qi_begin && rls->OccludeLevel<= qi_end) {
+			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel<= ll->qi_end) {
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
@@ -2784,11 +2796,11 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 
 		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 
-		if (ll->enable_contour)           Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll->qi_begin, ll->qi_end);
-		if (ll->enable_crease)            Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll->qi_begin, ll->qi_end);
-		if (ll->enable_intersection)      Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll->qi_begin, ll->qi_end);
-		if (ll->enable_edge_mark)         Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll->qi_begin, ll->qi_end);
-		if (ll->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, ll->qi_begin, ll->qi_end);
+		if (ll->enable_contour)           Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll);
+		if (ll->enable_crease)            Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll);
+		if (ll->enable_intersection)      Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll);
+		if (ll->enable_edge_mark)         Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll);
+		if (ll->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, ll);
 
 		ll->VertCount = Count * 2;
 
@@ -2796,11 +2808,11 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 
 		tv = V = CreateNewBuffer(float, 6 * Count);
 
-		if (ll->enable_contour)           tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll->qi_begin, ll->qi_end, 1.0f);
-		if (ll->enable_crease)            tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll->qi_begin, ll->qi_end, 2.0f);
-		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll->qi_begin, ll->qi_end, 3.0f);
-		if (ll->enable_edge_mark)         tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll->qi_begin, ll->qi_end, 4.0f);
-		if (ll->enable_intersection)      tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll->qi_begin, ll->qi_end, 5.0f);
+		if (ll->enable_contour)           tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll, 1.0f);
+		if (ll->enable_crease)            tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll, 2.0f);
+		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll, 3.0f);
+		if (ll->enable_edge_mark)         tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll, 4.0f);
+		if (ll->enable_intersection)      tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll, 5.0f);
 
 
 		for (i = 0; i < ll->VertCount; i++) {
@@ -2939,8 +2951,17 @@ LANPR_LineLayer *lanpr_new_line_layer(SceneLANPR *lanpr){
 	lanpr->active_layer = ll;
 	return ll;
 }
+LANPR_LineLayerComponent *lanpr_new_line_component(SceneLANPR *lanpr) {
+	if (!lanpr->active_layer) return 0;
+	LANPR_LineLayer* ll = lanpr->active_layer;
 
-static int lanpr_add_line_layer_exec(struct bContext *C, struct wmOperator *op){
+	LANPR_LineLayerComponent *llc = MEM_callocN(sizeof(LANPR_LineLayerComponent), "Line Component");
+	BLI_addtail(&ll->components, llc);
+
+	return llc;
+}
+
+int lanpr_add_line_layer_exec(struct bContext *C, struct wmOperator *op){
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 
@@ -2981,6 +3002,22 @@ int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	//}elif(strArgumentMatch(a->ExtraInstructionsP, "direction", "down")) {
 	//lstMoveDown(&ll->Parentlanpr->line_layers, ll);
 	//}
+
+	return OPERATOR_FINISHED;
+}
+int lanpr_add_line_component_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	lanpr_new_line_component(lanpr);
+
+	return OPERATOR_FINISHED;
+}
+int lanpr_delete_line_component_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	// need property access
 
 	return OPERATOR_FINISHED;
 }
@@ -3075,5 +3112,24 @@ void SCENE_OT_lanpr_move_line_layer(struct wmOperatorType *ot) {
 	//this need property to assign up/down direction
 
 	ot->exec = lanpr_move_line_layer_exec;
+
+}
+
+void SCENE_OT_lanpr_add_line_component(struct wmOperatorType *ot) {
+
+	ot->name = "Add Line Component";
+	ot->description = "Add a new line Component";
+	ot->idname = "SCENE_OT_lanpr_add_line_component";
+
+	ot->exec = lanpr_add_line_component_exec;
+
+}
+void SCENE_OT_lanpr_delete_line_component(struct wmOperatorType *ot) {
+
+	ot->name = "Delete Line Component";
+	ot->description = "Delete selected line component";
+	ot->idname = "SCENE_OT_lanpr_delete_line_component";
+
+	ot->exec = lanpr_delete_line_component_exec;
 
 }

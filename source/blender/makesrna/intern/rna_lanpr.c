@@ -56,16 +56,16 @@ void RNA_def_lanpr(BlenderRNA *brna){
         /* line style layer */
 
 	static const EnumPropertyItem lanpr_line_component_modes[] = {
-	    {0, "NORMAL", 0, "Normal", "Normal, display all selected lines"},
+	    {0, "ALL", 0, "All", "Select All lines, lines are already selected are not affected"},
         {1, "OBJECT", 0, "Object", "Display lines for selected object"},
 		{2, "MATERIAL", 0, "Material", "Display lines that touches specific material"},
         {3, "COLLECTION", 0, "Collection", "Display lines in specific collections"},
 	    {0, NULL, 0, NULL, NULL}
     };
 
-    srna = RNA_def_struct(brna, "LANPR_LineStyleComponent", NULL);
-	RNA_def_struct_sdna(srna, "LANPR_LineStyleComponent");
-	RNA_def_struct_ui_text(srna, "Line Style Component", "LANPR_LineStyleComponent");
+    srna = RNA_def_struct(brna, "LANPR_LineLayerComponent", NULL);
+	RNA_def_struct_sdna(srna, "LANPR_LineLayerComponent");
+	RNA_def_struct_ui_text(srna, "Line Layer Component", "LANPR_LineLayerComponent");
 
 	prop = RNA_def_property(srna, "component_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, lanpr_line_component_modes);
@@ -182,7 +182,7 @@ void RNA_def_lanpr(BlenderRNA *brna){
 
 	prop = RNA_def_property(srna, "components", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "components", NULL);
-	RNA_def_property_struct_type(prop, "LANPR_LineStyleComponent");
+	RNA_def_property_struct_type(prop, "LANPR_LineLayerComponent");
 	RNA_def_property_ui_text(prop, "Components", "Line Layer Components");
 
 }
