@@ -226,16 +226,16 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 				ARRAY_SET_ITEMS(contexts, ".curve_edit");
 				break;
 			case CTX_MODE_EDIT_TEXT:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".text_edit");
 				break;
 			case CTX_MODE_EDIT_ARMATURE:
 				ARRAY_SET_ITEMS(contexts, ".armature_edit");
 				break;
 			case CTX_MODE_EDIT_METABALL:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".mball_edit");
 				break;
 			case CTX_MODE_EDIT_LATTICE:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".lattice_edit");
 				break;
 			case CTX_MODE_POSE:
 				ARRAY_SET_ITEMS(contexts, ".posemode");
@@ -256,7 +256,7 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 				ARRAY_SET_ITEMS(contexts, ".particlemode");
 				break;
 			case CTX_MODE_OBJECT:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".objectmode");
 				break;
 		}
 	}

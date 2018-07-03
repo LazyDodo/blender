@@ -176,9 +176,9 @@ class VIEW3D_HT_header(Header):
 
             row = layout.row(align=True)
             row.popover(
-                space_type='TOPBAR',
+                space_type='VIEW_3D',
                 region_type='HEADER',
-                panel_type="TOPBAR_PT_transform_orientations",
+                panel_type="VIEW3D_PT_transform_orientations",
                 text=trans_name,
                 icon=trans_icon,
             )
@@ -215,9 +215,9 @@ class VIEW3D_HT_header(Header):
 
             sub = row.row(align=True)
             sub.popover(
-                space_type='TOPBAR',
+                space_type='VIEW_3D',
                 region_type='HEADER',
-                panel_type="TOPBAR_PT_snapping",
+                panel_type="VIEW3D_PT_snapping",
                 icon=icon,
                 text=""
             )
@@ -261,9 +261,9 @@ class VIEW3D_HT_header(Header):
             act_pivot_point = bpy.types.ToolSettings.bl_rna.properties["transform_pivot_point"].enum_items[pivot_point]
             row = layout.row(align=True)
             row.popover(
-                space_type='TOPBAR',
+                space_type='VIEW_3D',
                 region_type='HEADER',
-                panel_type="TOPBAR_PT_pivot_point",
+                panel_type="VIEW3D_PT_pivot_point",
                 icon=act_pivot_point.icon,
                 text="",
             )
@@ -786,15 +786,19 @@ class VIEW3D_MT_select_object(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("object.select_all", text="All").action = 'SELECT'
+        layout.operator("object.select_all", text="None").action = 'DESELECT'
+        layout.operator("object.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("view3d.select_border")
         layout.operator("view3d.select_circle")
 
         layout.separator()
 
-        layout.operator("object.select_all", text="Select/Deselect All").action = 'TOGGLE'
         layout.operator_menu_enum("object.select_by_type", "type", text="Select All by Type...")
         layout.operator("object.select_camera", text="Select Active Camera")
-        layout.operator("object.select_all", text="Inverse Selection").action = 'INVERT'
         layout.operator("object.select_mirror", text="Mirror Selection")
         layout.operator("object.select_random", text="Select Random")
 
@@ -842,13 +846,17 @@ class VIEW3D_MT_select_pose(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("pose.select_all", text="All").action = 'SELECT'
+        layout.operator("pose.select_all", text="None").action = 'DESELECT'
+        layout.operator("pose.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("view3d.select_border")
         layout.operator("view3d.select_circle")
 
         layout.separator()
 
-        layout.operator("pose.select_all").action = 'TOGGLE'
-        layout.operator("pose.select_all", text="Inverse").action = 'INVERT'
         layout.operator("pose.select_mirror", text="Flip Active")
 
         layout.separator()
@@ -872,14 +880,18 @@ class VIEW3D_MT_select_particle(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("particle.select_all", text="All").action = 'SELECT'
+        layout.operator("particle.select_all", text="None").action = 'DESELECT'
+        layout.operator("particle.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("view3d.select_border")
         layout.operator("view3d.select_circle")
 
         layout.separator()
 
-        layout.operator("particle.select_all").action = 'TOGGLE'
         layout.operator("particle.select_linked")
-        layout.operator("particle.select_all", text="Inverse").action = 'INVERT'
 
         layout.separator()
 
@@ -973,14 +985,15 @@ class VIEW3D_MT_select_edit_mesh(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        # primitive
+        layout.operator("mesh.select_all", text="All").action = 'SELECT'
+        layout.operator("mesh.select_all", text="None").action = 'DESELECT'
+        layout.operator("mesh.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        # primitive
-        layout.operator("mesh.select_all", text="Select/Deselect All").action = 'TOGGLE'
-        layout.operator("mesh.select_all", text="Inverse Selection").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -1026,13 +1039,14 @@ class VIEW3D_MT_select_edit_curve(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        layout.operator("curve.select_all", text="All").action = 'SELECT'
+        layout.operator("curve.select_all", text="None").action = 'DESELECT'
+        layout.operator("curve.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("curve.select_all").action = 'TOGGLE'
-        layout.operator("curve.select_all", text="Inverse").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -1060,13 +1074,14 @@ class VIEW3D_MT_select_edit_surface(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        layout.operator("curve.select_all", text="All").action = 'SELECT'
+        layout.operator("curve.select_all", text="None").action = 'DESELECT'
+        layout.operator("curve.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("curve.select_all").action = 'TOGGLE'
-        layout.operator("curve.select_all", text="Inverse").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -1112,13 +1127,14 @@ class VIEW3D_MT_select_edit_metaball(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        layout.operator("mball.select_all", text="All").action = 'SELECT'
+        layout.operator("mball.select_all", text="None").action = 'DESELECT'
+        layout.operator("mball.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("mball.select_all").action = 'TOGGLE'
-        layout.operator("mball.select_all", text="Inverse").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -1135,13 +1151,14 @@ class VIEW3D_MT_select_edit_lattice(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        layout.operator("lattice.select_all", text="All").action = 'SELECT'
+        layout.operator("lattice.select_all", text="None").action = 'DESELECT'
+        layout.operator("lattice.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("lattice.select_all").action = 'TOGGLE'
-        layout.operator("lattice.select_all", text="Inverse").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -1159,13 +1176,17 @@ class VIEW3D_MT_select_edit_armature(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("armature.select_all", text="All").action = 'SELECT'
+        layout.operator("armature.select_all", text="None").action = 'DESELECT'
+        layout.operator("armature.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("view3d.select_border")
         layout.operator("view3d.select_circle")
 
         layout.separator()
 
-        layout.operator("armature.select_all").action = 'TOGGLE'
-        layout.operator("armature.select_all", text="Inverse").action = 'INVERT'
         layout.operator("armature.select_mirror", text="Mirror").extend = False
 
         layout.separator()
@@ -1203,13 +1224,14 @@ class VIEW3D_MT_select_gpencil(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("gpencil.select_border")
-        layout.operator("gpencil.select_circle")
+        layout.operator("gpencil.select_all", text="All").action = 'SELECT'
+        layout.operator("gpencil.select_all", text="None").action = 'DESELECT'
+        layout.operator("gpencil.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("gpencil.select_all", text="(De)select All").action = 'TOGGLE'
-        layout.operator("gpencil.select_all", text="Inverse").action = 'INVERT'
+        layout.operator("gpencil.select_border")
+        layout.operator("gpencil.select_circle")
 
         layout.separator()
 
@@ -1234,13 +1256,14 @@ class VIEW3D_MT_select_paint_mask(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        layout.operator("paint.face_select_all", text="All").action = 'SELECT'
+        layout.operator("paint.face_select_all", text="None").action = 'DESELECT'
+        layout.operator("paint.face_select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("paint.face_select_all").action = 'TOGGLE'
-        layout.operator("paint.face_select_all", text="Inverse").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -1253,13 +1276,14 @@ class VIEW3D_MT_select_paint_mask_vertex(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.select_border")
-        layout.operator("view3d.select_circle")
+        layout.operator("paint.vert_select_all", text="All").action = 'SELECT'
+        layout.operator("paint.vert_select_all", text="None").action = 'DESELECT'
+        layout.operator("paint.vert_select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
 
-        layout.operator("paint.vert_select_all").action = 'TOGGLE'
-        layout.operator("paint.vert_select_all", text="Inverse").action = 'INVERT'
+        layout.operator("view3d.select_border")
+        layout.operator("view3d.select_circle")
 
         layout.separator()
 
@@ -2327,6 +2351,13 @@ class VIEW3D_MT_particle_specials(Menu):
 
         if particle_edit.select_mode == 'POINT':
             layout.separator()
+
+            layout.operator("particle.select_all", text="All").action = 'SELECT'
+            layout.operator("particle.select_all", text="None").action = 'DESELECT'
+            layout.operator("particle.select_all", text="Invert").action = 'INVERT'
+
+            layout.separator()
+
             layout.operator("particle.select_roots")
             layout.operator("particle.select_tips")
 
@@ -2341,9 +2372,7 @@ class VIEW3D_MT_particle_specials(Menu):
 
             layout.separator()
 
-            layout.operator("particle.select_all").action = 'TOGGLE'
             layout.operator("particle.select_linked")
-            layout.operator("particle.select_all", text="Inverse").action = 'INVERT'
 
 
 class VIEW3D_MT_particle_showhide(ShowHideMenu, Menu):
@@ -4118,6 +4147,98 @@ class VIEW3D_PT_overlay_paint(Panel):
             col.prop(overlay, "show_paint_wire")
 
 
+class VIEW3D_PT_pivot_point(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Pivot Point"
+
+    def draw(self, context):
+        toolsettings = context.tool_settings
+        obj = context.active_object
+        mode = context.mode
+
+        layout = self.layout
+        col = layout.column()
+        col.label("Pivot Point")
+        col.prop(toolsettings, "transform_pivot_point", expand=True)
+
+        col.separator()
+
+        if (obj is None) or (mode in {'OBJECT', 'POSE', 'WEIGHT_PAINT'}):
+            col.prop(
+                toolsettings,
+                "use_transform_pivot_point_align",
+                text="Center Points Only",
+            )
+
+
+class VIEW3D_PT_snapping(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Snapping"
+
+    def draw(self, context):
+        toolsettings = context.tool_settings
+        snap_elements = toolsettings.snap_elements
+        obj = context.active_object
+        mode = context.mode
+        object_mode = 'OBJECT' if obj is None else obj.mode
+
+        layout = self.layout
+        col = layout.column()
+        col.label("Snapping")
+        col.prop(toolsettings, "snap_elements", expand=True)
+
+        col.separator()
+        if 'INCREMENT' in snap_elements:
+            col.prop(toolsettings, "use_snap_grid_absolute")
+
+        if snap_elements != {'INCREMENT'}:
+            col.label("Target")
+            row = col.row(align=True)
+            row.prop(toolsettings, "snap_target", expand=True)
+
+            if obj:
+                if object_mode == 'EDIT':
+                    col.prop(toolsettings, "use_snap_self")
+                if object_mode in {'OBJECT', 'POSE', 'EDIT'}:
+                    col.prop(toolsettings, "use_snap_align_rotation", text="Align Rotation")
+
+            if 'FACE' in snap_elements:
+                col.prop(toolsettings, "use_snap_project", text="Project Elements")
+
+            if 'VOLUME' in snap_elements:
+                col.prop(toolsettings, "use_snap_peel_object")
+
+
+class VIEW3D_PT_transform_orientations(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Transform Orientations"
+
+    @classmethod
+    def poll(cls, context):
+        view = context.space_data
+        return (view)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label("Transform Orientations")
+
+        scene = context.scene
+        orientation = scene.current_orientation
+
+        row = layout.row()
+        col = row.column()
+        col.prop(scene, "transform_orientation", expand=True)
+        row.operator("transform.create_orientation", text="", icon='ZOOMIN', emboss=False).use = True
+
+        if orientation:
+            row = layout.row(align=False)
+            row.prop(orientation, "name", text="")
+            row.operator("transform.delete_orientation", text="", icon='X', emboss=False)
+
+
 class VIEW3D_PT_overlay_gpencil_paper(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
@@ -4435,6 +4556,9 @@ classes = (
     VIEW3D_PT_overlay_pose,
     VIEW3D_PT_overlay_paint,
     VIEW3D_PT_overlay_sculpt,
+    VIEW3D_PT_pivot_point,
+    VIEW3D_PT_snapping,
+    VIEW3D_PT_transform_orientations,
     VIEW3D_PT_overlay_gpencil_paper,
     VIEW3D_PT_context_properties,
 )

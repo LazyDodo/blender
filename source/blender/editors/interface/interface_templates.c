@@ -396,31 +396,14 @@ void UI_context_active_but_prop_get_templateID(
 	PointerRNA *r_ptr, PropertyRNA **r_prop)
 {
 	TemplateID *template_ui;
-	ARegion *ar = CTX_wm_region(C);
-	uiBlock *block;
-	uiBut *but;
+	uiBut *but = UI_context_active_but_get(C);
 
-	memset(r_ptr, 0, sizeof(*r_ptr));
-	*r_prop = NULL;
-
-	if (!ar)
-		return;
-
-	for (block = ar->uiblocks.first; block; block = block->next) {
-		for (but = block->buttons.first; but; but = but->next) {
-			/* find the button before the active one */
-			if ((but->flag & (UI_BUT_LAST_ACTIVE | UI_ACTIVE))) {
-				if (but->func_argN) {
-					template_ui = but->func_argN;
-					*r_ptr = template_ui->ptr;
-					*r_prop = template_ui->prop;
-					return;
-				}
-			}
-		}
+	if (but && but->func_argN) {
+		template_ui = but->func_argN;
+		*r_ptr = template_ui->ptr;
+		*r_prop = template_ui->prop;
 	}
 }
-
 
 static void template_id_cb(bContext *C, void *arg_litem, void *arg_event)
 {
@@ -4480,7 +4463,9 @@ void uiTemplateInputStatus(uiLayout *layout, struct bContext *C)
 		const char *msg = WM_window_cursor_keymap_status_get(win, i, 0);
 		const char *msg_drag = WM_window_cursor_keymap_status_get(win, i, 1);
 
-		uiItemL(row, msg ? msg : "", (ICON_MOUSE_LMB + i));
+		if (msg || (msg_drag == NULL)) {
+			uiItemL(row, msg ? msg : "", (ICON_MOUSE_LMB + i));
+		}
 
 		if (msg_drag) {
 			uiItemL(row, msg_drag, (ICON_MOUSE_LMB_DRAG + i));

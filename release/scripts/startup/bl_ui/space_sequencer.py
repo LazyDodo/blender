@@ -248,6 +248,12 @@ class SEQUENCER_MT_select(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("sequencer.select_all", text="All").action = 'SELECT'
+        layout.operator("sequencer.select_all", text="None").action = 'DESELECT'
+        layout.operator("sequencer.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("sequencer.select_active_side", text="Strips to the Left").side = 'LEFT'
         layout.operator("sequencer.select_active_side", text="Strips to the Right").side = 'RIGHT'
         props = layout.operator("sequencer.select", text="All Strips to the Left")
@@ -266,8 +272,6 @@ class SEQUENCER_MT_select(Menu):
         layout.operator("sequencer.select_linked")
         layout.operator("sequencer.select_less")
         layout.operator("sequencer.select_more")
-        layout.operator("sequencer.select_all").action = 'TOGGLE'
-        layout.operator("sequencer.select_all", text="Inverse").action = 'INVERT'
 
 
 class SEQUENCER_MT_marker(Menu):
