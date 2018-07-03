@@ -1359,7 +1359,7 @@ bool WM_operator_filesel_ensure_ext_imtype(wmOperator *op, const struct ImageFor
 }
 
 /* op->poll */
-int WM_operator_winactive(bContext *C)
+bool WM_operator_winactive(bContext *C)
 {
 	if (CTX_wm_window(C) == NULL) return 0;
 	return 1;
@@ -1959,7 +1959,13 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 
 	/* label for 'a' bugfix releases, or 'Release Candidate 1'...
 	 *  avoids recreating splash for version updates */
-	if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "rc")) {
+	if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "alpha")) {
+		version_suffix = "Alpha";
+	}
+	else if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "beta")) {
+		version_suffix = "Beta";
+	}
+	else if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "rc")) {
 		version_suffix = "Release Candidate";
 	}
 	else if (STREQ(STRINGIFY(BLENDER_VERSION_CYCLE), "release")) {
@@ -2027,10 +2033,8 @@ static uiBlock *wm_block_create_splash(bContext *C, ARegion *ar, void *UNUSED(ar
 	split = uiLayoutSplit(layout, 0.0f, false);
 	col = uiLayoutColumn(split, false);
 	uiItemL(col, IFACE_("Links"), ICON_NONE);
-#if 0
-	uiItemStringO(col, IFACE_("Support an Open Animation Movie"), ICON_URL, "WM_OT_url_open", "url",
-	              "https://cloud.blender.org/join");
-#endif
+	uiItemStringO(col, IFACE_("Join the Development Fund"), ICON_URL, "WM_OT_url_open", "url",
+	              "https://www.blender.org/foundation/development-fund/");
 	uiItemStringO(col, IFACE_("Donations"), ICON_URL, "WM_OT_url_open", "url",
 	              "http://www.blender.org/foundation/donation-payment/");
 	uiItemStringO(col, IFACE_("Credits"), ICON_URL, "WM_OT_url_open", "url",
@@ -2155,7 +2159,7 @@ static int wm_search_menu_invoke(bContext *C, wmOperator *UNUSED(op), const wmEv
 }
 
 /* op->poll */
-static int wm_search_menu_poll(bContext *C)
+static bool wm_search_menu_poll(bContext *C)
 {
 	if (CTX_wm_window(C) == NULL) {
 		return 0;
@@ -2276,7 +2280,7 @@ static void WM_OT_call_panel(wmOperatorType *ot)
 
 /* this poll functions is needed in place of WM_operator_winactive
  * while it crashes on full screen */
-static int wm_operator_winactive_normal(bContext *C)
+static bool wm_operator_winactive_normal(bContext *C)
 {
 	wmWindow *win = CTX_wm_window(C);
 	bScreen *screen;
@@ -2376,8 +2380,9 @@ static void WM_OT_console_toggle(wmOperatorType *ot)
  * - draw(bContext): drawing callback for paint cursor
  */
 
-void *WM_paint_cursor_activate(wmWindowManager *wm, int (*poll)(bContext *C),
-                               wmPaintCursorDraw draw, void *customdata)
+void *WM_paint_cursor_activate(
+        wmWindowManager *wm, bool (*poll)(bContext *C),
+        wmPaintCursorDraw draw, void *customdata)
 {
 	wmPaintCursor *pc = MEM_callocN(sizeof(wmPaintCursor), "paint cursor");
 
