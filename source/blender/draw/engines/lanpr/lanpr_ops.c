@@ -3,6 +3,7 @@
 #include "BLI_listbase.h"
 #include "BLI_linklist.h"
 #include "BLI_math_matrix.h"
+#include "BLI_task.h"
 #include "lanpr_all.h"
 #include "lanpr_util.h"
 #include "DRW_render.h"
@@ -718,7 +719,7 @@ void lanpr_CalculateSingleLineOcclusion(LANPR_RenderBuffer *rb, LANPR_RenderLine
 		nba = lanpr_GetNextBoundingArea(nba, rl, x, y, k, PositiveX, PositiveY, &x, &y);
 	}
 }
-void THREAD_CalculateLineOcclusion(LANPR_RenderTaskInfo *rti) {
+void THREAD_CalculateLineOcclusion(TaskPool *__restrict pool, LANPR_RenderTaskInfo *rti, int threadid) {
 	LANPR_RenderBuffer *rb = rti->RenderBuffer;
 	int ThreadId = rti->ThreadID;
 	nListItemPointer *lip;
@@ -757,6 +758,27 @@ void THREAD_CalculateLineOcclusion(LANPR_RenderTaskInfo *rti) {
 
 	}
 	//thrd_exit(0);
+}
+void THREAD_CalculateLineOcclusion_Begin(LANPR_RenderBuffer* rb) {
+	int ThreadCount = BKE_render_num_threads(&rb->Scene->r);
+	LANPR_RenderTaskInfo* rti = MEM_callocN(sizeof(LANPR_RenderTaskInfo)*ThreadCount, "render task info");
+	TaskScheduler *scheduler = BLI_task_scheduler_get();
+	int i;
+
+	rb->ContourManaged = rb->Contours.pFirst;
+	rb->CreaseManaged = rb->CreaseLines.pFirst;
+	rb->IntersectionManaged = rb->IntersectionLines.pFirst;
+	rb->MaterialManaged = rb->MaterialLines.pFirst;
+
+	TaskPool* tp = BLI_task_pool_create(scheduler, 0);
+
+	for (i = 0; i < ThreadCount; i++) {
+		rti[i].ThreadID = i;
+		rti[i].RenderBuffer = rb;
+		BLI_task_pool_push(tp, THREAD_CalculateLineOcclusion, &rti[i], 0, TASK_PRIORITY_HIGH);
+	}
+	BLI_task_pool_work_and_wait(tp);
+
 }
 
 void NO_THREAD_CalculateLineOcclusion(LANPR_RenderBuffer *rb) {
@@ -2925,7 +2947,8 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 
 	lanpr_AddTriangles(rb);
 
-	NO_THREAD_CalculateLineOcclusion(rb);
+	THREAD_CalculateLineOcclusion_Begin(rb);
+	//NO_THREAD_CalculateLineOcclusion(rb);
 
 	return OPERATOR_FINISHED;
 }
