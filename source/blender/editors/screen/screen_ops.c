@@ -1835,8 +1835,11 @@ static int area_split_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	int dir;
 
 	/* no full window splitting allowed */
-	if (sc->state != SCREENNORMAL)
-		return OPERATOR_CANCELLED;
+	BLI_assert(sc->state == SCREENNORMAL);
+
+	PropertyRNA *prop_dir = RNA_struct_find_property(op->ptr, "direction");
+	PropertyRNA *prop_factor = RNA_struct_find_property(op->ptr, "factor");
+	PropertyRNA *prop_cursor = RNA_struct_find_property(op->ptr, "cursor");
 
 	if (event->type == EVT_ACTIONZONE_AREA) {
 		sActionzoneData *sad = event->customdata;
@@ -1856,49 +1859,73 @@ static int area_split_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		/* prepare operator state vars */
 		if (sad->gesture_dir == 'n' || sad->gesture_dir == 's') {
 			dir = 'h';
-			RNA_float_set(op->ptr, "factor", ((float)(event->x - sad->sa1->v1->vec.x)) / (float)sad->sa1->winx);
+			RNA_property_float_set(
+			        op->ptr, prop_factor,
+			        ((float)(event->x - sad->sa1->v1->vec.x)) / (float)sad->sa1->winx);
 		}
 		else {
 			dir = 'v';
-			RNA_float_set(op->ptr, "factor", ((float)(event->y - sad->sa1->v1->vec.y)) / (float)sad->sa1->winy);
+			RNA_property_float_set(
+			        op->ptr, prop_factor,
+			        ((float)(event->y - sad->sa1->v1->vec.y)) / (float)sad->sa1->winy);
 		}
-		RNA_enum_set(op->ptr, "direction", dir);
+		RNA_property_enum_set(op->ptr, prop_dir, dir);
 
 		/* general init, also non-UI case, adds customdata, sets area and defaults */
-		if (!area_split_init(C, op))
+		if (!area_split_init(C, op)) {
 			return OPERATOR_PASS_THROUGH;
+		}
+	}
+	else if (RNA_property_is_set(op->ptr, prop_dir)) {
+		ScrArea *sa = CTX_wm_area(C);
+		if (sa == NULL) {
+			return OPERATOR_CANCELLED;
+		}
+		dir = RNA_property_enum_get(op->ptr, prop_dir);
+		if (dir == 'h') {
+			RNA_property_float_set(
+			        op->ptr, prop_factor,
+			        ((float)(event->x - sa->v1->vec.x)) / (float)sa->winx);
+		}
+		else {
+			RNA_property_float_set(
+			        op->ptr, prop_factor,
+			        ((float)(event->y - sa->v1->vec.y)) / (float)sa->winy);
+		}
 
+		if (!area_split_init(C, op)) {
+			return OPERATOR_CANCELLED;
+		}
 	}
 	else {
 		ScrEdge *actedge;
-		rcti screen_rect;
-		int x, y;
+		rcti window_rect;
+		int event_co[2];
 
 		/* retrieve initial mouse coord, so we can find the active edge */
-		if (RNA_struct_property_is_set(op->ptr, "mouse_x"))
-			x = RNA_int_get(op->ptr, "mouse_x");
-		else
-			x = event->x;
+		if (RNA_property_is_set(op->ptr, prop_cursor)) {
+			RNA_property_int_get_array(op->ptr, prop_cursor, event_co);
+		}
+		else {
+			copy_v2_v2_int(event_co, &event->x);
+		}
 
-		if (RNA_struct_property_is_set(op->ptr, "mouse_y"))
-			y = RNA_int_get(op->ptr, "mouse_y");
-		else
-			y = event->x;
+		WM_window_rect_calc(win, &window_rect);
 
-		WM_window_screen_rect_calc(win, &screen_rect);
-
-		actedge = screen_geom_area_map_find_active_scredge(AREAMAP_FROM_SCREEN(sc), &screen_rect, x, y);
-		if (actedge == NULL)
+		actedge = screen_geom_area_map_find_active_scredge(
+		        AREAMAP_FROM_SCREEN(sc), &window_rect, event_co[0], event_co[1]);
+		if (actedge == NULL) {
 			return OPERATOR_CANCELLED;
+		}
 
 		dir = screen_geom_edge_is_horizontal(actedge) ? 'v' : 'h';
 
-		RNA_enum_set(op->ptr, "direction", dir);
+		RNA_property_enum_set(op->ptr, prop_dir, dir);
 
 		/* special case, adds customdata, sets defaults */
-		if (!area_split_menu_init(C, op))
+		if (!area_split_menu_init(C, op)) {
 			return OPERATOR_CANCELLED;
-
+		}
 	}
 
 	sd = (sAreaSplitData *)op->customdata;
@@ -2098,8 +2125,7 @@ static void SCREEN_OT_area_split(wmOperatorType *ot)
 	/* rna */
 	RNA_def_enum(ot->srna, "direction", prop_direction_items, 'h', "Direction", "");
 	RNA_def_float(ot->srna, "factor", 0.5f, 0.0, 1.0, "Factor", "", 0.0, 1.0);
-	RNA_def_int(ot->srna, "mouse_x", -100, INT_MIN, INT_MAX, "Mouse X", "", INT_MIN, INT_MAX);
-	RNA_def_int(ot->srna, "mouse_y", -100, INT_MIN, INT_MAX, "Mouse Y", "", INT_MIN, INT_MAX);
+	RNA_def_int_vector(ot->srna, "cursor", 2, NULL, INT_MIN, INT_MAX, "Cursor", "", INT_MIN, INT_MAX);
 }
 
 /** \} */
@@ -2871,6 +2897,8 @@ static void area_join_draw_cb(const struct wmWindow *UNUSED(win), void *userdata
 /* XXX todo: find edge based on (x,y) and set other area? */
 static int area_join_init(bContext *C, wmOperator *op)
 {
+	const wmWindow *win = CTX_wm_window(C);
+	bScreen *screen = CTX_wm_screen(C);
 	ScrArea *sa1, *sa2;
 	sAreaJoinData *jd = NULL;
 	int x1, y1;
@@ -2883,10 +2911,21 @@ static int area_join_init(bContext *C, wmOperator *op)
 	x2 = RNA_int_get(op->ptr, "max_x");
 	y2 = RNA_int_get(op->ptr, "max_y");
 
-	sa1 = BKE_screen_find_area_xy(CTX_wm_screen(C), SPACE_TYPE_ANY, x1, y1);
-	sa2 = BKE_screen_find_area_xy(CTX_wm_screen(C), SPACE_TYPE_ANY, x2, y2);
-	if (sa1 == NULL || sa2 == NULL || sa1 == sa2)
+	sa1 = BKE_screen_find_area_xy(screen, SPACE_TYPE_ANY, x1, y1);
+	if (sa1 == NULL) {
+		sa1 = BKE_screen_area_map_find_area_xy(&win->global_areas, SPACE_TYPE_ANY, x1, y1);
+	}
+	sa2 = BKE_screen_find_area_xy(screen, SPACE_TYPE_ANY, x2, y2);
+	if (sa2 == NULL) {
+		sa2 = BKE_screen_area_map_find_area_xy(&win->global_areas, SPACE_TYPE_ANY, x2, y2);
+	}
+	if ((sa1 && ED_area_is_global(sa1)) || (sa2 && ED_area_is_global(sa2))) {
+		BKE_report(op->reports, RPT_ERROR, "Global areas (Top Bar, Status Bar) do not support joining");
 		return 0;
+	}
+	else if (sa1 == NULL || sa2 == NULL || sa1 == sa2) {
+		return 0;
+	}
 
 	/* do areas share an edge? */
 	if (sa1->v1 == sa2->v1 || sa1->v1 == sa2->v2 || sa1->v1 == sa2->v3 || sa1->v1 == sa2->v4) shared++;
@@ -2985,7 +3024,7 @@ static int area_join_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 
 	if (!area_join_init(C, op))
-		return OPERATOR_PASS_THROUGH;
+		return OPERATOR_CANCELLED;
 
 	/* add temp handler */
 	WM_event_add_modal_handler(C, op);
@@ -3118,10 +3157,10 @@ static int screen_area_options_invoke(bContext *C, wmOperator *op, const wmEvent
 	uiLayout *layout;
 	PointerRNA ptr;
 	ScrEdge *actedge;
-	rcti screen_rect;
+	rcti window_rect;
 
-	WM_window_screen_rect_calc(win, &screen_rect);
-	actedge = screen_geom_area_map_find_active_scredge(AREAMAP_FROM_SCREEN(sc), &screen_rect, event->x, event->y);
+	WM_window_rect_calc(win, &window_rect);
+	actedge = screen_geom_area_map_find_active_scredge(AREAMAP_FROM_SCREEN(sc), &window_rect, event->x, event->y);
 
 	if (actedge == NULL) return OPERATOR_CANCELLED;
 
@@ -3130,8 +3169,7 @@ static int screen_area_options_invoke(bContext *C, wmOperator *op, const wmEvent
 
 	uiItemFullO(layout, "SCREEN_OT_area_split", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, &ptr);
 	/* store initial mouse cursor position */
-	RNA_int_set(&ptr, "mouse_x", event->x);
-	RNA_int_set(&ptr, "mouse_y", event->y);
+	RNA_int_set_array(&ptr, "cursor", &event->x);
 
 	uiItemFullO(layout, "SCREEN_OT_area_join", NULL, ICON_NONE, NULL, WM_OP_INVOKE_DEFAULT, 0, &ptr);
 	/* mouse cursor on edge, '4' can fail on wide edges... */
@@ -4834,9 +4872,9 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_space_context_cycle", TABKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
 	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_PREV);
 
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", TABKEY, KM_PRESS, KM_CTRL, 0);
+	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", PAGEDOWNKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_NEXT);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", TABKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
+	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", PAGEUPKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_PREV);
 
 	/* tests */
@@ -4878,11 +4916,11 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "RENDER_OT_view_show", F11KEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "RENDER_OT_play_rendered_anim", F11KEY, KM_PRESS, KM_CTRL, 0);
 
-#ifdef USE_WM_KEYMAP_27X
 	/* user prefs */
 #ifdef __APPLE__
 	WM_keymap_add_item(keymap, "SCREEN_OT_userpref_show", COMMAKEY, KM_PRESS, KM_OSKEY, 0);
 #endif
+#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "SCREEN_OT_userpref_show", UKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 #endif
 
