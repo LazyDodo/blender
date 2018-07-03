@@ -48,6 +48,7 @@
 
 #include "GPU_immediate.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "UI_interface.h"
 
@@ -112,7 +113,7 @@ static void ringsel_draw(const bContext *C, ARegion *UNUSED(ar), void *arg)
 
 	if ((lcd->totedge > 0) || (lcd->totpoint > 0)) {
 		if (v3d && v3d->zbuf)
-			glDisable(GL_DEPTH_TEST);
+			GPU_depth_test(false);
 
 		gpuPushMatrix();
 		gpuMultMatrix(lcd->ob->obmat);
@@ -134,7 +135,7 @@ static void ringsel_draw(const bContext *C, ARegion *UNUSED(ar), void *arg)
 		}
 
 		if (lcd->totpoint > 0) {
-			glPointSize(3.0f);
+			GPU_point_size(3.0f);
 
 			immBegin(GWN_PRIM_POINTS, lcd->totpoint);
 
@@ -150,7 +151,7 @@ static void ringsel_draw(const bContext *C, ARegion *UNUSED(ar), void *arg)
 		gpuPopMatrix();
 
 		if (v3d && v3d->zbuf)
-			glEnable(GL_DEPTH_TEST);
+			GPU_depth_test(true);
 	}
 }
 
@@ -692,7 +693,7 @@ static int loopcut_init(bContext *C, wmOperator *op, const wmEvent *event)
 	{
 		Scene *scene = CTX_data_scene(C);
 		ToolSettings *settings = scene->toolsettings;
-		const int mesh_select_mode[3] = {
+		const bool mesh_select_mode[3] = {
 		    (settings->selectmode & SCE_SELECT_VERTEX) != 0,
 		    (settings->selectmode & SCE_SELECT_EDGE)   != 0,
 		    (settings->selectmode & SCE_SELECT_FACE)   != 0,

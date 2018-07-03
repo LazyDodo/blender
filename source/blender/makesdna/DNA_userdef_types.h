@@ -48,6 +48,11 @@ struct ColorBand;
 
 #define MAX_STYLE_NAME	64
 
+#define GPU_VIEWPORT_QUALITY_FXAA 0.10f
+#define GPU_VIEWPORT_QUALITY_TAA8 0.25f
+#define GPU_VIEWPORT_QUALITY_TAA16 0.6f
+#define GPU_VIEWPORT_QUALITY_TAA32 0.8f
+
 /* default offered by Blender.
  * uiFont.uifont_id */
 typedef enum eUIFont_ID {
@@ -449,15 +454,30 @@ typedef struct bUserMenuItem {
 
 typedef struct bUserMenuItem_Op {
 	bUserMenuItem item;
-	char opname[64];
+	char op_idname[64];
 	struct IDProperty *prop;
 	char opcontext;
 	char _pad0[7];
 } bUserMenuItem_Op;
 
+typedef struct bUserMenuItem_Menu {
+	bUserMenuItem item;
+	char mt_idname[64];
+} bUserMenuItem_Menu;
+
+typedef struct bUserMenuItem_Prop {
+	bUserMenuItem item;
+	char context_data_path[256];
+	char prop_id[64];
+	int  prop_index;
+	char _pad0[4];
+} bUserMenuItem_Prop;
+
 enum {
 	USER_MENU_TYPE_SEP = 1,
 	USER_MENU_TYPE_OPERATOR = 2,
+	USER_MENU_TYPE_MENU = 3,
+	USER_MENU_TYPE_PROP = 4,
 };
 
 typedef struct SolidLight {
@@ -548,7 +568,7 @@ typedef struct UserDef {
 	short undosteps;
 	short pad1;
 	int undomemory;
-	int pad3;
+	float gpu_viewport_quality;
 	short gp_manhattendist, gp_euclideandist, gp_eraser;
 	short gp_settings;  /* eGP_UserdefSettings */
 	short tb_leftmouse, tb_rightmouse;
@@ -573,14 +593,13 @@ typedef struct UserDef {
 	char  keyhandles_new;	/* handle types for newly added keyframes */
 	char  gpu_select_method;
 	char  gpu_select_pick_deph;
-	char  gpu_viewport_antialias;
+	char  pad0;
 	char  view_frame_type;  /* eZoomFrame_Mode */
 
 	int view_frame_keyframes; /* number of keyframes to zoom around current frame */
 	float view_frame_seconds; /* seconds to zoom around current frame */
 
-	short scrcastfps;		/* frame rate for screencast to be played back */
-	short scrcastwait;		/* milliseconds between screencast snapshots */
+	char _pad1[4];
 
 	short widget_unit;		/* private, defaults to 20 for 72 DPI setting */
 	short anisotropic_filter;

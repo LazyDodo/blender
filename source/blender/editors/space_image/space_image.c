@@ -79,6 +79,7 @@
 #include "UI_view2d.h"
 
 #include "image_intern.h"
+#include "GPU_framebuffer.h"
 
 /**************************** common state *****************************/
 
@@ -386,7 +387,7 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 }
 
 /* dropboxes */
-static int image_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool image_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
 {
 	if (drag->type == WM_DRAG_PATH)
 		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE, ICON_FILE_BLANK)) /* rule might not work? */
@@ -722,8 +723,8 @@ static void image_main_region_draw(const bContext *C, ARegion *ar)
 
 	/* clear and setup matrix */
 	UI_GetThemeColor3fv(TH_BACK, col);
-	glClearColor(col[0], col[1], col[2], 0.0);
-	glClear(GL_COLOR_BUFFER_BIT);
+	GPU_clear_color(col[0], col[1], col[2], 0.0);
+	GPU_clear(GPU_COLOR_BIT);
 
 	image_user_refresh_scene(C, sima);
 

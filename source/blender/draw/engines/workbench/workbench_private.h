@@ -52,10 +52,8 @@
 #define SHADOW_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SHADOW)
 
 #define IS_NAVIGATING(wpd) (DRW_context_state_get()->rv3d->rflag & RV3D_NAVIGATING)
-#define FXAA_ENABLED(wpd) ((!DRW_state_is_opengl_render()) && ((wpd->user_preferences->gpu_viewport_antialias == USER_AA_FXAA) || (ELEM(wpd->user_preferences->gpu_viewport_antialias, USER_AA_TAA8) && IS_NAVIGATING(wpd))))
-#define TAA8_ENABLED(wpd) (ELEM(wpd->user_preferences->gpu_viewport_antialias, USER_AA_TAA8) && (!DRW_state_is_opengl_render()) && (!IS_NAVIGATING(wpd)))
-#define TAA_ENABLED(wpd) (TAA8_ENABLED(wpd))
-
+#define FXAA_ENABLED(wpd) ((!DRW_state_is_opengl_render()) && (IN_RANGE(wpd->user_preferences->gpu_viewport_quality, GPU_VIEWPORT_QUALITY_FXAA, GPU_VIEWPORT_QUALITY_TAA8) || ((wpd->user_preferences->gpu_viewport_quality >= GPU_VIEWPORT_QUALITY_TAA8) && IS_NAVIGATING(wpd))))
+#define TAA_ENABLED(wpd) (wpd->user_preferences->gpu_viewport_quality >= GPU_VIEWPORT_QUALITY_TAA8 && !IS_NAVIGATING(wpd))
 #define SPECULAR_HIGHLIGHT_ENABLED(wpd) ((wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT) && (!STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)))
 #define OBJECT_ID_PASS_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE)
 #define NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) (MATCAP_ENABLED(wpd) || STUDIOLIGHT_ENABLED(wpd) || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED(wpd))
@@ -71,8 +69,7 @@ typedef struct WORKBENCH_FramebufferList {
 	struct GPUFrameBuffer *composite_fb;
 
 	struct GPUFrameBuffer *effect_fb;
-	struct GPUFrameBuffer *effect_taa_even_fb;
-	struct GPUFrameBuffer *effect_taa_uneven_fb;
+	struct GPUFrameBuffer *effect_taa_fb;
 	struct GPUFrameBuffer *depth_buffer_fb;
 
 	/* Forward render buffers */
@@ -82,8 +79,7 @@ typedef struct WORKBENCH_FramebufferList {
 } WORKBENCH_FramebufferList;
 
 typedef struct WORKBENCH_TextureList {
-	struct GPUTexture *history_buffer1_tx;
-	struct GPUTexture *history_buffer2_tx;
+	struct GPUTexture *history_buffer_tx;
 	struct GPUTexture *depth_buffer_tx;
 } WORKBENCH_TextureList;
 
@@ -142,13 +138,6 @@ typedef struct WORKBENCH_UBO_World {
 } WORKBENCH_UBO_World;
 BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_World, 16)
 
-typedef struct WORKBENCH_UBO_Material {
-	float diffuse_color[4];
-	float specular_color[4];
-	float roughness;
-	float pad[3];
-} WORKBENCH_UBO_Material;
-BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_Material, 16)
 
 typedef struct WORKBENCH_PrivateData {
 	struct GHash *material_hash;
@@ -197,17 +186,12 @@ typedef struct WORKBENCH_EffectInfo {
 	int jitter_index;
 	float taa_mix_factor;
 	bool view_updated;
-
-	/* The TX that holds the last color data */
-	struct GPUTexture *final_color_tx;
-	struct GPUFrameBuffer *final_color_fb;
 } WORKBENCH_EffectInfo;
 
 typedef struct WORKBENCH_MaterialData {
-	/* Solid color */
-	WORKBENCH_UBO_Material material_data;
-	struct GPUUniformBuffer *material_ubo;
-
+	float diffuse_color[4];
+	float specular_color[4];
+	float roughness;
 	int object_id;
 	int color_type;
 	Image *ima;
@@ -260,20 +244,23 @@ void workbench_forward_cache_init(WORKBENCH_Data *vedata);
 void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob);
 void workbench_forward_cache_finish(WORKBENCH_Data *vedata);
 
+/* workbench_effect_aa.c */
+void workbench_aa_create_pass(WORKBENCH_Data *vedata, GPUTexture **tx);
+void workbench_aa_draw_pass(WORKBENCH_Data *vedata, GPUTexture *tx);
+
 /* workbench_effect_fxaa.c */
 void workbench_fxaa_engine_init(void);
 void workbench_fxaa_engine_free(void);
 DRWPass *workbench_fxaa_create_pass(GPUTexture **color_buffer_tx);
-void workbench_fxaa_draw_pass(WORKBENCH_PrivateData *wpd, GPUFrameBuffer *fb, GPUTexture *tx, DRWPass *effect_aa_pass);
 
 /* workbench_effect_taa.c */
 void workbench_taa_engine_init(WORKBENCH_Data *vedata);
 void workbench_taa_engine_free(void);
-DRWPass *workbench_taa_create_pass(WORKBENCH_TextureList *txl, WORKBENCH_EffectInfo *effect_info, WORKBENCH_FramebufferList *fbl, GPUTexture **color_buffer_tx);
-void workbench_taa_draw_pass(WORKBENCH_EffectInfo *effect_info, /*WORKBENCH_PrivateData *wpd, , GPUFrameBuffer *fb, GPUTexture *tx, */DRWPass *effect_aa_pass);
-void workbench_taa_draw_scene_start(WORKBENCH_EffectInfo *effect_info);
+DRWPass *workbench_taa_create_pass(WORKBENCH_Data *vedata, GPUTexture **color_buffer_tx);
+void workbench_taa_draw_scene_start(WORKBENCH_Data *vedata);
 void workbench_taa_draw_scene_end(WORKBENCH_Data *vedata);
 void workbench_taa_view_updated(WORKBENCH_Data *vedata);
+int workbench_taa_calculate_num_iterations(WORKBENCH_Data *vedata);
 
 /* workbench_materials.c */
 int workbench_material_determine_color_type(WORKBENCH_PrivateData *wpd, Image *ima);
@@ -283,6 +270,8 @@ uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template);
 int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
 void workbench_material_set_normal_world_matrix(
         DRWShadingGroup *grp, WORKBENCH_PrivateData *wpd, float persistent_matrix[3][3]);
+void workbench_material_shgroup_uniform(WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material);
+void workbench_material_copy(WORKBENCH_MaterialData *dest_material, const WORKBENCH_MaterialData *source_material);
 
 /* workbench_studiolight.c */
 void studiolight_update_world(StudioLight *sl, WORKBENCH_UBO_World *wd);

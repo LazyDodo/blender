@@ -61,7 +61,7 @@
 /* ********************************************** */
 /* Helper API's for RigidBody Constraint Editing */
 
-static int ED_operator_rigidbody_con_active_poll(bContext *C)
+static bool ED_operator_rigidbody_con_active_poll(bContext *C)
 {
 	if (ED_operator_object_active_editable(C)) {
 		Object *ob = CTX_data_active_object(C);
@@ -84,6 +84,7 @@ bool ED_rigidbody_constraint_add(Main *bmain, Scene *scene, Object *ob, int type
 	/* create constraint group if it doesn't already exits */
 	if (rbw->constraints == NULL) {
 		rbw->constraints = BKE_collection_add(bmain, NULL, "RigidBodyConstraints");
+		id_fake_user_set(&rbw->constraints->id);
 	}
 	/* make rigidbody constraint settings */
 	ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, type);
