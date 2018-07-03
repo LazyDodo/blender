@@ -640,7 +640,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		BKE_report(reports, RPT_INFO, "Applied modifier only changed CV points, not tessellated/bevel vertices");
 
 		vertexCos = BKE_curve_nurbs_vertexCos_get(&cu->nurb, &numVerts);
-		modifier_deformVerts_DM_deprecated(md, &mectx, NULL, vertexCos, numVerts);
+		modifier_deformVerts(md, &mectx, NULL, vertexCos, numVerts);
 		BK_curve_nurbs_vertexCos_apply(&cu->nurb, vertexCos);
 
 		MEM_freeN(vertexCos);
@@ -818,7 +818,7 @@ void OBJECT_OT_modifier_add(wmOperatorType *ot)
 
 /************************ generic functions for operators using mod names and data context *********************/
 
-int edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_flag)
+bool edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_flag)
 {
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "modifier", rna_type);
 	Object *ob = (ptr.id.data) ? ptr.id.data : ED_object_active_context(C);
@@ -840,7 +840,7 @@ int edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_flag
 	return 1;
 }
 
-int edit_modifier_poll(bContext *C)
+bool edit_modifier_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_Modifier, 0);
 }
@@ -1145,7 +1145,7 @@ void OBJECT_OT_modifier_copy(wmOperatorType *ot)
 
 /************* multires delete higher levels operator ****************/
 
-static int multires_poll(bContext *C)
+static bool multires_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_MultiresModifier, (1 << OB_MESH));
 }
@@ -1474,13 +1474,13 @@ static void modifier_skin_customdata_delete(Object *ob)
 		CustomData_free_layer_active(&me->vdata, CD_MVERT_SKIN, me->totvert);
 }
 
-static int skin_poll(bContext *C)
+static bool skin_poll(bContext *C)
 {
 	return (!CTX_data_edit_object(C) &&
 	        edit_modifier_poll_generic(C, &RNA_SkinModifier, (1 << OB_MESH)));
 }
 
-static int skin_edit_poll(bContext *C)
+static bool skin_edit_poll(bContext *C)
 {
 	return (CTX_data_edit_object(C) &&
 	        edit_modifier_poll_generic(C, &RNA_SkinModifier, (1 << OB_MESH)));
@@ -1848,7 +1848,7 @@ void OBJECT_OT_skin_armature_create(wmOperatorType *ot)
 }
 /************************ delta mush bind operator *********************/
 
-static int correctivesmooth_poll(bContext *C)
+static bool correctivesmooth_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_CorrectiveSmoothModifier, 0);
 }
@@ -1916,7 +1916,7 @@ void OBJECT_OT_correctivesmooth_bind(wmOperatorType *ot)
 
 /************************ mdef bind operator *********************/
 
-static int meshdeform_poll(bContext *C)
+static bool meshdeform_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_MeshDeformModifier, 0);
 }
@@ -2012,7 +2012,7 @@ void OBJECT_OT_meshdeform_bind(wmOperatorType *ot)
 
 /****************** explode refresh operator *********************/
 
-static int explode_poll(bContext *C)
+static bool explode_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_ExplodeModifier, 0);
 }
@@ -2060,7 +2060,7 @@ void OBJECT_OT_explode_refresh(wmOperatorType *ot)
 
 /****************** ocean bake operator *********************/
 
-static int ocean_bake_poll(bContext *C)
+static bool ocean_bake_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_OceanModifier, 0);
 }
@@ -2278,7 +2278,7 @@ void OBJECT_OT_ocean_bake(wmOperatorType *ot)
 
 /************************ LaplacianDeform bind operator *********************/
 
-static int laplaciandeform_poll(bContext *C)
+static bool laplaciandeform_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_LaplacianDeformModifier, 0);
 }
@@ -2354,7 +2354,7 @@ void OBJECT_OT_laplaciandeform_bind(wmOperatorType *ot)
 
 /************************ sdef bind operator *********************/
 
-static int surfacedeform_bind_poll(bContext *C)
+static bool surfacedeform_bind_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_SurfaceDeformModifier, 0);
 }

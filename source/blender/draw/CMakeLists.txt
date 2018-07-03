@@ -113,6 +113,7 @@ set(SRC
 	engines/workbench/workbench_data.c
 	engines/workbench/workbench_engine.c
 	engines/workbench/workbench_deferred.c
+	engines/workbench/workbench_effect_aa.c
 	engines/workbench/workbench_effect_fxaa.c
 	engines/workbench/workbench_effect_taa.c
 	engines/workbench/workbench_forward.c

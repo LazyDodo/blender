@@ -940,7 +940,7 @@ static int viewrotate_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 }
 
 /* test for unlocked camera view in quad view */
-static int view3d_camera_user_poll(bContext *C)
+static bool view3d_camera_user_poll(bContext *C)
 {
 	View3D *v3d;
 	ARegion *ar;
@@ -955,7 +955,7 @@ static int view3d_camera_user_poll(bContext *C)
 	return 0;
 }
 
-static int view3d_lock_poll(bContext *C)
+static bool view3d_lock_poll(bContext *C)
 {
 	View3D *v3d = CTX_wm_view3d(C);
 	if (v3d) {
@@ -1554,7 +1554,7 @@ static int ndof_all_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 void VIEW3D_OT_ndof_all(struct wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "NDOF Move View";
+	ot->name = "NDOF Pan View";
 	ot->description = "Pan and rotate the view with the 3D mouse";
 	ot->idname = "VIEW3D_OT_ndof_all";
 
@@ -1744,7 +1744,7 @@ void VIEW3D_OT_move(wmOperatorType *ot)
 {
 
 	/* identifiers */
-	ot->name = "Move View";
+	ot->name = "Pan View";
 	ot->description = "Move the view";
 	ot->idname = "VIEW3D_OT_move";
 
@@ -4255,8 +4255,8 @@ static int viewpan_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 void VIEW3D_OT_view_pan(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "View Pan";
-	ot->description = "Pan the view";
+	ot->name = "Pan View Direction";
+	ot->description = "Pan the view in a given direction";
 	ot->idname = "VIEW3D_OT_view_pan";
 
 	/* api callbacks */
