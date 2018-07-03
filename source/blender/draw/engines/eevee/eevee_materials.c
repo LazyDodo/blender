@@ -860,14 +860,16 @@ static struct DRWShadingGroup *EEVEE_default_shading_group_create(
  **/
 static struct DRWShadingGroup *EEVEE_default_shading_group_get(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
-        Object *ob, ParticleSystem *psys, ModifierData *md,
+        Object *ob,
+        ParticleSystem *psys, ModifierData *md,
+        HairSystem *hsys, const HairDrawSettings *hdraw, struct Mesh *scalp,
         bool is_hair, bool is_flat_normal, bool use_ssr, int shadow_method)
 {
 	static int ssr_id;
 	ssr_id = (use_ssr) ? 1 : -1;
 	int options = VAR_MAT_MESH;
 
-	BLI_assert(!is_hair || (ob && psys && md));
+	BLI_assert(!is_hair || (ob && psys && md) || (ob && hsys && hdraw && scalp));
 
 	if (is_hair) options |= VAR_MAT_HAIR;
 	if (is_flat_normal) options |= VAR_MAT_FLAT;
@@ -892,9 +894,17 @@ static struct DRWShadingGroup *EEVEE_default_shading_group_get(
 	}
 
 	if (is_hair) {
-		DRWShadingGroup *shgrp = DRW_shgroup_particle_hair_create(ob, psys, md,
-		                                                          vedata->psl->default_pass[options],
-		                                                          e_data.default_lit[options]);
+		DRWShadingGroup *shgrp = NULL;
+		if (psys && md) {
+			shgrp = DRW_shgroup_particle_hair_create(ob, psys, md,
+			                                         vedata->psl->default_pass[options],
+			                                         e_data.default_lit[options]);
+		}
+		else if (hsys && hdraw && scalp) {
+			shgrp = DRW_shgroup_hair_create(ob, hsys, scalp, hdraw,
+			                                vedata->psl->default_pass[options],
+			                                e_data.default_lit[options]);
+		}
 		add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL, false, false);
 		return shgrp;
 	}
@@ -1248,7 +1258,7 @@ static void material_opaque(
 	if (*shgrp == NULL) {
 		bool use_ssr = ((effects->enabled_effects & EFFECT_SSR) != 0);
 		*shgrp = EEVEE_default_shading_group_get(sldata, vedata,
-		                                         NULL, NULL, NULL,
+		                                         NULL, NULL, NULL, NULL, NULL, NULL,
 		                                         false, use_flat_nor, use_ssr, linfo->shadow_method);
 		DRW_shgroup_uniform_vec3(*shgrp, "basecol", color_p, 1);
 		DRW_shgroup_uniform_float(*shgrp, "metallic", metal_p, 1);
@@ -1471,7 +1481,7 @@ static void material_particle_hair(
 	/* Fallback to default shader */
 	if (shgrp == NULL) {
 		shgrp = EEVEE_default_shading_group_get(sldata, vedata,
-		                                        ob, psys, md,
+		                                        ob, psys, md, NULL, NULL, NULL,
 		                                        true, false, use_ssr,
 		                                        sldata->lamps->shadow_method);
 		DRW_shgroup_uniform_vec3(shgrp, "basecol", color_p, 1);
@@ -1570,8 +1580,8 @@ static void material_hair(
 		/* Fallback to default shader */
 		if (shgrp == NULL) {
 			shgrp = EEVEE_default_shading_group_get(sldata, vedata,
-			                                        NULL, NULL, NULL, true,
-			                                        false, use_ssr,
+			                                        ob, NULL, NULL, hsys, draw_set, scalp,
+			                                        true, false, use_ssr,
 			                                        sldata->lamps->shadow_method);
 			DRW_shgroup_uniform_vec3(shgrp, "basecol", color_p, 1);
 			DRW_shgroup_uniform_float(shgrp, "metallic", metal_p, 1);
