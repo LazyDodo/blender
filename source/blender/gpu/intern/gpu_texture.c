@@ -185,7 +185,7 @@ static void gpu_validate_data_format(GPUTextureFormat tex_format, GPUDataFormat 
 		}
 		/* Special case */
 		else if (ELEM(tex_format, GPU_R11F_G11F_B10F)) {
-			BLI_assert(ELEM(data_format, GPU_DATA_10_11_11_REV));
+			BLI_assert(ELEM(data_format, GPU_DATA_10_11_11_REV, GPU_DATA_FLOAT));
 		}
 		/* Float formats */
 		else {
