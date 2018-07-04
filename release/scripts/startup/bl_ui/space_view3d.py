@@ -3714,6 +3714,7 @@ class VIEW3D_PT_shading(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = "Shading"
+    bl_ui_units_x = 11
 
     @classmethod
     def poll(cls, context):
@@ -3847,6 +3848,7 @@ class VIEW3D_PT_overlay(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = "Overlays"
+    bl_ui_units_x = 14
 
     @classmethod
     def poll(cls, context):
@@ -4151,6 +4153,7 @@ class VIEW3D_PT_pivot_point(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = "Pivot Point"
+    bl_ui_units_x = 8
 
     def draw(self, context):
         toolsettings = context.tool_settings
@@ -4215,6 +4218,7 @@ class VIEW3D_PT_transform_orientations(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = "Transform Orientations"
+    bl_ui_units_x = 8
 
     @classmethod
     def poll(cls, context):
