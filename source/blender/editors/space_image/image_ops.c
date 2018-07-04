@@ -3936,7 +3936,7 @@ void IMAGE_OT_clear_render_border(wmOperatorType *ot)
 
 /* ********************* Add tile operator ****************** */
 
-static int add_tile_poll(bContext *C)
+static bool add_tile_poll(bContext *C)
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = CTX_data_edit_image(C);
@@ -3974,7 +3974,7 @@ void IMAGE_OT_add_tile(wmOperatorType *ot)
 
 /* ********************* Remove tile operator ****************** */
 
-static int remove_tile_poll(bContext *C)
+static bool remove_tile_poll(bContext *C)
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = CTX_data_edit_image(C);
@@ -4013,7 +4013,7 @@ void IMAGE_OT_remove_tile(wmOperatorType *ot)
 
 /* ********************* Fill tile operator ****************** */
 
-static int fill_tile_poll(bContext *C)
+static bool fill_tile_poll(bContext *C)
 {
 	Image *ima = CTX_data_edit_image(C);
 	SpaceImage *sima = CTX_wm_space_image(C);
@@ -4112,7 +4112,7 @@ void IMAGE_OT_fill_tile(wmOperatorType *ot)
 
 /* ********************* Select tile operator ****************** */
 
-static int image_select_tile_poll(bContext *C)
+static bool image_select_tile_poll(bContext *C)
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Image *ima = CTX_data_edit_image(C);
