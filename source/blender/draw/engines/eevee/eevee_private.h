@@ -320,8 +320,8 @@ typedef struct EEVEE_StorageList {
 
 	struct LightCache *lookdev_lightcache;
 	EEVEE_LightProbe *lookdev_cube_data;
-	EEVEE_LightProbe *lookdev_cube_mips;
 	EEVEE_LightGrid  *lookdev_grid_data;
+	LightCacheTexture *lookdev_cube_mips;
 } EEVEE_StorageList;
 
 /* ************ LIGHT UBO ************* */
