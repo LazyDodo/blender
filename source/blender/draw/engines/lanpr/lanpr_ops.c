@@ -729,38 +729,23 @@ void THREAD_CalculateLineOcclusion(TaskPool *__restrict pool, LANPR_RenderTaskIn
 
 		for (lip = (void *)rti->Contour; lip && lip->pPrev != rti->ContourPointers.pLast; lip = lip->pNext) {
 			lanpr_CalculateSingleLineOcclusion(rb, lip->p, rti->ThreadID);
-
-			count++;
 		}
-		//tnsset_PlusRenderContourProcessedCount(rb, count);
-		count = 0;
 
 		for (lip = (void *)rti->Crease; lip && lip->pPrev != rti->CreasePointers.pLast; lip = lip->pNext) {
 			lanpr_CalculateSingleLineOcclusion(rb, lip->p, rti->ThreadID);
-			count++;
 		}
-		//tnsset_PlusRenderCreaseProcessedCount(rb, count);
-		count = 0;
 
 		for (lip = (void *)rti->Intersection; lip && lip->pPrev != rti->IntersectionPointers.pLast; lip = lip->pNext) {
 			lanpr_CalculateSingleLineOcclusion(rb, lip->p, rti->ThreadID);
-			count++;
 		}
-		//tnsset_PlusRenderIntersectionProcessedCount(rb, count);
-		count = 0;
 
 		for (lip = (void *)rti->Material; lip && lip->pPrev != rti->MaterialPointers.pLast; lip = lip->pNext) {
 			lanpr_CalculateSingleLineOcclusion(rb, lip->p, rti->ThreadID);
-			count++;
 		}
-		//tnsset_PlusRenderMaterialProcessedCount(rb, count);
-		count = 0;
-
 	}
-	//thrd_exit(0);
 }
 void THREAD_CalculateLineOcclusion_Begin(LANPR_RenderBuffer* rb) {
-	int ThreadCount = BKE_render_num_threads(&rb->Scene->r);
+	int ThreadCount = rb->ThreadCount;
 	LANPR_RenderTaskInfo* rti = MEM_callocN(sizeof(LANPR_RenderTaskInfo)*ThreadCount, "render task info");
 	TaskScheduler *scheduler = BLI_task_scheduler_get();
 	int i;
@@ -2569,15 +2554,15 @@ void lanpr_DestroyRenderData(LANPR_RenderBuffer *rb) {
 	//tnsZeroGeomtryBuffers(rb->Scene);
 
 	while (reln = lstPopItem(&rb->VertexBufferPointers)) {
-		FreeMem(reln->Pointer);
+		MEM_freeN(reln->Pointer);
 	}
 
 	while (reln = lstPopItem(&rb->LineBufferPointers)) {
-		FreeMem(reln->Pointer);
+		MEM_freeN(reln->Pointer);
 	}
 
 	while (reln = lstPopItem(&rb->TriangleBufferPointers)) {
-		FreeMem(reln->Pointer);
+		MEM_freeN(reln->Pointer);
 	}
 
 	BLI_spin_end(&rb->csData);
@@ -2614,7 +2599,7 @@ int lanpr_DrawEdgePreview(LANPR_RenderBuffer *rb, LANPR_LineLayer *OverrideLayer
 }
 
 int lanpr_GetRenderTriangleSize(LANPR_RenderBuffer *rb) {
-	rb->ThreadCount = rb->ThreadCount == 0 ? 1 : rb->ThreadCount;
+	if(rb->ThreadCount==0) rb->ThreadCount = BKE_render_num_threads(&rb->Scene->r);
 	return sizeof(LANPR_RenderTriangle) + (sizeof(LANPR_RenderLine *) * rb->ThreadCount);
 }
 
@@ -2929,11 +2914,11 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	/* need threading, later.... */
 
 	rb = lanpr_CreateRenderBuffer(lanpr);
-
-	rb->TriangleSize = lanpr_GetRenderTriangleSize(rb);
 	rb->Scene = scene;
 	rb->W = scene->r.xsch;
 	rb->H = scene->r.ysch;
+
+	rb->TriangleSize = lanpr_GetRenderTriangleSize(rb);
 
 	lanpr_MakeRenderGeometryBuffers(depsgraph, scene, scene->camera, rb);
 
