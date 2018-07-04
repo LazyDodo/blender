@@ -345,7 +345,7 @@ static void lanpr_cache_init(void *vedata){
 			BLI_mempool_clear(pd->mp_batch_list);
 		}
 	}elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
-		psl->software_pass = DRW_pass_create("Software Render Preview",  DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
+		psl->software_pass = DRW_pass_create("Software Render Preview",  DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 		LANPR_LineLayer* ll;
 		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
@@ -444,7 +444,7 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_FramebufferList *fbl = ((LANPR_Data *)vedata)->fbl;
 
-	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float clear_col[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
 
@@ -477,8 +477,11 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 
 		//DRW_draw_pass(psl->color_pass);
 		GPU_framebuffer_bind(fbl->software_ms);
-		// almost forgot
-	    GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+
+		//this line works weird in viewport render
+	    GPU_framebuffer_clear(fbl->software_ms, clear_bits, clear_col, clear_depth, clear_stencil);
+
+		DRW_draw_pass(psl->color_pass);
 		DRW_draw_pass(psl->software_pass);
 
 		GPU_framebuffer_bind(dfb);
@@ -534,6 +537,14 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	lanpr_cache_init(vedata);
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
 	lanpr_cache_finish(vedata);
+
+	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float clear_depth = 1.0f;
+	uint clear_stencil = 0xFF;
+	GPUFrameBufferBits clear_bits = GPU_DEPTH_BIT | GPU_COLOR_BIT;
+
+	GPU_framebuffer_bind(dfbl->default_fb);
+	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, clear_col, clear_depth, clear_stencil);
 
 	lanpr_draw_scene_exec(vedata, dfbl->default_fb);
 
