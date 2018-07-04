@@ -1283,10 +1283,7 @@ typedef struct ToolSettings {
 	/* Grease Pencil Interpolation Tool(s) */
 	struct GP_Interpolate_Settings gp_interpolate;
 
-	/* Grease Pencil Drawing Brushes */
-	ListBase gp_brushes; /* Deprecated*/
-
-	/* Image Paint (8 byttse aligned please!) */
+	/* Image Paint (8 bytes aligned please!) */
 	struct ImagePaintSettings imapaint;
 
 	/* Particle Editing */
