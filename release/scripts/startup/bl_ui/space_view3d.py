@@ -4251,7 +4251,7 @@ class VIEW3D_PT_overlay_gpencil_paper(Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT'}
+        return context.mode in {'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_EDIT'}
 
     def draw_header(self, context):
         view = context.space_data
