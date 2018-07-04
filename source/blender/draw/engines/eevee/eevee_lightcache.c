@@ -751,6 +751,44 @@ static void eevee_lightbake_render_probe_sample(void *ved, void *user_data)
 	lcache->cube_len += 1;
 }
 
+static float eevee_lightbake_grid_influence_volume(EEVEE_LightGrid *grid)
+{
+	return mat4_to_scale(grid->mat);
+}
+
+static float eevee_lightbake_cube_influence_volume(EEVEE_LightProbe *eprb)
+{
+	return mat4_to_scale(eprb->attenuationmat);
+}
+
+static bool eevee_lightbake_grid_comp(EEVEE_LightGrid *grid_a, EEVEE_LightGrid *grid_b)
+{
+	float vol_a = eevee_lightbake_grid_influence_volume(grid_a);
+	float vol_b = eevee_lightbake_grid_influence_volume(grid_b);
+	return (vol_a < vol_b);
+}
+
+static bool eevee_lightbake_cube_comp(EEVEE_LightProbe *prb_a, EEVEE_LightProbe *prb_b)
+{
+	float vol_a = eevee_lightbake_cube_influence_volume(prb_a);
+	float vol_b = eevee_lightbake_cube_influence_volume(prb_b);
+	return (vol_a < vol_b);
+}
+
+#define SORT_PROBE(elems_type, elems, elems_len, comp_fn) \
+{ \
+	bool sorted = false; \
+	while (!sorted) { \
+		sorted = true; \
+		for (int i = 0; i < (elems_len) - 1; ++i) { \
+			if ((comp_fn)((elems) + i, (elems) + i+1)) { \
+				SWAP(elems_type, (elems)[i], (elems)[i+1]); \
+				sorted = false; \
+			} \
+		} \
+	} \
+}
+
 static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 {
 	Depsgraph *depsgraph = lbake->depsgraph;
@@ -781,6 +819,9 @@ static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 		}
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
+
+	SORT_PROBE(EEVEE_LightGrid, lcache->grid_data + 1, lbake->grid_len - 1, eevee_lightbake_grid_comp);
+	SORT_PROBE(EEVEE_LightProbe, lcache->cube_data + 1, lbake->cube_len - 1, eevee_lightbake_cube_comp);
 
 	lbake->total = lbake->total_irr_samples * lbake->bounce_count + lbake->cube_len;
 	lbake->done = 0;
