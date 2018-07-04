@@ -4293,40 +4293,8 @@ static void lib_link_particlesettings(FileData *fd, Main *main)
 			}
 
 			if (part->dupliweights.first && part->dup_group) {
-				ParticleDupliWeight *dw;
-				int index_ok = 0;
-				/* check for old files without indices (all indexes 0) */
-				if (BLI_listbase_is_single(&part->dupliweights)) {
-					/* special case for only one object in the group */
-					index_ok = 1;
-				}
-				else {
-					for (dw = part->dupliweights.first; dw; dw = dw->next) {
-						if (dw->index > 0) {
-							index_ok = 1;
-							break;
-						}
-					}
-				}
-
-				if (index_ok) {
-					/* if we have indexes, let's use them */
-					for (dw = part->dupliweights.first; dw; dw = dw->next) {
-						/* Do not try to restore pointer here, we have to search for group objects in another
-						 * separated step.
-						 * Reason is, the used group may be linked from another library, which has not yet
-						 * been 'lib_linked'.
-						 * Since dw->ob is not considered as an object user (it does not make objet directly linked),
-						 * we may have no valid way to retrieve it yet.
-						 * See T49273. */
-						dw->ob = NULL;
-					}
-				}
-				else {
-					/* otherwise try to get objects from own library (won't work on library linked groups) */
-					for (dw = part->dupliweights.first; dw; dw = dw->next) {
-						dw->ob = newlibadr(fd, part->id.lib, dw->ob);
-					}
+				for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
+					dw->ob = newlibadr(fd, part->id.lib, dw->ob);
 				}
 			}
 			else {
@@ -5516,7 +5484,18 @@ static void direct_link_object(FileData *fd, Object *ob)
 		if (!sb->effector_weights)
 			sb->effector_weights = BKE_add_effector_weights(NULL);
 
-		direct_link_pointcache_list(fd, &sb->ptcaches, &sb->pointcache, 0);
+		sb->shared = newdataadr(fd, sb->shared);
+		if (sb->shared == NULL) {
+			/* Link deprecated caches if they exist, so we can use them for versioning.
+			 * We should only do this when sb->shared == NULL, because those pointers
+			 * are always set (for compatibility with older Blenders). We mustn't link
+			 * the same pointcache twice. */
+			direct_link_pointcache_list(fd, &sb->ptcaches, &sb->pointcache, false);
+		}
+		else {
+			/* link caches */
+			direct_link_pointcache_list(fd, &sb->shared->ptcaches, &sb->shared->pointcache, false);
+		}
 	}
 	ob->fluidsimSettings= newdataadr(fd, ob->fluidsimSettings); /* NT */
 
@@ -9397,6 +9376,10 @@ static void expand_particlesettings(FileData *fd, Main *mainvar, ParticleSetting
 				}
 			}
 		}
+	}
+
+	for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
+		expand_doit(fd, mainvar, dw->ob);
 	}
 }
 

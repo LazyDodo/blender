@@ -1062,20 +1062,7 @@ void EEVEE_lightbake_filter_glossy(
 		float bias = (i == 0) ? -1.0f : 1.0f;
 		pinfo->texel_size = 1.0f / (float)mipsize;
 		pinfo->padding_size = (float)(1 << (maxlevel - i - 1));
-		/* XXX : WHY THE HECK DO WE NEED THIS ??? */
-		/* padding is incorrect without this! float precision issue? */
-		if (pinfo->padding_size > 32) {
-			pinfo->padding_size += 5;
-		}
-		if (pinfo->padding_size > 16) {
-			pinfo->padding_size += 4;
-		}
-		else if (pinfo->padding_size > 8) {
-			pinfo->padding_size += 2;
-		}
-		else if (pinfo->padding_size > 4) {
-			pinfo->padding_size += 1;
-		}
+		pinfo->padding_size *= pinfo->texel_size;
 		pinfo->layer = probe_idx;
 		pinfo->roughness = i / (float)maxlevel;
 		pinfo->roughness *= pinfo->roughness; /* Disney Roughness */

@@ -976,7 +976,7 @@ static void drw_engines_draw_text(void)
 		PROFILE_START(stime);
 
 		if (data->text_draw_cache) {
-			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.v3d, DST.draw_ctx.ar, false);
+			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.ar);
 		}
 
 		PROFILE_END_UPDATE(data->render_time, stime);
@@ -1120,6 +1120,27 @@ static void drw_engines_enable_from_object_mode(void)
 	use_drw_engine(&draw_engine_motion_path_type);
 }
 
+static void drw_engines_enable_from_paint_mode(int mode)
+{
+	switch (mode) {
+		case CTX_MODE_SCULPT:
+			use_drw_engine(&draw_engine_sculpt_type);
+			break;
+		case CTX_MODE_PAINT_WEIGHT:
+			use_drw_engine(&draw_engine_pose_type);
+			use_drw_engine(&draw_engine_paint_weight_type);
+			break;
+		case CTX_MODE_PAINT_VERTEX:
+			use_drw_engine(&draw_engine_paint_vertex_type);
+			break;
+		case CTX_MODE_PAINT_TEXTURE:
+			use_drw_engine(&draw_engine_paint_texture_type);
+			break;
+		default:
+			break;
+	}
+}
+
 static void drw_engines_enable_from_mode(int mode)
 {
 	switch (mode) {
@@ -1147,21 +1168,14 @@ static void drw_engines_enable_from_mode(int mode)
 		case CTX_MODE_POSE:
 			use_drw_engine(&draw_engine_pose_type);
 			break;
-		case CTX_MODE_SCULPT:
-			use_drw_engine(&draw_engine_sculpt_type);
-			break;
-		case CTX_MODE_PAINT_WEIGHT:
-			use_drw_engine(&draw_engine_pose_type);
-			use_drw_engine(&draw_engine_paint_weight_type);
-			break;
-		case CTX_MODE_PAINT_VERTEX:
-			use_drw_engine(&draw_engine_paint_vertex_type);
-			break;
-		case CTX_MODE_PAINT_TEXTURE:
-			use_drw_engine(&draw_engine_paint_texture_type);
-			break;
 		case CTX_MODE_PARTICLE:
 			use_drw_engine(&draw_engine_particle_type);
+			break;
+		case CTX_MODE_SCULPT:
+		case CTX_MODE_PAINT_WEIGHT:
+		case CTX_MODE_PAINT_VERTEX:
+		case CTX_MODE_PAINT_TEXTURE:
+			/* Should have already been enabled */
 			break;
 		case CTX_MODE_OBJECT:
 			break;
@@ -1195,6 +1209,8 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 	drw_engines_enable_from_engine(engine_type, drawtype, v3d->shading.flag);
 
 	if (DRW_state_draw_support()) {
+		/* Draw paint modes first so that they are drawn below the wireframes. */
+		drw_engines_enable_from_paint_mode(mode);
 		drw_engines_enable_from_overlays(v3d->overlay.flag);
 		drw_engines_enable_from_object_mode();
 		drw_engines_enable_from_mode(mode);
@@ -1320,9 +1336,7 @@ void DRW_draw_render_loop_ex(
 	RegionView3D *rv3d = ar->regiondata;
 
 	DST.draw_ctx.evil_C = evil_C;
-
 	DST.viewport = viewport;
-	v3d->zbuf = true;
 
 	/* Setup viewport */
 	GPU_viewport_engines_data_validate(DST.viewport, DRW_engines_get_hash());
@@ -1784,12 +1798,11 @@ void DRW_draw_select_loop(
 	GPU_viewport_size_set(viewport, (const int[2]){BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)});
 
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_select = true;
 
 	/* Get list of enabled engines */
 	if (use_obedit) {
+		drw_engines_enable_from_paint_mode(obedit_mode);
 		drw_engines_enable_from_mode(obedit_mode);
 	}
 	else {
@@ -1979,10 +1992,7 @@ void DRW_draw_depth_loop(
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
 	GPU_framebuffer_clear_depth(g_select_buffer.framebuffer, 1.0f);
 
-	bool cache_is_dirty;
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_depth = true;
 
 	/* Get list of enabled engines */
@@ -1992,7 +2002,6 @@ void DRW_draw_depth_loop(
 	}
 
 	/* Setup viewport */
-	cache_is_dirty = true;
 
 	/* Instead of 'DRW_context_state_init(C, &DST.draw_ctx)', assign from args */
 	DST.draw_ctx = (DRWContextState){
@@ -2011,10 +2020,7 @@ void DRW_draw_depth_loop(
 	drw_engines_init();
 	DRW_hair_init();
 
-	/* TODO : tag to refresh by the dependency graph */
-	/* ideally only refresh when objects are added/removed */
-	/* or render properties / materials change */
-	if (cache_is_dirty) {
+	{
 		drw_engines_cache_init();
 		drw_engines_world_update(scene);
 
@@ -2311,8 +2317,6 @@ void DRW_opengl_context_create(void)
 	}
 	/* This changes the active context. */
 	DST.gl_context = WM_opengl_context_create();
-	/* Make the context active for this thread (main thread) */
-	WM_opengl_context_activate(DST.gl_context);
 	/* Be sure to create gawain.context too. */
 	DST.gwn_context = GWN_context_create();
 	if (!G.background) {

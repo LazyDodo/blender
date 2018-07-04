@@ -755,7 +755,9 @@ void ui_theme_init_default(void)
 
 	UI_SetTheme(0, 0);  /* make sure the global used in this file is set */
 
+	const int active_theme_area = btheme->active_theme_area;
 	memcpy(btheme, &U_theme_default, sizeof(*btheme));
+	btheme->active_theme_area = active_theme_area;
 }
 
 void ui_style_init_default(void)
@@ -1513,10 +1515,6 @@ void init_userdef_do_versions(Main *bmain)
 		if (U.dbl_click_time == 0) {
 			U.dbl_click_time = 350;
 		}
-		if (U.scrcastfps == 0) {
-			U.scrcastfps = 10;
-			U.scrcastwait = 50;
-		}
 		if (U.v2d_min_gridsize == 0) {
 			U.v2d_min_gridsize = 35;
 		}
@@ -1585,7 +1583,7 @@ void init_userdef_do_versions(Main *bmain)
 	}
 
 
-	if (!USER_VERSION_ATLEAST(278, 20)) {
+	if (!USER_VERSION_ATLEAST(280, 20)) {
 		U.gpu_viewport_quality = 0.6f;
 
 		/* Reset theme, old themes will not be compatible with minor version updates from now on. */

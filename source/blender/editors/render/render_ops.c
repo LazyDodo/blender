@@ -97,4 +97,3 @@ void ED_operatortypes_render(void)
 	/* render_opengl.c */
 	WM_operatortype_append(RENDER_OT_opengl);
 }
-

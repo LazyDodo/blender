@@ -45,4 +45,3 @@ struct World *BKE_world_localize(struct World *wrld);
 void BKE_world_make_local(struct Main *bmain, struct World *wrld, const bool lib_local);
 
 #endif
-

@@ -1254,6 +1254,14 @@ static void write_userdef(WriteData *wd, const UserDef *userdef)
 					IDP_WriteProperty(umi_op->prop, wd);
 				}
 			}
+			else if (umi->type == USER_MENU_TYPE_MENU) {
+				const bUserMenuItem_Menu *umi_mt = (const bUserMenuItem_Menu *)umi;
+				writestruct(wd, DATA, bUserMenuItem_Menu, 1, umi_mt);
+			}
+			else if (umi->type == USER_MENU_TYPE_PROP) {
+				const bUserMenuItem_Prop *umi_pr = (const bUserMenuItem_Prop *)umi;
+				writestruct(wd, DATA, bUserMenuItem_Prop, 1, umi_pr);
+			}
 			else {
 				writestruct(wd, DATA, bUserMenuItem, 1, umi);
 			}
@@ -1808,9 +1816,13 @@ static void write_object(WriteData *wd, Object *ob)
 		write_motionpath(wd, ob->mpath);
 
 		writestruct(wd, DATA, PartDeflect, 1, ob->pd);
-		writestruct(wd, DATA, SoftBody, 1, ob->soft);
 		if (ob->soft) {
-			write_pointcaches(wd, &ob->soft->ptcaches);
+			/* Set deprecated pointers to prevent crashes of older Blenders */
+			ob->soft->pointcache = ob->soft->shared->pointcache;
+			ob->soft->ptcaches = ob->soft->shared->ptcaches;
+			writestruct(wd, DATA, SoftBody, 1, ob->soft);
+			writestruct(wd, DATA, SoftBody_Shared, 1, ob->soft->shared);
+			write_pointcaches(wd, &(ob->soft->shared->ptcaches));
 			writestruct(wd, DATA, EffectorWeights, 1, ob->soft->effector_weights);
 		}
 
@@ -3876,7 +3888,7 @@ static bool write_file_handle(
 				const bool do_override = !ELEM(override_storage, NULL, bmain) && id->override_static;
 
 				if (do_override) {
-					BKE_override_static_operations_store_start(override_storage, id);
+					BKE_override_static_operations_store_start(bmain, override_storage, id);
 				}
 
 				switch ((ID_Type)GS(id->name)) {
