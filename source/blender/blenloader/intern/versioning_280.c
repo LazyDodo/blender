@@ -49,6 +49,7 @@
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_particle_types.h"
+#include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_view3d_types.h"
@@ -65,6 +66,7 @@
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_node.h"
+#include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
@@ -1532,6 +1534,51 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 
+		if (!DNA_struct_elem_find(fd->filesdna, "RigidBodyWorld", "RigidBodyWorld_Shared", "*shared")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				RigidBodyWorld *rbw = scene->rigidbody_world;
+
+				if (rbw == NULL) {
+					continue;
+				}
+
+				if (rbw->shared == NULL) {
+					rbw->shared = MEM_callocN(sizeof(*rbw->shared), "RigidBodyWorld_Shared");
+				}
+
+				/* Move shared pointers from deprecated location to current location */
+				rbw->shared->pointcache = rbw->pointcache;
+				rbw->shared->ptcaches = rbw->ptcaches;
+
+				rbw->pointcache = NULL;
+				BLI_listbase_clear(&rbw->ptcaches);
+
+				if (rbw->shared->pointcache == NULL) {
+					rbw->shared->pointcache = BKE_ptcache_add(&(rbw->shared->ptcaches));
+				}
+
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "SoftBody", "SoftBody_Shared", "*shared")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				SoftBody *sb = ob->soft;
+				if (sb == NULL) {
+					continue;
+				}
+				if (sb->shared == NULL) {
+					sb->shared = MEM_callocN(sizeof(*sb->shared), "SoftBody_Shared");
+				}
+
+				/* Move shared pointers from deprecated location to current location */
+				sb->shared->pointcache = sb->pointcache;
+				sb->shared->ptcaches = sb->ptcaches;
+
+				sb->pointcache = NULL;
+				BLI_listbase_clear(&sb->ptcaches);
+			}
+		}
+
 		if (!DNA_struct_elem_find(fd->filesdna, "Image", "short", "num_tiles")) {
 			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
 				ImageTile *tile = MEM_callocN(sizeof(ImageTile), "Image Tiles");
@@ -1553,5 +1600,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+
 	}
 }

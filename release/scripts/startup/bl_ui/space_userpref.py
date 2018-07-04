@@ -505,12 +505,6 @@ class USERPREF_PT_system(Panel):
 
         col.separator()
 
-        col.label(text="Screencast:")
-        col.prop(system, "screencast_fps")
-        col.prop(system, "screencast_wait_time")
-
-        col.separator()
-
         if bpy.app.build_options.cycles:
             addon = userpref.addons.get("cycles")
             if addon is not None:
@@ -952,7 +946,7 @@ class USERPREF_PT_theme(Panel):
             col = split.column()
 
             for i, ui in enumerate(theme.bone_color_sets, 1):
-                col.label(text=iface_("Color Set %d:") % i, translate=False)
+                col.label(iface_(f"Color Set {i:d}"), translate=False)
 
                 row = col.row()
 
@@ -1479,7 +1473,15 @@ class USERPREF_PT_addons(Panel):
                 sub = row.row()
                 sub.active = is_enabled
                 sub.label(text="%s: %s" % (info["category"], info["name"]))
-                if info["warning"]:
+
+
+                # WARNING: 2.8x exception, may be removed
+                # use disabled state for old add-ons, chances are they are broken.
+                if info.get("blender", (0,)) < (2, 80):
+                    sub.label(text="upgrade to 2.8x required")
+                    sub.label(icon='ERROR')
+                # Remove code above after 2.8x migration is complete.
+                elif info["warning"]:
                     sub.label(icon='ERROR')
 
                 # icon showing support level.

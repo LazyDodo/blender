@@ -289,7 +289,7 @@ static void rna_View2D_region_to_view(struct View2D *v2d, int x, int y, float re
 	UI_view2d_region_to_view(v2d, x, y, &result[0], &result[1]);
 }
 
-static void rna_View2D_view_to_region(struct View2D *v2d, float x, float y, int clip, int result[2])
+static void rna_View2D_view_to_region(struct View2D *v2d, float x, float y, bool clip, int result[2])
 {
 	if (clip)
 		UI_view2d_view_to_region_clip(v2d, x, y, &result[0], &result[1]);
@@ -320,6 +320,7 @@ static void rna_def_area(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
+	FunctionRNA *func;
 
 	srna = RNA_def_struct(brna, "Area", NULL);
 	RNA_def_struct_ui_text(srna, "Area", "Area in a subdivided screen, containing an editor");
@@ -383,6 +384,10 @@ static void rna_def_area(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Height", "Area height");
 
 	RNA_def_function(srna, "tag_redraw", "ED_area_tag_redraw");
+
+	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
+	RNA_def_function_ui_description(func, "Set the header status text");
+	RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, no argument clears the text");
 }
 
 static void rna_def_view2d_api(StructRNA *srna)
@@ -581,4 +586,3 @@ void RNA_def_screen(BlenderRNA *brna)
 }
 
 #endif
-

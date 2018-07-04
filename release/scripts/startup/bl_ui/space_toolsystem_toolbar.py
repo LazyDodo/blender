@@ -130,37 +130,43 @@ class _defs_transform:
     @ToolDef.from_fn
     def translate():
         return dict(
-            text="Move",
-            cursor='SCROLL_XY',
+            text="Grab",
+            # cursor='SCROLL_XY',
             icon="ops.transform.translate",
             widget="TRANSFORM_WGT_manipulator",
-            keymap=(
-                ("transform.translate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            operator="transform.translate",
+            # TODO, implement as optional fallback manipulator
+            # keymap=(
+            #     ("transform.translate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            # ),
         )
 
     @ToolDef.from_fn
     def rotate():
         return dict(
             text="Rotate",
-            cursor='SCROLL_XY',
+            # cursor='SCROLL_XY',
             icon="ops.transform.rotate",
             widget="TRANSFORM_WGT_manipulator",
-            keymap=(
-                ("transform.rotate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            operator="transform.rotate",
+            # TODO, implement as optional fallback manipulator
+            # keymap=(
+            #     ("transform.rotate", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            # ),
         )
 
     @ToolDef.from_fn
     def scale():
         return dict(
             text="Scale",
-            cursor='SCROLL_XY',
+            # cursor='SCROLL_XY',
             icon="ops.transform.resize",
             widget="TRANSFORM_WGT_manipulator",
-            keymap=(
-                ("transform.resize", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            operator="transform.resize",
+            # TODO, implement as optional fallback manipulator
+            # keymap=(
+            #     ("transform.resize", dict(release_confirm=True), dict(type='EVT_TWEAK_A', value='ANY')),
+            # ),
         )
 
     @ToolDef.from_fn
@@ -169,6 +175,7 @@ class _defs_transform:
             text="Scale Cage",
             icon="ops.transform.resize.cage",
             widget="VIEW3D_WGT_xform_cage",
+            operator="transform.resize",
         )
 
     @ToolDef.from_fn
@@ -456,6 +463,7 @@ class _defs_edit_mesh:
             text="Extrude Region",
             icon="ops.mesh.extrude_region_move",
             widget="MESH_WGT_extrude",
+            operator="view3d.edit_mesh_extrude_move_normal",
             keymap=(
                 ("mesh.extrude_context_move", dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='EVT_TWEAK_A', value='ANY')),
@@ -936,10 +944,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     # for reuse
     _tools_transform = (
-        (
-            _defs_transform.translate,
-            _defs_transform.transform,
-        ),
+        _defs_transform.transform,
+        _defs_transform.translate,
         _defs_transform.rotate,
         (
             _defs_transform.scale,

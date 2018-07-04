@@ -50,6 +50,7 @@
 #include "BLI_utildefines.h"
 
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "BKE_global.h"
 #include "BKE_object.h"
@@ -154,12 +155,11 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 	if (t->spacetype == SPACE_VIEW3D) {
 		if (validSnap(t)) {
 			TransSnapPoint *p;
-			View3D *v3d = CTX_wm_view3d(C);
 			RegionView3D *rv3d = CTX_wm_region_view3d(C);
 			float imat[4][4];
 			float size;
 
-			glDisable(GL_DEPTH_TEST);
+			GPU_depth_test(false);
 
 			size = 2.5f * UI_GetThemeValuef(TH_VERTEX_SIZE);
 
@@ -200,8 +200,7 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 
 			immUnbindProgram();
 
-			if (v3d->zbuf)
-				glEnable(GL_DEPTH_TEST);
+			GPU_depth_test(true);
 		}
 	}
 	else if (t->spacetype == SPACE_IMAGE) {
@@ -218,7 +217,7 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 
 			size = 2.5f * UI_GetThemeValuef(TH_VERTEX_SIZE);
 
-			glEnable(GL_BLEND);
+			GPU_blend(true);
 
 			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
@@ -243,7 +242,7 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 
 			immUnbindProgram();
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 	}
 }

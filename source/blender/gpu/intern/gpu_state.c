@@ -30,17 +30,20 @@
 
 static GLenum gpu_get_gl_blendfunction(GPUBlendFunction blend)
 {
-	switch (blend)
-	{
-	case GPU_ONE:
-		return GL_ONE;
-	case GPU_SRC_ALPHA:
-		return GL_SRC_ALPHA;
-	case GPU_ONE_MINUS_SRC_ALPHA:
-		return GL_ONE_MINUS_SRC_ALPHA;
-	default:
-		BLI_assert(!"Unhandled blend mode");
-		return GL_ZERO;
+	switch (blend) {
+		case GPU_ONE:
+			return GL_ONE;
+		case GPU_SRC_ALPHA:
+			return GL_SRC_ALPHA;
+		case GPU_ONE_MINUS_SRC_ALPHA:
+			return GL_ONE_MINUS_SRC_ALPHA;
+		case GPU_DST_COLOR:
+			return GL_DST_COLOR;
+		case GPU_ZERO:
+			return GL_ZERO;
+		default:
+			BLI_assert(!"Unhandled blend mode");
+			return GL_ZERO;
 	}
 }
 
@@ -129,22 +132,22 @@ void GPU_scissor(int x, int y, int width, int height)
 	glScissor(x, y, width, height);
 }
 
-void GPU_scissor_getf(float coords[4])
+void GPU_scissor_get_f(float coords[4])
 {
 	glGetFloatv(GL_SCISSOR_BOX, coords);
 }
 
-void GPU_scissor_geti(int coords[4])
+void GPU_scissor_get_i(int coords[4])
 {
 	glGetIntegerv(GL_SCISSOR_BOX, coords);
 }
 
-void GPU_viewport_size_getf(float coords[4])
+void GPU_viewport_size_get_f(float coords[4])
 {
 	glGetFloatv(GL_VIEWPORT, coords);
 }
 
-void GPU_viewport_size_geti(int coords[4])
+void GPU_viewport_size_get_i(int coords[4])
 {
 	glGetIntegerv(GL_VIEWPORT, coords);
 }

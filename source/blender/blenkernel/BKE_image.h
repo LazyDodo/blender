@@ -323,4 +323,3 @@ bool BKE_image_clear_renderslot(struct Image *ima, struct ImageUser *iuser, int 
 #endif
 
 #endif
-

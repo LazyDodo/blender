@@ -55,6 +55,7 @@
 #include "GPU_glew.h"
 #include "GPU_select.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -463,7 +464,7 @@ static int view3d_camera_to_view_exec(bContext *C, wmOperator *UNUSED(op))
 
 }
 
-static int view3d_camera_to_view_poll(bContext *C)
+static bool view3d_camera_to_view_poll(bContext *C)
 {
 	View3D *v3d;
 	ARegion *ar;
@@ -662,7 +663,7 @@ static int view3d_setobjectascamera_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-int ED_operator_rv3d_user_region_poll(bContext *C)
+bool ED_operator_rv3d_user_region_poll(bContext *C)
 {
 	View3D *v3d_dummy;
 	ARegion *ar_dummy;
@@ -1003,8 +1004,7 @@ int view3d_opengl_select(
 	ED_view3d_draw_setup_view(vc->win, depsgraph, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
 
 	if (v3d->drawtype > OB_WIRE) {
-		v3d->zbuf = true;
-		glEnable(GL_DEPTH_TEST);
+		GPU_depth_test(true);
 	}
 
 	if (vc->rv3d->rflag & RV3D_CLIPPING)
@@ -1049,8 +1049,7 @@ int view3d_opengl_select(
 	ED_view3d_draw_setup_view(vc->win, depsgraph, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
 
 	if (v3d->drawtype > OB_WIRE) {
-		v3d->zbuf = 0;
-		glDisable(GL_DEPTH_TEST);
+		GPU_depth_test(false);
 	}
 
 	if (vc->rv3d->rflag & RV3D_CLIPPING)
@@ -1075,7 +1074,7 @@ finally:
 /** \name View Layer Utilities
  * \{ */
 
-int ED_view3d_view_layer_set(int lay, const int *values, int *active)
+int ED_view3d_view_layer_set(int lay, const bool *values, int *active)
 {
 	int i, tot = 0;
 

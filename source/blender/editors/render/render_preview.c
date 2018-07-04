@@ -1264,4 +1264,3 @@ void ED_preview_kill_jobs(wmWindowManager *wm, Main *UNUSED(bmain))
 	if (wm)
 		WM_jobs_kill(wm, NULL, common_preview_startjob);
 }
-

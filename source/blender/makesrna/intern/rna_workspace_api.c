@@ -53,6 +53,7 @@ static void rna_WorkspaceTool_setup(
         const char *keymap,
         const char *manipulator_group,
         const char *data_block,
+        const char *operator,
         int index)
 {
 	bToolRef_Runtime tref_rt = {0};
@@ -61,6 +62,7 @@ static void rna_WorkspaceTool_setup(
 	STRNCPY(tref_rt.keymap, keymap);
 	STRNCPY(tref_rt.manipulator_group, manipulator_group);
 	STRNCPY(tref_rt.data_block, data_block);
+	STRNCPY(tref_rt.operator, operator);
 	tref_rt.index = index;
 
 	WM_toolsystem_ref_set_from_runtime(C, (WorkSpace *)id, tref, &tref_rt, name);
@@ -88,7 +90,7 @@ void RNA_api_workspace(StructRNA *srna)
 
 	func = RNA_def_function(srna, "status_text_set", "ED_workspace_status_text");
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_CONTEXT);
-	RNA_def_function_ui_description(func, "Set the status bar text, typically for modal operators");
+	RNA_def_function_ui_description(func, "Set the status bar text, typically key shortcuts for modal operators");
 	RNA_def_string(func, "text", NULL, 0, "Text", "New string for the status bar, no argument clears the text");
 }
 
@@ -110,6 +112,7 @@ void RNA_api_workspace_tool(StructRNA *srna)
 	RNA_def_string(func, "keymap", NULL, KMAP_MAX_NAME, "Key Map", "");
 	RNA_def_string(func, "manipulator_group", NULL, MAX_NAME, "Manipulator Group", "");
 	RNA_def_string(func, "data_block", NULL, MAX_NAME, "Data Block", "");
+	RNA_def_string(func, "operator", NULL, MAX_NAME, "Operator", "");
 	RNA_def_int(func, "index", 0, INT_MIN, INT_MAX, "Index", "", INT_MIN, INT_MAX);
 
 	/* Access tool operator options (optionally create). */

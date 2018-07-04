@@ -83,26 +83,25 @@ class SEQUENCER_HT_header(Header):
 
         SEQUENCER_MT_editor_menus.draw_collapsible(context, layout)
 
-        row = layout.row(align=True)
-        row.prop(scene, "use_preview_range", text="", toggle=True)
-        row.prop(scene, "lock_frame_selection_to_range", text="", toggle=True)
+        if st.view_type == 'SEQUENCER':
+            layout.prop(st, "show_backdrop", text="Backdrop")
+
+        layout.separator_spacer()
+
+        layout.template_running_jobs()
+
+        if st.view_type == 'SEQUENCER':
+            layout.separator()
+            layout.operator("sequencer.refresh_all")
+
+        if st.view_type == 'SEQUENCER_PREVIEW':
+            layout.separator()
+            layout.operator("sequencer.refresh_all")
 
         if st.view_type in {'PREVIEW', 'SEQUENCER_PREVIEW'}:
             layout.prop(st, "display_mode", expand=True, text="")
 
-        if st.view_type == 'SEQUENCER':
-            row = layout.row(align=True)
-            row.operator("sequencer.copy", text="", icon='COPYDOWN')
-            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
-
-            layout.separator()
-            layout.operator("sequencer.refresh_all")
-            layout.prop(st, "show_backdrop")
-        else:
-            if st.view_type == 'SEQUENCER_PREVIEW':
-                layout.separator()
-                layout.operator("sequencer.refresh_all")
-
+        if st.view_type != 'SEQUENCER':
             layout.prop(st, "preview_channels", expand=True, text="")
             layout.prop(st, "display_channel", text="Channel")
 
@@ -134,7 +133,11 @@ class SEQUENCER_HT_header(Header):
         props.animation = True
         props.sequencer = True
 
-        layout.template_running_jobs()
+        if st.view_type == 'SEQUENCER':
+
+            row = layout.row(align=True)
+            row.operator("sequencer.copy", text="", icon='COPYDOWN')
+            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
 
 
 class SEQUENCER_MT_editor_menus(Menu):
@@ -246,6 +249,12 @@ class SEQUENCER_MT_select(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("sequencer.select_all", text="All").action = 'SELECT'
+        layout.operator("sequencer.select_all", text="None").action = 'DESELECT'
+        layout.operator("sequencer.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("sequencer.select_active_side", text="Strips to the Left").side = 'LEFT'
         layout.operator("sequencer.select_active_side", text="Strips to the Right").side = 'RIGHT'
         props = layout.operator("sequencer.select", text="All Strips to the Left")
@@ -264,8 +273,6 @@ class SEQUENCER_MT_select(Menu):
         layout.operator("sequencer.select_linked")
         layout.operator("sequencer.select_less")
         layout.operator("sequencer.select_more")
-        layout.operator("sequencer.select_all").action = 'TOGGLE'
-        layout.operator("sequencer.select_all", text="Inverse").action = 'INVERT'
 
 
 class SEQUENCER_MT_marker(Menu):
@@ -702,11 +709,11 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
                     if i == strip.multicam_source:
                         sub = row.row(align=True)
                         sub.enabled = False
-                        sub.operator("sequencer.cut_multicam", text="%d" % i).camera = i
+                        sub.operator("sequencer.cut_multicam", text=f"{i:d}").camera = i
                     else:
                         sub_1 = row.row(align=True)
                         sub_1.enabled = True
-                        sub_1.operator("sequencer.cut_multicam", text="%d" % i).camera = i
+                        sub_1.operator("sequencer.cut_multicam", text=f"{i:d}").camera = i
 
                 if strip.channel > BT_ROW and (strip_channel - 1) % BT_ROW:
                     for i in range(strip.channel, strip_channel + ((BT_ROW + 1 - strip_channel) % BT_ROW)):

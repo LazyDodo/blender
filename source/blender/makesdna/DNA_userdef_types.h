@@ -454,15 +454,30 @@ typedef struct bUserMenuItem {
 
 typedef struct bUserMenuItem_Op {
 	bUserMenuItem item;
-	char opname[64];
+	char op_idname[64];
 	struct IDProperty *prop;
 	char opcontext;
 	char _pad0[7];
 } bUserMenuItem_Op;
 
+typedef struct bUserMenuItem_Menu {
+	bUserMenuItem item;
+	char mt_idname[64];
+} bUserMenuItem_Menu;
+
+typedef struct bUserMenuItem_Prop {
+	bUserMenuItem item;
+	char context_data_path[256];
+	char prop_id[64];
+	int  prop_index;
+	char _pad0[4];
+} bUserMenuItem_Prop;
+
 enum {
 	USER_MENU_TYPE_SEP = 1,
 	USER_MENU_TYPE_OPERATOR = 2,
+	USER_MENU_TYPE_MENU = 3,
+	USER_MENU_TYPE_PROP = 4,
 };
 
 typedef struct SolidLight {
@@ -584,8 +599,7 @@ typedef struct UserDef {
 	int view_frame_keyframes; /* number of keyframes to zoom around current frame */
 	float view_frame_seconds; /* seconds to zoom around current frame */
 
-	short scrcastfps;		/* frame rate for screencast to be played back */
-	short scrcastwait;		/* milliseconds between screencast snapshots */
+	char _pad1[4];
 
 	short widget_unit;		/* private, defaults to 20 for 72 DPI setting */
 	short anisotropic_filter;
