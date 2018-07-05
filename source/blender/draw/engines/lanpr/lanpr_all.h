@@ -201,6 +201,7 @@ typedef struct LANPR_PrivateData {
 	int dpix_sample_step;
 	int dpix_is_perspective;
 	float dpix_viewport[4];
+	float output_viewport[4];
 	int dpix_buffer_width;
 	float dpix_depth_offset;
 

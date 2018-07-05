@@ -38,6 +38,7 @@ extern char datatoc_lanpr_line_connection_geometry[];
 extern char datatoc_lanpr_software_line_width_geometry[];
 extern char datatoc_lanpr_atlas_project_passthrough_vertex[];
 extern char datatoc_lanpr_atlas_preview_fragment[];
+extern char datatoc_lanpr_software_scale_compensate_vertex[];
 
 
 
@@ -170,7 +171,7 @@ static void lanpr_engine_init(void *ved){
 	if (!OneTime.software_shader) {
 		OneTime.software_shader =
 			GPU_shader_create(
-				datatoc_lanpr_atlas_project_passthrough_vertex,
+				datatoc_lanpr_software_scale_compensate_vertex,
 				datatoc_lanpr_atlas_preview_fragment,
 				datatoc_lanpr_software_line_width_geometry,
 				NULL, NULL);
@@ -359,6 +360,8 @@ static void lanpr_cache_init(void *vedata){
 			DRW_shgroup_uniform_float(ll->shgrp, "thickness_material", &ll->thickness_material, 1);
 			DRW_shgroup_uniform_float(ll->shgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
 			DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
+			DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
 			if(ll->batch) DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
 		}
 	}
@@ -443,6 +446,7 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_FramebufferList *fbl = ((LANPR_Data *)vedata)->fbl;
+	LANPR_PrivateData *pd = stl->g_data;
 
 	float clear_col[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	float clear_depth = 1.0f;
@@ -479,9 +483,16 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 
 	    GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 
-		DRW_draw_pass(psl->color_pass);
-		DRW_draw_pass(psl->color_pass);
-		//DRW_draw_pass(psl->software_pass);
+		int texw = GPU_texture_width(txl->ms_resolve_color), texh = GPU_texture_height(txl->ms_resolve_color);;
+		pd->output_viewport[2] = scene->r.xsch;
+		pd->output_viewport[3] = scene->r.ysch;
+		pd->dpix_viewport[2] = texw;
+		pd->dpix_viewport[3] = texh;
+
+		// debug purpose
+		//DRW_draw_pass(psl->color_pass);
+		//DRW_draw_pass(psl->color_pass);
+		DRW_draw_pass(psl->software_pass);
 
 		GPU_framebuffer_blit(fbl->software_ms,0,dfb,0,GPU_COLOR_BIT);
 
