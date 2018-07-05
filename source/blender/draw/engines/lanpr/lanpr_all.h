@@ -8,7 +8,7 @@
 #include "GPU_shader.h"
 #include "GPU_uniformbuffer.h"
 #include "GPU_viewport.h"
-#include "DNA_listbase.h"
+#include "DNA_listBase.h"
 #include "DRW_render.h"
 #include "BKE_object.h"
 #include "DNA_mesh_types.h"

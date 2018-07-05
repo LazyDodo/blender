@@ -522,7 +522,6 @@ void strConvFloat_CString(real src, char *dest, int lenth);
 
 void strCopyFull(char *dest, char *src);
 void strCopySized(char *dest, int LenthLim, char *src);
-#define strAppend strcat_s
 void strPrintFloatAfter(char *dest, int LenthLim, int bits, real data);
 void strPrintIntAfter(char *dest, int LenthLim, int data);
 void strToWideChar(wchar_t *destBuf, char *srcBuf);
@@ -564,7 +563,7 @@ void tMatMakePerspectiveMatrix44d(tnsMatrix44d mProjection, real fFov_rad, real 
 void tMatMakeTranslationMatrix44d(tnsMatrix44d mTrans, real x, real y, real z);
 void tMatMakeRotationMatrix44d(tnsMatrix44d m, real angle_rad, real x, real y, real z);
 void tMatMakeScaleMatrix44d(tnsMatrix44d m, real x, real y, real z);
-void tMatMakeViewportMatrix44d(tnsMatrix44d m, real w, real h);
+void tMatMakeViewportMatrix44d(tnsMatrix44d m, real w, real h, real Far, real Near);
 void tMatMultiply44d(tnsMatrix44d result, tnsMatrix44d l, tnsMatrix44d r);
 void tMatInverse44d(tnsMatrix44d inverse, tnsMatrix44d mat);
 void tMatMakeRotationXMatrix44d(tnsMatrix44d m, real angle_rad);

@@ -1293,11 +1293,10 @@ void strCopySized(char *dest, int LenthLim, char *src){
 	if (src && dest)
 		strcpy_s(dest, LenthLim + 1, src);
 }
-#define strAppend strcat_s
 void strPrintFloatAfter(char *dest, int LenthLim, int bits, real data){
 	char temp[64];
-	sprintf_s(temp, LenthLim, "%.*lf", bits, data);
-	strcat_s(dest, LenthLim, temp);
+	sprintf(temp, "%.*lf", bits, data);
+	strcat(dest, temp);
 }
 void strPrintIntAfter(char *dest, int LenthLim, int data){
 	char temp[64];
