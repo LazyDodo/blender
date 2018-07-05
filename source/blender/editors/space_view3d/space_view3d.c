@@ -781,7 +781,7 @@ static void view3d_recalc_used_layers(ARegion *ar, wmNotifier *wmn, const Scene 
 }
 
 static void view3d_main_region_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *sa, ARegion *ar,
         wmNotifier *wmn, const Scene *scene)
 {
 	View3D *v3d = sa->spacedata.first;
@@ -1155,7 +1155,7 @@ static void view3d_header_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void view3d_header_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1233,7 +1233,7 @@ static void view3d_buttons_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void view3d_buttons_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1363,8 +1363,7 @@ static void view3d_tools_region_draw(const bContext *C, ARegion *ar)
 
 /* area (not region) level listener */
 static void space_view3d_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, struct wmNotifier *wmn, Scene *UNUSED(scene),
-        WorkSpace *UNUSED(workspace))
+        wmWindow *UNUSED(win), ScrArea *sa, struct wmNotifier *wmn, Scene *UNUSED(scene))
 {
 	View3D *v3d = sa->spacedata.first;
 
