@@ -579,6 +579,10 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.generic.select_border
 	ops.generic.select_circle
 	ops.generic.select_lasso
+	ops.gpencil.draw
+	ops.gpencil.draw.eraser
+	ops.gpencil.draw.line
+	ops.gpencil.draw.poly
 	ops.mesh.bevel
 	ops.mesh.bisect
 	ops.mesh.dupli_extrude_cursor
