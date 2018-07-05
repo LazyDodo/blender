@@ -1279,10 +1279,10 @@ real strGetFloatSimple(char *content) {
 
 
 void strConvInt_CString(int src, char *dest, int lenth){
-	sprintf_s(dest, lenth, "%d", src);
+	sprintf(dest, "%d", src);
 };
 void strConvFloat_CString(real src, char *dest, int lenth){
-	sprintf_s(dest, lenth, "%lf", src);
+	sprintf(dest, "%lf", src);
 };
 
 void strCopyFull(char *dest, char *src){
@@ -1291,7 +1291,7 @@ void strCopyFull(char *dest, char *src){
 }
 void strCopySized(char *dest, int LenthLim, char *src){
 	if (src && dest)
-		strcpy_s(dest, LenthLim + 1, src);
+		strcpy(dest, src);
 }
 void strPrintFloatAfter(char *dest, int LenthLim, int bits, real data){
 	char temp[64];

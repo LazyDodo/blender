@@ -585,7 +585,7 @@ __inline int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_Rende
 	return 1;
 }
 
-double tMatGetLinearRatio(real L, real R, real FromL);
+__inline double tMatGetLinearRatio(real L, real R, real FromL);
 __inline int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector2d b1, tnsVector2d b2, double *aRatio) {
 	double k1, k2;
 	double x;
