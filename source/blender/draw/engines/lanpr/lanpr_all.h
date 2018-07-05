@@ -379,6 +379,9 @@ typedef struct LANPR_RenderBuffer {
 	struct Scene *Scene;
 	struct Object *Camera;
 
+	int    calculate_intersections;
+	int    size;
+
 	//tnsRenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
 

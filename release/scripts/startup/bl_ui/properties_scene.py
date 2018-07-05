@@ -533,6 +533,9 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
 
             rows = 4
             if lanpr.master_mode == "SOFTWARE":
+                layout.label(text="Enable On Demand:")
+                layout.prop(lanpr,"calculate_intersections", toggle = True, text = "Enable Intersection Lines")
+                layout.label(text="RUN:")
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
                 layout.label(text="Layer Composition:")
                 layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=rows)
@@ -604,13 +607,18 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
         row.prop(active_layer, "material_color", text="")
         row.prop(active_layer, "thickness_material", text="")
         row = col.row(align = True)
-        row.enabled = active_layer.enable_intersection
-        row.prop(active_layer, "intersection_color", text="")
-        row.prop(active_layer, "thickness_intersection", text="")
+        if lanpr.calculate_intersections:
+            row.enabled = active_layer.enable_intersection
+            row.prop(active_layer, "intersection_color", text="")
+            row.prop(active_layer, "thickness_intersection", text="")
+        else:
+            row.label(text= "Intersection Calculation Disabled")
 
         if lanpr.master_mode == "DPIX" and active_layer.enable_intersection:
-            row = col.row()
-            row.operator("scene.lanpr_calculate", text= "Recalculate Intersections")
+            row = col.row(align = True)
+            row.prop(lanpr,"calculate_intersections", toggle = True, text = "Enable")
+            if lanpr.calculate_intersections:
+                row.operator("scene.lanpr_calculate", text= "Recalculate")
 
         if lanpr.master_mode == "SOFTWARE":
             row = layout.row(align=True)

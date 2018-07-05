@@ -6401,6 +6401,10 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
+	prop = RNA_def_property(srna, "calculate_intersections", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_default(prop, 1);
+	RNA_def_property_ui_text(prop, "Calculate Intersections", "Calculate Intersections or not");
+
 
 	/* these shall go into LANPR_LineLayer */
 

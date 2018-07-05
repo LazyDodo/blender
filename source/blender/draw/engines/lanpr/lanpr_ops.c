@@ -304,7 +304,7 @@ void lanpr_AssociateTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_Bound
 		if (RootBoundingArea->TriangleCount > 200 && Recursive) {
 			lanpr_SplitBoundingArea(rb, RootBoundingArea);
 		}
-		if (Recursive) lanpr_TriangleCalculateIntersectionsInTile(rb, rt, RootBoundingArea);
+		if (Recursive && rb->calculate_intersections) lanpr_TriangleCalculateIntersectionsInTile(rb, rt, RootBoundingArea);
 	}
 	else {
 		LANPR_BoundingArea *ba = RootBoundingArea->Child;
@@ -2917,6 +2917,7 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	rb->Scene = scene;
 	rb->W = scene->r.xsch;
 	rb->H = scene->r.ysch;
+	rb->calculate_intersections = lanpr->calculate_intersections;
 
 	rb->TriangleSize = lanpr_GetRenderTriangleSize(rb);
 
