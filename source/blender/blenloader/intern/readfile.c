@@ -4159,16 +4159,6 @@ static void direct_link_material(FileData *fd, Material *ma)
 	BLI_listbase_clear(&ma->gpumaterial);
 
 	ma->gp_style = newdataadr(fd, ma->gp_style);
-	/* relink grease pencil settings */
-	if (ma->gp_style != NULL) {
-		MaterialGPencilStyle *gp_style = ma->gp_style;
-		if (gp_style->sima != NULL) {
-			gp_style->sima = newlibadr_us(fd, ma->id.lib, gp_style->sima);
-		}
-		if (gp_style->ima != NULL) {
-			gp_style->ima = newlibadr_us(fd, ma->id.lib, gp_style->ima);
-		}
-	}
 }
 
 /* ************ READ PARTICLE SETTINGS ***************** */
@@ -9477,6 +9467,11 @@ static void expand_material(FileData *fd, Main *mainvar, Material *ma)
 	if (ma->nodetree)
 		expand_nodetree(fd, mainvar, ma->nodetree);
 
+	if (ma->gp_style) {
+		MaterialGPencilStyle *gp_style = ma->gp_style;
+		expand_doit(fd, mainvar, gp_style->sima);
+		expand_doit(fd, mainvar, gp_style->ima);
+	}
 }
 
 static void expand_lamp(FileData *fd, Main *mainvar, Lamp *la)
