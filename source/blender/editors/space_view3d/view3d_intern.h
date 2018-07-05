@@ -64,7 +64,6 @@ enum {
 
 /* view3d_header.c */
 void VIEW3D_OT_layers(struct wmOperatorType *ot);
-void VIEW3D_OT_toggle_xray_draw_option(struct wmOperatorType *ot);
 void VIEW3D_OT_toggle_matcap_flip(struct wmOperatorType *ot);
 
 /* view3d_ops.c */
@@ -83,7 +82,8 @@ void VIEW3D_OT_ndof_pan(struct wmOperatorType *ot);
 void VIEW3D_OT_ndof_all(struct wmOperatorType *ot);
 #endif /* WITH_INPUT_NDOF */
 void VIEW3D_OT_view_all(struct wmOperatorType *ot);
-void VIEW3D_OT_viewnumpad(struct wmOperatorType *ot);
+void VIEW3D_OT_view_axis(struct wmOperatorType *ot);
+void VIEW3D_OT_view_camera(struct wmOperatorType *ot);
 void VIEW3D_OT_view_selected(struct wmOperatorType *ot);
 void VIEW3D_OT_view_lock_clear(struct wmOperatorType *ot);
 void VIEW3D_OT_view_lock_to_active(struct wmOperatorType *ot);
@@ -103,7 +103,7 @@ void VIEW3D_OT_cursor3d(struct wmOperatorType *ot);
 void VIEW3D_OT_render_border(struct wmOperatorType *ot);
 void VIEW3D_OT_clear_render_border(struct wmOperatorType *ot);
 void VIEW3D_OT_zoom_border(struct wmOperatorType *ot);
-void VIEW3D_OT_toggle_render(struct wmOperatorType *ot);
+void VIEW3D_OT_toggle_shading(struct wmOperatorType *ot);
 
 void view3d_boxview_copy(ScrArea *sa, ARegion *ar);
 void view3d_boxview_sync(ScrArea *sa, ARegion *ar);
