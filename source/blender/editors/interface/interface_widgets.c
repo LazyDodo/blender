@@ -1878,7 +1878,7 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 #endif
 
 	/* cut string in 2 parts - only for menu entries */
-	if ((but->block->flag & (UI_BLOCK_LOOP | UI_BLOCK_SHOW_SHORTCUT_ALWAYS)) &&
+	if ((but->drawflag & UI_BUT_HAS_SHORTCUT) &&
 	    (but->editstr == NULL))
 	{
 		if (but->flag & UI_BUT_HAS_SEP_CHAR) {
@@ -1961,8 +1961,11 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 
 	/* part text right aligned */
 	if (drawstr_right) {
-		const char *col = but->block->flag & (UI_BLOCK_LOOP | UI_BLOCK_SHOW_SHORTCUT_ALWAYS) ?
-		                      wcol->item : wcol->text;
+		char col[4];
+		copy_v4_v4_char(col, wcol->text);
+		if (but->drawflag & UI_BUT_HAS_SHORTCUT) {
+			col[3] *= 0.5f;
+		}
 
 		fstyle->align = UI_STYLE_TEXT_RIGHT;
 		rect->xmax -= UI_TEXT_CLIP_MARGIN;
@@ -3455,30 +3458,6 @@ static void widget_menuiconbut(uiWidgetColors *wcol, rcti *rect, int UNUSED(stat
 	widgetbase_draw(&wtb, wcol);
 }
 
-static void widget_menunodebut(uiWidgetColors *wcol, rcti *rect, int UNUSED(state), int roundboxalign)
-{
-	/* silly node link button hacks */
-	uiWidgetBase wtb;
-	uiWidgetColors wcol_backup = *wcol;
-	float rad;
-
-	widget_init(&wtb);
-
-	rad = wcol->roundness * U.widget_unit;
-	round_box_edges(&wtb, roundboxalign, rect, rad);
-
-	wcol->inner[0] = min_ii(wcol->inner[0] + 15, 255);
-	wcol->inner[1] = min_ii(wcol->inner[1] + 15, 255);
-	wcol->inner[2] = min_ii(wcol->inner[2] + 15, 255);
-	wcol->outline[0] = min_ii(wcol->outline[0] + 15, 255);
-	wcol->outline[1] = min_ii(wcol->outline[1] + 15, 255);
-	wcol->outline[2] = min_ii(wcol->outline[2] + 15, 255);
-
-	/* decoration */
-	widgetbase_draw(&wtb, wcol);
-	*wcol = wcol_backup;
-}
-
 static void widget_pulldownbut(uiWidgetColors *wcol, rcti *rect, int state, int roundboxalign)
 {
 	float back[4];
@@ -3879,6 +3858,7 @@ static uiWidgetType *widget_type(uiWidgetTypeEnum type)
 			break;
 
 		case UI_WTYPE_MENU_ICON_RADIO:
+		case UI_WTYPE_MENU_NODE_LINK:
 			wt.wcol_theme = &btheme->tui.wcol_menu;
 			wt.draw = widget_menuiconbut;
 			break;
@@ -3886,11 +3866,6 @@ static uiWidgetType *widget_type(uiWidgetTypeEnum type)
 		case UI_WTYPE_MENU_POINTER_LINK:
 			wt.wcol_theme = &btheme->tui.wcol_menu;
 			wt.draw = widget_menubut;
-			break;
-
-		case UI_WTYPE_MENU_NODE_LINK:
-			wt.wcol_theme = &btheme->tui.wcol_menu;
-			wt.draw = widget_menunodebut;
 			break;
 
 		case UI_WTYPE_PULLDOWN:
@@ -4383,11 +4358,11 @@ void ui_draw_menu_back(uiStyle *UNUSED(style), uiBlock *block, rcti *rect)
  * because we need to pass in the original location so we know where to show the arrow.
  */
 static void ui_draw_popover_back_impl(
-        const uiWidgetColors *wcol, rcti *rect, int direction,
+        const uiWidgetColors *wcol, rcti *rect, int direction, const float unit_size,
         const float mval_origin[2])
 {
 	/* tsk, this isn't nice. */
-	const float unit_half = (BLI_rcti_size_x(rect) / UI_POPOVER_WIDTH_UNITS) / 2;
+	const float unit_half = unit_size / 2;
 	const float cent_x = mval_origin ? mval_origin[0] : BLI_rcti_cent_x(rect);
 	rect->ymax -= unit_half;
 	rect->ymin += unit_half;
@@ -4440,7 +4415,7 @@ void ui_draw_popover_back(ARegion *ar, uiStyle *UNUSED(style), uiBlock *block, r
 	if (block) {
 		float mval_origin[2] = {block->mx, block->my};
 		ui_window_to_block_fl(ar, block, &mval_origin[0], &mval_origin[1]);
-		ui_draw_popover_back_impl(wt->wcol_theme, rect, block->direction, mval_origin);
+		ui_draw_popover_back_impl(wt->wcol_theme, rect, block->direction, U.widget_unit / block->aspect,  mval_origin);
 	}
 	else {
 		wt->state(wt, 0);

@@ -878,7 +878,7 @@ static void drw_engines_draw_text(void)
 		PROFILE_START(stime);
 
 		if (data->text_draw_cache) {
-			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.v3d, DST.draw_ctx.ar, false);
+			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.ar);
 		}
 
 		PROFILE_END_UPDATE(data->render_time, stime);
@@ -1238,9 +1238,7 @@ void DRW_draw_render_loop_ex(
 	RegionView3D *rv3d = ar->regiondata;
 
 	DST.draw_ctx.evil_C = evil_C;
-
 	DST.viewport = viewport;
-	v3d->zbuf = true;
 
 	/* Setup viewport */
 	GPU_viewport_engines_data_validate(DST.viewport, DRW_engines_get_hash());
@@ -1659,8 +1657,6 @@ void DRW_draw_select_loop(
 	GPU_viewport_size_set(viewport, (const int[2]){BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)});
 
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_select = true;
 
 	/* Get list of enabled engines */
@@ -1854,10 +1850,7 @@ void DRW_draw_depth_loop(
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
 	GPU_framebuffer_clear_depth(g_select_buffer.framebuffer, 1.0f);
 
-	bool cache_is_dirty;
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_depth = true;
 
 	/* Get list of enabled engines */
@@ -1867,7 +1860,6 @@ void DRW_draw_depth_loop(
 	}
 
 	/* Setup viewport */
-	cache_is_dirty = true;
 
 	/* Instead of 'DRW_context_state_init(C, &DST.draw_ctx)', assign from args */
 	DST.draw_ctx = (DRWContextState){
@@ -1886,10 +1878,7 @@ void DRW_draw_depth_loop(
 	drw_engines_init();
 	DRW_hair_init();
 
-	/* TODO : tag to refresh by the dependency graph */
-	/* ideally only refresh when objects are added/removed */
-	/* or render properties / materials change */
-	if (cache_is_dirty) {
+	{
 		drw_engines_cache_init();
 
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
@@ -2185,8 +2174,6 @@ void DRW_opengl_context_create(void)
 	}
 	/* This changes the active context. */
 	DST.gl_context = WM_opengl_context_create();
-	/* Make the context active for this thread (main thread) */
-	WM_opengl_context_activate(DST.gl_context);
 	/* Be sure to create gawain.context too. */
 	DST.gwn_context = GWN_context_create();
 	if (!G.background) {
