@@ -4260,7 +4260,6 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             col.prop(gpd, "show_edit_lines", text="Show Edit Lines")
-            col.prop(gpd, "edit_line_color", text="Edit Line Color")
 
 
 class VIEW3D_PT_overlay_gpencil_paper(Panel):
@@ -4583,8 +4582,8 @@ classes = (
     VIEW3D_PT_pivot_point,
     VIEW3D_PT_snapping,
     VIEW3D_PT_transform_orientations,
-    VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_overlay_gpencil_paper,
+    VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_context_properties,
 )
 
