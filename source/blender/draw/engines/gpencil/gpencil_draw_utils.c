@@ -1174,6 +1174,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	ToolSettings *ts = scene->toolsettings;
 	bGPDframe *derived_gpf = NULL;
 	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
+	bool overlay = (bool)((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0);
 
 	/* check if playing animation */
 	bool playing = (bool)stl->storage->playing;
@@ -1218,7 +1219,8 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 		}
 
 		/* draw onion skins */
-		if ((gpd->flag & GP_DATA_SHOW_ONIONSKINS) && (!no_onion) &&
+		if ((gpd->flag & GP_DATA_SHOW_ONIONSKINS) &&
+			(!no_onion) && (overlay) &&
 			(gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
 			((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
 		{

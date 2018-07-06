@@ -476,6 +476,17 @@ static void rna_Space_view2d_sync_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 	}
 }
 
+static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
+{
+	/* need set all caches as dirty to recalculate onion skinning */
+	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+		if (ob->type == OB_GPENCIL) {
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		}
+	}
+	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
+}
+
 /* Space 3D View */
 static void rna_SpaceView3D_camera_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
@@ -2544,7 +2555,7 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_overlays", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag2", V3D_RENDER_OVERRIDE);
 	RNA_def_property_ui_text(prop, "Show Overlays", "Display overlays like manipulators and outlines");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "show_floor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gridflag", V3D_SHOW_FLOOR);
