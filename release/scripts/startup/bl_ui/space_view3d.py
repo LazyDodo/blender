@@ -4255,6 +4255,7 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             col.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+            col.prop(gpd, "edit_line_color", text="Edit Line Color")
 
         if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
             col.prop(tool_settings.gpencil_sculpt, "use_select_mask")
