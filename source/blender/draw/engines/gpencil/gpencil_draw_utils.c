@@ -1219,12 +1219,12 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 
 		/* draw onion skins */
 		if ((gpd->flag & GP_DATA_SHOW_ONIONSKINS) && (!no_onion) &&
-		    (gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
-			((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-		    ((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
+			(gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
+			((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
 		{
 			if ((!stl->storage->is_render) ||
-				((stl->storage->is_render) && (gpd->onion_flag & GP_ONION_GHOST_ALWAYS))) {
+				((stl->storage->is_render) && (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
+			{
 				gpencil_draw_onionskins(cache, e_data, vedata, ob, gpd, gpl, gpf);
 			}
 		}
