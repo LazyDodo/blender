@@ -629,7 +629,10 @@ static void gpencil_add_editpoints_shgroup(
 		GPENCIL_StorageList *stl, GpencilBatchCache *cache, ToolSettings *ts, Object *ob,
 		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
 	/* alpha factor for edit points/line to make them more subtle */
 	float edit_alpha = ts->gp_sculpt.alpha;
 
@@ -646,7 +649,10 @@ static void gpencil_add_editpoints_shgroup(
 			cache->batch_edlin[cache->cache_idx] = DRW_gpencil_get_edlin_geom(gps, edit_alpha, gpd->flag);
 		}
 		if (cache->batch_edlin[cache->cache_idx]) {
-			if ((obact) && (obact == ob) && (gpd->flag & GP_DATA_STROKE_SHOW_EDIT_LINES)) {
+			if ((obact) && (obact == ob) &&
+				((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+				(gpd->flag & GP_DATA_STROKE_SHOW_EDIT_LINES))
+			{
 				DRW_shgroup_call_add(
 				        stl->g_data->shgrps_edit_line,
 				        cache->batch_edlin[cache->cache_idx],
@@ -1163,6 +1169,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	View3D *v3d = draw_ctx->v3d;
 	int cfra_eval = (int)DEG_get_ctime(draw_ctx->depsgraph);
 	ToolSettings *ts = scene->toolsettings;
 	bGPDframe *derived_gpf = NULL;
@@ -1213,6 +1220,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 		/* draw onion skins */
 		if ((gpd->flag & GP_DATA_SHOW_ONIONSKINS) && (!no_onion) &&
 		    (gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
+			((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
 		    ((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
 		{
 			if ((!stl->storage->is_render) ||
