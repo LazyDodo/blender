@@ -582,19 +582,21 @@ static void gp_duplicate_points(const bGPDstroke *gps, ListBase *new_strokes, co
 
 				/* now, make a new points array, and copy of the relevant parts */
 				gpsd->points = MEM_callocN(sizeof(bGPDspoint) * len, "gps stroke points copy");
-				gpsd->dvert = MEM_callocN(sizeof(MDeformVert) * len, "gps stroke weights copy");
-
 				memcpy(gpsd->points, gps->points + start_idx, sizeof(bGPDspoint) * len);
-				memcpy(gpsd->dvert, gps->dvert + start_idx, sizeof(MDeformVert) * len);
-
 				gpsd->totpoints = len;
-				/* Copy weights */
-				int e = start_idx;
-				for (int j = 0; j < gpsd->totpoints; j++) {
-					MDeformVert *dvert_dst = &gps->dvert[e];
-					MDeformVert *dvert_src = &gps->dvert[j];
-					dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
-					e++;
+
+				if (gps->dvert != NULL) {
+					gpsd->dvert = MEM_callocN(sizeof(MDeformVert) * len, "gps stroke weights copy");
+					memcpy(gpsd->dvert, gps->dvert + start_idx, sizeof(MDeformVert) * len);
+
+					/* Copy weights */
+					int e = start_idx;
+					for (int j = 0; j < gpsd->totpoints; j++) {
+						MDeformVert *dvert_dst = &gps->dvert[e];
+						MDeformVert *dvert_src = &gps->dvert[j];
+						dvert_dst->dw = MEM_dupallocN(dvert_src->dw);
+						e++;
+					}
 				}
 
 				/* add to temp buffer */
@@ -651,8 +653,10 @@ static int gp_duplicate_exec(bContext *C, wmOperator *op)
 					gpsd = MEM_dupallocN(gps);
 					BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
 					gpsd->points = MEM_dupallocN(gps->points);
-					gpsd->dvert = MEM_dupallocN(gps->dvert);
-					BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
+					if (gps->dvert != NULL) {
+						gpsd->dvert = MEM_dupallocN(gps->dvert);
+						BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
+					}
 
 					/* triangle information - will be calculated on next redraw */
 					gpsd->flag |= GP_STROKE_RECALC_CACHES;
@@ -831,8 +835,10 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 					gpsd = MEM_dupallocN(gps);
 					BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo)); /* saves original layer name */
 					gpsd->points = MEM_dupallocN(gps->points);
-					gpsd->dvert = MEM_dupallocN(gps->dvert);
-					BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
+					if (gps->dvert != NULL) {
+						gpsd->dvert = MEM_dupallocN(gps->dvert);
+						BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
+					}
 
 					/* triangles cache - will be recalculated on next redraw */
 					gpsd->flag |= GP_STROKE_RECALC_CACHES;
@@ -1006,9 +1012,10 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 				new_stroke->runtime.tmp_layerinfo[0] = '\0';
 
 				new_stroke->points = MEM_dupallocN(gps->points);
-				new_stroke->dvert = MEM_dupallocN(gps->dvert);
-				BKE_gpencil_stroke_weights_duplicate(gps, new_stroke);
-
+				if (gps->dvert != NULL) {
+					new_stroke->dvert = MEM_dupallocN(gps->dvert);
+					BKE_gpencil_stroke_weights_duplicate(gps, new_stroke);
+				}
 				new_stroke->flag |= GP_STROKE_RECALC_CACHES;
 				new_stroke->triangles = NULL;
 
@@ -1570,59 +1577,89 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 							bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * tot, "new gp stroke points copy");
 							bGPDspoint *npt = new_points;
 
-							MDeformVert *new_dvert = MEM_callocN(sizeof(MDeformVert) * tot, "new gp stroke weights copy");
-							MDeformVert *ndvert = new_dvert;
+							MDeformVert *new_dvert = NULL;
+							MDeformVert *ndvert = NULL;
+
+							if (gps->dvert != NULL) {
+								new_dvert = MEM_callocN(sizeof(MDeformVert) * tot, "new gp stroke weights copy");
+								ndvert = new_dvert;
+							}
 
 							switch (mode) {
 								case GP_DISSOLVE_POINTS:
-									for (i = 0, pt = gps->points, dvert = gps->dvert; i < gps->totpoints; i++, pt++, dvert++) {
+									(gps->dvert != NULL) ? dvert = gps->dvert : NULL;
+									for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 										if ((pt->flag & GP_SPOINT_SELECT) == 0) {
 											*npt = *pt;
-											*ndvert = *dvert;
-											ndvert->dw = MEM_dupallocN(dvert->dw);
 											npt++;
-											ndvert++;
+
+											if (gps->dvert != NULL) {
+												*ndvert = *dvert;
+												ndvert->dw = MEM_dupallocN(dvert->dw);
+												ndvert++;
+												dvert++;
+											}
 										}
 									}
 									break;
 								case GP_DISSOLVE_BETWEEN:
 									/* copy first segment */
-									for (i = 0, pt = gps->points, dvert = gps->dvert; i < first; i++, pt++, dvert++) {
+									(gps->dvert != NULL) ? dvert = gps->dvert : NULL;
+									for (i = 0, pt = gps->points; i < first; i++, pt++) {
 										*npt = *pt;
-										*ndvert = *dvert;
-										ndvert->dw = MEM_dupallocN(dvert->dw);
 										npt++;
-										ndvert++;
-									}
-									/* copy segment (selected points) */
-									for (i = first, pt = gps->points + first, dvert = gps->dvert + first; i < last; i++, pt++, dvert++) {
-										if (pt->flag & GP_SPOINT_SELECT) {
-											*npt = *pt;
+
+										if (gps->dvert != NULL) {
 											*ndvert = *dvert;
 											ndvert->dw = MEM_dupallocN(dvert->dw);
-											npt++;
 											ndvert++;
+											dvert++;
+										}
+									}
+									/* copy segment (selected points) */
+									(gps->dvert != NULL) ? dvert = gps->dvert + first : NULL;
+									for (i = first, pt = gps->points + first; i < last; i++, pt++) {
+										if (pt->flag & GP_SPOINT_SELECT) {
+											*npt = *pt;
+											npt++;
+
+											if (gps->dvert != NULL) {
+												*ndvert = *dvert;
+												ndvert->dw = MEM_dupallocN(dvert->dw);
+												ndvert++;
+												dvert++;
+											}
 										}
 									}
 									/* copy last segment */
-									for (i = last, pt = gps->points + last, dvert = gps->dvert + last; i < gps->totpoints; i++, pt++, dvert++) {
+									(gps->dvert != NULL) ? dvert = gps->dvert + last : NULL;
+									for (i = last, pt = gps->points + last; i < gps->totpoints; i++, pt++) {
 										*npt = *pt;
-										*ndvert = *dvert;
-										ndvert->dw = MEM_dupallocN(dvert->dw);
 										npt++;
-										ndvert++;
+
+										if (gps->dvert != NULL) {
+											*ndvert = *dvert;
+											ndvert->dw = MEM_dupallocN(dvert->dw);
+											ndvert++;
+											dvert++;
+										}
 									}
 
 									break;
 								case GP_DISSOLVE_UNSELECT:
 									/* copy any selected point */
-									for (i = 0, pt = gps->points, dvert = gps->dvert; i < gps->totpoints; i++, pt++, dvert++) {
+									(gps->dvert != NULL) ? dvert = gps->dvert : NULL;
+									for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 										if (pt->flag & GP_SPOINT_SELECT) {
 											*npt = *pt;
-											*ndvert = *dvert;
-											ndvert->dw = MEM_dupallocN(dvert->dw);
 											npt++;
-											ndvert++;
+
+											if (gps->dvert != NULL) {
+												*ndvert = *dvert;
+												ndvert->dw = MEM_dupallocN(dvert->dw);
+												ndvert++;
+												dvert++;
+											}
 										}
 									}
 									break;
@@ -2415,12 +2452,16 @@ static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, int id
 	MDeformVert *dvert, *newdvert;
 
 	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (gps->totpoints + 1));
-	gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * (gps->totpoints + 1));
+	if (gps->dvert != NULL) {
+		gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * (gps->totpoints + 1));
+	}
 	gps->totpoints++;
-
-	dvert = &gps->dvert[idx];
 	newpoint = &gps->points[gps->totpoints - 1];
-	newdvert = &gps->dvert[gps->totpoints - 1];
+
+	if (gps->dvert != NULL) {
+		dvert = &gps->dvert[idx];
+		newdvert = &gps->dvert[gps->totpoints - 1];
+	}
 
 	newpoint->x = point->x * delta[0];
 	newpoint->y = point->y * delta[1];
@@ -2554,8 +2595,10 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 					if (new_stroke == NULL) {
 						new_stroke = MEM_dupallocN(stroke_a);
 						new_stroke->points = MEM_dupallocN(stroke_a->points);
-						new_stroke->dvert = MEM_dupallocN(stroke_a->dvert);
-						BKE_gpencil_stroke_weights_duplicate(stroke_a, new_stroke);
+						if (stroke_a->dvert != NULL) {
+							new_stroke->dvert = MEM_dupallocN(stroke_a->dvert);
+							BKE_gpencil_stroke_weights_duplicate(stroke_a, new_stroke);
+						}
 						new_stroke->triangles = NULL;
 						new_stroke->tot_triangles = 0;
 						new_stroke->flag |= GP_STROKE_RECALC_CACHES;
@@ -2897,7 +2940,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				/* resize the points arrys */
 				gps->totpoints += totnewpoints;
 				gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
-				gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+				if (gps->dvert != NULL) {
+					gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+				}
 				gps->flag |= GP_STROKE_RECALC_CACHES;
 
 				/* loop and interpolate */
@@ -2924,7 +2969,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 						if (i + 1 < oldtotpoints) {
 							if (temp_points[i + 1].flag & GP_SPOINT_SELECT) {
 								pt_final = &gps->points[i2];
-								dvert_final = &gps->dvert[i2];
+								if (gps->dvert != NULL) {
+									dvert_final = &gps->dvert[i2];
+								}
 								/* Interpolate all values */
 								bGPDspoint *next = &temp_points[i + 1];
 								interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
