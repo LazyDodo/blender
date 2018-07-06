@@ -256,7 +256,7 @@ class VIEW3D_HT_header(Header):
                 sub.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
         # Pivot
-        if object_mode in {'OBJECT', 'EDIT', 'POSE'}:
+        if object_mode in {'OBJECT', 'EDIT', 'POSE', 'GPENCIL_EDIT', 'GPENCIL_SCULPT'}:
             pivot_point = tool_settings.transform_pivot_point
             act_pivot_point = bpy.types.ToolSettings.bl_rna.properties["transform_pivot_point"].enum_items[pivot_point]
             row = layout.row(align=True)
