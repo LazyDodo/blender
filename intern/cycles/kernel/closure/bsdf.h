@@ -500,4 +500,3 @@ ccl_device bool bsdf_merge(ShaderClosure *a, ShaderClosure *b)
 }
 
 CCL_NAMESPACE_END
-

@@ -841,4 +841,3 @@ CCLOSURE_PREPARE(closure_henyey_greenstein_prepare, VolumeHenyeyGreensteinClosur
 
 
 CCL_NAMESPACE_END
-
