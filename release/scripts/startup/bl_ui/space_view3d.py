@@ -4211,6 +4211,7 @@ class VIEW3D_PT_object_type_visibility(Panel):
 		    "armature",
 		    "lattice",
 		    "empty",
+		    "grease_pencil",
 		    "camera",
 		    "lamp",
 		    "light_probe",

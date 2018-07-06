@@ -3106,6 +3106,8 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 			 {"show_object_viewport_lattice", "show_object_select_lattice"}},
 			{"Empty", (1 << OB_EMPTY),
 			 {"show_object_viewport_empty", "show_object_select_empty"}},
+			{"GPencil", (1 << OB_GPENCIL),
+			 {"show_object_viewport_grease_pencil", "show_object_select_grease_pencil"}},
 			{"Camera", (1 << OB_CAMERA),
 			 {"show_object_viewport_camera", "show_object_select_camera"}},
 			{"Lamp", (1 << OB_LAMP),
