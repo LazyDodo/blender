@@ -306,6 +306,7 @@ void depsgraph_tag_component(Depsgraph *graph,
  * explicitly, but not all areas are aware of this yet.
  */
 void deg_graph_id_tag_legacy_compat(Main *bmain,
+                                    Depsgraph *depsgraph,
                                     ID *id,
                                     eDepsgraph_Tag tag)
 {
@@ -316,7 +317,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Object *object = (Object *)id;
 				ID *data_id = (ID *)object->data;
 				if (data_id != NULL) {
-					DEG_id_tag_update_ex(bmain, data_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, data_id, 0);
 				}
 				break;
 			}
@@ -329,7 +330,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Mesh *mesh = (Mesh *)id;
 				ID *key_id = &mesh->key->id;
 				if (key_id != NULL) {
-					DEG_id_tag_update_ex(bmain, key_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, key_id, 0);
 				}
 				break;
 			}
@@ -338,7 +339,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Lattice *lattice = (Lattice *)id;
 				ID *key_id = &lattice->key->id;
 				if (key_id != NULL) {
-					DEG_id_tag_update_ex(bmain, key_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, key_id, 0);
 				}
 				break;
 			}
@@ -347,7 +348,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Curve *curve = (Curve *)id;
 				ID *key_id = &curve->key->id;
 				if (key_id != NULL) {
-					DEG_id_tag_update_ex(bmain, key_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, key_id, 0);
 				}
 				break;
 			}
@@ -403,7 +404,7 @@ static void deg_graph_id_tag_update_single_flag(Main *bmain,
 	/* TODO(sergey): Get rid of this once all areas are using proper data ID
 	 * for tagging.
 	 */
-	deg_graph_id_tag_legacy_compat(bmain, id, tag);
+	deg_graph_id_tag_legacy_compat(bmain, graph, id, tag);
 
 }
 
@@ -461,7 +462,7 @@ void deg_graph_node_tag_zero(Main *bmain, Depsgraph *graph, IDDepsNode *id_node)
 		comp_node->tag_update(graph);
 	}
 	GHASH_FOREACH_END();
-	deg_graph_id_tag_legacy_compat(bmain, id, (eDepsgraph_Tag)0);
+	deg_graph_id_tag_legacy_compat(bmain, graph, id, (eDepsgraph_Tag)0);
 }
 
 void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)

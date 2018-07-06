@@ -150,6 +150,14 @@ class VIEW3D_HT_header(Header):
         sub.active = overlay.show_overlays
         sub.popover(space_type='VIEW_3D', region_type='HEADER', panel_type="VIEW3D_PT_overlay")
 
+        layout.popover(
+            text="",
+            icon='HIDE_OFF',
+            space_type='VIEW_3D',
+            region_type='HEADER',
+            panel_type="VIEW3D_PT_object_type_visibility",
+        )
+
         layout.separator_spacer()
 
         # Mode & Transform Settings
@@ -1434,15 +1442,15 @@ class INFO_MT_armature_add(Menu):
         layout.operator("object.armature_add", text="Single Bone", icon='BONE_DATA')
 
 
-class INFO_MT_lamp_add(Menu):
-    bl_idname = "INFO_MT_lamp_add"
-    bl_label = "Lamp"
+class INFO_MT_light_add(Menu):
+    bl_idname = "INFO_MT_light_add"
+    bl_label = "Light"
 
     def draw(self, context):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_REGION_WIN'
-        layout.operator_enum("object.lamp_add", "type")
+        layout.operator_enum("object.light_add", "type")
 
 
 class INFO_MT_lightprobe_add(Menu):
@@ -1503,7 +1511,7 @@ class INFO_MT_add(Menu):
         else:
             INFO_MT_camera_add.draw(self, context)
 
-        layout.menu("INFO_MT_lamp_add", icon='OUTLINER_OB_LAMP')
+        layout.menu("INFO_MT_light_add", icon='OUTLINER_OB_LIGHT')
         layout.separator()
         layout.menu("INFO_MT_lightprobe_add", icon='OUTLINER_OB_LIGHTPROBE')
         layout.separator()
@@ -1775,14 +1783,14 @@ class VIEW3D_MT_object_specials(Menu):
             props.input_scale = 0.01
             props.header_text = "Empty Draw Size: %.3f"
 
-        if obj.type == 'LAMP':
-            lamp = obj.data
+        if obj.type == 'LIGHT':
+            light = obj.data
 
             layout.operator_context = 'INVOKE_REGION_WIN'
 
             emission_node = None
-            if lamp.node_tree:
-                for node in lamp.node_tree.nodes:
+            if light.node_tree:
+                for node in light.node_tree.nodes:
                     if getattr(node, "type", None) == 'EMISSION':
                         emission_node = node
                         break
@@ -1793,28 +1801,28 @@ class VIEW3D_MT_object_specials(Menu):
                 props.data_path_item = "data.node_tree" \
                                        ".nodes[\"" + emission_node.name + "\"]" \
                                        ".inputs[\"Strength\"].default_value"
-                props.header_text = "Lamp Strength: %.3f"
+                props.header_text = "Light Strength: %.3f"
                 props.input_scale = 0.1
 
-            if lamp.type == 'AREA':
+            if light.type == 'AREA':
                 props = layout.operator("wm.context_modal_mouse", text="Size X")
                 props.data_path_iter = "selected_editable_objects"
                 props.data_path_item = "data.size"
-                props.header_text = "Lamp Size X: %.3f"
+                props.header_text = "Light Size X: %.3f"
 
-                if lamp.shape in {'RECTANGLE', 'ELLIPSE'}:
+                if light.shape in {'RECTANGLE', 'ELLIPSE'}:
                     props = layout.operator("wm.context_modal_mouse", text="Size Y")
                     props.data_path_iter = "selected_editable_objects"
                     props.data_path_item = "data.size_y"
-                    props.header_text = "Lamp Size Y: %.3f"
+                    props.header_text = "Light Size Y: %.3f"
 
-            elif lamp.type in {'SPOT', 'POINT', 'SUN'}:
+            elif light.type in {'SPOT', 'POINT', 'SUN'}:
                 props = layout.operator("wm.context_modal_mouse", text="Size")
                 props.data_path_iter = "selected_editable_objects"
                 props.data_path_item = "data.shadow_soft_size"
-                props.header_text = "Lamp Size: %.3f"
+                props.header_text = "Light Size: %.3f"
 
-            if lamp.type == 'SPOT':
+            if light.type == 'SPOT':
                 layout.separator()
                 props = layout.operator("wm.context_modal_mouse", text="Spot Size")
                 props.data_path_iter = "selected_editable_objects"
@@ -3633,7 +3641,8 @@ class VIEW3D_MT_view_pie(Menu):
         layout = self.layout
 
         pie = layout.menu_pie()
-        pie.operator_enum("VIEW3D_OT_viewnumpad", "type")
+        pie.operator_enum("VIEW3D_OT_view_axis", "type")
+        pie.operator("view3d.view_camera", text="View Camera", icon='CAMERA_DATA')
         pie.operator("view3d.view_selected", text="View Selected", icon='ZOOM_SELECTED')
 
 
@@ -3655,37 +3664,65 @@ class VIEW3D_PT_view3d_properties(Panel):
 
         view = context.space_data
 
-        col = layout.column()
-        col.active = bool(view.region_3d.view_perspective != 'CAMERA' or view.region_quadviews)
-        col.prop(view, "lens")
-        col.label(text="Lock to Object:")
-        col.prop(view, "lock_object", text="")
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
+
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
+        col = flow.column()
+
+        subcol = col.column()
+        subcol.active = bool(view.region_3d.view_perspective != 'CAMERA' or view.region_quadviews)
+        subcol.prop(view, "lens", text="Focal Length")
+
+        subcol = col.column(align=True)
+        subcol.prop(view, "clip_start", text="Clip Start")
+        subcol.prop(view, "clip_end", text="End")
+
+        subcol.separator()
+
+        col = flow.column()
+
+        subcol = col.column()
+        subcol.enabled = not view.lock_camera_and_layers
+        subcol.prop(view, "camera", text="Local Camera")
+
+        subcol = col.column(align=True)
+        subcol.prop(view, "use_render_border")
+        subcol.active = view.region_3d.view_perspective != 'CAMERA'
+
+
+class VIEW3D_PT_view3d_camera_lock(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_label = "Camera Lock"
+    bl_parent_id = "VIEW3D_PT_view3d_properties"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
+
+        view = context.space_data
+
+        col = layout.column(align=True)
+        subcol = col.column()
+        subcol.active = bool(view.region_3d.view_perspective != 'CAMERA' or view.region_quadviews)
+
+        subcol.prop(view, "lock_object")
         lock_object = view.lock_object
         if lock_object:
             if lock_object.type == 'ARMATURE':
-                col.prop_search(view, "lock_bone", lock_object.data,
-                                "edit_bones" if lock_object.mode == 'EDIT'
-                                else "bones",
-                                text="")
+                subcol.prop_search(
+                    view, "lock_bone", lock_object.data,
+                    "edit_bones" if lock_object.mode == 'EDIT'
+                    else "bones",
+                    text=""
+                )
         else:
-            col.prop(view, "lock_cursor", text="Lock to Cursor")
+            subcol.prop(view, "lock_cursor", text="Lock to 3D Cursor")
 
-        col = layout.column()
         col.prop(view, "lock_camera")
-
-        col = layout.column(align=True)
-        col.label(text="Clip:")
-        col.prop(view, "clip_start", text="Start")
-        col.prop(view, "clip_end", text="End")
-
-        subcol = col.column(align=True)
-        subcol.enabled = not view.lock_camera_and_layers
-        subcol.label(text="Local Camera:")
-        subcol.prop(view, "camera", text="")
-
-        col = layout.column(align=True)
-        col.prop(view, "use_render_border")
-        col.active = view.region_3d.view_perspective != 'CAMERA'
 
 
 class VIEW3D_PT_view3d_cursor(Panel):
@@ -3700,8 +3737,10 @@ class VIEW3D_PT_view3d_cursor(Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         view = context.space_data
+
         layout.column().prop(view, "cursor_location", text="Location")
 
 
@@ -3753,14 +3792,18 @@ class VIEW3D_PT_shading_lighting(Panel):
                 sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
 
         elif shading.type == 'MATERIAL':
-            row = layout.row()
-            row.template_icon_view(shading, "studio_light", show_labels=True)
-            sub = row.column()
-            sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
-            if shading.selected_studio_light.orientation == 'WORLD':
-                layout.row().prop(shading, "studiolight_rotate_z")
-                layout.row().prop(shading, "studiolight_background_alpha")
-            layout.prop(shading, "use_scene_light")
+            col = layout.column(align=True)
+            col.prop(shading, "use_scene_lights")
+            col.prop(shading, "use_scene_world")
+
+            if not shading.use_scene_world:
+                row = layout.row()
+                row.template_icon_view(shading, "studio_light", show_labels=True)
+                sub = row.column()
+                sub.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
+                if shading.selected_studio_light.orientation == 'WORLD':
+                    layout.row().prop(shading, "studiolight_rotate_z")
+                    layout.row().prop(shading, "studiolight_background_alpha")
 
 
 class VIEW3D_PT_shading_color(Panel):
@@ -3870,7 +3913,6 @@ class VIEW3D_PT_overlay(Panel):
         sub.prop(overlay, "show_all_objects_origin")
 
         sub = split.column()
-        sub.prop(overlay, "show_non_geometry")
         sub.prop(overlay, "show_relationship_lines")
         sub.prop(overlay, "show_motion_paths")
         #sub.prop(overlay, "show_onion_skins")
@@ -4144,6 +4186,51 @@ class VIEW3D_PT_overlay_paint(Panel):
 
         if context.mode in {'PAINT_WEIGHT', 'PAINT_VERTEX'}:
             col.prop(overlay, "show_paint_wire")
+
+
+class VIEW3D_PT_object_type_visibility(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Object Visibility"
+
+    def draw(self, context):
+        layout = self.layout
+        view = context.space_data
+
+        col = layout.column()
+
+        split = col.split()
+
+        heading_pair = ("Visible", "Selectable")
+        attr_object_types = (
+		    "mesh",
+		    "curve",
+		    "surf",
+		    "meta",
+		    "font",
+		    "armature",
+		    "lattice",
+		    "empty",
+		    "camera",
+		    "lamp",
+		    "light_probe",
+		    "speaker",
+        )
+
+        attr_vis = [f"show_object_viewport_{attr}" for attr in attr_object_types]
+        attr_sel = [f"show_object_select_{attr}" for attr in attr_object_types]
+
+        sub = split.column()
+        sub.label("Visible")
+        for attr_v in attr_vis:
+            sub.prop(view, attr_v)
+
+        sub = split.column()
+        sub.label("Selectable")
+        for attr_v, attr_s in zip(attr_vis, attr_sel):
+            row = sub.row(align=True)
+            row.active = getattr(view, attr_v)
+            row.prop(view, attr_s)
 
 
 class VIEW3D_PT_pivot_point(Panel):
@@ -4476,7 +4563,7 @@ classes = (
     INFO_MT_edit_curve_add,
     INFO_MT_edit_armature_add,
     INFO_MT_armature_add,
-    INFO_MT_lamp_add,
+    INFO_MT_light_add,
     INFO_MT_lightprobe_add,
     INFO_MT_camera_add,
     INFO_MT_add,
@@ -4563,6 +4650,7 @@ classes = (
     VIEW3D_MT_object_mode_pie,
     VIEW3D_MT_view_pie,
     VIEW3D_PT_view3d_properties,
+    VIEW3D_PT_view3d_camera_lock,
     VIEW3D_PT_view3d_cursor,
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_gpencil_multi_frame,
@@ -4579,6 +4667,7 @@ classes = (
     VIEW3D_PT_overlay_pose,
     VIEW3D_PT_overlay_paint,
     VIEW3D_PT_overlay_sculpt,
+    VIEW3D_PT_object_type_visibility,
     VIEW3D_PT_pivot_point,
     VIEW3D_PT_snapping,
     VIEW3D_PT_transform_orientations,
