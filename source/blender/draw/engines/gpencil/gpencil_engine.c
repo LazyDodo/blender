@@ -604,7 +604,10 @@ void GPENCIL_draw_scene(void *ved)
 
 	/* paper pass to display a confortable area to draw over complex scenes with geometry */
 	if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
-		if ((v3d->flag3 & V3D_GP_SHOW_PAPER) && (stl->g_data->gp_cache_used > 0)) {
+		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+			(v3d->flag3 & V3D_GP_SHOW_PAPER) &&
+			(stl->g_data->gp_cache_used > 0))
+		{
 			DRW_draw_pass(psl->paper_pass);
 		}
 	}
