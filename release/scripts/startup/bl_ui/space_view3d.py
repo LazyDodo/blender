@@ -122,6 +122,11 @@ class VIEW3D_HT_header(Header):
                 row.operator("gpencil.copy", text="", icon='COPYDOWN')
                 row.operator("gpencil.paste", text="", icon='PASTEDOWN')
 
+            if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
+                row = layout.row(align=True)
+                row.prop(tool_settings.gpencil_sculpt, "use_select_mask")
+                row.prop(tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
+
             if gpd.is_stroke_paint_mode:
                 row = layout.row(align=True)
                 row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
@@ -4256,11 +4261,6 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             col.prop(gpd, "show_edit_lines", text="Show Edit Lines")
             col.prop(gpd, "edit_line_color", text="Edit Line Color")
-
-        if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
-            col.prop(tool_settings.gpencil_sculpt, "use_select_mask")
-            col.prop(tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
-
 
 
 class VIEW3D_PT_overlay_gpencil_paper(Panel):
