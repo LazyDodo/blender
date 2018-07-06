@@ -573,7 +573,7 @@ class VIEW3D_MT_view_cameras(Menu):
         layout = self.layout
 
         layout.operator("view3d.object_as_camera")
-        layout.operator("view3d.viewnumpad", text="Active Camera").type = 'CAMERA'
+        layout.operator("view3d.view_camera", text="Active Camera")
 
 
 class VIEW3D_MT_view_viewpoint(Menu):
@@ -582,22 +582,22 @@ class VIEW3D_MT_view_viewpoint(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("view3d.viewnumpad", text="Camera").type = 'CAMERA'
+        layout.operator("view3d.view_camera", text="Camera")
 
         layout.separator()
 
-        layout.operator("view3d.viewnumpad", text="Top").type = 'TOP'
-        layout.operator("view3d.viewnumpad", text="Bottom").type = 'BOTTOM'
+        layout.operator("view3d.view_axis", text="Top").type = 'TOP'
+        layout.operator("view3d.view_axis", text="Bottom").type = 'BOTTOM'
 
         layout.separator()
 
-        layout.operator("view3d.viewnumpad", text="Front").type = 'FRONT'
-        layout.operator("view3d.viewnumpad", text="Back").type = 'BACK'
+        layout.operator("view3d.view_axis", text="Front").type = 'FRONT'
+        layout.operator("view3d.view_axis", text="Back").type = 'BACK'
 
         layout.separator()
 
-        layout.operator("view3d.viewnumpad", text="Right").type = 'RIGHT'
-        layout.operator("view3d.viewnumpad", text="Left").type = 'LEFT'
+        layout.operator("view3d.view_axis", text="Right").type = 'RIGHT'
+        layout.operator("view3d.view_axis", text="Left").type = 'LEFT'
 
 
 class VIEW3D_MT_view_navigation(Menu):
@@ -661,27 +661,27 @@ class VIEW3D_MT_view_align_selected(Menu):
     def draw(self, context):
         layout = self.layout
 
-        props = layout.operator("view3d.viewnumpad", text="Top")
+        props = layout.operator("view3d.view_axis", text="Top")
         props.align_active = True
         props.type = 'TOP'
 
-        props = layout.operator("view3d.viewnumpad", text="Bottom")
+        props = layout.operator("view3d.view_axis", text="Bottom")
         props.align_active = True
         props.type = 'BOTTOM'
 
-        props = layout.operator("view3d.viewnumpad", text="Front")
+        props = layout.operator("view3d.view_axis", text="Front")
         props.align_active = True
         props.type = 'FRONT'
 
-        props = layout.operator("view3d.viewnumpad", text="Back")
+        props = layout.operator("view3d.view_axis", text="Back")
         props.align_active = True
         props.type = 'BACK'
 
-        props = layout.operator("view3d.viewnumpad", text="Right")
+        props = layout.operator("view3d.view_axis", text="Right")
         props.align_active = True
         props.type = 'RIGHT'
 
-        props = layout.operator("view3d.viewnumpad", text="Left")
+        props = layout.operator("view3d.view_axis", text="Left")
         props.align_active = True
         props.type = 'LEFT'
 
@@ -3582,7 +3582,8 @@ class VIEW3D_MT_view_pie(Menu):
         layout = self.layout
 
         pie = layout.menu_pie()
-        pie.operator_enum("VIEW3D_OT_viewnumpad", "type")
+        pie.operator_enum("VIEW3D_OT_view_axis", "type")
+        pie.operator("view3d.view_camera", text="View Camera", icon='CAMERA_DATA')
         pie.operator("view3d.view_selected", text="View Selected", icon='ZOOM_SELECTED')
 
 
@@ -3833,6 +3834,7 @@ class VIEW3D_PT_overlay(Panel):
         sub.prop(overlay, "show_all_objects_origin")
 
         sub = split.column()
+        sub.prop(overlay, "show_non_geometry")
         sub.prop(overlay, "show_relationship_lines")
         sub.prop(overlay, "show_motion_paths")
         #sub.prop(overlay, "show_onion_skins")
@@ -3846,6 +3848,7 @@ class VIEW3D_PT_overlay(Panel):
         sub = row.row()
         sub.active = overlay.show_wireframes
         sub.prop(overlay, "wireframe_threshold", text="")
+
 
         col = layout.column()
         col.active = display_all
