@@ -122,16 +122,6 @@ class VIEW3D_HT_header(Header):
                 row.operator("gpencil.copy", text="", icon='COPYDOWN')
                 row.operator("gpencil.paste", text="", icon='PASTEDOWN')
 
-            view = context.space_data
-            row = layout.row()
-            row.prop(gpd, "use_onion_skinning", text="Onion Skins", icon='PARTICLE_PATH')
-            row.prop(gpd, "show_edit_lines", text="", icon="PARTICLE_POINT")
-
-            if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
-                row = layout.row(align=True)
-                row.prop(tool_settings.gpencil_sculpt, "use_select_mask")
-                row.prop(tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
-
             if gpd.is_stroke_paint_mode:
                 row = layout.row(align=True)
                 row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
@@ -4245,6 +4235,33 @@ class VIEW3D_PT_transform_orientations(Panel):
             row.operator("transform.delete_orientation", text="", icon='X', emboss=False)
 
 
+class VIEW3D_PT_overlay_gpencil_options(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_parent_id = 'VIEW3D_PT_overlay'
+    bl_label = ""
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'GPENCIL'
+
+    def draw(self, context):
+        layout = self.layout
+        gpd = context.gpencil_data
+        tool_settings = context.tool_settings
+
+        col = layout.column()
+        col.prop(gpd, "use_onion_skinning", text="Onion Skin")
+
+        if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
+            col.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+
+        if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
+            col.prop(tool_settings.gpencil_sculpt, "use_select_mask")
+            col.prop(tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
+
+
+
 class VIEW3D_PT_overlay_gpencil_paper(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
@@ -4565,6 +4582,7 @@ classes = (
     VIEW3D_PT_pivot_point,
     VIEW3D_PT_snapping,
     VIEW3D_PT_transform_orientations,
+    VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_overlay_gpencil_paper,
     VIEW3D_PT_context_properties,
 )
