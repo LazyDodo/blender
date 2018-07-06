@@ -427,7 +427,7 @@ static void rna_area_region_from_regiondata(PointerRNA *ptr, ScrArea **r_sa, ARe
 	area_region_from_regiondata(sc, regiondata, r_sa, r_ar);
 }
 
-static int rna_Space_view2d_sync_get(PointerRNA *ptr)
+static bool rna_Space_view2d_sync_get(PointerRNA *ptr)
 {
 	ScrArea *sa;
 	ARegion *ar;
@@ -442,7 +442,7 @@ static int rna_Space_view2d_sync_get(PointerRNA *ptr)
 	return false;
 }
 
-static void rna_Space_view2d_sync_set(PointerRNA *ptr, int value)
+static void rna_Space_view2d_sync_set(PointerRNA *ptr, bool value)
 {
 	ScrArea *sa;
 	ARegion *ar;
@@ -488,7 +488,7 @@ static void rna_SpaceView3D_camera_update(Main *bmain, Scene *scene, PointerRNA 
 	}
 }
 
-static void rna_SpaceView3D_lock_camera_and_layers_set(PointerRNA *ptr, int value)
+static void rna_SpaceView3D_lock_camera_and_layers_set(PointerRNA *ptr, bool value)
 {
 	View3D *v3d = (View3D *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
@@ -854,11 +854,12 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 				switch (v3d->drawtype) {
 					case OB_SOLID:
 					case OB_TEXTURE:
-						show_studiolight = (sl->flag & (STUDIOLIGHT_ORIENTATION_WORLD | STUDIOLIGHT_ORIENTATION_CAMERA)) > 0;
+						show_studiolight = (
+						        (sl->flag & (STUDIOLIGHT_ORIENTATION_WORLD | STUDIOLIGHT_ORIENTATION_CAMERA)) != 0);
 						break;
 
 					case OB_MATERIAL:
-						show_studiolight = (sl->flag & STUDIOLIGHT_ORIENTATION_WORLD) > 0;
+						show_studiolight = ((sl->flag & STUDIOLIGHT_ORIENTATION_WORLD) != 0);
 						icon_id = sl->icon_id_radiance;
 						break;
 				}
@@ -931,7 +932,7 @@ static void rna_SpaceImageEditor_show_stereo_set(PointerRNA *ptr, int value)
 		sima->iuser.flag &= ~IMA_SHOW_STEREO;
 }
 
-static int rna_SpaceImageEditor_show_stereo_get(PointerRNA *ptr)
+static bool rna_SpaceImageEditor_show_stereo_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	return (sima->iuser.flag & IMA_SHOW_STEREO) != 0;
@@ -952,19 +953,19 @@ static void rna_SpaceImageEditor_show_stereo_update(Main *UNUSED(bmain), Scene *
 	}
 }
 
-static int rna_SpaceImageEditor_show_render_get(PointerRNA *ptr)
+static bool rna_SpaceImageEditor_show_render_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	return ED_space_image_show_render(sima);
 }
 
-static int rna_SpaceImageEditor_show_paint_get(PointerRNA *ptr)
+static bool rna_SpaceImageEditor_show_paint_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	return ED_space_image_show_paint(sima);
 }
 
-static int rna_SpaceImageEditor_show_uvedit_get(PointerRNA *ptr)
+static bool rna_SpaceImageEditor_show_uvedit_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
@@ -974,7 +975,7 @@ static int rna_SpaceImageEditor_show_uvedit_get(PointerRNA *ptr)
 	return ED_space_image_show_uvedit(sima, obedit);
 }
 
-static int rna_SpaceImageEditor_show_maskedit_get(PointerRNA *ptr)
+static bool rna_SpaceImageEditor_show_maskedit_get(PointerRNA *ptr)
 {
 	SpaceImage *sima = (SpaceImage *)(ptr->data);
 	bScreen *sc = (bScreen *)ptr->id.data;
@@ -1149,7 +1150,7 @@ static const EnumPropertyItem *rna_SpaceImageEditor_pivot_itemf(
 
 /* Space Text Editor */
 
-static void rna_SpaceTextEditor_word_wrap_set(PointerRNA *ptr, int value)
+static void rna_SpaceTextEditor_word_wrap_set(PointerRNA *ptr, bool value)
 {
 	SpaceText *st = (SpaceText *)(ptr->data);
 
@@ -1569,7 +1570,7 @@ static void rna_SpaceGraphEditor_display_mode_update(bContext *C, PointerRNA *pt
 	ED_area_tag_refresh(sa);
 }
 
-static int rna_SpaceGraphEditor_has_ghost_curves_get(PointerRNA *ptr)
+static bool rna_SpaceGraphEditor_has_ghost_curves_get(PointerRNA *ptr)
 {
 	SpaceIpo *sipo = (SpaceIpo *)(ptr->data);
 	return (BLI_listbase_is_empty(&sipo->ghostCurves) == false);
@@ -1729,7 +1730,7 @@ static void rna_SpaceClipEditor_view_type_update(Main *UNUSED(bmain), Scene *UNU
 
 /* File browser. */
 
-static int rna_FileSelectParams_use_lib_get(PointerRNA *ptr)
+static bool rna_FileSelectParams_use_lib_get(PointerRNA *ptr)
 {
 	FileSelectParams *params = ptr->data;
 
@@ -1819,13 +1820,13 @@ static int rna_FileBrowser_FSMenuEntry_name_get_editable(PointerRNA *ptr, const 
 	return fsm->save ? PROP_EDITABLE : 0;
 }
 
-static int rna_FileBrowser_FSMenuEntry_use_save_get(PointerRNA *ptr)
+static bool rna_FileBrowser_FSMenuEntry_use_save_get(PointerRNA *ptr)
 {
 	FSMenuEntry *fsm = ptr->data;
 	return fsm->save;
 }
 
-static int rna_FileBrowser_FSMenuEntry_is_valid_get(PointerRNA *ptr)
+static bool rna_FileBrowser_FSMenuEntry_is_valid_get(PointerRNA *ptr)
 {
 	FSMenuEntry *fsm = ptr->data;
 	return fsm->valid;
@@ -2621,8 +2622,11 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show 3D Cursor", "Display 3D Cursor Overlay");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
-	prop = RNA_def_property(srna, "show_non_renderable_objects", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "overlay.hidden_object_types", V3D_OVERLAY_HIDE_NON_RENDERABLE);
+	prop = RNA_def_property(srna, "show_non_geometry", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(
+	        prop, NULL, "overlay.object_type_exclude",
+	        ((1 << OB_TYPE_MAX) - 1) &
+	        ~((1 << OB_MESH) | (1 << OB_CURVE) | (1 << OB_SURF) | (1 << OB_FONT) | (1 << OB_MBALL)));
 	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_ui_text(prop, "Show Non Renderable", "Draw not renderable objects in the overlay");

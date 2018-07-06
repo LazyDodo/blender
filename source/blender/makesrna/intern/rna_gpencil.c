@@ -257,7 +257,7 @@ static const EnumPropertyItem *rna_Object_parent_type_itemf(
 	return item;
 }
 
-static int rna_GPencilLayer_is_parented_get(PointerRNA *ptr)
+static bool rna_GPencilLayer_is_parented_get(PointerRNA *ptr)
 {
 	bGPDlayer *gpl = (bGPDlayer *)ptr->data;
 	return (gpl->parent != NULL);
@@ -380,7 +380,7 @@ static bGPDstroke *rna_GPencil_stroke_point_find_stroke(const bGPdata *gpd, cons
 	return NULL;
 }
 
-static void rna_GPencil_stroke_point_select_set(PointerRNA *ptr, const int value)
+static void rna_GPencil_stroke_point_select_set(PointerRNA *ptr, const bool value)
 {
 	bGPdata *gpd = ptr->id.data;
 	bGPDspoint *pt = ptr->data;
@@ -486,7 +486,7 @@ static void rna_GPencil_stroke_remove(bGPDframe *frame, ReportList *reports, Poi
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
-static void rna_GPencil_stroke_select_set(PointerRNA *ptr, const int value)
+static void rna_GPencil_stroke_select_set(PointerRNA *ptr, const bool value)
 {
 	bGPDstroke *gps = ptr->data;
 	bGPDspoint *pt;
