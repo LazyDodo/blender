@@ -192,6 +192,9 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 		case BCONTEXT_MODIFIER:
 			contexts[0] = "modifier";
 			break;
+		case BCONTEXT_SHADERFX:
+			contexts[0] = "shaderfx";
+			break;
 		case BCONTEXT_CONSTRAINT:
 			contexts[0] = "constraint";
 			break;

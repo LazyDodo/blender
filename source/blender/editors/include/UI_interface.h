@@ -1040,6 +1040,8 @@ void uiTemplatePathBuilder(uiLayout *layout, struct PointerRNA *ptr, const char 
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 uiLayout *uiTemplateGpencilModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
+uiLayout *uiTemplateShaderFx(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
+
 void uiTemplateOperatorRedoProperties(uiLayout *layout, const struct bContext *C);
 
 uiLayout *uiTemplateConstraint(uiLayout *layout, struct PointerRNA *ptr);

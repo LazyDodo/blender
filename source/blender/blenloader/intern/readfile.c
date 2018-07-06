@@ -73,6 +73,7 @@
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_gpencil_modifier_types.h"
+#include "DNA_shader_fx_types.h"
 #include "DNA_ipo_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
@@ -155,6 +156,7 @@
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
+#include "BKE_shader_fx.h"
 #include "BKE_outliner_treehash.h"
 #include "BKE_sound.h"
 #include "BKE_colortools.h"
@@ -4830,6 +4832,18 @@ static void lib_link_gpencil_modifiers(FileData *fd, Object *ob)
 	}
 }
 
+static void lib_link_shaderfxs(FileData *fd, Object *ob)
+{
+	BKE_shaderfx_foreachIDLink(ob, lib_link_modifiers_common, fd);
+
+	/* If linking from a library, clear 'local' static override flag. */
+	if (ob->id.lib != NULL) {
+		for (ShaderFxData *fx = ob->shader_fx.first; fx != NULL; fx = fx->next) {
+			fx->flag &= ~eShaderFxFlag_StaticOverride_Local;
+		}
+	}
+}
+
 static void lib_link_object(FileData *fd, Main *main)
 {
 	bool warn = false;
@@ -4967,6 +4981,7 @@ static void lib_link_object(FileData *fd, Main *main)
 			lib_link_particlesystems(fd, ob, &ob->id, &ob->particlesystem);
 			lib_link_modifiers(fd, ob);
 			lib_link_gpencil_modifiers(fd, ob);
+			lib_link_shaderfxs(fd, ob);
 
 			if (ob->rigidbody_constraint) {
 				ob->rigidbody_constraint->ob1 = newlibadr(fd, ob->id.lib, ob->rigidbody_constraint->ob1);
@@ -5370,7 +5385,7 @@ static void direct_link_gpencil_modifiers(FileData *fd, ListBase *lb)
 		md->error = NULL;
 
 		/* if modifiers disappear, or for upward compatibility */
-		if (NULL == modifierType_getInfo(md->type))
+		if (NULL == BKE_gpencil_modifierType_getInfo(md->type))
 			md->type = eModifierType_None;
 
 		if (md->type == eGpencilModifierType_Lattice) {
@@ -5395,6 +5410,22 @@ static void direct_link_gpencil_modifiers(FileData *fd, ListBase *lb)
 				curvemapping_initialize(gpmd->curve_thickness);
 			}
 		}
+
+	}
+}
+
+static void direct_link_shaderfxs(FileData *fd, ListBase *lb)
+{
+	ShaderFxData *fx;
+
+	link_list(fd, lb);
+
+	for (fx = lb->first; fx; fx = fx->next) {
+		fx->error = NULL;
+
+		/* if shader disappear, or for upward compatibility */
+		if (NULL == BKE_shaderfxType_getInfo(fx->type))
+			fx->type = eShaderFxType_None;
 
 	}
 }
@@ -5443,6 +5474,7 @@ static void direct_link_object(FileData *fd, Object *ob)
 	/* do it here, below old data gets converted */
 	direct_link_modifiers(fd, &ob->modifiers);
 	direct_link_gpencil_modifiers(fd, &ob->greasepencil_modifiers);
+	direct_link_shaderfxs(fd, &ob->shader_fx);
 
 	link_list(fd, &ob->effect);
 	paf= ob->effect.first;
@@ -9655,6 +9687,15 @@ static void expand_object(FileData *fd, Main *mainvar, Object *ob)
 		data.mainvar = mainvar;
 
 		BKE_gpencil_modifiers_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
+	}
+
+	/* expand_object_expandShaderFx() */
+	if (ob->shader_fx.first) {
+		struct { FileData *fd; Main *mainvar; } data;
+		data.fd = fd;
+		data.mainvar = mainvar;
+
+		BKE_shaderfx_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
 	}
 
 	expand_pose(fd, mainvar, ob->pose);

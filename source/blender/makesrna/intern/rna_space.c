@@ -288,6 +288,7 @@ static const EnumPropertyItem buttons_context_items[] = {
 	{BCONTEXT_PARTICLE, "PARTICLES", ICON_PARTICLES, "Particles", "Particle"},
 	{BCONTEXT_PHYSICS, "PHYSICS", ICON_PHYSICS, "Physics", "Physics"},
 	{BCONTEXT_WORKSPACE, "WORKSPACE", ICON_SPLITSCREEN, "Workspace", "Workspace"},
+	{BCONTEXT_SHADERFX, "SHADERFX", ICON_SOLO_ON, "Effects", "Object visual effects" },
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -1279,6 +1280,10 @@ static const EnumPropertyItem *rna_SpaceProperties_context_itemf(
 
 	if (sbuts->pathflag & (1 << BCONTEXT_MODIFIER)) {
 		RNA_enum_items_add_value(&item, &totitem, buttons_context_items, BCONTEXT_MODIFIER);
+	}
+
+	if (sbuts->pathflag & (1 << BCONTEXT_SHADERFX)) {
+		RNA_enum_items_add_value(&item, &totitem, buttons_context_items, BCONTEXT_SHADERFX);
 	}
 
 	if (sbuts->pathflag & (1 << BCONTEXT_DATA)) {

@@ -1881,6 +1881,10 @@ static int convert_exec(bContext *C, wmOperator *op)
 				if (ob->type == OB_MESH) {
 					BKE_object_free_modifiers(ob, 0);  /* after derivedmesh calls! */
 				}
+				if (ob->type == OB_GPENCIL) {
+					BKE_object_free_modifiers(ob, 0);  /* after derivedmesh calls! */
+					BKE_object_free_shaderfx(ob, 0);
+				}
 			}
 		}
 		else if (ob->type == OB_MESH && target == OB_CURVE) {

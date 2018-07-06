@@ -50,6 +50,7 @@ set(DEFSRC
 	rna_fluidsim.c
 	rna_gpencil.c
 	rna_gpencil_modifier.c
+	rna_shader_fx.c
 	rna_group.c
 	rna_image.c
 	rna_key.c

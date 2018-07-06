@@ -39,6 +39,7 @@ struct Base;
 struct Depsgraph;
 struct GpencilModifierData;
 struct Scene;
+struct ShaderFxData;
 struct ViewLayer;
 struct ID;
 struct Object;
@@ -75,10 +76,13 @@ void BKE_object_modifier_hook_reset(struct Object *ob, struct HookModifierData *
 void BKE_object_modifier_gpencil_hook_reset(struct Object *ob, struct HookGpencilModifierData *hmd);
 bool BKE_object_modifier_gpencil_use_time(struct Object *ob, struct GpencilModifierData *md);
 
+bool BKE_object_shaderfx_use_time(struct Object *ob, struct ShaderFxData *md);
+
 bool BKE_object_support_modifier_type_check(const struct Object *ob, int modifier_type);
 
 void BKE_object_link_modifiers(struct Scene *scene, struct Object *ob_dst, const struct Object *ob_src);
 void BKE_object_free_modifiers(struct Object *ob, const int flag);
+void BKE_object_free_shaderfx(struct Object *ob, const int flag);
 
 void BKE_object_make_proxy(struct Object *ob, struct Object *target, struct Object *gob);
 void BKE_object_copy_proxy_drivers(struct Object *ob, struct Object *target);

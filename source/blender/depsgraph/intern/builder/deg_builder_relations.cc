@@ -90,6 +90,7 @@ extern "C" {
 #include "BKE_object.h"
 #include "BKE_particle.h"
 #include "BKE_rigidbody.h"
+#include "BKE_shader_fx.h"
 #include "BKE_sound.h"
 #include "BKE_tracking.h"
 #include "BKE_world.h"
@@ -531,6 +532,12 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 		BuilderWalkUserData data;
 		data.builder = this;
 		BKE_gpencil_modifiers_foreachIDLink(object, modifier_walk, &data);
+	}
+	/* Shader FX. */
+	if (object->shader_fx.first != NULL) {
+		BuilderWalkUserData data;
+		data.builder = this;
+		BKE_shaderfx_foreachIDLink(object, modifier_walk, &data);
 	}
 	/* Constraints. */
 	if (object->constraints.first != NULL) {
@@ -1800,6 +1807,24 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 				mti->updateDepsgraph(md, &ctx);
 			}
 			if (BKE_object_modifier_gpencil_use_time(object, md)) {
+				TimeSourceKey time_src_key;
+				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
+			}
+		}
+	}
+	/* Shader FX */
+	if (object->shader_fx.first != NULL) {
+		ModifierUpdateDepsgraphContext ctx = {};
+		ctx.scene = scene_;
+		ctx.object = object;
+		LISTBASE_FOREACH(ShaderFxData *, fx, &object->shader_fx) {
+			const ShaderFxTypeInfo *fxi = BKE_shaderfxType_getInfo((ShaderFxType)fx->type);
+			if (fxi->updateDepsgraph) {
+				DepsNodeHandle handle = create_node_handle(obdata_ubereval_key);
+				ctx.node = reinterpret_cast< ::DepsNodeHandle* >(&handle);
+				fxi->updateDepsgraph(fx, &ctx);
+			}
+			if (BKE_object_shaderfx_use_time(object, fx)) {
 				TimeSourceKey time_src_key;
 				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
 			}

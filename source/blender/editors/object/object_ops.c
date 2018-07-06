@@ -155,6 +155,12 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_gpencil_modifier_apply);
 	WM_operatortype_append(OBJECT_OT_gpencil_modifier_copy);
 
+	/* shader fx */
+	WM_operatortype_append(OBJECT_OT_shaderfx_add);
+	WM_operatortype_append(OBJECT_OT_shaderfx_remove);
+	WM_operatortype_append(OBJECT_OT_shaderfx_move_up);
+	WM_operatortype_append(OBJECT_OT_shaderfx_move_down);
+
 	WM_operatortype_append(OBJECT_OT_correctivesmooth_bind);
 	WM_operatortype_append(OBJECT_OT_meshdeform_bind);
 	WM_operatortype_append(OBJECT_OT_explode_refresh);

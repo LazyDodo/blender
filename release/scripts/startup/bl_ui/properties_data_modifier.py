@@ -28,7 +28,6 @@ class ModifierButtonsPanel:
     bl_context = "modifier"
     bl_options = {'HIDE_HEADER'}
 
-
 class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
     bl_label = "Modifiers"
 
@@ -1979,6 +1978,7 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row = col.row(align=True)
         row.prop(md, "pass_index", text="Pass")
         row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
+
 
 classes = (
     DATA_PT_modifiers,

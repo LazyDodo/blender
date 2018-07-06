@@ -193,6 +193,7 @@ typedef struct Object {
 	ListBase modifiers; /* list of ModifierData structures */
 	ListBase greasepencil_modifiers; /* list of GpencilModifierData structures */
 	ListBase fmaps;     /* list of facemaps */
+	ListBase shader_fx; /* list of viewport effects. Actually only used by grease pencil */
 
 	int mode;           /* Local object mode */
 	int restore_mode;

@@ -198,6 +198,7 @@ typedef enum eSpaceButtons_Context {
 	BCONTEXT_VIEW_LAYER = 13,
 	BCONTEXT_TOOL = 14,
 	BCONTEXT_WORKSPACE = 15,
+	BCONTEXT_SHADERFX = 16,
 
 	/* always as last... */
 	BCONTEXT_TOT

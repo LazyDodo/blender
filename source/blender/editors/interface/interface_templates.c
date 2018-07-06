@@ -40,6 +40,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_texture_types.h"
 #include "DNA_gpencil_modifier_types.h"
+#include "DNA_shader_fx_types.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_alloca.h"
@@ -73,6 +74,7 @@
 #include "BKE_paint.h"
 #include "BKE_report.h"
 #include "BKE_screen.h"
+#include "BKE_shader_fx.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -1538,6 +1540,8 @@ uiLayout *uiTemplateModifier(uiLayout *layout, bContext *C, PointerRNA *ptr)
 	return NULL;
 }
 
+/************************ Grease Pencil Modifier Template *************************/
+
 static uiLayout *gpencil_draw_modifier(uiLayout *layout, Object *ob,
 									   GpencilModifierData *md)
 {
@@ -1655,6 +1659,123 @@ uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *UNUSED(C), Point
 	for (i = 0; vmd; i++, vmd = vmd->next) {
 		if (md == vmd)
 			return gpencil_draw_modifier(layout, ob, md);
+	}
+
+	return NULL;
+}
+
+/************************ Shader FX Template *************************/
+
+static uiLayout *gpencil_draw_shaderfx(uiLayout *layout, Object *ob,
+	ShaderFxData *md)
+{
+	const ShaderFxTypeInfo *mti = BKE_shaderfxType_getInfo(md->type);
+	PointerRNA ptr;
+	uiBlock *block;
+	uiLayout *box, *column, *row, *sub;
+	uiLayout *result = NULL;
+
+	/* create RNA pointer */
+	RNA_pointer_create(&ob->id, &RNA_ShaderFx, md, &ptr);
+
+	column = uiLayoutColumn(layout, true);
+	uiLayoutSetContextPointer(column, "shaderfx", &ptr);
+
+	/* rounded header ------------------------------------------------------------------- */
+	box = uiLayoutBox(column);
+
+	row = uiLayoutRow(box, false);
+	block = uiLayoutGetBlock(row);
+
+	UI_block_emboss_set(block, UI_EMBOSS_NONE);
+	/* Open/Close .................................  */
+	uiItemR(row, &ptr, "show_expanded", 0, "", ICON_NONE);
+
+	/* shader-type icon */
+	uiItemL(row, "", RNA_struct_ui_icon(ptr.type));
+	UI_block_emboss_set(block, UI_EMBOSS);
+
+	/* effect name */
+	if (mti->isDisabled && mti->isDisabled(md, 0)) {
+		uiLayoutSetRedAlert(row, true);
+	}
+	uiItemR(row, &ptr, "name", 0, "", ICON_NONE);
+	uiLayoutSetRedAlert(row, false);
+
+	/* mode enabling buttons */
+	UI_block_align_begin(block);
+	uiItemR(row, &ptr, "show_render", 0, "", ICON_NONE);
+	uiItemR(row, &ptr, "show_viewport", 0, "", ICON_NONE);
+
+	if (mti->flags & eShaderFxTypeFlag_SupportsEditmode) {
+		sub = uiLayoutRow(row, true);
+		uiLayoutSetActive(sub, false);
+		uiItemR(sub, &ptr, "show_in_editmode", 0, "", ICON_NONE);
+	}
+
+	UI_block_align_end(block);
+
+	/* Up/Down + Delete ........................... */
+	UI_block_align_begin(block);
+	uiItemO(row, "", ICON_TRIA_UP, "OBJECT_OT_shaderfx_move_up");
+	uiItemO(row, "", ICON_TRIA_DOWN, "OBJECT_OT_shaderfx_move_down");
+	UI_block_align_end(block);
+
+	UI_block_emboss_set(block, UI_EMBOSS_NONE);
+	uiItemO(row, "", ICON_X, "OBJECT_OT_shaderfx_remove");
+	UI_block_emboss_set(block, UI_EMBOSS);
+
+	/* effect settings (under the header) --------------------------------------------------- */
+	if (md->mode & eShaderFxMode_Expanded) {
+		/* apply/convert/copy */
+		box = uiLayoutBox(column);
+		row = uiLayoutRow(box, false);
+
+		/* only here obdata, the rest of effect is ob level */
+		UI_block_lock_set(block, BKE_object_obdata_is_libdata(ob), ERROR_LIBDATA_MESSAGE);
+
+		/* result is the layout block inside the box, that we return so that effect settings can be drawn */
+		result = uiLayoutColumn(box, false);
+		block = uiLayoutAbsoluteBlock(box);
+	}
+
+	/* error messages */
+	if (md->error) {
+		box = uiLayoutBox(column);
+		row = uiLayoutRow(box, false);
+		uiItemL(row, md->error, ICON_ERROR);
+	}
+
+	return result;
+}
+
+uiLayout *uiTemplateShaderFx(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
+{
+	Object *ob;
+	ShaderFxData *fx, *vfx;
+	int i;
+
+	/* verify we have valid data */
+	if (!RNA_struct_is_a(ptr->type, &RNA_ShaderFx)) {
+		RNA_warning("Expected shader fx on object");
+		return NULL;
+	}
+
+	ob = ptr->id.data;
+	fx = ptr->data;
+
+	if (!ob || !(GS(ob->id.name) == ID_OB)) {
+		RNA_warning("Expected shader fx on object");
+		return NULL;
+	}
+
+	UI_block_lock_set(uiLayoutGetBlock(layout), (ob && ID_IS_LINKED(ob)), ERROR_LIBDATA_MESSAGE);
+
+	/* find modifier and draw it */
+	vfx = ob->shader_fx.first;
+	for (i = 0; vfx; i++, vfx = vfx->next) {
+		if (fx == vfx)
+			return gpencil_draw_shaderfx(layout, ob, fx);
 	}
 
 	return NULL;

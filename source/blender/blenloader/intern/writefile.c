@@ -119,6 +119,7 @@
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_gpencil_modifier_types.h"
+#include "DNA_shader_fx_types.h"
 #include "DNA_fileglobal_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
@@ -175,6 +176,7 @@
 #include "BKE_node.h"
 #include "BKE_report.h"
 #include "BKE_sequencer.h"
+#include "BKE_shader_fx.h"
 #include "BKE_subsurf.h"
 #include "BKE_modifier.h"
 #include "BKE_fcurve.h"
@@ -1820,6 +1822,24 @@ static void write_gpencil_modifiers(WriteData *wd, ListBase *modbase)
 	}
 }
 
+static void write_shaderfxs(WriteData *wd, ListBase *fxbase)
+{
+	ShaderFxData *fx;
+
+	if (fxbase == NULL) {
+		return;
+	}
+
+	for (fx = fxbase->first; fx; fx = fx->next) {
+		const ShaderFxTypeInfo *fxi = BKE_shaderfxType_getInfo(fx->type);
+		if (fxi == NULL) {
+			return;
+		}
+
+		writestruct_id(wd, DATA, fxi->struct_name, 1, fx);
+	}
+}
+
 static void write_object(WriteData *wd, Object *ob)
 {
 	if (ob->id.us > 0 || wd->use_memfile) {
@@ -1875,6 +1895,7 @@ static void write_object(WriteData *wd, Object *ob)
 		write_particlesystems(wd, &ob->particlesystem);
 		write_modifiers(wd, &ob->modifiers);
 		write_gpencil_modifiers(wd, &ob->greasepencil_modifiers);
+		write_shaderfxs(wd, &ob->shader_fx);
 
 		writelist(wd, DATA, LinkData, &ob->pc_ids);
 		writelist(wd, DATA, LodLevel, &ob->lodlevels);

@@ -29,6 +29,7 @@
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_gpencil.h"
+#include "BKE_shader_fx.h"
 
 #include "DNA_gpencil_types.h"
 #include "DNA_view3d_types.h"
@@ -79,7 +80,7 @@ void DRW_gpencil_multisample_ensure(GPENCIL_Data *vedata, int rect_w, int rect_h
 			fbl->multisample_fb = GPU_framebuffer_create();
 			if (fbl->multisample_fb) {
 				if (txl->multisample_color == NULL) {
-					txl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA32F, NULL, samples, NULL);
+					txl->multisample_color = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_RGBA16F, NULL, samples, NULL);
 				}
 				if (txl->multisample_depth == NULL) {
 					txl->multisample_depth = GPU_texture_create_2D_multisample(rect_w, rect_h, GPU_DEPTH24_STENCIL8, NULL, samples, NULL);
@@ -123,7 +124,26 @@ static void GPENCIL_create_framebuffers(void *vedata)
 			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_a)
 			});
 
-		/* background framebuffer to speed up drawing process */
+		e_data.temp_depth_tx_b = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
+			&draw_engine_gpencil_type);
+		e_data.temp_color_tx_b = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_gpencil_type);
+		GPU_framebuffer_ensure_config(&fbl->temp_fb_b, {
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_b),
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_b)
+			});
+
+		/* used for rim FX effect */
+		e_data.temp_depth_tx_rim = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
+			&draw_engine_gpencil_type);
+		e_data.temp_color_tx_rim = DRW_texture_pool_query_2D(size[0], size[1], fb_format,
+			&draw_engine_gpencil_type);
+		GPU_framebuffer_ensure_config(&fbl->temp_fb_rim, {
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_rim),
+			GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_rim),
+			});
+
+		/* background framebuffer to speed up drawing process (always 16 bits) */
 		e_data.background_depth_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_DEPTH24_STENCIL8,
 			&draw_engine_gpencil_type);
 		e_data.background_color_tx = DRW_texture_pool_query_2D(size[0], size[1], GPU_RGBA32F,
@@ -214,6 +234,7 @@ void GPENCIL_engine_init(void *vedata)
 
 	/* create shaders */
 	GPENCIL_create_shaders();
+	GPENCIL_create_fx_shaders(&e_data);
 
 	/* blank texture used if no texture defined for fill shader */
 	if (!e_data.gpencil_blank_texture) {
@@ -235,6 +256,9 @@ static void GPENCIL_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.gpencil_paper_sh);
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
+
+	/* effects */
+	GPENCIL_delete_fx_shaders(&e_data);
 }
 
 void GPENCIL_cache_init(void *vedata)
@@ -370,7 +394,7 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_int(mix_shgrp, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* mix pass no blend used to copy between passes. A separated pass is required
-		 * because if the mix pass is used, the acumulation of blend degrade the colors.
+		 * because if mix_pass is used, the acumulation of blend degrade the colors.
 		 *
 		 * This pass is used too to take the snapshot used for background_pass. This image
 		 * will be used as the background while the user is drawing.
@@ -378,13 +402,13 @@ void GPENCIL_cache_init(void *vedata)
 		psl->mix_pass_noblend = DRW_pass_create("GPencil Mix Pass no blend", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 		DRWShadingGroup *mix_shgrp_noblend = DRW_shgroup_create(e_data.gpencil_fullscreen_sh, psl->mix_pass_noblend);
 		DRW_shgroup_call_add(mix_shgrp_noblend, quad, NULL);
-		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.temp_color_tx_a);
-		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.temp_depth_tx_a);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeColor", &e_data.input_color_tx);
+		DRW_shgroup_uniform_texture_ref(mix_shgrp_noblend, "strokeDepth", &e_data.input_depth_tx);
 		DRW_shgroup_uniform_int(mix_shgrp_noblend, "tonemapping", &stl->storage->tonemapping, 1);
 
 		/* Painting session pass (used only to speedup while the user is drawing )
 		 * This pass is used to show the snapshot of the current grease pencil strokes captured
-		 * when the user starts to draw.
+		 * when the user starts to draw (see comments above).
 		 * In this way, the previous strokes don't need to be redraw and the drawing process
 		 * is far to agile.
 		 */
@@ -395,7 +419,7 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(background_shgrp, "strokeDepth", &e_data.background_depth_tx);
 
 		/* pass for drawing paper (only if viewport)
-		 * In render, the v3d is null
+		 * In render, the v3d is null so the paper is disabled
 		 * The paper is way to isolate the drawing in complex scene and to have a cleaner
 		 * drawing area.
 		 */
@@ -419,6 +443,9 @@ void GPENCIL_cache_init(void *vedata)
 			}
 			DRW_shgroup_uniform_int(paper_shgrp, "uselines", &stl->storage->uselines, 1);
 		}
+
+		/* create effects passes */
+		GPENCIL_create_fx_passes(psl);
 	}
 }
 
@@ -496,6 +523,11 @@ void GPENCIL_cache_finish(void *vedata)
 			if (stl->storage->is_render == true) {
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
+			/* FX passses */
+			tGPencilObjectCache *cache = &stl->g_data->gp_object_cache[i];
+			if (!is_multiedit) {
+				DRW_gpencil_fx_prepare(&e_data, vedata, cache);
+			}
 		}
 	}
 }
@@ -511,8 +543,10 @@ static int gpencil_object_cache_compare_zdepth(const void *a1, const void *a2)
 	return 0;
 }
 
-/* prepare a texture with full viewport for fast drawing */
-static void gpencil_prepare_fast_drawing(GPENCIL_StorageList *stl, DefaultFramebufferList *dfbl, GPENCIL_FramebufferList *fbl, DRWPass *pass, float clearcol[4])
+/* prepare a texture with full viewport screenshot for fast drawing */
+static void gpencil_prepare_fast_drawing(GPENCIL_StorageList *stl, DefaultFramebufferList *dfbl,
+										GPENCIL_FramebufferList *fbl, DRWPass *pass,
+										const float clearcol[4])
 {
 	if (stl->g_data->session_flag & (GP_DRW_PAINT_IDLE | GP_DRW_PAINT_FILLING)) {
 		GPU_framebuffer_bind(fbl->background_fb);
@@ -560,7 +594,7 @@ void GPENCIL_draw_scene(void *ved)
 
 	int init_grp, end_grp;
 	tGPencilObjectCache *cache;
-	float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
@@ -596,6 +630,8 @@ void GPENCIL_draw_scene(void *ved)
 		/* attach temp textures */
 		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_depth_tx_a, 0, 0);
 		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_color_tx_a, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb_b, e_data.temp_depth_tx_b, 0, 0);
+		GPU_framebuffer_texture_attach(fbl->temp_fb_b, e_data.temp_color_tx_b, 0, 0);
 
 		GPU_framebuffer_texture_attach(fbl->background_fb, e_data.background_depth_tx, 0, 0);
 		GPU_framebuffer_texture_attach(fbl->background_fb, e_data.background_color_tx, 0, 0);
@@ -629,9 +665,15 @@ void GPENCIL_draw_scene(void *ved)
 
 					MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
 				}
+
 				/* Current buffer drawing */
 				if ((!is_render) && (gpd->runtime.sbuffer_size > 0)) {
 					DRW_draw_pass(psl->drawing_pass);
+				}
+				/* fx passes */
+				if (BKE_shaderfx_has_gpencil(ob)) {
+					stl->storage->tonemapping = 0;
+					DRW_gpencil_fx_draw(&e_data, vedata, cache);
 				}
 
 				e_data.input_depth_tx = e_data.temp_depth_tx_a;
@@ -665,6 +707,11 @@ void GPENCIL_draw_scene(void *ved)
 
 	/* detach temp textures */
 	if (DRW_state_is_fbo()) {
+		GPU_framebuffer_texture_detach(fbl->temp_fb_a, e_data.temp_depth_tx_a);
+		GPU_framebuffer_texture_detach(fbl->temp_fb_a, e_data.temp_color_tx_a);
+		GPU_framebuffer_texture_detach(fbl->temp_fb_b, e_data.temp_depth_tx_b);
+		GPU_framebuffer_texture_detach(fbl->temp_fb_b, e_data.temp_color_tx_b);
+
 		GPU_framebuffer_texture_detach(fbl->background_fb, e_data.background_depth_tx);
 		GPU_framebuffer_texture_detach(fbl->background_fb, e_data.background_color_tx);
 

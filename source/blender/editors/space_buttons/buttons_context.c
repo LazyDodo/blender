@@ -264,6 +264,20 @@ static int buttons_context_path_modifier(ButsContextPath *path)
 	return 0;
 }
 
+static int buttons_context_path_shaderfx(ButsContextPath *path)
+{
+	Object *ob;
+
+	if (buttons_context_path_object(path)) {
+		ob = path->ptr[path->len - 1].data;
+
+		if (ob && ELEM(ob->type, OB_GPENCIL))
+			return 1;
+	}
+
+	return 0;
+}
+
 static int buttons_context_path_material(ButsContextPath *path)
 {
 	Object *ob;
@@ -543,6 +557,9 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 			break;
 		case BCONTEXT_MODIFIER:
 			found = buttons_context_path_modifier(path);
+			break;
+		case BCONTEXT_SHADERFX:
+			found = buttons_context_path_shaderfx(path);
 			break;
 		case BCONTEXT_DATA:
 			found = buttons_context_path_data(path, -1);

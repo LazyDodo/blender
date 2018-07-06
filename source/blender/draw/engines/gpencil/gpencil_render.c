@@ -269,6 +269,10 @@ void GPENCIL_render_to_image(void *vedata, RenderEngine *engine, struct RenderLa
 	GPENCIL_engine_init(vedata);
 	GPENCIL_render_init(vedata, engine, draw_ctx->depsgraph);
 
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	Object *camera = DEG_get_evaluated_object(draw_ctx->depsgraph, RE_GetCamera(engine->re));
+	stl->storage->camera = camera; /* save current camera */
+
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
 	if (fbl->main) {
 		GPU_framebuffer_texture_attach(fbl->main, ((GPENCIL_Data *)vedata)->render_depth_tx, 0, 0);

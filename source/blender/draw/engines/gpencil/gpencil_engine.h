@@ -58,18 +58,27 @@ struct RenderLayer;
 
  /* *********** OBJECTS CACHE *********** */
 
-/* used to save gpencil objects */
+ /* used to save gpencil objects */
 typedef struct tGPencilObjectCache {
 	struct Object *ob;
 	int init_grp, end_grp;
 	int idx;  /*original index, can change after sort */
+
+	/* effects */
+	DRWShadingGroup *fx_wave_sh;
+	DRWShadingGroup *fx_blur_sh;
+	DRWShadingGroup *fx_colorize_sh;
+	DRWShadingGroup *fx_pixel_sh;
+	DRWShadingGroup *fx_rim_sh;
+	DRWShadingGroup *fx_swirl_sh;
+	DRWShadingGroup *fx_flip_sh;
+	DRWShadingGroup *fx_light_sh;
 
 	float zdepth;  /* z-depth value to sort gp object */
 	bool temp_ob;  /* flag to tag temporary objects that must be removed after drawing loop */
 } tGPencilObjectCache;
 
   /* *********** LISTS *********** */
-
 typedef struct GPENCIL_shgroup {
 	int s_clamp;
 	int stroke_style;
@@ -108,13 +117,15 @@ typedef struct GPENCIL_Storage {
 	/* simplify settings*/
 	bool simplify_fill;
 	bool simplify_modif;
-	bool simplify_vfx;
+	bool simplify_fx;
 
 	/* Render Matrices and data */
 	float persmat[4][4], persinv[4][4];
 	float viewmat[4][4], viewinv[4][4];
 	float winmat[4][4], wininv[4][4];
 	float view_vecs[2][4]; /* vec4[2] */
+
+	Object *camera; /* camera pointer for render mode */
 } GPENCIL_Storage;
 
 typedef struct GPENCIL_StorageList {
@@ -131,11 +142,18 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *mix_pass_noblend;
 	struct DRWPass *background_pass;
 	struct DRWPass *paper_pass;
+
+	/* effects */
+	struct DRWPass *fx_shader_pass;
+	struct DRWPass *fx_shader_pass_blend;
+
 } GPENCIL_PassList;
 
 typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *main;
 	struct GPUFrameBuffer *temp_fb_a;
+	struct GPUFrameBuffer *temp_fb_b;
+	struct GPUFrameBuffer *temp_fb_rim;
 	struct GPUFrameBuffer *background_fb;
 
 	struct GPUFrameBuffer *multisample_fb;
@@ -203,6 +221,17 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_background_sh;
 	struct GPUShader *gpencil_paper_sh;
 
+	/* effects */
+	struct GPUShader *gpencil_fx_blur_sh;
+	struct GPUShader *gpencil_fx_colorize_sh;
+	struct GPUShader *gpencil_fx_flip_sh;
+	struct GPUShader *gpencil_fx_light_sh;
+	struct GPUShader *gpencil_fx_pixel_sh;
+	struct GPUShader *gpencil_fx_rim_prepare_sh;
+	struct GPUShader *gpencil_fx_rim_resolve_sh;
+	struct GPUShader *gpencil_fx_swirl_sh;
+	struct GPUShader *gpencil_fx_wave_sh;
+
 	/* textures */
 	struct GPUTexture *background_depth_tx;
 	struct GPUTexture *background_color_tx;
@@ -217,6 +246,11 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *temp_color_tx_a;
 	struct GPUTexture *temp_depth_tx_a;
 
+	struct GPUTexture *temp_color_tx_b;
+	struct GPUTexture *temp_depth_tx_b;
+
+	struct GPUTexture *temp_color_tx_rim;
+	struct GPUTexture *temp_depth_tx_rim;
 } GPENCIL_e_data; /* Engine data */
 
 /* Gwn_Batch Cache */
@@ -270,6 +304,18 @@ struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
 
 /* modifier functions */
 void gpencil_instance_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
+
+/* effects */
+void GPENCIL_create_fx_shaders(struct GPENCIL_e_data *e_data);
+void GPENCIL_delete_fx_shaders(struct GPENCIL_e_data *e_data);
+void GPENCIL_create_fx_passes(struct GPENCIL_PassList *psl);
+
+void DRW_gpencil_fx_prepare(
+	struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata,
+	struct tGPencilObjectCache *cache);
+void DRW_gpencil_fx_draw(
+	struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata,
+	struct tGPencilObjectCache *cache);
 
 /* main functions */
 void GPENCIL_engine_init(void *vedata);

@@ -38,6 +38,7 @@
 #include "DNA_meta_types.h"
 #include "DNA_workspace_types.h"
 #include "DNA_gpencil_modifier_types.h"
+#include "DNA_shader_fx_types.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
@@ -1310,6 +1311,34 @@ static void rna_Object_greasepencil_modifier_clear(Object *object, bContext *C)
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER | NA_REMOVED, object);
 }
 
+/* shader fx */
+static ShaderFxData *rna_Object_shaderfx_new(
+	Object *object, bContext *C, ReportList *reports,
+	const char *name, int type)
+{
+	return ED_object_shaderfx_add(reports, CTX_data_main(C), CTX_data_scene(C), object, name, type);
+}
+
+static void rna_Object_shaderfx_remove(
+	Object *object, bContext *C, ReportList *reports, PointerRNA *gmd_ptr)
+{
+	ShaderFxData *gmd = gmd_ptr->data;
+	if (ED_object_shaderfx_remove(reports, CTX_data_main(C), object, gmd) == false) {
+		/* error is already set */
+		return;
+	}
+
+	RNA_POINTER_INVALIDATE(gmd_ptr);
+
+	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER | NA_REMOVED, object);
+}
+
+static void rna_Object_shaderfx_clear(Object *object, bContext *C)
+{
+	ED_object_shaderfx_clear(CTX_data_main(C), object);
+	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER | NA_REMOVED, object);
+}
+
 static void rna_Object_boundbox_get(PointerRNA *ptr, float *values)
 {
 	Object *ob = (Object *)ptr->id.data;
@@ -1794,6 +1823,47 @@ static void rna_def_object_grease_pencil_modifiers(BlenderRNA *brna, PropertyRNA
 	func = RNA_def_function(srna, "clear", "rna_Object_greasepencil_modifier_clear");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
 	RNA_def_function_ui_description(func, "Remove all grease pencil modifiers from the object");
+}
+
+/* object.shaderfxs */
+static void rna_def_object_shaderfxs(BlenderRNA *brna, PropertyRNA *cprop)
+{
+	StructRNA *srna;
+
+	FunctionRNA *func;
+	PropertyRNA *parm;
+
+	RNA_def_property_srna(cprop, "ObjectShaderFx");
+	srna = RNA_def_struct(brna, "ObjectShaderFx", NULL);
+	RNA_def_struct_sdna(srna, "Object");
+	RNA_def_struct_ui_text(srna, "Object Shader Effects", "Collection of object effects");
+
+	/* add shader_fx */
+	func = RNA_def_function(srna, "new", "rna_Object_shaderfx_new");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
+	RNA_def_function_ui_description(func, "Add a new shader fx");
+	parm = RNA_def_string(func, "name", "Name", 0, "", "New name for the effect");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	/* shader to add */
+	parm = RNA_def_enum(func, "type", rna_enum_object_shaderfx_type_items, 1, "", "Effect type to add");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	/* return type */
+	parm = RNA_def_pointer(func, "shader_fx", "ShaderFx", "", "Newly created effect");
+	RNA_def_function_return(func, parm);
+
+	/* remove shader_fx */
+	func = RNA_def_function(srna, "remove", "rna_Object_shaderfx_remove");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
+	RNA_def_function_ui_description(func, "Remove an existing effect from the object");
+	/* shader to remove */
+	parm = RNA_def_pointer(func, "shader_fx", "ShaderFx", "", "Effect to remove");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
+
+	/* clear all shader fx */
+	func = RNA_def_function(srna, "clear", "rna_Object_shaderfx_clear");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
+	RNA_def_function_ui_description(func, "Remove all effects from the object");
 }
 
 /* object.particle_systems */
@@ -2298,6 +2368,13 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "GpencilModifier");
 	RNA_def_property_ui_text(prop, "Grease Pencil Modifiers", "Modifiers affecting the data of the grease pencil object");
 	rna_def_object_grease_pencil_modifiers(brna, prop);
+
+	/* Shader FX. */
+	prop = RNA_def_property(srna, "shader_effects", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "shader_fx", NULL);
+	RNA_def_property_struct_type(prop, "ShaderFx");
+	RNA_def_property_ui_text(prop, "Shader Effects", "Effects affecting display of object");
+	rna_def_object_shaderfxs(brna, prop);
 
 	/* constraints */
 	prop = RNA_def_property(srna, "constraints", PROP_COLLECTION, PROP_NONE);

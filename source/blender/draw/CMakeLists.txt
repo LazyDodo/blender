@@ -126,6 +126,7 @@ set(SRC
 	engines/gpencil/gpencil_cache_utils.c
 	engines/gpencil/gpencil_draw_utils.c
 	engines/gpencil/gpencil_draw_cache_impl.c
+	engines/gpencil/gpencil_shader_fx.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -317,6 +318,17 @@ data_to_c_simple(engines/gpencil/shaders/gpencil_paper_frag.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_vert.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_geom.glsl SRC)
 data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_frag.glsl SRC)
+
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_blur_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_colorize_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_flip_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_light_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_pixel_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_rim_prepare_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_rim_resolve_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_swirl_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_wave_frag.glsl SRC)
+
 
 list(APPEND INC
 )

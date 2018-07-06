@@ -54,6 +54,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_sequence_types.h"
+#include "DNA_shader_fx_types.h"
 #include "DNA_smoke_types.h"
 #include "DNA_space_types.h"
 #include "DNA_view3d_types.h"
@@ -112,6 +113,7 @@
 #include "BKE_rigidbody.h"
 #include "BKE_scene.h"
 #include "BKE_sequencer.h"
+#include "BKE_shader_fx.h"
 #include "BKE_speaker.h"
 #include "BKE_softbody.h"
 #include "BKE_subsurf.h"
@@ -207,6 +209,15 @@ void BKE_object_free_modifiers(Object *ob, const int flag)
 	BKE_object_free_derived_caches(ob);
 }
 
+void BKE_object_free_shaderfx(Object *ob, const int flag)
+{
+	ShaderFxData *fx;
+
+	while ((fx = BLI_pophead(&ob->shader_fx))) {
+		BKE_shaderfx_free_ex(fx, flag);
+	}
+}
+
 void BKE_object_modifier_hook_reset(Object *ob, HookModifierData *hmd)
 {
 	/* reset functionality */
@@ -281,7 +292,7 @@ void BKE_object_link_modifiers(Scene *scene, struct Object *ob_dst, const struct
 	ModifierData *md;
 	BKE_object_free_modifiers(ob_dst, 0);
 
-	if (!ELEM(ob_dst->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_LATTICE, OB_GPENCIL)) {
+	if (!ELEM(ob_dst->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_LATTICE)) {
 		/* only objects listed above can have modifiers and linking them to objects
 		 * which doesn't have modifiers stack is quite silly */
 		return;
@@ -456,6 +467,7 @@ void BKE_object_free(Object *ob)
 
 	/* BKE_<id>_free shall never touch to ID->us. Never ever. */
 	BKE_object_free_modifiers(ob, LIB_ID_CREATE_NO_USER_REFCOUNT);
+	BKE_object_free_shaderfx(ob, LIB_ID_CREATE_NO_USER_REFCOUNT);
 
 	MEM_SAFE_FREE(ob->mat);
 	MEM_SAFE_FREE(ob->matbits);
@@ -1223,6 +1235,7 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 {
 	ModifierData *md;
 	GpencilModifierData *gmd;
+	ShaderFxData *fx;
 
 	/* We never handle usercount here for own data. */
 	const int flag_subdata = flag | LIB_ID_CREATE_NO_USER_REFCOUNT;
@@ -1253,6 +1266,15 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 		BLI_strncpy(nmd->name, gmd->name, sizeof(nmd->name));
 		BKE_gpencil_modifier_copyData_ex(gmd, nmd, flag_subdata);
 		BLI_addtail(&ob_dst->greasepencil_modifiers, nmd);
+	}
+
+	BLI_listbase_clear(&ob_dst->shader_fx);
+
+	for (fx = ob_src->shader_fx.first; fx; fx = fx->next) {
+		ShaderFxData *nfx = BKE_shaderfx_new(fx->type);
+		BLI_strncpy(nfx->name, fx->name, sizeof(nfx->name));
+		BKE_shaderfx_copyData_ex(fx, nfx, flag_subdata);
+		BLI_addtail(&ob_dst->shader_fx, nfx);
 	}
 
 	if (ob_src->pose) {
@@ -3809,6 +3831,47 @@ bool BKE_object_modifier_gpencil_use_time(Object *ob, GpencilModifierData *md)
 		}
 
 		/* This here allows modifier properties to get driven and still update properly
+		*
+		*/
+		for (fcu = (FCurve *)adt->drivers.first;
+			fcu != NULL;
+			fcu = (FCurve *)fcu->next)
+		{
+			if (fcu->rna_path && strstr(fcu->rna_path, pattern))
+				return true;
+		}
+	}
+
+	return false;
+}
+
+bool BKE_object_shaderfx_use_time(Object *ob, ShaderFxData *fx)
+{
+	if (BKE_shaderfx_dependsOnTime(fx)) {
+		return true;
+	}
+
+	/* Check whether effect is animated. */
+	/* TODO (Aligorith): this should be handled as part of build_animdata() */
+	if (ob->adt) {
+		AnimData *adt = ob->adt;
+		FCurve *fcu;
+
+		char pattern[MAX_NAME + 32];
+		BLI_snprintf(pattern, sizeof(pattern), "shader_effects[\"%s\"]", fx->name);
+
+		/* action - check for F-Curves with paths containing string[' */
+		if (adt->action) {
+			for (fcu = (FCurve *)adt->action->curves.first;
+				fcu != NULL;
+				fcu = (FCurve *)fcu->next)
+			{
+				if (fcu->rna_path && strstr(fcu->rna_path, pattern))
+					return true;
+			}
+		}
+
+		/* This here allows properties to get driven and still update properly
 		*
 		*/
 		for (fcu = (FCurve *)adt->drivers.first;
