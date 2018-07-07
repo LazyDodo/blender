@@ -4332,6 +4332,7 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_parent_id = 'VIEW3D_PT_overlay'
+    bl_options = {'HIDE_HEADER'}
     bl_label = ""
 
     @classmethod
@@ -4341,13 +4342,11 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
     def draw(self, context):
         layout = self.layout
         gpd = context.gpencil_data
-        tool_settings = context.tool_settings
 
-        col = layout.column()
-        col.prop(gpd, "use_onion_skinning", text="Onion Skin")
+        layout.prop(gpd, "use_onion_skinning", text="Onion Skin")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
-            col.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+            layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
 
 
 class VIEW3D_PT_overlay_gpencil_paper(Panel):
