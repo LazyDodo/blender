@@ -4329,8 +4329,8 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         layout.prop(view, "use_gpencil_paper", text="Drawing Paper")
 
         if view.use_gpencil_paper:
-            layout.prop(view, "gp_paper_color", text="Color")
-            layout.prop(view, "gp_paper_opacity", text="Opacity")
+            layout.prop(view, "gpencil_paper_color", text="Color")
+            layout.prop(view, "gpencil_paper_opacity", text="Opacity")
 
             layout.prop(view, "use_gpencil_grid", text="Display Paper Grid")
             if view.use_gpencil_grid:
@@ -4339,7 +4339,8 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         layout.prop(gpd, "use_onion_skinning", text="Onion Skin")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
-            layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+            layout.prop(view, "use_gpencil_edit_lines", text="Show Edit Lines")
+            layout.prop(view, "use_gpencil_multiedit_line_only", text="Only Edit Lines In Multiframe")
             layout.prop(tool_settings.gpencil_sculpt, "selection_alpha", text="Vertex Opacity", slider=True)
 
 

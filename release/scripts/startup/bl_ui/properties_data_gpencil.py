@@ -360,8 +360,6 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         gpl = context.active_gpencil_layer
 
         layout.prop(gpd, "xray_mode", text="Depth Ordering")
-        layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
-        layout.prop(gpd, "show_multiedit_line_only", text="Display Only Edit Line In Multiframe")
         layout.prop(gpd, "edit_line_color", text="Edit Line Color")
         layout.prop(ob, "empty_draw_size", text="Marker Size")
 

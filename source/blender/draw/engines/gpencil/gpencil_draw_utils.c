@@ -651,7 +651,7 @@ static void gpencil_add_editpoints_shgroup(
 		if (cache->batch_edlin[cache->cache_idx]) {
 			if ((obact) && (obact == ob) &&
 				((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-				(gpd->flag & GP_DATA_STROKE_SHOW_EDIT_LINES))
+				(v3d->flag3 & V3D_GP_SHOW_EDIT_LINES))
 			{
 				DRW_shgroup_call_add(
 				        stl->g_data->shgrps_edit_line,
@@ -741,6 +741,7 @@ static void gpencil_draw_strokes(
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
+	View3D *v3d = draw_ctx->v3d;
 	bGPDstroke *gps, *src_gps;
 	DRWShadingGroup *fillgrp;
 	DRWShadingGroup *strokegrp;
@@ -804,7 +805,7 @@ static void gpencil_draw_strokes(
 
 		if ((gpl->actframe->framenum == derived_gpf->framenum) ||
 		    (!is_multiedit) ||
-		    ((gpd->flag & GP_DATA_STROKE_MULTIEDIT_LINES) == 0))
+		    ((v3d->flag3 & V3D_GP_SHOW_MULTIEDIT_LINES) == 0))
 		{
 			int id = stl->storage->shgroup_id;
 			if (gps->totpoints > 0) {

@@ -3027,7 +3027,7 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 
 	/* Paper Color */
 	static float default_paper1[3] = { 1.0f, 1.0f, 1.0f };
-	prop = RNA_def_property(srna, "gp_paper_color", PROP_FLOAT, PROP_COLOR_GAMMA);
+	prop = RNA_def_property(srna, "gpencil_paper_color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color");
 	RNA_def_property_array(prop, 3);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
@@ -3036,13 +3036,23 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* Paper opacity factor */
-	prop = RNA_def_property(srna, "gp_paper_opacity", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "gpencil_paper_opacity", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color[3]");
 	RNA_def_property_range(prop, 0.0, 1.0f);
 	RNA_def_property_float_default(prop, 0.7f);
 	RNA_def_property_ui_text(prop, "Opacity", "Paper opacity");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	/* show edit lines */
+	prop = RNA_def_property(srna, "use_gpencil_edit_lines", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_EDIT_LINES);
+	RNA_def_property_ui_text(prop, "Edit Lines", "Show edit lines when edit strokes");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "use_gpencil_multiedit_line_only", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_MULTIEDIT_LINES);
+	RNA_def_property_ui_text(prop, "Lines Only", "Show only edit lines for additional frames");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* Stereo Settings */
 	prop = RNA_def_property(srna, "stereo_3d_eye", PROP_ENUM, PROP_NONE);

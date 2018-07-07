@@ -491,18 +491,15 @@ void GPENCIL_OT_selection_opacity_toggle(wmOperatorType *ot)
 /* toggle multi edit strokes support */
 static int gpencil_multiedit_toggle_exec(bContext *C, wmOperator *op)
 {
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	const bool lines = RNA_boolean_get(op->ptr, "lines");
-
-	if (gpd == NULL)
-		return OPERATOR_CANCELLED;
 
 	/* Just toggle value */
 	if (lines == 0) {
-		gpd->flag ^= GP_DATA_STROKE_SHOW_EDIT_LINES;
+		v3d->flag3 ^= V3D_GP_SHOW_EDIT_LINES;
 	}
 	else {
-		gpd->flag ^= GP_DATA_STROKE_MULTIEDIT_LINES;
+		v3d->flag3 ^= V3D_GP_SHOW_MULTIEDIT_LINES;
 	}
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | ND_GPENCIL_EDITMODE, NULL);
