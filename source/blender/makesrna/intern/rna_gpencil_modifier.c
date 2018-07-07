@@ -178,7 +178,7 @@ static void rna_GpencilModifier_name_set(PointerRNA *ptr, const char *value)
 	}
 
 	/* fix all the animation data which may link to this */
-	BKE_animdata_fix_paths_rename_all(NULL, "greasepencil_modifiers", oldname, gmd->name);
+	BKE_animdata_fix_paths_rename_all(NULL, "grease_pencil_modifiers", oldname, gmd->name);
 }
 
 static char *rna_GpencilModifier_path(PointerRNA *ptr)
@@ -187,7 +187,7 @@ static char *rna_GpencilModifier_path(PointerRNA *ptr)
 	char name_esc[sizeof(gmd->name) * 2];
 
 	BLI_strescape(name_esc, gmd->name, sizeof(name_esc));
-	return BLI_sprintfN("greasepencil_modifiers[\"%s\"]", name_esc);
+	return BLI_sprintfN("grease_pencil_modifiers[\"%s\"]", name_esc);
 }
 
 static void rna_GpencilModifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
