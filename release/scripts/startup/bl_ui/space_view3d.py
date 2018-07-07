@@ -4304,12 +4304,21 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_parent_id = 'VIEW3D_PT_overlay'
-    bl_options = {'HIDE_HEADER'}
     bl_label = ""
 
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'GPENCIL'
+
+    def draw_header(self, context):
+        layout = self.layout
+        layout.label(text={
+            'GPENCIL_PAINT': "Draw Grease Pencil",
+            'GPENCIL_EDIT': "Edit Grease Pencil",
+            'GPENCIL_SCULPT': "Sculpt Grease Pencil",
+            'GPENCIL_WEIGHT': "Weight Grease Pencil",
+            'OBJECT': "Grease Pencil",
+        }[context.mode])
 
     def draw(self, context):
         layout = self.layout
