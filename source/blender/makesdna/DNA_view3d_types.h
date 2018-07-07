@@ -353,6 +353,7 @@ typedef struct View3D {
 #define V3D_GP_SHOW_GRID             (1 << 3) /* Activate paper grid */
 #define V3D_GP_SHOW_EDIT_LINES       (1 << 4)
 #define V3D_GP_SHOW_MULTIEDIT_LINES  (1 << 5)
+#define V3D_GP_SHOW_ONION_SKIN       (1 << 6) /* main switch at view level */
 
 /* View3DShading->light */
 enum {

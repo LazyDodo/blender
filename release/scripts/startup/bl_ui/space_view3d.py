@@ -4336,7 +4336,7 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
             if view.use_gpencil_grid:
                 layout.prop(view, "gpencil_grid_size", text="")
 
-        layout.prop(gpd, "use_onion_skinning", text="Onion Skin")
+        layout.prop(view, "use_gpencil_onion_skin", text="Onion Skin")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(view, "use_gpencil_edit_lines", text="Show Edit Lines")

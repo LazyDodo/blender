@@ -1174,7 +1174,7 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	int cfra_eval = (int)DEG_get_ctime(draw_ctx->depsgraph);
 	ToolSettings *ts = scene->toolsettings;
 	bGPDframe *derived_gpf = NULL;
-	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
+	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE) || ((v3d->flag3 & V3D_GP_SHOW_ONION_SKIN) == 0);
 	bool overlay = (bool)((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0);
 
 	/* check if playing animation */
