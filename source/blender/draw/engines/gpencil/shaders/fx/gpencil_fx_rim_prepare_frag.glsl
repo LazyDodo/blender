@@ -6,6 +6,7 @@ uniform mat4 ViewMatrix;
 /* ******************************************************************* */
 uniform sampler2D strokeColor;
 uniform sampler2D strokeDepth;
+uniform vec2 Viewport;
 
 uniform int offset[2];
 uniform vec3 rim_color;
@@ -36,6 +37,13 @@ void main()
 
 	/* is transparent */ 
 	if (src_pixel.a == 0.0f) {
+		discard;
+	}
+	/* check inside viewport */
+	else if ((uv.x - dx < 0) || (uv.x - dx > Viewport[0])) {
+		discard;
+	}
+	else if ((uv.y - dy < 0) || (uv.y - dy > Viewport[1])) {
 		discard;
 	}
 	/* pixel is equal to mask color, keep */

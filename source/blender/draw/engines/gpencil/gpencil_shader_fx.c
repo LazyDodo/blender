@@ -394,6 +394,8 @@ static void DRW_gpencil_fx_rim(
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_a);
+	DRW_shgroup_uniform_vec2(fx_shgrp, "Viewport", DRW_viewport_size_get(), 1);
+
 	DRW_shgroup_uniform_int(fx_shgrp, "offset", &fxd->offset[0], 2);
 	DRW_shgroup_uniform_vec3(fx_shgrp, "rim_color", &fxd->rim_rgb[0], 1);
 	DRW_shgroup_uniform_vec3(fx_shgrp, "mask_color", &fxd->mask_rgb[0], 1);
