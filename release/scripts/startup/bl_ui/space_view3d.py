@@ -4313,47 +4313,25 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
     def draw(self, context):
         layout = self.layout
+        view = context.space_data
         tool_settings = context.tool_settings
         gpd = context.gpencil_data
+
+        layout.prop(view, "use_gpencil_paper", text="Drawing Paper")
+
+        if view.use_gpencil_paper:
+            layout.prop(view, "gp_paper_color", text="Color")
+            layout.prop(view, "gp_paper_opacity", text="Opacity")
+
+            layout.prop(view, "use_gpencil_grid", text="Display Paper Grid")
+            if view.use_gpencil_grid:
+                layout.prop(view, "gpencil_grid_size", text="")
 
         layout.prop(gpd, "use_onion_skinning", text="Onion Skin")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
             layout.prop(tool_settings.gpencil_sculpt, "selection_alpha", text="Vertex Opacity", slider=True)
-
-
-class VIEW3D_PT_overlay_gpencil_paper(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
-    bl_parent_id = 'VIEW3D_PT_overlay'
-    bl_label = ""
-
-    @classmethod
-    def poll(cls, context):
-        return context.object and context.object.type == 'GPENCIL'
-
-    def draw_header(self, context):
-        view = context.space_data
-        self.layout.prop(view, "use_gpencil_paper", text="Drawing Paper")
-
-    def draw(self, context):
-        layout = self.layout
-        view = context.space_data
-        layout.active = view.use_gpencil_paper
-
-        row = layout.row()
-        row.prop(view, "gp_paper_color", text="Color")
-        row = layout.row()
-        row.prop(view, "gp_paper_opacity", text="Opacity")
-
-        row = layout.row(align=False)
-        row.prop(view, "use_gpencil_grid", text="Display Grid")
-
-        row = layout.row(align=False)
-        col = row.column(align=True)
-        col.enabled = view.use_gpencil_grid
-        col.prop(view, "gpencil_grid_size", text="")
 
 
 class VIEW3D_PT_quad_view(Panel):
@@ -4645,7 +4623,6 @@ classes = (
     VIEW3D_PT_pivot_point,
     VIEW3D_PT_snapping,
     VIEW3D_PT_transform_orientations,
-    VIEW3D_PT_overlay_gpencil_paper,
     VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_context_properties,
 )
