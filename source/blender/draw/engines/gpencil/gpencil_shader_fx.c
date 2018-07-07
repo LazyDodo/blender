@@ -145,7 +145,8 @@ static void GPENCIL_dof_nearfar(Object *camera, float coc, float nearfar[2])
  * and vertical in different operations.
  */
 static void DRW_gpencil_fx_blur(
-        ShaderFxData *fx, int ob_idx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
+        ShaderFxData *fx, int ob_idx, GPENCIL_e_data *e_data,
+		GPENCIL_Data *vedata, tGPencilObjectCache *cache)
 {
 	if (fx == NULL) {
 		return;
@@ -159,6 +160,9 @@ static void DRW_gpencil_fx_blur(
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	DRWShadingGroup *fx_shgrp;
+
+	Object *ob = cache->ob;
+	bGPdata *gpd = (bGPdata *)ob->data;
 
 	fxd->blur[0] = fxd->radius[0];
 	fxd->blur[1] = fxd->radius[1];
@@ -213,6 +217,12 @@ static void DRW_gpencil_fx_blur(
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_a);
 	DRW_shgroup_uniform_int(fx_shgrp, "blur", &fxd->blur[0], 2);
+
+	DRW_shgroup_uniform_vec3(fx_shgrp, "loc", &ob->loc[0], 1);
+	DRW_shgroup_uniform_float(fx_shgrp, "pixsize", stl->storage->pixsize, 1);
+	DRW_shgroup_uniform_float(fx_shgrp, "pixelsize", &U.pixelsize, 1);
+	DRW_shgroup_uniform_float(fx_shgrp, "pixfactor", &gpd->pixfactor, 1);
+
 	fxd->runtime.fx_sh = fx_shgrp;
 }
 
@@ -403,6 +413,11 @@ static void DRW_gpencil_fx_rim(
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_rim);
 	DRW_shgroup_uniform_int(fx_shgrp, "blur", &fxd->blur[0], 2);
 
+	DRW_shgroup_uniform_vec3(fx_shgrp, "loc", &ob->loc[0], 1);
+	DRW_shgroup_uniform_float(fx_shgrp, "pixsize", stl->storage->pixsize, 1);
+	DRW_shgroup_uniform_float(fx_shgrp, "pixelsize", &U.pixelsize, 1);
+	DRW_shgroup_uniform_float(fx_shgrp, "pixfactor", &gpd->pixfactor, 1);
+
 	fxd->runtime.fx_sh_b = fx_shgrp;
 
 	/* resolve pass */
@@ -572,7 +587,7 @@ void DRW_gpencil_fx_prepare(
 		if (effect_is_active(ob, fx, stl->storage->is_render)) {
 			switch (fx->type) {
 				case eShaderFxType_Blur:
-					DRW_gpencil_fx_blur(fx, ob_idx, e_data, vedata);
+					DRW_gpencil_fx_blur(fx, ob_idx, e_data, vedata, cache);
 					break;
 				case eShaderFxType_Colorize:
 					DRW_gpencil_fx_colorize(fx, e_data, vedata);
