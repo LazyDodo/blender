@@ -755,10 +755,6 @@ DrawDataList *DRW_drawdatalist_from_id(ID *id)
 
 DrawData *DRW_drawdata_get(ID *id, DrawEngineType *engine_type)
 {
-	if (!id_can_have_drawdata(id)) {
-		return NULL;
-	}
-
 	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
 
 	if (drawdata == NULL)

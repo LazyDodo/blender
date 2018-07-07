@@ -131,15 +131,7 @@ EEVEE_ObjectEngineData *EEVEE_object_data_ensure(Object *ob)
 static void eevee_lightprobe_data_init(DrawData *dd)
 {
 	EEVEE_LightProbeEngineData *ped = (EEVEE_LightProbeEngineData *)dd;
-	ped->need_full_update = true;
-	ped->need_update = true;
-}
-
-static void eevee_lightprobe_data_free(DrawData *dd)
-{
-	EEVEE_LightProbeEngineData *ped = (EEVEE_LightProbeEngineData *)dd;
-
-	BLI_freelistN(&ped->captured_object_list);
+	ped->need_update = false;
 }
 
 EEVEE_LightProbeEngineData *EEVEE_lightprobe_data_get(Object *ob)
@@ -159,7 +151,7 @@ EEVEE_LightProbeEngineData *EEVEE_lightprobe_data_ensure(Object *ob)
 	        &draw_engine_eevee_type,
 	        sizeof(EEVEE_LightProbeEngineData),
 	        eevee_lightprobe_data_init,
-	        eevee_lightprobe_data_free);
+	        NULL);
 }
 
 /* Lamp data. */

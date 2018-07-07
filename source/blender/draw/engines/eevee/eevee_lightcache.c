@@ -30,6 +30,8 @@
 #include "BKE_global.h"
 #include "BKE_blender.h"
 
+#include "BLI_threads.h"
+
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
 
@@ -44,6 +46,9 @@
 #include "../../../intern/gawain/gawain/gwn_context.h"
 
 #include "WM_api.h"
+#include "WM_types.h"
+
+#include "wm_window.h"
 
 /* Rounded to nearest PowerOfTwo */
 #if defined(IRRADIANCE_SH_L2)
@@ -82,6 +87,8 @@ extern void DRW_gawain_render_context_disable(void *re_gwn_context);
 typedef struct EEVEE_LightBake {
 	Depsgraph *depsgraph;
 	ViewLayer *view_layer;
+	ViewLayer *view_layer_input;
+	LightCache *lcache;
 	Scene *scene;
 	struct Main *bmain;
 
@@ -105,7 +112,8 @@ typedef struct EEVEE_LightBake {
 	int irr_size[3];                 /* Size of the irradiance texture. */
 	int total_irr_samples;           /* Total for all grids */
 	int grid_sample;                 /* Nth sample of the current grid being rendered. */
-	int bounce_curr, bounce_count;   /* The current light bounce being evaluated. */
+	int grid_curr;                   /* Nth grid in the cache being rendered. */
+	int bounce_curr, bounce_len;     /* The current light bounce being evaluated. */
 	float vis_range, vis_blur;       /* Sample Visibility compression and bluring. */
 	float vis_res;                   /* Resolution of the Visibility shadowmap. */
 	GPUTexture *grid_prev;           /* Result of previous light bounce. */
@@ -129,6 +137,8 @@ typedef struct EEVEE_LightBake {
 	float *progress;
 
 	bool resource_only;              /* For only handling the resources. */
+	bool own_resources;
+	int delay;                       /* ms. delay the start of the baking to not slowdown interactions (TODO remove) */
 
 	void *gl_context, *gwn_context;  /* If running in parallel (in a separate thread), use this context. */
 } EEVEE_LightBake;
@@ -242,7 +252,6 @@ void EEVEE_lightcache_load(LightCache *lcache)
 		                                            NULL);
 		GPU_texture_bind(lcache->cube_tx.tex, 0);
 		GPU_texture_mipmap_mode(lcache->cube_tx.tex, true, true);
-		GPU_texture_generate_mipmap(lcache->cube_tx.tex);
 		for (int mip = 0; mip < lcache->mips_len; ++mip) {
 			GPU_texture_add_mipmap(lcache->cube_tx.tex, GPU_DATA_10_11_11_REV, mip + 1, lcache->cube_mips[mip].data);
 		}
@@ -378,10 +387,9 @@ static void eevee_lightbake_create_render_target(EEVEE_LightBake *lbake, int rt_
 static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 {
 	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
-	Scene *scene_orig = lbake->scene;
-	const SceneEEVEE *eevee = &scene_eval->eevee;
+	SceneEEVEE *eevee = &scene_eval->eevee;
 
-	lbake->bounce_count = eevee->gi_diffuse_bounces;
+	lbake->bounce_len   = eevee->gi_diffuse_bounces;
 	lbake->vis_res      = eevee->gi_visibility_resolution;
 	lbake->rt_res       = eevee->gi_cubemap_resolution;
 
@@ -398,61 +406,97 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 	/* Ensure Light Cache is ready to accept new data. If not recreate one.
 	 * WARNING: All the following must be threadsafe. It's currently protected
 	 * by the DRW mutex. */
-	LightCache *lcache = scene_orig->eevee.light_cache;
+	lbake->lcache = eevee->light_cache;
 
 	/* TODO validate irradiance and reflection cache independantly... */
-	if (lcache != NULL &&
-	    !EEVEE_lightcache_validate(lcache, lbake->cube_len, lbake->ref_cube_res, lbake->irr_size))
+	if (lbake->lcache != NULL &&
+	    !EEVEE_lightcache_validate(lbake->lcache, lbake->cube_len, lbake->ref_cube_res, lbake->irr_size))
 	{
-		EEVEE_lightcache_free(lcache);
-		scene_orig->eevee.light_cache = lcache = NULL;
+		eevee->light_cache = lbake->lcache = NULL;
 	}
 
-	if (lcache == NULL) {
-		lcache = EEVEE_lightcache_create(lbake->grid_len,
-		                                 lbake->cube_len,
-		                                 lbake->ref_cube_res,
-		                                 lbake->vis_res,
-		                                 lbake->irr_size);
-		scene_orig->eevee.light_cache = lcache;
-
-		DEG_id_tag_update(&scene_orig->id, DEG_TAG_COPY_ON_WRITE);
+	if (lbake->lcache == NULL) {
+		lbake->lcache = EEVEE_lightcache_create(lbake->grid_len,
+		                                        lbake->cube_len,
+		                                        lbake->ref_cube_res,
+		                                        lbake->vis_res,
+		                                        lbake->irr_size);
+		eevee->light_cache = lbake->lcache;
 	}
 
-	lcache->vis_res = lbake->vis_res;
+	lbake->lcache->vis_res = lbake->vis_res;
+	lbake->lcache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID | LIGHTCACHE_BAKING;
+}
 
-	lcache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID | LIGHTCACHE_BAKING;
+wmJob *EEVEE_lightbake_job_create(
+        struct wmWindowManager *wm, struct wmWindow *win, struct Main *bmain,
+        struct ViewLayer *view_layer, struct Scene *scene, int delay)
+{
+	EEVEE_LightBake *lbake = NULL;
 
-	/* Share light cache with the evaluated (baking) layer and the original layer.
-	 * This avoid full scene re-evaluation by depsgraph. */
-	scene_eval->eevee.light_cache = lcache;
+	/* only one render job at a time */
+	if (WM_jobs_test(wm, scene, WM_JOB_TYPE_RENDER))
+		return NULL;
+
+	wmJob *wm_job = WM_jobs_get(wm, win, scene, "Bake Lighting",
+	                            WM_JOB_EXCL_RENDER | WM_JOB_PRIORITY | WM_JOB_PROGRESS, WM_JOB_TYPE_LIGHT_BAKE);
+
+	/* If job exists do not recreate context and depsgraph. */
+	EEVEE_LightBake *old_lbake = (EEVEE_LightBake *)WM_jobs_customdata_get(wm_job);
+
+	if (old_lbake && (old_lbake->view_layer_input == view_layer) && (old_lbake->bmain == bmain)) {
+		lbake = MEM_callocN(sizeof(EEVEE_LightBake), "EEVEE_LightBake");
+		/* Cannot reuse depsgraph for now because we cannot get the update from the
+		 * main database directly. TODO reuse depsgraph and only update positions. */
+		/* lbake->depsgraph = old_lbake->depsgraph; */
+		lbake->depsgraph = DEG_graph_new(scene, view_layer, DAG_EVAL_RENDER);
+
+		lbake->scene = scene;
+		lbake->bmain = bmain;
+		lbake->view_layer_input = view_layer;
+		lbake->gl_context = old_lbake->gl_context;
+		lbake->gwn_context = old_lbake->gwn_context;
+		lbake->own_resources = true;
+		lbake->delay = delay;
+
+		old_lbake->own_resources = false;
+
+		if (old_lbake->stop != NULL) {
+			*old_lbake->stop = 1;
+		}
+	}
+	else {
+		lbake = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, true);
+		lbake->delay = delay;
+	}
+
+	WM_jobs_customdata_set(wm_job, lbake, EEVEE_lightbake_job_data_free);
+	WM_jobs_timer(wm_job, 0.4, NC_SCENE | NA_EDITED, 0);
+	WM_jobs_callbacks(wm_job, EEVEE_lightbake_job, NULL, EEVEE_lightbake_update, EEVEE_lightbake_update);
+
+	G.is_break = false;
+
+	return wm_job;
 }
 
 /* MUST run on the main thread. */
-void *EEVEE_lightbake_job_data_alloc(struct Main *bmain, struct ViewLayer *view_layer, struct Scene *scene, bool run_as_job)
+void *EEVEE_lightbake_job_data_alloc(
+        struct Main *bmain, struct ViewLayer *view_layer, struct Scene *scene, bool run_as_job)
 {
+	BLI_assert(BLI_thread_is_main());
+
 	EEVEE_LightBake *lbake = MEM_callocN(sizeof(EEVEE_LightBake), "EEVEE_LightBake");
 
 	lbake->depsgraph = DEG_graph_new(scene, view_layer, DAG_EVAL_RENDER);
 	lbake->scene = scene;
 	lbake->bmain = bmain;
+	lbake->view_layer_input = view_layer;
+	lbake->own_resources = true;
 
 	if (run_as_job) {
 		lbake->gl_context = WM_opengl_context_create();
+		wm_window_reset_drawable();
 	}
-
-    DEG_graph_relations_update(lbake->depsgraph, bmain, scene, view_layer);
-
-	int frame = 0; /* TODO make it user param. */
-	DEG_evaluate_on_framechange(lbake->bmain, lbake->depsgraph, frame);
-
-	/* Count lightprobes */
-	eevee_lightbake_count_probes(lbake);
-
-	DRW_opengl_context_enable();
-	/* This function needs to run on the main thread. */
-	eevee_lightbake_create_resources(lbake);
-	DRW_opengl_context_disable();
 
 	return lbake;
 }
@@ -461,7 +505,10 @@ void EEVEE_lightbake_job_data_free(void *custom_data)
 {
 	EEVEE_LightBake *lbake = (EEVEE_LightBake *)custom_data;
 
-	DEG_graph_free(lbake->depsgraph);
+	/* TODO reuse depsgraph. */
+	/* if (lbake->own_resources) { */
+		DEG_graph_free(lbake->depsgraph);
+	/* } */
 
 	MEM_SAFE_FREE(lbake->cube_prb);
 	MEM_SAFE_FREE(lbake->grid_prb);
@@ -487,7 +534,7 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 		GPU_FRAMEBUFFER_FREE_SAFE(lbake->rt_fb[i]);
 	}
 
-	if (lbake->gl_context) {
+	if (lbake->gl_context && lbake->own_resources) {
 		/* Delete the baking context. */
 		DRW_gawain_render_context_disable(lbake->gwn_context);
 		DRW_gawain_render_context_enable(lbake->gwn_context);
@@ -496,6 +543,10 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 		WM_opengl_context_dispose(lbake->gl_context);
 		lbake->gwn_context = NULL;
 		lbake->gl_context = NULL;
+	}
+	else if (lbake->gl_context) {
+		DRW_gawain_render_context_disable(lbake->gwn_context);
+		DRW_opengl_render_context_disable(lbake->gl_context);
 	}
 	else if (!lbake->resource_only) {
 		DRW_opengl_context_disable();
@@ -724,6 +775,14 @@ static void eevee_lightbake_render_grid_sample(void *ved, void *user_data)
 	if (is_last_bounce_sample) {
 		eevee_lightbake_copy_irradiance(lbake, lcache);
 	}
+
+	/* If it is the last sample grid sample (and last bounce). */
+	if ((lbake->bounce_curr == lbake->bounce_len - 1) &&
+	    (lbake->grid_curr == lbake->grid_len - 1) &&
+	    (lbake->grid_sample == lbake->grid_sample - 1))
+	{
+		lcache->flag &= ~LIGHTCACHE_UPDATE_GRID;
+	}
 }
 
 static void eevee_lightbake_render_probe_sample(void *ved, void *user_data)
@@ -732,7 +791,8 @@ static void eevee_lightbake_render_probe_sample(void *ved, void *user_data)
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 	EEVEE_LightBake *lbake = (EEVEE_LightBake *)user_data;
-	LightCache *lcache = lbake->scene->eevee.light_cache;
+	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
+	LightCache *lcache = scene_eval->eevee.light_cache;
 	EEVEE_LightProbe *eprobe = lbake->cube;
 	LightProbe *prb = *lbake->probe;
 
@@ -749,6 +809,11 @@ static void eevee_lightbake_render_probe_sample(void *ved, void *user_data)
 	EEVEE_lightbake_filter_glossy(sldata, vedata, lbake->rt_color, lbake->store_fb, lbake->cube_offset, prb->intensity, lcache->mips_len);
 
 	lcache->cube_len += 1;
+
+	/* If it's the last probe. */
+	if (lbake->cube_offset == lbake->cube_len - 1) {
+		lcache->flag &= ~LIGHTCACHE_UPDATE_CUBE;
+	}
 }
 
 static float eevee_lightbake_grid_influence_volume(EEVEE_LightGrid *grid)
@@ -792,7 +857,8 @@ static bool eevee_lightbake_cube_comp(EEVEE_LightProbe *prb_a, EEVEE_LightProbe 
 static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 {
 	Depsgraph *depsgraph = lbake->depsgraph;
-	LightCache *lcache = lbake->scene->eevee.light_cache;
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	LightCache *lcache = scene_eval->eevee.light_cache;
 
 	/* At least one for the world */
 	int grid_len = 1;
@@ -823,21 +889,29 @@ static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 	SORT_PROBE(EEVEE_LightGrid, lcache->grid_data + 1, lbake->grid_len - 1, eevee_lightbake_grid_comp);
 	SORT_PROBE(EEVEE_LightProbe, lcache->cube_data + 1, lbake->cube_len - 1, eevee_lightbake_cube_comp);
 
-	lbake->total = lbake->total_irr_samples * lbake->bounce_count + lbake->cube_len;
+	lbake->total = lbake->total_irr_samples * lbake->bounce_len + lbake->cube_len;
 	lbake->done = 0;
 }
 
 void EEVEE_lightbake_update(void *custom_data)
 {
 	EEVEE_LightBake *lbake = (EEVEE_LightBake *)custom_data;
-	Scene *scene = lbake->scene;
+	Scene *scene_orig = lbake->scene;
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	/* If a new lightcache was created, free the old one and reference the new. */
+	if (scene_orig->eevee.light_cache != lbake->lcache) {
+		if (scene_orig->eevee.light_cache != NULL) {
+			EEVEE_lightcache_free(scene_orig->eevee.light_cache);
+		}
+		scene_orig->eevee.light_cache = lbake->lcache;
+	}
+
+	DEG_id_tag_update(&scene_orig->id, DEG_TAG_COPY_ON_WRITE);
 }
 
 static bool lightbake_do_sample(EEVEE_LightBake *lbake, void (*render_callback)(void *ved, void *user_data))
 {
-	if (G.is_break == true) {
+	if (G.is_break == true || *lbake->stop) {
 		return false;
 	}
 
@@ -858,22 +932,38 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 {
 	EEVEE_LightBake *lbake = (EEVEE_LightBake *)custom_data;
 	Depsgraph *depsgraph = lbake->depsgraph;
+	int frame = 0; /* TODO make it user param. */
+
+	DEG_graph_relations_update(depsgraph, lbake->bmain, lbake->scene, lbake->view_layer_input);
+	DEG_evaluate_on_framechange(lbake->bmain, depsgraph, frame);
 
 	lbake->view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	lbake->stop = stop;
 	lbake->do_update = do_update;
 	lbake->progress = progress;
 
+	/* Count lightprobes */
+	eevee_lightbake_count_probes(lbake);
+
 	/* We need to create the FBOs in the right context.
 	 * We cannot do it in the main thread. */
 	eevee_lightbake_context_enable(lbake);
+	eevee_lightbake_create_resources(lbake);
 	eevee_lightbake_create_render_target(lbake, lbake->rt_res);
 	eevee_lightbake_context_disable(lbake);
 
 	/* Gather all probes data */
 	eevee_lightbake_gather_probes(lbake);
 
-	LightCache *lcache = lbake->scene->eevee.light_cache;
+	LightCache *lcache = lbake->lcache;
+
+	/* HACK: Sleep to delay the first rendering operation
+	 * that causes a small freeze (caused by VBO generation)
+	 * because this step is locking at this moment. */
+	/* TODO remove this. */
+	if (lbake->delay) {
+		PIL_sleep_ms(lbake->delay);
+	}
 
 	/* Render world irradiance and reflection first */
 	if (lcache->flag & LIGHTCACHE_UPDATE_WORLD) {
@@ -882,28 +972,39 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 	}
 
 	/* Render irradiance grids */
-	for (lbake->bounce_curr = 0; lbake->bounce_curr < lbake->bounce_count; ++lbake->bounce_curr) {
-		/* Bypass world, start at 1. */
-		lbake->probe = lbake->grid_prb + 1;
-		lbake->grid = lcache->grid_data + 1;
-		for (int p = 1; p < lbake->grid_len; ++p, lbake->probe++, lbake->grid++) {
-			LightProbe *prb = *lbake->probe;
-			const int grid_sample_count = prb->grid_resolution_x *
-			                              prb->grid_resolution_y *
-			                              prb->grid_resolution_z;
-			for (lbake->grid_sample = 0; lbake->grid_sample < grid_sample_count; ++lbake->grid_sample) {
-				lightbake_do_sample(lbake, eevee_lightbake_render_grid_sample);
+	if (lcache->flag & LIGHTCACHE_UPDATE_GRID) {
+		for (lbake->bounce_curr = 0; lbake->bounce_curr < lbake->bounce_len; ++lbake->bounce_curr) {
+			/* Bypass world, start at 1. */
+			lbake->probe = lbake->grid_prb + 1;
+			lbake->grid = lcache->grid_data + 1;
+			for (lbake->grid_curr = 1;
+			     lbake->grid_curr < lbake->grid_len;
+			     ++lbake->grid_curr, ++lbake->probe, ++lbake->grid)
+			{
+				LightProbe *prb = *lbake->probe;
+				const int grid_sample_count = prb->grid_resolution_x *
+				                              prb->grid_resolution_y *
+				                              prb->grid_resolution_z;
+				for (lbake->grid_sample = 0;
+				     lbake->grid_sample < grid_sample_count;
+				     ++lbake->grid_sample)
+				{
+					lightbake_do_sample(lbake, eevee_lightbake_render_grid_sample);
+				}
 			}
 		}
 	}
 
 	/* Render reflections */
-	{
+	if (lcache->flag & LIGHTCACHE_UPDATE_CUBE) {
 		lcache->cube_len = 1;
 		/* Bypass world, start at 1. */
 		lbake->probe = lbake->cube_prb + 1;
 		lbake->cube = lcache->cube_data + 1;
-		for (lbake->cube_offset = 1; lbake->cube_offset < lbake->cube_len; ++lbake->cube_offset, lbake->probe++, lbake->cube++) {
+		for (lbake->cube_offset = 1;
+		     lbake->cube_offset < lbake->cube_len;
+		     ++lbake->cube_offset, ++lbake->probe, ++lbake->cube)
+		{
 			lightbake_do_sample(lbake, eevee_lightbake_render_probe_sample);
 		}
 	}

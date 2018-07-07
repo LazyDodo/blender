@@ -367,10 +367,9 @@ static void eevee_view_update(void *vedata)
 
 static void eevee_id_object_update(void *UNUSED(vedata), Object *object)
 {
-	/* This is a bit mask of components which update is to be ignored. */
 	EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_get(object);
 	if (ped != NULL && ped->dd.recalc != 0) {
-		ped->need_full_update = true;
+		ped->need_update = (ped->dd.recalc & (ID_RECALC_TRANSFORM | ID_RECALC_COPY_ON_WRITE)) != 0;
 		ped->dd.recalc = 0;
 	}
 	EEVEE_LampEngineData *led = EEVEE_lamp_data_get(object);

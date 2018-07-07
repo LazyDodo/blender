@@ -51,6 +51,9 @@
 
 #include "ED_screen.h"
 
+#include "WM_api.h"
+#include "WM_types.h"
+
 #define HAMMERSLEY_SIZE 1024
 
 static struct {
@@ -437,6 +440,8 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 
 	pinfo->num_planar = 0;
 	pinfo->vis_data.collection = NULL;
+	pinfo->do_grid_update = false;
+	pinfo->do_cube_update = false;
 
 	{
 		psl->probe_background = DRW_pass_create("World Probe Background Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL);
@@ -605,6 +610,18 @@ void EEVEE_lightprobes_cache_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata
 		}
 
 		pinfo->num_planar++;
+	}
+	else {
+		EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_ensure(ob);
+		if (ped->need_update) {
+			if (probe->type == LIGHTPROBE_TYPE_GRID) {
+				pinfo->do_grid_update = true;
+			}
+			else {
+				pinfo->do_cube_update = true;
+			}
+			ped->need_update = false;
+		}
 	}
 }
 
@@ -798,7 +815,6 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	DRW_uniformbuffer_update(sldata->grid_ubo, &sldata->probes->grid_data);
 
 	/* For shading, save max level of the octahedron map */
-	int mipsize = GPU_texture_width(light_cache->cube_tx.tex);
 	sldata->common_data.prb_lod_cube_max = (float)light_cache->mips_len - 1.0f;
 	sldata->common_data.prb_lod_planar_max = (float)MAX_PLANAR_LOD_LEVEL;
 	sldata->common_data.prb_irradiance_vis_size = light_cache->vis_res;
@@ -812,6 +828,29 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 		pinfo->cache_num_planar = pinfo->num_planar;
 	}
 	planar_pool_ensure_alloc(vedata, pinfo->num_planar);
+
+	/* If lightcache auto-update is enable we tag the relevant part
+	 * of the cache to update and fire up a baking job. */
+	if (!DRW_state_is_image_render() && !DRW_state_is_opengl_render() &&
+	    (pinfo->do_grid_update || pinfo->do_cube_update))
+	{
+		const DRWContextState *draw_ctx = DRW_context_state_get();
+		BLI_assert(draw_ctx->evil_C);
+
+		Scene *scene_orig = DEG_get_input_scene(draw_ctx->depsgraph);
+
+		if (scene_orig->eevee.light_cache != NULL) {
+			if (pinfo->do_grid_update) {
+				scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_GRID;
+			}
+			/* If we update grid we need to update the cubemaps too.
+			 * So always refresh cubemaps. */
+			scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_CUBE;
+		}
+
+		/* Use a notifier to trigger the operator after all */
+		WM_event_add_notifier(draw_ctx->evil_C, NC_LIGHTPROBE, scene_orig);
+	}
 }
 
 /* -------------------------------------------------------------------- */

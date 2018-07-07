@@ -33,8 +33,12 @@ struct Scene;
 struct LightCache;
 struct EEVEE_ViewLayerData;
 struct EEVEE_Data;
+struct EEVEE_LightBake;
 
 /* Light Bake */
+struct wmJob *EEVEE_lightbake_job_create(
+        struct wmWindowManager *wm, struct wmWindow *win, struct Main *bmain,
+        struct ViewLayer *view_layer, struct Scene *scene, int delay);
 void *EEVEE_lightbake_job_data_alloc(struct Main *bmain, struct ViewLayer *viewlayer, struct Scene *scene, bool run_as_job);
 void EEVEE_lightbake_job_data_free(void *custom_data);
 void EEVEE_lightbake_update(void *custom_data);

@@ -717,6 +717,7 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 	void *rj = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, false);
 	short stop = 0, do_update; float progress; /* Not actually used. */
 	EEVEE_lightbake_job(rj, &stop, &do_update, &progress);
+	EEVEE_lightbake_update(rj);
 	EEVEE_lightbake_job_data_free(rj);
 
 	// no redraw needed, we leave state as we entered it
@@ -730,30 +731,17 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
+	wmWindow *win = CTX_wm_window(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	int delay = RNA_int_get(op->ptr, "delay");
 
-	/* only one render job at a time */
-	if (WM_jobs_test(wm, scene, WM_JOB_TYPE_RENDER))
-		return OPERATOR_CANCELLED;
+	wmJob *wm_job = EEVEE_lightbake_job_create(wm, win, bmain, view_layer, scene, delay);
 
-	if (WM_jobs_test(wm, scene, WM_JOB_TYPE_LIGHT_BAKE))
-		return OPERATOR_CANCELLED;
-
-	/* TODO abort if selected engine is not eevee. */
-	void *rj = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, true);
-
-	if (rj == NULL) {
-		/* TODO display reason of faillure Blabla */
+	if (!wm_job) {
 		return OPERATOR_CANCELLED;
 	}
-
-	wmJob *wm_job = WM_jobs_get(wm, CTX_wm_window(C), scene, "Bake Lighting",
-	                            WM_JOB_EXCL_RENDER | WM_JOB_PRIORITY | WM_JOB_PROGRESS, WM_JOB_TYPE_LIGHT_BAKE);
-	WM_jobs_customdata_set(wm_job, rj, EEVEE_lightbake_job_data_free);
-	WM_jobs_timer(wm_job, 0.4, NC_OBJECT | ND_DRAW, 0);
-	WM_jobs_callbacks(wm_job, EEVEE_lightbake_job, NULL, EEVEE_lightbake_update, NULL);
 
 	/* add modal handler for ESC */
 	WM_event_add_modal_handler(C, op);
@@ -764,9 +752,7 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 	 */
 	op->customdata = scene;
 
-	G.is_break = false;
-
-	WM_jobs_start(CTX_wm_manager(C), wm_job);
+	WM_jobs_start(wm, wm_job);
 
 	WM_cursor_wait(0);
 
@@ -786,8 +772,8 @@ void SCENE_OT_light_cache_bake(wmOperatorType *ot)
 	ot->cancel = light_cache_bake_cancel;
 	ot->exec = light_cache_bake_exec;
 
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->prop = RNA_def_int(ot->srna, "delay", 0, 0, 2000, "Delay", "Delay in millisecond before baking start.", 0, 2000);
+	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
 }
 
 /********************** render view operators *********************/
