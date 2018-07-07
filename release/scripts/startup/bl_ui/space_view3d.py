@@ -124,8 +124,7 @@ class VIEW3D_HT_header(Header):
 
             if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
                 row = layout.row(align=True)
-                row.prop(tool_settings.gpencil_sculpt, "use_select_mask")
-                row.prop(tool_settings.gpencil_sculpt, "selection_alpha", slider=True)
+                row.prop(tool_settings.gpencil_sculpt, "use_select_mask", text="")
 
             if gpd.is_stroke_paint_mode:
                 row = layout.row(align=True)
@@ -4341,12 +4340,14 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
     def draw(self, context):
         layout = self.layout
+        tool_settings = context.tool_settings
         gpd = context.gpencil_data
 
         layout.prop(gpd, "use_onion_skinning", text="Onion Skin")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(gpd, "show_edit_lines", text="Show Edit Lines")
+            layout.prop(tool_settings.gpencil_sculpt, "selection_alpha", text="Vertex Opacity", slider=True)
 
 
 class VIEW3D_PT_overlay_gpencil_paper(Panel):
