@@ -143,8 +143,8 @@ static void gp_draw_basic_stroke(tGPDfill *tgpf, bGPDstroke *gps, const float di
 	int cyclic_add = (cyclic) ? 1 : 0;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR);
 
@@ -279,7 +279,7 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	char err_out[256] = "unknown";
 	GPUOffScreen *offscreen = GPU_offscreen_create(tgpf->sizex, tgpf->sizey, 0, true, false, err_out);
 	GPU_offscreen_bind(offscreen, true);
-	unsigned int flag = IB_rect | IB_rectfloat;
+	uint flag = IB_rect | IB_rectfloat;
 	ImBuf *ibuf = IMB_allocImBuf(tgpf->sizex, tgpf->sizey, 32, flag);
 
 	rctf viewplane;
@@ -372,11 +372,11 @@ static void get_pixel(ImBuf *ibuf, int idx, float r_col[4])
 static void set_pixel(ImBuf *ibuf, int idx, const float col[4])
 {
 	if (ibuf->rect) {
-		unsigned int *rrect = &ibuf->rect[idx];
+		uint *rrect = &ibuf->rect[idx];
 		uchar ccol[4];
 
 		rgba_float_to_uchar(ccol, col);
-		*rrect = *((unsigned int *)ccol);
+		*rrect = *((uint *)ccol);
 	}
 
 	if (ibuf->rect_float) {

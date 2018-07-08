@@ -109,12 +109,12 @@ typedef enum eDrawStrokeFlags {
 #endif
 
 /* conversion utility (float --> normalized unsigned byte) */
-#define F2UB(x) (unsigned char)(255.0f * x)
+#define F2UB(x) (uchar)(255.0f * x)
 
 /* ----- Tool Buffer Drawing ------ */
 /* helper functions to set color of buffer point */
 
-static void gp_set_tpoint_varying_color(const tGPspoint *pt, const float ink[4], unsigned attrib_id)
+static void gp_set_tpoint_varying_color(const tGPspoint *pt, const float ink[4], uint attrib_id)
 {
 	float alpha = ink[3] * pt->strength;
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
@@ -128,7 +128,7 @@ static void gp_set_point_uniform_color(const bGPDspoint *pt, const float ink[4])
 	immUniformColor3fvAlpha(ink, alpha);
 }
 
-static void gp_set_point_varying_color(const bGPDspoint *pt, const float ink[4], unsigned attrib_id)
+static void gp_set_point_varying_color(const bGPDspoint *pt, const float ink[4], uint attrib_id)
 {
 	float alpha = ink[3] * pt->strength;
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
@@ -143,7 +143,7 @@ static void gp_draw_stroke_buffer_fill(const tGPspoint *points, int totpoints, f
 	}
 	int tot_triangles = totpoints - 2;
 	/* allocate memory for temporary areas */
-	unsigned int(*tmp_triangles)[3] = MEM_mallocN(sizeof(*tmp_triangles) * tot_triangles, "GP Stroke buffer temp triangulation");
+	uint(*tmp_triangles)[3] = MEM_mallocN(sizeof(*tmp_triangles) * tot_triangles, "GP Stroke buffer temp triangulation");
 	float(*points2d)[2] = MEM_mallocN(sizeof(*points2d) * totpoints, "GP Stroke buffer temp 2d points");
 
 	/* Convert points to array and triangulate
@@ -155,7 +155,7 @@ static void gp_draw_stroke_buffer_fill(const tGPspoint *points, int totpoints, f
 		points2d[i][0] = pt->x;
 		points2d[i][1] = pt->y;
 	}
-	BLI_polyfill_calc((const float(*)[2])points2d, (unsigned int)totpoints, 0, (unsigned int(*)[3])tmp_triangles);
+	BLI_polyfill_calc((const float(*)[2])points2d, (uint)totpoints, 0, (uint(*)[3])tmp_triangles);
 
 	/* draw triangulation data */
 	if (tot_triangles > 0) {
@@ -507,7 +507,7 @@ static void gp_triangulate_stroke_fill(bGPDstroke *gps)
 
 	/* allocate memory for temporary areas */
 	gps->tot_triangles = gps->totpoints - 2;
-	unsigned int (*tmp_triangles)[3] = MEM_mallocN(sizeof(*tmp_triangles) * gps->tot_triangles, "GP Stroke temp triangulation");
+	uint (*tmp_triangles)[3] = MEM_mallocN(sizeof(*tmp_triangles) * gps->tot_triangles, "GP Stroke temp triangulation");
 	float (*points2d)[2] = MEM_mallocN(sizeof(*points2d) * gps->totpoints, "GP Stroke temp 2d points");
 	float(*uv)[2] = MEM_mallocN(sizeof(*uv) * gps->totpoints, "GP Stroke temp 2d uv data");
 
@@ -515,7 +515,7 @@ static void gp_triangulate_stroke_fill(bGPDstroke *gps)
 
 	/* convert to 2d and triangulate */
 	gp_stroke_2d_flat(gps->points, gps->totpoints, points2d, &direction);
-	BLI_polyfill_calc(points2d, (unsigned int)gps->totpoints, direction, tmp_triangles);
+	BLI_polyfill_calc(points2d, (uint)gps->totpoints, direction, tmp_triangles);
 
 	/* calc texture coordinates automatically */
 	float minv[2];
@@ -566,7 +566,7 @@ static void gp_triangulate_stroke_fill(bGPDstroke *gps)
 
 /* add a new fill point and texture coordinates to vertex buffer */
 static void gp_add_filldata_tobuffer(
-        const bGPDspoint *pt, const float uv[2], uint pos, unsigned texcoord, short flag,
+        const bGPDspoint *pt, const float uv[2], uint pos, uint texcoord, short flag,
         int offsx, int offsy, int winx, int winy, const float diff_mat[4][4])
 {
 	float fpt[3];
@@ -589,7 +589,7 @@ static void gp_add_filldata_tobuffer(
 static int gp_set_filling_texture(Image *image, short flag)
 {
 	ImBuf *ibuf;
-	unsigned int *bind = &image->bindcode[TEXTARGET_TEXTURE_2D];
+	uint *bind = &image->bindcode[TEXTARGET_TEXTURE_2D];
 	int error = GL_NO_ERROR;
 	ImageUser iuser = { NULL };
 	void *lock;
@@ -639,7 +639,7 @@ static void gp_draw_stroke_fill(
 
 	Gwn_VertFormat *format = immVertexFormat();
 	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	unit texcoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint texcoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_GPENCIL_FILL);
 
 	immUniformColor4fv(color);

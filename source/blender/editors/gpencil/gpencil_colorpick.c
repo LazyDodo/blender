@@ -131,7 +131,7 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 	const size_t max_len = sizeof(drawstr);
 	const float minwidth = (float)(UI_DPI_ICON_SIZE);
 
-	unsigned char text_col[4];
+	uchar text_col[4];
 	if (focus) {
 		copy_v4_v4_char((char *)text_col, menuBack.text_sel);
 	}
@@ -149,7 +149,7 @@ static void gp_draw_color_name(tGPDpick *tgpk, tGPDpickColor *col, const uiFontS
 /* draw a pattern for alpha display */
 static void gp_draw_pattern_box(int xmin, int ymin, int xmax, int ymax)
 {
-	unsigned int position;
+	uint position;
 
 	Gwn_VertFormat *format = immVertexFormat();
 	position = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);

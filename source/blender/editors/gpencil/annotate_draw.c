@@ -90,12 +90,12 @@ typedef enum eDrawStrokeFlags {
 
 
 /* conversion utility (float --> normalized unsigned byte) */
-#define F2UB(x) (unsigned char)(255.0f * x)
+#define F2UB(x) (uchar)(255.0f * x)
 
 /* ----- Tool Buffer Drawing ------ */
 /* helper functions to set color of buffer point */
 // XXX: Remove these
-static void gp_set_tpoint_varying_color(const tGPspoint *pt, const float ink[4], unsigned attrib_id)
+static void gp_set_tpoint_varying_color(const tGPspoint *pt, const float ink[4], uint attrib_id)
 {
 	float alpha = ink[3];
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
@@ -109,7 +109,7 @@ static void gp_set_point_uniform_color(const bGPDspoint *pt, const float ink[4])
 	immUniformColor3fvAlpha(ink, alpha);
 }
 
-static void gp_set_point_varying_color(const bGPDspoint *pt, const float ink[4], unsigned attrib_id)
+static void gp_set_point_varying_color(const bGPDspoint *pt, const float ink[4], uint attrib_id)
 {
 	float alpha = ink[3];
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
@@ -138,8 +138,8 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 	}
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT); // XXX: Just set once
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT); // XXX: Just set once
 
 	const tGPspoint *pt = points;
 
@@ -242,7 +242,7 @@ static void gp_draw_stroke_point(
 	copy_v3_v3(fpt, &pt->x);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 	if (sflag & GP_STROKE_3DSPACE) {
 		immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
@@ -285,8 +285,8 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_SMOOTH_COLOR);
 
@@ -379,8 +379,8 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 		int i;
 
 		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 		immBegin(GWN_PRIM_TRI_STRIP, totpoints * 2 + 4);
@@ -679,9 +679,9 @@ static void gp_draw_strokes_edit(
 		selectColor[3] = alpha;
 
 		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos; /* specified later */
-		unsigned int size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-		unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		uint pos; /* specified later */
+		uint size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
+		uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 		if (gps->flag & GP_STROKE_3DSPACE) {
 			pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);

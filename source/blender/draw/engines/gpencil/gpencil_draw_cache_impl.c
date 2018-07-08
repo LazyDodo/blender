@@ -93,7 +93,7 @@ Gwn_Batch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const fl
 {
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, size_id, uvdata_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 		size_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
@@ -141,7 +141,7 @@ Gwn_Batch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short th
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 		thickness_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
@@ -209,7 +209,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 		thickness_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
@@ -282,7 +282,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 		thickness_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
@@ -359,7 +359,7 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 	}
@@ -411,7 +411,7 @@ Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float co
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, text_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 		text_id = GWN_vertformat_attr_add(&format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -470,7 +470,7 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id, size_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 		size_id = GWN_vertformat_attr_add(&format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
@@ -551,7 +551,7 @@ Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED
 
 	static Gwn_VertFormat format = { 0 };
 	static uint pos_id, color_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 	}

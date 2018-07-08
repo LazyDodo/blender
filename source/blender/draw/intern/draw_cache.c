@@ -520,8 +520,8 @@ Gwn_Batch *DRW_cache_gpencil_axes_get(void)
 
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
-		static unsigned pos_id;
-		if (format.attrib_ct == 0) {
+		static uint pos_id;
+		if (format.attr_len == 0) {
 			pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
