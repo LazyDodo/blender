@@ -641,7 +641,7 @@ static void gpencil_add_editpoints_shgroup(
 		if ((!obact) || (obact->type != OB_GPENCIL)) {
 			return;
 		}
-		bool is_weight_paint = (gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
+		const bool is_weight_paint = (gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
 
 		/* line of the original stroke */
 		if (cache->is_dirty) {
@@ -746,9 +746,10 @@ static void gpencil_draw_strokes(
 	DRWShadingGroup *fillgrp;
 	DRWShadingGroup *strokegrp;
 	float viewmatrix[4][4];
-	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
-	bool playing = (bool)stl->storage->playing;
-	bool is_render = (bool)stl->storage->is_render;
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+	const bool playing = (bool)stl->storage->playing;
+	const bool is_render = (bool)stl->storage->is_render;
+	const bool overlay_multiedit = v3d != NULL ? (v3d->flag3 & V3D_GP_SHOW_MULTIEDIT_LINES) : true;
 
 	/* Get evaluation context */
 	/* NOTE: We must check if C is valid, otherwise we get crashes when trying to save files
@@ -804,8 +805,7 @@ static void gpencil_draw_strokes(
 		}
 
 		if ((gpl->actframe->framenum == derived_gpf->framenum) ||
-		    (!is_multiedit) ||
-		    ((v3d->flag3 & V3D_GP_SHOW_MULTIEDIT_LINES) == 0))
+		    (!is_multiedit) || (overlay_multiedit))
 		{
 			int id = stl->storage->shgroup_id;
 			if (gps->totpoints > 0) {
@@ -1174,8 +1174,8 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 	int cfra_eval = (int)DEG_get_ctime(draw_ctx->depsgraph);
 	ToolSettings *ts = scene->toolsettings;
 	bGPDframe *derived_gpf = NULL;
-	bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE) || ((v3d->flag3 & V3D_GP_SHOW_ONION_SKIN) == 0);
-	bool overlay = (bool)((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0);
+	const bool no_onion = (bool)(gpd->flag & GP_DATA_STROKE_WEIGHTMODE) || ((v3d->flag3 & V3D_GP_SHOW_ONION_SKIN) == 0);
+	const bool overlay = v3d != NULL ? (bool)((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) : true;
 
 	/* check if playing animation */
 	bool playing = (bool)stl->storage->playing;
