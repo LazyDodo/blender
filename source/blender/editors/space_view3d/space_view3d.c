@@ -689,6 +689,7 @@ static void view3d_lightcache_update(bContext *C)
 
 	WM_operator_properties_create(&op_ptr, "SCENE_OT_light_cache_bake");
 	RNA_int_set(&op_ptr, "delay", 200);
+	RNA_enum_set_identifier(C, &op_ptr, "subset", "DIRTY");
 
 	WM_operator_name_call(C, "SCENE_OT_light_cache_bake", WM_OP_INVOKE_DEFAULT, &op_ptr);
 

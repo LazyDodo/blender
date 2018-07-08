@@ -5836,6 +5836,11 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Cubemap Draw Size", "Size of the cubemap spheres to debug captured light");
 
+	prop = RNA_def_property(srna, "gi_auto_bake", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_GI_AUTOBAKE);
+	RNA_def_property_boolean_default(prop, 0);
+	RNA_def_property_ui_text(prop, "Auto Bake", "Auto bake indirect lighting when editing probes");
+
 	/* Temporal Anti-Aliasing (super sampling) */
 	prop = RNA_def_property(srna, "taa_samples", PROP_INT, PROP_NONE);
 	RNA_def_property_int_default(prop, 16);

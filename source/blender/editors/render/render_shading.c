@@ -33,6 +33,7 @@
 
 #include "DNA_curve_types.h"
 #include "DNA_lamp_types.h"
+#include "DNA_lightprobe_types.h"
 #include "DNA_material_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
@@ -676,6 +677,29 @@ void SCENE_OT_view_layer_remove(wmOperatorType *ot)
 }
 
 /********************** light cache operators *********************/
+enum {
+	LIGHTCACHE_SUBSET_ALL = 0,
+	LIGHTCACHE_SUBSET_DIRTY,
+	LIGHTCACHE_SUBSET_CUBE,
+};
+
+static void light_cache_bake_tag_cache(Scene *scene, wmOperator *op)
+{
+	if (scene->eevee.light_cache != NULL) {
+		int subset = RNA_enum_get(op->ptr, "subset");
+		switch (subset) {
+			case LIGHTCACHE_SUBSET_ALL:
+				scene->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_GRID | LIGHTCACHE_UPDATE_CUBE;
+				break;
+			case LIGHTCACHE_SUBSET_CUBE:
+				scene->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_CUBE;
+				break;
+			case LIGHTCACHE_SUBSET_DIRTY:
+				/* Leave tag untouched. */
+				break;
+		}
+	}
+}
 
 /* catch esc */
 static int light_cache_bake_modal(bContext *C, wmOperator *op, const wmEvent *event)
@@ -705,7 +729,7 @@ static void light_cache_bake_cancel(bContext *C, wmOperator *op)
 }
 
 /* executes blocking render */
-static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
+static int light_cache_bake_exec(bContext *C, wmOperator *op)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Main *bmain = CTX_data_main(C);
@@ -715,6 +739,9 @@ static int light_cache_bake_exec(bContext *C, wmOperator *UNUSED(op))
 
 	/* TODO abort if selected engine is not eevee. */
 	void *rj = EEVEE_lightbake_job_data_alloc(bmain, view_layer, scene, false);
+
+	light_cache_bake_tag_cache(scene, op);
+
 	short stop = 0, do_update; float progress; /* Not actually used. */
 	EEVEE_lightbake_job(rj, &stop, &do_update, &progress);
 	EEVEE_lightbake_update(rj);
@@ -746,6 +773,8 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 	/* add modal handler for ESC */
 	WM_event_add_modal_handler(C, op);
 
+	light_cache_bake_tag_cache(scene, op);
+
 	/* store actual owner of job, so modal operator could check for it,
 	 * the reason of this is that active scene could change when rendering
 	 * several layers from compositor [#31800]
@@ -761,6 +790,13 @@ static int light_cache_bake_invoke(bContext *C, wmOperator *op, const wmEvent *U
 
 void SCENE_OT_light_cache_bake(wmOperatorType *ot)
 {
+	static const EnumPropertyItem light_cache_subset_items[] = {
+		{LIGHTCACHE_SUBSET_ALL, "ALL", 0, "All LightProbes", ""},
+		{LIGHTCACHE_SUBSET_DIRTY, "DIRTY", 0, "Dirty Only", ""},
+		{LIGHTCACHE_SUBSET_CUBE, "CUBEMAPS", 0, "Cubemaps Only", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	/* identifiers */
 	ot->name = "Bake Light Cache";
 	ot->idname = "SCENE_OT_light_cache_bake";
@@ -772,7 +808,10 @@ void SCENE_OT_light_cache_bake(wmOperatorType *ot)
 	ot->cancel = light_cache_bake_cancel;
 	ot->exec = light_cache_bake_exec;
 
-	ot->prop = RNA_def_int(ot->srna, "delay", 0, 0, 2000, "Delay", "Delay in millisecond before baking start.", 0, 2000);
+	ot->prop = RNA_def_int(ot->srna, "delay", 0, 0, 2000, "Delay", "Delay in millisecond before baking starts", 0, 2000);
+	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
+
+	ot->prop = RNA_def_enum(ot->srna, "subset", light_cache_subset_items, 0, "Subset", "Subset of probes to update");
 	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
 }
 

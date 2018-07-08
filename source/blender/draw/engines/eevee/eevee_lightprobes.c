@@ -837,19 +837,22 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 		const DRWContextState *draw_ctx = DRW_context_state_get();
 		BLI_assert(draw_ctx->evil_C);
 
-		Scene *scene_orig = DEG_get_input_scene(draw_ctx->depsgraph);
-
-		if (scene_orig->eevee.light_cache != NULL) {
-			if (pinfo->do_grid_update) {
-				scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_GRID;
+		if (draw_ctx->scene->eevee.flag & SCE_EEVEE_GI_AUTOBAKE) {
+			Scene *scene_orig = DEG_get_input_scene(draw_ctx->depsgraph);
+			if (scene_orig->eevee.light_cache != NULL) {
+				if (pinfo->do_grid_update) {
+					scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_GRID;
+				printf("LIGHTCACHE_UPDATE_GRID\n");
+				}
+				/* If we update grid we need to update the cubemaps too.
+				 * So always refresh cubemaps. */
+				scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_CUBE;
+				printf("LIGHTCACHE_UPDATE_CUBE\n");
 			}
-			/* If we update grid we need to update the cubemaps too.
-			 * So always refresh cubemaps. */
-			scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_CUBE;
-		}
 
-		/* Use a notifier to trigger the operator after all */
-		WM_event_add_notifier(draw_ctx->evil_C, NC_LIGHTPROBE, scene_orig);
+			/* Use a notifier to trigger the operator after drawing. */
+			WM_event_add_notifier(draw_ctx->evil_C, NC_LIGHTPROBE, scene_orig);
+		}
 	}
 }
 

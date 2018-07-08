@@ -718,6 +718,8 @@ class RENDER_PT_eevee_indirect_lighting(RenderButtonsPanel, Panel):
 
         col = layout.column()
         col.operator("scene.light_cache_bake", text="Bake Indirect Lighting", icon='RENDER_STILL')
+        col.prop(props, "gi_auto_bake")
+
         col.prop(props, "gi_diffuse_bounces")
         col.prop(props, "gi_cubemap_resolution")
         col.prop(props, "gi_visibility_resolution", text="Diffuse Occlusion")

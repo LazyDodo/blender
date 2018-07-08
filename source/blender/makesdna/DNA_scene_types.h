@@ -2108,6 +2108,7 @@ enum {
 	SCE_EEVEE_SSR_HALF_RESOLUTION	= (1 << 16),
 	SCE_EEVEE_SHOW_IRRADIANCE		= (1 << 17),
 	SCE_EEVEE_SHOW_CUBEMAPS			= (1 << 18),
+	SCE_EEVEE_GI_AUTOBAKE			= (1 << 19),
 };
 
 /* SceneEEVEE->shadow_method */
