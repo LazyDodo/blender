@@ -186,8 +186,8 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	// }
 
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
-	bsdf->v = clamp(bsdf->v, 0.001f, 0.999f);
-	bsdf->s = clamp(bsdf->s, 0.001f, 0.999f);
+	bsdf->v = clamp(bsdf->v, 0.001f, 1.0f);
+	bsdf->s = clamp(bsdf->s, 0.001f, 1.0f);
 
 	/* Map from roughness_u and roughness_v to variance and scale factor. */
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
