@@ -44,7 +44,7 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
 	{	SOCK_FLOAT,		1, N_("Offset"),					2.f*((float)M_PI)/180.f, 0.0f, 0.0f, 0.0f, -M_PI_2, M_PI_2, PROP_ANGLE},
 	{	SOCK_FLOAT, 	1, N_("Color Randomization"),		0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT, 	1, N_("Roughness Randomization"),	0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
-	{	SOCK_FLOAT,		1, N_("Random")},
+	{	SOCK_FLOAT,		1, N_("Random"),					0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_NONE, SOCK_HIDE_VALUE},
 	{	-1, 0, ""	},
 };
 
