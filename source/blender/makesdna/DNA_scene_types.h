@@ -996,7 +996,7 @@ typedef struct GP_BrushEdit_Settings {
 	int brushtype;                /* eGP_EditBrush_Types (sculpt) */
 	int flag;                     /* eGP_BrushEdit_SettingsFlag */
 	int lock_axis;                /* eGP_Lockaxis_Types lock drawing to one axis */
-	float alpha;                  /* alpha factor for selection color */
+	char pad1[4];
 
 	/* weight paint is a submode of sculpt but use its own index. All weight paint
 	 * brushes must be defined at the end of the brush array.

@@ -896,7 +896,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 					if (gset) {
-						gset->alpha = 1.0f;
 						gset->weighttype = GP_EDITBRUSH_TYPE_WEIGHT;
 					}
 				}
@@ -1667,6 +1666,21 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 				sb->pointcache = NULL;
 				BLI_listbase_clear(&sb->ptcaches);
+			}
+		}
+
+		/* initialize grease pencil view data */
+		if (!DNA_struct_elem_find(fd->filesdna, "SpaceView3D", "float", "vertex_opacity")) {
+			for (bScreen *sc = bmain->screen.first; sc; sc = sc->id.next) {
+				for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->vertex_opacity = 1.0f;
+							v3d->flag3 |= V3D_GP_SHOW_EDIT_LINES;
+						}
+					}
+				}
 			}
 		}
 

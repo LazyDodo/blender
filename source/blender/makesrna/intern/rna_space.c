@@ -3060,6 +3060,15 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Onion Skins", "Show ghosts of the frames before and after the current frame");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
+	/* vertex opacity */
+	prop = RNA_def_property(srna, "vertex_opacity", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "vertex_opacity");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Vertex Opacity", "Opacity for edit vertices");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_GPencil_update");
+
+
 	/* Stereo Settings */
 	prop = RNA_def_property(srna, "stereo_3d_eye", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "multiview_eye");

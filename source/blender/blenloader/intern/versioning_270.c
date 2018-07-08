@@ -1405,8 +1405,6 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				ToolSettings *ts = scene->toolsettings;
 				/* initialize use position for sculpt brushes */
 				ts->gp_sculpt.flag |= GP_BRUSHEDIT_FLAG_APPLY_POSITION;
-				/* initialize  selected vertices alpha factor */
-				ts->gp_sculpt.alpha = 1.0f;
 
 				/* new strength sculpt brush */
 				if (ts->gp_sculpt.brush[0].size >= 11) {

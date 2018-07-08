@@ -634,7 +634,7 @@ static void gpencil_add_editpoints_shgroup(
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 	/* alpha factor for edit points/line to make them more subtle */
-	float edit_alpha = ts->gp_sculpt.alpha;
+	float edit_alpha = v3d->vertex_opacity;
 
 	if (GPENCIL_ANY_EDIT_MODE(gpd)) {
 		Object *obact = DRW_context_state_get()->obact;

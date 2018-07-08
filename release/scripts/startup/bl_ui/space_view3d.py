@@ -4323,8 +4323,6 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
     def draw(self, context):
         layout = self.layout
         view = context.space_data
-        tool_settings = context.tool_settings
-        gpd = context.gpencil_data
 
         layout.prop(view, "use_gpencil_paper", text="Drawing Paper")
 
@@ -4341,7 +4339,7 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(view, "use_gpencil_edit_lines", text="Show Edit Lines")
             layout.prop(view, "use_gpencil_multiedit_line_only", text="Only Edit Lines In Multiframe")
-            layout.prop(tool_settings.gpencil_sculpt, "selection_alpha", text="Vertex Opacity", slider=True)
+            layout.prop(view, "vertex_opacity", text="Vertex Opacity", slider=True)
 
 
 class VIEW3D_PT_quad_view(Panel):

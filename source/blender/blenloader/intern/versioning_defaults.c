@@ -175,8 +175,6 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 				ARRAY_SET_ITEMS(curcolor_add, 1.0f, 0.6f, 0.6f);
 				ARRAY_SET_ITEMS(curcolor_sub, 0.6f, 0.6f, 1.0f);
 
-				/* edit points alpha color */
-				gset->alpha = 1.0f;
 				/* default sculpt brush */
 				gset->brushtype = GP_EDITBRUSH_TYPE_PUSH;
 				/* default weight paint brush */

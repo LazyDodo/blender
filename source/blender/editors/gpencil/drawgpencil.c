@@ -1670,7 +1670,7 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 
 		if (gpd_source) {
 			if (brush != NULL) {
-				gp_draw_data(rv3d, brush, ts->gp_sculpt.alpha, NULL, gpd_source,
+				gp_draw_data(rv3d, brush, 1.0f, NULL, gpd_source,
 				             offsx, offsy, winx, winy, cfra, dflag);
 			}
 		}
@@ -1680,7 +1680,7 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 	 * if gpd_source == gpd, we don't have any object/track data and we can skip */
 	if (gpd_source == NULL || (gpd_source && gpd_source != gpd)) {
 		if (brush != NULL) {
-			gp_draw_data(rv3d, brush, ts->gp_sculpt.alpha, NULL, gpd,
+			gp_draw_data(rv3d, brush, 1.0f, NULL, gpd,
 			             offsx, offsy, winx, winy, cfra, dflag);
 		}
 	}
@@ -1808,7 +1808,7 @@ void ED_gpencil_draw_view3d_object(wmWindowManager *wm, Scene *scene, Depsgraph 
 	ToolSettings *ts = scene->toolsettings;
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
 	if (brush != NULL) {
-		gp_draw_data(rv3d, brush, ts->gp_sculpt.alpha, ob, gpd,
+		gp_draw_data(rv3d, brush, 1.0f, ob, gpd,
 			offsx, offsy, winx, winy, CFRA, dflag);
 	}
 }

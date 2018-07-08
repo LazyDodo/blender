@@ -364,6 +364,10 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->stereo3d_convergence_alpha = 0.15f;
 	v3d->stereo3d_volume_alpha = 0.05f;
 
+	/* grease pencil settings */
+	v3d->vertex_opacity = 1.0f;
+	v3d->flag3 |= V3D_GP_SHOW_EDIT_LINES;
+
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for view3d");
 

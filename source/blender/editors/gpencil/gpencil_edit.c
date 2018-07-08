@@ -453,17 +453,16 @@ static bool gp_strokes_edit3d_poll(bContext *C)
 
 static int gpencil_hideselect_toggle_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	ToolSettings *ts = CTX_data_tool_settings(C);
-
-	if (ts == NULL)
+	View3D *v3d = CTX_wm_view3d(C);
+	if (v3d == NULL)
 		return OPERATOR_CANCELLED;
 
 	/* Just toggle alpha... */
-	if (ts->gp_sculpt.alpha > 0.0f) {
-		ts->gp_sculpt.alpha = 0.0f;
+	if (v3d->vertex_opacity > 0.0f) {
+		v3d->vertex_opacity = 0.0f;
 	}
 	else {
-		ts->gp_sculpt.alpha = 1.0f;
+		v3d->vertex_opacity = 1.0f;
 	}
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL);

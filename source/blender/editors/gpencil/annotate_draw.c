@@ -917,8 +917,6 @@ static void gp_draw_data_all(Scene *scene, bGPdata *gpd, int offsx, int offsy, i
 			gpd_source = (scene->clip->gpd ? scene->clip->gpd : NULL);
 		}
 
-		alpha = ts->gp_sculpt.alpha;
-
 		if (gpd_source) {
 			gp_draw_data(gpd_source, offsx, offsy, winx, winy, cfra, dflag, alpha);
 		}

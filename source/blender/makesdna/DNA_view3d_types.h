@@ -247,7 +247,8 @@ typedef struct View3D {
 
 	char multiview_eye;				/* multiview current eye - for internal use */
 
-	char pad3[4];
+	/* actually only used to define the opacity of the grease pencil vertex in edit mode */
+	float vertex_opacity;                  
 
 	/* note, 'fx_settings.dof' is currently _not_ allocated,
 	 * instead set (temporarily) from camera */
