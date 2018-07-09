@@ -840,20 +840,34 @@ static bool transform_modal_item_poll(const wmOperator *op, int value)
 			if (t->spacetype != SPACE_VIEW3D) {
 				return false;
 			}
-			break;
-		}
-		case TFM_MODAL_AXIS_Z:
-		{
-			if (t->flag & T_2D_EDIT) {
+			else if (t->tsnap.mode & (SCE_SNAP_MODE_INCREMENT | SCE_SNAP_MODE_GRID)) {
+				return false;
+			}
+			else if (!validSnap(t)) {
 				return false;
 			}
 			break;
 		}
+		case TFM_MODAL_AXIS_X:
+		case TFM_MODAL_AXIS_Y:
+		case TFM_MODAL_AXIS_Z:
 		case TFM_MODAL_PLANE_X:
 		case TFM_MODAL_PLANE_Y:
 		case TFM_MODAL_PLANE_Z:
 		{
-			if (t->flag & T_2D_EDIT) {
+			if (t->flag & T_NO_CONSTRAINT) {
+				return false;
+			}
+			if (!ELEM(value, TFM_MODAL_AXIS_X, TFM_MODAL_AXIS_Y)) {
+				if (t->flag & T_2D_EDIT) {
+					return false;
+				}
+			}
+			break;
+		}
+		case TFM_MODAL_CONS_OFF:
+		{
+			if ((t->con.mode & CON_APPLY) == 0) {
 				return false;
 			}
 			break;
@@ -881,7 +895,6 @@ static bool transform_modal_item_poll(const wmOperator *op, int value)
 			}
 			break;
 		}
-
 	}
 	return true;
 }
@@ -1619,6 +1632,12 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 	{
 		t->redraw |= TREDRAW_HARD;
 		handled = true;
+	}
+
+	if (t->redraw &&
+	    !ELEM(event->type, MOUSEMOVE, INBETWEEN_MOUSEMOVE))
+	{
+		WM_window_status_area_tag_redraw(CTX_wm_window(t->context));
 	}
 
 	if (handled || t->redraw) {
