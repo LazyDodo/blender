@@ -762,7 +762,7 @@ class GreasePencilDataPanel:
 
         # Grease Pencil data...
         if (gpd is None) or (not gpd.layers):
-            layout.operator("gpencil.layer_add", text="New Layer")
+            layout.operator("gpencil.layer_add", text="New Note")
         else:
             self.draw_layers(context, layout, gpd)
 
