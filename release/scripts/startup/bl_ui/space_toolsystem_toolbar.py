@@ -128,12 +128,25 @@ class _defs_view3d_generic:
 class _defs_annotate:
     @classmethod
     def draw_settings_common(cls, context, layout, tool):
-        pass
+        user_prefs = context.user_preferences
+        #tool_settings = context.tool_settings
+
+        # XXX: These context checks are needed for layer-dependent settings,
+        # but this breaks for using topbar for 2D editor active tools, etc.
+        gpd = context.gpencil_data
+        gpl = context.active_gpencil_layer
+
+        if gpd and gpl:
+            layout.prop_search(gpd.layers, "active", gpd, "layers", text="")
+            layout.prop(gpl, "line_change", text="Thickness")  # XXX: Replace with proper thickness control
+        else:
+            layout.prop(user_prefs.edit, "grease_pencil_default_color", text="Color")
+            layout.label("Thickness: [...]")
 
     @ToolDef.from_fn
     def scribble():
         def draw_settings(context, layout, tool):
-            pass
+            _defs_annotate.draw_settings_common(context, layout, tool)
 
         return dict(
             text="Annotate",
@@ -149,8 +162,7 @@ class _defs_annotate:
     @ToolDef.from_fn
     def line():
         def draw_settings(context, layout, tool):
-            # XXX: Reuse
-            pass
+            _defs_annotate.draw_settings_common(context, layout, tool)
 
         return dict(
             text="Draw Line",
@@ -166,8 +178,7 @@ class _defs_annotate:
     @ToolDef.from_fn
     def poly():
         def draw_settings(context, layout, tool):
-            # XXX: Reuse
-            pass
+            _defs_annotate.draw_settings_common(context, layout, tool)
 
         return dict(
             text="Draw Polygon",

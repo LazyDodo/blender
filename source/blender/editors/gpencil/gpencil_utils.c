@@ -100,7 +100,6 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Scene 
 			/* XXX: Should we reduce reliance on context.gpencil_data for these cases? */
 			case SPACE_BUTS: /* properties */
 			case SPACE_INFO: /* header info (needed after workspaces merge) */
-			case SPACE_TOPBAR: /* Topbar (needed after topbar merge) */
 			{
 				if (ob && (ob->type == OB_GPENCIL)) {
 					/* GP Object */
@@ -114,6 +113,7 @@ bGPdata **ED_gpencil_data_get_pointers_direct(ID *screen_id, ScrArea *sa, Scene 
 				break;
 			}
 
+			case SPACE_TOPBAR: /* Topbar (needed after topbar merge) */
 			case SPACE_VIEW3D: /* 3D-View */
 			{
 				if (ob && (ob->type == OB_GPENCIL)) {

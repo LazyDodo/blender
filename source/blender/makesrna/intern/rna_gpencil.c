@@ -288,6 +288,15 @@ static void rna_GPencil_active_layer_set(PointerRNA *ptr, PointerRNA value)
 {
 	bGPdata *gpd = ptr->id.data;
 
+	/* Don't allow setting active layer to NULL if layers exist
+	 * as this breaks various tools. Tools should be used instead
+	 * if it's necessary to remove layers
+	 */
+	if (value.data == NULL) {
+		printf("%s: Setting active layer to None is not allowed\n", __func__);
+		return;
+	}
+
 	if (GS(gpd->id.name) == ID_GD) { /* why would this ever be not GD */
 		bGPDlayer *gl;
 
@@ -1044,7 +1053,7 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 
-	/* expose as layers.active */
+	/* exposed as layers.active */
 #if 0
 	prop = RNA_def_property(srna, "active", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_ACTIVE);
@@ -1058,7 +1067,6 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Select", "Layer is selected for editing in the Dope Sheet");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_SELECTED, "rna_GPencil_update");
 
-	/* XXX keep this option? */
 	prop = RNA_def_property(srna, "show_points", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_DRAWDEBUG);
 	RNA_def_property_ui_text(prop, "Show Points", "Draw the points which make up the strokes (for debugging purposes)");
