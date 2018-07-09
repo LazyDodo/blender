@@ -112,6 +112,7 @@ typedef struct EEVEE_LightBake {
 	int irr_size[3];                 /* Size of the irradiance texture. */
 	int total_irr_samples;           /* Total for all grids */
 	int grid_sample;                 /* Nth sample of the current grid being rendered. */
+	int grid_sample_len;             /* Total number of samples for the current grid. */
 	int grid_curr;                   /* Nth grid in the cache being rendered. */
 	int bounce_curr, bounce_len;     /* The current light bounce being evaluated. */
 	float vis_range, vis_blur;       /* Sample Visibility compression and bluring. */
@@ -790,7 +791,7 @@ static void eevee_lightbake_render_grid_sample(void *ved, void *user_data)
 	/* If it is the last sample grid sample (and last bounce). */
 	if ((lbake->bounce_curr == lbake->bounce_len - 1) &&
 	    (lbake->grid_curr == lbake->grid_len - 1) &&
-	    (lbake->grid_sample == lbake->grid_sample - 1))
+	    (lbake->grid_sample == lbake->grid_sample_len - 1))
 	{
 		lcache->flag &= ~LIGHTCACHE_UPDATE_GRID;
 	}
@@ -994,11 +995,11 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 			     ++lbake->grid_curr, ++lbake->probe, ++lbake->grid)
 			{
 				LightProbe *prb = *lbake->probe;
-				const int grid_sample_count = prb->grid_resolution_x *
-				                              prb->grid_resolution_y *
-				                              prb->grid_resolution_z;
+				lbake->grid_sample_len = prb->grid_resolution_x *
+				                         prb->grid_resolution_y *
+				                         prb->grid_resolution_z;
 				for (lbake->grid_sample = 0;
-				     lbake->grid_sample < grid_sample_count;
+				     lbake->grid_sample < lbake->grid_sample_len;
 				     ++lbake->grid_sample)
 				{
 					lightbake_do_sample(lbake, eevee_lightbake_render_grid_sample);
