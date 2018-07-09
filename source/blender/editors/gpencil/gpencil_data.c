@@ -103,7 +103,9 @@
 /* add new datablock - wrapper around API */
 static int gp_data_add_exec(bContext *C, wmOperator *op)
 {
-	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, NULL);
+	PointerRNA gpd_owner = {{NULL}};
+	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, &gpd_owner);
+	bool is_annotation = ED_gpencil_data_owner_is_annotation(&gpd_owner);
 
 	if (gpd_ptr == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "Nowhere for grease pencil data to go");
@@ -113,13 +115,35 @@ static int gp_data_add_exec(bContext *C, wmOperator *op)
 		/* decrement user count and add new datablock */
 		/* TODO: if a datablock exists, we should make a copy of it instead of starting fresh (as in other areas) */
 		Main *bmain = CTX_data_main(C);
-		bGPdata *gpd = (*gpd_ptr);
+		bGPdata *gpd;
 
-		id_us_min((ID *)gpd);
-		*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("GPencil"));
+		/* decrement user count of old GP datablock */
+		if (*gpd_ptr) {
+			gpd = (*gpd_ptr);
+			id_us_min(&gpd->id);
+		}
 
-		/* add default sets of colors and brushes */
-		ED_gpencil_add_defaults(C);
+		/* add new datablock, with a single layer ready to use (so users don't have to perform an extra step) */
+		if (is_annotation) {
+			bGPdata *gpd = BKE_gpencil_data_addnew(bmain, DATA_("Notes"));
+			*gpd_ptr = gpd;
+
+			/* tag for annotations */
+			gpd->flag |= GP_DATA_ANNOTATIONS;
+
+			/* add new layer (i.e. a "note") */
+			BKE_gpencil_layer_addnew(*gpd_ptr, DATA_("Note"), true);
+		}
+		else {
+			/* GP Object Case - This shouldn't happen! */
+			*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("GPencil"));
+
+			/* add default sets of colors and brushes */
+			ED_gpencil_add_defaults(C);
+
+			/* add new layer */
+			BKE_gpencil_layer_addnew(*gpd_ptr, DATA_("GP_Layer"), true);
+		}
 	}
 
 	/* notifiers */
@@ -200,15 +224,12 @@ static int gp_layer_add_exec(bContext *C, wmOperator *op)
 {
 	PointerRNA gpd_owner = {{NULL}};
 	bGPdata **gpd_ptr = ED_gpencil_data_get_pointers(C, &gpd_owner);
-	bool is_annotation = false;
+	bool is_annotation = ED_gpencil_data_owner_is_annotation(&gpd_owner);
 
 	/* if there's no existing Grease-Pencil data there, add some */
 	if (gpd_ptr == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "Nowhere for grease pencil data to go");
 		return OPERATOR_CANCELLED;
-	}
-	else {
-		is_annotation = ED_gpencil_data_owner_is_annotation(&gpd_owner);
 	}
 
 	if (*gpd_ptr == NULL) {
