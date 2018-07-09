@@ -400,17 +400,18 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 	bool changed = false;
 	float cur[3] = { 0 };
 
-	Object *gp_ob = ED_add_gpencil_object(C,scene, cur);
-	gpd = gp_ob->data;
+	if (scene->gpd == NULL) {
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "Notes");
+	}
+	gpd = scene->gpd;
+
 	gpl = BLI_findstring(&gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 	if (gpl == NULL) {
 		gpl = BKE_gpencil_layer_addnew(gpd, ruler_name, false);
+		copy_v4_v4(gpl->color, U.gpencil_new_layer_col);
 		gpl->thickness = 1;
 		gpl->flag |= GP_LAYER_HIDE;
 	}
-
-	/* try to get active color or create a new one */
-	Material *mat = BKE_gpencil_material_ensure(bmain, ob);
 
 	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
 	BKE_gpencil_free_strokes(gpf);
@@ -445,8 +446,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 		}
 		gps->flag = GP_STROKE_3DSPACE;
 		gps->thickness = 3;
-		/* assign color to stroke */
-		gps->mat_nr = BKE_object_material_slot_find_index(ob, mat) - 1;
 
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
