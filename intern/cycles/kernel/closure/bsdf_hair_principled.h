@@ -186,12 +186,14 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 1.0f);
 	bsdf->s = clamp(bsdf->s, 0.001f, 1.0f);
+	/* Apply Primary Reflection Roughness modifier. */
+	bsdf->m0_roughness = clamp(bsdf->m0_roughness*bsdf->v, 0.001f, 1.0f);
 
 	/* Map from roughness_u and roughness_v to variance and scale factor. */
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
-	bsdf->m0_roughness = clamp(bsdf->m0_roughness*bsdf->v, 0.001f, 0.999f);
-
+	bsdf->m0_roughness = sqr(0.726f*bsdf->m0_roughness + 0.812f*sqr(bsdf->m0_roughness) + 3.700f*pow20(bsdf->m0_roughness));
+	
 	/* Compute local frame, aligned to curve tangent and ray direction. */
 	float3 X = safe_normalize(sd->dPdu);
 	float3 Y = safe_normalize(cross(X, sd->I));
