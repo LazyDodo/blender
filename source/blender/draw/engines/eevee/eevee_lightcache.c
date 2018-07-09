@@ -902,7 +902,7 @@ static bool eevee_lightbake_cube_comp(EEVEE_LightProbe *prb_a, EEVEE_LightProbe 
 	return (vol_a < vol_b);
 }
 
-#define SORT_PROBE(elems_type, elems, elems_len, comp_fn) \
+#define SORT_PROBE(elems_type, prbs, elems, elems_len, comp_fn) \
 { \
 	bool sorted = false; \
 	while (!sorted) { \
@@ -910,6 +910,7 @@ static bool eevee_lightbake_cube_comp(EEVEE_LightProbe *prb_a, EEVEE_LightProbe 
 		for (int i = 0; i < (elems_len) - 1; ++i) { \
 			if ((comp_fn)((elems) + i, (elems) + i+1)) { \
 				SWAP(elems_type, (elems)[i], (elems)[i+1]); \
+				SWAP(LightProbe *, (prbs)[i], (prbs)[i+1]); \
 				sorted = false; \
 			} \
 		} \
@@ -948,8 +949,8 @@ static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 
-	SORT_PROBE(EEVEE_LightGrid, lcache->grid_data + 1, lbake->grid_len - 1, eevee_lightbake_grid_comp);
-	SORT_PROBE(EEVEE_LightProbe, lcache->cube_data + 1, lbake->cube_len - 1, eevee_lightbake_cube_comp);
+	SORT_PROBE(EEVEE_LightGrid, lbake->grid_prb + 1, lcache->grid_data + 1, lbake->grid_len - 1, eevee_lightbake_grid_comp);
+	SORT_PROBE(EEVEE_LightProbe, lbake->cube_prb + 1, lcache->cube_data + 1, lbake->cube_len - 1, eevee_lightbake_cube_comp);
 
 	lbake->total = lbake->total_irr_samples * lbake->bounce_len + lbake->cube_len;
 	lbake->done = 0;
