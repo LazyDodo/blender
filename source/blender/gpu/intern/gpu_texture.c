@@ -1068,10 +1068,17 @@ void GPU_texture_update_sub(
 
 void *GPU_texture_read(GPUTexture *tex, GPUDataFormat gpu_data_format, int miplvl)
 {
+	int size[3] = {0, 0, 0};
+	GPU_texture_get_mipmap_size(tex, miplvl, size);
+
 	gpu_validate_data_format(tex->format, gpu_data_format);
 
 	size_t buf_size = gpu_texture_memory_footprint_compute(tex);
-	size_t samples_count = (buf_size / tex->bytesize);
+	size_t samples_count = max_ii(1, tex->samples);
+
+	samples_count *= size[0];
+	samples_count *= max_ii(1, size[1]);
+	samples_count *= max_ii(1, size[2]);
 
 	switch (gpu_data_format) {
 		case GPU_DATA_FLOAT:
