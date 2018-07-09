@@ -627,9 +627,9 @@ public:
 	/* Direct coloring's color. */
 	float3 color;
 	/* Melanin concentration. */
-	float melanin_concentration;
+	float melanin;
 	/* Melanin redness ratio. */
-	float melanin_redness_ratio;
+	float melanin_redness;
 	/* Dye color. */
 	float3 tint;
 	/* Randomization factor for melanin quantities. */

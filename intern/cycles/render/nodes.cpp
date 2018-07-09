@@ -3069,8 +3069,8 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 
 	// Initialize all sockets to their default values.
 	SOCKET_IN_COLOR(color, "Color", make_float3(0.8f, 0.8f, 0.8f));
-	SOCKET_IN_FLOAT(melanin_concentration, "Melanin", 1.3f);
-	SOCKET_IN_FLOAT(melanin_redness_ratio, "Melanin Redness", 1.0f);
+	SOCKET_IN_FLOAT(melanin, "Melanin", 1.3f);
+	SOCKET_IN_FLOAT(melanin_redness, "Melanin Redness", 1.0f);
 	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
 	SOCKET_IN_FLOAT(color_randomization, "Color Randomization", 0.0f);
 	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
@@ -3125,8 +3125,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *offset_in = input("Offset");
 	ShaderInput *primary_reflection_roughness_in = input("Undercoat Roughness");
 	ShaderInput *ior_in = input("IOR");
-	ShaderInput *melanin_concentration_in =  input("Melanin");
-	ShaderInput *melanin_redness_ratio_in = input("Melanin Redness");
+	ShaderInput *melanin_in =  input("Melanin");
+	ShaderInput *melanin_redness_in = input("Melanin Redness");
 	ShaderInput *color_randomization_in = input("Color Randomization");
 
 	int color_ofs = compiler.stack_assign(input("Color"));
@@ -3159,12 +3159,12 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	compiler.add_node(
 		compiler.encode_uchar4(
 			compiler.stack_assign_if_linked(primary_reflection_roughness_in),
-			compiler.stack_assign_if_linked(melanin_concentration_in),
-			compiler.stack_assign_if_linked(melanin_redness_ratio_in),
+			compiler.stack_assign_if_linked(melanin_in),
+			compiler.stack_assign_if_linked(melanin_redness_in),
 			absorption_coefficient_ofs),
 		__float_as_uint(primary_reflection_roughness),
-		__float_as_uint(melanin_concentration),
-		__float_as_uint(melanin_redness_ratio));
+		__float_as_uint(melanin),
+		__float_as_uint(melanin_redness));
 
 	compiler.add_node(
 		compiler.encode_uchar4(
