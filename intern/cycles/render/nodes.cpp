@@ -3068,7 +3068,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	NodeType* type = NodeType::add("principled_hair_bsdf", create, NodeType::SHADER);
 
 	// Initialize all sockets to their default values.
-	SOCKET_IN_COLOR(color, "Color", make_float3(0.8f, 0.8f, 0.8f));
+	SOCKET_IN_COLOR(color, "Color", make_float3(0.09292f, 0.02100f, 0.00417f));
 	SOCKET_IN_FLOAT(melanin, "Melanin", 1.3f);
 	SOCKET_IN_FLOAT(melanin_redness, "Melanin Redness", 1.0f);
 	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));

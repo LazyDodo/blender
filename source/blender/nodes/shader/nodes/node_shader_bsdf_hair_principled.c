@@ -30,7 +30,8 @@
 /* **************** OUTPUT ******************** */
 
 static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
-	{	SOCK_RGBA,		1, N_("Color"),						0.8f, 0.8f, 0.8f, 1.0f, 0.0f, 1.0f},
+	// This value was chosen empirically from rendering Bitterli's hair
+	{	SOCK_RGBA,		1, N_("Color"),						0.09292f, 0.02100f, 0.00417f, 1.0f, 0.0f, 1.0f},
 	{	SOCK_FLOAT,		1, N_("Melanin"),					1.3f, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f},
 	{	SOCK_FLOAT,		1, N_("Melanin Redness"),			1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_RGBA,		1, N_("Tint"),						1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f},
