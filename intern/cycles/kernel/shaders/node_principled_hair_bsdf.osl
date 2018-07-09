@@ -65,9 +65,9 @@ shader node_principled_hair_bsdf(
 
 	float adjusted_roughness = Roughness*factor_random_roughness;
 	float adjusted_radial_roughness = RadialRoughness*factor_random_roughness;
-	float melanin_qty = -log(max(1.0 - Melanin, 0.0001));
-	float adjusted_eumelanin = melanin_qty*(1.0-MelaninRedness)*factor_random_color;
-	float adjusted_pheomelanin = melanin_qty*MelaninRedness*factor_random_color;
+	float melanin_qty = -log(max(1.0 - Melanin*factor_random_color, 0.0001));
+	float adjusted_eumelanin = melanin_qty*(1.0-MelaninRedness);
+	float adjusted_pheomelanin = melanin_qty*MelaninRedness;
 
 	if (parametrization == "Absorption coefficient") {
 		sigma = AbsorptionCoefficient;
