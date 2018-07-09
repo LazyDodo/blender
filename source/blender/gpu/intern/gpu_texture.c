@@ -1086,9 +1086,9 @@ void *GPU_texture_read(GPUTexture *tex, GPUDataFormat gpu_data_format, int miplv
 			break;
 		case GPU_DATA_INT:
 		case GPU_DATA_UNSIGNED_INT:
-		case GPU_DATA_UNSIGNED_INT_24_8:
 			buf_size = sizeof(int) * samples_count * tex->components;
 			break;
+		case GPU_DATA_UNSIGNED_INT_24_8:
 		case GPU_DATA_10_11_11_REV:
 			buf_size = sizeof(int) * samples_count;
 			break;
