@@ -864,7 +864,7 @@ static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, cons
 /* eraser tool - evaluation per stroke */
 /* TODO: this could really do with some optimization (KD-Tree/BVH?) */
 static void gp_stroke_eraser_dostroke(tGPsdata *p,
-                                      bGPDlayer *UNUSED(gpl), bGPDframe *gpf, bGPDstroke *gps,
+                                      bGPDframe *gpf, bGPDstroke *gps,
                                       const int mval[2], const int mvalo[2],
                                       const int radius, const rcti *rect)
 {
@@ -954,7 +954,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 /* erase strokes which fall under the eraser strokes */
 static void gp_stroke_doeraser(tGPsdata *p)
 {
-	bGPDlayer *gpl;
+	bGPDframe *gpf = p->gpf;
 	bGPDstroke *gps, *gpn;
 	rcti rect;
 
@@ -972,30 +972,16 @@ static void gp_stroke_doeraser(tGPsdata *p)
 		}
 	}
 
-	/* loop over all layers too, since while it's easy to restrict editing to
-	 * only a subset of layers, it is harder to perform the same erase operation
-	 * on multiple layers...
+	/* loop over strokes of active layer only (session init already took care of ensuring validity),
+	 * checking segments for intersections to remove
 	 */
-	for (gpl = p->gpd->layers.first; gpl; gpl = gpl->next) {
-		bGPDframe *gpf = gpl->actframe;
-
-		/* only affect layer if it's editable (and visible) */
-		if (gpencil_layer_is_editable(gpl) == false) {
-			continue;
-		}
-		else if (gpf == NULL) {
-			continue;
-		}
-
-		/* loop over strokes, checking segments for intersections */
-		for (gps = gpf->strokes.first; gps; gps = gpn) {
-			gpn = gps->next;
-			/* Not all strokes in the datablock may be valid in the current editor/context
-			 * (e.g. 2D space strokes in the 3D view, if the same datablock is shared)
-			 */
-			if (ED_gpencil_stroke_can_use_direct(p->sa, gps)) {
-				gp_stroke_eraser_dostroke(p, gpl, gpf, gps, p->mval, p->mvalo, p->radius, &rect);
-			}
+	for (gps = gpf->strokes.first; gps; gps = gpn) {
+		gpn = gps->next;
+		/* Not all strokes in the datablock may be valid in the current editor/context
+		 * (e.g. 2D space strokes in the 3D view, if the same datablock is shared)
+		 */
+		if (ED_gpencil_stroke_can_use_direct(p->sa, gps)) {
+			gp_stroke_eraser_dostroke(p, gpf, gps, p->mval, p->mvalo, p->radius, &rect);
 		}
 	}
 }
@@ -1282,36 +1268,21 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	/* get active frame (add a new one if not matching frame) */
 	if (paintmode == GP_PAINTMODE_ERASER) {
 		/* Eraser mode:
-		 * 1) Add new frames to all frames that we might touch,
+		 * 1) Only allow erasing on the active layer (unlike for 3d-art Grease Pencil),
+		 *    since we won't be exposing layer locking in the UI
 		 * 2) Ensure that p->gpf refers to the frame used for the active layer
 		 *    (to avoid problems with other tools which expect it to exist)
 		 */
 		bool has_layer_to_erase = false;
 
-		for (bGPDlayer *gpl = p->gpd->layers.first; gpl; gpl = gpl->next) {
-			/* Skip if layer not editable */
-			if (gpencil_layer_is_editable(gpl) == false)
-				continue;
-
-			/* Add a new frame if needed (and based off the active frame,
-			 * as we need some existing strokes to erase)
-			 *
-			 * Note: We don't add a new frame if there's nothing there now, so
-			 *       -> If there are no frames at all, don't add one
-			 *       -> If there are no strokes in that frame, don't add a new empty frame
-			 */
-			if (gpl->actframe && gpl->actframe->strokes.first) {
-				gpl->actframe = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_ADD_COPY);
+		if (gpencil_layer_is_editable(p->gpl)) {
+			/* Ensure that there's stuff to erase here (not including selection mask below)... */
+			if (p->gpl->actframe && p->gpl->actframe->strokes.first) {
 				has_layer_to_erase = true;
 			}
-
-			/* XXX: we omit GP_FRAME_PAINT here for now,
-			 * as it is only really useful for doing
-			 * paintbuffer drawing
-			 */
 		}
 
-		/* Ensure this gets set... */
+		/* Ensure active frame is set correctly... */
 		p->gpf = p->gpl->actframe;
 
 		/* Restrict eraser to only affecting selected strokes, if the "selection mask" is on
@@ -1332,7 +1303,7 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	}
 	else {
 		/* Drawing Modes - Add a new frame if needed on the active layer */
-		short add_frame_mode;
+		short add_frame_mode = GP_GETFRAME_ADD_NEW;
 
 		if (ts->gpencil_flags & GP_TOOL_FLAG_RETAIN_LAST)
 			add_frame_mode = GP_GETFRAME_ADD_COPY;
