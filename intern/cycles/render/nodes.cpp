@@ -3072,7 +3072,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(melanin, "Melanin", 1.3f);
 	SOCKET_IN_FLOAT(melanin_redness, "Melanin Redness", 1.0f);
 	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
-	SOCKET_IN_FLOAT(color_randomization, "Color Randomization", 0.0f);
+	SOCKET_IN_FLOAT(random_color, "Random Color", 0.0f);
 	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
 	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
 	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
@@ -3087,7 +3087,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(offset, "Offset", 2.f*M_PI_F/180.f);
 	SOCKET_IN_FLOAT(roughness_u, "Roughness", 0.3f);
 	SOCKET_IN_FLOAT(roughness_v, "Radial Roughness", 0.3f);
-	SOCKET_IN_FLOAT(roughness_randomization, "Roughness Randomization", 0.0f);
+	SOCKET_IN_FLOAT(random_roughness, "Random Roughness", 0.0f);
 	SOCKET_IN_FLOAT(primary_reflection_roughness, "Undercoat Roughness", 1.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
@@ -3121,13 +3121,13 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 
 	ShaderInput *roughness_u_in = input("Roughness");
 	ShaderInput *roughness_v_in = input("Radial Roughness");
-	ShaderInput *roughness_randomization_in = input("Roughness Randomization");
+	ShaderInput *random_roughness_in = input("Random Roughness");
 	ShaderInput *offset_in = input("Offset");
 	ShaderInput *primary_reflection_roughness_in = input("Undercoat Roughness");
 	ShaderInput *ior_in = input("IOR");
 	ShaderInput *melanin_in =  input("Melanin");
 	ShaderInput *melanin_redness_in = input("Melanin Redness");
-	ShaderInput *color_randomization_in = input("Color Randomization");
+	ShaderInput *random_color_in = input("Random Color");
 
 	int color_ofs = compiler.stack_assign(input("Color"));
 	int tint_ofs = compiler.stack_assign(input("Tint"));
@@ -3170,11 +3170,11 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 		compiler.encode_uchar4(
 			tint_ofs,
 			compiler.stack_assign_if_linked(random_in),
-			compiler.stack_assign_if_linked(color_randomization_in),
-			compiler.stack_assign_if_linked(roughness_randomization_in)),
+			compiler.stack_assign_if_linked(random_color_in),
+			compiler.stack_assign_if_linked(random_roughness_in)),
 		__float_as_uint(random),
-		__float_as_uint(color_randomization),
-		__float_as_uint(roughness_randomization));
+		__float_as_uint(random_color),
+		__float_as_uint(random_roughness));
 
 	compiler.add_node(
 		compiler.encode_uchar4(

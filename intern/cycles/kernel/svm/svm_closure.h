@@ -742,11 +742,11 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			float melanin_qty = (stack_valid(melanin_qty_ofs)) ? stack_load_float(stack, melanin_qty_ofs) : __uint_as_float(data_node2.z);
 			float melanin_ratio = (stack_valid(melanin_ratio_ofs)) ? stack_load_float(stack, melanin_ratio_ofs) : __uint_as_float(data_node2.w);
 			
-			uint tint_ofs, random_ofs, color_randomization_ofs, roughness_randomization_ofs;
-			decode_node_uchar4(data_node3.x, &tint_ofs, &random_ofs, &color_randomization_ofs, &roughness_randomization_ofs);
-			float color_randomization = (stack_valid(color_randomization_ofs)) ? stack_load_float(stack, color_randomization_ofs) : __uint_as_float(data_node3.z);
-			color_randomization = clamp(color_randomization, 0.0f, 1.0f);
-			float roughness_randomization = (stack_valid(roughness_randomization_ofs)) ? stack_load_float(stack, roughness_randomization_ofs) : __uint_as_float(data_node3.w);
+			uint tint_ofs, random_ofs, random_color_ofs, random_roughness_ofs;
+			decode_node_uchar4(data_node3.x, &tint_ofs, &random_ofs, &random_color_ofs, &random_roughness_ofs);
+			float random_color = (stack_valid(random_color_ofs)) ? stack_load_float(stack, random_color_ofs) : __uint_as_float(data_node3.z);
+			random_color = clamp(random_color, 0.0f, 1.0f);
+			float random_roughness = (stack_valid(random_roughness_ofs)) ? stack_load_float(stack, random_roughness_ofs) : __uint_as_float(data_node3.w);
 
 			const AttributeDescriptor attr_descr_random = find_attribute(kg, sd, data_node4.y);
 			float random = 0.0f;
@@ -758,8 +758,8 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			}
 
 			// Random factors range: [-randomization/2, +randomization/2].
-			float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*color_randomization;
-			float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*roughness_randomization;
+			float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*random_color;
+			float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*random_roughness;
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {

@@ -617,7 +617,7 @@ public:
 	/* Azimuthal roughness. */
 	float roughness_v;
 	/* Randomization factor for roughnesses. */
-	float roughness_randomization;
+	float random_roughness;
 	/* Longitudinal roughness factor for only the diffuse bounce (shiny undercoat). */
 	float primary_reflection_roughness;
 	/* Index of reflection. */
@@ -633,7 +633,7 @@ public:
 	/* Dye color. */
 	float3 tint;
 	/* Randomization factor for melanin quantities. */
-	float color_randomization;
+	float random_color;
 	/* Absorption coefficient (unfiltered). */
 	float3 absorption_coefficient;
 

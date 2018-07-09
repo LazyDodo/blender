@@ -24,7 +24,7 @@ shader node_principled_hair_bsdf(
 	color Color = color(0.09292, 0.02100, 0.00417),
 	float Melanin = 0.0,
 	float MelaninRedness = 1.3,
-	float ColorRandomization = 0.0,
+	float RandomColor = 0.0,
 	color Tint = 1.0,
 	color AbsorptionCoefficient = color(0.245531, 0.52, 1.365),
 	normal Normal = Ng,
@@ -32,7 +32,7 @@ shader node_principled_hair_bsdf(
 	float Offset = radians(2),
 	float Roughness = 0.3,
 	float RadialRoughness = 0.3,
-	float RoughnessRandomization = 0.0,
+	float RandomRoughness = 0.0,
 	float UndercoatRoughness = 1.0,
 	float IOR = 1.55,
 	string AttrRandom = "none",
@@ -51,8 +51,8 @@ shader node_principled_hair_bsdf(
 		random_value = Random;
 	}
 
-	float factor_random_color = 1.0 + 2.0*(random_value - 0.5)*ColorRandomization;
-	float factor_random_roughness = 1.0 + 2.0*(random_value - 0.5)*RoughnessRandomization;
+	float factor_random_color = 1.0 + 2.0*(random_value - 0.5)*RandomColor;
+	float factor_random_roughness = 1.0 + 2.0*(random_value - 0.5)*RandomRoughness;
 
 	float adjusted_roughness = Roughness*factor_random_roughness;
 	float adjusted_radial_roughness = RadialRoughness*factor_random_roughness;
@@ -80,7 +80,7 @@ shader node_principled_hair_bsdf(
 		sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
 	}
 
-	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming color range %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, roughness range %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, sigma, ColorRandomization, Roughness, RadialRoughness, RoughnessRandomization, Offset, IOR);
+	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming color range %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, roughness range %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, sigma, RandomColor, Roughness, RadialRoughness, RandomRoughness, Offset, IOR);
 
 	BSDF = principled_hair(Normal, sigma, adjusted_roughness, adjusted_radial_roughness, UndercoatRoughness, Offset, IOR);
 }
