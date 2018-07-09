@@ -493,8 +493,8 @@ void EEVEE_lightprobes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 		psl->probe_display = DRW_pass_create("LightProbe Display", state);
 
 		/* Cube Display */
-		if (scene_eval->eevee.flag & SCE_EEVEE_SHOW_CUBEMAPS) {
-			int cube_len = GPU_texture_layers(lcache->cube_tx.tex) - 1; /* don't count the world. */
+		if (scene_eval->eevee.flag & SCE_EEVEE_SHOW_CUBEMAPS && lcache->cube_len > 1) {
+			int cube_len = lcache->cube_len - 1; /* don't count the world. */
 			DRWShadingGroup *grp = DRW_shgroup_empty_tri_batch_create(e_data.probe_cube_display_sh,
 			                                                          psl->probe_display, cube_len * 2);
 			DRW_shgroup_uniform_texture_ref(grp, "probeCubes", &lcache->cube_tx.tex);
@@ -842,12 +842,10 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 			if (scene_orig->eevee.light_cache != NULL) {
 				if (pinfo->do_grid_update) {
 					scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_GRID;
-				printf("LIGHTCACHE_UPDATE_GRID\n");
 				}
 				/* If we update grid we need to update the cubemaps too.
 				 * So always refresh cubemaps. */
 				scene_orig->eevee.light_cache->flag |= LIGHTCACHE_UPDATE_CUBE;
-				printf("LIGHTCACHE_UPDATE_CUBE\n");
 			}
 
 			/* Use a notifier to trigger the operator after drawing. */

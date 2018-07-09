@@ -177,8 +177,11 @@ static bool EEVEE_lightcache_validate(
 		    (irr_size[1] == light_cache->grid_tx.tex_size[1]) &&
 		    (irr_size[2] == light_cache->grid_tx.tex_size[2]))
 		{
+			int mip_len = (int)(floorf(log2f(cube_res)) - MIN_CUBE_LOD_LEVEL);
 			if ((cube_res == light_cache->cube_tx.tex_size[0]) &&
-			    (cube_len == light_cache->cube_tx.tex_size[2])) {
+			    (cube_len == light_cache->cube_tx.tex_size[2]) &&
+			    (mip_len  == light_cache->mips_len))
+			{
 				return true;
 			}
 		}
@@ -430,7 +433,10 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 		eevee->light_cache = lbake->lcache;
 	}
 
+	EEVEE_lightcache_load(eevee->light_cache);
+
 	lbake->lcache->flag |= LIGHTCACHE_BAKING;
+	lbake->lcache->cube_len = 1;
 }
 
 wmJob *EEVEE_lightbake_job_create(
@@ -1010,7 +1016,6 @@ void EEVEE_lightbake_job(void *custom_data, short *stop, short *do_update, float
 
 	/* Render reflections */
 	if (lcache->flag & LIGHTCACHE_UPDATE_CUBE) {
-		lcache->cube_len = 1;
 		/* Bypass world, start at 1. */
 		lbake->probe = lbake->cube_prb + 1;
 		lbake->cube = lcache->cube_data + 1;
