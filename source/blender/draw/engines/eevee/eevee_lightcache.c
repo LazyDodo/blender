@@ -407,6 +407,10 @@ static void eevee_lightbake_count_probes(EEVEE_LightBake *lbake)
 
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
+		if (!BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_FOR_RENDER)) {
+			continue;
+		}
+
 		if (ob->type == OB_LIGHTPROBE) {
 			LightProbe *prb = (LightProbe *)ob->data;
 
@@ -939,6 +943,10 @@ static void eevee_lightbake_gather_probes(EEVEE_LightBake *lbake)
 	 * This allows a large number of probe to be precomputed (even dupli ones). */
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
+		if (!BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_FOR_RENDER)) {
+			continue;
+		}
+
 		if (ob->type == OB_LIGHTPROBE) {
 			LightProbe *prb = (LightProbe *)ob->data;
 
