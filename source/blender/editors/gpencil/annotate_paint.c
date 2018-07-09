@@ -806,17 +806,6 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 
 /* --- 'Eraser' for 'Paint' Tool ------ */
 
-/* which which point is infront (result should only be used for comparison) */
-static float view3d_point_depth(const RegionView3D *rv3d, const float co[3])
-{
-	if (rv3d->is_persp) {
-		return ED_view3d_calc_zfac(rv3d, co, NULL);
-	}
-	else {
-		return -dot_v3v3(rv3d->viewinv[2], co);
-	}
-}
-
 /* helper to free a stroke
  * NOTE: gps->dvert and gps->triangles should be NULL, but check anyway for good measure
  */
@@ -838,7 +827,19 @@ static void gp_free_stroke(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps)
 	BLI_freelinkN(&gpf->strokes, gps);
 }
 
-/* only erase stroke points that are visible */
+
+/* which which point is infront (result should only be used for comparison) */
+static float view3d_point_depth(const RegionView3D *rv3d, const float co[3])
+{
+	if (rv3d->is_persp) {
+		return ED_view3d_calc_zfac(rv3d, co, NULL);
+	}
+	else {
+		return -dot_v3v3(rv3d->viewinv[2], co);
+	}
+}
+
+/* only erase stroke points that are visible (3d view) */
 static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, const int x, const int y)
 {
 	if ((p->sa->spacetype == SPACE_VIEW3D) &&
@@ -935,7 +936,6 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 					    (gp_stroke_eraser_is_occluded(p, pt2, pc2[0], pc2[1]) == false))
 					{
 						/* Point is affected */
-						/* XXX: Should we only cull the ones inside the brush? */
 						pt1->flag |= GP_SPOINT_TAG;
 						pt2->flag |= GP_SPOINT_TAG;
 						do_cull = true;
@@ -1182,10 +1182,14 @@ static bool gp_session_initdata(bContext *C, tGPsdata *p)
 	else {
 		/* if no existing GPencil block exists, add one */
 		if (*gpd_ptr == NULL) {
-			*gpd_ptr = BKE_gpencil_data_addnew(bmain, "Notes");
-			(*gpd_ptr)->flag |= GP_DATA_ANNOTATIONS;
+			bGPdata *gpd = BKE_gpencil_data_addnew(bmain, "Notes");
+			*gpd_ptr = gpd;
+
+			/* mark datablock as being used for annotations */
+			gpd->flag |= GP_DATA_ANNOTATIONS;
+
 			/* annotations always in front of all objects */
-			(*gpd_ptr)->xray_mode = GP_XRAY_FRONT;
+			gpd->xray_mode = GP_XRAY_FRONT;
 		}
 		p->gpd = *gpd_ptr;
 	}
@@ -1212,7 +1216,7 @@ static tGPsdata *gp_session_initpaint(bContext *C)
 	tGPsdata *p = NULL;
 
 	/* create new context data */
-	p = MEM_callocN(sizeof(tGPsdata), "GPencil Drawing Data");
+	p = MEM_callocN(sizeof(tGPsdata), "Annotation Drawing Data");
 
 	gp_session_initdata(C, p);
 
