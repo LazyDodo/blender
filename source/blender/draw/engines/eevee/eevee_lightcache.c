@@ -35,6 +35,8 @@
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
 
+#include "BKE_object.h"
+
 #include "DNA_lightprobe_types.h"
 #include "DNA_group_types.h"
 
@@ -262,7 +264,7 @@ LightCache *EEVEE_lightcache_create(
 	light_cache->cube_mips = MEM_callocN(sizeof(LightCacheTexture) * light_cache->mips_len, "LightCacheTexture");
 
 	for (int mip = 0; mip < light_cache->mips_len; ++mip) {
-		GPU_texture_get_mipmap_size(light_cache->cube_tx.tex, mip, light_cache->cube_mips[mip].tex_size);
+		GPU_texture_get_mipmap_size(light_cache->cube_tx.tex, mip + 1, light_cache->cube_mips[mip].tex_size);
 	}
 
 	light_cache->flag = LIGHTCACHE_UPDATE_WORLD | LIGHTCACHE_UPDATE_CUBE | LIGHTCACHE_UPDATE_GRID;
@@ -324,10 +326,13 @@ static void eevee_lightbake_readback_reflections(LightCache *lcache)
 	lcache->cube_tx.components = 1;
 
 	for (int mip = 0; mip < lcache->mips_len; ++mip) {
-		MEM_SAFE_FREE(lcache->cube_mips[mip].data);
-		lcache->cube_mips[mip].data = GPU_texture_read(lcache->cube_tx.tex, GPU_DATA_10_11_11_REV, mip + 1);
-		lcache->cube_mips[mip].data_type = LIGHTCACHETEX_UINT;
-		lcache->cube_mips[mip].components = 1;
+		LightCacheTexture *cube_mip = lcache->cube_mips + mip;
+		MEM_SAFE_FREE(cube_mip->data);
+		GPU_texture_get_mipmap_size(lcache->cube_tx.tex, mip + 1, cube_mip->tex_size);
+
+		cube_mip->data = GPU_texture_read(lcache->cube_tx.tex, GPU_DATA_10_11_11_REV, mip + 1);
+		cube_mip->data_type = LIGHTCACHETEX_UINT;
+		cube_mip->components = 1;
 	}
 }
 
