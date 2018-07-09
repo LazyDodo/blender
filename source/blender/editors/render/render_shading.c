@@ -834,6 +834,8 @@ static int light_cache_free_exec(bContext *C, wmOperator *UNUSED(op))
 	EEVEE_lightcache_free(scene->eevee.light_cache);
 	scene->eevee.light_cache = NULL;
 
+	EEVEE_lightcache_info_update(&scene->eevee);
+
 	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_OPTIONS, scene);

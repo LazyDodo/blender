@@ -30,6 +30,7 @@
 
 struct ViewLayer;
 struct Scene;
+struct SceneEEVEE;
 struct LightCache;
 struct EEVEE_ViewLayerData;
 struct EEVEE_Data;
@@ -53,5 +54,6 @@ struct LightCache *EEVEE_lightcache_create(
         const int irr_size[3]);
 void EEVEE_lightcache_free(struct LightCache *lcache);
 void EEVEE_lightcache_load(struct LightCache *lcache);
+void EEVEE_lightcache_info_update(struct SceneEEVEE *eevee);
 
 #endif /* __EEVEE_LIGHTCACHE_H__ */

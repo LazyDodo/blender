@@ -5841,6 +5841,11 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	RNA_def_property_boolean_default(prop, 0);
 	RNA_def_property_ui_text(prop, "Auto Bake", "Auto bake indirect lighting when editing probes");
 
+	prop = RNA_def_property(srna, "gi_cache_info", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "light_cache_info");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Light Cache Info", "Info on current cache status");
+
 	/* Temporal Anti-Aliasing (super sampling) */
 	prop = RNA_def_property(srna, "taa_samples", PROP_INT, PROP_NONE);
 	RNA_def_property_int_default(prop, 16);

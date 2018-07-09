@@ -150,6 +150,50 @@ typedef struct EEVEE_LightBake {
 /** \name Light Cache
  * \{ */
 
+/* Return memory footprint in bytes. */
+static unsigned int eevee_lightcache_memsize_get(LightCache *lcache)
+{
+	unsigned int size = 0;
+	if (lcache->grid_tx.data) {
+		size += MEM_allocN_len(lcache->grid_tx.data);
+	}
+	if (lcache->cube_tx.data) {
+		size += MEM_allocN_len(lcache->cube_tx.data);
+		for (int mip = 0; mip < lcache->mips_len; ++mip) {
+			size += MEM_allocN_len(lcache->cube_mips[mip].data);
+		}
+	}
+	return size;
+}
+
+static int eevee_lightcache_irradiance_sample_count(LightCache *lcache)
+{
+	int total_irr_samples = 0;
+
+	for (int i = 1; i < lcache->grid_len; ++i) {
+		EEVEE_LightGrid *egrid = lcache->grid_data + i;
+		total_irr_samples += egrid->resolution[0] * egrid->resolution[1] * egrid->resolution[2];
+	}
+	return total_irr_samples;
+}
+
+void EEVEE_lightcache_info_update(SceneEEVEE *eevee)
+{
+	LightCache *lcache = eevee->light_cache;
+
+	if (lcache != NULL) {
+		char formatted_mem[15];
+		BLI_str_format_byte_unit(formatted_mem, eevee_lightcache_memsize_get(lcache), true);
+
+		int irr_samples = eevee_lightcache_irradiance_sample_count(lcache);
+
+		BLI_snprintf(eevee->light_cache_info, sizeof(eevee->light_cache_info), IFACE_("%d Ref. Cubemaps, %d Irr. Samples (%s in memory)"), lcache->cube_len - 1, irr_samples, formatted_mem);
+	}
+	else {
+		BLI_strncpy(eevee->light_cache_info, IFACE_("No light cache in this scene."), sizeof(eevee->light_cache_info));
+	}
+}
+
 static void irradiance_pool_size_get(int visibility_size, int total_samples, int r_size[3])
 {
 	/* Compute how many irradiance samples we can store per visibility sample. */
@@ -924,6 +968,8 @@ void EEVEE_lightbake_update(void *custom_data)
 		scene_orig->eevee.light_cache = lbake->lcache;
 		lbake->own_light_cache = false;
 	}
+
+	EEVEE_lightcache_info_update(&lbake->scene->eevee);
 
 	DEG_id_tag_update(&scene_orig->id, DEG_TAG_COPY_ON_WRITE);
 }
