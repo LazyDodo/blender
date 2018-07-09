@@ -45,8 +45,6 @@ typedef ccl_addr_space struct PrincipledHairBSDF {
 	float eta;
 	/* Effective variance for the diffuse bounce only. */
 	float m0_roughness;
-	/* Random number sample (unused). */
-	float random;
 
 	/* Extra closure. */
 	PrincipledHairExtra *extra;

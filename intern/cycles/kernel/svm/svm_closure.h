@@ -783,7 +783,6 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				bsdf->m0_roughness = m0_roughness;
 				bsdf->alpha = alpha;
 				bsdf->eta = ior;
-				bsdf->random = random;
 				bsdf->extra = extra;
 
 				float3 color = stack_load_float3(stack, color_ofs);
