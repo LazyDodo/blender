@@ -801,7 +801,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						break;
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION: {
 						// Benedikt Bitterli's melanin ratio remapping (adjusted for linearity).
-						melanin_qty = -logf(fmaxf(1.0 - melanin_qty, 0.0001));
+						melanin_qty = -logf(fmaxf(1.0f - melanin_qty, 0.0001f));
 						float eumelanin = melanin_qty*(1.0f-melanin_ratio);
 						float pheomelanin = melanin_qty*melanin_ratio;
 						float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*random_color;
