@@ -2129,10 +2129,6 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		return;
 	}
 
-	if (v3d->overlay.object_type_exclude & (1 << ob->type)) {
-		return;
-	}
-
 	bool do_outlines = (draw_ctx->v3d->flag & V3D_SELECT_OUTLINE) && ((ob->base_flag & BASE_SELECTED) != 0);
 	bool show_relations = ((draw_ctx->v3d->flag & V3D_HIDE_HELPLINES) == 0);
 
@@ -2278,7 +2274,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		if ((ob->dtx & OB_DRAWNAME) && DRW_state_show_text()) {
 			struct DRWTextStore *dt = DRW_text_cache_ensure();
 
-			unsigned char color[4];
+			uchar color[4];
 			UI_GetThemeColor4ubv(theme_id, color);
 
 			DRW_text_cache_add(

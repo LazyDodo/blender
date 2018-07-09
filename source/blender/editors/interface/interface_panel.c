@@ -469,23 +469,6 @@ void UI_draw_icon_tri(float x, float y, char dir, const float color[4])
 	}
 }
 
-/* triangle 'icon' inside rect */
-static void ui_draw_tria_rect(const rctf *rect, char dir)
-{
-	float color[4];
-	UI_GetThemeColor3fv(TH_TITLE, color);
-	color[3] = 1.0f;
-
-	if (dir == 'h') {
-		float half = 0.5f * BLI_rctf_size_y(rect);
-		UI_draw_anti_tria(rect->xmin, rect->ymin, rect->xmin, rect->ymax, rect->xmax, rect->ymin + half, color);
-	}
-	else {
-		float half = 0.5f * BLI_rctf_size_x(rect);
-		UI_draw_anti_tria(rect->xmin, rect->ymax, rect->xmax, rect->ymax, rect->xmin + half, rect->ymin, color);
-	}
-}
-
 static void ui_draw_anti_x(unsigned int pos, float x1, float y1, float x2, float y2)
 {
 
@@ -695,7 +678,7 @@ void ui_draw_aligned_panel(uiStyle *style, uiBlock *block, const rcti *rect, con
 		titlerect.xmin += 5.0f / block->aspect;
 	}
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	if (!is_subpanel) {
@@ -708,7 +691,7 @@ void ui_draw_aligned_panel(uiStyle *style, uiBlock *block, const rcti *rect, con
 		if (UI_GetThemeValue(TH_PANEL_SHOW_HEADER)) {
 			/* draw with background color */
 			immUniformThemeColor(TH_PANEL_HEADER);
-			immRectf(pos, minx, headrect.ymin + 1, maxx, y);
+			immRectf(pos, minx, headrect.ymin, maxx, y);
 
 			immBegin(GWN_PRIM_LINES, 4);
 
@@ -770,7 +753,7 @@ void ui_draw_aligned_panel(uiStyle *style, uiBlock *block, const rcti *rect, con
 		ui_draw_aligned_panel_header(style, block, &titlerect, 'h');
 
 		if (show_drag) {
-			unsigned int col;
+			uint col;
 			Gwn_VertFormat *format = immVertexFormat();
 			pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
@@ -853,12 +836,18 @@ void ui_draw_aligned_panel(uiStyle *style, uiBlock *block, const rcti *rect, con
 
 	BLI_rctf_scale(&itemrect, 0.25f);
 
-	if (is_closed_y)
-		ui_draw_tria_rect(&itemrect, 'h');
-	else if (is_closed_x)
-		ui_draw_tria_rect(&itemrect, 'h');
-	else
-		ui_draw_tria_rect(&itemrect, 'v');
+	{
+		float tria_color[4];
+		UI_GetThemeColor3fv(TH_TITLE, tria_color);
+		tria_color[3] = 1.0f;
+
+		if (is_closed_y)
+			ui_draw_anti_tria_rect(&itemrect, 'h', tria_color);
+		else if (is_closed_x)
+			ui_draw_anti_tria_rect(&itemrect, 'h', tria_color);
+		else
+			ui_draw_anti_tria_rect(&itemrect, 'v', tria_color);
+	}
 }
 
 /************************** panel alignment *************************/
@@ -1741,30 +1730,30 @@ static void ui_panel_category_draw_tab(
 	int a;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	/* mult */
 	for (a = 0; a < 4; a++) {
 		mul_v2_fl(vec[a], rad);
 	}
 
-	unsigned int vert_ct = 0;
+	uint vert_len = 0;
 	if (use_highlight) {
-		vert_ct += (roundboxtype & UI_CNR_TOP_RIGHT) ? 6 : 1;
-		vert_ct += (roundboxtype & UI_CNR_TOP_LEFT) ? 6 : 1;
+		vert_len += (roundboxtype & UI_CNR_TOP_RIGHT) ? 6 : 1;
+		vert_len += (roundboxtype & UI_CNR_TOP_LEFT) ? 6 : 1;
 	}
 	if (use_highlight && !use_shadow) {
-		vert_ct++;
+		vert_len++;
 	}
 	else {
-		vert_ct += (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 6 : 1;
-		vert_ct += (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 6 : 1;
+		vert_len += (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 6 : 1;
+		vert_len += (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 6 : 1;
 	}
 
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
-	immBegin(filled ? GWN_PRIM_TRI_FAN : GWN_PRIM_LINE_STRIP, vert_ct);
+	immBegin(filled ? GWN_PRIM_TRI_FAN : GWN_PRIM_LINE_STRIP, vert_len);
 
 	/* start with corner right-top */
 	if (use_highlight) {
@@ -1969,7 +1958,7 @@ void UI_panel_category_draw_all(ARegion *ar, const char *category_id_active)
 	/* begin drawing */
 	GPU_line_smooth(true);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	/* draw the background */

@@ -1973,11 +1973,7 @@ static int wm_handler_operator_call(bContext *C, ListBase *handlers, wmEventHand
 
 					if (op->type->modalkeymap) {
 						wmWindow *win = CTX_wm_window(C);
-						bScreen *sc = WM_window_get_active_screen(win);
-						ScrArea *sa = WM_window_find_area_status(win, sc);
-						if (sa != NULL) {
-							ED_area_tag_redraw(sa);
-						}
+						WM_window_status_area_tag_redraw(win);
 					}
 				}
 				else {
@@ -3211,11 +3207,7 @@ wmEventHandler *WM_event_add_modal_handler(bContext *C, wmOperator *op)
 	BLI_addhead(&win->modalhandlers, handler);
 
 	if (op->type->modalkeymap) {
-		bScreen *sc = WM_window_get_active_screen(win);
-		ScrArea *sa = WM_window_find_area_status(win, sc);
-		if (sa != NULL) {
-			ED_area_tag_redraw(sa);
-		}
+		WM_window_status_area_tag_redraw(win);
 	}
 
 	return handler;
@@ -4352,7 +4344,7 @@ const char *WM_window_cursor_keymap_status_get(const wmWindow *win, int button_i
  * Similar to #BKE_screen_area_map_find_area_xy and related functions,
  * use here since the ara is stored in the window manager.
  */
-ScrArea *WM_window_find_area_status(wmWindow *win, bScreen *screen)
+ScrArea *WM_window_status_area_find(wmWindow *win, bScreen *screen)
 {
 	if (screen->state == SCREENFULL) {
 		return NULL;
@@ -4367,10 +4359,19 @@ ScrArea *WM_window_find_area_status(wmWindow *win, bScreen *screen)
 	return sa_statusbar;
 }
 
+void WM_window_status_area_tag_redraw(wmWindow *win)
+{
+	bScreen *sc = WM_window_get_active_screen(win);
+	ScrArea *sa = WM_window_status_area_find(win, sc);
+	if (sa != NULL) {
+		ED_area_tag_redraw(sa);
+	}
+}
+
 void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
 {
 	bScreen *screen = WM_window_get_active_screen(win);
-	ScrArea *sa_statusbar = WM_window_find_area_status(win, screen);
+	ScrArea *sa_statusbar = WM_window_status_area_find(win, screen);
 	if (sa_statusbar == NULL) {
 		return;
 	}
@@ -4524,14 +4525,14 @@ bool WM_window_modal_keymap_status_draw(
         uiLayout *layout)
 {
 	wmKeyMap *keymap = NULL;
-	wmOperatorType *ot = NULL;
+	wmOperator *op = NULL;
 	for (wmEventHandler *handler = win->modalhandlers.first; handler; handler = handler->next) {
 		if (handler->op) {
 			/* 'handler->keymap' could be checked too, seems not to be used. */
 			wmKeyMap *keymap_test = handler->op->type->modalkeymap;
 			if (keymap_test && keymap_test->modal_items) {
 				keymap = keymap_test;
-				ot = handler->op->type;
+				op = handler->op;
 				break;
 			}
 		}
@@ -4546,14 +4547,49 @@ bool WM_window_modal_keymap_status_draw(
 		if (!items[i].identifier[0]) {
 			continue;
 		}
-		char buf[UI_MAX_DRAW_STR];
-		int available_len = sizeof(buf);
-		char *p = buf;
-		WM_modalkeymap_operator_items_to_string_buf(ot, items[i].value, true, UI_MAX_SHORTCUT_STR, &available_len, &p);
-		p -= 1;
-		if (p > buf) {
-			BLI_snprintf(p, available_len, ": %s", items[i].name);
-			uiItemL(row, buf, 0);
+		if ((keymap->poll_modal_item != NULL) &&
+		    (keymap->poll_modal_item(op, items[i].value) == false))
+		{
+			continue;
+		}
+
+		bool show_text = true;
+
+		{
+			/* warning: O(n^2) */
+			wmKeyMapItem *kmi = NULL;
+			for (kmi = keymap->items.first; kmi; kmi = kmi->next) {
+				if (kmi->propvalue == items[i].value) {
+					break;
+				}
+			}
+			if (kmi != NULL) {
+				if (kmi->val == KM_RELEASE) {
+					/* Assume release events just disable something which was toggled on. */
+					continue;
+				}
+				int icon_mod[4];
+				int icon = UI_icon_from_keymap_item(kmi, icon_mod);
+				if (icon != 0) {
+					for (int j = 0; j < ARRAY_SIZE(icon_mod) && icon_mod[j]; j++) {
+						uiItemL(row, "", icon_mod[j]);
+					}
+					uiItemL(row, items[i].name, icon);
+					show_text = false;
+				}
+			}
+		}
+		if (show_text) {
+			char buf[UI_MAX_DRAW_STR];
+			int available_len = sizeof(buf);
+			char *p = buf;
+			WM_modalkeymap_operator_items_to_string_buf(
+			        op->type, items[i].value, true, UI_MAX_SHORTCUT_STR, &available_len, &p);
+			p -= 1;
+			if (p > buf) {
+				BLI_snprintf(p, available_len, ": %s", items[i].name);
+				uiItemL(row, buf, 0);
+			}
 		}
 	}
 	return true;

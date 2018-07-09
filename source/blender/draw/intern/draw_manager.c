@@ -1370,9 +1370,12 @@ void DRW_draw_render_loop_ex(
 		drw_engines_cache_init();
 		drw_engines_world_update(scene);
 
+		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
-			drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+				drw_engines_cache_populate(ob);
+			}
 		}
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 
@@ -1645,12 +1648,17 @@ void DRW_render_object_iter(
 	void *vedata, RenderEngine *engine, struct Depsgraph *depsgraph,
 	void (*callback)(void *vedata, Object *ob, RenderEngine *engine, struct Depsgraph *depsgraph))
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
 	DRW_hair_init();
 
+	const int object_type_exclude_viewport = draw_ctx->v3d ? draw_ctx->v3d->object_type_exclude_viewport : 0;
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
-		DST.ob_state = NULL;
-		callback(vedata, ob, engine, depsgraph);
+		if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+			DST.ob_state = NULL;
+			callback(vedata, ob, engine, depsgraph);
+		}
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
 }
@@ -1840,6 +1848,9 @@ void DRW_draw_select_loop(
 #endif
 		}
 		else {
+			const int object_type_exclude_select = (
+			        v3d->object_type_exclude_viewport | v3d->object_type_exclude_select
+			);
 			bool filter_exclude = false;
 			DEG_OBJECT_ITER_BEGIN(
 			        depsgraph, ob,
@@ -1847,8 +1858,9 @@ void DRW_draw_select_loop(
 			        DEG_ITER_OBJECT_FLAG_VISIBLE |
 			        DEG_ITER_OBJECT_FLAG_DUPLI)
 			{
-				if ((ob->base_flag & BASE_SELECTABLE) != 0) {
-
+				if ((ob->base_flag & BASE_SELECTABLE) &&
+				    (object_type_exclude_select & (1 << ob->type)) == 0)
+				{
 					if (object_filter_fn != NULL) {
 						if (ob->base_flag & BASE_FROMDUPLI) {
 							/* pass (use previous filter_exclude value) */
@@ -2020,9 +2032,12 @@ void DRW_draw_depth_loop(
 		drw_engines_cache_init();
 		drw_engines_world_update(scene);
 
+		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
-			drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+				drw_engines_cache_populate(ob);
+			}
 		}
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 

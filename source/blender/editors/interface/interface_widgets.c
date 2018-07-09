@@ -259,7 +259,7 @@ static struct {
 
 static Gwn_VertFormat *vflag_format(void)
 {
-	if (g_ui_batch_cache.format.attrib_ct == 0) {
+	if (g_ui_batch_cache.format.attr_len == 0) {
 		Gwn_VertFormat *format = &g_ui_batch_cache.format;
 		g_ui_batch_cache.vflag_id = GWN_vertformat_attr_add(format, "vflag", GWN_COMP_U32, 1, GWN_FETCH_INT);
 	}
@@ -512,7 +512,7 @@ void UI_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y
 
 	GPU_blend(true);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	immUniformColor4fv(draw_color);
@@ -532,6 +532,20 @@ void UI_draw_anti_tria(float x1, float y1, float x2, float y2, float x3, float y
 	GPU_blend(false);
 }
 
+/* triangle 'icon' inside rect */
+void ui_draw_anti_tria_rect(const rctf *rect, char dir, const float color[4])
+{
+	if (dir == 'h') {
+		float half = 0.5f * BLI_rctf_size_y(rect);
+		UI_draw_anti_tria(rect->xmin, rect->ymin, rect->xmin, rect->ymax, rect->xmax, rect->ymin + half, color);
+	}
+	else {
+		float half = 0.5f * BLI_rctf_size_x(rect);
+		UI_draw_anti_tria(rect->xmin, rect->ymax, rect->xmax, rect->ymax, rect->xmin + half, rect->ymin, color);
+	}
+}
+
+
 void UI_draw_anti_fan(float tri_array[][2], unsigned int length, const float color[4])
 {
 	float draw_color[4];
@@ -541,7 +555,7 @@ void UI_draw_anti_fan(float tri_array[][2], unsigned int length, const float col
 
 	GPU_blend(true);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	immUniformColor4fv(draw_color);
@@ -1255,8 +1269,8 @@ static int ui_but_draw_menu_icon(const uiBut *but)
 /* icons have been standardized... and this call draws in untransformed coordinates */
 
 static void widget_draw_icon_ex(
-        const uiBut *but, BIFIconID icon, float alpha, const rcti *rect, const bool show_menu_icon,
-        const int icon_size)
+        const uiBut *but, BIFIconID icon, float alpha,
+        const rcti *rect, const int icon_size)
 {
 	float xs = 0.0f, ys = 0.0f;
 	float aspect, height;
@@ -1331,20 +1345,35 @@ static void widget_draw_icon_ex(
 		}
 	}
 
-	if (show_menu_icon) {
-		xs = rect->xmax - UI_DPI_ICON_SIZE - aspect;
-		ys = (rect->ymin + rect->ymax - height) / 2.0f;
-
-		UI_icon_draw_aspect(xs, ys, ICON_RIGHTARROW_THIN, aspect, alpha);
-	}
-
 	GPU_blend(false);
 }
 
 static void widget_draw_icon(
-        const uiBut *but, BIFIconID icon, float alpha, const rcti *rect, const bool show_menu_icon)
+        const uiBut *but, BIFIconID icon, float alpha, const rcti *rect)
 {
-	widget_draw_icon_ex(but, icon, alpha, rect, show_menu_icon, ICON_DEFAULT_HEIGHT);
+	widget_draw_icon_ex(but, icon, alpha, rect, ICON_DEFAULT_HEIGHT);
+}
+
+static void widget_draw_submenu_tria(const uiBut *but, const rcti *rect, const uiWidgetColors *wcol)
+{
+	const float aspect = but->block->aspect / UI_DPI_FAC;
+	const int tria_height = (int)(ICON_DEFAULT_HEIGHT / aspect);
+	const int tria_width = (int)(ICON_DEFAULT_WIDTH / aspect) - 2 * U.pixelsize;
+	const int xs = rect->xmax - tria_width;
+	const int ys = (rect->ymin + rect->ymax - tria_height) / 2.0f;
+	float col[4];
+	rctf tria_rect;
+
+	rgba_uchar_to_float(col, (const uchar *)wcol->text);
+	col[3] *= 0.8f;
+
+	BLI_rctf_init(&tria_rect, xs, xs + tria_width, ys, ys + tria_height);
+	BLI_rctf_scale(&tria_rect, 0.4f);
+
+	GPU_blend(true);
+	UI_widgetbase_draw_cache_flush();
+	GPU_blend(false);
+	ui_draw_anti_tria_rect(&tria_rect, 'h', col);
 }
 
 static void ui_text_clip_give_prev_off(uiBut *but, const char *str)
@@ -1806,7 +1835,7 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 
 				selwidth_draw = BLF_width(fstyle->uifont_id, drawstr + but->ofs, but->selend - but->ofs);
 
-				unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+				uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 				immUniformColor4ubv((unsigned char *)wcol->item);
@@ -1842,7 +1871,7 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 			UI_widgetbase_draw_cache_flush();
 			GPU_blend(false);
 
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+			uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 			immUniformColor3f(0.2f, 0.6f, 0.9f);
@@ -1987,7 +2016,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 	if (ELEM(but->type, UI_BTYPE_MENU, UI_BTYPE_POPOVER) && (but->flag & UI_BUT_NODE_LINK)) {
 		rcti temp = *rect;
 		temp.xmin = rect->xmax - BLI_rcti_size_y(rect) - 1;
-		widget_draw_icon(but, ICON_LAYER_USED, alpha, &temp, false);
+		widget_draw_icon(but, ICON_LAYER_USED, alpha, &temp);
 		rect->xmax = temp.xmin;
 	}
 
@@ -2057,17 +2086,17 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		else if (ui_block_is_menu(but->block))
 			rect->xmin += 0.3f * U.widget_unit;
 
-		widget_draw_icon(but, icon, alpha, rect, show_menu_icon);
+		widget_draw_icon(but, icon, alpha, rect);
+		if (show_menu_icon) {
+			BLI_assert(but->block->content_hints & BLOCK_CONTAINS_SUBMENU_BUT);
+			widget_draw_submenu_tria(but, rect, wcol);
+		}
 
 #ifdef USE_UI_TOOLBAR_HACK
 		but->block->aspect = aspect_orig;
 #endif
 
 		rect->xmin += icon_size;
-		/* without this menu keybindings will overlap the arrow icon [#38083] */
-		if (show_menu_icon) {
-			rect->xmax -= icon_size / 2.0f;
-		}
 	}
 
 	if (but->editstr || (but->drawflag & UI_BUT_TEXT_LEFT)) {
@@ -2077,6 +2106,12 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		rect->xmax -= (UI_TEXT_MARGIN_X * U.widget_unit) / but->block->aspect;
 	}
 
+	/* Menu contains sub-menu items with triangle icon on their right. Shortcut
+	 * strings should be drawn with some padding to the right then. */
+	if (ui_block_is_menu(but->block) && (but->block->content_hints & BLOCK_CONTAINS_SUBMENU_BUT)) {
+		rect->xmax -= UI_MENU_SUBMENU_PADDING;
+	}
+
 	/* extra icons, e.g. 'x' icon to clear text or icon for eyedropper */
 	if (extra_icon_type != UI_BUT_ICONEXTRA_NONE) {
 		rcti temp = *rect;
@@ -2084,10 +2119,10 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		temp.xmin = temp.xmax - (BLI_rcti_size_y(rect) * 1.08f);
 
 		if (extra_icon_type == UI_BUT_ICONEXTRA_CLEAR) {
-			widget_draw_icon(but, ICON_PANEL_CLOSE, alpha, &temp, false);
+			widget_draw_icon(but, ICON_PANEL_CLOSE, alpha, &temp);
 		}
 		else if (extra_icon_type == UI_BUT_ICONEXTRA_EYEDROPPER) {
-			widget_draw_icon(but, ICON_EYEDROPPER, alpha, &temp, false);
+			widget_draw_icon(but, ICON_EYEDROPPER, alpha, &temp);
 		}
 		else {
 			BLI_assert(0);
@@ -2387,7 +2422,7 @@ static void widget_softshadow(const rcti *rect, int roundboxalign, const float r
 	/* we draw a number of increasing size alpha quad strips */
 	alphastep = 3.0f * btheme->tui.menu_shadow_fac / radout;
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -2439,7 +2474,7 @@ static void widget_menu_back(uiWidgetColors *wcol, rcti *rect, int flag, int dir
 
 static void ui_hsv_cursor(float x, float y)
 {
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -2536,8 +2571,8 @@ static void ui_draw_but_HSVCIRCLE(uiBut *but, uiWidgetColors *wcol, const rcti *
 	ui_color_picker_to_rgb(0.0f, 0.0f, hsv[2], colcent, colcent + 1, colcent + 2);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
@@ -2647,8 +2682,8 @@ void ui_draw_gradient(const rcti *rect, const float hsv[3], const int type, cons
 
 	/* old below */
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
 	immBegin(GWN_PRIM_TRIS, steps * 3 * 6);
@@ -2807,7 +2842,7 @@ static void ui_draw_but_HSVCUBE(uiBut *but, const rcti *rect)
 	ui_hsv_cursor(x, y);
 
 	/* outline */
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3ub(0, 0, 0);
 	imm_draw_box_wire_2d(pos, (rect->xmin), (rect->ymin), (rect->xmax), (rect->ymax));
@@ -2904,7 +2939,7 @@ static void ui_draw_separator(const rcti *rect,  uiWidgetColors *wcol)
 		30
 	};
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	GPU_blend(true);
@@ -3366,7 +3401,7 @@ static void widget_swatch(uiBut *but, uiWidgetColors *wcol, rcti *rect, int stat
 		UI_widgetbase_draw_cache_flush();
 		GPU_blend(false);
 
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 		immUniformColor3f(bw, bw, bw);
@@ -3747,7 +3782,7 @@ static void widget_draw_extra_mask(const bContext *C, uiBut *but, uiWidgetType *
 		/* note: drawextra can change rect +1 or -1, to match round errors of existing previews */
 		but->block->drawextra(C, but->poin, but->block->drawextra_arg1, but->block->drawextra_arg2, rect);
 
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 		/* make mask to draw over image */
@@ -4384,7 +4419,7 @@ static void ui_draw_popover_back_impl(
 
 	/* Draw popover arrow (top/bottom) */
 	if (ELEM(direction, UI_DIR_UP, UI_DIR_DOWN)) {
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor4ubv((unsigned char *)wcol->inner);
 		GPU_blend(true);
@@ -4521,7 +4556,7 @@ void ui_draw_pie_center(uiBlock *block)
 	}
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4ubv((unsigned char *)btheme->tui.wcol_pie_menu.outline);
 
