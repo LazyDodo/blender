@@ -160,6 +160,7 @@ class _defs_annotate:
                  dict(mode='DRAW_STRAIGHT', wait_for_input=False),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -176,13 +177,15 @@ class _defs_annotate:
                  dict(mode='DRAW_POLY', wait_for_input=False),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
     def eraser():
         def draw_settings(context, layout, tool):
-            # XXX: Reuse
-            pass
+            # TODO: Move this setting to toolsettings
+            user_prefs = context.user_preferences
+            layout.prop(user_prefs.edit, "grease_pencil_eraser_radius", text="Radius")
 
         return dict(
             text="Eraser",
@@ -193,6 +196,7 @@ class _defs_annotate:
                  dict(mode='ERASER', wait_for_input=False),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
 

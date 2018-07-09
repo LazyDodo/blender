@@ -860,23 +860,6 @@ static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, cons
 	return false;
 }
 
-/* apply a falloff effect to brush strength, based on distance */
-static float gp_stroke_eraser_calc_influence(tGPsdata *p, const int mval[2], const int radius, const int co[2])
-{
-	/* Linear Falloff... */
-	float distance = (float)len_v2v2_int(mval, co);
-	float fac;
-
-	CLAMP(distance, 0.0f, (float)radius);
-	fac = 1.0f - (distance / (float)radius);
-
-	/* Control this further using pen pressure */
-	fac *= p->pressure;
-
-	/* Return influence factor computed here */
-	return fac;
-}
-
 /* eraser tool - evaluation per stroke */
 /* TODO: this could really do with some optimization (KD-Tree/BVH?) */
 static void gp_stroke_eraser_dostroke(tGPsdata *p,
@@ -909,18 +892,8 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 		}
 	}
 	else {
-		/* Pressure threshold at which stroke should be culled: Calculated as pressure value
-		 * below which we would have invisible strokes
-		 */
-		const float cull_thresh = (gps->thickness) ?  1.0f / ((float)gps->thickness)  : 1.0f;
-
-		/* Amount to decrease the pressure of each point with each stroke */
-		// TODO: Fetch from toolsettings, or compute based on thickness instead?
-		const float strength = 0.1f;
-
 		/* Perform culling? */
 		bool do_cull = false;
-
 
 		/* Clear Tags
 		 *
@@ -961,23 +934,11 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 					if ((gp_stroke_eraser_is_occluded(p, pt1, pc1[0], pc1[1]) == false) ||
 					    (gp_stroke_eraser_is_occluded(p, pt2, pc2[0], pc2[1]) == false))
 					{
-						/* Point is affected: */
-						/* 1) Adjust thickness
-						 *  - Influence of eraser falls off with distance from the middle of the eraser
-						 *  - Second point gets less influence, as it might get hit again in the next segment
-						 */
-						pt1->pressure -= gp_stroke_eraser_calc_influence(p, mval, radius, pc1) * strength;
-						pt2->pressure -= gp_stroke_eraser_calc_influence(p, mval, radius, pc2) * strength / 2.0f;
-
-						/* 2) Tag any point with overly low influence for removal in the next pass */
-						if (pt1->pressure < cull_thresh) {
-							pt1->flag |= GP_SPOINT_TAG;
-							do_cull = true;
-						}
-						if (pt2->pressure < cull_thresh) {
-							pt2->flag |= GP_SPOINT_TAG;
-							do_cull = true;
-						}
+						/* Point is affected */
+						/* XXX: Should we only cull the ones inside the brush? */
+						pt1->flag |= GP_SPOINT_TAG;
+						pt2->flag |= GP_SPOINT_TAG;
+						do_cull = true;
 					}
 				}
 			}
