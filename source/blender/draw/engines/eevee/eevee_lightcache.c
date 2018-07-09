@@ -215,13 +215,15 @@ static bool EEVEE_lightcache_validate(
         const LightCache *light_cache,
         const int cube_len,
         const int cube_res,
+        const int grid_len,
         const int irr_size[3])
 {
 	if (light_cache) {
 		/* See if we need the same amount of texture space. */
 		if ((irr_size[0] == light_cache->grid_tx.tex_size[0]) &&
 		    (irr_size[1] == light_cache->grid_tx.tex_size[1]) &&
-		    (irr_size[2] == light_cache->grid_tx.tex_size[2]))
+		    (irr_size[2] == light_cache->grid_tx.tex_size[2]) &&
+		    (grid_len != light_cache->grid_len))
 		{
 			int mip_len = (int)(floorf(log2f(cube_res)) - MIN_CUBE_LOD_LEVEL);
 			if ((cube_res == light_cache->cube_tx.tex_size[0]) &&
@@ -464,7 +466,7 @@ static void eevee_lightbake_create_resources(EEVEE_LightBake *lbake)
 
 	/* TODO validate irradiance and reflection cache independantly... */
 	if (lbake->lcache != NULL &&
-	    !EEVEE_lightcache_validate(lbake->lcache, lbake->cube_len, lbake->ref_cube_res, lbake->irr_size))
+	    !EEVEE_lightcache_validate(lbake->lcache, lbake->cube_len, lbake->ref_cube_res, lbake->grid_len, lbake->irr_size))
 	{
 		eevee->light_cache = lbake->lcache = NULL;
 	}
