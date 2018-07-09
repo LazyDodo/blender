@@ -216,6 +216,9 @@ static int gp_layer_add_exec(bContext *C, wmOperator *op)
 		if (is_annotation) {
 			/* Annotations */
 			*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("Notes"));
+
+			/* mark as annotation */
+			(*gpd_ptr)->flag |= GP_DATA_ANNOTATIONS;
 		}
 		else {
 			/* GP Object */
