@@ -3893,6 +3893,7 @@ class VIEW3D_PT_overlay(Panel):
         sub.prop(overlay, "show_relationship_lines")
         sub.prop(overlay, "show_motion_paths")
         #sub.prop(overlay, "show_onion_skins")
+        sub.prop(context.space_data, "show_annotation", text="Annotations")
         sub.prop(overlay, "show_face_orientation")
         sub.prop(overlay, "show_backface_culling")
         if shading.type == 'MATERIAL':

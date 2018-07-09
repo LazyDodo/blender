@@ -1247,7 +1247,7 @@ void DRW_draw_render_loop_ex(
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	RegionView3D *rv3d = ar->regiondata;
-	bool do_annotations = (v3d->flag2 & V3D_SHOW_ANNOTATION) != 0;
+	bool do_annotations = (((v3d->flag2 & V3D_SHOW_ANNOTATION) != 0) && ((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0));
 
 	DST.draw_ctx.evil_C = evil_C;
 	DST.viewport = viewport;
