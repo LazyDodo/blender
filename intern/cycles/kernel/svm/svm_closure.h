@@ -735,9 +735,9 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			float ior = (stack_valid(ior_ofs))? stack_load_float(stack, ior_ofs): __uint_as_float(data_node.w);
 			float3 color = stack_load_float3(stack, color_ofs);
 
-			uint primary_reflection_roughness_ofs, melanin_qty_ofs, melanin_ratio_ofs, absorption_coefficient_ofs;
-			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &melanin_qty_ofs, &melanin_ratio_ofs, &absorption_coefficient_ofs);
-			float m0_roughness = (stack_valid(primary_reflection_roughness_ofs))? stack_load_float(stack, primary_reflection_roughness_ofs): __uint_as_float(data_node2.y);
+			uint coat_ofs, melanin_qty_ofs, melanin_ratio_ofs, absorption_coefficient_ofs;
+			decode_node_uchar4(data_node2.x, &coat_ofs, &melanin_qty_ofs, &melanin_ratio_ofs, &absorption_coefficient_ofs);
+			float coat = (stack_valid(coat_ofs))? stack_load_float(stack, coat_ofs): __uint_as_float(data_node2.y);
 			float melanin_qty = (stack_valid(melanin_qty_ofs)) ? stack_load_float(stack, melanin_qty_ofs) : __uint_as_float(data_node2.z);
 			float melanin_ratio = (stack_valid(melanin_ratio_ofs)) ? stack_load_float(stack, melanin_ratio_ofs) : __uint_as_float(data_node2.w);
 			float3 absorption_coefficient = stack_load_float3(stack, absorption_coefficient_ofs);
@@ -770,6 +770,9 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*random_roughness;
 				param1 *= factor_random_roughness;
 				param2 *= factor_random_roughness;
+
+				// Remap Coat value to [0, 100]% of Roughness.
+				float m0_roughness = 1.0f - clamp(coat, 0.0f, 1.0f);
 
 				bsdf->N = N;
 				bsdf->v = param1;

@@ -619,7 +619,7 @@ public:
 	/* Randomization factor for roughnesses. */
 	float random_roughness;
 	/* Longitudinal roughness factor for only the diffuse bounce (shiny undercoat). */
-	float primary_reflection_roughness;
+	float coat;
 	/* Index of reflection. */
 	float ior;
 	/* Cuticle tilt angle. */

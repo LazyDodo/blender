@@ -3088,7 +3088,7 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(roughness_u, "Roughness", 0.3f);
 	SOCKET_IN_FLOAT(roughness_v, "Radial Roughness", 0.3f);
 	SOCKET_IN_FLOAT(random_roughness, "Random Roughness", 0.0f);
-	SOCKET_IN_FLOAT(primary_reflection_roughness, "Undercoat Roughness", 1.0f);
+	SOCKET_IN_FLOAT(coat, "Coat", 0.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
 	SOCKET_IN_FLOAT(random, "Random", 0.0f);
@@ -3123,7 +3123,7 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *roughness_v_in = input("Radial Roughness");
 	ShaderInput *random_roughness_in = input("Random Roughness");
 	ShaderInput *offset_in = input("Offset");
-	ShaderInput *primary_reflection_roughness_in = input("Undercoat Roughness");
+	ShaderInput *coat_in = input("Coat");
 	ShaderInput *ior_in = input("IOR");
 	ShaderInput *melanin_in =  input("Melanin");
 	ShaderInput *melanin_redness_in = input("Melanin Redness");
@@ -3158,11 +3158,11 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 
 	compiler.add_node(
 		compiler.encode_uchar4(
-			compiler.stack_assign_if_linked(primary_reflection_roughness_in),
+			compiler.stack_assign_if_linked(coat_in),
 			compiler.stack_assign_if_linked(melanin_in),
 			compiler.stack_assign_if_linked(melanin_redness_in),
 			absorption_coefficient_ofs),
-		__float_as_uint(primary_reflection_roughness),
+		__float_as_uint(coat),
 		__float_as_uint(melanin),
 		__float_as_uint(melanin_redness));
 
