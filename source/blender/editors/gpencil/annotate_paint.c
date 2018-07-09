@@ -817,6 +817,27 @@ static float view3d_point_depth(const RegionView3D *rv3d, const float co[3])
 	}
 }
 
+/* helper to free a stroke
+ * NOTE: gps->dvert and gps->triangles should be NULL, but check anyway for good measure
+ */
+static void gp_free_stroke(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps)
+{
+	if (gps->points) {
+		MEM_freeN(gps->points);
+	}
+
+	if (gps->dvert) {
+		BKE_gpencil_free_stroke_weights(gps);
+		MEM_freeN(gps->dvert);
+	}
+
+	if (gps->triangles) {
+		MEM_freeN(gps->triangles);
+	}
+
+	BLI_freelinkN(&gpf->strokes, gps);
+}
+
 /* only erase stroke points that are visible */
 static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, const int x, const int y)
 {
@@ -870,11 +891,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 
 	if (gps->totpoints == 0) {
 		/* just free stroke */
-		if (gps->points)
-			MEM_freeN(gps->points);
-		if (gps->triangles)
-			MEM_freeN(gps->triangles);
-		BLI_freelinkN(&gpf->strokes, gps);
+		gp_free_stroke(p->gpd, gpf, gps);
 	}
 	else if (gps->totpoints == 1) {
 		/* only process if it hasn't been masked out... */
@@ -886,11 +903,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 				/* only check if point is inside */
 				if (len_v2v2_int(mval, pc1) <= radius) {
 					/* free stroke */
-					// XXX: pressure sensitive eraser should apply here too?
-					MEM_freeN(gps->points);
-					if (gps->triangles)
-						MEM_freeN(gps->triangles);
-					BLI_freelinkN(&gpf->strokes, gps);
+					gp_free_stroke(p->gpd, gpf, gps);
 				}
 			}
 		}
