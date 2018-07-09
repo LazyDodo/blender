@@ -816,6 +816,43 @@ void SCENE_OT_light_cache_bake(wmOperatorType *ot)
 	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
 }
 
+static bool light_cache_free_poll(bContext *C)
+{
+	Scene *scene = CTX_data_scene(C);
+
+	return scene->eevee.light_cache;
+}
+
+static int light_cache_free_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Scene *scene = CTX_data_scene(C);
+
+	if (!scene->eevee.light_cache) {
+		return OPERATOR_CANCELLED;
+	}
+
+	EEVEE_lightcache_free(scene->eevee.light_cache);
+	scene->eevee.light_cache = NULL;
+
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+
+	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_OPTIONS, scene);
+
+	return OPERATOR_FINISHED;
+}
+
+void SCENE_OT_light_cache_free(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Free Light Cache";
+	ot->idname = "SCENE_OT_light_cache_free";
+	ot->description = "Free cached indirect lighting";
+
+	/* api callbacks */
+	ot->exec = light_cache_free_exec;
+	ot->poll = light_cache_free_poll;
+}
+
 /********************** render view operators *********************/
 
 static bool render_view_remove_poll(bContext *C)
