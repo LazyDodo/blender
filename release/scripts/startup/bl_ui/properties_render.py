@@ -712,6 +712,7 @@ class RENDER_PT_eevee_indirect_lighting(RenderButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
 
         scene = context.scene
         props = scene.eevee
@@ -727,21 +728,27 @@ class RENDER_PT_eevee_indirect_lighting(RenderButtonsPanel, Panel):
         col.prop(props, "gi_visibility_resolution", text="Diffuse Occlusion")
 
         layout.use_property_split = False
-        row = layout.row(align=True)
+        row = layout.split(percentage=0.5)
+        row.alignment = 'RIGHT'
         row.label("Cubemap Display")
-        row.prop(props, "gi_cubemap_draw_size", text="Size")
-        if props.gi_show_cubemaps :
-            row.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_OFF')
-        else:
-            row.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_ON')
 
-        row = layout.row(align=True)
-        row.label("Irradiance Display")
-        row.prop(props, "gi_irradiance_draw_size", text="Size")
-        if props.gi_show_irradiance :
-            row.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_OFF')
+        sub = row.row(align=True)
+        sub.prop(props, "gi_cubemap_draw_size", text="Size")
+        if props.gi_show_cubemaps :
+            sub.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_OFF')
         else:
-            row.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_ON')
+            sub.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_ON')
+
+        row = layout.split(percentage=0.5)
+        row.alignment = 'RIGHT'
+        row.label("Irradiance Display")
+
+        sub = row.row(align=True)
+        sub.prop(props, "gi_irradiance_draw_size", text="Size")
+        if props.gi_show_irradiance :
+            sub.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_OFF')
+        else:
+            sub.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_ON')
 
 
 class RENDER_PT_eevee_film(RenderButtonsPanel, Panel):
