@@ -16,6 +16,19 @@
 
 CCL_NAMESPACE_BEGIN
 
+/* Helper functions */
+
+ccl_device_inline float3 sigma_from_concentration(float eumelanin, float pheomelanin)
+{
+	return eumelanin*make_float3(0.506f, 0.841f, 1.653f) + pheomelanin*make_float3(0.343f, 0.733f, 1.924f);
+}
+
+ccl_device_inline float3 sigma_from_reflectance(float3 color, float azimuthal_roughness)
+{
+	float roughness_fac = (((((0.245f*azimuthal_roughness) + 5.574f)*azimuthal_roughness - 10.73f)*azimuthal_roughness + 2.532f)*azimuthal_roughness - 0.215f)*azimuthal_roughness + 5.969f;
+	return log3(color) / roughness_fac;
+}
+
 /* Closure Nodes */
 
 ccl_device void svm_node_glass_setup(ShaderData *sd, MicrofacetBsdf *bsdf, int type, float eta, float roughness, bool refract)
@@ -787,30 +800,30 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 						bsdf->sigma = absorption_coefficient;
 						break;
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION: {
-						// Benedikt Bitterli's melanin ratio remapping.
+						// Benedikt Bitterli's melanin ratio remapping (adjusted for linearity).
+						melanin_qty = -logf(fmaxf(1.0 - melanin_qty, 0.0001));
 						float eumelanin = melanin_qty*(1.0f-melanin_ratio);
 						float pheomelanin = melanin_qty*melanin_ratio;
 						float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*random_color;
 						eumelanin *= factor_random_color;
 						pheomelanin *= factor_random_color;
 
-						float3 melanin_sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
-						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
-						float3 tint_sigma = log3(tint)/roughness_fac;
+						float3 melanin_sigma = sigma_from_concentration(eumelanin, pheomelanin);
+						float3 tint_sigma = sigma_from_reflectance(tint, param2);
 						tint_sigma *= tint_sigma;
 						bsdf->sigma = melanin_sigma+tint_sigma;
 						break;
 					}
 					case NODE_PRINCIPLED_HAIR_REFLECTANCE: {
-						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
-						bsdf->sigma = log3(color)/roughness_fac;
+						bsdf->sigma = sigma_from_reflectance(color, param2);
 						bsdf->sigma *= bsdf->sigma;
 						break;
 					}
 					default: {
 						kernel_assert(!"Invalid Principled Hair parametrization!");
 						// Falling back to Benedikt Bitterli's brownish hair with Tungsten (via PHEOmelanin concentration)
-						bsdf->sigma = 0.0f*make_float3(0.419f, 0.697f, 1.37f) + 1.3f*make_float3(0.187f, 0.4f, 1.05f);
+						// Original mapping: 1.3 -> Blender's mapping: 0.8054375
+						bsdf->sigma = sigma_from_concentration(0.0f, 0.8054375f);
 						break;
 					}
 				}

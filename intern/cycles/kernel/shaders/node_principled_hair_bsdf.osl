@@ -20,10 +20,19 @@ color log3 (color a) {
 	return color(log(a[0]), log(a[1]), log(a[2]));
 }
 
+color sigma_from_concentration(float Eumelanin, float Pheomelanin) {
+	return Eumelanin*color(0.506, 0.841, 1.653) + Pheomelanin*color(0.343, 0.733, 1.924);
+}
+
+color sigma_from_reflectance(color Color, float AzimuthalRoughness) {
+	float roughness_fac = (((((0.245*AzimuthalRoughness) + 5.574)*AzimuthalRoughness - 10.73)*AzimuthalRoughness + 2.532)*AzimuthalRoughness - 0.215)*AzimuthalRoughness + 5.969;
+	return log3(Color)/roughness_fac;
+}
+
 shader node_principled_hair_bsdf(
-	color Color = color(0.09292, 0.02100, 0.00417),
-	float Melanin = 0.0,
-	float MelaninRedness = 1.3,
+	color Color = color(0.017513, 0.005763, 0.002059),
+	float Melanin = 0.8,
+	float MelaninRedness = 1.0,
 	float RandomColor = 0.0,
 	color Tint = 1.0,
 	color AbsorptionCoefficient = color(0.245531, 0.52, 1.365),
@@ -41,7 +50,6 @@ shader node_principled_hair_bsdf(
 	output closure color BSDF = 0)
 {
 	color sigma;
-
 	float random_value = 0.0;
 
 	if (AttrRandom != "none") {
@@ -57,28 +65,27 @@ shader node_principled_hair_bsdf(
 
 	float adjusted_roughness = Roughness*factor_random_roughness;
 	float adjusted_radial_roughness = RadialRoughness*factor_random_roughness;
-	float adjusted_eumelanin = Melanin*(1.0-MelaninRedness)*factor_random_color;
-	float adjusted_pheomelanin = Melanin*MelaninRedness*factor_random_color;
+	float melanin_qty = -log(max(1.0 - Melanin, 0.0001));
+	float adjusted_eumelanin = melanin_qty*(1.0-MelaninRedness)*factor_random_color;
+	float adjusted_pheomelanin = melanin_qty*MelaninRedness*factor_random_color;
 
 	if (parametrization == "Absorption coefficient") {
 		sigma = AbsorptionCoefficient;
 	}
 	else if (parametrization == "Melanin concentration") {
-		color melanin_sigma = adjusted_eumelanin*color(0.419, 0.697, 1.37) + adjusted_pheomelanin*color(0.187, 0.4, 1.05);
-		float roughness_fac = (((((0.245*adjusted_radial_roughness) + 5.574)*adjusted_radial_roughness - 10.73)*adjusted_radial_roughness + 2.532)*adjusted_radial_roughness - 0.215)*adjusted_radial_roughness + 5.969;
-		color tint_sigma = log3(Tint)/roughness_fac;
+		color melanin_sigma = sigma_from_concentration(adjusted_eumelanin, adjusted_pheomelanin);
+		color tint_sigma = sigma_from_reflectance(Tint, adjusted_radial_roughness);
 		tint_sigma *= tint_sigma;
 		sigma = melanin_sigma + tint_sigma;
 	}
 	else if (parametrization == "Direct coloring"){
-		float roughness_fac = (((((0.245*adjusted_radial_roughness) + 5.574)*adjusted_radial_roughness - 10.73)*adjusted_radial_roughness + 2.532)*adjusted_radial_roughness - 0.215)*adjusted_radial_roughness + 5.969;
-		sigma = log3(Color)/roughness_fac;
+		sigma = sigma_from_reflectance(Color, adjusted_radial_roughness);
 		sigma *= sigma;
 	}
 	else {
 		// Falling back to Benedikt Bitterli's brownish hair with Tungsten (via PHEOmelanin concentration)
 		// This gives the exact amount set as default above
-		sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
+		sigma = sigma_from_concentration(0.0, 0.8054375);
 	}
 
 	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming color range %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, roughness range %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, sigma, RandomColor, Roughness, RadialRoughness, RandomRoughness, Offset, IOR);
