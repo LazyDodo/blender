@@ -731,19 +731,20 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 
 			uint offset_ofs, ior_ofs, color_ofs, parametrization;
 			decode_node_uchar4(data_node.y, &offset_ofs, &ior_ofs, &color_ofs, &parametrization);
-
 			float alpha = (stack_valid(offset_ofs))? stack_load_float(stack, offset_ofs): __uint_as_float(data_node.z);
 			float ior = (stack_valid(ior_ofs))? stack_load_float(stack, ior_ofs): __uint_as_float(data_node.w);
+			float3 color = stack_load_float3(stack, color_ofs);
 
 			uint primary_reflection_roughness_ofs, melanin_qty_ofs, melanin_ratio_ofs, absorption_coefficient_ofs;
 			decode_node_uchar4(data_node2.x, &primary_reflection_roughness_ofs, &melanin_qty_ofs, &melanin_ratio_ofs, &absorption_coefficient_ofs);
-
 			float m0_roughness = (stack_valid(primary_reflection_roughness_ofs))? stack_load_float(stack, primary_reflection_roughness_ofs): __uint_as_float(data_node2.y);
 			float melanin_qty = (stack_valid(melanin_qty_ofs)) ? stack_load_float(stack, melanin_qty_ofs) : __uint_as_float(data_node2.z);
 			float melanin_ratio = (stack_valid(melanin_ratio_ofs)) ? stack_load_float(stack, melanin_ratio_ofs) : __uint_as_float(data_node2.w);
+			float3 absorption_coefficient = stack_load_float3(stack, absorption_coefficient_ofs);
 			
 			uint tint_ofs, random_ofs, random_color_ofs, random_roughness_ofs;
 			decode_node_uchar4(data_node3.x, &tint_ofs, &random_ofs, &random_color_ofs, &random_roughness_ofs);
+			float3 tint = stack_load_float3(stack, tint_ofs);
 			float random_color = (stack_valid(random_color_ofs)) ? stack_load_float(stack, random_color_ofs) : __uint_as_float(data_node3.z);
 			random_color = clamp(random_color, 0.0f, 1.0f);
 			float random_roughness = (stack_valid(random_roughness_ofs)) ? stack_load_float(stack, random_roughness_ofs) : __uint_as_float(data_node3.w);
@@ -757,9 +758,6 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				random = (stack_valid(random_ofs)) ? stack_load_float(stack, random_ofs) : __uint_as_float(data_node3.y);
 			}
 
-			// Random factors range: [-randomization/2, +randomization/2].
-			float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*random_color;
-			float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*random_roughness;
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
@@ -768,14 +766,10 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				if (!extra)
 					break;
 
+				// Random factors range: [-randomization/2, +randomization/2].
+				float factor_random_roughness = 1.0f + 2.0f*(random - 0.5f)*random_roughness;
 				param1 *= factor_random_roughness;
 				param2 *= factor_random_roughness;
-
-				// Benedikt Bitterli's melanin ratio remapping.
-				float eumelanin = melanin_qty*(1.0f-melanin_ratio);
-				float pheomelanin = melanin_qty*melanin_ratio;
-				eumelanin *= factor_random_color;
-				pheomelanin *= factor_random_color;
 
 				bsdf->N = N;
 				bsdf->v = param1;
@@ -785,14 +779,18 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				bsdf->eta = ior;
 				bsdf->extra = extra;
 
-				float3 color = stack_load_float3(stack, color_ofs);
-				float3 absorption_coefficient = stack_load_float3(stack, absorption_coefficient_ofs);
-				float3 tint = stack_load_float3(stack, tint_ofs);
 				switch(parametrization) {
 					case NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION:
 						bsdf->sigma = absorption_coefficient;
 						break;
 					case NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION: {
+						// Benedikt Bitterli's melanin ratio remapping.
+						float eumelanin = melanin_qty*(1.0f-melanin_ratio);
+						float pheomelanin = melanin_qty*melanin_ratio;
+						float factor_random_color = 1.0f + 2.0f*(random - 0.5f)*random_color;
+						eumelanin *= factor_random_color;
+						pheomelanin *= factor_random_color;
+
 						float3 melanin_sigma = eumelanin*make_float3(0.419f, 0.697f, 1.37f) + pheomelanin*make_float3(0.187f, 0.4f, 1.05f);
 						float roughness_fac = (((((0.245f*param2) + 5.574f)*param2 - 10.73f)*param2 + 2.532f)*param2 - 0.215f)*param2 + 5.969f;
 						float3 tint_sigma = log3(tint)/roughness_fac;
