@@ -40,47 +40,47 @@ shader node_principled_hair_bsdf(
 
 	output closure color BSDF = 0)
 {
-	color Sigma;
+	color sigma;
 
-	float RandomValue = 0.0;
+	float random_value = 0.0;
 
 	if (AttrRandom != "none") {
-		getattribute(AttrRandom, RandomValue);
+		getattribute(AttrRandom, random_value);
 	}
 	else {
-		RandomValue = Random;
+		random_value = Random;
 	}
 
-	float factor_random_color = 1.0 + 2.0*(RandomValue - 0.5)*ColorRandomization;
-	float factor_random_roughness = 1.0 + 2.0*(RandomValue - 0.5)*RoughnessRandomization;
+	float factor_random_color = 1.0 + 2.0*(random_value - 0.5)*ColorRandomization;
+	float factor_random_roughness = 1.0 + 2.0*(random_value - 0.5)*RoughnessRandomization;
 
-	float AdjustedRoughness = Roughness*factor_random_roughness;
-	float AdjustedRadialRoughness = RadialRoughness*factor_random_roughness;
-	float AdjustedEumelanin = Melanin*(1.0-MelaninRedness)*factor_random_color;
-	float AdjustedPheomelanin = Melanin*MelaninRedness*factor_random_color;
+	float adjusted_roughness = Roughness*factor_random_roughness;
+	float adjusted_radial_roughness = RadialRoughness*factor_random_roughness;
+	float adjusted_eumelanin = Melanin*(1.0-MelaninRedness)*factor_random_color;
+	float adjusted_pheomelanin = Melanin*MelaninRedness*factor_random_color;
 
 	if (parametrization == "Absorption coefficient") {
-		Sigma = AbsorptionCoefficient;
+		sigma = AbsorptionCoefficient;
 	}
 	else if (parametrization == "Melanin concentration") {
-		color Melanin_Sigma = AdjustedEumelanin*color(0.419, 0.697, 1.37) + AdjustedPheomelanin*color(0.187, 0.4, 1.05);
-		float roughness_fac = (((((0.245*AdjustedRadialRoughness) + 5.574)*AdjustedRadialRoughness - 10.73)*AdjustedRadialRoughness + 2.532)*AdjustedRadialRoughness - 0.215)*AdjustedRadialRoughness + 5.969;
-		color Tint_Sigma = log3(Tint)/roughness_fac;
-		Tint_Sigma *= Tint_Sigma;
-		Sigma = Melanin_Sigma + Tint_Sigma;
+		color melanin_sigma = adjusted_eumelanin*color(0.419, 0.697, 1.37) + adjusted_pheomelanin*color(0.187, 0.4, 1.05);
+		float roughness_fac = (((((0.245*adjusted_radial_roughness) + 5.574)*adjusted_radial_roughness - 10.73)*adjusted_radial_roughness + 2.532)*adjusted_radial_roughness - 0.215)*adjusted_radial_roughness + 5.969;
+		color tint_sigma = log3(Tint)/roughness_fac;
+		tint_sigma *= tint_sigma;
+		sigma = melanin_sigma + tint_sigma;
 	}
 	else if (parametrization == "Direct coloring"){
-		float roughness_fac = (((((0.245*AdjustedRadialRoughness) + 5.574)*AdjustedRadialRoughness - 10.73)*AdjustedRadialRoughness + 2.532)*AdjustedRadialRoughness - 0.215)*AdjustedRadialRoughness + 5.969;
-		Sigma = log3(Color)/roughness_fac;
-		Sigma *= Sigma;
+		float roughness_fac = (((((0.245*adjusted_radial_roughness) + 5.574)*adjusted_radial_roughness - 10.73)*adjusted_radial_roughness + 2.532)*adjusted_radial_roughness - 0.215)*adjusted_radial_roughness + 5.969;
+		sigma = log3(Color)/roughness_fac;
+		sigma *= sigma;
 	}
 	else {
 		// Falling back to Benedikt Bitterli's brownish hair with Tungsten (via PHEOmelanin concentration)
 		// This gives the exact amount set as default above
-		Sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
+		sigma = 0.0*color(0.419, 0.697, 1.37) + 1.3*color(0.187, 0.4, 1.05);
 	}
 
-	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming color range %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, roughness range %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, Sigma, ColorRandomization, Roughness, RadialRoughness, RoughnessRandomization, Offset, IOR);
+	//printf("Info: color %f, incoming eumelanin %f, incoming pheomelanin %f, incoming sigma %f, incoming color range %f, incoming normal %f, parametrization %s, resulting sigma %f, Longitudinal %f, Azimuthal %f, roughness range %f, Scale deviation %f, IOR %f\n", Color, Melanin, MelaninRedness, AbsorptionCoefficient, Normal, parametrization, sigma, ColorRandomization, Roughness, RadialRoughness, RoughnessRandomization, Offset, IOR);
 
-	BSDF = principled_hair(Normal, Sigma, AdjustedRoughness, AdjustedRadialRoughness, UndercoatRoughness, Offset, IOR);
+	BSDF = principled_hair(Normal, sigma, adjusted_roughness, adjusted_radial_roughness, UndercoatRoughness, Offset, IOR);
 }
