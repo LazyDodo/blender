@@ -4463,7 +4463,6 @@ class VIEW3D_PT_gpencil_multi_frame(Panel):
 
         layout = self.layout
         col = layout.column(align=True)
-        col.prop(gpd, "show_multiedit_line_only", text="Display only edit lines")
         col.prop(settings, "use_multiframe_falloff")
 
         # Falloff curve
