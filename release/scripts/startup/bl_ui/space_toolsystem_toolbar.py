@@ -55,6 +55,7 @@ def generate_from_brushes_ex(
                 )
             )
 
+
 def generate_from_brushes_gpencil(
     context, *,
     icon_prefix,
@@ -76,7 +77,6 @@ def generate_from_brushes_gpencil(
                         data_block=name,
                         widget=None,
                         operator="gpencil.draw",
-                        keymap='EVT_TWEAK_A',
                     )
                 )
             )
@@ -986,8 +986,16 @@ class _defs_gpencil_paint:
             brush_test_attr="use_paint_grease_pencil",
             brush_category_attr="grease_pencil_tool",
             brush_category_layout=(
-                ('DRAW PEN',),
-                ('DRAW INK',),
+                ('Draw Pencil',),
+                ('Draw Pen',),
+                ('Draw Ink',),
+                ('Draw Noise',),
+                ('Draw Block',),
+                ('Draw Marker',),
+                ('Fill Area',),
+                ('Eraser Soft',),
+                ('Eraser Hard',),
+                ('Eraser Stroke',),
             )
         )
 
