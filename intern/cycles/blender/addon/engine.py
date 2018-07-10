@@ -254,3 +254,13 @@ def register_passes(engine, scene, srl):
         engine.register_pass(scene, srl, "Denoising Shadow B",        3, "XYV", 'VECTOR')
         engine.register_pass(scene, srl, "Denoising Image",           3, "RGB", 'COLOR')
         engine.register_pass(scene, srl, "Denoising Image Variance",  3, "RGB", 'COLOR')
+
+    if(crl.use_pass_crypto_object):
+        for i in range(0, crl.pass_crypto_depth, 2):
+            engine.register_pass(scene, srl, "AOV uCryptoObject" + '{:02d}'.format(i), 4, "RGBA", 'COLOR')
+    if(crl.use_pass_crypto_material):
+        for i in range(0, crl.pass_crypto_depth, 2):
+            engine.register_pass(scene, srl, "AOV uCryptoMaterial" + '{:02d}'.format(i), 4, "RGBA", 'COLOR')
+    if(srl.cycles.use_pass_crypto_asset):
+        for i in range(0, srl.cycles.pass_crypto_depth, 2):
+            engine.register_pass(scene, srl, "AOV uCryptoAsset" + '{:02d}'.format(i), 4, "RGBA", 'COLOR')

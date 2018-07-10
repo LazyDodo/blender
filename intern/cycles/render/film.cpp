@@ -290,6 +290,7 @@ Film::Film()
 
 	use_light_visibility = false;
 	filter_table_offset = TABLE_OFFSET_INVALID;
+	use_cryptomatte = CRYPT_NONE;
 
 	need_update = true;
 }
@@ -470,6 +471,8 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
 	kfilm->mist_start = mist_start;
 	kfilm->mist_inv_depth = (mist_depth > 0.0f)? 1.0f/mist_depth: 0.0f;
 	kfilm->mist_falloff = mist_falloff;
+
+	kfilm->use_cryptomatte = use_cryptomatte;
 
 	pass_stride = kfilm->pass_stride;
 	denoising_data_offset = kfilm->pass_denoising_data;

@@ -35,6 +35,7 @@
 CCL_NAMESPACE_BEGIN
 
 /* Constants */
+#define ID_SLOT_SIZE	2
 #define OBJECT_MOTION_PASS_SIZE 2
 #define FILTER_TABLE_SIZE       1024
 #define RAMP_TABLE_SIZE         256
@@ -53,6 +54,7 @@ CCL_NAMESPACE_BEGIN
 #define OBJECT_NONE				(~0)
 #define PRIM_NONE				(~0)
 #define LAMP_NONE				(~0)
+#define ID_NONE					(0.0f)
 
 #define VOLUME_STACK_SIZE		16
 
@@ -442,6 +444,14 @@ typedef enum PassType {
 } PassType;
 
 #define PASS_ANY (~0)
+
+typedef enum CryptomatteType {
+	CRYPT_NONE = 0,
+	CRYPT_OBJECT = (1 << 31),
+	CRYPT_MATERIAL = (1 << 30),
+	CRYPT_ASSET = (1 << 29),
+	CRYPT_ACCURATE = (1 << 28),
+} CryptomatteType;
 
 typedef enum DenoisingPassOffsets {
 	DENOISING_PASS_NORMAL             = 0,
@@ -1100,6 +1110,10 @@ typedef struct PathState {
 	float ray_t;       /* accumulated distance through transparent surfaces */
 #endif
 
+	int written_aovs;
+
+	float matte_weight;
+	
 	/* volume rendering */
 #ifdef __VOLUME__
 	int volume_bounce;
@@ -1259,12 +1273,15 @@ typedef struct KernelFilm {
 	int pass_shadow;
 	float pass_shadow_scale;
 	int filter_table_offset;
+	int use_cryptomatte;
 
 	int pass_mist;
 	float mist_start;
 	float mist_inv_depth;
 	float mist_falloff;
 
+	int pass_aov[32];
+	
 	int pass_denoising_data;
 	int pass_denoising_clean;
 	int denoising_flags;
@@ -1458,7 +1475,11 @@ typedef struct KernelObject {
 	uint patch_map_offset;
 	uint attribute_map_offset;
 	uint motion_offset;
-	uint pad;
+	uint pad1;
+
+	float cryptomatte_object;
+	float cryptomatte_asset;
+	float pad2, pad3;
 } KernelObject;
 static_assert_align(KernelObject, 16);
 
@@ -1538,7 +1559,7 @@ static_assert_align(KernelParticle, 16);
 
 typedef struct KernelShader {
 	float constant_emission[3];
-	float pad1;
+	float cryptomatte_id;
 	int flags;
 	int pass_id;
 	int pad2, pad3;

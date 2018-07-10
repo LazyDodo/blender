@@ -76,6 +76,7 @@ public:
 
 	bool use_light_visibility;
 	bool use_sample_clamp;
+	int use_cryptomatte;
 
 	bool need_update;
 

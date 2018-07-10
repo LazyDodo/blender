@@ -28,6 +28,7 @@
 #include "util/util_map.h"
 #include "util/util_progress.h"
 #include "util/util_vector.h"
+#include "util/util_murmurhash.h"
 
 #include "subd/subd_patch_table.h"
 
@@ -483,6 +484,11 @@ void ObjectManager::device_update_object_transform(UpdateObjectTransformState *s
 	kobject.numverts = mesh->verts.size();
 	kobject.patch_map_offset = 0;
 	kobject.attribute_map_offset = 0;
+	uint32_t hash_name, hash_asset;
+	MurmurHash3_x86_32(ob->name.c_str(), ob->name.length(), 0, &hash_name);
+	MurmurHash3_x86_32(ob->asset_name.c_str(), ob->asset_name.length(), 0, &hash_asset);
+	kobject.cryptomatte_object = hash_to_float(hash_name);
+	kobject.cryptomatte_asset = hash_to_float(hash_asset);
 
 	/* Object flag. */
 	if(ob->use_holdout) {

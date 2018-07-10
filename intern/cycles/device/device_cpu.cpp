@@ -53,6 +53,8 @@
 #include "util/util_system.h"
 #include "util/util_thread.h"
 
+#include "render/coverage.h"
+
 CCL_NAMESPACE_BEGIN
 
 class CPUDevice;
@@ -672,9 +674,25 @@ public:
 		return true;
 	}
 
-	void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg)
+	void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg, vector<map<float, float> >& coverage_object, vector<map<float, float> >& coverage_material, vector<map<float, float > >& coverage_asset)
 	{
 		scoped_timer timer(&tile.buffers->render_time);
+		kg->coverage_object = kg->coverage_material = NULL;
+
+		if(kg->__data.film.use_cryptomatte & CRYPT_ACCURATE) {
+			if(kg->__data.film.use_cryptomatte & CRYPT_OBJECT) {
+				coverage_object.clear();
+				coverage_object.resize(tile.w * tile.h);
+			}
+			if(kg->__data.film.use_cryptomatte & CRYPT_MATERIAL) {
+				coverage_material.clear();
+				coverage_material.resize(tile.w * tile.h);
+			}
+			if(kg->__data.film.use_cryptomatte & CRYPT_ASSET) {
+				coverage_asset.clear();
+				coverage_asset.resize(tile.w * tile.h);
+			}
+		}
 
 		float *render_buffer = (float*)tile.buffer;
 		int start_sample = tile.start_sample;
@@ -688,6 +706,17 @@ public:
 
 			for(int y = tile.y; y < tile.y + tile.h; y++) {
 				for(int x = tile.x; x < tile.x + tile.w; x++) {
+					if(kg->__data.film.use_cryptomatte & CRYPT_ACCURATE) {
+						if(kg->__data.film.use_cryptomatte & CRYPT_OBJECT) {
+							kg->coverage_object = &coverage_object[tile.w * (y - tile.y) + x - tile.x];
+						}
+						if(kg->__data.film.use_cryptomatte & CRYPT_MATERIAL) {
+							kg->coverage_material = &coverage_material[tile.w * (y - tile.y) + x - tile.x];
+						}
+						if(kg->__data.film.use_cryptomatte & CRYPT_ASSET) {
+							kg->coverage_asset = &coverage_asset[tile.w * (y - tile.y) + x - tile.x];
+						}
+					}
 					path_trace_kernel()(kg, render_buffer,
 					                    sample, x, y, tile.offset, tile.stride);
 				}
@@ -746,17 +775,33 @@ public:
 
 		while(task.acquire_tile(this, tile)) {
 			if(tile.task == RenderTile::PATH_TRACE) {
+				/* cryptomatte data. This needs a better place than here. */
+				vector<map<float, float> >coverage_object;
+				vector<map<float, float> >coverage_material;
+				vector<map<float, float> >coverage_asset;
+
 				if(use_split_kernel) {
 					device_only_memory<uchar> void_buffer(this, "void_buffer");
 					split_kernel->path_trace(&task, tile, kgbuffer, void_buffer);
 				}
 				else {
-					path_trace(task, tile, kg);
+					path_trace(task, tile, kg, coverage_object, coverage_material, coverage_asset);
+				}
+				if(kg->__data.film.use_cryptomatte & CRYPT_ACCURATE) {
+					int aov_index = 0;
+					if(kg->__data.film.use_cryptomatte & CRYPT_OBJECT) {
+						aov_index += flatten_coverage(kg, coverage_object, tile, aov_index);
+					}
+					if(kg->__data.film.use_cryptomatte & CRYPT_MATERIAL) {
+						aov_index += flatten_coverage(kg, coverage_material, tile, aov_index);
+					}
+					if(kg->__data.film.use_cryptomatte & CRYPT_ASSET) {
+						aov_index += flatten_coverage(kg, coverage_asset, tile, aov_index);
+					}
 				}
 			}
 			else if(tile.task == RenderTile::DENOISE) {
 				denoise(denoising, tile);
-
 				task.update_progress(&tile, tile.w*tile.h);
 			}
 
