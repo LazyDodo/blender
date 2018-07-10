@@ -495,8 +495,8 @@ static const EnumPropertyItem *rna_DynamicGpencil_type_itemf(
 		if (brush->gpencil_settings == NULL)
 			continue;
 
-		item_tmp.identifier = brush->id.name;
-		item_tmp.name = brush->id.name;
+		item_tmp.identifier = brush->id.name + 2;
+		item_tmp.name = brush->id.name + 2;
 		item_tmp.value = i;
 		item_tmp.icon = brush->gpencil_settings->icon_id;
 
