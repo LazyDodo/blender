@@ -1176,13 +1176,16 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 	/* set the brush using the tool */
 	GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
 	eGP_EditBrush_Types mode = RNA_enum_get(op->ptr, "mode");
-	if (is_weight_mode) {
-		gset->weighttype = mode;
-	}
-	else {
-		gset->brushtype = mode;
-	}
+	const bool keep_brush = RNA_boolean_get(op->ptr, "keep_brush");
 
+	if (!keep_brush) {
+		if (is_weight_mode) {
+			gset->weighttype = mode;
+		}
+		else {
+			gset->brushtype = mode;
+		}
+	}
 	tGP_BrushEditData *gso;
 
 	/* setup operator data */
@@ -2099,6 +2102,7 @@ void GPENCIL_OT_brush_paint(wmOperatorType *ot)
 
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "mode", prop_gpencil_sculpt_brush_items, 0, "Mode", "Brush mode");
+	RNA_def_property_flag(ot->prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 
 	PropertyRNA *prop;
 	prop = RNA_def_collection_runtime(ot->srna, "stroke", &RNA_OperatorStrokeElement, "Stroke", "");
@@ -2106,6 +2110,10 @@ void GPENCIL_OT_brush_paint(wmOperatorType *ot)
 
 	prop = RNA_def_boolean(ot->srna, "wait_for_input", true, "Wait for Input",
 	                       "Enter a mini 'sculpt-mode' if enabled, otherwise, exit after drawing a single stroke");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
+
+	prop = RNA_def_boolean(ot->srna, "keep_brush", false, "Keep Brush",
+		"Keep current brush activated");
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 

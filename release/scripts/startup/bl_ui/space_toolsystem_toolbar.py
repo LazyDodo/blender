@@ -1010,6 +1010,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Smooth",
             icon="ops.gpencil.sculpt_smooth",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='SMOOTH', wait_for_input=False),
@@ -1026,6 +1027,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Thickness",
             icon="ops.gpencil.sculpt_thickness",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='THICKNESS', wait_for_input=False),
@@ -1042,6 +1044,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Strength",
             icon="ops.gpencil.sculpt_strength",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='STRENGTH', wait_for_input=False),
@@ -1058,6 +1061,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Grab",
             icon="ops.gpencil.sculpt_grab",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='GRAB', wait_for_input=False),
@@ -1074,6 +1078,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Push",
             icon="ops.gpencil.sculpt_push",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='PUSH', wait_for_input=False),
@@ -1090,6 +1095,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Twist",
             icon="ops.gpencil.sculpt_twist",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='TWIST', wait_for_input=False),
@@ -1106,6 +1112,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Pinch",
             icon="ops.gpencil.sculpt_pinch",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='PINCH', wait_for_input=False),
@@ -1122,6 +1129,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Randomize",
             icon="ops.gpencil.sculpt_randomize",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='RANDOMIZE', wait_for_input=False),
@@ -1138,6 +1146,7 @@ class _defs_gpencil_sculpt:
         return dict(
             text="Clone",
             icon="ops.gpencil.sculpt_clone",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='CLONE', wait_for_input=False),
@@ -1169,6 +1178,7 @@ class _defs_gpencil_weight:
         return dict(
             text="Draw",
             icon="ops.gpencil.sculpt_weight",
+            widget=None,
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='WEIGHT', wait_for_input=False),

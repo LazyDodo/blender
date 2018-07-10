@@ -266,15 +266,18 @@ static void ed_keymap_gpencil_sculpt(wmKeyMap *keymap)
 	*
 	* For the modal version, use D+E -> Sculpt
 	*/
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
+	/* GPXX: disabled to make toolsystem works */
+	//kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, 0);
+	//RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
+	RNA_boolean_set(kmi->ptr, "keep_brush", true);
 	/*RNA_boolean_set(kmi->ptr, "use_invert", true);*/
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
+	RNA_boolean_set(kmi->ptr, "keep_brush", true);
 	/*RNA_boolean_set(kmi->ptr, "use_smooth", true);*/
 
 	/* Shift-FKEY = Sculpt Strength */
@@ -300,15 +303,18 @@ static void ed_keymap_gpencil_weight(wmKeyMap *keymap)
 	*
 	* For the modal version, use D+E -> Sculpt
 	*/
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
+	/* GPXX: disabled to make toolsystem works */
+	//kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, 0);
+	//RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
+	RNA_boolean_set(kmi->ptr, "keep_brush", true);
 	/*RNA_boolean_set(kmi->ptr, "use_invert", true);*/
 
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
+	RNA_boolean_set(kmi->ptr, "keep_brush", true);
 	/*RNA_boolean_set(kmi->ptr, "use_smooth", true);*/
 }
 
