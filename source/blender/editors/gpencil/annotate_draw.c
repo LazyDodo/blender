@@ -96,21 +96,23 @@ typedef enum eDrawStrokeFlags {
 /* ----- Tool Buffer Drawing ------ */
 /* helper functions to set color of buffer point */
 // XXX: Remove these
-static void gp_set_tpoint_varying_color(const tGPspoint *pt, const float ink[4], uint attrib_id)
+static void UNUSED_FUNCTION(gp_set_tpoint_varying_color)(
+        const tGPspoint *UNUSED(pt), const float ink[4], uint attrib_id)
 {
 	float alpha = ink[3];
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
 	immAttrib4ub(attrib_id, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(alpha));
 }
 
-static void gp_set_point_uniform_color(const bGPDspoint *pt, const float ink[4])
+static void UNUSED_FUNCTION(gp_set_point_uniform_color)(
+        const bGPDspoint *UNUSED(pt), const float ink[4])
 {
 	float alpha = ink[3];
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
 	immUniformColor3fvAlpha(ink, alpha);
 }
 
-static void gp_set_point_varying_color(const bGPDspoint *pt, const float ink[4], uint attrib_id)
+static void gp_set_point_varying_color(const bGPDspoint *UNUSED(pt), const float ink[4], uint attrib_id)
 {
 	float alpha = ink[3];
 	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
@@ -562,7 +564,7 @@ static bool gp_can_draw_stroke(const bGPDstroke *gps, const int dflag)
 
 /* draw a set of strokes */
 static void gp_draw_strokes(
-        bGPdata *gpd, bGPDlayer *gpl, const bGPDframe *gpf, int offsx, int offsy, int winx, int winy,
+        bGPdata *UNUSED(gpd), bGPDlayer *UNUSED(gpl), const bGPDframe *gpf, int offsx, int offsy, int winx, int winy,
         int dflag, bool debug, short lthick, const float color[4])
 {
 	GPU_enable_program_point_size();
@@ -623,7 +625,7 @@ static void gp_draw_strokes(
 static void gp_draw_strokes_edit(
         bGPdata *gpd, bGPDlayer *gpl, const bGPDframe *gpf,
         int offsx, int offsy, int winx, int winy,
-        short dflag, short lflag, float alpha)
+        short dflag, short UNUSED(lflag), float alpha)
 {
 	/* if alpha 0 do not draw */
 	if (alpha == 0.0f)
@@ -896,15 +898,14 @@ static void gp_draw_data(
 
 /* if we have strokes for scenes (3d view)/clips (movie clip editor)
  * and objects/tracks, multiple data blocks have to be drawn */
-static void gp_draw_data_all(Scene *scene, bGPdata *gpd, int offsx, int offsy, int winx, int winy,
-                             int cfra, int dflag, const char spacetype)
+static void gp_draw_data_all(
+        Scene *scene, bGPdata *gpd, int offsx, int offsy, int winx, int winy,
+        int cfra, int dflag, const char spacetype)
 {
 	bGPdata *gpd_source = NULL;
 	float alpha = 1.0f;
 
 	if (scene) {
-		ToolSettings *ts = scene->toolsettings;
-
 		if (spacetype == SPACE_VIEW3D) {
 			gpd_source = (scene->gpd ? scene->gpd : NULL);
 		}

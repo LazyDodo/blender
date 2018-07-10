@@ -626,8 +626,8 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 
 /* add edit points shading group to pass */
 static void gpencil_add_editpoints_shgroup(
-		GPENCIL_StorageList *stl, GpencilBatchCache *cache, ToolSettings *ts, Object *ob,
-		bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
+        GPENCIL_StorageList *stl, GpencilBatchCache *cache, ToolSettings *UNUSED(ts), Object *ob,
+        bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;

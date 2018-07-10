@@ -115,11 +115,10 @@ static int gp_data_add_exec(bContext *C, wmOperator *op)
 		/* decrement user count and add new datablock */
 		/* TODO: if a datablock exists, we should make a copy of it instead of starting fresh (as in other areas) */
 		Main *bmain = CTX_data_main(C);
-		bGPdata *gpd;
 
 		/* decrement user count of old GP datablock */
 		if (*gpd_ptr) {
-			gpd = (*gpd_ptr);
+			bGPdata *gpd = (*gpd_ptr);
 			id_us_min(&gpd->id);
 		}
 

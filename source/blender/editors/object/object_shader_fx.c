@@ -109,8 +109,9 @@ ShaderFxData *ED_object_shaderfx_add(ReportList *reports, Main *bmain, Scene *UN
 
 /* Return true if the object has a effect of type 'type' other than
  * the shaderfx pointed to be 'exclude', otherwise returns false. */
-static bool object_has_shaderfx(const Object *ob, const ShaderFxData *exclude,
-                                ShaderFxType type)
+static bool UNUSED_FUNCTION(object_has_shaderfx)(
+        const Object *ob, const ShaderFxData *exclude,
+        ShaderFxType type)
 {
 	ShaderFxData *fx;
 
@@ -122,8 +123,9 @@ static bool object_has_shaderfx(const Object *ob, const ShaderFxData *exclude,
 	return false;
 }
 
-static bool object_shaderfx_remove(Main *bmain, Object *ob, ShaderFxData *fx,
-                                   bool *UNUSED(r_sort_depsgraph))
+static bool object_shaderfx_remove(
+        Main *bmain, Object *ob, ShaderFxData *fx,
+        bool *UNUSED(r_sort_depsgraph))
 {
 	/* It seems on rapid delete it is possible to
 	 * get called twice on same effect, so make

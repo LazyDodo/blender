@@ -476,7 +476,7 @@ static void rna_Space_view2d_sync_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 	}
 }
 
-static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
+static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
 {
 	/* need set all caches as dirty to recalculate onion skinning */
 	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {

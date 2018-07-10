@@ -909,7 +909,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 /* ----------------------- */
 /* Drawing                 */
 /* Helper: Draw status message while the user is running the operator */
-static void gpencil_fill_status_indicators(bContext *C, tGPDfill *tgpf)
+static void gpencil_fill_status_indicators(bContext *C, tGPDfill *UNUSED(tgpf))
 {
 	char status_str[UI_MAX_DRAW_STR];
 

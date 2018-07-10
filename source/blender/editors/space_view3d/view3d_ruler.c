@@ -304,7 +304,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = CTX_data_active_object(C);
 
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
@@ -314,7 +313,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 	bool changed = false;
 
 	/* FIXME: This needs to be reviewed. Should it keep being done like this? */
-	float cur[3] = { 0 };
 	if (scene->gpd == NULL) {
 		scene->gpd = BKE_gpencil_data_addnew(bmain, "Notes");
 	}

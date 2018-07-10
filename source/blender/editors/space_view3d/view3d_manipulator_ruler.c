@@ -389,7 +389,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 	// RulerInfo *ruler_info = mgroup->customdata;
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = CTX_data_active_object(C);
 
 	bGPdata *gpd;
 	bGPDlayer *gpl;
@@ -398,7 +397,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 	RulerItem *ruler_item;
 	const char *ruler_name = RULER_ID;
 	bool changed = false;
-	float cur[3] = { 0 };
 
 	if (scene->gpd == NULL) {
 		scene->gpd = BKE_gpencil_data_addnew(bmain, "Notes");

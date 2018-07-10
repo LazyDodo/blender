@@ -146,7 +146,7 @@ static void GPENCIL_dof_nearfar(Object *camera, float coc, float nearfar[2])
  */
 static void DRW_gpencil_fx_blur(
         ShaderFxData *fx, int ob_idx, GPENCIL_e_data *e_data,
-		GPENCIL_Data *vedata, tGPencilObjectCache *cache)
+        GPENCIL_Data *vedata, tGPencilObjectCache *cache)
 {
 	if (fx == NULL) {
 		return;
@@ -179,7 +179,7 @@ static void DRW_gpencil_fx_blur(
 		else {
 			camera = stl->storage->camera;
 		}
-		
+
 		if (camera) {
 			float nearfar[2];
 			GPENCIL_dof_nearfar(camera, fxd->coc, nearfar);
@@ -228,7 +228,7 @@ static void DRW_gpencil_fx_blur(
 
 /* Colorize FX */
 static void DRW_gpencil_fx_colorize(
-	ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
+        ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
 {
 	if (fx == NULL) {
 		return;
@@ -252,7 +252,7 @@ static void DRW_gpencil_fx_colorize(
 
 /* Flip FX */
 static void DRW_gpencil_fx_flip(
-	ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
+        ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
 {
 	if (fx == NULL) {
 		return;
@@ -284,8 +284,8 @@ static void DRW_gpencil_fx_flip(
 
 /* Light FX */
 static void DRW_gpencil_fx_light(
-	ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-	tGPencilObjectCache *cache)
+        ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
+        tGPencilObjectCache *cache)
 {
 	if (fx == NULL) {
 		return;
@@ -367,14 +367,14 @@ static void DRW_gpencil_fx_pixel(
 	DRW_shgroup_uniform_float(fx_shgrp, "pixsize", stl->storage->pixsize, 1);
 	DRW_shgroup_uniform_float(fx_shgrp, "pixelsize", &U.pixelsize, 1);
 	DRW_shgroup_uniform_float(fx_shgrp, "pixfactor", &gpd->pixfactor, 1);
-	
+
 	fxd->runtime.fx_sh = fx_shgrp;
 }
 
 /* Rim FX */
 static void DRW_gpencil_fx_rim(
-	ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
-	tGPencilObjectCache *cache)
+        ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata,
+        tGPencilObjectCache *cache)
 {
 	if (fx == NULL) {
 		return;
@@ -479,7 +479,7 @@ static void DRW_gpencil_fx_swirl(
 
 /* Wave Distorsion FX */
 static void DRW_gpencil_fx_wave(
-	ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
+        ShaderFxData *fx, GPENCIL_e_data *e_data, GPENCIL_Data *vedata)
 {
 	if (fx == NULL) {
 		return;
@@ -563,12 +563,14 @@ void GPENCIL_delete_fx_shaders(GPENCIL_e_data *e_data)
 /* create all passes used by FX */
 void GPENCIL_create_fx_passes(GPENCIL_PassList *psl)
 {
-	psl->fx_shader_pass = DRW_pass_create("GPencil Shader FX Pass",
-									DRW_STATE_WRITE_COLOR |
-									DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
-	psl->fx_shader_pass_blend = DRW_pass_create("GPencil Shader FX Pass",
-									DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND |
-									DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+	psl->fx_shader_pass = DRW_pass_create(
+	        "GPencil Shader FX Pass",
+	        DRW_STATE_WRITE_COLOR |
+	        DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+	psl->fx_shader_pass_blend = DRW_pass_create(
+	        "GPencil Shader FX Pass",
+	        DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND |
+	        DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
 }
 
 
@@ -621,10 +623,11 @@ void DRW_gpencil_fx_prepare(
 }
 
 /* helper to draw one FX pass and do ping-pong copy */
-static void gpencil_draw_fx_pass(GPENCIL_e_data *e_data,
-								GPENCIL_PassList *psl,
-								GPENCIL_FramebufferList *fbl,
-								DRWShadingGroup *shgrp, bool blend)
+static void gpencil_draw_fx_pass(
+        GPENCIL_e_data *e_data,
+        GPENCIL_PassList *psl,
+        GPENCIL_FramebufferList *fbl,
+        DRWShadingGroup *shgrp, bool blend)
 {
 	if (shgrp == NULL) {
 		return;
@@ -654,9 +657,10 @@ static void gpencil_draw_fx_pass(GPENCIL_e_data *e_data,
 }
 
 /* helper to manage gaussian blur passes */
-static void draw_gpencil_blur_passes(struct GPENCIL_e_data *e_data,
-									struct GPENCIL_Data *vedata,
-									struct BlurShaderFxData *fxd)
+static void draw_gpencil_blur_passes(
+        struct GPENCIL_e_data *e_data,
+        struct GPENCIL_Data *vedata,
+        struct BlurShaderFxData *fxd)
 {
 	if (fxd->runtime.fx_sh == NULL) {
 		return;
@@ -693,9 +697,10 @@ static void draw_gpencil_blur_passes(struct GPENCIL_e_data *e_data,
 	}
 }
 
-static void draw_gpencil_rim_blur(struct GPENCIL_e_data *e_data,
-								struct GPENCIL_Data *vedata,
-								struct RimShaderFxData *fxd)
+static void draw_gpencil_rim_blur(
+        struct GPENCIL_e_data *UNUSED(e_data),
+        struct GPENCIL_Data *vedata,
+        struct RimShaderFxData *fxd)
 {
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_FramebufferList *fbl = ((GPENCIL_Data *)vedata)->fbl;
@@ -713,9 +718,10 @@ static void draw_gpencil_rim_blur(struct GPENCIL_e_data *e_data,
 }
 
 /* helper to draw RIM passes */
-static void draw_gpencil_rim_passes(struct GPENCIL_e_data *e_data,
-									struct GPENCIL_Data *vedata,
-									struct RimShaderFxData *fxd)
+static void draw_gpencil_rim_passes(
+        struct GPENCIL_e_data *e_data,
+        struct GPENCIL_Data *vedata,
+        struct RimShaderFxData *fxd)
 {
 	if (fxd->runtime.fx_sh_b == NULL) {
 		return;
@@ -731,8 +737,9 @@ static void draw_gpencil_rim_passes(struct GPENCIL_e_data *e_data,
 	/* prepare mask */
 	GPU_framebuffer_bind(fbl->temp_fb_rim);
 	GPU_framebuffer_clear_color_depth(fbl->temp_fb_rim, clearcol, 1.0f);
-	DRW_draw_pass_subset(psl->fx_shader_pass_blend,
-						fxd->runtime.fx_sh, fxd->runtime.fx_sh);
+	DRW_draw_pass_subset(
+	        psl->fx_shader_pass_blend,
+	        fxd->runtime.fx_sh, fxd->runtime.fx_sh);
 
 	/* blur rim */
 	e_data->input_depth_tx = e_data->temp_depth_tx_b;
@@ -758,8 +765,9 @@ static void draw_gpencil_rim_passes(struct GPENCIL_e_data *e_data,
 	/* resolve */
 	GPU_framebuffer_bind(fbl->temp_fb_b);
 	GPU_framebuffer_clear_color_depth(fbl->temp_fb_b, clearcol, 1.0f);
-	DRW_draw_pass_subset(psl->fx_shader_pass_blend,
-						fxd->runtime.fx_sh_c, fxd->runtime.fx_sh_c);
+	DRW_draw_pass_subset(
+	        psl->fx_shader_pass_blend,
+	        fxd->runtime.fx_sh_c, fxd->runtime.fx_sh_c);
 
 	/* copy pass from b to a for ping-pong frame buffers */
 	e_data->input_depth_tx = e_data->temp_depth_tx_b;
@@ -771,8 +779,9 @@ static void draw_gpencil_rim_passes(struct GPENCIL_e_data *e_data,
 }
 
 /* apply all object fx effects */
-void DRW_gpencil_fx_draw(struct GPENCIL_e_data *e_data,
-	struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache)
+void DRW_gpencil_fx_draw(
+        struct GPENCIL_e_data *e_data,
+        struct GPENCIL_Data *vedata, struct tGPencilObjectCache *cache)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;

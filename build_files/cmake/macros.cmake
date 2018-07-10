@@ -627,13 +627,13 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_ikplugin
 		bf_modifiers
 		bf_gpencil_modifiers
-		bf_shader_fx
 		bf_alembic
 		bf_bmesh
 		bf_gpu
 		bf_draw
 		bf_blenloader
 		bf_blenkernel
+		bf_shader_fx
 		bf_gpencil_modifiers
 		bf_physics
 		bf_nodes
