@@ -1348,8 +1348,6 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_sculpt.pinch,
             _defs_gpencil_sculpt.randomize,
             _defs_gpencil_sculpt.clone,
-            None,
-            *_tools_annotate,
         ],
     }
 
