@@ -1037,8 +1037,6 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_transform.scale,
             _defs_transform.scale_cage,
         ),
-        None,
-        _defs_view3d_generic.ruler,
     )
 
     _tools_select = (
@@ -1056,6 +1054,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_annotate.poly,
             _defs_annotate.eraser,
         ),
+        _defs_view3d_generic.ruler,
     )
 
     _tools = {
