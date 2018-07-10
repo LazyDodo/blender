@@ -1728,11 +1728,6 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 		 */
 		gp_init_colors(p);
 	}
-	else {
-		#if 1 /* XXX: Temporary hack only - Materials won't be used here in future... */
-			gp_init_colors(p);
-		#endif
-	}
 
 	/* lock axis */
 	p->lock_axis = ts->gp_sculpt.lock_axis;
@@ -2123,7 +2118,9 @@ static void gpencil_draw_exit(bContext *C, wmOperator *op)
 		 * NOTE: Do this even when not in eraser mode, as eraser may
 		 *       have been toggled at some point.
 		 */
-		U.gp_eraser = p->radius;
+		if (p->eraser) {
+			p->eraser->size = p->radius;
+		}
 
 		/* cleanup */
 		gp_paint_cleanup(p);
