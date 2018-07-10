@@ -1695,7 +1695,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 
 	/* get gp-data */
 	gpd_ptr = ED_gpencil_data_get_pointers(C, &p->ownerPtr);
-	if (gpd_ptr == NULL) {
+	if ((gpd_ptr == NULL) || ED_gpencil_data_owner_is_annotation(&p->ownerPtr)) {
 		p->status = GP_STATUS_ERROR;
 		if (G.debug & G_DEBUG)
 			printf("Error: Current context doesn't allow for any Grease Pencil data\n");

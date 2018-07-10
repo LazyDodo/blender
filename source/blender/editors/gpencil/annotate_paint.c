@@ -1152,17 +1152,17 @@ static bool gp_session_initdata(bContext *C, tGPsdata *p)
 		{
 			p->status = GP_STATUS_ERROR;
 			if (G.debug & G_DEBUG)
-				printf("Error: Active view not appropriate for Grease Pencil drawing\n");
+				printf("Error: Annotations are not supported in this editor\n");
 			return 0;
 		}
 	}
 
 	/* get gp-data */
 	gpd_ptr = ED_gpencil_data_get_pointers(C, &p->ownerPtr);
-	if (gpd_ptr == NULL) {
+	if ((gpd_ptr == NULL) || !ED_gpencil_data_owner_is_annotation(&p->ownerPtr)) {
 		p->status = GP_STATUS_ERROR;
 		if (G.debug & G_DEBUG)
-			printf("Error: Current context doesn't allow for any Grease Pencil data\n");
+			printf("Error: Current context doesn't allow for any Annotation data\n");
 		return 0;
 	}
 	else {
