@@ -2403,38 +2403,3 @@ void GPENCIL_OT_color_select(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
-
-/* ***************** Choose color by index ************************ */
-static int gpencil_color_choose_exec(bContext *C, wmOperator *op)
-{
-	const int index = RNA_int_get(op->ptr, "index");
-
-	Object *ob = CTX_data_active_object(C);
-	if (ob == NULL)
-		return OPERATOR_CANCELLED;
-
-	ob->actcol = index + 1;
-
-	/* notifiers */
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_color_choose(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Choose Color";
-	ot->idname = "GPENCIL_OT_color_choose";
-	ot->description = "Active a gpencil_ color";
-
-	/* callbacks */
-	ot->exec = gpencil_color_choose_exec;
-	ot->poll = gpencil_active_color_poll;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	/* properties */
-	RNA_def_int(ot->srna, "index", 0, 0, INT_MAX, "Index", "Index of Color", 0, INT_MAX);
-}
