@@ -498,8 +498,7 @@ static const EnumPropertyItem *rna_DynamicGpencil_type_itemf(
 		item_tmp.identifier = brush->id.name;
 		item_tmp.name = brush->id.name;
 		item_tmp.value = i;
-		/* GPXX: Set icon here ??*/
-		item_tmp.icon = ICON_NONE;
+		item_tmp.icon = brush->gpencil_settings->icon_id;
 
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
 	}
