@@ -63,6 +63,9 @@ def generate_from_brushes_gpencil(
     brush_category_attr,
     brush_category_layout,
 ):
+    def draw_settings(context, layout, tool):
+        _defs_gpencil_paint.draw_settings_common(context, layout, tool)
+
     # Categories
     brush_categories = {}
     for brush in context.blend_data.brushes:
@@ -77,6 +80,7 @@ def generate_from_brushes_gpencil(
                         data_block=name,
                         widget=None,
                         operator="gpencil.draw",
+                        draw_settings=draw_settings,
                     )
                 )
             )
@@ -978,6 +982,23 @@ class _defs_uv_select:
         )
 
 class _defs_gpencil_paint:
+    @classmethod
+    def draw_settings_common(cls, context, layout, tool):
+        ob = context.active_object
+        if ob and ob.mode == 'GPENCIL_PAINT':
+            brush = context.active_gpencil_brush
+            gp_settings = brush.gpencil_settings
+
+            row = layout.row(align=True)
+            row.prop(brush, "size", text="Radius")
+            row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
+            row = layout.row(align=True)
+            row.prop(gp_settings, "pen_strength", slider=True)
+            row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+
+            row = layout.row(align=True)
+            row.template_ID(gp_settings, "material")
+
     @staticmethod
     def generate_from_brushes(context):
         return generate_from_brushes_gpencil(
