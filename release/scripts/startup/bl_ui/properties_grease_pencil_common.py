@@ -18,7 +18,7 @@
 
 # <pep8 compliant>
 
-
+import bpy
 from bpy.types import Menu, UIList
 from bpy.app.translations import pgettext_iface as iface_
 
@@ -734,10 +734,13 @@ class GreasePencilDataPanel:
     @classmethod
     def poll(cls, context):
         # Show this panel as long as someone that might own this exists
+        # AND the owner isn't an object (e.g. GP Object)
         if context.gpencil_data_owner is None:
             return False
-
-        return True
+        elif type(context.gpencil_data_owner) is bpy.types.Object:
+            return False
+        else:
+            return True
 
     @staticmethod
     def draw_header(self, context):
@@ -750,7 +753,6 @@ class GreasePencilDataPanel:
         layout.use_property_decorate = False
 
         # owner of Grease Pencil data
-        # XXX: Review this for the 3D view when there's a GP object active
         gpd_owner = context.gpencil_data_owner
         gpd = context.gpencil_data
 
