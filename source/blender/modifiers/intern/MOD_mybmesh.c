@@ -47,6 +47,7 @@
 #include "BLI_ghash.h"
 #include "BLI_gsqueue.h"
 #include "BLI_memarena.h"
+#include "BLI_rand.h"
 
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
@@ -2919,20 +2920,38 @@ static void null_opti_edge(BMEdge *e, BLI_Buffer *inco_faces){
 			IncoFace *inface = &BLI_buffer_at(inco_faces, IncoFace, i);
 			if( inface->face != NULL && inface->face == f ){
 				inface->face = NULL;
+				break;
 			}
 		}
 	}
 }
 
-static void null_opti_vert(BMVert *v, BLI_Buffer *inco_faces){
+static void null_opti_vert(MeshData *m_d, BMVert *v, bool back_f, BLI_Buffer *inco_faces){
 	BMFace *f;
 	BMIter iter;
 	BM_ITER_ELEM (f, &iter, v, BM_FACES_OF_VERT) {
+		float no[3], P[3];
+		BM_face_calc_normal(f, no);
+		BM_face_calc_center_mean(f, P);
+		bool found_face = false;
+        bool face_good = back_f == calc_if_B_nor(m_d->cam_loc, P, no);
+
+
 		for(int i = 0; i < inco_faces->count; i++){
 			IncoFace *inface = &BLI_buffer_at(inco_faces, IncoFace, i);
 			if( inface->face != NULL && inface->face == f ){
-				inface->face = NULL;
+				found_face = true;
+				if( face_good ){
+					inface->face = NULL;
+				}
+				break;
 			}
+		}
+		if( !found_face && !face_good ){
+			IncoFace new_inface;
+			new_inface.face = f;
+			new_inface.back_f = back_f;
+			BLI_buffer_append(inco_faces, IncoFace, new_inface);
 		}
 	}
 }
@@ -2971,7 +2990,7 @@ static void optimization( MeshData *m_d ){
 						continue;
 					}
 
-					/*{
+					{
 						// This shouldn't be needed, but in case we manage to have inconsistent
 						// faces that borders our contour line, don't mark it for adjustment.
 						BMVert *v;
@@ -2989,7 +3008,7 @@ static void optimization( MeshData *m_d ){
 							continue;
 						}
 
-					}*/
+					}
 					BM_face_calc_center_mean(face, P);
 
 					if( b_f != calc_if_B_nor(m_d->cam_loc, P, face->no) ){
@@ -3251,7 +3270,7 @@ static void optimization( MeshData *m_d ){
 
 						if( done ){
 							//Good vert smooth
-							null_opti_vert(vert, &inco_faces);
+							null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
 							break;
 						}
 					}
@@ -3262,8 +3281,11 @@ static void optimization( MeshData *m_d ){
 	}
 
 	// 3. Vertex wiggling in paramter space
-	{
+	int fixed_verts = 0;
+	do {
 		int face_i;
+
+		fixed_verts = 0;
 
 		for(face_i = 0; face_i < inco_faces.count; face_i++){
 			IncoFace *inface = &BLI_buffer_at(&inco_faces, IncoFace, face_i);
@@ -3280,60 +3302,61 @@ static void optimization( MeshData *m_d ){
 				BMVert *orig_v = BLI_ghash_lookup(m_d->vert_hash, vert);
 				if( orig_v != NULL ){
 					// This vert exists in the original mesh
-					int edge_count = BM_vert_edge_count(vert);
-
-					// We are going to search for a new position using a spiral
-					float end_radius = 0;
-					float cur_radian = 0;
-					float max_turns = 4; // How many turnings the spiral should have
+					int face_count = BM_vert_face_count(vert);
+					int face_idx, vert_idx;
+					int nr_inco_faces = 0;
+					float (*store_2d)[3][3] = BLI_array_alloca(store_2d, face_count);
+					float *face_area = BLI_array_alloca(face_area, face_count);
+					float tot_face_area = 0;
+					float mat[3][3];
 
 					bool done = false;
 
-					BMEdge *e;
-					BMIter iter;
-					BM_ITER_ELEM (e, &iter, vert, BM_EDGES_OF_VERT) {
-						end_radius += BM_edge_calc_length(e);
+					axis_dominant_v3_to_m3(mat, vert->no);
+
+					BMFace *f;
+					BMVert *face_vert;
+					BMIter iter_f, iter_f_v;
+					BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, face_idx) {
+						BM_ITER_ELEM_INDEX (face_vert, &iter_f_v, f, BM_VERTS_OF_FACE, vert_idx) {
+							mul_v2_m3v3(store_2d[face_idx][vert_idx], mat, face_vert->co);
+						}
+
+						float no[3];
+						float P[3];
+						BM_face_calc_normal(f, no);
+						BM_face_calc_center_mean(f, P);
+						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+                        	nr_inco_faces++;
+						}
+						face_area[face_idx] = BM_face_calc_area(f);
+						tot_face_area += face_area[face_idx];
 					}
 
-					end_radius = end_radius / (float)edge_count;
-					//end_radius = end_radius / 2.0f;
-
 					{
-						// radius = b * theta
-						float b = (end_radius / max_turns) * (1.0f / (2.0f * M_PI));
-						float step_size = (max_turns * 2.0f * M_PI) / 100.0f;
-						int i;
+						float old_pos[3], best_pos[3], best_dist = 0;
+						int best_inco_faces = nr_inco_faces;
 
-						BMFace *f;
-						BMIter iter_f;
-
-						float mat[3][3];
-						float center_v2[2];
-						float old_pos[3];
+						RNG *rng = BLI_rng_new(0);
 
 						copy_v3_v3( old_pos, vert->co );
+						copy_v3_v3( best_pos, vert->co );
 
-						axis_dominant_v3_to_m3(mat, vert->no);
-						mul_v2_m3v3(center_v2, mat, vert->co);
+						for( face_idx = 0; face_idx < face_count; face_idx++ ){
+							int samples = (face_area[face_idx] / tot_face_area) * 100;
 
-						for( i=0; i<100; i++ ){
-							float theta = step_size * (float)i;
-							float r = b * theta;
-							float pos_v2[2] = { center_v2[0], center_v2[1] };
-
-							bool found_point = true;
-
-							pos_v2[0] += r * cosf(theta);
-							pos_v2[1] += r * sinf(theta);
+						for(int i=0; i < samples; i++ ){
+							float cur_v2[2];
 
 							// TODO check if the new point lies inside any of the new mesh faces
+							BLI_rng_get_tri_sample_float_v2(rng, store_2d[face_idx][0], store_2d[face_idx][1], store_2d[face_idx][2], cur_v2);
 
 							BM_ITER_ELEM (f, &iter_f, orig_v, BM_FACES_OF_VERT) {
-								if( point_inside_v2( mat, pos_v2, f ) ){
+								if( point_inside_v2( mat, cur_v2, f ) ){
 									float P[3], du[3], dv[3];
 									float uv_P[2];
 
-									get_uv_point( f, uv_P, pos_v2, mat );
+									get_uv_point( f, uv_P, cur_v2, mat );
 									openSubdiv_evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
 
 									copy_v3_v3(vert->co, P);
@@ -3342,31 +3365,55 @@ static void optimization( MeshData *m_d ){
 								}
 							}
 
+							int new_inco_faces = 0;
+							bool fold = false;
+							float new_dist = len_v3v3(old_pos, vert->co);
+
 							BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 								float no[3];
 								float P[3];
 								BM_face_calc_normal(f, no);
 								BM_face_calc_center_mean(f, P);
 
-								if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
-									found_point = false;
+								//Will this new vert pos create a potential fold?
+								if( dot_v3v3( f->no, no ) < 0.5f ){
+                                	fold = true;
 									break;
+								}
+
+								if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+									new_inco_faces++;
 								}
 							}
 
-							if( found_point ){
-								done = true;
-								break;
+							if( fold ){
+                            	continue;
 							}
+
+							if( new_inco_faces < best_inco_faces ){
+								best_inco_faces = new_inco_faces;
+								best_dist = new_dist;
+								copy_v3_v3( best_pos, vert->co );
+								done = true;
+							} else if (new_inco_faces == best_inco_faces && new_dist < best_dist){
+								best_dist = new_dist;
+								copy_v3_v3( best_pos, vert->co );
+								done = true;
+							}
+
+						}
 						}
 
+						BLI_rng_free(rng);
+						copy_v3_v3(vert->co, best_pos);
+
 						if( done ){
-							null_opti_vert(vert, &inco_faces);
+							null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
+							fixed_verts++;
 							printf("Vertex wiggle\n");
 							break;
 						} else {
 							printf("Bad Vertex wiggle\n");
-							copy_v3_v3(vert->co, old_pos);
 						}
 					}
 
@@ -3374,7 +3421,7 @@ static void optimization( MeshData *m_d ){
 				}
 			}
 		}
-	}
+	} while( fixed_verts > 0 );
 
 	// 4. Edge Splitting
 	{
@@ -3398,6 +3445,7 @@ static void optimization( MeshData *m_d ){
 				BMVert *orig_v = NULL;
 				BMFace *f;
 				BMIter iter_f;
+				int f_idx;
 
 				if( BM_edge_face_count(edge) != 2 ){
 					//We managed to create a non manifold mesh in the previous steps
@@ -3409,6 +3457,9 @@ static void optimization( MeshData *m_d ){
 				// Storage for vertex pos
 				// This is used later to see if the edge split will be ok or not
 				float store[4][2][3];
+				float store_2d[4][3];
+				float face_area[2];
+				float mat[3][3];
 				int j = 0;
 
 				orig_v = BLI_ghash_lookup(m_d->vert_hash, edge->v1);
@@ -3422,7 +3473,9 @@ static void optimization( MeshData *m_d ){
 					continue;
 				}
 
-				BM_ITER_ELEM (f, &iter_f, edge, BM_FACES_OF_EDGE) {
+				axis_dominant_v3_to_m3(mat, orig_v->no);
+
+				BM_ITER_ELEM_INDEX (f, &iter_f, edge, BM_FACES_OF_EDGE, f_idx) {
 					int i;
 					BMLoop *l;
 					l = BM_FACE_FIRST_LOOP(f);
@@ -3430,33 +3483,33 @@ static void optimization( MeshData *m_d ){
 						if( l->e != edge ) {
 							copy_v3_v3(store[j][0], l->v->co);
 							copy_v3_v3(store[j][1], (l->next)->v->co);
+
+							mul_v2_m3v3(store_2d[j], mat, l->v->co);
 							j++;
 						}
 						l = l->next;
 					}
+					face_area[f_idx] = BM_face_calc_area(f);
 				}
 
 				{
-					//Do 10 samples but don't check end and start point
-					float step = 1.0f/11.0f;
-					float step_arr[] = { step*5.0f, step*6.0f, step*4.0f, step*7.0f, step*3.0f,
-						step*8.0f, step*2.0f, step*9.0f, step*1.0f, step*10.0f };
-
-
-					float mat[3][3];
-					float start[2], end[2];
-					int i;
+					float tot_area = face_area[0] + face_area[1];
 					bool done = false;
 
-					axis_dominant_v3_to_m3(mat, orig_v->no);
-					mul_v2_m3v3(start, mat, edge->v1->co);
-					mul_v2_m3v3(end, mat, edge->v2->co);
-					for( i = 0; i < 10; i++ ){
+					int first_sample_count = (face_area[0] / tot_area) * 100;
+
+					RNG *rng = BLI_rng_new(0);
+
+					for(int i = 0; i < 100; i++ ){
 						float cur_v2[2];
 						float P[3], du[3], dv[3];
 						bool found_point = false;
 
-						interp_v2_v2v2(cur_v2, start, end, step_arr[i]);
+                        if( first_sample_count < i ){
+							BLI_rng_get_tri_sample_float_v2(rng, store_2d[0], store_2d[1], store_2d[2], cur_v2);
+						} else {
+							BLI_rng_get_tri_sample_float_v2(rng, store_2d[2], store_2d[3], store_2d[0], cur_v2);
+						}
 
 						BM_ITER_ELEM (f, &iter_f, orig_v, BM_FACES_OF_VERT) {
 							if( point_inside_v2( mat, cur_v2, f ) ){
@@ -3500,6 +3553,9 @@ static void optimization( MeshData *m_d ){
 						}
 
 					}
+
+					BLI_rng_free(rng);
+
 					if( done ) {
 						break;
 					}
@@ -3525,68 +3581,66 @@ static void optimization( MeshData *m_d ){
 			}
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
-				if( BM_elem_index_get(vert) < m_d->radi_start_idx ){
-					BMEdge *edge;
-					BMIter iter_e;
-					float old_pos[3];
-					float len = 0.0f;
-					int i = 0;
-					bool done = false;
+				BMEdge *edge;
+				BMIter iter_e;
+				float old_pos[3];
+				float len = 0.0f;
+				int i = 0;
+				bool done = false;
 
-					copy_v3_v3(old_pos, vert->co);
+				copy_v3_v3(old_pos, vert->co);
 
-					BM_ITER_ELEM (edge, &iter_e, vert, BM_EDGES_OF_VERT) {
-						len += BM_edge_calc_length(edge);
-						i++;
+				BM_ITER_ELEM (edge, &iter_e, vert, BM_EDGES_OF_VERT) {
+					len += BM_edge_calc_length(edge);
+					i++;
+				}
+
+				len = len / (float)(i*2);
+
+				for( i = 0; i < 100; i++ ){
+					BMFace *face;
+					BMIter iter_f;
+					bool found_point = true;
+					float co[3];
+					float cur_len;
+
+					copy_v3_v3(co, vert->no);
+
+					if( i % 2 ){
+						cur_len = len * (float)((i+1)/2) / 50.0f;
+					} else {
+						cur_len = len * (float)((i+2)/2) / -50.0f;
 					}
 
-					len = len / (float)(i*2);
+					mul_v3_fl(co, cur_len);
 
-					for( i = 0; i < 100; i++ ){
-						BMFace *face;
-						BMIter iter_f;
-						bool found_point = true;
-						float co[3];
-						float cur_len;
+					add_v3_v3v3(vert->co, old_pos, co);
 
-						copy_v3_v3(co, vert->no);
+					BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
+						float no[3];
+						float P[3];
+						BM_face_calc_normal(face, no);
+						BM_face_calc_center_mean(face, P);
 
-						if( i % 2 ){
-							cur_len = len * (float)((i+1)/2) / 50.0f;
-						} else {
-							cur_len = len * (float)((i+2)/2) / -50.0f;
-						}
-
-						mul_v3_fl(co, cur_len);
-
-						add_v3_v3v3(vert->co, old_pos, co);
-
-						BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
-							float no[3];
-							float P[3];
-							BM_face_calc_normal(face, no);
-							BM_face_calc_center_mean(face, P);
-
-							if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
-								found_point = false;
-								break;
-							}
-						}
-
-						if( found_point ){
-							done = true;
+						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+							found_point = false;
 							break;
 						}
-
 					}
 
-					if( done ){
-						null_opti_vert(vert, &inco_faces);
-						printf("Opti normal wiggle\n");
+					if( found_point ){
+						done = true;
 						break;
-					} else {
-						copy_v3_v3(vert->co, old_pos);
 					}
+
+				}
+
+				if( done ){
+					null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
+					printf("Opti normal wiggle\n");
+					break;
+				} else {
+					copy_v3_v3(vert->co, old_pos);
 				}
 			}
 		}
