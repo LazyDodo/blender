@@ -249,6 +249,9 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 			case CTX_MODE_OBJECT:
 				ARRAY_SET_ITEMS(contexts, ".objectmode");
 				break;
+			case CTX_MODE_GPENCIL_PAINT:
+				ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
+				break;
 			case CTX_MODE_GPENCIL_SCULPT:
 				ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
 				break;
@@ -265,9 +268,6 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 	 * workspace->tools_space_type because this value is not available
 	 */
 	switch (mode) {
-		case CTX_MODE_GPENCIL_PAINT:
-			ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
-			break;
 		case CTX_MODE_GPENCIL_EDIT:
 			ARRAY_SET_ITEMS(contexts, ".greasepencil_edit");
 			break;
