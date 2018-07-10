@@ -152,7 +152,7 @@ typedef struct bNodeType {
 
 	float width, minwidth, maxwidth;
 	float height, minheight, maxheight;
-	short nclass, flag, compatibility;
+	short nclass, flag;
 
 	/* templates for static sockets */
 	bNodeSocketTemplate *inputs, *outputs;
@@ -250,11 +250,6 @@ typedef struct bNodeType {
 #define NODE_CLASS_INTERFACE		33
 #define NODE_CLASS_SHADER 			40
 #define NODE_CLASS_LAYOUT			100
-
-/* nodetype->compatibility */
-#define NODE_OLD_SHADING	(1 << 0)
-#define NODE_NEW_SHADING	(1 << 1)
-#define NODE_NEWER_SHADING	(1 << 2)
 
 /* node resize directions */
 #define NODE_RESIZE_TOP		1
@@ -601,7 +596,6 @@ void            node_type_update(struct bNodeType *ntype,
 void            node_type_exec(struct bNodeType *ntype, NodeInitExecFunction initexecfunc, NodeFreeExecFunction freeexecfunc, NodeExecFunction execfunc);
 void            node_type_gpu(struct bNodeType *ntype, NodeGPUExecFunction gpufunc);
 void            node_type_internal_links(struct bNodeType *ntype, void (*update_internal_links)(struct bNodeTree *, struct bNode *));
-void            node_type_compatibility(struct bNodeType *ntype, short compatibility);
 
 /** \} */
 
@@ -734,7 +728,7 @@ void BKE_nodetree_remove_layer_n(struct bNodeTree *ntree, struct Scene *scene, c
 
 #define SH_NODE_OUTPUT_MATERIAL			124
 #define SH_NODE_OUTPUT_WORLD			125
-#define SH_NODE_OUTPUT_LAMP				126
+#define SH_NODE_OUTPUT_LIGHT			126
 #define SH_NODE_FRESNEL					127
 #define SH_NODE_MIX_SHADER				128
 #define SH_NODE_ATTRIBUTE				129
@@ -813,9 +807,10 @@ void BKE_nodetree_remove_layer_n(struct bNodeTree *ntree, struct Scene *scene, c
 struct bNodeTreeExec *ntreeShaderBeginExecTree(struct bNodeTree *ntree);
 void            ntreeShaderEndExecTree(struct bNodeTreeExec *exec);
 bool            ntreeShaderExecTree(struct bNodeTree *ntree, int thread);
+struct bNode   *ntreeShaderOutputNode(struct bNodeTree *ntree, int target);
 
-void            ntreeGPUMaterialNodes(struct bNodeTree *ntree, struct GPUMaterial *mat, short compatibility);
-void            ntreeGPUMaterialDomain(struct bNodeTree *ntree, bool *has_surface_output, bool *has_volume_output);
+void            ntreeGPUMaterialNodes(struct bNodeTree *ntree, struct GPUMaterial *mat,
+                                      bool *has_surface_output, bool *has_volume_output);
 
 /** \} */
 

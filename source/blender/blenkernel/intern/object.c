@@ -165,10 +165,7 @@ void BKE_object_free_particlesystems(Object *ob)
 
 void BKE_object_free_softbody(Object *ob)
 {
-	if (ob->soft) {
-		sbFree(ob->soft);
-		ob->soft = NULL;
-	}
+	sbFree(ob);
 }
 
 void BKE_object_free_curve_cache(Object *ob)
@@ -275,7 +272,7 @@ void BKE_object_link_modifiers(Scene *scene, struct Object *ob_dst, const struct
 
 		switch (md->type) {
 			case eModifierType_Softbody:
-				BKE_object_copy_softbody(ob_dst, ob_src);
+				BKE_object_copy_softbody(ob_dst, ob_src, 0);
 				break;
 			case eModifierType_Skin:
 				/* ensure skin-node customdata exists */
@@ -452,10 +449,7 @@ void BKE_object_free(Object *ob)
 	BKE_rigidbody_free_object(ob, NULL);
 	BKE_rigidbody_free_constraint(ob);
 
-	if (ob->soft) {
-		sbFree(ob->soft);
-		ob->soft = NULL;
-	}
+	sbFree(ob);
 
 	for (ObjectEngineData *oed = ob->drawdata.first; oed; oed = oed->next) {
 		if (oed->free != NULL) {
@@ -659,7 +653,7 @@ static const char *get_obdata_defname(int type)
 		case OB_FONT: return DATA_("Text");
 		case OB_MBALL: return DATA_("Mball");
 		case OB_CAMERA: return DATA_("Camera");
-		case OB_LAMP: return DATA_("Lamp");
+		case OB_LAMP: return DATA_("Light");
 		case OB_LATTICE: return DATA_("Lattice");
 		case OB_ARMATURE: return DATA_("Armature");
 		case OB_SPEAKER: return DATA_("Speaker");
@@ -725,6 +719,9 @@ void BKE_object_init(Object *ob)
 	ob->dt = OB_TEXTURE;
 	ob->empty_drawtype = OB_PLAINAXES;
 	ob->empty_drawsize = 1.0;
+	if (ob->type == OB_EMPTY) {
+		copy_v2_fl(ob->ima_ofs, -0.5f);
+	}
 
 	if (ELEM(ob->type, OB_LAMP, OB_CAMERA, OB_SPEAKER)) {
 		ob->trackflag = OB_NEGZ;
@@ -836,11 +833,17 @@ Object *BKE_object_add_from(
 	return ob;
 }
 
-SoftBody *copy_softbody(const SoftBody *sb, const int flag)
+void BKE_object_copy_softbody(struct Object *ob_dst, const struct Object *ob_src, const int flag)
 {
+	SoftBody *sb = ob_src->soft;
 	SoftBody *sbn;
+	bool tagged_no_main = ob_dst->id.tag & LIB_TAG_NO_MAIN;
 
-	if (sb == NULL) return(NULL);
+	ob_dst->softflag = ob_src->softflag;
+	if (sb == NULL) {
+		ob_dst->soft = NULL;
+		return;
+	}
 
 	sbn = MEM_dupallocN(sb);
 
@@ -873,12 +876,15 @@ SoftBody *copy_softbody(const SoftBody *sb, const int flag)
 
 	sbn->scratch = NULL;
 
-	sbn->pointcache = BKE_ptcache_copy_list(&sbn->ptcaches, &sb->ptcaches, flag);
+	if (tagged_no_main == 0) {
+		sbn->shared = MEM_dupallocN(sb->shared);
+		sbn->shared->pointcache = BKE_ptcache_copy_list(&sbn->shared->ptcaches, &sb->shared->ptcaches, flag);
+	}
 
 	if (sb->effector_weights)
 		sbn->effector_weights = MEM_dupallocN(sb->effector_weights);
 
-	return sbn;
+	ob_dst->soft = sbn;
 }
 
 ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int flag)
@@ -964,14 +970,6 @@ void BKE_object_copy_particlesystems(Object *ob_dst, const Object *ob_src, const
 				}
 			}
 		}
-	}
-}
-
-void BKE_object_copy_softbody(Object *ob_dst, const Object *ob_src)
-{
-	if (ob_src->soft) {
-		ob_dst->softflag = ob_src->softflag;
-		ob_dst->soft = copy_softbody(ob_src->soft, 0);
 	}
 }
 
@@ -1202,7 +1200,7 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 			ob_dst->pd->rng = MEM_dupallocN(ob_src->pd->rng);
 		}
 	}
-	ob_dst->soft = copy_softbody(ob_src->soft, flag_subdata);
+	BKE_object_copy_softbody(ob_dst, ob_src, flag_subdata);
 	ob_dst->rigidbody_object = BKE_rigidbody_copy_object(ob_src, flag_subdata);
 	ob_dst->rigidbody_constraint = BKE_rigidbody_copy_constraint(ob_src, flag_subdata);
 

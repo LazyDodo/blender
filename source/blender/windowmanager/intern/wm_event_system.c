@@ -296,11 +296,7 @@ static void wm_notifier_clear(wmNotifier *note)
 	memset(((char *)note) + sizeof(Link), 0, sizeof(*note) - sizeof(Link));
 }
 
-/**
- * Was part of #wm_event_do_notifiers, split out so it can be called once before entering the #WM_main loop.
- * This ensures operators don't run before the UI and depsgraph are initialized.
- */
-void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
+void wm_event_do_depsgraph(bContext *C)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
 	uint64_t win_combine_v3d_datamask = 0;
@@ -315,17 +311,8 @@ void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
 
 	/* cached: editor refresh callbacks now, they get context */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
-		const bScreen *screen = WM_window_get_active_screen(win);
 		Scene *scene = WM_window_get_active_scene(win);
-		ScrArea *sa;
-
-		CTX_wm_window_set(C, win);
-		for (sa = screen->areabase.first; sa; sa = sa->next) {
-			if (sa->do_refresh) {
-				CTX_wm_area_set(C, sa);
-				ED_area_do_refresh(C, sa);
-			}
-		}
+		ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 
 		/* XXX make lock in future, or separated derivedmesh users in scene */
 		if (G.is_rendering == false) {
@@ -338,11 +325,41 @@ void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
 			/* XXX, hack so operators can enforce datamasks [#26482], gl render */
 			scene->customdata_mask |= scene->customdata_mask_modal;
 
-			WorkSpace *workspace = WM_window_get_active_workspace(win);
-
-			BKE_workspace_update_tagged(bmain, workspace, scene);
+			/* TODO(sergey): For now all dependency graphs which are evaluated from
+			 * workspace are considered active. This will work all fine with "locked"
+			 * view layer and time across windows. This is to be granted separately,
+			 * and for until then we have to accept ambiguities when object is shared
+			 * across visible view layers and has overrides on it.
+			 */
+			Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
+			DEG_make_active(depsgraph);
+			BKE_scene_graph_update_tagged(depsgraph, bmain);
 		}
 	}
+}
+
+/**
+ * Was part of #wm_event_do_notifiers, split out so it can be called once before entering the #WM_main loop.
+ * This ensures operators don't run before the UI and depsgraph are initialized.
+ */
+void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	/* cached: editor refresh callbacks now, they get context */
+	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+		const bScreen *screen = WM_window_get_active_screen(win);
+		ScrArea *sa;
+
+		CTX_wm_window_set(C, win);
+		for (sa = screen->areabase.first; sa; sa = sa->next) {
+			if (sa->do_refresh) {
+				CTX_wm_area_set(C, sa);
+				ED_area_do_refresh(C, sa);
+			}
+		}
+	}
+
+	wm_event_do_depsgraph(C);
 
 	CTX_wm_window_set(C, NULL);
 }
@@ -384,7 +401,7 @@ void wm_event_do_notifiers(bContext *C)
 
 						UI_popup_handlers_remove_all(C, &win->modalhandlers);
 
-						ED_workspace_change(ref_ws, C, wm, win);
+						WM_window_set_active_workspace(C, win, ref_ws);
 						if (G.debug & G_DEBUG_EVENTS)
 							printf("%s: Workspace set %p\n", __func__, note->reference);
 					}
@@ -473,13 +490,13 @@ void wm_event_do_notifiers(bContext *C)
 				ED_screen_do_listen(C, note);
 
 				for (ar = screen->regionbase.first; ar; ar = ar->next) {
-					ED_region_do_listen(screen, NULL, ar, note, scene);
+					ED_region_do_listen(win, NULL, ar, note, scene);
 				}
 
 				ED_screen_areas_iter(win, screen, sa) {
-					ED_area_do_listen(screen, sa, note, scene, workspace);
+					ED_area_do_listen(win, sa, note, scene);
 					for (ar = sa->regionbase.first; ar; ar = ar->next) {
-						ED_region_do_listen(screen, sa, ar, note, scene);
+						ED_region_do_listen(win, sa, ar, note, scene);
 					}
 				}
 			}
@@ -1953,6 +1970,11 @@ static int wm_handler_operator_call(bContext *C, ListBase *handlers, wmEventHand
 
 				if (retval & (OPERATOR_CANCELLED | OPERATOR_FINISHED)) {
 					wm_operator_reports(C, op, retval, false);
+
+					if (op->type->modalkeymap) {
+						wmWindow *win = CTX_wm_window(C);
+						WM_window_status_area_tag_redraw(win);
+					}
 				}
 				else {
 					/* not very common, but modal operators may report before finishing */
@@ -3184,6 +3206,10 @@ wmEventHandler *WM_event_add_modal_handler(bContext *C, wmOperator *op)
 
 	BLI_addhead(&win->modalhandlers, handler);
 
+	if (op->type->modalkeymap) {
+		WM_window_status_area_tag_redraw(win);
+	}
+
 	return handler;
 }
 
@@ -4314,11 +4340,14 @@ const char *WM_window_cursor_keymap_status_get(const wmWindow *win, int button_i
 	return NULL;
 }
 
-void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
+/**
+ * Similar to #BKE_screen_area_map_find_area_xy and related functions,
+ * use here since the ara is stored in the window manager.
+ */
+ScrArea *WM_window_status_area_find(wmWindow *win, bScreen *screen)
 {
-	bScreen *screen = WM_window_get_active_screen(win);
 	if (screen->state == SCREENFULL) {
-		return;
+		return NULL;
 	}
 	ScrArea *sa_statusbar = NULL;
 	for (ScrArea *sa = win->global_areas.areabase.first; sa; sa = sa->next) {
@@ -4327,6 +4356,22 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
 			break;
 		}
 	}
+	return sa_statusbar;
+}
+
+void WM_window_status_area_tag_redraw(wmWindow *win)
+{
+	bScreen *sc = WM_window_get_active_screen(win);
+	ScrArea *sa = WM_window_status_area_find(win, sc);
+	if (sa != NULL) {
+		ED_area_tag_redraw(sa);
+	}
+}
+
+void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
+{
+	bScreen *screen = WM_window_get_active_screen(win);
+	ScrArea *sa_statusbar = WM_window_status_area_find(win, screen);
 	if (sa_statusbar == NULL) {
 		return;
 	}
@@ -4380,11 +4425,11 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
 	{
 		bToolRef *tref = NULL;
 		if (ar->regiontype == RGN_TYPE_WINDOW) {
-			Scene *scene = WM_window_get_active_scene(win);
+			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 			WorkSpace *workspace = WM_window_get_active_workspace(win);
 			const bToolKey tkey = {
 				.space_type = sa->spacetype,
-				.mode = WM_toolsystem_mode_from_spacetype(workspace, scene, sa, sa->spacetype),
+				.mode = WM_toolsystem_mode_from_spacetype(view_layer, sa, sa->spacetype),
 			};
 			tref = WM_toolsystem_ref_find(workspace, &tkey);
 		}
@@ -4466,6 +4511,88 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
 	}
 
 	CTX_wm_window_set(C, NULL);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Modal Keymap Status
+ *
+ * \{ */
+
+bool WM_window_modal_keymap_status_draw(
+        bContext *UNUSED(C), wmWindow *win,
+        uiLayout *layout)
+{
+	wmKeyMap *keymap = NULL;
+	wmOperator *op = NULL;
+	for (wmEventHandler *handler = win->modalhandlers.first; handler; handler = handler->next) {
+		if (handler->op) {
+			/* 'handler->keymap' could be checked too, seems not to be used. */
+			wmKeyMap *keymap_test = handler->op->type->modalkeymap;
+			if (keymap_test && keymap_test->modal_items) {
+				keymap = keymap_test;
+				op = handler->op;
+				break;
+			}
+		}
+	}
+	if (keymap == NULL) {
+		return false;
+	}
+	const EnumPropertyItem *items = keymap->modal_items;
+
+	uiLayout *row = uiLayoutRow(layout, true);
+	for (int i = 0; items[i].identifier; i++) {
+		if (!items[i].identifier[0]) {
+			continue;
+		}
+		if ((keymap->poll_modal_item != NULL) &&
+		    (keymap->poll_modal_item(op, items[i].value) == false))
+		{
+			continue;
+		}
+
+		bool show_text = true;
+
+		{
+			/* warning: O(n^2) */
+			wmKeyMapItem *kmi = NULL;
+			for (kmi = keymap->items.first; kmi; kmi = kmi->next) {
+				if (kmi->propvalue == items[i].value) {
+					break;
+				}
+			}
+			if (kmi != NULL) {
+				if (kmi->val == KM_RELEASE) {
+					/* Assume release events just disable something which was toggled on. */
+					continue;
+				}
+				int icon_mod[4];
+				int icon = UI_icon_from_keymap_item(kmi, icon_mod);
+				if (icon != 0) {
+					for (int j = 0; j < ARRAY_SIZE(icon_mod) && icon_mod[j]; j++) {
+						uiItemL(row, "", icon_mod[j]);
+					}
+					uiItemL(row, items[i].name, icon);
+					show_text = false;
+				}
+			}
+		}
+		if (show_text) {
+			char buf[UI_MAX_DRAW_STR];
+			int available_len = sizeof(buf);
+			char *p = buf;
+			WM_modalkeymap_operator_items_to_string_buf(
+			        op->type, items[i].value, true, UI_MAX_SHORTCUT_STR, &available_len, &p);
+			p -= 1;
+			if (p > buf) {
+				BLI_snprintf(p, available_len, ": %s", items[i].name);
+				uiItemL(row, buf, 0);
+			}
+		}
+	}
+	return true;
 }
 
 /** \} */

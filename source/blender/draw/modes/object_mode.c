@@ -2221,7 +2221,6 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			}
 			break;
 		}
-
 		case OB_CURVE:
 		{
 			if (ob != draw_ctx->object_edit) {
@@ -2319,7 +2318,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		if ((ob->dtx & OB_DRAWNAME) && DRW_state_show_text()) {
 			struct DRWTextStore *dt = DRW_text_cache_ensure();
 
-			unsigned char color[4];
+			uchar color[4];
 			UI_GetThemeColor4ubv(theme_id, color);
 
 			DRW_text_cache_add(

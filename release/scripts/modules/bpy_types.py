@@ -61,7 +61,7 @@ class Library(bpy_types.ID):
         # we could make this an attribute in rna.
         attr_links = ("actions", "armatures", "brushes", "cameras",
                       "curves", "grease_pencil", "collections", "images",
-                      "lamps", "lattices", "materials", "metaballs",
+                      "lights", "lattices", "materials", "metaballs",
                       "meshes", "node_groups", "objects", "scenes",
                       "sounds", "speakers", "textures", "texts",
                       "fonts", "worlds")
@@ -144,9 +144,15 @@ class WindowManager(bpy_types.ID):
         finally:
             self.popmenu_end__internal(popup)
 
-    def popover(self, draw_func, keymap=None):
+    def popover(
+            self, draw_func, *,
+            ui_units_x=0,
+            keymap=None,
+    ):
         import bpy
-        popup = self.popover_begin__internal()
+        popup = self.popover_begin__internal(
+            ui_units_x=ui_units_x,
+        )
 
         try:
             draw_func(popup, bpy.context)

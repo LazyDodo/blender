@@ -596,10 +596,23 @@ static bool view3d_ima_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEven
 	return 0;
 }
 
+static bool view3d_ima_bg_is_camera_view(bContext *C)
+{
+	RegionView3D *rv3d = CTX_wm_region_view3d(C);
+	if ((rv3d && (rv3d->persp == RV3D_CAMOB))) {
+		View3D *v3d = CTX_wm_view3d(C);
+		if (v3d && v3d->camera && v3d->camera->type == OB_CAMERA) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool view3d_ima_bg_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
 {
-	if (event->ctrl)
-		return false;
+	if (view3d_ima_bg_is_camera_view(C)) {
+		return true;
+	}
 
 	if (!ED_view3d_give_base_under_cursor(C, event->mval)) {
 		return view3d_ima_drop_poll(C, drag, event);
@@ -609,10 +622,14 @@ static bool view3d_ima_bg_drop_poll(bContext *C, wmDrag *drag, const wmEvent *ev
 
 static bool view3d_ima_empty_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
 {
+	if (!view3d_ima_bg_is_camera_view(C)) {
+		return true;
+	}
+
 	Base *base = ED_view3d_give_base_under_cursor(C, event->mval);
 
 	/* either holding and ctrl and no object, or dropping to empty */
-	if (((base == NULL) && event->ctrl) ||
+	if ((base == NULL) ||
 	    ((base != NULL) && base->object->type == OB_EMPTY))
 	{
 		return view3d_ima_drop_poll(C, drag, event);
@@ -776,7 +793,7 @@ static void view3d_recalc_used_layers(ARegion *ar, wmNotifier *wmn, const Scene 
 }
 
 static void view3d_main_region_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *sa, ARegion *ar,
         wmNotifier *wmn, const Scene *scene)
 {
 	View3D *v3d = sa->spacedata.first;
@@ -1033,11 +1050,11 @@ static void view3d_main_region_message_subscribe(
 		&RNA_Window,
 
 		/* These object have properties that impact drawing. */
-		&RNA_AreaLamp,
+		&RNA_AreaLight,
 		&RNA_Camera,
-		&RNA_Lamp,
+		&RNA_Light,
 		&RNA_Speaker,
-		&RNA_SunLamp,
+		&RNA_SunLight,
 
 		/* General types the 3D view depends on. */
 		&RNA_Object,
@@ -1150,7 +1167,7 @@ static void view3d_header_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void view3d_header_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1228,7 +1245,7 @@ static void view3d_buttons_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void view3d_buttons_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1358,8 +1375,7 @@ static void view3d_tools_region_draw(const bContext *C, ARegion *ar)
 
 /* area (not region) level listener */
 static void space_view3d_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, struct wmNotifier *wmn, Scene *UNUSED(scene),
-        WorkSpace *UNUSED(workspace))
+        wmWindow *UNUSED(win), ScrArea *sa, struct wmNotifier *wmn, Scene *UNUSED(scene))
 {
 	View3D *v3d = sa->spacedata.first;
 

@@ -743,7 +743,7 @@ static void node_shader_buts_tex_image(uiLayout *layout, bContext *C, PointerRNA
 	PointerRNA iuserptr = RNA_pointer_get(ptr, "image_user");
 
 	uiLayoutSetContextPointer(layout, "image_user", &iuserptr);
-	uiTemplateID(layout, C, ptr, "image", NULL, "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	uiTemplateID(layout, C, ptr, "image", "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
 	uiItemR(layout, ptr, "color_space", 0, "", ICON_NONE);
 	uiItemR(layout, ptr, "interpolation", 0, "", ICON_NONE);
 	uiItemR(layout, ptr, "projection", 0, "", ICON_NONE);
@@ -774,7 +774,7 @@ static void node_shader_buts_tex_environment(uiLayout *layout, bContext *C, Poin
 	uiLayoutSetContextPointer(layout, "image_user", &iuserptr);
 	uiTemplateID(
 	        layout, C, ptr, "image",
-	        NULL, "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	        "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
 
 	node_buts_image_user(layout, C, &iuserptr, &imaptr, &iuserptr, false);
 
@@ -792,7 +792,7 @@ static void node_shader_buts_tex_environment_ex(uiLayout *layout, bContext *C, P
 	uiLayoutSetContextPointer(layout, "image_user", &iuserptr);
 	uiTemplateID(
 	        layout, C, ptr, "image",
-	        ima ? NULL : "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	        "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
 
 	if (!ima)
 		return;
@@ -1066,6 +1066,11 @@ static void node_shader_buts_script_ex(uiLayout *layout, bContext *C, PointerRNA
 #endif
 }
 
+static void node_buts_output_shader(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
+{
+	uiItemR(layout, ptr, "target", 0, "", ICON_NONE);
+}
+
 static void node_buts_output_linestyle(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
 	uiLayout *row, *col;
@@ -1209,6 +1214,11 @@ static void node_shader_set_butfunc(bNodeType *ntype)
 		case SH_NODE_UVALONGSTROKE:
 			ntype->draw_buttons = node_shader_buts_uvalongstroke;
 			break;
+		case SH_NODE_OUTPUT_MATERIAL:
+		case SH_NODE_OUTPUT_LIGHT:
+		case SH_NODE_OUTPUT_WORLD:
+			ntype->draw_buttons = node_buts_output_shader;
+			break;
 		case SH_NODE_OUTPUT_LINESTYLE:
 			ntype->draw_buttons = node_buts_output_linestyle;
 			break;
@@ -1253,7 +1263,7 @@ static void node_composit_buts_image(uiLayout *layout, bContext *C, PointerRNA *
 	uiLayoutSetContextPointer(layout, "image_user", &iuserptr);
 	uiTemplateID(
 	        layout, C, ptr, "image",
-	        NULL, "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	        "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
 	if (!node->id) return;
 
 	imaptr = RNA_pointer_get(ptr, "image");
@@ -2172,7 +2182,7 @@ static void node_composit_backdrop_viewer(SpaceNode *snode, ImBuf *backdrop, bNo
 		const float cross_size = 12 * U.pixelsize;
 
 		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -2217,7 +2227,7 @@ static void node_composit_backdrop_boxmask(SpaceNode *snode, ImBuf *backdrop, bN
 	y4 = cy - (-sine * halveBoxWidth + cosine * -halveBoxHeight) * snode->zoom;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -2261,7 +2271,7 @@ static void node_composit_backdrop_ellipsemask(SpaceNode *snode, ImBuf *backdrop
 	y4 = cy - (-sine * halveBoxWidth + cosine * -halveBoxHeight) * snode->zoom;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -2794,7 +2804,7 @@ static void node_texture_buts_proc(uiLayout *layout, bContext *UNUSED(C), Pointe
 
 static void node_texture_buts_image(uiLayout *layout, bContext *C, PointerRNA *ptr)
 {
-	uiTemplateID(layout, C, ptr, "image", NULL, "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	uiTemplateID(layout, C, ptr, "image", "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
 }
 
 static void node_texture_buts_image_ex(uiLayout *layout, bContext *C, PointerRNA *ptr)
@@ -3254,7 +3264,7 @@ void draw_nodespace_back_pix(const bContext *C, ARegion *ar, SpaceNode *snode, b
 				              y + snode->zoom * viewer_border->ymin * ibuf->y,
 				              y + snode->zoom * viewer_border->ymax * ibuf->y);
 
-				unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+				uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 				immUniformThemeColor(TH_ACTIVE);
 
@@ -3413,9 +3423,9 @@ static void set_nodelink_vertex(
 static void nodelink_batch_init(void)
 {
 	Gwn_VertFormat format = {0};
-	unsigned int uv_id = GWN_vertformat_attr_add(&format, "uv", GWN_COMP_U8, 2, GWN_FETCH_INT_TO_FLOAT_UNIT);
-	unsigned int pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int expand_id = GWN_vertformat_attr_add(&format, "expand", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint uv_id = GWN_vertformat_attr_add(&format, "uv", GWN_COMP_U8, 2, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint expand_id = GWN_vertformat_attr_add(&format, "expand", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format_ex(&format, GWN_USAGE_STATIC);
 	int vcount = LINK_RESOL * 2; /* curve */
 	vcount += 2; /* restart strip */

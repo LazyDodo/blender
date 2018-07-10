@@ -4870,6 +4870,8 @@ static void sculpt_flush_update(bContext *C)
 	if (mmd)
 		multires_mark_as_modified(ob, MULTIRES_COORDS_MODIFIED);
 
+	DEG_id_tag_update(&ob->id, DEG_TAG_SHADING_UPDATE);
+
 	if (ss->kb || ss->modifiers_active) {
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		ED_region_tag_redraw(ar);
@@ -5736,8 +5738,6 @@ void ED_object_sculptmode_enter_ex(
 		}
 	}
 
-	// ED_workspace_object_mode_sync_from_object(bmain->wm.first, workspace, ob);
-
 	/* Flush object mode. */
 	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 }
@@ -5787,8 +5787,6 @@ void ED_object_sculptmode_exit_ex(
 
 	/* Leave sculptmode */
 	ob->mode &= ~mode_flag;
-
-	// ED_workspace_object_mode_sync_from_object(G_MAIN->wm.first, workspace, ob);
 
 	BKE_sculptsession_free(ob);
 

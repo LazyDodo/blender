@@ -877,7 +877,7 @@ static void drw_engines_draw_text(void)
 		PROFILE_START(stime);
 
 		if (data->text_draw_cache) {
-			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.v3d, DST.draw_ctx.ar, false);
+			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.ar);
 		}
 
 		PROFILE_END_UPDATE(data->render_time, stime);
@@ -1237,9 +1237,7 @@ void DRW_draw_render_loop_ex(
 	RegionView3D *rv3d = ar->regiondata;
 
 	DST.draw_ctx.evil_C = evil_C;
-
 	DST.viewport = viewport;
-	v3d->zbuf = true;
 
 	/* Setup viewport */
 	GPU_viewport_engines_data_validate(DST.viewport, DRW_engines_get_hash());
@@ -1276,9 +1274,12 @@ void DRW_draw_render_loop_ex(
 		PROFILE_START(stime);
 		drw_engines_cache_init();
 
+		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
-			drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+				drw_engines_cache_populate(ob);
+			}
 		}
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 
@@ -1559,12 +1560,17 @@ void DRW_render_object_iter(
 	void *vedata, RenderEngine *engine, struct Depsgraph *depsgraph,
 	void (*callback)(void *vedata, Object *ob, RenderEngine *engine, struct Depsgraph *depsgraph))
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
 	DRW_hair_init();
 
+	const int object_type_exclude_viewport = draw_ctx->v3d ? draw_ctx->v3d->object_type_exclude_viewport : 0;
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
-		DST.ob_state = NULL;
-		callback(vedata, ob, engine, depsgraph);
+		if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+			DST.ob_state = NULL;
+			callback(vedata, ob, engine, depsgraph);
+		}
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
 }
@@ -1658,8 +1664,6 @@ void DRW_draw_select_loop(
 	GPU_viewport_size_set(viewport, (const int[2]){BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)});
 
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_select = true;
 
 	/* Get list of enabled engines */
@@ -1705,6 +1709,9 @@ void DRW_draw_select_loop(
 #endif
 		}
 		else {
+			const int object_type_exclude_select = (
+			        v3d->object_type_exclude_viewport | v3d->object_type_exclude_select
+			);
 			bool filter_exclude = false;
 			DEG_OBJECT_ITER_BEGIN(
 			        depsgraph, ob,
@@ -1712,8 +1719,9 @@ void DRW_draw_select_loop(
 			        DEG_ITER_OBJECT_FLAG_VISIBLE |
 			        DEG_ITER_OBJECT_FLAG_DUPLI)
 			{
-				if ((ob->base_flag & BASE_SELECTABLE) != 0) {
-
+				if ((ob->base_flag & BASE_SELECTABLE) &&
+				    (object_type_exclude_select & (1 << ob->type)) == 0)
+				{
 					if (object_filter_fn != NULL) {
 						if (ob->base_flag & BASE_FROMDUPLI) {
 							/* pass (use previous filter_exclude value) */
@@ -1853,10 +1861,7 @@ void DRW_draw_depth_loop(
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
 	GPU_framebuffer_clear_depth(g_select_buffer.framebuffer, 1.0f);
 
-	bool cache_is_dirty;
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_depth = true;
 
 	/* Get list of enabled engines */
@@ -1866,7 +1871,6 @@ void DRW_draw_depth_loop(
 	}
 
 	/* Setup viewport */
-	cache_is_dirty = true;
 
 	/* Instead of 'DRW_context_state_init(C, &DST.draw_ctx)', assign from args */
 	DST.draw_ctx = (DRWContextState){
@@ -1885,15 +1889,15 @@ void DRW_draw_depth_loop(
 	drw_engines_init();
 	DRW_hair_init();
 
-	/* TODO : tag to refresh by the dependency graph */
-	/* ideally only refresh when objects are added/removed */
-	/* or render properties / materials change */
-	if (cache_is_dirty) {
+	{
 		drw_engines_cache_init();
 
+		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
-			drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+				drw_engines_cache_populate(ob);
+			}
 		}
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 
@@ -2190,8 +2194,6 @@ void DRW_opengl_context_create(void)
 	}
 	/* This changes the active context. */
 	DST.gl_context = WM_opengl_context_create();
-	/* Make the context active for this thread (main thread) */
-	WM_opengl_context_activate(DST.gl_context);
 	/* Be sure to create gawain.context too. */
 	DST.gwn_context = GWN_context_create();
 	if (!G.background) {

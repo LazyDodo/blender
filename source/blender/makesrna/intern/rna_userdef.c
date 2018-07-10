@@ -143,16 +143,10 @@ static void rna_userdef_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Pointe
 }
 
 /* also used by buffer swap switching */
-static void rna_userdef_dpi_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
+static void rna_userdef_dpi_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
 {
 	/* font's are stored at each DPI level, without this we can easy load 100's of fonts */
 	BLF_cache_clear();
-
-	/* force setting drawable again */
-	wmWindowManager *wm = bmain->wm.first;
-	if (wm) {
-		wm->windrawable = NULL;
-	}
 
 	WM_main_add_notifier(NC_WINDOW, NULL);      /* full redraw */
 	WM_main_add_notifier(NC_SCREEN | NA_EDITED, NULL);    /* refresh region sizes */
@@ -758,10 +752,10 @@ static int rna_UserDef_studiolight_index_get(PointerRNA *ptr)
 }
 
 /* StudioLight.is_user_defined */
-static int rna_UserDef_studiolight_is_user_defined_get(PointerRNA *ptr)
+static bool rna_UserDef_studiolight_is_user_defined_get(PointerRNA *ptr)
 {
 	StudioLight *sl = (StudioLight *)ptr->data;
-	return (sl->flag & STUDIOLIGHT_USER_DEFINED) > 0;
+	return (sl->flag & STUDIOLIGHT_USER_DEFINED) != 0;
 }
 
 /* StudioLight.orientation */
@@ -1034,14 +1028,6 @@ static void rna_def_userdef_theme_ui_panel(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "sub_back", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_ui_text(prop, "Sub Background", "");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
-
-	prop = RNA_def_property(srna, "show_header", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Show Header", "");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
-
-	prop = RNA_def_property(srna, "show_back", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Show Background", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 }
 
@@ -1805,9 +1791,10 @@ static void rna_def_userdef_theme_space_view3d(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Empty", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
-	prop = RNA_def_property(srna, "lamp", PROP_FLOAT, PROP_COLOR_GAMMA);
+	prop = RNA_def_property(srna, "light", PROP_FLOAT, PROP_COLOR_GAMMA);
+	RNA_def_property_float_sdna(prop, NULL, "lamp");
 	RNA_def_property_array(prop, 4);
-	RNA_def_property_ui_text(prop, "Lamp", "");
+	RNA_def_property_ui_text(prop, "Light", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	prop = RNA_def_property(srna, "speaker", PROP_FLOAT, PROP_COLOR_GAMMA);
@@ -3803,7 +3790,7 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "object_origin_size", PROP_INT, PROP_PIXEL);
 	RNA_def_property_int_sdna(prop, NULL, "obcenter_dia");
 	RNA_def_property_range(prop, 4, 10);
-	RNA_def_property_ui_text(prop, "Object Origin Size", "Diameter in Pixels for Object/Lamp origin display");
+	RNA_def_property_ui_text(prop, "Object Origin Size", "Diameter in Pixels for Object/Light origin display");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	/* View2D Grid Displays */
@@ -4038,9 +4025,9 @@ static void rna_def_userdef_edit(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "dupflag", USER_DUP_ARM);
 	RNA_def_property_ui_text(prop, "Duplicate Armature", "Causes armature data to be duplicated with the object");
 
-	prop = RNA_def_property(srna, "use_duplicate_lamp", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_duplicate_light", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "dupflag", USER_DUP_LAMP);
-	RNA_def_property_ui_text(prop, "Duplicate Lamp", "Causes lamp data to be duplicated with the object");
+	RNA_def_property_ui_text(prop, "Duplicate Light", "Causes light data to be duplicated with the object");
 
 	prop = RNA_def_property(srna, "use_duplicate_material", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "dupflag", USER_DUP_MAT);

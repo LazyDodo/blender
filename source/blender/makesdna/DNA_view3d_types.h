@@ -49,6 +49,7 @@ struct GPUViewport;
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_image_types.h"
+#include "DNA_object_types.h"
 #include "DNA_movieclip_types.h"
 #include "DNA_gpu_types.h"
 
@@ -178,8 +179,8 @@ typedef struct View3DOverlay {
 
 	/* Other settings */
 	float wireframe_threshold;
+	char _pad0[4];
 
-	int pad;
 } View3DOverlay;
 
 /* 3D ViewPort Struct */
@@ -200,6 +201,9 @@ typedef struct View3D {
 
 	unsigned int lay_prev; /* for active layer toggle */
 	unsigned int lay_used; /* used while drawing */
+
+	int object_type_exclude_viewport;
+	int object_type_exclude_select;
 
 	short persp  DNA_DEPRECATED;
 	short view   DNA_DEPRECATED;
@@ -238,7 +242,8 @@ typedef struct View3D {
 	short flag3;
 
 	/* drawflags, denoting state */
-	char zbuf, transp, xray;
+	char _pad2;
+	char transp, xray;
 
 	char multiview_eye;				/* multiview current eye - for internal use */
 
@@ -356,10 +361,11 @@ enum {
 	V3D_SHADING_OBJECT_OUTLINE      = (1 << 0),
 	V3D_SHADING_XRAY                = (1 << 1),
 	V3D_SHADING_SHADOW              = (1 << 2),
-	V3D_SHADING_SCENE_LIGHT         = (1 << 3),
+	V3D_SHADING_SCENE_LIGHTS        = (1 << 3),
 	V3D_SHADING_SPECULAR_HIGHLIGHT  = (1 << 4),
 	V3D_SHADING_CAVITY              = (1 << 5),
 	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
+	V3D_SHADING_SCENE_WORLD         = (1 << 7),
 };
 
 /* View3DShading->color_type */

@@ -463,13 +463,13 @@ static void recalcData_graphedit(TransInfo *t)
 /* helper for recalcData() - for NLA Editor transforms */
 static void recalcData_nla(TransInfo *t)
 {
-	TransDataNla *tdn = t->custom.type.data;
 	SpaceNla *snla = (SpaceNla *)t->sa->spacedata.first;
 	Scene *scene = t->scene;
 	double secf = FPS;
 	int i;
 
 	TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_SINGLE(t);
+	TransDataNla *tdn = tc->custom.type.data;
 
 	/* for each strip we've got, perform some additional validation of the values that got set before
 	 * using RNA to set the value (which does some special operations when setting these values to make
@@ -1132,7 +1132,7 @@ void drawLine(TransInfo *t, const float center[3], const float dir[3], char axis
 		}
 		UI_make_axis_color(col, col2, axis);
 
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 		immUniformColor3ubv(col2);
