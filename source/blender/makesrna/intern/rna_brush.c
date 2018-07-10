@@ -482,6 +482,34 @@ static void rna_Brush_icon_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Poi
 	WM_main_add_notifier(NC_BRUSH | NA_EDITED, br);
 }
 
+static const EnumPropertyItem *rna_DynamicGpencil_type_itemf(
+	bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	Main *bmain = CTX_data_main(C);
+	EnumPropertyItem *item = NULL, item_tmp = { 0 };
+	int totitem = 0;
+	int i = 0;
+
+	Brush *brush;
+	for (brush = bmain->brush.first; brush; brush = brush->id.next, i++) {
+		if (brush->gpencil_settings == NULL)
+			continue;
+
+		item_tmp.identifier = brush->id.name;
+		item_tmp.name = brush->id.name;
+		item_tmp.value = i;
+		/* GPXX: Set icon here ??*/
+		item_tmp.icon = ICON_NONE;
+
+		RNA_enum_item_add(&item, &totitem, &item_tmp);
+	}
+
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
+}
+
 static void rna_TextureSlot_brush_angle_update(bContext *C, PointerRNA *ptr)
 {
 	Scene *scene = CTX_data_scene(C);
@@ -899,11 +927,26 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	/*  Grease Pencil Drawing - generated dynamically */
+	static const EnumPropertyItem prop_dynamic_gpencil_type[] = {
+		{ 1, "DRAW", 0, "Draw", "" },
+	{ 0, NULL, 0, NULL, NULL }
+	};
+
 	srna = RNA_def_struct(brna, "BrushGpencilSettings", NULL);
 	RNA_def_struct_sdna(srna, "BrushGpencilSettings");
 	RNA_def_struct_ui_text(srna, "Grease Pencil Brush Settings", "Settings for grease pencil brush");
 
 	/* grease pencil drawing brushes */
+	prop = RNA_def_property(srna, "grease_pencil_tool", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "brush_type");
+	RNA_def_property_enum_items(prop, prop_dynamic_gpencil_type);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_DynamicGpencil_type_itemf");
+	RNA_def_property_ui_text(prop, "Grease Pencil Tool", "");
+	/* TODO: GPXX review update */
+	RNA_def_property_update(prop, 0, NULL);
+	//RNA_def_property_update(prop, 0, "rna_Brush_gpencil_tool_update");
+
 	/* Sensitivity factor for new strokes */
 	prop = RNA_def_property(srna, "pen_sensitivity_factor", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "draw_sensitivity");
