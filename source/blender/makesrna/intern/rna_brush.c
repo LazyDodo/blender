@@ -1752,6 +1752,10 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "ob_mode", OB_MODE_TEXTURE_PAINT);
 	RNA_def_property_ui_text(prop, "Use Texture", "Use this brush in texture paint mode");
 
+	prop = RNA_def_property(srna, "use_paint_grease_pencil", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "ob_mode", OB_MODE_GPENCIL_PAINT);
+	RNA_def_property_ui_text(prop, "Use Sculpt", "Use this brush in grease pencil drawing mode");
+
 	/* texture */
 	prop = RNA_def_property(srna, "texture_slot", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "BrushTextureSlot");
