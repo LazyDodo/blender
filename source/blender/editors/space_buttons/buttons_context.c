@@ -237,6 +237,7 @@ static int buttons_context_path_data(ButsContextPath *path, int type)
 	else if (RNA_struct_is_a(ptr->type, &RNA_Light) && (type == -1 || type == OB_LAMP)) return 1;
 	else if (RNA_struct_is_a(ptr->type, &RNA_Speaker) && (type == -1 || type == OB_SPEAKER)) return 1;
 	else if (RNA_struct_is_a(ptr->type, &RNA_LightProbe) && (type == -1 || type == OB_LIGHTPROBE)) return 1;
+	else if (RNA_struct_is_a(ptr->type, &RNA_GreasePencil) && (type == -1 || type == OB_GPENCIL)) return 1;
 	/* try to get an object in the path, no pinning supported here */
 	else if (buttons_context_path_object(path)) {
 		ob = path->ptr[path->len - 1].data;
@@ -571,13 +572,14 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 			found = buttons_context_path_particle(path);
 			break;
 		case BCONTEXT_MATERIAL:
-			/* the colors of grease pencil are not real materials, but to keep UI consistency, we
-			   simulate and generate a path */
+			/* NOTE: Grease Pencil materials use different panels... */
 			if (ob && ob->type == OB_GPENCIL) {
+				/* XXX: Why path_data? */
 				found = buttons_context_path_data(path, -1);
-				break;
 			}
-			found = buttons_context_path_material(path);
+			else {
+				found = buttons_context_path_material(path);
+			}
 			break;
 		case BCONTEXT_TEXTURE:
 			found = buttons_context_path_texture(C, path, sbuts->texuser);
