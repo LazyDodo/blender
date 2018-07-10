@@ -733,7 +733,7 @@ class VIEW3D_MT_view_borders(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator("view3d.clip_border", text="Clipping Border...")
-        layout.operator("view3d.render_border", text="Render Border...").camera_only = False
+        layout.operator("view3d.render_border", text="Render Border...")
 
         layout.separator()
 
@@ -3935,6 +3935,7 @@ class VIEW3D_PT_overlay(Panel):
         sub.prop(context.space_data, "show_annotation", text="Annotations")
         sub.prop(overlay, "show_face_orientation")
         sub.prop(overlay, "show_backface_culling")
+        sub.prop(overlay, "show_bones", text="Bones")
         if shading.type == 'MATERIAL':
             sub.prop(overlay, "show_look_dev")
 
