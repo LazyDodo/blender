@@ -249,6 +249,12 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 			case CTX_MODE_OBJECT:
 				ARRAY_SET_ITEMS(contexts, ".objectmode");
 				break;
+			case CTX_MODE_GPENCIL_SCULPT:
+				ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
+				break;
+			case CTX_MODE_GPENCIL_WEIGHT:
+				ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
+				break;
 		}
 	}
 	else if (workspace->tools_space_type == SPACE_IMAGE) {
@@ -264,12 +270,6 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 			break;
 		case CTX_MODE_GPENCIL_EDIT:
 			ARRAY_SET_ITEMS(contexts, ".greasepencil_edit");
-			break;
-		case CTX_MODE_GPENCIL_SCULPT:
-			ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
-			break;
-		case CTX_MODE_GPENCIL_WEIGHT:
-			ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
 			break;
 	}
 

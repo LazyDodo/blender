@@ -952,6 +952,165 @@ class _defs_uv_select:
         )
 
 
+class _defs_gpencil_sculpt:
+    @classmethod
+    def draw_settings_common(cls, context, layout, tool):
+        ob = context.active_object
+        if ob and ob.mode in {'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
+            settings = context.tool_settings.gpencil_sculpt
+            brush = settings.brush
+
+            layout.prop(brush, "size", slider=True)
+
+            row = layout.row(align=True)
+            row.prop(brush, "strength", slider=True)
+            row.prop(brush, "use_pressure_strength", text="")
+
+    @ToolDef.from_fn
+    def smooth():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Smooth",
+            icon="ops.gpencil.sculpt_smooth",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='SMOOTH', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def thickness():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Thickness",
+            icon="ops.gpencil.sculpt_thickness",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='THICKNESS', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def strength():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Strength",
+            icon="ops.gpencil.sculpt_strength",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='STRENGTH', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def grab():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Grab",
+            icon="ops.gpencil.sculpt_grab",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='GRAB', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def push():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Push",
+            icon="ops.gpencil.sculpt_push",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='PUSH', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def twist():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Twist",
+            icon="ops.gpencil.sculpt_twist",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='TWIST', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def pinch():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Pinch",
+            icon="ops.gpencil.sculpt_pinch",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='PINCH', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def randomize():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Randomize",
+            icon="ops.gpencil.sculpt_randomize",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='RANDOMIZE', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def clone():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Clone",
+            icon="ops.gpencil.sculpt_clone",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='CLONE', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+
 class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'TOOLS'
@@ -1178,6 +1337,19 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             *_tools_select,
             None,
             _defs_weight_paint.gradient,
+        ],
+        'GPENCIL_SCULPT': [
+            _defs_gpencil_sculpt.smooth,
+            _defs_gpencil_sculpt.thickness,
+            _defs_gpencil_sculpt.strength,
+            _defs_gpencil_sculpt.grab,
+            _defs_gpencil_sculpt.push,
+            _defs_gpencil_sculpt.twist,
+            _defs_gpencil_sculpt.pinch,
+            _defs_gpencil_sculpt.randomize,
+            _defs_gpencil_sculpt.clone,
+            None,
+            *_tools_annotate,
         ],
     }
 
