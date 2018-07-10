@@ -55,6 +55,32 @@ def generate_from_brushes_ex(
                 )
             )
 
+def generate_from_brushes_gpencil(
+    context, *,
+    icon_prefix,
+    brush_test_attr,
+    brush_category_attr,
+    brush_category_layout,
+):
+    # Categories
+    brush_categories = {}
+    for brush in context.blend_data.brushes:
+        if getattr(brush, brush_test_attr):
+            category = getattr(brush.gpencil_settings, brush_category_attr)
+            name = brush.name
+            brush_categories.setdefault(category, []).append(
+                ToolDef.from_dict(
+                    dict(
+                        text=name,
+                        icon=icon_prefix + category.lower().replace(" ", "_"),
+                        data_block=name,
+                        widget=None,
+                        operator="gpencil.draw",
+                        keymap='EVT_TWEAK_A',
+                    )
+                )
+            )
+
     def tools_from_brush_group(groups):
         assert(type(groups) is tuple)
         if len(groups) == 1:
@@ -952,40 +978,17 @@ class _defs_uv_select:
         )
 
 class _defs_gpencil_paint:
-    def generate_from_brushes_gpencil(
-        context, *,
-        icon_prefix,
-        brush_test_attr,
-        brush_category_attr,
-        # brush_category_layout,
-    ):
-        # Categories
-        brush_categories = {}
-        for brush in context.blend_data.brushes:
-            if getattr(brush, brush_test_attr):
-                category = getattr(brush.gpencil_settings, brush_category_attr)
-                name = brush.name
-                brush_categories.setdefault(category, []).append(
-                    ToolDef.from_dict(
-                        dict(
-                            text=name,
-                            icon=icon_prefix + category.lower(),
-                            data_block=name,
-                        )
-                    )
-                )
-
     @staticmethod
     def generate_from_brushes(context):
-        return _defs_gpencil_paint.generate_from_brushes_gpencil(
+        return generate_from_brushes_gpencil(
             context,
             icon_prefix="brush.gpencil.",
             brush_test_attr="use_paint_grease_pencil",
             brush_category_attr="grease_pencil_tool",
-            # brush_category_layout=(
-            #     ('DRAW PEN',),
-            #     ('DRAW INK',),
-            # )
+            brush_category_layout=(
+                ('DRAW PEN',),
+                ('DRAW INK',),
+            )
         )
 
 class _defs_gpencil_sculpt:
