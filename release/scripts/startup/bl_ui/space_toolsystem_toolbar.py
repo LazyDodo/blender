@@ -951,12 +951,48 @@ class _defs_uv_select:
             ),
         )
 
+class _defs_gpencil_paint:
+    def generate_from_brushes_gpencil(
+        context, *,
+        icon_prefix,
+        brush_test_attr,
+        brush_category_attr,
+        # brush_category_layout,
+    ):
+        # Categories
+        brush_categories = {}
+        for brush in context.blend_data.brushes:
+            if getattr(brush, brush_test_attr):
+                category = getattr(brush.gpencil_settings, brush_category_attr)
+                name = brush.name
+                brush_categories.setdefault(category, []).append(
+                    ToolDef.from_dict(
+                        dict(
+                            text=name,
+                            icon=icon_prefix + category.lower(),
+                            data_block=name,
+                        )
+                    )
+                )
+
+    @staticmethod
+    def generate_from_brushes(context):
+        return _defs_gpencil_paint.generate_from_brushes_gpencil(
+            context,
+            icon_prefix="brush.gpencil.",
+            brush_test_attr="use_paint_grease_pencil",
+            brush_category_attr="grease_pencil_tool",
+            # brush_category_layout=(
+            #     ('DRAW PEN',),
+            #     ('DRAW INK',),
+            # )
+        )
 
 class _defs_gpencil_sculpt:
     @classmethod
     def draw_settings_common(cls, context, layout, tool):
         ob = context.active_object
-        if ob and ob.mode in {'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
+        if ob and ob.mode == 'GPENCIL_SCULPT':
             settings = context.tool_settings.gpencil_sculpt
             brush = settings.brush
 
@@ -1105,6 +1141,37 @@ class _defs_gpencil_sculpt:
             keymap=(
                 ("gpencil.brush_paint",
                  dict(mode='CLONE', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+
+class _defs_gpencil_weight:
+    @classmethod
+    def draw_settings_common(cls, context, layout, tool):
+        ob = context.active_object
+        if ob and ob.mode == 'GPENCIL_WEIGHT':
+            settings = context.tool_settings.gpencil_sculpt
+            brush = settings.brush
+
+            layout.prop(brush, "size", slider=True)
+
+            row = layout.row(align=True)
+            row.prop(brush, "strength", slider=True)
+            row.prop(brush, "use_pressure_strength", text="")
+
+    @ToolDef.from_fn
+    def paint():
+        def draw_settings(context, layout, tool):
+            _defs_gpencil_weight.draw_settings_common(context, layout, tool)
+
+        return dict(
+            text="Draw",
+            icon="ops.gpencil.sculpt_weight",
+            keymap=(
+                ("gpencil.brush_paint",
+                 dict(mode='WEIGHT', wait_for_input=False),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
             draw_settings=draw_settings,
@@ -1338,6 +1405,9 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             None,
             _defs_weight_paint.gradient,
         ],
+        'GPENCIL_PAINT': [
+            _defs_gpencil_paint.generate_from_brushes,
+        ],
         'GPENCIL_SCULPT': [
             _defs_gpencil_sculpt.smooth,
             _defs_gpencil_sculpt.thickness,
@@ -1348,6 +1418,9 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_sculpt.pinch,
             _defs_gpencil_sculpt.randomize,
             _defs_gpencil_sculpt.clone,
+        ],
+        'GPENCIL_WEIGHT': [
+            _defs_gpencil_weight.paint,
         ],
     }
 
