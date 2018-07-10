@@ -703,7 +703,6 @@ void ED_view3d_draw_depth(
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	RegionView3D *rv3d = ar->regiondata;
 
-	short zbuf = v3d->zbuf;
 	short flag = v3d->flag;
 	float glalphaclip = U.glalphaclip;
 	int obcenter_dia = U.obcenter_dia;
@@ -727,7 +726,6 @@ void ED_view3d_draw_depth(
 	/* get surface depth without bias */
 	rv3d->rflag |= RV3D_ZOFFSET_DISABLED;
 
-	v3d->zbuf = true;
 	GPU_depth_test(true);
 
 	DRW_draw_depth_loop(depsgraph, ar, v3d);
@@ -737,8 +735,8 @@ void ED_view3d_draw_depth(
 	}
 	rv3d->rflag &= ~RV3D_ZOFFSET_DISABLED;
 
-	v3d->zbuf = zbuf;
-	if (!v3d->zbuf) GPU_depth_test(false);
+	/* Reset default for UI */
+	GPU_depth_test(false);
 
 	U.glalphaclip = glalphaclip;
 	v3d->flag = flag;
@@ -816,8 +814,8 @@ static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 	immBegin(GWN_PRIM_LINES, 6);
@@ -861,8 +859,8 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 	glDepthMask(GL_FALSE);  /* don't overwrite zbuf */
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_SMOOTH_COLOR);
 

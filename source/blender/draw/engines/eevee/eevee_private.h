@@ -94,8 +94,9 @@ extern struct DrawEngineType draw_engine_eevee_type;
 
 #define OVERLAY_ENABLED(v3d) ((v3d) && (v3d->flag2 & V3D_RENDER_OVERRIDE) == 0)
 #define LOOK_DEV_MODE_ENABLED(v3d) ((v3d) && (v3d->drawtype == OB_MATERIAL))
-#define LOOK_DEV_OVERLAY_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && OVERLAY_ENABLED(v3d) && ((v3d->overlay.flag & V3D_OVERLAY_LOOK_DEV) > 0))
-#define USE_SCENE_LIGHT(v3d) ((!v3d) || (!LOOK_DEV_MODE_ENABLED(v3d)) || ((LOOK_DEV_MODE_ENABLED(v3d) && (v3d->shading.flag & V3D_SHADING_SCENE_LIGHT))))
+#define LOOK_DEV_OVERLAY_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && OVERLAY_ENABLED(v3d) && (v3d->overlay.flag & V3D_OVERLAY_LOOK_DEV))
+#define USE_SCENE_LIGHT(v3d) ((!v3d) || (!LOOK_DEV_MODE_ENABLED(v3d)) || ((LOOK_DEV_MODE_ENABLED(v3d) && (v3d->shading.flag & V3D_SHADING_SCENE_LIGHTS))))
+#define LOOK_DEV_STUDIO_LIGHT_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && !(v3d->shading.flag & V3D_SHADING_SCENE_WORLD))
 
 /* World shader variations */
 enum {
@@ -324,14 +325,14 @@ typedef struct EEVEE_ShadowRender {
 	float stored_texel_size;
 	float clip_near;
 	float clip_far;
-	int shadow_samples_ct;
-	float shadow_inv_samples_ct;
+	int shadow_samples_len;
+	float shadow_samples_len_inv;
 } EEVEE_ShadowRender;
 
 /* This is just a really long bitflag with special function to access it. */
 #define MAX_LIGHTBITS_FIELDS (MAX_LIGHT / 8)
 typedef struct EEVEE_LightBits {
-	unsigned char fields[MAX_LIGHTBITS_FIELDS];
+	uchar fields[MAX_LIGHTBITS_FIELDS];
 } EEVEE_LightBits;
 
 typedef struct EEVEE_ShadowCaster {
@@ -351,8 +352,8 @@ typedef struct EEVEE_LampsInfo {
 	int num_light, cache_num_light;
 	int num_cube_layer, cache_num_cube_layer;
 	int num_cascade_layer, cache_num_cascade_layer;
-	int gpu_cube_ct, gpu_cascade_ct, gpu_shadow_ct;
-	int cpu_cube_ct, cpu_cascade_ct;
+	int gpu_cube_len, gpu_cascade_len, gpu_shadow_len;
+	int cpu_cube_len, cpu_cascade_len;
 	int update_flag;
 	int shadow_cube_size, shadow_cascade_size, shadow_method;
 	bool shadow_high_bitdepth;
@@ -451,8 +452,8 @@ typedef struct EEVEE_LightProbesInfo {
 	int layer;
 	float texel_size;
 	float padding_size;
-	float samples_ct;
-	float invsamples_ct;
+	float samples_len;
+	float samples_len_inv;
 	float near_clip;
 	float far_clip;
 	float roughness;
@@ -562,7 +563,7 @@ typedef struct EEVEE_EffectsInfo {
 	/* Other */
 	float prev_persmat[4][4];
 	/* Bloom */
-	int bloom_iteration_ct;
+	int bloom_iteration_len;
 	float source_texel_size[2];
 	float blit_texel_size[2];
 	float downsamp_texel_size[MAX_BLOOM_STEP][2];
@@ -587,7 +588,7 @@ typedef struct EEVEE_EffectsInfo {
 
 /* Common uniform buffer containing all "constant" data over the whole drawing pipeline. */
 /* !! CAUTION !!
- * - [i]vec3 need to be paded to [i]vec4 (even in ubo declaration).
+ * - [i]vec3 need to be padded to [i]vec4 (even in ubo declaration).
  * - Make sure that [i]vec4 start at a multiple of 16 bytes.
  * - Arrays of vec2/vec3 are padded as arrays of vec4.
  * - sizeof(bool) == sizeof(int) in GLSL so use int in C */

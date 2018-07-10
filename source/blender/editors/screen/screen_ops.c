@@ -1130,7 +1130,7 @@ static int area_dupli_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 	newwin->scene = scene;
 
-	WM_window_set_active_workspace(newwin, workspace);
+	BKE_workspace_active_set(newwin->workspace_hook, workspace);
 	/* allocs new screen and adds to newly created window, using window size */
 	layout_new = ED_workspace_layout_add(bmain, workspace, newwin, BKE_workspace_layout_name_get(layout_old));
 	newsc = BKE_workspace_layout_screen_get(layout_new);
@@ -3659,27 +3659,38 @@ static void SCREEN_OT_header_toggle_menus(wmOperatorType *ot)
 /** \name Header Tools Operator
  * \{ */
 
+static bool header_context_menu_poll(bContext *C)
+{
+	ScrArea *sa = CTX_wm_area(C);
+	return (sa && sa->spacetype != SPACE_STATUSBAR);
+}
+
 void ED_screens_header_tools_menu_create(bContext *C, uiLayout *layout, void *UNUSED(arg))
 {
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 	const char *but_flip_str = (ar->alignment == RGN_ALIGN_TOP) ? IFACE_("Flip to Bottom") : IFACE_("Flip to Top");
 
-	uiItemO(layout, IFACE_("Toggle Header"), ICON_NONE, "SCREEN_OT_header");
+	if (!ELEM(sa->spacetype, SPACE_TOPBAR)) {
+		uiItemO(layout, IFACE_("Toggle Header"), ICON_NONE, "SCREEN_OT_header");
+	}
 
 	/* default is WM_OP_INVOKE_REGION_WIN, which we don't want here. */
 	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
 
-	uiItemO(layout, but_flip_str, ICON_NONE, "SCREEN_OT_region_flip");
+	if (!ELEM(sa->spacetype, SPACE_TOPBAR)) {
+		uiItemO(layout, but_flip_str, ICON_NONE, "SCREEN_OT_region_flip");
+	}
+
 	uiItemO(layout, IFACE_("Collapse Menus"),
 	        (sa->flag & HEADER_NO_PULLDOWN) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT,
 	        "SCREEN_OT_header_toggle_menus");
 
-	uiItemS(layout);
-
 	/* file browser should be fullscreen all the time, topbar should
 	 * never be. But other regions can be maximized/restored... */
 	if (!ELEM(sa->spacetype, SPACE_FILE, SPACE_TOPBAR)) {
+		uiItemS(layout);
+
 		const char *but_str = sa->full ? IFACE_("Tile Area") : IFACE_("Maximize Area");
 		uiItemO(layout, but_str, ICON_NONE, "SCREEN_OT_screen_full_area");
 	}
@@ -3708,6 +3719,7 @@ static void SCREEN_OT_header_context_menu(wmOperatorType *ot)
 	ot->idname = "SCREEN_OT_header_context_menu";
 
 	/* api callbacks */
+	ot->poll = header_context_menu_poll;
 	ot->invoke = header_context_menu_invoke;
 }
 
@@ -4856,8 +4868,8 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_screen_set", RIGHTARROWKEY, KM_PRESS, KM_CTRL, 0)->ptr, "delta", 1);
 	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_screen_set", LEFTARROWKEY, KM_PRESS, KM_CTRL, 0)->ptr, "delta", -1);
 #endif
-	WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", SPACEKEY, KM_PRESS, KM_SHIFT, 0);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", SPACEKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", SPACEKEY, KM_PRESS, KM_CTRL, 0);
+	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", SPACEKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "use_hide_panels", true);
 
 #ifdef USE_WM_KEYMAP_27X
@@ -4876,9 +4888,11 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 	/* tests */
 	WM_keymap_add_item(keymap, "SCREEN_OT_region_quadview", QKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
+
+	WM_keymap_add_item(keymap, "SCREEN_OT_repeat_last", RKEY, KM_PRESS, KM_SHIFT, 0);
+
 #ifdef USE_WM_KEYMAP_27X
 	WM_keymap_verify_item(keymap, "SCREEN_OT_repeat_history", RKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-	WM_keymap_add_item(keymap, "SCREEN_OT_repeat_last", RKEY, KM_PRESS, KM_SHIFT, 0);
 	WM_keymap_verify_item(keymap, "SCREEN_OT_region_flip", F5KEY, KM_PRESS, 0, 0);
 	WM_keymap_verify_item(keymap, "SCREEN_OT_redo_last", F6KEY, KM_PRESS, 0, 0);
 	WM_keymap_verify_item(keymap, "SCRIPT_OT_reload", F8KEY, KM_PRESS, 0, 0);
@@ -4956,9 +4970,19 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "next", false);
 
 
+#ifdef USE_WM_KEYMAP_27X
 	/* play (forward and backwards) */
 	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", AKEY, KM_PRESS, KM_ALT | KM_SHIFT, 0)->ptr, "reverse", true);
+	RNA_boolean_set(
+	        WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", AKEY, KM_PRESS, KM_ALT | KM_SHIFT, 0)->ptr,
+	        "reverse", true);
+#else
+	/* play (forward and backwards) */
+	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", SPACEKEY, KM_PRESS, KM_SHIFT, 0);
+	RNA_boolean_set(
+	        WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", SPACEKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0)->ptr,
+	        "reverse", true);
+#endif
 	WM_keymap_add_item(keymap, "SCREEN_OT_animation_cancel", ESCKEY, KM_PRESS, 0, 0);
 
 	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", MEDIAPLAY, KM_PRESS, 0, 0);

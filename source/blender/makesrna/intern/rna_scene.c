@@ -838,7 +838,7 @@ static void rna_Scene_end_frame_set(PointerRNA *ptr, int value)
 	}
 }
 
-static void rna_Scene_use_preview_range_set(PointerRNA *ptr, int value)
+static void rna_Scene_use_preview_range_set(PointerRNA *ptr, bool value)
 {
 	Scene *data = (Scene *)ptr->data;
 
@@ -1064,7 +1064,7 @@ static int rna_RenderSettings_threads_mode_get(PointerRNA *ptr)
 		return (rd->mode & R_FIXED_THREADS);
 }
 
-static int rna_RenderSettings_is_movie_format_get(PointerRNA *ptr)
+static bool rna_RenderSettings_is_movie_format_get(PointerRNA *ptr)
 {
 	RenderData *rd = (RenderData *)ptr->data;
 	return BKE_imtype_is_movie(rd->im_format.imtype);
@@ -1306,7 +1306,7 @@ static void rna_SceneRender_file_ext_get(PointerRNA *ptr, char *str)
 }
 
 #ifdef WITH_FFMPEG
-static void rna_FFmpegSettings_lossless_output_set(PointerRNA *ptr, int value)
+static void rna_FFmpegSettings_lossless_output_set(PointerRNA *ptr, bool value)
 {
 	Scene *scene = (Scene *) ptr->id.data;
 	RenderData *rd = &scene->r;
@@ -1456,12 +1456,12 @@ static void rna_RenderSettings_engine_update(Main *bmain, Scene *UNUSED(unused),
 	ED_render_engine_changed(bmain);
 }
 
-static int rna_RenderSettings_multiple_engines_get(PointerRNA *UNUSED(ptr))
+static bool rna_RenderSettings_multiple_engines_get(PointerRNA *UNUSED(ptr))
 {
 	return (BLI_listbase_count(&R_engines) > 1);
 }
 
-static int rna_RenderSettings_use_spherical_stereo_get(PointerRNA *ptr)
+static bool rna_RenderSettings_use_spherical_stereo_get(PointerRNA *ptr)
 {
 	Scene *scene = (Scene *)ptr->id.data;
 	return BKE_scene_use_spherical_stereo(scene);
@@ -1654,13 +1654,13 @@ static void rna_Scene_use_persistent_data_update(Main *UNUSED(bmain), Scene *UNU
 		RE_FreePersistentData();
 }
 
-static int rna_Scene_use_audio_get(PointerRNA *ptr)
+static bool rna_Scene_use_audio_get(PointerRNA *ptr)
 {
 	Scene *scene = (Scene *)ptr->data;
 	return (scene->audio.flag & AUDIO_MUTE) != 0;
 }
 
-static void rna_Scene_use_audio_set(PointerRNA *ptr, int value)
+static void rna_Scene_use_audio_set(PointerRNA *ptr, bool value)
 {
 	Scene *scene = (Scene *)ptr->data;
 
@@ -2018,7 +2018,7 @@ static void rna_Stereo3dFormat_update(Main *bmain, Scene *UNUSED(scene), Pointer
 	}
 }
 
-static int rna_gpu_is_hq_supported_get(PointerRNA *UNUSED(ptr))
+static bool rna_gpu_is_hq_supported_get(PointerRNA *UNUSED(ptr))
 {
 	return true;
 }
@@ -5952,7 +5952,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_volumetric_lights", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_VOLUMETRIC_LIGHTS);
 	RNA_def_property_boolean_default(prop, 1);
-	RNA_def_property_ui_text(prop, "Volumetric Lighting", "Enable scene lamps interactions with volumetrics");
+	RNA_def_property_ui_text(prop, "Volumetric Lighting", "Enable scene light interactions with volumetrics");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
 	prop = RNA_def_property(srna, "volumetric_light_clamp", PROP_FLOAT, PROP_NONE);
@@ -6116,13 +6116,13 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "shadow_cube_size", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_default(prop, 512);
 	RNA_def_property_enum_items(prop, eevee_shadow_size_items);
-	RNA_def_property_ui_text(prop, "Cube Shadows Resolution", "Size of point and area lamps shadow maps");
+	RNA_def_property_ui_text(prop, "Cube Shadows Resolution", "Size of point and area light shadow maps");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
 	prop = RNA_def_property(srna, "shadow_cascade_size", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_default(prop, 1024);
 	RNA_def_property_enum_items(prop, eevee_shadow_size_items);
-	RNA_def_property_ui_text(prop, "Directional Shadows Resolution", "Size of sun lamps shadow maps");
+	RNA_def_property_ui_text(prop, "Directional Shadows Resolution", "Size of sun light shadow maps");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
 	prop = RNA_def_property(srna, "use_shadow_high_bitdepth", PROP_BOOLEAN, PROP_NONE);

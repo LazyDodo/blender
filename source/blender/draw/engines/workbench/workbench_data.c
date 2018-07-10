@@ -40,7 +40,7 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 	wpd->shadow_multiplier = 1.0 - wpd->shading.shadow_intensity;
 
 	WORKBENCH_UBO_World *wd = &wpd->world_data;
-	wd->matcap_orientation = (wpd->shading.flag & V3D_SHADING_MATCAP_FLIP_X) > 0;
+	wd->matcap_orientation = (wpd->shading.flag & V3D_SHADING_MATCAP_FLIP_X) != 0;
 	wd->background_alpha = 1.0f;
 
 	if ((v3d->flag3 & V3D_SHOW_WORLD) &&
@@ -121,7 +121,7 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 	}
 }
 
-void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, float light_direction[3])
+void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, float r_light_direction[3])
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
@@ -129,13 +129,16 @@ void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, floa
 	float view_matrix[4][4];
 	DRW_viewport_matrix_get(view_matrix, DRW_MAT_VIEW);
 
+	copy_v3_v3(r_light_direction, scene->display.light_direction);
+	negate_v3(r_light_direction);
+
 	{
 		WORKBENCH_UBO_Light *light = &wd->lights[0];
-		mul_v3_mat3_m4v3(light->light_direction_vs, view_matrix, light_direction);
+		mul_v3_mat3_m4v3(light->light_direction_vs, view_matrix, r_light_direction);
 		light->light_direction_vs[3] = 0.0f;
 		copy_v3_fl(light->specular_color, 1.0f);
 		light->energy = 1.0f;
-		copy_v4_v4(wd->light_direction_vs, light->light_direction_vs);
+		copy_v4_v4(wd->shadow_direction_vs, light->light_direction_vs);
 		wd->num_lights = 1;
 	}
 
@@ -154,8 +157,6 @@ void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, floa
 		wd->num_lights = light_index;
 	}
 
-	copy_v3_v3(light_direction, scene->display.light_direction);
-	negate_v3(light_direction);
 	DRW_uniformbuffer_update(wpd->world_ubo, wd);
 }
 

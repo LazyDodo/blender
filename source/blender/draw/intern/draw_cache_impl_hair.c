@@ -146,9 +146,9 @@ static void ensure_seg_pt_count(
 		return;
 	}
 
-	cache->strands_count = hair_export->totfollicles;
-	cache->elems_count = hair_export->totverts - hair_export->totcurves;
-	cache->point_count = hair_export->totverts;
+    cache->strands_len = hair_export->totfollicles;
+    cache->elems_len = hair_export->totverts - hair_export->totcurves;
+    cache->point_len = hair_export->totverts;
 }
 
 static void hair_batch_cache_fill_segments_proc_pos(
@@ -198,7 +198,7 @@ static void hair_batch_cache_ensure_procedural_pos(
 	uint pos_id = GWN_vertformat_attr_add(&format, "posTime", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 
 	cache->proc_point_buf = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(cache->proc_point_buf, cache->point_count);
+    GWN_vertbuf_data_alloc(cache->proc_point_buf, cache->point_len);
 
 	Gwn_VertBufRaw pos_step;
 	GWN_vertbuf_attr_get_raw_data(cache->proc_point_buf, pos_id, &pos_step);
@@ -333,14 +333,14 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 
 	/* Strand Data */
 	cache->proc_strand_buf = GWN_vertbuf_create_with_format(&format_data);
-	GWN_vertbuf_data_alloc(cache->proc_strand_buf, cache->strands_count);
+    GWN_vertbuf_data_alloc(cache->proc_strand_buf, cache->strands_len);
 	GWN_vertbuf_attr_get_raw_data(cache->proc_strand_buf, data_id, &data_step);
 
 #if 0 // TODO
 	/* UV layers */
 	for (int i = 0; i < cache->num_uv_layers; i++) {
 		cache->proc_uv_buf[i] = GWN_vertbuf_create_with_format(&format_uv);
-		GWN_vertbuf_data_alloc(cache->proc_uv_buf[i], cache->strands_count);
+        GWN_vertbuf_data_alloc(cache->proc_uv_buf[i], cache->strands_len);
 		GWN_vertbuf_attr_get_raw_data(cache->proc_uv_buf[i], uv_id, &uv_step[i]);
 
 		const char *name = CustomData_get_layer_name(&psmd->mesh_final->ldata, CD_MLOOPUV, i);
@@ -356,7 +356,7 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 	/* Vertex colors */
 	for (int i = 0; i < cache->num_col_layers; i++) {
 		cache->proc_col_buf[i] = GWN_vertbuf_create_with_format(&format_col);
-		GWN_vertbuf_data_alloc(cache->proc_col_buf[i], cache->strands_count);
+        GWN_vertbuf_data_alloc(cache->proc_col_buf[i], cache->strands_len);
 		GWN_vertbuf_attr_get_raw_data(cache->proc_col_buf[i], col_id, &col_step[i]);
 
 		const char *name = CustomData_get_layer_name(&psmd->mesh_final->ldata, CD_MLOOPCOL, i);
@@ -421,7 +421,7 @@ static void hair_batch_cache_ensure_procedural_final_points(
 
 	/* Create a destination buffer for the tranform feedback. Sized appropriately */
 	/* Thoses are points! not line segments. */
-	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_buf, cache->final[subdiv].strands_res * cache->strands_count);
+    GWN_vertbuf_data_alloc(cache->final[subdiv].proc_buf, cache->final[subdiv].strands_res * cache->strands_len);
 
 	/* Create vbo immediatly to bind to texture buffer. */
 	GWN_vertbuf_use(cache->final[subdiv].proc_buf);
@@ -462,7 +462,7 @@ static void hair_batch_cache_ensure_procedural_indices(
 
 	int verts_per_hair = cache->final[subdiv].strands_res * thickness_res;
 	/* +1 for primitive restart */
-	int element_count = (verts_per_hair + 1) * cache->strands_count;
+    int element_count = (verts_per_hair + 1) * cache->strands_len;
 	Gwn_PrimType prim_type = (thickness_res == 1) ? GWN_PRIM_LINE_STRIP : GWN_PRIM_TRI_STRIP;
 
 	static Gwn_VertFormat format = { 0 };

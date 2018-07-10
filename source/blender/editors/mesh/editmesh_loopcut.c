@@ -106,19 +106,17 @@ typedef struct RingSelOpData {
 } RingSelOpData;
 
 /* modal loop selection drawing callback */
-static void ringsel_draw(const bContext *C, ARegion *UNUSED(ar), void *arg)
+static void ringsel_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void *arg)
 {
-	View3D *v3d = CTX_wm_view3d(C);
 	RingSelOpData *lcd = arg;
 
 	if ((lcd->totedge > 0) || (lcd->totpoint > 0)) {
-		if (v3d && v3d->zbuf)
-			GPU_depth_test(false);
+		GPU_depth_test(false);
 
 		gpuPushMatrix();
 		gpuMultMatrix(lcd->ob->obmat);
 
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 		immUniformColor3ub(255, 0, 255);
@@ -150,8 +148,8 @@ static void ringsel_draw(const bContext *C, ARegion *UNUSED(ar), void *arg)
 
 		gpuPopMatrix();
 
-		if (v3d && v3d->zbuf)
-			GPU_depth_test(true);
+		/* Reset default */
+		GPU_depth_test(true);
 	}
 }
 

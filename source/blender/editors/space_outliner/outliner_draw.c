@@ -742,7 +742,7 @@ static void outliner_draw_rnacols(ARegion *ar, int sizex)
 
 	GPU_line_width(1.0f);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShadeAlpha(TH_BACK, -15, -200);
 
@@ -1144,7 +1144,7 @@ static void tselem_draw_icon(
 				ICON_DRAW(ICON_RENDER_RESULT);
 				break;
 			case TSE_LINKED_LAMP:
-				ICON_DRAW(ICON_LAMP_DATA);
+				ICON_DRAW(ICON_LIGHT_DATA);
 				break;
 			case TSE_LINKED_MAT:
 				ICON_DRAW(ICON_MATERIAL_DATA);
@@ -1203,7 +1203,7 @@ static void tselem_draw_icon(
 			Object *ob = (Object *)tselem->id;
 			switch (ob->type) {
 				case OB_LAMP:
-					ICON_CLICK_DRAW(ICON_OUTLINER_OB_LAMP); break;
+					ICON_CLICK_DRAW(ICON_OUTLINER_OB_LIGHT); break;
 				case OB_MESH:
 					ICON_CLICK_DRAW(ICON_OUTLINER_OB_MESH); break;
 				case OB_CAMERA:
@@ -1254,17 +1254,17 @@ static void tselem_draw_icon(
 					Lamp *la = (Lamp *)tselem->id;
 					switch (la->type) {
 						case LA_LOCAL:
-							tselem_draw_icon_uibut(&arg, ICON_LAMP_POINT); break;
+							tselem_draw_icon_uibut(&arg, ICON_LIGHT_POINT); break;
 						case LA_SUN:
-							tselem_draw_icon_uibut(&arg, ICON_LAMP_SUN); break;
+							tselem_draw_icon_uibut(&arg, ICON_LIGHT_SUN); break;
 						case LA_SPOT:
-							tselem_draw_icon_uibut(&arg, ICON_LAMP_SPOT); break;
+							tselem_draw_icon_uibut(&arg, ICON_LIGHT_SPOT); break;
 						case LA_HEMI:
-							tselem_draw_icon_uibut(&arg, ICON_LAMP_HEMI); break;
+							tselem_draw_icon_uibut(&arg, ICON_LIGHT_HEMI); break;
 						case LA_AREA:
-							tselem_draw_icon_uibut(&arg, ICON_LAMP_AREA); break;
+							tselem_draw_icon_uibut(&arg, ICON_LIGHT_AREA); break;
 						default:
-							tselem_draw_icon_uibut(&arg, ICON_OUTLINER_DATA_LAMP); break;
+							tselem_draw_icon_uibut(&arg, ICON_OUTLINER_DATA_LIGHT); break;
 					}
 					break;
 				}
@@ -1743,7 +1743,7 @@ static void outliner_draw_tree_element(
 					/* divider */
 					{
 						Gwn_VertFormat *format = immVertexFormat();
-						unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+						uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 						unsigned char col[4];
 
 						immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -1800,7 +1800,7 @@ static void outliner_draw_tree_element_floating(
 	const TreeElement *te_insert = te_floating->drag_data->insert_handle;
 	const int line_width = 2;
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	int coord_y = te_insert->ys;
 	int coord_x = te_insert->xs;
 	float col[4];
@@ -1905,7 +1905,7 @@ static void outliner_draw_hierarchy_lines_recursive(
 static void outliner_draw_hierarchy_lines(SpaceOops *soops, ListBase *lb, int startx, int *starty)
 {
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	unsigned char col[4];
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -1928,7 +1928,7 @@ static void outliner_draw_struct_marks(ARegion *ar, SpaceOops *soops, ListBase *
 		if (TSELEM_OPEN(tselem, soops)) {
 			if (tselem->type == TSE_RNA_STRUCT) {
 				Gwn_VertFormat *format = immVertexFormat();
-				unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+				uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 				immThemeColorShadeAlpha(TH_BACK, -15, -200);
 				immRecti(pos, 0, *starty + 1, (int)ar->v2d.cur.xmax, *starty + UI_UNIT_Y - 1);
@@ -1941,7 +1941,7 @@ static void outliner_draw_struct_marks(ARegion *ar, SpaceOops *soops, ListBase *
 			outliner_draw_struct_marks(ar, soops, &te->subtree, starty);
 			if (tselem->type == TSE_RNA_STRUCT) {
 				Gwn_VertFormat *format = immVertexFormat();
-				unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+				uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 				immThemeColorShadeAlpha(TH_BACK, -15, -200);
 
@@ -2011,7 +2011,7 @@ static void outliner_draw_highlights(ARegion *ar, SpaceOops *soops, int startx, 
 
 	GPU_blend(true);
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	outliner_draw_highlights_recursive(
 	        pos, ar, soops, &soops->tree, col_selection, col_highlight, col_searchmatch,
@@ -2086,7 +2086,7 @@ static void outliner_back(ARegion *ar)
 	ystart = UI_UNIT_Y * (ystart / (UI_UNIT_Y)) - OL_Y_OFFSET;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShade(TH_BACK, 6);
@@ -2117,7 +2117,7 @@ static void outliner_draw_restrictcols(ARegion *ar)
 {
 	GPU_line_width(1.0f);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShadeAlpha(TH_BACK, -15, -200);
 	immBegin(GWN_PRIM_LINES, 8);

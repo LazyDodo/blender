@@ -488,11 +488,11 @@ def smpte_from_frame(frame, fps=None, fps_base=None):
 
     return (
         "%s%02d:%02d:%02d:%02d" % (
-        sign,
-        int(frame / (3600 * fps)),          # HH
-        int((frame / (60 * fps)) % 60),     # MM
-        int((frame / fps) % 60),            # SS
-        int(frame % fps),                   # FF
+            sign,
+            int(frame / (3600 * fps)),          # HH
+            int((frame / (60 * fps)) % 60),     # MM
+            int((frame / fps) % 60),            # SS
+            int(frame % fps),                   # FF
         ))
 
 
@@ -581,8 +581,13 @@ def keyconfig_set(filepath, report=None):
     try:
         error_msg = ""
         with open(filepath, 'r', encoding='utf-8') as keyfile:
-            exec(compile(keyfile.read(), filepath, "exec"),
-                 {"__file__": filepath})
+            exec(
+                compile(keyfile.read(), filepath, "exec"),
+                {
+                    "__file__": filepath,
+                    "__name__": "__main__",
+                }
+            )
     except:
         import traceback
         error_msg = traceback.format_exc()
@@ -772,6 +777,7 @@ def _blender_default_map():
     # avoid storing in memory
     del _sys.modules["rna_manual_reference"]
     return ret
+
 
 # hooks for doc lookups
 _manual_map = [_blender_default_map]
