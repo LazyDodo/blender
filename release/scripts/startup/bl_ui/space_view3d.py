@@ -126,9 +126,10 @@ class VIEW3D_HT_header(Header):
                 row = layout.row(align=True)
                 row.prop(tool_settings.gpencil_sculpt, "use_select_mask", text="")
 
-            if gpd.is_stroke_paint_mode:
-                row = layout.row(align=True)
-                row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
+            # GPXX: Disabled. To be removed when new preview works
+            # if gpd.is_stroke_paint_mode:
+            #     row = layout.row(align=True)
+            #     row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
 
         VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
