@@ -260,14 +260,6 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					cp = ts->panelcolors.back; break;
 				case TH_PANEL_SUB_BACK:
 					cp = ts->panelcolors.sub_back; break;
-				case TH_PANEL_SHOW_HEADER:
-					cp = &setting;
-					setting = ts->panelcolors.show_header;
-					break;
-				case TH_PANEL_SHOW_BACK:
-					cp = &setting;
-					setting = ts->panelcolors.show_back;
-					break;
 
 				case TH_BUTBACK:
 					cp = ts->button; break;
@@ -1610,11 +1602,7 @@ void init_userdef_do_versions(Main *bmain)
 
 	/* Not versioning, just avoid errors. */
 #ifndef WITH_CYCLES
-	bAddon *addon = BLI_findstring(&U.addons, "cycles", offsetof(bAddon, module));
-	if (addon) {
-		BLI_remlink(&U.addons, addon);
-		BKE_addon_free(addon);
-	}
+	BKE_addon_remove_safe(&U.addons, "cycles");
 #endif
 
 	/* funny name, but it is GE stuff, moves userdef stuff to engine */

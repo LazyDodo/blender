@@ -596,10 +596,23 @@ static bool view3d_ima_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEven
 	return 0;
 }
 
+static bool view3d_ima_bg_is_camera_view(bContext *C)
+{
+	RegionView3D *rv3d = CTX_wm_region_view3d(C);
+	if ((rv3d && (rv3d->persp == RV3D_CAMOB))) {
+		View3D *v3d = CTX_wm_view3d(C);
+		if (v3d && v3d->camera && v3d->camera->type == OB_CAMERA) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool view3d_ima_bg_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
 {
-	if (event->ctrl)
-		return false;
+	if (view3d_ima_bg_is_camera_view(C)) {
+		return true;
+	}
 
 	if (!ED_view3d_give_base_under_cursor(C, event->mval)) {
 		return view3d_ima_drop_poll(C, drag, event);
@@ -609,10 +622,14 @@ static bool view3d_ima_bg_drop_poll(bContext *C, wmDrag *drag, const wmEvent *ev
 
 static bool view3d_ima_empty_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
 {
+	if (!view3d_ima_bg_is_camera_view(C)) {
+		return true;
+	}
+
 	Base *base = ED_view3d_give_base_under_cursor(C, event->mval);
 
 	/* either holding and ctrl and no object, or dropping to empty */
-	if (((base == NULL) && event->ctrl) ||
+	if ((base == NULL) ||
 	    ((base != NULL) && base->object->type == OB_EMPTY))
 	{
 		return view3d_ima_drop_poll(C, drag, event);
@@ -666,6 +683,18 @@ static void view3d_id_path_drop_copy(wmDrag *drag, wmDropBox *drop)
 	}
 }
 
+static void view3d_lightcache_update(bContext *C)
+{
+	PointerRNA op_ptr;
+
+	WM_operator_properties_create(&op_ptr, "SCENE_OT_light_cache_bake");
+	RNA_int_set(&op_ptr, "delay", 200);
+	RNA_enum_set_identifier(C, &op_ptr, "subset", "DIRTY");
+
+	WM_operator_name_call(C, "SCENE_OT_light_cache_bake", WM_OP_INVOKE_DEFAULT, &op_ptr);
+
+	WM_operator_properties_free(&op_ptr);
+}
 
 /* region dropbox definition */
 static void view3d_dropboxes(void)
@@ -963,6 +992,9 @@ static void view3d_main_region_listener(
 					break;
 			}
 			break;
+		case NC_LIGHTPROBE:
+			ED_area_tag_refresh(sa);
+			break;
 		case NC_IMAGE:
 			/* this could be more fine grained checks if we had
 			 * more context than just the region */
@@ -1033,11 +1065,11 @@ static void view3d_main_region_message_subscribe(
 		&RNA_Window,
 
 		/* These object have properties that impact drawing. */
-		&RNA_AreaLamp,
+		&RNA_AreaLight,
 		&RNA_Camera,
-		&RNA_Lamp,
+		&RNA_Light,
 		&RNA_Speaker,
-		&RNA_SunLamp,
+		&RNA_SunLight,
 
 		/* General types the 3D view depends on. */
 		&RNA_Object,
@@ -1392,6 +1424,13 @@ static void space_view3d_listener(
 	}
 }
 
+static void space_view3d_refresh(const bContext *C, ScrArea *UNUSED(sa))
+{
+	/* This is only used by the auto lightprobe refresh for the moment.
+	 * So we don't need to check anything to know what to do. */
+	view3d_lightcache_update((bContext *)C);
+}
+
 const char *view3d_context_dir[] = {
 	"active_base", "active_object", NULL
 };
@@ -1492,6 +1531,7 @@ void ED_spacetype_view3d(void)
 	st->free = view3d_free;
 	st->init = view3d_init;
 	st->listener = space_view3d_listener;
+	st->refresh = space_view3d_refresh;
 	st->duplicate = view3d_duplicate;
 	st->operatortypes = view3d_operatortypes;
 	st->keymap = view3d_keymap;

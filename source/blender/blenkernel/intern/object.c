@@ -424,6 +424,8 @@ void BKE_object_free(Object *ob)
 {
 	BKE_animdata_free((ID *)ob, false);
 
+	DRW_drawdata_free((ID *)ob);
+
 	/* BKE_<id>_free shall never touch to ID->us. Never ever. */
 	BKE_object_free_modifiers(ob, LIB_ID_CREATE_NO_USER_REFCOUNT);
 
@@ -450,13 +452,6 @@ void BKE_object_free(Object *ob)
 	BKE_rigidbody_free_constraint(ob);
 
 	sbFree(ob);
-
-	for (ObjectEngineData *oed = ob->drawdata.first; oed; oed = oed->next) {
-		if (oed->free != NULL) {
-			oed->free(oed);
-		}
-	}
-	BLI_freelistN(&ob->drawdata);
 
 	BKE_sculptsession_free(ob);
 
@@ -653,7 +648,7 @@ static const char *get_obdata_defname(int type)
 		case OB_FONT: return DATA_("Text");
 		case OB_MBALL: return DATA_("Mball");
 		case OB_CAMERA: return DATA_("Camera");
-		case OB_LAMP: return DATA_("Lamp");
+		case OB_LAMP: return DATA_("Light");
 		case OB_LATTICE: return DATA_("Lattice");
 		case OB_ARMATURE: return DATA_("Armature");
 		case OB_SPEAKER: return DATA_("Speaker");
@@ -719,6 +714,9 @@ void BKE_object_init(Object *ob)
 	ob->dt = OB_TEXTURE;
 	ob->empty_drawtype = OB_PLAINAXES;
 	ob->empty_drawsize = 1.0;
+	if (ob->type == OB_EMPTY) {
+		copy_v2_fl(ob->ima_ofs, -0.5f);
+	}
 
 	if (ELEM(ob->type, OB_LAMP, OB_CAMERA, OB_SPEAKER)) {
 		ob->trackflag = OB_NEGZ;
@@ -1207,7 +1205,7 @@ void BKE_object_copy_data(Main *UNUSED(bmain), Object *ob_dst, const Object *ob_
 	ob_dst->derivedFinal = NULL;
 
 	BLI_listbase_clear(&ob_dst->gpulamp);
-	BLI_listbase_clear(&ob_dst->drawdata);
+	BLI_listbase_clear((ListBase *)&ob_dst->drawdata);
 	BLI_listbase_clear(&ob_dst->pc_ids);
 
 	ob_dst->avs = ob_src->avs;
@@ -2482,7 +2480,6 @@ void BKE_object_empty_draw_type_set(Object *ob, const int value)
 			ob->iuser->flag |= IMA_ANIM_ALWAYS;
 			ob->iuser->frames = 100;
 			ob->iuser->sfra = 1;
-			ob->iuser->fie_ima = 2;
 		}
 	}
 	else {

@@ -149,12 +149,12 @@ static void MPATH_cache_init(void *vedata)
 	MPATH_PassList *psl = ((MPATH_Data *)vedata)->psl;
 
 	{
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		DRWState state = DRW_STATE_WRITE_COLOR;
 		psl->lines = DRW_pass_create("Motionpath Line Pass", state);
 	}
 
 	{
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_POINT;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_POINT;
 		psl->points = DRW_pass_create("Motionpath Point Pass", state);
 	}
 }
@@ -256,7 +256,7 @@ static void MPATH_cache_motion_path(MPATH_PassList *psl,
 	bool show_kf_no = (avs->path_viewflag & MOTIONPATH_VIEW_KFNOS) != 0;
 	if ((avs->path_viewflag & (MOTIONPATH_VIEW_FNUMS)) || (show_kf_no && show_keyframes)) {
 		int i;
-		unsigned char col[4], col_kf[4];
+		uchar col[4], col_kf[4];
 		UI_GetThemeColor3ubv(TH_TEXT_HI, col);
 		UI_GetThemeColor3ubv(TH_VERTEX_SELECT, col_kf);
 		col[3] = col_kf[3] = 255;

@@ -44,6 +44,7 @@
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_world_types.h"
 
 #include "GPU_framebuffer.h"
 #include "GPU_texture.h"
@@ -246,14 +247,14 @@ struct GPUShader *DRW_shader_create_2D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_fullscreen(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D_depth_only(void);
-struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options);
-struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options);
+struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options, bool no_deferred);
+struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options, bool no_deferred);
 struct GPUMaterial *DRW_shader_create_from_world(
         struct Scene *scene, struct World *wo, const void *engine_type, int options,
-        const char *vert, const char *geom, const char *frag_lib, const char *defines);
+        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool no_deferred);
 struct GPUMaterial *DRW_shader_create_from_material(
         struct Scene *scene, struct Material *ma, const void *engine_type, int options,
-        const char *vert, const char *geom, const char *frag_lib, const char *defines);
+        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool no_deferred);
 void DRW_shader_free(struct GPUShader *shader);
 #define DRW_SHADER_FREE_SAFE(shader) do { \
 	if (shader != NULL) { \
@@ -353,9 +354,9 @@ void DRW_shgroup_free(struct DRWShadingGroup *shgroup);
 void DRW_shgroup_call_add(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4]);
 void DRW_shgroup_call_range_add(
         DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4], uint v_sta, uint v_count);
-void DRW_shgroup_call_procedural_points_add(DRWShadingGroup *shgroup, unsigned int point_count, float (*obmat)[4]);
-void DRW_shgroup_call_procedural_lines_add(DRWShadingGroup *shgroup, unsigned int line_count, float (*obmat)[4]);
-void DRW_shgroup_call_procedural_triangles_add(DRWShadingGroup *shgroup, unsigned int tria_count, float (*obmat)[4]);
+void DRW_shgroup_call_procedural_points_add(DRWShadingGroup *shgroup, uint point_len, float (*obmat)[4]);
+void DRW_shgroup_call_procedural_lines_add(DRWShadingGroup *shgroup, uint line_count, float (*obmat)[4]);
+void DRW_shgroup_call_procedural_triangles_add(DRWShadingGroup *shgroup, uint tria_count, float (*obmat)[4]);
 void DRW_shgroup_call_object_procedural_triangles_culled_add(DRWShadingGroup *shgroup, uint tria_count, struct Object *ob);
 void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob, bool bypass_culling);
 #define DRW_shgroup_call_object_add(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, false)
@@ -416,6 +417,7 @@ void DRW_pass_sort_shgroup_z(DRWPass *pass);
 
 /* Viewport */
 typedef enum {
+	/* keep in sync with the union struct DRWMatrixState. */
 	DRW_MAT_PERS = 0,
 	DRW_MAT_PERSINV,
 	DRW_MAT_VIEW,
@@ -427,7 +429,18 @@ typedef enum {
 } DRWViewportMatrixType;
 
 typedef struct DRWMatrixState {
-	float mat[DRW_MAT_COUNT][4][4];
+	union {
+		float mat[DRW_MAT_COUNT][4][4];
+		struct {
+			/* keep in sync with the enum DRWViewportMatrixType. */
+			float persmat[4][4];
+			float persinv[4][4];
+			float viewmat[4][4];
+			float viewinv[4][4];
+			float winmat[4][4];
+			float wininv[4][4];
+		};
+	};
 } DRWMatrixState;
 
 void DRW_viewport_init(const bContext *C);
@@ -460,6 +473,12 @@ void DRW_render_object_iter(
 	void (*callback)(void *vedata, struct Object *ob, struct RenderEngine *engine, struct Depsgraph *depsgraph));
 void DRW_render_instance_buffer_finish(void);
 
+void DRW_custom_pipeline(
+        DrawEngineType *draw_engine_type,
+        struct Depsgraph *depsgraph,
+        void (*callback)(void *vedata, void *user_data),
+        void *user_data);
+
 /* ViewLayers */
 void *DRW_view_layer_engine_data_get(DrawEngineType *engine_type);
 void **DRW_view_layer_engine_data_ensure_ex(
@@ -467,16 +486,14 @@ void **DRW_view_layer_engine_data_ensure_ex(
 void **DRW_view_layer_engine_data_ensure(
         DrawEngineType *engine_type, void (*callback)(void *storage));
 
-/* Objects */
-ObjectEngineData *DRW_object_engine_data_get(Object *ob, DrawEngineType *engine_type);
-ObjectEngineData *DRW_object_engine_data_ensure(
-        Object *ob,
+/* DrawData */
+DrawData *DRW_drawdata_get(ID *ib, DrawEngineType *engine_type);
+DrawData *DRW_drawdata_ensure(
+        ID *id,
         DrawEngineType *engine_type,
         size_t size,
-        ObjectEngineDataInitCb init_cb,
-        ObjectEngineDataFreeCb free_cb);
-struct LampEngineData *DRW_lamp_engine_data_ensure(Object *ob, struct RenderEngineType *engine_type);
-void DRW_lamp_engine_data_free(struct LampEngineData *led);
+        DrawDataInitCb init_cb,
+        DrawDataFreeCb free_cb);
 
 /* Settings */
 bool DRW_object_is_renderable(struct Object *ob);
@@ -503,7 +520,7 @@ void DRW_state_lock(DRWState state);
 
 void DRW_state_invert_facing(void);
 
-void DRW_state_clip_planes_count_set(uint plane_ct);
+void DRW_state_clip_planes_count_set(uint plane_len);
 void DRW_state_clip_planes_reset(void);
 
 /* Culling, return true if object is inside view frustum. */

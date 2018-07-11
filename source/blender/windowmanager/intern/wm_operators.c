@@ -2569,11 +2569,11 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 	}
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	if (rc->gltex) {
 
-		unsigned int texCoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint texCoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rc->gltex);
@@ -2701,7 +2701,7 @@ static void radial_control_paint_cursor(bContext *UNUSED(C), int x, int y, void 
 		RNA_property_float_get_array(&rc->col_ptr, rc->col_prop, col);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3fvAlpha(col, 0.5f);
@@ -3558,7 +3558,7 @@ static const EnumPropertyItem preview_id_type_items[] = {
     {FILTER_ID_GR, "GROUP", 0, "Groups", ""},
     {FILTER_ID_OB, "OBJECT", 0, "Objects", ""},
     {FILTER_ID_MA, "MATERIAL", 0, "Materials", ""},
-    {FILTER_ID_LA, "LAMP", 0, "Lamps", ""},
+    {FILTER_ID_LA, "LIGHT", 0, "Lights", ""},
     {FILTER_ID_WO, "WORLD", 0, "Worlds", ""},
     {FILTER_ID_TE, "TEXTURE", 0, "Textures", ""},
     {FILTER_ID_IM, "IMAGE", 0, "Images", ""},
@@ -3996,6 +3996,11 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 
 	WM_keymap_add_item(keymap, "WM_OT_quit_blender", QKEY, KM_PRESS, KM_CTRL, 0);
 
+	/* F-Keys are a hassle on some macos systems. */
+#ifdef __APPLE__
+	WM_keymap_add_item(keymap, "WM_OT_search_menu", FKEY, KM_PRESS, KM_OSKEY, 0);
+#endif
+
 #ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "WM_OT_doc_view_manual_ui_context", F1KEY, KM_PRESS, KM_ALT, 0);
 
@@ -4010,8 +4015,6 @@ void wm_window_keymap(wmKeyConfig *keyconf)
 #endif
 
 	/* menus that can be accessed anywhere in blender */
-	WM_keymap_add_item(keymap, "WM_OT_search_menu", ACCENTGRAVEKEY, KM_CLICK, 0, 0);
-
 	WM_keymap_add_menu(keymap, "SCREEN_MT_user_menu", QKEY, KM_PRESS, 0, 0);
 
 #ifdef WITH_INPUT_NDOF

@@ -296,11 +296,7 @@ static void wm_notifier_clear(wmNotifier *note)
 	memset(((char *)note) + sizeof(Link), 0, sizeof(*note) - sizeof(Link));
 }
 
-/**
- * Was part of #wm_event_do_notifiers, split out so it can be called once before entering the #WM_main loop.
- * This ensures operators don't run before the UI and depsgraph are initialized.
- */
-void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
+void wm_event_do_depsgraph(bContext *C)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
 	uint64_t win_combine_v3d_datamask = 0;
@@ -315,18 +311,8 @@ void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
 
 	/* cached: editor refresh callbacks now, they get context */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
-		const bScreen *screen = WM_window_get_active_screen(win);
 		Scene *scene = WM_window_get_active_scene(win);
 		ViewLayer *view_layer = WM_window_get_active_view_layer(win);
-		ScrArea *sa;
-
-		CTX_wm_window_set(C, win);
-		for (sa = screen->areabase.first; sa; sa = sa->next) {
-			if (sa->do_refresh) {
-				CTX_wm_area_set(C, sa);
-				ED_area_do_refresh(C, sa);
-			}
-		}
 
 		/* XXX make lock in future, or separated derivedmesh users in scene */
 		if (G.is_rendering == false) {
@@ -350,6 +336,30 @@ void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
 			BKE_scene_graph_update_tagged(depsgraph, bmain);
 		}
 	}
+}
+
+/**
+ * Was part of #wm_event_do_notifiers, split out so it can be called once before entering the #WM_main loop.
+ * This ensures operators don't run before the UI and depsgraph are initialized.
+ */
+void wm_event_do_refresh_wm_and_depsgraph(bContext *C)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+	/* cached: editor refresh callbacks now, they get context */
+	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+		const bScreen *screen = WM_window_get_active_screen(win);
+		ScrArea *sa;
+
+		CTX_wm_window_set(C, win);
+		for (sa = screen->areabase.first; sa; sa = sa->next) {
+			if (sa->do_refresh) {
+				CTX_wm_area_set(C, sa);
+				ED_area_do_refresh(C, sa);
+			}
+		}
+	}
+
+	wm_event_do_depsgraph(C);
 
 	CTX_wm_window_set(C, NULL);
 }
@@ -1960,6 +1970,11 @@ static int wm_handler_operator_call(bContext *C, ListBase *handlers, wmEventHand
 
 				if (retval & (OPERATOR_CANCELLED | OPERATOR_FINISHED)) {
 					wm_operator_reports(C, op, retval, false);
+
+					if (op->type->modalkeymap) {
+						wmWindow *win = CTX_wm_window(C);
+						WM_window_status_area_tag_redraw(win);
+					}
 				}
 				else {
 					/* not very common, but modal operators may report before finishing */
@@ -3191,6 +3206,10 @@ wmEventHandler *WM_event_add_modal_handler(bContext *C, wmOperator *op)
 
 	BLI_addhead(&win->modalhandlers, handler);
 
+	if (op->type->modalkeymap) {
+		WM_window_status_area_tag_redraw(win);
+	}
+
 	return handler;
 }
 
@@ -4321,11 +4340,14 @@ const char *WM_window_cursor_keymap_status_get(const wmWindow *win, int button_i
 	return NULL;
 }
 
-void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
+/**
+ * Similar to #BKE_screen_area_map_find_area_xy and related functions,
+ * use here since the ara is stored in the window manager.
+ */
+ScrArea *WM_window_status_area_find(wmWindow *win, bScreen *screen)
 {
-	bScreen *screen = WM_window_get_active_screen(win);
 	if (screen->state == SCREENFULL) {
-		return;
+		return NULL;
 	}
 	ScrArea *sa_statusbar = NULL;
 	for (ScrArea *sa = win->global_areas.areabase.first; sa; sa = sa->next) {
@@ -4334,6 +4356,22 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
 			break;
 		}
 	}
+	return sa_statusbar;
+}
+
+void WM_window_status_area_tag_redraw(wmWindow *win)
+{
+	bScreen *sc = WM_window_get_active_screen(win);
+	ScrArea *sa = WM_window_status_area_find(win, sc);
+	if (sa != NULL) {
+		ED_area_tag_redraw(sa);
+	}
+}
+
+void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
+{
+	bScreen *screen = WM_window_get_active_screen(win);
+	ScrArea *sa_statusbar = WM_window_status_area_find(win, screen);
 	if (sa_statusbar == NULL) {
 		return;
 	}
@@ -4473,6 +4511,88 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, struct wmWindow *win)
 	}
 
 	CTX_wm_window_set(C, NULL);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Modal Keymap Status
+ *
+ * \{ */
+
+bool WM_window_modal_keymap_status_draw(
+        bContext *UNUSED(C), wmWindow *win,
+        uiLayout *layout)
+{
+	wmKeyMap *keymap = NULL;
+	wmOperator *op = NULL;
+	for (wmEventHandler *handler = win->modalhandlers.first; handler; handler = handler->next) {
+		if (handler->op) {
+			/* 'handler->keymap' could be checked too, seems not to be used. */
+			wmKeyMap *keymap_test = handler->op->type->modalkeymap;
+			if (keymap_test && keymap_test->modal_items) {
+				keymap = keymap_test;
+				op = handler->op;
+				break;
+			}
+		}
+	}
+	if (keymap == NULL) {
+		return false;
+	}
+	const EnumPropertyItem *items = keymap->modal_items;
+
+	uiLayout *row = uiLayoutRow(layout, true);
+	for (int i = 0; items[i].identifier; i++) {
+		if (!items[i].identifier[0]) {
+			continue;
+		}
+		if ((keymap->poll_modal_item != NULL) &&
+		    (keymap->poll_modal_item(op, items[i].value) == false))
+		{
+			continue;
+		}
+
+		bool show_text = true;
+
+		{
+			/* warning: O(n^2) */
+			wmKeyMapItem *kmi = NULL;
+			for (kmi = keymap->items.first; kmi; kmi = kmi->next) {
+				if (kmi->propvalue == items[i].value) {
+					break;
+				}
+			}
+			if (kmi != NULL) {
+				if (kmi->val == KM_RELEASE) {
+					/* Assume release events just disable something which was toggled on. */
+					continue;
+				}
+				int icon_mod[4];
+				int icon = UI_icon_from_keymap_item(kmi, icon_mod);
+				if (icon != 0) {
+					for (int j = 0; j < ARRAY_SIZE(icon_mod) && icon_mod[j]; j++) {
+						uiItemL(row, "", icon_mod[j]);
+					}
+					uiItemL(row, items[i].name, icon);
+					show_text = false;
+				}
+			}
+		}
+		if (show_text) {
+			char buf[UI_MAX_DRAW_STR];
+			int available_len = sizeof(buf);
+			char *p = buf;
+			WM_modalkeymap_operator_items_to_string_buf(
+			        op->type, items[i].value, true, UI_MAX_SHORTCUT_STR, &available_len, &p);
+			p -= 1;
+			if (p > buf) {
+				BLI_snprintf(p, available_len, ": %s", items[i].name);
+				uiItemL(row, buf, 0);
+			}
+		}
+	}
+	return true;
 }
 
 /** \} */
