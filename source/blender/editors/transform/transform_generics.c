@@ -1353,8 +1353,8 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 
 		/* turn manipulator off during transform */
 		if (t->flag & T_MODAL) {
-			t->twflag = v3d->twflag;
-			v3d->twflag = 0;
+			t->mpr_flag = v3d->mpr_flag;
+			v3d->mpr_flag = 0;
 		}
 
 		if (t->scene->toolsettings->transform_flag & SCE_XFORM_AXIS_ALIGN) {
@@ -1693,7 +1693,7 @@ void postTrans(bContext *C, TransInfo *t)
 		View3D *v3d = t->sa->spacedata.first;
 		/* restore manipulator */
 		if (t->flag & T_MODAL) {
-			v3d->twflag = t->twflag;
+			v3d->mpr_flag = t->mpr_flag;
 		}
 	}
 

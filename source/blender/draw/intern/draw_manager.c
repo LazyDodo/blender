@@ -1464,7 +1464,7 @@ void DRW_draw_render_loop_ex(
 	if (DST.draw_ctx.evil_C) {
 		/* needed so manipulator isn't obscured */
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-		    ((v3d->twflag & V3D_MANIPULATOR_DRAW) != 0))
+		    ((v3d->mpr_flag & V3D_MANIPULATOR_HIDE) == 0))
 		{
 			glDisable(GL_DEPTH_TEST);
 			DRW_draw_manipulator_3d();
@@ -1922,7 +1922,7 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
-	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECTION) {
+	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT) {
 		if (!(v3d->flag2 & V3D_RENDER_OVERRIDE)) {
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
