@@ -63,10 +63,19 @@ def generate_from_brushes_ex(
             if getattr(brush, brush_test_attr):
                 category = getattr(brush.gpencil_settings, brush_category_attr)
                 name = brush.name
+                if name.startswith("Draw "):
+                    text = name.replace("Draw ", "")
+                elif name.startswith("Eraser "):
+                    text = name.replace("Eraser ", "")
+                elif name.startswith("Fill "):
+                    text = name.replace(" Area", "")
+                else:
+                    text = name
+
                 brush_categories.setdefault(category, []).append(
                     ToolDef.from_dict(
                         dict(
-                            text=name,
+                            text=text,
                             icon=icon_prefix + category.lower().replace(" ", "_"),
                             data_block=name,
                             widget=None,
