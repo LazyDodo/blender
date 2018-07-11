@@ -82,7 +82,14 @@ def generate_from_brushes_ex(
             tool_defs = tuple(brush_categories.pop(groups[0], ()))
         else:
             tool_defs = tuple(item for g in groups for item in brush_categories.pop(g, ()))
-        return tool_defs
+
+        if context.mode != 'GPENCIL_PAINT':
+            if len(tool_defs) > 1:
+                return (tool_defs,)
+            else:
+                return tool_defs
+        else:
+            return tool_defs
 
     # Each item below is a single toolbar entry:
     # Grouped for multiple or none if no brushes are found.
