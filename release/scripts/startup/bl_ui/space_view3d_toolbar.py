@@ -1785,7 +1785,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_brush_stabilizer,
     VIEW3D_PT_tools_grease_pencil_brush_random,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
-    VIEW3D_PT_tools_grease_pencil_shapes,
+    # VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_edit,
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
@@ -1794,7 +1794,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,
-    VIEW3D_PT_tools_grease_pencil_animation,
+    #VIEW3D_PT_tools_grease_pencil_animation,
 )
 
 if __name__ == "__main__":  # only for live edit.
