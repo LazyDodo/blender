@@ -4334,6 +4334,10 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
 	MyBMeshModifierData *mmd = (MyBMeshModifierData *)md;
 
 	if(mmd->camera_ob){
+		float trans_mat[4][4];
+
+		//Create tranformation matrix to get relative coordinates of the camera obj.
+		invert_m4_m4(trans_mat, ctx->object->obmat);
 
 		copy_v3_v3(cam_loc, mmd->camera_ob->loc);
 		/*
@@ -4343,7 +4347,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
 		printf("3: %f\n", cam_loc[2]);
 		*/
 		//convert camera origin from world coord to the modifier obj local coords
-		mul_m4_v3(ctx->object->obmat, cam_loc);
+		mul_m4_v3(trans_mat, cam_loc);
 		/*
 		printf("Cam loc 2:\n");
 		printf("1: %f\n", cam_loc[0]);
