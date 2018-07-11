@@ -436,6 +436,7 @@ class USERPREF_PT_edit(Panel):
 
         col.label(text="Transform:")
         col.prop(edit, "use_drag_immediately")
+        col.prop(edit, "use_numeric_input_advanced")
 
         row.separator()
         row.separator()
