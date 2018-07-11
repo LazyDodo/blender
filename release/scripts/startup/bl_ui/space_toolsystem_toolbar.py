@@ -993,15 +993,32 @@ class _defs_gpencil_paint:
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
 
-            row = layout.row(align=True)
-            row.prop(brush, "size", text="Radius")
-            row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
-            row = layout.row(align=True)
-            row.prop(gp_settings, "pen_strength", slider=True)
-            row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+            if gp_settings.gpencil_brush_type == 'ERASE':
+                row = layout.row()
+                row.prop(brush, "size", text="Radius")
+            elif gp_settings.gpencil_brush_type == 'FILL':
+                row = layout.row()
+                row.prop(gp_settings, "gpencil_fill_leak", text="Leak Size")
+                row.prop(brush, "size", text="Thickness")
+                row.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
-            row = layout.row(align=True)
-            row.template_ID(gp_settings, "material")
+                row = layout.row()
+                row.template_ID(gp_settings, "material")
+
+                row = layout.row(align=True)
+                row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
+                row.prop(gp_settings, "gpencil_fill_show_boundary", text="", icon='GRID')
+
+            else:  # bgpsettings.gpencil_brush_type == 'DRAW':
+                row = layout.row(align=True)
+                row.prop(brush, "size", text="Radius")
+                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                row = layout.row(align=True)
+                row.prop(gp_settings, "pen_strength", slider=True)
+                row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+
+                row = layout.row(align=True)
+                row.template_ID(gp_settings, "material")
 
     @staticmethod
     def generate_from_brushes(context):
