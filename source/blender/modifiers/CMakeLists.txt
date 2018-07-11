@@ -76,6 +76,7 @@ set(SRC
 	intern/MOD_meshsequencecache.c
 	intern/MOD_mirror.c
 	intern/MOD_multires.c
+	intern/MOD_mybmesh.c
 	intern/MOD_none.c
 	intern/MOD_normal_edit.c
 	intern/MOD_ocean.c
@@ -145,6 +146,10 @@ endif()
 
 if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
+	list(APPEND INC_SYS
+		../../../intern/opensubdiv
+		${OPENSUBDIV_INCLUDE_DIRS}
+	)
 endif()
 
 # So we can have special tricks in modifier system.

@@ -84,14 +84,11 @@ static OpenSubdiv_SchemeType conv_dm_get_type(
 		return OSD_SCHEME_CATMARK;
 }
 
-static OpenSubdiv_FVarLinearInterpolation conv_dm_get_fvar_linear_interpolation(
+static bool conv_dm_get_subdiv_uvs(
         const OpenSubdiv_Converter *converter)
 {
 	ConvDMStorage *storage = converter->user_data;
-	if (storage->ss->osd_subdiv_uvs) {
-		return OSD_FVAR_LINEAR_INTERPOLATION_CORNERS_ONLY;
-	}
-	return OSD_FVAR_LINEAR_INTERPOLATION_ALL;
+	return (storage->ss->osd_subdiv_uvs);
 }
 
 static int conv_dm_get_num_faces(const OpenSubdiv_Converter *converter)
@@ -432,10 +429,9 @@ void ccgSubSurf_converter_setup_from_derivedmesh(
 {
 	ConvDMStorage *user_data;
 
-	converter->get_scheme_type = conv_dm_get_type;
+	converter->get_type = conv_dm_get_type;
 
-	converter->get_fvar_linear_interpolation =
-	        conv_dm_get_fvar_linear_interpolation;
+	converter->get_subdiv_uvs = conv_dm_get_subdiv_uvs;
 
 	converter->get_num_faces = conv_dm_get_num_faces;
 	converter->get_num_edges = conv_dm_get_num_edges;
@@ -530,14 +526,11 @@ static OpenSubdiv_SchemeType conv_ccg_get_bilinear_type(
 	}
 }
 
-static OpenSubdiv_FVarLinearInterpolation
-conv_ccg_get_fvar_linear_interpolation(const OpenSubdiv_Converter *converter)
+static bool conv_ccg_get_subdiv_uvs(
+        const OpenSubdiv_Converter *converter)
 {
 	CCGSubSurf *ss = converter->user_data;
-	if (ss->osd_subdiv_uvs) {
-		return OSD_FVAR_LINEAR_INTERPOLATION_CORNERS_ONLY;
-	}
-	return OSD_FVAR_LINEAR_INTERPOLATION_ALL;
+	return (ss->osd_subdiv_uvs);
 }
 
 static int conv_ccg_get_num_faces(const OpenSubdiv_Converter *converter)
@@ -717,10 +710,9 @@ static int conv_ccg_get_face_corner_uv_index(const OpenSubdiv_Converter *UNUSED(
 void ccgSubSurf_converter_setup_from_ccg(CCGSubSurf *ss,
                                          OpenSubdiv_Converter *converter)
 {
-	converter->get_scheme_type = conv_ccg_get_bilinear_type;
+	converter->get_type = conv_ccg_get_bilinear_type;
 
-	converter->get_fvar_linear_interpolation =
-	        conv_ccg_get_fvar_linear_interpolation;
+	converter->get_subdiv_uvs = conv_ccg_get_subdiv_uvs;
 
 	converter->get_num_faces = conv_ccg_get_num_faces;
 	converter->get_num_edges = conv_ccg_get_num_edges;

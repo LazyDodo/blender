@@ -119,6 +119,16 @@ void openSubdiv_evaluateLimit(OpenSubdiv_EvaluatorDescr *evaluator_descr,
                               float dPdu[3],
                               float dPdv[3]);
 
+void openSubdiv_evaluateLimit2(OpenSubdiv_EvaluatorDescr *evaluator_descr,
+                              int osd_face_index,
+                              float face_u, float face_v,
+                              float P[3],
+                              float dPdu[3],
+                              float dPdv[3],
+                              float dPduu[3],
+                              float dPduv[3],
+                              float dPdvv[3]);
+
 void openSubdiv_evaluateVarying(OpenSubdiv_EvaluatorDescr *evaluator_descr,
                                int osd_face_index,
                                float face_u, float face_v,

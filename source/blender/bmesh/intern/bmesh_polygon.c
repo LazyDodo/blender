@@ -946,7 +946,7 @@ void BM_face_triangulate(
 	int nf_i = 0;
 	int ne_i = 0;
 
-	BLI_assert(BM_face_is_normal_valid(f));
+	//BLI_assert(BM_face_is_normal_valid(f));
 
 	/* ensure both are valid or NULL */
 	BLI_assert((r_faces_new == NULL) == (r_faces_new_tot == NULL));
