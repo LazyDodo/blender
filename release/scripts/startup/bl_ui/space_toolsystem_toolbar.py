@@ -1003,7 +1003,7 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
                 row = layout.row()
-                row.template_ID(gp_settings, "material")
+                row.template_greasepencil_color(gp_settings, "material", rows=3, cols=8)
 
                 row = layout.row(align=True)
                 row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
@@ -1018,7 +1018,7 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 row = layout.row(align=True)
-                row.template_ID(gp_settings, "material")
+                row.template_greasepencil_color(gp_settings, "material", rows=3, cols=8)
 
     @staticmethod
     def generate_from_brushes(context):

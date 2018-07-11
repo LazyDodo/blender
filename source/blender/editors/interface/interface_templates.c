@@ -951,6 +951,17 @@ void uiTemplateIDPreview(
 	        rows, cols, filter, false);
 }
 
+void uiTemplateGpencilColorPreview(
+	uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname,
+	int rows, int cols, int filter)
+{
+	ui_template_id(
+		layout, C, ptr, propname,
+		NULL, NULL, NULL,
+		UI_ID_BROWSE | UI_ID_PREVIEWS,
+		rows, cols, filter, false);
+}
+
 /**
  * Version of #uiTemplateID using tabs.
  */

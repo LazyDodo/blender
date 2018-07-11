@@ -852,6 +852,14 @@ void RNA_api_ui_layout(StructRNA *srna)
 	parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
 	RNA_def_function_return(func, parm);
 
+	func = RNA_def_function(srna, "template_greasepencil_color", "uiTemplateGpencilColorPreview");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
+	api_ui_item_rna_common(func);
+	RNA_def_int(func, "rows", 0, 0, INT_MAX, "Number of thumbnail preview rows to display", "", 0, INT_MAX);
+	RNA_def_int(func, "cols", 0, 0, INT_MAX, "Number of thumbnail preview columns to display", "", 0, INT_MAX);
+	RNA_def_enum(func, "filter", id_template_filter_items, UI_TEMPLATE_ID_FILTER_ALL,
+		"", "Optionally limit the items which can be selected");
+
 	func = RNA_def_function(srna, "template_constraint", "uiTemplateConstraint");
 	RNA_def_function_ui_description(func, "Generates the UI layout for constraints");
 	parm = RNA_def_pointer(func, "data", "Constraint", "", "Constraint data");
