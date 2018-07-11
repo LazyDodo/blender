@@ -674,7 +674,7 @@ public:
 		return true;
 	}
 
-	void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg, vector<map<float, float> >& coverage_object, vector<map<float, float> >& coverage_material, vector<map<float, float > >& coverage_asset)
+	void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg, vector<unordered_map<float, float> >& coverage_object, vector<unordered_map<float, float> >& coverage_material, vector<unordered_map<float, float > >& coverage_asset)
 	{
 		scoped_timer timer(&tile.buffers->render_time);
 		kg->coverage_object = kg->coverage_material = NULL;
@@ -776,9 +776,9 @@ public:
 		while(task.acquire_tile(this, tile)) {
 			if(tile.task == RenderTile::PATH_TRACE) {
 				/* cryptomatte data. This needs a better place than here. */
-				vector<map<float, float> >coverage_object;
-				vector<map<float, float> >coverage_material;
-				vector<map<float, float> >coverage_asset;
+				vector<unordered_map<float, float> >coverage_object;
+				vector<unordered_map<float, float> >coverage_material;
+				vector<unordered_map<float, float> >coverage_asset;
 
 				if(use_split_kernel) {
 					device_only_memory<uchar> void_buffer(this, "void_buffer");
