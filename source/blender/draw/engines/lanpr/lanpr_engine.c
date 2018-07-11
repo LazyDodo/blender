@@ -419,11 +419,11 @@ static void lanpr_cache_finish(void *vedata){
 			lanpr_create_atlas_intersection_preview(vedata, pd->begin_index);
 		}
 
-		GPU_texture_update(txl->dpix_in_pl, pd->atlas_pl);
-		GPU_texture_update(txl->dpix_in_pr, pd->atlas_pr);
-		GPU_texture_update(txl->dpix_in_nl, pd->atlas_nl);
-		GPU_texture_update(txl->dpix_in_nr, pd->atlas_nr);
-		GPU_texture_update(txl->dpix_in_edge_mask, pd->atlas_edge_mask);
+		GPU_texture_update(txl->dpix_in_pl, GPU_DATA_FLOAT, pd->atlas_pl);
+		GPU_texture_update(txl->dpix_in_pr, GPU_DATA_FLOAT, pd->atlas_pr);
+		GPU_texture_update(txl->dpix_in_nl, GPU_DATA_FLOAT, pd->atlas_nl);
+		GPU_texture_update(txl->dpix_in_nr, GPU_DATA_FLOAT, pd->atlas_nr);
+		GPU_texture_update(txl->dpix_in_edge_mask, GPU_DATA_FLOAT, pd->atlas_edge_mask);
 
 		MEM_freeN(pd->atlas_pl);
 		MEM_freeN(pd->atlas_pr);

@@ -2800,7 +2800,7 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 	if (ll->type == TNS_COMMAND_LINE) {
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, uvs; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 

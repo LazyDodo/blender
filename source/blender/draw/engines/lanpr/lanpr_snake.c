@@ -283,7 +283,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 
 	static Gwn_VertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	}

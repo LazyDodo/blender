@@ -283,13 +283,13 @@ int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginInde
 
 	static Gwn_VertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	}
 
 	static Gwn_VertFormat format2 = { 0 };
 	static struct { uint pos, uvs; } attr_id2;
-	if (format2.attrib_ct == 0) {
+	if (format2.attr_len == 0) {
 		attr_id2.pos = GWN_vertformat_attr_add(&format2, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	}
 
@@ -335,12 +335,12 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
 
 	static Gwn_VertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	}
 	static Gwn_VertFormat format2 = { 0 };
 	static struct { uint pos, uvs; } attr_id2;
-	if (format2.attrib_ct == 0) {
+	if (format2.attr_len == 0) {
 		attr_id2.pos = GWN_vertformat_attr_add(&format2, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	}
 
