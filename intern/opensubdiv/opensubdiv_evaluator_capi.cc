@@ -42,7 +42,6 @@
 #include <opensubdiv/osd/types.h>
 
 #include "opensubdiv_intern.h"
-#include "opensubdiv_topology_refiner.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -342,7 +341,7 @@ OpenSubdiv_EvaluatorDescr *openSubdiv_createEvaluatorDescr(
         int subsurf_level)
 {
 	/* TODO(sergey): Look into re-using refiner with GLMesh. */
-	TopologyRefiner *refiner = topology_refiner->osd_refiner;
+	TopologyRefiner *refiner = (TopologyRefiner *)topology_refiner;
 	if(refiner == NULL) {
 		/* Happens on bad topology. */
 		return NULL;
