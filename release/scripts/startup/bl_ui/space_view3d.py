@@ -253,7 +253,7 @@ class VIEW3D_HT_header(Header):
             space_type='VIEW_3D',
             region_type='HEADER',
             panel_type="VIEW3D_PT_object_type_visibility",
-            icon="HIDE_OFF",
+            icon_value=view.icon_from_show_object_viewport,
             text="",
         )
 
@@ -3746,13 +3746,13 @@ class VIEW3D_PT_object_type_visibility(Panel):
 
         col = layout.column()
 
-        heading_pair = ("Visible", "Selectable")
         attr_object_types = (
             "mesh",
             "curve",
             "surf",
             "meta",
             "font",
+            None,
             "armature",
             "lattice",
             "empty",
@@ -3763,10 +3763,14 @@ class VIEW3D_PT_object_type_visibility(Panel):
             "speaker",
         )
 
-        attr_vis = [f"show_object_viewport_{attr}" for attr in attr_object_types]
-        attr_sel = [f"show_object_select_{attr}" for attr in attr_object_types]
+        for attr in attr_object_types:
+            if attr is None:
+                col.separator()
+                continue
 
-        for attr_v, attr_s in zip(attr_vis, attr_sel):
+            attr_v = "show_object_viewport_" f"{attr:s}"
+            attr_s = "show_object_select_" f"{attr:s}"
+
             icon_s = 'RESTRICT_SELECT_OFF' if getattr(view, attr_s) else 'RESTRICT_SELECT_ON'
 
             row = col.row(align=True)
@@ -4047,9 +4051,9 @@ class VIEW3D_PT_overlay_guides(Panel):
 
         split = col.split()
         sub = split.column()
-        sub.prop(overlay, "show_cursor", text="3D Cursor")
+        sub.prop(overlay, "show_text", text="Text Info")
         sub = split.column()
-        sub.prop(overlay, "show_text", text="Viewport Info")
+        sub.prop(overlay, "show_cursor", text="3D Cursor")
 
         if shading.type == 'MATERIAL':
             col.prop(overlay, "show_look_dev")
