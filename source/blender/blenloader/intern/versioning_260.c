@@ -1709,7 +1709,7 @@ void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						case SPACE_CLIP:
 						{
 							SpaceClip *sclip = (SpaceClip *)sl;
-							sclip->flag |= SC_SHOW_GPENCIL;
+							sclip->flag |= SC_SHOW_ANNOTATION;
 							break;
 						}
 					}

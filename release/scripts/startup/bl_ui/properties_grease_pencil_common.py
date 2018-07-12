@@ -744,7 +744,8 @@ class GreasePencilDataPanel:
 
     @staticmethod
     def draw_header(self, context):
-        self.layout.prop(context.space_data, "show_annotation", text="")
+        if context.space_data.type != 'VIEW_3D':
+            self.layout.prop(context.space_data, "show_annotation", text="")
 
     @staticmethod
     def draw(self, context):

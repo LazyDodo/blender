@@ -3420,7 +3420,7 @@ static void rna_def_space_image(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Draw Repeated", "Draw the image repeated outside of the main view");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 
-	prop = RNA_def_property(srna, "show_grease_pencil", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_annotation", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SI_SHOW_GPENCIL);
 	RNA_def_property_ui_text(prop, "Show Annotation",
 	                         "Show annotations for this view");
@@ -3625,7 +3625,7 @@ static void rna_def_space_sequencer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Seconds", "Show timing in seconds not frames");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_SEQUENCER, NULL);
 
-	prop = RNA_def_property(srna, "show_grease_pencil", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_annotation", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SEQ_SHOW_GPENCIL);
 	RNA_def_property_ui_text(prop, "Show Annotation",
 	                         "Show annotations for this view");
@@ -4772,7 +4772,7 @@ static void rna_def_space_node(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Backdrop", "Use active Viewer Node output as backdrop for compositing nodes");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_NODE_VIEW, "rna_SpaceNodeEditor_show_backdrop_update");
 
-	prop = RNA_def_property(srna, "show_grease_pencil", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_annotation", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SNODE_SHOW_GPENCIL);
 	RNA_def_property_ui_text(prop, "Show Annotation",
 	                         "Show annotations for this view");
@@ -4840,8 +4840,8 @@ static void rna_def_space_clip(BlenderRNA *brna)
 	};
 
 	static const EnumPropertyItem gpencil_source_items[] = {
-		{SC_GPENCIL_SRC_CLIP, "CLIP", 0, "Clip", "Show grease pencil data-block which belongs to movie clip"},
-		{SC_GPENCIL_SRC_TRACK, "TRACK", 0, "Track", "Show grease pencil data-block which belongs to active track"},
+		{SC_GPENCIL_SRC_CLIP, "CLIP", 0, "Clip", "Show annotation data-block which belongs to movie clip"},
+		{SC_GPENCIL_SRC_TRACK, "TRACK", 0, "Track", "Show annotation data-block which belongs to active track"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -4991,9 +4991,9 @@ static void rna_def_space_clip(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Manual Calibration", "Use manual calibration helpers");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_CLIP, NULL);
 
-	/* show grease pencil */
-	prop = RNA_def_property(srna, "show_grease_pencil", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", SC_SHOW_GPENCIL);
+	/* show annotation */
+	prop = RNA_def_property(srna, "show_annotation", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", SC_SHOW_ANNOTATION);
 	RNA_def_property_ui_text(prop, "Show Annotation",
 	                         "Show annotations for this view");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_CLIP, NULL);
