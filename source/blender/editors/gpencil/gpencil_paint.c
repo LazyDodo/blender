@@ -1537,7 +1537,14 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 {
 	Brush *brush;
+	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	/* GPXX: Need this update to synchronize brush with draw manager
+	 * maybe this temp hack can be removed when the new tool system
+	 * will be in place, but while, we need this to keep drawing working.
+	 *
+	 */
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 
 	Paint *paint = BKE_brush_get_gpencil_paint(ts);
 
