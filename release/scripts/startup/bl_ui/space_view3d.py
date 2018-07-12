@@ -4057,8 +4057,8 @@ class VIEW3D_PT_overlay_guides(Panel):
 
         if shading.type == 'MATERIAL':
             col.prop(overlay, "show_look_dev")
-            
-        col.prop(context.space_data, "show_annotation", text="Annotations")
+
+        col.prop(overlay, "show_annotation", text="Annotations")
 
 
 class VIEW3D_PT_overlay_object(Panel):
