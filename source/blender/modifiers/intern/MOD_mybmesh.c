@@ -3696,10 +3696,10 @@ static OpenSubdiv_SchemeType conv_bm_get_type(
 		return OSD_SCHEME_CATMARK;
 }
 
-static bool conv_bm_get_subdiv_uvs(
+static bool conv_bm_get_fvar_linear_interpolation(
         const OpenSubdiv_Converter *converter)
 {
-	return false;
+	return OSD_FVAR_LINEAR_INTERPOLATION_ALL;
 }
 
 static int conv_bm_get_num_faces(const OpenSubdiv_Converter *converter)
@@ -3944,9 +3944,9 @@ static void converter_setup_from_bmesh(
 {
 	ConvBMStorage *user_data;
 
-	converter->get_type = conv_bm_get_type;
+	converter->get_scheme_type = conv_bm_get_type;
 
-	converter->get_subdiv_uvs = conv_bm_get_subdiv_uvs;
+	converter->get_fvar_linear_interpolation = conv_bm_get_fvar_linear_interpolation;
 
 	converter->get_num_faces = conv_bm_get_num_faces;
 	converter->get_num_edges = conv_bm_get_num_edges;
