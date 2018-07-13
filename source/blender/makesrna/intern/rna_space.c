@@ -2581,12 +2581,6 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Overlays", "Display overlays like manipulators and outlines");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
-	prop = RNA_def_property(srna, "show_annotation", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag2", V3D_SHOW_ANNOTATION);
-	RNA_def_property_ui_text(prop, "Show Annotation",
-		"Show annotations for this view");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
 	prop = RNA_def_property(srna, "show_floor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gridflag", V3D_SHOW_FLOOR);
 	RNA_def_property_ui_text(prop, "Display Grid Floor", "Show the ground plane grid in perspective view");
@@ -2803,6 +2797,76 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Weight Paint Opacity", "Opacity of the weight paint mode overlay");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	/* grease pencil paper settings */
+	prop = RNA_def_property(srna, "show_annotation", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag2", V3D_SHOW_ANNOTATION);
+	RNA_def_property_ui_text(prop, "Show Annotation",
+		"Show annotations for this view");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "use_gpencil_paper", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_PAPER);
+	RNA_def_property_ui_text(prop, "Use Paper",
+		"Cover all viewport with a full color layer to improve visibility while drawing over complex scenes");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "use_gpencil_grid", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_GRID);
+	RNA_def_property_ui_text(prop, "Use Grid",
+		"Draw a grid over grease pencil paper");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "gpencil_grid_size", PROP_INT, PROP_PIXEL);
+	RNA_def_property_int_sdna(prop, NULL, "gpencil_grid_size");
+	RNA_def_property_range(prop, 15, INT_MAX);
+	RNA_def_property_int_default(prop, 50);
+	RNA_def_property_ui_text(prop, "Size", "Grid size");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	/* Paper Color */
+	static float default_paper1[3] = { 1.0f, 1.0f, 1.0f };
+	prop = RNA_def_property(srna, "gpencil_paper_color", PROP_FLOAT, PROP_COLOR_GAMMA);
+	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color");
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_float_array_default(prop, default_paper1);
+	RNA_def_property_ui_text(prop, "Paper Color", "Color for paper");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	/* Paper opacity factor */
+	prop = RNA_def_property(srna, "gpencil_paper_opacity", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color[3]");
+	RNA_def_property_range(prop, 0.0, 1.0f);
+	RNA_def_property_float_default(prop, 0.7f);
+	RNA_def_property_ui_text(prop, "Opacity", "Paper opacity");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	/* show edit lines */
+	prop = RNA_def_property(srna, "use_gpencil_edit_lines", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_EDIT_LINES);
+	RNA_def_property_ui_text(prop, "Edit Lines", "Show edit lines when edit strokes");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "use_gpencil_multiedit_line_only", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_MULTIEDIT_LINES);
+	RNA_def_property_ui_text(prop, "Lines Only", "Show only edit lines for additional frames");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
+
+	/* main grease pencil onion switch */
+	prop = RNA_def_property(srna, "use_gpencil_onion_skin", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_ONION_SKIN);
+	RNA_def_property_ui_text(prop, "Onion Skins", "Show ghosts of the frames before and after the current frame");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
+
+	/* vertex opacity */
+	prop = RNA_def_property(srna, "vertex_opacity", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "vertex_opacity");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Vertex Opacity", "Opacity for edit vertices");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_GPencil_update");
+
 }
 
 static void rna_def_space_view3d(BlenderRNA *brna)
@@ -3051,70 +3115,6 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "fx_settings", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "FX Options", "Options used for real time compositing");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	/* grease pencil paper settings */
-	prop = RNA_def_property(srna, "use_gpencil_paper", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_PAPER);
-	RNA_def_property_ui_text(prop, "Use Paper",
-		"Cover all viewport with a full color layer to improve visibility while drawing over complex scenes");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "use_gpencil_grid", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_GRID);
-	RNA_def_property_ui_text(prop, "Use Grid",
-		"Draw a grid over grease pencil paper");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "gpencil_grid_size", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "gpencil_grid_size");
-	RNA_def_property_range(prop, 15, INT_MAX);
-	RNA_def_property_int_default(prop, 50);
-	RNA_def_property_ui_text(prop, "Size", "Grid size");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	/* Paper Color */
-	static float default_paper1[3] = { 1.0f, 1.0f, 1.0f };
-	prop = RNA_def_property(srna, "gpencil_paper_color", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_float_array_default(prop, default_paper1);
-	RNA_def_property_ui_text(prop, "Paper Color", "Color for paper");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	/* Paper opacity factor */
-	prop = RNA_def_property(srna, "gpencil_paper_opacity", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color[3]");
-	RNA_def_property_range(prop, 0.0, 1.0f);
-	RNA_def_property_float_default(prop, 0.7f);
-	RNA_def_property_ui_text(prop, "Opacity", "Paper opacity");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	/* show edit lines */
-	prop = RNA_def_property(srna, "use_gpencil_edit_lines", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_EDIT_LINES);
-	RNA_def_property_ui_text(prop, "Edit Lines", "Show edit lines when edit strokes");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "use_gpencil_multiedit_line_only", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_MULTIEDIT_LINES);
-	RNA_def_property_ui_text(prop, "Lines Only", "Show only edit lines for additional frames");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
-
-	/* main grease pencil onion switch */
-	prop = RNA_def_property(srna, "use_gpencil_onion_skin", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag3", V3D_GP_SHOW_ONION_SKIN);
-	RNA_def_property_ui_text(prop, "Onion Skins", "Show ghosts of the frames before and after the current frame");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
-
-	/* vertex opacity */
-	prop = RNA_def_property(srna, "vertex_opacity", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "vertex_opacity");
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Vertex Opacity", "Opacity for edit vertices");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_GPencil_update");
-
 
 	/* Stereo Settings */
 	prop = RNA_def_property(srna, "stereo_3d_eye", PROP_ENUM, PROP_NONE);

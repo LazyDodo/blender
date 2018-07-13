@@ -4621,23 +4621,24 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
     def draw(self, context):
         layout = self.layout
         view = context.space_data
+        overlay = view.overlay
 
-        layout.prop(view, "use_gpencil_paper", text="Drawing Paper")
+        layout.prop(overlay, "use_gpencil_paper", text="Drawing Paper")
 
-        if view.use_gpencil_paper:
-            layout.prop(view, "gpencil_paper_color", text="Color")
-            layout.prop(view, "gpencil_paper_opacity", text="Opacity")
+        if overlay.use_gpencil_paper:
+            layout.prop(overlay, "gpencil_paper_color", text="Color")
+            layout.prop(overlay, "gpencil_paper_opacity", text="Opacity")
 
-            layout.prop(view, "use_gpencil_grid", text="Display Paper Grid")
-            if view.use_gpencil_grid:
-                layout.prop(view, "gpencil_grid_size", text="")
+            layout.prop(overlay, "use_gpencil_grid", text="Display Paper Grid")
+            if overlay.use_gpencil_grid:
+                layout.prop(overlay, "gpencil_grid_size", text="")
 
-        layout.prop(view, "use_gpencil_onion_skin", text="Onion Skin")
+        layout.prop(overlay, "use_gpencil_onion_skin", text="Onion Skin")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
-            layout.prop(view, "use_gpencil_edit_lines", text="Show Edit Lines")
-            layout.prop(view, "use_gpencil_multiedit_line_only", text="Only Edit Lines In Multiframe")
-            layout.prop(view, "vertex_opacity", text="Vertex Opacity", slider=True)
+            layout.prop(overlay, "use_gpencil_edit_lines", text="Show Edit Lines")
+            layout.prop(overlay, "use_gpencil_multiedit_line_only", text="Only Edit Lines In Multiframe")
+            layout.prop(overlay, "vertex_opacity", text="Vertex Opacity", slider=True)
 
 
 class VIEW3D_PT_quad_view(Panel):
