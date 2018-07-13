@@ -392,8 +392,8 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	pd->dpix_znear = camera ? ((Camera *)camera->data)->clipsta : v3d->near;
 	pd->dpix_zfar = camera ? ((Camera *)camera->data)->clipend : v3d->far;
 
-	glPointSize(1);
-	glLineWidth(2);
+	GPU_point_size(1);
+	GPU_line_width(2);
 	GPU_framebuffer_bind(fbl->dpix_transform);
 	DRW_draw_pass(psl->dpix_transform_pass);
 
