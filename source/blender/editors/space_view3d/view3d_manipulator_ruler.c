@@ -399,7 +399,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmManipulatorGroup *mgroup)
 	bool changed = false;
 
 	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew(bmain, "Notes");
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "Annotations");
 	}
 	gpd = scene->gpd;
 

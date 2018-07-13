@@ -728,7 +728,7 @@ class GPENCIL_UL_annotation_layer(UIList):
 
 
 class GreasePencilDataPanel:
-    bl_label = "Notes"
+    bl_label = "Annotations"
     bl_region_type = 'UI'
 
     @classmethod

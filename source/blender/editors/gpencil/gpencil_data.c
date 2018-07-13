@@ -124,7 +124,7 @@ static int gp_data_add_exec(bContext *C, wmOperator *op)
 
 		/* add new datablock, with a single layer ready to use (so users don't have to perform an extra step) */
 		if (is_annotation) {
-			bGPdata *gpd = BKE_gpencil_data_addnew(bmain, DATA_("Notes"));
+			bGPdata *gpd = BKE_gpencil_data_addnew(bmain, DATA_("Annotations"));
 			*gpd_ptr = gpd;
 
 			/* tag for annotations */
@@ -235,7 +235,7 @@ static int gp_layer_add_exec(bContext *C, wmOperator *op)
 		Main *bmain = CTX_data_main(C);
 		if (is_annotation) {
 			/* Annotations */
-			*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("Notes"));
+			*gpd_ptr = BKE_gpencil_data_addnew(bmain, DATA_("Annotations"));
 
 			/* mark as annotation */
 			(*gpd_ptr)->flag |= GP_DATA_ANNOTATIONS;

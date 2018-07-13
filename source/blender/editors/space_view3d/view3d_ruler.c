@@ -314,7 +314,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 
 	/* FIXME: This needs to be reviewed. Should it keep being done like this? */
 	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew(bmain, "Notes");
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "Annotations");
 	}
 	bGPdata *gpd = scene->gpd;
 
