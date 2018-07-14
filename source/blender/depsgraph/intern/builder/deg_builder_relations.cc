@@ -2292,6 +2292,11 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		if (id_type == ID_ME && comp_node->type == DEG_NODE_TYPE_GEOMETRY) {
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
+		/* materials need update grease pencil objects */
+		if (id_type == ID_MA) {
+			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
+		}
+
 		/* Notes on exceptions:
 		 * - Parameters component is where drivers are living. Changing any
 		 *   of the (custom) properties in the original datablock (even the
