@@ -93,8 +93,8 @@ static void rna_Material_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Point
 	Material *ma = ptr->id.data;
 
 	DEG_id_tag_update(&ma->id, DEG_TAG_COPY_ON_WRITE);
-	WM_main_add_notifier(NC_MATERIAL | ND_SHADING, ma);
-	WM_main_add_notifier(NC_GPENCIL | ND_DATA, ma); /* XXX: Should GP materials get their own rna_Material_update() wrapper? */
+
+	WM_main_add_notifier(NC_MATERIAL | ND_SHADING | ND_SHADING_PREVIEW, ma);
 }
 
 static void rna_Material_update_previews(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -105,6 +105,20 @@ static void rna_Material_update_previews(Main *UNUSED(bmain), Scene *UNUSED(scen
 		BKE_node_preview_clear_tree(ma->nodetree);
 
 	WM_main_add_notifier(NC_MATERIAL | ND_SHADING_PREVIEW, ma);
+}
+
+static void rna_MaterialGpencil_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+	Material *ma = ptr->id.data;
+	PreviewImage *preview = ma->preview;
+
+	rna_Material_update(bmain, scene, ptr);
+
+	/* update previews */
+	preview->flag[ICON_SIZE_PREVIEW] |= PRV_CHANGED;
+	WM_main_add_notifier(NC_MATERIAL | ND_SHADING_PREVIEW, ma);
+
+	WM_main_add_notifier(NC_GPENCIL | ND_DATA, ma);
 }
 
 static void rna_Material_draw_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -252,7 +266,7 @@ static void rna_gpcolordata_uv_update(Main *bmain, Scene *scene, PointerRNA *ptr
 	Material *ma = ptr->id.data;
 	ED_gpencil_update_color_uv(bmain, ma);
 
-	rna_Material_update(bmain, scene, ptr);
+	rna_MaterialGpencil_update(bmain, scene, ptr);
 }
 
 static char *rna_GpencilColorData_path(PointerRNA *UNUSED(ptr))
@@ -388,7 +402,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "stroke_rgba");
 	RNA_def_property_array(prop, 4);
 	RNA_def_property_ui_text(prop, "Color", "");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Fill Drawing Color */
 	prop = RNA_def_property(srna, "fill_color", PROP_FLOAT, PROP_COLOR_GAMMA);
@@ -396,7 +410,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_array(prop, 4);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Fill Color", "Color for filling region bounded by each stroke");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Secondary Drawing Color */
 	prop = RNA_def_property(srna, "mix_color", PROP_FLOAT, PROP_COLOR_GAMMA);
@@ -404,75 +418,75 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_array(prop, 4);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Mix Color", "Color for mixing with primary filling color");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Mix factor */
 	prop = RNA_def_property(srna, "mix_factor", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "mix_factor");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Mix", "Mix Adjustment Factor");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Scale factor for uv coordinates */
 	prop = RNA_def_property(srna, "pattern_scale", PROP_FLOAT, PROP_COORDS);
 	RNA_def_property_float_sdna(prop, NULL, "gradient_scale");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Scale", "Scale Factor for UV coordinates");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Shift factor to move pattern filling in 2d space */
 	prop = RNA_def_property(srna, "pattern_shift", PROP_FLOAT, PROP_COORDS);
 	RNA_def_property_float_sdna(prop, NULL, "gradient_shift");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Shift", "Shift filling pattern in 2d space");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Gradient angle */
 	prop = RNA_def_property(srna, "pattern_angle", PROP_FLOAT, PROP_ANGLE);
 	RNA_def_property_float_sdna(prop, NULL, "gradient_angle");
 	RNA_def_property_ui_text(prop, "Angle", "Pattern Orientation Angle");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Gradient radius */
 	prop = RNA_def_property(srna, "pattern_radius", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "gradient_radius");
 	RNA_def_property_range(prop, 0.0001f, 10.0f);
 	RNA_def_property_ui_text(prop, "Radius", "Pattern Radius");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Box size */
 	prop = RNA_def_property(srna, "pattern_gridsize", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "pattern_gridsize");
 	RNA_def_property_range(prop, 0.0001f, 10.0f);
 	RNA_def_property_ui_text(prop, "Size", "Box Size");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Texture angle */
 	prop = RNA_def_property(srna, "texture_angle", PROP_FLOAT, PROP_ANGLE);
 	RNA_def_property_float_sdna(prop, NULL, "texture_angle");
 	RNA_def_property_ui_text(prop, "Angle", "Texture Orientation Angle");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Scale factor for texture */
 	prop = RNA_def_property(srna, "texture_scale", PROP_FLOAT, PROP_COORDS);
 	RNA_def_property_float_sdna(prop, NULL, "texture_scale");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Scale", "Scale Factor for Texture");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Shift factor to move texture in 2d space */
 	prop = RNA_def_property(srna, "texture_offset", PROP_FLOAT, PROP_COORDS);
 	RNA_def_property_float_sdna(prop, NULL, "texture_offset");
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Offset", "Shift Texture in 2d Space");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Texture opacity size */
 	prop = RNA_def_property(srna, "texture_opacity", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "texture_opacity");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Opacity", "Texture Opacity");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* texture pixsize factor (used for UV along the stroke) */
 	prop = RNA_def_property(srna, "pixel_size", PROP_FLOAT, PROP_NONE);
@@ -486,64 +500,64 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_HIDE);
 	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_OFF, 1);
 	RNA_def_property_ui_text(prop, "Hide", "Set color Visibility");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "lock", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_LOCKED);
 	RNA_def_property_ui_icon(prop, ICON_UNLOCKED, 1);
 	RNA_def_property_ui_text(prop, "Locked", "Protect color from further editing and/or frame changes");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "ghost", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_ONIONSKIN);
 	RNA_def_property_ui_icon(prop, ICON_GHOST_ENABLED, 0);
 	RNA_def_property_ui_text(prop, "Show in Ghosts", "Display strokes using this color when showing onion skins");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "texture_clamp", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_TEX_CLAMP);
 	RNA_def_property_ui_text(prop, "Clamp", "Do not repeat texture and clamp to one instance only");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "texture_mix", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_TEX_MIX);
 	RNA_def_property_ui_text(prop, "Mix Texture", "Mix texture image with filling colors");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "flip", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_COLOR_FLIP_FILL);
 	RNA_def_property_ui_text(prop, "Flip", "Flip filling colors");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "use_stroke_pattern", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_STROKE_PATTERN);
 	RNA_def_property_ui_text(prop, "Pattern", "Use Stroke Texture as a pattern to apply color");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	prop = RNA_def_property(srna, "use_fill_pattern", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STYLE_FILL_PATTERN);
 	RNA_def_property_ui_text(prop, "Pattern", "Use Fill Texture as a pattern to apply color");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* pass index for future compositing and editing tools */
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "index");
 	RNA_def_property_ui_text(prop, "Pass Index", "Index number for the \"Color Index\" pass");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* mode type */
 	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "mode");
 	RNA_def_property_enum_items(prop, gpcolordata_mode_types_items);
 	RNA_def_property_ui_text(prop, "Mode Type", "Select draw mode for stroke");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* stroke style */
 	prop = RNA_def_property(srna, "stroke_style", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "stroke_style");
 	RNA_def_property_enum_items(prop, stroke_style_items);
 	RNA_def_property_ui_text(prop, "Stroke Style", "Select style used to draw strokes");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* stroke image texture */
 	prop = RNA_def_property(srna, "stroke_image", PROP_POINTER, PROP_NONE);
@@ -551,21 +565,21 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_GpencilColorData_stroke_image_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Image", "");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* fill style */
 	prop = RNA_def_property(srna, "fill_style", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "fill_style");
 	RNA_def_property_enum_items(prop, fill_style_items);
 	RNA_def_property_ui_text(prop, "Fill Style", "Select style used to fill strokes");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* gradient type */
 	prop = RNA_def_property(srna, "gradient_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gradient_type");
 	RNA_def_property_enum_items(prop, fill_gradient_items);
 	RNA_def_property_ui_text(prop, "Gradient Type", "Select type of gradient used to fill strokes");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* fill image texture */
 	prop = RNA_def_property(srna, "fill_image", PROP_POINTER, PROP_NONE);
@@ -573,7 +587,7 @@ static void rna_def_material_greasepencil(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_GpencilColorData_fill_image_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Image", "");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_Material_update");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_SHADING, "rna_MaterialGpencil_update");
 
 	/* Read-only state props (for simpler UI code) */
 	prop = RNA_def_property(srna, "is_stroke_visible", PROP_BOOLEAN, PROP_NONE);
