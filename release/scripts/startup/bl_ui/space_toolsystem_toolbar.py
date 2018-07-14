@@ -989,7 +989,7 @@ class _defs_gpencil_paint:
     @classmethod
     def draw_settings_common(cls, context, layout, tool):
         ob = context.active_object
-        nrow = 2
+        nrow = 3
         ncol = 8
         if ob and ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
