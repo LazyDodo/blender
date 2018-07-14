@@ -288,7 +288,6 @@ class MATERIAL_PT_gpencil_preview(GPMaterialButtonsPanel, Panel):
         self.layout.template_preview(ma)
 
 
-
 class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
