@@ -270,7 +270,6 @@ void GPENCIL_OT_annotate(struct wmOperatorType *ot);
 
 void GPENCIL_OT_draw(struct wmOperatorType *ot);
 void GPENCIL_OT_fill(struct wmOperatorType *ot);
-void GPENCIL_OT_colorpick(struct wmOperatorType *ot);
 
 /* Paint Modes for operator */
 typedef enum eGPencil_PaintModes {
