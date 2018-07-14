@@ -260,6 +260,15 @@ void rna_mtex_texture_slots_clear(ID *self_id, struct bContext *C, ReportList *r
 	WM_event_add_notifier(C, NC_TEXTURE, CTX_data_scene(C));
 }
 
+static bool rna_is_grease_pencil_get(PointerRNA *ptr)
+{
+	Material *ma = (Material *)ptr->data;
+	if (ma->gp_style != NULL)
+		return true;
+
+	return false;
+}
+
 static void rna_gpcolordata_uv_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	/* update all uv strokes of this color */
@@ -720,6 +729,11 @@ void RNA_def_material(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "grease_pencil", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "gp_style");
 	RNA_def_property_ui_text(prop, "Grease Pencil Settings", "Grease pencil color settings for material");
+
+	prop = RNA_def_property(srna, "is_grease_pencil", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_is_grease_pencil_get", NULL);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Is Grease Pencil", "True if this material has grease pencil data");
 
 	rna_def_material_greasepencil(brna);
 
