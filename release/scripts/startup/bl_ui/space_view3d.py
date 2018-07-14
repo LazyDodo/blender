@@ -105,9 +105,7 @@ class VIEW3D_HT_header(Header):
                 sub = row.row(align=True)
                 sub.active = gpd.use_multiedit
                 sub.popover(
-                    space_type='VIEW_3D',
-                    region_type='HEADER',
-                    panel_type="VIEW3D_PT_gpencil_multi_frame",
+                    panel="VIEW3D_PT_gpencil_multi_frame",
                     text="Multiframe"
                 )
 
