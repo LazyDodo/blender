@@ -1252,11 +1252,23 @@ void ED_preview_shader_job(const bContext *C, void *owner, ID *id, ID *parent, M
 	sp->parent = parent;
 	sp->slot = slot;
 	sp->bmain = CTX_data_main(C);
+	Material *ma = NULL;
 
 	/* hardcoded preview .blend for Eevee + Cycles, this should be solved
 	 * once with custom preview .blend path for external engines */
 	if ((method != PR_NODE_RENDER) && id_type != ID_TE) {
-		sp->pr_main = G_pr_main_cycles;
+		/* grease pencil use its own preview file */
+		if (GS(id->name) == ID_MA) {
+			ma = (Material *)id;
+		}
+
+		if ((ma == NULL) || (ma->gp_style == NULL)) {
+			sp->pr_main = G_pr_main_cycles;
+		}
+		else {
+			sp->pr_main = G_pr_main_grease_pencil;
+		}
+
 	}
 	else {
 		sp->pr_main = G_pr_main;
