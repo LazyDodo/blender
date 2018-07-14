@@ -277,6 +277,18 @@ class MATERIAL_PT_gpencil_fillcolor(GPMaterialButtonsPanel, Panel):
                         col.prop(gpcolor, "mix_factor", text="Mix Factor", slider=True)
 
 
+class MATERIAL_PT_gpencil_preview(GPMaterialButtonsPanel, Panel):
+    bl_label = "Preview"
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        ma = context.object.active_material
+        self.layout.label(ma.name)
+        self.layout.template_preview(ma)
+
+
+
 class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
@@ -296,6 +308,7 @@ classes = (
     GPENCIL_UL_matslots,
     GPENCIL_MT_color_specials,
     MATERIAL_PT_gpencil_slots,
+    MATERIAL_PT_gpencil_preview,
     MATERIAL_PT_gpencil_surface,
     MATERIAL_PT_gpencil_strokecolor,
     MATERIAL_PT_gpencil_fillcolor,
