@@ -1249,7 +1249,7 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
     bl_options = {'HIDE_HEADER'}
 
     # Satisfy the 'ToolSelectPanelHelper' API.
-    keymap_prefix = "Image Editor Tool: "
+    keymap_prefix = "Image Editor Tool:"
 
     @classmethod
     def tools_from_context(cls, context, mode=None):
@@ -1300,7 +1300,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
     bl_options = {'HIDE_HEADER'}
 
     # Satisfy the 'ToolSelectPanelHelper' API.
-    keymap_prefix = "3D View Tool: "
+    keymap_prefix = "3D View Tool:"
 
     @classmethod
     def tools_from_context(cls, context, mode=None):
