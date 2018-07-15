@@ -29,22 +29,20 @@
 
 /* **************** OUTPUT ******************** */
 
+/* Color, melanin and absorption coefficient default to approximately same brownish hair. */
 static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
-	// This value was chosen empirically from rendering Bitterli's hair
 	{	SOCK_RGBA,		1, N_("Color"),						0.017513f, 0.005763f, 0.002059f, 1.0f, 0.0f, 1.0f},
 	{	SOCK_FLOAT,		1, N_("Melanin"),					0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,		1, N_("Melanin Redness"),			1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_RGBA,		1, N_("Tint"),						1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f},
-	// Benedikt Bitterli's default brownish hair with PHEOmelanin
-	// The absorption coefficient below is 1.3f * pheomelanin mapping
 	{	SOCK_VECTOR,	1, N_("Absorption Coefficient"),	0.245531f, 0.52f, 1.365f, 0.0f, 0.0f, 1000.0f},
 	{	SOCK_FLOAT,		1, N_("Roughness"),					0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,		1, N_("Radial Roughness"),			0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,		1, N_("Coat"),						0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,		1, N_("IOR"),						1.55f, 0.0f, 0.0f, 0.0f, 0.0f, 1000.0f},
 	{	SOCK_FLOAT,		1, N_("Offset"),					2.f*((float)M_PI)/180.f, 0.0f, 0.0f, 0.0f, -M_PI_2, M_PI_2, PROP_ANGLE},
-	{	SOCK_FLOAT, 	1, N_("Random Color"),		0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
-	{	SOCK_FLOAT, 	1, N_("Random Roughness"),	0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
+	{	SOCK_FLOAT, 	1, N_("Random Color"),				0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
+	{	SOCK_FLOAT, 	1, N_("Random Roughness"),			0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,		1, N_("Random"),					0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_NONE, SOCK_HIDE_VALUE},
 	{	-1, 0, ""	},
 };
@@ -54,7 +52,7 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_out[] = {
 	{	-1, 0, ""	}
 };
 
-/* Initialize the custom Parametrization property to Direct coloring. */
+/* Initialize the custom Parametrization property to Color. */
 static void node_shader_init_hair_principled(bNodeTree *UNUSED(ntree), bNode *node)
 {
 	node->custom1 = SHD_PRINCIPLED_HAIR_REFLECTANCE;

@@ -613,9 +613,9 @@ public:
 	void attributes(Shader *shader, AttributeRequestSet *attributes);
 
 	/* Longitudinal roughness. */
-	float roughness_u;
+	float roughness;
 	/* Azimuthal roughness. */
-	float roughness_v;
+	float radial_roughness;
 	/* Randomization factor for roughnesses. */
 	float random_roughness;
 	/* Longitudinal roughness factor for only the diffuse bounce (shiny undercoat). */

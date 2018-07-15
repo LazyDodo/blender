@@ -67,8 +67,12 @@ ccl_device_inline float delta_phi(int p, float gamma_o, float gamma_t)
 /* Remaps the given angle to [-pi, pi]. */
 ccl_device_inline float wrap_angle(float a)
 {
-	while(a > M_PI_F) a -= M_2PI_F;
-	while(a < -M_PI_F) a += M_2PI_F;
+	while(a > M_PI_F) {
+		a -= M_2PI_F;
+	}
+	while(a < -M_PI_F) {
+		a += M_2PI_F;
+	}
 	return a;
 }
 
@@ -83,9 +87,13 @@ ccl_device_inline float logistic(float x, float s)
 ccl_device_inline float logistic_cdf(float x, float s)
 {
 	float arg = -x/s;
-	// exp overflows if arg >= 89.0f
-	if(arg > 88.0f) return 0.0f;
-	return 1.0f / (1.0f + expf(arg));
+	/* expf() overflows if arg >= 89.0. */
+	if(arg > 88.0f) {
+		return 0.0f;
+	}
+	else {
+		return 1.0f / (1.0f + expf(arg));
+	}
 }
 
 /* Numerical approximation to the Bessel function of the first kind. */
@@ -99,7 +107,9 @@ ccl_device_inline float bessel_I0(float x)
 	for(int i = 2; i < 10; i++) {
 		i_fac_2 *= i*i;
 		float newval = val + pow_x_2i / (pow_4_i * i_fac_2);
-		if(val == newval) return val;
+		if(val == newval) {
+			return val;
+		}
 		val = newval;
 		pow_x_2i *= x;
 		pow_4_i *= 4;
@@ -111,8 +121,8 @@ ccl_device_inline float bessel_I0(float x)
 ccl_device_inline float log_bessel_I0(float x)
 {
 	if (x > 12.0f) {
-		// log(1/x) == -log(x) iff x > 0.
-		// This is only used with positive cosines
+		/* log(1/x) == -log(x) iff x > 0.
+		 * This is only used with positive cosines */
 		return x + 0.5f * (1.f / (8.0f * x) - M_LN_2PI_F - logf(x));
 	}
 	else {
@@ -193,7 +203,7 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
 	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
 	bsdf->m0_roughness = sqr(0.726f*bsdf->m0_roughness + 0.812f*sqr(bsdf->m0_roughness) + 3.700f*pow20(bsdf->m0_roughness));
-	
+
 	/* Compute local frame, aligned to curve tangent and ray direction. */
 	float3 X = safe_normalize(sd->dPdu);
 	float3 Y = safe_normalize(cross(X, sd->I));
@@ -412,13 +422,19 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 
 	int p = 0;
 	for(; p < 3; p++) {
-		if(u[0].x < Ap[p].w) break;
+		if(u[0].x < Ap[p].w) {
+			break;
+		}
 		u[0].x -= Ap[p].w;
 	}
 
 	float v = bsdf->v;
-	if(p == 1) v *= 0.25f;
-	if(p >= 2) v *= 4.0f;
+	if(p == 1) {
+		v *= 0.25f;
+	}
+	if(p >= 2) {
+		v *= 4.0f;
+	}
 
 	u[1].x = max(u[1].x, 1e-5f);
 	float fac = 1.0f + v*logf(u[1].x + (1.0f - u[1].x)*expf(-2.0f/v));

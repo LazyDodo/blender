@@ -3067,31 +3067,32 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 {
 	NodeType* type = NodeType::add("principled_hair_bsdf", create, NodeType::SHADER);
 
-	// Initialize all sockets to their default values.
-	SOCKET_IN_COLOR(color, "Color", make_float3(0.017513f, 0.005763f, 0.002059f));
-	SOCKET_IN_FLOAT(melanin, "Melanin", 0.8f);
-	SOCKET_IN_FLOAT(melanin_redness, "Melanin Redness", 1.0f);
-	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
-	SOCKET_IN_FLOAT(random_color, "Random Color", 0.0f);
-	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
-	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
-	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
-
-	// Parametrization is initialized via an enumeration (custom property).
+	/* Color parametrization specified as enum. */
 	static NodeEnum parametrization_enum;
 	parametrization_enum.insert("Direct coloring", NODE_PRINCIPLED_HAIR_REFLECTANCE);
 	parametrization_enum.insert("Melanin concentration", NODE_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION);
 	parametrization_enum.insert("Absorption coefficient", NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION);
 	SOCKET_ENUM(parametrization, "Parametrization", parametrization_enum, NODE_PRINCIPLED_HAIR_REFLECTANCE);
 
+	/* Initialize sockets to their default values. */
+	SOCKET_IN_COLOR(color, "Color", make_float3(0.017513f, 0.005763f, 0.002059f));
+	SOCKET_IN_FLOAT(melanin, "Melanin", 0.8f);
+	SOCKET_IN_FLOAT(melanin_redness, "Melanin Redness", 1.0f);
+	SOCKET_IN_COLOR(tint, "Tint", make_float3(1.f, 1.f, 1.f));
+	SOCKET_IN_VECTOR(absorption_coefficient, "Absorption Coefficient", make_float3(0.245531f, 0.52f, 1.365f), SocketType::VECTOR);
+
 	SOCKET_IN_FLOAT(offset, "Offset", 2.f*M_PI_F/180.f);
-	SOCKET_IN_FLOAT(roughness_u, "Roughness", 0.3f);
-	SOCKET_IN_FLOAT(roughness_v, "Radial Roughness", 0.3f);
-	SOCKET_IN_FLOAT(random_roughness, "Random Roughness", 0.0f);
+	SOCKET_IN_FLOAT(roughness, "Roughness", 0.3f);
+	SOCKET_IN_FLOAT(radial_roughness, "Radial Roughness", 0.3f);
 	SOCKET_IN_FLOAT(coat, "Coat", 0.0f);
 	SOCKET_IN_FLOAT(ior, "IOR", 1.55f);
 
+	SOCKET_IN_FLOAT(random_roughness, "Random Roughness", 0.0f);
+	SOCKET_IN_FLOAT(random_color, "Random Color", 0.0f);
 	SOCKET_IN_FLOAT(random, "Random", 0.0f);
+
+	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
+	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
 
 	SOCKET_OUT_CLOSURE(BSDF, "BSDF");
 
@@ -3119,8 +3120,8 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 {
 	compiler.add_node(NODE_CLOSURE_SET_WEIGHT, make_float3(1.0f, 1.0f, 1.0f));
 
-	ShaderInput *roughness_u_in = input("Roughness");
-	ShaderInput *roughness_v_in = input("Radial Roughness");
+	ShaderInput *roughness_in = input("Roughness");
+	ShaderInput *radial_roughness_in = input("Radial Roughness");
 	ShaderInput *random_roughness_in = input("Random Roughness");
 	ShaderInput *offset_in = input("Offset");
 	ShaderInput *coat_in = input("Coat");
@@ -3140,12 +3141,12 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	compiler.add_node(NODE_CLOSURE_BSDF,
 		/* Socket IDs can be packed 4 at a time into a single data packet */
 		compiler.encode_uchar4(closure,
-			compiler.stack_assign_if_linked(roughness_u_in),
-			compiler.stack_assign_if_linked(roughness_v_in),
+			compiler.stack_assign_if_linked(roughness_in),
+			compiler.stack_assign_if_linked(radial_roughness_in),
 			compiler.closure_mix_weight_offset()),
 		/* The rest are stored as unsigned integers */
-		__float_as_uint(roughness_u),
-		__float_as_uint(roughness_v));
+		__float_as_uint(roughness),
+		__float_as_uint(radial_roughness));
 
 	compiler.add_node(compiler.stack_assign_if_linked(input("Normal")),
 		compiler.encode_uchar4(
