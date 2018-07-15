@@ -74,6 +74,7 @@
 #include "DEG_depsgraph_query.h"
 
 #include "GPU_batch.h"
+#include "GPU_batch_presets.h"
 #include "GPU_draw.h"
 #include "GPU_matrix.h"
 #include "GPU_immediate.h"
@@ -1203,11 +1204,14 @@ void view3d_draw_region_info(const bContext *C, ARegion *ar, const int UNUSED(of
 
 	BLF_batch_draw_begin();
 
-	if (((U.uiflag & USER_SHOW_ROTVIEWICON) != 0) &&
-	    ((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-	    /* No need to display manipulator and this info. */
-	    ((U.manipulator_flag & USER_MANIPULATOR_DRAW_NAVIGATE) == 0))
+	if ((U.uiflag & USER_SHOW_GIZMO_AXIS) ||
+	    (v3d->flag2 & V3D_RENDER_OVERRIDE) ||
+	    /* No need to display gizmo and this info. */
+	    (v3d->mpr_flag & (V3D_GIZMO_HIDE | V3D_GIZMO_HIDE_NAVIGATE)))
 	{
+		/* pass */
+	}
+	else {
 		draw_view_axis(rv3d, &rect);
 	}
 

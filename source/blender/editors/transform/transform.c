@@ -1036,12 +1036,12 @@ static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cm
 		}
 		else if (!edit_2d) {
 			if (cmode == axis) {
-				if (t->con.orientation != t->current_orientation) {
+				if (t->con.orientation != V3D_MANIP_GLOBAL) {
 					stopConstraint(t);
 				}
 				else {
-					const short orientation = (
-					        (t->current_orientation != V3D_MANIP_GLOBAL) ? V3D_MANIP_GLOBAL : V3D_MANIP_LOCAL);
+					short orientation = (t->current_orientation != V3D_MANIP_GLOBAL ?
+					                     t->current_orientation : V3D_MANIP_LOCAL);
 					if (is_plane == false) {
 						setUserConstraint(t, orientation, constraint_axis, msg2);
 					}
@@ -1052,10 +1052,10 @@ static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cm
 			}
 			else {
 				if (is_plane == false) {
-					setUserConstraint(t, t->current_orientation, constraint_axis, msg2);
+					setUserConstraint(t, V3D_MANIP_GLOBAL, constraint_axis, msg2);
 				}
 				else {
-					setUserConstraint(t, t->current_orientation, constraint_plane, msg3);
+					setUserConstraint(t, V3D_MANIP_GLOBAL, constraint_plane, msg3);
 				}
 			}
 		}
@@ -2215,7 +2215,7 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	t->launch_event = event ? WM_userdef_event_type_from_keymap_type(event->type) : -1;
 
 	// XXX Remove this when wm_operator_call_internal doesn't use window->eventstate (which can have type = 0)
-	// For manipulator only, so assume LEFTMOUSE
+	// For gizmo only, so assume LEFTMOUSE
 	if (t->launch_event == 0) {
 		t->launch_event = LEFTMOUSE;
 	}
@@ -2267,10 +2267,10 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		/* keymap for shortcut header prints */
 		t->keymap = WM_keymap_active(CTX_wm_manager(C), op->type->modalkeymap);
 
-		/* Stupid code to have Ctrl-Click on manipulator work ok
+		/* Stupid code to have Ctrl-Click on gizmo work ok
 		 *
 		 * do this only for translation/rotation/resize due to only this
-		 * moded are available from manipulator and doing such check could
+		 * moded are available from gizmo and doing such check could
 		 * lead to keymap conflicts for other modes (see #31584)
 		 */
 		if (ELEM(mode, TFM_TRANSLATION, TFM_ROTATION, TFM_RESIZE)) {
@@ -3590,7 +3590,7 @@ static void applyResize(TransInfo *t, const int UNUSED(mval[2]))
 		t->con.applySize(t, NULL, NULL, mat);
 	}
 
-	copy_m3_m3(t->mat, mat);    // used in manipulator
+	copy_m3_m3(t->mat, mat);    // used in gizmo
 
 	headerResize(t, t->values, str);
 
@@ -4302,7 +4302,7 @@ static void applyTrackball(TransInfo *t, const int UNUSED(mval[2]))
 	mul_m3_m3m3(mat, smat, totmat);
 
 	// TRANSFORM_FIX_ME
-	//copy_m3_m3(t->mat, mat);	// used in manipulator
+	//copy_m3_m3(t->mat, mat);	// used in gizmo
 #endif
 
 	applyTrackballValue(t, axis1, axis2, phi);
@@ -5453,7 +5453,7 @@ static void applyBoneSize(TransInfo *t, const int UNUSED(mval[2]))
 		t->con.applySize(t, NULL, NULL, mat);
 	}
 
-	copy_m3_m3(t->mat, mat);    // used in manipulator
+	copy_m3_m3(t->mat, mat);    // used in gizmo
 
 	headerBoneSize(t, size, str);
 
