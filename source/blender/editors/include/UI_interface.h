@@ -1054,7 +1054,7 @@ uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct Pointe
 uiLayout *uiTemplateGpencilModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 void uiTemplateGpencilColorPreview(
 	uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
-	int rows, int cols, int filter);
+	int rows, int cols, float scale, int filter);
 
 uiLayout *uiTemplateShaderFx(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 

@@ -991,6 +991,7 @@ class _defs_gpencil_paint:
         ob = context.active_object
         nrow = 3
         ncol = 8
+        scale = 0.7
         if ob and ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
@@ -1005,7 +1006,7 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
                 row = layout.row()
-                row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol)
+                row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
 
                 row = layout.row(align=True)
                 row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
@@ -1020,7 +1021,7 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 row = layout.row(align=True)
-                row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol)
+                row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
 
     @staticmethod
     def generate_from_brushes(context):

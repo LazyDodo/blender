@@ -166,7 +166,8 @@ static uiBlock *template_common_search_menu(
         const bContext *C, ARegion *region,
         uiButSearchFunc search_func, void *search_arg,
         uiButHandleFunc handle_func, void *active_item,
-        const int preview_rows, const int preview_cols)
+        const int preview_rows, const int preview_cols,
+		float scale)
 {
 	static char search[256];
 	wmWindow *win = CTX_wm_window(C);
@@ -181,8 +182,8 @@ static uiBlock *template_common_search_menu(
 
 	/* preview thumbnails */
 	if (preview_rows > 0 && preview_cols > 0) {
-		const int w = 4 * U.widget_unit * preview_cols;
-		const int h = 5 * U.widget_unit * preview_rows;
+		const int w = 4 * U.widget_unit * preview_cols * scale;
+		const int h = 5 * U.widget_unit * preview_rows * scale;
 
 		/* fake button, it holds space for search items */
 		uiDefBut(block, UI_BTYPE_LABEL, 0, "", 10, 26, w, h, NULL, 0, 0, 0, 0, NULL);
@@ -241,6 +242,7 @@ typedef struct TemplateID {
 	short filter;
 	int prv_rows, prv_cols;
 	bool preview;
+	float scale;
 } TemplateID;
 
 /* Search browse menu, assign  */
@@ -386,7 +388,7 @@ static uiBlock *id_search_menu(bContext *C, ARegion *ar, void *arg_litem)
 
 	return template_common_search_menu(
 	        C, ar, id_search_cb_p, &template_ui, template_ID_set_property_cb, active_item_ptr.data,
-	        template_ui.prv_rows, template_ui.prv_cols);
+	        template_ui.prv_rows, template_ui.prv_cols, template_ui.scale);
 }
 
 /************************ ID Template ***************************/
@@ -634,7 +636,7 @@ static uiBut *template_id_def_new_but(
 
 static void template_ID(
         bContext *C, uiLayout *layout, TemplateID *template_ui, StructRNA *type, int flag,
-        const char *newop, const char *openop, const char *unlinkop)
+        const char *newop, const char *openop, const char *unlinkop, float scale)
 {
 	uiBut *but;
 	uiBlock *block;
@@ -864,7 +866,8 @@ static void ui_template_id(
         uiLayout *layout, bContext *C,
         PointerRNA *ptr, const char *propname,
         const char *newop, const char *openop, const char *unlinkop,
-        int flag, int prv_rows, int prv_cols, int filter, bool use_tabs)
+        int flag, int prv_rows, int prv_cols, int filter, bool use_tabs,
+		float scale)
 {
 	TemplateID *template_ui;
 	PropertyRNA *prop;
@@ -883,6 +886,7 @@ static void ui_template_id(
 	template_ui->prop = prop;
 	template_ui->prv_rows = prv_rows;
 	template_ui->prv_cols = prv_cols;
+	template_ui->scale = scale;
 
 	if ((flag & UI_ID_PIN) == 0) {
 		template_ui->filter = filter;
@@ -911,7 +915,7 @@ static void ui_template_id(
 		}
 		else {
 			uiLayoutRow(layout, true);
-			template_ID(C, layout, template_ui, type, flag, newop, openop, unlinkop);
+			template_ID(C, layout, template_ui, type, flag, newop, openop, unlinkop, scale);
 		}
 	}
 
@@ -926,7 +930,7 @@ void uiTemplateID(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME | UI_ID_DELETE,
-	        0, 0, filter, false);
+	        0, 0, filter, false, 1.0f);
 }
 
 void uiTemplateIDBrowse(
@@ -937,7 +941,7 @@ void uiTemplateIDBrowse(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME,
-	        0, 0, filter, false);
+	        0, 0, filter, false, 1.0f);
 }
 
 void uiTemplateIDPreview(
@@ -948,18 +952,18 @@ void uiTemplateIDPreview(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME | UI_ID_DELETE | UI_ID_PREVIEWS,
-	        rows, cols, filter, false);
+	        rows, cols, filter, false, 1.0f);
 }
 
 void uiTemplateGpencilColorPreview(
 	uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname,
-	int rows, int cols, int filter)
+	int rows, int cols, float scale, int filter)
 {
 	ui_template_id(
 		layout, C, ptr, propname,
 		NULL, NULL, NULL,
 		UI_ID_BROWSE | UI_ID_PREVIEWS,
-		rows, cols, filter, false);
+		rows, cols, filter, false, scale < 0.5f ? 0.5f : scale);
 }
 
 /**
@@ -975,7 +979,7 @@ void uiTemplateIDTabs(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME | UI_ID_DELETE,
-	        0, 0, filter, true);
+	        0, 0, filter, true, 1.0f);
 }
 
 /************************ ID Chooser Template ***************************/
@@ -1072,7 +1076,7 @@ static uiBlock *template_search_menu(bContext *C, ARegion *region, void *arg_tem
 	return template_common_search_menu(
 	        C, region, ui_rna_collection_search_cb, &template_search,
 	        template_search_handle_cb, active_ptr.data,
-	        template_search.preview_rows, template_search.preview_cols);
+	        template_search.preview_rows, template_search.preview_cols, 1.0f);
 }
 
 static void template_search_add_button_searchmenu(

@@ -852,6 +852,7 @@ void RNA_api_ui_layout(StructRNA *srna)
 	api_ui_item_rna_common(func);
 	RNA_def_int(func, "rows", 0, 0, INT_MAX, "Number of thumbnail preview rows to display", "", 0, INT_MAX);
 	RNA_def_int(func, "cols", 0, 0, INT_MAX, "Number of thumbnail preview columns to display", "", 0, INT_MAX);
+	RNA_def_float(func, "scale", 1.0f, 0.5f, 1.5f, "Scale of the image thumbnails", "", 0, INT_MAX);
 	RNA_def_enum(func, "filter", id_template_filter_items, UI_TEMPLATE_ID_FILTER_ALL,
 		"", "Optionally limit the items which can be selected");
 
