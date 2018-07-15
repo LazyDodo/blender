@@ -533,10 +533,6 @@ class Text(bpy_types.ID):
         self.write(string)
 
 
-# values are module: [(cls, path, line), ...]
-TypeMap = {}
-
-
 class Sound(bpy_types.ID):
     __slots__ = ()
 
@@ -548,59 +544,19 @@ class Sound(bpy_types.ID):
 
 
 class RNAMeta(type):
-
-    def __new__(cls, name, bases, classdict, **args):
-        result = type.__new__(cls, name, bases, classdict)
-        if bases and bases[0] is not StructRNA:
-            from _weakref import ref as ref
-            module = result.__module__
-
-            # first part of packages only
-            if "." in module:
-                module = module[:module.index(".")]
-
-            TypeMap.setdefault(module, []).append(ref(result))
-
-        return result
-
+    # TODO(campbell): move to C-API
     @property
     def is_registered(cls):
         return "bl_rna" in cls.__dict__
-
-
-class OrderedDictMini(dict):
-
-    def __init__(self, *args):
-        self.order = []
-        dict.__init__(self, args)
-
-    def __setitem__(self, key, val):
-        dict.__setitem__(self, key, val)
-        if key not in self.order:
-            self.order.append(key)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, key)
-        self.order.remove(key)
 
 
 class RNAMetaPropGroup(StructMetaPropGroup, RNAMeta):
     pass
 
 
-class OrderedMeta(RNAMeta):
-
-    def __init__(cls, name, bases, attributes):
-        if attributes.__class__ is OrderedDictMini:
-            cls.order = attributes.order
-
-    def __prepare__(name, bases, **kwargs):
-        return OrderedDictMini()  # collections.OrderedDict()
-
-
 # Same as 'Operator'
 # only without 'as_keywords'
-class Manipulator(StructRNA, metaclass=OrderedMeta):
+class Gizmo(StructRNA):
     __slots__ = ()
 
     def __getattribute__(self, attr):
@@ -625,24 +581,24 @@ class Manipulator(StructRNA, metaclass=OrderedMeta):
         return super().__delattr__(attr)
 
     from _bpy import (
-        _rna_manipulator_target_set_handler as target_set_handler,
-        _rna_manipulator_target_get_value as target_get_value,
-        _rna_manipulator_target_set_value as target_set_value,
-        _rna_manipulator_target_get_range as target_get_range,
+        _rna_gizmo_target_set_handler as target_set_handler,
+        _rna_gizmo_target_get_value as target_get_value,
+        _rna_gizmo_target_set_value as target_set_value,
+        _rna_gizmo_target_get_range as target_get_range,
     )
 
     # Convenience wrappers around private `_gawain` module.
     def draw_custom_shape(self, shape, *, matrix=None, select_id=None):
         """
-        Draw a shape created form :class:`bpy.types.Manipulator.draw_custom_shape`.
+        Draw a shape created form :class:`bpy.types.Gizmo.draw_custom_shape`.
 
         :arg shape: The cached shape to draw.
         :type shape: Undefined.
         :arg matrix: 4x4 matrix, when not given
-           :class:`bpy.types.Manipulator.matrix_world` is used.
+           :class:`bpy.types.Gizmo.matrix_world` is used.
         :type matrix: :class:`mathutils.Matrix`
         :arg select_id: The selection id.
-           Only use when drawing within :class:`bpy.types.Manipulator.draw_select`.
+           Only use when drawing within :class:`bpy.types.Gizmo.draw_select`.
         :type select_it: int
         """
         import gpu
@@ -671,7 +627,7 @@ class Manipulator(StructRNA, metaclass=OrderedMeta):
     @staticmethod
     def new_custom_shape(type, verts):
         """
-        Create a new shape that can be passed to :class:`bpy.types.Manipulator.draw_custom_shape`.
+        Create a new shape that can be passed to :class:`bpy.types.Gizmo.draw_custom_shape`.
 
         :arg type: The type of shape to create in (POINTS, LINES, TRIS, LINE_STRIP).
         :type type: string
@@ -700,7 +656,7 @@ class Manipulator(StructRNA, metaclass=OrderedMeta):
 
 # Only defined so operators members can be used by accessing self.order
 # with doc generation 'self.properties.bl_rna.properties' can fail
-class Operator(StructRNA, metaclass=OrderedMeta):
+class Operator(StructRNA):
     __slots__ = ()
 
     def __getattribute__(self, attr):
@@ -732,7 +688,7 @@ class Operator(StructRNA, metaclass=OrderedMeta):
                 if attr not in ignore}
 
 
-class Macro(StructRNA, metaclass=OrderedMeta):
+class Macro(StructRNA):
     # bpy_types is imported before ops is defined
     # so we have to do a local import on each run
     __slots__ = ()

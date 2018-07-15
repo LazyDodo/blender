@@ -2812,8 +2812,8 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer_eval = DEG_get_evaluated_view_layer(depsgraph);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
-	const bool is_face_map = ((is_gp_edit == false) && ar->manipulator_map &&
-	                          WM_manipulatormap_is_any_selected(ar->manipulator_map));
+	const bool is_face_map = ((is_gp_edit == false) && ar->gizmo_map &&
+	                          WM_gizmomap_is_any_selected(ar->gizmo_map));
 	Object *ob_eval = OBACT(view_layer_eval);
 	Object *obedit = CTX_data_edit_object(C);
 	float min[3], max[3];
@@ -2858,7 +2858,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 		CTX_DATA_END;
 	}
 	else if (is_face_map) {
-		ok = WM_manipulatormap_minmax(ar->manipulator_map, true, true, min, max);
+		ok = WM_gizmomap_minmax(ar->gizmo_map, true, true, min, max);
 	}
 	else if (obedit) {
 		/* only selected */
@@ -3223,7 +3223,6 @@ void VIEW3D_OT_view_center_lock(wmOperatorType *ot)
 
 static int render_border_exec(bContext *C, wmOperator *op)
 {
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	View3D *v3d = CTX_wm_view3d(C);
 	ARegion *ar = CTX_wm_region(C);
 	RegionView3D *rv3d = ED_view3d_context_rv3d(C);
@@ -3233,17 +3232,13 @@ static int render_border_exec(bContext *C, wmOperator *op)
 	rcti rect;
 	rctf vb, border;
 
-	const bool camera_only = RNA_boolean_get(op->ptr, "camera_only");
-
-	if (camera_only && rv3d->persp != RV3D_CAMOB)
-		return OPERATOR_PASS_THROUGH;
-
 	/* get border select values using rna */
 	WM_operator_properties_border_to_rcti(op, &rect);
 
 	/* calculate range */
 
 	if (rv3d->persp == RV3D_CAMOB) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		ED_view3d_calc_camera_border(scene, depsgraph, ar, v3d, rv3d, &vb, false);
 	}
 	else {
@@ -3297,8 +3292,6 @@ static int render_border_exec(bContext *C, wmOperator *op)
 
 void VIEW3D_OT_render_border(wmOperatorType *ot)
 {
-	PropertyRNA *prop;
-
 	/* identifiers */
 	ot->name = "Set Render Border";
 	ot->description = "Set the boundaries of the border render and enable border render";
@@ -3317,10 +3310,6 @@ void VIEW3D_OT_render_border(wmOperatorType *ot)
 
 	/* properties */
 	WM_operator_properties_border(ot);
-
-	prop = RNA_def_boolean(ot->srna, "camera_only", false, "Camera Only",
-	                       "Set render border for camera view and final render only");
-	RNA_def_property_flag(prop, PROP_HIDDEN);
 }
 
 /** \} */
@@ -3501,6 +3490,13 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
 	/* clamp after because we may have been zooming out */
 	CLAMP(new_dist, dist_range[0], dist_range[1]);
 
+	/* TODO(campbell): 'is_camera_lock' not currently working well. */
+	const bool is_camera_lock = ED_view3d_camera_lock_check(v3d, rv3d);
+	if ((rv3d->persp == RV3D_CAMOB) && (is_camera_lock == false)) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
+		ED_view3d_persp_switch_from_camera(depsgraph, v3d, rv3d, RV3D_PERSP);
+	}
+
 	ED_view3d_smooth_view(
 	        C, v3d, ar, smooth_viewtx,
 	        &(const V3D_SmoothParams) {.ofs = new_ofs, .dist = &new_dist});
@@ -3512,18 +3508,6 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static int view3d_zoom_border_invoke(bContext *C, wmOperator *op, const wmEvent *event)
-{
-	View3D *v3d = CTX_wm_view3d(C);
-	RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
-	/* if in camera view do not exec the operator so we do not conflict with set render border*/
-	if ((rv3d->persp != RV3D_CAMOB) || ED_view3d_camera_lock_check(v3d, rv3d))
-		return WM_gesture_border_invoke(C, op, event);
-	else
-		return OPERATOR_PASS_THROUGH;
-}
-
 void VIEW3D_OT_zoom_border(wmOperatorType *ot)
 {
 	/* identifiers */
@@ -3532,7 +3516,7 @@ void VIEW3D_OT_zoom_border(wmOperatorType *ot)
 	ot->idname = "VIEW3D_OT_zoom_border";
 
 	/* api callbacks */
-	ot->invoke = view3d_zoom_border_invoke;
+	ot->invoke = WM_gesture_border_invoke;
 	ot->exec = view3d_zoom_border_exec;
 	ot->modal = WM_gesture_border_modal;
 	ot->cancel = WM_gesture_border_cancel;
@@ -3721,7 +3705,7 @@ static int view_axis_exec(bContext *C, wmOperator *op)
 		Object *obact = CTX_data_active_object(C);
 		if (obact != NULL) {
 			float twmat[3][3];
-			/* same as transform manipulator when normal is set */
+			/* same as transform gizmo when normal is set */
 			ED_getTransformOrientationMatrix(C, twmat, V3D_AROUND_ACTIVE);
 			align_quat = align_quat_buf;
 			mat3_to_quat(align_quat, twmat);

@@ -103,6 +103,8 @@
 
 #include "RE_engine.h"
 
+#include "engines/eevee/eevee_lightcache.h"
+
 #include "PIL_time.h"
 
 #include "IMB_colormanagement.h"
@@ -316,6 +318,9 @@ void BKE_scene_copy_data(Main *bmain, Scene *sce_dst, const Scene *sce_src, cons
 	else {
 		sce_dst->preview = NULL;
 	}
+
+	sce_dst->eevee.light_cache = NULL;
+	/* TODO Copy the cache. */
 }
 
 Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
@@ -511,6 +516,11 @@ void BKE_scene_free_ex(Scene *sce, const bool do_id_user)
 		sce->master_collection = NULL;
 	}
 
+	if (sce->eevee.light_cache) {
+		EEVEE_lightcache_free(sce->eevee.light_cache);
+		sce->eevee.light_cache = NULL;
+	}
+
 	/* These are freed on doversion. */
 	BLI_assert(sce->layer_properties == NULL);
 }
@@ -635,7 +645,7 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->uvcalc_flag = UVCALC_TRANSFORM_CORRECT;
 	sce->toolsettings->unwrapper = 1;
 	sce->toolsettings->select_thresh = 0.01f;
-	sce->toolsettings->manipulator_flag = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
+	sce->toolsettings->gizmo_flag = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
 
 	sce->toolsettings->selectmode = SCE_SELECT_VERTEX;
 	sce->toolsettings->uv_selectmode = UV_SELECT_VERTEX;
@@ -814,6 +824,8 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.gi_diffuse_bounces = 3;
 	sce->eevee.gi_cubemap_resolution = 512;
 	sce->eevee.gi_visibility_resolution = 32;
+	sce->eevee.gi_cubemap_draw_size = 0.3f;
+	sce->eevee.gi_irradiance_draw_size = 0.1f;
 
 	sce->eevee.taa_samples = 16;
 	sce->eevee.taa_render_samples = 64;
@@ -855,6 +867,8 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.shadow_method = SHADOW_ESM;
 	sce->eevee.shadow_cube_size = 512;
 	sce->eevee.shadow_cascade_size = 1024;
+
+	sce->eevee.light_cache = NULL;
 
 	sce->eevee.flag =
 	        SCE_EEVEE_VOLUMETRIC_LIGHTS |

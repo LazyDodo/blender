@@ -2185,32 +2185,13 @@ void uiItemPopoverPanel_ptr(uiLayout *layout, bContext *C, PanelType *pt, const 
 
 void uiItemPopoverPanel(
         uiLayout *layout, bContext *C,
-        int space_id, int region_id, const char *panel_type,
-        const char *name, int icon)
+        const char *panel_type, const char *name, int icon)
 {
-	SpaceType *st = BKE_spacetype_from_id(space_id);
-	if (st == NULL) {
-		RNA_warning("space type not found %d", space_id);
-		return;
-	}
-	ARegionType *art = BKE_regiontype_from_id(st, region_id);
-	if (art == NULL) {
-		RNA_warning("region type not found %d", region_id);
-		return;
-	}
-
-	PanelType *pt;
-	for (pt = art->paneltypes.first; pt; pt = pt->next) {
-		if (STREQ(pt->idname, panel_type)) {
-			break;
-		}
-	}
-
+	PanelType *pt = WM_paneltype_find(panel_type, true);
 	if (pt == NULL) {
-		RNA_warning("area type not found %s", panel_type);
+		RNA_warning("Panel type not found '%s'", panel_type);
 		return;
 	}
-
 	uiItemPopoverPanel_ptr(layout, C, pt, name, icon);
 }
 
@@ -4326,7 +4307,7 @@ void UI_menutype_draw(bContext *C, MenuType *mt, struct uiLayout *layout)
 
 
 static void ui_paneltype_draw_impl(
-        bContext *C, PanelType *pt, uiLayout *layout)
+        bContext *C, PanelType *pt, uiLayout *layout, bool show_header)
 {
 	Panel *panel = MEM_callocN(sizeof(Panel), "popover panel");
 	panel->type = pt;
@@ -4335,13 +4316,15 @@ static void ui_paneltype_draw_impl(
 	uiLayout *last_item = layout->items.last;
 
 	/* Draw main panel. */
-	uiLayout *row = uiLayoutRow(layout, false);
-	if (pt->draw_header) {
-		panel->layout = row;
-		pt->draw_header(C, panel);
-		panel->layout = NULL;
+	if (show_header) {
+		uiLayout *row = uiLayoutRow(layout, false);
+		if (pt->draw_header) {
+			panel->layout = row;
+			pt->draw_header(C, panel);
+			panel->layout = NULL;
+		}
+		uiItemL(row, pt->label, ICON_NONE);
 	}
-	uiItemL(row, pt->label, ICON_NONE);
 
 	panel->layout = layout;
 	pt->draw(C, panel);
@@ -4361,7 +4344,7 @@ static void ui_paneltype_draw_impl(
 			}
 
 			uiLayout *col = uiLayoutColumn(layout, false);
-			ui_paneltype_draw_impl(C, child_pt, col);
+			ui_paneltype_draw_impl(C, child_pt, col, true);
 		}
 	}
 }
@@ -4375,7 +4358,7 @@ void UI_paneltype_draw(bContext *C, PanelType *pt, uiLayout *layout)
 		CTX_store_set(C, layout->context);
 	}
 
-	ui_paneltype_draw_impl(C, pt, layout);
+	ui_paneltype_draw_impl(C, pt, layout, false);
 
 	if (layout->context) {
 		CTX_store_set(C, NULL);
