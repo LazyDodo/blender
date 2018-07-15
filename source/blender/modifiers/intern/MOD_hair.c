@@ -63,12 +63,12 @@ static void initData(ModifierData *md)
 	hmd->draw_settings = BKE_hair_draw_settings_new();
 }
 
-static void copyData(const ModifierData *md, ModifierData *target, int flag)
+static void copyData(const ModifierData *md, ModifierData *target, const int flag)
 {
 	const HairModifierData *hmd = (HairModifierData *) md;
 	HairModifierData *tfmd = (HairModifierData *) target;
 
-    modifier_copyData_generic(md, target, flag);
+	modifier_copyData_generic(md, target, flag);
 	
 	if (hmd->hair_system) {
 		tfmd->hair_system = BKE_hair_copy(hmd->hair_system);
