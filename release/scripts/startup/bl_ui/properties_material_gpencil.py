@@ -137,12 +137,6 @@ class MATERIAL_PT_gpencil_slots(Panel):
                 sub.operator("gpencil.color_isolate", icon='LOCKED', text="").affect_visibility = False
                 sub.operator("gpencil.color_isolate", icon='RESTRICT_VIEW_OFF', text="").affect_visibility = True
 
-            if gpd.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.operator("gpencil.stroke_change_color", text="Assign")
-                row.operator("gpencil.color_select", text="Select")
-                #row.operator("gpencil.color_deselect", text="Deselect")
-
         row = layout.row()
 
         if ob:
@@ -152,11 +146,10 @@ class MATERIAL_PT_gpencil_slots(Panel):
                 icon_link = 'MESH_DATA' if slot.link == 'DATA' else 'OBJECT_DATA'
                 row.prop(slot, "link", icon=icon_link, icon_only=True)
 
-            if ob.mode == 'EDIT':
+            if gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
-                row.operator("object.material_slot_assign", text="Assign")
-                row.operator("object.material_slot_select", text="Select")
-                row.operator("object.material_slot_deselect", text="Deselect")
+                row.operator("gpencil.stroke_change_color", text="Assign")
+                row.operator("gpencil.color_select", text="Select")
 
         elif mat:
             row.template_ID(space, "pin_id")
