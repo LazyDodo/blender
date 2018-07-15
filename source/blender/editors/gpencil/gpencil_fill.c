@@ -305,10 +305,10 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	tgpf->ar->winrct.xmax = tgpf->sizex;
 	tgpf->ar->winrct.ymax = tgpf->sizey;
 
-	gpuPushProjectionMatrix();
-	gpuLoadIdentity();
-	gpuPushMatrix();
-	gpuLoadIdentity();
+	GPU_matrix_push_projection();
+	GPU_matrix_identity_set();
+	GPU_matrix_push();
+	GPU_matrix_identity_set();
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -316,8 +316,8 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	ED_view3d_update_viewmat(tgpf->depsgraph, tgpf->scene, tgpf->v3d, tgpf->ar,
 							NULL, winmat, NULL);
 	/* set for opengl */
-	gpuLoadProjectionMatrix(tgpf->rv3d->winmat);
-	gpuLoadMatrix(tgpf->rv3d->viewmat);
+	GPU_matrix_projection_set(tgpf->rv3d->winmat);
+	GPU_matrix_set(tgpf->rv3d->viewmat);
 
 	/* draw strokes */
 	float ink[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
@@ -328,8 +328,8 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	tgpf->ar->winy = (short)bwiny;
 	tgpf->ar->winrct = brect;
 
-	gpuPopProjectionMatrix();
-	gpuPopMatrix();
+	GPU_matrix_pop_projection();
+	GPU_matrix_pop();
 
 	/* create a image to see result of template */
 	if (ibuf->rect_float) {
