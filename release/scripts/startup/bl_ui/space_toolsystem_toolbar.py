@@ -995,6 +995,7 @@ class _defs_gpencil_paint:
         if ob and ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
+            ts = context.tool_settings
 
             if gp_settings.gpencil_brush_type == 'ERASE':
                 row = layout.row()
@@ -1005,8 +1006,12 @@ class _defs_gpencil_paint:
                 row.prop(brush, "size", text="Thickness")
                 row.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
-                row = layout.row()
-                row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
+                row = layout.row(align=True)
+                row.prop(ts, "use_gpencil_compact_list", text="", icon="SORTSIZE")
+                if ts.use_gpencil_compact_list is True:
+                    row.template_ID(gp_settings, "material")
+                else:
+                    row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
 
                 row = layout.row(align=True)
                 row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
@@ -1021,7 +1026,11 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 row = layout.row(align=True)
-                row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
+                row.prop(ts, "use_gpencil_compact_list", text="", icon="SORTSIZE")
+                if ts.use_gpencil_compact_list is True:
+                    row.template_ID(gp_settings, "material")
+                else:
+                    row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
 
     @staticmethod
     def generate_from_brushes(context):
