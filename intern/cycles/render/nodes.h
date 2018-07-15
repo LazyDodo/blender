@@ -189,7 +189,9 @@ public:
 	virtual int get_group() { return NODE_GROUP_LEVEL_2; }
 
 	NodeVoronoiColoring coloring;
-	float scale;
+	NodeVoronoiDistanceMetric metric;
+	NodeVoronoiFeature feature;
+	float scale, exponent;
 	float3 vector;
 };
 
@@ -1123,4 +1125,3 @@ public:
 CCL_NAMESPACE_END
 
 #endif /* __NODES_H__ */
-

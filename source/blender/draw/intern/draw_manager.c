@@ -44,6 +44,7 @@
 #include "DNA_camera_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_world_types.h"
 
 #include "ED_space_api.h"
 #include "ED_screen.h"
@@ -696,34 +697,96 @@ void **DRW_view_layer_engine_data_ensure(DrawEngineType *engine_type, void (*cal
 
 /* -------------------------------------------------------------------- */
 
-/** \name Objects (DRW_object)
+/** \name Draw Data (DRW_drawdata)
  * \{ */
 
-ObjectEngineData *DRW_object_engine_data_get(Object *ob, DrawEngineType *engine_type)
+/* Used for DRW_drawdata_from_id()
+ * All ID-datablocks which have their own 'local' DrawData
+ * should have the same arrangement in their structs.
+ */
+typedef struct IdDdtTemplate {
+	ID id;
+	struct AnimData *adt;
+	DrawDataList drawdata;
+} IdDdtTemplate;
+
+/* Check if ID can have AnimData */
+static bool id_type_can_have_drawdata(const short id_type)
 {
-	for (ObjectEngineData *oed = ob->drawdata.first; oed; oed = oed->next) {
-		if (oed->engine_type == engine_type) {
-			return oed;
+	/* Only some ID-blocks have this info for now */
+	/* TODO: finish adding this for the other blocktypes */
+	switch (id_type) {
+		/* has DrawData */
+		case ID_OB:
+		case ID_WO:
+			return true;
+
+		/* no DrawData */
+		default:
+			return false;
+	}
+}
+
+static bool id_can_have_drawdata(const ID *id)
+{
+	/* sanity check */
+	if (id == NULL)
+		return false;
+
+	return id_type_can_have_drawdata(GS(id->name));
+}
+
+/* Get DrawData from the given ID-block. In order for this to work, we assume that
+ * the DrawData pointer is stored in the struct in the same fashion as in IdDdtTemplate.
+ */
+DrawDataList *DRW_drawdatalist_from_id(ID *id)
+{
+	/* only some ID-blocks have this info for now, so we cast the
+	 * types that do to be of type IdDdtTemplate, and extract the
+	 * DrawData that way
+	 */
+	if (id_can_have_drawdata(id)) {
+		IdDdtTemplate *idt = (IdDdtTemplate *)id;
+		return &idt->drawdata;
+	}
+	else
+		return NULL;
+}
+
+DrawData *DRW_drawdata_get(ID *id, DrawEngineType *engine_type)
+{
+	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+
+	if (drawdata == NULL)
+		return NULL;
+
+	LISTBASE_FOREACH(DrawData *, dd, drawdata) {
+		if (dd->engine_type == engine_type) {
+			return dd;
 		}
 	}
 	return NULL;
 }
 
-ObjectEngineData *DRW_object_engine_data_ensure(
-        Object *ob,
+DrawData *DRW_drawdata_ensure(
+        ID *id,
         DrawEngineType *engine_type,
         size_t size,
-        ObjectEngineDataInitCb init_cb,
-        ObjectEngineDataFreeCb free_cb)
+        DrawDataInitCb init_cb,
+        DrawDataFreeCb free_cb)
 {
-	BLI_assert(size >= sizeof(ObjectEngineData));
+	BLI_assert(size >= sizeof(DrawData));
+	BLI_assert(id_can_have_drawdata(id));
 	/* Try to re-use existing data. */
-	ObjectEngineData *oed = DRW_object_engine_data_get(ob, engine_type);
-	if (oed != NULL) {
-		return oed;
+	DrawData *dd = DRW_drawdata_get(id, engine_type);
+	if (dd != NULL) {
+		return dd;
 	}
+
+	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+
 	/* Allocate new data. */
-	if ((ob->base_flag & BASE_FROMDUPLI) != 0) {
+	if ((GS(id->name) == ID_OB) && (((Object *)id)->base_flag & BASE_FROMDUPLI) != 0) {
 		/* NOTE: data is not persistent in this case. It is reset each redraw. */
 		BLI_assert(free_cb == NULL); /* No callback allowed. */
 		/* Round to sizeof(float) for DRW_instance_data_request(). */
@@ -734,21 +797,37 @@ ObjectEngineData *DRW_object_engine_data_ensure(
 		if (DST.object_instance_data[fsize] == NULL) {
 			DST.object_instance_data[fsize] = DRW_instance_data_request(DST.idatalist, fsize);
 		}
-		oed = (ObjectEngineData *)DRW_instance_data_next(DST.object_instance_data[fsize]);
-		memset(oed, 0, size);
+		dd = (DrawData *)DRW_instance_data_next(DST.object_instance_data[fsize]);
+		memset(dd, 0, size);
 	}
 	else {
-		oed = MEM_callocN(size, "ObjectEngineData");
+		dd = MEM_callocN(size, "DrawData");
 	}
-	oed->engine_type = engine_type;
-	oed->free = free_cb;
+	dd->engine_type = engine_type;
+	dd->free = free_cb;
 	/* Perform user-side initialization, if needed. */
 	if (init_cb != NULL) {
-		init_cb(oed);
+		init_cb(dd);
 	}
 	/* Register in the list. */
-	BLI_addtail(&ob->drawdata, oed);
-	return oed;
+	BLI_addtail((ListBase *)drawdata, dd);
+	return dd;
+}
+
+void DRW_drawdata_free(ID *id)
+{
+	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+
+	if (drawdata == NULL)
+		return;
+
+	LISTBASE_FOREACH(DrawData *, dd, drawdata) {
+		if (dd->free != NULL) {
+			dd->free(dd);
+		}
+	}
+
+	BLI_freelistN((ListBase *)drawdata);
 }
 
 /** \} */
@@ -790,6 +869,22 @@ static void drw_engines_cache_init(void)
 
 		if (engine->cache_init) {
 			engine->cache_init(data);
+		}
+	}
+}
+
+static void drw_engines_world_update(Scene *scene)
+{
+	if (scene->world == NULL) {
+		return;
+	}
+
+	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
+		DrawEngineType *engine = link->data;
+		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
+
+		if (engine->id_update) {
+			engine->id_update(data, &scene->world->id);
 		}
 	}
 }
@@ -877,7 +972,7 @@ static void drw_engines_draw_text(void)
 		PROFILE_START(stime);
 
 		if (data->text_draw_cache) {
-			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.v3d, DST.draw_ctx.ar, false);
+			DRW_text_cache_draw(data->text_draw_cache, DST.draw_ctx.ar);
 		}
 
 		PROFILE_END_UPDATE(data->render_time, stime);
@@ -1164,7 +1259,7 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 		/* XXX Really nasty locking. But else this could
 		 * be executed by the material previews thread
 		 * while rendering a viewport. */
-		BLI_mutex_lock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_lock(DST.gl_context_mutex);
 
 		/* Reset before using it. */
 		drw_state_prepare_clean_for_draw(&DST);
@@ -1192,7 +1287,7 @@ void DRW_notify_view_update(const DRWUpdateContext *update_ctx)
 
 		drw_engines_disable();
 
-		BLI_mutex_unlock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_unlock(DST.gl_context_mutex);
 	}
 }
 
@@ -1240,9 +1335,7 @@ void DRW_draw_render_loop_ex(
 	RegionView3D *rv3d = ar->regiondata;
 
 	DST.draw_ctx.evil_C = evil_C;
-
 	DST.viewport = viewport;
-	v3d->zbuf = true;
 
 	/* Setup viewport */
 	GPU_viewport_engines_data_validate(DST.viewport, DRW_engines_get_hash());
@@ -1278,10 +1371,14 @@ void DRW_draw_render_loop_ex(
 	{
 		PROFILE_START(stime);
 		drw_engines_cache_init();
+		drw_engines_world_update(scene);
 
+		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
-			drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+				drw_engines_cache_populate(ob);
+			}
 		}
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 
@@ -1344,12 +1441,12 @@ void DRW_draw_render_loop_ex(
 	glEnable(GL_DEPTH_TEST);
 
 	if (DST.draw_ctx.evil_C) {
-		/* needed so manipulator isn't obscured */
+		/* needed so gizmo isn't obscured */
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-		    ((v3d->twflag & V3D_MANIPULATOR_DRAW) != 0))
+		    ((v3d->mpr_flag & V3D_GIZMO_HIDE) == 0))
 		{
 			glDisable(GL_DEPTH_TEST);
-			DRW_draw_manipulator_3d();
+			DRW_draw_gizmo_3d();
 		}
 
 		DRW_draw_region_info();
@@ -1357,7 +1454,7 @@ void DRW_draw_render_loop_ex(
 		if ((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) {
 			/* Draw 2D after region info so we can draw on top of the camera passepartout overlay.
 			 * 'DRW_draw_region_info' sets the projection in pixel-space. */
-			DRW_draw_manipulator_2d();
+			DRW_draw_gizmo_2d();
 			glEnable(GL_DEPTH_TEST);
 		}
 	}
@@ -1460,14 +1557,10 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 
 	/* Changing Context */
 	if (re_gl_context != NULL) {
-		/* TODO get rid of the blocking. Only here because of the static global DST. */
-		BLI_mutex_lock(&DST.gl_context_mutex);
-		WM_opengl_context_activate(re_gl_context);
+		DRW_opengl_render_context_enable(re_gl_context);
+		/* We need to query gwn context after a gl context has been bound. */
 		re_gwn_context = RE_gwn_context_get(render);
-		if (GWN_context_active_get() == NULL) {
-			GWN_context_active_set(re_gwn_context);
-		}
-		DRW_shape_cache_reset(); /* XXX fix that too. */
+		DRW_gawain_render_context_enable(re_gwn_context);
 	}
 	else {
 		DRW_opengl_context_enable();
@@ -1546,12 +1639,8 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 
 	/* Changing Context */
 	if (re_gl_context != NULL) {
-		DRW_shape_cache_reset(); /* XXX fix that too. */
-		glFlush();
-		GWN_context_active_set(NULL);
-		WM_opengl_context_release(re_gl_context);
-		/* TODO get rid of the blocking. */
-		BLI_mutex_unlock(&DST.gl_context_mutex);
+		DRW_gawain_render_context_disable(re_gwn_context);
+		DRW_opengl_render_context_disable(re_gl_context);
 	}
 	else {
 		DRW_opengl_context_disable();
@@ -1562,14 +1651,69 @@ void DRW_render_object_iter(
 	void *vedata, RenderEngine *engine, struct Depsgraph *depsgraph,
 	void (*callback)(void *vedata, Object *ob, RenderEngine *engine, struct Depsgraph *depsgraph))
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
 	DRW_hair_init();
 
+	const int object_type_exclude_viewport = draw_ctx->v3d ? draw_ctx->v3d->object_type_exclude_viewport : 0;
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
-		DST.ob_state = NULL;
-		callback(vedata, ob, engine, depsgraph);
+		if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+			DST.ob_state = NULL;
+			callback(vedata, ob, engine, depsgraph);
+		}
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
+}
+
+/* Assume a valid gl context is bound (and that the gl_context_mutex has been aquired).
+ * This function only setup DST and execute the given function.
+ * Warning: similar to DRW_render_to_image you cannot use default lists (dfbl & dtxl). */
+void DRW_custom_pipeline(
+        DrawEngineType *draw_engine_type,
+        struct Depsgraph *depsgraph,
+        void (*callback)(void *vedata, void *user_data),
+        void *user_data)
+{
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
+	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+
+	/* Reset before using it. */
+	drw_state_prepare_clean_for_draw(&DST);
+	DST.options.is_image_render = true;
+	DST.options.is_scene_render = true;
+	DST.options.draw_background = false;
+
+	DST.draw_ctx = (DRWContextState){
+	    .scene = scene,
+	    .view_layer = view_layer,
+	    .engine_type = NULL,
+	    .depsgraph = depsgraph,
+	    .object_mode = OB_MODE_OBJECT,
+	};
+	drw_context_state_init();
+
+	DST.viewport = GPU_viewport_create();
+	const int size[2] = {1, 1};
+	GPU_viewport_size_set(DST.viewport, size);
+
+	drw_viewport_var_init();
+
+	DRW_hair_init();
+
+	ViewportEngineData *data = drw_viewport_engine_data_ensure(draw_engine_type);
+
+	/* Execute the callback */
+	callback(data, user_data);
+	DST.buffer_finish_called = false;
+
+	GPU_viewport_free(DST.viewport);
+	GPU_framebuffer_restore();
+
+#ifdef DEBUG
+	/* Avoid accidental reuse. */
+	drw_state_ensure_not_reused(&DST);
+#endif
 }
 
 static struct DRWSelectBuffer {
@@ -1647,7 +1791,7 @@ void DRW_draw_select_loop(
 			obedit_mode = CTX_MODE_EDIT_ARMATURE;
 		}
 	}
-	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECTION) {
+	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT) {
 		if (!(v3d->flag2 & V3D_RENDER_OVERRIDE)) {
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
@@ -1661,8 +1805,6 @@ void DRW_draw_select_loop(
 	GPU_viewport_size_set(viewport, (const int[2]){BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)});
 
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_select = true;
 
 	/* Get list of enabled engines */
@@ -1696,6 +1838,7 @@ void DRW_draw_select_loop(
 
 	{
 		drw_engines_cache_init();
+		drw_engines_world_update(scene);
 
 		if (use_obedit) {
 #if 0
@@ -1708,6 +1851,9 @@ void DRW_draw_select_loop(
 #endif
 		}
 		else {
+			const int object_type_exclude_select = (
+			        v3d->object_type_exclude_viewport | v3d->object_type_exclude_select
+			);
 			bool filter_exclude = false;
 			DEG_OBJECT_ITER_BEGIN(
 			        depsgraph, ob,
@@ -1715,8 +1861,9 @@ void DRW_draw_select_loop(
 			        DEG_ITER_OBJECT_FLAG_VISIBLE |
 			        DEG_ITER_OBJECT_FLAG_DUPLI)
 			{
-				if ((ob->base_flag & BASE_SELECTABLE) != 0) {
-
+				if ((ob->base_flag & BASE_SELECTABLE) &&
+				    (object_type_exclude_select & (1 << ob->type)) == 0)
+				{
 					if (object_filter_fn != NULL) {
 						if (ob->base_flag & BASE_FROMDUPLI) {
 							/* pass (use previous filter_exclude value) */
@@ -1856,10 +2003,7 @@ void DRW_draw_depth_loop(
 	GPU_framebuffer_bind(g_select_buffer.framebuffer);
 	GPU_framebuffer_clear_depth(g_select_buffer.framebuffer, 1.0f);
 
-	bool cache_is_dirty;
 	DST.viewport = viewport;
-	v3d->zbuf = true;
-
 	DST.options.is_depth = true;
 
 	/* Get list of enabled engines */
@@ -1869,7 +2013,6 @@ void DRW_draw_depth_loop(
 	}
 
 	/* Setup viewport */
-	cache_is_dirty = true;
 
 	/* Instead of 'DRW_context_state_init(C, &DST.draw_ctx)', assign from args */
 	DST.draw_ctx = (DRWContextState){
@@ -1888,15 +2031,16 @@ void DRW_draw_depth_loop(
 	drw_engines_init();
 	DRW_hair_init();
 
-	/* TODO : tag to refresh by the dependency graph */
-	/* ideally only refresh when objects are added/removed */
-	/* or render properties / materials change */
-	if (cache_is_dirty) {
+	{
 		drw_engines_cache_init();
+		drw_engines_world_update(scene);
 
+		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 		{
-			drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+				drw_engines_cache_populate(ob);
+			}
 		}
 		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 
@@ -2194,14 +2338,12 @@ void DRW_opengl_context_create(void)
 {
 	BLI_assert(DST.gl_context == NULL); /* Ensure it's called once */
 
-	BLI_mutex_init(&DST.gl_context_mutex);
+	DST.gl_context_mutex = BLI_ticket_mutex_alloc();
 	if (!G.background) {
 		immDeactivate();
 	}
 	/* This changes the active context. */
 	DST.gl_context = WM_opengl_context_create();
-	/* Make the context active for this thread (main thread) */
-	WM_opengl_context_activate(DST.gl_context);
 	/* Be sure to create gawain.context too. */
 	DST.gwn_context = GWN_context_create();
 	if (!G.background) {
@@ -2221,7 +2363,7 @@ void DRW_opengl_context_destroy(void)
 		GWN_context_active_set(DST.gwn_context);
 		GWN_context_discard(DST.gwn_context);
 		WM_opengl_context_dispose(DST.gl_context);
-		BLI_mutex_end(&DST.gl_context_mutex);
+		BLI_ticket_mutex_free(DST.gl_context_mutex);
 	}
 }
 
@@ -2231,7 +2373,7 @@ void DRW_opengl_context_enable(void)
 		/* IMPORTANT: We dont support immediate mode in render mode!
 		 * This shall remain in effect until immediate mode supports
 		 * multiple threads. */
-		BLI_mutex_lock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_lock(DST.gl_context_mutex);
 		if (BLI_thread_is_main()) {
 			if (!G.background) {
 				immDeactivate();
@@ -2265,8 +2407,43 @@ void DRW_opengl_context_disable(void)
 			GWN_context_active_set(NULL);
 		}
 
-		BLI_mutex_unlock(&DST.gl_context_mutex);
+		BLI_ticket_mutex_unlock(DST.gl_context_mutex);
 	}
+}
+
+void DRW_opengl_render_context_enable(void *re_gl_context)
+{
+	/* If thread is main you should use DRW_opengl_context_enable(). */
+	BLI_assert(!BLI_thread_is_main());
+
+	/* TODO get rid of the blocking. Only here because of the static global DST. */
+	BLI_ticket_mutex_lock(DST.gl_context_mutex);
+	WM_opengl_context_activate(re_gl_context);
+}
+
+void DRW_opengl_render_context_disable(void *re_gl_context)
+{
+	glFlush();
+	WM_opengl_context_release(re_gl_context);
+	/* TODO get rid of the blocking. */
+	BLI_ticket_mutex_unlock(DST.gl_context_mutex);
+}
+
+/* Needs to be called AFTER DRW_opengl_render_context_enable() */
+void DRW_gawain_render_context_enable(void *re_gwn_context)
+{
+	/* If thread is main you should use DRW_opengl_context_enable(). */
+	BLI_assert(!BLI_thread_is_main());
+
+	GWN_context_active_set(re_gwn_context);
+	DRW_shape_cache_reset(); /* XXX fix that too. */
+}
+
+/* Needs to be called BEFORE DRW_opengl_render_context_disable() */
+void DRW_gawain_render_context_disable(void *UNUSED(re_gwn_context))
+{
+	DRW_shape_cache_reset(); /* XXX fix that too. */
+	GWN_context_active_set(NULL);
 }
 
 /** \} */

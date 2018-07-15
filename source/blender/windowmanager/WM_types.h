@@ -121,10 +121,10 @@ struct ImBuf;
 /* exported types for WM */
 #include "wm_cursors.h"
 #include "wm_event_types.h"
-#include "manipulators/WM_manipulator_types.h"
+#include "gizmo/WM_gizmo_types.h"
 
-/* Include external manipulator API's */
-#include "manipulators/WM_manipulator_api.h"
+/* Include external gizmo API's */
+#include "gizmo/WM_gizmo_api.h"
 
 /* ************** wmOperatorType ************************ */
 
@@ -257,7 +257,8 @@ typedef struct wmNotifier {
 #define NC_GPENCIL			(22<<24)
 #define NC_LINESTYLE			(23<<24)
 #define NC_CAMERA			(24<<24)
-#define NC_GROOM			(25<<24)
+#define NC_LIGHTPROBE			(25<<24)
+#define NC_GROOM			(26<<24)
 
 /* data type, 256 entries is enough, it can overlap */
 #define NOTE_DATA			0x00FF0000

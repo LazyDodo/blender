@@ -39,6 +39,8 @@
 #include "BLI_math.h"
 
 #include "GPU_batch.h"
+#include "GPU_batch_presets.h"
+#include "GPU_batch_utils.h"
 
 #include "draw_cache.h"
 #include "draw_cache_impl.h"
@@ -164,7 +166,7 @@ static Gwn_VertBuf *fill_arrows_vbo(const float scale)
 	/* Position Only 3D format */
 	static Gwn_VertFormat format = { 0 };
 	static struct { uint pos; } attr_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 	}
 
@@ -211,7 +213,7 @@ static Gwn_VertBuf *sphere_wire_vbo(const float rad)
 	/* Position Only 3D format */
 	static Gwn_VertFormat format = { 0 };
 	static struct { uint pos; } attr_id;
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 	}
 
@@ -263,7 +265,7 @@ Gwn_Batch *DRW_cache_fullscreen_quad_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, uvs; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
@@ -291,7 +293,7 @@ Gwn_Batch *DRW_cache_quad_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, uvs; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
@@ -344,7 +346,7 @@ Gwn_Batch *DRW_cache_cube_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -369,7 +371,7 @@ Gwn_Batch *DRW_cache_circle_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -400,7 +402,7 @@ Gwn_Batch *DRW_cache_square_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -427,7 +429,7 @@ Gwn_Batch *DRW_cache_single_line_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -452,7 +454,7 @@ Gwn_Batch *DRW_cache_single_line_endpoints_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -476,7 +478,7 @@ Gwn_Batch *DRW_cache_screenspace_circle_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -617,7 +619,7 @@ Gwn_Batch *DRW_cache_plain_axes_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -648,7 +650,7 @@ Gwn_Batch *DRW_cache_single_arrow_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -704,7 +706,7 @@ Gwn_Batch *DRW_cache_empty_cone_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -756,7 +758,7 @@ Gwn_Batch *DRW_cache_axis_names_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			/* Using 3rd component as axis indicator */
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
@@ -814,7 +816,7 @@ Gwn_Batch *DRW_cache_image_plane_get(void)
 		const float quad[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, texCoords; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.texCoords = GWN_vertformat_attr_add(&format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
@@ -835,7 +837,7 @@ Gwn_Batch *DRW_cache_image_plane_wire_get(void)
 		const float quad[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
 		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
@@ -858,7 +860,7 @@ Gwn_Batch *DRW_cache_field_wind_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -895,7 +897,7 @@ Gwn_Batch *DRW_cache_field_force_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -933,7 +935,7 @@ Gwn_Batch *DRW_cache_field_vortex_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -970,7 +972,7 @@ Gwn_Batch *DRW_cache_field_tube_limit_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1019,7 +1021,7 @@ Gwn_Batch *DRW_cache_field_cone_limit_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1074,7 +1076,7 @@ Gwn_Batch *DRW_cache_lamp_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
 
@@ -1106,7 +1108,7 @@ Gwn_Batch *DRW_cache_lamp_shadows_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
 
@@ -1137,7 +1139,7 @@ Gwn_Batch *DRW_cache_lamp_sunrays_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
 
@@ -1172,7 +1174,7 @@ Gwn_Batch *DRW_cache_lamp_area_square_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1205,7 +1207,7 @@ Gwn_Batch *DRW_cache_lamp_area_disk_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1239,7 +1241,7 @@ Gwn_Batch *DRW_cache_lamp_hemi_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1317,7 +1319,7 @@ Gwn_Batch *DRW_cache_lamp_spot_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, n1, n2; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.n1 = GWN_vertformat_attr_add(&format, "N1", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.n2 = GWN_vertformat_attr_add(&format, "N2", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
@@ -1376,7 +1378,7 @@ Gwn_Batch *DRW_cache_lamp_spot_square_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1414,7 +1416,7 @@ Gwn_Batch *DRW_cache_speaker_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1487,7 +1489,7 @@ Gwn_Batch *DRW_cache_lightprobe_cube_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1532,7 +1534,7 @@ Gwn_Batch *DRW_cache_lightprobe_grid_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1585,7 +1587,7 @@ Gwn_Batch *DRW_cache_lightprobe_planar_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1713,7 +1715,7 @@ Gwn_Batch *DRW_cache_bone_octahedral_get(void)
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor, snor; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.snor = GWN_vertformat_attr_add(&format, "snor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
@@ -1879,7 +1881,7 @@ Gwn_Batch *DRW_cache_bone_box_get(void)
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor, snor; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.snor = GWN_vertformat_attr_add(&format, "snor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
@@ -1946,7 +1948,7 @@ Gwn_Batch *DRW_cache_bone_envelope_solid_get(void)
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -1993,7 +1995,7 @@ Gwn_Batch *DRW_cache_bone_envelope_outline_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos0, pos1, pos2; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos0 = GWN_vertformat_attr_add(&format, "pos0", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.pos1 = GWN_vertformat_attr_add(&format, "pos1", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.pos2 = GWN_vertformat_attr_add(&format, "pos2", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
@@ -2049,7 +2051,7 @@ Gwn_Batch *DRW_cache_bone_point_get(void)
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
@@ -2085,7 +2087,7 @@ Gwn_Batch *DRW_cache_bone_point_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
 
@@ -2119,7 +2121,7 @@ Gwn_Batch *DRW_cache_bone_point_wire_outline_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos0, pos1; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos0 = GWN_vertformat_attr_add(&format, "pos0", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.pos1 = GWN_vertformat_attr_add(&format, "pos1", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		}
@@ -2176,7 +2178,7 @@ Gwn_Batch *DRW_cache_bone_stick_get(void)
 		/* Position Only 2D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, flag; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos  = GWN_vertformat_attr_add(&format, "pos",  GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.flag = GWN_vertformat_attr_add(&format, "flag", GWN_COMP_U32, 1, GWN_FETCH_INT);
 		}
@@ -2318,7 +2320,7 @@ Gwn_Batch *DRW_cache_bone_arrows_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint axis, pos, col; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.axis = GWN_vertformat_attr_add(&format, "axis", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
 			attr_id.pos = GWN_vertformat_attr_add(&format, "screenPos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.col = GWN_vertformat_attr_add(&format, "colorAxis", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
@@ -2353,26 +2355,26 @@ Gwn_Batch *DRW_cache_bone_arrows_get(void)
 
 			a = axis + 0.31f;
 			/* Axis name */
-			int axis_v_ct;
+			int axis_v_len;
 			float (*axis_verts)[2];
 			if (axis == 0) {
 				axis_verts = x_axis_name;
-				axis_v_ct = X_LEN;
+				axis_v_len = X_LEN;
 			}
 			else if (axis == 1) {
 				axis_verts = y_axis_name;
-				axis_v_ct = Y_LEN;
+				axis_v_len = Y_LEN;
 			}
 			else {
 				axis_verts = z_axis_name;
-				axis_v_ct = Z_LEN;
+				axis_v_len = Z_LEN;
 			}
 
 			/* Axis name shadows */
 			copy_v3_fl(c, 0.0f);
 			c[axis] = 0.3f;
 			for (int j = 0; j < SHADOW_RES; ++j) {
-				for (int i = 0; i < axis_v_ct; ++i) {
+				for (int i = 0; i < axis_v_len; ++i) {
 					float tmp[2];
 					add_v2_v2v2(tmp, axis_verts[i], axis_name_shadow[j]);
 					set_bone_axis_vert(vbo, attr_id.axis, attr_id.pos, attr_id.col,
@@ -2383,7 +2385,7 @@ Gwn_Batch *DRW_cache_bone_arrows_get(void)
 			/* Axis name */
 			copy_v3_fl(c, 0.1f);
 			c[axis] = 1.0f;
-			for (int i = 0; i < axis_v_ct; ++i) {
+			for (int i = 0; i < axis_v_len; ++i) {
 				set_bone_axis_vert(vbo, attr_id.axis, attr_id.pos, attr_id.col,
 				                   &v, &a, axis_verts[i], c);
 			}
@@ -2460,7 +2462,7 @@ Gwn_Batch *DRW_cache_camera_get(void)
 	if (!SHC.drw_camera) {
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
 		}
 
@@ -2493,7 +2495,7 @@ Gwn_Batch *DRW_cache_camera_frame_get(void)
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
 		}
 
@@ -2519,7 +2521,7 @@ Gwn_Batch *DRW_cache_camera_tria_get(void)
 	if (!SHC.drw_camera_tria) {
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
 		}
 
@@ -2556,7 +2558,7 @@ Gwn_Batch *DRW_cache_single_vert_get(void)
 		/* Position Only 3D format */
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 		}
 
@@ -3037,9 +3039,9 @@ Gwn_Batch *DRW_cache_particles_get_prim(int type)
 		case PART_DRAW_CROSS:
 			if (!SHC.drw_particle_cross) {
 				static Gwn_VertFormat format = { 0 };
-				static unsigned pos_id, axis_id;
+				static uint pos_id, axis_id;
 
-				if (format.attrib_ct == 0) {
+				if (format.attr_len == 0) {
 					pos_id = GWN_vertformat_attr_add(&format, "inst_pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 					axis_id = GWN_vertformat_attr_add(&format, "axis", GWN_COMP_I32, 1, GWN_FETCH_INT);
 				}
@@ -3084,9 +3086,9 @@ Gwn_Batch *DRW_cache_particles_get_prim(int type)
 		case PART_DRAW_AXIS:
 			if (!SHC.drw_particle_axis) {
 				static Gwn_VertFormat format = { 0 };
-				static unsigned pos_id, axis_id;
+				static uint pos_id, axis_id;
 
-				if (format.attrib_ct == 0) {
+				if (format.attr_len == 0) {
 					pos_id = GWN_vertformat_attr_add(&format, "inst_pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 					axis_id = GWN_vertformat_attr_add(&format, "axis", GWN_COMP_I32, 1, GWN_FETCH_INT);
 				}
@@ -3135,9 +3137,9 @@ Gwn_Batch *DRW_cache_particles_get_prim(int type)
 				int axis = -1;
 
 				static Gwn_VertFormat format = { 0 };
-				static unsigned pos_id, axis_id;
+				static uint pos_id, axis_id;
 
-				if (format.attrib_ct == 0) {
+				if (format.attr_len == 0) {
 					pos_id = GWN_vertformat_attr_add(&format, "inst_pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 					axis_id = GWN_vertformat_attr_add(&format, "axis", GWN_COMP_I32, 1, GWN_FETCH_INT);
 				}
@@ -3197,24 +3199,24 @@ Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines)
 		const float f20 = 1.0f;
 
 		const int segments = 16;
-		const int vert_ct = segments + 8;
-		const int index_ct = vert_ct + 5;
+		const int vert_len = segments + 8;
+		const int index_len = vert_len + 5;
 
-		unsigned char red[3] = {255, 0, 0};
-		unsigned char white[3] = {255, 255, 255};
+		uchar red[3] = {255, 0, 0};
+		uchar white[3] = {255, 255, 255};
 
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, color; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 			attr_id.color = GWN_vertformat_attr_add(&format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 		}
 
 		Gwn_IndexBufBuilder elb;
-		GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINE_STRIP, index_ct, vert_ct, true);
+		GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINE_STRIP, index_len, vert_len, true);
 
 		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-		GWN_vertbuf_data_alloc(vbo, vert_ct);
+		GWN_vertbuf_data_alloc(vbo, vert_len);
 
 		int v = 0;
 		for (int i = 0; i < segments; ++i) {
@@ -3233,7 +3235,7 @@ Gwn_Batch *DRW_cache_cursor_get(bool crosshair_lines)
 		GWN_indexbuf_add_generic_vert(&elb, 0);
 
 		if (crosshair_lines) {
-			unsigned char crosshair_color[3];
+			uchar crosshair_color[3];
 			UI_GetThemeColor3ubv(TH_VIEW_OVERLAY, crosshair_color);
 
 			GWN_indexbuf_add_primitive_restart(&elb);

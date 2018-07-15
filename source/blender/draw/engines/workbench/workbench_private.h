@@ -41,7 +41,7 @@
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
 #define MAX_SHADERS (1 << 11)
 
-#define TEXTURE_DRAWING_ENABLED(wpd) (wpd->color_type & V3D_SHADING_TEXTURE_COLOR)
+#define TEXTURE_DRAWING_ENABLED(wpd) (wpd->shading.color_type & V3D_SHADING_TEXTURE_COLOR)
 #define FLAT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_FLAT)
 #define STUDIOLIGHT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_STUDIO)
 #define MATCAP_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_MATCAP)
@@ -59,7 +59,6 @@
 #define NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) (MATCAP_ENABLED(wpd) || STUDIOLIGHT_ENABLED(wpd) || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED(wpd))
 #define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) || CAVITY_ENABLED(wpd))
 #define NORMAL_ENCODING_ENABLED() (true)
-#define TEXTURE_DRAWING_ENABLED(wpd) (wpd->color_type & V3D_SHADING_TEXTURE_COLOR)
 
 
 typedef struct WORKBENCH_FramebufferList {
@@ -129,7 +128,7 @@ typedef struct WORKBENCH_UBO_World {
 	float background_color_low[4];
 	float background_color_high[4];
 	float object_outline_color[4];
-	float light_direction_vs[4];
+	float shadow_direction_vs[4];
 	WORKBENCH_UBO_Light lights[3];
 	int num_lights;
 	int matcap_orientation;
@@ -157,7 +156,6 @@ typedef struct WORKBENCH_PrivateData {
 	View3DShading shading;
 	StudioLight *studio_light;
 	UserDef *user_preferences;
-	int color_type;
 	struct GPUUniformBuffer *world_ubo;
 	struct DRWShadingGroup *shadow_shgrp;
 	struct DRWShadingGroup *depth_shgrp;
@@ -207,12 +205,8 @@ typedef struct WORKBENCH_MaterialData {
 } WORKBENCH_MaterialData;
 
 typedef struct WORKBENCH_ObjectData {
-	struct ObjectEngineData *next, *prev;
-	struct DrawEngineType *engine_type;
-	/* Only nested data, NOT the engine data itself. */
-	ObjectEngineDataFreeCb free;
-	/* Accumulated recalc flags, which corresponds to ID->recalc flags. */
-	int recalc;
+	DrawData dd;
+
 	/* Shadow direction in local object space. */
 	float shadow_dir[3], shadow_depth;
 	float shadow_min[3], shadow_max[3]; /* Min, max in shadow space */
@@ -295,7 +289,7 @@ bool studiolight_camera_in_object_shadow(WORKBENCH_PrivateData *wpd, Object *ob,
 void workbench_effect_info_init(WORKBENCH_EffectInfo *effect_info);
 void workbench_private_data_init(WORKBENCH_PrivateData *wpd);
 void workbench_private_data_free(WORKBENCH_PrivateData *wpd);
-void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, float light_direction[3]);
+void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, float r_light_direction[3]);
 
 extern DrawEngineType draw_engine_workbench_solid;
 extern DrawEngineType draw_engine_workbench_transparent;

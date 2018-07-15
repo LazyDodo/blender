@@ -146,7 +146,7 @@ const EnumPropertyItem rna_enum_object_type_items[] = {
 	{OB_EMPTY, "EMPTY", 0, "Empty", ""},
 	{0, "", 0, NULL, NULL},
 	{OB_CAMERA, "CAMERA", 0, "Camera", ""},
-	{OB_LAMP, "LAMP", 0, "Lamp", ""},
+	{OB_LAMP, "LIGHT", 0, "Light", ""},
 	{OB_SPEAKER, "SPEAKER", 0, "Speaker", ""},
 	{OB_LIGHTPROBE, "LIGHT_PROBE", 0, "Probe", ""},
 	{OB_GROOM, "GROOM", 0, "Groom", ""},
@@ -376,7 +376,7 @@ static StructRNA *rna_Object_data_typef(PointerRNA *ptr)
 		case OB_SURF: return &RNA_Curve;
 		case OB_FONT: return &RNA_Curve;
 		case OB_MBALL: return &RNA_MetaBall;
-		case OB_LAMP: return &RNA_Lamp;
+		case OB_LAMP: return &RNA_Light;
 		case OB_CAMERA: return &RNA_Camera;
 		case OB_LATTICE: return &RNA_Lattice;
 		case OB_ARMATURE: return &RNA_Armature;
@@ -1448,7 +1448,7 @@ bool rna_Camera_object_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
 	return ((Object *)value.id.data)->type == OB_CAMERA;
 }
 
-bool rna_Lamp_object_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
+bool rna_Light_object_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
 {
 	return ((Object *)value.id.data)->type == OB_LAMP;
 }

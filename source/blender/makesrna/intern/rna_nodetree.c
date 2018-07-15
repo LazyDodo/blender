@@ -144,6 +144,10 @@ const EnumPropertyItem rna_enum_node_math_items[] = {
 	{NODE_MATH_MOD,     "MODULO",       0, "Modulo",       ""},
 	{NODE_MATH_ABS,     "ABSOLUTE",     0, "Absolute",     ""},
 	{NODE_MATH_ATAN2,   "ARCTAN2",      0, "Arctan2",      ""},
+	{NODE_MATH_FLOOR,   "FLOOR",        0, "Floor",        ""},
+	{NODE_MATH_CEIL,    "CEIL",         0, "Ceil",         ""},
+	{NODE_MATH_FRACT,   "FRACT",        0, "Fract",        ""},
+	{NODE_MATH_SQRT,    "SQRT",         0, "Square Root",  ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -173,6 +177,14 @@ static const EnumPropertyItem node_sampler_type_items[] = {
 	{0, "NEAREST",   0, "Nearest",   ""},
 	{1, "BILINEAR",   0, "Bilinear",   ""},
 	{2, "BICUBIC", 0, "Bicubic", ""},
+	{0, NULL, 0, NULL, NULL}
+};
+
+
+static const EnumPropertyItem prop_shader_output_target_items[] = {
+	{SHD_OUTPUT_ALL, "ALL", 0, "All", "Use shaders for all renderers and viewports, unless there exists a more specific output"},
+	{SHD_OUTPUT_EEVEE, "EEVEE", 0, "Eevee", "Use shaders for Eevee renderer"},
+	{SHD_OUTPUT_CYCLES, "CYCLES", 0, "Cycles", "Use shaders for Cycles renderer"},
 	{0, NULL, 0, NULL, NULL}
 };
 #endif
@@ -1091,7 +1103,7 @@ static void rna_NodeTree_interface_update(bNodeTree *ntree, bContext *C)
 
 /* ******** NodeLink ******** */
 
-static int rna_NodeLink_is_hidden_get(PointerRNA *ptr)
+static bool rna_NodeLink_is_hidden_get(PointerRNA *ptr)
 {
 	bNodeLink *link = ptr->data;
 	return nodeLinkIsHidden(link);
@@ -1592,7 +1604,7 @@ static void rna_Node_socket_value_update(ID *id, bNode *node, bContext *C)
 	ED_node_tag_update_nodetree(CTX_data_main(C), (bNodeTree *)id, node);
 }
 
-static void rna_Node_select_set(PointerRNA *ptr, int value)
+static void rna_Node_select_set(PointerRNA *ptr, bool value)
 {
 	bNode *node = (bNode *)ptr->data;
 	nodeSetSelected(node, value);
@@ -1962,7 +1974,7 @@ static void rna_NodeSocket_update(Main *bmain, Scene *UNUSED(scene), PointerRNA 
 	}
 }
 
-static int rna_NodeSocket_is_output_get(PointerRNA *ptr)
+static bool rna_NodeSocket_is_output_get(PointerRNA *ptr)
 {
 	bNodeSocket *sock = ptr->data;
 	return sock->in_out == SOCK_OUT;
@@ -1974,7 +1986,7 @@ static void rna_NodeSocket_link_limit_set(PointerRNA *ptr, int value)
 	sock->limit = (value == 0 ? 0xFFF : value);
 }
 
-static void rna_NodeSocket_hide_set(PointerRNA *ptr, int value)
+static void rna_NodeSocket_hide_set(PointerRNA *ptr, bool value)
 {
 	bNodeSocket *sock = (bNodeSocket *)ptr->data;
 
@@ -2673,7 +2685,7 @@ static const EnumPropertyItem *rna_Node_image_layer_itemf(bContext *UNUSED(C), P
 	return item;
 }
 
-static int rna_Node_image_has_layers_get(PointerRNA *ptr)
+static bool rna_Node_image_has_layers_get(PointerRNA *ptr)
 {
 	bNode *node = (bNode *)ptr->data;
 	Image *ima = (Image *)node->id;
@@ -2683,7 +2695,7 @@ static int rna_Node_image_has_layers_get(PointerRNA *ptr)
 	return RE_layers_have_name(ima->rr);
 }
 
-static int rna_Node_image_has_views_get(PointerRNA *ptr)
+static bool rna_Node_image_has_views_get(PointerRNA *ptr)
 {
 	bNode *node = (bNode *)ptr->data;
 	Image *ima = (Image *)node->id;
@@ -3037,16 +3049,7 @@ static void rna_ShaderNodeScript_update(Main *bmain, Scene *scene, PointerRNA *p
 	ED_node_tag_update_nodetree(bmain, ntree, node);
 }
 
-static void rna_ShaderNodePrincipled_update(Main *bmain, Scene *scene, PointerRNA *ptr)
-{
-	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
-	bNode *node = (bNode *)ptr->data;
-
-	nodeUpdate(ntree, node);
-	rna_Node_update(bmain, scene, ptr);
-}
-
-static void rna_ShaderNodeSubsurface_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_ShaderNode_socket_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	bNodeTree *ntree = (bNodeTree *)ptr->id.data;
 	bNode *node = (bNode *)ptr->data;
@@ -3536,6 +3539,12 @@ static void def_sh_output(StructRNA *srna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", NODE_DO_OUTPUT);
 	RNA_def_property_ui_text(prop, "Active Output", "True if this node is used as the active output");
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
+
+	prop = RNA_def_property(srna, "target", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "custom1");
+	RNA_def_property_enum_items(prop, prop_shader_output_target_items);
+	RNA_def_property_ui_text(prop, "Target", "Which renderer and viewport shading types to use the shaders for");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 }
 
 static void def_sh_output_linestyle(StructRNA *srna)
@@ -3923,6 +3932,23 @@ static void def_sh_tex_voronoi(StructRNA *srna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	static EnumPropertyItem prop_distance_items[] = {
+		{ SHD_VORONOI_DISTANCE, "DISTANCE", 0, "Distance", "Distance" },
+		{ SHD_VORONOI_MANHATTAN, "MANHATTAN", 0, "Manhattan", "Manhattan (city block) distance" },
+		{ SHD_VORONOI_CHEBYCHEV, "CHEBYCHEV", 0, "Chebychev", "Chebychev distance" },
+		{ SHD_VORONOI_MINKOWSKI, "MINKOWSKI", 0, "Minkowski", "Minkowski distance" },
+		{ 0, NULL, 0, NULL, NULL }
+	};
+
+	static EnumPropertyItem prop_feature_items[] = {
+		{ SHD_VORONOI_F1, "F1", 0, "Closest", "Closest point" },
+		{ SHD_VORONOI_F2, "F2", 0, "2nd Closest", "2nd closest point" },
+		{ SHD_VORONOI_F3, "F3", 0, "3rd Closest", "3rd closest point" },
+		{ SHD_VORONOI_F4, "F4", 0, "4th Closest", "4th closest point" },
+		{ SHD_VORONOI_F2F1, "F2F1", 0, "Crackle", "Difference between 2nd and 1st closest point" },
+		{ 0, NULL, 0, NULL, NULL }
+	};
+
 	PropertyRNA *prop;
 
 	RNA_def_struct_sdna_from(srna, "NodeTexVoronoi", "storage");
@@ -3932,6 +3958,18 @@ static void def_sh_tex_voronoi(StructRNA *srna)
 	RNA_def_property_enum_sdna(prop, NULL, "coloring");
 	RNA_def_property_enum_items(prop, prop_coloring_items);
 	RNA_def_property_ui_text(prop, "Coloring", "");
+	RNA_def_property_update(prop, 0, "rna_Node_update");
+
+	prop = RNA_def_property(srna, "distance", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "distance");
+	RNA_def_property_enum_items(prop, prop_distance_items);
+	RNA_def_property_ui_text(prop, "Distance metric", "");
+	RNA_def_property_update(prop, 0, "rna_ShaderNode_socket_update");
+
+	prop = RNA_def_property(srna, "feature", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "feature");
+	RNA_def_property_enum_items(prop, prop_feature_items);
+	RNA_def_property_ui_text(prop, "Feature Output", "");
 	RNA_def_property_update(prop, 0, "rna_Node_update");
 }
 
@@ -4194,13 +4232,13 @@ static void def_principled(StructRNA *srna)
 	RNA_def_property_enum_sdna(prop, NULL, "custom1");
 	RNA_def_property_enum_items(prop, node_principled_distribution_items);
 	RNA_def_property_ui_text(prop, "Distribution", "");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNodePrincipled_update");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNode_socket_update");
 
 	prop = RNA_def_property(srna, "subsurface_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "custom2");
 	RNA_def_property_enum_items(prop, node_subsurface_method_items);
 	RNA_def_property_ui_text(prop, "Subsurface Method", "Method for rendering subsurface scattering");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNodePrincipled_update");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNode_socket_update");
 }
 
 static void def_refraction(StructRNA *srna)
@@ -4435,7 +4473,7 @@ static void def_sh_subsurface(StructRNA *srna)
 	RNA_def_property_enum_sdna(prop, NULL, "custom1");
 	RNA_def_property_enum_items(prop, prop_subsurface_falloff_items);
 	RNA_def_property_ui_text(prop, "Falloff", "Function to determine how much light nearby points contribute based on their distance to the shading point");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNodeSubsurface_update");
+	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_ShaderNode_socket_update");
 }
 
 static void def_sh_tex_ies(StructRNA *srna)
@@ -7742,12 +7780,6 @@ static void rna_def_node(BlenderRNA *brna)
 		{NODE_CUSTOM, "CUSTOM", 0, "Custom", "Custom Node"},
 		{0, NULL, 0, NULL, NULL}};
 
-	static const EnumPropertyItem node_shading_compatibilities[] = {
-		{NODE_OLD_SHADING, "OLD_SHADING", 0, "Old Shading", "Old shading system compatibility"},
-		{NODE_NEW_SHADING, "NEW_SHADING", 0, "New Shading", "New shading system compatibility"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	srna = RNA_def_struct(brna, "Node", NULL);
 	RNA_def_struct_ui_text(srna, "Node", "Node in a node tree");
 	RNA_def_struct_sdna(srna, "bNode");
@@ -7886,12 +7918,6 @@ static void rna_def_node(BlenderRNA *brna)
 	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_SELF_TYPE);
 	parm = RNA_def_boolean(func, "result", false, "Result", "");
 	RNA_def_function_return(func, parm);
-
-	prop = RNA_def_property(srna, "shading_compatibility", PROP_ENUM, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_ENUM_FLAG);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->compatibility");
-	RNA_def_property_enum_items(prop, node_shading_compatibilities);
 
 	/* registration */
 	prop = RNA_def_property(srna, "bl_idname", PROP_STRING, PROP_NONE);
@@ -8377,12 +8403,21 @@ static void rna_def_composite_nodetree(BlenderRNA *brna)
 static void rna_def_shader_nodetree(BlenderRNA *brna)
 {
 	StructRNA *srna;
+	FunctionRNA *func;
+	PropertyRNA *parm;
 
 	srna = RNA_def_struct(brna, "ShaderNodeTree", "NodeTree");
 	RNA_def_struct_ui_text(srna, "Shader Node Tree",
 	                       "Node tree consisting of linked nodes used for materials (and other shading data-blocks)");
 	RNA_def_struct_sdna(srna, "bNodeTree");
 	RNA_def_struct_ui_icon(srna, ICON_MATERIAL);
+
+	func = RNA_def_function(srna, "get_output_node", "ntreeShaderOutputNode");
+	RNA_def_function_ui_description(func, "Return active shader output node for the specified target");
+	parm = RNA_def_enum(func, "target", prop_shader_output_target_items, SHD_OUTPUT_ALL, "Target", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	parm = RNA_def_pointer(func, "node", "ShaderNode", "Node", "");
+	RNA_def_function_return(func, parm);
 }
 
 static void rna_def_texture_nodetree(BlenderRNA *brna)

@@ -147,6 +147,7 @@
 #include "BKE_multires.h"
 #include "BKE_node.h" // for tree type defines
 #include "BKE_object.h"
+#include "BKE_ocean.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_pointcache.h"
@@ -158,6 +159,8 @@
 #include "BKE_sound.h"
 #include "BKE_colortools.h"
 #include "BKE_workspace.h"
+
+#include "DRW_engine.h"
 
 #include "DEG_depsgraph.h"
 
@@ -1340,6 +1343,8 @@ void blo_freefiledata(FileData *fd)
 			oldnewmap_free(fd->imamap);
 		if (fd->movieclipmap)
 			oldnewmap_free(fd->movieclipmap);
+		if (fd->scenemap)
+			oldnewmap_free(fd->scenemap);
 		if (fd->soundmap)
 			oldnewmap_free(fd->soundmap);
 		if (fd->packedmap)
@@ -1527,6 +1532,13 @@ static void *newimaadr(FileData *fd, const void *adr)		    /* used to restore im
 	return NULL;
 }
 
+static void *newsceadr(FileData *fd, const void *adr)		    /* used to restore scene data after undo */
+{
+	if (fd->scenemap && adr)
+		return oldnewmap_lookup_and_inc(fd->scenemap, adr, true);
+	return NULL;
+}
+
 static void *newmclipadr(FileData *fd, const void *adr)      /* used to restore movie clip data after undo */
 {
 	if (fd->movieclipmap && adr)
@@ -1629,6 +1641,37 @@ void blo_clear_proxy_pointers_from_lib(Main *oldmain)
 	for (; ob; ob= ob->id.next) {
 		if (ob->id.lib)
 			ob->proxy_from = NULL;
+	}
+}
+
+void blo_make_scene_pointer_map(FileData *fd, Main *oldmain)
+{
+	Scene *sce = oldmain->scene.first;
+
+	fd->scenemap = oldnewmap_new();
+
+	for (; sce; sce = sce->id.next) {
+		if (sce->eevee.light_cache) {
+			struct LightCache *light_cache = sce->eevee.light_cache;
+			oldnewmap_insert(fd->scenemap, light_cache, light_cache, 0);
+		}
+	}
+}
+
+void blo_end_scene_pointer_map(FileData *fd, Main *oldmain)
+{
+	OldNew *entry = fd->scenemap->entries;
+	Scene *sce = oldmain->scene.first;
+	int i;
+
+	/* used entries were restored, so we put them to zero */
+	for (i = 0; i < fd->scenemap->nentries; i++, entry++) {
+		if (entry->nr > 0)
+			entry->newp = NULL;
+	}
+
+	for (; sce; sce = sce->id.next) {
+		sce->eevee.light_cache = newsceadr(fd, sce->eevee.light_cache);
 	}
 }
 
@@ -2302,6 +2345,11 @@ static void direct_link_id(FileData *fd, ID *id)
 		id->override_static = newdataadr(fd, id->override_static);
 		link_list_ex(fd, &id->override_static->properties, direct_link_id_override_property_cb);
 	}
+
+	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+	if (drawdata) {
+		BLI_listbase_clear((ListBase *)drawdata);
+	}
 }
 
 /* ************ READ CurveMapping *************** */
@@ -2868,19 +2916,6 @@ static void direct_link_cachefile(FileData *fd, CacheFile *cache_file)
 
 /* ************ READ WORKSPACES *************** */
 
-static void lib_link_workspace_scene_data(FileData *fd, WorkSpace *workspace)
-{
-	for (WorkSpaceSceneRelation *relation = workspace->scene_layer_relations.first;
-		 relation != NULL;
-		 relation = relation->next)
-	{
-		relation->scene = newlibadr(fd, workspace->id.lib, relation->scene);
-	}
-
-	/* Free any relations that got lost due to missing datablocks. */
-	BKE_workspace_scene_relations_free_invalid(workspace);
-}
-
 static void lib_link_workspaces(FileData *fd, Main *bmain)
 {
 	for (WorkSpace *workspace = bmain->workspaces.first; workspace; workspace = workspace->id.next) {
@@ -2892,8 +2927,6 @@ static void lib_link_workspaces(FileData *fd, Main *bmain)
 		}
 		IDP_LibLinkProperty(id->properties, fd);
 		id_us_ensure_real(id);
-
-		lib_link_workspace_scene_data(fd, workspace);
 
 		for (WorkSpaceLayout *layout = layouts->first, *layout_next; layout; layout = layout_next) {
 			bScreen *screen = newlibadr(fd, id->lib, BKE_workspace_layout_screen_get(layout));
@@ -2920,7 +2953,6 @@ static void direct_link_workspace(FileData *fd, WorkSpace *workspace, const Main
 {
 	link_list(fd, BKE_workspace_layouts_get(workspace));
 	link_list(fd, &workspace->hook_layout_relations);
-	link_list(fd, &workspace->scene_layer_relations);
 	link_list(fd, &workspace->owner_ids);
 	link_list(fd, &workspace->tools);
 
@@ -5262,7 +5294,6 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 			OceanModifierData *omd = (OceanModifierData *)md;
 			omd->oceancache = NULL;
 			omd->ocean = NULL;
-			omd->refresh = (MOD_OCEAN_REFRESH_ADD|MOD_OCEAN_REFRESH_RESET|MOD_OCEAN_REFRESH_SIM);
 		}
 		else if (md->type == eModifierType_Warp) {
 			WarpModifierData *tmd = (WarpModifierData *)md;
@@ -5468,7 +5499,18 @@ static void direct_link_object(FileData *fd, Object *ob)
 		if (!sb->effector_weights)
 			sb->effector_weights = BKE_add_effector_weights(NULL);
 
-		direct_link_pointcache_list(fd, &sb->ptcaches, &sb->pointcache, 0);
+		sb->shared = newdataadr(fd, sb->shared);
+		if (sb->shared == NULL) {
+			/* Link deprecated caches if they exist, so we can use them for versioning.
+			 * We should only do this when sb->shared == NULL, because those pointers
+			 * are always set (for compatibility with older Blenders). We mustn't link
+			 * the same pointcache twice. */
+			direct_link_pointcache_list(fd, &sb->ptcaches, &sb->pointcache, false);
+		}
+		else {
+			/* link caches */
+			direct_link_pointcache_list(fd, &sb->shared->ptcaches, &sb->shared->pointcache, false);
+		}
 	}
 	ob->fluidsimSettings= newdataadr(fd, ob->fluidsimSettings); /* NT */
 
@@ -5528,7 +5570,6 @@ static void direct_link_object(FileData *fd, Object *ob)
 	ob->derivedFinal = NULL;
 	BKE_object_runtime_reset(ob);
 	BLI_listbase_clear(&ob->gpulamp);
-	BLI_listbase_clear(&ob->drawdata);
 	link_list(fd, &ob->pc_ids);
 
 	/* Runtime curve data  */
@@ -5773,6 +5814,41 @@ static void lib_link_sequence_modifiers(FileData *fd, Scene *scene, ListBase *lb
 		if (smd->mask_id)
 			smd->mask_id = newlibadr_us(fd, scene->id.lib, smd->mask_id);
 	}
+}
+
+static void direct_link_lightcache_texture(FileData *fd, LightCacheTexture *lctex)
+{
+	lctex->tex = NULL;
+
+	if (lctex->data) {
+		lctex->data = newdataadr(fd, lctex->data);
+		if (fd->flags & FD_FLAGS_SWITCH_ENDIAN) {
+			int data_size = lctex->components * lctex->tex_size[0] * lctex->tex_size[1] * lctex->tex_size[2];
+
+			if (lctex->data_type == LIGHTCACHETEX_FLOAT) {
+				BLI_endian_switch_float_array((float *)lctex->data, data_size * sizeof(float));
+			}
+			else if (lctex->data_type == LIGHTCACHETEX_UINT) {
+				BLI_endian_switch_uint32_array((unsigned int *)lctex->data, data_size * sizeof(unsigned int));
+			}
+		}
+	}
+}
+
+static void direct_link_lightcache(FileData *fd, LightCache *cache)
+{
+	direct_link_lightcache_texture(fd, &cache->cube_tx);
+	direct_link_lightcache_texture(fd, &cache->grid_tx);
+
+	if (cache->cube_mips) {
+		cache->cube_mips = newdataadr(fd, cache->cube_mips);
+		for (int i = 0; i < cache->mips_len; ++i) {
+			direct_link_lightcache_texture(fd, &cache->cube_mips[i]);
+		}
+	}
+
+	cache->cube_data = newdataadr(fd, cache->cube_data);
+	cache->grid_data = newdataadr(fd, cache->grid_data);
 }
 
 /* check for cyclic set-scene,
@@ -6335,6 +6411,19 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		direct_link_view_layer(fd, view_layer);
 	}
 
+	if (fd->memfile) {
+		/* If it's undo try to recover the cache. */
+		if (fd->scenemap) sce->eevee.light_cache = newsceadr(fd, sce->eevee.light_cache);
+		else sce->eevee.light_cache = NULL;
+	}
+	else {
+		/* else read the cache from file. */
+		if (sce->eevee.light_cache) {
+			sce->eevee.light_cache = newdataadr(fd, sce->eevee.light_cache);
+			direct_link_lightcache(fd, sce->eevee.light_cache);
+		}
+	}
+
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);
 	IDP_DirectLinkGroup_OrFree(&sce->layer_properties, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
 }
@@ -6470,7 +6559,6 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	ar->v2d.tab_cur = 0;
 	ar->v2d.sms = NULL;
 	ar->v2d.alpha_hor = ar->v2d.alpha_vert = 255; /* visible by default */
-	ar->v2d.size_hor = ar->v2d.size_vert = 0;
 	BLI_listbase_clear(&ar->panels_category);
 	BLI_listbase_clear(&ar->handlers);
 	BLI_listbase_clear(&ar->uiblocks);
@@ -6478,7 +6566,7 @@ static void direct_link_region(FileData *fd, ARegion *ar, int spacetype)
 	ar->visible = 0;
 	ar->type = NULL;
 	ar->do_draw = 0;
-	ar->manipulator_map = NULL;
+	ar->gizmo_map = NULL;
 	ar->regiontimer = NULL;
 	ar->draw_buffer = NULL;
 	memset(&ar->drawrct, 0, sizeof(ar->drawrct));
@@ -6946,9 +7034,11 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 	link_list(fd, &wm->windows);
 
 	for (win = wm->windows.first; win; win = win->next) {
-		WorkSpaceInstanceHook *hook = win->workspace_hook;
+		win->parent = newdataadr(fd, win->parent);
 
+		WorkSpaceInstanceHook *hook = win->workspace_hook;
 		win->workspace_hook = newdataadr(fd, hook);
+
 		/* we need to restore a pointer to this later when reading workspaces, so store in global oldnew-map */
 		oldnewmap_insert(fd->globmap, hook, win->workspace_hook, 0);
 
@@ -7156,19 +7246,6 @@ static void lib_link_clipboard_restore(struct IDNameLib_Map *id_map)
 {
 	/* update IDs stored in sequencer clipboard */
 	BKE_sequencer_base_recursive_apply(&seqbase_clipboard, lib_link_seq_clipboard_cb, id_map);
-}
-
-static void lib_link_workspace_scene_data_restore(struct IDNameLib_Map *id_map, WorkSpace *workspace)
-{
-	for (WorkSpaceSceneRelation *relation = workspace->scene_layer_relations.first;
-		 relation != NULL;
-		 relation = relation->next)
-	{
-		relation->scene = restore_pointer_by_name(id_map, &relation->scene->id, USER_IGNORE);
-	}
-
-	/* Free any relations that got lost due to missing datablocks or view layers. */
-	BKE_workspace_scene_relations_free_invalid(workspace);
 }
 
 static void lib_link_window_scene_data_restore(wmWindow *win, Scene *scene)
@@ -7433,9 +7510,6 @@ void blo_lib_link_restore(Main *newmain, wmWindowManager *curwm, Scene *curscene
 	struct IDNameLib_Map *id_map = BKE_main_idmap_create(newmain);
 
 	for (WorkSpace *workspace = newmain->workspaces.first; workspace; workspace = workspace->id.next) {
-		lib_link_workspace_scene_data_restore(id_map, workspace);
-		BKE_workspace_view_layer_set(workspace, cur_view_layer, curscene);
-
 		ListBase *layouts = BKE_workspace_layouts_get(workspace);
 
 		for (WorkSpaceLayout *layout = layouts->first; layout; layout = layout->next) {
@@ -7453,6 +7527,9 @@ void blo_lib_link_restore(Main *newmain, wmWindowManager *curwm, Scene *curscene
 		win->scene = restore_pointer_by_name(id_map, (ID *)win->scene, USER_REAL);
 		if (win->scene == NULL) {
 			win->scene = curscene;
+		}
+		if (BKE_view_layer_find(win->scene, win->view_layer_name) == NULL) {
+			STRNCPY(win->view_layer_name, cur_view_layer->name);
 		}
 		BKE_workspace_active_set(win->workspace_hook, workspace);
 
