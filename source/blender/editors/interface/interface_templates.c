@@ -390,11 +390,14 @@ static uiBlock *id_search_menu(bContext *C, ARegion *ar, void *arg_litem)
 
 /* for new/open operators */
 void UI_context_active_but_prop_get_templateID(
-	bContext *C,
-	PointerRNA *r_ptr, PropertyRNA **r_prop)
+        bContext *C,
+        PointerRNA *r_ptr, PropertyRNA **r_prop)
 {
 	TemplateID *template_ui;
 	uiBut *but = UI_context_active_but_get(C);
+
+	memset(r_ptr, 0, sizeof(*r_ptr));
+	*r_prop = NULL;
 
 	if (but && but->func_argN) {
 		template_ui = but->func_argN;
@@ -518,7 +521,7 @@ static const char *template_id_browse_tip(const StructRNA *type)
 			case ID_IM:  return N_("Browse Image to be linked");
 			case ID_LS:  return N_("Browse Line Style Data to be linked");
 			case ID_LT:  return N_("Browse Lattice Data to be linked");
-			case ID_LA:  return N_("Browse Lamp Data to be linked");
+			case ID_LA:  return N_("Browse Light Data to be linked");
 			case ID_CA:  return N_("Browse Camera Data to be linked");
 			case ID_WO:  return N_("Browse World Settings to be linked");
 			case ID_SCR: return N_("Choose Screen layout");
@@ -1863,7 +1866,7 @@ void uiTemplatePreview(
 	char _preview_id[UI_MAX_NAME_STR];
 
 	if (id && !ELEM(GS(id->name), ID_MA, ID_TE, ID_WO, ID_LA, ID_LS)) {
-		RNA_warning("Expected ID of type material, texture, lamp, world or line style");
+		RNA_warning("Expected ID of type material, texture, light, world or line style");
 		return;
 	}
 
@@ -1954,7 +1957,7 @@ void uiTemplatePreview(
 				          pr_texture, 10, TEX_PR_OTHER, 0, 0, "");
 			}
 			else if (GS(parent->name) == ID_LA) {
-				uiDefButS(block, UI_BTYPE_ROW, B_MATPRV, IFACE_("Lamp"),  0, 0, UI_UNIT_X * 10, UI_UNIT_Y,
+				uiDefButS(block, UI_BTYPE_ROW, B_MATPRV, IFACE_("Light"),  0, 0, UI_UNIT_X * 10, UI_UNIT_Y,
 				          pr_texture, 10, TEX_PR_OTHER, 0, 0, "");
 			}
 			else if (GS(parent->name) == ID_WO) {
@@ -4327,6 +4330,10 @@ void uiTemplateInputStatus(uiLayout *layout, struct bContext *C)
 	/* Workspace status text has priority. */
 	if (workspace->status_text) {
 		uiItemL(layout, workspace->status_text, ICON_NONE);
+		return;
+	}
+
+	if (WM_window_modal_keymap_status_draw(C, win, layout)) {
 		return;
 	}
 

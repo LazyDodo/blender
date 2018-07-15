@@ -1237,7 +1237,7 @@ typedef struct ToolSettings {
 	short autoik_chainlen;  /* runtime only */
 
 	/* SCE_MPR_LOC/SCAL */
-	char manipulator_flag;
+	char gizmo_flag;
 
 	/* Grease Pencil */
 	char gpencil_flags;		/* flags/options for how the tool works */
@@ -1389,6 +1389,9 @@ typedef struct SceneEEVEE {
 	int gi_cubemap_resolution;
 	int gi_visibility_resolution;
 
+	float gi_cubemap_draw_size;
+	float gi_irradiance_draw_size;
+
 	int taa_samples;
 	int taa_render_samples;
 	int sss_samples;
@@ -1428,6 +1431,9 @@ typedef struct SceneEEVEE {
 	int shadow_method;
 	int shadow_cube_size;
 	int shadow_cascade_size;
+
+	struct LightCache *light_cache;
+	char light_cache_info[64];
 } SceneEEVEE;
 
 /* *************************************************************** */
@@ -2004,7 +2010,7 @@ typedef enum eImagePaintMode {
 #define EDGE_MODE_TAG_BEVEL				4
 #define EDGE_MODE_TAG_FREESTYLE			5
 
-/* ToolSettings.manipulator_flag */
+/* ToolSettings.gizmo_flag */
 #define SCE_MANIP_TRANSLATE	1
 #define SCE_MANIP_ROTATE		2
 #define SCE_MANIP_SCALE		4
@@ -2101,6 +2107,9 @@ enum {
 	SCE_EEVEE_SSR_ENABLED			= (1 << 14),
 	SCE_EEVEE_SSR_REFRACTION		= (1 << 15),
 	SCE_EEVEE_SSR_HALF_RESOLUTION	= (1 << 16),
+	SCE_EEVEE_SHOW_IRRADIANCE		= (1 << 17),
+	SCE_EEVEE_SHOW_CUBEMAPS			= (1 << 18),
+	SCE_EEVEE_GI_AUTOBAKE			= (1 << 19),
 };
 
 /* SceneEEVEE->shadow_method */

@@ -323,7 +323,7 @@ static void drawscredge_corner(ScrArea *sa, int sizex, int sizey)
 	/* Wrap up the corners with a nice embossing. */
 	rcti rect = sa->totrct;
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	immUniformColor4fv(color);
@@ -439,7 +439,7 @@ void ED_screen_draw_edges(wmWindow *win)
 
 	ScrArea *sa;
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	/* Note: first loop only draws if U.pixelsize > 1, skip otherwise */
@@ -477,7 +477,7 @@ void ED_screen_draw_edges(wmWindow *win)
  */
 void ED_screen_draw_join_shape(ScrArea *sa1, ScrArea *sa2)
 {
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	GPU_line_width(1);
@@ -518,7 +518,7 @@ void ED_screen_draw_join_shape(ScrArea *sa1, ScrArea *sa2)
 
 void ED_screen_draw_split_preview(ScrArea *sa, const int dir, const float fac)
 {
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	/* splitpoint */
@@ -594,7 +594,7 @@ static void screen_preview_draw_areas(const bScreen *screen, const float scale[2
                                       const float ofs_between_areas)
 {
 	const float ofs_h = ofs_between_areas * 0.5f;
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4fv(col);
@@ -627,14 +627,14 @@ static void screen_preview_draw(const bScreen *screen, int size_x, int size_y)
 
 	wmOrtho2(0.0f, size_x, 0.0f, size_y);
 	/* center */
-	gpuPushMatrix();
-	gpuLoadIdentity();
-	gpuTranslate2f(size_x * (1.0f - asp[0]) * 0.5f, size_y * (1.0f - asp[1]) * 0.5f);
+	GPU_matrix_push();
+	GPU_matrix_identity_set();
+	GPU_matrix_translate_2f(size_x * (1.0f - asp[0]) * 0.5f, size_y * (1.0f - asp[1]) * 0.5f);
 
 	screen_preview_scale_get(screen, size_x, size_y, asp, scale);
 	screen_preview_draw_areas(screen, scale, col, 1.5f);
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 /**

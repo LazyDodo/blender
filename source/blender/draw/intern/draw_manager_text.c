@@ -46,7 +46,7 @@ typedef struct ViewCachedString {
 	struct ViewCachedString *next, *prev;
 	float vec[3];
 	union {
-		unsigned char ub[4];
+		uchar ub[4];
 		int pack;
 	} col;
 	short sco[2];
@@ -79,7 +79,7 @@ void DRW_text_cache_add(
         const float co[3],
         const char *str, const int str_len,
         short xoffs, short flag,
-        const unsigned char col[4])
+        const uchar col[4])
 {
 	int alloc_len;
 	ViewCachedString *vos;
@@ -141,11 +141,11 @@ void DRW_text_cache_draw(DRWTextStore *dt, ARegion *ar)
 		}
 
 		float original_proj[4][4];
-		gpuGetProjectionMatrix(original_proj);
+		GPU_matrix_projection_get(original_proj);
 		wmOrtho2_region_pixelspace(ar);
 
-		gpuPushMatrix();
-		gpuLoadIdentity();
+		GPU_matrix_push();
+		GPU_matrix_identity_set();
 
 		const int font_id = BLF_default();
 
@@ -173,8 +173,8 @@ void DRW_text_cache_draw(DRWTextStore *dt, ARegion *ar)
 			}
 		}
 
-		gpuPopMatrix();
-		gpuLoadProjectionMatrix(original_proj);
+		GPU_matrix_pop();
+		GPU_matrix_projection_set(original_proj);
 
 		if (rv3d->rflag & RV3D_CLIPPING) {
 			ED_view3d_clipping_enable();

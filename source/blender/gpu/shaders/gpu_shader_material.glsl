@@ -170,6 +170,23 @@ void color_to_blender_normal_new_shading(vec3 color, out vec3 normal)
 
 /*********** SHADER NODES ***************/
 
+void particle_info(
+        vec4 sprops, vec4 loc, vec3 vel, vec3 avel,
+        out float index, out float random, out float age,
+        out float life_time, out vec3 location,
+        out float size, out vec3 velocity, out vec3 angular_velocity)
+{
+	index = sprops.x;
+	random = loc.w;
+	age = sprops.y;
+	life_time = sprops.z;
+	size = sprops.w;
+
+	location = loc.xyz;
+	velocity = vel;
+	angular_velocity = avel;
+}
+
 void vect_normalize(vec3 vin, out vec3 vout)
 {
 	vout = normalize(vin);
@@ -370,6 +387,29 @@ void math_abs(float val1, out float outval)
 void math_atan2(float val1, float val2, out float outval)
 {
 	outval = atan(val1, val2);
+}
+
+void math_floor(float val, out float outval)
+{
+	outval = floor(val);
+}
+
+void math_ceil(float val, out float outval)
+{
+	outval = ceil(val);
+}
+
+void math_fract(float val, out float outval)
+{
+	outval = val - floor(val);
+}
+
+void math_sqrt(float val, out float outval)
+{
+	if (val > 0.0)
+		outval = sqrt(val);
+	else
+		outval = 0.0;
 }
 
 void squeeze(float val, float width, float center, out float outval)
@@ -2273,7 +2313,7 @@ void node_tex_sky(vec3 co, out vec4 color)
 	color = vec4(1.0);
 }
 
-void node_tex_voronoi(vec3 co, float scale, float coloring, out vec4 color, out float fac)
+void node_tex_voronoi(vec3 co, float scale, float exponent, float coloring, out vec4 color, out float fac)
 {
 	vec3 p = co * scale;
 	int xx, yy, zz, xi, yi, zi;

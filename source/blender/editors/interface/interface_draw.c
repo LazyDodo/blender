@@ -55,6 +55,7 @@
 #include "BLF_api.h"
 
 #include "GPU_batch.h"
+#include "GPU_batch_presets.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
@@ -159,23 +160,23 @@ void UI_draw_roundbox_4fv(bool filled, float minx, float miny, float maxx, float
 	int a;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	/* mult */
 	for (a = 0; a < 7; a++) {
 		mul_v2_fl(vec[a], rad);
 	}
 
-	unsigned int vert_ct = 0;
-	vert_ct += (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 9 : 1;
-	vert_ct += (roundboxtype & UI_CNR_TOP_RIGHT) ? 9 : 1;
-	vert_ct += (roundboxtype & UI_CNR_TOP_LEFT) ? 9 : 1;
-	vert_ct += (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 9 : 1;
+	uint vert_len = 0;
+	vert_len += (roundboxtype & UI_CNR_BOTTOM_RIGHT) ? 9 : 1;
+	vert_len += (roundboxtype & UI_CNR_TOP_RIGHT) ? 9 : 1;
+	vert_len += (roundboxtype & UI_CNR_TOP_LEFT) ? 9 : 1;
+	vert_len += (roundboxtype & UI_CNR_BOTTOM_LEFT) ? 9 : 1;
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4fv(col);
 
-	immBegin(filled ? GWN_PRIM_TRI_FAN : GWN_PRIM_LINE_LOOP, vert_ct);
+	immBegin(filled ? GWN_PRIM_TRI_FAN : GWN_PRIM_LINE_LOOP, vert_len);
 	/* start with corner right-bottom */
 	if (roundboxtype & UI_CNR_BOTTOM_RIGHT) {
 		immVertex2f(pos, maxx - rad, miny);
@@ -280,8 +281,8 @@ void UI_draw_roundbox_shade_x(
 	int a;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
@@ -432,8 +433,8 @@ void UI_draw_roundbox_shade_y(
 	}
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
@@ -535,7 +536,7 @@ void UI_draw_text_underline(int pos_x, int pos_y, int len, int height, const flo
 	int ofs_y = 4 * U.pixelsize;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4fv(color);
@@ -550,8 +551,8 @@ void UI_draw_text_underline(int pos_x, int pos_y, int len, int height, const flo
 void ui_draw_but_TAB_outline(const rcti *rect, float rad, unsigned char highlight[3], unsigned char highlight_fade[3])
 {
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint col = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 	/* add a 1px offset, looks nicer */
 	const int minx = rect->xmin + U.pixelsize, maxx = rect->xmax - U.pixelsize;
 	const int miny = rect->ymin + U.pixelsize, maxy = rect->ymax - U.pixelsize;
@@ -818,7 +819,7 @@ void ui_draw_but_HISTOGRAM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUS
 	        (rect.ymax + 1) - (rect.ymin - 1));
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -869,7 +870,7 @@ void ui_draw_but_HISTOGRAM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUS
 static void waveform_draw_one(float *waveform, int nbr, const float col[3])
 {
 	Gwn_VertFormat format = {0};
-	unsigned int pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 	GWN_vertbuf_data_alloc(vbo, nbr);
@@ -957,7 +958,7 @@ void ui_draw_but_WAVEFORM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSE
 	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -1026,13 +1027,13 @@ void ui_draw_but_WAVEFORM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSE
 		if (scopes->wavefrm_mode == SCOPES_WAVEFRM_LUMA) {
 			float col[3] = {alpha, alpha, alpha};
 
-			gpuPushMatrix();
-			gpuTranslate2f(rect.xmin, yofs);
-			gpuScale2f(w, h);
+			GPU_matrix_push();
+			GPU_matrix_translate_2f(rect.xmin, yofs);
+			GPU_matrix_scale_2f(w, h);
 
 			waveform_draw_one(scopes->waveform_1, scopes->waveform_tot, col);
 
-			gpuPopMatrix();
+			GPU_matrix_pop();
 
 			/* min max */
 			immUniformColor3f(0.5f, 0.5f, 0.5f);
@@ -1048,15 +1049,15 @@ void ui_draw_but_WAVEFORM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSE
 		}
 		/* RGB (3 channel) */
 		else if (scopes->wavefrm_mode == SCOPES_WAVEFRM_RGB) {
-			gpuPushMatrix();
-			gpuTranslate2f(rect.xmin, yofs);
-			gpuScale2f(w, h);
+			GPU_matrix_push();
+			GPU_matrix_translate_2f(rect.xmin, yofs);
+			GPU_matrix_scale_2f(w, h);
 
 			waveform_draw_one(scopes->waveform_1, scopes->waveform_tot, colors_alpha[0]);
 			waveform_draw_one(scopes->waveform_2, scopes->waveform_tot, colors_alpha[1]);
 			waveform_draw_one(scopes->waveform_3, scopes->waveform_tot, colors_alpha[2]);
 
-			gpuPopMatrix();
+			GPU_matrix_pop();
 		}
 		/* PARADE / YCC (3 channels) */
 		else if (ELEM(scopes->wavefrm_mode,
@@ -1068,19 +1069,19 @@ void ui_draw_but_WAVEFORM(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UNUSE
 		{
 			int rgb = (scopes->wavefrm_mode == SCOPES_WAVEFRM_RGB_PARADE);
 
-			gpuPushMatrix();
-			gpuTranslate2f(rect.xmin, yofs);
-			gpuScale2f(w3, h);
+			GPU_matrix_push();
+			GPU_matrix_translate_2f(rect.xmin, yofs);
+			GPU_matrix_scale_2f(w3, h);
 
 			waveform_draw_one(scopes->waveform_1, scopes->waveform_tot, (rgb) ? colors_alpha[0] : colorsycc_alpha[0]);
 
-			gpuTranslate2f(1.0f, 0.0f);
+			GPU_matrix_translate_2f(1.0f, 0.0f);
 			waveform_draw_one(scopes->waveform_2, scopes->waveform_tot, (rgb) ? colors_alpha[1] : colorsycc_alpha[1]);
 
-			gpuTranslate2f(1.0f, 0.0f);
+			GPU_matrix_translate_2f(1.0f, 0.0f);
 			waveform_draw_one(scopes->waveform_3, scopes->waveform_tot, (rgb) ? colors_alpha[2] : colorsycc_alpha[2]);
 
-			gpuPopMatrix();
+			GPU_matrix_pop();
 		}
 
 		/* min max */
@@ -1215,7 +1216,7 @@ void ui_draw_but_VECTORSCOPE(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UN
 	        (rect.ymax + 1) - (rect.ymin - 1));
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -1262,13 +1263,13 @@ void ui_draw_but_VECTORSCOPE(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *UN
 		glBlendFunc(GL_ONE, GL_ONE);
 		GPU_point_size(1.0);
 
-		gpuPushMatrix();
-		gpuTranslate2f(centerx, centery);
-		gpuScaleUniform(diam);
+		GPU_matrix_push();
+		GPU_matrix_translate_2f(centerx, centery);
+		GPU_matrix_scale_1f(diam);
 
 		waveform_draw_one(scopes->vecscope, scopes->waveform_tot, col);
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 
 	immUnbindProgram();
@@ -1404,7 +1405,7 @@ static void ui_draw_colorband_handle(
 void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti *rect)
 {
 	struct ColorManagedDisplay *display = NULL;
-	unsigned int position, color;
+	uint pos_id, col_id;
 
 	ColorBand *coba = (ColorBand *)(but->editcoba ? but->editcoba : but->poin);
 	if (coba == NULL) return;
@@ -1419,20 +1420,20 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 	float y1 = rect->ymin;
 
 	Gwn_VertFormat *format = immVertexFormat();
-	position = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_CHECKER);
 
 	/* Drawing the checkerboard. */
 	immUniform4f("color1", UI_ALPHA_CHECKER_DARK / 255.0f, UI_ALPHA_CHECKER_DARK / 255.0f, UI_ALPHA_CHECKER_DARK / 255.0f, 1.0f);
 	immUniform4f("color2", UI_ALPHA_CHECKER_LIGHT / 255.0f, UI_ALPHA_CHECKER_LIGHT / 255.0f, UI_ALPHA_CHECKER_LIGHT / 255.0f, 1.0f);
 	immUniform1i("size", 8);
-	immRectf(position, x1, y1, x1 + sizex, rect->ymax);
+	immRectf(pos_id, x1, y1, x1 + sizex, rect->ymax);
 	immUnbindProgram();
 
 	/* New format */
 	format = immVertexFormat();
-	position = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	col_id = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
 	/* layer: color ramp */
@@ -1455,9 +1456,9 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 
 		v1[0] = v2[0] = x1 + a;
 
-		immAttrib4fv(color, colf);
-		immVertex2fv(position, v1);
-		immVertex2fv(position, v2);
+		immAttrib4fv(col_id, colf);
+		immVertex2fv(pos_id, v1);
+		immVertex2fv(pos_id, v2);
 	}
 	immEnd();
 
@@ -1474,9 +1475,9 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 
 		v1[0] = v2[0] = x1 + a;
 
-		immAttrib4f(color, colf[0], colf[1], colf[2], 1.0f);
-		immVertex2fv(position, v1);
-		immVertex2fv(position, v2);
+		immAttrib4f(col_id, colf[0], colf[1], colf[2], 1.0f);
+		immVertex2fv(pos_id, v1);
+		immVertex2fv(pos_id, v2);
 	}
 	immEnd();
 
@@ -1486,27 +1487,27 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 
 	/* New format */
 	format = immVertexFormat();
-	position = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	/* layer: box outline */
 	immUniformColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-	imm_draw_box_wire_2d(position, x1, y1, x1 + sizex, rect->ymax);
+	imm_draw_box_wire_2d(pos_id, x1, y1, x1 + sizex, rect->ymax);
 
 	/* layer: box outline */
 	GPU_blend(true);
 	immUniformColor4f(0.0f, 0.0f, 0.0f, 0.5f);
 
 	immBegin(GWN_PRIM_LINES, 2);
-	immVertex2f(position, x1, y1);
-	immVertex2f(position, x1 + sizex, y1);
+	immVertex2f(pos_id, x1, y1);
+	immVertex2f(pos_id, x1 + sizex, y1);
 	immEnd();
 
 	immUniformColor4f(1.0f, 1.0f, 1.0f, 0.25f);
 
 	immBegin(GWN_PRIM_LINES, 2);
-	immVertex2f(position, x1, y1 - 1);
-	immVertex2f(position, x1 + sizex, y1 - 1);
+	immVertex2f(pos_id, x1, y1 - 1);
+	immVertex2f(pos_id, x1 + sizex, y1 - 1);
 	immEnd();
 
 	GPU_blend(false);
@@ -1515,7 +1516,7 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 	for (int a = 0; a < coba->tot; a++, cbd++) {
 		if (a != coba->cur) {
 			float pos = x1 + cbd->pos * (sizex - 1) + 1;
-			ui_draw_colorband_handle(position, rect, pos, &cbd->r, display, false);
+			ui_draw_colorband_handle(pos_id, rect, pos, &cbd->r, display, false);
 		}
 	}
 
@@ -1523,7 +1524,7 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 	if (coba->tot != 0) {
 		cbd = &coba->data[coba->cur];
 		float pos = x1 + cbd->pos * (sizex - 1) + 1;
-		ui_draw_colorband_handle(position, rect, pos, &cbd->r, display, true);
+		ui_draw_colorband_handle(pos_id, rect, pos, &cbd->r, display, true);
 	}
 
 	immUnbindProgram();
@@ -1547,15 +1548,15 @@ void ui_draw_but_UNITVEC(uiBut *but, uiWidgetColors *wcol, const rcti *rect)
 	ui_but_v3_get(but, light);
 
 	/* transform to button */
-	gpuPushMatrix();
+	GPU_matrix_push();
 
 	if (BLI_rcti_size_x(rect) < BLI_rcti_size_y(rect))
 		size = 0.5f * BLI_rcti_size_x(rect);
 	else
 		size = 0.5f * BLI_rcti_size_y(rect);
 
-	gpuTranslate2f(rect->xmin + 0.5f * BLI_rcti_size_x(rect), rect->ymin + 0.5f * BLI_rcti_size_y(rect));
-	gpuScaleUniform(size);
+	GPU_matrix_translate_2f(rect->xmin + 0.5f * BLI_rcti_size_x(rect), rect->ymin + 0.5f * BLI_rcti_size_y(rect));
+	GPU_matrix_scale_1f(size);
 
 	Gwn_Batch *sphere = GPU_batch_preset_sphere(2);
 	GWN_batch_program_set_builtin(sphere, GPU_SHADER_SIMPLE_LIGHTING);
@@ -1568,7 +1569,7 @@ void ui_draw_but_UNITVEC(uiBut *but, uiWidgetColors *wcol, const rcti *rect)
 
 	/* AA circle */
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3ubv((unsigned char *)wcol->inner);
 
@@ -1579,7 +1580,7 @@ void ui_draw_but_UNITVEC(uiBut *but, uiWidgetColors *wcol, const rcti *rect)
 	GPU_line_smooth(false);
 
 	/* matrix after circle */
-	gpuPopMatrix();
+	GPU_matrix_pop();
 
 	immUnbindProgram();
 }
@@ -1675,7 +1676,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 	GPU_line_width(1.0f);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	/* backdrop */
@@ -1807,7 +1808,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 	/* the points, use aspect to make them visible on edges */
 	format = immVertexFormat();
 	pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	uint col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
 	cmp = cuma->curve;
@@ -1899,7 +1900,7 @@ void ui_draw_but_TRACKPREVIEW(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *U
 	}
 
 	if (!ok && scopes->track_preview) {
-		gpuPushMatrix();
+		GPU_matrix_push();
 
 		/* draw content of pattern area */
 		GPU_scissor(rect.xmin, rect.ymin, scissor[2], scissor[3]);
@@ -1918,7 +1919,7 @@ void ui_draw_but_TRACKPREVIEW(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *U
 			immDrawPixelsTex(&state, rect.xmin, rect.ymin + 1, drawibuf->x, drawibuf->y, GL_RGBA, GL_UNSIGNED_BYTE, GL_LINEAR, drawibuf->rect, 1.0f, 1.0f, NULL);
 
 			/* draw cross for pixel position */
-			gpuTranslate2f(rect.xmin + scopes->track_pos[0], rect.ymin + scopes->track_pos[1]);
+			GPU_matrix_translate_2f(rect.xmin + scopes->track_pos[0], rect.ymin + scopes->track_pos[1]);
 			GPU_scissor(
 			        rect.xmin,
 			        rect.ymin,
@@ -1926,8 +1927,8 @@ void ui_draw_but_TRACKPREVIEW(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *U
 			        BLI_rctf_size_y(&rect));
 
 			Gwn_VertFormat *format = immVertexFormat();
-			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			unsigned int col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+			uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			uint col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
 			UI_GetThemeColor4fv(TH_SEL_MARKER, col_sel);
@@ -1957,7 +1958,7 @@ void ui_draw_but_TRACKPREVIEW(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *U
 			immUnbindProgram();
 		}
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 
 		ok = true;
 	}
@@ -2018,7 +2019,7 @@ void ui_draw_but_NODESOCKET(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol
 	float y = 0.5f * (recti->ymin + recti->ymax);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4ubv(but->col);
 
@@ -2115,8 +2116,8 @@ void UI_draw_box_shadow(unsigned char alpha, float minx, float miny, float maxx,
 	GPU_blend(true);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 

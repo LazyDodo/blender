@@ -1417,7 +1417,6 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		else {
 			iuser->offset = frame_ofs - 1;
 		}
-		iuser->fie_ima = 2;
 		iuser->scene = scene;
 		BKE_image_init_imageuser(ima, iuser);
 	}
@@ -3825,7 +3824,7 @@ static int image_read_viewlayers_exec(bContext *C, wmOperator *UNUSED(op))
 
 void IMAGE_OT_read_viewlayers(wmOperatorType *ot)
 {
-	ot->name = "Read View Layers";
+	ot->name = "Open Cached Render";
 	ot->idname = "IMAGE_OT_read_viewlayers";
 	ot->description = "Read all the current scene's view layers from cache, as needed";
 

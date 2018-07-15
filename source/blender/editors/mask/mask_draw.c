@@ -125,7 +125,7 @@ static void draw_single_handle(const MaskLayer *mask_layer, const MaskSplinePoin
 	}
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 	const unsigned char rgb_gray[4] = {0x60, 0x60, 0x60, 0xff};
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -213,7 +213,7 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 	mask_spline_color_get(masklay, spline, is_spline_sel, rgb_spline);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
 	immUniform1f("size", 0.7f * handle_size);
@@ -371,10 +371,10 @@ static void mask_color_active_tint(unsigned char r_rgb[4], const unsigned char r
 	}
 }
 
-static void mask_draw_array(unsigned int pos, Gwn_PrimType prim_type, const float (*points)[2], unsigned int vertex_ct)
+static void mask_draw_array(unsigned int pos, Gwn_PrimType prim_type, const float (*points)[2], unsigned int vertex_len)
 {
-	immBegin(prim_type, vertex_ct);
-	for (unsigned int i = 0; i < vertex_ct; ++i) {
+	immBegin(prim_type, vertex_len);
+	for (unsigned int i = 0; i < vertex_len; ++i) {
 		immVertex2fv(pos, points[i]);
 	}
 	immEnd();
@@ -403,7 +403,7 @@ static void mask_draw_curve_type(const bContext *C, MaskSpline *spline, float (*
 	}
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	switch (draw_type) {
 
@@ -695,17 +695,17 @@ void ED_mask_draw_region(Mask *mask, ARegion *ar,
 			GPU_blend_set_func(GPU_DST_COLOR, GPU_ZERO);
 		}
 
-		gpuPushMatrix();
-		gpuTranslate2f(x, y);
-		gpuScale2f(zoomx, zoomy);
+		GPU_matrix_push();
+		GPU_matrix_translate_2f(x, y);
+		GPU_matrix_scale_2f(zoomx, zoomy);
 		if (stabmat) {
-			gpuMultMatrix(stabmat);
+			GPU_matrix_mul(stabmat);
 		}
 		IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR);
 		GPU_shader_uniform_vector(state.shader, GPU_shader_get_uniform(state.shader, "shuffle"), 4, 1, red);
 		immDrawPixelsTex(&state, 0.0f, 0.0f, width, height, GL_RED, GL_FLOAT, GL_NEAREST, buffer, 1.0f, 1.0f, NULL);
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 
 		if (overlay_mode != MASK_OVERLAY_ALPHACHANNEL) {
 			GPU_blend(false);
@@ -715,13 +715,13 @@ void ED_mask_draw_region(Mask *mask, ARegion *ar,
 	}
 
 	/* apply transformation so mask editing tools will assume drawing from the origin in normalized space */
-	gpuPushMatrix();
-	gpuTranslate2f(x + xofs, y + yofs);
-	gpuScale2f(zoomx, zoomy);
+	GPU_matrix_push();
+	GPU_matrix_translate_2f(x + xofs, y + yofs);
+	GPU_matrix_scale_2f(zoomx, zoomy);
 	if (stabmat) {
-		gpuMultMatrix(stabmat);
+		GPU_matrix_mul(stabmat);
 	}
-	gpuScale2f(maxdim, maxdim);
+	GPU_matrix_scale_2f(maxdim, maxdim);
 
 	if (do_draw_cb) {
 		ED_region_draw_cb_draw(C, ar, REGION_DRAW_PRE_VIEW);
@@ -734,7 +734,7 @@ void ED_mask_draw_region(Mask *mask, ARegion *ar,
 		ED_region_draw_cb_draw(C, ar, REGION_DRAW_POST_VIEW);
 	}
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 void ED_mask_draw_frames(Mask *mask, ARegion *ar, const int cfra, const int sfra, const int efra)
@@ -747,7 +747,7 @@ void ED_mask_draw_frames(Mask *mask, ARegion *ar, const int cfra, const int sfra
 		unsigned int num_lines = BLI_listbase_count(&masklay->splines_shapes);
 
 		if (num_lines > 0) {
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+			uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 			immUniformColor4ub(255, 175, 0, 255);

@@ -465,6 +465,10 @@ class INFO_MT_window(Menu):
         layout = self.layout
 
         layout.operator("wm.window_new")
+        layout.operator("wm.window_new_main")
+
+        layout.separator()
+
         layout.operator("wm.window_fullscreen_toggle", icon='FULLSCREEN_ENTER')
 
         layout.separator()
@@ -553,10 +557,13 @@ class TOPBAR_MT_window_specials(Menu):
         layout.operator_context = 'EXEC_AREA'
 
         layout.operator("wm.window_new")
+        layout.operator("wm.window_new_main")
 
         layout.operator_context = 'INVOKE_AREA'
 
         layout.operator("screen.area_dupli")
+
+        layout.operator("wm.window_fullscreen_toggle", icon='FULLSCREEN_ENTER')
 
         layout.separator()
 

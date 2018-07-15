@@ -87,8 +87,8 @@ void ANIM_draw_cfra_number(const bContext *C, View2D *v2d, short flag)
 
 	/* because the frame number text is subject to the same scaling as the contents of the view */
 	UI_view2d_scale_get(v2d, &xscale, NULL);
-	gpuPushMatrix();
-	gpuScale2f(1.0f / xscale, 1.0f);
+	GPU_matrix_push();
+	GPU_matrix_scale_2f(1.0f / xscale, 1.0f);
 
 	/* get timecode string
 	 *	- padding on str-buf passed so that it doesn't sit on the frame indicator
@@ -128,7 +128,7 @@ void ANIM_draw_cfra_number(const bContext *C, View2D *v2d, short flag)
 	                         numstr, col);
 
 	/* restore view transform */
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 /* General call for drawing current frame indicator in animation editor */
@@ -142,7 +142,7 @@ void ANIM_draw_cfra(const bContext *C, View2D *v2d, short flag)
 	GPU_line_width((flag & DRAWCFRA_WIDE) ? 3.0 : 2.0);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -171,7 +171,7 @@ void ANIM_draw_previewrange(const bContext *C, View2D *v2d, int end_frame_width)
 		GPU_blend(true);
 
 		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformThemeColorShadeAlpha(TH_ANIM_ACTIVE, -25, -30);
@@ -204,7 +204,7 @@ void ANIM_draw_framerange(Scene *scene, View2D *v2d)
 	GPU_blend(true);
 
 	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShadeAlpha(TH_BACK, -25, -100);

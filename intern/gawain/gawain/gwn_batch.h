@@ -119,7 +119,7 @@ void GWN_batch_uniform_mat4(Gwn_Batch*, const char* name, const float data[4][4]
 
 void GWN_batch_draw(Gwn_Batch*);
 
-// This does not bind/unbind shader and does not call gpuBindMatrices()
+// This does not bind/unbind shader and does not call GPU_matrix_bind()
 void GWN_batch_draw_range_ex(Gwn_Batch*, int v_first, int v_count, bool force_instance);
 
 // Does not even need batch
@@ -149,9 +149,9 @@ typedef struct BatchWithOwnVertexBufferAndElementList {
 	Gwn_VertBuf verts; // link batch.verts to this
 } BatchWithOwnVertexBufferAndElementList;
 
-Gwn_Batch* create_BatchWithOwnVertexBuffer(Gwn_PrimType, Gwn_VertFormat*, unsigned v_ct, Gwn_IndexBuf*);
-Gwn_Batch* create_BatchWithOwnElementList(Gwn_PrimType, Gwn_VertBuf*, unsigned prim_ct);
-Gwn_Batch* create_BatchWithOwnVertexBufferAndElementList(Gwn_PrimType, Gwn_VertFormat*, unsigned v_ct, unsigned prim_ct);
+Gwn_Batch* create_BatchWithOwnVertexBuffer(Gwn_PrimType, Gwn_VertFormat*, unsigned v_len, Gwn_IndexBuf*);
+Gwn_Batch* create_BatchWithOwnElementList(Gwn_PrimType, Gwn_VertBuf*, unsigned prim_len);
+Gwn_Batch* create_BatchWithOwnVertexBufferAndElementList(Gwn_PrimType, Gwn_VertFormat*, unsigned v_len, unsigned prim_len);
 // verts: shared, own
 // elem: none, shared, own
 Gwn_Batch* create_BatchInGeneral(Gwn_PrimType, VertexBufferStuff, ElementListStuff);

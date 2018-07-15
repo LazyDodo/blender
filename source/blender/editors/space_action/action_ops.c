@@ -39,6 +39,7 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_transform.h"
+#include "ED_object.h"
 
 #include "action_intern.h"
 
@@ -210,7 +211,7 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 
 	/* menu + single-step transform */
 	WM_keymap_add_item(keymap, "ACTION_OT_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "ACTION_OT_mirror", MKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "ACTION_OT_mirror", MKEY, KM_PRESS, KM_CTRL, 0);
 
 	/* menu + set setting */
 	WM_keymap_add_item(keymap, "ACTION_OT_handle_type", VKEY, KM_PRESS, 0, 0);
@@ -222,7 +223,7 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_specials", WKEY, KM_PRESS, 0, 0);
 
 	/* destructive */
-	WM_keymap_add_item(keymap, "ACTION_OT_sample", OKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "ACTION_OT_sample", OKEY, KM_PRESS, KM_SHIFT | KM_ALT, 0);
 
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_delete", XKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_delete", DELKEY, KM_PRESS, 0, 0);
@@ -266,6 +267,7 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", OKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_proportional_action");
+	ED_keymap_proportional_cycle(keyconf, keymap);
 
 	/* special markers hotkeys for anim editors: see note in definition of this function */
 	ED_marker_keymap_animedit_conflictfree(keymap);

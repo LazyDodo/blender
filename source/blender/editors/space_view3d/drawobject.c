@@ -621,7 +621,7 @@ void draw_object_backbufsel(
 		select_mode = ts->selectmode;
 	}
 
-	gpuMultMatrix(ob->obmat);
+	GPU_matrix_mul(ob->obmat);
 
 	glClearDepth(1.0); GPU_clear(GPU_DEPTH_BIT);
 	GPU_depth_test(true);
@@ -688,7 +688,7 @@ void draw_object_backbufsel(
 			break;
 	}
 
-	gpuLoadMatrix(rv3d->viewmat);
+	GPU_matrix_set(rv3d->viewmat);
 }
 
 
@@ -748,7 +748,7 @@ void ED_draw_object_facemap(
 	const int *facemap_data = CustomData_get_layer(&me->pdata, CD_FACEMAP);
 	if (facemap_data) {
 		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 		immUniformColor4fv(col);
