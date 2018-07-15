@@ -143,19 +143,23 @@ class MATERIAL_PT_gpencil_slots(Panel):
                 row.operator("gpencil.color_select", text="Select")
                 #row.operator("gpencil.color_deselect", text="Deselect")
 
-        split = layout.split(percentage=0.65)
+        row = layout.row()
 
         if ob:
-            split.template_ID(ob, "active_material", new="material.new")
-            row = split.row()
+            row.template_ID(ob, "active_material", new="material.new")
 
             if slot:
-                row.prop(slot, "link", text="")
-            else:
-                row.label()
+                icon_link = 'MESH_DATA' if slot.link == 'DATA' else 'OBJECT_DATA'
+                row.prop(slot, "link", icon=icon_link, icon_only=True)
+
+            if ob.mode == 'EDIT':
+                row = layout.row(align=True)
+                row.operator("object.material_slot_assign", text="Assign")
+                row.operator("object.material_slot_select", text="Select")
+                row.operator("object.material_slot_deselect", text="Deselect")
+
         elif mat:
-            split.template_ID(space, "pin_id")
-            split.separator()
+            row.template_ID(space, "pin_id")
 
 
 # Used as parent for "Stroke" and "Fill" panels
