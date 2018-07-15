@@ -184,8 +184,8 @@ static void view3d_main_region_setup_view(
 	ED_view3d_update_viewmat(depsgraph, scene, v3d, ar, viewmat, winmat, rect);
 
 	/* set for opengl */
-	gpuLoadProjectionMatrix(rv3d->winmat);
-	gpuLoadMatrix(rv3d->viewmat);
+	GPU_matrix_projection_set(rv3d->winmat);
+	GPU_matrix_set(rv3d->viewmat);
 }
 
 static bool view3d_stereo3d_active(wmWindow *win, Scene *scene, View3D *v3d, RegionView3D *rv3d)
@@ -1207,7 +1207,7 @@ void view3d_draw_region_info(const bContext *C, ARegion *ar, const int UNUSED(of
 	if ((U.uiflag & USER_SHOW_GIZMO_AXIS) ||
 	    (v3d->flag2 & V3D_RENDER_OVERRIDE) ||
 	    /* No need to display gizmo and this info. */
-	    (v3d->mpr_flag & (V3D_GIZMO_HIDE | V3D_GIZMO_HIDE_NAVIGATE)))
+	    (v3d->gizmo_flag & (V3D_GIZMO_HIDE | V3D_GIZMO_HIDE_NAVIGATE)))
 	{
 		/* pass */
 	}
@@ -1355,10 +1355,10 @@ void ED_view3d_draw_offscreen(
 		GPU_free_images_anim(G.main);  /* XXX :((( */
 	}
 
-	gpuPushProjectionMatrix();
-	gpuLoadIdentity();
-	gpuPushMatrix();
-	gpuLoadIdentity();
+	GPU_matrix_push_projection();
+	GPU_matrix_identity_set();
+	GPU_matrix_push();
+	GPU_matrix_identity_set();
 
 	if ((viewname != NULL && viewname[0] != '\0') && (viewmat == NULL) && rv3d->persp == RV3D_CAMOB && v3d->camera)
 		view3d_stereo3d_setup_offscreen(depsgraph, scene, v3d, ar, winmat, viewname);
@@ -1375,8 +1375,8 @@ void ED_view3d_draw_offscreen(
 	ar->winy = bwiny;
 	ar->winrct = brect;
 
-	gpuPopProjectionMatrix();
-	gpuPopMatrix();
+	GPU_matrix_pop_projection();
+	GPU_matrix_pop();
 
 	UI_Theme_Restore(&theme_state);
 

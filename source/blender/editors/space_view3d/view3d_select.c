@@ -513,7 +513,7 @@ static void do_lasso_select_mesh(
 	/* for non zbuf projections, don't change the GL state */
 	ED_view3d_init_mats_rv3d(vc->obedit, vc->rv3d);
 
-	gpuLoadMatrix(vc->rv3d->viewmat);
+	GPU_matrix_set(vc->rv3d->viewmat);
 	bbsel = EDBM_backbuf_border_mask_init(vc, mcords, moves, rect.xmin, rect.ymin, rect.xmax, rect.ymax);
 
 	if (ts->selectmode & SCE_SELECT_VERTEX) {
@@ -1960,7 +1960,7 @@ static int do_mesh_box_select(
 	/* for non zbuf projections, don't change the GL state */
 	ED_view3d_init_mats_rv3d(vc->obedit, vc->rv3d);
 
-	gpuLoadMatrix(vc->rv3d->viewmat);
+	GPU_matrix_set(vc->rv3d->viewmat);
 	bbsel = EDBM_backbuf_border_init(vc, rect->xmin, rect->ymin, rect->xmax, rect->ymax);
 
 	if (ts->selectmode & SCE_SELECT_VERTEX) {
