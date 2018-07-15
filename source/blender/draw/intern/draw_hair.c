@@ -158,8 +158,9 @@ static DRWShadingGroup *drw_shgroup_create_particle_hair_procedural_ex(
 		}
 	}
 
+	const int strands_res = 1 << (part->draw_step + subdiv);
 	DRW_shgroup_uniform_texture(shgrp, "hairPointBuffer", hair_cache->final[subdiv].proc_tex);
-	DRW_shgroup_uniform_int(shgrp, "hairStrandsRes", &hair_cache->final[subdiv].strands_res, 1);
+	DRW_shgroup_uniform_int(shgrp, "hairStrandsRes", &strands_res, 1);
 	DRW_shgroup_uniform_int_copy(shgrp, "hairThicknessRes", thickness_res);
 	DRW_shgroup_uniform_float(shgrp, "hairRadShape", &part->shape, 1);
 	DRW_shgroup_uniform_float_copy(shgrp, "hairRadRoot", part->rad_root * part->rad_scale * 0.5f);
@@ -170,14 +171,13 @@ static DRWShadingGroup *drw_shgroup_create_particle_hair_procedural_ex(
 
 	/* Transform Feedback subdiv. */
 	if (need_ft_update) {
-		int final_points_len = hair_cache->final[subdiv].strands_res * hair_cache->strands_len;
 		GPUShader *tf_shader = hair_refine_shader_get(PART_REFINE_CATMULL_ROM);
 		DRWShadingGroup *tf_shgrp = DRW_shgroup_transform_feedback_create(tf_shader, g_tf_pass,
 		                                                                  hair_cache->final[subdiv].proc_point_buf);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairPointBuffer", hair_cache->point_tex);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairStrandBuffer", hair_cache->strand_tex);
-		DRW_shgroup_uniform_int(tf_shgrp, "hairStrandsRes", &hair_cache->final[subdiv].strands_res, 1);
-		DRW_shgroup_call_procedural_points_add(tf_shgrp, final_points_len, NULL);
+		DRW_shgroup_uniform_int(tf_shgrp, "hairStrandsRes", &strands_res, 1);
+		DRW_shgroup_call_procedural_points_add(tf_shgrp, hair_cache->final[subdiv].point_len, NULL);
 	}
 
 	return shgrp;
@@ -239,7 +239,6 @@ static DRWShadingGroup *drw_shgroup_create_hair_procedural_ex(
 	}
 
 	DRW_shgroup_uniform_texture(shgrp, "hairPointBuffer", hair_cache->final[subdiv].proc_tex);
-	DRW_shgroup_uniform_int(shgrp, "hairStrandsRes", &hair_cache->final[subdiv].strands_res, 1);
 	DRW_shgroup_uniform_int_copy(shgrp, "hairThicknessRes", thickness_res);
 	DRW_shgroup_uniform_float(shgrp, "hairRadShape", &draw_set->shape, 1);
 	DRW_shgroup_uniform_float_copy(shgrp, "hairRadRoot", draw_set->root_radius * draw_set->radius_scale * 0.5f);
@@ -250,14 +249,12 @@ static DRWShadingGroup *drw_shgroup_create_hair_procedural_ex(
 
 	/* Transform Feedback subdiv. */
 	if (need_ft_update) {
-		int final_points_ct = hair_cache->final[subdiv].strands_res * hair_cache->strands_len;
 		GPUShader *tf_shader = hair_refine_shader_get(PART_REFINE_CATMULL_ROM);
 		DRWShadingGroup *tf_shgrp = DRW_shgroup_transform_feedback_create(tf_shader, g_tf_pass,
 		                                                                  hair_cache->final[subdiv].proc_point_buf);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairPointBuffer", hair_cache->point_tex);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairStrandBuffer", hair_cache->strand_tex);
-		DRW_shgroup_uniform_int(tf_shgrp, "hairStrandsRes", &hair_cache->final[subdiv].strands_res, 1);
-		DRW_shgroup_call_procedural_points_add(tf_shgrp, final_points_ct, NULL);
+		DRW_shgroup_call_procedural_points_add(tf_shgrp, hair_cache->final[subdiv].point_len, NULL);
 	}
 	
 	return shgrp;

@@ -623,19 +623,26 @@ static void particle_batch_cache_fill_segments_proc_pos(
 }
 
 static int particle_batch_cache_fill_segments_indices(
+        const ParticleSystem *psys,
         ParticleCacheKey **path_cache,
         const int start_index,
         const int num_path_keys,
-        const int res,
+        const int subdiv,
+        const int thickness_res,
         Gwn_IndexBufBuilder *elb)
 {
+	const ParticleSettings *part = psys->part;
+	const int strands_res = 1 << (part->draw_step + subdiv);
+	const int verts_per_hair = strands_res * thickness_res;
+	
 	int curr_point = start_index;
 	for (int i = 0; i < num_path_keys; i++) {
 		ParticleCacheKey *path = path_cache[i];
 		if (path->segments <= 0) {
 			continue;
 		}
-		for (int k = 0; k < res; k++) {
+		
+		for (int k = 0; k < verts_per_hair; k++) {
 			GWN_indexbuf_add_generic_vert(elb, curr_point++);
 		}
 		GWN_indexbuf_add_primitive_restart(elb);
@@ -718,6 +725,25 @@ static int particle_batch_cache_fill_strands_data(
 	return curr_point;
 }
 
+static void ensure_seg_pt_final_count(
+        const ParticleSystem *psys,
+        ParticleHairCache *hair_cache,
+        int subdiv,
+        int thickness_res)
+{
+	ParticleHairFinalCache *final_cache = &hair_cache->final[subdiv];
+	
+	const ParticleSettings *part = psys->part;
+	const int strands_res = 1 << (part->draw_step + subdiv);
+	
+	final_cache->strands_len = hair_cache->strands_len;
+	final_cache->point_len = strands_res * final_cache->strands_len;
+	
+	const int verts_per_hair = strands_res * thickness_res;
+	/* +1 for primitive restart */
+	final_cache->elems_len = (verts_per_hair + 1) * final_cache->strands_len;
+}
+
 static void particle_batch_cache_ensure_procedural_final_points(
         ParticleHairCache *cache,
         int subdiv)
@@ -730,7 +756,7 @@ static void particle_batch_cache_ensure_procedural_final_points(
 
 	/* Create a destination buffer for the tranform feedback. Sized appropriately */
 	/* Thoses are points! not line segments. */
-	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].strands_res * cache->strands_len);
+	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].point_len);
 
 	/* Create vbo immediatly to bind to texture buffer. */
 	GWN_vertbuf_use(cache->final[subdiv].proc_point_buf);
@@ -909,9 +935,7 @@ static void particle_batch_cache_ensure_procedural_indices(
 		return;
 	}
 
-	int verts_per_hair = cache->final[subdiv].strands_res * thickness_res;
-	/* +1 for primitive restart */
-	int element_count = (verts_per_hair + 1) * cache->strands_len;
+	int element_count = cache->final[subdiv].elems_len;
 	Gwn_PrimType prim_type = (thickness_res == 1) ? GWN_PRIM_LINE_STRIP : GWN_PRIM_TRI_STRIP;
 
 	static Gwn_VertFormat format = { 0 };
@@ -928,7 +952,7 @@ static void particle_batch_cache_ensure_procedural_indices(
 
 	if (edit != NULL && edit->pathcache != NULL) {
 		particle_batch_cache_fill_segments_indices(
-		        edit->pathcache, 0, edit->totcached, verts_per_hair, &elb);
+		        psys, edit->pathcache, 0, edit->totcached, subdiv, thickness_res, &elb);
 	}
 	else {
 		int curr_point = 0;
@@ -936,12 +960,12 @@ static void particle_batch_cache_ensure_procedural_indices(
 		    (!psys->childcache || (psys->part->draw & PART_DRAW_PARENT)))
 		{
 			curr_point = particle_batch_cache_fill_segments_indices(
-			        psys->pathcache, 0, psys->totpart, verts_per_hair, &elb);
+			        psys, psys->pathcache, 0, psys->totpart, subdiv, thickness_res, &elb);
 		}
 		if (psys->childcache) {
 			const int child_count = psys->totchild * psys->part->disp / 100;
 			curr_point = particle_batch_cache_fill_segments_indices(
-			        psys->childcache, curr_point, child_count, verts_per_hair, &elb);
+			        psys, psys->childcache, curr_point, child_count, subdiv, thickness_res, &elb);
 		}
 	}
 
@@ -1524,11 +1548,8 @@ bool particles_ensure_procedural_data(
 	ParticleDrawSource source;
 	drw_particle_get_hair_source(object, psys, md, NULL, &source);
 
-	ParticleSettings *part = source.psys->part;
 	ParticleBatchCache *cache = particle_batch_cache_get(source.psys);
 	*r_hair_cache = &cache->hair;
-
-	(*r_hair_cache)->final[subdiv].strands_res = 1 << (part->draw_step + subdiv);
 
 	/* Refreshed on combing and simulation. */
 	if ((*r_hair_cache)->proc_point_buf == NULL) {
@@ -1544,6 +1565,7 @@ bool particles_ensure_procedural_data(
 
 	/* Refreshed only on subdiv count change. */
 	if ((*r_hair_cache)->final[subdiv].proc_point_buf == NULL) {
+		ensure_seg_pt_final_count(psys, &cache->hair, subdiv, thickness_res);
 		particle_batch_cache_ensure_procedural_final_points(&cache->hair, subdiv);
 		need_ft_update = true;
 	}

@@ -136,16 +136,10 @@ void DRW_hair_batch_cache_free(HairSystem *hsys)
 	MEM_SAFE_FREE(hsys->draw_batch_cache);
 }
 
-static void ensure_seg_pt_count(
+static void hair_batch_cache_ensure_count(
         const HairExportCache *hair_export,
         ParticleHairCache *cache)
 {
-	if ((cache->pos != NULL && cache->indices != NULL) ||
-	    (cache->proc_point_buf != NULL))
-	{
-		return;
-	}
-
     cache->strands_len = hair_export->totfollicles;
     cache->elems_len = hair_export->totverts - hair_export->totcurves;
     cache->point_len = hair_export->totverts;
@@ -409,6 +403,20 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 	}
 }
 
+static void hair_batch_cache_ensure_final_count(
+        const HairExportCache *hair_export,
+        ParticleHairFinalCache *cache,
+        int subdiv,
+        int thickness_res)
+{
+	const int totverts = hair_export->totverts;
+	const int totcurves = hair_export->totcurves;
+	cache->strands_len = hair_export->totfollicles;
+	/* +1 for primitive restart */
+	cache->elems_len = (((totverts - totcurves) << subdiv) + totcurves) * thickness_res;
+	cache->point_len = ((totverts - totcurves) << subdiv) + totcurves;
+}
+
 static void hair_batch_cache_ensure_procedural_final_points(
         ParticleHairCache *cache,
         int subdiv)
@@ -421,7 +429,7 @@ static void hair_batch_cache_ensure_procedural_final_points(
 
 	/* Create a destination buffer for the tranform feedback. Sized appropriately */
 	/* Thoses are points! not line segments. */
-    GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].strands_res * cache->strands_len);
+	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].point_len);
 
 	/* Create vbo immediatly to bind to texture buffer. */
 	GWN_vertbuf_use(cache->final[subdiv].proc_point_buf);
@@ -431,7 +439,8 @@ static void hair_batch_cache_ensure_procedural_final_points(
 
 static int hair_batch_cache_fill_segments_indices(
         const HairExportCache *hair_export,
-        const int res,
+        const int subdiv,
+        const int thickness_res,
         Gwn_IndexBufBuilder *elb)
 {
 	int curr_point = 0;
@@ -440,6 +449,8 @@ static int hair_batch_cache_fill_segments_indices(
 		if (curve->numverts < 2) {
 			continue;
 		}
+
+		const int res = (((curve->numverts - 1) << subdiv) + 1) * thickness_res;
 		for (int k = 0; k < res; k++) {
 			GWN_indexbuf_add_generic_vert(elb, curr_point++);
 		}
@@ -460,9 +471,7 @@ static void hair_batch_cache_ensure_procedural_indices(
 		return;
 	}
 
-	int verts_per_hair = cache->final[subdiv].strands_res * thickness_res;
-	/* +1 for primitive restart */
-    int element_count = (verts_per_hair + 1) * cache->strands_len;
+	int element_count = cache->final[subdiv].elems_len;
 	Gwn_PrimType prim_type = (thickness_res == 1) ? GWN_PRIM_LINE_STRIP : GWN_PRIM_TRI_STRIP;
 
 	static Gwn_VertFormat format = { 0 };
@@ -477,7 +486,7 @@ static void hair_batch_cache_ensure_procedural_indices(
 	Gwn_IndexBufBuilder elb;
 	GWN_indexbuf_init_ex(&elb, prim_type, element_count, element_count, true);
 
-	hair_batch_cache_fill_segments_indices(hair_export, verts_per_hair, &elb);
+	hair_batch_cache_fill_segments_indices(hair_export, subdiv, thickness_res, &elb);
 
 	cache->final[subdiv].proc_hairs[thickness_res - 1] = GWN_batch_create_ex(
 	        prim_type,
@@ -503,12 +512,10 @@ bool hair_ensure_procedural_data(
 	HairBatchCache *cache = hair_batch_cache_get(hsys);
 	*r_hair_cache = &cache->hair;
 
-	const int hsys_subdiv = 0; // XXX TODO per-hsys or per-fiber subdiv
-	cache->hair.final[subdiv].strands_res = 1 << (hsys_subdiv + subdiv);
-
 	/* Refreshed on combing and simulation. */
 	if (cache->hair.proc_point_buf == NULL) {
-		ensure_seg_pt_count(hair_export, &cache->hair);
+		hair_batch_cache_ensure_count(hair_export, &cache->hair);
+		
 		hair_batch_cache_ensure_procedural_pos(hair_export, &cache->hair);
 		need_ft_update = true;
 	}
@@ -520,6 +527,8 @@ bool hair_ensure_procedural_data(
 
 	/* Refreshed only on subdiv count change. */
 	if (cache->hair.final[subdiv].proc_point_buf == NULL) {
+		hair_batch_cache_ensure_final_count(hair_export, &cache->hair.final[subdiv], subdiv, thickness_res);
+		
 		hair_batch_cache_ensure_procedural_final_points(&cache->hair, subdiv);
 		need_ft_update = true;
 	}

@@ -46,10 +46,15 @@ typedef struct ParticleHairFinalCache {
 	Gwn_VertBuf *proc_point_buf;
 	GPUTexture *proc_tex;
 
-	 /* Just contains a huge index buffer used to draw the final hair. */
+//	Gwn_VertBuf *proc_strand_buf; /* Infos of control points strands (segment count and base index) */
+//	GPUTexture *strand_tex;
+
+	/* Just contains a huge index buffer used to draw the final hair. */
 	Gwn_Batch *proc_hairs[MAX_THICKRES];
 
-	int strands_res; /* points per hair, at least 2 */
+	int strands_len;
+	int elems_len;
+	int point_len;
 } ParticleHairFinalCache;
 
 typedef struct ParticleHairCache {
