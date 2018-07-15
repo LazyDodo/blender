@@ -991,7 +991,7 @@ class _defs_gpencil_paint:
         ob = context.active_object
         nrow = 3
         ncol = 8
-        scale = 0.7
+        scale = 0.80
         if ob and ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
