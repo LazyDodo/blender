@@ -43,7 +43,7 @@ struct HairSystem;
 
 typedef struct ParticleHairFinalCache {
 	/* Output of the subdivision stage: vertex buff sized to subdiv level. */
-	Gwn_VertBuf *proc_buf;
+	Gwn_VertBuf *proc_point_buf;
 	GPUTexture *proc_tex;
 
 	 /* Just contains a huge index buffer used to draw the final hair. */

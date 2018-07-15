@@ -726,16 +726,16 @@ static void particle_batch_cache_ensure_procedural_final_points(
 	Gwn_VertFormat format = { 0 };
 	GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
 
-	cache->final[subdiv].proc_buf = GWN_vertbuf_create_with_format(&format);
+	cache->final[subdiv].proc_point_buf = GWN_vertbuf_create_with_format(&format);
 
 	/* Create a destination buffer for the tranform feedback. Sized appropriately */
 	/* Thoses are points! not line segments. */
-	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_buf, cache->final[subdiv].strands_res * cache->strands_len);
+	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].strands_res * cache->strands_len);
 
 	/* Create vbo immediatly to bind to texture buffer. */
-	GWN_vertbuf_use(cache->final[subdiv].proc_buf);
+	GWN_vertbuf_use(cache->final[subdiv].proc_point_buf);
 
-	cache->final[subdiv].proc_tex = GPU_texture_create_from_vertbuf(cache->final[subdiv].proc_buf);
+	cache->final[subdiv].proc_tex = GPU_texture_create_from_vertbuf(cache->final[subdiv].proc_point_buf);
 }
 
 static void particle_batch_cache_ensure_procedural_strand_data(
@@ -1543,7 +1543,7 @@ bool particles_ensure_procedural_data(
 	}
 
 	/* Refreshed only on subdiv count change. */
-	if ((*r_hair_cache)->final[subdiv].proc_buf == NULL) {
+	if ((*r_hair_cache)->final[subdiv].proc_point_buf == NULL) {
 		particle_batch_cache_ensure_procedural_final_points(&cache->hair, subdiv);
 		need_ft_update = true;
 	}

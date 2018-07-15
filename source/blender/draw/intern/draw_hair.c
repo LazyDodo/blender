@@ -105,7 +105,7 @@ void particle_batch_cache_clear_hair(ParticleHairCache *hair_cache)
 		DRW_TEXTURE_FREE_SAFE(hair_cache->col_tex[i]);
 	}
 	for (int i = 0; i < MAX_HAIR_SUBDIV; ++i) {
-		GWN_VERTBUF_DISCARD_SAFE(hair_cache->final[i].proc_buf);
+		GWN_VERTBUF_DISCARD_SAFE(hair_cache->final[i].proc_point_buf);
 		DRW_TEXTURE_FREE_SAFE(hair_cache->final[i].proc_tex);
 		for (int j = 0; j < MAX_THICKRES; ++j) {
 			GWN_BATCH_DISCARD_SAFE(hair_cache->final[i].proc_hairs[j]);
@@ -173,7 +173,7 @@ static DRWShadingGroup *drw_shgroup_create_particle_hair_procedural_ex(
 		int final_points_len = hair_cache->final[subdiv].strands_res * hair_cache->strands_len;
 		GPUShader *tf_shader = hair_refine_shader_get(PART_REFINE_CATMULL_ROM);
 		DRWShadingGroup *tf_shgrp = DRW_shgroup_transform_feedback_create(tf_shader, g_tf_pass,
-		                                                                  hair_cache->final[subdiv].proc_buf);
+		                                                                  hair_cache->final[subdiv].proc_point_buf);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairPointBuffer", hair_cache->point_tex);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairStrandBuffer", hair_cache->strand_tex);
 		DRW_shgroup_uniform_int(tf_shgrp, "hairStrandsRes", &hair_cache->final[subdiv].strands_res, 1);
@@ -250,10 +250,10 @@ static DRWShadingGroup *drw_shgroup_create_hair_procedural_ex(
 
 	/* Transform Feedback subdiv. */
 	if (need_ft_update) {
-        int final_points_ct = hair_cache->final[subdiv].strands_res * hair_cache->strands_len;
+		int final_points_ct = hair_cache->final[subdiv].strands_res * hair_cache->strands_len;
 		GPUShader *tf_shader = hair_refine_shader_get(PART_REFINE_CATMULL_ROM);
 		DRWShadingGroup *tf_shgrp = DRW_shgroup_transform_feedback_create(tf_shader, g_tf_pass,
-		                                                                  hair_cache->final[subdiv].proc_buf);
+		                                                                  hair_cache->final[subdiv].proc_point_buf);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairPointBuffer", hair_cache->point_tex);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairStrandBuffer", hair_cache->strand_tex);
 		DRW_shgroup_uniform_int(tf_shgrp, "hairStrandsRes", &hair_cache->final[subdiv].strands_res, 1);
