@@ -274,7 +274,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		memset(e_data.transparent_accum_sh_cache, 0x00, sizeof(struct GPUShader *) * MAX_SHADERS);
 
 		char *defines = workbench_material_build_defines(wpd, false, DRW_SHADER_HAIR_NONE);
-		char *defines_texture = workbench_material_build_defines(wpd, true, DRAW_SHADER_HAIR_NONE);
+		char *defines_texture = workbench_material_build_defines(wpd, true, DRW_SHADER_HAIR_NONE);
 		char *defines_hair = workbench_material_build_defines(wpd, false, DRW_SHADER_HAIR_PARTICLES);
 		char *defines_hair_fibers = workbench_material_build_defines(wpd, false, DRW_SHADER_HAIR_FIBERS);
 		char *forward_vert = workbench_build_forward_vert();
@@ -289,7 +289,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		        datatoc_workbench_forward_depth_frag_glsl, defines_hair);
 		e_data.object_outline_hair_fibers_sh = DRW_shader_create(
 		        forward_vert, NULL,
-		        forward_depth_frag, defines_hair_fibers);
+		        forward_vert, defines_hair_fibers);
 
 
 		e_data.checker_depth_sh = DRW_shader_create_fullscreen(

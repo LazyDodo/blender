@@ -1496,7 +1496,6 @@ static void material_particle_hair(
 			}
 			case GPU_MAT_QUEUED:
 			{
-				sldata->probes->all_materials_updated = false;
 				color_p = compile_col;
 				metal_p = spec_p = rough_p = &half;
 				break;
@@ -1590,7 +1589,6 @@ static void material_hair(
 				}
 				case GPU_MAT_QUEUED:
 				{
-					sldata->probes->all_materials_updated = false;
 					color_p = compile_col;
 					metal_p = spec_p = rough_p = &half;
 					break;

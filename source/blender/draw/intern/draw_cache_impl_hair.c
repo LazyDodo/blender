@@ -206,7 +206,7 @@ static void hair_batch_cache_ensure_fibers(const HairExportCache *hair_export, H
 	static unsigned curve_param_id, fiber_index_id;
 	
 	/* initialize vertex format */
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		fiber_index_id = GWN_vertformat_attr_add(&format, "fiber_index", GWN_COMP_I32, 1, GWN_FETCH_INT);
 		curve_param_id = GWN_vertformat_attr_add(&format, "curve_param", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
 	}
@@ -339,7 +339,7 @@ static void hair_batch_cache_ensure_follicles(
 	static unsigned pos_id;
 	
 	/* initialize vertex format */
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 	}
 	
@@ -384,7 +384,7 @@ static void hair_batch_cache_ensure_guide_curves(
 	static unsigned pos_id;
 	
 	/* initialize vertex format */
-	if (format.attrib_ct == 0) {
+	if (format.attr_len == 0) {
 		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 	}
 	
