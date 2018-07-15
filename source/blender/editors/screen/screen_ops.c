@@ -532,7 +532,7 @@ bool ED_operator_editmball(bContext *C)
 	return 0;
 }
 
-int ED_operator_editgroom(bContext *C)
+bool ED_operator_editgroom(bContext *C)
 {
 	Object *obedit = CTX_data_edit_object(C);
 	if (obedit && obedit->type == OB_GROOM)

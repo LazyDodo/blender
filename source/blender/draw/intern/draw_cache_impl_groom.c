@@ -879,7 +879,7 @@ static void groom_batch_cache_create_overlay_batches(GroomRenderData *rdata, Gro
 	if (cache->overlay_verts == NULL) {
 		static Gwn_VertFormat format = { 0 };
 		static struct { uint pos, nor, data; } attr_id;
-		if (format.attrib_ct == 0) {
+		if (format.attr_len == 0) {
 			/* initialize vertex format */
 			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
 			attr_id.nor = GWN_vertformat_attr_add(&format, "nor", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);

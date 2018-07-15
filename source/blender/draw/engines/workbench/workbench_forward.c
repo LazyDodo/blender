@@ -481,7 +481,7 @@ static void workbench_forward_cache_populate_groom(WORKBENCH_Data *vedata, Objec
 	                             shader);
 	workbench_material_set_normal_world_matrix(shgrp, wpd, e_data.normal_world_matrix);
 	DRW_shgroup_uniform_block(shgrp, "world_block", wpd->world_ubo);
-	DRW_shgroup_uniform_block(shgrp, "material_block", material->material_ubo);
+	workbench_material_shgroup_uniform(wpd, shgrp, material);
 	DRW_shgroup_uniform_vec4(shgrp, "viewvecs[0]", (float *)wpd->viewvecs, 3);
 	/* Hairs have lots of layer and can rapidly become the most prominent surface.
 	 * So lower their alpha artificially. */

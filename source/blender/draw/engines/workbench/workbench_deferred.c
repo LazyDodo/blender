@@ -666,11 +666,7 @@ static void workbench_cache_populate_groom(WORKBENCH_Data *vedata, Object *ob)
 	                             shader);
 	DRW_shgroup_stencil_mask(shgrp, 0xFF);
 	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
-	DRW_shgroup_uniform_block(shgrp, "material_block", material->material_ubo);
-	if (image) {
-		GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, 0.0f);
-		DRW_shgroup_uniform_texture(shgrp, "image", tex);
-	}
+	workbench_material_shgroup_uniform(wpd, shgrp, material);
 }
 
 void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
