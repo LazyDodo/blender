@@ -966,6 +966,21 @@ static void rna_MaterialSlot_material_set(PointerRNA *ptr, PointerRNA value)
 	assign_material(G_MAIN, ob, value.data, index + 1, BKE_MAT_ASSIGN_EXISTING);
 }
 
+static bool rna_MaterialSlot_material_poll(PointerRNA *ptr, PointerRNA value)
+{
+	Object *ob = (Object *)ptr->id.data;
+	Material *ma = (Material *)value.data;
+
+	if (ob->type == OB_GPENCIL) {
+		/* GP Materials only */
+		return (ma->gp_style != NULL);
+	}
+	else {
+		/* Everything except GP materials */
+		return (ma->gp_style == NULL);
+	}
+}
+
 static int rna_MaterialSlot_link_get(PointerRNA *ptr)
 {
 	Object *ob = (Object *)ptr->id.data;
@@ -1684,7 +1699,7 @@ static void rna_def_material_slot(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_editable_func(prop, "rna_MaterialSlot_material_editable");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
-	RNA_def_property_pointer_funcs(prop, "rna_MaterialSlot_material_get", "rna_MaterialSlot_material_set", NULL, NULL);
+	RNA_def_property_pointer_funcs(prop, "rna_MaterialSlot_material_get", "rna_MaterialSlot_material_set", NULL, "rna_MaterialSlot_material_poll");
 	RNA_def_property_ui_text(prop, "Material", "Material data-block used by this material slot");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_MaterialSlot_update");
 
@@ -2182,7 +2197,8 @@ static void rna_def_object(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "active_material", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Material");
 	RNA_def_property_pointer_funcs(prop, "rna_Object_active_material_get",
-	                               "rna_Object_active_material_set", NULL, NULL);
+	                               "rna_Object_active_material_set", NULL,
+	                               "rna_MaterialSlot_material_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_editable_func(prop, "rna_Object_active_material_editable");
