@@ -684,7 +684,7 @@ static const EnumPropertyItem *rna_Brush_stroke_itemf(bContext *C, PointerRNA *U
 }
 
 /* Grease Pencil Drawing Brushes Settings */
-static void rna_brush_gpencil_default_eraser(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
+static void rna_BrushGpencilSettings_default_eraser_update(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
 {
 	ToolSettings *ts = scene->toolsettings;
 	Paint *paint = &ts->gp_paint->paint;
@@ -701,7 +701,7 @@ static void rna_brush_gpencil_default_eraser(Main *bmain, Scene *scene, PointerR
 	}
 }
 
-static void rna_brush_gpencil_eraser_mode(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
+static void rna_BrushGpencilSettings_eraser_mode_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
 	ToolSettings *ts = scene->toolsettings;
 	Paint *paint = &ts->gp_paint->paint;
@@ -1190,7 +1190,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_eraser_modes_items);
 	RNA_def_property_ui_text(prop, "Mode", "Eraser Mode");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_brush_gpencil_eraser_mode");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_BrushGpencilSettings_eraser_mode_update");
 
 	prop = RNA_def_property(srna, "gpencil_fill_draw_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "fill_draw_mode");
@@ -1225,7 +1225,7 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_ui_icon(prop, ICON_UNPINNED, 1);
 	RNA_def_property_ui_text(prop, "Default Eraser", "Use this brush when enable eraser with fast switch key");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_brush_gpencil_default_eraser");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_BrushGpencilSettings_default_eraser_update");
 
 	prop = RNA_def_property(srna, "enable_settings", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_GROUP_SETTINGS);
