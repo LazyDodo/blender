@@ -1450,21 +1450,21 @@ static void contour_insertion( MeshData *m_d ) {
 	}
 }
 
+bool sign_cross(const bool bool_arr[3]) {
+	int i;
+	bool temp = bool_arr[0];
+	for (i = 1; i < 3; i++) {
+		if (temp != bool_arr[i]) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool cusp_triangle(struct OpenSubdiv_Evaluator *eval, const float cam_loc[3], const int face_index, Cusp_triang *c_tri, Cusp *cusp){
 
 		GSQueue *tri_que = BLI_gsqueue_new(sizeof(Cusp_triang));
         BLI_gsqueue_push_back(tri_que, c_tri);
-
-		bool sign_cross(const bool bool_arr[3]){
-			int i;
-			bool temp = bool_arr[0];
-			for(i = 1; i < 3; i++){
-				if(temp != bool_arr[i]){
-					return true;
-				}
-			}
-			return false;
-		}
 
 		//Add this because it seems to get stuck sometimes because the triangles never becomes small enough
 		//TODO maybe find a better end condition?
@@ -1529,8 +1529,8 @@ static bool cusp_triangle(struct OpenSubdiv_Evaluator *eval, const float cam_loc
 
 			for( int i = 0; i < 2; i++ ){
 				Cusp_triang new_tri;
-				copy_v3_v3(new_tri.b_arr, cur_tri.b_arr);
-				copy_v3_v3(new_tri.kr_arr, cur_tri.kr_arr);
+				copy_v3_v3((float*)new_tri.b_arr, (float*)cur_tri.b_arr);
+				copy_v3_v3((float*)new_tri.kr_arr, (float*)cur_tri.kr_arr);
 				copy_v3_v3(new_tri.u_arr, cur_tri.u_arr);
 				copy_v3_v3(new_tri.v_arr, cur_tri.v_arr);
 				copy_v3_v3(new_tri.co_arr[0], cur_tri.co_arr[0]);
@@ -1556,7 +1556,7 @@ static BMFace *get_orig_face(int orig_verts, const BMVert *vert_arr_in[3], float
 	int i;
 
 	BMEdge *edge_arr[] = {NULL, NULL, NULL};
-	BMEdge *edge_face_arr[] = {NULL, NULL, NULL};
+	BMFace *edge_face_arr[] = {NULL, NULL, NULL};
 	BMFace *orig_face = NULL;
 	BMVert *vert_arr[3] = {vert_arr_in[0], vert_arr_in[1], vert_arr_in[2]};
 
@@ -1721,7 +1721,7 @@ static void cusp_detection( MeshData *m_d ){
 					Cusp_triang c_tri;
 					cusp.orig_face = orig_face;
 
-                    copy_v3_v3(c_tri.b_arr, b_arr);
+                    copy_v3_v3((float*)c_tri.b_arr, (float*)b_arr);
                     copy_v3_v3(c_tri.u_arr, u_arr);
                     copy_v3_v3(c_tri.v_arr, v_arr);
                     copy_v3_v3(c_tri.co_arr[0], co_arr[0]);
@@ -3698,7 +3698,7 @@ static OpenSubdiv_SchemeType conv_bm_get_type(
 		return OSD_SCHEME_CATMARK;
 }
 
-static bool conv_bm_get_fvar_linear_interpolation(
+static OpenSubdiv_FVarLinearInterpolation conv_bm_get_fvar_linear_interpolation(
         const OpenSubdiv_Converter *converter)
 {
 	return OSD_FVAR_LINEAR_INTERPOLATION_ALL;
