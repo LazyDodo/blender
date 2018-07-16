@@ -987,15 +987,23 @@ class _defs_uv_select:
 
 class _defs_gpencil_paint:
     @classmethod
+    def draw_color_selector(cls, context, layout):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+        ts = context.tool_settings
+        row = layout.row(align=True)
+        row.prop(ts, "use_gpencil_compact_list", text="", icon="SORTSIZE")
+        if ts.use_gpencil_compact_list is True:
+            row.template_ID(gp_settings, "material")
+        else:
+            row.template_greasepencil_color(gp_settings, "material", rows=3, cols=8, scale=0.8)
+
+    @classmethod
     def draw_settings_common(cls, context, layout, tool):
         ob = context.active_object
-        nrow = 3
-        ncol = 8
-        scale = 0.80
         if ob and ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
-            ts = context.tool_settings
 
             if gp_settings.gpencil_brush_type == 'ERASE':
                 row = layout.row()
@@ -1006,12 +1014,7 @@ class _defs_gpencil_paint:
                 row.prop(brush, "size", text="Thickness")
                 row.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
-                row = layout.row(align=True)
-                row.prop(ts, "use_gpencil_compact_list", text="", icon="SORTSIZE")
-                if ts.use_gpencil_compact_list is True:
-                    row.template_ID(gp_settings, "material")
-                else:
-                    row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
+                _defs_gpencil_paint.draw_color_selector(context, layout)
 
                 row = layout.row(align=True)
                 row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
@@ -1025,12 +1028,7 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "pen_strength", slider=True)
                 row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
-                row = layout.row(align=True)
-                row.prop(ts, "use_gpencil_compact_list", text="", icon="SORTSIZE")
-                if ts.use_gpencil_compact_list is True:
-                    row.template_ID(gp_settings, "material")
-                else:
-                    row.template_greasepencil_color(gp_settings, "material", rows=nrow, cols=ncol, scale=scale)
+                _defs_gpencil_paint.draw_color_selector(context, layout)
 
     @staticmethod
     def generate_from_brushes(context):
