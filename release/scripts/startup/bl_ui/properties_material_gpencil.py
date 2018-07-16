@@ -52,12 +52,9 @@ class GPENCIL_UL_matslots(UIList):
                 if gpcolor.lock:
                     layout.active = False
 
-                split = layout.split(percentage=0.25)
-                row = split.row(align=True)
+                row = layout.row(align=True)
                 row.enabled = not gpcolor.lock
-                row.prop(gpcolor, "color", text="", emboss=gpcolor.is_stroke_visible)
-                row.prop(gpcolor, "fill_color", text="", emboss=gpcolor.is_fill_visible)
-                split.prop(ma, "name", text="", emboss=False)
+                row.prop(ma, "name", text="", emboss=False, icon_value=icon)
 
                 row = layout.row(align=True)
                 row.prop(gpcolor, "lock", text="", emboss=False)
