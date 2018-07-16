@@ -6279,6 +6279,7 @@ void RNA_def_scene(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "grease_pencil", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "gpd");
 	RNA_def_property_struct_type(prop, "GreasePencil");
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_GPencil_datablocks_annotations_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
 	RNA_def_property_ui_text(prop, "Annotations", "Grease Pencil data-block used for annotations in the 3D view");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);

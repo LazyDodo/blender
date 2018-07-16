@@ -186,6 +186,7 @@ const EnumPropertyItem rna_enum_object_axis_items[] = {
 
 #include "DNA_key_types.h"
 #include "DNA_constraint_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_ID.h"
 #include "DNA_lattice_types.h"
 #include "DNA_node_types.h"
@@ -395,6 +396,19 @@ static StructRNA *rna_Object_data_typef(PointerRNA *ptr)
 		case OB_GPENCIL: return &RNA_GreasePencil;
 		default: return &RNA_ID;
 	}
+}
+
+static bool rna_Object_data_poll(PointerRNA *ptr, const PointerRNA value)
+{
+	Object *ob = (Object *)ptr->data;
+
+	if (ob->type == OB_GPENCIL) {
+		/* GP Object - Don't allow using "Annotation" GP datablocks here */
+		bGPdata *gpd = value.data;
+		return (gpd->flag & GP_DATA_ANNOTATIONS) == 0;
+	}
+
+	return true;
 }
 
 static void rna_Object_parent_set(PointerRNA *ptr, PointerRNA value)
@@ -2070,7 +2084,7 @@ static void rna_def_object(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "data", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "ID");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_Object_data_set", "rna_Object_data_typef", NULL);
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_Object_data_set", "rna_Object_data_typef", "rna_Object_data_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_UNLINK);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Data", "Object data");
@@ -2651,6 +2665,7 @@ static void rna_def_object(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "grease_pencil", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "gpd");
 	RNA_def_property_struct_type(prop, "GreasePencil");
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_GPencil_datablocks_obdata_poll"); /* XXX */
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
 	RNA_def_property_ui_text(prop, "Grease Pencil Data", "Grease Pencil data-block (deprecated)");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);

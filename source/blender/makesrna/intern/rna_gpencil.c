@@ -129,6 +129,22 @@ static void UNUSED_FUNCTION(rna_GPencil_onion_skinning_update)(Main *bmain, Scen
 	rna_GPencil_update(bmain, scene, ptr);
 }
 
+
+/* Poll Callback to filter GP Datablocks to only show those for Annotations */
+bool rna_GPencil_datablocks_annotations_poll(PointerRNA *UNUSED(ptr), const PointerRNA value)
+{
+	bGPdata *gpd = value.data;
+	return (gpd->flag & GP_DATA_ANNOTATIONS) != 0;
+}
+
+/* Poll Callback to filter GP Datablocks to only show those for GP Objects */
+bool rna_GPencil_datablocks_obdata_poll(PointerRNA *UNUSED(ptr), const PointerRNA value)
+{
+	bGPdata *gpd = value.data;
+	return (gpd->flag & GP_DATA_ANNOTATIONS) == 0;
+}
+
+
 static char *rna_GPencilLayer_path(PointerRNA *ptr)
 {
 	bGPDlayer *gpl = (bGPDlayer *)ptr->data;

@@ -294,6 +294,10 @@ bool rna_Mesh_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Action_id_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Action_actedit_assign_poll(struct PointerRNA *ptr, struct PointerRNA value);
 
+/* Grease Pencil datablock polling functions - for filtering GP Object vs Annotation datablocks */
+bool rna_GPencil_datablocks_annotations_poll(struct PointerRNA *ptr, const struct PointerRNA value);
+bool rna_GPencil_datablocks_obdata_poll(struct PointerRNA *ptr, const struct PointerRNA value);
+
 char *rna_TextureSlot_path(struct PointerRNA *ptr);
 char *rna_Node_ImageUser_path(struct PointerRNA *ptr);
 
