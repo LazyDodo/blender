@@ -46,7 +46,7 @@ def generate_from_brushes_ex(
     brush_categories = {}
     if context.mode != 'GPENCIL_PAINT':
         for brush in context.blend_data.brushes:
-            if getattr(brush, brush_test_attr):
+            if getattr(brush, brush_test_attr) and brush.gpencil_settings is None:
                 category = getattr(brush, brush_category_attr)
                 name = brush.name
                 brush_categories.setdefault(category, []).append(
