@@ -67,11 +67,13 @@
 
 #include "opensubdiv_capi.h"
 #include "opensubdiv_converter_capi.h"
+#include "opensubdiv_evaluator_capi.h"
+#include "opensubdiv_topology_refiner_capi.h"
 
 #include "PIL_time.h"
 #include "PIL_time_utildefines.h"
 
-struct OpenSubdiv_EvaluatorDescr;
+struct OpenSubdiv_Evaluator;
 
 typedef struct {
 	BMVert *vert;
@@ -132,14 +134,14 @@ typedef struct {
 	//are we in the cusp insertion step
 	bool is_cusp;
 
-	struct OpenSubdiv_EvaluatorDescr *eval;
+	struct OpenSubdiv_Evaluator *eval;
 } MeshData;
 
 //TODO for Kr look in subdiv.cpp in coutours source code (II)
 
 //TODO dynamic arrays, use BLI_stack, BLI_buffer, BLI_mempool, BLI_memarena.
 
-static void verts_to_limit(BMesh *bm, struct OpenSubdiv_EvaluatorDescr *eval){
+static void verts_to_limit(BMesh *bm, struct OpenSubdiv_Evaluator *eval){
 
 	int i, j;
 
@@ -167,7 +169,7 @@ static void verts_to_limit(BMesh *bm, struct OpenSubdiv_EvaluatorDescr *eval){
 						u = v = 0;
 						break;
 				}
-				openSubdiv_evaluateLimit(eval, i, u, v, vert->co, du, dv);
+				eval->evaluateLimit(eval, i, u, v, vert->co, du, dv);
 				//Adjust vert normal to the limit normal
 				cross_v3_v3v3(vert->no, du, dv);
 				normalize_v3(vert->no);
@@ -429,11 +431,11 @@ static void split_BB_FF_edges(MeshData *m_d) {
 		{
 			float P1[3], P2[3], du[3], dv[3];
 			//is this a FF or BB edge?
-			openSubdiv_evaluateLimit(m_d->eval, face_index, v1_u, v1_v, P1, du, dv);
+			m_d->eval->evaluateLimit(m_d->eval, face_index, v1_u, v1_v, P1, du, dv);
 
 			is_B = calc_if_B(m_d->cam_loc, P1, du, dv);
 
-			openSubdiv_evaluateLimit(m_d->eval, face_index, v2_u, v2_v, P2, du, dv);
+			m_d->eval->evaluateLimit(m_d->eval, face_index, v2_u, v2_v, P2, du, dv);
 
 			if( is_B  != calc_if_B(m_d->cam_loc, P2, du, dv) ){
 				//FB edge, we only want to split FF or BB
@@ -452,7 +454,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 
 				for(i=0; i < 10; i++){
 					v = step_arr[i];
-					openSubdiv_evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
+					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
 						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
 						v_buf.u = u;
@@ -466,7 +468,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 
 				for(i=0; i < 10; i++){
 					u = step_arr[i];
-					openSubdiv_evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
+					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
 						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
 						v_buf.u = u;
@@ -490,7 +492,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 					}
 
 					v = step_arr[i];
-					openSubdiv_evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
+					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
 						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
 						v_buf.u = u;
@@ -506,11 +508,11 @@ static void split_BB_FF_edges(MeshData *m_d) {
 
 }
 
-static float get_k_r(struct OpenSubdiv_EvaluatorDescr *eval, int face_index, float u, float v, const float cam_loc[3]){
+static float get_k_r(struct OpenSubdiv_Evaluator *eval, int face_index, float u, float v, const float cam_loc[3]){
 	float du[3], dv[3], dudu[3], dudv[3], dvdv[3], P[3], no[3], d1[3], d2[3];
 	float k1, k2;
 	float I[2][2], II[2][2];
-	openSubdiv_evaluateLimit2(eval, face_index, u, v, P, du, dv, dudu, dudv, dvdv);
+	eval->evaluateLimit2(eval, face_index, u, v, P, du, dv, dudu, dudv, dvdv);
 
 	cross_v3_v3v3(no, du, dv);
 	normalize_v3(no);
@@ -1081,7 +1083,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, const float v1_uv[2], const
 				add_v2_v2v2( uv_P, uv_1, uv_2 );
 
 				face_index = BM_elem_index_get(cur_face);
-				openSubdiv_evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
+				m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 
 				face_dir = get_facing_dir(m_d->cam_loc, P, du, dv);
 
@@ -1148,7 +1150,7 @@ static bool bisect_search(const float v1_uv[2], const float v2_uv[2], BMEdge *e,
 
 	for( i = 0; i < 10; i++){
 		interp_v2_v2v2( uv_P, v1_uv, v2_uv, step);
-		openSubdiv_evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
+		m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 		face_dir = get_facing_dir(m_d->cam_loc, P, du, dv);
 
 		if( fabs(face_dir) < 1e-14 ){
@@ -1448,7 +1450,7 @@ static void contour_insertion( MeshData *m_d ) {
 	}
 }
 
-static bool cusp_triangle(struct OpenSubdiv_EvaluatorDescr *eval, const float cam_loc[3], const int face_index, Cusp_triang *c_tri, Cusp *cusp){
+static bool cusp_triangle(struct OpenSubdiv_Evaluator *eval, const float cam_loc[3], const int face_index, Cusp_triang *c_tri, Cusp *cusp){
 
 		GSQueue *tri_que = BLI_gsqueue_new(sizeof(Cusp_triang));
         BLI_gsqueue_push_back(tri_que, c_tri);
@@ -1491,7 +1493,7 @@ static bool cusp_triangle(struct OpenSubdiv_EvaluatorDescr *eval, const float ca
 				float res_uv[3];
 
 				mid_v3_v3v3v3(res_uv, uv1, uv2, uv3);
-				openSubdiv_evaluateLimit(eval, face_index, res_uv[0], res_uv[1], cusp_co, du, dv);
+				eval->evaluateLimit(eval, face_index, res_uv[0], res_uv[1], cusp_co, du, dv);
 				cross_v3_v3v3(cusp_no, du, dv);
 				normalize_v3(cusp_no);
 
@@ -1521,7 +1523,7 @@ static bool cusp_triangle(struct OpenSubdiv_EvaluatorDescr *eval, const float ca
 			float new_uv[2], new_co[3], du[3], dv[3];
 
 			interp_v2_v2v2( new_uv, uv_1, uv_2, 0.5f);
-			openSubdiv_evaluateLimit(eval, face_index, new_uv[0], new_uv[1], new_co, du, dv);
+			eval->evaluateLimit(eval, face_index, new_uv[0], new_uv[1], new_co, du, dv);
 			bool new_b = calc_if_B(cam_loc, new_co, du, dv);
 			bool new_kr = get_k_r(eval, face_index, new_uv[0], new_uv[1], cam_loc) > 0;
 
@@ -1784,7 +1786,7 @@ static void cusp_detection( MeshData *m_d ){
 								continue;
 							}
 
-							openSubdiv_evaluateLimit(m_d->eval, face_index, edge_uv[0], edge_uv[1], P, du, dv);
+							m_d->eval->evaluateLimit(m_d->eval, face_index, edge_uv[0], edge_uv[1], P, du, dv);
 
 							//Check if we should use an existing edge (no new verts)
 							if( len_v3v3(P, edge->v1->co) < BM_edge_calc_length(edge) * 0.2f ||
@@ -2204,7 +2206,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 						face_ids[j] = faces[i];
 						if( j == 0 ){
 							//Save rad_dir for cent
-							openSubdiv_evaluateLimit(m_d->eval, BM_elem_index_get(face_ids[j]), uvs[j][0], uvs[j][1], P, du, dv);
+							m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(face_ids[j]), uvs[j][0], uvs[j][1], P, du, dv);
 
 							sub_v3_v3v3(temp, P, C_vert_pos);
 							rad_dir[j] = signf(dot_v3v3(rad_plane_no, temp));
@@ -2241,7 +2243,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 					face_index = BM_elem_index_get(face_ids[0]);
 					for( i = 0; i < 10; i++ ){
 						interp_v2_v2v2( uv_P, uvs[0], uvs[search_id], step);
-						openSubdiv_evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
+						m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 
 						sub_v3_v3v3(temp, P, C_vert_pos);
 						search_val = dot_v3v3(rad_plane_no, temp);
@@ -2286,7 +2288,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 
 								orig_face = faces[j];
 								face_index = BM_elem_index_get(faces[j]);
-								openSubdiv_evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
+								m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 
 								break;
 							}
@@ -2856,7 +2858,7 @@ static int radial_extention( MeshData *m_d ){
 				}
 
 				get_uv_point( cur_face, uv_P, pos_v2, mat );
-				openSubdiv_evaluateLimit(m_d->eval, BM_elem_index_get(cur_face), uv_P[0], uv_P[1], P, du, dv);
+				m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(cur_face), uv_P[0], uv_P[1], P, du, dv);
 
 				copy_v3_v3(r_vert.vert->co, P);
                 //Did the nr of consistent triangles increase?
@@ -3357,7 +3359,7 @@ static void optimization( MeshData *m_d ){
 									float uv_P[2];
 
 									get_uv_point( f, uv_P, cur_v2, mat );
-									openSubdiv_evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
+									m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
 
 									copy_v3_v3(vert->co, P);
 									//No need to iterate over the remaining faces
@@ -3516,7 +3518,7 @@ static void optimization( MeshData *m_d ){
 								float uv_P[2];
 
 								get_uv_point( f, uv_P, cur_v2, mat );
-								openSubdiv_evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
+								m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
 
 								found_point = true;
 								//No need to iterate over the remaining faces
@@ -3944,34 +3946,34 @@ static void converter_setup_from_bmesh(
 {
 	ConvBMStorage *user_data;
 
-	converter->get_scheme_type = conv_bm_get_type;
+	converter->getSchemeType = conv_bm_get_type;
 
-	converter->get_fvar_linear_interpolation = conv_bm_get_fvar_linear_interpolation;
+	converter->getFVarLinearInterpolation = conv_bm_get_fvar_linear_interpolation;
 
-	converter->get_num_faces = conv_bm_get_num_faces;
-	converter->get_num_edges = conv_bm_get_num_edges;
-	converter->get_num_verts = conv_bm_get_num_verts;
+	converter->getNumFaces = conv_bm_get_num_faces;
+	converter->getNumEdges = conv_bm_get_num_edges;
+	converter->getNumVertices = conv_bm_get_num_verts;
 
-	converter->get_num_face_verts = conv_bm_get_num_face_verts;
-	converter->get_face_verts = conv_bm_get_face_verts;
-	converter->get_face_edges = conv_bm_get_face_edges;
+	converter->getNumFaceVertices = conv_bm_get_num_face_verts;
+	converter->getFaceVertices = conv_bm_get_face_verts;
+	converter->getFaceEdges = conv_bm_get_face_edges;
 
-	converter->get_edge_verts = conv_bm_get_edge_verts;
-	converter->get_num_edge_faces = conv_bm_get_num_edge_faces;
-	converter->get_edge_faces = conv_bm_get_edge_faces;
-	converter->get_edge_sharpness = conv_bm_get_edge_sharpness;
+	converter->getEdgeVertices = conv_bm_get_edge_verts;
+	converter->getNumEdgeFaces = conv_bm_get_num_edge_faces;
+	converter->getEdgeFaces = conv_bm_get_edge_faces;
+	converter->getEdgeSharpness = conv_bm_get_edge_sharpness;
 
-	converter->get_num_vert_edges = conv_bm_get_num_vert_edges;
-	converter->get_vert_edges = conv_bm_get_vert_edges;
-	converter->get_num_vert_faces = conv_bm_get_num_vert_faces;
-	converter->get_vert_faces = conv_bm_get_vert_faces;
+	converter->getNumVertexEdges = conv_bm_get_num_vert_edges;
+	converter->getVertexEdges = conv_bm_get_vert_edges;
+	converter->getNumVertexFaces = conv_bm_get_num_vert_faces;
+	converter->getVertexFaces = conv_bm_get_vert_faces;
 
-	converter->get_num_uv_layers = conv_bm_get_num_uv_layers;
+	converter->getNumUVLayers = conv_bm_get_num_uv_layers;
 
 	user_data = MEM_mallocN(sizeof(ConvBMStorage), __func__);
 	user_data->bm = bm;
 
-	converter->free_user_data = conv_bm_free_user_data;
+	converter->freeUserData = conv_bm_free_user_data;
 	converter->user_data = user_data;
 
 	//TODO Mesh data type is only used if element mapping is used perhaps clean this up a bit?
@@ -4012,24 +4014,27 @@ static void converter_setup_from_bmesh(
 
 //Opensubdiv end
 
-static struct OpenSubdiv_EvaluatorDescr *create_osd_eval(BMesh *bm, Mesh *mesh){
+static struct OpenSubdiv_Evaluator *create_osd_eval(BMesh *bm, Mesh *mesh){
 
-	struct OpenSubdiv_EvaluatorDescr *osd_evaluator;
+	struct OpenSubdiv_Evaluator *osd_evaluator;
 	int subdiv_levels = 1; //Need at least one subdiv level to compute the limit surface
 
 	OpenSubdiv_Converter converter;
-	OpenSubdiv_TopologyRefinerDescr *topology_refiner;
+	OpenSubdiv_TopologyRefiner *topology_refiner;
+    OpenSubdiv_TopologyRefinerSettings settings;
 
+	settings.level = subdiv_levels;
+	settings.is_adaptive = true;
 	converter_setup_from_bmesh(bm, mesh, &converter);
 
-	topology_refiner = openSubdiv_createTopologyRefinerDescr(&converter);
+	topology_refiner = openSubdiv_createTopologyRefinerFromConverter(&converter, &settings);
 
 	//Free user_data from converter as it is not needed after creation
-	if (converter.free_user_data) {
-		converter.free_user_data(&converter);
+	if (converter.freeUserData) {
+		converter.freeUserData(&converter);
 	}
 
-	osd_evaluator = openSubdiv_createEvaluatorDescr(topology_refiner, subdiv_levels);
+	osd_evaluator = openSubdiv_createEvaluatorFromTopologyRefiner(topology_refiner);
 
 	if (osd_evaluator == NULL) {
 		BLI_assert(!"OpenSubdiv initialization failed, should not happen.");
@@ -4048,11 +4053,12 @@ static struct OpenSubdiv_EvaluatorDescr *create_osd_eval(BMesh *bm, Mesh *mesh){
 		vert_array[3*j + 2] = vert->co[2];
 	}
 
-	openSubdiv_setEvaluatorCoarsePositions(osd_evaluator,
+	osd_evaluator->setCoarsePositions(osd_evaluator,
 			vert_array,
 			0,
 			no_of_verts);
 
+	osd_evaluator->refine(osd_evaluator);
 	return osd_evaluator;
 }
 
@@ -4148,7 +4154,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 	BMesh *bm_orig, *bm;
 	bool quad_mesh = true;
 
-	struct OpenSubdiv_EvaluatorDescr *osd_eval;
+	struct OpenSubdiv_Evaluator *osd_eval;
 
 	//TODO do not calc normals as we overwrite them later
 	bm = BKE_mesh_to_bmesh_ex(
@@ -4211,7 +4217,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 		result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 		BM_mesh_free(bm);
 		BM_mesh_free(bm_orig);
-		openSubdiv_deleteEvaluatorDescr(osd_eval);
+		openSubdiv_deleteEvaluator(osd_eval);
 		return result;
 	}
 	{
@@ -4311,7 +4317,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 	BM_mesh_free(bm);
 	BM_mesh_free(bm_orig);
 
-	openSubdiv_deleteEvaluatorDescr(osd_eval);
+	openSubdiv_deleteEvaluator(osd_eval);
 
 	result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
 

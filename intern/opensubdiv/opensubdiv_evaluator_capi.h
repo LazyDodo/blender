@@ -86,6 +86,16 @@ typedef struct OpenSubdiv_Evaluator {
                         float face_u, float face_v,
                         float P[3], float dPdu[3], float dPdv[3]);
 
+  void (*evaluateLimit2)(struct OpenSubdiv_Evaluator* evaluator,
+                        const int ptex_face_index,
+                        float face_u, float face_v,
+						float P[3],
+						float dPdu[3],
+						float dPdv[3],
+						float dPduu[3],
+						float dPduv[3],
+						float dPdvv[3]);
+
   // Evaluate varying data at a given bilinear coordinate of given ptex face.
   void (*evaluateVarying)(struct OpenSubdiv_Evaluator* evaluator,
                           const int ptex_face_index,

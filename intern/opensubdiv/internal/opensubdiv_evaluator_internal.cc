@@ -356,6 +356,69 @@ class VolatileEvalOutput {
     }
   }
 
+  void evalPatchesWithDerivatives2(const PatchCoord& patch_coord,
+		  float P[3],
+		  float dPdu[3],
+		  float dPdv[3],
+		  float dPduu[3],
+		  float dPduv[3],
+		  float dPdvv[3])
+  {
+	  StackAllocatedBuffer<6, 1> vertex_data;
+	  StackAllocatedBuffer<6, 1> derivatives;
+	  StackAllocatedBuffer<6, 1> derivatives1;
+	  StackAllocatedBuffer<6, 1> derivatives2;
+	  BufferDescriptor vertex_desc(0, 3, 6),
+					   du_desc(0, 3, 6),
+					   dv_desc(3, 3, 6),
+					   duu_desc(0, 3, 6),
+					   duv_desc(3, 3, 6),
+					   dvv_desc(0, 3, 6);
+	  SinglePatchCoordBuffer patch_coord_buffer(patch_coord);
+	  const EVALUATOR *eval_instance =
+		  OpenSubdiv::Osd::GetEvaluator<EVALUATOR>(evaluator_cache_,
+				  src_desc_,
+				  vertex_desc,
+				  du_desc,
+				  dv_desc,
+				  duu_desc,
+				  duv_desc,
+				  dvv_desc,
+				  device_context_);
+	  EVALUATOR::EvalPatches(src_data_, src_desc_,
+			  &vertex_data, vertex_desc,
+			  &derivatives, du_desc,
+			  &derivatives, dv_desc,
+			  &derivatives1, duu_desc,
+			  &derivatives1, duv_desc,
+			  &derivatives2, dvv_desc,
+			  patch_coord_buffer.GetNumVertices(),
+			  &patch_coord_buffer,
+			  patch_table_, eval_instance, device_context_);
+	  float *refined_verts = vertex_data.BindCpuBuffer();
+	  memcpy(P, refined_verts, sizeof(float) * 3);
+	  if (dPdu != NULL || dPdv != NULL || dPduu != NULL || dPduv != NULL || dPdvv != NULL) {
+		  float *refined_drivatives = derivatives.BindCpuBuffer();
+		  float *refined_drivatives1 = derivatives1.BindCpuBuffer();
+		  float *refined_drivatives2 = derivatives2.BindCpuBuffer();
+		  if (dPdu) {
+			  memcpy(dPdu, refined_drivatives, sizeof(float) * 3);
+		  }
+		  if (dPdv) {
+			  memcpy(dPdv, refined_drivatives + 3, sizeof(float) * 3);
+		  }
+		  if (dPduu) {
+			  memcpy(dPduu, refined_drivatives1, sizeof(float) * 3);
+		  }
+		  if (dPduv) {
+			  memcpy(dPduv, refined_drivatives1 + 3, sizeof(float) * 3);
+		  }
+		  if (dPdvv) {
+			  memcpy(dPdvv, refined_drivatives2, sizeof(float) * 3);
+		  }
+	  }
+  }
+
   void evalPatchVarying(const PatchCoord& patch_coord, float varying[3]) {
     StackAllocatedBuffer<6, 1> varying_data;
     BufferDescriptor varying_desc(3, 3, 6);
@@ -560,6 +623,33 @@ void CpuEvalOutputAPI::evaluateLimit(const int ptex_face_index,
   PatchCoord patch_coord(*handle, face_u, face_v);
   if (dPdu != NULL || dPdv != NULL) {
     implementation_->evalPatchesWithDerivatives(patch_coord, P, dPdu, dPdv);
+  } else {
+    implementation_->evalPatchCoord(patch_coord, P);
+  }}
+
+void CpuEvalOutputAPI::evaluateLimit2(const int ptex_face_index,
+									  float face_u, float face_v,
+									  float P[3],
+									  float dPdu[3],
+									  float dPdv[3],
+									  float dPduu[3],
+									  float dPduv[3],
+									  float dPdvv[3]) {
+  assert(face_u >= 0.0f);
+  assert(face_u <= 1.0f);
+  assert(face_v >= 0.0f);
+  assert(face_v <= 1.0f);
+  const PatchTable::PatchHandle* handle =
+      patch_map_->FindPatch(ptex_face_index, face_u, face_v);
+  PatchCoord patch_coord(*handle, face_u, face_v);
+  if (dPdu != NULL || dPdv != NULL || dPduu != NULL || dPduv != NULL || dPdvv != NULL ) {
+	implementation_->evalPatchesWithDerivatives2(patch_coord,
+			  P,
+			  dPdu,
+			  dPdv,
+			  dPduu,
+			  dPduv,
+			  dPdvv);
   } else {
     implementation_->evalPatchCoord(patch_coord, P);
   }}
