@@ -288,7 +288,7 @@ static void nla_panel_animdata(const bContext *C, Panel *pa)
 	row = uiLayoutRow(layout, true);
 	uiTemplateID(
 	        row, (bContext *)C, &adt_ptr, "action",
-	        "ACTION_OT_new", NULL, "NLA_OT_action_unlink", UI_TEMPLATE_ID_FILTER_ALL);
+	        "ACTION_OT_new", NULL, "NLA_OT_action_unlink", UI_TEMPLATE_ID_FILTER_ALL, false);
 
 	/* extrapolation */
 	row = uiLayoutRow(layout, true);

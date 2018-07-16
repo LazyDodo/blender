@@ -114,7 +114,7 @@ static void template_add_button_search_menu(
         const bContext *C, uiLayout *layout, uiBlock *block,
         PointerRNA *ptr, PropertyRNA *prop,
         uiBlockCreateFunc block_func, void *block_argN, const char * const tip,
-        const bool use_previews, const bool editable)
+        const bool use_previews, const bool editable, const bool live_icon)
 {
 	PointerRNA active_ptr = RNA_property_pointer_get(ptr, prop);
 	ID *id = (active_ptr.data && RNA_struct_is_ID(active_ptr.type)) ? active_ptr.data : NULL;
@@ -150,7 +150,14 @@ static void template_add_button_search_menu(
 	}
 	else {
 		but = uiDefBlockButN(block, block_func, block_argN, "", 0, 0, UI_UNIT_X * 1.6, UI_UNIT_Y, tip);
-		ui_def_but_icon(but, RNA_struct_ui_icon(type), UI_HAS_ICON);
+
+		if (live_icon) {
+			int icon = id ? ui_id_icon_get(C, id, false) : RNA_struct_ui_icon(type);
+			ui_def_but_icon(but, icon, UI_HAS_ICON | UI_BUT_ICON_PREVIEW);
+		}
+		else {
+			ui_def_but_icon(but, RNA_struct_ui_icon(type), UI_HAS_ICON);
+		}
 		if (id) {
 			/* default dragging of icon for id browse buttons */
 			UI_but_drag_set_id(but, id);
@@ -636,7 +643,8 @@ static uiBut *template_id_def_new_but(
 
 static void template_ID(
         bContext *C, uiLayout *layout, TemplateID *template_ui, StructRNA *type, int flag,
-        const char *newop, const char *openop, const char *unlinkop, float scale)
+        const char *newop, const char *openop, const char *unlinkop,
+		float scale, const bool live_icon)
 {
 	uiBut *but;
 	uiBlock *block;
@@ -661,7 +669,7 @@ static void template_ID(
 		template_add_button_search_menu(
 		        C, layout, block, &template_ui->ptr, template_ui->prop,
 		        id_search_menu, MEM_dupallocN(template_ui), TIP_(template_id_browse_tip(type)),
-		        use_previews, editable);
+		        use_previews, editable, live_icon);
 	}
 
 	/* text button with name */
@@ -867,7 +875,7 @@ static void ui_template_id(
         PointerRNA *ptr, const char *propname,
         const char *newop, const char *openop, const char *unlinkop,
         int flag, int prv_rows, int prv_cols, int filter, bool use_tabs,
-		float scale)
+		float scale, bool live_icon)
 {
 	TemplateID *template_ui;
 	PropertyRNA *prop;
@@ -915,7 +923,7 @@ static void ui_template_id(
 		}
 		else {
 			uiLayoutRow(layout, true);
-			template_ID(C, layout, template_ui, type, flag, newop, openop, unlinkop, scale);
+			template_ID(C, layout, template_ui, type, flag, newop, openop, unlinkop, scale, live_icon);
 		}
 	}
 
@@ -924,13 +932,14 @@ static void ui_template_id(
 
 void uiTemplateID(
         uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname, const char *newop,
-        const char *openop, const char *unlinkop, int filter)
+        const char *openop, const char *unlinkop,
+		int filter, const bool live_icon)
 {
 	ui_template_id(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME | UI_ID_DELETE,
-	        0, 0, filter, false, 1.0f);
+	        0, 0, filter, false, 1.0f, live_icon);
 }
 
 void uiTemplateIDBrowse(
@@ -941,7 +950,7 @@ void uiTemplateIDBrowse(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME,
-	        0, 0, filter, false, 1.0f);
+	        0, 0, filter, false, 1.0f, false);
 }
 
 void uiTemplateIDPreview(
@@ -952,7 +961,7 @@ void uiTemplateIDPreview(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME | UI_ID_DELETE | UI_ID_PREVIEWS,
-	        rows, cols, filter, false, 1.0f);
+	        rows, cols, filter, false, 1.0f, false);
 }
 
 void uiTemplateGpencilColorPreview(
@@ -963,7 +972,7 @@ void uiTemplateGpencilColorPreview(
 		layout, C, ptr, propname,
 		NULL, NULL, NULL,
 		UI_ID_BROWSE | UI_ID_PREVIEWS,
-		rows, cols, filter, false, scale < 0.5f ? 0.5f : scale);
+		rows, cols, filter, false, scale < 0.5f ? 0.5f : scale, false);
 }
 
 /**
@@ -979,7 +988,7 @@ void uiTemplateIDTabs(
 	        layout, C, ptr, propname,
 	        newop, openop, unlinkop,
 	        UI_ID_BROWSE | UI_ID_RENAME | UI_ID_DELETE,
-	        0, 0, filter, true, 1.0f);
+	        0, 0, filter, true, 1.0f, false);
 }
 
 /************************ ID Chooser Template ***************************/
@@ -1081,7 +1090,7 @@ static uiBlock *template_search_menu(bContext *C, ARegion *region, void *arg_tem
 
 static void template_search_add_button_searchmenu(
         const bContext *C, uiLayout *layout, uiBlock *block,
-        TemplateSearch *template_search, const bool editable)
+        TemplateSearch *template_search, const bool editable, const bool live_icon)
 {
 	const char *ui_description = RNA_property_ui_description(template_search->search_data.target_prop);
 
@@ -1089,7 +1098,7 @@ static void template_search_add_button_searchmenu(
 	        C, layout, block,
 	        &template_search->search_data.target_ptr, template_search->search_data.target_prop,
 	        template_search_menu, MEM_dupallocN(template_search), ui_description,
-	        template_search->use_previews, editable);
+	        template_search->use_previews, editable, live_icon);
 }
 
 static void template_search_add_button_name(
@@ -1135,7 +1144,7 @@ static void template_search_buttons(
 	uiLayoutRow(layout, true);
 	UI_block_align_begin(block);
 
-	template_search_add_button_searchmenu(C, layout, block, template_search, editable);
+	template_search_add_button_searchmenu(C, layout, block, template_search, editable, false);
 	template_search_add_button_name(block, &active_ptr, type);
 	template_search_add_button_operator(block, newop, WM_OP_INVOKE_DEFAULT, ICON_ZOOMIN, editable);
 	template_search_add_button_operator(block, unlinkop, WM_OP_INVOKE_REGION_WIN, ICON_X, editable);
@@ -4847,7 +4856,7 @@ void uiTemplateCacheFile(uiLayout *layout, bContext *C, PointerRNA *ptr, const c
 
 	uiLayoutSetContextPointer(layout, "edit_cachefile", &fileptr);
 
-	uiTemplateID(layout, C, ptr, propname, NULL, "CACHEFILE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+	uiTemplateID(layout, C, ptr, propname, NULL, "CACHEFILE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL, false);
 
 	if (!file) {
 		return;

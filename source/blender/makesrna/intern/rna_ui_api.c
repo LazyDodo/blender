@@ -759,6 +759,7 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_string(func, "unlink", NULL, 0, "", "Operator identifier to unlink the ID block");
 	RNA_def_enum(func, "filter", id_template_filter_items, UI_TEMPLATE_ID_FILTER_ALL,
 	             "", "Optionally limit the items which can be selected");
+	RNA_def_boolean(func, "live_icon", false, "", "Show preview instead of fixed icon");
 
 	func = RNA_def_function(srna, "template_ID_preview", "uiTemplateIDPreview");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
