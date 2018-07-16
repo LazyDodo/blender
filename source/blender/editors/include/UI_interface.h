@@ -73,7 +73,7 @@ struct bNodeSocket;
 struct wmDropBox;
 struct wmDrag;
 struct wmEvent;
-struct wmManipulator;
+struct wmGizmo;
 struct wmMsgBus;
 struct wmKeyMap;
 struct wmKeyMapItem;
@@ -444,7 +444,7 @@ void UI_popup_menu_but_set(uiPopupMenu *pup, struct ARegion *butregion, uiBut *b
 typedef struct uiPopover uiPopover;
 
 int UI_popover_panel_invoke(
-        struct bContext *C, int space_id, int region_id, const char *idname,
+        struct bContext *C, const char *idname,
         bool keep_open, struct ReportList *reports);
 
 uiPopover *UI_popover_begin(struct bContext *C, int menu_width) ATTR_NONNULL(1);
@@ -1170,7 +1170,7 @@ void uiItemPopoverPanel_ptr(
         const char *name, int icon);
 void uiItemPopoverPanel(
         uiLayout *layout, struct bContext *C,
-        int space_id, int region_id, const char *panelname,
+        const char *panelname,
         const char *name, int icon);
 void uiItemPopoverPanelFromGroup(
         uiLayout *layout, struct bContext *C,
@@ -1265,7 +1265,7 @@ void UI_butstore_unregister(uiButStore *bs_handle, uiBut **but_p);
 
 /* ui_interface_region_tooltip.c */
 struct ARegion *UI_tooltip_create_from_button(struct bContext *C, struct ARegion *butregion, uiBut *but);
-struct ARegion *UI_tooltip_create_from_manipulator(struct bContext *C, struct wmManipulator *mpr);
+struct ARegion *UI_tooltip_create_from_gizmo(struct bContext *C, struct wmGizmo *gz);
 void UI_tooltip_free(struct bContext *C, struct bScreen *sc, struct ARegion *ar);
 
 /* How long before a tool-tip shows. */

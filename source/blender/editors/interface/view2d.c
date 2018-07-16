@@ -153,11 +153,10 @@ static void view2d_masks(View2D *v2d, bool check_scrollers)
 	 *	- if they overlap, they must not occupy the corners (which are reserved for other widgets)
 	 */
 	if (scroll) {
-		int scroll_width  = (v2d->scroll & V2D_SCROLL_SCALE_VERTICAL) ?   V2D_SCROLL_WIDTH_TEXT  : v2d->size_vert;
-		int scroll_height = (v2d->scroll & V2D_SCROLL_SCALE_HORIZONTAL) ? V2D_SCROLL_HEIGHT_TEXT : v2d->size_hor;
-
-		CLAMP_MIN(scroll_width, V2D_SCROLL_WIDTH_MIN);
-		CLAMP_MIN(scroll_height, V2D_SCROLL_HEIGHT_MIN);
+		const int scroll_width = (v2d->scroll & V2D_SCROLL_SCALE_VERTICAL) ?
+		                             V2D_SCROLL_WIDTH_TEXT : V2D_SCROLL_WIDTH;
+		const int scroll_height = (v2d->scroll & V2D_SCROLL_SCALE_HORIZONTAL) ?
+		                              V2D_SCROLL_HEIGHT_TEXT : V2D_SCROLL_HEIGHT;
 
 		/* vertical scroller */
 		if (scroll & V2D_SCROLL_LEFT) {
@@ -1152,7 +1151,7 @@ void UI_view2d_view_restore(const bContext *C)
 	int height = BLI_rcti_size_y(&ar->winrct) + 1;
 
 	wmOrtho2(0.0f, (float)width, 0.0f, (float)height);
-	gpuLoadIdentity();
+	GPU_matrix_identity_set();
 
 	//	ED_region_pixelspace(CTX_wm_region(C));
 }

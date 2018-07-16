@@ -238,15 +238,15 @@ class USERPREF_PT_interface(Panel):
 
         col.separator()
 
-        col.prop(view, "show_manipulator_navigate")
+        # col.prop(view, "show_gizmo_navigate")
 
         sub = col.column(align=True)
 
-        sub.prop(view, "show_mini_axis", text="Display Mini Axis")
-        sub.active = not view.show_manipulator_navigate
+        sub.label("3D Viewport Axis:")
+        sub.row().prop(view, "mini_axis_type", expand=True)
 
         sub = col.column(align=True)
-        sub.active = view.show_mini_axis
+        sub.active = view.mini_axis_type == 'MINIMAL'
         sub.prop(view, "mini_axis_size", text="Size")
         sub.prop(view, "mini_axis_brightness", text="Brightness")
 
@@ -258,12 +258,10 @@ class USERPREF_PT_interface(Panel):
         #col.label(text="Open Toolbox Delay:")
         #col.prop(view, "open_left_mouse_delay", text="Hold LMB")
         #col.prop(view, "open_right_mouse_delay", text="Hold RMB")
-        col.prop(view, "show_manipulator", text="Transform Manipulator")
-        # Currently not working
-        # col.prop(view, "show_manipulator_shaded")
+        col.prop(view, "show_gizmo", text="Gizmos")
         sub = col.column()
-        sub.active = view.show_manipulator
-        sub.prop(view, "manipulator_size", text="Size")
+        sub.active = view.show_gizmo
+        sub.prop(view, "gizmo_size", text="Size")
 
         col.separator()
 
@@ -275,7 +273,7 @@ class USERPREF_PT_interface(Panel):
         row.separator()
 
         col = row.column()
-        col.label(text="View Manipulation:")
+        col.label(text="View Gizmos:")
         col.prop(view, "use_mouse_depth_cursor")
         col.prop(view, "use_cursor_lock_adjust")
         col.prop(view, "use_mouse_depth_navigate")
@@ -436,6 +434,7 @@ class USERPREF_PT_edit(Panel):
 
         col.label(text="Transform:")
         col.prop(edit, "use_drag_immediately")
+        col.prop(edit, "use_numeric_input_advanced")
 
         row.separator()
         row.separator()
@@ -917,7 +916,7 @@ class USERPREF_PT_theme(Panel):
             col.separator()
             col.separator()
 
-            col.label("Axis & Manipulator Colors:")
+            col.label("Axis & Gizmo Colors:")
 
             row = col.row()
 
@@ -935,10 +934,10 @@ class USERPREF_PT_theme(Panel):
             padding = subsplit.split(percentage=0.15)
             colsub = padding.column()
             colsub = padding.column()
-            colsub.row().prop(ui, "manipulator_primary")
-            colsub.row().prop(ui, "manipulator_secondary")
-            colsub.row().prop(ui, "manipulator_a")
-            colsub.row().prop(ui, "manipulator_b")
+            colsub.row().prop(ui, "gizmo_primary")
+            colsub.row().prop(ui, "gizmo_secondary")
+            colsub.row().prop(ui, "gizmo_a")
+            colsub.row().prop(ui, "gizmo_b")
 
             col.separator()
             col.separator()
@@ -1473,7 +1472,6 @@ class USERPREF_PT_addons(Panel):
                 sub = row.row()
                 sub.active = is_enabled
                 sub.label(text="%s: %s" % (info["category"], info["name"]))
-
 
                 # WARNING: 2.8x exception, may be removed
                 # use disabled state for old add-ons, chances are they are broken.

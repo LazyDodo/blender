@@ -90,7 +90,7 @@ typedef struct RegionView3D {
 	struct wmTimer *smooth_timer;
 
 
-	/* transform manipulator matrix */
+	/* transform gizmo matrix */
 	float twmat[4][4];
 	/* min/max dot product on twmat xyz axis. */
 	float tw_axis_min[3], tw_axis_max[3];
@@ -175,7 +175,7 @@ typedef struct View3DOverlay {
 
 	/* Armature edit/pose mode settings */
 	int arm_flag;
-	float bone_selection_alpha;
+	float bone_select_alpha;
 
 	/* Other settings */
 	float wireframe_threshold;
@@ -236,8 +236,8 @@ typedef struct View3D {
 	short gridsubdiv;	/* Number of subdivisions in the grid between each highlighted grid line */
 	char gridflag;
 
-	/* transform manipulator info */
-	char twtype, _pad5, twflag;
+	/* transform gizmo info */
+	char _pad5[2], gizmo_flag;
 
 	short flag3;
 
@@ -380,7 +380,7 @@ enum {
 enum {
 	V3D_OVERLAY_FACE_ORIENTATION  = (1 << 0),
 	V3D_OVERLAY_HIDE_CURSOR       = (1 << 1),
-	V3D_OVERLAY_BONE_SELECTION    = (1 << 2),
+	V3D_OVERLAY_BONE_SELECT       = (1 << 2),
 	V3D_OVERLAY_LOOK_DEV          = (1 << 3),
 	V3D_OVERLAY_WIREFRAMES        = (1 << 4),
 	V3D_OVERLAY_HIDE_TEXT         = (1 << 5),
@@ -388,6 +388,7 @@ enum {
 	V3D_OVERLAY_ONION_SKINS       = (1 << 7),
 	V3D_OVERLAY_HIDE_BONES        = (1 << 8),
 	V3D_OVERLAY_HIDE_OBJECT_XTRAS = (1 << 9),
+	V3D_OVERLAY_HIDE_OBJECT_ORIGINS = (1 << 10),
 };
 
 /* View3DOverlay->edit_flag */
@@ -450,9 +451,13 @@ enum {
 #define V3D_MANIP_CURSOR		5
 #define V3D_MANIP_CUSTOM		1024
 
-/* View3d->twflag (also) */
+/* View3d.mpr_flag (also) */
 enum {
-	V3D_MANIPULATOR_DRAW        = (1 << 0),
+	/** All gizmos. */
+	V3D_GIZMO_HIDE                = (1 << 0),
+	V3D_GIZMO_HIDE_NAVIGATE       = (1 << 1),
+	V3D_GIZMO_HIDE_CONTEXT        = (1 << 2),
+	V3D_GIZMO_HIDE_TOOL           = (1 << 3),
 };
 
 #define RV3D_CAMZOOM_MIN -30
