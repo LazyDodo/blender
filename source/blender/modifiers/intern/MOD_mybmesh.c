@@ -3696,7 +3696,7 @@ static OpenSubdiv_SchemeType conv_bm_get_type(
 		return OSD_SCHEME_CATMARK;
 }
 
-static bool conv_bm_get_fvar_linear_interpolation(
+static OpenSubdiv_FVarLinearInterpolation conv_bm_get_fvar_linear_interpolation(
         const OpenSubdiv_Converter *converter)
 {
 	return OSD_FVAR_LINEAR_INTERPOLATION_ALL;
