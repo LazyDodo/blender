@@ -994,7 +994,7 @@ class _defs_gpencil_paint:
         row = layout.row(align=True)
         row.prop(ts, "use_gpencil_compact_list", text="", icon="SORTSIZE")
         if ts.use_gpencil_compact_list is True:
-            row.template_ID(gp_settings, "material")
+            row.template_ID(gp_settings, "material", live_icon=True)
         else:
             row.template_greasepencil_color(gp_settings, "material", rows=3, cols=8, scale=0.8)
 
