@@ -307,8 +307,8 @@ typedef struct LANPR_RenderBuffer {
 
 	nListHandle IntersectingVertexBuffer;
 
-	struct Gwn_Batch* DPIXIntersectionTransformBatch;
-	struct Gwn_Batch* DPIXIntersectionBatch;
+	struct Gwn_Batch *DPIXIntersectionTransformBatch;
+	struct Gwn_Batch *DPIXIntersectionBatch;
 
 	/* use own-implemented one */
 	nStaticMemoryPool RenderDataPool;
@@ -379,8 +379,8 @@ typedef struct LANPR_RenderBuffer {
 	struct Scene *Scene;
 	struct Object *Camera;
 
-	int    calculate_intersections;
-	int    size;
+	int calculate_intersections;
+	int size;
 
 	//tnsRenderTriangles are in mesh object.
 }LANPR_RenderBuffer;
@@ -778,14 +778,14 @@ int lanpr_feed_atlas_data_obj(void *vedata,
                               Object *ob, int BeginIndex);
 
 int lanpr_feed_atlas_data_intersection_cache(void *vedata,
-                              float *AtlasPointsL, float *AtlasPointsR,
-                              float *AtlasFaceNormalL, float *AtlasFaceNormalR,
-                              float *AtlasEdgeMask,
-                              int BeginIndex);
+                                             float *AtlasPointsL, float *AtlasPointsR,
+                                             float *AtlasFaceNormalL, float *AtlasFaceNormalR,
+                                             float *AtlasEdgeMask,
+                                             int BeginIndex);
 
 int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginIndex);
-void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) ;
+void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex);
 
-void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB);
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);
 
-void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB);
+void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);

@@ -286,8 +286,9 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
 	}
-	elif (lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer) {
-		LANPR_LineLayer* ll = lanpr->active_layer;
+	elif(lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer)
+	{
+		LANPR_LineLayer *ll = lanpr->active_layer;
 		psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
 		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert0_tex", &txl->dpix_in_pl);
@@ -345,9 +346,10 @@ static void lanpr_cache_init(void *vedata){
 			pd->dpix_batch_list.first = pd->dpix_batch_list.last = 0;
 			BLI_mempool_clear(pd->mp_batch_list);
 		}
-	}elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
+	} elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE)
+	{
 		psl->software_pass = DRW_pass_create("Software Render Preview",  DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
-		LANPR_LineLayer* ll; 
+		LANPR_LineLayer *ll;
 		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
 			DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
@@ -362,7 +364,7 @@ static void lanpr_cache_init(void *vedata){
 			DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 			DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
 			DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
-			if(ll->batch) DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
+			if (ll->batch) DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
 		}
 	}
 
@@ -441,7 +443,7 @@ static void lanpr_cache_finish(void *vedata){
 	}
 }
 
-static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
+static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
@@ -473,15 +475,17 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 		DRW_draw_pass(psl->color_pass);
 		lanpr_dpix_draw_scene(txl, fbl, psl, stl->g_data, lanpr, dfb);
 	}
-	elif(lanpr->master_mode == LANPR_MASTER_MODE_SNAKE) {
+	elif(lanpr->master_mode == LANPR_MASTER_MODE_SNAKE)
+	{
 		DRW_draw_pass(psl->color_pass);
 		lanpr_snake_draw_scene(txl, fbl, psl, stl->g_data, lanpr, dfb);
 	}
-	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE) {
+	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE)
+	{
 
 		GPU_framebuffer_bind(fbl->software_ms);
 
-	    GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+		GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 
 		int texw = GPU_texture_width(txl->ms_resolve_color), texh = GPU_texture_height(txl->ms_resolve_color);;
 		pd->output_viewport[2] = scene->r.xsch;
@@ -494,7 +498,7 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer* dfb) {
 		//DRW_draw_pass(psl->color_pass);
 		DRW_draw_pass(psl->software_pass);
 
-		GPU_framebuffer_blit(fbl->software_ms,0,dfb,0,GPU_COLOR_BIT);
+		GPU_framebuffer_blit(fbl->software_ms, 0, dfb, 0, GPU_COLOR_BIT);
 
 	}
 }

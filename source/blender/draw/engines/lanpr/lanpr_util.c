@@ -886,7 +886,7 @@ void memDestroyPool(nMemoryPool *Handle) {
 }
 
 nStaticMemoryPoolNode *memNewStaticPool(nStaticMemoryPool *smp) {
-	nStaticMemoryPoolNode *smpn = MEM_callocN(NUL_MEMORY_POOL_128MB,"mempool");
+	nStaticMemoryPoolNode *smpn = MEM_callocN(NUL_MEMORY_POOL_128MB, "mempool");
 	smpn->UsedByte = sizeof(nStaticMemoryPoolNode);
 	lstPushItem(&smp->Pools, smpn);
 	return smpn;

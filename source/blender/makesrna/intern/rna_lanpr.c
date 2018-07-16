@@ -93,8 +93,9 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	RNA_def_struct_sdna(srna, "LANPR_LineLayer");
 	RNA_def_struct_ui_text(srna, "Line Layer", "LANPR_LineLayer");
 
-    prop = RNA_def_property(srna, "use_differnt_style", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_ui_text(prop, "Different Style", "Use different line styles for differnt line types");
+	// removed for mow
+    //prop = RNA_def_property(srna, "use_differnt_style", PROP_BOOLEAN, PROP_NONE);
+	//RNA_def_property_ui_text(prop, "Different Style", "Use different line styles for differnt line types");
 
     prop = RNA_def_property(srna, "use_qi_range", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "QI Range", "Use QI Range (occlusion levels) to select lines");

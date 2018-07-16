@@ -213,18 +213,18 @@ int lanpr_feed_atlas_data_obj(void *vedata,
 }
 
 int lanpr_feed_atlas_data_intersection_cache(void *vedata,
-                              float *AtlasPointsL, float *AtlasPointsR,
-                              float *AtlasFaceNormalL, float *AtlasFaceNormalR,
-                              float *AtlasEdgeMask,
-                              int BeginIndex) {
+                                             float *AtlasPointsL, float *AtlasPointsR,
+                                             float *AtlasFaceNormalL, float *AtlasFaceNormalR,
+                                             float *AtlasEdgeMask,
+                                             int BeginIndex) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData *pd = stl->g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 	LANPR_RenderBuffer *rb = lanpr->render_buffer;
-	nListItemPointer* lip;
-	LANPR_RenderLine* rl;
-	int i,idx;
+	nListItemPointer *lip;
+	LANPR_RenderLine *rl;
+	int i, idx;
 
 	i = 0;
 
@@ -232,7 +232,7 @@ int lanpr_feed_atlas_data_intersection_cache(void *vedata,
 
 	for (lip = rb->IntersectionLines.pFirst; lip; lip = lip->pNext) {
 		rl = lip->p;
-		
+
 		idx = (BeginIndex + i) * 4;
 		AtlasEdgeMask[idx + 2] = 1; // channel B
 
@@ -255,7 +255,7 @@ int lanpr_feed_atlas_data_intersection_cache(void *vedata,
 		AtlasFaceNormalR[idx + 1] = 0;
 		AtlasFaceNormalR[idx + 2] = 1;
 		AtlasFaceNormalR[idx + 3] = 0;
-		
+
 		i++;
 	}
 
@@ -328,7 +328,7 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
 
 	if (!rb) return;
 
-	if(rb->DPIXIntersectionBatch) GWN_batch_discard(rb->DPIXIntersectionBatch);
+	if (rb->DPIXIntersectionBatch) GWN_batch_discard(rb->DPIXIntersectionBatch);
 	rb->DPIXIntersectionBatch = 0;
 
 	if (!rb->IntersectionCount) return;
@@ -350,7 +350,7 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
 	Gwn_VertBuf *vbo2 = GWN_vertbuf_create_with_format(&format2);
 	GWN_vertbuf_data_alloc(vbo2, rb->IntersectionCount);
 
-	for (i=0;i<rb->IntersectionCount;i++) {
+	for (i = 0; i < rb->IntersectionCount; i++) {
 		lanpr_dpix_index_to_coord(i + BeginIndex, &co[0], &co[1]);
 		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, co);
 		lanpr_dpix_index_to_coord_absolute(i + BeginIndex, &co[0], &co[1]);
@@ -361,7 +361,7 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
 }
 
 
-void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB) {
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB) {
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;

@@ -710,7 +710,7 @@ void lanpr_CalculateSingleLineOcclusion(LANPR_RenderBuffer *rb, LANPR_RenderLine
 
 		for (lip = nba->AssociatedTriangles.pFirst; lip; lip = lip->pNext) {
 			rt = lip->p;
-			if (rt->Testing[ThreadID] == rl || rl->L->IntersectWith == (void*)rt || rl->R->IntersectWith == (void*)rt) continue;
+			if (rt->Testing[ThreadID] == rl || rl->L->IntersectWith == (void *)rt || rl->R->IntersectWith == (void *)rt) continue;
 			rt->Testing[ThreadID] = rl;
 			if (lanpr_TriangleLineImageSpaceIntersectTestOnlyV2((void *)rt, rl, c, rb->ViewProjection, rb->ViewVector, &l, &r)) {
 				lanpr_CutLineIntegrated(rb, rl, l, r);
@@ -744,9 +744,9 @@ void THREAD_CalculateLineOcclusion(TaskPool *__restrict pool, LANPR_RenderTaskIn
 		}
 	}
 }
-void THREAD_CalculateLineOcclusion_Begin(LANPR_RenderBuffer* rb) {
+void THREAD_CalculateLineOcclusion_Begin(LANPR_RenderBuffer *rb) {
 	int ThreadCount = rb->ThreadCount;
-	LANPR_RenderTaskInfo* rti = MEM_callocN(sizeof(LANPR_RenderTaskInfo)*ThreadCount, "render task info");
+	LANPR_RenderTaskInfo *rti = MEM_callocN(sizeof(LANPR_RenderTaskInfo) * ThreadCount, "render task info");
 	TaskScheduler *scheduler = BLI_task_scheduler_get();
 	int i;
 
@@ -755,7 +755,7 @@ void THREAD_CalculateLineOcclusion_Begin(LANPR_RenderBuffer* rb) {
 	rb->IntersectionManaged = rb->IntersectionLines.pFirst;
 	rb->MaterialManaged = rb->MaterialLines.pFirst;
 
-	TaskPool* tp = BLI_task_pool_create(scheduler, 0);
+	TaskPool *tp = BLI_task_pool_create(scheduler, 0);
 
 	for (i = 0; i < ThreadCount; i++) {
 		rti[i].ThreadID = i;
@@ -967,21 +967,21 @@ LANPR_RenderElementLinkNode *lanpr_NewCullPointSpace64(LANPR_RenderBuffer *rb) {
 	return reln;
 }
 void lanpr_CalculateRenderTriangleNormal(LANPR_RenderTriangle *rt);
-void lanpr_AssignRenderLineWithTriangle(LANPR_RenderTriangle* rt) {
+void lanpr_AssignRenderLineWithTriangle(LANPR_RenderTriangle *rt) {
 	if (!rt->RL[0]->TL)
 		rt->RL[0]->TL = rt;
 	elif(!rt->RL[0]->TR)
-		rt->RL[0]->TR = rt;
+	rt->RL[0]->TR = rt;
 
 	if (!rt->RL[1]->TL)
 		rt->RL[1]->TL = rt;
 	elif(!rt->RL[1]->TR)
-		rt->RL[1]->TR = rt;
+	rt->RL[1]->TR = rt;
 
 	if (!rt->RL[2]->TL)
 		rt->RL[2]->TL = rt;
 	elif(!rt->RL[2]->TR)
-		rt->RL[2]->TR = rt;
+	rt->RL[2]->TR = rt;
 }
 void lanpr_PostTriangle(LANPR_RenderTriangle *rt, LANPR_RenderTriangle *orig) {
 	if (rt->V[0]) tMatVectorAccum3d(rt->GC, rt->V[0]->FrameBufferCoord);
@@ -1574,7 +1574,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 			e = BM_edge_at_index(bm, i);
 			if (CanFindFreestyle) {
 				fe = CustomData_bmesh_get(&bm->edata, e->head.data, CD_FREESTYLE_EDGE);
-				if (fe->flag & FREESTYLE_EDGE_MARK)rl->Flags |= LANPR_EDGE_FLAG_EDGE_MARK;
+				if (fe->flag & FREESTYLE_EDGE_MARK) rl->Flags |= LANPR_EDGE_FLAG_EDGE_MARK;
 			}
 			rl->L = &orv[BM_elem_index_get(e->v1)];
 			rl->R = &orv[BM_elem_index_get(e->v2)];
@@ -1613,7 +1613,7 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 			//m = tnsGetIndexedMaterial(rb->Scene, f->MaterialID);
 			//if(m) m->PreviewVCount += (f->TriangleCount*3);
 
-			rt = (LANPR_RenderTriangle*)(((unsigned char*)rt)+ rb->TriangleSize);
+			rt = (LANPR_RenderTriangle *)(((unsigned char *)rt) + rb->TriangleSize);
 		}
 	}
 
@@ -2015,7 +2015,7 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(LANPR_RenderTriangle *rt, LA
 	tMatVectorMinus3d(RV, rl->R->GLocation, rt->V[0]->GLocation);
 
 	tMatVectorConvert4fd(cam->obmat[3], vd4);
-	if (((Camera*)cam->data)->type == CAM_PERSP) tMatVectorMinus3d(CV, vd4, rt->V[0]->GLocation);
+	if (((Camera *)cam->data)->type == CAM_PERSP) tMatVectorMinus3d(CV, vd4, rt->V[0]->GLocation);
 
 	DotL = tMatDot3d(LV, rt->GN, 0);
 	DotR = tMatDot3d(RV, rt->GN, 0);
@@ -2054,7 +2054,7 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(LANPR_RenderTriangle *rt, LA
 		Cut = DotRA > DotLA ? 1 - Cut : Cut;
 	}
 
-	if (((Camera*)cam->data)->type == CAM_PERSP) {
+	if (((Camera *)cam->data)->type == CAM_PERSP) {
 		lanpr_LinearInterpolate3dv(rl->L->GLocation, rl->R->GLocation, Cut, GLocation);
 		tMatApplyTransform44d(Trans, vp, GLocation);
 		tMatVectorMultiSelf3d(Trans, (1 / Trans[3]) /**HeightMultiply/2*/);
@@ -2599,7 +2599,7 @@ int lanpr_DrawEdgePreview(LANPR_RenderBuffer *rb, LANPR_LineLayer *OverrideLayer
 }
 
 int lanpr_GetRenderTriangleSize(LANPR_RenderBuffer *rb) {
-	if(rb->ThreadCount==0) rb->ThreadCount = BKE_render_num_threads(&rb->Scene->r);
+	if (rb->ThreadCount == 0) rb->ThreadCount = BKE_render_num_threads(&rb->Scene->r);
 	return sizeof(LANPR_RenderTriangle) + (sizeof(LANPR_RenderLine *) * rb->ThreadCount);
 }
 
@@ -2709,27 +2709,36 @@ static char MessageFailed[] = "No saving action performed.";
 //}
 
 
-int lanpr_CountThisLine(LANPR_RenderLine* rl, LANPR_LineLayer* ll) {
-	LANPR_LineLayerComponent* llc = ll->components.first;
+int lanpr_CountThisLine(LANPR_RenderLine *rl, LANPR_LineLayer *ll) {
+	LANPR_LineLayerComponent *llc = ll->components.first;
 	int AndResult = 1, OrResult = 0;
 	if (!llc) return 1;
 	for (llc; llc; llc = llc->next) {
 		if (llc->component_mode == LANPR_COMPONENT_MODE_ALL) { OrResult = 1; }
-		elif(llc->component_mode == LANPR_COMPONENT_MODE_OBJECT && llc->object_select) {
+		elif(llc->component_mode == LANPR_COMPONENT_MODE_OBJECT && llc->object_select)
+		{
 			if (rl->ObjectRef && rl->ObjectRef->id.orig_id == &llc->object_select->id) { OrResult = 1;}
-			else { AndResult = 0; }
-		}elif(llc->component_mode == LANPR_COMPONENT_MODE_MATERIAL && llc->material_select) {
-			if ((rl->TL && rl->TL->MaterialID == llc->material_select->index)||(rl->TR && rl->TR->MaterialID == llc->material_select->index) || (!rl->TL && !rl->TR)) { OrResult = 1; }
-			else { AndResult = 0; }
-		}elif(llc->component_mode == LANPR_COMPONENT_MODE_COLLECTION && llc->collection_select) {
-			if(BKE_collection_has_object(llc->collection_select, (Object*)rl->ObjectRef->id.orig_id)) { OrResult = 1; }
-			else { AndResult = 0; }
+			else {
+				AndResult = 0;
+			}
+		} elif(llc->component_mode == LANPR_COMPONENT_MODE_MATERIAL && llc->material_select)
+		{
+			if ((rl->TL && rl->TL->MaterialID == llc->material_select->index) || (rl->TR && rl->TR->MaterialID == llc->material_select->index) || (!rl->TL && !rl->TR)) { OrResult = 1; }
+			else {
+				AndResult = 0;
+			}
+		} elif(llc->component_mode == LANPR_COMPONENT_MODE_COLLECTION && llc->collection_select)
+		{
+			if (BKE_collection_has_object(llc->collection_select, (Object *)rl->ObjectRef->id.orig_id)) { OrResult = 1; }
+			else {
+				AndResult = 0;
+			}
 		}
 	}
 	if (ll->logic_mode == LANPR_COMPONENT_LOGIG_OR) return OrResult;
 	else return AndResult;
 }
-long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, LANPR_LineLayer* ll) {
+long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, LANPR_LineLayer *ll) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls;
@@ -2742,7 +2751,7 @@ long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, LANPR_LineLayer* 
 
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
 
-			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel<= ll->qi_end) Count++;
+			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel <= ll->qi_end) Count++;
 		}
 	}
 	return Count;
@@ -2756,7 +2765,7 @@ long lanpr_CountIntersectionSegmentCount(LANPR_RenderBuffer *rb) {
 	}
 	return Count;
 }
-void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, LANPR_LineLayer* ll, float componet_id) {
+void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *LineList, float *VertexArray, LANPR_LineLayer *ll, float componet_id) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls, *irls;
@@ -2769,7 +2778,7 @@ void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *Line
 		if (!lanpr_CountThisLine(rl, ll)) continue;
 
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
-			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel<= ll->qi_end) {
+			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel <= ll->qi_end) {
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
@@ -2796,6 +2805,7 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 	int level;
 	float *V, *tv, *N;;
 	int i;
+	int VertCount;
 
 	if (ll->type == TNS_COMMAND_LINE) {
 		static Gwn_VertFormat format = { 0 };
@@ -2806,38 +2816,38 @@ void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll)
 
 		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 
-		if (ll->enable_contour)           Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll);
-		if (ll->enable_crease)            Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll);
-		if (ll->enable_intersection)      Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll);
-		if (ll->enable_edge_mark)         Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll);
+		if (ll->enable_contour) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll);
+		if (ll->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll);
+		if (ll->enable_intersection) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll);
+		if (ll->enable_edge_mark) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll);
 		if (ll->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, ll);
 
-		ll->VertCount = Count * 2;
+		VertCount = Count * 2;
 
-		GWN_vertbuf_data_alloc(vbo, ll->VertCount);
+		GWN_vertbuf_data_alloc(vbo, VertCount);
 
 		tv = V = CreateNewBuffer(float, 6 * Count);
 
-		if (ll->enable_contour)           tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll, 1.0f);
-		if (ll->enable_crease)            tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll, 2.0f);
+		if (ll->enable_contour) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll, 1.0f);
+		if (ll->enable_crease) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll, 2.0f);
 		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll, 3.0f);
-		if (ll->enable_edge_mark)         tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll, 4.0f);
-		if (ll->enable_intersection)      tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll, 5.0f);
+		if (ll->enable_edge_mark) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll, 4.0f);
+		if (ll->enable_intersection) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll, 5.0f);
 
 
-		for (i = 0; i < ll->VertCount; i++) {
-			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i*3]);
+		for (i = 0; i < VertCount; i++) {
+			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i * 3]);
 		}
 
 		FreeMem(V);
 
 		ll->batch = GWN_batch_create_ex(GWN_PRIM_LINES, vbo, 0, GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
-		
+
 		return;
 	}
 
 	//if (ll->type == TNS_COMMAND_MATERIAL || ll->type == TNS_COMMAND_EDGE) {
-		// later implement ....
+	// later implement ....
 	//}
 
 }
@@ -2847,7 +2857,7 @@ void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
 
 	for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 		if (ll->batch) GWN_batch_discard(ll->batch);
-		lanpr_RebuildRenderDrawCommand(lanpr->render_buffer,ll);
+		lanpr_RebuildRenderDrawCommand(lanpr->render_buffer, ll);
 	}
 }
 
@@ -2900,7 +2910,7 @@ static int lanpr_clear_render_buffer_exec(struct bContext *C, struct wmOperator 
 	LANPR_RenderBuffer *rb;
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
-	
+
 	lanpr_DestroyRenderData(lanpr->render_buffer);
 
 	return OPERATOR_FINISHED;
@@ -2965,7 +2975,7 @@ LANPR_LineLayer *lanpr_new_line_layer(SceneLANPR *lanpr){
 }
 LANPR_LineLayerComponent *lanpr_new_line_component(SceneLANPR *lanpr) {
 	if (!lanpr->active_layer) return 0;
-	LANPR_LineLayer* ll = lanpr->active_layer;
+	LANPR_LineLayer *ll = lanpr->active_layer;
 
 	LANPR_LineLayerComponent *llc = MEM_callocN(sizeof(LANPR_LineLayerComponent), "Line Component");
 	BLI_addtail(&ll->components, llc);
@@ -2989,8 +2999,8 @@ int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 
 	if (!ll) return OPERATOR_FINISHED;
 
-	if (ll->prev)lanpr->active_layer = ll->prev;
-	elif (ll->next) lanpr->active_layer = ll->next;
+	if (ll->prev) lanpr->active_layer = ll->prev;
+	elif(ll->next) lanpr->active_layer = ll->next;
 	else lanpr->active_layer = 0;
 
 	BLI_remlink(&scene->lanpr.line_layers, ll);
@@ -3014,7 +3024,8 @@ int lanpr_move_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 	if (dir == 1 && ll->prev) {
 		BLI_remlink(&lanpr->line_layers, ll);
 		BLI_insertlinkbefore(&lanpr->line_layers, ll->prev, ll);
-	}elif(dir == -1 && ll->next) {
+	} elif(dir == -1 && ll->next)
+	{
 		BLI_remlink(&lanpr->line_layers, ll);
 		BLI_insertlinkafter(&lanpr->line_layers, ll->next, ll);
 	}
@@ -3032,8 +3043,8 @@ int lanpr_add_line_component_exec(struct bContext *C, struct wmOperator *op) {
 int lanpr_delete_line_component_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
-	LANPR_LineLayer* ll = lanpr->active_layer;
-	LANPR_LineLayerComponent* llc;
+	LANPR_LineLayer *ll = lanpr->active_layer;
+	LANPR_LineLayerComponent *llc;
 	int i = 0;
 
 	if (!ll) return;
@@ -3150,7 +3161,7 @@ void SCENE_OT_lanpr_move_line_layer(struct wmOperatorType *ot) {
 	ot->exec = lanpr_move_line_layer_exec;
 
 	RNA_def_enum(ot->srna, "direction", line_layer_move, 0, "Direction",
-		"Direction to move the active line layer towards");
+	             "Direction to move the active line layer towards");
 }
 
 void SCENE_OT_lanpr_add_line_component(struct wmOperatorType *ot) {

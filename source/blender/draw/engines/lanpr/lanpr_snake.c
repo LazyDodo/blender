@@ -115,10 +115,10 @@ void lanpr_destroy_line_strip(LANPR_PrivateData *pd, LANPR_LineStrip *ls) {
 void lanpr_remove_sample(LANPR_PrivateData *pd, int Row, int Col) {
 	LANPR_TextureSample *ts;
 	ts = pd->sample_table[Row * pd->width + Col];
-	pd->sample_table[Row * pd->width + Col] = 0;
+	pd->sample_table[Row * pd->width + Col] = NULL;
 
 	BLI_remlink(&pd->pending_samples, ts);
-	ts->Item.prev = 0; ts->Item.next = 0;
+	ts->Item.prev = NULL; ts->Item.next = NULL;
 	BLI_addtail(&pd->erased_samples, ts);
 }
 
@@ -302,7 +302,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 	return GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
 }
 
-void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer* DefaultFB){
+void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB){
 	GPUFrameBufferBits clear_bits = GPU_COLOR_BIT | GPU_DEPTH_BIT;
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;

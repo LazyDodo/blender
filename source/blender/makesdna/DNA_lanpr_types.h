@@ -82,16 +82,12 @@ typedef struct LANPR_LineLayerComponent{
 typedef struct LANPR_LineLayer{
     struct LANPR_LineLayer *next, *prev;
 
-	int      what;
-
 	int      type;
     
     int      use_qi_range;
 
     int      qi_begin;
     int      qi_end;   /* these are for QI Range thing... just occlusion levels */
-
-    int      use_differnt_style;
 
 	int      enable_contour;
     int      enable_crease;
@@ -118,13 +114,6 @@ typedef struct LANPR_LineLayer{
     ListBase components;
 
 	struct DRWShadingGroup *shgrp;
-
-	int         DrawThisCommand;
-
-	unsigned int VBO;
-	unsigned int NBO;
-	int         VertCount;
-
 	struct Gwn_Batch  *batch;
 
 }LANPR_LineLayer;
