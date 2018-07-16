@@ -683,7 +683,7 @@ static const EnumPropertyItem *rna_Brush_stroke_itemf(bContext *C, PointerRNA *U
 	}
 }
 
-/* Grease pencil Drawing Brushes Settings*/
+/* Grease Pencil Drawing Brushes Settings */
 static void rna_brush_gpencil_default_eraser(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
 {
 	ToolSettings *ts = scene->toolsettings;
@@ -724,7 +724,14 @@ static void rna_brush_gpencil_eraser_mode(Main *UNUSED(bmain), Scene *scene, Poi
 				break;
 		}
 	}
+}
 
+static bool rna_BrushGpencilSettings_material_poll(PointerRNA *UNUSED(ptr), PointerRNA value)
+{
+	Material *ma = (Material *)value.data;
+
+	/* GP materials only */
+	return (ma->gp_style != NULL);
 }
 
 #else
@@ -1194,8 +1201,9 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	/* Material */
 	prop = RNA_def_property(srna, "material", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Material");
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_BrushGpencilSettings_material_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
-	RNA_def_property_ui_text(prop, "Material", "Material used when enable this brush");
+	RNA_def_property_ui_text(prop, "Material", "Material used for strokes drawn using this brush");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
