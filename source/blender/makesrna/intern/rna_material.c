@@ -114,7 +114,8 @@ static void rna_MaterialGpencil_update(Main *bmain, Scene *scene, PointerRNA *pt
 
 	rna_Material_update(bmain, scene, ptr);
 
-	/* update previews */
+	/* update previews (icon and thumbnail) */
+	preview->flag[ICON_SIZE_ICON] |= PRV_CHANGED;
 	preview->flag[ICON_SIZE_PREVIEW] |= PRV_CHANGED;
 	WM_main_add_notifier(NC_MATERIAL | ND_SHADING_PREVIEW, ma);
 
