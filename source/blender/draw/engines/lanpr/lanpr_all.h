@@ -2,6 +2,7 @@
 
 #include "lanpr_util.h"
 #include "BLI_mempool.h"
+#include "BLI_utildefines.h"
 //#include "GPU_framebuffer.h"
 #include "GPU_batch.h"
 #include "GPU_framebuffer.h"
@@ -503,18 +504,6 @@ extern RenderEngineType DRW_engine_viewport_lanpr_type;
 #define TNS_CLAMP(a, Min, Max) \
 	a = a < Min ? Min : (a > Max ? Max : a)
 
-#define TNS_MAX2(a, b) \
-	(a > b ? a : b)
-
-#define TNS_MIN2(a, b) \
-	(a < b ? a : b)
-
-#define TNS_MAX3(a, b, c) \
-	(a > TNS_MAX2(b, c) ? a : TNS_MAX2(b, c))
-
-#define TNS_MIN3(a, b, c) \
-	(a < TNS_MIN2(b, c) ? a : TNS_MIN2(b, c))
-
 #define TNS_MAX2_INDEX(a, b) \
 	(a > b ? 0 : 1)
 
@@ -577,11 +566,11 @@ __inline void tMatConvert44df(tnsMatrix44d from, tnsMatrix44f to) {
 }
 
 __inline int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_RenderLine *rl) {
-	if (TNS_MAX3(rt->V[0]->FrameBufferCoord[2], rt->V[1]->FrameBufferCoord[2], rt->V[2]->FrameBufferCoord[2]) > TNS_MIN2(rl->L->FrameBufferCoord[2], rl->R->FrameBufferCoord[2])) return 0;
-	if (TNS_MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) < TNS_MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
-	if (TNS_MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) > TNS_MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
-	if (TNS_MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]) < TNS_MIN2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1])) return 0;
-	if (TNS_MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]) > TNS_MAX2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1])) return 0;
+	if (MAX3(rt->V[0]->FrameBufferCoord[2], rt->V[1]->FrameBufferCoord[2], rt->V[2]->FrameBufferCoord[2]) > MIN2(rl->L->FrameBufferCoord[2], rl->R->FrameBufferCoord[2])) return 0;
+	if (MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) < MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
+	if (MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) > MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
+	if (MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]) < MIN2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1])) return 0;
+	if (MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]) > MAX2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1])) return 0;
 	return 1;
 }
 
@@ -628,7 +617,7 @@ __inline int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector
 
 	if (b1[0] == b2[0]) {
 		y = tnsLinearItp(a1[1], a2[1], Ratio);
-		if (y > TNS_MAX2(b1[1], b2[1]) || y < TNS_MIN2(b1[1], b2[1])) return 0;
+		if (y > MAX2(b1[1], b2[1]) || y < MIN2(b1[1], b2[1])) return 0;
 	}
 	else
 	if (Ratio <= 0 || Ratio > 1 ||

@@ -1496,7 +1496,7 @@ typedef struct SceneLANPR{
 	struct LANPR_LineLayer    *active_layer;
 
 	int                        calculate_intersections;
-	//int                        _size;	
+	int                        SizeCompensate;	
 
 } SceneLANPR;
 

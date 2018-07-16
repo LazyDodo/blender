@@ -89,6 +89,7 @@
 #include "DNA_packedFile_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_lightprobe_types.h"
+#include "DNA_lanpr_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_text_types.h"
 #include "DNA_view3d_types.h"
@@ -6391,6 +6392,12 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 			sce->eevee.light_cache = newdataadr(fd, sce->eevee.light_cache);
 			direct_link_lightcache(fd, sce->eevee.light_cache);
 		}
+	}
+
+	/* LANPR things */
+	link_list(fd, &sce->lanpr.line_layers);
+	for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
+		link_list(fd, &ll->components);
 	}
 
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);

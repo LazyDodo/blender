@@ -4,6 +4,7 @@
 #include "BLI_linklist.h"
 #include "BLI_math_matrix.h"
 #include "BLI_task.h"
+#include "BLI_utildefines.h"
 #include "lanpr_all.h"
 #include "lanpr_util.h"
 #include "DRW_render.h"
@@ -227,10 +228,10 @@ void lanpr_SplitBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *Root) {
 	while (rt = lstPopPointerNoFree(&Root->AssociatedTriangles)) {
 		LANPR_BoundingArea *ba = Root->Child;
 		real B[4];
-		B[0] = TNS_MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
-		B[1] = TNS_MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
-		B[2] = TNS_MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
-		B[3] = TNS_MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+		B[0] = MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
+		B[1] = MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
+		B[2] = MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+		B[3] = MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
 		if (TNS_BOUND_AREA_CROSSES(B, &ba[0].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[0], rt, B, 0);
 		if (TNS_BOUND_AREA_CROSSES(B, &ba[1].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[1], rt, B, 0);
 		if (TNS_BOUND_AREA_CROSSES(B, &ba[2].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[2], rt, B, 0);
@@ -244,10 +245,10 @@ int lanpr_LineCrossesBoundingArea(LANPR_RenderBuffer *fb, tnsVector2d L, tnsVect
 	tnsVector4d Converted;
 	real c1, c;
 
-	if ((Converted[0] = (real)ba->L) > TNS_MAX2(L[0], R[0])) return 0;
-	if ((Converted[1] = (real)ba->R) < TNS_MIN2(L[0], R[0])) return 0;
-	if ((Converted[2] = (real)ba->B) > TNS_MAX2(L[1], R[1])) return 0;
-	if ((Converted[3] = (real)ba->U) < TNS_MIN2(L[1], R[1])) return 0;
+	if ((Converted[0] = (real)ba->L) > MAX2(L[0], R[0])) return 0;
+	if ((Converted[1] = (real)ba->R) < MIN2(L[0], R[0])) return 0;
+	if ((Converted[2] = (real)ba->B) > MAX2(L[1], R[1])) return 0;
+	if ((Converted[3] = (real)ba->U) < MIN2(L[1], R[1])) return 0;
 
 	vx = L[0] - R[0];
 	vy = L[1] - R[1];
@@ -311,10 +312,10 @@ void lanpr_AssociateTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_Bound
 		real *B1 = LRUB;
 		real B[4];
 		if (!LRUB) {
-			B[0] = TNS_MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
-			B[1] = TNS_MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
-			B[2] = TNS_MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
-			B[3] = TNS_MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+			B[0] = MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
+			B[1] = MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
+			B[2] = MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+			B[3] = MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
 			B1 = B;
 		}
 		if (TNS_BOUND_AREA_CROSSES(B1, &ba[0].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[0], rt, B1, Recursive);
@@ -329,10 +330,10 @@ int lanpr_GetTriangleBoundingTile(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *
 
 	if (!rt->V[0] || !rt->V[1] || !rt->V[2]) return 0;
 
-	B[0] = TNS_MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
-	B[1] = TNS_MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
-	B[2] = TNS_MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
-	B[3] = TNS_MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+	B[0] = MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
+	B[1] = MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
+	B[2] = MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+	B[3] = MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
 
 	if (B[0] > 1 || B[1] < -1 || B[2] > 1 || B[3] < -1) return 0;
 
@@ -409,7 +410,7 @@ LANPR_BoundingArea *lanpr_GetNextBoundingArea(LANPR_BoundingArea *This, LANPR_Re
 			ux = x + (uy - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rx);
 			r2 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], ux);
-			if (TNS_MIN2(r1, r2) > 1) return 0;
+			if (MIN2(r1, r2) > 1) return 0;
 			if (r1 <= r2) {
 				for (lip = This->RP.pFirst; lip; lip = lip->pNext) {
 					ba = lip->p;
@@ -428,7 +429,7 @@ LANPR_BoundingArea *lanpr_GetNextBoundingArea(LANPR_BoundingArea *This, LANPR_Re
 			bx = x + (by - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rx);
 			r2 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], bx);
-			if (TNS_MIN2(r1, r2) > 1) return 0;
+			if (MIN2(r1, r2) > 1) return 0;
 			if (r1 <= r2) {
 				for (lip = This->RP.pFirst; lip; lip = lip->pNext) {
 					ba = lip->p;
@@ -451,7 +452,7 @@ LANPR_BoundingArea *lanpr_GetNextBoundingArea(LANPR_BoundingArea *This, LANPR_Re
 			ux = x + (uy - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], lx);
 			r2 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], ux);
-			if (TNS_MIN2(r1, r2) > 1) return 0;
+			if (MIN2(r1, r2) > 1) return 0;
 			if (r1 <= r2) {
 				for (lip = This->LP.pFirst; lip; lip = lip->pNext) {
 					ba = lip->p;
@@ -470,7 +471,7 @@ LANPR_BoundingArea *lanpr_GetNextBoundingArea(LANPR_BoundingArea *This, LANPR_Re
 			bx = x + (by - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], lx);
 			r2 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], bx);
-			if (TNS_MIN2(r1, r2) > 1) return 0;
+			if (MIN2(r1, r2) > 1) return 0;
 			if (r1 <= r2) {
 				for (lip = This->LP.pFirst; lip; lip = lip->pNext) {
 					ba = lip->p;
@@ -806,14 +807,14 @@ int lanpr_GetNormal(tnsVector3d v1, tnsVector3d v2, tnsVector3d v3, tnsVector3d 
 }
 
 int lanpr_BoundBoxCrosses(tnsVector4d xxyy1, tnsVector4d xxyy2) {
-	real XMax1 = TNS_MAX2(xxyy1[0], xxyy1[1]);
-	real XMin1 = TNS_MIN2(xxyy1[0], xxyy1[1]);
-	real YMax1 = TNS_MAX2(xxyy1[2], xxyy1[3]);
-	real YMin1 = TNS_MIN2(xxyy1[2], xxyy1[3]);
-	real XMax2 = TNS_MAX2(xxyy2[0], xxyy2[1]);
-	real XMin2 = TNS_MIN2(xxyy2[0], xxyy2[1]);
-	real YMax2 = TNS_MAX2(xxyy2[2], xxyy2[3]);
-	real YMin2 = TNS_MIN2(xxyy2[2], xxyy2[3]);
+	real XMax1 = MAX2(xxyy1[0], xxyy1[1]);
+	real XMin1 = MIN2(xxyy1[0], xxyy1[1]);
+	real YMax1 = MAX2(xxyy1[2], xxyy1[3]);
+	real YMin1 = MIN2(xxyy1[2], xxyy1[3]);
+	real XMax2 = MAX2(xxyy2[0], xxyy2[1]);
+	real XMin2 = MIN2(xxyy2[0], xxyy2[1]);
+	real YMax2 = MAX2(xxyy2[2], xxyy2[3]);
+	real YMin2 = MIN2(xxyy2[2], xxyy2[3]);
 
 	if (XMax1 < XMin2 || XMin1 > XMax2) return 0;
 	if (YMax1 < YMin2 || YMin1 > YMax2) return 0;
@@ -1806,11 +1807,11 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnly(LANPR_RenderTriangle *rt, LANP
 	*FBC2 = rt->V[2]->FrameBufferCoord;
 
 	//bound box.
-	if (TNS_MIN3(FBC0[2], FBC1[2], FBC2[2]) > TNS_MAX2(LFBC[2], RFBC[2])) return 0;
-	if (TNS_MAX3(FBC0[0], FBC1[0], FBC2[0]) < TNS_MIN2(LFBC[0], RFBC[0])) return 0;
-	if (TNS_MIN3(FBC0[0], FBC1[0], FBC2[0]) > TNS_MAX2(LFBC[0], RFBC[0])) return 0;
-	if (TNS_MAX3(FBC0[1], FBC1[1], FBC2[1]) < TNS_MIN2(LFBC[1], RFBC[1])) return 0;
-	if (TNS_MIN3(FBC0[1], FBC1[1], FBC2[1]) > TNS_MAX2(LFBC[1], RFBC[1])) return 0;
+	if (MIN3(FBC0[2], FBC1[2], FBC2[2]) > MAX2(LFBC[2], RFBC[2])) return 0;
+	if (MAX3(FBC0[0], FBC1[0], FBC2[0]) < MIN2(LFBC[0], RFBC[0])) return 0;
+	if (MIN3(FBC0[0], FBC1[0], FBC2[0]) > MAX2(LFBC[0], RFBC[0])) return 0;
+	if (MAX3(FBC0[1], FBC1[1], FBC2[1]) < MIN2(LFBC[1], RFBC[1])) return 0;
+	if (MIN3(FBC0[1], FBC1[1], FBC2[1]) > MAX2(LFBC[1], RFBC[1])) return 0;
 
 	if (Share = lanpr_FindSharedVertex(rl, rt)) {
 		tnsVector3d CL, CR;
@@ -1908,7 +1909,7 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnly(LANPR_RenderTriangle *rt, LANP
 		}
 		//if (rl->IgnoreConnectedFace/* && lanpr_ShareEdge(rt, Share, rl)*/)
 		//	return 0;
-		if (TNS_MAX3(FBC0[2], FBC1[2], FBC2[2]) < (TNS_MIN2(LFBC[2], RFBC[2]) - 0.000001)) {
+		if (MAX3(FBC0[2], FBC1[2], FBC2[2]) < (MIN2(LFBC[2], RFBC[2]) - 0.000001)) {
 			*From = is[LCross];
 			*To = is[RCross];
 			TNS_CLAMP((*From), 0, 1);
@@ -1931,13 +1932,13 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnly(LANPR_RenderTriangle *rt, LANP
 		real r = lanpr_GetLinearRatio(LFBC, RFBC, IntersectResult);
 		if (OccludeSide > 0) {
 			if (r > 1 /*|| r < 0*/) return 0;
-			*From = TNS_MAX2(r, 0);
-			*To = TNS_MIN2(is[RCross], 1);
+			*From = MAX2(r, 0);
+			*To = MIN2(is[RCross], 1);
 		}
 		else {
 			if (r < 0 /*|| r > 1*/) return 0;
-			*From = TNS_MAX2(is[LCross], 0);
-			*To = TNS_MIN2(r, 1);
+			*From = MAX2(is[LCross], 0);
+			*To = MIN2(r, 1);
 		}
 		//*From = TNS_MAX2(TNS_MAX2(r, is[LCross]), 0);
 		//*To = TNS_MIN2(r, TNS_MIN2(is[RCross], 1));
@@ -1995,12 +1996,12 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(LANPR_RenderTriangle *rt, LA
 	//printf("%f %f %f   %f %f\n", FBC0[2], FBC1[2], FBC2[2], LFBC[2], RFBC[2]);
 
 	//bound box.
-	if (TNS_MIN3(FBC0[2], FBC1[2], FBC2[2]) > TNS_MAX2(LFBC[2], RFBC[2]))
+	if (MIN3(FBC0[2], FBC1[2], FBC2[2]) > MAX2(LFBC[2], RFBC[2]))
 		return 0;
-	if (TNS_MAX3(FBC0[0], FBC1[0], FBC2[0]) < TNS_MIN2(LFBC[0], RFBC[0])) return 0;
-	if (TNS_MIN3(FBC0[0], FBC1[0], FBC2[0]) > TNS_MAX2(LFBC[0], RFBC[0])) return 0;
-	if (TNS_MAX3(FBC0[1], FBC1[1], FBC2[1]) < TNS_MIN2(LFBC[1], RFBC[1])) return 0;
-	if (TNS_MIN3(FBC0[1], FBC1[1], FBC2[1]) > TNS_MAX2(LFBC[1], RFBC[1])) return 0;
+	if (MAX3(FBC0[0], FBC1[0], FBC2[0]) < MIN2(LFBC[0], RFBC[0])) return 0;
+	if (MIN3(FBC0[0], FBC1[0], FBC2[0]) > MAX2(LFBC[0], RFBC[0])) return 0;
+	if (MAX3(FBC0[1], FBC1[1], FBC2[1]) < MIN2(LFBC[1], RFBC[1])) return 0;
+	if (MIN3(FBC0[1], FBC1[1], FBC2[1]) > MAX2(LFBC[1], RFBC[1])) return 0;
 
 	if (lanpr_ShareEdgeDirect(rt, rl))
 		return 0;
@@ -2156,20 +2157,20 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnlyV2(LANPR_RenderTriangle *rt, LA
 
 	if (LF <= 0 && RF <= 0 && (DotL || DotR)) {
 
-		*From = TNS_MAX2(0, is[LCross]);
-		*To = TNS_MIN2(1, is[RCross]);
+		*From = MAX2(0, is[LCross]);
+		*To = MIN2(1, is[RCross]);
 		if (*From >= *To) return 0;
 		return 1;
 	} elif(LF >= 0 && RF <= 0 && (DotL || DotR))
 	{
-		*From = TNS_MAX2(Cut, is[LCross]);
-		*To = TNS_MIN2(1, is[RCross]);
+		*From =MAX2(Cut, is[LCross]);
+		*To = MIN2(1, is[RCross]);
 		if (*From >= *To) return 0;
 		return 1;
 	} elif(LF <= 0 && RF >= 0 && (DotL || DotR))
 	{
-		*From = TNS_MAX2(0, is[LCross]);
-		*To = TNS_MIN2(Cut, is[RCross]);
+		*From = MAX2(0, is[LCross]);
+		*To = MIN2(Cut, is[RCross]);
 		if (*From >= *To) return 0;
 		return 1;
 	}
@@ -2374,12 +2375,12 @@ int lanpr_TriangleCalculateIntersectionsInTile(LANPR_RenderBuffer *rb, LANPR_Ren
 		*RFBC1 = TestingTriangle->V[1]->FrameBufferCoord,
 		*RFBC2 = TestingTriangle->V[2]->FrameBufferCoord;
 
-		if (TNS_MIN3(FBC0[2], FBC1[2], FBC2[2]) > TNS_MAX3(RFBC0[2], RFBC1[2], RFBC2[2])) continue;
-		if (TNS_MAX3(FBC0[2], FBC1[2], FBC2[2]) < TNS_MIN3(RFBC0[2], RFBC1[2], RFBC2[2])) continue;
-		if (TNS_MIN3(FBC0[0], FBC1[0], FBC2[0]) > TNS_MAX3(RFBC0[0], RFBC1[0], RFBC2[0])) continue;
-		if (TNS_MAX3(FBC0[0], FBC1[0], FBC2[0]) < TNS_MIN3(RFBC0[0], RFBC1[0], RFBC2[0])) continue;
-		if (TNS_MIN3(FBC0[1], FBC1[1], FBC2[1]) > TNS_MAX3(RFBC0[1], RFBC1[1], RFBC2[1])) continue;
-		if (TNS_MAX3(FBC0[1], FBC1[1], FBC2[1]) < TNS_MIN3(RFBC0[1], RFBC1[1], RFBC2[1])) continue;
+		if (MIN3(FBC0[2], FBC1[2], FBC2[2]) > MAX3(RFBC0[2], RFBC1[2], RFBC2[2])) continue;
+		if (MAX3(FBC0[2], FBC1[2], FBC2[2]) < MIN3(RFBC0[2], RFBC1[2], RFBC2[2])) continue;
+		if (MIN3(FBC0[0], FBC1[0], FBC2[0]) > MAX3(RFBC0[0], RFBC1[0], RFBC2[0])) continue;
+		if (MAX3(FBC0[0], FBC1[0], FBC2[0]) < MIN3(RFBC0[0], RFBC1[0], RFBC2[0])) continue;
+		if (MIN3(FBC0[1], FBC1[1], FBC2[1]) > MAX3(RFBC0[1], RFBC1[1], RFBC2[1])) continue;
+		if (MAX3(FBC0[1], FBC1[1], FBC2[1]) < MIN3(RFBC0[1], RFBC1[1], RFBC2[1])) continue;
 
 
 		Result = lanpr_TriangleGenerateIntersectionLineOnly(rb, rt, TestingTriangle);
@@ -2397,10 +2398,10 @@ int lanpr_LineCrossesFrame(tnsVector2d L, tnsVector2d R) {
 	tnsVector4d Converted;
 	real c1, c;
 
-	if (-1 > TNS_MAX2(L[0], R[0])) return 0;
-	if (1 < TNS_MIN2(L[0], R[0])) return 0;
-	if (-1 > TNS_MAX2(L[1], R[1])) return 0;
-	if (1 < TNS_MIN2(L[1], R[1])) return 0;
+	if (-1 > MAX2(L[0], R[0])) return 0;
+	if (1 < MIN2(L[0], R[0])) return 0;
+	if (-1 > MAX2(L[1], R[1])) return 0;
+	if (1 < MIN2(L[1], R[1])) return 0;
 
 	vx = L[0] - R[0];
 	vy = L[1] - R[1];
