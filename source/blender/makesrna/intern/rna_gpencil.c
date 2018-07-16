@@ -460,6 +460,7 @@ static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, int count, float pr
 static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports, int index)
 {
 	bGPDspoint *pt_tmp = stroke->points;
+	MDeformVert *pt_dvert = stroke->dvert;
 
 	/* python style negative indexing */
 	if (index < 0) {
@@ -476,15 +477,26 @@ static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports
 	stroke->points = MEM_callocN(sizeof(bGPDspoint) * stroke->totpoints, "gp_stroke_points");
 	stroke->dvert = MEM_callocN(sizeof(MDeformVert) * stroke->totpoints, "gp_stroke_weights");
 
-	if (index > 0)
+	if (index > 0) {
 		memcpy(stroke->points, pt_tmp, sizeof(bGPDspoint) * index);
+		/* verify weight data is available */
+		if (pt_dvert != NULL) {
+			memcpy(stroke->dvert, pt_dvert, sizeof(MDeformVert) * index);
+		}
+	}
 
-	if (index < stroke->totpoints)
+	if (index < stroke->totpoints) {
 		memcpy(&stroke->points[index], &pt_tmp[index + 1], sizeof(bGPDspoint) * (stroke->totpoints - index));
-	// TODO: vgroup
+		if (pt_dvert != NULL) {
+			memcpy(&stroke->dvert[index], &pt_dvert[index + 1], sizeof(MDeformVert) * (stroke->totpoints - index));
+		}
+	}
 
 	/* free temp buffer */
 	MEM_freeN(pt_tmp);
+	if (pt_dvert != NULL) {
+		MEM_freeN(pt_dvert);
+	}
 
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
