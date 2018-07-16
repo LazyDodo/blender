@@ -971,7 +971,7 @@ void uiTemplateGpencilColorPreview(
 	ui_template_id(
 		layout, C, ptr, propname,
 		NULL, NULL, NULL,
-		UI_ID_BROWSE | UI_ID_PREVIEWS,
+		UI_ID_BROWSE | UI_ID_PREVIEWS | UI_ID_DELETE,
 		rows, cols, filter, false, scale < 0.5f ? 0.5f : scale, false);
 }
 
