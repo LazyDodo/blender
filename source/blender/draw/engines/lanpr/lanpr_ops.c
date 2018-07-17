@@ -186,7 +186,7 @@ void lanpr_ConnectNewBoundingAreas(LANPR_RenderBuffer *rb, LANPR_BoundingArea *R
 	while (lstPopPointerNoFree(&Root->UP));
 	while (lstPopPointerNoFree(&Root->BP));
 }
-void lanpr_AssociateTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive);
+void lanpr_LinkTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive);
 int lanpr_TriangleCalculateIntersectionsInTile(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba);
 
 void lanpr_SplitBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *Root) {
@@ -225,17 +225,17 @@ void lanpr_SplitBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *Root) {
 
 	lanpr_ConnectNewBoundingAreas(rb, Root);
 
-	while (rt = lstPopPointerNoFree(&Root->AssociatedTriangles)) {
+	while (rt = lstPopPointerNoFree(&Root->LinkedTriangles)) {
 		LANPR_BoundingArea *ba = Root->Child;
 		real B[4];
 		B[0] = MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
 		B[1] = MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
 		B[2] = MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
 		B[3] = MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
-		if (TNS_BOUND_AREA_CROSSES(B, &ba[0].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[0], rt, B, 0);
-		if (TNS_BOUND_AREA_CROSSES(B, &ba[1].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[1], rt, B, 0);
-		if (TNS_BOUND_AREA_CROSSES(B, &ba[2].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[2], rt, B, 0);
-		if (TNS_BOUND_AREA_CROSSES(B, &ba[3].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[3], rt, B, 0);
+		if (TNS_BOUND_AREA_CROSSES(B, &ba[0].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[0], rt, B, 0);
+		if (TNS_BOUND_AREA_CROSSES(B, &ba[1].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[1], rt, B, 0);
+		if (TNS_BOUND_AREA_CROSSES(B, &ba[2].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[2], rt, B, 0);
+		if (TNS_BOUND_AREA_CROSSES(B, &ba[3].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[3], rt, B, 0);
 	}
 
 	rb->BoundingAreaCount += 3;
@@ -297,10 +297,10 @@ int lanpr_TriangleCoversBoundingArea(LANPR_RenderBuffer *fb, LANPR_RenderTriangl
 
 	return 0;
 }
-void lanpr_AssociateTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive) {
+void lanpr_LinkTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive) {
 	if (!lanpr_TriangleCoversBoundingArea(rb, rt, RootBoundingArea)) return;
 	if (!RootBoundingArea->Child) {
-		lstAppendPointerStaticPool(&rb->RenderDataPool, &RootBoundingArea->AssociatedTriangles, rt);
+		lstAppendPointerStaticPool(&rb->RenderDataPool, &RootBoundingArea->LinkedTriangles, rt);
 		RootBoundingArea->TriangleCount++;
 		if (RootBoundingArea->TriangleCount > 200 && Recursive) {
 			lanpr_SplitBoundingArea(rb, RootBoundingArea);
@@ -318,13 +318,16 @@ void lanpr_AssociateTriangleWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_Bound
 			B[3] = MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
 			B1 = B;
 		}
-		if (TNS_BOUND_AREA_CROSSES(B1, &ba[0].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[0], rt, B1, Recursive);
-		if (TNS_BOUND_AREA_CROSSES(B1, &ba[1].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[1], rt, B1, Recursive);
-		if (TNS_BOUND_AREA_CROSSES(B1, &ba[2].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[2], rt, B1, Recursive);
-		if (TNS_BOUND_AREA_CROSSES(B1, &ba[3].L)) lanpr_AssociateTriangleWithBoundingArea(rb, &ba[3], rt, B1, Recursive);
+		if (TNS_BOUND_AREA_CROSSES(B1, &ba[0].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[0], rt, B1, Recursive);
+		if (TNS_BOUND_AREA_CROSSES(B1, &ba[1].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[1], rt, B1, Recursive);
+		if (TNS_BOUND_AREA_CROSSES(B1, &ba[2].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[2], rt, B1, Recursive);
+		if (TNS_BOUND_AREA_CROSSES(B1, &ba[3].L)) lanpr_LinkTriangleWithBoundingArea(rb, &ba[3], rt, B1, Recursive);
 	}
 }
-int lanpr_GetTriangleBoundingTile(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, int *RowBegin, int *RowEnd, int *ColBegin, int *ColEnd) {
+void lanpr_LinkLineWithBoundingArea(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderLine *rl) {
+	lstAppendPointerStaticPool(&rb->RenderDataPool, &RootBoundingArea->LinkedLines, rl);
+}
+int lanpr_GetTriangleBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, int *RowBegin, int *RowEnd, int *ColBegin, int *ColEnd) {
 	real SpW = rb->WidthPerTile, SpH = rb->HeightPerTile;
 	real B[4];
 
@@ -334,6 +337,31 @@ int lanpr_GetTriangleBoundingTile(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *
 	B[1] = MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]);
 	B[2] = MIN3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
 	B[3] = MAX3(rt->V[0]->FrameBufferCoord[1], rt->V[1]->FrameBufferCoord[1], rt->V[2]->FrameBufferCoord[1]);
+
+	if (B[0] > 1 || B[1] < -1 || B[2] > 1 || B[3] < -1) return 0;
+
+	(*ColBegin) = (int)((B[0] + 1.0) / SpW);
+	(*ColEnd) = (int)((B[1] + 1.0) / SpW);
+	(*RowEnd) = rb->TileCountY - (int)((B[2] + 1.0) / SpH) - 1;
+	(*RowBegin) = rb->TileCountY - (int)((B[3] + 1.0) / SpH) - 1;
+
+	if ((*ColEnd) >= rb->TileCountX) (*ColEnd) = rb->TileCountX - 1;
+	if ((*RowEnd) >= rb->TileCountY) (*RowEnd) = rb->TileCountY - 1;
+	if ((*ColBegin) < 0) (*ColBegin) = 0;
+	if ((*RowBegin) < 0) (*RowBegin) = 0;
+
+	return 1;
+}
+int lanpr_GetLineBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int *RowBegin, int *RowEnd, int *ColBegin, int *ColEnd) {
+	real SpW = rb->WidthPerTile, SpH = rb->HeightPerTile;
+	real B[4];
+
+	if (!rt->V[0] || !rt->V[1] || !rt->V[2]) return 0;
+
+	B[0] = MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0]);
+	B[1] = MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0]);
+	B[2] = MIN2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1]);
+	B[3] = MAX2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1]);
 
 	if (B[0] > 1 || B[1] < -1 || B[2] > 1 || B[3] < -1) return 0;
 
@@ -379,10 +407,10 @@ void lanpr_AddTriangles(LANPR_RenderBuffer *rb) {
 			if (rt->CullStatus) {
 				rt++; continue;
 			}
-			if (lanpr_GetTriangleBoundingTile(rb, rt, &y1, &y2, &x1, &x2)) {
+			if (lanpr_GetTriangleBoundingAreas(rb, rt, &y1, &y2, &x1, &x2)) {
 				for (co = x1; co <= x2; co++) {
 					for (r = y1; r <= y2; r++) {
-						lanpr_AssociateTriangleWithBoundingArea(rb, &rb->InitialBoundingAreas[r * 20 + co], rt, 0, 1);
+						lanpr_LinkTriangleWithBoundingArea(rb, &rb->InitialBoundingAreas[r * 20 + co], rt, 0, 1);
 					}
 				}
 			}
@@ -709,7 +737,7 @@ void lanpr_CalculateSingleLineOcclusion(LANPR_RenderBuffer *rb, LANPR_RenderLine
 
 	while (nba) {
 
-		for (lip = nba->AssociatedTriangles.pFirst; lip; lip = lip->pNext) {
+		for (lip = nba->LinkedTriangles.pFirst; lip; lip = lip->pNext) {
 			rt = lip->p;
 			if (rt->Testing[ThreadID] == rl || rl->L->IntersectWith == (void *)rt || rl->R->IntersectWith == (void *)rt) continue;
 			rt->Testing[ThreadID] = rl;
@@ -2364,7 +2392,7 @@ int lanpr_TriangleCalculateIntersectionsInTile(LANPR_RenderBuffer *rb, LANPR_Ren
 	*FBC1 = rt->V[1]->FrameBufferCoord,
 	*FBC2 = rt->V[2]->FrameBufferCoord;
 
-	for (lip = ba->AssociatedTriangles.pFirst; lip; lip = NextLip) {
+	for (lip = ba->LinkedTriangles.pFirst; lip; lip = NextLip) {
 		NextLip = lip->pNext;
 		TestingTriangle = lip->p;
 		if (TestingTriangle == rt || TestingTriangle->Testing == rt || lanpr_TriangleShareEdge(rt, TestingTriangle))
@@ -2388,10 +2416,6 @@ int lanpr_TriangleCalculateIntersectionsInTile(LANPR_RenderBuffer *rb, LANPR_Ren
 
 }
 
-
-
-
-// lanpr_AssociateLineWithTile
 
 int lanpr_LineCrossesFrame(tnsVector2d L, tnsVector2d R) {
 	real vx, vy;
@@ -2499,22 +2523,20 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 			lstAppendPointerStatic(&rb->MaterialLines, &rb->RenderDataPool, rl);
 			MaterialCount++;
 		}
-		if (ContourCount >= 100000) {
-			//tnsset_PlusRenderContourCount(rb, ContourCount);
-			ContourCount = 0;
+		if (Add) {
+			int r1, r2, c1, c2, row, col;
+			if (lanpr_GetLineBoundingAreas(rb, rl, &r1, &r2, &c1, &c2)) {
+				for (row = r1; row != r2 + 1; row++) {
+					for (col = c1, col != c2 + 1; col++) {
+						lanpr_LinkLineWithBoundingArea(rb, rb->InitialBoundingAreas[row * 20 + col], rl);
+					}
+				}
+
+			}
 		}
-		if (CreaseCount >= 100000) {
-			//tnsset_PlusRenderCreaseCount(rb, CreaseCount);
-			CreaseCount = 0;
-		}
-		if (MaterialCount >= 100000) {
-			//tnsset_PlusRenderMaterialCount(rb, MaterialCount);
-			MaterialCount = 0;
-		}
+
+		//line count reserved for feature such as progress feedback
 	}
-	//tnsset_PlusRenderContourCount(rb, ContourCount);
-	//tnsset_PlusRenderCreaseCount(rb, CreaseCount);
-	//tnsset_PlusRenderMaterialCount(rb, MaterialCount);
 }
 
 
@@ -2551,8 +2573,6 @@ void lanpr_DestroyRenderData(LANPR_RenderBuffer *rb) {
 	lstEmptyDirect(&rb->CreaseLines);
 	lstEmptyDirect(&rb->MaterialLines);
 	lstEmptyDirect(&rb->AllRenderLines);
-
-	//tnsZeroGeomtryBuffers(rb->Scene);
 
 	while (reln = lstPopItem(&rb->VertexBufferPointers)) {
 		MEM_freeN(reln->Pointer);
@@ -2945,7 +2965,6 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	lanpr_AddTriangles(rb);
 
 	THREAD_CalculateLineOcclusion_Begin(rb);
-	//NO_THREAD_CalculateLineOcclusion(rb);
 
 	return OPERATOR_FINISHED;
 }
