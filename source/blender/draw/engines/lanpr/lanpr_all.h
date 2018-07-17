@@ -438,7 +438,8 @@ typedef struct LANPR_RenderVert {
 	char EdgeUsed;                    //                      <|		       |>
 }LANPR_RenderVert;
 
-#define LANPR_EDGE_FLAG_EDGE_MARK 1
+#define LANPR_EDGE_FLAG_EDGE_MARK    1
+#define LANPR_EDGE_FLAG_CHAIN_PICKED 64
 
 typedef struct LANPR_RenderLine {
 	nListItem Item;
@@ -450,9 +451,13 @@ typedef struct LANPR_RenderLine {
 	char MinOcclude;
 	char Flags;
 	struct Object *ObjectRef;
-	//char            IgnoreConnectedFace;
-	//char            CullStatus;
 }LANPR_RenderLine;
+
+typedef struct LANPR_RenderLineChain {
+	nListItem   Item;
+	nListHandle Chain;
+	int         SegmentCount;
+}LANPR_RenderLineChain;
 
 typedef struct LANPR_BoundingArea {
 	real L, R, U, B;
@@ -466,20 +471,15 @@ typedef struct LANPR_BoundingArea {
 	nListHandle BP;
 
 	int TriangleCount;
-	nListHandle AssociatedTriangles;
+	nListHandle LinkedTriangles;
+	nListHandle LinkedLines;
+	nListHandle LinkedChains;//reserved for multithread chainning
 }LANPR_BoundingArea;
-
-typedef struct LANPR_RenderSubPixel {
-	real Depth;
-	struct LANPR_RenderTriangle *BelongTo;
-	real Weight[3];                   //belongto->vp 1 2 3
-}LANPR_RenderSubPixel;
 
 
 #define TNS_COMMAND_LINE     0
 #define TNS_COMMAND_MATERIAL 1
 #define TNS_COMMAND_EDGE     2
-
 
 #define TNS_TRANSPARENCY_DRAW_SIMPLE  0
 #define TNS_TRANSPARENCY_DRAW_LAYERED 1

@@ -468,3 +468,4 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	GPU_framebuffer_bind(DefaultFB);
 	DRW_multisamples_resolve(txl->depth, txl->edge_intermediate);
 }
+
