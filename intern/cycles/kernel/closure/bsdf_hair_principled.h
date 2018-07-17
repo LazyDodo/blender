@@ -154,7 +154,6 @@ ccl_device_inline float azimuthal_scattering(float phi, int p, float s, float ga
 {
 	float phi_o = wrap_angle(phi - delta_phi(p, gamma_o, gamma_t));
 	float val = trimmed_logistic(phi_o, s);
-	//printf("Azi Phi %f Val %f\n", (double)phi_o, (double)val);
 	return val;
 }
 
@@ -167,13 +166,11 @@ ccl_device_inline float longitudinal_scattering(float sin_theta_i, float cos_the
 	if(v <= 0.1f) {
 		float i0 = log_bessel_I0(cos_arg);
 		float val = expf(i0 - sin_arg - inv_v + 0.6931f + logf(0.5f*inv_v));
-		//printf("Long LogI0 %f val %f\n", (double)i0, (double)val);
 		return val;
 	}
 	else {
 		float i0 = bessel_I0(cos_arg);
 		float val = (expf(-sin_arg) * i0) / (sinhf(inv_v) * 2.0f * v);
-		//printf("Long I0 %f val %f\n", (double)i0, (double)val);
 		return val;
 	}
 }
@@ -188,11 +185,6 @@ ccl_device_inline float4 combine_with_energy(KernelGlobals *kg, float3 c)
 /* Set up the hair closure. */
 ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bsdf)
 {
-	// if((sd->type & PRIMITIVE_ALL_CURVE) == 0) {
-	// 	bsdf->type = CLOSURE_BSDF_DIFFUSE_ID;
-	// 	return SD_BSDF|SD_BSDF_HAS_EVAL|SD_BSDF_NEEDS_LCG;
-	// }
-
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
 	bsdf->v = clamp(bsdf->v, 0.001f, 1.0f);
 	bsdf->s = clamp(bsdf->s, 0.001f, 1.0f);
@@ -208,20 +200,9 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	float3 X = safe_normalize(sd->dPdu);
 	float3 Y = safe_normalize(cross(X, sd->I));
 	float3 Z = safe_normalize(cross(X, Y));
-	
-// #if 0
-	// /* TODO: this seems to give wrong results, and h should be in the -1..1 range? */
-	// /* It doesn't work either if you call it from OSL */
-	// float curve_r;
-	// float3 curve_P = curve_center(kg, sd, &curve_r);
-	// float h = safe_divide(dot(Y, sd->P - curve_P), curve_r);
-	// kernel_assert(fabsf(h) <= 2.0f);
-//#else
-	/* TODO: this only works for thick curves where sd->Ng is the normal
-	 * pointing from the center of the curve to the shading point. For
-	 * ribbons we need to find another solution. */
-	/* Amyspark: it works for ribbons too, but NOT triangles.
-	 * See https://developer.blender.org/T43625 */
+	/* TODO: the solution below works where sd->Ng is the normal
+	 * pointing from the center of the curve to the shading point.
+	 * It doesn't work for triangles, see https://developer.blender.org/T43625 */
 	
 	/* h -1..0..1 means the rays goes from grazing the hair, to hitting it at
 	 * the center, to grazing the other edge. This is the sine of the angle
@@ -232,8 +213,6 @@ ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bs
 	float h = dot(cross(sd->Ng, X), Z);
 	
 	kernel_assert(fabsf(h) < 1.0f + 1e-4f);
-//#endif
-	
 	kernel_assert(isfinite3_safe(Y));
 	kernel_assert(isfinite_safe(h));
 	
@@ -293,9 +272,6 @@ ccl_device_inline void hair_alpha_angles(float sin_theta_i, float cos_theta_i, f
 /* Evaluation function for our shader. */
 ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg, const ShaderData *sd, const ShaderClosure *sc, const float3 omega_in, float *pdf)
 {
-	//*pdf = 0.0f;
-	//return make_float3(0.0f, 0.0f, 0.0f);
-
 	kernel_assert(isfinite3_safe(sd->P) && isfinite_safe(sd->ray_length));
 
 	const PrincipledHairBSDF *bsdf = (const PrincipledHairBSDF*) sc;
@@ -307,8 +283,6 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg, const ShaderData 
 
 	float3 wo = make_float3(dot(sd->I, X), dot(sd->I, Y), dot(sd->I, Z));
 	float3 wi = make_float3(dot(omega_in, X), dot(omega_in, Y), dot(omega_in, Z));
-	//kernel_assert(fabsf(wo.y) < 1e-4f);
-	//scanf("%d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->extra->geom.w, &wi.x, &wi.y, &wi.z);
 
 	float sin_theta_o = wo.x;
 	float cos_theta_o = cos_from_sin(sin_theta_o);
@@ -339,7 +313,6 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg, const ShaderData 
 
 	float angles[6];
 	hair_alpha_angles(sin_theta_i, cos_theta_i, bsdf->alpha, angles);
-	//printf("%f %f %f %f %f %f\n", (double)angles[0], (double)angles[1], (double)angles[2], (double)angles[3], (double)angles[4], (double)angles[5]);
 
 	float4 F;
 	float Mp, Np;
@@ -368,8 +341,6 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg, const ShaderData 
 	F += Ap[3] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
-	//printf("%f %f %f %f\n", (double)F.x, (double)F.y, (double)F.z, (double)F.w);
-
 	*pdf = F.w;
 	return float4_to_float3(F);
 }
@@ -377,10 +348,6 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg, const ShaderData 
 /* Sampling function for the hair shader. (It should correspond directly to the evaluation function.) */
 ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosure *sc, ShaderData *sd, float randu, float randv, float3 *eval, float3 *omega_in, float3 *domega_in_dx, float3 *domega_in_dy, float *pdf)
 {
-#ifdef __KERNEL_CPU__
-	//feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
-#endif
-
 	PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*) sc;
 
 	float3 Y = float4_to_float3(bsdf->extra->geom);
@@ -390,14 +357,11 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	float3 Z = safe_normalize(cross(X, Y));
 
 	float3 wo = make_float3(dot(sd->I, X), dot(sd->I, Y), dot(sd->I, Z));
-	//kernel_assert(fabsf(wo.y) < 1e-4f);
 
 	float2 u[2];
 	u[0] = make_float2(randu, randv);
 	u[1].x = lcg_step_float_addrspace(&sd->lcg_state);
 	u[1].y = lcg_step_float_addrspace(&sd->lcg_state);
-	//printf("Enter sample data: ");
-	//scanf("%d %d %d %d %d %d %d %d", &wo.x, &wo.y, &wo.z, &bsdf->extra->geom.w, &u[0].x, &u[0].y, &u[1].x, &u[1].y);
 
 	float sin_theta_o = wo.x;
 	float cos_theta_o = cos_from_sin(sin_theta_o);
@@ -417,8 +381,6 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	float3 T = exp3(-bsdf->sigma * (2.0f * cos_gamma_t / cos_theta_t));
 	float4 Ap[4];
 	hair_attenuation(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
-
-	//printf("%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n%f %f %f %f\n", (double)Ap[0].x, (double)Ap[0].y, (double)Ap[0].z, (double)Ap[0].w, (double)Ap[1].x, (double)Ap[1].y, (double)Ap[1].z, (double)Ap[1].w, (double)Ap[2].x, (double)Ap[2].y, (double)Ap[2].z, (double)Ap[2].w, (double)Ap[3].x, (double)Ap[3].y, (double)Ap[3].z, (double)Ap[3].w);
 
 	int p = 0;
 	for(; p < 3; p++) {
@@ -441,16 +403,12 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	float sin_theta_i = -fac * sin_theta_o + cos_from_sin(fac) * cosf(M_2PI_F * u[1].y) * cos_theta_o;
 	float cos_theta_i = cos_from_sin(sin_theta_i);
 
-	//printf("%d %f %f %f\n", p, (double)v, (double)sin_theta_i, (double)cos_theta_i);
-
 	float angles[6];
 	if(p < 3) {
 		hair_alpha_angles(sin_theta_i, cos_theta_i, -bsdf->alpha, angles);
 		sin_theta_i = angles[2*p];
 		cos_theta_i = angles[2*p+1];
 	}
-
-	//printf("%f %f %f %f %f %f\n", (double)angles[0], (double)angles[1], (double)angles[2], (double)angles[3], (double)angles[4], (double)angles[5]);
 
 	float phi;
 	if(p < 3) {
@@ -461,11 +419,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	}
 	float phi_i = phi_o + phi;
 
-	//printf("%f %f\n", (double)phi, (double)phi_i);
-
 	hair_alpha_angles(sin_theta_i, cos_theta_i, bsdf->alpha, angles);
-
-	//printf("%f %f %f %f %f %f\n", (double)angles[0], (double)angles[1], (double)angles[2], (double)angles[3], (double)angles[4], (double)angles[5]);
 
 	float4 F;
 	float Mp, Np;
@@ -497,18 +451,12 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg, const ShaderClosur
 	*eval = float4_to_float3(F);
 	*pdf = F.w;
 
-	//printf("%f %f %f %f %f %f %f\n", (double)eval->x, (double)eval->y, (double)eval->z, (double)*pdf, (double)sin_theta_i, (double)cosf(phi_i), (double)sinf(phi_i));
-
 	*omega_in = X*sin_theta_i + Y*cos_theta_i*cosf(phi_i) + Z*cos_theta_i*sinf(phi_i);
 
 #ifdef __RAY_DIFFERENTIALS__
 	float3 N = safe_normalize(sd->I + *omega_in);
 	*domega_in_dx = (2 * dot(N, sd->dI.dx)) * N - sd->dI.dx;
 	*domega_in_dy = (2 * dot(N, sd->dI.dy)) * N - sd->dI.dy;
-#endif
-
-#ifdef __KERNEL_CPU__
-	//fedisableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
 #endif
 
 	return LABEL_GLOSSY|((p == 0)? LABEL_REFLECT : LABEL_TRANSMIT);

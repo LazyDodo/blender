@@ -178,17 +178,6 @@ BSDF_CLOSURE_CLASS_BEGIN(PrincipledSheen, principled_sheen, PrincipledSheenBsdf,
 BSDF_CLOSURE_CLASS_END(PrincipledSheen, principled_sheen)
 
 /* PRINCIPLED HAIR BSDF */
-
-//BSDF_CLOSURE_CLASS_BEGIN(PrincipledHair, principled_hair, PrincipledHairBSDF,
-//                         LABEL_GLOSSY)
-//    CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.N),
-//    CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.sigma),
-//    CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.v),
-//    CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.s),
-//    CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
-//    CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
-//BSDF_CLOSURE_CLASS_END(PrincipledHair, principled_hair)
-
 class PrincipledHairClosure : public CBSDFClosure {
 public:
 	PrincipledHairBSDF params;
