@@ -3750,7 +3750,7 @@ class VIEW3D_PT_object_type_visibility(Panel):
             "empty",
 		    "grease_pencil",
             "camera",
-            "lamp",
+            "light",
             "light_probe",
             "speaker",
         )
