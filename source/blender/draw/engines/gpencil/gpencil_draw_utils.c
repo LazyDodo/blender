@@ -63,11 +63,17 @@
 #define PATTERN 5
 
 /* Helper for doing all the checks on whether a stroke can be drawn */
-static bool gpencil_can_draw_stroke(struct MaterialGPencilStyle *gp_style, const bGPDstroke *gps, const bool onion)
+static bool gpencil_can_draw_stroke(struct MaterialGPencilStyle *gp_style, const bGPDstroke *gps,
+									const bool onion, const bool is_mat_preview)
 {
 	/* skip stroke if it doesn't have any valid data */
 	if ((gps->points == NULL) || (gps->totpoints < 1) || (gp_style == NULL))
 		return false;
+
+	/* if mat preview render always visible */
+	if (is_mat_preview) {
+		return true;
+	}
 
 	/* check if the color is visible */
 	if ((gp_style == NULL) ||
@@ -703,7 +709,7 @@ static void gpencil_draw_onion_strokes(
 
 		int id = stl->storage->shgroup_id;
 		/* check if stroke can be drawn */
-		if (gpencil_can_draw_stroke(gp_style, gps, true) == false) {
+		if (gpencil_can_draw_stroke(gp_style, gps, true, false) == false) {
 			continue;
 		}
 		/* limit the number of shading groups */
@@ -749,6 +755,7 @@ static void gpencil_draw_strokes(
 	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	const bool playing = (bool)stl->storage->playing;
 	const bool is_render = (bool)stl->storage->is_render;
+	const bool is_mat_preview = (bool)stl->storage->is_mat_preview;
 	const bool overlay_multiedit = v3d != NULL ? (v3d->flag3 & V3D_GP_SHOW_MULTIEDIT_LINES) : true;
 
 	/* Get evaluation context */
@@ -781,7 +788,7 @@ static void gpencil_draw_strokes(
 		MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
 		/* check if stroke can be drawn */
-		if (gpencil_can_draw_stroke(gp_style, gps, false) == false) {
+		if (gpencil_can_draw_stroke(gp_style, gps, false, is_mat_preview) == false) {
 			continue;
 		}
 		/* limit the number of shading groups */

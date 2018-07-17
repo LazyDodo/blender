@@ -334,6 +334,7 @@ void GPENCIL_cache_init(void *vedata)
 
 		/* save render state */
 		stl->storage->is_render = DRW_state_is_image_render();
+		stl->storage->is_mat_preview = (bool)stl->storage->is_render && STREQ(scene->id.name + 2, "preview");
 
 		/* save simplify flags (can change while drawing, so it's better to save) */
 		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(scene, stl->storage->playing);
