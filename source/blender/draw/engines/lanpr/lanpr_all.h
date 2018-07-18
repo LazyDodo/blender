@@ -424,7 +424,6 @@ typedef struct LANPR_RenderLineSegment {
 	//real     Begin, End;  // 0->At[L] 1->At[R]
 	real at;
 	u8bit OccludeLevel;    //after
-	int PreviewIndex;
 }LANPR_RenderLineSegment;
 
 typedef struct LANPR_RenderVert {
@@ -471,9 +470,9 @@ typedef struct LANPR_RenderLineChain {
 
 typedef struct LANPR_RenderLineChainItem {
 	nListItem   Item;
-	LANPR_RenderVert*       rv;     // this is for point. similar structure as ListItemPointer
-	char        LineType;
-	//char        OccludeLevel;
+	float       pos[2];
+	char        LineType;      //      style of [1]       style of [2]
+	char        OccludeLevel;  // [1]--------------->[2]---------------->[3]--....
 }LANPR_RenderLineChainItem;
 
 typedef struct LANPR_BoundingArea {

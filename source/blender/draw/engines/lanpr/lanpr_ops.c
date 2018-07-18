@@ -377,6 +377,22 @@ int lanpr_GetLineBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int
 
 	return 1;
 }
+LANPR_BoundingArea* lanpr_GetPointBoundingArea(LANPR_RenderBuffer *rb, real x, real y) {
+	real SpW = rb->WidthPerTile, SpH = rb->HeightPerTile;
+	int col, row;
+
+	if (x> 1 || x < -1 || y > 1 || y < -1) return 0;
+
+	col = (int)((x + 1.0) / SpW);
+	row = rb->TileCountY - (int)((y + 1.0) / SpH) - 1;
+
+	if (col >= rb->TileCountX) col = rb->TileCountX - 1;
+	if (row >= rb->TileCountY) row = rb->TileCountY - 1;
+	if (col < 0) col = 0;
+	if (row < 0) row = 0;
+
+	return &rb->InitialBoundingAreas[col*20+row];
+}
 void lanpr_AddTriangles(LANPR_RenderBuffer *rb) {
 	LANPR_RenderElementLinkNode *reln;
 	LANPR_RenderTriangle *rt;
