@@ -209,7 +209,7 @@ static void DRW_gpencil_fx_blur(
 		}
 	}
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_blur_sh,
 								psl->fx_shader_pass_blend);
@@ -237,7 +237,7 @@ static void DRW_gpencil_fx_colorize(
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	DRWShadingGroup *fx_shgrp;
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_colorize_sh, psl->fx_shader_pass);
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
@@ -270,7 +270,7 @@ static void DRW_gpencil_fx_flip(
 		fxd->flipmode += 1;
 	}
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_flip_sh, psl->fx_shader_pass);
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
@@ -300,7 +300,7 @@ static void DRW_gpencil_fx_light(
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	DRWShadingGroup *fx_shgrp;
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_light_sh, psl->fx_shader_pass);
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
@@ -355,7 +355,7 @@ static void DRW_gpencil_fx_pixel(
 
 	fxd->size[2] = (int)fxd->flag & FX_PIXEL_USE_LINES;
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_pixel_sh, psl->fx_shader_pass);
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
@@ -387,7 +387,7 @@ static void DRW_gpencil_fx_rim(
 	DRWShadingGroup *fx_shgrp;
 	bGPdata *gpd = (bGPdata *)ob->data;
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 	/* prepare pass */
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_rim_prepare_sh,
 								psl->fx_shader_pass_blend);
@@ -456,7 +456,7 @@ static void DRW_gpencil_fx_swirl(
 
 	fxd->transparent = (int)fxd->flag & FX_SWIRL_MAKE_TRANSPARENT;
 
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 	fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_swirl_sh, psl->fx_shader_pass);
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
@@ -488,7 +488,7 @@ static void DRW_gpencil_fx_wave(
 	WaveShaderFxData *fxd = (WaveShaderFxData *)fx;
 
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
-	struct Gwn_Batch *fxquad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *fxquad = DRW_cache_fullscreen_quad_get();
 
 	DRWShadingGroup *fx_shgrp = DRW_shgroup_create(e_data->gpencil_fx_wave_sh, psl->fx_shader_pass);
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);

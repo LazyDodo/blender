@@ -189,8 +189,8 @@ typedef struct g_data {
 	struct DRWShadingGroup *shgrps_drawing_fill;
 
 	/* for buffer only one batch is nedeed because the drawing is only of one stroke */
-	Gwn_Batch *batch_buffer_stroke;
-	Gwn_Batch *batch_buffer_fill;
+	GPUBatch *batch_buffer_stroke;
+	GPUBatch *batch_buffer_fill;
 
 	int gp_cache_used; /* total objects in cache */
 	int gp_cache_size; /* size of the cache */
@@ -254,16 +254,16 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *temp_depth_tx_rim;
 } GPENCIL_e_data; /* Engine data */
 
-/* Gwn_Batch Cache */
+/* GPUBatch Cache */
 typedef struct GpencilBatchCache {
 	/* For normal strokes, a variable number of batch can be needed depending of number of strokes.
 	   It could use the stroke number as total size, but when activate the onion skining, the number
 	   can change, so the size is changed dinamically.
 	 */
-	Gwn_Batch **batch_stroke;
-	Gwn_Batch **batch_fill;
-	Gwn_Batch **batch_edit;
-	Gwn_Batch **batch_edlin;
+	GPUBatch **batch_stroke;
+	GPUBatch **batch_fill;
+	GPUBatch **batch_edit;
+	GPUBatch **batch_edlin;
 
 	/* settings to determine if cache is invalid */
 	bool is_dirty;
@@ -286,14 +286,14 @@ void DRW_gpencil_triangulate_stroke_fill(struct bGPDstroke *gps);
 void DRW_gpencil_multisample_ensure(struct GPENCIL_Data *vedata, int rect_w, int rect_h);
 
 /* create geometry functions */
-struct Gwn_Batch *DRW_gpencil_get_point_geom(struct bGPDstroke *gps, short thickness, const float ink[4]);
-struct Gwn_Batch *DRW_gpencil_get_stroke_geom(struct bGPDframe *gpf, struct bGPDstroke *gps, short thickness, const float ink[4]);
-struct Gwn_Batch *DRW_gpencil_get_fill_geom(struct Object *ob, struct bGPDstroke *gps, const float color[4]);
-struct Gwn_Batch *DRW_gpencil_get_edit_geom(struct bGPDstroke *gps, float alpha, short dflag);
-struct Gwn_Batch *DRW_gpencil_get_edlin_geom(struct bGPDstroke *gps, float alpha, short dflag);
-struct Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
-struct Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
-struct Gwn_Batch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
+struct GPUBatch *DRW_gpencil_get_point_geom(struct bGPDstroke *gps, short thickness, const float ink[4]);
+struct GPUBatch *DRW_gpencil_get_stroke_geom(struct bGPDframe *gpf, struct bGPDstroke *gps, short thickness, const float ink[4]);
+struct GPUBatch *DRW_gpencil_get_fill_geom(struct Object *ob, struct bGPDstroke *gps, const float color[4]);
+struct GPUBatch *DRW_gpencil_get_edit_geom(struct bGPDstroke *gps, float alpha, short dflag);
+struct GPUBatch *DRW_gpencil_get_edlin_geom(struct bGPDstroke *gps, float alpha, short dflag);
+struct GPUBatch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
+struct GPUBatch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
+struct GPUBatch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
 
 /* object cache functions */
 struct tGPencilObjectCache *gpencil_object_cache_add(struct tGPencilObjectCache *cache_array, struct Object *ob,

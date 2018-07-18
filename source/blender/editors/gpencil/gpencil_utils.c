@@ -1318,8 +1318,8 @@ void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 {
 	short radius = (short)brush->size;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	const uint shdr_pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	const uint shdr_pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	glEnable(GL_LINE_SMOOTH);
@@ -1459,8 +1459,8 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	}
 
 	/* draw icon */
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	glEnable(GL_LINE_SMOOTH);
@@ -1497,7 +1497,7 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 		copy_v3_v3(color, paintbrush->add_col);
 		immUniformColor4f(color[0], color[1], color[2], 0.8f);
 
-		immBegin(GWN_PRIM_LINES, 2);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex2f(pos, x, y);
 		immVertex2f(pos, last_mouse_position[0] + ar->winrct.xmin,
 						 last_mouse_position[1] + ar->winrct.ymin);

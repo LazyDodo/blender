@@ -52,7 +52,7 @@
 
 /* Helper to add stroke point to vbo */
 static void gpencil_set_stroke_point(
-        Gwn_VertBuf *vbo, float matrix[4][4], const bGPDspoint *pt, int idx,
+        GPUVertBuf *vbo, float matrix[4][4], const bGPDspoint *pt, int idx,
         uint pos_id, uint color_id,
         uint thickness_id, uint uvdata_id, short thickness,
         const float ink[4])
@@ -64,44 +64,44 @@ static void gpencil_set_stroke_point(
 	float col[4];
 	ARRAY_SET_ITEMS(col, ink[0], ink[1], ink[2], alpha);
 
-	GWN_vertbuf_attr_set(vbo, color_id, idx, col);
+	GPU_vertbuf_attr_set(vbo, color_id, idx, col);
 
 	/* transfer both values using the same shader variable */
 	float uvdata[2] = { pt->uv_fac, pt->uv_rot };
-	GWN_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
+	GPU_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
 
 	/* the thickness of the stroke must be affected by zoom, so a pixel scale is calculated */
 	mul_v3_m4v3(viewfpt, matrix, &pt->x);
 	float thick = max_ff(pt->pressure * thickness, 1.0f);
-	GWN_vertbuf_attr_set(vbo, thickness_id, idx, &thick);
+	GPU_vertbuf_attr_set(vbo, thickness_id, idx, &thick);
 
-	GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+	GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
 }
 
 /* Helper to add a new fill point and texture coordinates to vertex buffer */
 static void gpencil_set_fill_point(
-	Gwn_VertBuf *vbo, int idx, bGPDspoint *pt, const float fcolor[4], float uv[2],
+	GPUVertBuf *vbo, int idx, bGPDspoint *pt, const float fcolor[4], float uv[2],
 	uint pos_id, uint color_id, uint text_id)
 {
-	GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-	GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
-	GWN_vertbuf_attr_set(vbo, text_id, idx, uv);
+	GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+	GPU_vertbuf_attr_set(vbo, color_id, idx, fcolor);
+	GPU_vertbuf_attr_set(vbo, text_id, idx, uv);
 }
 
 /* create batch geometry data for points stroke shader */
-Gwn_Batch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const float ink[4])
+GPUBatch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const float ink[4])
 {
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, size_id, uvdata_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-		size_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-		uvdata_id = GWN_vertformat_attr_add(&format, "uvdata", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		size_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, gps->totpoints);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, gps->totpoints);
 
 	/* draw stroke curve */
 	const bGPDspoint *pt = gps->points;
@@ -117,39 +117,39 @@ Gwn_Batch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const fl
 
 		float thick = max_ff(pt->pressure * thickness, 1.0f);
 
-		GWN_vertbuf_attr_set(vbo, color_id, idx, col);
-		GWN_vertbuf_attr_set(vbo, size_id, idx, &thick);
+		GPU_vertbuf_attr_set(vbo, color_id, idx, col);
+		GPU_vertbuf_attr_set(vbo, size_id, idx, &thick);
 
 		/* transfer both values using the same shader variable */
 		float uvdata[2] = { pt->uv_fac, pt->uv_rot };
-		GWN_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
+		GPU_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
 
-		GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+		GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
 		idx++;
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* create batch geometry data for stroke shader */
-Gwn_Batch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short thickness, const float ink[4])
+GPUBatch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short thickness, const float ink[4])
 {
 	bGPDspoint *points = gps->points;
 	int totpoints = gps->totpoints;
 	/* if cyclic needs more vertex */
 	int cyclic_add = (gps->flag & GP_STROKE_CYCLIC) ? 1 : 0;
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-		thickness_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-		uvdata_id = GWN_vertformat_attr_add(&format, "uvdata", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		thickness_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, totpoints + cyclic_add + 2);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, totpoints + cyclic_add + 2);
 
 	/* draw stroke curve */
 	const bGPDspoint *pt = points;
@@ -190,11 +190,11 @@ Gwn_Batch *DRW_gpencil_get_stroke_geom(bGPDframe *gpf, bGPDstroke *gps, short th
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_LINE_STRIP_ADJ, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP_ADJ, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* create batch geometry data for current buffer stroke shader */
-Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], short thickness)
+GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], short thickness)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
@@ -207,17 +207,17 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 	tGPspoint *points = gpd->runtime.sbuffer;
 	int totpoints = gpd->runtime.sbuffer_size;
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-		thickness_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-		uvdata_id = GWN_vertformat_attr_add(&format, "uvdata", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		thickness_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, totpoints + 2);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, totpoints + 2);
 
 	/* draw stroke curve */
 	const tGPspoint *tpt = points;
@@ -263,11 +263,11 @@ Gwn_Batch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, float matrix[4][4], 
 								 pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_LINE_STRIP_ADJ, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP_ADJ, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* create batch geometry data for current buffer point shader */
-Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], short thickness)
+GPUBatch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], short thickness)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
@@ -280,17 +280,17 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 	tGPspoint *points = gpd->runtime.sbuffer;
 	int totpoints = gpd->runtime.sbuffer_size;
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-		thickness_id = GWN_vertformat_attr_add(&format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-		uvdata_id = GWN_vertformat_attr_add(&format, "uvdata", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		thickness_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, totpoints);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, totpoints);
 
 	/* draw stroke curve */
 	const tGPspoint *tpt = points;
@@ -313,11 +313,11 @@ Gwn_Batch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, float matrix[4][4], s
 		idx++;
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* create batch geometry data for current buffer fill shader */
-Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
+GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 {
 	if (gpd == NULL) {
 		return NULL;
@@ -357,18 +357,18 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	}
 	BLI_polyfill_calc(points2d, (uint)totpoints, 0, tmp_triangles);
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
 
 	/* draw triangulation data */
 	if (tot_triangles > 0) {
-		GWN_vertbuf_data_alloc(vbo, tot_triangles * 3);
+		GPU_vertbuf_data_alloc(vbo, tot_triangles * 3);
 
 		const tGPspoint *tpt;
 		bGPDspoint pt;
@@ -378,8 +378,8 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 			for (int j = 0; j < 3; j++) {
 				tpt = &points[tmp_triangles[i][j]];
 				ED_gpencil_tpoint_to_point(ar, origin, tpt, &pt);
-				GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt.x);
-				GWN_vertbuf_attr_set(vbo, color_id, idx, gpd->runtime.sfill);
+				GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt.x);
+				GPU_vertbuf_attr_set(vbo, color_id, idx, gpd->runtime.sfill);
 				idx++;
 			}
 		}
@@ -393,11 +393,11 @@ Gwn_Batch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 		MEM_freeN(points2d);
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_TRIS, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_TRIS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* create batch geometry data for stroke shader */
-Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float color[4])
+GPUBatch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float color[4])
 {
 	BLI_assert(gps->totpoints >= 3);
 
@@ -409,16 +409,16 @@ Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float co
 
 	BLI_assert(gps->tot_triangles >= 1);
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, text_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-		text_id = GWN_vertformat_attr_add(&format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		text_id = GPU_vertformat_attr_add(&format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, gps->tot_triangles * 3);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, gps->tot_triangles * 3);
 
 	/* Draw all triangles for filling the polygon (cache must be calculated before) */
 	bGPDtriangle *stroke_triangle = gps->triangles;
@@ -432,11 +432,11 @@ Gwn_Batch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float co
 		}
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_TRIS, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_TRIS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* Draw selected verts for strokes being edited */
-Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
+GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Object *ob = draw_ctx->obact;
@@ -468,16 +468,16 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);
 	selectColor[3] = alpha;
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, size_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-		size_id = GWN_vertformat_attr_add(&format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		size_id = GPU_vertformat_attr_add(&format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, gps->totpoints);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, gps->totpoints);
 
 	/* Draw start and end point differently if enabled stroke direction hint */
 	bool show_direction_hint = (dflag & GP_DATA_SHOW_DIRECTION) && (gps->totpoints > 1);
@@ -521,17 +521,17 @@ Gwn_Batch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 			}
 		}
 
-		GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
-		GWN_vertbuf_attr_set(vbo, size_id, idx, &fsize);
-		GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+		GPU_vertbuf_attr_set(vbo, color_id, idx, fcolor);
+		GPU_vertbuf_attr_set(vbo, size_id, idx, &fsize);
+		GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
 		idx++;
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* Draw lines for strokes being edited */
-Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(dflag))
+GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(dflag))
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Object *ob = draw_ctx->obact;
@@ -549,15 +549,15 @@ Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED
 	float linecolor[4];
 	copy_v4_v4(linecolor, gpd->line_color);
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id;
 	if (format.attr_len == 0) {
-		pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		color_id = GWN_vertformat_attr_add(&format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, gps->totpoints);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, gps->totpoints);
 
 	/* Draw all the stroke lines (selected or not) */
 	bGPDspoint *pt = gps->points;
@@ -592,10 +592,10 @@ Gwn_Batch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED
 			}
 		}
 
-		GWN_vertbuf_attr_set(vbo, color_id, idx, fcolor);
-		GWN_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
+		GPU_vertbuf_attr_set(vbo, color_id, idx, fcolor);
+		GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
 		idx++;
 	}
 
-	return GWN_batch_create_ex(GWN_PRIM_LINE_STRIP, vbo, NULL, GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }

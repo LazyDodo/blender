@@ -637,9 +637,9 @@ static void gp_draw_stroke_fill(
 	}
 	BLI_assert(gps->tot_triangles >= 1);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	uint texcoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+	uint texcoord = GPU_vertformat_attr_add(format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_GPENCIL_FILL);
 
 	immUniformColor4fv(color);
@@ -666,7 +666,7 @@ static void gp_draw_stroke_fill(
 	}
 #endif
 	/* Draw all triangles for filling the polygon (cache must be calculated before) */
-	immBegin(GWN_PRIM_TRIS, gps->tot_triangles * 3);
+	immBegin(GPU_PRIM_TRIS, gps->tot_triangles * 3);
 	/* TODO: use batch instead of immediate mode, to share vertices */
 
 	const bGPDtriangle *stroke_triangle = gps->triangles;
@@ -735,10 +735,10 @@ static void gp_draw_stroke_3d(tGPDdraw *tgpw, short thickness, const float ink[4
 	/* if cyclic needs more vertex */
 	int cyclic_add = (cyclic) ? 1 : 0;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
-	uint thickattrib = GWN_vertformat_attr_add(format, "thickness", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
+	uint thickattrib = GPU_vertformat_attr_add(format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_GPENCIL_STROKE);
 	immUniform2fv("Viewport", viewport);
@@ -754,7 +754,7 @@ static void gp_draw_stroke_3d(tGPDdraw *tgpw, short thickness, const float ink[4
 
 	/* draw stroke curve */
 	GPU_line_width(max_ff(curpressure * thickness, 1.0f));
-	immBeginAtMost(GWN_PRIM_LINE_STRIP_ADJ, totpoints + cyclic_add + 2);
+	immBeginAtMost(GPU_PRIM_LINE_STRIP_ADJ, totpoints + cyclic_add + 2);
 	const bGPDspoint *pt = points;
 
 	for (int i = 0; i < totpoints; i++, pt++) {
@@ -1281,8 +1281,8 @@ static void gp_draw_strokes_edit(
 
 		GPUVertFormat *format = immVertexFormat();
 		uint pos; /* specified later */
-		uint size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-		uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+		uint size = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 3, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 		if (gps->flag & GP_STROKE_3DSPACE) {
 			pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
