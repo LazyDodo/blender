@@ -159,14 +159,14 @@ static void gp_draw_stroke_buffer_fill(const tGPspoint *points, int totpoints, f
 
 	/* draw triangulation data */
 	if (tot_triangles > 0) {
-		Gwn_VertFormat *format = immVertexFormat();
-		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
-		uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
+		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
 		/* Draw all triangles for filling the polygon */
-		immBegin(GWN_PRIM_TRIS, tot_triangles * 3);
+		immBegin(GPU_PRIM_TRIS, tot_triangles * 3);
 		/* TODO: use batch instead of immediate mode, to share vertices */
 
 		const tGPspoint *pt;
@@ -217,9 +217,9 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 		return;
 	}
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
-	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	const tGPspoint *pt = points;
 
@@ -227,7 +227,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 		/* if drawing a single point, draw it larger */
 		GPU_point_size((float)(thickness + 2) * points->pressure);
 		immBindBuiltinProgram(GPU_SHADER_3D_POINT_FIXED_SIZE_VARYING_COLOR);
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		gp_set_tpoint_varying_color(pt, ink, color);
 		immVertex2iv(pos, &pt->x);
 	}
@@ -237,7 +237,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 		/* draw stroke curve */
 		GPU_line_width(max_ff(oldpressure * thickness, 1.0));
 		immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
-		immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints);
+		immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints);
 
 		/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
 
@@ -256,7 +256,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 				draw_points = 0;
 
 				GPU_line_width(max_ff(pt->pressure * thickness, 1.0f));
-				immBeginAtMost(GWN_PRIM_LINE_STRIP, totpoints - i + 1);
+				immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints - i + 1);
 
 				/* need to roll-back one point to ensure that there are no gaps in the stroke */
 				if (i != 0) {
@@ -328,14 +328,14 @@ static void gp_draw_stroke_volumetric_buffer(const tGPspoint *points, int totpoi
 	if (dflag & (GP_DRAWDATA_ONLY3D | GP_DRAWDATA_ONLYV2D))
 		return;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	uint size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+	uint size = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_POINT_VARYING_SIZE_VARYING_COLOR);
 	GPU_enable_program_point_size();
-	immBegin(GWN_PRIM_POINTS, totpoints);
+	immBegin(GPU_PRIM_POINTS, totpoints);
 
 	const tGPspoint *pt = points;
 	for (int i = 0; i < totpoints; i++, pt++) {
@@ -355,14 +355,14 @@ static void gp_draw_stroke_volumetric_2d(const bGPDspoint *points, int totpoints
                                          int offsx, int offsy, int winx, int winy,
                                          const float diff_mat[4][4], const float ink[4])
 {
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	uint size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+	uint size = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_POINT_VARYING_SIZE_VARYING_COLOR);
 	GPU_enable_program_point_size();
-	immBegin(GWN_PRIM_POINTS, totpoints);
+	immBegin(GPU_PRIM_POINTS, totpoints);
 
 	const bGPDspoint *pt = points;
 	for (int i = 0; i < totpoints; i++, pt++) {
@@ -388,14 +388,14 @@ static void gp_draw_stroke_volumetric_3d(
         const bGPDspoint *points, int totpoints, short thickness,
         const float ink[4])
 {
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-	uint size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-	uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+	uint size = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_POINT_VARYING_SIZE_VARYING_COLOR);
 	GPU_enable_program_point_size();
-	immBegin(GWN_PRIM_POINTS, totpoints);
+	immBegin(GPU_PRIM_POINTS, totpoints);
 
 	const bGPDspoint *pt = points;
 	for (int i = 0; i < totpoints && pt; i++, pt++) {
@@ -696,8 +696,8 @@ static void gp_draw_stroke_point(
 	float fpt[3];
 	mul_v3_m4v3(fpt, diff_mat, &pt->x);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 	if (sflag & GP_STROKE_3DSPACE) {
 		immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
@@ -715,7 +715,7 @@ static void gp_draw_stroke_point(
 	/* set point thickness (since there's only one of these) */
 	immUniform1f("size", (float)(thickness + 2) * pt->pressure);
 
-	immBegin(GWN_PRIM_POINTS, 1);
+	immBegin(GPU_PRIM_POINTS, 1);
 	immVertex3fv(pos, fpt);
 	immEnd();
 
@@ -831,12 +831,12 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 		int i;
 		float fpt[3];
 
-		Gwn_VertFormat *format = immVertexFormat();
-		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-		immBegin(GWN_PRIM_TRI_STRIP, totpoints * 2 + 4);
+		immBegin(GPU_PRIM_TRI_STRIP, totpoints * 2 + 4);
 
 		/* get x and y coordinates from first point */
 		mul_v3_m4v3(fpt, diff_mat, &points->x);
@@ -1279,21 +1279,21 @@ static void gp_draw_strokes_edit(
 		UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);
 		selectColor[3] = alpha;
 
-		Gwn_VertFormat *format = immVertexFormat();
+		GPUVertFormat *format = immVertexFormat();
 		uint pos; /* specified later */
 		uint size = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
 		uint color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
 
 		if (gps->flag & GP_STROKE_3DSPACE) {
-			pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_3D_POINT_VARYING_SIZE_VARYING_COLOR);
 		}
 		else {
-			pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_2D_POINT_VARYING_SIZE_VARYING_COLOR);
 		}
 
-		immBegin(GWN_PRIM_POINTS, gps->totpoints);
+		immBegin(GPU_PRIM_POINTS, gps->totpoints);
 
 		/* Draw start and end point differently if enabled stroke direction hint */
 		bool show_direction_hint = (gpd->flag & GP_DATA_SHOW_DIRECTION) && (gps->totpoints > 1);
