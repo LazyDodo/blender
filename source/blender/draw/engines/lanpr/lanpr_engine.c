@@ -349,6 +349,26 @@ static void lanpr_cache_init(void *vedata){
 	} elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE)
 	{
 		psl->software_pass = DRW_pass_create("Software Render Preview",  DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
+		//lanpr->render_buffer->ChainShgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
+		/*if (lanpr->render_buffer->ChainDrawBatch){
+			LANPR_LineLayer *ll;
+			for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+				ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "edge_mark_color", ll->edge_mark_color, 1);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "intersection_color", ll->intersection_color, 1);
+				DRW_shgroup_uniform_float(ll->shgrp, "thickness_crease", &ll->thickness_crease, 1);
+				DRW_shgroup_uniform_float(ll->shgrp, "thickness_material", &ll->thickness_material, 1);
+				DRW_shgroup_uniform_float(ll->shgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
+				DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
+				DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
+				DRW_shgroup_uniform_float(ll->shgrp, "thickness", &ll->thickness, 1);
+				DRW_shgroup_call_add(ll->shgrp, lanpr->render_buffer->ChainDrawBatch, NULL);
+			}
+		}*/
 		LANPR_LineLayer *ll;
 		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);

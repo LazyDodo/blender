@@ -391,7 +391,7 @@ LANPR_BoundingArea* lanpr_GetPointBoundingArea(LANPR_RenderBuffer *rb, real x, r
 	if (col < 0) col = 0;
 	if (row < 0) row = 0;
 
-	return &rb->InitialBoundingAreas[col*20+row];
+	return &rb->InitialBoundingAreas[row*20+col];
 }
 void lanpr_AddTriangles(LANPR_RenderBuffer *rb) {
 	LANPR_RenderElementLinkNode *reln;
@@ -624,7 +624,12 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 			break;
 		}
 		//irls = rls->Item.pNext;
-		if (rls->at > End) {
+		//added this to prevent rls->at == 1.0 (we don't need an end point for this)
+		if (!rls->Item.pNext && TNS_DOUBLE_CLOSE_ENOUGH(1, End)) {
+			EndSegment = rls;
+			ns2 = EndSegment;
+			break;
+		}elif (rls->at > End) {
 			EndSegment = rls;
 			ns2 = memStaticAquireThread(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
 			break;
@@ -656,7 +661,7 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 	}
 
 	ns->at = Begin;
-	ns2->at = End;
+	if(!TNS_DOUBLE_CLOSE_ENOUGH(1, End)) ns2->at = End;
 
 	for (rls = ns; rls && rls != ns2; rls = rls->Item.pNext) {
 		rls->OccludeLevel++;
@@ -2839,6 +2844,7 @@ void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *Line
 	return V;
 }
 
+void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb);
 
 /* ============================================ viewport display ================================================= */
 
@@ -2901,6 +2907,8 @@ void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
 		if (ll->batch) GWN_batch_discard(ll->batch);
 		lanpr_RebuildRenderDrawCommand(lanpr->render_buffer, ll);
 	}
+
+	lanpr_ChainGenerateDrawCommand(lanpr->render_buffer);
 }
 
 void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr) {
@@ -2942,7 +2950,7 @@ void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_Framebuffe
 }
 
 
-
+void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_threshold);
 
 /* ============================================ operators ========================================= */
 
@@ -2986,6 +2994,8 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	lanpr_AddTriangles(rb);
 
 	THREAD_CalculateLineOcclusion_Begin(rb);
+
+	lanpr_ChainFeatureLines_NO_THREAD(rb,0.01);
 
 	return OPERATOR_FINISHED;
 }

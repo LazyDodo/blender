@@ -349,6 +349,7 @@ typedef struct LANPR_RenderBuffer {
 
 	nListHandle Chains;
 	Gwn_Batch*  ChainDrawBatch;
+	DRWShadingGroup* ChainShgrp;
 
 	SpinLock csInfo;
 	SpinLock csData;
