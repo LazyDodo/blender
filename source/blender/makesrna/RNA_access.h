@@ -609,6 +609,7 @@ extern StructRNA RNA_InstanceGpencilModifier;
 extern StructRNA RNA_DupliGpencilModifier;
 extern StructRNA RNA_OpacityGpencilModifier;
 extern StructRNA RNA_LatticeGpencilModifier;
+extern StructRNA RNA_MirrorGpencilModifier;
 extern StructRNA RNA_SmoothGpencilModifier;
 extern StructRNA RNA_HookGpencilModifier;
 extern StructRNA RNA_OffsetGpencilModifier;

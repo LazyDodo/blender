@@ -74,6 +74,7 @@ const EnumPropertyItem rna_enum_object_greasepencil_modifier_type_items[] = {
 	{eGpencilModifierType_Offset, "GP_OFFSET", ICON_MOD_DISPLACE, "Offset", "Change stroke location, rotation or scale"},
 	{eGpencilModifierType_Smooth, "GP_SMOOTH", ICON_MOD_SMOOTH, "Smooth", "Smooth stroke"},
 	{eGpencilModifierType_Thick, "GP_THICK", ICON_MAN_ROT, "Thickness", "Change stroke thickness"},
+	{eGpencilModifierType_Mirror, "GP_MIRROR", ICON_MOD_MIRROR, "Mirror", "Duplicate strokes like a mirror" },
 	{0, "", 0, N_("Color"), "" },
 	{eGpencilModifierType_Color, "GP_COLOR", ICON_GROUP_VCOL, "Hue/Saturation", "Apply changes to stroke colors"},
 	{eGpencilModifierType_Opacity, "GP_OPACITY", ICON_MOD_MASK, "Opacity", "Opacity of the strokes"},
@@ -145,6 +146,8 @@ static StructRNA *rna_GpencilModifier_refine(struct PointerRNA *ptr)
 			return &RNA_OpacityGpencilModifier;
 		case eGpencilModifierType_Lattice:
 			return &RNA_LatticeGpencilModifier;
+		case eGpencilModifierType_Mirror:
+			return &RNA_MirrorGpencilModifier;
 		case eGpencilModifierType_Smooth:
 			return &RNA_SmoothGpencilModifier;
 		case eGpencilModifierType_Hook:
@@ -243,6 +246,7 @@ static void rna_##_type##GpencilModifier_##_prop##_set(PointerRNA *ptr, PointerR
 }
 
 RNA_GP_MOD_OBJECT_SET(Lattice, object, OB_LATTICE);
+RNA_GP_MOD_OBJECT_SET(Mirror, object, OB_EMPTY);
 
 #undef RNA_GP_MOD_OBJECT_SET
 
@@ -1084,6 +1088,64 @@ static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
+static void rna_def_modifier_gpencilmirror(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "MirrorGpencilModifier", "GpencilModifier");
+	RNA_def_struct_ui_text(srna, "Mirror Modifier", "Change stroke using lattice to deform modifier");
+	RNA_def_struct_sdna(srna, "MirrorGpencilModifierData");
+	RNA_def_struct_ui_icon(srna, ICON_MOD_MIRROR);
+
+	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "layername");
+	RNA_def_property_ui_text(prop, "Layer", "Layer name");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "pass_index");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layers", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_INVERT_LAYER);
+	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_INVERT_PASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Object", "Object used as center");
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_MirrorGpencilModifier_object_set", NULL, NULL);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+	prop = RNA_def_property(srna, "clip", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_CLIPPING);
+	RNA_def_property_ui_text(prop, "Clip", "Clip points");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "x_axis", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_AXIS_X);
+	RNA_def_property_ui_text(prop, "X", "Mirror this axis");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "y_axis", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_AXIS_Y);
+	RNA_def_property_ui_text(prop, "Y", "Mirror this axis");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "z_axis", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_AXIS_Z);
+	RNA_def_property_ui_text(prop, "Z", "Mirror this axis");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+}
+
 static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1245,6 +1307,7 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	rna_def_modifier_gpencilbuild(brna);
 	rna_def_modifier_gpencilopacity(brna);
 	rna_def_modifier_gpencillattice(brna);
+	rna_def_modifier_gpencilmirror(brna);
 	rna_def_modifier_gpencilhook(brna);
 }
 

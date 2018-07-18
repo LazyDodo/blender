@@ -53,6 +53,7 @@ set(SRC
 	intern/MOD_gpencilbuild.c
 	intern/MOD_gpencilopacity.c
 	intern/MOD_gpencillattice.c
+	intern/MOD_gpencilmirror.c
 	intern/MOD_gpencilsmooth.c
 	intern/MOD_gpencilhook.c
 	intern/MOD_gpenciloffset.c

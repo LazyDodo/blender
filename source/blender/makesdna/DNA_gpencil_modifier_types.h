@@ -49,6 +49,7 @@ typedef enum GpencilModifierType {
 	eGpencilModifierType_Smooth    = 11,
 	eGpencilModifierType_Hook      = 12,
 	eGpencilModifierType_Offset    = 13,
+	eGpencilModifierType_Mirror    = 14,
 	NUM_GREASEPENCIL_MODIFIER_TYPES
 } GpencilModifierType;
 
@@ -281,6 +282,23 @@ typedef enum eLatticeGpencil_Flag {
 	GP_LATTICE_INVERT_PASS   = (1 << 1),
 	GP_LATTICE_INVERT_VGROUP = (1 << 2),
 } eLatticeGpencil_Flag;
+
+typedef struct MirrorGpencilModifierData {
+	GpencilModifierData modifier;
+	struct Object *object;
+	char layername[64];          /* layer name */
+	int pass_index;              /* custom index for passes */
+	int flag;                    /* flags */
+} MirrorGpencilModifierData;
+
+typedef enum eMirrorGpencil_Flag {
+	GP_MIRROR_INVERT_LAYER  = (1 << 0),
+	GP_MIRROR_INVERT_PASS   = (1 << 1),
+	GP_MIRROR_CLIPPING      = (1 << 2),
+	GP_MIRROR_AXIS_X        = (1 << 3),
+	GP_MIRROR_AXIS_Y        = (1 << 4),
+	GP_MIRROR_AXIS_Z        = (1 << 5),
+} eMirrorGpencil_Flag;
 
 typedef struct HookGpencilModifierData {
 	GpencilModifierData modifier;

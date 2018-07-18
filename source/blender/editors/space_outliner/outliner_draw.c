@@ -1127,6 +1127,9 @@ static void tselem_draw_icon(
 						case eGpencilModifierType_Lattice:
 							ICON_DRAW(ICON_MOD_LATTICE);
 							break;
+						case eGpencilModifierType_Mirror:
+							ICON_DRAW(ICON_MOD_MIRROR);
+							break;
 						case eGpencilModifierType_Simplify:
 							ICON_DRAW(ICON_MOD_DECIM);
 							break;

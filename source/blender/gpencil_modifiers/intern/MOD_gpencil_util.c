@@ -68,6 +68,7 @@ void gpencil_modifier_type_init(GpencilModifierTypeInfo *types[])
 	INIT_GP_TYPE(Build);
 	INIT_GP_TYPE(Opacity);
 	INIT_GP_TYPE(Lattice);
+	INIT_GP_TYPE(Mirror);
 	INIT_GP_TYPE(Smooth);
 	INIT_GP_TYPE(Hook);
 	INIT_GP_TYPE(Offset);
