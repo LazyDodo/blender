@@ -127,6 +127,7 @@ set(SRC
 	engines/lanpr/lanpr_snake.c
 	engines/lanpr/lanpr_ops.c
 	engines/lanpr/lanpr_util.c
+	engines/lanpr/lanpr_chain.c
 
 	DRW_engine.h
 	intern/DRW_render.h
