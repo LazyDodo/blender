@@ -347,6 +347,9 @@ typedef struct LANPR_RenderBuffer {
 	nListItemPointer *EdgeMarkManaged;
 	nListHandle EdgeMarks;
 
+	nListHandle Chains;
+	Gwn_Batch*  ChainDrawBatch;
+
 	SpinLock csInfo;
 	SpinLock csData;
 	SpinLock csManagement;
@@ -439,7 +442,14 @@ typedef struct LANPR_RenderVert {
 }LANPR_RenderVert;
 
 #define LANPR_EDGE_FLAG_EDGE_MARK    1
+#define LANPR_EDGE_FLAG_CONTOUR      2
+#define LANPR_EDGE_FLAG_CREASE       4
+#define LANPR_EDGE_FLAG_MATERIAL     8
+#define LANPR_EDGE_FLAG_INTERSECTION 16
+#define LANPR_EDGE_FLAG_FLOATING     32 // floating edge, unimplemented yet
 #define LANPR_EDGE_FLAG_CHAIN_PICKED 64
+
+#define LANPR_EDGE_FLAG_ALL_TYPE     0x3f
 
 typedef struct LANPR_RenderLine {
 	nListItem Item;
@@ -449,15 +459,22 @@ typedef struct LANPR_RenderLine {
 	//tnsEdge*       Edge;//should be edge material
 	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
 	char MinOcclude;
-	char Flags;
+	char Flags; // also for line type determination on chainning
 	struct Object *ObjectRef;
 }LANPR_RenderLine;
 
 typedef struct LANPR_RenderLineChain {
 	nListItem   Item;
 	nListHandle Chain;
-	int         SegmentCount;
+	//int         SegmentCount;  // we count before draw cmd.
 }LANPR_RenderLineChain;
+
+typedef struct LANPR_RenderLineChainItem {
+	nListItem   Item;
+	LANPR_RenderVert*       rv;     // this is for point. similar structure as ListItemPointer
+	char        LineType;
+	//char        OccludeLevel;
+}LANPR_RenderLineChainItem;
 
 typedef struct LANPR_BoundingArea {
 	real L, R, U, B;

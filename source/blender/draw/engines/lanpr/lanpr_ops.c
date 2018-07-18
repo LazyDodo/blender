@@ -356,7 +356,7 @@ int lanpr_GetLineBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int
 	real SpW = rb->WidthPerTile, SpH = rb->HeightPerTile;
 	real B[4];
 
-	if (!rt->V[0] || !rt->V[1] || !rt->V[2]) return 0;
+	if (!rl->L || !rl->R) return 0;
 
 	B[0] = MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0]);
 	B[1] = MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0]);
@@ -2368,6 +2368,7 @@ LANPR_RenderLine *lanpr_TriangleGenerateIntersectionLineOnly(LANPR_RenderBuffer 
 	LANPR_RenderLineSegment *rls = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
 	lstAppendItem(&Result->Segments, rls);
 	lstAppendItem(&rb->AllRenderLines, Result);
+	Result->Flags |= LANPR_EDGE_FLAG_INTERSECTION;
 	lstAppendPointerStatic(&rb->IntersectionLines, &rb->RenderDataPool, Result);
 
 	//tnsglobal_TriangleIntersectionCount++;
@@ -2491,6 +2492,7 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 		//	continue;
 
 		if (rl->Flags & LANPR_EDGE_FLAG_EDGE_MARK) {
+			// no need to mark again
 			lstAppendPointerStatic(&rb->EdgeMarks, &rb->RenderDataPool, rl);
 			continue;
 		}
@@ -2512,14 +2514,17 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 		}
 
 		if (Add == 1) {
+			rl->Flags |= LANPR_EDGE_FLAG_CONTOUR;
 			lstAppendPointerStatic(&rb->Contours, &rb->RenderDataPool, rl);
 			ContourCount++;
 		} elif(Add == 2)
 		{
+			rl->Flags |= LANPR_EDGE_FLAG_CREASE;
 			lstAppendPointerStatic(&rb->CreaseLines, &rb->RenderDataPool, rl);
 			CreaseCount++;
 		} elif(Add == 3)
 		{
+			rl->Flags |= LANPR_EDGE_FLAG_MATERIAL;
 			lstAppendPointerStatic(&rb->MaterialLines, &rb->RenderDataPool, rl);
 			MaterialCount++;
 		}
@@ -2527,8 +2532,8 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 			int r1, r2, c1, c2, row, col;
 			if (lanpr_GetLineBoundingAreas(rb, rl, &r1, &r2, &c1, &c2)) {
 				for (row = r1; row != r2 + 1; row++) {
-					for (col = c1, col != c2 + 1; col++) {
-						lanpr_LinkLineWithBoundingArea(rb, rb->InitialBoundingAreas[row * 20 + col], rl);
+					for (col = c1; col != c2 + 1; col++) {
+						lanpr_LinkLineWithBoundingArea(rb, &rb->InitialBoundingAreas[row * 20 + col], rl);
 					}
 				}
 
