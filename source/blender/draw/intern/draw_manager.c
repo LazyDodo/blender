@@ -2515,21 +2515,21 @@ void DRW_opengl_context_destroy(void)
 	}
 }
 
-void DRW_opengl_context_enable(void)
+void DRW_opengl_context_enable_ex(bool restore)
 {
 	if (DST.gl_context != NULL) {
 		/* IMPORTANT: We dont support immediate mode in render mode!
 		 * This shall remain in effect until immediate mode supports
 		 * multiple threads. */
 		BLI_ticket_mutex_lock(DST.gl_context_mutex);
-		if (BLI_thread_is_main()) {
+		if (BLI_thread_is_main() && restore) {
 			if (!G.background) {
 				immDeactivate();
 			}
 		}
 		WM_opengl_context_activate(DST.gl_context);
 		GPU_context_active_set(DST.gpu_context);
-		if (BLI_thread_is_main()) {
+		if (BLI_thread_is_main() && restore) {
 			if (!G.background) {
 				immActivate();
 			}
@@ -2538,7 +2538,7 @@ void DRW_opengl_context_enable(void)
 	}
 }
 
-void DRW_opengl_context_disable(void)
+void DRW_opengl_context_disable_ex(bool restore)
 {
 	if (DST.gl_context != NULL) {
 #ifdef __APPLE__
@@ -2547,7 +2547,7 @@ void DRW_opengl_context_disable(void)
 		glFlush();
 #endif
 
-		if (BLI_thread_is_main()) {
+		if (BLI_thread_is_main() && restore) {
 			wm_window_reset_drawable();
 		}
 		else {
@@ -2557,6 +2557,16 @@ void DRW_opengl_context_disable(void)
 
 		BLI_ticket_mutex_unlock(DST.gl_context_mutex);
 	}
+}
+
+void DRW_opengl_context_enable(void)
+{
+	DRW_opengl_context_enable_ex(true);
+}
+
+void DRW_opengl_context_disable(void)
+{
+	DRW_opengl_context_disable_ex(true);
 }
 
 void DRW_opengl_render_context_enable(void *re_gl_context)
