@@ -537,8 +537,8 @@ set(ICON_NAMES
 set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	# BEGIN ICON_GEOM_NAMES
 	brush.gpencil.draw.eraser_hard
-	brush.gpencil.draw.eraser_line
 	brush.gpencil.draw.eraser_soft
+	brush.gpencil.draw.eraser_stroke
 	brush.gpencil.draw_block
 	brush.gpencil.draw_fill
 	brush.gpencil.draw_ink

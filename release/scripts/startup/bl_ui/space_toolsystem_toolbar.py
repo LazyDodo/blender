@@ -65,18 +65,22 @@ def generate_from_brushes_ex(
                 name = brush.name
                 if name.startswith("Draw "):
                     text = name.replace("Draw ", "")
+                    icon_name = brush.name.lower().replace(" ", "_")
                 elif name.startswith("Eraser "):
                     text = name.replace("Eraser ", "")
+                    icon_name = "draw." + brush.name.lower().replace(" ", "_")
                 elif name.startswith("Fill "):
                     text = name.replace(" Area", "")
+                    icon_name = "draw_fill"
                 else:
                     text = name
+                    icon_name = "draw_pencil"
 
                 brush_categories.setdefault(category, []).append(
                     ToolDef.from_dict(
                         dict(
                             text=text,
-                            icon=icon_prefix + category.lower().replace(" ", "_"),
+                            icon=icon_prefix + icon_name,
                             data_block=name,
                             widget=None,
                             operator="gpencil.draw",
@@ -1038,8 +1042,8 @@ class _defs_gpencil_paint:
             brush_test_attr="use_paint_grease_pencil",
             brush_category_attr="grease_pencil_tool",
             brush_category_layout=(
-                ('Draw Pencil',),
-                ('Draw Pen',),
+                ('Draw Pencil', ),
+                ('Draw Pen', ),
                 ('Draw Ink',),
                 ('Draw Noise',),
                 ('Draw Block',),
