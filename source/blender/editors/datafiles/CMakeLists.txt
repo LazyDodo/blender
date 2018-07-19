@@ -536,6 +536,16 @@ set(ICON_NAMES
 # This section is maintained by the updating script, keep BEGIN/END comments.
 set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	# BEGIN ICON_GEOM_NAMES
+	brush.gpencil.draw.eraser_hard
+	brush.gpencil.draw.eraser_line
+	brush.gpencil.draw.eraser_soft
+	brush.gpencil.draw_block
+	brush.gpencil.draw_fill
+	brush.gpencil.draw_ink
+	brush.gpencil.draw_marker
+	brush.gpencil.draw_noise
+	brush.gpencil.draw_pen
+	brush.gpencil.draw_pencil
 	brush.paint_texture.airbrush
 	brush.paint_texture.clone
 	brush.paint_texture.draw
@@ -587,6 +597,16 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.gpencil.draw.eraser
 	ops.gpencil.draw.line
 	ops.gpencil.draw.poly
+	ops.gpencil.sculpt_clone
+	ops.gpencil.sculpt_grab
+	ops.gpencil.sculpt_pinch
+	ops.gpencil.sculpt_push
+	ops.gpencil.sculpt_randomize
+	ops.gpencil.sculpt_smooth
+	ops.gpencil.sculpt_strength
+	ops.gpencil.sculpt_thickness
+	ops.gpencil.sculpt_twist
+	ops.gpencil.sculpt_weight
 	ops.mesh.bevel
 	ops.mesh.bisect
 	ops.mesh.dupli_extrude_cursor
