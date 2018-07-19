@@ -2402,6 +2402,14 @@ LANPR_RenderLine *lanpr_TriangleGenerateIntersectionLineOnly(LANPR_RenderBuffer 
 	lstAppendItem(&rb->AllRenderLines, Result);
 	Result->Flags |= LANPR_EDGE_FLAG_INTERSECTION;
 	lstAppendPointerStatic(&rb->IntersectionLines, &rb->RenderDataPool, Result);
+	int r1, r2, c1, c2, row, col;
+	if (lanpr_GetLineBoundingAreas(rb, Result, &r1, &r2, &c1, &c2)) {
+		for (row = r1; row != r2 + 1; row++) {
+			for (col = c1; col != c2 + 1; col++) {
+				lanpr_LinkLineWithBoundingArea(rb, &rb->InitialBoundingAreas[row * 20 + col], Result);
+			}
+		}
+	}
 
 	//tnsglobal_TriangleIntersectionCount++;
 
@@ -2568,7 +2576,6 @@ void lanpr_ComputeSceneContours(LANPR_RenderBuffer *rb) {
 						lanpr_LinkLineWithBoundingArea(rb, &rb->InitialBoundingAreas[row * 20 + col], rl);
 					}
 				}
-
 			}
 		}
 

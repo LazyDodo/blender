@@ -26,25 +26,39 @@
 
 #include <math.h>
 
-int lanpr_GetLineBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int *RowBegin, int *RowEnd, int *ColBegin, int *ColEnd) ;
-LANPR_BoundingArea* lanpr_GetPointBoundingArea(LANPR_RenderBuffer *rb, real x, real y) ;
+int lanpr_GetLineBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int *RowBegin, int *RowEnd, int *ColBegin, int *ColEnd);
+LANPR_BoundingArea* lanpr_GetPointBoundingArea(LANPR_RenderBuffer *rb, real x, real y);
 
-LANPR_RenderLine* lanpr_GetConnectedRenderLine(LANPR_BoundingArea* ba, LANPR_RenderVert* rv){
-    nListItemPointer* lip;
-    LANPR_RenderLine* nrl;
-    real cosine;
+#define LANPR_OTHER_RV(rl,rv) ((rv) == (rl)->L?(rl)->R:(rl)->L) 
 
-    for(lip = ba->LinkedLines.pFirst; lip; lip=lip->pNext){
-        nrl = lip->p;
+LANPR_RenderLine* lanpr_GetConnectedRenderLine(LANPR_BoundingArea* ba, LANPR_RenderVert* rv, LANPR_RenderVert** new_rv) {
+	nListItemPointer* lip;
+	LANPR_RenderLine* nrl;
+	real cosine;
 
-        if((!(nrl->Flags&LANPR_EDGE_FLAG_ALL_TYPE)) || (nrl->Flags & LANPR_EDGE_FLAG_CHAIN_PICKED)) continue;
+	for (lip = ba->LinkedLines.pFirst; lip; lip = lip->pNext) {
+		nrl = lip->p;
 
-        // always chain connected lines for now.
-        // simplification will take care of the sharp points.
-        // if(cosine whatever) continue;
+		if ((!(nrl->Flags&LANPR_EDGE_FLAG_ALL_TYPE)) || (nrl->Flags & LANPR_EDGE_FLAG_CHAIN_PICKED)) continue;
 
-        if(rv != nrl->L && rv != nrl->R) continue;
+		// always chain connected lines for now.
+		// simplification will take care of the sharp points.
+		// if(cosine whatever) continue;
 
+		if (rv != nrl->L && rv != nrl->R) {
+			if (nrl->Flags&LANPR_EDGE_FLAG_INTERSECTION) {
+				if (rv->FrameBufferCoord[0] == nrl->L->FrameBufferCoord[0] && rv->FrameBufferCoord[1] == nrl->L->FrameBufferCoord[1]) {
+					*new_rv = LANPR_OTHER_RV(nrl, nrl->L);
+					return nrl;
+				}elif(rv->FrameBufferCoord[0] == nrl->R->FrameBufferCoord[0] && rv->FrameBufferCoord[1] == nrl->R->FrameBufferCoord[1]){
+					*new_rv = LANPR_OTHER_RV(nrl, nrl->R);
+					return nrl;
+				}
+			}
+			continue;
+		}
+
+		*new_rv = LANPR_OTHER_RV(nrl, rv);
         return nrl;
     }
 
@@ -119,9 +133,6 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
 }
 
 
-#define LANPR_OTHER_RV(rl,rv) ((rv) == (rl)->L?(rl)->R:(rl)->L) 
-
-
 void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_threshold){
     LANPR_RenderLineChain* rlc;
     LANPR_RenderLine* rl;
@@ -144,9 +155,8 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
         ba = lanpr_GetPointBoundingArea(rb,rl->L->FrameBufferCoord[0], rl->L->FrameBufferCoord[1]);
         new_rv = rl->L;
         lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags,0);
-        while(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv)){
+        while(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv)){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
-            new_rv = LANPR_OTHER_RV(new_rl,new_rv);
 
             int last_occlude;
             
@@ -188,9 +198,8 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
         new_rv = rl->R;
         // below already done in step 2
         // lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags,0);
-        while(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv)){
+        while(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv)){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
-            new_rv = LANPR_OTHER_RV(new_rl,new_rv);
 
             int last_occlude;
             
@@ -250,7 +259,9 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 
     for(rlc = rb->Chains.pFirst; rlc;rlc=rlc->Item.pNext){
-        vert_count += lanpr_CountChainVertices(rlc);
+		int count = lanpr_CountChainVertices(rlc);
+		printf("seg contains %d verts\n", count);
+		vert_count += count;
     }
 
     GWN_vertbuf_data_alloc(vbo, vert_count);
