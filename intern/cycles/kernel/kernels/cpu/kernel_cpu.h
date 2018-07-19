@@ -18,7 +18,6 @@
 
 void KERNEL_FUNCTION_FULL_NAME(path_trace)(KernelGlobals *kg,
                                            float *buffer,
-                                           unsigned int *rng_state,
                                            int sample,
                                            int x, int y,
                                            int offset,
@@ -42,7 +41,6 @@ void KERNEL_FUNCTION_FULL_NAME(convert_to_half_float)(KernelGlobals *kg,
 void KERNEL_FUNCTION_FULL_NAME(shader)(KernelGlobals *kg,
                                        uint4 *input,
                                        float4 *output,
-                                       float *output_luma,
                                        int type,
                                        int filter,
                                        int i,
@@ -57,7 +55,6 @@ void KERNEL_FUNCTION_FULL_NAME(data_init)(
         ccl_global void *split_data_buffer,
         int num_elements,
         ccl_global char *ray_state,
-        ccl_global uint *rng_state,
         int start_sample,
         int end_sample,
         int sx, int sy, int sw, int sh, int offset, int stride,
@@ -77,16 +74,17 @@ DECLARE_SPLIT_KERNEL_FUNCTION(lamp_emission)
 DECLARE_SPLIT_KERNEL_FUNCTION(do_volume)
 DECLARE_SPLIT_KERNEL_FUNCTION(queue_enqueue)
 DECLARE_SPLIT_KERNEL_FUNCTION(indirect_background)
+DECLARE_SPLIT_KERNEL_FUNCTION(shader_setup)
+DECLARE_SPLIT_KERNEL_FUNCTION(shader_sort)
 DECLARE_SPLIT_KERNEL_FUNCTION(shader_eval)
 DECLARE_SPLIT_KERNEL_FUNCTION(holdout_emission_blurring_pathtermination_ao)
 DECLARE_SPLIT_KERNEL_FUNCTION(subsurface_scatter)
 DECLARE_SPLIT_KERNEL_FUNCTION(direct_lighting)
 DECLARE_SPLIT_KERNEL_FUNCTION(shadow_blocked_ao)
 DECLARE_SPLIT_KERNEL_FUNCTION(shadow_blocked_dl)
+DECLARE_SPLIT_KERNEL_FUNCTION(enqueue_inactive)
 DECLARE_SPLIT_KERNEL_FUNCTION(next_iteration_setup)
 DECLARE_SPLIT_KERNEL_FUNCTION(indirect_subsurface)
 DECLARE_SPLIT_KERNEL_FUNCTION(buffer_update)
-
-void KERNEL_FUNCTION_FULL_NAME(register_functions)(void(*reg)(const char* name, void* func));
 
 #undef KERNEL_ARCH

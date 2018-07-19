@@ -35,13 +35,6 @@
 namespace DEG {
 
 /////////////////////////////////////////
-// Root.
-
-RootKey::RootKey()
-{
-}
-
-/////////////////////////////////////////
 // Time source.
 
 TimeSourceKey::TimeSourceKey()
@@ -64,7 +57,7 @@ string TimeSourceKey::identifier() const
 
 ComponentKey::ComponentKey()
         : id(NULL),
-          type(DEPSNODE_TYPE_UNDEFINED),
+          type(DEG_NODE_TYPE_UNDEFINED),
           name("")
 {
 }
@@ -90,7 +83,7 @@ string ComponentKey::identifier() const
 
 OperationKey::OperationKey()
         : id(NULL),
-          component_type(DEPSNODE_TYPE_UNDEFINED),
+          component_type(DEG_NODE_TYPE_UNDEFINED),
           component_name(""),
           opcode(DEG_OPCODE_OPERATION),
           name(""),
@@ -198,6 +191,20 @@ RNAPathKey::RNAPathKey(ID *id, const PointerRNA &ptr, PropertyRNA *prop)
           ptr(ptr),
           prop(prop)
 {
+}
+
+RNAPathKey::RNAPathKey(ID *id, const char *path)
+        : id(id)
+{
+	/* create ID pointer for root of path lookup */
+	PointerRNA id_ptr;
+	RNA_id_pointer_create(id, &id_ptr);
+	/* try to resolve path... */
+	int index;
+	if (!RNA_path_resolve_full(&id_ptr, path, &this->ptr, &this->prop, &index)) {
+		this->ptr = PointerRNA_NULL;
+		this->prop = NULL;
+	}
 }
 
 string RNAPathKey::identifier() const

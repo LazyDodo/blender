@@ -18,6 +18,8 @@
 
 #include <stdlib.h>
 
+#include "bvh/bvh_params.h"
+
 #include "util/util_logging.h"
 #include "util/util_string.h"
 
@@ -29,7 +31,7 @@ DebugFlags::CPU::CPU()
     sse41(true),
     sse3(true),
     sse2(true),
-    qbvh(true),
+    bvh_layout(BVH_LAYOUT_DEFAULT),
     split_kernel(false)
 {
 	reset();
@@ -55,7 +57,7 @@ void DebugFlags::CPU::reset()
 #undef STRINGIFY
 #undef CHECK_CPU_FLAGS
 
-	qbvh = true;
+	bvh_layout = BVH_LAYOUT_DEFAULT;
 	split_kernel = false;
 }
 
@@ -118,17 +120,20 @@ void DebugFlags::OpenCL::reset()
 	}
 	/* Initialize other flags from environment variables. */
 	debug = (getenv("CYCLES_OPENCL_DEBUG") != NULL);
-	single_program = (getenv("CYCLES_OPENCL_SINGLE_PROGRAM") != NULL);
+	single_program = (getenv("CYCLES_OPENCL_MULTI_PROGRAM") == NULL);
 }
 
 DebugFlags::DebugFlags()
+: viewport_static_bvh(false)
 {
 	/* Nothing for now. */
 }
 
 void DebugFlags::reset()
 {
+	viewport_static_bvh = false;
 	cpu.reset();
+	cuda.reset();
 	opencl.reset();
 }
 
@@ -136,13 +141,13 @@ std::ostream& operator <<(std::ostream &os,
                           DebugFlagsConstRef debug_flags)
 {
 	os << "CPU flags:\n"
-	   << "  AVX2   : " << string_from_bool(debug_flags.cpu.avx2)  << "\n"
-	   << "  AVX    : " << string_from_bool(debug_flags.cpu.avx)   << "\n"
-	   << "  SSE4.1 : " << string_from_bool(debug_flags.cpu.sse41) << "\n"
-	   << "  SSE3   : " << string_from_bool(debug_flags.cpu.sse3)  << "\n"
-	   << "  SSE2   : " << string_from_bool(debug_flags.cpu.sse2)  << "\n"
-	   << "  QBVH   : " << string_from_bool(debug_flags.cpu.qbvh)  << "\n"
-	   << "  Split  : " << string_from_bool(debug_flags.cpu.split_kernel) << "\n";
+	   << "  AVX2       : " << string_from_bool(debug_flags.cpu.avx2) << "\n"
+	   << "  AVX        : " << string_from_bool(debug_flags.cpu.avx) << "\n"
+	   << "  SSE4.1     : " << string_from_bool(debug_flags.cpu.sse41) << "\n"
+	   << "  SSE3       : " << string_from_bool(debug_flags.cpu.sse3) << "\n"
+	   << "  SSE2       : " << string_from_bool(debug_flags.cpu.sse2) << "\n"
+	   << "  BVH layout : " << bvh_layout_name(debug_flags.cpu.bvh_layout) << "\n"
+	   << "  Split      : " << string_from_bool(debug_flags.cpu.split_kernel) << "\n";
 
 	os << "CUDA flags:\n"
 	   << " Adaptive Compile: " << string_from_bool(debug_flags.cuda.adaptive_compile) << "\n";
@@ -184,8 +189,8 @@ std::ostream& operator <<(std::ostream &os,
 	   << "  Device type    : " << opencl_device_type << "\n"
 	   << "  Kernel type    : " << opencl_kernel_type << "\n"
 	   << "  Debug          : " << string_from_bool(debug_flags.opencl.debug) << "\n"
-	   << "  Signle program : " << string_from_bool(debug_flags.opencl.single_program)
-	   << "\n";
+	   << "  Single program : " << string_from_bool(debug_flags.opencl.single_program) << "\n"
+	   << "  Memory limit   : " << string_human_readable_size(debug_flags.opencl.mem_limit) << "\n";
 	return os;
 }
 

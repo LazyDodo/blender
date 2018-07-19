@@ -47,6 +47,8 @@
 #include "BKE_particle.h"
 #include "BKE_scene.h"
 
+
+
 #ifdef _OPENMP
 #  include "BKE_mesh.h"  /* BKE_MESH_OMP_LIMIT */
 #endif
@@ -59,23 +61,15 @@ static void initData(ModifierData *md)
 	bmd->length = 100.0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	BuildModifierData *bmd = (BuildModifierData *) md;
-	BuildModifierData *tbmd = (BuildModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
-}
-
 static bool dependsOnTime(ModifierData *UNUSED(md))
 {
 	return true;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
-                                  DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+static DerivedMesh *applyModifier(
+        ModifierData *md, Object *UNUSED(ob),
+        DerivedMesh *derivedData,
+        ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm = derivedData;
 	DerivedMesh *result;
@@ -102,9 +96,9 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 	MVert *mvert_src = dm->getVertArray(dm);
 
 
-	vertMap = MEM_mallocN(sizeof(*vertMap) * numVert_src, "build modifier vertMap");
-	edgeMap = MEM_mallocN(sizeof(*edgeMap) * numEdge_src, "build modifier edgeMap");
-	faceMap = MEM_mallocN(sizeof(*faceMap) * numPoly_src, "build modifier faceMap");
+	vertMap = MEM_malloc_arrayN(numVert_src, sizeof(*vertMap), "build modifier vertMap");
+	edgeMap = MEM_malloc_arrayN(numEdge_src, sizeof(*edgeMap), "build modifier edgeMap");
+	faceMap = MEM_malloc_arrayN(numPoly_src, sizeof(*faceMap), "build modifier faceMap");
 
 	range_vn_i(vertMap, numVert_src, 0);
 	range_vn_i(edgeMap, numEdge_src, 0);
@@ -112,11 +106,11 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 
 	frac = (BKE_scene_frame_get(md->scene) - bmd->start) / bmd->length;
 	CLAMP(frac, 0.0f, 1.0f);
-	
+
 	if (bmd->flag & MOD_BUILD_FLAG_REVERSE) {
 		frac = 1.0f - frac;
 	}
-	
+
 	numFaces_dst = numPoly_src * frac;
 	numEdges_dst = numEdge_src * frac;
 
@@ -126,7 +120,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 		MLoop *ml, *mloop;
 		MEdge *medge;
 		uintptr_t hash_num, hash_num_alt;
-		
+
 		if (bmd->flag & MOD_BUILD_FLAG_RANDOMIZE) {
 			BLI_array_randomize(faceMap, sizeof(*faceMap),
 			                    numPoly_src, bmd->seed);
@@ -152,7 +146,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 
 			numLoops_dst += mp->totloop;
 		}
-		BLI_assert(hash_num == BLI_ghash_size(vertHash));
+		BLI_assert(hash_num == BLI_ghash_len(vertHash));
 
 		/* get the set of edges that will be in the new mesh (i.e. all edges
 		 * that have both verts in the new mesh)
@@ -185,7 +179,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 		 */
 		medge = medge_src;
 		hash_num = 0;
-		BLI_assert(hash_num == BLI_ghash_size(vertHash));
+		BLI_assert(hash_num == BLI_ghash_len(vertHash));
 		for (i = 0; i < numEdges_dst; i++) {
 			void **val_p;
 			me = medge + edgeMap[i];
@@ -199,12 +193,12 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 				hash_num++;
 			}
 		}
-		BLI_assert(hash_num == BLI_ghash_size(vertHash));
+		BLI_assert(hash_num == BLI_ghash_len(vertHash));
 
 		/* get the set of edges that will be in the new mesh */
 		for (i = 0; i < numEdges_dst; i++) {
-			j = BLI_ghash_size(edgeHash);
-			
+			j = BLI_ghash_len(edgeHash);
+
 			BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(j),
 			                 SET_INT_IN_POINTER(edgeMap[i]));
 			BLI_ghash_insert(edgeHash2,  SET_INT_IN_POINTER(edgeMap[i]),
@@ -230,8 +224,8 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 	/* now we know the number of verts, edges and faces, we can create
 	 * the mesh
 	 */
-	result = CDDM_from_template(dm, BLI_ghash_size(vertHash),
-	                            BLI_ghash_size(edgeHash), 0, numLoops_dst, numFaces_dst);
+	result = CDDM_from_template(dm, BLI_ghash_len(vertHash),
+	                            BLI_ghash_len(edgeHash), 0, numLoops_dst, numFaces_dst);
 
 	/* copy the vertices across */
 	GHASH_ITER (gh_iter, vertHash) {
@@ -246,39 +240,39 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 		DM_copy_vert_data(dm, result, oldIndex, newIndex, 1);
 		*dest = source;
 	}
-	
+
 	/* copy the edges across, remapping indices */
-	for (i = 0; i < BLI_ghash_size(edgeHash); i++) {
+	for (i = 0; i < BLI_ghash_len(edgeHash); i++) {
 		MEdge source;
 		MEdge *dest;
 		int oldIndex = GET_INT_FROM_POINTER(BLI_ghash_lookup(edgeHash, SET_INT_IN_POINTER(i)));
-		
+
 		source = medge_src[oldIndex];
 		dest = CDDM_get_edge(result, i);
-		
+
 		source.v1 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v1)));
 		source.v2 = GET_INT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_INT_IN_POINTER(source.v2)));
-		
+
 		DM_copy_edge_data(dm, result, oldIndex, i, 1);
 		*dest = source;
 	}
 
 	mpoly_dst = CDDM_get_polys(result);
 	/* mloop_dst = */ ml_dst = CDDM_get_loops(result);
-	
+
 	/* copy the faces across, remapping indices */
 	k = 0;
 	for (i = 0; i < numFaces_dst; i++) {
 		MPoly *source;
 		MPoly *dest;
-		
+
 		source = mpoly_src + faceMap[i];
 		dest = mpoly_dst + i;
 		DM_copy_poly_data(dm, result, faceMap[i], i, 1);
-		
+
 		*dest = *source;
 		dest->loopstart = k;
-		
+
 		DM_copy_loop_data(dm, result, source->loopstart, dest->loopstart, dest->totloop);
 
 		ml_src = mloop_src + source->loopstart;
@@ -291,7 +285,7 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *UNUSED(ob),
 	BLI_ghash_free(vertHash, NULL, NULL);
 	BLI_ghash_free(edgeHash, NULL, NULL);
 	BLI_ghash_free(edgeHash2, NULL, NULL);
-	
+
 	MEM_freeN(vertMap);
 	MEM_freeN(edgeMap);
 	MEM_freeN(faceMap);
@@ -311,7 +305,7 @@ ModifierTypeInfo modifierType_Build = {
 	/* type */              eModifierTypeType_Nonconstructive,
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_AcceptsCVs,
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,

@@ -31,10 +31,8 @@
  */
 
 
-#if defined(_WIN64) && !defined(FREE_WINDOWS64)
+#if defined(_WIN64)
 typedef unsigned __int64 uint_ptr;
-#elif defined(FREE_WINDOWS64)
-typedef unsigned long long uint_ptr;
 #else
 typedef unsigned long uint_ptr;
 #endif
@@ -52,7 +50,7 @@ typedef unsigned long uint_ptr;
 #include "DNA_ipo_types.h"
 #include "BLI_math.h"
 
-// All objects should start on frame 1! Will we ever need an object to 
+// All objects should start on frame 1! Will we ever need an object to
 // start on another frame, the 1.0 should change.
 KX_IpoSGController::KX_IpoSGController()
 : m_ipo_as_force(false),
@@ -147,7 +145,7 @@ bool KX_IpoSGController::Update(double currentTime)
 										 m_ipo_xform.GetPosition();
 					m_game_object->GetPhysicsController()->ApplyForce(vec, false);
 				}
-			} 
+			}
 			else {
 				// Local ipo should be defined with the object position at (0,0,0)
 				// Local transform is applied to the object based on initial position
@@ -233,8 +231,8 @@ bool KX_IpoSGController::Update(double currentTime)
 			else if (m_ipo_channels_active[OB_ROT_X] || m_ipo_channels_active[OB_ROT_Y] || m_ipo_channels_active[OB_ROT_Z]) {
 				if (m_ipo_euler_initialized) {
 					// assume all channel absolute
-					// All 3 channels should be specified but if they are not, we will take 
-					// the value at the start of the game to avoid angle sign reversal 
+					// All 3 channels should be specified but if they are not, we will take
+					// the value at the start of the game to avoid angle sign reversal
 					double yaw = m_ipo_start_euler[0], pitch = m_ipo_start_euler[1], roll = m_ipo_start_euler[2];
 
 					//RotX and dRotX
@@ -252,7 +250,7 @@ bool KX_IpoSGController::Update(double currentTime)
 					else if (m_ipo_channels_active[OB_DROT_Y]) {
 						pitch += m_ipo_xform.GetDeltaEulerAngles()[1];
 					}
-					
+
 					//RotZ and dRotZ
 					if (m_ipo_channels_active[OB_ROT_Z]) {
 						roll = (m_ipo_channels_active[OB_DROT_Z] ? (m_ipo_xform.GetEulerAngles()[2] + m_ipo_xform.GetDeltaEulerAngles()[2]) : m_ipo_xform.GetEulerAngles()[2] );
@@ -310,7 +308,7 @@ bool KX_IpoSGController::Update(double currentTime)
 			else if (m_ipo_channels_active[OB_DSIZE_Y] && m_ipo_start_initialized) {
 				newScale[1] = (m_ipo_xform.GetDeltaScaling()[1] + ((!m_ipo_add)?m_ipo_start_scale[1] : 0.0f));
 			}
-			
+
 			//RotZ and dRotZ
 			if (m_ipo_channels_active[OB_SIZE_Z]) {
 				newScale[2] = (m_ipo_channels_active[OB_DSIZE_Z] ? (m_ipo_xform.GetScaling()[2] + m_ipo_xform.GetDeltaScaling()[2]) : m_ipo_xform.GetScaling()[2]);

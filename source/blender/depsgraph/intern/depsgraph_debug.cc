@@ -35,35 +35,17 @@
 
 extern "C" {
 #include "DNA_scene_types.h"
+}  /* extern "C" */
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_debug.h"
 #include "DEG_depsgraph_build.h"
-}  /* extern "C" */
 
-#include "intern/eval/deg_eval_debug.h"
 #include "intern/depsgraph_intern.h"
+#include "intern/nodes/deg_node_id.h"
+#include "intern/nodes/deg_node_time.h"
+
 #include "util/deg_util_foreach.h"
-
-/* ************************************************ */
-
-DepsgraphStats *DEG_stats(void)
-{
-	return DEG::DepsgraphDebug::stats;
-}
-
-void DEG_stats_verify()
-{
-	DEG::DepsgraphDebug::verify_stats();
-}
-
-DepsgraphStatsID *DEG_stats_id(ID *id)
-{
-	if (!DEG::DepsgraphDebug::stats) {
-		return NULL;
-	}
-	return DEG::DepsgraphDebug::get_id_stats(id, false);
-}
 
 bool DEG_debug_compare(const struct Depsgraph *graph1,
                        const struct Depsgraph *graph2)
@@ -165,7 +147,7 @@ bool DEG_debug_consistency_check(Depsgraph *graph)
 			return false;
 		}
 		foreach (DEG::DepsRelation *rel, node->outlinks) {
-			if (rel->to->type == DEG::DEPSNODE_TYPE_OPERATION) {
+			if (rel->to->type == DEG::DEG_NODE_TYPE_OPERATION) {
 				DEG::OperationDepsNode *to = (DEG::OperationDepsNode *)rel->to;
 				BLI_assert(to->num_links_pending < to->inlinks.size());
 				++to->num_links_pending;
@@ -177,7 +159,7 @@ bool DEG_debug_consistency_check(Depsgraph *graph)
 	foreach (DEG::OperationDepsNode *node, deg_graph->operations) {
 		int num_links_pending = 0;
 		foreach (DEG::DepsRelation *rel, node->inlinks) {
-			if (rel->from->type == DEG::DEPSNODE_TYPE_OPERATION) {
+			if (rel->from->type == DEG::DEG_NODE_TYPE_OPERATION) {
 				++num_links_pending;
 			}
 		}
@@ -218,8 +200,7 @@ void DEG_stats_simple(const Depsgraph *graph, size_t *r_outer,
 		size_t tot_outer = 0;
 		size_t tot_rels = 0;
 
-		GHASH_FOREACH_BEGIN(DEG::IDDepsNode *, id_node, deg_graph->id_hash)
-		{
+		foreach (DEG::IDDepsNode *id_node, deg_graph->id_nodes) {
 			tot_outer++;
 			GHASH_FOREACH_BEGIN(DEG::ComponentDepsNode *, comp_node, id_node->components)
 			{
@@ -230,9 +211,8 @@ void DEG_stats_simple(const Depsgraph *graph, size_t *r_outer,
 			}
 			GHASH_FOREACH_END();
 		}
-		GHASH_FOREACH_END();
 
-		DEG::TimeSourceDepsNode *time_source = deg_graph->find_time_source(NULL);
+		DEG::TimeSourceDepsNode *time_source = deg_graph->find_time_source();
 		if (time_source != NULL) {
 			tot_rels += time_source->inlinks.size();
 		}

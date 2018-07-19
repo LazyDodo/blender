@@ -49,9 +49,10 @@
 #include "BKE_global.h"
 
 #include "BKE_depsgraph.h"
-#include "BKE_scene.h"
 #include "BKE_displist.h"
+#include "BKE_main.h"
 #include "BKE_mball_tessellate.h"  /* own include */
+#include "BKE_scene.h"
 
 #include "BLI_strict_flags.h"
 
@@ -316,12 +317,12 @@ static float densfunc(const MetaElem *ball, float x, float y, float z)
 			if      (dvec[2] > ball->expz)  dvec[2] -= ball->expz;
 			else if (dvec[2] < -ball->expz) dvec[2] += ball->expz;
 			else                            dvec[2] = 0.0;
-			/* fall through */
+			ATTR_FALLTHROUGH;
 		case MB_PLANE:
 			if      (dvec[1] >  ball->expy) dvec[1] -= ball->expy;
 			else if (dvec[1] < -ball->expy) dvec[1] += ball->expy;
 			else                            dvec[1] = 0.0;
-			/* fall through */
+			ATTR_FALLTHROUGH;
 		case MB_TUBE:
 			if      (dvec[0] >  ball->expx) dvec[0] -= ball->expx;
 			else if (dvec[0] < -ball->expx) dvec[0] += ball->expx;
@@ -412,24 +413,18 @@ static void make_face(PROCESS *process, int i1, int i2, int i3, int i4)
 	cur[0] = i1;
 	cur[1] = i2;
 	cur[2] = i3;
-
-	if (i4 == 0) {
-		cur[3] = i3;
-	}
-	else {
-		cur[3] = i4;
-	}
+	cur[3] = i4;
 
 #ifdef USE_ACCUM_NORMAL
-	if (i4 == 0) {
+	if (i4 == i3) {
 		normal_tri_v3(n, process->co[i1], process->co[i2], process->co[i3]);
-		accumulate_vertex_normals(
+		accumulate_vertex_normals_v3(
 		        process->no[i1], process->no[i2], process->no[i3], NULL, n,
 		        process->co[i1], process->co[i2], process->co[i3], NULL);
 	}
 	else {
 		normal_quad_v3(n, process->co[i1], process->co[i2], process->co[i3], process->co[i4]);
-		accumulate_vertex_normals(
+		accumulate_vertex_normals_v3(
 		        process->no[i1], process->no[i2], process->no[i3], process->no[i4], n,
 		        process->co[i1], process->co[i2], process->co[i3], process->co[i4]);
 	}
@@ -526,40 +521,23 @@ static void docube(PROCESS *process, CUBE *cube)
 		if (count > 2) {
 			switch (count) {
 				case 3:
-					make_face(process, indexar[2], indexar[1], indexar[0], 0);
+					make_face(process, indexar[2], indexar[1], indexar[0], indexar[0]); /* triangle */
 					break;
 				case 4:
-					if (indexar[0] == 0) make_face(process, indexar[0], indexar[3], indexar[2], indexar[1]);
-					else make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
+					make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
 					break;
 				case 5:
-					if (indexar[0] == 0) make_face(process, indexar[0], indexar[3], indexar[2], indexar[1]);
-					else make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
-
-					make_face(process, indexar[4], indexar[3], indexar[0], 0);
+					make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
+					make_face(process, indexar[4], indexar[3], indexar[0], indexar[0]); /* triangle */
 					break;
 				case 6:
-					if (indexar[0] == 0) {
-						make_face(process, indexar[0], indexar[3], indexar[2], indexar[1]);
-						make_face(process, indexar[0], indexar[5], indexar[4], indexar[3]);
-					}
-					else {
-						make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
-						make_face(process, indexar[5], indexar[4], indexar[3], indexar[0]);
-					}
+					make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
+					make_face(process, indexar[5], indexar[4], indexar[3], indexar[0]);
 					break;
 				case 7:
-					if (indexar[0] == 0) {
-						make_face(process, indexar[0], indexar[3], indexar[2], indexar[1]);
-						make_face(process, indexar[0], indexar[5], indexar[4], indexar[3]);
-					}
-					else {
-						make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
-						make_face(process, indexar[5], indexar[4], indexar[3], indexar[0]);
-					}
-
-					make_face(process, indexar[6], indexar[5], indexar[0], 0);
-
+					make_face(process, indexar[3], indexar[2], indexar[1], indexar[0]);
+					make_face(process, indexar[5], indexar[4], indexar[3], indexar[0]);
+					make_face(process, indexar[6], indexar[5], indexar[0], indexar[0]); /* triangle */
 					break;
 			}
 		}
@@ -660,7 +638,7 @@ static void makecubetable(void)
 	for (i = 0; i < 256; i++) {
 		for (e = 0; e < 12; e++) done[e] = 0;
 		for (c = 0; c < 8; c++) pos[c] = MB_BIT(i, c);
-		for (e = 0; e < 12; e++)
+		for (e = 0; e < 12; e++) {
 			if (!done[e] && (pos[corner1[e]] != pos[corner2[e]])) {
 				INTLIST *ints = NULL;
 				INTLISTS *lists = MEM_callocN(sizeof(INTLISTS), "mball_intlist");
@@ -687,6 +665,7 @@ static void makecubetable(void)
 				lists->next = cubetable[i];
 				cubetable[i] = lists;
 			}
+		}
 	}
 
 	for (i = 0; i < 256; i++) {
@@ -1077,7 +1056,7 @@ static void polygonize(PROCESS *process)
  * Iterates over ALL objects in the scene and all of its sets, including
  * making all duplis(not only metas). Copies metas to mainb array.
  * Computes bounding boxes for building BVH. */
-static void init_meta(EvaluationContext *eval_ctx, PROCESS *process, Scene *scene, Object *ob)
+static void init_meta(Main *bmain, EvaluationContext *eval_ctx, PROCESS *process, Scene *scene, Object *ob)
 {
 	Scene *sce_iter = scene;
 	Base *base;
@@ -1096,8 +1075,8 @@ static void init_meta(EvaluationContext *eval_ctx, PROCESS *process, Scene *scen
 	BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
 
 	/* make main array */
-	BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 0, NULL, NULL);
-	while (BKE_scene_base_iter_next(eval_ctx, &iter, &sce_iter, 1, &base, &bob)) {
+	BKE_scene_base_iter_next(bmain, eval_ctx, &iter, &sce_iter, 0, NULL, NULL);
+	while (BKE_scene_base_iter_next(bmain, eval_ctx, &iter, &sce_iter, 1, &base, &bob)) {
 		if (bob->type == OB_MBALL) {
 			zero_size = 0;
 			ml = NULL;
@@ -1193,10 +1172,10 @@ static void init_meta(EvaluationContext *eval_ctx, PROCESS *process, Scene *scen
 								break;
 							case MB_CUBE: /* cube is "expanded" by expz, expy and expx */
 								expz += ml->expz;
-								/* fall through */
+								ATTR_FALLTHROUGH;
 							case MB_PLANE: /* plane is "expanded" by expy and expx */
 								expy += ml->expy;
-								/* fall through */
+								ATTR_FALLTHROUGH;
 							case MB_TUBE: /* tube is "expanded" by expx */
 								expx += ml->expx;
 								break;
@@ -1254,7 +1233,7 @@ static void init_meta(EvaluationContext *eval_ctx, PROCESS *process, Scene *scen
 	}
 }
 
-void BKE_mball_polygonize(EvaluationContext *eval_ctx, Scene *scene, Object *ob, ListBase *dispbase)
+void BKE_mball_polygonize(Main *bmain, EvaluationContext *eval_ctx, Scene *scene, Object *ob, ListBase *dispbase)
 {
 	MetaBall *mb;
 	DispList *dl;
@@ -1288,7 +1267,7 @@ void BKE_mball_polygonize(EvaluationContext *eval_ctx, Scene *scene, Object *ob,
 	process.pgn_elements = BLI_memarena_new(BLI_MEMARENA_STD_BUFSIZE, "Metaball memarena");
 
 	/* initialize all mainb (MetaElems) */
-	init_meta(eval_ctx, &process, scene, ob);
+	init_meta(bmain, eval_ctx, &process, scene, ob);
 
 	if (process.totelem > 0) {
 		build_bvh_spatial(&process, &process.metaball_bvh, 0, process.totelem, &process.allbb);

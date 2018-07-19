@@ -59,15 +59,29 @@ class NodeItem:
             return self._label
         else:
             # if no custom label is defined, fall back to the node type UI name
-            return getattr(bpy.types, self.nodetype).bl_rna.name
+            bl_rna = bpy.types.Node.bl_rna_get_subclass(self.nodetype)
+            if bl_rna is not None:
+                return bl_rna.name
+            else:
+                return "Unknown"
+
+    @property
+    def translation_context(self):
+        if self._label:
+            return bpy.app.translations.contexts.default
+        else:
+            # if no custom label is defined, fall back to the node type UI name
+            bl_rna = bpy.types.Node.bl_rna_get_subclass(self.nodetype)
+            if bl_rna is not None:
+                return bl_rna.translation_context
+            else:
+                return bpy.app.translations.contexts.default
 
     # NB: is a staticmethod because called with an explicit self argument
     # NodeItemCustom sets this as a variable attribute in __init__
     @staticmethod
     def draw(self, layout, context):
-        default_context = bpy.app.translations.contexts.default
-
-        props = layout.operator("node.add_node", text=self.label, text_ctxt=default_context)
+        props = layout.operator("node.add_node", text=self.label, text_ctxt=self.translation_context)
         props.type = self.nodetype
         props.use_transform = True
 
@@ -107,7 +121,7 @@ def register_node_categories(identifier, cat_list):
             "category": cat,
             "poll": cat.poll,
             "draw": draw_node_item,
-            })
+        })
         panel_type = type("NODE_PT_category_" + cat.identifier, (bpy.types.Panel,), {
             "bl_space_type": 'NODE_EDITOR',
             "bl_region_type": 'TOOLS',
@@ -116,7 +130,7 @@ def register_node_categories(identifier, cat_list):
             "category": cat,
             "poll": cat.poll,
             "draw": draw_node_item,
-            })
+        })
 
         menu_types.append(menu_type)
         panel_types.append(panel_type)

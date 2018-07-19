@@ -51,6 +51,7 @@
 #include "BKE_image.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
 #include "BKE_modifier.h"
@@ -86,7 +87,7 @@ typedef struct BakeAPIRender {
 	ReportList *reports;
 	ListBase selected_objects;
 
-	ScenePassType pass_type;
+	eScenePassType pass_type;
 	int pass_filter;
 	int margin;
 
@@ -100,7 +101,7 @@ typedef struct BakeAPIRender {
 
 	float cage_extrusion;
 	int normal_space;
-	BakeNormalSwizzle normal_swizzle[3];
+	eBakeNormalSwizzle normal_swizzle[3];
 
 	char uv_layer[MAX_CUSTOMDATA_LAYER_NAME];
 	char custom_cage[MAX_NAME];
@@ -271,7 +272,7 @@ static void refresh_images(BakeImages *bake_images)
 		Image *ima = bake_images->data[i].image;
 		if (ima->ok == IMA_OK_LOADED) {
 			GPU_free_image(ima);
-			DAG_id_tag_update(&ima->id, 0);		
+			DAG_id_tag_update(&ima->id, 0);
 		}
 	}
 }
@@ -339,7 +340,7 @@ static bool write_external_bake_pixels(
 	return ok;
 }
 
-static bool is_noncolor_pass(ScenePassType pass_type)
+static bool is_noncolor_pass(eScenePassType pass_type)
 {
 	return ELEM(pass_type,
 	            SCE_PASS_Z,
@@ -411,22 +412,18 @@ static bool bake_object_check(Scene *scene, Object *ob, ReportList *reports)
 			}
 		}
 		else {
-			if (ob->mat[i]) {
-				BKE_reportf(reports, RPT_ERROR,
+			Material *mat = give_current_material(ob, i);
+			if (mat != NULL) {
+				BKE_reportf(reports, RPT_INFO,
 				            "No active image found in material \"%s\" (%d) for object \"%s\"",
-				            ob->mat[i]->id.name + 2, i, ob->id.name + 2);
-			}
-			else if (((Mesh *) ob->data)->mat[i]) {
-				BKE_reportf(reports, RPT_ERROR,
-				            "No active image found in material \"%s\" (%d) for object \"%s\"",
-				            ((Mesh *) ob->data)->mat[i]->id.name + 2, i, ob->id.name + 2);
+				            mat->id.name + 2, i, ob->id.name + 2);
 			}
 			else {
-				BKE_reportf(reports, RPT_ERROR,
-				            "No active image found in material (%d) for object \"%s\"",
+				BKE_reportf(reports, RPT_INFO,
+				            "No active image found in material slot (%d) for object \"%s\"",
 				            i, ob->id.name + 2);
 			}
-			return false;
+			continue;
 		}
 
 		image->id.tag |= LIB_TAG_DOIT;
@@ -434,7 +431,7 @@ static bool bake_object_check(Scene *scene, Object *ob, ReportList *reports)
 	return true;
 }
 
-static bool bake_pass_filter_check(ScenePassType pass_type, const int pass_filter, ReportList *reports)
+static bool bake_pass_filter_check(eScenePassType pass_type, const int pass_filter, ReportList *reports)
 {
 	switch (pass_type) {
 		case SCE_PASS_COMBINED:
@@ -566,7 +563,11 @@ static void build_image_lookup(Main *bmain, Object *ob, BakeImages *bake_images)
 		Image *image;
 		ED_object_get_active_image(ob, i + 1, &image, NULL, NULL, NULL);
 
-		if ((image->id.tag & LIB_TAG_DOIT)) {
+		/* Some materials have no image, we just ignore those cases. */
+		if (image == NULL) {
+			bake_images->lookup[i] = -1;
+		}
+		else if (image->id.tag & LIB_TAG_DOIT) {
 			for (j = 0; j < i; j++) {
 				if (bake_images->data[j].image == image) {
 					bake_images->lookup[i] = j;
@@ -620,21 +621,22 @@ static size_t initialize_internal_images(BakeImages *bake_images, ReportList *re
 /* create new mesh with edit mode changes and modifiers applied */
 static Mesh *bake_mesh_new_from_object(Main *bmain, Scene *scene, Object *ob)
 {
-	if (ob->mode & OB_MODE_EDIT)
-		ED_object_editmode_load(ob);
+	ED_object_editmode_load(bmain, ob);
 
 	Mesh *me = BKE_mesh_new_from_object(bmain, scene, ob, 1, 2, 0, 0);
-	BKE_mesh_split_faces(me, true);
+	if (me->flag & ME_AUTOSMOOTH) {
+		BKE_mesh_split_faces(me, true);
+	}
 
 	return me;
 }
 
 static int bake(
         Render *re, Main *bmain, Scene *scene, Object *ob_low, ListBase *selected_objects, ReportList *reports,
-        const ScenePassType pass_type, const int pass_filter, const int margin,
-        const BakeSaveMode save_mode, const bool is_clear, const bool is_split_materials,
+        const eScenePassType pass_type, const int pass_filter, const int margin,
+        const eBakeSaveMode save_mode, const bool is_clear, const bool is_split_materials,
         const bool is_automatic_name, const bool is_selected_to_active, const bool is_cage,
-        const float cage_extrusion, const int normal_space, const BakeNormalSwizzle normal_swizzle[],
+        const float cage_extrusion, const int normal_space, const eBakeNormalSwizzle normal_swizzle[],
         const char *custom_cage, const char *filepath, const int width, const int height,
         const char *identifier, ScrArea *sa, const char *uv_layer)
 {
@@ -1008,7 +1010,8 @@ cage_cleanup:
 				BakeData *bake = &scene->r.bake;
 				char name[FILE_MAX];
 
-				BKE_image_path_from_imtype(name, filepath, bmain->name, 0, bake->im_format.imtype, true, false, NULL);
+				BKE_image_path_from_imtype(name, filepath, BKE_main_blendfile_path(bmain),
+				                           0, bake->im_format.imtype, true, false, NULL);
 
 				if (is_automatic_name) {
 					BLI_path_suffix(name, FILE_MAX, ob_low->id.name + 2, "_");
@@ -1028,7 +1031,7 @@ cage_cleanup:
 						}
 						else {
 							/* if everything else fails, use the material index */
-							char tmp[4];
+							char tmp[5];
 							sprintf(tmp, "%d", i % 1000);
 							BLI_path_suffix(name, FILE_MAX, tmp, "_");
 						}
@@ -1158,7 +1161,7 @@ static void bake_init_api_data(wmOperator *op, bContext *C, BakeAPIRender *bkr)
 
 	bkr->result = OPERATOR_CANCELLED;
 
-	bkr->render = RE_NewRender(bkr->scene->id.name);
+	bkr->render = RE_NewSceneRender(bkr->scene);
 
 	/* XXX hack to force saving to always be internal. Whether (and how) to support
 	 * external saving will be addressed later */
@@ -1171,6 +1174,9 @@ static int bake_exec(bContext *C, wmOperator *op)
 	int result = OPERATOR_CANCELLED;
 	BakeAPIRender bkr = {NULL};
 	Scene *scene = CTX_data_scene(C);
+
+	G.is_break = false;
+	G.is_rendering = true;
 
 	bake_set_props(op, scene);
 
@@ -1223,6 +1229,7 @@ static int bake_exec(bContext *C, wmOperator *op)
 
 
 finally:
+	G.is_rendering = false;
 	BLI_freelistN(&bkr.selected_objects);
 	return result;
 }

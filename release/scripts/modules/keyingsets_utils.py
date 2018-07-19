@@ -36,7 +36,7 @@ __all__ = (
     "RKS_GEN_rotation",
     "RKS_GEN_scaling",
     "RKS_GEN_bendy_bones",
-    )
+)
 
 import bpy
 
@@ -219,6 +219,7 @@ def RKS_GEN_scaling(ksi, context, ks, data):
 
 # ------
 
+
 # Property identifiers for Bendy Bones
 bbone_property_ids = (
     "bbone_curveinx",
@@ -232,7 +233,7 @@ bbone_property_ids = (
     "bbone_scalein",
     "bbone_scaleout",
 
-    # NOTE: These are in the nested bone struct 
+    # NOTE: These are in the nested bone struct
     # Do it this way to force them to be included
     # in whatever actions are being keyed here
     "bone.bbone_in",
@@ -256,4 +257,3 @@ def RKS_GEN_bendy_bones(ksi, context, ks, data):
             ks.paths.add(id_block, path, group_method='NAMED', group_name=grouping)
         else:
             ks.paths.add(id_block, path)
-

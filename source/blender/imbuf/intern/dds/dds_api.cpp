@@ -37,7 +37,7 @@ extern "C" {
 #include <stdio.h> // printf
 #include <fstream>
 
-#if defined (WIN32) && !defined(FREE_WINDOWS)
+#if defined (WIN32)
 #include "utfconv.h"
 #endif
 
@@ -62,7 +62,7 @@ int imb_save_dds(struct ImBuf *ibuf, const char *name, int /*flags*/)
 	/* open file for writing */
 	std::ofstream fildes;
 
-#if defined (WIN32) && !defined(FREE_WINDOWS)
+#if defined (WIN32)
 	wchar_t *wname = alloc_utf16_from_8(name, 0);
 	fildes.open(wname);
 	free(wname);
@@ -143,7 +143,7 @@ struct ImBuf *imb_load_dds(const unsigned char *mem, size_t size, int flags, cha
 			}
 		}
 	}
-	ibuf = IMB_allocImBuf(dds.width(), dds.height(), bits_per_pixel, 0); 
+	ibuf = IMB_allocImBuf(dds.width(), dds.height(), bits_per_pixel, 0);
 	if (ibuf == 0) return(0); /* memory allocation failed */
 
 	ibuf->ftype = IMB_FTYPE_DDS;

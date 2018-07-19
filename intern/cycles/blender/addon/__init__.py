@@ -45,9 +45,9 @@ if "bpy" in locals():
 import bpy
 
 from . import (
-        engine,
-        version_update,
-        )
+    engine,
+    version_update,
+)
 
 
 class CyclesRender(bpy.types.RenderEngine):
@@ -101,6 +101,9 @@ class CyclesRender(bpy.types.RenderEngine):
             osl.update_script_node(node, self.report)
         else:
             self.report({'ERROR'}, "OSL support disabled in this build.")
+
+    def update_render_passes(self, scene, srl):
+        engine.register_passes(self, scene, srl)
 
 
 def engine_exit():

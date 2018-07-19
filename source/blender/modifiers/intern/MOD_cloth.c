@@ -57,27 +57,28 @@
 
 #include "MOD_util.h"
 
-static void initData(ModifierData *md) 
+static void initData(ModifierData *md)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+
 	clmd->sim_parms = MEM_callocN(sizeof(ClothSimSettings), "cloth sim parms");
 	clmd->coll_parms = MEM_callocN(sizeof(ClothCollSettings), "cloth coll parms");
 	clmd->point_cache = BKE_ptcache_add(&clmd->ptcaches);
-	
+
 	/* check for alloc failing */
 	if (!clmd->sim_parms || !clmd->coll_parms || !clmd->point_cache)
 		return;
-	
+
 	cloth_init(clmd);
 }
 
-static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3],
-                        int numVerts, ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, Object *ob, DerivedMesh *derivedData, float (*vertexCos)[3],
+        int numVerts, ModifierApplyFlag UNUSED(flag))
 {
 	DerivedMesh *dm;
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+
 	/* check for alloc failing */
 	if (!clmd->sim_parms || !clmd->coll_parms) {
 		initData(md);
@@ -117,48 +118,39 @@ static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData, 
 	dm->release(dm);
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           Scene *scene, Object *ob, DagNode *obNode)
+static void updateDepgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+
 	if (clmd) {
 		/* Actual code uses get_collisionobjects */
 #ifdef WITH_LEGACY_DEPSGRAPH
-		dag_add_collision_relations(forest, scene, ob, obNode, clmd->coll_parms->group, ob->lay|scene->lay, eModifierType_Collision, NULL, true, "Cloth Collision");
-		dag_add_forcefield_relations(forest, scene, ob, obNode, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
+		dag_add_collision_relations(ctx->forest, ctx->scene, ctx->object, ctx->obNode, clmd->coll_parms->group, ctx->object->lay|ctx->scene->lay, eModifierType_Collision, NULL, true, "Cloth Collision");
+		dag_add_forcefield_relations(ctx->forest, ctx->scene, ctx->object, ctx->obNode, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
 
-		if (clmd->sim_parms->basemesh_target && (clmd->sim_parms->basemesh_target != ob)) {
-			DagNode *curNode = dag_get_node(forest, clmd->sim_parms->basemesh_target);
+		if (clmd->sim_parms->basemesh_target && (clmd->sim_parms->basemesh_target != ctx->object)) {
+			DagNode *curNode = dag_get_node(ctx->forest, clmd->sim_parms->basemesh_target);
 
-			dag_add_relation(forest, curNode, obNode, (DAG_RL_DATA_DATA | DAG_RL_OB_DATA), "Cloth Base Mesh Target");
+			dag_add_relation(ctx->forest, curNode, ctx->obNode, (DAG_RL_DATA_DATA | DAG_RL_OB_DATA), "Cloth Base Mesh Target");
 		}
 #else
-	(void)forest;
-	(void)scene;
-	(void)ob;
-	(void)obNode;
+	(void)ctx;
 #endif
 	}
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *scene,
-                            Object *ob,
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ClothModifierData *clmd = (ClothModifierData *)md;
 	if (clmd != NULL) {
 		/* Actual code uses get_collisionobjects */
-		DEG_add_collision_relations(node, scene, ob, clmd->coll_parms->group, ob->lay|scene->lay, eModifierType_Collision, NULL, true, "Cloth Collision");
+		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, clmd->coll_parms->group, ctx->object->lay|ctx->scene->lay, eModifierType_Collision, NULL, true, "Cloth Collision");
 
-		DEG_add_forcefield_relations(node, scene, ob, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
+		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, clmd->sim_parms->effector_weights, true, 0, "Cloth Field");
 
-		if (clmd->sim_parms->basemesh_target && (clmd->sim_parms->basemesh_target != ob)) {
-			DEG_add_object_relation(node, clmd->sim_parms->basemesh_target, DEG_OB_COMP_TRANSFORM, "Cloth Base Mesh Target");
-			DEG_add_object_relation(node, clmd->sim_parms->basemesh_target, DEG_OB_COMP_GEOMETRY, "Cloth Base Mesh Target");
+		if (clmd->sim_parms->basemesh_target && (clmd->sim_parms->basemesh_target != ctx->object)) {
+			DEG_add_object_relation(ctx->node, clmd->sim_parms->basemesh_target, DEG_OB_COMP_TRANSFORM, "Cloth Base Mesh Target");
+			DEG_add_object_relation(ctx->node, clmd->sim_parms->basemesh_target, DEG_OB_COMP_GEOMETRY, "Cloth Base Mesh Target");
 		}
 	}
 }
@@ -177,9 +169,9 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target)
 {
-	ClothModifierData *clmd = (ClothModifierData *) md;
+	const ClothModifierData *clmd = (const ClothModifierData *) md;
 	ClothModifierData *tclmd = (ClothModifierData *) target;
 
 	if (tclmd->sim_parms) {
@@ -190,7 +182,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 
 	if (tclmd->coll_parms)
 		MEM_freeN(tclmd->coll_parms);
-	
+
 	BKE_ptcache_free_list(&tclmd->ptcaches);
 	tclmd->point_cache = NULL;
 
@@ -212,13 +204,13 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
 static void freeData(ModifierData *md)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
-	
+
 	if (clmd) {
 		if (G.debug_value > 0)
 			printf("clothModifier_freeData\n");
-		
+
 		cloth_free_modifier_extern(clmd);
-		
+
 		if (clmd->sim_parms) {
 			if (clmd->sim_parms->effector_weights)
 				MEM_freeN(clmd->sim_parms->effector_weights);
@@ -226,20 +218,21 @@ static void freeData(ModifierData *md)
 		}
 		if (clmd->coll_parms)
 			MEM_freeN(clmd->coll_parms);
-		
+
 		BKE_ptcache_free_list(&clmd->ptcaches);
 		clmd->point_cache = NULL;
-		
+
 		if (clmd->hairdata)
 			MEM_freeN(clmd->hairdata);
-		
+
 		if (clmd->solver_result)
 			MEM_freeN(clmd->solver_result);
 	}
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	ClothModifierData *clmd = (ClothModifierData *) md;
 

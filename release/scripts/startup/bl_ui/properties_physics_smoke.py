@@ -20,7 +20,7 @@
 import bpy
 from bpy.types import Panel
 
-from bl_ui.properties_physics_common import (
+from .properties_physics_common import (
     point_cache_ui,
     effector_weights_ui,
 )
@@ -52,7 +52,7 @@ class PHYSICS_PT_smoke(PhysicButtonsPanel, Panel):
         md = context.smoke
         ob = context.object
 
-        layout.prop(md, "smoke_type", expand=True)
+        layout.row().prop(md, "smoke_type", expand=True)
 
         if md.smoke_type == 'DOMAIN':
             domain = md.domain_settings
@@ -68,6 +68,8 @@ class PHYSICS_PT_smoke(PhysicButtonsPanel, Panel):
             col.prop(domain, "time_scale", text="Scale")
             col.label(text="Border Collisions:")
             col.prop(domain, "collision_extents", text="")
+            col.label(text="Empty Space:")
+            col.prop(domain, "clipping")
 
             col = split.column()
             col.label(text="Behavior:")
@@ -322,14 +324,14 @@ class PHYSICS_PT_smoke_cache(PhysicButtonsPanel, Panel):
 
         if cache_file_format == 'POINTCACHE':
             layout.label(text="Compression:")
-            layout.prop(domain, "point_cache_compress_type", expand=True)
+            layout.row().prop(domain, "point_cache_compress_type", expand=True)
         elif cache_file_format == 'OPENVDB':
             if not bpy.app.build_options.openvdb:
                 layout.label("Built without OpenVDB support")
                 return
 
             layout.label(text="Compression:")
-            layout.prop(domain, "openvdb_cache_compress_type", expand=True)
+            layout.row().prop(domain, "openvdb_cache_compress_type", expand=True)
             row = layout.row()
             row.label("Data Depth:")
             row.prop(domain, "data_depth", expand=True, text="Data Depth")

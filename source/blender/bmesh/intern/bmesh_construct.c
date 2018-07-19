@@ -154,7 +154,7 @@ void BM_face_copy_shared(
 		if (l_other && l_other != l_iter) {
 			BMLoop *l_src[2];
 			BMLoop *l_dst[2] = {l_iter, l_iter->next};
-			unsigned int j;
+			uint j;
 
 			if (l_other->v == l_iter->v) {
 				l_src[0] = l_other;
@@ -311,7 +311,7 @@ BMFace *BM_face_create_ngon_verts(
         const bool calc_winding, const bool create_edges)
 {
 	BMEdge **edge_arr = BLI_array_alloca(edge_arr, len);
-	unsigned int winding[2] = {0, 0};
+	uint winding[2] = {0, 0};
 	int i, i_prev = len - 1;
 	BMVert *v_winding[2] = {vert_arr[i_prev], vert_arr[0]};
 
@@ -712,7 +712,7 @@ BMesh *BM_mesh_copy(BMesh *bm_old)
 
 	/* safety check */
 	BLI_assert(i == bm_old->totvert);
-	
+
 	BM_ITER_MESH_INDEX (e, &iter, bm_old, BM_EDGES_OF_MESH, i) {
 		e_new = BM_edge_create(bm_new,
 		                       vtable[BM_elem_index_get(e->v1)],
@@ -730,7 +730,7 @@ BMesh *BM_mesh_copy(BMesh *bm_old)
 
 	/* safety check */
 	BLI_assert(i == bm_old->totedge);
-	
+
 	BM_ITER_MESH_INDEX (f, &iter, bm_old, BM_FACES_OF_MESH, i) {
 		BM_elem_index_set(f, i); /* set_inline */
 

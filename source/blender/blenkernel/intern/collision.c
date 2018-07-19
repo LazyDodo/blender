@@ -36,7 +36,7 @@
 #include "DNA_effect_types.h"
 #include "DNA_group_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_meshdata_types.h"
 
@@ -613,8 +613,8 @@ static void collision_compute_barycentric ( float pv[3], float p1[3], float p2[3
 	/* dot_v3v3 */
 #define INPR(v1, v2) ( (v1)[0] * (v2)[0] + (v1)[1] * (v2)[1] + (v1)[2] * (v2)[2])
 
-	double	tempV1[3], tempV2[3], tempV4[3];
-	double	a, b, c, d, e, f;
+	double tempV1[3], tempV2[3], tempV4[3];
+	double a, b, c, d, e, f;
 
 	VECSUB ( tempV1, p1, p3 );
 	VECSUB ( tempV2, p2, p3 );
@@ -1020,7 +1020,10 @@ static int cloth_selfcollision_response_static(ClothModifierData *clmd, CollPair
 #endif
 
 //Determines collisions on overlap, collisions are written to collpair[i] and collision+number_collision_found is returned
-static void cloth_collision(void *userdata, void *UNUSED(userdata_chunk), const int index, const int UNUSED(threadid))
+static void cloth_collision(
+        void *__restrict userdata,
+        const int index,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	ColDetectData *data = (ColDetectData *)userdata;
 
@@ -1069,7 +1072,10 @@ static void cloth_collision(void *userdata, void *UNUSED(userdata_chunk), const 
 	}
 }
 
-static void cloth_selfcollision(void *userdata, void *UNUSED(userdata_chunk), const int index, const int UNUSED(threadid))
+static void cloth_selfcollision(
+        void *__restrict userdata,
+        const int index,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SelfColDetectData *data = (SelfColDetectData *)userdata;
 
@@ -1296,7 +1302,10 @@ static void cloth_bvh_objcollisions_nearcheck(ClothModifierData * clmd, Collisio
 	                      .culling = culling,
 	                      .use_normal = use_normal};
 
-	BLI_task_parallel_range_ex(0, numresult, &data, NULL, 0, cloth_collision, true, false);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = true;
+	BLI_task_parallel_range(0, numresult, &data, cloth_collision, &settings);
 }
 
 static void cloth_bvh_selfcollisions_nearcheck(ClothModifierData * clmd, CollPair *collisions, unsigned int *colind,
@@ -1309,7 +1318,10 @@ static void cloth_bvh_selfcollisions_nearcheck(ClothModifierData * clmd, CollPai
 	                          .collisions = collisions,
 	                          .colind = colind};
 
-	BLI_task_parallel_range_ex(0, numresult, &data, NULL, 0, cloth_selfcollision, true, false);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = true;
+	BLI_task_parallel_range(0, numresult, &data, cloth_selfcollision, &settings);
 }
 
 static int cloth_bvh_objcollisions_resolve (ClothModifierData * clmd, Object **collobjs, CollPair **collisions,
@@ -1730,9 +1742,10 @@ static CollPair *cloth_point_collision(
 	return collpair;
 }
 
-static void cloth_points_objcollisions_nearcheck(ClothModifierData * clmd, CollisionModifierData *collmd,
-                                                     CollPair **collisions, CollPair **collisions_index,
-                                                     int numresult, BVHTreeOverlap *overlap, float epsilon, double dt)
+static void cloth_points_objcollisions_nearcheck(
+        ClothModifierData * clmd, CollisionModifierData *collmd,
+        CollPair **collisions, CollPair **collisions_index,
+        int numresult, BVHTreeOverlap *overlap, float epsilon, double dt)
 {
 	int i;
 	
@@ -1829,25 +1842,22 @@ void cloth_find_point_contacts(Object *ob, ClothModifierData *clmd, float step, 
 			cloth_points_objcollisions_nearcheck(clmd, collmd, &ct->collisions, &collisions_index,
 			                                     result, overlap, epsilon, dt);
 			ct->totcollisions = (int)(collisions_index - ct->collisions);
-			
-			// resolve nearby collisions
-//			ret += cloth_points_objcollisions_resolve(clmd, collmd, collob->pd, collisions[i], collisions_index[i], dt);
 		}
-		
+
 		if (overlap)
 			MEM_freeN(overlap);
 	}
-	
+
 	if (collobjs)
 		MEM_freeN(collobjs);
 
 	BLI_bvhtree_free(cloth_bvh);
-	
+
 	////////////////////////////////////////////////////////////
 	// update positions
 	// this is needed for bvh_calc_DOP_hull_moving() [kdop.c]
 	////////////////////////////////////////////////////////////
-	
+
 	// verts come from clmd
 	for (i = 0; i < mvert_num; i++) {
 		if ( clmd->sim_parms->vgroup_mass>0 ) {
@@ -1855,11 +1865,11 @@ void cloth_find_point_contacts(Object *ob, ClothModifierData *clmd, float step, 
 				continue;
 			}
 		}
-		
+
 		VECADD(verts[i].tx, verts[i].txold, verts[i].tv);
 	}
 	////////////////////////////////////////////////////////////
-	
+
 	*r_collider_contacts = collider_contacts;
 	*r_totcolliders = numcollobj;
 }

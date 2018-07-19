@@ -40,7 +40,7 @@ class OBJECT_PT_context_object(ObjectButtonsPanel, Panel):
             layout.template_ID(space, "pin_id")
         else:
             row = layout.row()
-            row.template_ID(context.scene.objects, "active")
+            row.template_ID(context.scene.objects, "active", filter='AVAILABLE')
 
 
 class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
@@ -57,7 +57,7 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
         if ob.rotation_mode == 'QUATERNION':
             row.column().prop(ob, "rotation_quaternion", text="Rotation")
         elif ob.rotation_mode == 'AXIS_ANGLE':
-            #row.column().label(text="Rotation")
+            # row.column().label(text="Rotation")
             #row.column().prop(pchan, "rotation_angle", text="Angle")
             #row.column().prop(pchan, "rotation_axis", text="Axis")
             row.column().prop(ob, "rotation_axis_angle", text="Rotation")
@@ -84,7 +84,7 @@ class OBJECT_PT_delta_transform(ObjectButtonsPanel, Panel):
         if ob.rotation_mode == 'QUATERNION':
             row.column().prop(ob, "delta_rotation_quaternion", text="Rotation")
         elif ob.rotation_mode == 'AXIS_ANGLE':
-            #row.column().label(text="Rotation")
+            # row.column().label(text="Rotation")
             #row.column().prop(pchan, "delta_rotation_angle", text="Angle")
             #row.column().prop(pchan, "delta_rotation_axis", text="Axis")
             #row.column().prop(ob, "delta_rotation_axis_angle", text="Rotation")
@@ -294,7 +294,7 @@ class OBJECT_PT_duplication(ObjectButtonsPanel, Panel):
 
         ob = context.object
 
-        layout.prop(ob, "dupli_type", expand=True)
+        layout.row().prop(ob, "dupli_type", expand=True)
 
         if ob.dupli_type == 'FRAMES':
             split = layout.split()
@@ -323,10 +323,10 @@ class OBJECT_PT_duplication(ObjectButtonsPanel, Panel):
             layout.prop(ob, "dupli_group", text="Group")
 
 
-from bl_ui.properties_animviz import (
-        MotionPathButtonsPanel,
-        OnionSkinButtonsPanel,
-        )
+from .properties_animviz import (
+    MotionPathButtonsPanel,
+    OnionSkinButtonsPanel,
+)
 
 
 class OBJECT_PT_motion_paths(MotionPathButtonsPanel, Panel):

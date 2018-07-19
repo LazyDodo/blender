@@ -37,6 +37,7 @@ ccl_device_inline void svm_node_geometry(KernelGlobals *kg,
 #ifdef __UV__
 		case NODE_GEOM_uv: data = make_float3(sd->u, sd->v, 0.0f); break;
 #endif
+		default: data = make_float3(0.0f, 0.0f, 0.0f);
 	}
 
 	stack_store_float3(stack, out_offset, data);
@@ -89,7 +90,15 @@ ccl_device void svm_node_object_info(KernelGlobals *kg, ShaderData *sd, float *s
 		}
 		case NODE_INFO_OB_INDEX: data = object_pass_id(kg, sd->object); break;
 		case NODE_INFO_MAT_INDEX: data = shader_pass_id(kg, sd); break;
-		case NODE_INFO_OB_RANDOM: data = object_random_number(kg, sd->object); break;
+		case NODE_INFO_OB_RANDOM: {
+			if(sd->lamp != LAMP_NONE) {
+				data = lamp_random_number(kg, sd->lamp);
+			}
+			else {
+				data = object_random_number(kg, sd->object);
+			}
+			break;
+		}
 		default: data = 0.0f; break;
 	}
 
@@ -108,6 +117,12 @@ ccl_device void svm_node_particle_info(KernelGlobals *kg,
 		case NODE_INFO_PAR_INDEX: {
 			int particle_id = object_particle_id(kg, sd->object);
 			stack_store_float(stack, out_offset, particle_index(kg, particle_id));
+			break;
+		}
+		case NODE_INFO_PAR_RANDOM: {
+			int particle_id = object_particle_id(kg, sd->object);
+			float random = hash_int_01(particle_index(kg, particle_id));
+			stack_store_float(stack, out_offset, random);
 			break;
 		}
 		case NODE_INFO_PAR_AGE: {
@@ -171,6 +186,8 @@ ccl_device void svm_node_hair_info(KernelGlobals *kg,
 		}
 		case NODE_INFO_CURVE_INTERCEPT:
 			break; /* handled as attribute */
+		case NODE_INFO_CURVE_RANDOM:
+			break; /* handled as attribute */
 		case NODE_INFO_CURVE_THICKNESS: {
 			data = curve_thickness(kg, sd);
 			stack_store_float(stack, out_offset, data);
@@ -191,4 +208,3 @@ ccl_device void svm_node_hair_info(KernelGlobals *kg,
 #endif
 
 CCL_NAMESPACE_END
-

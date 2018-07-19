@@ -8,10 +8,10 @@
 #error WIN32 only!
 #endif // WIN32
 
-#ifndef __MINGW64__
-#  undef _WIN32_WINNT
-#  define _WIN32_WINNT 0x501 // require Windows XP or newer
-#endif
+/* require Windows XP or newer */
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x501
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shlobj.h>
@@ -87,7 +87,7 @@ typedef enum TBPFLAG {
 	TBPF_PAUSED = 0x8,
 } TBPFLAG;
 
-#define THBN_CLICKED  0x1800	
+#define THBN_CLICKED  0x1800
 
 extern "C" {
 	const GUID IID_ITaskList3 = {0xEA1AFB91, 0x9E28, 0x4B86, {0x90, 0xE9, 0x9E, 0x9F, 0x8A, 0x5E, 0xEF, 0xAF}};

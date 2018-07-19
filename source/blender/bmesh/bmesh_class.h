@@ -119,7 +119,7 @@ typedef struct BMEdge {
 	/* the list of loops around the edge (use l->radial_prev/next)
 	 * to access the other loops using the edge */
 	struct BMLoop *l;
-	
+
 	/* disk cycle pointers
 	 * relative data: d1 indicates indicates the next/prev edge around vertex v1 and d2 does the same for v2 */
 	BMDiskLink v1_disk_link, v2_disk_link;
@@ -225,11 +225,11 @@ typedef struct BMesh {
 	/* operator api stuff (must be all NULL or all alloc'd) */
 	struct BLI_mempool *vtoolflagpool, *etoolflagpool, *ftoolflagpool;
 
-	unsigned int use_toolflags : 1;
+	uint use_toolflags : 1;
 
 	int toolflag_index;
 	struct BMOperator *currentop;
-	
+
 	CustomData vdata, edata, ldata, pdata;
 
 #ifdef USE_BMESH_HOLES
@@ -241,10 +241,10 @@ typedef struct BMesh {
 	 * make sure they're in sync!
 	 * Only use when the edit mesh cant be accessed - campbell */
 	short selectmode;
-	
+
 	/* ID of the shape key this bmesh came from */
 	int shapenr;
-	
+
 	int totflags;
 	ListBase selected;
 
@@ -341,9 +341,9 @@ enum {
 	/* spare tag, assumed dirty, use define in each function to name based on use */
 	// _BM_ELEM_TAG_ALT = (1 << 6),  // UNUSED
 	/**
-	 * for low level internal API tagging,
-	 * since tools may want to tag verts and
-	 * not have functions clobber them */
+	 * For low level internal API tagging,
+	 * since tools may want to tag verts and not have functions clobber them.
+	 * Leave cleared! */
 	BM_ELEM_INTERNAL_TAG = (1 << 7),
 };
 
@@ -382,7 +382,7 @@ typedef bool (*BMLoopFilterFunc)(const BMLoop *, void *user_data);
 	(assert(offset != -1), *((float *)((char *)(ele)->head.data + (offset))))
 
 #define BM_ELEM_CD_GET_FLOAT_AS_UCHAR(ele, offset) \
-	(assert(offset != -1), (unsigned char)(BM_ELEM_CD_GET_FLOAT(ele, offset) * 255.0f))
+	(assert(offset != -1), (uchar)(BM_ELEM_CD_GET_FLOAT(ele, offset) * 255.0f))
 
 /*forward declarations*/
 

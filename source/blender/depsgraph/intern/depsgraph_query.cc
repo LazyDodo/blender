@@ -35,11 +35,12 @@
 extern "C" {
 #include "BKE_idcode.h"
 #include "BKE_main.h"
-
-#include "DEG_depsgraph_query.h"
 } /* extern "C" */
 
+#include "DEG_depsgraph_query.h"
+
 #include "intern/depsgraph_intern.h"
+#include "intern/nodes/deg_node_id.h"
 
 bool DEG_id_type_tagged(Main *bmain, short idtype)
 {

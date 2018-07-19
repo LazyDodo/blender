@@ -172,7 +172,7 @@ const char *BIF_listTemplates(const bContext *UNUSED(C))
 	GHashIterator ghi;
 	const char *menu_header = IFACE_("Template %t|None %x0|");
 	char *p;
-	const size_t template_size = (BLI_ghash_size(TEMPLATES_HASH) * 32 + 30);
+	const size_t template_size = (BLI_ghash_len(TEMPLATES_HASH) * 32 + 30);
 
 	if (TEMPLATES_MENU != NULL) {
 		MEM_freeN(TEMPLATES_MENU);
@@ -465,7 +465,7 @@ static void sk_drawNormal(GLUquadric *quad, SK_Point *pt, float size, float heig
 {
 	float vec2[3] = {0, 0, 1}, axis[3];
 	float angle;
-	
+
 	glPushMatrix();
 
 	cross_v3_v3v3(axis, vec2, pt->no);
@@ -1334,7 +1334,7 @@ static void sk_convertStroke(bContext *C, SK_Stroke *stk)
 				}
 
 				if (bone == NULL) {
-					bone = ED_armature_edit_bone_add(arm, "Bone");
+					bone = ED_armature_ebone_add(arm, "Bone");
 
 					copy_v3_v3(bone->head, head->p);
 					copy_v3_v3(bone->tail, pt->p);
@@ -1905,7 +1905,7 @@ static bool sk_selectStroke(bContext *C, SK_Sketch *sketch, const int mval[2], c
 	unsigned int buffer[MAXPICKBUF];
 	short hits;
 
-	view3d_set_viewcontext(C, &vc);
+	ED_view3d_viewcontext_init(C, &vc);
 
 	BLI_rcti_init_pt_radius(&rect, mval, 5);
 
@@ -2126,7 +2126,7 @@ static int sk_draw_stroke(bContext *C, SK_Sketch *sketch, SK_Stroke *stk, SK_Dra
 		sk_addStrokePoint(C, sketch, stk, dd, snap);
 		sk_updateDrawData(dd);
 		sk_updateNextPoint(sketch, stk);
-		
+
 		return 1;
 	}
 
@@ -2246,7 +2246,7 @@ SK_Sketch *contextSketch(const bContext *C, int create)
 
 	if (obedit && obedit->type == OB_ARMATURE) {
 		bArmature *arm = obedit->data;
-	
+
 		if (arm->sketch == NULL && create) {
 			arm->sketch = createSketch();
 		}
@@ -2263,7 +2263,7 @@ SK_Sketch *viewcontextSketch(ViewContext *vc, int create)
 
 	if (obedit && obedit->type == OB_ARMATURE) {
 		bArmature *arm = obedit->data;
-	
+
 		if (arm->sketch == NULL && create) {
 			arm->sketch = createSketch();
 		}
@@ -2456,7 +2456,7 @@ static int sketch_draw_preview(bContext *C, wmOperator *op, const wmEvent *event
 
 /* ============================================== Poll Functions ============================================= */
 
-int ED_operator_sketch_mode_active_stroke(bContext *C)
+bool ED_operator_sketch_mode_active_stroke(bContext *C)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	SK_Sketch *sketch = contextSketch(C, 0);
@@ -2472,7 +2472,7 @@ int ED_operator_sketch_mode_active_stroke(bContext *C)
 	}
 }
 
-static int ED_operator_sketch_mode_gesture(bContext *C)
+static bool ED_operator_sketch_mode_gesture(bContext *C)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	SK_Sketch *sketch = contextSketch(C, 0);
@@ -2489,7 +2489,7 @@ static int ED_operator_sketch_mode_gesture(bContext *C)
 	}
 }
 
-int ED_operator_sketch_full_mode(bContext *C)
+bool ED_operator_sketch_full_mode(bContext *C)
 {
 	Object *obedit = CTX_data_edit_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
@@ -2506,7 +2506,7 @@ int ED_operator_sketch_full_mode(bContext *C)
 	}
 }
 
-int ED_operator_sketch_mode(const bContext *C)
+bool ED_operator_sketch_mode(const bContext *C)
 {
 	Object *obedit = CTX_data_edit_object(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
@@ -2634,7 +2634,7 @@ void SKETCH_OT_draw_stroke(wmOperatorType *ot)
 	ot->modal  = sketch_draw_stroke_modal;
 	ot->cancel = sketch_draw_stroke_cancel;
 
-	ot->poll = (int (*)(bContext *))ED_operator_sketch_mode;
+	ot->poll = (bool (*)(bContext *))ED_operator_sketch_mode;
 
 	RNA_def_boolean(ot->srna, "snap", 0, "Snap", "");
 
@@ -2661,4 +2661,3 @@ void SKETCH_OT_gesture(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_BLOCKING; // OPTYPE_UNDO
 }
-

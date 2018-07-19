@@ -189,9 +189,10 @@ class DATA_PT_geometry_curve(CurveButtonsPanelCurve, Panel):
 
             col = layout.column()
             col.active = (
-                    (curve.bevel_depth > 0.0) or
-                    (curve.extrude > 0.0) or
-                    (curve.bevel_object is not None))
+                (curve.bevel_depth > 0.0) or
+                (curve.extrude > 0.0) or
+                (curve.bevel_object is not None)
+            )
             row = col.row(align=True)
             row.prop(curve, "bevel_factor_mapping_start", text="")
             row.prop(curve, "bevel_factor_start", text="Start")
@@ -371,10 +372,10 @@ class DATA_PT_paragraph(CurveButtonsPanelText, Panel):
         text = context.curve
 
         layout.label(text="Horizontal Alignment:")
-        layout.prop(text, "align_x", expand=True)
+        layout.row().prop(text, "align_x", expand=True)
 
         layout.label(text="Vertical Alignment:")
-        layout.prop(text, "align_y", expand=True)
+        layout.row().prop(text, "align_y", expand=True)
 
         split = layout.split()
 

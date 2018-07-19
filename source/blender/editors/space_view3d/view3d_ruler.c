@@ -38,8 +38,9 @@
 #include "BLT_translation.h"
 
 #include "BKE_context.h"
-#include "BKE_unit.h"
 #include "BKE_gpencil.h"
+#include "BKE_main.h"
+#include "BKE_unit.h"
 
 #include "BIF_gl.h"
 
@@ -48,7 +49,6 @@
 
 #include "ED_screen.h"
 #include "ED_view3d.h"
-#include "ED_transform.h"
 #include "ED_transform_snap_object_context.h"
 #include "ED_space_api.h"
 
@@ -293,6 +293,7 @@ static void ruler_state_set(bContext *C, RulerInfo *ruler_info, int state)
 #define RULER_ID "RulerData3D"
 static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 {
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
@@ -304,7 +305,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 	bool changed = false;
 
 	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew("GPencil");
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "GPencil");
 	}
 
 	gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
@@ -324,7 +325,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 	if (palcolor == NULL) {
 		palcolor = BKE_gpencil_palettecolor_addnew(palette, (char *)ruler_name, true);
 	}
-	
+
 	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
 	BKE_gpencil_free_strokes(gpf);
 
@@ -1009,9 +1010,12 @@ static int view3d_ruler_modal(bContext *C, wmOperator *op, const wmEvent *event)
 		}
 		case RETKEY:
 		{
-			view3d_ruler_to_gpencil(C, ruler_info);
-			do_draw = true;
-			exit_code = OPERATOR_FINISHED;
+			/* Enter may be used to invoke from search. */
+			if (event->val == KM_PRESS) {
+				view3d_ruler_to_gpencil(C, ruler_info);
+				do_draw = true;
+				exit_code = OPERATOR_FINISHED;
+			}
 			break;
 		}
 		case DELKEY:

@@ -99,7 +99,7 @@ GHOST_WindowWin32::GHOST_WindowWin32(GHOST_SystemWin32 *system,
 	if (state != GHOST_kWindowStateFullScreen) {
 		RECT rect;
 		MONITORINFO monitor;
-		GHOST_TUns32 tw, th; 
+		GHOST_TUns32 tw, th;
 
 #ifndef _MSC_VER
 		int cxsizeframe = GetSystemMetrics(SM_CXSIZEFRAME);
@@ -158,7 +158,7 @@ GHOST_WindowWin32::GHOST_WindowWin32(GHOST_SystemWin32 *system,
 			width = rect.right - rect.left;
 			height = rect.bottom - rect.top;
 		}
-		
+
 		wchar_t *title_16 = alloc_utf16_from_8((char *)(const char *)title, 0);
 		m_hWnd = ::CreateWindowW(
 			s_windowClassName,          // pointer to registered class name
@@ -225,7 +225,7 @@ GHOST_WindowWin32::GHOST_WindowWin32(GHOST_SystemWin32 *system,
 			::ShowWindow(m_hWnd, nCmdShow);
 #ifdef WIN32_COMPOSITING
 			if (alphaBackground && parentwindowhwnd == 0) {
-				
+
 				HRESULT hr = S_OK;
 
 				// Create and populate the Blur Behind structure
@@ -402,21 +402,29 @@ void GHOST_WindowWin32::getClientBounds(GHOST_Rect &bounds) const
 {
 	RECT rect;
 	POINT coord;
-	::GetClientRect(m_hWnd, &rect);
+	if (!IsIconic(m_hWnd)) {
+		::GetClientRect(m_hWnd, &rect);
 
-	coord.x = rect.left;
-	coord.y = rect.top;
-	::ClientToScreen(m_hWnd, &coord);
+		coord.x = rect.left;
+		coord.y = rect.top;
+		::ClientToScreen(m_hWnd, &coord);
 
-	bounds.m_l = coord.x;
-	bounds.m_t = coord.y;
+		bounds.m_l = coord.x;
+		bounds.m_t = coord.y;
 
-	coord.x = rect.right;
-	coord.y = rect.bottom;
-	::ClientToScreen(m_hWnd, &coord);
+		coord.x = rect.right;
+		coord.y = rect.bottom;
+		::ClientToScreen(m_hWnd, &coord);
 
-	bounds.m_r = coord.x;
-	bounds.m_b = coord.y;
+		bounds.m_r = coord.x;
+		bounds.m_b = coord.y;
+	}
+	else {
+		bounds.m_b = 0;
+		bounds.m_l = 0;
+		bounds.m_r = 0;
+		bounds.m_t = 0;
+	}
 }
 
 
@@ -831,7 +839,7 @@ GHOST_TSuccess GHOST_WindowWin32::setWindowCursorGrab(GHOST_TGrabCursorMode mode
 		m_cursorGrabBounds.m_l = m_cursorGrabBounds.m_r = -1; /* disable */
 		registerMouseClickEvent(3);
 	}
-	
+
 	return GHOST_kSuccess;
 }
 
@@ -890,19 +898,14 @@ void GHOST_WindowWin32::processWin32TabletEvent(WPARAM wParam, LPARAM lParam)
 		if (fpWTPacket) {
 			if (fpWTPacket((HCTX)lParam, wParam, &pkt)) {
 				if (m_tabletData) {
-					switch (pkt.pkCursor) {
-						case 0: /* first device */
-						case 3: /* second device */
+					switch (pkt.pkCursor % 3) { /* % 3 for multiple devices ("DualTrack") */
+						case 0:
 							m_tabletData->Active = GHOST_kTabletModeNone; /* puck - not yet supported */
 							break;
 						case 1:
-						case 4:
-						case 7:
 							m_tabletData->Active = GHOST_kTabletModeStylus; /* stylus */
 							break;
 						case 2:
-						case 5:
-						case 8:
 							m_tabletData->Active = GHOST_kTabletModeEraser; /* eraser */
 							break;
 					}
@@ -1060,7 +1063,7 @@ GHOST_TSuccess GHOST_WindowWin32::setWindowCustomCursorShape(
 
 
 GHOST_TSuccess GHOST_WindowWin32::setProgressBar(float progress)
-{	
+{
 	/*SetProgressValue sets state to TBPF_NORMAL automaticly*/
 	if (m_Bar && S_OK == m_Bar->SetProgressValue(m_hWnd, 10000 * progress, 10000))
 		return GHOST_kSuccess;

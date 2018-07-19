@@ -32,7 +32,6 @@ SET(_openjpeg_SEARCH_DIRS
   /usr/local
   /sw # Fink
   /opt/local # DarwinPorts
-  /opt/csw # Blastwave
 )
 
 FIND_PATH(OPENJPEG_INCLUDE_DIR
@@ -54,7 +53,7 @@ FIND_LIBRARY(OPENJPEG_LIBRARY
     lib64 lib
   )
 
-# handle the QUIETLY and REQUIRED arguments and set OPENJPEG_FOUND to TRUE if 
+# handle the QUIETLY and REQUIRED arguments and set OPENJPEG_FOUND to TRUE if
 # all listed variables are TRUE
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(OpenJPEG DEFAULT_MSG

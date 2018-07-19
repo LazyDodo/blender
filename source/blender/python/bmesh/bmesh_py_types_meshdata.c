@@ -38,6 +38,7 @@
 #include "DNA_meshdata_types.h"
 
 #include "BLI_utildefines.h"
+#include "BLI_math_base.h"
 #include "BLI_math_vector.h"
 
 #include "BKE_deform.h"
@@ -45,6 +46,7 @@
 
 #include "bmesh_py_types_meshdata.h"
 
+#include "../generic/py_capi_utils.h"
 #include "../generic/python_utildefines.h"
 
 
@@ -188,7 +190,7 @@ static int bpy_bmloopuv_flag_set(BPy_BMLoopUV *self, PyObject *value, void *flag
 {
 	const int flag = GET_INT_FROM_POINTER(flag_p);
 
-	switch (PyLong_AsLong(value)) {
+	switch (PyC_Long_AsBool(value)) {
 		case true:
 			self->data->flag |= flag;
 			return 0;
@@ -196,8 +198,7 @@ static int bpy_bmloopuv_flag_set(BPy_BMLoopUV *self, PyObject *value, void *flag
 			self->data->flag &= ~flag;
 			return 0;
 		default:
-			PyErr_SetString(PyExc_TypeError,
-			                "expected a boolean type 0/1");
+			/* error is set */
 			return -1;
 	}
 }
@@ -297,7 +298,7 @@ static int bpy_bmvertskin_flag_set(BPy_BMVertSkin *self, PyObject *value, void *
 {
 	const int flag = GET_INT_FROM_POINTER(flag_p);
 
-	switch (PyLong_AsLong(value)) {
+	switch (PyC_Long_AsBool(value)) {
 		case true:
 			self->data->flag |= flag;
 			return 0;
@@ -305,8 +306,7 @@ static int bpy_bmvertskin_flag_set(BPy_BMVertSkin *self, PyObject *value, void *
 			self->data->flag &= ~flag;
 			return 0;
 		default:
-			PyErr_SetString(PyExc_TypeError,
-			                "expected a boolean type 0/1");
+			/* error is set */
 			return -1;
 	}
 }
@@ -371,12 +371,12 @@ PyObject *BPy_BMVertSkin_CreatePyObject(struct MVertSkin *mvertskin)
 
 static void mloopcol_to_float(const MLoopCol *mloopcol, float r_col[3])
 {
-	rgb_uchar_to_float(r_col, (const unsigned char *)&mloopcol->r);
+	rgba_uchar_to_float(r_col, (const unsigned char *)&mloopcol->r);
 }
 
 static void mloopcol_from_float(MLoopCol *mloopcol, const float col[3])
 {
-	rgb_float_to_uchar((unsigned char *)&mloopcol->r, col);
+	rgba_float_to_uchar((unsigned char *)&mloopcol->r, col);
 }
 
 static unsigned char mathutils_bmloopcol_cb_index = -1;
@@ -437,8 +437,8 @@ static void bm_init_types_bmloopcol(void)
 
 int BPy_BMLoopColor_AssignPyObject(struct MLoopCol *mloopcol, PyObject *value)
 {
-	float tvec[3];
-	if (mathutils_array_parse(tvec, 3, 3, value, "BMLoopCol") != -1) {
+	float tvec[4];
+	if (mathutils_array_parse(tvec, 4, 4, value, "BMLoopCol") != -1) {
 		mloopcol_from_float(mloopcol, tvec);
 		return 0;
 	}
@@ -451,7 +451,7 @@ PyObject *BPy_BMLoopColor_CreatePyObject(struct MLoopCol *data)
 {
 	PyObject *color_capsule;
 	color_capsule = PyCapsule_New(data, NULL, NULL);
-	return Color_CreatePyObject_cb(color_capsule, mathutils_bmloopcol_cb_index, 0);
+	return Vector_CreatePyObject_cb(color_capsule, 4, mathutils_bmloopcol_cb_index, 0);
 }
 
 #undef MLOOPCOL_FROM_CAPSULE
@@ -556,7 +556,7 @@ static int bpy_bmdeformvert_ass_subscript(BPy_BMDeformVert *self, PyObject *key,
 					return -1;
 				}
 
-				dw->weight = CLAMPIS(f, 0.0f, 1.0f);
+				dw->weight = clamp_f(f, 0.0f, 1.0f);
 			}
 		}
 		else {
@@ -804,4 +804,3 @@ void BPy_BM_init_types_meshdata(void)
 	bm_init_types_bmdvert();
 	bm_init_types_bmvertskin();
 }
-

@@ -72,14 +72,15 @@
 	BMO_vert_flag_test(pc->bm_bmoflag, v, VERT_EXCLUDE) == 0)
 
 #if 0
-#define ELE_TOUCH_TEST(e) \
-	(CHECK_TYPE_ANY(e, BMVert *, BMEdge *, BMElem *, BMElemF *), \
-	 BMO_elem_flag_test(pc->bm_bmoflag, (BMElemF *)e, ELE_TOUCHED))
+#define ELE_TOUCH_TEST(e) ( \
+	CHECK_TYPE_ANY(e, BMVert *, BMEdge *, BMElem *, BMElemF *), \
+	BMO_elem_flag_test(pc->bm_bmoflag, (BMElemF *)e, ELE_TOUCHED) \
+)
 #endif
-#define ELE_TOUCH_MARK(e) \
-	{ CHECK_TYPE_ANY(e, BMVert *, BMEdge *, BMElem *, BMElemF *); \
-	  BMO_elem_flag_enable(pc->bm_bmoflag, (BMElemF *)e, ELE_TOUCHED); } ((void)0)
-
+#define ELE_TOUCH_MARK(e) { \
+	CHECK_TYPE_ANY(e, BMVert *, BMEdge *, BMElem *, BMElemF *); \
+	BMO_elem_flag_enable(pc->bm_bmoflag, (BMElemF *)e, ELE_TOUCHED); \
+} ((void)0)
 
 #define ELE_TOUCH_TEST_VERT(v) BMO_vert_flag_test(pc->bm_bmoflag, v, ELE_TOUCHED)
 // #define ELE_TOUCH_MARK_VERT(v) BMO_vert_flag_enable(pc->bm_bmoflag, (BMElemF *)v, ELE_TOUCHED)
@@ -530,8 +531,8 @@ static void bm_vert_pair_to_matrix(BMVert *v_pair[2], float r_unit_mat[3][3])
 		float basis_nor_b[3];
 
 		/* align normal to direction */
-		project_plane_v3_v3v3(basis_nor_a, v_pair[0]->no, basis_dir);
-		project_plane_v3_v3v3(basis_nor_b, v_pair[1]->no, basis_dir);
+		project_plane_normalized_v3_v3v3(basis_nor_a, v_pair[0]->no, basis_dir);
+		project_plane_normalized_v3_v3v3(basis_nor_b, v_pair[1]->no, basis_dir);
 
 		/* don't normalize before combining so as normals approach the direction, they have less effect (T46784). */
 
@@ -569,7 +570,7 @@ static void bm_vert_pair_to_matrix(BMVert *v_pair[2], float r_unit_mat[3][3])
 				float angle_cos_test;
 
 				/* project basis dir onto the normal to find its closest angle */
-				project_plane_v3_v3v3(basis_dir_proj, basis_dir, l->f->no);
+				project_plane_normalized_v3_v3v3(basis_dir_proj, basis_dir, l->f->no);
 
 				if (normalize_v3(basis_dir_proj) > eps) {
 					angle_cos_test = dot_v3v3(basis_dir_proj, basis_dir);
@@ -586,7 +587,7 @@ static void bm_vert_pair_to_matrix(BMVert *v_pair[2], float r_unit_mat[3][3])
 		 * note: we could add the directions,
 		 * but this more often gives 45d rotated matrix, so just use the best one. */
 		copy_v3_v3(basis_nor, axis_pair[axis_pair[0].angle_cos < axis_pair[1].angle_cos].nor);
-		project_plane_v3_v3v3(basis_nor, basis_nor, basis_dir);
+		project_plane_normalized_v3_v3v3(basis_nor, basis_nor, basis_dir);
 
 		cross_v3_v3v3(basis_tmp, basis_dir, basis_nor);
 
@@ -661,11 +662,11 @@ void bmo_connect_vert_pair_exec(BMesh *bm, BMOperator *op)
 	while (!BLI_heap_is_empty(pc.states)) {
 
 #ifdef DEBUG_PRINT
-		printf("\n%s: stepping %u\n", __func__, BLI_heap_size(pc.states));
+		printf("\n%s: stepping %u\n", __func__, BLI_heap_len(pc.states));
 #endif
 
 		while (!BLI_heap_is_empty(pc.states)) {
-			PathLinkState *state = BLI_heap_popmin(pc.states);
+			PathLinkState *state = BLI_heap_pop_min(pc.states);
 
 			/* either we insert this into 'pc.states' or its freed */
 			bool continue_search;

@@ -88,7 +88,7 @@ typedef struct ClothSimSettings {
 	float	bend_yield_fact;	/* How much angle has to change as a factor of a full circle before plastic behavior kicks in (0-1) */
 	float	rest_planar_fact;	/* Factor of how planar rest angles should be, 0 means the original angle, and 1 means totally flat */
 	float	max_planarity;
-	
+
 	/* XXX various hair stuff
 	 * should really be separate, this struct is a horrible mess already
 	 */

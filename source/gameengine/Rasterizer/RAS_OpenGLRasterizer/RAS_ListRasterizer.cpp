@@ -30,7 +30,7 @@
 #include <windows.h>
 #endif // WIN32
 
-#include "glew-mx.h"
+#include "GPU_glew.h"
 
 #include "RAS_MaterialBucket.h"
 #include "RAS_TexVert.h"
@@ -89,7 +89,7 @@ void RAS_ListSlot::DrawList()
 		}
 		if (m_list != 0)
 			glNewList((GLuint)m_list, GL_COMPILE);
-	
+
 		m_flag |= LIST_BEGIN;
 		return;
 	}
@@ -127,7 +127,7 @@ RAS_ListRasterizer::RAS_ListRasterizer(RAS_ICanvas* canvas, bool lock, RAS_STORA
 {
 }
 
-RAS_ListRasterizer::~RAS_ListRasterizer() 
+RAS_ListRasterizer::~RAS_ListRasterizer()
 {
 	ReleaseAlloc();
 }

@@ -19,15 +19,21 @@
 #include "kernel/kernel_types.h"
 #include "kernel/split/kernel_split_data_types.h"
 
+#include "util/util_logging.h"
 #include "util/util_time.h"
 
 CCL_NAMESPACE_BEGIN
 
 static const double alpha = 0.1; /* alpha for rolling average */
 
-DeviceSplitKernel::DeviceSplitKernel(Device *device) : device(device)
+DeviceSplitKernel::DeviceSplitKernel(Device *device)
+: device(device),
+  split_data(device, "split_data"),
+  ray_state(device, "ray_state", MEM_READ_WRITE),
+  queue_index(device, "queue_index"),
+  use_queues_flag(device, "use_queues_flag"),
+  work_pool_wgs(device, "work_pool_wgs")
 {
-	current_max_closure = -1;
 	first_tile = true;
 
 	avg_time_per_sample = 0.0;
@@ -38,12 +44,15 @@ DeviceSplitKernel::DeviceSplitKernel(Device *device) : device(device)
 	kernel_do_volume = NULL;
 	kernel_queue_enqueue = NULL;
 	kernel_indirect_background = NULL;
+	kernel_shader_setup = NULL;
+	kernel_shader_sort = NULL;
 	kernel_shader_eval = NULL;
 	kernel_holdout_emission_blurring_pathtermination_ao = NULL;
 	kernel_subsurface_scatter = NULL;
 	kernel_direct_lighting = NULL;
 	kernel_shadow_blocked_ao = NULL;
 	kernel_shadow_blocked_dl = NULL;
+	kernel_enqueue_inactive = NULL;
 	kernel_next_iteration_setup = NULL;
 	kernel_indirect_subsurface = NULL;
 	kernel_buffer_update = NULL;
@@ -51,11 +60,11 @@ DeviceSplitKernel::DeviceSplitKernel(Device *device) : device(device)
 
 DeviceSplitKernel::~DeviceSplitKernel()
 {
-	device->mem_free(split_data);
-	device->mem_free(ray_state);
-	device->mem_free(use_queues_flag);
-	device->mem_free(queue_index);
-	device->mem_free(work_pool_wgs);
+	split_data.free();
+	ray_state.free();
+	use_queues_flag.free();
+	queue_index.free();
+	work_pool_wgs.free();
 
 	delete kernel_path_init;
 	delete kernel_scene_intersect;
@@ -63,12 +72,15 @@ DeviceSplitKernel::~DeviceSplitKernel()
 	delete kernel_do_volume;
 	delete kernel_queue_enqueue;
 	delete kernel_indirect_background;
+	delete kernel_shader_setup;
+	delete kernel_shader_sort;
 	delete kernel_shader_eval;
 	delete kernel_holdout_emission_blurring_pathtermination_ao;
 	delete kernel_subsurface_scatter;
 	delete kernel_direct_lighting;
 	delete kernel_shadow_blocked_ao;
 	delete kernel_shadow_blocked_dl;
+	delete kernel_enqueue_inactive;
 	delete kernel_next_iteration_setup;
 	delete kernel_indirect_subsurface;
 	delete kernel_buffer_update;
@@ -79,6 +91,7 @@ bool DeviceSplitKernel::load_kernels(const DeviceRequestedFeatures& requested_fe
 #define LOAD_KERNEL(name) \
 		kernel_##name = get_split_kernel_function(#name, requested_features); \
 		if(!kernel_##name) { \
+			device->set_error(string("Split kernel error: failed to load kernel_") + #name); \
 			return false; \
 		}
 
@@ -88,19 +101,20 @@ bool DeviceSplitKernel::load_kernels(const DeviceRequestedFeatures& requested_fe
 	LOAD_KERNEL(do_volume);
 	LOAD_KERNEL(queue_enqueue);
 	LOAD_KERNEL(indirect_background);
+	LOAD_KERNEL(shader_setup);
+	LOAD_KERNEL(shader_sort);
 	LOAD_KERNEL(shader_eval);
 	LOAD_KERNEL(holdout_emission_blurring_pathtermination_ao);
 	LOAD_KERNEL(subsurface_scatter);
 	LOAD_KERNEL(direct_lighting);
 	LOAD_KERNEL(shadow_blocked_ao);
 	LOAD_KERNEL(shadow_blocked_dl);
+	LOAD_KERNEL(enqueue_inactive);
 	LOAD_KERNEL(next_iteration_setup);
 	LOAD_KERNEL(indirect_subsurface);
 	LOAD_KERNEL(buffer_update);
 
 #undef LOAD_KERNEL
-
-	current_max_closure = requested_features.max_closure;
 
 	return true;
 }
@@ -108,6 +122,9 @@ bool DeviceSplitKernel::load_kernels(const DeviceRequestedFeatures& requested_fe
 size_t DeviceSplitKernel::max_elements_for_max_buffer_size(device_memory& kg, device_memory& data, uint64_t max_buffer_size)
 {
 	uint64_t size_per_element = state_buffer_size(kg, data, 1024) / 1024;
+	VLOG(1) << "Split state element size: "
+	        << string_human_readable_number(size_per_element) << " bytes. ("
+	        << string_human_readable_size(size_per_element) << ").";
 	return max_buffer_size / size_per_element;
 }
 
@@ -156,20 +173,11 @@ bool DeviceSplitKernel::path_trace(DeviceTask *task,
 		unsigned int max_work_groups = num_global_elements / work_pool_size + 1;
 
 		/* Allocate work_pool_wgs memory. */
-		work_pool_wgs.resize(max_work_groups * sizeof(unsigned int));
-		device->mem_alloc("work_pool_wgs", work_pool_wgs, MEM_READ_WRITE);
-
-		queue_index.resize(NUM_QUEUES * sizeof(int));
-		device->mem_alloc("queue_index", queue_index, MEM_READ_WRITE);
-
-		use_queues_flag.resize(sizeof(char));
-		device->mem_alloc("use_queues_flag", use_queues_flag, MEM_READ_WRITE);
-
-		ray_state.resize(num_global_elements);
-		device->mem_alloc("ray_state", ray_state, MEM_READ_WRITE);
-
-		split_data.resize(state_buffer_size(kgbuffer, kernel_data, num_global_elements));
-		device->mem_alloc("split_data", split_data, MEM_READ_WRITE);
+		work_pool_wgs.alloc_to_device(max_work_groups);
+		queue_index.alloc_to_device(NUM_QUEUES);
+		use_queues_flag.alloc_to_device(1);
+		split_data.alloc_to_device(state_buffer_size(kgbuffer, kernel_data, num_global_elements));
+		ray_state.alloc(num_global_elements);
 	}
 
 #define ENQUEUE_SPLIT_KERNEL(name, global_size, local_size) \
@@ -206,9 +214,9 @@ bool DeviceSplitKernel::path_trace(DeviceTask *task,
 		/* reset state memory here as global size for data_init
 		 * kernel might not be large enough to do in kernel
 		 */
-		device->mem_zero(work_pool_wgs);
-		device->mem_zero(split_data);
-		device->mem_zero(ray_state);
+		work_pool_wgs.zero_to_device();
+		split_data.zero_to_device();
+		ray_state.zero_to_device();
 
 		if(!enqueue_split_kernel_data_init(KernelDimensions(global_size, local_size),
 		                                   subtile,
@@ -227,6 +235,7 @@ bool DeviceSplitKernel::path_trace(DeviceTask *task,
 		ENQUEUE_SPLIT_KERNEL(path_init, global_size, local_size);
 
 		bool activeRaysAvailable = true;
+		double cancel_time = DBL_MAX;
 
 		while(activeRaysAvailable) {
 			/* Do path-iteration in host [Enqueue Path-iteration kernels. */
@@ -236,30 +245,41 @@ bool DeviceSplitKernel::path_trace(DeviceTask *task,
 				ENQUEUE_SPLIT_KERNEL(do_volume, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(queue_enqueue, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(indirect_background, global_size, local_size);
+				ENQUEUE_SPLIT_KERNEL(shader_setup, global_size, local_size);
+				ENQUEUE_SPLIT_KERNEL(shader_sort, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(shader_eval, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(holdout_emission_blurring_pathtermination_ao, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(subsurface_scatter, global_size, local_size);
+				ENQUEUE_SPLIT_KERNEL(queue_enqueue, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(direct_lighting, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(shadow_blocked_ao, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(shadow_blocked_dl, global_size, local_size);
+				ENQUEUE_SPLIT_KERNEL(enqueue_inactive, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(next_iteration_setup, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(indirect_subsurface, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(queue_enqueue, global_size, local_size);
 				ENQUEUE_SPLIT_KERNEL(buffer_update, global_size, local_size);
 
-				if(task->get_cancel()) {
+				if(task->get_cancel() && cancel_time == DBL_MAX) {
+					/* Wait up to twice as many seconds for current samples to finish
+					 * to avoid artifacts in render result from ending too soon.
+					 */
+					cancel_time = time_dt() + 2.0 * time_multiplier;
+				}
+
+				if(time_dt() > cancel_time) {
 					return true;
 				}
 			}
 
 			/* Decide if we should exit path-iteration in host. */
-			device->mem_copy_from(ray_state, 0, global_size[0] * global_size[1] * sizeof(char), 1, 1);
+			ray_state.copy_from_device(0, global_size[0] * global_size[1], 1);
 
 			activeRaysAvailable = false;
 
 			for(int rayStateIter = 0; rayStateIter < global_size[0] * global_size[1]; ++rayStateIter) {
-				if(!IS_STATE(ray_state.get_data(), rayStateIter, RAY_INACTIVE)) {
-					if(IS_STATE(ray_state.get_data(), rayStateIter, RAY_INVALID)) {
+				if(!IS_STATE(ray_state.data(), rayStateIter, RAY_INACTIVE)) {
+					if(IS_STATE(ray_state.data(), rayStateIter, RAY_INVALID)) {
 						/* Something went wrong, abort to avoid looping endlessly. */
 						device->set_error("Split kernel error: invalid ray state");
 						return false;
@@ -271,7 +291,7 @@ bool DeviceSplitKernel::path_trace(DeviceTask *task,
 				}
 			}
 
-			if(task->get_cancel()) {
+			if(time_dt() > cancel_time) {
 				return true;
 			}
 		}
@@ -302,5 +322,3 @@ bool DeviceSplitKernel::path_trace(DeviceTask *task,
 }
 
 CCL_NAMESPACE_END
-
-

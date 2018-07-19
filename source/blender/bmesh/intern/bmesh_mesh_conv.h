@@ -32,6 +32,7 @@
  *  \ingroup bmesh
  */
 
+struct Main;
 struct Mesh;
 
 void BM_mesh_cd_validate(BMesh *bm);
@@ -41,11 +42,11 @@ char BM_mesh_cd_flag_from_bmesh(BMesh *bm);
 
 
 struct BMeshFromMeshParams {
-	unsigned int calc_face_normal : 1;
+	uint calc_face_normal : 1;
 	/* add a vertex CD_SHAPE_KEYINDEX layer */
-	unsigned int add_key_index : 1;
+	uint add_key_index : 1;
 	/* set vertex coordinates from the shapekey */
-	unsigned int use_shapekey : 1;
+	uint use_shapekey : 1;
 	/* define the active shape key (index + 1) */
 	int active_shapekey;
 };
@@ -55,12 +56,13 @@ void BM_mesh_bm_from_me(
 ATTR_NONNULL(1, 3);
 
 struct BMeshToMeshParams {
-	unsigned int calc_tessface : 1;
+	/** Update object hook indices & vertex parents. */
+	uint calc_object_remap : 1;
 	int64_t cd_mask_extra;
 };
 void BM_mesh_bm_to_me(
-        BMesh *bm, struct Mesh *me,
+        struct Main *bmain, BMesh *bm, struct Mesh *me,
         const struct BMeshToMeshParams *params)
-ATTR_NONNULL(1, 2, 3);
+ATTR_NONNULL(2, 3, 4);
 
 #endif /* __BMESH_MESH_CONV_H__ */

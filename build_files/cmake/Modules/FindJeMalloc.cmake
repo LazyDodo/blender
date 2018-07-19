@@ -32,7 +32,6 @@ SET(_jemalloc_SEARCH_DIRS
   /usr/local
   /sw # Fink
   /opt/local # DarwinPorts
-  /opt/csw # Blastwave
   /opt/lib/jemalloc
 )
 
@@ -54,7 +53,7 @@ FIND_LIBRARY(JEMALLOC_LIBRARY
     lib64 lib
   )
 
-# handle the QUIETLY and REQUIRED arguments and set JEMALLOC_FOUND to TRUE if 
+# handle the QUIETLY and REQUIRED arguments and set JEMALLOC_FOUND to TRUE if
 # all listed variables are TRUE
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(JeMalloc DEFAULT_MSG

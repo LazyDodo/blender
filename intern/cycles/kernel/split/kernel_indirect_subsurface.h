@@ -38,7 +38,6 @@ ccl_device void kernel_indirect_subsurface(KernelGlobals *kg)
 	                          1);
 
 #ifdef __SUBSURFACE__
-
 	if(ray_index == QUEUE_EMPTY_SLOT) {
 		return;
 	}
@@ -51,7 +50,6 @@ ccl_device void kernel_indirect_subsurface(KernelGlobals *kg)
 
 	if(IS_STATE(ray_state, ray_index, RAY_UPDATE_BUFFER)) {
 		ccl_addr_space SubsurfaceIndirectRays *ss_indirect = &kernel_split_state.ss_rays[ray_index];
-		kernel_path_subsurface_accum_indirect(ss_indirect, L);
 
 		/* Trace indirect subsurface rays by restarting the loop. this uses less
 		 * stack memory than invoking kernel_path_indirect.
@@ -65,13 +63,8 @@ ccl_device void kernel_indirect_subsurface(KernelGlobals *kg)
 			                                      throughput);
 			ASSIGN_RAY_STATE(ray_state, ray_index, RAY_REGENERATED);
 		}
-		else {
-			ASSIGN_RAY_STATE(ray_state, ray_index, RAY_UPDATE_BUFFER);
-		}
 	}
-
 #endif  /* __SUBSURFACE__ */
-
 }
 
 CCL_NAMESPACE_END

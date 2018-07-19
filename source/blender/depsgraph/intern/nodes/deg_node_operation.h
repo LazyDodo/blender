@@ -38,27 +38,19 @@ struct Depsgraph;
 
 namespace DEG {
 
+struct ComponentDepsNode;
+
 /* Flags for Depsgraph Nodes */
 typedef enum eDepsOperation_Flag {
 	/* node needs to be updated */
 	DEPSOP_FLAG_NEEDS_UPDATE       = (1 << 0),
 
 	/* node was directly modified, causing need for update */
-	/* XXX: intention is to make it easier to tell when we just need to
-	 * take subgraphs.
-	 */
 	DEPSOP_FLAG_DIRECTLY_MODIFIED  = (1 << 1),
-
-	/* Operation is evaluated using CPython; has GIL and security
-	 * implications...
-	 */
-	DEPSOP_FLAG_USES_PYTHON   = (1 << 2),
 } eDepsOperation_Flag;
 
 /* Atomic Operation - Base type for all operations */
 struct OperationDepsNode : public DepsNode {
-
-
 	OperationDepsNode();
 	~OperationDepsNode();
 
@@ -72,20 +64,19 @@ struct OperationDepsNode : public DepsNode {
 	OperationDepsNode *get_entry_operation() { return this; }
 	OperationDepsNode *get_exit_operation() { return this; }
 
+	/* Set this operation as compoonent's entry/exit operation. */
+	void set_as_entry();
+	void set_as_exit();
+
 	/* Component that contains the operation. */
 	ComponentDepsNode *owner;
 
 	/* Callback for operation. */
 	DepsEvalOperationCb evaluate;
 
-
 	/* How many inlinks are we still waiting on before we can be evaluated. */
 	uint32_t num_links_pending;
-	float eval_priority;
 	bool scheduled;
-
-	/* Stage of evaluation */
-	eDepsOperation_Type optype;
 
 	/* Identifier for the operation being performed. */
 	eDepsOperation_Code opcode;

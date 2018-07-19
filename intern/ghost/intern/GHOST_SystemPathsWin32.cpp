@@ -17,7 +17,7 @@
  *
  * The Original Code is Copyright (C) 2011 Blender Foundation.
  * All rights reserved.
- * 
+ *
  * Contributor(s): Blender Foundation
  *                 Andrea Weikert
  *
@@ -36,30 +36,6 @@
 #endif
 #include <shlobj.h>
 #include "utfconv.h"
-
-#ifdef __MINGW32__
-
-#if !defined(SHARD_PIDL)
-#define SHARD_PIDL      0x00000001L
-#endif
-
-#if !defined(SHARD_PATHA)
-#define SHARD_PATHA     0x00000002L
-#endif
-
-#if !defined(SHARD_PATHW)
-#define SHARD_PATHW     0x00000003L
-#endif
-
-#if !defined(SHARD_PATH)
-#ifdef UNICODE
-#define SHARD_PATH  SHARD_PATHW
-#else
-#define SHARD_PATH  SHARD_PATHA
-#endif
-#endif
-
-#endif
 
 GHOST_SystemPathsWin32::GHOST_SystemPathsWin32()
 {

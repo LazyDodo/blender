@@ -22,7 +22,7 @@
  *  \ingroup ketsji
  */
 
-#include "glew-mx.h"
+#include "GPU_glew.h"
 
 #include <iostream>
 #include "BL_Shader.h"
@@ -373,7 +373,7 @@ bool BL_Shader::LinkProgram()
 			goto programError;
 		}
 	}
-	
+
 	if (!tmpFrag && !tmpVert) {
 		spit("---- No shader given ----");
 		goto programError;

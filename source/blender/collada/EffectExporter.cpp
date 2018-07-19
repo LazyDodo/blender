@@ -27,7 +27,6 @@
 
 
 #include <map>
-#include <set>
 
 #include "COLLADASWEffectProfile.h"
 #include "COLLADAFWColorOrTexture.h"
@@ -49,25 +48,14 @@ extern "C" {
 	#include "BKE_material.h"
 }
 
-// OB_MESH is assumed
-static std::string getActiveUVLayerName(Object *ob)
-{
-	Mesh *me = (Mesh *)ob->data;
-
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
-	if (num_layers)
-		return std::string(bc_CustomData_get_active_layer_name(&me->fdata, CD_MTFACE));
-		
-	return "";
-}
-
 EffectsExporter::EffectsExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) : COLLADASW::LibraryEffects(sw), export_settings(export_settings) {
 }
+
 
 bool EffectsExporter::hasEffects(Scene *sce)
 {
 	Base *base = (Base *)sce->base.first;
-	
+
 	while (base) {
 		Object *ob = base->object;
 		int a;
@@ -86,13 +74,50 @@ bool EffectsExporter::hasEffects(Scene *sce)
 
 void EffectsExporter::exportEffects(Scene *sce)
 {
-	if (hasEffects(sce)) {
-		this->scene = sce;
-		openLibrary();
-		MaterialFunctor mf;
-		mf.forEachMaterialInExportSet<EffectsExporter>(sce, *this, this->export_settings->export_set);
+	this->scene = sce;
 
-		closeLibrary();
+	if (this->export_settings->export_texture_type == BC_TEXTURE_TYPE_MAT) {
+		if (hasEffects(sce)) {
+				MaterialFunctor mf;
+				openLibrary();
+				mf.forEachMaterialInExportSet<EffectsExporter>(sce, *this, this->export_settings->export_set);
+				closeLibrary();
+		}
+	}
+	else {
+		std::set<Object *> uv_textured_obs = bc_getUVTexturedObjects(sce, !this->export_settings->active_uv_only);
+		std::set<Image *> uv_images = bc_getUVImages(sce, !this->export_settings->active_uv_only);
+		if (uv_images.size() > 0) {
+			openLibrary();
+			std::set<Image *>::iterator uv_images_iter;
+			for (uv_images_iter = uv_images.begin();
+			     uv_images_iter != uv_images.end();
+			     uv_images_iter++)
+			{
+
+				Image *ima = *uv_images_iter;
+				std::string key(id_name(ima));
+				key = translate_id(key);
+				COLLADASW::Sampler sampler(COLLADASW::Sampler::SAMPLER_TYPE_2D,
+					key + COLLADASW::Sampler::SAMPLER_SID_SUFFIX,
+					key + COLLADASW::Sampler::SURFACE_SID_SUFFIX);
+				sampler.setImageId(key);
+
+				openEffect(key + "-effect");
+				COLLADASW::EffectProfile ep(mSW);
+				ep.setProfileType(COLLADASW::EffectProfile::COMMON);
+				ep.setShaderType(COLLADASW::EffectProfile::PHONG);
+				ep.setDiffuse(createTexture(ima, key, &sampler), false, "diffuse");
+				COLLADASW::ColorOrTexture cot = getcol(0, 0, 0, 1.0f);
+				ep.setSpecular(cot, false, "specular");
+				ep.openProfile();
+				ep.addProfileElements();
+				ep.addExtraTechniques(mSW);
+				ep.closeProfile();
+				closeEffect();
+			}
+			closeLibrary();
+		}
 	}
 }
 
@@ -124,12 +149,13 @@ void EffectsExporter::writePhong(COLLADASW::EffectProfile &ep, Material *ma)
 	ep.setSpecular(cot, false, "specular");
 }
 
-void EffectsExporter::writeTextures(COLLADASW::EffectProfile &ep,
-									std::string &key,
-									COLLADASW::Sampler *sampler, 
-									MTex *t, Image *ima,
-									std::string &uvname ) {
-		
+void EffectsExporter::writeTextures(
+        COLLADASW::EffectProfile &ep,
+        std::string &key,
+        COLLADASW::Sampler *sampler,
+        MTex *t, Image *ima,
+        std::string &uvname )
+{
 	// Image not set for texture
 	if (!ima) return;
 
@@ -158,7 +184,7 @@ void EffectsExporter::writeTextures(COLLADASW::EffectProfile &ep,
 		ep.setTransparent(createTexture(ima, uvname, sampler));
 	}
 	// extension:
-	// Normal map --> Must be stored with <extra> tag as different technique, 
+	// Normal map --> Must be stored with <extra> tag as different technique,
 	// since COLLADA doesn't support normal maps, even in current COLLADA 1.5.
 	if (t->mapto & MAP_NORM) {
 		COLLADASW::Texture texture(key);
@@ -176,11 +202,10 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 {
 	// create a list of indices to textures of type TEX_IMAGE
 	std::vector<int> tex_indices;
-	if (this->export_settings->include_material_textures)
-		createTextureIndices(ma, tex_indices);
+	createTextureIndices(ma, tex_indices);
 
 	openEffect(translate_id(id_name(ma)) + "-effect");
-	
+
 	COLLADASW::EffectProfile ep(mSW);
 	ep.setProfileType(COLLADASW::EffectProfile::COMMON);
 	ep.openProfile();
@@ -204,7 +229,7 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 			writePhong(ep, ma);
 		}
 	}
-	
+
 	// index of refraction
 	if (ma->mode & MA_RAYTRANSP) {
 		ep.setIndexOfRefraction(ma->ang, false, "index_of_refraction");
@@ -265,7 +290,7 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 	//COLLADASW::Surface surfaces[MAX_MTEX];
 	//void *samp_surf[MAX_MTEX][2];
 	void *samp_surf[MAX_MTEX];
-	
+
 	// image to index to samp_surf map
 	// samp_surf[index] stores 2 pointers, sampler and surface
 	std::map<std::string, int> im_samp_map;
@@ -274,10 +299,10 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 	for (a = 0, b = 0; a < tex_indices.size(); a++) {
 		MTex *t = ma->mtex[tex_indices[a]];
 		Image *ima = t->tex->ima;
-		
+
 		// Image not set for texture
 		if (!ima) continue;
-		
+
 		std::string key(id_name(ima));
 		key = translate_id(key);
 
@@ -292,7 +317,7 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 
 			// COLLADASW::NewParamSurface surface(mSW);
 			// surface->setParamType(COLLADASW::CSW_SURFACE_TYPE_2D);
-			
+
 			//<newparam> <sampler> <source>
 			COLLADASW::Sampler sampler(COLLADASW::Sampler::SAMPLER_TYPE_2D,
 			                           key + COLLADASW::Sampler::SAMPLER_SID_SUFFIX,
@@ -301,71 +326,19 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 			// copy values to arrays since they will live longer
 			samplers[a] = sampler;
 			//surfaces[a] = surface;
-			
+
 			// store pointers so they can be used later when we create <texture>s
 			samp_surf[b] = &samplers[a];
 			//samp_surf[b][1] = &surfaces[a];
-			
+
 			im_samp_map[key] = b;
 			b++;
 		}
 	}
 
-	int active_uv_layer = -1;
-	std::set<Image *> uv_textures;
-	if (ob->type == OB_MESH && ob->totcol && this->export_settings->include_uv_textures) {
-		bool active_uv_only = this->export_settings->active_uv_only;
-		Mesh *me     = (Mesh *) ob->data;
-		active_uv_layer = CustomData_get_active_layer_index(&me->pdata, CD_MTEXPOLY);
-
-		BKE_mesh_tessface_ensure(me);
-		for (int i = 0; i < me->pdata.totlayer; i++) {
-			if (!active_uv_only || active_uv_layer == i)
-			{
-				if (me->pdata.layers[i].type == CD_MTEXPOLY) {
-					MTexPoly *txface = (MTexPoly *)me->pdata.layers[i].data;
-					MPoly *mpoly = me->mpoly;
-					for (int j = 0; j < me->totpoly; j++, mpoly++, txface++) {
-
-						Material *mat = give_current_material(ob, mpoly->mat_nr + 1);
-						if (mat != ma) 
-							continue;
-
-						Image *ima = txface->tpage;
-						if (ima == NULL)
-							continue;
-
-
-						bool not_in_list = uv_textures.find(ima)==uv_textures.end();
-						if (not_in_list) {
-							std::string name = id_name(ima);
-							std::string key(name);
-							key = translate_id(key);
-
-							// create only one <sampler>/<surface> pair for each unique image
-							if (im_samp_map.find(key) == im_samp_map.end()) {
-								//<newparam> <sampler> <source>
-								COLLADASW::Sampler sampler(COLLADASW::Sampler::SAMPLER_TYPE_2D,
-														   key + COLLADASW::Sampler::SAMPLER_SID_SUFFIX,
-														   key + COLLADASW::Sampler::SURFACE_SID_SUFFIX);
-								sampler.setImageId(key);
-								samplers[a] = sampler;
-								samp_surf[b] = &samplers[a];
-								im_samp_map[key] = b;
-								b++;
-								a++;
-								uv_textures.insert(ima);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
 	// used as fallback when MTex->uvname is "" (this is pretty common)
 	// it is indeed the correct value to use in that case
-	std::string active_uv(getActiveUVLayerName(ob));
+	std::string active_uv(bc_get_active_uvlayer_name(ob));
 
 	// write textures
 	// XXX very slow
@@ -383,19 +356,6 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 		std::string uvname = strlen(t->uvname) ? t->uvname : active_uv;
 		COLLADASW::Sampler *sampler = (COLLADASW::Sampler *)samp_surf[i];
 		writeTextures(ep, key, sampler, t, ima, uvname);
-	}
-
-	std::set<Image *>::iterator uv_t_iter;
-	int idx;
-	for (idx = 0, uv_t_iter = uv_textures.begin(); uv_t_iter != uv_textures.end(); uv_t_iter++, idx++ ) {
-		if (active_uv_layer>-1 && idx==active_uv_layer) {
-			Image *ima = *uv_t_iter;
-			std::string key(id_name(ima));
-			key = translate_id(key);
-			int i = im_samp_map[key];
-			COLLADASW::Sampler *sampler = (COLLADASW::Sampler *)samp_surf[i];
-			ep.setDiffuse(createTexture(ima, active_uv, sampler), false, "diffuse");
-		}
 	}
 
 	// performs the actual writing
@@ -421,12 +381,12 @@ COLLADASW::ColorOrTexture EffectsExporter::createTexture(Image *ima,
                                                          COLLADASW::Sampler *sampler
                                                          /*COLLADASW::Surface *surface*/)
 {
-	
+
 	COLLADASW::Texture texture(translate_id(id_name(ima)));
 	texture.setTexcoord(uv_layer_name);
 	//texture.setSurface(*surface);
 	texture.setSampler(*sampler);
-	
+
 	COLLADASW::ColorOrTexture cot(texture);
 	return cot;
 }
@@ -438,7 +398,7 @@ COLLADASW::ColorOrTexture EffectsExporter::getcol(float r, float g, float b, flo
 	return cot;
 }
 
-//returns the array of mtex indices which have image 
+//returns the array of mtex indices which have image
 //need this for exporting textures
 void EffectsExporter::createTextureIndices(Material *ma, std::vector<int> &indices)
 {

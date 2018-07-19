@@ -40,6 +40,12 @@ struct View3D;
 
 /* ED_transform_snap_object_*** API */
 
+typedef enum eSnapSelect {
+	SNAP_ALL = 0,
+	SNAP_NOT_SELECTED = 1,
+	SNAP_NOT_ACTIVE = 2,
+} eSnapSelect;
+
 /** used for storing multiple hits */
 struct SnapObjectHitDepth {
 	struct SnapObjectHitDepth *next, *prev;
@@ -84,7 +90,6 @@ void ED_transform_snap_object_context_set_editmesh_callbacks(
 
 bool ED_transform_snap_object_project_ray_ex(
         struct SnapObjectContext *sctx,
-        const unsigned short snap_to,
         const struct SnapObjectParams *params,
         const float ray_start[3], const float ray_normal[3], float *ray_depth,
         /* return args */
@@ -98,7 +103,6 @@ bool ED_transform_snap_object_project_ray(
 
 bool ED_transform_snap_object_project_ray_all(
         SnapObjectContext *sctx,
-        const unsigned short snap_to,
         const struct SnapObjectParams *params,
         const float ray_start[3], const float ray_normal[3],
         float ray_depth, bool sort,
@@ -110,7 +114,8 @@ bool ED_transform_snap_object_project_view3d_ex(
         const struct SnapObjectParams *params,
         const float mval[2], float *dist_px,
         float *ray_depth,
-        float r_loc[3], float r_no[3], int *r_index);
+        float r_loc[3], float r_no[3], int *r_index,
+        struct Object **r_ob, float r_obmat[4][4]);
 bool ED_transform_snap_object_project_view3d(
         struct SnapObjectContext *sctx,
         const unsigned short snap_to,

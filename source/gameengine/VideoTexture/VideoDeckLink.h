@@ -47,7 +47,7 @@ extern "C" {
 #include "BLI_threads.h"
 #include "BLI_blenlib.h"
 }
-#include "GL/glew.h"
+#include "GPU_glew.h"
 #ifdef WIN32
 #include "dvpapi.h"
 #endif
@@ -216,7 +216,7 @@ private:
 	HRESULT _ReleaseBuffer(void* buffer);
 
 	uint32_t							mRefCount;
-	// protect the cache and the allocated map, 
+	// protect the cache and the allocated map,
 	// not the pinnedBuffer map as it is only used from main thread
 	pthread_mutex_t						mMutex;
 	std::map<void*, uint32_t>			mAllocatedSize;

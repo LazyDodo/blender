@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -39,16 +39,18 @@ class MovieClipAttributeOperation : public NodeOperation {
 private:
 	MovieClip *m_clip;
 	float m_value;
-	bool m_valueSet;
 	int m_framenumber;
 	bool m_invert;
 	MovieClipAttribute m_attribute;
+
 public:
 	/**
 	 * Default constructor
 	 */
 	MovieClipAttributeOperation();
-	
+
+	void initExecution();
+
 	/**
 	 * the inner loop of this program
 	 */

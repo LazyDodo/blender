@@ -27,26 +27,61 @@
 #include "kernel/closure/bsdf_ashikhmin_shirley.h"
 #include "kernel/closure/bsdf_toon.h"
 #include "kernel/closure/bsdf_hair.h"
+#include "kernel/closure/bsdf_hair_principled.h"
 #include "kernel/closure/bsdf_principled_diffuse.h"
 #include "kernel/closure/bsdf_principled_sheen.h"
-#ifdef __SUBSURFACE__
-#  include "kernel/closure/bssrdf.h"
-#endif
-#ifdef __VOLUME__
-#  include "kernel/closure/volume.h"
-#endif
+#include "kernel/closure/bssrdf.h"
+#include "kernel/closure/volume.h"
 
 CCL_NAMESPACE_BEGIN
 
-ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
-                                       ShaderData *sd,
-                                       const ShaderClosure *sc,
-                                       float randu,
-                                       float randv,
-                                       float3 *eval,
-                                       float3 *omega_in,
-                                       differential3 *domega_in,
-                                       float *pdf)
+/* Returns the square of the roughness of the closure if it has roughness,
+ * 0 for singular closures and 1 otherwise. */
+ccl_device_inline float bsdf_get_specular_roughness_squared(const ShaderClosure *sc)
+{
+	if(CLOSURE_IS_BSDF_SINGULAR(sc->type)) {
+		return 0.0f;
+	}
+
+	if(CLOSURE_IS_BSDF_MICROFACET(sc->type)) {
+		MicrofacetBsdf *bsdf = (MicrofacetBsdf*)sc;
+		return bsdf->alpha_x*bsdf->alpha_y;
+	}
+
+	return 1.0f;
+}
+
+ccl_device_inline float bsdf_get_roughness_squared(const ShaderClosure *sc)
+{
+	/* This version includes diffuse, mainly for baking Principled BSDF
+	 * where specular and metallic zero otherwise does not bake the
+	 * specified roughness parameter. */
+	if(sc->type == CLOSURE_BSDF_OREN_NAYAR_ID) {
+		OrenNayarBsdf *bsdf = (OrenNayarBsdf*)sc;
+		return sqr(sqr(bsdf->roughness));
+	}
+
+	if(sc->type == CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID) {
+		PrincipledDiffuseBsdf *bsdf = (PrincipledDiffuseBsdf*)sc;
+		return sqr(sqr(bsdf->roughness));
+	}
+
+	if(CLOSURE_IS_BSDF_DIFFUSE(sc->type)) {
+		return 0.0f;
+	}
+
+	return bsdf_get_specular_roughness_squared(sc);
+}
+
+ccl_device_inline int bsdf_sample(KernelGlobals *kg,
+                                  ShaderData *sd,
+                                  const ShaderClosure *sc,
+                                  float randu,
+                                  float randv,
+                                  float3 *eval,
+                                  float3 *omega_in,
+                                  differential3 *domega_in,
+                                  float *pdf)
 {
 	int label;
 
@@ -137,6 +172,11 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 			label = bsdf_hair_transmission_sample(sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
 				eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
 			break;
+		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+			label = bsdf_principled_hair_sample(kg, sc, sd, randu, randv,
+				eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
+			break;
+#ifdef __PRINCIPLED__
 		case CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID:
 		case CLOSURE_BSDF_BSSRDF_PRINCIPLED_ID:
 			label = bsdf_principled_diffuse_sample(sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
@@ -146,6 +186,7 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 			label = bsdf_principled_sheen_sample(sc, sd->Ng, sd->I, sd->dI.dx, sd->dI.dy, randu, randv,
 				eval, omega_in, &domega_in->dx, &domega_in->dy, pdf);
 			break;
+#endif  /* __PRINCIPLED__ */
 #endif
 #ifdef __VOLUME__
 		case CLOSURE_VOLUME_HENYEY_GREENSTEIN_ID:
@@ -157,13 +198,24 @@ ccl_device_forceinline int bsdf_sample(KernelGlobals *kg,
 			break;
 	}
 
+	/* Test if BSDF sample should be treated as transparent for background. */
+	if(label & LABEL_TRANSMIT) {
+		float threshold_squared = kernel_data.background.transparent_roughness_squared_threshold;
+
+		if(threshold_squared >= 0.0f) {
+			if(bsdf_get_specular_roughness_squared(sc) <= threshold_squared) {
+				label |= LABEL_TRANSMIT_TRANSPARENT;
+			}
+		}
+	}
+
 	return label;
 }
 
 #ifndef __KERNEL_CUDA__
 ccl_device
 #else
-ccl_device_forceinline
+ccl_device_inline
 #endif
 float3 bsdf_eval(KernelGlobals *kg,
                  ShaderData *sd,
@@ -237,12 +289,16 @@ float3 bsdf_eval(KernelGlobals *kg,
 			case CLOSURE_BSDF_GLOSSY_TOON_ID:
 				eval = bsdf_glossy_toon_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
+			case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+				eval = bsdf_principled_hair_eval(kg, sd, sc, omega_in, pdf);
+				break;
 			case CLOSURE_BSDF_HAIR_REFLECTION_ID:
 				eval = bsdf_hair_reflection_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_TRANSMISSION_ID:
 				eval = bsdf_hair_transmission_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
+#ifdef __PRINCIPLED__
 			case CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID:
 			case CLOSURE_BSDF_BSSRDF_PRINCIPLED_ID:
 				eval = bsdf_principled_diffuse_eval_reflect(sc, sd->I, omega_in, pdf);
@@ -250,6 +306,7 @@ float3 bsdf_eval(KernelGlobals *kg,
 			case CLOSURE_BSDF_PRINCIPLED_SHEEN_ID:
 				eval = bsdf_principled_sheen_eval_reflect(sc, sd->I, omega_in, pdf);
 				break;
+#endif  /* __PRINCIPLED__ */
 #endif
 #ifdef __VOLUME__
 			case CLOSURE_VOLUME_HENYEY_GREENSTEIN_ID:
@@ -317,12 +374,16 @@ float3 bsdf_eval(KernelGlobals *kg,
 			case CLOSURE_BSDF_GLOSSY_TOON_ID:
 				eval = bsdf_glossy_toon_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
+			case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+				eval = bsdf_principled_hair_eval(kg, sd, sc, omega_in, pdf);
+				break;
 			case CLOSURE_BSDF_HAIR_REFLECTION_ID:
 				eval = bsdf_hair_reflection_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
 			case CLOSURE_BSDF_HAIR_TRANSMISSION_ID:
 				eval = bsdf_hair_transmission_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
+#ifdef __PRINCIPLED__
 			case CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID:
 			case CLOSURE_BSDF_BSSRDF_PRINCIPLED_ID:
 				eval = bsdf_principled_diffuse_eval_transmit(sc, sd->I, omega_in, pdf);
@@ -330,6 +391,7 @@ float3 bsdf_eval(KernelGlobals *kg,
 			case CLOSURE_BSDF_PRINCIPLED_SHEEN_ID:
 				eval = bsdf_principled_sheen_eval_transmit(sc, sd->I, omega_in, pdf);
 				break;
+#endif  /* __PRINCIPLED__ */
 #endif
 #ifdef __VOLUME__
 			case CLOSURE_VOLUME_HENYEY_GREENSTEIN_ID:
@@ -372,6 +434,9 @@ ccl_device void bsdf_blur(KernelGlobals *kg, ShaderClosure *sc, float roughness)
 		case CLOSURE_BSDF_ASHIKHMIN_SHIRLEY_ID:
 		case CLOSURE_BSDF_ASHIKHMIN_SHIRLEY_ANISO_ID:
 			bsdf_ashikhmin_shirley_blur(sc, roughness);
+			break;
+		case CLOSURE_BSDF_HAIR_PRINCIPLED_ID:
+			bsdf_principled_hair_blur(sc, roughness);
 			break;
 		default:
 			break;
@@ -417,6 +482,11 @@ ccl_device bool bsdf_merge(ShaderClosure *a, ShaderClosure *b)
 		case CLOSURE_BSDF_HAIR_REFLECTION_ID:
 		case CLOSURE_BSDF_HAIR_TRANSMISSION_ID:
 			return bsdf_hair_merge(a, b);
+#ifdef __PRINCIPLED__
+		case CLOSURE_BSDF_PRINCIPLED_DIFFUSE_ID:
+		case CLOSURE_BSDF_BSSRDF_PRINCIPLED_ID:
+			return bsdf_principled_diffuse_merge(a, b);
+#endif
 #ifdef __VOLUME__
 		case CLOSURE_VOLUME_HENYEY_GREENSTEIN_ID:
 			return volume_henyey_greenstein_merge(a, b);
@@ -430,4 +500,3 @@ ccl_device bool bsdf_merge(ShaderClosure *a, ShaderClosure *b)
 }
 
 CCL_NAMESPACE_END
-

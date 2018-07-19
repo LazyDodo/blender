@@ -148,6 +148,12 @@ void string_replace(string& haystack, const string& needle, const string& other)
 string string_remove_trademark(const string &s)
 {
 	string result = s;
+
+	/* Special case, so we don;t leave sequential spaces behind. */
+	/* TODO(sergey): Consider using regex perhaps? */
+	string_replace(result, " (TM)", "");
+	string_replace(result, " (R)", "");
+
 	string_replace(result, "(TM)", "");
 	string_replace(result, "(R)", "");
 
@@ -287,4 +293,3 @@ string string_human_readable_number(size_t num)
 }
 
 CCL_NAMESPACE_END
-

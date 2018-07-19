@@ -67,7 +67,7 @@ typedef struct ClothHairData {
 
 typedef struct ClothSolverResult {
 	int status;
-	
+
 	int max_iterations, min_iterations;
 	float avg_iterations;
 	float max_error, min_error, avg_error;
@@ -151,7 +151,7 @@ typedef struct ClothSpring {
 	float lin_stiffness;	/* linear stiffness factor from the vertex groups */
 	float ang_stiffness;	/* angular stiffness factor from the vertex groups */
 	float planarity;
-	
+
 	/* angular bending spring target and derivatives */
 	float target[3];
 } ClothSpring;
@@ -218,7 +218,7 @@ struct CollPair;
 typedef struct ColliderContacts {
 	struct Object *ob;
 	struct CollisionModifierData *collmd;
-	
+
 	struct CollPair *collisions;
 	int totcollisions;
 } ColliderContacts;
@@ -259,4 +259,3 @@ bool is_basemesh_valid(struct Object *ob, struct Object *basemesh, struct ClothM
 ////////////////////////////////////////////////
 
 #endif
-

@@ -299,7 +299,7 @@ typedef struct BChunk {
 } BChunk;
 
 /**
- * Links to store #BChunk data in #BChunkList.chunks.
+ * Links to store #BChunk data in #BChunkList.chunk_refs.
  */
 typedef struct BChunkRef {
 	struct BChunkRef *next, *prev;
@@ -749,6 +749,7 @@ static void bchunk_list_fill_from_array(
 	ASSERT_CHUNKLIST_DATA(chunk_list, data);
 }
 
+/** \} */
 
 /* ---------------------------------------------------------------------------
  * Internal Table Lookup Functions
@@ -763,7 +764,7 @@ static void bchunk_list_fill_from_array(
 
 BLI_INLINE uint hash_data_single(const uchar p)
 {
-	return (HASH_INIT << 5) + HASH_INIT + (unsigned int)p;
+	return ((HASH_INIT << 5) + HASH_INIT) + (unsigned int)(*((signed char *)&p));
 }
 
 /* hash bytes, from BLI_ghashutil_strhash_n */
@@ -773,7 +774,7 @@ static uint hash_data(const uchar *key, size_t n)
 	unsigned int h = HASH_INIT;
 
 	for (p = (const signed char *)key; n--; p++) {
-		h = (h << 5) + h + (unsigned int)*p;
+		h = ((h << 5) + h) + (unsigned int)*p;
 	}
 
 	return h;
@@ -878,7 +879,7 @@ static hash_key key_from_chunk_ref(
 {
 	/* in C, will fill in a reusable array */
 	BChunk *chunk = cref->link;
-	BLI_assert(info->accum_read_ahead_bytes * info->chunk_stride);
+	BLI_assert((info->accum_read_ahead_bytes * info->chunk_stride) != 0);
 
 	if (info->accum_read_ahead_bytes <= chunk->data_len) {
 		hash_key key;
@@ -1012,6 +1013,10 @@ static const BChunkRef *table_lookup(
  * ---------------- */
 
 /** \} */
+
+/** \name Main Data De-Duplication Function
+ *
+ * \{ */
 
 /**
  * \param data: Data to store in the returned value.
@@ -1504,6 +1509,8 @@ void BLI_array_store_clear(
 	BLI_mempool_clear(bs->memory.chunk);
 }
 
+/** \} */
+
 /** \name BArrayStore Statistics
  * \{ */
 
@@ -1560,7 +1567,7 @@ BArrayState *BLI_array_store_state_add(
         const void *data, const size_t data_len,
         const BArrayState *state_reference)
 {
-    /* ensure we're aligned to the stride */
+	/* ensure we're aligned to the stride */
 	BLI_assert((data_len % bs->info.chunk_stride) == 0);
 
 #ifdef USE_PARANOID_CHECKS
@@ -1759,7 +1766,7 @@ bool BLI_array_store_is_valid(
 				goto user_finally;
 			}
 		}
-		if (!(BLI_mempool_count(bs->memory.chunk_list) == (int)BLI_ghash_size(chunk_list_map))) {
+		if (!(BLI_mempool_len(bs->memory.chunk_list) == (int)BLI_ghash_len(chunk_list_map))) {
 			ok = false;
 			goto user_finally;
 		}
@@ -1772,11 +1779,11 @@ bool BLI_array_store_is_valid(
 				totrefs += 1;
 			}
 		}
-		if (!(BLI_mempool_count(bs->memory.chunk) == (int)BLI_ghash_size(chunk_map))) {
+		if (!(BLI_mempool_len(bs->memory.chunk) == (int)BLI_ghash_len(chunk_map))) {
 			ok = false;
 			goto user_finally;
 		}
-		if (!(BLI_mempool_count(bs->memory.chunk_ref) == totrefs)) {
+		if (!(BLI_mempool_len(bs->memory.chunk_ref) == totrefs)) {
 			ok = false;
 			goto user_finally;
 		}

@@ -78,7 +78,7 @@ bDeformGroup *BKE_defgroup_new(Object *ob, const char *name)
 	return defgroup;
 }
 
-void defgroup_copy_list(ListBase *outbase, ListBase *inbase)
+void defgroup_copy_list(ListBase *outbase, const ListBase *inbase)
 {
 	bDeformGroup *defgroup, *defgroupn;
 
@@ -90,7 +90,7 @@ void defgroup_copy_list(ListBase *outbase, ListBase *inbase)
 	}
 }
 
-bDeformGroup *defgroup_duplicate(bDeformGroup *ingroup)
+bDeformGroup *defgroup_duplicate(const bDeformGroup *ingroup)
 {
 	bDeformGroup *outgroup;
 
@@ -623,8 +623,17 @@ float defvert_find_weight(const struct MDeformVert *dvert, const int defgroup)
  */
 float defvert_array_find_weight_safe(const struct MDeformVert *dvert, const int index, const int defgroup)
 {
-	if (defgroup == -1 || dvert == NULL)
+	/* Invalid defgroup index means the vgroup selected is invalid, does not exist, in that case it is OK to return 1.0
+	 * (i.e. maximum weight, as if no vgroup was selected).
+	 * But in case of valid defgroup and NULL dvert data pointer, it means that vgroup **is** valid,
+	 * and just totally empty, so we shall return '0.0' value then!
+	 */
+	if (defgroup == -1) {
 		return 1.0f;
+	}
+	else if (dvert == NULL) {
+		return 0.0f;
+	}
 
 	return defvert_find_weight(dvert + index, defgroup);
 }
@@ -1182,7 +1191,12 @@ bool data_transfer_layersmapping_vgroups(
 
 		if (fromlayers >= 0) {
 			idx_src = fromlayers;
-			BLI_assert(idx_src < BLI_listbase_count(&ob_src->defbase));
+			if (idx_src >= BLI_listbase_count(&ob_src->defbase)) {
+				/* This can happen when vgroups are removed from source object...
+				 * Remapping would be really tricky here, we'd need to go over all objects in Main everytime we delete
+				 * a vgroup... for now, simpler and safer to abort. */
+				return false;
+			}
 		}
 		else if ((idx_src = ob_src->actdef - 1) == -1) {
 			return false;

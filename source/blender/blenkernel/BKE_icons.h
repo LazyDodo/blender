@@ -39,7 +39,8 @@ typedef void (*DrawInfoFreeFP)(void *drawinfo);
 struct Icon {
 	void *drawinfo;
 	void *obj;
-	short type;
+	/** #ID_Type or 0 when not used for ID preview. */
+	short id_type;
 	DrawInfoFreeFP drawinfo_free;
 };
 
@@ -58,22 +59,25 @@ int BKE_icon_id_ensure(struct ID *id);
 int BKE_icon_preview_ensure(struct ID *id, struct PreviewImage *preview);
 
 /* retrieve icon for id */
-struct Icon *BKE_icon_get(int icon_id);
+struct Icon *BKE_icon_get(const int icon_id);
 
 /* set icon for id if not already defined */
 /* used for inserting the internal icons */
-void BKE_icon_set(int icon_id, struct Icon *icon);
+void BKE_icon_set(const int icon_id, struct Icon *icon);
 
 /* remove icon and free data if library object becomes invalid */
 void BKE_icon_id_delete(struct ID *id);
 
-void BKE_icon_delete(int icon_id);
+void BKE_icon_delete(const int icon_id);
 
 /* report changes - icon needs to be recalculated */
-void BKE_icon_changed(int icon_id);
+void BKE_icon_changed(const int icon_id);
 
 /* free all icons */
 void BKE_icons_free(void);
+
+/* free all icons marked for deferred deletion */
+void BKE_icons_deferred_free(void);
 
 /* free the preview image for use in list */
 void BKE_previewimg_freefunc(void *link);
@@ -88,7 +92,7 @@ void BKE_previewimg_clear(struct PreviewImage *prv);
 void BKE_previewimg_clear_single(struct PreviewImage *prv, enum eIconSizes size);
 
 /* get the preview from any pointer */
-struct PreviewImage **BKE_previewimg_id_get_p(struct ID *id);
+struct PreviewImage **BKE_previewimg_id_get_p(const struct ID *id);
 
 /* free the preview image belonging to the id */
 void BKE_previewimg_id_free(struct ID *id);
@@ -97,9 +101,9 @@ void BKE_previewimg_id_free(struct ID *id);
 struct PreviewImage *BKE_previewimg_create(void);
 
 /* create a copy of the preview image */
-struct PreviewImage *BKE_previewimg_copy(struct PreviewImage *prv);
+struct PreviewImage *BKE_previewimg_copy(const struct PreviewImage *prv);
 
-void BKE_previewimg_id_copy(struct ID *new_id, struct ID *old_id);
+void BKE_previewimg_id_copy(struct ID *new_id, const struct ID *old_id);
 
 /* retrieve existing or create new preview image */
 struct PreviewImage *BKE_previewimg_id_ensure(struct ID *id);

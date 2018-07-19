@@ -23,22 +23,6 @@ CCL_NAMESPACE_BEGIN
  * The number of elements in the queues is initialized to 0;
  */
 
-/* Distributes an amount of work across all threads
- * note: work done inside the loop may not show up to all threads till after
- * the current kernel has completed
- */
-#define parallel_for(kg, iter_name, work_size) \
-	for(size_t _size = (work_size), \
-	    _global_size = ccl_global_size(0) * ccl_global_size(1), \
-	    _n = _size / _global_size, \
-		_thread = ccl_global_id(0) + ccl_global_id(1) * ccl_global_size(0), \
-	    iter_name = (_n > 0) ? (_thread * _n) : (_thread) \
-		; \
-		(iter_name < (_thread+1) * _n) || (iter_name == _n * _global_size + _thread && _thread < _size % _global_size) \
-		; \
-		iter_name = (iter_name != (_thread+1) * _n - 1) ? (iter_name + 1) : (_n * _global_size + _thread) \
-	)
-
 #ifndef __KERNEL_CPU__
 ccl_device void kernel_data_init(
 #else
@@ -49,12 +33,9 @@ void KERNEL_FUNCTION_FULL_NAME(data_init)(
         ccl_global void *split_data_buffer,
         int num_elements,
         ccl_global char *ray_state,
-        ccl_global uint *rng_state,
 
 #ifdef __KERNEL_OPENCL__
-#define KERNEL_TEX(type, ttype, name)                                   \
-        ccl_global type *name,
-#include "kernel/kernel_textures.h"
+		KERNEL_BUFFER_PARAMS,
 #endif
 
         int start_sample,
@@ -67,87 +48,62 @@ void KERNEL_FUNCTION_FULL_NAME(data_init)(
         unsigned int num_samples,
         ccl_global float *buffer)
 {
+#ifdef KERNEL_STUB
+	STUB_ASSERT(KERNEL_ARCH, data_init);
+#else
+
 #ifdef __KERNEL_OPENCL__
 	kg->data = data;
 #endif
 
-	kernel_split_params.x = sx;
-	kernel_split_params.y = sy;
-	kernel_split_params.w = sw;
-	kernel_split_params.h = sh;
+	kernel_split_params.tile.x = sx;
+	kernel_split_params.tile.y = sy;
+	kernel_split_params.tile.w = sw;
+	kernel_split_params.tile.h = sh;
 
-	kernel_split_params.offset = offset;
-	kernel_split_params.stride = stride;
+	kernel_split_params.tile.start_sample = start_sample;
+	kernel_split_params.tile.num_samples = num_samples;
 
-	kernel_split_params.rng_state = rng_state;
+	kernel_split_params.tile.offset = offset;
+	kernel_split_params.tile.stride = stride;
 
-	kernel_split_params.start_sample = start_sample;
-	kernel_split_params.end_sample = end_sample;
+	kernel_split_params.tile.buffer = buffer;
+
+	kernel_split_params.total_work_size = sw * sh * num_samples;
 
 	kernel_split_params.work_pools = work_pools;
-	kernel_split_params.num_samples = num_samples;
 
 	kernel_split_params.queue_index = Queue_index;
 	kernel_split_params.queue_size = queuesize;
 	kernel_split_params.use_queues_flag = use_queues_flag;
 
-	kernel_split_params.buffer = buffer;
-
 	split_data_init(kg, &kernel_split_state, num_elements, split_data_buffer, ray_state);
 
 #ifdef __KERNEL_OPENCL__
-#define KERNEL_TEX(type, ttype, name) \
-	kg->name = name;
-#include "kernel/kernel_textures.h"
+	kernel_set_buffer_pointers(kg, KERNEL_BUFFER_ARGS);
+	kernel_set_buffer_info(kg);
 #endif
 
 	int thread_index = ccl_global_id(1) * ccl_global_size(0) + ccl_global_id(0);
 
 	/* Initialize queue data and queue index. */
 	if(thread_index < queuesize) {
-		/* Initialize active ray queue. */
-		kernel_split_state.queue_data[QUEUE_ACTIVE_AND_REGENERATED_RAYS * queuesize + thread_index] = QUEUE_EMPTY_SLOT;
-		/* Initialize background and buffer update queue. */
-		kernel_split_state.queue_data[QUEUE_HITBG_BUFF_UPDATE_TOREGEN_RAYS * queuesize + thread_index] = QUEUE_EMPTY_SLOT;
-		/* Initialize shadow ray cast of AO queue. */
-		kernel_split_state.queue_data[QUEUE_SHADOW_RAY_CAST_AO_RAYS * queuesize + thread_index] = QUEUE_EMPTY_SLOT;
-		/* Initialize shadow ray cast of direct lighting queue. */
-		kernel_split_state.queue_data[QUEUE_SHADOW_RAY_CAST_DL_RAYS * queuesize + thread_index] = QUEUE_EMPTY_SLOT;
+		for(int i = 0; i < NUM_QUEUES; i++) {
+			kernel_split_state.queue_data[i * queuesize + thread_index] = QUEUE_EMPTY_SLOT;
+		}
 	}
 
 	if(thread_index == 0) {
-		Queue_index[QUEUE_ACTIVE_AND_REGENERATED_RAYS] = 0;
-		Queue_index[QUEUE_HITBG_BUFF_UPDATE_TOREGEN_RAYS] = 0;
-		Queue_index[QUEUE_SHADOW_RAY_CAST_AO_RAYS] = 0;
-		Queue_index[QUEUE_SHADOW_RAY_CAST_DL_RAYS] = 0;
+		for(int i = 0; i < NUM_QUEUES; i++) {
+			Queue_index[i] = 0;
+		}
+
 		/* The scene-intersect kernel should not use the queues very first time.
 		 * since the queue would be empty.
 		 */
 		*use_queues_flag = 0;
 	}
-
-	/* zero the tiles pixels and initialize rng_state if this is the first sample */
-	if(start_sample == 0) {
-		parallel_for(kg, i, sw * sh * kernel_data.film.pass_stride) {
-			int pixel = i / kernel_data.film.pass_stride;
-			int pass = i % kernel_data.film.pass_stride;
-
-			int x = sx + pixel % sw;
-			int y = sy + pixel / sw;
-
-			int index = (offset + x + y*stride) * kernel_data.film.pass_stride + pass;
-
-			*(buffer + index) = 0.0f;
-		}
-
-		parallel_for(kg, i, sw * sh) {
-			int x = sx + i % sw;
-			int y = sy + i / sw;
-
-			int index = (offset + x + y*stride);
-			*(rng_state + index) = hash_int_2d(x, y);
-		}
-	}
+#endif  /* KERENL_STUB */
 }
 
 CCL_NAMESPACE_END

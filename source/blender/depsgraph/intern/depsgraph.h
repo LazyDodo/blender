@@ -49,10 +49,8 @@ struct PropertyRNA;
 namespace DEG {
 
 struct DepsNode;
-struct RootDepsNode;
 struct TimeSourceDepsNode;
 struct IDDepsNode;
-struct SubgraphDepsNode;
 struct ComponentDepsNode;
 struct OperationDepsNode;
 
@@ -61,13 +59,12 @@ struct OperationDepsNode;
 
 /* Settings/Tags on Relationship */
 typedef enum eDepsRelation_Flag {
-	/* "touched" tag is used when filtering, to know which to collect */
-	DEPSREL_FLAG_TEMP_TAG   = (1 << 0),
-
 	/* "cyclic" link - when detecting cycles, this relationship was the one
-	 * which triggers a cyclic relationship to exist in the graph
+	 * which triggers a cyclic relationship to exist in the graph.
 	 */
-	DEPSREL_FLAG_CYCLIC     = (1 << 1),
+	DEPSREL_FLAG_CYCLIC     = (1 << 0),
+	/* Update flush will not go through this relation. */
+	DEPSREL_FLAG_NO_FLUSH   = (1 << 1),
 } eDepsRelation_Flag;
 
 /* B depends on A (A -> B) */
@@ -79,15 +76,15 @@ struct DepsRelation {
 	/* relationship attributes */
 	const char *name;             /* label for debugging */
 
-	eDepsRelation_Type type;      /* type */
 	int flag;                     /* (eDepsRelation_Flag) */
 
 	DepsRelation(DepsNode *from,
 	             DepsNode *to,
-	             eDepsRelation_Type type,
 	             const char *description);
 
 	~DepsRelation();
+
+	void unlink();
 };
 
 /* ********* */
@@ -95,7 +92,9 @@ struct DepsRelation {
 
 /* Dependency Graph object */
 struct Depsgraph {
+	// TODO(sergey): Go away from C++ container and use some native BLI.
 	typedef vector<OperationDepsNode *> OperationNodes;
+	typedef vector<IDDepsNode *> IDDepsNodes;
 
 	Depsgraph();
 	~Depsgraph();
@@ -111,29 +110,31 @@ struct Depsgraph {
 	 */
 	DepsNode *find_node_from_pointer(const PointerRNA *ptr, const PropertyRNA *prop) const;
 
-	RootDepsNode *add_root_node();
-
-	TimeSourceDepsNode *find_time_source(const ID *id = NULL) const;
-
-	SubgraphDepsNode *add_subgraph_node(const ID *id);
-	void remove_subgraph_node(SubgraphDepsNode *subgraph_node);
-	void clear_subgraph_nodes();
+	TimeSourceDepsNode *add_time_source();
+	TimeSourceDepsNode *find_time_source() const;
 
 	IDDepsNode *find_id_node(const ID *id) const;
 	IDDepsNode *add_id_node(ID *id, const char *name = "");
-	void remove_id_node(const ID *id);
 	void clear_id_nodes();
 
 	/* Add new relationship between two nodes. */
 	DepsRelation *add_new_relation(OperationDepsNode *from,
 	                               OperationDepsNode *to,
-	                               eDepsRelation_Type type,
-	                               const char *description);
+	                               const char *description,
+	                               bool check_unique = false);
 
 	DepsRelation *add_new_relation(DepsNode *from,
 	                               DepsNode *to,
-	                               eDepsRelation_Type type,
-	                               const char *description);
+	                               const char *description,
+	                               bool check_unique = false);
+
+	/* Check whether two nodes are connected by relation with given
+	 * description. Description might be NULL to check ANY relation between
+	 * given nodes.
+	 */
+	DepsRelation *check_nodes_connected(const DepsNode *from,
+	                                    const DepsNode *to,
+	                                    const char *description);
 
 	/* Tag a specific node as needing updates. */
 	void add_entry_tag(OperationDepsNode *node);
@@ -143,15 +144,19 @@ struct Depsgraph {
 
 	/* Core Graph Functionality ........... */
 
-	/* <ID : IDDepsNode> mapping from ID blocks to nodes representing these blocks
-	 * (for quick lookups). */
+	/* <ID : IDDepsNode> mapping from ID blocks to nodes representing these
+	 * blocks, used for quick lookups.
+	 */
 	GHash *id_hash;
 
-	/* "root" node - the one where all evaluation enters from. */
-	RootDepsNode *root_node;
+	/* Ordered list of ID nodes, order matches ID allocation order.
+	 * Used for faster iteration, especially for areas which are critical to
+	 * keep exact order of iteration.
+	 */
+	IDDepsNodes id_nodes;
 
-	/* Subgraphs referenced in tree. */
-	GSet *subgraphs;
+	/* Top-level time source node. */
+	TimeSourceDepsNode *time_source;
 
 	/* Indicates whether relations needs to be updated. */
 	bool need_update;

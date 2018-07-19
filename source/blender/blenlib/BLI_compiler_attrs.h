@@ -92,4 +92,18 @@
 #  define ATTR_PRINTF_FORMAT(format_param, dots_param)
 #endif
 
+/* Use to suppress '-Wimplicit-fallthrough' (in place of 'break'). */
+#if defined(__GNUC__) && (__GNUC__ >= 7)  /* gcc7.0+ only */
+#  define ATTR_FALLTHROUGH __attribute__((fallthrough))
+#else
+#  define ATTR_FALLTHROUGH ((void)0)
+#endif
+
+/* Declare the memory alignment in Bytes. */
+#if defined(_WIN32) && !defined(FREE_WINDOWS)
+#  define ATTR_ALIGN(x) __declspec(align(x))
+#else
+#  define ATTR_ALIGN(x) __attribute__((aligned(x)))
+#endif
+
 #endif  /* __BLI_COMPILER_ATTRS_H__ */

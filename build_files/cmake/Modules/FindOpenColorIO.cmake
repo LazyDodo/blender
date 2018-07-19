@@ -38,7 +38,6 @@ SET(_opencolorio_SEARCH_DIRS
   /usr/local
   /sw # Fink
   /opt/local # DarwinPorts
-  /opt/csw # Blastwave
   /opt/lib/ocio
 )
 
@@ -69,7 +68,7 @@ FOREACH(COMPONENT ${_opencolorio_FIND_COMPONENTS})
 ENDFOREACH()
 
 
-# handle the QUIETLY and REQUIRED arguments and set OPENCOLORIO_FOUND to TRUE if 
+# handle the QUIETLY and REQUIRED arguments and set OPENCOLORIO_FOUND to TRUE if
 # all listed variables are TRUE
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(OpenColorIO DEFAULT_MSG

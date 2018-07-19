@@ -77,19 +77,19 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 	GHash *sf_vert_map;
 	float normal[3];
 	const int scanfill_flag = BLI_SCANFILL_CALC_HOLES | BLI_SCANFILL_CALC_POLYS | BLI_SCANFILL_CALC_LOOSE;
-	unsigned int nors_tot;
+	uint nors_tot;
 	bool calc_winding = false;
 
 	sf_vert_map = BLI_ghash_ptr_new_ex(__func__, BMO_slot_buffer_count(op->slots_in, "edges"));
 
 	BMO_slot_vec_get(op->slots_in, "normal", normal);
-	
+
 	BLI_scanfill_begin(&sf_ctx);
-	
+
 	BMO_ITER (e, &siter, op->slots_in, "edges", BM_EDGE) {
 		ScanFillVert *sf_verts[2];
 		BMVert **e_verts = &e->v1;
-		unsigned int i;
+		uint i;
 
 		BMO_edge_flag_enable(bm, e, EDGE_MARK);
 
@@ -106,16 +106,16 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 		/* sf_edge = */ BLI_scanfill_edge_add(&sf_ctx, UNPACK2(sf_verts));
 		/* sf_edge->tmp.p = e; */ /* UNUSED */
 	}
-	nors_tot = BLI_ghash_size(sf_vert_map);
+	nors_tot = BLI_ghash_len(sf_vert_map);
 	BLI_ghash_free(sf_vert_map, NULL, NULL);
-	
+
 
 	if (is_zero_v3(normal)) {
 		/* calculate the normal from the cross product of vert-edge pairs.
 		 * Since we don't know winding, just accumulate */
 		ScanFillVert *sf_vert;
 		struct SortNormal *nors;
-		unsigned int i;
+		uint i;
 		bool is_degenerate = true;
 
 		nors = MEM_mallocN(sizeof(*nors) * nors_tot, __func__);
@@ -124,7 +124,7 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 			BMVert *v = sf_vert->tmp.p;
 			BMIter eiter;
 			BMEdge *e_pair[2];
-			unsigned int e_index = 0;
+			uint e_index = 0;
 
 			nors[i].value = -1.0f;
 
@@ -199,7 +199,7 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 		int winding_votes = 0;
 		for (sf_tri = sf_ctx.fillfacebase.first; sf_tri; sf_tri = sf_tri->next) {
 			BMVert *v_tri[3] = {sf_tri->v1->tmp.p, sf_tri->v2->tmp.p, sf_tri->v3->tmp.p};
-			unsigned int i, i_prev;
+			uint i, i_prev;
 
 			for (i = 0, i_prev = 2; i < 3; i_prev = i++) {
 				e = BM_edge_exists(v_tri[i], v_tri[i_prev]);
@@ -225,7 +225,7 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 		f = BM_face_create_quad_tri(bm,
 		                            sf_tri->v1->tmp.p, sf_tri->v2->tmp.p, sf_tri->v3->tmp.p, NULL,
 		                            NULL, BM_CREATE_NO_DOUBLE);
-		
+
 		BMO_face_flag_enable(bm, f, ELE_NEW);
 		BM_ITER_ELEM (l, &liter, f, BM_LOOPS_OF_FACE) {
 			if (!BMO_edge_flag_test(bm, l->e, EDGE_MARK)) {
@@ -233,9 +233,9 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 			}
 		}
 	}
-	
+
 	BLI_scanfill_end(&sf_ctx);
-	
+
 	if (use_beauty) {
 		BMOperator bmop;
 
@@ -252,7 +252,7 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 		BM_ITER_MESH_MUTABLE (e, e_next, &iter, bm, BM_EDGES_OF_MESH) {
 			if (BMO_edge_flag_test(bm, e, ELE_NEW)) {
 				/* in rare cases the edges face will have already been removed from the edge */
-				if (LIKELY(e->l)) {
+				if (LIKELY(BM_edge_is_manifold(e))) {
 					BMFace *f_new = BM_faces_join_pair(bm, e->l, e->l->radial_next, false);
 					if (f_new) {
 						BMO_face_flag_enable(bm, f_new, ELE_NEW);
@@ -262,8 +262,12 @@ void bmo_triangle_fill_exec(BMesh *bm, BMOperator *op)
 						BMO_error_clear(bm);
 					}
 				}
-				else {
+				else if (e->l == NULL) {
 					BM_edge_kill(bm, e);
+				}
+				else {
+					/* Edges with 1 or 3+ faces attached,
+					 * most likely caused by a degeneratge mesh. */
 				}
 			}
 		}

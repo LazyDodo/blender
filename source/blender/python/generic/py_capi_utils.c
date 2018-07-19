@@ -38,6 +38,8 @@
 
 #include "python_utildefines.h"
 
+#include "BLI_string.h"
+
 #ifndef MATH_STANDALONE
 /* only for BLI_strncpy_wchar_from_utf8, should replace with py funcs but too late in release now */
 #include "BLI_string_utf8.h"
@@ -85,11 +87,11 @@ int PyC_AsArray_FAST(
 		/* could use is_double for 'long int' but no use now */
 		int *array_int = array;
 		for (i = 0; i < length; i++) {
-			array_int[i] = PyLong_AsLong(value_fast_items[i]);
+			array_int[i] = PyC_Long_AsI32(value_fast_items[i]);
 		}
 	}
 	else if (type == &PyBool_Type) {
-		int *array_bool = array;
+		bool *array_bool = array;
 		for (i = 0; i < length; i++) {
 			array_bool[i] = (PyLong_AsLong(value_fast_items[i]) != 0);
 		}
@@ -127,53 +129,60 @@ int PyC_AsArray(
 	return ret;
 }
 
+/* -------------------------------------------------------------------- */
+/** \name Typed Tuple Packing
+ *
+ * \note See #PyC_Tuple_Pack_* macros that take multiple arguments.
+ *
+ * \{ */
+
 /* array utility function */
-PyObject *PyC_FromArray(const void *array, int length, const PyTypeObject *type,
-                        const bool is_double, const char *error_prefix)
+PyObject *PyC_Tuple_PackArray_F32(const float *array, uint len)
 {
-	PyObject *tuple;
-	int i;
-
-	tuple = PyTuple_New(length);
-
-	/* for each type */
-	if (type == &PyFloat_Type) {
-		if (is_double) {
-			const double *array_double = array;
-			for (i = 0; i < length; ++i) {
-				PyTuple_SET_ITEM(tuple, i, PyFloat_FromDouble(array_double[i]));
-			}
-		}
-		else {
-			const float *array_float = array;
-			for (i = 0; i < length; ++i) {
-				PyTuple_SET_ITEM(tuple, i, PyFloat_FromDouble(array_float[i]));
-			}
-		}
+	PyObject *tuple = PyTuple_New(len);
+	for (uint i = 0; i < len; i++) {
+		PyTuple_SET_ITEM(tuple, i, PyFloat_FromDouble(array[i]));
 	}
-	else if (type == &PyLong_Type) {
-		/* could use is_double for 'long int' but no use now */
-		const int *array_int = array;
-		for (i = 0; i < length; ++i) {
-			PyTuple_SET_ITEM(tuple, i, PyLong_FromLong(array_int[i]));
-		}
-	}
-	else if (type == &PyBool_Type) {
-		const int *array_bool = array;
-		for (i = 0; i < length; ++i) {
-			PyTuple_SET_ITEM(tuple, i, PyBool_FromLong(array_bool[i]));
-		}
-	}
-	else {
-		Py_DECREF(tuple);
-		PyErr_Format(PyExc_TypeError,
-		             "%s: internal error %s is invalid",
-		             error_prefix, type->tp_name);
-		return NULL;
-	}
-
 	return tuple;
 }
+
+PyObject *PyC_Tuple_PackArray_F64(const double *array, uint len)
+{
+	PyObject *tuple = PyTuple_New(len);
+	for (uint i = 0; i < len; i++) {
+		PyTuple_SET_ITEM(tuple, i, PyFloat_FromDouble(array[i]));
+	}
+	return tuple;
+}
+
+PyObject *PyC_Tuple_PackArray_I32(const int *array, uint len)
+{
+	PyObject *tuple = PyTuple_New(len);
+	for (uint i = 0; i < len; i++) {
+		PyTuple_SET_ITEM(tuple, i, PyLong_FromLong(array[i]));
+	}
+	return tuple;
+}
+
+PyObject *PyC_Tuple_PackArray_I32FromBool(const int *array, uint len)
+{
+	PyObject *tuple = PyTuple_New(len);
+	for (uint i = 0; i < len; i++) {
+		PyTuple_SET_ITEM(tuple, i, PyBool_FromLong(array[i]));
+	}
+	return tuple;
+}
+
+PyObject *PyC_Tuple_PackArray_Bool(const bool *array, uint len)
+{
+	PyObject *tuple = PyTuple_New(len);
+	for (uint i = 0; i < len; i++) {
+		PyTuple_SET_ITEM(tuple, i, PyBool_FromLong(array[i]));
+	}
+	return tuple;
+}
+
+/** \} */
 
 /**
  * Caller needs to ensure tuple is uninitialized.
@@ -203,6 +212,8 @@ void PyC_List_Fill(PyObject *list, PyObject *value)
 
 /**
  * Use with PyArg_ParseTuple's "O&" formatting.
+ *
+ * \see #PyC_Long_AsBool for a similar function to use outside of argument parsing.
  */
 int PyC_ParseBool(PyObject *o, void *p)
 {
@@ -219,28 +230,61 @@ int PyC_ParseBool(PyObject *o, void *p)
 	return 1;
 }
 
+/* silly function, we dont use arg. just check its compatible with __deepcopy__ */
+int PyC_CheckArgs_DeepCopy(PyObject *args)
+{
+	PyObject *dummy_pydict;
+	return PyArg_ParseTuple(args, "|O!:__deepcopy__", &PyDict_Type, &dummy_pydict) != 0;
+}
 
 #ifndef MATH_STANDALONE
 
 /* for debugging */
 void PyC_ObSpit(const char *name, PyObject *var)
 {
+	const char *null_str = "<null>";
 	fprintf(stderr, "<%s> : ", name);
 	if (var == NULL) {
-		fprintf(stderr, "<NIL>");
+		fprintf(stderr, "%s\n", null_str);
 	}
 	else {
 		PyObject_Print(var, stderr, 0);
-		fprintf(stderr, " ref:%d ", (int)var->ob_refcnt);
-		fprintf(stderr, " ptr:%p", (void *)var);
-		
-		fprintf(stderr, " type:");
-		if (Py_TYPE(var))
-			fprintf(stderr, "%s", Py_TYPE(var)->tp_name);
-		else
-			fprintf(stderr, "<NIL>");
+		const PyTypeObject *type = Py_TYPE(var);
+		fprintf(stderr,
+		        " ref:%d, ptr:%p, type: %s\n",
+		        (int)var->ob_refcnt, (void *)var, type ? type->tp_name : null_str);
 	}
-	fprintf(stderr, "\n");
+}
+
+/**
+ * A version of #PyC_ObSpit that writes into a string (and doesn't take a name argument).
+ * Use for logging.
+ */
+void PyC_ObSpitStr(char *result, size_t result_len, PyObject *var)
+{
+	/* No name, creator of string can manage that. */
+	const char *null_str = "<null>";
+	if (var == NULL) {
+		BLI_snprintf(result, result_len, "%s", null_str);
+	}
+	else {
+		const PyTypeObject *type = Py_TYPE(var);
+		PyObject *var_str = PyObject_Repr(var);
+		if (var_str == NULL) {
+			/* We could print error here, but this may be used for generating errors - so don't for now. */
+			PyErr_Clear();
+		}
+		BLI_snprintf(
+		        result, result_len,
+		        " ref=%d, ptr=%p, type=%s, value=%.200s",
+		        (int)var->ob_refcnt,
+		        (void *)var,
+		        type ? type->tp_name : null_str,
+		        var_str ? _PyUnicode_AsString(var_str) : "<error>");
+		if (var_str != NULL) {
+			Py_DECREF(var_str);
+		}
+	}
 }
 
 void PyC_LineSpit(void)
@@ -257,7 +301,7 @@ void PyC_LineSpit(void)
 
 	PyErr_Clear();
 	PyC_FileAndNum(&filename, &lineno);
-	
+
 	fprintf(stderr, "%s:%d\n", filename, lineno);
 }
 
@@ -279,7 +323,7 @@ void PyC_StackSpit(void)
 void PyC_FileAndNum(const char **filename, int *lineno)
 {
 	PyFrameObject *frame;
-	
+
 	if (filename) *filename = NULL;
 	if (lineno)   *lineno = -1;
 
@@ -300,7 +344,14 @@ void PyC_FileAndNum(const char **filename, int *lineno)
 		if (mod_name) {
 			PyObject *mod = PyDict_GetItem(PyImport_GetModuleDict(), mod_name);
 			if (mod) {
-				*filename = PyModule_GetFilename(mod);
+				PyObject *mod_file = PyModule_GetFilenameObject(mod);
+				if (mod_file) {
+					*filename = _PyUnicode_AsString(mod_name);
+					Py_DECREF(mod_file);
+				}
+				else {
+					PyErr_Clear();
+				}
 			}
 
 			/* unlikely, fallback */
@@ -330,22 +381,22 @@ PyObject *PyC_Object_GetAttrStringArgs(PyObject *o, Py_ssize_t n, ...)
 	Py_ssize_t i;
 	PyObject *item = o;
 	const char *attr;
-	
+
 	va_list vargs;
 
 	va_start(vargs, n);
 	for (i = 0; i < n; i++) {
 		attr = va_arg(vargs, char *);
 		item = PyObject_GetAttrString(item, attr);
-		
-		if (item) 
+
+		if (item)
 			Py_DECREF(item);
 		else /* python will set the error value here */
 			break;
-		
+
 	}
 	va_end(vargs);
-	
+
 	Py_XINCREF(item); /* final value has is increfed, to match PyObject_GetAttrString */
 	return item;
 }
@@ -403,6 +454,25 @@ PyObject *PyC_Err_Format_Prefix(PyObject *exception_type_prefix, const char *for
 
 	/* dumb to always return NULL but matches PyErr_Format */
 	return NULL;
+}
+
+/**
+ * Use for Python callbacks run directly from C,
+ * when we can't use normal methods of raising exceptions.
+ */
+void PyC_Err_PrintWithFunc(PyObject *py_func)
+{
+	/* since we return to C code we can't leave the error */
+	PyCodeObject *f_code = (PyCodeObject *)PyFunction_GET_CODE(py_func);
+	PyErr_Print();
+	PyErr_Clear();
+
+	/* use py style error */
+	fprintf(stderr, "File \"%s\", line %d, in %s\n",
+	        _PyUnicode_AsString(f_code->co_filename),
+	        f_code->co_firstlineno,
+	        _PyUnicode_AsString(((PyFunctionObject *)py_func)->func_name)
+	        );
 }
 
 
@@ -775,7 +845,7 @@ void PyC_RunQuicky(const char *filepath, int n, ...)
 			}
 		}
 		va_end(vargs);
-		
+
 		/* set the value so we can access it */
 		PyDict_SetItemString(py_dict, "values", values);
 		Py_DECREF(values);
@@ -801,7 +871,7 @@ void PyC_RunQuicky(const char *filepath, int n, ...)
 				for (i = 0; i * 2 < n; i++) {
 					const char *format = va_arg(vargs, char *);
 					void *ptr = va_arg(vargs, void *);
-					
+
 					PyObject *item;
 					PyObject *item_new;
 					/* prepend the string formatting and remake the tuple */
@@ -1108,3 +1178,101 @@ bool PyC_RunString_AsString(const char *expr, const char *filename, char **r_val
 }
 
 #endif  /* #ifndef MATH_STANDALONE */
+
+/* -------------------------------------------------------------------- */
+
+/** \name Int Conversion
+ *
+ * \note Python doesn't provide overflow checks for specific bit-widths.
+ *
+ * \{ */
+
+/* Compiler optimizes out redundant checks. */
+#ifdef __GNUC__
+#  pragma warning(push)
+#  pragma GCC diagnostic ignored "-Wtype-limits"
+#endif
+
+/**
+ * Don't use `bool` return type, so -1 can be used as an error value.
+ */
+int PyC_Long_AsBool(PyObject *value)
+{
+	int test = _PyLong_AsInt(value);
+	if (UNLIKELY((uint)test > 1)) {
+		PyErr_SetString(PyExc_TypeError,
+		                "Python number not a bool (0/1)");
+		return -1;
+	}
+	return test;
+}
+
+int8_t PyC_Long_AsI8(PyObject *value)
+{
+	int test = _PyLong_AsInt(value);
+	if (UNLIKELY(test < INT8_MIN || test > INT8_MAX)) {
+		PyErr_SetString(PyExc_OverflowError,
+		                "Python int too large to convert to C int8");
+		return -1;
+	}
+	return (int8_t)test;
+}
+
+int16_t PyC_Long_AsI16(PyObject *value)
+{
+	int test = _PyLong_AsInt(value);
+	if (UNLIKELY(test < INT16_MIN || test > INT16_MAX)) {
+		PyErr_SetString(PyExc_OverflowError,
+		                "Python int too large to convert to C int16");
+		return -1;
+	}
+	return (int16_t)test;
+}
+
+/* Inlined in header:
+ * PyC_Long_AsI32
+ * PyC_Long_AsI64
+ */
+
+uint8_t PyC_Long_AsU8(PyObject *value)
+{
+	ulong test = PyLong_AsUnsignedLong(value);
+	if (UNLIKELY(test > UINT8_MAX)) {
+		PyErr_SetString(PyExc_OverflowError,
+		                "Python int too large to convert to C uint8");
+		return (uint8_t)-1;
+	}
+	return (uint8_t)test;
+}
+
+uint16_t PyC_Long_AsU16(PyObject *value)
+{
+	ulong test = PyLong_AsUnsignedLong(value);
+	if (UNLIKELY(test > UINT16_MAX)) {
+		PyErr_SetString(PyExc_OverflowError,
+		                "Python int too large to convert to C uint16");
+		return (uint16_t)-1;
+	}
+	return (uint16_t)test;
+}
+
+uint32_t PyC_Long_AsU32(PyObject *value)
+{
+	ulong test = PyLong_AsUnsignedLong(value);
+	if (UNLIKELY(test > UINT32_MAX)) {
+		PyErr_SetString(PyExc_OverflowError,
+		                "Python int too large to convert to C uint32");
+		return (uint32_t)-1;
+	}
+	return (uint32_t)test;
+}
+
+/* Inlined in header:
+ * PyC_Long_AsU64
+ */
+
+#ifdef __GNUC__
+#  pragma warning(pop)
+#endif
+
+/** \} */

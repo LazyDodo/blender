@@ -30,20 +30,19 @@
 
 #include "intern/builder/deg_builder.h"
 
-// TODO(sergey): Use own wrapper over STD.
-#include <stack>
-
 #include "DNA_anim_types.h"
 #include "DNA_object_types.h"
 #include "DNA_ID.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_ghash.h"
+#include "BLI_stack.h"
 
 #include "intern/depsgraph.h"
 #include "intern/depsgraph_types.h"
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
+#include "intern/nodes/deg_node_id.h"
 #include "intern/nodes/deg_node_operation.h"
 
 #include "util/deg_util_foreach.h"
@@ -71,50 +70,52 @@ static bool check_object_needs_evaluation(Object *object)
 
 void deg_graph_build_flush_layers(Depsgraph *graph)
 {
-	std::stack<OperationDepsNode *> stack;
+	BLI_Stack *stack = BLI_stack_new(sizeof(OperationDepsNode *),
+	                                 "DEG flush layers stack");
 	foreach (OperationDepsNode *node, graph->operations) {
 		IDDepsNode *id_node = node->owner->owner;
 		node->done = 0;
 		node->num_links_pending = 0;
 		foreach (DepsRelation *rel, node->outlinks) {
-			if ((rel->from->type == DEPSNODE_TYPE_OPERATION) &&
+			if ((rel->from->type == DEG_NODE_TYPE_OPERATION) &&
 			    (rel->flag & DEPSREL_FLAG_CYCLIC) == 0)
 			{
 				++node->num_links_pending;
 			}
 		}
 		if (node->num_links_pending == 0) {
-			stack.push(node);
+			BLI_stack_push(stack, &node);
 			node->done = 1;
 		}
 		node->owner->layers = id_node->layers;
 		id_node->id->tag |= LIB_TAG_DOIT;
 	}
-	while (!stack.empty()) {
-		OperationDepsNode *node = stack.top();
-		stack.pop();
+	while (!BLI_stack_is_empty(stack)) {
+		OperationDepsNode *node;
+		BLI_stack_pop(stack, &node);
 		/* Flush layers to parents. */
 		foreach (DepsRelation *rel, node->inlinks) {
-			if (rel->from->type == DEPSNODE_TYPE_OPERATION) {
+			if (rel->from->type == DEG_NODE_TYPE_OPERATION) {
 				OperationDepsNode *from = (OperationDepsNode *)rel->from;
 				from->owner->layers |= node->owner->layers;
 			}
 		}
 		/* Schedule parent nodes. */
 		foreach (DepsRelation *rel, node->inlinks) {
-			if (rel->from->type == DEPSNODE_TYPE_OPERATION) {
+			if (rel->from->type == DEG_NODE_TYPE_OPERATION) {
 				OperationDepsNode *from = (OperationDepsNode *)rel->from;
 				if ((rel->flag & DEPSREL_FLAG_CYCLIC) == 0) {
 					BLI_assert(from->num_links_pending > 0);
 					--from->num_links_pending;
 				}
 				if (from->num_links_pending == 0 && from->done == 0) {
-					stack.push(from);
+					BLI_stack_push(stack, &from);
 					from->done = 1;
 				}
 			}
 		}
 	}
+	BLI_stack_free(stack);
 }
 
 void deg_graph_build_finalize(Depsgraph *graph)
@@ -125,8 +126,7 @@ void deg_graph_build_finalize(Depsgraph *graph)
 	 * to do it ahead of a time and don't spend time on flushing updates on
 	 * every frame change.
 	 */
-	GHASH_FOREACH_BEGIN(IDDepsNode *, id_node, graph->id_hash)
-	{
+	foreach (IDDepsNode *id_node, graph->id_nodes) {
 		if (id_node->layers == 0) {
 			ID *id = id_node->id;
 			if (GS(id->name) == ID_OB) {
@@ -137,14 +137,12 @@ void deg_graph_build_finalize(Depsgraph *graph)
 			}
 		}
 	}
-	GHASH_FOREACH_END();
 	/* STEP 2: Flush visibility layers from children to parent. */
 	deg_graph_build_flush_layers(graph);
 	/* STEP 3: Re-tag IDs for update if it was tagged before the relations
 	 * update tag.
 	 */
-	GHASH_FOREACH_BEGIN(IDDepsNode *, id_node, graph->id_hash)
-	{
+	foreach (IDDepsNode *id_node, graph->id_nodes) {
 		GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp, id_node->components)
 		{
 			id_node->layers |= comp->layers;
@@ -153,7 +151,7 @@ void deg_graph_build_finalize(Depsgraph *graph)
 
 		if ((id_node->layers & graph->layers) != 0 || graph->layers == 0) {
 			ID *id = id_node->id;
-			if ((id->tag & LIB_TAG_ID_RECALC_ALL) &&
+			if ((id->recalc & ID_RECALC_ALL) &&
 			    (id->tag & LIB_TAG_DOIT))
 			{
 				id_node->tag_update(graph);
@@ -169,7 +167,6 @@ void deg_graph_build_finalize(Depsgraph *graph)
 		}
 		id_node->finalize_build();
 	}
-	GHASH_FOREACH_END();
 }
 
 }  // namespace DEG

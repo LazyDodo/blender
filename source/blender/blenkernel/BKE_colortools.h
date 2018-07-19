@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -46,8 +46,8 @@ void                curvemapping_set_defaults(struct CurveMapping *cumap, int to
 struct CurveMapping *curvemapping_add(int tot, float minx, float miny, float maxx, float maxy);
 void                curvemapping_free_data(struct CurveMapping *cumap);
 void                curvemapping_free(struct CurveMapping *cumap);
-void                curvemapping_copy_data(struct CurveMapping *target, struct CurveMapping *cumap);
-struct CurveMapping *curvemapping_copy(struct CurveMapping *cumap);
+void                curvemapping_copy_data(struct CurveMapping *target, const struct CurveMapping *cumap);
+struct CurveMapping *curvemapping_copy(const struct CurveMapping *cumap);
 void                curvemapping_set_black_white_ex(const float black[3], const float white[3], float r_bwmul[3]);
 void                curvemapping_set_black_white(struct CurveMapping *cumap, const float black[3], const float white[3]);
 

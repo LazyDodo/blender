@@ -418,7 +418,8 @@ void clothModifier_do(ClothModifierData *clmd, Scene *scene, Object *ob, Derived
 	cache_result = BKE_ptcache_read(&pid, (float)framenr+scene->r.subframe, can_simulate);
 
 	if (cache_result == PTCACHE_READ_EXACT || cache_result == PTCACHE_READ_INTERPOLATED ||
-	    (!can_simulate && cache_result == PTCACHE_READ_OLD)) {
+	    (!can_simulate && cache_result == PTCACHE_READ_OLD))
+	{
 		BKE_cloth_solver_set_positions(clmd);
 		cloth_to_object (ob, clmd, vertexCos);
 
@@ -462,13 +463,13 @@ void clothModifier_do(ClothModifierData *clmd, Scene *scene, Object *ob, Derived
 void cloth_free_modifier(ClothModifierData *clmd )
 {
 	Cloth	*cloth = NULL;
-	
+
 	if ( !clmd )
 		return;
 
 	cloth = clmd->clothObject;
 
-	
+
 	if ( cloth ) {
 		BPH_cloth_solver_free(clmd);
 
@@ -496,7 +497,7 @@ void cloth_free_modifier(ClothModifierData *clmd )
 				search = search->next;
 			}
 			BLI_linklist_free(cloth->springs, NULL);
-		
+
 			cloth->springs = NULL;
 		}
 
@@ -506,14 +507,14 @@ void cloth_free_modifier(ClothModifierData *clmd )
 		// free BVH collision tree
 		if ( cloth->bvhtree )
 			BLI_bvhtree_free ( cloth->bvhtree );
-		
+
 		if ( cloth->bvhselftree )
 			BLI_bvhtree_free ( cloth->bvhselftree );
 
 		// we save our faces for collision objects
 		if (cloth->tri)
 			MEM_freeN(cloth->tri);
-		
+
 		/*
 		if (clmd->clothObject->facemarks)
 		MEM_freeN(clmd->clothObject->facemarks);
@@ -529,12 +530,12 @@ void cloth_free_modifier_extern(ClothModifierData *clmd )
 	Cloth	*cloth = NULL;
 	if (G.debug_value > 0)
 		printf("cloth_free_modifier_extern\n");
-	
+
 	if ( !clmd )
 		return;
 
 	cloth = clmd->clothObject;
-	
+
 	if ( cloth ) {
 		if (G.debug_value > 0)
 			printf("cloth_free_modifier_extern in\n");
@@ -573,7 +574,7 @@ void cloth_free_modifier_extern(ClothModifierData *clmd )
 		// free BVH collision tree
 		if ( cloth->bvhtree )
 			BLI_bvhtree_free ( cloth->bvhtree );
-		
+
 		if ( cloth->bvhselftree )
 			BLI_bvhtree_free ( cloth->bvhselftree );
 
@@ -627,7 +628,7 @@ bool is_basemesh_valid(Object *ob, Object *basemesh, ClothModifierData *clmd)
  **/
 static void cloth_to_object (Object *ob,  ClothModifierData *clmd, float (*vertexCos)[3])
 {
-	unsigned int	i = 0;
+	unsigned int i = 0;
 	Cloth *cloth = clmd->clothObject;
 
 	if (clmd->clothObject) {
@@ -675,7 +676,7 @@ static void cloth_apply_vgroup(ClothModifierData *clmd, DerivedMesh *dm, Object 
 	mvert_num = dm->getNumVerts(dm);
 
 	verts = clothObj->verts;
-	
+
 	if (cloth_uses_vgroup(clmd)) {
 		for (i = 0; i < mvert_num; i++, verts++) {
 
@@ -711,15 +712,15 @@ static void cloth_apply_vgroup(ClothModifierData *clmd, DerivedMesh *dm, Object 
 						verts->goal = dvert->dw [j].weight;
 
 						/* goalfac= 1.0f; */ /* UNUSED */
-						
+
 						// Kicking goal factor to simplify things...who uses that anyway?
 						// ABS ( clmd->sim_parms->maxgoal - clmd->sim_parms->mingoal );
-						
+
 						verts->goal  = pow4f(verts->goal);
 						if ( verts->goal >= SOFTGOALSNAP )
 							verts->flags |= CLOTH_VERT_FLAG_PINNED;
 					}
-					
+
 					if ( dvert->dw[j].def_nr == (clmd->sim_parms->vgroup_struct-1)) {
 						verts->struct_stiff = dvert->dw [j].weight;
 					}
@@ -778,7 +779,7 @@ static int cloth_from_object(Object *ob, ClothModifierData *clmd, DerivedMesh *d
 	float (*shapekey_rest)[3] = NULL;
 	float tnull[3] = {0, 0, 0};
 
-	// If we have a clothObject, free it. 
+	// If we have a clothObject, free it.
 	if ( clmd->clothObject != NULL ) {
 		cloth_free_modifier ( clmd );
 		if (G.debug_value > 0)
@@ -800,7 +801,6 @@ static int cloth_from_object(Object *ob, ClothModifierData *clmd, DerivedMesh *d
 	if ( !dm )
 		return 0;
 
-	DM_ensure_looptri(dm);
 	cloth_from_mesh ( clmd, dm );
 
 	// create springs
@@ -856,9 +856,9 @@ static int cloth_from_object(Object *ob, ClothModifierData *clmd, DerivedMesh *d
 				copy_v3_v3(verts->xrest, verts->x);
 			}
 		}
-		
+
 		/* no GUI interface yet */
-		verts->mass = clmd->sim_parms->mass; 
+		verts->mass = clmd->sim_parms->mass;
 		verts->impulse_count = 0;
 
 		if ( clmd->sim_parms->vgroup_mass>0 )
@@ -880,7 +880,7 @@ static int cloth_from_object(Object *ob, ClothModifierData *clmd, DerivedMesh *d
 
 		verts->col_trouble = 0.0f;
 	}
-	
+
 	// apply / set vertex groups
 	// has to be happen before springs are build!
 	cloth_apply_vgroup(clmd, dm, ob);
@@ -891,15 +891,15 @@ static int cloth_from_object(Object *ob, ClothModifierData *clmd, DerivedMesh *d
 		printf("cloth_free_modifier cloth_build_springs\n");
 		return 0;
 	}
-	
+
 	// init our solver
 	BPH_cloth_solver_init(ob, clmd);
-	
+
 	if (!first)
 		BKE_cloth_solver_set_positions(clmd);
 
 	clmd->clothObject->bvhtree = bvhtree_build_from_cloth ( clmd, clmd->coll_parms->epsilon );
-	
+
 	clmd->clothObject->bvhselftree = bvhtree_build_from_cloth ( clmd, clmd->coll_parms->selfepsilon );
 
 	return 1;
@@ -964,26 +964,26 @@ static int cloth_add_spring(ClothModifierData *clmd, unsigned int indexA, unsign
 {
 	Cloth *cloth = clmd->clothObject;
 	ClothSpring *spring = NULL;
-	
+
 	if (cloth && spring_type != CLOTH_SPRING_TYPE_BENDING) {
 		// TODO: look if this spring is already there
-		
+
 		spring = (ClothSpring *)MEM_callocN ( sizeof ( ClothSpring ), "cloth spring" );
-		
+
 		if (!spring)
 			return 0;
-		
+
 		spring->ij = indexA;
 		spring->kl = indexB;
 		spring->restlen =  restlength;
 		spring->type = spring_type;
 		spring->flags = 0;
 		spring->lin_stiffness = 0.0f;
-		
+
 		cloth->numsprings++;
-	
+
 		BLI_linklist_prepend ( &cloth->springs, spring );
-		
+
 		return 1;
 	}
 	return 0;
@@ -1018,7 +1018,7 @@ static void cloth_free_errorsprings(Cloth *cloth, LinkNodePair *edgelist)
 			search = search->next;
 		}
 		BLI_linklist_free(cloth->springs, NULL);
-		
+
 		cloth->springs = NULL;
 	}
 
@@ -1084,10 +1084,10 @@ static void cloth_hair_update_bending_targets(ClothModifierData *clmd)
 	LinkNode *search = NULL;
 	float hair_frame[3][3], dir_old[3], dir_new[3];
 	int prev_mn; /* to find hair chains */
-	
+
 	if (!clmd->hairdata)
 		return;
-	
+
 	/* XXX Note: we need to propagate frames from the root up,
 	 * but structural hair springs are stored in reverse order.
 	 * The bending springs however are then inserted in the same
@@ -1095,17 +1095,17 @@ static void cloth_hair_update_bending_targets(ClothModifierData *clmd)
 	 * This messy situation can be resolved when solver data is
 	 * generated directly from a dedicated hair system.
 	 */
-	
+
 	prev_mn = -1;
 	for (search = cloth->springs; search; search = search->next) {
 		ClothSpring *spring = search->link;
 		ClothHairData *hair_ij, *hair_kl;
 		bool is_root = spring->kl != prev_mn;
-		
+
 		if (spring->type != CLOTH_SPRING_TYPE_BENDING_HAIR) {
 			continue;
 		}
-		
+
 		hair_ij = &clmd->hairdata[spring->ij];
 		hair_kl = &clmd->hairdata[spring->kl];
 		if (is_root) {
@@ -1116,39 +1116,39 @@ static void cloth_hair_update_bending_targets(ClothModifierData *clmd)
 			 */
 			copy_v3_v3(dir_new, hair_frame[2]);
 		}
-		
+
 		copy_v3_v3(dir_old, dir_new);
 		sub_v3_v3v3(dir_new, cloth->verts[spring->mn].x, cloth->verts[spring->kl].x);
 		normalize_v3(dir_new);
-		
+
 #if 0
 		if (clmd->debug_data && (spring->ij == 0 || spring->ij == 1)) {
 			float a[3], b[3];
-			
+
 			copy_v3_v3(a, cloth->verts[spring->kl].x);
 //			BKE_sim_debug_data_add_dot(clmd->debug_data, cloth_vert ? cloth_vert->x : key->co, 1, 1, 0, "frames", 8246, p, k);
-			
+
 			mul_v3_v3fl(b, hair_frame[0], clmd->sim_parms->avg_spring_len);
 			BKE_sim_debug_data_add_vector(clmd->debug_data, a, b, 1, 0, 0, "frames", 8247, spring->kl, spring->mn);
-			
+
 			mul_v3_v3fl(b, hair_frame[1], clmd->sim_parms->avg_spring_len);
 			BKE_sim_debug_data_add_vector(clmd->debug_data, a, b, 0, 1, 0, "frames", 8248, spring->kl, spring->mn);
-			
+
 			mul_v3_v3fl(b, hair_frame[2], clmd->sim_parms->avg_spring_len);
 			BKE_sim_debug_data_add_vector(clmd->debug_data, a, b, 0, 0, 1, "frames", 8249, spring->kl, spring->mn);
 		}
 #endif
-		
+
 		/* get local targets for kl/mn vertices by putting rest targets into the current frame,
 		 * then multiply with the rest length to get the actual goals
 		 */
-		
+
 		mul_v3_m3v3(spring->target, hair_frame, hair_kl->rest_target);
 		mul_v3_fl(spring->target, spring->restlen);
-		
+
 		/* move frame to next hair segment */
 		cloth_parallel_transport_hair_frame(hair_frame, dir_old, dir_new);
-		
+
 		prev_mn = spring->mn;
 	}
 }
@@ -1159,10 +1159,10 @@ static void cloth_hair_update_bending_rest_targets(ClothModifierData *clmd)
 	LinkNode *search = NULL;
 	float hair_frame[3][3], dir_old[3], dir_new[3];
 	int prev_mn; /* to find hair roots */
-	
+
 	if (!clmd->hairdata)
 		return;
-	
+
 	/* XXX Note: we need to propagate frames from the root up,
 	 * but structural hair springs are stored in reverse order.
 	 * The bending springs however are then inserted in the same
@@ -1170,17 +1170,17 @@ static void cloth_hair_update_bending_rest_targets(ClothModifierData *clmd)
 	 * This messy situation can be resolved when solver data is
 	 * generated directly from a dedicated hair system.
 	 */
-	
+
 	prev_mn = -1;
 	for (search = cloth->springs; search; search = search->next) {
 		ClothSpring *spring = search->link;
 		ClothHairData *hair_ij, *hair_kl;
 		bool is_root = spring->kl != prev_mn;
-		
+
 		if (spring->type != CLOTH_SPRING_TYPE_BENDING_HAIR) {
 			continue;
 		}
-		
+
 		hair_ij = &clmd->hairdata[spring->ij];
 		hair_kl = &clmd->hairdata[spring->kl];
 		if (is_root) {
@@ -1191,18 +1191,18 @@ static void cloth_hair_update_bending_rest_targets(ClothModifierData *clmd)
 			 */
 			copy_v3_v3(dir_new, hair_frame[2]);
 		}
-		
+
 		copy_v3_v3(dir_old, dir_new);
 		sub_v3_v3v3(dir_new, cloth->verts[spring->mn].xrest, cloth->verts[spring->kl].xrest);
 		normalize_v3(dir_new);
-		
+
 		/* dir expressed in the hair frame defines the rest target direction */
 		copy_v3_v3(hair_kl->rest_target, dir_new);
 		mul_transposed_m3_v3(hair_frame, hair_kl->rest_target);
-		
+
 		/* move frame to next hair segment */
 		cloth_parallel_transport_hair_frame(hair_frame, dir_old, dir_new);
-		
+
 		prev_mn = spring->mn;
 	}
 }
@@ -1253,10 +1253,10 @@ static void cloth_update_springs( ClothModifierData *clmd )
 				spring->flags |= CLOTH_SPRING_FLAG_DEACTIVATE;
 			}
 		}
-		
+
 		search = search->next;
 	}
-	
+
 	cloth_hair_update_bending_targets(clmd);
 }
 
@@ -1374,10 +1374,10 @@ BLI_INLINE void madd_m3_m3fl(float r[3][3], float m[3][3], float f)
 void cloth_parallel_transport_hair_frame(float mat[3][3], const float dir_old[3], const float dir_new[3])
 {
 	float rot[3][3];
-	
+
 	/* rotation between segments */
 	rotation_between_vecs_to_mat3(rot, dir_old, dir_new);
-	
+
 	/* rotate the frame */
 	mul_m3_m3m3(mat, rot, mat);
 }
@@ -1540,7 +1540,7 @@ static int cloth_build_springs ( ClothModifierData *clmd, DerivedMesh *dm )
 
 	if (struct_springs_real > 0)
 		clmd->sim_parms->avg_spring_len /= struct_springs_real;
-	
+
 	for (i = 0; i < mvert_num; i++) {
 		if (cloth->verts[i].spring_count > 0)
 			cloth->verts[i].avg_spring_len = cloth->verts[i].avg_spring_len * 0.49f / ((float)cloth->verts[i].spring_count);
@@ -1664,12 +1664,12 @@ static int cloth_build_springs ( ClothModifierData *clmd, DerivedMesh *dm )
 
 			if (tspring->ij == tspring2->kl) {
 				spring = MEM_callocN ( sizeof ( ClothSpring ), "cloth spring" );
-				
+
 				if (!spring) {
 					cloth_free_errorsprings(cloth, edgelist);
 					return 0;
 				}
-				
+
 				spring->ij = tspring2->ij;
 				spring->kl = tspring->ij;
 				spring->mn = tspring->kl;
@@ -1678,21 +1678,21 @@ static int cloth_build_springs ( ClothModifierData *clmd, DerivedMesh *dm )
 				spring->type = CLOTH_SPRING_TYPE_BENDING_HAIR;
 				spring->lin_stiffness = (cloth->verts[spring->kl].bend_stiff + cloth->verts[spring->ij].bend_stiff) / 2.0f;
 				bend_springs++;
-				
+
 				BLI_linklist_prepend ( &cloth->springs, spring );
 			}
 
 			search = search->next;
 			search2 = search2->next;
 		}
-		
+
 		cloth_hair_update_bending_rest_targets(clmd);
 	}
 
 	MEM_freeN(spring_ref);
-	
+
 	cloth->numsprings = struct_springs + shear_springs + bend_springs;
-	
+
 	cloth_free_edgelist(edgelist, mvert_num);
 
 #if 0
@@ -1706,4 +1706,3 @@ static int cloth_build_springs ( ClothModifierData *clmd, DerivedMesh *dm )
 /***************************************************************************************
  * SPRING NETWORK BUILDING IMPLEMENTATION END
  ***************************************************************************************/
-

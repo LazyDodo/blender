@@ -56,6 +56,7 @@
 
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_depsgraph.h"
 #include "BKE_report.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -195,8 +196,9 @@ static int open_exec(bContext *C, wmOperator *op)
 		bool relative = RNA_boolean_get(op->ptr, "relative_path");
 
 		RNA_string_get(op->ptr, "directory", dir_only);
-		if (relative)
-			BLI_path_rel(dir_only, G.main->name);
+		if (relative) {
+			BLI_path_rel(dir_only, CTX_data_main(C)->name);
+		}
 
 		prop = RNA_struct_find_property(op->ptr, "files");
 		RNA_property_collection_lookup_int(op->ptr, prop, 0, &fileptr);
@@ -247,6 +249,7 @@ static int open_exec(bContext *C, wmOperator *op)
 
 	WM_event_add_notifier(C, NC_MOVIECLIP | NA_ADDED, clip);
 
+	DAG_relations_tag_update(bmain);
 	MEM_freeN(op->customdata);
 
 	return OPERATOR_FINISHED;
@@ -264,7 +267,7 @@ static int open_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event)
 	if (clip) {
 		BLI_strncpy(path, clip->name, sizeof(path));
 
-		BLI_path_abs(path, G.main->name);
+		BLI_path_abs(path, CTX_data_main(C)->name);
 		BLI_parent_dir(path);
 	}
 	else {
@@ -314,7 +317,7 @@ static int reload_exec(bContext *C, wmOperator *UNUSED(op))
 	if (!clip)
 		return OPERATOR_CANCELLED;
 
-	BKE_movieclip_reload(clip);
+	BKE_movieclip_reload(CTX_data_main(C), clip);
 
 	WM_event_add_notifier(C, NC_MOVIECLIP | NA_EDITED, clip);
 
@@ -895,7 +898,7 @@ void CLIP_OT_view_selected(wmOperatorType *ot)
 
 /********************** change frame operator *********************/
 
-static int change_frame_poll(bContext *C)
+static bool change_frame_poll(bContext *C)
 {
 	/* prevent changes during render */
 	if (G.is_rendering)
@@ -941,7 +944,7 @@ static int frame_from_event(bContext *C, const wmEvent *event)
 
 		UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &viewx, &viewy);
 
-		framenr = iroundf(viewx);
+		framenr = round_fl_to_int(viewx);
 	}
 
 	return framenr;
@@ -1311,7 +1314,7 @@ static void proxy_endjob(void *pjv)
 
 	if (pj->clip->source == MCLIP_SRC_MOVIE) {
 		/* Timecode might have changed, so do a full reload to deal with this. */
-		BKE_movieclip_reload(pj->clip);
+		BKE_movieclip_reload(pj->main, pj->clip);
 	}
 	else {
 		/* For image sequences we'll preserve original cache. */

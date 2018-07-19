@@ -22,8 +22,8 @@
 
 CCL_NAMESPACE_BEGIN
 
-ConstantFolder::ConstantFolder(ShaderGraph *graph, ShaderNode *node, ShaderOutput *output)
-: graph(graph), node(node), output(output)
+ConstantFolder::ConstantFolder(ShaderGraph *graph, ShaderNode *node, ShaderOutput *output, Scene *scene)
+: graph(graph), node(node), output(output), scene(scene)
 {
 }
 
@@ -159,6 +159,14 @@ bool ConstantFolder::try_bypass_or_make_constant(ShaderInput *input, bool clamp)
 	else if(!clamp) {
 		bypass(input->link);
 		return true;
+	}
+	else {
+		/* disconnect other inputs if we can't fully bypass due to clamp */
+		foreach(ShaderInput *other, node->inputs) {
+			if(other != input && other->link) {
+				graph->disconnect(other);
+			}
+		}
 	}
 
 	return false;

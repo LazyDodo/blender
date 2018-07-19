@@ -37,8 +37,8 @@ struct Object;
 
 void              BKE_bproperty_free(struct bProperty *prop);
 void              BKE_bproperty_free_list(struct ListBase *lb);
-struct bProperty *BKE_bproperty_copy(struct bProperty *prop);
-void              BKE_bproperty_copy_list(struct ListBase *lbn, struct ListBase *lbo);
+struct bProperty *BKE_bproperty_copy(const struct bProperty *prop);
+void              BKE_bproperty_copy_list(struct ListBase *lbn, const struct ListBase *lbo);
 void              BKE_bproperty_init(struct bProperty *prop);
 struct bProperty *BKE_bproperty_new(int type);
 void              BKE_bproperty_unique(struct bProperty *first, struct  bProperty *prop, int force);
@@ -49,5 +49,5 @@ void              BKE_bproperty_set(struct bProperty *prop, const char *str);
 void              BKE_bproperty_add(struct bProperty *prop, const char *str);
 /* should really be called '_get_valstr()' or '_as_string()' */
 void              BKE_bproperty_set_valstr(struct bProperty *prop, char str[MAX_PROPSTRING]);
-	
+
 #endif

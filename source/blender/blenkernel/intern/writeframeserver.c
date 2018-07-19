@@ -118,7 +118,7 @@ int BKE_frameserver_start(void *context_v, struct Scene *scene, RenderData *UNUS
 	struct sockaddr_in addr;
 	int arg = 1;
 	FrameserverContext *context = context_v;
-	
+
 	(void)scene; /* unused */
 
 	if (!startup_socket_system()) {
@@ -210,7 +210,7 @@ static int handle_request(FrameserverContext *context, RenderData *rd, char *req
 	if (memcmp(req, "GET ", 4) != 0) {
 		return -1;
 	}
-	   
+
 	p = req + 4;
 	path = p;
 
@@ -268,11 +268,7 @@ int BKE_frameserver_loop(void *context_v, RenderData *rd, ReportList *UNUSED(rep
 	struct timeval tv;
 	struct sockaddr_in addr;
 	int len, rval;
-#ifdef FREE_WINDOWS
-	int socklen;
-#else
 	unsigned int socklen;
-#endif
 	char buf[4096];
 
 	FrameserverContext *context = context_v;
@@ -366,7 +362,7 @@ static void serve_ppm(FrameserverContext *context, int *pixels, int rectx, int r
 			target[2] = src[2];
 			target[1] = src[1];
 			target[0] = src[0];
-			
+
 			target += 3;
 			src += 4;
 		}

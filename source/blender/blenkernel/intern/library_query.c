@@ -51,7 +51,7 @@
 #include "DNA_movieclip_types.h"
 #include "DNA_mask_types.h"
 #include "DNA_node_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_sensor_types.h"
@@ -370,12 +370,12 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 
 	for (; id != NULL; id = (flag & IDWALK_RECURSE) ? BLI_LINKSTACK_POP(data.ids_todo) : NULL) {
 		data.self_id = id;
-		data.cb_flag = ID_IS_LINKED_DATABLOCK(id) ? IDWALK_CB_INDIRECT_USAGE : 0;
+		data.cb_flag = ID_IS_LINKED(id) ? IDWALK_CB_INDIRECT_USAGE : 0;
 
 		if (bmain != NULL && bmain->relations != NULL && (flag & IDWALK_READONLY)) {
 			/* Note that this is minor optimization, even in worst cases (like id being an object with lots of
 			 * drivers and constraints and modifiers, or material etc. with huge node tree),
-			 * but we might as well use it (Main->relations is always assumed valid, it's responsability of code
+			 * but we might as well use it (Main->relations is always assumed valid, it's responsibility of code
 			 * creating it to free it, especially if/when it starts modifying Main database). */
 			MainIDRelationsEntry *entry = BLI_ghash_lookup(bmain->relations->id_user_to_used, id);
 			for (; entry != NULL; entry = entry->next) {
@@ -512,7 +512,8 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 
 				/* Object is special, proxies make things hard... */
 				const int data_cb_flag = data.cb_flag;
-				const int proxy_cb_flag = (object->proxy || object->proxy_group) ? IDWALK_CB_INDIRECT_USAGE : 0;
+				const int proxy_cb_flag = ((data.flag & IDWALK_NO_INDIRECT_PROXY_DATA_USAGE) == 0 && (object->proxy || object->proxy_group)) ?
+				                              IDWALK_CB_INDIRECT_USAGE : 0;
 
 				/* object data special case */
 				data.cb_flag |= proxy_cb_flag;
@@ -538,9 +539,9 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				 * Since this field is set/owned by 'user' of this ID (and not ID itself), it is only indirect usage
 				 * if proxy object is linked... Twisted. */
 				if (object->proxy_from) {
-					data.cb_flag = ID_IS_LINKED_DATABLOCK(object->proxy_from) ? IDWALK_CB_INDIRECT_USAGE : 0;
+					data.cb_flag = ID_IS_LINKED(object->proxy_from) ? IDWALK_CB_INDIRECT_USAGE : 0;
 				}
-				CALLBACK_INVOKE(object->proxy_from, IDWALK_CB_NOP);
+				CALLBACK_INVOKE(object->proxy_from, IDWALK_CB_LOOPBACK);
 				data.cb_flag = data_cb_flag;
 
 				CALLBACK_INVOKE(object->poselib, IDWALK_CB_USER);
@@ -690,6 +691,9 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					library_foreach_ID_as_subdata_link((ID **)&material->nodetree, callback, user_data, flag, &data);
 				}
 				CALLBACK_INVOKE(material->group, IDWALK_CB_USER);
+				if (material->texpaintslot != NULL) {
+					CALLBACK_INVOKE(material->texpaintslot->ima, IDWALK_CB_NOP);
+				}
 				break;
 			}
 
@@ -745,12 +749,8 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 
 			case ID_KE:
 			{
-				/* XXX Only ID pointer from shapekeys is the 'from' one, which is not actually ID usage.
-				 * Maybe we should even nuke it from here, not 100% sure yet...
-				 * (see also foreach_libblock_id_users_callback).
-				 */
 				Key *key = (Key *) id;
-				CALLBACK_INVOKE_ID(key->from, IDWALK_CB_NOP);
+				CALLBACK_INVOKE_ID(key->from, IDWALK_CB_LOOPBACK);
 				break;
 			}
 
@@ -978,6 +978,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				for (bGPDlayer *gp_layer = gpencil->layers.first; gp_layer; gp_layer = gp_layer->next) {
 					CALLBACK_INVOKE(gp_layer->parent, IDWALK_CB_NOP);
 				}
+				break;
 			}
 
 			/* Nothing needed for those... */
@@ -1071,7 +1072,7 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 			return true;
 #endif
 		case ID_ME:
-			return ELEM(id_type_used, ID_ME, ID_KE, ID_MA);
+			return ELEM(id_type_used, ID_ME, ID_KE, ID_MA, ID_IM);
 		case ID_CU:
 			return ELEM(id_type_used, ID_OB, ID_KE, ID_MA, ID_VF);
 		case ID_MB:
@@ -1145,20 +1146,15 @@ typedef struct IDUsersIter {
 	int count_direct, count_indirect;  /* Set by callback. */
 } IDUsersIter;
 
-static int foreach_libblock_id_users_callback(void *user_data, ID *self_id, ID **id_p, int cb_flag)
+static int foreach_libblock_id_users_callback(void *user_data, ID *UNUSED(self_id), ID **id_p, int cb_flag)
 {
 	IDUsersIter *iter = user_data;
 
 	if (*id_p) {
-		/* XXX This is actually some kind of hack...
-		 * Issue is, shapekeys' 'from' ID pointer is not actually ID usage.
-		 * Maybe we should even nuke it from BKE_library_foreach_ID_link, not 100% sure yet...
+		/* 'Loopback' ID pointers (the ugly 'from' ones, Object->proxy_from and Key->from).
+		 * Those are not actually ID usage, we can ignore them here.
 		 */
-		if ((GS(self_id->name) == ID_KE) && (((Key *)self_id)->from == *id_p)) {
-			return IDWALK_RET_NOP;
-		}
-		/* XXX another hack, for similar reasons as above one. */
-		if ((GS(self_id->name) == ID_OB) && (((Object *)self_id)->proxy_from == (Object *)*id_p)) {
+		if (cb_flag & IDWALK_CB_LOOPBACK) {
 			return IDWALK_RET_NOP;
 		}
 

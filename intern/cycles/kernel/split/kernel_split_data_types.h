@@ -22,27 +22,17 @@ CCL_NAMESPACE_BEGIN
 /* parameters used by the split kernels, we use a single struct to avoid passing these to each kernel */
 
 typedef struct SplitParams {
-	int x;
-	int y;
-	int w;
-	int h;
-
-	int offset;
-	int stride;
-
-	ccl_global uint *rng_state;
-
-	int start_sample;
-	int end_sample;
+	WorkTile tile;
+	uint total_work_size;
 
 	ccl_global unsigned int *work_pools;
-	unsigned int num_samples;
 
 	ccl_global int *queue_index;
 	int queue_size;
 	ccl_global char *use_queues_flag;
 
-	ccl_global float *buffer;
+	/* Place for storing sd->flag. AMD GPU OpenCL compiler workaround */
+	int dummy_sd_flag;
 } SplitParams;
 
 /* Global memory variables [porting]; These memory is used for
@@ -53,47 +43,96 @@ typedef struct SplitParams {
 
 /* SPLIT_DATA_ENTRY(type, name, num) */
 
-#if defined(WITH_CYCLES_DEBUG) || defined(__KERNEL_DEBUG__)
-/* DebugData memory */
-#  define SPLIT_DATA_DEBUG_ENTRIES \
-	SPLIT_DATA_ENTRY(DebugData, debug_data, 1)
+#ifdef __BRANCHED_PATH__
+
+typedef ccl_global struct SplitBranchedState {
+	/* various state that must be kept and restored after an indirect loop */
+	PathState path_state;
+	float3 throughput;
+	Ray ray;
+
+	Intersection isect;
+
+	char ray_state;
+
+	/* indirect loop state */
+	int next_closure;
+	int next_sample;
+
+#ifdef __SUBSURFACE__
+	int ss_next_closure;
+	int ss_next_sample;
+	int next_hit;
+	int num_hits;
+
+	uint lcg_state;
+	LocalIntersection ss_isect;
+#endif  /*__SUBSURFACE__ */
+
+	int shared_sample_count; /* number of branched samples shared with other threads */
+	int original_ray; /* index of original ray when sharing branched samples */
+	bool waiting_on_shared_samples;
+} SplitBranchedState;
+
+#define SPLIT_DATA_BRANCHED_ENTRIES \
+	SPLIT_DATA_ENTRY( SplitBranchedState, branched_state, 1) \
+	SPLIT_DATA_ENTRY(ShaderData, _branched_state_sd, 0)
 #else
-#  define SPLIT_DATA_DEBUG_ENTRIES
-#endif
+#define SPLIT_DATA_BRANCHED_ENTRIES
+#endif  /* __BRANCHED_PATH__ */
+
+#ifdef __SUBSURFACE__
+#  define SPLIT_DATA_SUBSURFACE_ENTRIES \
+	SPLIT_DATA_ENTRY(ccl_global SubsurfaceIndirectRays, ss_rays, 1)
+#else
+#  define SPLIT_DATA_SUBSURFACE_ENTRIES
+#endif /* __SUBSURFACE__ */
+
+#ifdef __VOLUME__
+#  define SPLIT_DATA_VOLUME_ENTRIES \
+	SPLIT_DATA_ENTRY(ccl_global PathState, state_shadow, 1)
+#else
+#  define SPLIT_DATA_VOLUME_ENTRIES
+#endif /* __VOLUME__ */
 
 #define SPLIT_DATA_ENTRIES \
-	SPLIT_DATA_ENTRY(ccl_global RNG, rng, 1) \
 	SPLIT_DATA_ENTRY(ccl_global float3, throughput, 1) \
-	SPLIT_DATA_ENTRY(ccl_global float, L_transparent, 1) \
 	SPLIT_DATA_ENTRY(PathRadiance, path_radiance, 1) \
 	SPLIT_DATA_ENTRY(ccl_global Ray, ray, 1) \
 	SPLIT_DATA_ENTRY(ccl_global PathState, path_state, 1) \
 	SPLIT_DATA_ENTRY(ccl_global Intersection, isect, 1) \
-	SPLIT_DATA_ENTRY(ccl_global float3, ao_alpha, 1) \
-	SPLIT_DATA_ENTRY(ccl_global float3, ao_bsdf, 1) \
-	SPLIT_DATA_ENTRY(ccl_global Ray, ao_light_ray, 1) \
 	SPLIT_DATA_ENTRY(ccl_global BsdfEval, bsdf_eval, 1) \
 	SPLIT_DATA_ENTRY(ccl_global int, is_lamp, 1) \
 	SPLIT_DATA_ENTRY(ccl_global Ray, light_ray, 1) \
 	SPLIT_DATA_ENTRY(ccl_global int, queue_data, (NUM_QUEUES*2)) /* TODO(mai): this is too large? */ \
-	SPLIT_DATA_ENTRY(ccl_global uint, work_array, 1) \
-	SPLIT_DATA_ENTRY(ShaderData, sd, 1) \
-	SPLIT_DATA_ENTRY(ShaderData, sd_DL_shadow, 1) \
-	SPLIT_DATA_DEBUG_ENTRIES \
+	SPLIT_DATA_ENTRY(ccl_global uint, buffer_offset, 1) \
+	SPLIT_DATA_ENTRY(ShaderDataTinyStorage, sd_DL_shadow, 1) \
+	SPLIT_DATA_SUBSURFACE_ENTRIES \
+	SPLIT_DATA_VOLUME_ENTRIES \
+	SPLIT_DATA_BRANCHED_ENTRIES \
+	SPLIT_DATA_ENTRY(ShaderData, _sd, 0)
+
+/* entries to be copied to inactive rays when sharing branched samples (TODO: which are actually needed?) */
+#define SPLIT_DATA_ENTRIES_BRANCHED_SHARED \
+	SPLIT_DATA_ENTRY(ccl_global float3, throughput, 1) \
+	SPLIT_DATA_ENTRY(PathRadiance, path_radiance, 1) \
+	SPLIT_DATA_ENTRY(ccl_global Ray, ray, 1) \
+	SPLIT_DATA_ENTRY(ccl_global PathState, path_state, 1) \
+	SPLIT_DATA_ENTRY(ccl_global Intersection, isect, 1) \
+	SPLIT_DATA_ENTRY(ccl_global BsdfEval, bsdf_eval, 1) \
+	SPLIT_DATA_ENTRY(ccl_global int, is_lamp, 1) \
+	SPLIT_DATA_ENTRY(ccl_global Ray, light_ray, 1) \
+	SPLIT_DATA_ENTRY(ShaderDataTinyStorage, sd_DL_shadow, 1) \
+	SPLIT_DATA_SUBSURFACE_ENTRIES \
+	SPLIT_DATA_VOLUME_ENTRIES \
+	SPLIT_DATA_BRANCHED_ENTRIES \
+	SPLIT_DATA_ENTRY(ShaderData, _sd, 0)
 
 /* struct that holds pointers to data in the shared state buffer */
 typedef struct SplitData {
 #define SPLIT_DATA_ENTRY(type, name, num) type *name;
 	SPLIT_DATA_ENTRIES
 #undef SPLIT_DATA_ENTRY
-
-#ifdef __SUBSURFACE__
-	ccl_global SubsurfaceIndirectRays *ss_rays;
-#endif
-
-#ifdef __VOLUME__
-	ccl_global PathState *state_shadow;
-#endif
 
 	/* this is actually in a separate buffer from the rest of the split state data (so it can be read back from
 	 * the host easily) but is still used the same as the other data so we have it here in this struct as well
@@ -111,6 +150,12 @@ __device__ SplitParams __split_param_data;
 #  define kernel_split_params (__split_param_data)
 #endif  /* __KERNEL_CUDA__ */
 
+#define kernel_split_sd(sd, ray_index) ((ShaderData*) \
+	( \
+		((ccl_global char*)kernel_split_state._##sd) + \
+		(sizeof(ShaderData) + sizeof(ShaderClosure)*(kernel_data.integrator.max_closures-1)) * (ray_index) \
+	))
+
 /* Local storage for queue_enqueue kernel. */
 typedef struct QueueEnqueueLocals {
 	uint queue_atomics[2];
@@ -121,6 +166,11 @@ typedef struct BackgroundAOLocals {
 	uint queue_atomics_bg;
 	uint queue_atomics_ao;
 } BackgroundAOLocals;
+
+typedef struct ShaderSortLocals {
+	uint local_value[SHADER_SORT_BLOCK_SIZE];
+	ushort local_index[SHADER_SORT_BLOCK_SIZE];
+} ShaderSortLocals;
 
 CCL_NAMESPACE_END
 
