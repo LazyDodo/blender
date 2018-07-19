@@ -587,6 +587,7 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 	LANPR_RenderLineSegment *rls = rl->Segments.pFirst, *irls;
 	LANPR_RenderLineSegment *BeginSegment = 0, *EndSegment = 0;
 	LANPR_RenderLineSegment *ns = 0, *ns2 = 0;
+	int untouched=0;
 
 	if (TNS_DOUBLE_CLOSE_ENOUGH(Begin, End)) return;
 
@@ -628,6 +629,7 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 		if (!rls->Item.pNext && TNS_DOUBLE_CLOSE_ENOUGH(1, End)) {
 			EndSegment = rls;
 			ns2 = EndSegment;
+			untouched = 1;
 			break;
 		}elif (rls->at > End) {
 			EndSegment = rls;
@@ -661,7 +663,8 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 	}
 
 	ns->at = Begin;
-	if(!TNS_DOUBLE_CLOSE_ENOUGH(1, End)) ns2->at = End;
+	if(!untouched) ns2->at = End;
+	else ns2 = ns2->Item.pNext;
 
 	for (rls = ns; rls && rls != ns2; rls = rls->Item.pNext) {
 		rls->OccludeLevel++;
