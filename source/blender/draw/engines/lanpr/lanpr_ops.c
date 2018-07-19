@@ -618,6 +618,9 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 			break;
 		}
 	}
+	if (!BeginSegment && TNS_DOUBLE_CLOSE_ENOUGH(1, End)) {
+		untouched = 1;
+	}
 	for (rls = BeginSegment; rls; rls = rls->Item.pNext) {
 		if (TNS_DOUBLE_CLOSE_ENOUGH(rls->at, End)) {
 			EndSegment = rls;
@@ -639,7 +642,10 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 	}
 
 	if (!ns) ns = memStaticAquireThread(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
-	if (!ns2) ns2 = memStaticAquireThread(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
+	if (!ns2) {
+		if (untouched) { ns2 = ns; EndSegment = ns2; }
+		else ns2 = memStaticAquireThread(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
+	}
 
 	if (BeginSegment) {
 		if (BeginSegment != ns) {
@@ -1590,7 +1596,9 @@ void lanpr_MakeRenderGeometryBuffersObject(Object *o, real *MVMat, real *MVPMat,
 		bm = BM_mesh_create(&allocsize,
 		                    &((struct BMeshCreateParams) {.use_toolflags = true, }));
 		BM_mesh_bm_from_me(bm, o->data, &((struct BMeshFromMeshParams) {.calc_face_normal = true, }));
+		BM_mesh_elem_hflag_disable_all(bm, BM_FACE | BM_EDGE, BM_ELEM_TAG, false);
 		BM_mesh_triangulate(bm, MOD_TRIANGULATE_QUAD_BEAUTY, MOD_TRIANGULATE_NGON_BEAUTY, false, NULL, NULL, NULL);
+		BM_mesh_normals_update(bm);
 		BM_mesh_elem_table_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 		BM_mesh_elem_index_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 
