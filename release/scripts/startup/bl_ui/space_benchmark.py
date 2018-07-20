@@ -17,12 +17,12 @@
 # ##### END GPL LICENSE BLOCK #####
 
 # <pep8 compliant>
+
+# Defer to release/scripts/benchmark to populate this space
 import bpy
+import sys
+for path in bpy.utils.script_paths('benchmark'):
+    sys.path.insert(0, path)
 
-classes = (
-)
-
-if __name__ == "__main__":  # only for live edit.
-    from bpy.utils import register_class
-    for cls in classes:
-        register_class(cls)
+import benchmark.space
+classes = benchmark.space.classes

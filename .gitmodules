@@ -18,3 +18,6 @@
 	url = ../blender-dev-tools.git
 	branch = master
 	ignore = all
+[submodule "release/scripts/benchmark"]
+	path = release/scripts/benchmark
+	url = ../blender-benchmark-bundle.git
