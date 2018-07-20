@@ -3065,6 +3065,20 @@ static void rna_def_userdef_theme_space_statusbar(BlenderRNA *brna)
 	rna_def_userdef_theme_spaces_main(srna);
 }
 
+static void rna_def_userdef_theme_space_benchmark(BlenderRNA *brna)
+{
+	StructRNA *srna;
+
+	/* space_benchmark */
+
+	srna = RNA_def_struct(brna, "ThemeBenchmark", NULL);
+	RNA_def_struct_sdna(srna, "ThemeSpace");
+	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
+	RNA_def_struct_ui_text(srna, "Theme Benchmark", "Theme settings for the Benchmark");
+
+	rna_def_userdef_theme_spaces_main(srna);
+}
+
 static void rna_def_userdef_themes(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -3224,6 +3238,12 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "tstatusbar");
 	RNA_def_property_struct_type(prop, "ThemeStatusBar");
 	RNA_def_property_ui_text(prop, "Status Bar", "");
+
+	prop = RNA_def_property(srna, "benchmark", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_pointer_sdna(prop, NULL, "tbenchmark");
+	RNA_def_property_struct_type(prop, "ThemeBenchmark");
+	RNA_def_property_ui_text(prop, "Benchmark", "");
 }
 
 static void rna_def_userdef_addon(BlenderRNA *brna)
@@ -3399,6 +3419,7 @@ static void rna_def_userdef_dothemes(BlenderRNA *brna)
 	rna_def_userdef_theme_space_clip(brna);
 	rna_def_userdef_theme_space_topbar(brna);
 	rna_def_userdef_theme_space_statusbar(brna);
+	rna_def_userdef_theme_space_benchmark(brna);
 	rna_def_userdef_theme_colorset(brna);
 	rna_def_userdef_themes(brna);
 }

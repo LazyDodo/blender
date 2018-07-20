@@ -96,6 +96,7 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
 	               "global per-window settings"},
 	{SPACE_STATUSBAR, "STATUSBAR", ICON_NONE, "Status Bar", "Global bar at the bottom of the "
 	                  "screen for general status information"},
+	{SPACE_BENCHMARK, "BENCHMARK", ICON_NONE, "Benchmark", ""},
 
 	/* Data */
 	{0, "", ICON_NONE, "Data", ""},
@@ -397,6 +398,8 @@ static StructRNA *rna_Space_refine(struct PointerRNA *ptr)
 			return &RNA_SpaceUserPreferences;
 		case SPACE_CLIP:
 			return &RNA_SpaceClipEditor;
+		case SPACE_BENCHMARK:
+			return &RNA_SpaceBenchmark;
 		default:
 			return &RNA_Space;
 	}
@@ -5153,6 +5156,14 @@ static void rna_def_space_clip(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_CLIP, NULL);
 }
 
+static void rna_def_space_benchmark(BlenderRNA *brna)
+{
+	StructRNA *srna;
+
+	srna = RNA_def_struct(brna, "SpaceBenchmark", "Space");
+	RNA_def_struct_sdna(srna, "SpaceBenchmark");
+	RNA_def_struct_ui_text(srna, "Space Benchmark", "Benchmark tool");
+}
 
 void RNA_def_space(BlenderRNA *brna)
 {
@@ -5176,6 +5187,7 @@ void RNA_def_space(BlenderRNA *brna)
 	rna_def_node_tree_path(brna);
 	rna_def_space_node(brna);
 	rna_def_space_clip(brna);
+	rna_def_space_benchmark(brna);
 }
 
 #endif

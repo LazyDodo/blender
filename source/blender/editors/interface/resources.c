@@ -175,6 +175,9 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case SPACE_STATUSBAR:
 					ts = &btheme->tstatusbar;
 					break;
+				case SPACE_BENCHMARK:
+					ts = &btheme->tbenchmark;
+					break;
 				default:
 					ts = &btheme->tv3d;
 					break;
@@ -1584,6 +1587,16 @@ void init_userdef_do_versions(Main *bmain)
 			 */
 			ARRAY_SET_ITEMS(U.gpencil_new_layer_col, 0.38f, 0.61f, 0.78f, 0.9f);
 		}
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 16)) {
+		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+			btheme->tstatusbar = btheme->tv3d;
+		}
+	}
+
+	for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
+		btheme->tbenchmark = btheme->tima;
 	}
 
 	/**

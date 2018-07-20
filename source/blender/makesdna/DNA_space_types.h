@@ -1423,6 +1423,21 @@ typedef struct SpaceStatusBar {
 /** \} */
 
 /* -------------------------------------------------------------------- */
+/** \name Benchmark
+ * \{ */
+
+typedef struct SpaceBenchmark {
+	SpaceLink *next, *prev;
+	ListBase regionbase;        /* storage of regions for inactive spaces */
+	char spacetype;
+	char link_flag;
+	char _pad0[6];
+	/* End 'SpaceLink' header. */
+} SpaceBenchmark;
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
 /** \name Space Defines (eSpace_Type)
  * \{ */
 
@@ -1455,8 +1470,9 @@ typedef enum eSpace_Type {
 	SPACE_CLIP     = 20,
 	SPACE_TOPBAR   = 21,
 	SPACE_STATUSBAR = 22,
+	SPACE_BENCHMARK = 23,
 
-	SPACE_TYPE_LAST = SPACE_STATUSBAR
+	SPACE_TYPE_LAST = SPACE_BENCHMARK
 } eSpace_Type;
 
 /* use for function args */

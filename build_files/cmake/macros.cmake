@@ -574,6 +574,7 @@ function(SETUP_BLENDER_SORTED_LIBS)
 
 		bf_editor_space_api
 		bf_editor_space_action
+		bf_editor_space_benchmark
 		bf_editor_space_buttons
 		bf_editor_space_console
 		bf_editor_space_file
