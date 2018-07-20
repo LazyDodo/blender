@@ -90,36 +90,7 @@ typedef enum eDrawStrokeFlags {
 } eDrawStrokeFlags;
 
 
-/* conversion utility (float --> normalized unsigned byte) */
-#define F2UB(x) (uchar)(255.0f * x)
-
 /* ----- Tool Buffer Drawing ------ */
-/* helper functions to set color of buffer point */
-// XXX: Remove these
-static void UNUSED_FUNCTION(gp_set_tpoint_varying_color)(
-        const tGPspoint *UNUSED(pt), const float ink[4], uint attrib_id)
-{
-	float alpha = ink[3];
-	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
-	immAttrib4ub(attrib_id, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(alpha));
-}
-
-static void UNUSED_FUNCTION(gp_set_point_uniform_color)(
-        const bGPDspoint *UNUSED(pt), const float ink[4])
-{
-	float alpha = ink[3];
-	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
-	immUniformColor3fvAlpha(ink, alpha);
-}
-
-static void gp_set_point_varying_color(const bGPDspoint *UNUSED(pt), const float ink[4], uint attrib_id)
-{
-	float alpha = ink[3];
-	CLAMP(alpha, GPENCIL_STRENGTH_MIN, 1.0f);
-	immAttrib4ub(attrib_id, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(alpha));
-}
-
-
 
 /* draw stroke defined in buffer (simple ogl lines/points for now, as dotted lines) */
 static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short thickness,
@@ -142,16 +113,15 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 
 	GPUVertFormat *format = immVertexFormat();
 	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
-	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT); // XXX: Just set once
 
 	const tGPspoint *pt = points;
 
 	if (totpoints == 1) {
 		/* if drawing a single point, draw it larger */
 		GPU_point_size((float)(thickness + 2) * points->pressure);
-		immBindBuiltinProgram(GPU_SHADER_3D_POINT_FIXED_SIZE_VARYING_COLOR);
+		immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
+		immUniformColor3fvAlpha(ink, ink[3]);
 		immBegin(GPU_PRIM_POINTS, 1);
-		immAttrib4ub(color, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(ink[3]));
 		immVertex2iv(pos, &pt->x);
 	}
 	else {
@@ -159,10 +129,12 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 
 		/* draw stroke curve */
 		GPU_line_width(max_ff(oldpressure * thickness, 1.0));
-		immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
-		immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints);
+
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+		immUniformColor3fvAlpha(ink, ink[3]);
 
 		/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
+		immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints);
 
 		for (int i = 0; i < totpoints; i++, pt++) {
 			/* if there was a significant pressure change, stop the curve, change the thickness of the stroke,
@@ -171,7 +143,6 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 			if (fabsf(pt->pressure - oldpressure) > 0.2f) {
 				/* need to have 2 points to avoid immEnd assert error */
 				if (draw_points < 2) {
-					immAttrib4ub(color, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(ink[3]));
 					immVertex2iv(pos, &(pt - 1)->x);
 				}
 
@@ -183,7 +154,6 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 
 				/* need to roll-back one point to ensure that there are no gaps in the stroke */
 				if (i != 0) {
-					immAttrib4ub(color, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(ink[3]));
 					immVertex2iv(pos, &(pt - 1)->x);
 					draw_points++;
 				}
@@ -192,13 +162,11 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 			}
 
 			/* now the point we want */
-			immAttrib4ub(color, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(ink[3]));
 			immVertex2iv(pos, &pt->x);
 			draw_points++;
 		}
 		/* need to have 2 points to avoid immEnd assert error */
 		if (draw_points < 2) {
-			immAttrib4ub(color, F2UB(ink[0]), F2UB(ink[1]), F2UB(ink[2]), F2UB(ink[3]));
 			immVertex2iv(pos, &(pt - 1)->x);
 		}
 	}
@@ -283,15 +251,15 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 	/* if cyclic needs one vertex more */
 	int cyclic_add = 0;
 	if (cyclic) {
-		++cyclic_add;
+		cyclic_add++;
 	}
 
 
 	GPUVertFormat *format = immVertexFormat();
 	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
-	immBindBuiltinProgram(GPU_SHADER_3D_SMOOTH_COLOR);
+	immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
+	immUniformColor3fvAlpha(ink, ink[3]);
 
 	/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
 
@@ -300,8 +268,6 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 	immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints + cyclic_add);
 	const bGPDspoint *pt = points;
 	for (int i = 0; i < totpoints; i++, pt++) {
-		gp_set_point_varying_color(pt, ink, color);
-
 		/* if there was a significant pressure change, stop the curve, change the thickness of the stroke,
 		 * and continue drawing again (since line-width cannot change in middle of GL_LINE_STRIP)
 		 * Note: we want more visible levels of pressures when thickness is bigger.
@@ -322,7 +288,6 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 			/* need to roll-back one point to ensure that there are no gaps in the stroke */
 			if (i != 0) {
 				const bGPDspoint *pt2 = pt - 1;
-				gp_set_point_varying_color(pt2, ink, color);
 				immVertex3fv(pos, &pt2->x);
 				draw_points++;
 			}
@@ -347,7 +312,6 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 	/* if less of two points, need to repeat last point to avoid assert in immEnd() */
 	if (draw_points < 2) {
 		const bGPDspoint *pt2 = pt - 1;
-		gp_set_point_varying_color(pt2, ink, color);
 		immVertex3fv(pos, &pt2->x);
 	}
 
@@ -386,6 +350,7 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
+		immUniformColor3fvAlpha(ink, ink[3]);
 		immBegin(GPU_PRIM_TRI_STRIP, totpoints * 2 + 4);
 
 		/* get x and y coordinates from first point */
@@ -409,9 +374,6 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 
 			/* always use pressure from first point here */
 			pthick = (pt1->pressure * thickness * scalefac);
-
-			/* color of point */
-			gp_set_point_varying_color(pt1, ink, color);
 
 			/* if the first segment, start of segment is segment's normal */
 			if (i == 0) {
@@ -484,9 +446,6 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 			if (i == totpoints - 2) {
 				/* for once, we use second point's pressure (otherwise it won't be drawn) */
 				pthick = (pt2->pressure * thickness * scalefac);
-
-				/* color of point */
-				gp_set_point_varying_color(pt2, ink, color);
 
 				/* calculate points for end of segment */
 				mt[0] = m2[0] * pthick;
