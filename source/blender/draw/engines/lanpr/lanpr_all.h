@@ -467,11 +467,12 @@ typedef struct LANPR_RenderLineChain {
 	nListItem   Item;
 	nListHandle Chain;
 	//int         SegmentCount;  // we count before draw cmd.
+	float       Length;          // calculated before draw cmd.
 }LANPR_RenderLineChain;
 
 typedef struct LANPR_RenderLineChainItem {
 	nListItem   Item;
-	float       pos[2];
+	float       pos[3]; // need z value for fading
 	char        LineType;      //      style of [1]       style of [2]
 	char        OccludeLevel;  // [1]--------------->[2]---------------->[3]--....
 }LANPR_RenderLineChainItem;

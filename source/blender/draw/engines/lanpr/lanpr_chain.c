@@ -87,6 +87,8 @@ LANPR_RenderLineChainItem* lanpr_append_render_line_chain_point(LANPR_RenderBuff
     rlci->LineType = type&LANPR_EDGE_FLAG_ALL_TYPE;
     lstAppendItem(&rlc->Chain,rlci);
 
+	//printf("a %f %f\n", x, y);
+
     return rlci;
 }
 
@@ -98,6 +100,8 @@ LANPR_RenderLineChainItem* lanpr_push_render_line_chain_point(LANPR_RenderBuffer
     rlci->pos[1] = y;
     rlci->LineType = type&LANPR_EDGE_FLAG_ALL_TYPE;
     lstPushItem(&rlc->Chain,rlci);
+
+	//printf("p %f %f\n", x, y);
 
     return rlci;
 }
@@ -155,7 +159,7 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
         ba = lanpr_GetPointBoundingArea(rb,rl->L->FrameBufferCoord[0], rl->L->FrameBufferCoord[1]);
         new_rv = rl->L;
         lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags,0);
-        while(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv)){
+        while(ba &&(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv))){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
 
             int last_occlude;
@@ -198,7 +202,7 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
         new_rv = rl->R;
         // below already done in step 2
         // lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags,0);
-        while(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv)){
+        while(ba && (new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv))){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
 
             int last_occlude;
@@ -226,11 +230,18 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
 			ba = lanpr_GetPointBoundingArea(rb, new_rv->FrameBufferCoord[0], new_rv->FrameBufferCoord[1]);
         }
 
+		//LANPR_RenderLineChainItem* rlci;
+		//printf("line:\n");
+		//for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+		//	printf("  %f %f\n", rlci->pos[0],rlci->pos[1]);
+		//}
+		//printf("--------\n");
+
         //lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.pFirst, rlc->Chain.pLast, dist_threshold);
     }
 }
 
-int lanpr_CountChainVertices(LANPR_RenderLineChain* rlc){
+int lanpr_CountChain(LANPR_RenderLineChain* rlc){
     LANPR_RenderLineChainItem* rlci;
     int Count = 0;
 	for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
@@ -239,19 +250,39 @@ int lanpr_CountChainVertices(LANPR_RenderLineChain* rlc){
     return Count;
 }
 
+float lanpr_ComputeChainLength(LANPR_RenderLineChain* rlc, float* lengths, int begin_index) {
+	LANPR_RenderLineChainItem* rlci;
+	int i=0;
+	float offset_accum = 0;
+	float dist;
+	float last_point[2];
+
+	rlci = rlc->Chain.pFirst;
+	copy_v2_v2(last_point, rlci->pos);
+	for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+		dist = len_v2v2(rlci->pos, last_point);
+		offset_accum += dist;
+		lengths[begin_index + i] = offset_accum;
+		copy_v2_v2(last_point, rlci->pos);
+		i++;
+	}
+	return offset_accum;
+}
+
 void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
     LANPR_RenderLineChain* rlc;
     LANPR_RenderLineChainItem* rlci;
-    int vert_count;
+    int vert_count=0;
     int i=0;
-    float last_point[2];
-    float offset_accum=0;
+    float total_length;
+	float* lengths;
+	float length_target[2];
 
     static Gwn_VertFormat format = { 0 };
 	static struct { uint pos, offset, type, level; } attr_id;
 	if (format.attr_len == 0) {
 		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-        attr_id.offset = GWN_vertformat_attr_add(&format, "offset", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
+        attr_id.offset = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
 		attr_id.type = GWN_vertformat_attr_add(&format, "type", GWN_COMP_I32, 1, GWN_FETCH_FLOAT);
 		attr_id.level = GWN_vertformat_attr_add(&format, "level", GWN_COMP_I32, 1, GWN_FETCH_INT);
 	}
@@ -259,35 +290,55 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
 
     for(rlc = rb->Chains.pFirst; rlc;rlc=rlc->Item.pNext){
-		int count = lanpr_CountChainVertices(rlc);
+		int count = lanpr_CountChain(rlc);
 		printf("seg contains %d verts\n", count);
 		vert_count += count;
     }
 
-    GWN_vertbuf_data_alloc(vbo, vert_count);
+    GWN_vertbuf_data_alloc(vbo, vert_count+1); // serve as end point's adj.
 
-    //Gwn_IndexBufBuilder elb;
-	//GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, vert_count, vert_count, true);// elem count will not exceed vert_count (even including prim_restart)
+	lengths = MEM_callocN(sizeof(float)*vert_count, "chain lengths");
+
+    Gwn_IndexBufBuilder elb;
+	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, vert_count*4, vert_count, true);// elem count will not exceed vert_count
+
+	int debc = 0;
 
     for(rlc = rb->Chains.pFirst; rlc; rlc=rlc->Item.pNext){
-		rlci = rlc->Chain.pFirst;
-        copy_v2_v2(last_point, rlci->pos);
-		for (rlci; rlci; rlci = rlci->Item.pNext) {
+		//if (debc == 1) break;
+		debc++;
+
+		total_length = lanpr_ComputeChainLength(rlc, lengths, i);
+
+		for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+
+			length_target[0] = lengths[i];
+			length_target[1] = total_length - lengths[i];
 
             GWN_vertbuf_attr_set(vbo, attr_id.pos, i, rlci->pos);
-            GWN_vertbuf_attr_set(vbo, attr_id.offset, i, &offset_accum);
+            GWN_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
 
-            offset_accum += len_v2v2(rlci->pos,last_point);
-            copy_v2_v2(last_point, rlci->pos);
+			if (rlci == rlc->Chain.pLast) { i++; continue; }
 
-            //if(i==0)GWN_indexbuf_add_line_adj_verts(&elb, 0, 0, 1, 2);
-            //elif(i==vert_count-2)GWN_indexbuf_add_line_adj_verts(&elb, i-1, i, i+1, i+1);
-            //elif(i<vert_count-2)GWN_indexbuf_add_line_adj_verts(&elb, i-1, i, i+1, i+2);
+			if (rlci == rlc->Chain.pFirst) {
+				if (rlci->Item.pNext == rlc->Chain.pLast) GWN_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, vert_count);
+				else GWN_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, i + 2);
+			}
+			else {
+				if (rlci->Item.pNext == rlc->Chain.pLast) GWN_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, vert_count);
+				else GWN_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, i + 2);
+			}
 
-            i++;
+			i++;
         }
     }
+	//set end point flag value.
+	length_target[0] = 3e30f;
+	length_target[1] = 3e30f;
+	GWN_vertbuf_attr_set(vbo, attr_id.pos, vert_count, length_target);
 
-    rb->ChainDrawBatch = GWN_batch_create_ex(GWN_PRIM_LINE_STRIP, vbo, 0, GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
+	MEM_freeN(lengths);
+
+    rb->ChainDrawBatch = GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
 
 }

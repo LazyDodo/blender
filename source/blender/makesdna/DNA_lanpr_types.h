@@ -113,8 +113,9 @@ typedef struct LANPR_LineLayer{
 
     ListBase components;
 
-	struct DRWShadingGroup *shgrp;
-	struct Gwn_Batch  *batch;
+	//deprecated for line chainning
+	//struct DRWShadingGroup *shgrp;
+	//struct Gwn_Batch  *batch;
 
 }LANPR_LineLayer;
 

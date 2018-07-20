@@ -358,6 +358,8 @@ int lanpr_GetLineBoundingAreas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int
 
 	if (!rl->L || !rl->R) return 0;
 
+	if (rl->L->FrameBufferCoord[0] != rl->L->FrameBufferCoord[0] || rl->R->FrameBufferCoord[0] != rl->R->FrameBufferCoord[0]) return 0;
+
 	B[0] = MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0]);
 	B[1] = MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0]);
 	B[2] = MIN2(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1]);
@@ -612,7 +614,7 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 			break;
 		}
 		irls = rls->Item.pNext;
-		if (irls->at > Begin && Begin > rls->at) {
+		if (irls->at > Begin+1e-09 && Begin > rls->at) {
 			BeginSegment = irls;
 			ns = memStaticAquireThread(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
 			break;
@@ -2866,65 +2868,65 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb);
 
 /* ============================================ viewport display ================================================= */
 
-void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll) {
-	int Count = 0;
-	int level;
-	float *V, *tv, *N;;
-	int i;
-	int VertCount;
-
-	if (ll->type == TNS_COMMAND_LINE) {
-		static Gwn_VertFormat format = { 0 };
-		static struct { uint pos, uvs; } attr_id;
-		if (format.attr_len == 0) {
-			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
-		}
-
-		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-
-		if (ll->enable_contour) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll);
-		if (ll->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll);
-		if (ll->enable_intersection) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll);
-		if (ll->enable_edge_mark) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll);
-		if (ll->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, ll);
-
-		VertCount = Count * 2;
-
-		GWN_vertbuf_data_alloc(vbo, VertCount);
-
-		tv = V = CreateNewBuffer(float, 6 * Count);
-
-		if (ll->enable_contour) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll, 1.0f);
-		if (ll->enable_crease) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll, 2.0f);
-		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll, 3.0f);
-		if (ll->enable_edge_mark) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll, 4.0f);
-		if (ll->enable_intersection) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll, 5.0f);
-
-
-		for (i = 0; i < VertCount; i++) {
-			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i * 3]);
-		}
-
-		FreeMem(V);
-
-		ll->batch = GWN_batch_create_ex(GWN_PRIM_LINES, vbo, 0, GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
-
-		return;
-	}
-
-	//if (ll->type == TNS_COMMAND_MATERIAL || ll->type == TNS_COMMAND_EDGE) {
-	// later implement ....
-	//}
-
-}
+//void lanpr_RebuildRenderDrawCommand(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll) {
+//	int Count = 0;
+//	int level;
+//	float *V, *tv, *N;;
+//	int i;
+//	int VertCount;
+//
+//	if (ll->type == TNS_COMMAND_LINE) {
+//		static Gwn_VertFormat format = { 0 };
+//		static struct { uint pos, uvs; } attr_id;
+//		if (format.attr_len == 0) {
+//			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+//		}
+//
+//		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
+//
+//		if (ll->enable_contour) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll);
+//		if (ll->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll);
+//		if (ll->enable_intersection) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->IntersectionLines, ll);
+//		if (ll->enable_edge_mark) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->EdgeMarks, ll);
+//		if (ll->enable_material_seperate) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->MaterialLines, ll);
+//
+//		VertCount = Count * 2;
+//
+//		GWN_vertbuf_data_alloc(vbo, VertCount);
+//
+//		tv = V = CreateNewBuffer(float, 6 * Count);
+//
+//		if (ll->enable_contour) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->Contours, tv, ll, 1.0f);
+//		if (ll->enable_crease) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->CreaseLines, tv, ll, 2.0f);
+//		if (ll->enable_material_seperate) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->MaterialLines, tv, ll, 3.0f);
+//		if (ll->enable_edge_mark) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->EdgeMarks, tv, ll, 4.0f);
+//		if (ll->enable_intersection) tv = lanpr_MakeLeveledEdgeVertexArray(rb, &rb->IntersectionLines, tv, ll, 5.0f);
+//
+//
+//		for (i = 0; i < VertCount; i++) {
+//			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i * 3]);
+//		}
+//
+//		FreeMem(V);
+//
+//		ll->batch = GWN_batch_create_ex(GWN_PRIM_LINES, vbo, 0, GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
+//
+//		return;
+//	}
+//
+//	//if (ll->type == TNS_COMMAND_MATERIAL || ll->type == TNS_COMMAND_EDGE) {
+//	// later implement ....
+//	//}
+//
+//}
 void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
 	LANPR_LineLayer *ll;
 	if (!lanpr) return;
 
-	for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
-		if (ll->batch) GWN_batch_discard(ll->batch);
-		lanpr_RebuildRenderDrawCommand(lanpr->render_buffer, ll);
-	}
+	//for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+	//	if (ll->batch) GWN_batch_discard(ll->batch);
+	//	lanpr_RebuildRenderDrawCommand(lanpr->render_buffer, ll);
+	//}
 
 	lanpr_ChainGenerateDrawCommand(lanpr->render_buffer);
 }
@@ -3013,7 +3015,7 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 
 	THREAD_CalculateLineOcclusion_Begin(rb);
 
-	lanpr_ChainFeatureLines_NO_THREAD(rb,0.01);
+	lanpr_ChainFeatureLines_NO_THREAD(rb,0.00001);
 
 	return OPERATOR_FINISHED;
 }
@@ -3074,7 +3076,7 @@ int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 
 	BLI_remlink(&scene->lanpr.line_layers, ll);
 
-	if (ll->batch) GWN_batch_discard(ll->batch);
+	//if (ll->batch) GWN_batch_discard(ll->batch);
 
 	MEM_freeN(ll);
 

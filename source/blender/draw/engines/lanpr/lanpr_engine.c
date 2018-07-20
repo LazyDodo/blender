@@ -348,27 +348,7 @@ static void lanpr_cache_init(void *vedata){
 		}
 	} elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE)
 	{
-		psl->software_pass = DRW_pass_create("Software Render Preview",  DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
-		lanpr->render_buffer->ChainShgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
-		if (lanpr->render_buffer->ChainDrawBatch){
-			LANPR_LineLayer *ll;
-			for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
-				ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "edge_mark_color", ll->edge_mark_color, 1);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "intersection_color", ll->intersection_color, 1);
-				DRW_shgroup_uniform_float(ll->shgrp, "thickness_crease", &ll->thickness_crease, 1);
-				DRW_shgroup_uniform_float(ll->shgrp, "thickness_material", &ll->thickness_material, 1);
-				DRW_shgroup_uniform_float(ll->shgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
-				DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
-				DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
-				DRW_shgroup_uniform_float(ll->shgrp, "thickness", &ll->thickness, 1);
-				DRW_shgroup_call_add(ll->shgrp, lanpr->render_buffer->ChainDrawBatch, NULL);
-			}
-		}
+		;
 		/*LANPR_LineLayer *ll;
 		for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
 			ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
@@ -502,21 +482,51 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 	}
 	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE)
 	{
-
 		GPU_framebuffer_bind(fbl->software_ms);
-
 		GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
 
-		int texw = GPU_texture_width(txl->ms_resolve_color), texh = GPU_texture_height(txl->ms_resolve_color);;
-		pd->output_viewport[2] = scene->r.xsch;
-		pd->output_viewport[3] = scene->r.ysch;
-		pd->dpix_viewport[2] = texw;
-		pd->dpix_viewport[3] = texh;
+		if (lanpr->render_buffer && lanpr->render_buffer->ChainDrawBatch) {
+			LANPR_LineLayer* ll;
+			for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+				LANPR_RenderBuffer* rb;
+				psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
+				rb = lanpr->render_buffer;
+				rb->ChainShgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "color", ll->color, 1);
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "crease_color", ll->crease_color, 1);
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "material_color", ll->material_color, 1);
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "edge_mark_color", ll->edge_mark_color, 1);
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "intersection_color", ll->intersection_color, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness", &ll->thickness, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_crease", &ll->thickness_crease, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_material", &ll->thickness_material, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 
-		// debug purpose
-		//DRW_draw_pass(psl->color_pass);
-		//DRW_draw_pass(psl->color_pass);
-		DRW_draw_pass(psl->software_pass);
+				int texw = GPU_texture_width(txl->ms_resolve_color), texh = GPU_texture_height(txl->ms_resolve_color);;
+				pd->output_viewport[2] = scene->r.xsch;
+				pd->output_viewport[3] = scene->r.ysch;
+				pd->dpix_viewport[2] = texw;
+				pd->dpix_viewport[3] = texh;
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
+				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "output_viewport", stl->g_data->output_viewport, 1);
+
+				float *tld = &lanpr->taper_left_distance, *tls = &lanpr->taper_left_strength,
+					  *trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
+
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperLDist", tld, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperLStrength", tls, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperRDist", lanpr->use_same_taper ? tld : trd, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperRStrength", lanpr->use_same_taper ? tls : trs, 1);
+
+				//need to add component enable/disable option.
+				DRW_shgroup_call_add(rb->ChainShgrp, lanpr->render_buffer->ChainDrawBatch, NULL);
+				// debug purpose
+				//DRW_draw_pass(psl->color_pass);
+				//DRW_draw_pass(psl->color_pass);
+				DRW_draw_pass(psl->software_pass);
+			}
+		}
 
 		GPU_framebuffer_blit(fbl->software_ms, 0, dfb, 0, GPU_COLOR_BIT);
 
