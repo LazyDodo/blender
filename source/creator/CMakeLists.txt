@@ -336,21 +336,6 @@ install(
 if(WITH_PYTHON)
 	# install(CODE "message(\"copying blender scripts...\")")
 
-	# exclude addons_contrib if release
-	if("${BLENDER_VERSION_CYCLE}" STREQUAL "release" OR
-	   "${BLENDER_VERSION_CYCLE}" STREQUAL "rc")
-		set(ADDON_EXCLUDE_CONDITIONAL "addons_contrib/*")
-	else()
-		set(ADDON_EXCLUDE_CONDITIONAL "_addons_contrib/*")  # dummy, wont do anything
-	endif()
-
-	# do not install freestyle dir if disabled
-	if(NOT WITH_FREESTYLE)
-		set(FREESTYLE_EXCLUDE_CONDITIONAL "freestyle/*")
-	else()
-		set(FREESTYLE_EXCLUDE_CONDITIONAL "_freestyle/*")  # dummy, wont do anything
-	endif()
-
 	install(
 		DIRECTORY ${CMAKE_SOURCE_DIR}/release/scripts
 		DESTINATION ${TARGETDIR_VER}
@@ -358,12 +343,10 @@ if(WITH_PYTHON)
 		PATTERN ".gitignore" EXCLUDE
 		PATTERN ".arcconfig" EXCLUDE
 		PATTERN "__pycache__" EXCLUDE
-		PATTERN "${ADDON_EXCLUDE_CONDITIONAL}" EXCLUDE
-		PATTERN "${FREESTYLE_EXCLUDE_CONDITIONAL}" EXCLUDE
+		PATTERN "addons/*" EXCLUDE
+		PATTERN "addons_contrib/*" EXCLUDE
+		PATTERN "freestyle/*" EXCLUDE
 	)
-
-	unset(ADDON_EXCLUDE_CONDITIONAL)
-	unset(FREESTYLE_EXCLUDE_CONDITIONAL)
 endif()
 
 # localization

@@ -341,6 +341,9 @@ void WM_init(bContext *C, int argc, const char **argv)
 
 void WM_init_splash(bContext *C)
 {
+	/* Benchmark: no splash screen. */
+	return;
+
 	if ((U.uiflag & USER_SPLASH_DISABLE) == 0) {
 		wmWindowManager *wm = CTX_wm_manager(C);
 		wmWindow *prevwin = CTX_wm_window(C);

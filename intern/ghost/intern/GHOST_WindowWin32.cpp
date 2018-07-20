@@ -149,7 +149,8 @@ GHOST_WindowWin32::GHOST_WindowWin32(GHOST_SystemWin32 *system,
 		else if (top < monitor.rcWork.top)
 			top = monitor.rcWork.top;
 
-		int wintype = WS_OVERLAPPEDWINDOW;
+		/* Benchmark: no window resize. */
+		int wintype = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 		if (m_parentWindowHwnd != 0) {
 			wintype = WS_CHILD;
 			GetWindowRect((HWND)m_parentWindowHwnd, &rect);

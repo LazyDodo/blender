@@ -556,6 +556,11 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 
 		/* Ensure tools are registered. */
 		WM_toolsystem_init(C);
+
+		/* Benchmark: fullscreen editor. */
+		CTX_wm_window_set(C, wm->windows.first);
+		ED_screen_full_newspace(C, NULL, SPACE_BENCHMARK);
+		CTX_wm_window_set(C, NULL);
 	}
 }
 

@@ -533,8 +533,9 @@ GHOST_WindowCocoa::GHOST_WindowCocoa(
 	rect.size.width = width;
 	rect.size.height = height;
 	
+	/* Benchmark: no window resize. */
 	m_window = [[CocoaWindow alloc] initWithContentRect:rect
-	        styleMask:NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask | NSMiniaturizableWindowMask
+	        styleMask:NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
 	        backing:NSBackingStoreBuffered defer:NO];
 
 	if (m_window == nil) {

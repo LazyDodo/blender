@@ -400,6 +400,9 @@ int main(
 	G.factory_startup = true;  /* using preferences or user startup makes no sense for py-as-module */
 #endif
 
+	/* Benchmark: factory startup. */
+	G.factory_startup = true;
+
 #ifdef WITH_FFMPEG
 	IMB_ffmpeg_init();
 #endif

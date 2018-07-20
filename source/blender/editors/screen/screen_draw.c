@@ -433,6 +433,9 @@ static void drawscredge_area(ScrArea *sa, int sizex, int sizey, unsigned int pos
  */
 void ED_screen_draw_edges(wmWindow *win)
 {
+	/* Benchmark: no edges between editors. */
+	return;
+
 	bScreen *screen = WM_window_get_active_screen(win);
 	const int winsize_x = WM_window_pixels_x(win);
 	const int winsize_y = WM_window_pixels_y(win);

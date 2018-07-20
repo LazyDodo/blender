@@ -546,8 +546,10 @@ void wm_window_title(wmWindowManager *wm, wmWindow *win)
 			             G_MAIN->recovered ? " (Recovered)" : "");
 			GHOST_SetTitle(win->ghostwin, str);
 		}
-		else
-			GHOST_SetTitle(win->ghostwin, "Blender");
+		else {
+			/* Benchmark: title. */
+			GHOST_SetTitle(win->ghostwin, "Blender Benchmark");
+		}
 
 		/* Informs GHOST of unsaved changes, to set window modified visual indicator (MAC OS X)
 		 * and to give hint of unsaved changes for a user warning mechanism
@@ -691,6 +693,23 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	}
 }
 
+/* Benchmark: ugly hack to get DPI before we have opened any windows. */
+static void wm_window_set_startup_dpi(wmWindow *win)
+{
+	GHOST_GLSettings glSettings = {0};
+
+	win->ghostwin = GHOST_CreateWindow(g_system, "Temp",
+	                                   0, 0, 512, 512,
+	                                   GHOST_kWindowStateNormal,
+	                                   GHOST_kDrawingContextTypeOpenGL,
+	                                   glSettings);
+
+	WM_window_set_dpi(win);
+
+	GHOST_DisposeWindow(g_system, win->ghostwin);
+	win->ghostwin = NULL;
+}
+
 /**
  * Initialize #wmWindow without ghostwin, open these and clear.
  *
@@ -758,7 +777,13 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 				win->cursor = CURSOR_STD;
 			}
 
-			wm_window_ghostwindow_add(wm, "Blender", win);
+			/* Benchmark: fixed size window. */
+			wm_window_set_startup_dpi(win);
+			win->sizex = 800 * UI_DPI_FAC;
+			win->sizey = 570 * UI_DPI_FAC;
+
+			/* Benchmark: title. */
+			wm_window_ghostwindow_add(wm, "Blender Benchmark", win);
 		}
 		/* happens after fileread */
 		wm_window_ensure_eventstate(win);
@@ -954,7 +979,7 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	else if (sa->spacetype == SPACE_IPO)
 		title = IFACE_("Blender Drivers Editor");
 	else
-		title = "Blender";
+		title = "Blender Benchmark"; /* Benchmark: title. */
 
 	if (win->ghostwin) {
 		GHOST_SetTitle(win->ghostwin, title);

@@ -792,6 +792,9 @@ static void screen_global_statusbar_area_create(wmWindow *win)
 
 void ED_screen_global_areas_create(wmWindow *win)
 {
+	/* Benchmark: no global areas. */
+	return;
+
 	/* Don't create global areas for child windows. */
 	if (win->parent) {
 		return;

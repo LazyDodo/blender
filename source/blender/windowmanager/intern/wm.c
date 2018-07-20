@@ -243,8 +243,14 @@ void WM_keymap_init(bContext *C)
 		/* create default key config, only initialize once,
 		 * it's persistent across sessions */
 		if (!(wm->defaultconf->flag & KEYCONF_INIT_DEFAULT)) {
+			/* Benchmark: no keymaps. */
+#if 0
 			wm_window_keymap(wm->defaultconf);
 			ED_spacetypes_keymap(wm->defaultconf);
+#else
+			SpaceType *st = BKE_spacetype_from_id(SPACE_FILE);
+			st->keymap(wm->defaultconf);
+#endif
 
 			wm->defaultconf->flag |= KEYCONF_INIT_DEFAULT;
 		}

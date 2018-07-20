@@ -345,6 +345,8 @@ def enable(module_name, *, default_set=False, persistent=False, handle_error=Non
     # disable the context, using the context at all is
     # really bad while loading an addon, don't do it!
     with RestrictBlend():
+        # Benchmark: disable addons
+        return None
 
         # 1) try import
         try:
