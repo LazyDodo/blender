@@ -93,8 +93,7 @@ static void rna_Material_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Point
 	Material *ma = ptr->id.data;
 
 	DEG_id_tag_update(&ma->id, DEG_TAG_COPY_ON_WRITE);
-
-	WM_main_add_notifier(NC_MATERIAL | ND_SHADING | ND_SHADING_PREVIEW, ma);
+	WM_main_add_notifier(NC_MATERIAL | ND_SHADING, ma);
 }
 
 static void rna_Material_update_previews(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
