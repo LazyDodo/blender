@@ -74,7 +74,7 @@ void main(void)
 	vec2 miter_a = normalize(n0 + n1);	// miter at start of current segment
 	vec2 miter_b = normalize(n1 + n2);  // miter at end of current segment
 
-    /* determine the length of the miter by projecting it onto normal and then inverse it */
+	/* determine the length of the miter by projecting it onto normal and then inverse it */
 	float an1 = dot(miter_a, n1);
 	float bn1 = dot(miter_b, n2);
 	if (an1 == 0) an1 = 1;

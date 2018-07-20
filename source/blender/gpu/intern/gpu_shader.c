@@ -873,8 +873,8 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		                                  datatoc_gpu_shader_2D_nodelink_frag_glsl },
 
 		[GPU_SHADER_GPENCIL_STROKE] = { datatoc_gpu_shader_gpencil_stroke_vert_glsl,
-									    datatoc_gpu_shader_gpencil_stroke_frag_glsl,
-			                            datatoc_gpu_shader_gpencil_stroke_geom_glsl },
+		                                datatoc_gpu_shader_gpencil_stroke_frag_glsl,
+		                                datatoc_gpu_shader_gpencil_stroke_geom_glsl },
 
 		[GPU_SHADER_GPENCIL_FILL] = { datatoc_gpu_shader_gpencil_fill_vert_glsl,
 		                              datatoc_gpu_shader_gpencil_fill_frag_glsl },
