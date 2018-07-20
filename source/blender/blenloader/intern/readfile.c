@@ -6398,6 +6398,8 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	}
 
 	/* LANPR things */
+	sce->lanpr.active_layer = newdataadr(fd, sce->lanpr.active_layer);
+	sce->lanpr.render_buffer = NULL;
 	link_list(fd, &sce->lanpr.line_layers);
 	for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
 		link_list(fd, &ll->components);
