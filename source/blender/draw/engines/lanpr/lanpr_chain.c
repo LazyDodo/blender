@@ -128,6 +128,7 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
 		if (from->Item.pNext == to) return;
 		for (rlci = from->Item.pNext; rlci != to; rlci = next_rlci) {
 			next_rlci = rlci->Item.pNext;
+			if (next_rlci && (next_rlci->OccludeLevel != rlci->OccludeLevel || next_rlci->LineType != rlci->LineType)) continue;
 			lstRemoveItem(&rlc->Chain, (void*)rlci);
 		}
 	}else {
@@ -237,7 +238,7 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
 		//}
 		//printf("--------\n");
 
-        //lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.pFirst, rlc->Chain.pLast, dist_threshold);
+        lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.pFirst, rlc->Chain.pLast, dist_threshold);
     }
 }
 
