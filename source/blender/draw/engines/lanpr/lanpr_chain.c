@@ -303,11 +303,7 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
     Gwn_IndexBufBuilder elb;
 	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, vert_count*4, vert_count, true);// elem count will not exceed vert_count
 
-	int debc = 0;
-
     for(rlc = rb->Chains.pFirst; rlc; rlc=rlc->Item.pNext){
-		//if (debc == 1) break;
-		debc++;
 
 		total_length = lanpr_ComputeChainLength(rlc, lengths, i);
 
@@ -319,7 +315,14 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
             GWN_vertbuf_attr_set(vbo, attr_id.pos, i, rlci->pos);
             GWN_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
 
-			if (rlci == rlc->Chain.pLast) { i++; continue; }
+			if (rlci == rlc->Chain.pLast) {
+				if (rlci->Item.pPrev == rlc->Chain.pFirst) {
+					length_target[1] = total_length;
+					GWN_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
+				}
+				i++; 
+				continue; 
+			}
 
 			if (rlci == rlc->Chain.pFirst) {
 				if (rlci->Item.pNext == rlc->Chain.pLast) GWN_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, vert_count);
