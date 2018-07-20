@@ -89,6 +89,11 @@ PyObject *GPU_initPython(void)
 
 	module = PyInit_gpu();
 
+	/* gpu.draw */
+	PyModule_AddObject(module, "draw", (submodule = BPyInit_gpu_draw()));
+	PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);
+	Py_INCREF(submodule);
+
 	/* gpu.offscreen */
 	PyModule_AddObject(module, "offscreen", (submodule = BPyInit_gpu_offscreen()));
 	PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);

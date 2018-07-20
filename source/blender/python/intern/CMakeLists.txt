@@ -83,6 +83,7 @@ set(SRC
 	bpy_utils_previews.c
 	bpy_utils_units.c
 	gpu.c
+	gpu_draw.c
 	gpu_offscreen.c
 	gpu_py_matrix.c
 	gpu_py_select.c
