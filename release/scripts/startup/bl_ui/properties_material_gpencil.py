@@ -137,7 +137,7 @@ class MATERIAL_PT_gpencil_slots(Panel):
         row = layout.row()
 
         if ob:
-            row.template_ID(ob, "active_material", new="material.new", live_icon=True)
+            row.template_ID(ob, "active_material", new="material.new")
 
             if slot:
                 icon_link = 'MESH_DATA' if slot.link == 'DATA' else 'OBJECT_DATA'

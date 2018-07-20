@@ -1672,13 +1672,23 @@ static int ui_id_screen_get_icon(const bContext *C, ID *id)
 int ui_id_icon_get(const bContext *C, ID *id, const bool big)
 {
 	int iconid = 0;
+	bool use_job = true;
+	Material *ma = NULL;
 
 	/* icon */
 	switch (GS(id->name)) {
 		case ID_BR:
 			iconid = ui_id_brush_get_icon(C, id);
 			break;
-		case ID_MA: /* fall through */
+		case ID_MA:
+			ma = (Material *)id;
+			/* grease pencil cannot use jobs or crash */
+			if (ma->gp_style != NULL) {
+				use_job =false;
+			}
+			iconid = BKE_icon_id_ensure(id);
+			UI_id_icon_render(C, NULL, id, big, use_job);
+			break;
 		case ID_TE: /* fall through */
 		case ID_IM: /* fall through */
 		case ID_WO: /* fall through */
