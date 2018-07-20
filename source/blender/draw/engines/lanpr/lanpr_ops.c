@@ -423,7 +423,7 @@ void lanpr_AddTriangles(LANPR_RenderBuffer *rb) {
 		lim = reln->ElementCount;
 		for (i = 0; i < lim; i++) {
 			if (rt->CullStatus) {
-				rt++; continue;
+				(void *)(((BYTE *)rt) + rb->TriangleSize); continue;
 			}
 			if (lanpr_GetTriangleBoundingAreas(rb, rt, &y1, &y2, &x1, &x2)) {
 				for (co = x1; co <= x2; co++) {
