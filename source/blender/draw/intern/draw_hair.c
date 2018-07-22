@@ -158,7 +158,9 @@ static DRWShadingGroup *drw_shgroup_create_particle_hair_procedural_ex(
 		}
 	}
 
-	const int strands_res = 1 << (part->draw_step + subdiv);
+	// XXX HACK! soon to be removed in favor of per-strand res values (need the static for setting a uniform)
+	static int strands_res;
+	strands_res = (1 << (part->draw_step + subdiv)) + 1;
 	DRW_shgroup_uniform_texture(shgrp, "hairPointBuffer", hair_cache->final[subdiv].proc_tex);
 	DRW_shgroup_uniform_int(shgrp, "hairStrandsRes", &strands_res, 1);
 	DRW_shgroup_uniform_int_copy(shgrp, "hairThicknessRes", thickness_res);
