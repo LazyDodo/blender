@@ -632,8 +632,8 @@ static int particle_batch_cache_fill_segments_indices(
         Gwn_IndexBufBuilder *elb)
 {
 	const ParticleSettings *part = psys->part;
-	const int strands_res = 1 << (part->draw_step + subdiv);
-	const int verts_per_hair = strands_res * thickness_res;
+	const int points_per_curve = (1 << (part->draw_step + subdiv)) + 1;
+	const int points_per_hair = points_per_curve * thickness_res;
 	
 	int curr_point = start_index;
 	for (int i = 0; i < num_path_keys; i++) {
@@ -642,7 +642,7 @@ static int particle_batch_cache_fill_segments_indices(
 			continue;
 		}
 		
-		for (int k = 0; k < verts_per_hair; k++) {
+		for (int k = 0; k < points_per_hair; k++) {
 			GWN_indexbuf_add_generic_vert(elb, curr_point++);
 		}
 		GWN_indexbuf_add_primitive_restart(elb);
@@ -734,14 +734,13 @@ static void ensure_seg_pt_final_count(
 	ParticleHairFinalCache *final_cache = &hair_cache->final[subdiv];
 	
 	const ParticleSettings *part = psys->part;
-	const int strands_res = 1 << (part->draw_step + subdiv);
-	
+	const int points_per_curve = (1 << (part->draw_step + subdiv)) + 1;
+
 	final_cache->strands_len = hair_cache->strands_len;
-	final_cache->point_len = strands_res * final_cache->strands_len;
+	final_cache->point_len = points_per_curve * final_cache->strands_len;
 	
-	const int verts_per_hair = strands_res * thickness_res;
 	/* +1 for primitive restart */
-	final_cache->elems_len = (verts_per_hair + 1) * final_cache->strands_len;
+	final_cache->elems_len = (points_per_curve * thickness_res + 1) * final_cache->strands_len;
 }
 
 static void particle_batch_cache_ensure_procedural_final_points(
