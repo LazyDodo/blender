@@ -36,32 +36,18 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
-#include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_world_types.h"
 
 #include "BLI_math.h"
-#include "BLI_blenlib.h"
+#include "BLI_listbase.h"
 #include "BLI_utildefines.h"
-#include "BLI_rand.h"
-#include "BLI_threads.h"
 
-#include "BKE_anim.h"
-#include "BKE_colorband.h"
-#include "BKE_colortools.h"
-#include "BKE_global.h"
-#include "BKE_image.h"
-#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_scene.h"
 
-#include "IMB_imbuf_types.h"
-
-#include "GPU_extensions.h"
-#include "GPU_framebuffer.h"
 #include "GPU_material.h"
 #include "GPU_shader.h"
 #include "GPU_texture.h"
@@ -74,9 +60,6 @@
 #ifdef WITH_OPENSUBDIV
 #  include "BKE_DerivedMesh.h"
 #endif
-
-static ListBase g_orphaned_mat = {NULL, NULL};
-static ThreadMutex g_orphan_lock;
 
 /* Structs */
 
@@ -175,42 +158,10 @@ void GPU_material_free(ListBase *gpumaterial)
 {
 	for (LinkData *link = gpumaterial->first; link; link = link->next) {
 		GPUMaterial *material = link->data;
-
-		/* TODO(fclem): Check if the thread has an ogl context. */
-		if (BLI_thread_is_main()) {
-			gpu_material_free_single(material);
-			MEM_freeN(material);
-		}
-		else {
-			BLI_mutex_lock(&g_orphan_lock);
-			BLI_addtail(&g_orphaned_mat, BLI_genericNodeN(material));
-			BLI_mutex_unlock(&g_orphan_lock);
-		}
+		gpu_material_free_single(material);
+		MEM_freeN(material);
 	}
 	BLI_freelistN(gpumaterial);
-}
-
-void GPU_material_orphans_init(void)
-{
-	BLI_mutex_init(&g_orphan_lock);
-}
-
-void GPU_material_orphans_delete(void)
-{
-	BLI_mutex_lock(&g_orphan_lock);
-	LinkData *link;
-	while ((link = BLI_pophead(&g_orphaned_mat))) {
-		gpu_material_free_single((GPUMaterial *)link->data);
-		MEM_freeN(link->data);
-		MEM_freeN(link);
-	}
-	BLI_mutex_unlock(&g_orphan_lock);
-}
-
-void GPU_material_orphans_exit(void)
-{
-	GPU_material_orphans_delete();
-	BLI_mutex_end(&g_orphan_lock);
 }
 
 GPUBuiltin GPU_get_material_builtins(GPUMaterial *material)
@@ -659,14 +610,15 @@ GPUMaterial *GPU_material_from_nodetree(
 		GPU_nodes_prune(&mat->nodes, mat->outlink);
 		GPU_nodes_get_vertex_attributes(&mat->nodes, &mat->attribs);
 		/* Create source code and search pass cache for an already compiled version. */
-		mat->pass = GPU_generate_pass_new(mat,
-		                      mat->outlink,
-		                      &mat->attribs,
-		                      &mat->nodes,
-		                      vert_code,
-		                      geom_code,
-		                      frag_lib,
-		                      defines);
+		mat->pass = GPU_generate_pass_new(
+		        mat,
+		        mat->outlink,
+		        &mat->attribs,
+		        &mat->nodes,
+		        vert_code,
+		        geom_code,
+		        frag_lib,
+		        defines);
 
 		if (mat->pass == NULL) {
 			/* We had a cache hit and the shader has already failed to compile. */

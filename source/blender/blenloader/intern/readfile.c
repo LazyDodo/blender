@@ -3352,6 +3352,10 @@ static void direct_link_nodetree(FileData *fd, bNodeTree *ntree)
 					direct_link_curvemapping(fd, node->storage);
 				else if (ELEM(node->type, CMP_NODE_IMAGE, CMP_NODE_R_LAYERS, CMP_NODE_VIEWER, CMP_NODE_SPLITVIEWER))
 					((ImageUser *)node->storage)->ok = 1;
+				else if (node->type==CMP_NODE_CRYPTOMATTE) {
+					NodeCryptomatte *nc = (NodeCryptomatte *) node->storage;
+					nc->matte_id = newdataadr(fd, nc->matte_id);
+				}
 			}
 			else if ( ntree->type==NTREE_TEXTURE) {
 				if (node->type==TEX_NODE_CURVE_RGB || node->type==TEX_NODE_CURVE_TIME)
@@ -5116,6 +5120,9 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				smd->domain->tex = NULL;
 				smd->domain->tex_shadow = NULL;
 				smd->domain->tex_flame = NULL;
+				smd->domain->tex_velocity_x = NULL;
+				smd->domain->tex_velocity_y = NULL;
+				smd->domain->tex_velocity_z = NULL;
 				smd->domain->tex_wt = NULL;
 				smd->domain->coba = newdataadr(fd, smd->domain->coba);
 
@@ -6619,9 +6626,10 @@ static void direct_link_area(FileData *fd, ScrArea *area)
 			v3d->properties_storage = NULL;
 
 			/* render can be quite heavy, set to solid on load */
-			if (v3d->drawtype == OB_RENDER)
-				v3d->drawtype = OB_SOLID;
-			v3d->prev_drawtype = OB_SOLID;
+			if (v3d->shading.type == OB_RENDER) {
+				v3d->shading.type = OB_SOLID;
+			}
+			v3d->shading.prev_type = OB_SOLID;
 
 			if (v3d->fx_settings.dof)
 				v3d->fx_settings.dof = newdataadr(fd, v3d->fx_settings.dof);
@@ -7030,7 +7038,7 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		direct_link_area_map(fd, &win->global_areas);
 
 		win->ghostwin = NULL;
-		win->gwnctx = NULL;
+		win->gpuctx = NULL;
 		win->eventstate = NULL;
 		win->cursor_keymap_status = NULL;
 		win->tweak = NULL;
@@ -7715,6 +7723,7 @@ static void direct_link_speaker(FileData *fd, Speaker *spk)
 
 static void direct_link_sound(FileData *fd, bSound *sound)
 {
+	sound->tags = 0;
 	sound->handle = NULL;
 	sound->playback_handle = NULL;
 
@@ -7726,6 +7735,7 @@ static void direct_link_sound(FileData *fd, bSound *sound)
 
 	if (fd->soundmap) {
 		sound->waveform = newsoundadr(fd, sound->waveform);
+		sound->tags |= SOUND_TAGS_WAVEFORM_NO_RELOAD;
 	}
 	else {
 		sound->waveform = NULL;
@@ -7736,7 +7746,7 @@ static void direct_link_sound(FileData *fd, bSound *sound)
 		BLI_spin_init(sound->spinlock);
 	}
 	/* clear waveform loading flag */
-	sound->flags &= ~SOUND_FLAGS_WAVEFORM_LOADING;
+	sound->tags &= ~SOUND_TAGS_WAVEFORM_LOADING;
 
 	sound->packedfile = direct_link_packedfile(fd, sound->packedfile);
 	sound->newpackedfile = direct_link_packedfile(fd, sound->newpackedfile);

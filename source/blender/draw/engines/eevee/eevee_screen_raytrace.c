@@ -132,6 +132,14 @@ int EEVEE_screen_raytrace_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			});
 		}
 
+		const bool is_persp = DRW_viewport_is_persp_get();
+		if (effects->ssr_was_persp != is_persp) {
+			effects->ssr_was_persp = is_persp;
+			DRW_viewport_request_redraw();
+			EEVEE_temporal_sampling_reset(vedata);
+			stl->g_data->valid_double_buffer = false;
+		}
+
 		effects->reflection_trace_full = (scene_eval->eevee.flag & SCE_EEVEE_SSR_HALF_RESOLUTION) == 0;
 		common_data->ssr_thickness = scene_eval->eevee.ssr_thickness;
 		common_data->ssr_border_fac = scene_eval->eevee.ssr_border_fade;
@@ -189,7 +197,7 @@ void EEVEE_screen_raytrace_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *v
 	EEVEE_EffectsInfo *effects = stl->effects;
 	LightCache *lcache = stl->g_data->light_cache;
 
-	struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
+	struct GPUBatch *quad = DRW_cache_fullscreen_quad_get();
 
 	if ((effects->enabled_effects & EFFECT_SSR) != 0) {
 		int options = (effects->reflection_trace_full) ? SSR_FULL_TRACE : 0;
