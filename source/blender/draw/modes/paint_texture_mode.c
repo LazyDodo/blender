@@ -26,6 +26,8 @@
 #include "DRW_engine.h"
 #include "DRW_render.h"
 
+#include "BKE_image.h"
+
 #include "BIF_gl.h"
 
 /* If builtin shaders are needed */
@@ -118,7 +120,6 @@ typedef struct PAINT_TEXTURE_PrivateData {
 	/* This keeps the references of the shading groups for
 	 * easy access in PAINT_TEXTURE_cache_populate() */
 	DRWShadingGroup *shgroup_fallback;
-	DRWShadingGroup **shgroup_image_array;
 
 	/* face-mask  */
 	DRWShadingGroup *lwire_shgrp;
@@ -189,7 +190,6 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
 		stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
-		stl->g_data->shgroup_image_array = NULL;
 	}
 
 	{
@@ -203,53 +203,6 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 		 * any given time (i.e. use static vars) */
 		static float color[4] = {1.0f, 0.0f, 1.0f, 1.0};
 		DRW_shgroup_uniform_vec4(stl->g_data->shgroup_fallback, "color", color, 1);
-
-		MEM_SAFE_FREE(stl->g_data->shgroup_image_array);
-
-		const DRWContextState *draw_ctx = DRW_context_state_get();
-		Object *ob = draw_ctx->obact;
-		if (ob && ob->type == OB_MESH) {
-			Scene *scene = draw_ctx->scene;
-			const bool use_material_slots = (scene->toolsettings->imapaint.mode == IMAGEPAINT_MODE_MATERIAL);
-			const Mesh *me = ob->data;
-
-			stl->g_data->shgroup_image_array = MEM_mallocN(
-			        sizeof(*stl->g_data->shgroup_image_array) * (use_material_slots ? me->totcol : 1), __func__);
-
-			if (use_material_slots) {
-				for (int i = 0; i < me->totcol; i++) {
-					Material *ma = give_current_material(ob, i + 1);
-					Image *ima = (ma && ma->texpaintslot) ? ma->texpaintslot[ma->paint_active_slot].ima : NULL;
-					GPUTexture *tex = ima ?
-					        GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, 0.0f) : NULL;
-
-					if (tex) {
-						DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
-						DRW_shgroup_uniform_texture(grp, "image", tex);
-						DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
-						stl->g_data->shgroup_image_array[i] = grp;
-					}
-					else {
-						stl->g_data->shgroup_image_array[i] = NULL;
-					}
-				}
-			}
-			else {
-				Image *ima = scene->toolsettings->imapaint.canvas;
-				GPUTexture *tex = ima ?
-				        GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, 0.0f) : NULL;
-
-				if (tex) {
-					DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
-					DRW_shgroup_uniform_texture(grp, "image", tex);
-					DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
-					stl->g_data->shgroup_image_array[0] = grp;
-				}
-				else {
-					stl->g_data->shgroup_image_array[0] = NULL;
-				}
-			}
-		}
 	}
 
 	/* Face Mask */
@@ -293,29 +246,62 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 		if (use_surface) {
 			if (me->mloopuv != NULL) {
 				if (use_material_slots) {
-					struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
-					if ((me->totcol == 0) || (geom_array == NULL)) {
-						struct GPUBatch *geom = DRW_cache_mesh_surface_get(ob);
-						DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom, ob->obmat);
-						ok = true;
-					}
-					else {
-						for (int i = 0; i < me->totcol; i++) {
-							if (stl->g_data->shgroup_image_array[i]) {
-								DRW_shgroup_call_add(stl->g_data->shgroup_image_array[i], geom_array[i], ob->obmat);
+					//struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+					if (me->totcol) {
+						bool *is_tiled = MEM_mallocN(sizeof(bool)*me->totcol, "paint texture is tiled");
+						for(int i = 0; i < me->totcol; i++) {
+							Material *ma = give_current_material(ob, i + 1);
+							Image *ima = (ma && ma->texpaintslot) ? ma->texpaintslot[ma->paint_active_slot].ima : NULL;
+							is_tiled[i] = ima && (ima->source == IMA_SRC_TILED);
+						}
+
+						int num_batches = 0;
+						struct TexpaintCacheBatch *geom_batches = DRW_cache_mesh_surface_texpaint_get(ob, is_tiled, &num_batches);
+
+						for (int i = 0; i < num_batches; i++) {
+							ImageUser iuser = {NULL};
+							iuser.ok = 1;
+							iuser.tile = geom_batches[i].tile;
+
+							Material *ma = give_current_material(ob, geom_batches[i].material + 1);
+							Image *ima = (ma && ma->texpaintslot) ? ma->texpaintslot[ma->paint_active_slot].ima : NULL;
+							GPUTexture *tex = ima ?
+									GPU_texture_from_blender(ima, &iuser, GL_TEXTURE_2D, false, 0.0f) : NULL;
+
+							if (tex) {
+								DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
+								DRW_shgroup_uniform_texture(grp, "image", tex);
+								DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
+								DRW_shgroup_call_add(grp, geom_batches[i].batch, ob->obmat);
 							}
 							else {
-								DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom_array[i], ob->obmat);
+								DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom_batches[i].batch, ob->obmat);
 							}
 							ok = true;
 						}
 					}
 				}
 				else {
-					struct GPUBatch *geom = DRW_cache_mesh_surface_texpaint_single_get(ob);
-					if (geom && stl->g_data->shgroup_image_array[0]) {
-						DRW_shgroup_call_add(stl->g_data->shgroup_image_array[0], geom, ob->obmat);
-						ok = true;
+					Image *ima = scene->toolsettings->imapaint.canvas;
+
+					if (ima) {
+						bool is_tiled = (ima->source == IMA_SRC_TILED);
+						int num_batches = 0;
+						struct TexpaintCacheBatch *geom_batches = DRW_cache_mesh_surface_texpaint_single_get(ob, is_tiled, &num_batches);
+
+						for (int i = 0; i < num_batches; i++) {
+							ImageUser iuser = {NULL};
+							iuser.ok = 1;
+							iuser.tile = geom_batches[i].tile;
+							GPUTexture *tex = GPU_texture_from_blender(ima, &iuser, GL_TEXTURE_2D, false, 0.0f);
+							if (tex) {
+								DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
+								DRW_shgroup_uniform_texture(grp, "image", tex);
+								DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
+								DRW_shgroup_call_add(grp, geom_batches[i].batch, ob->obmat);
+								ok = true;
+							}
+						}
 					}
 				}
 			}
@@ -345,12 +331,9 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 static void PAINT_TEXTURE_cache_finish(void *vedata)
 {
 	PAINT_TEXTURE_PassList *psl = ((PAINT_TEXTURE_Data *)vedata)->psl;
-	PAINT_TEXTURE_StorageList *stl = ((PAINT_TEXTURE_Data *)vedata)->stl;
 
 	/* Do something here! dependant on the objects gathered */
 	UNUSED_VARS(psl);
-
-	MEM_SAFE_FREE(stl->g_data->shgroup_image_array);
 }
 
 /* Draw time ! Control rendering pipeline from here */
