@@ -63,7 +63,10 @@ def generate_from_brushes_ex(
             main_brush = context.blend_data.brushes[e[0]]
 
             for brush in context.blend_data.brushes:
-                if brush.name.startswith(main_brush.name) and getattr(brush, brush_test_attr):
+                bname = brush.name
+                if bname[-4:-3] == '.':
+                    bname = bname[:-4]
+                if bname == main_brush.name and getattr(brush, brush_test_attr):
                     category = getattr(brush.gpencil_settings, brush_category_attr)
                     name = brush.name
                     if name.startswith("Draw "):
