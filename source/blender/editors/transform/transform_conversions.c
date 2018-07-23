@@ -8286,15 +8286,6 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 							bGPDspoint *pt;
 							int i;
 
-#if 0	/* XXX: this isn't needed anymore; cannot calculate center this way or is_prop_edit breaks */
-							const float ninv = 1.0f / gps->totpoints;
-							float center[3] = { 0.0f };
-
-							/* compute midpoint of stroke */
-							for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-								madd_v3_v3v3fl(center, center, &pt->x, ninv);
-							}
-#endif
 							/* save falloff factor */
 							gps->runtime.multi_frame_falloff = falloff;
 
