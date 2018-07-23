@@ -262,7 +262,7 @@ static void lanpr_cache_init(void *vedata){
 
 
 	if (lanpr->master_mode == LANPR_MASTER_MODE_SNAKE) {
-		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
+		struct GPUBatch *quad = DRW_cache_fullscreen_quad_get();
 
 		psl->edge_intermediate = DRW_pass_create("Edge Detection", DRW_STATE_WRITE_COLOR);
 		stl->g_data->edge_detect_shgrp = DRW_shgroup_create(OneTime.edge_detect_shader, psl->edge_intermediate);
@@ -384,7 +384,7 @@ static void lanpr_cache_populate(void *vedata, Object *ob){
 	if (ob == draw_ctx->object_edit) return;
 	if (ob->type != OB_MESH) return;
 
-	struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
+	struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 	if (geom) {
 		DRW_shgroup_call_object_add_no_cull(stl->g_data->multipass_shgrp, geom, ob);
 	}

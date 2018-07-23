@@ -279,16 +279,16 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 	float* lengths;
 	float length_target[2];
 
-    static Gwn_VertFormat format = { 0 };
+    static GPUVertFormat format = { 0 };
 	static struct { uint pos, offset, type, level; } attr_id;
 	if (format.attr_len == 0) {
-		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-        attr_id.offset = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		attr_id.type = GWN_vertformat_attr_add(&format, "type", GWN_COMP_I32, 1, GWN_FETCH_FLOAT);
-		attr_id.level = GWN_vertformat_attr_add(&format, "level", GWN_COMP_I32, 1, GWN_FETCH_INT);
+		attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+        attr_id.offset = GPU_vertformat_attr_add(&format, "uvs", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+		attr_id.type = GPU_vertformat_attr_add(&format, "type", GPU_COMP_I32, 1, GPU_FETCH_FLOAT);
+		attr_id.level = GPU_vertformat_attr_add(&format, "level", GPU_COMP_I32, 1, GPU_FETCH_INT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
 
     for(rlc = rb->Chains.pFirst; rlc;rlc=rlc->Item.pNext){
 		int count = lanpr_CountChain(rlc);
@@ -296,12 +296,12 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 		vert_count += count;
     }
 
-    GWN_vertbuf_data_alloc(vbo, vert_count+1); // serve as end point's adj.
+    GPU_vertbuf_data_alloc(vbo, vert_count+1); // serve as end point's adj.
 
 	lengths = MEM_callocN(sizeof(float)*vert_count, "chain lengths");
 
-    Gwn_IndexBufBuilder elb;
-	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, vert_count*4, vert_count, true);// elem count will not exceed vert_count
+    GPUIndexBufBuilder elb;
+	GPU_indexbuf_init_ex(&elb, GPU_PRIM_LINES_ADJ, vert_count*4, vert_count, true);// elem count will not exceed vert_count
 
     for(rlc = rb->Chains.pFirst; rlc; rlc=rlc->Item.pNext){
 
@@ -312,25 +312,25 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 			length_target[0] = lengths[i];
 			length_target[1] = total_length - lengths[i];
 
-            GWN_vertbuf_attr_set(vbo, attr_id.pos, i, rlci->pos);
-            GWN_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
+            GPU_vertbuf_attr_set(vbo, attr_id.pos, i, rlci->pos);
+            GPU_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
 
 			if (rlci == rlc->Chain.pLast) {
 				if (rlci->Item.pPrev == rlc->Chain.pFirst) {
 					length_target[1] = total_length;
-					GWN_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
+					GPU_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
 				}
 				i++; 
 				continue; 
 			}
 
 			if (rlci == rlc->Chain.pFirst) {
-				if (rlci->Item.pNext == rlc->Chain.pLast) GWN_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, vert_count);
-				else GWN_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, i + 2);
+				if (rlci->Item.pNext == rlc->Chain.pLast) GPU_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, vert_count);
+				else GPU_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, i + 2);
 			}
 			else {
-				if (rlci->Item.pNext == rlc->Chain.pLast) GWN_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, vert_count);
-				else GWN_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, i + 2);
+				if (rlci->Item.pNext == rlc->Chain.pLast) GPU_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, vert_count);
+				else GPU_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, i + 2);
 			}
 
 			i++;
@@ -339,10 +339,10 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 	//set end point flag value.
 	length_target[0] = 3e30f;
 	length_target[1] = 3e30f;
-	GWN_vertbuf_attr_set(vbo, attr_id.pos, vert_count, length_target);
+	GPU_vertbuf_attr_set(vbo, attr_id.pos, vert_count, length_target);
 
 	MEM_freeN(lengths);
 
-    rb->ChainDrawBatch = GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
+    rb->ChainDrawBatch = GPU_batch_create_ex(GPU_PRIM_LINES_ADJ, vbo, GPU_indexbuf_build(&elb), GPU_USAGE_DYNAMIC | GPU_BATCH_OWNS_VBO);
 
 }

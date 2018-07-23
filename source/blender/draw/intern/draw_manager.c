@@ -81,6 +81,7 @@
 #include "engines/basic/basic_engine.h"
 #include "engines/workbench/workbench_engine.h"
 #include "engines/external/external_engine.h"
+#include "engines/lanpr/lanpr_all.h"
 
 #include "GPU_context.h"
 
@@ -2242,6 +2243,7 @@ void DRW_engines_register(void)
 {
 	RE_engines_register(&DRW_engine_viewport_eevee_type);
 	RE_engines_register(&DRW_engine_viewport_opengl_type);
+	RE_engines_register(&DRW_engine_viewport_lanpr_type);
 
 	DRW_engine_register(&draw_engine_workbench_solid);
 	DRW_engine_register(&draw_engine_workbench_transparent);

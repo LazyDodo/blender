@@ -2876,13 +2876,13 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb);
 //	int VertCount;
 //
 //	if (ll->type == TNS_COMMAND_LINE) {
-//		static Gwn_VertFormat format = { 0 };
+//		static GPUVertFormat format = { 0 };
 //		static struct { uint pos, uvs; } attr_id;
 //		if (format.attr_len == 0) {
-//			attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+//			attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 //		}
 //
-//		Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
+//		GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
 //
 //		if (ll->enable_contour) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->Contours, ll);
 //		if (ll->enable_crease) Count += lanpr_CountLeveledEdgeSegmentCount(&rb->CreaseLines, ll);
@@ -2892,7 +2892,7 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb);
 //
 //		VertCount = Count * 2;
 //
-//		GWN_vertbuf_data_alloc(vbo, VertCount);
+//		GPU_vertbuf_data_alloc(vbo, VertCount);
 //
 //		tv = V = CreateNewBuffer(float, 6 * Count);
 //
@@ -2904,12 +2904,12 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb);
 //
 //
 //		for (i = 0; i < VertCount; i++) {
-//			GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i * 3]);
+//			GPU_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i * 3]);
 //		}
 //
 //		FreeMem(V);
 //
-//		ll->batch = GWN_batch_create_ex(GWN_PRIM_LINES, vbo, 0, GWN_USAGE_DYNAMIC | GWN_BATCH_OWNS_VBO);
+//		ll->batch = GPU_batch_create_ex(GPU_PRIM_LINES, vbo, 0, GPU_USAGE_DYNAMIC | GPU_BATCH_OWNS_VBO);
 //
 //		return;
 //	}
@@ -2924,7 +2924,7 @@ void lanpr_RebuildAllCommand(SceneLANPR *lanpr) {
 	if (!lanpr) return;
 
 	//for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
-	//	if (ll->batch) GWN_batch_discard(ll->batch);
+	//	if (ll->batch) GPU_batch_discard(ll->batch);
 	//	lanpr_RebuildRenderDrawCommand(lanpr->render_buffer, ll);
 	//}
 
@@ -3076,7 +3076,7 @@ int lanpr_delete_line_layer_exec(struct bContext *C, struct wmOperator *op) {
 
 	BLI_remlink(&scene->lanpr.line_layers, ll);
 
-	//if (ll->batch) GWN_batch_discard(ll->batch);
+	//if (ll->batch) GPU_batch_discard(ll->batch);
 
 	MEM_freeN(ll);
 

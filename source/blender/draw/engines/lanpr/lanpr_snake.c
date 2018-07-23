@@ -225,7 +225,7 @@ void lanpr_count_drawing_elements(LANPR_PrivateData *pd, int *vert_count, int *i
 	*index_adjacent_count = e_count;
 }
 
-Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
+GPUBatch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 	LANPR_LineStrip *ls;
 	LANPR_LineStripPoint *lsp, *plsp;
 	int i;
@@ -239,8 +239,8 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 	Verts = MEM_callocN(sizeof(float) * v_count * 2, "Verts buffer pre alloc");
 	Lengths = MEM_callocN(sizeof(float) * v_count * 2, "Length buffer pre alloc");
 
-	Gwn_IndexBufBuilder elb;
-	GWN_indexbuf_init_ex(&elb, GWN_PRIM_LINES_ADJ, e_count, v_count, true);
+	GPUIndexBufBuilder elb;
+	GPU_indexbuf_init_ex(&elb, GPU_PRIM_LINES_ADJ, e_count, v_count, true);
 
 	int vert_offset = 0;
 
@@ -252,7 +252,7 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 			int v4 = i + vert_offset + 2;
 			if (v1 < 0) v1 = 0;
 			if (v4 >= v_count) v4 = v_count - 1;
-			GWN_indexbuf_add_line_adj_verts(&elb, v1, v2, v3, v4);
+			GPU_indexbuf_add_line_adj_verts(&elb, v1, v2, v3, v4);
 		}
 
 		i = 0;
@@ -281,25 +281,25 @@ Gwn_Batch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 		vert_offset += (ls->point_count);
 	}
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
 	if (format.attr_len == 0) {
-		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		attr_id.uvs = GWN_vertformat_attr_add(&format, "uvs", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+		attr_id.uvs = GPU_vertformat_attr_add(&format, "uvs", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, v_count);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, v_count);
 
 	for (int i = 0; i < v_count; ++i) {
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, &Verts[i * 2]);
-		GWN_vertbuf_attr_set(vbo, attr_id.uvs, i, &Lengths[i * 2]);
+		GPU_vertbuf_attr_set(vbo, attr_id.pos, i, &Verts[i * 2]);
+		GPU_vertbuf_attr_set(vbo, attr_id.uvs, i, &Lengths[i * 2]);
 	}
 
 	MEM_freeN(Verts);
 	MEM_freeN(Lengths);
 
-	return GWN_batch_create_ex(GWN_PRIM_LINES_ADJ, vbo, GWN_indexbuf_build(&elb), GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
+	return GPU_batch_create_ex(GPU_PRIM_LINES_ADJ, vbo, GPU_indexbuf_build(&elb), GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
 }
 
 void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB){
@@ -440,7 +440,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	float *tld = &lanpr->taper_left_distance, *tls = &lanpr->taper_left_strength,
 	      *trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
 
-	Gwn_Batch *snake_batch = lanpr_get_snake_batch(pd);
+	GPUBatch *snake_batch = lanpr_get_snake_batch(pd);
 
 	psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
 	pd->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
@@ -455,7 +455,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	GPU_framebuffer_bind(fbl->edge_intermediate);
 
 	DRW_draw_pass(psl->snake_pass);
-	GWN_batch_discard(snake_batch);
+	GPU_batch_discard(snake_batch);
 
 	BLI_mempool_clear(pd->mp_sample);
 	BLI_mempool_clear(pd->mp_line_strip);

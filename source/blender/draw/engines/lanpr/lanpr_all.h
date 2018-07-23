@@ -215,8 +215,8 @@ typedef struct LANPR_PrivateData {
 	unsigned i_buf;
 	unsigned l_buf;
 
-	Gwn_VertFormat snake_gwn_format;
-	Gwn_Batch *snake_batch;
+	GPUVertFormat snake_gwn_format;
+	GPUBatch *snake_batch;
 
 	ListBase dpix_batch_list;
 
@@ -228,8 +228,8 @@ typedef struct LANPR_StorageList {
 
 typedef struct LANPR_BatchItem {
 	Link Item;
-	Gwn_Batch *dpix_transform_batch;
-	Gwn_Batch *dpix_preview_batch;
+	GPUBatch *dpix_transform_batch;
+	GPUBatch *dpix_preview_batch;
 	Object *ob;
 } LANPR_BatchItem;
 
@@ -308,8 +308,8 @@ typedef struct LANPR_RenderBuffer {
 
 	nListHandle IntersectingVertexBuffer;
 
-	struct Gwn_Batch *DPIXIntersectionTransformBatch;
-	struct Gwn_Batch *DPIXIntersectionBatch;
+	struct GPUBatch *DPIXIntersectionTransformBatch;
+	struct GPUBatch *DPIXIntersectionBatch;
 
 	/* use own-implemented one */
 	nStaticMemoryPool RenderDataPool;
@@ -348,7 +348,7 @@ typedef struct LANPR_RenderBuffer {
 	nListHandle EdgeMarks;
 
 	nListHandle Chains;
-	Gwn_Batch*  ChainDrawBatch;
+	GPUBatch*  ChainDrawBatch;
 	DRWShadingGroup* ChainShgrp;
 
 	SpinLock csInfo;

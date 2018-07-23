@@ -281,32 +281,32 @@ int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginInde
 	int i;
 	float co[2];
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
 	if (format.attr_len == 0) {
-		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	static Gwn_VertFormat format2 = { 0 };
+	static GPUVertFormat format2 = { 0 };
 	static struct { uint pos, uvs; } attr_id2;
 	if (format2.attr_len == 0) {
-		attr_id2.pos = GWN_vertformat_attr_add(&format2, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		attr_id2.pos = GPU_vertformat_attr_add(&format2, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	Gwn_VertBuf *vbo2 = GWN_vertbuf_create_with_format(&format2);
-	GWN_vertbuf_data_alloc(vbo, edge_count);
-	GWN_vertbuf_data_alloc(vbo2, edge_count);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPUVertBuf *vbo2 = GPU_vertbuf_create_with_format(&format2);
+	GPU_vertbuf_data_alloc(vbo, edge_count);
+	GPU_vertbuf_data_alloc(vbo2, edge_count);
 
 	for (i = 0; i < edge_count; i++) {
 		lanpr_dpix_index_to_coord(i + BeginIndex, &co[0], &co[1]);
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, co);
+		GPU_vertbuf_attr_set(vbo, attr_id.pos, i, co);
 		lanpr_dpix_index_to_coord_absolute(i + BeginIndex, &co[0], &co[1]);
-		GWN_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
+		GPU_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
 	}
 
-	Gwn_Batch *gb = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, 0, GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
-	Gwn_Batch *gb2 = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo2, 0, GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
+	GPUBatch *gb = GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, 0, GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
+	GPUBatch *gb2 = GPU_batch_create_ex(GPU_PRIM_POINTS, vbo2, 0, GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
 
 	LANPR_BatchItem *bi = BLI_mempool_alloc(pd->mp_batch_list);
 	BLI_addtail(&pd->dpix_batch_list, bi);
@@ -328,36 +328,36 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
 
 	if (!rb) return;
 
-	if (rb->DPIXIntersectionBatch) GWN_batch_discard(rb->DPIXIntersectionBatch);
+	if (rb->DPIXIntersectionBatch) GPU_batch_discard(rb->DPIXIntersectionBatch);
 	rb->DPIXIntersectionBatch = 0;
 
 	if (!rb->IntersectionCount) return;
 
-	static Gwn_VertFormat format = { 0 };
+	static GPUVertFormat format = { 0 };
 	static struct { uint pos, uvs; } attr_id;
 	if (format.attr_len == 0) {
-		attr_id.pos = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
-	static Gwn_VertFormat format2 = { 0 };
+	static GPUVertFormat format2 = { 0 };
 	static struct { uint pos, uvs; } attr_id2;
 	if (format2.attr_len == 0) {
-		attr_id2.pos = GWN_vertformat_attr_add(&format2, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		attr_id2.pos = GPU_vertformat_attr_add(&format2, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, rb->IntersectionCount);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, rb->IntersectionCount);
 
-	Gwn_VertBuf *vbo2 = GWN_vertbuf_create_with_format(&format2);
-	GWN_vertbuf_data_alloc(vbo2, rb->IntersectionCount);
+	GPUVertBuf *vbo2 = GPU_vertbuf_create_with_format(&format2);
+	GPU_vertbuf_data_alloc(vbo2, rb->IntersectionCount);
 
 	for (i = 0; i < rb->IntersectionCount; i++) {
 		lanpr_dpix_index_to_coord(i + BeginIndex, &co[0], &co[1]);
-		GWN_vertbuf_attr_set(vbo, attr_id.pos, i, co);
+		GPU_vertbuf_attr_set(vbo, attr_id.pos, i, co);
 		lanpr_dpix_index_to_coord_absolute(i + BeginIndex, &co[0], &co[1]);
-		GWN_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
+		GPU_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
 	}
-	rb->DPIXIntersectionTransformBatch = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo, 0, GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
-	rb->DPIXIntersectionBatch = GWN_batch_create_ex(GWN_PRIM_POINTS, vbo2, 0, GWN_USAGE_STATIC | GWN_BATCH_OWNS_VBO);
+	rb->DPIXIntersectionTransformBatch = GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, 0, GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
+	rb->DPIXIntersectionBatch = GPU_batch_create_ex(GPU_PRIM_POINTS, vbo2, 0, GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
 }
 
 
