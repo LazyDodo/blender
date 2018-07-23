@@ -58,6 +58,9 @@ typedef struct ImageUser {
 	short pass;
 	short pad;
 
+	int tile;		/* current tile (for internal use) */
+	int pad2;
+
 	short multi_index, view, layer;	 /* listbase indices, for menu browsing or retrieve buffer */
 	short flag;
 } ImageUser;
@@ -85,6 +88,21 @@ typedef struct RenderSlot {
 	struct RenderResult *render;
 } RenderSlot;
 
+enum {
+	TEXTARGET_TEXTURE_2D = 0,
+	TEXTARGET_TEXTURE_CUBE_MAP = 1,
+	TEXTARGET_COUNT = 2
+};
+
+typedef struct ImageTile {
+	struct ImageTile *next, *prev;
+	struct GPUTexture *gputexture[2]; /* TEXTARGET_COUNT */
+	char ok;
+	char pad[3];
+	int tile_number;
+	char label[64];
+} ImageTile;
+
 /* iuser->flag */
 #define	IMA_ANIM_ALWAYS		1
 #define IMA_ANIM_REFRESHED	2
@@ -92,11 +110,6 @@ typedef struct RenderSlot {
 #define IMA_NEED_FRAME_RECALC	8
 #define IMA_SHOW_STEREO		16
 
-enum {
-	TEXTARGET_TEXTURE_2D = 0,
-	TEXTARGET_TEXTURE_CUBE_MAP = 1,
-	TEXTARGET_COUNT = 2
-};
 
 typedef struct Image {
 	ID id;
@@ -104,7 +117,6 @@ typedef struct Image {
 	char name[1024];			/* file path, 1024 = FILE_MAX */
 
 	struct MovieCache *cache;	/* not written in file */
-	struct GPUTexture *gputexture[2]; /* not written in file 2 = TEXTARGET_COUNT */
 
 	/* sources from: */
 	ListBase anims;
@@ -119,16 +131,17 @@ typedef struct Image {
 
 	/* texture page */
 	short tpageflag;
-	short pad2;
-	unsigned int pad3;
+	short pad3;
+
+	int lastused;
+
+	ListBase tiles;
 
 	struct PackedFile *packedfile DNA_DEPRECATED; /* deprecated */
 	struct ListBase packedfiles;
 	struct PreviewImage *preview;
 
-	int lastused;
-	short ok;
-	short pad4[3];
+	int pad2;
 
 	/* for generated images */
 	int gen_x, gen_y;

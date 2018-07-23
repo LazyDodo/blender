@@ -922,6 +922,8 @@ typedef struct SpaceImage {
 
 	int flag;
 
+	int tile_grid_shape[2];
+
 	MaskSpaceInfo mask_info;
 } SpaceImage;
 

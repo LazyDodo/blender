@@ -97,8 +97,8 @@ struct GPUBatch *DRW_lattice_batch_cache_get_overlay_verts(struct Lattice *lt);
 struct GPUBatch **DRW_mesh_batch_cache_get_surface_shaded(
         struct Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
         char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count);
-struct GPUBatch **DRW_mesh_batch_cache_get_surface_texpaint(struct Mesh *me);
-struct GPUBatch *DRW_mesh_batch_cache_get_surface_texpaint_single(struct Mesh *me);
+struct TexpaintCacheBatch *DRW_mesh_batch_cache_get_surface_texpaint(struct Mesh *me, bool *is_tiled, int *num_batches);
+struct TexpaintCacheBatch *DRW_mesh_batch_cache_get_surface_texpaint_single(struct Mesh *me, bool is_tiled, int *num_batches);
 struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_edges(struct Mesh *me, bool use_wire, bool use_sel);
 struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_faces(struct Mesh *me);
 struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_verts(struct Mesh *me);

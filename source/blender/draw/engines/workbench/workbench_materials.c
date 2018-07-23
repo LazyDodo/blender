@@ -131,6 +131,7 @@ uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template)
 	/* add texture reference */
 	if (material_template->ima) {
 		result += BLI_ghashutil_inthash_p_murmur(material_template->ima);
+		result += BLI_ghashutil_inthash(material_template->image_tile);
 	}
 
 	return result;
@@ -185,7 +186,10 @@ void workbench_material_shgroup_uniform(
         WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material)
 {
 	if (workbench_material_determine_color_type(wpd, material->ima) == V3D_SHADING_TEXTURE_COLOR) {
-		GPUTexture *tex = GPU_texture_from_blender(material->ima, NULL, GL_TEXTURE_2D, false, 0.0f);
+		ImageUser iuser = {NULL};
+		iuser.ok = 1;
+		iuser.tile = material->image_tile;
+		GPUTexture *tex = GPU_texture_from_blender(material->ima, &iuser, GL_TEXTURE_2D, false, 0.0f);
 		DRW_shgroup_uniform_texture(grp, "image", tex);
 	}
 	else {
@@ -205,4 +209,5 @@ void workbench_material_copy(WORKBENCH_MaterialData *dest_material, const WORKBE
 	copy_v4_v4(dest_material->specular_color, source_material->specular_color);
 	dest_material->roughness = source_material->roughness;
 	dest_material->ima = source_material->ima;
+	dest_material->image_tile = source_material->image_tile;
 }

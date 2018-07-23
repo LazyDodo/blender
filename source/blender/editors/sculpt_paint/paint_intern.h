@@ -181,7 +181,7 @@ typedef struct ImagePaintPartialRedraw {
 #define IMAPAINT_TILE_NUMBER(size)  (((size) + IMAPAINT_TILE_SIZE - 1) >> IMAPAINT_TILE_BITS)
 
 bool image_texture_paint_poll(struct bContext *C);
-void imapaint_image_update(struct SpaceImage *sima, struct Image *image, struct ImBuf *ibuf, short texpaint);
+void imapaint_image_update(struct SpaceImage *sima, struct Image *image, struct ImBuf *ibuf, struct ImageUser *iuser, short texpaint);
 struct ImagePaintPartialRedraw *get_imapaintpartial(void);
 void set_imapaintpartial(struct ImagePaintPartialRedraw *ippr);
 void imapaint_region_tiles(struct ImBuf *ibuf, int x, int y, int w, int h, int *tx, int *ty, int *tw, int *th);
@@ -193,7 +193,7 @@ void paint_2d_stroke(
         void *ps, const float prev_mval[2], const float mval[2],
         const bool eraser, float pressure, float distance, float size);
 void paint_2d_bucket_fill(
-        const struct bContext *C, const float color[3], struct Brush *br, const float mouse_init[2], void *ps);
+        const struct bContext *C, const float color[3], struct Brush *br, const float mouse_init[2], const float mouse_final[2], void *ps);
 void paint_2d_gradient_fill(
         const struct bContext *C, struct Brush *br, const float mouse_init[2], const float mouse_final[2], void *ps);
 void *paint_proj_new_stroke(

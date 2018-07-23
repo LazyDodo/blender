@@ -1558,6 +1558,8 @@ typedef struct MeshBatchCache {
 	GPUVertBuf *pos_with_normals;
 	GPUVertBuf *tri_aligned_uv;  /* Active UV layer (mloopuv) */
 
+	int *tri_tiles;
+
 	/**
 	 * Other uses are all positions or loose elements.
 	 * This stores all visible elements, needed for selection.
@@ -1599,12 +1601,16 @@ typedef struct MeshBatchCache {
 	GPUVertFormat shaded_triangles_format;
 	GPUVertBuf *shaded_triangles_data;
 	GPUIndexBuf **shaded_triangles_in_order;
+	GPUIndexBuf **shaded_triangles_in_order_tiled;
+	GPUIndexBuf **shaded_triangles_in_order_tiled_single;
 	GPUBatch **shaded_triangles;
 
 	/* Texture Paint.*/
 	/* per-texture batch */
-	GPUBatch **texpaint_triangles;
-	GPUBatch  *texpaint_triangles_single;
+	int num_texpaint_batches;
+	int num_texpaint_batches_single;
+	TexpaintCacheBatch *texpaint_triangles;
+	TexpaintCacheBatch *texpaint_triangles_single;
 
 	/* Edit Cage Mesh buffers */
 	GPUVertBuf *ed_tri_pos;
@@ -1801,12 +1807,17 @@ static void mesh_batch_cache_clear_selective(Mesh *me, GPUVertBuf *vert)
 		}
 		MEM_SAFE_FREE(cache->shaded_triangles);
 		if (cache->texpaint_triangles) {
-			for (int i = 0; i < cache->mat_len; ++i) {
-				GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles[i]);
+			for (int i = 0; i < cache->num_texpaint_batches; ++i) {
+				GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles[i].batch);
 			}
 		}
 		MEM_SAFE_FREE(cache->texpaint_triangles);
-		GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles_single);
+		if (cache->texpaint_triangles_single) {
+			for (int i = 0; i < cache->num_texpaint_batches_single; ++i) {
+				GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles_single[i].batch);
+			}
+		}
+		MEM_SAFE_FREE(cache->texpaint_triangles_single);
 	}
 	/* TODO: add the other ones if needed. */
 	else {
@@ -1859,6 +1870,7 @@ static void mesh_batch_cache_clear(Mesh *me)
 	GPU_BATCH_DISCARD_SAFE(cache->triangles_with_weights);
 	GPU_BATCH_DISCARD_SAFE(cache->triangles_with_vert_colors);
 	GPU_VERTBUF_DISCARD_SAFE(cache->tri_aligned_uv);
+	MEM_SAFE_FREE(cache->tri_tiles);
 	GPU_VERTBUF_DISCARD_SAFE(cache->ed_fcenter_pos_with_nor_and_sel);
 	GPU_VERTBUF_DISCARD_SAFE(cache->ed_edge_pos);
 	GPU_VERTBUF_DISCARD_SAFE(cache->ed_vert_pos);
@@ -1877,31 +1889,50 @@ static void mesh_batch_cache_clear(Mesh *me)
 	DRW_TEXTURE_FREE_SAFE(cache->edges_face_overlay_tx);
 
 	GPU_VERTBUF_DISCARD_SAFE(cache->shaded_triangles_data);
+
 	if (cache->shaded_triangles_in_order) {
 		for (int i = 0; i < cache->mat_len; ++i) {
 			GPU_INDEXBUF_DISCARD_SAFE(cache->shaded_triangles_in_order[i]);
 		}
 	}
+	MEM_SAFE_FREE(cache->shaded_triangles_in_order);
+
+	if (cache->shaded_triangles_in_order_tiled) {
+		for (int i = 0; i < cache->num_texpaint_batches; ++i) {
+			GPU_INDEXBUF_DISCARD_SAFE(cache->shaded_triangles_in_order_tiled[i]);
+		}
+	}
+	MEM_SAFE_FREE(cache->shaded_triangles_in_order_tiled);
+
+	if (cache->shaded_triangles_in_order_tiled_single) {
+		for (int i = 0; i < cache->num_texpaint_batches_single; ++i) {
+			GPU_INDEXBUF_DISCARD_SAFE(cache->shaded_triangles_in_order_tiled_single[i]);
+		}
+	}
+	MEM_SAFE_FREE(cache->shaded_triangles_in_order_tiled_single);
+
 	if (cache->shaded_triangles) {
 		for (int i = 0; i < cache->mat_len; ++i) {
 			GPU_BATCH_DISCARD_SAFE(cache->shaded_triangles[i]);
 		}
 	}
-
-	MEM_SAFE_FREE(cache->shaded_triangles_in_order);
 	MEM_SAFE_FREE(cache->shaded_triangles);
 
 	MEM_SAFE_FREE(cache->auto_layer_names);
 	MEM_SAFE_FREE(cache->auto_layer_is_srgb);
 
 	if (cache->texpaint_triangles) {
-		for (int i = 0; i < cache->mat_len; ++i) {
-			GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles[i]);
+		for (int i = 0; i < cache->num_texpaint_batches; ++i) {
+			GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles[i].batch);
 		}
 	}
-	MEM_SAFE_FREE(cache->texpaint_triangles);
-
-	GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles_single);
+	MEM_SAFE_FREE(cache->texpaint_triangles_single);
+	if (cache->texpaint_triangles_single) {
+		for (int i = 0; i < cache->num_texpaint_batches_single; ++i) {
+			GPU_BATCH_DISCARD_SAFE(cache->texpaint_triangles_single[i].batch);
+		}
+	}
+	MEM_SAFE_FREE(cache->texpaint_triangles_single);
 
 }
 
@@ -2143,8 +2174,17 @@ static GPUVertBuf *mesh_batch_cache_get_tri_shading_data(MeshRenderData *rdata, 
 	return cache->shaded_triangles_data;
 }
 
+static int get_tile_index_from_uv(const float *uv)
+{
+	int x = uv[0];
+	int y = uv[1];
+	CLAMP(x, 0, 9);
+	CLAMP(y, 0, 9);
+	return y*10 + x;
+}
+
 static GPUVertBuf *mesh_batch_cache_get_tri_uv_active(
-        MeshRenderData *rdata, MeshBatchCache *cache)
+        MeshRenderData *rdata, MeshBatchCache *cache, bool has_tiles, bool *is_tiled)
 {
 	BLI_assert(rdata->types & (MR_DATATYPE_VERT | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOP | MR_DATATYPE_LOOPUV));
 
@@ -2164,6 +2204,20 @@ static GPUVertBuf *mesh_batch_cache_get_tri_uv_active(
 		}
 
 		const int tri_len = mesh_render_data_looptri_len_get(rdata);
+		const int mat_len = mesh_render_data_mat_len_get(rdata);
+
+		if (is_tiled) {
+			for (int i = 0; i < mat_len; i++) {
+				if (is_tiled[i]) {
+					has_tiles = true;
+					break;
+				}
+			}
+		}
+
+		if (has_tiles) {
+			cache->tri_tiles = MEM_callocN(sizeof(int) * tri_len, "mesh cache tri tiles");
+		}
 
 		GPUVertBuf *vbo = cache->tri_aligned_uv = GPU_vertbuf_create_with_format(&format);
 
@@ -2184,13 +2238,17 @@ static GPUVertBuf *mesh_batch_cache_get_tri_uv_active(
 				if (BM_elem_flag_test(bm_looptri[0]->f, BM_ELEM_HIDDEN)) {
 					continue;
 				}
+				const float *elem = NULL;
 				for (uint t = 0; t < 3; t++) {
 					const BMLoop *loop = bm_looptri[t];
 					const int index = BM_elem_index_get(loop);
 					if (index != -1) {
-						const float *elem = ((MLoopUV *)BM_ELEM_CD_GET_VOID_P(loop, layer_offset))->uv;
+						elem = ((MLoopUV *)BM_ELEM_CD_GET_VOID_P(loop, layer_offset))->uv;
 						GPU_vertbuf_attr_set(vbo, attr_id.uv, vidx++, elem);
 					}
+				}
+				if (elem && has_tiles) {
+					cache->tri_tiles[i] = get_tile_index_from_uv(elem);
 				}
 			}
 		}
@@ -2201,6 +2259,9 @@ static GPUVertBuf *mesh_batch_cache_get_tri_uv_active(
 				GPU_vertbuf_attr_set(vbo, attr_id.uv, vidx++, mloopuv[mlt->tri[0]].uv);
 				GPU_vertbuf_attr_set(vbo, attr_id.uv, vidx++, mloopuv[mlt->tri[1]].uv);
 				GPU_vertbuf_attr_set(vbo, attr_id.uv, vidx++, mloopuv[mlt->tri[2]].uv);
+				if (has_tiles) {
+					cache->tri_tiles[i] = get_tile_index_from_uv(mloopuv[mlt->tri[2]].uv);
+				}
 			}
 		}
 
@@ -3564,22 +3625,47 @@ static GPUIndexBuf *mesh_batch_cache_get_loose_edges(MeshRenderData *rdata, Mesh
 	return cache->ledges_in_order;
 }
 
-static GPUIndexBuf **mesh_batch_cache_get_triangles_in_order_split_by_material(
-        MeshRenderData *rdata, MeshBatchCache *cache)
+static inline int get_batch_index_for_tri(bool single, bool texpaint, short mat, int mat_len, int *tri_tiles, int tri)
+{
+	if (single || (mat >= mat_len)) {
+		mat = 0;
+	}
+	if (texpaint) {
+		return 100*mat + tri_tiles[tri];
+	}
+	return mat;
+}
+
+static GPUIndexBuf **mesh_batch_cache_get_triangles_in_order_split(
+        MeshRenderData *rdata, MeshBatchCache *cache, bool single, bool texpaint, int **batch_mapping, int *batch_num)
 {
 	BLI_assert(rdata->types & (MR_DATATYPE_VERT | MR_DATATYPE_POLY));
 
-	if (cache->shaded_triangles_in_order == NULL) {
+	GPUIndexBuf*** shaded_triangles;
+	if (texpaint) {
+		shaded_triangles = single? &cache->shaded_triangles_in_order_tiled_single : &cache->shaded_triangles_in_order_tiled;
+	}
+	else {
+		shaded_triangles = &cache->shaded_triangles_in_order;
+	}
+
+	if (*shaded_triangles == NULL) {
 		const int poly_len = mesh_render_data_polys_len_get(rdata);
 		const int tri_len = mesh_render_data_looptri_len_get(rdata);
 		const int mat_len = mesh_render_data_mat_len_get(rdata);
 
-		int *mat_tri_len = MEM_callocN(sizeof(*mat_tri_len) * mat_len, __func__);
-		cache->shaded_triangles_in_order = MEM_callocN(sizeof(*cache->shaded_triangles) * mat_len, __func__);
-		GPUIndexBufBuilder *elb = MEM_callocN(sizeof(*elb) * mat_len, __func__);
+		if (cache->tri_tiles == NULL) {
+			texpaint = false;
+		}
+
+		/* Triangles are split according to material and/or tile index.
+		 * To do this, we first need to find the combinations that are actually used. */
+		int index_num = (single? 1 : mat_len) * (texpaint? 100 : 1);
+		int *batch_len = MEM_callocN(sizeof(int) * index_num, __func__);
 
 		/* Note that polygons (not triangles) are used here.
 		 * This OK because result is _guaranteed_ to be the same. */
+		uint tri = 0;
 		if (rdata->edit_bmesh) {
 			BMesh *bm = rdata->edit_bmesh->bm;
 			BMIter fiter;
@@ -3587,26 +3673,67 @@ static GPUIndexBuf **mesh_batch_cache_get_triangles_in_order_split_by_material(
 
 			BM_ITER_MESH(efa, &fiter, bm, BM_FACES_OF_MESH) {
 				if (!BM_elem_flag_test(efa, BM_ELEM_HIDDEN)) {
-					const short ma_id = efa->mat_nr < mat_len ? efa->mat_nr : 0;
-					mat_tri_len[ma_id] += (efa->len - 2);
+					for(int j = 2; j < efa->len; j++, tri++) {
+						int index = get_batch_index_for_tri(single, texpaint, efa->mat_nr, mat_len, cache->tri_tiles, tri);
+						batch_len[index]++;
+					}
 				}
 			}
 		}
 		else {
 			for (uint i = 0; i < poly_len; i++) {
-				const MPoly *mp = &rdata->mpoly[i]; ;
-				const short ma_id = mp->mat_nr < mat_len ? mp->mat_nr : 0;
-				mat_tri_len[ma_id] += (mp->totloop - 2);
+				const MPoly *mp = &rdata->mpoly[i];
+				for(int j = 2; j < mp->totloop; j++, tri++) {
+					int index = get_batch_index_for_tri(single, texpaint, mp->mat_nr, mat_len, cache->tri_tiles, tri);
+					batch_len[index]++;
+				}
 			}
 		}
 
+		/* Now, all combinations that appear in the mesh get an assigned batch index.
+		 * Also, we need to know each batches' length, so the batch_len array is replaced
+		 * with each batches' length (instead of each combinations' length).
+		 * This can be done in one pass since batch_num is guaranteed to be less or equal to i.
+		 */
+		int *index_to_batch = MEM_mallocN(sizeof(int) * index_num, __func__);
+		*batch_num = 0;
+		for (int i = 0; i < index_num; i++) {
+			if (batch_len[i] > 0) {
+				index_to_batch[i] = *batch_num;
+				batch_len[*batch_num] = batch_len[i];
+				(*batch_num)++;
+			}
+			else {
+				index_to_batch[i] = -1;
+			}
+		}
+
+		/* Return the mapping from batches to material/tile pairs to the caller. */
+		int *mapping = *batch_mapping = MEM_mallocN(sizeof(int) * 2 * (*batch_num), __func__);
+		for (int i = 0; i < index_num; i++) {
+			if (index_to_batch[i] >= 0) {
+				int batch = index_to_batch[i];
+				if (texpaint) {
+					mapping[2*batch + 0] = (i / 100);
+					mapping[2*batch + 1] = (i % 100);
+				}
+				else {
+					mapping[2*batch + 0] = i;
+					mapping[2*batch + 1] = 0;
+				}
+			}
+		}
+
+		*shaded_triangles = MEM_callocN(sizeof(*cache->shaded_triangles) * (*batch_num), __func__);
+		GPUIndexBufBuilder *elb = MEM_callocN(sizeof(*elb) * (*batch_num), __func__);
+
 		/* Init ELBs. */
-		for (int i = 0; i < mat_len; ++i) {
-			GPU_indexbuf_init(&elb[i], GPU_PRIM_TRIS, mat_tri_len[i], tri_len * 3);
+		for (int i = 0; i < *batch_num; ++i) {
+			GPU_indexbuf_init(&elb[i], GPU_PRIM_TRIS, batch_len[i], tri_len * 3);
 		}
 
 		/* Populate ELBs. */
-		uint nidx = 0;
+		tri = 0;
 		if (rdata->edit_bmesh) {
 			BMesh *bm = rdata->edit_bmesh->bm;
 			BMIter fiter;
@@ -3614,10 +3741,9 @@ static GPUIndexBuf **mesh_batch_cache_get_triangles_in_order_split_by_material(
 
 			BM_ITER_MESH(efa, &fiter, bm, BM_FACES_OF_MESH) {
 				if (!BM_elem_flag_test(efa, BM_ELEM_HIDDEN)) {
-					const short ma_id = efa->mat_nr < mat_len ? efa->mat_nr : 0;
-					for (int j = 2; j < efa->len; j++) {
-						GPU_indexbuf_add_tri_verts(&elb[ma_id], nidx + 0, nidx + 1, nidx + 2);
-						nidx += 3;
+					for(int j = 2; j < efa->len; j++, tri++) {
+						int index = get_batch_index_for_tri(single, texpaint, efa->mat_nr, mat_len, cache->tri_tiles, tri);
+						GPU_indexbuf_add_tri_verts(&elb[index_to_batch[index]], 3*tri + 0, 3*tri + 1, 3*tri + 2);
 					}
 				}
 			}
@@ -3625,24 +3751,24 @@ static GPUIndexBuf **mesh_batch_cache_get_triangles_in_order_split_by_material(
 		else {
 			for (uint i = 0; i < poly_len; i++) {
 				const MPoly *mp = &rdata->mpoly[i]; ;
-				const short ma_id = mp->mat_nr < mat_len ? mp->mat_nr : 0;
-				for (int j = 2; j < mp->totloop; j++) {
-					GPU_indexbuf_add_tri_verts(&elb[ma_id], nidx + 0, nidx + 1, nidx + 2);
-					nidx += 3;
+				for(int j = 2; j < mp->totloop; j++, tri++) {
+					int index = get_batch_index_for_tri(single, texpaint, mp->mat_nr, mat_len, cache->tri_tiles, tri);
+					GPU_indexbuf_add_tri_verts(&elb[index_to_batch[index]], 3*tri + 0, 3*tri + 1, 3*tri + 2);
 				}
 			}
 		}
 
 		/* Build ELBs. */
-		for (int i = 0; i < mat_len; ++i) {
-			cache->shaded_triangles_in_order[i] = GPU_indexbuf_build(&elb[i]);
+		for (int i = 0; i < *batch_num; ++i) {
+			(*shaded_triangles)[i] = GPU_indexbuf_build(&elb[i]);
 		}
 
-		MEM_freeN(mat_tri_len);
+		MEM_freeN(batch_len);
+		MEM_freeN(index_to_batch);
 		MEM_freeN(elb);
 	}
 
-	return cache->shaded_triangles_in_order;
+	return *shaded_triangles;
 }
 
 static GPUVertBuf *mesh_create_edge_pos_with_sel(
@@ -4311,19 +4437,23 @@ GPUBatch **DRW_mesh_batch_cache_get_surface_shaded(
 
 		cache->shaded_triangles = MEM_callocN(sizeof(*cache->shaded_triangles) * mat_len, __func__);
 
-		GPUIndexBuf **el = mesh_batch_cache_get_triangles_in_order_split_by_material(rdata, cache);
+		int *batch_mapping;
+		int batch_num;
+		GPUIndexBuf **el = mesh_batch_cache_get_triangles_in_order_split(rdata, cache, false, false, &batch_mapping, &batch_num);
 
 		GPUVertBuf *vbo = mesh_batch_cache_get_tri_pos_and_normals(rdata, cache);
 		GPUVertBuf *vbo_shading = mesh_batch_cache_get_tri_shading_data(rdata, cache);
 
-		for (int i = 0; i < mat_len; ++i) {
-			cache->shaded_triangles[i] = GPU_batch_create(
+		for (int i = 0; i < batch_num; ++i) {
+			int mat = batch_mapping[2*i + 0];
+			cache->shaded_triangles[mat] = GPU_batch_create(
 			        GPU_PRIM_TRIS, vbo, el[i]);
 			if (vbo_shading) {
-				GPU_batch_vertbuf_add(cache->shaded_triangles[i], vbo_shading);
+				GPU_batch_vertbuf_add(cache->shaded_triangles[mat], vbo_shading);
 			}
 		}
 
+		MEM_SAFE_FREE(batch_mapping);
 		mesh_render_data_free(rdata);
 	}
 
@@ -4336,7 +4466,7 @@ GPUBatch **DRW_mesh_batch_cache_get_surface_shaded(
 	return cache->shaded_triangles;
 }
 
-GPUBatch **DRW_mesh_batch_cache_get_surface_texpaint(Mesh *me)
+TexpaintCacheBatch *DRW_mesh_batch_cache_get_surface_texpaint(Mesh *me, bool *is_tiled, int *num_batches)
 {
 	MeshBatchCache *cache = mesh_batch_cache_get(me);
 
@@ -4346,28 +4476,33 @@ GPUBatch **DRW_mesh_batch_cache_get_surface_texpaint(Mesh *me)
 		        MR_DATATYPE_VERT | MR_DATATYPE_LOOP | MR_DATATYPE_POLY | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOPUV;
 		MeshRenderData *rdata = mesh_render_data_create(me, datatype);
 
-		const int mat_len = mesh_render_data_mat_len_get(rdata);
-
-		cache->texpaint_triangles = MEM_callocN(sizeof(*cache->texpaint_triangles) * mat_len, __func__);
-
-		GPUIndexBuf **el = mesh_batch_cache_get_triangles_in_order_split_by_material(rdata, cache);
-
+		GPUVertBuf *vbo_uv = mesh_batch_cache_get_tri_uv_active(rdata, cache, false, is_tiled);
 		GPUVertBuf *vbo = mesh_batch_cache_get_tri_pos_and_normals(rdata, cache);
-		for (int i = 0; i < mat_len; ++i) {
-			cache->texpaint_triangles[i] = GPU_batch_create(
+
+		int *batch_mapping;
+		GPUIndexBuf **el = mesh_batch_cache_get_triangles_in_order_split(rdata, cache, false, true, &batch_mapping, &cache->num_texpaint_batches);
+
+		cache->texpaint_triangles = MEM_callocN(sizeof(*cache->texpaint_triangles) * cache->num_texpaint_batches, __func__);
+
+		for (int i = 0; i < cache->num_texpaint_batches; ++i) {
+			cache->texpaint_triangles[i].batch = GPU_batch_create(
 			        GPU_PRIM_TRIS, vbo, el[i]);
-			GPUVertBuf *vbo_uv = mesh_batch_cache_get_tri_uv_active(rdata, cache);
 			if (vbo_uv) {
-				GPU_batch_vertbuf_add(cache->texpaint_triangles[i], vbo_uv);
+				GPU_batch_vertbuf_add(cache->texpaint_triangles[i].batch, vbo_uv);
 			}
+			cache->texpaint_triangles[i].material = batch_mapping[2*i + 0];
+			cache->texpaint_triangles[i].tile = batch_mapping[2*i + 1];
 		}
+
+		MEM_SAFE_FREE(batch_mapping);
 		mesh_render_data_free(rdata);
 	}
 
+	*num_batches = cache->num_texpaint_batches;
 	return cache->texpaint_triangles;
 }
 
-GPUBatch *DRW_mesh_batch_cache_get_surface_texpaint_single(Mesh *me)
+TexpaintCacheBatch *DRW_mesh_batch_cache_get_surface_texpaint_single(Mesh *me, bool is_tiled, int *num_batches)
 {
 	MeshBatchCache *cache = mesh_batch_cache_get(me);
 
@@ -4377,16 +4512,43 @@ GPUBatch *DRW_mesh_batch_cache_get_surface_texpaint_single(Mesh *me)
 		        MR_DATATYPE_VERT | MR_DATATYPE_LOOP | MR_DATATYPE_POLY | MR_DATATYPE_LOOPTRI | MR_DATATYPE_LOOPUV;
 		MeshRenderData *rdata = mesh_render_data_create(me, datatype);
 
+		GPUVertBuf *vbo_uv = mesh_batch_cache_get_tri_uv_active(rdata, cache, is_tiled, NULL);
 		GPUVertBuf *vbo = mesh_batch_cache_get_tri_pos_and_normals(rdata, cache);
 
-		cache->texpaint_triangles_single = GPU_batch_create(
-		        GPU_PRIM_TRIS, vbo, NULL);
-		GPUVertBuf *vbo_uv = mesh_batch_cache_get_tri_uv_active(rdata, cache);
-		if (vbo_uv) {
-			GPU_batch_vertbuf_add(cache->texpaint_triangles_single, vbo_uv);
+		if (cache->tri_tiles) {
+			int *batch_mapping;
+			GPUIndexBuf **el = mesh_batch_cache_get_triangles_in_order_split(rdata, cache, true, true, &batch_mapping, &cache->num_texpaint_batches_single);
+
+			cache->texpaint_triangles_single = MEM_callocN(sizeof(*cache->texpaint_triangles) * cache->num_texpaint_batches_single, __func__);
+
+			for (int i = 0; i < cache->num_texpaint_batches_single; ++i) {
+				cache->texpaint_triangles[i].batch = GPU_batch_create(
+						GPU_PRIM_TRIS, vbo, el[i]);
+				if (vbo_uv) {
+					GPU_batch_vertbuf_add(cache->texpaint_triangles[i].batch, vbo_uv);
+				}
+				cache->texpaint_triangles[i].material = batch_mapping[2*i + 0];
+				cache->texpaint_triangles[i].tile = batch_mapping[2*i + 1];
+			}
+
+			MEM_SAFE_FREE(batch_mapping);
 		}
+		else {
+			cache->texpaint_triangles_single = MEM_callocN(sizeof(*cache->texpaint_triangles), __func__);
+			cache->texpaint_triangles_single[0].batch = GPU_batch_create(
+					GPU_PRIM_TRIS, vbo, NULL);
+			if (vbo_uv) {
+				GPU_batch_vertbuf_add(cache->texpaint_triangles_single[0].batch, vbo_uv);
+			}
+			cache->texpaint_triangles_single[0].material = 0;
+			cache->texpaint_triangles_single[0].tile = 0;
+			cache->num_texpaint_batches = 1;
+		}
+
 		mesh_render_data_free(rdata);
 	}
+
+	*num_batches = cache->num_texpaint_batches;
 	return cache->texpaint_triangles_single;
 }
 

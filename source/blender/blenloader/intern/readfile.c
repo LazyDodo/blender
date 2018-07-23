@@ -1677,21 +1677,24 @@ void blo_make_image_pointer_map(FileData *fd, Main *oldmain)
 {
 	Image *ima = oldmain->image.first;
 	Scene *sce = oldmain->scene.first;
-	int a;
 
 	fd->imamap = oldnewmap_new();
 
 	for (; ima; ima = ima->id.next) {
 		if (ima->cache)
 			oldnewmap_insert(fd->imamap, ima->cache, ima->cache, 0);
-		for (a = 0; a < TEXTARGET_COUNT; a++)
-			if (ima->gputexture[a])
-				oldnewmap_insert(fd->imamap, ima->gputexture[a], ima->gputexture[a], 0);
 		if (ima->rr)
 			oldnewmap_insert(fd->imamap, ima->rr, ima->rr, 0);
-			LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
-				if (slot->render)
-					oldnewmap_insert(fd->imamap, slot->render, slot->render, 0);
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			for (int a = 0; a < TEXTARGET_COUNT; a++) {
+				if (tile->gputexture[a]) {
+					oldnewmap_insert(fd->imamap, tile->gputexture[a], tile->gputexture[a], 0);
+				}
+			}
+		}
+		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
+			if (slot->render)
+				oldnewmap_insert(fd->imamap, slot->render, slot->render, 0);
 	}
 	for (; sce; sce = sce->id.next) {
 		if (sce->nodetree && sce->nodetree->previews) {
@@ -1711,10 +1714,9 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 	OldNew *entry = fd->imamap->entries;
 	Image *ima = oldmain->image.first;
 	Scene *sce = oldmain->scene.first;
-	int i;
 
 	/* used entries were restored, so we put them to zero */
-	for (i = 0; i < fd->imamap->nentries; i++, entry++) {
+	for (int i = 0; i < fd->imamap->nentries; i++, entry++) {
 		if (entry->nr > 0)
 			entry->newp = NULL;
 	}
@@ -1723,16 +1725,23 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 		ima->cache = newimaadr(fd, ima->cache);
 		if (ima->cache == NULL) {
 			ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
-			for (i = 0; i < TEXTARGET_COUNT; i++) {
-				ima->gputexture[i] = NULL;
-			}
 			ima->rr = NULL;
+			LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+				for (int j = 0; j < TEXTARGET_COUNT; j++) {
+					tile->gputexture[j] = NULL;
+				}
+			}
 		}
+
 		LISTBASE_FOREACH(RenderSlot *, slot, &ima->renderslots)
 			slot->render = newimaadr(fd, slot->render);
 
-		for (i = 0; i < TEXTARGET_COUNT; i++)
-			ima->gputexture[i] = newimaadr(fd, ima->gputexture[i]);
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			for (int j = 0; j < TEXTARGET_COUNT; j++) {
+				tile->gputexture[j] = newimaadr(fd, tile->gputexture[j]);
+			}
+		}
+
 		ima->rr = newimaadr(fd, ima->rr);
 	}
 	for (; sce; sce = sce->id.next) {
@@ -3950,11 +3959,15 @@ static void direct_link_image(FileData *fd, Image *ima)
 	else
 		ima->cache = NULL;
 
+	link_list(fd, &(ima->tiles));
+
 	/* if not restored, we keep the binded opengl index */
 	if (!ima->cache) {
 		ima->tpageflag &= ~IMA_GLBIND_IS_DATA;
-		for (int i = 0; i < TEXTARGET_COUNT; i++) {
-			ima->gputexture[i] = NULL;
+		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+			for (int i = 0; i < TEXTARGET_COUNT; i++) {
+				tile->gputexture[i] = NULL;
+			}
 		}
 		ima->rr = NULL;
 	}
@@ -3989,7 +4002,10 @@ static void direct_link_image(FileData *fd, Image *ima)
 	BLI_listbase_clear(&ima->anims);
 	ima->preview = direct_link_preview_image(fd, ima->preview);
 	ima->stereo3d_format = newdataadr(fd, ima->stereo3d_format);
-	ima->ok = 1;
+
+	LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
+		tile->ok = 1;
+	}
 }
 
 

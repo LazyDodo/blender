@@ -52,6 +52,7 @@ public:
 	int add_image(const string& filename,
 	              void *builtin_data,
 	              bool animated,
+	              int tile,
 	              float frame,
 	              InterpolationType interpolation,
 	              ExtensionType extension,
@@ -60,11 +61,13 @@ public:
 	void remove_image(int flat_slot);
 	void remove_image(const string& filename,
 	                  void *builtin_data,
+	                  int tile,
 	                  InterpolationType interpolation,
 	                  ExtensionType extension,
 	                  bool use_alpha);
 	void tag_reload_image(const string& filename,
 	                      void *builtin_data,
+	                      int tile,
 	                      InterpolationType interpolation,
 	                      ExtensionType extension,
 	                      bool use_alpha);
@@ -104,11 +107,13 @@ public:
 	              ImageMetaData& metadata)> builtin_image_info_cb;
 	function<bool(const string &filename,
 	              void *data,
+	              int tile,
 	              unsigned char *pixels,
 	              const size_t pixels_size,
 	              const bool free_cache)> builtin_image_pixels_cb;
 	function<bool(const string &filename,
 	              void *data,
+	              int tile,
 	              float *pixels,
 	              const size_t pixels_size,
 	              const bool free_cache)> builtin_image_float_pixels_cb;
@@ -122,6 +127,7 @@ public:
 		bool need_load;
 		bool animated;
 		float frame;
+		int tile;
 		InterpolationType interpolation;
 		ExtensionType extension;
 

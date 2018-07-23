@@ -74,7 +74,7 @@ public:
 	explicit ImageSlotTextureNode(const NodeType *node_type) : TextureNode(node_type) {
 		special_type = SHADER_SPECIAL_TYPE_IMAGE_SLOT;
 	}
-	int slot;
+	vector<int> slots;
 };
 
 class ImageTextureNode : public ImageSlotTextureNode {
@@ -84,9 +84,10 @@ public:
 	ShaderNode *clone() const;
 	void attributes(Shader *shader, AttributeRequestSet *attributes);
 	bool has_attribute_dependency() { return true; }
+	void simplify_settings(Scene *scene, Shader *shader);
 
 	ImageManager *image_manager;
-	int is_float;
+	bool is_float;
 	bool is_linear;
 	bool use_alpha;
 	ustring filename;
@@ -98,6 +99,7 @@ public:
 	float projection_blend;
 	bool animated;
 	float3 vector;
+	ccl::vector<int> tiles;
 
 	virtual bool equals(const ShaderNode& other)
 	{
@@ -118,7 +120,7 @@ public:
 	virtual int get_group() { return NODE_GROUP_LEVEL_2; }
 
 	ImageManager *image_manager;
-	int is_float;
+	bool is_float;
 	bool is_linear;
 	bool use_alpha;
 	ustring filename;
@@ -450,7 +452,7 @@ class GlossyBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(GlossyBsdfNode)
 
-	void simplify_settings(Scene *scene);
+	void simplify_settings(Scene *scene, Shader *shader);
 	bool has_integrator_dependency();
 	ClosureType get_closure_type() { return distribution; }
 
@@ -462,7 +464,7 @@ class GlassBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(GlassBsdfNode)
 
-	void simplify_settings(Scene *scene);
+	void simplify_settings(Scene *scene, Shader *shader);
 	bool has_integrator_dependency();
 	ClosureType get_closure_type() { return distribution; }
 
@@ -474,7 +476,7 @@ class RefractionBsdfNode : public BsdfNode {
 public:
 	SHADER_NODE_CLASS(RefractionBsdfNode)
 
-	void simplify_settings(Scene *scene);
+	void simplify_settings(Scene *scene, Shader *shader);
 	bool has_integrator_dependency();
 	ClosureType get_closure_type() { return distribution; }
 

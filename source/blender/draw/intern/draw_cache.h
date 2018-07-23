@@ -32,6 +32,12 @@ struct ModifierData;
 struct Object;
 struct PTCacheEdit;
 
+typedef struct TexpaintCacheBatch {
+	struct GPUBatch *batch;
+	int material;
+	int tile;
+} TexpaintCacheBatch;
+
 void DRW_shape_cache_free(void);
 void DRW_shape_cache_reset(void);
 
@@ -142,8 +148,8 @@ struct GPUBatch *DRW_cache_mesh_verts_weight_overlay_get(struct Object *ob);
 struct GPUBatch **DRW_cache_mesh_surface_shaded_get(
         struct Object *ob, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
         char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count);
-struct GPUBatch **DRW_cache_mesh_surface_texpaint_get(struct Object *ob);
-struct GPUBatch *DRW_cache_mesh_surface_texpaint_single_get(struct Object *ob);
+struct TexpaintCacheBatch *DRW_cache_mesh_surface_texpaint_get(struct Object *ob, bool *is_tiled, int *num_batches);
+struct TexpaintCacheBatch *DRW_cache_mesh_surface_texpaint_single_get(struct Object *ob, bool is_tiled, int *num_batches);
 
 void DRW_cache_mesh_sculpt_coords_ensure(struct Object *ob);
 

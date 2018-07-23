@@ -2870,20 +2870,20 @@ GPUBatch **DRW_cache_mesh_surface_shaded_get(
 }
 
 /* Return list of batches */
-GPUBatch **DRW_cache_mesh_surface_texpaint_get(Object *ob)
+TexpaintCacheBatch *DRW_cache_mesh_surface_texpaint_get(Object *ob, bool *is_tiled, int *num_batches)
 {
 	BLI_assert(ob->type == OB_MESH);
 
 	Mesh *me = ob->data;
-	return DRW_mesh_batch_cache_get_surface_texpaint(me);
+	return DRW_mesh_batch_cache_get_surface_texpaint(me, is_tiled, num_batches);
 }
 
-GPUBatch *DRW_cache_mesh_surface_texpaint_single_get(Object *ob)
+TexpaintCacheBatch *DRW_cache_mesh_surface_texpaint_single_get(Object *ob, bool is_tiled, int *num_batches)
 {
 	BLI_assert(ob->type == OB_MESH);
 
 	Mesh *me = ob->data;
-	return DRW_mesh_batch_cache_get_surface_texpaint_single(me);
+	return DRW_mesh_batch_cache_get_surface_texpaint_single(me, is_tiled, num_batches);
 }
 
 GPUBatch *DRW_cache_mesh_surface_verts_get(Object *ob)
