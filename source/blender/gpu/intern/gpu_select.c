@@ -73,7 +73,7 @@ static GPUSelectState g_select_state = {0};
 /**
  * initialize and provide buffer for results
  */
-void GPU_select_begin(unsigned int *buffer, unsigned int bufsize, const rcti *input, char mode, int oldhits)
+void GPU_select_begin(uint *buffer, uint bufsize, const rcti *input, char mode, int oldhits)
 {
 	if (mode == GPU_SELECT_NEAREST_SECOND_PASS) {
 		/* In the case hits was '-1', don't start the second pass since it's not going to give useful results.
@@ -108,12 +108,12 @@ void GPU_select_begin(unsigned int *buffer, unsigned int bufsize, const rcti *in
 		case ALGO_GL_QUERY:
 		{
 			g_select_state.use_cache = false;
-			gpu_select_query_begin((unsigned int (*)[4])buffer, bufsize / 4, input, mode, oldhits);
+			gpu_select_query_begin((uint (*)[4])buffer, bufsize / 4, input, mode, oldhits);
 			break;
 		}
 		default:  /* ALGO_GL_PICK */
 		{
-			gpu_select_pick_begin((unsigned int (*)[4])buffer, bufsize / 4, input, mode);
+			gpu_select_pick_begin((uint (*)[4])buffer, bufsize / 4, input, mode);
 			break;
 		}
 	}
@@ -126,7 +126,7 @@ void GPU_select_begin(unsigned int *buffer, unsigned int bufsize, const rcti *in
  *
  * \warning We rely on the order of object rendering on passes to be the same for this to work.
  */
-bool GPU_select_load_id(unsigned int id)
+bool GPU_select_load_id(uint id)
 {
 	/* if no selection mode active, ignore */
 	if (!g_select_state.select_is_active)
@@ -154,9 +154,9 @@ bool GPU_select_load_id(unsigned int id)
  * Return number of hits and hits in buffer.
  * if \a dopass is true, we will do a second pass with occlusion queries to get the closest hit.
  */
-unsigned int GPU_select_end(void)
+uint GPU_select_end(void)
 {
-	unsigned int hits = 0;
+	uint hits = 0;
 
 	switch (g_select_state.algorithm) {
 		case ALGO_GL_LEGACY:
@@ -187,12 +187,7 @@ unsigned int GPU_select_end(void)
  */
 bool GPU_select_query_check_active(void)
 {
-	return ((U.gpu_select_method == USER_SELECT_USE_OCCLUSION_QUERY) ||
-	        ((U.gpu_select_method == USER_SELECT_AUTO) &&
-	         (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_ANY, GPU_DRIVER_ANY) ||
-	          /* unsupported by nouveau, gallium 0.4, see: T47940 */
-	          GPU_type_matches(GPU_DEVICE_NVIDIA, GPU_OS_UNIX, GPU_DRIVER_OPENSOURCE))));
-
+	return ELEM(U.gpu_select_method, USER_SELECT_USE_OCCLUSION_QUERY, USER_SELECT_AUTO);
 }
 
 /* ----------------------------------------------------------------------------
@@ -231,4 +226,30 @@ void GPU_select_cache_end(void)
 bool GPU_select_is_cached(void)
 {
 	return g_select_state.use_cache && gpu_select_pick_is_cached();
+}
+
+
+/* ----------------------------------------------------------------------------
+ * Utilities
+ */
+
+/**
+ * Helper function, nothing special but avoids doing inline since hit's aren't sorted by depth
+ * and purpose of 4x buffer indices isn't so clear.
+ *
+ * Note that comparing depth as uint is fine.
+ */
+const uint *GPU_select_buffer_near(const uint *buffer, int hits)
+{
+	const uint *buffer_near = NULL;
+	uint depth_min = (uint) - 1;
+	for (int i = 0; i < hits; i++) {
+		if (buffer[1] < depth_min) {
+			BLI_assert(buffer[3] != -1);
+			depth_min = buffer[1];
+			buffer_near = buffer;
+		}
+		buffer += 4;
+	}
+	return buffer_near;
 }

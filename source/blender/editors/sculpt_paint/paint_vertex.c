@@ -54,17 +54,22 @@
 
 #include "BKE_brush.h"
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
 #include "BKE_deform.h"
+#include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
+#include "BKE_object.h"
 #include "BKE_object_deform.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
 #include "BKE_subsurf.h"
 
+#include "DEG_depsgraph.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_message.h"
+#include "WM_toolsystem.h"
 
 #include "ED_object.h"
 #include "ED_mesh.h"
@@ -196,14 +201,14 @@ static void paint_last_stroke_update(Scene *scene, ARegion *ar, const float mval
 /* polling - retrieve whether cursor should be set or operator should be done */
 
 /* Returns true if vertex paint mode is active */
-int vertex_paint_mode_poll(bContext *C)
+bool vertex_paint_mode_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 
 	return ob && ob->mode == OB_MODE_VERTEX_PAINT && ((Mesh *)ob->data)->totpoly;
 }
 
-int vertex_paint_poll(bContext *C)
+static bool vertex_paint_poll_ex(bContext *C, bool check_tool)
 {
 	if (vertex_paint_mode_poll(C) &&
 	    BKE_paint_brush(&CTX_data_tool_settings(C)->vpaint->paint))
@@ -211,21 +216,34 @@ int vertex_paint_poll(bContext *C)
 		ScrArea *sa = CTX_wm_area(C);
 		if (sa && sa->spacetype == SPACE_VIEW3D) {
 			ARegion *ar = CTX_wm_region(C);
-			if (ar->regiontype == RGN_TYPE_WINDOW)
-				return 1;
+			if (ar->regiontype == RGN_TYPE_WINDOW) {
+				if (!check_tool || WM_toolsystem_active_tool_is_brush(C)) {
+					return 1;
+				}
+			}
 		}
 	}
 	return 0;
 }
 
-int weight_paint_mode_poll(bContext *C)
+bool vertex_paint_poll(bContext *C)
+{
+	return vertex_paint_poll_ex(C, true);
+}
+
+bool vertex_paint_poll_ignore_tool(bContext *C)
+{
+	return vertex_paint_poll_ex(C, true);
+}
+
+bool weight_paint_mode_poll(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 
 	return ob && ob->mode == OB_MODE_WEIGHT_PAINT && ((Mesh *)ob->data)->totpoly;
 }
 
-int weight_paint_poll(bContext *C)
+static bool weight_paint_poll_ex(bContext *C, bool check_tool)
 {
 	Object *ob = CTX_data_active_object(C);
 	ScrArea *sa;
@@ -238,10 +256,22 @@ int weight_paint_poll(bContext *C)
 	{
 		ARegion *ar = CTX_wm_region(C);
 		if (ar->regiontype == RGN_TYPE_WINDOW) {
-			return 1;
+			if (!check_tool || WM_toolsystem_active_tool_is_brush(C)) {
+				return 1;
+			}
 		}
 	}
 	return 0;
+}
+
+bool weight_paint_poll(bContext *C)
+{
+	return weight_paint_poll_ex(C, true);
+}
+
+bool weight_paint_poll_ignore_tool(bContext *C)
+{
+	return weight_paint_poll_ex(C, false);
 }
 
 static VPaint *new_vpaint(void)
@@ -937,12 +967,20 @@ static void do_weight_paint_vertex(
 
 
 /* Toggle operator for turning vertex paint mode on or off (copied from sculpt.c) */
-static void vertex_paint_init_session(Scene *scene, Object *ob)
+static void vertex_paint_init_session(Depsgraph *depsgraph, Scene *scene, Object *ob, eObjectMode object_mode)
 {
-	if (ob->sculpt == NULL) {
-		ob->sculpt = MEM_callocN(sizeof(SculptSession), "sculpt session");
-		BKE_sculpt_update_mesh_elements(scene, scene->toolsettings->sculpt, ob, 0, false);
-	}
+	/* Create persistent sculpt mode data */
+	BKE_sculpt_toolsettings_data_ensure(scene);
+
+	BLI_assert(ob->sculpt == NULL);
+	ob->sculpt = MEM_callocN(sizeof(SculptSession), "sculpt session");
+	ob->sculpt->mode_type = object_mode;
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, scene->toolsettings->sculpt, ob, false, false);
+}
+
+static void vertex_paint_init_stroke(Depsgraph *depsgraph, Scene *scene, Object *ob)
+{
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, scene->toolsettings->sculpt, ob, false, false);
 }
 
 static void vertex_paint_init_session_data(const ToolSettings *ts, Object *ob)
@@ -953,12 +991,12 @@ static void vertex_paint_init_session_data(const ToolSettings *ts, Object *ob)
 	if (ob->mode == OB_MODE_VERTEX_PAINT) {
 		gmap = &ob->sculpt->mode.vpaint.gmap;
 		brush = BKE_paint_brush(&ts->vpaint->paint);
-		ob->sculpt->mode_type = OB_MODE_VERTEX_PAINT;
+		BLI_assert(ob->sculpt->mode_type == OB_MODE_VERTEX_PAINT);
 	}
 	else if (ob->mode == OB_MODE_WEIGHT_PAINT) {
 		gmap = &ob->sculpt->mode.wpaint.gmap;
 		brush = BKE_paint_brush(&ts->wpaint->paint);
-		ob->sculpt->mode_type = OB_MODE_WEIGHT_PAINT;
+		BLI_assert(ob->sculpt->mode_type == OB_MODE_WEIGHT_PAINT);
 	}
 	else {
 		ob->sculpt->mode_type = 0;
@@ -1023,6 +1061,179 @@ static void vertex_paint_init_session_data(const ToolSettings *ts, Object *ob)
 
 }
 
+/* -------------------------------------------------------------------- */
+/** \name Enter Vertex/Weight Paint Mode
+ * \{ */
+
+static void ed_vwpaintmode_enter_generic(
+        Main *bmain, Depsgraph *depsgraph,
+        wmWindowManager *wm, Scene *scene,
+        Object *ob, const eObjectMode mode_flag)
+{
+	ob->mode |= mode_flag;
+	Mesh *me = BKE_mesh_from_object(ob);
+
+	/* Same as sculpt mode, make sure we don't have cached derived mesh which
+	 * points to freed arrays.
+	 */
+	BKE_object_free_derived_caches(ob);
+
+	if (mode_flag == OB_MODE_VERTEX_PAINT) {
+		const ePaintMode paint_mode = ePaintVertex;
+		ED_mesh_color_ensure(me, NULL);
+
+		if (scene->toolsettings->vpaint == NULL) {
+			scene->toolsettings->vpaint = new_vpaint();
+		}
+
+		Paint *paint = BKE_paint_get_active_from_paintmode(scene, paint_mode);
+		paint_cursor_start_explicit(paint, wm, vertex_paint_poll);
+		BKE_paint_init(bmain, scene, paint_mode, PAINT_CURSOR_VERTEX_PAINT);
+	}
+	else if (mode_flag == OB_MODE_WEIGHT_PAINT) {
+		const  ePaintMode paint_mode = ePaintWeight;
+
+		if (scene->toolsettings->wpaint == NULL) {
+			scene->toolsettings->wpaint = new_vpaint();
+		}
+
+		Paint *paint = BKE_paint_get_active_from_paintmode(scene, paint_mode);
+		paint_cursor_start_explicit(paint, wm, weight_paint_poll);
+		BKE_paint_init(bmain, scene, paint_mode, PAINT_CURSOR_WEIGHT_PAINT);
+
+		/* weight paint specific */
+		ED_mesh_mirror_spatial_table(ob, NULL, NULL, NULL, 's');
+		ED_vgroup_sync_from_pose(ob);
+	}
+	else {
+		BLI_assert(0);
+	}
+
+	/* Create vertex/weight paint mode session data */
+	if (ob->sculpt) {
+		if (ob->sculpt->cache) {
+			sculpt_cache_free(ob->sculpt->cache);
+			ob->sculpt->cache = NULL;
+		}
+		BKE_sculptsession_free(ob);
+	}
+
+	vertex_paint_init_session(depsgraph, scene, ob, mode_flag);
+
+	/* Flush object mode. */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+}
+
+void ED_object_vpaintmode_enter_ex(
+        Main *bmain, Depsgraph *depsgraph, wmWindowManager *wm,
+        Scene *scene, Object *ob)
+{
+	ed_vwpaintmode_enter_generic(
+	        bmain, depsgraph, wm, scene, ob, OB_MODE_VERTEX_PAINT);
+}
+void ED_object_vpaintmode_enter(struct bContext *C)
+{
+	Main *bmain = CTX_data_main(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	wmWindowManager *wm = CTX_wm_manager(C);
+	Scene *scene = CTX_data_scene(C);
+	Object *ob = CTX_data_active_object(C);
+	ED_object_vpaintmode_enter_ex(bmain, depsgraph, wm, scene, ob);
+}
+
+void ED_object_wpaintmode_enter_ex(
+        Main *bmain, Depsgraph *depsgraph, wmWindowManager *wm,
+        Scene *scene, Object *ob)
+{
+	ed_vwpaintmode_enter_generic(
+	        bmain, depsgraph, wm, scene, ob, OB_MODE_WEIGHT_PAINT);
+}
+void ED_object_wpaintmode_enter(struct bContext *C)
+{
+	Main *bmain = CTX_data_main(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	wmWindowManager *wm = CTX_wm_manager(C);
+	Scene *scene = CTX_data_scene(C);
+	Object *ob = CTX_data_active_object(C);
+	ED_object_wpaintmode_enter_ex(bmain, depsgraph, wm, scene, ob);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Exit Vertex/Weight Paint Mode
+ * \{ */
+
+static void ed_vwpaintmode_exit_generic(
+        Object *ob, const eObjectMode mode_flag)
+{
+	Mesh *me = BKE_mesh_from_object(ob);
+	ob->mode &= ~mode_flag;
+
+	if (mode_flag == OB_MODE_VERTEX_PAINT) {
+		if (me->editflag & ME_EDIT_PAINT_FACE_SEL) {
+			BKE_mesh_flush_select_from_polys(me);
+		}
+		else if (me->editflag & ME_EDIT_PAINT_VERT_SEL) {
+			BKE_mesh_flush_select_from_verts(me);
+		}
+	}
+	else if (mode_flag == OB_MODE_WEIGHT_PAINT) {
+		if (me->editflag & ME_EDIT_PAINT_VERT_SEL) {
+			BKE_mesh_flush_select_from_verts(me);
+		}
+		else if (me->editflag & ME_EDIT_PAINT_FACE_SEL) {
+			BKE_mesh_flush_select_from_polys(me);
+		}
+	}
+	else {
+		BLI_assert(0);
+	}
+
+	/* If the cache is not released by a cancel or a done, free it now. */
+	if (ob->sculpt && ob->sculpt->cache) {
+		sculpt_cache_free(ob->sculpt->cache);
+		ob->sculpt->cache = NULL;
+	}
+
+	BKE_sculptsession_free(ob);
+
+	paint_cursor_delete_textures();
+
+	if (mode_flag == OB_MODE_WEIGHT_PAINT) {
+		ED_mesh_mirror_spatial_table(NULL, NULL, NULL, NULL, 'e');
+		ED_mesh_mirror_topo_table(NULL, NULL, 'e');
+	}
+
+	/* Never leave derived meshes behind. */
+	BKE_object_free_derived_caches(ob);
+
+	/* Flush object mode. */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+}
+
+void ED_object_vpaintmode_exit_ex(Object *ob)
+{
+	ed_vwpaintmode_exit_generic(ob, OB_MODE_VERTEX_PAINT);
+}
+void ED_object_vpaintmode_exit(struct bContext *C)
+{
+	Object *ob = CTX_data_active_object(C);
+	ED_object_vpaintmode_exit_ex(ob);
+}
+
+void ED_object_wpaintmode_exit_ex(Object *ob)
+{
+	ed_vwpaintmode_exit_generic(ob, OB_MODE_WEIGHT_PAINT);
+}
+void ED_object_wpaintmode_exit(struct bContext *C)
+{
+	Object *ob = CTX_data_active_object(C);
+	ED_object_wpaintmode_exit_ex(ob);
+}
+
+/** \} */
+
 /* *************** set wpaint operator ****************** */
 
 /**
@@ -1030,12 +1241,12 @@ static void vertex_paint_init_session_data(const ToolSettings *ts, Object *ob)
  */
 static int wpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
 	Object *ob = CTX_data_active_object(C);
 	const int mode_flag = OB_MODE_WEIGHT_PAINT;
 	const bool is_mode_set = (ob->mode & mode_flag) != 0;
 	Scene *scene = CTX_data_scene(C);
-	VPaint *wp = scene->toolsettings->wpaint;
-	Mesh *me;
 
 	if (!is_mode_set) {
 		if (!ED_object_mode_compat_set(C, ob, mode_flag, op->reports)) {
@@ -1043,51 +1254,15 @@ static int wpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	me = BKE_mesh_from_object(ob);
+	Mesh *me = BKE_mesh_from_object(ob);
 
-	if (ob->mode & mode_flag) {
-		ob->mode &= ~mode_flag;
-
-		if (me->editflag & ME_EDIT_PAINT_VERT_SEL) {
-			BKE_mesh_flush_select_from_verts(me);
-		}
-		else if (me->editflag & ME_EDIT_PAINT_FACE_SEL) {
-			BKE_mesh_flush_select_from_polys(me);
-		}
-
-		/* weight paint specific */
-		ED_mesh_mirror_spatial_table(NULL, NULL, NULL, NULL, 'e');
-		ED_mesh_mirror_topo_table(NULL, NULL, 'e');
-
-		/* If the cache is not released by a cancel or a done, free it now. */
-		if (ob->sculpt->cache) {
-			sculpt_cache_free(ob->sculpt->cache);
-			ob->sculpt->cache = NULL;
-		}
-
-		BKE_sculptsession_free(ob);
-
-		paint_cursor_delete_textures();
+	if (is_mode_set) {
+		ED_object_wpaintmode_exit_ex(ob);
 	}
 	else {
-		ob->mode |= mode_flag;
-
-		if (wp == NULL)
-			wp = scene->toolsettings->wpaint = new_vpaint();
-
-		paint_cursor_start(C, weight_paint_poll);
-
-		BKE_paint_init(scene, ePaintWeight, PAINT_CURSOR_WEIGHT_PAINT);
-
-		/* weight paint specific */
-		ED_mesh_mirror_spatial_table(ob, NULL, NULL, NULL, 's');
-		ED_vgroup_sync_from_pose(ob);
-
-		/* Create vertex/weight paint mode session data */
-		if (ob->sculpt) {
-			BKE_sculptsession_free(ob);
-		}
-		vertex_paint_init_session(scene, ob);
+		Depsgraph *depsgraph = CTX_data_depsgraph_on_load(C);
+		wmWindowManager *wm = CTX_wm_manager(C);
+		ED_object_wpaintmode_enter_ex(bmain, depsgraph, wm, scene, ob);
 	}
 
 	/* Weightpaint works by overriding colors in mesh,
@@ -1095,15 +1270,19 @@ static int wpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 	 * exit (exit needs doing regardless because we
 	 * should redeform).
 	 */
-	DAG_id_tag_update(&me->id, 0);
+	DEG_id_tag_update(&me->id, 0);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
+
+	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
+
+	WM_toolsystem_update_from_context_view3d(C);
 
 	return OPERATOR_FINISHED;
 }
 
 /* for switching to/from mode */
-static int paint_poll_test(bContext *C)
+static bool paint_poll_test(bContext *C)
 {
 	Object *ob = CTX_data_active_object(C);
 	if (ob == NULL || ob->type != OB_MESH)
@@ -1188,7 +1367,7 @@ static void vwpaint_update_cache_invariants(
 	cache->invert = mode == BRUSH_STROKE_INVERT;
 	cache->alt_smooth = mode == BRUSH_STROKE_SMOOTH;
 	/* not very nice, but with current events system implementation
-	* we can't handle brush appearance inversion hotkey separately (sergey) */
+	 * we can't handle brush appearance inversion hotkey separately (sergey) */
 	if (cache->invert) ups->draw_inverted = true;
 	else ups->draw_inverted = false;
 
@@ -1278,6 +1457,7 @@ static bool wpaint_stroke_test_start(bContext *C, wmOperator *op, const float mo
 	bool *defbase_sel;
 	SculptSession *ss = ob->sculpt;
 	VPaint *vp = CTX_data_tool_settings(C)->wpaint;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	if (ED_wpaint_ensure_data(C, op->reports, WPAINT_ENSURE_MIRROR, &vgroup_index) == false) {
 		return false;
@@ -1329,9 +1509,10 @@ static bool wpaint_stroke_test_start(bContext *C, wmOperator *op, const float mo
 	/* make mode data storage */
 	wpd = MEM_callocN(sizeof(struct WPaintData), "WPaintData");
 	paint_stroke_set_mode_data(stroke, wpd);
-	view3d_set_viewcontext(C, &wpd->vc);
-	view_angle_limits_init(&wpd->normal_angle_precalc, vp->paint.brush->falloff_angle,
-	                       (vp->paint.brush->flag & BRUSH_FRONTFACE_FALLOFF) != 0);
+	ED_view3d_viewcontext_init(C, &wpd->vc);
+	view_angle_limits_init(
+	        &wpd->normal_angle_precalc, vp->paint.brush->falloff_angle,
+	        (vp->paint.brush->flag & BRUSH_FRONTFACE_FALLOFF) != 0);
 
 	wpd->active.index = vgroup_index.active;
 	wpd->mirror.index = vgroup_index.mirror;
@@ -1381,7 +1562,7 @@ static bool wpaint_stroke_test_start(bContext *C, wmOperator *op, const float mo
 	}
 
 	/* If not previously created, create vertex/weight paint mode session data */
-	vertex_paint_init_session(scene, ob);
+	vertex_paint_init_stroke(depsgraph, scene, ob);
 	vwpaint_update_cache_invariants(C, vp, ss, op, mouse);
 	vertex_paint_init_session_data(ts, ob);
 
@@ -1431,7 +1612,9 @@ static float wpaint_get_active_weight(const MDeformVert *dv, const WeightPaintIn
 }
 
 static void do_wpaint_precompute_weight_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	const MDeformVert *dv = &data->me->dvert[n];
@@ -1450,15 +1633,21 @@ static void precompute_weight_values(
 		.C = C, .ob = ob, .wpd = wpd, .wpi = wpi, .me = me,
 	};
 
-	BLI_task_parallel_range_ex(
-	        0, me->totvert, &data, NULL, 0, do_wpaint_precompute_weight_cb_ex,
-	        true, false);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	BLI_task_parallel_range(
+	        0, me->totvert,
+	        &data,
+	        do_wpaint_precompute_weight_cb_ex,
+	        &settings);
 
 	wpd->precomputed_weight_ready = true;
 }
 
 static void do_wpaint_brush_blur_task_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -1547,7 +1736,9 @@ static void do_wpaint_brush_blur_task_cb_ex(
 }
 
 static void do_wpaint_brush_smear_task_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -1654,7 +1845,9 @@ static void do_wpaint_brush_smear_task_cb_ex(
 }
 
 static void do_wpaint_brush_draw_task_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -1724,7 +1917,9 @@ static void do_wpaint_brush_draw_task_cb_ex(
 }
 
 static void do_wpaint_brush_calc_average_weight_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -1775,9 +1970,14 @@ static void calculate_average_weight(SculptThreadedTaskData *data, PBVHNode **UN
 	struct WPaintAverageAccum *accum = MEM_mallocN(sizeof(*accum) * totnode, __func__);
 	data->custom_data = accum;
 
-	BLI_task_parallel_range_ex(
-	        0, totnode, data, NULL, 0, do_wpaint_brush_calc_average_weight_cb_ex,
-	        ((data->sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT), false);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = ((data->sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT);
+	BLI_task_parallel_range(
+	        0, totnode,
+	        data,
+	        do_wpaint_brush_calc_average_weight_cb_ex,
+	        &settings);
 
 	uint accum_len = 0;
 	double accum_weight = 0.0;
@@ -1803,36 +2003,47 @@ static void wpaint_paint_leaves(
 
 	/* threaded loop over nodes */
 	SculptThreadedTaskData data = {
-		.sd = sd, .ob = ob, .brush = brush, .nodes = nodes, .vp = vp, .wpd = wpd, .wpi = wpi, .me = me, .C = C,
+		 .C = C, .sd = sd, .ob = ob, .brush = brush, .nodes = nodes,
+		 .vp = vp, .wpd = wpd, .wpi = wpi, .me = me,
 	};
 
 	/* Use this so average can modify its weight without touching the brush. */
 	data.strength = BKE_brush_weight_get(scene, brush);
 
-	/* current mirroring code cannot be run in parallel */
-	bool use_threading = !(me->editflag & ME_EDIT_MIRROR_X);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	/* NOTE: current mirroring code cannot be run in parallel */
+	settings.use_threading = !(me->editflag & ME_EDIT_MIRROR_X);
 
 	switch (brush->vertexpaint_tool) {
 		case PAINT_BLEND_AVERAGE:
 			calculate_average_weight(&data, nodes, totnode);
-			BLI_task_parallel_range_ex(
-			        0, totnode, &data, NULL, 0,
-			        do_wpaint_brush_draw_task_cb_ex, use_threading, false);
+			BLI_task_parallel_range(
+			        0, totnode,
+			        &data,
+			        do_wpaint_brush_draw_task_cb_ex,
+			        &settings);
 			break;
 		case PAINT_BLEND_SMEAR:
-			BLI_task_parallel_range_ex(
-			        0, totnode, &data, NULL, 0,
-			        do_wpaint_brush_smear_task_cb_ex, use_threading, false);
+			BLI_task_parallel_range(
+			        0, totnode,
+			        &data,
+			        do_wpaint_brush_smear_task_cb_ex,
+			        &settings);
 			break;
 		case PAINT_BLEND_BLUR:
-			BLI_task_parallel_range_ex(
-			        0, totnode, &data, NULL, 0,
-			        do_wpaint_brush_blur_task_cb_ex, use_threading, false);
+			BLI_task_parallel_range(
+			        0, totnode,
+			        &data,
+			        do_wpaint_brush_blur_task_cb_ex,
+			        &settings);
 			break;
 		default:
-			BLI_task_parallel_range_ex(
-			        0, totnode, &data, NULL, 0,
-			        do_wpaint_brush_draw_task_cb_ex, use_threading, false);
+			BLI_task_parallel_range(
+			        0, totnode,
+			        &data,
+			        do_wpaint_brush_draw_task_cb_ex,
+			        &settings);
 			break;
 	}
 }
@@ -2021,7 +2232,9 @@ static void wpaint_stroke_update_step(bContext *C, struct PaintStroke *stroke, P
 	/* also needed for "View Selected" on last stroke */
 	paint_last_stroke_update(scene, vc->ar, mval);
 
-	DAG_id_tag_update(ob->data, 0);
+	BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+
+	DEG_id_tag_update(ob->data, 0);
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 	swap_m4m4(wpd->vc.rv3d->persmat, mat);
 
@@ -2085,7 +2298,7 @@ static void wpaint_stroke_done(const bContext *C, struct PaintStroke *stroke)
 		}
 	}
 
-	DAG_id_tag_update(ob->data, 0);
+	DEG_id_tag_update(ob->data, 0);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 
@@ -2167,12 +2380,12 @@ void PAINT_OT_weight_paint(wmOperatorType *ot)
  */
 static int vpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
+	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
 	Object *ob = CTX_data_active_object(C);
 	const int mode_flag = OB_MODE_VERTEX_PAINT;
 	const bool is_mode_set = (ob->mode & mode_flag) != 0;
 	Scene *scene = CTX_data_scene(C);
-	VPaint *vp = scene->toolsettings->vpaint;
-	Mesh *me;
 
 	if (!is_mode_set) {
 		if (!ED_object_mode_compat_set(C, ob, mode_flag, op->reports)) {
@@ -2180,56 +2393,28 @@ static int vpaint_mode_toggle_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	me = BKE_mesh_from_object(ob);
+	Mesh *me = BKE_mesh_from_object(ob);
 
 	/* toggle: end vpaint */
 	if (is_mode_set) {
-		ob->mode &= ~mode_flag;
-
-		if (me->editflag & ME_EDIT_PAINT_FACE_SEL) {
-			BKE_mesh_flush_select_from_polys(me);
-		}
-		else if (me->editflag & ME_EDIT_PAINT_VERT_SEL) {
-			BKE_mesh_flush_select_from_verts(me);
-		}
-
-		/* If the cache is not released by a cancel or a done, free it now. */
-		if (ob->sculpt->cache) {
-			sculpt_cache_free(ob->sculpt->cache);
-			ob->sculpt->cache = NULL;
-		}
-
-		BKE_sculptsession_free(ob);
-
-		paint_cursor_delete_textures();
+		ED_object_vpaintmode_exit_ex(ob);
 	}
 	else {
-		ob->mode |= mode_flag;
-
-		ED_mesh_color_ensure(me, NULL);
-
-		if (vp == NULL)
-			vp = scene->toolsettings->vpaint = new_vpaint();
-
-		paint_cursor_start(C, vertex_paint_poll);
-
-		BKE_paint_init(scene, ePaintVertex, PAINT_CURSOR_VERTEX_PAINT);
-
-		/* Create vertex/weight paint mode session data */
-		if (ob->sculpt) {
-			if (ob->sculpt->cache) {
-				sculpt_cache_free(ob->sculpt->cache);
-				ob->sculpt->cache = NULL;
-			}
-			BKE_sculptsession_free(ob);
-		}
-		vertex_paint_init_session(scene, ob);
+		Depsgraph *depsgraph = CTX_data_depsgraph_on_load(C);
+		wmWindowManager *wm = CTX_wm_manager(C);
+		ED_object_vpaintmode_enter_ex(bmain, depsgraph, wm, scene, ob);
 	}
 
+	BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+
 	/* update modifier stack for mapping requirements */
-	DAG_id_tag_update(&me->id, 0);
+	DEG_id_tag_update(&me->id, 0);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, scene);
+
+	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
+
+	WM_toolsystem_update_from_context_view3d(C);
 
 	return OPERATOR_FINISHED;
 }
@@ -2313,6 +2498,7 @@ static bool vpaint_stroke_test_start(bContext *C, struct wmOperator *op, const f
 	Object *ob = CTX_data_active_object(C);
 	Mesh *me;
 	SculptSession *ss = ob->sculpt;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	/* context checks could be a poll() */
 	me = BKE_mesh_from_object(ob);
@@ -2326,14 +2512,14 @@ static bool vpaint_stroke_test_start(bContext *C, struct wmOperator *op, const f
 	/* make mode data storage */
 	vpd = MEM_callocN(sizeof(*vpd), "VPaintData");
 	paint_stroke_set_mode_data(stroke, vpd);
-	view3d_set_viewcontext(C, &vpd->vc);
-	view_angle_limits_init(&vpd->normal_angle_precalc, vp->paint.brush->falloff_angle,
-	                       (vp->paint.brush->flag & BRUSH_FRONTFACE_FALLOFF) != 0);
+	ED_view3d_viewcontext_init(C, &vpd->vc);
+	view_angle_limits_init(
+	        &vpd->normal_angle_precalc, vp->paint.brush->falloff_angle,
+	        (vp->paint.brush->flag & BRUSH_FRONTFACE_FALLOFF) != 0);
 
 	vpd->paintcol = vpaint_get_current_col(scene, vp);
 
-	vpd->is_texbrush = !(brush->vertexpaint_tool == PAINT_BLEND_BLUR) &&
-	                   brush->mtex.tex;
+	vpd->is_texbrush = !(brush->vertexpaint_tool == PAINT_BLEND_BLUR) && brush->mtex.tex;
 
 	/* are we painting onto a modified mesh?,
 	 * if not we can skip face map trickiness */
@@ -2360,12 +2546,12 @@ static bool vpaint_stroke_test_start(bContext *C, struct wmOperator *op, const f
 	/* Create projection handle */
 	if (vpd->is_texbrush) {
 		ob->sculpt->building_vp_handle = true;
-		vpd->vp_handle = ED_vpaint_proj_handle_create(scene, ob, &vpd->vertexcosnos);
+		vpd->vp_handle = ED_vpaint_proj_handle_create(depsgraph, scene, ob, &vpd->vertexcosnos);
 		ob->sculpt->building_vp_handle = false;
 	}
 
 	/* If not previously created, create vertex/weight paint mode session data */
-	vertex_paint_init_session(scene, ob);
+	vertex_paint_init_stroke(depsgraph, scene, ob);
 	vwpaint_update_cache_invariants(C, vp, ss, op, mouse);
 	vertex_paint_init_session_data(ts, ob);
 
@@ -2377,7 +2563,9 @@ static bool vpaint_stroke_test_start(bContext *C, struct wmOperator *op, const f
 }
 
 static void do_vpaint_brush_calc_average_color_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -2439,7 +2627,9 @@ static float tex_color_alpha_ubyte(
 }
 
 static void do_vpaint_brush_draw_task_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -2531,7 +2721,9 @@ static void do_vpaint_brush_draw_task_cb_ex(
 }
 
 static void do_vpaint_brush_blur_task_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -2640,7 +2832,9 @@ static void do_vpaint_brush_blur_task_cb_ex(
 }
 
 static void do_vpaint_brush_smear_task_cb_ex(
-        void *userdata, void *UNUSED(userdata_chunk), const int n, const int UNUSED(thread_id))
+        void *__restrict userdata,
+        const int n,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SculptThreadedTaskData *data = userdata;
 	SculptSession *ss = data->ob->sculpt;
@@ -2778,9 +2972,13 @@ static void calculate_average_color(SculptThreadedTaskData *data, PBVHNode **UNU
 	struct VPaintAverageAccum *accum = MEM_mallocN(sizeof(*accum) * totnode, __func__);
 	data->custom_data = accum;
 
-	BLI_task_parallel_range_ex(
-	        0, totnode, data, NULL, 0, do_vpaint_brush_calc_average_color_cb_ex,
-	        true, false);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	BLI_task_parallel_range(
+	        0, totnode,
+	        data,
+	        do_vpaint_brush_calc_average_color_cb_ex,
+	        &settings);
 
 	uint accum_len = 0;
 	uint accum_value[3] = {0};
@@ -2809,30 +3007,40 @@ static void vpaint_paint_leaves(
 	const Brush *brush = ob->sculpt->cache->brush;
 
 	SculptThreadedTaskData data = {
-		.sd = sd, .ob = ob, .brush = brush, .nodes = nodes, .vp = vp, .vpd = vpd,
-		.lcol = (uint *)me->mloopcol, .me = me, .C = C,
+		.C = C, .sd = sd, .ob = ob, .brush = brush, .nodes = nodes, .vp = vp, .vpd = vpd,
+		.lcol = (uint *)me->mloopcol, .me = me,
 	};
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
 	switch (brush->vertexpaint_tool) {
 		case PAINT_BLEND_AVERAGE:
 			calculate_average_color(&data, nodes, totnode);
-			BLI_task_parallel_range_ex(
-			    0, totnode, &data, NULL, 0,
-			    do_vpaint_brush_draw_task_cb_ex, true, false);
+			BLI_task_parallel_range(
+			    0, totnode,
+			    &data,
+			    do_vpaint_brush_draw_task_cb_ex,
+			    &settings);
 			break;
 		case PAINT_BLEND_BLUR:
-			BLI_task_parallel_range_ex(
-			    0, totnode, &data, NULL, 0,
-			    do_vpaint_brush_blur_task_cb_ex, true, false);
+			BLI_task_parallel_range(
+			    0, totnode,
+			    &data,
+			    do_vpaint_brush_blur_task_cb_ex,
+			    &settings);
 			break;
 		case PAINT_BLEND_SMEAR:
-			BLI_task_parallel_range_ex(
-			    0, totnode, &data, NULL, 0,
-			    do_vpaint_brush_smear_task_cb_ex, true, false);
+			BLI_task_parallel_range(
+			    0, totnode,
+			    &data,
+			    do_vpaint_brush_smear_task_cb_ex,
+			    &settings);
 			break;
 		default:
-			BLI_task_parallel_range_ex(
-			    0, totnode, &data, NULL, 0,
-			    do_vpaint_brush_draw_task_cb_ex, true, false);
+			BLI_task_parallel_range(
+			    0, totnode,
+			    &data,
+			    do_vpaint_brush_draw_task_cb_ex,
+			    &settings);
 			break;
 	}
 }
@@ -2937,6 +3145,8 @@ static void vpaint_stroke_update_step(bContext *C, struct PaintStroke *stroke, P
 
 	swap_m4m4(vc->rv3d->persmat, mat);
 
+	BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+
 	if (vp->paint.brush->vertexpaint_tool == PAINT_BLEND_SMEAR) {
 		memcpy(vpd->smear.color_prev, vpd->smear.color_curr, sizeof(uint) * ((Mesh *)ob->data)->totloop);
 	}
@@ -2950,11 +3160,11 @@ static void vpaint_stroke_update_step(bContext *C, struct PaintStroke *stroke, P
 	if (vpd->use_fast_update == false) {
 		/* recalculate modifier stack to get new colors, slow,
 		 * avoid this if we can! */
-		DAG_id_tag_update(ob->data, 0);
+		DEG_id_tag_update(ob->data, 0);
 	}
 	else {
-		/* If using new VBO drawing, mark mcol as dirty to force colors gpu buffer refresh! */
-		ob->derivedFinal->dirty |= DM_DIRTY_MCOL_UPDATE_DRAW;
+		/* Flush changes through DEG. */
+		DEG_id_tag_update(ob->data, DEG_TAG_COPY_ON_WRITE);
 	}
 }
 

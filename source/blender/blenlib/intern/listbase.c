@@ -23,13 +23,15 @@
  * Contributor(s): none yet.
  *
  * ***** END GPL LICENSE BLOCK *****
- * 
+ *
  */
 
 /** \file blender/blenlib/intern/listbase.c
  *  \ingroup bli
  *
- * Manipulations on ListBase structs
+ * Manipulations on double-linked list (#ListBase structs).
+ *
+ * For single linked lists see 'BLI_linklist.h'
  */
 
 #include <string.h>
@@ -306,7 +308,7 @@ void BLI_insertlinkafter(ListBase *listbase, void *vprevlink, void *vnewlink)
 		listbase->last = newlink;
 		return;
 	}
-	
+
 	/* insert at head of list */
 	if (prevlink == NULL) {
 		newlink->prev = NULL;
@@ -347,7 +349,7 @@ void BLI_insertlinkbefore(ListBase *listbase, void *vnextlink, void *vnewlink)
 		listbase->last = newlink;
 		return;
 	}
-	
+
 	/* insert at end of list */
 	if (nextlink == NULL) {
 		newlink->prev = listbase->last;
@@ -449,7 +451,7 @@ bool BLI_listbase_link_move(ListBase *listbase, void *vlink, int step)
 void BLI_freelist(ListBase *listbase)
 {
 	Link *link, *next;
-	
+
 	link = listbase->first;
 	while (link) {
 		next = link->next;
@@ -466,7 +468,7 @@ void BLI_freelist(ListBase *listbase)
 void BLI_freelistN(ListBase *listbase)
 {
 	Link *link, *next;
-	
+
 	link = listbase->first;
 	while (link) {
 		next = link->next;
@@ -482,7 +484,7 @@ void BLI_freelistN(ListBase *listbase)
  *
  * \note Use to avoid redundant looping.
  */
-int BLI_listbase_count_ex(const ListBase *listbase, const int count_max)
+int BLI_listbase_count_at_most(const ListBase *listbase, const int count_max)
 {
 	Link *link;
 	int count = 0;
@@ -554,16 +556,16 @@ int BLI_findindex(const ListBase *listbase, const void *vlink)
 	int number = 0;
 
 	if (vlink == NULL) return -1;
-	
+
 	link = listbase->first;
 	while (link) {
 		if (link == vlink)
 			return number;
-		
+
 		number++;
 		link = link->next;
 	}
-	
+
 	return -1;
 }
 
@@ -828,13 +830,13 @@ void BLI_listbase_rotate_last(ListBase *lb, void *vlink)
 LinkData *BLI_genericNodeN(void *data)
 {
 	LinkData *ld;
-	
+
 	if (data == NULL)
 		return NULL;
-		
+
 	/* create new link, and make it hold the given data */
 	ld = MEM_callocN(sizeof(LinkData), __func__);
 	ld->data = data;
-	
+
 	return ld;
-} 
+}

@@ -34,6 +34,9 @@
 /* struct DerivedMesh is used directly */
 #include "BKE_DerivedMesh.h"
 
+/* Thread sync primitives used directly.  */
+#include "BLI_threads.h"
+
 struct CCGElem;
 struct DMFlagMat;
 struct DMGridAdjacency;
@@ -64,6 +67,7 @@ typedef enum {
 struct DerivedMesh *subsurf_make_derived_from_derived(
         struct DerivedMesh *dm,
         struct SubsurfModifierData *smd,
+        struct Scene *scene,
         float (*vertCos)[3],
         SubsurfFlags flags);
 
@@ -140,6 +144,9 @@ typedef struct CCGDerivedMesh {
 	} multires;
 
 	struct EdgeHash *ehash;
+
+	ThreadMutex loops_cache_lock;
+	ThreadRWMutex origindex_cache_rwlock;
 } CCGDerivedMesh;
 
 #ifdef WITH_OPENSUBDIV

@@ -46,6 +46,8 @@
 #include "BKE_modifier.h"
 #include "BKE_subsurf.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "MOD_modifiertypes.h"
 
 static void initData(ModifierData *md)
@@ -58,23 +60,16 @@ static void initData(ModifierData *md)
 	mmd->totlvl = 0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	MultiresModifierData *mmd = (MultiresModifierData *) md;
-	MultiresModifierData *tmmd = (MultiresModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
-}
-
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
-                                  ModifierApplyFlag flag)
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	MultiresModifierData *mmd = (MultiresModifierData *)md;
+	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
 	DerivedMesh *result;
-	Mesh *me = (Mesh *)ob->data;
-	const bool useRenderParams = (flag & MOD_APPLY_RENDER) != 0;
-	const bool ignore_simplify = (flag & MOD_APPLY_IGNORE_SIMPLIFY) != 0;
+	Mesh *me = (Mesh *)ctx->object->data;
+	const bool useRenderParams = (ctx->flag & MOD_APPLY_RENDER) != 0;
+	const bool ignore_simplify = (ctx->flag & MOD_APPLY_IGNORE_SIMPLIFY) != 0;
 	MultiresFlags flags = 0;
 	const bool has_mask = CustomData_has_layer(&me->ldata, CD_GRID_PAINT_MASK);
 
@@ -94,24 +89,24 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob, DerivedMesh *dm,
 	if (ignore_simplify)
 		flags |= MULTIRES_IGNORE_SIMPLIFY;
 
-	result = multires_make_derived_from_derived(dm, mmd, ob, flags);
+	result = multires_make_derived_from_derived(dm, mmd, scene, ctx->object, flags);
 
 	if (result == dm)
 		return dm;
 
-	if (useRenderParams || !(flag & MOD_APPLY_USECACHE)) {
+	if (useRenderParams || !(ctx->flag & MOD_APPLY_USECACHE)) {
 		DerivedMesh *cddm;
-		
+
 		cddm = CDDM_copy(result);
 
 		/* copy hidden/masks to vertices */
 		if (!useRenderParams) {
 			struct MDisps *mdisps;
 			struct GridPaintMask *grid_paint_mask;
-			
+
 			mdisps = CustomData_get_layer(&me->ldata, CD_MDISPS);
 			grid_paint_mask = CustomData_get_layer(&me->ldata, CD_GRID_PAINT_MASK);
-			
+
 			if (mdisps) {
 				subsurf_copy_grid_hidden(result, me->mpoly,
 				                         cddm->getVertArray(cddm),
@@ -152,18 +147,26 @@ ModifierTypeInfo modifierType_Multires = {
 	                        eModifierTypeFlag_SupportsMapping |
 	                        eModifierTypeFlag_RequiresOriginalData,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

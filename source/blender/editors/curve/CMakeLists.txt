@@ -23,10 +23,12 @@ set(INC
 	../../blenkernel
 	../../blenlib
 	../../blentranslation
+	../../depsgraph
 	../../gpu
 	../../makesdna
 	../../makesrna
 	../../windowmanager
+	../../../../intern/clog
 	../../../../intern/guardedalloc
 	../../../../intern/glew-mx
 	../../../../extern/curve_fit_nd
@@ -42,6 +44,7 @@ set(SRC
 	editcurve_add.c
 	editcurve_paint.c
 	editcurve_select.c
+	editcurve_undo.c
 	editfont.c
 	editfont_undo.c
 

@@ -179,7 +179,7 @@ string OperationKey::identifier() const
 	return string("OperationKey(") +
 	       "t: " + typebuf +
 	       ", cn: '" + component_name +
-	       "', c: " + DEG_OPNAMES[opcode] +
+	       "', c: " + operationCodeAsString(opcode) +
 	       ", n: '" + name + "')";
 }
 
@@ -191,6 +191,20 @@ RNAPathKey::RNAPathKey(ID *id, const PointerRNA &ptr, PropertyRNA *prop)
           ptr(ptr),
           prop(prop)
 {
+}
+
+RNAPathKey::RNAPathKey(ID *id, const char *path)
+        : id(id)
+{
+	/* create ID pointer for root of path lookup */
+	PointerRNA id_ptr;
+	RNA_id_pointer_create(id, &id_ptr);
+	/* try to resolve path... */
+	int index;
+	if (!RNA_path_resolve_full(&id_ptr, path, &this->ptr, &this->prop, &index)) {
+		this->ptr = PointerRNA_NULL;
+		this->prop = NULL;
+	}
 }
 
 string RNAPathKey::identifier() const

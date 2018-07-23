@@ -51,7 +51,7 @@ endmacro()
 function(list_assert_duplicates
 	list_id
 	)
-	
+
 	# message(STATUS "list data: ${list_id}")
 
 	list(LENGTH list_id _len_before)
@@ -242,6 +242,13 @@ function(blender_add_lib__impl
 	# listed is helpful for IDE's (QtCreator/MSVC)
 	blender_source_group("${sources}")
 
+	#if enabled, set the FOLDER property for visual studio projects
+	if(WINDOWS_USE_VISUAL_STUDIO_FOLDERS)
+		get_filename_component(FolderDir ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+		string(REPLACE ${CMAKE_SOURCE_DIR} "" FolderDir ${FolderDir})
+		set_target_properties(${name} PROPERTIES FOLDER ${FolderDir})
+	endif()
+
 	list_assert_duplicates("${sources}")
 	list_assert_duplicates("${includes}")
 	# Not for system includes because they can resolve to the same path
@@ -319,7 +326,7 @@ function(SETUP_LIBDIRS)
 			link_directories(${JACK_LIBPATH})
 		endif()
 		if(WITH_CODEC_SNDFILE)
-			link_directories(${SNDFILE_LIBPATH})
+			link_directories(${LIBSNDFILE_LIBPATH})
 		endif()
 		if(WITH_FFTW3)
 			link_directories(${FFTW3_LIBPATH})
@@ -344,6 +351,11 @@ function(SETUP_LIBDIRS)
 		endif()
 	endif()
 endfunction()
+
+macro(setup_platform_linker_flags)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${PLATFORM_LINKFLAGS}")
+	set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} ${PLATFORM_LINKFLAGS_DEBUG}")
+endmacro()
 
 function(setup_liblinks
 	target
@@ -400,7 +412,7 @@ function(setup_liblinks
 		target_link_libraries(${target} ${JACK_LIBRARIES})
 	endif()
 	if(WITH_CODEC_SNDFILE)
-		target_link_libraries(${target} ${SNDFILE_LIBRARIES})
+		target_link_libraries(${target} ${LIBSNDFILE_LIBRARIES})
 	endif()
 	if(WITH_SDL AND NOT WITH_SDL_DYNLOAD)
 		target_link_libraries(${target} ${SDL_LIBRARY})
@@ -418,7 +430,7 @@ function(setup_liblinks
 			target_link_libraries(${target} ${OPENSUBDIV_LIBRARIES})
 	endif()
 	if(WITH_OPENVDB)
-		target_link_libraries(${target} ${OPENVDB_LIBRARIES} ${TBB_LIBRARIES})
+		target_link_libraries(${target} ${OPENVDB_LIBRARIES} ${TBB_LIBRARIES} ${BLOSC_LIBRARIES})
 	endif()
 	if(WITH_CYCLES_OSL)
 		target_link_libraries(${target} ${OSL_LIBRARIES})
@@ -548,9 +560,17 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		endif()
 	endif()
 
+	if(WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE)
+		list(APPEND BLENDER_LINK_LIBS
+			audaspace
+			audaspace-py)
+	endif()
+
 	# Sort libraries
 	set(BLENDER_SORTED_LIBS
 		bf_windowmanager
+
+		bf_editor_undo
 
 		bf_editor_space_api
 		bf_editor_space_action
@@ -566,8 +586,10 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_editor_space_outliner
 		bf_editor_space_script
 		bf_editor_space_sequencer
+		bf_editor_space_statusbar
 		bf_editor_space_text
 		bf_editor_space_time
+		bf_editor_space_topbar
 		bf_editor_space_userpref
 		bf_editor_space_view3d
 		bf_editor_space_clip
@@ -578,12 +600,15 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_editor_curve
 		bf_editor_gpencil
 		bf_editor_interface
+		bf_editor_gizmo_library
 		bf_editor_mesh
 		bf_editor_metaball
 		bf_editor_object
+		bf_editor_lattice
 		bf_editor_armature
 		bf_editor_physics
 		bf_editor_render
+		bf_editor_scene
 		bf_editor_screen
 		bf_editor_sculpt_paint
 		bf_editor_sound
@@ -596,6 +621,7 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_python
 		bf_python_ext
 		bf_python_mathutils
+		bf_python_gpu
 		bf_python_bmesh
 		bf_freestyle
 		bf_ikplugin
@@ -603,11 +629,14 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_alembic
 		bf_bmesh
 		bf_gpu
+		bf_draw
 		bf_blenloader
 		bf_blenkernel
 		bf_physics
 		bf_nodes
 		bf_rna
+		bf_editor_gizmo_library  # rna -> gizmo bad-level calls
+		bf_python
 		bf_imbuf
 		bf_blenlib
 		bf_depsgraph
@@ -645,9 +674,13 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		extern_openjpeg
 		ge_videotex
 		bf_dna
+
 		bf_blenfont
+		bf_gpu  # duplicate for blenfont
 		bf_blentranslation
 		bf_intern_audaspace
+		audaspace
+		audaspace-py
 		bf_intern_mikktspace
 		bf_intern_dualcon
 		bf_intern_cycles
@@ -659,6 +692,7 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		cycles_util
 		cycles_subd
 		bf_intern_opencolorio
+		bf_intern_gawain
 		bf_intern_eigen
 		extern_rangetree
 		extern_wcwidth
@@ -666,6 +700,7 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		extern_sdlew
 
 		bf_intern_glew_mx
+		bf_intern_clog
 	)
 
 	if(NOT WITH_SYSTEM_GLOG)
@@ -714,10 +749,6 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		list(APPEND BLENDER_SORTED_LIBS bf_intern_itasc)
 	endif()
 
-	if(WITH_MOD_BOOLEAN)
-		list(APPEND BLENDER_SORTED_LIBS extern_carve)
-	endif()
-
 	if(WITH_GHOST_XDND)
 		list(APPEND BLENDER_SORTED_LIBS extern_xdnd)
 	endif()
@@ -736,10 +767,6 @@ function(SETUP_BLENDER_SORTED_LIBS)
 
 	if(WITH_BULLET AND NOT WITH_SYSTEM_BULLET)
 		list_insert_after(BLENDER_SORTED_LIBS "ge_logic_ngnetwork" "extern_bullet")
-	endif()
-
-	if(WITH_GAMEENGINE_DECKLINK)
-		list(APPEND BLENDER_SORTED_LIBS bf_intern_decklink)
 	endif()
 
 	if(WIN32)
@@ -800,7 +827,7 @@ macro(TEST_SSE_SUPPORT
 		endif()
 	elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
 		set(${_sse_flags} "")  # icc defaults to -msse
-		set(${_sse2_flags} "-msse2")
+		set(${_sse2_flags} "")  # icc defaults to -msse2
 	else()
 		message(WARNING "SSE flags for this compiler: '${CMAKE_C_COMPILER_ID}' not known")
 		set(${_sse_flags})
@@ -1029,10 +1056,16 @@ macro(remove_cc_flag
 
 endmacro()
 
-macro(add_cc_flag
+macro(add_c_flag
 	flag)
 
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${flag}")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}")
+endmacro()
+
+macro(add_cxx_flag
+	flag)
+
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}")
 endmacro()
 
@@ -1058,7 +1091,8 @@ macro(remove_strict_flags)
 		)
 
 		# negate flags implied by '-Wall'
-		add_cc_flag("${CC_REMOVE_STRICT_FLAGS}")
+		add_c_flag("${C_REMOVE_STRICT_FLAGS}")
+		add_cxx_flag("${CXX_REMOVE_STRICT_FLAGS}")
 	endif()
 
 	if(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -1070,7 +1104,8 @@ macro(remove_strict_flags)
 		)
 
 		# negate flags implied by '-Wall'
-		add_cc_flag("${CC_REMOVE_STRICT_FLAGS}")
+		add_c_flag("${C_REMOVE_STRICT_FLAGS}")
+		add_cxx_flag("${CXX_REMOVE_STRICT_FLAGS}")
 	endif()
 
 	if(MSVC)
@@ -1100,33 +1135,46 @@ endmacro()
 # note, we can only append flags on a single file so we need to negate the options.
 # at the moment we cant shut up ffmpeg deprecations, so use this, but will
 # probably add more removals here.
-macro(remove_strict_flags_file
+macro(remove_strict_c_flags_file
 	filenames)
-
 	foreach(_SOURCE ${ARGV})
-
 		if(CMAKE_COMPILER_IS_GNUCC OR
-		  (CMAKE_C_COMPILER_ID MATCHES "Clang"))
-
+		   (CMAKE_C_COMPILER_ID MATCHES "Clang"))
 			set_source_files_properties(${_SOURCE}
 				PROPERTIES
-					COMPILE_FLAGS "${CC_REMOVE_STRICT_FLAGS}"
+					COMPILE_FLAGS "${C_REMOVE_STRICT_FLAGS}"
 			)
 		endif()
-
 		if(MSVC)
 			# TODO
 		endif()
-
 	endforeach()
-
 	unset(_SOURCE)
+endmacro()
 
+macro(remove_strict_cxx_flags_file
+	filenames)
+	remove_strict_c_flags_file(${filenames} ${ARHV})
+	foreach(_SOURCE ${ARGV})
+		if(CMAKE_COMPILER_IS_GNUCC OR
+		   (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
+			set_source_files_properties(${_SOURCE}
+				PROPERTIES
+					COMPILE_FLAGS "${CXX_REMOVE_STRICT_FLAGS}"
+			)
+		endif()
+		if(MSVC)
+			# TODO
+		endif()
+	endforeach()
+	unset(_SOURCE)
 endmacro()
 
 # External libs may need 'signed char' to be default.
 macro(remove_cc_flag_unsigned_char)
-	if(CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|Intel)$")
+	if(CMAKE_COMPILER_IS_GNUCC OR
+	   (CMAKE_C_COMPILER_ID MATCHES "Clang") OR
+	   (CMAKE_C_COMPILER_ID MATCHES "Intel"))
 		remove_cc_flag("-funsigned-char")
 	elseif(MSVC)
 		remove_cc_flag("/J")
@@ -1372,7 +1420,7 @@ endfunction()
 
 # macro for converting pixmap directory to a png and then a c file
 function(data_to_c_simple_icons
-	path_from
+	path_from icon_prefix icon_names
 	list_to_add
 	)
 
@@ -1390,8 +1438,11 @@ function(data_to_c_simple_icons
 
 	get_filename_component(_file_to_path ${_file_to} PATH)
 
-	# ideally we wouldn't glob, but storing all names for all pixmaps is a bit heavy
-	file(GLOB _icon_files "${path_from}/*.dat")
+	# Construct a list of absolute paths from input
+	set(_icon_files)
+	foreach(_var ${icon_names})
+		list(APPEND _icon_files "${_path_from_abs}/${icon_prefix}${_var}.dat")
+	endforeach()
 
 	add_custom_command(
 		OUTPUT  ${_file_from} ${_file_to}
@@ -1498,11 +1549,13 @@ function(find_python_package
 		  NAMES
 		    ${package}
 		  HINTS
+		    "${PYTHON_LIBPATH}/"
 		    "${PYTHON_LIBPATH}/python${PYTHON_VERSION}/"
 		    "${PYTHON_LIBPATH}/python${_PY_VER_MAJOR}/"
 		  PATH_SUFFIXES
 		    site-packages
 		    dist-packages
+		    vendor-packages
 		   NO_DEFAULT_PATH
 		)
 
@@ -1513,6 +1566,8 @@ function(find_python_package
 				"'${PYTHON_LIBPATH}/python${_PY_VER_MAJOR}/site-packages/${package}', "
 				"'${PYTHON_LIBPATH}/python${PYTHON_VERSION}/dist-packages/${package}', "
 				"'${PYTHON_LIBPATH}/python${_PY_VER_MAJOR}/dist-packages/${package}', "
+				"'${PYTHON_LIBPATH}/python${PYTHON_VERSION}/vendor-packages/${package}', "
+				"'${PYTHON_LIBPATH}/python${_PY_VER_MAJOR}/vendor-packages/${package}', "
 				"\n"
 				"The 'WITH_PYTHON_INSTALL_${_upper_package}' option will be ignored when installing Python.\n"
 				"The build will be usable, only add-ons that depend on this package won't be functional."
@@ -1550,7 +1605,7 @@ macro(openmp_delayload
 		endif()
 endmacro()
 
-MACRO(WINDOWS_SIGN_TARGET target)
+macro(WINDOWS_SIGN_TARGET target)
 	if(WITH_WINDOWS_CODESIGN)
 		if(!SIGNTOOL_EXE)
 			error("Codesigning is enabled, but signtool is not found")
@@ -1571,4 +1626,4 @@ MACRO(WINDOWS_SIGN_TARGET target)
 			)
 		endif()
 	endif()
-ENDMACRO()
+endmacro()

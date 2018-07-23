@@ -36,62 +36,6 @@
 
 /* ================================ */
 
-/** \defgroup bge Game Engine */
-/** \defgroup gamelogic Game Logic
- *  \ingroup bge
- */
-/** \defgroup bgeconv Converter
- *  \ingroup bge
- */
-/** \defgroup blroutines Blender Routines
- *  \ingroup bge
- */
-/** \defgroup expressions Expressions
- *  \ingroup bge
- */
-/** \defgroup player Game Player
- *  \ingroup bge
- */
-/** \defgroup ketsji Ketsji
- *  \ingroup bge
- *  \todo check all headers and code files for proper licenses
- */
-/** \defgroup ketsjinet Ketsji Network
- *  \ingroup ketsji
- */
-/** \defgroup bgenet Network
- *  \ingroup bge
- */
-/** \defgroup bgenetlb Loopback Network
- *  \ingroup bgenet
- */
-/** \defgroup phys Physics
- *  \ingroup bge
- */
-/** \defgroup physbullet Bullet Physics
- *  \ingroup phys
- */
-/** \defgroup physdummy Dummy Physics (none)
- *  \ingroup phys
- */
-/** \defgroup bgerast Rasterizer
- *  \ingroup bge
- */
-/** \defgroup bgerastoglfilters OpenGL Filters
- *  \ingroup bgerast
- */
-/** \defgroup bgerastogl OpenGL Rasterizer
- *  \ingroup bgerast
- */
-/** \defgroup bgesg BGE SceneGraph
- *  \ingroup bge
- */
-/** \defgroup bgevideotex BGE Video Texture
- *  \ingroup bge
- */
-
-/* ================================ */
-
 /** \defgroup blender Blender */
 
 /** \defgroup blt BlenTranslation
@@ -196,6 +140,10 @@
  *  \ingroup editors
  */
 
+/** \defgroup edlattice lattice
+ *  \ingroup editors
+ */
+
 /** \defgroup edmesh mesh
  *  \ingroup editors
  */
@@ -217,6 +165,10 @@
  */
 
 /** \defgroup edscr screen
+ *  \ingroup editors
+ */
+
+/** \defgroup edscene scene
  *  \ingroup editors
  */
 
@@ -257,10 +209,6 @@
  */
 
 /** \defgroup spinfo info space
- *  \ingroup editors
- */
-
-/** \defgroup splogic game logic editor
  *  \ingroup editors
  */
 
@@ -309,6 +257,10 @@
  */
 
 /** \defgroup edutil editor utilities
+ *  \ingroup editors
+ */
+
+/** \defgroup edundo undo utilities
  *  \ingroup editors
  */
 

@@ -29,13 +29,13 @@ class PHYSICS_PT_rigidbody_panel:
 
 class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
     bl_label = "Rigid Body"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
         obj = context.object
         return (obj and obj.rigid_body and
-                (context.scene.render.engine in cls.COMPAT_ENGINES))
+                (context.engine in cls.COMPAT_ENGINES))
 
     def draw(self, context):
         layout = self.layout
@@ -55,14 +55,15 @@ class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
 
 
 class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
-    bl_label = "Rigid Body Collisions"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    bl_label = "Collisions"
+    bl_parent_id = 'PHYSICS_PT_rigid_body'
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
         obj = context.object
         return (obj and obj.rigid_body and
-                (context.scene.render.engine in cls.COMPAT_ENGINES))
+                (context.engine in cls.COMPAT_ENGINES))
 
     def draw(self, context):
         layout = self.layout
@@ -99,16 +100,17 @@ class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
 
 
 class PHYSICS_PT_rigid_body_dynamics(PHYSICS_PT_rigidbody_panel, Panel):
-    bl_label = "Rigid Body Dynamics"
-    bl_default_closed = True
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    bl_label = "Dynamics"
+    bl_parent_id = 'PHYSICS_PT_rigid_body'
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
         obj = context.object
         return (obj and obj.rigid_body and
                 obj.rigid_body.type == 'ACTIVE' and
-                (context.scene.render.engine in cls.COMPAT_ENGINES))
+                (context.engine in cls.COMPAT_ENGINES))
 
     def draw(self, context):
         layout = self.layout
@@ -117,7 +119,7 @@ class PHYSICS_PT_rigid_body_dynamics(PHYSICS_PT_rigidbody_panel, Panel):
         rbo = ob.rigid_body
 
         #col = layout.column(align=1)
-        #col.label(text="Activation:")
+        # col.label(text="Activation:")
         # XXX: settings such as activate on collison/etc.
 
         split = layout.split()

@@ -18,7 +18,6 @@
 #include "render/scene.h"
 #include "render/tables.h"
 
-#include "util/util_debug.h"
 #include "util/util_logging.h"
 
 CCL_NAMESPACE_BEGIN
@@ -116,4 +115,3 @@ void LookupTables::remove_table(size_t *offset)
 }
 
 CCL_NAMESPACE_END
-

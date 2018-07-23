@@ -327,12 +327,12 @@ std::string get_light_id(Object *ob)
 	return translate_id(id_name(ob)) + "-light";
 }
 
-std::string get_joint_id(Bone *bone, Object *ob_arm)
+std::string get_joint_id(Object *ob, Bone *bone)
 {
-	return translate_id(id_name(ob_arm) + "_" + bone->name);
+	return translate_id(id_name(ob) + "_" + bone->name);
 }
 
-std::string get_joint_sid(Bone *bone, Object *ob_arm)
+std::string get_joint_sid(Bone *bone)
 {
 	return translate_id(bone->name);
 }
@@ -344,17 +344,10 @@ std::string get_camera_id(Object *ob)
 
 std::string get_material_id(Material *mat)
 {
-	std::string id = id_name(mat);
-	return get_material_id_from_id(id);
-}
-
-std::string get_material_id_from_id(std::string id)
-{
-	return translate_id(id) + "-material";
+	return translate_id(id_name(mat)) + "-material";
 }
 
 std::string get_morph_id(Object *ob)
 {
 	return translate_id(id_name(ob)) + "-morph";
 }
-

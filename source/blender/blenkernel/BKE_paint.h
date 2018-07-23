@@ -23,7 +23,7 @@
  * Contributor(s): none yet.
  *
  * ***** END GPL LICENSE BLOCK *****
- */ 
+ */
 
 #ifndef __BKE_PAINT_H__
 #define __BKE_PAINT_H__
@@ -40,6 +40,7 @@ struct CurveMapping;
 struct MeshElemMap;
 struct GridPaintMask;
 struct Main;
+struct Mesh;
 struct MLoop;
 struct MLoopTri;
 struct MFace;
@@ -52,13 +53,17 @@ struct PaletteColor;
 struct PBVH;
 struct ReportList;
 struct Scene;
+struct ViewLayer;
 struct Sculpt;
 struct StrokeCache;
 struct Tex;
 struct ImagePool;
 struct UnifiedPaintSettings;
+struct Depsgraph;
 
 enum eOverlayFlags;
+
+#include "DNA_object_enums.h"
 
 extern const char PAINT_CURSOR_SCULPT[3];
 extern const char PAINT_CURSOR_VERTEX_PAINT[3];
@@ -89,8 +94,8 @@ typedef enum eOverlayControlFlags {
 						     PAINT_OVERLAY_OVERRIDE_PRIMARY | \
 						     PAINT_OVERLAY_OVERRIDE_CURSOR)
 
-void BKE_paint_invalidate_overlay_tex(struct Scene *scene, const struct Tex *tex);
-void BKE_paint_invalidate_cursor_overlay(struct Scene *scene, struct CurveMapping *curve);
+void BKE_paint_invalidate_overlay_tex(struct Scene *scene, struct ViewLayer *view_layer, const struct Tex *tex);
+void BKE_paint_invalidate_cursor_overlay(struct Scene *scene, struct ViewLayer *view_layer, struct CurveMapping *curve);
 void BKE_paint_invalidate_overlay_all(void);
 eOverlayControlFlags BKE_paint_get_overlay_flags(void);
 void BKE_paint_reset_overlay_invalid(eOverlayControlFlags flag);
@@ -116,15 +121,15 @@ void BKE_paint_curve_copy_data(
 struct PaintCurve *BKE_paint_curve_copy(struct Main *bmain, const struct PaintCurve *pc);
 void               BKE_paint_curve_make_local(struct Main *bmain, struct PaintCurve *pc, const bool lib_local);
 
-void BKE_paint_init(struct Scene *sce, ePaintMode mode, const char col[3]);
+void BKE_paint_init(struct Main *bmain, struct Scene *sce, ePaintMode mode, const char col[3]);
 void BKE_paint_free(struct Paint *p);
 void BKE_paint_copy(struct Paint *src, struct Paint *tar, const int flag);
 
 void BKE_paint_cavity_curve_preset(struct Paint *p, int preset);
 
-short BKE_paint_object_mode_from_paint_mode(ePaintMode mode);
+eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode);
 struct Paint *BKE_paint_get_active_from_paintmode(struct Scene *sce, ePaintMode mode);
-struct Paint *BKE_paint_get_active(struct Scene *sce);
+struct Paint *BKE_paint_get_active(struct Scene *sce, struct ViewLayer *view_layer);
 struct Paint *BKE_paint_get_active_from_context(const struct bContext *C);
 ePaintMode BKE_paintmode_get_active_from_context(const struct bContext *C);
 struct Brush *BKE_paint_brush(struct Paint *paint);
@@ -155,7 +160,7 @@ float paint_grid_paint_mask(const struct GridPaintMask *gpm, unsigned level,
                             unsigned x, unsigned y);
 
 /* stroke related */
-void paint_calculate_rake_rotation(struct UnifiedPaintSettings *ups, struct Brush *brush, const float mouse_pos[2]);
+bool paint_calculate_rake_rotation(struct UnifiedPaintSettings *ups, struct Brush *brush, const float mouse_pos[2]);
 void paint_update_brush_rake_rotation(struct UnifiedPaintSettings *ups, struct Brush *brush, float rotation);
 
 void BKE_paint_stroke_get_average(struct Scene *scene, struct Object *ob, float stroke[3]);
@@ -179,9 +184,10 @@ typedef struct SculptSession {
 	int totvert, totpoly;
 	struct KeyBlock *kb;
 	float *vmask;
-	
+
 	/* Mesh connectivity */
-	const struct MeshElemMap *pmap;
+	struct MeshElemMap *pmap;
+	int *pmap_mem;
 
 	/* BMesh for dynamic topology sculpting */
 	struct BMesh *bm;
@@ -194,6 +200,7 @@ typedef struct SculptSession {
 	/* PBVH acceleration structure */
 	struct PBVH *pbvh;
 	bool show_diffuse_color;
+	bool show_mask;
 
 	/* Painting on deformed mesh */
 	bool modifiers_active; /* object is deformed with some modifiers */
@@ -203,7 +210,7 @@ typedef struct SculptSession {
 
 	/* Partial redraw */
 	bool partial_redraw;
-	
+
 	/* Used to cache the render of the active texture */
 	unsigned int texcache_side, *texcache, texcache_actual;
 	struct ImagePool *tex_pool;
@@ -211,7 +218,6 @@ typedef struct SculptSession {
 	/* Layer brush persistence between strokes */
 	float (*layer_co)[3]; /* Copy of the mesh vertices' locations */
 
-	struct SculptStroke *stroke;
 	struct StrokeCache *cache;
 
 	union {
@@ -232,9 +238,8 @@ typedef struct SculptSession {
 			struct MDeformVert *dvert_prev;
 		} wpaint;
 
-		//struct {
-		//ToDo: identify sculpt-only fields
-		//} sculpt;
+		/* TODO: identify sculpt-only fields */
+		// struct { ... } sculpt;
 	} mode;
 	int mode_type;
 
@@ -247,11 +252,15 @@ void BKE_sculptsession_free_deformMats(struct SculptSession *ss);
 void BKE_sculptsession_free_vwpaint_data(struct SculptSession *ss);
 void BKE_sculptsession_bm_to_me(struct Object *ob, bool reorder);
 void BKE_sculptsession_bm_to_me_for_render(struct Object *object);
-void BKE_sculpt_update_mesh_elements(struct Scene *scene, struct Sculpt *sd, struct Object *ob,
-                                     bool need_pmap, bool need_mask);
+void BKE_sculpt_update_mesh_elements(
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Sculpt *sd, struct Object *ob,
+        bool need_pmap, bool need_mask);
 struct MultiresModifierData *BKE_sculpt_multires_active(struct Scene *scene, struct Object *ob);
 int BKE_sculpt_mask_layers_ensure(struct Object *ob,
                                   struct MultiresModifierData *mmd);
+void BKE_sculpt_toolsettings_data_ensure(struct Scene *scene);
+
+struct PBVH *BKE_sculpt_object_pbvh_ensure(struct Object *ob, struct Mesh *me_eval_deform);
 
 enum {
 	SCULPT_MASK_LAYER_CALC_VERT = (1 << 0),

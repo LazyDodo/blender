@@ -48,7 +48,7 @@
 extern "C" {
 #endif
 
-struct EvaluationContext;
+struct Depsgraph;
 struct Library;
 struct MainLock;
 struct GHash;
@@ -84,10 +84,12 @@ typedef struct Main {
 	short minversionfile, minsubversionfile;
 	uint64_t build_commit_timestamp; /* commit's timestamp from buildinfo */
 	char build_hash[16];  /* hash from buildinfo */
-	short recovered;	/* indicate the main->name (file) is the recovered one */
+	char recovered;	/* indicate the main->name (file) is the recovered one */
+	/** All current ID's exist in the last memfile undo step. */
+	char is_memfile_undo_written;
 
 	BlendThumbnail *blen_thumb;
-	
+
 	struct Library *curlib;
 	ListBase scene;
 	ListBase library;
@@ -108,8 +110,9 @@ typedef struct Main {
 	ListBase vfont;
 	ListBase text;
 	ListBase speaker;
+	ListBase lightprobe;
 	ListBase sound;
-	ListBase group;
+	ListBase collection;
 	ListBase armature;
 	ListBase action;
 	ListBase nodetree;
@@ -123,11 +126,7 @@ typedef struct Main {
 	ListBase mask;
 	ListBase linestyle;
 	ListBase cachefiles;
-
-	char id_tag_update[MAX_LIBARRAY];
-
-	/* Evaluation context used by viewport */
-	struct EvaluationContext *eval_ctx;
+	ListBase workspaces;
 
 	/* Must be generated, used and freed by same code - never assume this is valid data unless you know
 	 * when, who and how it was created.
@@ -145,7 +144,8 @@ typedef struct Main {
 
 #define BLEN_THUMB_SIZE 128
 
-#define BLEN_THUMB_MEMSIZE(_x, _y) (sizeof(BlendThumbnail) + (size_t)((_x) * (_y)) * sizeof(int))
+#define BLEN_THUMB_MEMSIZE(_x, _y) (sizeof(BlendThumbnail) + ((size_t)(_x) * (size_t)(_y)) * sizeof(int))
+#define BLEN_THUMB_SAFE_MEMSIZE(_x, _y) ((uint64_t)_x * (uint64_t)_y < (SIZE_MAX / (sizeof(int) * 4)))
 
 #ifdef __cplusplus
 }

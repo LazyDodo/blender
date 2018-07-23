@@ -63,10 +63,6 @@ if(NOT WITH_SYSTEM_GLEW)
 	endif()
 endif()
 
-if(WITH_GAMEENGINE)
-	add_subdirectory(recastnavigation)
-endif()
-
 if(WITH_IMAGE_OPENJPEG AND (NOT WITH_SYSTEM_OPENJPEG))
 	add_subdirectory(libopenjpeg)
 endif()
@@ -84,10 +80,6 @@ if(WITH_CYCLES OR WITH_COMPOSITOR OR WITH_OPENSUBDIV)
 	if(WITH_CUDA_DYNLOAD)
 		add_subdirectory(cuew)
 	endif()
-endif()
-
-if(WITH_MOD_BOOLEAN)
-	add_subdirectory(carve)
 endif()
 
 if(WITH_X11 AND WITH_GHOST_XDND)
@@ -112,4 +104,9 @@ endif()
 
 if(WITH_SDL AND WITH_SDL_DYNLOAD)
 	add_subdirectory(sdlew)
+endif()
+
+if(WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE)
+	set(AUDASPACE_CMAKE_CFG ${CMAKE_CURRENT_SOURCE_DIR}/audaspace/blender_config.cmake)
+	add_subdirectory(audaspace)
 endif()

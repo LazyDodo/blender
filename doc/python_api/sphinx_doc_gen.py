@@ -73,6 +73,8 @@ def rna_info_BuildRNAInfo_cache():
     if rna_info_BuildRNAInfo_cache.ret is None:
         rna_info_BuildRNAInfo_cache.ret = rna_info.BuildRNAInfo()
     return rna_info_BuildRNAInfo_cache.ret
+
+
 rna_info_BuildRNAInfo_cache.ret = None
 # --- end rna_info cache
 
@@ -332,6 +334,9 @@ except ImportError:
 # to avoid having to match Blender's source tree.
 EXTRA_SOURCE_FILES = (
     "../../../release/scripts/templates_py/bmesh_simple.py",
+    "../../../release/scripts/templates_py/gizmo_operator.py",
+    "../../../release/scripts/templates_py/gizmo_operator_target.py",
+    "../../../release/scripts/templates_py/gizmo_simple.py",
     "../../../release/scripts/templates_py/operator_simple.py",
     "../../../release/scripts/templates_py/ui_panel_simple.py",
     "../../../release/scripts/templates_py/ui_previews_custom_icon.py",
@@ -417,19 +422,28 @@ MODULE_GROUPING = {
 # -------------------------------BLENDER----------------------------------------
 
 blender_version_strings = [str(v) for v in bpy.app.version]
+is_release = bpy.app.version_cycle in {"rc", "release"}
 
 # converting bytes to strings, due to T30154
 BLENDER_REVISION = str(bpy.app.build_hash, 'utf_8')
 BLENDER_DATE = str(bpy.app.build_date, 'utf_8')
 
-BLENDER_VERSION_DOTS = ".".join(blender_version_strings)    # '2.62.1'
+if is_release:
+    # '2.62a'
+    BLENDER_VERSION_DOTS = ".".join(blender_version_strings[:2]) + bpy.app.version_char
+else:
+    # '2.62.1'
+    BLENDER_VERSION_DOTS = ".".join(blender_version_strings)
 if BLENDER_REVISION != "Unknown":
-    BLENDER_VERSION_DOTS += " " + BLENDER_REVISION          # '2.62.1 SHA1'
+    # '2.62a SHA1' (release) or '2.62.1 SHA1' (non-release)
+    BLENDER_VERSION_DOTS += " " + BLENDER_REVISION
 
-BLENDER_VERSION_PATH = "_".join(blender_version_strings)    # '2_62_1'
-if bpy.app.version_cycle in {"rc", "release"}:
+if is_release:
     # '2_62a_release'
     BLENDER_VERSION_PATH = "%s%s_release" % ("_".join(blender_version_strings[:2]), bpy.app.version_char)
+else:
+    # '2_62_1'
+    BLENDER_VERSION_PATH = "_".join(blender_version_strings)
 
 # --------------------------DOWNLOADABLE FILES----------------------------------
 
@@ -504,6 +518,8 @@ def escape_rst(text):
     """ Escape plain text which may contain characters used by RST.
     """
     return text.translate(escape_rst.trans)
+
+
 escape_rst.trans = str.maketrans({
     "`": "\\`",
     "|": "\\|",
@@ -1006,6 +1022,7 @@ def pymodule2sphinx(basepath, module_name, module, title):
 
     file.close()
 
+
 # Changes in Blender will force errors here
 context_type_map = {
     "active_base": ("ObjectBase", False),
@@ -1024,6 +1041,7 @@ context_type_map = {
     "brush": ("Brush", False),
     "camera": ("Camera", False),
     "cloth": ("ClothModifier", False),
+    "collection": ("LayerCollection", False),
     "collision": ("CollisionModifier", False),
     "curve": ("Curve", False),
     "dynamic_paint": ("DynamicPaintModifier", False),
@@ -1044,6 +1062,7 @@ context_type_map = {
     "image_paint_object": ("Object", False),
     "lamp": ("Lamp", False),
     "lattice": ("Lattice", False),
+    "lightprobe": ("LightProbe", False),
     "line_style": ("FreestyleLineStyle", False),
     "material": ("Material", False),
     "material_slot": ("MaterialSlot", False),
@@ -1055,6 +1074,7 @@ context_type_map = {
     "particle_system": ("ParticleSystem", False),
     "particle_system_editable": ("ParticleSystem", False),
     "pose_bone": ("PoseBone", False),
+    "render_layer": ("SceneLayer", False),
     "scene": ("Scene", False),
     "sculpt_object": ("Object", False),
     "selectable_bases": ("ObjectBase", True),

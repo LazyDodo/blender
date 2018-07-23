@@ -33,7 +33,7 @@
 
 #include "BLI_utildefines.h"
 #include "BLI_kdopbvh.h"
-#include "BLI_polyfill2d.h"
+#include "BLI_polyfill_2d.h"
 #include "BLI_math.h"
 #include "BLI_ghash.h"
 #include "BLI_memarena.h"
@@ -1049,6 +1049,8 @@ static DerivedMesh *bvh_get_derived_mesh(
         const char *funcname, struct Scene *scene, Object *ob,
         bool use_deform, bool use_render, bool use_cage)
 {
+	/* TODO: This doesn't work currently because of missing depsgraph. */
+#if 0
 	/* we only need minimum mesh data for topology and vertex locations */
 	CustomDataMask mask = CD_MASK_BAREMESH;
 
@@ -1096,6 +1098,11 @@ static DerivedMesh *bvh_get_derived_mesh(
 			}
 		}
 	}
+#else
+	UNUSED_VARS(funcname, scene, ob, use_deform, use_render, use_cage);
+#endif
+
+	return NULL;
 }
 
 PyDoc_STRVAR(C_BVHTree_FromObject_doc,

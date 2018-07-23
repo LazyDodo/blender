@@ -270,7 +270,7 @@ ccl_device_inline void path_radiance_bsdf_bounce(
 			              L_state->transmission +
 			              L_state->subsurface +
 			              L_state->scatter;
-			
+
 			L_state->direct = *throughput;
 		}
 		else {
@@ -455,7 +455,7 @@ ccl_device_inline void path_radiance_accum_background(
 
 #ifdef __PASSES__
 	if(L->use_light_pass) {
-		if(state->bounce == 0)
+		if(state->flag & PATH_RAY_TRANSPARENT_BACKGROUND)
 			L->background += throughput*value;
 		else if(state->bounce == 1)
 			L->direct_emission += throughput*value;

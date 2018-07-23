@@ -19,6 +19,7 @@
 # <pep8 compliant>
 import bpy
 from bpy.types import Menu, Panel
+from bl_operators.presets import PresetMenu
 
 from .properties_physics_common import (
     point_cache_ui,
@@ -30,11 +31,11 @@ def cloth_panel_enabled(md):
     return md.point_cache.is_baked is False
 
 
-class CLOTH_MT_presets(Menu):
+class CLOTH_PT_presets(PresetMenu):
     bl_label = "Cloth Presets"
     preset_subdir = "cloth"
     preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
+    preset_add_operator = "cloth.preset_add"
 
 
 class PhysicButtonsPanel:
@@ -45,13 +46,15 @@ class PhysicButtonsPanel:
     @classmethod
     def poll(cls, context):
         ob = context.object
-        rd = context.scene.render
-        return (ob and ob.type == 'MESH') and (rd.engine in cls.COMPAT_ENGINES) and (context.cloth)
+        return (ob and ob.type == 'MESH') and (context.engine in cls.COMPAT_ENGINES) and (context.cloth)
 
 
 class PHYSICS_PT_cloth(PhysicButtonsPanel, Panel):
     bl_label = "Cloth"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+
+    def draw_header_preset(self, context):
+        CLOTH_PT_presets.draw_panel_header(self.layout)
 
     def draw(self, context):
         layout = self.layout
@@ -61,14 +64,6 @@ class PHYSICS_PT_cloth(PhysicButtonsPanel, Panel):
         cloth = md.settings
 
         layout.active = cloth_panel_enabled(md)
-
-        split = layout.split(percentage=0.25)
-
-        split.label(text="Presets:")
-        sub = split.row(align=True)
-        sub.menu("CLOTH_MT_presets", text=bpy.types.CLOTH_MT_presets.bl_label)
-        sub.operator("cloth.preset_add", text="", icon='ZOOMIN')
-        sub.operator("cloth.preset_add", text="", icon='ZOOMOUT').remove_active = True
 
         split = layout.split(percentage=0.25)
 
@@ -131,9 +126,10 @@ class PHYSICS_PT_cloth(PhysicButtonsPanel, Panel):
 
 
 class PHYSICS_PT_cloth_cache(PhysicButtonsPanel, Panel):
-    bl_label = "Cloth Cache"
+    bl_label = "Cache"
+    bl_parent_id = 'PHYSICS_PT_cloth'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw(self, context):
         md = context.cloth
@@ -141,9 +137,10 @@ class PHYSICS_PT_cloth_cache(PhysicButtonsPanel, Panel):
 
 
 class PHYSICS_PT_cloth_collision(PhysicButtonsPanel, Panel):
-    bl_label = "Cloth Collision"
+    bl_label = "Collision"
+    bl_parent_id = 'PHYSICS_PT_cloth'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw_header(self, context):
         cloth = context.cloth.collision_settings
@@ -181,9 +178,10 @@ class PHYSICS_PT_cloth_collision(PhysicButtonsPanel, Panel):
 
 
 class PHYSICS_PT_cloth_stiffness(PhysicButtonsPanel, Panel):
-    bl_label = "Cloth Stiffness Scaling"
+    bl_label = "Stiffness Scaling"
+    bl_parent_id = 'PHYSICS_PT_cloth'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw_header(self, context):
         cloth = context.cloth.settings
@@ -214,9 +212,10 @@ class PHYSICS_PT_cloth_stiffness(PhysicButtonsPanel, Panel):
 
 
 class PHYSICS_PT_cloth_sewing(PhysicButtonsPanel, Panel):
-    bl_label = "Cloth Sewing Springs"
+    bl_label = "Sewing Springs"
+    bl_parent_id = 'PHYSICS_PT_cloth'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw_header(self, context):
         cloth = context.cloth.settings
@@ -248,16 +247,18 @@ class PHYSICS_PT_cloth_sewing(PhysicButtonsPanel, Panel):
 
 
 class PHYSICS_PT_cloth_field_weights(PhysicButtonsPanel, Panel):
-    bl_label = "Cloth Field Weights"
+    bl_label = "Field Weights"
+    bl_parent_id = 'PHYSICS_PT_cloth'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw(self, context):
         cloth = context.cloth.settings
         effector_weights_ui(self, context, cloth.effector_weights, 'CLOTH')
 
+
 classes = (
-    CLOTH_MT_presets,
+    CLOTH_PT_presets,
     PHYSICS_PT_cloth,
     PHYSICS_PT_cloth_cache,
     PHYSICS_PT_cloth_collision,

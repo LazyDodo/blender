@@ -26,6 +26,7 @@
 #include "device/device_split_kernel.h"
 
 #include "util/util_algorithm.h"
+#include "util/util_debug.h"
 #include "util/util_logging.h"
 #include "util/util_md5.h"
 #include "util/util_path.h"
@@ -128,7 +129,7 @@ public:
 		}
 		else if(task->type == DeviceTask::RENDER) {
 			RenderTile tile;
-			DenoisingTask denoising(this);
+			DenoisingTask denoising(this, *task);
 
 			/* Allocate buffer for kernel globals */
 			device_only_memory<KernelGlobalsDummy> kgbuffer(this, "kernel_globals");
@@ -158,7 +159,7 @@ public:
 				}
 				else if(tile.task == RenderTile::DENOISE) {
 					tile.sample = tile.start_sample + tile.num_samples;
-					denoise(tile, denoising, *task);
+					denoise(tile, denoising);
 					task->update_progress(&tile, tile.w*tile.h);
 				}
 

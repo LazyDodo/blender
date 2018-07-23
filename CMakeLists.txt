@@ -45,7 +45,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 	endif()
 endif()
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 
 if(NOT EXECUTABLE_OUTPUT_PATH)
 	set(FIRST_RUN TRUE)
@@ -66,21 +66,12 @@ endif()
 # set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
 
 # global compile definitions since add_definitions() adds for all.
-
-if(NOT (${CMAKE_VERSION} VERSION_LESS 3.0))
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
-		$<$<CONFIG:Debug>:DEBUG;_DEBUG>
-		$<$<CONFIG:Release>:NDEBUG>
-		$<$<CONFIG:MinSizeRel>:NDEBUG>
-		$<$<CONFIG:RelWithDebInfo>:NDEBUG>
-	)
-else()
-	# keep until CMake-3.0 is min requirement
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_DEBUG           DEBUG _DEBUG)
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_RELEASE         NDEBUG)
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_MINSIZEREL      NDEBUG)
-	set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS_RELWITHDEBINFO  NDEBUG)
-endif()
+set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
+	$<$<CONFIG:Debug>:DEBUG;_DEBUG>
+	$<$<CONFIG:Release>:NDEBUG>
+	$<$<CONFIG:MinSizeRel>:NDEBUG>
+	$<$<CONFIG:RelWithDebInfo>:NDEBUG>
+)
 
 #-----------------------------------------------------------------------------
 # Set policy
@@ -165,7 +156,6 @@ option_defaults_init(
 	_init_OPENCOLORIO
 	_init_SDL
 	_init_FFTW3
-	_init_GAMEENGINE
 	_init_OPENSUBDIV
 )
 
@@ -195,7 +185,7 @@ endif()
 # Options
 
 # First platform specific non-cached vars
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT (APPLE OR HAIKU))
 	set(WITH_X11 ON)
 endif()
 
@@ -206,7 +196,7 @@ mark_as_advanced(WITH_BLENDER)
 option(WITH_INTERNATIONAL "Enable I18N (International fonts and text)" ON)
 
 option(WITH_PYTHON        "Enable Embedded Python API  (only disable for development)" ON)
-option(WITH_PYTHON_SECURITY "Disables execution of scripts within blend files by default" ON) 
+option(WITH_PYTHON_SECURITY "Disables execution of scripts within blend files by default" ON)
 mark_as_advanced(WITH_PYTHON)  # dont want people disabling this unless they really know what they are doing.
 mark_as_advanced(WITH_PYTHON_SECURITY)  # some distributions see this as a security issue, rather than have them patch it, make a build option.
 
@@ -235,13 +225,6 @@ option(WITH_FFTW3         "Enable FFTW3 support (Used for smoke, ocean sim, and 
 option(WITH_BULLET        "Enable Bullet (Physics Engine)" ON)
 option(WITH_SYSTEM_BULLET "Use the systems bullet library (currently unsupported due to missing features in upstream!)" )
 mark_as_advanced(WITH_SYSTEM_BULLET)
-option(WITH_GAMEENGINE    "Enable Game Engine" ${_init_GAMEENGINE})
-if(APPLE)
-	set(WITH_GAMEENGINE_DECKLINK OFF)
-else()
-	option(WITH_GAMEENGINE_DECKLINK "Support BlackMagicDesign DeckLink cards in the Game Engine" ON)
-endif()
-option(WITH_PLAYER        "Build Player" OFF)
 option(WITH_OPENCOLORIO   "Enable OpenColorIO color management" ${_init_OPENCOLORIO})
 
 # Compositor
@@ -251,6 +234,8 @@ option(WITH_OPENSUBDIV    "Enable OpenSubdiv for surface subdivision" _init_OPEN
 
 option(WITH_OPENVDB       "Enable features relying on OpenVDB" OFF)
 option(WITH_OPENVDB_BLOSC "Enable blosc compression for OpenVDB, only enable if OpenVDB was built with blosc support" OFF)
+option(WITH_OPENVDB_3_ABI_COMPATIBLE "Assume OpenVDB library has been compiled with version 3 ABI compatibility" OFF)
+mark_as_advanced(WITH_OPENVDB_3_ABI_COMPATIBLE)
 
 # GHOST Windowing Library Options
 option(WITH_GHOST_DEBUG   "Enable debugging output for the GHOST library" OFF)
@@ -310,7 +295,6 @@ endif()
 # Modifiers
 option(WITH_MOD_FLUID           "Enable Elbeem Modifier (Fluid Simulation)" ON)
 option(WITH_MOD_SMOKE           "Enable Smoke Modifier (Smoke Simulation)" ON)
-option(WITH_MOD_BOOLEAN         "Enable Boolean Modifier" ON)
 option(WITH_MOD_REMESH          "Enable Remesh Modifier" ON)
 # option(WITH_MOD_CLOTH_ELTOPO    "Enable Experimental cloth solver" OFF)  # this is now only available in a branch
 # mark_as_advanced(WITH_MOD_CLOTH_ELTOPO)
@@ -324,7 +308,6 @@ option(WITH_IMAGE_TIFF          "Enable LibTIFF Support" ON)
 option(WITH_IMAGE_DDS           "Enable DDS Image Support" ON)
 option(WITH_IMAGE_CINEON        "Enable CINEON and DPX Image Support" ON)
 option(WITH_IMAGE_HDR           "Enable HDR Image Support" ON)
-option(WITH_IMAGE_FRAMESERVER   "Enable image FrameServer Support for rendering" ON)
 
 # Audio/Video format support
 option(WITH_CODEC_AVI           "Enable Blenders own AVI file support (raw/jpeg)" ON)
@@ -387,10 +370,14 @@ if(UNIX AND NOT APPLE)
 endif()
 
 option(WITH_PYTHON_INSTALL       "Copy system python into the blender install folder" ON)
-if(WITH_PYTHON_INSTALL)
-	option(WITH_PYTHON_INSTALL_NUMPY "Copy system numpy into the blender install folder"  ON)
+if(WITH_PYTHON_INSTALL OR (WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE))
 	set(PYTHON_NUMPY_PATH            "" CACHE PATH "Path to python site-packages or dist-packages containing 'numpy' module")
 	mark_as_advanced(PYTHON_NUMPY_PATH)
+	set(PYTHON_NUMPY_INCLUDE_DIRS ${PYTHON_NUMPY_PATH}/numpy/core/include CACHE PATH "Path to the include directory of the numpy module")
+	mark_as_advanced(PYTHON_NUMPY_INCLUDE_DIRS)
+endif()
+if(WITH_PYTHON_INSTALL)
+	option(WITH_PYTHON_INSTALL_NUMPY "Copy system numpy into the blender install folder"  ON)
 
 	if(UNIX AND NOT APPLE)
 		option(WITH_PYTHON_INSTALL_REQUESTS "Copy system requests into the blender install folder" ON)
@@ -409,15 +396,24 @@ option(WITH_CYCLES_STANDALONE_GUI	"Build Cycles standalone with GUI" OFF)
 option(WITH_CYCLES_OSL				"Build Cycles with OSL support" ${_init_CYCLES_OSL})
 option(WITH_CYCLES_OPENSUBDIV		"Build Cycles with OpenSubdiv support" ${_init_CYCLES_OPENSUBDIV})
 option(WITH_CYCLES_CUDA_BINARIES	"Build Cycles CUDA binaries" OFF)
-set(CYCLES_CUDA_BINARIES_ARCH sm_20 sm_21 sm_30 sm_35 sm_37 sm_50 sm_52 sm_60 sm_61 CACHE STRING "CUDA architectures to build binaries for")
+option(WITH_CYCLES_CUBIN_COMPILER	"Build cubins with nvrtc based compiler instead of nvcc" OFF)
+set(CYCLES_CUDA_BINARIES_ARCH sm_30 sm_35 sm_37 sm_50 sm_52 sm_60 sm_61 CACHE STRING "CUDA architectures to build binaries for")
 mark_as_advanced(CYCLES_CUDA_BINARIES_ARCH)
 unset(PLATFORM_DEFAULT)
 option(WITH_CYCLES_LOGGING	"Build Cycles with logging support" ON)
 option(WITH_CYCLES_DEBUG	"Build Cycles with extra debug capabilities" OFF)
 option(WITH_CYCLES_NATIVE_ONLY	"Build Cycles with native kernel only (which fits current CPU, use for development only)" OFF)
+mark_as_advanced(WITH_CYCLES_CUBIN_COMPILER)
 mark_as_advanced(WITH_CYCLES_LOGGING)
 mark_as_advanced(WITH_CYCLES_DEBUG)
 mark_as_advanced(WITH_CYCLES_NATIVE_ONLY)
+
+option(WITH_CYCLES_DEVICE_CUDA				"Enable Cycles CUDA compute support" ON)
+option(WITH_CYCLES_DEVICE_OPENCL			"Enable Cycles OpenCL compute support" ON)
+option(WITH_CYCLES_NETWORK				"Enable Cycles compute over network support (EXPERIMENTAL and unfinished)" OFF)
+mark_as_advanced(WITH_CYCLES_DEVICE_CUDA)
+mark_as_advanced(WITH_CYCLES_DEVICE_OPENCL)
+mark_as_advanced(WITH_CYCLES_NETWORK)
 
 option(WITH_CUDA_DYNLOAD "Dynamically load CUDA libraries at runtime" ON)
 mark_as_advanced(WITH_CUDA_DYNLOAD)
@@ -443,14 +439,15 @@ mark_as_advanced(WITH_MEM_VALGRIND)
 option(WITH_CXX_GUARDEDALLOC "Enable GuardedAlloc for C++ memory allocation tracking (only enable for development)" OFF)
 mark_as_advanced(WITH_CXX_GUARDEDALLOC)
 
-option(WITH_ASSERT_ABORT "Call abort() when raising an assertion through BLI_assert()" OFF)
+option(WITH_ASSERT_ABORT "Call abort() when raising an assertion through BLI_assert()" ON)
 mark_as_advanced(WITH_ASSERT_ABORT)
 
 option(WITH_BOOST					"Enable features depending on boost" ON)
 
 # Unit testsing
 option(WITH_GTESTS "Enable GTest unit testing" OFF)
-option(WITH_OPENGL_TESTS "Enable OpenGL related unit testing (Experimental)" OFF)
+option(WITH_OPENGL_RENDER_TESTS "Enable OpenGL render related unit testing (Experimental)" OFF)
+option(WITH_OPENGL_DRAW_TESTS "Enable OpenGL UI drawing related unit testing (Experimental)" OFF)
 
 
 # Documentation
@@ -461,27 +458,17 @@ endif()
 
 # OpenGL
 
-option(WITH_GLEW_MX             "Support multiple GLEW contexts (experimental)"                                                                     OFF )
+option(WITH_OPENGL              "When off limits visibility of the opengl headers to just bf_gpu and gawain (temporary option for development purposes)" ON)
 option(WITH_GLEW_ES             "Switches to experimental copy of GLEW that has support for OpenGL ES. (temporary option for development purposes)" OFF)
 option(WITH_GL_EGL              "Use the EGL OpenGL system library instead of the platform specific OpenGL system library (CGL, glX, or WGL)"       OFF)
-option(WITH_GL_PROFILE_COMPAT   "Support using the OpenGL 'compatibility' profile. (deprecated)"                                                    ON )
-option(WITH_GL_PROFILE_CORE     "Support using the OpenGL 3.2+ 'core' profile."                                                                     OFF)
 option(WITH_GL_PROFILE_ES20     "Support using OpenGL ES 2.0. (thru either EGL or the AGL/WGL/XGL 'es20' profile)"                                  OFF)
 
 mark_as_advanced(
-	WITH_GLEW_MX
+	WITH_OPENGL
 	WITH_GLEW_ES
 	WITH_GL_EGL
-	WITH_GL_PROFILE_COMPAT
-	WITH_GL_PROFILE_CORE
 	WITH_GL_PROFILE_ES20
 )
-
-if(WITH_GL_PROFILE_COMPAT)
-	set(WITH_GLU ON)
-else()
-	set(WITH_GLU OFF)
-endif()
 
 if(WIN32)
 	option(WITH_GL_ANGLE "Link with the ANGLE library, an OpenGL ES 2.0 implementation based on Direct3D, instead of the system OpenGL library." OFF)
@@ -508,11 +495,10 @@ if(APPLE)
 	set(WITH_CXX11 ON)
 elseif(CMAKE_COMPILER_IS_GNUCC AND (NOT "${CMAKE_C_COMPILER_VERSION}" VERSION_LESS "6.0") AND (NOT WITH_CXX11))
 	set(_c11_init ON)
-	set(_cxx11_init ON)
 else()
 	set(_c11_init OFF)
-	set(_cxx11_init OFF)
 endif()
+set(_cxx11_init ON)
 
 option(WITH_C11 "Build with C11 standard enabled, for development use only!" ${_c11_init})
 mark_as_advanced(WITH_C11)
@@ -523,6 +509,49 @@ mark_as_advanced(WITH_CXX11)
 if(CMAKE_COMPILER_IS_GNUCC)
 	option(WITH_LINKER_GOLD "Use ld.gold linker which is usually faster than ld.bfd" ON)
 	mark_as_advanced(WITH_LINKER_GOLD)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
+	option(WITH_COMPILER_ASAN "Build and link against address sanitizer (only for Debug & RelWithDebInfo targets)." OFF)
+	mark_as_advanced(WITH_COMPILER_ASAN)
+
+	if(WITH_COMPILER_ASAN)
+		set(_asan_defaults "\
+-fsanitize=address \
+-fsanitize=bool \
+-fsanitize=bounds \
+-fsanitize=enum \
+-fsanitize=float-cast-overflow \
+-fsanitize=float-divide-by-zero \
+-fsanitize=nonnull-attribute \
+-fsanitize=returns-nonnull-attribute \
+-fsanitize=signed-integer-overflow \
+-fsanitize=undefined \
+-fsanitize=vla-bound \
+-fno-sanitize=alignment \
+")
+
+		if(NOT MSVC) # not all sanitizers are supported with clang-cl, these two however are very vocal about it
+			set(_asan_defaults "${_asan_defaults} -fsanitize=leak -fsanitize=object-size" )
+		endif()
+		set(COMPILER_ASAN_CFLAGS "${_asan_defaults}" CACHE STRING "C flags for address sanitizer")
+		mark_as_advanced(COMPILER_ASAN_CFLAGS)
+		set(COMPILER_ASAN_CXXFLAGS "${_asan_defaults}" CACHE STRING "C++ flags for address sanitizer")
+		mark_as_advanced(COMPILER_ASAN_CXXFLAGS)
+
+		unset(_asan_defaults)
+
+		if(NOT MSVC)
+			find_library(COMPILER_ASAN_LIBRARY asan ${CMAKE_C_IMPLICIT_LINK_DIRECTORIES})
+		else()
+			find_library( COMPILER_ASAN_LIBRARY NAMES clang_rt.asan-x86_64
+				PATHS
+				[HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\LLVM\\LLVM;]/lib/clang/7.0.0/lib/windows
+				[HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\LLVM\\LLVM;]/lib/clang/6.0.0/lib/windows
+			)
+		endif()
+		mark_as_advanced(COMPILER_ASAN_LIBRARY)
+	endif()
 endif()
 
 # Dependency graph
@@ -542,6 +571,9 @@ if(WIN32)
 
 	set(WINDOWS_CODESIGN_PFX_PASSWORD CACHE STRING  "password for pfx file used for codesigning.")
 	mark_as_advanced(WINDOWS_CODESIGN_PFX_PASSWORD)
+
+	option(WINDOWS_USE_VISUAL_STUDIO_FOLDERS "Organize the visual studio project according to source folders." ON)
+	mark_as_advanced(WINDOWS_USE_VISUAL_STUDIO_FOLDERS)
 endif()
 
 # avoid using again
@@ -577,26 +609,27 @@ endif()
 #-----------------------------------------------------------------------------
 # Check for conflicting/unsupported configurations
 
-if(NOT WITH_BLENDER AND NOT WITH_PLAYER AND NOT WITH_CYCLES_STANDALONE)
+if(NOT WITH_BLENDER AND NOT WITH_CYCLES_STANDALONE)
 	message(FATAL_ERROR
-		"At least one of WITH_BLENDER or WITH_PLAYER or "
-		"WITH_CYCLES_STANDALONE must be enabled, nothing to do!"
+		"At least one of WITH_BLENDER or WITH_CYCLES_STANDALONE "
+		"must be enabled, nothing to do!"
 	)
 endif()
 
-if(NOT WITH_GAMEENGINE AND WITH_PLAYER)
-	message(FATAL_ERROR "WITH_PLAYER requires WITH_GAMEENGINE")
+if(NOT WITH_CXX11)
+	if(WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE)
+		message(FATAL_ERROR "WITH_AUDASPACE requires WITH_CXX11")
+	endif()
 endif()
 
 if(NOT WITH_AUDASPACE)
 	if(WITH_OPENAL)
-		message(FATAL_ERROR "WITH_OPENAL requires WITH_AUDASPACE")
+		message(WARNING "WITH_OPENAL requires WITH_AUDASPACE which is disabled")
+		set(WITH_OPENAL OFF)
 	endif()
 	if(WITH_JACK)
-		message(FATAL_ERROR "WITH_JACK requires WITH_AUDASPACE")
-	endif()
-	if(WITH_GAMEENGINE)
-		message(FATAL_ERROR "WITH_GAMEENGINE requires WITH_AUDASPACE")
+		message(WARNING "WITH_JACK requires WITH_AUDASPACE which is disabled")
+		set(WITH_JACK OFF)
 	endif()
 endif()
 
@@ -605,10 +638,6 @@ if(NOT WITH_SDL AND WITH_GHOST_SDL)
 endif()
 
 # python module, needs some different options
-if(WITH_PYTHON_MODULE AND WITH_PLAYER)
-	message(FATAL_ERROR "WITH_PYTHON_MODULE requires WITH_PLAYER to be OFF")
-endif()
-
 if(WITH_PYTHON_MODULE AND WITH_PYTHON_INSTALL)
 	message(FATAL_ERROR "WITH_PYTHON_MODULE requires WITH_PYTHON_INSTALL to be OFF")
 endif()
@@ -636,17 +665,11 @@ if(NOT WITH_BOOST)
 	endmacro()
 
 	set_and_warn(WITH_CYCLES         OFF)
-	set_and_warn(WITH_AUDASPACE      OFF)
 	set_and_warn(WITH_INTERNATIONAL  OFF)
 	set_and_warn(WITH_OPENVDB        OFF)
 	set_and_warn(WITH_OPENCOLORIO    OFF)
-	set_and_warn(WITH_MOD_BOOLEAN    OFF)
-
-	set_and_warn(WITH_OPENAL         OFF)  # depends on AUDASPACE
-	set_and_warn(WITH_GAMEENGINE     OFF)  # depends on AUDASPACE
-	set_and_warn(WITH_PLAYER         OFF)  # depends on GAMEENGINE
-elseif(WITH_CYCLES OR WITH_OPENIMAGEIO OR WITH_AUDASPACE OR WITH_INTERNATIONAL OR
-       WITH_OPENVDB OR WITH_OPENCOLORIO OR WITH_MOD_BOOLEAN)
+elseif(WITH_CYCLES OR WITH_OPENIMAGEIO OR WITH_INTERNATIONAL OR
+       WITH_OPENVDB OR WITH_OPENCOLORIO)
 	# Keep enabled
 else()
 	# New dependency graph needs either Boost or C++11 for function bindings.
@@ -714,30 +737,18 @@ TEST_SHARED_PTR_SUPPORT()
 TEST_UNORDERED_MAP_SUPPORT()
 
 if(WITH_AUDASPACE)
-	if(WITH_SYSTEM_AUDASPACE)
-		set(AUDASPACE_DEFINITIONS
-			-DWITH_AUDASPACE
-			-DWITH_SYSTEM_AUDASPACE
-			"-DAUD_DEVICE_H=<AUD_Device.h>"
-			"-DAUD_SPECIAL_H=<AUD_Special.h>"
-			"-DAUD_SOUND_H=<AUD_Sound.h>"
-			"-DAUD_HANDLE_H=<AUD_Handle.h>"
-			"-DAUD_SEQUENCE_H=<AUD_Sequence.h>"
-			"-DAUD_TYPES_H=<AUD_Types.h>"
-			"-DAUD_PYTHON_H=<python/PyAPI.h>"
-		)
-	else()
-		set(AUDASPACE_C_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/intern/audaspace/intern")
-		set(AUDASPACE_PY_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/intern/audaspace/intern")
-		set(AUDASPACE_DEFINITIONS
-			-DWITH_AUDASPACE
-			"-DAUD_DEVICE_H=<AUD_C-API.h>"
-			"-DAUD_SPECIAL_H=<AUD_C-API.h>"
-			"-DAUD_SOUND_H=<AUD_C-API.h>"
-			"-DAUD_HANDLE_H=<AUD_C-API.h>"
-			"-DAUD_SEQUENCE_H=<AUD_C-API.h>"
-			"-DAUD_TYPES_H=<AUD_Space.h>"
-		)
+	if(NOT WITH_SYSTEM_AUDASPACE)
+		set(AUDASPACE_C_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/audaspace/bindings/C" "${CMAKE_BINARY_DIR}/extern/audaspace")
+		set(AUDASPACE_PY_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/audaspace/bindings")
+	endif()
+endif()
+
+# Auto-enable CUDA dynload if toolkit is not found.
+if(NOT WITH_CUDA_DYNLOAD)
+	find_package(CUDA)
+	if (NOT CUDA_FOUND)
+		message("CUDA toolkit not found, using dynamic runtime loading of libraries instead")
+		set(WITH_CUDA_DYNLOAD ON)
 	endif()
 endif()
 
@@ -760,7 +771,7 @@ if(WITH_INTERNATIONAL)
 endif()
 
 if(WITH_PYTHON)
-	# While we have this as an '#error' in bpy_util.h,
+	# While we have this as an '#error' in 'bpy_capi_utils.h',
 	# upgrading Python tends to cause confusion for users who build.
 	# Give the error message early to make this more obvious.
 	#
@@ -797,7 +808,8 @@ set(C_WARNINGS)
 set(CXX_WARNINGS)
 
 # for gcc -Wno-blah-blah
-set(CC_REMOVE_STRICT_FLAGS)
+set(C_REMOVE_STRICT_FLAGS)
+set(CXX_REMOVE_STRICT_FLAGS)
 
 # libraries to link the binary with passed to target_link_libraries()
 # known as LLIBS to scons
@@ -809,6 +821,21 @@ set(PLATFORM_LINKLIBS "")
 set(PLATFORM_LINKFLAGS "")
 set(PLATFORM_LINKFLAGS_DEBUG "")
 
+if (NOT CMAKE_BUILD_TYPE MATCHES "Release")
+	if(WITH_COMPILER_ASAN)
+		set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${COMPILER_ASAN_CFLAGS}")
+		set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} ${COMPILER_ASAN_CFLAGS}")
+
+		set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${COMPILER_ASAN_CXXFLAGS}")
+		set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${COMPILER_ASAN_CXXFLAGS}")
+		if(MSVC)
+			set(COMPILER_ASAN_LINKER_FLAGS "/FUNCTIONPADMIN:6")
+		endif()
+		set(PLATFORM_LINKLIBS "${PLATFORM_LINKLIBS};${COMPILER_ASAN_LIBRARY}")
+		set(PLATFORM_LINKFLAGS "${COMPILER_ASAN_LIBRARY} ${COMPILER_ASAN_LINKER_FLAGS}")
+		set(PLATFORM_LINKFLAGS_DEBUG "${COMPILER_ASAN_LIBRARY} ${COMPILER_ASAN_LINKER_FLAGS}")
+	endif()
+endif()
 
 #-----------------------------------------------------------------------------
 #Platform specifics
@@ -981,19 +1008,15 @@ endif()
 find_package(OpenGL)
 blender_include_dirs_sys("${OPENGL_INCLUDE_DIR}")
 
-if(WITH_GLU)
-	list(APPEND BLENDER_GL_LIBRARIES "${OPENGL_glu_LIBRARY}")
-	list(APPEND GL_DEFINITIONS -DWITH_GLU)
+if(WITH_OPENGL)
+	add_definitions(-DWITH_OPENGL)
 endif()
 
 if(WITH_SYSTEM_GLES)
 	find_package_wrapper(OpenGLES)
 endif()
 
-if(WITH_GL_PROFILE_COMPAT OR WITH_GL_PROFILE_CORE)
-	list(APPEND BLENDER_GL_LIBRARIES "${OPENGL_gl_LIBRARY}")
-
-elseif(WITH_GL_PROFILE_ES20)
+if(WITH_GL_PROFILE_ES20)
 	if(WITH_SYSTEM_GLES)
 		if(NOT OPENGLES_LIBRARY)
 			message(FATAL_ERROR
@@ -1053,6 +1076,9 @@ elseif(WITH_GL_PROFILE_ES20)
 
 	endif()
 
+else()
+	list(APPEND BLENDER_GL_LIBRARIES "${OPENGL_gl_LIBRARY}")
+
 endif()
 
 if(WITH_GL_EGL)
@@ -1100,16 +1126,10 @@ if(WITH_GL_EGL)
 
 endif()
 
-if(WITH_GL_PROFILE_COMPAT)
-	list(APPEND GL_DEFINITIONS -DWITH_GL_PROFILE_COMPAT)
-endif()
-
-if(WITH_GL_PROFILE_CORE)
-	list(APPEND GL_DEFINITIONS -DWITH_GL_PROFILE_CORE)
-endif()
-
 if(WITH_GL_PROFILE_ES20)
 	list(APPEND GL_DEFINITIONS -DWITH_GL_PROFILE_ES20)
+else()
+	list(APPEND GL_DEFINITIONS -DWITH_GL_PROFILE_CORE)
 endif()
 
 if(WITH_GL_EGL)
@@ -1146,10 +1166,6 @@ endif()
 #-----------------------------------------------------------------------------
 # Configure GLEW
 
-if(WITH_GLEW_MX)
-	list(APPEND GL_DEFINITIONS -DWITH_GLEW_MX)
-endif()
-
 if(WITH_SYSTEM_GLEW)
 	find_package(GLEW)
 
@@ -1159,11 +1175,7 @@ if(WITH_SYSTEM_GLEW)
 		message(FATAL_ERROR "GLEW is required to build Blender. Install it or disable WITH_SYSTEM_GLEW.")
 	endif()
 
-	if(WITH_GLEW_MX)
-		set(BLENDER_GLEW_LIBRARIES ${GLEW_MX_LIBRARY})
-	else()
-		set(BLENDER_GLEW_LIBRARIES ${GLEW_LIBRARY})
-	endif()
+	set(BLENDER_GLEW_LIBRARIES ${GLEW_LIBRARY})
 else()
 	if(WITH_GLEW_ES)
 		set(GLEW_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/extern/glew-es/include")
@@ -1171,12 +1183,11 @@ else()
 		list(APPEND GL_DEFINITIONS -DGLEW_STATIC -DWITH_GLEW_ES)
 
 		# These definitions remove APIs from glew.h, making GLEW smaller, and catching unguarded API usage
-		if(NOT WITH_GL_PROFILE_ES20)
+		if(WITH_GL_PROFILE_ES20)
+			list(APPEND GL_DEFINITIONS -DGLEW_ES_ONLY)
+		else()
 			# No ES functions are needed
 			list(APPEND GL_DEFINITIONS -DGLEW_NO_ES)
-		elseif(NOT (WITH_GL_PROFILE_CORE OR WITH_GL_PROFILE_COMPAT))
-			# ES is enabled, but the other functions are all disabled
-			list(APPEND GL_DEFINITIONS -DGLEW_ES_ONLY)
 		endif()
 
 		if(WITH_GL_PROFILE_ES20)
@@ -1203,7 +1214,7 @@ else()
 
 		list(APPEND GL_DEFINITIONS -DGLEW_STATIC)
 
-		# This won't affect the non-experimental glew library, 
+		# This won't affect the non-experimental glew library,
 		# but is used for conditional compilation elsewhere.
 		list(APPEND GL_DEFINITIONS -DGLEW_NO_ES)
 
@@ -1213,9 +1224,7 @@ else()
 
 endif()
 
-if(NOT WITH_GLU)
-	list(APPEND GL_DEFINITIONS -DGLEW_NO_GLU)
-endif()
+list(APPEND GL_DEFINITIONS -DGLEW_NO_GLU)
 
 #-----------------------------------------------------------------------------
 # Configure Bullet
@@ -1274,7 +1283,7 @@ if(WITH_LIBMV OR WITH_GTESTS OR (WITH_CYCLES AND WITH_CYCLES_LOGGING))
 		if(WIN32)
 			set(GLOG_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/extern/glog/src/windows)
 		else()
-			set(GLOG_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/extern/glog/src)
+			set(GLOG_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/extern/glog/include)
 		endif()
 	endif()
 endif()
@@ -1409,15 +1418,22 @@ if(CMAKE_COMPILER_IS_GNUCC)
 	endif()
 
 	# flags to undo strict flags
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_DEPRECATED_DECLARATIONS -Wno-deprecated-declarations)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_PARAMETER        -Wno-unused-parameter)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_DEPRECATED_DECLARATIONS -Wno-deprecated-declarations)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_PARAMETER        -Wno-unused-parameter)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_FUNCTION         -Wno-unused-function)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_TYPE_LIMITS             -Wno-type-limits)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_INT_IN_BOOL_CONTEXT     -Wno-int-in-bool-context)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_FORMAT                  -Wno-format)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_SWITCH                  -Wno-switch)
+
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_CLASS_MEMACCESS     -Wno-class-memaccess)
 
 	if(CMAKE_COMPILER_IS_GNUCC AND (NOT "${CMAKE_C_COMPILER_VERSION}" VERSION_LESS "7.0"))
-		ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_IMPLICIT_FALLTHROUGH    -Wno-implicit-fallthrough)
+		ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_IMPLICIT_FALLTHROUGH    -Wno-implicit-fallthrough)
 	endif()
 
 	if(NOT APPLE)
-		ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_ERROR_UNUSED_BUT_SET_VARIABLE -Wno-error=unused-but-set-variable)
+		ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_ERROR_UNUSED_BUT_SET_VARIABLE -Wno-error=unused-but-set-variable)
 	endif()
 
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -1446,23 +1462,23 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
 	# ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_UNUSED_MACROS          -Wunused-macros)
 
 	# flags to undo strict flags
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_PARAMETER -Wno-unused-parameter)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_MACROS    -Wno-unused-macros)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_PARAMETER -Wno-unused-parameter)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_MACROS    -Wno-unused-macros)
 
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_MISSING_VARIABLE_DECLARATIONS -Wno-missing-variable-declarations)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_INCOMPAT_PTR_DISCARD_QUAL -Wno-incompatible-pointer-types-discards-qualifiers)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_FUNCTION -Wno-unused-function)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_INT_TO_VOID_POINTER_CAST -Wno-int-to-void-pointer-cast)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_MISSING_PROTOTYPES -Wno-missing-prototypes)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_DUPLICATE_ENUM -Wno-duplicate-enum)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_UNDEF -Wno-undef)
-	ADD_CHECK_C_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS C_WARN_NO_MISSING_NORETURN -Wno-missing-noreturn)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_MISSING_VARIABLE_DECLARATIONS -Wno-missing-variable-declarations)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_INCOMPAT_PTR_DISCARD_QUAL -Wno-incompatible-pointer-types-discards-qualifiers)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_FUNCTION -Wno-unused-function)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_INT_TO_VOID_POINTER_CAST -Wno-int-to-void-pointer-cast)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_MISSING_PROTOTYPES -Wno-missing-prototypes)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_DUPLICATE_ENUM -Wno-duplicate-enum)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNDEF -Wno-undef)
+	ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_MISSING_NORETURN -Wno-missing-noreturn)
 
-	ADD_CHECK_CXX_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_PRIVATE_FIELD -Wno-unused-private-field)
-	ADD_CHECK_CXX_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS CXX_WARN_NO_CXX11_NARROWING -Wno-c++11-narrowing)
-	ADD_CHECK_CXX_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS CXX_WARN_NO_NON_VIRTUAL_DTOR -Wno-non-virtual-dtor)
-	ADD_CHECK_CXX_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_MACROS -Wno-unused-macros)
-	ADD_CHECK_CXX_COMPILER_FLAG(CC_REMOVE_STRICT_FLAGS CXX_WARN_NO_REORDER -Wno-reorder)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_PRIVATE_FIELD -Wno-unused-private-field)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_CXX11_NARROWING -Wno-c++11-narrowing)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_NON_VIRTUAL_DTOR -Wno-non-virtual-dtor)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_MACROS -Wno-unused-macros)
+	ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_REORDER -Wno-reorder)
 
 elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
 
@@ -1475,8 +1491,8 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
 	ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_NO_SIGN_COMPARE -Wno-sign-compare)
 
 	# disable numbered, false positives
-	set(C_WARNINGS "${C_WARNINGS} -wd188,186,144,913,556")
-	set(CXX_WARNINGS "${CXX_WARNINGS} -wd188,186,144,913,556")
+	set(C_WARNINGS "${C_WARNINGS} -wd188,186,144,913,556,858,597,177,1292,167,279,592,94,2722,3199")
+	set(CXX_WARNINGS "${CXX_WARNINGS} -wd188,186,144,913,556,858,597,177,1292,167,279,592,94,2722,3199")
 elseif(CMAKE_C_COMPILER_ID MATCHES "MSVC")
 	# most msvc warnings are C & C++
 	set(_WARNINGS
@@ -1494,6 +1510,7 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		"/wd4267"  # conversion from 'size_t' to 'type', possible loss of data
 		"/wd4305"  # truncation from 'type1' to 'type2'
 		"/wd4800"  # forcing value to bool 'true' or 'false'
+		"/wd4828"  # The file contains a character that is illegal
 		# errors:
 		"/we4013"  # 'function' undefined; assuming extern returning int
 		"/we4133"  # incompatible pointer types
@@ -1519,10 +1536,15 @@ if(WITH_PYTHON)
 		)
 	endif()
 
-	if(WIN32 OR APPLE)
+	if(WIN32)
 		# pass, we have this in an archive to extract
-	elseif(WITH_PYTHON_INSTALL AND WITH_PYTHON_INSTALL_NUMPY)
-		find_python_package(numpy)
+	elseif((WITH_PYTHON_INSTALL AND WITH_PYTHON_INSTALL_NUMPY) OR (WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE))
+		if(("${PYTHON_NUMPY_PATH}" STREQUAL "") OR (${PYTHON_NUMPY_PATH} MATCHES NOTFOUND))
+			find_python_package(numpy)
+			unset(PYTHON_NUMPY_INCLUDE_DIRS CACHE)
+			set(PYTHON_NUMPY_INCLUDE_DIRS ${PYTHON_NUMPY_PATH}/numpy/core/include CACHE PATH "Path to the include directory of the numpy module")
+		        mark_as_advanced(PYTHON_NUMPY_INCLUDE_DIRS)
+		endif()
 	endif()
 
 	if(WIN32 OR APPLE)
@@ -1553,7 +1575,12 @@ else()
 endif()
 
 # Visual Studio has all standards it supports available by default
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_COMPILER_ID MATCHES "Intel")
+# Clang on windows copies this behavior and does not support these switches
+if(
+	CMAKE_COMPILER_IS_GNUCC OR
+	(CMAKE_C_COMPILER_ID MATCHES "Clang" AND (NOT MSVC)) OR
+	(CMAKE_C_COMPILER_ID MATCHES "Intel")
+)
 	# Use C99 + GNU extensions, works with GCC, Clang, ICC
 	if(WITH_C11)
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
@@ -1607,7 +1634,7 @@ if(WITH_GTESTS)
 	include(GTestTesting)
 endif()
 
-if(WITH_BLENDER OR WITH_PLAYER)
+if(WITH_BLENDER)
 	add_subdirectory(intern)
 	add_subdirectory(extern)
 
@@ -1633,13 +1660,6 @@ endif()
 
 
 #-----------------------------------------------------------------------------
-# Blender Player
-if(WITH_PLAYER)
-	add_subdirectory(source/blenderplayer)
-endif()
-
-
-#-----------------------------------------------------------------------------
 # Testing
 add_subdirectory(tests)
 
@@ -1652,9 +1672,6 @@ include(build_files/cmake/packaging.cmake)
 # Use dynamic loading for OpenMP
 if(WITH_BLENDER)
 	openmp_delayload(blender)
-endif()
-if(WITH_PLAYER)
-	openmp_delayload(blenderplayer)
 endif()
 
 #-----------------------------------------------------------------------------
@@ -1689,8 +1706,6 @@ if(FIRST_RUN)
 	message(STATUS "C++ Compiler: \"${CMAKE_CXX_COMPILER_ID}\"")
 
 	info_cfg_text("Build Options:")
-	info_cfg_option(WITH_GAMEENGINE)
-	info_cfg_option(WITH_PLAYER)
 	info_cfg_option(WITH_BULLET)
 	info_cfg_option(WITH_IK_SOLVER)
 	info_cfg_option(WITH_IK_ITASC)
@@ -1753,17 +1768,13 @@ if(FIRST_RUN)
 	endif()
 
 	info_cfg_text("Modifiers:")
-	info_cfg_option(WITH_MOD_BOOLEAN)
 	info_cfg_option(WITH_MOD_REMESH)
 	info_cfg_option(WITH_MOD_FLUID)
 	info_cfg_option(WITH_MOD_OCEANSIM)
 
 	info_cfg_text("OpenGL:")
 	info_cfg_option(WITH_GLEW_ES)
-	info_cfg_option(WITH_GLU)
 	info_cfg_option(WITH_GL_EGL)
-	info_cfg_option(WITH_GL_PROFILE_COMPAT)
-	info_cfg_option(WITH_GL_PROFILE_CORE)
 	info_cfg_option(WITH_GL_PROFILE_ES20)
 	if(WIN32)
 		info_cfg_option(WITH_GL_ANGLE)

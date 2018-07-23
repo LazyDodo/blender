@@ -115,6 +115,13 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         sub.active = md.use_object_offset
         sub.prop(md, "offset_object", text="")
 
+        row = layout.row()
+        split = row.split()
+        col = split.column()
+        col.label(text="UVs:")
+        sub = col.column(align=True)
+        sub.prop(md, "offset_u")
+        sub.prop(md, "offset_v")
         layout.separator()
 
         layout.prop(md, "start_cap")
@@ -146,11 +153,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         layout.row().prop(md, "offset_type", expand=True)
 
     def BOOLEAN(self, layout, ob, md):
-        solver = md.solver
-        if not bpy.app.build_options.mod_boolean:
-            if solver == 'CARVE':
-                layout.label("Built without Carve solver")
-
         split = layout.split()
 
         col = split.column()
@@ -161,16 +163,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label(text="Object:")
         col.prop(md, "object", text="")
 
-        split = layout.split()
-        split.column().label(text="Solver:")
-        split.column().prop(md, "solver", text="")
+        layout.prop(md, "double_threshold")
 
-        if solver == 'BMESH':
-            layout.prop(md, "double_threshold")
-
-            if bpy.app.debug:
-                layout.prop(md, "debug_options")
-
+        if bpy.app.debug:
+            layout.prop(md, "debug_options")
 
     def BUILD(self, layout, ob, md):
         split = layout.split()
@@ -331,7 +327,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             row.prop(md, "delimit")
             layout_info = layout
 
-        layout_info.label(text=iface_("Faces: %d") % md.face_count, translate=False)
+        layout_info.label(
+            text=iface_("Face Count: {:,}".format(md.face_count)),
+            translate=False,
+        )
 
     def DISPLACE(self, layout, ob, md):
         has_texture = (md.texture is not None)
@@ -360,7 +359,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             col.prop(md, "texture_coords_object", text="")
         elif md.texture_coords == 'UV' and ob.type == 'MESH':
             col.label(text="UV Map:")
-            col.prop_search(md, "uv_layer", ob.data, "uv_textures", text="")
+            col.prop_search(md, "uv_layer", ob.data, "uv_layers", text="")
 
         layout.separator()
 
@@ -392,7 +391,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         sub.active = bool(md.vertex_group)
         sub.prop(md, "protect")
         col.label(text="Particle UV")
-        col.prop_search(md, "particle_uv", ob.data, "uv_textures", text="")
+        col.prop_search(md, "particle_uv", ob.data, "uv_layers", text="")
 
         col = split.column()
         col.prop(md, "use_edge_cut")
@@ -714,11 +713,15 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def PARTICLE_INSTANCE(self, layout, ob, md):
         layout.prop(md, "object")
-        layout.prop(md, "particle_system_index", text="Particle System")
+        if md.object:
+            layout.prop_search(md, "particle_system", md.object, "particle_systems", text="Particle System")
+        else:
+            layout.prop(md, "particle_system_index", text="Particle System")
 
         split = layout.split()
         col = split.column()
         col.label(text="Create From:")
+        layout.prop(md, "space", text="")
         col.prop(md, "use_normal")
         col.prop(md, "use_children")
         col.prop(md, "use_size")
@@ -728,6 +731,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "show_alive")
         col.prop(md, "show_unborn")
         col.prop(md, "show_dead")
+
+        row = layout.row(align=True)
+        row.prop(md, "particle_amount", text="Amount")
+        row.prop(md, "particle_offset", text="Offset")
 
         layout.separator()
 
@@ -740,8 +747,16 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "use_preserve_shape")
 
         col = split.column()
-        col.prop(md, "position", slider=True)
-        col.prop(md, "random_position", text="Random", slider=True)
+        col2 = col.column(align=True)
+        col2.prop(md, "position", slider=True)
+        col2.prop(md, "random_position", text="Random", slider=True)
+        col2 = col.column(align=True)
+        col2.prop(md, "rotation", slider=True)
+        col2.prop(md, "random_rotation", text="Random", slider=True)
+
+        col = layout.column()
+        col.prop_search(md, "index_layer_name", ob.data, "vertex_colors", text="Index Layer")
+        col.prop_search(md, "value_layer_name", ob.data, "vertex_colors", text="Value Layer")
 
     def PARTICLE_SYSTEM(self, layout, ob, md):
         layout.label(text="Settings can be found inside the Particle context")
@@ -841,10 +856,18 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label(text="Axis, Origin:")
         col.prop(md, "origin", text="")
 
+        col.prop(md, "deform_axis")
+
         if md.deform_method in {'TAPER', 'STRETCH', 'TWIST'}:
-            col.label(text="Lock:")
-            col.prop(md, "lock_x")
-            col.prop(md, "lock_y")
+            row = col.row(align=True)
+            row.label(text="Lock:")
+            deform_axis = md.deform_axis
+            if deform_axis != 'X':
+                row.prop(md, "lock_x")
+            if deform_axis != 'Y':
+                row.prop(md, "lock_y")
+            if deform_axis != 'Z':
+                row.prop(md, "lock_z")
 
         col = split.column()
         col.label(text="Deform:")
@@ -923,13 +946,14 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "material_offset_rim", text="Rim")
 
     def SUBSURF(self, layout, ob, md):
+        from bpy import context
         layout.row().prop(md, "subdivision_type", expand=True)
 
         split = layout.split()
         col = split.column()
 
-        scene = bpy.context.scene
-        engine = scene.render.engine
+        scene = context.scene
+        engine = context.engine
         show_adaptive_options = (
             engine == 'CYCLES' and md == ob.modifiers[-1] and
             scene.cycles.feature_set == 'EXPERIMENTAL'
@@ -968,7 +992,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
             render = max(scene.cycles.dicing_rate * ob.cycles.dicing_rate, 0.1)
             preview = max(scene.cycles.preview_dicing_rate * ob.cycles.dicing_rate, 0.1)
-            col.label("Render %.2f px, Preview %.2f px" % (render, preview))
+            col.label(f"Render {render:10.2f} px, Preview {preview:10.2f} px")
 
     def SURFACE(self, layout, ob, md):
         layout.label(text="Settings are inside the Physics tab")
@@ -992,18 +1016,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def UV_PROJECT(self, layout, ob, md):
         split = layout.split()
-
         col = split.column()
-        col.label(text="Image:")
-        col.prop(md, "image", text="")
+        col.prop_search(md, "uv_layer", ob.data, "uv_layers")
+        col.separator()
 
-        col = split.column()
-        col.label(text="UV Map:")
-        col.prop_search(md, "uv_layer", ob.data, "uv_textures", text="")
-
-        split = layout.split()
-        col = split.column()
-        col.prop(md, "use_image_override")
         col.prop(md, "projector_count", text="Projectors")
         for proj in md.projectors:
             col.prop(proj, "object", text="")
@@ -1057,7 +1073,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if md.texture_coords == 'OBJECT':
             layout.prop(md, "texture_coords_object", text="Object")
         elif md.texture_coords == 'UV' and ob.type == 'MESH':
-            layout.prop_search(md, "uv_layer", ob.data, "uv_textures")
+            layout.prop_search(md, "uv_layer", ob.data, "uv_layers")
 
     def WAVE(self, layout, ob, md):
         split = layout.split()
@@ -1103,7 +1119,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.template_ID(md, "texture", new="texture.new")
         layout.prop(md, "texture_coords")
         if md.texture_coords == 'UV' and ob.type == 'MESH':
-            layout.prop_search(md, "uv_layer", ob.data, "uv_textures")
+            layout.prop_search(md, "uv_layer", ob.data, "uv_layers")
         elif md.texture_coords == 'OBJECT':
             layout.prop(md, "texture_coords_object")
 
@@ -1170,7 +1186,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
                 if md.mask_tex_mapping == 'OBJECT':
                     layout.prop(md, "mask_tex_map_object", text="Object")
                 elif md.mask_tex_mapping == 'UV' and ob.type == 'MESH':
-                    layout.prop_search(md, "mask_tex_uv_layer", ob.data, "uv_textures")
+                    layout.prop_search(md, "mask_tex_uv_layer", ob.data, "uv_layers")
 
     def VERTEX_WEIGHT_EDIT(self, layout, ob, md):
         split = layout.split()
@@ -1339,7 +1355,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
         col = split.column()
         col.label(text="UV Map:")
-        col.prop_search(md, "uv_layer", ob.data, "uv_textures", text="")
+        col.prop_search(md, "uv_layer", ob.data, "uv_layers", text="")
 
     def WIREFRAME(self, layout, ob, md):
         has_vgroup = bool(md.vertex_group)
@@ -1487,6 +1503,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
     def NORMAL_EDIT(self, layout, ob, md):
         has_vgroup = bool(md.vertex_group)
+        do_polynors_fix = not md.no_polynors_fix
         needs_object_offset = (((md.mode == 'RADIAL') and not md.target) or
                                ((md.mode == 'DIRECTIONAL') and md.use_direction_parallel))
 
@@ -1516,7 +1533,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         sub = row.row(align=True)
         sub.active = has_vgroup
         sub.prop(md, "invert_vertex_group", text="", icon='ARROW_LEFTRIGHT')
-        subcol.prop(md, "mix_limit")
+        row = subcol.row(align=True)
+        row.prop(md, "mix_limit")
+        row.prop(md, "no_polynors_fix", text="", icon='UNLOCKED' if do_polynors_fix else 'LOCKED')
 
     def CORRECTIVE_SMOOTH(self, layout, ob, md):
         is_bind = md.is_bind

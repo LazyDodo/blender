@@ -30,6 +30,7 @@ set(INC
 	../blenloader
 	../blentranslation
 	../depsgraph
+	../draw
 	../gpu
 	../ikplugin
 	../imbuf
@@ -48,6 +49,7 @@ set(INC
 	../../../intern/mikktspace
 	../../../intern/smoke/extern
 	../../../intern/atomic
+	../../../intern/clog
 	../../../intern/libmv
 	../../../extern/curve_fit_nd
 )
@@ -75,18 +77,20 @@ set(SRC
 	intern/blender.c
 	intern/blender_copybuffer.c
 	intern/blender_undo.c
+	intern/blender_user_menu.c
 	intern/blendfile.c
 	intern/bmfont.c
 	intern/boids.c
 	intern/bpath.c
 	intern/brush.c
-	intern/bullet.c
 	intern/bvhutils.c
 	intern/cachefile.c
 	intern/camera.c
 	intern/cdderivedmesh.c
 	intern/cloth.c
+	intern/collection.c
 	intern/collision.c
+	intern/colorband.c
 	intern/colortools.c
 	intern/constraint.c
 	intern/context.c
@@ -97,12 +101,13 @@ set(SRC
 	intern/customdata_file.c
 	intern/data_transfer.c
 	intern/deform.c
-	intern/depsgraph.c
 	intern/displist.c
 	intern/dynamicpaint.c
 	intern/editderivedmesh.c
+	intern/editlattice.c
 	intern/editmesh.c
 	intern/editmesh_bvh.c
+	intern/editmesh_tangent.c
 	intern/effect.c
 	intern/fcurve.c
 	intern/fluidsim.c
@@ -110,10 +115,11 @@ set(SRC
 	intern/font.c
 	intern/freestyle.c
 	intern/gpencil.c
-	intern/group.c
 	intern/icons.c
+	intern/icons_rasterize.c
 	intern/idcode.c
 	intern/idprop.c
+	intern/idprop_utils.c
 	intern/image.c
 	intern/image_gen.c
 	intern/ipo.c
@@ -122,6 +128,7 @@ set(SRC
 	intern/lattice.c
 	intern/library.c
 	intern/library_idmap.c
+	intern/library_override.c
 	intern/library_query.c
 	intern/library_remap.c
 	intern/linestyle.c
@@ -132,17 +139,22 @@ set(SRC
 	intern/mball.c
 	intern/mball_tessellate.c
 	intern/mesh.c
+	intern/mesh_convert.c
 	intern/mesh_evaluate.c
+	intern/mesh_iterators.c
 	intern/mesh_mapping.c
+	intern/mesh_merge.c
 	intern/mesh_remap.c
+	intern/mesh_runtime.c
+	intern/mesh_tangent.c
 	intern/mesh_validate.c
 	intern/modifier.c
-	intern/modifiers_bmesh.c
 	intern/movieclip.c
 	intern/multires.c
 	intern/nla.c
 	intern/node.c
 	intern/object.c
+	intern/object_facemap.c
 	intern/object_deform.c
 	intern/object_dupli.c
 	intern/object_update.c
@@ -157,10 +169,11 @@ set(SRC
 	intern/pbvh.c
 	intern/pbvh_bmesh.c
 	intern/pointcache.c
-	intern/property.c
+	intern/layer.c
+	intern/layer_utils.c
+	intern/lightprobe.c
 	intern/report.c
 	intern/rigidbody.c
-	intern/sca.c
 	intern/scene.c
 	intern/screen.c
 	intern/seqcache.c
@@ -168,11 +181,17 @@ set(SRC
 	intern/seqmodifier.c
 	intern/sequencer.c
 	intern/shrinkwrap.c
-	intern/sketch.c
 	intern/smoke.c
 	intern/softbody.c
 	intern/sound.c
 	intern/speaker.c
+	intern/studiolight.c
+	intern/subdiv.c
+	intern/subdiv_converter.c
+	intern/subdiv_converter_mesh.c
+	intern/subdiv_eval.c
+	intern/subdiv_mesh.c
+	intern/subdiv_stats.c
 	intern/subsurf_ccg.c
 	intern/suggestions.c
 	intern/text.c
@@ -185,10 +204,11 @@ set(SRC
 	intern/tracking_solver.c
 	intern/tracking_stabilize.c
 	intern/tracking_util.c
+	intern/undo_system.c
 	intern/unit.c
+	intern/workspace.c
 	intern/world.c
 	intern/writeavi.c
-	intern/writeframeserver.c
 
 	BKE_DerivedMesh.h
 	BKE_action.h
@@ -208,14 +228,15 @@ set(SRC
 	BKE_boids.h
 	BKE_bpath.h
 	BKE_brush.h
-	BKE_bullet.h
 	BKE_bvhutils.h
 	BKE_cachefile.h
 	BKE_camera.h
 	BKE_ccg.h
 	BKE_cdderivedmesh.h
 	BKE_cloth.h
+	BKE_collection.h
 	BKE_collision.h
+	BKE_colorband.h
 	BKE_colortools.h
 	BKE_constraint.h
 	BKE_context.h
@@ -225,11 +246,12 @@ set(SRC
 	BKE_customdata_file.h
 	BKE_data_transfer.h
 	BKE_deform.h
-	BKE_depsgraph.h
 	BKE_displist.h
 	BKE_dynamicpaint.h
+	BKE_editlattice.h
 	BKE_editmesh.h
 	BKE_editmesh_bvh.h
+	BKE_editmesh_tangent.h
 	BKE_effect.h
 	BKE_fcurve.h
 	BKE_fluidsim.h
@@ -237,7 +259,6 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
-	BKE_group.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
@@ -248,6 +269,7 @@ set(SRC
 	BKE_lattice.h
 	BKE_library.h
 	BKE_library_idmap.h
+	BKE_library_override.h
 	BKE_library_query.h
 	BKE_library_remap.h
 	BKE_linestyle.h
@@ -257,14 +279,18 @@ set(SRC
 	BKE_mball.h
 	BKE_mball_tessellate.h
 	BKE_mesh.h
+	BKE_mesh_iterators.h
 	BKE_mesh_mapping.h
 	BKE_mesh_remap.h
+	BKE_mesh_runtime.h
+	BKE_mesh_tangent.h
 	BKE_modifier.h
 	BKE_movieclip.h
 	BKE_multires.h
 	BKE_nla.h
 	BKE_node.h
 	BKE_object.h
+	BKE_object_facemap.h
 	BKE_object_deform.h
 	BKE_ocean.h
 	BKE_outliner_treehash.h
@@ -273,37 +299,40 @@ set(SRC
 	BKE_particle.h
 	BKE_pbvh.h
 	BKE_pointcache.h
-	BKE_property.h
+	BKE_layer.h
+	BKE_lightprobe.h
 	BKE_report.h
 	BKE_rigidbody.h
-	BKE_sca.h
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
 	BKE_shrinkwrap.h
-	BKE_sketch.h
 	BKE_smoke.h
 	BKE_softbody.h
 	BKE_sound.h
 	BKE_speaker.h
+	BKE_studiolight.h
+	BKE_subdiv.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
 	BKE_texture.h
 	BKE_tracking.h
+	BKE_undo_system.h
 	BKE_unit.h
+	BKE_workspace.h
 	BKE_world.h
 	BKE_writeavi.h
-	BKE_writeframeserver.h
 
-	depsgraph_private.h
 	nla_private.h
 	tracking_private.h
+	particle_private.h
 	intern/CCGSubSurf.h
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
-	intern/pbvh_intern.h
 	intern/data_transfer_intern.h
+	intern/pbvh_intern.h
+	intern/subdiv_converter.h
 )
 
 if(WITH_BINRELOC)
@@ -322,7 +351,7 @@ if(WIN32)
 endif()
 
 if(WITH_AUDASPACE)
-	add_definitions(${AUDASPACE_DEFINITIONS})
+	add_definitions(-DWITH_AUDASPACE)
 
 	list(APPEND INC_SYS
 		${AUDASPACE_C_INCLUDE_DIRS}
@@ -399,7 +428,7 @@ if(WITH_CODEC_FFMPEG)
 	)
 	add_definitions(-DWITH_FFMPEG)
 
-	remove_strict_flags_file(
+	remove_strict_c_flags_file(
 		intern/writeffmpeg.c
 	)
 endif()
@@ -409,6 +438,10 @@ if(WITH_PYTHON)
 		../python
 	)
 	add_definitions(-DWITH_PYTHON)
+
+	if(WITH_PYTHON_SAFETY)
+		add_definitions(-DWITH_PYTHON_SAFETY)
+	endif()
 
 	if(WITH_PYTHON_SECURITY)
 		add_definitions(-DWITH_PYTHON_SECURITY)
@@ -462,18 +495,6 @@ if(WITH_LZMA)
 	add_definitions(-DWITH_LZMA)
 endif()
 
-if(WITH_GAMEENGINE)
-	list(APPEND INC_SYS
-		../../../extern/recastnavigation
-	)
-	list(APPEND SRC
-		intern/navmesh_conversion.c
-		BKE_navmesh_conversion.h
-	)
-
-	add_definitions(-DWITH_GAMEENGINE)
-endif()
-
 if(WITH_LIBMV)
 	add_definitions(-DWITH_LIBMV)
 endif()
@@ -525,9 +546,5 @@ endif()
 #if(MSVC)
 #	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
 #endif()
-
-if(WITH_LEGACY_DEPSGRAPH)
-	add_definitions(-DWITH_LEGACY_DEPSGRAPH)
-endif()
 
 blender_add_lib(bf_blenkernel "${SRC}" "${INC}" "${INC_SYS}")

@@ -4,8 +4,8 @@
  * Copyright (c) 2009-2010 Sony Pictures Imageworks Inc., et al.
  * All Rights Reserved.
  *
- * Modifications Copyright 2011, Blender Foundation.
- * 
+ * Modifications Copyright 2011-2018, Blender Foundation.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
@@ -36,7 +36,6 @@
 #include "kernel/osl/osl_closures.h"
 #include "kernel/osl/osl_shader.h"
 
-#include "util/util_debug.h"
 #include "util/util_math.h"
 #include "util/util_param.h"
 
@@ -60,6 +59,7 @@
 #include "kernel/closure/bsdf_ashikhmin_shirley.h"
 #include "kernel/closure/bsdf_toon.h"
 #include "kernel/closure/bsdf_hair.h"
+#include "kernel/closure/bsdf_hair_principled.h"
 #include "kernel/closure/bsdf_principled_diffuse.h"
 #include "kernel/closure/bsdf_principled_sheen.h"
 #include "kernel/closure/volume.h"
@@ -177,6 +177,61 @@ BSDF_CLOSURE_CLASS_BEGIN(PrincipledSheen, principled_sheen, PrincipledSheenBsdf,
 	CLOSURE_FLOAT3_PARAM(PrincipledSheenClosure, params.N),
 BSDF_CLOSURE_CLASS_END(PrincipledSheen, principled_sheen)
 
+/* PRINCIPLED HAIR BSDF */
+class PrincipledHairClosure : public CBSDFClosure {
+public:
+	PrincipledHairBSDF params;
+
+	PrincipledHairBSDF *alloc(ShaderData *sd, int path_flag, float3 weight)
+	{
+		PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc_osl(sd, sizeof(PrincipledHairBSDF), weight, &params);
+		if(!bsdf) {
+			return NULL;
+		}
+
+		PrincipledHairExtra *extra = (PrincipledHairExtra*)closure_alloc_extra(sd, sizeof(PrincipledHairExtra));
+		if(!extra) {
+			return NULL;
+		}
+
+		bsdf->extra = extra;
+		return bsdf;
+	}
+
+	void setup(ShaderData *sd, int path_flag, float3 weight)
+	{
+		if(!skip(sd, path_flag, LABEL_GLOSSY))
+		{
+			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)alloc(sd, path_flag, weight);
+			if (!bsdf)
+			{
+				return;
+			}
+
+			sd->flag |= (bsdf) ? bsdf_principled_hair_setup(sd, bsdf) : 0;
+		}
+	}
+};
+
+static ClosureParam *closure_bsdf_principled_hair_params()
+{
+	static ClosureParam params[] = {
+		CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.N),
+		CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.sigma),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.v),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.s),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.m0_roughness),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
+		CLOSURE_STRING_KEYPARAM(PrincipledHairClosure, label, "label"),
+		CLOSURE_FINISH_PARAM(PrincipledHairClosure)
+	};
+
+	return params;
+}
+
+CCLOSURE_PREPARE(closure_bsdf_principled_hair_prepare, PrincipledHairClosure)
+
 /* DISNEY PRINCIPLED CLEARCOAT */
 class PrincipledClearcoatClosure : public CBSDFClosure {
 public:
@@ -195,10 +250,12 @@ public:
 			return NULL;
 		}
 
+		bsdf->T = make_float3(0.0f, 0.0f, 0.0f);
 		bsdf->extra = extra;
 		bsdf->ior = 1.5f;
 		bsdf->alpha_x = clearcoat_roughness;
 		bsdf->alpha_y = clearcoat_roughness;
+		bsdf->extra->color = make_float3(0.0f, 0.0f, 0.0f);
 		bsdf->extra->cspec0 = make_float3(0.04f, 0.04f, 0.04f);
 		bsdf->extra->clearcoat = clearcoat;
 		return bsdf;
@@ -207,7 +264,11 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_ggx_clearcoat_setup(bsdf, sd) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		sd->flag |= bsdf_microfacet_ggx_clearcoat_setup(bsdf, sd);
 	}
 };
 
@@ -305,25 +366,20 @@ void OSLShader::register_closures(OSLShadingSystem *ss_)
 		closure_background_params(), closure_background_prepare);
 	register_closure(ss, "holdout", id++,
 		closure_holdout_params(), closure_holdout_prepare);
-	register_closure(ss, "ambient_occlusion", id++,
-		closure_ambient_occlusion_params(), closure_ambient_occlusion_prepare);
 	register_closure(ss, "diffuse_ramp", id++,
 		closure_bsdf_diffuse_ramp_params(), closure_bsdf_diffuse_ramp_prepare);
 	register_closure(ss, "phong_ramp", id++,
 		closure_bsdf_phong_ramp_params(), closure_bsdf_phong_ramp_prepare);
-	register_closure(ss, "bssrdf_cubic", id++,
-		closure_bssrdf_cubic_params(), closure_bssrdf_cubic_prepare);
-	register_closure(ss, "bssrdf_gaussian", id++,
-		closure_bssrdf_gaussian_params(), closure_bssrdf_gaussian_prepare);
-	register_closure(ss, "bssrdf_burley", id++,
-		closure_bssrdf_burley_params(), closure_bssrdf_burley_prepare);
-	register_closure(ss, "bssrdf_principled", id++,
-		closure_bssrdf_principled_params(), closure_bssrdf_principled_prepare);
+	register_closure(ss, "bssrdf", id++,
+		closure_bssrdf_params(), closure_bssrdf_prepare);
 
 	register_closure(ss, "hair_reflection", id++,
 		bsdf_hair_reflection_params(), bsdf_hair_reflection_prepare);
 	register_closure(ss, "hair_transmission", id++,
 		bsdf_hair_transmission_params(), bsdf_hair_transmission_prepare);
+
+	register_closure(ss, "principled_hair", id++,
+		closure_bsdf_principled_hair_params(), closure_bsdf_principled_hair_prepare);
 
 	register_closure(ss, "henyey_greenstein", id++,
 		closure_henyey_greenstein_params(), closure_henyey_greenstein_prepare);
@@ -380,6 +436,7 @@ public:
 		bsdf->extra = extra;
 		bsdf->extra->color = color;
 		bsdf->extra->cspec0 = cspec0;
+		bsdf->extra->clearcoat = 0.0f;
 		return bsdf;
 	}
 };
@@ -389,7 +446,13 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_ggx_fresnel_setup(bsdf, sd) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		bsdf->T = make_float3(0.0f, 0.0f, 0.0f);
+		bsdf->alpha_y = bsdf->alpha_x;
+		sd->flag |= bsdf_microfacet_ggx_fresnel_setup(bsdf, sd);
 	}
 };
 
@@ -413,7 +476,11 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_ggx_aniso_fresnel_setup(bsdf, sd) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		sd->flag |= bsdf_microfacet_ggx_aniso_fresnel_setup(bsdf, sd);
 	}
 };
 
@@ -463,6 +530,8 @@ public:
 
 		bsdf->extra = extra;
 		bsdf->extra->color = color;
+		bsdf->extra->cspec0 = make_float3(0.0f, 0.0f, 0.0f);
+		bsdf->extra->clearcoat = 0.0f;
 		return bsdf;
 	}
 };
@@ -472,7 +541,14 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_multi_ggx_setup(bsdf) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		bsdf->ior = 0.0f;
+		bsdf->T = make_float3(0.0f, 0.0f, 0.0f);
+		bsdf->alpha_y = bsdf->alpha_x;
+		sd->flag |= bsdf_microfacet_multi_ggx_setup(bsdf);
 	}
 };
 
@@ -494,7 +570,12 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_multi_ggx_aniso_setup(bsdf) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		bsdf->ior = 0.0f;
+		sd->flag |= bsdf_microfacet_multi_ggx_aniso_setup(bsdf);
 	}
 };
 
@@ -520,7 +601,13 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_multi_ggx_glass_setup(bsdf) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		bsdf->T = make_float3(0.0f, 0.0f, 0.0f);
+		bsdf->alpha_y = bsdf->alpha_x;
+		sd->flag |= bsdf_microfacet_multi_ggx_glass_setup(bsdf);
 	}
 };
 
@@ -569,6 +656,7 @@ public:
 		bsdf->extra = extra;
 		bsdf->extra->color = color;
 		bsdf->extra->cspec0 = cspec0;
+		bsdf->extra->clearcoat = 0.0f;
 		return bsdf;
 	}
 };
@@ -578,7 +666,13 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_multi_ggx_fresnel_setup(bsdf, sd) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		bsdf->T = make_float3(0.0f, 0.0f, 0.0f);
+		bsdf->alpha_y = bsdf->alpha_x;
+		sd->flag |= bsdf_microfacet_multi_ggx_fresnel_setup(bsdf, sd);
 	}
 };
 
@@ -602,7 +696,11 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_multi_ggx_aniso_fresnel_setup(bsdf, sd) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		sd->flag |= bsdf_microfacet_multi_ggx_aniso_fresnel_setup(bsdf, sd);
 	}
 };
 
@@ -630,7 +728,13 @@ public:
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
 		MicrofacetBsdf *bsdf = alloc(sd, path_flag, weight);
-		sd->flag |= (bsdf) ? bsdf_microfacet_multi_ggx_glass_fresnel_setup(bsdf, sd) : 0;
+		if(!bsdf) {
+			return;
+		}
+
+		bsdf->T = make_float3(0.0f, 0.0f, 0.0f);
+		bsdf->alpha_y = bsdf->alpha_x;
+		sd->flag |= bsdf_microfacet_multi_ggx_glass_fresnel_setup(bsdf, sd);
 	}
 };
 
@@ -658,7 +762,7 @@ public:
 
 	void setup(ShaderData *sd, int path_flag, float3 weight)
 	{
-		bsdf_transparent_setup(sd, weight);
+		bsdf_transparent_setup(sd, weight, path_flag);
 	}
 };
 
@@ -703,7 +807,11 @@ public:
 		volume_extinction_setup(sd, weight);
 
 	    HenyeyGreensteinVolume *volume = (HenyeyGreensteinVolume*)bsdf_alloc_osl(sd, sizeof(HenyeyGreensteinVolume), weight, &params);
-		sd->flag |= (volume) ? volume_henyey_greenstein_setup(volume) : 0;
+		if(!volume) {
+			return;
+		}
+
+		sd->flag |= volume_henyey_greenstein_setup(volume);
 	}
 };
 
@@ -721,4 +829,3 @@ CCLOSURE_PREPARE(closure_henyey_greenstein_prepare, VolumeHenyeyGreensteinClosur
 
 
 CCL_NAMESPACE_END
-

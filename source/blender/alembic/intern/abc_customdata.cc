@@ -27,10 +27,19 @@
 #include <Alembic/AbcGeom/All.h>
 #include <algorithm>
 
+#if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1900)
+#include <unordered_map>
+typedef std::unordered_map<uint64_t, int> uv_index_map;
+#else
+#include <map>
+typedef std::map<uint64_t, int> uv_index_map;
+#endif
+
 extern "C" {
 #include "DNA_customdata_types.h"
 #include "DNA_meshdata_types.h"
 
+#include "BLI_math_base.h"
 #include "BKE_customdata.h"
 }
 
@@ -49,6 +58,27 @@ using Alembic::Abc::V2fArraySample;
 
 using Alembic::AbcGeom::OV2fGeomParam;
 using Alembic::AbcGeom::OC4fGeomParam;
+
+
+static inline uint64_t uv_to_hash_key(Imath::V2f v)
+{
+	/* Convert -0.0f to 0.0f, so bitwise comparison works. */
+	if (v.x == 0.0f) {
+		v.x = 0.0f;
+	}
+	if (v.y == 0.0f) {
+		v.y = 0.0f;
+	}
+
+	/* Pack floats in 64bit. */
+	union {
+		float xy[2];
+		uint64_t key;
+	} tmp;
+	tmp.xy[0] = v.x;
+	tmp.xy[1] = v.y;
+	return tmp.key;
+}
 
 static void get_uvs(const CDStreamConfig &config,
                     std::vector<Imath::V2f> &uvs,
@@ -83,6 +113,9 @@ static void get_uvs(const CDStreamConfig &config,
 		}
 	}
 	else {
+		uv_index_map idx_map;
+		int idx_count = 0;
+
 		for (int i = 0; i < num_poly; ++i) {
 			MPoly &current_poly = polygons[i];
 			MLoopUV *loopuvpoly = mloopuv_array + current_poly.loopstart + current_poly.totloop;
@@ -90,15 +123,15 @@ static void get_uvs(const CDStreamConfig &config,
 			for (int j = 0; j < current_poly.totloop; ++j) {
 				loopuvpoly--;
 				Imath::V2f uv(loopuvpoly->uv[0], loopuvpoly->uv[1]);
-
-				std::vector<Imath::V2f>::iterator it = std::find(uvs.begin(), uvs.end(), uv);
-
-				if (it == uvs.end()) {
-					uvidx.push_back(uvs.size());
+				uint64_t k = uv_to_hash_key(uv);
+				uv_index_map::iterator it = idx_map.find(k);
+				if (it == idx_map.end()) {
+					idx_map[k] = idx_count;
 					uvs.push_back(uv);
+					uvidx.push_back(idx_count++);
 				}
 				else {
-					uvidx.push_back(std::distance(uvs.begin(), it));
+					uvidx.push_back(it->second);
 				}
 			}
 		}
@@ -235,17 +268,19 @@ static void read_uvs(const CDStreamConfig &config, void *data,
 	MPoly *mpolys = config.mpoly;
 	MLoopUV *mloopuvs = static_cast<MLoopUV *>(data);
 
-	unsigned int uv_index, loop_index;
+	unsigned int uv_index, loop_index, rev_loop_index;
 
 	for (int i = 0; i < config.totpoly; ++i) {
 		MPoly &poly = mpolys[i];
+		unsigned int rev_loop_offset = poly.loopstart + poly.totloop - 1;
 
 		for (int f = 0; f < poly.totloop; ++f) {
 			loop_index = poly.loopstart + f;
+			rev_loop_index = rev_loop_offset - f;
 			uv_index = (*indices)[loop_index];
 			const Imath::V2f &uv = (*uvs)[uv_index];
 
-			MLoopUV &loopuv = mloopuvs[loop_index];
+			MLoopUV &loopuv = mloopuvs[rev_loop_index];
 			loopuv.uv[0] = uv[0];
 			loopuv.uv[1] = uv[1];
 		}
@@ -283,6 +318,7 @@ static void read_custom_data_mcols(const std::string & iobject_full_name,
 {
 	C3fArraySamplePtr c3f_ptr = C3fArraySamplePtr();
 	C4fArraySamplePtr c4f_ptr = C4fArraySamplePtr();
+	Alembic::Abc::UInt32ArraySamplePtr indices;
 	bool use_c3f_ptr;
 	bool is_facevarying;
 
@@ -297,6 +333,7 @@ static void read_custom_data_mcols(const std::string & iobject_full_name,
 		                 config.totloop == sample.getIndices()->size();
 
 		c3f_ptr = sample.getVals();
+		indices = sample.getIndices();
 		use_c3f_ptr = true;
 	}
 	else if (IC4fGeomParam::matches(prop_header)) {
@@ -309,6 +346,7 @@ static void read_custom_data_mcols(const std::string & iobject_full_name,
 		                 config.totloop == sample.getIndices()->size();
 
 		c4f_ptr = sample.getVals();
+		indices = sample.getIndices();
 		use_c3f_ptr = false;
 	}
 	else {
@@ -329,6 +367,12 @@ static void read_custom_data_mcols(const std::string & iobject_full_name,
 	size_t color_index;
 	bool bounds_warning_given = false;
 
+	/* The colors can go through two layers of indexing. Often the 'indices'
+	 * array doesn't do anything (i.e. indices[n] = n), but when it does, it's
+	 * important. Blender 2.79 writes indices incorrectly (see T53745), which
+	 * is why we have to check for indices->size() > 0 */
+	bool use_dual_indexing = is_facevarying && indices->size() > 0;
+
 	for (int i = 0; i < config.totpoly; ++i) {
 		MPoly *poly = &mpolys[i];
 		MCol *cface = &cfaces[poly->loopstart + poly->totloop];
@@ -338,31 +382,35 @@ static void read_custom_data_mcols(const std::string & iobject_full_name,
 			--cface;
 			--mloop;
 
+			color_index = is_facevarying ? face_index : mloop->v;
+			if (use_dual_indexing) {
+				color_index = (*indices)[color_index];
+			}
 			if (use_c3f_ptr) {
 				color_index = mcols_out_of_bounds_check(
-				                  is_facevarying ? face_index : mloop->v,
+				                  color_index,
 				                  c3f_ptr->size(),
 				                  iobject_full_name, prop_header,
 				                  bounds_warning_given);
 
 				const Imath::C3f &color = (*c3f_ptr)[color_index];
-				cface->a = FTOCHAR(color[0]);
-				cface->r = FTOCHAR(color[1]);
-				cface->g = FTOCHAR(color[2]);
+				cface->a = unit_float_to_uchar_clamp(color[0]);
+				cface->r = unit_float_to_uchar_clamp(color[1]);
+				cface->g = unit_float_to_uchar_clamp(color[2]);
 				cface->b = 255;
 			}
 			else {
 				color_index = mcols_out_of_bounds_check(
-				                  is_facevarying ? face_index : mloop->v,
+				                  color_index,
 				                  c4f_ptr->size(),
 				                  iobject_full_name, prop_header,
 				                  bounds_warning_given);
 
 				const Imath::C4f &color = (*c4f_ptr)[color_index];
-				cface->a = FTOCHAR(color[0]);
-				cface->r = FTOCHAR(color[1]);
-				cface->g = FTOCHAR(color[2]);
-				cface->b = FTOCHAR(color[3]);
+				cface->a = unit_float_to_uchar_clamp(color[0]);
+				cface->r = unit_float_to_uchar_clamp(color[1]);
+				cface->g = unit_float_to_uchar_clamp(color[2]);
+				cface->b = unit_float_to_uchar_clamp(color[3]);
 			}
 		}
 	}

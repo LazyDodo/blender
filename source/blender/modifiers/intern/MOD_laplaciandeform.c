@@ -35,10 +35,15 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "BKE_mesh_mapping.h"
-#include "BKE_cdderivedmesh.h"
-#include "BKE_particle.h"
 #include "BKE_deform.h"
+#include "BKE_editmesh.h"
+#include "BKE_library.h"
+#include "BKE_mesh_mapping.h"
+#include "BKE_mesh_runtime.h"
+#include "BKE_particle.h"
+
+#include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 
 #include "MOD_util.h"
 
@@ -108,12 +113,12 @@ static LaplacianSystem *initLaplacianSystem(
 	sys->total_anchors = totalAnchors;
 	sys->repeat = iterations;
 	BLI_strncpy(sys->anchor_grp_name, defgrpName, sizeof(sys->anchor_grp_name));
-	sys->co = MEM_mallocN(sizeof(float[3]) * totalVerts, "DeformCoordinates");
-	sys->no = MEM_callocN(sizeof(float[3]) * totalVerts, "DeformNormals");
-	sys->delta = MEM_callocN(sizeof(float[3]) * totalVerts, "DeformDeltas");
-	sys->tris = MEM_mallocN(sizeof(int[3]) * totalTris, "DeformFaces");
-	sys->index_anchors = MEM_mallocN(sizeof(int) * (totalAnchors), "DeformAnchors");
-	sys->unit_verts = MEM_callocN(sizeof(int) * totalVerts, "DeformUnitVerts");
+	sys->co = MEM_malloc_arrayN(totalVerts, sizeof(float[3]), "DeformCoordinates");
+	sys->no = MEM_calloc_arrayN(totalVerts, sizeof(float[3]), "DeformNormals");
+	sys->delta = MEM_calloc_arrayN(totalVerts, sizeof(float[3]), "DeformDeltas");
+	sys->tris = MEM_malloc_arrayN(totalTris, sizeof(int[3]), "DeformFaces");
+	sys->index_anchors = MEM_malloc_arrayN((totalAnchors), sizeof(int), "DeformAnchors");
+	sys->unit_verts = MEM_calloc_arrayN(totalVerts, sizeof(int), "DeformUnitVerts");
 	return sys;
 }
 
@@ -142,7 +147,7 @@ static void createFaceRingMap(
 {
 	int i, j, totalr = 0;
 	int *indices, *index_iter;
-	MeshElemMap *map = MEM_callocN(sizeof(MeshElemMap) * mvert_tot, "DeformRingMap");
+	MeshElemMap *map = MEM_calloc_arrayN(mvert_tot, sizeof(MeshElemMap), "DeformRingMap");
 	const MLoopTri *mlt;
 
 	for (i = 0, mlt = mlooptri; i < mtri_tot; i++, mlt++) {
@@ -153,7 +158,7 @@ static void createFaceRingMap(
 			totalr++;
 		}
 	}
-	indices = MEM_callocN(sizeof(int) * totalr, "DeformRingIndex");
+	indices = MEM_calloc_arrayN(totalr, sizeof(int), "DeformRingIndex");
 	index_iter = indices;
 	for (i = 0; i < mvert_tot; i++) {
 		map[i].indices = index_iter;
@@ -175,7 +180,7 @@ static void createVertRingMap(
         const int mvert_tot, const MEdge *medge, const int medge_tot,
         MeshElemMap **r_map, int **r_indices)
 {
-	MeshElemMap *map = MEM_callocN(sizeof(MeshElemMap) * mvert_tot, "DeformNeighborsMap");
+	MeshElemMap *map = MEM_calloc_arrayN(mvert_tot, sizeof(MeshElemMap), "DeformNeighborsMap");
 	int i, vid[2], totalr = 0;
 	int *indices, *index_iter;
 	const MEdge *me;
@@ -187,7 +192,7 @@ static void createVertRingMap(
 		map[vid[1]].count++;
 		totalr += 2;
 	}
-	indices = MEM_callocN(sizeof(int) * totalr, "DeformNeighborsIndex");
+	indices = MEM_calloc_arrayN(totalr, sizeof(int), "DeformNeighborsIndex");
 	index_iter = indices;
 	for (i = 0; i < mvert_tot; i++) {
 		map[i].indices = index_iter;
@@ -499,18 +504,19 @@ static void laplacianDeformPreview(LaplacianSystem *sys, float (*vertexCos)[3])
 	}
 }
 
-static bool isValidVertexGroup(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh *dm)
+static bool isValidVertexGroup(LaplacianDeformModifierData *lmd, Object *ob, Mesh *mesh)
 {
 	int defgrp_index;
 	MDeformVert *dvert = NULL;
 
-	modifier_get_vgroup(ob, dm, lmd->anchor_grp_name, &dvert, &defgrp_index);
+	MOD_get_vgroup(ob, mesh, lmd->anchor_grp_name, &dvert, &defgrp_index);
 
 	return  (dvert != NULL);
 }
 
-static void initSystem(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh *dm,
-                       float (*vertexCos)[3], int numVerts)
+static void initSystem(
+        LaplacianDeformModifierData *lmd, Object *ob, Mesh *mesh,
+        float (*vertexCos)[3], int numVerts)
 {
 	int i;
 	int defgrp_index;
@@ -520,8 +526,8 @@ static void initSystem(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh
 	MDeformVert *dv = NULL;
 	LaplacianSystem *sys;
 
-	if (isValidVertexGroup(lmd, ob, dm)) {
-		int *index_anchors = MEM_mallocN(sizeof(int) * numVerts, __func__);  /* over-alloc */
+	if (isValidVertexGroup(lmd, ob, mesh)) {
+		int *index_anchors = MEM_malloc_arrayN(numVerts, sizeof(int), __func__);  /* over-alloc */
 		const MLoopTri *mlooptri;
 		const MLoop *mloop;
 
@@ -529,7 +535,7 @@ static void initSystem(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh
 
 		STACK_INIT(index_anchors, numVerts);
 
-		modifier_get_vgroup(ob, dm, lmd->anchor_grp_name, &dvert, &defgrp_index);
+		MOD_get_vgroup(ob, mesh, lmd->anchor_grp_name, &dvert, &defgrp_index);
 		BLI_assert(dvert != NULL);
 		dv = dvert;
 		for (i = 0; i < numVerts; i++) {
@@ -541,26 +547,26 @@ static void initSystem(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh
 		}
 
 		total_anchors = STACK_SIZE(index_anchors);
-		lmd->cache_system = initLaplacianSystem(numVerts, dm->getNumEdges(dm), dm->getNumLoopTri(dm),
-		                                       total_anchors, lmd->anchor_grp_name, lmd->repeat);
+		lmd->cache_system = initLaplacianSystem(numVerts, mesh->totedge, BKE_mesh_runtime_looptri_len(mesh),
+		                                        total_anchors, lmd->anchor_grp_name, lmd->repeat);
 		sys = (LaplacianSystem *)lmd->cache_system;
 		memcpy(sys->index_anchors, index_anchors, sizeof(int) * total_anchors);
 		memcpy(sys->co, vertexCos, sizeof(float[3]) * numVerts);
 		MEM_freeN(index_anchors);
-		lmd->vertexco = MEM_mallocN(sizeof(float[3]) * numVerts, "ModDeformCoordinates");
+		lmd->vertexco = MEM_malloc_arrayN(numVerts, sizeof(float[3]), "ModDeformCoordinates");
 		memcpy(lmd->vertexco, vertexCos, sizeof(float[3]) * numVerts);
 		lmd->total_verts = numVerts;
 
 		createFaceRingMap(
-		            dm->getNumVerts(dm), dm->getLoopTriArray(dm), dm->getNumLoopTri(dm),
-		            dm->getLoopArray(dm), &sys->ringf_map, &sys->ringf_indices);
+		            mesh->totvert, BKE_mesh_runtime_looptri_ensure(mesh), BKE_mesh_runtime_looptri_len(mesh),
+		            mesh->mloop, &sys->ringf_map, &sys->ringf_indices);
 		createVertRingMap(
-		            dm->getNumVerts(dm), dm->getEdgeArray(dm), dm->getNumEdges(dm),
+		            mesh->totvert, mesh->medge, mesh->totedge,
 		            &sys->ringv_map, &sys->ringv_indices);
 
 
-		mlooptri = dm->getLoopTriArray(dm);
-		mloop = dm->getLoopArray(dm);
+		mlooptri = BKE_mesh_runtime_looptri_ensure(mesh);
+		mloop = mesh->mloop;;
 
 		for (i = 0; i < sys->total_tris; i++) {
 			sys->tris[i][0] = mloop[mlooptri[i].tri[0]].v;
@@ -570,7 +576,7 @@ static void initSystem(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh
 	}
 }
 
-static int isSystemDifferent(LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh *dm, int numVerts)
+static int isSystemDifferent(LaplacianDeformModifierData *lmd, Object *ob, Mesh *mesh, int numVerts)
 {
 	int i;
 	int defgrp_index;
@@ -583,13 +589,13 @@ static int isSystemDifferent(LaplacianDeformModifierData *lmd, Object *ob, Deriv
 	if (sys->total_verts != numVerts) {
 		return LAPDEFORM_SYSTEM_CHANGE_VERTEXES;
 	}
-	if (sys->total_edges != dm->getNumEdges(dm)) {
+	if (sys->total_edges != mesh->totedge) {
 		return LAPDEFORM_SYSTEM_CHANGE_EDGES;
 	}
 	if (!STREQ(lmd->anchor_grp_name, sys->anchor_grp_name)) {
 		return LAPDEFORM_SYSTEM_ONLY_CHANGE_GROUP;
 	}
-	modifier_get_vgroup(ob, dm, lmd->anchor_grp_name, &dvert, &defgrp_index);
+	MOD_get_vgroup(ob, mesh, lmd->anchor_grp_name, &dvert, &defgrp_index);
 	if (!dvert) {
 		return LAPDEFORM_SYSTEM_CHANGE_NOT_VALID_GROUP;
 	}
@@ -609,7 +615,7 @@ static int isSystemDifferent(LaplacianDeformModifierData *lmd, Object *ob, Deriv
 }
 
 static void LaplacianDeformModifier_do(
-        LaplacianDeformModifierData *lmd, Object *ob, DerivedMesh *dm,
+        LaplacianDeformModifierData *lmd, Object *ob, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
 	float (*filevertexCos)[3];
@@ -627,17 +633,17 @@ static void LaplacianDeformModifier_do(
 		return;
 	}
 	if (lmd->cache_system) {
-		sysdif = isSystemDifferent(lmd, ob, dm, numVerts);
+		sysdif = isSystemDifferent(lmd, ob, mesh, numVerts);
 		sys = lmd->cache_system;
 		if (sysdif) {
 			if (sysdif == LAPDEFORM_SYSTEM_ONLY_CHANGE_ANCHORS || sysdif == LAPDEFORM_SYSTEM_ONLY_CHANGE_GROUP) {
-				filevertexCos = MEM_mallocN(sizeof(float[3]) * numVerts, "TempModDeformCoordinates");
+				filevertexCos = MEM_malloc_arrayN(numVerts, sizeof(float[3]), "TempModDeformCoordinates");
 				memcpy(filevertexCos, lmd->vertexco, sizeof(float[3]) * numVerts);
 				MEM_SAFE_FREE(lmd->vertexco);
 				lmd->total_verts = 0;
 				deleteLaplacianSystem(sys);
 				lmd->cache_system = NULL;
-				initSystem(lmd, ob, dm, filevertexCos, numVerts);
+				initSystem(lmd, ob, mesh, filevertexCos, numVerts);
 				sys = lmd->cache_system; /* may have been reallocated */
 				MEM_SAFE_FREE(filevertexCos);
 				if (sys) {
@@ -649,7 +655,7 @@ static void LaplacianDeformModifier_do(
 					modifier_setError(&lmd->modifier, "Vertices changed from %d to %d", lmd->total_verts, numVerts);
 				}
 				else if (sysdif == LAPDEFORM_SYSTEM_CHANGE_EDGES) {
-					modifier_setError(&lmd->modifier, "Edges changed from %d to %d", sys->total_edges, dm->getNumEdges(dm));
+					modifier_setError(&lmd->modifier, "Edges changed from %d to %d", sys->total_edges, mesh->totedge);
 				}
 				else if (sysdif == LAPDEFORM_SYSTEM_CHANGE_NOT_VALID_GROUP) {
 					modifier_setError(&lmd->modifier, "Vertex group '%s' is not valid", sys->anchor_grp_name);
@@ -662,22 +668,22 @@ static void LaplacianDeformModifier_do(
 		}
 	}
 	else {
-		if (!isValidVertexGroup(lmd, ob, dm)) {
+		if (!isValidVertexGroup(lmd, ob, mesh)) {
 			modifier_setError(&lmd->modifier, "Vertex group '%s' is not valid", lmd->anchor_grp_name);
 			lmd->flag &= ~MOD_LAPLACIANDEFORM_BIND;
 		}
 		else if (lmd->total_verts > 0 && lmd->total_verts == numVerts) {
-			filevertexCos = MEM_mallocN(sizeof(float[3]) * numVerts, "TempDeformCoordinates");
+			filevertexCos = MEM_malloc_arrayN(numVerts, sizeof(float[3]), "TempDeformCoordinates");
 			memcpy(filevertexCos, lmd->vertexco, sizeof(float[3]) * numVerts);
 			MEM_SAFE_FREE(lmd->vertexco);
 			lmd->total_verts = 0;
-			initSystem(lmd, ob, dm, filevertexCos, numVerts);
+			initSystem(lmd, ob, mesh, filevertexCos, numVerts);
 			sys = lmd->cache_system;
 			MEM_SAFE_FREE(filevertexCos);
 			laplacianDeformPreview(sys, vertexCos);
 		}
 		else {
-			initSystem(lmd, ob, dm, vertexCos, numVerts);
+			initSystem(lmd, ob, mesh, vertexCos, numVerts);
 			sys = lmd->cache_system;
 			laplacianDeformPreview(sys, vertexCos);
 		}
@@ -698,18 +704,18 @@ static void initData(ModifierData *md)
 	lmd->flag = 0;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target, const int flag)
 {
-	LaplacianDeformModifierData *lmd = (LaplacianDeformModifierData *)md;
+	const LaplacianDeformModifierData *lmd = (const LaplacianDeformModifierData *)md;
 	LaplacianDeformModifierData *tlmd = (LaplacianDeformModifierData *)target;
 
-	modifier_copyData_generic(md, target);
+	modifier_copyData_generic(md, target, flag);
 
 	tlmd->vertexco = MEM_dupallocN(lmd->vertexco);
 	tlmd->cache_system = NULL;
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	LaplacianDeformModifierData *lmd = (LaplacianDeformModifierData *)md;
 	if (lmd->anchor_grp_name[0]) return 0;
@@ -724,26 +730,27 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static void deformVerts(ModifierData *md, Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3], int numVerts, ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
+        float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = get_dm(ob, NULL, derivedData, NULL, false, false);
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
 
-	LaplacianDeformModifier_do((LaplacianDeformModifierData *)md, ob, dm, vertexCos, numVerts);
-	if (dm != derivedData) {
-		dm->release(dm);
+	LaplacianDeformModifier_do((LaplacianDeformModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
 	}
 }
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *editData,
-        DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+        ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *editData,
+        Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = get_dm(ob, editData, derivedData, NULL, false, false);
-	LaplacianDeformModifier_do((LaplacianDeformModifierData *)md, ob, dm,
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, editData, mesh, NULL, false, false);
+	LaplacianDeformModifier_do((LaplacianDeformModifierData *)md, ctx->object, mesh_src,
 	                           vertexCos, numVerts);
-	if (dm != derivedData) {
-		dm->release(dm);
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
 	}
 }
 
@@ -765,17 +772,25 @@ ModifierTypeInfo modifierType_LaplacianDeform = {
 	/* type */              eModifierTypeType_OnlyDeform,
 	/* flags */             eModifierTypeFlag_AcceptsMesh | eModifierTypeFlag_SupportsEditmode,
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    NULL,
 	/* updateDepsgraph */   NULL,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

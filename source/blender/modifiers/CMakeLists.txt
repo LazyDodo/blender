@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-set(INC 
+set(INC
 	.
 	intern
 	../blenkernel
@@ -107,31 +107,16 @@ set(SRC
 	intern/MOD_wireframe.c
 
 	MOD_modifiertypes.h
-	intern/MOD_boolean_util.h
 	intern/MOD_fluidsim_util.h
 	intern/MOD_meshcache_util.h
 	intern/MOD_util.h
 	intern/MOD_weightvg_util.h
 )
 
-if(WITH_LEGACY_DEPSGRAPH)
-	add_definitions(-DWITH_LEGACY_DEPSGRAPH)
-endif()
-
 if(WITH_ALEMBIC)
 	add_definitions(-DWITH_ALEMBIC)
 	list(APPEND INC
 		../alembic
-	)
-endif()
-
-if(WITH_MOD_BOOLEAN)
-	add_definitions(-DWITH_MOD_BOOLEAN)
-	list(APPEND SRC
-		intern/MOD_boolean_util.c
-	)
-	list(APPEND INC
-		../../../extern/carve
 	)
 endif()
 
@@ -161,5 +146,8 @@ endif()
 if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
 endif()
+
+# So we can have special tricks in modifier system.
+add_definitions(${GL_DEFINITIONS})
 
 blender_add_lib(bf_modifiers "${SRC}" "${INC}" "${INC_SYS}")

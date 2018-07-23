@@ -42,9 +42,10 @@
 #include "BKE_context.h"
 #include "BKE_movieclip.h"
 #include "BKE_tracking.h"
-#include "BKE_depsgraph.h"
 #include "BKE_report.h"
 #include "BKE_sound.h"
+
+#include "DEG_depsgraph.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -154,8 +155,8 @@ static int add_marker_at_click_invoke(bContext *C,
                                       wmOperator *op,
                                       const wmEvent *UNUSED(event))
 {
-	ED_area_headerprint(
-	        CTX_wm_area(C),
+	ED_workspace_status_text(
+	        C,
 	        IFACE_("Use LMB click to define location where place the marker"));
 
 	/* Add modal handler for ESC. */
@@ -179,7 +180,7 @@ static int add_marker_at_click_modal(bContext *C,
 			ARegion *ar = CTX_wm_region(C);
 			float pos[2];
 
-			ED_area_headerprint(CTX_wm_area(C), NULL);
+			ED_workspace_status_text(C, NULL);
 
 			ED_clip_point_stable_pos(sc, ar,
 			                         event->x - ar->winrct.xmin,
@@ -195,7 +196,7 @@ static int add_marker_at_click_modal(bContext *C,
 		}
 
 		case ESCKEY:
-			ED_area_headerprint(CTX_wm_area(C), NULL);
+			ED_workspace_status_text(C, NULL);
 			return OPERATOR_CANCELLED;
 	}
 
@@ -226,7 +227,6 @@ static int delete_track_exec(bContext *C, wmOperator *UNUSED(op))
 	MovieClip *clip = ED_space_clip_get_clip(sc);
 	MovieTracking *tracking = &clip->tracking;
 	bool changed = false;
-
 	/* Delete selected plane tracks. */
 	ListBase *plane_tracks_base = BKE_tracking_get_active_plane_tracks(tracking);
 	for (MovieTrackingPlaneTrack *plane_track = plane_tracks_base->first,
@@ -235,14 +235,11 @@ static int delete_track_exec(bContext *C, wmOperator *UNUSED(op))
 	     plane_track = next_plane_track)
 	{
 		next_plane_track = plane_track->next;
-
 		if (PLANE_TRACK_VIEW_SELECTED(plane_track)) {
-			BKE_tracking_plane_track_free(plane_track);
-			BLI_freelinkN(plane_tracks_base, plane_track);
+			clip_delete_plane_track(C, clip, plane_track);
 			changed = true;
 		}
 	}
-
 	/* Remove selected point tracks (they'll also be removed from planes which
 	 * uses them).
 	 */
@@ -257,14 +254,11 @@ static int delete_track_exec(bContext *C, wmOperator *UNUSED(op))
 			changed = true;
 		}
 	}
-
 	/* Nothing selected now, unlock view so it can be scrolled nice again. */
 	sc->flag &= ~SC_LOCK_SELECTION;
-
 	if (changed) {
 		WM_event_add_notifier(C, NC_MOVIECLIP | NA_EDITED, clip);
 	}
-
 	return OPERATOR_FINISHED;
 }
 
@@ -682,7 +676,7 @@ MovieTrackingTrack *tracking_marker_check_slide(bContext *C,
 				 * the mouse.
 				 */
 				if (sc->flag & SC_SHOW_MARKER_PATTERN) {
-					int current_corner;
+					int current_corner = -1;
 					distance_squared =
 					        mouse_to_closest_pattern_corner_distance_squared(
 					                marker,
@@ -905,7 +899,7 @@ static int slide_marker_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				}
 
 				WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
-				DAG_id_tag_update(&sc->clip->id, 0);
+				DEG_id_tag_update(&sc->clip->id, 0);
 			}
 			else if (data->area == TRACK_AREA_PAT) {
 				if (data->action == SLIDE_ACTION_SIZE) {
@@ -1200,7 +1194,7 @@ static int disable_markers_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	DAG_id_tag_update(&clip->id, 0);
+	DEG_id_tag_update(&clip->id, 0);
 
 	WM_event_add_notifier(C, NC_MOVIECLIP | NA_EVALUATED, clip);
 
@@ -1865,6 +1859,10 @@ static bool is_track_clean(MovieTrackingTrack *track, int frames, int del)
 		}
 	}
 
+	if (del && count == 0) {
+		ok = 0;
+	}
+
 	if (del) {
 		MEM_freeN(track->markers);
 
@@ -2109,7 +2107,7 @@ void CLIP_OT_copy_tracks(wmOperatorType *ot)
 
 /********************* paste tracks from clipboard operator ********************/
 
-static int paste_tracks_poll(bContext *C)
+static bool paste_tracks_poll(bContext *C)
 {
 	if (ED_space_clip_tracking_poll(C)) {
 		return BKE_tracking_clipboard_has_tracks();

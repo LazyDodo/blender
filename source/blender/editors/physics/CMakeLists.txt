@@ -23,6 +23,7 @@ set(INC
 	../../blenkernel
 	../../blenlib
 	../../blentranslation
+	../../depsgraph
 	../../gpu
 	../../makesdna
 	../../makesrna
@@ -40,6 +41,7 @@ set(SRC
 	dynamicpaint_ops.c
 	particle_boids.c
 	particle_edit.c
+	particle_edit_undo.c
 	particle_object.c
 	physics_fluid.c
 	physics_ops.c
@@ -48,6 +50,7 @@ set(SRC
 	rigidbody_object.c
 	rigidbody_world.c
 
+	particle_edit_utildefines.h
 	physics_intern.h
 )
 

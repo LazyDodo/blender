@@ -26,6 +26,7 @@
 
 CCL_NAMESPACE_BEGIN
 
+class ImageMetaData;
 class Scene;
 class Session;
 class RenderBuffers;
@@ -36,12 +37,11 @@ public:
 	BlenderSession(BL::RenderEngine& b_engine,
 	               BL::UserPreferences& b_userpref,
 	               BL::BlendData& b_data,
-	               BL::Scene& b_scene);
+	               bool preview_osl);
 
 	BlenderSession(BL::RenderEngine& b_engine,
 	               BL::UserPreferences& b_userpref,
 	               BL::BlendData& b_data,
-	               BL::Scene& b_scene,
 	               BL::SpaceView3D& b_v3d,
 	               BL::RegionView3D& b_rv3d,
 	               int width, int height);
@@ -55,12 +55,13 @@ public:
 	void free_session();
 
 	void reset_session(BL::BlendData& b_data,
-	                   BL::Scene& b_scene);
+	                   BL::Depsgraph& b_depsgraph);
 
 	/* offline render */
-	void render();
+	void render(BL::Depsgraph& b_depsgraph);
 
-	void bake(BL::Object& b_object,
+	void bake(BL::Depsgraph& b_depsgrah,
+	          BL::Object& b_object,
 	          const string& pass_type,
 	          const int custom_flag,
 	          const int object_id,
@@ -82,7 +83,7 @@ public:
 	void update_render_tile(RenderTile& rtile, bool highlight);
 
 	/* interactive updates */
-	void synchronize();
+	void synchronize(BL::Depsgraph& b_depsgraph);
 
 	/* drawing */
 	bool draw(int w, int h);
@@ -104,6 +105,7 @@ public:
 	BL::UserPreferences b_userpref;
 	BL::BlendData b_data;
 	BL::RenderSettings b_render;
+	BL::Depsgraph b_depsgraph;
 	BL::Scene b_scene;
 	BL::SpaceView3D b_v3d;
 	BL::RegionView3D b_rv3d;
@@ -116,6 +118,7 @@ public:
 	double last_status_time;
 
 	int width, height;
+	bool preview_osl;
 	double start_resize_time;
 
 	void *python_thread_state;
@@ -152,12 +155,7 @@ protected:
 	int builtin_image_frame(const string &builtin_name);
 	void builtin_image_info(const string &builtin_name,
 	                        void *builtin_data,
-	                        bool &is_float,
-	                        int &width,
-	                        int &height,
-	                        int &depth,
-	                        int &channels,
-	                        bool &free_cache);
+	                        ImageMetaData& metadata);
 	bool builtin_image_pixels(const string &builtin_name,
 	                          void *builtin_data,
 	                          unsigned char *pixels,
@@ -168,6 +166,7 @@ protected:
 	                                float *pixels,
 	                                const size_t pixels_size,
 	                                const bool free_cache);
+	void builtin_images_load();
 
 	/* Update tile manager to reflect resumable render settings. */
 	void update_resumable_tile_manager(int num_samples);

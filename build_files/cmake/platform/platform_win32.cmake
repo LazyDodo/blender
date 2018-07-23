@@ -29,7 +29,22 @@ if(NOT MSVC)
 	message(FATAL_ERROR "Compiler is unsupported")
 endif()
 
-# Libraries configuration for Windows when compiling with MSVC.
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+	set(MSVC_CLANG On)
+	set(VC_TOOLS_DIR $ENV{VCToolsRedistDir} CACHE STRING "Location of the msvc redistributables")
+	set(MSVC_REDIST_DIR ${VC_TOOLS_DIR})
+	if (DEFINED MSVC_REDIST_DIR)
+		file(TO_CMAKE_PATH ${MSVC_REDIST_DIR} MSVC_REDIST_DIR)
+	else()
+		message("Unable to detect the Visual Studio redist directory, copying of the runtime dlls will not work, try running from the visual studio developer prompt.")
+	endif()
+endif()
+
+set_property(GLOBAL PROPERTY USE_FOLDERS ${WINDOWS_USE_VISUAL_STUDIO_FOLDERS})
+
+if(NOT WITH_PYTHON_MODULE)
+	set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT blender)
+endif()
 
 macro(warn_hardcoded_paths package_name
 	)
@@ -52,6 +67,11 @@ macro(find_package_wrapper)
 endmacro()
 
 add_definitions(-DWIN32)
+
+# Needed, otherwise system encoding causes utf-8 encoding to fail in some cases (C4819)
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
 # Minimum MSVC Version
 if(CMAKE_CXX_COMPILER_ID MATCHES MSVC)
 	if(MSVC_VERSION EQUAL 1800)
@@ -102,11 +122,24 @@ add_definitions(-D_ALLOW_KEYWORD_MACROS)
 add_definitions(-D_WIN32_WINNT=0x600)
 
 # Make cmake find the msvc redistributables
-set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP FALSE)
+set(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
+set(CMAKE_INSTALL_OPENMP_LIBRARIES ${WITH_OPENMP})
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
 include(InstallRequiredSystemLibraries)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /nologo /J /Gd /MP /EHsc")
-set(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /nologo /J /Gd /MP")
+remove_cc_flag("/MDd" "/MD")
+
+if(MSVC_CLANG) # Clangs version of cl doesn't support all flags
+	if(NOT WITH_CXX11) # C++11 is on by default in clang-cl and can't be turned off, if c++11 is not enabled in blender repress some c++11 related warnings.
+		set(CXX_WARN_FLAGS "-Wno-inconsistent-missing-override")
+	endif()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_WARN_FLAGS} /nologo /J /Gd /EHsc -Wno-unused-command-line-argument -Wno-microsoft-enum-forward-reference ")
+	set(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /nologo /J /Gd -Wno-unused-command-line-argument -Wno-microsoft-enum-forward-reference")
+else()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /nologo /J /Gd /MP /EHsc")
+	set(CMAKE_C_FLAGS     "${CMAKE_C_FLAGS} /nologo /J /Gd /MP")
+endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
@@ -117,7 +150,7 @@ set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} /MT")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MT")
 
-set(PLATFORM_LINKFLAGS "/SUBSYSTEM:CONSOLE /STACK:2097152 /INCREMENTAL:NO ")
+set(PLATFORM_LINKFLAGS "${PLATFORM_LINKFLAGS} /SUBSYSTEM:CONSOLE /STACK:2097152 /INCREMENTAL:NO ")
 set(PLATFORM_LINKFLAGS "${PLATFORM_LINKFLAGS} /NODEFAULTLIB:msvcrt.lib /NODEFAULTLIB:msvcmrt.lib /NODEFAULTLIB:msvcurt.lib /NODEFAULTLIB:msvcrtd.lib ")
 
 # Ignore meaningless for us linker warnings.
@@ -130,7 +163,7 @@ else()
 	set(PLATFORM_LINKFLAGS "/MACHINE:IX86 /LARGEADDRESSAWARE ${PLATFORM_LINKFLAGS}")
 endif()
 
-set(PLATFORM_LINKFLAGS_DEBUG "/IGNORE:4099 /NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libc.lib")
+set(PLATFORM_LINKFLAGS_DEBUG "${PLATFORM_LINKFLAGS_DEBUG} /IGNORE:4099 /NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libc.lib")
 
 if(NOT DEFINED LIBDIR)
 
@@ -142,10 +175,8 @@ if(NOT DEFINED LIBDIR)
 		message(STATUS "32 bit compiler detected.")
 		set(LIBDIR_BASE "windows")
 	endif()
-	if(MSVC_VERSION EQUAL 1911)
-		message(STATUS "Visual Studio 2017 detected.")
-		set(LIBDIR ${CMAKE_SOURCE_DIR}/../lib/${LIBDIR_BASE}_vc14)
-	elseif(MSVC_VERSION EQUAL 1910)
+	# Can be 1910..1912
+	if(MSVC_VERSION GREATER 1909)
 		message(STATUS "Visual Studio 2017 detected.")
 		set(LIBDIR ${CMAKE_SOURCE_DIR}/../lib/${LIBDIR_BASE}_vc14)
 	elseif(MSVC_VERSION EQUAL 1900)
@@ -394,7 +425,7 @@ if(WITH_OPENIMAGEIO)
 	set(OIIO_OPTIMIZED optimized ${OPENIMAGEIO_LIBPATH}/OpenImageIO.lib optimized ${OPENIMAGEIO_LIBPATH}/OpenImageIO_Util.lib)
 	set(OIIO_DEBUG debug ${OPENIMAGEIO_LIBPATH}/OpenImageIO_d.lib debug ${OPENIMAGEIO_LIBPATH}/OpenImageIO_Util_d.lib)
 	set(OPENIMAGEIO_LIBRARIES ${OIIO_OPTIMIZED} ${OIIO_DEBUG})
-	
+
 	set(OPENIMAGEIO_DEFINITIONS "-DUSE_TBB=0")
 	set(OPENCOLORIO_DEFINITIONS "-DOCIO_STATIC_BUILD")
 	set(OPENIMAGEIO_IDIFF "${OPENIMAGEIO}/bin/idiff.exe")
@@ -443,7 +474,7 @@ if(WITH_OPENVDB)
 	set(OPENVDB_LIBPATH ${LIBDIR}/openvdb/lib)
 	set(OPENVDB_INCLUDE_DIRS ${OPENVDB}/include ${TBB_INCLUDE_DIR})
 	set(OPENVDB_LIBRARIES optimized ${OPENVDB_LIBPATH}/openvdb.lib debug ${OPENVDB_LIBPATH}/openvdb_d.lib ${TBB_LIBRARIES} ${BLOSC_LIBRARIES})
-	
+
 endif()
 
 if(WITH_ALEMBIC)
@@ -520,22 +551,21 @@ set(WINTAB_INC ${LIBDIR}/wintab/include)
 if(WITH_OPENAL)
 	set(OPENAL ${LIBDIR}/openal)
 	set(OPENALDIR ${LIBDIR}/openal)
-	set(OPENAL_INCLUDE_DIR ${OPENAL}/include)
+	set(OPENAL_INCLUDE_DIR ${OPENAL}/include/AL)
 	set(OPENAL_LIBPATH ${OPENAL}/lib)
 	if(MSVC)
 		set(OPENAL_LIBRARY ${OPENAL_LIBPATH}/openal32.lib)
 	else()
 		set(OPENAL_LIBRARY ${OPENAL_LIBPATH}/wrap_oal.lib)
 	endif()
-	
+
 endif()
 
 if(WITH_CODEC_SNDFILE)
-	set(SNDFILE ${LIBDIR}/sndfile)
-	set(SNDFILE_INCLUDE_DIRS ${SNDFILE}/include)
-	set(SNDFILE_LIBPATH ${SNDFILE}/lib) # TODO, deprecate
-	set(SNDFILE_LIBRARIES ${SNDFILE_LIBPATH}/libsndfile-1.lib)
-	
+	set(LIBSNDFILE ${LIBDIR}/sndfile)
+	set(LIBSNDFILE_INCLUDE_DIRS ${LIBSNDFILE}/include)
+	set(LIBSNDFILE_LIBPATH ${LIBSNDFILE}/lib) # TODO, deprecate
+	set(LIBSNDFILE_LIBRARIES ${LIBSNDFILE_LIBPATH}/libsndfile-1.lib)
 endif()
 
 if(WITH_RAYOPTIMIZATION AND SUPPORT_SSE_BUILD)

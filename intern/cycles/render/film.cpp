@@ -23,7 +23,6 @@
 #include "render/tables.h"
 
 #include "util/util_algorithm.h"
-#include "util/util_debug.h"
 #include "util/util_foreach.h"
 #include "util/util_math.h"
 #include "util/util_math_cdf.h"
@@ -176,11 +175,11 @@ bool Pass::equals(const array<Pass>& A, const array<Pass>& B)
 {
 	if(A.size() != B.size())
 		return false;
-	
+
 	for(int i = 0; i < A.size(); i++)
 		if(A[i].type != B[i].type)
 			return false;
-	
+
 	return true;
 }
 
@@ -189,7 +188,7 @@ bool Pass::contains(const array<Pass>& passes, PassType type)
 	for(size_t i = 0; i < passes.size(); i++)
 		if(passes[i].type == type)
 			return true;
-	
+
 	return false;
 }
 
@@ -303,7 +302,7 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
 {
 	if(!need_update)
 		return;
-	
+
 	device_free(device, dscene, scene);
 
 	KernelFilm *kfilm = &dscene->data.film;
@@ -311,6 +310,7 @@ void Film::device_update(Device *device, DeviceScene *dscene, Scene *scene)
 	/* update __data */
 	kfilm->exposure = exposure;
 	kfilm->pass_flag = 0;
+	kfilm->light_pass_flag = 0;
 	kfilm->pass_stride = 0;
 	kfilm->use_light_pass = use_light_visibility || use_sample_clamp;
 
@@ -496,7 +496,7 @@ void Film::tag_passes_update(Scene *scene, const array<Pass>& passes_)
 		scene->mesh_manager->tag_update(scene);
 
 		foreach(Shader *shader, scene->shaders)
-			shader->need_update_attributes = true;
+			shader->need_update_mesh = true;
 	}
 	else if(Pass::contains(passes, PASS_MOTION) != Pass::contains(passes_, PASS_MOTION))
 		scene->mesh_manager->tag_update(scene);
@@ -510,4 +510,3 @@ void Film::tag_update(Scene * /*scene*/)
 }
 
 CCL_NAMESPACE_END
-

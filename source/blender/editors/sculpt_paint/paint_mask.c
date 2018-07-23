@@ -35,22 +35,21 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
-#include "BIF_glutil.h"
-
 #include "BLI_bitmap_draw_2d.h"
 #include "BLI_math_matrix.h"
 #include "BLI_math_geom.h"
 #include "BLI_utildefines.h"
-#include "BLI_lasso.h"
+#include "BLI_lasso_2d.h"
 #include "BLI_task.h"
 
 #include "BKE_pbvh.h"
 #include "BKE_ccg.h"
 #include "BKE_context.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_multires.h"
 #include "BKE_paint.h"
 #include "BKE_subsurf.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -76,9 +75,10 @@ static const EnumPropertyItem mode_items[] = {
 	{0}};
 
 
-static void mask_flood_fill_set_elem(float *elem,
-                                     PaintMaskFloodMode mode,
-                                     float value)
+static void mask_flood_fill_set_elem(
+        float *elem,
+        PaintMaskFloodMode mode,
+        float value)
 {
 	switch (mode) {
 		case PAINT_MASK_FLOOD_VALUE:
@@ -104,7 +104,10 @@ typedef struct MaskTaskData {
 	float (*clip_planes_final)[4];
 } MaskTaskData;
 
-static void mask_flood_fill_task_cb(void *userdata, const int i)
+static void mask_flood_fill_task_cb(
+        void *__restrict userdata,
+        const int i,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	MaskTaskData *data = userdata;
 
@@ -131,6 +134,7 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	ARegion *ar = CTX_wm_region(C);
 	struct Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	PaintMaskFloodMode mode;
 	float value;
 	PBVH *pbvh;
@@ -142,7 +146,7 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	mode = RNA_enum_get(op->ptr, "mode");
 	value = RNA_float_get(op->ptr, "value");
 
-	BKE_sculpt_update_mesh_elements(scene, sd, ob, false, true);
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, false, true);
 	pbvh = ob->sculpt->pbvh;
 	multires = (BKE_pbvh_type(pbvh) == PBVH_GRIDS);
 
@@ -155,14 +159,18 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	    .mode = mode, .value = value,
 	};
 
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = ((sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT);
 	BLI_task_parallel_range(
-	            0, totnode, &data, mask_flood_fill_task_cb,
-	            ((sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT));
+
+	        0, totnode, &data, mask_flood_fill_task_cb,
+	        &settings);
 
 	if (multires)
 		multires_mark_as_modified(ob, MULTIRES_COORDS_MODIFIED);
 
-	sculpt_undo_push_end(C);
+	sculpt_undo_push_end();
 
 	if (nodes)
 		MEM_freeN(nodes);
@@ -218,7 +226,10 @@ static void flip_plane(float out[4], const float in[4], const char symm)
 	out[3] = in[3];
 }
 
-static void mask_box_select_task_cb(void *userdata, const int i)
+static void mask_box_select_task_cb(
+        void *__restrict userdata,
+        const int i,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	MaskTaskData *data = userdata;
 
@@ -249,9 +260,9 @@ static void mask_box_select_task_cb(void *userdata, const int i)
 
 int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select, bool UNUSED(extend))
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Sculpt *sd = vc->scene->toolsettings->sculpt;
 	BoundBox bb;
-	bglMats mats = {{0}};
 	float clip_planes[4][4];
 	float clip_planes_final[4][4];
 	ARegion *ar = vc->ar;
@@ -269,11 +280,10 @@ int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *r
 	value = select ? 1.0 : 0.0;
 
 	/* transform the clip planes in object space */
-	view3d_get_transformation(vc->ar, vc->rv3d, vc->obact, &mats);
-	ED_view3d_clipping_calc(&bb, clip_planes, &mats, rect);
+	ED_view3d_clipping_calc(&bb, clip_planes, vc->ar, vc->obact, rect);
 	negate_m4(clip_planes);
 
-	BKE_sculpt_update_mesh_elements(scene, sd, ob, false, true);
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, false, true);
 	pbvh = ob->sculpt->pbvh;
 	multires = (BKE_pbvh_type(pbvh) == PBVH_GRIDS);
 
@@ -299,9 +309,12 @@ int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *r
 			    .mode = mode, .value = value, .clip_planes_final = clip_planes_final,
 			};
 
+			ParallelRangeSettings settings;
+			BLI_parallel_range_settings_defaults(&settings);
+			settings.use_threading = ((sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT);
 			BLI_task_parallel_range(
 			            0, totnode, &data, mask_box_select_task_cb,
-			            ((sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT));
+			            &settings);
 
 			if (nodes)
 				MEM_freeN(nodes);
@@ -311,7 +324,7 @@ int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *r
 	if (multires)
 		multires_mark_as_modified(ob, MULTIRES_COORDS_MODIFIED);
 
-	sculpt_undo_push_end(C);
+	sculpt_undo_push_end();
 
 	ED_region_tag_redraw(ar);
 
@@ -373,7 +386,10 @@ static void mask_lasso_px_cb(int x, int x_end, int y, void *user_data)
 	} while (++index != index_end);
 }
 
-static void mask_gesture_lasso_task_cb(void *userdata, const int i)
+static void mask_gesture_lasso_task_cb(
+        void *__restrict userdata,
+        const int i,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	LassoMaskData *lasso_data = userdata;
 	MaskTaskData *data = &lasso_data->task_data;
@@ -409,9 +425,9 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 	const int (*mcords)[2] = WM_gesture_lasso_path_to_array(C, op, &mcords_tot);
 
 	if (mcords) {
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		float clip_planes[4][4], clip_planes_final[4][4];
 		BoundBox bb;
-		bglMats mats = {{0}};
 		Object *ob;
 		ViewContext vc;
 		LassoMaskData data;
@@ -428,8 +444,7 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 		/* Calculations of individual vertices are done in 2D screen space to diminish the amount of
 		 * calculations done. Bounding box PBVH collision is not computed against enclosing rectangle
 		 * of lasso */
-		view3d_set_viewcontext(C, &vc);
-		view3d_get_transformation(vc.ar, vc.rv3d, vc.obact, &mats);
+		ED_view3d_viewcontext_init(C, &vc);
 
 		/* lasso data calculations */
 		data.vc = &vc;
@@ -445,10 +460,10 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 		       mcords, mcords_tot,
 		       mask_lasso_px_cb, &data);
 
-		ED_view3d_clipping_calc(&bb, clip_planes, &mats, &data.rect);
+		ED_view3d_clipping_calc(&bb, clip_planes, vc.ar, vc.obact, &data.rect);
 		negate_m4(clip_planes);
 
-		BKE_sculpt_update_mesh_elements(scene, sd, ob, false, true);
+		BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, false, true);
 		pbvh = ob->sculpt->pbvh;
 		multires = (BKE_pbvh_type(pbvh) == PBVH_GRIDS);
 
@@ -479,9 +494,12 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 				data.task_data.mode = mode;
 				data.task_data.value = value;
 
+				ParallelRangeSettings settings;
+				BLI_parallel_range_settings_defaults(&settings);
+				settings.use_threading = ((sd->flags & SCULPT_USE_OPENMP) && (totnode > SCULPT_THREADED_LIMIT));
 				BLI_task_parallel_range(
 				            0, totnode, &data, mask_gesture_lasso_task_cb,
-				            ((sd->flags & SCULPT_USE_OPENMP) && (totnode > SCULPT_THREADED_LIMIT)));
+				            &settings);
 
 				if (nodes)
 					MEM_freeN(nodes);
@@ -491,7 +509,7 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 		if (multires)
 			multires_mark_as_modified(ob, MULTIRES_COORDS_MODIFIED);
 
-		sculpt_undo_push_end(C);
+		sculpt_undo_push_end();
 
 		ED_region_tag_redraw(vc.ar);
 		MEM_freeN((void *)mcords);

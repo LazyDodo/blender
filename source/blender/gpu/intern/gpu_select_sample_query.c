@@ -32,15 +32,19 @@
 
 #include <stdlib.h>
 
+#include "GPU_immediate.h"
+#include "GPU_draw.h"
 #include "GPU_select.h"
 #include "GPU_extensions.h"
 #include "GPU_glew.h"
- 
+
 #include "MEM_guardedalloc.h"
 
 #include "BLI_rect.h"
 
 #include "BLI_utildefines.h"
+
+#include "PIL_time.h"
 
 #include "gpu_select_private.h"
 
@@ -52,20 +56,20 @@ typedef struct GPUQueryState {
 	/* Tracks whether a query has been issued so that gpu_load_id can end the previous one */
 	bool query_issued;
 	/* array holding the OpenGL query identifiers */
-	unsigned int *queries;
+	uint *queries;
 	/* array holding the id corresponding to each query */
-	unsigned int *id;
+	uint *id;
 	/* number of queries in *queries and *id */
-	unsigned int num_of_queries;
+	uint num_of_queries;
 	/* index to the next query to start */
-	unsigned int active_query;
+	uint active_query;
 	/* cache on initialization */
-	unsigned int (*buffer)[4];
+	uint (*buffer)[4];
 	/* buffer size (stores number of integers, for actual size multiply by sizeof integer)*/
-	unsigned int bufsize;
+	uint bufsize;
 	/* mode of operation */
 	char mode;
-	unsigned int index;
+	uint index;
 	int oldhits;
 } GPUQueryState;
 
@@ -73,7 +77,7 @@ static GPUQueryState g_query_state = {0};
 
 
 void gpu_select_query_begin(
-        unsigned int (*buffer)[4], unsigned int bufsize,
+        uint (*buffer)[4], uint bufsize,
         const rcti *input, char mode,
         int oldhits)
 {
@@ -94,15 +98,15 @@ void gpu_select_query_begin(
 	g_query_state.id = MEM_mallocN(g_query_state.num_of_queries * sizeof(*g_query_state.id), "gpu selection ids");
 	glGenQueries(g_query_state.num_of_queries, g_query_state.queries);
 
-	glPushAttrib(GL_DEPTH_BUFFER_BIT | GL_VIEWPORT_BIT);
+	gpuPushAttrib(GPU_DEPTH_BUFFER_BIT | GPU_VIEWPORT_BIT | GPU_SCISSOR_BIT);
 	/* disable writing to the framebuffer */
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
 	/* In order to save some fill rate we minimize the viewport using rect.
-	 * We need to get the region of the scissor so that our geometry doesn't
+	 * We need to get the region of the viewport so that our geometry doesn't
 	 * get rejected before the depth test. Should probably cull rect against
-	 * scissor for viewport but this is a rare case I think */
-	glGetFloatv(GL_SCISSOR_BOX, viewport);
+	 * the viewport but this is a rare case I think */
+	glGetFloatv(GL_VIEWPORT, viewport);
 	glViewport(viewport[0], viewport[1], BLI_rcti_size_x(input), BLI_rcti_size_y(input));
 
 	/* occlusion queries operates on fragments that pass tests and since we are interested on all
@@ -124,7 +128,7 @@ void gpu_select_query_begin(
 	}
 }
 
-bool gpu_select_query_load_id(unsigned int id)
+bool gpu_select_query_load_id(uint id)
 {
 	if (g_query_state.query_issued) {
 		glEndQuery(GL_SAMPLES_PASSED);
@@ -159,19 +163,28 @@ bool gpu_select_query_load_id(unsigned int id)
 	return true;
 }
 
-unsigned int gpu_select_query_end(void)
+uint gpu_select_query_end(void)
 {
 	int i;
 
-	unsigned int hits = 0;
-	const unsigned int maxhits = g_query_state.bufsize;
+	uint hits = 0;
+	const uint maxhits = g_query_state.bufsize;
 
 	if (g_query_state.query_issued) {
 		glEndQuery(GL_SAMPLES_PASSED);
 	}
 
 	for (i = 0; i < g_query_state.active_query; i++) {
-		unsigned int result;
+		uint result = 0;
+		/* Wait until the result is available. */
+		while (result == 0) {
+			glGetQueryObjectuiv(g_query_state.queries[i], GL_QUERY_RESULT_AVAILABLE, &result);
+			if (result == 0) {
+				/* (fclem) Not sure if this is better than calling
+				 * glGetQueryObjectuiv() indefinitely. */
+				PIL_sleep_ms(1);
+			}
+		}
 		glGetQueryObjectuiv(g_query_state.queries[i], GL_QUERY_RESULT, &result);
 		if (result > 0) {
 			if (g_query_state.mode != GPU_SELECT_NEAREST_SECOND_PASS) {
@@ -206,7 +219,7 @@ unsigned int gpu_select_query_end(void)
 	glDeleteQueries(g_query_state.num_of_queries, g_query_state.queries);
 	MEM_freeN(g_query_state.queries);
 	MEM_freeN(g_query_state.id);
-	glPopAttrib();
+	gpuPopAttrib();
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 	return hits;

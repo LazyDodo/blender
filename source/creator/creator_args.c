@@ -30,6 +30,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "CLG_log.h"
+
 #ifdef WIN32
 #  include "BLI_winstuff.h"
 #endif
@@ -43,6 +45,7 @@
 #include "BLI_path_util.h"
 #include "BLI_fileops.h"
 #include "BLI_mempool.h"
+#include "BLI_system.h"
 
 #include "BLO_readfile.h"  /* only for BLO_has_bfile_extension */
 
@@ -56,8 +59,6 @@
 #include "BKE_report.h"
 #include "BKE_sound.h"
 #include "BKE_image.h"
-
-#include "DEG_depsgraph.h"
 
 #ifdef WITH_FFMPEG
 #include "IMB_imbuf.h"
@@ -74,16 +75,7 @@
 
 #include "WM_api.h"
 
-#include "GPU_basic_shader.h"
 #include "GPU_draw.h"
-#include "GPU_extensions.h"
-
-/* for passing information between creator and gameengine */
-#ifdef WITH_GAMEENGINE
-#  include "BL_System.h"
-#else /* dummy */
-#  define SYS_SystemHandle int
-#endif
 
 #ifdef WITH_LIBMV
 #  include "libmv-capi.h"
@@ -92,6 +84,10 @@
 #ifdef WITH_CYCLES_LOGGING
 #  include "CCL_api.h"
 #endif
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_debug.h"
 
 #include "creator_intern.h"  /* own include */
 
@@ -401,7 +397,7 @@ static void arg_py_context_restore(
 	/* script may load a file, check old data is valid before using */
 	if (c_py->has_win) {
 		if ((c_py->win == NULL) ||
-		    ((BLI_findindex(&G.main->wm, c_py->wm) != -1) &&
+		    ((BLI_findindex(&G_MAIN->wm, c_py->wm) != -1) &&
 		     (BLI_findindex(&c_py->wm->windows, c_py->win) != -1)))
 		{
 			CTX_wm_window_set(C, c_py->win);
@@ -409,7 +405,7 @@ static void arg_py_context_restore(
 	}
 
 	if ((c_py->scene == NULL) ||
-	    BLI_findindex(&G.main->scene, c_py->scene) != -1)
+	    BLI_findindex(&G_MAIN->scene, c_py->scene) != -1)
 	{
 		CTX_data_scene_set(C, c_py->scene);
 	}
@@ -427,7 +423,6 @@ static void arg_py_context_restore(
 #endif /* WITH_PYTHON */
 
 /** \} */
-
 
 /* -------------------------------------------------------------------- */
 
@@ -505,15 +500,10 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	printf("\n");
 	printf("Window Options:\n");
 	BLI_argsPrintArgDoc(ba, "--window-border");
-	BLI_argsPrintArgDoc(ba, "--window-borderless");
+	BLI_argsPrintArgDoc(ba, "--window-fullscreen");
 	BLI_argsPrintArgDoc(ba, "--window-geometry");
 	BLI_argsPrintArgDoc(ba, "--start-console");
 	BLI_argsPrintArgDoc(ba, "--no-native-pixels");
-
-
-	printf("\n");
-	printf("Game Engine Specific Options:\n");
-	BLI_argsPrintArgDoc(ba, "-g");
 
 	printf("\n");
 	printf("Python Options:\n");
@@ -529,6 +519,13 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--python-exit-code");
 	BLI_argsPrintArgDoc(ba, "--addons");
 
+	printf("\n");
+	printf("Logging Options:\n");
+	BLI_argsPrintArgDoc(ba, "--log");
+	BLI_argsPrintArgDoc(ba, "--log-level");
+	BLI_argsPrintArgDoc(ba, "--log-show-basename");
+	BLI_argsPrintArgDoc(ba, "--log-show-backtrace");
+	BLI_argsPrintArgDoc(ba, "--log-file");
 
 	printf("\n");
 	printf("Debug Options:\n");
@@ -551,9 +548,13 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--debug-jobs");
 	BLI_argsPrintArgDoc(ba, "--debug-python");
 	BLI_argsPrintArgDoc(ba, "--debug-depsgraph");
+	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-eval");
+	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-build");
+	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-tag");
 	BLI_argsPrintArgDoc(ba, "--debug-depsgraph-no-threads");
 
 	BLI_argsPrintArgDoc(ba, "--debug-gpumem");
+	BLI_argsPrintArgDoc(ba, "--debug-gpu-shaders");
 	BLI_argsPrintArgDoc(ba, "--debug-wm");
 	BLI_argsPrintArgDoc(ba, "--debug-all");
 	BLI_argsPrintArgDoc(ba, "--debug-io");
@@ -570,8 +571,6 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--env-system-scripts");
 	BLI_argsPrintArgDoc(ba, "--env-system-python");
 	printf("\n");
-	BLI_argsPrintArgDoc(ba, "-nojoystick");
-	BLI_argsPrintArgDoc(ba, "-noglsl");
 	BLI_argsPrintArgDoc(ba, "-noaudio");
 	BLI_argsPrintArgDoc(ba, "-setaudio");
 
@@ -587,10 +586,8 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 
 	BLI_argsPrintArgDoc(ba, "--");
 
-	printf("\n");
-	printf("Experimental Features:\n");
-	BLI_argsPrintArgDoc(ba, "--enable-new-depsgraph");
-	BLI_argsPrintArgDoc(ba, "--enable-new-basic-shader-glsl");
+	//printf("\n");
+	//printf("Experimental Features:\n");
 
 	/* Other options _must_ be last (anything not handled will show here) */
 	printf("\n");
@@ -701,6 +698,126 @@ static int arg_handle_background_mode_set(int UNUSED(argc), const char **UNUSED(
 	return 0;
 }
 
+static const char arg_handle_log_level_set_doc[] =
+"<level>\n"
+"\n"
+"\tSet the logging verbosity level (higher for more details) defaults to 1, use -1 to log all levels."
+;
+static int arg_handle_log_level_set(int argc, const char **argv, void *UNUSED(data))
+{
+	const char *arg_id = "--log-level";
+	if (argc > 1) {
+		const char *err_msg = NULL;
+		if (!parse_int_clamp(argv[1], NULL, -1, INT_MAX, &G.log.level, &err_msg)) {
+			printf("\nError: %s '%s %s'.\n", err_msg, arg_id, argv[1]);
+		}
+		else {
+			if (G.log.level == -1) {
+				G.log.level = INT_MAX;
+			}
+			CLG_level_set(G.log.level);
+		}
+		return 1;
+	}
+	else {
+		printf("\nError: '%s' no args given.\n", arg_id);
+		return 0;
+	}
+}
+
+static const char arg_handle_log_show_basename_set_doc[] =
+"\n\tOnly show file name in output (not the leading path)."
+;
+static int arg_handle_log_show_basename_set(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
+{
+	CLG_output_use_basename_set(true);
+	return 0;
+}
+
+static const char arg_handle_log_show_backtrace_set_doc[] =
+"\n\tShow a back trace for each log message (debug builds only)."
+;
+static int arg_handle_log_show_backtrace_set(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
+{
+	/* Ensure types don't become incompatible. */
+	void (*fn)(FILE *fp) = BLI_system_backtrace;
+	CLG_backtrace_fn_set((void (*)(void *))fn);
+	return 0;
+}
+
+static const char arg_handle_log_file_set_doc[] =
+"<filename>\n"
+"\n"
+"\tSet a file to output the log to."
+;
+static int arg_handle_log_file_set(int argc, const char **argv, void *UNUSED(data))
+{
+	const char *arg_id = "--log-file";
+	if (argc > 1) {
+		errno = 0;
+		FILE *fp = BLI_fopen(argv[1], "w");
+		if (fp == NULL) {
+			const char *err_msg = errno ? strerror(errno) : "unknown";
+			printf("\nError: %s '%s %s'.\n", err_msg, arg_id, argv[1]);
+		}
+		else {
+			if (UNLIKELY(G.log.file != NULL)) {
+				fclose(G.log.file);
+			}
+			G.log.file = fp;
+			CLG_output_set(G.log.file);
+		}
+		return 1;
+	}
+	else {
+		printf("\nError: '%s' no args given.\n", arg_id);
+		return 0;
+	}
+}
+
+static const char arg_handle_log_set_doc[] =
+"<match>\n"
+"\tEnable logging categories, taking a single comma separated argument.\n"
+"\tMultiple categories can be matched using a '.*' suffix,\n"
+"\tso '--log \"wm.*\"' logs every kind of window-manager message.\n"
+"\tUse \"^\" prefix to ignore, so '--log \"*,^wm.operator.*\"' logs all except for 'wm.operators.*'\n"
+"\tUse \"*\" to log everything."
+;
+static int arg_handle_log_set(int argc, const char **argv, void *UNUSED(data))
+{
+	const char *arg_id = "--log";
+	if (argc > 1) {
+		const char *str_step = argv[1];
+		while (*str_step) {
+			const char *str_step_end = strchr(str_step, ',');
+			int str_step_len = str_step_end ? (str_step_end - str_step) : strlen(str_step);
+
+			if (str_step[0] == '^') {
+				CLG_type_filter_exclude(str_step + 1, str_step_len - 1);
+			}
+			else {
+				CLG_type_filter_include(str_step, str_step_len);
+			}
+
+			if (str_step_end) {
+				/* typically only be one, but don't fail on multiple.*/
+				while (*str_step_end == ',') {
+					str_step_end++;
+				}
+				str_step = str_step_end;
+			}
+			else {
+				break;
+			}
+		}
+		return 1;
+	}
+	else {
+		printf("\nError: '%s' no args given.\n", arg_id);
+		return 0;
+	}
+}
+
 static const char arg_handle_debug_mode_set_doc[] =
 "\n"
 "\tTurn debugging on.\n"
@@ -741,15 +858,25 @@ static const char arg_handle_debug_mode_generic_set_doc_events[] =
 static const char arg_handle_debug_mode_generic_set_doc_handlers[] =
 "\n\tEnable debug messages for event handling.";
 static const char arg_handle_debug_mode_generic_set_doc_wm[] =
-"\n\tEnable debug messages for the window manager, also prints every operator call.";
+"\n\tEnable debug messages for the window manager, shows all operators in search, shows keymap errors.";
 static const char arg_handle_debug_mode_generic_set_doc_jobs[] =
 "\n\tEnable time profiling for background jobs.";
 static const char arg_handle_debug_mode_generic_set_doc_gpu[] =
 "\n\tEnable gpu debug context and information for OpenGL 4.3+.";
 static const char arg_handle_debug_mode_generic_set_doc_depsgraph[] =
-"\n\tEnable debug messages from dependency graph.";
+"\n\tEnable all debug messages from dependency graph.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_build[] =
+"\n\tEnable debug messages from dependency graph related on graph construction.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_tag[] =
+"\n\tEnable debug messages from dependency graph related on tagging.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_time[] =
+"\n\tEnable debug messages from dependency graph related on timing.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_eval[] =
+"\n\tEnable debug messages from dependency graph related on evaluation.";
 static const char arg_handle_debug_mode_generic_set_doc_depsgraph_no_threads[] =
 "\n\tSwitch dependency graph to a single threaded evaluation.";
+static const char arg_handle_debug_mode_generic_set_doc_depsgraph_pretty[] =
+"\n\tEnable colors for dependency graph debug messages.";
 static const char arg_handle_debug_mode_generic_set_doc_gpumem[] =
 "\n\tEnable GPU memory stats in status bar.";
 
@@ -963,7 +1090,7 @@ static int arg_handle_with_borders(int UNUSED(argc), const char **UNUSED(argv), 
 }
 
 static const char arg_handle_without_borders_doc[] =
-"\n\tForce opening without borders."
+"\n\tForce opening in fullscreen mode."
 ;
 static int arg_handle_without_borders(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
@@ -997,36 +1124,6 @@ static int arg_handle_register_extension(int UNUSED(argc), const char **UNUSED(a
 #else
 	(void)data; /* unused */
 #endif
-	return 0;
-}
-
-static const char arg_handle_joystick_disable_doc[] =
-"\n\tDisable joystick support."
-;
-static int arg_handle_joystick_disable(int UNUSED(argc), const char **UNUSED(argv), void *data)
-{
-#ifndef WITH_GAMEENGINE
-	(void)data;
-#else
-	SYS_SystemHandle *syshandle = data;
-
-	/**
-	 * don't initialize joysticks if user doesn't want to use joysticks
-	 * failed joystick initialization delays over 5 seconds, before game engine start
-	 */
-	SYS_WriteCommandLineInt(*syshandle, "nojoystick", 1);
-	if (G.debug & G_DEBUG) printf("disabling nojoystick\n");
-#endif
-
-	return 0;
-}
-
-static const char arg_handle_glsl_disable_doc[] =
-"\n\tDisable GLSL shading."
-;
-static int arg_handle_glsl_disable(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
-{
-	GPU_extensions_disable();
 	return 0;
 }
 
@@ -1107,10 +1204,8 @@ static int arg_handle_engine_set(int argc, const char **argv, void *data)
 		else {
 			Scene *scene = CTX_data_scene(C);
 			if (scene) {
-				RenderData *rd = &scene->r;
-
 				if (BLI_findstring(&R_engines, argv[1], offsetof(RenderEngineType, idname))) {
-					BLI_strncpy_utf8(rd->engine, argv[1], sizeof(rd->engine));
+					BLI_strncpy_utf8(scene->r.engine, argv[1], sizeof(scene->r.engine));
 				}
 				else {
 					printf("\nError: engine not found '%s'\n", argv[1]);
@@ -1137,7 +1232,7 @@ static const char arg_handle_image_type_set_doc[] =
 "\tValid options are 'TGA' 'RAWTGA' 'JPEG' 'IRIS' 'IRIZ' 'AVIRAW' 'AVIJPEG' 'PNG' 'BMP'\n"
 "\n"
 "\tFormats that can be compiled into Blender, not available on all systems: 'HDR' 'TIFF' 'EXR' 'MULTILAYER'\n"
-"\t'MPEG' 'FRAMESERVER' 'CINEON' 'DPX' 'DDS' 'JP2'"
+"\t'MPEG' 'CINEON' 'DPX' 'DDS' 'JP2'"
 ;
 static int arg_handle_image_type_set(int argc, const char **argv, void *data)
 {
@@ -1191,26 +1286,6 @@ static int arg_handle_threads_set(int argc, const char **argv, void *UNUSED(data
 		printf("\nError: you must specify a number of threads in [%d..%d] '%s'.\n", min, max, arg_id);
 		return 0;
 	}
-}
-
-static const char arg_handle_depsgraph_use_new_doc[] =
-"\n\tUse new dependency graph."
-;
-static int arg_handle_depsgraph_use_new(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
-{
-	printf("Using new dependency graph.\n");
-	DEG_depsgraph_switch_to_new();
-	return 0;
-}
-
-static const char arg_handle_basic_shader_glsl_use_new_doc[] =
-"\n\tUse new GLSL basic shader."
-;
-static int arg_handle_basic_shader_glsl_use_new(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
-{
-	printf("Using new GLSL basic shader.\n");
-	GPU_basic_shader_use_glsl_set(true);
-	return 0;
 }
 
 static const char arg_handle_verbosity_set_doc[] =
@@ -1275,83 +1350,13 @@ static int arg_handle_extension_set(int argc, const char **argv, void *data)
 	}
 }
 
-static const char arg_handle_ge_parameters_set_doc[] =
-"Game Engine specific options\n"
-"\n"
-"\t'fixedtime'\n"
-"\t\tRun on 50 hertz without dropping frames.\n"
-"\t'vertexarrays'\n"
-"\t\tUse Vertex Arrays for rendering (usually faster).\n"
-"\t'nomipmap'\n"
-"\t\tNo Texture Mipmapping.\n"
-"\t'linearmipmap'\n"
-"\t\tLinear Texture Mipmapping instead of Nearest (default)."
-;
-static int arg_handle_ge_parameters_set(int argc, const char **argv, void *data)
-{
-	int a = 0;
-#ifdef WITH_GAMEENGINE
-	SYS_SystemHandle syshandle = *(SYS_SystemHandle *)data;
-#else
-	(void)data;
-#endif
-
-	/**
-	 * gameengine parameters are automatically put into system
-	 * -g [paramname = value]
-	 * -g [boolparamname]
-	 * example:
-	 * -g novertexarrays
-	 * -g maxvertexarraysize = 512
-	 */
-
-	if (argc >= 1) {
-		const char *paramname = argv[a];
-		/* check for single value versus assignment */
-		if (a + 1 < argc && (*(argv[a + 1]) == '=')) {
-			a++;
-			if (a + 1 < argc) {
-				a++;
-				/* assignment */
-#ifdef WITH_GAMEENGINE
-				SYS_WriteCommandLineString(syshandle, paramname, argv[a]);
-#endif
-			}
-			else {
-				printf("Error: argument assignment (%s) without value.\n", paramname);
-				return 0;
-			}
-			/* name arg eaten */
-
-		}
-		else {
-#ifdef WITH_GAMEENGINE
-			SYS_WriteCommandLineInt(syshandle, argv[a], 1);
-#endif
-			/* doMipMap */
-			if (STREQ(argv[a], "nomipmap")) {
-				GPU_set_mipmap(0); //doMipMap = 0;
-			}
-			/* linearMipMap */
-			if (STREQ(argv[a], "linearmipmap")) {
-				GPU_set_mipmap(1);
-				GPU_set_linear_mipmap(1); //linearMipMap = 1;
-			}
-
-
-		} /* if (*(argv[a + 1]) == '=') */
-	}
-
-	return a;
-}
-
 static const char arg_handle_render_frame_doc[] =
 "<frame>\n"
 "\tRender frame <frame> and save it.\n"
 "\n"
 "\t* +<frame> start frame relative, -<frame> end frame relative.\n"
 "\t* A comma separated list of frames can also be used (no spaces).\n"
-"\t* A range of frames can be expressed using '..' seperator between the first and last frames (inclusive).\n"
+"\t* A range of frames can be expressed using '..' separator between the first and last frames (inclusive).\n"
 ;
 static int arg_handle_render_frame(int argc, const char **argv, void *data)
 {
@@ -1376,9 +1381,8 @@ static int arg_handle_render_frame(int argc, const char **argv, void *data)
 			}
 
 			re = RE_NewSceneRender(scene);
-			BLI_begin_threaded_malloc();
+			BLI_threaded_malloc_begin();
 			BKE_reports_init(&reports, RPT_STORE);
-
 			RE_SetReports(re, &reports);
 			for (int i = 0; i < frames_range_len; i++) {
 				/* We could pass in frame ranges,
@@ -1393,7 +1397,7 @@ static int arg_handle_render_frame(int argc, const char **argv, void *data)
 			}
 			RE_SetReports(re, NULL);
 			BKE_reports_clear(&reports);
-			BLI_end_threaded_malloc();
+			BLI_threaded_malloc_end();
 			MEM_freeN(frame_range_arr);
 			return 1;
 		}
@@ -1419,13 +1423,13 @@ static int arg_handle_render_animation(int UNUSED(argc), const char **UNUSED(arg
 		Main *bmain = CTX_data_main(C);
 		Render *re = RE_NewSceneRender(scene);
 		ReportList reports;
-		BLI_begin_threaded_malloc();
+		BLI_threaded_malloc_begin();
 		BKE_reports_init(&reports, RPT_STORE);
 		RE_SetReports(re, &reports);
 		RE_BlenderAnim(re, bmain, scene, NULL, scene->lay, scene->r.sfra, scene->r.efra, scene->r.frame_step);
 		RE_SetReports(re, NULL);
 		BKE_reports_clear(&reports);
-		BLI_end_threaded_malloc();
+		BLI_threaded_malloc_end();
 	}
 	else {
 		printf("\nError: no blend loaded. cannot use '-a'.\n");
@@ -1589,8 +1593,9 @@ static int arg_handle_python_text_run(int argc, const char **argv, void *data)
 
 	/* workaround for scripts not getting a bpy.context.scene, causes internal errors elsewhere */
 	if (argc > 1) {
+		Main *bmain = CTX_data_main(C);
 		/* Make the path absolute because its needed for relative linked blends to be found */
-		struct Text *text = (struct Text *)BKE_libblock_find_name(ID_TXT, argv[1]);
+		struct Text *text = (struct Text *)BKE_libblock_find_name(bmain, ID_TXT, argv[1]);
 		bool ok;
 
 		if (text) {
@@ -1668,7 +1673,7 @@ static int arg_handle_python_console_run(int UNUSED(argc), const char **argv, vo
 }
 
 static const char arg_handle_python_exit_code_set_doc[] =
-"\n"
+"<code>\n"
 "\tSet the exit-code in [0..255] to exit if a Python exception is raised\n"
 "\t(only for scripts executed from the command line), zero disables."
 ;
@@ -1694,7 +1699,8 @@ static int arg_handle_python_exit_code_set(int argc, const char **argv, void *UN
 }
 
 static const char arg_handle_addons_set_doc[] =
-"\n\tComma separated list of add-ons (no spaces)."
+"<addon(s)>\n"
+"\tComma separated list of add-ons (no spaces)."
 ;
 static int arg_handle_addons_set(int argc, const char **argv, void *data)
 {
@@ -1768,7 +1774,7 @@ static int arg_handle_load_file(int UNUSED(argc), const char **argv, void *data)
 
 		if (BLO_has_bfile_extension(filename)) {
 			/* Just pretend a file was loaded, so the user can press Save and it'll save at the filename from the CLI. */
-			BLI_strncpy(G.main->name, filename, FILE_MAX);
+			BLI_strncpy(G_MAIN->name, filename, FILE_MAX);
 			G.relbase_valid = true;
 			G.save_over = true;
 			printf("... opened default scene instead; saving will write to: %s\n", filename);
@@ -1786,7 +1792,7 @@ static int arg_handle_load_file(int UNUSED(argc), const char **argv, void *data)
 }
 
 
-void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
+void main_args_setup(bContext *C, bArgs *ba)
 {
 
 #define CB(a) a##_doc, a
@@ -1813,6 +1819,12 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	BLI_argsAdd(ba, 1, "-b", "--background", CB(arg_handle_background_mode_set), NULL);
 
 	BLI_argsAdd(ba, 1, "-a", NULL, CB(arg_handle_playback_mode), NULL);
+
+	BLI_argsAdd(ba, 1, NULL, "--log", CB(arg_handle_log_set), ba);
+	BLI_argsAdd(ba, 1, NULL, "--log-level", CB(arg_handle_log_level_set), ba);
+	BLI_argsAdd(ba, 1, NULL, "--log-show-basename", CB(arg_handle_log_show_basename_set), ba);
+	BLI_argsAdd(ba, 1, NULL, "--log-show-backtrace", CB(arg_handle_log_show_backtrace_set), ba);
+	BLI_argsAdd(ba, 1, NULL, "--log-file", CB(arg_handle_log_file_set), ba);
 
 	BLI_argsAdd(ba, 1, "-d", "--debug", CB(arg_handle_debug_mode_set), ba);
 
@@ -1857,13 +1869,22 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	            CB_EX(arg_handle_debug_mode_generic_set, gpu), (void *)G_DEBUG_GPU);
 	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph",
 	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph), (void *)G_DEBUG_DEPSGRAPH);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-build",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_build), (void *)G_DEBUG_DEPSGRAPH_BUILD);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-eval",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_eval), (void *)G_DEBUG_DEPSGRAPH_EVAL);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-tag",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_tag), (void *)G_DEBUG_DEPSGRAPH_TAG);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-time",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_time), (void *)G_DEBUG_DEPSGRAPH_TIME);
 	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-no-threads",
 	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_no_threads), (void *)G_DEBUG_DEPSGRAPH_NO_THREADS);
+	BLI_argsAdd(ba, 1, NULL, "--debug-depsgraph-pretty",
+	            CB_EX(arg_handle_debug_mode_generic_set, depsgraph_pretty), (void *)G_DEBUG_DEPSGRAPH_PRETTY);
 	BLI_argsAdd(ba, 1, NULL, "--debug-gpumem",
 	            CB_EX(arg_handle_debug_mode_generic_set, gpumem), (void *)G_DEBUG_GPU_MEM);
-
-	BLI_argsAdd(ba, 1, NULL, "--enable-new-depsgraph", CB(arg_handle_depsgraph_use_new), NULL);
-	BLI_argsAdd(ba, 1, NULL, "--enable-new-basic-shader-glsl", CB(arg_handle_basic_shader_glsl_use_new), NULL);
+	BLI_argsAdd(ba, 1, NULL, "--debug-gpu-shaders",
+	            CB_EX(arg_handle_debug_mode_generic_set, gpumem), (void *)G_DEBUG_GPU_SHADERS);
 
 	BLI_argsAdd(ba, 1, NULL, "--verbose", CB(arg_handle_verbosity_set), NULL);
 
@@ -1877,20 +1898,17 @@ void main_args_setup(bContext *C, bArgs *ba, SYS_SystemHandle *syshandle)
 	/* second pass: custom window stuff */
 	BLI_argsAdd(ba, 2, "-p", "--window-geometry", CB(arg_handle_window_geometry), NULL);
 	BLI_argsAdd(ba, 2, "-w", "--window-border", CB(arg_handle_with_borders), NULL);
-	BLI_argsAdd(ba, 2, "-W", "--window-borderless", CB(arg_handle_without_borders), NULL);
+	BLI_argsAdd(ba, 2, "-W", "--window-fullscreen", CB(arg_handle_without_borders), NULL);
 	BLI_argsAdd(ba, 2, "-con", "--start-console", CB(arg_handle_start_with_console), NULL);
 	BLI_argsAdd(ba, 2, "-R", NULL, CB(arg_handle_register_extension), NULL);
 	BLI_argsAdd(ba, 2, "-r", NULL, CB_EX(arg_handle_register_extension, silent), ba);
 	BLI_argsAdd(ba, 2, NULL, "--no-native-pixels", CB(arg_handle_native_pixels_set), ba);
 
 	/* third pass: disabling things and forcing settings */
-	BLI_argsAddCase(ba, 3, "-nojoystick", 1, NULL, 0, CB(arg_handle_joystick_disable), syshandle);
-	BLI_argsAddCase(ba, 3, "-noglsl", 1, NULL, 0, CB(arg_handle_glsl_disable), NULL);
 	BLI_argsAddCase(ba, 3, "-noaudio", 1, NULL, 0, CB(arg_handle_audio_disable), NULL);
 	BLI_argsAddCase(ba, 3, "-setaudio", 1, NULL, 0, CB(arg_handle_audio_set), NULL);
 
 	/* fourth pass: processing arguments */
-	BLI_argsAdd(ba, 4, "-g", NULL, CB(arg_handle_ge_parameters_set), syshandle);
 	BLI_argsAdd(ba, 4, "-f", "--render-frame", CB(arg_handle_render_frame), C);
 	BLI_argsAdd(ba, 4, "-a", "--render-anim", CB(arg_handle_render_animation), C);
 	BLI_argsAdd(ba, 4, "-S", "--scene", CB(arg_handle_scene_set), C);

@@ -79,34 +79,33 @@ class SEQUENCER_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
+        layout.prop(st, "view_type", text="")
+
         SEQUENCER_MT_editor_menus.draw_collapsible(context, layout)
 
-        row = layout.row(align=True)
-        row.prop(scene, "use_preview_range", text="", toggle=True)
-        row.prop(scene, "lock_frame_selection_to_range", text="", toggle=True)
+        if st.view_type == 'SEQUENCER':
+            layout.prop(st, "show_backdrop", text="Backdrop")
 
-        layout.prop(st, "view_type", expand=True, text="")
+        layout.separator_spacer()
+
+        layout.template_running_jobs()
+
+        if st.view_type == 'SEQUENCER':
+            layout.separator()
+            layout.operator("sequencer.refresh_all")
+
+        if st.view_type == 'SEQUENCER_PREVIEW':
+            layout.separator()
+            layout.operator("sequencer.refresh_all")
 
         if st.view_type in {'PREVIEW', 'SEQUENCER_PREVIEW'}:
             layout.prop(st, "display_mode", expand=True, text="")
 
-        if st.view_type == 'SEQUENCER':
-            row = layout.row(align=True)
-            row.operator("sequencer.copy", text="", icon='COPYDOWN')
-            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
-
-            layout.separator()
-            layout.operator("sequencer.refresh_all")
-            layout.prop(st, "show_backdrop")
-        else:
-            if st.view_type == 'SEQUENCER_PREVIEW':
-                layout.separator()
-                layout.operator("sequencer.refresh_all")
-
+        if st.view_type != 'SEQUENCER':
             layout.prop(st, "preview_channels", expand=True, text="")
             layout.prop(st, "display_channel", text="Channel")
 
-            ed = context.scene.sequence_editor
+            ed = scene.sequence_editor
             if ed:
                 row = layout.row(align=True)
                 row.prop(ed, "show_overlay", text="", icon='GHOST_ENABLED')
@@ -134,7 +133,11 @@ class SEQUENCER_HT_header(Header):
         props.animation = True
         props.sequencer = True
 
-        layout.template_running_jobs()
+        if st.view_type == 'SEQUENCER':
+
+            row = layout.row(align=True)
+            row.operator("sequencer.copy", text="", icon='COPYDOWN')
+            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
 
 
 class SEQUENCER_MT_editor_menus(Menu):
@@ -237,9 +240,7 @@ class SEQUENCER_MT_view(Menu):
             layout.prop(st, "use_marker_sync")
             layout.separator()
 
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+        layout.menu("INFO_MT_area")
 
 
 class SEQUENCER_MT_select(Menu):
@@ -247,6 +248,12 @@ class SEQUENCER_MT_select(Menu):
 
     def draw(self, context):
         layout = self.layout
+
+        layout.operator("sequencer.select_all", text="All").action = 'SELECT'
+        layout.operator("sequencer.select_all", text="None").action = 'DESELECT'
+        layout.operator("sequencer.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
 
         layout.operator("sequencer.select_active_side", text="Strips to the Left").side = 'LEFT'
         layout.operator("sequencer.select_active_side", text="Strips to the Right").side = 'RIGHT'
@@ -266,8 +273,6 @@ class SEQUENCER_MT_select(Menu):
         layout.operator("sequencer.select_linked")
         layout.operator("sequencer.select_less")
         layout.operator("sequencer.select_more")
-        layout.operator("sequencer.select_all").action = 'TOGGLE'
-        layout.operator("sequencer.select_all", text="Inverse").action = 'INVERT'
 
 
 class SEQUENCER_MT_marker(Menu):
@@ -361,6 +366,7 @@ class SEQUENCER_MT_add_effect(Menu):
         layout.operator("sequencer.effect_strip_add", text="Wipe").type = 'WIPE'
         layout.operator("sequencer.effect_strip_add", text="Glow").type = 'GLOW'
         layout.operator("sequencer.effect_strip_add", text="Text").type = 'TEXT'
+        layout.operator("sequencer.effect_strip_add", text="Color Mix").type = 'COLORMIX'
         layout.operator("sequencer.effect_strip_add", text="Transform").type = 'TRANSFORM'
         layout.operator("sequencer.effect_strip_add", text="Color").type = 'COLOR'
         layout.operator("sequencer.effect_strip_add", text="Speed Control").type = 'SPEED'
@@ -429,10 +435,6 @@ class SEQUENCER_MT_strip(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_REGION_WIN'
-
-        layout.operator("ed.undo")
-        layout.operator("ed.redo")
-        layout.operator("ed.undo_history")
 
         layout.separator()
         layout.menu("SEQUENCER_MT_strip_transform")
@@ -583,6 +585,8 @@ class SEQUENCER_PT_edit(SequencerButtonsPanel, Panel):
 
         if elem and elem.orig_width > 0 and elem.orig_height > 0:
             col.label(text=iface_("Original Dimension: %dx%d") % (elem.orig_width, elem.orig_height), translate=False)
+        else:
+            col.label(text="Original Dimension: None")
 
 
 class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
@@ -602,7 +606,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
             'ADD', 'SUBTRACT', 'ALPHA_OVER', 'ALPHA_UNDER',
             'CROSS', 'GAMMA_CROSS', 'MULTIPLY', 'OVER_DROP',
             'WIPE', 'GLOW', 'TRANSFORM', 'COLOR', 'SPEED',
-            'MULTICAM', 'GAUSSIAN_BLUR', 'TEXT',
+            'MULTICAM', 'GAUSSIAN_BLUR', 'TEXT', 'COLORMIX'
         }
 
     def draw(self, context):
@@ -705,11 +709,11 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
                     if i == strip.multicam_source:
                         sub = row.row(align=True)
                         sub.enabled = False
-                        sub.operator("sequencer.cut_multicam", text="%d" % i).camera = i
+                        sub.operator("sequencer.cut_multicam", text=f"{i:d}").camera = i
                     else:
                         sub_1 = row.row(align=True)
                         sub_1.enabled = True
-                        sub_1.operator("sequencer.cut_multicam", text="%d" % i).camera = i
+                        sub_1.operator("sequencer.cut_multicam", text=f"{i:d}").camera = i
 
                 if strip.channel > BT_ROW and (strip_channel - 1) % BT_ROW:
                     for i in range(strip.channel, strip_channel + ((BT_ROW + 1 - strip_channel) % BT_ROW)):
@@ -750,6 +754,12 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
             row = col.row(align=True)
             row.prop(strip, "size_x")
             row.prop(strip, "size_y")
+        elif strip.type == 'COLORMIX':
+            split = layout.split(percentage=0.35)
+            split.label(text="Blend Mode:")
+            split.prop(strip, "blend_effect", text="")
+            row = layout.row(align=True)
+            row.prop(strip, "factor", slider=True)
 
 
 class SEQUENCER_PT_input(SequencerButtonsPanel, Panel):
@@ -770,7 +780,7 @@ class SEQUENCER_PT_input(SequencerButtonsPanel, Panel):
             'ADD', 'SUBTRACT', 'ALPHA_OVER', 'ALPHA_UNDER',
             'CROSS', 'GAMMA_CROSS', 'MULTIPLY', 'OVER_DROP',
             'WIPE', 'GLOW', 'TRANSFORM', 'COLOR',
-            'MULTICAM', 'SPEED', 'ADJUSTMENT',
+            'MULTICAM', 'SPEED', 'ADJUSTMENT', 'COLORMIX'
         }
 
     def draw(self, context):
@@ -1009,7 +1019,7 @@ class SEQUENCER_PT_filter(SequencerButtonsPanel, Panel):
             'META', 'ADD', 'SUBTRACT', 'ALPHA_OVER',
             'ALPHA_UNDER', 'CROSS', 'GAMMA_CROSS', 'MULTIPLY',
             'OVER_DROP', 'WIPE', 'GLOW', 'TRANSFORM', 'COLOR',
-            'MULTICAM', 'SPEED', 'ADJUSTMENT',
+            'MULTICAM', 'SPEED', 'ADJUSTMENT', 'COLORMIX'
         }
 
     def draw(self, context):
@@ -1069,7 +1079,7 @@ class SEQUENCER_PT_proxy(SequencerButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
 
-        sequencer = context.scene.sequence_editor
+        ed = context.scene.sequence_editor
 
         strip = act_strip(context)
 
@@ -1077,9 +1087,9 @@ class SEQUENCER_PT_proxy(SequencerButtonsPanel, Panel):
             proxy = strip.proxy
 
             flow = layout.column_flow()
-            flow.prop(sequencer, "proxy_storage", text="Storage")
-            if sequencer.proxy_storage == 'PROJECT':
-                flow.prop(sequencer, "proxy_dir", text="Directory")
+            flow.prop(ed, "proxy_storage", text="Storage")
+            if ed.proxy_storage == 'PROJECT':
+                flow.prop(ed, "proxy_dir", text="Directory")
             else:
                 flow.prop(proxy, "use_proxy_custom_directory")
                 flow.prop(proxy, "use_proxy_custom_file")
@@ -1127,6 +1137,8 @@ class SEQUENCER_PT_preview(SequencerButtonsPanel_Output, Panel):
         row = col.row()
         row.active = render.sequencer_gl_preview == 'SOLID'
         row.prop(render, "use_sequencer_gl_textured_solid")
+
+        col.prop(render, "use_sequencer_gl_dof")
 
 
 class SEQUENCER_PT_view(SequencerButtonsPanel_Output, Panel):
@@ -1183,7 +1195,7 @@ class SEQUENCER_PT_modifiers(SequencerButtonsPanel, Panel):
         layout = self.layout
 
         strip = act_strip(context)
-        sequencer = context.scene.sequence_editor
+        ed = context.scene.sequence_editor
 
         layout.prop(strip, "use_linear_modifiers")
 
@@ -1214,9 +1226,9 @@ class SEQUENCER_PT_modifiers(SequencerButtonsPanel, Panel):
                 row.prop(mod, "input_mask_type", expand=True)
 
                 if mod.input_mask_type == 'STRIP':
-                    sequences_object = sequencer
-                    if sequencer.meta_stack:
-                        sequences_object = sequencer.meta_stack[-1]
+                    sequences_object = ed
+                    if ed.meta_stack:
+                        sequences_object = ed.meta_stack[-1]
                     box.prop_search(mod, "input_mask_strip", sequences_object, "sequences", text="Mask")
                 else:
                     box.prop(mod, "input_mask_id")
@@ -1277,7 +1289,7 @@ class SEQUENCER_PT_grease_pencil_tools(GreasePencilToolsPanel, SequencerButtonsP
 
 
 class SEQUENCER_PT_custom_props(SequencerButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
     _context_path = "scene.sequence_editor.active_strip"
     _property_type = (bpy.types.Sequence,)
     bl_category = "Strip"

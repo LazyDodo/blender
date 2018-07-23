@@ -32,6 +32,9 @@
  * (ONLY ADD NEW ITEMS AT THE END)
  */
 
+struct Mesh;
+struct Scene;
+
 typedef enum ModifierType {
 	eModifierType_None              = 0,
 	eModifierType_Subsurf           = 1,
@@ -105,21 +108,20 @@ typedef struct ModifierData {
 	struct ModifierData *next, *prev;
 
 	int type, mode;
-	int stackindex, pad;
+	int stackindex;
+	short flag;
+	short pad;
 	char name[64];  /* MAX_NAME */
-
-	/* XXX for timing info set by caller... solve later? (ton) */
-	struct Scene *scene;
 
 	char *error;
 } ModifierData;
 
 typedef enum {
-	eSubsurfModifierFlag_Incremental  = (1 << 0),
-	eSubsurfModifierFlag_DebugIncr    = (1 << 1),
-	eSubsurfModifierFlag_ControlEdges = (1 << 2),
-	eSubsurfModifierFlag_SubsurfUv    = (1 << 3),
-} SubsurfModifierFlag;
+	/* This modifier has been inserted in local override, and hence can be fully edited. */
+	eModifierFlag_StaticOverride_Local  = (1 << 0),
+	/* This modifier does not own its caches, but instead shares them with another modifier. */
+	eModifierFlag_SharedCaches          = (1 << 1),
+} ModifierFlag;
 
 /* not a real modifier */
 typedef struct MappingInfoModifierData {
@@ -131,6 +133,18 @@ typedef struct MappingInfoModifierData {
 	int uvlayer_tmp;
 	int texmapping;
 } MappingInfoModifierData;
+
+typedef enum {
+	eSubsurfModifierFlag_Incremental  = (1 << 0),
+	eSubsurfModifierFlag_DebugIncr    = (1 << 1),
+	eSubsurfModifierFlag_ControlEdges = (1 << 2),
+	eSubsurfModifierFlag_SubsurfUv    = (1 << 3),
+} SubsurfModifierFlag;
+
+typedef enum {
+	SUBSURF_TYPE_CATMULL_CLARK = 0,
+	SUBSURF_TYPE_SIMPLE = 1,
+} eSubsurfModifierType;
 
 typedef struct SubsurfModifierData {
 	ModifierData modifier;
@@ -174,7 +188,7 @@ typedef struct BuildModifierData {
 
 	float start, length;
 	short flag;
-	
+
 	short randomize;      /* (bool) whether order of vertices is randomized - legacy files (for readfile conversion) */
 	int seed;             /* (int) random seed */
 } BuildModifierData;
@@ -249,6 +263,7 @@ typedef struct ArrayModifierData {
 	int flags;
 	/* the number of duplicates to generate for MOD_ARR_FIXEDCOUNT */
 	int count;
+	float uv_offset[2];
 } ArrayModifierData;
 
 /* ArrayModifierData->fit_type */
@@ -418,8 +433,7 @@ typedef struct UVProjectModifierData {
 
 	/* the objects which do the projecting */
 	struct Object *projectors[10]; /* MOD_UVPROJECT_MAXPROJECTORS */
-	struct Image *image;           /* the image to project */
-	int flags;
+	int pad2;
 	int num_projectors;
 	float aspectx, aspecty;
 	float scalex, scaley;
@@ -598,12 +612,15 @@ typedef struct SoftbodyModifierData {
 typedef struct ClothModifierData {
 	ModifierData modifier;
 
-	struct Scene *scene;                  /* the context, time etc is here */
 	struct Cloth *clothObject;            /* The internal data structure for cloth. */
 	struct ClothSimSettings *sim_parms;   /* definition is in DNA_cloth_types.h */
 	struct ClothCollSettings *coll_parms; /* definition is in DNA_cloth_types.h */
-	struct PointCache *point_cache;       /* definition is in DNA_object_force.h */
+
+	/* PointCache can be shared with other instances of ClothModifierData.
+	 * Inspect (modifier.flag & eModifierFlag_SharedCaches) to find out. */
+	struct PointCache *point_cache;       /* definition is in DNA_object_force_types.h */
 	struct ListBase ptcaches;
+
 	/* XXX nasty hack, remove once hair can be separated from cloth modifier data */
 	struct ClothHairData *hairdata;
 	/* grid geometry values of hair continuum */
@@ -611,7 +628,7 @@ typedef struct ClothModifierData {
 	float hair_grid_max[3];
 	int hair_grid_res[3];
 	float hair_grid_cellsize;
-	
+
 	struct ClothSolverResult *solver_result;
 } ClothModifierData;
 
@@ -642,7 +659,7 @@ typedef struct SurfaceModifierData {
 	struct MVert *x; /* old position */
 	struct MVert *v; /* velocity */
 
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 
 	struct BVHTreeFromMesh *bvhtree; /* bounding volume hierarchy of the mesh faces */
 
@@ -654,8 +671,7 @@ typedef struct BooleanModifierData {
 
 	struct Object *object;
 	char operation;
-	char solver;
-	char pad;
+	char pad[2];
 	char bm_flag;
 	float double_threshold;
 } BooleanModifierData;
@@ -665,11 +681,6 @@ typedef enum {
 	eBooleanModifierOp_Union      = 1,
 	eBooleanModifierOp_Difference = 2,
 } BooleanModifierOp;
-
-typedef enum {
-	eBooleanModifierSolver_Carve    = 0,
-	eBooleanModifierSolver_BMesh = 1,
-} BooleanSolver;
 
 /* bm_flag (only used when G_DEBUG) */
 enum {
@@ -717,7 +728,7 @@ typedef struct MeshDeformModifierData {
 	float *bindcos;                 /* deprecated storage of cage coords */
 
 	/* runtime */
-	void (*bindfunc)(struct Scene *scene, struct MeshDeformModifierData *mmd, struct DerivedMesh *cagedm,
+	void (*bindfunc)(struct Scene *scene, struct MeshDeformModifierData *mmd, struct Mesh *cagemesh,
 	                 float *vertexcos, int totvert, float cagemat[4][4]);
 } MeshDeformModifierData;
 
@@ -735,8 +746,8 @@ typedef struct ParticleSystemModifierData {
 	ModifierData modifier;
 
 	struct ParticleSystem *psys;
-	struct DerivedMesh *dm_final;  /* Final DM - its topology may differ from orig mesh. */
-	struct DerivedMesh *dm_deformed;  /* Deformed-onle DM - its topology is same as orig mesh one. */
+	struct Mesh *mesh_final;  /* Final Mesh - its topology may differ from orig mesh. */
+	struct Mesh *mesh_original;  /* Original mesh that particles are attached to. */
 	int totdmvert, totdmedge, totdmface;
 	short flag, pad;
 } ParticleSystemModifierData;
@@ -758,12 +769,21 @@ typedef enum {
 	eParticleInstanceFlag_UseSize   = (1 << 7),
 } ParticleInstanceModifierFlag;
 
+typedef enum {
+	eParticleInstanceSpace_World    = 0,
+	eParticleInstanceSpace_Local    = 1,
+} ParticleInstanceModifierSpace;
+
 typedef struct ParticleInstanceModifierData {
 	ModifierData modifier;
 
 	struct Object *ob;
-	short psys, flag, axis, pad;
+	short psys, flag, axis, space;
 	float position, random_position;
+	float rotation, random_rotation;
+	float particle_amount, particle_offset;
+	char index_layer_name[64]; /* MAX_CUSTOMDATA_LAYER_NAME */
+	char value_layer_name[64]; /* MAX_CUSTOMDATA_LAYER_NAME */
 } ParticleInstanceModifierData;
 
 typedef enum {
@@ -799,8 +819,7 @@ typedef enum {
 typedef struct FluidsimModifierData {
 	ModifierData modifier;
 
-	struct FluidsimSettings *fss;   /* definition is in DNA_object_fluidsim.h */
-	struct PointCache *point_cache; /* definition is in DNA_object_force.h */
+	struct FluidsimSettings *fss;   /* definition is in DNA_object_fluidsim_types.h */
 } FluidsimModifierData;
 
 typedef struct ShrinkwrapModifierData {
@@ -867,8 +886,8 @@ typedef struct SimpleDeformModifierData {
 
 	char mode;              /* deform function */
 	char axis;              /* lock axis (for taper and strech) */
+	char deform_axis;       /* axis to perform the deform on (default is X, but can be overridden by origin */
 	char flag;
-	char pad;
 
 } SimpleDeformModifierData;
 
@@ -888,6 +907,7 @@ enum {
 enum {
 	MOD_SIMPLEDEFORM_LOCK_AXIS_X = (1 << 0),
 	MOD_SIMPLEDEFORM_LOCK_AXIS_Y = (1 << 1),
+	MOD_SIMPLEDEFORM_LOCK_AXIS_Z = (1 << 2),
 };
 
 typedef struct ShapeKeyModifierData {
@@ -955,7 +975,7 @@ typedef struct OceanModifierData {
 
 	struct Ocean *ocean;
 	struct OceanCache *oceancache;
-	
+
 	int resolution;
 	int spatial_size;
 
@@ -982,7 +1002,7 @@ typedef struct OceanModifierData {
 	char geometry_mode;
 
 	char flag;
-	char refresh;
+	char pad2;
 
 	short repeat_x;
 	short repeat_y;
@@ -1002,13 +1022,6 @@ enum {
 	MOD_OCEAN_GEOM_SIM_ONLY = 2,
 };
 
-enum {
-	MOD_OCEAN_REFRESH_RESET        = (1 << 0),
-	MOD_OCEAN_REFRESH_SIM          = (1 << 1),
-	MOD_OCEAN_REFRESH_ADD          = (1 << 2),
-	MOD_OCEAN_REFRESH_CLEAR_CACHE  = (1 << 3),
-	MOD_OCEAN_REFRESH_TOPOLOGY     = (1 << 4),
-};
 
 enum {
 	MOD_OCEAN_GENERATE_FOAM     = (1 << 0),
@@ -1554,6 +1567,7 @@ enum {
 enum {
 	MOD_NORMALEDIT_INVERT_VGROUP            = (1 << 0),
 	MOD_NORMALEDIT_USE_DIRECTION_PARALLEL   = (1 << 1),
+	MOD_NORMALEDIT_NO_POLYNORS_FIX             = (1 << 2),
 };
 
 /* NormalEditModifierData.mix_mode */
@@ -1601,6 +1615,7 @@ typedef struct SDefVert {
 typedef struct SurfaceDeformModifierData {
 	ModifierData modifier;
 
+	struct Depsgraph *depsgraph;
 	struct Object *target;	/* bind target object */
 	SDefVert *verts;		/* vertex bind data */
 	float falloff;
@@ -1611,7 +1626,9 @@ typedef struct SurfaceDeformModifierData {
 
 /* Surface Deform modifier flags */
 enum {
+	/* This indicates "do bind on next modifier evaluation" as well as "is bound". */
 	MOD_SDEF_BIND = (1 << 0),
+
 	MOD_SDEF_USES_LOOPTRI = (1 << 1),
 	MOD_SDEF_HAS_CONCAVE = (1 << 2),
 };

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation, Andrea Weikert
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -57,7 +57,7 @@
 
 #include <string.h>
 
-static int file_panel_operator_poll(const bContext *C, PanelType *UNUSED(pt))
+static bool file_panel_operator_poll(const bContext *C, PanelType *UNUSED(pt))
 {
 	SpaceFile *sfile = CTX_wm_space_file(C);
 	return (sfile && sfile->op);
@@ -88,7 +88,8 @@ static void file_panel_operator(const bContext *C, Panel *pa)
 
 	UI_block_func_set(uiLayoutGetBlock(pa->layout), file_draw_check_cb, NULL, NULL);
 
-	uiTemplateOperatorPropertyButs(C, pa->layout, op, file_panel_check_prop, '\0', UI_TEMPLATE_OP_PROPS_SHOW_EMPTY);
+	uiTemplateOperatorPropertyButs(C, pa->layout, op, file_panel_check_prop, UI_BUT_LABEL_ALIGN_NONE,
+	                               UI_TEMPLATE_OP_PROPS_SHOW_EMPTY);
 
 	UI_block_func_set(uiLayoutGetBlock(pa->layout), NULL, NULL, NULL);
 }
@@ -106,4 +107,3 @@ void file_panels_register(ARegionType *art)
 	pt->draw = file_panel_operator;
 	BLI_addtail(&art->paneltypes, pt);
 }
-

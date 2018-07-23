@@ -39,12 +39,14 @@
 
 #include "BLI_utildefines.h"
 
-#include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
 #include "BKE_lattice.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
+#include "MEM_guardedalloc.h"
 
 #include "MOD_util.h"
 
@@ -52,16 +54,6 @@ static void initData(ModifierData *md)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *) md;
 	lmd->strength = 1.0f;
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	LatticeModifierData *lmd = (LatticeModifierData *) md;
-	LatticeModifierData *tlmd = (LatticeModifierData *) target;
-#endif
-
-	modifier_copyData_generic(md, target);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
@@ -75,7 +67,7 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(userRenderParams))
 {
 	LatticeModifierData *lmd = (LatticeModifierData *) md;
 
@@ -91,62 +83,45 @@ static void foreachObjectLink(
 	walk(userData, ob, &lmd->object, IDWALK_CB_NOP);
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *UNUSED(scene),
-                           Object *UNUSED(ob),
-                           DagNode *obNode)
-{
-	LatticeModifierData *lmd = (LatticeModifierData *) md;
-
-	if (lmd->object) {
-		DagNode *latNode = dag_get_node(forest, lmd->object);
-
-		dag_add_relation(forest, latNode, obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Lattice Modifier");
-	}
-}
-
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *object,
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *)md;
 	if (lmd->object != NULL) {
-		DEG_add_object_relation(node, lmd->object, DEG_OB_COMP_GEOMETRY, "Lattice Modifier");
-		DEG_add_object_relation(node, lmd->object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
+		DEG_add_object_relation(ctx->node, lmd->object, DEG_OB_COMP_GEOMETRY, "Lattice Modifier");
+		DEG_add_object_relation(ctx->node, lmd->object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
 	}
-	DEG_add_object_relation(node, object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Lattice Modifier");
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *derivedData,
-                        float (*vertexCos)[3],
-                        int numVerts,
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
 	LatticeModifierData *lmd = (LatticeModifierData *) md;
+	struct Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
 
+	MOD_previous_vcos_store(md, vertexCos); /* if next modifier needs original vertices */
 
-	modifier_vgroup_cache(md, vertexCos); /* if next modifier needs original vertices */
-	
-	lattice_deform_verts(lmd->object, ob, derivedData,
+	lattice_deform_verts(lmd->object, ctx->object, mesh_src,
 	                     vertexCos, numVerts, lmd->name, lmd->strength);
-}
+
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}}
 
 static void deformVertsEM(
-        ModifierData *md, Object *ob, struct BMEditMesh *em,
-        DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+        ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *em,
+        struct Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = derivedData;
+	struct Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, em, mesh, NULL, false, false);
 
-	if (!derivedData) dm = CDDM_from_editbmesh(em, false, false);
+	deformVerts(md, ctx, mesh_src, vertexCos, numVerts);
 
-	deformVerts(md, ob, dm, vertexCos, numVerts, 0);
-
-	if (!derivedData) dm->release(dm);
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 
@@ -158,18 +133,27 @@ ModifierTypeInfo modifierType_Lattice = {
 	/* flags */             eModifierTypeFlag_AcceptsCVs |
 	                        eModifierTypeFlag_AcceptsLattice |
 	                        eModifierTypeFlag_SupportsEditmode,
-	/* copyData */          copyData,
+
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */	NULL,

@@ -42,8 +42,9 @@
 
 #include "BKE_context.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_library.h"
+
+#include "DEG_depsgraph.h"
 
 #include "RNA_access.h"
 
@@ -52,7 +53,7 @@
 
 #include "ED_object.h"
 #include "ED_screen.h"
-#include "ED_util.h"
+#include "ED_undo.h"
 #include "ED_view3d.h"
 #include "ED_curve.h"
 
@@ -502,7 +503,7 @@ static int curvesurf_prim_add(bContext *C, wmOperator *op, int type, int isSurf)
 				cu->flag |= CU_PATH | CU_3D;
 		}
 		else {
-			DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 		}
 	}
 	else { /* adding surface */
@@ -512,13 +513,9 @@ static int curvesurf_prim_add(bContext *C, wmOperator *op, int type, int isSurf)
 			newob = true;
 		}
 		else {
-			DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 		}
 	}
-
-	/* ED_object_add_type doesnt do an undo, is needed for redo operator on primitive */
-	if (newob && enter_editmode)
-		ED_undo_push(C, "Enter Editmode");
 
 	ED_object_new_primitive_matrix(C, obedit, loc, rot, mat);
 	dia = RNA_float_get(op->ptr, "radius");

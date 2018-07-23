@@ -46,8 +46,12 @@ extern "C" {
 #include "intern/nodes/deg_node_operation.h"
 #include "intern/depsgraph.h"
 
+#include "DEG_depsgraph_debug.h"
+
+struct DEGEditorUpdateContext;
+struct Collection;
+struct ListBase;
 struct Main;
-struct Group;
 struct Scene;
 
 namespace DEG {
@@ -59,8 +63,8 @@ namespace DEG {
 /* Typeinfo Struct (nti) */
 struct DepsNodeFactory {
 	virtual eDepsNode_Type type() const = 0;
-	virtual eDepsNode_Class tclass() const = 0;
 	virtual const char *tname() const = 0;
+	virtual int id_recalc_tag() const = 0;
 
 	virtual DepsNode *create_node(const ID *id,
 	                              const char *subdata,
@@ -70,8 +74,8 @@ struct DepsNodeFactory {
 template <class NodeType>
 struct DepsNodeFactoryImpl : public DepsNodeFactory {
 	eDepsNode_Type type() const { return NodeType::typeinfo.type; }
-	eDepsNode_Class tclass() const { return NodeType::typeinfo.tclass; }
 	const char *tname() const { return NodeType::typeinfo.tname; }
+	int id_recalc_tag() const { return NodeType::typeinfo.id_recalc_tag; }
 
 	DepsNode *create_node(const ID *id, const char *subdata, const char *name) const
 	{
@@ -79,7 +83,6 @@ struct DepsNodeFactoryImpl : public DepsNodeFactory {
 
 		/* populate base node settings */
 		node->type = type();
-		node->tclass = tclass();
 
 		if (name[0] != '\0') {
 			/* set name if provided ... */
@@ -102,22 +105,45 @@ struct DepsNodeFactoryImpl : public DepsNodeFactory {
 void deg_register_node_typeinfo(DepsNodeFactory *factory);
 
 /* Get typeinfo for specified type */
-DepsNodeFactory *deg_get_node_factory(const eDepsNode_Type type);
-
-/* Get typeinfo for provided node */
-DepsNodeFactory *deg_node_get_factory(const DepsNode *node);
+DepsNodeFactory *deg_type_get_factory(const eDepsNode_Type type);
 
 /* Editors Integration -------------------------------------------------- */
 
-void deg_editors_id_update(struct Main *bmain, struct ID *id);
+void deg_editors_id_update(const DEGEditorUpdateContext *update_ctx,
+                           struct ID *id);
 
-void deg_editors_scene_update(struct Main *bmain, struct Scene *scene, bool updated);
+void deg_editors_scene_update(const DEGEditorUpdateContext *update_ctx,
+                              bool updated);
 
-#define DEG_DEBUG_PRINTF(...) \
+#define DEG_DEBUG_PRINTF(depsgraph, type, ...) \
 	do { \
-		if (G.debug & G_DEBUG_DEPSGRAPH) { \
-			fprintf(stderr, __VA_ARGS__); \
+		if (DEG_debug_flags_get(depsgraph) & G_DEBUG_DEPSGRAPH_ ## type) { \
+			DEG_debug_print_begin(depsgraph); \
+			fprintf(stdout, __VA_ARGS__); \
 		} \
 	} while (0)
+
+#define DEG_GLOBAL_DEBUG_PRINTF(type, ...) \
+	do { \
+		if (G.debug & G_DEBUG_DEPSGRAPH_ ## type) { \
+			fprintf(stdout, __VA_ARGS__); \
+		} \
+	} while (0)
+
+#define DEG_ERROR_PRINTF(...)               \
+	do {                                    \
+		fprintf(stderr, __VA_ARGS__);       \
+		fflush(stderr);                     \
+	} while (0)
+
+bool deg_terminal_do_color(void);
+string deg_color_for_pointer(const void *pointer);
+string deg_color_end(void);
+
+/* Physics Utilities -------------------------------------------------- */
+
+struct ListBase *deg_build_effector_relations(Depsgraph *graph, struct Collection *collection);
+struct ListBase *deg_build_collision_relations(Depsgraph *graph, struct Collection *collection, unsigned int modifier_type);
+void deg_clear_physics_relations(Depsgraph *graph);
 
 }  // namespace DEG

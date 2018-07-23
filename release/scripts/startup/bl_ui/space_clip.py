@@ -21,6 +21,7 @@
 import bpy
 from bpy.types import Panel, Header, Menu, UIList
 from bpy.app.translations import pgettext_iface as iface_
+from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
     GreasePencilDrawingToolsPanel,
     GreasePencilStrokeEditPanel,
@@ -57,21 +58,20 @@ class CLIP_HT_header(Header):
         sc = context.space_data
         clip = sc.clip
 
-        row = layout.row(align=True)
-        row.template_header()
-
         CLIP_MT_tracking_editor_menus.draw_collapsible(context, layout)
+
+        layout.separator_spacer()
 
         row = layout.row()
         row.template_ID(sc, "clip", open="clip.open")
+
+        layout.separator_spacer()
 
         if clip:
             tracking = clip.tracking
             active_object = tracking.objects.active
 
             if sc.view == 'CLIP':
-                layout.prop(sc, "mode", text="")
-                layout.prop(sc, "view", text="", expand=True)
                 layout.prop(sc, "pivot_point", text="", icon_only=True)
 
                 r = active_object.reconstruction
@@ -80,8 +80,6 @@ class CLIP_HT_header(Header):
                     layout.label(text="Solve error: %.4f" %
                                  (r.average_error))
             elif sc.view == 'GRAPH':
-                layout.prop(sc, "view", text="", expand=True)
-
                 row = layout.row(align=True)
                 row.prop(sc, "show_graph_only_selected", text="")
                 row.prop(sc, "show_graph_hidden", text="")
@@ -103,7 +101,6 @@ class CLIP_HT_header(Header):
                              text="Filters")
             elif sc.view == 'DOPESHEET':
                 dopesheet = tracking.dopesheet
-                layout.prop(sc, "view", text="", expand=True)
 
                 row = layout.row(align=True)
                 row.prop(dopesheet, "show_only_selected", text="")
@@ -113,8 +110,6 @@ class CLIP_HT_header(Header):
                 row.prop(dopesheet, "sort_method", text="")
                 row.prop(dopesheet, "use_invert_sort",
                          text="Invert", toggle=True)
-        else:
-            layout.prop(sc, "view", text="", expand=True)
 
     def _draw_masking(self, context):
         layout = self.layout
@@ -123,35 +118,40 @@ class CLIP_HT_header(Header):
         sc = context.space_data
         clip = sc.clip
 
-        row = layout.row(align=True)
-        row.template_header()
-
         CLIP_MT_masking_editor_menus.draw_collapsible(context, layout)
+
+        layout.separator_spacer()
 
         row = layout.row()
         row.template_ID(sc, "clip", open="clip.open")
 
-        if clip:
-            layout.prop(sc, "mode", text="")
+        layout.separator_spacer()
 
+        if clip:
             row = layout.row()
             row.template_ID(sc, "mask", new="mask.new")
+
+            layout.separator_spacer()
 
             layout.prop(sc, "pivot_point", text="", icon_only=True)
 
             row = layout.row(align=True)
-            row.prop(toolsettings, "use_proportional_edit_mask",
-                     text="", icon_only=True)
-            if toolsettings.use_proportional_edit_mask:
-                row.prop(toolsettings, "proportional_edit_falloff",
-                         text="", icon_only=True)
+            row.prop(toolsettings, "use_proportional_edit_mask", text="", icon_only=True)
+            sub = row.row(align=True)
+            sub.active = toolsettings.use_proportional_edit_mask
+            sub.prop(toolsettings, "proportional_edit_falloff", text="", icon_only=True)
 
     def draw(self, context):
         layout = self.layout
 
         sc = context.space_data
 
+        row = layout.row(align=True)
+        row.template_header()
+
+        layout.prop(sc, "mode", text="")
         if sc.mode == 'TRACKING':
+            layout.prop(sc, "view", text="")
             self._draw_tracking(context)
         else:
             self._draw_masking(context)
@@ -284,6 +284,9 @@ class CLIP_PT_tracking_settings(CLIP_PT_tracking_panel, Panel):
     bl_label = "Tracking Settings"
     bl_category = "Track"
 
+    def draw_header_preset(self, context):
+        CLIP_PT_tracking_settings_presets.draw_panel_header(self.layout)
+
     def draw(self, context):
 
         sc = context.space_data
@@ -291,14 +294,6 @@ class CLIP_PT_tracking_settings(CLIP_PT_tracking_panel, Panel):
         settings = clip.tracking.settings
         layout = self.layout
         col = layout.column()
-
-        row = col.row(align=True)
-        label = CLIP_MT_tracking_settings_presets.bl_label
-        row.menu('CLIP_MT_tracking_settings_presets', text=label)
-        row.operator("clip.tracking_settings_preset_add",
-                     text="", icon='ZOOMIN')
-        row.operator("clip.tracking_settings_preset_add",
-                     text="", icon='ZOOMOUT').remove_active = True
 
         row = col.row(align=True)
         row.prop(settings, "use_default_red_channel",
@@ -632,12 +627,8 @@ class CLIP_PT_track(CLIP_PT_tracking_panel, Panel):
         layout.separator()
 
         row = layout.row(align=True)
-        label = bpy.types.CLIP_MT_track_color_presets.bl_label
-        row.menu('CLIP_MT_track_color_presets', text=label)
+        CLIP_PT_track_color_presets.draw_menu(row, 'Color Presets')
         row.menu('CLIP_MT_track_color_specials', text="", icon='DOWNARROW_HLT')
-        row.operator("clip.track_color_preset_add", text="", icon='ZOOMIN')
-        row.operator("clip.track_color_preset_add",
-                     text="", icon='ZOOMOUT').remove_active = True
 
         row = layout.row()
         row.prop(act_track, "use_custom_color")
@@ -727,18 +718,14 @@ class CLIP_PT_tracking_camera(Panel):
 
         return False
 
+    def draw_header_preset(self, context):
+        CLIP_PT_camera_presets.draw_panel_header(self.layout)
+
     def draw(self, context):
         layout = self.layout
 
         sc = context.space_data
         clip = sc.clip
-
-        row = layout.row(align=True)
-        label = bpy.types.CLIP_MT_camera_presets.bl_label
-        row.menu('CLIP_MT_camera_presets', text=label)
-        row.operator("clip.camera_preset_add", text="", icon='ZOOMIN')
-        row.operator("clip.camera_preset_add", text="",
-                     icon='ZOOMOUT').remove_active = True
 
         col = layout.column(align=True)
         col.label(text="Sensor:")
@@ -1028,9 +1015,11 @@ class CLIP_PT_proxy(CLIP_PT_clip_view_panel, Panel):
         if clip.use_proxy_custom_directory:
             col.prop(clip.proxy, "directory")
 
-        col.operator("clip.rebuild_proxy",
-                     text="Build Proxy / Timecode" if clip.source == 'MOVIE'
-                                                   else "Build Proxy")
+        col.operator(
+            "clip.rebuild_proxy",
+            text="Build Proxy / Timecode" if clip.source == 'MOVIE'
+            else "Build Proxy"
+        )
 
         if clip.source == 'MOVIE':
             col2 = col.column()
@@ -1199,6 +1188,7 @@ class CLIP_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
 class CLIP_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
 
+
 class CLIP_MT_view(Menu):
     bl_label = "View"
 
@@ -1242,9 +1232,8 @@ class CLIP_MT_view(Menu):
             layout.prop(sc, "show_locked_time")
 
         layout.separator()
-        layout.operator("screen.area_dupli")
-        layout.operator("screen.screen_full_area")
-        layout.operator("screen.screen_full_area", text="Toggle Fullscreen Area").use_hide_panels = True
+
+        layout.menu("INFO_MT_area")
 
 
 class CLIP_MT_clip(Menu):
@@ -1436,28 +1425,28 @@ class CLIP_MT_tracking_specials(Menu):
                         text="Unlock Tracks").action = 'UNLOCK'
 
 
-class CLIP_MT_camera_presets(Menu):
+class CLIP_PT_camera_presets(PresetMenu):
     """Predefined tracking camera intrinsics"""
     bl_label = "Camera Presets"
     preset_subdir = "tracking_camera"
     preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
+    preset_add_operator = "clip.camera_preset_add"
 
 
-class CLIP_MT_track_color_presets(Menu):
+class CLIP_PT_track_color_presets(PresetMenu):
     """Predefined track color"""
     bl_label = "Color Presets"
     preset_subdir = "tracking_track_color"
     preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
+    preset_add_operator = "clip.track_color_preset_add"
 
 
-class CLIP_MT_tracking_settings_presets(Menu):
+class CLIP_PT_tracking_settings_presets(PresetMenu):
     """Predefined tracking settings"""
     bl_label = "Tracking Presets"
     preset_subdir = "tracking_settings"
     preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
+    preset_add_operator = "clip.tracking_settings_preset_add"
 
 
 class CLIP_MT_track_color_specials(Menu):
@@ -1541,9 +1530,9 @@ classes = (
     CLIP_MT_select,
     CLIP_MT_select_grouped,
     CLIP_MT_tracking_specials,
-    CLIP_MT_camera_presets,
-    CLIP_MT_track_color_presets,
-    CLIP_MT_tracking_settings_presets,
+    CLIP_PT_camera_presets,
+    CLIP_PT_track_color_presets,
+    CLIP_PT_tracking_settings_presets,
     CLIP_MT_track_color_specials,
     CLIP_MT_stabilize_2d_specials,
     CLIP_MT_stabilize_2d_rotation_specials,

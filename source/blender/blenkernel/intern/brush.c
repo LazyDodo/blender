@@ -148,7 +148,10 @@ void BKE_brush_init(Brush *brush)
 	BKE_brush_curve_preset(brush, CURVE_PRESET_SMOOTH);
 }
 
-Brush *BKE_brush_add(Main *bmain, const char *name, short ob_mode)
+/**
+ * \note Resulting brush will have two users: one as a fake user, another is assumed to be used by the caller.
+ */
+Brush *BKE_brush_add(Main *bmain, const char *name, const eObjectMode ob_mode)
 {
 	Brush *brush;
 
@@ -161,7 +164,7 @@ Brush *BKE_brush_add(Main *bmain, const char *name, short ob_mode)
 	return brush;
 }
 
-struct Brush *BKE_brush_first_search(struct Main *bmain, short ob_mode)
+struct Brush *BKE_brush_first_search(struct Main *bmain, const eObjectMode ob_mode)
 {
 	Brush *brush;
 
@@ -268,7 +271,7 @@ void BKE_brush_debug_print_state(Brush *br)
 	/* create a fake brush and set it to the defaults */
 	Brush def = {{NULL}};
 	brush_defaults(&def);
-	
+
 #define BR_TEST(field, t)					\
 	if (br->field != def.field)				\
 		printf("br->" #field " = %" #t ";\n", br->field)
@@ -278,7 +281,7 @@ void BKE_brush_debug_print_state(Brush *br)
 		printf("br->flag |= " #_f ";\n");			\
 	else if (!(br->flag & _f) && (def.flag & _f))	\
 		printf("br->flag &= ~" #_f ";\n")
-	
+
 #define BR_TEST_FLAG_OVERLAY(_f)							\
 	if ((br->overlay_flags & _f) && !(def.overlay_flags & _f))		\
 		printf("br->overlay_flags |= " #_f ";\n");			\
@@ -352,7 +355,7 @@ void BKE_brush_debug_print_state(Brush *br)
 	BR_TEST(sub_col[2], f);
 
 	printf("\n");
-	
+
 #undef BR_TEST
 #undef BR_TEST_FLAG
 }
@@ -452,68 +455,6 @@ void BKE_brush_curve_preset(Brush *b, eCurveMappingPreset preset)
 	b->curve->preset = preset;
 	curvemap_reset(cm, &b->curve->clipr, b->curve->preset, CURVEMAP_SLOPE_NEGATIVE);
 	curvemapping_changed(b->curve, false);
-}
-
-/* XXX Unused function. */
-int BKE_brush_texture_set_nr(Brush *brush, int nr)
-{
-	ID *idtest, *id = NULL;
-
-	id = (ID *)brush->mtex.tex;
-
-	idtest = (ID *)BLI_findlink(&G.main->tex, nr - 1);
-	if (idtest == NULL) { /* new tex */
-		if (id) idtest = (ID *)BKE_texture_copy(G.main, (Tex *)id);
-		else idtest = (ID *)BKE_texture_add(G.main, "Tex");
-		id_us_min(idtest);
-	}
-	if (idtest != id) {
-		BKE_brush_texture_delete(brush);
-
-		brush->mtex.tex = (Tex *)idtest;
-		id_us_plus(idtest);
-
-		return 1;
-	}
-
-	return 0;
-}
-
-int BKE_brush_texture_delete(Brush *brush)
-{
-	if (brush->mtex.tex)
-		id_us_min(&brush->mtex.tex->id);
-
-	return 1;
-}
-
-int BKE_brush_clone_image_set_nr(Brush *brush, int nr)
-{
-	if (brush && nr > 0) {
-		Image *ima = (Image *)BLI_findlink(&G.main->image, nr - 1);
-
-		if (ima) {
-			BKE_brush_clone_image_delete(brush);
-			brush->clone.image = ima;
-			id_us_plus(&ima->id);
-			brush->clone.offset[0] = brush->clone.offset[1] = 0.0f;
-
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-int BKE_brush_clone_image_delete(Brush *brush)
-{
-	if (brush && brush->clone.image) {
-		id_us_min(&brush->clone.image->id);
-		brush->clone.image = NULL;
-		return 1;
-	}
-
-	return 0;
 }
 
 /* Generic texture sampler for 3D painting systems. point has to be either in
@@ -816,7 +757,7 @@ int BKE_brush_size_get(const Scene *scene, const Brush *brush)
 {
 	UnifiedPaintSettings *ups = &scene->toolsettings->unified_paint_settings;
 	int size = (ups->flag & UNIFIED_PAINT_SIZE) ? ups->size : brush->size;
-	
+
 	return size;
 }
 
@@ -1063,7 +1004,8 @@ struct ImBuf *BKE_brush_gen_radial_control_imbuf(Brush *br, bool secondary)
 		for (i = 0; i < side; ++i) {
 			for (j = 0; j < side; ++j) {
 				const int col = texcache[i * side + j];
-				im->rect_float[i * side + j] *= (((char *)&col)[0] + ((char *)&col)[1] + ((char *)&col)[2]) / 3.0f / 255.0f;
+				im->rect_float[i * side + j] *=
+				        (((char *)&col)[0] + ((char *)&col)[1] + ((char *)&col)[2]) / 3.0f / 255.0f;
 			}
 		}
 

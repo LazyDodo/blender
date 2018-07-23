@@ -48,11 +48,17 @@ public:
 	MultiDevice(DeviceInfo& info, Stats &stats, bool background_)
 	: Device(info, stats, background_), unique_key(1)
 	{
-		Device *device;
-
 		foreach(DeviceInfo& subinfo, info.multi_devices) {
-			device = Device::create(subinfo, sub_stats_, background);
-			devices.push_back(SubDevice(device));
+			Device *device = Device::create(subinfo, sub_stats_, background);
+
+			/* Always add CPU devices at the back since GPU devices can change
+			 * host memory pointers, which CPU uses as device pointer. */
+			if(subinfo.type == DEVICE_CPU) {
+				devices.push_back(SubDevice(device));
+			}
+			else {
+				devices.push_front(SubDevice(device));
+			}
 		}
 
 #ifdef WITH_NETWORK
@@ -63,7 +69,7 @@ public:
 		vector<string> servers = discovery.get_server_list();
 
 		foreach(string& server, servers) {
-			device = device_network_create(info, stats, server.c_str());
+			Device *device = device_network_create(info, stats, server.c_str());
 			if(device)
 				devices.push_back(SubDevice(device));
 		}
@@ -210,8 +216,11 @@ public:
 			sub.device->const_copy_to(name, host, size);
 	}
 
-	void draw_pixels(device_memory& rgba, int y, int w, int h, int dx, int dy, int width, int height, bool transparent,
-		const DeviceDrawParams &draw_params)
+	void draw_pixels(
+	    device_memory& rgba, int y,
+	    int w, int h, int width, int height,
+	    int dx, int dy, int dw, int dh,
+	    bool transparent, const DeviceDrawParams &draw_params)
 	{
 		device_ptr key = rgba.device_pointer;
 		int i = 0, sub_h = h/devices.size();
@@ -225,7 +234,7 @@ public:
 			/* adjust math for w/width */
 
 			rgba.device_pointer = sub.ptr_map[key];
-			sub.device->draw_pixels(rgba, sy, w, sh, dx, sdy, width, sheight, transparent, draw_params);
+			sub.device->draw_pixels(rgba, sy, w, sh, width, sheight, dx, sdy, dw, dh, transparent, draw_params);
 			i++;
 		}
 
@@ -276,26 +285,27 @@ public:
 					mem.copy_from_device(0, mem.data_size, 1);
 				}
 
-				Device *original_device = mem.device;
-				device_ptr original_ptr = mem.device_pointer;
-				size_t original_size = mem.device_size;
-
-				mem.device = sub_device;
-				mem.device_pointer = 0;
-				mem.device_size = 0;
+				mem.swap_device(sub_device, 0, 0);
 
 				mem.copy_to_device();
 				tiles[i].buffer = mem.device_pointer;
+				tiles[i].device_size = mem.device_size;
 
-				mem.device = original_device;
-				mem.device_pointer = original_ptr;
-				mem.device_size = original_size;
+				mem.restore_device();
 			}
 		}
 	}
 
 	void unmap_neighbor_tiles(Device * sub_device, RenderTile * tiles)
 	{
+		/* Copy denoised result back to the host. */
+		device_vector<float> &mem = tiles[9].buffers->buffer;
+		mem.swap_device(sub_device, tiles[9].device_size, tiles[9].buffer);
+		mem.copy_from_device(0, mem.data_size, 1);
+		mem.restore_device();
+		/* Copy denoised result to the original device. */
+		mem.copy_to_device();
+
 		for(int i = 0; i < 9; i++) {
 			if(!tiles[i].buffers) {
 				continue;
@@ -303,28 +313,9 @@ public:
 
 			device_vector<float> &mem = tiles[i].buffers->buffer;
 			if(mem.device != sub_device) {
-				Device *original_device = mem.device;
-				device_ptr original_ptr = mem.device_pointer;
-				size_t original_size = mem.device_size;
-
-				mem.device = sub_device;
-				mem.device_pointer = tiles[i].buffer;
-
-				/* Copy denoised tile to the host. */
-				if(i == 4) {
-					mem.copy_from_device(0, mem.data_size, 1);
-				}
-
+				mem.swap_device(sub_device, tiles[i].device_size, tiles[i].buffer);
 				sub_device->mem_free(mem);
-
-				mem.device = original_device;
-				mem.device_pointer = original_ptr;
-				mem.device_size = original_size;
-
-				/* Copy denoised tile to the original device. */
-				if(i == 4) {
-					mem.copy_to_device();
-				}
+				mem.restore_device();
 			}
 		}
 	}
@@ -388,4 +379,3 @@ Device *device_multi_create(DeviceInfo& info, Stats &stats, bool background)
 }
 
 CCL_NAMESPACE_END
-

@@ -213,7 +213,7 @@ void fresnel (vector I, normal N, float eta,
         F *= sqr (beta / (g+c));
         Kr = F;
         Kt = (1.0 - Kr) * eta*eta;
-        // OPT: the following recomputes some of the above values, but it 
+        // OPT: the following recomputes some of the above values, but it
         // gives us the same result as if the shader-writer called refract()
         T = refract(I, N, eta);
     } else {
@@ -415,7 +415,7 @@ color transformc (string from, string to, color x)
     return transformc (to, r);
 }
 
- 
+
 
 // Matrix functions
 
@@ -549,14 +549,12 @@ closure color principled_sheen(normal N) BUILTIN;
 closure color principled_clearcoat(normal N, float clearcoat, float clearcoat_roughness) BUILTIN;
 
 // BSSRDF
-closure color bssrdf_cubic(normal N, vector radius, float texture_blur, float sharpness) BUILTIN;
-closure color bssrdf_gaussian(normal N, vector radius, float texture_blur) BUILTIN;
-closure color bssrdf_burley(normal N, vector radius, float texture_blur, color albedo) BUILTIN;
-closure color bssrdf_principled(normal N, vector radius, float texture_blur, color subsurface_color, float roughness) BUILTIN;
+closure color bssrdf(string method, normal N, vector radius, color albedo) BUILTIN;
 
 // Hair
 closure color hair_reflection(normal N, float roughnessu, float roughnessv, vector T, float offset) BUILTIN;
 closure color hair_transmission(normal N, float roughnessu, float roughnessv, vector T, float offset) BUILTIN;
+closure color principled_hair(normal N, color sigma, float roughnessu, float roughnessv, float coat, float alpha, float eta) BUILTIN;
 
 // Volume
 closure color henyey_greenstein(float g) BUILTIN;

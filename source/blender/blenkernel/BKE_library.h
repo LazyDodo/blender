@@ -51,9 +51,13 @@ struct PointerRNA;
 struct PropertyRNA;
 
 size_t BKE_libblock_get_alloc_info(short type, const char **name);
-void *BKE_libblock_alloc_notest(short type);
-void *BKE_libblock_alloc(struct Main *bmain, short type, const char *name, const int flag) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
-void  BKE_libblock_init_empty(struct ID *id);
+void *BKE_libblock_alloc_notest(short type) ATTR_WARN_UNUSED_RESULT;
+void *BKE_libblock_alloc(struct Main *bmain, short type, const char *name, const int flag) ATTR_WARN_UNUSED_RESULT;
+void  BKE_libblock_init_empty(struct ID *id) ATTR_NONNULL(1);
+
+void *BKE_id_new(struct Main *bmain, const short type, const char *name);
+void *BKE_id_new_nomain(const short type, const char *name);
+
 
 /**
  * New ID creation/copying options.
@@ -77,6 +81,10 @@ enum {
 	LIB_ID_COPY_CACHES             = 1 << 18,  /* Copy runtime data caches. */
 	/* XXX TODO Do we want to keep that? would rather try to get rid of it... */
 	LIB_ID_COPY_ACTIONS            = 1 << 19,  /* EXCEPTION! Deep-copy actions used by animdata of copied ID. */
+	LIB_ID_COPY_KEEP_LIB           = 1 << 20,  /* Keep the library pointer when copying datablock outside of bmain. */
+	LIB_ID_COPY_NO_ANIMDATA        = 1 << 21,  /* Don't copy id->adt, used by ID datablock localization routines. */
+	LIB_ID_COPY_SHAPEKEY           = 1 << 22,  /* EXCEPTION! Deep-copy shapekeys used by copied obdata ID. */
+	LIB_ID_COPY_CD_REFERENCE       = 1 << 23,
 };
 
 void BKE_libblock_copy_ex(struct Main *bmain, const struct ID *id, struct ID **r_newid, const int flag);
@@ -87,8 +95,7 @@ void *BKE_libblock_copy_nolib(const struct ID *id, const bool do_action) ATTR_NO
 void  BKE_libblock_rename(struct Main *bmain, struct ID *id, const char *name) ATTR_NONNULL();
 void  BLI_libblock_ensure_unique_name(struct Main *bmain, const char *name) ATTR_NONNULL();
 
-struct ID *BKE_libblock_find_name_ex(struct Main *bmain, const short type, const char *name) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
-struct ID *BKE_libblock_find_name(const short type, const char *name) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
+struct ID *BKE_libblock_find_name(struct Main *bmain, const short type, const char *name) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL();
 
 /* library_remap.c (keep here since they're general functions) */
 /**
@@ -132,7 +139,7 @@ void  BKE_libblock_free_data(struct ID *id, const bool do_id_user) ATTR_NONNULL(
 
 void BKE_id_lib_local_paths(struct Main *bmain, struct Library *lib, struct ID *id);
 void id_lib_extern(struct ID *id);
-void BKE_library_filepath_set(struct Library *lib, const char *filepath);
+void BKE_library_filepath_set(struct Main *bmain, struct Library *lib, const char *filepath);
 void id_us_ensure_real(struct ID *id);
 void id_us_clear_real(struct ID *id);
 void id_us_plus_no_lib(struct ID *id);
@@ -147,6 +154,7 @@ bool id_make_local(struct Main *bmain, struct ID *id, const bool test, const boo
 bool id_single_user(struct bContext *C, struct ID *id, struct PointerRNA *ptr, struct PropertyRNA *prop);
 bool id_copy(struct Main *bmain, const struct ID *id, struct ID **newid, bool test);
 bool BKE_id_copy_ex(struct Main *bmain, const struct ID *id, struct ID **r_newid, const int flag, const bool test);
+void BKE_id_swap(struct Main *bmain, struct ID *id_a, struct ID *id_b);
 void id_sort_by_name(struct ListBase *lb, struct ID *id);
 void BKE_id_expand_local(struct Main *bmain, struct ID *id);
 void BKE_id_copy_ensure_local(struct Main *bmain, const struct ID *old_id, struct ID *new_id);
@@ -157,7 +165,7 @@ void id_clear_lib_data_ex(struct Main *bmain, struct ID *id, const bool id_in_ma
 
 struct ListBase *which_libbase(struct Main *mainlib, short type);
 
-#define MAX_LIBARRAY    35
+#define MAX_LIBARRAY    37
 int set_listbasepointers(struct Main *main, struct ListBase *lb[MAX_LIBARRAY]);
 
 /* Main API */
@@ -173,6 +181,9 @@ void BKE_main_relations_free(struct Main *bmain);
 struct BlendThumbnail *BKE_main_thumbnail_from_imbuf(struct Main *bmain, struct ImBuf *img);
 struct ImBuf *BKE_main_thumbnail_to_imbuf(struct Main *bmain, struct BlendThumbnail *data);
 void BKE_main_thumbnail_create(struct Main *bmain);
+
+const char *BKE_main_blendfile_path(const struct Main *bmain) ATTR_NONNULL();
+const char *BKE_main_blendfile_path_from_global(void);
 
 void BKE_main_id_tag_idcode(struct Main *mainvar, const short type, const int tag, const bool value);
 void BKE_main_id_tag_listbase(struct ListBase *lb, const int tag, const bool value);
@@ -196,6 +207,8 @@ void BKE_library_make_local(
 
 void BKE_id_tag_set_atomic(struct ID *id, int tag);
 void BKE_id_tag_clear_atomic(struct ID *id, int tag);
+
+bool BKE_id_is_in_gobal_main(struct ID *id);
 
 /* use when "" is given to new_id() */
 #define ID_FALLBACK_NAME N_("Untitled")

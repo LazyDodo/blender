@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -53,6 +53,7 @@
 #include "BLI_threads.h"
 #include "BLI_utildefines.h"
 
+#include "BKE_colorband.h"
 #include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
@@ -86,7 +87,6 @@ typedef struct TexCallData {
 	short which_output;
 	int cfra;
 
-	ShadeInput *shi;
 	MTex *mtex;
 } TexCallData;
 
@@ -99,7 +99,6 @@ typedef struct TexParams {
 
 	/* optional. we don't really want these here, but image
 	 * textures need to do mapping & color correction */
-	ShadeInput *shi;
 	MTex *mtex;
 } TexParams;
 
@@ -115,7 +114,7 @@ typedef struct TexDelegate {
 } TexDelegate;
 
 
-int tex_node_poll_default(struct bNodeType *ntype, struct bNodeTree *ntree);
+bool tex_node_poll_default(struct bNodeType *ntype, struct bNodeTree *ntree);
 void tex_node_type_base(struct bNodeType *ntype, int type, const char *name, short nclass, short flag);
 
 void tex_input_rgba(float *out, bNodeStack *in, TexParams *params, short thread);

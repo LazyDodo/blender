@@ -29,46 +29,40 @@
 
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_object_types.h"
-#include "DNA_object_force.h"
+#include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
 
 #include "BLI_utildefines.h"
 
 #include "BKE_cdderivedmesh.h"
 #include "BKE_dynamicpaint.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
+#include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_physics.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
-static void initData(ModifierData *md) 
+static void initData(ModifierData *md)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
-	
+
 	pmd->canvas = NULL;
 	pmd->brush = NULL;
 	pmd->type = MOD_DYNAMICPAINT_TYPE_CANVAS;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target, const int UNUSED(flag))
 {
-	DynamicPaintModifierData *pmd  = (DynamicPaintModifierData *)md;
+	const DynamicPaintModifierData *pmd  = (const DynamicPaintModifierData *)md;
 	DynamicPaintModifierData *tpmd = (DynamicPaintModifierData *)target;
-	
-	dynamicPaint_Modifier_copy(pmd, tpmd);
 
-	if (tpmd->canvas) {
-		for (DynamicPaintSurface *surface = tpmd->canvas->surfaces.first; surface; surface = surface->next) {
-			id_us_plus((ID *)surface->init_texture);
-		}
-	}
-	if (tpmd->brush) {
-		id_us_plus((ID *)tpmd->brush->mat);
-	}
+	dynamicPaint_Modifier_copy(pmd, tpmd);
 }
 
 static void freeData(ModifierData *md)
@@ -86,10 +80,10 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 		DynamicPaintSurface *surface = pmd->canvas->surfaces.first;
 		for (; surface; surface = surface->next) {
 			/* tface */
-			if (surface->format == MOD_DPAINT_SURFACE_F_IMAGESEQ || 
+			if (surface->format == MOD_DPAINT_SURFACE_F_IMAGESEQ ||
 			    surface->init_color_type == MOD_DPAINT_INITIAL_TEXTURE)
 			{
-				dataMask |= CD_MASK_MLOOPUV | CD_MASK_MTEXPOLY;
+				dataMask |= CD_MASK_MLOOPUV;
 			}
 			/* mcol */
 			if (surface->type == MOD_DPAINT_SURFACE_T_PAINT ||
@@ -103,24 +97,19 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 			}
 		}
 	}
-
-	if (pmd->brush) {
-		if (pmd->brush->flags & MOD_DPAINT_USE_MATERIAL) {
-			dataMask |= CD_MASK_MLOOPUV | CD_MASK_MTEXPOLY;
-		}
-	}
 	return dataMask;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob, 
-                                  DerivedMesh *dm,
-                                  ModifierApplyFlag flag)
+static DerivedMesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        DerivedMesh *dm)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
 
 	/* dont apply dynamic paint on orco dm stack */
-	if (!(flag & MOD_APPLY_ORCO)) {
-		return dynamicPaint_Modifier_do(pmd, md->scene, ob, dm);
+	if (!(ctx->flag & MOD_APPLY_ORCO)) {
+		Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+		return dynamicPaint_Modifier_do(pmd, ctx->depsgraph, scene, ctx->object, dm);
 	}
 	return dm;
 }
@@ -130,50 +119,18 @@ static bool is_brush_cb(Object *UNUSED(ob), ModifierData *pmd)
 	return ((DynamicPaintModifierData *)pmd)->brush != NULL;
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *scene,
-                           Object *ob,
-                           DagNode *obNode)
-{
-	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
-
-	/* add relation from canvases to all brush objects */
-	if (pmd && pmd->canvas) {
-#ifdef WITH_LEGACY_DEPSGRAPH
-		for (DynamicPaintSurface *surface = pmd->canvas->surfaces.first; surface; surface = surface->next) {
-			if (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) {
-				dag_add_forcefield_relations(forest, scene, ob, obNode, surface->effector_weights, true, 0, "Dynamic Paint Field");
-			}
-
-			/* Actual code uses custom loop over group/scene without layer checks in dynamicPaint_doStep */
-			dag_add_collision_relations(forest, scene, ob, obNode, surface->brush_group, -1, eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
-		}
-#else
-	(void)forest;
-	(void)scene;
-	(void)ob;
-	(void)obNode;
-#endif
-	}
-}
-
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *scene,
-                            Object *ob,
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *)md;
 	/* Add relation from canvases to all brush objects. */
 	if (pmd->canvas != NULL) {
 		for (DynamicPaintSurface *surface = pmd->canvas->surfaces.first; surface; surface = surface->next) {
 			if (surface->effect & MOD_DPAINT_EFFECT_DO_DRIP) {
-				DEG_add_forcefield_relations(node, scene, ob, surface->effector_weights, true, 0, "Dynamic Paint Field");
+				DEG_add_forcefield_relations(ctx->node, ctx->object, surface->effector_weights, true, 0, "Dynamic Paint Field");
 			}
 
 			/* Actual code uses custom loop over group/scene without layer checks in dynamicPaint_doStep */
-			DEG_add_collision_relations(node, scene, ob, surface->brush_group, -1, eModifierType_DynamicPaint, is_brush_cb, false, "Dynamic Paint Brush");
+			DEG_add_collision_relations(ctx->node, ctx->object, surface->brush_group,  eModifierType_DynamicPaint, is_brush_cb, "Dynamic Paint Brush");
 		}
 	}
 }
@@ -183,8 +140,9 @@ static bool dependsOnTime(ModifierData *UNUSED(md))
 	return true;
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	DynamicPaintModifierData *pmd = (DynamicPaintModifierData *) md;
 
@@ -199,13 +157,11 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 			}
 		}
 	}
-	if (pmd->brush) {
-		walk(userData, ob, (ID **)&pmd->brush->mat, IDWALK_CB_USER);
-	}
 }
 
-static void foreachTexLink(ModifierData *UNUSED(md), Object *UNUSED(ob),
-                           TexWalkFunc UNUSED(walk), void *UNUSED(userData))
+static void foreachTexLink(
+        ModifierData *UNUSED(md), Object *UNUSED(ob),
+        TexWalkFunc UNUSED(walk), void *UNUSED(userData))
 {
 	//walk(userData, ob, md, ""); /* re-enable when possible */
 }
@@ -222,17 +178,25 @@ ModifierTypeInfo modifierType_DynamicPaint = {
 	                        eModifierTypeFlag_UsesPreview,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  applyModifier,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-	/* applyModifier */     applyModifier,
+	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     dependsOnTime,
 	/* dependsOnNormals */  NULL,

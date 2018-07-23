@@ -37,6 +37,7 @@
 
 #include "intern/depsgraph.h"
 #include "intern/depsgraph_intern.h"
+#include "intern/nodes/deg_node_id.h"
 
 namespace DEG {
 
@@ -44,7 +45,6 @@ namespace DEG {
 /* Inner Nodes */
 
 OperationDepsNode::OperationDepsNode() :
-    eval_priority(0.0f),
     flag(0),
     customdata_mask(0)
 {
@@ -56,7 +56,7 @@ OperationDepsNode::~OperationDepsNode()
 
 string OperationDepsNode::identifier() const
 {
-	return string(DEG_OPNAMES[opcode]) + "(" + name + ")";
+	return string(operationCodeAsString(opcode)) + "(" + name + ")";
 }
 
 /* Full node identifier, including owner name.

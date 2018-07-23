@@ -129,14 +129,17 @@ typedef struct SmokeDomainSettings {
 	struct SmokeModifierData *smd; /* for fast RNA access */
 	struct FLUID_3D *fluid;
 	void *fluid_mutex;
-	struct Group *fluid_group;
-	struct Group *eff_group; // UNUSED
-	struct Group *coll_group; // collision objects group
+	struct Collection *fluid_group;
+	struct Collection *eff_group; // UNUSED
+	struct Collection *coll_group; // collision objects group
 	struct WTURBULENCE *wt; // WTURBULENCE object, if active
 	struct GPUTexture *tex;
 	struct GPUTexture *tex_wt;
 	struct GPUTexture *tex_shadow;
 	struct GPUTexture *tex_flame;
+	struct GPUTexture *tex_velocity_x;
+	struct GPUTexture *tex_velocity_y;
+	struct GPUTexture *tex_velocity_z;
 	float *shadow;
 
 	/* simulation data */
@@ -174,7 +177,7 @@ typedef struct SmokeDomainSettings {
 	int flags; /* show up-res or low res, etc */
 	int viewsettings;
 	short noise; /* noise type: wave, curl, anisotropic */
-	short diss_percent; 
+	short diss_percent;
 	int diss_speed;/* in frames */
 	float strength;
 	int res_wt[3];
@@ -189,7 +192,7 @@ typedef struct SmokeDomainSettings {
 	char pad[2];
 
 	/* Smoke uses only one cache from now on (index [0]), but keeping the array for now for reading old files. */
-	struct PointCache *point_cache[2];	/* definition is in DNA_object_force.h */
+	struct PointCache *point_cache[2];	/* definition is in DNA_object_force_types.h */
 	struct ListBase ptcaches[2];
 	struct EffectorWeights *effector_weights;
 	int border_collisions;	/* How domain border collisions are handled */
@@ -217,6 +220,9 @@ typedef struct SmokeDomainSettings {
 	char use_coba;
 	char coba_field;  /* simulation field used for the color mapping */
 	char pad2;
+
+	float clipping;
+	float pad3;
 } SmokeDomainSettings;
 
 

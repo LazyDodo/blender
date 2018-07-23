@@ -27,6 +27,7 @@
 
 #include <string.h>
 
+#include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
@@ -35,18 +36,16 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_action.h"  /* BKE_pose_channel_find_name */
-#include "BKE_cdderivedmesh.h"
 #include "BKE_deform.h"
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
-
 #include "MOD_util.h"
 
 
-static void uv_warp_from_mat4_pair(float uv_dst[2], const float uv_src[2], float warp_mat[4][4],
-                                   int axis_u, int axis_v)
+static void uv_warp_from_mat4_pair(
+        float uv_dst[2], const float uv_src[2], float warp_mat[4][4],
+        int axis_u, int axis_v)
 {
 	float tuv[3] = {0.0f};
 
@@ -65,15 +64,6 @@ static void initData(ModifierData *md)
 	umd->axis_u = 0;
 	umd->axis_v = 1;
 	copy_v2_fl(umd->center, 0.5f);
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	UVWarpModifierData *umd  = (UVWarpModifierData *)md;
-	UVWarpModifierData *tumd = (UVWarpModifierData *)target;
-#endif
-	modifier_copyData_generic(md, target);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
@@ -112,7 +102,10 @@ typedef struct UVWarpData {
 	int axis_v;
 } UVWarpData;
 
-static void uv_warp_compute(void *userdata, const int i)
+static void uv_warp_compute(
+        void *__restrict userdata,
+        const int i,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	const UVWarpData *data = userdata;
 
@@ -145,9 +138,9 @@ static void uv_warp_compute(void *userdata, const int i)
 	}
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
-                                  DerivedMesh *dm,
-                                  ModifierApplyFlag UNUSED(flag))
+static Mesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *mesh)
 {
 	UVWarpModifierData *umd = (UVWarpModifierData *) md;
 	int numPolys, numLoops;
@@ -165,12 +158,12 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	const int axis_v = umd->axis_v;
 
 	/* make sure there are UV Maps available */
-	if (!CustomData_has_layer(&dm->loopData, CD_MLOOPUV)) {
-		return dm;
+	if (!CustomData_has_layer(&mesh->ldata, CD_MLOOPUV)) {
+		return mesh;
 	}
 	else if (ELEM(NULL, umd->object_src, umd->object_dst)) {
 		modifier_setError(md, "From/To objects must be set");
-		return dm;
+		return mesh;
 	}
 
 	/* make sure anything moving UVs is available */
@@ -196,25 +189,32 @@ static DerivedMesh *applyModifier(ModifierData *md, Object *ob,
 	}
 
 	/* make sure we're using an existing layer */
-	CustomData_validate_layer_name(&dm->loopData, CD_MLOOPUV, umd->uvlayer_name, uvname);
+	CustomData_validate_layer_name(&mesh->ldata, CD_MLOOPUV, umd->uvlayer_name, uvname);
 
-	numPolys = dm->getNumPolys(dm);
-	numLoops = dm->getNumLoops(dm);
+	numPolys = mesh->totpoly;
+	numLoops = mesh->totloop;
 
-	mpoly = dm->getPolyArray(dm);
-	mloop = dm->getLoopArray(dm);
+	mpoly = mesh->mpoly;
+	mloop = mesh->mloop;
 	/* make sure we are not modifying the original UV map */
-	mloopuv = CustomData_duplicate_referenced_layer_named(&dm->loopData, CD_MLOOPUV, uvname, numLoops);
-	modifier_get_vgroup(ob, dm, umd->vgroup_name, &dvert, &defgrp_index);
+	mloopuv = CustomData_duplicate_referenced_layer_named(&mesh->ldata, CD_MLOOPUV, uvname, numLoops);
+	MOD_get_vgroup(ctx->object, mesh, umd->vgroup_name, &dvert, &defgrp_index);
 
 	UVWarpData data = {.mpoly = mpoly, .mloop = mloop, .mloopuv = mloopuv,
 	                   .dvert = dvert, .defgrp_index = defgrp_index,
 	                   .warp_mat = warp_mat, .axis_u = axis_u, .axis_v = axis_v};
-	BLI_task_parallel_range(0, numPolys, &data, uv_warp_compute, numPolys > 1000);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = (numPolys > 1000);
+	BLI_task_parallel_range(0, numPolys,
+	                        &data,
+	                        uv_warp_compute,
+	                        &settings);
 
-	dm->dirty |= DM_DIRTY_TESS_CDLAYERS;
+	/* XXX TODO is this still needed? */
+//	me_eval->dirty |= DM_DIRTY_TESS_CDLAYERS;
 
-	return dm;
+	return mesh;
 }
 
 static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk, void *userData)
@@ -225,34 +225,10 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 	walk(userData, ob, &umd->object_src, IDWALK_CB_NOP);
 }
 
-static void uv_warp_deps_object_bone(DagForest *forest, DagNode *obNode,
-                                Object *obj, const char *bonename)
-{
-	if (obj) {
-		DagNode *curNode = dag_get_node(forest, obj);
-
-		if (bonename[0])
-			dag_add_relation(forest, curNode, obNode, DAG_RL_OB_DATA | DAG_RL_DATA_DATA, "UVWarp Modifier");
-		else
-			dag_add_relation(forest, curNode, obNode, DAG_RL_OB_DATA, "UVWarp Modifier");
-	}
-}
-
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *UNUSED(scene),
-                           Object *UNUSED(ob),
-                           DagNode *obNode)
-{
-	UVWarpModifierData *umd = (UVWarpModifierData *) md;
-
-	uv_warp_deps_object_bone(forest, obNode, umd->object_src, umd->bone_src);
-	uv_warp_deps_object_bone(forest, obNode, umd->object_dst, umd->bone_dst);
-}
-
-static void uv_warp_deps_object_bone_new(struct DepsNodeHandle *node,
-                                         Object *object,
-                                         const char *bonename)
+static void uv_warp_deps_object_bone_new(
+        struct DepsNodeHandle *node,
+        Object *object,
+        const char *bonename)
 {
 	if (object != NULL) {
 		if (bonename[0])
@@ -262,16 +238,12 @@ static void uv_warp_deps_object_bone_new(struct DepsNodeHandle *node,
 	}
 }
 
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *UNUSED(ob),
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	UVWarpModifierData *umd = (UVWarpModifierData *) md;
 
-	uv_warp_deps_object_bone_new(node, umd->object_src, umd->bone_src);
-	uv_warp_deps_object_bone_new(node, umd->object_dst, umd->bone_dst);
+	uv_warp_deps_object_bone_new(ctx->node, umd->object_src, umd->bone_src);
+	uv_warp_deps_object_bone_new(ctx->node, umd->object_dst, umd->bone_dst);
 }
 
 ModifierTypeInfo modifierType_UVWarp = {
@@ -282,18 +254,27 @@ ModifierTypeInfo modifierType_UVWarp = {
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
-	/* copyData */          copyData,
+
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        NULL,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  NULL,

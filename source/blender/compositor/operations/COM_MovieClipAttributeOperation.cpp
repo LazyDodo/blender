@@ -15,8 +15,8 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
+ * Contributor:
+ *		Jeroen Bakker
  *		Monique Dewanchand
  */
 
@@ -35,6 +35,9 @@ MovieClipAttributeOperation::MovieClipAttributeOperation() : NodeOperation()
 
 void MovieClipAttributeOperation::initExecution()
 {
+	if (this->m_clip == NULL) {
+		return;
+	}
 	float loc[2], scale, angle;
 	loc[0] = 0.0f;
 	loc[1] = 0.0f;
@@ -84,4 +87,3 @@ void MovieClipAttributeOperation::determineResolution(
 	resolution[0] = preferredResolution[0];
 	resolution[1] = preferredResolution[1];
 }
-

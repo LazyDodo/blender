@@ -54,6 +54,7 @@ set(SRC
 	intern/GHOST_WindowManager.cpp
 
 	GHOST_C-api.h
+	GHOST_IContext.h
 	GHOST_IEvent.h
 	GHOST_IEventConsumer.h
 	GHOST_ISystem.h
@@ -177,10 +178,12 @@ elseif(WITH_X11)
 		intern/GHOST_DisplayManagerX11.cpp
 		intern/GHOST_SystemX11.cpp
 		intern/GHOST_WindowX11.cpp
+		intern/GHOST_TaskbarX11.cpp
 
 		intern/GHOST_DisplayManagerX11.h
 		intern/GHOST_SystemX11.h
 		intern/GHOST_WindowX11.h
+		intern/GHOST_TaskbarX11.h
 	)
 
 	if(NOT WITH_GL_EGL)
@@ -277,7 +280,7 @@ elseif(WIN32)
 	if(NOT WITH_GL_EGL)
 		list(APPEND SRC
 			intern/GHOST_ContextWGL.cpp
-				
+
 			intern/GHOST_ContextWGL.h
 		)
 	endif()
@@ -304,7 +307,7 @@ endif()
 if(WITH_GL_EGL AND NOT (WITH_HEADLESS OR WITH_GHOST_SDL))
 	list(APPEND SRC
 		intern/GHOST_ContextEGL.cpp
-			
+
 		intern/GHOST_ContextEGL.h
 	)
 endif()

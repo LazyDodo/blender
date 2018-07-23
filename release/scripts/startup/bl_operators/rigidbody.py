@@ -51,7 +51,7 @@ class CopyRigidbodySettings(Operator):
         "mesh_source",
         "use_deform",
         "enabled",
-        )
+    )
 
     @classmethod
     def poll(cls, context):
@@ -65,7 +65,7 @@ class CopyRigidbodySettings(Operator):
         # deselect all but mesh objects
         for o in context.selected_objects:
             if o.type != 'MESH':
-                o.select = False
+                o.select_set(action='DESELECT')
             elif o.rigid_body is None:
                 # Add rigidbody to object!
                 scene.objects.active = o
@@ -92,24 +92,24 @@ class BakeToKeyframes(Operator):
     bl_label = "Bake To Keyframes"
     bl_options = {'REGISTER', 'UNDO'}
 
-    frame_start = IntProperty(
-            name="Start Frame",
-            description="Start frame for baking",
-            min=0, max=300000,
-            default=1,
-            )
-    frame_end = IntProperty(
-            name="End Frame",
-            description="End frame for baking",
-            min=1, max=300000,
-            default=250,
-            )
-    step = IntProperty(
-            name="Frame Step",
-            description="Frame Step",
-            min=1, max=120,
-            default=1,
-            )
+    frame_start: IntProperty(
+        name="Start Frame",
+        description="Start frame for baking",
+        min=0, max=300000,
+        default=1,
+    )
+    frame_end: IntProperty(
+        name="End Frame",
+        description="End frame for baking",
+        min=1, max=300000,
+        default=250,
+    )
+    step: IntProperty(
+        name="Frame Step",
+        description="Frame Step",
+        min=1, max=120,
+        default=1,
+    )
 
     @classmethod
     def poll(cls, context):
@@ -127,7 +127,7 @@ class BakeToKeyframes(Operator):
         # filter objects selection
         for obj in context.selected_objects:
             if not obj.rigid_body or obj.rigid_body.type != 'ACTIVE':
-                obj.select = False
+                obj.select_set(action='DESELECT')
 
         objects = context.selected_objects
 
@@ -216,29 +216,35 @@ class ConnectRigidBodies(Operator):
     bl_label = "Connect Rigid Bodies"
     bl_options = {'REGISTER', 'UNDO'}
 
-    con_type = EnumProperty(
-            name="Type",
-            description="Type of generated constraint",
-            # XXX Would be nice to get icons too, but currently not possible ;)
-            items=tuple((e.identifier, e.name, e.description, e. value)
-                        for e in bpy.types.RigidBodyConstraint.bl_rna.properties["type"].enum_items),
-            default='FIXED',
-            )
-    pivot_type = EnumProperty(
-            name="Location",
-            description="Constraint pivot location",
-            items=(('CENTER', "Center", "Pivot location is between the constrained rigid bodies"),
-                   ('ACTIVE', "Active", "Pivot location is at the active object position"),
-                   ('SELECTED', "Selected", "Pivot location is at the selected object position")),
-            default='CENTER',
-            )
-    connection_pattern = EnumProperty(
-            name="Connection Pattern",
-            description="Pattern used to connect objects",
-            items=(('SELECTED_TO_ACTIVE', "Selected to Active", "Connect selected objects to the active object"),
-                   ('CHAIN_DISTANCE', "Chain by Distance", "Connect objects as a chain based on distance, starting at the active object")),
-            default='SELECTED_TO_ACTIVE',
-            )
+    con_type: EnumProperty(
+        name="Type",
+        description="Type of generated constraint",
+        # XXX Would be nice to get icons too, but currently not possible ;)
+        items=tuple(
+            (e.identifier, e.name, e.description, e. value)
+            for e in bpy.types.RigidBodyConstraint.bl_rna.properties["type"].enum_items
+        ),
+        default='FIXED',
+    )
+    pivot_type: EnumProperty(
+        name="Location",
+        description="Constraint pivot location",
+        items=(
+            ('CENTER', "Center", "Pivot location is between the constrained rigid bodies"),
+            ('ACTIVE', "Active", "Pivot location is at the active object position"),
+            ('SELECTED', "Selected", "Pivot location is at the selected object position"),
+        ),
+        default='CENTER',
+    )
+    connection_pattern: EnumProperty(
+        name="Connection Pattern",
+        description="Pattern used to connect objects",
+        items=(
+            ('SELECTED_TO_ACTIVE', "Selected to Active", "Connect selected objects to the active object"),
+            ('CHAIN_DISTANCE', "Chain by Distance", "Connect objects as a chain based on distance, starting at the active object"),
+        ),
+        default='SELECTED_TO_ACTIVE',
+    )
 
     @classmethod
     def poll(cls, context):
@@ -260,7 +266,7 @@ class ConnectRigidBodies(Operator):
         ob.location = loc
         context.scene.objects.link(ob)
         context.scene.objects.active = ob
-        ob.select = True
+        ob.select_set(action='SELECT')
 
         bpy.ops.rigidbody.constraint_add()
         con_obj = context.active_object
@@ -305,7 +311,7 @@ class ConnectRigidBodies(Operator):
             # restore selection
             bpy.ops.object.select_all(action='DESELECT')
             for obj in objects:
-                obj.select = True
+                obj.select_set(action='SELECT')
             scene.objects.active = obj_act
             return {'FINISHED'}
         else:

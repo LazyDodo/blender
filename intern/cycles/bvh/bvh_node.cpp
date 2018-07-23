@@ -20,7 +20,6 @@
 #include "bvh/bvh.h"
 #include "bvh/bvh_build.h"
 
-#include "util/util_debug.h"
 #include "util/util_vector.h"
 
 CCL_NAMESPACE_BEGIN
@@ -207,7 +206,7 @@ void InnerNode::print(int depth) const
 {
 	for(int i = 0; i < depth; i++)
 		printf("  ");
-	
+
 	printf("inner node %p\n", (void*)this);
 
 	if(children[0])
@@ -220,9 +219,8 @@ void LeafNode::print(int depth) const
 {
 	for(int i = 0; i < depth; i++)
 		printf("  ");
-	
+
 	printf("leaf node %d to %d\n", lo, hi);
 }
 
 CCL_NAMESPACE_END
-

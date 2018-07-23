@@ -1,3 +1,5 @@
+#include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
@@ -6,12 +8,14 @@
 #include "BLI_math_geom.h"
 #include "BLI_task.h"
 
-#include "BKE_cdderivedmesh.h"
+#include "BKE_bvhutils.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_editmesh.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
+#include "DEG_depsgraph.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -124,23 +128,20 @@ static void freeData(ModifierData *md)
 					MEM_SAFE_FREE(smd->verts[i].binds[j].vert_weights);
 				}
 
-				MEM_freeN(smd->verts[i].binds);
+				MEM_SAFE_FREE(smd->verts[i].binds);
 			}
 		}
 
-		MEM_freeN(smd->verts);
-		smd->verts = NULL;
+		MEM_SAFE_FREE(smd->verts);
 	}
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target, const int flag)
 {
-	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
+	const SurfaceDeformModifierData *smd = (const SurfaceDeformModifierData *)md;
 	SurfaceDeformModifierData *tsmd = (SurfaceDeformModifierData *)target;
 
-	freeData(target);
-
-	modifier_copyData_generic(md, target);
+	modifier_copyData_generic(md, target, flag);
 
 	if (smd->verts) {
 		tsmd->verts = MEM_dupallocN(smd->verts);
@@ -170,30 +171,11 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 	walk(userData, ob, &smd->target, IDWALK_NOP);
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *UNUSED(scene),
-                           Object *UNUSED(ob),
-                           DagNode *obNode)
-{
-	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
-
-	if (smd->target) {
-		DagNode *curNode = dag_get_node(forest, smd->target);
-
-		dag_add_relation(forest, curNode, obNode, DAG_RL_DATA_DATA, "Surface Deform Modifier");
-	}
-}
-
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *UNUSED(ob),
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
 	if (smd->target != NULL) {
-		DEG_add_object_relation(node, smd->target, DEG_OB_COMP_GEOMETRY, "Surface Deform Modifier");
+		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, "Surface Deform Modifier");
 	}
 }
 
@@ -206,8 +188,9 @@ static void freeAdjacencyMap(SDefAdjacencyArray * const vert_edges, SDefAdjacenc
 	MEM_freeN(vert_edges);
 }
 
-static int buildAdjacencyMap(const MPoly *poly, const MEdge *edge, const MLoop * const mloop, const unsigned int numpoly, const unsigned int numedges,
-                              SDefAdjacencyArray * const vert_edges, SDefAdjacency *adj, SDefEdgePolys * const edge_polys)
+static int buildAdjacencyMap(
+        const MPoly *poly, const MEdge *edge, const MLoop * const mloop, const unsigned int numpoly, const unsigned int numedges,
+        SDefAdjacencyArray * const vert_edges, SDefAdjacency *adj, SDefEdgePolys * const edge_polys)
 {
 	const MLoop *loop;
 
@@ -331,11 +314,13 @@ BLI_INLINE int isPolyValid(const float coords[][2], const unsigned int nr)
 
 	copy_v2_v2(prev_co, coords[nr - 1]);
 	sub_v2_v2v2(prev_vec, prev_co, coords[nr - 2]);
+	normalize_v2(prev_vec);
 
 	for (int i = 0; i < nr; i++) {
 		sub_v2_v2v2(curr_vec, coords[i], prev_co);
 
-		if (len_squared_v2(curr_vec) < FLT_EPSILON) {
+		const float curr_len = normalize_v2(curr_vec);
+		if (curr_len < FLT_EPSILON) {
 			return MOD_SDEF_BIND_RESULT_OVERLAP_ERR;
 		}
 
@@ -403,7 +388,7 @@ BLI_INLINE SDefBindWeightData *computeBindWeights(SDefBindCalcData * const data,
 
 	bwdata->numpoly = data->vert_edges[nearest].num / 2;
 
-	bpoly = MEM_callocN(sizeof(*bpoly) * bwdata->numpoly, "SDefBindPoly");
+	bpoly = MEM_calloc_arrayN(bwdata->numpoly, sizeof(*bpoly), "SDefBindPoly");
 	if (bpoly == NULL) {
 		freeBindData(bwdata);
 		data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
@@ -446,14 +431,14 @@ BLI_INLINE SDefBindWeightData *computeBindWeights(SDefBindCalcData * const data,
 				bpoly->numverts = poly->totloop;
 				bpoly->loopstart = poly->loopstart;
 
-				bpoly->coords = MEM_mallocN(sizeof(*bpoly->coords) * poly->totloop, "SDefBindPolyCoords");
+				bpoly->coords = MEM_malloc_arrayN(poly->totloop, sizeof(*bpoly->coords), "SDefBindPolyCoords");
 				if (bpoly->coords == NULL) {
 					freeBindData(bwdata);
 					data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 					return NULL;
 				}
 
-				bpoly->coords_v2 = MEM_mallocN(sizeof(*bpoly->coords_v2) * poly->totloop, "SDefBindPolyCoords_v2");
+				bpoly->coords_v2 = MEM_malloc_arrayN(poly->totloop, sizeof(*bpoly->coords_v2), "SDefBindPolyCoords_v2");
 				if (bpoly->coords_v2 == NULL) {
 					freeBindData(bwdata);
 					data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
@@ -751,7 +736,10 @@ BLI_INLINE float computeNormalDisplacement(const float point_co[3], const float 
 	return normal_dist;
 }
 
-static void bindVert(void *userdata, void *UNUSED(userdata_chunk), const int index, const int UNUSED(threadid))
+static void bindVert(
+        void *__restrict userdata,
+        const int index,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	SDefBindCalcData * const data = (SDefBindCalcData *)userdata;
 	float point_co[3];
@@ -777,7 +765,7 @@ static void bindVert(void *userdata, void *UNUSED(userdata_chunk), const int ind
 		return;
 	}
 
-	sdvert->binds = MEM_callocN(sizeof(*sdvert->binds) * bwdata->numbinds, "SDefVertBindData");
+	sdvert->binds = MEM_calloc_arrayN(bwdata->numbinds, sizeof(*sdvert->binds), "SDefVertBindData");
 	if (sdvert->binds == NULL) {
 		data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 		sdvert->numbinds = 0;
@@ -799,13 +787,13 @@ static void bindVert(void *userdata, void *UNUSED(userdata_chunk), const int ind
 				sdbind->numverts = bpoly->numverts;
 
 				sdbind->mode = MOD_SDEF_MODE_NGON;
-				sdbind->vert_weights = MEM_mallocN(sizeof(*sdbind->vert_weights) * bpoly->numverts, "SDefNgonVertWeights");
+				sdbind->vert_weights = MEM_malloc_arrayN(bpoly->numverts, sizeof(*sdbind->vert_weights), "SDefNgonVertWeights");
 				if (sdbind->vert_weights == NULL) {
 					data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 					return;
 				}
 
-				sdbind->vert_inds = MEM_mallocN(sizeof(*sdbind->vert_inds) * bpoly->numverts, "SDefNgonVertInds");
+				sdbind->vert_inds = MEM_malloc_arrayN(bpoly->numverts, sizeof(*sdbind->vert_inds), "SDefNgonVertInds");
 				if (sdbind->vert_inds == NULL) {
 					data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 					return;
@@ -835,13 +823,13 @@ static void bindVert(void *userdata, void *UNUSED(userdata_chunk), const int ind
 					sdbind->numverts = bpoly->numverts;
 
 					sdbind->mode = MOD_SDEF_MODE_CENTROID;
-					sdbind->vert_weights = MEM_mallocN(sizeof(*sdbind->vert_weights) * 3, "SDefCentVertWeights");
+					sdbind->vert_weights = MEM_malloc_arrayN(3, sizeof(*sdbind->vert_weights), "SDefCentVertWeights");
 					if (sdbind->vert_weights == NULL) {
 						data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 						return;
 					}
 
-					sdbind->vert_inds = MEM_mallocN(sizeof(*sdbind->vert_inds) * bpoly->numverts, "SDefCentVertInds");
+					sdbind->vert_inds = MEM_malloc_arrayN(bpoly->numverts, sizeof(*sdbind->vert_inds), "SDefCentVertInds");
 					if (sdbind->vert_inds == NULL) {
 						data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 						return;
@@ -878,13 +866,13 @@ static void bindVert(void *userdata, void *UNUSED(userdata_chunk), const int ind
 					sdbind->numverts = bpoly->numverts;
 
 					sdbind->mode = MOD_SDEF_MODE_LOOPTRI;
-					sdbind->vert_weights = MEM_mallocN(sizeof(*sdbind->vert_weights) * 3, "SDefTriVertWeights");
+					sdbind->vert_weights = MEM_malloc_arrayN(3, sizeof(*sdbind->vert_weights), "SDefTriVertWeights");
 					if (sdbind->vert_weights == NULL) {
 						data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 						return;
 					}
 
-					sdbind->vert_inds = MEM_mallocN(sizeof(*sdbind->vert_inds) * bpoly->numverts, "SDefTriVertInds");
+					sdbind->vert_inds = MEM_malloc_arrayN(bpoly->numverts, sizeof(*sdbind->vert_inds), "SDefTriVertInds");
 					if (sdbind->vert_inds == NULL) {
 						data->success = MOD_SDEF_BIND_RESULT_MEM_ERR;
 						return;
@@ -921,34 +909,35 @@ static void bindVert(void *userdata, void *UNUSED(userdata_chunk), const int ind
 	freeBindData(bwdata);
 }
 
-static bool surfacedeformBind(SurfaceDeformModifierData *smd, float (*vertexCos)[3],
-                              unsigned int numverts, unsigned int tnumpoly, unsigned int tnumverts, DerivedMesh *tdm)
+static bool surfacedeformBind(
+        SurfaceDeformModifierData *smd, float (*vertexCos)[3],
+        unsigned int numverts, unsigned int tnumpoly, unsigned int tnumverts, Mesh *target)
 {
 	BVHTreeFromMesh treeData = {NULL};
-	const MVert *mvert = tdm->getVertArray(tdm);
-	const MPoly *mpoly = tdm->getPolyArray(tdm);
-	const MEdge *medge = tdm->getEdgeArray(tdm);
-	const MLoop *mloop = tdm->getLoopArray(tdm);
-	unsigned int tnumedges = tdm->getNumEdges(tdm);
+	const MVert *mvert = target->mvert;
+	const MPoly *mpoly = target->mpoly;
+	const MEdge *medge = target->medge;
+	const MLoop *mloop = target->mloop;
+	unsigned int tnumedges = target->totedge;
 	int adj_result;
 	SDefAdjacencyArray *vert_edges;
 	SDefAdjacency *adj_array;
 	SDefEdgePolys *edge_polys;
 
-	vert_edges = MEM_callocN(sizeof(*vert_edges) * tnumverts, "SDefVertEdgeMap");
+	vert_edges = MEM_calloc_arrayN(tnumverts, sizeof(*vert_edges), "SDefVertEdgeMap");
 	if (vert_edges == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
 		return false;
 	}
 
-	adj_array = MEM_mallocN(sizeof(*adj_array) * tnumedges * 2, "SDefVertEdge");
+	adj_array = MEM_malloc_arrayN(tnumedges, 2 * sizeof(*adj_array), "SDefVertEdge");
 	if (adj_array == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
 		MEM_freeN(vert_edges);
 		return false;
 	}
 
-	edge_polys = MEM_callocN(sizeof(*edge_polys) * tnumedges, "SDefEdgeFaceMap");
+	edge_polys = MEM_calloc_arrayN(tnumedges, sizeof(*edge_polys), "SDefEdgeFaceMap");
 	if (edge_polys == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
 		MEM_freeN(vert_edges);
@@ -956,14 +945,14 @@ static bool surfacedeformBind(SurfaceDeformModifierData *smd, float (*vertexCos)
 		return false;
 	}
 
-	smd->verts = MEM_mallocN(sizeof(*smd->verts) * numverts, "SDefBindVerts");
+	smd->verts = MEM_malloc_arrayN(numverts, sizeof(*smd->verts), "SDefBindVerts");
 	if (smd->verts == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
 		freeAdjacencyMap(vert_edges, adj_array, edge_polys);
 		return false;
 	}
 
-	bvhtree_from_mesh_looptri(&treeData, tdm, 0.0, 2, 6);
+	BKE_bvhtree_from_mesh_get(&treeData, target, BVHTREE_FROM_LOOPTRI, 2);
 	if (treeData.tree == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
 		freeAdjacencyMap(vert_edges, adj_array, edge_polys);
@@ -992,8 +981,8 @@ static bool surfacedeformBind(SurfaceDeformModifierData *smd, float (*vertexCos)
 		                     .mpoly = mpoly,
 		                     .medge = medge,
 		                     .mloop = mloop,
-		                     .looptri = tdm->getLoopTriArray(tdm),
-		                     .targetCos = MEM_mallocN(sizeof(float[3]) * tnumverts, "SDefTargetBindVertArray"),
+		                     .looptri = BKE_mesh_runtime_looptri_ensure(target),
+		                     .targetCos = MEM_malloc_arrayN(tnumverts, sizeof(float[3]), "SDefTargetBindVertArray"),
 		                     .bind_verts = smd->verts,
 		                     .vertexCos = vertexCos,
 		                     .falloff = smd->falloff,
@@ -1011,8 +1000,13 @@ static bool surfacedeformBind(SurfaceDeformModifierData *smd, float (*vertexCos)
 		mul_v3_m4v3(data.targetCos[i], smd->mat, mvert[i].co);
 	}
 
-	BLI_task_parallel_range_ex(0, numverts, &data, NULL, 0, bindVert,
-	                           numverts > 10000, false);
+	ParallelRangeSettings settings;
+	BLI_parallel_range_settings_defaults(&settings);
+	settings.use_threading = (numverts > 10000);
+	BLI_task_parallel_range(0, numverts,
+	                        &data,
+	                        bindVert,
+	                        &settings);
 
 	MEM_freeN(data.targetCos);
 
@@ -1047,7 +1041,10 @@ static bool surfacedeformBind(SurfaceDeformModifierData *smd, float (*vertexCos)
 	return data.success == 1;
 }
 
-static void deformVert(void *userdata, void *UNUSED(userdata_chunk), const int index, const int UNUSED(threadid))
+static void deformVert(
+        void *__restrict userdata,
+        const int index,
+        const ParallelRangeTLS *__restrict UNUSED(tls))
 {
 	const SDefDeformData * const data = (SDefDeformData *)userdata;
 	const SDefBind *sdbind = data->bind_verts[index].binds;
@@ -1058,7 +1055,7 @@ static void deformVert(void *userdata, void *UNUSED(userdata_chunk), const int i
 
 	for (int j = 0; j < data->bind_verts[index].numbinds; j++, sdbind++) {
 		/* Mode-generic operations (allocate poly coordinates) */
-		float (*coords)[3] = MEM_mallocN(sizeof(*coords) * sdbind->numverts, "SDefDoPolyCoords");
+		float (*coords)[3] = MEM_malloc_arrayN(sdbind->numverts, sizeof(*coords), "SDefDoPolyCoords");
 
 		for (int k = 0; k < sdbind->numverts; k++) {
 			copy_v3_v3(coords[k], data->targetCos[sdbind->vert_inds[k]]);
@@ -1101,10 +1098,14 @@ static void deformVert(void *userdata, void *UNUSED(userdata_chunk), const int i
 	}
 }
 
-static void surfacedeformModifier_do(ModifierData *md, float (*vertexCos)[3], unsigned int numverts, Object *ob)
+static void surfacedeformModifier_do(
+        ModifierData *md,
+        const ModifierEvalContext *UNUSED(ctx),
+        float (*vertexCos)[3], unsigned int numverts, Object *ob)
 {
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
-	DerivedMesh *tdm;
+	bool free_target;
+	Mesh *target;
 	unsigned int tnumverts, tnumpoly;
 
 	/* Exit function if bind flag is not set (free bind data if any) */
@@ -1113,22 +1114,14 @@ static void surfacedeformModifier_do(ModifierData *md, float (*vertexCos)[3], un
 		return;
 	}
 
-	/* Handle target mesh both in and out of edit mode */
-	if (smd->target == md->scene->obedit) {
-		BMEditMesh *em = BKE_editmesh_from_object(smd->target);
-		tdm = em->derivedFinal;
-	}
-	else {
-		tdm = smd->target->derivedFinal;
-	}
-
-	if (!tdm) {
+	target = BKE_modifier_get_evaluated_mesh_from_evaluated_object(smd->target, &free_target);
+	if (!target) {
 		modifier_setError(md, "No valid target mesh");
 		return;
 	}
 
-	tnumverts = tdm->getNumVerts(tdm);
-	tnumpoly = tdm->getNumPolys(tdm);
+	tnumverts = target->totvert;
+	tnumpoly = target->totpoly;
 
 	/* If not bound, execute bind */
 	if (!(smd->verts)) {
@@ -1137,7 +1130,7 @@ static void surfacedeformModifier_do(ModifierData *md, float (*vertexCos)[3], un
 		invert_m4_m4(tmp_mat, ob->obmat);
 		mul_m4_m4m4(smd->mat, tmp_mat, smd->target->obmat);
 
-		if (!surfacedeformBind(smd, vertexCos, numverts, tnumpoly, tnumverts, tdm)) {
+		if (!surfacedeformBind(smd, vertexCos, numverts, tnumpoly, tnumverts, target)) {
 			smd->flags &= ~MOD_SDEF_BIND;
 			return;
 		}
@@ -1146,56 +1139,63 @@ static void surfacedeformModifier_do(ModifierData *md, float (*vertexCos)[3], un
 	/* Poly count checks */
 	if (smd->numverts != numverts) {
 		modifier_setError(md, "Verts changed from %u to %u", smd->numverts, numverts);
+		if (free_target) BKE_id_free(NULL, target);
 		return;
 	}
 	else if (smd->numpoly != tnumpoly) {
 		modifier_setError(md, "Target polygons changed from %u to %u", smd->numpoly, tnumpoly);
+		if (free_target) BKE_id_free(NULL, target);
 		return;
 	}
 
 	/* Actual vertex location update starts here */
 	SDefDeformData data = {
 		.bind_verts = smd->verts,
-		.targetCos = MEM_mallocN(sizeof(float[3]) * tnumverts, "SDefTargetVertArray"),
+		.targetCos = MEM_malloc_arrayN(tnumverts, sizeof(float[3]), "SDefTargetVertArray"),
 		.vertexCos = vertexCos,
 	};
 
 	if (data.targetCos != NULL) {
-		bool tdm_vert_alloc;
-		const MVert * const mvert = DM_get_vert_array(tdm, &tdm_vert_alloc);
+		const MVert * const mvert = target->mvert;
 
 		for (int i = 0; i < tnumverts; i++) {
 			mul_v3_m4v3(data.targetCos[i], smd->mat, mvert[i].co);
 		}
 
-		BLI_task_parallel_range_ex(0, numverts, &data, NULL, 0, deformVert,
-		                           numverts > 10000, false);
-
-		if (tdm_vert_alloc) {
-			MEM_freeN((void *)mvert);
-		}
+		ParallelRangeSettings settings;
+		BLI_parallel_range_settings_defaults(&settings);
+		settings.use_threading = (numverts > 10000);
+		BLI_task_parallel_range(0, numverts,
+		                        &data,
+		                        deformVert,
+		                        &settings);
 
 		MEM_freeN(data.targetCos);
 	}
+
+	if (target != NULL && free_target) {
+		BKE_id_free(NULL, target);
+	}
 }
 
-static void deformVerts(ModifierData *md, Object *ob,
-                        DerivedMesh *UNUSED(derivedData),
-                        float (*vertexCos)[3], int numVerts,
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *UNUSED(mesh),
+        float (*vertexCos)[3], int numVerts)
 {
-	surfacedeformModifier_do(md, vertexCos, numVerts, ob);
+	surfacedeformModifier_do(md, ctx, vertexCos, numVerts, ctx->object);
 }
 
-static void deformVertsEM(ModifierData *md, Object *ob,
-                          struct BMEditMesh *UNUSED(editData),
-                          DerivedMesh *UNUSED(derivedData),
-                          float (*vertexCos)[3], int numVerts)
+static void deformVertsEM(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct BMEditMesh *UNUSED(editData),
+        Mesh *UNUSED(mesh),
+        float (*vertexCos)[3], int numVerts)
 {
-	surfacedeformModifier_do(md, vertexCos, numVerts, ob);
+	surfacedeformModifier_do(md, ctx, vertexCos, numVerts, ctx->object);
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
 
@@ -1211,17 +1211,25 @@ ModifierTypeInfo modifierType_SurfaceDeform = {
 	                        eModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
 	/* freeData */          freeData,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  NULL,

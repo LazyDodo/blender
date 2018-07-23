@@ -231,7 +231,7 @@ ccl_device_forceinline float3 microfacet_sample_stretched(
 
 	/* 5. compute normal */
 	return normalize(make_float3(-slope_x, -slope_y, 1.0f));
-} 
+}
 
 /* Calculate the reflection color
  *
@@ -336,7 +336,9 @@ ccl_device bool bsdf_microfacet_merge(const ShaderClosure *a, const ShaderClosur
 	       (bsdf_a->ior == bsdf_b->ior) &&
 	       ((bsdf_a->extra == NULL && bsdf_b->extra == NULL) ||
 	        ((bsdf_a->extra && bsdf_b->extra) &&
-	         (isequal_float3(bsdf_a->extra->color, bsdf_b->extra->color))));
+	         (isequal_float3(bsdf_a->extra->color, bsdf_b->extra->color)) &&
+	         (isequal_float3(bsdf_a->extra->cspec0, bsdf_b->extra->cspec0)) &&
+	         (bsdf_a->extra->clearcoat == bsdf_b->extra->clearcoat)));
 }
 
 ccl_device int bsdf_microfacet_ggx_aniso_setup(MicrofacetBsdf *bsdf)
@@ -432,7 +434,7 @@ ccl_device float3 bsdf_microfacet_ggx_eval_reflect(const ShaderClosure *sc, cons
 
 			/* eq. 34: now calculate G1(i,m) and G1(o,m) */
 			G1o = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNO * cosNO) / (cosNO * cosNO)));
-			G1i = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNI * cosNI) / (cosNI * cosNI))); 
+			G1i = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNI * cosNI) / (cosNI * cosNI)));
 		}
 		else {
 			/* anisotropic */
@@ -533,7 +535,7 @@ ccl_device float3 bsdf_microfacet_ggx_eval_transmit(const ShaderClosure *sc, con
 
 	/* eq. 34: now calculate G1(i,m) and G1(o,m) */
 	G1o = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNO * cosNO) / (cosNO * cosNO)));
-	G1i = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNI * cosNI) / (cosNI * cosNI))); 
+	G1i = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNI * cosNI) / (cosNI * cosNI)));
 
 	float G = G1o * G1i;
 
@@ -704,7 +706,7 @@ ccl_device int bsdf_microfacet_ggx_sample(KernelGlobals *kg, const ShaderClosure
 				dIdx, dIdy, &dRdx, &dRdy, &dTdx, &dTdy,
 #endif
 				&inside);
-			
+
 			if(!inside && fresnel != 1.0f) {
 
 				*omega_in = T;
@@ -731,7 +733,7 @@ ccl_device int bsdf_microfacet_ggx_sample(KernelGlobals *kg, const ShaderClosure
 					float cosNI = dot(N, *omega_in);
 
 					/* eq. 34: now calculate G1(i,m) */
-					float G1i = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNI * cosNI) / (cosNI * cosNI))); 
+					float G1i = 2 / (1 + safe_sqrtf(1 + alpha2 * (1 - cosNI * cosNI) / (cosNI * cosNI)));
 
 					/* eq. 21 */
 					float cosHI = dot(m, *omega_in);
@@ -1123,4 +1125,3 @@ ccl_device int bsdf_microfacet_beckmann_sample(KernelGlobals *kg, const ShaderCl
 CCL_NAMESPACE_END
 
 #endif /* __BSDF_MICROFACET_H__ */
-

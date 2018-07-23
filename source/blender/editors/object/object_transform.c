@@ -35,6 +35,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
+#include "DNA_lamp_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_group_types.h"
@@ -43,10 +44,10 @@
 #include "BLI_math.h"
 #include "BLI_listbase.h"
 #include "BLI_utildefines.h"
+#include "BLI_array.h"
 
 #include "BKE_context.h"
 #include "BKE_curve.h"
-#include "BKE_depsgraph.h"
 #include "BKE_main.h"
 #include "BKE_idcode.h"
 #include "BKE_mball.h"
@@ -59,6 +60,8 @@
 #include "BKE_lattice.h"
 #include "BKE_tracking.h"
 
+#include "DEG_depsgraph.h"
+
 #include "RNA_define.h"
 #include "RNA_access.h"
 
@@ -70,6 +73,8 @@
 #include "ED_mesh.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
+
+#include "MEM_guardedalloc.h"
 
 #include "object_intern.h"
 
@@ -117,7 +122,7 @@ static void object_clear_rot(Object *ob, const bool clear_delta)
 					ob->rotAxis[2] = 0.0f;
 					if (clear_delta) ob->drotAxis[2] = 0.0f;
 				}
-					
+
 				/* check validity of axis - axis should never be 0,0,0 (if so, then we make it rotate about y) */
 				if (IS_EQF(ob->rotAxis[0], ob->rotAxis[1]) && IS_EQF(ob->rotAxis[1], ob->rotAxis[2]))
 					ob->rotAxis[1] = 1.0f;
@@ -163,7 +168,7 @@ static void object_clear_rot(Object *ob, const bool clear_delta)
 			/* perform clamping using euler form (3-components) */
 			/* FIXME: deltas are not handled for these cases yet... */
 			float eul[3], oldeul[3], quat1[4] = {0};
-			
+
 			if (ob->rotmode == ROT_MODE_QUAT) {
 				copy_qt_qt(quat1, ob->quat);
 				quat_to_eul(oldeul, ob->quat);
@@ -174,16 +179,16 @@ static void object_clear_rot(Object *ob, const bool clear_delta)
 			else {
 				copy_v3_v3(oldeul, ob->rot);
 			}
-			
+
 			eul[0] = eul[1] = eul[2] = 0.0f;
-			
+
 			if (ob->protectflag & OB_LOCK_ROTX)
 				eul[0] = oldeul[0];
 			if (ob->protectflag & OB_LOCK_ROTY)
 				eul[1] = oldeul[1];
 			if (ob->protectflag & OB_LOCK_ROTZ)
 				eul[2] = oldeul[2];
-			
+
 			if (ob->rotmode == ROT_MODE_QUAT) {
 				eul_to_quat(ob->quat, eul);
 				/* quaternions flip w sign to accumulate rotations correctly */
@@ -236,24 +241,24 @@ static void object_clear_scale(Object *ob, const bool clear_delta)
 /* --------------- */
 
 /* generic exec for clear-transform operators */
-static int object_clear_transform_generic_exec(bContext *C, wmOperator *op, 
+static int object_clear_transform_generic_exec(bContext *C, wmOperator *op,
                                                void (*clear_func)(Object *, const bool),
                                                const char default_ksName[])
 {
 	Scene *scene = CTX_data_scene(C);
 	KeyingSet *ks;
 	const bool clear_delta = RNA_boolean_get(op->ptr, "clear_delta");
-	
+
 	/* sanity checks */
 	if (ELEM(NULL, clear_func, default_ksName)) {
 		BKE_report(op->reports, RPT_ERROR, "Programming error: missing clear transform function or keying set name");
 		return OPERATOR_CANCELLED;
 	}
-	
+
 	/* get KeyingSet to use */
 	ks = ANIM_get_keyingset_for_autokeying(scene, default_ksName);
-	
-	/* operate on selected objects only if they aren't in weight-paint mode 
+
+	/* operate on selected objects only if they aren't in weight-paint mode
 	 * (so that object-transform clearing won't be applied at same time as bone-clearing)
 	 */
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
@@ -261,15 +266,15 @@ static int object_clear_transform_generic_exec(bContext *C, wmOperator *op,
 		if (!(ob->mode & OB_MODE_WEIGHT_PAINT)) {
 			/* run provided clearing function */
 			clear_func(ob, clear_delta);
-			
+
 			ED_autokeyframe_object(C, scene, ob, ks);
-			
+
 			/* tag for updates */
-			DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+			DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 		}
 	}
 	CTX_DATA_END;
-	
+
 	/* this is needed so children are also updated */
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
 
@@ -290,15 +295,15 @@ void OBJECT_OT_location_clear(wmOperatorType *ot)
 	ot->name = "Clear Location";
 	ot->description = "Clear the object's location";
 	ot->idname = "OBJECT_OT_location_clear";
-	
+
 	/* api callbacks */
 	ot->exec = object_location_clear_exec;
 	ot->poll = ED_operator_scene_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
-	
+
+
 	/* properties */
 	ot->prop = RNA_def_boolean(ot->srna, "clear_delta", false, "Clear Delta",
 	                           "Clear delta location in addition to clearing the normal location transform");
@@ -315,14 +320,14 @@ void OBJECT_OT_rotation_clear(wmOperatorType *ot)
 	ot->name = "Clear Rotation";
 	ot->description = "Clear the object's rotation";
 	ot->idname = "OBJECT_OT_rotation_clear";
-	
+
 	/* api callbacks */
 	ot->exec = object_rotation_clear_exec;
 	ot->poll = ED_operator_scene_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	ot->prop = RNA_def_boolean(ot->srna, "clear_delta", false, "Clear Delta",
 	                           "Clear delta rotation in addition to clearing the normal rotation transform");
@@ -339,14 +344,14 @@ void OBJECT_OT_scale_clear(wmOperatorType *ot)
 	ot->name = "Clear Scale";
 	ot->description = "Clear the object's scale";
 	ot->idname = "OBJECT_OT_scale_clear";
-	
+
 	/* api callbacks */
 	ot->exec = object_scale_clear_exec;
 	ot->poll = ED_operator_scene_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	ot->prop = RNA_def_boolean(ot->srna, "clear_delta", false, "Clear Delta",
 	                           "Clear delta scale in addition to clearing the normal scale transform");
@@ -365,18 +370,18 @@ static int object_origin_clear_exec(bContext *C, wmOperator *UNUSED(op))
 			/* vectors pointed to by v1 and v3 will get modified */
 			v1 = ob->loc;
 			v3 = ob->parentinv[3];
-			
+
 			copy_m3_m4(mat, ob->parentinv);
 			negate_v3_v3(v3, v1);
 			mul_m3_v3(mat, v3);
 		}
 
-		DAG_id_tag_update(&ob->id, OB_RECALC_OB);
+		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 	}
 	CTX_DATA_END;
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
-	
+
 	return OPERATOR_FINISHED;
 }
 
@@ -386,11 +391,11 @@ void OBJECT_OT_origin_clear(wmOperatorType *ot)
 	ot->name = "Clear Origin";
 	ot->description = "Clear the object's origin";
 	ot->idname = "OBJECT_OT_origin_clear";
-	
+
 	/* api callbacks */
 	ot->exec = object_origin_clear_exec;
 	ot->poll = ED_operator_scene_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
@@ -399,16 +404,17 @@ void OBJECT_OT_origin_clear(wmOperatorType *ot)
 
 /* use this when the loc/size/rot of the parent has changed but the children
  * should stay in the same place, e.g. for apply-size-rot or object center */
-static void ignore_parent_tx(Main *bmain, Scene *scene, Object *ob)
+static void ignore_parent_tx(const bContext *C, Main *bmain, Scene *scene, Object *ob)
 {
 	Object workob;
 	Object *ob_child;
-	
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
 	/* a change was made, adjust the children to compensate */
 	for (ob_child = bmain->object.first; ob_child; ob_child = ob_child->id.next) {
 		if (ob_child->parent == ob) {
 			BKE_object_apply_mat4(ob_child, ob_child->obmat, true, false);
-			BKE_object_workob_calc_parent(scene, ob_child, &workob);
+			BKE_object_workob_calc_parent(depsgraph, scene, ob_child, &workob);
 			invert_m4_m4(ob_child->parentinv, workob.obmat);
 		}
 	}
@@ -421,9 +427,10 @@ static int apply_objects_internal(
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	float rsmat[3][3], obmat[3][3], iobmat[3][3], mat[4][4], scale;
 	bool changed = true;
-	
+
 	/* first check if we can execute */
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
@@ -472,9 +479,21 @@ static int apply_objects_internal(
 				changed = false;
 			}
 		}
+
+		if (ob->type == OB_LAMP) {
+			Lamp *la = ob->data;
+			if (la->type == LA_AREA) {
+				if (apply_rot || apply_loc) {
+					BKE_reportf(reports, RPT_ERROR,
+					            "Area Lights can only have scale applied: \"%s\"",
+					            ob->id.name + 2);
+					changed = false;
+				}
+			}
+		}
 	}
 	CTX_DATA_END;
-	
+
 	if (!changed)
 		return OPERATOR_CANCELLED;
 
@@ -525,16 +544,16 @@ static int apply_objects_internal(
 			Mesh *me = ob->data;
 
 			if (apply_scale)
-				multiresModifier_scale_disp(scene, ob);
-			
+				multiresModifier_scale_disp(depsgraph, scene, ob);
+
 			/* adjust data */
 			BKE_mesh_transform(me, mat, true);
-			
+
 			/* update normals */
 			BKE_mesh_calc_normals(me);
 		}
 		else if (ob->type == OB_ARMATURE) {
-			ED_armature_apply_transform(ob, mat, do_props);
+			ED_armature_transform_apply(bmain, ob, mat, do_props);
 		}
 		else if (ob->type == OB_LATTICE) {
 			Lattice *lt = ob->data;
@@ -581,12 +600,12 @@ static int apply_objects_internal(
 				BKE_tracking_reconstruction_scale(&clip->tracking, ob->size);
 		}
 		else if (ob->type == OB_EMPTY) {
-			/* It's possible for empties too, even though they don't 
+			/* It's possible for empties too, even though they don't
 			 * really have obdata, since we can simply apply the maximum
 			 * scaling to the empty's drawsize.
 			 *
 			 * Core Assumptions:
-			 * 1) Most scaled empties have uniform scaling 
+			 * 1) Most scaled empties have uniform scaling
 			 *    (i.e. for visibility reasons), AND/OR
 			 * 2) Preserving non-uniform scaling is not that important,
 			 *    and is something that many users would be willing to
@@ -600,6 +619,26 @@ static int apply_objects_internal(
 				float max_scale = max_fff(fabsf(ob->size[0]), fabsf(ob->size[1]), fabsf(ob->size[2]));
 				ob->empty_drawsize *= max_scale;
 			}
+		}
+		else if (ob->type == OB_LAMP) {
+			Lamp *la = ob->data;
+			if (la->type != LA_AREA) {
+				continue;
+			}
+
+			bool keeps_aspect_ratio = compare_ff_relative(rsmat[0][0], rsmat[1][1], FLT_EPSILON, 64);
+			if ((la->area_shape == LA_AREA_SQUARE) && !keeps_aspect_ratio) {
+				la->area_shape = LA_AREA_RECT;
+				la->area_sizey = la->area_size;
+			}
+			else if ((la->area_shape == LA_AREA_DISK) && !keeps_aspect_ratio) {
+				la->area_shape = LA_AREA_ELLIPSE;
+				la->area_sizey = la->area_size;
+			}
+
+			la->area_size *= rsmat[0][0];
+			la->area_sizey *= rsmat[1][1];
+			la->area_sizez *= rsmat[2][2];
 		}
 		else {
 			continue;
@@ -615,14 +654,14 @@ static int apply_objects_internal(
 			unit_axis_angle(ob->rotAxis, &ob->rotAngle);
 		}
 
-		BKE_object_where_is_calc(scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 		if (ob->type == OB_ARMATURE) {
-			BKE_pose_where_is(scene, ob); /* needed for bone parents */
+			BKE_pose_where_is(depsgraph, scene, ob); /* needed for bone parents */
 		}
 
-		ignore_parent_tx(bmain, scene, ob);
+		ignore_parent_tx(C, bmain, scene, ob);
 
-		DAG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 		changed = true;
 	}
@@ -640,17 +679,18 @@ static int apply_objects_internal(
 static int visual_transform_apply_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	bool changed = false;
-	
+
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
-		BKE_object_where_is_calc(scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 		BKE_object_apply_mat4(ob, ob->obmat, true, true);
-		BKE_object_where_is_calc(scene, ob);
+		BKE_object_where_is_calc(depsgraph, scene, ob);
 
 		/* update for any children that may get moved */
-		DAG_id_tag_update(&ob->id, OB_RECALC_OB);
-	
+		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+
 		changed = true;
 	}
 	CTX_DATA_END;
@@ -668,11 +708,11 @@ void OBJECT_OT_visual_transform_apply(wmOperatorType *ot)
 	ot->name = "Apply Visual Transform";
 	ot->description = "Apply the object's visual transformation to its data";
 	ot->idname = "OBJECT_OT_visual_transform_apply";
-	
+
 	/* api callbacks */
 	ot->exec = visual_transform_apply_exec;
 	ot->poll = ED_operator_scene_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
@@ -730,6 +770,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	Object *obact = CTX_data_active_object(C);
 	Object *obedit = CTX_data_edit_object(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *tob;
 	float cursor[3], cent[3], cent_neg[3], centn[3];
 	int centermode = RNA_enum_get(op->ptr, "type");
@@ -749,9 +790,9 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 	else {
 		/* get the view settings if 'around' isn't set and the view is available */
 		View3D *v3d = CTX_wm_view3d(C);
-		copy_v3_v3(cursor, ED_view3d_cursor3d_get(scene, v3d));
+		copy_v3_v3(cursor, ED_view3d_cursor3d_get(scene, v3d)->location);
 		if (v3d && !RNA_struct_property_is_set(op->ptr, "center"))
-			around = v3d->around;
+			around = scene->toolsettings->transform_pivot_point;
 	}
 
 	zero_v3(cent);
@@ -762,7 +803,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 			BMEditMesh *em = me->edit_btmesh;
 			BMVert *eve;
 			BMIter iter;
-			
+
 			if (centermode == ORIGIN_TO_CURSOR) {
 				copy_v3_v3(cent, cursor);
 				invert_m4_m4(obedit->imat, obedit->obmat);
@@ -786,14 +827,14 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 					mid_v3_v3v3(cent, min, max);
 				}
 			}
-			
+
 			BM_ITER_MESH (eve, &iter, em->bm, BM_VERTS_OF_MESH) {
 				sub_v3_v3(eve->co, cent);
 			}
 
 			EDBM_mesh_normals_update(em);
 			tot_change++;
-			DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 		}
 	}
 
@@ -839,10 +880,10 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 				invert_m4_m4(ob->imat, ob->obmat);
 				mul_m4_v3(ob->imat, cent);
 			}
-			
+
 			if (ob->data == NULL) {
 				/* special support for dupligroups */
-				if ((ob->transflag & OB_DUPLIGROUP) && ob->dup_group && (ob->dup_group->id.tag & LIB_TAG_DOIT) == 0) {
+				if ((ob->transflag & OB_DUPLICOLLECTION) && ob->dup_group && (ob->dup_group->id.tag & LIB_TAG_DOIT) == 0) {
 					if (ID_IS_LINKED(ob->dup_group)) {
 						tot_lib_error++;
 					}
@@ -854,12 +895,12 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 							float min[3], max[3];
 							/* only bounds support */
 							INIT_MINMAX(min, max);
-							BKE_object_minmax_dupli(scene, ob, min, max, true);
+							BKE_object_minmax_dupli(depsgraph, scene, ob, min, max, true);
 							mid_v3_v3v3(cent, min, max);
 							invert_m4_m4(ob->imat, ob->obmat);
 							mul_m4_v3(ob->imat, cent);
 						}
-						
+
 						add_v3_v3(ob->dup_group->dupli_ofs, cent);
 
 						tot_change++;
@@ -918,7 +959,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 
 				if (obedit) {
 					if (centermode == GEOMETRY_TO_ORIGIN) {
-						DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 					}
 					break;
 				}
@@ -965,16 +1006,16 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 					/* Function to recenter armatures in editarmature.c
 					 * Bone + object locations are handled there.
 					 */
-					ED_armature_origin_set(scene, ob, cursor, centermode, around);
+					ED_armature_origin_set(bmain, ob, cursor, centermode, around);
 
 					tot_change++;
 					arm->id.tag |= LIB_TAG_DOIT;
 					/* do_inverse_offset = true; */ /* docenter_armature() handles this */
 
-					BKE_object_where_is_calc(scene, ob);
-					BKE_pose_where_is(scene, ob); /* needed for bone parents */
+					BKE_object_where_is_calc(depsgraph, scene, ob);
+					BKE_pose_where_is(depsgraph, scene, ob); /* needed for bone parents */
 
-					ignore_parent_tx(bmain, scene, ob);
+					ignore_parent_tx(C, bmain, scene, ob);
 
 					if (obedit)
 						break;
@@ -996,7 +1037,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 
 				if (obedit) {
 					if (centermode == GEOMETRY_TO_ORIGIN) {
-						DAG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 					}
 					break;
 				}
@@ -1030,13 +1071,13 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 
 				add_v3_v3(ob->loc, centn);
 
-				BKE_object_where_is_calc(scene, ob);
+				BKE_object_where_is_calc(depsgraph, scene, ob);
 				if (ob->type == OB_ARMATURE) {
-					BKE_pose_where_is(scene, ob); /* needed for bone parents */
+					BKE_pose_where_is(depsgraph, scene, ob); /* needed for bone parents */
 				}
 
-				ignore_parent_tx(bmain, scene, ob);
-				
+				ignore_parent_tx(C, bmain, scene, ob);
+
 				/* other users? */
 				//CTX_DATA_BEGIN (C, Object *, ob_other, selected_editable_objects)
 				//{
@@ -1051,19 +1092,19 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 					if ((ob_other->flag & OB_DONE) == 0 &&
 					    ((ob->data && (ob->data == ob_other->data)) ||
 					     (ob->dup_group == ob_other->dup_group &&
-					      (ob->transflag | ob_other->transflag) & OB_DUPLIGROUP)))
+					      (ob->transflag | ob_other->transflag) & OB_DUPLICOLLECTION)))
 					{
 						ob_other->flag |= OB_DONE;
-						DAG_id_tag_update(&ob_other->id, OB_RECALC_OB | OB_RECALC_DATA);
+						DEG_id_tag_update(&ob_other->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 						mul_v3_mat3_m4v3(centn, ob_other->obmat, cent); /* omit translation part */
 						add_v3_v3(ob_other->loc, centn);
 
-						BKE_object_where_is_calc(scene, ob_other);
+						BKE_object_where_is_calc(depsgraph, scene, ob_other);
 						if (ob_other->type == OB_ARMATURE) {
-							BKE_pose_where_is(scene, ob_other); /* needed for bone parents */
+							BKE_pose_where_is(depsgraph, scene, ob_other); /* needed for bone parents */
 						}
-						ignore_parent_tx(bmain, scene, ob_other);
+						ignore_parent_tx(C, bmain, scene, ob_other);
 					}
 				}
 				//CTX_DATA_END;
@@ -1072,9 +1113,12 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 	}
 	BLI_freelistN(&ctx_data_list);
 
-	for (tob = bmain->object.first; tob; tob = tob->id.next)
-		if (tob->data && (((ID *)tob->data)->tag & LIB_TAG_DOIT))
-			DAG_id_tag_update(&tob->id, OB_RECALC_OB | OB_RECALC_DATA);
+	for (tob = bmain->object.first; tob; tob = tob->id.next) {
+		if (tob->data && (((ID *)tob->data)->tag & LIB_TAG_DOIT)) {
+			BKE_mesh_batch_cache_dirty(tob->data, BKE_MESH_BATCH_DIRTY_ALL);
+			DEG_id_tag_update(&tob->id, OB_RECALC_OB | OB_RECALC_DATA);
+		}
+	}
 
 	if (tot_change) {
 		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
@@ -1107,27 +1151,409 @@ void OBJECT_OT_origin_set(wmOperatorType *ot)
 		 "Calculate the center of mass from the volume (must be manifold geometry with consistent normals)"},
 		{0, NULL, 0, NULL, NULL}
 	};
-	
+
 	static const EnumPropertyItem prop_set_bounds_types[] = {
 		{V3D_AROUND_CENTER_MEAN, "MEDIAN", 0, "Median Center", ""},
 		{V3D_AROUND_CENTER_BOUNDS, "BOUNDS", 0, "Bounds Center", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
-	
+
 	/* identifiers */
 	ot->name = "Set Origin";
 	ot->description = "Set the object's origin, by either moving the data, or set to center of data, or use 3D cursor";
 	ot->idname = "OBJECT_OT_origin_set";
-	
+
 	/* api callbacks */
 	ot->invoke = WM_menu_invoke;
 	ot->exec = object_origin_set_exec;
-	
+
 	ot->poll = ED_operator_scene_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	ot->prop = RNA_def_enum(ot->srna, "type", prop_set_center_types, 0, "Type", "");
 	RNA_def_enum(ot->srna, "center", prop_set_bounds_types, V3D_AROUND_CENTER_MEAN, "Center", "");
 }
+
+/* -------------------------------------------------------------------- */
+
+/** \name Transform Axis Target
+ *
+ * Note this is an experemental operator to point lamps/cameras at objects.
+ * We may re-work how this behaves based on user feedback.
+ * - campbell.
+ * \{ */
+
+/* When using multiple objects, apply their relative rotational offset to the active object. */
+#define USE_RELATIVE_ROTATION
+
+struct XFormAxisItem {
+	Object *ob;
+	float rot_mat[3][3];
+	void *obtfm;
+	float xform_dist;
+
+#ifdef USE_RELATIVE_ROTATION
+	/* use when translating multiple */
+	float xform_rot_offset[3][3];
+#endif
+};
+
+struct XFormAxisData {
+	ViewContext vc;
+	struct {
+		float depth;
+		float normal[3];
+		bool is_depth_valid;
+		bool is_normal_valid;
+	} prev;
+
+	struct XFormAxisItem *object_data;
+	uint object_data_len;
+	bool is_translate;
+
+	int init_event;
+};
+
+static bool object_is_target_compat(const Object *ob)
+{
+	if (ob->type == OB_LAMP) {
+		const Lamp *la = ob->data;
+		if (ELEM(la->type, LA_SUN, LA_SPOT, LA_HEMI, LA_AREA)) {
+			return true;
+		}
+	}
+	/* We might want to enable this later, for now just lamps */
+#if 0
+	else if (ob->type == OB_CAMERA) {
+		return true;
+	}
+#endif
+	return false;
+}
+
+static void object_transform_axis_target_free_data(wmOperator *op)
+{
+	struct XFormAxisData *xfd = op->customdata;
+	struct XFormAxisItem *item = xfd->object_data;
+	for (int i = 0; i < xfd->object_data_len; i++, item++) {
+		MEM_freeN(item->obtfm);
+	}
+	MEM_freeN(xfd->object_data);
+	MEM_freeN(xfd);
+	op->customdata = NULL;
+}
+
+/* We may want to expose as alternative to: BKE_object_apply_rotation */
+static void object_apply_rotation(Object *ob, const float rmat[3][3])
+{
+	float size[3];
+	float loc[3];
+	float rmat4[4][4];
+	copy_m4_m3(rmat4, rmat);
+
+	copy_v3_v3(size, ob->size);
+	copy_v3_v3(loc, ob->loc);
+	BKE_object_apply_mat4(ob, rmat4, true, true);
+	copy_v3_v3(ob->size, size);
+	copy_v3_v3(ob->loc, loc);
+}
+/* We may want to extract this to: BKE_object_apply_location */
+static void object_apply_location(Object *ob, const float loc[3])
+{
+	/* quick but weak */
+	Object ob_prev = *ob;
+	float mat[4][4];
+	copy_m4_m4(mat, ob->obmat);
+	copy_v3_v3(mat[3], loc);
+	BKE_object_apply_mat4(ob, mat, true, true);
+	copy_v3_v3(mat[3], ob->loc);
+	*ob = ob_prev;
+	copy_v3_v3(ob->loc, mat[3]);
+}
+
+static void object_orient_to_location(
+        Object *ob, float rot_orig[3][3], const float axis[3], const float location[3])
+{
+	float delta[3];
+	sub_v3_v3v3(delta, ob->obmat[3], location);
+	if (normalize_v3(delta) != 0.0f) {
+		if (len_squared_v3v3(delta, axis) > FLT_EPSILON) {
+			float delta_rot[3][3];
+			float final_rot[3][3];
+			rotation_between_vecs_to_mat3(delta_rot, axis, delta);
+
+			mul_m3_m3m3(final_rot, delta_rot, rot_orig);
+
+			object_apply_rotation(ob, final_rot);
+
+			DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+		}
+	}
+}
+
+static void object_transform_axis_target_cancel(bContext *C, wmOperator *op)
+{
+	struct XFormAxisData *xfd = op->customdata;
+	struct XFormAxisItem *item = xfd->object_data;
+	for (int i = 0; i < xfd->object_data_len; i++, item++) {
+		BKE_object_tfm_restore(item->ob, item->obtfm);
+		DEG_id_tag_update(&item->ob->id, OB_RECALC_OB);
+		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, item->ob);
+	}
+
+	object_transform_axis_target_free_data(op);
+}
+
+static int object_transform_axis_target_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+{
+	ViewContext vc;
+	ED_view3d_viewcontext_init(C, &vc);
+
+	if (!object_is_target_compat(vc.obact)) {
+		/* Falls back to texture space transform. */
+		return OPERATOR_PASS_THROUGH;
+	}
+
+	ED_view3d_autodist_init(vc.depsgraph, vc.ar, vc.v3d, 0);
+
+	if (vc.rv3d->depths != NULL) {
+		vc.rv3d->depths->damaged = true;
+	}
+	ED_view3d_depth_update(vc.ar);
+
+	if (vc.rv3d->depths == NULL) {
+		BKE_report(op->reports, RPT_WARNING, "Unable to access depth buffer, using view plane");
+		return OPERATOR_CANCELLED;
+	}
+
+	ED_region_tag_redraw(vc.ar);
+
+	struct XFormAxisData *xfd;
+	xfd = op->customdata = MEM_callocN(sizeof(struct XFormAxisData), __func__);
+
+	/* Don't change this at runtime. */
+	xfd->vc = vc;
+	xfd->vc.mval[0] = event->mval[0];
+	xfd->vc.mval[1] = event->mval[1];
+
+	xfd->prev.depth = 1.0f;
+	xfd->prev.is_depth_valid = false;
+	xfd->prev.is_normal_valid = false;
+	xfd->is_translate = false;
+
+	xfd->init_event = WM_userdef_event_type_from_keymap_type(event->type);
+
+	{
+		struct XFormAxisItem *object_data = NULL;
+		BLI_array_declare(object_data);
+
+		struct XFormAxisItem *item = BLI_array_append_ret(object_data);
+		item->ob = xfd->vc.obact;
+
+		CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
+		{
+			if ((ob != xfd->vc.obact) && object_is_target_compat(ob)) {
+				item = BLI_array_append_ret(object_data);
+				item->ob = ob;
+			}
+		}
+		CTX_DATA_END;
+
+		xfd->object_data = object_data;
+		xfd->object_data_len = BLI_array_len(object_data);
+
+		if (xfd->object_data_len != BLI_array_len(object_data)) {
+			xfd->object_data = MEM_reallocN(xfd->object_data, xfd->object_data_len * sizeof(*xfd->object_data));
+		}
+	}
+
+	{
+		struct XFormAxisItem *item = xfd->object_data;
+		for (int i = 0; i < xfd->object_data_len; i++, item++) {
+			item->obtfm = BKE_object_tfm_backup(item->ob);
+			BKE_object_rot_to_mat3(item->ob, item->rot_mat, true);
+		}
+	}
+
+	WM_event_add_modal_handler(C, op);
+
+	return OPERATOR_RUNNING_MODAL;
+}
+
+static int object_transform_axis_target_modal(bContext *C, wmOperator *op, const wmEvent *event)
+{
+	struct XFormAxisData *xfd = op->customdata;
+	ARegion *ar = xfd->vc.ar;
+
+	view3d_operator_needs_opengl(C);
+
+	const bool is_translate = (event->ctrl != 0);
+	const bool is_translate_init = is_translate && (xfd->is_translate != is_translate);
+
+	if (event->type == MOUSEMOVE || is_translate_init) {
+		const ViewDepths *depths = xfd->vc.rv3d->depths;
+		if (depths &&
+		    ((unsigned int)event->mval[0] < depths->w) &&
+		    ((unsigned int)event->mval[1] < depths->h))
+		{
+			double depth = (double)ED_view3d_depth_read_cached(&xfd->vc, event->mval);
+			float location_world[3];
+			if (depth == 1.0f) {
+				if (xfd->prev.is_depth_valid) {
+					depth = (double)xfd->prev.depth;
+				}
+			}
+			if ((depth > depths->depth_range[0]) && (depth < depths->depth_range[1])) {
+				xfd->prev.depth = depth;
+				xfd->prev.is_depth_valid = true;
+				if (ED_view3d_depth_unproject(ar, event->mval, depth, location_world)) {
+					if (is_translate) {
+
+						float normal[3];
+						bool normal_found = false;
+						if (ED_view3d_depth_read_cached_normal(&xfd->vc, event->mval, normal)) {
+							normal_found = true;
+
+							/* cheap attempt to smooth normals out a bit! */
+							const uint ofs = 2;
+							for (uint x = -ofs; x <= ofs; x += ofs / 2) {
+								for (uint y = -ofs; y <= ofs; y += ofs / 2) {
+									if (x != 0 && y != 0) {
+										int mval_ofs[2] = {event->mval[0] + x, event->mval[1] + y};
+										float n[3];
+										if (ED_view3d_depth_read_cached_normal(
+										        &xfd->vc, mval_ofs, n))
+										{
+											add_v3_v3(normal, n);
+										}
+									}
+								}
+							}
+							normalize_v3(normal);
+						}
+						else if (xfd->prev.is_normal_valid) {
+							copy_v3_v3(normal, xfd->prev.normal);
+							normal_found = true;
+						}
+
+						if (normal_found) {
+#ifdef USE_RELATIVE_ROTATION
+							if (is_translate_init && xfd->object_data_len > 1) {
+								float xform_rot_offset_inv_first[3][3];
+								struct XFormAxisItem *item = xfd->object_data;
+								for (int i = 0; i < xfd->object_data_len; i++, item++) {
+									copy_m3_m4(item->xform_rot_offset, item->ob->obmat);
+									normalize_m3(item->xform_rot_offset);
+
+									if (i == 0) {
+										invert_m3_m3(xform_rot_offset_inv_first, xfd->object_data[0].xform_rot_offset);
+									}
+									else {
+										mul_m3_m3m3(item->xform_rot_offset,
+										            item->xform_rot_offset,
+										            xform_rot_offset_inv_first);
+									}
+								}
+							}
+
+#endif
+
+							struct XFormAxisItem *item = xfd->object_data;
+							for (int i = 0; i < xfd->object_data_len; i++, item++) {
+								if (is_translate_init) {
+									float ob_axis[3];
+									item->xform_dist = len_v3v3(item->ob->obmat[3], location_world);
+									normalize_v3_v3(ob_axis, item->ob->obmat[2]);
+									/* Scale to avoid adding distance when moving between surfaces. */
+									float scale = fabsf(dot_v3v3(ob_axis, normal));
+									item->xform_dist *= scale;
+								}
+
+								float target_normal[3];
+								copy_v3_v3(target_normal, normal);
+
+#ifdef USE_RELATIVE_ROTATION
+								if (i != 0) {
+									mul_m3_v3(item->xform_rot_offset, target_normal);
+								}
+#endif
+								{
+									float loc[3];
+
+									copy_v3_v3(loc, location_world);
+									madd_v3_v3fl(loc, target_normal, item->xform_dist);
+									object_apply_location(item->ob, loc);
+									copy_v3_v3(item->ob->obmat[3], loc);  /* so orient behaves as expected */
+								}
+
+								object_orient_to_location(item->ob, item->rot_mat, item->rot_mat[2], location_world);
+								WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, item->ob);
+							}
+							copy_v3_v3(xfd->prev.normal, normal);
+							xfd->prev.is_normal_valid = true;
+						}
+					}
+					else {
+						struct XFormAxisItem *item = xfd->object_data;
+						for (int i = 0; i < xfd->object_data_len; i++, item++) {
+							object_orient_to_location(item->ob, item->rot_mat, item->rot_mat[2], location_world);
+							WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, item->ob);
+						}
+						xfd->prev.is_normal_valid = false;
+					}
+				}
+			}
+		}
+		xfd->is_translate = is_translate;
+
+		ED_region_tag_redraw(xfd->vc.ar);
+	}
+
+	bool is_finished = false;
+
+	if (ISMOUSE(xfd->init_event)) {
+		if ((event->type == xfd->init_event) && (event->val == KM_RELEASE)) {
+			is_finished = true;
+		}
+	}
+	else {
+		if (ELEM(event->type, LEFTMOUSE, RETKEY, PADENTER)) {
+			is_finished = true;
+		}
+	}
+
+	if (is_finished) {
+		object_transform_axis_target_free_data(op);
+		return OPERATOR_FINISHED;
+	}
+	else if (ELEM(event->type, ESCKEY, RIGHTMOUSE)) {
+		object_transform_axis_target_cancel(C, op);
+		return OPERATOR_CANCELLED;
+	}
+
+
+	return OPERATOR_RUNNING_MODAL;
+}
+
+void OBJECT_OT_transform_axis_target(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Interactive Light Track to Cursor";
+	ot->description = "Interactively point cameras and lights to a location (Ctrl translates)";
+	ot->idname = "OBJECT_OT_transform_axis_target";
+
+	/* api callbacks */
+	ot->invoke = object_transform_axis_target_invoke;
+	ot->cancel = object_transform_axis_target_cancel;
+	ot->modal = object_transform_axis_target_modal;
+	ot->poll = ED_operator_region_view3d_active;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_BLOCKING;
+}
+
+#undef USE_RELATIVE_ROTATION
+
+/** \} */

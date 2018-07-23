@@ -47,6 +47,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -68,10 +69,13 @@ static int brush_add_exec(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 	ePaintMode mode = BKE_paintmode_get_active_from_context(C);
 
-	if (br)
+	if (br) {
 		br = BKE_brush_copy(bmain, br);
-	else
+	}
+	else {
 		br = BKE_brush_add(bmain, "Brush", BKE_paint_object_mode_from_paint_mode(mode));
+		id_us_min(&br->id);  /* fake user only */
+	}
 
 	BKE_paint_brush_set(paint, br);
 
@@ -84,10 +88,10 @@ static void BRUSH_OT_add(wmOperatorType *ot)
 	ot->name = "Add Brush";
 	ot->description = "Add brush by mode type";
 	ot->idname = "BRUSH_OT_add";
-	
+
 	/* api callbacks */
 	ot->exec = brush_add_exec;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
@@ -141,10 +145,10 @@ static void BRUSH_OT_scale_size(wmOperatorType *ot)
 	ot->name = "Scale Sculpt/Paint Brush Size";
 	ot->description = "Change brush size by a scalar";
 	ot->idname = "BRUSH_OT_scale_size";
-	
+
 	/* api callbacks */
 	ot->exec = brush_scale_size_exec;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
@@ -180,7 +184,7 @@ static void PALETTE_OT_new(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-static int palette_poll(bContext *C)
+static bool palette_poll(bContext *C)
 {
 	Paint *paint = BKE_paint_get_active_from_context(C);
 
@@ -282,10 +286,10 @@ static void BRUSH_OT_reset(wmOperatorType *ot)
 	ot->name = "Reset Brush";
 	ot->description = "Return brush to defaults based on current tool";
 	ot->idname = "BRUSH_OT_reset";
-	
+
 	/* api callbacks */
 	ot->exec = brush_reset_exec;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
@@ -350,7 +354,7 @@ static Brush *brush_tool_toggle(Main *bmain, Brush *brush_orig, const int tool, 
 		/* store the previously-selected brush */
 		if (br)
 			br->toggle_brush = brush_orig;
-		
+
 		return br;
 	}
 	else if (brush_orig->toggle_brush) {
@@ -362,10 +366,11 @@ static Brush *brush_tool_toggle(Main *bmain, Brush *brush_orig, const int tool, 
 		return NULL;
 }
 
-static int brush_generic_tool_set(Main *bmain, Paint *paint, const int tool,
-                                  const size_t tool_offset, const int ob_mode,
-                                  const char *tool_name, const bool create_missing,
-                                  const bool toggle)
+static int brush_generic_tool_set(
+        Main *bmain, Paint *paint, const int tool,
+        const size_t tool_offset, const int ob_mode,
+        const char *tool_name, const bool create_missing,
+        const bool toggle)
 {
 	Brush *brush, *brush_orig = BKE_paint_brush(paint);
 
@@ -376,6 +381,7 @@ static int brush_generic_tool_set(Main *bmain, Paint *paint, const int tool,
 
 	if (!brush && brush_tool(brush_orig, tool_offset) != tool && create_missing) {
 		brush = BKE_brush_add(bmain, tool_name, ob_mode);
+		id_us_min(&brush->id);  /* fake user only */
 		brush_tool_set(brush, tool_offset, tool);
 		brush->toggle_brush = brush_orig;
 	}
@@ -448,9 +454,21 @@ static int brush_select_exec(bContext *C, wmOperator *op)
 			return OPERATOR_CANCELLED;
 	}
 
-	return brush_generic_tool_set(bmain, paint, tool, tool_offset,
-	                              paint_mode, tool_name, create_missing,
-	                              toggle);
+	/* TODO(campbell): Use the toolsystem for now, ideally the toolsystem will display brushes directly
+	 * so we don't need to sync between tools and brushes. */
+	int ret = brush_generic_tool_set(
+	        bmain, paint, tool, tool_offset,
+	        paint_mode, tool_name, create_missing,
+	        toggle);
+
+	if ((ret == OPERATOR_FINISHED) && (paint->brush != NULL)) {
+		Brush *brush = paint->brush;
+		WorkSpace *workspace = CTX_wm_workspace(C);
+		if (WM_toolsystem_ref_set_by_name(C, workspace, NULL, brush->id.name + 2, true)) {
+			/* ok */
+		}
+	}
+	return ret;
 }
 
 static void PAINT_OT_brush_select(wmOperatorType *ot)
@@ -489,16 +507,18 @@ static void PAINT_OT_brush_select(wmOperatorType *ot)
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
-static wmKeyMapItem *keymap_brush_select(wmKeyMap *keymap, int paint_mode,
-                                         int tool, int keymap_type,
-                                         int keymap_modifier)
+static wmKeyMapItem *keymap_brush_select(
+        wmKeyMap *keymap, int paint_mode,
+        int tool, int keymap_type,
+        int keymap_modifier)
 {
 	wmKeyMapItem *kmi;
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_brush_select",
-	                         keymap_type, KM_PRESS, keymap_modifier, 0);
+	kmi = WM_keymap_add_item(
+	        keymap, "PAINT_OT_brush_select",
+	        keymap_type, KM_PRESS, keymap_modifier, 0);
 
 	RNA_enum_set(kmi->ptr, "paint_mode", paint_mode);
-	
+
 	switch (paint_mode) {
 		case OB_MODE_SCULPT:
 			RNA_enum_set(kmi->ptr, "sculpt_tool", tool);
@@ -679,8 +699,7 @@ static void stencil_control_calculate(StencilControlData *scd, const int mval[2]
 	switch (scd->mode) {
 		case STENCIL_TRANSLATE:
 			sub_v2_v2v2(mdiff, mvalf, scd->init_mouse);
-			add_v2_v2v2(scd->pos_target, scd->init_spos,
-			            mdiff);
+			add_v2_v2v2(scd->pos_target, scd->init_spos, mdiff);
 			CLAMP(scd->pos_target[0],
 			      -scd->dim_target[0] + PIXEL_MARGIN,
 			      scd->area_size[0] + scd->dim_target[0] - PIXEL_MARGIN);
@@ -774,7 +793,7 @@ static int stencil_control_modal(bContext *C, wmOperator *op, const wmEvent *eve
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static int stencil_control_poll(bContext *C)
+static bool stencil_control_poll(bContext *C)
 {
 	ePaintMode mode = BKE_paintmode_get_active_from_context(C);
 
@@ -910,7 +929,7 @@ static int stencil_reset_transform_exec(bContext *C, wmOperator *op)
 
 	if (!br)
 		return OPERATOR_CANCELLED;
-	
+
 	if (do_mask) {
 		br->mask_stencil_pos[0] = 256;
 		br->mask_stencil_pos[1] = 256;
@@ -983,8 +1002,9 @@ void ED_operatormacros_paint(void)
 	wmOperatorType *ot;
 	wmOperatorTypeMacro *otmacro;
 
-	ot = WM_operatortype_append_macro("PAINTCURVE_OT_add_point_slide", "Add Curve Point and Slide",
-	                                  "Add new curve point and slide it", OPTYPE_UNDO);
+	ot = WM_operatortype_append_macro(
+	        "PAINTCURVE_OT_add_point_slide", "Add Curve Point and Slide",
+	        "Add new curve point and slide it", OPTYPE_UNDO);
 	ot->description = "Add new curve point and slide it";
 	WM_operatortype_macro_define(ot, "PAINTCURVE_OT_add_point");
 	otmacro = WM_operatortype_macro_define(ot, "PAINTCURVE_OT_slide");
@@ -1031,7 +1051,6 @@ void ED_operatortypes_paint(void)
 	WM_operatortype_append(PAINT_OT_image_from_view);
 	WM_operatortype_append(PAINT_OT_brush_colors_flip);
 	WM_operatortype_append(PAINT_OT_add_texture_paint_slot);
-	WM_operatortype_append(PAINT_OT_delete_texture_paint_slot);
 	WM_operatortype_append(PAINT_OT_add_simple_uvs);
 
 	/* weight */
@@ -1077,20 +1096,6 @@ void ED_operatortypes_paint(void)
 	WM_operatortype_append(PAINT_OT_mask_lasso_gesture);
 }
 
-
-static void ed_keymap_paint_brush_switch(wmKeyMap *keymap, const char *mode)
-{
-	wmKeyMapItem *kmi;
-	int i;
-	/* index 0-9 (zero key is tenth), shift key for index 10-19 */
-	for (i = 0; i < 20; i++) {
-		kmi = WM_keymap_add_item(keymap, "BRUSH_OT_active_index_set",
-		                         ZEROKEY + ((i + 1) % 10), KM_PRESS, i < 10 ? 0 : KM_SHIFT, 0);
-		RNA_string_set(kmi->ptr, "mode", mode);
-		RNA_int_set(kmi->ptr, "index", i);
-	}
-}
-
 static void ed_keymap_paint_brush_size(wmKeyMap *keymap, const char *UNUSED(path))
 {
 	wmKeyMapItem *kmi;
@@ -1102,8 +1107,9 @@ static void ed_keymap_paint_brush_size(wmKeyMap *keymap, const char *UNUSED(path
 	RNA_float_set(kmi->ptr, "scalar", 10.0 / 9.0); // 1.1111....
 }
 
-static void set_brush_rc_path(PointerRNA *ptr, const char *brush_path,
-                              const char *output_name, const char *input_name)
+static void set_brush_rc_path(
+        PointerRNA *ptr, const char *brush_path,
+        const char *output_name, const char *input_name)
 {
 	char *path;
 
@@ -1112,9 +1118,10 @@ static void set_brush_rc_path(PointerRNA *ptr, const char *brush_path,
 	MEM_freeN(path);
 }
 
-void set_brush_rc_props(PointerRNA *ptr, const char *paint,
-                        const char *prop, const char *secondary_prop,
-                        RCFlags flags)
+void set_brush_rc_props(
+        PointerRNA *ptr, const char *paint,
+        const char *prop, const char *secondary_prop,
+        RCFlags flags)
 {
 	const char *ups_path = "tool_settings.unified_paint_settings";
 	char *brush_path;
@@ -1163,8 +1170,9 @@ void set_brush_rc_props(PointerRNA *ptr, const char *paint,
 	MEM_freeN(brush_path);
 }
 
-static void ed_keymap_paint_brush_radial_control(wmKeyMap *keymap, const char *paint,
-                                                 RCFlags flags)
+static void ed_keymap_paint_brush_radial_control(
+        wmKeyMap *keymap, const char *paint,
+        RCFlags flags)
 {
 	wmKeyMapItem *kmi;
 	/* only size needs to follow zoom, strength shows fixed size circle */
@@ -1196,7 +1204,7 @@ static void ed_keymap_paint_brush_radial_control(wmKeyMap *keymap, const char *p
 static void paint_partial_visibility_keys(wmKeyMap *keymap)
 {
 	wmKeyMapItem *kmi;
-	
+
 	/* Partial visibility */
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_hide_show", HKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_enum_set(kmi->ptr, "action", PARTIALVIS_SHOW);
@@ -1225,6 +1233,7 @@ static void paint_keymap_curve(wmKeyMap *keymap)
 	RNA_boolean_set(kmi->ptr, "toggle", true);
 
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_cursor", ACTIONMOUSE, KM_PRESS, 0, 0);
+
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_delete_point", XKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "PAINTCURVE_OT_delete_point", DELKEY, KM_PRESS, 0, 0);
 
@@ -1242,7 +1251,7 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 	int i;
-	
+
 	keymap = WM_keymap_find(keyconf, "Paint Curve", 0, 0);
 	keymap->poll = paint_curve_poll;
 
@@ -1273,11 +1282,15 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 
 	WM_keymap_add_item(keymap, "PAINT_OT_mask_lasso_gesture", LEFTMOUSE, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
 
+	/* Toggle mask visibility */
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", MKEY, KM_PRESS, KM_CTRL, 0);
+	RNA_string_set(kmi->ptr, "data_path", "scene.tool_settings.sculpt.show_mask");
+
 	/* Toggle dynamic topology */
 	WM_keymap_add_item(keymap, "SCULPT_OT_dynamic_topology_toggle", DKEY, KM_PRESS, KM_CTRL, 0);
 
 	/* Dynamic-topology detail size
-	 * 
+	 *
 	 * This should be improved further, perhaps by showing a triangle
 	 * grid rather than brush alpha */
 	kmi = WM_keymap_add_item(keymap, "SCULPT_OT_set_detail_size", DKEY, KM_PRESS, KM_SHIFT, 0);
@@ -1291,7 +1304,6 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	RNA_int_set(kmi->ptr, "level", -1);
 	RNA_boolean_set(kmi->ptr, "relative", true);
 
-	ed_keymap_paint_brush_switch(keymap, "sculpt");
 	ed_keymap_paint_brush_size(keymap, "tool_settings.sculpt.brush.size");
 	ed_keymap_paint_brush_radial_control(keymap, "sculpt", RC_ROTATION);
 
@@ -1328,10 +1340,8 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "PAINT_OT_brush_colors_flip", XKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "PAINT_OT_sample_color", SKEY, KM_PRESS, 0, 0);
 
-	WM_keymap_add_item(keymap,
-	                   "PAINT_OT_vertex_color_set", KKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "PAINT_OT_vertex_color_set", KKEY, KM_PRESS, KM_SHIFT, 0);
 
-	ed_keymap_paint_brush_switch(keymap, "vertex_paint");
 	ed_keymap_paint_brush_size(keymap, "tool_settings.vertex_paint.brush.size");
 	ed_keymap_paint_brush_radial_control(keymap, "vertex_paint", RC_COLOR | RC_COLOR_OVERRIDE | RC_ROTATION);
 
@@ -1361,14 +1371,10 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	RNA_enum_set(WM_keymap_add_item(keymap, "PAINT_OT_weight_gradient", LEFTMOUSE, KM_PRESS, KM_ALT, 0)->ptr,           "type", WPAINT_GRADIENT_TYPE_LINEAR);
 	RNA_enum_set(WM_keymap_add_item(keymap, "PAINT_OT_weight_gradient", LEFTMOUSE, KM_PRESS, KM_ALT | KM_CTRL, 0)->ptr, "type", WPAINT_GRADIENT_TYPE_RADIAL);
 
-	WM_keymap_add_item(keymap,
-	                   "PAINT_OT_weight_set", KKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "PAINT_OT_weight_set", KKEY, KM_PRESS, KM_SHIFT, 0);
 
-	ed_keymap_paint_brush_switch(keymap, "weight_paint");
 	ed_keymap_paint_brush_size(keymap, "tool_settings.weight_paint.brush.size");
 	ed_keymap_paint_brush_radial_control(keymap, "weight_paint", RC_WEIGHT);
-
-	ed_keymap_stencil(keymap);
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", EKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.vertex_paint.brush.stroke_method");
@@ -1387,7 +1393,9 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	keymap = WM_keymap_find(keyconf, "Weight Paint Vertex Selection", 0, 0);
 	keymap->poll = vert_paint_poll;
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
+	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
+	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", AKEY, KM_PRESS, KM_ALT, 0);
+	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
 	WM_keymap_add_item(keymap, "VIEW3D_OT_select_border", BKEY, KM_PRESS, 0, 0);
@@ -1407,7 +1415,6 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "PAINT_OT_grab_clone", RIGHTMOUSE, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "PAINT_OT_sample_color", SKEY, KM_PRESS, 0, 0);
 
-	ed_keymap_paint_brush_switch(keymap, "image_paint");
 	ed_keymap_paint_brush_size(keymap, "tool_settings.image_paint.brush.size");
 	ed_keymap_paint_brush_radial_control(
 	        keymap, "image_paint",
@@ -1431,7 +1438,9 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	keymap->poll = facemask_paint_poll;
 
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
+	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
+	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", AKEY, KM_PRESS, KM_ALT, 0);
+	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_hide", HKEY, KM_PRESS, 0, 0);

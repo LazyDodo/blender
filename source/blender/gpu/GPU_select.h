@@ -47,6 +47,7 @@ enum {
 
 void GPU_select_begin(unsigned int *buffer, unsigned int bufsize, const struct rcti *input, char mode, int oldhits);
 bool GPU_select_load_id(unsigned int id);
+void GPU_select_finalize(void);
 unsigned int GPU_select_end(void);
 bool GPU_select_query_check_active(void);
 
@@ -55,5 +56,8 @@ bool GPU_select_is_cached(void);
 void GPU_select_cache_begin(void);
 void GPU_select_cache_load_id(void);
 void GPU_select_cache_end(void);
+
+/* utilities */
+const uint *GPU_select_buffer_near(const uint *buffer, int hits);
 
 #endif

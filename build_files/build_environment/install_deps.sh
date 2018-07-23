@@ -25,7 +25,7 @@
 ARGS=$( \
 getopt \
 -o s:i:t:h \
---long source:,install:,tmp:,info:,threads:,help,show-deps,no-sudo,no-build,no-confirm,use-cxx11,\
+--long source:,install:,tmp:,info:,threads:,help,show-deps,no-sudo,no-build,no-confirm,\
 with-all,with-opencollada,with-jack,\
 ver-ocio:,ver-oiio:,ver-llvm:,ver-osl:,ver-osd:,ver-openvdb:,\
 force-all,force-python,force-numpy,force-boost,\
@@ -103,11 +103,6 @@ ARGUMENTS_INFO="\"COMMAND LINE ARGUMENTS:
 
     --no-confirm
         Disable any interaction with user (suitable for automated run).
-
-    --use-cxx11
-        Build all libraries in cpp11 'mode' (will be mandatory soon in blender2.8 branch).
-        NOTE: If your compiler is gcc-6.0 or above, you probably *want* to enable this option (since it's default
-              standard starting from this version).
 
     --with-all
         By default, a number of optional and not-so-often needed libraries are not installed.
@@ -290,7 +285,7 @@ SUDO="sudo"
 
 NO_BUILD=false
 NO_CONFIRM=false
-USE_CXX11=false
+USE_CXX11=true  # Mandatory in blender2.8
 
 PYTHON_VERSION="3.6.2"
 PYTHON_VERSION_MIN="3.6"
@@ -500,9 +495,6 @@ while true; do
     ;;
     --no-confirm)
       NO_CONFIRM=true; shift; continue
-    ;;
-    --use-cxx11)
-      USE_CXX11=true; shift; continue
     ;;
     --with-all)
       WITH_ALL=true; shift; continue
@@ -761,8 +753,8 @@ OIIO_SOURCE=( "https://github.com/OpenImageIO/oiio/archive/Release-$OIIO_VERSION
 OIIO_SOURCE_REPO=( "https://github.com/OpenImageIO/oiio.git" )
 OIIO_SOURCE_REPO_UID="c9e67275a0b248ead96152f6d2221cc0c0f278a4"
 
-LLVM_SOURCE=( "http://llvm.org/releases/$LLVM_VERSION/llvm-$LLVM_VERSION.src.tar.gz" )
-LLVM_CLANG_SOURCE=( "http://llvm.org/releases/$LLVM_VERSION/clang-$LLVM_VERSION.src.tar.gz" "http://llvm.org/releases/$LLVM_VERSION/cfe-$LLVM_VERSION.src.tar.gz" )
+LLVM_SOURCE=( "http://releases.llvm.org/$LLVM_VERSION/llvm-$LLVM_VERSION.src.tar.gz" )
+LLVM_CLANG_SOURCE=( "http://releases.llvm.org/$LLVM_VERSION/clang-$LLVM_VERSION.src.tar.gz" "http://llvm.org/releases/$LLVM_VERSION/cfe-$LLVM_VERSION.src.tar.gz" )
 
 OSL_USE_REPO=false
 OSL_SOURCE=( "https://github.com/imageworks/OpenShadingLanguage/archive/Release-$OSL_VERSION.tar.gz" )
@@ -804,7 +796,7 @@ FFMPEG_SOURCE=( "http://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2" )
 
 CXXFLAGS_BACK=$CXXFLAGS
 if [ "$USE_CXX11" = true ]; then
-  WARNING "You are trying to use c++11, this *should* go smoothely with any very recent distribution
+  WARNING "C++11 is now mandatory for blender2.8, this *should* go smoothly with any very recent distribution.
 However, if you are experiencing linking errors (also when building Blender itself), please try the following:
     * Re-run this script with '--build-all --force-all' options.
     * Ensure your gcc version is at the very least 4.8, if possible you should really rather use gcc-5.1 or above.
@@ -1262,7 +1254,11 @@ compile_Boost() {
 #### Build OCIO ####
 _init_ocio() {
   _src=$SRC/OpenColorIO-$OCIO_VERSION
-  _git=false
+  if [ "$OCIO_USE_REPO" = true ]; then
+    _git=true
+  else
+    _git=false
+  fi
   _inst=$INST/ocio-$OCIO_VERSION
   _inst_shortcut=$INST/ocio
 }
@@ -1654,7 +1650,6 @@ compile_OIIO() {
     cmake_d="$cmake_d -D LINKSTATIC=OFF"
     cmake_d="$cmake_d -D USE_SIMD=sse2"
 
-    cmake_d="$cmake_d -D ILMBASE_VERSION=$ILMBASE_VERSION"
     cmake_d="$cmake_d -D OPENEXR_VERSION=$OPENEXR_VERSION"
 
     if [ "$_with_built_openexr" = true ]; then
@@ -1673,6 +1668,7 @@ compile_OIIO() {
     cmake_d="$cmake_d -D BUILD_TESTING=OFF"
     cmake_d="$cmake_d -D OIIO_BUILD_TESTS=OFF"
     cmake_d="$cmake_d -D OIIO_BUILD_TOOLS=OFF"
+    cmake_d="$cmake_d -D TXT2MAN="
     #cmake_d="$cmake_d -D CMAKE_EXPORT_COMPILE_COMMANDS=ON"
     #cmake_d="$cmake_d -D CMAKE_VERBOSE_MAKEFILE=ON"
 
@@ -2681,10 +2677,10 @@ install_DEB() {
   install_packages_DEB $_packages
 
   PRINT""
-  SNDFILE_DEV="libsndfile1-dev"
-  check_package_DEB $SNDFILE_DEV
+  LIBSNDFILE_DEV="libsndfile1-dev"
+  check_package_DEB $LIBSNDFILE_DEV
   if [ $? -eq 0 ]; then
-    install_packages_DEB $SNDFILE_DEV
+    install_packages_DEB $LIBSNDFILE_DEV
   fi
 
   PRINT ""
@@ -3279,10 +3275,10 @@ install_RPM() {
   fi
 
   PRINT""
-  SNDFILE_DEV="libsndfile-devel"
-  check_package_RPM $SNDFILE_DEV
+  LIBSNDFILE_DEV="libsndfile-devel"
+  check_package_RPM $LIBSNDFILE_DEV
   if [ $? -eq 0 ]; then
-    install_packages_RPM $SNDFILE_DEV
+    install_packages_RPM $LIBSNDFILE_DEV
   fi
 
   if [ "$WITH_ALL" = true ]; then
@@ -3686,10 +3682,10 @@ install_ARCH() {
   install_packages_ARCH $_packages
 
   PRINT""
-  SNDFILE_DEV="libsndfile"
-  check_package_ARCH $SNDFILE_DEV
+  LIBSNDFILE_DEV="libsndfile"
+  check_package_ARCH $LIBSNDFILE_DEV
   if [ $? -eq 0 ]; then
-    install_packages_ARCH $SNDFILE_DEV
+    install_packages_ARCH $LIBSNDFILE_DEV
   fi
 
   PRINT ""

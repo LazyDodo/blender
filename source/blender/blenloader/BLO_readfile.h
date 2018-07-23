@@ -39,15 +39,18 @@ extern "C" {
 struct BlendThumbnail;
 struct bScreen;
 struct LinkNode;
+struct ListBase;
 struct Main;
 struct MemFile;
 struct ReportList;
 struct Scene;
+struct ViewLayer;
 struct UserDef;
 struct View3D;
 struct bContext;
 struct BHead;
 struct FileData;
+struct wmWindowManager;
 
 typedef struct BlendHandle BlendHandle;
 
@@ -64,12 +67,19 @@ typedef struct BlendFileData {
 	int fileflags;
 	int globalf;
 	char filename[1024];    /* 1024 = FILE_MAX */
-	
-	struct bScreen *curscreen;
+
+	struct bScreen *curscreen; /* TODO think this isn't needed anymore? */
 	struct Scene *curscene;
-	
+	struct ViewLayer *cur_view_layer; /* layer to activate in workspaces when reading without UI */
+
 	eBlenFileType type;
 } BlendFileData;
+
+typedef struct WorkspaceConfigFileData {
+	struct Main *main; /* has to be freed when done reading file data */
+
+	struct ListBase workspaces;
+} WorkspaceConfigFileData;
 
 
 /* skip reading some data-block types (may want to skip screen data too). */
@@ -109,14 +119,25 @@ void BLO_blendhandle_close(BlendHandle *bh);
 bool BLO_has_bfile_extension(const char *str);
 bool BLO_library_path_explode(const char *path, char *r_dir, char **r_group, char **r_name);
 
+/* Options controlling behavior of append/link code.
+ * Note: merged with 'user-level' options from operators etc. in 16 lower bits
+ *       (see eFileSel_Params_Flag in DNA_space_types.h). */
+typedef enum BLO_LibLinkFlags {
+	/* Generate a placeholder (empty ID) if not found in current lib file. */
+	BLO_LIBLINK_USE_PLACEHOLDERS = 1 << 16,
+	/* Force loaded ID to be tagged as LIB_TAG_INDIRECT (used in reload context only). */
+	BLO_LIBLINK_FORCE_INDIRECT   = 1 << 17,
+} BLO_LinkFlags;
+
 struct Main *BLO_library_link_begin(struct Main *mainvar, BlendHandle **bh, const char *filepath);
 struct ID *BLO_library_link_named_part(struct Main *mainl, BlendHandle **bh, const short idcode, const char *name);
 struct ID *BLO_library_link_named_part_ex(
         struct Main *mainl, BlendHandle **bh,
-        const short idcode, const char *name, const short flag,
-        struct Scene *scene, struct View3D *v3d,
-        const bool use_placeholders, const bool force_indirect);
-void BLO_library_link_end(struct Main *mainl, BlendHandle **bh, short flag, struct Scene *scene, struct View3D *v3d);
+        const short idcode, const char *name, const int flag,
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
+void BLO_library_link_end(
+        struct Main *mainl, BlendHandle **bh, int flag,
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 
 void BLO_library_link_copypaste(struct Main *mainl, BlendHandle *bh);
 
@@ -125,7 +146,9 @@ void *BLO_library_read_struct(struct FileData *fd, struct BHead *bh, const char 
 BlendFileData *blo_read_blendafterruntime(int file, const char *name, int actualsize, struct ReportList *reports);
 
 /* internal function but we need to expose it */
-void blo_lib_link_screen_restore(struct Main *newmain, struct bScreen *curscreen, struct Scene *curscene);
+void blo_lib_link_restore(
+        struct Main *newmain, struct wmWindowManager *curwm,
+        struct Scene *curscene, struct ViewLayer *cur_render_layer);
 
 typedef void (*BLOExpandDoitCallback) (void *fdhandle, struct Main *mainvar, void *idv);
 
@@ -138,8 +161,13 @@ void BLO_update_defaults_startup_blend(struct Main *mainvar);
 
 struct BlendThumbnail *BLO_thumbnail_from_file(const char *filepath);
 
+struct Main *BLO_main_from_memfile(struct MemFile *memfile, struct Main *bmain, struct Scene **r_scene);
+
+/* datafiles (generated theme) */
+extern const struct bTheme U_theme_default;
+
 #ifdef __cplusplus
-} 
+}
 #endif
 
 #endif  /* __BLO_READFILE_H__ */

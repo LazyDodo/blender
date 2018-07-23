@@ -33,10 +33,6 @@
  */
 
 // #ifdef DEBUG_TIME
-#define USE_BMESH
-#ifdef WITH_MOD_BOOLEAN
-#  define USE_CARVE WITH_MOD_BOOLEAN
-#endif
 
 #include <stdio.h>
 
@@ -45,51 +41,42 @@
 #include "BLI_utildefines.h"
 #include "BLI_math_matrix.h"
 
-#include "BKE_cdderivedmesh.h"
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
-#include "depsgraph_private.h"
-
-#include "MOD_boolean_util.h"
 #include "MOD_util.h"
 
-
-#ifdef USE_BMESH
 #include "BLI_alloca.h"
 #include "BLI_math_geom.h"
 #include "BKE_material.h"
 #include "BKE_global.h"  /* only to check G.debug */
+#include "BKE_mesh.h"
+#include "BKE_library.h"
+
+#include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
+
+#include "DEG_depsgraph_query.h"
+
 #include "MEM_guardedalloc.h"
 
 #include "bmesh.h"
 #include "bmesh_tools.h"
 #include "tools/bmesh_intersect.h"
-#endif
 
 #ifdef DEBUG_TIME
-#include "PIL_time.h"
-#include "PIL_time_utildefines.h"
+#  include "PIL_time.h"
+#  include "PIL_time_utildefines.h"
 #endif
 
 static void initData(ModifierData *md)
 {
 	BooleanModifierData *bmd = (BooleanModifierData *)md;
 
-	bmd->solver = eBooleanModifierSolver_BMesh;
 	bmd->double_threshold = 1e-6f;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	BooleanModifierData *bmd = (BooleanModifierData *) md;
-	BooleanModifierData *tbmd = (BooleanModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
-}
-
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	BooleanModifierData *bmd = (BooleanModifierData *) md;
 
@@ -105,58 +92,41 @@ static void foreachObjectLink(
 	walk(userData, ob, &bmd->object, IDWALK_CB_NOP);
 }
 
-static void updateDepgraph(ModifierData *md, DagForest *forest,
-                           struct Main *UNUSED(bmain),
-                           struct Scene *UNUSED(scene),
-                           Object *UNUSED(ob),
-                           DagNode *obNode)
-{
-	BooleanModifierData *bmd = (BooleanModifierData *) md;
-
-	if (bmd->object) {
-		DagNode *curNode = dag_get_node(forest, bmd->object);
-
-		dag_add_relation(forest, curNode, obNode,
-		                 DAG_RL_DATA_DATA | DAG_RL_OB_DATA, "Boolean Modifier");
-	}
-}
-
-static void updateDepsgraph(ModifierData *md,
-                            struct Main *UNUSED(bmain),
-                            struct Scene *UNUSED(scene),
-                            Object *ob,
-                            struct DepsNodeHandle *node)
+static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	BooleanModifierData *bmd = (BooleanModifierData *)md;
 	if (bmd->object != NULL) {
-		DEG_add_object_relation(node, bmd->object, DEG_OB_COMP_TRANSFORM, "Boolean Modifier");
-		DEG_add_object_relation(node, bmd->object, DEG_OB_COMP_GEOMETRY, "Boolean Modifier");
+		DEG_add_object_relation(ctx->node, bmd->object, DEG_OB_COMP_TRANSFORM, "Boolean Modifier");
+		DEG_add_object_relation(ctx->node, bmd->object, DEG_OB_COMP_GEOMETRY, "Boolean Modifier");
 	}
 	/* We need own transformation as well. */
-	DEG_add_object_relation(node, ob, DEG_OB_COMP_TRANSFORM, "Boolean Modifier");
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Boolean Modifier");
 }
 
-#if defined(USE_CARVE) || defined(USE_BMESH)
-
-static DerivedMesh *get_quick_derivedMesh(
-        Object *ob_self,  DerivedMesh *dm_self,
-        Object *ob_other, DerivedMesh *dm_other,
+static Mesh *get_quick_mesh(
+        Object *ob_self,  Mesh *mesh_self,
+        Object *ob_other, Mesh *mesh_other,
         int operation)
 {
-	DerivedMesh *result = NULL;
+	Mesh *result = NULL;
 
-	if (dm_self->getNumPolys(dm_self) == 0 || dm_other->getNumPolys(dm_other) == 0) {
+	if (mesh_self->totpoly == 0 || mesh_other->totpoly == 0) {
 		switch (operation) {
 			case eBooleanModifierOp_Intersect:
-				result = CDDM_new(0, 0, 0, 0, 0);
+				result = BKE_mesh_new_nomain(0, 0, 0, 0, 0);
 				break;
 
 			case eBooleanModifierOp_Union:
-				if (dm_self->getNumPolys(dm_self) != 0) {
-					result = dm_self;
+				if (mesh_self->totpoly != 0) {
+					result = mesh_self;
 				}
 				else {
-					result = CDDM_copy(dm_other);
+					BKE_id_copy_ex(NULL, &mesh_other->id, (ID **)&result,
+					               LIB_ID_CREATE_NO_MAIN |
+					               LIB_ID_CREATE_NO_USER_REFCOUNT |
+					               LIB_ID_CREATE_NO_DEG_TAG |
+					               LIB_ID_COPY_NO_PREVIEW,
+					               false);
 
 					float imat[4][4];
 					float omat[4][4];
@@ -164,33 +134,27 @@ static DerivedMesh *get_quick_derivedMesh(
 					invert_m4_m4(imat, ob_self->obmat);
 					mul_m4_m4m4(omat, imat, ob_other->obmat);
 
-					const int mverts_len = result->getNumVerts(result);
-					MVert *mv = CDDM_get_verts(result);
+					const int mverts_len = result->totvert;
+					MVert *mv = result->mvert;
 
 					for (int i = 0; i < mverts_len; i++, mv++) {
 						mul_m4_v3(omat, mv->co);
 					}
 
-					result->dirty |= DM_DIRTY_NORMALS;
+					result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
 				}
 
 				break;
 
 			case eBooleanModifierOp_Difference:
-				result = dm_self;
+				result = mesh_self;
 				break;
 		}
 	}
 
 	return result;
 }
-#endif  /* defined(USE_CARVE) || defined(USE_BMESH) */
 
-
-/* -------------------------------------------------------------------- */
-/* BMESH */
-
-#ifdef USE_BMESH
 
 /* has no meaning for faces, do this so we can tell which face is which */
 #define BM_FACE_TAG BM_ELEM_DRAW
@@ -203,32 +167,34 @@ static int bm_face_isect_pair(BMFace *f, void *UNUSED(user_data))
 	return BM_elem_flag_test(f, BM_FACE_TAG) ? 1 : 0;
 }
 
-static DerivedMesh *applyModifier_bmesh(
-        ModifierData *md, Object *ob,
-        DerivedMesh *dm,
-        ModifierApplyFlag flag)
+static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh)
 {
 	BooleanModifierData *bmd = (BooleanModifierData *) md;
-	DerivedMesh *dm_other;
+	Mesh *result = mesh;
 
-	if (!bmd->object)
-		return dm;
+	Mesh *mesh_other;
+	bool mesh_other_free;
 
-	dm_other = get_dm_for_modifier(bmd->object, flag);
+	if (!bmd->object) {
+		return result;
+	}
 
-	if (dm_other) {
-		DerivedMesh *result;
+	Object *ob_eval = DEG_get_evaluated_object(ctx->depsgraph, bmd->object);
+	mesh_other = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_eval, &mesh_other_free);
+	if (mesh_other) {
+		Object *object = ctx->object;
+		Object *other = bmd->object;
 
 		/* when one of objects is empty (has got no faces) we could speed up
 		 * calculation a bit returning one of objects' derived meshes (or empty one)
 		 * Returning mesh is depended on modifiers operation (sergey) */
-		result = get_quick_derivedMesh(ob, dm, bmd->object, dm_other, bmd->operation);
+		result = get_quick_mesh(object, mesh, other, mesh_other, bmd->operation);
 
 		if (result == NULL) {
-			const bool is_flip = (is_negative_m4(ob->obmat) != is_negative_m4(bmd->object->obmat));
+			const bool is_flip = (is_negative_m4(object->obmat) != is_negative_m4(other->obmat));
 
 			BMesh *bm;
-			const BMAllocTemplate allocsize = BMALLOC_TEMPLATE_FROM_DM(dm, dm_other);
+			const BMAllocTemplate allocsize = BMALLOC_TEMPLATE_FROM_ME(mesh, mesh_other);
 
 #ifdef DEBUG_TIME
 			TIMEIT_START(boolean_bmesh);
@@ -237,7 +203,7 @@ static DerivedMesh *applyModifier_bmesh(
 			         &allocsize,
 			         &((struct BMeshCreateParams){.use_toolflags = false,}));
 
-			DM_to_bmesh_ex(dm_other, bm, true);
+			BM_mesh_bm_from_me(bm, mesh_other, &((struct BMeshFromMeshParams){.calc_face_normal = true,}));
 
 			if (UNLIKELY(is_flip)) {
 				const int cd_loop_mdisp_offset = CustomData_get_offset(&bm->ldata, CD_MDISPS);
@@ -248,7 +214,7 @@ static DerivedMesh *applyModifier_bmesh(
 				}
 			}
 
-			DM_to_bmesh_ex(dm, bm, true);
+			BM_mesh_bm_from_me(bm, mesh, &((struct BMeshFromMeshParams){.calc_face_normal = true,}));
 
 			/* main bmesh intersection setup */
 			{
@@ -257,7 +223,7 @@ static DerivedMesh *applyModifier_bmesh(
 				int tottri;
 				BMLoop *(*looptris)[3];
 
-				looptris = MEM_mallocN(sizeof(*looptris) * looptris_tot, __func__);
+				looptris = MEM_malloc_arrayN(looptris_tot, sizeof(*looptris), __func__);
 
 				BM_mesh_calc_tessellation_beauty(bm, looptris, &tottri);
 
@@ -266,14 +232,14 @@ static DerivedMesh *applyModifier_bmesh(
 				{
 					BMIter iter;
 					int i;
-					const int i_verts_end = dm_other->getNumVerts(dm_other);
-					const int i_faces_end = dm_other->getNumPolys(dm_other);
+					const int i_verts_end = mesh_other->totvert;
+					const int i_faces_end = mesh_other->totpoly;
 
 					float imat[4][4];
 					float omat[4][4];
 
-					invert_m4_m4(imat, ob->obmat);
-					mul_m4_m4m4(omat, imat, bmd->object->obmat);
+					invert_m4_m4(imat, object->obmat);
+					mul_m4_m4m4(omat, imat, other->obmat);
 
 					BMVert *eve;
 					i = 0;
@@ -295,10 +261,11 @@ static DerivedMesh *applyModifier_bmesh(
 							negate_m3(nmat);
 						}
 
-						const short ob_src_totcol = bmd->object->totcol;
+						const short ob_src_totcol = other->totcol;
 						short *material_remap = BLI_array_alloca(material_remap, ob_src_totcol ? ob_src_totcol : 1);
 
-						BKE_material_remap_object_calc(ob, bmd->object, material_remap);
+						/* Using original (not evaluated) object here since we are writing to it. */
+						BKE_material_remap_object_calc(ctx->object, other, material_remap);
 
 						BMFace *efa;
 						i = 0;
@@ -343,94 +310,35 @@ static DerivedMesh *applyModifier_bmesh(
 				        use_dissolve,
 				        use_island_connect,
 				        false,
+				        false,
 				        bmd->operation,
 				        bmd->double_threshold);
 
 				MEM_freeN(looptris);
 			}
 
-			result = CDDM_from_bmesh(bm, true);
+			result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 
 			BM_mesh_free(bm);
 
-			result->dirty |= DM_DIRTY_NORMALS;
+			result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
 
 #ifdef DEBUG_TIME
 			TIMEIT_END(boolean_bmesh);
 #endif
-
-			return result;
 		}
 
 		/* if new mesh returned, return it; otherwise there was
 		 * an error, so delete the modifier object */
-		if (result)
-			return result;
-		else
+		if (result == NULL)
 			modifier_setError(md, "Cannot execute boolean operation");
 	}
 
-	return dm;
-}
-#endif  /* USE_BMESH */
-
-
-/* -------------------------------------------------------------------- */
-/* CARVE */
-
-#ifdef USE_CARVE
-static DerivedMesh *applyModifier_carve(
-        ModifierData *md, Object *ob,
-        DerivedMesh *derivedData,
-        ModifierApplyFlag flag)
-{
-	BooleanModifierData *bmd = (BooleanModifierData *) md;
-	DerivedMesh *dm;
-
-	if (!bmd->object)
-		return derivedData;
-
-	dm = get_dm_for_modifier(bmd->object, flag);
-
-	if (dm) {
-		DerivedMesh *result;
-
-		/* when one of objects is empty (has got no faces) we could speed up
-		 * calculation a bit returning one of objects' derived meshes (or empty one)
-		 * Returning mesh is depended on modifiers operation (sergey) */
-		result = get_quick_derivedMesh(ob, derivedData, bmd->object, dm, bmd->operation);
-
-		if (result == NULL) {
-#ifdef DEBUG_TIME
-			TIMEIT_START(boolean_carve);
-#endif
-
-			result = NewBooleanDerivedMesh(dm, bmd->object, derivedData, ob,
-			                               1 + bmd->operation);
-#ifdef DEBUG_TIME
-			TIMEIT_END(boolean_carve);
-#endif
-		}
-
-		/* if new mesh returned, return it; otherwise there was
-		 * an error, so delete the modifier object */
-		if (result)
-			return result;
-		else
-			modifier_setError(md, "Cannot execute boolean operation");
+	if (mesh_other != NULL && mesh_other_free) {
+		BKE_id_free(NULL, mesh_other);
 	}
-	
-	return derivedData;
-}
-#endif  /* USE_CARVE */
 
-
-static DerivedMesh *applyModifier_nop(
-        ModifierData *UNUSED(md), Object *UNUSED(ob),
-        DerivedMesh *derivedData,
-        ModifierApplyFlag UNUSED(flag))
-{
-	return derivedData;
+	return result;
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(md))
@@ -438,31 +346,9 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(
 	CustomDataMask dataMask = CD_MASK_MTFACE | CD_MASK_MEDGE;
 
 	dataMask |= CD_MASK_MDEFORMVERT;
-	
+
 	return dataMask;
 }
-
-static DerivedMesh *applyModifier(
-        ModifierData *md, Object *ob,
-        DerivedMesh *derivedData,
-        ModifierApplyFlag flag)
-{
-	BooleanModifierData *bmd = (BooleanModifierData *)md;
-
-	switch (bmd->solver) {
-#ifdef USE_CARVE
-		case eBooleanModifierSolver_Carve:
-			return applyModifier_carve(md, ob, derivedData, flag);
-#endif
-#ifdef USE_BMESH
-		case eBooleanModifierSolver_BMesh:
-			return applyModifier_bmesh(md, ob, derivedData, flag);
-#endif
-		default:
-			return applyModifier_nop(md, ob, derivedData, flag);
-	}
-}
-
 
 ModifierTypeInfo modifierType_Boolean = {
 	/* name */              "Boolean",
@@ -472,18 +358,26 @@ ModifierTypeInfo modifierType_Boolean = {
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_UsesPointCache,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+	/* applyModifierEM_DM */NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
 	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
-	/* updateDepgraph */    updateDepgraph,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,
 	/* dependsOnNormals */  NULL,

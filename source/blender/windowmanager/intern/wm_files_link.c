@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -59,7 +59,7 @@
 #include "BLO_readfile.h"
 
 #include "BKE_context.h"
-#include "BKE_depsgraph.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_remap.h"
 #include "BKE_global.h"
@@ -69,12 +69,12 @@
 
 #include "BKE_idcode.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #include "IMB_colormanagement.h"
 
 #include "ED_screen.h"
-
-#include "GPU_material.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -87,7 +87,7 @@
 
 /* **************** link/append *************** */
 
-static int wm_link_append_poll(bContext *C)
+static bool wm_link_append_poll(bContext *C)
 {
 	if (WM_operator_winactive(C)) {
 		/* linking changes active object which is pretty useful in general,
@@ -115,7 +115,7 @@ static int wm_link_append_invoke(bContext *C, wmOperator *op, const wmEvent *UNU
 		}
 		else if (G.relbase_valid) {
 			char path[FILE_MAX];
-			BLI_strncpy(path, G.main->name, sizeof(G.main->name));
+			BLI_strncpy(path, BKE_main_blendfile_path_from_global(), sizeof(path));
 			BLI_parent_dir(path);
 			RNA_string_set(op->ptr, "filepath", path);
 		}
@@ -131,13 +131,13 @@ static short wm_link_append_flag(wmOperator *op)
 
 	if (RNA_boolean_get(op->ptr, "autoselect"))
 		flag |= FILE_AUTOSELECT;
-	if (RNA_boolean_get(op->ptr, "active_layer"))
-		flag |= FILE_ACTIVELAY;
+	if (RNA_boolean_get(op->ptr, "active_collection"))
+		flag |= FILE_ACTIVE_COLLECTION;
 	if ((prop = RNA_struct_find_property(op->ptr, "relative_path")) && RNA_property_boolean_get(op->ptr, prop))
 		flag |= FILE_RELPATH;
 	if (RNA_boolean_get(op->ptr, "link"))
 		flag |= FILE_LINK;
-	if (RNA_boolean_get(op->ptr, "instance_groups"))
+	if (RNA_boolean_get(op->ptr, "instance_collections"))
 		flag |= FILE_GROUP_INSTANCE;
 
 	return flag;
@@ -157,7 +157,7 @@ typedef struct WMLinkAppendData {
 	LinkNodePair items;
 	int num_libraries;
 	int num_items;
-	short flag;
+	int flag;  /* Combines eFileSel_Params_Flag from DNA_space_types.h and BLO_LibLinkFlags from BLO_readfile.h */
 
 	/* Internal 'private' data */
 	MemArena *memarena;
@@ -212,8 +212,7 @@ static WMLinkAppendDataItem *wm_link_append_data_item_add(
 }
 
 static void wm_link_do(
-        WMLinkAppendData *lapp_data, ReportList *reports, Main *bmain, Scene *scene, View3D *v3d,
-        const bool use_placeholders, const bool force_indirect)
+        WMLinkAppendData *lapp_data, ReportList *reports, Main *bmain, Scene *scene, ViewLayer *view_layer)
 {
 	Main *mainl;
 	BlendHandle *bh;
@@ -260,8 +259,7 @@ static void wm_link_do(
 				continue;
 			}
 
-			new_id = BLO_library_link_named_part_ex(
-			             mainl, &bh, item->idcode, item->name, flag, scene, v3d, use_placeholders, force_indirect);
+			new_id = BLO_library_link_named_part_ex(mainl, &bh, item->idcode, item->name, flag, bmain, scene, view_layer);
 
 			if (new_id) {
 				/* If the link is successful, clear item's libs 'todo' flags.
@@ -271,21 +269,55 @@ static void wm_link_do(
 			}
 		}
 
-		BLO_library_link_end(mainl, &bh, flag, scene, v3d);
+		BLO_library_link_end(mainl, &bh, flag, bmain, scene, view_layer);
 		BLO_blendhandle_close(bh);
 	}
+}
+
+/**
+ * Check if an item defined by \a name and \a group can be appended/linked.
+ *
+ * \param reports: Optionally report an error when an item can't be appended/linked.
+ */
+static bool wm_link_append_item_poll(
+        ReportList *reports, const char *path, const char *group, const char *name, const bool do_append)
+{
+	short idcode;
+
+	if (!group || !name) {
+		printf("skipping %s\n", path);
+		return false;
+	}
+
+	idcode = BKE_idcode_from_name(group);
+
+	/* XXX For now, we do a nasty exception for workspace, forbid linking them.
+	 *     Not nice, ultimately should be solved! */
+	if (!BKE_idcode_is_linkable(idcode) && (do_append || idcode != ID_WS)) {
+		if (reports) {
+			if (do_append) {
+				BKE_reportf(reports, RPT_ERROR_INVALID_INPUT, "Can't append data-block '%s' of type '%s'", name, group);
+			}
+			else {
+				BKE_reportf(reports, RPT_ERROR_INVALID_INPUT, "Can't link data-block '%s' of type '%s'", name, group);
+			}
+		}
+		return false;
+	}
+
+	return true;
 }
 
 static int wm_link_append_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	PropertyRNA *prop;
 	WMLinkAppendData *lapp_data;
 	char path[FILE_MAX_LIBEXTRA], root[FILE_MAXDIR], libname[FILE_MAX_LIBEXTRA], relname[FILE_MAX];
 	char *group, *name;
 	int totfiles = 0;
-	short flag;
 
 	RNA_string_get(op->ptr, "filename", relname);
 	RNA_string_get(op->ptr, "directory", root);
@@ -301,7 +333,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		BKE_reportf(op->reports, RPT_ERROR, "'%s': nothing indicated", path);
 		return OPERATOR_CANCELLED;
 	}
-	else if (BLI_path_cmp(bmain->name, libname) == 0) {
+	else if (BLI_path_cmp(BKE_main_blendfile_path(bmain), libname) == 0) {
 		BKE_reportf(op->reports, RPT_ERROR, "'%s': cannot use current file as library", path);
 		return OPERATOR_CANCELLED;
 	}
@@ -322,7 +354,8 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	flag = wm_link_append_flag(op);
+	short flag = wm_link_append_flag(op);
+	const bool do_append = (flag & FILE_LINK) == 0;
 
 	/* sanity checks for flag */
 	if (scene && scene->id.lib) {
@@ -332,12 +365,14 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		scene = NULL;
 	}
 
+	/* We need to add nothing from BLO_LibLinkFlags to flag here. */
+
 	/* from here down, no error returns */
 
-	if (scene && RNA_boolean_get(op->ptr, "autoselect")) {
-		BKE_scene_base_deselect_all(scene);
+	if (view_layer && RNA_boolean_get(op->ptr, "autoselect")) {
+		BKE_view_layer_base_deselect_all(view_layer);
 	}
-	
+
 	/* tag everything, all untagged data can be made local
 	 * its also generally useful to know what is new
 	 *
@@ -358,7 +393,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 			BLI_join_dirfile(path, sizeof(path), root, relname);
 
 			if (BLO_library_path_explode(path, libname, &group, &name)) {
-				if (!group || !name) {
+				if (!wm_link_append_item_poll(NULL, path, group, name, do_append)) {
 					continue;
 				}
 
@@ -379,8 +414,8 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 
 			if (BLO_library_path_explode(path, libname, &group, &name)) {
 				WMLinkAppendDataItem *item;
-				if (!group || !name) {
-					printf("skipping %s\n", path);
+
+				if (!wm_link_append_item_poll(op->reports, path, group, name, do_append)) {
 					continue;
 				}
 
@@ -402,10 +437,16 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 		BLI_BITMAP_ENABLE(item->libraries, 0);
 	}
 
+	if (lapp_data->num_items == 0) {
+		/* Early out in case there is nothing to link. */
+		wm_link_append_data_free(lapp_data);
+		return OPERATOR_CANCELLED;
+	}
+
 	/* XXX We'd need re-entrant locking on Main for this to work... */
 	/* BKE_main_lock(bmain); */
 
-	wm_link_do(lapp_data, op->reports, bmain, scene, CTX_wm_view3d(C), false, false);
+	wm_link_do(lapp_data, op->reports, bmain, scene, view_layer);
 
 	/* BKE_main_unlock(bmain); */
 
@@ -414,7 +455,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	IMB_colormanagement_check_file_config(bmain);
 
 	/* append, rather than linking */
-	if ((flag & FILE_LINK) == 0) {
+	if (do_append) {
 		const bool set_fake = RNA_boolean_get(op->ptr, "set_fake");
 		const bool use_recursive = RNA_boolean_get(op->ptr, "use_recursive");
 
@@ -445,13 +486,17 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	 * link into other scenes from this blend file */
 	BKE_main_id_tag_all(bmain, LIB_TAG_PRE_EXISTING, false);
 
+	/* TODO(sergey): Use proper flag for tagging here. */
+
+	/* TODO (dalai): Temporary solution!
+	 * Ideally we only need to tag the new objects themselves, not the scene. This way we'll avoid flush of
+	 * collection properties to all objects and limit update to the particular object only.
+	 * But afraid first we need to change collection evaluation in DEG according to depsgraph manifesto.
+	 */
+	DEG_id_tag_update(&scene->id, 0);
+
 	/* recreate dependency graph to include new objects */
-	if (scene) {
-		DAG_scene_relations_rebuild(bmain, scene);
-	}
-	
-	/* free gpu materials, some materials depend on existing objects, such as lamps so freeing correctly refreshes */
-	GPU_materials_free();
+	DEG_relations_tag_update(bmain);
 
 	/* XXX TODO: align G.lib with other directory storage (like last opened image etc...) */
 	BLI_strncpy(G.lib, root, FILE_MAX);
@@ -473,11 +518,11 @@ static void wm_link_append_properties_common(wmOperatorType *ot, bool is_link)
 	prop = RNA_def_boolean(ot->srna, "autoselect", true,
 	                       "Select", "Select new objects");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-	prop = RNA_def_boolean(ot->srna, "active_layer", true,
-	                       "Active Layer", "Put new objects on the active layer");
+	prop = RNA_def_boolean(ot->srna, "active_collection", true,
+	                       "Active Collection", "Put new objects on the active collection");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-	prop = RNA_def_boolean(ot->srna, "instance_groups", is_link,
-	                       "Instance Groups", "Create Dupli-Group instances for each group");
+	prop = RNA_def_boolean(ot->srna, "instance_collections", is_link,
+	                       "Instance Collections", "Create instances for collections, rather than adding them directly to the scene");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
@@ -486,18 +531,18 @@ void WM_OT_link(wmOperatorType *ot)
 	ot->name = "Link from Library";
 	ot->idname = "WM_OT_link";
 	ot->description = "Link from a Library .blend file";
-	
+
 	ot->invoke = wm_link_append_invoke;
 	ot->exec = wm_link_append_exec;
 	ot->poll = wm_link_append_poll;
-	
+
 	ot->flag |= OPTYPE_UNDO;
 
 	WM_operator_properties_filesel(
 	        ot, FILE_TYPE_FOLDER | FILE_TYPE_BLENDER | FILE_TYPE_BLENDERLIB, FILE_LOADLIB, FILE_OPENFILE,
 	        WM_FILESEL_FILEPATH | WM_FILESEL_DIRECTORY | WM_FILESEL_FILENAME | WM_FILESEL_RELPATH | WM_FILESEL_FILES,
 	        FILE_DEFAULTDISPLAY, FILE_SORT_ALPHA);
-	
+
 	wm_link_append_properties_common(ot, true);
 }
 
@@ -535,7 +580,7 @@ static int wm_lib_relocate_invoke(bContext *C, wmOperator *op, const wmEvent *UN
 	char lib_name[MAX_NAME];
 
 	RNA_string_get(op->ptr, "library", lib_name);
-	lib = (Library *)BKE_libblock_find_name_ex(CTX_data_main(C), ID_LI, lib_name);
+	lib = (Library *)BKE_libblock_find_name(CTX_data_main(C), ID_LI, lib_name);
 
 	if (lib) {
 		if (lib->parent) {
@@ -554,7 +599,7 @@ static int wm_lib_relocate_invoke(bContext *C, wmOperator *op, const wmEvent *UN
 }
 
 static void lib_relocate_do(
-        Main *bmain, Scene *scene,
+        Main *bmain,
         Library *library, WMLinkAppendData *lapp_data, ReportList *reports, const bool do_reload)
 {
 	ListBase *lbarray[MAX_LIBARRAY];
@@ -591,10 +636,15 @@ static void lib_relocate_do(
 		}
 	}
 
+	if (lapp_data->num_items == 0) {
+		/* Early out in case there is nothing to do. */
+		return;
+	}
+
 	BKE_main_id_tag_all(bmain, LIB_TAG_PRE_EXISTING, true);
 
 	/* We do not want any instanciation here! */
-	wm_link_do(lapp_data, reports, bmain, NULL, NULL, do_reload, do_reload);
+	wm_link_do(lapp_data, reports, bmain, NULL, NULL);
 
 	BKE_main_lock(bmain);
 
@@ -739,10 +789,7 @@ static void lib_relocate_do(
 	BKE_main_id_tag_all(bmain, LIB_TAG_PRE_EXISTING, false);
 
 	/* recreate dependency graph to include new objects */
-	DAG_scene_relations_rebuild(bmain, scene);
-
-	/* free gpu materials, some materials depend on existing objects, such as lamps so freeing correctly refreshes */
-	GPU_materials_free();
+	DEG_relations_tag_update(bmain);
 }
 
 void WM_lib_reload(Library *lib, bContext *C, ReportList *reports)
@@ -758,11 +805,11 @@ void WM_lib_reload(Library *lib, bContext *C, ReportList *reports)
 		return;
 	}
 
-	WMLinkAppendData *lapp_data = wm_link_append_data_new(0);
+	WMLinkAppendData *lapp_data = wm_link_append_data_new(BLO_LIBLINK_USE_PLACEHOLDERS | BLO_LIBLINK_FORCE_INDIRECT);
 
 	wm_link_append_data_library_add(lapp_data, lib->filepath);
 
-	lib_relocate_do(CTX_data_main(C), CTX_data_scene(C), lib, lapp_data, reports, true);
+	lib_relocate_do(CTX_data_main(C), lib, lapp_data, reports, true);
 
 	wm_link_append_data_free(lapp_data);
 
@@ -775,11 +822,10 @@ static int wm_lib_relocate_exec_do(bContext *C, wmOperator *op, bool do_reload)
 	char lib_name[MAX_NAME];
 
 	RNA_string_get(op->ptr, "library", lib_name);
-	lib = (Library *)BKE_libblock_find_name_ex(CTX_data_main(C), ID_LI, lib_name);
+	lib = (Library *)BKE_libblock_find_name(CTX_data_main(C), ID_LI, lib_name);
 
 	if (lib) {
 		Main *bmain = CTX_data_main(C);
-		Scene *scene = CTX_data_scene(C);
 		PropertyRNA *prop;
 		WMLinkAppendData *lapp_data;
 
@@ -869,7 +915,11 @@ static int wm_lib_relocate_exec_do(bContext *C, wmOperator *op, bool do_reload)
 			}
 		}
 
-		lib_relocate_do(bmain, scene, lib, lapp_data, op->reports, do_reload);
+		if (do_reload) {
+			lapp_data->flag |= BLO_LIBLINK_USE_PLACEHOLDERS | BLO_LIBLINK_FORCE_INDIRECT;
+		}
+
+		lib_relocate_do(bmain, lib, lapp_data, op->reports, do_reload);
 
 		wm_link_append_data_free(lapp_data);
 
