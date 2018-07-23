@@ -59,35 +59,41 @@ def generate_from_brushes_ex(
                     )
                 )
     else:
-        for brush in context.blend_data.brushes:
-            if getattr(brush, brush_test_attr):
-                category = getattr(brush.gpencil_settings, brush_category_attr)
-                name = brush.name
-                if name.startswith("Draw "):
-                    text = name.replace("Draw ", "")
-                    icon_name = brush.name.lower().replace(" ", "_")
-                elif name.startswith("Eraser "):
-                    text = name.replace("Eraser ", "")
-                    icon_name = "draw." + brush.name.lower().replace(" ", "_")
-                elif name.startswith("Fill "):
-                    text = name.replace(" Area", "")
-                    icon_name = "draw_fill"
-                else:
-                    text = name
-                    icon_name = "draw_pencil"
+        for e in brush_category_layout:
+            main_brush = context.blend_data.brushes[e[0]]
 
-                brush_categories.setdefault(category, []).append(
-                    ToolDef.from_dict(
-                        dict(
-                            text=text,
-                            icon=icon_prefix + icon_name,
-                            data_block=name,
-                            widget=None,
-                            operator="gpencil.draw",
-                            draw_settings=draw_settings,
+            for brush in context.blend_data.brushes:
+                if brush.name.startswith(main_brush.name) and getattr(brush, brush_test_attr):
+                    category = getattr(brush.gpencil_settings, brush_category_attr)
+                    name = brush.name
+                    if name.startswith("Draw "):
+                        text = name.replace("Draw ", "")
+                        icon_name = brush.name.lower().replace(" ", "_")
+                    elif name.startswith("Eraser "):
+                        text = name.replace("Eraser ", "")
+                        icon_name = "draw." + brush.name.lower().replace(" ", "_")
+                    elif name.startswith("Fill "):
+                        text = name.replace(" Area", "")
+                        icon_name = "draw_fill"
+                    else:
+                        text = name
+                        icon_name = "draw_pencil"
+
+                    if icon_name[-4:-3] == '.':
+                        icon_name = icon_name[:-4]
+
+                    brush_categories.setdefault(category, []).append(
+                        ToolDef.from_dict(
+                            dict(
+                                text=text,
+                                icon=icon_prefix + icon_name,
+                                data_block=name,
+                                widget=None,
+                                operator="gpencil.draw",
+                                draw_settings=draw_settings,
+                            )
                         )
                     )
-                )
 
     def tools_from_brush_group(groups):
         assert(type(groups) is tuple)
