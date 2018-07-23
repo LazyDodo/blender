@@ -1894,42 +1894,50 @@ void node_tex_image_tiled_map(vec3 co, out vec4 color, out vec3 map)
 
 void node_tex_image_tile_linear(vec3 map, float tile_id, sampler2D ima, vec4 in_color, out vec4 color, out float alpha)
 {
-	if (map.z == tile_id)
+	if (map.z == tile_id) {
 		vec3 co = map.xyy;
 		node_tex_image_linear(co, ima, color, alpha);
-	else
+	}
+	else {
 		color = in_color;
 		alpha = color.a;
+	}
 }
 
 void node_tex_image_tile_nearest(vec3 map, float tile_id, sampler2D ima, vec4 in_color, out vec4 color, out float alpha)
 {
-	if (map.z == tile_id)
+	if (map.z == tile_id) {
 		vec3 co = map.xyy;
 		node_tex_image_nearest(co, ima, color, alpha);
-	else
+	}
+	else {
 		color = in_color;
 		alpha = color.a;
+	}
 }
 
 void node_tex_image_tile_cubic(vec3 map, float tile_id, sampler2D ima, vec4 in_color, out vec4 color, out float alpha)
 {
-	if (map.z == tile_id)
+	if (map.z == tile_id) {
 		vec3 co = map.xyy;
 		node_tex_image_cubic(co, ima, color, alpha);
-	else
+	}
+	else {
 		color = in_color;
 		alpha = color.a;
+	}
 }
 
 void node_tex_image_tile_smart(vec3 map, float tile_id, sampler2D ima, vec4 in_color, out vec4 color, out float alpha)
 {
-	if (map.z == tile_id)
+	if (map.z == tile_id) {
 		vec3 co = map.xyy;
 		node_tex_image_smart(co, ima, color, alpha);
-	else
+	}
+	else {
 		color = in_color;
 		alpha = color.a;
+	}
 }
 
 void tex_box_sample_linear(vec3 texco,
