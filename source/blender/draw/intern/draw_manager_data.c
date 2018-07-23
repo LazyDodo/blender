@@ -766,18 +766,9 @@ static DRWShadingGroup *drw_shgroup_material_inputs(DRWShadingGroup *grp, struct
 	for (GPUInput *input = inputs->first; input; input = input->next) {
 		/* Textures */
 		if (input->ima) {
-			ImageUser *tex_iuser = input->iuser;
-
-			/* If there's no specified iuser but we need a different tile, create a temporary one. */
-			ImageUser iuser = {NULL};
-			iuser.ok = true;
-			iuser.tile = input->image_tile;
-			if (!tex_iuser && iuser.tile != 0)
-				tex_iuser = &iuser;
-
 			double time = 0.0; /* TODO make time variable */
 			GPUTexture *tex = GPU_texture_from_blender(
-			        input->ima, tex_iuser, input->textarget, input->image_isdata, time);
+			        input->ima, input->iuser, input->textarget, input->image_isdata, time);
 
 			if (input->bindtex) {
 				DRW_shgroup_uniform_texture(grp, input->shadername, tex);

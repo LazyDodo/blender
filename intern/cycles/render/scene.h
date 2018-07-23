@@ -169,8 +169,6 @@ public:
 	bool persistent_data;
 	int texture_limit;
 
-	bool background;
-
 	SceneParams()
 	{
 		shadingsystem = SHADINGSYSTEM_SVM;

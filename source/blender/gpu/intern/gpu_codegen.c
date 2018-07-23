@@ -515,19 +515,17 @@ const char *GPU_builtin_name(GPUBuiltin builtin)
 }
 
 /* assign only one texid per buffer to avoid sampling the same texture twice */
-static void codegen_set_texid(GHash *bindhash, GPUInput *input, int *texid, void *key1, int key2)
+static void codegen_set_texid(GHash *bindhash, GPUInput *input, int *texid, void *key)
 {
-	GHashPair pair = {key1, SET_INT_IN_POINTER(key2 << 16)};
-	if (BLI_ghash_haskey(bindhash, &pair)) {
+	if (BLI_ghash_haskey(bindhash, key)) {
 		/* Reuse existing texid */
-		input->texid = GET_INT_FROM_POINTER(BLI_ghash_lookup(bindhash, &pair));
+		input->texid = GET_INT_FROM_POINTER(BLI_ghash_lookup(bindhash, key));
 	}
 	else {
 		/* Allocate new texid */
 		input->texid = *texid;
 		(*texid)++;
 		input->bindtex = true;
-		void *key = BLI_ghashutil_pairalloc(key1, SET_INT_IN_POINTER(key2));
 		BLI_ghash_insert(bindhash, key, SET_INT_IN_POINTER(input->texid));
 	}
 }
@@ -540,7 +538,7 @@ static void codegen_set_unique_ids(ListBase *nodes)
 	GPUOutput *output;
 	int id = 1, texid = 0;
 
-	bindhash = BLI_ghash_pair_new("codegen_set_unique_ids1 gh");
+	bindhash = BLI_ghash_ptr_new("codegen_set_unique_ids1 gh");
 	definehash = BLI_ghash_ptr_new("codegen_set_unique_ids2 gh");
 
 	for (node = nodes->first; node; node = node->next) {
@@ -558,19 +556,19 @@ static void codegen_set_unique_ids(ListBase *nodes)
 				 * the same texture twice */
 				if (input->link) {
 					/* input is texture from buffer */
-					codegen_set_texid(bindhash, input, &texid, input->link, 0);
+					codegen_set_texid(bindhash, input, &texid, input->link);
 				}
 				else if (input->ima) {
 					/* input is texture from image */
-					codegen_set_texid(bindhash, input, &texid, input->ima, input->image_tile);
+					codegen_set_texid(bindhash, input, &texid, input->ima);
 				}
 				else if (input->prv) {
 					/* input is texture from preview render */
-					codegen_set_texid(bindhash, input, &texid, input->prv, 0);
+					codegen_set_texid(bindhash, input, &texid, input->prv);
 				}
 				else if (input->tex) {
 					/* input is user created texture, check tex pointer */
-					codegen_set_texid(bindhash, input, &texid, input->tex, 0);
+					codegen_set_texid(bindhash, input, &texid, input->tex);
 				}
 
 				/* make sure this pixel is defined exactly once */
@@ -596,7 +594,7 @@ static void codegen_set_unique_ids(ListBase *nodes)
 			output->id = id++;
 	}
 
-	BLI_ghash_free(bindhash, BLI_ghashutil_pairfree, NULL);
+	BLI_ghash_free(bindhash, NULL, NULL);
 	BLI_ghash_free(definehash, NULL, NULL);
 }
 
@@ -1357,7 +1355,6 @@ static void gpu_node_input_link(GPUNode *node, GPUNodeLink *link, const GPUType 
 			input->ima = link->ptr1;
 			input->iuser = link->ptr2;
 			input->image_isdata = link->image_isdata;
-			input->image_tile = link->val1;
 			input->textarget = GL_TEXTURE_2D;
 			input->textype = GPU_TEX2D;
 		}
@@ -1655,14 +1652,13 @@ GPUNodeLink *GPU_uniform_buffer(float *num, GPUType gputype)
 	return link;
 }
 
-GPUNodeLink *GPU_image(Image *ima, ImageUser *iuser, bool is_data, int tile)
+GPUNodeLink *GPU_image(Image *ima, ImageUser *iuser, bool is_data)
 {
 	GPUNodeLink *link = GPU_node_link_create();
 
 	link->image = GPU_NODE_LINK_IMAGE_BLENDER;
 	link->ptr1 = ima;
 	link->ptr2 = iuser;
-	link->val1 = tile;
 	link->image_isdata = is_data;
 
 	return link;

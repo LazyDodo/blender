@@ -45,9 +45,6 @@
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
 #include "BLI_string_utf8.h"
-#include "BLI_fileops.h"
-#include "BLI_fileops_types.h"
-#include "BLI_linklist.h"
 
 #include "BLT_translation.h"
 
@@ -226,7 +223,7 @@ static bool space_image_file_exists_poll(bContext *C)
 		bool ret = false;
 		char name[FILE_MAX];
 
-		ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
+		ibuf = ED_space_image_acquire_buffer(sima, &lock);
 		if (ibuf) {
 			BLI_strncpy(name, ibuf->name, FILE_MAX);
 			BLI_path_abs(name, BKE_main_blendfile_path(bmain));
@@ -1153,52 +1150,6 @@ static int image_cmp_frame(const void *a, const void *b)
 	return 0;
 }
 
-static int image_get_udim(const char *filepath, LinkNodePair *udim_tiles)
-{
-	if (strstr(filepath, "1001") == NULL) {
-		return 0;
-	}
-
-	char filename[FILE_MAX], dirname[FILE_MAXDIR];
-	BLI_split_dirfile(filepath, dirname, filename, sizeof(dirname), sizeof(filename));
-
-	bool is_udim = true;
-	int max_udim = 0;
-
-	unsigned short digits;
-	char base_head[FILE_MAX], base_tail[FILE_MAX];
-	int id = BLI_stringdec(filename, base_head, base_tail, &digits);
-	if (id == 1001) {
-		struct direntry *dir;
-		uint totfile = BLI_filelist_dir_contents(dirname, &dir);
-		for (int i = 0; i < totfile; i++) {
-			if (!(dir[i].type & S_IFREG)) {
-				continue;
-			}
-			char head[FILE_MAX], tail[FILE_MAX];
-			id = BLI_stringdec(dir[i].relname, head, tail, &digits);
-
-			if (digits > 4 ||
-				!(STREQLEN(base_head, head, FILE_MAX)) ||
-				!(STREQLEN(base_tail, tail, FILE_MAX))) {
-				continue;
-			}
-
-			if (id < 1001 || id >= 2000) {
-				is_udim = false;
-				break;
-			}
-
-			BLI_linklist_append(udim_tiles, SET_INT_IN_POINTER(id - 1001));
-			max_udim = max_ii(max_udim, id);
-		}
-
-		BLI_filelist_free(dir, totfile);
-	}
-
-	return is_udim? (max_udim - 1001) : 0;
-}
-
 /**
  * Return the start (offset) and the length of the sequence of continuous frames in the list of frames
  *
@@ -1206,27 +1157,21 @@ static int image_get_udim(const char *filepath, LinkNodePair *udim_tiles)
  * \param ofs: [out] offset the first frame number in the sequence.
  * \return the number of contiguous frames in the sequence
  */
-static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, LinkNodePair *udim_tiles)
+static int image_sequence_get_len(ListBase *frames, int *ofs)
 {
 	ImageFrame *frame;
 
-	BLI_listbase_sort(&frame_range->frames, image_cmp_frame);
+	BLI_listbase_sort(frames, image_cmp_frame);
 
-	frame = frame_range->frames.first;
+	frame = frames->first;
 	if (frame) {
 		int frame_curr = frame->framenr;
 		(*ofs) = frame_curr;
-
-		if (udim_tiles && (frame_curr == 1001)) {
-			return 1 + image_get_udim(frame_range->filepath, udim_tiles);
+		while (frame && (frame->framenr == frame_curr)) {
+			frame_curr++;
+			frame = frame->next;
 		}
-		else {
-			while (frame && (frame->framenr == frame_curr)) {
-				frame_curr++;
-				frame = frame->next;
-			}
-			return frame_curr - (*ofs);
-		}
+		return frame_curr - (*ofs);
 	}
 	*ofs = 0;
 	return 0;
@@ -1234,8 +1179,7 @@ static int image_sequence_get_len(ImageFrameRange *frame_range, int *ofs, LinkNo
 
 static Image *image_open_single(
         Main *bmain, wmOperator *op, const char *filepath, const char *relbase,
-        bool is_relative_path, bool use_multiview, int frame_seq_len,
-        int frame_seq_ofs, LinkNodePair *udim_tiles)
+        bool is_relative_path, bool use_multiview, int frame_seq_len)
 {
 	bool exists = false;
 	Image *ima = NULL;
@@ -1271,15 +1215,7 @@ static Image *image_open_single(
 		}
 
 		if ((frame_seq_len > 1) && (ima->source == IMA_SRC_FILE)) {
-			if (udim_tiles && frame_seq_ofs == 1001) {
-				ima->source = IMA_SRC_TILED;
-				for (LinkNode *node = udim_tiles->list; node; node = node->next) {
-					BKE_image_add_tile(ima, GET_INT_FROM_POINTER(node->link), NULL);
-				}
-			}
-			else {
-				ima->source = IMA_SRC_SEQUENCE;
-			}
+			ima->source = IMA_SRC_SEQUENCE;
 		}
 	}
 
@@ -1302,7 +1238,6 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 	const bool is_relative_path = RNA_boolean_get(op->ptr, "relative_path");
 	const bool use_multiview    = RNA_boolean_get(op->ptr, "use_multiview");
-	const bool use_udim         = RNA_boolean_get(op->ptr, "use_udim");
 
 	if (!op->customdata)
 		image_open_init(C, op);
@@ -1319,9 +1254,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		image_sequence_get_frame_ranges(op->ptr, &frame_ranges_all);
 		for (ImageFrameRange *frame_range = frame_ranges_all.first; frame_range; frame_range = frame_range->next) {
 			int frame_range_ofs;
-			LinkNodePair udim_tiles = {NULL};
-			int frame_range_seq_len = image_sequence_get_len(frame_range, &frame_range_ofs,
-			                                                 use_udim? &udim_tiles : NULL);
+			int frame_range_seq_len = image_sequence_get_len(&frame_range->frames, &frame_range_ofs);
 			BLI_freelistN(&frame_range->frames);
 
 			char filepath_range[FILE_MAX];
@@ -1333,10 +1266,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 			Image *ima_range = image_open_single(
 			         bmain, op, filepath_range, BKE_main_blendfile_path(bmain),
-			         is_relative_path, use_multiview, frame_range_seq_len, frame_range_ofs,
-			         use_udim? &udim_tiles : NULL);
-
-			BLI_linklist_free(udim_tiles.list, NULL);
+			         is_relative_path, use_multiview, frame_range_seq_len);
 
 			/* take the first image */
 			if ((ima == NULL) && ima_range) {
@@ -1348,17 +1278,10 @@ static int image_open_exec(bContext *C, wmOperator *op)
 		BLI_freelistN(&frame_ranges_all);
 	}
 	else {
-		int sequence_len = 1;
-		LinkNodePair udim_tiles = {NULL};
-		if (use_udim) {
-			sequence_len = image_get_udim(filepath, &udim_tiles);
-		}
 		/* for drag & drop etc. */
 		ima = image_open_single(
 		        bmain, op, filepath, BKE_main_blendfile_path(bmain),
-		        is_relative_path, use_multiview, 1, sequence_len, &udim_tiles);
-
-		BLI_linklist_free(udim_tiles.list, NULL);
+		        is_relative_path, use_multiview, 1);
 	}
 
 	if (ima == NULL) {
@@ -1408,7 +1331,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 
 	/* initialize because of new image */
 	if (iuser) {
-		iuser->frames = (ima->source == IMA_SRC_SEQUENCE)? frame_seq_len : 1;
+		iuser->frames = frame_seq_len;
 		iuser->sfra = 1;
 		iuser->framenr = 1;
 		if (ima->source == IMA_SRC_MOVIE) {
@@ -1541,7 +1464,6 @@ void IMAGE_OT_open(wmOperatorType *ot)
 
 	RNA_def_boolean(ot->srna, "use_sequence_detection", true, "Detect Sequences",
 	                "Automatically detect animated sequences in selected images (based on file names)");
-	RNA_def_boolean(ot->srna, "use_udim", true, "Detect UDIMs", "Detect selected UDIM files and load all matching tiles");
 }
 
 /******************** Match movie length operator ********************/
@@ -1708,7 +1630,7 @@ static int save_image_options_init(Main *bmain, SaveImageOptions *simopts, Space
                                    const bool guess_path, const bool save_as_render)
 {
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
 
 	if (ibuf) {
 		Image *ima = sima->image;
@@ -1889,15 +1811,17 @@ static void save_imbuf_post(ImBuf *ibuf, ImBuf *colormanaged_ibuf)
  * \note ``ima->name`` and ``ibuf->name`` should end up the same.
  * \note for multiview the first ``ibuf`` is important to get the settings.
  */
-static bool save_image_single(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath, int tile)
+static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath)
 {
 	Main *bmain = CTX_data_main(C);
 	Image *ima = ED_space_image(sima);
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
 	Scene *scene;
 	RenderResult *rr = NULL;
 	bool ok = false;
+
+	WM_cursor_wait(1);
 
 	if (ibuf) {
 		ImBuf *colormanaged_ibuf = NULL;
@@ -2112,39 +2036,9 @@ cleanup:
 		BKE_image_release_renderresult(scene, ima);
 	}
 
-	return ok;
-}
-
-static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath)
-{
-	Image *ima = ED_space_image(sima);
-
-	WM_cursor_wait(1);
-
-	if (!save_image_single(C, sima, op, simopts, do_newpath, 0)) {
-		WM_cursor_wait(0);
-		return false;
-	}
-
-	if (ima->source == IMA_SRC_TILED) {
-		char filepath[FILE_MAX];
-		BLI_strncpy(filepath, simopts->filepath, sizeof(filepath));
-		LISTBASE_FOREACH(ImageTile*, tile, &ima->tiles) {
-			if (tile->tile_number == 0)
-				continue;
-
-			char head[FILE_MAX], tail[FILE_MAX];
-			unsigned short numlen;
-			BLI_stringdec(filepath, head, tail, &numlen);
-			BLI_stringenc(simopts->filepath, head, tail, numlen, 1001 + tile->tile_number);
-
-			save_image_single(C, sima, op, simopts, do_newpath, tile->tile_number);
-		}
-		BLI_strncpy(simopts->filepath, filepath, sizeof(simopts->filepath));
-	}
-
 	WM_cursor_wait(0);
-	return true;
+
+	return ok;
 }
 
 static void image_save_as_free(wmOperator *op)
@@ -2364,7 +2258,7 @@ static int image_save_sequence_exec(bContext *C, wmOperator *op)
 	if (sima->image == NULL)
 		return OPERATOR_CANCELLED;
 
-	if (ELEM(sima->image->source, IMA_SRC_SEQUENCE, IMA_SRC_TILED)) {
+	if (sima->image->source != IMA_SRC_SEQUENCE) {
 		BKE_report(op->reports, RPT_ERROR, "Can only save sequence on image sequences");
 		return OPERATOR_CANCELLED;
 	}
@@ -2810,7 +2704,7 @@ static bool image_pack_test(bContext *C, wmOperator *op)
 	if (!as_png && BKE_image_has_packedfile(ima))
 		return 0;
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_TILED)) {
+	if (ima->source == IMA_SRC_SEQUENCE || ima->source == IMA_SRC_MOVIE) {
 		BKE_report(op->reports, RPT_ERROR, "Packing movies or image sequences not supported");
 		return 0;
 	}
@@ -2911,7 +2805,7 @@ static int image_unpack_exec(bContext *C, wmOperator *op)
 	if (!ima || !BKE_image_has_packedfile(ima))
 		return OPERATOR_CANCELLED;
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_TILED)) {
+	if (ima->source == IMA_SRC_SEQUENCE || ima->source == IMA_SRC_MOVIE) {
 		BKE_report(op->reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return OPERATOR_CANCELLED;
 	}
@@ -2939,7 +2833,7 @@ static int image_unpack_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 	if (!ima || !BKE_image_has_packedfile(ima))
 		return OPERATOR_CANCELLED;
 
-	if (ELEM(ima->source, IMA_SRC_SEQUENCE, IMA_SRC_MOVIE, IMA_SRC_TILED)) {
+	if (ima->source == IMA_SRC_SEQUENCE || ima->source == IMA_SRC_MOVIE) {
 		BKE_report(op->reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return OPERATOR_CANCELLED;
 	}
@@ -3009,12 +2903,9 @@ static void image_sample_draw(const bContext *C, ARegion *ar, void *arg_info)
 /* Returns color in linear space, matching ED_space_node_color_sample(). */
 bool ED_space_image_color_sample(SpaceImage *sima, ARegion *ar, int mval[2], float r_col[3])
 {
-	float uv[2];
-	UI_view2d_region_to_view(&ar->v2d, mval[0], mval[1], &uv[0], &uv[1]);
-	int tile = BKE_image_get_tile_from_pos(sima->image, uv, uv, NULL);
-
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
+	float fx, fy;
 	bool ret = false;
 
 	if (ibuf == NULL) {
@@ -3022,10 +2913,12 @@ bool ED_space_image_color_sample(SpaceImage *sima, ARegion *ar, int mval[2], flo
 		return false;
 	}
 
-	if (uv[0] >= 0.0f && uv[1] >= 0.0f && uv[0] < 1.0f && uv[1] < 1.0f) {
+	UI_view2d_region_to_view(&ar->v2d, mval[0], mval[1], &fx, &fy);
+
+	if (fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
 		const float *fp;
 		unsigned char *cp;
-		int x = (int)(uv[0] * ibuf->x), y = (int)(uv[1] * ibuf->y);
+		int x = (int)(fx * ibuf->x), y = (int)(fy * ibuf->y);
 
 		CLAMP(x, 0, ibuf->x - 1);
 		CLAMP(y, 0, ibuf->y - 1);
@@ -3051,15 +2944,10 @@ static void image_sample_apply(bContext *C, wmOperator *op, const wmEvent *event
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	ARegion *ar = CTX_wm_region(C);
-	Image *image = ED_space_image(sima);
-
-	float uv[2];
-	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &uv[0], &uv[1]);
-	int tile = BKE_image_get_tile_from_pos(sima->image, uv, uv, NULL);
-
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
 	ImageSampleInfo *info = op->customdata;
+	float fx, fy;
 	Scene *scene = CTX_data_scene(C);
 	CurveMapping *curve_mapping = scene->view_settings.curve_mapping;
 
@@ -3069,10 +2957,13 @@ static void image_sample_apply(bContext *C, wmOperator *op, const wmEvent *event
 		return;
 	}
 
-	if (uv[0] >= 0.0f && uv[1] >= 0.0f && uv[0] < 1.0f && uv[1] < 1.0f) {
+	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &fx, &fy);
+
+	if (fx >= 0.0f && fy >= 0.0f && fx < 1.0f && fy < 1.0f) {
 		const float *fp;
 		unsigned char *cp;
-		int x = (int)(uv[0] * ibuf->x), y = (int)(uv[1] * ibuf->y);
+		int x = (int)(fx * ibuf->x), y = (int)(fy * ibuf->y);
+		Image *image = ED_space_image(sima);
 
 		CLAMP(x, 0, ibuf->x - 1);
 		CLAMP(y, 0, ibuf->y - 1);
@@ -3280,28 +3171,11 @@ static int image_sample_line_exec(bContext *C, wmOperator *op)
 	int x_end = RNA_int_get(op->ptr, "xend");
 	int y_end = RNA_int_get(op->ptr, "yend");
 
-	float x1f, y1f, x2f, y2f;
-	UI_view2d_region_to_view(&ar->v2d, x_start, y_start, &x1f, &y1f);
-	UI_view2d_region_to_view(&ar->v2d, x_end, y_end, &x2f, &y2f);
-
-	/* If the image has tiles, shift the positions accordingly. */
-	Image *image = ED_space_image(sima);
-	int tile = 0, ix = 0, iy = 0;
-	if (image && image->source == IMA_SRC_TILED) {
-		ix = (int) x1f;
-		iy = (int) y1f;
-		CLAMP(ix, 0, 9);
-
-		x1f -= ix;
-		x2f -= ix;
-		y1f -= iy;
-		y2f -= iy;
-		tile = 10*iy + ix;
-	}
-
 	void *lock;
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, tile);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
 	Histogram *hist = &sima->sample_line_hist;
+
+	float x1f, y1f, x2f, y2f;
 
 	if (ibuf == NULL) {
 		ED_space_image_release_buffer(sima, ibuf, lock);
@@ -3313,12 +3187,13 @@ static int image_sample_line_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
+	UI_view2d_region_to_view(&ar->v2d, x_start, y_start, &x1f, &y1f);
+	UI_view2d_region_to_view(&ar->v2d, x_end, y_end, &x2f, &y2f);
+
 	hist->co[0][0] = x1f;
 	hist->co[0][1] = y1f;
 	hist->co[1][0] = x2f;
 	hist->co[1][1] = y2f;
-	hist->draw_offset[0] = ix;
-	hist->draw_offset[1] = iy;
 
 	/* enable line drawing */
 	hist->flag |= HISTO_FLAG_SAMPLELINE;
@@ -3931,228 +3806,4 @@ void IMAGE_OT_clear_render_border(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/* ********************* Add tile operator ****************** */
-
-static bool add_tile_poll(bContext *C)
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = CTX_data_edit_image(C);
-
-	return (ima && ima->source == IMA_SRC_TILED && (BKE_image_get_tile(ima, sima->curtile) == NULL));
-}
-
-static int add_tile_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = ED_space_image(sima);
-
-	if (BKE_image_add_tile(ima, sima->curtile, NULL) == NULL)
-		return OPERATOR_CANCELLED;
-
-	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void IMAGE_OT_add_tile(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Add tile";
-	ot->description = "Adds a tile to the image";
-	ot->idname = "IMAGE_OT_add_tile";
-
-	/* api callbacks */
-	ot->poll = add_tile_poll;
-	ot->exec = add_tile_exec;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/* ********************* Remove tile operator ****************** */
-
-static bool remove_tile_poll(bContext *C)
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = CTX_data_edit_image(C);
-
-	return (ima && ima->source == IMA_SRC_TILED && BKE_image_get_tile(ima, sima->curtile));
-}
-
-static int remove_tile_exec(bContext *C, wmOperator *UNUSED(op))
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = ED_space_image(sima);
-
-	ImageTile *tile = BKE_image_get_tile(ima, sima->curtile);
-	if (!BKE_image_remove_tile(ima, tile))
-		return OPERATOR_CANCELLED;
-
-	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void IMAGE_OT_remove_tile(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Remove tile";
-	ot->description = "Removes a tile from the image";
-	ot->idname = "IMAGE_OT_remove_tile";
-
-	/* api callbacks */
-	ot->poll = remove_tile_poll;
-	ot->exec = remove_tile_exec;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-/* ********************* Fill tile operator ****************** */
-
-static bool fill_tile_poll(bContext *C)
-{
-	Image *ima = CTX_data_edit_image(C);
-	SpaceImage *sima = CTX_wm_space_image(C);
-
-	return (ima && ima->source == IMA_SRC_TILED && BKE_image_get_tile(ima, sima->curtile));
-}
-
-static int fill_tile_exec(bContext *C, wmOperator *op)
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = ED_space_image(sima);
-
-	float color[4];
-	RNA_float_get_array(op->ptr, "color", color);
-	int gen_type = RNA_enum_get(op->ptr, "generated_type");
-	int width = RNA_int_get(op->ptr, "width");
-	int height = RNA_int_get(op->ptr, "height");
-
-	ImageTile *tile = BKE_image_get_tile(ima, sima->curtile);
-	if (!BKE_image_fill_tile(ima, tile, width, height, color, gen_type))
-		return OPERATOR_CANCELLED;
-
-	WM_event_add_notifier(C, NC_IMAGE | ND_DRAW, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-static int fill_tile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = ED_space_image(sima);
-	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, NULL, NULL);
-	if (ibuf) {
-		RNA_int_set(op->ptr, "width", ibuf->x);
-		RNA_int_set(op->ptr, "height", ibuf->y);
-		BKE_image_release_ibuf(ima, ibuf, NULL);
-	}
-	return WM_operator_props_dialog_popup(C, op, 15 * UI_UNIT_X, 5 * UI_UNIT_Y);
-}
-
-static void fill_tile_draw(bContext *UNUSED(C), wmOperator *op)
-{
-	uiLayout *split, *col[2];
-	uiLayout *layout = op->layout;
-	PointerRNA ptr;
-
-	RNA_pointer_create(NULL, op->type->srna, op->properties, &ptr);
-
-	/* copy of WM_operator_props_dialog_popup() layout */
-
-	split = uiLayoutSplit(layout, 0.5f, false);
-	col[0] = uiLayoutColumn(split, false);
-	col[1] = uiLayoutColumn(split, false);
-
-	uiItemL(col[0], IFACE_("Color"), ICON_NONE);
-	uiItemR(col[1], &ptr, "color", 0, "", ICON_NONE);
-
-	uiItemL(col[0], IFACE_("Width"), ICON_NONE);
-	uiItemR(col[1], &ptr, "width", 0, "", ICON_NONE);
-
-	uiItemL(col[0], IFACE_("Height"), ICON_NONE);
-	uiItemR(col[1], &ptr, "height", 0, "", ICON_NONE);
-
-	uiItemL(col[0], IFACE_("Generated Type"), ICON_NONE);
-	uiItemR(col[1], &ptr, "generated_type", 0, "", ICON_NONE);
-}
-
-void IMAGE_OT_fill_tile(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Fill tile";
-	ot->description = "Fill the current tile with a generated image";
-	ot->idname = "IMAGE_OT_fill_tile";
-
-	/* api callbacks */
-	ot->poll = fill_tile_poll;
-	ot->exec = fill_tile_exec;
-	ot->invoke = fill_tile_invoke;
-	ot->ui = fill_tile_draw;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	PropertyRNA *prop;
-	static float default_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-	prop = RNA_def_float_color(ot->srna, "color", 4, NULL, 0.0f, FLT_MAX, "Color", "Default fill color", 0.0f, 1.0f);
-	RNA_def_property_subtype(prop, PROP_COLOR_GAMMA);
-	RNA_def_property_float_array_default(prop, default_color);
-	RNA_def_enum(ot->srna, "generated_type", rna_enum_image_generated_type_items, IMA_GENTYPE_BLANK,
-	             "Generated Type", "Fill the image with a grid for UV map testing");
-	prop = RNA_def_int(ot->srna, "width", 1024, 1, INT_MAX, "Width", "Image width", 1, 16384);
-	RNA_def_property_subtype(prop, PROP_PIXEL);
-	prop = RNA_def_int(ot->srna, "height", 1024, 1, INT_MAX, "Height", "Image height", 1, 16384);
-	RNA_def_property_subtype(prop, PROP_PIXEL);
-}
-
-/* ********************* Select tile operator ****************** */
-
-static bool image_select_tile_poll(bContext *C)
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	Image *ima = CTX_data_edit_image(C);
-
-	if (ima) {
-		return (ima->source == IMA_SRC_TILED);
-	}
-	else {
-		return (sima->tile_grid_shape[0] > 1) || (sima->tile_grid_shape[1] > 1);
-	}
-}
-
-static int image_select_tile_invoke(bContext *C, wmOperator *UNUSED(op), const wmEvent *event)
-{
-	SpaceImage *sima = CTX_wm_space_image(C);
-	ARegion *ar = CTX_wm_region(C);
-
-	float uv[2];
-	UI_view2d_region_to_view(&ar->v2d, event->mval[0], event->mval[1], &uv[0], &uv[1]);
-
-	if (uv[0] >= 0.0f && uv[1] >= 0.0f && uv[0] < 10.0f) {
-		int tx = (int) uv[0];
-		int ty = (int) uv[1];
-
-		sima->curtile = 10*ty + tx;
-
-		WM_event_add_notifier(C, NC_WINDOW, NULL);
-		return OPERATOR_FINISHED;
-	}
-
-	return OPERATOR_CANCELLED;
-}
-
-void IMAGE_OT_select_tile(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Select tile";
-	ot->idname = "IMAGE_OT_select_tile";
-	ot->description = "Use mouse to select a tile of the image";
-
-	/* api callbacks */
-	ot->invoke = image_select_tile_invoke;
-	ot->poll = image_select_tile_poll;
 }

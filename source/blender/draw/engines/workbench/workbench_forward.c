@@ -31,7 +31,6 @@
 #include "BLI_dynstr.h"
 #include "BLI_utildefines.h"
 
-#include "BKE_image.h"
 #include "BKE_node.h"
 #include "BKE_particle.h"
 #include "BKE_modifier.h"
@@ -135,7 +134,7 @@ static void workbench_init_object_data(DrawData *dd)
 }
 
 static WORKBENCH_MaterialData *get_or_create_material_data(
-        WORKBENCH_Data *vedata, Object *ob, Material *mat, Image *ima, int color_type, int image_tile)
+        WORKBENCH_Data *vedata, Object *ob, Material *mat, Image *ima, int color_type)
 {
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
@@ -151,7 +150,6 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 	material_template.object_id = OBJECT_ID_PASS_ENABLED(wpd) ? engine_object_data->object_id : 1;
 	material_template.color_type = color_type;
 	material_template.ima = ima;
-	material_template.image_tile = image_tile;
 	uint hash = workbench_material_get_hash(&material_template);
 
 	material = BLI_ghash_lookup(wpd->material_hash, SET_UINT_IN_POINTER(hash));
@@ -180,12 +178,9 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 
 		/* Depth */
 		if (workbench_material_determine_color_type(wpd, material->ima) == V3D_SHADING_TEXTURE_COLOR) {
-			ImageUser iuser = {NULL};
-			iuser.ok = 1;
-			iuser.tile = material->image_tile;
 			material->shgrp_object_outline = DRW_shgroup_create(
 			        e_data.object_outline_texture_sh, psl->object_outline_pass);
-			GPUTexture *tex = GPU_texture_from_blender(material->ima, &iuser, GL_TEXTURE_2D, false, 0.0f);
+			GPUTexture *tex = GPU_texture_from_blender(material->ima, NULL, GL_TEXTURE_2D, false, 0.0f);
 			DRW_shgroup_uniform_texture(material->shgrp_object_outline, "image", tex);
 		}
 		else {
@@ -420,7 +415,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			Material *mat = give_current_material(ob, part->omat);
 			ED_object_get_active_image(ob, part->omat, &image, NULL, NULL, NULL);
 			int color_type = workbench_material_determine_color_type(wpd, image);
-			WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type, 0);
+			WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 
 			struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
 			                           ? wpd->transparent_accum_hair_sh
@@ -490,39 +485,31 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 			const Mesh *me = ob->data;
 			if (me->mloopuv) {
 				const int materials_len = MAX2(1, (is_sculpt_mode ? 1 : ob->totcol));
-
-				bool *is_tiled = MEM_mallocN(sizeof(bool)*materials_len, "workbench forward is tiled");
-				for(int i = 0; i < materials_len; i++) {
-					Image *image;
-					ED_object_get_active_image(ob, i + 1, &image, NULL, NULL, NULL);
-					is_tiled[i] = image && (image->source == IMA_SRC_TILED);
-				}
-
-				int num_batches = 0;
-				struct TexpaintCacheBatch *geom_batches = DRW_cache_mesh_surface_texpaint_get(ob, is_tiled, &num_batches);
-
-				for (int i = 0; i < num_batches; i++) {
-					if (geom_batches[i].batch == NULL) {
-						continue;
-					}
-
-					int matid = geom_batches[i].material + 1;
-					Material *mat = give_current_material(ob, matid);
-					Image *image;
-					ED_object_get_active_image(ob, matid, &image, NULL, NULL, NULL);
-					/* use OB_SOLID when no texture could be determined */
-
-					int color_type = wpd->shading.color_type;
-					if (color_type == V3D_SHADING_TEXTURE_COLOR) {
-						/* use OB_SOLID when no texture could be determined */
-						if (image == NULL) {
-							color_type = V3D_SHADING_MATERIAL_COLOR;
+				struct GPUMaterial **gpumat_array = BLI_array_alloca(gpumat_array, materials_len);
+				struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+				if (materials_len > 0 && geom_array) {
+					for (int i = 0; i < materials_len; i++) {
+						if (geom_array[i] == NULL) {
+							continue;
 						}
-					}
 
-					material = get_or_create_material_data(vedata, ob, mat, image, color_type, geom_batches[i].tile);
-					DRW_shgroup_call_object_add(material->shgrp_object_outline, geom_batches[i].batch, ob);
-					DRW_shgroup_call_object_add(material->shgrp, geom_batches[i].batch, ob);
+						Material *mat = give_current_material(ob, i + 1);
+						Image *image;
+						ED_object_get_active_image(ob, i + 1, &image, NULL, NULL, NULL);
+						/* use OB_SOLID when no texture could be determined */
+
+						int color_type = wpd->shading.color_type;
+						if (color_type == V3D_SHADING_TEXTURE_COLOR) {
+							/* use OB_SOLID when no texture could be determined */
+							if (image == NULL) {
+								color_type = V3D_SHADING_MATERIAL_COLOR;
+							}
+						}
+
+						material = get_or_create_material_data(vedata, ob, mat, image, color_type);
+						DRW_shgroup_call_object_add(material->shgrp_object_outline, geom_array[i], ob);
+						DRW_shgroup_call_object_add(material->shgrp, geom_array[i], ob);
+					}
 					is_drawn = true;
 				}
 			}
@@ -534,7 +521,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 				/* No material split needed */
 				struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 				if (geom) {
-					material = get_or_create_material_data(vedata, ob, NULL, NULL, wpd->shading.color_type, 0);
+					material = get_or_create_material_data(vedata, ob, NULL, NULL, wpd->shading.color_type);
 					if (is_sculpt_mode) {
 						DRW_shgroup_call_sculpt_add(material->shgrp_object_outline, ob, ob->obmat);
 						DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
@@ -561,7 +548,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 						}
 
 						Material *mat = give_current_material(ob, i + 1);
-						material = get_or_create_material_data(vedata, ob, mat, NULL, V3D_SHADING_MATERIAL_COLOR, 0);
+						material = get_or_create_material_data(vedata, ob, mat, NULL, V3D_SHADING_MATERIAL_COLOR);
 						if (is_sculpt_mode) {
 							DRW_shgroup_call_sculpt_add(material->shgrp_object_outline, ob, ob->obmat);
 							DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);

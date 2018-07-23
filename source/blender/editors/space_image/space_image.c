@@ -183,9 +183,6 @@ static SpaceLink *image_new(const ScrArea *UNUSED(area), const Scene *UNUSED(sce
 	scopes_new(&simage->scopes);
 	simage->sample_line_hist.height = 100;
 
-	simage->tile_grid_shape[0] = 1;
-	simage->tile_grid_shape[1] = 1;
-
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for image");
 
@@ -292,11 +289,6 @@ static void image_operatortypes(void)
 	WM_operatortype_append(IMAGE_OT_read_viewlayers);
 	WM_operatortype_append(IMAGE_OT_render_border);
 	WM_operatortype_append(IMAGE_OT_clear_render_border);
-
-	WM_operatortype_append(IMAGE_OT_add_tile);
-	WM_operatortype_append(IMAGE_OT_remove_tile);
-	WM_operatortype_append(IMAGE_OT_fill_tile);
-	WM_operatortype_append(IMAGE_OT_select_tile);
 }
 
 static void image_keymap(struct wmKeyConfig *keyconf)
@@ -363,7 +355,6 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "IMAGE_OT_sample", ACTIONMOUSE, KM_PRESS, 0, 0);
 	RNA_enum_set(WM_keymap_add_item(keymap, "IMAGE_OT_curves_point_set", ACTIONMOUSE, KM_PRESS, KM_CTRL, 0)->ptr, "point", 0);
 	RNA_enum_set(WM_keymap_add_item(keymap, "IMAGE_OT_curves_point_set", ACTIONMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "point", 1);
-	WM_keymap_add_item(keymap, "IMAGE_OT_select_tile", ACTIONMOUSE, KM_PRESS, KM_ALT, 0);
 
 	/* toggle editmode is handy to have while UV unwrapping */
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_mode_set", TABKEY, KM_PRESS, 0, 0);
@@ -938,8 +929,7 @@ static void image_tools_region_draw(const bContext *C, ARegion *ar)
 	SpaceImage *sima = CTX_wm_space_image(C);
 	Scene *scene = CTX_data_scene(C);
 	void *lock;
-	/* TODO(lukas): Support tiles in scopes? */
-	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock, 0);
+	ImBuf *ibuf = ED_space_image_acquire_buffer(sima, &lock);
 	/* XXX performance regression if name of scopes category changes! */
 	PanelCategoryStack *category = UI_panel_category_active_find(ar, "Scopes");
 

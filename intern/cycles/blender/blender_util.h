@@ -34,8 +34,8 @@ extern "C" {
 size_t BLI_timecode_string_from_time_simple(char *str, size_t maxlen, double time_seconds);
 void BKE_image_user_frame_calc(void *iuser, int cfra, int fieldnr);
 void BKE_image_user_file_path(void *iuser, void *ima, char *path);
-unsigned char *BKE_image_get_pixels_for_frame(void *image, int frame, int tile);
-float *BKE_image_get_float_pixels_for_frame(void *image, int frame, int tile);
+unsigned char *BKE_image_get_pixels_for_frame(void *image, int frame);
+float *BKE_image_get_float_pixels_for_frame(void *image, int frame);
 }
 
 CCL_NAMESPACE_BEGIN
@@ -220,15 +220,8 @@ static inline string image_user_file_path(BL::ImageUser& iuser,
                                           int cfra)
 {
 	char filepath[1024];
-	iuser.tile(0);
 	BKE_image_user_frame_calc(iuser.ptr.data, cfra, 0);
 	BKE_image_user_file_path(iuser.ptr.data, ima.ptr.data, filepath);
-	if(ima.source() == BL::Image::source_TILED) {
-		char *udim_id = strstr(filepath, "1001");
-		if(udim_id) {
-			memcpy(udim_id, "%04d", 4);
-		}
-	}
 	return string(filepath);
 }
 
@@ -239,15 +232,15 @@ static inline int image_user_frame_number(BL::ImageUser& iuser, int cfra)
 }
 
 static inline unsigned char *image_get_pixels_for_frame(BL::Image& image,
-                                                        int frame, int tile)
+                                                        int frame)
 {
-	return BKE_image_get_pixels_for_frame(image.ptr.data, frame, tile);
+	return BKE_image_get_pixels_for_frame(image.ptr.data, frame);
 }
 
 static inline float *image_get_float_pixels_for_frame(BL::Image& image,
-                                                      int frame, int tile)
+                                                      int frame)
 {
-	return BKE_image_get_float_pixels_for_frame(image.ptr.data, frame, tile);
+	return BKE_image_get_float_pixels_for_frame(image.ptr.data, frame);
 }
 
 /* Utilities */

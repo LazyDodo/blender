@@ -18,9 +18,6 @@ CCL_NAMESPACE_BEGIN
 
 ccl_device float4 svm_image_texture(KernelGlobals *kg, int id, float x, float y, uint srgb, uint use_alpha)
 {
-	if(id == -1) {
-		return make_float4(TEX_IMAGE_MISSING_R, TEX_IMAGE_MISSING_G, TEX_IMAGE_MISSING_B, TEX_IMAGE_MISSING_A);
-	}
 	float4 r = kernel_tex_image_interp(kg, id, x, y);
 	const float alpha = r.w;
 
@@ -49,8 +46,9 @@ ccl_device_inline float3 texco_remap_square(float3 co)
 	return (co - make_float3(0.5f, 0.5f, 0.5f)) * 2.0f;
 }
 
-ccl_device void svm_node_tex_image(KernelGlobals *kg, ShaderData *sd, float *stack, uint4 node, int *offset)
+ccl_device void svm_node_tex_image(KernelGlobals *kg, ShaderData *sd, float *stack, uint4 node)
 {
+	uint id = node.y;
 	uint co_offset, out_offset, alpha_offset, srgb;
 
 	decode_node_uchar4(node.z, &co_offset, &out_offset, &alpha_offset, &srgb);
@@ -69,38 +67,6 @@ ccl_device void svm_node_tex_image(KernelGlobals *kg, ShaderData *sd, float *sta
 	else {
 		tex_co = make_float2(co.x, co.y);
 	}
-
-	int id = -1;
-	if(node.y > 0) {
-		uint num_nodes = node.y;
-		int next_offset = (*offset) + num_nodes;
-		if(tex_co.x >= 0.0f && tex_co.y < 10.0f && tex_co.y >= 0.0f) {
-			int tx = (int) tex_co.x;
-			int ty = (int) tex_co.y;
-			int tile = ty*10 + tx;
-			for(int i = 0; i < num_nodes; i++) {
-				uint4 node = read_node(kg, offset);
-				if(node.x == tile) {
-					id = node.y;
-					break;
-				}
-				if(node.z == tile) {
-					id = node.w;
-					break;
-				}
-			}
-
-			if(id != -1) {
-				tex_co.x -= tx;
-				tex_co.y -= ty;
-			}
-		}
-		*offset = next_offset;
-	}
-	else {
-		id = read_node(kg, offset).y;
-	}
-
 	float4 f = svm_image_texture(kg, id, tex_co.x, tex_co.y, srgb, use_alpha);
 
 	if(stack_valid(out_offset))

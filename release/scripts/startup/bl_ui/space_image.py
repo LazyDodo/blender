@@ -736,10 +736,6 @@ class IMAGE_PT_view_properties(Panel):
             row.active = uvedit.show_other_objects
             row.prop(uvedit, "other_uv_filter", text="Filter")
 
-            if ima is None:
-                row = layout.row()
-                row.prop(uvedit, "tile_grid_shape", text="Grid Shape")
-
 
 class IMAGE_UL_render_slots(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -775,33 +771,6 @@ class IMAGE_PT_render_slots(Panel):
         col.separator()
 
         col.operator("image.clear_render_slot", icon='X', text="")
-
-
-class IMAGE_PT_tile_properties(Panel):
-    bl_space_type = 'IMAGE_EDITOR'
-    bl_region_type = 'UI'
-    bl_label = "Tiles"
-
-    @classmethod
-    def poll(cls, context):
-        sima = context.space_data
-        return (sima and sima.image and sima.image.source == 'TILED')
-
-    def draw(self, context):
-        layout = self.layout
-
-        sima = context.space_data
-        ima = sima.image
-
-        row = layout.row(align=True)
-        row.operator("image.add_tile")
-        row.operator("image.remove_tile")
-
-        tile = ima.tiles.get(sima.current_tile)
-        if tile:
-            col = layout.column(align=True)
-            col.operator("image.fill_tile")
-            col.prop(tile, "label")
 
 
 class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):
@@ -1438,7 +1407,6 @@ classes = (
     IMAGE_UL_render_slots,
     IMAGE_PT_render_slots,
     IMAGE_PT_view_properties,
-    IMAGE_PT_tile_properties,
     IMAGE_PT_tools_transform_uvs,
     IMAGE_PT_tools_align_uvs,
     IMAGE_PT_tools_uvs,

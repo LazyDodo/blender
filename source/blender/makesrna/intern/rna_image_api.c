@@ -181,8 +181,8 @@ static void rna_Image_unpack(Image *image, Main *bmain, ReportList *reports, int
 	if (!BKE_image_has_packedfile(image)) {
 		BKE_report(reports, RPT_ERROR, "Image not packed");
 	}
-	else if (BKE_image_has_multiple_ibufs(image)) {
-		BKE_report(reports, RPT_ERROR, "Unpacking movies, image sequences and tiled images not supported");
+	else if (BKE_image_is_animated(image)) {
+		BKE_report(reports, RPT_ERROR, "Unpacking movies or image sequences not supported");
 		return;
 	}
 	else {
@@ -220,10 +220,9 @@ static void rna_Image_scale(Image *image, ReportList *reports, int width, int he
 	}
 }
 
-static int rna_Image_gl_load(Image *image, ReportList *reports, int frame, int tile_number, int filter, int mag)
+static int rna_Image_gl_load(Image *image, ReportList *reports, int frame, int filter, int mag)
 {
-	ImageTile *tile = BKE_image_get_tile(image, tile_number);
-	GPUTexture *tex = tile->gputexture[TEXTARGET_TEXTURE_2D];
+	GPUTexture *tex = image->gputexture[TEXTARGET_TEXTURE_2D];
 	int error = GL_NO_ERROR;
 
 	if (tex)
@@ -232,7 +231,6 @@ static int rna_Image_gl_load(Image *image, ReportList *reports, int frame, int t
 	ImageUser iuser = {NULL};
 	iuser.framenr = frame;
 	iuser.ok = true;
-	iuser.tile = tile_number;
 
 	void *lock;
 	ImBuf *ibuf = BKE_image_acquire_ibuf(image, &iuser, &lock);
@@ -261,7 +259,7 @@ static int rna_Image_gl_load(Image *image, ReportList *reports, int frame, int t
 		glDeleteTextures(1, (GLuint *)&bindcode);
 	}
 	else {
-		tile->gputexture[TEXTARGET_TEXTURE_2D] = GPU_texture_from_bindcode(GL_TEXTURE_2D, bindcode);
+		image->gputexture[TEXTARGET_TEXTURE_2D] = GPU_texture_from_bindcode(GL_TEXTURE_2D, bindcode);
 	}
 
 	BKE_image_release_ibuf(image, ibuf, lock);
@@ -269,15 +267,14 @@ static int rna_Image_gl_load(Image *image, ReportList *reports, int frame, int t
 	return error;
 }
 
-static int rna_Image_gl_touch(Image *image, ReportList *reports, int frame, int tile_number, int filter, int mag)
+static int rna_Image_gl_touch(Image *image, ReportList *reports, int frame, int filter, int mag)
 {
 	int error = GL_NO_ERROR;
 
 	BKE_image_tag_time(image);
 
-	ImageTile *tile = BKE_image_get_tile(image, tile_number);
-	if (tile->gputexture[TEXTARGET_TEXTURE_2D] == NULL)
-		error = rna_Image_gl_load(image, reports, frame, tile_number, filter, mag);
+	if (image->gputexture[TEXTARGET_TEXTURE_2D] == NULL)
+		error = rna_Image_gl_load(image, reports, frame, filter, mag);
 
 	return error;
 }
@@ -362,8 +359,6 @@ void RNA_api_image(StructRNA *srna)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_int(func, "frame", 0, 0, INT_MAX, "Frame",
 	            "Frame of image sequence or movie", 0, INT_MAX);
-	RNA_def_int(func, "tile_number", 0, 0, INT_MAX, "Tile",
-	            "Tile of a tiled image", 0, INT_MAX);
 	RNA_def_int(func, "filter", GL_LINEAR_MIPMAP_NEAREST, -INT_MAX, INT_MAX, "Filter",
 	            "The texture minifying function to use if the image wasn't loaded", -INT_MAX, INT_MAX);
 	RNA_def_int(func, "mag", GL_LINEAR, -INT_MAX, INT_MAX, "Magnification",
@@ -377,8 +372,6 @@ void RNA_api_image(StructRNA *srna)
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_int(func, "frame", 0, 0, INT_MAX, "Frame",
 	            "Frame of image sequence or movie", 0, INT_MAX);
-	RNA_def_int(func, "tile_number", 0, 0, INT_MAX, "Tile",
-	            "Tile of a tiled image", 0, INT_MAX);
 	RNA_def_int(func, "filter", GL_LINEAR_MIPMAP_NEAREST, -INT_MAX, INT_MAX, "Filter",
 	            "The texture minifying function", -INT_MAX, INT_MAX);
 	RNA_def_int(func, "mag", GL_LINEAR, -INT_MAX, INT_MAX, "Magnification",

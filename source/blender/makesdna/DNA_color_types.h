@@ -132,7 +132,6 @@ typedef struct Histogram {
 	/* sample line only */
 	/* image coords src -> dst */
 	float co[2][2];
-	float draw_offset[2];
 } Histogram;
 
 

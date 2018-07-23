@@ -45,7 +45,6 @@ struct Scene;
 struct Object;
 struct ImageFormatData;
 struct ImagePool;
-struct ImageTile;
 struct Main;
 struct ReportList;
 struct RenderResult;
@@ -135,7 +134,6 @@ struct RenderResult;
 #define IMA_SRC_MOVIE       3
 #define IMA_SRC_GENERATED   4
 #define IMA_SRC_VIEWER      5
-#define IMA_SRC_TILED       6
 
 /* ima->type, how to handle/generate it */
 #define IMA_TYPE_IMAGE      0
@@ -273,19 +271,6 @@ bool BKE_image_has_alpha(struct Image *image);
 /* check if texture has gpu texture code */
 bool BKE_image_has_opengl_texture(struct Image *ima);
 
-/* get tile index for tiled images */
-void BKE_image_get_tile_label(struct Image *ima, struct ImageTile *tile, char *label, int len_label);
-
-struct ImageTile *BKE_image_add_tile(struct Image *ima, int tile_number, const char *label);
-bool BKE_image_remove_tile(struct Image *ima, struct ImageTile *tile);
-
-bool BKE_image_fill_tile(struct Image *ima, struct ImageTile *tile, int width, int height, const float color[4], int gen_type);
-
-struct ImageTile *BKE_image_get_tile(struct Image *ima, int tile_number);
-struct ImageTile *BKE_image_get_tile_from_iuser(struct Image *ima, struct ImageUser *iuser);
-
-int BKE_image_get_tile_from_pos(struct Image *ima, const float uv[2], float new_uv[2], float ofs[2]);
-
 void BKE_image_get_size(struct Image *image, struct ImageUser *iuser, int *width, int *height);
 void BKE_image_get_size_fl(struct Image *image, struct ImageUser *iuser, float size[2]);
 void BKE_image_get_aspect(struct Image *image, float *aspx, float *aspy);
@@ -296,15 +281,14 @@ void BKE_image_buf_fill_checker(unsigned char *rect, float *rect_float, int heig
 void BKE_image_buf_fill_checker_color(unsigned char *rect, float *rect_float, int height, int width);
 
 /* Cycles hookup */
-unsigned char *BKE_image_get_pixels_for_frame(struct Image *image, int frame, int tile);
-float *BKE_image_get_float_pixels_for_frame(struct Image *image, int frame, int tile);
+unsigned char *BKE_image_get_pixels_for_frame(struct Image *image, int frame);
+float *BKE_image_get_float_pixels_for_frame(struct Image *image, int frame);
 
 /* Guess offset for the first frame in the sequence */
 int BKE_image_sequence_guess_offset(struct Image *image);
 bool BKE_image_has_anim(struct Image *image);
 bool BKE_image_has_packedfile(struct Image *image);
 bool BKE_image_is_animated(struct Image *image);
-bool BKE_image_has_multiple_ibufs(struct Image *image);
 bool BKE_image_is_dirty(struct Image *image);
 void BKE_image_file_format_set(struct Image *image, int ftype, const struct ImbFormatOptions *options);
 bool BKE_image_has_loaded_ibuf(struct Image *image);

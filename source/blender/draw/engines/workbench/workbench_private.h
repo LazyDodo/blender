@@ -205,7 +205,6 @@ typedef struct WORKBENCH_MaterialData {
 	int object_id;
 	int color_type;
 	Image *ima;
-	int image_tile;
 
 	/* Linked shgroup for drawing */
 	DRWShadingGroup *shgrp;

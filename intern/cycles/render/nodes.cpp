@@ -18,7 +18,6 @@
 #include "render/image.h"
 #include "render/integrator.h"
 #include "render/light.h"
-#include "render/mesh.h"
 #include "render/nodes.h"
 #include "render/scene.h"
 #include "render/svm.h"
@@ -250,19 +249,21 @@ ImageTextureNode::ImageTextureNode()
 : ImageSlotTextureNode(node_type)
 {
 	image_manager = NULL;
-	is_float = false;
+	slot = -1;
+	is_float = -1;
 	is_linear = false;
 	builtin_data = NULL;
 	animated = false;
-	tiles.push_back(0);
 }
 
 ImageTextureNode::~ImageTextureNode()
 {
 	if(image_manager) {
-		foreach(int slot, slots) {
-			image_manager->remove_image(slot);
-		}
+		image_manager->remove_image(filename.string(),
+		                            builtin_data,
+		                            interpolation,
+		                            extension,
+		                            use_alpha);
 	}
 }
 
@@ -270,53 +271,10 @@ ShaderNode *ImageTextureNode::clone() const
 {
 	ImageTextureNode *node = new ImageTextureNode(*this);
 	node->image_manager = NULL;
-	node->slots.clear();
-	node->is_float = false;
+	node->slot = -1;
+	node->is_float = -1;
 	node->is_linear = false;
 	return node;
-}
-
-void ImageTextureNode::simplify_settings(Scene *scene, Shader *shader)
-{
-	if(!scene->params.background) {
-		/* During interactive renders, all tiles are loaded.
-		 * While we could support updating this when UVs change, that could lead
-		 * to annoying interruptions when loading images while editing UVs. */
-		return;
-	}
-
-	ShaderInput *vector_in = input("Vector");
-	ustring attribute;
-	if(vector_in->link) {
-		ShaderNode *node = vector_in->link->parent;
-		if(node->type == UVMapNode::node_type) {
-			UVMapNode *uvmap = (UVMapNode*) node;
-			attribute = uvmap->attribute;
-		}
-		else if(node->type == TextureCoordinateNode::node_type) {
-			if(vector_in->link != node->output("UV")) {
-				return;
-			}
-		}
-		else {
-			return;
-		}
-	}
-
-	ccl::vector<bool> used_tiles;
-	foreach(Mesh *mesh, scene->meshes) {
-		if(std::find(mesh->used_shaders.begin(), mesh->used_shaders.end(), shader) != mesh->used_shaders.end()) {
-			mesh->get_uv_tiles(attribute, used_tiles);
-		}
-	}
-
-	ccl::vector<int> new_tiles;
-	foreach(int tile, tiles) {
-		if (tile < used_tiles.size() && used_tiles[tile]) {
-			new_tiles.push_back(tile);
-		}
-	}
-	tiles.swap(new_tiles);
 }
 
 void ImageTextureNode::attributes(Shader *shader, AttributeRequestSet *attributes)
@@ -341,52 +299,27 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 	ShaderOutput *alpha_out = output("Alpha");
 
 	image_manager = compiler.image_manager;
-	if(slots.size() < tiles.size()) {
-		slots.clear();
-		foreach(int tile, tiles) {
-			string tile_name;
-			if(tiles.size() == 1) {
-				tile_name = filename.string();
-			}
-			else {
-				tile_name = string_printf(filename.c_str(), 1001 + tile);
-			}
-			printf("Loading %s\n", tile_name.c_str());
-			ImageMetaData metadata;
-			slots.push_back(image_manager->add_image(tile_name,
-			                                         builtin_data,
-			                                         animated,
-			                                         tile,
-			                                         0,
-			                                         interpolation,
-			                                         extension,
-			                                         use_alpha,
-			                                         metadata));
-			if(tile == 0) {
-				is_float = metadata.is_float;
-				is_linear = metadata.is_linear;
-			}
-		}
+	if(is_float == -1) {
+		ImageMetaData metadata;
+		slot = image_manager->add_image(filename.string(),
+		                                builtin_data,
+		                                animated,
+		                                0,
+		                                interpolation,
+		                                extension,
+		                                use_alpha,
+		                                metadata);
+		is_float = metadata.is_float;
+		is_linear = metadata.is_linear;
 	}
 
-	bool has_image = false;
-	foreach(int slot, slots) {
-		if(slot != -1) {
-			has_image = true;
-			break;
-		}
-	}
-
-	if(has_image) {
-		int num_nodes = divide_up(slots.size(), 2);
+	if(slot != -1) {
 		int srgb = (is_linear || color_space != NODE_COLOR_SPACE_COLOR)? 0: 1;
 		int vector_offset = tex_mapping.compile_begin(compiler, vector_in);
 
-		/* TODO(lukas): Avoid extra node for common case of only one tile. */
-
 		if(projection != NODE_IMAGE_PROJ_BOX) {
 			compiler.add_node(NODE_TEX_IMAGE,
-				num_nodes,
+				slot,
 				compiler.encode_uchar4(
 					vector_offset,
 					compiler.stack_assign_if_linked(color_out),
@@ -396,28 +329,13 @@ void ImageTextureNode::compile(SVMCompiler& compiler)
 		}
 		else {
 			compiler.add_node(NODE_TEX_IMAGE_BOX,
-				num_nodes,
+				slot,
 				compiler.encode_uchar4(
 					vector_offset,
 					compiler.stack_assign_if_linked(color_out),
 					compiler.stack_assign_if_linked(alpha_out),
 					srgb),
 				__float_as_int(projection_blend));
-		}
-
-		for(int i = 0; i < num_nodes; i++) {
-			int4 node;
-			node.x = tiles[2*i];
-			node.y = slots[2*i];
-			if(2*i+1 < slots.size()) {
-				node.z = tiles[2*i+1];
-				node.w = slots[2*i+1];
-			}
-			else {
-				node.z = -1;
-				node.w = -1;
-			}
-			compiler.add_node(node.x, node.y, node.z, node.w);
 		}
 
 		tex_mapping.compile_end(compiler, vector_in, vector_offset);
@@ -442,28 +360,26 @@ void ImageTextureNode::compile(OSLCompiler& compiler)
 	tex_mapping.compile(compiler);
 
 	image_manager = compiler.image_manager;
-	if(slots.size() == 0) {
+	if(is_float == -1) {
 		ImageMetaData metadata;
 		if(builtin_data == NULL) {
 			image_manager->get_image_metadata(filename.string(), NULL, metadata);
-			slots.push_back(-1);
 		}
 		else {
-			slots.push_back(image_manager->add_image(filename.string(),
-			                                         builtin_data,
-			                                         animated,
-			                                         0,
-			                                         0,
-			                                         interpolation,
-			                                         extension,
-			                                         use_alpha,
-			                                         metadata));
+			slot = image_manager->add_image(filename.string(),
+			                                builtin_data,
+			                                animated,
+			                                0,
+			                                interpolation,
+			                                extension,
+			                                use_alpha,
+			                                metadata);
 		}
 		is_float = metadata.is_float;
 		is_linear = metadata.is_linear;
 	}
 
-	if(slots[0] == -1) {
+	if(slot == -1) {
 		compiler.parameter(this, "filename");
 	}
 	else {
@@ -473,7 +389,7 @@ void ImageTextureNode::compile(OSLCompiler& compiler)
 		 * "@i<slot_number>" and check whether file name matches this
 		 * mask in the OSLRenderServices::texture().
 		 */
-		compiler.parameter("filename", string_printf("@i%d", slots[0]).c_str());
+		compiler.parameter("filename", string_printf("@i%d", slot).c_str());
 	}
 	if(is_linear || color_space != NODE_COLOR_SPACE_COLOR)
 		compiler.parameter("color_space", "linear");
@@ -530,7 +446,8 @@ EnvironmentTextureNode::EnvironmentTextureNode()
 : ImageSlotTextureNode(node_type)
 {
 	image_manager = NULL;
-	is_float = false;
+	slot = -1;
+	is_float = -1;
 	is_linear = false;
 	builtin_data = NULL;
 	animated = false;
@@ -538,8 +455,12 @@ EnvironmentTextureNode::EnvironmentTextureNode()
 
 EnvironmentTextureNode::~EnvironmentTextureNode()
 {
-	if(image_manager && slots.size()) {
-		image_manager->remove_image(slots[0]);
+	if(image_manager) {
+		image_manager->remove_image(filename.string(),
+		                            builtin_data,
+		                            interpolation,
+		                            EXTENSION_REPEAT,
+		                            use_alpha);
 	}
 }
 
@@ -547,8 +468,8 @@ ShaderNode *EnvironmentTextureNode::clone() const
 {
 	EnvironmentTextureNode *node = new EnvironmentTextureNode(*this);
 	node->image_manager = NULL;
-	node->slots.clear();
-	node->is_float = false;
+	node->slot = -1;
+	node->is_float = -1;
 	node->is_linear = false;
 	return node;
 }
@@ -573,27 +494,26 @@ void EnvironmentTextureNode::compile(SVMCompiler& compiler)
 	ShaderOutput *alpha_out = output("Alpha");
 
 	image_manager = compiler.image_manager;
-	if(slots.size() == 0) {
+	if(slot == -1) {
 		ImageMetaData metadata;
-		slots.push_back(image_manager->add_image(filename.string(),
-		                                         builtin_data,
-		                                         animated,
-		                                         0,
-		                                         0,
-		                                         interpolation,
-		                                         EXTENSION_REPEAT,
-		                                         use_alpha,
-		                                         metadata));
+		slot = image_manager->add_image(filename.string(),
+		                                builtin_data,
+		                                animated,
+		                                0,
+		                                interpolation,
+		                                EXTENSION_REPEAT,
+		                                use_alpha,
+		                                metadata);
 		is_float = metadata.is_float;
 		is_linear = metadata.is_linear;
 	}
 
-	if(slots[0] != -1) {
+	if(slot != -1) {
 		int srgb = (is_linear || color_space != NODE_COLOR_SPACE_COLOR)? 0: 1;
 		int vector_offset = tex_mapping.compile_begin(compiler, vector_in);
 
 		compiler.add_node(NODE_TEX_ENVIRONMENT,
-			slots[0],
+			slot,
 			compiler.encode_uchar4(
 				vector_offset,
 				compiler.stack_assign_if_linked(color_out),
@@ -626,32 +546,30 @@ void EnvironmentTextureNode::compile(OSLCompiler& compiler)
 	 * of builtin images.
 	 */
 	image_manager = compiler.image_manager;
-	if(slots.size() == 0) {
-		slots.resize(1);
+	if(is_float == -1) {
 		ImageMetaData metadata;
 		if(builtin_data == NULL) {
 			image_manager->get_image_metadata(filename.string(), NULL, metadata);
 		}
 		else {
-			slots[0] = image_manager->add_image(filename.string(),
-			                                    builtin_data,
-			                                    animated,
-			                                    0,
-			                                    0,
-			                                    interpolation,
-			                                    EXTENSION_REPEAT,
-			                                    use_alpha,
-			                                    metadata);
+			slot = image_manager->add_image(filename.string(),
+			                                builtin_data,
+			                                animated,
+			                                0,
+			                                interpolation,
+			                                EXTENSION_REPEAT,
+			                                use_alpha,
+			                                metadata);
 		}
 		is_float = metadata.is_float;
 		is_linear = metadata.is_linear;
 	}
 
-	if(slots[0] == -1) {
+	if(slot == -1) {
 		compiler.parameter(this, "filename");
 	}
 	else {
-		compiler.parameter("filename", string_printf("@i%d", slots[0]).c_str());
+		compiler.parameter("filename", string_printf("@i%d", slot).c_str());
 	}
 	compiler.parameter(this, "projection");
 	if(is_linear || color_space != NODE_COLOR_SPACE_COLOR)
@@ -1577,7 +1495,11 @@ PointDensityTextureNode::PointDensityTextureNode()
 PointDensityTextureNode::~PointDensityTextureNode()
 {
 	if(image_manager) {
-		image_manager->remove_image(slot);
+		image_manager->remove_image(filename.string(),
+		                            builtin_data,
+		                            interpolation,
+		                            EXTENSION_CLIP,
+		                            true);
 	}
 }
 
@@ -1603,7 +1525,7 @@ void PointDensityTextureNode::add_image()
 	if(slot == -1) {
 		ImageMetaData metadata;
 		slot = image_manager->add_image(filename.string(), builtin_data,
-		                                false, 0, 0,
+		                                false, 0,
 		                                interpolation,
 		                                EXTENSION_CLIP,
 		                                true,
@@ -2133,7 +2055,7 @@ GlossyBsdfNode::GlossyBsdfNode()
 	distribution_orig = NBUILTIN_CLOSURES;
 }
 
-void GlossyBsdfNode::simplify_settings(Scene *scene, Shader * /*shader*/)
+void GlossyBsdfNode::simplify_settings(Scene *scene)
 {
 	if(distribution_orig == NBUILTIN_CLOSURES) {
 		roughness_orig = roughness;
@@ -2228,7 +2150,7 @@ GlassBsdfNode::GlassBsdfNode()
 	distribution_orig = NBUILTIN_CLOSURES;
 }
 
-void GlassBsdfNode::simplify_settings(Scene *scene, Shader * /*shader*/)
+void GlassBsdfNode::simplify_settings(Scene *scene)
 {
 	if(distribution_orig == NBUILTIN_CLOSURES) {
 		roughness_orig = roughness;
@@ -2323,7 +2245,7 @@ RefractionBsdfNode::RefractionBsdfNode()
 	distribution_orig = NBUILTIN_CLOSURES;
 }
 
-void RefractionBsdfNode::simplify_settings(Scene *scene, Shader * /*shader*/)
+void RefractionBsdfNode::simplify_settings(Scene *scene)
 {
 	if(distribution_orig == NBUILTIN_CLOSURES) {
 		roughness_orig = roughness;

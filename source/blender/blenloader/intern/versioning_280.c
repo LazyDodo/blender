@@ -1491,7 +1491,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-
 		if (!DNA_struct_elem_find(fd->filesdna, "SpaceAction", "char", "mode_prev")) {
 			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
@@ -1620,28 +1619,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		if (!DNA_struct_elem_find(fd->filesdna, "SceneDisplay", "View3DShading", "shading")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 				BKE_screen_view3d_shading_init(&scene->display.shading);
-			}
-		}
-
-		if (!DNA_struct_elem_find(fd->filesdna, "Image", "short", "num_tiles")) {
-			for (Image *ima = bmain->image.first; ima; ima = ima->id.next) {
-				ImageTile *tile = MEM_callocN(sizeof(ImageTile), "Image Tiles");
-				tile->ok = 1;
-				BLI_addtail(&ima->tiles, tile);
-			}
-		}
-
-		if (!DNA_struct_elem_find(fd->filesdna, "SpaceImage", "int", "tile_grid_shape[2]")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_IMAGE) {
-							SpaceImage *sima = (SpaceImage *)sl;
-							sima->tile_grid_shape[0] = 1;
-							sima->tile_grid_shape[1] = 1;
-						}
-					}
-				}
 			}
 		}
 	}
