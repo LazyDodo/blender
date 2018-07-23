@@ -85,9 +85,10 @@ LANPR_RenderLineChainItem* lanpr_append_render_line_chain_point(LANPR_RenderBuff
     rlci->pos[0] = x;
     rlci->pos[1] = y;
     rlci->LineType = type&LANPR_EDGE_FLAG_ALL_TYPE;
+	rlci->OcclusionLevel = level;
     lstAppendItem(&rlc->Chain,rlci);
 
-	//printf("a %f %f\n", x, y);
+    //printf("a %f,%f %d\n", x, y, level);
 
     return rlci;
 }
@@ -99,9 +100,10 @@ LANPR_RenderLineChainItem* lanpr_push_render_line_chain_point(LANPR_RenderBuffer
     rlci->pos[0] = x;
     rlci->pos[1] = y;
     rlci->LineType = type&LANPR_EDGE_FLAG_ALL_TYPE;
+	rlci->OcclusionLevel = level;
     lstPushItem(&rlc->Chain,rlci);
 
-	//printf("p %f %f\n", x, y);
+	//printf("p %f,%f %d\n", x, y, level);
 
     return rlci;
 }
@@ -117,7 +119,7 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
     for(rlci = from->Item.pNext; rlci!= to; rlci=next_rlci){
         next_rlci = rlci->Item.pNext;
 
-        if(next_rlci && (next_rlci->OccludeLevel!= rlci->OccludeLevel || next_rlci->LineType!= rlci->LineType)) continue;
+        if(next_rlci && (next_rlci->OcclusionLevel!= rlci->OcclusionLevel || next_rlci->LineType!= rlci->LineType)) continue;
 
 		float dist = dist_to_line_segment_v2(rlci->pos, from->pos, to->pos);
 		if (dist>dist_threshold && dist>max_dist) { max_dist = dist; max_rlci = rlci; }
@@ -128,7 +130,7 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
 		if (from->Item.pNext == to) return;
 		for (rlci = from->Item.pNext; rlci != to; rlci = next_rlci) {
 			next_rlci = rlci->Item.pNext;
-			if (next_rlci && (next_rlci->OccludeLevel != rlci->OccludeLevel || next_rlci->LineType != rlci->LineType)) continue;
+			if (next_rlci && (next_rlci->OcclusionLevel != rlci->OcclusionLevel || next_rlci->LineType != rlci->LineType)) continue;
 			lstRemoveItem(&rlc->Chain, (void*)rlci);
 		}
 	}else {
@@ -140,6 +142,7 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
 
 void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_threshold){
     LANPR_RenderLineChain* rlc;
+	LANPR_RenderLineChainItem* rlci;
     LANPR_RenderLine* rl;
     LANPR_BoundingArea* ba;
     LANPR_RenderLineSegment* rls;
@@ -159,31 +162,32 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
         // step 1: grow left
         ba = lanpr_GetPointBoundingArea(rb,rl->L->FrameBufferCoord[0], rl->L->FrameBufferCoord[1]);
         new_rv = rl->L;
-        lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags,0);
+		rls = rl->Segments.pFirst;
+        lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags, rls->OcclusionLevel);
         while(ba &&(new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv))){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
 
-            int last_occlude;
+            int last_occlusion;
             
             if(new_rv==new_rl->L){
                 for(rls = new_rl->Segments.pLast; rls;rls=rls->Item.pPrev){
                     float px,py;
                     px = tnsLinearItp(new_rl->L->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[0], rls->at);
                     py = tnsLinearItp(new_rl->L->FrameBufferCoord[1], new_rl->R->FrameBufferCoord[1], rls->at);
-                    lanpr_push_render_line_chain_point(rb,rlc,px,py, new_rl->Flags, rls->OccludeLevel);
+                    lanpr_push_render_line_chain_point(rb,rlc,px,py, new_rl->Flags, rls->OcclusionLevel);
                 }
             }elif(new_rv==new_rl->R){
                 rls = new_rl->Segments.pFirst;
-                last_occlude = rls->OccludeLevel;
+                last_occlusion = rls->OcclusionLevel;
                 rls=rls->Item.pNext;
                 for(rls; rls; rls= rls->Item.pNext){
                     float px,py;
                     px = tnsLinearItp(new_rl->L->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[0], rls->at);
                     py = tnsLinearItp(new_rl->L->FrameBufferCoord[1], new_rl->R->FrameBufferCoord[1], rls->at);
-                    lanpr_push_render_line_chain_point(rb,rlc,px,py, new_rl->Flags,last_occlude);
-                    last_occlude = rls->OccludeLevel;
+                    lanpr_push_render_line_chain_point(rb,rlc,px,py, new_rl->Flags,last_occlusion);
+                    last_occlusion = rls->OcclusionLevel;
                 }
-                lanpr_push_render_line_chain_point(rb,rlc, new_rl->R->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[1], new_rl->Flags,last_occlude);
+                lanpr_push_render_line_chain_point(rb,rlc, new_rl->R->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[1], new_rl->Flags,last_occlusion);
             }
             ba = lanpr_GetPointBoundingArea(rb,new_rv->FrameBufferCoord[0], new_rv->FrameBufferCoord[1]);
         }
@@ -194,7 +198,7 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
             float px,py;
             px = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
             py = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
-            lanpr_append_render_line_chain_point(rb,rlc,px,py,rl->Flags, rls->OccludeLevel);
+            lanpr_append_render_line_chain_point(rb,rlc,px,py,rl->Flags, rls->OcclusionLevel);
         }
 		lanpr_append_render_line_chain_point(rb, rlc, rl->R->FrameBufferCoord[0], rl->R->FrameBufferCoord[1], rl->Flags, 0);
 
@@ -206,27 +210,38 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
         while(ba && (new_rl = lanpr_GetConnectedRenderLine(ba,new_rv,&new_rv))){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
 
-            int last_occlude;
+            int last_occlusion;
+
+			// fix leading vertex type
+			rlci = rlc->Chain.pLast;
+			rlci->LineType = new_rl->Flags&LANPR_EDGE_FLAG_ALL_TYPE;
             
 			if (new_rv == new_rl->L) {
+				rls = new_rl->Segments.pLast;
+				last_occlusion = rls->OcclusionLevel;
+				rlci->OcclusionLevel = last_occlusion;
+				rls = rls->Item.pPrev;
+				if (rls) last_occlusion = rls->OcclusionLevel;
 				for (rls = new_rl->Segments.pLast; rls; rls = rls->Item.pPrev) {
 					float px, py;
 					px = tnsLinearItp(new_rl->L->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[0], rls->at);
 					py = tnsLinearItp(new_rl->L->FrameBufferCoord[1], new_rl->R->FrameBufferCoord[1], rls->at);
-					lanpr_append_render_line_chain_point(rb, rlc, px, py, new_rl->Flags, rls->OccludeLevel);
+					last_occlusion = rls->Item.pPrev ? ((LANPR_RenderLineSegment*)rls->Item.pPrev)->OcclusionLevel : 0;
+					lanpr_append_render_line_chain_point(rb, rlc, px, py, new_rl->Flags, last_occlusion);
 				}
 			}elif(new_rv == new_rl->R) {
 				rls = new_rl->Segments.pFirst;
-				last_occlude = rls->OccludeLevel;
+				last_occlusion = rls->OcclusionLevel;
+				rlci->OcclusionLevel = last_occlusion;
 				rls = rls->Item.pNext;
 				for (rls; rls; rls = rls->Item.pNext) {
 					float px, py;
 					px = tnsLinearItp(new_rl->L->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[0], rls->at);
 					py = tnsLinearItp(new_rl->L->FrameBufferCoord[1], new_rl->R->FrameBufferCoord[1], rls->at);
-					lanpr_append_render_line_chain_point(rb, rlc, px, py, new_rl->Flags, last_occlude);
-					last_occlude = rls->OccludeLevel;
+					lanpr_append_render_line_chain_point(rb, rlc, px, py, new_rl->Flags, rls->OcclusionLevel);
+					//last_occlusion = rls->OcclusionLevel;
 				}
-				lanpr_append_render_line_chain_point(rb, rlc, new_rl->R->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[1], new_rl->Flags, last_occlude);
+				lanpr_append_render_line_chain_point(rb, rlc, new_rl->R->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[1], new_rl->Flags, 0);
 			}
 			ba = lanpr_GetPointBoundingArea(rb, new_rv->FrameBufferCoord[0], new_rv->FrameBufferCoord[1]);
         }
@@ -234,11 +249,11 @@ void lanpr_ChainFeatureLines_NO_THREAD(LANPR_RenderBuffer *rb, float dist_thresh
 		//LANPR_RenderLineChainItem* rlci;
 		//printf("line:\n");
 		//for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
-		//	printf("  %f %f\n", rlci->pos[0],rlci->pos[1]);
+		//	printf("  %f,%f %d\n", rlci->pos[0],rlci->pos[1], rlci->OcclusionLevel);
 		//}
 		//printf("--------\n");
 
-        lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.pFirst, rlc->Chain.pLast, dist_threshold);
+        //lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.pFirst, rlc->Chain.pLast, dist_threshold);
     }
 }
 
@@ -270,21 +285,33 @@ float lanpr_ComputeChainLength(LANPR_RenderLineChain* rlc, float* lengths, int b
 	return offset_accum;
 }
 
+int lanpr_GetGPULineType(LANPR_RenderLineChainItem* rlci) {
+	switch (rlci->LineType) {
+		case LANPR_EDGE_FLAG_CONTOUR:         return 0;
+		case LANPR_EDGE_FLAG_CREASE:          return 1;
+		case LANPR_EDGE_FLAG_MATERIAL:        return 2;
+		case LANPR_EDGE_FLAG_EDGE_MARK:       return 3;
+		case LANPR_EDGE_FLAG_INTERSECTION:    return 4;
+		default: return 0;
+	}
+}
+
 void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
     LANPR_RenderLineChain* rlc;
     LANPR_RenderLineChainItem* rlci;
     int vert_count=0;
-    int i=0;
+	int i = 0;
+	int arg;
     float total_length;
 	float* lengths;
 	float length_target[2];
 
     static GPUVertFormat format = { 0 };
-	static struct { uint pos, offset, type, level; } attr_id;
+	static struct { uint pos, uvs, type, level; } attr_id;
 	if (format.attr_len == 0) {
 		attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
-        attr_id.offset = GPU_vertformat_attr_add(&format, "uvs", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
-		attr_id.type = GPU_vertformat_attr_add(&format, "type", GPU_COMP_I32, 1, GPU_FETCH_FLOAT);
+        attr_id.uvs = GPU_vertformat_attr_add(&format, "uvs", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+		attr_id.type = GPU_vertformat_attr_add(&format, "type", GPU_COMP_I32, 1, GPU_FETCH_INT);
 		attr_id.level = GPU_vertformat_attr_add(&format, "level", GPU_COMP_I32, 1, GPU_FETCH_INT);
 	}
 
@@ -292,7 +319,7 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 
     for(rlc = rb->Chains.pFirst; rlc;rlc=rlc->Item.pNext){
 		int count = lanpr_CountChain(rlc);
-		printf("seg contains %d verts\n", count);
+		//printf("seg contains %d verts\n", count);
 		vert_count += count;
     }
 
@@ -313,12 +340,18 @@ void lanpr_ChainGenerateDrawCommand(LANPR_RenderBuffer *rb){
 			length_target[1] = total_length - lengths[i];
 
             GPU_vertbuf_attr_set(vbo, attr_id.pos, i, rlci->pos);
-            GPU_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
+            GPU_vertbuf_attr_set(vbo, attr_id.uvs, i, length_target);
+
+			arg = lanpr_GetGPULineType(rlci);
+			GPU_vertbuf_attr_set(vbo, attr_id.type, i, &arg);
+
+			arg = (int)rlci->OcclusionLevel;
+			GPU_vertbuf_attr_set(vbo, attr_id.level, i, &arg);
 
 			if (rlci == rlc->Chain.pLast) {
 				if (rlci->Item.pPrev == rlc->Chain.pFirst) {
 					length_target[1] = total_length;
-					GPU_vertbuf_attr_set(vbo, attr_id.offset, i, length_target);
+					GPU_vertbuf_attr_set(vbo, attr_id.uvs, i, length_target);
 				}
 				i++; 
 				continue; 

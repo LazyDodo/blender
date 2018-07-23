@@ -503,6 +503,9 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_begin", &ll->qi_begin, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_end", &ll->qi_end, 1);
+
 				int texw = GPU_texture_width(txl->ms_resolve_color), texh = GPU_texture_height(txl->ms_resolve_color);;
 				pd->output_viewport[2] = scene->r.xsch;
 				pd->output_viewport[3] = scene->r.ysch;

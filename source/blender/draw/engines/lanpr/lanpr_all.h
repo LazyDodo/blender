@@ -424,7 +424,7 @@ typedef struct LANPR_RenderLineSegment {
 	nListItem Item;
 	//real     Begin, End;  // 0->At[L] 1->At[R]
 	real at;
-	u8bit OccludeLevel;    //after
+	u8bit OcclusionLevel;    //after
 }LANPR_RenderLineSegment;
 
 typedef struct LANPR_RenderVert {
@@ -474,7 +474,7 @@ typedef struct LANPR_RenderLineChainItem {
 	nListItem   Item;
 	float       pos[3]; // need z value for fading
 	char        LineType;      //      style of [1]       style of [2]
-	char        OccludeLevel;  // [1]--------------->[2]---------------->[3]--....
+	char        OcclusionLevel;  // [1]--------------->[2]---------------->[3]--....
 }LANPR_RenderLineChainItem;
 
 typedef struct LANPR_BoundingArea {

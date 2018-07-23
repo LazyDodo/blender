@@ -651,22 +651,22 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 
 	if (BeginSegment) {
 		if (BeginSegment != ns) {
-			ns->OccludeLevel = BeginSegment->Item.pPrev ? (irls = BeginSegment->Item.pPrev)->OccludeLevel : 0;
+			ns->OcclusionLevel = BeginSegment->Item.pPrev ? (irls = BeginSegment->Item.pPrev)->OcclusionLevel : 0;
 			lstInsertItemBefore(&rl->Segments, (void *)ns, (void *)BeginSegment);
 		}
 	}
 	else {
-		ns->OccludeLevel = (irls = rl->Segments.pLast)->OccludeLevel;
+		ns->OcclusionLevel = (irls = rl->Segments.pLast)->OcclusionLevel;
 		lstAppendItem(&rl->Segments, ns);
 	}
 	if (EndSegment) {
 		if (EndSegment != ns2) {
-			ns2->OccludeLevel = EndSegment->Item.pPrev ? (irls = EndSegment->Item.pPrev)->OccludeLevel : 0;
+			ns2->OcclusionLevel = EndSegment->Item.pPrev ? (irls = EndSegment->Item.pPrev)->OcclusionLevel : 0;
 			lstInsertItemBefore(&rl->Segments, (void *)ns2, (void *)EndSegment);
 		}
 	}
 	else {
-		ns2->OccludeLevel = (irls = rl->Segments.pLast)->OccludeLevel;
+		ns2->OcclusionLevel = (irls = rl->Segments.pLast)->OcclusionLevel;
 		lstAppendItem(&rl->Segments, ns2);
 	}
 
@@ -675,7 +675,7 @@ void lanpr_CutLineIntegrated(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, real 
 	else ns2 = ns2->Item.pNext;
 
 	for (rls = ns; rls && rls != ns2; rls = rls->Item.pNext) {
-		rls->OccludeLevel++;
+		rls->OcclusionLevel++;
 	}
 }
 
@@ -2818,7 +2818,7 @@ long lanpr_CountLeveledEdgeSegmentCount(nListHandle *LineList, LANPR_LineLayer *
 
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
 
-			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel <= ll->qi_end) Count++;
+			if (rls->OcclusionLevel >= ll->qi_begin && rls->OcclusionLevel <= ll->qi_end) Count++;
 		}
 	}
 	return Count;
@@ -2845,7 +2845,7 @@ void *lanpr_MakeLeveledEdgeVertexArray(LANPR_RenderBuffer *rb, nListHandle *Line
 		if (!lanpr_CountThisLine(rl, ll)) continue;
 
 		for (rls = rl->Segments.pFirst; rls; rls = rls->Item.pNext) {
-			if (rls->OccludeLevel >= ll->qi_begin && rls->OccludeLevel <= ll->qi_end) {
+			if (rls->OcclusionLevel >= ll->qi_begin && rls->OcclusionLevel <= ll->qi_end) {
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
