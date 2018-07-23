@@ -6447,6 +6447,9 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_boolean_default(prop, 1);
 	RNA_def_property_ui_text(prop, "Calculate Intersections", "Calculate Intersections or not");
 
+	prop = RNA_def_property(srna, "enable_chaining", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_default(prop, 1);
+	RNA_def_property_ui_text(prop, "Enable Chaining", "Chain Feature Lines After Occlusion Test");
 
 	/* these shall go into LANPR_LineLayer */
 

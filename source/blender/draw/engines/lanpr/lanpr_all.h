@@ -64,6 +64,7 @@ typedef struct LANPROneTimeInit {
 
 	/* Software */
 	GPUShader *software_shader;
+	GPUShader *software_chaining_shader;
 
 	void *ved;
 

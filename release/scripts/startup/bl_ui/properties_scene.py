@@ -618,10 +618,11 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
             if lanpr.master_mode == "DPIX":
                 layout.prop(lanpr, "reloaded")
 
-            rows = 4
             if lanpr.master_mode == "SOFTWARE":
                 layout.label(text="Enable On Demand:")
-                layout.prop(lanpr,"calculate_intersections", toggle = True, text = "Enable Intersection Lines")
+                row = layout.row()
+                row.prop(lanpr,"calculate_intersections", text = "Intersection Lines")
+                row.prop(lanpr,"enable_chaining", text = "Chaining (SLOW!)")
                 layout.label(text="RUN:")
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
                 layout.label(text="Layer Composition:")
