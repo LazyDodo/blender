@@ -198,6 +198,7 @@ class _defs_annotate:
         return dict(
             text="Annotate",
             icon="ops.gpencil.draw",
+            cursor='PAINT_BRUSH',
             keymap=(
                 ("gpencil.annotate",
                  dict(mode='DRAW', wait_for_input=False),
@@ -214,6 +215,7 @@ class _defs_annotate:
         return dict(
             text="Draw Line",
             icon="ops.gpencil.draw.line",
+            cursor='CROSSHAIR',
             keymap=(
                 ("gpencil.annotate",
                  dict(mode='DRAW_STRAIGHT', wait_for_input=False),
@@ -230,6 +232,7 @@ class _defs_annotate:
         return dict(
             text="Draw Polygon",
             icon="ops.gpencil.draw.poly",
+            cursor='CROSSHAIR',
             keymap=(
                 ("gpencil.annotate",
                  dict(mode='DRAW_POLY', wait_for_input=False),
@@ -248,7 +251,7 @@ class _defs_annotate:
         return dict(
             text="Eraser",
             icon="ops.gpencil.draw.eraser",
-            #cursor='...',  # XXX: Always show brush circle when enabled
+            cursor='CROSSHAIR', # XXX: Always show brush circle when enabled
             keymap=(
                 ("gpencil.annotate",
                  dict(mode='ERASER', wait_for_input=False),
