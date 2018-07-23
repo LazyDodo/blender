@@ -692,8 +692,13 @@ static void draw_image_tiles(ARegion *ar, SpaceImage *sima, Image *ima)
 	unsigned int pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	unsigned color = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
+	int num_grids = num_tiles;
+	if (num_tiles > 1) {
+		num_grids++;
+	}
+
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBegin(GPU_PRIM_LINES, 8*num_tiles);
+	immBegin(GPU_PRIM_LINES, 8*num_grids);
 
 	float theme_color[3], selected_color[3];
 	UI_GetThemeColorShade3fv(TH_BACK, 60.0f, theme_color);
