@@ -517,6 +517,12 @@ static ShaderNode *add_node(Scene *scene,
 		}
 		node = hair;
 	}
+	else if(b_node.is_a(&RNA_ShaderNodeBsdfHairPrincipled)) {
+		BL::ShaderNodeBsdfHairPrincipled b_principled_hair_node(b_node);
+		PrincipledHairBsdfNode *principled_hair = new PrincipledHairBsdfNode();
+		principled_hair->parametrization = (NodePrincipledHairParametrization) get_enum(b_principled_hair_node.ptr, "parametrization", NODE_PRINCIPLED_HAIR_NUM, NODE_PRINCIPLED_HAIR_REFLECTANCE);
+		node = principled_hair;
+	}
 	else if(b_node.is_a(&RNA_ShaderNodeBsdfPrincipled)) {
 		BL::ShaderNodeBsdfPrincipled b_principled_node(b_node);
 		PrincipledBsdfNode *principled = new PrincipledBsdfNode();
@@ -1330,7 +1336,7 @@ void BlenderSync::sync_world(BL::Depsgraph& b_depsgraph, bool update_all)
 		}
 		else if(b_world) {
 			BackgroundNode *background = new BackgroundNode();
-			background->color = get_float3(b_world.horizon_color());
+			background->color = get_float3(b_world.color());
 			graph->add(background);
 
 			ShaderNode *out = graph->output();

@@ -243,6 +243,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_StorageList *stl = vedata->stl;
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	const DRWContextState *draw_ctx = DRW_context_state_get();
 	DRWShadingGroup *grp;
 
 	if (!stl->g_data) {
@@ -322,15 +323,17 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 	});
 
 	workbench_volume_cache_init(vedata);
+	const bool do_cull = (draw_ctx->v3d && (draw_ctx->v3d->flag2 & V3D_BACKFACE_CULLING));
+	const int cull_state = (do_cull) ? DRW_STATE_CULL_BACK : 0;
 
 	/* Transparency Accum */
 	{
-		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND_OIT;
+		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND_OIT | cull_state;
 		psl->transparent_accum_pass = DRW_pass_create("Transparent Accum", state);
 	}
 	/* Depth */
 	{
-		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | cull_state;
 		psl->object_outline_pass = DRW_pass_create("Object Outline Pass", state);
 	}
 	/* Composite */
@@ -483,7 +486,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 			if (me->mloopuv) {
 				const int materials_len = MAX2(1, (is_sculpt_mode ? 1 : ob->totcol));
 				struct GPUMaterial **gpumat_array = BLI_array_alloca(gpumat_array, materials_len);
-				struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+				struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 				if (materials_len > 0 && geom_array) {
 					for (int i = 0; i < materials_len; i++) {
 						if (geom_array[i] == NULL) {
@@ -516,7 +519,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 		if (!is_drawn) {
 			if (ELEM(wpd->shading.color_type, V3D_SHADING_SINGLE_COLOR, V3D_SHADING_RANDOM_COLOR)) {
 				/* No material split needed */
-				struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
+				struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 				if (geom) {
 					material = get_or_create_material_data(vedata, ob, NULL, NULL, wpd->shading.color_type);
 					if (is_sculpt_mode) {
@@ -536,7 +539,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 					gpumat_array[i] = NULL;
 				}
 
-				struct Gwn_Batch **mat_geom = DRW_cache_object_surface_material_get(
+				struct GPUBatch **mat_geom = DRW_cache_object_surface_material_get(
 				        ob, gpumat_array, materials_len, NULL, NULL, NULL);
 				if (mat_geom) {
 					for (int i = 0; i < materials_len; ++i) {
