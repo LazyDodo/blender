@@ -184,7 +184,7 @@ class _defs_annotate:
         gpl = context.active_gpencil_layer
 
         if gpd and gpl:
-            layout.prop_search(gpd.layers, "active", gpd, "layers", text="")
+            layout.prop(gpd.layers, "active_note", text="")
             layout.prop(gpl, "line_change", text="Thickness")  # XXX: Replace with proper thickness control
         else:
             layout.prop(user_prefs.edit, "grease_pencil_default_color", text="Color")

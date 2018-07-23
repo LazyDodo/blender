@@ -387,7 +387,7 @@ const EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
 	/* Create new layer */
 	/* TODO: have some way of specifying that we don't want this? */
 	{
-		/* active Keying Set */
+		/* "New Layer" entry */
 		item_tmp.identifier = "__CREATE__";
 		item_tmp.name = "New Layer";
 		item_tmp.value = -1;

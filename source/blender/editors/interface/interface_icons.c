@@ -110,6 +110,7 @@ typedef void (*VectorDrawFunc)(int x, int y, int w, int h, float alpha);
 #define ICON_TYPE_VECTOR         4
 #define ICON_TYPE_GEOM           5
 #define ICON_TYPE_EVENT          6  /* draw keymap entries using custom renderer. */
+#define ICON_TYPE_GPLAYER        7
 
 typedef struct DrawInfo {
 	int type;
@@ -391,6 +392,28 @@ DEF_VICON_COLORSET_DRAW_NTH(19, 18)
 DEF_VICON_COLORSET_DRAW_NTH(20, 19)
 
 #undef DEF_VICON_COLORSET_DRAW_NTH
+
+/* Dynamically render icon instead of rendering a plain color to a texture/buffer
+ * This is mot strictly a "vicon", as it needs access to icon->obj to get the color info,
+ * but it works in a very similar way.
+ */
+static void vicon_gplayer_color_draw(Icon *icon, int x, int y, int w, int h)
+{
+	bGPDlayer *gpl = (bGPDlayer *)icon->obj;
+
+	/* Just draw a colored rect - Like for vicon_colorset_draw() */
+	/* TODO: Make this have rounded corners, and maybe be a bit smaller.
+	 * However, UI_draw_roundbox_aa() draws the colors too dark, so can't be used.
+	 */
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
+	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+
+	immUniformColor3fv(gpl->color);
+	immRecti(pos, x, y, x + w - 1, y + h - 1);
+
+	immUnbindProgram();
+}
+
 
 #ifndef WITH_HEADLESS
 
@@ -901,6 +924,9 @@ static DrawInfo *icon_create_drawinfo(Icon *icon)
 	}
 	else if (icon_data_type == ICON_DATA_STUDIOLIGHT) {
 		di->type = ICON_TYPE_BUFFER;
+	}
+	else if (icon_data_type == ICON_DATA_GPLAYER) {
+		di->type = ICON_TYPE_GPLAYER;
 	}
 	else {
 		BLI_assert(0);
@@ -1509,6 +1535,15 @@ static void icon_draw_size(
 			icon_draw_rect(x, y, w, h, aspect, pi->w[size], pi->h[size], pi->rect[size], alpha, rgb, desaturate);
 			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 		}
+	}
+	else if (di->type == ICON_TYPE_GPLAYER) {
+		BLI_assert(icon->obj != NULL);
+
+		/* We need to flush widget base first to ensure correct ordering. */
+		UI_widgetbase_draw_cache_flush();
+
+		/* Just draw a colored rect - Like for vicon_colorset_draw() */
+		vicon_gplayer_color_draw(icon, (int)x, (int)y,  w, h);
 	}
 }
 

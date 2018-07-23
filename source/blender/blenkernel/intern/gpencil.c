@@ -60,6 +60,7 @@
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_colortools.h"
+#include "BKE_icons.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
@@ -1030,6 +1031,9 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 
 	/* free layer */
 	BKE_gpencil_free_frames(gpl);
+
+	/* free icon providing preview of icon color */
+	BKE_icon_delete(gpl->runtime.icon_id);
 
 	/* free derived data */
 	BKE_gpencil_clear_derived(gpl);

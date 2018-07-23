@@ -42,6 +42,7 @@
 
 #include "RNA_access.h"
 #include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "rna_internal.h"
 
@@ -81,9 +82,10 @@ static EnumPropertyItem rna_enum_gpencil_onion_modes_items[] = {
 
 #include "WM_api.h"
 
+#include "BKE_action.h"
 #include "BKE_animsys.h"
 #include "BKE_gpencil.h"
-#include "BKE_action.h"
+#include "BKE_icons.h"
 
 #include "DEG_depsgraph.h"
 
@@ -354,6 +356,35 @@ static void rna_GPencil_active_layer_index_range(PointerRNA *ptr, int *min, int 
 
 	*softmin = *min;
 	*softmax = *max;
+}
+
+static const EnumPropertyItem *rna_GPencil_active_layer_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *prop, bool *r_free)
+{
+	bGPdata *gpd = (bGPdata *)ptr->id.data;
+	bGPDlayer *gpl;
+	EnumPropertyItem *item = NULL, item_tmp = {0};
+	int totitem = 0;
+	int i = 0;
+
+	if (ELEM(NULL, C, gpd)) {
+		return DummyRNA_NULL_items;
+	}
+
+	/* Existing layers */
+	for (gpl = gpd->layers.first, i = 0; gpl; gpl = gpl->next, i++) {
+		item_tmp.identifier = gpl->info;
+		item_tmp.name = gpl->info;
+		item_tmp.value = i;
+
+		item_tmp.icon = BKE_icon_gplayer_color_ensure(gpl);
+
+		RNA_enum_item_add(&item, &totitem, &item_tmp);
+	}
+
+	RNA_enum_item_end(&item, &totitem);
+	*r_free = true;
+
+	return item;
 }
 
 static void rna_GPencilLayer_info_set(PointerRNA *ptr, const char *value)
@@ -1189,6 +1220,16 @@ static void rna_def_gpencil_layers_api(BlenderRNA *brna, PropertyRNA *cprop)
 	                           "rna_GPencil_active_layer_index_range");
 	RNA_def_property_ui_text(prop, "Active Layer Index", "Index of active grease pencil layer");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_SELECTED, NULL);
+
+	/* Active Layer - As an enum (for selecting active layer for annotations) */
+	prop = RNA_def_property(srna, "active_note", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_funcs(prop,
+	                            "rna_GPencil_active_layer_index_get",
+	                            "rna_GPencil_active_layer_index_set",
+	                            "rna_GPencil_active_layer_itemf");
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items); /* purely dynamic, as it maps to user-data */
+	RNA_def_property_ui_text(prop, "Active Note", "Note/Layer to add annotation strokes to");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 }
 
 static void rna_def_gpencil_data(BlenderRNA *brna)
