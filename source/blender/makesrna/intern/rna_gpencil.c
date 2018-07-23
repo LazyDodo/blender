@@ -468,8 +468,8 @@ static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, int count, float pr
 		                                  sizeof(bGPDspoint) * (stroke->totpoints + count),
 		                                  "gp_stroke_points");
 		stroke->dvert = MEM_recallocN_id(stroke->dvert,
-										  sizeof(MDeformVert) * (stroke->totpoints + count),
-										  "gp_stroke_weight");
+		                                  sizeof(MDeformVert) * (stroke->totpoints + count),
+		                                  "gp_stroke_weight");
 
 		/* init the pressure and strength values so that old scripts won't need to
 		 * be modified to give these initial values...

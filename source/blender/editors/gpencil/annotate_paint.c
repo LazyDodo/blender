@@ -458,9 +458,6 @@ static short gp_stroke_addpoint(
 			return GP_STROKEADD_NORMAL;
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
-#if 0
-		bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-#endif
 		/* get pointer to destination point */
 		pt = (tGPspoint *)(gpd->runtime.sbuffer);
 
