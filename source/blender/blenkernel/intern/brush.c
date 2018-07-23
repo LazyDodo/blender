@@ -562,9 +562,12 @@ void BKE_brush_copy_data(Main *UNUSED(bmain), Brush *brush_dst, const Brush *bru
 	}
 
 	brush_dst->curve = curvemapping_copy(brush_src->curve);
-	brush_dst->gpencil_settings->curve_sensitivity = curvemapping_copy(brush_src->gpencil_settings->curve_sensitivity);
-	brush_dst->gpencil_settings->curve_strength = curvemapping_copy(brush_src->gpencil_settings->curve_strength);
-	brush_dst->gpencil_settings->curve_jitter = curvemapping_copy(brush_src->gpencil_settings->curve_jitter);
+	if (brush_src->gpencil_settings != NULL) {
+		brush_dst->gpencil_settings = MEM_dupallocN(brush_src->gpencil_settings);
+		brush_dst->gpencil_settings->curve_sensitivity = curvemapping_copy(brush_src->gpencil_settings->curve_sensitivity);
+		brush_dst->gpencil_settings->curve_strength = curvemapping_copy(brush_src->gpencil_settings->curve_strength);
+		brush_dst->gpencil_settings->curve_jitter = curvemapping_copy(brush_src->gpencil_settings->curve_jitter);
+	}
 
 	/* enable fake user by default */
 	id_fake_user_set(&brush_dst->id);
