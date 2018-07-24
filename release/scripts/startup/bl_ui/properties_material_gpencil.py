@@ -19,6 +19,7 @@
 # <pep8 compliant>
 import bpy
 from bpy.types import Menu, Panel, UIList
+from rna_prop_ui import PropertyPanel
 
 
 class GPENCIL_MT_color_specials(Menu):
@@ -282,6 +283,12 @@ class MATERIAL_PT_gpencil_preview(GPMaterialButtonsPanel, Panel):
         self.layout.template_preview(ma)
 
 
+class MATERIAL_PT_gpencil_custom_props(GPMaterialButtonsPanel, PropertyPanel, Panel):
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    _context_path = "object.active_material"
+    _property_type = bpy.types.Material
+
+
 class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
@@ -306,6 +313,7 @@ classes = (
     MATERIAL_PT_gpencil_strokecolor,
     MATERIAL_PT_gpencil_fillcolor,
     MATERIAL_PT_gpencil_options,
+    MATERIAL_PT_gpencil_custom_props,
 )
 
 if __name__ == "__main__":  # only for live edit.
