@@ -218,11 +218,11 @@ static ClosureParam *closure_bsdf_principled_hair_params()
 	static ClosureParam params[] = {
 		CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.N),
 		CLOSURE_FLOAT3_PARAM(PrincipledHairClosure, params.sigma),
-		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.v),
-		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.s),
-		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.m0_roughness),
-		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.alpha),
-		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.eta),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.roughness),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.radial_roughness),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.coat),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.extra->alpha),
+		CLOSURE_FLOAT_PARAM(PrincipledHairClosure, params.extra->eta),
 		CLOSURE_STRING_KEYPARAM(PrincipledHairClosure, label, "label"),
 		CLOSURE_FINISH_PARAM(PrincipledHairClosure)
 	};

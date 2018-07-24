@@ -783,12 +783,12 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				float m0_roughness = 1.0f - clamp(coat, 0.0f, 1.0f);
 
 				bsdf->N = N;
-				bsdf->v = roughness;
-				bsdf->s = radial_roughness;
-				bsdf->m0_roughness = m0_roughness;
-				bsdf->alpha = alpha;
-				bsdf->eta = ior;
+				bsdf->roughness = roughness;
+				bsdf->radial_roughness = radial_roughness;
+				bsdf->coat = m0_roughness;
 				bsdf->extra = extra;
+				bsdf->extra->alpha = alpha;
+				bsdf->extra->eta = ior;
 
 				switch(parametrization) {
 					case NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION: {

@@ -26,6 +26,10 @@
 CCL_NAMESPACE_BEGIN
 
 typedef ccl_addr_space struct PrincipledHairExtra {
+	/* Cuticle tilt angle. */
+	float alpha;
+	/* IOR. */
+	float eta;
 	/* Geometry data. */
 	float4 geom;
 } PrincipledHairExtra;
@@ -35,14 +39,18 @@ typedef ccl_addr_space struct PrincipledHairBSDF {
 
 	/* Absorption coefficient. */
 	float3 sigma;
+
+	/* Roughness. */
+	float roughness;
+	/* Radial roughness. */
+	float radial_roughness;
+	/* Percentage of the roughness to be applied for the diffuse bounce only. */
+	float coat;
+
 	/* Variance of the underlying logistic distribution. */
 	float v;
 	/* Scale factor of the underlying logistic distribution. */
 	float s;
-	/* Cuticle tilt angle. */
-	float alpha;
-	/* IOR. */
-	float eta;
 	/* Effective variance for the diffuse bounce only. */
 	float m0_roughness;
 
@@ -194,14 +202,14 @@ ccl_device_inline float4 combine_with_energy(KernelGlobals *kg, float3 c)
 ccl_device int bsdf_principled_hair_setup(ShaderData *sd, PrincipledHairBSDF *bsdf)
 {
 	bsdf->type = CLOSURE_BSDF_HAIR_PRINCIPLED_ID;
-	bsdf->v = clamp(bsdf->v, 0.001f, 1.0f);
-	bsdf->s = clamp(bsdf->s, 0.001f, 1.0f);
+	bsdf->roughness = clamp(bsdf->roughness, 0.01f, 1.0f);
+	bsdf->radial_roughness = clamp(bsdf->radial_roughness, 0.01f, 1.0f);
 	/* Apply Primary Reflection Roughness modifier. */
-	bsdf->m0_roughness = clamp(bsdf->m0_roughness*bsdf->v, 0.001f, 1.0f);
+	bsdf->m0_roughness = clamp(bsdf->coat*bsdf->roughness, 0.01f, 1.0f);
 
 	/* Map from roughness_u and roughness_v to variance and scale factor. */
-	bsdf->v = sqr(0.726f*bsdf->v + 0.812f*sqr(bsdf->v) + 3.700f*pow20(bsdf->v));
-	bsdf->s =    (0.265f*bsdf->s + 1.194f*sqr(bsdf->s) + 5.372f*pow22(bsdf->s))*M_SQRT_PI_8_F;
+	bsdf->v = sqr(0.726f*bsdf->roughness + 0.812f*sqr(bsdf->roughness) + 3.700f*pow20(bsdf->roughness));
+	bsdf->s =    (0.265f*bsdf->radial_roughness + 1.194f*sqr(bsdf->radial_roughness) + 5.372f*pow22(bsdf->radial_roughness))*M_SQRT_PI_8_F;
 	bsdf->m0_roughness = sqr(0.726f*bsdf->m0_roughness + 0.812f*sqr(bsdf->m0_roughness) + 3.700f*pow20(bsdf->m0_roughness));
 
 	/* Compute local frame, aligned to curve tangent and ray direction. */
@@ -306,20 +314,20 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg,
 	float cos_theta_o = cos_from_sin(sin_theta_o);
 	float phi_o = atan2f(wo.z, wo.y);
 
-	float sin_theta_t = sin_theta_o / bsdf->eta;
+	float sin_theta_t = sin_theta_o / bsdf->extra->eta;
 	float cos_theta_t = cos_from_sin(sin_theta_t);
 
 	float sin_gamma_o = bsdf->extra->geom.w;
 	float cos_gamma_o = cos_from_sin(sin_gamma_o);
 	float gamma_o = safe_asinf(sin_gamma_o);
 
-	float sin_gamma_t = sin_gamma_o * cos_theta_o / sqrtf(sqr(bsdf->eta) - sqr(sin_theta_o));
+	float sin_gamma_t = sin_gamma_o * cos_theta_o / sqrtf(sqr(bsdf->extra->eta) - sqr(sin_theta_o));
 	float cos_gamma_t = cos_from_sin(sin_gamma_t);
 	float gamma_t = safe_asinf(sin_gamma_t);
 
 	float3 T = exp3(-bsdf->sigma * (2.0f * cos_gamma_t / cos_theta_t));
 	float4 Ap[4];
-	hair_attenuation(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
+	hair_attenuation(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->extra->eta), T, Ap);
 
 	float sin_theta_i = wi.x;
 	float cos_theta_i = cos_from_sin(sin_theta_i);
@@ -328,7 +336,7 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg,
 	float phi = phi_i - phi_o;
 
 	float angles[6];
-	hair_alpha_angles(sin_theta_i, cos_theta_i, bsdf->alpha, angles);
+	hair_alpha_angles(sin_theta_i, cos_theta_i, bsdf->extra->alpha, angles);
 
 	float4 F;
 	float Mp, Np;
@@ -392,20 +400,20 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg,
 	float cos_theta_o = cos_from_sin(sin_theta_o);
 	float phi_o = atan2f(wo.z, wo.y);
 
-	float sin_theta_t = sin_theta_o / bsdf->eta;
+	float sin_theta_t = sin_theta_o / bsdf->extra->eta;
 	float cos_theta_t = cos_from_sin(sin_theta_t);
 
 	float sin_gamma_o = bsdf->extra->geom.w;
 	float cos_gamma_o = cos_from_sin(sin_gamma_o);
 	float gamma_o = safe_asinf(sin_gamma_o);
 
-	float sin_gamma_t = sin_gamma_o * cos_theta_o / sqrtf(sqr(bsdf->eta) - sqr(sin_theta_o));
+	float sin_gamma_t = sin_gamma_o * cos_theta_o / sqrtf(sqr(bsdf->extra->eta) - sqr(sin_theta_o));
 	float cos_gamma_t = cos_from_sin(sin_gamma_t);
 	float gamma_t = safe_asinf(sin_gamma_t);
 
 	float3 T = exp3(-bsdf->sigma * (2.0f * cos_gamma_t / cos_theta_t));
 	float4 Ap[4];
-	hair_attenuation(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->eta), T, Ap);
+	hair_attenuation(kg, fresnel_dielectric_cos(cos_theta_o * cos_gamma_o, bsdf->extra->eta), T, Ap);
 
 	int p = 0;
 	for(; p < 3; p++) {
@@ -430,7 +438,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg,
 
 	float angles[6];
 	if(p < 3) {
-		hair_alpha_angles(sin_theta_i, cos_theta_i, -bsdf->alpha, angles);
+		hair_alpha_angles(sin_theta_i, cos_theta_i, -bsdf->extra->alpha, angles);
 		sin_theta_i = angles[2*p];
 		cos_theta_i = angles[2*p+1];
 	}
@@ -444,7 +452,7 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg,
 	}
 	float phi_i = phi_o + phi;
 
-	hair_alpha_angles(sin_theta_i, cos_theta_i, bsdf->alpha, angles);
+	hair_alpha_angles(sin_theta_i, cos_theta_i, bsdf->extra->alpha, angles);
 
 	float4 F;
 	float Mp, Np;
@@ -487,14 +495,21 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg,
 	return LABEL_GLOSSY|((p == 0)? LABEL_REFLECT : LABEL_TRANSMIT);
 }
 
-/* Implements Filter Glossy by capping the effective roughness. */
+/* Implements Filter Glossy by increasing and then remapping the roughness. */
 ccl_device void bsdf_principled_hair_blur(ShaderClosure *sc, float roughness)
 {
 	PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)sc;
 
-	bsdf->v = fmaxf(roughness, bsdf->v);
-	bsdf->s = fmaxf(roughness, bsdf->s);
-	bsdf->m0_roughness = fmaxf(roughness, bsdf->m0_roughness);
+	bsdf->roughness = fmaxf(roughness, bsdf->roughness);
+	bsdf->radial_roughness = fmaxf(roughness, bsdf->radial_roughness);
+	
+	/* Apply Primary Reflection Roughness modifier. */
+	bsdf->m0_roughness = clamp(bsdf->coat*bsdf->roughness, 0.01f, 1.0f);
+	
+	/* Map (again) from roughness_u and roughness_v to variance and scale factor. */
+	bsdf->v = sqr(0.726f*bsdf->roughness + 0.812f*sqr(bsdf->roughness) + 3.700f*pow20(bsdf->roughness));
+	bsdf->s =    (0.265f*bsdf->radial_roughness + 1.194f*sqr(bsdf->radial_roughness) + 5.372f*pow22(bsdf->radial_roughness))*M_SQRT_PI_8_F;
+	bsdf->m0_roughness = sqr(0.726f*bsdf->m0_roughness + 0.812f*sqr(bsdf->m0_roughness) + 3.700f*pow20(bsdf->m0_roughness));
 }
 
 CCL_NAMESPACE_END
