@@ -119,7 +119,7 @@ class GreasePencilDrawingToolsPanel:
         col.separator()
         col.separator()
 
-        if context.space_data.type in {'VIEW_3D', 'CLIP_EDITOR'}:
+        if context.space_data.type in {'CLIP_EDITOR'}:
             col.separator()
             col.label("Data Source:")
             row = col.row(align=True)

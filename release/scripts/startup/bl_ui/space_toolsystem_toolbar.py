@@ -176,7 +176,7 @@ class _defs_annotate:
     @classmethod
     def draw_settings_common(cls, context, layout, tool):
         user_prefs = context.user_preferences
-        #tool_settings = context.tool_settings
+        ts = context.tool_settings
 
         # XXX: These context checks are needed for layer-dependent settings,
         # but this breaks for using topbar for 2D editor active tools, etc.
@@ -189,6 +189,19 @@ class _defs_annotate:
         else:
             layout.prop(user_prefs.edit, "grease_pencil_default_color", text="Color")
             layout.label("Thickness: [...]")
+
+        # For 3D view, show the stroke placement settings
+        # XXX: How to tell what editor the active tool comes from?
+        is_3d_view = True
+        if is_3d_view:
+            layout.separator()
+
+            row = layout.row(align=True)
+            row.prop(ts, "gpencil_stroke_placement_view3d", text="Orientation")
+            if ts.gpencil_stroke_placement_view3d == 'CURSOR':
+                row.prop(ts.gpencil_sculpt, "lockaxis")
+            elif ts.gpencil_stroke_placement_view3d in {'SURFACE', 'STROKE'}:
+                row.prop(ts, "use_gpencil_stroke_endpoints")
 
     @ToolDef.from_fn
     def scribble():
