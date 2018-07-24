@@ -128,6 +128,8 @@ class TOPBAR_HT_lower_bar(Header):
             pass
         elif mode == 'PARTICLE':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+        elif mode == 'GPENCIL_PAINT':
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
 
     def draw_center(self, context):
         pass

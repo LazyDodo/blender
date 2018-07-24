@@ -1350,7 +1350,7 @@ class VIEW3D_PT_tools_particlemode(View3DPanel, Panel):
 # Grease Pencil drawing brushes
 class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_label = "Drawing Brushes"
+    bl_label = "Brush"
 
     @classmethod
     def poll(cls, context):
@@ -1564,7 +1564,7 @@ class VIEW3D_PT_tools_grease_pencil_brush_random(View3DPanel, Panel):
 # Grease Pencil drawingcurves
 class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_label = "Brush Curves"
+    bl_label = "Curves"
     bl_options = {'DEFAULT_CLOSED'}
 
     @staticmethod
@@ -1730,17 +1730,17 @@ class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
 # Grease Pencil Brush Appeareance (one for each mode)
 class VIEW3D_PT_tools_grease_pencil_paint_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
-    bl_label = "Brush Appearance"
+    bl_label = "Appearance"
 
 
 class VIEW3D_PT_tools_grease_pencil_sculpt_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_sculpt"
-    bl_label = "Brush Appearance"
+    bl_label = "Appearance"
 
 
 class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_weight"
-    bl_label = "Brush Appearance"
+    bl_label = "Appearance"
 
 # Grease Pencil Animation Tools
 class VIEW3D_PT_tools_grease_pencil_animation(GreasePencilAnimationPanel, Panel):
@@ -1779,14 +1779,13 @@ classes = (
     VIEW3D_MT_tools_projectpaint_stencil,
     VIEW3D_PT_tools_particlemode,
 
-    # FIXME: After GP Branch merge, fix up the UI to work with toolbar/topbar
-    # some panels have been moved to toolbar already
     VIEW3D_PT_tools_grease_pencil_brush,
     VIEW3D_PT_tools_grease_pencil_brush_option,
     VIEW3D_PT_tools_grease_pencil_brush_settings,
     VIEW3D_PT_tools_grease_pencil_brush_stabilizer,
     VIEW3D_PT_tools_grease_pencil_brush_random,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
+    # GPXX: review
     # VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_edit,
     VIEW3D_PT_tools_grease_pencil_sculpt,
@@ -1796,6 +1795,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,
+    # GPXX: review
     #VIEW3D_PT_tools_grease_pencil_animation,
 )
 

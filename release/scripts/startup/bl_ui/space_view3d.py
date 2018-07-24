@@ -78,25 +78,8 @@ class VIEW3D_HT_header(Header):
             row.operator("pose.paste", text="", icon='PASTEFLIPDOWN').flipped = True
 
         # Grease Pencil
-        # GPXX this is a hack while we merge to keep all running
-        # XXX: Should these buttons show up in Object Mode at all?
         if obj and obj.type == 'GPENCIL' and context.gpencil_data:
             gpd = context.gpencil_data
-
-            if gpd.is_stroke_paint_mode:
-                row = layout.row()
-                row.prop(tool_settings, "gpencil_stroke_placement_view3d", text='')
-                if tool_settings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
-                    row.prop(tool_settings.gpencil_sculpt, "lockaxis", text='')
-
-                if tool_settings.gpencil_stroke_placement_view3d in ('SURFACE', 'STROKE'):
-                    row.prop(tool_settings, "use_gpencil_stroke_endpoints")
-
-                brush = context.active_gpencil_brush
-                if brush is not None:
-                    gp_settings = brush.gpencil_settings
-                    if gp_settings.gpencil_brush_type != 'ERASE':
-                        row.prop(context.tool_settings, "use_gpencil_draw_onback", text="", icon='ORTHO')
 
             if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode or gpd.is_stroke_weight_mode:
                 row = layout.row(align=True)
@@ -109,25 +92,13 @@ class VIEW3D_HT_header(Header):
                     text="Multiframe"
                 )
 
-            if gpd.is_stroke_sculpt_mode:
-                settings = context.tool_settings.gpencil_sculpt
-                if settings.tool in ('GRAB', 'PUSH', 'TWIST', 'PINCH', 'RANDOMIZE'):
-                    row = layout.row()
-                    row.prop(tool_settings.gpencil_sculpt, "lockaxis", text='')
-
             if gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
                 row.operator("gpencil.copy", text="", icon='COPYDOWN')
                 row.operator("gpencil.paste", text="", icon='PASTEDOWN')
 
-            if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
                 row = layout.row(align=True)
                 row.prop(tool_settings.gpencil_sculpt, "use_select_mask", text="")
-
-            # GPXX: Disabled. To be removed when new preview works
-            # if gpd.is_stroke_paint_mode:
-            #     row = layout.row(align=True)
-            #     row.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
 
         VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
