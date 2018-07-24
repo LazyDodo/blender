@@ -59,31 +59,44 @@ def generate_from_brushes_ex(
                     )
                 )
     else:
-        for e in brush_category_layout:
-            main_brush = context.blend_data.brushes[e[0]]
-
+        for brush_type in brush_category_layout:
             for brush in context.blend_data.brushes:
-                bname = brush.name
-                if bname[-4:-3] == '.':
-                    bname = bname[:-4]
-                if bname == main_brush.name and getattr(brush, brush_test_attr):
-                    category = getattr(brush.gpencil_settings, brush_category_attr)
+                if getattr(brush, brush_test_attr) and brush.gpencil_settings.gp_icon == brush_type[0]:
+                    category = brush_type[0]
                     name = brush.name
+
+                    # rename default brushes for tool bar
                     if name.startswith("Draw "):
                         text = name.replace("Draw ", "")
-                        icon_name = brush.name.lower().replace(" ", "_")
                     elif name.startswith("Eraser "):
                         text = name.replace("Eraser ", "")
-                        icon_name = "draw." + brush.name.lower().replace(" ", "_")
                     elif name.startswith("Fill "):
                         text = name.replace(" Area", "")
-                        icon_name = "draw_fill"
                     else:
                         text = name
-                        icon_name = "draw_pencil"
 
-                    if icon_name[-4:-3] == '.':
-                        icon_name = icon_name[:-4]
+                    # define icon
+                    gp_icon = brush.gpencil_settings.gp_icon
+                    if gp_icon == 'PENCIL':
+                        icon_name = 'draw_pencil'
+                    elif gp_icon == 'PEN':
+                        icon_name = 'draw_pen'
+                    elif gp_icon == 'INK':
+                        icon_name = 'draw_ink'
+                    elif gp_icon == 'INKNOISE':
+                        icon_name = 'draw_noise'
+                    elif gp_icon == 'BLOCK':
+                        icon_name = 'draw_block'
+                    elif gp_icon == 'MARKER':
+                        icon_name = 'draw_marker'
+                    elif gp_icon == 'FILL':
+                        icon_name = 'draw_fill'
+                    elif gp_icon == 'SOFT':
+                        icon_name = 'draw.eraser_soft'
+                    elif gp_icon == 'HARD':
+                        icon_name = 'draw.eraser_hard'
+                    elif gp_icon == 'STROKE':
+                        icon_name = 'draw.eraser_stroke'
 
                     brush_categories.setdefault(category, []).append(
                         ToolDef.from_dict(
@@ -105,11 +118,8 @@ def generate_from_brushes_ex(
         else:
             tool_defs = tuple(item for g in groups for item in brush_categories.pop(g, ()))
 
-        if context.mode != 'GPENCIL_PAINT':
-            if len(tool_defs) > 1:
-                return (tool_defs,)
-            else:
-                return tool_defs
+        if len(tool_defs) > 1:
+            return (tool_defs,)
         else:
             return tool_defs
 
@@ -1067,16 +1077,16 @@ class _defs_gpencil_paint:
             brush_test_attr="use_paint_grease_pencil",
             brush_category_attr="grease_pencil_tool",
             brush_category_layout=(
-                ('Draw Pencil', ),
-                ('Draw Pen', ),
-                ('Draw Ink',),
-                ('Draw Noise',),
-                ('Draw Block',),
-                ('Draw Marker',),
-                ('Fill Area',),
-                ('Eraser Soft',),
-                ('Eraser Hard',),
-                ('Eraser Stroke',),
+                ('PENCIL',),
+                ('PEN',),
+                ('INK',),
+                ('INKNOISE',),
+                ('BLOCK',),
+                ('MARKER',),
+                ('FILL',),
+                ('SOFT',),
+                ('HARD',),
+                ('STROKE',),
             )
         )
 
