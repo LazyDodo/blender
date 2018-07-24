@@ -626,7 +626,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 layout.label(text="RUN:")
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
                 layout.label(text="Layer Composition:")
-                layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=rows)
+                layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=4)
                 if active_layer:
                     split = layout.split()
                     col = split.column()

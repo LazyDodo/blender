@@ -766,7 +766,7 @@ __inline void tMatVectorConvert3fd(tnsVector3f from, tnsVector3d to) {
 }
 
 
-int lanpr_PointInsideTrianglef(tnsVector2d v, tnsVector2d v0, tnsVector2d v1, tnsVector2d v2);
+int lanpr_point_inside_triangled(tnsVector2d v, tnsVector2d v0, tnsVector2d v1, tnsVector2d v2);
 real lanpr_LinearInterpolate(real L, real R, real T);
 void lanpr_LinearInterpolate2dv(real *L, real *R, real T, real *Result);
 void lanpr_LinearInterpolate3dv(real *L, real *R, real T, real *Result);

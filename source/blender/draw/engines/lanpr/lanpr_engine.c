@@ -29,17 +29,18 @@
 
 extern char datatoc_common_fullscreen_vert_glsl[];
 extern char datatoc_gpu_shader_3D_normal_smooth_color_vert_glsl[];
-extern char datatoc_lanpr_snake_multichannel_fragment[];
-extern char datatoc_lanpr_snake_edge_fragment[];
-extern char datatoc_lanpr_image_peel_fragment[];
-extern char datatoc_lanpr_line_connection_vertex[];
-extern char datatoc_lanpr_line_connection_fragment[];
-extern char datatoc_lanpr_line_connection_geometry[];
-extern char datatoc_lanpr_software_line_width_geometry[];
-extern char datatoc_lanpr_software_chain_geometry[];
-extern char datatoc_lanpr_atlas_project_passthrough_vertex[];
-extern char datatoc_lanpr_atlas_preview_fragment[];
-extern char datatoc_lanpr_software_scale_compensate_vertex[];
+extern char datatoc_lanpr_snake_multichannel_frag_glsl[];
+extern char datatoc_lanpr_snake_edge_frag_glsl[];
+extern char datatoc_lanpr_snake_image_peel_frag_glsl[];
+extern char datatoc_lanpr_snake_line_connection_vert_glsl[];
+extern char datatoc_lanpr_snake_line_connection_frag_glsl[];
+extern char datatoc_lanpr_snake_line_connection_geom_glsl[];
+extern char datatoc_lanpr_software_line_chain_geom_glsl[];
+extern char datatoc_lanpr_software_chain_geom_glsl[];
+extern char datatoc_lanpr_dpix_project_passthrough_vert_glsl[];
+extern char datatoc_lanpr_dpix_project_clip_frag_glsl[];
+extern char datatoc_lanpr_dpix_preview_frag_glsl[];
+extern char datatoc_lanpr_software_passthrough_vert_glsl[];
 
 
 
@@ -139,29 +140,29 @@ static void lanpr_engine_init(void *ved){
 		OneTime.multichannel_shader =
 			GPU_shader_create(
 				datatoc_gpu_shader_3D_normal_smooth_color_vert_glsl,
-				datatoc_lanpr_snake_multichannel_fragment, NULL, NULL, NULL);
+				datatoc_lanpr_snake_multichannel_frag_glsl, NULL, NULL, NULL);
 
 	}
 	if (!OneTime.edge_detect_shader) {
 		OneTime.edge_detect_shader =
 			GPU_shader_create(
 				datatoc_common_fullscreen_vert_glsl,
-				datatoc_lanpr_snake_edge_fragment, NULL, NULL, NULL);
+				datatoc_lanpr_snake_edge_frag_glsl, NULL, NULL, NULL);
 
 	}
 	if (!OneTime.edge_thinning_shader) {
 		OneTime.edge_thinning_shader =
 			GPU_shader_create(
 				datatoc_common_fullscreen_vert_glsl,
-				datatoc_lanpr_image_peel_fragment, NULL, NULL, NULL);
+				datatoc_lanpr_snake_image_peel_frag_glsl, NULL, NULL, NULL);
 
 	}
 	if (!OneTime.snake_connection_shader) {
 		OneTime.snake_connection_shader =
 			GPU_shader_create(
-				datatoc_lanpr_line_connection_vertex,
-				datatoc_lanpr_line_connection_fragment,
-				datatoc_lanpr_line_connection_geometry,
+				datatoc_lanpr_snake_line_connection_vert_glsl,
+				datatoc_lanpr_snake_line_connection_frag_glsl,
+				datatoc_lanpr_snake_line_connection_geom_glsl,
 				NULL, NULL);
 	}
 
@@ -172,18 +173,18 @@ static void lanpr_engine_init(void *ved){
 	if (!OneTime.software_shader) {
 		OneTime.software_shader =
 			GPU_shader_create(
-				datatoc_lanpr_software_scale_compensate_vertex,
-				datatoc_lanpr_atlas_preview_fragment,
-				datatoc_lanpr_software_line_width_geometry,
+				datatoc_lanpr_software_passthrough_vert_glsl,
+				datatoc_lanpr_dpix_preview_frag_glsl,
+				datatoc_lanpr_software_line_chain_geom_glsl,
 				NULL, NULL);
 	}
 
 	if (!OneTime.software_chaining_shader) {
 		OneTime.software_chaining_shader =
 			GPU_shader_create(
-				datatoc_lanpr_software_scale_compensate_vertex,
-				datatoc_lanpr_atlas_preview_fragment,
-				datatoc_lanpr_software_chain_geometry,
+				datatoc_lanpr_software_passthrough_vert_glsl,
+				datatoc_lanpr_dpix_preview_frag_glsl,
+				datatoc_lanpr_software_chain_geom_glsl,
 				NULL, NULL);
 	}
 

@@ -26,10 +26,10 @@
 #include <math.h>
 
 extern struct LANPROneTimeInit OneTime;
-extern char datatoc_lanpr_atlas_project_passthrough_vertex[];
-extern char datatoc_lanpr_atlas_project_clip_fragment[];
-extern char datatoc_lanpr_atlas_preview_geometry[];
-extern char datatoc_lanpr_atlas_preview_fragment[];
+extern char datatoc_lanpr_dpix_project_passthrough_vert_glsl[];
+extern char datatoc_lanpr_dpix_project_clip_frag_glsl[];
+extern char datatoc_lanpr_dpix_preview_geom_glsl[];
+extern char datatoc_lanpr_dpix_preview_frag_glsl[];
 
 void lanpr_init_atlas_inputs(void *ved){
 	OneTime.ved = ved;
@@ -79,16 +79,16 @@ void lanpr_init_atlas_inputs(void *ved){
 	if (!OneTime.dpix_transform_shader) {
 		OneTime.dpix_transform_shader =
 			GPU_shader_create(
-				datatoc_lanpr_atlas_project_passthrough_vertex,
-				datatoc_lanpr_atlas_project_clip_fragment,
+				datatoc_lanpr_dpix_project_passthrough_vert_glsl,
+				datatoc_lanpr_dpix_project_clip_frag_glsl,
 				NULL, NULL, NULL);
 	}
 	if (!OneTime.dpix_preview_shader) {
 		OneTime.dpix_preview_shader =
 			GPU_shader_create(
-				datatoc_lanpr_atlas_project_passthrough_vertex,
-				datatoc_lanpr_atlas_preview_fragment,
-				datatoc_lanpr_atlas_preview_geometry,
+				datatoc_lanpr_dpix_project_passthrough_vert_glsl,
+				datatoc_lanpr_dpix_preview_frag_glsl,
+				datatoc_lanpr_dpix_preview_geom_glsl,
 				NULL, NULL);
 	}
 }
