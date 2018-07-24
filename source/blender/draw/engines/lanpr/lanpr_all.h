@@ -359,7 +359,7 @@ typedef struct LANPR_RenderBuffer {
 	//settings
 
 	//int             OutputTransparent;
-	//real            BackgroundColor[4];
+	//real            Backgroundcolor[4];
 
 	int MaxOccludeLevel;
 	real CreaseAngle;
@@ -783,16 +783,16 @@ int lanpr_feed_atlas_data_obj(void *vedata,
                               float *AtlasPointsL, float *AtlasPointsR,
                               float *AtlasFaceNormalL, float *AtlasFaceNormalR,
                               float *AtlasEdgeMask,
-                              Object *ob, int BeginIndex);
+                              Object *ob, int begin_index);
 
 int lanpr_feed_atlas_data_intersection_cache(void *vedata,
                                              float *AtlasPointsL, float *AtlasPointsR,
                                              float *AtlasFaceNormalL, float *AtlasFaceNormalR,
                                              float *AtlasEdgeMask,
-                                             int BeginIndex);
+                                             int begin_index);
 
-int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginIndex);
-void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex);
+int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int begin_index);
+void lanpr_create_atlas_intersection_preview(void *vedata, int begin_index);
 
 void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);
 

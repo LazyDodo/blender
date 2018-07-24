@@ -119,13 +119,13 @@ int lanpr_feed_atlas_data_obj(void *vedata,
                               float *AtlasPointsL, float *AtlasPointsR,
                               float *AtlasFaceNormalL, float *AtlasFaceNormalR,
                               float *AtlasEdgeMask,
-                              Object *ob, int BeginIndex) {
+                              Object *ob, int begin_index) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 
-	if (!DRW_object_is_renderable(ob)) return BeginIndex;
+	if (!DRW_object_is_renderable(ob)) return begin_index;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	if (ob == draw_ctx->object_edit) return BeginIndex;
-	if (ob->type != OB_MESH) return BeginIndex;
+	if (ob == draw_ctx->object_edit) return begin_index;
+	if (ob->type != OB_MESH) return begin_index;
 
 	Mesh *me = ob->data;
 	BMesh *bm;
@@ -159,7 +159,7 @@ int lanpr_feed_atlas_data_obj(void *vedata,
 		if (l1) f1 = l1->f;
 		if (l2) f2 = l2->f;
 
-		idx = (BeginIndex + i) * 4;
+		idx = (begin_index + i) * 4;
 
 		AtlasPointsL[idx + 0] = v1->co[0];
 		AtlasPointsL[idx + 1] = v1->co[1];
@@ -209,14 +209,14 @@ int lanpr_feed_atlas_data_obj(void *vedata,
 
 	BM_mesh_free(bm);
 
-	return BeginIndex + edge_count;
+	return begin_index + edge_count;
 }
 
 int lanpr_feed_atlas_data_intersection_cache(void *vedata,
                                              float *AtlasPointsL, float *AtlasPointsR,
                                              float *AtlasFaceNormalL, float *AtlasFaceNormalR,
                                              float *AtlasEdgeMask,
-                                             int BeginIndex) {
+                                             int begin_index) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData *pd = stl->g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -233,7 +233,7 @@ int lanpr_feed_atlas_data_intersection_cache(void *vedata,
 	for (lip = rb->IntersectionLines.pFirst; lip; lip = lip->pNext) {
 		rl = lip->p;
 
-		idx = (BeginIndex + i) * 4;
+		idx = (begin_index + i) * 4;
 		AtlasEdgeMask[idx + 2] = 1; // channel B
 
 		AtlasPointsL[idx + 0] = rl->L->GLocation[0];
@@ -259,7 +259,7 @@ int lanpr_feed_atlas_data_intersection_cache(void *vedata,
 		i++;
 	}
 
-	return BeginIndex + i;
+	return begin_index + i;
 }
 
 void lanpr_dpix_index_to_coord(int index, float *x, float *y){
@@ -272,11 +272,11 @@ void lanpr_dpix_index_to_coord_absolute(int index, float *x, float *y){
 	(*y) = (float)(index / TNS_DPIX_TEXTURE_SIZE) + 0.5;
 }
 
-int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginIndex) {
+int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int begin_index) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData *pd = stl->g_data;
 	Mesh *me = ob->data;
-	if (ob->type != OB_MESH) return BeginIndex;
+	if (ob->type != OB_MESH) return begin_index;
 	int edge_count = me->totedge;
 	int i;
 	float co[2];
@@ -299,9 +299,9 @@ int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginInde
 	GPU_vertbuf_data_alloc(vbo2, edge_count);
 
 	for (i = 0; i < edge_count; i++) {
-		lanpr_dpix_index_to_coord(i + BeginIndex, &co[0], &co[1]);
+		lanpr_dpix_index_to_coord(i + begin_index, &co[0], &co[1]);
 		GPU_vertbuf_attr_set(vbo, attr_id.pos, i, co);
-		lanpr_dpix_index_to_coord_absolute(i + BeginIndex, &co[0], &co[1]);
+		lanpr_dpix_index_to_coord_absolute(i + begin_index, &co[0], &co[1]);
 		GPU_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
 	}
 
@@ -314,10 +314,10 @@ int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int BeginInde
 	bi->dpix_preview_batch = gb2;
 	bi->ob = ob;
 
-	return BeginIndex + edge_count;
+	return begin_index + edge_count;
 }
 
-void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
+void lanpr_create_atlas_intersection_preview(void *vedata, int begin_index) {
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PrivateData *pd = stl->g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -351,9 +351,9 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int BeginIndex) {
 	GPU_vertbuf_data_alloc(vbo2, rb->IntersectionCount);
 
 	for (i = 0; i < rb->IntersectionCount; i++) {
-		lanpr_dpix_index_to_coord(i + BeginIndex, &co[0], &co[1]);
+		lanpr_dpix_index_to_coord(i + begin_index, &co[0], &co[1]);
 		GPU_vertbuf_attr_set(vbo, attr_id.pos, i, co);
-		lanpr_dpix_index_to_coord_absolute(i + BeginIndex, &co[0], &co[1]);
+		lanpr_dpix_index_to_coord_absolute(i + begin_index, &co[0], &co[1]);
 		GPU_vertbuf_attr_set(vbo2, attr_id2.pos, i, co);
 	}
 	rb->DPIXIntersectionTransformBatch = GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, 0, GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);

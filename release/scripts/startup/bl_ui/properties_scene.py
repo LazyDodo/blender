@@ -619,13 +619,19 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 layout.prop(lanpr, "reloaded")
 
             if lanpr.master_mode == "SOFTWARE":
+                layout.prop(lanpr, "background_color")
                 layout.label(text="Enable On Demand:")
                 row = layout.row()
                 row.prop(lanpr,"calculate_intersections", text = "Intersection Lines")
                 row.prop(lanpr,"enable_chaining", text = "Chaining (SLOW!)")
                 layout.label(text="RUN:")
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
-                layout.label(text="Layer Composition:")
+
+                split = layout.split(percentage=0.7)
+                col = split.column()
+                col.label(text="Layer Composition:")
+                col = split.column()
+                col.operator("scene.lanpr_auto_create_line_layer", text = "Default", icon = "ZOOMIN")
                 layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=4)
                 if active_layer:
                     split = layout.split()
@@ -669,6 +675,8 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
         scene = context.scene
         lanpr = scene.lanpr
         active_layer = lanpr.layers.active_layer
+
+        layout.operator("scene.lanpr_enable_all_line_types")
 
         split = layout.split(percentage=0.3)
         col = split.column()
@@ -723,7 +731,7 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
         scene = context.scene
         lanpr = scene.lanpr
         active_layer = lanpr.layers.active_layer
-        return active_layer and lanpr.master_mode == "SOFTWARE"
+        return active_layer and lanpr.master_mode == "SOFTWARE" and not lanpr.enable_chaining
 
     def draw(self, context):
         layout = self.layout
@@ -810,7 +818,7 @@ class SCENE_PT_lanpr_snake_settings(SceneButtonsPanel, Panel):
     def poll(cls, context):
         scene = context.scene
         lanpr = scene.lanpr
-        return lanpr.master_mode == "SNAKE" and lanpr.enable_vector_trace == "ENABLED"
+        return lanpr.master_mode == "SNAKE" and lanpr.enable_vector_trace == "ENABLE"
 
     def draw(self, context):
         layout = self.layout
@@ -833,6 +841,45 @@ class SCENE_PT_lanpr_snake_settings(SceneButtonsPanel, Panel):
         col.prop(lanpr, "depth_width_curve")
         col.prop(lanpr, "depth_alpha_curve")
         
+        layout.label(text="Taper:")
+        layout.prop(lanpr, "use_same_taper", expand = True)
+        if lanpr.use_same_taper == "DISABLED":
+            split = layout.split()
+            col = split.column(align = True)
+            col.label(text="Left:")
+            col.prop(lanpr,"taper_left_distance")
+            col.prop(lanpr,"taper_left_strength")
+            col = split.column(align = True)
+            col.label(text="Right:")
+            col.prop(lanpr,"taper_right_distance")
+            col.prop(lanpr,"taper_right_strength")
+        else:
+            split = layout.split()
+            col = split.column(align = True)
+            col.prop(lanpr,"taper_left_distance")
+            col.prop(lanpr,"taper_left_strength") 
+
+        layout.label(text="Tip Extend:")
+        layout.prop(lanpr, "enable_tip_extend",  expand = True)
+        if lanpr.enable_tip_extend == "ENABLED":
+            layout.label(text="---INOP---")
+            layout.prop(lanpr,"extend_length")
+
+class SCENE_PT_lanpr_software_chain_styles(SceneButtonsPanel, Panel):
+    bl_label = "Chain Styles"
+    bl_parent_id = "SCENE_PT_lanpr"
+    COMPAT_ENGINES = {'BLENDER_CLAY'}
+
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        lanpr = scene.lanpr
+        return lanpr.master_mode == "SOFTWARE" and lanpr.enable_chaining
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        lanpr = scene.lanpr
         layout.label(text="Taper:")
         layout.prop(lanpr, "use_same_taper", expand = True)
         if lanpr.use_same_taper == "DISABLED":
@@ -911,6 +958,7 @@ classes = (
     SCENE_PT_lanpr_line_effects,
     SCENE_PT_lanpr_snake_sobel_parameters,
     SCENE_PT_lanpr_snake_settings,
+    SCENE_PT_lanpr_software_chain_styles,
 
     LANPR_linesets,
 )

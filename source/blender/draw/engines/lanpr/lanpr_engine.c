@@ -268,7 +268,7 @@ static void lanpr_cache_init(void *vedata){
 		camera = scene->camera;
 	}
 
-	psl->color_pass = DRW_pass_create("Color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
+	psl->color_pass = DRW_pass_create("color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
 	stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
 
 
@@ -299,7 +299,7 @@ static void lanpr_cache_init(void *vedata){
 	}
 	elif(lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer)
 	{
-		LANPR_LineLayer *ll = lanpr->active_layer;
+		LANPR_LineLayer *ll = lanpr->line_layers.first;
 		psl->dpix_transform_pass = DRW_pass_create("DPIX Transform Stage", DRW_STATE_WRITE_COLOR);
 		stl->g_data->dpix_transform_shgrp = DRW_shgroup_create(OneTime.dpix_transform_shader, psl->dpix_transform_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_transform_shgrp, "vert0_tex", &txl->dpix_in_pl);
@@ -491,7 +491,7 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 			pd->dpix_viewport[3] = texh;
 
 			if (lanpr->enable_chaining && lanpr->render_buffer->ChainDrawBatch) {
-				for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+				for (ll = lanpr->line_layers.last; ll; ll = ll->prev) {
 					LANPR_RenderBuffer* rb;
 					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 					rb = lanpr->render_buffer;
@@ -529,7 +529,7 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 					DRW_draw_pass(psl->software_pass);
 				}
 			}elif(!lanpr->enable_chaining) {
-				for (ll = lanpr->line_layers.first; ll; ll = ll->next) {
+				for (ll = lanpr->line_layers.last; ll && ll->batch; ll = ll->prev) {
 					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 					ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
@@ -544,9 +544,9 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 					DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
-					if (ll->batch) DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
+					DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
+					DRW_draw_pass(psl->software_pass);
 				}
-				DRW_draw_pass(psl->software_pass);
 			}
 		}
 

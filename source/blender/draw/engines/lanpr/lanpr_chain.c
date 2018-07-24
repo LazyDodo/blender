@@ -26,7 +26,7 @@
 
 #include <math.h>
 
-int lanpr_get_line_bounding_areas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int *RowBegin, int *RowEnd, int *ColBegin, int *ColEnd);
+int lanpr_get_line_bounding_areas(LANPR_RenderBuffer *rb, LANPR_RenderLine *rl, int *rowBegin, int *rowEnd, int *colBegin, int *colEnd);
 LANPR_BoundingArea* lanpr_get_point_bounding_area(LANPR_RenderBuffer *rb, real x, real y);
 
 #define LANPR_OTHER_RV(rl,rv) ((rv) == (rl)->L?(rl)->R:(rl)->L) 

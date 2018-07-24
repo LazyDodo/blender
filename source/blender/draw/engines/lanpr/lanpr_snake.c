@@ -22,8 +22,8 @@
 
 extern struct LANPROneTimeInit OneTime;
 
-int _TNS_ColOffsets[] = { -1, 0, 1, 1, 1, 0, -1, -1 };
-int _TNS_RowOffsets[] = { -1, -1, -1, 0, 1, 1, 1, 0 };
+int _TNS_colOffsets[] = { -1, 0, 1, 1, 1, 0, -1, -1 };
+int _TNS_rowOffsets[] = { -1, -1, -1, 0, 1, 1, 1, 0 };
 
 int _TNS_Deviates[8][8] = {
 	{ 0, 1, 2, 3, 4, 3, 2, 1 },
@@ -36,15 +36,15 @@ int _TNS_Deviates[8][8] = {
 	{ 1, 2, 3, 4, 3, 2, 1, 0 }
 };
 
-#define TNS_CLAMP_TEXTURE_W(t, Col) \
-	{if (Col >= t->width) Col = t->width - 1; if (Col < 0) Col = 0; }
+#define TNS_CLAMP_TEXTURE_W(t, col) \
+	{if (col >= t->width) col = t->width - 1; if (col < 0) col = 0; }
 
-#define TNS_CLAMP_TEXTURE_H(t, Row) \
-	{if (Row >= t->height) Row = t->height - 1; if (Row < 0) Row = 0; }
+#define TNS_CLAMP_TEXTURE_H(t, row) \
+	{if (row >= t->height) row = t->height - 1; if (row < 0) row = 0; }
 
-#define TNS_CLAMP_TEXTURE_CONTINUE(t, Col, Row) \
-	{if (Col >= t->width) continue; if (Col < 0) continue; \
-	 if (Row >= t->height) continue; if (Row < 0) continue; }
+#define TNS_CLAMP_TEXTURE_CONTINUE(t, col, row) \
+	{if (col >= t->width) continue; if (col < 0) continue; \
+	 if (row >= t->height) continue; if (row < 0) continue; }
 
 
 static LANPR_TextureSample *lanpr_any_uncovered_samples(LANPR_PrivateData *pd){
@@ -55,15 +55,15 @@ int lanpr_direction_deviate(int From, int To) {
 	return _TNS_Deviates[From - 1][To - 1];
 }
 
-int lanpr_detect_direction(LANPR_PrivateData *pd, int Col, int Row, int LastDirection) {
+int lanpr_detect_direction(LANPR_PrivateData *pd, int col, int row, int LastDirection) {
 	int Deviate[9] = {100};
 	int MinDeviate = 0;
 	int i;
 	LANPR_TextureSample *ts;
 
 	for (i = 0; i < 8; i++) {
-		TNS_CLAMP_TEXTURE_CONTINUE(pd, (_TNS_ColOffsets[i] + Col), (_TNS_RowOffsets[i] + Row));
-		if (ts = pd->sample_table[(_TNS_ColOffsets[i] + Col) + (_TNS_RowOffsets[i] + Row) * pd->width]) {
+		TNS_CLAMP_TEXTURE_CONTINUE(pd, (_TNS_colOffsets[i] + col), (_TNS_rowOffsets[i] + row));
+		if (ts = pd->sample_table[(_TNS_colOffsets[i] + col) + (_TNS_rowOffsets[i] + row) * pd->width]) {
 			if (!LastDirection) return i + 1;
 			Deviate[i + 1] = lanpr_direction_deviate(i, LastDirection);
 			if (!MinDeviate || Deviate[MinDeviate] > Deviate[i + 1]) MinDeviate = i + 1;
@@ -112,10 +112,10 @@ void lanpr_destroy_line_strip(LANPR_PrivateData *pd, LANPR_LineStrip *ls) {
 	BLI_mempool_free(pd->mp_line_strip, ls);
 }
 
-void lanpr_remove_sample(LANPR_PrivateData *pd, int Row, int Col) {
+void lanpr_remove_sample(LANPR_PrivateData *pd, int row, int col) {
 	LANPR_TextureSample *ts;
-	ts = pd->sample_table[Row * pd->width + Col];
-	pd->sample_table[Row * pd->width + Col] = NULL;
+	ts = pd->sample_table[row * pd->width + col];
+	pd->sample_table[row * pd->width + col] = NULL;
 
 	BLI_remlink(&pd->pending_samples, ts);
 	ts->Item.prev = NULL; ts->Item.next = NULL;
@@ -136,8 +136,8 @@ void lanpr_grow_snake_r(LANPR_PrivateData *pd, LANPR_LineStrip *ls, LANPR_LineSt
 		Dir = NewDir;
 
 		l++;
-		TX += _TNS_ColOffsets[NewDir - 1];
-		TY += _TNS_RowOffsets[NewDir - 1];
+		TX += _TNS_colOffsets[NewDir - 1];
+		TY += _TNS_rowOffsets[NewDir - 1];
 
 		if (Deviate < 2) {
 			lanpr_remove_sample(pd, TY, TX);
@@ -175,8 +175,8 @@ void lanpr_grow_snake_l(LANPR_PrivateData *pd, LANPR_LineStrip *ls, LANPR_LineSt
 		Dir = NewDir;
 
 		l++;
-		TX += _TNS_ColOffsets[NewDir - 1];
-		TY += _TNS_RowOffsets[NewDir - 1];
+		TX += _TNS_colOffsets[NewDir - 1];
+		TY += _TNS_rowOffsets[NewDir - 1];
 
 		if (Deviate < 2) {
 			lanpr_remove_sample(pd, TY, TX);
@@ -449,7 +449,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLStrength", tls, 1);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRDist", lanpr->use_same_taper ? tld : trd, 1);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRStrength", lanpr->use_same_taper ? tls : trs, 1);
-	DRW_shgroup_uniform_vec4(pd->snake_shgrp, "LineColor", lanpr->line_color, 1);
+	DRW_shgroup_uniform_vec4(pd->snake_shgrp, "Linecolor", lanpr->line_color, 1);
 
 	DRW_shgroup_call_add(pd->snake_shgrp, snake_batch, NULL);
 	GPU_framebuffer_bind(fbl->edge_intermediate);

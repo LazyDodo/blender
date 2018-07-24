@@ -91,6 +91,7 @@ void SCENE_OT_lanpr_auto_create_line_layer(struct wmOperatorType *ot);
 void SCENE_OT_lanpr_move_line_layer(struct wmOperatorType *ot);
 void SCENE_OT_lanpr_add_line_component(struct wmOperatorType *ot);
 void SCENE_OT_lanpr_delete_line_component(struct wmOperatorType *ot);
+void SCENE_OT_lanpr_enable_all_line_types(struct wmOperatorType *ot);
 
 
 void TEXTURE_OT_slot_copy(struct wmOperatorType *ot);
