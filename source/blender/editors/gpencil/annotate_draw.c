@@ -721,9 +721,15 @@ static void gp_draw_data_layers(
         bGPdata *gpd, int offsx, int offsy, int winx, int winy,
         int cfra, int dflag, float alpha)
 {
+	float ink[4];
+
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		bool debug = (gpl->flag & GP_LAYER_DRAWDEBUG);
 		short lthick = gpl->thickness;
+
+		/* apply layer opacity */
+		copy_v3_v3(ink, gpl->color);
+		ink[3] = gpl->opacity;
 
 		/* don't draw layer if hidden */
 		if (gpl->flag & GP_LAYER_HIDE)
@@ -753,7 +759,7 @@ static void gp_draw_data_layers(
 
 
 		/* draw the strokes already in active frame */
-		gp_draw_strokes(gpd, gpl, gpf, offsx, offsy, winx, winy, dflag, debug, lthick, gpl->color);
+		gp_draw_strokes(gpd, gpl, gpf, offsx, offsy, winx, winy, dflag, debug, lthick, ink);
 
 		/* Draw verts of selected strokes
 		 *  - when doing OpenGL renders, we don't want to be showing these, as that ends up flickering
@@ -784,7 +790,7 @@ static void gp_draw_data_layers(
 			 */
 			gp_draw_stroke_buffer(gpd->runtime.sbuffer,
 								gpd->runtime.sbuffer_size, lthick,
-								dflag, gpd->runtime.sbuffer_sflag, gpl->color);
+								dflag, gpd->runtime.sbuffer_sflag, ink);
 		}
 	}
 }
