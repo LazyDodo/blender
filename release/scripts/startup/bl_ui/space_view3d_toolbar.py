@@ -1619,9 +1619,8 @@ class VIEW3D_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
 # Grease Pencil stroke interpolation tools
 class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
     bl_space_type = 'VIEW_3D'
-    bl_label = "Interpolate Strokes"
-    bl_category = "Animation"
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'HEADER'
+    bl_label = "Interpolate"
 
     @classmethod
     def poll(cls, context):
@@ -1742,13 +1741,6 @@ class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePane
     bl_context = ".greasepencil_weight"
     bl_label = "Appearance"
 
-# Grease Pencil Animation Tools
-class VIEW3D_PT_tools_grease_pencil_animation(GreasePencilAnimationPanel, Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_label = "Animation"
-    bl_category = "Animation"
-    bl_region_type = 'TOOLS'
-
 classes = (
     VIEW3D_PT_tools_meshedit_options,
     VIEW3D_PT_tools_curveedit_options_stroke,
@@ -1787,7 +1779,6 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_brushcurves,
     # GPXX: review
     # VIEW3D_PT_tools_grease_pencil_shapes,
-    VIEW3D_PT_tools_grease_pencil_edit,
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
     VIEW3D_PT_tools_grease_pencil_weight_tools,
@@ -1795,8 +1786,6 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,
-    # GPXX: review
-    #VIEW3D_PT_tools_grease_pencil_animation,
 )
 
 if __name__ == "__main__":  # only for live edit.

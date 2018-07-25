@@ -100,6 +100,11 @@ class VIEW3D_HT_header(Header):
                 row = layout.row(align=True)
                 row.prop(tool_settings.gpencil_sculpt, "use_select_mask", text="")
 
+                row.popover(
+                    panel="VIEW3D_PT_tools_grease_pencil_interpolate",
+                    text="Interpolate"
+                )
+
         VIEW3D_MT_editor_menus.draw_collapsible(context, layout)
 
         layout.separator_spacer()
@@ -278,6 +283,7 @@ class VIEW3D_MT_editor_menus(Menu):
 
         if gp_edit:
             layout.menu("VIEW3D_MT_edit_gpencil")
+            layout.menu("VIEW3D_MT_gpencil_animation")
         elif edit_object:
             layout.menu("VIEW3D_MT_edit_%s" % edit_object.type.lower())
 
@@ -3506,15 +3512,18 @@ class VIEW3D_MT_edit_gpencil(Menu):
         layout = self.layout
 
         layout.menu("VIEW3D_MT_edit_gpencil_transform")
+
+        layout.separator()
+
+        layout.operator("transform.bend", text="Bend")
         layout.operator("transform.mirror", text="Mirror")
+        layout.operator("transform.shear", text="Shear")
+        layout.operator("transform.tosphere", text="To Sphere")
+        layout.separator()
         layout.menu("GPENCIL_MT_snap")
 
         layout.separator()
 
-        layout.operator("gpencil.brush_paint", text="Sculpt Strokes").wait_for_input = True
-        layout.prop_menu_enum(tool_settings.gpencil_sculpt, "tool", text="Sculpt Brush")
-
-        layout.separator()
 
         layout.menu("VIEW3D_MT_object_animation")   # NOTE: provides keyingset access...
         layout.menu("VIEW3D_MT_edit_gpencil_interpolate")
@@ -3523,6 +3532,8 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.operator("gpencil.duplicate_move", text="Duplicate")
         layout.operator("gpencil.stroke_subdivide", text="Subdivide")
+        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
+        layout.operator("gpencil.stroke_simplify", text="Adaptative")
 
         layout.separator()
 
@@ -3534,7 +3545,8 @@ class VIEW3D_MT_edit_gpencil(Menu):
         layout.separator()
 
         layout.operator("gpencil.copy", text="Copy")
-        layout.operator("gpencil.paste", text="Paste")
+        layout.operator("gpencil.paste", text="Paste").type = 'COPY'
+        layout.operator("gpencil.paste", text="Paste & Merge").type = 'MERGE'
 
         layout.separator()
 
@@ -3555,7 +3567,35 @@ class VIEW3D_MT_edit_gpencil(Menu):
         layout.separator()
 
         layout.menu("VIEW3D_MT_edit_gpencil_delete")
+        layout.operator("gpencil.stroke_cyclical_set", text="Toggle Cyclic").type = 'TOGGLE'
 
+        layout.separator()
+
+        layout.operator_menu_enum("gpencil.reproject", text="Reproject Strokes...", property="type")
+        layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
+
+
+class VIEW3D_MT_gpencil_animation(Menu):
+    bl_label = "Animation"
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.active_object
+        return ob and ob.type == 'GPENCIL' and ob.mode != 'OBJECT'
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("gpencil.blank_frame_add", icon='NEW')
+        layout.operator("gpencil.active_frames_delete_all", icon='X', text="Delete Frame(s)")
+
+        layout.separator()
+        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
+        layout.operator("gpencil.frame_duplicate", text="Duplicate All Layers").mode = 'ALL'
+
+        layout.separator()
+        layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
 
 class VIEW3D_MT_edit_gpencil_transform(Menu):
     bl_label = "Transform"
@@ -4874,6 +4914,7 @@ classes = (
     VIEW3D_MT_edit_mesh_showhide,
     VIEW3D_MT_edit_gpencil,
     VIEW3D_MT_edit_gpencil_delete,
+    VIEW3D_MT_gpencil_animation,
     VIEW3D_MT_edit_curve,
     VIEW3D_MT_edit_curve_ctrlpoints,
     VIEW3D_MT_edit_curve_segments,
