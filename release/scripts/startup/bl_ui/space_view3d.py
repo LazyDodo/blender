@@ -120,7 +120,7 @@ class VIEW3D_HT_header(Header):
         scene = context.scene
 
         # Orientation
-        if object_mode in {'OBJECT', 'EDIT', 'POSE', 'GPENCIL_EDIT', 'GPENCIL_SCULPT'}:
+        if object_mode in {'OBJECT', 'EDIT', 'POSE', 'GPENCIL_EDIT'}:
             orientation = scene.transform_orientation
             current_orientation = scene.current_orientation
 
