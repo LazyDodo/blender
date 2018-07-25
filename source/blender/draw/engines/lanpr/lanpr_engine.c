@@ -59,14 +59,6 @@ static void lanpr_engine_init(void *ved){
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	Object *camera;
-	if (v3d) {
-		RegionView3D *rv3d = draw_ctx->rv3d;
-		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	}
-	else {
-		camera = scene->camera;
-	}
 
 	if (!OneTime.InitComplete) {
 		//lanpr->depth_clamp = 0.01;
@@ -269,14 +261,6 @@ static void lanpr_cache_init(void *vedata){
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	Object *camera;
-	if (v3d) {
-		RegionView3D *rv3d = draw_ctx->rv3d;
-		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	}
-	else {
-		camera = scene->camera;
-	}
 
 	psl->color_pass = DRW_pass_create("color Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WRITE_DEPTH);
 	stl->g_data->multipass_shgrp = DRW_shgroup_create(OneTime.multichannel_shader, psl->color_pass);
@@ -466,14 +450,6 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	Object *camera;
-	if (v3d) {
-		RegionView3D *rv3d = draw_ctx->rv3d;
-		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	}
-	else {
-		camera = scene->camera;
-	}
 
 	//DEBUG, draw a square only
 	{

@@ -21,6 +21,7 @@
 #include "DEG_depsgraph_query.h"
 #include "BKE_camera.h"
 #include "BKE_collection.h"
+#include "BKE_report.h"
 #include "GPU_draw.h"
 
 #include "GPU_batch.h"
@@ -1687,7 +1688,6 @@ void lanpr_make_render_geometry_buffers(Depsgraph *depsgraph, Scene *s, Object *
 	CollectionObject *co;
 	tnsMatrix44d obmat16;
 	tnsMatrix44d proj, view, result, inv;
-	if (!c) return;
 	Camera *cam = c->data;
 
 	float sensor = BKE_camera_sensor_size(cam->sensor_fit, cam->sensor_x, cam->sensor_y);
@@ -2994,14 +2994,14 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb) {
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
-	Object *camera;
-	if (v3d) {
-		RegionView3D *rv3d = draw_ctx->rv3d;
-		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
-	}
-	else {
-		camera = scene->camera;
-	}
+	//Object *camera;
+	//if (v3d) {
+	//	RegionView3D *rv3d = draw_ctx->rv3d;
+	//	camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	//}
+	//else {
+	//	camera = scene->camera;
+	//}
 
 	GPU_framebuffer_bind(fbl->software_ms);
 	GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
@@ -3107,8 +3107,11 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	LANPR_RenderBuffer *rb;
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
-	/* need threading, later.... */
-
+	if (!scene->camera) {
+		BKE_report(op->reports, RPT_ERROR, "There is no active camera in this scene!");
+		return OPERATOR_FINISHED;
+	}
+	
 	rb = lanpr_create_render_buffer(lanpr);
 	rb->Scene = scene;
 	rb->W = scene->r.xsch;

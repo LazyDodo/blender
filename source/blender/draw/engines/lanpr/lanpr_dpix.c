@@ -42,7 +42,7 @@ void lanpr_init_atlas_inputs(void *ved){
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
 	RegionView3D *rv3d = draw_ctx->rv3d;
-	Object *camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+	Object *camera = (rv3d && rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 	SceneLANPR *lanpr = &draw_ctx->scene->lanpr;
 
 	if (lanpr->reloaded || !txl->dpix_in_pl) {
@@ -377,11 +377,12 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	Object *camera;
 	if (v3d) {
 		RegionView3D *rv3d = draw_ctx->rv3d;
-		camera = (rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+		camera = (rv3d && rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 	}
-	else {
+	if(!camera){
 		camera = scene->camera;
 	}
+	if (!camera) return;
 
 	pd->dpix_viewport[2] = texw;
 	pd->dpix_viewport[3] = texh;
