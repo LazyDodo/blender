@@ -128,11 +128,11 @@ static bool rna_Object_select_get(Object *ob, bContext *C, ReportList *reports)
 	Base *base = BKE_view_layer_base_find(view_layer, ob);
 
 	if (!base) {
-		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in Render Layer '%s'!", ob->id.name + 2, view_layer->name);
-		return -1;
+		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in View Layer '%s'!", ob->id.name + 2, view_layer->name);
+		return false;
 	}
 
-	return ((base->flag & BASE_SELECTED) != 0) ? 1 : 0;
+	return ((base->flag & BASE_SELECTED) != 0);
 }
 
 static bool rna_Object_visible_get(Object *ob, bContext *C, ReportList *reports)
@@ -141,11 +141,35 @@ static bool rna_Object_visible_get(Object *ob, bContext *C, ReportList *reports)
 	Base *base = BKE_view_layer_base_find(view_layer, ob);
 
 	if (!base) {
-		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in Render Layer '%s'!", ob->id.name + 2, view_layer->name);
-		return -1;
+		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in View Layer '%s'!", ob->id.name + 2, view_layer->name);
+		return false;
 	}
 
-	return ((base->flag & BASE_VISIBLE) != 0) ? 1 : 0;
+	return ((base->flag & BASE_VISIBLE) != 0);
+}
+
+static bool rna_Object_holdout_get(Object *ob, ReportList *reports, ViewLayer *view_layer)
+{
+	Base *base = BKE_view_layer_base_find(view_layer, ob);
+
+	if (!base) {
+		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in View Layer '%s'!", ob->id.name + 2, view_layer->name);
+		return false;
+	}
+
+	return ((base->flag & BASE_HOLDOUT) != 0);
+}
+
+static bool rna_Object_indirect_only_get(Object *ob, ReportList *reports, ViewLayer *view_layer)
+{
+	Base *base = BKE_view_layer_base_find(view_layer, ob);
+
+	if (!base) {
+		BKE_reportf(reports, RPT_ERROR, "Object '%s' not in View Layer '%s'!", ob->id.name + 2, view_layer->name);
+		return false;
+	}
+
+	return ((base->flag & BASE_INDIRECT_ONLY) != 0);
 }
 
 /* Convert a given matrix from a space to another (using the object and/or a bone as reference). */
@@ -470,29 +494,45 @@ void RNA_api_object(StructRNA *srna)
 #endif
 
 	static EnumPropertyItem object_select_items[] = {
-	    {0, "SELECT", 0, "Select", "Select object from the active render layer"},
-	    {1, "DESELECT", 0, "Deselect", "Deselect object from the active render layer"},
-	    {2, "TOGGLE", 0, "Toggle", "Toggle object selection from the active render layer"},
+	    {0, "SELECT", 0, "Select", "Select object from the active view layer"},
+	    {1, "DESELECT", 0, "Deselect", "Deselect object from the active view layer"},
+	    {2, "TOGGLE", 0, "Toggle", "Toggle object selection from the active view layer"},
 	    {0, NULL, 0, NULL, NULL}
 	};
 
 	/* Special wrapper to access the base selection value */
 	func = RNA_def_function(srna, "select_set", "rna_Object_select_set");
-	RNA_def_function_ui_description(func, "Select the object (for the active render layer)");
+	RNA_def_function_ui_description(func, "Select the object (for the active view layer)");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
 	parm = RNA_def_enum(func, "action", object_select_items, 0, "Action", "Select mode");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	func = RNA_def_function(srna, "select_get", "rna_Object_select_get");
-	RNA_def_function_ui_description(func, "Get the object selection for the active render layer");
+	RNA_def_function_ui_description(func, "Get the object selection for the active view layer");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
 	parm = RNA_def_boolean(func, "result", 0, "", "Object selected");
 	RNA_def_function_return(func, parm);
 
 	func = RNA_def_function(srna, "visible_get", "rna_Object_visible_get");
-	RNA_def_function_ui_description(func, "Get the object visibility for the active render layer");
+	RNA_def_function_ui_description(func, "Get the object visibility for the active view layer");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
 	parm = RNA_def_boolean(func, "result", 0, "", "Object visible");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "holdout_get", "rna_Object_holdout_get");
+	RNA_def_function_ui_description(func, "Test if object is masked in the view layer");
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	parm = RNA_def_boolean(func, "result", 0, "", "Object holdout");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "indirect_only_get", "rna_Object_indirect_only_get");
+	RNA_def_function_ui_description(func, "Test if object is set to contribute only indirectly (through shadows and reflections) in the view layer");
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	parm = RNA_def_boolean(func, "result", 0, "", "Object indirect only");
 	RNA_def_function_return(func, parm);
 
 	/* Matrix space conversion */
