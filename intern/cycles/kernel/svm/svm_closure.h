@@ -741,6 +741,7 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 			uint4 data_node2 = read_node(kg, offset);
 			uint4 data_node3 = read_node(kg, offset);
 			uint4 data_node4 = read_node(kg, offset);
+			uint4 data_node5 = read_node(kg, offset);
 
 			float3 weight = sd->svm_closure_weight * mix_weight;
 
@@ -764,6 +765,8 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				random = stack_load_float_default(stack, random_ofs, data_node3.y);
 			}
 
+			uint primary_specular_ofs, transmission_ofs, secondary_specular_ofs, residual_ofs;
+			decode_node_uchar4(data_node4.x, &primary_specular_ofs, &transmission_ofs, &secondary_specular_ofs, &residual_ofs);
 
 			PrincipledHairBSDF *bsdf = (PrincipledHairBSDF*)bsdf_alloc(sd, sizeof(PrincipledHairBSDF), weight);
 			if(bsdf) {
@@ -782,6 +785,11 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				float coat = stack_load_float_default(stack, coat_ofs, data_node2.y);
 				float m0_roughness = 1.0f - clamp(coat, 0.0f, 1.0f);
 
+				float r = stack_load_float_default(stack, primary_specular_ofs, data_node4.z);
+				float tt = stack_load_float_default(stack, transmission_ofs, data_node4.w);
+				float trt = stack_load_float_default(stack, secondary_specular_ofs, data_node5.y);
+				float trrt = stack_load_float_default(stack, residual_ofs, data_node5.z);
+
 				bsdf->N = N;
 				bsdf->roughness = roughness;
 				bsdf->radial_roughness = radial_roughness;
@@ -789,6 +797,11 @@ ccl_device void svm_node_closure_bsdf(KernelGlobals *kg, ShaderData *sd, float *
 				bsdf->extra = extra;
 				bsdf->extra->alpha = alpha;
 				bsdf->extra->eta = ior;
+
+				bsdf->extra->r = r;
+				bsdf->extra->tt = tt;
+				bsdf->extra->trt = trt;
+				bsdf->extra->trrt = trrt;
 
 				switch(parametrization) {
 					case NODE_PRINCIPLED_HAIR_DIRECT_ABSORPTION: {

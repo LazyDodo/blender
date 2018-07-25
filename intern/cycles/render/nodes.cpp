@@ -3122,6 +3122,11 @@ NODE_DEFINE(PrincipledHairBsdfNode)
 	SOCKET_IN_FLOAT(random_color, "Random Color", 0.0f);
 	SOCKET_IN_FLOAT(random, "Random", 0.0f);
 
+	SOCKET_IN_FLOAT(primary_specular, "Primary Specular", 1.0f);
+	SOCKET_IN_FLOAT(transmission, "Transmission", 1.0f);
+	SOCKET_IN_FLOAT(secondary_specular, "Secondary Specular", 1.0f);
+	SOCKET_IN_FLOAT(residual, "Residual", 1.0f);
+
 	SOCKET_IN_NORMAL(normal, "Normal", make_float3(0.0f, 0.0f, 0.0f), SocketType::LINK_NORMAL);
 	SOCKET_IN_FLOAT(surface_mix_weight, "SurfaceMixWeight", 0.0f, SocketType::SVM_INTERNAL);
 
@@ -3167,6 +3172,11 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 	ShaderInput *random_in = input("Random");
 	int attr_random = random_in->link ? SVM_STACK_INVALID : compiler.attribute(ATTR_STD_CURVE_RANDOM);
 
+	ShaderInput *primary_specular_in = input("Primary Specular");
+	ShaderInput *transmission_in = input("Transmission");
+	ShaderInput *secondary_specular_in = input("Secondary Specular");
+	ShaderInput *residual_in = input("Residual");
+
 	/* Encode all parameters into data nodes. */
 	compiler.add_node(NODE_CLOSURE_BSDF,
 		/* Socket IDs can be packed 4 at a time into a single data packet */
@@ -3209,12 +3219,22 @@ void PrincipledHairBsdfNode::compile(SVMCompiler& compiler)
 
 	compiler.add_node(
 		compiler.encode_uchar4(
+			compiler.stack_assign_if_linked(primary_specular_in),
+			compiler.stack_assign_if_linked(transmission_in),
+			compiler.stack_assign_if_linked(secondary_specular_in),
+			compiler.stack_assign_if_linked(residual_in)),
+		attr_random,
+		__float_as_uint(primary_specular),
+		__float_as_uint(transmission));
+
+	compiler.add_node(
+		compiler.encode_uchar4(
 			SVM_STACK_INVALID,
 			SVM_STACK_INVALID,
 			SVM_STACK_INVALID,
 			SVM_STACK_INVALID),
-		attr_random,
-		SVM_STACK_INVALID,
+		__float_as_uint(secondary_specular),
+		__float_as_uint(residual),
 		SVM_STACK_INVALID);
 }
 
