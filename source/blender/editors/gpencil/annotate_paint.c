@@ -933,9 +933,13 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 					if ((gp_stroke_eraser_is_occluded(p, pt1, pc1[0], pc1[1]) == false) ||
 					    (gp_stroke_eraser_is_occluded(p, pt2, pc2[0], pc2[1]) == false))
 					{
-						/* Point is affected */
-						pt1->flag |= GP_SPOINT_TAG;
-						pt2->flag |= GP_SPOINT_TAG;
+						/* Edge is affected - Check individual points now */
+						if (len_v2v2_int(mval, pc1) <= radius) {
+							pt1->flag |= GP_SPOINT_TAG;
+						}
+						if (len_v2v2_int(mval, pc2) <= radius) {
+							pt2->flag |= GP_SPOINT_TAG;
+						}
 						do_cull = true;
 					}
 				}
