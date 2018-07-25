@@ -1587,10 +1587,9 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
 
 
 # Grease Pencil create shapes
-class VIEW3D_PT_tools_grease_pencil_shapes(Panel):
+class VIEW3D_PT_tools_grease_pencil_shapes(View3DPanel, Panel):
     bl_space_type = 'VIEW_3D'
-    bl_category = "Create"
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'HEADER'
     bl_label = "Shapes"
 
     @classmethod
@@ -1777,8 +1776,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_brush_stabilizer,
     VIEW3D_PT_tools_grease_pencil_brush_random,
     VIEW3D_PT_tools_grease_pencil_brushcurves,
-    # GPXX: review
-    # VIEW3D_PT_tools_grease_pencil_shapes,
+    VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
     VIEW3D_PT_tools_grease_pencil_weight_tools,
