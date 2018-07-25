@@ -201,12 +201,6 @@ class GreasePencilStrokeEditPanel:
 
             layout.separator()
 
-        col = layout.column(align=True)
-        col.operator("transform.bend", text="Bend")
-        col.operator("transform.mirror", text="Mirror")
-        col.operator("transform.shear", text="Shear")
-        col.operator("transform.tosphere", text="To Sphere")
-
         layout.separator()
         col = layout.column(align=True)
         col.operator_menu_enum("gpencil.stroke_arrange", text="Arrange Strokes...", property="direction")

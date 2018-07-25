@@ -1102,6 +1102,61 @@ class _defs_gpencil_paint:
             )
         )
 
+
+class _defs_gpencil_edit:
+    @ToolDef.from_fn
+    def bend():
+        return dict(
+            text="Bend",
+            icon="ops.transform.bend",
+            widget=None,
+            keymap=(
+                ("transform.bend",
+                 dict(),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def mirror():
+        return dict(
+            text="Mirror",
+            icon="ops.transform.mirror",
+            widget=None,
+            keymap=(
+                ("transform.mirror",
+                 dict(),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def shear():
+        return dict(
+            text="Shear",
+            icon="ops.transform.shear",
+            widget=None,
+            keymap=(
+                ("transform.shear",
+                 dict(),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def tosphere():
+        return dict(
+            text="To Sphere",
+            icon="ops.transform.tospehere",
+            widget=None,
+            keymap=(
+                ("transform.tosphere",
+                 dict(),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
+
 class _defs_gpencil_sculpt:
     @classmethod
     def draw_settings_common(cls, context, layout, tool):
@@ -1537,6 +1592,16 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
         ],
         'GPENCIL_PAINT': [
             _defs_gpencil_paint.generate_from_brushes,
+        ],
+        'GPENCIL_EDIT': [
+            *_tools_select,
+            None,
+            *_tools_transform,
+            None,
+            _defs_gpencil_edit.bend,
+            _defs_gpencil_edit.mirror,
+            _defs_gpencil_edit.shear,
+            _defs_gpencil_edit.tosphere,
         ],
         'GPENCIL_SCULPT': [
             _defs_gpencil_sculpt.smooth,
