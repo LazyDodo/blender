@@ -3521,16 +3521,9 @@ class VIEW3D_MT_edit_gpencil(Menu):
         layout.menu("VIEW3D_MT_edit_gpencil_transform")
 
         layout.separator()
-
-        layout.operator("transform.bend", text="Bend")
-        layout.operator("transform.mirror", text="Mirror")
-        layout.operator("transform.shear", text="Shear")
-        layout.operator("transform.tosphere", text="To Sphere")
-        layout.separator()
         layout.menu("GPENCIL_MT_snap")
 
         layout.separator()
-
 
         layout.menu("VIEW3D_MT_object_animation")   # NOTE: provides keyingset access...
         layout.menu("VIEW3D_MT_edit_gpencil_interpolate")
@@ -3578,7 +3571,6 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator_menu_enum("gpencil.reproject", text="Reproject Strokes...", property="type")
         layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
 
 
