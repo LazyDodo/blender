@@ -66,6 +66,9 @@ typedef struct LANPROneTimeInit {
 	GPUShader *software_shader;
 	GPUShader *software_chaining_shader;
 
+	/* For Debug... */
+	GPUShader *debug_shader;
+
 	void *ved;
 
 
@@ -110,6 +113,9 @@ typedef struct LANPR_PassList {
 
 	/* SOFTWARE */
 	struct DRWPass *software_pass;
+
+	/* DEBUG */
+	struct DRWPass *debug_pass;
 
 } LANPR_PassList;
 
@@ -160,6 +166,8 @@ typedef struct LANPR_PrivateData {
 
 	DRWShadingGroup *dpix_transform_shgrp;
 	DRWShadingGroup *dpix_preview_shgrp;
+
+	DRWShadingGroup *debug_shgrp;
 
 	// moved into line layer.
 	//DRWShadingGroup *software_shgrp;
@@ -797,3 +805,6 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int begin_index);
 void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);
 
 void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);
+
+void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb);
+

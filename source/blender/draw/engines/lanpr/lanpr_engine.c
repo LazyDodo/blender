@@ -41,8 +41,8 @@ extern char datatoc_lanpr_dpix_project_passthrough_vert_glsl[];
 extern char datatoc_lanpr_dpix_project_clip_frag_glsl[];
 extern char datatoc_lanpr_dpix_preview_frag_glsl[];
 extern char datatoc_lanpr_software_passthrough_vert_glsl[];
-
-
+extern char datatoc_gpu_shader_2D_smooth_color_vert_glsl[];
+extern char datatoc_gpu_shader_2D_smooth_color_frag_glsl[];
 
 LANPROneTimeInit OneTime;
 
@@ -197,6 +197,16 @@ static void lanpr_engine_init(void *ved){
 		GPU_ATTACHMENT_LEAVE,
 		GPU_ATTACHMENT_LEAVE
 	});
+
+	/* Debug */
+	if (!OneTime.debug_shader) {
+		OneTime.debug_shader =
+			GPU_shader_create(
+				datatoc_gpu_shader_2D_smooth_color_vert_glsl,
+				datatoc_gpu_shader_2D_smooth_color_frag_glsl,
+				NULL,
+				NULL, NULL);
+	}
 
 }
 static void lanpr_engine_free(void){
@@ -465,6 +475,45 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 		camera = scene->camera;
 	}
 
+	//DEBUG, draw a square only
+	{
+		GPU_framebuffer_bind(fbl->software_ms);
+		GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
+
+		psl->debug_pass = psl->software_pass = DRW_pass_create("Debug Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
+		pd->debug_shgrp = DRW_shgroup_create(OneTime.debug_shader, psl->debug_pass);
+
+		static struct GPUBatch *square_batch = NULL;
+		if (!square_batch) {
+			static GPUVertFormat format = { 0 };
+			static struct { uint pos, color; } attr_id;
+			if (format.attr_len == 0) {
+				attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+				attr_id.color = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+			}
+			GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+			GPU_vertbuf_data_alloc(vbo, 4);
+
+			float v[4] = { 0 }, c[4] = { 1,1,1,1 };
+			GPU_vertbuf_attr_set(vbo, attr_id.pos, 0, v); GPU_vertbuf_attr_set(vbo, attr_id.color, 0, c);
+			v[0] = 0.9;
+			GPU_vertbuf_attr_set(vbo, attr_id.pos, 1, v); GPU_vertbuf_attr_set(vbo, attr_id.color, 1, c);
+			v[1] = 0.9;
+			GPU_vertbuf_attr_set(vbo, attr_id.pos, 2, v); GPU_vertbuf_attr_set(vbo, attr_id.color, 2, c);
+			v[0] = 0;
+			GPU_vertbuf_attr_set(vbo, attr_id.pos, 3, v); GPU_vertbuf_attr_set(vbo, attr_id.color, 3, c);
+
+			square_batch = GPU_batch_create_ex(GPU_PRIM_LINE_LOOP, vbo, 0, GPU_USAGE_DYNAMIC | GPU_BATCH_OWNS_VBO);
+		}
+		DRW_shgroup_call_add(pd->debug_shgrp, square_batch, NULL);
+		GPU_line_width(3);
+		DRW_draw_pass(psl->debug_pass);
+
+		GPU_framebuffer_blit(fbl->software_ms, 0, dfb, 0, GPU_COLOR_BIT);
+
+		return;//don't draw anything else.
+	}
+
 	if (lanpr->master_mode == LANPR_MASTER_MODE_DPIX) {
 		DRW_draw_pass(psl->color_pass);
 		lanpr_dpix_draw_scene(txl, fbl, psl, stl->g_data, lanpr, dfb);
@@ -477,81 +526,7 @@ static void lanpr_draw_scene_exec(void *vedata, GPUFrameBuffer *dfb) {
 	elif(lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE)
 	{
 		// should isolate these into a seperate function.
-		LANPR_LineLayer* ll;
-
-		GPU_framebuffer_bind(fbl->software_ms);
-		GPU_framebuffer_clear(fbl->software_ms, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
-
-		if (lanpr->render_buffer) {
-
-			int texw = GPU_texture_width(txl->ms_resolve_color), texh = GPU_texture_height(txl->ms_resolve_color);;
-			pd->output_viewport[2] = scene->r.xsch;
-			pd->output_viewport[3] = scene->r.ysch;
-			pd->dpix_viewport[2] = texw;
-			pd->dpix_viewport[3] = texh;
-
-			if (lanpr->enable_chaining && lanpr->render_buffer->ChainDrawBatch) {
-				for (ll = lanpr->line_layers.last; ll; ll = ll->prev) {
-					LANPR_RenderBuffer* rb;
-					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
-					rb = lanpr->render_buffer;
-					rb->ChainShgrp = DRW_shgroup_create(OneTime.software_chaining_shader, psl->software_pass);
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "color", ll->color, 1);
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "crease_color", ll->crease_color, 1);
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "material_color", ll->material_color, 1);
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "edge_mark_color", ll->edge_mark_color, 1);
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "intersection_color", ll->intersection_color, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness", &ll->thickness, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_crease", &ll->thickness_crease, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_material", &ll->thickness_material, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_intersection", &ll->thickness_intersection, 1);
-
-					DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_begin", &ll->qi_begin, 1);
-					DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_end", &ll->qi_end, 1);
-
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
-					DRW_shgroup_uniform_vec4(rb->ChainShgrp, "output_viewport", stl->g_data->output_viewport, 1);
-
-					float *tld = &lanpr->taper_left_distance, *tls = &lanpr->taper_left_strength,
-						*trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
-
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperLDist", tld, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperLStrength", tls, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperRDist", lanpr->use_same_taper ? tld : trd, 1);
-					DRW_shgroup_uniform_float(rb->ChainShgrp, "TaperRStrength", lanpr->use_same_taper ? tls : trs, 1);
-
-					//need to add component enable/disable option.
-					DRW_shgroup_call_add(rb->ChainShgrp, lanpr->render_buffer->ChainDrawBatch, NULL);
-					// debug purpose
-					//DRW_draw_pass(psl->color_pass);
-					//DRW_draw_pass(psl->color_pass); 
-					DRW_draw_pass(psl->software_pass);
-				}
-			}elif(!lanpr->enable_chaining) {
-				for (ll = lanpr->line_layers.last; ll && ll->batch; ll = ll->prev) {
-					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
-					ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "edge_mark_color", ll->edge_mark_color, 1);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "intersection_color", ll->intersection_color, 1);
-					DRW_shgroup_uniform_float(ll->shgrp, "thickness", &ll->thickness, 1);
-					DRW_shgroup_uniform_float(ll->shgrp, "thickness_crease", &ll->thickness_crease, 1);
-					DRW_shgroup_uniform_float(ll->shgrp, "thickness_material", &ll->thickness_material, 1);
-					DRW_shgroup_uniform_float(ll->shgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
-					DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
-					DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
-					DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
-					DRW_draw_pass(psl->software_pass);
-				}
-			}
-		}
-
-		GPU_framebuffer_blit(fbl->software_ms, 0, dfb, 0, GPU_COLOR_BIT);
-
+		lanpr_software_draw_scene(vedata, dfb);
 	}
 }
 
@@ -603,7 +578,7 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
 	lanpr_cache_finish(vedata);
 
-	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
 	GPUFrameBufferBits clear_bits = GPU_DEPTH_BIT | GPU_COLOR_BIT;
