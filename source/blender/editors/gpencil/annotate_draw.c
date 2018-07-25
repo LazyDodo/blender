@@ -347,9 +347,8 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 
 		GPUVertFormat *format = immVertexFormat();
 		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
-		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
-		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
+		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor3fvAlpha(ink, ink[3]);
 		immBegin(GPU_PRIM_TRI_STRIP, totpoints * 2 + 4);
 
