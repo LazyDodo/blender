@@ -67,6 +67,7 @@ LANPR_RenderLine* lanpr_get_connected_render_line(LANPR_BoundingArea* ba, LANPR_
 
 int lanpr_get_nearby_render_line(LANPR_BoundingArea* ba, LANPR_RenderLine* rl){
     // hold on
+	return 1;
 }
 
 LANPR_RenderLineChain* lanpr_create_render_line_chain(LANPR_RenderBuffer *rb){

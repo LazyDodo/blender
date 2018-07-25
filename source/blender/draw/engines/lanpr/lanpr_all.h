@@ -573,7 +573,7 @@ extern RenderEngineType DRW_engine_viewport_lanpr_type;
 #define TNS_IN_TILE(RenderTile, Fx, Fy) \
 	(TNS_IN_TILE_X(RenderTile, Fx) && TNS_IN_TILE_Y(RenderTile, Fy))
 
-__inline void tMatConvert44df(tnsMatrix44d from, tnsMatrix44f to) {
+BLI_INLINE void tMatConvert44df(tnsMatrix44d from, tnsMatrix44f to) {
 	to[0] = from[0];
 	to[1] = from[1];
 	to[2] = from[2];
@@ -592,7 +592,7 @@ __inline void tMatConvert44df(tnsMatrix44d from, tnsMatrix44f to) {
 	to[15] = from[15];
 }
 
-__inline int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_RenderLine *rl) {
+BLI_INLINE int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_RenderLine *rl) {
 	if (MAX3(rt->V[0]->FrameBufferCoord[2], rt->V[1]->FrameBufferCoord[2], rt->V[2]->FrameBufferCoord[2]) > MIN2(rl->L->FrameBufferCoord[2], rl->R->FrameBufferCoord[2])) return 0;
 	if (MAX3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) < MIN2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
 	if (MIN3(rt->V[0]->FrameBufferCoord[0], rt->V[1]->FrameBufferCoord[0], rt->V[2]->FrameBufferCoord[0]) > MAX2(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0])) return 0;
@@ -601,8 +601,8 @@ __inline int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_Rende
 	return 1;
 }
 
-__inline double tMatGetLinearRatio(real L, real R, real FromL);
-__inline int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector2d b1, tnsVector2d b2, double *aRatio) {
+BLI_INLINE double tMatGetLinearRatio(real L, real R, real FromL);
+BLI_INLINE int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector2d b1, tnsVector2d b2, double *aRatio) {
 	double k1, k2;
 	double x;
 	double y;
@@ -656,96 +656,96 @@ __inline int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector
 
 	return 1;
 }
-__inline double lanpr_GetLineZ(tnsVector3d L, tnsVector3d R, real Ratio) {
+BLI_INLINE double lanpr_GetLineZ(tnsVector3d L, tnsVector3d R, real Ratio) {
 	//double z = 1 / tnsLinearItp(1 / L[2], 1 / R[2], Ratio);
 	double z = tnsLinearItp(L[2], R[2], Ratio);
 	return z;
 }
-__inline double lanpr_GetLineZPoint(tnsVector3d L, tnsVector3d R, tnsVector3d FromL) {
+BLI_INLINE double lanpr_GetLineZPoint(tnsVector3d L, tnsVector3d R, tnsVector3d FromL) {
 	double r = (FromL[0] - L[0]) / (R[0] - L[0]);
 	return tnsLinearItp(L[2], R[2], r);
 	//return 1 / tnsLinearItp(1 / L[2], 1 / R[2], r);
 }
-__inline double lanpr_GetLinearRatio(tnsVector3d L, tnsVector3d R, tnsVector3d FromL) {
+BLI_INLINE double lanpr_GetLinearRatio(tnsVector3d L, tnsVector3d R, tnsVector3d FromL) {
 	double r = (FromL[0] - L[0]) / (R[0] - L[0]);
 	return r;
 }
 
-__inline double tMatGetLinearRatio(real L, real R, real FromL) {
+BLI_INLINE double tMatGetLinearRatio(real L, real R, real FromL) {
 	double r = (FromL - L) / (R - L);
 	return r;
 }
-__inline void tMatVectorMinus2d(tnsVector2d result, tnsVector2d l, tnsVector2d r) {
+BLI_INLINE void tMatVectorMinus2d(tnsVector2d result, tnsVector2d l, tnsVector2d r) {
 	result[0] = l[0] - r[0];
 	result[1] = l[1] - r[1];
 }
 
-__inline void tMatVectorMinus3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+BLI_INLINE void tMatVectorMinus3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
 	result[0] = l[0] - r[0];
 	result[1] = l[1] - r[1];
 	result[2] = l[2] - r[2];
 }
-__inline void tMatVectorSubtract3d(tnsVector3d l, tnsVector3d r) {
+BLI_INLINE void tMatVectorSubtract3d(tnsVector3d l, tnsVector3d r) {
 	l[0] = l[0] - r[0];
 	l[1] = l[1] - r[1];
 	l[2] = l[2] - r[2];
 }
-__inline void tMatVectorPlus3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+BLI_INLINE void tMatVectorPlus3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
 	result[0] = l[0] + r[0];
 	result[1] = l[1] + r[1];
 	result[2] = l[2] + r[2];
 }
-__inline void tMatVectorAccum3d(tnsVector3d l, tnsVector3d r) {
+BLI_INLINE void tMatVectorAccum3d(tnsVector3d l, tnsVector3d r) {
 	l[0] = l[0] + r[0];
 	l[1] = l[1] + r[1];
 	l[2] = l[2] + r[2];
 }
-__inline void tMatVectorAccum2d(tnsVector2d l, tnsVector2d r) {
+BLI_INLINE void tMatVectorAccum2d(tnsVector2d l, tnsVector2d r) {
 	l[0] = l[0] + r[0];
 	l[1] = l[1] + r[1];
 }
-__inline void tMatVectorNegate3d(tnsVector3d result, tnsVector3d l) {
+BLI_INLINE void tMatVectorNegate3d(tnsVector3d result, tnsVector3d l) {
 	result[0] = -l[0];
 	result[1] = -l[1];
 	result[2] = -l[2];
 }
-__inline void tMatVectorNegateSelf3d(tnsVector3d l) {
+BLI_INLINE void tMatVectorNegateSelf3d(tnsVector3d l) {
 	l[0] = -l[0];
 	l[1] = -l[1];
 	l[2] = -l[2];
 }
-__inline void tMatVectorCopy2d(tnsVector2d from, tnsVector2d to) {
+BLI_INLINE void tMatVectorCopy2d(tnsVector2d from, tnsVector2d to) {
 	to[0] = from[0];
 	to[1] = from[1];
 }
-__inline void tMatVectorCopy3d(tnsVector3d from, tnsVector3d to) {
+BLI_INLINE void tMatVectorCopy3d(tnsVector3d from, tnsVector3d to) {
 	to[0] = from[0];
 	to[1] = from[1];
 	to[2] = from[2];
 }
-__inline void tMatVectorCopy4d(tnsVector4d from, tnsVector4d to) {
+BLI_INLINE void tMatVectorCopy4d(tnsVector4d from, tnsVector4d to) {
 	to[0] = from[0];
 	to[1] = from[1];
 	to[2] = from[2];
 	to[3] = from[3];
 }
-__inline void tMatVectorMultiSelf4d(tnsVector3d from, real num) {
+BLI_INLINE void tMatVectorMultiSelf4d(tnsVector3d from, real num) {
 	from[0] *= num;
 	from[1] *= num;
 	from[2] *= num;
 	from[3] *= num;
 }
-__inline void tMatVectorMultiSelf3d(tnsVector3d from, real num) {
+BLI_INLINE void tMatVectorMultiSelf3d(tnsVector3d from, real num) {
 	from[0] *= num;
 	from[1] *= num;
 	from[2] *= num;
 }
-__inline void tMatVectorMultiSelf2d(tnsVector3d from, real num) {
+BLI_INLINE void tMatVectorMultiSelf2d(tnsVector3d from, real num) {
 	from[0] *= num;
 	from[1] *= num;
 }
 
-__inline real tMatDirectionToRad(tnsVector2d Dir) {
+BLI_INLINE real tMatDirectionToRad(tnsVector2d Dir) {
 	real arcc = acos(Dir[0]);
 	real arcs = asin(Dir[1]);
 
@@ -760,14 +760,14 @@ __inline real tMatDirectionToRad(tnsVector2d Dir) {
 }
 
 
-__inline void tMatVectorConvert4fd(tnsVector4f from, tnsVector4d to) {
+BLI_INLINE void tMatVectorConvert4fd(tnsVector4f from, tnsVector4d to) {
 	to[0] = from[0];
 	to[1] = from[1];
 	to[2] = from[2];
 	to[3] = from[3];
 }
 
-__inline void tMatVectorConvert3fd(tnsVector3f from, tnsVector3d to) {
+BLI_INLINE void tMatVectorConvert3fd(tnsVector3f from, tnsVector3d to) {
 	to[0] = from[0];
 	to[1] = from[1];
 	to[2] = from[2];

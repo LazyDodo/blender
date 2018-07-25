@@ -39,9 +39,6 @@ typedef int tnsVector2i[2];
 #define deg(r) r / TNS_PI * 180.0
 #define rad(d) d *TNS_PI / 180.0
 
-
-#define inline __inline
-
 #define NEED_STRUCTURE(a) \
 	typedef struct _##a a;
 
@@ -321,7 +318,7 @@ void lstPushSingle(void **Head, nListSingle *Item);
 void *lstPopSingle(void **Head, nListSingle *Item);
 
 void lstClearPrevNext(nListItem *li);
-inline void lstAppendItem(nListHandle *Handle, void *Item) {
+BLI_INLINE void lstAppendItem(nListHandle *Handle, void *Item) {
 
 	nListItem *li = Item;
 
@@ -338,7 +335,7 @@ inline void lstAppendItem(nListHandle *Handle, void *Item) {
 	Handle->pLast = li;
 
 };
-inline void lstPushItem(nListHandle *Handle, void *Item) {
+BLI_INLINE void lstPushItem(nListHandle *Handle, void *Item) {
 
 	nListItem *li = Item;
 
@@ -355,7 +352,7 @@ inline void lstPushItem(nListHandle *Handle, void *Item) {
 	Handle->pFirst = li;
 
 };
-inline void *lstPopItem(nListHandle *Handle) {
+BLI_INLINE void *lstPopItem(nListHandle *Handle) {
 	void *popitem;
 	nListItem *next;
 	if (!Handle->pFirst)
@@ -384,7 +381,7 @@ void  lstAppendItem3(nListHandle *Handle, void *Item);
 void *lstPopItem3(nListHandle *Handle);
 void  lstPushItem3(nListHandle *Handle, void *Item);
 
-inline int lstRemoveItem(nListHandle *Handle, nListItem *li) {
+BLI_INLINE int lstRemoveItem(nListHandle *Handle, nListItem *li) {
 	if (!li->pPrev && Handle->pFirst != li) return 0;
 
 	if (!li->pPrev)
@@ -398,6 +395,8 @@ inline int lstRemoveItem(nListHandle *Handle, nListItem *li) {
 		((nListItem *)li->pNext)->pPrev = li->pPrev;
 
 	li->pNext = li->pPrev = 0;
+
+	return 1;
 };
 int lstRemoveItem2(nListHandle *Handle, nListItem2 *li);
 

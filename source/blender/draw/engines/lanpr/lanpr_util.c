@@ -189,6 +189,8 @@ int lstRemoveItem2(nListHandle *Handle, nListItem2 *li) {
 		((nListItem2 *)li->pNext)->pPrev = li->pPrev;
 
 	li->pNext = li->pPrev = 0;
+
+	return 1;
 };
 int lstRemoveItem3(nListHandle *Handle, nListItem2 *li) {
 	if (!li->pPrev)
@@ -202,6 +204,8 @@ int lstRemoveItem3(nListHandle *Handle, nListItem2 *li) {
 		((nListItem3 *)li->pNext)->pPrev = li->pPrev;
 
 	li->pNext = li->pPrev = 0;
+	
+	return 1;
 };
 
 int lstRemoveSegment(nListHandle *Handle, nListItem *Begin, nListItem *End) {
@@ -216,6 +220,8 @@ int lstRemoveSegment(nListHandle *Handle, nListItem *Begin, nListItem *End) {
 		((nListItem *)End->pNext)->pPrev = Begin->pPrev;
 
 	End->pNext = Begin->pPrev = 0;
+
+	return 1;
 };
 void lstInsertItemBefore(nListHandle *Handle, nListItem *toIns, nListItem *pivot){
 	if (!pivot) { lstPushItem(Handle, toIns); return; }
@@ -394,7 +400,6 @@ void lstRemovePointerOnly(nListHandle *h, void *p) {
 	}
 }
 void lstClearPointerOnly(nListHandle *h) {
-	nListItemPointer *i;
 	while (h && h->pFirst) {
 		lstPopPointer(h);
 	}
@@ -923,7 +928,7 @@ void *memStaticAquireThread(nStaticMemoryPool *smp, int size) {
 }
 void *memStaticDestroy(nStaticMemoryPool *smp) {
 	nStaticMemoryPoolNode *smpn;
-	void *ret;
+	void *ret=0;
 
 	while (smpn = lstPopItem(&smp->Pools)) {
 		FreeMem(smpn);

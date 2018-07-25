@@ -187,7 +187,7 @@ void lanpr_connect_new_bounding_areas(LANPR_RenderBuffer *rb, LANPR_BoundingArea
 	while (lstPopPointerNoFree(&Root->BP));
 }
 void lanpr_link_triangle_with_bounding_area(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive);
-int lanpr_triangle_calculate_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba);
+void lanpr_triangle_calculate_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba);
 
 void lanpr_split_bounding_area(LANPR_RenderBuffer *rb, LANPR_BoundingArea *Root) {
 	LANPR_BoundingArea *ba = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_BoundingArea) * 4);
@@ -1823,6 +1823,7 @@ LANPR_RenderLine *lanpr_another_edge(LANPR_RenderTriangle *rt, LANPR_RenderVert 
 	{
 		return rt->RL[0];
 	}
+	return 0;
 }
 
 int lanpr_share_edge(LANPR_RenderTriangle *rt, LANPR_RenderVert *rv, LANPR_RenderLine *rl) {
@@ -1840,6 +1841,7 @@ int lanpr_share_edge(LANPR_RenderTriangle *rt, LANPR_RenderVert *rv, LANPR_Rende
 		if (another == rt->V[0] || another == rt->V[1]) return 1;
 		return 0;
 	}
+	return 0;
 }
 int lanpr_share_edge_direct(LANPR_RenderTriangle *rt, LANPR_RenderLine *rl) {
 	if (rt->RL[0] == rl || rt->RL[1] == rl || rt->RL[2] == rl)
@@ -2419,7 +2421,7 @@ LANPR_RenderLine *lanpr_triangle_generate_intersection_line_only(LANPR_RenderBuf
 
 	return Result;
 }
-int lanpr_triangle_calculate_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba) {
+void lanpr_triangle_calculate_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba) {
 	tnsVector3d n, c = { 0 };
 	tnsVector3d TL, TR;
 	LANPR_RenderTriangle *TestingTriangle;
@@ -2659,11 +2661,6 @@ LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr) {
 }
 
 void lanpr_rebuild_render_draw_command(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll);
-
-int lanpr_draw_edge_preview(LANPR_RenderBuffer *rb, LANPR_LineLayer *OverrideLayer, Collection *OverrideGroup,
-                          real ThicknessScale, RenderEngine *e, GPUFrameBuffer *Off) {
-	//too many errors. later....
-}
 
 int lanpr_get_render_triangle_size(LANPR_RenderBuffer *rb) {
 	if (rb->ThreadCount == 0) rb->ThreadCount = BKE_render_num_threads(&rb->Scene->r);
@@ -3239,7 +3236,7 @@ int lanpr_delete_line_component_exec(struct bContext *C, struct wmOperator *op) 
 	LANPR_LineLayerComponent *llc;
 	int i = 0;
 
-	if (!ll) return;
+	if (!ll) return OPERATOR_FINISHED;
 
 	int index = RNA_int_get(op->ptr, "index");
 

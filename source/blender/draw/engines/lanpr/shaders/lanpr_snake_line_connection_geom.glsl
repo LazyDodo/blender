@@ -1,5 +1,5 @@
 layout (lines_adjacency) in;
-layout (triangle_strip, max_vertices = 10000) out;
+layout (triangle_strip, max_vertices = 6) out;
 
 in vec2 gOffset[];
 
@@ -93,7 +93,7 @@ void main() {
 	EmitVertex();
 	gl_Position = c;
 	EmitVertex();
-	//EndPrimitive();
+	EndPrimitive();
 
 	gl_Position = c;
 	EmitVertex();
@@ -101,5 +101,5 @@ void main() {
 	EmitVertex();
 	gl_Position = b;
 	EmitVertex();
-    //EndPrimitive();
+    EndPrimitive();
 }

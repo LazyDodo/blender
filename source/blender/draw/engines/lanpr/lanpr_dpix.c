@@ -228,7 +228,7 @@ int lanpr_feed_atlas_data_intersection_cache(void *vedata,
 
 	i = 0;
 
-	if (!rb) return;
+	if (!rb) return 0;
 
 	for (lip = rb->IntersectionLines.pFirst; lip; lip = lip->pNext) {
 		rl = lip->p;
