@@ -681,10 +681,6 @@ static void draw_image_tiles(ARegion *ar, SpaceImage *sima, Image *ima)
 		num_tiles = sima->tile_grid_shape[0] * sima->tile_grid_shape[1];
 	}
 
-	if (num_tiles == 1) {
-		return;
-	}
-
 	float stepx = BLI_rcti_size_x(&ar->v2d.mask) / BLI_rctf_size_x(&ar->v2d.cur);
 	float stepy = BLI_rcti_size_y(&ar->v2d.mask) / BLI_rctf_size_y(&ar->v2d.cur);
 
@@ -692,13 +688,8 @@ static void draw_image_tiles(ARegion *ar, SpaceImage *sima, Image *ima)
 	unsigned int pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	unsigned color = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
-	int num_grids = num_tiles;
-	if (num_tiles > 1) {
-		num_grids++;
-	}
-
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBegin(GPU_PRIM_LINES, 8*num_grids);
+	immBegin(GPU_PRIM_LINES, 8*(num_tiles + 1));
 
 	float theme_color[3], selected_color[3];
 	UI_GetThemeColorShade3fv(TH_BACK, 60.0f, theme_color);
@@ -719,10 +710,8 @@ static void draw_image_tiles(ARegion *ar, SpaceImage *sima, Image *ima)
 		}
 	}
 
-	if (num_tiles > 1) {
-		int cur_x = sima->curtile % 10, cur_y = sima->curtile / 10;
-		draw_udim_tile_grid(pos, color, ar, cur_x, cur_y, stepx, stepy, selected_color);
-	}
+	int cur_x = sima->curtile % 10, cur_y = sima->curtile / 10;
+	draw_udim_tile_grid(pos, color, ar, cur_x, cur_y, stepx, stepy, selected_color);
 
 	immEnd();
 	immUnbindProgram();
