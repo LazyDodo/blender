@@ -196,7 +196,7 @@ struct Image *BKE_image_load_exists(struct Main *bmain, const char *filepath);
 /* adds image, adds ibuf, generates color or pattern */
 struct Image *BKE_image_add_generated(
         struct Main *bmain, unsigned int width, unsigned int height, const char *name,
-        int depth, int floatbuf, short gen_type, const float color[4], const bool stereo3d);
+        int depth, int floatbuf, short gen_type, const float color[4], const bool stereo3d, bool tiled);
 /* adds image from imbuf, owns imbuf */
 struct Image *BKE_image_add_from_imbuf(struct Main *bmain, struct ImBuf *ibuf, const char *name);
 

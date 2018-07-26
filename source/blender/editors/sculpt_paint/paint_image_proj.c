@@ -5712,7 +5712,7 @@ static Image *proj_paint_image_create(wmOperator *op, Main *bmain)
 	}
 	ima = BKE_image_add_generated(
 	        bmain, width, height, imagename, alpha ? 32 : 24, use_float,
-	        gen_type, color, false);
+	        gen_type, color, false, false);
 
 	return ima;
 }

@@ -1776,6 +1776,11 @@ static int save_image_options_init(Main *bmain, SaveImageOptions *simopts, Space
 				BLI_snprintf(simopts->filepath, sizeof(simopts->filepath), "//%s", ima->id.name + 2);
 				BLI_path_abs(simopts->filepath, is_prev_save ? G.ima : BKE_main_blendfile_path(bmain));
 			}
+
+			/* append UDIM numbering if not present */
+			if (ima->source == IMA_SRC_TILED && (BLI_stringdec(ima->name, NULL, NULL, NULL) != 1001)) {
+				strncat(simopts->filepath, ".1001", sizeof(simopts->filepath) - 6);
+			}
 		}
 
 		/* color management */
@@ -2118,6 +2123,14 @@ cleanup:
 static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveImageOptions *simopts, bool do_newpath)
 {
 	Image *ima = ED_space_image(sima);
+
+	if (ima->source == IMA_SRC_TILED) {
+		if (BLI_stringdec(simopts->filepath, NULL, NULL, NULL) != 1001) {
+			BKE_reportf(op->reports, RPT_ERROR,
+			            "When saving a tiled image, the path '%s' must contain the UDIM tag 1001", simopts->filepath);
+			return false;
+		}
+	}
 
 	WM_cursor_wait(1);
 
@@ -2547,11 +2560,12 @@ static int image_new_exec(bContext *C, wmOperator *op)
 	RNA_float_get_array(op->ptr, "color", color);
 	alpha = RNA_boolean_get(op->ptr, "alpha");
 	stereo3d = RNA_boolean_get(op->ptr, "use_stereo_3d");
+	bool tiled = RNA_boolean_get(op->ptr, "tiled");
 
 	if (!alpha)
 		color[3] = 1.0f;
 
-	ima = BKE_image_add_generated(bmain, width, height, name, alpha ? 32 : 24, floatbuf, gen_type, color, stereo3d);
+	ima = BKE_image_add_generated(bmain, width, height, name, alpha ? 32 : 24, floatbuf, gen_type, color, stereo3d, tiled);
 
 	if (!ima) {
 		image_new_free(op);
@@ -2635,6 +2649,9 @@ static void image_new_draw(bContext *UNUSED(C), wmOperator *op)
 	uiItemL(col[0], "", ICON_NONE);
 	uiItemR(col[1], &ptr, "float", 0, NULL, ICON_NONE);
 
+	uiItemL(col[0], "", ICON_NONE);
+	uiItemR(col[1], &ptr, "tiled", 0, NULL, ICON_NONE);
+
 #if 0
 	if (is_multiview) {
 		uiItemL(col[0], "", ICON_NONE);
@@ -2683,6 +2700,8 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	RNA_def_property_flag(prop, PROP_HIDDEN);
 	prop = RNA_def_boolean(ot->srna, "use_stereo_3d", 0, "Stereo 3D", "Create an image with left and right views");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
+	prop = RNA_def_boolean(ot->srna, "tiled", 0, "Tiled", "Create a tiled image");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
 #undef IMA_DEF_NAME
