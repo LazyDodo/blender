@@ -2547,6 +2547,12 @@ static int image_new_exec(bContext *C, wmOperator *op)
 	RNA_float_get_array(op->ptr, "color", color);
 	alpha = RNA_boolean_get(op->ptr, "alpha");
 	stereo3d = RNA_boolean_get(op->ptr, "use_stereo_3d");
+	bool tiled = RNA_boolean_get(op->ptr, "tiled");
+
+	if (tiled && (strstr(name, "1001") == NULL)) {
+		BKE_report(op->reports, RPT_ERROR, "Tiled images need to contain 1001 in their name!");
+		return OPERATOR_CANCELLED;
+	}
 
 	if (!alpha)
 		color[3] = 1.0f;
@@ -2635,6 +2641,9 @@ static void image_new_draw(bContext *UNUSED(C), wmOperator *op)
 	uiItemL(col[0], "", ICON_NONE);
 	uiItemR(col[1], &ptr, "float", 0, NULL, ICON_NONE);
 
+	uiItemL(col[0], "", ICON_NONE);
+	uiItemR(col[1], &ptr, "tiled", 0, NULL, ICON_NONE);
+
 #if 0
 	if (is_multiview) {
 		uiItemL(col[0], "", ICON_NONE);
@@ -2683,6 +2692,8 @@ void IMAGE_OT_new(wmOperatorType *ot)
 	RNA_def_property_flag(prop, PROP_HIDDEN);
 	prop = RNA_def_boolean(ot->srna, "use_stereo_3d", 0, "Stereo 3D", "Create an image with left and right views");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
+	prop = RNA_def_boolean(ot->srna, "tiled", 0, "Tiled", "Create a tiled image");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
 #undef IMA_DEF_NAME
