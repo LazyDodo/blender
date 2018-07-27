@@ -51,7 +51,7 @@
 struct Object;
 
 
-int lanpr_triangle_line_imagespace_intersection_v2(LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To);
+int lanpr_triangle_line_imagespace_intersection_v2(SpinLock* spl, LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To);
 
 
 /* ====================================== base structures =========================================== */
@@ -770,14 +770,17 @@ void lanpr_calculate_single_line_occlusion(LANPR_RenderBuffer *rb, LANPR_RenderL
 
 	while (nba) {
 
+		
 		for (lip = nba->LinkedTriangles.pFirst; lip; lip = lip->pNext) {
 			rt = lip->p;
-			if (rt->Testing[ThreadID] == rl || rl->L->IntersectWith == (void *)rt || rl->R->IntersectWith == (void *)rt) continue;
+			if (rt->Testing[ThreadID] == rl || rl->L->IntersectWith == (void *)rt || rl->R->IntersectWith == (void *)rt)continue;
 			rt->Testing[ThreadID] = rl;
-			if (lanpr_triangle_line_imagespace_intersection_v2((void *)rt, rl, c, rb->ViewProjection, rb->ViewVector, &l, &r)) {
+			if (lanpr_triangle_line_imagespace_intersection_v2(&rb->csManagement,(void *)rt, rl, c, rb->ViewProjection, rb->ViewVector, &l, &r)) {
 				lanpr_cut_render_line(rb, rl, l, r);
 			}
 		}
+
+		
 		nba = lanpr_get_next_bounding_area(nba, rl, x, y, k, PositiveX, PositiveY, &x, &y);
 	}
 }
@@ -826,6 +829,7 @@ void lanpr_THREAD_calculate_line_occlusion_begin(LANPR_RenderBuffer *rb) {
 	}
 	BLI_task_pool_work_and_wait(tp);
 
+	MEM_freeN(rti);
 }
 
 void lanpr_NO_THREAD_calculate_line_occlusion(LANPR_RenderBuffer *rb) {
@@ -2025,7 +2029,7 @@ int lanpr_TriangleLineImageSpaceIntersectTestOnly(LANPR_RenderTriangle *rt, LANP
 
 	return 1;
 }
-int lanpr_triangle_line_imagespace_intersection_v2(LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To) {
+int lanpr_triangle_line_imagespace_intersection_v2(SpinLock* spl, LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To) {
 	double dl, dr;
 	double ratio;
 	double is[3] = { 0 };
@@ -2072,9 +2076,13 @@ int lanpr_triangle_line_imagespace_intersection_v2(LANPR_RenderTriangle *rt, LAN
 	if (lanpr_share_edge_direct(rt, rl))
 		return 0;
 
+	// XXX: not using lock will cause very few random calculation error if running in multiple threads.
+	//      lanpr_LineIntersectTest2d() doesn't even write data
+	//BLI_spin_lock(spl);
 	a = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC0, FBC1, &is[0]);
 	b = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC1, FBC2, &is[1]);
 	c = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC2, FBC0, &is[2]);
+	//BLI_spin_unlock(spl);
 
 	INTERSECT_SORT_MIN_TO_MAX_3(is[0], is[1], is[2], order);
 
@@ -2614,12 +2622,15 @@ void lanpr_destroy_render_data(LANPR_RenderBuffer *rb) {
 	rb->MaterialManaged = 0;
 	rb->CreaseCount = 0;
 	rb->CreaseManaged = 0;
+	rb->EdgeMarkCount = 0;
+	rb->EdgeMarkManaged = 0;
 	rb->CalculationStatus = TNS_CALCULATION_IDLE;
 
 	lstEmptyDirect(&rb->Contours);
 	lstEmptyDirect(&rb->IntersectionLines);
 	lstEmptyDirect(&rb->CreaseLines);
 	lstEmptyDirect(&rb->MaterialLines);
+	lstEmptyDirect(&rb->EdgeMarks);
 	lstEmptyDirect(&rb->AllRenderLines);
 	lstEmptyDirect(&rb->Chains);
 

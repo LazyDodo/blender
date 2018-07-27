@@ -100,8 +100,8 @@ void lanpr_destroy_atlas(void *ved){
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 
-	DRW_pass_free(psl->dpix_transform_pass);
-	DRW_pass_free(psl->dpix_preview_pass);
+	//DRW_pass_free(psl->dpix_transform_pass);
+	//DRW_pass_free(psl->dpix_preview_pass);
 
 	GPU_framebuffer_free(fbl->dpix_transform);
 	GPU_framebuffer_free(fbl->dpix_preview);

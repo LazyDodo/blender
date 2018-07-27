@@ -377,6 +377,7 @@ void lanpr_chain_generate_draw_command(LANPR_RenderBuffer *rb){
 
 	MEM_freeN(lengths);
 
+	if (rb->ChainDrawBatch) GPU_batch_discard(rb->ChainDrawBatch);
     rb->ChainDrawBatch = GPU_batch_create_ex(GPU_PRIM_LINES_ADJ, vbo, GPU_indexbuf_build(&elb), GPU_USAGE_DYNAMIC | GPU_BATCH_OWNS_VBO);
 
 }

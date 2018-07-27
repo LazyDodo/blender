@@ -178,8 +178,8 @@ static void lanpr_engine_free(void){
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 
-	DRW_pass_free(psl->color_pass);
-	DRW_pass_free(psl->edge_intermediate);
+	//DRW_pass_free(psl->color_pass);
+	//DRW_pass_free(psl->edge_intermediate);
 
 	GPU_framebuffer_free(fbl->passes);
 	GPU_framebuffer_free(fbl->edge_intermediate);
@@ -560,7 +560,7 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	                           BLI_rcti_size_x(rect), BLI_rcti_size_y(rect),
 	                           4, 0, rp->rect);
 
-	lanpr_engine_free();
+	//lanpr_engine_free();
 
 	lanpr_clear_render_flag();
 }

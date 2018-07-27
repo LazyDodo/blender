@@ -417,7 +417,7 @@ typedef struct LANPR_RenderTriangle {
 
 typedef struct LANPR_RenderTriangleThread {
 	struct LANPR_RenderTriangle Base;
-	struct LANPR_RenderLine *Testing[128];    //max thread support;
+	struct LANPR_RenderLine *Testing[127];    //max thread support;
 }LANPR_RenderTriangleThread;
 
 typedef struct LANPR_RenderElementLinkNode {
@@ -601,7 +601,7 @@ BLI_INLINE int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_Ren
 }
 
 BLI_INLINE double tMatGetLinearRatio(real L, real R, real FromL);
-BLI_INLINE int lanpr_LineIntersectTest2d(tnsVector2d a1, tnsVector2d a2, tnsVector2d b1, tnsVector2d b2, double *aRatio) {
+BLI_INLINE int lanpr_LineIntersectTest2d(const double* a1, const double* a2, const double* b1, const double* b2, double *aRatio) {
 	double k1, k2;
 	double x;
 	double y;
