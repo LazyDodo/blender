@@ -1024,13 +1024,6 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_editable_func(prop, "rna_GPencilLayer_active_frame_editable");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
-	/* Draw Style */
-	// TODO: replace these with a "draw type" combo (i.e. strokes only, filled strokes, strokes + fills, volumetric)?
-	prop = RNA_def_property(srna, "use_volumetric_strokes", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_VOLUMETRIC);
-	RNA_def_property_ui_text(prop, "Volumetric Strokes",
-	                         "Draw strokes as a series of circular blobs, resulting in a volumetric effect");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* Layer Opacity */
 	prop = RNA_def_property(srna, "opacity", PROP_FLOAT, PROP_NONE);
