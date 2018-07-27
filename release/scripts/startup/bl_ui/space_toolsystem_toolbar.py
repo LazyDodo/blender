@@ -24,6 +24,7 @@
 # For now keep this in a single file since it's an area that may change,
 # so avoid making changes all over the place.
 
+import bpy
 from bpy.types import Panel
 
 from .space_toolsystem_common import (
@@ -190,8 +191,12 @@ class _defs_annotate:
 
         # XXX: These context checks are needed for layer-dependent settings,
         # but this breaks for using topbar for 2D editor active tools, etc.
-        gpd = context.gpencil_data
-        gpl = context.active_gpencil_layer
+        if type(context.gpencil_data_owner) is bpy.types.Object:
+            gpd = context.scene.grease_pencil
+        else:
+            gpd = context.gpencil_data
+
+        gpl = gpd.layers.active if gpd else None
 
         if gpd and gpl:
             layout.prop(gpd.layers, "active_note", text="")
