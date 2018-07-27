@@ -4726,15 +4726,15 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         view = context.space_data
         overlay = view.overlay
 
-        layout.prop(overlay, "use_gpencil_paper", text="Drawing Paper")
+        layout.prop(overlay, "use_gpencil_paper", text="Fade 3D Objects")
 
         if overlay.use_gpencil_paper:
             layout.prop(overlay, "gpencil_paper_color", text="Color")
             layout.prop(overlay, "gpencil_paper_opacity", text="Opacity")
 
-            layout.prop(overlay, "use_gpencil_grid", text="Display Paper Grid")
-            if overlay.use_gpencil_grid:
-                layout.prop(overlay, "gpencil_grid_size", text="")
+        layout.prop(overlay, "use_gpencil_grid", text="Show Plane Grid")
+        if overlay.use_gpencil_grid:
+            layout.prop(overlay, "gpencil_grid_size", text="")
 
         layout.prop(overlay, "use_gpencil_onion_skin", text="Onion Skin")
 

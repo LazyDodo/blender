@@ -1,5 +1,6 @@
 uniform vec2 size;
 uniform vec4 color;
+uniform int usepaper;
 uniform int uselines;
 uniform vec3 gridcolor;
 
@@ -21,6 +22,11 @@ void main()
 
 	vec2 coord = vec2(dx * floor(uv.x / dx), dy * floor(uv.y / dy));
 	vec4 outcolor = vec4(color);
+	/* if paper is disabled, the paper must be full transparent */
+	if (usepaper == 0) {
+		outcolor.a = 0;
+	}
+	
 	if (uselines == 1) {
 		float difx = uv.x - (floor(uv.x / dx) * dx);
 		if (difx == 0.5) {

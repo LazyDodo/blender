@@ -436,6 +436,16 @@ void GPENCIL_cache_init(void *vedata)
 			stl->storage->gridsize[0] = (float)v3d->gpencil_grid_size[0];
 			stl->storage->gridsize[1] = (float)v3d->gpencil_grid_size[1];
 			DRW_shgroup_uniform_vec2(paper_shgrp, "size", &stl->storage->gridsize[0], 1);
+
+			/* paper can be only grid */
+			if (v3d->flag3 & V3D_GP_SHOW_PAPER) {
+				stl->storage->usepaper = 1;
+			}
+			else {
+				stl->storage->usepaper = 0;
+			}
+			DRW_shgroup_uniform_int(paper_shgrp, "usepaper", &stl->storage->usepaper, 1);
+
 			if (v3d->flag3 & V3D_GP_SHOW_GRID) {
 				stl->storage->uselines = 1;
 			}
@@ -606,7 +616,7 @@ void GPENCIL_draw_scene(void *ved)
 	/* paper pass to display a confortable area to draw over complex scenes with geometry */
 	if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-			(v3d->flag3 & V3D_GP_SHOW_PAPER) &&
+			((v3d->flag3 & V3D_GP_SHOW_PAPER) || (v3d->flag3 & V3D_GP_SHOW_GRID)) &&
 			(stl->g_data->gp_cache_used > 0))
 		{
 			DRW_draw_pass(psl->paper_pass);
