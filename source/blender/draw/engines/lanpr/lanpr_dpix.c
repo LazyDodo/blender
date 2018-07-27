@@ -93,26 +93,7 @@ void lanpr_init_atlas_inputs(void *ved){
 	}
 }
 void lanpr_destroy_atlas(void *ved){
-	lanpr_share.ved_viewport = ved;
-	LANPR_Data *vedata = (LANPR_Data *)ved;
-	LANPR_TextureList *txl = vedata->txl;
-	LANPR_FramebufferList *fbl = vedata->fbl;
-	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
-	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
-
-	//DRW_pass_free(psl->dpix_transform_pass);
-	//DRW_pass_free(psl->dpix_preview_pass);
-
-	GPU_framebuffer_free(fbl->dpix_transform);
-	GPU_framebuffer_free(fbl->dpix_preview);
-
-	DRW_texture_free(txl->dpix_in_pl);
-	DRW_texture_free(txl->dpix_in_pr);
-	DRW_texture_free(txl->dpix_in_nl);
-	DRW_texture_free(txl->dpix_in_nr);
-	DRW_texture_free(txl->dpix_in_edge_mask);
-	DRW_texture_free(txl->dpix_out_pl);
-	DRW_texture_free(txl->dpix_out_pr);
+	//no need to free things, no custom data.
 }
 
 int lanpr_feed_atlas_data_obj(void *vedata,
@@ -374,7 +355,7 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	View3D *v3d = draw_ctx->v3d;
-	Object *camera;
+	Object *camera=0;
 	if (v3d) {
 		RegionView3D *rv3d = draw_ctx->rv3d;
 		camera = (rv3d && rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
@@ -382,7 +363,7 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	if(!camera){
 		camera = scene->camera;
 	}
-	if (!camera) return;
+	if (is_render && !camera) return;
 
 	pd->dpix_viewport[2] = texw;
 	pd->dpix_viewport[3] = texh;

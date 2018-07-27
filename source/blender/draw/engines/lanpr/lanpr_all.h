@@ -166,9 +166,6 @@ typedef struct LANPR_PrivateData {
 
 	DRWShadingGroup *debug_shgrp;
 
-	// moved into line layer.
-	//DRWShadingGroup *software_shgrp;
-
 	//snake
 
 	float normal_clamp;

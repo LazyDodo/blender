@@ -302,6 +302,23 @@ GPUBatch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 	return GPU_batch_create_ex(GPU_PRIM_LINES_ADJ, vbo, GPU_indexbuf_build(&elb), GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
 }
 
+void lanpr_snake_free_pool_data(LANPR_PrivateData *pd) {
+	if (pd->line_result_8bit) MEM_freeN(pd->line_result_8bit);
+	pd->line_result_8bit = 0;
+	if (pd->line_result) MEM_freeN(pd->line_result);
+	pd->line_result = 0;
+	BLI_mempool_clear(pd->mp_line_strip);
+	BLI_mempool_clear(pd->mp_line_strip_point);
+	BLI_mempool_clear(pd->mp_sample);
+	BLI_mempool_clear(pd->mp_batch_list);
+}
+void lanpr_snake_free_readback_data(LANPR_PrivateData *pd) {
+	if (pd->line_result_8bit) MEM_freeN(pd->line_result_8bit);
+	pd->line_result_8bit = 0;
+	if (pd->line_result) MEM_freeN(pd->line_result);
+	pd->line_result = 0;
+}
+
 void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB, int is_render){
 	GPUFrameBufferBits clear_bits = GPU_COLOR_BIT | GPU_DEPTH_BIT;
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -373,7 +390,7 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	int recreate = 0;
 	if (tsize != pd->width * pd->height) recreate = 1;
 
-	if (recreate) {
+	if (recreate || !pd->line_result) {
 		if (pd->line_result) MEM_freeN(pd->line_result);
 		pd->line_result = MEM_callocN(sizeof(float) * tsize, "Texture readback buffer");
 
@@ -441,6 +458,8 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	      *trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
 
 	GPUBatch *snake_batch = lanpr_get_snake_batch(pd);
+
+	lanpr_snake_free_pool_data(pd);
 
 	psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
 	pd->snake_shgrp = DRW_shgroup_create(lanpr_share.snake_connection_shader, psl->snake_pass);

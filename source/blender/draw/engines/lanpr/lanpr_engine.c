@@ -173,34 +173,14 @@ static void lanpr_engine_init(void *ved){
 static void lanpr_engine_free(void){
 	void *ved = lanpr_share.ved_viewport;
 	LANPR_Data *vedata = (LANPR_Data *)ved;
-	LANPR_TextureList *txl = vedata->txl;
-	LANPR_FramebufferList *fbl = vedata->fbl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
-	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 
-	//DRW_pass_free(psl->color_pass);
-	//DRW_pass_free(psl->edge_intermediate);
-
-	GPU_framebuffer_free(fbl->passes);
-	GPU_framebuffer_free(fbl->edge_intermediate);
-	GPU_framebuffer_free(fbl->edge_thinning);
-	GPU_framebuffer_free(fbl->software_ms);
-
-	DRW_texture_free(txl->depth);
-	DRW_texture_free(txl->color);
-	DRW_texture_free(txl->normal);
-	DRW_texture_free(txl->edge_intermediate);
-	DRW_texture_free(txl->ms_resolve_depth);
-	DRW_texture_free(txl->ms_resolve_color);
+	//only free custom data in storage list.
 
 	BLI_mempool_destroy(stl->g_data->mp_line_strip);
 	BLI_mempool_destroy(stl->g_data->mp_line_strip_point);
 	BLI_mempool_destroy(stl->g_data->mp_sample);
 	BLI_mempool_destroy(stl->g_data->mp_batch_list);
-
-	MEM_freeN(stl->g_data->line_result_8bit);
-	MEM_freeN(stl->g_data->line_result);
-	MEM_freeN(stl->g_data);
 
 	lanpr_destroy_atlas(vedata);
 
@@ -366,37 +346,39 @@ static void lanpr_cache_finish(void *vedata){
 	float mat[4][4];
 	unit_m4(mat);
 
-	LANPR_BatchItem *bi;
-	for (bi = pd->dpix_batch_list.first; bi; bi = (void *)bi->Item.next) {
-		DRW_shgroup_call_add(pd->dpix_transform_shgrp, bi->dpix_transform_batch, bi->ob->obmat);
-		DRW_shgroup_call_add(pd->dpix_preview_shgrp, bi->dpix_preview_batch, 0);
-	}
+	if (lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer) {
+		if (lanpr->reloaded) {
+			if (lanpr->render_buffer) {
+				lanpr_feed_atlas_data_intersection_cache(vedata, pd->atlas_pl, pd->atlas_pr, pd->atlas_nl, pd->atlas_nr, pd->atlas_edge_mask, pd->begin_index);
+				lanpr_create_atlas_intersection_preview(vedata, pd->begin_index);
+			}
+			GPU_texture_update(txl->dpix_in_pl, GPU_DATA_FLOAT, pd->atlas_pl);
+			GPU_texture_update(txl->dpix_in_pr, GPU_DATA_FLOAT, pd->atlas_pr);
+			GPU_texture_update(txl->dpix_in_nl, GPU_DATA_FLOAT, pd->atlas_nl);
+			GPU_texture_update(txl->dpix_in_nr, GPU_DATA_FLOAT, pd->atlas_nr);
+			GPU_texture_update(txl->dpix_in_edge_mask, GPU_DATA_FLOAT, pd->atlas_edge_mask);
 
-	if (lanpr->reloaded && lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->active_layer) {
-		if (lanpr->render_buffer) {
-			lanpr_feed_atlas_data_intersection_cache(vedata, pd->atlas_pl, pd->atlas_pr, pd->atlas_nl, pd->atlas_nr, pd->atlas_edge_mask, pd->begin_index);
-			lanpr_create_atlas_intersection_preview(vedata, pd->begin_index);
+			MEM_freeN(pd->atlas_pl);
+			MEM_freeN(pd->atlas_pr);
+			MEM_freeN(pd->atlas_nl);
+			MEM_freeN(pd->atlas_nr);
+			MEM_freeN(pd->atlas_edge_mask);
+			pd->atlas_pl = 0;
+			lanpr->reloaded = 0;
 		}
 
-		GPU_texture_update(txl->dpix_in_pl, GPU_DATA_FLOAT, pd->atlas_pl);
-		GPU_texture_update(txl->dpix_in_pr, GPU_DATA_FLOAT, pd->atlas_pr);
-		GPU_texture_update(txl->dpix_in_nl, GPU_DATA_FLOAT, pd->atlas_nl);
-		GPU_texture_update(txl->dpix_in_nr, GPU_DATA_FLOAT, pd->atlas_nr);
-		GPU_texture_update(txl->dpix_in_edge_mask, GPU_DATA_FLOAT, pd->atlas_edge_mask);
+		
 
-		MEM_freeN(pd->atlas_pl);
-		MEM_freeN(pd->atlas_pr);
-		MEM_freeN(pd->atlas_nl);
-		MEM_freeN(pd->atlas_nr);
-		MEM_freeN(pd->atlas_edge_mask);
-		pd->atlas_pl = 0;
-		lanpr->reloaded = 0;
+		LANPR_BatchItem *bi;
+		for (bi = pd->dpix_batch_list.first; bi; bi = (void *)bi->Item.next) {
+			DRW_shgroup_call_add(pd->dpix_transform_shgrp, bi->dpix_transform_batch, bi->ob->obmat);
+			DRW_shgroup_call_add(pd->dpix_preview_shgrp, bi->dpix_preview_batch, 0);
+		}
 
-	}
-
-	if (lanpr->render_buffer && lanpr->render_buffer->DPIXIntersectionBatch) {
-		DRW_shgroup_call_add(pd->dpix_transform_shgrp, lanpr->render_buffer->DPIXIntersectionTransformBatch, 0);
-		DRW_shgroup_call_add(pd->dpix_preview_shgrp, lanpr->render_buffer->DPIXIntersectionBatch, 0);
+		if (lanpr->render_buffer && lanpr->render_buffer->DPIXIntersectionBatch) {
+			DRW_shgroup_call_add(pd->dpix_transform_shgrp, lanpr->render_buffer->DPIXIntersectionTransformBatch, 0);
+			DRW_shgroup_call_add(pd->dpix_preview_shgrp, lanpr->render_buffer->DPIXIntersectionBatch, 0);
+		}
 	}
 }
 
@@ -494,12 +476,12 @@ static void workbench_render_matrices_init(RenderEngine *engine, Depsgraph *deps
 
 	unit_m4(unitmat);
 
-	DRW_viewport_matrix_override_set(unitmat, DRW_MAT_PERS);
-	DRW_viewport_matrix_override_set(unitmat, DRW_MAT_PERSINV);
-	DRW_viewport_matrix_override_set(unitmat, DRW_MAT_WIN);
-	DRW_viewport_matrix_override_set(unitmat, DRW_MAT_WININV);
-	DRW_viewport_matrix_override_set(unitmat, DRW_MAT_VIEW);
-	DRW_viewport_matrix_override_set(unitmat, DRW_MAT_VIEWINV);
+	DRW_viewport_matrix_override_set(persmat, DRW_MAT_PERS);
+	DRW_viewport_matrix_override_set(persinv, DRW_MAT_PERSINV);
+	DRW_viewport_matrix_override_set(winmat, DRW_MAT_WIN);
+	DRW_viewport_matrix_override_set(wininv, DRW_MAT_WININV);
+	DRW_viewport_matrix_override_set(viewmat, DRW_MAT_VIEW);
+	DRW_viewport_matrix_override_set(viewinv, DRW_MAT_VIEWINV);
 }
 
 static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect){
@@ -537,6 +519,7 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	});
 
 	lanpr_engine_init(vedata);
+	lanpr->reloaded = 1; // force dpix batch to re-create
 	lanpr_cache_init(vedata);
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
 	lanpr_cache_finish(vedata);
@@ -560,6 +543,7 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	                           BLI_rcti_size_x(rect), BLI_rcti_size_y(rect),
 	                           4, 0, rp->rect);
 
+	//we don't need to free pass/buffer/texture in the engine's list
 	//lanpr_engine_free();
 
 	lanpr_clear_render_flag();
