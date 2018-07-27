@@ -30,6 +30,7 @@ from .properties_paint_common import (
         brush_texpaint_common,
         brush_mask_texture_settings,
         )
+from bl_operators.presets import PresetMenu
 
 
 class View3DPanel:
@@ -1433,6 +1434,9 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
 
+    def draw_header_preset(self, context):
+        VIEW3D_PT_gpencil_brush_presets.draw_panel_header(self.layout)
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -1711,6 +1715,15 @@ class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePane
     bl_context = ".greasepencil_weight"
     bl_label = "Appearance"
 
+
+class VIEW3D_PT_gpencil_brush_presets(PresetMenu):
+    """Brush settings"""
+    bl_label = "Brush Presets"
+    preset_subdir = "gpencil_brush"
+    preset_operator = "script.execute_preset"
+    preset_add_operator = "scene.gpencil_brush_preset_add"
+
+
 classes = (
     VIEW3D_PT_tools_meshedit_options,
     VIEW3D_PT_tools_curveedit_options_stroke,
@@ -1741,6 +1754,7 @@ classes = (
     VIEW3D_MT_tools_projectpaint_stencil,
     VIEW3D_PT_tools_particlemode,
 
+    VIEW3D_PT_gpencil_brush_presets,
     VIEW3D_PT_tools_grease_pencil_brush,
     VIEW3D_PT_tools_grease_pencil_brush_option,
     VIEW3D_PT_tools_grease_pencil_brush_settings,
