@@ -2450,21 +2450,21 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Annotations - 2D Views Stroke Placement */
-	prop = RNA_def_property(srna, "gpencil_stroke_placement_view2d", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "annotation_stroke_placement_view2d", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gpencil_v2d_align");
 	RNA_def_property_enum_items(prop, annotation_stroke_placement_items);
 	RNA_def_property_ui_text(prop, "Stroke Placement (2D View)", "");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Annotations - Sequencer Preview Stroke Placement */
-	prop = RNA_def_property(srna, "gpencil_stroke_placement_sequencer_preview", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "annotation_stroke_placement_sequencer_preview", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gpencil_seq_align");
 	RNA_def_property_enum_items(prop, annotation_stroke_placement_items);
 	RNA_def_property_ui_text(prop, "Stroke Placement (Sequencer Preview)", "");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* Annotations - Image Editor Stroke Placement */
-	prop = RNA_def_property(srna, "gpencil_stroke_placement_image_editor", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "annotation_stroke_placement_image_editor", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gpencil_ima_align");
 	RNA_def_property_enum_items(prop, annotation_stroke_placement_items);
 	RNA_def_property_ui_text(prop, "Stroke Placement (Image Editor)", "");
