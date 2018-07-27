@@ -2278,11 +2278,17 @@ static int gp_stroke_apply_thickness_exec(bContext *C, wmOperator *UNUSED(op))
 	for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 			/* Apply thickness */
-			gps->thickness = gps->thickness + gpl->thickness;
+			if ((gps->thickness == 0) && (gpl->line_change == 0)) {
+				gps->thickness = gpl->thickness;
+			}
+			else {
+				gps->thickness = gps->thickness + gpl->line_change;
+			}
 		}
 	}
 	/* clear value */
 	gpl->thickness = 0.0f;
+	gpl->line_change = 0;
 
 	/* notifiers */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);

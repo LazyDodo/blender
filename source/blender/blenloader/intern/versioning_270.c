@@ -1457,9 +1457,6 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *bmain)
 								}
 							}
 						}
-
-						/* set thickness to 0 (now it is a factor to override stroke thickness) */
-						gpl->thickness = 0.0f;
 					}
 				}
 			}

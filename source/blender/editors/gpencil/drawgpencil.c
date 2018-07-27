@@ -1399,7 +1399,7 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 			tgpw.gpf = tgpil->interFrame;
 			tgpw.t_gpf = tgpil->interFrame;
 
-			tgpw.lthick = tgpil->gpl->thickness;
+			tgpw.lthick = tgpil->gpl->line_change;
 			tgpw.opacity = 1.0;
 			copy_v4_v4(tgpw.tintcolor, color);
 			tgpw.onion = true;
@@ -1456,7 +1456,7 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 			tgpw.gpf = tgpi->gpf;
 			tgpw.t_gpf = tgpi->gpf;
 
-			tgpw.lthick = tgpi->gpl->thickness;
+			tgpw.lthick = tgpi->gpl->line_change;
 			tgpw.opacity = 1.0;
 			copy_v4_v4(tgpw.tintcolor, color);
 			tgpw.onion = true;
@@ -1499,7 +1499,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 		/* calculate parent position */
 		ED_gpencil_parent_location(tgpw.depsgraph, ob, gpd, gpl, diff_mat);
 
-		short lthick = brush->size + gpl->thickness;
+		short lthick = brush->size + gpl->line_change;
 
 		/* don't draw layer if hidden */
 		if (gpl->flag & GP_LAYER_HIDE)
@@ -1533,7 +1533,7 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 		tgpw.gpl = gpl;
 		tgpw.gpf = gpf;
 		tgpw.t_gpf = gpf; // XXX?
-		tgpw.lthick = gpl->thickness;
+		tgpw.lthick = gpl->line_change;
 		tgpw.opacity = gpl->opacity;
 		copy_v4_v4(tgpw.tintcolor, gpl->tintcolor);
 		tgpw.onion = false;

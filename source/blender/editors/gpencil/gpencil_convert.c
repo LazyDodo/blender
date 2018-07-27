@@ -724,7 +724,7 @@ static void gp_stroke_to_path(bContext *C, bGPdata *gpd, bGPDlayer *gpl, bGPDstr
 	     i++, pt++, bp++)
 	{
 		float p[3];
-		float width = pt->pressure * (gps->thickness + gpl->thickness) * WIDTH_CORR_FAC;
+		float width = pt->pressure * (gps->thickness + gpl->line_change) * WIDTH_CORR_FAC;
 
 		/* get coordinates to add at */
 		gp_strokepoint_convertcoords(C, gpd, gpl, gps, pt, p, subrect);
@@ -963,7 +963,7 @@ static void gp_stroke_to_bezier(bContext *C, bGPdata *gpd, bGPDlayer *gpl, bGPDs
 
 	/* add points */
 	for (i = stitch ? 1 : 0, bezt = &nu->bezt[old_nbezt]; i < tot; i++, pt++, bezt++) {
-		float width = pt->pressure * (gps->thickness + gpl->thickness) * WIDTH_CORR_FAC;
+		float width = pt->pressure * (gps->thickness + gpl->line_change) * WIDTH_CORR_FAC;
 
 		if (i || old_nbezt) {
 			interp_v3_v3v3(h1, p3d_cur, p3d_prev, BEZT_HANDLE_FAC);

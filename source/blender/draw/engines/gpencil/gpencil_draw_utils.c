@@ -616,7 +616,7 @@ static void gpencil_add_stroke_shgroup(GpencilBatchCache *cache, DRWShadingGroup
 		}
 	}
 
-	sthickness = gps->thickness + gpl->thickness;
+	sthickness = gps->thickness + gpl->line_change;
 	CLAMP_MIN(sthickness, 1);
 	if (cache->is_dirty) {
 		gpencil_batch_cache_check_free_slots(ob);

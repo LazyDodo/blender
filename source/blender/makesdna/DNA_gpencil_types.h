@@ -247,21 +247,23 @@ typedef struct bGPDlayer {
 	bGPDframe *actframe;	/* active frame (should be the frame that is currently being displayed) */
 
 	short flag;				/* settings for layer */
-	short thickness;		/* current thickness to apply to strokes */
+	short onion_flag;		/* Per-layer onion-skinning flags (eGPDlayer_OnionFlag) */
 
 	float color[4];			/* Color for strokes in layers. Used for annotations, and for ruler (which uses GPencil internally) */
-	float fill[4];			/* Fill color for strokes in layers.  Not used and replaced by palettecolor fill */
+	float fill[4];			/* Fill color for strokes in layers. Not used anymore (was only for) */
 
-	char info[128];			/* optional reference info about this layer (i.e. "director's comments, 12/3")
-							 * this is used for the name of the layer  too and kept unique. */
+	char info[128];			/* name/reference info for this layer (i.e. "director's comments, 12/3")
+							 * needs to be kept unique, as it's used as the layer identifier */
 
-	char pad_1[4];
+	short thickness;		/* thickness to apply to strokes (Annotations) */
+	char pad_1[2];
+
 	struct Object *parent;  /* parent object */
 	float inverse[4][4];    /* inverse matrix (only used if parented) */
 	char parsubstr[64];     /* String describing subobject info, MAX_ID_NAME-2 */
 	short partype;
 
-	short onion_flag;        /* Per-layer onion-skinning flags (eGPDlayer_OnionFlag) */
+	short line_change;      /* Thickness adjustment */
 	float tintcolor[4];     /* Color used to tint layer, alpha value is used as factor */
 	float opacity;          /* Opacity of the layer */
 

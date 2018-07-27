@@ -200,10 +200,10 @@ class _defs_annotate:
 
         if gpd and gpl:
             layout.prop(gpd.layers, "active_note", text="")
-            layout.prop(gpl, "line_change", text="Thickness")  # XXX: Replace with proper thickness control
+            layout.prop(gpl, "thickness", text="Thickness")
         else:
             layout.prop(user_prefs.edit, "grease_pencil_default_color", text="Color")
-            layout.label("Thickness: [...]")
+            layout.prop(ts, "annotation_thickness", text="Thickness")
 
         # For 3D view, show the stroke placement settings
         # XXX: How to tell what editor the active tool comes from?
@@ -212,7 +212,7 @@ class _defs_annotate:
             layout.separator()
 
             row = layout.row(align=True)
-            row.prop(ts, "gpencil_stroke_placement_view3d", text="Orientation")
+            row.prop(ts, "annotation_stroke_placement_view3d", text="Orientation")
             if ts.gpencil_stroke_placement_view3d == 'CURSOR':
                 row.prop(ts.gpencil_sculpt, "lockaxis")
             elif ts.gpencil_stroke_placement_view3d in {'SURFACE', 'STROKE'}:

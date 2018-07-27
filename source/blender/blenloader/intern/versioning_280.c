@@ -1731,4 +1731,23 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 	}
 
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 22)) {
+		if (!DNA_struct_elem_find(fd->filesdna, "ToolSettings", "char", "annotate_v3d_align")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				scene->toolsettings->annotate_v3d_align = GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR;
+				scene->toolsettings->annotate_thickness = 3;
+			}
+		}
+		if (!DNA_struct_elem_find(fd->filesdna, "bGPDlayer", "short", "line_change")) {
+			for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
+				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+					gpl->line_change = gpl->thickness;
+					if ((gpl->thickness < 1) || (gpl->thickness > 10)) {
+						gpl->thickness = 3;
+					}
+				}
+			}
+		}
+	}
+
 }

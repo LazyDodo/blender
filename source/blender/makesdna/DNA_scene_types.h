@@ -1264,9 +1264,6 @@ typedef struct ToolSettings {
 	/* Auto-IK */
 	short autoik_chainlen;  /* runtime only */
 
-	/* SCE_MPR_LOC/SCAL */
-	char gizmo_flag;
-
 	/* Grease Pencil */
 	char gpencil_flags;		/* flags/options for how the tool works */
 
@@ -1275,7 +1272,11 @@ typedef struct ToolSettings {
 	char gpencil_seq_align; /*                          : Sequencer Preview */
 	char gpencil_ima_align; /*                          : Image Editor */
 
-	char _pad3[4];
+	/* Annotations */
+	char annotate_v3d_align;  /* stroke placement settings - 3D View */
+
+	short annotate_thickness; /* default stroke thickness for annotation strokes */
+	char _pad3[2];
 
 	/* Grease Pencil Sculpt */
 	struct GP_BrushEdit_Settings gp_sculpt;
@@ -1305,7 +1306,9 @@ typedef struct ToolSettings {
 	/* Alt+RMB option */
 	char edge_mode;
 	char edge_mode_live_unwrap;
-	char _pad1;
+
+	/* SCE_MPR_LOC/SCAL */
+	char gizmo_flag;
 
 	/* Transform */
 	char transform_pivot_point;

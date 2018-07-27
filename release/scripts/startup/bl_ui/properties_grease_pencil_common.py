@@ -25,13 +25,13 @@ from bpy.app.translations import pgettext_iface as iface_
 
 def gpencil_stroke_placement_settings(context, layout):
     if context.space_data.type == 'VIEW_3D':
-        propname = "gpencil_stroke_placement_view3d"
+        propname = "annotation_stroke_placement_view3d"
     elif context.space_data.type == 'SEQUENCE_EDITOR':
-        propname = "gpencil_stroke_placement_sequencer_preview"
+        propname = "annotation_stroke_placement_sequencer_preview"
     elif context.space_data.type == 'IMAGE_EDITOR':
-        propname = "gpencil_stroke_placement_image_editor"
+        propname = "annotation_stroke_placement_image_editor"
     else:
-        propname = "gpencil_stroke_placement_view2d"
+        propname = "annotation_stroke_placement_view2d"
 
     ts = context.tool_settings
 
@@ -131,7 +131,7 @@ class GreasePencilDrawingToolsPanel:
         #col.separator()
         #col.separator()
 
-        #gpencil_stroke_placement_settings(context, col)
+        gpencil_stroke_placement_settings(context, col)
 
         gpd = context.gpencil_data
 
@@ -789,8 +789,8 @@ class GreasePencilDataPanel:
                 sub.operator("gpencil.layer_move", icon='TRIA_DOWN', text="").type = 'DOWN'
 
         if gpl:
-            row = layout.row(align=True)
-            row.prop(gpl, "opacity", text="Opacity", slider=True)
+            layout.prop(gpl, "opacity", text="Opacity", slider=True)
+            layout.prop(gpl, "thickness", text="Thickness")
 
             layout.separator()
 

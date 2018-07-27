@@ -168,16 +168,6 @@ static int rna_GPencilLayer_active_frame_editable(PointerRNA *ptr, const char **
 		return PROP_EDITABLE;
 }
 
-static void rna_GPencilLayer_line_width_range(PointerRNA *UNUSED(ptr), int *min, int *max,
-	int *softmin, int *softmax)
-{
-	*min = -300;
-	*max = 300;
-
-	*softmin = -100;
-	*softmax = 100;
-}
-
 /* set parent */
 static void set_parent(bGPDlayer *gpl, Object *par, const int type, const char *substr)
 {
@@ -1042,17 +1032,26 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	                         "Draw strokes as a series of circular blobs, resulting in a volumetric effect");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
+	/* Layer Opacity */
 	prop = RNA_def_property(srna, "opacity", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "opacity");
 	RNA_def_property_range(prop, 0.0, 1.0f);
 	RNA_def_property_ui_text(prop, "Opacity", "Layer Opacity");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
+
 	/* Stroke Drawing Color (Annotations) */
 	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_array(prop, 3);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Color", "Color for all strokes in this layer");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	/* Line Thickness (Annotations) */
+	prop = RNA_def_property(srna, "thickness", PROP_INT, PROP_PIXEL);
+	RNA_def_property_int_sdna(prop, NULL, "thickness");
+	RNA_def_property_range(prop, 1, 10);
+	RNA_def_property_ui_text(prop, "Thickness", "Thickness of annotation strokes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 
@@ -1071,12 +1070,14 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Tint Factor", "Factor of tinting color");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
-	/* Line Thickness change */
+	/* Line Thickness Change */
 	prop = RNA_def_property(srna, "line_change", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "thickness");
-	RNA_def_property_int_funcs(prop, NULL, NULL, "rna_GPencilLayer_line_width_range");
-	RNA_def_property_ui_text(prop, "Thickness", "Thickness change to apply to current strokes (in pixels)");
+	RNA_def_property_int_sdna(prop, NULL, "line_change");
+	RNA_def_property_range(prop, -300, 300);
+	RNA_def_property_ui_range(prop, -100, 100, 1.0, 1);
+	RNA_def_property_ui_text(prop, "Thickness Change", "Thickness change to apply to current strokes (in pixels)");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
 
 	/* Onion-Skinning */
 	prop = RNA_def_property(srna, "use_onion_skinning", PROP_BOOLEAN, PROP_NONE);

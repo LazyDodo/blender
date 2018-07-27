@@ -843,6 +843,10 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->gpencil_seq_align = GP_PROJECT_VIEWSPACE;
 	sce->toolsettings->gpencil_ima_align = GP_PROJECT_VIEWSPACE;
 
+	/* Annotations */
+	sce->toolsettings->annotate_v3d_align = GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR;
+	sce->toolsettings->annotate_thickness = 3;
+
 	sce->orientation_index_custom = -1;
 
 	/* Master Collection */

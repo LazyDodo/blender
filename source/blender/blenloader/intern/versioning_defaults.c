@@ -248,6 +248,9 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 			ts->gpencil_seq_align = GP_PROJECT_VIEWSPACE;
 			ts->gpencil_ima_align = GP_PROJECT_VIEWSPACE;
 
+			ts->annotate_v3d_align = GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR;
+			ts->annotate_thickness = 3;
+
 			ParticleEditSettings *pset = &ts->particle;
 			for (int a = 0; a < ARRAY_SIZE(pset->brush); a++) {
 				pset->brush[a].strength = 0.5f;
