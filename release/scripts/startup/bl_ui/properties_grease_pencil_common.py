@@ -321,31 +321,6 @@ class GreasePencilAppearancePanel:
             col.row().prop(brush, "cursor_color_sub", text="Subtract")
 
 
-class GreasePencilAnimationPanel:
-    bl_label = "Animation"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.active_object
-        return ob and ob.type == 'GPENCIL' and ob.mode != 'OBJECT'
-
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        col = layout.column(align=True)
-        col.operator("gpencil.blank_frame_add", icon='NEW')
-        col.operator("gpencil.active_frames_delete_all", icon='X', text="Delete Frame(s)")
-
-        col.separator()
-        col.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
-        col.operator("gpencil.frame_duplicate", text="Duplicate All Layers").mode = 'ALL'
-
-        col.separator()
-        col.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
-
-
 ###############################
 
 class GPENCIL_MT_pie_tool_palette(Menu):

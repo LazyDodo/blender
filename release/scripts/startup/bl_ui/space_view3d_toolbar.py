@@ -23,7 +23,6 @@ from .properties_grease_pencil_common import (
         GreasePencilStrokeEditPanel,
         GreasePencilStrokeSculptPanel,
         GreasePencilAppearancePanel,
-        GreasePencilAnimationPanel
         )
 from .properties_paint_common import (
         UnifiedPaintPanel,

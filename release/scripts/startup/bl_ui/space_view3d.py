@@ -262,9 +262,8 @@ class VIEW3D_MT_editor_menus(Menu):
 
         # Select Menu
         if gp_edit:
-            if gp_edit:
-                if mode_string != 'GPENCIL_WEIGHT':
-                    layout.menu("VIEW3D_MT_select_gpencil")
+            if mode_string not in {'GPENCIL_PAINT', 'GPENCIL_WEIGHT'}:
+                layout.menu("VIEW3D_MT_select_gpencil")
         elif mode_string in {'PAINT_WEIGHT', 'PAINT_VERTEX', 'PAINT_TEXTURE'}:
             mesh = obj.data
             if mesh.use_paint_mask:
@@ -299,7 +298,6 @@ class VIEW3D_MT_editor_menus(Menu):
             elif obj and obj.mode == 'GPENCIL_WEIGHT':
                 layout.menu("VIEW3D_MT_weight_gpencil")
 
-            layout.menu("VIEW3D_MT_gpencil_animation")
         elif edit_object:
             layout.menu("VIEW3D_MT_edit_%s" % edit_object.type.lower())
 
@@ -3516,71 +3514,31 @@ class VIEW3D_MT_edit_armature_delete(Menu):
         layout.operator("armature.dissolve", text="Dissolve")
 
 
-# ********** Grease Pencil Stroke Edit menu **********
+# ********** Grease Pencil Stroke menus **********
+class VIEW3D_MT_gpencil_simplify(Menu):
+    bl_label = "Simplify"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("gpencil.stroke_simplify_fixed", text="Fixed")
+        layout.operator("gpencil.stroke_simplify", text="Adaptative")
 
 
 class VIEW3D_MT_paint_gpencil(Menu):
     bl_label = "Strokes"
 
     def draw(self, context):
-        tool_settings = context.tool_settings
 
         layout = self.layout
 
-        layout.menu("VIEW3D_MT_edit_gpencil_transform")
-
-        layout.separator()
-        layout.menu("GPENCIL_MT_snap")
-
-        layout.separator()
-
-        layout.menu("VIEW3D_MT_object_animation")   # NOTE: provides keyingset access...
+        layout.menu("VIEW3D_MT_gpencil_animation")
         layout.menu("VIEW3D_MT_edit_gpencil_interpolate")
 
         layout.separator()
 
-        layout.operator("gpencil.duplicate_move", text="Duplicate")
-        layout.operator("gpencil.stroke_subdivide", text="Subdivide")
-        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
-        layout.operator("gpencil.stroke_simplify", text="Adaptative")
+        layout.operator("gpencil.delete", text="Delete Frame").type = 'FRAME'
+        layout.operator("gpencil.active_frames_delete_all")
 
-        layout.separator()
-
-        layout.operator_menu_enum("gpencil.stroke_separate", "mode", text="Separate...")
-        layout.operator("gpencil.stroke_split", text="Split")
-        layout.operator_menu_enum("gpencil.stroke_join", "type", text="Join...")
-        layout.operator("gpencil.stroke_flip", text="Flip Direction")
-
-        layout.separator()
-
-        layout.operator("gpencil.copy", text="Copy")
-        layout.operator("gpencil.paste", text="Paste").type = 'COPY'
-        layout.operator("gpencil.paste", text="Paste & Merge").type = 'MERGE'
-
-        layout.separator()
-
-        layout.operator("gpencil.reveal")
-        layout.operator("gpencil.hide", text="Show Active Layer Only").unselected = True
-        layout.operator("gpencil.hide", text="Hide Active Layer").unselected = False
-
-        layout.separator()
-
-        layout.operator_menu_enum("gpencil.move_to_layer", "layer", text="Move to Layer")
-        layout.operator("gpencil.stroke_change_color", text="Move to Color")
-        layout.operator_menu_enum("gpencil.stroke_arrange", "direction", text="Arrange Strokes...")
-
-        layout.separator()
-
-        layout.operator_menu_enum("gpencil.convert", "type", text="Convert to Geometry...")
-
-        layout.separator()
-
-        layout.menu("VIEW3D_MT_edit_gpencil_delete")
-        layout.operator("gpencil.stroke_cyclical_set", text="Toggle Cyclic").type = 'TOGGLE'
-
-        layout.separator()
-
-        layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
 
 
 class VIEW3D_MT_edit_gpencil(Menu):
@@ -3598,15 +3556,17 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_object_animation")   # NOTE: provides keyingset access...
+        layout.menu("VIEW3D_MT_gpencil_animation")
+
+        layout.separator()
+
         layout.menu("VIEW3D_MT_edit_gpencil_interpolate")
 
         layout.separator()
 
         layout.operator("gpencil.duplicate_move", text="Duplicate")
         layout.operator("gpencil.stroke_subdivide", text="Subdivide")
-        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
-        layout.operator("gpencil.stroke_simplify", text="Adaptative")
+        layout.menu("VIEW3D_MT_gpencil_simplify")
 
         layout.separator()
 
@@ -3623,14 +3583,8 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator("gpencil.reveal")
-        layout.operator("gpencil.hide", text="Show Active Layer Only").unselected = True
-        layout.operator("gpencil.hide", text="Hide Active Layer").unselected = False
-
-        layout.separator()
-
         layout.operator_menu_enum("gpencil.move_to_layer", "layer", text="Move to Layer")
-        layout.operator("gpencil.stroke_change_color", text="Move to Color")
+        layout.operator("gpencil.stroke_change_color", text="Change Color")
         layout.operator_menu_enum("gpencil.stroke_arrange", "direction", text="Arrange Strokes...")
 
         layout.separator()
@@ -3651,8 +3605,6 @@ class VIEW3D_MT_sculpt_gpencil(Menu):
     bl_label = "Strokes"
 
     def draw(self, context):
-        tool_settings = context.tool_settings
-
         layout = self.layout
 
         layout.menu("VIEW3D_MT_edit_gpencil_transform")
@@ -3662,15 +3614,9 @@ class VIEW3D_MT_sculpt_gpencil(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_object_animation")   # NOTE: provides keyingset access...
-        layout.menu("VIEW3D_MT_edit_gpencil_interpolate")
-
-        layout.separator()
-
         layout.operator("gpencil.duplicate_move", text="Duplicate")
         layout.operator("gpencil.stroke_subdivide", text="Subdivide")
-        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
-        layout.operator("gpencil.stroke_simplify", text="Adaptative")
+        layout.menu("VIEW3D_MT_gpencil_simplify")
 
         layout.separator()
 
@@ -3687,28 +3633,13 @@ class VIEW3D_MT_sculpt_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator("gpencil.reveal")
-        layout.operator("gpencil.hide", text="Show Active Layer Only").unselected = True
-        layout.operator("gpencil.hide", text="Hide Active Layer").unselected = False
-
-        layout.separator()
-
         layout.operator_menu_enum("gpencil.move_to_layer", "layer", text="Move to Layer")
-        layout.operator("gpencil.stroke_change_color", text="Move to Color")
+        layout.operator("gpencil.stroke_change_color", text="Change Color")
         layout.operator_menu_enum("gpencil.stroke_arrange", "direction", text="Arrange Strokes...")
 
         layout.separator()
 
         layout.operator_menu_enum("gpencil.convert", "type", text="Convert to Geometry...")
-
-        layout.separator()
-
-        layout.menu("VIEW3D_MT_edit_gpencil_delete")
-        layout.operator("gpencil.stroke_cyclical_set", text="Toggle Cyclic").type = 'TOGGLE'
-
-        layout.separator()
-
-        layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
 
 
 class VIEW3D_MT_weight_gpencil(Menu):
@@ -3740,8 +3671,8 @@ class VIEW3D_MT_gpencil_animation(Menu):
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
         layout.operator("gpencil.frame_duplicate", text="Duplicate All Layers").mode = 'ALL'
 
-        layout.separator()
-        layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
+        # layout.separator()
+        # layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
 
 class VIEW3D_MT_edit_gpencil_transform(Menu):
     bl_label = "Transform"
@@ -5064,6 +4995,7 @@ classes = (
     VIEW3D_MT_sculpt_gpencil,
     VIEW3D_MT_weight_gpencil,
     VIEW3D_MT_gpencil_animation,
+    VIEW3D_MT_gpencil_simplify,
     VIEW3D_MT_edit_curve,
     VIEW3D_MT_edit_curve_ctrlpoints,
     VIEW3D_MT_edit_curve_segments,
