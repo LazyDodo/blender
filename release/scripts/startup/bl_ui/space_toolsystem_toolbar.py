@@ -1061,11 +1061,6 @@ class _defs_gpencil_paint:
 
                 _defs_gpencil_paint.draw_color_selector(context, layout)
 
-                row.prop(context.tool_settings, "use_gpencil_draw_onback", text="", icon='ORTHO')
-                row.prop(tool_settings, "gpencil_stroke_placement_view3d", text='')
-                if tool_settings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
-                    row.prop(tool_settings.gpencil_sculpt, "lockaxis", text='')
-
                 row = layout.row(align=True)
                 row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
                 row.prop(gp_settings, "gpencil_fill_show_boundary", text="", icon='GRID')
@@ -1079,11 +1074,6 @@ class _defs_gpencil_paint:
                 row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 _defs_gpencil_paint.draw_color_selector(context, layout)
-
-                row.prop(context.tool_settings, "use_gpencil_draw_onback", text="", icon='ORTHO')
-                row.prop(tool_settings, "gpencil_stroke_placement_view3d", text='')
-                if tool_settings.gpencil_stroke_placement_view3d in('ORIGIN', 'CURSOR'):
-                    row.prop(tool_settings.gpencil_sculpt, "lockaxis", text='')
 
 
     @staticmethod
@@ -1176,10 +1166,7 @@ class _defs_gpencil_sculpt:
             row = layout.row(align=True)
             row.prop(brush, "strength", slider=True)
             row.prop(brush, "use_pressure_strength", text="")
-
-            row = layout.row()
-            row.prop(ts.gpencil_sculpt, "lockaxis", text='')
-
+            row.separator()
             row.prop(ts.gpencil_sculpt, "use_select_mask", text="")
 
     @ToolDef.from_fn

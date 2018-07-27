@@ -167,6 +167,13 @@ class TOPBAR_HT_lower_bar(Header):
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".particlemode", category="")
         elif mode == 'OBJECT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".objectmode", category="")
+        elif mode == 'GPENCIL_PAINT':
+            layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="", icon='ORTHO')
+            layout.prop(context.tool_settings, "gpencil_stroke_placement_view3d", text='')
+            if context.tool_settings.gpencil_stroke_placement_view3d in ('ORIGIN', 'CURSOR'):
+                layout.prop(context.tool_settings.gpencil_sculpt, "lockaxis", text='')
+        elif mode == 'GPENCIL_SCULPT':
+            layout.prop(context.tool_settings.gpencil_sculpt, "lockaxis", text='')
 
 
 class _draw_left_context_mode:
