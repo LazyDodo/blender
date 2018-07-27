@@ -172,6 +172,8 @@ class TOPBAR_HT_lower_bar(Header):
             layout.prop(context.tool_settings, "gpencil_stroke_placement_view3d", text='')
             if context.tool_settings.gpencil_stroke_placement_view3d in ('ORIGIN', 'CURSOR'):
                 layout.prop(context.tool_settings.gpencil_sculpt, "lockaxis", text='')
+            layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
+
         elif mode == 'GPENCIL_SCULPT':
             layout.prop(context.tool_settings.gpencil_sculpt, "lockaxis", text='')
 

@@ -3540,7 +3540,6 @@ class VIEW3D_MT_paint_gpencil(Menu):
         layout.operator("gpencil.active_frames_delete_all")
 
 
-
 class VIEW3D_MT_edit_gpencil(Menu):
     bl_label = "Strokes"
 
@@ -3671,8 +3670,6 @@ class VIEW3D_MT_gpencil_animation(Menu):
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
         layout.operator("gpencil.frame_duplicate", text="Duplicate All Layers").mode = 'ALL'
 
-        # layout.separator()
-        # layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="Additive Drawing")
 
 class VIEW3D_MT_edit_gpencil_transform(Menu):
     bl_label = "Transform"
