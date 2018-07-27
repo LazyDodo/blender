@@ -1697,34 +1697,6 @@ class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
         col.prop(brush, "use_falloff")
 
 
-# Grease Pencil weight painting operators
-class VIEW3D_PT_tools_grease_pencil_weight_tools(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_category = "Tools"
-    bl_region_type = 'TOOLS'
-    bl_label = "Weight Tools"
-
-    @classmethod
-    def poll(cls, context):
-        if context.gpencil_data is None:
-            return False
-
-        if context.active_object:
-            return context.active_object.mode == 'GPENCIL_WEIGHT'
-
-        return False
-
-
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        col = layout.column()
-        col.operator("gpencil.vertex_group_invert", text="Invert")
-        col.operator("gpencil.vertex_group_smooth", text="Smooth")
-
-
 # Grease Pencil Brush Appeareance (one for each mode)
 class VIEW3D_PT_tools_grease_pencil_paint_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
@@ -1779,7 +1751,6 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_shapes,
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
-    VIEW3D_PT_tools_grease_pencil_weight_tools,
     VIEW3D_PT_tools_grease_pencil_paint_appearance,
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
