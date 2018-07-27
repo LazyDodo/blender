@@ -3663,8 +3663,8 @@ class VIEW3D_MT_gpencil_animation(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("gpencil.blank_frame_add", icon='NEW')
-        layout.operator("gpencil.active_frames_delete_all", icon='X', text="Delete Frame(s)")
+        layout.operator("gpencil.blank_frame_add")
+        layout.operator("gpencil.active_frames_delete_all", text="Delete Frame(s)")
 
         layout.separator()
         layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
