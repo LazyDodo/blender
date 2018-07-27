@@ -25,14 +25,14 @@
 
 #include <math.h>
 
-extern struct LANPROneTimeInit OneTime;
+extern LANPRSharedResource lanpr_share;
 extern char datatoc_lanpr_dpix_project_passthrough_vert_glsl[];
 extern char datatoc_lanpr_dpix_project_clip_frag_glsl[];
 extern char datatoc_lanpr_dpix_preview_geom_glsl[];
 extern char datatoc_lanpr_dpix_preview_frag_glsl[];
 
 void lanpr_init_atlas_inputs(void *ved){
-	OneTime.ved = ved;
+	lanpr_share.ved_viewport = ved;
 	LANPR_Data *vedata = (LANPR_Data *)ved;
 	LANPR_TextureList *txl = vedata->txl;
 	LANPR_FramebufferList *fbl = vedata->fbl;
@@ -76,15 +76,15 @@ void lanpr_init_atlas_inputs(void *ved){
 		GPU_ATTACHMENT_LEAVE
 	});
 
-	if (!OneTime.dpix_transform_shader) {
-		OneTime.dpix_transform_shader =
+	if (!lanpr_share.dpix_transform_shader) {
+		lanpr_share.dpix_transform_shader =
 			GPU_shader_create(
 				datatoc_lanpr_dpix_project_passthrough_vert_glsl,
 				datatoc_lanpr_dpix_project_clip_frag_glsl,
 				NULL, NULL, NULL);
 	}
-	if (!OneTime.dpix_preview_shader) {
-		OneTime.dpix_preview_shader =
+	if (!lanpr_share.dpix_preview_shader) {
+		lanpr_share.dpix_preview_shader =
 			GPU_shader_create(
 				datatoc_lanpr_dpix_project_passthrough_vert_glsl,
 				datatoc_lanpr_dpix_preview_frag_glsl,
@@ -93,7 +93,7 @@ void lanpr_init_atlas_inputs(void *ved){
 	}
 }
 void lanpr_destroy_atlas(void *ved){
-	OneTime.ved = ved;
+	lanpr_share.ved_viewport = ved;
 	LANPR_Data *vedata = (LANPR_Data *)ved;
 	LANPR_TextureList *txl = vedata->txl;
 	LANPR_FramebufferList *fbl = vedata->fbl;
@@ -361,7 +361,7 @@ void lanpr_create_atlas_intersection_preview(void *vedata, int begin_index) {
 }
 
 
-void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB) {
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB, int is_render) {
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;

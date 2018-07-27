@@ -1679,8 +1679,10 @@ void lanpr_make_render_geometry_buffers_object(Object *o, real *MVMat, real *MVP
 
 			rt = (LANPR_RenderTriangle *)(((unsigned char *)rt) + rb->TriangleSize);
 		}
-	}
 
+		BM_mesh_free(bm);
+
+	}
 }
 void lanpr_make_render_geometry_buffers(Depsgraph *depsgraph, Scene *s, Object *c /*camera*/, LANPR_RenderBuffer *rb) {
 	Object *o;
@@ -2268,7 +2270,7 @@ LANPR_RenderVert *lanpr_triangle_share_point(LANPR_RenderTriangle *l, LANPR_Rend
 	return 0;
 }
 
-LANPR_RenderVert *lanpr_triangle_line_intersection_test(LANPR_RenderLine *rl, LANPR_RenderTriangle *rt, LANPR_RenderTriangle *Testing, LANPR_RenderVert *Last) {
+LANPR_RenderVert *lanpr_triangle_line_intersection_test(LANPR_RenderBuffer* rb, LANPR_RenderLine *rl, LANPR_RenderTriangle *rt, LANPR_RenderTriangle *Testing, LANPR_RenderVert *Last) {
 	tnsVector3d LV;
 	tnsVector3d RV;
 	real DotL, DotR;
@@ -2313,9 +2315,7 @@ LANPR_RenderVert *lanpr_triangle_line_intersection_test(LANPR_RenderLine *rl, LA
 	   return 0;
 	   }*/
 
-
-
-	Result = MEM_callocN(sizeof(LANPR_RenderVert), "intersection new vert");
+	Result = memStaticAquire(&rb->RenderDataPool,sizeof(LANPR_RenderVert));
 
 	if (DotL > 0 || DotR < 0) Result->Positive = 1; else Result->Positive = 0;
 
@@ -2360,11 +2360,11 @@ LANPR_RenderLine *lanpr_triangle_generate_intersection_line_only(LANPR_RenderBuf
 		//Result->IntersectWith = rt;
 		tMatVectorCopy3d(Share->GLocation, NewShare->GLocation);
 
-		R = lanpr_triangle_line_intersection_test(rl, rt, Testing, 0);
+		R = lanpr_triangle_line_intersection_test(rb, rl, rt, Testing, 0);
 
 		if (!R) {
 			rl = lanpr_another_edge(Testing, Share);
-			R = lanpr_triangle_line_intersection_test(rl, Testing, rt, 0);
+			R = lanpr_triangle_line_intersection_test(rb, rl, Testing, rt, 0);
 			if (!R) return 0;
 			lstAppendItem(&Testing->IntersectingVerts, NewShare);
 		}
@@ -2375,13 +2375,13 @@ LANPR_RenderLine *lanpr_triangle_generate_intersection_line_only(LANPR_RenderBuf
 	}
 	else {
 		if (!rt->RL[0] || !rt->RL[1] || !rt->RL[2]) return 0; // shouldn't need this, there must be problems in culling.
-		E0T = lanpr_triangle_line_intersection_test(rt->RL[0], rt, Testing, 0); if (E0T && (!(*Next))) { (*Next) = E0T; (*Next)->IntersectingLine = rt->RL[0];  Next = &R; }
-		E1T = lanpr_triangle_line_intersection_test(rt->RL[1], rt, Testing, L); if (E1T && (!(*Next))) { (*Next) = E1T; (*Next)->IntersectingLine = rt->RL[1];  Next = &R; }
-		if (!(*Next)) E2T = lanpr_triangle_line_intersection_test(rt->RL[2], rt, Testing, L); if (E2T && (!(*Next))) { (*Next) = E2T; (*Next)->IntersectingLine = rt->RL[2];  Next = &R; }
+		E0T = lanpr_triangle_line_intersection_test(rb, rt->RL[0], rt, Testing, 0); if (E0T && (!(*Next))) { (*Next) = E0T; (*Next)->IntersectingLine = rt->RL[0];  Next = &R; }
+		E1T = lanpr_triangle_line_intersection_test(rb, rt->RL[1], rt, Testing, L); if (E1T && (!(*Next))) { (*Next) = E1T; (*Next)->IntersectingLine = rt->RL[1];  Next = &R; }
+		if (!(*Next)) E2T = lanpr_triangle_line_intersection_test(rb, rt->RL[2], rt, Testing, L); if (E2T && (!(*Next))) { (*Next) = E2T; (*Next)->IntersectingLine = rt->RL[2];  Next = &R; }
 
-		if (!(*Next)) TE0 = lanpr_triangle_line_intersection_test(Testing->RL[0], Testing, rt, L); if (TE0 && (!(*Next))) { (*Next) = TE0; (*Next)->IntersectingLine = Testing->RL[0]; Next = &R; }
-		if (!(*Next)) TE1 = lanpr_triangle_line_intersection_test(Testing->RL[1], Testing, rt, L); if (TE1 && (!(*Next))) { (*Next) = TE1; (*Next)->IntersectingLine = Testing->RL[1]; Next = &R; }
-		if (!(*Next)) TE2 = lanpr_triangle_line_intersection_test(Testing->RL[2], Testing, rt, L); if (TE2 && (!(*Next))) { (*Next) = TE2; (*Next)->IntersectingLine = Testing->RL[2]; Next = &R; }
+		if (!(*Next)) TE0 = lanpr_triangle_line_intersection_test(rb, Testing->RL[0], Testing, rt, L); if (TE0 && (!(*Next))) { (*Next) = TE0; (*Next)->IntersectingLine = Testing->RL[0]; Next = &R; }
+		if (!(*Next)) TE1 = lanpr_triangle_line_intersection_test(rb, Testing->RL[1], Testing, rt, L); if (TE1 && (!(*Next))) { (*Next) = TE1; (*Next)->IntersectingLine = Testing->RL[1]; Next = &R; }
+		if (!(*Next)) TE2 = lanpr_triangle_line_intersection_test(rb, Testing->RL[2], Testing, rt, L); if (TE2 && (!(*Next))) { (*Next) = TE2; (*Next)->IntersectingLine = Testing->RL[2]; Next = &R; }
 
 		if (!(*Next)) return 0;
 	}
@@ -2621,6 +2621,7 @@ void lanpr_destroy_render_data(LANPR_RenderBuffer *rb) {
 	lstEmptyDirect(&rb->CreaseLines);
 	lstEmptyDirect(&rb->MaterialLines);
 	lstEmptyDirect(&rb->AllRenderLines);
+	lstEmptyDirect(&rb->Chains);
 
 	while (reln = lstPopItem(&rb->VertexBufferPointers)) {
 		MEM_freeN(reln->Pointer);
@@ -2645,7 +2646,9 @@ void lanpr_destroy_render_data(LANPR_RenderBuffer *rb) {
 LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr) {
 	if (lanpr->render_buffer) {
 		lanpr_destroy_render_data(lanpr->render_buffer);
-		MEM_freeN(lanpr->render_buffer);
+		return lanpr->render_buffer;
+		//lanpr_destroy_render_data(lanpr->render_buffer);
+		//MEM_freeN(lanpr->render_buffer);
 	}
 
 	LANPR_RenderBuffer *rb = MEM_callocN(sizeof(LANPR_RenderBuffer), "creating LANPR render buffer");
@@ -2974,26 +2977,33 @@ void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_Framebuffe
 
 void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_threshold);
 
-extern LANPROneTimeInit OneTime;
+extern LANPRSharedResource lanpr_share;
 
-void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb) {
+void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb,int is_render) {
 	LANPR_LineLayer* ll;
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 	LANPR_StorageList *stl = ((LANPR_Data *)vedata)->stl;
 	LANPR_FramebufferList *fbl = ((LANPR_Data *)vedata)->fbl;
 	LANPR_PrivateData *pd = stl->g_data;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
+	SceneLANPR *lanpr = &scene->lanpr;
+	View3D *v3d = draw_ctx->v3d;
 	float indentity_mat[4][4];
+
+	if (is_render) {
+		lanpr_rebuild_all_command(lanpr);
+	}
+	else {
+		if (lanpr_during_render()) return; // don't draw viewport during render
+	}
 
 	float clear_col[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
 	GPUFrameBufferBits clear_bits = GPU_DEPTH_BIT | GPU_COLOR_BIT;
 
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
-	SceneLANPR *lanpr = &scene->lanpr;
-	View3D *v3d = draw_ctx->v3d;
 	//Object *camera;
 	//if (v3d) {
 	//	RegionView3D *rv3d = draw_ctx->rv3d;
@@ -3028,7 +3038,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb) {
 				LANPR_RenderBuffer* rb;
 				psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 				rb = lanpr->render_buffer;
-				rb->ChainShgrp = DRW_shgroup_create(OneTime.software_chaining_shader, psl->software_pass);
+				rb->ChainShgrp = DRW_shgroup_create(lanpr_share.software_chaining_shader, psl->software_pass);
 				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "color", ll->color, 1);
 				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "crease_color", ll->crease_color, 1);
 				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "material_color", ll->material_color, 1);
@@ -3065,7 +3075,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb) {
 			for (ll = lanpr->line_layers.last; ll; ll = ll->prev) {
 				if (ll->batch) {
 					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
-					ll->shgrp = DRW_shgroup_create(OneTime.software_shader, psl->software_pass);
+					ll->shgrp = DRW_shgroup_create(lanpr_share.software_shader, psl->software_pass);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
@@ -3090,12 +3100,12 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb) {
 
 /* ============================================ operators ========================================= */
 
+//seems we don't quite need this operator...
 static int lanpr_clear_render_buffer_exec(struct bContext *C, struct wmOperator *op) {
 	Scene *scene = CTX_data_scene(C);
 	SceneLANPR *lanpr = &scene->lanpr;
 	LANPR_RenderBuffer *rb;
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-
 
 	lanpr_destroy_render_data(lanpr->render_buffer);
 
@@ -3135,7 +3145,7 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	lanpr_THREAD_calculate_line_occlusion_begin(rb);
 
 	if (lanpr->enable_chaining){
-		lanpr_NO_THREAD_chain_feature_lines(rb, 0.00001);
+		lanpr_NO_THREAD_chain_feature_lines(rb, 0.00001);// should use user_adjustable value
 	}
 
 	return OPERATOR_FINISHED;

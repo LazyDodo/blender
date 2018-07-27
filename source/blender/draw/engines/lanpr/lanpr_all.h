@@ -50,7 +50,7 @@
 	((L) * (1.0f - (T)) + (R)*(T))
 
 
-typedef struct LANPROneTimeInit {
+typedef struct LANPRSharedResource {
 
 	/* Snake */
 	GPUShader *multichannel_shader;
@@ -66,17 +66,17 @@ typedef struct LANPROneTimeInit {
 	GPUShader *software_shader;
 	GPUShader *software_chaining_shader;
 
-	/* For Debug... */
-	GPUShader *debug_shader;
-
-	void *ved;
+	void *ved_viewport;
+	void *ved_render;
 
 
-	/* for default value assignment */
+	int init_complete;
 
-	int InitComplete;
+	SpinLock render_flag_lock;
+	int      during_render;   // get/set using access funcion which uses render_flag_lock to lock.
+					          // this prevents duplicate too much resource. (no render preview in viewport while rendering)
 
-} LANPROneTimeInit;
+} LANPRSharedResource;
 
 #define TNS_DPIX_TEXTURE_SIZE 2048
 
@@ -113,9 +113,6 @@ typedef struct LANPR_PassList {
 
 	/* SOFTWARE */
 	struct DRWPass *software_pass;
-
-	/* DEBUG */
-	struct DRWPass *debug_pass;
 
 } LANPR_PassList;
 
@@ -326,6 +323,8 @@ typedef struct LANPR_RenderBuffer {
 	Material           *MaterialPointers[2048];
 
 	//render status
+
+	int  cached_for_frame;
 
 	real ViewVector[3];
 
@@ -802,9 +801,13 @@ int lanpr_feed_atlas_data_intersection_cache(void *vedata,
 int lanpr_feed_atlas_trigger_preview_obj(void *vedata, Object *ob, int begin_index);
 void lanpr_create_atlas_intersection_preview(void *vedata, int begin_index);
 
-void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);
+void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB, int is_render);
 
-void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB);
+void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB, int is_render);
 
 void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb);
+
+void lanpr_set_render_flag();
+void lanpr_clear_render_flag();
+int lanpr_during_render();
 

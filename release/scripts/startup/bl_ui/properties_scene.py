@@ -818,7 +818,7 @@ class SCENE_PT_lanpr_snake_settings(SceneButtonsPanel, Panel):
     def poll(cls, context):
         scene = context.scene
         lanpr = scene.lanpr
-        return lanpr.master_mode == "SNAKE" and lanpr.enable_vector_trace == "ENABLE"
+        return lanpr.master_mode == "SNAKE" and lanpr.enable_vector_trace == "ENABLED"
 
     def draw(self, context):
         layout = self.layout

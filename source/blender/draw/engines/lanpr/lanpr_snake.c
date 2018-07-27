@@ -20,7 +20,7 @@
 #include "GPU_viewport.h"
 #include "bmesh.h"
 
-extern struct LANPROneTimeInit OneTime;
+extern struct LANPRSharedResource lanpr_share;
 
 int _TNS_colOffsets[] = { -1, 0, 1, 1, 1, 0, -1, -1 };
 int _TNS_rowOffsets[] = { -1, -1, -1, 0, 1, 1, 1, 0 };
@@ -302,7 +302,7 @@ GPUBatch *lanpr_get_snake_batch(LANPR_PrivateData *pd){
 	return GPU_batch_create_ex(GPU_PRIM_LINES_ADJ, vbo, GPU_indexbuf_build(&elb), GPU_USAGE_STATIC | GPU_BATCH_OWNS_VBO);
 }
 
-void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB){
+void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB, int is_render){
 	GPUFrameBufferBits clear_bits = GPU_COLOR_BIT | GPU_DEPTH_BIT;
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
@@ -443,13 +443,13 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 	GPUBatch *snake_batch = lanpr_get_snake_batch(pd);
 
 	psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
-	pd->snake_shgrp = DRW_shgroup_create(OneTime.snake_connection_shader, psl->snake_pass);
+	pd->snake_shgrp = DRW_shgroup_create(lanpr_share.snake_connection_shader, psl->snake_pass);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLDist", tld, 1);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLStrength", tls, 1);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRDist", lanpr->use_same_taper ? tld : trd, 1);
 	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRStrength", lanpr->use_same_taper ? tls : trs, 1);
-	DRW_shgroup_uniform_vec4(pd->snake_shgrp, "Linecolor", lanpr->line_color, 1);
+	DRW_shgroup_uniform_vec4(pd->snake_shgrp, "LineColor", lanpr->line_color, 1);
 
 	DRW_shgroup_call_add(pd->snake_shgrp, snake_batch, NULL);
 	GPU_framebuffer_bind(fbl->edge_intermediate);
