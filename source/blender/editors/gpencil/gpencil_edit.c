@@ -2069,6 +2069,7 @@ static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 	}
 
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&obact->id, DEG_TAG_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -2152,6 +2153,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 	}
 
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+    DEG_id_tag_update(&obact->id, DEG_TAG_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -2243,8 +2245,9 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 	}
 
 
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
+
 	return OPERATOR_FINISHED;
 }
 
