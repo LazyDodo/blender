@@ -21,7 +21,7 @@ void main()
 	}
 
 	vec2 coord = vec2(dx * floor(uv.x / dx), dy * floor(uv.y / dy));
-	vec4 outcolor = vec4(color);
+	vec4 outcolor = vec4(1, 1, 1, 1); // replace by workspace background color vec4(color);
 	/* if paper is disabled, the paper must be full transparent */
 	if (usepaper == 0) {
 		outcolor.a = 0;
