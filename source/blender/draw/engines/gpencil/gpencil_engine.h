@@ -107,10 +107,6 @@ typedef struct GPENCIL_Storage {
 	int playing;
 	bool is_render;
 	bool is_mat_preview;
-	int usepaper;
-	int uselines;
-	float gridsize[2];
-	float gridcolor[3];
 	const float *pixsize;
 	float render_pixsize;
 	int tonemapping;
@@ -144,6 +140,7 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *mix_pass_noblend;
 	struct DRWPass *background_pass;
 	struct DRWPass *paper_pass;
+	struct DRWPass *grid_pass;
 
 	/* effects */
 	struct DRWPass *fx_shader_pass;
@@ -180,6 +177,7 @@ typedef struct GPENCIL_Data {
 	/* render textures */
 	struct GPUTexture *render_depth_tx;
 	struct GPUTexture *render_color_tx;
+
 } GPENCIL_Data;
 
 /* *********** STATIC *********** */
@@ -188,10 +186,14 @@ typedef struct g_data {
 	struct DRWShadingGroup *shgrps_edit_line;
 	struct DRWShadingGroup *shgrps_drawing_stroke;
 	struct DRWShadingGroup *shgrps_drawing_fill;
+	struct DRWShadingGroup *shgrps_grid;
 
 	/* for buffer only one batch is nedeed because the drawing is only of one stroke */
 	GPUBatch *batch_buffer_stroke;
 	GPUBatch *batch_buffer_fill;
+
+	/* grid geometry */
+	GPUBatch *batch_grid;
 
 	int gp_cache_used; /* total objects in cache */
 	int gp_cache_size; /* size of the cache */
@@ -295,6 +297,7 @@ struct GPUBatch *DRW_gpencil_get_edlin_geom(struct bGPDstroke *gps, float alpha,
 struct GPUBatch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
 struct GPUBatch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
 struct GPUBatch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
+struct GPUBatch *DRW_gpencil_get_grid(void);
 
 /* object cache functions */
 struct tGPencilObjectCache *gpencil_object_cache_add(struct tGPencilObjectCache *cache_array, struct Object *ob,

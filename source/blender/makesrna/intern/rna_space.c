@@ -2867,28 +2867,25 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 		"Draw a grid over grease pencil paper");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
-	prop = RNA_def_property(srna, "gpencil_grid_size", PROP_INT, PROP_PIXEL);
-	RNA_def_property_int_sdna(prop, NULL, "gpencil_grid_size");
-	RNA_def_property_range(prop, 15, INT_MAX);
-	RNA_def_property_int_default(prop, 50);
-	RNA_def_property_ui_text(prop, "Size", "Grid size");
+	prop = RNA_def_property(srna, "gpencil_grid_scale", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "gpencil_grid_scale");
+	RNA_def_property_range(prop, 0.01f, FLT_MAX);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Scale", "Grid scale");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
-	/* Paper Color */
-	static float default_paper1[3] = { 1.0f, 1.0f, 1.0f };
-	prop = RNA_def_property(srna, "gpencil_paper_color", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_float_array_default(prop, default_paper1);
-	RNA_def_property_ui_text(prop, "Paper Color", "Color for paper");
+	prop = RNA_def_property(srna, "gpencil_grid_lines", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "gpencil_grid_lines");
+	RNA_def_property_range(prop, 4, INT_MAX);
+	RNA_def_property_int_default(prop, 20);
+	RNA_def_property_ui_text(prop, "Lines", "Number of lines");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* Paper opacity factor */
 	prop = RNA_def_property(srna, "gpencil_paper_opacity", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_color[3]");
+	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_opacity");
 	RNA_def_property_range(prop, 0.0, 1.0f);
-	RNA_def_property_float_default(prop, 0.7f);
+	RNA_def_property_float_default(prop, 0.5f);
 	RNA_def_property_ui_text(prop, "Opacity", "Paper opacity");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 

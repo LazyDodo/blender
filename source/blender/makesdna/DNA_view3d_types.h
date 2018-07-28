@@ -267,8 +267,10 @@ typedef struct View3D {
 
 	/* XXX deprecated? */
 	struct bGPdata *gpd  DNA_DEPRECATED;		/* Grease-Pencil Data (annotation layers) */
-	int gpencil_grid_size[2];
-	float gpencil_paper_color[4];
+	float gpencil_grid_scale;
+	float gpencil_paper_opacity;
+	int   gpencil_grid_lines;
+	char pad6[4];
 
 	/* Stereoscopy settings */
 	short stereo3d_flag;

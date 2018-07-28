@@ -428,31 +428,14 @@ void GPENCIL_cache_init(void *vedata)
 			psl->paper_pass = DRW_pass_create("GPencil Paper Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND);
 			DRWShadingGroup *paper_shgrp = DRW_shgroup_create(e_data.gpencil_paper_sh, psl->paper_pass);
 			DRW_shgroup_call_add(paper_shgrp, quad, NULL);
-			DRW_shgroup_uniform_vec4(paper_shgrp, "color", v3d->gpencil_paper_color, 1);
+			DRW_shgroup_uniform_vec3(paper_shgrp, "color", v3d->shading.background_color, 1);
+			DRW_shgroup_uniform_float(paper_shgrp, "opacity", &v3d->gpencil_paper_opacity, 1);
+		}
 
-			UI_GetThemeColor3fv(TH_GRID, stl->storage->gridcolor);
-			DRW_shgroup_uniform_vec3(paper_shgrp, "gridcolor", &stl->storage->gridcolor[0], 1);
-
-			stl->storage->gridsize[0] = (float)v3d->gpencil_grid_size[0];
-			stl->storage->gridsize[1] = (float)v3d->gpencil_grid_size[1];
-			DRW_shgroup_uniform_vec2(paper_shgrp, "size", &stl->storage->gridsize[0], 1);
-
-			/* paper can be only grid */
-			if (v3d->flag3 & V3D_GP_SHOW_PAPER) {
-				stl->storage->usepaper = 1;
-			}
-			else {
-				stl->storage->usepaper = 0;
-			}
-			DRW_shgroup_uniform_int(paper_shgrp, "usepaper", &stl->storage->usepaper, 1);
-
-			if (v3d->flag3 & V3D_GP_SHOW_GRID) {
-				stl->storage->uselines = 1;
-			}
-			else {
-				stl->storage->uselines = 0;
-			}
-			DRW_shgroup_uniform_int(paper_shgrp, "uselines", &stl->storage->uselines, 1);
+		/* grid pass */
+		if (v3d) {
+			psl->grid_pass = DRW_pass_create("GPencil Grid Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
+			stl->g_data->shgrps_grid = DRW_shgroup_create(e_data.gpencil_line_sh, psl->grid_pass);
 		}
 
 		/* create effects passes */
@@ -471,6 +454,8 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
+	View3D *v3d = draw_ctx->v3d;
+	const bool playing = (bool)stl->storage->playing;
 
 	/* object datablock (this is not draw now) */
 	if (ob->type == OB_GPENCIL && ob->data) {
@@ -495,6 +480,18 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 		}
 		/* draw current painting strokes */
 		DRW_gpencil_populate_buffer_strokes(&e_data, vedata, ts, ob);
+
+		/* grid */
+		if ((v3d) && (!playing) &&
+			((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+			(v3d->flag3 & V3D_GP_SHOW_GRID) &&
+			(ob->type == OB_GPENCIL) && (ob == draw_ctx->obact))
+		{
+			stl->g_data->batch_grid = DRW_gpencil_get_grid();
+			DRW_shgroup_call_add(stl->g_data->shgrps_grid,
+				stl->g_data->batch_grid,
+				ob->obmat);
+		}
 	}
 }
 
@@ -616,7 +613,7 @@ void GPENCIL_draw_scene(void *ved)
 	/* paper pass to display a confortable area to draw over complex scenes with geometry */
 	if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-			((v3d->flag3 & V3D_GP_SHOW_PAPER) || (v3d->flag3 & V3D_GP_SHOW_GRID)) &&
+			(v3d->flag3 & V3D_GP_SHOW_PAPER) &&
 			(stl->g_data->gp_cache_used > 0))
 		{
 			DRW_draw_pass(psl->paper_pass);
@@ -636,6 +633,15 @@ void GPENCIL_draw_scene(void *ved)
 
 		/* free memory */
 		gpencil_free_obj_list(stl);
+
+		/* grid pass */
+		if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
+			if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+				(v3d->flag3 & V3D_GP_SHOW_GRID))
+			{
+				DRW_draw_pass(psl->grid_pass);
+			}
+		}
 
 		return;
 	}
@@ -713,6 +719,14 @@ void GPENCIL_draw_scene(void *ved)
 			/* edit points */
 			if ((!is_render) && (!playing)) {
 				DRW_draw_pass(psl->edit_pass);
+			}
+		}
+		/* grid pass */
+		if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
+			if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
+				(v3d->flag3 & V3D_GP_SHOW_GRID))
+			{
+				DRW_draw_pass(psl->grid_pass);
 			}
 		}
 	}
