@@ -285,7 +285,6 @@ typedef struct Object {
 	/* Runtime valuated curve-specific data, not stored in the file */
 	struct CurveCache *curve_cache;
 
-	ListBase gpulamp;		/* runtime, for glsl lamp display only */
 	ListBase pc_ids;
 
 	struct RigidBodyOb *rigidbody_object;		/* settings for Bullet rigid body */
