@@ -309,6 +309,13 @@ const EnumPropertyItem rna_enum_file_sort_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
+static const EnumPropertyItem rna_enum_gpencil_grid_axis_items[] = {
+	{V3D_GP_GRID_AXIS_X, "X", 0, "X", ""},
+	{V3D_GP_GRID_AXIS_Y, "Y", 0, "Y", ""},
+	{V3D_GP_GRID_AXIS_Z, "Z", 0, "Z", ""},
+	{0, NULL, 0, NULL, NULL}
+};
+
 #ifdef RNA_RUNTIME
 
 #include "DNA_anim_types.h"
@@ -2879,6 +2886,12 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_range(prop, 4, INT_MAX);
 	RNA_def_property_int_default(prop, 20);
 	RNA_def_property_ui_text(prop, "Lines", "Number of lines");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "gpencil_grid_axis", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "gpencil_grid_axis");
+	RNA_def_property_enum_items(prop, rna_enum_gpencil_grid_axis_items);
+	RNA_def_property_ui_text(prop, "Axis", "Axis to display grid");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* Paper opacity factor */

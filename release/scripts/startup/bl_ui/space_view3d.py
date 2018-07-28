@@ -4736,7 +4736,9 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         layout.prop(overlay, "use_gpencil_grid", text="Show Plane Grid")
         if overlay.use_gpencil_grid:
             layout.prop(overlay, "gpencil_grid_scale")
-            layout.prop(overlay, "gpencil_grid_lines")
+            row = layout.row()
+            row.prop(overlay, "gpencil_grid_lines")
+            row.prop(overlay, "gpencil_grid_axis")
 
         layout.prop(overlay, "use_gpencil_onion_skin", text="Onion Skin")
 

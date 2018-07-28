@@ -602,11 +602,31 @@ GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(
 
 static void set_grid_point(GPUVertBuf *vbo, int idx, uchar col_grid[3],
 						uint pos_id, uint color_id,
-						float x, float y, float z)
+						float v1, float v2, const int axis)
 {
 	GPU_vertbuf_attr_set(vbo, color_id, idx, col_grid);
 
-	float pos[3] = { x, y, z };
+	float pos[3];
+	/* Set the grid in the selected axis (default is always Y axis) */
+	if (axis & V3D_GP_GRID_AXIS_X) {
+		pos[0] = 0.0f;
+		pos[1] = v1;
+		pos[2] = v2;
+	}
+	else if (axis & V3D_GP_GRID_AXIS_Z) {
+		pos[0] = v1;
+		pos[1] = v2;
+		pos[2] = 0.0f;
+	}
+	else
+	{
+		pos[0] = v1;
+		pos[1] = 0.0f;
+		pos[2] = v2;
+	}
+
+
+
 	GPU_vertbuf_attr_set(vbo, pos_id, idx, pos);
 }
 
@@ -629,6 +649,11 @@ GPUBatch *DRW_gpencil_get_grid(void)
 		v3d->gpencil_grid_scale = 1.0f;
 	}
 
+	if (v3d->gpencil_grid_axis == 0) {
+		v3d->gpencil_grid_axis |= V3D_GP_GRID_AXIS_Y;
+	}
+
+	const int axis = v3d->gpencil_grid_axis;
 	const char *grid_unit = NULL;
 	const int gridlines = v3d->gpencil_grid_lines; 
 	const float grid_scale = v3d->gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
@@ -650,33 +675,33 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	for (int a = 1; a <= gridlines; a++) {
 		const float line = a * grid_scale;
 
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, 0.0f, -line);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, -line, axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, 0.0f, -line);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, -line, axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, 0.0f, +line);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, +line, axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, 0.0f, +line);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, +line, axis);
 		idx++;
 
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, 0.0f, -grid);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, -grid, axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, 0.0f, +grid);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, +grid, axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, 0.0f, -grid);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, -grid, axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, 0.0f, +grid);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, +grid, axis);
 		idx++;
 	}
 	/* center lines */
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, 0.0f, 0.0f);
+	set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, 0.0f, axis);
 	idx++;
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, 0.0f, 0.0f);
+	set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, 0.0f, axis);
 	idx++;
 
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, 0.0f, -grid);
+	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, -grid, axis);
 	idx++;
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, 0.0f, +grid);
+	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, +grid, axis);
 	idx++;
 
 	return GPU_batch_create_ex(GPU_PRIM_LINES, vbo, NULL, GPU_BATCH_OWNS_VBO);
