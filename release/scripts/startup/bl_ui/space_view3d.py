@@ -4733,7 +4733,13 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         sub.active = overlay.use_gpencil_paper
         sub.prop(overlay, "gpencil_paper_opacity", text="Fade 3D Objects")
 
-        layout.prop(overlay, "use_gpencil_grid", text="Show Plane Grid")
+        col = layout.column()
+        row = col.row()
+        row.prop(overlay, "use_gpencil_grid", text="")
+        sub = row.row()
+        sub.active = overlay.use_gpencil_grid
+        sub.prop(overlay, "gpencil_grid_opacity", text="Plane Grid")
+
         if overlay.use_gpencil_grid:
             layout.prop(overlay, "gpencil_grid_scale")
             row = layout.row()

@@ -600,9 +600,9 @@ GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(
 	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
-static void set_grid_point(GPUVertBuf *vbo, int idx, uchar col_grid[3],
+static void set_grid_point(GPUVertBuf *vbo, int idx, float col_grid[4],
 						uint pos_id, uint color_id,
-						float v1, float v2, const int axis)
+						float v1, float v2, int axis)
 {
 	GPU_vertbuf_attr_set(vbo, color_id, idx, col_grid);
 
@@ -635,12 +635,12 @@ GPUBatch *DRW_gpencil_get_grid(void)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
+	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
 
-	uchar col_grid[3];
-	UI_GetThemeColor3ubv(TH_GRID, col_grid);
+	float col_grid[4];
 
-	/* verify we have something to draw */
+	/* verify we have something to draw and valid values */
 	if (v3d->gpencil_grid_lines < 4) {
 		v3d->gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
 	}
@@ -649,11 +649,40 @@ GPUBatch *DRW_gpencil_get_grid(void)
 		v3d->gpencil_grid_scale = 1.0f;
 	}
 
-	if (v3d->gpencil_grid_axis == 0) {
-		v3d->gpencil_grid_axis |= V3D_GP_GRID_AXIS_Y;
+	if (v3d->gpencil_grid_opacity < 0.1f) {
+		v3d->gpencil_grid_opacity = 0.1f;
 	}
 
-	const int axis = v3d->gpencil_grid_axis;
+	UI_GetThemeColor3fv(TH_GRID, col_grid);
+	col_grid[3] = v3d->gpencil_grid_opacity;
+
+	/* if use locked axis, copy value */
+	int axis = v3d->gpencil_grid_axis;
+	if ((v3d->gpencil_grid_axis & V3D_GP_GRID_AXIS_LOCK) == 0) {
+
+		axis = v3d->gpencil_grid_axis;
+	}
+	else {
+		switch (ts->gp_sculpt.lock_axis) {
+			case GP_LOCKAXIS_X:
+			{
+				axis = V3D_GP_GRID_AXIS_X;
+				break;
+			}
+			case GP_LOCKAXIS_NONE:
+			case GP_LOCKAXIS_Y:
+			{
+				axis = V3D_GP_GRID_AXIS_Y;
+				break;
+			}
+			case GP_LOCKAXIS_Z:
+			{
+				axis = V3D_GP_GRID_AXIS_Z;
+				break;
+			}
+		}
+	}
+
 	const char *grid_unit = NULL;
 	const int gridlines = v3d->gpencil_grid_lines / 2; 
 	const float grid_scale = v3d->gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
@@ -665,7 +694,7 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	static uint pos_id, color_id;
 	if (format.attr_len == 0) {
 		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 	}
 
 	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);

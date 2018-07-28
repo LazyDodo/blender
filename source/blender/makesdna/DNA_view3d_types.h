@@ -271,6 +271,8 @@ typedef struct View3D {
 	float gpencil_paper_opacity;
 	int   gpencil_grid_lines;
 	int   gpencil_grid_axis;
+	float gpencil_grid_opacity;
+	char pad6[4];
 
 	/* Stereoscopy settings */
 	short stereo3d_flag;
@@ -493,9 +495,10 @@ enum {
 
 /* View3d.gpencil_grid_axis */
 enum {
-	V3D_GP_GRID_AXIS_X = (1 << 1),
-	V3D_GP_GRID_AXIS_Y = (1 << 2),
-	V3D_GP_GRID_AXIS_Z = (1 << 3)
+	V3D_GP_GRID_AXIS_LOCK = (1 << 0),
+	V3D_GP_GRID_AXIS_X    = (1 << 1),
+	V3D_GP_GRID_AXIS_Y    = (1 << 2),
+	V3D_GP_GRID_AXIS_Z    = (1 << 3),
 };
 
 #endif
