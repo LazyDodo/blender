@@ -482,7 +482,7 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 		DRW_gpencil_populate_buffer_strokes(&e_data, vedata, ts, ob);
 
 		/* grid */
-		if ((v3d) && (!playing) &&
+		if ((v3d) &&
 			((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
 			(v3d->flag3 & V3D_GP_SHOW_GRID) &&
 			(ob->type == OB_GPENCIL) && (ob == draw_ctx->obact))
