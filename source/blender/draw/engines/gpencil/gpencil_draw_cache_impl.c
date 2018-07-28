@@ -640,7 +640,7 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	uchar col_grid[3];
 	UI_GetThemeColor3ubv(TH_GRID, col_grid);
 
-	/* verify we have soemthing to draw */
+	/* verify we have something to draw */
 	if (v3d->gpencil_grid_lines < 4) {
 		v3d->gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
 	}
@@ -655,7 +655,7 @@ GPUBatch *DRW_gpencil_get_grid(void)
 
 	const int axis = v3d->gpencil_grid_axis;
 	const char *grid_unit = NULL;
-	const int gridlines = v3d->gpencil_grid_lines; 
+	const int gridlines = v3d->gpencil_grid_lines / 2; 
 	const float grid_scale = v3d->gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
 	const float grid = gridlines * grid_scale;
 
