@@ -2876,27 +2876,27 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_grid_scale", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_grid_scale");
+	RNA_def_property_float_sdna(prop, NULL, "overlay.gpencil_grid_scale");
 	RNA_def_property_range(prop, 0.01f, FLT_MAX);
 	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Scale", "Grid scale");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_grid_lines", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "gpencil_grid_lines");
+	RNA_def_property_int_sdna(prop, NULL, "overlay.gpencil_grid_lines");
 	RNA_def_property_range(prop, 4, INT_MAX);
 	RNA_def_property_int_default(prop, 20);
 	RNA_def_property_ui_text(prop, "Lines", "Number of lines");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_grid_axis", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "gpencil_grid_axis");
+	RNA_def_property_enum_sdna(prop, NULL, "overlay.gpencil_grid_axis");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_grid_axis_items);
 	RNA_def_property_ui_text(prop, "Axis", "Axis to display grid");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_grid_opacity", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_grid_opacity");
+	RNA_def_property_float_sdna(prop, NULL, "overlay.gpencil_grid_opacity");
 	RNA_def_property_range(prop, 0.1f, 1.0f);
 	RNA_def_property_float_default(prop, 0.9f);
 	RNA_def_property_ui_text(prop, "Opacity", "Grid opacity");
@@ -2904,7 +2904,7 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 
 	/* Paper opacity factor */
 	prop = RNA_def_property(srna, "gpencil_paper_opacity", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "gpencil_paper_opacity");
+	RNA_def_property_float_sdna(prop, NULL, "overlay.gpencil_paper_opacity");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_float_default(prop, 0.5f);
 	RNA_def_property_ui_text(prop, "Opacity", "Paper opacity");

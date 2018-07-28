@@ -342,11 +342,11 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->near = 0.01f;
 	v3d->far = 1000.0f;
 
-	v3d->gpencil_grid_scale = 1.0; // Scales
-	v3d->gpencil_grid_lines = GP_DEFAULT_GRID_LINES; // NUmber of Lines
-	v3d->gpencil_paper_opacity = 0.5f;
-	v3d->gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
-	v3d->gpencil_grid_opacity = 0.9f;
+	v3d->overlay.gpencil_grid_scale = 1.0; // Scales
+	v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES; // NUmber of Lines
+	v3d->overlay.gpencil_paper_opacity = 0.5f;
+	v3d->overlay.gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
+	v3d->overlay.gpencil_grid_opacity = 0.9f;
 
 	v3d->bundle_size = 0.2f;
 	v3d->bundle_drawtype = OB_PLAINAXES;

@@ -641,26 +641,26 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	float col_grid[4];
 
 	/* verify we have something to draw and valid values */
-	if (v3d->gpencil_grid_lines < 4) {
-		v3d->gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
+	if (v3d->overlay.gpencil_grid_lines < 4) {
+		v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
 	}
 
-	if (v3d->gpencil_grid_scale == 0.0f) {
-		v3d->gpencil_grid_scale = 1.0f;
+	if (v3d->overlay.gpencil_grid_scale == 0.0f) {
+		v3d->overlay.gpencil_grid_scale = 1.0f;
 	}
 
-	if (v3d->gpencil_grid_opacity < 0.1f) {
-		v3d->gpencil_grid_opacity = 0.1f;
+	if (v3d->overlay.gpencil_grid_opacity < 0.1f) {
+		v3d->overlay.gpencil_grid_opacity = 0.1f;
 	}
 
 	UI_GetThemeColor3fv(TH_GRID, col_grid);
-	col_grid[3] = v3d->gpencil_grid_opacity;
+	col_grid[3] = v3d->overlay.gpencil_grid_opacity;
 
 	/* if use locked axis, copy value */
-	int axis = v3d->gpencil_grid_axis;
-	if ((v3d->gpencil_grid_axis & V3D_GP_GRID_AXIS_LOCK) == 0) {
+	int axis = v3d->overlay.gpencil_grid_axis;
+	if ((v3d->overlay.gpencil_grid_axis & V3D_GP_GRID_AXIS_LOCK) == 0) {
 
-		axis = v3d->gpencil_grid_axis;
+		axis = v3d->overlay.gpencil_grid_axis;
 	}
 	else {
 		switch (ts->gp_sculpt.lock_axis) {
@@ -684,8 +684,8 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	}
 
 	const char *grid_unit = NULL;
-	const int gridlines = v3d->gpencil_grid_lines / 2; 
-	const float grid_scale = v3d->gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
+	const int gridlines = v3d->overlay.gpencil_grid_lines / 2;
+	const float grid_scale = v3d->overlay.gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
 	const float grid = gridlines * grid_scale;
 
 	const uint vertex_len = 2 * (gridlines * 4 + 2);

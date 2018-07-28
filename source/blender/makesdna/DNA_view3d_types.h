@@ -190,6 +190,14 @@ typedef struct View3DOverlay {
 	float wireframe_threshold;
 	char _pad0[4];
 
+	/* grease pencil setttings */
+	float gpencil_grid_scale;
+	float gpencil_paper_opacity;
+	int   gpencil_grid_lines;
+	int   gpencil_grid_axis;
+	float gpencil_grid_opacity;
+	char _pad1[4];
+
 } View3DOverlay;
 
 /* 3D ViewPort Struct */
@@ -267,12 +275,6 @@ typedef struct View3D {
 
 	/* XXX deprecated? */
 	struct bGPdata *gpd  DNA_DEPRECATED;		/* Grease-Pencil Data (annotation layers) */
-	float gpencil_grid_scale;
-	float gpencil_paper_opacity;
-	int   gpencil_grid_lines;
-	int   gpencil_grid_axis;
-	float gpencil_grid_opacity;
-	char pad6[4];
 
 	/* Stereoscopy settings */
 	short stereo3d_flag;

@@ -429,7 +429,7 @@ void GPENCIL_cache_init(void *vedata)
 			DRWShadingGroup *paper_shgrp = DRW_shgroup_create(e_data.gpencil_paper_sh, psl->paper_pass);
 			DRW_shgroup_call_add(paper_shgrp, quad, NULL);
 			DRW_shgroup_uniform_vec3(paper_shgrp, "color", v3d->shading.background_color, 1);
-			DRW_shgroup_uniform_float(paper_shgrp, "opacity", &v3d->gpencil_paper_opacity, 1);
+			DRW_shgroup_uniform_float(paper_shgrp, "opacity", &v3d->overlay.gpencil_paper_opacity, 1);
 		}
 
 		/* grid pass */
