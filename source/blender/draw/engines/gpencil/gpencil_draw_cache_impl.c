@@ -686,7 +686,8 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	const char *grid_unit = NULL;
 	const int gridlines = v3d->overlay.gpencil_grid_lines;
 	const float grid_scale = v3d->overlay.gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
-	const float grid = gridlines * grid_scale;
+	const float grid = grid_scale;
+	const float space = (grid_scale / gridlines);
 
 	const uint vertex_len = 2 * (gridlines * 4 + 2);
 
@@ -701,8 +702,9 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	GPU_vertbuf_data_alloc(vbo, vertex_len);
 
 	int idx = 0;
+
 	for (int a = 1; a <= gridlines; a++) {
-		const float line = a * grid_scale;
+		const float line = a * space;
 
 		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, -line, axis);
 		idx++;
