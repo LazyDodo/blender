@@ -4726,6 +4726,8 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         view = context.space_data
         overlay = view.overlay
 
+        layout.prop(overlay, "use_gpencil_onion_skin", text="Onion Skin")
+
         col = layout.column()
         row = col.row()
         row.prop(overlay, "use_gpencil_paper", text="")
@@ -4738,15 +4740,14 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         row.prop(overlay, "use_gpencil_grid", text="")
         sub = row.row()
         sub.active = overlay.use_gpencil_grid
-        sub.prop(overlay, "gpencil_grid_opacity", text="Plane Grid")
+        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas Grid")
 
         if overlay.use_gpencil_grid:
-            layout.prop(overlay, "gpencil_grid_scale")
-            row = layout.row()
-            row.prop(overlay, "gpencil_grid_lines")
-            row.prop(overlay, "gpencil_grid_axis")
-
-        layout.prop(overlay, "use_gpencil_onion_skin", text="Onion Skin")
+            row = layout.row(align=True)
+            row.prop(overlay, "gpencil_grid_scale")
+            col = row.column()
+            col.prop(overlay, "gpencil_grid_lines", text="Subdivisions")
+            col.prop(overlay, "gpencil_grid_axis")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(overlay, "use_gpencil_edit_lines", text="Show Edit Lines")
