@@ -40,6 +40,7 @@
 #include "BLI_math.h"
 
 #include "DNA_action_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_key_types.h"
 #include "DNA_material_types.h"
 #include "DNA_node_types.h"
@@ -2884,9 +2885,9 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "gpencil_grid_lines", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "overlay.gpencil_grid_lines");
-	RNA_def_property_range(prop, 4, INT_MAX);
-	RNA_def_property_int_default(prop, 20);
-	RNA_def_property_ui_text(prop, "Lines", "Number of lines");
+	RNA_def_property_range(prop, 1, INT_MAX);
+	RNA_def_property_int_default(prop, GP_DEFAULT_GRID_LINES);
+	RNA_def_property_ui_text(prop, "Subdivisions", "Number of subdivisions in each side of simmetry line");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_grid_axis", PROP_ENUM, PROP_NONE);

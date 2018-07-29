@@ -641,7 +641,7 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	float col_grid[4];
 
 	/* verify we have something to draw and valid values */
-	if (v3d->overlay.gpencil_grid_lines < 4) {
+	if (v3d->overlay.gpencil_grid_lines < 1) {
 		v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
 	}
 
@@ -684,7 +684,7 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	}
 
 	const char *grid_unit = NULL;
-	const int gridlines = v3d->overlay.gpencil_grid_lines / 2;
+	const int gridlines = v3d->overlay.gpencil_grid_lines;
 	const float grid_scale = v3d->overlay.gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
 	const float grid = gridlines * grid_scale;
 
