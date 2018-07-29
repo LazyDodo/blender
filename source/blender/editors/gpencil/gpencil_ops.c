@@ -445,6 +445,9 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 
 	/* menu vertex group */
 	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_vertex_group", GKEY, KM_PRESS, KM_CTRL, 0);
+
+	/* toggle edit mode */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
 }
 
 /* keys for draw with a drawing brush (no fill) */
