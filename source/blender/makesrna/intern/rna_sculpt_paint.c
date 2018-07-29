@@ -1170,7 +1170,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_lockaxis_items);
 	RNA_def_property_ui_text(prop, "Lock", "");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* brush */
 	srna = RNA_def_struct(brna, "GPencilSculptBrush", NULL);
