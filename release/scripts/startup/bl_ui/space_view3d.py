@@ -4750,8 +4750,8 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
             col.prop(overlay, "gpencil_grid_axis")
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
-            layout.prop(overlay, "use_gpencil_edit_lines", text="Show Edit Lines")
-            layout.prop(overlay, "use_gpencil_multiedit_line_only", text="Only Edit Lines In Multiframe")
+            layout.prop(overlay, "use_gpencil_edit_lines", text="Edit Lines")
+            layout.prop(overlay, "use_gpencil_multiedit_line_only", text="Show Edit Lines only in multiframe")
             layout.prop(overlay, "vertex_opacity", text="Vertex Opacity", slider=True)
 
 
