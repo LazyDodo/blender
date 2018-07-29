@@ -4733,14 +4733,14 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
         row.prop(overlay, "use_gpencil_paper", text="")
         sub = row.row()
         sub.active = overlay.use_gpencil_paper
-        sub.prop(overlay, "gpencil_paper_opacity", text="Fade 3D Objects")
+        sub.prop(overlay, "gpencil_paper_opacity", text="Fade 3D Objects", slider=True)
 
         col = layout.column()
         row = col.row()
         row.prop(overlay, "use_gpencil_grid", text="")
         sub = row.row()
         sub.active = overlay.use_gpencil_grid
-        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas Grid")
+        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas Grid", slider=True)
 
         if overlay.use_gpencil_grid:
             row = layout.row(align=True)
