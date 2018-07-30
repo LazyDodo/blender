@@ -1498,7 +1498,7 @@ typedef struct SceneLANPR{
 	ListBase                   line_layers;  /* now here!!! */
 	struct LANPR_LineLayer    *active_layer;
 
-	int                        calculate_intersections;
+	int                        enable_intersections;
 	int                        enable_chaining;	
 
 } SceneLANPR;

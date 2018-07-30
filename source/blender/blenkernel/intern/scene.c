@@ -882,6 +882,29 @@ void BKE_scene_init(Scene *sce)
 	        SCE_EEVEE_GTAO_BOUNCE |
 	        SCE_EEVEE_TAA_REPROJECTION |
 	        SCE_EEVEE_SSR_HALF_RESOLUTION;
+
+	/* SceneLANPR */
+	
+	sce->lanpr.crease_threshold = 0.7;
+
+	sce->lanpr.line_thickness = 1.5;
+	sce->lanpr.depth_clamp = 0.001;
+	sce->lanpr.depth_strength = 800;
+	sce->lanpr.normal_clamp = 2;
+	sce->lanpr.normal_strength = 10;
+	
+	sce->lanpr.enable_intersections = 1;
+
+	sce->lanpr.background_color[0] = 0.76;
+	sce->lanpr.background_color[1] = 0.54;
+	sce->lanpr.background_color[2] = 0.29;
+	sce->lanpr.background_color[3] = 1;
+
+	sce->lanpr.line_color[0] = 0.39;
+	sce->lanpr.line_color[1] = 0.12;
+	sce->lanpr.line_color[2] = 0.04;
+	sce->lanpr.line_color[3] = 1;
+
 }
 
 Scene *BKE_scene_add(Main *bmain, const char *name)

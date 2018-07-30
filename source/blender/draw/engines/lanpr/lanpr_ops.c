@@ -188,7 +188,7 @@ void lanpr_connect_new_bounding_areas(LANPR_RenderBuffer *rb, LANPR_BoundingArea
 	while (list_pop_pointer_no_free(&Root->BP));
 }
 void lanpr_link_triangle_with_bounding_area(LANPR_RenderBuffer *rb, LANPR_BoundingArea *RootBoundingArea, LANPR_RenderTriangle *rt, real *LRUB, int Recursive);
-void lanpr_triangle_calculate_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba);
+void lanpr_triangle_enable_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba);
 
 void lanpr_split_bounding_area(LANPR_RenderBuffer *rb, LANPR_BoundingArea *Root) {
 	LANPR_BoundingArea *ba = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_BoundingArea) * 4);
@@ -306,7 +306,7 @@ void lanpr_link_triangle_with_bounding_area(LANPR_RenderBuffer *rb, LANPR_Boundi
 		if (RootBoundingArea->TriangleCount > 200 && Recursive) {
 			lanpr_split_bounding_area(rb, RootBoundingArea);
 		}
-		if (Recursive && rb->calculate_intersections) lanpr_triangle_calculate_intersections_in_bounding_area(rb, rt, RootBoundingArea);
+		if (Recursive && rb->enable_intersections) lanpr_triangle_enable_intersections_in_bounding_area(rb, rt, RootBoundingArea);
 	}
 	else {
 		LANPR_BoundingArea *ba = RootBoundingArea->Child;
@@ -2429,7 +2429,7 @@ LANPR_RenderLine *lanpr_triangle_generate_intersection_line_only(LANPR_RenderBuf
 
 	return Result;
 }
-void lanpr_triangle_calculate_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba) {
+void lanpr_triangle_enable_intersections_in_bounding_area(LANPR_RenderBuffer *rb, LANPR_RenderTriangle *rt, LANPR_BoundingArea *ba) {
 	tnsVector3d n, c = { 0 };
 	tnsVector3d TL, TR;
 	LANPR_RenderTriangle *TestingTriangle;
@@ -3137,7 +3137,7 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 	rb->Scene = scene;
 	rb->W = scene->r.xsch;
 	rb->H = scene->r.ysch;
-	rb->calculate_intersections = lanpr->calculate_intersections;
+	rb->enable_intersections = lanpr->enable_intersections;
 
 	rb->TriangleSize = lanpr_get_render_triangle_size(rb);
 

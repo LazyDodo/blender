@@ -1330,6 +1330,32 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 
+		if (!DNA_struct_find(fd->filesdna, "SceneLANPR")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+
+				scene->lanpr.crease_threshold = 0.7;
+
+				scene->lanpr.line_thickness = 1.5;
+				scene->lanpr.depth_clamp = 0.001;
+				scene->lanpr.depth_strength = 800;
+				scene->lanpr.normal_clamp = 2;
+				scene->lanpr.normal_strength = 10;
+				
+				scene->lanpr.enable_intersections = 1;
+				
+				scene->lanpr.background_color[0] = 0.76;
+				scene->lanpr.background_color[1] = 0.54;
+				scene->lanpr.background_color[2] = 0.29;
+				scene->lanpr.background_color[3] = 1;
+				
+				scene->lanpr.line_color[0] = 0.39;
+				scene->lanpr.line_color[1] = 0.12;
+				scene->lanpr.line_color[2] = 0.04;
+				scene->lanpr.line_color[3] = 1;
+
+			}
+		}
+
 
 		if (!MAIN_VERSION_ATLEAST(bmain, 280, 15)) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {

@@ -66,7 +66,7 @@ class SceneButtonsPanel:
 
 class SCENE_PT_scene(SceneButtonsPanel, Panel):
     bl_label = "Scene"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', "BLENDER_LANPR"}
 
     def draw(self, context):
         layout = self.layout
@@ -81,7 +81,7 @@ class SCENE_PT_scene(SceneButtonsPanel, Panel):
 
 class SCENE_PT_unit(SceneButtonsPanel, Panel):
     bl_label = "Units"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', "BLENDER_LANPR"}
 
     def draw_header_preset(self, context):
         SCENE_PT_units_length_presets.draw_panel_header(self.layout)
@@ -163,7 +163,7 @@ class SceneKeyingSetsPanel:
 class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
     bl_label = "Keying Sets"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', "BLENDER_LANPR"}
 
     def draw(self, context):
         layout = self.layout
@@ -197,7 +197,7 @@ class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
 class SCENE_PT_keyframing_settings(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
     bl_label = "Keyframing Settings"
     bl_parent_id = "SCENE_PT_keying_sets"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', "BLENDER_LANPR"}
 
     @classmethod
     def poll(cls, context):
@@ -234,7 +234,7 @@ class SCENE_PT_keyframing_settings(SceneButtonsPanel, SceneKeyingSetsPanel, Pane
 class SCENE_PT_keying_set_paths(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
     bl_label = "Active Keying Set"
     bl_parent_id = "SCENE_PT_keying_sets"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', "BLENDER_LANPR"}
 
     @classmethod
     def poll(cls, context):
@@ -297,7 +297,7 @@ class SCENE_PT_keying_set_paths(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
 class SCENE_PT_color_management(SceneButtonsPanel, Panel):
     bl_label = "Color Management"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
@@ -329,7 +329,7 @@ class SCENE_PT_color_management_curves(SceneButtonsPanel, Panel):
     bl_label = "Use Curves"
     bl_parent_id = "SCENE_PT_color_management"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw_header(self, context):
 
@@ -353,7 +353,7 @@ class SCENE_PT_color_management_curves(SceneButtonsPanel, Panel):
 class SCENE_PT_audio(SceneButtonsPanel, Panel):
     bl_label = "Audio"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
@@ -392,7 +392,7 @@ class SCENE_PT_audio(SceneButtonsPanel, Panel):
 class SCENE_PT_physics(SceneButtonsPanel, Panel):
     bl_label = "Gravity"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw_header(self, context):
         self.layout.prop(context.scene, "use_gravity", text="")
@@ -411,7 +411,7 @@ class SCENE_PT_physics(SceneButtonsPanel, Panel):
 class SCENE_PT_rigid_body_world(SceneButtonsPanel, Panel):
     bl_label = "Rigid Body World"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -479,7 +479,7 @@ class SCENE_PT_rigid_body_cache(SceneButtonsPanel, Panel):
     bl_label = "Cache"
     bl_parent_id = "SCENE_PT_rigid_body_world"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -497,7 +497,7 @@ class SCENE_PT_rigid_body_field_weights(SceneButtonsPanel, Panel):
     bl_label = "Field Weights"
     bl_parent_id = "SCENE_PT_rigid_body_world"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -514,7 +514,7 @@ class SCENE_PT_rigid_body_field_weights(SceneButtonsPanel, Panel):
 class SCENE_PT_simplify(SceneButtonsPanel, Panel):
     bl_label = "Simplify"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw_header(self, context):
         rd = context.scene.render
@@ -527,7 +527,7 @@ class SCENE_PT_simplify(SceneButtonsPanel, Panel):
 class SCENE_PT_simplify_viewport(SceneButtonsPanel, Panel):
     bl_label = "Viewport"
     bl_parent_id = "SCENE_PT_simplify"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
@@ -549,7 +549,7 @@ class SCENE_PT_simplify_viewport(SceneButtonsPanel, Panel):
 class SCENE_PT_simplify_render(SceneButtonsPanel, Panel):
     bl_label = "Render"
     bl_parent_id = "SCENE_PT_simplify"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
@@ -598,7 +598,7 @@ class LANPR_linesets(UIList):
             layout.label("", icon_value=icon)
 
 class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
     bl_label = "LANPR"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -622,7 +622,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 layout.prop(lanpr, "background_color")
                 layout.label(text="Enable On Demand:")
                 row = layout.row()
-                row.prop(lanpr,"calculate_intersections", text = "Intersection Lines")
+                row.prop(lanpr,"enable_intersections", text = "Intersection Lines")
                 row.prop(lanpr,"enable_chaining", text = "Chaining (SLOW!)")
                 layout.label(text="RUN:")
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
@@ -661,7 +661,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
 class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
     bl_label = "Types"
     bl_parent_id = "SCENE_PT_lanpr"
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
@@ -703,7 +703,7 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
         row.prop(active_layer, "material_color", text="")
         row.prop(active_layer, "thickness_material", text="")
         row = col.row(align = True)
-        if lanpr.calculate_intersections:
+        if lanpr.enable_intersections:
             row.enabled = active_layer.enable_intersection
             row.prop(active_layer, "intersection_color", text="")
             row.prop(active_layer, "thickness_intersection", text="")
@@ -712,8 +712,8 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
 
         if lanpr.master_mode == "DPIX" and active_layer.enable_intersection:
             row = col.row(align = True)
-            row.prop(lanpr,"calculate_intersections", toggle = True, text = "Enable")
-            if lanpr.calculate_intersections:
+            row.prop(lanpr,"enable_intersections", toggle = True, text = "Enable")
+            if lanpr.enable_intersections:
                 row.operator("scene.lanpr_calculate", text= "Recalculate")
 
         if lanpr.master_mode == "SOFTWARE":
@@ -724,7 +724,7 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
 class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
     bl_label = "Including"
     bl_parent_id = "SCENE_PT_lanpr"
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
@@ -763,7 +763,7 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
 class SCENE_PT_lanpr_line_effects(SceneButtonsPanel, Panel):
     bl_label = "Effects"
     bl_parent_id = "SCENE_PT_lanpr"
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
@@ -790,7 +790,7 @@ class SCENE_PT_lanpr_line_effects(SceneButtonsPanel, Panel):
 class SCENE_PT_lanpr_snake_sobel_parameters(SceneButtonsPanel, Panel):
     bl_label = "Sobel Parameters"
     bl_parent_id = "SCENE_PT_lanpr"
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
@@ -812,7 +812,7 @@ class SCENE_PT_lanpr_snake_sobel_parameters(SceneButtonsPanel, Panel):
 class SCENE_PT_lanpr_snake_settings(SceneButtonsPanel, Panel):
     bl_label = "Snake Settings"
     bl_parent_id = "SCENE_PT_lanpr"
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
@@ -868,7 +868,7 @@ class SCENE_PT_lanpr_snake_settings(SceneButtonsPanel, Panel):
 class SCENE_PT_lanpr_software_chain_styles(SceneButtonsPanel, Panel):
     bl_label = "Chain Styles"
     bl_parent_id = "SCENE_PT_lanpr"
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
@@ -924,7 +924,7 @@ class SCENE_PT_viewport_display_ssao(SceneButtonsPanel, Panel):
 
 
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
     _context_path = "scene"
     _property_type = bpy.types.Scene
 
