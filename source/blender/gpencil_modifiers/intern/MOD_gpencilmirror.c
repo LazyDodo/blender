@@ -134,7 +134,6 @@ static void generateStrokes(
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	MirrorGpencilModifierData *mmd = (MirrorGpencilModifierData *)md;
-	// bGPdata *gpd = (bGPdata *)ob->data; // UNUSED
 	bGPDstroke *gps, *gps_new = NULL;
 	int tot_strokes;
 	int i;

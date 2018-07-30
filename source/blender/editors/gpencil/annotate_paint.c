@@ -2039,28 +2039,6 @@ static void gpencil_stroke_end(wmOperator *op)
 	p->gpf = NULL;
 }
 
-/* Move last stroke in the listbase to the head to be drawn below all previous strokes in the layer */
-static void UNUSED_FUNCTION(gpencil_move_last_stroke_to_back)(bContext *C)
-{
-	/* move last stroke (the polygon) to head of the listbase stroke to draw on back of all previous strokes */
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-
-	/* sanity checks */
-	if (ELEM(NULL, gpd, gpl, gpl->actframe)) {
-		return;
-	}
-
-	bGPDframe *gpf = gpl->actframe;
-	bGPDstroke *gps = gpf->strokes.last;
-	if (ELEM(NULL, gps)) {
-		return;
-	}
-
-	BLI_remlink(&gpf->strokes, gps);
-	BLI_insertlinkbefore(&gpf->strokes, gpf->strokes.first, gps);
-}
-
 /* events handling during interactive drawing part of operator */
 static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
