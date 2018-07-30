@@ -764,10 +764,10 @@ class GreasePencilDataPanel:
                 sub.operator("gpencil.layer_move", icon='TRIA_DOWN', text="").type = 'DOWN'
 
         if gpl:
-            layout.prop(gpl, "opacity", text="Opacity", slider=True)
-            layout.prop(gpl, "thickness", text="Thickness")
-
-            layout.separator()
+            # layout.prop(gpl, "opacity", text="Opacity", slider=True)
+            # layout.prop(gpl, "thickness", text="Thickness")
+            #
+            # layout.separator()
 
             # Full-Row - Frame Locking (and Delete Frame)
             row = layout.row(align=True)
