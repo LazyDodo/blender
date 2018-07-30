@@ -584,6 +584,7 @@ class SCENE_PT_viewport_display(SceneButtonsPanel, Panel):
         col.prop(scene.display, "light_direction")
         col.prop(scene.display, "shadow_shift")
 
+
 class LANPR_linesets(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         lineset = item
@@ -597,14 +598,10 @@ class LANPR_linesets(UIList):
             layout.alignment = 'CENTER'
             layout.label("", icon_value=icon)
 
+
 class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_CLAY'}
+    COMPAT_ENGINES = {'BLENDER_LANPR'}
     bl_label = "LANPR"
-    bl_options = {'DEFAULT_CLOSED'}
-    
-    @classmethod
-    def poll(cls, context):
-        return True
 
     def draw(self, context):
         layout = self.layout
