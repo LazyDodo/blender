@@ -117,8 +117,8 @@ static void gpf_clear_all_strokes(bGPDframe *gpf)
  */
 static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eBuildGpencil_Transition transition)
 {
-	bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * num_points, "GP Build Modifier - Reduced Points");
-	MDeformVert *new_dvert = MEM_callocN(sizeof(MDeformVert) * num_points, "GP Build Modifier - Reduced Weights");
+	bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * num_points, __func__);
+	MDeformVert *new_dvert = MEM_callocN(sizeof(MDeformVert) * num_points, __func__);
 
 	/* Which end should points be removed from */
 	// TODO: free stroke weights
@@ -201,7 +201,7 @@ static void build_sequential(BuildGpencilModifierData *mmd, bGPDframe *gpf, floa
 
 	/* 1) Compute proportion of time each stroke should occupy */
 	/* NOTE: This assumes that the total number of points won't overflow! */
-	tStrokeBuildDetails *table = MEM_callocN(sizeof(tStrokeBuildDetails) * tot_strokes, "tStrokeBuildDetails");
+	tStrokeBuildDetails *table = MEM_callocN(sizeof(tStrokeBuildDetails) * tot_strokes, __func__);
 	size_t totpoints = 0;
 
 	/* 1.1) First pass - Tally up points */

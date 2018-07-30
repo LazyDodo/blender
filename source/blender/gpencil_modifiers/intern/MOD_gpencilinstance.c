@@ -108,7 +108,7 @@ static void generate_geometry(
 	const int num_strokes = BLI_listbase_count(&gpf->strokes);
 	int num_valid = 0;
 
-	bool *valid_strokes = MEM_callocN(sizeof(bool) * num_strokes, "GP ArrayMod valid_strokes");
+	bool *valid_strokes = MEM_callocN(sizeof(bool) * num_strokes, __func__);
 
 	for (gps = gpf->strokes.first, idx = 0; gps; gps = gps->next, idx++) {
 		/* Record whether this stroke can be used
