@@ -36,7 +36,7 @@ LANPR_RenderLine* lanpr_get_connected_render_line(LANPR_BoundingArea* ba, LANPR_
 	LANPR_RenderLine* nrl;
 	real cosine;
 
-	for (lip = ba->LinkedLines.pFirst; lip; lip = lip->pNext) {
+	for (lip = ba->LinkedLines.first; lip; lip = lip->pNext) {
 		nrl = lip->p;
 
 		if ((!(nrl->Flags&LANPR_EDGE_FLAG_ALL_TYPE)) || (nrl->Flags & LANPR_EDGE_FLAG_CHAIN_PICKED)) continue;
@@ -72,22 +72,22 @@ int lanpr_get_nearby_render_line(LANPR_BoundingArea* ba, LANPR_RenderLine* rl){
 
 LANPR_RenderLineChain* lanpr_create_render_line_chain(LANPR_RenderBuffer *rb){
     LANPR_RenderLineChain* rlc;
-    rlc = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineChain));
+    rlc = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineChain));
 
-    lstAppendItem(&rb->Chains,rlc);
+    BLI_addtail(&rb->Chains,rlc);
 
     return rlc;
 }
 
 LANPR_RenderLineChainItem* lanpr_append_render_line_chain_point(LANPR_RenderBuffer *rb, LANPR_RenderLineChain* rlc, float x, float y, char type, int level){
     LANPR_RenderLineChainItem* rlci;
-    rlci = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineChainItem));
+    rlci = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineChainItem));
 
     rlci->pos[0] = x;
     rlci->pos[1] = y;
     rlci->LineType = type&LANPR_EDGE_FLAG_ALL_TYPE;
 	rlci->OcclusionLevel = level;
-    lstAppendItem(&rlc->Chain,rlci);
+	BLI_addtail(&rlc->Chain,rlci);
 
     //printf("a %f,%f %d\n", x, y, level);
 
@@ -96,13 +96,13 @@ LANPR_RenderLineChainItem* lanpr_append_render_line_chain_point(LANPR_RenderBuff
 
 LANPR_RenderLineChainItem* lanpr_push_render_line_chain_point(LANPR_RenderBuffer *rb, LANPR_RenderLineChain* rlc, float x, float y, char type, int level){
     LANPR_RenderLineChainItem* rlci;
-    rlci = memStaticAquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineChainItem));
+    rlci = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineChainItem));
 
     rlci->pos[0] = x;
     rlci->pos[1] = y;
     rlci->LineType = type&LANPR_EDGE_FLAG_ALL_TYPE;
 	rlci->OcclusionLevel = level;
-    lstPushItem(&rlc->Chain,rlci);
+    BLI_addhead(&rlc->Chain,rlci);
 
 	//printf("p %f,%f %d\n", x, y, level);
 
@@ -124,7 +124,7 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
 
 		float dist = dist_to_line_segment_v2(rlci->pos, from->pos, to->pos);
 		if (dist>dist_threshold && dist>max_dist) { max_dist = dist; max_rlci = rlci; }
-		//if (dist <= dist_threshold) lstRemoveItem(&rlc->Chain, (void*)rlci);
+		//if (dist <= dist_threshold) BLI_remlink(&rlc->Chain, (void*)rlci);
     }
 
 	if (!max_rlci) {
@@ -132,7 +132,7 @@ void lanpr_reduce_render_line_chain_recursive(LANPR_RenderLineChain* rlc, LANPR_
 		for (rlci = from->Item.pNext; rlci != to; rlci = next_rlci) {
 			next_rlci = rlci->Item.pNext;
 			if (next_rlci && (next_rlci->OcclusionLevel != rlci->OcclusionLevel || next_rlci->LineType != rlci->LineType)) continue;
-			lstRemoveItem(&rlc->Chain, (void*)rlci);
+			BLI_remlink(&rlc->Chain, (void*)rlci);
 		}
 	}else {
 		if (from->Item.pNext != max_rlci) lanpr_reduce_render_line_chain_recursive(rlc, from, max_rlci, dist_threshold);
@@ -148,7 +148,7 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
     LANPR_BoundingArea* ba;
     LANPR_RenderLineSegment* rls;
 
-    for(rl = rb->AllRenderLines.pFirst; rl;rl=rl->Item.pNext){
+    for(rl = rb->AllRenderLines.first; rl;rl=rl->Item.pNext){
 
         if((!(rl->Flags&LANPR_EDGE_FLAG_ALL_TYPE)) || (rl->Flags & LANPR_EDGE_FLAG_CHAIN_PICKED)) continue;
 
@@ -163,7 +163,7 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
         // step 1: grow left
         ba = lanpr_get_point_bounding_area(rb,rl->L->FrameBufferCoord[0], rl->L->FrameBufferCoord[1]);
         new_rv = rl->L;
-		rls = rl->Segments.pFirst;
+		rls = rl->Segments.first;
         lanpr_push_render_line_chain_point(rb,rlc,new_rv->FrameBufferCoord[0],new_rv->FrameBufferCoord[1],rl->Flags, rls->OcclusionLevel);
         while(ba &&(new_rl = lanpr_get_connected_render_line(ba,new_rv,&new_rv))){
             new_rl->Flags |= LANPR_EDGE_FLAG_CHAIN_PICKED;
@@ -171,14 +171,14 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
             int last_occlusion;
             
             if(new_rv==new_rl->L){
-                for(rls = new_rl->Segments.pLast; rls;rls=rls->Item.pPrev){
+                for(rls = new_rl->Segments.last; rls;rls=rls->Item.pPrev){
                     float px,py;
                     px = tnsLinearItp(new_rl->L->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[0], rls->at);
                     py = tnsLinearItp(new_rl->L->FrameBufferCoord[1], new_rl->R->FrameBufferCoord[1], rls->at);
                     lanpr_push_render_line_chain_point(rb,rlc,px,py, new_rl->Flags, rls->OcclusionLevel);
                 }
             }elif(new_rv==new_rl->R){
-                rls = new_rl->Segments.pFirst;
+                rls = new_rl->Segments.first;
                 last_occlusion = rls->OcclusionLevel;
                 rls=rls->Item.pNext;
                 for(rls; rls; rls= rls->Item.pNext){
@@ -194,7 +194,7 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
         }
 
         // step 2: this line
-		rls = rl->Segments.pFirst;
+		rls = rl->Segments.first;
         for(rls = rls->Item.pNext; rls;rls=rls->Item.pNext){
             float px,py;
             px = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
@@ -214,16 +214,16 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
             int last_occlusion;
 
 			// fix leading vertex type
-			rlci = rlc->Chain.pLast;
+			rlci = rlc->Chain.last;
 			rlci->LineType = new_rl->Flags&LANPR_EDGE_FLAG_ALL_TYPE;
             
 			if (new_rv == new_rl->L) {
-				rls = new_rl->Segments.pLast;
+				rls = new_rl->Segments.last;
 				last_occlusion = rls->OcclusionLevel;
 				rlci->OcclusionLevel = last_occlusion;
 				rls = rls->Item.pPrev;
 				if (rls) last_occlusion = rls->OcclusionLevel;
-				for (rls = new_rl->Segments.pLast; rls; rls = rls->Item.pPrev) {
+				for (rls = new_rl->Segments.last; rls; rls = rls->Item.pPrev) {
 					float px, py;
 					px = tnsLinearItp(new_rl->L->FrameBufferCoord[0], new_rl->R->FrameBufferCoord[0], rls->at);
 					py = tnsLinearItp(new_rl->L->FrameBufferCoord[1], new_rl->R->FrameBufferCoord[1], rls->at);
@@ -231,7 +231,7 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
 					lanpr_append_render_line_chain_point(rb, rlc, px, py, new_rl->Flags, last_occlusion);
 				}
 			}elif(new_rv == new_rl->R) {
-				rls = new_rl->Segments.pFirst;
+				rls = new_rl->Segments.first;
 				last_occlusion = rls->OcclusionLevel;
 				rlci->OcclusionLevel = last_occlusion;
 				rls = rls->Item.pNext;
@@ -249,19 +249,19 @@ void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_thre
 
 		//LANPR_RenderLineChainItem* rlci;
 		//printf("line:\n");
-		//for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+		//for (rlci = rlc->Chain.first; rlci; rlci = rlci->Item.pNext) {
 		//	printf("  %f,%f %d\n", rlci->pos[0],rlci->pos[1], rlci->OcclusionLevel);
 		//}
 		//printf("--------\n");
 
-        //lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.pFirst, rlc->Chain.pLast, dist_threshold);
+        //lanpr_reduce_render_line_chain_recursive(rlc,rlc->Chain.first, rlc->Chain.last, dist_threshold);
     }
 }
 
 int lanpr_count_chain(LANPR_RenderLineChain* rlc){
     LANPR_RenderLineChainItem* rlci;
     int Count = 0;
-	for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+	for (rlci = rlc->Chain.first; rlci; rlci = rlci->Item.pNext) {
         Count++;
     }
     return Count;
@@ -274,9 +274,9 @@ float lanpr_compute_chain_length(LANPR_RenderLineChain* rlc, float* lengths, int
 	float dist;
 	float last_point[2];
 
-	rlci = rlc->Chain.pFirst;
+	rlci = rlc->Chain.first;
 	copy_v2_v2(last_point, rlci->pos);
-	for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+	for (rlci = rlc->Chain.first; rlci; rlci = rlci->Item.pNext) {
 		dist = len_v2v2(rlci->pos, last_point);
 		offset_accum += dist;
 		lengths[begin_index + i] = offset_accum;
@@ -318,7 +318,7 @@ void lanpr_chain_generate_draw_command(LANPR_RenderBuffer *rb){
 
 	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
 
-    for(rlc = rb->Chains.pFirst; rlc;rlc=rlc->Item.pNext){
+    for(rlc = rb->Chains.first; rlc;rlc=rlc->Item.pNext){
 		int count = lanpr_count_chain(rlc);
 		//printf("seg contains %d verts\n", count);
 		vert_count += count;
@@ -331,11 +331,11 @@ void lanpr_chain_generate_draw_command(LANPR_RenderBuffer *rb){
     GPUIndexBufBuilder elb;
 	GPU_indexbuf_init_ex(&elb, GPU_PRIM_LINES_ADJ, vert_count*4, vert_count, true);// elem count will not exceed vert_count
 
-    for(rlc = rb->Chains.pFirst; rlc; rlc=rlc->Item.pNext){
+    for(rlc = rb->Chains.first; rlc; rlc=rlc->Item.pNext){
 
 		total_length = lanpr_compute_chain_length(rlc, lengths, i);
 
-		for (rlci = rlc->Chain.pFirst; rlci; rlci = rlci->Item.pNext) {
+		for (rlci = rlc->Chain.first; rlci; rlci = rlci->Item.pNext) {
 
 			length_target[0] = lengths[i];
 			length_target[1] = total_length - lengths[i];
@@ -349,8 +349,8 @@ void lanpr_chain_generate_draw_command(LANPR_RenderBuffer *rb){
 			arg = (int)rlci->OcclusionLevel;
 			GPU_vertbuf_attr_set(vbo, attr_id.level, i, &arg);
 
-			if (rlci == rlc->Chain.pLast) {
-				if (rlci->Item.pPrev == rlc->Chain.pFirst) {
+			if (rlci == rlc->Chain.last) {
+				if (rlci->Item.pPrev == rlc->Chain.first) {
 					length_target[1] = total_length;
 					GPU_vertbuf_attr_set(vbo, attr_id.uvs, i, length_target);
 				}
@@ -358,12 +358,12 @@ void lanpr_chain_generate_draw_command(LANPR_RenderBuffer *rb){
 				continue; 
 			}
 
-			if (rlci == rlc->Chain.pFirst) {
-				if (rlci->Item.pNext == rlc->Chain.pLast) GPU_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, vert_count);
+			if (rlci == rlc->Chain.first) {
+				if (rlci->Item.pNext == rlc->Chain.last) GPU_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, vert_count);
 				else GPU_indexbuf_add_line_adj_verts(&elb, vert_count, i, i + 1, i + 2);
 			}
 			else {
-				if (rlci->Item.pNext == rlc->Chain.pLast) GPU_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, vert_count);
+				if (rlci->Item.pNext == rlc->Chain.last) GPU_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, vert_count);
 				else GPU_indexbuf_add_line_adj_verts(&elb, i-1, i, i + 1, i + 2);
 			}
 

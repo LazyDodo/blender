@@ -50,152 +50,41 @@ typedef int tnsVector2i[2];
 #define DBL_EDGE_LIM 1e-9
 
 
-typedef struct _nListSingle nListSingle;
-struct _nListSingle {
-	void *pNext;
-};
-
-typedef struct _nListHandle nListHandle;
-struct _nListHandle {
-	void *pFirst;
-	void *pLast;
-};
-
-typedef struct _nListWithPivot nListWithPivot;
-struct _nListWithPivot {
-	void *pFirst;
-	void *pLast;
-	void *Pivot;
-};
-
 typedef struct _nListItem nListItem;
 struct _nListItem {
-	void *pPrev;
 	void *pNext;
+	void *pPrev;
 };
 
 typedef struct _nListItem2 nListItem2;
 struct _nListItem2 {
 	void *O1;
 	void *O2;
-	void *pPrev;
 	void *pNext;
-};
-
-typedef struct _nListItem3 nListItem3;
-struct _nListItem3 {
-	void *O1;
-	void *O2;
-	void *O3;
-	void *O4;
 	void *pPrev;
-	void *pNext;
 };
 
 typedef struct _nListItemPointer nListItemPointer;
 struct _nListItemPointer {
-	void *pPrev;
 	void *pNext;
+	void *pPrev;
 	void *p;
 };
-
-NEED_STRUCTURE(nSafeString);
-STRUCTURE(nAuthorInfo)
-{
-	nListItem Item;
-	nSafeString *Name;
-	nSafeString *CopyrightString;
-};
-STRUCTURE(nTimeInfo)
-{
-	u16bit Year;//Also Used As Timer [ms] counter
-	u8bit Month;
-	u8bit Day;
-	u8bit Hour;
-	u8bit Minute;
-	u8bit Second;
-};
-
-NEED_STRUCTURE(nPropContainer);
-
-NEED_STRUCTURE(nDBInst);
-
-typedef void (*nUserRemoveFunc)(void *, void *);//User,to be Destroyed
-NEED_STRUCTURE(nProp);
-typedef struct _nItemUserLinker nItemUserLinker;
-struct _nItemUserLinker {
-	nListItemPointer Pointer;
-	nUserRemoveFunc Remove;
-	nProp *Which;
-	unsigned int FrameDistinguish;
-};
-typedef struct _nItemUsingLinker nItemUsingLinker;
-struct _nItemUsingLinker {
-	void *pNext;
-	void *p;
-};
-
-STRUCTURE(nHyperLevel1)
-{
-	void *pPrev;
-	void *pNext;
-
-	void *SecondPrev;
-	void *SecondNext;
-
-	nDBInst *DBInst;
-
-	nListHandle Users;
-};
-
-typedef struct _nElementListItem nElementListItem;
-struct _nElementListItem {
-	nListItem Item;
-	void *Ext;
-};
-
-typedef struct _nListNonRecursiveRoot nListNonRecursiveRoot;
-struct _nListNonRecursiveRoot {
-	nListHandle NSItems;
-};
-
-typedef int (*nCompareFunc)(void *, void *);
-typedef void (*nListDoFunc)(void *);
-typedef void (*nListNonRecursiveDoFunc)(nListNonRecursiveRoot *, void *, void *);//item,custom
-typedef void (*nListNonRecursiveCopyFunc)(nListNonRecursiveRoot *, void *, void *, void *);//old,new,custom
-typedef void (*nListDoFuncArgp)(void *, void *);
-typedef void (*nCopyListFunc)(void *, void *);
-typedef void (*nListCustomDataRemover)(void *);
-//typedef void(*ListMatcherFunc)(void*,void*);//gotten value,enumed curent lst item.
-
-typedef struct _nListNonRecursiveItem nListNonRecursiveItem;
-struct _nListNonRecursiveItem {
-	nListItem Item;
-	nListHandle handle;
-	nListHandle            *ToHandle;//This Is Pointer!
-	nListNonRecursiveDoFunc func;
-	nListNonRecursiveCopyFunc CopyFunc;
-	nListCustomDataRemover remover;
-	void *CustomData;
-	int bFreeList;
-	int SizeEachNode;
-};
-
 
 typedef struct _nHash256 nHash256;
 struct _nHash256 {
-	nListHandle Entries[256];
+	ListBase Entries[256];
 };
 
 typedef struct _nHash65536 nHash65536;
 struct _nHash65536 {
-	nListHandle Entries[65536];
+	ListBase Entries[65536];
 	//nHash256 HashHandles[256];
 };
 
 typedef struct _nHash16M nHash16M;
 struct _nHash16M {
-	nListHandle Entries[16777216];
+	ListBase Entries[16777216];
 };
 
 typedef struct _nSafeString nSafeString;
@@ -206,13 +95,13 @@ struct _nSafeString {
 
 typedef struct _nSafeStringCollection nSafeStringCollection;
 struct _nSafeStringCollection {
-	nListHandle SafeStrings;
+	ListBase SafeStrings;
 };
 
 typedef struct _nStringSplitor nStringSplitor;
 struct _nStringSplitor {
 	int NumberParts;
-	nListHandle parts;
+	ListBase parts;
 };
 
 typedef struct _nStringPart nStringPart;
@@ -232,7 +121,7 @@ STRUCTURE(nStringLine)
 
 STRUCTURE(nStringEdit)
 {
-	nListHandle Lines;
+	ListBase Lines;
 	int CusorLine, CusorBefore;
 	int BeginLine, BeginBefore;
 	int EndLine, EndBefore;
@@ -249,14 +138,14 @@ STRUCTURE(nMemoryPool)
 	nListItem Item;
 	int NodeSize;
 	int CountPerPool;
-	nListHandle Pools;
+	ListBase Pools;
 };
 
 STRUCTURE(nMemoryPoolPart)
 {
 	nListItem Item;
-	nListHandle MemoryNodes;
-	nListHandle FreeMemoryNodes;
+	ListBase MemoryNodes;
+	ListBase FreeMemoryNodes;
 	nMemoryPool *PoolRoot;
 	//  <------Mem Begin Here.
 };
@@ -281,7 +170,7 @@ STRUCTURE(nStaticMemoryPoolNode)
 STRUCTURE(nStaticMemoryPool)
 {
 	int EachSize;
-	nListHandle Pools;
+	ListBase Pools;
 	SpinLock csMem;
 };
 
@@ -312,223 +201,73 @@ int nutFloatCompare(real l, real r);
 int nutSameAddress(void *l, void *r);
 
 
-void lstEmptyDirect(nListHandle *h);
+void list_handle_empty(ListBase *h);
 
-void lstPushSingle(void **Head, nListSingle *Item);
-void *lstPopSingle(void **Head, nListSingle *Item);
+void list_clear_prev_next(nListItem *li);
 
-void lstClearPrevNext(nListItem *li);
-BLI_INLINE void lstAppendItem(nListHandle *Handle, void *Item) {
-
-	nListItem *li = Item;
-
-	li->pNext = li->pPrev = 0;
-
-	if (!Handle->pFirst)
-		Handle->pFirst = Item;
-
-	if (Handle->pLast)
-		((nListItem *)Handle->pLast)->pNext = li;
-
-	li->pPrev = Handle->pLast;
-	li->pNext = 0;
-	Handle->pLast = li;
-
-};
-BLI_INLINE void lstPushItem(nListHandle *Handle, void *Item) {
-
-	nListItem *li = Item;
-
-	li->pNext = li->pPrev = 0;
-
-	if (!Handle->pLast)
-		Handle->pLast = Item;
-
-	li->pNext = Handle->pFirst;
-
-	if (Handle->pFirst)
-		((nListItem *)Handle->pFirst)->pPrev = Item;
-
-	Handle->pFirst = li;
-
-};
-BLI_INLINE void *lstPopItem(nListHandle *Handle) {
-	void *popitem;
-	nListItem *next;
-	if (!Handle->pFirst)
-		return 0;
-
-	popitem = Handle->pFirst;
-
-	next = ((nListItem *)Handle->pFirst)->pNext;
-	if (!next) {
-		Handle->pFirst = 0;
-		Handle->pLast = 0;
-	}
-	else {
-		Handle->pFirst = next;
-		if (next)
-			next->pPrev = 0;
-	};
-
-	return popitem;
-};
-
-void  lstAppendItem2(nListHandle *Handle, void *Item);
-void *lstPopItem2(nListHandle *Handle);
-void  lstPushItem2(nListHandle *Handle, void *Item);
-void  lstAppendItem3(nListHandle *Handle, void *Item);
-void *lstPopItem3(nListHandle *Handle);
-void  lstPushItem3(nListHandle *Handle, void *Item);
-
-BLI_INLINE int lstRemoveItem(nListHandle *Handle, nListItem *li) {
-	if (!li->pPrev && Handle->pFirst != li) return 0;
-
-	if (!li->pPrev)
-		Handle->pFirst = li->pNext;
-	else
-		((nListItem *)li->pPrev)->pNext = li->pNext;
-
-	if (!li->pNext)
-		Handle->pLast = li->pPrev;
-	else
-		((nListItem *)li->pNext)->pPrev = li->pPrev;
-
-	li->pNext = li->pPrev = 0;
-
-	return 1;
-};
-int lstRemoveItem2(nListHandle *Handle, nListItem2 *li);
-
-int lstRemoveSegment(nListHandle *Handle, nListItem *Begin, nListItem *End);
-void lstInsertItemBefore(nListHandle *Handle, nListItem *toIns, nListItem *pivot);
-void lstInsertItemAfter(nListHandle *Handle, nListItem *toIns, nListItem *pivot);
-void lstInsertSegmentBefore(nListHandle *Handle, nListItem *Begin, nListItem *End, nListItem *pivot);
-void lstInsertSegmentAfter(nListHandle *Handle, nListItem *Begin, nListItem *End, nListItem *pivot);
-int   lstHaveItemInList(nListHandle *Handle);
-void *lstGetTop(nListHandle *Handle);
-
-void lstPushSimpleItem(void **first, nItemUserLinker *iul);
-void *lstPushItemUser(void **first, void *p);
-void *lstPushItemUsing(void **first, void *p);
-
-void *lstAppendPointerOnly(nListHandle *h, void *p);
-void *lstAppendPointerSizedOnly(nListHandle *h, void *p, int size);
-void *lstPushPointerOnly(nListHandle *h, void *p);
-void *lstPushPointerSizedOnly(nListHandle *h, void *p, int size);
-
-void *lstAppendPointer(nListHandle *h, void *p);
-void *lstAppendPointerSized(nListHandle *h, void *p, int size);
-void *lstPushPointer(nListHandle *h, void *p);
-void *lstPushPointerSized(nListHandle *h, void *p, int size);
-
-void *lstAppendPointerStatic(nListHandle *h, nStaticMemoryPool *smp, void *p);
-void *lstAppendPointerStaticSized(nListHandle *h, nStaticMemoryPool *smp, void *p, int size);
-void *lstPushPointerStatic(nListHandle *h, nStaticMemoryPool *smp, void *p);
-void *lstPushPointerStaticSized(nListHandle *h, nStaticMemoryPool *smp, void *p, int size);
-
-void *lstPopPointerOnly(nListHandle *h);
-void lstRemovePointerItemOnly(nListHandle *h, nListItemPointer *lip);
-void lstRemovePointerOnly(nListHandle *h, void *p);
-void lstClearPointerOnly(nListHandle *h);
-void lstGeneratePointerListOnly(nListHandle *from1, nListHandle *from2, nListHandle *to);
-
-void *lstPopPointer(nListHandle *h);
-void lstRemovePointerItem(nListHandle *h, nListItemPointer *lip);
-void lstRemovePointer(nListHandle *h, void *p);
-void lstClearPointer(nListHandle *h);
-void lstGeneratePointerList(nListHandle *from1, nListHandle *from2, nListHandle *to);
-
-void lstCopyHandle(nListHandle *target, nListHandle *src);
-
-void *lstAppendPointerStaticPool(nStaticMemoryPool *mph, nListHandle *h, void *p);
-void *lstPopPointerNoFree(nListHandle *h);
-void lstRemovePointerItemNoFree(nListHandle *h, nListItemPointer *lip);
-
-void lstMoveUp(nListHandle *h, nListItem *li);
-void lstMoveDown(nListHandle *h, nListItem *li);
-
-void  lstForAllItemsDo(nListDoFunc func, nListHandle *hList);
-void lstForAllItemsDoLNRR(nListNonRecursiveDoFunc func, nListHandle *hList);
-void lstForAllItemsDo_DirectFree(nListDoFunc func, nListHandle *hList);
-void lstForAllItemsDo_arg_ptr(nListDoFuncArgp func, nListHandle *hList, void *arg);
-void lstForAllItemsDo_NonRecursive_Root(nListHandle *FirstHandle, nListNonRecursiveDoFunc func, int bFreeItem, void *custom_data, nListCustomDataRemover remover);
-void lstCopy_NonRecursive_Root(nListHandle *FromHandle, nListHandle *ToHandle, int SizeEachNode, nListNonRecursiveCopyFunc func, void *custom_data, nListCustomDataRemover remover);
-void lstAddNonRecursiveListHandle(nListNonRecursiveRoot *root, nListHandle *newHandle, nListNonRecursiveDoFunc nrFunc, int bFreeList, void *custom_data, nListCustomDataRemover remover);
-void lstAddNonRecursiveListCopier(nListNonRecursiveRoot *root, nListHandle *oldHandle, nListHandle *newHandle, int sizeEach, nListNonRecursiveCopyFunc nrCpyFunc, void *custom_data, nListCustomDataRemover remover);
-void *lstFindItem(void *CmpData, nCompareFunc func, nListHandle *hList);
-void lstCombineLists(nListHandle *dest, nListHandle *src);
-void lstDestroyList(nListHandle *hlst);
-void *lstReMatch(nListHandle *SearchHandle, nListHandle *CurrentHandle, void *ItemToFind);
-typedef int (*MatcherFunc)(void *, void *);
-void *lstReMatchEx(nListHandle *SearchHandle, nListHandle *CurrentHandle, void *ItemToFind, MatcherFunc func);
-
-void lstAddElement(nListHandle *hlst, void *ext);
-void lstDestroyElementList(nListHandle *hlst);
+void list_insert_item_before(ListBase *Handle, nListItem *toIns, nListItem *pivot);
+void list_insert_item_after(ListBase *Handle, nListItem *toIns, nListItem *pivot);
+void list_insert_segment_before(ListBase *Handle, nListItem *Begin, nListItem *End, nListItem *pivot);
+void lstInsertSegmentAfter(ListBase *Handle, nListItem *Begin, nListItem *End, nListItem *pivot);
+int   lstHaveItemInList(ListBase *Handle);
+void *lst_get_top(ListBase *Handle);
 
 
-nListItem *hsh256FindItemCSTR(nHash256 *hash, nCompareFunc func, char *buckle);
-unsigned char hsh256DoHashCSTR(char *buckle);
+void *list_append_pointer_only(ListBase *h, void *p);
+void *list_append_pointer_sized_only(ListBase *h, void *p, int size);
+void *list_push_pointer_only(ListBase *h, void *p);
+void *list_push_pointer_sized_only(ListBase *h, void *p, int size);
 
+void *list_append_pointer(ListBase *h, void *p);
+void *list_append_pointer_sized(ListBase *h, void *p, int size);
+void *list_push_pointer(ListBase *h, void *p);
+void *list_push_pointer_sized(ListBase *h, void *p, int size);
 
-void memResetByteCount();
-int memGetByteCount();
-void memInitPool(nMemoryPool *mph, int NodeSize);
-void memInitPoolSmall(nMemoryPool *mph, int NodeSize);
-nMemoryPoolPart *memNewPoolPart(nMemoryPool *mph);
+void *list_append_pointer_static(ListBase *h, nStaticMemoryPool *smp, void *p);
+void *list_append_pointer_static_sized(ListBase *h, nStaticMemoryPool *smp, void *p, int size);
+void *list_push_pointer_static(ListBase *h, nStaticMemoryPool *smp, void *p);
+void *list_push_pointer_static_sized(ListBase *h, nStaticMemoryPool *smp, void *p, int size);
+
+void *list_pop_pointer_only(ListBase *h);
+void list_remove_pointer_item_only(ListBase *h, nListItemPointer *lip);
+void list_remove_pointer_only(ListBase *h, void *p);
+void list_clear_pointer_only(ListBase *h);
+void list_generate_pointer_list_only(ListBase *from1, ListBase *from2, ListBase *to);
+
+void *list_pop_pointer(ListBase *h);
+void list_remove_pointer_item(ListBase *h, nListItemPointer *lip);
+void list_remove_pointer(ListBase *h, void *p);
+void list_clear_pointer(ListBase *h);
+void list_generate_pointer_list(ListBase *from1, ListBase *from2, ListBase *to);
+
+void list_copy_handle(ListBase *target, ListBase *src);
+
+void *list_append_pointer_static_pool(nStaticMemoryPool *mph, ListBase *h, void *p);
+void *list_pop_pointer_no_free(ListBase *h);
+void list_remove_pointer_item_no_free(ListBase *h, nListItemPointer *lip);
+
+void list_move_up(ListBase *h, nListItem *li);
+void list_move_down(ListBase *h, nListItem *li);
+
+void lstAddElement(ListBase *hlst, void *ext);
+void lstDestroyElementList(ListBase *hlst);
+
+void mem_init_pool(nMemoryPool *mph, int NodeSize);
+void mem_init_pool_small(nMemoryPool *mph, int NodeSize);
+nMemoryPoolPart *mem_new_pool_part(nMemoryPool *mph);
 
 #define memAquireOnly(a) \
 	MEM_callocN(a, "NONE")
 
 #define memAquire  memAquireOnly
 
-void memAssignDBInst(void *mem, nDBInst *DBInst);
-nDBInst *memGetDBInst(void *mem);
-void memFree(void *Data);
-void memDestroyPool(nMemoryPool *Handle);
+void mem_free(void *Data);
+void mem_destroy_pool(nMemoryPool *Handle);
 
-nStaticMemoryPoolNode *memNewStaticPool(nStaticMemoryPool *smp);
-void *memStaticAquire(nStaticMemoryPool *smp, int size);
-void *memStaticAquireThread(nStaticMemoryPool *smp, int size);
-void *memStaticDestroy(nStaticMemoryPool *smp);
-
-int  strGetStringTerminateBy(char *content, char terminator, char *Out);
-
-int strHeadOfStringMatch(char *Str, char *SubStr);
-int strSkipSegmet(char **pivot, char *content);
-char *strgetLastSegmentSeperateBy(char *Content, char Seperator);
-void strDiscardLastSegmentSeperateBy(char *Content, char Seperator);
-void strDiscardSameBeginningSeperatedBy(char *s1, char *s2, char **Result1, char **Result2, char Seperator);
-int strCountSegmentSeperateBy(char *Content, char Seperator);
-void strMakeDifferentName(char *Target);
-
-void strReplaceCharacter(char *Str, char Find, char Replace);
-void strToUpperCase(char *Str);
-void strToLowerCase(char *Str);
-
-nStringSplitor *strSplitPath(char *path);
-int strMakeInstructions(nStringSplitor **result, char *content);
-nStringPart *strGetArgument(nStringSplitor *ss, char *content);
-char *strGetArgumentString(nStringSplitor *ss, char *content);
-int strArgumentMatch(nStringSplitor *ss, char *id, char *value);
-int strDestroyStringSplitor(nStringSplitor **ss);
-
-int strGetIntSimple(char *content);
-real strGetFloatSimple(char *content);
-
-void strConvInt_CString(int src, char *dest, int lenth);
-void strConvFloat_CString(real src, char *dest, int lenth);
-
-void strCopyFull(char *dest, char *src);
-void strCopySized(char *dest, int LenthLim, char *src);
-void strPrintFloatAfter(char *dest, int LenthLim, int bits, real data);
-void strPrintIntAfter(char *dest, int LenthLim, int data);
-void strToWideChar(wchar_t *destBuf, char *srcBuf);
-
-int strIsTheSame(char *src, char *dest);
-
-void strSafeDestroy(nSafeString **ss);
-void strSafeSet(nSafeString **ss, char *Content);
+nStaticMemoryPoolNode *mem_new_static_pool(nStaticMemoryPool *smp);
+void *mem_static_aquire(nStaticMemoryPool *smp, int size);
+void *mem_static_aquire_thread(nStaticMemoryPool *smp, int size);
+void *mem_static_destroy(nStaticMemoryPool *smp);
 
 void tMatObmatTo16d(float obmat[4][4], tnsMatrix44d out);
 

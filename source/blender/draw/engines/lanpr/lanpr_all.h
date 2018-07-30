@@ -264,16 +264,16 @@ typedef struct LANPR_RenderTaskInfo {
 	int ThreadID;
 
 	struct nListItemPointer *Contour;
-	nListHandle ContourPointers;
+	ListBase ContourPointers;
 
 	struct nListItemPointer *Intersection;
-	nListHandle IntersectionPointers;
+	ListBase IntersectionPointers;
 
 	struct nListItemPointer *Crease;
-	nListHandle CreasePointers;
+	ListBase CreasePointers;
 
 	struct nListItemPointer *Material;
-	nListHandle MaterialPointers;
+	ListBase MaterialPointers;
 
 } LANPR_RenderTaskInfo;
 
@@ -304,12 +304,12 @@ typedef struct LANPR_RenderBuffer {
 	//u32bit             BaVBO;
 	//u32bit           BaFillVBO;
 
-	nListHandle VertexBufferPointers;
-	nListHandle LineBufferPointers;
-	nListHandle TriangleBufferPointers;
-	nListHandle AllRenderLines;
+	ListBase VertexBufferPointers;
+	ListBase LineBufferPointers;
+	ListBase TriangleBufferPointers;
+	ListBase AllRenderLines;
 
-	nListHandle IntersectingVertexBuffer;
+	ListBase IntersectingVertexBuffer;
 
 	struct GPUBatch *DPIXIntersectionTransformBatch;
 	struct GPUBatch *DPIXIntersectionBatch;
@@ -330,29 +330,29 @@ typedef struct LANPR_RenderBuffer {
 	u32bit ContourCount;
 	u32bit ContourProcessed;
 	nListItemPointer *ContourManaged;
-	nListHandle Contours;
+	ListBase Contours;
 
 	u32bit IntersectionCount;
 	u32bit IntersectionProcessed;
 	nListItemPointer *IntersectionManaged;
-	nListHandle IntersectionLines;
+	ListBase IntersectionLines;
 
 	u32bit CreaseCount;
 	u32bit CreaseProcessed;
 	nListItemPointer *CreaseManaged;
-	nListHandle CreaseLines;
+	ListBase CreaseLines;
 
 	u32bit MaterialLineCount;
 	u32bit MaterialProcessed;
 	nListItemPointer *MaterialManaged;
-	nListHandle MaterialLines;
+	ListBase MaterialLines;
 
 	u32bit EdgeMarkCount;
 	u32bit EdgeMarkProcessed;
 	nListItemPointer *EdgeMarkManaged;
-	nListHandle EdgeMarks;
+	ListBase EdgeMarks;
 
-	nListHandle Chains;
+	ListBase Chains;
 	GPUBatch*  ChainDrawBatch;
 	DRWShadingGroup* ChainShgrp;
 
@@ -407,7 +407,7 @@ typedef struct LANPR_RenderTriangle {
 	real GC[3];
 	//struct BMFace *F;
 	short MaterialID;
-	nListHandle IntersectingVerts;
+	ListBase IntersectingVerts;
 	char CullStatus;
 	struct LANPR_RenderTriangle *Testing;   //Should Be tRT** Testing[NumOfThreads]
 }LANPR_RenderTriangle;
@@ -460,7 +460,7 @@ typedef struct LANPR_RenderLine {
 	nListItem Item;
 	struct LANPR_RenderVert *L, *R;
 	struct LANPR_RenderTriangle *TL, *TR;
-	nListHandle Segments;
+	ListBase Segments;
 	//tnsEdge*       Edge;//should be edge material
 	//tnsRenderTriangle* Testing;//Should Be tRT** Testing[NumOfThreads]
 	char MinOcclude;
@@ -470,7 +470,7 @@ typedef struct LANPR_RenderLine {
 
 typedef struct LANPR_RenderLineChain {
 	nListItem   Item;
-	nListHandle Chain;
+	ListBase Chain;
 	//int         SegmentCount;  // we count before draw cmd.
 	float       Length;          // calculated before draw cmd.
 }LANPR_RenderLineChain;
@@ -488,15 +488,15 @@ typedef struct LANPR_BoundingArea {
 
 	struct LANPR_BoundingArea *Child;//1,2,3,4 quadrant
 
-	nListHandle LP;
-	nListHandle RP;
-	nListHandle UP;
-	nListHandle BP;
+	ListBase LP;
+	ListBase RP;
+	ListBase UP;
+	ListBase BP;
 
 	int TriangleCount;
-	nListHandle LinkedTriangles;
-	nListHandle LinkedLines;
-	nListHandle LinkedChains;//reserved for multithread chainning
+	ListBase LinkedTriangles;
+	ListBase LinkedLines;
+	ListBase LinkedChains;//reserved for multithread chainning
 }LANPR_BoundingArea;
 
 
