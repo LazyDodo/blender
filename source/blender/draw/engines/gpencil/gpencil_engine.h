@@ -347,7 +347,7 @@ void GPENCIL_render_to_image(void *vedata, struct RenderEngine *engine, struct R
 	if ((lvl > 0) && (fbl->multisample_fb != NULL)) { \
 		DRW_stats_query_start("GP Multisample Resolve"); \
 		GPU_framebuffer_bind(fb); \
-		DRW_multisamples_resolve(txl->multisample_depth, txl->multisample_color); \
+		DRW_multisamples_resolve(txl->multisample_depth, txl->multisample_color, true); \
 		DRW_stats_query_end(); \
 	} \
 }
