@@ -3010,7 +3010,7 @@ GPUBatch *DRW_cache_curve_edge_wire_get(Object *ob)
 	BLI_assert(ob->type == OB_CURVE);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_wire_edge(cu, ob->curve_cache);
+	return DRW_curve_batch_cache_get_wire_edge(cu, ob->runtime.curve_cache);
 }
 
 GPUBatch *DRW_cache_curve_edge_normal_get(Object *ob, float normal_size)
@@ -3018,7 +3018,7 @@ GPUBatch *DRW_cache_curve_edge_normal_get(Object *ob, float normal_size)
 	BLI_assert(ob->type == OB_CURVE);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_normal_edge(cu, ob->curve_cache, normal_size);
+	return DRW_curve_batch_cache_get_normal_edge(cu, ob->runtime.curve_cache, normal_size);
 }
 
 GPUBatch *DRW_cache_curve_edge_overlay_get(Object *ob)
@@ -3042,7 +3042,7 @@ GPUBatch *DRW_cache_curve_surface_get(Object *ob)
 	BLI_assert(ob->type == OB_CURVE);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_triangles_with_normals(cu, ob->curve_cache);
+	return DRW_curve_batch_cache_get_triangles_with_normals(cu, ob->runtime.curve_cache);
 }
 
 /* Return list of batches */
@@ -3052,7 +3052,7 @@ GPUBatch **DRW_cache_curve_surface_shaded_get(
 	BLI_assert(ob->type == OB_CURVE);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_surface_shaded(cu, ob->curve_cache, gpumat_array, gpumat_array_len);
+	return DRW_curve_batch_cache_get_surface_shaded(cu, ob->runtime.curve_cache, gpumat_array, gpumat_array_len);
 }
 
 /** \} */
@@ -3088,7 +3088,7 @@ GPUBatch *DRW_cache_text_edge_wire_get(Object *ob)
 	BLI_assert(ob->type == OB_FONT);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_wire_edge(cu, ob->curve_cache);
+	return DRW_curve_batch_cache_get_wire_edge(cu, ob->runtime.curve_cache);
 }
 
 GPUBatch *DRW_cache_text_surface_get(Object *ob)
@@ -3098,7 +3098,7 @@ GPUBatch *DRW_cache_text_surface_get(Object *ob)
 	if (cu->editfont && (cu->flag & CU_FAST)) {
 		return NULL;
 	}
-	return DRW_curve_batch_cache_get_triangles_with_normals(cu, ob->curve_cache);
+	return DRW_curve_batch_cache_get_triangles_with_normals(cu, ob->runtime.curve_cache);
 }
 
 GPUBatch **DRW_cache_text_surface_shaded_get(
@@ -3109,7 +3109,7 @@ GPUBatch **DRW_cache_text_surface_shaded_get(
 	if (cu->editfont && (cu->flag & CU_FAST)) {
 		return NULL;
 	}
-	return DRW_curve_batch_cache_get_surface_shaded(cu, ob->curve_cache, gpumat_array, gpumat_array_len);
+	return DRW_curve_batch_cache_get_surface_shaded(cu, ob->runtime.curve_cache, gpumat_array, gpumat_array_len);
 }
 
 GPUBatch *DRW_cache_text_cursor_overlay_get(Object *ob)
@@ -3138,7 +3138,7 @@ GPUBatch *DRW_cache_surf_surface_get(Object *ob)
 	BLI_assert(ob->type == OB_SURF);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_triangles_with_normals(cu, ob->curve_cache);
+	return DRW_curve_batch_cache_get_triangles_with_normals(cu, ob->runtime.curve_cache);
 }
 
 /* Return list of batches */
@@ -3148,7 +3148,7 @@ GPUBatch **DRW_cache_surf_surface_shaded_get(
 	BLI_assert(ob->type == OB_SURF);
 
 	struct Curve *cu = ob->data;
-	return DRW_curve_batch_cache_get_surface_shaded(cu, ob->curve_cache, gpumat_array, gpumat_array_len);
+	return DRW_curve_batch_cache_get_surface_shaded(cu, ob->runtime.curve_cache, gpumat_array, gpumat_array_len);
 }
 
 /** \} */
