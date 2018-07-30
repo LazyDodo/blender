@@ -1103,7 +1103,7 @@ class _defs_gpencil_edit:
     def bend():
         return dict(
             text="Bend",
-            icon="ops.transform.bend",
+            icon="ops.gpencil.edit_bend",
             widget=None,
             keymap=(
                 ("transform.bend",
@@ -1116,7 +1116,7 @@ class _defs_gpencil_edit:
     def mirror():
         return dict(
             text="Mirror",
-            icon="ops.transform.mirror",
+            icon="ops.gpencil.edit_mirror",
             widget=None,
             keymap=(
                 ("transform.mirror",
@@ -1129,7 +1129,7 @@ class _defs_gpencil_edit:
     def shear():
         return dict(
             text="Shear",
-            icon="ops.transform.shear",
+            icon="ops.gpencil.edit_shear",
             widget=None,
             keymap=(
                 ("transform.shear",
@@ -1142,7 +1142,7 @@ class _defs_gpencil_edit:
     def tosphere():
         return dict(
             text="To Sphere",
-            icon="ops.transform.tospehere",
+            icon="ops.gpencil.edit_to_sphere",
             widget=None,
             keymap=(
                 ("transform.tosphere",
