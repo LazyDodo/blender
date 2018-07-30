@@ -65,6 +65,7 @@
 
 //TODO this modifier depends on OpenSubDiv. So if it's not compiled in, remove this modifier
 
+#ifdef WITH_OPENSUBDIV
 #include "opensubdiv_capi.h"
 #include "opensubdiv_converter_capi.h"
 #include "opensubdiv_evaluator_capi.h"
@@ -4324,6 +4325,8 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 	return result;
 }
 
+#endif /* WITH_OPENSUBDIV */
+
 /* MyBMesh */
 static void initData(ModifierData *md)
 {
@@ -4362,9 +4365,11 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
 		*/
 	}
 
+#ifdef WITH_OPENSUBDIV
 	if (!(result = mybmesh_do(mesh, mmd, cam_loc))) {
 		return mesh;
 	}
+#endif
 
 	return result;
 }
