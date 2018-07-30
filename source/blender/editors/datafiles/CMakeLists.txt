@@ -597,6 +597,10 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.gpencil.draw.eraser
 	ops.gpencil.draw.line
 	ops.gpencil.draw.poly
+	ops.gpencil.edit_bend
+	ops.gpencil.edit_mirror
+	ops.gpencil.edit_shear
+	ops.gpencil.edit_to_sphere
 	ops.gpencil.sculpt_clone
 	ops.gpencil.sculpt_grab
 	ops.gpencil.sculpt_pinch
