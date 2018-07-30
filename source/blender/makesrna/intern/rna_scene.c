@@ -6212,41 +6212,41 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	static const EnumPropertyItem DEBUG_rna_enum_lanpr_reload[] = {
-	    {0, "IDLE", NULL, "Idle", "Idle"},
-        {1, "RELOAD", NULL, "RELOAD", "Force reload the scene"},
-	    {0, NULL, 0, NULL, NULL}
-    };
+		{0, "IDLE", 0, "Idle", "Idle"},
+		{1, "RELOAD", 0, "RELOAD", "Force reload the scene"},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	static const EnumPropertyItem rna_enum_lanpr_master_mode[] = {
-		{LANPR_MASTER_MODE_SOFTWARE, "SOFTWARE", NULL, "Software", "Software edge calculation" },
-	    {LANPR_MASTER_MODE_DPIX, "DPIX", NULL, "DPIX", "DPIX GPU edge calculation"},
-        {LANPR_MASTER_MODE_SNAKE, "SNAKE", NULL, "Snake", "Image filter and GPU tracing method"},
-	    {0, NULL, 0, NULL, NULL}
-    };
+		{LANPR_MASTER_MODE_SOFTWARE, "SOFTWARE", 0, "Software", "Software edge calculation" },
+		{LANPR_MASTER_MODE_DPIX, "DPIX", 0, "DPIX", "DPIX GPU edge calculation"},
+		{LANPR_MASTER_MODE_SNAKE, "SNAKE", 0, "Snake", "Image filter and GPU tracing method"},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	static const EnumPropertyItem rna_enum_lanpr_enable_post_processing[] = {
-	    {LANPR_POST_PROCESSING_DISABLED, "DISABLED", NULL, "Disabled", "LANPR does not compute anything"},
-        {LANPR_POST_PROCESSING_ENABLED, "ENABLED", NULL, "Enabled", "LANPR will compute feature lines in image post processing"},
-	    {0, NULL, 0, NULL, NULL}
-    };
+		{LANPR_POST_PROCESSING_DISABLED, "DISABLED", 0, "Disabled", "LANPR does not compute anything"},
+		{LANPR_POST_PROCESSING_ENABLED, "ENABLED", 0, "Enabled", "LANPR will compute feature lines in image post processing"},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	static const EnumPropertyItem rna_enum_lanpr_display_thinning_result[] = {
-	    {LANPR_POST_PROCESSING_DISABLED, "DISABLED", NULL, "Edge Detection", "Display edge detector result"},
-        {LANPR_POST_PROCESSING_ENABLED, "ENABLED", NULL, "Thinning", "Apply thinning filters for vector usage"},
-	    {0, NULL, 0, NULL, NULL}
-    };
+		{LANPR_POST_PROCESSING_DISABLED, "DISABLED", 0, "Edge Detection", "Display edge detector result"},
+		{LANPR_POST_PROCESSING_ENABLED, "ENABLED", 0, "Thinning", "Apply thinning filters for vector usage"},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	static const EnumPropertyItem rna_enum_lanpr_use_same_taper[] = {
-	    {LANPR_USE_DIFFERENT_TAPER, "DISABLED", NULL, "Different", "Use different taper value"},
-        {LANPR_USE_SAME_TAPER, "ENABLED", NULL, "Same", "Use same taper value for both sides of the line"},
-	    {0, NULL, 0, NULL, NULL}
-    };
+		{LANPR_USE_DIFFERENT_TAPER, "DISABLED", 0, "Different", "Use different taper value"},
+		{LANPR_USE_SAME_TAPER, "ENABLED", 0, "Same", "Use same taper value for both sides of the line"},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	static const EnumPropertyItem rna_enum_lanpr_enable_tip_extend[] = {
-	    {LANPR_DISABLE_TIP_EXTEND, "DISABLED", NULL, "Disable", "Do not extend curve tips"},
-        {LANPR_ENABLE_TIP_EXTEND, "ENABLED", NULL, "Enable", "Extend curve tips to a user specified length"},
-	    {0, NULL, 0, NULL, NULL}
-    };
+		{LANPR_DISABLE_TIP_EXTEND, "DISABLED", 0, "Disable", "Do not extend curve tips"},
+		{LANPR_ENABLE_TIP_EXTEND, "ENABLED", 0, "Enable", "Extend curve tips to a user specified length"},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	srna = RNA_def_struct(brna, "SceneLANPR", NULL);
 	RNA_def_struct_sdna(srna, "SceneLANPR");
