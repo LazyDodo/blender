@@ -505,6 +505,7 @@ extern StructRNA RNA_RigidBodyJointConstraint;
 extern StructRNA RNA_SPHFluidSettings;
 extern StructRNA RNA_Scene;
 extern StructRNA RNA_SceneEEVEE;
+extern StructRNA RNA_SceneLANPR;
 extern StructRNA RNA_SceneObjects;
 extern StructRNA RNA_SceneRenderLayer;
 extern StructRNA RNA_SceneSequence;
