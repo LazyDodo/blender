@@ -66,7 +66,7 @@ class SceneButtonsPanel:
 
 class SCENE_PT_scene(SceneButtonsPanel, Panel):
     bl_label = "Scene"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
@@ -81,7 +81,7 @@ class SCENE_PT_scene(SceneButtonsPanel, Panel):
 
 class SCENE_PT_unit(SceneButtonsPanel, Panel):
     bl_label = "Units"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw_header_preset(self, context):
         SCENE_PT_units_length_presets.draw_panel_header(self.layout)
@@ -163,7 +163,7 @@ class SceneKeyingSetsPanel:
 class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
     bl_label = "Keying Sets"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
