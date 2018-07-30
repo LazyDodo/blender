@@ -806,7 +806,9 @@ void gp_stroke_convertcoords_tpoint(
  * Get drawing reference point for conversion or projection of the stroke
  * \param[out] r_vec : Reference point found
  */
-void ED_gp_get_drawing_reference(View3D *v3d, Scene *scene, Object *ob, bGPDlayer *gpl, char align_flag, float r_vec[3])
+void ED_gp_get_drawing_reference(
+        View3D *v3d, Scene *scene, Object *ob, bGPDlayer *UNUSED(gpl),
+        char align_flag, float r_vec[3])
 {
 	const float *fp = ED_view3d_cursor3d_get(scene, v3d)->location;
 

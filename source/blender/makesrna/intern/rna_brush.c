@@ -483,7 +483,7 @@ static void rna_Brush_icon_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Poi
 }
 
 static const EnumPropertyItem *rna_DynamicGpencil_type_itemf(
-	bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+	bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	Main *bmain = CTX_data_main(C);
 	EnumPropertyItem *item = NULL, item_tmp = { 0 };

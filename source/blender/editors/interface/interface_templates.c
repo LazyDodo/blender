@@ -644,7 +644,7 @@ static uiBut *template_id_def_new_but(
 static void template_ID(
         bContext *C, uiLayout *layout, TemplateID *template_ui, StructRNA *type, int flag,
         const char *newop, const char *openop, const char *unlinkop,
-		float scale, const bool live_icon)
+		const bool live_icon)
 {
 	uiBut *but;
 	uiBlock *block;
@@ -923,7 +923,7 @@ static void ui_template_id(
 		}
 		else {
 			uiLayoutRow(layout, true);
-			template_ID(C, layout, template_ui, type, flag, newop, openop, unlinkop, scale, live_icon);
+			template_ID(C, layout, template_ui, type, flag, newop, openop, unlinkop, live_icon);
 		}
 	}
 

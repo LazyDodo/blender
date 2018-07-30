@@ -70,7 +70,8 @@
 
 /******************************** API ****************************/
 
-GpencilModifierData *ED_object_gpencil_modifier_add(ReportList *reports, Main *bmain, Scene *UNUSED(scene), Object *ob, const char *name, int type)
+GpencilModifierData *ED_object_gpencil_modifier_add(
+        ReportList *reports, Main *bmain, Scene *UNUSED(scene), Object *ob, const char *name, int type)
 {
 	GpencilModifierData *new_md = NULL;
 	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(type);
@@ -111,8 +112,9 @@ GpencilModifierData *ED_object_gpencil_modifier_add(ReportList *reports, Main *b
 
 /* Return true if the object has a modifier of type 'type' other than
  * the modifier pointed to be 'exclude', otherwise returns false. */
-static bool gpencil_object_has_modifier(const Object *ob, const GpencilModifierData *exclude,
-                                GpencilModifierType type)
+static bool UNUSED_FUNCTION(gpencil_object_has_modifier)(
+        const Object *ob, const GpencilModifierData *exclude,
+        GpencilModifierType type)
 {
 	GpencilModifierData *md;
 
@@ -124,8 +126,9 @@ static bool gpencil_object_has_modifier(const Object *ob, const GpencilModifierD
 	return false;
 }
 
-static bool gpencil_object_modifier_remove(Main *bmain, Object *ob, GpencilModifierData *md,
-                                   bool *UNUSED(r_sort_depsgraph))
+static bool gpencil_object_modifier_remove(
+        Main *bmain, Object *ob, GpencilModifierData *md,
+        bool *UNUSED(r_sort_depsgraph))
 {
 	/* It seems on rapid delete it is possible to
 	 * get called twice on same modifier, so make
@@ -203,7 +206,8 @@ int ED_object_gpencil_modifier_move_down(ReportList *UNUSED(reports), Object *ob
 	return 1;
 }
 
-static int gpencil_modifier_apply_obdata(ReportList *reports, Main *bmain, Depsgraph *depsgraph, Scene *scene, Object *ob, GpencilModifierData *md)
+static int gpencil_modifier_apply_obdata(
+        ReportList *reports, Main *bmain, Depsgraph *depsgraph, Object *ob, GpencilModifierData *md)
 {
 	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
 
@@ -232,8 +236,8 @@ static int gpencil_modifier_apply_obdata(ReportList *reports, Main *bmain, Depsg
 }
 
 int ED_object_gpencil_modifier_apply(
-	Main *bmain, ReportList *reports, Depsgraph *depsgraph,
-	Scene *scene, Object *ob, GpencilModifierData *md, int UNUSED(mode))
+        Main *bmain, ReportList *reports, Depsgraph *depsgraph,
+        Object *ob, GpencilModifierData *md, int UNUSED(mode))
 {
 
 	if (ob->type == OB_GPENCIL) {
@@ -255,7 +259,7 @@ int ED_object_gpencil_modifier_apply(
 	if (md != ob->greasepencil_modifiers.first)
 		BKE_report(reports, RPT_INFO, "Applied modifier was not first, result may not be as expected");
 
-	if (!gpencil_modifier_apply_obdata(reports, bmain, depsgraph, scene, ob, md)) {
+	if (!gpencil_modifier_apply_obdata(reports, bmain, depsgraph, ob, md)) {
 		return 0;
 	}
 
@@ -548,12 +552,11 @@ static int gpencil_modifier_apply_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Scene *scene = CTX_data_scene(C);
 	Object *ob = ED_object_active_context(C);
 	GpencilModifierData *md = gpencil_edit_modifier_property_get(op, ob, 0);
 	int apply_as = RNA_enum_get(op->ptr, "apply_as");
 
-	if (!md || !ED_object_gpencil_modifier_apply(bmain, op->reports, depsgraph, scene, ob, md, apply_as)) {
+	if (!md || !ED_object_gpencil_modifier_apply(bmain, op->reports, depsgraph, ob, md, apply_as)) {
 		return OPERATOR_CANCELLED;
 	}
 

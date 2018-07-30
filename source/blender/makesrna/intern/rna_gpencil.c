@@ -348,7 +348,8 @@ static void rna_GPencil_active_layer_index_range(PointerRNA *ptr, int *min, int 
 	*softmax = *max;
 }
 
-static const EnumPropertyItem *rna_GPencil_active_layer_itemf(bContext *C, PointerRNA *ptr, PropertyRNA *prop, bool *r_free)
+static const EnumPropertyItem *rna_GPencil_active_layer_itemf(
+        bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bGPdata *gpd = (bGPdata *)ptr->id.data;
 	bGPDlayer *gpl;
@@ -1208,19 +1209,21 @@ static void rna_def_gpencil_layers_api(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_SELECTED, NULL);
 
 	prop = RNA_def_property(srna, "active_index", PROP_INT, PROP_UNSIGNED);
-	RNA_def_property_int_funcs(prop,
-	                           "rna_GPencil_active_layer_index_get",
-	                           "rna_GPencil_active_layer_index_set",
-	                           "rna_GPencil_active_layer_index_range");
+	RNA_def_property_int_funcs(
+	        prop,
+	        "rna_GPencil_active_layer_index_get",
+	        "rna_GPencil_active_layer_index_set",
+	        "rna_GPencil_active_layer_index_range");
 	RNA_def_property_ui_text(prop, "Active Layer Index", "Index of active grease pencil layer");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_SELECTED, NULL);
 
 	/* Active Layer - As an enum (for selecting active layer for annotations) */
 	prop = RNA_def_property(srna, "active_note", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_funcs(prop,
-	                            "rna_GPencil_active_layer_index_get",
-	                            "rna_GPencil_active_layer_index_set",
-	                            "rna_GPencil_active_layer_itemf");
+	RNA_def_property_enum_funcs(
+	        prop,
+	        "rna_GPencil_active_layer_index_get",
+	        "rna_GPencil_active_layer_index_set",
+	        "rna_GPencil_active_layer_itemf");
 	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items); /* purely dynamic, as it maps to user-data */
 	RNA_def_property_ui_text(prop, "Active Note", "Note/Layer to add annotation strokes to");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");

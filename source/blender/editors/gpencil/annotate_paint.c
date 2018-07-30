@@ -807,7 +807,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 /* helper to free a stroke
  * NOTE: gps->dvert and gps->triangles should be NULL, but check anyway for good measure
  */
-static void gp_free_stroke(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps)
+static void gp_free_stroke(bGPdata *UNUSED(gpd), bGPDframe *gpf, bGPDstroke *gps)
 {
 	if (gps->points) {
 		MEM_freeN(gps->points);
@@ -2040,7 +2040,7 @@ static void gpencil_stroke_end(wmOperator *op)
 }
 
 /* Move last stroke in the listbase to the head to be drawn below all previous strokes in the layer */
-static void gpencil_move_last_stroke_to_back(bContext *C)
+static void UNUSED_FUNCTION(gpencil_move_last_stroke_to_back)(bContext *C)
 {
 	/* move last stroke (the polygon) to head of the listbase stroke to draw on back of all previous strokes */
 	bGPdata *gpd = ED_gpencil_data_get_active(C);

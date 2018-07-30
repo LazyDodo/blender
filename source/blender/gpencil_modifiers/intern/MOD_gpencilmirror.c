@@ -130,11 +130,11 @@ static void update_position(Object *ob, MirrorGpencilModifierData *mmd, bGPDstro
 
 /* Generic "generateStrokes" callback */
 static void generateStrokes(
-	GpencilModifierData *md, Depsgraph *depsgraph,
-	Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
+        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
+        Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
 	MirrorGpencilModifierData *mmd = (MirrorGpencilModifierData *)md;
-	bGPdata *gpd = (bGPdata *)ob->data;
+	// bGPdata *gpd = (bGPdata *)ob->data; // UNUSED
 	bGPDstroke *gps, *gps_new = NULL;
 	int tot_strokes;
 	int i;
@@ -190,7 +190,7 @@ static void bakeModifier(
 	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 }
 
-static bool isDisabled(GpencilModifierData *md, int UNUSED(userRenderParams))
+static bool isDisabled(GpencilModifierData *UNUSED(md), int UNUSED(userRenderParams))
 {
 	//MirrorGpencilModifierData *mmd = (MirrorGpencilModifierData *)md;
 

@@ -277,7 +277,7 @@ int ED_object_gpencil_modifier_move_down(
 int ED_object_gpencil_modifier_move_up(
         struct ReportList *reports, struct Object *ob, struct GpencilModifierData *md);
 int ED_object_gpencil_modifier_apply(
-        struct Main *bmain, struct ReportList *reports, struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Main *bmain, struct ReportList *reports, struct Depsgraph *depsgraph,
         struct Object *ob, struct GpencilModifierData *md, int mode);
 int ED_object_gpencil_modifier_copy(
         struct ReportList *reports, struct Object *ob, struct GpencilModifierData *md);

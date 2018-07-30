@@ -807,8 +807,9 @@ static void gp_draw_stroke_3d(tGPDdraw *tgpw, short thickness, const float ink[4
 /* ----- Fancy 2D-Stroke Drawing ------ */
 
 /* draw a given stroke in 2d */
-static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thickness_s, short dflag, short sflag,
-                              bool UNUSED(debug), int offsx, int offsy, int winx, int winy, const float diff_mat[4][4], const float ink[4])
+static void gp_draw_stroke_2d(
+        const bGPDspoint *points, int totpoints, short thickness_s, short dflag, short sflag,
+        bool UNUSED(debug), int offsx, int offsy, int winx, int winy, const float diff_mat[4][4], const float ink[4])
 {
 	/* otherwise thickness is twice that of the 3D view */
 	float thickness = (float)thickness_s * 0.5f;
@@ -1091,7 +1092,9 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 							color = tfill;
 						}
 					}
-					gp_draw_stroke_fill(tgpw->gpd, gps, tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, color);
+					gp_draw_stroke_fill(
+					        tgpw->gpd, gps,
+					        tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, color);
 				}
 			}
 
@@ -1158,7 +1161,9 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 							color = tfill;
 						}
 					}
-					gp_draw_stroke_fill(tgpw->gpd, gps, tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, color);
+					gp_draw_stroke_fill(
+					        tgpw->gpd, gps,
+					        tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, color);
 				}
 			}
 
@@ -1180,18 +1185,22 @@ static void gp_draw_strokes(tGPDdraw *tgpw)
 			}
 			if (gp_style->mode == GP_STYLE_MODE_DOTS) {
 				/* blob/disk-based "volumetric" drawing */
-				gp_draw_stroke_volumetric_2d(gps->points, gps->totpoints, sthickness, tgpw->dflag, gps->flag,
-					tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, ink);
+				gp_draw_stroke_volumetric_2d(
+				        gps->points, gps->totpoints, sthickness, tgpw->dflag, gps->flag,
+				        tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, ink);
 			}
 			else {
 				/* normal 2D strokes */
 				if (gps->totpoints == 1) {
-					gp_draw_stroke_point(gps->points, sthickness, tgpw->dflag, gps->flag, tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy,
-						tgpw->diff_mat, ink);
+					gp_draw_stroke_point(
+					        gps->points, sthickness, tgpw->dflag, gps->flag,
+					        tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy,
+					        tgpw->diff_mat, ink);
 				}
 				else {
-					gp_draw_stroke_2d(gps->points, gps->totpoints, sthickness, tgpw->dflag, gps->flag, false,
-						tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, ink);
+					gp_draw_stroke_2d(
+					        gps->points, gps->totpoints, sthickness, tgpw->dflag, gps->flag, false,
+					        tgpw->offsx, tgpw->offsy, tgpw->winx, tgpw->winy, tgpw->diff_mat, ink);
 				}
 			}
 		}
@@ -1367,7 +1376,7 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 	RegionView3D *rv3d = ar->regiondata;
 	tGPDinterpolate_layer *tgpil;
 	Object *obact = CTX_data_active_object(C);
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	float color[4];
 
@@ -1571,22 +1580,24 @@ static void gp_draw_data_layers(RegionView3D *rv3d,
 			 * i.e. tGPspoints NOT bGPDspoints
 			 */
 			if (gpd->runtime.mode == GP_STYLE_MODE_DOTS) {
-				gp_draw_stroke_volumetric_buffer(gpd->runtime.sbuffer,
-												gpd->runtime.sbuffer_size, lthick,
-				                                dflag, gpd->runtime.scolor);
+				gp_draw_stroke_volumetric_buffer(
+				        gpd->runtime.sbuffer,
+				        gpd->runtime.sbuffer_size, lthick,
+				        dflag, gpd->runtime.scolor);
 			}
 			else {
-				gp_draw_stroke_buffer(gpd->runtime.sbuffer,
-									gpd->runtime.sbuffer_size, lthick,
-									dflag, gpd->runtime.sbuffer_sflag,
-									gpd->runtime.scolor, gpd->runtime.sfill);
+				gp_draw_stroke_buffer(
+				        gpd->runtime.sbuffer,
+				        gpd->runtime.sbuffer_size, lthick,
+				        dflag, gpd->runtime.sbuffer_sflag,
+				        gpd->runtime.scolor, gpd->runtime.sfill);
 			}
 		}
 	}
 }
 
 /* draw a short status message in the top-right corner */
-static void gp_draw_status_text(const bGPdata *gpd, ARegion *ar)
+static void UNUSED_FUNCTION(gp_draw_status_text)(const bGPdata *gpd, ARegion *ar)
 {
 	rcti rect;
 
@@ -1658,8 +1669,9 @@ static void gp_draw_data(RegionView3D *rv3d,
 
 /* if we have strokes for scenes (3d view)/clips (movie clip editor)
  * and objects/tracks, multiple data blocks have to be drawn */
-static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int offsx, int offsy, int winx, int winy,
-                             int cfra, int dflag, const char spacetype)
+static void gp_draw_data_all(
+        RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int offsx, int offsy, int winx, int winy,
+        int cfra, int dflag, const char UNUSED(spacetype))
 {
 	bGPdata *gpd_source = NULL;
 	ToolSettings *ts = NULL;
@@ -1670,8 +1682,9 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 
 		if (gpd_source) {
 			if (brush != NULL) {
-				gp_draw_data(rv3d, brush, 1.0f, NULL, gpd_source,
-				             offsx, offsy, winx, winy, cfra, dflag);
+				gp_draw_data(
+				        rv3d, brush, 1.0f, NULL, gpd_source,
+				        offsx, offsy, winx, winy, cfra, dflag);
 			}
 		}
 	}
@@ -1680,8 +1693,9 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 	 * if gpd_source == gpd, we don't have any object/track data and we can skip */
 	if (gpd_source == NULL || (gpd_source && gpd_source != gpd)) {
 		if (brush != NULL) {
-			gp_draw_data(rv3d, brush, 1.0f, NULL, gpd,
-			             offsx, offsy, winx, winy, cfra, dflag);
+			gp_draw_data(
+			        rv3d, brush, 1.0f, NULL, gpd,
+			        offsx, offsy, winx, winy, cfra, dflag);
 		}
 	}
 }
@@ -1692,13 +1706,14 @@ static void gp_draw_data_all(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int
 /* draw grease-pencil sketches to specified 3d-view assuming that matrices are already set correctly
  * Note: this gets called twice - first time with only3d=true to draw 3d-strokes,
  * second time with only3d=false for screen-aligned strokes */
-void ED_gpencil_draw_view3d(wmWindowManager *wm,
-                            Scene *scene,
-                            ViewLayer *view_layer,
-                            struct Depsgraph *depsgraph,
-                            View3D *v3d,
-                            ARegion *ar,
-                            bool only3d)
+void ED_gpencil_draw_view3d(
+        wmWindowManager *wm,
+        Scene *scene,
+        ViewLayer *view_layer,
+        struct Depsgraph *depsgraph,
+        View3D *v3d,
+        ARegion *ar,
+        bool only3d)
 {
 	int dflag = 0;
 	RegionView3D *rv3d = ar->regiondata;
@@ -1819,5 +1834,3 @@ void ED_gpencil_draw_ex(RegionView3D *rv3d, Scene *scene, bGPdata *gpd, int winx
 
 	gp_draw_data_all(rv3d, scene, gpd, 0, 0, winx, winy, cfra, dflag, spacetype);
 }
-
-/* ************************************************** */
