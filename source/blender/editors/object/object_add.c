@@ -1002,10 +1002,12 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 
 	/* Hack: Force view-align to be on by default
 	 * since it's not nice for adding shapes in 2D
-	 * for them to end up aligned oddly
+	 * for them to end up aligned oddly, but only for Monkey
 	 */
-	if (RNA_struct_property_is_set(op->ptr, "view_align") == false)
+	if ((RNA_struct_property_is_set(op->ptr, "view_align") == false) &&
+		(type == GP_MONKEY)) {
 		RNA_boolean_set(op->ptr, "view_align", true);
+	}
 
 	/* Note: We use 'Y' here (not 'Z'), as */
 	WM_operator_view3d_unit_defaults(C, op);
