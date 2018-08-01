@@ -1498,7 +1498,6 @@ typedef struct SceneLANPR{
 	float extend_length;
 
 	int   snake_sensitivity;
-	int   size;
 
 	/* shared */
 
@@ -1516,7 +1515,6 @@ typedef struct SceneLANPR{
 
 	/* states (needs optimization) */
 
-	int   InitComplete;
 	int   reloaded;
 
 	/* offline render */

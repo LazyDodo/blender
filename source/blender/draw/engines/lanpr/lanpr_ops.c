@@ -2666,6 +2666,8 @@ LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr) {
 
 	lanpr->render_buffer = rb;
 
+	rb->cached_for_frame = -1;
+
 	BLI_spin_init(&rb->csData);
 	BLI_spin_init(&rb->csInfo);
 	BLI_spin_init(&rb->csManagement);
@@ -3111,28 +3113,9 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb,int is_render) 
 
 /* ============================================ operators ========================================= */
 
-//seems we don't quite need this operator...
-static int lanpr_clear_render_buffer_exec(struct bContext *C, struct wmOperator *op) {
-	Scene *scene = CTX_data_scene(C);
-	SceneLANPR *lanpr = &scene->lanpr;
+int lanpr_compute_feature_lines_internal(Depsgraph *depsgraph, SceneLANPR* lanpr, Scene* scene) {
 	LANPR_RenderBuffer *rb;
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
-	lanpr_destroy_render_data(lanpr->render_buffer);
-
-	return OPERATOR_FINISHED;
-}
-static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperator *op){
-	Scene *scene = CTX_data_scene(C);
-	SceneLANPR *lanpr = &scene->lanpr;
-	LANPR_RenderBuffer *rb;
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-
-	if (!scene->camera) {
-		BKE_report(op->reports, RPT_ERROR, "There is no active camera in this scene!");
-		return OPERATOR_FINISHED;
-	}
-	
 	rb = lanpr_create_render_buffer(lanpr);
 	rb->Scene = scene;
 	rb->W = scene->r.xsch;
@@ -3155,11 +3138,36 @@ static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperato
 
 	lanpr_THREAD_calculate_line_occlusion_begin(rb);
 
-	if (lanpr->enable_chaining){
+	if (lanpr->enable_chaining) {
 		lanpr_NO_THREAD_chain_feature_lines(rb, 0.00001);// should use user_adjustable value
 	}
 
+	rb->cached_for_frame = scene->r.cfra;
+
 	return OPERATOR_FINISHED;
+}
+
+//seems we don't quite need this operator...
+static int lanpr_clear_render_buffer_exec(struct bContext *C, struct wmOperator *op) {
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+	LANPR_RenderBuffer *rb;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
+	lanpr_destroy_render_data(lanpr->render_buffer);
+
+	return OPERATOR_FINISHED;
+}
+static int lanpr_compute_feature_lines_exec(struct bContext *C, struct wmOperator *op){
+	Scene *scene = CTX_data_scene(C);
+	SceneLANPR *lanpr = &scene->lanpr;
+
+	if (!scene->camera) {
+		BKE_report(op->reports, RPT_ERROR, "There is no active camera in this scene!");
+		return OPERATOR_FINISHED;
+	}
+
+	return lanpr_compute_feature_lines_internal(CTX_data_depsgraph(C), lanpr,scene);
 }
 static void lanpr_compute_feature_lines_cancel(struct bContext *C, struct wmOperator *op){
 

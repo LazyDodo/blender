@@ -484,6 +484,9 @@ static void workbench_render_matrices_init(RenderEngine *engine, Depsgraph *deps
 	DRW_viewport_matrix_override_set(viewinv, DRW_MAT_VIEWINV);
 }
 
+int lanpr_compute_feature_lines_internal(Depsgraph *depsgraph, SceneLANPR* lanpr, Scene* scene) ;
+LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr);
+
 static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect){
 	LANPR_StorageList *stl = vedata->stl;
 	LANPR_TextureList *txl = vedata->txl;
@@ -491,6 +494,14 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR* lanpr = &scene->lanpr;
+
+	if (lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE ||
+		(lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->enable_intersections)) {
+		if (!lanpr->render_buffer) lanpr_create_render_buffer(lanpr);
+		if(lanpr->render_buffer->cached_for_frame != scene->r.cfra){
+			lanpr_compute_feature_lines_internal(draw_ctx->depsgraph, lanpr, scene);
+		}
+	}
 
 	lanpr_set_render_flag();
 
