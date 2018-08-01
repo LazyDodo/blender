@@ -73,8 +73,8 @@ typedef struct LANPRSharedResource {
 	int init_complete;
 
 	SpinLock render_flag_lock;
-	int      during_render;   // get/set using access funcion which uses render_flag_lock to lock.
-					          // this prevents duplicate too much resource. (no render preview in viewport while rendering)
+	int during_render;        // get/set using access funcion which uses render_flag_lock to lock.
+	                          // this prevents duplicate too much resource. (no render preview in viewport while rendering)
 
 } LANPRSharedResource;
 
@@ -321,7 +321,7 @@ typedef struct LANPR_RenderBuffer {
 
 	//render status
 
-	int  cached_for_frame;
+	int cached_for_frame;
 
 	real ViewVector[3];
 
@@ -353,8 +353,8 @@ typedef struct LANPR_RenderBuffer {
 	ListBase EdgeMarks;
 
 	ListBase Chains;
-	GPUBatch*  ChainDrawBatch;
-	DRWShadingGroup* ChainShgrp;
+	GPUBatch *ChainDrawBatch;
+	DRWShadingGroup *ChainShgrp;
 
 	SpinLock csInfo;
 	SpinLock csData;
@@ -469,17 +469,17 @@ typedef struct LANPR_RenderLine {
 }LANPR_RenderLine;
 
 typedef struct LANPR_RenderLineChain {
-	nListItem   Item;
+	nListItem Item;
 	ListBase Chain;
 	//int         SegmentCount;  // we count before draw cmd.
-	float       Length;          // calculated before draw cmd.
+	float Length;                // calculated before draw cmd.
 }LANPR_RenderLineChain;
 
 typedef struct LANPR_RenderLineChainItem {
-	nListItem   Item;
-	float       pos[3]; // need z value for fading
-	char        LineType;      //      style of [1]       style of [2]
-	char        OcclusionLevel;  // [1]--------------->[2]---------------->[3]--....
+	nListItem Item;
+	float pos[3];       // need z value for fading
+	char LineType;             //      style of [1]       style of [2]
+	char OcclusionLevel;         // [1]--------------->[2]---------------->[3]--....
 }LANPR_RenderLineChainItem;
 
 typedef struct LANPR_BoundingArea {
@@ -598,7 +598,7 @@ BLI_INLINE int lanpr_TrangleLineBoundBoxTest(LANPR_RenderTriangle *rt, LANPR_Ren
 }
 
 BLI_INLINE double tMatGetLinearRatio(real L, real R, real FromL);
-BLI_INLINE int lanpr_LineIntersectTest2d(const double* a1, const double* a2, const double* b1, const double* b2, double *aRatio) {
+BLI_INLINE int lanpr_LineIntersectTest2d(const double *a1, const double *a2, const double *b1, const double *b2, double *aRatio) {
 	double k1, k2;
 	double x;
 	double y;

@@ -355,12 +355,12 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	View3D *v3d = draw_ctx->v3d;
-	Object *camera=0;
+	Object *camera = 0;
 	if (v3d) {
 		RegionView3D *rv3d = draw_ctx->rv3d;
 		camera = (rv3d && rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
 	}
-	if(!camera){
+	if (!camera) {
 		camera = scene->camera;
 	}
 	if (is_render && !camera) return;

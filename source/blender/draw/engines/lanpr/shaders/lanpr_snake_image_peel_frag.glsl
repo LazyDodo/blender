@@ -3,29 +3,29 @@ in vec4 uvcoordsvar;
 uniform sampler2D TexSample0;
 uniform int Stage;
 
-int  decisions[256] = int[](0,0,1,1,0,0,1,1,1,1,0,1,1,1,0,1,
-                            1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,1,
-                            0,0,1,1,0,0,1,1,1,1,0,1,1,1,0,1,
-                            1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,1,
-                            1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,
-                            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                            1,1,0,0,1,1,0,0,1,1,0,1,1,1,0,1,
-                            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                            0,0,1,1,0,0,1,1,1,1,0,1,1,1,0,1,
-                            1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,1,
-                            0,0,1,1,0,0,1,1,1,1,0,1,1,1,0,1,
-                            1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,0,
-                            1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,
-                            1,1,0,0,1,1,1,1,0,0,0,0,0,0,0,0,
-                            1,1,0,0,1,1,0,0,1,1,0,1,1,1,0,0,
-                            1,1,0,0,1,1,1,0,1,1,0,0,1,0,0,0);
+int decisions[256] = int[] (0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
+                            1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+                            0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
+                            1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+                            1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
+                            1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+                            0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
+                            1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                            1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                            1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0,
+                            1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0);
 
 int PickPixel(ivec2 sp){
-    vec4 accum=vec4(0);
+	vec4 accum = vec4(0);
 	//for(int i=0;i<4;i++){
-	    accum+=	texelFetch(TexSample0, sp, 0);
+	accum += texelFetch(TexSample0, sp, 0);
 	//}
-	return (accum.r>0.9)?1:0;
+	return (accum.r > 0.9) ? 1 : 0;
 
 }
 
@@ -33,20 +33,20 @@ int PickPixel(ivec2 sp){
 
 void main(){
 
-    ivec2 texSize = textureSize(TexSample0,0);
-    ivec2 sp = ivec2(uvcoordsvar.xy * texSize);
+	ivec2 texSize = textureSize(TexSample0, 0);
+	ivec2 sp = ivec2(uvcoordsvar.xy * texSize);
 	vec4 OriginalColor = texelFetch(TexSample0, sp, 0);
 
-	int p2 = PickPixel(sp+ivec2( 0,+1));
-	int p3 = PickPixel(sp+ivec2(+1,+1));
-	int p4 = PickPixel(sp+ivec2(+1, 0));
-	int p5 = PickPixel(sp+ivec2(+1,-1));
-	int p6 = PickPixel(sp+ivec2( 0,-1));
-	int p7 = PickPixel(sp+ivec2(-1,-1));
-	int p8 = PickPixel(sp+ivec2(-1, 0));
-	int p9 = PickPixel(sp+ivec2(-1,+1));
+	int p2 = PickPixel(sp + ivec2(0, +1));
+	int p3 = PickPixel(sp + ivec2(+1, +1));
+	int p4 = PickPixel(sp + ivec2(+1, 0));
+	int p5 = PickPixel(sp + ivec2(+1, -1));
+	int p6 = PickPixel(sp + ivec2(0, -1));
+	int p7 = PickPixel(sp + ivec2(-1, -1));
+	int p8 = PickPixel(sp + ivec2(-1, 0));
+	int p9 = PickPixel(sp + ivec2(-1, +1));
 
-	int Bp1  = p2+p3+p4+p5+p6+p7+p8+p9;
+	int Bp1  = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
 
 	bool bp2 = bool(p2);
 	bool bp3 = bool(p3);
@@ -57,27 +57,28 @@ void main(){
 	bool bp8 = bool(p8);
 	bool bp9 = bool(p9);
 
-	int Cp1 = int(!bp2&&(bp3||bp4)) + int(!bp4&&(bp5||bp6)) + int(!bp6&&(bp7||bp8)) + int(!bp8&&(bp9||bp2));
+	int Cp1 = int(!bp2 && (bp3 || bp4)) + int(!bp4 && (bp5 || bp6)) + int(!bp6 && (bp7 || bp8)) + int(!bp8 && (bp9 || bp2));
 
-	if(Stage==0){
-		if (((sp.x+sp.y)%2==0) &&
-		    (Cp1==1)           &&
-			(Bp1>=2 && Bp1<=7) &&
-			(p2*p4*p6==0)      &&
-			(p4*p6*p8==0)) {
-			gl_FragColor = vec4(0,0,0,1);
+	if (Stage == 0) {
+		if (((sp.x + sp.y) % 2 == 0) &&
+		    (Cp1 == 1)           &&
+		    (Bp1 >= 2 && Bp1 <= 7) &&
+		    (p2 * p4 * p6 == 0)      &&
+		    (p4 * p6 * p8 == 0)) {
+			gl_FragColor = vec4(0, 0, 0, 1);
 			return;
-			}
+		}
 		gl_FragColor = OriginalColor;
-	}else{
-		if (((sp.x+sp.y)%2!=0) &&
-		    (Cp1==1)           &&
-			(Bp1>=1 && Bp1<=7) &&
-			(p2*p4*p8==0)      &&
-			(p2*p6*p8==0)) {
-			gl_FragColor = vec4(0,0,0,1);
+	}
+	else {
+		if (((sp.x + sp.y) % 2 != 0) &&
+		    (Cp1 == 1)           &&
+		    (Bp1 >= 1 && Bp1 <= 7) &&
+		    (p2 * p4 * p8 == 0)      &&
+		    (p2 * p6 * p8 == 0)) {
+			gl_FragColor = vec4(0, 0, 0, 1);
 			return;
-			}
+		}
 		gl_FragColor = OriginalColor;
 	}
 

@@ -435,7 +435,7 @@ void *mem_static_aquire_thread(nStaticMemoryPool *smp, int size) {
 }
 void *mem_static_destroy(nStaticMemoryPool *smp) {
 	nStaticMemoryPoolNode *smpn;
-	void *ret=0;
+	void *ret = 0;
 
 	while (smpn = BLI_pophead(&smp->Pools)) {
 		FreeMem(smpn);

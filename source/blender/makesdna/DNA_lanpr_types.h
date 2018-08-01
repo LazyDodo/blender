@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -67,51 +67,51 @@ struct Collection;
 
 struct DRWShadingGroup;
 
-typedef struct LANPR_LineLayerComponent{
-    struct LANPR_LineLayerComponent *next, *prev;
+typedef struct LANPR_LineLayerComponent {
+	struct LANPR_LineLayerComponent *next, *prev;
 
-    struct Object     *object_select;
-    struct Material   *material_select;
-    struct Collection *collection_select;
+	struct Object     *object_select;
+	struct Material   *material_select;
+	struct Collection *collection_select;
 
-    int               component_mode;
-    int               what;
+	int component_mode;
+	int what;
 
 }LANPR_LineLayerComponent;
 
-typedef struct LANPR_LineLayer{
-    struct LANPR_LineLayer *next, *prev;
+typedef struct LANPR_LineLayer {
+	struct LANPR_LineLayer *next, *prev;
 
-	int      type;
-    
-    int      use_qi_range;
+	int type;
 
-    int      qi_begin;
-    int      qi_end;   /* these are for QI Range thing... just occlusion levels */
+	int use_qi_range;
 
-	int      enable_contour;
-    int      enable_crease;
-	int      enable_edge_mark;
-	int      enable_material_seperate;
-	int      enable_intersection;
-    
-    float    thickness; /* default is for contour */
-    float    thickness_crease;
-    float    thickness_material;
-    float    thickness_edge_mark;
-    float    thickness_intersection;
+	int qi_begin;
+	int qi_end;        /* these are for QI Range thing... just occlusion levels */
 
-    float    color[4]; /* default is for contour */
-    float    crease_color[4];
-    float    material_color[4];
-    float    edge_mark_color[4];
-    float    intersection_color[4];
+	int enable_contour;
+	int enable_crease;
+	int enable_edge_mark;
+	int enable_material_seperate;
+	int enable_intersection;
 
-    int      logic_mode; /* for component evaluation */
+	float thickness;    /* default is for contour */
+	float thickness_crease;
+	float thickness_material;
+	float thickness_edge_mark;
+	float thickness_intersection;
 
-    int      a;
+	float color[4];    /* default is for contour */
+	float crease_color[4];
+	float material_color[4];
+	float edge_mark_color[4];
+	float intersection_color[4];
 
-    ListBase components;
+	int logic_mode;      /* for component evaluation */
+
+	int a;
+
+	ListBase components;
 
 	// still need legacy mode
 	// should use runtime pointer

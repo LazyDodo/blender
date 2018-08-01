@@ -1,5 +1,5 @@
-layout (lines_adjacency) in;
-layout (triangle_strip, max_vertices = 6) out;
+layout(lines_adjacency) in;
+layout(triangle_strip, max_vertices = 6) out;
 
 in vec2 gOffset[];
 in int gType[];
@@ -39,23 +39,23 @@ float use_thickness;
 
 #define M_PI 3.1415926535897932384626433832795
 
-vec4 END_POINT = vec4(vec2(3e30f),0,1);// end point flag
+vec4 END_POINT = vec4(vec2(3e30f), 0, 1);// end point flag
 
 vec4 MakeLeftTaperLinear(vec4 L, vec4 a, float offset){
-    if(offset >= TaperLDist) return a;
-	a = mix(mix(a,L,TaperLStrength),a,offset/TaperLDist);
+	if (offset >= TaperLDist) return a;
+	a = mix(mix(a, L, TaperLStrength), a, offset / TaperLDist);
 	return a;
 }
 
 vec4 MakeRightTaperLinear(vec4 R, vec4 c, float offset){
-    if(offset >= TaperRDist) return c;
-	c = mix(mix(c,R,TaperRStrength),c,offset/TaperRDist);
+	if (offset >= TaperRDist) return c;
+	c = mix(mix(c, R, TaperRStrength), c, offset / TaperRDist);
 	return c;
 }
 
 void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 
-	float LAngle,RAngle;
+	float LAngle, RAngle;
 
 
 	float OffsetL = gOffset[1].x;
@@ -63,65 +63,65 @@ void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 	float OffsetL2 = gOffset[1].y;
 	float OffsetR2 = gOffset[2].y;
 
-	
 
-	if(L==R) return;
+
+	if (L == R) return;
 
 	vec4 a;
 	vec4 b;
 	vec4 c;
 	vec4 d;
-	vec4 Line = R-L;
-	vec4 Normal = normalize(vec4(-Line.y,Line.x,0,0));
+	vec4 Line = R - L;
+	vec4 Normal = normalize(vec4(-Line.y, Line.x, 0, 0));
 
-	a = L - use_thickness * Normal*0.001;
-	b = L + use_thickness * Normal*0.001;
-	c = R - use_thickness * Normal*0.001;
-	d = R + use_thickness * Normal*0.001;
+	a = L - use_thickness * Normal * 0.001;
+	b = L + use_thickness * Normal * 0.001;
+	c = R - use_thickness * Normal * 0.001;
+	d = R + use_thickness * Normal * 0.001;
 
-	float lim = use_thickness*0.002;
+	float lim = use_thickness * 0.002;
 
-    if(LL.x<3e20){
-		vec4 avg = normalize(L-LL)+normalize(R-L);
-		if(length(avg)>0.001){
+	if (LL.x < 3e20) {
+		vec4 avg = normalize(L - LL) + normalize(R - L);
+		if (length(avg) > 0.001) {
 			vec4 Tangent = normalize(avg);
-			vec4 Minter = normalize(vec4(-Tangent.y,Tangent.x,0,0));
-			float length = use_thickness/(dot(Minter,Normal))*0.001;
-			if(length<4*lim){
-				a = L - length*Minter;
-				b = L + length*Minter;
+			vec4 Minter = normalize(vec4(-Tangent.y, Tangent.x, 0, 0));
+			float length = use_thickness / (dot(Minter, Normal)) * 0.001;
+			if (length < 4 * lim) {
+				a = L - length * Minter;
+				b = L + length * Minter;
 			}
 		}
 	}
 
-	if(RR.x<3e20){
-	    vec4 avg = normalize(RR-R)+normalize(R-L);
-		if(length(avg)>0.001){
+	if (RR.x < 3e20) {
+		vec4 avg = normalize(RR - R) + normalize(R - L);
+		if (length(avg) > 0.001) {
 			vec4 Tangent = normalize(avg);
-			vec4 Minter = normalize(vec4(-Tangent.y,Tangent.x,0,0));
-			float length = use_thickness/(dot(Minter,Normal))*0.001;
-			if(length<4*lim){
-				c = R - length*Minter;
-	    		d = R + length*Minter;
+			vec4 Minter = normalize(vec4(-Tangent.y, Tangent.x, 0, 0));
+			float length = use_thickness / (dot(Minter, Normal)) * 0.001;
+			if (length < 4 * lim) {
+				c = R - length * Minter;
+				d = R + length * Minter;
 			}
 		}
 	}
 
-	a = MakeLeftTaperLinear(L,a,OffsetL);
-	b = MakeLeftTaperLinear(L,b,OffsetL);
-	c = MakeLeftTaperLinear(R,c,OffsetR);
-	d = MakeLeftTaperLinear(R,d,OffsetR);
+	a = MakeLeftTaperLinear(L, a, OffsetL);
+	b = MakeLeftTaperLinear(L, b, OffsetL);
+	c = MakeLeftTaperLinear(R, c, OffsetR);
+	d = MakeLeftTaperLinear(R, d, OffsetR);
 
-	a = MakeRightTaperLinear(L,a,OffsetL2);
-	b = MakeRightTaperLinear(L,b,OffsetL2);
-	c = MakeRightTaperLinear(R,c,OffsetR2);
-	d = MakeRightTaperLinear(R,d,OffsetR2);
-	
-	a.w=1;
-	b.w=1;
-	c.w=1;
-	d.w=1;
-	
+	a = MakeRightTaperLinear(L, a, OffsetL2);
+	b = MakeRightTaperLinear(L, b, OffsetL2);
+	c = MakeRightTaperLinear(R, c, OffsetR2);
+	d = MakeRightTaperLinear(R, d, OffsetR2);
+
+	a.w = 1;
+	b.w = 1;
+	c.w = 1;
+	d.w = 1;
+
 	gl_Position = a;
 	EmitVertex();
 	gl_Position = b;
@@ -136,31 +136,31 @@ void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 	EmitVertex();
 	gl_Position = b;
 	EmitVertex();
-    EndPrimitive();
+	EndPrimitive();
 }
 
 void decide_line_style(int component_id){
-	if(component_id == 0){ out_color = color;              use_thickness = thickness;                          return; }
-	if(component_id == 1){ out_color = crease_color;       use_thickness = thickness * thickness_crease;       return; }
-	if(component_id == 2){ out_color = material_color;     use_thickness = thickness * thickness_material;     return; }
-	if(component_id == 3){ out_color = edge_mark_color;    use_thickness = thickness * thickness_edge_mark;    return; }
-	if(component_id == 4){ out_color = intersection_color; use_thickness = thickness * thickness_intersection; return; }
+	if (component_id == 0) { out_color = color;              use_thickness = thickness;                          return; }
+	if (component_id == 1) { out_color = crease_color;       use_thickness = thickness * thickness_crease;       return; }
+	if (component_id == 2) { out_color = material_color;     use_thickness = thickness * thickness_material;     return; }
+	if (component_id == 3) { out_color = edge_mark_color;    use_thickness = thickness * thickness_edge_mark;    return; }
+	if (component_id == 4) { out_color = intersection_color; use_thickness = thickness * thickness_intersection; return; }
 }
 
 void main() {
 	int level = gLevel[1];
 
-	if(occlusion_level_begin > level || occlusion_level_end < level) return;
+	if (occlusion_level_begin > level || occlusion_level_end < level) return;
 
-	vec4 LL = vec4(gl_in[0].gl_Position.xy,0,1),
-	     L  = vec4(gl_in[1].gl_Position.xy,0,1),
-		 R  = vec4(gl_in[2].gl_Position.xy,0,1),
-		 RR = vec4(gl_in[3].gl_Position.xy,0,1);
-	
+	vec4 LL = vec4(gl_in[0].gl_Position.xy, 0, 1),
+	     L  = vec4(gl_in[1].gl_Position.xy, 0, 1),
+	     R  = vec4(gl_in[2].gl_Position.xy, 0, 1),
+	     RR = vec4(gl_in[3].gl_Position.xy, 0, 1);
+
 	int type = gType[1];
 
 	decide_line_style(type);
 
-	draw_line(LL,L,R,RR);
+	draw_line(LL, L, R, RR);
 }
 

@@ -77,21 +77,21 @@ struct SceneCollection;
 /* Output Format Data */
 
 typedef struct AviCodecData {
-	void			*lpFormat;  /* save format */
-	void			*lpParms;   /* compressor options */
-	unsigned int	cbFormat;	    /* size of lpFormat buffer */
-	unsigned int	cbParms;	    /* size of lpParms buffer */
+	void            *lpFormat;  /* save format */
+	void            *lpParms;   /* compressor options */
+	unsigned int cbFormat;          /* size of lpFormat buffer */
+	unsigned int cbParms;           /* size of lpParms buffer */
 
-	unsigned int	fccType;            /* stream type, for consistency */
-	unsigned int	fccHandler;         /* compressor */
-	unsigned int	dwKeyFrameEvery;    /* keyframe rate */
-	unsigned int	dwQuality;          /* compress quality 0-10,000 */
-	unsigned int	dwBytesPerSecond;   /* bytes per second */
-	unsigned int	dwFlags;            /* flags... see below */
-	unsigned int	dwInterleaveEvery;  /* for non-video streams only */
-	unsigned int	pad;
+	unsigned int fccType;               /* stream type, for consistency */
+	unsigned int fccHandler;            /* compressor */
+	unsigned int dwKeyFrameEvery;       /* keyframe rate */
+	unsigned int dwQuality;             /* compress quality 0-10,000 */
+	unsigned int dwBytesPerSecond;      /* bytes per second */
+	unsigned int dwFlags;               /* flags... see below */
+	unsigned int dwInterleaveEvery;     /* for non-video streams only */
+	unsigned int pad;
 
-	char			avicodecname[128];
+	char avicodecname[128];
 } AviCodecData;
 
 typedef enum eFFMpegPreset {
@@ -113,7 +113,7 @@ typedef enum eFFMpegPreset {
 	/* Used by WEBM/VP9 and h.264 to control encoding speed vs. file size.
 	 * WEBM/VP9 use these values directly, whereas h.264 map those to
 	 * respectively the MEDIUM, SLOWER, and SUPERFAST presets.
-	*/
+	 */
 	FFM_PRESET_GOOD = 10, /* the default and recommended for most applications */
 	FFM_PRESET_BEST, /* recommended if you have lots of time and want the best compression efficiency */
 	FFM_PRESET_REALTIME, /* recommended for live / fast encoding */
@@ -184,7 +184,7 @@ typedef struct AudioData {
 typedef struct SceneRenderLayer {
 	struct SceneRenderLayer *next, *prev;
 
-	char name[64] DNA_DEPRECATED;	/* MAX_NAME */
+	char name[64] DNA_DEPRECATED;   /* MAX_NAME */
 
 	struct Material *mat_override DNA_DEPRECATED; /* Converted to ViewLayer override. */
 
@@ -206,21 +206,21 @@ typedef struct SceneRenderLayer {
 } SceneRenderLayer;
 
 /* SceneRenderLayer.layflag */
-#define SCE_LAY_SOLID	1
-#define SCE_LAY_ZTRA	2
-#define SCE_LAY_HALO	4
-#define SCE_LAY_EDGE	8
-#define SCE_LAY_SKY		16
-#define SCE_LAY_STRAND	32
-#define SCE_LAY_FRS		64
-#define SCE_LAY_AO		128
-	/* flags between 256 and 0x8000 are set to 1 already, for future options */
+#define SCE_LAY_SOLID   1
+#define SCE_LAY_ZTRA    2
+#define SCE_LAY_HALO    4
+#define SCE_LAY_EDGE    8
+#define SCE_LAY_SKY     16
+#define SCE_LAY_STRAND  32
+#define SCE_LAY_FRS     64
+#define SCE_LAY_AO      128
+/* flags between 256 and 0x8000 are set to 1 already, for future options */
 
-#define SCE_LAY_ALL_Z		0x8000
-#define SCE_LAY_XOR			0x10000
-#define SCE_LAY_DISABLE		0x20000
-#define SCE_LAY_ZMASK		0x40000
-#define SCE_LAY_NEG_ZMASK	0x80000
+#define SCE_LAY_ALL_Z       0x8000
+#define SCE_LAY_XOR         0x10000
+#define SCE_LAY_DISABLE     0x20000
+#define SCE_LAY_ZMASK       0x40000
+#define SCE_LAY_NEG_ZMASK   0x80000
 
 /* SceneRenderLayer.passflag */
 typedef enum eScenePassType {
@@ -298,8 +298,8 @@ typedef enum eScenePassType {
 typedef struct SceneRenderView {
 	struct SceneRenderView *next, *prev;
 
-	char name[64];	/* MAX_NAME */
-	char suffix[64];	/* MAX_NAME */
+	char name[64];  /* MAX_NAME */
+	char suffix[64];    /* MAX_NAME */
 
 	int viewflag;
 	int pad[2];
@@ -308,7 +308,7 @@ typedef struct SceneRenderView {
 } SceneRenderView;
 
 /* SceneRenderView.viewflag */
-#define SCE_VIEW_DISABLE		(1<<0)
+#define SCE_VIEW_DISABLE        (1 << 0)
 
 /* RenderData.views_format */
 enum {
@@ -387,15 +387,15 @@ typedef struct ImageFormatData {
 	/* --- format specific --- */
 
 	/* OpenEXR */
-	char  exr_codec;
+	char exr_codec;
 
 	/* Cineon */
-	char  cineon_flag;
+	char cineon_flag;
 	short cineon_white, cineon_black;
 	float cineon_gamma;
 
 	/* Jpeg2000 */
-	char  jp2_flag;
+	char jp2_flag;
 	char jp2_codec;
 
 	/* TIFF */
@@ -446,17 +446,17 @@ typedef struct ImageFormatData {
 #define R_IMF_IMTYPE_INVALID        255
 
 /* ImageFormatData.flag */
-#define R_IMF_FLAG_ZBUF         (1<<0)   /* was R_OPENEXR_ZBUF */
-#define R_IMF_FLAG_PREVIEW_JPG  (1<<1)   /* was R_PREVIEW_JPG */
+#define R_IMF_FLAG_ZBUF         (1 << 0)   /* was R_OPENEXR_ZBUF */
+#define R_IMF_FLAG_PREVIEW_JPG  (1 << 1)   /* was R_PREVIEW_JPG */
 
 /* return values from BKE_imtype_valid_depths, note this is depts per channel */
-#define R_IMF_CHAN_DEPTH_1  (1<<0) /* 1bits  (unused) */
-#define R_IMF_CHAN_DEPTH_8  (1<<1) /* 8bits  (default) */
-#define R_IMF_CHAN_DEPTH_10 (1<<2) /* 10bits (uncommon, Cineon/DPX support) */
-#define R_IMF_CHAN_DEPTH_12 (1<<3) /* 12bits (uncommon, jp2/DPX support) */
-#define R_IMF_CHAN_DEPTH_16 (1<<4) /* 16bits (tiff, halff float exr) */
-#define R_IMF_CHAN_DEPTH_24 (1<<5) /* 24bits (unused) */
-#define R_IMF_CHAN_DEPTH_32 (1<<6) /* 32bits (full float exr) */
+#define R_IMF_CHAN_DEPTH_1  (1 << 0) /* 1bits  (unused) */
+#define R_IMF_CHAN_DEPTH_8  (1 << 1) /* 8bits  (default) */
+#define R_IMF_CHAN_DEPTH_10 (1 << 2) /* 10bits (uncommon, Cineon/DPX support) */
+#define R_IMF_CHAN_DEPTH_12 (1 << 3) /* 12bits (uncommon, jp2/DPX support) */
+#define R_IMF_CHAN_DEPTH_16 (1 << 4) /* 16bits (tiff, halff float exr) */
+#define R_IMF_CHAN_DEPTH_24 (1 << 5) /* 24bits (unused) */
+#define R_IMF_CHAN_DEPTH_32 (1 << 6) /* 32bits (full float exr) */
 
 /* ImageFormatData.planes */
 #define R_IMF_PLANES_RGB   24
@@ -477,16 +477,16 @@ typedef struct ImageFormatData {
 #define R_IMF_EXR_CODEC_MAX  10
 
 /* ImageFormatData.jp2_flag */
-#define R_IMF_JP2_FLAG_YCC          (1<<0)  /* when disabled use RGB */ /* was R_JPEG2K_YCC */
-#define R_IMF_JP2_FLAG_CINE_PRESET  (1<<1)  /* was R_JPEG2K_CINE_PRESET */
-#define R_IMF_JP2_FLAG_CINE_48      (1<<2)  /* was R_JPEG2K_CINE_48FPS */
+#define R_IMF_JP2_FLAG_YCC          (1 << 0)  /* when disabled use RGB */ /* was R_JPEG2K_YCC */
+#define R_IMF_JP2_FLAG_CINE_PRESET  (1 << 1)  /* was R_JPEG2K_CINE_PRESET */
+#define R_IMF_JP2_FLAG_CINE_48      (1 << 2)  /* was R_JPEG2K_CINE_48FPS */
 
 /* ImageFormatData.jp2_codec */
 #define R_IMF_JP2_CODEC_JP2  0
 #define R_IMF_JP2_CODEC_J2K  1
 
 /* ImageFormatData.cineon_flag */
-#define R_IMF_CINEON_FLAG_LOG (1<<0)  /* was R_CINEON_LOG */
+#define R_IMF_CINEON_FLAG_LOG (1 << 0)  /* was R_CINEON_LOG */
 
 /* ImageFormatData.tiff_codec */
 enum {
@@ -563,20 +563,20 @@ typedef struct RenderData {
 	struct AviCodecData *avicodecdata;
 	struct FFMpegCodecData ffcodecdata;
 
-	int cfra, sfra, efra;	/* frames as in 'images' */
-	float subframe;			/* subframe offset from cfra, in 0.0-1.0 */
-	int psfra, pefra;		/* start+end frames of preview range */
+	int cfra, sfra, efra;   /* frames as in 'images' */
+	float subframe;         /* subframe offset from cfra, in 0.0-1.0 */
+	int psfra, pefra;       /* start+end frames of preview range */
 
 	int images, framapto;
 	short flag, threads;
 
 	float framelen, blurfac;
 
-	int frame_step;		/* frames to jump during render/playback */
+	int frame_step;     /* frames to jump during render/playback */
 
-	short stereomode  DNA_DEPRECATED;	/* standalone player stereo settings */  //  XXX deprecated since 2.5
+	short stereomode DNA_DEPRECATED; /* standalone player stereo settings */     //  XXX deprecated since 2.5
 
-	short dimensionspreset;		/* for the dimensions presets menu */
+	short dimensionspreset;     /* for the dimensions presets menu */
 
 	short size; /* size in % */
 
@@ -597,7 +597,7 @@ typedef struct RenderData {
 	 */
 	int tilex, tiley;
 
-	short planes  DNA_DEPRECATED, imtype  DNA_DEPRECATED, subimtype  DNA_DEPRECATED, quality  DNA_DEPRECATED; /*deprecated!*/
+	short planes DNA_DEPRECATED, imtype DNA_DEPRECATED, subimtype DNA_DEPRECATED, quality DNA_DEPRECATED;     /*deprecated!*/
 
 	/**
 	 * Render to image editor, fullscreen or to new window.
@@ -654,7 +654,7 @@ typedef struct RenderData {
 	/* color management settings - color profiles, gamma correction, etc */
 	int color_mgt_flag;
 
-	 /* Dither noise intensity */
+	/* Dither noise intensity */
 	float dither_intensity;
 
 	/* Bake Render options */
@@ -747,17 +747,17 @@ typedef struct RenderProfile {
 
 /* UV Paint */
 /* ToolSettings.uv_sculpt_settings */
-#define UV_SCULPT_LOCK_BORDERS				1
-#define UV_SCULPT_ALL_ISLANDS				2
+#define UV_SCULPT_LOCK_BORDERS              1
+#define UV_SCULPT_ALL_ISLANDS               2
 
 /* ToolSettings.uv_sculpt_tool */
-#define UV_SCULPT_TOOL_PINCH				1
-#define UV_SCULPT_TOOL_RELAX				2
-#define UV_SCULPT_TOOL_GRAB					3
+#define UV_SCULPT_TOOL_PINCH                1
+#define UV_SCULPT_TOOL_RELAX                2
+#define UV_SCULPT_TOOL_GRAB                 3
 
 /* ToolSettings.uv_relax_method */
-#define UV_SCULPT_TOOL_RELAX_LAPLACIAN	1
-#define UV_SCULPT_TOOL_RELAX_HC			2
+#define UV_SCULPT_TOOL_RELAX_LAPLACIAN  1
+#define UV_SCULPT_TOOL_RELAX_HC         2
 
 /* Stereo Flags */
 #define STEREO_RIGHT_NAME "right"
@@ -828,7 +828,7 @@ typedef struct ImagePaintSettings {
 
 	int mode;                  /* mode used for texture painting */
 
-	void *paintcursor;		   /* wm handle */
+	void *paintcursor;         /* wm handle */
 	struct Image *stencil;     /* workaround until we support true layer masks */
 	struct Image *clone;       /* clone layer for image mode for projective texture painting */
 	struct Image *canvas;      /* canvas when the explicit system is used for painting */
@@ -841,8 +841,8 @@ typedef struct ImagePaintSettings {
 
 /* Settings for a Particle Editing Brush */
 typedef struct ParticleBrushData {
-	short size;						/* common setting */
-	short step, invert, count;		/* for specific brushes only */
+	short size;                     /* common setting */
+	short step, invert, count;      /* for specific brushes only */
 	int flag;
 	float strength;
 } ParticleBrushData;
@@ -855,7 +855,7 @@ typedef struct ParticleEditSettings {
 	short brushtype;
 
 	ParticleBrushData brush[7];
-	void *paintcursor;			/* runtime */
+	void *paintcursor;          /* runtime */
 
 	float emitterdist, rt;
 
@@ -1110,8 +1110,8 @@ typedef struct UnifiedPaintSettings {
 	float brush_rotation_sec;
 
 	/*********************************************************************************
-	 *  all data below are used to communicate with cursor drawing and tex sampling  *
-	 *********************************************************************************/
+	*  all data below are used to communicate with cursor drawing and tex sampling  *
+	*********************************************************************************/
 	int anchored_size;
 
 	float overlap_factor; /* normalization factor due to accumulated value of curve along spacing.
@@ -1216,7 +1216,7 @@ typedef struct MeshStatVis {
 	char _pad1[2];
 
 	/* overhang */
-	char  overhang_axis;
+	char overhang_axis;
 	float overhang_min, overhang_max;
 
 	/* thickness */
@@ -1236,17 +1236,17 @@ typedef struct MeshStatVis {
 /* Tool Settings */
 
 typedef struct ToolSettings {
-	VPaint *vpaint;		/* vertex paint */
-	VPaint *wpaint;		/* weight paint */
+	VPaint *vpaint;     /* vertex paint */
+	VPaint *wpaint;     /* weight paint */
 	Sculpt *sculpt;
-	UvSculpt *uvsculpt;	/* uv smooth */
+	UvSculpt *uvsculpt; /* uv smooth */
 	GpPaint *gp_paint;  /* gpencil paint */
 
 	/* Vertex group weight - used only for editmode, not weight
 	 * paint */
 	float vgroup_weight;
 
-	float doublimit;	/* remove doubles limit */
+	float doublimit;    /* remove doubles limit */
 	char automerge;
 	char object_flag;
 
@@ -1265,7 +1265,7 @@ typedef struct ToolSettings {
 	short autoik_chainlen;  /* runtime only */
 
 	/* Grease Pencil */
-	char gpencil_flags;		/* flags/options for how the tool works */
+	char gpencil_flags;     /* flags/options for how the tool works */
 
 	char gpencil_v3d_align; /* stroke placement settings: 3D View */
 	char gpencil_v2d_align; /*                          : General 2D Editor */
@@ -1297,7 +1297,7 @@ typedef struct ToolSettings {
 	float select_thresh;
 
 	/* Auto-Keying Mode */
-	short autokey_mode, autokey_flag;	/* defines in DNA_userdef_types.h */
+	short autokey_mode, autokey_flag;   /* defines in DNA_userdef_types.h */
 	char keyframe_type;                 /* keyframe type (see DNA_curve_types.h) */
 
 	/* Multires */
@@ -1338,7 +1338,7 @@ typedef struct ToolSettings {
 	char uv_relax_method;
 	/* XXX: these sculpt_paint_* fields are deprecated, use the
 	 * unified_paint_settings field instead! */
-	short sculpt_paint_settings DNA_DEPRECATED;	short pad5;
+	short sculpt_paint_settings DNA_DEPRECATED; short pad5;
 	int sculpt_paint_unified_size DNA_DEPRECATED;
 	float sculpt_paint_unified_unprojected_radius DNA_DEPRECATED;
 	float sculpt_paint_unified_alpha DNA_DEPRECATED;
@@ -1389,8 +1389,8 @@ typedef struct DisplaySafeAreas {
 	/* each value represents the (x,y) margins as a multiplier.
 	 * 'center' in this context is just the name for a different kind of safe-area */
 
-	float title[2];		/* Title Safe */
-	float action[2];	/* Image/Graphics Safe */
+	float title[2];     /* Title Safe */
+	float action[2];    /* Image/Graphics Safe */
 
 	/* use for alternate aspect ratio */
 	float title_center[2];
@@ -1472,11 +1472,11 @@ typedef struct SceneEEVEE {
 struct LANPR_RenderBuffer;
 struct LANPR_LineLayer;
 
-typedef struct SceneLANPR{
+typedef struct SceneLANPR {
 
 	int master_mode;
 
-    int enable_vector_trace;
+	int enable_vector_trace;
 	int display_thinning_result;
 
 	//int SizeCompensate;
@@ -1488,20 +1488,20 @@ typedef struct SceneLANPR{
 
 	float line_thickness;
 
-	int   use_same_taper;
+	int use_same_taper;
 	float taper_left_distance;
 	float taper_left_strength;
 	float taper_right_distance;
 	float taper_right_strength;
 
-	int   enable_tip_extend;
+	int enable_tip_extend;
 	float extend_length;
 
-	int   snake_sensitivity;
+	int snake_sensitivity;
 
 	/* shared */
 
-    float contour_fade;          /* for dpix contour fading,reserved for future usage */
+	float contour_fade;          /* for dpix contour fading,reserved for future usage */
 	float crease_threshold;      /* 0-1 range for cosine angle */
 	float crease_fade_threshold; /* for dpix crease fading */
 
@@ -1515,16 +1515,16 @@ typedef struct SceneLANPR{
 
 	/* states (needs optimization) */
 
-	int   reloaded;
+	int reloaded;
 
 	/* offline render */
 
 	struct LANPR_RenderBuffer *render_buffer;      /* created when needed. for offline rendering */
-	ListBase                   line_layers;  /* now here!!! */
+	ListBase line_layers;                    /* now here!!! */
 	struct LANPR_LineLayer    *active_layer;
 
-	int                        enable_intersections;
-	int                        enable_chaining;	
+	int enable_intersections;
+	int enable_chaining;
 
 } SceneLANPR;
 
@@ -1533,7 +1533,7 @@ typedef struct SceneLANPR{
 
 typedef struct Scene {
 	ID id;
-	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */
+	struct AnimData *adt;   /* animation data (must be immediately after id for utilities to use it) */
 
 	struct Object *camera;
 	struct World *world;
@@ -1544,22 +1544,22 @@ typedef struct Scene {
 	struct Base  *basact DNA_DEPRECATED; /* active base */
 	void *_pad1;
 
-	View3DCursor cursor;			/* 3d cursor location */
+	View3DCursor cursor;            /* 3d cursor location */
 
-	unsigned int lay;			/* bitflags for layer visibility */
-	int layact;		/* active layer */
+	unsigned int lay;           /* bitflags for layer visibility */
+	int layact;     /* active layer */
 	unsigned int lay_updated;       /* runtime flag, has layer ever been updated since load? */
 
-	short flag;								/* various settings */
+	short flag;                             /* various settings */
 
 	char use_nodes;
 	char pad[1];
 
 	struct bNodeTree *nodetree;
 
-	struct Editing *ed;								/* sequence editor data is allocated here */
+	struct Editing *ed;                             /* sequence editor data is allocated here */
 
-	struct ToolSettings *toolsettings;		/* default allocated now */
+	struct ToolSettings *toolsettings;      /* default allocated now */
 	void *pad2;
 	struct DisplaySafeAreas safe_areas;
 
@@ -1579,15 +1579,15 @@ typedef struct Scene {
 	void *sound_scrub_handle;
 	void *speaker_handles;
 
-	void *fps_info;					/* (runtime) info/cache used for presenting playback framerate info to the user */
+	void *fps_info;                 /* (runtime) info/cache used for presenting playback framerate info to the user */
 
 	/* none of the dependency graph  vars is mean to be saved */
 	struct GHash *depsgraph_hash;
 	int pad7;
 
 	/* User-Defined KeyingSets */
-	int active_keyingset;			/* index of the active KeyingSet. first KeyingSet has index 1, 'none' active is 0, 'add new' is -1 */
-	ListBase keyingsets;			/* KeyingSets for this scene */
+	int active_keyingset;           /* index of the active KeyingSet. first KeyingSet has index 1, 'none' active is 0, 'add new' is -1 */
+	ListBase keyingsets;            /* KeyingSets for this scene */
 
 	/* Units */
 	struct UnitSettings unit;
@@ -1596,12 +1596,12 @@ typedef struct Scene {
 	struct bGPdata *gpd;
 
 	/* Movie Tracking */
-	struct MovieClip *clip;			/* active movie clip */
+	struct MovieClip *clip;         /* active movie clip */
 
 	/* Physics simulation settings */
 	struct PhysicsSettings physics_settings;
 
-	uint64_t customdata_mask;	/* XXX. runtime flag for drawing, actually belongs in the window, only used by BKE_object_handle_update() */
+	uint64_t customdata_mask;   /* XXX. runtime flag for drawing, actually belongs in the window, only used by BKE_object_handle_update() */
 	uint64_t customdata_mask_modal; /* XXX. same as above but for temp operator use (gl renders) */
 
 
@@ -1632,47 +1632,47 @@ typedef struct Scene {
 /* **************** RENDERDATA ********************* */
 
 /* RenderData.flag */
-	/* use preview range */
-#define SCER_PRV_RANGE	(1<<0)
-#define SCER_LOCK_FRAME_SELECTION	(1<<1)
-	/* show/use subframes (for checking motion blur) */
-#define SCER_SHOW_SUBFRAME	(1<<3)
+/* use preview range */
+#define SCER_PRV_RANGE  (1 << 0)
+#define SCER_LOCK_FRAME_SELECTION   (1 << 1)
+/* show/use subframes (for checking motion blur) */
+#define SCER_SHOW_SUBFRAME  (1 << 3)
 
 /* RenderData.mode */
-#define R_OSA			0x0001
+#define R_OSA           0x0001
 /* #define R_SHADOW		0x0002 */
 /* #define R_GAMMA			0x0004 */
-#define R_ORTHO			0x0008
+#define R_ORTHO         0x0008
 /* #define R_ENVMAP		0x0010 */
 /* #define R_EDGE			0x0020 */
 /* #define R_FIELDS		0x0040 */
 /*#define R_FIELDSTILL	0x0080 */
 /*#define R_RADIO			0x0100 */ /* deprecated */
-#define R_BORDER		0x0200
-#define R_PANORAMA		0x0400
-#define R_CROP			0x0800
-		/* Disable camera switching: runtime (DURIAN_CAMERA_SWITCH) */
-#define R_NO_CAMERA_SWITCH	0x1000
+#define R_BORDER        0x0200
+#define R_PANORAMA      0x0400
+#define R_CROP          0x0800
+/* Disable camera switching: runtime (DURIAN_CAMERA_SWITCH) */
+#define R_NO_CAMERA_SWITCH  0x1000
 /* #define R_ODDFIELD		0x2000 */
-#define R_MBLUR			0x4000
-		/* unified was here */
+#define R_MBLUR         0x4000
+/* unified was here */
 /* #define R_RAYTRACE      0x10000 */
-		/* R_GAUSS is obsolete, but used to retrieve setting from old files */
-/* #define R_GAUSS      	0x20000 */
-		/* fbuf obsolete... */
+/* R_GAUSS is obsolete, but used to retrieve setting from old files */
+/* #define R_GAUSS          0x20000 */
+/* fbuf obsolete... */
 /*#define R_FBUF			0x40000*/
-		/* threads obsolete... is there for old files, now use for autodetect threads */
-#define R_THREADS		0x80000
-		/* Use the same flag for autothreads */
-#define R_FIXED_THREADS		0x80000
+/* threads obsolete... is there for old files, now use for autodetect threads */
+#define R_THREADS       0x80000
+/* Use the same flag for autothreads */
+#define R_FIXED_THREADS     0x80000
 
 /* #define R_SPEED				0x100000 */
 /* #define R_SSS				0x200000 */
-#define R_NO_OVERWRITE		0x400000  /* skip existing files */
-#define R_TOUCH				0x800000  /* touch files before rendering */
-#define R_SIMPLIFY			0x1000000
-#define R_EDGE_FRS			0x2000000 /* R_EDGE reserved for Freestyle */
-#define R_PERSISTENT_DATA	0x4000000 /* keep data around for re-render */
+#define R_NO_OVERWRITE      0x400000  /* skip existing files */
+#define R_TOUCH             0x800000  /* touch files before rendering */
+#define R_SIMPLIFY          0x1000000
+#define R_EDGE_FRS          0x2000000 /* R_EDGE reserved for Freestyle */
+#define R_PERSISTENT_DATA   0x4000000 /* keep data around for re-render */
 /* #define R_USE_WS_SHADING	0x8000000 */ /* use world space interpretation of lighting data */
 
 /* RenderData.seq_flag */
@@ -1684,72 +1684,72 @@ enum {
 };
 
 /* RenderData.displaymode */
-#define R_OUTPUT_SCREEN	0
-#define R_OUTPUT_AREA	1
-#define R_OUTPUT_WINDOW	2
-#define R_OUTPUT_NONE	3
+#define R_OUTPUT_SCREEN 0
+#define R_OUTPUT_AREA   1
+#define R_OUTPUT_WINDOW 2
+#define R_OUTPUT_NONE   3
 /*#define R_OUTPUT_FORKED	4*/
 
 /* RenderData.filtertype (used for nodes) */
-#define R_FILTER_BOX	0
-#define R_FILTER_TENT	1
-#define R_FILTER_QUAD	2
-#define R_FILTER_CUBIC	3
-#define R_FILTER_CATROM	4
-#define R_FILTER_GAUSS	5
-#define R_FILTER_MITCH	6
-#define R_FILTER_FAST_GAUSS	7
+#define R_FILTER_BOX    0
+#define R_FILTER_TENT   1
+#define R_FILTER_QUAD   2
+#define R_FILTER_CUBIC  3
+#define R_FILTER_CATROM 4
+#define R_FILTER_GAUSS  5
+#define R_FILTER_MITCH  6
+#define R_FILTER_FAST_GAUSS 7
 
 /* RenderData.scemode (int now) */
-#define R_DOSEQ				0x0001
-#define R_BG_RENDER			0x0002
-		/* passepartout is camera option now, keep this for backward compatibility */
-#define R_PASSEPARTOUT		0x0004
-#define R_BUTS_PREVIEW		0x0008
-#define R_EXTENSION			0x0010
-#define R_MATNODE_PREVIEW	0x0020
-#define R_DOCOMP			0x0040
-#define R_COMP_CROP			0x0080
+#define R_DOSEQ             0x0001
+#define R_BG_RENDER         0x0002
+/* passepartout is camera option now, keep this for backward compatibility */
+#define R_PASSEPARTOUT      0x0004
+#define R_BUTS_PREVIEW      0x0008
+#define R_EXTENSION         0x0010
+#define R_MATNODE_PREVIEW   0x0020
+#define R_DOCOMP            0x0040
+#define R_COMP_CROP         0x0080
 /* #define R_FREE_IMAGE		0x0100 */
-#define R_SINGLE_LAYER		0x0200
-#define R_EXR_TILE_FILE		0x0400
+#define R_SINGLE_LAYER      0x0200
+#define R_EXR_TILE_FILE     0x0400
 /* #define R_COMP_FREE			0x0800 */
-#define R_NO_IMAGE_LOAD		0x1000
+#define R_NO_IMAGE_LOAD     0x1000
 /* #define R_NO_TEX			0x2000 */
-#define R_NO_FRAME_UPDATE	0x4000
-#define R_FULL_SAMPLE		0x8000
+#define R_NO_FRAME_UPDATE   0x4000
+#define R_FULL_SAMPLE       0x8000
 /* #define R_DEPRECATED		0x10000 */
 /* #define R_RECURS_PROTECTION	0x20000 */
-#define R_TEXNODE_PREVIEW	0x40000
+#define R_TEXNODE_PREVIEW   0x40000
 /* #define R_VIEWPORT_PREVIEW	0x80000 */
-#define R_EXR_CACHE_FILE	0x100000
-#define R_MULTIVIEW			0x200000
+#define R_EXR_CACHE_FILE    0x100000
+#define R_MULTIVIEW         0x200000
 
 /* RenderData.stamp */
-#define R_STAMP_TIME 	0x0001
-#define R_STAMP_FRAME	0x0002
-#define R_STAMP_DATE	0x0004
-#define R_STAMP_CAMERA	0x0008
-#define R_STAMP_SCENE	0x0010
-#define R_STAMP_NOTE	0x0020
-#define R_STAMP_DRAW	0x0040 /* draw in the image */
-#define R_STAMP_MARKER	0x0080
-#define R_STAMP_FILENAME	0x0100
-#define R_STAMP_SEQSTRIP	0x0200
-#define R_STAMP_RENDERTIME	0x0400
-#define R_STAMP_CAMERALENS	0x0800
-#define R_STAMP_STRIPMETA	0x1000
-#define R_STAMP_MEMORY		0x2000
-#define R_STAMP_HIDE_LABELS	0x4000
-#define R_STAMP_FRAME_RANGE	0x8000
-#define R_STAMP_ALL (R_STAMP_TIME|R_STAMP_FRAME|R_STAMP_DATE|R_STAMP_CAMERA|R_STAMP_SCENE| \
-                     R_STAMP_NOTE|R_STAMP_MARKER|R_STAMP_FILENAME|R_STAMP_SEQSTRIP|        \
-                     R_STAMP_RENDERTIME|R_STAMP_CAMERALENS|R_STAMP_MEMORY|                 \
-                     R_STAMP_HIDE_LABELS|R_STAMP_FRAME_RANGE)
+#define R_STAMP_TIME    0x0001
+#define R_STAMP_FRAME   0x0002
+#define R_STAMP_DATE    0x0004
+#define R_STAMP_CAMERA  0x0008
+#define R_STAMP_SCENE   0x0010
+#define R_STAMP_NOTE    0x0020
+#define R_STAMP_DRAW    0x0040 /* draw in the image */
+#define R_STAMP_MARKER  0x0080
+#define R_STAMP_FILENAME    0x0100
+#define R_STAMP_SEQSTRIP    0x0200
+#define R_STAMP_RENDERTIME  0x0400
+#define R_STAMP_CAMERALENS  0x0800
+#define R_STAMP_STRIPMETA   0x1000
+#define R_STAMP_MEMORY      0x2000
+#define R_STAMP_HIDE_LABELS 0x4000
+#define R_STAMP_FRAME_RANGE 0x8000
+#define R_STAMP_ALL (R_STAMP_TIME | R_STAMP_FRAME | R_STAMP_DATE | R_STAMP_CAMERA | R_STAMP_SCENE | \
+	                 R_STAMP_NOTE | R_STAMP_MARKER | R_STAMP_FILENAME | R_STAMP_SEQSTRIP |        \
+	                 R_STAMP_RENDERTIME | R_STAMP_CAMERALENS | R_STAMP_MEMORY |                 \
+	                 R_STAMP_HIDE_LABELS | R_STAMP_FRAME_RANGE)
 
 /* RenderData.alphamode */
-#define R_ADDSKY		0
-#define R_ALPHAPREMUL	1
+#define R_ADDSKY        0
+#define R_ALPHAPREMUL   1
 /*#define R_ALPHAKEY		2*/ /* deprecated, shouldn't be used */
 
 /* RenderData.color_mgt_flag */
@@ -1761,38 +1761,38 @@ enum {
 #ifdef DNA_DEPRECATED
 /* RenderData.subimtype flag options for imtype */
 enum {
-	R_OPENEXR_HALF	= 1,  /*deprecated*/
-	R_OPENEXR_ZBUF	= 2,  /*deprecated*/
-	R_PREVIEW_JPG	= 4,  /*deprecated*/
-	R_CINEON_LOG	= 8,  /*deprecated*/
-	R_TIFF_16BIT	= 16, /*deprecated*/
+	R_OPENEXR_HALF  = 1,  /*deprecated*/
+	R_OPENEXR_ZBUF  = 2,  /*deprecated*/
+	R_PREVIEW_JPG   = 4,  /*deprecated*/
+	R_CINEON_LOG    = 8,  /*deprecated*/
+	R_TIFF_16BIT    = 16, /*deprecated*/
 
-	R_JPEG2K_12BIT			=     32,  /* Jpeg2000 */                    /*deprecated*/
-	R_JPEG2K_16BIT			=     64,                                    /*deprecated*/
-	R_JPEG2K_YCC			=     128,  /* when disabled use RGB */      /*deprecated*/
-	R_JPEG2K_CINE_PRESET	=     256,                                   /*deprecated*/
-	R_JPEG2K_CINE_48FPS		=     512,                                   /*deprecated*/
+	R_JPEG2K_12BIT          =     32,  /* Jpeg2000 */                    /*deprecated*/
+	R_JPEG2K_16BIT          =     64,                                    /*deprecated*/
+	R_JPEG2K_YCC            =     128,  /* when disabled use RGB */      /*deprecated*/
+	R_JPEG2K_CINE_PRESET    =     256,                                   /*deprecated*/
+	R_JPEG2K_CINE_48FPS     =     512,                                   /*deprecated*/
 };
 #endif
 
 /* bake_mode: same as RE_BAKE_xxx defines */
 /* RenderData.bake_flag */
-#define R_BAKE_CLEAR		1
+#define R_BAKE_CLEAR        1
 /* #define R_BAKE_OSA		2 */ /* deprecated */
-#define R_BAKE_TO_ACTIVE	4
+#define R_BAKE_TO_ACTIVE    4
 /* #define R_BAKE_NORMALIZE	8 */ /* deprecated */
-#define R_BAKE_MULTIRES		16
-#define R_BAKE_LORES_MESH	32
+#define R_BAKE_MULTIRES     16
+#define R_BAKE_LORES_MESH   32
 /* #define R_BAKE_VCOL		64 */ /* deprecated */
-#define R_BAKE_USERSCALE	128
-#define R_BAKE_CAGE			256
-#define R_BAKE_SPLIT_MAT	512
-#define R_BAKE_AUTO_NAME	1024
+#define R_BAKE_USERSCALE    128
+#define R_BAKE_CAGE         256
+#define R_BAKE_SPLIT_MAT    512
+#define R_BAKE_AUTO_NAME    1024
 
 /* RenderData.bake_normal_space */
-#define R_BAKE_SPACE_CAMERA	 0
-#define R_BAKE_SPACE_WORLD	 1
-#define R_BAKE_SPACE_OBJECT	 2
+#define R_BAKE_SPACE_CAMERA  0
+#define R_BAKE_SPACE_WORLD   1
+#define R_BAKE_SPACE_OBJECT  2
 #define R_BAKE_SPACE_TANGENT 3
 
 /* RenderData.line_thickness_mode */
@@ -1812,40 +1812,40 @@ extern const char *RE_engine_id_CYCLES;
 /* Current precision is 16 for the sub-frames closer to MAXFRAME. */
 
 /* for general use */
-#define MAXFRAME	1048574
-#define MAXFRAMEF	1048574.0f
+#define MAXFRAME    1048574
+#define MAXFRAMEF   1048574.0f
 
-#define MINFRAME	0
-#define MINFRAMEF	0.0f
+#define MINFRAME    0
+#define MINFRAMEF   0.0f
 
 /* (minimum frame number for current-frame) */
-#define MINAFRAME	-1048574
-#define MINAFRAMEF	-1048574.0f
+#define MINAFRAME   -1048574
+#define MINAFRAMEF  -1048574.0f
 
 /* deprecate this! */
 #define TESTBASE(base)  (                                                     \
-	(((base)->flag & BASE_SELECTED) != 0) &&                                  \
-	(((base)->flag & BASE_VISIBLE) != 0))
+		(((base)->flag & BASE_SELECTED) != 0) &&                                  \
+		(((base)->flag & BASE_VISIBLE) != 0))
 #define TESTBASELIB(base)  (                                                  \
-	(((base)->flag & BASE_SELECTED) != 0) &&                                  \
-	((base)->object->id.lib == NULL) &&                                       \
-	(((base)->flag & BASE_VISIBLE) != 0))
+		(((base)->flag & BASE_SELECTED) != 0) &&                                  \
+		((base)->object->id.lib == NULL) &&                                       \
+		(((base)->flag & BASE_VISIBLE) != 0))
 #define TESTBASELIB_BGMODE(base)  (                                           \
-	(((base)->flag & BASE_SELECTED) != 0) &&                                  \
-	((base)->object->id.lib == NULL) &&                                       \
-	(((base)->flag & BASE_VISIBLE) != 0))
+		(((base)->flag & BASE_SELECTED) != 0) &&                                  \
+		((base)->object->id.lib == NULL) &&                                       \
+		(((base)->flag & BASE_VISIBLE) != 0))
 #define BASE_EDITABLE_BGMODE(base)  (                                         \
-	((base)->object->id.lib == NULL) &&                                       \
-	(((base)->flag & BASE_VISIBLE) != 0))
+		((base)->object->id.lib == NULL) &&                                       \
+		(((base)->flag & BASE_VISIBLE) != 0))
 #define BASE_SELECTABLE(base)                                                 \
 	(((base)->flag & BASE_SELECTABLE) != 0)
 #define BASE_VISIBLE(base)  (                                                 \
-	((base)->flag & BASE_VISIBLE) != 0)
+		((base)->flag & BASE_VISIBLE) != 0)
 
 #define FIRSTBASE(_view_layer)  ((_view_layer)->object_bases.first)
 #define LASTBASE(_view_layer)   ((_view_layer)->object_bases.last)
 #define BASACT(_view_layer)     ((_view_layer)->basact)
-#define OBACT(_view_layer)      (BASACT(_view_layer) ? BASACT(_view_layer)->object: NULL)
+#define OBACT(_view_layer)      (BASACT(_view_layer) ? BASACT(_view_layer)->object : NULL)
 
 #define OBEDIT_FROM_WORKSPACE(workspace, _view_layer) \
 	(((workspace)->object_mode & OD_MODE_EDIT) ? OBACT(_view_layer) : NULL)
@@ -1866,9 +1866,9 @@ extern const char *RE_engine_id_CYCLES;
 #define PRVRANGEON      (scene->r.flag & SCER_PRV_RANGE)
 #define PSFRA           ((PRVRANGEON) ? (scene->r.psfra) : (scene->r.sfra))
 #define PEFRA           ((PRVRANGEON) ? (scene->r.pefra) : (scene->r.efra))
-#define FRA2TIME(a)     ((((double) scene->r.frs_sec_base) * (double)(a)) / (double)scene->r.frs_sec)
-#define TIME2FRA(a)     ((((double) scene->r.frs_sec) * (double)(a)) / (double)scene->r.frs_sec_base)
-#define FPS              (((double) scene->r.frs_sec) / (double)scene->r.frs_sec_base)
+#define FRA2TIME(a)     ((((double)scene->r.frs_sec_base) * (double)(a)) / (double)scene->r.frs_sec)
+#define TIME2FRA(a)     ((((double)scene->r.frs_sec) * (double)(a)) / (double)scene->r.frs_sec_base)
+#define FPS              (((double)scene->r.frs_sec) / (double)scene->r.frs_sec_base)
 
 /* Base.flag is in DNA_object_types.h */
 
@@ -1883,18 +1883,18 @@ enum {
 };
 
 /* ToolSettings.snap_flag */
-#define SCE_SNAP				1
-#define SCE_SNAP_ROTATE			2
-#define SCE_SNAP_PEEL_OBJECT	4
-#define SCE_SNAP_PROJECT		8
-#define SCE_SNAP_NO_SELF		16
-#define SCE_SNAP_ABS_GRID		32
+#define SCE_SNAP                1
+#define SCE_SNAP_ROTATE         2
+#define SCE_SNAP_PEEL_OBJECT    4
+#define SCE_SNAP_PROJECT        8
+#define SCE_SNAP_NO_SELF        16
+#define SCE_SNAP_ABS_GRID       32
 
 /* ToolSettings.snap_target */
-#define SCE_SNAP_TARGET_CLOSEST	0
-#define SCE_SNAP_TARGET_CENTER	1
-#define SCE_SNAP_TARGET_MEDIAN	2
-#define SCE_SNAP_TARGET_ACTIVE	3
+#define SCE_SNAP_TARGET_CLOSEST 0
+#define SCE_SNAP_TARGET_CENTER  1
+#define SCE_SNAP_TARGET_MEDIAN  2
+#define SCE_SNAP_TARGET_ACTIVE  3
 
 /* ToolSettings.snap_mode */
 #define SCE_SNAP_MODE_VERTEX    (1 << 0)
@@ -1909,21 +1909,21 @@ enum {
 #define SCE_SNAP_MODE_NODE_Y    (1 << 7)
 
 /* ToolSettings.selectmode */
-#define SCE_SELECT_VERTEX	1 /* for mesh */
-#define SCE_SELECT_EDGE		2
-#define SCE_SELECT_FACE		4
+#define SCE_SELECT_VERTEX   1 /* for mesh */
+#define SCE_SELECT_EDGE     2
+#define SCE_SELECT_FACE     4
 
 /* MeshStatVis.type */
-#define SCE_STATVIS_OVERHANG	0
-#define SCE_STATVIS_THICKNESS	1
-#define SCE_STATVIS_INTERSECT	2
-#define SCE_STATVIS_DISTORT		3
-#define SCE_STATVIS_SHARP		4
+#define SCE_STATVIS_OVERHANG    0
+#define SCE_STATVIS_THICKNESS   1
+#define SCE_STATVIS_INTERSECT   2
+#define SCE_STATVIS_DISTORT     3
+#define SCE_STATVIS_SHARP       4
 
 /* ParticleEditSettings.selectmode for particles */
-#define SCE_SELECT_PATH		1
-#define SCE_SELECT_POINT	2
-#define SCE_SELECT_END		4
+#define SCE_SELECT_PATH     1
+#define SCE_SELECT_POINT    2
+#define SCE_SELECT_END      4
 
 /* ToolSettings.prop_mode (proportional falloff) */
 #define PROP_SMOOTH            0
@@ -1937,10 +1937,10 @@ enum {
 #define PROP_MODE_MAX          8
 
 /* ToolSettings.proportional */
-#define PROP_EDIT_OFF			0
-#define PROP_EDIT_ON			1
-#define PROP_EDIT_CONNECTED		2
-#define PROP_EDIT_PROJECTED		3
+#define PROP_EDIT_OFF           0
+#define PROP_EDIT_ON            1
+#define PROP_EDIT_CONNECTED     2
+#define PROP_EDIT_PROJECTED     3
 
 /* ToolSettings.weightuser */
 enum {
@@ -1968,23 +1968,23 @@ typedef enum eVGroupSelect {
 
 
 /* Scene.flag */
-#define SCE_DS_SELECTED			(1<<0)
-#define SCE_DS_COLLAPSED		(1<<1)
-#define SCE_NLA_EDIT_ON			(1<<2)
-#define SCE_FRAME_DROP			(1<<3)
-#define SCE_KEYS_NO_SELONLY	    (1<<4)
+#define SCE_DS_SELECTED         (1 << 0)
+#define SCE_DS_COLLAPSED        (1 << 1)
+#define SCE_NLA_EDIT_ON         (1 << 2)
+#define SCE_FRAME_DROP          (1 << 3)
+#define SCE_KEYS_NO_SELONLY     (1 << 4)
 
-	/* return flag BKE_scene_base_iter_next functions */
+/* return flag BKE_scene_base_iter_next functions */
 /* #define F_ERROR			-1 */  /* UNUSED */
-#define F_START			0
-#define F_SCENE			1
-#define F_DUPLI			3
+#define F_START         0
+#define F_SCENE         1
+#define F_DUPLI         3
 
 /* AudioData.flag */
-#define AUDIO_MUTE                (1<<0)
-#define AUDIO_SYNC                (1<<1)
-#define AUDIO_SCRUB		          (1<<2)
-#define AUDIO_VOLUME_ANIMATED     (1<<3)
+#define AUDIO_MUTE                (1 << 0)
+#define AUDIO_SYNC                (1 << 1)
+#define AUDIO_SCRUB               (1 << 2)
+#define AUDIO_VOLUME_ANIMATED     (1 << 3)
 
 /* FFMpegCodecData.flags */
 enum {
@@ -2063,18 +2063,18 @@ typedef enum eImagePaintMode {
 } eImagePaintMode;
 
 /* ImagePaintSettings.flag */
-#define IMAGEPAINT_DRAWING				1
+#define IMAGEPAINT_DRAWING              1
 // #define IMAGEPAINT_DRAW_TOOL			2 // deprecated
 // #define IMAGEPAINT_DRAW_TOOL_DRAWING	4 // deprecated
 
 /* projection painting only */
 /* ImagePaintSettings.flag */
-#define IMAGEPAINT_PROJECT_XRAY			(1 << 4)
-#define IMAGEPAINT_PROJECT_BACKFACE		(1 << 5)
-#define IMAGEPAINT_PROJECT_FLAT			(1 << 6)
-#define IMAGEPAINT_PROJECT_LAYER_CLONE	(1 << 7)
-#define IMAGEPAINT_PROJECT_LAYER_STENCIL	(1 << 8)
-#define IMAGEPAINT_PROJECT_LAYER_STENCIL_INV	(1 << 9)
+#define IMAGEPAINT_PROJECT_XRAY         (1 << 4)
+#define IMAGEPAINT_PROJECT_BACKFACE     (1 << 5)
+#define IMAGEPAINT_PROJECT_FLAT         (1 << 6)
+#define IMAGEPAINT_PROJECT_LAYER_CLONE  (1 << 7)
+#define IMAGEPAINT_PROJECT_LAYER_STENCIL    (1 << 8)
+#define IMAGEPAINT_PROJECT_LAYER_STENCIL_INV    (1 << 9)
 
 /* ImagePaintSettings.missing_data */
 #define IMAGEPAINT_MISSING_UVS       (1 << 0)
@@ -2083,33 +2083,33 @@ typedef enum eImagePaintMode {
 #define IMAGEPAINT_MISSING_STENCIL   (1 << 3)
 
 /* ToolSettings.uvcalc_flag */
-#define UVCALC_FILLHOLES			1
-#define UVCALC_NO_ASPECT_CORRECT	2	/* would call this UVCALC_ASPECT_CORRECT, except it should be default with old file */
-#define UVCALC_TRANSFORM_CORRECT	4	/* adjust UV's while transforming to avoid distortion */
-#define UVCALC_USESUBSURF			8	/* Use mesh data after subsurf to compute UVs*/
+#define UVCALC_FILLHOLES            1
+#define UVCALC_NO_ASPECT_CORRECT    2   /* would call this UVCALC_ASPECT_CORRECT, except it should be default with old file */
+#define UVCALC_TRANSFORM_CORRECT    4   /* adjust UV's while transforming to avoid distortion */
+#define UVCALC_USESUBSURF           8   /* Use mesh data after subsurf to compute UVs*/
 
 /* ToolSettings.uv_flag */
-#define UV_SYNC_SELECTION	1
-#define UV_SHOW_SAME_IMAGE	2
+#define UV_SYNC_SELECTION   1
+#define UV_SHOW_SAME_IMAGE  2
 
 /* ToolSettings.uv_selectmode */
-#define UV_SELECT_VERTEX	1
-#define UV_SELECT_EDGE		2
-#define UV_SELECT_FACE		4
-#define UV_SELECT_ISLAND	8
+#define UV_SELECT_VERTEX    1
+#define UV_SELECT_EDGE      2
+#define UV_SELECT_FACE      4
+#define UV_SELECT_ISLAND    8
 
 /* ToolSettings.edge_mode */
-#define EDGE_MODE_SELECT				0
-#define EDGE_MODE_TAG_SEAM				1
-#define EDGE_MODE_TAG_SHARP				2
-#define EDGE_MODE_TAG_CREASE			3
-#define EDGE_MODE_TAG_BEVEL				4
-#define EDGE_MODE_TAG_FREESTYLE			5
+#define EDGE_MODE_SELECT                0
+#define EDGE_MODE_TAG_SEAM              1
+#define EDGE_MODE_TAG_SHARP             2
+#define EDGE_MODE_TAG_CREASE            3
+#define EDGE_MODE_TAG_BEVEL             4
+#define EDGE_MODE_TAG_FREESTYLE         5
 
 /* ToolSettings.gizmo_flag */
-#define SCE_MANIP_TRANSLATE	1
-#define SCE_MANIP_ROTATE		2
-#define SCE_MANIP_SCALE		4
+#define SCE_MANIP_TRANSLATE 1
+#define SCE_MANIP_ROTATE        2
+#define SCE_MANIP_SCALE     4
 
 /* ToolSettings.gpencil_flags */
 typedef enum eGPencil_Flags {
@@ -2144,7 +2144,7 @@ typedef enum eGPencil_Placement_Flags {
 	GP_PROJECT_CANVAS       = (1 << 1),
 
 	/* Project into the screen's Z values */
-	GP_PROJECT_DEPTH_VIEW	= (1 << 2),
+	GP_PROJECT_DEPTH_VIEW   = (1 << 2),
 	GP_PROJECT_DEPTH_STROKE = (1 << 3),
 
 	/* "Use Endpoints" */
@@ -2153,68 +2153,68 @@ typedef enum eGPencil_Placement_Flags {
 } eGPencil_Placement_Flags;
 
 /* ToolSettings.particle flag */
-#define PE_KEEP_LENGTHS			1
-#define PE_LOCK_FIRST			2
-#define PE_DEFLECT_EMITTER		4
-#define PE_INTERPOLATE_ADDED	8
-#define PE_DRAW_PART			16
+#define PE_KEEP_LENGTHS         1
+#define PE_LOCK_FIRST           2
+#define PE_DEFLECT_EMITTER      4
+#define PE_INTERPOLATE_ADDED    8
+#define PE_DRAW_PART            16
 /* #define PE_X_MIRROR			64 */	/* deprecated */
-#define PE_FADE_TIME			128
-#define PE_AUTO_VELOCITY		256
+#define PE_FADE_TIME            128
+#define PE_AUTO_VELOCITY        256
 
 /* ParticleEditSettings.brushtype */
-#define PE_BRUSH_NONE		-1
-#define PE_BRUSH_COMB		0
-#define PE_BRUSH_CUT		1
-#define PE_BRUSH_LENGTH		2
-#define PE_BRUSH_PUFF		3
-#define PE_BRUSH_ADD		4
-#define PE_BRUSH_SMOOTH		5
-#define PE_BRUSH_WEIGHT		6
+#define PE_BRUSH_NONE       -1
+#define PE_BRUSH_COMB       0
+#define PE_BRUSH_CUT        1
+#define PE_BRUSH_LENGTH     2
+#define PE_BRUSH_PUFF       3
+#define PE_BRUSH_ADD        4
+#define PE_BRUSH_SMOOTH     5
+#define PE_BRUSH_WEIGHT     6
 
 /* ParticleBrushData.flag */
 #define PE_BRUSH_DATA_PUFF_VOLUME 1
 
 /* ParticleBrushData.edittype */
-#define PE_TYPE_PARTICLES	0
-#define PE_TYPE_SOFTBODY	1
-#define PE_TYPE_CLOTH		2
+#define PE_TYPE_PARTICLES   0
+#define PE_TYPE_SOFTBODY    1
+#define PE_TYPE_CLOTH       2
 
 /* PhysicsSettings.flag */
-#define PHYS_GLOBAL_GRAVITY		1
+#define PHYS_GLOBAL_GRAVITY     1
 
 /* UnitSettings */
 
 /* UnitSettings.system */
-#define	USER_UNIT_NONE			0
-#define	USER_UNIT_METRIC		1
-#define	USER_UNIT_IMPERIAL		2
+#define USER_UNIT_NONE          0
+#define USER_UNIT_METRIC        1
+#define USER_UNIT_IMPERIAL      2
 /* UnitSettings.flag */
-#define	USER_UNIT_OPT_SPLIT		1
-#define USER_UNIT_ROT_RADIANS	2
+#define USER_UNIT_OPT_SPLIT     1
+#define USER_UNIT_ROT_RADIANS   2
 
 /* SceneEEVEE->flag */
 enum {
-	SCE_EEVEE_VOLUMETRIC_ENABLED	= (1 << 0),
-	SCE_EEVEE_VOLUMETRIC_LIGHTS		= (1 << 1),
-	SCE_EEVEE_VOLUMETRIC_SHADOWS	= (1 << 2),
+	SCE_EEVEE_VOLUMETRIC_ENABLED    = (1 << 0),
+	SCE_EEVEE_VOLUMETRIC_LIGHTS     = (1 << 1),
+	SCE_EEVEE_VOLUMETRIC_SHADOWS    = (1 << 2),
 //	SCE_EEVEE_VOLUMETRIC_COLORED	= (1 << 3), /* Unused */
-	SCE_EEVEE_GTAO_ENABLED			= (1 << 4),
-	SCE_EEVEE_GTAO_BENT_NORMALS		= (1 << 5),
-	SCE_EEVEE_GTAO_BOUNCE			= (1 << 6),
-	SCE_EEVEE_DOF_ENABLED			= (1 << 7),
-	SCE_EEVEE_BLOOM_ENABLED			= (1 << 8),
-	SCE_EEVEE_MOTION_BLUR_ENABLED	= (1 << 9),
-	SCE_EEVEE_SHADOW_HIGH_BITDEPTH	= (1 << 10),
-	SCE_EEVEE_TAA_REPROJECTION		= (1 << 11),
-	SCE_EEVEE_SSS_ENABLED			= (1 << 12),
-	SCE_EEVEE_SSS_SEPARATE_ALBEDO	= (1 << 13),
-	SCE_EEVEE_SSR_ENABLED			= (1 << 14),
-	SCE_EEVEE_SSR_REFRACTION		= (1 << 15),
-	SCE_EEVEE_SSR_HALF_RESOLUTION	= (1 << 16),
-	SCE_EEVEE_SHOW_IRRADIANCE		= (1 << 17),
-	SCE_EEVEE_SHOW_CUBEMAPS			= (1 << 18),
-	SCE_EEVEE_GI_AUTOBAKE			= (1 << 19),
+	SCE_EEVEE_GTAO_ENABLED          = (1 << 4),
+	SCE_EEVEE_GTAO_BENT_NORMALS     = (1 << 5),
+	SCE_EEVEE_GTAO_BOUNCE           = (1 << 6),
+	SCE_EEVEE_DOF_ENABLED           = (1 << 7),
+	SCE_EEVEE_BLOOM_ENABLED         = (1 << 8),
+	SCE_EEVEE_MOTION_BLUR_ENABLED   = (1 << 9),
+	SCE_EEVEE_SHADOW_HIGH_BITDEPTH  = (1 << 10),
+	SCE_EEVEE_TAA_REPROJECTION      = (1 << 11),
+	SCE_EEVEE_SSS_ENABLED           = (1 << 12),
+	SCE_EEVEE_SSS_SEPARATE_ALBEDO   = (1 << 13),
+	SCE_EEVEE_SSR_ENABLED           = (1 << 14),
+	SCE_EEVEE_SSR_REFRACTION        = (1 << 15),
+	SCE_EEVEE_SSR_HALF_RESOLUTION   = (1 << 16),
+	SCE_EEVEE_SHOW_IRRADIANCE       = (1 << 17),
+	SCE_EEVEE_SHOW_CUBEMAPS         = (1 << 18),
+	SCE_EEVEE_GI_AUTOBAKE           = (1 << 19),
 };
 
 /* SceneEEVEE->shadow_method */
