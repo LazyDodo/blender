@@ -2982,7 +2982,7 @@ void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_Framebuffe
 
 	GPU_framebuffer_bind(dfbl->default_fb);
 	GPU_framebuffer_clear(dfbl->default_fb, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
-	DRW_multisamples_resolve(txl->depth, txl->color);
+	DRW_multisamples_resolve(txl->depth, txl->color, 1);
 }
 
 

@@ -386,5 +386,5 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 
 	GPU_framebuffer_bind(DefaultFB);
 	GPU_framebuffer_clear(DefaultFB, clear_bits, lanpr->background_color, clear_depth, clear_stencil);
-	DRW_multisamples_resolve(txl->depth, txl->color);
+	DRW_multisamples_resolve(txl->depth, txl->color, 1);
 }
