@@ -26,8 +26,8 @@
 #include "util/util_vector.h"
 #include "util/util_thread.h"
 
-#include "embree2/rtcore.h"
-#include "embree2/rtcore_scene.h"
+#include "embree3/rtcore.h"
+#include "embree3/rtcore_scene.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -49,10 +49,10 @@ protected:
 	virtual void pack_nodes(const BVHNode *root);
 	virtual void refit_nodes();
 
-	unsigned add_object(Object *ob, int i);
-	unsigned add_instance(Object *ob, int i);
-	unsigned add_curves(Mesh *mesh, int i);
-	unsigned add_triangles(Mesh *mesh, int i);
+	void add_object(Object *ob, int i);
+	void add_instance(Object *ob, int i);
+	void add_curves(Object *ob, int i);
+	void add_triangles(Object *ob, int i);
 
 	ssize_t mem_used;
 
@@ -60,8 +60,8 @@ protected:
 	BVHEmbree *top_level;
 private:
 	void delete_rtcScene();
-	void update_tri_vertex_buffer(unsigned geom_id, const Mesh* mesh);
-	void update_curve_vertex_buffer(unsigned geom_id, const Mesh* mesh);
+	void update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh);
+	void update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh);
 
 	static RTCDevice rtc_shared_device;
 	static int rtc_shared_users;

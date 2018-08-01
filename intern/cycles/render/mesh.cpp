@@ -40,9 +40,6 @@
 
 #ifdef WITH_EMBREE
 #  include "bvh/bvh_embree.h"
-#  include "embree2/rtcore.h"
-#  include "embree2/rtcore_scene.h"
-#  include "embree2/rtcore_builder.h"
 #endif
 
 CCL_NAMESPACE_BEGIN

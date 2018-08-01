@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "embree2/rtcore_ray.h"
-#include "embree2/rtcore_scene.h"
+#include "embree3/rtcore_ray.h"
+#include "embree3/rtcore_scene.h"
 
-struct RTCORE_ALIGN(16) CCLRay : public RTCRay {
+struct CCLIntersectContext  {
 	typedef enum {
 		RAY_REGULAR = 0,
 		RAY_SHADOW_ALL = 1,
@@ -40,20 +40,8 @@ struct RTCORE_ALIGN(16) CCLRay : public RTCRay {
 	int sss_object_id;
 	ccl::uint *lcg_state;
 
-	CCLRay(const ccl::Ray& ray, ccl::KernelGlobals *kg_, const ccl::uint visibility, RayType type_)
+	CCLIntersectContext(const ccl::Ray& ray, ccl::KernelGlobals *kg_,  RayType type_)
 	{
-		org[0] = ray.P.x;
-		org[1] = ray.P.y;
-		org[2] = ray.P.z;
-		dir[0] = ray.D.x;
-		dir[1] = ray.D.y;
-		dir[2] = ray.D.z;
-		tnear = 0.0f;
-		tfar = ray.t;
-		time = ray.time;
-		mask = visibility;
-		geomID = primID = instID = RTC_INVALID_GEOMETRY_ID;
-
 		kg = kg_;
 		type = type_;
 		max_hits = 1;
@@ -63,22 +51,55 @@ struct RTCORE_ALIGN(16) CCLRay : public RTCRay {
 		sss_object_id = -1;
 		lcg_state = NULL;
 	}
-
-	void isect_to_ccl(ccl::Intersection *isect)
-	{
-		bool is_hair = geomID & 1;
-		isect->u = is_hair ? u : 1.0f - v - u;
-		isect->v = is_hair ? v : u;
-		isect->t = tfar;
-		isect->Ng = ccl::make_float3(Ng[0], Ng[1], Ng[2]);
-		if(instID != RTC_INVALID_GEOMETRY_ID) {
-			RTCScene inst_scene = (RTCScene)rtcGetUserData(kernel_data.bvh.scene, instID);
-			isect->prim = primID + (intptr_t)rtcGetUserData(inst_scene, geomID) + kernel_tex_fetch(__object_node, instID/2);
-			isect->object = instID/2;
-		} else {
-			isect->prim = primID + (intptr_t)rtcGetUserData(kernel_data.bvh.scene, geomID);
-			isect->object = OBJECT_NONE;
-		}
-		isect->type = kernel_tex_fetch(__prim_type, isect->prim);
-	}
 };
+
+class IntersectContext
+{
+public:
+	IntersectContext(CCLIntersectContext* ctx)
+	{
+		rtcInitIntersectContext(&context);
+		userRayExt = ctx;
+	}
+	RTCIntersectContext context;
+	CCLIntersectContext* userRayExt;
+};
+
+ccl_device_inline void kernel_embree_setup_ray(const ccl::Ray& ray, RTCRay& rtc_ray, const ccl::uint visibility)
+{
+	rtc_ray.org_x = ray.P.x;
+	rtc_ray.org_y = ray.P.y;
+	rtc_ray.org_z = ray.P.z;
+	rtc_ray.dir_x = ray.D.x;
+	rtc_ray.dir_y = ray.D.y;
+	rtc_ray.dir_z = ray.D.z;
+	rtc_ray.tnear = 0.0f;
+	rtc_ray.tfar = ray.t;
+	rtc_ray.time = ray.time;
+	rtc_ray.mask = visibility;
+}
+
+ccl_device_inline void kernel_embree_setup_rayhit(const ccl::Ray& ray, RTCRayHit& rayhit, const ccl::uint visibility)
+{
+	kernel_embree_setup_ray(ray, rayhit.ray, visibility);
+	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+	rayhit.hit.primID = RTC_INVALID_GEOMETRY_ID;
+}
+
+ccl_device_inline void kernel_embree_convert_hit(ccl::KernelGlobals *kg, const RTCRay *ray, const RTCHit *hit, ccl::Intersection *isect)
+{
+	bool is_hair = hit->geomID & 1;
+	isect->u = is_hair ? hit->u : 1.0f - hit->v - hit->u;
+	isect->v = is_hair ? hit->v : hit->u;
+	isect->t = ray->tfar;
+	isect->Ng = ccl::make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z);
+	if(hit->instID[0] != RTC_INVALID_GEOMETRY_ID) {
+		RTCScene inst_scene = (RTCScene)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, hit->instID[0]));
+		isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(inst_scene, hit->geomID)) + kernel_tex_fetch(__object_node, hit->instID[0]/2);
+		isect->object = hit->instID[0]/2;
+	} else {
+		isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, hit->geomID));
+		isect->object = OBJECT_NONE;
+	}
+	isect->type = kernel_tex_fetch(__prim_type, isect->prim);
+}

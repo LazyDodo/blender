@@ -24,7 +24,7 @@
 #include "util/util_foreach.h"
 #include "util/util_logging.h"
 
-#include "embree2/rtcore_geometry.h"
+#include "embree3/rtcore_geometry.h"
 
 /* Kernel includes are necessary so that the filter function for Embree can access the packed BVH. */
 #include "kernel/kernel_compat_cpu.h"
@@ -36,10 +36,6 @@
 #include "xmmintrin.h"
 #include "pmmintrin.h"
 
-/* this doesn't work with refitting unforutnately
- * #define EMBREE_SHARED_MEM 1
- */
-
 CCL_NAMESPACE_BEGIN
 
 /* This gets called by Embree at every valid ray/object intersection.
@@ -48,32 +44,35 @@ CCL_NAMESPACE_BEGIN
  * Cycles' own BVH does that directly inside the traversal calls.
  */
 
-
-void rtc_filter_func(void*, RTCRay& ray_);
-void rtc_filter_func(void*, RTCRay& ray_)
+void rtc_filter_func(const RTCFilterFunctionNArguments* args);
+void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 {
-	CCLRay &ray = (CCLRay&)ray_;
-	KernelGlobals *kg = ray.kg;
+	assert(args->N == 1);
+
+	const RTCRay *ray = (RTCRay*)args->ray;
+	RTCHit *hit = (RTCHit*)args->hit;
+	CCLIntersectContext *ctx = ((IntersectContext*)args->context)->userRayExt;
+	KernelGlobals *kg = ctx->kg;
 
 	/* For all ray types: check if there is backfacing hair to ignore */
 	if((kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
-		&& !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
-		&& !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && ray.geomID & 1) {
-		if(dot(make_float3(ray.dir[0], ray.dir[1], ray.dir[2]), make_float3(ray.Ng[0], ray.Ng[1], ray.Ng[2])) > 0.0f) {
-			ray.geomID = RTC_INVALID_GEOMETRY_ID;
+	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
+	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
+		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
+			hit->geomID = RTC_INVALID_GEOMETRY_ID;
 			return;
 		}
 	}
 
-	if(ray.type == CCLRay::RAY_REGULAR) {
+	if(ctx->type == CCLIntersectContext::RAY_REGULAR) {
 		return;
 	}
-	else if(ray.type == CCLRay::RAY_SHADOW_ALL) {
+	else if(ctx->type == CCLIntersectContext::RAY_SHADOW_ALL) {
 		/* Append the intersection to the end of the array. */
-		if(ray.num_hits < ray.max_hits) {
-			Intersection *isect = &ray.isect_s[ray.num_hits];
-			ray.num_hits++;
-			ray.isect_to_ccl(isect);
+		if(ctx->num_hits < ctx->max_hits) {
+			Intersection *isect = &ctx->isect_s[ctx->num_hits];
+			ctx->num_hits++;
+			kernel_embree_convert_hit(kg, ray, hit, isect);
 			int prim = kernel_tex_fetch(__prim_index, isect->prim);
 			int shader = 0;
 			if(kernel_tex_fetch(__prim_type, isect->prim) & PRIMITIVE_ALL_TRIANGLE) {
@@ -87,80 +86,81 @@ void rtc_filter_func(void*, RTCRay& ray_)
 			/* If no transparent shadows, all light is blocked. */
 			if(flag & (SD_HAS_TRANSPARENT_SHADOW)) {
 				/* This tells Embree to continue tracing. */
-				ray.geomID = RTC_INVALID_GEOMETRY_ID;
+				hit->geomID = RTC_INVALID_GEOMETRY_ID;
 			}
 			else {
-				ray.num_hits = ray.max_hits+1;
+				ctx->num_hits = ctx->max_hits+1;
 			}
 		}
 		else {
 			/* Increase the number of hits beyond ray.max_hits
 			 * so that the caller can detect this as opaque. */
-			ray.num_hits++;
+			ctx->num_hits++;
 		}
 		return;
 	}
-	else if(ray.type == CCLRay::RAY_SSS) {
+	else if(ctx->type == CCLIntersectContext::RAY_SSS) {
 		/* No intersection information requested, just return a hit. */
-		if(ray.ss_isect->num_hits == 0) {
+		if(ctx->ss_isect->num_hits == 0) {
 			return;
 		}
 		/* Only accept hits from the same object and triangles. */
-		if(ray.instID/2 != ray.sss_object_id || ray.geomID & 1) {
+		if(hit->instID[0]/2 != ctx->sss_object_id || hit->geomID & 1) {
 			/* This tells Embree to continue tracing. */
-			ray.geomID = RTC_INVALID_GEOMETRY_ID;
+			hit->geomID = RTC_INVALID_GEOMETRY_ID;
 			return;
 		}
 
 		/* See triangle_intersect_subsurface() for the native equivalent. */
-		for(int i = min(ray.max_hits, ray.ss_isect->num_hits) - 1; i >= 0; --i) {
-			if(ray.ss_isect->hits[i].t == ray.tfar) {
+		for(int i = min(ctx->max_hits, ctx->ss_isect->num_hits) - 1; i >= 0; --i) {
+			if(ctx->ss_isect->hits[i].t == ray->tfar) {
 				/* This tells Embree to continue tracing. */
-				ray.geomID = RTC_INVALID_GEOMETRY_ID;
+				hit->geomID = RTC_INVALID_GEOMETRY_ID;
 				return;
 			}
 		}
 
-		ray.ss_isect->num_hits++;
-		int hit;
+		ctx->ss_isect->num_hits++;
+		int hit_idx;
 
-		if(ray.ss_isect->num_hits <= ray.max_hits) {
-			hit = ray.ss_isect->num_hits - 1;
+		if(ctx->ss_isect->num_hits <= ctx->max_hits) {
+			hit_idx = ctx->ss_isect->num_hits - 1;
 		}
 		else {
 			/* reservoir sampling: if we are at the maximum number of
 			 * hits, randomly replace element or skip it */
-			hit = lcg_step_uint(ray.lcg_state) % ray.ss_isect->num_hits;
+			hit_idx = lcg_step_uint(ctx->lcg_state) % ctx->ss_isect->num_hits;
 
-			if(hit >= ray.max_hits) {
+			if(hit_idx >= ctx->max_hits) {
 				/* This tells Embree to continue tracing. */
-				ray.geomID = RTC_INVALID_GEOMETRY_ID;
+				hit->geomID = RTC_INVALID_GEOMETRY_ID;
 				return;
 			}
 		}
 		/* record intersection */
-		ray.isect_to_ccl(&ray.ss_isect->hits[hit]);
-		ray.ss_isect->Ng[hit].x = -ray.Ng[0];
-		ray.ss_isect->Ng[hit].y = -ray.Ng[1];
-		ray.ss_isect->Ng[hit].z = -ray.Ng[2];
-		ray.ss_isect->Ng[hit] = normalize(ray.ss_isect->Ng[hit]);
+		kernel_embree_convert_hit(kg, ray, hit, &ctx->ss_isect->hits[hit_idx]);
+		ctx->ss_isect->Ng[hit_idx].x = hit->Ng_x;
+		ctx->ss_isect->Ng[hit_idx].y = hit->Ng_y;
+		ctx->ss_isect->Ng[hit_idx].z = hit->Ng_z;
+		ctx->ss_isect->Ng[hit_idx] = normalize(ctx->ss_isect->Ng[hit_idx]);
 		/* this tells Embree to continue tracing */
-		ray.geomID = RTC_INVALID_GEOMETRY_ID;
+		hit->geomID = RTC_INVALID_GEOMETRY_ID;
 		return;
-	} else if(ray.type == CCLRay::RAY_VOLUME_ALL) {
+	}
+	else if(ctx->type == CCLIntersectContext::RAY_VOLUME_ALL) {
 		/* Append the intersection to the end of the array. */
-		if(ray.num_hits < ray.max_hits) {
-			Intersection *isect = &ray.isect_s[ray.num_hits];
-			ray.num_hits++;
-			ray.isect_to_ccl(isect);
+		if(ctx->num_hits < ctx->max_hits) {
+			Intersection *isect = &ctx->isect_s[ctx->num_hits];
+			ctx->num_hits++;
+			kernel_embree_convert_hit(kg, ray, hit, isect);
 			/* Only primitives from volume object. */
 			uint tri_object = (isect->object == OBJECT_NONE) ?kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
 			int object_flag = kernel_tex_fetch(__object_flag, tri_object);
 			if((object_flag & SD_OBJECT_HAS_VOLUME) == 0) {
-				ray.num_hits--;
+				ctx->num_hits--;
 			}
 			/* This tells Embree to continue tracing. */
-			ray.geomID = RTC_INVALID_GEOMETRY_ID;
+			hit->geomID = RTC_INVALID_GEOMETRY_ID;
 			return;
 		}
 		return;
@@ -176,6 +176,12 @@ bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
 		bvh->mem_monitor(bytes);
 	}
 	return true;
+}
+
+
+void rtc_error_func(void*, enum RTCError code, const char* str)
+{
+	VLOG(0) << str;
 }
 
 static double progress_start_time = 0.0f;
@@ -203,8 +209,8 @@ thread_mutex BVHEmbree::rtc_shared_mutex;
 
 BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 : BVH(params_, objects_), scene(NULL), mem_used(0), top_level(NULL), stats(NULL),
-  curve_subdivisions(params.curve_subdivisions), use_curves(params_.curve_flags & CURVE_KN_INTERPOLATE),
-  use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
+curve_subdivisions(params.curve_subdivisions), use_curves(params_.curve_flags & CURVE_KN_INTERPOLATE),
+use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
 {
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
@@ -213,40 +219,36 @@ BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 		rtc_shared_device = rtcNewDevice("verbose=1");
 
 		/* Check here if Embree was built with the correct flags. */
-		ssize_t ret = rtcDeviceGetParameter1i(rtc_shared_device, RTC_CONFIG_RAY_MASK);
+		ssize_t ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the EMBREE_RAY_MASK flag. Ray visiblity will not work.";
+	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag. Ray visiblity will not work.";
 		}
-		ret = rtcDeviceGetParameter1i(rtc_shared_device, RTC_CONFIG_INTERSECTION_FILTER);
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the EMBREE_INTERSECTION_FILTER flag. Renders may not look as expected.";
+	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag. Renders may not look as expected.";
 		}
-		ret = rtcDeviceGetParameter1i(rtc_shared_device, RTC_CONFIG_LINE_GEOMETRY);
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the EMBREE_GEOMETRY_LINES flag. Line primitives will not be rendered.";
+	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. Line primitives will not be rendered.";
 		}
-		ret = rtcDeviceGetParameter1i(rtc_shared_device, RTC_CONFIG_HAIR_GEOMETRY);
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the EMBREE_GEOMETRY_HAIR flag. Hair primitives will not be rendered.";
+	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. Triangle primitives will not be rendered.";
 		}
-		ret = rtcDeviceGetParameter1i(rtc_shared_device, RTC_CONFIG_TRIANGLE_GEOMETRY);
-		if(ret != 1) {
-			assert(0);
-			VLOG(1) << "Embree is compiled without the EMBREE_GEOMETRY_TRIANGLES flag. Triangle primitives will not be rendered.";
-		}
-		ret = rtcDeviceGetParameter1i(rtc_shared_device, RTC_CONFIG_BACKFACE_CULLING);
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED);
 		if(ret != 0) {
 			assert(0);
-			VLOG(1) << "Embree is compiled with the EMBREE_BACKFACE_CULLING flag. Renders may not look as expected.";
+	    VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. Renders may not look as expected.";
 		}
 	}
 	rtc_shared_users++;
 
-	rtcDeviceSetMemoryMonitorFunction2(rtc_shared_device, rtc_memory_monitor_func, this);
+	rtcSetDeviceMemoryMonitorFunction(rtc_shared_device, rtc_memory_monitor_func, this);
+	rtcSetDeviceErrorFunction(rtc_shared_device, rtc_error_func, NULL);
 
 	/* BVH_CUSTOM as root index signals to the rest of the code that this is not Cycle's own BVH. */
 	pack.root_index = BVH_CUSTOM;
@@ -262,13 +264,13 @@ BVHEmbree::~BVHEmbree()
 void BVHEmbree::destroy(RTCScene scene)
 {
 	if(scene) {
-		rtcDeleteScene(scene);
+		rtcReleaseScene(scene);
 		scene = NULL;
 	}
 	thread_scoped_lock lock(rtc_shared_mutex);
 	rtc_shared_users--;
 	if(rtc_shared_users == 0) {
-		rtcDeleteDevice(rtc_shared_device);
+		rtcReleaseDevice (rtc_shared_device);
 		rtc_shared_device = NULL;
 	}
 }
@@ -282,10 +284,10 @@ void BVHEmbree::delete_rtcScene()
 			top_level->add_delayed_delete_scene(scene);
 		}
 		else {
-			rtcDeleteScene(scene);
+			rtcReleaseScene(scene);
 			if(delayed_delete_scenes.size()) {
 				foreach(RTCScene s, delayed_delete_scenes) {
-					rtcDeleteScene(s);
+					rtcReleaseScene(s);
 				}
 			}
 			delayed_delete_scenes.clear();
@@ -313,15 +315,17 @@ void BVHEmbree::build(Progress& progress, Stats *stats_)
 	progress.set_substatus("Building BVH");
 
 	if (scene) {
-		rtcDeleteScene(scene);
+		rtcReleaseScene(scene);
 		scene = NULL;
 	}
 
-	RTCSceneFlags flags = (params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_SCENE_DYNAMIC : RTC_SCENE_STATIC) | RTC_SCENE_COMPACT | RTC_SCENE_ROBUST;
-	if(params.use_spatial_split) {
-		flags = flags | RTC_SCENE_HIGH_QUALITY;
-	}
-	scene = rtcDeviceNewScene(rtc_shared_device, flags, RTC_INTERSECT1);
+	const bool dynamic = params.bvh_type == SceneParams::BVH_DYNAMIC;
+
+	scene = rtcNewScene(rtc_shared_device);
+	const RTCSceneFlags scene_flags = (dynamic ? RTC_SCENE_FLAG_DYNAMIC : RTC_SCENE_FLAG_NONE) | RTC_SCENE_FLAG_COMPACT | RTC_SCENE_FLAG_ROBUST;
+	rtcSetSceneFlags(scene, scene_flags);
+	const RTCBuildQuality build_quality = dynamic ? RTC_BUILD_QUALITY_LOW : (params.use_spatial_split ? RTC_BUILD_QUALITY_HIGH : RTC_BUILD_QUALITY_MEDIUM);
+	rtcSetSceneBuildQuality(scene, build_quality);
 
 	int i = 0;
 
@@ -353,8 +357,8 @@ void BVHEmbree::build(Progress& progress, Stats *stats_)
 		return;
 	}
 
-	rtcSetProgressMonitorFunction(scene, rtc_progress_func, &progress);
-	rtcCommit(scene);
+	rtcSetSceneProgressMonitorFunction(scene, rtc_progress_func, &progress);
+	rtcCommitScene(scene);
 
 	pack_primitives();
 
@@ -370,32 +374,22 @@ void BVHEmbree::build(Progress& progress, Stats *stats_)
 	stats = NULL;
 }
 
-unsigned BVHEmbree::add_object(Object *ob, int i)
+void BVHEmbree::add_object(Object *ob, int i)
 {
 	Mesh *mesh = ob->mesh;
-	unsigned geom_id = RTC_INVALID_GEOMETRY_ID;
 	if(params.primitive_mask & PRIMITIVE_ALL_TRIANGLE && mesh->num_triangles() > 0) {
-		size_t prim_offset = pack.prim_index.size();
-		geom_id = add_triangles(mesh, i);
-		rtcSetUserData(scene, geom_id, (void*)prim_offset);
-		rtcSetOcclusionFilterFunction(scene, geom_id, rtc_filter_func);
-		rtcSetMask(scene, geom_id, ob->visibility);
+		add_triangles(ob, i);
 	}
 	if(params.primitive_mask & PRIMITIVE_ALL_CURVE && mesh->num_curves() > 0) {
-		size_t prim_offset = pack.prim_index.size();
-		geom_id = add_curves(mesh, i);
-		rtcSetUserData(scene, geom_id, (void*)prim_offset);
-		rtcSetOcclusionFilterFunction(scene, geom_id, rtc_filter_func);
-		rtcSetMask(scene, geom_id, ob->visibility);
+		add_curves(ob, i);
 	}
-	return geom_id;
 }
 
-unsigned BVHEmbree::add_instance(Object *ob, int i)
+void BVHEmbree::add_instance(Object *ob, int i)
 {
 	if(!ob || !ob->mesh) {
 		assert(0);
-		return RTC_INVALID_GEOMETRY_ID;
+		return;
 	}
 	BVHEmbree *instance_bvh = (BVHEmbree*)(ob->mesh->bvh);
 
@@ -404,63 +398,66 @@ unsigned BVHEmbree::add_instance(Object *ob, int i)
 	}
 
 	const size_t num_motion_steps = ob->use_motion() ? ob->motion.size() : 1;
-	unsigned geom_id = rtcNewInstance3(scene, instance_bvh->scene, num_motion_steps, i*2);
+	RTCGeometry geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_INSTANCE);
+	rtcSetGeometryInstancedScene(geom_id, instance_bvh->scene);
+	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
 
 	if(ob->use_motion()) {
-		for(size_t step = 0; step < num_motion_steps; ++step)
-		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->motion[step], step);
+		for(size_t step = 0; step < num_motion_steps; ++step) {
+			rtcSetGeometryTransform(geom_id, step, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, (const float*)&ob->motion[step]);
+		}
 	} else {
-		rtcSetTransform2(scene, geom_id, RTC_MATRIX_ROW_MAJOR, (const float*)&ob->tfm);
+		rtcSetGeometryTransform(geom_id, 0, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, (const float*)&ob->tfm);
 	}
-
-	rtcSetUserData(scene, geom_id, (void*)instance_bvh->scene);
-	rtcSetMask(scene, geom_id, ob->visibility);
 
 	pack.prim_index.push_back_slow(-1);
 	pack.prim_object.push_back_slow(i);
 	pack.prim_type.push_back_slow(PRIMITIVE_NONE);
 	pack.prim_tri_index.push_back_slow(-1);
-	return geom_id;
+
+	rtcSetGeometryUserData(geom_id, (void*) instance_bvh->scene);
+	rtcSetGeometryMask(geom_id, ob->visibility);
+
+	rtcCommitGeometry(geom_id);
+	rtcAttachGeometryByID(scene, geom_id, i*2);
+	rtcReleaseGeometry(geom_id);
 }
 
-unsigned BVHEmbree::add_triangles(Mesh *mesh, int i)
+void BVHEmbree::add_triangles(Object *ob, int i)
 {
+	size_t prim_offset = pack.prim_index.size();
+	Mesh *mesh = ob->mesh;
 	const Attribute *attr_mP = NULL;
 	size_t num_motion_steps = 1;
 	if(mesh->has_motion_blur()) {
 		attr_mP = mesh->attributes.find(ATTR_STD_MOTION_VERTEX_POSITION);
 		if(attr_mP) {
 			num_motion_steps = mesh->motion_steps;
-			if(num_motion_steps > RTC_MAX_TIME_STEPS) {
+			if(num_motion_steps > RTC_MAX_TIME_STEP_COUNT) {
 				assert(0);
-				num_motion_steps = RTC_MAX_TIME_STEPS;
+				num_motion_steps = RTC_MAX_TIME_STEP_COUNT;
 			}
 		}
 	}
 
 	const size_t num_triangles = mesh->num_triangles();
 	const size_t num_verts = mesh->verts.size();
-	unsigned geom_id = rtcNewTriangleMesh2(scene,
-						params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_GEOMETRY_DEFORMABLE : RTC_GEOMETRY_STATIC,
-						num_triangles,
-						num_verts,
-						num_motion_steps,
-						i*2);
+	RTCGeometry geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_TRIANGLE);
+	rtcSetGeometryBuildQuality(geom_id,params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_BUILD_QUALITY_LOW : RTC_BUILD_QUALITY_MEDIUM);
+	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
 
-#ifdef EMBREE_SHARED_MEM
-	/* Embree and Cycles use the same memory layout, so we can conveniently use the rtcSetBuffer2 calls. */
-	rtcSetBuffer2(scene, geom_id, RTC_INDEX_BUFFER, &mesh->triangles[0], 0, sizeof(int) * 3);
-#else
-	void* raw_buffer = rtcMapBuffer(scene, geom_id, RTC_INDEX_BUFFER);
-	unsigned *rtc_indices = (unsigned*) raw_buffer;
+	unsigned *rtc_indices = (unsigned*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof (int) * 3, num_triangles);
+	assert(rtc_indices);
+	if(!rtc_indices) {
+		VLOG(0) << "Embree could not create new geometry buffer for mesh " << mesh->name.c_str() << ".\n";
+		return;
+	}
 	for(size_t j = 0; j < num_triangles; j++) {
 		Mesh::Triangle t = mesh->get_triangle(j);
 		rtc_indices[j*3] = t.v[0];
 		rtc_indices[j*3+1] = t.v[1];
 		rtc_indices[j*3+2] = t.v[2];
 	}
-	rtcUnmapBuffer(scene, geom_id, RTC_INDEX_BUFFER);
-#endif
 
 	update_tri_vertex_buffer(geom_id, mesh);
 
@@ -475,10 +472,16 @@ unsigned BVHEmbree::add_triangles(Mesh *mesh, int i)
 		pack.prim_tri_index.push_back_reserved(j);
 	}
 
-	return geom_id;
+	rtcSetGeometryUserData(geom_id, (void*) prim_offset);
+	rtcSetGeometryOccludedFilterFunction(geom_id, rtc_filter_func);
+	rtcSetGeometryMask(geom_id, ob->visibility);
+
+	rtcCommitGeometry(geom_id);
+	rtcAttachGeometryByID(scene, geom_id, i*2);
+	rtcReleaseGeometry(geom_id);
 }
 
-void BVHEmbree::update_tri_vertex_buffer(unsigned geom_id, const Mesh* mesh)
+void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 {
 	const Attribute *attr_mP = NULL;
 	size_t num_motion_steps = 1;
@@ -488,17 +491,15 @@ void BVHEmbree::update_tri_vertex_buffer(unsigned geom_id, const Mesh* mesh)
 		if(attr_mP) {
 			num_motion_steps = mesh->motion_steps;
 			t_mid = (num_motion_steps - 1) / 2;
-			if(num_motion_steps > RTC_MAX_TIME_STEPS) {
+			if(num_motion_steps > RTC_MAX_TIME_STEP_COUNT) {
 				assert(0);
-				num_motion_steps = RTC_MAX_TIME_STEPS;
+				num_motion_steps = RTC_MAX_TIME_STEP_COUNT;
 			}
 		}
 	}
 	const size_t num_verts = mesh->verts.size();
 
-
 	for(int t = 0; t < num_motion_steps; t++) {
-		RTCBufferType buffer_type = (RTCBufferType)(RTC_VERTEX_BUFFER+t);
 		const float3 *verts;
 		if(t == t_mid) {
 			verts = &mesh->verts[0];
@@ -506,27 +507,22 @@ void BVHEmbree::update_tri_vertex_buffer(unsigned geom_id, const Mesh* mesh)
 			int t_ = (t > t_mid) ? (t - 1) : t;
 			verts = &attr_mP->data_float3()[t_ * num_verts];
 		}
-#ifdef EMBREE_SHARED_MEM
-		rtcSetBuffer(scene, geom_id, buffer_type, verts, 0, sizeof(float3));
-#else
-		void *raw_buffer = rtcMapBuffer(scene, geom_id, buffer_type);
-		assert(raw_buffer);
-		if(raw_buffer) {
-			float *rtc_verts = (float*) raw_buffer;
+
+		float *rtc_verts = (float*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, sizeof(float) * 4, num_verts);
+		assert(rtc_verts);
+		if(rtc_verts) {
 			for(size_t j = 0; j < num_verts; j++) {
 				rtc_verts[0] = verts[j].x;
 				rtc_verts[1] = verts[j].y;
 				rtc_verts[2] = verts[j].z;
-				rtc_verts[3] = 0.0f;
+				rtc_verts[3] = 0.0f;//verts[j].w;
 				rtc_verts += 4;
 			}
-			rtcUnmapBuffer(scene, geom_id, buffer_type);
 		}
-#endif
 	}
 }
 
-void BVHEmbree::update_curve_vertex_buffer(unsigned geom_id, const Mesh* mesh)
+void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 {
 	const Attribute *attr_mP = NULL;
 	size_t num_motion_steps = 1;
@@ -536,14 +532,23 @@ void BVHEmbree::update_curve_vertex_buffer(unsigned geom_id, const Mesh* mesh)
 			num_motion_steps = mesh->motion_steps;
 		}
 	}
-
-	const size_t num_keys = mesh->curve_keys.size();
+	
+	const size_t num_curves = mesh->num_curves();
+	size_t num_keys = 0;
+	for (size_t j = 0; j < num_curves; j++) {
+		Mesh::Curve c = mesh->get_curve(j);
+		if(c.num_segments() > 0) {
+			num_keys += use_curves ? (c.num_segments() * 3 + 1) : c.num_keys;
+		}
+		else {
+			assert(0);
+		}
+	}
 
 	/* Copy the CV data to Embree */
 	int t_mid = (num_motion_steps - 1) / 2;
 	const float *curve_radius = &mesh->curve_radius[0];
 	for(int t = 0; t < num_motion_steps; t++) {
-		RTCBufferType buffer_type = (RTCBufferType)(RTC_VERTEX_BUFFER+t);
 		const float3 *verts;
 		if(t == t_mid || attr_mP == NULL) {
 			verts = &mesh->curve_keys[0];
@@ -552,10 +557,9 @@ void BVHEmbree::update_curve_vertex_buffer(unsigned geom_id, const Mesh* mesh)
 			verts = &attr_mP->data_float3()[t_ * num_keys];
 		}
 
-		void *raw_buffer = rtcMapBuffer(scene, geom_id, buffer_type);
-		assert(raw_buffer);
-		if(raw_buffer) {
-			float4 *rtc_verts = (float4*) raw_buffer;
+		float4 *rtc_verts = (float4*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT4, sizeof (float) * 4, num_keys);
+		assert(rtc_verts);
+		if(rtc_verts) {
 			if(use_curves) {
 				const size_t num_curves = mesh->num_curves();
 				for(size_t j = 0; j < num_curves; j++) {
@@ -596,13 +600,16 @@ void BVHEmbree::update_curve_vertex_buffer(unsigned geom_id, const Mesh* mesh)
 					rtc_verts[j].w = curve_radius[j];
 				}
 			}
-			rtcUnmapBuffer(scene, geom_id, buffer_type);
+
 		}
 	}
 }
 
-unsigned BVHEmbree::add_curves(Mesh *mesh, int i)
+void BVHEmbree::add_curves(Object *ob, int i)
 {
+	size_t prim_offset = pack.prim_index.size();
+	Mesh *mesh = ob->mesh;
+
 	const Attribute *attr_mP = NULL;
 	size_t num_motion_steps = 1;
 	if(mesh->has_motion_blur()) {
@@ -632,30 +639,19 @@ unsigned BVHEmbree::add_curves(Mesh *mesh, int i)
 	pack.prim_index.reserve(pack.prim_index.size() + num_segments);
 	pack.prim_tri_index.reserve(pack.prim_index.size() + num_segments);
 
-	unsigned geom_id;
+	RTCGeometry geom_id;
 	if(use_curves) {
 		/* curve segments */
 		if(use_ribbons) {
-			geom_id = rtcNewBezierHairGeometry2(scene,
-												 params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_GEOMETRY_DEFORMABLE : RTC_GEOMETRY_STATIC,
-												 num_segments,
-												 num_keys,
-												 num_motion_steps,
-												 i*2+1);
+			geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_FLAT_BEZIER_CURVE);
 		}
 		else {
-			geom_id = rtcNewBezierCurveGeometry2(scene,
-												 params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_GEOMETRY_DEFORMABLE : RTC_GEOMETRY_STATIC,
-												 num_segments,
-												 num_keys,
-												 num_motion_steps,
-												 i*2+1);
+			geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE);
 		}
-		rtcSetTessellationRate(scene, geom_id, curve_subdivisions);
+		rtcSetGeometryTessellationRate(geom_id, curve_subdivisions);
 
 		/* Split the Cycles curves into Embree hair segments, each with 4 CVs */
-		void* raw_buffer = rtcMapBuffer(scene, geom_id, RTC_INDEX_BUFFER);
-		unsigned *rtc_indices = (unsigned*) raw_buffer;
+		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT, sizeof (int), num_segments);
 		size_t rtc_index = 0;
 		size_t curve_start = 0;
 		for(size_t j = 0; j < num_curves; j++) {
@@ -673,20 +669,13 @@ unsigned BVHEmbree::add_curves(Mesh *mesh, int i)
 			}
 			curve_start+=1;
 		}
-		rtcUnmapBuffer(scene, geom_id, RTC_INDEX_BUFFER);
+
 	}
 	else {
-		geom_id = rtcNewLineSegments2(scene,
-													 params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_GEOMETRY_DEFORMABLE : RTC_GEOMETRY_STATIC,
-													 num_segments,
-													 num_keys,
-													 num_motion_steps,
-													 i*2+1);
-
+		geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_FLAT_LINEAR_CURVE);
 
 		/* Split the Cycles curves into Embree line segments, each with 2 CVs */
-		void* raw_buffer = rtcMapBuffer(scene, geom_id, RTC_INDEX_BUFFER);
-		unsigned *rtc_indices = (unsigned*) raw_buffer;
+		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT, sizeof (int), num_segments);
 		size_t rtc_index = 0;
 		for(size_t j = 0; j < num_curves; j++) {
 			Mesh::Curve c = mesh->get_curve(j);
@@ -701,12 +690,19 @@ unsigned BVHEmbree::add_curves(Mesh *mesh, int i)
 				rtc_index++;
 			}
 		}
-		rtcUnmapBuffer(scene, geom_id, RTC_INDEX_BUFFER);
 	}
+	rtcSetGeometryBuildQuality(geom_id, params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_BUILD_QUALITY_LOW : RTC_BUILD_QUALITY_MEDIUM);
+	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
 
 	update_curve_vertex_buffer(geom_id, mesh);
 
-	return geom_id;
+	rtcSetGeometryUserData(geom_id, (void*) prim_offset);
+	rtcSetGeometryOccludedFilterFunction(geom_id, rtc_filter_func);
+	rtcSetGeometryMask(geom_id, ob->visibility);
+
+	rtcCommitGeometry(geom_id);
+	rtcAttachGeometryByID(scene, geom_id, i * 2 + 1);
+	rtcReleaseGeometry(geom_id);
 }
 
 void BVHEmbree::pack_nodes(const BVHNode *)
@@ -767,9 +763,7 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 	uint *pack_prim_tri_index = (pack.prim_tri_index.size())? &pack.prim_tri_index[0]: NULL;
 
 	/* merge */
-	unsigned geom_id = 0;
 	foreach(Object *ob, objects) {
-		geom_id += 2;
 		Mesh *mesh = ob->mesh;
 
 		/* We assume that if mesh doesn't need own BVH it was already included
@@ -852,19 +846,20 @@ void BVHEmbree::refit_nodes()
 	foreach(Object *ob, objects) {
 		if(!params.top_level || (ob->is_traceable() && !ob->mesh->is_instanced())) {
 			if(params.primitive_mask & PRIMITIVE_ALL_TRIANGLE && ob->mesh->num_triangles() > 0) {
-				update_tri_vertex_buffer(geom_id, ob->mesh);
-				rtcUpdate(scene, geom_id);
+				update_tri_vertex_buffer(rtcGetGeometry(scene, geom_id), ob->mesh);
+				rtcCommitGeometry(rtcGetGeometry(scene,geom_id));
 			}
 
 			if(params.primitive_mask & PRIMITIVE_ALL_CURVE && ob->mesh->num_curves() > 0) {
-				update_curve_vertex_buffer(geom_id+1, ob->mesh);
-				rtcUpdate(scene, geom_id+1);
+				update_curve_vertex_buffer(rtcGetGeometry(scene, geom_id+1), ob->mesh);
+				rtcCommitGeometry(rtcGetGeometry(scene,geom_id+1));
 			}
 		}
 		geom_id += 2;
 	}
-	rtcCommit(scene);
+	rtcCommitScene(scene);
 }
 CCL_NAMESPACE_END
 
 #endif /* WITH_EMBREE */
+
