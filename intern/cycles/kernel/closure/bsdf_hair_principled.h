@@ -32,11 +32,6 @@ typedef ccl_addr_space struct PrincipledHairExtra {
 	float eta;
 	/* Geometry data. */
 	float4 geom;
-
-	float r;
-	float tt;
-	float trt;
-	float trrt;
 } PrincipledHairExtra;
 
 typedef ccl_addr_space struct PrincipledHairBSDF {
@@ -345,34 +340,29 @@ ccl_device float3 bsdf_principled_hair_eval(KernelGlobals *kg,
 
 	float4 F;
 	float Mp, Np;
-	float4 weight;
 
 	/* Primary specular (R). */
 	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness);
 	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
-	weight = make_float4(bsdf->extra->r, bsdf->extra->r, bsdf->extra->r, 1.0f);
-	F  = weight * Ap[0] * Mp * Np;
+	F  = Ap[0] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	/* Transmission (TT). */
 	Mp = longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
 	Np = azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t);
-	weight = make_float4(bsdf->extra->tt, bsdf->extra->tt, bsdf->extra->tt, 1.0f);
-	F += weight * Ap[1] * Mp * Np;
+	F += Ap[1] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	/* Secondary specular (TRT). */
 	Mp = longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t);
-	weight = make_float4(bsdf->extra->trt, bsdf->extra->trt, bsdf->extra->trt, 1.0f);
-	F += weight * Ap[2] * Mp * Np;
+	F += Ap[2] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	/* Residual component (TRRT+). */
 	Mp = longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = M_1_2PI_F;
-	weight = make_float4(bsdf->extra->trrt, bsdf->extra->trrt, bsdf->extra->trrt, 1.0f);
-	F += weight * Ap[3] * Mp * Np;
+	F += Ap[3] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	*pdf = F.w;
@@ -466,34 +456,29 @@ ccl_device int bsdf_principled_hair_sample(KernelGlobals *kg,
 
 	float4 F;
 	float Mp, Np;
-	float4 weight;
 
 	/* Primary specular (R). */
 	Mp = longitudinal_scattering(angles[0], angles[1], sin_theta_o, cos_theta_o, bsdf->m0_roughness);
 	Np = azimuthal_scattering(phi, 0, bsdf->s, gamma_o, gamma_t);
-	weight = make_float4(bsdf->extra->r, bsdf->extra->r, bsdf->extra->r, 1.0f);
-	F  = weight * Ap[0] * Mp * Np;
+	F  = Ap[0] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	/* Transmission (TT). */
 	Mp = longitudinal_scattering(angles[2], angles[3], sin_theta_o, cos_theta_o, 0.25f*bsdf->v);
 	Np = azimuthal_scattering(phi, 1, bsdf->s, gamma_o, gamma_t);
-	weight = make_float4(bsdf->extra->tt, bsdf->extra->tt, bsdf->extra->tt, 1.0f);
-	F += weight * Ap[1] * Mp * Np;
+	F += Ap[1] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	/* Secondary specular (TRT). */
 	Mp = longitudinal_scattering(angles[4], angles[5], sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = azimuthal_scattering(phi, 2, bsdf->s, gamma_o, gamma_t);
-	weight = make_float4(bsdf->extra->trt, bsdf->extra->trt, bsdf->extra->trt, 1.0f);
-	F += weight * Ap[2] * Mp * Np;
+	F += Ap[2] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	/* Residual component (TRRT+). */
 	Mp = longitudinal_scattering(sin_theta_i, cos_theta_i, sin_theta_o, cos_theta_o, 4.0f*bsdf->v);
 	Np = M_1_2PI_F;
-	weight = make_float4(bsdf->extra->trrt, bsdf->extra->trrt, bsdf->extra->trrt, 1.0f);
-	F += weight * Ap[3] * Mp * Np;
+	F += Ap[3] * Mp * Np;
 	kernel_assert(isfinite3_safe(float4_to_float3(F)));
 
 	*eval = float4_to_float3(F);

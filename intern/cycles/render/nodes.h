@@ -639,11 +639,6 @@ public:
 	/* Absorption coefficient (unfiltered). */
 	float3 absorption_coefficient;
 
-	float primary_specular;
-	float transmission;
-	float secondary_specular;
-	float residual;
-	
 	float3 normal;
 	float surface_mix_weight;
 	/* If linked, here will be the given random number. */

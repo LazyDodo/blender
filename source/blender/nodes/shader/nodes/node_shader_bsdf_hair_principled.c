@@ -44,10 +44,6 @@ static bNodeSocketTemplate sh_node_bsdf_hair_principled_in[] = {
 	{	SOCK_FLOAT, 	1, N_("Random Color"),				0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT, 	1, N_("Random Roughness"),			0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	SOCK_FLOAT,		1, N_("Random"),					0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_NONE, SOCK_HIDE_VALUE},
-	{	SOCK_FLOAT,		1, N_("Primary Specular"),			1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
-	{	SOCK_FLOAT,		1, N_("Transmission"),				1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
-	{	SOCK_FLOAT,		1, N_("Secondary Specular"),		1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
-	{	SOCK_FLOAT,		1, N_("Residual"),					1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, PROP_FACTOR},
 	{	-1, 0, ""	},
 };
 
