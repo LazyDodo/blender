@@ -802,7 +802,7 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 
 void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, LANPR_PassList *psl, LANPR_PrivateData *pd, SceneLANPR *lanpr, GPUFrameBuffer *DefaultFB, int is_render);
 
-void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb);
+void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render);
 
 void lanpr_set_render_flag();
 void lanpr_clear_render_flag();

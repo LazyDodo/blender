@@ -495,6 +495,8 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR* lanpr = &scene->lanpr;
 
+	lanpr_set_render_flag();
+
 	if (lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE ||
 		(lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->enable_intersections)) {
 		if (!lanpr->render_buffer) lanpr_create_render_buffer(lanpr);
@@ -502,8 +504,6 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 			lanpr_compute_feature_lines_internal(draw_ctx->depsgraph, lanpr, scene);
 		}
 	}
-
-	lanpr_set_render_flag();
 
 	workbench_render_matrices_init(engine, draw_ctx->depsgraph);
 
