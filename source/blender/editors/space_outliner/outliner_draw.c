@@ -32,6 +32,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 #include "DNA_group_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_lightprobe_types.h"
@@ -50,6 +51,7 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_fcurve.h"
+#include "BKE_gpencil.h"
 #include "BKE_global.h"
 #include "BKE_idcode.h"
 #include "BKE_layer.h"
@@ -438,12 +440,16 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				}
 				case TSE_GP_LAYER:
 				{
-					bGPdata *gpd = (bGPdata *)tselem->id; // id = GP Datablock
+					bGPdata *gpd = (bGPdata *)tselem->id; /* id = GP Datablock */
 					bGPDlayer *gpl = te->directdata;
+
+					/* always make layer active */
+					BKE_gpencil_layer_setactive(gpd, gpl);
 
 					// XXX: name needs translation stuff
 					BLI_uniquename(&gpd->layers, gpl, "GP Layer", '.',
 					               offsetof(bGPDlayer, info), sizeof(gpl->info));
+
 					WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, gpd);
 					break;
 				}
@@ -872,39 +878,6 @@ static void tselem_draw_icon_uibut(struct DrawIconArg *arg, int icon)
 
 }
 
-static void UNUSED_FUNCTION(tselem_draw_gp_icon_uibut)(struct DrawIconArg *arg, ID *id, bGPDlayer *gpl)
-{
-	/* restrict column clip - skip it for now... */
-	if (arg->x >= arg->xmax) {
-		/* pass */
-	}
-	else {
-		PointerRNA ptr;
-		const float eps = 0.001f;
-		const bool is_stroke_visible = (gpl->color[3] > eps);
-		const bool is_fill_visible = (gpl->fill[3] > eps);
-		float w = 0.5f  * UI_UNIT_X;
-		float h = 0.85f * UI_UNIT_Y;
-
-		RNA_pointer_create(id, &RNA_GPencilLayer, gpl, &ptr);
-
-		UI_block_align_begin(arg->block);
-
-		UI_block_emboss_set(arg->block, is_stroke_visible ? UI_EMBOSS : UI_EMBOSS_NONE);
-		uiDefButR(arg->block, UI_BTYPE_COLOR, 1, "", arg->xb, arg->yb, w, h,
-		          &ptr, "color", -1,
-		          0, 0, 0, 0, NULL);
-
-		UI_block_emboss_set(arg->block, is_fill_visible ? UI_EMBOSS : UI_EMBOSS_NONE);
-		uiDefButR(arg->block, UI_BTYPE_COLOR, 1, "", arg->xb + w, arg->yb, w, h,
-		          &ptr, "fill_color", -1,
-		          0, 0, 0, 0, NULL);
-
-		UI_block_emboss_set(arg->block, UI_EMBOSS_NONE);
-		UI_block_align_end(arg->block);
-	}
-}
-
 static void tselem_draw_icon(
         uiBlock *block, int xmax, float x, float y, TreeStoreElem *tselem, TreeElement *te,
         float alpha, const bool is_clickable)
@@ -969,6 +942,7 @@ static void tselem_draw_icon(
 			case TSE_MODIFIER:
 			{
 				Object *ob = (Object *)tselem->id;
+				if (ob->type != OB_GPENCIL) {
 				ModifierData *md = BLI_findlink(&ob->modifiers, tselem->nr);
 				switch ((ModifierType)md->type) {
 					case eModifierType_Subsurf:
@@ -1119,9 +1093,64 @@ static void tselem_draw_icon(
 					/* Default */
 					case eModifierType_None:
 					case eModifierType_ShapeKey:
+
 					case NUM_MODIFIER_TYPES:
 						ICON_DRAW(ICON_DOT);
 						break;
+				}
+				}
+				else {
+					/* grease pencil modifiers */
+					GpencilModifierData *md = BLI_findlink(&ob->greasepencil_modifiers, tselem->nr);
+					switch ((GpencilModifierType)md->type) {
+						case eGpencilModifierType_Noise:
+							ICON_DRAW(ICON_RNDCURVE);
+				break;
+						case eGpencilModifierType_Subdiv:
+							ICON_DRAW(ICON_MOD_SUBSURF);
+							break;
+						case eGpencilModifierType_Thick:
+							ICON_DRAW(ICON_MAN_ROT);
+							break;
+						case eGpencilModifierType_Tint:
+							ICON_DRAW(ICON_COLOR);
+							break;
+						case eGpencilModifierType_Instance:
+							ICON_DRAW(ICON_MOD_ARRAY);
+							break;
+						case eGpencilModifierType_Build:
+							ICON_DRAW(ICON_MOD_BUILD);
+							break;
+						case eGpencilModifierType_Opacity:
+							ICON_DRAW(ICON_MOD_MASK);
+							break;
+						case eGpencilModifierType_Color:
+							ICON_DRAW(ICON_GROUP_VCOL);
+							break;
+						case eGpencilModifierType_Lattice:
+							ICON_DRAW(ICON_MOD_LATTICE);
+							break;
+						case eGpencilModifierType_Mirror:
+							ICON_DRAW(ICON_MOD_MIRROR);
+							break;
+						case eGpencilModifierType_Simplify:
+							ICON_DRAW(ICON_MOD_DECIM);
+							break;
+						case eGpencilModifierType_Smooth:
+							ICON_DRAW(ICON_MOD_SMOOTH);
+							break;
+						case eGpencilModifierType_Hook:
+							ICON_DRAW(ICON_HOOK);
+							break;
+						case eGpencilModifierType_Offset:
+							ICON_DRAW(ICON_MOD_DISPLACE);
+							break;
+
+							/* Default */
+						default:
+							ICON_DRAW(ICON_DOT);
+							break;
+			}
 				}
 				break;
 			}
@@ -1188,11 +1217,18 @@ static void tselem_draw_icon(
 				ICON_DRAW(ICON_GROUP);
 				break;
 			/* Removed the icons from outliner. Need a better structure with Layers, Palettes and Colors */
-#if 0
 			case TSE_GP_LAYER:
-				tselem_draw_gp_icon_uibut(&arg, tselem->id, te->directdata);
+			{
+				/* indicate whether layer is active */
+				bGPDlayer *gpl = te->directdata;
+				if (gpl->flag & GP_LAYER_ACTIVE) {
+					ICON_DRAW(ICON_GREASEPENCIL);
+				}
+				else {
+					ICON_DRAW(ICON_DOT);
+				}
 				break;
-#endif
+			}
 			default:
 				ICON_DRAW(ICON_DOT);
 				break;
@@ -1231,6 +1267,9 @@ static void tselem_draw_icon(
 					else {
 						ICON_CLICK_DRAW(ICON_OUTLINER_OB_EMPTY);
 					}
+					break;
+				case OB_GPENCIL:
+					ICON_CLICK_DRAW(ICON_OUTLINER_OB_GREASEPENCIL); break;
 					break;
 			}
 		}
@@ -1307,7 +1346,7 @@ static void tselem_draw_icon(
 				case ID_LS:
 					tselem_draw_icon_uibut(&arg, ICON_LINE_DATA); break;
 				case ID_GD:
-					tselem_draw_icon_uibut(&arg, ICON_GREASEPENCIL); break;
+					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_DATA_GREASEPENCIL); break;
 				case ID_LP:
 				{
 					LightProbe * lp = (LightProbe *)tselem->id;
