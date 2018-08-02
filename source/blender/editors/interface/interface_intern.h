@@ -752,6 +752,7 @@ bool ui_but_is_toggle(const uiBut *but);
 
 extern bool ui_block_is_menu(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
 extern bool ui_block_is_pie_menu(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
+extern bool ui_block_is_popup_any(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
 
 /* interface_context_menu.c */
 bool ui_popup_context_menu_for_button(struct bContext *C, uiBut *but);
@@ -763,6 +764,7 @@ struct wmKeyMap *eyedropper_colorband_modal_keymap(struct wmKeyConfig *keyconf);
 
 /* interface_eyedropper_color.c */
 void UI_OT_eyedropper_color(struct wmOperatorType *ot);
+void UI_OT_eyedropper_color_crypto(struct wmOperatorType *ot);
 
 /* interface_eyedropper_colorband.c */
 void UI_OT_eyedropper_colorband(struct wmOperatorType *ot);

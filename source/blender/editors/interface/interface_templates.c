@@ -2572,6 +2572,24 @@ void uiTemplatePalette(uiLayout *layout, PointerRNA *ptr, const char *propname, 
 	}
 }
 
+void uiTemplateCryptoPicker(uiLayout *layout, PointerRNA *ptr, const char *propname)
+{
+	PropertyRNA *prop = RNA_struct_find_property(ptr, propname);
+	uiBlock *block;
+	uiBut *but;
+
+	if (!prop) {
+		RNA_warning("property not found: %s.%s", RNA_struct_identifier(ptr->type), propname);
+		return;
+	}
+
+	block = uiLayoutGetBlock(layout);
+
+	but = uiDefIconTextButO(block, UI_BTYPE_BUT, "UI_OT_eyedropper_color_crypto", WM_OP_INVOKE_DEFAULT, ICON_EYEDROPPER, RNA_property_ui_name(prop), 0, 0, UI_UNIT_X, UI_UNIT_Y, RNA_property_ui_description(prop));
+	but->rnapoin = *ptr;
+	but->rnaprop = prop;
+	but->rnaindex = -1;
+}
 
 /********************* Layer Buttons Template ************************/
 
@@ -3531,13 +3549,24 @@ static void ui_layout_operator_buts__reset_cb(bContext *UNUSED(C), void *op_pt, 
 }
 #endif
 
+struct uiTemplateOperatorPropertyPollParam {
+	const bContext *C;
+	wmOperator *op;
+};
+
+static bool ui_layout_operator_buts_poll_property(
+        struct PointerRNA *UNUSED(ptr), struct PropertyRNA *prop, void *user_data)
+{
+	struct uiTemplateOperatorPropertyPollParam *params = user_data;
+	return params->op->type->poll_property(params->C, params->op, prop);
+}
+
 /**
  * Draw Operator property buttons for redoing execution with different settings.
  * This function does not initialize the layout, functions can be called on the layout before and after.
  */
 void uiTemplateOperatorPropertyButs(
         const bContext *C, uiLayout *layout, wmOperator *op,
-        bool (*check_prop)(struct PointerRNA *, struct PropertyRNA *),
         const char label_align, const short flag)
 {
 	if (!op->properties) {
@@ -3593,11 +3622,16 @@ void uiTemplateOperatorPropertyButs(
 		wmWindowManager *wm = CTX_wm_manager(C);
 		PointerRNA ptr;
 		int empty;
+		struct uiTemplateOperatorPropertyPollParam user_data = {.C = C, .op = op};
 
 		RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
 
 		/* main draw call */
-		empty = uiDefAutoButsRNA(layout, &ptr, check_prop, label_align) == 0;
+		empty = uiDefAutoButsRNA(
+		        layout, &ptr,
+		        op->type->poll_property ? ui_layout_operator_buts_poll_property : NULL,
+		        op->type->poll_property ? &user_data : NULL,
+		        label_align) == 0;
 
 		if (empty && (flag & UI_TEMPLATE_OP_PROPS_SHOW_EMPTY)) {
 			uiItemL(layout, IFACE_("No Properties"), ICON_NONE);
