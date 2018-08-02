@@ -26,19 +26,10 @@ thread::thread(function<void(void)> run_cb, int group)
     joined_(false),
 	group_(group)
 {
-#ifdef CYCLES_USE_STD_THREAD
+#if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
 	thread_ = std::thread(&thread::run, this);
 #else
-# ifdef __APPLE__
-	/* Set the stack size to 1MB to match other platforms.
-	 * The default of 512kB may be to small. */
-	pthread_attr_t attribute;
-	pthread_attr_init(&attribute);
-	pthread_attr_setstacksize(&attribute,1024*1024*1);
-	pthread_create(&pthread_id_, &attribute, run, (void*)this);
-#  else
 	pthread_create(&pthread_id_, NULL, run, (void*)this);
-#  endif
 #endif
 }
 
@@ -73,7 +64,7 @@ void *thread::run(void *arg)
 bool thread::join()
 {
 	joined_ = true;
-#ifdef CYCLES_USE_STD_THREAD
+#if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
 	try {
 		thread_.join();
 		return true;

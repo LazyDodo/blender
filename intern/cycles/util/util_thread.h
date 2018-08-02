@@ -18,12 +18,6 @@
 #define __UTIL_THREAD_H__
 
 #if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
-#if !defined(__APPLE__)
-#  define CYCLES_USE_STD_THREAD
-#endif
-#endif
-
-#ifdef CYCLES_USE_STD_THREAD
 #  include <thread>
 #  include <mutex>
 #  include <condition_variable>
@@ -48,7 +42,7 @@
 
 CCL_NAMESPACE_BEGIN
 
-#ifdef CYCLES_USE_STD_THREAD
+#if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
 typedef std::mutex thread_mutex;
 typedef std::unique_lock<std::mutex> thread_scoped_lock;
 typedef std::condition_variable thread_condition_variable;
@@ -72,7 +66,7 @@ public:
 
 protected:
 	function<void(void)> run_cb_;
-#ifdef CYCLES_USE_STD_THREAD
+#if (__cplusplus > 199711L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
 	std::thread thread_;
 #else
 	pthread_t pthread_id_;
