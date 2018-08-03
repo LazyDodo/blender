@@ -43,6 +43,7 @@ set(INC
 
 set(INC_SYS
 	${PYTHON_INCLUDE_DIRS}
+	${GLEW_INCLUDE_PATH}
 )
 
 set(SRC
