@@ -310,6 +310,7 @@ Object *bc_get_assigned_armature(Object *ob)
 * ob->id.tag & LIB_TAG_DOIT
 */
 Object *bc_get_highest_selected_ancestor_or_self(LinkNode *export_set, Object *ob)
+
 {
 	Object *ancestor = ob;
 	while (ob->parent && bc_is_marked(ob->parent)) {

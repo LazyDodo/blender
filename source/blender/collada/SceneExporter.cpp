@@ -225,6 +225,7 @@ void SceneExporter::writeNodes(Object *ob, Scene *sce)
 						cti->flush_constraint_targets(con, &targets, 1);
 
 				}
+
 				con = con->next;
 			}
 		}

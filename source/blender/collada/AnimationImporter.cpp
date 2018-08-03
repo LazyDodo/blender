@@ -943,6 +943,7 @@ void AnimationImporter::translate_Animations(COLLADAFW::Node *node,
 
 		if (!ob->adt || !ob->adt->action)
 			act = verify_adt_action(bmain, (ID *)&ob->id, 1);
+
 		else
 			act = ob->adt->action;
 

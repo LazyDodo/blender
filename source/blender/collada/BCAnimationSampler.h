@@ -43,6 +43,7 @@ private:
 	Object *reference = NULL;
 	bContext *mContext;
 
+
 public:
 	BCFrameSet frame_set;
 	BCAnimationCurveMap curve_map;

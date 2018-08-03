@@ -48,8 +48,10 @@ extern "C" {
 	#include "BKE_material.h"
 }
 
-EffectsExporter::EffectsExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) : COLLADASW::LibraryEffects(sw), export_settings(export_settings) {
-}
+EffectsExporter::EffectsExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) :
+	COLLADASW::LibraryEffects(sw),
+	export_settings(export_settings)
+{}
 
 
 bool EffectsExporter::hasEffects(Scene *sce)

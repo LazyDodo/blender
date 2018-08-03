@@ -602,7 +602,6 @@ void MeshImporter::read_lines(COLLADAFW::Mesh *mesh, Mesh *me)
 		COLLADAFW::MeshPrimitiveArray& prim_arr = mesh->getMeshPrimitives();
 
 		for (int index = 0; index < prim_arr.getCount(); index++) {
-
 			COLLADAFW::MeshPrimitive *mp = prim_arr[index];
 
 			int type = mp->getPrimitiveType();
