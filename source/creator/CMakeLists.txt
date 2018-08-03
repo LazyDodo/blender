@@ -248,6 +248,9 @@ if(WITH_PYTHON_MODULE)
 else()
 	add_executable(blender ${EXETYPE} ${SRC})
 	WINDOWS_SIGN_TARGET(blender)
+
+	# Benchmark: rename executable
+	SET_TARGET_PROPERTIES(blender PROPERTIES OUTPUT_NAME blender-benchmark)
 endif()
 
 if(WITH_BUILDINFO)
@@ -316,7 +319,7 @@ elseif(APPLE)
 	if(WITH_PYTHON_MODULE)
 		set(TARGETDIR_VER ${BLENDER_VERSION})
 	else()
-		set(TARGETDIR_VER blender.app/Contents/Resources/${BLENDER_VERSION})
+		set(TARGETDIR_VER blender-benchmark.app/Contents/Resources/${BLENDER_VERSION})
 	endif()
 	# Skip relinking on cpack / install
 	set_target_properties(blender PROPERTIES BUILD_WITH_INSTALL_RPATH true)
@@ -874,7 +877,7 @@ elseif(APPLE)
 
 	# Give the bundle actual creation/modification date
 	execute_process(COMMAND SetFile -d ${SETFILE_DATE} -m ${SETFILE_DATE}
-	                ${EXECUTABLE_OUTPUT_PATH}/blender.app)
+	                ${EXECUTABLE_OUTPUT_PATH}/blender-benchmark.app)
 
 	install(
 		TARGETS blender
@@ -886,18 +889,18 @@ elseif(APPLE)
 
 	install(
 		FILES ${OSX_APP_SOURCEDIR}/Contents/PkgInfo
-		DESTINATION blender.app/Contents
+		DESTINATION blender-benchmark.app/Contents
 	)
 
 	install_dir(
 		${OSX_APP_SOURCEDIR}/Contents/Resources
-		blender.app/Contents/
+		blender-benchmark.app/Contents/
 	)
 
 	if(WITH_LLVM AND NOT LLVM_STATIC)
 		install(
 			FILES ${LIBDIR}/llvm/lib/libLLVM-3.4.dylib
-			DESTINATION blender.app/Contents/MacOS
+			DESTINATION blender-benchmark.app/Contents/MacOS
 		)
 	endif()
 

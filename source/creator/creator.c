@@ -390,7 +390,8 @@ int main(
 	/* ensure we free on early exit */
 	app_init_data.ba = ba;
 
-	main_args_setup(C, ba);
+	/* Benchmark: disable arguments
+	main_args_setup(C, ba); */
 
 	BLI_argsParse(ba, 1, NULL, NULL);
 
@@ -483,7 +484,8 @@ int main(
 
 	/* OK we are ready for it */
 #ifndef WITH_PYTHON_MODULE
-	main_args_setup_post(C, ba);
+	/* Benchmark: disable arguments
+	main_args_setup_post(C, ba); */
 
 	if (G.background == 0) {
 		if (!G.file_loaded)
