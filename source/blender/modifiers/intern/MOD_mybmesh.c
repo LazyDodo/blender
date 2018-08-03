@@ -345,6 +345,81 @@ static bool get_uv_coord(BMVert *vert, BMFace *f, float *u, float *v){
 	return false;
 }
 
+static bool is_C_vert(BMVert *v, BLI_Buffer *C_verts){
+	int vert_j;
+	for(vert_j = 0; vert_j < C_verts->count; vert_j++){
+		BMVert *c_vert = BLI_buffer_at(C_verts, BMVert*, vert_j);
+		if( c_vert == v ){
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool point_inside_v2(const float mat[3][3], const float point[2], BMFace *f){
+	//TODO maybe add a sanity check to see if the face is not a quad or a triangle
+	float (*mat_coords)[2] = BLI_array_alloca(mat_coords, f->len);
+	BMVert *vert;
+	BMIter iter_v;
+	int vert_idx;
+
+	BM_ITER_ELEM_INDEX (vert, &iter_v, f, BM_VERTS_OF_FACE, vert_idx) {
+		mul_v2_m3v3(mat_coords[vert_idx], mat, vert->co);
+	}
+
+	if( f->len == 3 ){
+		return isect_point_tri_v2(point, mat_coords[0], mat_coords[1], mat_coords[2]);
+	}
+	return isect_point_quad_v2(point, mat_coords[0], mat_coords[1], mat_coords[2], mat_coords[3]);
+}
+
+static bool point_inside(const float mat[3][3], const float point[3], BMFace *f){
+	float mat_new_pos[2];
+	mul_v2_m3v3(mat_new_pos, mat, point);
+
+	return point_inside_v2(mat, mat_new_pos, f);
+}
+
+static void get_uv_point(BMFace *face, float uv[2], const float point_v2[2], const float mat[3][3] ){
+	int vert_idx;
+	float st[4][2];
+
+	BMVert *v;
+	BMIter iter_v;
+
+	BM_ITER_ELEM_INDEX (v, &iter_v, face, BM_VERTS_OF_FACE, vert_idx) {
+		switch(vert_idx){
+			case 1 :
+				mul_v2_m3v3(st[1], mat, v->co);
+				break;
+			case 2 :
+				mul_v2_m3v3(st[2], mat, v->co);
+				break;
+			case 3 :
+				mul_v2_m3v3(st[3], mat, v->co);
+				break;
+			default:
+				mul_v2_m3v3(st[0], mat, v->co);
+				break;
+		}
+	}
+
+	resolve_quad_uv_v2(uv, point_v2, st[0], st[1], st[2], st[3]);
+
+    if( uv[0] > 1.0f ){
+		uv[0] = 1.0f;
+	} else if( uv[0] < 0.0f ){
+		uv[0] = 0.0f;
+	}
+
+    if( uv[1] > 1.0f ){
+		uv[1] = 1.0f;
+	} else if( uv[1] < 0.0f ){
+		uv[1] = 0.0f;
+	}
+
+}
+
 static void split_BB_FF_edges(MeshData *m_d) {
 	//Split BB,FF edges if they have sign crossings
 
@@ -711,11 +786,13 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 	{
 		//Check if we will try to shift a pole.
 		//If we shift it, it may prevent interplation later on
-
+        //TODO remove this check as the "ab" multi face interpol method is removed
+		/*
 		BMVert *v = BLI_ghash_lookup(m_d->vert_hash, vert);
 		if( v && BM_vert_edge_count(v) > 4 ){
 			return false;
 		}
+		*/
 	}
 	copy_v3_v3( old_loc, vert->co );
 
@@ -837,251 +914,92 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 }
 
 static void mult_face_search( BMFace *f, BMFace *f2, const float v1_uv[2], const float v2_uv[2], BMEdge *e, MeshData *m_d ){
-	//Try to find a vert that is connected to both faces
+	//Create a list of faces that should be used when searching for the split
 	BMVert *vert;
 	BMFace *face;
 	BMIter iter_f, iter_v;
-	bool found_vert = false;
+	//There must be some overlap between the faces connected to f and f2. Otherwise this might fail
+	bool found_overlap = false;
 
+	BLI_buffer_declare_static(BMFace*, faces, BLI_BUFFER_NOP, 32);
+
+	//First face
 	BM_ITER_ELEM (vert, &iter_v, f, BM_VERTS_OF_FACE) {
-		if( !BM_vert_is_boundary(vert) && BM_vert_edge_count(vert) == 4 && BM_vert_face_count(vert) == 4 ){
-			BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
-				if(face == f2){
-					found_vert = true;
+		BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
+			bool dup_face = false;
+			//check if face is already in the buffer
+			for(int face_i = 0; face_i < faces.count; face_i++){
+				if( face == BLI_buffer_at(&faces, BMFace*, face_i)){
+					dup_face = true;
 					break;
 				}
 			}
-		}
-		if(found_vert){
-			break;
+			if (!dup_face){
+				BLI_buffer_append(&faces, BMFace*, face);
+			}
 		}
 	}
 
-	if( !found_vert ){
+	//Keep track of what faces were added from f2
+    int f2_start_idx = faces.count;
+
+	//Second face
+	BM_ITER_ELEM (vert, &iter_v, f2, BM_VERTS_OF_FACE) {
+		BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
+			bool dup_face = false;
+			//check if face is already in the buffer
+			for(int face_i = 0; face_i < faces.count; face_i++){
+				if( face == BLI_buffer_at(&faces, BMFace*, face_i)){
+					if( face_i < f2_start_idx ){
+						//This face was added from f. We have overlap!
+						found_overlap = true;
+					}
+					dup_face = true;
+					break;
+				}
+			}
+			if (!dup_face){
+				BLI_buffer_append(&faces, BMFace*, face);
+			}
+		}
+	}
+
+	if( !found_overlap ){
 		//We can't easily interpolate this edge, do not try to insert a new vertex here
-		printf("Couldn't find any suitable interpolation vertex!\n");
+		//TODO in theory, this should never happen. Should probably exit if it does.
+		printf("Couldn't find any suitable interpolation face map!\n");
 		return;
 	}
 
-	//The vert we found is the center of our new 2d coordinate system "ab".
-	//Convert the uv coords to ab coords
 	{
-		//UV axis is the four quadrats, "+" is the selected vertex
-		//   b (up)
-		//   ^
-		// |2|1|
-		// --+--> a (right)
-		// |3|4|
-
-		// The uv points in the origin, up, right corner of the face
-		float face_uv[4][3][2];
-		float ab_start[2], ab_end[2];
-		int edge_idx = 0, face_idx = 0;
-		BMEdge *up, *down, *left, *right, *cur_edge;
-		BMFace *quadrants[4];
-
-		BMLoop *first_loop = BM_face_vert_share_loop( vert->e->l->f, vert );
-		BMLoop *cur_loop = first_loop;
-
-		cur_edge = vert->e;
-
-		do {
-			switch(edge_idx){
-				case 0 :
-					right = cur_edge;
-					break;
-				case 1 :
-					up = cur_edge;
-					break;
-				case 2 :
-					left = cur_edge;
-					break;
-				default:
-					down = cur_edge;
-					break;
-			}
-			edge_idx++;
-		} while (((cur_loop = BM_vert_step_fan_loop(cur_loop, &cur_edge)) != first_loop) && (cur_loop != NULL));
-
-		do {
-			float u, v;
-			face = cur_loop->f;
-
-			//Save face for later use
-			quadrants[face_idx] = face;
-
-			get_uv_coord(vert, face, &u, &v);
-			face_uv[ face_idx ][0][0] = u;
-			face_uv[ face_idx ][0][1] = v;
-
-
-			get_uv_coord(cur_loop->next->v, face, &u, &v);
-
-			// The BMLoop edge consist of the current vertex and the vertex in cur_loop->next->v
-			if( cur_loop->e == right ){
-				face_uv[ face_idx ][2][0] = u;
-				face_uv[ face_idx ][2][1] = v;
-			} else if( cur_loop->e == up ){
-				face_uv[ face_idx ][1][0] = u;
-				face_uv[ face_idx ][1][1] = v;
-			} else if( cur_loop->e == left ){
-				face_uv[ face_idx ][2][0] = u;
-				face_uv[ face_idx ][2][1] = v;
-			} else {
-				//down
-				face_uv[ face_idx ][1][0] = u;
-				face_uv[ face_idx ][1][1] = v;
-			}
-
-			get_uv_coord(cur_loop->prev->v, face, &u, &v);
-			if( cur_loop->prev->e == right ){
-				face_uv[ face_idx ][2][0] = u;
-				face_uv[ face_idx ][2][1] = v;
-			} else if( cur_loop->prev->e == up ){
-				face_uv[ face_idx ][1][0] = u;
-				face_uv[ face_idx ][1][1] = v;
-			} else if( cur_loop->prev->e == left ){
-				face_uv[ face_idx ][2][0] = u;
-				face_uv[ face_idx ][2][1] = v;
-			} else {
-				//down
-				face_uv[ face_idx ][1][0] = u;
-				face_uv[ face_idx ][1][1] = v;
-			}
-
-			//Convert the supplied uv coords to ab coords
-			if( face == f || face == f2 ){
-				float a, b;
-
-				if( face == f ){
-					u = v1_uv[0];
-					v = v1_uv[1];
-				} else {
-					u = v2_uv[0];
-					v = v2_uv[1];
-				}
-
-				//Convert the u axis
-				if( face_uv[ face_idx ][0][0] == 0 ){
-					if( face_uv[ face_idx ][2][0] == 0 ){
-						//b coord is mapped to u
-						b = u;
-					} else {
-						//a coord is mapped to u
-						a = u;
-					}
-				} else {
-					if( face_uv[ face_idx ][2][0] == 0 ){
-						//a coord is mapped to u
-						a = 1.0f - u;
-					} else {
-						//b coord is mapped to u
-						b = 1.0f - u;
-					}
-				}
-
-				//Convert the v axis
-				if( face_uv[ face_idx ][0][1] == 0 ){
-					if( face_uv[ face_idx ][1][1] == 0 ){
-						//a coord is mapped to v
-						a = v;
-					} else {
-						//b coord is mapped to v
-						b = v;
-					}
-				} else {
-					if( face_uv[ face_idx ][1][1] == 0 ){
-						//b coord is mapped to v
-						b = 1.0f - v;
-					} else {
-						//a coord is mapped to v
-						a = 1.0f - v;
-					}
-				}
-
-				switch( face_idx ){
-					case 1 :
-						//2nd quadrant
-						a = -a;
-						break;
-					case 2 :
-						//3nd quadrant
-						a = -a;
-						b = -b;
-						break;
-					case 3 :
-						//4th quadrant
-						b = -b;
-						break;
-					default :
-						//1st quadrant
-						break;
-				}
-
-				//first or second face?
-				if( face == f ){
-					ab_start[0] = a;
-					ab_start[1] = b;
-				} else {
-					ab_end[0] = a;
-					ab_end[1] = b;
-				}
-
-			}
-			face_idx++;
-		} while (((cur_loop = BM_vert_step_fan_loop(cur_loop, &cur_edge)) != first_loop) && (cur_loop != NULL));
 
 		//Now we can begin interpolating along the edge
 		{
-			float face_dir, uv_P[2], uv_1[2], uv_2[2],  P[3], du[3], dv[3], new_no[3];
+			float face_dir, uv_P[2], P[3], du[3], dv[3], new_no[3];
 			float step = 0.5f;
 			float step_len = 0.25f;
-			float cur_ab[2];
-			int i, face_index, q_idx;
+			int face_index;
 			float v1_face = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 			BMFace *cur_face;
 
-			for( i = 0; i < 10; i++ ){
-				interp_v2_v2v2( cur_ab, ab_start, ab_end, step);
-				if( cur_ab[0] < 0 ){
-					if( cur_ab[1] < 0 ){
-						q_idx = 2;
-					} else {
-						q_idx = 1;
-					}
-				} else {
-					if( cur_ab[1] < 0 ){
-						q_idx = 3;
-					} else {
-						q_idx = 0;
-					}
+			float mat[3][3];
+			float start[2], end[2], cur_v2[2];
+
+			interp_v3_v3v3(new_no, e->v1->no, e->v2->no, 0.5f);
+			axis_dominant_v3_to_m3(mat, new_no);
+			mul_v2_m3v3(start, mat, e->v1->co);
+			mul_v2_m3v3(end, mat, e->v2->co);
+
+			for( int i = 0; i < 10; i++ ){
+				interp_v2_v2v2(cur_v2, start, end, step);
+
+				for(int face_i = 0; face_i < faces.count; face_i++){
+						cur_face = BLI_buffer_at(&faces, BMFace*, face_i);
+						if( point_inside_v2( mat, cur_v2, cur_face ) ){
+							get_uv_point( cur_face, uv_P, cur_v2, mat );
+							break;
+						}
 				}
-
-				cur_face = quadrants[q_idx];
-
-				interp_v2_v2v2( uv_1, face_uv[q_idx][0], face_uv[q_idx][2], fabs(cur_ab[0]) );
-				interp_v2_v2v2( uv_2, face_uv[q_idx][0], face_uv[q_idx][1], fabs(cur_ab[1]) );
-
-				if( face_uv[q_idx][0][0] == 1 ){
-					if( face_uv[q_idx][2][0] == 1 ){
-						uv_1[0] = 0;
-					}
-					if( face_uv[q_idx][1][0] == 1 ){
-						uv_2[0] = 0;
-					}
-				}
-
-				if( face_uv[q_idx][0][1] == 1 ){
-					if( face_uv[q_idx][2][1] == 1 ){
-						uv_1[1] = 0;
-					}
-					if( face_uv[q_idx][1][1] == 1 ){
-						uv_2[1] = 0;
-					}
-				}
-
-				add_v2_v2v2( uv_P, uv_1, uv_2 );
-
 				face_index = BM_elem_index_get(cur_face);
 				m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 
@@ -1136,6 +1054,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, const float v1_uv[2], const
 			}
 		}
 	}
+	BLI_buffer_free(&faces);
 
 }
 
@@ -1781,23 +1700,26 @@ static void cusp_detection( MeshData *m_d ){
 							int v2_idx = BM_elem_index_get(edge->v2);
 
 							if( isect_line_line_v2_point( uv_1, uv_2, uv_3, cusp_uv, edge_uv ) != ISECT_LINE_LINE_CROSS ){
-								//printf("Couldn't find intersection point to edge from cusp!\n");
+								printf("Couldn't find intersection point to edge from cusp!\n");
 								//TODO this is a big error so quit instead
 								continue;
 							}
 
 							m_d->eval->evaluateLimit(m_d->eval, face_index, edge_uv[0], edge_uv[1], P, du, dv);
 
+							float cusp_dist_to_edge1 = dist_to_line_v3(cusp.cusp_co, cusp_e_vert->co, edge->v1->co);
+							float cusp_dist_to_edge2 = dist_to_line_v3(cusp.cusp_co, cusp_e_vert->co, edge->v2->co);
 							//Check if we should use an existing edge (no new verts)
-							if( len_v3v3(P, edge->v1->co) < BM_edge_calc_length(edge) * 0.2f ||
-									len_v3v3(P, edge->v2->co) < BM_edge_calc_length(edge) * 0.2f ){
+							if( cusp_dist_to_edge1 < BM_edge_calc_length(edge) * 0.2f ||
+								cusp_dist_to_edge2 < BM_edge_calc_length(edge) * 0.2f ){
 
 								BMVert *edge_vert;
 								BMEdge *cusp_edge;
 								BMIter iter_e;
 								float new_no[3];
 
-								if( len_v3v3(P, edge->v1->co) < BM_edge_calc_length(edge) * 0.2f ){
+								//Which edge should we move? (Which is closest to the split point?)
+								if( len_v3v3(P, edge->v1->co) < len_v3v3(P, edge->v2->co) ){
 									edge_vert = edge->v1;
 								} else {
 									edge_vert = edge->v2;
@@ -1921,81 +1843,6 @@ static void cusp_insertion(MeshData *m_d){
 	m_d->is_cusp = false;
 }
 
-static bool is_C_vert(BMVert *v, BLI_Buffer *C_verts){
-	int vert_j;
-	for(vert_j = 0; vert_j < C_verts->count; vert_j++){
-		BMVert *c_vert = BLI_buffer_at(C_verts, BMVert*, vert_j);
-		if( c_vert == v ){
-			return true;
-		}
-	}
-	return false;
-}
-
-static bool point_inside_v2(const float mat[3][3], const float point[2], BMFace *f){
-	//TODO maybe add a sanity check to see if the face is not a quad or a triangle
-	float (*mat_coords)[2] = BLI_array_alloca(mat_coords, f->len);
-	BMVert *vert;
-	BMIter iter_v;
-	int vert_idx;
-
-	BM_ITER_ELEM_INDEX (vert, &iter_v, f, BM_VERTS_OF_FACE, vert_idx) {
-		mul_v2_m3v3(mat_coords[vert_idx], mat, vert->co);
-	}
-
-	if( f->len == 3 ){
-		return isect_point_tri_v2(point, mat_coords[0], mat_coords[1], mat_coords[2]);
-	}
-	return isect_point_quad_v2(point, mat_coords[0], mat_coords[1], mat_coords[2], mat_coords[3]);
-}
-
-static bool point_inside(const float mat[3][3], const float point[3], BMFace *f){
-	float mat_new_pos[2];
-	mul_v2_m3v3(mat_new_pos, mat, point);
-
-	return point_inside_v2(mat, mat_new_pos, f);
-}
-
-static void get_uv_point(BMFace *face, float uv[2], const float point_v2[2], const float mat[3][3] ){
-	int vert_idx;
-	float st[4][2];
-
-	BMVert *v;
-	BMIter iter_v;
-
-	BM_ITER_ELEM_INDEX (v, &iter_v, face, BM_VERTS_OF_FACE, vert_idx) {
-		switch(vert_idx){
-			case 1 :
-				mul_v2_m3v3(st[1], mat, v->co);
-				break;
-			case 2 :
-				mul_v2_m3v3(st[2], mat, v->co);
-				break;
-			case 3 :
-				mul_v2_m3v3(st[3], mat, v->co);
-				break;
-			default:
-				mul_v2_m3v3(st[0], mat, v->co);
-				break;
-		}
-	}
-
-	resolve_quad_uv_v2(uv, point_v2, st[0], st[1], st[2], st[3]);
-
-    if( uv[0] > 1.0f ){
-		uv[0] = 1.0f;
-	} else if( uv[0] < 0.0f ){
-		uv[0] = 0.0f;
-	}
-
-    if( uv[1] > 1.0f ){
-		uv[1] = 1.0f;
-	} else if( uv[1] < 0.0f ){
-		uv[1] = 0.0f;
-	}
-
-}
-
 static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], const float dv[3], Radi_vert *r_vert, MeshData *m_d){
 	BMVert *vert, *temp_v;
 
@@ -2034,6 +1881,9 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 	if( rot_edge ){
 		if( edge == NULL || !BM_edge_rotate_check(edge) ){
 			//Do not insert a radial edge here
+			return false;
+		}
+		if( is_C_vert( edge->v1, m_d->C_verts) && is_C_vert( edge->v2, m_d->C_verts) ){
 			return false;
 		}
 	}
