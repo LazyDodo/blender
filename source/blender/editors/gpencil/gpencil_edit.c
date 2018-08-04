@@ -734,7 +734,7 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 
 		if (BKE_object_material_slot_find_index(ob, ma) == 0) {
 			BKE_object_material_slot_add(bmain, ob);
-			assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+			assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_USERPREF);
 		}
 
 		/* Store this mapping (for use later when pasting) */
@@ -2847,7 +2847,7 @@ void GPENCIL_OT_reproject(wmOperatorType *ot)
 	ot->poll = gp_strokes_edit3d_poll;
 
 	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", reproject_type, GP_REPROJECT_PLANAR, "Projection Type", "");
@@ -3195,7 +3195,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 									BKE_object_material_slot_add(bmain, ob_dst);
 								}
 
-								assign_material(bmain, ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+								assign_material(bmain, ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_USERPREF);
 								idx = totadd;
 							}
 

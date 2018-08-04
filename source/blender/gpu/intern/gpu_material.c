@@ -43,6 +43,7 @@
 #include "BLI_math.h"
 #include "BLI_listbase.h"
 #include "BLI_utildefines.h"
+#include "BLI_string.h"
 
 #include "BKE_main.h"
 #include "BKE_node.h"
@@ -120,6 +121,10 @@ struct GPUMaterial {
 	short int sss_falloff;
 	float sss_sharpness;
 	bool sss_dirty;
+
+#ifndef NDEBUG
+	char name[64];
+#endif
 };
 
 enum {
@@ -581,7 +586,7 @@ GPUMaterial *GPU_material_from_nodetree_find(
  */
 GPUMaterial *GPU_material_from_nodetree(
         Scene *scene, struct bNodeTree *ntree, ListBase *gpumaterials, const void *engine_type, int options,
-        const char *vert_code, const char *geom_code, const char *frag_lib, const char *defines)
+        const char *vert_code, const char *geom_code, const char *frag_lib, const char *defines, const char *name)
 {
 	LinkData *link;
 	bool has_volume_output, has_surface_output;
@@ -594,8 +599,15 @@ GPUMaterial *GPU_material_from_nodetree(
 	mat->scene = scene;
 	mat->engine_type = engine_type;
 	mat->options = options;
+#ifndef NDEBUG
+	BLI_snprintf(mat->name, sizeof(mat->name), "%s", name);
+#else
+	UNUSED_VARS(name);
+#endif
 
-	ntreeGPUMaterialNodes(ntree, mat, &has_surface_output, &has_volume_output);
+	/* localize tree to create links for reroute and mute */
+	bNodeTree *localtree = ntreeLocalize(ntree);
+	ntreeGPUMaterialNodes(localtree, mat, &has_surface_output, &has_volume_output);
 
 	if (has_surface_output) {
 		mat->domain |= GPU_DOMAIN_SURFACE;
@@ -640,6 +652,11 @@ GPUMaterial *GPU_material_from_nodetree(
 		mat->status = GPU_MAT_FAILED;
 	}
 
+	/* Only free after GPU_pass_shader_get where GPUUniformBuffer
+	 * read data from the local tree. */
+	ntreeFreeTree(localtree);
+	MEM_freeN(localtree);
+
 	/* note that even if building the shader fails in some way, we still keep
 	 * it to avoid trying to compile again and again, and simply do not use
 	 * the actual shader on drawing */
@@ -659,7 +676,12 @@ void GPU_material_compile(GPUMaterial *mat)
 
 	/* NOTE: The shader may have already been compiled here since we are
 	 * sharing GPUShader across GPUMaterials. In this case it's a no-op. */
-	GPU_pass_compile(mat->pass);
+#ifndef NDEBUG
+	GPU_pass_compile(mat->pass, mat->name);
+#else
+	GPU_pass_compile(mat->pass, __func__);
+#endif
+
 	GPUShader *sh = GPU_pass_shader_get(mat->pass);
 
 	if (sh != NULL) {

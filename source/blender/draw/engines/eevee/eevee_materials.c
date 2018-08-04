@@ -971,6 +971,13 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 					case GPU_MAT_SUCCESS:
 						grp = DRW_shgroup_material_create(gpumat, psl->background_pass);
 						DRW_shgroup_uniform_float(grp, "backgroundAlpha", &stl->g_data->background_alpha, 1);
+						/* TODO (fclem): remove thoses (need to clean the GLSL files). */
+						DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
+						DRW_shgroup_uniform_block(grp, "grid_block", sldata->grid_ubo);
+						DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
+						DRW_shgroup_uniform_block(grp, "planar_block", sldata->planar_ubo);
+						DRW_shgroup_uniform_block(grp, "light_block", sldata->light_ubo);
+						DRW_shgroup_uniform_block(grp, "shadow_block", sldata->shadow_ubo);
 						DRW_shgroup_call_add(grp, geom, NULL);
 						break;
 					case GPU_MAT_QUEUED:

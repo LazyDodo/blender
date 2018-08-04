@@ -1131,12 +1131,29 @@ void GPENCIL_OT_stroke_arrange(wmOperatorType *ot)
 
 /* ******************* Move Stroke to new color ************************** */
 
-static int gp_stroke_change_color_exec(bContext *C, wmOperator *UNUSED(op))
+static int gp_stroke_change_color_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
+	Material *ma = NULL;
+	char name[MAX_ID_NAME - 2];
+	RNA_string_get(op->ptr, "material", name);
+
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	Object *ob = CTX_data_active_object(C);
-	Material *ma = give_current_material(ob, ob->actcol);
+	if (name[0] == '\0') {
+		ma = give_current_material(ob, ob->actcol);
+	}
+	else {
+		ma = (Material *)BKE_libblock_find_name(bmain, ID_MA, name);
+		if (ma == NULL) {
+			return OPERATOR_CANCELLED;
+		}
+	}
+	/* try to find slot */
 	int idx = BKE_object_material_slot_find_index(ob, ma) - 1;
+	if (idx == 0) {
+		return OPERATOR_CANCELLED;
+	}
 
 	/* sanity checks */
 	if (ELEM(NULL, gpd)) {
@@ -1192,7 +1209,7 @@ void GPENCIL_OT_stroke_change_color(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Change Stroke Color";
 	ot->idname = "GPENCIL_OT_stroke_change_color";
-	ot->description = "Move selected strokes to active color";
+	ot->description = "Move selected strokes to active material";
 
 	/* callbacks */
 	ot->exec = gp_stroke_change_color_exec;
@@ -1200,6 +1217,9 @@ void GPENCIL_OT_stroke_change_color(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	RNA_def_string(ot->srna, "material", NULL, MAX_ID_NAME - 2, "Material", "Name of the material");
+
 }
 
 /* ******************* Lock color of non selected Strokes colors ************************** */
@@ -1883,7 +1903,7 @@ int ED_gpencil_join_objects_exec(bContext *C, wmOperator *op)
 					Material *tmp_ma = (*matar)[i];
 					if (BKE_object_material_slot_find_index(ob_dst, tmp_ma) == 0) {
 						BKE_object_material_slot_add(bmain, ob_dst);
-						assign_material(bmain, ob_dst, tmp_ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+						assign_material(bmain, ob_dst, tmp_ma, ob_dst->totcol, BKE_MAT_ASSIGN_USERPREF);
 					}
 				}
 
