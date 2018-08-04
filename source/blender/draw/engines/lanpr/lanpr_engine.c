@@ -107,32 +107,38 @@ static void lanpr_engine_init(void *ved){
 
 	if (!lanpr_share.multichannel_shader) {
 		lanpr_share.multichannel_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_gpu_shader_3D_normal_smooth_color_vert_glsl,
-				datatoc_lanpr_snake_multichannel_frag_glsl, NULL, NULL, NULL);
+				NULL,
+				datatoc_lanpr_snake_multichannel_frag_glsl, 
+				NULL);
 
 	}
 	if (!lanpr_share.edge_detect_shader) {
 		lanpr_share.edge_detect_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_common_fullscreen_vert_glsl,
-				datatoc_lanpr_snake_edge_frag_glsl, NULL, NULL, NULL);
+				NULL,
+				datatoc_lanpr_snake_edge_frag_glsl,
+				NULL);
 
 	}
 	if (!lanpr_share.edge_thinning_shader) {
 		lanpr_share.edge_thinning_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_common_fullscreen_vert_glsl,
-				datatoc_lanpr_snake_image_peel_frag_glsl, NULL, NULL, NULL);
+				NULL,
+				datatoc_lanpr_snake_image_peel_frag_glsl, 
+				NULL);
 
 	}
 	if (!lanpr_share.snake_connection_shader) {
 		lanpr_share.snake_connection_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_lanpr_snake_line_connection_vert_glsl,
-				datatoc_lanpr_snake_line_connection_frag_glsl,
 				datatoc_lanpr_snake_line_connection_geom_glsl,
-				NULL, NULL);
+				datatoc_lanpr_snake_line_connection_frag_glsl,
+				NULL);
 	}
 
 	/* DPIX */
@@ -141,20 +147,20 @@ static void lanpr_engine_init(void *ved){
 	/* SOFTWARE */
 	if (!lanpr_share.software_shader) {
 		lanpr_share.software_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_lanpr_software_passthrough_vert_glsl,
-				datatoc_lanpr_dpix_preview_frag_glsl,
 				datatoc_lanpr_software_line_chain_geom_glsl,
-				NULL, NULL);
+				datatoc_lanpr_dpix_preview_frag_glsl,
+				NULL);
 	}
 
 	if (!lanpr_share.software_chaining_shader) {
 		lanpr_share.software_chaining_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_lanpr_software_passthrough_vert_glsl,
-				datatoc_lanpr_dpix_preview_frag_glsl,
 				datatoc_lanpr_software_chain_geom_glsl,
-				NULL, NULL);
+				datatoc_lanpr_dpix_preview_frag_glsl,
+				NULL);
 	}
 
 	GPU_framebuffer_ensure_config(&fbl->software_ms, {

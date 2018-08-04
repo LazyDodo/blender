@@ -78,18 +78,19 @@ void lanpr_init_atlas_inputs(void *ved){
 
 	if (!lanpr_share.dpix_transform_shader) {
 		lanpr_share.dpix_transform_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_lanpr_dpix_project_passthrough_vert_glsl,
+				NULL,
 				datatoc_lanpr_dpix_project_clip_frag_glsl,
-				NULL, NULL, NULL);
+				NULL);
 	}
 	if (!lanpr_share.dpix_preview_shader) {
 		lanpr_share.dpix_preview_shader =
-			GPU_shader_create(
+			DRW_shader_create(
 				datatoc_lanpr_dpix_project_passthrough_vert_glsl,
-				datatoc_lanpr_dpix_preview_frag_glsl,
 				datatoc_lanpr_dpix_preview_geom_glsl,
-				NULL, NULL);
+				datatoc_lanpr_dpix_preview_frag_glsl,
+				NULL);
 	}
 }
 void lanpr_destroy_atlas(void *ved){
