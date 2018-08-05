@@ -609,7 +609,7 @@ static float get_k_r(struct OpenSubdiv_Evaluator *eval, int face_index, float u,
 
 		if(fabsf(detI) < 1e-14){
 			detI = 1e-14;
-			printf("detI near zero!!!\n");
+			//printf("detI near zero!!!\n");
 		}
 
 		S[0][0] = (II[0][1]*I[0][1] - II[0][0]*I[1][1]) / detI;
@@ -2400,7 +2400,7 @@ static void radial_flip( MeshData *m_d ){
 
         if( is_C_vert(vert, m_d->cusp_verts) ){
 			//Do not flip cusp edges
-			continue;
+			//continue;
 		}
 
 		BM_ITER_ELEM_INDEX (e, &iter_e, vert, BM_EDGES_OF_VERT, edge_idx) {
@@ -2514,7 +2514,7 @@ static void radial_flip( MeshData *m_d ){
 							BM_edge_rotate(m_d->bm, edge_arr[edge_idx], true, 0);
 						} else {
 							//Try to rotate from the other side instead
-							printf("Try from other side!\n");
+							//printf("Try from other side!\n");
 							break;
 						}
 					}
@@ -2549,7 +2549,7 @@ static void radial_flip( MeshData *m_d ){
 						}
 
 						if( failed_rotate ){
-							printf("Failed to flip and delete in radial edge flip!\n");
+							//printf("Failed to flip and delete in radial edge flip!\n");
 							continue;
 						}
 
@@ -3028,7 +3028,7 @@ static void optimization( MeshData *m_d ){
 
 						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
 							//This is not a good flip!
-							printf("Opti flip, first face not good\n");
+							//printf("Opti flip, first face not good\n");
 							new_inco_faces++;
 						}
 
@@ -3048,7 +3048,7 @@ static void optimization( MeshData *m_d ){
 
 						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
 							//This is not a good flip!
-							printf("Opti flip, second face not good\n");
+							//printf("Opti flip, second face not good\n");
 							new_inco_faces++;
 						}
 
@@ -3060,7 +3060,7 @@ static void optimization( MeshData *m_d ){
 
 			}
 			if (best_edge != NULL){
-				printf("Opti filped an edge!\n");
+				//printf("Opti filped an edge!\n");
 
 				best_edge = BM_edge_rotate(m_d->bm, best_edge, true, 0);
 
@@ -3131,7 +3131,7 @@ static void optimization( MeshData *m_d ){
 						}
 
 						if(inface->back_f == calc_if_B_nor(m_d->cam_loc, P, no)){
-							printf("Opti dissolve\n");
+							//printf("Opti dissolve\n");
 							//TODO remove this or only when debug
 
 							if(!BM_disk_dissolve(m_d->bm, vert)){
@@ -3376,10 +3376,10 @@ static void optimization( MeshData *m_d ){
 						if( done ){
 							null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
 							fixed_verts++;
-							printf("Vertex wiggle\n");
+							//printf("Vertex wiggle\n");
 							break;
 						} else {
-							printf("Bad Vertex wiggle\n");
+							//printf("Bad Vertex wiggle\n");
 						}
 					}
 
@@ -3549,15 +3549,15 @@ static void optimization( MeshData *m_d ){
 					BMVert *split_vert;
 					BM_ITER_ELEM_INDEX (edge, &iter_e, inface->face, BM_EDGES_OF_FACE, edge_idx) {
 						if( edge_idx == best_edge ){
-							print_v3("best split pos", best_edge_split_pos);
+							//print_v3("best split pos", best_edge_split_pos);
 							split_vert = split_edge_and_move_nor(m_d->bm, edge, best_edge_split_pos, inface->face->no);
 							break;
 						}
 					}
 					null_opti_vert(m_d, split_vert, inface->back_f, &inco_faces);
-					printf("Edge wiggle\n");
+					//printf("Edge wiggle\n");
 				} else {
-					printf("Bad edge wiggle\n");
+					//printf("Bad edge wiggle\n");
 				}
 			}
 
@@ -3645,7 +3645,7 @@ static void optimization( MeshData *m_d ){
 
 				if( done ){
 					null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
-					printf("Opti normal wiggle\n");
+					//printf("Opti normal wiggle\n");
 					break;
 				} else {
 					copy_v3_v3(vert->co, old_pos);
