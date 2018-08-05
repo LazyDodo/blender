@@ -3062,7 +3062,7 @@ static void optimization( MeshData *m_d ){
 			if (best_edge != NULL){
 				printf("Opti filped an edge!\n");
 
-				BM_edge_rotate(m_d->bm, best_edge, true, 0);
+				best_edge = BM_edge_rotate(m_d->bm, best_edge, true, 0);
 
 				null_opti_edge(m_d, best_edge, inface->back_f, &inco_faces);
 			}
@@ -3085,6 +3085,10 @@ static void optimization( MeshData *m_d ){
 			}
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
+				//Do not try to wiggle C verts
+				if (is_C_vert( vert, m_d->C_verts)){
+					continue;
+				}
 				if( BM_elem_index_get(vert) < m_d->radi_start_idx ){
 					//Not a radial vert, see if we can dissolve it to improve the consistency
 
@@ -3245,6 +3249,10 @@ static void optimization( MeshData *m_d ){
 			}
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
+				//Do not try to wiggle C verts
+				if (is_C_vert( vert, m_d->C_verts)){
+					continue;
+				}
 				BMVert *orig_v = BLI_ghash_lookup(m_d->vert_hash, vert);
 				if( orig_v != NULL ){
 					// This vert exists in the original mesh
@@ -3576,6 +3584,11 @@ static void optimization( MeshData *m_d ){
 			}
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
+				//Do not try to wiggle C verts
+				if (is_C_vert( vert, m_d->C_verts)){
+					continue;
+				}
+
 				BMEdge *edge;
 				BMIter iter_e;
 				float old_pos[3];
