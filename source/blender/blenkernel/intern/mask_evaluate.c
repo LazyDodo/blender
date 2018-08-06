@@ -43,6 +43,7 @@
 #include "DNA_object_types.h"
 
 #include "BKE_curve.h"
+#include "BKE_global.h"
 #include "BKE_mask.h"
 
 #include "DEG_depsgraph.h"

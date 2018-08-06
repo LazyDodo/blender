@@ -1107,7 +1107,6 @@ BVHTree *bvhtree_from_mesh_get(
 	bool edge_allocated = false;
 	bool face_allocated = false;
 	bool loop_allocated = false;
-	bool looptri_allocated = false;
 
 	BLI_rw_mutex_lock(&cache_rwlock, THREAD_LOCK_READ);
 	bool in_cache = bvhcache_find(dm->bvhCache, type, &tree);
@@ -1279,7 +1278,6 @@ BVHTree *bvhtree_from_mesh_get(
 		data->edge_allocated = edge_allocated;
 		data->face_allocated = face_allocated;
 		data->loop_allocated = loop_allocated;
-		data->looptri_allocated = looptri_allocated;
 
 		data->cached = true;
 	}
@@ -1295,9 +1293,6 @@ BVHTree *bvhtree_from_mesh_get(
 		}
 		if (loop_allocated) {
 			MEM_freeN(mloop);
-		}
-		if (looptri_allocated) {
-			MEM_freeN((void *)looptri);
 		}
 
 		memset(data, 0, sizeof(*data));

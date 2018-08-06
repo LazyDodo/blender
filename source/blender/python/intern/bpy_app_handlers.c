@@ -64,6 +64,9 @@ static PyStructSequence_Field app_cb_info_fields[] = {
 	{(char *)"redo_pre",          (char *)"on loading a redo step (before)"},
 	{(char *)"redo_post",         (char *)"on loading a redo step (after)"},
 	{(char *)"version_update",    (char *)"on ending the versioning code"},
+	{(char *)"bullet_tick",       (char *)"on elapsed bullet internal tick"},
+	{(char *)"fracture_refresh",  (char *)"on fracture refresh, after freeing, before creating new shard data"},
+	{(char *)"fracture_constraint_refresh", (char *)"on fracture constraint refresh, after freeing, before creating new constraint data"},
 
 	/* sets the permanent tag */
 #   define APP_CB_OTHER_FIELDS 1

@@ -42,6 +42,9 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_rigidbody_types.h"
+#include "DNA_fracture_types.h"
+#include "DNA_group_types.h"
 
 #include "BLI_bitmap.h"
 #include "BLI_math.h"
@@ -50,16 +53,20 @@
 #include "BLI_string_utf8.h"
 #include "BLI_path_util.h"
 #include "BLI_utildefines.h"
+#include "BLI_kdtree.h"
 
 #include "BKE_animsys.h"
 #include "BKE_curve.h"
+#include "BKE_collection.h"
 #include "BKE_context.h"
 #include "BKE_displist.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_effect.h"
+#include "BKE_fracture.h"
 #include "BKE_global.h"
 #include "BKE_key.h"
 #include "BKE_lattice.h"
+#include "BKE_library_remap.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
@@ -72,8 +79,14 @@
 #include "BKE_ocean.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
+#include "BKE_pointcache.h"
+#include "BKE_report.h"
 #include "BKE_softbody.h"
 #include "BKE_editmesh.h"
+#include "BKE_scene.h"
+#include "BKE_material.h"
+#include "BKE_library.h"
+#include "BKE_rigidbody.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -87,11 +100,18 @@
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_mesh.h"
+#include "ED_physics.h"
+#include "ED_keyframing.h"
+#include "ED_anim_api.h" //clean keyframes
+
+#include "UI_interface.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
 
 #include "object_intern.h"
+
+#include "PIL_time.h"
 
 static void modifier_skin_customdata_delete(struct Object *ob);
 
@@ -277,6 +297,7 @@ static bool object_modifier_safe_to_delete(Main *bmain, Object *ob,
 static bool object_modifier_remove(Main *bmain, Object *ob, ModifierData *md,
 	bool *r_sort_depsgraph)
 {
+
 	/* It seems on rapid delete it is possible to
 	* get called twice on same modifier, so make
 	* sure it is in list. */
@@ -400,7 +421,8 @@ int ED_object_modifier_move_down(ReportList *reports, Object *ob, ModifierData *
 		if (mti->flags & eModifierTypeFlag_RequiresOriginalData) {
 			const ModifierTypeInfo *nmti = modifierType_getInfo(md->next->type);
 
-			if (nmti->type != eModifierTypeType_OnlyDeform) {
+			/*make an exception here for fluidsim, in case: it is beyond a fracture modifier and this may have some other mods above it*/
+			if ((nmti->type != eModifierTypeType_OnlyDeform) && (md->type != eModifierType_Fluidsim)) {
 				BKE_report(reports, RPT_WARNING, "Cannot move beyond a non-deforming modifier");
 				return 0;
 			}
@@ -2412,6 +2434,1131 @@ void OBJECT_OT_surfacedeform_bind(wmOperatorType *ot)
 	ot->poll = surfacedeform_bind_poll;
 	ot->invoke = surfacedeform_bind_invoke;
 	ot->exec = surfacedeform_bind_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+	edit_modifier_properties(ot);
+}
+
+static int fracture_poll(bContext *C)
+{
+	return edit_modifier_poll_generic(C, &RNA_FractureModifier, 0);
+}
+
+static int fracture_refresh_exec(bContext *C, wmOperator *op)
+{
+	Object *obact = ED_object_active_context(C);
+	Scene *scene = CTX_data_scene(C);
+    Main *bmain = CTX_data_main(C);
+	float cfra = BKE_scene_frame_get(scene);
+	double start = 1.0;
+	FractureModifierData *rmd;
+
+	rmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
+	if (!rmd)
+		return OPERATOR_CANCELLED;
+
+    if (scene->rigidbody_world && scene->rigidbody_world->shared->pointcache)
+	{
+		RigidBodyWorld *rbw = scene->rigidbody_world;
+		if (BKE_rigidbody_check_sim_running(rbw, cfra) &&
+           (rbw->ltime > rbw->shared->pointcache->startframe || rbw->ltime == rbw->shared->pointcache->endframe))
+		{
+			BKE_report(op->reports, RPT_WARNING, "Please jump back to cache start frame in order to refracture");
+			return OPERATOR_CANCELLED;
+		}
+	}
+
+	rmd->reset_shards = RNA_boolean_get(op->ptr, "reset");
+
+	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	{
+		DerivedMesh *dm = rmd->visible_mesh_cached;
+		if (dm)
+		{
+			dm->needsFree = 1;
+			dm->release(dm);
+			dm = rmd->visible_mesh_cached = NULL;
+		}
+
+		BKE_fracture_update_visual_mesh(rmd, obact, true);
+	}
+
+	if (scene->rigidbody_world != NULL)
+	{
+		start = (double)scene->rigidbody_world->pointcache->startframe;
+		//free a possible bake...
+		scene->rigidbody_world->pointcache->flag &= ~PTCACHE_BAKED;
+	}
+
+	if (!rmd || (rmd && rmd->refresh)) {
+		rmd->refresh = false;
+		return OPERATOR_CANCELLED;
+	}
+
+	if (rmd->anim_bind) {
+		MEM_freeN(rmd->anim_bind);
+		rmd->anim_bind = NULL;
+		rmd->anim_bind_len = 0;
+	}
+
+	BKE_scene_frame_set(scene, start);
+    DEG_relations_tag_update(bmain);
+	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
+	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
+	
+	rmd->refresh = true;
+	rmd->last_frame = INT_MAX; // delete dynamic data as well
+    DEG_id_tag_update(&obact->id, OB_RECALC_DATA);
+	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
+
+	return OPERATOR_FINISHED;
+}
+
+static void apply_transform(Depsgraph *depsgraph, Object* ob, Scene* scene, float smat[3][3]) {
+
+	float mat[4][4];
+
+	copy_m4_m3(mat, smat);
+
+	/* apply to object data */
+	if (ob->type == OB_MESH) {
+		Mesh *me = ob->data;
+
+        multiresModifier_scale_disp(depsgraph, scene, ob);
+
+		/* adjust data */
+		BKE_mesh_transform(me, mat, true);
+
+		/* update normals */
+		BKE_mesh_calc_normals(me);
+	}
+	else if (ELEM(ob->type, OB_CURVE, OB_SURF)) {
+		float scale = 1.0f;
+		Curve *cu = ob->data;
+
+		scale = mat3_to_scale(smat);
+        BKE_curve_transform_ex(cu, mat, true, true, scale);
+	}
+	else if (ob->type == OB_FONT) {
+		Curve *cu = ob->data;
+		int i;
+		float scale;
+
+		scale = mat3_to_scale(smat);
+
+		for (i = 0; i < cu->totbox; i++) {
+			TextBox *tb = &cu->tb[i];
+			tb->x *= scale;
+			tb->y *= scale;
+			tb->w *= scale;
+			tb->h *= scale;
+		}
+
+		cu->fsize *= scale;
+	}
+}
+
+static void apply_scale(Depsgraph *depsgraph, Object* ob, Scene* scene)
+{
+	float smat[3][3];
+	/*better apply scale prior to fracture, else shards get distorted*/
+	BKE_object_scale_to_mat3(ob, smat);
+
+	/* apply to object data */
+    apply_transform(depsgraph, ob, scene, smat);
+
+	/*clear scale too*/
+	ob->size[0] = ob->size[1] = ob->size[2] = 1.0f;
+}
+
+static int fracture_refresh_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	Scene* scene = CTX_data_scene(C);
+	Object* ob = CTX_data_active_object(C);
+    Depsgraph* depsgraph = CTX_data_depsgraph(C);
+
+	if (edit_modifier_invoke_properties(C, op))
+	{
+        apply_scale(depsgraph, ob, scene);
+		return fracture_refresh_exec(C, op);
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+static int fracture_anim_bind_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Object *obact = ED_object_active_context(C);
+	Scene* scene = CTX_data_scene(C);
+    Main *bmain = CTX_data_main(C);
+    Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	FractureModifierData *rmd;
+
+	rmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
+	if (!rmd)
+		return OPERATOR_CANCELLED;
+
+	//restore kinematic here, before bind (and not afterwards !)
+	if (scene && scene->rigidbody_world) {
+		BKE_restoreKinematic(scene->rigidbody_world, true);
+        BKE_rigidbody_rebuild_world(depsgraph, scene, scene->rigidbody_world->shared->pointcache->startframe);
+	}
+    BKE_read_animated_loc_rot(rmd, obact, true, depsgraph);
+
+    DEG_relations_tag_update(bmain);
+	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
+	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
+
+    DEG_id_tag_update(&obact->id, OB_RECALC_DATA);
+	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
+
+	return OPERATOR_FINISHED;
+}
+
+
+static int fracture_anim_bind_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	if (edit_modifier_invoke_properties(C, op))
+	{
+		return fracture_anim_bind_exec(C, op);
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+
+void OBJECT_OT_fracture_refresh(wmOperatorType *ot)
+{
+	ot->name = "Fracture Refresh";
+	ot->description = "Refresh data in the Fracture modifier";
+	ot->idname = "OBJECT_OT_fracture_refresh";
+
+	ot->poll = fracture_poll;
+	ot->invoke = fracture_refresh_invoke;
+	ot->exec = fracture_refresh_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+	edit_modifier_properties(ot);
+
+	RNA_def_boolean(ot->srna, "reset", false, "Reset Shards", "Reset all shards in next refracture, instead of keeping similar ones");
+}
+
+static void do_add_group_unchecked(Collection* group, Object *ob)
+{
+    CollectionObject *go;
+
+    go = MEM_callocN(sizeof(CollectionObject), "groupobject");
+	BLI_addtail(&group->gobject, go);
+	go->ob = ob;
+}
+
+static bool do_unchecked_constraint_add(Main *bmain, Scene *scene, Object *ob, RigidBodyShardCon *con, ReportList *reports)
+{
+	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
+
+	/* check that object doesn't already have a constraint */
+	if (ob->rigidbody_constraint) {
+		BKE_reportf(reports, RPT_INFO, "Object '%s' already has a Rigid Body Constraint", ob->id.name + 2);
+		return false;
+	}
+	/* create constraint group if it doesn't already exits */
+	if (rbw->constraints == NULL) {
+        rbw->constraints = BKE_collection_add(bmain, NULL, "RigidBodyConstraints");
+	}
+	/* make rigidbody constraint settings */
+	ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, con->type, con);
+	ob->rigidbody_constraint->flag |= RBC_FLAG_NEEDS_VALIDATE;
+
+	/* add constraint to rigid body constraint group */
+    do_add_group_unchecked(rbw->constraints, ob);
+
+    DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+	return true;
+}
+
+static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scene* scene, Collection* g, Object* ob,
+                                               RigidBodyWorld *rbw, int i, Object*** objs, KDTree **objtree,
+                                               FractureModifierData *fmd, ViewLayer *layer)
+{
+	float cent[3];
+	Mesh* me;
+	ModifierData *md;
+	bool foundFracture = false;
+	Object* ob_new = NULL;
+	bool mode = fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
+
+	char *name = mode ? BLI_strdupn(mi->name, MAX_ID_NAME) : BLI_strdupcat(ob->id.name + 2, "_shard");
+
+    ob_new = BKE_object_add(bmain, scene, layer, OB_MESH, name);
+
+	if (!mode)
+	{	//TODO, this still necessary ?
+		copy_m4_m4(ob_new->obmat, ob->obmat);
+		copy_v3_v3(ob_new->rot, ob->rot);
+		copy_qt_qt(ob_new->quat, ob->quat);
+		copy_v3_v3(ob_new->rotAxis, ob->rotAxis);
+		ob_new->rotAngle = ob->rotAngle;
+		copy_v3_v3(ob_new->size, ob->size);
+	}
+
+	if (rbw) {
+        rbw->shared->pointcache->flag |= PTCACHE_OUTDATED;
+		/* make rigidbody object settings */
+		if (ob_new->rigidbody_object == NULL) {
+			ob_new->rigidbody_object = BKE_rigidbody_create_object(scene, ob_new, RBO_TYPE_ACTIVE, mi);
+		}
+		//ob_new->rigidbody_object->type = RBO_TYPE_ACTIVE;
+		ob_new->rigidbody_object->flag |= RBO_FLAG_NEEDS_VALIDATE;
+
+		/* add object to rigid body group */
+        do_add_group_unchecked(rbw->group, ob_new);
+
+        DEG_id_tag_update(&ob_new->id, OB_RECALC_ALL);
+	}
+
+    do_add_group_unchecked(g, ob_new);
+
+	/* throw away all modifiers before fracture, result is stored inside it */
+	while (ob_new->modifiers.first != NULL) {
+		md = ob_new->modifiers.first;
+		if (md->type == eModifierType_Fracture) {
+			/*remove fracture itself too*/
+			foundFracture = true;
+			BLI_remlink(&ob_new->modifiers, md);
+			modifier_free(md);
+			md = NULL;
+		}
+		else if (!foundFracture) {
+			BLI_remlink(&ob_new->modifiers, md);
+			modifier_free(md);
+			md = NULL;
+		}
+		/* XXX else keep following modifiers, or apply them ? */
+	}
+
+    assign_matarar(bmain, ob_new, give_matarar(ob), *give_totcolp(ob));
+
+	me = (Mesh*)ob_new->data;
+	me->edit_btmesh = NULL;
+
+	DM_to_mesh(mi->physics_mesh, me, ob_new, CD_MASK_MESH, false);
+
+	if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+	{
+		/*set origin to centroid*/
+		copy_v3_v3(cent, mi->centroid);
+		mul_m4_v3(ob_new->obmat, cent);
+		copy_v3_v3(ob_new->loc, cent);
+	}
+	else
+	{
+		Shard *s = BLI_findlink(&fmd->frac_mesh->shard_map, mi->id);
+		if (s)
+		{
+			float loc[3], rot[4], mat[4][4], size[3] = {1.0f, 1.0f, 1.0f};
+
+			mat4_to_loc_quat(loc, rot, ob->obmat);
+			add_v3_v3(loc, mi->rigidbody->pos);
+			copy_v3_v3(size, s->impact_size);
+
+			if (mode) {
+				mul_qt_qtqt(rot, rot, mi->rot);
+			}
+
+			copy_v3_v3(ob_new->size, size);
+			copy_v3_v3(ob_new->loc, loc);
+			copy_qt_qt(ob_new->quat, rot);
+			quat_to_eulO(ob_new->rot, ob_new->rotmode, rot);
+			quat_to_axis_angle(ob_new->rotAxis, &ob_new->rotAngle, rot);
+
+			loc_quat_size_to_mat4(mat, loc, rot, size);
+			copy_m4_m4(ob_new->obmat, mat);
+			invert_m4_m4(ob_new->imat, ob_new->obmat);
+		}
+	}
+
+	/*store obj indexes in kdtree and objs in array*/
+	BLI_kdtree_insert(*objtree, i, mi->centroid);
+	(*objs)[i] = ob_new;
+
+	BKE_rigidbody_remove_shard(scene, mi);
+
+	return ob_new;
+}
+
+static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, RigidBodyShardCon* con,
+                                      Scene* scene, Object* ob, KDTree *objtree, Object **objs,
+                                      float max_con_mass, ReportList* reports, ViewLayer *layer)
+{
+	int index1 = BLI_kdtree_find_nearest(objtree, con->mi1->centroid, NULL);
+	int index2 =  BLI_kdtree_find_nearest(objtree, con->mi2->centroid, NULL);
+	Object* ob1 = objs[index1];
+	Object* ob2 = objs[index2];
+	char *name;
+	Object* rbcon;
+	int iterations;
+
+	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	{
+		name = BLI_strdupn(con->name, MAX_ID_NAME);
+	}
+	else
+	{
+		name = BLI_strdupcat(ob->id.name + 2, "_con");
+	}
+
+    rbcon = BKE_object_add(bmain, scene, layer, OB_EMPTY, name);
+	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	{
+		rbcon->rotmode = ROT_MODE_QUAT;
+	}
+
+	if (fmd->solver_iterations_override == 0) {
+        iterations = scene->rigidbody_world->num_solver_iterations;
+	}
+	else {
+		iterations = fmd->solver_iterations_override;
+	}
+
+	if (iterations > 0 && fmd->fracture_mode != MOD_FRACTURE_EXTERNAL) {
+		con->flag |= RBC_FLAG_OVERRIDE_SOLVER_ITERATIONS;
+		con->num_solver_iterations = iterations;
+	}
+
+	if ((fmd->use_mass_dependent_thresholds)) {
+		BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
+	}
+
+	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	{
+		/*TODO XXX, take own transform into account too*/
+		float loc[3], rot[4], mat[4][4], size[3] = {1.0f, 1.0f, 1.0f};
+
+		mat4_to_quat(rot, ob->obmat);
+		mul_v3_m4v3(loc, ob->obmat, con->pos);
+		mul_qt_qtqt(rot, rot, con->orn);
+
+		copy_v3_v3(rbcon->loc, loc);
+		copy_qt_qt(rbcon->quat, rot);
+		quat_to_eulO(rbcon->rot, rbcon->rotmode, rot);
+		quat_to_axis_angle(rbcon->rotAxis, &rbcon->rotAngle, rot);
+
+		loc_quat_size_to_mat4(mat, loc, rot, size);
+		copy_m4_m4(rbcon->obmat, mat);
+	}
+	else
+	{
+		if ((fmd->use_mass_dependent_thresholds)) {
+			BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
+		}
+
+		/*use same settings as in modifier
+		 *XXX Maybe use the CENTER between objects ? Might be correct for Non fixed constraints*/
+		/* location for fixed constraints doesnt matter, so keep old setting */
+		/* keep in sync with rigidbody.c, BKE_rigidbody_validate_sim_shard_constraint() */
+		if (con->type == RBC_TYPE_FIXED) {
+			copy_v3_v3(rbcon->loc, ob1->loc);
+		}
+		else {
+			/* else set location to center */
+			add_v3_v3v3(rbcon->loc, ob1->loc, ob2->loc);
+			mul_v3_fl(rbcon->loc, 0.5f);
+		}
+	}
+
+	/*omit check for existing objects in group, since this seems very slow, and should not be necessary in this internal function*/
+    do_unchecked_constraint_add(bmain, scene, rbcon, con, reports);
+
+	rbcon->rigidbody_constraint->ob1 = ob1;
+	rbcon->rigidbody_constraint->ob2 = ob2;
+
+	if (con->flag & RBC_FLAG_OVERRIDE_SOLVER_ITERATIONS) {
+		rbcon->rigidbody_constraint->flag |= RBC_FLAG_OVERRIDE_SOLVER_ITERATIONS;
+		rbcon->rigidbody_constraint->num_solver_iterations = iterations;
+	}
+
+	BKE_rigidbody_remove_shard_con(scene, con);
+
+	return rbcon;
+}
+
+static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene* scene, Object* ob,
+                                        FractureModifierData *rmd, ViewLayer *layer)
+{
+	MeshIsland *mi;
+	RigidBodyShardCon* con;
+	int i = 0, j = 0;
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	const char *name = BLI_strdupcat(ob->id.name, "_conv");
+    Collection *g = BKE_collection_add(bmain, NULL, name);
+
+	int count = BLI_listbase_count(&rmd->meshIslands);
+	int count_con = BLI_listbase_count(&rmd->meshConstraints);
+	KDTree* objtree = BLI_kdtree_new(count);
+	Object** objs = MEM_callocN(sizeof(Object*) * count, "convert_objs");
+	float max_con_mass = 0;
+
+	/*use a common array for both constraints and objects ! */
+	double start;
+
+	rmd->refresh = false;
+	MEM_freeN((void*)name);
+
+	if (rbw)
+        rbw->shared->pointcache->flag |= PTCACHE_OUTDATED;
+
+	start = PIL_check_seconds_timer();
+
+	for (mi = rmd->meshIslands.first; mi; mi = mi->next) {
+        do_convert_meshisland_to_object(bmain, mi, scene, g, ob, rbw, i, &objs, &objtree, rmd, layer);
+        i++;
+	}
+
+	printf("Converting Islands to Objects done, %g\n", PIL_check_seconds_timer() - start);
+
+	BLI_kdtree_balance(objtree);
+
+	/* go through constraints and find objects by position
+	 * constrain them with regular constraints */
+
+	if (rmd->use_mass_dependent_thresholds) {
+		max_con_mass = BKE_rigidbody_calc_max_con_mass(ob);
+	}
+
+	/* now do scene trick again for constraints */
+
+	start = PIL_check_seconds_timer();
+
+	if (rmd->use_constraints || rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	{
+		for (con = rmd->meshConstraints.first; con; con = con->next) {
+            Object* obj = do_convert_constraints(bmain, rmd, con, scene, ob, objtree, objs, max_con_mass, reports, layer);
+            i++;
+        }
+	}
+
+	printf("Converting Constraints to Objects done, %g\n", PIL_check_seconds_timer() - start);
+
+	/* free array and kdtree*/
+	MEM_freeN(objs);
+    BLI_kdtree_free(objtree);
+}
+
+static int rigidbody_convert_exec(bContext *C, wmOperator *op)
+{
+	Object *obact = ED_object_active_context(C);
+	Scene *scene = CTX_data_scene(C);
+	Main* bmain = CTX_data_main(C);
+    ViewLayer *layer = CTX_data_view_layer(C);
+	wmWindowManager *wm = CTX_wm_manager(C);
+	wmWindow *win;
+	float cfra = BKE_scene_frame_get(scene);
+	FractureModifierData *rmd;
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	
+	rmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
+	if (rmd && rmd->refresh) {
+		return OPERATOR_CANCELLED;
+	}
+
+    if (!rmd || (scene->rigidbody_world && cfra != scene->rigidbody_world->shared->pointcache->startframe))
+	{
+		BKE_report(op->reports, RPT_WARNING, "Unable to convert to objects, either no Fracture Modifier present or not on startframe" );
+		return OPERATOR_CANCELLED;
+	}
+
+    convert_modifier_to_objects(bmain, op->reports, scene, obact, rmd, layer);
+
+	if (rbw) {
+		/* flatten the cache and throw away all traces of the modifiers */
+		short steps_per_second = rbw->steps_per_second;
+		short num_solver_iterations = rbw->num_solver_iterations;
+		int flag = rbw->flag;
+		float time_scale = rbw->time_scale;
+		struct Group* constraints = rbw->constraints;
+		struct Group* group = rbw->group;
+		RigidBodyWorld *rbwn = NULL;
+		
+		BKE_rigidbody_cache_reset(rbw);
+		BKE_rigidbody_free_world(rbw);
+		scene->rigidbody_world = NULL;
+		rbwn = BKE_rigidbody_create_world(scene);
+		rbwn->time_scale = time_scale;
+		rbwn->flag = flag | RBW_FLAG_NEEDS_REBUILD;
+		rbwn->num_solver_iterations = num_solver_iterations;
+		rbwn->steps_per_second = steps_per_second;
+		rbwn->group = group;
+		rbwn->constraints = constraints;
+		
+		scene->rigidbody_world = rbwn;
+	}
+
+	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	{
+        ED_object_base_free_and_unlink(bmain, scene, obact);
+	}
+
+    DEG_relations_tag_update(bmain);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
+	WM_event_add_notifier(C, NC_SCENE | ND_LAYER_CONTENT, scene);
+	
+	return OPERATOR_FINISHED;
+}
+
+static int rigidbody_convert_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
+{
+	
+	if (edit_modifier_invoke_properties(C, op))
+		return rigidbody_convert_exec(C, op);
+	else
+		return OPERATOR_CANCELLED;
+}
+
+
+void OBJECT_OT_rigidbody_convert_to_objects(wmOperatorType *ot)
+{
+	ot->name = "RigidBody Convert To Objects";
+	ot->description = "Convert the Rigid Body modifier shards to real objects";
+	ot->idname = "OBJECT_OT_rigidbody_convert_to_objects";
+
+	ot->poll = fracture_poll;
+	ot->invoke = rigidbody_convert_invoke;
+	ot->exec = rigidbody_convert_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+	edit_modifier_properties(ot);
+}
+
+static bAnimContext* make_anim_context(Scene* scene, Object* ob)
+{
+	bAnimContext *ac = MEM_callocN(sizeof(bAnimContext), "make_anim_context");
+
+	/* craft a dummy animcontext here, sigh... why cant we just pass the object and action ? */
+	ac->scene = scene;
+	if (scene) {
+		ac->markers = &scene->markers;
+		ac->obact = ob;
+	}
+
+	ac->sa = NULL;
+	ac->ar = NULL;
+	ac->sl = NULL;
+	ac->spacetype = 0;
+	ac->regiontype = 0;
+
+	if (ob->adt)
+	{
+		ac->data = ob->adt->action;
+		ac->datatype = ANIMCONT_ACTION;
+		ac->mode = SACTCONT_ACTION;
+	}
+
+	return ac;
+}
+
+MINLINE void div_v3_v3(float r[3], const float a[3], const float b[3])
+{
+	if (b[0] != 0)
+		r[0] = a[0] / b[0];
+	else
+		r[0] = a[0];
+
+	if (b[1] != 0)
+		r[1] = a[1] / b[1];
+	else
+		r[1] = a[1];
+
+	if (b[2] != 0)
+		r[2] = a[2] / b[2];
+	else
+		r[2] = a[2];
+}
+
+MINLINE void div_v4_v4(float r[4], const float a[4], const float b[4])
+{
+	if (b[0] != 0)
+		r[0] = a[0] / b[0];
+	else
+		r[0] = a[0];
+
+	if (b[1] != 0)
+		r[1] = a[1] / b[1];
+	else
+		r[1] = a[1];
+
+	if (b[2] != 0)
+		r[2] = a[2] / b[2];
+	else
+		r[2] = a[2];
+
+	if (b[3] != 0)
+		r[3] = a[3] / b[3];
+	else
+		r[3] = a[3];
+}
+
+MINLINE void compare_v3_fl(bool r[3], const float a[3], const float b)
+{
+	r[0] = fabsf(1.0f - a[0]) > b;
+	r[1] = fabsf(1.0f - a[1]) > b;
+	r[2] = fabsf(1.0f - a[2]) > b;
+}
+
+MINLINE void compare_v4_fl(bool r[4], const float a[4], const float b)
+{
+	r[0] = fabsf(1.0f - a[0]) > b;
+	r[1] = fabsf(1.0f - a[1]) > b;
+	r[2] = fabsf(1.0f - a[2]) > b;
+	r[3] = fabsf(1.0f - a[3]) > b;
+}
+
+static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, FractureModifierData* fmd, MeshIsland *mi,
+                                     Collection* gr, Object* ob, Scene* scene, int start, int end, int count,
+                                     Object* parent,bool is_baked, PTCacheID* pid, PointCache *cache, float obloc[3],
+                                     float diff[3], int *j, float threshold, int step, bool calc_handles,
+                                     ReportList* reports, ViewLayer* layer, bContext* C)
+{
+	int i = 0;
+	Object* ob_new = NULL;
+	Mesh* me;
+	float cent[3];
+	float prevloc[3] = {0, 0, 0};
+	float prevploc[3] = {0, 0, 0};
+	float prevrot[4] = {0, 0, 0, 0};
+	float prevprot[4] = {0, 0, 0, 0};
+	bool adaptive = threshold > 0;
+
+	char *name = BLI_strdupcat(ob->id.name + 2, "_key");
+
+	if (fmd->frac_mesh->cancel == 1)
+	{
+		fmd->frac_mesh->cancel = 0;
+		fmd->frac_mesh->running = 0;
+		return NULL;
+	}
+
+    ob_new = BKE_object_add(bmain, scene, layer, OB_MESH, name);
+
+	//this and keyframing quats hopefully solves the sudden rotation / gimbal lock (?) issue
+	ob_new->rotmode = ROT_MODE_QUAT;
+
+    ED_object_parent_set(NULL, C, scene, ob_new, parent, PAR_OBJECT, false, false, NULL);
+
+    assign_matarar(bmain, ob_new, give_matarar(ob), *give_totcolp(ob));
+
+    do_add_group_unchecked(gr, ob_new);
+
+	me = (Mesh*)ob_new->data;
+	me->edit_btmesh = NULL;
+
+	DM_to_mesh(mi->physics_mesh, me, ob_new, CD_MASK_MESH, false);
+
+	//last parameter here means deferring removing the bake after all has been converted.
+	ED_rigidbody_object_add(G.main, scene, ob_new, RBO_TYPE_ACTIVE, reports, true);
+	ob_new->rigidbody_object->flag |= RBO_FLAG_KINEMATIC;
+	ob_new->rigidbody_object->mass = mi->rigidbody->mass;
+
+	/*set origin to centroid*/
+	copy_v3_v3(cent, mi->centroid);
+	mul_m4_v3(ob_new->obmat, cent);
+	copy_v3_v3(ob_new->loc, cent);
+
+    {
+		if (start < mi->start_frame) {
+			start = mi->start_frame;
+		}
+
+		if (end > (mi->start_frame + mi->frame_count)) {
+			end = mi->start_frame + mi->frame_count;
+		}
+	}
+
+	if (mi->rigidbody->type == RBO_TYPE_ACTIVE)
+	{
+		//bAnimContext *ac;
+		int stepp = adaptive ? 1 : step;
+		short flag = calc_handles ? 0 : INSERTKEY_FAST | INSERTKEY_NO_USERPREF | INSERTKEY_NEEDED;
+		for (i = start; i < end; i += stepp)
+		{
+			char handle = U.keyhandles_new;
+			char interp = U.ipo_new;
+			bool dostep = adaptive ? (((i + start) % step == 0) || i == start || i == end) : true;
+			float size[3] = {1, 1, 1};
+			bool locset[3] = {true, true, true};
+			bool rotset[4] = {true, true, true, true};
+
+			if (dostep) {
+				//if adaptive and step is on same frame, prefer adaptive vector handle
+				U.keyhandles_new = adaptive ? HD_VECT : HD_AUTO;
+				U.ipo_new = BEZT_IPO_BEZ;
+			}
+			else if (adaptive && !dostep) {
+				U.keyhandles_new = HD_VECT;
+				U.ipo_new = BEZT_IPO_BEZ;
+			}
+
+			//adaptive optimization, only try to insert necessary frames... but doesnt INSERT_NEEDED do the same ?!
+			if (adaptive || !dostep)
+			{
+				locset[0] = false;
+				locset[1] = false;
+				locset[2] = false;
+
+				rotset[0] = false;
+				rotset[1] = false;
+				rotset[2] = false;
+				rotset[3] = false;
+			}
+
+			copy_v3_v3(size, ob->size);
+
+			if (adaptive || dostep)
+			{
+				float loc[3] = {0.0f, 0.0f, 0.0f}, rot[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+				float mat[4][4];
+
+				//is there a bake, if yes... use that (disabled for now, odd probs...)
+				if (is_baked)
+				{
+					{
+						int x = i - start;
+
+						loc[0] = mi->locs[x*3];
+						loc[1] = mi->locs[x*3+1];
+						loc[2] = mi->locs[x*3+2];
+
+						rot[0] = mi->rots[x*4];
+						rot[1] = mi->rots[x*4+1];
+						rot[2] = mi->rots[x*4+2];
+						rot[3] = mi->rots[x*4+3];
+
+						if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) {
+							mul_qt_qtqt(rot, rot, mi->rot);
+						}
+
+						if (i >= start + 1)
+						{
+							//taken from rigidbody.py
+							// make quaternion compatible with the previous one
+							//if q1.dot(q2) < 0.0:
+							//	obj.rotation_quaternion = -q2
+							//else:
+							//	obj.rotation_quaternion = q2
+
+							if (dot_qtqt(prevrot, rot) < 0.0) {
+								negate_v4(rot);
+							}
+						}
+
+						if (adaptive)
+						{
+							float diffloc[3], diffploc[3], diffrot[4], diffprot[4], difflq[3], diffrq[4];
+							if (i >= start + 2)
+							{
+								sub_v3_v3v3(diffploc, prevploc, prevloc);
+								sub_v3_v3v3(diffloc, prevloc, loc);
+								div_v3_v3(difflq, diffploc, diffloc);
+								compare_v3_fl(locset, difflq, threshold);
+
+								sub_v4_v4v4(diffprot, prevprot, prevrot);
+								sub_v4_v4v4(diffrot, prevrot, rot);
+								div_v4_v4(diffrq, diffprot, diffrot);
+								compare_v4_fl(rotset, diffrq, threshold);
+							}
+
+							if (i >= start + 1)
+							{
+								copy_v3_v3(prevploc, prevloc);
+								copy_v4_v4(prevprot, prevrot);
+							}
+
+							copy_v3_v3(prevloc, loc);
+							copy_v4_v4(prevrot, rot);
+						}
+
+						if (dostep)
+						{
+							locset[0] = true;
+							locset[1] = true;
+							locset[2] = true;
+
+							rotset[0] = true;
+							rotset[1] = true;
+							rotset[2] = true;
+							rotset[3] = true;
+						}
+					}
+				}
+
+				sub_v3_v3(loc, obloc);
+				add_v3_v3(loc, diff);
+
+				loc_quat_size_to_mat4(mat, loc, rot, size);
+
+				if (locset[0] || locset[1] || locset[2] || rotset[0] || rotset[1] || rotset[2] || rotset[3]) {
+					BKE_scene_frame_set(scene, (double)i);
+				}
+
+				copy_m4_m4(ob_new->obmat, mat);
+
+				copy_v3_v3(ob_new->loc, loc);
+				copy_qt_qt(ob_new->quat, rot);
+
+				quat_to_compatible_eul(ob_new->rot, ob_new->rot, rot);
+				copy_v3_v3(ob_new->size, size);
+			}
+
+			if (locset[0])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Location", "location", 0, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			if (locset[1])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Location", "location", 1, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			if (locset[2])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Location", "location", 2, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			if (rotset[0])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Rotation", "rotation_quaternion", 0, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			if (rotset[1])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Rotation", "rotation_quaternion", 1, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			if (rotset[2])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Rotation", "rotation_quaternion", 2, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			if (rotset[3])
+                insert_keyframe(bmain, depsgraph, NULL, (ID*)ob_new, NULL, "Rotation", "rotation_quaternion", 3, i, BEZT_KEYTYPE_KEYFRAME, flag);
+
+			//restore values
+			U.keyhandles_new = handle;
+			U.ipo_new = interp;
+		}
+
+		if (mi->locs)
+		{
+			MEM_freeN(mi->locs);
+			mi->locs = NULL;
+		}
+
+		if (mi->rots)
+		{
+			MEM_freeN(mi->rots);
+			mi->rots = NULL;
+		}
+
+		mi->frame_count = 0;
+		mi->start_frame = cache->startframe;
+
+		/*if (i + step > end || i == end)
+		{
+			ac = make_anim_context(scene, ob_new);
+			clean_action_keys(ac, threshold, false);
+			MEM_freeN(ac);
+		}*/
+	}
+	else
+	{
+		printf("Skipping keyframing for passive shard...\n");
+
+		mul_m4_v3(ob->obmat, ob_new->loc);
+		sub_v3_v3(ob_new->loc, obloc);
+		add_v3_v3(ob_new->loc, diff);
+
+		copy_qt_qt(ob_new->quat, ob->quat);
+
+		if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) {
+			mul_qt_qtqt(ob_new->quat, ob_new->quat, mi->rot);
+		}
+
+		copy_v3_v3(ob_new->rot, ob->rot);
+		copy_v3_v3(ob_new->size, ob->size);
+	}
+
+	(*j)++;
+	printf("Converted %d from %d objects....\n", *j, count);
+
+	return ob_new;
+}
+
+static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd, Collection* gr, Object* ob, Scene* scene,
+                                          int start, int end, float threshold, int step, bool calc_handles,
+                                          ReportList *reports)
+{
+    ViewLayer *layer = CTX_data_view_layer(C);
+    Main* bmain = CTX_data_main(C);
+    Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
+	bool is_baked = false;
+	PointCache* cache = NULL;
+	PTCacheID pid;
+	MeshIsland *mi = NULL;
+	Object *parent = NULL;
+	int count = BLI_listbase_count(&fmd->meshIslands);
+	char *name = BLI_strdupcat(ob->id.name + 2, "_p_key");
+	float diff[3] = {0.0f, 0.0f, 0.0f};
+	float obloc[3];
+    int k = 0;
+	double starttime;
+
+	is_baked = true;
+
+	if (scene && scene->rigidbody_world)
+	{
+        cache = scene->rigidbody_world->shared->pointcache;
+	}
+
+    parent = BKE_object_add(bmain, scene, layer, OB_EMPTY, name);
+	BKE_mesh_center_of_surface(ob->data, obloc);
+	copy_v3_v3(parent->loc, ob->loc);
+	sub_v3_v3v3(diff, obloc, parent->loc);
+
+	starttime = PIL_check_seconds_timer();
+	for (mi = fmd->meshIslands.first; mi; mi = mi->next)
+	{
+        Object *obj = do_convert_meshIsland(bmain, depsgraph, fmd, mi, gr, ob, scene, start, end, count,
+                                            parent, is_baked, &pid, cache, obloc, diff, &k,
+                                            threshold, step, calc_handles, reports, layer, C);
+	}
+	printf("Converting Islands to Keyframed Objects done, %g\n", PIL_check_seconds_timer() - starttime);
+
+	BKE_scene_frame_set(scene, (double)start);
+
+	return true;
+}
+
+static int rigidbody_convert_keyframes_exec(bContext *C, wmOperator *op)
+{
+	Scene *scene = CTX_data_scene(C);
+    Depsgraph *depsgraph = CTX_data_depsgraph(C);
+    Main *bmain = CTX_data_main(C);
+    Collection *gr = NULL;
+	FractureModifierData* rmd = NULL;
+	PointCache* cache = NULL;
+
+	if (scene && scene->rigidbody_world)
+	{
+        cache = scene->rigidbody_world->shared->pointcache;
+    }
+
+	if (cache)
+	{
+		float threshold = RNA_float_get(op->ptr, "threshold");
+		int start = RNA_int_get(op->ptr, "start_frame");
+		int end = RNA_int_get(op->ptr, "end_frame");
+		int step = RNA_int_get(op->ptr, "step");
+		bool calc_handles = RNA_boolean_get(op->ptr, "calc_handles");
+		int frame = 0;
+
+		//fill conversion array cache
+		if (cache->startframe > start)
+		{
+			start = cache->startframe;
+		}
+
+		if (cache->endframe < end)
+		{
+			end = cache->endframe;
+		}
+
+		CTX_DATA_BEGIN(C, Object *, selob, selected_objects)
+		{
+			rmd = (FractureModifierData *)modifiers_findByType(selob, eModifierType_Fracture);
+			if (rmd && rmd->refresh) {
+				return OPERATOR_CANCELLED;
+			}
+
+			//force a transform sync, gah
+			if (cache->flag & PTCACHE_BAKED || !(cache->flag & PTCACHE_OUTDATED))
+			{
+				for (frame = start; frame < end; frame++)
+				{
+					BKE_scene_frame_set(scene, (float)frame);
+                    BKE_rigidbody_do_simulation(depsgraph, scene, (float)frame);
+                    BKE_object_where_is_calc_time(depsgraph, scene, selob, (float)frame);
+				}
+			}
+
+            if (rmd) {
+				int count = BLI_listbase_count(&rmd->meshIslands);
+
+				if (count == 0)
+				{
+					//gaaah, undo frees sim data, rebuild....
+					rmd->refresh = true;
+                    makeDerivedMesh(depsgraph, scene, selob, NULL, scene->customdata_mask | CD_MASK_BAREMESH, 0);
+					count = BLI_listbase_count(&rmd->meshIslands);
+
+					if (count == 0)
+					{
+						BKE_report(op->reports, RPT_WARNING, "No meshislands found, please execute fracture and simulate first");
+						return OPERATOR_CANCELLED;
+					}
+				}
+
+                gr = BKE_collection_add(bmain, NULL, "Converted");
+                convert_modifier_to_keyframes(C, rmd, gr, selob, scene, start, end, threshold, step, calc_handles, op->reports);
+			}
+		}
+
+		CTX_DATA_END;
+
+		//free a possible bake... because we added new rigidbodies, and this would mess up the mesh
+        if (scene->rigidbody_world && scene->rigidbody_world->shared->pointcache) {
+            scene->rigidbody_world->shared->pointcache->flag &= ~PTCACHE_BAKED;
+		}
+
+        DEG_relations_tag_update(bmain);
+		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+		WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
+		WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
+	}
+
+	return OPERATOR_FINISHED;
+}
+
+static int rigidbody_convert_keyframes_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 5 * UI_UNIT_Y);
+}
+
+void OBJECT_OT_rigidbody_convert_to_keyframes(wmOperatorType *ot)
+{
+
+	ot->name = "Convert To Keyframed Objects";
+	ot->description = "Convert the Rigid Body modifier shards to keyframed real objects";
+	ot->idname = "OBJECT_OT_rigidbody_convert_to_keyframes";
+
+	ot->poll = fracture_poll;
+	ot->exec = rigidbody_convert_keyframes_exec;
+	ot->invoke = rigidbody_convert_keyframes_invoke;
+
+	RNA_def_int(ot->srna, "start_frame", 1,  0, 300000, "Start Frame", "", 0, 300000);
+	RNA_def_int(ot->srna, "end_frame", 250, 0, 300000, "End Frame", "", 0, 300000);
+	RNA_def_int(ot->srna, "step", 1, 1, 10000, "Step", "", 1, 10000);
+	RNA_def_float(ot->srna, "threshold", 0.2f, 0.0f, FLT_MAX, "Threshold", "Ratio of change in location or rotation which has to be exceeded to set a keyframe",
+	              0.0f, 1000.0f);
+	RNA_def_boolean(ot->srna, "calc_handles", false, "Handles",
+	                "Smoothes step handles and makes adaptive handles vector, useful in conjunction with large step size, very slow with small step size");
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+	//edit_modifier_properties(ot);
+}
+
+void OBJECT_OT_fracture_anim_bind(wmOperatorType *ot)
+{
+	ot->name = "Fracture Animated Mesh Bind";
+	ot->description = "Bind animated mesh vertices to mesh islands in Fracture Modifier";
+	ot->idname = "OBJECT_OT_fracture_anim_bind";
+
+	ot->poll = fracture_poll;
+	ot->invoke = fracture_anim_bind_invoke;
+	ot->exec = fracture_anim_bind_exec;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;

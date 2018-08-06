@@ -46,6 +46,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_ID.h"
 #include "DNA_meta_types.h"
+#include "DNA_modifier_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -58,6 +59,7 @@
 
 #include "BKE_animsys.h"
 #include "BKE_displist.h"
+#include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_icons.h"
@@ -68,6 +70,7 @@
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_scene.h"
 #include "BKE_node.h"
 #include "BKE_curve.h"

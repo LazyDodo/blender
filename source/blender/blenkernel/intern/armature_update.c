@@ -600,8 +600,6 @@ void BKE_pose_eval_init(struct Depsgraph *depsgraph,
 	for (bPoseChannel *pchan = pose->chanbase.first; pchan != NULL; pchan = pchan->next) {
 		pchan->flag &= ~(POSE_DONE | POSE_CHAIN | POSE_IKTREE | POSE_IKSPLINE);
 	}
-
-	pose_pchan_index_create(pose);
 }
 
 void BKE_pose_eval_init_ik(struct Depsgraph *depsgraph,

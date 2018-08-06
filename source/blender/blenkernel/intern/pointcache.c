@@ -71,6 +71,8 @@
 #include "BKE_scene.h"
 #include "BKE_smoke.h"
 #include "BKE_softbody.h"
+#include "BKE_rigidbody.h"
+#include "BKE_fracture.h"
 
 #include "BIK_api.h"
 
@@ -1281,8 +1283,23 @@ static int ptcache_dynamicpaint_read(PTCacheFile *pf, void *dp_v)
 	return 1;
 }
 
+static MeshIsland *find_meshisland(FractureModifierData *fmd, int id)
+{
+	MeshIsland *mi = (MeshIsland*)fmd->meshIslands.first;
+	while (mi)
+	{
+		if (mi->rigidbody->meshisland_index == id)
+		{
+			return mi;
+		}
+		mi = mi->next;
+	}
+
+	return NULL;
+}
+
 /* Rigid Body functions */
-static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int UNUSED(cfra))
+static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra)
 {
 	RigidBodyWorld *rbw = rb_v;
 	Object *ob = NULL;
@@ -1298,14 +1315,38 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int UNUS
 			RB_body_get_position(rbo->shared->physics_object, rbo->pos);
 			RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
 #endif
+#if 0
+			frame =  frame - mi->start_frame;
+
+			//grow array if necessary...
+			if (frame >= mi->frame_count) {
+				mi->frame_count = frame+1;
+				mi->locs = MEM_reallocN(mi->locs, sizeof(float) * 3 * mi->frame_count);
+				mi->rots = MEM_reallocN(mi->rots, sizeof(float) * 4 * mi->frame_count);
+			}
+
+			mi->locs[3*frame] = rbo->pos[0];
+			mi->locs[3*frame+1] = rbo->pos[1];
+			mi->locs[3*frame+2] = rbo->pos[2];
+
+			mi->rots[4*frame] = rbo->orn[0];
+			mi->rots[4*frame+1] = rbo->orn[1];
+			mi->rots[4*frame+2] = rbo->orn[2];
+			mi->rots[4*frame+3] = rbo->orn[3];
+#endif
+
+			//dummy data
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_LOCATION, rbo->pos);
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_ROTATION, rbo->orn);
+//			PTCACHE_DATA_FROM(data, BPHYS_DATA_VELOCITY, rbo->lin_vel);
+//			PTCACHE_DATA_FROM(data, BPHYS_DATA_AVELOCITY, rbo->ang_vel);
+
 		}
 	}
 
 	return 1;
 }
-static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float UNUSED(cfra), float *old_data)
+static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfra, float *old_data)
 {
 	RigidBodyWorld *rbw = rb_v;
 	Object *ob = NULL;
@@ -1325,9 +1366,48 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float UNU
 			else {
 				PTCACHE_DATA_TO(data, BPHYS_DATA_LOCATION, 0, rbo->pos);
 				PTCACHE_DATA_TO(data, BPHYS_DATA_ROTATION, 0, rbo->orn);
+				PTCACHE_DATA_TO(data, BPHYS_DATA_VELOCITY, 0, rbo->lin_vel);
+				PTCACHE_DATA_TO(data, BPHYS_DATA_AVELOCITY,0, rbo->ang_vel);
 			}
+
+#if 0
+			//this is only for motionblur, so its enough to be updated when rendering
+			if (fmd && G.is_rendering)
+			{
+				mi = find_meshisland(fmd, rbo->meshisland_index);
+				BKE_update_velocity_layer(fmd, mi);
+			}
+#endif
 		}
 	}
+
+#if 0 //TODO
+	else if (fmd && fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
+	{
+        if (rbo)
+		{
+			//damn, slow listbase based lookup
+			//TODO, need to speed this up.... array, hash ?
+
+			//modifier should have "switched" this to current set of meshislands already.... so access it
+			MeshIsland *mi = NULL;
+			int frame = (int)floor(cfra);
+
+			mi = find_meshisland(fmd, rbo->meshisland_index);
+
+			frame = frame - mi->start_frame;
+
+			rbo->pos[0] = mi->locs[3*frame];
+			rbo->pos[1] = mi->locs[3*frame+1];
+			rbo->pos[2] = mi->locs[3*frame+2];
+
+			rbo->orn[0] = mi->rots[4*frame];
+			rbo->orn[1] = mi->rots[4*frame+1];
+			rbo->orn[2] = mi->rots[4*frame+2];
+			rbo->orn[3] = mi->rots[4*frame+3];
+		}
+	}
+#endif
 }
 static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, float cfra, float cfra1, float cfra2, float *old_data)
 {
@@ -1353,9 +1433,11 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 			if (old_data) {
 				memcpy(keys[2].co, data, 3 * sizeof(float));
 				memcpy(keys[2].rot, data + 3, 4 * sizeof(float));
+				memcpy(keys[2].vel, data + 7, 3 * sizeof(float));
+				memcpy(keys[2].ave, data + 10, 3 * sizeof(float));
 			}
 			else {
-				BKE_ptcache_make_particle_key(&keys[2], 0, data, cfra2);
+				BKE_ptcache_make_particle_key(keys+2, 0, data, cfra2);
 			}
 
 			dfra = cfra2 - cfra1;
@@ -3366,11 +3448,27 @@ int  BKE_ptcache_object_reset(Scene *scene, Object *ob, int mode)
 	}
 
 	if (scene->rigidbody_world && (ob->rigidbody_object || ob->rigidbody_constraint)) {
-		if (ob->rigidbody_object)
-			ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;
-		BKE_ptcache_id_from_rigidbody(&pid, ob, scene->rigidbody_world);
-		/* only flag as outdated, resetting should happen on start frame */
-		pid.cache->flag |= PTCACHE_OUTDATED;
+		ModifierData *md = modifiers_findByType(ob, eModifierType_Fracture);
+		if (md && md->type == eModifierType_Fracture)
+		{
+			FractureModifierData *fmd = (FractureModifierData*)md;
+			if (!fmd->refresh_autohide)
+			{
+				if (ob->rigidbody_object)
+					ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;
+				BKE_ptcache_id_from_rigidbody(&pid, ob, scene->rigidbody_world);
+				/* only flag as outdated, resetting should happen on start frame */
+				pid.cache->flag |= PTCACHE_OUTDATED;
+			}
+		}
+		else
+		{
+			if (ob->rigidbody_object)
+				ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;
+			BKE_ptcache_id_from_rigidbody(&pid, ob, scene->rigidbody_world);
+			/* only flag as outdated, resetting should happen on start frame */
+			pid.cache->flag |= PTCACHE_OUTDATED;
+		}
 	}
 
 	if (ob->type == OB_ARMATURE)

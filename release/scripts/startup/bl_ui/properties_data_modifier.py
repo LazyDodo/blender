@@ -173,6 +173,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if bpy.app.debug:
             layout.prop(md, "debug_options")
 
+            if bpy.app.debug:
+                layout.prop(md, "debug_options")
+
+
     def BUILD(self, layout, ob, md):
         split = layout.split()
 
@@ -408,6 +412,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         layout.operator("object.explode_refresh", text="Refresh")
 
     def FLUID_SIMULATION(self, layout, ob, md):
+        layout.label(text="Settings are inside the Physics tab")
+
+    def FRACTURE(self, layout, ob, md):
         layout.label(text="Settings are inside the Physics tab")
 
     def HOOK(self, layout, ob, md):
@@ -1147,18 +1154,39 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
         layout.prop(md, "mode")
 
-        row = layout.row()
-        row.prop(md, "octree_depth")
-        row.prop(md, "scale")
 
-        if md.mode == 'SHARP':
-            layout.prop(md, "sharpness")
+        if md.mode == 'METABALL':
+            row = layout.row()
+            row.prop(md, "input")
+            if 'PARTICLES' in md.input:
+                row = layout.row()
+                row.prop(md, "psys")
+                row = layout.row()
+                row.prop(md, "filter")
+            row = layout.row()
+            col = row.column(align=True)
+            col.prop(md, "mball_size")
+            col = row.column(align=True)
+            col.label("Display Parameters:")
+            col.prop(md, "mball_threshold")
+            col.prop(md, "mball_resolution")
+            col.prop(md, "mball_render_resolution")
+            layout.prop_search(md, "size_vertex_group", ob, "vertex_groups", text = "Size Vertex Group")
+            layout.prop(md, "use_smooth_shade")
 
-        layout.prop(md, "use_smooth_shade")
-        layout.prop(md, "use_remove_disconnected")
-        row = layout.row()
-        row.active = md.use_remove_disconnected
-        row.prop(md, "threshold")
+        else:
+            row = layout.row()
+            row.prop(md, "octree_depth")
+            row.prop(md, "scale")
+
+            if md.mode == 'SHARP':
+                layout.prop(md, "sharpness")
+
+            layout.prop(md, "use_smooth_shade")
+            layout.prop(md, "use_remove_disconnected")
+            row = layout.row()
+            row.active = md.use_remove_disconnected
+            row.prop(md, "threshold")
 
     @staticmethod
     def vertex_weight_mask(layout, ob, md):

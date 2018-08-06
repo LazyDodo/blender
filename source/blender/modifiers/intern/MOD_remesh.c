@@ -17,6 +17,8 @@
  *
  * The Original Code is Copyright (C) 2011 by Nicholas Bishop.
  *
+ * Contributors: Martin Felke
+ *
  * ***** END GPL LICENSE BLOCK *****
  */
 
@@ -29,6 +31,8 @@
 #include "BLI_math_base.h"
 #include "BLI_math_vector.h"
 #include "BLI_utildefines.h"
+#include "BLI_listbase.h"
+#include "BLI_memarena.h"
 
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
@@ -58,6 +62,15 @@ static void initData(ModifierData *md)
 	rmd->flag = MOD_REMESH_FLOOD_FILL;
 	rmd->mode = MOD_REMESH_SHARP_FEATURES;
 	rmd->threshold = 1;
+
+	rmd->basesize[0] = rmd->basesize[1] = rmd->basesize[2] = 1.0f;
+	rmd->thresh = 0.6f;
+	rmd->wiresize = 0.4f;
+	rmd->rendersize = 0.2f;
+
+	rmd->input = 0;
+	rmd->pflag = 1;
+	rmd->psys = 1;
 }
 
 #ifdef WITH_MOD_REMESH
@@ -214,6 +227,7 @@ ModifierTypeInfo modifierType_Remesh = {
 	/* type */              eModifierTypeType_Nonconstructive,
 	/* flags */             eModifierTypeFlag_AcceptsMesh |
 	                        eModifierTypeFlag_AcceptsCVs |
+                            eModifierTypeFlag_SupportsMapping |
 	                        eModifierTypeFlag_SupportsEditmode,
 
 	/* copyData */          modifier_copyData_generic,

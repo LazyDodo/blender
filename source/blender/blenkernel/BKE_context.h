@@ -31,6 +31,7 @@
  */
 
 #include "DNA_listBase.h"
+#include "BLI_listbase.h"
 #include "RNA_types.h"
 
 #ifdef __cplusplus

@@ -1070,7 +1070,7 @@ static int psys_thread_context_init_distribute(ParticleThreadContext *ctx, Parti
 		}
 	}
 
-	if (totmapped == 0) {
+	if (totmapped < 1) {
 		/* We are not allowed to distribute particles anywhere... */
 		return 0;
 	}
@@ -1214,7 +1214,7 @@ static void psys_task_init_distribute(ParticleTask *task, ParticleSimulationData
 	task->rng = BLI_rng_new(seed);
 }
 
-static void distribute_particles_on_dm(ParticleSimulationData *sim, int from)
+static int distribute_particles_on_dm(ParticleSimulationData *sim, int from)
 {
 	TaskScheduler *task_scheduler;
 	TaskPool *task_pool;
@@ -1253,6 +1253,8 @@ static void distribute_particles_on_dm(ParticleSimulationData *sim, int from)
 	psys_tasks_free(tasks, numtasks);
 
 	psys_thread_context_free(&ctx);
+
+	return 1;
 }
 
 /* ready for future use, to emit particles without geometry */
@@ -1263,10 +1265,11 @@ static void distribute_particles_on_shape(ParticleSimulationData *sim, int UNUSE
 	fprintf(stderr,"Shape emission not yet possible!\n");
 }
 
-void distribute_particles(ParticleSimulationData *sim, int from)
+int distribute_particles(ParticleSimulationData *sim, int from)
 {
 	PARTICLE_PSMD;
 	int distr_error=0;
+	int ret = 0;
 
 	if (psmd) {
 		if (psmd->mesh_final)
@@ -1282,4 +1285,6 @@ void distribute_particles(ParticleSimulationData *sim, int from)
 
 		fprintf(stderr,"Particle distribution error!\n");
 	}
+
+	return ret;
 }

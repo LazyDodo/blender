@@ -69,6 +69,7 @@
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_fileglobal_types.h"
+#include "DNA_fracture_types.h"
 #include "DNA_genfile.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
@@ -131,6 +132,7 @@
 #include "BKE_curve.h"
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
+#include "BKE_fracture.h"
 #include "BKE_global.h" // for G
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
@@ -180,6 +182,8 @@
 
 
 #include <errno.h>
+
+#include "BKE_cdderivedmesh.h"  //for fracture meshisland handling
 
 /**
  * READ
@@ -1993,7 +1997,7 @@ static void *read_struct(FileData *fd, BHead *bh, const char *blockname)
 
 typedef void (*link_list_cb)(FileData *fd, void *data);
 
-static void link_list_ex(FileData *fd, ListBase *lb, link_list_cb callback)		/* only direct data */
+static void link_list_ex(FileData *fd, ListBase *lb, link_list_cb callback, bool increase_lasthit)		/* only direct data */
 {
 	Link *ln, *prev;
 
@@ -2006,7 +2010,7 @@ static void link_list_ex(FileData *fd, ListBase *lb, link_list_cb callback)		/* 
 	ln = lb->first;
 	prev = NULL;
 	while (ln) {
-		ln->next = newdataadr(fd, ln->next);
+		ln->next = newdataadr_ex(fd, ln->next, increase_lasthit);
 		if (ln->next != NULL && callback != NULL) {
 			callback(fd, ln->next);
 		}
@@ -2019,7 +2023,7 @@ static void link_list_ex(FileData *fd, ListBase *lb, link_list_cb callback)		/* 
 
 static void link_list(FileData *fd, ListBase *lb)		/* only direct data */
 {
-	link_list_ex(fd, lb, NULL);
+	link_list_ex(fd, lb, NULL, true);
 }
 
 static void link_glob_list(FileData *fd, ListBase *lb)		/* for glob data */
@@ -2328,7 +2332,7 @@ static void direct_link_id_override_property_cb(FileData *fd, void *data)
 	IDOverrideStaticProperty *op = data;
 
 	op->rna_path = newdataadr(fd, op->rna_path);
-	link_list_ex(fd, &op->operations, direct_link_id_override_property_operation_cb);
+    link_list_ex(fd, &op->operations, direct_link_id_override_property_operation_cb, true);
 }
 
 static void direct_link_id(FileData *fd, ID *id)
@@ -2348,7 +2352,7 @@ static void direct_link_id(FileData *fd, ID *id)
 	/* Link direct data of overrides. */
 	if (id->override_static) {
 		id->override_static = newdataadr(fd, id->override_static);
-		link_list_ex(fd, &id->override_static->properties, direct_link_id_override_property_cb);
+        link_list_ex(fd, &id->override_static->properties, direct_link_id_override_property_cb, true);
 	}
 
 	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
@@ -4254,7 +4258,7 @@ static void direct_link_pointcache_cb(FileData *fd, void *data)
 static void direct_link_pointcache(FileData *fd, PointCache *cache)
 {
 	if ((cache->flag & PTCACHE_DISK_CACHE)==0) {
-		link_list_ex(fd, &cache->mem_cache, direct_link_pointcache_cb);
+		link_list_ex(fd, &cache->mem_cache, direct_link_pointcache_cb, true);
 	}
 	else
 		BLI_listbase_clear(&cache->mem_cache);
@@ -4682,6 +4686,50 @@ static void direct_link_grid_paint_mask(FileData *fd, int count, GridPaintMask *
 	}
 }
 
+/* used with fracture modifier */
+static void direct_link_customdata_fracture(FileData *fd, CustomData *data, int count)
+{
+	/*need to load the dverts here for fracture, so handle this in a special function, normally
+	 *the dverts arent loaded here, for what reason ever.... */
+
+	int i = 0;
+
+	data->layers = newdataadr(fd, data->layers);
+
+	/* annoying workaround for bug [#31079] loading legacy files with
+	 * no polygons _but_ have stale customdata */
+	if (UNLIKELY(count == 0 && data->layers == NULL && data->totlayer != 0)) {
+		CustomData_reset(data);
+		return;
+	}
+
+	data->external = newdataadr(fd, data->external);
+
+	while (i < data->totlayer) {
+		CustomDataLayer *layer = &data->layers[i];
+
+		if (layer->flag & CD_FLAG_EXTERNAL)
+			layer->flag &= ~CD_FLAG_IN_MEMORY;
+
+		layer->flag &= ~CD_FLAG_NOFREE;
+
+		if (CustomData_verify_versions(data, i)) {
+			layer->data = newdataadr(fd, layer->data);
+			if (layer->type == CD_MDISPS)
+				direct_link_mdisps(fd, count, layer->data, layer->flag & CD_FLAG_EXTERNAL);
+			else if (layer->type == CD_GRID_PAINT_MASK)
+				direct_link_grid_paint_mask(fd, count, layer->data);
+			else if (layer->type == CD_MDEFORMVERT) {
+				/* layer types that allocate own memory need special handling */
+				direct_link_dverts(fd, count, layer->data);
+			}
+			i++;
+		}
+	}
+
+	CustomData_update_typemap(data);
+}
+
 /*this isn't really a public api function, so prototyped here*/
 static void direct_link_customdata(FileData *fd, CustomData *data, int count)
 {
@@ -5101,6 +5149,23 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	if (pose->ikparam != NULL) {
 		pose->ikparam = newdataadr(fd, pose->ikparam);
 	}
+}
+
+static void read_shard(FileData *fd, Shard **address )
+{
+	Shard* s = *address;
+	s->mvert = newdataadr(fd, s->mvert);
+	s->mpoly = newdataadr(fd, s->mpoly);
+	s->mloop = newdataadr(fd, s->mloop);
+	s->medge = newdataadr(fd, s->medge);
+
+	direct_link_customdata_fracture(fd, &s->vertData, s->totvert);
+	direct_link_customdata_fracture(fd, &s->loopData, s->totloop);
+	direct_link_customdata_fracture(fd, &s->polyData, s->totpoly);
+	direct_link_customdata_fracture(fd, &s->edgeData, s->totedge);
+
+	s->neighbor_ids = newdataadr(fd, s->neighbor_ids);
+	s->cluster_colors = newdataadr(fd, s->cluster_colors);
 }
 
 static void direct_link_modifiers(FileData *fd, ListBase *lb)
@@ -8948,6 +9013,19 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 	return bhead;
 }
 
+static void fix_fracture_image_hack(Main* main)
+{
+	Object *ob;
+
+	for (ob = main->object.first; ob; ob = ob->id.next) {
+		FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
+		if (fmd && fmd->dm_group) {
+			fmd->refresh_images = true;
+			fmd->refresh = true;
+		}
+	}
+}
+
 BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
 {
 	BHead *bhead = blo_firstbhead(fd);
@@ -9047,6 +9125,8 @@ BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
 	blo_join_main(&mainlist);
 
 	lib_link_all(fd, bfd->main);
+
+	fix_fracture_image_hack(bfd->main);
 
 	/* Skip in undo case. */
 	if (fd->memfile == NULL) {

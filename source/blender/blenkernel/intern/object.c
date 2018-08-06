@@ -3422,6 +3422,7 @@ int BKE_object_is_deform_modified(Scene *scene, Object *ob)
 	{
 		const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
 		bool can_deform = mti->type == eModifierTypeType_OnlyDeform ||
+		                  md->type == eModifierType_Fracture ||
 		                  is_modifier_animated;
 
 		if (!can_deform) {

@@ -121,6 +121,7 @@
 #include "DNA_gpencil_modifier_types.h"
 #include "DNA_shader_fx_types.h"
 #include "DNA_fileglobal_types.h"
+#include "DNA_fracture_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_lamp_types.h"
@@ -166,6 +167,7 @@
 #include "BKE_curve.h"
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
+#include "BKE_fracture.h" // for writing a derivedmesh as shard
 #include "BKE_global.h" // for G
 #include "BKE_gpencil_modifier.h"
 #include "BKE_idcode.h"
@@ -1761,7 +1763,7 @@ static void write_modifiers(WriteData *wd, ListBase *modbase)
 
 			if (csmd->bind_coords) {
 				writedata(wd, DATA, sizeof(float[3]) * csmd->bind_coords_num, csmd->bind_coords);
-			}
+            }
 		}
 		else if (md->type == eModifierType_SurfaceDeform) {
 			SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;

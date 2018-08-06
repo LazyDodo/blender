@@ -728,4 +728,7 @@ void ED_drivers_editor_init(struct bContext *C, struct ScrArea *sa);
 
 /* ************************************************ */
 
+/* Fracture Modifier keyframe conversion cleanup necessary.... */
+void clean_action_keys(struct bAnimContext *ac, float thresh, bool clean_chan);
+
 #endif /* __ED_ANIM_API_H__ */
