@@ -48,6 +48,8 @@
 #include "BLI_gsqueue.h"
 #include "BLI_memarena.h"
 #include "BLI_rand.h"
+#include "BLI_listbase.h"
+#include "BLI_threads.h"
 
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
@@ -420,6 +422,211 @@ static void get_uv_point(BMFace *face, float uv[2], const float point_v2[2], con
 
 }
 
+typedef struct FFBB_thread_data {
+	//Shared data
+	MeshData *m_d;
+	BMEdge **edges;
+	int orig_edges;
+	float *step_arr;
+
+	int cur_e;
+	int tot_e;
+	SpinLock spin;
+} FFBB_thread_data;
+
+static int FFBB_queue_next_e(FFBB_thread_data *queue)
+{
+	int edge_idx = -1;
+
+	BLI_spin_lock(&queue->spin);
+	if (queue->cur_e < queue->tot_e) {
+		edge_idx = queue->cur_e;
+		queue->cur_e++;
+	}
+	BLI_spin_unlock(&queue->spin);
+
+	return edge_idx;
+}
+
+static void split_BB_FF_edges_thread(void *data_v) {
+	//Split BB,FF edges if they have sign crossings
+    FFBB_thread_data *th_data = (FFBB_thread_data *)data_v;
+	MeshData *m_d = th_data->m_d;
+
+	int i, face_index;
+	BMIter iter_f;
+	BMEdge *e;
+	BMFace *f;
+	BMVert *v1, *v2;
+	float v1_u, v1_v, v2_u, v2_v;
+	bool is_B;
+
+	while ((i = FFBB_queue_next_e(th_data)) >= 0) {
+		Vert_buf v_buf;
+		e = th_data->edges[i];
+
+		is_B = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+
+		if( is_B  != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
+			//This is not a FF or BB edge
+			continue;
+		}
+
+		if( i < th_data->orig_edges ){
+			//This edge exists on the original mesh
+			//TODO why do I have to use find? Segfault otherwise...
+			//remember to replace the rest of "at_index"
+			//why is table_ensure not fixing the assert?
+			BMEdge *orig_e = BM_edge_at_index_find(m_d->bm_orig, i);
+
+			//Get face connected to edge from orig mesh
+			//TODO is it wise to use BM_ITER_ELEM here?
+			BM_ITER_ELEM (f, &iter_f, orig_e, BM_FACES_OF_EDGE) {
+				//Get first face
+				break;
+			}
+
+			face_index = BM_elem_index_get(f);
+
+			v1 = orig_e->v1;
+			v2 = orig_e->v2;
+
+			v_buf.orig_edge = orig_e;
+			v_buf.orig_face = f;
+		} else {
+			BMVert *vert_arr[2];
+
+			//This should be safe because the vert count is still the same as the original mesh.
+			v1 = BLI_ghash_lookup(m_d->vert_hash, e->v1);
+			v2 = BLI_ghash_lookup(m_d->vert_hash, e->v2);
+
+			vert_arr[0] = v1;
+			vert_arr[1] = v2;
+
+			//TODO add checks if to hande if there is no face
+			BLI_spin_lock(&th_data->spin);
+			f = BM_face_exists_overlap(vert_arr, 2);
+			face_index = BM_elem_index_get(f);
+			BLI_spin_unlock(&th_data->spin);
+
+			v_buf.orig_edge = NULL;
+			v_buf.orig_face = f;
+		}
+
+		//TODO can I just check each vert once?
+		get_uv_coord(v1, f, &v1_u, &v1_v);
+		get_uv_coord(v2, f, &v2_u, &v2_v);
+		{
+			int i;
+			float u, v;
+			float P[3], du[3], dv[3];
+
+			if( v1_u == v2_u ){
+				u = v1_u;
+
+				for(i=0; i < 10; i++){
+					v = th_data->step_arr[i];
+					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
+					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
+						BLI_spin_lock(&th_data->spin);
+						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						v_buf.u = u;
+						v_buf.v = v;
+						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
+						BLI_spin_unlock(&th_data->spin);
+						break;
+					}
+				}
+			} else if ( v1_v == v2_v ){
+				v = v1_v;
+
+				for(i=0; i < 10; i++){
+					u = th_data->step_arr[i];
+					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
+					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
+						BLI_spin_lock(&th_data->spin);
+						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						v_buf.u = u;
+						v_buf.v = v;
+						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
+						BLI_spin_unlock(&th_data->spin);
+						break;
+					}
+				}
+			} else {
+				bool alt_diag;
+				if((v1_u == 0 && v1_v == 0) || (v2_u == 0 && v2_v == 0)){
+					alt_diag = false;
+				} else {
+					alt_diag = true;
+				}
+				for(i=0; i < 10; i++){
+					if(alt_diag){
+						u = 1.0f - th_data->step_arr[i];
+					} else {
+						u = th_data->step_arr[i];
+					}
+
+					v = th_data->step_arr[i];
+					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
+					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
+						BLI_spin_lock(&th_data->spin);
+						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						v_buf.u = u;
+						v_buf.v = v;
+						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
+						BLI_spin_unlock(&th_data->spin);
+						break;
+					}
+				}
+			}
+		}
+
+	}
+
+}
+
+static void split_BB_FF_edges_thread_start(MeshData *m_d){
+	int orig_edges = BM_mesh_elem_count(m_d->bm_orig, BM_EDGE);
+
+	void    *edge_stack[BM_DEFAULT_ITER_STACK_SIZE];
+	int      edge_len;
+	BMEdge **edges = BM_iter_as_arrayN(m_d->bm, BM_EDGES_OF_MESH, NULL, &edge_len,
+	                                   edge_stack, BM_DEFAULT_ITER_STACK_SIZE);
+
+	//Do 10 samples but don't check end and start point
+	float step = 1.0f/11.0f;
+	float step_arr[] = { step*5.0f, step*6.0f, step*4.0f, step*7.0f, step*3.0f,
+		step*8.0f, step*2.0f, step*9.0f, step*1.0f, step*10.0f };
+
+	FFBB_thread_data th_data;
+	th_data.m_d = m_d;
+	th_data.edges = edges;
+	th_data.orig_edges = orig_edges;
+	th_data.step_arr = step_arr;
+
+	th_data.cur_e = 0;
+	th_data.tot_e = edge_len;
+
+	ListBase threads;
+	int tot_thread = BLI_system_thread_count();
+
+	BLI_threadpool_init(&threads, split_BB_FF_edges_thread, tot_thread);
+
+	BLI_spin_init(&th_data.spin);
+
+	/* fill in threads handles */
+	for (int i = 0; i < tot_thread; i++) {
+		BLI_threadpool_insert(&threads, &th_data);
+	}
+
+	BLI_threadpool_end(&threads);
+
+	BLI_spin_end(&th_data.spin);
+
+	MEM_freeN(edges);
+}
+
 static void split_BB_FF_edges(MeshData *m_d) {
 	//Split BB,FF edges if they have sign crossings
 
@@ -445,8 +652,6 @@ static void split_BB_FF_edges(MeshData *m_d) {
 			//Now we are working on edges we added in this function
 			break;
 		}
-
-		//TODO perhaps we need to use the limit surface normal
 
 		is_B = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 
@@ -498,27 +703,6 @@ static void split_BB_FF_edges(MeshData *m_d) {
 		get_uv_coord(v1, f, &v1_u, &v1_v);
 		get_uv_coord(v2, f, &v2_u, &v2_v);
 
-		//TODO perhaps we need to check the limit normal and not the vertex normal?
-		//EDIT: If we update the vert normals in the step were we move them to their
-		//limit pos, we don't need to relalc it here.
-		//TODO Make sure you can skip the move to vert step later
-		/*
-		{
-			float P1[3], P2[3], du[3], dv[3];
-			//is this a FF or BB edge?
-			m_d->eval->evaluateLimit(m_d->eval, face_index, v1_u, v1_v, P1, du, dv);
-
-			is_B = calc_if_B(m_d->cam_loc, P1, du, dv);
-
-			m_d->eval->evaluateLimit(m_d->eval, face_index, v2_u, v2_v, P2, du, dv);
-
-			if( is_B  != calc_if_B(m_d->cam_loc, P2, du, dv) ){
-				//FB edge, we only want to split FF or BB
-				//Skip to next edge
-				continue;
-			}
-		}
-		*/
 		{
 			int i;
 			float u, v;
@@ -1344,7 +1528,6 @@ static void contour_insertion( MeshData *m_d ) {
 			}
 		}
 
-		//TODO perhaps we need to use the limit surface normal
 		if( calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no) == calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
 			//This is not a FB or BF edge
 			continue;
@@ -2911,6 +3094,7 @@ static void optimization( MeshData *m_d ){
 				BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
 					//TODO mark inconsistent faces in an other way
 					// and only check each face once
+					// look at BM_face_exists_overlap for marks
 					if(face->mat_nr == 5){
 						//Already added this face to inco_faces
 						continue;
@@ -4254,7 +4438,8 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 
 		if (mmd->flag & MOD_MYBMESH_FF_SPLIT) {
 			TIMEIT_START(split_bb_ff);
-			split_BB_FF_edges(&mesh_data);
+			split_BB_FF_edges_thread_start(&mesh_data);
+			//split_BB_FF_edges(&mesh_data);
 			TIMEIT_END(split_bb_ff);
 		}
 		// (6.2) Contour Insertion
