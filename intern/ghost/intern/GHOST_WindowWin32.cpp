@@ -548,13 +548,14 @@ GHOST_TSuccess GHOST_WindowWin32::setState(GHOST_TWindowState state)
 	if (state == GHOST_kWindowStateNormal)
 		state = m_normal_state;
 
+	int wintype = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 	switch (state) {
 		case GHOST_kWindowStateMinimized:
 			wp.showCmd = SW_SHOWMINIMIZED;
 			break;
 		case GHOST_kWindowStateMaximized:
 			wp.showCmd = SW_SHOWMAXIMIZED;
-			::SetWindowLongPtr(m_hWnd, GWL_STYLE, WS_OVERLAPPEDWINDOW);
+			::SetWindowLongPtr(m_hWnd, GWL_STYLE, wintype);
 			break;
 		case GHOST_kWindowStateFullScreen:
 			if (curstate != state && curstate != GHOST_kWindowStateMinimized)
@@ -570,7 +571,7 @@ GHOST_TSuccess GHOST_WindowWin32::setState(GHOST_TWindowState state)
 		case GHOST_kWindowStateNormal:
 		default:
 			wp.showCmd = SW_SHOWNORMAL;
-			::SetWindowLongPtr(m_hWnd, GWL_STYLE, WS_OVERLAPPEDWINDOW);
+			::SetWindowLongPtr(m_hWnd, GWL_STYLE, wintype);
 			break;
 	}
 	/* Clears window cache for SetWindowLongPtr */
