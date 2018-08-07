@@ -349,6 +349,9 @@ if(WITH_PYTHON)
 		PATTERN "addons/*" EXCLUDE
 		PATTERN "addons_contrib/*" EXCLUDE
 		PATTERN "freestyle/*" EXCLUDE
+		PATTERN "presets/*" EXCLUDE
+		PATTERN "templates_osl/*" EXCLUDE
+		PATTERN "templates_py/*" EXCLUDE
 	)
 endif()
 
@@ -409,10 +412,12 @@ if(WITH_OPENCOLORIO)
 endif()
 
 # Add default workspaces.blend to build (under [version]/datafiles
+if (False)
 install(
 	FILES ${CMAKE_SOURCE_DIR}/release/datafiles/workspaces.blend
 	DESTINATION ${TARGETDIR_VER}/datafiles
 )
+endif()
 
 
 # helpful tip when using make
@@ -443,7 +448,13 @@ if(UNIX AND NOT APPLE)
 	endif()
 
 	# there are a few differences between portable and system install
-	if(WITH_PYTHON_MODULE)
+	if(True)
+		install(
+			TARGETS blender
+			DESTINATION "."
+		)
+		set(BLENDER_TEXT_FILES_DESTINATION "license")
+	elseif(WITH_PYTHON_MODULE)
 		if(WITH_INSTALL_PORTABLE)
 			install(
 				TARGETS blender
@@ -934,6 +945,8 @@ endif()
 
 if(DEFINED BLENDER_TEXT_FILES_DESTINATION)
 
+	if (False)
+
 	install(
 		CODE
 		"
@@ -947,6 +960,8 @@ if(DEFINED BLENDER_TEXT_FILES_DESTINATION)
 	list(APPEND BLENDER_TEXT_FILES
 		${CMAKE_BINARY_DIR}/release/text/readme.html
 	)
+
+	endif()
 
 	install(
 		FILES ${BLENDER_TEXT_FILES}
@@ -963,6 +978,8 @@ unset(BLENDER_TEXT_FILES_DESTINATION)
 
 # -----------------------------------------------------------------------------
 # Geometry Icons
+
+if(False)
 
 # Geometry icons.
 get_property(_icon_names GLOBAL PROPERTY ICON_GEOM_NAMES)
@@ -981,13 +998,20 @@ unset(_icon_names)
 unset(_icon_files)
 unset(_f)
 
+endif()
+
 # -----------------------------------------------------------------------------
 # Studio Lights
+
+if(False)
+
 install(
 	DIRECTORY
 		${CMAKE_SOURCE_DIR}/release/datafiles/studiolights
 	DESTINATION ${TARGETDIR_VER}/datafiles
 )
+
+endif()
 
 # -----------------------------------------------------------------------------
 # Setup link libs
