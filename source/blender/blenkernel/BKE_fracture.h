@@ -56,6 +56,8 @@ struct MEdge;
 struct BMesh;
 struct CustomData;
 struct Scene;
+struct Main;
+struct KDTree;
 
 typedef int ShardID;
 
@@ -109,7 +111,7 @@ void BKE_match_vertex_coords(struct MeshIsland* mi, struct MeshIsland *par, stru
 bool BKE_lookup_mesh_state(struct FractureModifierData *fmd, int frame, int do_lookup);
 void BKE_get_prev_entries(struct FractureModifierData *fmd);
 void BKE_get_next_entries(struct FractureModifierData *fmd);
-void BKE_free_constraints(struct FractureModifierData *fmd, struct Scene *scene);
+void BKE_fracture_constraints_free(struct FractureModifierData *fmd, struct Scene *scene);
 struct Shard* BKE_create_initial_shard(struct Mesh *dm);
 void BKE_copy_customdata_layers(struct CustomData* dest, struct CustomData *src, int type, int count);
 
@@ -140,10 +142,12 @@ void BKE_read_animated_loc_rot(struct FractureModifierData *fmd, struct Object *
                                struct Depsgraph* depsgraph);
 
 
-void BKE_fracture_free(struct FractureModifierData *fmd, bool do_free_sequence, bool do_free_rigidbody);
-void BKE_fracture_dynamic_free(struct FractureModifierData *fmd, bool do_free_sequence, bool do_free_rigidbody);
+void BKE_fracture_dynamic_free(struct FractureModifierData *fmd,
+                               bool do_free_sequence, bool do_free_rigidbody);
 
-struct Mesh* BKE_fracture_prefractured_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *mesh);
+struct Mesh* BKE_fracture_prefractured_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *mesh,
+                                             struct Depsgraph *depsgraph);
+
 struct Mesh* BKE_fracture_dynamic_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *mesh);
 struct Mesh* BKE_fracture_external_apply(struct FractureModifierData *fmd, struct Object* ob, struct Mesh* mesh,
                                          struct Mesh *derivedData, struct Scene *scene);
@@ -154,7 +158,7 @@ void BKE_fracture_dynamic_initialize(struct FractureModifierData* fmd, struct Ob
                                      struct Mesh* mesh, char (*names)[66]);
 
 void BKE_fracture_initialize(struct FractureModifierData* fmd, struct Object *ob,
-                                     struct Mesh* mesh);
+                                     struct Mesh* mesh, struct Depsgraph *depsgraph);
 
 void BKE_fracture_autohide_refresh(struct FractureModifierData* fmd, struct Object *ob);
 void BKE_fracture_automerge_refresh(struct FractureModifierData* fmd);
@@ -172,5 +176,23 @@ void BKE_fracture_shared_vert_groups(struct FractureModifierData* fmd, struct Me
 void BKE_fracture_shared_verts_free(struct ListBase* lb);
 
 struct Mesh *BKE_fracture_autohide_do(struct FractureModifierData *fmd, struct Mesh *dm, struct Object *ob, struct Scene* sc);
+
+struct FracMesh* BKE_fracture_fracmesh_copy(struct FracMesh* fm);
+void BKE_fracture_simulation_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene);
+void BKE_fracture_meshislands_free(struct FractureModifierData* fmd, struct ListBase* meshIslands, bool do_free_rigidbody,
+                                   struct Scene* scene);
+
+void BKE_fracture_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene);
+
+void BKE_fracture_do(struct FractureModifierData *fmd, ShardID id, struct Object *obj, struct Mesh *dm,
+                     struct Depsgraph *depsgraph, struct Main *bmain);
+
+void BKE_fracture_normal_find(struct Mesh *dm, struct KDTree *tree, float co[3], short no[3], short rno[3], float range);
+void BKE_fracture_physics_mesh_normals_fix(struct FractureModifierData *fmd, struct Shard* s, struct MeshIsland* mi, int i,
+                                           struct Mesh* orig_dm);
+
+void BKE_fracture_constraints_refresh(struct FractureModifierData *fmd, struct Object *ob, struct Scene* scene);
+
+void BKE_fracture_collect_layers(struct Shard* s, struct Mesh *dm, int vertstart, int polystart, int loopstart, int edgestart);
 
 #endif /* BKE_FRACTURE_H */

@@ -1283,65 +1283,34 @@ static int ptcache_dynamicpaint_read(PTCacheFile *pf, void *dp_v)
 	return 1;
 }
 
-static MeshIsland *find_meshisland(FractureModifierData *fmd, int id)
-{
-	MeshIsland *mi = (MeshIsland*)fmd->meshIslands.first;
-	while (mi)
-	{
-		if (mi->rigidbody->meshisland_index == id)
-		{
-			return mi;
-		}
-		mi = mi->next;
-	}
-
-	return NULL;
-}
-
 /* Rigid Body functions */
 static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra)
 {
 	RigidBodyWorld *rbw = rb_v;
-	Object *ob = NULL;
+	RigidBodyOb *rbo = NULL;
 
-	if (rbw->objects)
-		ob = rbw->objects[index];
+	if (!rbw->cache_index_map || !rbw->cache_offset_map)
+		return 1;
 
-	if (ob && ob->rigidbody_object) {
-		RigidBodyOb *rbo = ob->rigidbody_object;
+	rbo = rbw->cache_index_map[index];
+	
+	if (rbo == NULL) {
+		return 1;
+	}
 
-		if (rbo->type == RBO_TYPE_ACTIVE) {
+    if (rbo && rbo->shared->physics_object)
+	{
+
 #ifdef WITH_BULLET
-			RB_body_get_position(rbo->shared->physics_object, rbo->pos);
-			RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
+            RB_body_get_position(rbo->shared->physics_object, rbo->pos);
+            RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
+            RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
+            RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
 #endif
-#if 0
-			frame =  frame - mi->start_frame;
-
-			//grow array if necessary...
-			if (frame >= mi->frame_count) {
-				mi->frame_count = frame+1;
-				mi->locs = MEM_reallocN(mi->locs, sizeof(float) * 3 * mi->frame_count);
-				mi->rots = MEM_reallocN(mi->rots, sizeof(float) * 4 * mi->frame_count);
-			}
-
-			mi->locs[3*frame] = rbo->pos[0];
-			mi->locs[3*frame+1] = rbo->pos[1];
-			mi->locs[3*frame+2] = rbo->pos[2];
-
-			mi->rots[4*frame] = rbo->orn[0];
-			mi->rots[4*frame+1] = rbo->orn[1];
-			mi->rots[4*frame+2] = rbo->orn[2];
-			mi->rots[4*frame+3] = rbo->orn[3];
-#endif
-
-			//dummy data
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_LOCATION, rbo->pos);
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_ROTATION, rbo->orn);
-//			PTCACHE_DATA_FROM(data, BPHYS_DATA_VELOCITY, rbo->lin_vel);
-//			PTCACHE_DATA_FROM(data, BPHYS_DATA_AVELOCITY, rbo->ang_vel);
-
-		}
+			PTCACHE_DATA_FROM(data, BPHYS_DATA_VELOCITY, rbo->lin_vel);
+			PTCACHE_DATA_FROM(data, BPHYS_DATA_AVELOCITY, rbo->ang_vel);
 	}
 
 	return 1;
@@ -1349,108 +1318,68 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfra, float *old_data)
 {
 	RigidBodyWorld *rbw = rb_v;
-	Object *ob = NULL;
-
-	if (rbw->objects)
-		ob = rbw->objects[index];
-
-	if (ob && ob->rigidbody_object) {
-		RigidBodyOb *rbo = ob->rigidbody_object;
-
-		if (rbo->type == RBO_TYPE_ACTIVE) {
-
-			if (old_data) {
-				memcpy(rbo->pos, data, 3 * sizeof(float));
-				memcpy(rbo->orn, data + 3, 4 * sizeof(float));
-			}
-			else {
-				PTCACHE_DATA_TO(data, BPHYS_DATA_LOCATION, 0, rbo->pos);
-				PTCACHE_DATA_TO(data, BPHYS_DATA_ROTATION, 0, rbo->orn);
-				PTCACHE_DATA_TO(data, BPHYS_DATA_VELOCITY, 0, rbo->lin_vel);
-				PTCACHE_DATA_TO(data, BPHYS_DATA_AVELOCITY,0, rbo->ang_vel);
-			}
-
-#if 0
-			//this is only for motionblur, so its enough to be updated when rendering
-			if (fmd && G.is_rendering)
-			{
-				mi = find_meshisland(fmd, rbo->meshisland_index);
-				BKE_update_velocity_layer(fmd, mi);
-			}
-#endif
-		}
+	RigidBodyOb *rbo = NULL;
+	
+	rbo = rbw->cache_index_map[index];
+	
+	if (rbo == NULL) {
+		return;
 	}
 
-#if 0 //TODO
-	else if (fmd && fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
-	{
-        if (rbo)
-		{
-			//damn, slow listbase based lookup
-			//TODO, need to speed this up.... array, hash ?
+    if (rbo && rbo->type == RBO_TYPE_ACTIVE) {
 
-			//modifier should have "switched" this to current set of meshislands already.... so access it
-			MeshIsland *mi = NULL;
-			int frame = (int)floor(cfra);
-
-			mi = find_meshisland(fmd, rbo->meshisland_index);
-
-			frame = frame - mi->start_frame;
-
-			rbo->pos[0] = mi->locs[3*frame];
-			rbo->pos[1] = mi->locs[3*frame+1];
-			rbo->pos[2] = mi->locs[3*frame+2];
-
-			rbo->orn[0] = mi->rots[4*frame];
-			rbo->orn[1] = mi->rots[4*frame+1];
-			rbo->orn[2] = mi->rots[4*frame+2];
-			rbo->orn[3] = mi->rots[4*frame+3];
-		}
-	}
-#endif
+        if (old_data) {
+            memcpy(rbo->pos, data, 3 * sizeof(float));
+            memcpy(rbo->orn, data + 3, 4 * sizeof(float));
+        }
+        else {
+            PTCACHE_DATA_TO(data, BPHYS_DATA_LOCATION, 0, rbo->pos);
+            PTCACHE_DATA_TO(data, BPHYS_DATA_ROTATION, 0, rbo->orn);
+            PTCACHE_DATA_TO(data, BPHYS_DATA_VELOCITY, 0, rbo->lin_vel);
+            PTCACHE_DATA_TO(data, BPHYS_DATA_AVELOCITY,0, rbo->ang_vel);
+        }
+    }
 }
 static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, float cfra, float cfra1, float cfra2, float *old_data)
 {
 	RigidBodyWorld *rbw = rb_v;
-	Object *ob = NULL;
-
-	if (rbw->objects)
-		ob = rbw->objects[index];
-
-	if (ob && ob->rigidbody_object) {
-		RigidBodyOb *rbo = ob->rigidbody_object;
-
-		if (rbo->type == RBO_TYPE_ACTIVE) {
-			ParticleKey keys[4];
-			ParticleKey result;
-			float dfra;
-
-			memset(keys, 0, sizeof(keys));
-
-			copy_v3_v3(keys[1].co, rbo->pos);
-			copy_qt_qt(keys[1].rot, rbo->orn);
-
-			if (old_data) {
-				memcpy(keys[2].co, data, 3 * sizeof(float));
-				memcpy(keys[2].rot, data + 3, 4 * sizeof(float));
-				memcpy(keys[2].vel, data + 7, 3 * sizeof(float));
-				memcpy(keys[2].ave, data + 10, 3 * sizeof(float));
-			}
-			else {
-				BKE_ptcache_make_particle_key(keys+2, 0, data, cfra2);
-			}
-
-			dfra = cfra2 - cfra1;
-
-			/* note: keys[0] and keys[3] unused for type < 1 (crappy) */
-			psys_interpolate_particle(-1, keys, (cfra - cfra1) / dfra, &result, true);
-			interp_qt_qtqt(result.rot, keys[1].rot, keys[2].rot, (cfra - cfra1) / dfra);
-
-			copy_v3_v3(rbo->pos, result.co);
-			copy_qt_qt(rbo->orn, result.rot);
-		}
+	RigidBodyOb *rbo = NULL;
+    ParticleKey keys[4], result;
+	float dfra;
+	
+	rbo = rbw->cache_index_map[index];
+	if (rbo == NULL) {
+		return;
 	}
+
+    if (rbo->type == RBO_TYPE_ACTIVE) {
+
+		copy_v3_v3(keys[1].co, rbo->pos);
+		copy_qt_qt(keys[1].rot, rbo->orn);
+		copy_v3_v3(keys[1].vel, rbo->lin_vel);
+		copy_v3_v3(keys[1].ave, rbo->ang_vel);
+
+        if (old_data) {
+            memcpy(keys[2].co, data, 3 * sizeof(float));
+            memcpy(keys[2].rot, data + 3, 4 * sizeof(float));
+            memcpy(keys[2].vel, data + 7, 3 * sizeof(float));
+            memcpy(keys[2].ave, data + 10, 3 * sizeof(float));
+        }
+        else {
+            BKE_ptcache_make_particle_key(keys+2, 0, data, cfra2);
+        }
+
+        dfra = cfra2 - cfra1;
+
+        /* note: keys[0] and keys[3] unused for type < 1 (crappy) */
+        psys_interpolate_particle(-1, keys, (cfra - cfra1) / dfra, &result, true);
+        interp_qt_qtqt(result.rot, keys[1].rot, keys[2].rot, (cfra - cfra1) / dfra);
+
+        copy_v3_v3(rbo->pos, result.co);
+        copy_qt_qt(rbo->orn, result.rot);
+    }
 }
+
 static int ptcache_rigidbody_totpoint(void *rb_v, int UNUSED(cfra))
 {
 	RigidBodyWorld *rbw = rb_v;

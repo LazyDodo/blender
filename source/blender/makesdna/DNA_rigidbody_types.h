@@ -67,8 +67,8 @@ typedef struct RigidBodyWorld {
 
 	struct Collection *constraints;	/* Group containing objects to use for Rigid Body Constraints*/
 
-    struct RigidBodyOb** cache_index_map;
-    int* cache_offset_map;
+    struct RigidBodyOb **cache_index_map;
+    int *cache_offset_map;
 
 	int pad;
 	float ltime;				/* last frame world was evaluated for (internal) */
@@ -265,8 +265,12 @@ typedef struct RigidBodyCon {
 	int flag;					/* (eRigidBodyCon_Flag) */
 
 	float breaking_threshold;	/* breaking impulse threshold */
-	char spring_type;       	/* spring implementation to use */
-	char pad[3];
+    char spring_type;       	/* spring implementation to use */
+    char name[66];
+    char pad[5];
+
+    float orn[4];
+    float pos[3];
 
 	/* limits */
 	/* translation limits */
@@ -305,10 +309,6 @@ typedef struct RigidBodyCon {
 	float motor_ang_target_velocity;	/* angular velocity the motor tries to hold */
 	float motor_lin_max_impulse;		/* maximum force used to reach linear target velocity */
 	float motor_ang_max_impulse;		/* maximum force used to reach angular target velocity */
-
-    char name[66];
-    float pos[3];
-    float orn[4];
 
 	/* References to Physics Sim object. Exist at runtime only */
 	void *physics_constraint;	/* Physics object representation (i.e. btTypedConstraint) */

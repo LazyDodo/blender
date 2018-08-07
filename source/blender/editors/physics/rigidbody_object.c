@@ -37,6 +37,7 @@
 #include "DNA_object_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_mesh_types.h"
 
 #include "BLI_blenlib.h"
 
@@ -120,9 +121,9 @@ bool ED_rigidbody_object_add(Main *bmain, Scene *scene, Object *ob, int type, Re
 	/* make rigidbody object settings */
 	if (ob->rigidbody_object == NULL) {
 		/* free a possible bake... else you can get all kind of trouble with stale data in FM */
-		if (rbw->pointcache && !keep_bake)
+        if (rbw->shared->pointcache && !keep_bake)
 		{
-			rbw->pointcache->flag &= ~PTCACHE_BAKED;
+            rbw->shared->pointcache->flag &= ~PTCACHE_BAKED;
 		}
 		ob->rigidbody_object = BKE_rigidbody_create_object(scene, ob, type, NULL);
 	}
@@ -310,8 +311,8 @@ static int rigidbody_objects_remove_exec(bContext *C, wmOperator *UNUSED(op))
 		 * gets messed up */
 		RigidBodyWorld *rbw = scene->rigidbody_world;
 
-		if (rbw && rbw->pointcache) {
-			rbw->pointcache->flag &= ~PTCACHE_BAKED;
+        if (rbw && rbw->shared->pointcache) {
+            rbw->shared->pointcache->flag &= ~PTCACHE_BAKED;
 		}
 
 		/* send updates */
@@ -529,7 +530,7 @@ static int rigidbody_objects_calc_mass_exec(bContext *C, wmOperator *op)
 	{
 		if (ob->rigidbody_object) {
 			PointerRNA ptr;
-			DerivedMesh* dm_ob;
+            Mesh* dm_ob;
 
 			float volume; /* m^3 */
 			float mass;   /* kg */
@@ -540,7 +541,7 @@ static int rigidbody_objects_calc_mass_exec(bContext *C, wmOperator *op)
 
 			if (ob->type == OB_MESH) {
 				/* if we have a mesh, determine its volume */
-				dm_ob = CDDM_from_mesh(ob->data);
+                dm_ob = ob->data;
 				volume = BKE_rigidbody_calc_volume_dm(dm_ob, ob->rigidbody_object, ob);
 			}
 			else {

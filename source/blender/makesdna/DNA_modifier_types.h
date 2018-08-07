@@ -1629,7 +1629,7 @@ typedef struct ShardSequence {
 
 typedef struct MeshIslandSequence {
 	struct MeshIslandSequence *next, *prev;
-	struct DerivedMesh *visible_dm;
+    struct Mesh *visible_dm;
 	ListBase meshIslands;
 	int frame;
 	int is_new;
@@ -1669,7 +1669,6 @@ typedef struct FractureModifierData {
 	char thresh_defgrp_name[64];  /* MAX_VGROUP_NAME */
 	char ground_defgrp_name[64];  /* MAX_VGROUP_NAME */
 	char inner_defgrp_name[64];  /* MAX_VGROUP_NAME */
-	char acceleration_defgrp_name[64]; /* MAX_VGROUP_NAME */
 	char uvlayer_name[64];  /* MAX_CUSTOMDATA_LAYER_NAME */
 	struct KDTree *nor_tree; /* store original vertices here (coords), to find them later and reuse their normals */
 	struct GHash *face_pairs;
@@ -1688,8 +1687,6 @@ typedef struct FractureModifierData {
 	ListBase fracture_settings;
 	ListBase shared_verts; /* used for storing shared vertices for automerge */
 	ListBase pack_storage; /*used to store packed geometry when switching modes */
-
-	int active_setting;
 
 	int anim_bind_len;
 	int anim_mesh_rot;
@@ -1819,7 +1816,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-	char pad[4];
+    //char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {

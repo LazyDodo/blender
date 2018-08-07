@@ -136,7 +136,6 @@ static void initData(ModifierData *md)
 	fmd->update_dynamic = false;
 	fmd->limit_impact = false;
 	fmd->reset_shards = false;
-	fmd->active_setting = -1;
 
 	fmd->use_compounds = false;
 	fmd->impulse_dampening = 0.05f;
@@ -199,11 +198,11 @@ static void freeData(ModifierData *md)
 
     if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
     {
-        BKE_fracture_dynamic_free(fmd, true, true);
+        //BKE_fracture_dynamic_free(fmd, true, true);
     }
     else
     {
-        BKE_fracture_free(fmd, false, true);
+        //BKE_fracture_free(fmd, false, true);
     }
 }
 
@@ -504,15 +503,15 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		bool init = false;
 
 		//just track the frames for resetting automerge data when jumping
-        //int frame = (int)BKE_scene_frame_get(fmd->modifier.scene);
+        int frame = (int)BKE_scene_frame_get(scene);
 
 		//deactivate multiple settings for now, not working properly XXX TODO (also deactivated in RNA and python)
-        final_dm = BKE_fracture_prefractured_apply(fmd, ob, pack_dm);
+        final_dm = BKE_fracture_prefractured_apply(fmd, ob, pack_dm, ctx->depsgraph);
 
 		if (init)
 			fmd->shard_count = 10;
 
-        //fmd->last_frame = frame;
+        fmd->last_frame = frame;
 	}
 	else if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
 	{
@@ -570,7 +569,8 @@ ModifierTypeInfo modifierType_Fracture = {
 
     /* initData */          initData,
     /* requiredDataMask */  requiredDataMask,
-    /* freeData */          NULL,
+    /* freeData */          freeData,
+
     /* isDisabled */        NULL,
     /* updateDepsgraph */   updateDepsgraph,
     /* dependsOnTime */     dependsOnTime,

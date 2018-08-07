@@ -1,6 +1,8 @@
 #include "BKE_fracture.h"
 #include "BKE_pointcache.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
 #include "DNA_mesh_types.h"
@@ -9,7 +11,7 @@
 #include "DNA_rigidbody_types.h"
 
 
-Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mesh *derivedData)
+Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mesh *derivedData, Depsgraph* depsgraph)
 {
     bool do_refresh = (fmd->auto_execute) || (fmd->dm_group && fmd->use_constraint_group && fmd->refresh_constraints);
 
@@ -22,7 +24,7 @@ Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mes
 
     if (fmd->refresh)
     {
-        BKE_fracture_initialize(fmd, ob, derivedData);
+        BKE_fracture_initialize(fmd, ob, derivedData, depsgraph);
     }
 
 #if 0

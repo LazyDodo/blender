@@ -6331,6 +6331,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 	Main *bmain = CTX_data_main(t->context);
 	BLI_assert(bmain == CTX_data_main(C));
 
+    //needed for rigidbody aftertrans update (maybe this needs to go)
+    Depsgraph *depsgraph = CTX_data_depsgraph(C);
+
 	Object *ob;
 //	short redrawipo=0, resetslowpar=1;
 	const bool canceled = (t->state == TRANS_CANCEL);
@@ -6785,7 +6788,9 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 				ModifierData* md = modifiers_findByType(ob, eModifierType_Fracture);
 				FractureModifierData *fmd;
 				if (BKE_rigidbody_check_sim_running(t->scene->rigidbody_world, ctime))
-					BKE_rigidbody_aftertrans_update(ob, td->ext->oloc, td->ext->orot, td->ext->oquat, td->ext->orotAxis, td->ext->orotAngle);
+                    BKE_rigidbody_aftertrans_update(ob, td->ext->oloc, td->ext->orot,
+                                                    td->ext->oquat, td->ext->orotAxis,
+                                                    td->ext->orotAngle, depsgraph);
 				
 				if (md != NULL) {
 					//reset original matrix of modifier

@@ -2440,7 +2440,7 @@ void OBJECT_OT_surfacedeform_bind(wmOperatorType *ot)
 	edit_modifier_properties(ot);
 }
 
-static int fracture_poll(bContext *C)
+static bool fracture_poll(bContext *C)
 {
 	return edit_modifier_poll_generic(C, &RNA_FractureModifier, 0);
 }
@@ -2473,11 +2473,10 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
-		DerivedMesh *dm = rmd->visible_mesh_cached;
+        Mesh *dm = rmd->visible_mesh_cached;
 		if (dm)
 		{
-			dm->needsFree = 1;
-			dm->release(dm);
+            BKE_mesh_free(dm);
 			dm = rmd->visible_mesh_cached = NULL;
 		}
 
@@ -2486,9 +2485,9 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	if (scene->rigidbody_world != NULL)
 	{
-		start = (double)scene->rigidbody_world->pointcache->startframe;
+        start = (double)scene->rigidbody_world->shared->pointcache->startframe;
 		//free a possible bake...
-		scene->rigidbody_world->pointcache->flag &= ~PTCACHE_BAKED;
+        scene->rigidbody_world->shared->pointcache->flag &= ~PTCACHE_BAKED;
 	}
 
 	if (!rmd || (rmd && rmd->refresh)) {
@@ -2745,7 +2744,7 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
 
-	DM_to_mesh(mi->physics_mesh, me, ob_new, CD_MASK_MESH, false);
+    BKE_mesh_nomain_to_mesh(mi->physics_mesh, me, ob_new, CD_MASK_MESH, false);
 
 	if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
 	{
@@ -2891,13 +2890,12 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 {
 	MeshIsland *mi;
 	RigidBodyShardCon* con;
-	int i = 0, j = 0;
+    int i = 0;
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 	const char *name = BLI_strdupcat(ob->id.name, "_conv");
     Collection *g = BKE_collection_add(bmain, NULL, name);
 
-	int count = BLI_listbase_count(&rmd->meshIslands);
-	int count_con = BLI_listbase_count(&rmd->meshConstraints);
+    int count = BLI_listbase_count(&rmd->meshIslands);
 	KDTree* objtree = BLI_kdtree_new(count);
 	Object** objs = MEM_callocN(sizeof(Object*) * count, "convert_objs");
 	float max_con_mass = 0;
@@ -2936,7 +2934,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 	if (rmd->use_constraints || rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
 		for (con = rmd->meshConstraints.first; con; con = con->next) {
-            Object* obj = do_convert_constraints(bmain, rmd, con, scene, ob, objtree, objs, max_con_mass, reports, layer);
+            do_convert_constraints(bmain, rmd, con, scene, ob, objtree, objs, max_con_mass, reports, layer);
             i++;
         }
 	}
@@ -2954,8 +2952,6 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	Main* bmain = CTX_data_main(C);
     ViewLayer *layer = CTX_data_view_layer(C);
-	wmWindowManager *wm = CTX_wm_manager(C);
-	wmWindow *win;
 	float cfra = BKE_scene_frame_get(scene);
 	FractureModifierData *rmd;
 	RigidBodyWorld *rbw = scene->rigidbody_world;
@@ -2979,12 +2975,12 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 		short num_solver_iterations = rbw->num_solver_iterations;
 		int flag = rbw->flag;
 		float time_scale = rbw->time_scale;
-		struct Group* constraints = rbw->constraints;
-		struct Group* group = rbw->group;
+        struct Collection* constraints = rbw->constraints;
+        struct Collection* group = rbw->group;
 		RigidBodyWorld *rbwn = NULL;
 		
 		BKE_rigidbody_cache_reset(rbw);
-		BKE_rigidbody_free_world(rbw);
+        BKE_rigidbody_free_world(scene);
 		scene->rigidbody_world = NULL;
 		rbwn = BKE_rigidbody_create_world(scene);
 		rbwn->time_scale = time_scale;
@@ -3009,7 +3005,7 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static int rigidbody_convert_invoke(bContext *C, wmOperator *op, wmEvent *UNUSED(event))
+static int rigidbody_convert_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
 	
 	if (edit_modifier_invoke_properties(C, op))
@@ -3034,6 +3030,7 @@ void OBJECT_OT_rigidbody_convert_to_objects(wmOperatorType *ot)
 	edit_modifier_properties(ot);
 }
 
+#if 0
 static bAnimContext* make_anim_context(Scene* scene, Object* ob)
 {
 	bAnimContext *ac = MEM_callocN(sizeof(bAnimContext), "make_anim_context");
@@ -3060,6 +3057,7 @@ static bAnimContext* make_anim_context(Scene* scene, Object* ob)
 
 	return ac;
 }
+#endif
 
 MINLINE void div_v3_v3(float r[3], const float a[3], const float b[3])
 {
@@ -3119,7 +3117,7 @@ MINLINE void compare_v4_fl(bool r[4], const float a[4], const float b)
 
 static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, FractureModifierData* fmd, MeshIsland *mi,
                                      Collection* gr, Object* ob, Scene* scene, int start, int end, int count,
-                                     Object* parent,bool is_baked, PTCacheID* pid, PointCache *cache, float obloc[3],
+                                     Object* parent,bool is_baked, PointCache *cache, float obloc[3],
                                      float diff[3], int *j, float threshold, int step, bool calc_handles,
                                      ReportList* reports, ViewLayer* layer, bContext* C)
 {
@@ -3156,10 +3154,10 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
 
-	DM_to_mesh(mi->physics_mesh, me, ob_new, CD_MASK_MESH, false);
+    BKE_mesh_nomain_to_mesh(mi->physics_mesh, me, ob_new, CD_MASK_MESH, false);
 
 	//last parameter here means deferring removing the bake after all has been converted.
-	ED_rigidbody_object_add(G.main, scene, ob_new, RBO_TYPE_ACTIVE, reports, true);
+    ED_rigidbody_object_add(bmain, scene, ob_new, RBO_TYPE_ACTIVE, reports, true);
 	ob_new->rigidbody_object->flag |= RBO_FLAG_KINEMATIC;
 	ob_new->rigidbody_object->mass = mi->rigidbody->mass;
 
@@ -3395,7 +3393,6 @@ static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd
 
 	bool is_baked = false;
 	PointCache* cache = NULL;
-	PTCacheID pid;
 	MeshIsland *mi = NULL;
 	Object *parent = NULL;
 	int count = BLI_listbase_count(&fmd->meshIslands);
@@ -3420,8 +3417,8 @@ static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd
 	starttime = PIL_check_seconds_timer();
 	for (mi = fmd->meshIslands.first; mi; mi = mi->next)
 	{
-        Object *obj = do_convert_meshIsland(bmain, depsgraph, fmd, mi, gr, ob, scene, start, end, count,
-                                            parent, is_baked, &pid, cache, obloc, diff, &k,
+        do_convert_meshIsland(bmain, depsgraph, fmd, mi, gr, ob, scene, start, end, count,
+                                            parent, is_baked, cache, obloc, diff, &k,
                                             threshold, step, calc_handles, reports, layer, C);
 	}
 	printf("Converting Islands to Keyframed Objects done, %g\n", PIL_check_seconds_timer() - starttime);

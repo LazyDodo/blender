@@ -46,54 +46,63 @@
 
 #ifdef RNA_RUNTIME
 
-static MeshIsland *rna_FractureModifier_mesh_island_new(ID* id, FractureModifierData *fmd, Object* ob)
+#include "BKE_context.h"
+#include "BKE_fracture.h"
+
+static MeshIsland *rna_FractureModifier_mesh_island_new(bContext* C, Main *bmain, ID* id, FractureModifierData *fmd, Object* ob)
 {
 	Object *owner = (Object*)id;
 	if (ob != owner)
 	{
-		MeshIsland* mi = BKE_fracture_mesh_island_add(fmd, owner, ob);
+        Scene *scene = CTX_data_scene(C);
+        MeshIsland* mi = BKE_fracture_mesh_island_add(bmain, fmd, owner, ob, scene);
 		return mi;
 	}
 
 	return NULL;
 }
 
-static void rna_FractureModifier_mesh_island_remove(ID *UNUSED(id), FractureModifierData *fmd, ReportList *reports, MeshIsland* mi)
+static void rna_FractureModifier_mesh_island_remove(bContext* C, FractureModifierData *fmd, ReportList *reports, MeshIsland* mi)
 {
+    Scene *scene = CTX_data_scene(C);
 	if (BLI_findindex(&fmd->meshIslands, mi) == -1) {
 		BKE_reportf(reports, RPT_ERROR, "MeshIsland '%s' not in this fracture modifier", mi->name);
 		return;
 	}
 
-	BKE_fracture_mesh_island_remove(fmd, mi);
+    BKE_fracture_mesh_island_remove(fmd, mi, scene);
 }
 
-static void rna_FractureModifier_mesh_island_clear(ID *UNUSED(id), FractureModifierData *fmd)
+static void rna_FractureModifier_mesh_island_clear(bContext* C, FractureModifierData *fmd)
 {
-	BKE_fracture_mesh_island_remove_all(fmd);
+    Scene *scene = CTX_data_scene(C);
+    BKE_fracture_mesh_island_remove_all(fmd, scene);
 }
 
-static RigidBodyShardCon *rna_FractureModifier_mesh_constraint_new(ID *UNUSED(id), FractureModifierData *fmd,
+static RigidBodyShardCon *rna_FractureModifier_mesh_constraint_new(bContext* C, FractureModifierData *fmd,
                                                                    MeshIsland* mi1, MeshIsland* mi2, int type)
 {
-	RigidBodyShardCon* con = BKE_fracture_mesh_islands_connect(fmd, mi1, mi2, type);
+    Scene *scene = CTX_data_scene(C);
+    RigidBodyShardCon* con = BKE_fracture_mesh_islands_connect(scene, fmd, mi1, mi2, type);
 	return con;
 }
 
-static void rna_FractureModifier_mesh_constraint_remove(ID *UNUSED(id), FractureModifierData *fmd, ReportList *reports, RigidBodyShardCon *con)
+static void rna_FractureModifier_mesh_constraint_remove(bContext* C, FractureModifierData *fmd, ReportList *reports, RigidBodyShardCon *con)
 {
+    Scene *scene = CTX_data_scene(C);
 	if (con && BLI_findindex(&fmd->meshConstraints, con) == -1) {
 		BKE_reportf(reports, RPT_ERROR, "MeshConstraint '%s' not in this fracture modifier", con->name);
 		return;
 	}
 
 	if (con)
-		BKE_fracture_mesh_constraint_remove(fmd, con);
+        BKE_fracture_mesh_constraint_remove(fmd, con, scene);
 }
 
-static void rna_FractureModifier_mesh_constraint_clear(ID *UNUSED(id), FractureModifierData *fmd)
+static void rna_FractureModifier_mesh_constraint_clear(bContext*C, FractureModifierData *fmd)
 {
-	BKE_fracture_mesh_constraint_remove_all(fmd);
+    Scene *scene = CTX_data_scene(C);
+    BKE_fracture_mesh_constraint_remove_all(fmd, scene);
 }
 
 static float rna_MeshCon_get_applied_impulse(RigidBodyShardCon *con)
@@ -1753,7 +1762,7 @@ static void rna_def_fracture_meshislands(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "new", "rna_FractureModifier_mesh_island_new");
 	RNA_def_function_ui_description(func, "Add mesh island to Fracture Modifier");
-	RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+    RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN | FUNC_USE_CONTEXT);
 
 	parm = RNA_def_pointer(func, "source_object", "Object", "Object", "Source Mesh Object for this mesh island");
 	RNA_def_property_flag(parm, PARM_REQUIRED | PROP_NEVER_NULL | PARM_RNAPTR);

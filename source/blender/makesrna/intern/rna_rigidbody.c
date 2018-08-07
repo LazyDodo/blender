@@ -278,7 +278,7 @@ void foreach_shard_flag_shape(Object *ob, int flag, short shape, bool reset)
 						mi->rigidbody->flag = flag;
 						mi->rigidbody->shape = shape;
 						if (reset) {
-							if (mi->rigidbody->physics_shape)
+                            if (mi->rigidbody->shared->physics_shape)
 								mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
 						}
 					}
@@ -1050,11 +1050,6 @@ static void rna_def_rigidbody_world(BlenderRNA *brna)
 	RNA_def_function_output(func, parm);
 	parm = RNA_def_int(func, "has_hit", 0, 0, 0, "", "If the function has found collision point, value is 1, otherwise 0", 0, 0);
 	RNA_def_function_output(func, parm);
-
-	prop = RNA_def_property(srna, "bullet_step", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "internal_tick");
-	RNA_def_property_float_default(prop, 0.0f);
-	RNA_def_property_ui_text(prop, "Bullet Step", "The current bullet step value (read only, as writing it has no effect)");
 
 	prop = RNA_def_property(srna, "visualize_physics", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", RBW_FLAG_VISUALIZE_PHYSICS);

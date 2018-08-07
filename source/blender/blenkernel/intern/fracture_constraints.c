@@ -22,6 +22,8 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
+#include "PIL_time.h"
+
 static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsland **meshIslands, KDTree **combined_tree,
                               float co[3], Object *ob, Scene *scene);
 
@@ -348,7 +350,7 @@ void BKE_fracture_mesh_constraint_remove(FractureModifierData *fmd, RigidBodySha
 
 void BKE_fracture_mesh_constraint_remove_all(FractureModifierData *fmd, Scene *scene)
 {
-    BKE_free_constraints(fmd, scene);
+    BKE_fracture_constraints_free(fmd, scene);
     fmd->constraint_count = 0;
 }
 
@@ -618,4 +620,31 @@ RigidBodyShardCon *BKE_fracture_mesh_islands_connect(Scene *scene, FractureModif
     }
 
     return rbsc;
+}
+
+void BKE_fracture_constraints_refresh(FractureModifierData *fmd, Object *ob, Scene* scene)
+{
+    double start = PIL_check_seconds_timer();
+
+    do_clusters(fmd, ob);
+    printf("Clustering done, %g\n", PIL_check_seconds_timer() - start);
+
+    start = PIL_check_seconds_timer();
+
+    if (fmd->use_constraints) {
+        int count = 0;
+
+        /* fire a callback which can then load external constraint data right NOW */
+       // BLI_callback_exec(G.main, &ob->id, BLI_CB_EVT_FRACTURE_CONSTRAINT_REFRESH);
+
+        /*if we loaded constraints, dont create other ones now */
+        count = BLI_listbase_count(&fmd->meshConstraints);
+
+        if (count == 0 || fmd->dynamic_new_constraints != MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS) {
+            create_constraints(fmd, ob, scene); /* check for actually creating the constraints inside*/
+        }
+    }
+
+    printf("Building constraints done, %g\n", PIL_check_seconds_timer() - start);
+    printf("Constraints: %d\n", BLI_listbase_count(&fmd->meshConstraints));
 }

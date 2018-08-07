@@ -293,7 +293,7 @@ void fracture_collect_layer(CustomData* src, CustomData *dst, int totelem, int c
     }
 }
 
-void fracture_collect_layers(Shard* s, Mesh *dm, int vertstart, int polystart, int loopstart, int edgestart)
+void BKE_fracture_collect_layers(Shard* s, Mesh *dm, int vertstart, int polystart, int loopstart, int edgestart)
 {
     int totloop = dm->totloop;
     int totvert = dm->totvert;
@@ -537,7 +537,7 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
     pack_storage_remove_all(fmd);
 
     //free all constraints first
-    BKE_free_constraints(fmd, scene);
+    BKE_fracture_constraints_free(fmd, scene);
 
     //free all meshislands
     while (fmd->meshIslands.first) {

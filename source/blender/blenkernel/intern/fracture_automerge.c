@@ -573,7 +573,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
     return result;
 }
 
-static void find_normal(Mesh *dm, KDTree *tree, float co[3], short no[3], short rno[3], float range)
+void BKE_fracture_normal_find(Mesh *dm, KDTree *tree, float co[3], short no[3], short rno[3], float range)
 {
     KDTreeNearest *n = NULL, n2;
     int index = 0, i = 0, count = 0;
@@ -610,7 +610,7 @@ static void find_normal(Mesh *dm, KDTree *tree, float co[3], short no[3], short 
     copy_v3_v3_short(rno, mvert->no);
 }
 
-static void do_fix_normals_physics_mesh(FractureModifierData *fmd, Shard* s, MeshIsland* mi, int i, Mesh* orig_dm)
+void BKE_fracture_physics_mesh_normals_fix(FractureModifierData *fmd, Shard* s, MeshIsland* mi, int i, Mesh* orig_dm)
 {
     MVert *mv, *verts;
     int totvert;
@@ -632,7 +632,7 @@ static void do_fix_normals_physics_mesh(FractureModifierData *fmd, Shard* s, Mes
 
         /* either take orignormals or take ones from fractured mesh */
         if (fmd->fix_normals) {
-            find_normal(orig_dm, fmd->nor_tree, mv->co, mv->no, no, fmd->nor_range);
+           BKE_fracture_normal_find(orig_dm, fmd->nor_tree, mv->co, mv->no, no, fmd->nor_range);
         }
         else {
             copy_v3_v3_short(no, mv->no);

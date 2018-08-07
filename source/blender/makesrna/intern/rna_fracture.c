@@ -52,10 +52,10 @@
 
 #ifdef RNA_RUNTIME
 
-#include "BKE_depsgraph.h"
 #include "BKE_fracture.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_modifier.h"
+#include "DEG_depsgraph.h"
 
 #ifdef WITH_BULLET
 #  include "RBI_api.h"
@@ -203,7 +203,6 @@ static void rna_##_type##Modifier_##_prop##_set(PointerRNA *ptr, const char *val
 RNA_MOD_VGROUP_NAME_SET(Fracture, thresh_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(Fracture, ground_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(Fracture, inner_defgrp_name);
-RNA_MOD_VGROUP_NAME_SET(Fracture, acceleration_defgrp_name);
 
 #undef RNA_MOD_VGROUP_NAME_SET
 
@@ -684,26 +683,16 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Point
 	{
 		FractureModifierData *fmd = (FractureModifierData*)md;
 		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
-		{
-			FractureSetting* fs = BLI_findlink(&fmd->fracture_settings, fmd->active_setting);
-			BKE_fracture_store_settings(fmd, fs);
+        {
 
 			if (fmd->refresh)
 			{
 				return;
 			}
 		}
-#if 0
-		else if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
-		{
-			// do purge
-			fmd->last_frame = INT_MAX;
-			fmd->refresh = true;
-		}
-#endif
 	}
 
-	DAG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+    DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
 }
 
@@ -716,16 +705,13 @@ static void rna_Modifier_update_and_keep(Main *UNUSED(bmain), Scene *UNUSED(scen
 		FractureModifierData *fmd = (FractureModifierData*)md;
 		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED || fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 		{
-			FractureSetting* fs = BLI_findlink(&fmd->fracture_settings, fmd->active_setting);
-			BKE_fracture_store_settings(fmd, fs);
-
 			if (fmd->refresh)
 			{
 				return;
 			}
 		}
 
-		DAG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+        DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
 		WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
 	}
 }
@@ -938,6 +924,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "extra_group", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_ui_text(prop, "Extra Group",
 	                         "Depending on whether extra particles or extra vertices is chosen, particles or vertices of objects from this group serve as point source. Both at the same time is not possible.");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_extra_group_set", NULL, NULL);
@@ -1007,6 +994,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "dm_group", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_ui_text(prop, "Sub Object Group", "The meshes of each member object will be aggregated into a combined mesh. This will override the base mesh of the fractured object using this group.");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_dm_group_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
@@ -1164,6 +1152,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "cluster_group", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "cluster_group");
+    RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_cluster_group_set", NULL, NULL);
 	RNA_def_property_ui_text(prop, "Cluster Group", "Centroids of objects in this group determine where cluster centers will be");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
@@ -1171,6 +1160,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "cutter_group", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_ui_text(prop, "Cutter Group", "A set of objects to make boolean cuts against");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_cutter_group_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
@@ -1305,6 +1295,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "autohide_filter_group", PROP_POINTER, PROP_NONE);
+    RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_ui_text(prop, "Autohide Filter Group",
 	                         "Shards within the radius of each group member object will be excluded from autohide, which selectively reveals cracks ");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_autohide_filter_group_set", NULL, NULL);
@@ -1480,39 +1471,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_self_collision", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_self_collision", false);
 	RNA_def_property_ui_text(prop, "Self Collision", "Allow collisions between constraint islands");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "acceleration_vertex_group", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "acceleration_defgrp_name");
-	RNA_def_property_ui_text(prop, "Acceleration Vertex Group", "Vertex group whose weights represent the forces affecting the meshislands");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_FractureModifier_acceleration_defgrp_name_set");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "min_acceleration", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "min_acceleration");
-	RNA_def_property_range(prop, 0, FLT_MAX);
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_min_acceleration_set", NULL);
-	RNA_def_property_ui_text(prop, "Min", "The minimum against which the force will be normed against");
-	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 4);
-	//RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "max_acceleration", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "max_acceleration");
-	RNA_def_property_range(prop, 0, FLT_MAX);
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_max_acceleration_set", NULL);
-	RNA_def_property_ui_text(prop, "Max", "The maximum against which the force will be normed against");
-	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 4);
-	//RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "acceleration_fade", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "acceleration_fade");
-	RNA_def_property_range(prop, 0, 1.0f);
-	RNA_def_property_ui_text(prop, "Fade", "Multiplier to fade out the weights with");
-	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1f, 4);
-	//RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_animated_mesh", PROP_BOOLEAN, PROP_NONE);

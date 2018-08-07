@@ -209,7 +209,7 @@ void RIGIDBODY_OT_constraint_remove(wmOperatorType *ot)
 
 /* ************ Remove Rigid Body Constraints ************** */
 
-static int rigidbody_constraints_remove_exec(bContext *C, wmOperator *op)
+static int rigidbody_constraints_remove_exec(bContext *C, wmOperator *UNUSED(op))
 {
     Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
