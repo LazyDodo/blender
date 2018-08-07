@@ -96,7 +96,6 @@ static void parse_cell_neighbors(cell c, int *neighbors, int totpoly);
 static void arrange_shard(FractureModifierData *fmd, ShardID id, bool do_verts, float cent[3]);
 static void fracture_shard_add(FracMesh *fm, Shard *s, float mat[4][4]);
 static Shard* fracture_initial_shard_create(Mesh *dm);
-
 static void fracture_shard_add(FracMesh *fm, Shard *s, float mat[4][4])
 {
 	MVert *mv;
@@ -2925,9 +2924,6 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 
 static void cleanup_arrange_shard(FractureModifierData *fmd, Shard *s, float cent[]);
 static MeshIsland* find_meshisland(ListBase* meshIslands, int id);
-static void do_halving(FractureModifierData *fmd, Object* ob, Mesh *dm, Mesh *orig_dm,
-                       bool is_prehalving, ShardID id, Scene *scene);
-static void free_shards(FractureModifierData *fmd);
 static void do_island_index_map(FractureModifierData *fmd, Object *ob);
 
 FracMesh* BKE_fracture_fracmesh_copy(FracMesh* fm)
@@ -5656,7 +5652,7 @@ static void do_refresh(FractureModifierData *fmd, Object *ob, Mesh* dm, Mesh *or
                 BM_mesh_free(fmd->visible_mesh);
                 fmd->visible_mesh = NULL;
             }
-            do_halving(fmd, ob, dm, orig_dm, false, -1, scene);
+            BKE_fracture_do_halving(fmd, ob, dm, orig_dm, false, -1, scene);
             fmd->explo_shared = false;
         }
     }
@@ -5734,7 +5730,7 @@ static void do_island_index_map(FractureModifierData *fmd, Object* ob)
     }
 }
 
-static Mesh *doSimulate(FractureModifierData *fmd, Object *ob, Mesh *dm, Mesh *orig_dm,
+Mesh *BKE_fracture_prefractured_do(FractureModifierData *fmd, Object *ob, Mesh *dm, Mesh *orig_dm,
                                char names [][66], int count, Scene* scene)
 {
     bool exploOK = false; /* doFracture */

@@ -46,6 +46,14 @@ class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
 
         if rbo is not None:
             layout.prop(rbo, "type", text="Type")
+            row = layout.row()
+            if rbo.type == 'ACTIVE':
+                row.prop(rbo, "enabled", text="Dynamic")
+            row.prop(rbo, "kinematic", text="Animated")
+            if rbo.type == 'ACTIVE':
+                row = layout.row()
+                row.prop(rbo, "use_kinematic_deactivation", text="Triggered")
+                row.prop(rbo, "is_trigger")
 
             if rbo.type == 'ACTIVE':
                 layout.prop(rbo, "mass")
@@ -54,6 +62,35 @@ class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
             if rbo.type == 'ACTIVE':
                 col.prop(rbo, "enabled", text="Dynamic")
             col.prop(rbo, "kinematic", text="Animated")
+
+
+class PHYSICS_PT_rigid_body_trigger_advanced(PHYSICS_PT_rigidbody_panel, Panel):
+    bl_label = "Rigid Body Trigger Advanced"
+    bl_parent_id = 'PHYSICS_PT_rigid_body'
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return (obj and obj.rigid_body and
+        (context.scene.render.engine in cls.COMPAT_ENGINES))
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        ob = context.object
+        rbo = ob.rigid_body
+
+        row = layout.row()
+        row.prop(rbo, "is_ghost")
+        row.prop(rbo, "propagate_trigger")
+        row = layout.row()
+        row.prop(rbo, "constraint_dissolve")
+        row.prop(rbo, "dynamic_trigger")
+        row = layout.row()
+        row.prop(rbo, "plastic_dissolve")
+        row.prop(rbo, "stop_trigger")
 
 
 class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
@@ -221,6 +258,8 @@ class PHYSICS_PT_rigid_body_dynamics_deactivation(PHYSICS_PT_rigidbody_panel, Pa
         col.prop(rbo, "deactivate_linear_velocity", text="Linear Velocity")
         col.prop(rbo, "deactivate_angular_velocity", text="Angular Velocity")
         # TODO: other params such as time?
+        col.label(text="Activation:")
+        col.prop(rbo, "force_threshold", text="Force Thresh")
 
 
 classes = (

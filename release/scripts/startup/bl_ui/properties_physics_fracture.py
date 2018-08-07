@@ -37,17 +37,7 @@ class PhysicButtonsPanel():
     @classmethod
     def poll(cls, context):
         ob = context.object
-        rd = context.scene.render
-        return (ob and (ob.type == 'MESH' or ob.type == 'CURVE' or ob.type == 'SURFACE' or ob.type == 'FONT')) and (not rd.use_game_engine) and (context.fracture)
-
-#class FRACTURE_UL_fracture_settings(UIList):
-#    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-#        fl = item
-#        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-#            layout.prop(fl, "name", text="", emboss=False, icon_value=icon)
-#        elif self.layout_type in {'GRID'}:
-#            layout.alignment = 'CENTER'
-#            layout.label(text="", icon_value=icon)
+        return ob and (ob.type == 'MESH') and context.fracture
 
 class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
     bl_label = "Fracture Animated Mesh Settings"
@@ -65,8 +55,6 @@ class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
         row.prop(md, "animated_mesh_input")
         row = layout.row()
         row.operator("object.fracture_anim_bind", text="Bind", icon="UV_VERTEXSEL")
-
-#       layout.template_list("FRACTURE_UL_fracture_settings", "", md, "fracture_settings", md, "active_setting", rows=3)
 
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     bl_label = "Fracture Settings"
@@ -116,10 +104,7 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
         layout.prop(md, "frac_algorithm")
         if md.frac_algorithm in {'BOOLEAN', 'BOOLEAN_FRACTAL'}:
             col = layout.column(align=True)
-            col.label(text="Boolean Solver:")
-            col.prop(md, "boolean_solver", text="")
-            if md.boolean_solver == 'BMESH':
-                col.prop(md, "boolean_double_threshold")
+            col.prop(md, "boolean_double_threshold")
         col = layout.column(align=True)
         col.prop(md, "shard_count")
         col.prop(md, "point_seed")

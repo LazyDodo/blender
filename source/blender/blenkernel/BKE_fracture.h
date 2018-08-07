@@ -185,4 +185,7 @@ void BKE_fracture_mesh_island_free(struct FractureModifierData *rmd, struct Mesh
 
 short BKE_fracture_collect_materials(struct Main* bmain, struct Object* o, struct Object* ob, int matstart, struct GHash** mat_index_map);
 
+struct Mesh *BKE_fracture_prefractured_do(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *dm,
+                                          struct Mesh *orig_dm, char names [][66], int count, struct Scene* scene);
+
 #endif /* BKE_FRACTURE_H */
