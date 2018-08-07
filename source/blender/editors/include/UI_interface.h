@@ -103,6 +103,7 @@ enum {
 	UI_EMBOSS_NONE          = 1,  /* Nothing, only icon and/or text */
 	UI_EMBOSS_PULLDOWN      = 2,  /* Pulldown menu style */
 	UI_EMBOSS_RADIAL        = 3,  /* Pie Menu */
+	UI_EMBOSS_LINK          = 4,  /* Benchmark: special link drawing */
 
 	UI_EMBOSS_UNDEFINED     = 255, /* For layout engine, use emboss from block. */
 };

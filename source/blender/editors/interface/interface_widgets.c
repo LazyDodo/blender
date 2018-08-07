@@ -1316,7 +1316,7 @@ static void widget_draw_icon_ex(
 			/* special case - icon_only pie buttons */
 			if (ui_block_is_pie_menu(but->block) && !ELEM(but->type, UI_BTYPE_MENU, UI_BTYPE_POPOVER) && but->str && but->str[0] == '\0')
 				xs = rect->xmin + 2.0f * ofs;
-			else if (but->dt == UI_EMBOSS_NONE || but->type == UI_BTYPE_LABEL)
+			else if (ELEM(but->dt, UI_EMBOSS_NONE, UI_EMBOSS_LINK) || but->type == UI_BTYPE_LABEL)
 				xs = rect->xmin + 2.0f * ofs;
 			else
 				xs = rect->xmin + 4.0f * ofs;
@@ -1953,6 +1953,17 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 		if (drawlen > 0) {
 			UI_fontstyle_draw_ex(fstyle, rect, drawstr + but->ofs, (unsigned char *)wcol->text,
 			                     drawlen, &font_xofs, &font_yofs);
+
+			if (but->dt == UI_EMBOSS_LINK && (but->flag & UI_ACTIVE)) {
+				float underline_col[4];
+				int underline_width = UI_fontstyle_string_width(fstyle, drawstr + but->ofs);
+			    int rect_x = BLI_rcti_size_x(rect);
+
+				rgba_uchar_to_float(underline_col, (unsigned char *)wcol->text);
+				GPU_blend(true);
+				UI_draw_text_underline(rect->xmin + font_xofs, rect->ymin + 8 * U.pixelsize, min_ii(underline_width, rect_x - 2), 1, underline_col);
+				GPU_blend(false);
+			}
 
 			if (but->menu_key != '\0') {
 				char fixedbuf[128];
@@ -4063,7 +4074,7 @@ void ui_draw_but(const bContext *C, ARegion *ar, uiStyle *style, uiBut *but, rct
 				break;
 		}
 	}
-	else if (but->dt == UI_EMBOSS_NONE) {
+	else if (ELEM(but->dt, UI_EMBOSS_NONE, UI_EMBOSS_LINK)) {
 		/* "nothing" */
 		switch (but->type) {
 			case UI_BTYPE_LABEL:
