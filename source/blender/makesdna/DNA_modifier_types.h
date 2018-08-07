@@ -90,7 +90,7 @@ typedef enum ModifierType {
 	eModifierType_CorrectiveSmooth  = 51,
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
-	eModifierType_Fracture          = (1 << 20),
+    eModifierType_Fracture          = 54,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 

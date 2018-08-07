@@ -9013,19 +9013,6 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 	return bhead;
 }
 
-static void fix_fracture_image_hack(Main* main)
-{
-	Object *ob;
-
-	for (ob = main->object.first; ob; ob = ob->id.next) {
-		FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
-		if (fmd && fmd->dm_group) {
-			fmd->refresh_images = true;
-			fmd->refresh = true;
-		}
-	}
-}
-
 BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
 {
 	BHead *bhead = blo_firstbhead(fd);
@@ -9125,8 +9112,6 @@ BlendFileData *blo_read_file_internal(FileData *fd, const char *filepath)
 	blo_join_main(&mainlist);
 
 	lib_link_all(fd, bfd->main);
-
-	fix_fracture_image_hack(bfd->main);
 
 	/* Skip in undo case. */
 	if (fd->memfile == NULL) {

@@ -112,7 +112,7 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
         if md.frac_algorithm in {'BOOLEAN', 'BISECT_FILL', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}:
             col = layout.column()
             col.prop(md, "inner_material")
-            col.prop_search(md, "uv_layer", ob.data, "uv_textures")
+            col.prop_search(md, "uv_layer", ob.data, "uv_layers")
         if md.frac_algorithm == 'BOOLEAN_FRACTAL':
             col = layout.column(align=True)
             row = col.row(align=True)

@@ -238,7 +238,7 @@ static void copyData(ModifierData *md, ModifierData *target)
 	trmd->use_mass_dependent_thresholds = rmd->use_mass_dependent_thresholds;
 	trmd->explo_shared = rmd->explo_shared;
 
-	trmd->refresh = true; //ensure valid data ?
+    trmd->refresh = false; //ensure valid data ?
 	trmd->constraint_limit = rmd->constraint_limit;
 	trmd->breaking_angle = rmd->breaking_angle;
 	trmd->breaking_distance = rmd->breaking_distance;
@@ -440,7 +440,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 
 
     /* We need own transformation as well. */
-    DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Fracture Modifier");
+    //DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Fracture Modifier");
 }
 
 static void foreachObjectLink(
@@ -496,7 +496,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
     Mesh *pack_dm = BKE_fracture_mesh_from_packdata(fmd, derivedData);
     Mesh *final_dm = derivedData;
     Object* ob = ctx->object;
-    Scene* scene = DEG_get_input_scene(ctx->depsgraph); //or evaluated ?
+    Scene* scene = DEG_get_evaluated_scene(ctx->depsgraph); //or evaluated ?
 
 	if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
 	{
