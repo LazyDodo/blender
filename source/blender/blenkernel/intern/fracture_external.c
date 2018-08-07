@@ -338,7 +338,7 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
     copy_qt_qt(mi->rot, quat);
     copy_v3_v3(mi->centroid, loc);
 
-    mi->rigidbody = BKE_rigidbody_create_shard(scene, own, target, mi);
+    mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
     if (mi->rigidbody)
     {
         mi->rigidbody->meshisland_index = mi->id;

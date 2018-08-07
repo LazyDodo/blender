@@ -71,6 +71,7 @@
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_runtime.h"
 #include "BKE_object.h"
@@ -981,37 +982,119 @@ RigidBodyWorld *BKE_rigidbody_create_world(Scene *scene)
 	rbw->steps_per_second = 60; /* Bullet default (60 Hz) */
 	rbw->num_solver_iterations = 10; /* 10 is bullet default */
 
-	rbw->shared->pointcache = BKE_ptcache_add(&(rbw->shared->ptcaches));
-	rbw->shared->pointcache->step = 1;
+	rbw->pointcache = BKE_ptcache_add(&(rbw->ptcaches));
+	rbw->pointcache->step = 1;
+	rbw->flag &=~ RBW_FLAG_OBJECT_CHANGED;
+	rbw->flag &=~ RBW_FLAG_REFRESH_MODIFIERS;
+
+	rbw->objects = MEM_mallocN(sizeof(Object *), "objects");
+	rbw->cache_index_map = MEM_mallocN(sizeof(RigidBodyOb *), "cache_index_map");
+	rbw->cache_offset_map = MEM_mallocN(sizeof(int), "cache_offset_map");
 
 	/* return this sim world */
 	return rbw;
 }
 
+/* Add rigid body settings to the specified shard */
+RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, Object *target, MeshIsland *mi)
+{
+	RigidBodyOb *rbo;
+	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
+	float centr[3], size[3], mat[4][4];
+
+	/* sanity checks
+	 *	- rigidbody world must exist
+	 *	- shard must exist
+	 *	- cannot add rigid body if it already exists
+	 */
+	if (mi == NULL || (mi->rigidbody != NULL))
+		return NULL;
+
+	if (ob->type != OB_MESH && ob->type != OB_FONT && ob->type != OB_CURVE && ob->type != OB_SURF) {
+		return NULL;
+	}
+	
+	if ((ob->type == OB_MESH) && (((Mesh *)ob->data)->totvert == 0)) {
+		return NULL;
+	}
+
+	/* Add rigid body world and group if they don't exist for convenience */
+	if (rbw == NULL) {
+		rbw = BKE_rigidbody_create_world(scene);
+		BKE_rigidbody_validate_sim_world(scene, rbw, false);
+		scene->rigidbody_world = rbw;
+	}
+	if (rbw->group == NULL) {
+        rbw->group = BKE_collection_add(bmain, NULL, "RigidBodyWorld");
+	}
+
+	/* make rigidbody object settings */
+	if (ob->rigidbody_object == NULL) {
+		ob->rigidbody_object = BKE_rigidbody_create_object(scene, ob, RBO_TYPE_ACTIVE, NULL);
+	}
+	else {
+		ob->rigidbody_object->type = RBO_TYPE_ACTIVE;
+		ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_VALIDATE;
+	}
+
+    if (!BKE_collection_has_object(rbw->group, ob))
+        BKE_collection_object_add(bmain, rbw->group, ob);
+
+    DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+
+	/* since we are always member of an object, dupe its settings,
+	 * create new settings data, and link it up */
+	if (target && target->rigidbody_object)
+	{
+        rbo = BKE_rigidbody_copy_object(target, 0);
+		mat4_to_loc_quat(rbo->pos, rbo->orn, target->obmat);
+		zero_v3(rbo->lin_vel);
+		zero_v3(rbo->ang_vel);
+	}
+	else
+	{
+		/* regular FM case */
+        rbo = BKE_rigidbody_copy_object(ob, 0);
+		rbo->type = mi->ground_weight > 0.01f ? RBO_TYPE_PASSIVE : RBO_TYPE_ACTIVE;
+
+		/* set initial transform */
+		mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
+		mat4_to_size(size, ob->obmat);
+
+		//add initial "offset" (centroid), maybe subtract ob->obmat ?? (not sure)
+		copy_v3_v3(centr, mi->centroid);
+		mul_v3_v3(centr, size);
+		mul_qt_v3(rbo->orn, centr);
+		add_v3_v3(rbo->pos, centr);
+		zero_v3(rbo->lin_vel);
+		zero_v3(rbo->ang_vel);
+	}
+
+	/* return this object */
+	return rbo;
+}
+
 RigidBodyWorld *BKE_rigidbody_world_copy(RigidBodyWorld *rbw, const int flag)
 {
-	RigidBodyWorld *rbw_copy = MEM_dupallocN(rbw);
+	RigidBodyWorld *rbwn = MEM_dupallocN(rbw);
 
-	if (rbw->effector_weights) {
-		rbw_copy->effector_weights = MEM_dupallocN(rbw->effector_weights);
-	}
-	if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
-		id_us_plus((ID *)rbw_copy->group);
-		id_us_plus((ID *)rbw_copy->constraints);
-	}
+	if (rbw->effector_weights)
+		rbwn->effector_weights = MEM_dupallocN(rbw->effector_weights);
+	if (rbwn->group)
+		id_us_plus(&rbwn->group->id);
+	if (rbwn->constraints)
+		id_us_plus(&rbwn->constraints->id);
 
-	if ((flag & LIB_ID_CREATE_NO_MAIN) == 0) {
-		/* This is a regular copy, and not a CoW copy for depsgraph evaluation */
-		rbw_copy->shared = MEM_callocN(sizeof(*rbw_copy->shared), "RigidBodyWorld_Shared");
-		BKE_ptcache_copy_list(&rbw_copy->shared->ptcaches, &rbw->shared->ptcaches, LIB_ID_COPY_CACHES);
-		rbw_copy->shared->pointcache = rbw_copy->shared->ptcaches.first;
-	}
+    rbwn->shared->pointcache = NULL; // BKE_ptcache_copy_list(&rbwn->ptcaches, &rbw->ptcaches, true);
 
-	rbw_copy->objects = NULL;
-	rbw_copy->numbodies = 0;
-	rigidbody_update_ob_array(rbw_copy);
+	rbwn->objects = NULL;
+    rbwn->shared->physics_world = NULL;
+	rbwn->numbodies = 0;
 
-	return rbw_copy;
+	rbwn->cache_index_map = NULL;
+	rbwn->cache_offset_map = NULL;
+
+	return rbwn;
 }
 
 void BKE_rigidbody_world_groups_relink(RigidBodyWorld *rbw)
@@ -1355,15 +1438,145 @@ RigidBodyWorld *BKE_rigidbody_get_world(Scene *scene)
 	return scene->rigidbody_world;
 }
 
-void BKE_rigidbody_remove_object(struct Main *bmain, Scene *scene, Object *ob)
+void BKE_rigidbody_remove_shard_con(Scene *scene, RigidBodyShardCon *con)
 {
 	RigidBodyWorld *rbw = scene->rigidbody_world;
+    if (rbw && rbw->shared->physics_world && con && con->physics_constraint) {
+        RB_dworld_remove_constraint(rbw->shared->physics_world, con->physics_constraint);
+		RB_constraint_delete(con->physics_constraint);
+		con->physics_constraint = NULL;
+	}
+}
+
+void BKE_rigidbody_remove_shard(Scene *scene, MeshIsland *mi)
+{
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	int i = 0;
+	
+	/* rbw can be NULL directly after linking / appending objects without their original scenes
+	 * if an attempt to refracture is done then, this would crash here with null pointer access */
+	if (mi->rigidbody != NULL && rbw != NULL) {
+		
+		RigidBodyShardCon *con;
+
+		for (i = 0; i < mi->participating_constraint_count; i++) {
+			con = mi->participating_constraints[i];
+			BKE_rigidbody_remove_shard_con(scene, con);
+		}
+		
+        if (rbw->shared->physics_world && mi->rigidbody && mi->rigidbody->shared->physics_object)
+            RB_dworld_remove_body(rbw->shared->physics_world, mi->rigidbody->shared->physics_object);
+
+        if (mi->rigidbody->shared->physics_object) {
+            RB_body_delete(mi->rigidbody->shared->physics_object);
+            mi->rigidbody->shared->physics_object = NULL;
+		}
+
+        if (mi->rigidbody->shared->physics_shape) {
+            RB_shape_delete(mi->rigidbody->shared->physics_shape);
+            mi->rigidbody->shared->physics_shape = NULL;
+		}
+
+		/* this SHOULD be the correct global index, mark with NULL as 'dirty' BEFORE deleting */
+		/* need to check whether we didnt create the rigidbody world manually already, prior to fracture, in this
+		 * case cache_index_map might be not initialized ! checking numbodies here, they should be 0 in a fresh
+		 * rigidbody world */
+#if 0
+		if ((rbw->cache_index_map != NULL) && (rbw->numbodies > 0) && mi->linear_index < rbw->numbodies) {
+			//mi->rigidbody = NULL;
+			rbw->cache_index_map[mi->linear_index] = NULL;
+		}
+#endif
+
+		if (rbw->cache_index_map != NULL) {
+			MEM_freeN(rbw->cache_index_map);
+			rbw->cache_index_map = NULL;
+		}
+
+		//BKE_rigidbody_update_ob_array(rbw);
+	}
+}
+
+static bool do_remove_modifier(RigidBodyWorld* rbw, ModifierData *md, Object *ob)
+{
+	RigidBodyShardCon *con;
+	MeshIsland *mi;
+	FractureModifierData *fmd;
+	bool modFound = false;
+
+	if (md->type == eModifierType_Fracture)
+	{
+		fmd = (FractureModifierData *)md;
+		modFound = true;
+        CollectionObject *go;
+
+		for (con = fmd->meshConstraints.first; con; con = con->next) {
+            if (rbw && rbw->shared->physics_world && con->physics_constraint) {
+                RB_dworld_remove_constraint(rbw->shared->physics_world, con->physics_constraint);
+				RB_constraint_delete(con->physics_constraint);
+				con->physics_constraint = NULL;
+			}
+		}
+
+		/*if we are part of a connected object, delete the parent's constraints here too*/
+		for (go = rbw->group->gobject.first; go; go = go->next)
+		{
+			FractureModifierData *fmdi = (FractureModifierData*)modifiers_findByType(go->ob, eModifierType_Fracture);
+			if (fmdi && ob != go->ob)
+			{
+				for (con = fmdi->meshConstraints.first; con; con = con->next) {
+                    if (rbw && rbw->shared->physics_world && con->physics_constraint) {
+                        RB_dworld_remove_constraint(rbw->shared->physics_world, con->physics_constraint);
+						RB_constraint_delete(con->physics_constraint);
+						con->physics_constraint = NULL;
+					}
+				}
+			}
+		}
+
+
+		for (mi = fmd->meshIslands.first; mi; mi = mi->next) {
+			if (mi->rigidbody != NULL) {
+                if (rbw->shared->physics_world && mi->rigidbody && mi->rigidbody->shared->physics_object)
+                    RB_dworld_remove_body(rbw->shared->physics_world, mi->rigidbody->shared->physics_object);
+                if (mi->rigidbody->shared->physics_object) {
+                    RB_body_delete(mi->rigidbody->shared->physics_object);
+                    mi->rigidbody->shared->physics_object = NULL;
+				}
+
+                if (mi->rigidbody->shared->physics_shape) {
+                    RB_shape_delete(mi->rigidbody->shared->physics_shape);
+                    mi->rigidbody->shared->physics_shape = NULL;
+                }
+
+				if (rbw->cache_index_map != NULL) {
+					MEM_freeN(rbw->cache_index_map);
+					rbw->cache_index_map = NULL;
+				}
+
+				MEM_freeN(mi->rigidbody);
+				mi->rigidbody = NULL;
+			}
+		}
+	}
+
+	return modFound;
+}
+
+void BKE_rigidbody_remove_object(Main *bmain, Scene *scene, Object *ob)
+{
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	RigidBodyOb *rbo = ob->rigidbody_object;
 	RigidBodyCon *rbc;
+	ModifierData *md;
 	int i;
 	bool modFound = false;
-    RigidBodyOb* rbo = ob->rigidbody_object;
 
 	if (rbw) {
+		for (md = ob->modifiers.first; md; md = md->next) {
+			modFound = do_remove_modifier(rbw, md, ob);
+		}
+
 		if (!modFound) {
 			/* remove from rigidbody world, free object won't do this */
             if (rbw->shared->physics_world && rbo->shared->physics_object)
@@ -1860,7 +2073,7 @@ static void rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool 
 					rigidbody_validate_sim_shape(ob, true);
 					/* now tell RB sim about it */
 					// XXX: we assume that this can only get applied for active/passive shapes that will be included as rigidbodies
-					RB_body_set_collision_shape(rbo->shared->physics_object, rbo->shared->physics_shape);
+                    RB_body_set_collision_shape(rbo->shared->physics_object, rbo->shared->physics_shape);
 				}
 				rbo->flag &= ~(RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 			}
@@ -1870,71 +2083,147 @@ static void rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool 
 		}
 	}
 
+    if (rbw->shared->physics_world && rbw->flag & RBW_FLAG_REBUILD_CONSTRAINTS)
+	{
+		double start = PIL_check_seconds_timer();
+        RB_dworld_init_compounds(rbw->shared->physics_world);
+		printf("Building compounds done, %g\n", PIL_check_seconds_timer() - start);
+	}
+
+	rbw->flag &= ~RBW_FLAG_REFRESH_MODIFIERS;
+
 	/* update constraints */
 	if (rbw->constraints == NULL) /* no constraints, move on */
 		return;
+	for (go = rbw->constraints->gobject.first; go; go = go->next) {
+		Object *ob = go->ob;
 
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->constraints, ob)
-	{
-		/* validate that we've got valid object set up here... */
-		RigidBodyCon *rbc = ob->rigidbody_constraint;
-		/* update transformation matrix of the object so we don't get a frame of lag for simple animations */
-		BKE_object_where_is_calc(depsgraph, scene, ob);
+		if (ob) {
+			/* validate that we've got valid object set up here... */
+			RigidBodyCon *rbc = ob->rigidbody_constraint;
+			/* update transformation matrix of the object so we don't get a frame of lag for simple animations */
+            BKE_object_where_is_calc(depsgraph, scene, ob);
 
-		if (rbc == NULL) {
-			/* Since this object is included in the group but doesn't have
-			 * constraint settings (perhaps it was added manually), add!
-			 */
-            ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, RBC_TYPE_FIXED, NULL);
-            rigidbody_validate_sim_constraint(scene, ob, true);
-
-			rbc = ob->rigidbody_constraint;
-		}
-		else {
-			/* perform simulation data updates as tagged */
-			if (rebuild) {
-				/* World has been rebuilt so rebuild constraint */
+			if (rbc == NULL) {
+				/* Since this object is included in the group but doesn't have
+				 * constraint settings (perhaps it was added manually), add!
+				 */
+				ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, RBC_TYPE_FIXED, NULL);
                 rigidbody_validate_sim_constraint(scene, ob, true);
+
+				rbc = ob->rigidbody_constraint;
 			}
-			else if (rbc->flag & RBC_FLAG_NEEDS_VALIDATE) {
-                rigidbody_validate_sim_constraint(scene, ob, false);
+			else {
+				/* perform simulation data updates as tagged */
+				if (rebuild) {
+					/* World has been rebuilt so rebuild constraint */
+					rigidbody_validate_sim_constraint(rbw, ob, true);
+				}
+				else if (rbc->flag & RBC_FLAG_NEEDS_VALIDATE) {
+					rigidbody_validate_sim_constraint(rbw, ob, false);
+				}
+				rbc->flag &= ~RBC_FLAG_NEEDS_VALIDATE;
 			}
-			rbc->flag &= ~RBC_FLAG_NEEDS_VALIDATE;
+
+			if (rbc->physics_constraint)
+			{
+				RigidBodyOb *rbo1 = rbc->ob1->rigidbody_object;
+				RigidBodyOb *rbo2 = rbc->ob2->rigidbody_object;
+
+				if ((rbo1->force_thresh > 0 || rbo2->force_thresh > 0))
+				{
+					if (RB_constraint_get_applied_impulse(rbc->physics_constraint) >= rbo1->force_thresh + rbo2->force_thresh)
+					{
+						RB_constraint_set_enabled(rbc->physics_constraint, false);
+						activateRigidbody(rbo1, rbw, NULL, rbc->ob1);
+						activateRigidbody(rbo2, rbw, NULL, rbc->ob2);
+					}
+				}
+			}
 		}
 	}
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 }
 
-static void rigidbody_update_simulation_post_step(Depsgraph *depsgraph, RigidBodyWorld *rbw)
+static ThreadMutex post_step_lock = BLI_MUTEX_INITIALIZER;
+static void rigidbody_update_simulation_post_step(RigidBodyWorld *rbw)
 {
-	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
+    CollectionObject *go;
+	ModifierData *md;
+	FractureModifierData *rmd;
+	int modFound = false;
+	RigidBodyOb *rbo;
+	MeshIsland *mi;
 
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, ob)
-	{
-		Base *base = BKE_view_layer_base_find(view_layer, ob);
-		RigidBodyOb *rbo = ob->rigidbody_object;
-		/* Reset kinematic state for transformed objects. */
-		if (rbo && base && (base->flag & BASE_SELECTED) && (G.moving & G_TRANSFORM_OBJ)) {
-			RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC || rbo->flag & RBO_FLAG_DISABLED);
-			RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
-			/* Deactivate passive objects so they don't interfere with deactivation of active objects. */
-			if (rbo->type == RBO_TYPE_PASSIVE)
-				RB_body_deactivate(rbo->shared->physics_object);
+	for (go = rbw->group->gobject.first; go; go = go->next) {
+
+		Object *ob = go->ob;
+		//handle fractured rigidbodies, maybe test for psys as well ?
+		BLI_mutex_lock(&post_step_lock);
+		for (md = ob->modifiers.first; md; md = md->next) {
+			if (md->type == eModifierType_Fracture) {
+				rmd = (FractureModifierData *)md;
+				if (isModifierActive(rmd)) {
+					for (mi = rmd->meshIslands.first; mi; mi = mi->next) {
+						rbo = mi->rigidbody;
+						if (!rbo) continue;
+						/* reset kinematic state for transformed objects */
+                        if (rbo->shared->physics_object && ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ) {
+                            RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC || rbo->flag & RBO_FLAG_DISABLED);
+                            RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
+							/* deactivate passive objects so they don't interfere with deactivation of active objects */
+							if (rbo->type == RBO_TYPE_PASSIVE)
+                                RB_body_deactivate(rbo->shared->physics_object);
+						}
+
+						/* update stored velocities, can be set again after sim rebuild */
+                        if (rmd->fracture_mode == MOD_FRACTURE_DYNAMIC && rbo->shared->physics_object)
+						{
+							if (!(rbo->flag & RBO_FLAG_KINEMATIC))
+							{
+                                RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
+                                RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
+							}
+						}
+					}
+					modFound = true;
+					break;
+				}
+			}
 		}
+		BLI_mutex_unlock(&post_step_lock);
+
+		/* handle regular rigidbodies */
+		if (ob && ob->rigidbody_object && !modFound) {
+			rbo = ob->rigidbody_object;
+			/* reset kinematic state for transformed objects */
+			if (rbo && (ob->flag & SELECT) && (G.moving & G_TRANSFORM_OBJ)) {
+                RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC || rbo->flag & RBO_FLAG_DISABLED);
+                RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
+				/* deactivate passive objects so they don't interfere with deactivation of active objects */
+				if (rbo->type == RBO_TYPE_PASSIVE)
+                    RB_body_deactivate(rbo->shared->physics_object);
+			}
+
+			if (!(rbo->flag & RBO_FLAG_KINEMATIC))
+			{
+                RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
+                RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
+			}
+		}
+		modFound = false;
 	}
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 }
 
 bool BKE_rigidbody_check_sim_running(RigidBodyWorld *rbw, float ctime)
 {
-	return (rbw && (rbw->flag & RBW_FLAG_MUTED) == 0 && ctime > rbw->shared->pointcache->startframe);
+	return (rbw && (rbw->flag & RBW_FLAG_MUTED) == 0 && ctime > rbw->pointcache->startframe);
 }
 
 /* Sync rigid body and object transformations */
 static ThreadMutex modifier_lock = BLI_MUTEX_INITIALIZER;
-void BKE_rigidbody_sync_transforms(Scene* scene, Object *ob, float ctime)
+void BKE_rigidbody_sync_transforms(Scene *scene, Object *ob, float ctime)
 {
-    RigidBodyWorld *rbw = scene->rigidbody_world;
+    RigidBodyWorld *rbw = scene->rigidbody_world; //take later other rbws into account too !
 	RigidBodyOb *rbo = NULL;
 	ModifierData *md;
 	int modFound = false;
@@ -2270,7 +2559,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 		/* step simulation by the requested timestep, steps per second are adjusted to take time scale into account */
 		RB_dworld_step_simulation(rbw->shared->physics_world, timestep, INT_MAX, 1.0f / (float)rbw->steps_per_second * min_ff(rbw->time_scale, 1.0f));
 
-		rigidbody_update_simulation_post_step(depsgraph, rbw);
+        rigidbody_update_simulation_post_step(rbw);
 
 		/* write cache for current frame */
 		BKE_ptcache_validate(cache, (int)ctime);

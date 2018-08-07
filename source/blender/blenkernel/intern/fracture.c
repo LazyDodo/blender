@@ -42,6 +42,7 @@
 #include "BKE_fracture_util.h"
 #include "BKE_global.h"
 #include "BKE_material.h"
+#include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -4319,10 +4320,10 @@ static int do_shard_to_island(FractureModifierData *fmd, BMesh* bm_new, ShardID 
 }
 
 //bke
-static void do_rigidbody(Scene* scene, MeshIsland* mi, Object* ob, Mesh *orig_dm, short rb_type, int i)
+static void do_rigidbody(Main* bmain, Scene* scene, MeshIsland* mi, Object* ob, Mesh *orig_dm, short rb_type, int i)
 {
     mi->rigidbody = NULL;
-    mi->rigidbody = BKE_rigidbody_create_shard(scene, ob, NULL, mi);
+    mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);
     mi->rigidbody->type = rb_type;
     mi->rigidbody->meshisland_index = i;
     BKE_rigidbody_calc_shard_mass(ob, mi, orig_dm);
@@ -4369,7 +4370,7 @@ static void do_fix_normals(FractureModifierData *fmd, MeshIsland *mi)
 
 static float do_setup_meshisland(FractureModifierData *fmd, Object *ob, int totvert, float centroid[3],
                                  BMVert **verts, float *vertco, short *vertno, BMesh **bm_new, Mesh *orig_dm,
-                                 int id, Scene *scene)
+                                 int id, Scene *scene, Main *bmain)
 {
     MeshIsland *mi;
     Mesh *dm;
@@ -4462,7 +4463,7 @@ static float do_setup_meshisland(FractureModifierData *fmd, Object *ob, int totv
 
     rb_type = do_vert_index_map(fmd, mi, NULL);
     i = BLI_listbase_count(&fmd->meshIslands);
-    do_rigidbody(scene, mi, ob, orig_dm, rb_type, i);
+    do_rigidbody(bmain, scene, mi, ob, orig_dm, rb_type, i);
 
     mi->start_frame = scene->rigidbody_world->shared->pointcache->startframe;
     BLI_addtail(&fmd->meshIslands, mi);
@@ -4513,7 +4514,8 @@ static float mesh_separate_tagged(FractureModifierData *fmd, Object *ob, BMVert 
         sub_v3_v3(v->co, centroid);
     }
 
-    vol = do_setup_meshisland(fmd, ob, v_count, centroid, v_tag, startco, startno, &bm_new, orig_dm, id, scene);
+    //xxxx need some solution for G.main
+    vol = do_setup_meshisland(fmd, ob, v_count, centroid, v_tag, startco, startno, &bm_new, orig_dm, id, scene, G.main);
 
     /* deselect loose data - this used to get deleted,
      * we could de-select edges and verts only, but this turns out to be less complicated
@@ -5251,7 +5253,7 @@ void set_rigidbody_type(FractureModifierData *fmd, Shard *s, MeshIsland *mi)
 #endif
 
 static void do_island_from_shard(FractureModifierData *fmd, Object *ob, Shard* s, Mesh *orig_dm,
-                                 int i, int thresh_defgrp_index, int ground_defgrp_index, int vertstart, Scene *scene)
+                                 int i, int thresh_defgrp_index, int ground_defgrp_index, int vertstart, Scene *scene, Main *bmain)
 {
     MeshIsland *mi;
     MeshIsland *par = NULL;
@@ -5391,7 +5393,7 @@ static void do_island_from_shard(FractureModifierData *fmd, Object *ob, Shard* s
     mi->neighbor_count = s->neighbor_count;
 
     rb_type = do_vert_index_map(fmd, mi, par);
-    do_rigidbody(scene, mi, ob, orig_dm, rb_type, i);
+    do_rigidbody(bmain, scene, mi, ob, orig_dm, rb_type, i);
 
     if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
     {
@@ -5478,7 +5480,9 @@ MDeformVert* BKE_fracture_shards_to_islands(FractureModifierData* fmd, Object* o
     shardlist = fmd->frac_mesh->shard_map;
 
     for (s = shardlist.first; s; s = s->next) {
-        do_island_from_shard(fmd, ob, s, orig_dm, i, thresh_defgrp_index, ground_defgrp_index, vertstart, scene);
+
+        // XXX need some solution for G.main...
+        do_island_from_shard(fmd, ob, s, orig_dm, i, thresh_defgrp_index, ground_defgrp_index, vertstart, scene, G.main);
         vertstart += s->totvert;
         i++;
     }
