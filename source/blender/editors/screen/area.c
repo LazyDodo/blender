@@ -493,8 +493,6 @@ void ED_region_do_draw(bContext *C, ARegion *ar)
 	/* XXX test: add convention to end regions always in pixel space, for drawing of borders/gestures etc */
 	ED_region_pixelspace(ar);
 
-	ED_region_draw_cb_draw(C, ar, REGION_DRAW_POST_PIXEL);
-
 	region_draw_azones(sa, ar);
 
 	/* for debugging unneeded area redraws and partial redraw */
@@ -2213,6 +2211,10 @@ void ED_region_panels_draw(const bContext *C, ARegion *ar)
 
 	/* reset line width for drawing tabs */
 	GPU_line_width(1.0f);
+
+	/* Benchmark; draw under panels. */
+	ED_region_pixelspace(ar);
+	ED_region_draw_cb_draw(C, ar, REGION_DRAW_POST_PIXEL);
 
 	/* set the view */
 	UI_view2d_view_ortho(v2d);
