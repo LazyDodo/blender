@@ -4386,7 +4386,13 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 
 	TIMEIT_START(osd_create);
 
-	osd_eval = create_osd_eval(bm, mesh);
+	if (mmd->osd_eval == NULL){
+		osd_eval = create_osd_eval(bm, mesh);
+		mmd->osd_eval = osd_eval;
+	} else {
+		//TODO make a smarter cache system. Or even better, resuse the OSD data from a subsurf modifier!
+		osd_eval = mmd->osd_eval;
+	}
 
 	TIMEIT_END(osd_create);
 
@@ -4407,7 +4413,6 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 		result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 		BM_mesh_free(bm);
 		BM_mesh_free(bm_orig);
-		openSubdiv_deleteEvaluator(osd_eval);
 		return result;
 	}
 	{
@@ -4508,8 +4513,6 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 	BM_mesh_free(bm);
 	BM_mesh_free(bm_orig);
 
-	openSubdiv_deleteEvaluator(osd_eval);
-
 	result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
 
 	return result;
@@ -4521,6 +4524,15 @@ static void initData(ModifierData *md)
 	MyBMeshModifierData *mmd = (MyBMeshModifierData *) md;
 
 	mmd->camera_ob = NULL;
+	mmd->osd_eval = NULL;
+}
+
+static void freeData(ModifierData *md)
+{
+	MyBMeshModifierData *mmd = (MyBMeshModifierData *) md;
+	if (mmd->osd_eval != NULL){
+	openSubdiv_deleteEvaluator(mmd->osd_eval);
+	}
 }
 
 static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
@@ -4611,7 +4623,7 @@ ModifierTypeInfo modifierType_MyBMesh = {
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,
-	/* freeData */          NULL,
+	/* freeData */          freeData,
 	/* isDisabled */        NULL,
 	/* updateDepsgraph */   updateDepsgraph,
 	/* dependsOnTime */     NULL,

@@ -1499,6 +1499,7 @@ enum {
 typedef struct MyBMeshModifierData {
 	ModifierData modifier;
 	struct Object *camera_ob;
+	void *osd_eval;
 	int flag;  /* options stored here */
 	short pad[2];
 } MyBMeshModifierData;
