@@ -3595,7 +3595,7 @@ static void points_from_greasepencil(Object **ob, int totobj, FracPointCloud *po
     points->totpoints = pt;
 }
 
-static FracPointCloud get_points_global(Depsgraph *depsgraph, FractureModifierData *emd, Object *ob, Mesh *fracmesh, ShardID id)
+FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierData *emd, Object *ob, Mesh *fracmesh, ShardID id)
 {
     FracPointCloud points;
     Scene* scene = DEG_get_input_scene(depsgraph); //do we need the eval one ?
@@ -4113,13 +4113,14 @@ static void cleanup_arrange_shard(FractureModifierData *fmd, Shard* sh, float ce
     }
 }
 
-static void do_fracture_points(FractureModifierData *fmd, Object* obj, Mesh *dm, ShardID id,
+
+void BKE_fracture_points(FractureModifierData *fmd, Object* obj, Mesh *dm, ShardID id,
                                int override_count, Depsgraph* depsgraph, Main *bmain)
 {
     /* dummy point cloud, random */
     FracPointCloud points;
 
-    points = get_points_global(depsgraph, fmd, obj, dm, id);
+    points = BKE_fracture_points_get(depsgraph, fmd, obj, dm, id);
 
     if (points.totpoints > 0 || fmd->use_greasepencil_edges) {
         bool temp = fmd->shards_to_islands;
@@ -4198,7 +4199,7 @@ void BKE_fracture_do(FractureModifierData *fmd, ShardID id, Object *obj, Mesh *d
         for (i = 0; i < count; i++)
         {
             printf("Fracturing Shard ID: %d %d\n", i, ids[i]);
-            do_fracture_points(fmd, obj, dm, ids[i], 0, depsgraph, bmain);
+            BKE_fracture_points(fmd, obj, dm, ids[i], 0, depsgraph, bmain);
         }
 
         fmd->reset_shards = reset;
@@ -4206,7 +4207,7 @@ void BKE_fracture_do(FractureModifierData *fmd, ShardID id, Object *obj, Mesh *d
         MEM_freeN(ids);
     }
     else {
-        do_fracture_points(fmd, obj, dm, id, -1, depsgraph, bmain);
+        BKE_fracture_points(fmd, obj, dm, id, -1, depsgraph, bmain);
     }
 }
 

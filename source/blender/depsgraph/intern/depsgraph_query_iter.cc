@@ -151,7 +151,7 @@ bool deg_objects_dupli_iterator_next(BLI_Iterator *iter)
 		iter->current = &data->temp_dupli_object;
 		BLI_assert(
 		        DEG::deg_validate_copy_on_write_datablock(
-		                &data->temp_dupli_object.id));
+		                &data->temp_dupli_object->id));
 		return true;
 	}
 

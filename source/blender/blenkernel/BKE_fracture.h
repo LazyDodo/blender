@@ -92,7 +92,9 @@ void BKE_fracture_automerge_refresh(struct FractureModifierData* fmd);
 struct Mesh *BKE_fracture_result_mesh(struct FractureModifierData* fmd, struct Mesh *dm, struct Object* ob, bool validMesh,
                                       struct Scene* scene);
 
-FracPointCloud BKE_fracture_points(struct FractureModifierData *fmd, struct Object *ob, struct Mesh* me, ShardID id);
+FracPointCloud BKE_fracture_points_get(struct Depsgraph *depsgraph, struct FractureModifierData *emd,
+                                       struct Object *ob, struct Mesh *fracmesh, ShardID id);
+
 void BKE_fracture_face_calc_center_mean(struct Mesh *dm, struct MPoly *mp, float r_cent[3]);
 
 struct Shard* BKE_fracture_shard_find(struct ListBase *shards, ShardID id);

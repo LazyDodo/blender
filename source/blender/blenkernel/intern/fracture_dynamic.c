@@ -91,7 +91,6 @@ static void fracture_dynamic_update(FractureModifierData *fmd, Object* ob, Scene
 
         while(fid) {
             FracPointCloud points;
-            points = BKE_fracture_points(fmd, ob, dm, fid->shardID);
             totpoint += points.totpoints;
             MEM_freeN(points.points);
             points.totpoints = 0;
