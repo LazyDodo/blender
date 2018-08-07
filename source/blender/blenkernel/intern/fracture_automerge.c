@@ -616,7 +616,7 @@ void BKE_fracture_physics_mesh_normals_fix(FractureModifierData *fmd, Shard* s, 
     int totvert;
     int j;
 
-    mi->physics_mesh = BKE_shard_create_dm(s, true);
+    mi->physics_mesh = BKE_fracture_shard_to_mesh(s, true);
     totvert = mi->physics_mesh->totvert;
     verts = mi->physics_mesh->mvert;
 
@@ -768,7 +768,7 @@ void BKE_fracture_shared_verts_free(ListBase* lb)
     lb->last = NULL;
 }
 
-static void do_refresh_automerge(FractureModifierData* fmd)
+void BKE_fracture_automerge_refresh(FractureModifierData* fmd)
 {
     printf("GAH, refreshing automerge\n");
     BKE_fracture_shared_verts_free(&fmd->shared_verts);
@@ -791,7 +791,7 @@ static void do_refresh_automerge(FractureModifierData* fmd)
     }
 }
 
-static void do_refresh_autohide(FractureModifierData *fmd, Object *ob)
+void BKE_fracture_autohide_refresh(FractureModifierData *fmd, Object *ob)
 {
     fmd->refresh_autohide = false;
     /*HERE make a kdtree of the fractured derivedmesh,

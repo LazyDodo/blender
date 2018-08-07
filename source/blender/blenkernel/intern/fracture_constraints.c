@@ -27,9 +27,6 @@
 static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsland **meshIslands, KDTree **combined_tree,
                               float co[3], Object *ob, Scene *scene);
 
-static void connect_meshislands(Scene* sc, FractureModifierData *fmd, MeshIsland *mi1, MeshIsland *mi2, int con_type,
-                                float thresh);
-
 static void remove_participants(RigidBodyShardCon* con, MeshIsland *mi);
 
 
@@ -287,7 +284,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
                 }
             }
 
-            connect_meshislands(scene, rmd, mi, mi2, con_type, thresh);
+            BKE_fracture_constraint_create(scene, rmd, mi, mi2, con_type, thresh);
         }
     }
 
@@ -297,7 +294,8 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
     }
 }
 
-static void connect_meshislands(Scene* sc, FractureModifierData *fmd, MeshIsland *mi1, MeshIsland *mi2, int con_type, float thresh)
+void BKE_fracture_meshislands_connect(Scene* sc, FractureModifierData *fmd, MeshIsland *mi1, MeshIsland *mi2,
+                                             int con_type, float thresh)
 {
     int con_found = false;
     RigidBodyShardCon *con;
@@ -330,7 +328,7 @@ static void connect_meshislands(Scene* sc, FractureModifierData *fmd, MeshIsland
     }
 
     if (!con_found && ok) {
-        BKE_meshisland_constraint_create(sc, fmd, mi1, mi2, con_type, thresh);
+        BKE_fracture_meshislands_connect(sc, fmd, mi1, mi2, con_type, thresh);
     }
 }
 
@@ -385,7 +383,7 @@ static void remove_participants(RigidBodyShardCon* con, MeshIsland *mi)
     }
 }
 
-void BKE_meshisland_constraint_create(Scene* scene, FractureModifierData* fmd, MeshIsland *mi1, MeshIsland *mi2, int con_type, float thresh)
+void BKE_fracture_constraint_create(Scene* scene, FractureModifierData* fmd, MeshIsland *mi1, MeshIsland *mi2, short con_type, float thresh)
 {
     RigidBodyShardCon *rbsc;
     rbsc = BKE_rigidbody_create_shard_constraint(scene, con_type, fmd->fracture_mode != MOD_FRACTURE_DYNAMIC);
@@ -534,7 +532,7 @@ static void do_clusters(FractureModifierData *fmd, Object* obj)
     do_cluster_count(fmd, obj);
 }
 
-RigidBodyShardCon *BKE_fracture_mesh_islands_connect(Scene *scene, FractureModifierData *fmd,
+RigidBodyShardCon *BKE_fracture_mesh_constraint_create(Scene *scene, FractureModifierData *fmd,
                                                      MeshIsland *mi1, MeshIsland *mi2, short con_type)
 {
     RigidBodyShardCon *rbsc;
@@ -648,3 +646,54 @@ void BKE_fracture_constraints_refresh(FractureModifierData *fmd, Object *ob, Sce
     printf("Building constraints done, %g\n", PIL_check_seconds_timer() - start);
     printf("Constraints: %d\n", BLI_listbase_count(&fmd->meshConstraints));
 }
+
+void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
+{
+    MeshIsland *mi = NULL;
+    RigidBodyShardCon *rbsc = NULL;
+
+    //hmm after loading the pointers might be out of sync...
+    if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
+        if (fmd->current_mi_entry) {
+            fmd->meshIslands = fmd->current_mi_entry->meshIslands;
+        }
+        else {
+            fmd->meshIslands.first = NULL;
+            fmd->meshIslands.last = NULL;
+        }
+    }
+
+    for (mi = fmd->meshIslands.first; mi; mi = mi->next) {
+        if (mi->participating_constraints != NULL && mi->participating_constraint_count > 0) {
+            int i;
+            for (i = 0; i < mi->participating_constraint_count; i++)
+            {
+                RigidBodyShardCon *con = mi->participating_constraints[i];
+                if (con) {
+                    con->mi1 = NULL;
+                    con->mi2 = NULL;
+                }
+            }
+
+            MEM_freeN(mi->participating_constraints);
+            mi->participating_constraints = NULL;
+            mi->participating_constraint_count = 0;
+        }
+    }
+
+    while (fmd->meshConstraints.first) {
+        rbsc = fmd->meshConstraints.first;
+        BLI_remlink(&fmd->meshConstraints, rbsc);
+
+        if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
+        {
+            BKE_rigidbody_remove_shard_con(scene, rbsc);
+        }
+        MEM_freeN(rbsc);
+        rbsc = NULL;
+    }
+
+    fmd->meshConstraints.first = NULL;
+    fmd->meshConstraints.last = NULL;
+}
+

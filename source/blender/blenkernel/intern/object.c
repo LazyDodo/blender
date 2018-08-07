@@ -2244,9 +2244,9 @@ void BKE_object_where_is_calc_time_ex(
 	}
 
 	/* try to fall back to the scene rigid body world if none given */
-	rbw = rbw ? rbw : scene->rigidbody_world;
+    //rbw = rbw ? rbw : scene->rigidbody_world;
 	/* read values pushed into RBO from sim/cache... */
-	BKE_rigidbody_sync_transforms(rbw, ob, ctime);
+    BKE_rigidbody_sync_transforms(scene, ob, ctime);
 
 	/* solve constraints */
 	if (ob->constraints.first && !(ob->transflag & OB_NO_CONSTRAINTS)) {

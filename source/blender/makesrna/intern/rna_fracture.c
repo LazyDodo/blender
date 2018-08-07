@@ -36,6 +36,7 @@
 #include "DNA_fracture_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_rigidbody_types.h"
+#include "DNA_group_types.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
@@ -53,7 +54,6 @@
 #ifdef RNA_RUNTIME
 
 #include "BKE_fracture.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_modifier.h"
 #include "DEG_depsgraph.h"
 
@@ -239,11 +239,6 @@ static void rna_FractureModifier_use_constraints_set(PointerRNA* ptr, int value)
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->use_constraints = value;
 	rmd->refresh_constraints = true;
-
-	/*if (rmd->dm_group)
-	{
-		rmd->refresh = true;
-	}*/
 }
 
 static void rna_FractureModifier_use_constraint_collision_set(PointerRNA* ptr, int value)
@@ -641,37 +636,10 @@ static void rna_FractureModifier_cluster_group_set(PointerRNA* ptr, PointerRNA v
 	rmd->refresh_constraints = true;
 }
 
-//cant really update outside sim, without live values
-static void rna_FractureModifier_max_acceleration_set(PointerRNA *ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->max_acceleration = value;
-	//rmd->refresh_constraints = true;
-}
-
-static void rna_FractureModifier_min_acceleration_set(PointerRNA *ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->min_acceleration = value;
-	//rmd->refresh_constraints = true;
-}
-
 static void rna_FractureModifier_anim_mesh_ob_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->anim_mesh_ob = value.data;
-}
-
-static void rna_FractureModifier_use_constraint_group_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->use_constraint_group = value;
-	rmd->refresh_constraints = true;
-
-	/*if (rmd->dm_group)
-	{
-		rmd->refresh = true;
-	}*/
 }
 
 
@@ -927,7 +895,7 @@ void RNA_def_fracture(BlenderRNA *brna)
     RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_ui_text(prop, "Extra Group",
 	                         "Depending on whether extra particles or extra vertices is chosen, particles or vertices of objects from this group serve as point source. Both at the same time is not possible.");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_extra_group_set", NULL, NULL);
+    RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_extra_group_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
@@ -1248,25 +1216,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Use Compounds", "Use compounds instead of fixed constraints (supposed to be faster and not wobbling)");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-#if 0
-	prop = RNA_def_property(srna, "impulse_dampening", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "impulse_dampening");
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_impulse_dampening_set", NULL);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Impulse Dampening", "Determines how strong the impulse is dampened during damage propagation steps");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "directional_factor", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "directional_factor");
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_directional_factor_set", NULL);
-	RNA_def_property_range(prop, -1.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Directional Factor",
-	                         "Determines how much the damage propagation depends on impact direction; -1 means not at all, 1 fully (dot product)");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-#endif
 
 	prop = RNA_def_property(srna, "minimum_impulse", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "minimum_impulse");

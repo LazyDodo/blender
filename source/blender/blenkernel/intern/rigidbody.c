@@ -100,7 +100,7 @@ static void idCallback(void *world, void* island, int* objectId, int* islandId);
 static bool isModifierActive(FractureModifierData *rmd);
 static void activateRigidbody(RigidBodyOb* rbo, RigidBodyWorld *UNUSED_rbw, MeshIsland *mi, Object *ob);
 static bool do_update_modifier(Scene* scene, Object* ob, RigidBodyWorld *rbw, bool rebuild, Depsgraph *depsgraph);
-static bool do_sync_modifier(ModifierData *md, Object *ob, RigidBodyWorld *rbw, float ctime);
+static bool do_sync_modifier(ModifierData *md, Object *ob, Scene *scene, float ctime);
 static void test_deactivate_rigidbody(RigidBodyOb *rbo, MeshIsland *mi);
 static float box_volume(float size[3]);
 
@@ -773,8 +773,8 @@ static void rigidbody_validate_sim_constraint(Scene* scene, Object *ob, bool reb
 		fmd2 = (FractureModifierData*)modifiers_findByType(rbc->ob2, eModifierType_Fracture);
 
 		if (fmd1 && fmd2) {
-			mi1 = find_closest_meshisland_to_point(fmd1, rbc->ob1, ob, rbw, rbc);
-			mi2 = find_closest_meshisland_to_point(fmd2, rbc->ob2, ob, rbw, rbc);
+            mi1 = find_closest_meshisland_to_point(fmd1, rbc->ob1, ob, scene, rbc);
+            mi2 = find_closest_meshisland_to_point(fmd2, rbc->ob2, ob, scene, rbc);
 
 			if (mi1 && mi2) {
                 rb1 = mi1->rigidbody->shared->physics_object;
@@ -782,14 +782,14 @@ static void rigidbody_validate_sim_constraint(Scene* scene, Object *ob, bool reb
 			}
 		}
 		else if (fmd1) {
-			mi1 = find_closest_meshisland_to_point(fmd1, rbc->ob1, ob, rbw, rbc);
+            mi1 = find_closest_meshisland_to_point(fmd1, rbc->ob1, ob, scene, rbc);
 			if (mi1) {
                 rb1 = mi1->rigidbody->shared->physics_object;
                 rb2 = rbc->ob2->rigidbody_object->shared->physics_object;
 			}
 		}
 		else if (fmd2) {
-			mi2 = find_closest_meshisland_to_point(fmd2, rbc->ob2, ob, rbw, rbc);
+            mi2 = find_closest_meshisland_to_point(fmd2, rbc->ob2, ob, scene, rbc);
 			if (mi2)
 			{
                 rb2 = mi2->rigidbody->shared->physics_object;
@@ -1932,8 +1932,9 @@ bool BKE_rigidbody_check_sim_running(RigidBodyWorld *rbw, float ctime)
 
 /* Sync rigid body and object transformations */
 static ThreadMutex modifier_lock = BLI_MUTEX_INITIALIZER;
-void BKE_rigidbody_sync_transforms(RigidBodyWorld *rbw, Object *ob, float ctime)
+void BKE_rigidbody_sync_transforms(Scene* scene, Object *ob, float ctime)
 {
+    RigidBodyWorld *rbw = scene->rigidbody_world;
 	RigidBodyOb *rbo = NULL;
 	ModifierData *md;
 	int modFound = false;
@@ -1943,7 +1944,7 @@ void BKE_rigidbody_sync_transforms(RigidBodyWorld *rbw, Object *ob, float ctime)
 
 	BLI_mutex_lock(&modifier_lock);
 	for (md = ob->modifiers.first; md; md = md->next) {
-		modFound = do_sync_modifier(md, ob, rbw, ctime);
+        modFound = do_sync_modifier(md, ob, scene, ctime);
 		if (modFound)
 			break;
 	}
@@ -3293,7 +3294,7 @@ static MeshIsland* find_closest_meshisland_to_point(FractureModifierData* fmd, O
 			mi2 = mi_array[ind];
 
 			//connect ?
-            BKE_meshisland_constraint_create(scene, fmd, mi, mi2, fmd->constraint_type, fmd->breaking_threshold);
+            BKE_fracture_constraint_create(scene, fmd, mi, mi2, fmd->constraint_type, fmd->breaking_threshold);
 		}
 	}
 
@@ -4771,7 +4772,7 @@ static bool do_update_modifier(Scene* scene, Object* ob, RigidBodyWorld *rbw, bo
 		if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
 		{
 			int fr = (int)BKE_scene_frame_get(scene);
-			if (BKE_lookup_mesh_state(fmd, fr, true))
+            if (BKE_fracture_dynamic_lookup_mesh_state(fmd, fr, true, scene))
 			{
 				BKE_rigidbody_update_ob_array(rbw, false);
 			}
@@ -4797,7 +4798,7 @@ static bool do_update_modifier(Scene* scene, Object* ob, RigidBodyWorld *rbw, bo
 
 			if (fmd->use_animated_mesh && fmd->anim_mesh_ob)
 			{
-                BKE_read_animated_loc_rot(fmd, ob, false, depsgraph);
+                BKE_fracture_animated_loc_rot(fmd, ob, false, depsgraph);
 			}
 		}
 
@@ -5038,8 +5039,9 @@ static void rigidbody_passive_hook(FractureModifierData *fmd, MeshIsland *mi, Ob
 	}
 }
 
-static bool do_sync_modifier(ModifierData *md, Object *ob, RigidBodyWorld *rbw, float ctime)
+static bool do_sync_modifier(ModifierData *md, Object *ob, Scene *scene, float ctime)
 {
+    RigidBodyWorld *rbw = scene->rigidbody_world;
 	bool modFound = false;
 	FractureModifierData *fmd = NULL;
 	MeshIsland *mi;
@@ -5064,7 +5066,7 @@ static bool do_sync_modifier(ModifierData *md, Object *ob, RigidBodyWorld *rbw, 
 			{
 				int frame = (int)ctime;
 
-				if (BKE_lookup_mesh_state(fmd, frame, true))
+                if (BKE_fracture_dynamic_lookup_mesh_state(fmd, frame, true, scene))
 				{
 					BKE_rigidbody_update_ob_array(rbw, false);
 				}
@@ -5118,8 +5120,7 @@ static bool do_sync_modifier(ModifierData *md, Object *ob, RigidBodyWorld *rbw, 
 					zero_v3(rbo->lin_vel);
 					zero_v3(rbo->ang_vel);
 
-					//reset at start, there no cache read seems to happen
-					BKE_update_acceleration_map(fmd, mi, ob, (int)ctime, 0.0f, rbw);
+                    //reset at start, there no cache read seems to happen
 					//BKE_update_velocity_layer(fmd, mi);
 				}
 

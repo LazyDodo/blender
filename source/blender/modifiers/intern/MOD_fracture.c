@@ -520,7 +520,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 			fmd->refresh = true;
 		}
 
-        final_dm = BKE_fracture_dynamic_apply(fmd, ob, pack_dm);
+        final_dm = BKE_fracture_dynamic_apply(fmd, ob, pack_dm, scene);
 	}
 	else if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{

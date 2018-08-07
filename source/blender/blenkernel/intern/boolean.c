@@ -23,8 +23,8 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/modifiers/intern/MOD_boolean_util_bmesh.c
- *  \ingroup modifiers
+/** \file blender/modifiers/intern/boolean.c
+ *  \ingroup blenkernel
  */
 
 #include "BLI_alloca.h"
@@ -44,12 +44,15 @@
 #endif
 
 #include "DNA_material_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_modifier_types.h"
 #include "BLI_utildefines.h"
 
-#include "MOD_boolean_util_bmesh.h"
+#include "BKE_boolean.h"
+#include "BKE_mesh.h"
+#include "BKE_library.h"
 
 /* has no meaning for faces, do this so we can tell which face is which */
 #define BM_FACE_TAG BM_ELEM_DRAW
@@ -115,7 +118,7 @@ static Mesh *get_quick_mesh(
     return result;
 }
 
-Mesh *NewBooleanDerivedMeshBMesh(Mesh *mesh, struct Object *ob,
+Mesh *BKE_boolean_operation(Mesh *mesh, struct Object *ob,
                                  Mesh *mesh_other, struct Object *ob_other, int op_type,
                                  float double_threshold, struct BooleanModifierData *bmd)
 {
@@ -205,7 +208,7 @@ Mesh *NewBooleanDerivedMeshBMesh(Mesh *mesh, struct Object *ob,
                         short *material_remap = BLI_array_alloca(material_remap, ob_src_totcol ? ob_src_totcol : 1);
 
                         /* Using original (not evaluated) object here since we are writing to it. */
-                        BKE_material_remap_object_calc(ctx->object, other, material_remap);
+                        BKE_material_remap_object_calc(ob, other, material_remap);
 
                         BMFace *efa;
                         i = 0;
@@ -251,8 +254,8 @@ Mesh *NewBooleanDerivedMeshBMesh(Mesh *mesh, struct Object *ob,
                         use_island_connect,
                         false,
                         false,
-                        bmd->operation,
-                        bmd->double_threshold);
+                        op_type,
+                        double_threshold);
 
                 MEM_freeN(looptris);
             }
@@ -267,11 +270,6 @@ Mesh *NewBooleanDerivedMeshBMesh(Mesh *mesh, struct Object *ob,
             TIMEIT_END(boolean_bmesh);
 #endif
         }
-
-        /* if new mesh returned, return it; otherwise there was
-         * an error, so delete the modifier object */
-        if (result == NULL)
-            modifier_setError(md, "Cannot execute boolean operation");
     }
 
     return result;

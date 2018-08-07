@@ -1,5 +1,12 @@
 #include "MEM_guardedalloc.h"
 #include "BKE_fracture.h"
+#include "BKE_main.h"
+#include "BKE_mesh.h"
+#include "BKE_pointcache.h"
+#include "DEG_depsgraph_query.h"
+
+#include "BLI_listbase.h"
+#include "BLI_string.h"
 
 #include "DNA_fracture_types.h"
 #include "DNA_object_types.h"
@@ -7,23 +14,31 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_rigidbody_types.h"
 
-Mesh *BKE_fracture_dynamic_apply(FractureModifierData *fmd, Object *ob, Mesh *derivedData)
+#include "limits.h"
+#include "PIL_time.h"
+
+static void fracture_dynamic_new_entries_add(FractureModifierData* fmd, Mesh *dm, Object* ob, Scene *scene);
+static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66], Scene *scene);
+static void get_next_entries(FractureModifierData *fmd);
+static void get_prev_entries(FractureModifierData *fmd);
+
+Mesh *BKE_fracture_dynamic_apply(FractureModifierData *fmd, Object *ob, Mesh *derivedData, Scene* scene)
 {
-#if 0
     char (*names)[66] = NULL;
     bool valid_fractured_mesh = false;
 
     if (fmd->refresh_constraints)
     {
-        BKE_free_constraints(fmd);
+        BKE_fracture_constraints_free(fmd, scene);
     }
 
     /* group_dm, clean_dm not necessary here as we dont support non-mesh objects and subobject_groups here */
     // this should be done from an operator, really...
     if (fmd->refresh)
     {
-        BKE_fracture_dynamic_initialize(fmd, ob, derivedData, names);
+        fracture_dynamic_initialize(fmd, ob, derivedData, &names, scene);
 
         fmd->current_mi_entry->is_new = false;
         fmd->refresh = false;
@@ -54,18 +69,15 @@ Mesh *BKE_fracture_dynamic_apply(FractureModifierData *fmd, Object *ob, Mesh *de
         do_clear(fmd);
     }*/
 
-    return BKE_fracture_mesh_result(fmd, derivedData, ob, valid_fractured_mesh);
-#endif
-    return derivedData;
+    return BKE_fracture_result_mesh(fmd, derivedData, ob, valid_fractured_mesh, scene);
 }
 
-#if 0
-int BKE_fracture_dynamic_update(FractureModifierData *fmd, Object* ob, Scene* scene, Mesh* dm)
+static void fracture_dynamic_update(FractureModifierData *fmd, Object* ob, Scene* scene, Mesh* dm, Depsgraph* depsgraph, Main* bmain)
 {
     int frame = (int)BKE_scene_frame_get(scene);
     /*HERE we must know which shard(s) to fracture... hmm shards... we should "merge" states which happen in the same frame automatically !*/
     /* TODO_2 dynamic, this is called from rigidbody system only !!! so move out of the md loop as well, to BKE */
-    if (!(BKE_lookup_mesh_state(fmd, frame, false)))
+    if (!(BKE_fracture_dynamic_lookup_mesh_state(fmd, frame, false, scene)))
     {
         /*simulation mode*/
         /* bullet callbacks may happen multiple times per frame, in next frame we can evaluate them all,
@@ -96,17 +108,17 @@ int BKE_fracture_dynamic_update(FractureModifierData *fmd, Object* ob, Scene* sc
             {
                 if (!fmd->is_dynamic_external)
                 {
-                    BKE_free_constraints(fmd);
+                    BKE_fracture_constraints_free(fmd, scene);
                 }
 
                 printf("ADD NEW 2: %s \n", ob->id.name);
                 fmd->update_dynamic = false;
-                BKE_fracture_dynamic_new_entries_add(fmd, dm, ob);
+                fracture_dynamic_new_entries_add(fmd, dm, ob, scene);
             }
 
             while(fmd->fracture_ids.first){
                 fid = (FractureID*)fmd->fracture_ids.first;
-                do_fracture(fmd, fid->shardID, ob, dm);
+                BKE_fracture_do(fmd, fid->shardID, ob, dm, depsgraph, bmain);
                 BLI_remlink(&fmd->fracture_ids, fid);
                 MEM_freeN(fid);
                 count++;
@@ -125,35 +137,34 @@ int BKE_fracture_dynamic_update(FractureModifierData *fmd, Object* ob, Scene* sc
     fmd->last_frame = frame;
 }
 
-void BKE_fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66])
+static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66], Scene* scene)
 {
     /*TODO_1 refresh, move to BKE and just call from operator for prefractured case*/
-    int mi_count = 0;
 
     printf("ADD NEW 1: %s \n", ob->id.name);
     if ((fmd->last_frame == INT_MAX)) //TODO event if we restart at cache startframe
     {
         if (fmd->reset_shards)
         {
-            free_simulation(fmd, true, true);
-            free_modifier(fmd, true, true);
+            BKE_fracture_simulation_free(fmd, true, true, scene);
+            BKE_fracture_free(fmd, true, true, scene);
             fmd->last_frame = 1;
         }
         else
         {
-            free_simulation(fmd, false, true);
+            BKE_fracture_simulation_free(fmd, false, true, scene);
             fmd->last_frame = 1;
         }
 
         //try to exec handlers only ONCE
         if (fmd->frac_mesh == NULL) {
             // fire a callback which can then load external data right NOW
-            BLI_callback_exec(G.main, &ob->id, BLI_CB_EVT_FRACTURE_REFRESH);
+            //BLI_callback_exec(G.main, &ob->id, BLI_CB_EVT_FRACTURE_REFRESH);
             if (fmd->frac_mesh != NULL) {
                 bool tmp = fmd->shards_to_islands;
 
                 fmd->shards_to_islands = false;
-                BKE_fracture_create_dm(fmd, true, false);
+                BKE_fracture_assemble_mesh_from_shards(fmd, true, false);
                 fmd->shards_to_islands = tmp;
 
                 BKE_fracture_update_visual_mesh(fmd, ob, true);
@@ -170,21 +181,21 @@ void BKE_fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh
                         BLI_snprintf((*names)[i], sizeof(mi->name), "%s", mi->name);
                         i++;
                     }
-                    mi_count = i;
+                    //mi_count = i;
                 }
 
-                add_new_entries(fmd, dm, ob);
+                fracture_dynamic_new_entries_add(fmd, dm, ob, scene);
             }
         }
     }
 
     /* here we just create the fracmesh, in dynamic case we add the first sequence entry as well */
     if (fmd->frac_mesh == NULL) {
-         add_new_entries(fmd, dm, ob);
+         fracture_dynamic_new_entries_add(fmd, dm, ob, scene);
     }
 }
 
-bool BKE_fracture_dynamic_lookup_mesh_state(FractureModifierData *fmd, int frame, int do_lookup)
+bool BKE_fracture_dynamic_lookup_mesh_state(FractureModifierData *fmd, int frame, int do_lookup, Scene* scene)
 {
     bool changed = false;
     bool forward = false;
@@ -203,8 +214,7 @@ bool BKE_fracture_dynamic_lookup_mesh_state(FractureModifierData *fmd, int frame
             {
                 printf("Jumping backward because %d is smaller than %d\n", frame, fmd->current_mi_entry->prev->frame);
                 changed = true;
-                //BKE_free_constraints(fmd);
-                BKE_get_prev_entries(fmd);
+                get_prev_entries(fmd);
             }
         }
     }
@@ -218,8 +228,7 @@ bool BKE_fracture_dynamic_lookup_mesh_state(FractureModifierData *fmd, int frame
             {
                 printf("Jumping forward because %d is greater than %d\n", frame, fmd->current_mi_entry->frame);
                 changed = true;
-                //BKE_free_constraints(fmd);
-                BKE_get_next_entries(fmd);
+                get_next_entries(fmd);
             }
         }
     }
@@ -232,21 +241,21 @@ bool BKE_fracture_dynamic_lookup_mesh_state(FractureModifierData *fmd, int frame
     {
         if (forward || backward)
         {
-            fmd->modifier.scene->rigidbody_world->flag |= RBW_FLAG_REFRESH_MODIFIERS;
-            fmd->modifier.scene->rigidbody_world->flag |= RBW_FLAG_OBJECT_CHANGED;
+            scene->rigidbody_world->flag |= RBW_FLAG_REFRESH_MODIFIERS;
+            scene->rigidbody_world->flag |= RBW_FLAG_OBJECT_CHANGED;
         }
 
         return forward || backward;
     }
 }
 
-void BKE_fracture_dynamic_islands_create(FractureModifierData *fmd, Object *ob, DerivedMesh* dm,
-                                         DerivedMesh *orig_dm, DerivedMesh *old_cached)
+static void fracture_dynamic_islands_create(FractureModifierData *fmd, Object *ob,
+                                         Mesh *orig_dm, Mesh *old_cached, Scene* scene)
 {
     double start = 0.0;
     MDeformVert *ivert = NULL;
 
-    copy_m4_m4(fmd->origmat, ob->obmat);
+  //  copy_m4_m4(fmd->origmat, ob->obmat);
 
     /* refracture, convert the fracture shards to new meshislands here *
     * shards = fracture datastructure
@@ -257,13 +266,13 @@ void BKE_fracture_dynamic_islands_create(FractureModifierData *fmd, Object *ob, 
         start = PIL_check_seconds_timer();
     }
 
-    ivert = do_islands_from_shards(fmd, ob, orig_dm);
+    ivert = BKE_fracture_shards_to_islands(fmd, ob, orig_dm, scene);
 
     if (fmd->fix_normals) {
         printf("Fixing normals done, %g\n", PIL_check_seconds_timer() - start);
     }
 
-    fill_vgroup(fmd, fmd->visible_mesh_cached, ivert, ob, old_cached);
+    BKE_fracture_fill_vgroup(fmd, fmd->visible_mesh_cached, ivert, ob, old_cached);
 
     printf("Islands: %d\n", BLI_listbase_count(&fmd->meshIslands));
     /* Grrr, due to stupid design of mine (listbase as value in struct instead of pointer)
@@ -274,7 +283,7 @@ void BKE_fracture_dynamic_islands_create(FractureModifierData *fmd, Object *ob, 
     fmd->current_mi_entry->meshIslands = fmd->meshIslands;
 }
 
-ShardSequence* BKE_fracture_dynamic_shard_sequence_add(FractureModifierData* fmd, float frame, DerivedMesh* dm, Object *ob)
+static ShardSequence* fracture_dynamic_shard_sequence_add(FractureModifierData* fmd, float frame, Mesh* dm, Object *ob, Scene* scene)
 {
     ShardSequence *ssq = MEM_mallocN(sizeof(ShardSequence), "shard_sequence_add");
 
@@ -282,25 +291,25 @@ ShardSequence* BKE_fracture_dynamic_shard_sequence_add(FractureModifierData* fmd
     if (fmd->frac_mesh == NULL) {
         Shard *s = NULL;
         bool temp = fmd->shards_to_islands;
-        fmd->frac_mesh = BKE_create_fracture_container();
+        fmd->frac_mesh = BKE_fracture_fracmesh_create();
 
         /*fill with initial shards*/
         if (fmd->shards_to_islands) {
-            do_halving(fmd, ob, dm, dm, true, -1);
+            BKE_fracture_do_halving(fmd, ob, dm, dm, true, -1, scene);
         }
         else {
             /* create first shard covering the entire mesh */
-            s = BKE_create_fracture_shard(dm->getVertArray(dm),
-                                          dm->getPolyArray(dm),
-                                          dm->getLoopArray(dm),
-                                          dm->getEdgeArray(dm),
-                                          dm->numVertData,
-                                          dm->numPolyData,
-                                          dm->numLoopData,
-                                          dm->numEdgeData,
+            s = BKE_fracture_shard_create(dm->mvert,
+                                          dm->mpoly,
+                                          dm->mloop,
+                                          dm->medge,
+                                          dm->totvert,
+                                          dm->totpoly,
+                                          dm->totloop,
+                                          dm->totedge,
                                           true);
 
-            s = BKE_custom_data_to_shard(s, dm);
+            BKE_fracture_custom_data_mesh_to_shard(s, dm);
             s->flag = SHARD_INTACT;
             s->shard_id = 0;
             BLI_addtail(&fmd->frac_mesh->shard_map, s);
@@ -309,13 +318,13 @@ ShardSequence* BKE_fracture_dynamic_shard_sequence_add(FractureModifierData* fmd
 
         //build fmd->dm here !
         fmd->shards_to_islands = false;
-        BKE_fracture_create_dm(fmd, true, false);
+        BKE_fracture_assemble_mesh_from_shards(fmd, true, false);
         fmd->shards_to_islands = temp;
 
         ssq->frac_mesh = fmd->frac_mesh;
     }
     else {
-        ssq->frac_mesh = copy_fracmesh(fmd->frac_mesh);
+        ssq->frac_mesh = BKE_fracture_fracmesh_copy(fmd->frac_mesh);
     }
 
     ssq->is_new = true;
@@ -325,17 +334,17 @@ ShardSequence* BKE_fracture_dynamic_shard_sequence_add(FractureModifierData* fmd
     return ssq;
 }
 
-MeshIslandSequence* BKE_fracture_dynamic_meshisland_sequence_add(FractureModifierData* fmd,
-                                                                 float frame, Object *ob, DerivedMesh *dm)
+static MeshIslandSequence* fracture_dynamic_meshisland_sequence_add(FractureModifierData* fmd,
+                                                                 float frame, Object *ob, Mesh *dm, Scene* scene)
 {
     MeshIslandSequence *msq = MEM_mallocN(sizeof(MeshIslandSequence), "meshisland_sequence_add");
-    msq->frame = frame;
+    msq->frame = (int)frame;
 
     if (BLI_listbase_is_empty(&fmd->meshIslands)) {
         msq->meshIslands.first = NULL;
         msq->meshIslands.last = NULL;
-        fmd->visible_mesh_cached = CDDM_copy(fmd->dm);
-        do_islands_from_shards(fmd, ob, dm);
+        BKE_mesh_nomain_to_mesh(fmd->dm, fmd->visible_mesh_cached, ob, CD_MASK_MESH, false);
+        BKE_fracture_shards_to_islands(fmd, ob, dm, scene);
         msq->meshIslands = fmd->meshIslands;
         msq->visible_dm = fmd->visible_mesh_cached;
         fmd->refresh = false;
@@ -353,14 +362,14 @@ MeshIslandSequence* BKE_fracture_dynamic_meshisland_sequence_add(FractureModifie
     return msq;
 }
 
-void BKE_fracture_dynamic_new_entries_add(FractureModifierData* fmd, DerivedMesh *dm, Object* ob)
+static void fracture_dynamic_new_entries_add(FractureModifierData* fmd, Mesh *dm, Object* ob, Scene *scene)
 {
-    int frame = (int)BKE_scene_frame_get(fmd->modifier.scene);
+    int frame = (int)BKE_scene_frame_get(scene);
     int end = 250; //TODO might be problematic with longer sequences, take proper end value ?
 
-    if (fmd->modifier.scene->rigidbody_world)
+    if (scene->rigidbody_world)
     {
-        end = fmd->modifier.scene->rigidbody_world->pointcache->endframe;
+        end = scene->rigidbody_world->shared->pointcache->endframe;
     }
 
     if (fmd->current_shard_entry)
@@ -368,18 +377,18 @@ void BKE_fracture_dynamic_new_entries_add(FractureModifierData* fmd, DerivedMesh
         fmd->current_shard_entry->is_new = false;
         fmd->current_shard_entry->frame = frame;
     }
-    fmd->current_shard_entry = shard_sequence_add(fmd, end, dm, ob);
+    fmd->current_shard_entry = fracture_dynamic_shard_sequence_add(fmd, end, dm, ob, scene);
     fmd->frac_mesh = fmd->current_shard_entry->frac_mesh;
 
     if (fmd->current_mi_entry) {
         fmd->current_mi_entry->frame = frame;
     }
 
-    fmd->current_mi_entry = meshisland_sequence_add(fmd, end, ob, dm);
+    fmd->current_mi_entry = fracture_dynamic_meshisland_sequence_add(fmd, end, ob, dm, scene);
     fmd->meshIslands = fmd->current_mi_entry->meshIslands;
 }
 
-void BKE_fracture_dynamic_sequences_free(FractureModifierData *fmd)
+static void fracture_dynamic_sequences_free(FractureModifierData *fmd, Scene* scene)
 {
     /* in dynamic mode we have to get rid of the entire Meshisland sequence */
     MeshIslandSequence *msq;
@@ -388,7 +397,7 @@ void BKE_fracture_dynamic_sequences_free(FractureModifierData *fmd)
     while (fmd->meshIsland_sequence.first) {
         msq = fmd->meshIsland_sequence.first;
         BLI_remlink(&fmd->meshIsland_sequence, msq);
-        free_meshislands(fmd, &msq->meshIslands, do_free_rigidbody);
+        BKE_fracture_meshislands_free(fmd, &msq->meshIslands, true, scene);
         MEM_freeN(msq);
         msq = NULL;
     }
@@ -405,7 +414,7 @@ void BKE_fracture_dynamic_sequences_free(FractureModifierData *fmd)
     {
         ssq = fmd->shard_sequence.first;
         BLI_remlink(&fmd->shard_sequence, ssq);
-        BKE_fracmesh_free(ssq->frac_mesh, true);
+        BKE_fracture_fracmesh_free(ssq->frac_mesh, true);
         MEM_freeN(ssq->frac_mesh);
         MEM_freeN(ssq);
     }
@@ -416,15 +425,48 @@ void BKE_fracture_dynamic_sequences_free(FractureModifierData *fmd)
     fmd->frac_mesh = NULL;
 }
 
-void BKE_fracture_dynamic_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody)
+void BKE_fracture_dynamic_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene* scene)
 {
     if ((!fmd->refresh && !fmd->refresh_constraints)) {
         /* free entire modifier */
-        BKE_fracture_modifier_free(fmd, do_free_seq, do_free_rigidbody);
+        BKE_fracture_modifier_free(fmd, do_free_seq, do_free_rigidbody, scene);
     }
     else if (fmd->refresh_constraints && !fmd->is_dynamic_external) {
         /* refresh constraints only */
-        BKE_free_constraints(fmd);
+        BKE_fracture_constraints_free(fmd, scene);
     }
 }
-#endif
+
+static void get_next_entries(FractureModifierData *fmd)
+{
+    /*meshislands and shards SHOULD be synchronized !!!!*/
+    if (fmd->current_mi_entry && fmd->current_mi_entry->next)
+    { // && fmd->current_mi_entry->next->is_new == false) {
+        fmd->current_mi_entry = fmd->current_mi_entry->next;
+        fmd->meshIslands = fmd->current_mi_entry->meshIslands;
+        fmd->visible_mesh_cached = fmd->current_mi_entry->visible_dm;
+    }
+
+    if (fmd->current_shard_entry && fmd->current_shard_entry->next)
+    {
+        fmd->current_shard_entry = fmd->current_shard_entry->next;
+        fmd->frac_mesh = fmd->current_shard_entry->frac_mesh;
+    }
+}
+
+static void get_prev_entries(FractureModifierData *fmd)
+{
+    /*meshislands and shards SHOULD be synchronized !!!!*/
+    if (fmd->current_mi_entry && fmd->current_mi_entry->prev)
+    {
+        fmd->current_mi_entry = fmd->current_mi_entry->prev;
+        fmd->meshIslands = fmd->current_mi_entry->meshIslands;
+        fmd->visible_mesh_cached = fmd->current_mi_entry->visible_dm;
+    }
+
+    if (fmd->current_shard_entry && fmd->current_shard_entry->prev)
+    {
+        fmd->current_shard_entry = fmd->current_shard_entry->prev;
+        fmd->frac_mesh = fmd->current_shard_entry->frac_mesh;
+    }
+}

@@ -59,7 +59,7 @@
 #include "DEG_depsgraph_query.h"
 
 #include "MEM_guardedalloc.h"
-#include "MOD_boolean_util_bmesh.h"
+#include "BKE_boolean.h"
 
 #include "bmesh.h"
 #include "bmesh_tools.h"
@@ -120,12 +120,17 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
     Object *ob_eval = DEG_get_evaluated_object(ctx->depsgraph, bmd->object);
     mesh_other = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_eval, &mesh_other_free);
 
-    result = NewBooleanDerivedMeshBMesh(mesh, ctx->object, mesh_other, bmd->object, bmd->operation,
+    result = BKE_boolean_operation(mesh, ctx->object, mesh_other, bmd->object, bmd->operation,
                                       bmd->double_threshold, bmd);
 
     if (mesh_other != NULL && mesh_other_free) {
         BKE_id_free(NULL, mesh_other);
     }
+
+    /* if new mesh returned, return it; otherwise there was
+     * an error, so delete the modifier object */
+    if (result == NULL)
+        modifier_setError(md, "Cannot execute boolean operation");
 
     return result;
 }

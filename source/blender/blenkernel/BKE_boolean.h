@@ -27,7 +27,7 @@
 #ifndef MOD_BOOLEAN_UTIL_BMESH_H
 #define MOD_BOOLEAN_UTIL_BMESH_H
 
-struct Mesh *NewBooleanDerivedMeshBMesh(struct Mesh *mesh, struct Object *ob,
+struct Mesh *BKE_boolean_operation(struct Mesh *mesh, struct Object *ob,
                                    struct Mesh *mesh_other, struct Object *ob_other, int op_type,
                                    float double_threshold, struct BooleanModifierData *bmd);
 

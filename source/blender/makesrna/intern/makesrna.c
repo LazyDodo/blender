@@ -3415,7 +3415,8 @@ static RNAProcessItem PROCESS_ITEMS[] = {
 	{"rna_material.c", "rna_material_api.c", RNA_def_material},
 	{"rna_mesh.c", "rna_mesh_api.c", RNA_def_mesh},
 	{"rna_meta.c", "rna_meta_api.c", RNA_def_meta},
-	{"rna_modifier.c", NULL, RNA_def_modifier},
+    {"rna_modifier.c", NULL, RNA_def_modifier},
+    {"rna_fracture.c", "rna_fracture_api.c", RNA_def_fracture}, //must be here so "Modifier" is already defined ?
 	{"rna_gpencil_modifier.c", NULL, RNA_def_greasepencil_modifier},
 	{"rna_shader_fx.c", NULL, RNA_def_shader_fx },
 	{"rna_nla.c", NULL, RNA_def_nla},

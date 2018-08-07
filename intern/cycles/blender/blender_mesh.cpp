@@ -1253,12 +1253,6 @@ void BlenderSync::sync_mesh_motion(BL::Depsgraph& b_depsgraph,
 	if(b_fluid_domain)
 		return;
 
-	/* other precalculated motion (remesher for now only) */
-	BL::RemeshModifier b_remesher = object_metaball_remesher_find(b_ob);
-	BL::FractureModifier b_fracture = object_fracture_modifier_find(b_ob);
-	if(b_remesher || b_fracture)
-		return;
-
 	if(ccl::BKE_object_is_deform_modified(b_ob, b_scene, preview)) {
 		/* get derived mesh */
 		b_mesh = object_to_mesh(b_data,

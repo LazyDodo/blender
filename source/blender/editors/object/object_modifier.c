@@ -2604,7 +2604,7 @@ static int fracture_anim_bind_exec(bContext *C, wmOperator *UNUSED(op))
 		BKE_restoreKinematic(scene->rigidbody_world, true);
         BKE_rigidbody_rebuild_world(depsgraph, scene, scene->rigidbody_world->shared->pointcache->startframe);
 	}
-    BKE_read_animated_loc_rot(rmd, obact, true, depsgraph);
+    BKE_fracture_animated_loc_rot(rmd, obact, true, depsgraph);
 
     DEG_relations_tag_update(bmain);
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);

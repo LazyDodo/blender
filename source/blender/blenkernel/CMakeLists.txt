@@ -83,6 +83,7 @@ set(SRC
 	intern/blendfile.c
 	intern/bmfont.c
 	intern/boids.c
+        intern/boolean.c
 	intern/bpath.c
 	intern/brush.c
 	intern/bvhutils.c
@@ -237,6 +238,7 @@ set(SRC
 	BKE_bmfont.h
 	BKE_bmfont_types.h
 	BKE_boids.h
+        BKE_boolean.h
 	BKE_bpath.h
 	BKE_brush.h
 	BKE_bvhutils.h

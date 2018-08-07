@@ -38,6 +38,7 @@
 #include "BKE_material.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
+#include "BKE_boolean.h"
 
 #include "BLI_alloca.h"
 #include "BLI_boxpack_2d.h"
@@ -57,8 +58,6 @@
 
 #include "bmesh.h"
 #include "bmesh_tools.h"
-
-#include "../modifiers/intern/MOD_boolean_util_bmesh.h"
 
 /*prototypes*/
 void uv_bbox(float uv[][2], int num_uv, float minv[2], float maxv[2]);
@@ -313,7 +312,7 @@ static bool do_other_output(Mesh** other_dm, Shard** other, Mesh** output_dm, Me
 {
 	if (*other_dm)
 	{
-        *other = BKE_create_fracture_shard((*other_dm)->mvert,
+        *other = BKE_fracture_shard_create((*other_dm)->mvert,
                                             (*other_dm)->mpoly,
                                             (*other_dm)->mloop,
                                             (*other_dm)->medge,
@@ -323,7 +322,7 @@ static bool do_other_output(Mesh** other_dm, Shard** other, Mesh** output_dm, Me
                                             (*other_dm)->totedge,
 											 true);
 
-        BKE_custom_data_to_shard(*other, *other_dm);
+        BKE_fracture_custom_data_mesh_to_shard(*other, *other_dm);
 		BKE_fracture_shard_center_centroid_area(*other, (*other)->centroid);
 
 		/* free the temp derivedmesh */
@@ -360,7 +359,7 @@ static bool do_other_output(Mesh** other_dm, Shard** other, Mesh** output_dm, Me
 
 static Shard *do_output_shard_dm(Mesh** output_dm, Shard *child, int num_cuts, float fractal, Shard **other)
 {
-    Shard* output_s = BKE_create_fracture_shard((*output_dm)->mvert,
+    Shard* output_s = BKE_fracture_shard_create((*output_dm)->mvert,
                                          (*output_dm)->mpoly,
                                          (*output_dm)->mloop,
                                          (*output_dm)->medge,
@@ -370,7 +369,7 @@ static Shard *do_output_shard_dm(Mesh** output_dm, Shard *child, int num_cuts, f
                                          (*output_dm)->totedge,
 	                                     true);
 
-    BKE_custom_data_to_shard(output_s, *output_dm);
+    BKE_fracture_custom_data_mesh_to_shard(output_s, *output_dm);
 
 	/* useless, because its a bisect fast-like approach here */
 	if (num_cuts == 0 || fractal == 0.0f || other == NULL) {
@@ -561,14 +560,14 @@ Shard *BKE_fracture_shard_boolean(Object *obj, Mesh *dm_parent, Shard *child, sh
 	}
 	else
 	{
-		left_dm = BKE_shard_create_dm(child, false);
+        left_dm = BKE_fracture_shard_to_mesh(child, false);
 		unwrap_shard_dm(left_dm, uv_layer, true);
 	}
 
 	do_set_inner_material(other, mat, left_dm, inner_material_index, child, obj);
 
 	right_dm = dm_parent;
-    output_dm = NewBooleanDerivedMeshBMesh(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
+    output_dm = BKE_boolean_operation(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
 
 	/*check for watertightness, but for fractal only*/
 	if (other != NULL && do_check_watertight(&output_dm, &left_dm, right_dm, other, mat))
@@ -578,7 +577,7 @@ Shard *BKE_fracture_shard_boolean(Object *obj, Mesh *dm_parent, Shard *child, sh
 
 	if (other != NULL)
     {
-        other_dm = NewBooleanDerivedMeshBMesh(left_dm, obj, right_dm, obj, 2, thresh, NULL);
+        other_dm = BKE_boolean_operation(left_dm, obj, right_dm, obj, 2, thresh, NULL);
 
 		/*check for watertightness again, true means do return NULL here*/
 		if (!other_dm || do_check_watertight_other(&other_dm, &output_dm, other, right_dm, &left_dm, mat))
@@ -634,7 +633,7 @@ static Shard *do_output_shard(BMesh* bm_parent, Shard *child, char uv_layer[64])
 		//"cleanup" dm here, set UVs to 0,0 whose poly->mat_nr = 1 (i cant find where its originally created... grrr)
 		do_clean_uv(dm_out, uv_layer);
 
-        output_s = BKE_create_fracture_shard(dm_out->mvert,
+        output_s = BKE_fracture_shard_create(dm_out->mvert,
                                              dm_out->mpoly,
                                              dm_out->mloop,
                                              dm_out->medge,
@@ -643,7 +642,7 @@ static Shard *do_output_shard(BMesh* bm_parent, Shard *child, char uv_layer[64])
                                              dm_out->totloop,
                                              dm_out->totedge, true);
 
-        BKE_custom_data_to_shard(output_s, dm_out);
+        BKE_fracture_custom_data_mesh_to_shard(output_s, dm_out);
 
 		/*XXX TODO this might be wrong by now ... */
 		output_s->neighbor_count = child->neighbor_count;
@@ -872,7 +871,7 @@ Shard *BKE_fracture_shard_bisect(BMesh *bm_orig, Shard *child, float obmat[4][4]
 {
 
 	Shard *output_s;
-    Mesh *dm_child = BKE_shard_create_dm(child, false);
+    Mesh *dm_child = BKE_fracture_shard_to_mesh(child, false);
 
 	BMesh *bm_parent;
 	BMesh *bm_child;
