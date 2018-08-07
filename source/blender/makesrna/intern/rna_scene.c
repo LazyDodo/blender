@@ -536,7 +536,12 @@ static const EnumPropertyItem transform_orientation_items[] = {
 /* Grease Pencil update cache */
 static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
 {
-	DEG_id_type_tag(bmain, ID_GD);
+	/* mark all grease pencil datablocks */
+	for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
+		gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	}
+
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -5266,6 +5271,11 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "simplify_gpencil_view_modifier", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_MODIFIER);
 	RNA_def_property_ui_text(prop, "Disable Modifiers", "Do not apply modifiers in the viewport");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_shader_fx", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_FX);
+	RNA_def_property_ui_text(prop, "Simplify Shaders", "Do not apply shader fx");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* persistent data */
