@@ -441,6 +441,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 
     /* We need own transformation as well. */
     //DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Fracture Modifier");
+    //DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_GEOMETRY, "Fracture Modifier");
 }
 
 static void foreachObjectLink(

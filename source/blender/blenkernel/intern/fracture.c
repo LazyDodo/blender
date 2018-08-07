@@ -5883,10 +5883,10 @@ void BKE_fracture_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, De
         }
 
         fmd->face_pairs = BLI_ghash_int_new("face_pairs");
-    }
 
-    /*HERE we must know which shard(s) to fracture... hmm shards... we should "merge" states which happen in the same frame automatically !*/
-    BKE_fracture_do(fmd, -1, ob, dm, depsgraph, G.main);
+        /*HERE we must know which shard(s) to fracture... hmm shards... we should "merge" states which happen in the same frame automatically !*/
+        BKE_fracture_do(fmd, -1, ob, dm, depsgraph, G.main);
+    }
 }
 
 Shard* BKE_fracture_shard_copy(Shard *s)
