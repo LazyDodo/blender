@@ -777,10 +777,15 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 				win->cursor = CURSOR_STD;
 			}
 
-			/* Benchmark: fixed size window. */
+			/* Benchmark: fixed size and centered window. */
 			wm_window_set_startup_dpi(win);
 			win->sizex = 800 * UI_DPI_FAC;
 			win->sizey = 570 * UI_DPI_FAC;
+
+			int scr_w, scr_h;
+			wm_get_screensize(&scr_w, &scr_h);
+			win->posx = (scr_w - win->sizex) / 2;
+			win->posy = (scr_h - win->sizey) / 2;
 
 			/* Benchmark: title. */
 			wm_window_ghostwindow_add(wm, "Blender Benchmark", win);
