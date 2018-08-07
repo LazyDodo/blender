@@ -694,7 +694,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 }
 
 /* Benchmark: ugly hack to get DPI before we have opened any windows. */
-static void wm_window_set_startup_dpi(wmWindow *win)
+static void wm_window_set_startup_dpi(wmWindow *win, float *native_pixel_size)
 {
 	GHOST_GLSettings glSettings = {0};
 
@@ -705,6 +705,8 @@ static void wm_window_set_startup_dpi(wmWindow *win)
 	                                   glSettings);
 
 	WM_window_set_dpi(win);
+
+	*native_pixel_size = GHOST_GetNativePixelSize(win->ghostwin);
 
 	GHOST_DisposeWindow(g_system, win->ghostwin);
 	win->ghostwin = NULL;
@@ -778,9 +780,10 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 			}
 
 			/* Benchmark: fixed size and centered window. */
-			wm_window_set_startup_dpi(win);
-			win->sizex = 800 * UI_DPI_FAC;
-			win->sizey = 570 * UI_DPI_FAC;
+			float native_pixel_size;
+			wm_window_set_startup_dpi(win, &native_pixel_size);
+			win->sizex = 800 * UI_DPI_FAC / native_pixel_size;
+			win->sizey = 570 * UI_DPI_FAC / native_pixel_size;
 
 			int scr_w, scr_h;
 			wm_get_screensize(&scr_w, &scr_h);

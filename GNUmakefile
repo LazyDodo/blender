@@ -71,6 +71,10 @@ ifneq "$(findstring full, $(MAKECMDGOALS))" ""
 	BUILD_DIR:=$(BUILD_DIR)_full
 	BUILD_CMAKE_ARGS:=$(BUILD_CMAKE_ARGS) -C"$(BLENDER_DIR)/build_files/cmake/config/blender_full.cmake"
 endif
+ifneq "$(findstring benchmark, $(MAKECMDGOALS))" ""
+	BUILD_DIR:=$(BUILD_DIR)_benchmark
+	BUILD_CMAKE_ARGS:=$(BUILD_CMAKE_ARGS) -C"$(BLENDER_DIR)/build_files/cmake/config/blender_benchmark.cmake"
+endif
 ifneq "$(findstring lite, $(MAKECMDGOALS))" ""
 	BUILD_DIR:=$(BUILD_DIR)_lite
 	BUILD_CMAKE_ARGS:=$(BUILD_CMAKE_ARGS) -C"$(BLENDER_DIR)/build_files/cmake/config/blender_lite.cmake"
@@ -146,6 +150,7 @@ all: .FORCE
 debug: all
 full: all
 lite: all
+benchmark: all
 cycles: all
 headless: all
 bpy: all
