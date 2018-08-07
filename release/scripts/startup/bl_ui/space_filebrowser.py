@@ -156,6 +156,10 @@ class FILEBROWSER_PT_system_bookmarks(Panel):
 class FILEBROWSER_MT_bookmarks_specials(Menu):
     bl_label = "Bookmarks Specials"
 
+    @classmethod
+    def poll(cls, context):
+        return False
+
     def draw(self, context):
         layout = self.layout
         layout.operator("file.bookmark_cleanup", icon='X', text="Cleanup")
@@ -170,6 +174,10 @@ class FILEBROWSER_PT_bookmarks(Panel):
     bl_region_type = 'TOOLS'
     bl_category = "Bookmarks"
     bl_label = "Bookmarks"
+
+    @classmethod
+    def poll(cls, context):
+        return False
 
     def draw(self, context):
         layout = self.layout
@@ -203,7 +211,8 @@ class FILEBROWSER_PT_recent_folders(Panel):
 
     @classmethod
     def poll(cls, context):
-        return not context.user_preferences.filepaths.hide_recent_locations
+        # return not context.user_preferences.filepaths.hide_recent_locations
+        return False
 
     def draw(self, context):
         layout = self.layout
