@@ -83,7 +83,7 @@ set(SRC
 	intern/blendfile.c
 	intern/bmfont.c
 	intern/boids.c
-        intern/boolean.c
+	intern/boolean.c
 	intern/bpath.c
 	intern/brush.c
 	intern/bvhutils.c
@@ -117,11 +117,12 @@ set(SRC
 	intern/fmodifier.c
 	intern/font.c
 	intern/fracture.c
-        intern/fracture_automerge.c
-        intern/fracture_constraints.c
-        intern/fracture_dynamic.c
-        intern/fracture_external.c
-        intern/fracture_prefractured.c
+	intern/fracture_automerge.c
+	intern/fracture_constraints.c
+	intern/fracture_dynamic.c
+	intern/fracture_external.c
+	intern/fracture_prefractured.c
+	intern/fracture_rigidbody.c
 	intern/fracture_util.c
 	intern/freestyle.c
 	intern/gpencil.c
