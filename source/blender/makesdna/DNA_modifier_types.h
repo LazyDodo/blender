@@ -1678,6 +1678,7 @@ typedef struct FractureModifierData {
 	struct GHash *defgrp_index_map; /*used to collect vertexgroups from objects to be packed, temporary data */
 	struct Object *anim_mesh_ob; /*input object for animated mesh */
 	struct AnimBind *anim_bind; /* bound animation data */
+	struct Scene *scene; //man is this a hack.. but earlier we had the scene in the modifier, was quite handy!
 
 	ListBase shard_sequence; /* used as mesh cache / history for dynamic fracturing, for shards (necessary for conversion to DM) */
 	ListBase meshIsland_sequence; /* used as mesh cache / history for dynamic fracturing, for meshIslands (necessary for loc/rot "pointcache") */
@@ -1749,9 +1750,6 @@ typedef struct FractureModifierData {
 	float dynamic_min_size;
 	float inner_crease;
 	float orthogonality_factor;
-	float min_acceleration;
-	float max_acceleration;
-	float acceleration_fade;
 	float anim_bind_limit;
 	float grid_offset[3];
 	float grid_spacing[3];
@@ -1784,7 +1782,6 @@ typedef struct FractureModifierData {
 	int breaking_percentage_weighted;
 	int constraint_target;
 	int limit_impact;
-	int fracture_all;
 	int dynamic_new_constraints;
 	int is_dynamic_external;
 	int keep_distort;
@@ -1816,7 +1813,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-    //char pad[4];
+	//char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {

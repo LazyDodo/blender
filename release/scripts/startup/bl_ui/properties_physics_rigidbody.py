@@ -58,11 +58,6 @@ class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
             if rbo.type == 'ACTIVE':
                 layout.prop(rbo, "mass")
 
-            col = layout.column()
-            if rbo.type == 'ACTIVE':
-                col.prop(rbo, "enabled", text="Dynamic")
-            col.prop(rbo, "kinematic", text="Animated")
-
 
 class PHYSICS_PT_rigid_body_trigger_advanced(PHYSICS_PT_rigidbody_panel, Panel):
     bl_label = "Rigid Body Trigger Advanced"
@@ -116,7 +111,7 @@ class PHYSICS_PT_rigid_body_collisions(PHYSICS_PT_rigidbody_panel, Panel):
         if rbo.collision_shape in {'MESH', 'CONVEX_HULL'}:
             layout.prop(rbo, "mesh_source", text="Source")
 
-        if rbo.collision_shape == 'MESH' and rbo.mesh_source in {'DEFORM', 'FINAL', 'FINAL_SOLID'}:
+        if rbo.collision_shape == 'MESH' and rbo.mesh_source in {'DEFORM', 'FINAL'}:
             layout.prop(rbo, "use_deform", text="Deforming")
 
 

@@ -2449,7 +2449,8 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 {
 	Object *obact = ED_object_active_context(C);
 	Scene *scene = CTX_data_scene(C);
-    Main *bmain = CTX_data_main(C);
+	Main *bmain = CTX_data_main(C);
+
 	float cfra = BKE_scene_frame_get(scene);
 	double start = 1.0;
 	FractureModifierData *rmd;
@@ -2458,11 +2459,11 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	if (!rmd)
 		return OPERATOR_CANCELLED;
 
-    if (scene->rigidbody_world && scene->rigidbody_world->shared->pointcache)
+	if (scene->rigidbody_world && scene->rigidbody_world->shared->pointcache)
 	{
 		RigidBodyWorld *rbw = scene->rigidbody_world;
 		if (BKE_rigidbody_check_sim_running(rbw, cfra) &&
-           (rbw->ltime > rbw->shared->pointcache->startframe || rbw->ltime == rbw->shared->pointcache->endframe))
+			(rbw->ltime > rbw->shared->pointcache->startframe || rbw->ltime == rbw->shared->pointcache->endframe))
 		{
 			BKE_report(op->reports, RPT_WARNING, "Please jump back to cache start frame in order to refracture");
 			return OPERATOR_CANCELLED;
@@ -2473,10 +2474,10 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
-        Mesh *dm = rmd->visible_mesh_cached;
+		Mesh *dm = rmd->visible_mesh_cached;
 		if (dm)
 		{
-            BKE_mesh_free(dm);
+			BKE_mesh_free(dm);
 			dm = rmd->visible_mesh_cached = NULL;
 		}
 
@@ -2485,9 +2486,9 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	if (scene->rigidbody_world != NULL)
 	{
-        start = (double)scene->rigidbody_world->shared->pointcache->startframe;
+		start = (double)scene->rigidbody_world->shared->pointcache->startframe;
 		//free a possible bake...
-        scene->rigidbody_world->shared->pointcache->flag &= ~PTCACHE_BAKED;
+		scene->rigidbody_world->shared->pointcache->flag &= ~PTCACHE_BAKED;
 	}
 
 	if (!rmd || (rmd && rmd->refresh)) {
@@ -2502,14 +2503,15 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	}
 
 	BKE_scene_frame_set(scene, start);
-    DEG_relations_tag_update(bmain);
+
+	DEG_relations_tag_update(bmain);
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
 	
 	rmd->refresh = true;
 	rmd->last_frame = INT_MAX; // delete dynamic data as well
-    DEG_id_tag_update(&obact->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&obact->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
 
 	return OPERATOR_FINISHED;
@@ -2576,11 +2578,11 @@ static int fracture_refresh_invoke(bContext *C, wmOperator *op, const wmEvent *U
 {
 	Scene* scene = CTX_data_scene(C);
 	Object* ob = CTX_data_active_object(C);
-    Depsgraph* depsgraph = CTX_data_depsgraph(C);
+	Depsgraph* depsgraph = CTX_data_depsgraph(C);
 
 	if (edit_modifier_invoke_properties(C, op))
 	{
-        apply_scale(depsgraph, ob, scene);
+		apply_scale(depsgraph, ob, scene);
 		return fracture_refresh_exec(C, op);
 	}
 
@@ -2643,7 +2645,8 @@ void OBJECT_OT_fracture_refresh(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
 	edit_modifier_properties(ot);
 
-	RNA_def_boolean(ot->srna, "reset", false, "Reset Shards", "Reset all shards in next refracture, instead of keeping similar ones");
+	RNA_def_boolean(ot->srna, "reset", false, "Reset Shards",
+	                "Reset all shards in next refracture, instead of keeping similar ones");
 }
 
 static void do_add_group_unchecked(Collection* group, Object *ob)

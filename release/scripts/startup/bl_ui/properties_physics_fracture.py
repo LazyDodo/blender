@@ -40,7 +40,8 @@ class PhysicButtonsPanel():
         return ob and (ob.type == 'MESH') and context.fracture
 
 class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
-    bl_label = "Fracture Animated Mesh Settings"
+    bl_label = "Animated Mesh Settings"
+    bl_parent_id = 'PHYSICS_PT_fracture'
 
     def draw(self, context):
         layout = self.layout
@@ -57,7 +58,7 @@ class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
         row.operator("object.fracture_anim_bind", text="Bind", icon="UV_VERTEXSEL")
 
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
-    bl_label = "Fracture Settings"
+    bl_label = "Fracture"
 
     def icon(self, bool):
         if bool:
@@ -166,12 +167,6 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
             box.label("Inner Vertex Group:")
             box.prop_search(md, "inner_vertex_group", ob, "vertex_groups", text = "")
             box.prop(md, "inner_crease")
-            box.label("Acceleration Map:")
-            box.prop_search(md, "acceleration_vertex_group", ob, "vertex_groups", text = "")
-            row = box.row(align=True)
-            row.prop(md, "min_acceleration")
-            row.prop(md, "max_acceleration")
-            row.prop(md, "acceleration_fade")
             if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
                 box.prop(md, "orthogonality_factor", text="Rectangular Alignment")
 
@@ -181,7 +176,8 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
         row.prop(md, "execute_threaded", text="Threaded (WIP)")
 
 class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
-    bl_label = "Fracture Constraint Settings"
+    bl_label = "Constraints"
+    bl_parent_id = 'PHYSICS_PT_fracture'
 
     @classmethod
     def poll(cls, context):
@@ -278,7 +274,8 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
 
 
 class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
-    bl_label = "Fracture Utilities"
+    bl_label = "Utilities"
+    bl_parent_id = 'PHYSICS_PT_fracture'
 
     @classmethod
     def poll(cls, context):
@@ -309,7 +306,6 @@ class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
 
 classes = (
     FRACTURE_MT_presets,
-    #FRACTURE_UL_fracture_settings,
     PHYSICS_PT_fracture,
     PHYSICS_PT_fracture_simulation,
     PHYSICS_PT_fracture_utilities,
