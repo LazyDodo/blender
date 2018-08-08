@@ -2771,11 +2771,12 @@ static int radial_extention( MeshData *m_d ){
 		int prev_inco_faces = 0;
 		BMEdge *flip_edge = NULL;
 		bool flipped_edge = false;
-		float cent_f[3];
+		float cent_f[3], no[3];
 		BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 			BM_face_calc_center_mean(face, cent_f);
+			BM_face_calc_normal(face, no);
 
-			if( b_f != calc_if_B_nor(m_d->cam_loc, cent_f, face->no) ){
+			if( b_f != calc_if_B_nor(m_d->cam_loc, cent_f, no) ){
 				prev_inco_faces++;
 
 				BMIter iter_e;
@@ -2829,7 +2830,7 @@ static int radial_extention( MeshData *m_d ){
 			BMLoop *loop1, *loop2;
 			BM_edge_calc_rotate(flip_edge, true, &loop1, &loop2);
 			if( BM_edge_rotate_check_degenerate(flip_edge, loop1, loop2) ){
-				BM_edge_rotate(m_d->bm, flip_edge, true, 0);
+				flip_edge = BM_edge_rotate(m_d->bm, flip_edge, true, 0);
 				flipped_edge = true;
 			}
 		} else {
@@ -2840,7 +2841,7 @@ static int radial_extention( MeshData *m_d ){
 		{
 			float mat[3][3];
 			float pos_v2[2];
-			float old_pos[3], i_pos[3], best_pos[3];
+			float old_pos[3], i_pos[3], best_pos[3], mid_pos[3], best_dist;
 
 			int orig_verts = BM_mesh_elem_count(m_d->bm_orig, BM_VERT);
 			int idx = BM_elem_index_get(r_vert.vert);
@@ -2852,6 +2853,10 @@ static int radial_extention( MeshData *m_d ){
             cur_face = v_buf.orig_face;
 
 			copy_v3_v3( old_pos, r_vert.vert->co );
+
+			interp_v3_v3v3(mid_pos, flip_edge->v1->co, flip_edge->v2->co, 0.5f);
+
+			best_dist = len_v3v3(old_pos, mid_pos);
 
 			axis_dominant_v3_to_m3(mat, r_vert.vert->no);
 
@@ -2891,49 +2896,50 @@ static int radial_extention( MeshData *m_d ){
 				m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(cur_face), uv_P[0], uv_P[1], P, du, dv);
 
 				copy_v3_v3(r_vert.vert->co, P);
+
                 //Did the nr of consistent triangles increase?
 				{
                     int new_inco_faces = 0;
+					float new_dist = len_v3v3(old_pos, P);
+					bool fold = false;
 					BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 						BM_face_calc_center_mean(face, cent_f);
-                        BM_face_normal_update(face);
+						BM_face_calc_normal(face, no);
 
-						if( b_f != calc_if_B_nor(m_d->cam_loc, cent_f, face->no) ){
+						//Will this new vert pos create a potential fold?
+						if( dot_v3v3( face->no, no ) < 0.5f ){
+							fold = true;
+							break;
+						}
+
+						if( b_f != calc_if_B_nor(m_d->cam_loc, cent_f, no) ){
 							new_inco_faces++;
 						}
 					}
 
-					if( new_inco_faces == 0 ){
-						found_better_pos = true;
-						copy_v3_v3(best_pos, P);
-						break;
+					if( fold ){
+						continue;
 					}
 
 					if( new_inco_faces < prev_inco_faces ){
 						found_better_pos = true;
 						copy_v3_v3(best_pos, P);
                         prev_inco_faces = new_inco_faces;
+					} else if ( new_inco_faces == prev_inco_faces && new_dist < best_dist ){
+						found_better_pos = true;
+						copy_v3_v3(best_pos, P);
 					}
 				}
 			}
 
 			if(found_better_pos){
 				copy_v3_v3(r_vert.vert->co, best_pos);
-                //Make sure we have up to date face normals
-				BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
-					BM_face_normal_update(face);
-				}
 				exten++;
 				continue;
 			}
 
 			//Move back to original position and flip back edge
 			copy_v3_v3( r_vert.vert->co, old_pos );
-
-			//Make sure we have up to date face normals
-			BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
-				BM_face_normal_update(face);
-			}
 
 			if( flipped_edge ){
 				BM_edge_rotate(m_d->bm, flip_edge, false, 0);
@@ -3087,7 +3093,7 @@ static void optimization( MeshData *m_d ){
 				BMFace *face;
 				BMIter iter_f;
 				bool b_f = r_vert.is_B;
-				float P[3];
+				float P[3], no[3];
 
 				BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
 					//TODO mark inconsistent faces in an other way
@@ -3118,8 +3124,9 @@ static void optimization( MeshData *m_d ){
 
 					}
 					BM_face_calc_center_mean(face, P);
+					BM_face_calc_normal(face, no);
 
-					if( b_f != calc_if_B_nor(m_d->cam_loc, P, face->no) ){
+					if( b_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
 						IncoFace inface;
 						inface.face = face;
 						inface.back_f = b_f;
@@ -3243,6 +3250,19 @@ static void optimization( MeshData *m_d ){
 			}
 			if (best_edge != NULL){
 				//printf("Opti filped an edge!\n");
+
+				//When we rotate, the connected inco faces might be lost.
+				//Remove them before flipping and add the new inco faces later (if any)
+				BMFace *face;
+				BMIter iter_f;
+				BM_ITER_ELEM (face, &iter_f, best_edge, BM_FACES_OF_EDGE) {
+					for(int i = 0; i < inco_faces.count; i++){
+						IncoFace *inface = &BLI_buffer_at(&inco_faces, IncoFace, i);
+						if( inface->face != NULL && inface->face == face ){
+							inface->face = NULL;
+						}
+					}
+				}
 
 				best_edge = BM_edge_rotate(m_d->bm, best_edge, true, 0);
 
