@@ -50,6 +50,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_movieclip_types.h"
 #include "DNA_mask_types.h"
+#include "DNA_fracture_types.h"
 
 #include "MEM_guardedalloc.h"
 

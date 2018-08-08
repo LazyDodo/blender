@@ -130,7 +130,7 @@ typedef struct DEGObjectIterData {
 	/* Temporary storage to report fully populated DNA to the render engine or
 	 * other users of the iterator.
 	 */
-    struct Object* temp_dupli_object;
+    struct Object temp_dupli_object;
 
 	/* **** Iteration ober ID nodes **** */
 	size_t id_node_index;

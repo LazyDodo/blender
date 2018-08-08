@@ -35,6 +35,7 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_rigidbody_types.h"
+#include "DNA_fracture_types.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
@@ -66,7 +67,7 @@ static MeshIsland *rna_FractureModifier_mesh_island_new(ID* id, FractureModifier
 static void rna_FractureModifier_mesh_island_remove(FractureModifierData *fmd, bContext* C, ReportList *reports, MeshIsland* mi)
 {
     Scene *scene = CTX_data_scene(C);
-	if (BLI_findindex(&fmd->meshIslands, mi) == -1) {
+	if (BLI_findindex(&fmd->shared->meshIslands, mi) == -1) {
 		BKE_reportf(reports, RPT_ERROR, "MeshIsland '%s' not in this fracture modifier", mi->name);
 		return;
 	}
@@ -91,7 +92,7 @@ static RigidBodyShardCon *rna_FractureModifier_mesh_constraint_new(FractureModif
 static void rna_FractureModifier_mesh_constraint_remove(FractureModifierData *fmd, bContext* C, ReportList *reports, RigidBodyShardCon *con)
 {
     Scene *scene = CTX_data_scene(C);
-	if (con && BLI_findindex(&fmd->meshConstraints, con) == -1) {
+	if (con && BLI_findindex(&fmd->shared->meshConstraints, con) == -1) {
 		BKE_reportf(reports, RPT_ERROR, "MeshConstraint '%s' not in this fracture modifier", con->name);
 		return;
 	}
@@ -521,7 +522,7 @@ static char *rna_MeshIslandVertex_path(PointerRNA *ptr)
 		bool found = false;
 
 		/* a looong search perhaps */
-		for (mi = fmd->meshIslands.first; mi; mi = mi->next)
+		for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next)
 		{
 			int i = 0;
 			for (i = 0; i < mi->vertex_count; i++)
@@ -622,7 +623,7 @@ static void rna_MeshIsland_cluster_index_set(PointerRNA *ptr, int value)
 static void rna_MeshIslandVertexGroup_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
 {
 	FractureModifierData *fmd = (FractureModifierData*)ptr->data;
-    Mesh* dm = fmd->visible_mesh_cached;
+    Mesh* dm = fmd->shared->visible_mesh_cached;
 
 	if (dm)
 	{
@@ -645,7 +646,7 @@ static int rna_MeshIslandVertex_index_get(PointerRNA *ptr)
 {
 	Object* ob = (Object*)ptr->id.data;
 	FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
-    Mesh* dm = fmd->visible_mesh_cached;
+    Mesh* dm = fmd->shared->visible_mesh_cached;
 	if (dm)
 	{
 		MVert *vert = (MVert *)ptr->data;
@@ -1873,7 +1874,6 @@ void RNA_api_fracture(BlenderRNA *brna, StructRNA *srna)
 	prop = RNA_def_property(srna, "mesh_islands", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_struct_type(prop, "MeshIsland");
 	RNA_def_property_collection_sdna(prop, NULL, "meshIslands", NULL);
-	//RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, NULL, NULL, "rna_FractureModifier_meshIsland_get_int", NULL, NULL);
 	RNA_def_property_ui_text(prop, "Mesh Islands", "A single entity inside the modifier, representing a single shard");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 	rna_def_fracture_meshislands(brna, prop);

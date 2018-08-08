@@ -390,7 +390,7 @@ static void rna_FractureModifier_use_breaking_set(PointerRNA *ptr, bool value)
 	rmd->use_breaking = value;
 	//rmd->refresh_constraints = true;
 
-	for (rbsc = rmd->meshConstraints.first; rbsc; rbsc = rbsc->next)
+	for (rbsc = rmd->shared->meshConstraints.first; rbsc; rbsc = rbsc->next)
 	{
 		if (value == true){
 			rbsc->flag |= RBC_FLAG_USE_BREAKING;
@@ -1479,6 +1479,13 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Activate Broken", "Activate both shards or all elements of the cluster if a constraint breaks");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+	//prop = RNA_def_property(srna, "shared", PROP_POINTER, PROP_NONE);
+	//RNA_def_property_pointer_sdna(prop, NULL, "shared");
+	//RNA_def_property_struct_type(prop, "FractureModifierData_Shared");
+
+	srna = RNA_def_struct(brna, "FractureModifierShared", NULL);
+	RNA_def_struct_sdna(srna, "FractureModifierData_Shared");
 
 	RNA_api_fracture(brna, srna);
 }

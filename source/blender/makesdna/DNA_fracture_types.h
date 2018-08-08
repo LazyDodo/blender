@@ -44,11 +44,143 @@ struct DerivedMesh;
 struct KDTree;
 
 enum {
+	MOD_RIGIDBODY_CENTROIDS = 0,
+	MOD_RIGIDBODY_VERTICES = 1,
+};
+
+enum {
 	SHARD_INTACT   = 1 << 0,
 	SHARD_FRACTURED = 1 << 1,
 	SHARD_SKIP = 1 << 2,
 	SHARD_DELETE = 1 << 3,
 };
+
+/* Fracture Modifier */
+enum {
+	MOD_FRACTURE_BISECT_FAST      = (1 << 0),
+	MOD_FRACTURE_BISECT_FAST_FILL = (1 << 1),
+	MOD_FRACTURE_BOOLEAN          = (1 << 2),
+	MOD_FRACTURE_BISECT_FILL      = (1 << 3),
+	MOD_FRACTURE_BISECT           = (1 << 4),
+	MOD_FRACTURE_BOOLEAN_FRACTAL  = (1 << 5),
+};
+
+enum {
+	MOD_FRACTURE_OWN_VERTS       = (1 << 0),
+	MOD_FRACTURE_OWN_PARTICLES   = (1 << 1),
+	MOD_FRACTURE_EXTRA_VERTS     = (1 << 2),
+	MOD_FRACTURE_EXTRA_PARTICLES = (1 << 3),
+	MOD_FRACTURE_GREASEPENCIL    = (1 << 4),
+	MOD_FRACTURE_UNIFORM         = (1 << 5),
+	MOD_FRACTURE_GRID            = (1 << 6),
+};
+
+enum {
+	MOD_FRACTURE_SPLINTER_X      = (1 << 0),
+	MOD_FRACTURE_SPLINTER_Y      = (1 << 1),
+	MOD_FRACTURE_SPLINTER_Z      = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_CUTTER_X      = (1 << 0),
+	MOD_FRACTURE_CUTTER_Y      = (1 << 1),
+	MOD_FRACTURE_CUTTER_Z      = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_CENTROID      = (1 << 0),
+	MOD_FRACTURE_VERTEX        = (1 << 1),
+};
+
+enum {
+	MOD_FRACTURE_PREFRACTURED      = (1 << 0),
+	MOD_FRACTURE_DYNAMIC           = (1 << 1),
+	MOD_FRACTURE_EXTERNAL          = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_KEEP_BOTH          = (1 << 0),
+	MOD_FRACTURE_KEEP_INTERSECT      = (1 << 1),
+	MOD_FRACTURE_KEEP_DIFFERENCE     = (1 << 2),
+};
+
+enum {
+	MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS     = (1 << 0),
+	MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS  = (1 << 1),
+	MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS     = (1 << 2),
+};
+
+typedef struct ShardSequence {
+	struct ShardSequence *next, *prev;
+	struct FracMesh *frac_mesh;
+	int frame;
+	int is_new;
+} ShardSequence;
+
+typedef struct MeshIslandSequence {
+	struct MeshIslandSequence *next, *prev;
+	struct Mesh *visible_dm;
+	ListBase meshIslands;
+	int frame;
+	int is_new;
+} MeshIslandSequence;
+
+typedef struct FractureID {
+	struct FractureID *next, *prev;
+	int shardID;
+	char pad[4];
+} FractureID;
+
+typedef struct AnimBind {
+	int v;
+	int v1;
+	int v2;
+	int mi;
+	int poly;
+	float offset[3];
+	float no[3];
+	float quat[4];
+} AnimBind;
+
+typedef struct FractureModifierData_Shared {
+
+	struct FracMesh *frac_mesh; /* store only the current fracmesh here first, later maybe an entire history...*/
+	struct Mesh *dm; /*untransformed assembled shard mesh */
+
+	struct BMesh *visible_mesh; /* for halving / existing islands */
+	struct Mesh *visible_mesh_cached; /*transformed output mesh*/
+
+	ListBase meshIslands, meshConstraints;
+	ListBase islandShards; /* the additional islands after splitting the shards, so count(meshislands) = count(shards + islandshards) */
+
+	//dynamic stuff... heavy TODO
+	ListBase shard_sequence; /* used as mesh cache / history for dynamic fracturing, for shards (necessary for conversion to DM) */
+	ListBase meshIsland_sequence; /* used as mesh cache / history for dynamic fracturing, for meshIslands (necessary for loc/rot "pointcache") */
+	ShardSequence *current_shard_entry; /*volatile storage of current shard entry, so we dont have to search in the list */
+	MeshIslandSequence *current_mi_entry; /*analogous to current shard entry */
+	ListBase fracture_ids; /*volatile storage of shards being "hit" or fractured currently, needs to be cleaned up after usage! */
+	ListBase shared_verts; /* used for storing shared vertices for automerge */
+	ListBase pack_storage; /*used to store packed geometry when switching modes */
+
+	//runtime only data, can be shared too
+	struct KDTree *nor_tree; /* store original vertices here (coords), to find them later and reuse their normals */
+	struct GHash *face_pairs;
+	struct GHash *vert_index_map; /*used for autoconversion of former objects to clusters, marks object membership of each vert*/
+	struct GHash *vertex_island_map; /* used for constraint building based on vertex proximity, temporary data */
+	struct GHash *material_index_map; /* used to collect materials from objects to be packed, temporary data */
+	struct GHash *defgrp_index_map; /*used to collect vertexgroups from objects to be packed, temporary data */
+	struct AnimBind *anim_bind; /* bound animation data */
+
+	int anim_bind_len;
+
+	/*DANGER... what happens if the new compound object has more materials than fit into 1 short ? shouldnt happen but can...*/
+	/*so reserve an int here better */
+	int matstart;
+	int defstart;
+
+	char pad[4];
+
+} FractureModifierData_Shared;
 
 typedef struct Shard {
 	struct Shard *next, *prev;
@@ -80,6 +212,40 @@ typedef struct Shard {
 	float impact_size[3]; /* size of impact area (simplified) */
 	//char pad2[4];
 } Shard;
+
+typedef struct MeshIsland {
+	struct MeshIsland *next, *prev;
+	struct BMVert **vertices;
+	struct MVert **vertices_cached;
+	float *vertco;
+	short *vertno;
+	struct Mesh *physics_mesh;
+	struct RigidBodyOb *rigidbody;
+	int *neighbor_ids;
+	int *vertex_indices;
+	struct BoundBox *bb;
+	struct RigidBodyShardCon **participating_constraints;
+	float *locs;
+	float *rots;
+
+	char name[66]; /* MAX_ID_NAME */
+	char pad1[2];
+
+	int start_frame;
+	int frame_count;
+	int participating_constraint_count;
+	int vertex_count, id, neighbor_count;
+	float centroid[3], start_co[3];
+	float rot[4]; /*hrm, need this for constraints probably */
+	float thresh_weight, ground_weight;
+	int linear_index;  /* index in rigidbody world */
+	int particle_index;
+	int constraint_index;
+	int object_index;
+	int totcol; /*store number of used materials here, from the original object*/
+	int totdef; /*store number of used vertexgroups here, from the original object*/
+	char pad[4];
+} MeshIsland;
 
 typedef struct FracMesh {
 	struct KDTree *last_shard_tree;
