@@ -999,7 +999,7 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 		copy_v3_v3(vert->co, new_loc);
 
 		//Check if the new position changed any of the normals drastically (potential fold)
-		BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
+		BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, i) {
 			float no[3];
 			float old_no[3];
 
@@ -1013,8 +1013,6 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 				BLI_buffer_free(&old_normals);
 				return false;
 			}
-
-			i++;
 		}
 
 		//Move the vert back for future checks
@@ -2067,6 +2065,13 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 		if( is_C_vert( edge->v1, m_d->C_verts) && is_C_vert( edge->v2, m_d->C_verts) ){
 			return false;
 		}
+
+		BMLoop *l1, *l2;
+		BM_edge_calc_rotate(edge, true, &l1, &l2);
+		if( !BM_edge_rotate_check_degenerate(edge, l1, l2) ){
+			return false;
+		}
+
 	}
 
 	{
@@ -3257,9 +3262,9 @@ static void optimization( MeshData *m_d ){
 				BMIter iter_f;
 				BM_ITER_ELEM (face, &iter_f, best_edge, BM_FACES_OF_EDGE) {
 					for(int i = 0; i < inco_faces.count; i++){
-						IncoFace *inface = &BLI_buffer_at(&inco_faces, IncoFace, i);
-						if( inface->face != NULL && inface->face == face ){
-							inface->face = NULL;
+						IncoFace *edge_inface = &BLI_buffer_at(&inco_faces, IncoFace, i);
+						if( edge_inface->face != NULL && edge_inface->face == face ){
+							edge_inface->face = NULL;
 						}
 					}
 				}
