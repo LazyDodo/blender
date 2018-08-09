@@ -2450,7 +2450,7 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	Object *obact = ED_object_active_context(C);
 	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+//	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	float cfra = BKE_scene_frame_get(scene);
 	double start = 1.0;
@@ -2471,7 +2471,7 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	rmd->reset_shards = RNA_boolean_get(op->ptr, "reset");
+	rmd->shared->reset_shards = RNA_boolean_get(op->ptr, "reset");
 
 	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
@@ -2492,8 +2492,8 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 		scene->rigidbody_world->shared->pointcache->flag &= ~PTCACHE_BAKED;
 	}
 
-	if (!rmd || (rmd && rmd->refresh)) {
-		rmd->refresh = false;
+	if (!rmd || (rmd && rmd->shared->refresh)) {
+		rmd->shared->refresh = false;
 		return OPERATOR_CANCELLED;
 	}
 
@@ -2510,13 +2510,10 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
 
-	rmd->refresh = true;
+	rmd->shared->refresh = true;
 	rmd->last_frame = INT_MAX; // delete dynamic data as well
-	DEG_id_tag_update(&obact->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | OB_RECALC_OB);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
-
-	//DEG_make_active(depsgraph);
-	//BKE_scene_graph_update_tagged(depsgraph, bmain);
 
 	return OPERATOR_FINISHED;
 }
@@ -2910,7 +2907,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 	/*use a common array for both constraints and objects ! */
 	double start;
 
-	rmd->refresh = false;
+	rmd->shared->refresh = false;
 	MEM_freeN((void*)name);
 
 	if (rbw)
@@ -2964,7 +2961,7 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 
 	rmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
-	if (rmd && rmd->refresh) {
+	if (rmd && rmd->shared->refresh) {
 		return OPERATOR_CANCELLED;
 	}
 
@@ -3465,7 +3462,7 @@ static int rigidbody_convert_keyframes_exec(bContext *C, wmOperator *op)
 		CTX_DATA_BEGIN(C, Object *, selob, selected_objects)
 		{
 			rmd = (FractureModifierData *)modifiers_findByType(selob, eModifierType_Fracture);
-			if (rmd && rmd->refresh) {
+			if (rmd && rmd->shared->refresh) {
 				return OPERATOR_CANCELLED;
 			}
 
@@ -3486,7 +3483,7 @@ static int rigidbody_convert_keyframes_exec(bContext *C, wmOperator *op)
 				if (count == 0)
 				{
 					//gaaah, undo frees sim data, rebuild....
-					rmd->refresh = true;
+					rmd->shared->refresh = true;
 					makeDerivedMesh(depsgraph, scene, selob, NULL, scene->customdata_mask | CD_MASK_BAREMESH, 0);
 					count = BLI_listbase_count(&rmd->shared->meshIslands);
 

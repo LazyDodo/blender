@@ -363,15 +363,17 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	return mi;
 }
 
-void BKE_fracture_mesh_island_free(FractureModifierData *rmd, MeshIsland *mi, bool remove_rigidbody, Scene* scene)
+void BKE_fracture_mesh_island_free(FractureModifierData *rmd, MeshIsland *mi, bool remove_rigidbody, Scene* scene, const int flag)
 {
 	if (mi->physics_mesh) {
 		BKE_mesh_free(mi->physics_mesh);
 		mi->physics_mesh = NULL;
 	}
 
-	if (mi->rigidbody) {
-		if (remove_rigidbody)
+	//if (mi->rigidbody && ((flag & LIB_ID_CREATE_NO_MAIN) == 0))
+	{
+		//do not touch rigidbody stuff in CoW
+		if (remove_rigidbody && scene)
 			BKE_rigidbody_remove_shard(scene, mi);
 		MEM_freeN(mi->rigidbody);
 		mi->rigidbody = NULL;
@@ -484,7 +486,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 				BKE_rigidbody_remove_shard_con(scene, con);
 			}
 
-			BKE_fracture_mesh_island_free(fmd, mi, true, scene);
+			BKE_fracture_mesh_island_free(fmd, mi, true, scene, 0);
 		}
 	}
 }
@@ -518,7 +520,7 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
 	while (fmd->shared->meshIslands.first) {
 		mi = fmd->shared->meshIslands.first;
 		BLI_remlink(&fmd->shared->meshIslands, mi);
-		BKE_fracture_mesh_island_free(fmd, mi, true, scene);
+		BKE_fracture_mesh_island_free(fmd, mi, true, scene, 0);
 	}
 
 	fmd->shared->meshIslands.first = NULL;
@@ -561,13 +563,13 @@ Mesh* BKE_fracture_external_apply(FractureModifierData *fmd, Object* ob, Mesh* p
 		return derivedData;
 	}
 
-	fmd->refresh = false;
+	fmd->shared->refresh = false;
 	fmd->shards_to_islands = false;
 
 	if (!fmd->shared->visible_mesh_cached)
 	{
 		BKE_fracture_update_visual_mesh(fmd, ob, true);
-		fmd->refresh_autohide = true;
+		fmd->shared->refresh_autohide = true;
 
 		if (fmd->shared->face_pairs != NULL) {
 			BLI_ghash_free(fmd->shared->face_pairs, NULL, NULL);
@@ -577,7 +579,7 @@ Mesh* BKE_fracture_external_apply(FractureModifierData *fmd, Object* ob, Mesh* p
 
 	if (fmd->shared->visible_mesh_cached && fmd->shared->dm) {
 
-		if (fmd->refresh_autohide) {
+		if (fmd->shared->refresh_autohide) {
 
 			if (fmd->autohide_dist > 0) {
 
@@ -595,7 +597,7 @@ Mesh* BKE_fracture_external_apply(FractureModifierData *fmd, Object* ob, Mesh* p
 				}
 			}
 
-			fmd->refresh_autohide = false;
+			fmd->shared->refresh_autohide = false;
 		}
 
 		if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0)

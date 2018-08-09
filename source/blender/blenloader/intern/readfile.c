@@ -6536,8 +6536,10 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 				rbw->ltime = (float)rbw->shared->pointcache->startframe;
 			}
 		}
-		rbw->objects = NULL;
+		rbw->shared->objects = NULL;
 		rbw->numbodies = 0;
+		rbw->shared->cache_index_map = NULL;
+		rbw->shared->cache_offset_map = NULL;
 
 		/* set effector weights */
 		rbw->effector_weights = newdataadr(fd, rbw->effector_weights);

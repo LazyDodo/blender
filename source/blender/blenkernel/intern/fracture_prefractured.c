@@ -15,17 +15,17 @@
 
 Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mesh *derivedData, Depsgraph* depsgraph)
 {
-    bool do_refresh = (fmd->auto_execute) || (fmd->dm_group && fmd->use_constraint_group && fmd->refresh_constraints);
+    bool do_refresh = (fmd->auto_execute) || (fmd->dm_group && fmd->use_constraint_group && fmd->shared->refresh_constraints);
     Scene *scene = fmd->scene;
 
     Mesh *final_dm = derivedData;
   //  Mesh *group_dm = BKE_fracture_group_dm(fmd, derivedData, ob, do_refresh || fmd->refresh);
 
     if (do_refresh) {
-        fmd->refresh = true;
+        fmd->shared->refresh = true;
     }
 
-    if (fmd->refresh)
+    if (fmd->shared->refresh)
     {
         BKE_fracture_initialize(fmd, ob, derivedData, depsgraph);
     }

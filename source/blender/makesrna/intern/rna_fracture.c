@@ -224,133 +224,133 @@ static void rna_FractureModifier_threshold_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_threshold = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_contact_dist_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->contact_dist = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_use_constraints_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->use_constraints = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_use_constraint_collision_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->use_constraint_collision = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_use_compounds_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->use_compounds = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_mass_dependent_thresholds_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->use_mass_dependent_thresholds = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_constraint_limit_set(PointerRNA *ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->constraint_limit = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_breaking_percentage_set(PointerRNA *ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_percentage = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_breaking_angle_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_angle = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_breaking_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_distance = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_deform_angle_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->deform_angle = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_deform_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->deform_distance = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_deform_angle_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_deform_angle = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_deform_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_deform_distance = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_threshold_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_threshold = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_deform_weakening_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->deform_weakening = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_solver_iterations_override_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->solver_iterations_override = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_solver_iterations_override_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_solver_iterations_override = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_autohide_dist_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->autohide_dist = value;
-	rmd->refresh_autohide = true;
+	rmd->shared->refresh_autohide = true;
 	rmd->distortion_cached = false;
 }
 
@@ -358,7 +358,7 @@ static void rna_FractureModifier_automerge_dist_set(PointerRNA *ptr, float value
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->automerge_dist = value;
-	rmd->refresh_autohide = true;
+	rmd->shared->refresh_autohide = true;
 	rmd->distortion_cached = false;
 }
 
@@ -366,21 +366,21 @@ static void rna_FractureModifier_cluster_breaking_angle_set(PointerRNA *ptr, flo
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_angle = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_breaking_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_distance = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_breaking_percentage_set(PointerRNA *ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_percentage = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_use_breaking_set(PointerRNA *ptr, bool value)
@@ -407,28 +407,28 @@ static void rna_FractureModifier_constraint_type_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->constraint_type = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_constraint_type_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_constraint_type = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_constraint_target_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->constraint_target = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_frac_algorithm_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->frac_algorithm = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_point_source_set(PointerRNA* ptr, int value)
@@ -436,21 +436,21 @@ static void rna_FractureModifier_point_source_set(PointerRNA* ptr, int value)
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->point_source = value;
 	printf("PointSource\n");
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_point_seed_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->point_seed = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_percentage_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->percentage = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 
@@ -458,70 +458,70 @@ static void rna_FractureModifier_extra_group_set(PointerRNA* ptr, PointerRNA val
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->extra_group = value.data;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_shards_to_islands_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->shards_to_islands = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fix_normals_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fix_normals = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_inner_material_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->inner_material = value.data;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_use_particle_birth_coordinates_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->use_particle_birth_coordinates = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_splinter_length_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->splinter_length = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_splinter_axis_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->splinter_axis = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_cutter_axis_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cutter_axis = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_nor_range_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->nor_range = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_use_smooth_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->use_smooth = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 
@@ -529,14 +529,14 @@ static void rna_FractureModifier_fractal_cuts_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_cuts = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fractal_amount_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_amount = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 
@@ -544,63 +544,63 @@ static void rna_FractureModifier_physics_mesh_scale_set(PointerRNA* ptr, float v
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->physics_mesh_scale = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fractal_iterations_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_iterations = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_cutter_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cutter_group = value.data;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_use_greasepencil_edges_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->use_greasepencil_edges = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_grease_offset_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->grease_offset = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_grease_decimate_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->grease_decimate = value;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_dm_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->dm_group = value.data;
-	rmd->reset_shards = true;
+	rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_minimum_impulse_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->minimum_impulse = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_mass_threshold_factor_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->mass_threshold_factor = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_autohide_filter_group_set(PointerRNA* ptr, PointerRNA value)
@@ -626,14 +626,14 @@ static void rna_FractureModifier_cluster_count_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->cluster_count = value;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_cluster_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->cluster_group = value.data;
-	rmd->refresh_constraints = true;
+	rmd->shared->refresh_constraints = true;
 }
 
 static void rna_FractureModifier_anim_mesh_ob_set(PointerRNA* ptr, PointerRNA value)
@@ -653,7 +653,7 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Point
 		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
         {
 
-			if (fmd->refresh)
+			if (fmd->shared->refresh)
 			{
 				return;
 			}
@@ -673,7 +673,7 @@ static void rna_Modifier_update_and_keep(Main *UNUSED(bmain), Scene *UNUSED(scen
 		FractureModifierData *fmd = (FractureModifierData*)md;
 		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED || fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 		{
-			if (fmd->refresh)
+			if (fmd->shared->refresh)
 			{
 				return;
 			}
@@ -913,12 +913,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-
-	//expose this to RNA to be able to let py checkbox disappear while job is running, otherwise crash
-	prop = RNA_def_property(srna, "refresh", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "refresh", false);
-	RNA_def_property_ui_text(prop, "Refresh", "Refresh");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
 	prop = RNA_def_property(srna, "thresh_vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "thresh_defgrp_name");

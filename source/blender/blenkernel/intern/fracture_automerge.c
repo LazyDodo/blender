@@ -790,7 +790,7 @@ void BKE_fracture_automerge_refresh(FractureModifierData* fmd)
 
 void BKE_fracture_autohide_refresh(FractureModifierData *fmd, Object *ob)
 {
-	fmd->refresh_autohide = false;
+	fmd->shared->refresh_autohide = false;
 	/*HERE make a kdtree of the fractured derivedmesh,
 	 * store pairs of faces (MPoly) here (will be most likely the inner faces) */
 	if (fmd->shared->face_pairs != NULL) {

@@ -52,8 +52,6 @@
 #  include "RBI_api.h"
 #endif
 
-#include "DEG_depsgraph.h"
-
 #include "DNA_fracture_types.h"
 #include "DNA_ID.h"
 #include "DNA_group_types.h"
@@ -85,6 +83,7 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
+#include "DEG_depsgraph_build.h"
 
 /* ************************************** */
 /* Memory Management */
@@ -103,6 +102,8 @@ static void RB_shape_delete(void *UNUSED(shape)) {}
 static void RB_constraint_delete(void *UNUSED(con)) {}
 
 #endif
+
+static int rigidbody_group_count_items(const ListBase *group, int *r_num_objects, int *r_num_shards);
 
 /* Free rigidbody world */
 void BKE_rigidbody_free_world(Scene *scene)
@@ -141,24 +142,23 @@ void BKE_rigidbody_free_world(Scene *scene)
 		RB_dworld_delete(rbw->shared->physics_world);
 	}
 
-	if (rbw->objects)
-		MEM_freeN(rbw->objects);
-
-	if (rbw->cache_index_map) {
-		MEM_freeN(rbw->cache_index_map);
-		rbw->cache_index_map = NULL;
-	}
-
-	if (rbw->cache_offset_map) {
-		MEM_freeN(rbw->cache_offset_map);
-		rbw->cache_offset_map = NULL;
-	}
-
-
 	if (is_orig) {
 		/* free cache */
 		BKE_ptcache_free_list(&(rbw->shared->ptcaches));
 		rbw->shared->pointcache = NULL;
+
+		if (rbw->shared->objects)
+			MEM_freeN(rbw->shared->objects);
+
+		if (rbw->shared->cache_index_map) {
+			MEM_freeN(rbw->shared->cache_index_map);
+			rbw->shared->cache_index_map = NULL;
+		}
+
+		if (rbw->shared->cache_offset_map) {
+			MEM_freeN(rbw->shared->cache_offset_map);
+			rbw->shared->cache_offset_map = NULL;
+		}
 
 		MEM_freeN(rbw->shared);
 	}
@@ -176,6 +176,8 @@ void BKE_rigidbody_free_object(Object *ob, RigidBodyWorld *rbw)
 {
 	bool is_orig = (ob->id.tag & LIB_TAG_COPIED_ON_WRITE) == 0;
 	RigidBodyOb *rbo = (ob) ? ob->rigidbody_object : NULL;
+	FractureModifierData *fmd = (ob) ? (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture) : NULL;
+	MeshIsland * mi;
 
 	/* sanity check */
 	if (rbo == NULL)
@@ -190,6 +192,24 @@ void BKE_rigidbody_free_object(Object *ob, RigidBodyWorld *rbw)
 				 * The world is generally only unknown if it's an evaluated copy of
 				 * an object that's being freed, in which case this code isn't run anyway. */
 				RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
+
+				if (fmd)
+				{
+					for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next) {
+						RB_dworld_remove_body(rbw, mi->rigidbody->shared->physics_object);
+						RB_body_delete(mi->rigidbody->shared->physics_object);
+						mi->rigidbody->shared->physics_object = NULL;
+
+						if (mi->rigidbody->shared->physics_shape) {
+							RB_shape_delete(mi->rigidbody->shared->physics_shape);
+							mi->rigidbody->shared->physics_shape = NULL;
+						}
+
+						MEM_freeN(mi->rigidbody->shared);
+						MEM_freeN(mi->rigidbody);
+						mi->rigidbody = NULL;
+					}
+				}
 			}
 
 			RB_body_delete(rbo->shared->physics_object);
@@ -1068,9 +1088,9 @@ RigidBodyWorld *BKE_rigidbody_create_world(Scene *scene)
 	rbw->flag &=~ RBW_FLAG_OBJECT_CHANGED;
 	rbw->flag &=~ RBW_FLAG_REFRESH_MODIFIERS;
 
-	rbw->objects = MEM_mallocN(sizeof(Object *), "objects");
-	rbw->cache_index_map = MEM_mallocN(sizeof(RigidBodyOb *), "cache_index_map");
-	rbw->cache_offset_map = MEM_mallocN(sizeof(int), "cache_offset_map");
+	rbw->shared->objects = MEM_mallocN(sizeof(Object *), "objects");
+	rbw->shared->cache_index_map = MEM_mallocN(sizeof(RigidBodyOb *), "cache_index_map");
+	rbw->shared->cache_offset_map = MEM_mallocN(sizeof(int), "cache_offset_map");
 
 	/* return this sim world */
 	return rbw;
@@ -1082,6 +1102,7 @@ RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, O
 	RigidBodyOb *rbo;
 	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
 	float centr[3], size[3], mat[4][4];
+	bool added = false;
 
 	/* sanity checks
 	 *	- rigidbody world must exist
@@ -1091,7 +1112,7 @@ RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, O
 	if (mi == NULL || (mi->rigidbody != NULL))
 		return NULL;
 
-	if (ob->type != OB_MESH && ob->type != OB_FONT && ob->type != OB_CURVE && ob->type != OB_SURF) {
+	if (ob->type != OB_MESH) {
 		return NULL;
 	}
 
@@ -1121,8 +1142,6 @@ RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, O
 	if (!BKE_collection_has_object(rbw->group, ob)) {
 		BKE_collection_object_add(bmain, rbw->group, ob);
 	}
-
-		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 
 	/* since we are always member of an object, dupe its settings,
 	 * create new settings data, and link it up */
@@ -1173,11 +1192,11 @@ RigidBodyWorld *BKE_rigidbody_world_copy(RigidBodyWorld *rbw, const int flag)
 		rbw_copy->shared = MEM_callocN(sizeof(*rbw_copy->shared), "RigidBodyWorld_Shared");
 		BKE_ptcache_copy_list(&rbw_copy->shared->ptcaches, &rbw->shared->ptcaches, LIB_ID_COPY_CACHES);
 		rbw_copy->shared->pointcache = rbw_copy->shared->ptcaches.first;
-	}
 
-	rbw_copy->objects = NULL;
-	rbw_copy->numbodies = 0;
-	BKE_rigidbody_update_ob_array(rbw_copy, false);
+		rbw_copy->shared->objects = NULL;
+		rbw_copy->shared->numbodies = 0;
+		BKE_rigidbody_update_ob_array(rbw_copy, false);
+	}
 
 	return rbw_copy;
 }
@@ -1191,7 +1210,8 @@ void BKE_rigidbody_world_groups_relink(RigidBodyWorld *rbw)
 
 void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func, void *userdata)
 {
-	CollectionObject *go;
+	//CollectionObject *go;
+	int obj, shard;
 
 	func(rbw, (ID **)&rbw->group, userdata, IDWALK_CB_NOP);
 	func(rbw, (ID **)&rbw->constraints, userdata, IDWALK_CB_NOP);
@@ -1210,6 +1230,15 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 		}
 	}*/
 
+	if (rbw->shared->objects) {
+		int i;
+		int count = rigidbody_group_count_items(&rbw->group->gobject, &obj, &shard);
+		for (i = 0; i < count; i++) {
+			func(rbw, (ID **)&rbw->shared->objects[i], userdata, IDWALK_CB_NOP);
+		}
+	}
+
+#if 0
 	if (rbw->group) {
 		for (go = rbw->group->gobject.first; go; go = go->next) {
 			func(rbw, (ID **)&go->ob, userdata, IDWALK_CB_NOP);
@@ -1221,6 +1250,8 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 			func(rbw, (ID **)&go->ob, userdata, IDWALK_CB_NOP);
 		}
 	}
+#endif
+
 }
 
 /* Add rigid body settings to the specified object */
@@ -1572,9 +1603,9 @@ void BKE_rigidbody_remove_shard(Scene *scene, MeshIsland *mi)
 		}
 #endif
 
-		if (rbw->cache_index_map != NULL) {
-			MEM_freeN(rbw->cache_index_map);
-			rbw->cache_index_map = NULL;
+		if (rbw->shared->cache_index_map != NULL) {
+			MEM_freeN(rbw->shared->cache_index_map);
+			rbw->shared->cache_index_map = NULL;
 		}
 
 		//BKE_rigidbody_update_ob_array(rbw);
@@ -1633,9 +1664,9 @@ static bool do_remove_modifier(RigidBodyWorld* rbw, ModifierData *md, Object *ob
 					mi->rigidbody->shared->physics_shape = NULL;
 				}
 
-				if (rbw->cache_index_map != NULL) {
-					MEM_freeN(rbw->cache_index_map);
-					rbw->cache_index_map = NULL;
+				if (rbw->shared->cache_index_map != NULL) {
+					MEM_freeN(rbw->shared->cache_index_map);
+					rbw->shared->cache_index_map = NULL;
 				}
 
 				MEM_freeN(mi->rigidbody);
@@ -1663,23 +1694,8 @@ void BKE_rigidbody_remove_object(Main *bmain, Scene *scene, Object *ob)
 
 		if (!modFound) {
 			/* remove from rigidbody world, free object won't do this */
-					if (rbw->shared->physics_world && rbo->shared->physics_object)
-					RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
-
-			/* remove object from array */
-			if (rbw && rbw->objects) {
-				for (i = 0; i < rbw->numbodies; i++) {
-					int index = rbw->cache_offset_map[i];
-					if (rbw->objects[index] == ob) {
-						rbw->objects[index] = NULL;
-					}
-
-					if (rbw->cache_index_map != NULL) {
-						MEM_freeN(rbw->cache_index_map);
-						rbw->cache_index_map = NULL;
-					}
-				}
-			}
+			if (rbw->shared->physics_world && rbo->shared->physics_object)
+				RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 
 			/* remove object from rigid body constraints */
 			if (rbw->constraints) {
@@ -1702,6 +1718,8 @@ void BKE_rigidbody_remove_object(Main *bmain, Scene *scene, Object *ob)
 
 		/* flag cache as outdated */
 		BKE_rigidbody_cache_reset(rbw);
+
+		BKE_rigidbody_update_ob_array(rbw, false);
 	}
 }
 
@@ -1726,7 +1744,8 @@ static int rigidbody_group_count_items(const ListBase *group, int *r_num_objects
 	int num_gobjects = 0;
 	ModifierData *md;
 	FractureModifierData *rmd;
-		CollectionObject *gob;
+	CollectionObject *gob;
+	MeshIsland *mi;
 
 	if (r_num_objects == NULL || r_num_shards == NULL)
 	{
@@ -1744,9 +1763,12 @@ static int rigidbody_group_count_items(const ListBase *group, int *r_num_objects
 				if (BKE_rigidbody_modifier_active(rmd))
 				{
 					found_modifiers = true;
-					if (rmd->shared->meshIslands.first != NULL)
+					for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next)
 					{
-						*r_num_shards += BLI_listbase_count(&rmd->shared->meshIslands);
+						if (mi->rigidbody)
+						{
+							(*r_num_shards)++;
+						}
 					}
 				}
 			}
@@ -1814,31 +1836,32 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 	RigidBodyOb ** tmp_index = NULL;
 	int *tmp_offset = NULL;
 
-	if (rbw->objects != NULL) {
-		MEM_freeN(rbw->objects);
-		rbw->objects = NULL;
+	if (rbw->shared->objects != NULL) {
+		MEM_freeN(rbw->shared->objects);
+		rbw->shared->objects = NULL;
 	}
 
-	if (rbw->cache_index_map != NULL) {
-		MEM_freeN(rbw->cache_index_map);
-		rbw->cache_index_map = NULL;
+	if (rbw->shared->cache_index_map != NULL) {
+		MEM_freeN(rbw->shared->cache_index_map);
+		rbw->shared->cache_index_map = NULL;
 	}
 
-	if (rbw->cache_offset_map != NULL) {
-		MEM_freeN(rbw->cache_offset_map);
-		rbw->cache_offset_map = NULL;
+	if (rbw->shared->cache_offset_map != NULL) {
+		MEM_freeN(rbw->shared->cache_offset_map);
+		rbw->shared->cache_offset_map = NULL;
 	}
 
 	l = rigidbody_group_count_items(&rbw->group->gobject, &m, &n);
 
-	rbw->numbodies = m + n;
-	rbw->objects = MEM_mallocN(sizeof(Object *) * l, "objects");
-	rbw->cache_index_map = MEM_mallocN(sizeof(RigidBodyOb *) * rbw->numbodies, "cache_index_map");
-	rbw->cache_offset_map = MEM_mallocN(sizeof(int) * rbw->numbodies, "cache_offset_map");
-	tmp_index =  MEM_mallocN(sizeof(RigidBodyOb *) * rbw->numbodies, "cache_index_map temp");
-	tmp_offset = MEM_mallocN(sizeof(int) * rbw->numbodies, "cache_offset_map");
+	rbw->shared->numbodies = m + n;
+	rbw->shared->objects = MEM_mallocN(sizeof(Object *) * l, "objects");
+	rbw->shared->cache_index_map = MEM_mallocN(sizeof(RigidBodyOb *) *
+	                                           rbw->shared->numbodies, "cache_index_map");
+	rbw->shared->cache_offset_map = MEM_mallocN(sizeof(int) * rbw->shared->numbodies, "cache_offset_map");
+	tmp_index =  MEM_mallocN(sizeof(RigidBodyOb *) * rbw->shared->numbodies, "cache_index_map temp");
+	tmp_offset = MEM_mallocN(sizeof(int) * rbw->shared->numbodies, "cache_offset_map");
 
-	printf("RigidbodyCount changed: %d\n", rbw->numbodies);
+	printf("RigidbodyCount changed: %d\n", rbw->shared->numbodies);
 
 	//pre-sort rbw->objects... put such with fmd->dm_group and fmd->use_constraint_group after all without,
 	//to enforce proper eval order
@@ -1847,15 +1870,15 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 
 		if (go->ob->rigidbody_object)
 		{
-			rbw->objects[i] = go->ob;
+			rbw->shared->objects[i] = go->ob;
 		}
 	}
 
-	BLI_qsort_r(rbw->objects, l, sizeof(Object *), object_sort_eval, NULL);
+	BLI_qsort_r(rbw->shared->objects, l, sizeof(Object *), object_sort_eval, NULL);
 
 	//correct map if baked, it might be shifted
 	for (i = 0; i < l; i++) {
-		Object *ob = rbw->objects[i];
+		Object *ob = rbw->shared->objects[i];
 		printf("%s\n", ob->id.name + 2);
 
 		rmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
@@ -1891,20 +1914,20 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 	}
 
 	//do shuffle for each rigidbody
-	for (i = 0; i < rbw->numbodies; i++)
+	for (i = 0; i < rbw->shared->numbodies; i++)
 	{
 		RigidBodyOb *rbo = tmp_index[i];
 		int offset = tmp_offset[i];
 
 		if (rbo->meshisland_index != i && do_bake_correction)
 		{
-			rbw->cache_index_map[rbo->meshisland_index] = rbo;
-			rbw->cache_offset_map[rbo->meshisland_index] = offset;
+			rbw->shared->cache_index_map[rbo->meshisland_index] = rbo;
+			rbw->shared->cache_offset_map[rbo->meshisland_index] = offset;
 			//printf("Shuffle %d -> %d\n", i, rbo->meshisland_index);
 		}
 		else {
-			rbw->cache_index_map[i] = rbo;
-			rbw->cache_offset_map[i] = offset;
+			rbw->shared->cache_index_map[i] = rbo;
+			rbw->shared->cache_offset_map[i] = offset;
 		}
 	}
 
@@ -1932,7 +1955,8 @@ static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw, bool r
 	/* update object array in case there are changes */
 	if (rebuild)
 	{
-		BKE_rigidbody_update_ob_array(rbw, (rbw->shared->pointcache->flag & PTCACHE_BAKED) && !skip_correction);
+		BKE_rigidbody_update_ob_array(rbw, (rbw->shared->pointcache->flag & PTCACHE_BAKED) &&
+		                              !skip_correction);
 	}
 }
 
@@ -1968,7 +1992,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 				{
 					//fracture modifier case TODO, update mi->physicsmesh somehow and redraw
 					rbo->flag |= RBO_FLAG_NEEDS_RESHAPE;
-					BKE_rigidbody_shard_validate(rbw, mi, ob, false, false, size);
+					BKE_rigidbody_shard_validate(rbw, mi, ob, fmd, false, false, size);
 				}
 				else
 				{
@@ -2111,7 +2135,7 @@ static void rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool 
 
 	/* update objects */
 	for (i = 0; i < count; i++) {
-		Object *ob = rbw->objects[i];
+		Object *ob = rbw->shared->objects[i];
 
 		if (ob && (ob->type == OB_MESH)) {
 			did_modifier = BKE_rigidbody_modifier_update(scene, ob, rbw, rebuild, depsgraph);
@@ -2450,7 +2474,7 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 	ModifierData *md;
 	FractureModifierData *rmd;
 	float imat[4][4];
-	Scene* scene = DEG_get_input_scene(depsgraph); // or the eval one ?
+	Scene* scene = DEG_get_evaluated_scene(depsgraph); // or the eval one ?
 
 	md = modifiers_findByType(ob, eModifierType_Fracture);
 	if (md != NULL)
@@ -2502,27 +2526,20 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 	int startframe, endframe;
 	int shards = 0, objects = 0;
 
-	if ((int)ctime == -1)
-	{
-		if (rbw && rbw->group)
-		{
-			/*hack to be able to update the simulation data after loading from FM*/
-			rigidbody_update_simulation(scene, rbw, true, depsgraph);
-		}
-		return;
-	}
-
 	BKE_ptcache_id_from_rigidbody(&pid, NULL, rbw);
 	BKE_ptcache_id_time(&pid, scene, ctime, &startframe, &endframe, NULL);
 	cache = rbw->shared->pointcache;
 
-	/* flag cache as outdated if we don't have a world or number of objects in the simulation has changed */
-	rigidbody_group_count_items(&rbw->group->gobject, &shards, &objects);
+	/* flag cache as outdated if we don't have a world or
+	 * number of objects in the simulation has changed */
+
+	//rigidbody_group_count_items(&rbw->group->gobject, &shards, &objects);
 	if (rbw->shared->physics_world == NULL /*|| rbw->numbodies != (shards + objects)*/) {
 		cache->flag |= PTCACHE_OUTDATED;
 	}
 
-	if (ctime == startframe + 1 && rbw->ltime == startframe) {
+	if (ctime == startframe + 1 && rbw->ltime == startframe)
+	{
 		if (cache->flag & PTCACHE_OUTDATED) {
 
 			//if we destroy the cache, also reset dynamic data (if not baked)
@@ -2592,9 +2609,11 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	}
 
 	/* don't try to run the simulation if we don't have a world yet but allow reading baked cache */
-	if (rbw->shared->physics_world == NULL && !(cache->flag & PTCACHE_BAKED))
+	if (rbw->shared->physics_world == NULL && !(cache->flag & PTCACHE_BAKED)) {
+		//BKE_rigidbody_rebuild_world(depsgraph, scene, ctime);
 		return;
-	else if ((rbw->objects == NULL) || (rbw->cache_index_map == NULL))
+	}
+	else if ((rbw->shared->objects == NULL) || (rbw->shared->cache_index_map == NULL))
 	{
 		if (!was_changed)
 		{
@@ -2630,7 +2649,9 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	}
 
 	/* advance simulation, we can only step one frame forward */
-	if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64)) {
+	//if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64))
+	if (can_simulate)
+	{
 		/* write cache for first frame when on second frame */
 		if (rbw->ltime == startframe && (cache->flag & PTCACHE_OUTDATED || cache->last_exact == 0)) {
 			BKE_ptcache_write(&pid, startframe);

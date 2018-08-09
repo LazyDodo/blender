@@ -46,6 +46,7 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_smoke_types.h"
+#include "DNA_fracture_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_threads.h"
@@ -1289,10 +1290,10 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
 
-	if (!rbw->cache_index_map || !rbw->cache_offset_map)
+	if (!rbw->shared->cache_index_map || !rbw->shared->cache_offset_map)
 		return 1;
 
-	rbo = rbw->cache_index_map[index];
+	rbo = rbw->shared->cache_index_map[index];
 	
 	if (rbo == NULL) {
 		return 1;
@@ -1320,7 +1321,7 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
 	
-	rbo = rbw->cache_index_map[index];
+	rbo = rbw->shared->cache_index_map[index];
 	
 	if (rbo == NULL) {
 		return;
@@ -1347,7 +1348,7 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
     ParticleKey keys[4], result;
 	float dfra;
 	
-	rbo = rbw->cache_index_map[index];
+	rbo = rbw->shared->cache_index_map[index];
 	if (rbo == NULL) {
 		return;
 	}
@@ -1384,7 +1385,7 @@ static int ptcache_rigidbody_totpoint(void *rb_v, int UNUSED(cfra))
 {
 	RigidBodyWorld *rbw = rb_v;
 
-	return rbw->numbodies;
+	return rbw->shared->numbodies;
 }
 
 static void ptcache_rigidbody_error(void *UNUSED(rb_v), const char *UNUSED(message))
@@ -3381,7 +3382,7 @@ int  BKE_ptcache_object_reset(Scene *scene, Object *ob, int mode)
 		if (md && md->type == eModifierType_Fracture)
 		{
 			FractureModifierData *fmd = (FractureModifierData*)md;
-			if (!fmd->refresh_autohide)
+			if (!fmd->shared->refresh_autohide)
 			{
 				if (ob->rigidbody_object)
 					ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;

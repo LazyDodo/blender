@@ -178,6 +178,11 @@ typedef struct FractureModifierData_Shared {
 	int matstart;
 	int defstart;
 
+	int refresh;
+	int refresh_constraints;
+	int refresh_autohide;
+	int reset_shards;
+
 	char pad[4];
 
 } FractureModifierData_Shared;

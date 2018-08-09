@@ -1610,10 +1610,6 @@ typedef struct FractureModifierData {
 	float grid_spacing[3];
 
 	/* flags */
-	int refresh;
-	int refresh_constraints;
-	int refresh_autohide;
-	int reset_shards;
 
 	int use_constraints;
 	int use_compounds;

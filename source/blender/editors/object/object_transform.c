@@ -42,6 +42,7 @@
 #include "DNA_group_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_modifier_types.h"
+#include "DNA_fracture_types.h"
 
 #include "BLI_math.h"
 #include "BLI_listbase.h"
@@ -91,7 +92,7 @@ static void reset_fracturemodifier_matrix(Object* ob, bool do_refresh)
 	if (fmd) {
 		zero_m4(fmd->origmat);
 		zero_m4(fmd->passive_parent_mat);
-		fmd->refresh = do_refresh;
+		fmd->shared->refresh = do_refresh;
 	}
 }
 

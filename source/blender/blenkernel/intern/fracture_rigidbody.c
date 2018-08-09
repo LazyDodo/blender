@@ -92,8 +92,8 @@ void BKE_rigidbody_activate(RigidBodyOb* rbo, RigidBodyWorld *UNUSED(rbw), MeshI
 
 bool BKE_rigidbody_modifier_active(FractureModifierData *rmd)
 {
-	return ((rmd != NULL) && (rmd->modifier.mode & (eModifierMode_Realtime | eModifierMode_Render)));// &&
-			//(rmd->refresh == false || rmd->fracture_mode == MOD_FRACTURE_DYNAMIC));
+	return ((rmd != NULL) && (rmd->modifier.mode & (eModifierMode_Realtime | eModifierMode_Render)) //&&
+			/*(rmd->shared->refresh == false || rmd->fracture_mode == MOD_FRACTURE_DYNAMIC)*/);
 }
 
 static void calc_dist_angle(RigidBodyShardCon *con, float *dist, float *angle, bool exact)
@@ -680,9 +680,9 @@ void BKE_rigidbody_validate_sim_shard_shape(MeshIsland *mi, Object *ob, short re
 /* Create physics sim representation of shard given RigidBody settings
  * < rebuild: even if an instance already exists, replace it
  */
-void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Object *ob, short rebuild, int transfer_speeds, float isize[3])
+void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Object *ob, FractureModifierData *fmd,
+                                      short rebuild, int transfer_speeds, float isize[3])
 {
-	FractureModifierData *fmd = NULL;
 	RigidBodyOb *rbo = (mi) ? mi->rigidbody : NULL;
 	float loc[3];
 	float rot[4];
@@ -694,8 +694,6 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 		return;
 
 	/* at validation, reset frame count as well */
-
-	fmd = (FractureModifierData*) modifiers_findByType(ob, eModifierType_Fracture);
 
 	/* make sure collision shape exists */
 	/* FIXME we shouldn't always have to rebuild collision shapes when rebuilding objects, but it's needed for constraints to update correctly */
@@ -1365,10 +1363,10 @@ int BKE_rigidbody_filter_callback(void* world, void* island1, void* island2, voi
 	}
 
 	/* cache offset map is a dull name for that... */
-	if (mi1 != NULL && rbw->cache_offset_map)
+	if (mi1 != NULL && rbw->shared->cache_offset_map)
 	{
-		ob_index1 = rbw->cache_offset_map[mi1->linear_index];
-		ob1 = rbw->objects[ob_index1];
+		ob_index1 = rbw->shared->cache_offset_map[mi1->linear_index];
+		ob1 = rbw->shared->objects[ob_index1];
 	}
 	else
 	{
@@ -1376,10 +1374,10 @@ int BKE_rigidbody_filter_callback(void* world, void* island1, void* island2, voi
 		ob_index1 = -1;
 	}
 
-	if (mi2 != NULL && rbw->cache_offset_map)
+	if (mi2 != NULL && rbw->shared->cache_offset_map)
 	{
-		ob_index2 = rbw->cache_offset_map[mi2->linear_index];
-		ob2 = rbw->objects[ob_index2];
+		ob_index2 = rbw->shared->cache_offset_map[mi2->linear_index];
+		ob2 = rbw->shared->objects[ob_index2];
 	}
 	else
 	{
@@ -1608,26 +1606,26 @@ static void check_fracture(rbContactPoint* cp, RigidBodyWorld *rbw, Object *obA,
 		return;
 	}
 
-	if (linear_index2 > -1 && linear_index2 < rbw->numbodies)
+	if (linear_index2 > -1 && linear_index2 < rbw->shared->numbodies)
 	{
-		ob_index2 = rbw->cache_offset_map[linear_index2];
-		ob2 = rbw->objects[ob_index2];
+		ob_index2 = rbw->shared->cache_offset_map[linear_index2];
+		ob2 = rbw->shared->objects[ob_index2];
 	}
 	else if (obB) {
 		ob2 = obB;
 	}
 
-	if (linear_index1 > -1 && linear_index1 < rbw->numbodies)
+	if (linear_index1 > -1 && linear_index1 < rbw->shared->numbodies)
 	{
-		ob_index1 = rbw->cache_offset_map[linear_index1];
-		ob1 = rbw->objects[ob_index1];
+		ob_index1 = rbw->shared->cache_offset_map[linear_index1];
+		ob1 = rbw->shared->objects[ob_index1];
 		fmd1 = (FractureModifierData*)modifiers_findByType(ob1, eModifierType_Fracture);
 
 		if (fmd1 && fmd1->fracture_mode == MOD_FRACTURE_DYNAMIC)
 		{
 			if (fmd1->shared->current_shard_entry && fmd1->shared->current_shard_entry->is_new)
 			{
-				RigidBodyOb *rbo = rbw->cache_index_map[linear_index1];
+				RigidBodyOb *rbo = rbw->shared->cache_index_map[linear_index1];
 				int id = rbo->meshisland_index;
 				MeshIsland* mi = findMeshIsland(fmd1, id);
 				Shard *s = findShard(fmd1, mi->id);
@@ -1671,7 +1669,7 @@ static void check_fracture(rbContactPoint* cp, RigidBodyWorld *rbw, Object *obA,
 		ob1 = obA;
 	}
 
-	if (linear_index2 > -1 && linear_index2 < rbw->numbodies)
+	if (linear_index2 > -1 && linear_index2 < rbw->shared->numbodies)
 	{
 		//ob_index2 = rbw->cache_offset_map[linear_index2];
 		//ob2 = rbw->objects[ob_index2];
@@ -1681,7 +1679,7 @@ static void check_fracture(rbContactPoint* cp, RigidBodyWorld *rbw, Object *obA,
 		{
 			if (fmd2->shared->current_shard_entry && fmd2->shared->current_shard_entry->is_new)
 			{
-				RigidBodyOb *rbo = rbw->cache_index_map[linear_index2];
+				RigidBodyOb *rbo = rbw->shared->cache_index_map[linear_index2];
 				int id = rbo->meshisland_index;
 				MeshIsland* mi = findMeshIsland(fmd2, id);
 				Shard *s = findShard(fmd2, mi->id);
@@ -1739,7 +1737,7 @@ void BKE_rigidbody_id_callback(void *world, void* island, int* objectId, int* is
 
 	if (mi)
 	{
-		*objectId = rbw->cache_offset_map[mi->linear_index];
+		*objectId = rbw->shared->cache_offset_map[mi->linear_index];
 		*islandId = mi->id;
 	}
 }
@@ -1777,7 +1775,8 @@ static void rigidbody_passive_fake_hook(MeshIsland *mi, float co[3])
 	}
 }
 
-void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *ob, int rebuild, int transfer_speed, float size[3])
+void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *ob, FractureModifierData* fmd,
+                                  int rebuild, int transfer_speed, float size[3])
 {
 	if (mi == NULL || mi->rigidbody == NULL) {
 		return;
@@ -1785,10 +1784,10 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *o
 
 	if (rebuild /*|| (mi->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD)*/) {
 		/* World has been rebuilt so rebuild object */
-		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, true, transfer_speed, size);
+		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, true, transfer_speed, size);
 	}
 	else if (mi->rigidbody->flag & RBO_FLAG_NEEDS_VALIDATE) {
-		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, false, transfer_speed, size);
+		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, false, transfer_speed, size);
 	}
 	/* refresh shape... */
 	if (mi->rigidbody->shared->physics_object && (mi->rigidbody->flag & RBO_FLAG_NEEDS_RESHAPE)) {
@@ -2375,7 +2374,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 					}
 				}
 
-				BKE_rigidbody_shard_validate(rbw, is_empty ? NULL : mi, ob, do_rebuild,
+				BKE_rigidbody_shard_validate(rbw, is_empty ? NULL : mi, ob, fmd, do_rebuild,
 											 fmd->fracture_mode == MOD_FRACTURE_DYNAMIC, bbsize);
 
 				mi->constraint_index = mi->id;
