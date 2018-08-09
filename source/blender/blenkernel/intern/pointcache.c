@@ -1299,7 +1299,7 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 		return 1;
 	}
 
-    if (rbo && rbo->shared->physics_object)
+    if (rbo && rbo->shared && rbo->shared->physics_object)
 	{
 
 #ifdef WITH_BULLET

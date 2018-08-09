@@ -326,7 +326,7 @@ static void tickCallback(btDynamicsWorld *world, btScalar timeStep)
 					rbContactPoint* cp = tworld->make_contact_point(pt, obA, obB);
 					broken = weakenCompound(obA, cp->contact_force, pt.getPositionWorldOnA(), fworld);
 					broken = broken || weakenCompound(obB, cp->contact_force, pt.getPositionWorldOnB(), fworld);
-					tworld->m_contactCallback(cp, tworld->m_bworld);
+					tworld->m_contactCallback(cp, tworld->m_bscene);
 					delete cp;
 				}
 
@@ -739,7 +739,7 @@ struct rbFilterCallback : public btOverlapFilterCallback
 		collides = collides && (rb0->col_groups & rb1->col_groups);
 		if (this->callback != NULL && collides) {
 
-			int result = this->callback(rb0->world->blenderWorld, rb0->meshIsland, rb1->meshIsland,
+			int result = this->callback(rb0->world->blenderScene, rb0->meshIsland, rb1->meshIsland,
 										rb0->blenderOb, rb1->blenderOb, activate);
 
 			collides = collides && (bool)result;
@@ -898,7 +898,7 @@ public:
 		rbRigidBody *rb0 = (rbRigidBody*)colObj0->getUserPointer();
 		rbRigidBody *rb1 = (rbRigidBody*)colObj1->getUserPointer();
 
-		do_collide = ((rbFilterCallback*)(rb0->world->filterCallback))->callback(rb0->world->blenderWorld,
+		do_collide = ((rbFilterCallback*)(rb0->world->filterCallback))->callback(rb0->world->blenderScene,
 		                                                                             rb0->meshIsland, rb1->meshIsland,
 																				     rb0->blenderOb, rb1->blenderOb, false);
 		return !do_collide;
@@ -972,7 +972,7 @@ static void nearCallback(btBroadphasePair &collisionPair, btCollisionDispatcher 
 
 				//handle_activation(manifold, rb0, rb1);
 				//handle_activation(manifold, rb1, rb0);
-				((rbFilterCallback*)(rb0->world->filterCallback))->callback(rb0->world->blenderWorld, rb0->meshIsland, rb1->meshIsland,
+				((rbFilterCallback*)(rb0->world->filterCallback))->callback(rb0->world->blenderScene, rb0->meshIsland, rb1->meshIsland,
 							   rb0->blenderOb, rb1->blenderOb, true);
 			}
 		}
@@ -1005,7 +1005,7 @@ rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderWorld, void*
 
 	TickDiscreteDynamicsWorld *tworld = new TickDiscreteDynamicsWorld(world->dispatcher,
 	                                                                  world->pairCache,
-	                                                      world->constraintSolver,
+														  world->constraintSolver,
 	                                                      world->collisionConfiguration,
 	                                                      contactCallback, blenderWorld, blenderScene, idCallback, tickCallback);
 
@@ -1013,6 +1013,7 @@ rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderWorld, void*
 	world->dynamicsWorld = tworld;
 	world->blenderWorld = blenderWorld;
 	world->idOutCallback = idCallbackOut;
+	world->blenderScene = blenderScene;
 
 	RB_dworld_set_gravity(world, gravity);
 

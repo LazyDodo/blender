@@ -5524,7 +5524,9 @@ static void do_post_island_creation(FractureModifierData *fmd, Object *ob, Mesh 
 	if (fmd->shared->refresh)
 	{
 		fmd->shared->refresh = false;
-		BKE_rigidbody_update_ob_array(scene->rigidbody_world, false);
+		BKE_rigidbody_update_ob_array(scene->rigidbody_world, true);
+
+		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 	}
 
 	fmd->shared->refresh_constraints = true;

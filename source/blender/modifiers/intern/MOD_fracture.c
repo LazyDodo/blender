@@ -229,6 +229,7 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	FractureModifierData *fmd = (FractureModifierData *)md;
+
 	if (fmd->anim_mesh_ob != NULL) {
 		DEG_add_object_relation(ctx->node, fmd->anim_mesh_ob, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Anim");
 		DEG_add_object_relation(ctx->node, fmd->anim_mesh_ob, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Anim");
@@ -267,7 +268,6 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 			}
 		}
 	}
-
 
 	/* We need own transformation as well. */
 	//DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Fracture Modifier");
@@ -375,6 +375,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 
 	return final_dm;
 }
+
 
 ModifierTypeInfo modifierType_Fracture = {
 	/* name */              "Fracture",

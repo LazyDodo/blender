@@ -146,7 +146,7 @@ void BKE_rigidbody_update_sim_ob(struct Scene *scene, struct RigidBodyWorld *rbw
 struct MeshIsland* BKE_rigidbody_closest_meshisland_to_point(struct FractureModifierData* fmd, struct Object *ob,
                                                              struct Object *ob2, struct Scene* scene, struct RigidBodyCon *con);
 
-int BKE_rigidbody_filter_callback(void* world, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate);
+int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate);
 void BKE_rigidbody_contact_callback(struct rbContactPoint* cp, void* world);
 void BKE_rigidbody_id_callback(void *world, void* island, int* objectId, int* islandId);
 

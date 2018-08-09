@@ -16,7 +16,7 @@
 #include "DNA_ID.h"
 #include "DNA_fracture_types.h"
 
-#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #ifdef WITH_BULLET
 #include "RBI_api.h"
@@ -701,8 +701,8 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 		BKE_rigidbody_validate_sim_shard_shape(mi, ob, true);
 
 	if (rbo->shared->physics_object) {
-		if (rebuild == false /*|| mi->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD*/)
-			RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
+		//if (rebuild == false /*|| mi->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD*/)
+		RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 	}
 
 	if (!rbo->shared->physics_object || rebuild /*|| (fmd->use_animated_mesh && fmd->anim_mesh_ob)*/) {
@@ -1328,19 +1328,30 @@ static bool check_constraint_island(FractureModifierData* fmd, MeshIsland *mi1, 
 }
 
 /* this allows partial object activation, only some shards will be activated, called from bullet(!) */
-int BKE_rigidbody_filter_callback(void* world, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate)
+int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate)
 {
+	//pass scene here, in order to hopefully get the original one from DEG
 	MeshIsland* mi1, *mi2;
-	RigidBodyWorld *rbw = (RigidBodyWorld*)world;
+	Scene *sc = (Scene*)scene, *sc_orig;
+
+	RigidBodyWorld *rbw;
 	Object* ob1, *ob2;
 	int ob_index1 = -1, ob_index2 = -1;
 	bool validOb = true, check_activate = false;
 
+	// oh man... the pleasures of CoW...
+	sc_orig = DEG_get_original_id(sc);
+	rbw = sc_orig->rigidbody_world;
+
 	mi1 = (MeshIsland*)island1;
 	mi2 = (MeshIsland*)island2;
 
-	FractureModifierData *fmd1 = (FractureModifierData*)modifiers_findByType((Object*)blenderOb1, eModifierType_Fracture);
-	FractureModifierData *fmd2 = (FractureModifierData*)modifiers_findByType((Object*)blenderOb2, eModifierType_Fracture);
+	//MOOOOO
+	ob1 = DEG_get_original_object((Object*)blenderOb1);
+	ob2 = DEG_get_original_object((Object*)blenderOb2);
+
+	FractureModifierData *fmd1 = (FractureModifierData*)modifiers_findByType(ob1, eModifierType_Fracture);
+	FractureModifierData *fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
 
 #if 0
 	if ((fmd1 && fmd1->fracture_mode == MOD_FRACTURE_EXTERNAL) ||
@@ -1723,7 +1734,8 @@ static void check_fracture(rbContactPoint* cp, RigidBodyWorld *rbw, Object *obA,
 
 void BKE_rigidbody_contact_callback(rbContactPoint* cp, void* world)
 {
-	RigidBodyWorld *rbw = (RigidBodyWorld*)world;
+	Scene* scene = DEG_get_original_id(world);
+	RigidBodyWorld *rbw = scene->rigidbody_world;
 	check_fracture(cp, rbw, NULL, NULL);
 }
 
@@ -2274,16 +2286,9 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 	short laststeps = rbw->steps_per_second;
 	float lastscale = rbw->time_scale;
 	int i = 0;
-	ModifierData *md;
-	FractureModifierData *fmd;
+	FractureModifierData *fmd = NULL;
 
-	/* check for fractured objects which want to participate first, then handle other normal objects*/
-	for (md = ob->modifiers.first; md; md = md->next) {
-		if (md->type == eModifierType_Fracture) {
-			fmd = (FractureModifierData *)md;
-			break;
-		}
-	}
+	fmd = (FractureModifierData*) modifiers_findByType(DEG_get_original_object(ob), eModifierType_Fracture);
 
 	if (BKE_rigidbody_modifier_active(fmd)) {
 		float max_con_mass = 0;
@@ -2310,7 +2315,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 			int fr = (int)BKE_scene_frame_get(scene);
 			if (BKE_fracture_dynamic_lookup_mesh_state(fmd, fr, true, scene))
 			{
-				BKE_rigidbody_update_ob_array(rbw, false);
+				BKE_rigidbody_update_ob_array(rbw, true);
 			}
 		}
 		//else
@@ -2609,7 +2614,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 
 				if (BKE_fracture_dynamic_lookup_mesh_state(fmd, frame, true, scene))
 				{
-					BKE_rigidbody_update_ob_array(rbw, false);
+					BKE_rigidbody_update_ob_array(rbw, true);
 				}
 			}
 

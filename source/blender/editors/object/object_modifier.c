@@ -2450,7 +2450,7 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	Object *obact = ED_object_active_context(C);
 	Scene *scene = CTX_data_scene(C);
 	Main *bmain = CTX_data_main(C);
-//	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	float cfra = BKE_scene_frame_get(scene);
 	double start = 1.0;
@@ -2505,6 +2505,9 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	BKE_scene_frame_set(scene, start);
 
+	//add first rigidbody already here, seems to trigger an important depsgraph update
+	ED_rigidbody_object_add(bmain, scene, obact, RBO_TYPE_ACTIVE, op->reports, false);
+
 	DEG_relations_tag_update(bmain);
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
@@ -2512,8 +2515,10 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	rmd->shared->refresh = true;
 	rmd->last_frame = INT_MAX; // delete dynamic data as well
+
 	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | OB_RECALC_OB);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
+	WM_event_add_notifier(C, NC_OBJECT | ND_POINTCACHE, NULL);
 
 	return OPERATOR_FINISHED;
 }

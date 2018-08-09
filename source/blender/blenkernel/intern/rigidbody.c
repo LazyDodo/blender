@@ -1044,7 +1044,7 @@ void BKE_rigidbody_validate_sim_world(Scene *scene, RigidBodyWorld *rbw, bool re
 	if (rebuild || rbw->shared->physics_world == NULL) {
 		if (rbw->shared->physics_world)
 			RB_dworld_delete(rbw->shared->physics_world);
-		rbw->shared->physics_world = RB_dworld_new(scene->physics_settings.gravity, rbw, scene,
+			rbw->shared->physics_world = RB_dworld_new(scene->physics_settings.gravity, rbw, scene,
 												   BKE_rigidbody_filter_callback, BKE_rigidbody_contact_callback,
 												   BKE_rigidbody_id_callback, NULL);
 	}
@@ -1192,11 +1192,11 @@ RigidBodyWorld *BKE_rigidbody_world_copy(RigidBodyWorld *rbw, const int flag)
 		rbw_copy->shared = MEM_callocN(sizeof(*rbw_copy->shared), "RigidBodyWorld_Shared");
 		BKE_ptcache_copy_list(&rbw_copy->shared->ptcaches, &rbw->shared->ptcaches, LIB_ID_COPY_CACHES);
 		rbw_copy->shared->pointcache = rbw_copy->shared->ptcaches.first;
-	}
 
-	rbw_copy->shared->objects = NULL;
-	rbw_copy->shared->numbodies = 0;
-	BKE_rigidbody_update_ob_array(rbw_copy, false);
+		rbw_copy->shared->objects = NULL;
+		rbw_copy->shared->numbodies = 0;
+		BKE_rigidbody_update_ob_array(rbw_copy, true);
+	}
 
 	return rbw_copy;
 }
@@ -1210,7 +1210,7 @@ void BKE_rigidbody_world_groups_relink(RigidBodyWorld *rbw)
 
 void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func, void *userdata)
 {
-	//CollectionObject *go;
+	CollectionObject *go;
 	int obj, shard;
 
 	func(rbw, (ID **)&rbw->group, userdata, IDWALK_CB_NOP);
@@ -1229,7 +1229,7 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 			func(rbw, (ID **)&rbw->objects[i], userdata, IDWALK_CB_NOP);
 		}
 	}*/
-
+#if 0
 	if (rbw->shared->objects) {
 		int i;
 		int count = rigidbody_group_count_items(&rbw->group->gobject, &obj, &shard);
@@ -1237,8 +1237,8 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 			func(rbw, (ID **)&rbw->shared->objects[i], userdata, IDWALK_CB_NOP);
 		}
 	}
+#endif
 
-#if 0
 	if (rbw->group) {
 		for (go = rbw->group->gobject.first; go; go = go->next) {
 			func(rbw, (ID **)&go->ob, userdata, IDWALK_CB_NOP);
@@ -1250,8 +1250,6 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 			func(rbw, (ID **)&go->ob, userdata, IDWALK_CB_NOP);
 		}
 	}
-#endif
-
 }
 
 /* Add rigid body settings to the specified object */
@@ -1719,7 +1717,7 @@ void BKE_rigidbody_remove_object(Main *bmain, Scene *scene, Object *ob)
 		/* flag cache as outdated */
 		BKE_rigidbody_cache_reset(rbw);
 
-		BKE_rigidbody_update_ob_array(rbw, false);
+		//BKE_rigidbody_update_ob_array(rbw, true);
 	}
 }
 
@@ -1938,7 +1936,7 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw, bool rebuild)
 {
 	float adj_gravity[3];
-	bool skip_correction = rbw->flag & RBW_FLAG_REFRESH_MODIFIERS;
+	//bool skip_correction = rbw->flag & RBW_FLAG_REFRESH_MODIFIERS;
 
 	/* adjust gravity to take effector weights into account */
 	if (scene->physics_settings.flag & PHYS_GLOBAL_GRAVITY) {
@@ -1955,8 +1953,12 @@ static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw, bool r
 	/* update object array in case there are changes */
 	if (rebuild)
 	{
-		BKE_rigidbody_update_ob_array(rbw, (rbw->shared->pointcache->flag & PTCACHE_BAKED) &&
-		                              !skip_correction);
+		//BKE_rigidbody_update_ob_array(rbw, (rbw->shared->pointcache->flag & PTCACHE_BAKED) &&
+		//                              !skip_correction);
+
+		//Scene *sc = DEG_get_original_id(scene);
+		//RigidBodyWorld *rbwo = sc->rigidbody_world;
+		//BKE_rigidbody_update_ob_array(rbw, true);
 	}
 }
 
@@ -2134,8 +2136,10 @@ static void rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool 
 	rigidbody_update_sim_world(scene, rbw, rebuild);
 
 	/* update objects */
-	for (i = 0; i < count; i++) {
-		Object *ob = rbw->shared->objects[i];
+	//for (i = 0; i < count; i++) {
+	for (go = rbw->group->gobject.first; go; go = go->next)
+	{
+		Object *ob = go->ob; //rbw->shared->objects[i];
 
 		if (ob && (ob->type == OB_MESH)) {
 			did_modifier = BKE_rigidbody_modifier_update(scene, ob, rbw, rebuild, depsgraph);
@@ -2561,6 +2565,7 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime)
 {
 	float timestep;
+	//Scene *scene = DEG_get_original_id(sc);
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 	PointCache *cache;
 	PTCacheID pid;
@@ -2621,7 +2626,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
 		}
 
-		BKE_rigidbody_update_ob_array(rbw, cache->flag & PTCACHE_BAKED);
+		//BKE_rigidbody_update_ob_array(rbw, true /* cache->flag & PTCACHE_BAKED*/);
 	}
 
 	/* try to read from cache */
