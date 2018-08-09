@@ -3417,7 +3417,7 @@ static void optimization( MeshData *m_d ){
 					int face_count = BM_vert_face_count(vert);
 					int face_idx, vert_idx;
 					int nr_inco_faces = 0;
-					float (*store_2d)[3][3] = BLI_array_alloca(store_2d, face_count);
+					float (*store_2d)[3][2] = BLI_array_alloca(store_2d, face_count);
 					float *face_area = BLI_array_alloca(face_area, face_count);
 					float tot_face_area = 0;
 					float mat[3][3];
@@ -3500,7 +3500,7 @@ static void optimization( MeshData *m_d ){
 								BM_face_calc_center_mean(f, P);
 
 								//Will this new vert pos create a potential fold?
-								if( dot_v3v3( f->no, no ) < 0.5f ){
+								if( dot_v3v3( vert->no, no ) < 0.5f ){
                                 	fold = true;
 									break;
 								}
