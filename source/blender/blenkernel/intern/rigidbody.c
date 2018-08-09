@@ -1192,11 +1192,11 @@ RigidBodyWorld *BKE_rigidbody_world_copy(RigidBodyWorld *rbw, const int flag)
 		rbw_copy->shared = MEM_callocN(sizeof(*rbw_copy->shared), "RigidBodyWorld_Shared");
 		BKE_ptcache_copy_list(&rbw_copy->shared->ptcaches, &rbw->shared->ptcaches, LIB_ID_COPY_CACHES);
 		rbw_copy->shared->pointcache = rbw_copy->shared->ptcaches.first;
-
-		rbw_copy->shared->objects = NULL;
-		rbw_copy->shared->numbodies = 0;
-		BKE_rigidbody_update_ob_array(rbw_copy, false);
 	}
+
+	rbw_copy->shared->objects = NULL;
+	rbw_copy->shared->numbodies = 0;
+	BKE_rigidbody_update_ob_array(rbw_copy, false);
 
 	return rbw_copy;
 }
@@ -2649,8 +2649,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	}
 
 	/* advance simulation, we can only step one frame forward */
-	//if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64))
-	if (can_simulate)
+	if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64))
 	{
 		/* write cache for first frame when on second frame */
 		if (rbw->ltime == startframe && (cache->flag & PTCACHE_OUTDATED || cache->last_exact == 0)) {
