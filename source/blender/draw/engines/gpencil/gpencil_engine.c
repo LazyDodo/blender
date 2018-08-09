@@ -267,6 +267,12 @@ static void GPENCIL_engine_free(void)
 
 	DRW_TEXTURE_FREE_SAFE(e_data.gpencil_blank_texture);
 
+	GPU_BATCH_DISCARD_SAFE(e_data.batch_buffer_stroke);
+	MEM_SAFE_FREE(e_data.batch_buffer_stroke);
+
+	GPU_BATCH_DISCARD_SAFE(e_data.batch_buffer_fill);
+	MEM_SAFE_FREE(e_data.batch_buffer_fill);
+
 	/* effects */
 	GPENCIL_delete_fx_shaders(&e_data);
 }
@@ -329,8 +335,11 @@ void GPENCIL_cache_init(void *vedata)
 		/* detect if playing animation */
 		stl->storage->is_playing = false;
 		if (draw_ctx->evil_C) {
-			stl->storage->is_playing = ED_screen_animation_playing(CTX_wm_manager(draw_ctx->evil_C)) != NULL ? true : false;
+			stl->storage->is_playing = ED_screen_animation_playing(CTX_wm_manager(draw_ctx->evil_C)) != NULL;
 		}
+		/* save render state */
+		stl->storage->is_render = DRW_state_is_image_render();
+		stl->storage->is_mat_preview = (bool)stl->storage->is_render && STREQ(scene->id.name + 2, "preview");
 
 		if (obact_gpd) {
 			/* for some reason, when press play there is a delay in the animation flag check
@@ -345,10 +354,6 @@ void GPENCIL_cache_init(void *vedata)
 				obact_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
 		}
-
-		/* save render state */
-		stl->storage->is_render = DRW_state_is_image_render();
-		stl->storage->is_mat_preview = (bool)stl->storage->is_render && STREQ(scene->id.name + 2, "preview");
 
 		/* save simplify flags (can change while drawing, so it's better to save) */
 		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(scene, stl->storage->is_playing);
@@ -724,7 +729,7 @@ void GPENCIL_draw_scene(void *ved)
 				}
 				/* fx passes */
 				if ((!stl->storage->simplify_fx) &&
-					(BKE_shaderfx_has_gpencil(ob)))
+				    (BKE_shaderfx_has_gpencil(ob)))
 				{
 					stl->storage->tonemapping = 0;
 					DRW_gpencil_fx_draw(&e_data, vedata, cache);

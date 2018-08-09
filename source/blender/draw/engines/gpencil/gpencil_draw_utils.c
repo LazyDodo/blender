@@ -932,19 +932,26 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 					        e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd, gp_style, -1, false);
 				}
 
+				/* clean previous version of the batch */
+				if (stl->storage->buffer_stroke) {
+					GPU_BATCH_DISCARD_SAFE(e_data->batch_buffer_stroke);
+					MEM_SAFE_FREE(e_data->batch_buffer_stroke);
+					stl->storage->buffer_stroke = false;
+				}
+
 				/* use unit matrix because the buffer is in screen space and does not need conversion */
 				if (gpd->runtime.mode == GP_STYLE_MODE_LINE) {
-					stl->g_data->batch_buffer_stroke = DRW_gpencil_get_buffer_stroke_geom(
+					e_data->batch_buffer_stroke = DRW_gpencil_get_buffer_stroke_geom(
 					        gpd, stl->storage->unit_matrix, lthick);
 				}
 				else {
-					stl->g_data->batch_buffer_stroke = DRW_gpencil_get_buffer_point_geom(
+					e_data->batch_buffer_stroke = DRW_gpencil_get_buffer_point_geom(
 					        gpd, stl->storage->unit_matrix, lthick);
 				}
 
 				DRW_shgroup_call_add(
 				        stl->g_data->shgrps_drawing_stroke,
-				        stl->g_data->batch_buffer_stroke,
+				        e_data->batch_buffer_stroke,
 				        stl->storage->unit_matrix);
 
 				if ((gpd->runtime.sbuffer_size >= 3) && (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
@@ -956,12 +963,22 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 					}
 					stl->g_data->shgrps_drawing_fill = DRW_shgroup_create(
 					        e_data->gpencil_drawing_fill_sh, psl->drawing_pass);
-					stl->g_data->batch_buffer_fill = DRW_gpencil_get_buffer_fill_geom(gpd);
+
+					/* clean previous version of the batch */
+					if (stl->storage->buffer_fill) {
+						GPU_BATCH_DISCARD_SAFE(e_data->batch_buffer_fill);
+						MEM_SAFE_FREE(e_data->batch_buffer_fill);
+						stl->storage->buffer_fill = false;
+					}
+
+					e_data->batch_buffer_fill = DRW_gpencil_get_buffer_fill_geom(gpd);
 					DRW_shgroup_call_add(
 					        stl->g_data->shgrps_drawing_fill,
-					        stl->g_data->batch_buffer_fill,
+					        e_data->batch_buffer_fill,
 					        stl->storage->unit_matrix);
+					stl->storage->buffer_fill = true;
 				}
+				stl->storage->buffer_stroke = true;
 			}
 		}
 	}
@@ -1263,6 +1280,7 @@ static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object
 {
 	/* reset random */
 	mmd->rnd[0] = 1;
+	int e = 0;
 
 	/* Generate instances */
 	for (int x = 0; x < mmd->count[0]; x++) {
@@ -1284,6 +1302,18 @@ static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object
 
 				/* add object to cache */
 				newob = MEM_dupallocN(ob);
+
+				/* Create a unique name or the object hash used in draw will fail.
+				 * the name must be unique in the hash, not in the scene because
+				 * the object never is linked to scene and is removed after drawing.
+				 *
+				 * It uses special characters to be sure the name cannot be equal
+				 * to any existing name because UI limits the use of special characters.
+				 *
+				 * Name = OB\t_{pointer}_{index}
+				 */
+				sprintf(newob->id.name, "OB\t_%p_%d", &ob, e++);
+
 				mul_m4_m4m4(newob->obmat, ob->obmat, mat);
 
 				/* apply scale */
