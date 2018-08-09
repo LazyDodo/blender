@@ -40,3 +40,7 @@ set(SRC
 add_definitions(-DCL_USE_DEPRECATED_OPENCL_1_1_APIS)
 
 blender_add_lib(extern_clew "${SRC}" "${INC}" "${INC_SYS}")
+
+add_executable(cl_query src/cl_query.cc)
+target_link_libraries(cl_query extern_clew ${CMAKE_DL_LIBS})
+install(TARGETS cl_query DESTINATION "bin")
