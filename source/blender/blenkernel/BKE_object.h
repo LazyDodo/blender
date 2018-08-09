@@ -67,7 +67,7 @@ void BKE_object_free_particlesystems(struct Object *ob);
 void BKE_object_free_softbody(struct Object *ob);
 void BKE_object_free_curve_cache(struct Object *ob);
 
-void BKE_object_free(struct Object *ob);
+void BKE_object_free(struct Object *ob, const int flag);
 void BKE_object_free_derived_caches(struct Object *ob);
 void BKE_object_free_derived_mesh_caches(struct Object *ob);
 void BKE_object_free_caches(struct Object *object);

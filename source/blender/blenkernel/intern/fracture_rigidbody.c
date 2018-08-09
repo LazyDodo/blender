@@ -29,6 +29,7 @@
 #include "BKE_object.h"
 #include "BKE_modifier.h"
 #include "BKE_global.h"
+#include "BKE_pointcache.h"
 
 /*====================================================================================================================*/
 
@@ -1347,8 +1348,8 @@ int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, voi
 	mi2 = (MeshIsland*)island2;
 
 	//MOOOOO
-	ob1 = DEG_get_original_object((Object*)blenderOb1);
-	ob2 = DEG_get_original_object((Object*)blenderOb2);
+	ob1 = /*DEG_get_original_object(*/(Object*)blenderOb1;
+	ob2 = /*DEG_get_original_object(*/(Object*)blenderOb2;
 
 	FractureModifierData *fmd1 = (FractureModifierData*)modifiers_findByType(ob1, eModifierType_Fracture);
 	FractureModifierData *fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
@@ -2315,7 +2316,8 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 			int fr = (int)BKE_scene_frame_get(scene);
 			if (BKE_fracture_dynamic_lookup_mesh_state(fmd, fr, true, scene))
 			{
-				BKE_rigidbody_update_ob_array(rbw, true);
+				BKE_rigidbody_update_ob_array(rbw,
+				                              rbw->shared->pointcache->flag & PTCACHE_BAKED);
 			}
 		}
 		//else
@@ -2602,7 +2604,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 		fmd = (FractureModifierData *)md;
 		bool mode = fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
 
-		exploOK = !fmd->explo_shared || (fmd->explo_shared && fmd->shared->frac_mesh && fmd->shared->dm) ||
+		exploOK = !fmd->valid_mesh || (fmd->valid_mesh && fmd->shared->frac_mesh && fmd->shared->dm) ||
 		          mode || fmd->is_dynamic_external;
 
 		if (BKE_rigidbody_modifier_active(fmd) && exploOK) {
@@ -2614,7 +2616,8 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 
 				if (BKE_fracture_dynamic_lookup_mesh_state(fmd, frame, true, scene))
 				{
-					BKE_rigidbody_update_ob_array(rbw, true);
+					BKE_rigidbody_update_ob_array(rbw,
+					                              rbw->shared->pointcache->flag & PTCACHE_BAKED);
 				}
 			}
 

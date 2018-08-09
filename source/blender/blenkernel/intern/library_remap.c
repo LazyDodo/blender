@@ -757,7 +757,7 @@ void BKE_libblock_free_data(ID *id, const bool do_id_user)
 	/* XXX TODO remove animdata handling from each type's freeing func, and do it here, like for copy! */
 }
 
-void BKE_libblock_free_datablock(ID *id, const int UNUSED(flag))
+void BKE_libblock_free_datablock(ID *id, const int flag)
 {
 	const short type = GS(id->name);
 	switch (type) {
@@ -768,7 +768,7 @@ void BKE_libblock_free_datablock(ID *id, const int UNUSED(flag))
 			BKE_library_free((Library *)id);
 			break;
 		case ID_OB:
-			BKE_object_free((Object *)id);
+			BKE_object_free((Object *)id, flag);
 			break;
 		case ID_ME:
 			BKE_mesh_free((Mesh *)id);

@@ -64,7 +64,7 @@ AbcMBallWriter::AbcMBallWriter(
 AbcMBallWriter::~AbcMBallWriter()
 {
 	delete m_mesh_writer;
-	BKE_object_free(m_mesh_ob);
+	BKE_object_free(m_mesh_ob, 0);
 }
 
 bool AbcMBallWriter::isAnimated() const

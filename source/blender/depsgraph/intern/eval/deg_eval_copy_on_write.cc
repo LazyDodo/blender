@@ -1001,7 +1001,8 @@ void deg_free_copy_on_write_datablock(ID *id_cow)
 			break;
 	}
 	discard_edit_mode_pointers(id_cow);
-	BKE_libblock_free_datablock(id_cow, 0);
+	/*Indicate this free happened from CoW, important for FM */
+	BKE_libblock_free_datablock(id_cow, LIB_ID_FREE_COPY_ON_WRITE);
 	BKE_libblock_free_data(id_cow, false);
 	/* Signal datablock as not being expanded. */
 	id_cow->name[0] = '\0';

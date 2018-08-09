@@ -64,7 +64,7 @@ Mesh *BKE_fracture_dynamic_apply(FractureModifierData *fmd, Object *ob, Mesh *de
 	}
 
 	/*XXX better rename this, it checks whether we have a valid fractured mesh */
-	valid_fractured_mesh = !fmd->explo_shared || (fmd->explo_shared && fmd->shared->dm && fmd->shared->frac_mesh);
+	valid_fractured_mesh = !fmd->valid_mesh || (fmd->valid_mesh && fmd->shared->dm && fmd->shared->frac_mesh);
 
    /* if ((!valid_fractured_mesh) || (fmd->visible_mesh == NULL && fmd->visible_mesh_cached == NULL)) {
 		do_clear(fmd);

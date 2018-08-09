@@ -60,7 +60,8 @@ class PHYSICS_PT_rigid_body(PHYSICS_PT_rigidbody_panel, Panel):
 
 
 class PHYSICS_PT_rigid_body_trigger_advanced(PHYSICS_PT_rigidbody_panel, Panel):
-    bl_label = "Rigid Body Trigger Advanced"
+    bl_label = "Advanced Trigger"
+    bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_rigid_body'
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 

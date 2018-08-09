@@ -40,7 +40,8 @@ class PhysicButtonsPanel():
         return ob and (ob.type == 'MESH') and context.fracture
 
 class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
-    bl_label = "Animated Mesh Settings"
+    bl_label = "Animated Mesh"
+    bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_fracture'
 
     def draw(self, context):
@@ -56,6 +57,49 @@ class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
         row.prop(md, "animated_mesh_input")
         row = layout.row()
         row.operator("object.fracture_anim_bind", text="Bind", icon="UV_VERTEXSEL")
+
+class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
+    bl_label = "Advanced Fracture"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'PHYSICS_PT_fracture'
+
+    def draw(self, context):
+        layout = self.layout
+        md = context.fracture
+        ob = context.object
+
+        layout.label("Fracture Point Source:")
+        col = layout.column()
+        col.prop(md, "point_source")
+        if 'GRID' in md.point_source:
+            sub = col.split(0.33)
+            sub.prop(md, "grid_resolution")
+            sub.prop(md, "grid_offset")
+            sub.prop(md, "grid_spacing")
+        if 'GREASE_PENCIL' in md.point_source:
+            col.prop(md, "use_greasepencil_edges")
+            col.prop(md, "grease_offset")
+            col.prop(md, "grease_decimate")
+            col.prop(md, "cutter_axis")
+        col.prop(md, "extra_group", text="Helpers")
+        col.prop(md, "dm_group", text="Combination")
+        col.prop(md, "use_constraint_group")
+        col.prop(md, "cutter_group")
+        if (md.cutter_group):
+            col.prop(md, "keep_cutter_shards")
+            col.label("Material Index Offset")
+            row = col.row(align=True)
+            row.prop(md, "material_offset_intersect", text="Intersect")
+            row.prop(md, "material_offset_difference", text="Difference")
+        col.prop(md, "use_particle_birth_coordinates")
+        col.prop(md, "percentage")
+        sub = col.column(align=True)
+        sub.prop_search(md, "thresh_vertex_group", ob, "vertex_groups", text = "Threshold")
+        sub.prop_search(md, "ground_vertex_group", ob, "vertex_groups", text = "Passive")
+        sub.prop_search(md, "inner_vertex_group", ob, "vertex_groups", text = "Inner")
+        sub.prop(md, "inner_crease")
+        if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
+            col.prop(md, "orthogonality_factor", text="Rectangular Alignment")
 
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     bl_label = "Fracture"
@@ -122,61 +166,24 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
             row = col.row(align=True)
             row.prop(md, "fractal_amount")
             row.prop(md, "physics_mesh_scale")
+        row = layout.row(align=True)
+        row.prop(md, "splinter_axis")
+        row = layout.row(align=True)
+        row.prop(md, "splinter_length")
         row = layout.row()
         row.prop(md, "shards_to_islands")
         row.prop(md, "use_smooth")
         row = layout.row()
         row.prop(md, "auto_execute")
-        row = layout.row(align=True)
-        row.prop(md, "splinter_axis")
-        layout.prop(md, "splinter_length")
-
-        box = layout.box()
-        box.prop(md, "use_experimental", text="Advanced Fracture Settings", icon=self.icon(md.use_experimental), emboss = False)
-        if md.use_experimental:
-            box.label("Fracture Point Source:")
-            col = box.column()
-            col.prop(md, "point_source")
-            if 'GRID' in md.point_source:
-                sub = col.split(0.33)
-                sub.prop(md, "grid_resolution")
-                sub.prop(md, "grid_offset")
-                sub.prop(md, "grid_spacing")
-            if 'GREASE_PENCIL' in md.point_source:
-                col.prop(md, "use_greasepencil_edges")
-                col.prop(md, "grease_offset")
-                col.prop(md, "grease_decimate")
-                col.prop(md, "cutter_axis")
-            col.prop(md, "extra_group")
-            col.prop(md, "dm_group")
-            col.prop(md, "use_constraint_group")
-            col.prop(md, "cutter_group")
-            if (md.cutter_group):
-                col.prop(md, "keep_cutter_shards")
-                col.label("Material Index Offset")
-                row = col.row(align=True)
-                row.prop(md, "material_offset_intersect", text="Intersect")
-                row.prop(md, "material_offset_difference", text="Difference")
-            col.prop(md, "use_particle_birth_coordinates")
-
-            box.prop(md, "percentage")
-            box.label("Threshold Vertex Group:")
-            box.prop_search(md, "thresh_vertex_group", ob, "vertex_groups", text = "")
-            box.label("Passive Vertex Group:")
-            box.prop_search(md, "ground_vertex_group", ob, "vertex_groups", text = "")
-            box.label("Inner Vertex Group:")
-            box.prop_search(md, "inner_vertex_group", ob, "vertex_groups", text = "")
-            box.prop(md, "inner_crease")
-            if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
-                box.prop(md, "orthogonality_factor", text="Rectangular Alignment")
+        row.prop(md, "execute_threaded", text="Threaded (WIP)")
 
         layout.context_pointer_set("modifier", md)
         row = layout.row()
         row.operator("object.fracture_refresh", text="Execute Fracture", icon='MOD_EXPLODE').reset = True
-        row.prop(md, "execute_threaded", text="Threaded (WIP)")
 
 class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
     bl_label = "Constraints"
+    bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_fracture'
 
     @classmethod
@@ -275,6 +282,7 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
 
 class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
     bl_label = "Utilities"
+    bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_fracture'
 
     @classmethod
@@ -307,6 +315,7 @@ class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
 classes = (
     FRACTURE_MT_presets,
     PHYSICS_PT_fracture,
+    PHYSICS_PT_fracture_advanced,
     PHYSICS_PT_fracture_simulation,
     PHYSICS_PT_fracture_utilities,
     PHYSICS_PT_fracture_anim_mesh,

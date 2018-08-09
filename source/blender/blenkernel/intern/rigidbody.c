@@ -1195,7 +1195,8 @@ RigidBodyWorld *BKE_rigidbody_world_copy(RigidBodyWorld *rbw, const int flag)
 
 		rbw_copy->shared->objects = NULL;
 		rbw_copy->shared->numbodies = 0;
-		BKE_rigidbody_update_ob_array(rbw_copy, true);
+		BKE_rigidbody_update_ob_array(rbw_copy,
+		                              rbw_copy->shared->pointcache->flag & PTCACHE_BAKED);
 	}
 
 	return rbw_copy;
@@ -1936,7 +1937,7 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw, bool rebuild)
 {
 	float adj_gravity[3];
-	//bool skip_correction = rbw->flag & RBW_FLAG_REFRESH_MODIFIERS;
+	bool skip_correction = rbw->flag & RBW_FLAG_REFRESH_MODIFIERS;
 
 	/* adjust gravity to take effector weights into account */
 	if (scene->physics_settings.flag & PHYS_GLOBAL_GRAVITY) {
@@ -1953,12 +1954,8 @@ static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw, bool r
 	/* update object array in case there are changes */
 	if (rebuild)
 	{
-		//BKE_rigidbody_update_ob_array(rbw, (rbw->shared->pointcache->flag & PTCACHE_BAKED) &&
-		//                              !skip_correction);
-
-		//Scene *sc = DEG_get_original_id(scene);
-		//RigidBodyWorld *rbwo = sc->rigidbody_world;
-		//BKE_rigidbody_update_ob_array(rbw, true);
+		BKE_rigidbody_update_ob_array(rbw, (rbw->shared->pointcache->flag & PTCACHE_BAKED) &&
+		                              !skip_correction);
 	}
 }
 

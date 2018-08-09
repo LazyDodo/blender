@@ -972,7 +972,8 @@ static void nearCallback(btBroadphasePair &collisionPair, btCollisionDispatcher 
 
 				//handle_activation(manifold, rb0, rb1);
 				//handle_activation(manifold, rb1, rb0);
-				((rbFilterCallback*)(rb0->world->filterCallback))->callback(rb0->world->blenderScene, rb0->meshIsland, rb1->meshIsland,
+				((rbFilterCallback*)(rb0->world->filterCallback))->callback(
+							   rb0->world->blenderScene, rb0->meshIsland, rb1->meshIsland,
 							   rb0->blenderOb, rb1->blenderOb, true);
 			}
 		}

@@ -445,7 +445,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	BMFace **faces = MEM_mallocN(sizeof(BMFace *), "faces");
 	int del_faces = 0;
 	bool do_merge = fmd->do_merge;
-	struct BMeshToMeshParams bmt = {.calc_object_remap = 0};
+	//struct BMeshToMeshParams bmt = {.calc_object_remap = 0};
 
 	if (fmd->use_centroids && !fmd->use_vertices)
 	{
@@ -462,7 +462,6 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	BM_mesh_elem_index_ensure(bm, BM_FACE | BM_VERT);
 	BM_mesh_elem_table_ensure(bm, BM_FACE | BM_VERT);
 	BM_mesh_elem_toolflags_ensure(bm);
-
 
 	if (!fmd->use_centroids)
 	{
@@ -565,7 +564,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 		BM_mesh_normals_update(bm);
 	}
 
-	BM_mesh_bm_to_me(NULL, bm, result, &bmt);
+	result = BKE_fracture_bmesh_to_mesh(bm);
 
 	BM_mesh_free(bm);
 	MEM_freeN(faces);

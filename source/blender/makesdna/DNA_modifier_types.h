@@ -1644,8 +1644,7 @@ typedef struct FractureModifierData {
 	int activate_broken;
 
 	/* internal flags */
-	int use_experimental;
-	int explo_shared;
+	int valid_mesh;
 	int refresh_images;
 	int update_dynamic;
 	int distortion_cached;
@@ -1659,7 +1658,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-	char pad[4];
+	//char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {

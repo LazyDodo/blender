@@ -117,6 +117,7 @@ enum {
 
 	LIB_ID_FREE_NO_DEG_TAG         = 1 << 8,  /* Do not tag freed ID for update in depsgraph. */
 	LIB_ID_FREE_NO_UI_USER         = 1 << 9,  /* Do not attempt to remove freed ID from UI data/notifiers/... */
+	LIB_ID_FREE_COPY_ON_WRITE      = 1 << 10, /* Mark this free operation as being triggered by CoW*/
 };
 
 void BKE_id_free_ex(struct Main *bmain, void *idv, int flag, const bool use_flag_from_idtag);

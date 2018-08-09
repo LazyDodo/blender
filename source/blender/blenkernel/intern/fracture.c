@@ -1967,6 +1967,8 @@ void BKE_fracture_shard_by_points(FractureModifierData *fmd, ShardID id, FracPoi
 	if (fmd->point_source & MOD_FRACTURE_GRID)
 	{
 		float off[3] =  {0, 0, 0};
+		float eps[3] = {theta, theta, theta};
+
 		for (p = 0; p < pointcloud->totpoints; p++)
 		{
 			//find "max" offset (where atleast 1 axis is > 0)
@@ -1983,6 +1985,8 @@ void BKE_fracture_shard_by_points(FractureModifierData *fmd, ShardID id, FracPoi
 		{
 			sub_v3_v3(min, off);
 		}
+
+		sub_v3_v3(min, eps);
 
 		//special treatment for grid pointsource... with offsets
 		voro_container = container_new(min[0], max[0], min[1], max[1], min[2], max[2],
@@ -2993,7 +2997,7 @@ void BKE_fracture_simulation_free(FractureModifierData *fmd, bool do_free_seq, b
 		}
 	}
 
-	if (!fmd->explo_shared && fmd->shared->visible_mesh != NULL) {
+	if (!fmd->valid_mesh && fmd->shared->visible_mesh != NULL) {
 		BM_mesh_free(fmd->shared->visible_mesh);
 		fmd->shared->visible_mesh = NULL;
 	}
@@ -5402,7 +5406,7 @@ MDeformVert* BKE_fracture_shards_to_islands(FractureModifierData* fmd, Object* o
 	const int ground_defgrp_index = defgroup_name_index(ob, fmd->ground_defgrp_name);
 
 	/*XXX should rename this... this marks the fracture case, to distinguish from halving case */
-	fmd->explo_shared = true;
+	fmd->valid_mesh = true;
 
 	if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
 	{
@@ -5463,7 +5467,7 @@ Mesh *BKE_fracture_result_mesh(FractureModifierData* fmd, Mesh *dm, Object* ob, 
 		if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0 || fmd->use_centroids || fmd->use_vertices)
 		{
 			//printf("Autohide \n");
-			dm_final = BKE_fracture_autohide_do(fmd, dm, ob, scene);
+			dm_final = BKE_fracture_autohide_do(fmd, fmd->shared->visible_mesh_cached, ob, scene);
 		}
 		else {
 			dm_final = BKE_fracture_mesh_copy(fmd->shared->visible_mesh_cached, ob);
@@ -5491,7 +5495,7 @@ static void do_post_island_creation(FractureModifierData *fmd, Object *ob, Mesh 
 {
 	double start;
 
-	if (((fmd->shared->visible_mesh != NULL && fmd->shared->refresh && (!fmd->explo_shared)) || (fmd->shared->visible_mesh_cached == NULL))
+	if (((fmd->shared->visible_mesh != NULL && fmd->shared->refresh && (!fmd->valid_mesh)) || (fmd->shared->visible_mesh_cached == NULL))
 		&& (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED))
 	{
 		start = PIL_check_seconds_timer();
@@ -5524,7 +5528,7 @@ static void do_post_island_creation(FractureModifierData *fmd, Object *ob, Mesh 
 	if (fmd->shared->refresh)
 	{
 		fmd->shared->refresh = false;
-		BKE_rigidbody_update_ob_array(scene->rigidbody_world, true);
+		BKE_rigidbody_update_ob_array(scene->rigidbody_world, false);
 
 		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 	}
@@ -5614,7 +5618,7 @@ static void do_refresh(FractureModifierData *fmd, Object *ob, Mesh* dm, Mesh *or
 				fmd->shared->visible_mesh = NULL;
 			}
 			BKE_fracture_do_halving(fmd, ob, dm, orig_dm, false, -1, scene);
-			fmd->explo_shared = false;
+			fmd->valid_mesh = false;
 		}
 	}
 
@@ -5795,7 +5799,7 @@ Mesh *BKE_fracture_prefractured_do(FractureModifierData *fmd, Object *ob, Mesh *
 	}
 
 	/*XXX better rename this, it checks whether we have a valid fractured mesh */
-	exploOK = !fmd->explo_shared || (fmd->explo_shared && fmd->shared->dm && fmd->shared->frac_mesh);
+	exploOK = !fmd->valid_mesh || (fmd->valid_mesh && fmd->shared->dm && fmd->shared->frac_mesh);
 
 #if 0
 	if ((!exploOK) || (fmd->visible_mesh == NULL && fmd->visible_mesh_cached == NULL)) {

@@ -461,14 +461,14 @@ void BKE_object_free_caches(Object *object)
 }
 
 /** Free (or release) any data used by this object (does not free the object itself). */
-void BKE_object_free(Object *ob)
+void BKE_object_free(Object *ob, const int flag)
 {
 	BKE_animdata_free((ID *)ob, false);
 
 	DRW_drawdata_free((ID *)ob);
 
 	/* BKE_<id>_free shall never touch to ID->us. Never ever. */
-	BKE_object_free_modifiers(ob, LIB_ID_CREATE_NO_USER_REFCOUNT);
+	BKE_object_free_modifiers(ob, LIB_ID_CREATE_NO_USER_REFCOUNT | flag);
 	BKE_object_free_shaderfx(ob, LIB_ID_CREATE_NO_USER_REFCOUNT);
 
 	MEM_SAFE_FREE(ob->mat);
