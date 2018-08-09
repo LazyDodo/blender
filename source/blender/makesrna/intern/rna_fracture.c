@@ -688,7 +688,7 @@ static void rna_Modifier_update_and_keep(Main *UNUSED(bmain), Scene *UNUSED(scen
 
 void RNA_def_fracture(BlenderRNA *brna)
 {
-	StructRNA *srna;
+	StructRNA *srna, *subrna;
 	PropertyRNA *prop;
 
 	static EnumPropertyItem prop_fracture_algorithm[] = {
@@ -1469,12 +1469,12 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	//prop = RNA_def_property(srna, "shared", PROP_POINTER, PROP_NONE);
-	//RNA_def_property_pointer_sdna(prop, NULL, "shared");
-	//RNA_def_property_struct_type(prop, "FractureModifierData_Shared");
+	subrna = RNA_def_struct(brna, "FractureModifierShared", NULL);
+	RNA_def_struct_sdna(subrna, "FractureModifierData_Shared");
 
-	srna = RNA_def_struct(brna, "FractureModifierShared", NULL);
-	RNA_def_struct_sdna(srna, "FractureModifierData_Shared");
+	prop = RNA_def_property(srna, "shared", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "shared");
+	RNA_def_property_struct_type(prop, "FractureModifierShared");
 
-	RNA_api_fracture(brna, srna);
+	RNA_api_fracture(brna, subrna);
 }
