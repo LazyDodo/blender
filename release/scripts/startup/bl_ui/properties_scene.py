@@ -644,11 +644,10 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
         layout.prop(lanpr, "master_mode", expand=True) 
 
         if lanpr.master_mode == "DPIX" or lanpr.master_mode == "SOFTWARE":
-            if lanpr.master_mode == "DPIX":
-                layout.prop(lanpr, "reloaded")
+            
+            layout.prop(lanpr, "background_color")
 
             if lanpr.master_mode == "SOFTWARE":
-                layout.prop(lanpr, "background_color")
                 layout.label(text="Enable On Demand:")
                 row = layout.row()
                 row.prop(lanpr,"enable_intersections", text = "Intersection Lines")
@@ -680,12 +679,6 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
             layout.label(text="Vectorization:")
             layout.prop(lanpr, "enable_vector_trace", expand = True)
 
-            #col = layout.column()
-            #col.label(text="Enable:")
-            #row = col.row(align=True)
-            #row.prop(lanpr, "enable_edge_mark", text="Mark", toggle=True)
-            #row.prop(lanpr, "enable_material_seperate", text="Material", toggle=True)
-
 
 class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
     bl_label = "Types"
@@ -704,6 +697,8 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
         scene = context.scene
         lanpr = scene.lanpr
         active_layer = lanpr.layers.active_layer
+        if active_layer and lanpr.master_mode == "DPIX":
+            active_layer = lanpr.layers[0]
 
         layout.operator("scene.lanpr_enable_all_line_types")
 
