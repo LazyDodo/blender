@@ -896,7 +896,7 @@ elseif(APPLE)
 	)
 
 	# install release and app files
-	set(BLENDER_TEXT_FILES_DESTINATION ".")
+	set(BLENDER_TEXT_FILES_DESTINATION "license")
 
 	install(
 		FILES ${OSX_APP_SOURCEDIR}/Contents/PkgInfo
