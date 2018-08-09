@@ -2149,7 +2149,7 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 	return true;
 }
 
-static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const float edge1_mid[3], const float edge2_mid[3],
+static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float edge1_mid[3], const float edge2_mid[3],
 							const float val_1, const float val_2, bool is_B,
 							const float rad_plane_no[3], const float C_vert_pos[3], BMFace *poke_face, MeshData *m_d ){
 	//Try to find a vert that is connected to both faces
@@ -2170,38 +2170,33 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 
 	//Find the faces for our three points
 	{
-		float uvs[3][2];
-		BMFace *face_ids[3];
-		float rad_dir[3];
-		int search_id;
+		float uvs[2][2];
+		BMFace *face_ids[2];
+		float rad_dir[2];
+		float mat[3][3];
 
-		rad_dir[1] = signf(val_1);
-		rad_dir[2] = signf(val_2);
+		axis_dominant_v3_to_m3(mat, no);
+		rad_dir[0] = signf(val_1);
+		rad_dir[1] = signf(val_2);
 
 		for (int face_idx = 0; face_idx < search_faces.count; face_idx++) {
 			int found_points = 0;
-			for (int i = 0; i < 3; i++) {
+			for (int i = 0; i < 2; i++) {
 				float point[3];
-				float mat[3][3];
 
 				switch(i){
 					case 1 :
-						copy_v3_v3(point, edge1_mid);
-						break;
-					case 2 :
 						copy_v3_v3(point, edge2_mid);
 						break;
 					default:
-						copy_v3_v3(point, cent);
+						copy_v3_v3(point, edge1_mid);
 						break;
 				}
 
 				BMFace *f = BLI_buffer_at(&search_faces, BMFace*, face_idx);
-				axis_dominant_v3_to_m3(mat, f->no);
 
 				if( point_inside(mat, point, f) ){
 					float point_v2[2];
-					float P[3], du[3], dv[3], temp[3];
 
 					mul_v2_m3v3(point_v2, mat, point);
 
@@ -2209,24 +2204,12 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 
 					face_ids[i] = f;
 					found_points++;
-					if( i == 0 ){
-						//Save rad_dir for cent
-						m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(f), uvs[i][0], uvs[i][1], P, du, dv);
-
-						sub_v3_v3v3(temp, P, C_vert_pos);
-						rad_dir[i] = signf(dot_v3v3(rad_plane_no, temp));
-					}
 				}
 			}
-			if (found_points == 3){
+			if (found_points == 2){
 				//We have found all points inside the same face!
 				break;
 			}
-		}
-		if( rad_dir[0] == rad_dir[1] ){
-			search_id = 2;
-		} else {
-			search_id = 1;
 		}
 
 		{
@@ -2245,13 +2228,13 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 			   print_v2("UV_edge1", uvs[1]);
 			   print_v2("UV_edge2", uvs[2]);
 			   */
-			if( face_ids[0] == face_ids[search_id] ){
+			if( face_ids[0] == face_ids[1] ){
 				//We can work in pure uv space
 				//printf("UV space\n");
 				orig_face = face_ids[0];
 				face_index = BM_elem_index_get(face_ids[0]);
 				for(int i = 0; i < 10; i++ ){
-					interp_v2_v2v2( uv_P, uvs[0], uvs[search_id], step);
+					interp_v2_v2v2( uv_P, uvs[0], uvs[1], step);
 					m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 
 					sub_v3_v3v3(temp, P, C_vert_pos);
@@ -2275,22 +2258,15 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float cent[3], const flo
 				}
 			} else {
 				//Work in coord space
-				float cur_p[3], end[3];
-				float mat[3][3];
+				float cur_p[3];
 
 				//printf("Coord space\n");
-				if( search_id == 1 ){
-					copy_v3_v3(end, edge1_mid);
-				} else {
-					copy_v3_v3(end, edge2_mid);
-				}
 
 				for(int i = 0; i < 10; i++ ){
-					interp_v3_v3v3(cur_p, cent, end, step);
+					interp_v3_v3v3(cur_p, edge1_mid, edge2_mid, step);
 
 					for (int face_idx = 0; face_idx < search_faces.count; face_idx++) {
 						BMFace *f = BLI_buffer_at(&search_faces, BMFace*, face_idx);
-						axis_dominant_v3_to_m3(mat, f->no);
 						if( point_inside(mat, cur_p, f) ){
 							float point_v2[2];
 							mul_v2_m3v3(point_v2, mat, cur_p);
@@ -2496,7 +2472,6 @@ static void radial_insertion( MeshData *m_d ){
 					}
 
 					//This search will spawn multiple faces, we must use coordinate space to do this.
-					float cent[3];
 					float edge1_mid[3];
 					float edge2_mid[3];
 					//We need to figure out which facing the radial edge is supposed to have so we can
@@ -2514,10 +2489,9 @@ static void radial_insertion( MeshData *m_d ){
 
 					interp_v3_v3v3(edge1_mid, co_arr[CC_idx], co_arr[ mod_i(CC_idx-1, 3) ], 0.5f);
 					interp_v3_v3v3(edge2_mid, co_arr[CC_idx], co_arr[ mod_i(CC_idx+1, 3) ], 0.5f);
-					mid_v3_v3v3v3(cent, co_arr[0], co_arr[1], co_arr[2]);
 
 					//printf("Diff faces\n");
-					mult_radi_search(&faces, cent, edge1_mid, edge2_mid, val_1, val_2, is_B, rad_plane_no, co_arr[CC_idx], f, m_d);
+					mult_radi_search(&faces, vert->no, edge1_mid, edge2_mid, val_1, val_2, is_B, rad_plane_no, co_arr[CC_idx], f, m_d);
 					BLI_buffer_free(&faces);
 				}
 
