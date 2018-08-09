@@ -146,13 +146,13 @@ static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, M
 	{
 		if (fmd->shared->reset_shards)
 		{
-			BKE_fracture_simulation_free(fmd, true, true, scene, 0);
-			BKE_fracture_free(fmd, true, true, scene, 0);
+			BKE_fracture_simulation_free(fmd, true, true, scene);
+			BKE_fracture_free(fmd, true, true, scene);
 			fmd->last_frame = 1;
 		}
 		else
 		{
-			BKE_fracture_simulation_free(fmd, false, true, scene, 0);
+			BKE_fracture_simulation_free(fmd, false, true, scene);
 			fmd->last_frame = 1;
 		}
 
@@ -397,7 +397,7 @@ static void fracture_dynamic_sequences_free(FractureModifierData *fmd, Scene* sc
 	while (fmd->shared->meshIsland_sequence.first) {
 		msq = fmd->shared->meshIsland_sequence.first;
 		BLI_remlink(&fmd->shared->meshIsland_sequence, msq);
-		BKE_fracture_meshislands_free(fmd, &msq->meshIslands, true, scene, 0);
+		BKE_fracture_meshislands_free(fmd, &msq->meshIslands, true, scene);
 		MEM_freeN(msq);
 		msq = NULL;
 	}
@@ -425,11 +425,11 @@ static void fracture_dynamic_sequences_free(FractureModifierData *fmd, Scene* sc
 	fmd->shared->frac_mesh = NULL;
 }
 
-void BKE_fracture_dynamic_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene* scene, const int flag)
+void BKE_fracture_dynamic_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene* scene)
 {
 	if ((!fmd->shared->refresh && !fmd->shared->refresh_constraints)) {
 		/* free entire modifier */
-		BKE_fracture_modifier_free(fmd, do_free_seq, do_free_rigidbody, scene, flag);
+		BKE_fracture_modifier_free(fmd, do_free_seq, do_free_rigidbody, scene);
 	}
 	else if (fmd->shared->refresh_constraints && !fmd->is_dynamic_external) {
 		/* refresh constraints only */

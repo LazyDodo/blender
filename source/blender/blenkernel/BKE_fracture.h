@@ -73,7 +73,7 @@ typedef struct FracPointCloud {
 
 
 void BKE_fracture_dynamic_free(struct FractureModifierData *fmd,
-                               bool do_free_sequence, bool do_free_rigidbody, struct Scene* scene, const int flag);
+                               bool do_free_sequence, bool do_free_rigidbody, struct Scene* scene);
 
 struct Mesh* BKE_fracture_prefractured_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *mesh,
                                              struct Depsgraph *depsgraph);
@@ -106,12 +106,11 @@ void BKE_fracture_shared_verts_free(struct ListBase* lb);
 struct Mesh *BKE_fracture_autohide_do(struct FractureModifierData *fmd, struct Mesh *dm, struct Object *ob, struct Scene* sc);
 
 struct FracMesh* BKE_fracture_fracmesh_copy(struct FracMesh* fm);
-void BKE_fracture_simulation_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene,
-                                  const int flag);
-void BKE_fracture_meshislands_free(struct FractureModifierData* fmd, struct ListBase* meshIslands, bool do_free_rigidbody,
-                                   struct Scene* scene, const int flag);
+void BKE_fracture_simulation_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene);
 
-void BKE_fracture_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene, const int flag);
+void BKE_fracture_meshislands_free(struct FractureModifierData* fmd, struct ListBase* meshIslands, bool do_free_rigidbody, struct Scene* scene);
+
+void BKE_fracture_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene);
 
 void BKE_fracture_do(struct FractureModifierData *fmd, ShardID id, struct Object *obj, struct Mesh *dm,
                      struct Depsgraph *depsgraph, struct Main *bmain);
@@ -182,10 +181,10 @@ void BKE_fracture_do_halving(struct FractureModifierData *fmd, struct Object* ob
 
 struct Mesh* BKE_fracture_assemble_mesh_from_shards(struct FractureModifierData *fmd, bool doCustomData, bool use_packed);
 
-void BKE_fracture_modifier_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene, const int flag);
+void BKE_fracture_modifier_free(struct FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, struct Scene *scene);
 
 void BKE_fracture_mesh_island_free(struct FractureModifierData *rmd, struct MeshIsland *mi, bool remove_rigidbody,
-                                   struct Scene* scene, const int flag);
+                                   struct Scene* scene);
 
 short BKE_fracture_collect_materials(struct Main* bmain, struct Object* o, struct Object* ob, int matstart, struct GHash** mat_index_map);
 

@@ -363,21 +363,17 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	return mi;
 }
 
-void BKE_fracture_mesh_island_free(FractureModifierData *rmd, MeshIsland *mi, bool remove_rigidbody, Scene* scene, const int flag)
+void BKE_fracture_mesh_island_free(FractureModifierData *rmd, MeshIsland *mi, bool remove_rigidbody, Scene* scene)
 {
 	if (mi->physics_mesh) {
 		BKE_mesh_free(mi->physics_mesh);
 		mi->physics_mesh = NULL;
 	}
 
-	//if (mi->rigidbody && ((flag & LIB_ID_CREATE_NO_MAIN) == 0))
-	{
-		//do not touch rigidbody stuff in CoW
-		if (remove_rigidbody && scene)
-			BKE_rigidbody_remove_shard(scene, mi);
-		MEM_freeN(mi->rigidbody);
-		mi->rigidbody = NULL;
-	}
+	if (remove_rigidbody && scene)
+		BKE_rigidbody_remove_shard(scene, mi);
+	MEM_freeN(mi->rigidbody);
+	mi->rigidbody = NULL;
 
 	if (mi->vertco) {
 		MEM_freeN(mi->vertco);
@@ -486,7 +482,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 				BKE_rigidbody_remove_shard_con(scene, con);
 			}
 
-			BKE_fracture_mesh_island_free(fmd, mi, true, scene, 0);
+			BKE_fracture_mesh_island_free(fmd, mi, true, scene);
 		}
 	}
 }
@@ -520,7 +516,7 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
 	while (fmd->shared->meshIslands.first) {
 		mi = fmd->shared->meshIslands.first;
 		BLI_remlink(&fmd->shared->meshIslands, mi);
-		BKE_fracture_mesh_island_free(fmd, mi, true, scene, 0);
+		BKE_fracture_mesh_island_free(fmd, mi, true, scene);
 	}
 
 	fmd->shared->meshIslands.first = NULL;

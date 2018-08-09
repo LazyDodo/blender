@@ -2914,14 +2914,14 @@ FracMesh* BKE_fracture_fracmesh_copy(FracMesh* fm)
 
 
 void BKE_fracture_meshislands_free(FractureModifierData* fmd, ListBase* meshIslands, bool do_free_rigidbody,
-                                   Scene* scene, const int flag)
+                                   Scene* scene)
 {
 	MeshIsland *mi;
 
 	while (meshIslands->first) {
 		mi = meshIslands->first;
 		BLI_remlink_safe(meshIslands, mi);
-		BKE_fracture_mesh_island_free(fmd, mi, do_free_rigidbody, scene, flag);
+		BKE_fracture_mesh_island_free(fmd, mi, do_free_rigidbody, scene);
 		mi = NULL;
 	}
 
@@ -2929,7 +2929,7 @@ void BKE_fracture_meshislands_free(FractureModifierData* fmd, ListBase* meshIsla
 	meshIslands->last = NULL;
 }
 
-void BKE_fracture_simulation_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene *scene, const int flag)
+void BKE_fracture_simulation_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene *scene)
 {
 	/* what happens with this in dynamic fracture ? worst case, we need a sequence for this too*/
 	if (fmd->shards_to_islands) {
@@ -2949,7 +2949,7 @@ void BKE_fracture_simulation_free(FractureModifierData *fmd, bool do_free_seq, b
 
 	if (!do_free_seq) {
 
-		BKE_fracture_meshislands_free(fmd, &fmd->shared->meshIslands, do_free_rigidbody, scene, flag);
+		BKE_fracture_meshislands_free(fmd, &fmd->shared->meshIslands, do_free_rigidbody, scene);
 		fmd->shared->meshIslands.first = NULL;
 		fmd->shared->meshIslands.last = NULL;
 	}
@@ -2964,7 +2964,7 @@ void BKE_fracture_simulation_free(FractureModifierData *fmd, bool do_free_seq, b
 			while (fmd->shared->meshIsland_sequence.first) {
 				msq = fmd->shared->meshIsland_sequence.first;
 				BLI_remlink(&fmd->shared->meshIsland_sequence, msq);
-				BKE_fracture_meshislands_free(fmd, &msq->meshIslands, do_free_rigidbody, scene, flag);
+				BKE_fracture_meshislands_free(fmd, &msq->meshIslands, do_free_rigidbody, scene);
 				MEM_freeN(msq);
 				msq = NULL;
 			}
@@ -3038,9 +3038,9 @@ static void free_shards(FractureModifierData *fmd)
 	}
 }
 
-void BKE_fracture_modifier_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene *scene, const int flag)
+void BKE_fracture_modifier_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene *scene)
 {
-	BKE_fracture_simulation_free(fmd, do_free_seq, (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) && do_free_rigidbody, scene, flag);
+	BKE_fracture_simulation_free(fmd, do_free_seq, (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) && do_free_rigidbody, scene);
 
 	if (fmd->shared->material_index_map)
 	{
@@ -3106,13 +3106,13 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, bool do_free_seq, boo
 
 }
 
-void BKE_fracture_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene *scene, const int flag)
+void BKE_fracture_free(FractureModifierData *fmd, bool do_free_seq, bool do_free_rigidbody, Scene *scene)
 {
 	//for prefractured and external case
 
 	if ((!fmd->shared->refresh && !fmd->shared->refresh_constraints)) {
 		/* free entire modifier or when job has been cancelled */
-		BKE_fracture_modifier_free(fmd, do_free_seq, do_free_rigidbody, scene, flag);
+		BKE_fracture_modifier_free(fmd, do_free_seq, do_free_rigidbody, scene);
 
 		if (fmd->shared->visible_mesh_cached && !fmd->shards_to_islands)
 		{
@@ -3123,7 +3123,7 @@ void BKE_fracture_free(FractureModifierData *fmd, bool do_free_seq, bool do_free
 	}
 	else if (!fmd->shared->refresh_constraints) {
 		/* refreshing all simulation data only, no refracture */
-		BKE_fracture_simulation_free(fmd, false, do_free_rigidbody, scene, flag);
+		BKE_fracture_simulation_free(fmd, false, do_free_rigidbody, scene);
 	}
 	else if (fmd->shared->refresh_constraints && !fmd->is_dynamic_external) {
 		/* refresh constraints only */
@@ -5478,7 +5478,7 @@ Mesh *BKE_fracture_result_mesh(FractureModifierData* fmd, Mesh *dm, Object* ob, 
 		if (fmd->shared->visible_mesh == NULL && fmd->shared->visible_mesh_cached == NULL) {
 			/* oops, something went definitely wrong... */
 			fmd->shared->refresh = true;
-			BKE_fracture_free(fmd, fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED, true, scene, 0);
+			BKE_fracture_free(fmd, fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED, true, scene);
 			fmd->shared->visible_mesh_cached = NULL;
 			fmd->shared->refresh = false;
 		}
@@ -5697,7 +5697,7 @@ Mesh *BKE_fracture_prefractured_do(FractureModifierData *fmd, Object *ob, Mesh *
 	if ((fmd->shared->refresh) || (fmd->shared->refresh_constraints))
 	{
 		/* if we changed the fracture parameters */
-		BKE_fracture_free(fmd, true, true, scene, 0);
+		BKE_fracture_free(fmd, true, true, scene);
 
 		/* 2 cases, we can have a visible mesh or a cached visible mesh, the latter primarily when loading blend from file or using halving */
 		/* free cached mesh in case of "normal refracture here if we have a visible mesh, does that mean REfracture ?*/

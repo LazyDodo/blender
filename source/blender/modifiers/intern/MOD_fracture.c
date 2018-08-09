@@ -170,9 +170,6 @@ static void freeData(ModifierData *md)
 {
 	FractureModifierData *fmd = (FractureModifierData *) md;
 
-	if (fmd->scene == NULL)
-		return;
-
 	if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
 	{
 		BKE_fracture_dynamic_free(fmd, true, true, fmd->scene);
@@ -189,13 +186,13 @@ static void copyData(ModifierData *md, ModifierData *target, const int flag)
 {
 	FractureModifierData *trmd = (FractureModifierData *)target;
 
-	modifier_copyData_generic(md, target, flag);
-
 	if ((flag & LIB_ID_CREATE_NO_MAIN) == 0) {
 		/* This is a regular copy, and not a CoW copy for depsgraph evaluation */
 		trmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
-		trmd->refresh = true;
+		trmd->shared->refresh = true;
 	}
+
+	modifier_copyData_generic(md, target, flag);
 }
 
 static bool dependsOnTime(ModifierData *UNUSED(md))
@@ -354,7 +351,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	{
 		if (ob->rigidbody_object == NULL) {
 			//initialize FM here once
-			fmd->refresh = true;
+			fmd->shared->refresh = true;
 		}
 
 		final_dm = BKE_fracture_dynamic_apply(fmd, ob, pack_dm, scene);
