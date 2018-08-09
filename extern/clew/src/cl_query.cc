@@ -16,10 +16,12 @@
 
 #include <cstdlib>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 #include "clew.h"
 
+using std::string;
 using std::vector;
 #define foreach(x, y) for(x : y)
 
@@ -79,9 +81,27 @@ int main(int argc, char **argv) {
       continue;
     }
     foreach (cl_device_id device_id, device_ids) {
-      char name[1024] = "\0";
-      if (clGetDeviceInfo(
-          device_id, CL_DEVICE_NAME, sizeof(name), name, NULL) != CL_SUCCESS) {
+      string name;
+      char board_name[1024] = "\0";
+      size_t board_length = 0;
+      if (clGetDeviceInfo(device_id,
+                          CL_DEVICE_BOARD_NAME_AMD,
+                          sizeof(board_name), board_name,
+                          &board_length) == CL_SUCCESS) {
+        if (board_length != 0 && board_name[0] != '\0') {
+          name = board_name;
+        }
+      }
+      if (name.empty()) {
+        char device_name[1024] = "\0";
+        if (clGetDeviceInfo(device_id,
+                            CL_DEVICE_NAME,
+                            sizeof(device_name), device_name,
+                            NULL) == CL_SUCCESS) {
+          name = device_name;
+        }
+      }
+      if (name.empty()) {
         continue;
       }
       cl_int max_compute_units = 0;
@@ -92,7 +112,7 @@ int main(int argc, char **argv) {
                           NULL) != CL_SUCCESS) {
         continue;
       }
-      printf("%s:%d\n", name, max_compute_units);
+      printf("%s:%d\n", name.c_str(), max_compute_units);
     }
   }
   return EXIT_SUCCESS;
