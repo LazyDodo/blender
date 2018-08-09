@@ -161,7 +161,11 @@ static void initData(ModifierData *md)
 	fmd->use_constraint_group = false;
 	fmd->activate_broken = false;
 
-	fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
+	if (!fmd->shared) {
+		fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
+		fmd->shared->refresh = true;
+		fmd->shared->reset_shards = true;
+	}
 }
 
 static void freeData(ModifierData *md)
@@ -188,6 +192,7 @@ static void copyData(ModifierData *md, ModifierData *target, const int flag)
 		/* This is a regular copy, and not a CoW copy for depsgraph evaluation */
 		trmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
 		trmd->shared->refresh = true;
+		trmd->shared->reset_shards = true;
 	}
 
 	modifier_copyData_generic(md, target, flag);
