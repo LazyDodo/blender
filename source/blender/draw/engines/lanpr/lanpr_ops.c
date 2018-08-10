@@ -3085,8 +3085,8 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 				      *trd = &lanpr->taper_right_distance, *trs = &lanpr->taper_right_strength;
 
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "taper_l_dist", tld, 1);
-				DRW_shgroup_uniform_float(rb->ChainShgrp, "taper_r_dist", tls, 1);
-				DRW_shgroup_uniform_float(rb->ChainShgrp, "taper_l_strength", lanpr->use_same_taper ? tld : trd, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "taper_l_strength", tls, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "taper_r_dist", lanpr->use_same_taper ? tld : trd, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "taper_r_strength", lanpr->use_same_taper ? tls : trs, 1);
 
 				//need to add component enable/disable option.
