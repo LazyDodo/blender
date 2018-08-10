@@ -1073,6 +1073,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[INDEX_ID_IP] = &(main->ipo);
 	lb[INDEX_ID_AC] = &(main->action); /* moved here to avoid problems when freeing with animato (aligorith) */
 	lb[INDEX_ID_KE] = &(main->key);
+	lb[INDEX_ID_PAL] = &(main->palettes); /* referenced by gpencil, so needs to be before that to avoid crashes */
 	lb[INDEX_ID_GD] = &(main->gpencil); /* referenced by nodes, objects, view, scene etc, before to free after. */
 	lb[INDEX_ID_NT] = &(main->nodetree);
 	lb[INDEX_ID_IM] = &(main->image);
@@ -1406,13 +1407,13 @@ void *BKE_id_new_nomain(const short type, const char *name)
 
 /* by spec, animdata is first item after ID */
 /* and, trust that BKE_animdata_from_id() will only find AnimData for valid ID-types */
-static void id_copy_animdata(Main *bmain, ID *id, const bool do_action)
+static void id_copy_animdata(Main *bmain, ID *id, const bool do_action, const bool do_id_user)
 {
 	AnimData *adt = BKE_animdata_from_id(id);
 
 	if (adt) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)id;
-		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, true); /* could be set to false, need to investigate */
+		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, do_id_user);
 	}
 }
 
@@ -1469,7 +1470,9 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 	/* the duplicate should get a copy of the animdata */
 	if ((flag & LIB_ID_COPY_NO_ANIMDATA) == 0) {
 		BLI_assert((flag & LIB_ID_COPY_ACTIONS) == 0 || (flag & LIB_ID_CREATE_NO_MAIN) == 0);
-		id_copy_animdata(bmain, new_id, (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0);
+		id_copy_animdata(bmain, new_id,
+		                 (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0,
+		                 (flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0);
 	}
 	else if (id_can_have_animdata(new_id)) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)new_id;
@@ -2464,7 +2467,7 @@ void BKE_library_make_local(
 	 * Try "make all local" in 04_01_H.lighting.blend from Agent327 without this, e.g. */
 	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->data != NULL && ob->type == OB_ARMATURE && ob->pose != NULL && ob->pose->flag & POSE_RECALC) {
-			BKE_pose_rebuild(ob, ob->data);
+			BKE_pose_rebuild(bmain, ob, ob->data, true);
 		}
 	}
 

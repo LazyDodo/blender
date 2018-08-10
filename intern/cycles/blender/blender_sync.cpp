@@ -207,6 +207,8 @@ void BlenderSync::sync_data(BL::RenderSettings& b_render,
 	            python_thread_state);
 
 	mesh_synced.clear();
+
+	free_data_after_sync(b_depsgraph);
 }
 
 /* Integrator */
@@ -363,28 +365,11 @@ void BlenderSync::sync_film()
 void BlenderSync::sync_view_layer(BL::SpaceView3D& /*b_v3d*/, BL::ViewLayer& b_view_layer)
 {
 	/* render layer */
-	uint layer_override = get_layer(b_engine.layer_override());
-	uint view_layers = layer_override ? layer_override : get_layer(b_scene.layers());
-
 	view_layer.name = b_view_layer.name();
-
-	view_layer.holdout_layer = 0;
-	view_layer.exclude_layer = 0;
-
-	view_layer.view_layer = view_layers & ~view_layer.exclude_layer;
-	view_layer.view_layer |= view_layer.exclude_layer & view_layer.holdout_layer;
-
-	view_layer.layer = (1 << 20) - 1;
-	view_layer.layer |= view_layer.holdout_layer;
-
-	view_layer.material_override = PointerRNA_NULL;
 	view_layer.use_background_shader = b_view_layer.use_sky();
 	view_layer.use_background_ao = b_view_layer.use_ao();
 	view_layer.use_surfaces = b_view_layer.use_solid();
 	view_layer.use_hair = b_view_layer.use_strand();
-
-	view_layer.bound_samples = false;
-	view_layer.samples = 0;
 }
 
 /* Images */
@@ -564,6 +549,30 @@ array<Pass> BlenderSync::sync_render_passes(BL::RenderLayer& b_rlay,
 	}
 
 	return passes;
+}
+
+void BlenderSync::free_data_after_sync(BL::Depsgraph& b_depsgraph)
+{
+	/* When viewport display is not needed during render we can force some
+	 * caches to be releases from blender side in order to reduce peak memory
+	 * footprint during synchronization process.
+	 */
+	const bool is_interface_locked = b_engine.render() &&
+	                                 b_engine.render().use_lock_interface();
+	const bool can_free_caches = BlenderSession::headless || is_interface_locked;
+	if (!can_free_caches) {
+		return;
+	}
+	/* TODO(sergey): We can actually remove the whole dependency graph,
+	 * but that will need some API support first.
+	 */
+	BL::Depsgraph::objects_iterator b_ob;
+	for(b_depsgraph.objects.begin(b_ob);
+	    b_ob != b_depsgraph.objects.end();
+	    ++b_ob)
+	{
+		b_ob->cache_release();
+	}
 }
 
 /* Scene Parameters */

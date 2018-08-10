@@ -44,6 +44,7 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_tracking_types.h"
+#include "DNA_gpencil_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -76,6 +77,7 @@
 #include "BKE_editmesh.h"
 #include "BKE_scene.h"
 #include "BKE_tracking.h"
+#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 
@@ -95,6 +97,7 @@
 #include "ED_screen.h"
 #include "ED_sculpt.h"
 #include "ED_mball.h"
+#include "ED_gpencil.h"
 
 #include "UI_interface.h"
 
@@ -1189,7 +1192,7 @@ static int mixed_bones_object_selectbuffer(
 
 	/* define if we use solid nearest select or not */
 	if (use_cycle) {
-		if (v3d->drawtype > OB_WIRE) {
+		if (v3d->shading.type > OB_WIRE) {
 			do_nearest = true;
 			if (len_manhattan_v2v2_int(mval, last_mval) < 3) {
 				do_nearest = false;
@@ -1198,7 +1201,7 @@ static int mixed_bones_object_selectbuffer(
 		copy_v2_v2_int(last_mval, mval);
 	}
 	else {
-		if (v3d->drawtype > OB_WIRE) {
+		if (v3d->shading.type > OB_WIRE) {
 			do_nearest = true;
 		}
 	}
@@ -1674,6 +1677,28 @@ static bool ed_object_select_pick(
 
 			if ((oldbasact != basact) && (is_obedit == false)) {
 				ED_object_base_activate(C, basact); /* adds notifier */
+			}
+
+			/* Set special modes for grease pencil
+			   The grease pencil modes are not real modes, but a hack to make the interface
+			   consistent, so need some tricks to keep UI synchronized */
+			// XXX: This stuff neeeds reviewing (Aligorith)
+			if (false &&
+			    (((oldbasact) && oldbasact->object->type == OB_GPENCIL) ||
+			     (basact->object->type == OB_GPENCIL)))
+			{
+				/* set cursor */
+				if (ELEM(basact->object->mode,
+				         OB_MODE_GPENCIL_PAINT,
+				         OB_MODE_GPENCIL_SCULPT,
+				         OB_MODE_GPENCIL_WEIGHT))
+				{
+					ED_gpencil_toggle_brush_cursor(C, true, NULL);
+				}
+				else {
+					/* TODO: maybe is better use restore */
+					ED_gpencil_toggle_brush_cursor(C, false, NULL);
+				}
 			}
 		}
 

@@ -239,9 +239,9 @@ void DEG_make_inactive(struct Depsgraph *depsgraph);
 void DEG_debug_print_begin(struct Depsgraph *depsgraph);
 
 void DEG_debug_print_eval(struct Depsgraph *depsgraph,
-                          const char* function_name,
-                          const char* object_name,
-                          const void* object_address);
+                          const char *function_name,
+                          const char *object_name,
+                          const void *object_address);
 
 void DEG_debug_print_eval_subdata(struct Depsgraph *depsgraph,
                                   const char *function_name,
@@ -269,9 +269,9 @@ void DEG_debug_print_eval_parent_typed(struct Depsgraph *depsgraph,
                                        const void *parent_address);
 
 void DEG_debug_print_eval_time(struct Depsgraph *depsgraph,
-                               const char* function_name,
-                               const char* object_name,
-                               const void* object_address,
+                               const char *function_name,
+                               const char *object_name,
+                               const void *object_address,
                                float time);
 
 #ifdef __cplusplus

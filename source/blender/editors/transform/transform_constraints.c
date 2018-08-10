@@ -560,7 +560,9 @@ static void applyObjectConstraintRot(
 
 		/* on setup call, use first object */
 		if (td == NULL) {
-			td = TRANS_DATA_CONTAINER_FIRST_OK(t)->data;
+			BLI_assert(tc == NULL);
+			tc = TRANS_DATA_CONTAINER_FIRST_OK(t);
+			td = tc->data;
 		}
 
 		if (t->flag & T_EDIT) {
@@ -747,7 +749,7 @@ void drawConstraint(TransInfo *t)
 			if (depth_test_enabled)
 				GPU_depth_test(false);
 
-			const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			const uint shdr_pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_LINE_DASHED_UNIFORM_COLOR);
 
@@ -760,7 +762,7 @@ void drawConstraint(TransInfo *t)
 			immUniform1f("dash_width", 2.0f);
 			immUniform1f("dash_factor", 0.5f);
 
-			immBegin(GWN_PRIM_LINES, 2);
+			immBegin(GPU_PRIM_LINES, 2);
 			immVertex3fv(shdr_pos, t->center_global);
 			immVertex3fv(shdr_pos, vec);
 			immEnd();
@@ -823,7 +825,7 @@ void drawPropCircle(const struct bContext *C, TransInfo *t)
 		if (depth_test_enabled)
 			GPU_depth_test(false);
 
-		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 		immUniformThemeColor(TH_GRID);

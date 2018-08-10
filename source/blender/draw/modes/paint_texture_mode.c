@@ -227,6 +227,7 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 						DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
 						DRW_shgroup_uniform_texture(grp, "image", tex);
 						DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
+						DRW_shgroup_uniform_block(grp, "globalsBlock", globals_ubo);
 						stl->g_data->shgroup_image_array[i] = grp;
 					}
 					else {
@@ -259,6 +260,7 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->lwire_shgrp = DRW_shgroup_create(e_data.wire_overlay_shader, psl->wire_overlay);
+		DRW_shgroup_uniform_block(stl->g_data->lwire_shgrp, "globalsBlock", globals_ubo);
 	}
 
 	{
@@ -293,9 +295,9 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 		if (use_surface) {
 			if (me->mloopuv != NULL) {
 				if (use_material_slots) {
-					struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+					struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 					if ((me->totcol == 0) || (geom_array == NULL)) {
-						struct Gwn_Batch *geom = DRW_cache_mesh_surface_get(ob);
+						struct GPUBatch *geom = DRW_cache_mesh_surface_get(ob);
 						DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom, ob->obmat);
 						ok = true;
 					}
@@ -312,7 +314,7 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 					}
 				}
 				else {
-					struct Gwn_Batch *geom = DRW_cache_mesh_surface_texpaint_single_get(ob);
+					struct GPUBatch *geom = DRW_cache_mesh_surface_texpaint_single_get(ob);
 					if (geom && stl->g_data->shgroup_image_array[0]) {
 						DRW_shgroup_call_add(stl->g_data->shgroup_image_array[0], geom, ob->obmat);
 						ok = true;
@@ -321,7 +323,7 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 			}
 
 			if (!ok) {
-				struct Gwn_Batch *geom = DRW_cache_mesh_surface_get(ob);
+				struct GPUBatch *geom = DRW_cache_mesh_surface_get(ob);
 				DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom, ob->obmat);
 			}
 		}
@@ -329,7 +331,7 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 		/* Face Mask */
 		const bool use_face_sel = (me->editflag & ME_EDIT_PAINT_FACE_SEL) != 0;
 		if (use_face_sel) {
-			struct Gwn_Batch *geom;
+			struct GPUBatch *geom;
 			/* Note: ideally selected faces wouldn't show interior wire. */
 			const bool use_wire = true;
 			geom = DRW_cache_mesh_edges_paint_overlay_get(ob, use_wire, use_face_sel);

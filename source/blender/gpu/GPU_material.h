@@ -55,7 +55,6 @@ struct GPUNodeStack;
 struct GPUMaterial;
 struct GPUTexture;
 struct GPUUniformBuffer;
-struct GPULamp;
 struct PreviewImage;
 struct World;
 struct bNode;
@@ -104,7 +103,7 @@ typedef enum GPUBuiltin {
 	GPU_AUTO_BUMPSCALE =        (1 << 7),
 	GPU_CAMERA_TEXCO_FACTORS =  (1 << 8),
 	GPU_PARTICLE_SCALAR_PROPS = (1 << 9),
-	GPU_PARTICLE_LOCATION =	    (1 << 10),
+	GPU_PARTICLE_LOCATION =     (1 << 10),
 	GPU_PARTICLE_VELOCITY =     (1 << 11),
 	GPU_PARTICLE_ANG_VELOCITY = (1 << 12),
 	GPU_LOC_TO_VIEW_MATRIX =    (1 << 13),
@@ -125,6 +124,12 @@ typedef enum GPUMatType {
 	GPU_MATERIAL_TYPE_WORLD = 2,
 } GPUMatType;
 
+typedef enum GPUMatFlag {
+	GPU_MATFLAG_DIFFUSE       = (1 << 0),
+	GPU_MATFLAG_GLOSSY        = (1 << 1),
+	GPU_MATFLAG_REFRACT       = (1 << 2),
+	GPU_MATFLAG_SSS           = (1 << 3),
+} GPUMatFlag;
 
 typedef enum GPUBlendMode {
 	GPU_BLEND_SOLID = 0,
@@ -248,16 +253,11 @@ GPUMaterial *GPU_material_from_nodetree_find(
         struct ListBase *gpumaterials, const void *engine_type, int options);
 GPUMaterial *GPU_material_from_nodetree(
         struct Scene *scene, struct bNodeTree *ntree, struct ListBase *gpumaterials, const void *engine_type, int options,
-        const char *vert_code, const char *geom_code, const char *frag_lib, const char *defines);
+        const char *vert_code, const char *geom_code, const char *frag_lib, const char *defines, const char *name);
 void GPU_material_compile(GPUMaterial *mat);
 void GPU_material_free(struct ListBase *gpumaterial);
 
 void GPU_materials_free(struct Main *bmain);
-
-void GPU_material_orphans_init(void);
-void GPU_material_orphans_exit(void);
-/* This has to be called from a thread with an ogl context bound. */
-void GPU_material_orphans_delete(void);
 
 struct Scene *GPU_material_scene(GPUMaterial *material);
 GPUMatType GPU_Material_get_type(GPUMaterial *material);
@@ -268,12 +268,16 @@ GPUMaterialStatus GPU_material_status(GPUMaterial *mat);
 struct GPUUniformBuffer *GPU_material_uniform_buffer_get(GPUMaterial *material);
 void GPU_material_uniform_buffer_create(GPUMaterial *material, ListBase *inputs);
 
-void GPU_material_vertex_attributes(GPUMaterial *material,
-	struct GPUVertexAttribs *attrib);
+void GPU_material_vertex_attributes(
+        GPUMaterial *material,
+        struct GPUVertexAttribs *attrib);
 
 bool GPU_material_do_color_management(GPUMaterial *mat);
 bool GPU_material_use_domain_surface(GPUMaterial *mat);
 bool GPU_material_use_domain_volume(GPUMaterial *mat);
+
+void GPU_material_flag_set(GPUMaterial *mat, GPUMatFlag flag);
+bool GPU_material_flag_get(GPUMaterial *mat, GPUMatFlag flag);
 
 void GPU_pass_cache_init(void);
 void GPU_pass_cache_garbage_collect(void);

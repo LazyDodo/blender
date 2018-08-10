@@ -48,12 +48,16 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
+#include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_layer.h"
 #include "BKE_undo_system.h"
+#include "BKE_workspace.h"
+#include "BKE_paint.h"
 
 #include "ED_gpencil.h"
 #include "ED_render.h"
+#include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_undo.h"
 
@@ -110,6 +114,7 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
 	Scene *scene = CTX_data_scene(C);
+	ScrArea *sa = CTX_wm_area(C);
 
 	/* undo during jobs are running can easily lead to freeing data using by jobs,
 	 * or they can just lead to freezing job in some other cases */
@@ -121,6 +126,12 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 	/* grease pencil can be can be used in plenty of spaces, so check it first */
 	if (ED_gpencil_session_active()) {
 		return ED_undo_gpencil_step(C, step, undoname);
+	}
+	if (sa && (sa->spacetype == SPACE_VIEW3D)) {
+		Object *obact = CTX_data_active_object(C);
+		if (obact && (obact->type == OB_GPENCIL)) {
+			ED_gpencil_toggle_brush_cursor(C, false, NULL);
+		}
 	}
 
 	UndoStep *step_data_from_name = NULL;
@@ -155,6 +166,23 @@ static int ed_undo_step(bContext *C, int step, const char *undoname)
 		}
 		else {
 			BKE_undosys_step_undo_compat_only(wm->undo_stack, C, step);
+		}
+
+		/* Set special modes for grease pencil */
+		if (sa && (sa->spacetype == SPACE_VIEW3D)) {
+			Object *obact = CTX_data_active_object(C);
+			if (obact && (obact->type == OB_GPENCIL)) {
+				/* set cursor */
+				if (ELEM(obact->mode, OB_MODE_GPENCIL_PAINT, OB_MODE_GPENCIL_SCULPT, OB_MODE_GPENCIL_WEIGHT)) {
+					ED_gpencil_toggle_brush_cursor(C, true, NULL);
+				}
+				else {
+					ED_gpencil_toggle_brush_cursor(C, false, NULL);
+				}
+				/* set workspace mode */
+				Base *basact = CTX_data_active_base(C);
+				ED_object_base_activate(C, basact);
+			}
 		}
 	}
 
@@ -385,6 +413,15 @@ int ED_undo_operator_repeat(bContext *C, wmOperator *op)
 						ED_region_tag_refresh_ui(ar_menu);
 					}
 				}
+			}
+
+			if (op->type->flag & OPTYPE_USE_EVAL_DATA) {
+				/* We need to force refresh of depsgraph after undo step,
+				 * redoing the operator *may* rely on some valid evaluated data. */
+				Main *bmain = CTX_data_main(C);
+				scene = CTX_data_scene(C);
+				ViewLayer *view_layer = CTX_data_view_layer(C);
+				BKE_scene_view_layer_graph_evaluated_ensure(bmain, scene, view_layer);
 			}
 
 			retval = WM_operator_repeat(C, op);

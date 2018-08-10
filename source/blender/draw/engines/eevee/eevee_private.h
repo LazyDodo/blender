@@ -96,7 +96,7 @@ extern struct DrawEngineType draw_engine_eevee_type;
 } ((void)0)
 
 #define OVERLAY_ENABLED(v3d) ((v3d) && (v3d->flag2 & V3D_RENDER_OVERRIDE) == 0)
-#define LOOK_DEV_MODE_ENABLED(v3d) ((v3d) && (v3d->drawtype == OB_MATERIAL))
+#define LOOK_DEV_MODE_ENABLED(v3d) ((v3d) && (v3d->shading.type == OB_MATERIAL))
 #define LOOK_DEV_OVERLAY_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && OVERLAY_ENABLED(v3d) && (v3d->overlay.flag & V3D_OVERLAY_LOOK_DEV))
 #define USE_SCENE_LIGHT(v3d) ((!v3d) || (!LOOK_DEV_MODE_ENABLED(v3d)) || ((LOOK_DEV_MODE_ENABLED(v3d) && (v3d->shading.flag & V3D_SHADING_SCENE_LIGHTS))))
 #define LOOK_DEV_STUDIO_LIGHT_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && !(v3d->shading.flag & V3D_SHADING_SCENE_WORLD))
@@ -515,6 +515,7 @@ typedef struct EEVEE_EffectsInfo {
 	int volume_current_sample;
 	/* SSR */
 	bool reflection_trace_full;
+	bool ssr_was_persp;
 	int ssr_neighbor_ofs;
 	int ssr_halfres_ofs[2];
 	struct GPUTexture *ssr_normal_input; /* Textures from pool */
@@ -773,9 +774,13 @@ typedef struct EEVEE_PrivateData {
 
 	/* Mist Settings */
 	float mist_start, mist_inv_dist, mist_falloff;
+
+	/* Color Management */
+	bool use_color_view_settings;
 } EEVEE_PrivateData; /* Transient data */
 
 /* eevee_data.c */
+void EEVEE_view_layer_data_free(void *sldata);
 EEVEE_ViewLayerData *EEVEE_view_layer_data_get(void);
 EEVEE_ViewLayerData *EEVEE_view_layer_data_ensure_ex(struct ViewLayer *view_layer);
 EEVEE_ViewLayerData *EEVEE_view_layer_data_ensure(void);
@@ -815,10 +820,10 @@ void EEVEE_lights_init(EEVEE_ViewLayerData *sldata);
 void EEVEE_lights_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lights_cache_add(EEVEE_ViewLayerData *sldata, struct Object *ob);
 void EEVEE_lights_cache_shcaster_add(
-        EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, struct Gwn_Batch *geom, Object *ob);
+        EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, struct GPUBatch *geom, Object *ob);
 void EEVEE_lights_cache_shcaster_material_add(
         EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl,
-        struct GPUMaterial *gpumat, struct Gwn_Batch *geom, struct Object *ob,
+        struct GPUMaterial *gpumat, struct GPUBatch *geom, struct Object *ob,
         float *alpha_threshold);
 void EEVEE_lights_cache_shcaster_object_add(EEVEE_ViewLayerData *sldata, struct Object *ob);
 void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata);
@@ -908,6 +913,7 @@ void EEVEE_mist_output_accumulate(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedat
 void EEVEE_mist_free(void);
 
 /* eevee_temporal_sampling.c */
+void EEVEE_temporal_sampling_reset(EEVEE_Data *vedata);
 int EEVEE_temporal_sampling_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_temporal_sampling_matrices_calc(
         EEVEE_EffectsInfo *effects, float viewmat[4][4], float persmat[4][4], const double ht_point[2]);

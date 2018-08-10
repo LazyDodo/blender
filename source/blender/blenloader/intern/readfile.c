@@ -72,6 +72,8 @@
 #include "DNA_genfile.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
+#include "DNA_shader_fx_types.h"
 #include "DNA_ipo_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
@@ -130,6 +132,8 @@
 #include "BKE_effect.h"
 #include "BKE_fcurve.h"
 #include "BKE_global.h" // for G
+#include "BKE_gpencil.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_layer.h"
 #include "BKE_library.h" // for which_libbase
 #include "BKE_library_idmap.h"
@@ -153,6 +157,7 @@
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
+#include "BKE_shader_fx.h"
 #include "BKE_outliner_treehash.h"
 #include "BKE_sound.h"
 #include "BKE_colortools.h"
@@ -266,6 +271,8 @@ static BHead *find_bhead_from_idname(FileData *fd, const char *idname);
 #ifdef USE_COLLECTION_COMPAT_28
 static void expand_scene_collection(FileData *fd, Main *mainvar, SceneCollection *sc);
 #endif
+static void direct_link_animdata(FileData *fd, AnimData *adt);
+static void lib_link_animdata(FileData *fd, ID *id, AnimData *adt);
 
 /* this function ensures that reports are printed,
  * in the case of libraray linking errors this is important!
@@ -332,6 +339,12 @@ static void oldnewmap_insert(OldNewMap *onm, const void *oldaddr, void *newaddr,
 	OldNew *entry;
 
 	if (oldaddr==NULL || newaddr==NULL) return;
+
+	for (int i = 0; i < onm->nentries; i++) {
+		if (onm->entries[i].old == oldaddr && onm->entries[i].newp != newaddr) {
+			abort();
+		}
+	}
 
 	if (UNLIKELY(onm->nentries == onm->entriessize)) {
 		onm->entriessize *= 2;
@@ -1025,20 +1038,6 @@ static int *read_file_thumbnail(FileData *fd)
 	}
 
 	return blend_thumb;
-}
-
-static int fd_read_from_file(FileData *filedata, void *buffer, unsigned int size)
-{
-	int readsize = read(filedata->filedes, buffer, size);
-
-	if (readsize < 0) {
-		readsize = EOF;
-	}
-	else {
-		filedata->seek += readsize;
-	}
-
-	return readsize;
 }
 
 static int fd_read_gzip_from_file(FileData *filedata, void *buffer, unsigned int size)
@@ -2368,6 +2367,7 @@ static void direct_link_curvemapping(FileData *fd, CurveMapping *cumap)
 }
 
 /* ************ READ Brush *************** */
+
 /* library brush linking after fileread */
 static void lib_link_brush(FileData *fd, Main *main)
 {
@@ -2383,6 +2383,11 @@ static void lib_link_brush(FileData *fd, Main *main)
 			brush->toggle_brush = newlibadr(fd, brush->id.lib, brush->toggle_brush);
 			brush->paint_curve = newlibadr_us(fd, brush->id.lib, brush->paint_curve);
 
+			/* link default grease pencil palette */
+			if (brush->gpencil_settings != NULL) {
+				brush->gpencil_settings->material = newlibadr_us(fd, brush->id.lib, brush->gpencil_settings->material);
+			}
+
 			brush->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
 	}
@@ -2394,6 +2399,7 @@ static void direct_link_brush(FileData *fd, Brush *brush)
 
 	/* fallof curve */
 	brush->curve = newdataadr(fd, brush->curve);
+
 	brush->gradient = newdataadr(fd, brush->gradient);
 
 	if (brush->curve)
@@ -2401,11 +2407,29 @@ static void direct_link_brush(FileData *fd, Brush *brush)
 	else
 		BKE_brush_curve_preset(brush, CURVE_PRESET_SHARP);
 
+	/* grease pencil */
+	brush->gpencil_settings = newdataadr(fd, brush->gpencil_settings);
+	if (brush->gpencil_settings != NULL) {
+		brush->gpencil_settings->curve_sensitivity = newdataadr(fd, brush->gpencil_settings->curve_sensitivity);
+		brush->gpencil_settings->curve_strength = newdataadr(fd, brush->gpencil_settings->curve_strength);
+		brush->gpencil_settings->curve_jitter = newdataadr(fd, brush->gpencil_settings->curve_jitter);
+
+		if (brush->gpencil_settings->curve_sensitivity)
+			direct_link_curvemapping(fd, brush->gpencil_settings->curve_sensitivity);
+
+		if (brush->gpencil_settings->curve_strength)
+			direct_link_curvemapping(fd, brush->gpencil_settings->curve_strength);
+
+		if (brush->gpencil_settings->curve_jitter)
+			direct_link_curvemapping(fd, brush->gpencil_settings->curve_jitter);
+	}
+
 	brush->preview = NULL;
 	brush->icon_imbuf = NULL;
 }
 
 /* ************ READ Palette *************** */
+
 static void lib_link_palette(FileData *fd, Main *main)
 {
 	/* only link ID pointers */
@@ -2420,6 +2444,7 @@ static void lib_link_palette(FileData *fd, Main *main)
 
 static void direct_link_palette(FileData *fd, Palette *palette)
 {
+
 	/* palette itself has been read */
 	link_list(fd, &palette->colors);
 }
@@ -3343,6 +3368,10 @@ static void direct_link_nodetree(FileData *fd, bNodeTree *ntree)
 					direct_link_curvemapping(fd, node->storage);
 				else if (ELEM(node->type, CMP_NODE_IMAGE, CMP_NODE_R_LAYERS, CMP_NODE_VIEWER, CMP_NODE_SPLITVIEWER))
 					((ImageUser *)node->storage)->ok = 1;
+				else if (node->type==CMP_NODE_CRYPTOMATTE) {
+					NodeCryptomatte *nc = (NodeCryptomatte *) node->storage;
+					nc->matte_id = newdataadr(fd, nc->matte_id);
+				}
 			}
 			else if ( ntree->type==NTREE_TEXTURE) {
 				if (node->type==TEX_NODE_CURVE_RGB || node->type==TEX_NODE_CURVE_TIME)
@@ -4143,6 +4172,17 @@ static void lib_link_material(FileData *fd, Main *main)
 				ma->nodetree->id.lib = ma->id.lib;
 			}
 
+			/* relink grease pencil settings */
+			if (ma->gp_style != NULL) {
+				MaterialGPencilStyle *gp_style = ma->gp_style;
+				if (gp_style->sima != NULL) {
+					gp_style->sima = newlibadr_us(fd, ma->id.lib, gp_style->sima);
+				}
+				if (gp_style->ima != NULL) {
+					gp_style->ima = newlibadr_us(fd, ma->id.lib, gp_style->ima);
+				}
+			}
+
 			ma->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
 	}
@@ -4163,6 +4203,8 @@ static void direct_link_material(FileData *fd, Material *ma)
 
 	ma->preview = direct_link_preview_image(fd, ma->preview);
 	BLI_listbase_clear(&ma->gpumaterial);
+
+	ma->gp_style = newdataadr(fd, ma->gp_style);
 }
 
 /* ************ READ PARTICLE SETTINGS ***************** */
@@ -4798,7 +4840,7 @@ static void direct_link_latt(FileData *fd, Lattice *lt)
 
 /* ************ READ OBJECT ***************** */
 
-static void lib_link_modifiers__linkModifiers(
+static void lib_link_modifiers_common(
         void *userData, Object *ob, ID **idpoin, int cb_flag)
 {
 	FileData *fd = userData;
@@ -4808,9 +4850,10 @@ static void lib_link_modifiers__linkModifiers(
 		id_us_plus_no_lib(*idpoin);
 	}
 }
+
 static void lib_link_modifiers(FileData *fd, Object *ob)
 {
-	modifiers_foreachIDLink(ob, lib_link_modifiers__linkModifiers, fd);
+	modifiers_foreachIDLink(ob, lib_link_modifiers_common, fd);
 
 	/* If linking from a library, clear 'local' static override flag. */
 	if (ob->id.lib != NULL) {
@@ -4819,6 +4862,30 @@ static void lib_link_modifiers(FileData *fd, Object *ob)
 		}
 	}
 
+}
+
+static void lib_link_gpencil_modifiers(FileData *fd, Object *ob)
+{
+	BKE_gpencil_modifiers_foreachIDLink(ob, lib_link_modifiers_common, fd);
+
+	/* If linking from a library, clear 'local' static override flag. */
+	if (ob->id.lib != NULL) {
+		for (GpencilModifierData *mod = ob->greasepencil_modifiers.first; mod != NULL; mod = mod->next) {
+			mod->flag &= ~eGpencilModifierFlag_StaticOverride_Local;
+		}
+	}
+}
+
+static void lib_link_shaderfxs(FileData *fd, Object *ob)
+{
+	BKE_shaderfx_foreachIDLink(ob, lib_link_modifiers_common, fd);
+
+	/* If linking from a library, clear 'local' static override flag. */
+	if (ob->id.lib != NULL) {
+		for (ShaderFxData *fx = ob->shader_fx.first; fx != NULL; fx = fx->next) {
+			fx->flag &= ~eShaderFxFlag_StaticOverride_Local;
+		}
+	}
 }
 
 static void lib_link_object(FileData *fd, Main *main)
@@ -4957,6 +5024,8 @@ static void lib_link_object(FileData *fd, Main *main)
 
 			lib_link_particlesystems(fd, ob, &ob->id, &ob->particlesystem);
 			lib_link_modifiers(fd, ob);
+			lib_link_gpencil_modifiers(fd, ob);
+			lib_link_shaderfxs(fd, ob);
 
 			if (ob->rigidbody_constraint) {
 				ob->rigidbody_constraint->ob1 = newlibadr(fd, ob->id.lib, ob->rigidbody_constraint->ob1);
@@ -5100,6 +5169,9 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				smd->domain->tex = NULL;
 				smd->domain->tex_shadow = NULL;
 				smd->domain->tex_flame = NULL;
+				smd->domain->tex_velocity_x = NULL;
+				smd->domain->tex_velocity_y = NULL;
+				smd->domain->tex_velocity_z = NULL;
 				smd->domain->tex_wt = NULL;
 				smd->domain->coba = newdataadr(fd, smd->domain->coba);
 
@@ -5349,6 +5421,61 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 	}
 }
 
+static void direct_link_gpencil_modifiers(FileData *fd, ListBase *lb)
+{
+	GpencilModifierData *md;
+
+	link_list(fd, lb);
+
+	for (md = lb->first; md; md = md->next) {
+		md->error = NULL;
+
+		/* if modifiers disappear, or for upward compatibility */
+		if (NULL == BKE_gpencil_modifierType_getInfo(md->type))
+			md->type = eModifierType_None;
+
+		if (md->type == eGpencilModifierType_Lattice) {
+			LatticeGpencilModifierData *gpmd = (LatticeGpencilModifierData*)md;
+			gpmd->cache_data = NULL;
+		}
+		else if (md->type == eGpencilModifierType_Hook) {
+			HookGpencilModifierData *hmd = (HookGpencilModifierData *)md;
+
+			hmd->curfalloff = newdataadr(fd, hmd->curfalloff);
+			if (hmd->curfalloff) {
+				direct_link_curvemapping(fd, hmd->curfalloff);
+			}
+		}
+		else if (md->type == eGpencilModifierType_Thick) {
+			ThickGpencilModifierData *gpmd = (ThickGpencilModifierData *)md;
+
+			gpmd->curve_thickness = newdataadr(fd, gpmd->curve_thickness);
+			if (gpmd->curve_thickness) {
+				direct_link_curvemapping(fd, gpmd->curve_thickness);
+				/* initialize the curve. Maybe this could be moved to modififer logic */
+				curvemapping_initialize(gpmd->curve_thickness);
+			}
+		}
+
+	}
+}
+
+static void direct_link_shaderfxs(FileData *fd, ListBase *lb)
+{
+	ShaderFxData *fx;
+
+	link_list(fd, lb);
+
+	for (fx = lb->first; fx; fx = fx->next) {
+		fx->error = NULL;
+
+		/* if shader disappear, or for upward compatibility */
+		if (NULL == BKE_shaderfxType_getInfo(fx->type))
+			fx->type = eShaderFxType_None;
+
+	}
+}
+
 static void direct_link_object(FileData *fd, Object *ob)
 {
 	PartEff *paf;
@@ -5392,6 +5519,8 @@ static void direct_link_object(FileData *fd, Object *ob)
 
 	/* do it here, below old data gets converted */
 	direct_link_modifiers(fd, &ob->modifiers);
+	direct_link_gpencil_modifiers(fd, &ob->greasepencil_modifiers);
+	direct_link_shaderfxs(fd, &ob->shader_fx);
 
 	link_list(fd, &ob->effect);
 	paf= ob->effect.first;
@@ -5538,11 +5667,7 @@ static void direct_link_object(FileData *fd, Object *ob)
 	ob->derivedDeform = NULL;
 	ob->derivedFinal = NULL;
 	BKE_object_runtime_reset(ob);
-	BLI_listbase_clear(&ob->gpulamp);
 	link_list(fd, &ob->pc_ids);
-
-	/* Runtime curve data  */
-	ob->curve_cache = NULL;
 
 	/* in case this value changes in future, clamp else we get undefined behavior */
 	CLAMP(ob->rotmode, ROT_MODE_MIN, ROT_MODE_MAX);
@@ -5876,6 +6001,7 @@ static void lib_link_scene(FileData *fd, Main *main)
 			link_paint(fd, sce, &sce->toolsettings->wpaint->paint);
 			link_paint(fd, sce, &sce->toolsettings->imapaint.paint);
 			link_paint(fd, sce, &sce->toolsettings->uvsculpt->paint);
+			link_paint(fd, sce, &sce->toolsettings->gp_paint->paint);
 
 			if (sce->toolsettings->sculpt)
 				sce->toolsettings->sculpt->gravity_object =
@@ -6134,6 +6260,7 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->vpaint);
 		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->wpaint);
 		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->uvsculpt);
+		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->gp_paint);
 
 		direct_link_paint(fd, &sce->toolsettings->imapaint.paint);
 
@@ -6143,27 +6270,15 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		sce->toolsettings->particle.object = NULL;
 		sce->toolsettings->gp_sculpt.paintcursor = NULL;
 
-		/* relink grease pencil drawing brushes */
-		link_list(fd, &sce->toolsettings->gp_brushes);
-		for (bGPDbrush *brush = sce->toolsettings->gp_brushes.first; brush; brush = brush->next) {
-			brush->cur_sensitivity = newdataadr(fd, brush->cur_sensitivity);
-			if (brush->cur_sensitivity) {
-				direct_link_curvemapping(fd, brush->cur_sensitivity);
-			}
-			brush->cur_strength = newdataadr(fd, brush->cur_strength);
-			if (brush->cur_strength) {
-				direct_link_curvemapping(fd, brush->cur_strength);
-			}
-			brush->cur_jitter = newdataadr(fd, brush->cur_jitter);
-			if (brush->cur_jitter) {
-				direct_link_curvemapping(fd, brush->cur_jitter);
-			}
-		}
-
 		/* relink grease pencil interpolation curves */
 		sce->toolsettings->gp_interpolate.custom_ipo = newdataadr(fd, sce->toolsettings->gp_interpolate.custom_ipo);
 		if (sce->toolsettings->gp_interpolate.custom_ipo) {
 			direct_link_curvemapping(fd, sce->toolsettings->gp_interpolate.custom_ipo);
+		}
+		/* relink grease pencil multiframe falloff curve */
+		sce->toolsettings->gp_sculpt.cur_falloff = newdataadr(fd, sce->toolsettings->gp_sculpt.cur_falloff);
+		if (sce->toolsettings->gp_sculpt.cur_falloff) {
+			direct_link_curvemapping(fd, sce->toolsettings->gp_sculpt.cur_falloff);
 		}
 	}
 
@@ -6372,6 +6487,8 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	if (sce->master_collection) {
 		sce->master_collection = newdataadr(fd, sce->master_collection);
 		direct_link_collection(fd, sce->master_collection);
+		/* Needed because this is an ID outside of Main. */
+		sce->master_collection->id.py_instance = NULL;
 	}
 
 	/* insert into global old-new map for reading without UI (link_global accesses it again) */
@@ -6402,10 +6519,23 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 /* relink's grease pencil data's refs */
 static void lib_link_gpencil(FileData *fd, Main *main)
 {
+	/* Relink all datablock linked by GP datablock */
 	for (bGPdata *gpd = main->gpencil.first; gpd; gpd = gpd->id.next) {
 		if (gpd->id.tag & LIB_TAG_NEED_LINK) {
+			/* Layers */
+			for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+				/* Layer -> Parent References */
+				gpl->parent = newlibadr(fd, gpd->id.lib, gpl->parent);
+			}
+
+			/* Datablock Stuff */
 			IDP_LibLinkProperty(gpd->id.properties, fd);
 			lib_link_animdata(fd, &gpd->id, gpd->adt);
+
+			/* materials */
+			for (int a = 0; a < gpd->totcol; a++) {
+				gpd->mat[a] = newlibadr_us(fd, gpd->id.lib, gpd->mat[a]);
+			}
 
 			gpd->id.tag &= ~LIB_TAG_NEED_LINK;
 		}
@@ -6428,36 +6558,49 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 	gpd->adt = newdataadr(fd, gpd->adt);
 	direct_link_animdata(fd, gpd->adt);
 
-	/* relink palettes */
+	/* relink palettes (old palettes deprecated, only to convert old files) */
 	link_list(fd, &gpd->palettes);
-	for (palette = gpd->palettes.first; palette; palette = palette->next) {
-		link_list(fd, &palette->colors);
+	if (gpd->palettes.first != NULL) {
+		for (palette = gpd->palettes.first; palette; palette = palette->next) {
+			link_list(fd, &palette->colors);
+		}
 	}
+
+	/* clear drawing cache */
+	gpd->runtime.batch_cache_data = NULL;
+
+	/* materials */
+	gpd->mat = newdataadr(fd, gpd->mat);
+	test_pointer_array(fd, (void **)&gpd->mat);
 
 	/* relink layers */
 	link_list(fd, &gpd->layers);
 
 	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		/* parent */
-		gpl->parent = newlibadr(fd, gpd->id.lib, gpl->parent);
 		/* relink frames */
 		link_list(fd, &gpl->frames);
+
 		gpl->actframe = newdataadr(fd, gpl->actframe);
+
+		gpl->runtime.derived_data = NULL;
+		gpl->runtime.icon_id = 0;
 
 		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 			/* relink strokes (and their points) */
 			link_list(fd, &gpf->strokes);
 
 			for (gps = gpf->strokes.first; gps; gps = gps->next) {
+				/* relink stroke points array */
 				gps->points = newdataadr(fd, gps->points);
+
+				/* relink weight data */
+				gps->dvert = newdataadr(fd, gps->dvert);
+				direct_link_dverts(fd, gps->totpoints, gps->dvert);
 
 				/* the triangulation is not saved, so need to be recalculated */
 				gps->triangles = NULL;
 				gps->tot_triangles = 0;
 				gps->flag |= GP_STROKE_RECALC_CACHES;
-				/* the color pointer is not saved, so need to be recalculated using the color name */
-				gps->palcolor = NULL;
-				gps->flag |= GP_STROKE_RECALC_COLOR;
 			}
 		}
 	}
@@ -6603,9 +6746,10 @@ static void direct_link_area(FileData *fd, ScrArea *area)
 			v3d->properties_storage = NULL;
 
 			/* render can be quite heavy, set to solid on load */
-			if (v3d->drawtype == OB_RENDER)
-				v3d->drawtype = OB_SOLID;
-			v3d->prev_drawtype = OB_SOLID;
+			if (v3d->shading.type == OB_RENDER) {
+				v3d->shading.type = OB_SOLID;
+			}
+			v3d->shading.prev_type = OB_SOLID;
 
 			if (v3d->fx_settings.dof)
 				v3d->fx_settings.dof = newdataadr(fd, v3d->fx_settings.dof);
@@ -7014,7 +7158,7 @@ static void direct_link_windowmanager(FileData *fd, wmWindowManager *wm)
 		direct_link_area_map(fd, &win->global_areas);
 
 		win->ghostwin = NULL;
-		win->gwnctx = NULL;
+		win->gpuctx = NULL;
 		win->eventstate = NULL;
 		win->cursor_keymap_status = NULL;
 		win->tweak = NULL;
@@ -7699,6 +7843,7 @@ static void direct_link_speaker(FileData *fd, Speaker *spk)
 
 static void direct_link_sound(FileData *fd, bSound *sound)
 {
+	sound->tags = 0;
 	sound->handle = NULL;
 	sound->playback_handle = NULL;
 
@@ -7710,6 +7855,7 @@ static void direct_link_sound(FileData *fd, bSound *sound)
 
 	if (fd->soundmap) {
 		sound->waveform = newsoundadr(fd, sound->waveform);
+		sound->tags |= SOUND_TAGS_WAVEFORM_NO_RELOAD;
 	}
 	else {
 		sound->waveform = NULL;
@@ -7720,7 +7866,7 @@ static void direct_link_sound(FileData *fd, bSound *sound)
 		BLI_spin_init(sound->spinlock);
 	}
 	/* clear waveform loading flag */
-	sound->flags &= ~SOUND_FLAGS_WAVEFORM_LOADING;
+	sound->tags &= ~SOUND_TAGS_WAVEFORM_LOADING;
 
 	sound->packedfile = direct_link_packedfile(fd, sound->packedfile);
 	sound->newpackedfile = direct_link_packedfile(fd, sound->newpackedfile);
@@ -8612,6 +8758,11 @@ static void do_versions_userdef(FileData *fd, BlendFileData *bfd)
 		user->walk_navigation.jump_height = 0.4f;      /* m */
 		user->walk_navigation.teleport_time = 0.2f; /* s */
 	}
+
+	/* grease pencil multisamples */
+	if (!DNA_struct_elem_find(fd->filesdna, "UserDef", "short", "gpencil_multisamples")) {
+		user->gpencil_multisamples = 4;
+	}
 }
 
 static void do_versions(FileData *fd, Library *lib, Main *main)
@@ -8690,8 +8841,8 @@ static void lib_link_all(FileData *fd, Main *main)
 	lib_link_action(fd, main);
 	lib_link_vfont(fd, main);
 	lib_link_nodetree(fd, main);   /* has to be done after scene/materials, this will verify group nodes */
-	lib_link_brush(fd, main);
 	lib_link_palette(fd, main);
+	lib_link_brush(fd, main);
 	lib_link_paint_curve(fd, main);
 	lib_link_particlesettings(fd, main);
 	lib_link_movieclip(fd, main);
@@ -9428,6 +9579,9 @@ static void expand_brush(FileData *fd, Main *mainvar, Brush *brush)
 	expand_doit(fd, mainvar, brush->mask_mtex.tex);
 	expand_doit(fd, mainvar, brush->clone.image);
 	expand_doit(fd, mainvar, brush->paint_curve);
+	if (brush->gpencil_settings != NULL) {
+		expand_doit(fd, mainvar, brush->gpencil_settings->material);
+	}
 }
 
 static void expand_material(FileData *fd, Main *mainvar, Material *ma)
@@ -9439,6 +9593,12 @@ static void expand_material(FileData *fd, Main *mainvar, Material *ma)
 
 	if (ma->nodetree)
 		expand_nodetree(fd, mainvar, ma->nodetree);
+
+	if (ma->gp_style) {
+		MaterialGPencilStyle *gp_style = ma->gp_style;
+		expand_doit(fd, mainvar, gp_style->sima);
+		expand_doit(fd, mainvar, gp_style->ima);
+	}
 }
 
 static void expand_lamp(FileData *fd, Main *mainvar, Lamp *la)
@@ -9613,6 +9773,24 @@ static void expand_object(FileData *fd, Main *mainvar, Object *ob)
 		data.mainvar = mainvar;
 
 		modifiers_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
+	}
+
+	/* expand_object_expandModifier() */
+	if (ob->greasepencil_modifiers.first) {
+		struct { FileData *fd; Main *mainvar; } data;
+		data.fd = fd;
+		data.mainvar = mainvar;
+
+		BKE_gpencil_modifiers_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
+	}
+
+	/* expand_object_expandShaderFx() */
+	if (ob->shader_fx.first) {
+		struct { FileData *fd; Main *mainvar; } data;
+		data.fd = fd;
+		data.mainvar = mainvar;
+
+		BKE_shaderfx_foreachIDLink(ob, expand_object_expandModifiers, (void *)&data);
 	}
 
 	expand_pose(fd, mainvar, ob->pose);
@@ -9893,8 +10071,18 @@ static void expand_linestyle(FileData *fd, Main *mainvar, FreestyleLineStyle *li
 
 static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
 {
-	if (gpd->adt)
+	if (gpd->adt) {
 		expand_animdata(fd, mainvar, gpd->adt);
+	}
+
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		expand_doit(fd, mainvar, gpl->parent);
+	}
+
+	for (int a = 0; a < gpd->totcol; a++) {
+		expand_doit(fd, mainvar, gpd->mat[a]);
+	}
+
 }
 
 static void expand_workspace(FileData *fd, Main *mainvar, WorkSpace *workspace)
@@ -10786,27 +10974,3 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 	BKE_main_free(main_newid);
 }
 
-
-/* reading runtime */
-
-BlendFileData *blo_read_blendafterruntime(int file, const char *name, int actualsize, ReportList *reports)
-{
-	BlendFileData *bfd = NULL;
-	FileData *fd = filedata_new();
-	fd->filedes = file;
-	fd->buffersize = actualsize;
-	fd->read = fd_read_from_file;
-
-	/* needed for library_append and read_libraries */
-	BLI_strncpy(fd->relabase, name, sizeof(fd->relabase));
-
-	fd = blo_decode_and_check(fd, reports);
-	if (!fd)
-		return NULL;
-
-	fd->reports = reports;
-	bfd = blo_read_file_internal(fd, "");
-	blo_freefiledata(fd);
-
-	return bfd;
-}

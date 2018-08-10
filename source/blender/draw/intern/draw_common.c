@@ -162,6 +162,8 @@ extern char datatoc_animviz_mpath_lines_vert_glsl[];
 extern char datatoc_animviz_mpath_lines_geom_glsl[];
 extern char datatoc_animviz_mpath_points_vert_glsl[];
 
+extern char datatoc_volume_velocity_vert_glsl[];
+
 extern char datatoc_armature_axes_vert_glsl[];
 extern char datatoc_armature_sphere_solid_vert_glsl[];
 extern char datatoc_armature_sphere_solid_frag_glsl[];
@@ -199,33 +201,36 @@ static struct {
 	struct GPUShader *mpath_line_sh;
 	struct GPUShader *mpath_points_sh;
 
+	struct GPUShader *volume_velocity_needle_sh;
+	struct GPUShader *volume_velocity_sh;
+
 	struct GPUShader *mball_handles;
 } g_shaders = {NULL};
 
 static struct {
-	struct Gwn_VertFormat *instance_screenspace;
-	struct Gwn_VertFormat *instance_color;
-	struct Gwn_VertFormat *instance_screen_aligned;
-	struct Gwn_VertFormat *instance_scaled;
-	struct Gwn_VertFormat *instance_sized;
-	struct Gwn_VertFormat *instance_outline;
-	struct Gwn_VertFormat *instance;
-	struct Gwn_VertFormat *instance_camera;
-	struct Gwn_VertFormat *instance_distance_lines;
-	struct Gwn_VertFormat *instance_spot;
-	struct Gwn_VertFormat *instance_bone;
-	struct Gwn_VertFormat *instance_bone_stick;
-	struct Gwn_VertFormat *instance_bone_outline;
-	struct Gwn_VertFormat *instance_bone_envelope;
-	struct Gwn_VertFormat *instance_bone_envelope_distance;
-	struct Gwn_VertFormat *instance_bone_envelope_outline;
-	struct Gwn_VertFormat *instance_mball_handles;
-	struct Gwn_VertFormat *dynlines_color;
+	struct GPUVertFormat *instance_screenspace;
+	struct GPUVertFormat *instance_color;
+	struct GPUVertFormat *instance_screen_aligned;
+	struct GPUVertFormat *instance_scaled;
+	struct GPUVertFormat *instance_sized;
+	struct GPUVertFormat *instance_outline;
+	struct GPUVertFormat *instance;
+	struct GPUVertFormat *instance_camera;
+	struct GPUVertFormat *instance_distance_lines;
+	struct GPUVertFormat *instance_spot;
+	struct GPUVertFormat *instance_bone;
+	struct GPUVertFormat *instance_bone_stick;
+	struct GPUVertFormat *instance_bone_outline;
+	struct GPUVertFormat *instance_bone_envelope;
+	struct GPUVertFormat *instance_bone_envelope_distance;
+	struct GPUVertFormat *instance_bone_envelope_outline;
+	struct GPUVertFormat *instance_mball_handles;
+	struct GPUVertFormat *dynlines_color;
 } g_formats = {NULL};
 
 void DRW_globals_free(void)
 {
-	struct Gwn_VertFormat **format = &g_formats.instance_screenspace;
+	struct GPUVertFormat **format = &g_formats.instance_screenspace;
 	for (int i = 0; i < sizeof(g_formats) / sizeof(void *); ++i, ++format) {
 		MEM_SAFE_FREE(*format);
 	}
@@ -299,7 +304,7 @@ DRWShadingGroup *shgroup_groundpoints_uniform_color(DRWPass *pass, float color[4
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_screenspace(DRWPass *pass, struct Gwn_Batch *geom, float *size)
+DRWShadingGroup *shgroup_instance_screenspace(DRWPass *pass, struct GPUBatch *geom, float *size)
 {
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_SCREENSPACE_VARIYING_COLOR);
 
@@ -317,7 +322,7 @@ DRWShadingGroup *shgroup_instance_screenspace(DRWPass *pass, struct Gwn_Batch *g
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_solid(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_solid(DRWPass *pass, struct GPUBatch *geom)
 {
 	static float light[3] = {0.0f, 0.0f, 1.0f};
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_OBJECTSPACE_SIMPLE_LIGHTING_VARIYING_COLOR);
@@ -333,7 +338,7 @@ DRWShadingGroup *shgroup_instance_solid(DRWPass *pass, struct Gwn_Batch *geom)
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_wire(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_wire(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_OBJECTSPACE_VARIYING_COLOR);
 
@@ -347,7 +352,7 @@ DRWShadingGroup *shgroup_instance_wire(DRWPass *pass, struct Gwn_Batch *geom)
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_screen_aligned(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_screen_aligned(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_INSTANCE_SCREEN_ALIGNED);
 
@@ -363,7 +368,7 @@ DRWShadingGroup *shgroup_instance_screen_aligned(DRWPass *pass, struct Gwn_Batch
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_axis_names(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_axis_names(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh = GPU_shader_get_builtin_shader(GPU_SHADER_3D_INSTANCE_SCREEN_ALIGNED_AXIS);
 
@@ -379,7 +384,7 @@ DRWShadingGroup *shgroup_instance_axis_names(DRWPass *pass, struct Gwn_Batch *ge
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_scaled(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_scaled(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SCALE);
 
@@ -394,7 +399,7 @@ DRWShadingGroup *shgroup_instance_scaled(DRWPass *pass, struct Gwn_Batch *geom)
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SIZE);
 
@@ -409,7 +414,7 @@ DRWShadingGroup *shgroup_instance(DRWPass *pass, struct Gwn_Batch *geom)
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_outline(DRWPass *pass, struct Gwn_Batch *geom, int *baseid)
+DRWShadingGroup *shgroup_instance_outline(DRWPass *pass, struct GPUBatch *geom, int *baseid)
 {
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_VARIYING_ID_VARIYING_SIZE);
 
@@ -425,7 +430,7 @@ DRWShadingGroup *shgroup_instance_outline(DRWPass *pass, struct Gwn_Batch *geom,
 	return grp;
 }
 
-DRWShadingGroup *shgroup_camera_instance(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_camera_instance(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_CAMERA);
 
@@ -442,7 +447,7 @@ DRWShadingGroup *shgroup_camera_instance(DRWPass *pass, struct Gwn_Batch *geom)
 	return grp;
 }
 
-DRWShadingGroup *shgroup_distance_lines_instance(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_distance_lines_instance(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_DISTANCE_LINES);
 	static float point_size = 4.0f;
@@ -460,7 +465,7 @@ DRWShadingGroup *shgroup_distance_lines_instance(DRWPass *pass, struct Gwn_Batch
 	return grp;
 }
 
-DRWShadingGroup *shgroup_spot_instance(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_spot_instance(DRWPass *pass, struct GPUBatch *geom)
 {
 	GPUShader *sh_inst = GPU_shader_get_builtin_shader(GPU_SHADER_INSTANCE_EDGES_VARIYING_COLOR);
 	static const int True = true;
@@ -547,7 +552,7 @@ DRWShadingGroup *shgroup_instance_bone_envelope_distance(DRWPass *pass)
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_bone_envelope_solid(DRWPass *pass)
+DRWShadingGroup *shgroup_instance_bone_envelope_solid(DRWPass *pass, bool transp)
 {
 	if (g_shaders.bone_envelope == NULL) {
 		g_shaders.bone_envelope = DRW_shader_create(
@@ -567,6 +572,7 @@ DRWShadingGroup *shgroup_instance_bone_envelope_solid(DRWPass *pass)
 	        g_shaders.bone_envelope,
 	        pass, DRW_cache_bone_envelope_solid_get(),
 	        g_formats.instance_bone_envelope);
+	DRW_shgroup_uniform_float_copy(grp, "alpha", transp ? 0.6f : 1.0f);
 
 	return grp;
 }
@@ -595,7 +601,7 @@ DRWShadingGroup *shgroup_instance_mball_handles(DRWPass *pass)
 }
 
 /* Only works with batches with adjacency infos. */
-DRWShadingGroup *shgroup_instance_bone_shape_outline(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_bone_shape_outline(DRWPass *pass, struct GPUBatch *geom)
 {
 	if (g_shaders.shape_outline == NULL) {
 		g_shaders.shape_outline = DRW_shader_create(
@@ -618,7 +624,7 @@ DRWShadingGroup *shgroup_instance_bone_shape_outline(DRWPass *pass, struct Gwn_B
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_bone_shape_solid(DRWPass *pass, struct Gwn_Batch *geom)
+DRWShadingGroup *shgroup_instance_bone_shape_solid(DRWPass *pass, struct GPUBatch *geom, bool transp)
 {
 	if (g_shaders.shape_solid == NULL) {
 		g_shaders.shape_solid = DRW_shader_create(
@@ -636,11 +642,12 @@ DRWShadingGroup *shgroup_instance_bone_shape_solid(DRWPass *pass, struct Gwn_Bat
 	        g_shaders.shape_solid,
 	        pass, geom, g_formats.instance_bone);
 	DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
+	DRW_shgroup_uniform_float_copy(grp, "alpha", transp ? 0.6f : 1.0f);
 
 	return grp;
 }
 
-DRWShadingGroup *shgroup_instance_bone_sphere_solid(DRWPass *pass)
+DRWShadingGroup *shgroup_instance_bone_sphere_solid(DRWPass *pass, bool transp)
 {
 	if (g_shaders.bone_sphere == NULL) {
 		g_shaders.bone_sphere = DRW_shader_create(
@@ -657,6 +664,8 @@ DRWShadingGroup *shgroup_instance_bone_sphere_solid(DRWPass *pass)
 	DRWShadingGroup *grp = DRW_shgroup_instance_create(
 	        g_shaders.bone_sphere,
 	        pass, DRW_cache_bone_point_get(), g_formats.instance_bone);
+	/* More transparent than the shape to be less distractive. */
+	DRW_shgroup_uniform_float_copy(grp, "alpha", transp ? 0.4f : 1.0f);
 
 	return grp;
 }
@@ -734,6 +743,26 @@ struct GPUShader *mpath_points_shader_get(void)
 		        NULL);
 	}
 	return g_shaders.mpath_points_sh;
+}
+
+struct GPUShader *volume_velocity_shader_get(bool use_needle)
+{
+	if (use_needle) {
+		if (g_shaders.volume_velocity_needle_sh == NULL) {
+			g_shaders.volume_velocity_needle_sh = DRW_shader_create(
+			        datatoc_volume_velocity_vert_glsl, NULL,
+			        datatoc_gpu_shader_flat_color_frag_glsl, "#define USE_NEEDLE");
+		}
+		return g_shaders.volume_velocity_needle_sh;
+	}
+	else {
+		if (g_shaders.volume_velocity_sh == NULL) {
+			g_shaders.volume_velocity_sh = DRW_shader_create(
+			        datatoc_volume_velocity_vert_glsl, NULL,
+			        datatoc_gpu_shader_flat_color_frag_glsl, NULL);
+		}
+		return g_shaders.volume_velocity_sh;
+	}
 }
 
 /* ******************************************** COLOR UTILS *********************************************** */

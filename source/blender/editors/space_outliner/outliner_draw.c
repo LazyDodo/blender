@@ -32,6 +32,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
 #include "DNA_group_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_lightprobe_types.h"
@@ -50,6 +51,7 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_fcurve.h"
+#include "BKE_gpencil.h"
 #include "BKE_global.h"
 #include "BKE_idcode.h"
 #include "BKE_layer.h"
@@ -438,12 +440,16 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				}
 				case TSE_GP_LAYER:
 				{
-					bGPdata *gpd = (bGPdata *)tselem->id; // id = GP Datablock
+					bGPdata *gpd = (bGPdata *)tselem->id; /* id = GP Datablock */
 					bGPDlayer *gpl = te->directdata;
+
+					/* always make layer active */
+					BKE_gpencil_layer_setactive(gpd, gpl);
 
 					// XXX: name needs translation stuff
 					BLI_uniquename(&gpd->layers, gpl, "GP Layer", '.',
 					               offsetof(bGPDlayer, info), sizeof(gpl->info));
+
 					WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, gpd);
 					break;
 				}
@@ -742,11 +748,11 @@ static void outliner_draw_rnacols(ARegion *ar, int sizex)
 
 	GPU_line_width(1.0f);
 
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShadeAlpha(TH_BACK, -15, -200);
 
-	immBegin(GWN_PRIM_LINES, 4);
+	immBegin(GPU_PRIM_LINES, 4);
 
 	immVertex2f(pos, sizex, v2d->cur.ymax);
 	immVertex2f(pos, sizex, miny);
@@ -872,39 +878,6 @@ static void tselem_draw_icon_uibut(struct DrawIconArg *arg, int icon)
 
 }
 
-static void UNUSED_FUNCTION(tselem_draw_gp_icon_uibut)(struct DrawIconArg *arg, ID *id, bGPDlayer *gpl)
-{
-	/* restrict column clip - skip it for now... */
-	if (arg->x >= arg->xmax) {
-		/* pass */
-	}
-	else {
-		PointerRNA ptr;
-		const float eps = 0.001f;
-		const bool is_stroke_visible = (gpl->color[3] > eps);
-		const bool is_fill_visible = (gpl->fill[3] > eps);
-		float w = 0.5f  * UI_UNIT_X;
-		float h = 0.85f * UI_UNIT_Y;
-
-		RNA_pointer_create(id, &RNA_GPencilLayer, gpl, &ptr);
-
-		UI_block_align_begin(arg->block);
-
-		UI_block_emboss_set(arg->block, is_stroke_visible ? UI_EMBOSS : UI_EMBOSS_NONE);
-		uiDefButR(arg->block, UI_BTYPE_COLOR, 1, "", arg->xb, arg->yb, w, h,
-		          &ptr, "color", -1,
-		          0, 0, 0, 0, NULL);
-
-		UI_block_emboss_set(arg->block, is_fill_visible ? UI_EMBOSS : UI_EMBOSS_NONE);
-		uiDefButR(arg->block, UI_BTYPE_COLOR, 1, "", arg->xb + w, arg->yb, w, h,
-		          &ptr, "fill_color", -1,
-		          0, 0, 0, 0, NULL);
-
-		UI_block_emboss_set(arg->block, UI_EMBOSS_NONE);
-		UI_block_align_end(arg->block);
-	}
-}
-
 static void tselem_draw_icon(
         uiBlock *block, int xmax, float x, float y, TreeStoreElem *tselem, TreeElement *te,
         float alpha, const bool is_clickable)
@@ -969,159 +942,216 @@ static void tselem_draw_icon(
 			case TSE_MODIFIER:
 			{
 				Object *ob = (Object *)tselem->id;
-				ModifierData *md = BLI_findlink(&ob->modifiers, tselem->nr);
-				switch ((ModifierType)md->type) {
-					case eModifierType_Subsurf:
-						ICON_DRAW(ICON_MOD_SUBSURF);
-						break;
-					case eModifierType_Armature:
-						ICON_DRAW(ICON_MOD_ARMATURE);
-						break;
-					case eModifierType_Lattice:
-						ICON_DRAW(ICON_MOD_LATTICE);
-						break;
-					case eModifierType_Curve:
-						ICON_DRAW(ICON_MOD_CURVE);
-						break;
-					case eModifierType_Build:
-						ICON_DRAW(ICON_MOD_BUILD);
-						break;
-					case eModifierType_Mirror:
-						ICON_DRAW(ICON_MOD_MIRROR);
-						break;
-					case eModifierType_Decimate:
-						ICON_DRAW(ICON_MOD_DECIM);
-						break;
-					case eModifierType_Wave:
-						ICON_DRAW(ICON_MOD_WAVE);
-						break;
-					case eModifierType_Hook:
-						ICON_DRAW(ICON_HOOK);
-						break;
-					case eModifierType_Softbody:
-						ICON_DRAW(ICON_MOD_SOFT);
-						break;
-					case eModifierType_Boolean:
-						ICON_DRAW(ICON_MOD_BOOLEAN);
-						break;
-					case eModifierType_ParticleSystem:
-						ICON_DRAW(ICON_MOD_PARTICLES);
-						break;
-					case eModifierType_ParticleInstance:
-						ICON_DRAW(ICON_MOD_PARTICLES);
-						break;
-					case eModifierType_EdgeSplit:
-						ICON_DRAW(ICON_MOD_EDGESPLIT);
-						break;
-					case eModifierType_Array:
-						ICON_DRAW(ICON_MOD_ARRAY);
-						break;
-					case eModifierType_UVProject:
-					case eModifierType_UVWarp:  /* TODO, get own icon */
-						ICON_DRAW(ICON_MOD_UVPROJECT);
-						break;
-					case eModifierType_Displace:
-						ICON_DRAW(ICON_MOD_DISPLACE);
-						break;
-					case eModifierType_Shrinkwrap:
-						ICON_DRAW(ICON_MOD_SHRINKWRAP);
-						break;
-					case eModifierType_Cast:
-						ICON_DRAW(ICON_MOD_CAST);
-						break;
-					case eModifierType_MeshDeform:
-					case eModifierType_SurfaceDeform:
-						ICON_DRAW(ICON_MOD_MESHDEFORM);
-						break;
-					case eModifierType_Bevel:
-						ICON_DRAW(ICON_MOD_BEVEL);
-						break;
-					case eModifierType_Smooth:
-					case eModifierType_LaplacianSmooth:
-					case eModifierType_CorrectiveSmooth:
-						ICON_DRAW(ICON_MOD_SMOOTH);
-						break;
-					case eModifierType_SimpleDeform:
-						ICON_DRAW(ICON_MOD_SIMPLEDEFORM);
-						break;
-					case eModifierType_Mask:
-						ICON_DRAW(ICON_MOD_MASK);
-						break;
-					case eModifierType_Cloth:
-						ICON_DRAW(ICON_MOD_CLOTH);
-						break;
-					case eModifierType_Explode:
-						ICON_DRAW(ICON_MOD_EXPLODE);
-						break;
-					case eModifierType_Collision:
-					case eModifierType_Surface:
-						ICON_DRAW(ICON_MOD_PHYSICS);
-						break;
-					case eModifierType_Fluidsim:
-						ICON_DRAW(ICON_MOD_FLUIDSIM);
-						break;
-					case eModifierType_Multires:
-						ICON_DRAW(ICON_MOD_MULTIRES);
-						break;
-					case eModifierType_Smoke:
-						ICON_DRAW(ICON_MOD_SMOKE);
-						break;
-					case eModifierType_Solidify:
-						ICON_DRAW(ICON_MOD_SOLIDIFY);
-						break;
-					case eModifierType_Screw:
-						ICON_DRAW(ICON_MOD_SCREW);
-						break;
-					case eModifierType_Remesh:
-						ICON_DRAW(ICON_MOD_REMESH);
-						break;
-					case eModifierType_WeightVGEdit:
-					case eModifierType_WeightVGMix:
-					case eModifierType_WeightVGProximity:
-						ICON_DRAW(ICON_MOD_VERTEX_WEIGHT);
-						break;
-					case eModifierType_DynamicPaint:
-						ICON_DRAW(ICON_MOD_DYNAMICPAINT);
-						break;
-					case eModifierType_Ocean:
-						ICON_DRAW(ICON_MOD_OCEAN);
-						break;
-					case eModifierType_Warp:
-						ICON_DRAW(ICON_MOD_WARP);
-						break;
-					case eModifierType_Skin:
-						ICON_DRAW(ICON_MOD_SKIN);
-						break;
-					case eModifierType_Triangulate:
-						ICON_DRAW(ICON_MOD_TRIANGULATE);
-						break;
-					case eModifierType_MeshCache:
-						ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
-						break;
-					case eModifierType_MeshSequenceCache:
-						ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
-						break;
-					case eModifierType_Wireframe:
-						ICON_DRAW(ICON_MOD_WIREFRAME);
-						break;
-					case eModifierType_MyBMesh:
-						ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
-						 break;
-					case eModifierType_LaplacianDeform:
-						ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
-						break;
-					case eModifierType_DataTransfer:
-						ICON_DRAW(ICON_MOD_DATA_TRANSFER);
-						break;
-					case eModifierType_NormalEdit:
-						ICON_DRAW(ICON_MOD_NORMALEDIT);
-						break;
-					/* Default */
-					case eModifierType_None:
-					case eModifierType_ShapeKey:
-					case NUM_MODIFIER_TYPES:
-						ICON_DRAW(ICON_DOT);
-						break;
+				if (ob->type != OB_GPENCIL) {
+					ModifierData *md = BLI_findlink(&ob->modifiers, tselem->nr);
+					switch ((ModifierType)md->type) {
+						case eModifierType_Subsurf:
+							ICON_DRAW(ICON_MOD_SUBSURF);
+							break;
+						case eModifierType_Armature:
+							ICON_DRAW(ICON_MOD_ARMATURE);
+							break;
+						case eModifierType_Lattice:
+							ICON_DRAW(ICON_MOD_LATTICE);
+							break;
+						case eModifierType_Curve:
+							ICON_DRAW(ICON_MOD_CURVE);
+							break;
+						case eModifierType_Build:
+							ICON_DRAW(ICON_MOD_BUILD);
+							break;
+						case eModifierType_Mirror:
+							ICON_DRAW(ICON_MOD_MIRROR);
+							break;
+						case eModifierType_Decimate:
+							ICON_DRAW(ICON_MOD_DECIM);
+							break;
+						case eModifierType_Wave:
+							ICON_DRAW(ICON_MOD_WAVE);
+							break;
+						case eModifierType_Hook:
+							ICON_DRAW(ICON_HOOK);
+							break;
+						case eModifierType_Softbody:
+							ICON_DRAW(ICON_MOD_SOFT);
+							break;
+						case eModifierType_Boolean:
+							ICON_DRAW(ICON_MOD_BOOLEAN);
+							break;
+						case eModifierType_ParticleSystem:
+							ICON_DRAW(ICON_MOD_PARTICLES);
+							break;
+						case eModifierType_ParticleInstance:
+							ICON_DRAW(ICON_MOD_PARTICLES);
+							break;
+						case eModifierType_EdgeSplit:
+							ICON_DRAW(ICON_MOD_EDGESPLIT);
+							break;
+						case eModifierType_Array:
+							ICON_DRAW(ICON_MOD_ARRAY);
+							break;
+						case eModifierType_UVProject:
+						case eModifierType_UVWarp:  /* TODO, get own icon */
+							ICON_DRAW(ICON_MOD_UVPROJECT);
+							break;
+						case eModifierType_Displace:
+							ICON_DRAW(ICON_MOD_DISPLACE);
+							break;
+						case eModifierType_Shrinkwrap:
+							ICON_DRAW(ICON_MOD_SHRINKWRAP);
+							break;
+						case eModifierType_Cast:
+							ICON_DRAW(ICON_MOD_CAST);
+							break;
+						case eModifierType_MeshDeform:
+						case eModifierType_SurfaceDeform:
+							ICON_DRAW(ICON_MOD_MESHDEFORM);
+							break;
+						case eModifierType_Bevel:
+							ICON_DRAW(ICON_MOD_BEVEL);
+							break;
+						case eModifierType_Smooth:
+						case eModifierType_LaplacianSmooth:
+						case eModifierType_CorrectiveSmooth:
+							ICON_DRAW(ICON_MOD_SMOOTH);
+							break;
+						case eModifierType_SimpleDeform:
+							ICON_DRAW(ICON_MOD_SIMPLEDEFORM);
+							break;
+						case eModifierType_Mask:
+							ICON_DRAW(ICON_MOD_MASK);
+							break;
+						case eModifierType_Cloth:
+							ICON_DRAW(ICON_MOD_CLOTH);
+							break;
+						case eModifierType_Explode:
+							ICON_DRAW(ICON_MOD_EXPLODE);
+							break;
+						case eModifierType_Collision:
+						case eModifierType_Surface:
+							ICON_DRAW(ICON_MOD_PHYSICS);
+							break;
+						case eModifierType_Fluidsim:
+							ICON_DRAW(ICON_MOD_FLUIDSIM);
+							break;
+						case eModifierType_Multires:
+							ICON_DRAW(ICON_MOD_MULTIRES);
+							break;
+						case eModifierType_Smoke:
+							ICON_DRAW(ICON_MOD_SMOKE);
+							break;
+						case eModifierType_Solidify:
+							ICON_DRAW(ICON_MOD_SOLIDIFY);
+							break;
+						case eModifierType_Screw:
+							ICON_DRAW(ICON_MOD_SCREW);
+							break;
+						case eModifierType_Remesh:
+							ICON_DRAW(ICON_MOD_REMESH);
+							break;
+						case eModifierType_WeightVGEdit:
+						case eModifierType_WeightVGMix:
+						case eModifierType_WeightVGProximity:
+							ICON_DRAW(ICON_MOD_VERTEX_WEIGHT);
+							break;
+						case eModifierType_DynamicPaint:
+							ICON_DRAW(ICON_MOD_DYNAMICPAINT);
+							break;
+						case eModifierType_Ocean:
+							ICON_DRAW(ICON_MOD_OCEAN);
+							break;
+						case eModifierType_Warp:
+							ICON_DRAW(ICON_MOD_WARP);
+							break;
+						case eModifierType_Skin:
+							ICON_DRAW(ICON_MOD_SKIN);
+							break;
+						case eModifierType_Triangulate:
+							ICON_DRAW(ICON_MOD_TRIANGULATE);
+							break;
+						case eModifierType_MeshCache:
+							ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
+							break;
+						case eModifierType_MeshSequenceCache:
+							ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
+							break;
+						case eModifierType_Wireframe:
+							ICON_DRAW(ICON_MOD_WIREFRAME);
+							break;
+						case eModifierType_MyBMesh:
+							ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
+							break;
+						case eModifierType_LaplacianDeform:
+							ICON_DRAW(ICON_MOD_MESHDEFORM); /* XXX, needs own icon */
+							break;
+						case eModifierType_DataTransfer:
+							ICON_DRAW(ICON_MOD_DATA_TRANSFER);
+							break;
+						case eModifierType_NormalEdit:
+						case eModifierType_WeightedNormal:
+							ICON_DRAW(ICON_MOD_NORMALEDIT);
+							break;
+							/* Default */
+						case eModifierType_None:
+						case eModifierType_ShapeKey:
+
+						case NUM_MODIFIER_TYPES:
+							ICON_DRAW(ICON_DOT);
+							break;
+					}
+				}
+				else {
+					/* grease pencil modifiers */
+					GpencilModifierData *md = BLI_findlink(&ob->greasepencil_modifiers, tselem->nr);
+					switch ((GpencilModifierType)md->type) {
+						case eGpencilModifierType_Noise:
+							ICON_DRAW(ICON_RNDCURVE);
+							break;
+						case eGpencilModifierType_Subdiv:
+							ICON_DRAW(ICON_MOD_SUBSURF);
+							break;
+						case eGpencilModifierType_Thick:
+							ICON_DRAW(ICON_MAN_ROT);
+							break;
+						case eGpencilModifierType_Tint:
+							ICON_DRAW(ICON_COLOR);
+							break;
+						case eGpencilModifierType_Instance:
+							ICON_DRAW(ICON_MOD_ARRAY);
+							break;
+						case eGpencilModifierType_Build:
+							ICON_DRAW(ICON_MOD_BUILD);
+							break;
+						case eGpencilModifierType_Opacity:
+							ICON_DRAW(ICON_MOD_MASK);
+							break;
+						case eGpencilModifierType_Color:
+							ICON_DRAW(ICON_GROUP_VCOL);
+							break;
+						case eGpencilModifierType_Lattice:
+							ICON_DRAW(ICON_MOD_LATTICE);
+							break;
+						case eGpencilModifierType_Mirror:
+							ICON_DRAW(ICON_MOD_MIRROR);
+							break;
+						case eGpencilModifierType_Simplify:
+							ICON_DRAW(ICON_MOD_DECIM);
+							break;
+						case eGpencilModifierType_Smooth:
+							ICON_DRAW(ICON_MOD_SMOOTH);
+							break;
+						case eGpencilModifierType_Hook:
+							ICON_DRAW(ICON_HOOK);
+							break;
+						case eGpencilModifierType_Offset:
+							ICON_DRAW(ICON_MOD_DISPLACE);
+							break;
+
+							/* Default */
+						default:
+							ICON_DRAW(ICON_DOT);
+							break;
+					}
 				}
 				break;
 			}
@@ -1188,11 +1218,18 @@ static void tselem_draw_icon(
 				ICON_DRAW(ICON_GROUP);
 				break;
 			/* Removed the icons from outliner. Need a better structure with Layers, Palettes and Colors */
-#if 0
 			case TSE_GP_LAYER:
-				tselem_draw_gp_icon_uibut(&arg, tselem->id, te->directdata);
+			{
+				/* indicate whether layer is active */
+				bGPDlayer *gpl = te->directdata;
+				if (gpl->flag & GP_LAYER_ACTIVE) {
+					ICON_DRAW(ICON_GREASEPENCIL);
+				}
+				else {
+					ICON_DRAW(ICON_DOT);
+				}
 				break;
-#endif
+			}
 			default:
 				ICON_DRAW(ICON_DOT);
 				break;
@@ -1231,6 +1268,9 @@ static void tselem_draw_icon(
 					else {
 						ICON_CLICK_DRAW(ICON_OUTLINER_OB_EMPTY);
 					}
+					break;
+				case OB_GPENCIL:
+					ICON_CLICK_DRAW(ICON_OUTLINER_OB_GREASEPENCIL); break;
 					break;
 			}
 		}
@@ -1307,7 +1347,7 @@ static void tselem_draw_icon(
 				case ID_LS:
 					tselem_draw_icon_uibut(&arg, ICON_LINE_DATA); break;
 				case ID_GD:
-					tselem_draw_icon_uibut(&arg, ICON_GREASEPENCIL); break;
+					tselem_draw_icon_uibut(&arg, ICON_OUTLINER_DATA_GREASEPENCIL); break;
 				case ID_LP:
 				{
 					LightProbe * lp = (LightProbe *)tselem->id;
@@ -1344,16 +1384,9 @@ static void tselem_draw_icon(
 static void outliner_draw_iconrow_number(
         const uiFontStyle *fstyle,
         int offsx, int ys,
-        const eOLDrawState active,
         const int num_elements)
 {
-	float color[4] = {0.4f, 0.4f, 0.4f, 0.9f};
-	copy_v3_fl(color, 0.2f);
-	if (active != OL_DRAWSEL_NONE) {
-		copy_v3_fl(color, 0.65f);
-		color[3] = 1.0f;
-	}
-
+	float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 	float ufac = 0.25f * UI_UNIT_X;
 	float offset_x = (float) offsx + UI_UNIT_X * 0.35f;
 
@@ -1417,13 +1450,13 @@ static void outliner_draw_iconrow_doit(
 	}
 
 	/* No inlined icon should be clickable. */
-	tselem_draw_icon(block, xmax, (float)*offsx, (float)ys, tselem, te, 0.5f * alpha_fac, false);
+	tselem_draw_icon(block, xmax, (float)*offsx, (float)ys, tselem, te, 0.8f * alpha_fac, false);
 	te->xs = *offsx;
 	te->ys = ys;
 	te->xend = (short)*offsx + UI_UNIT_X;
 
 	if (num_elements > 1) {
-		outliner_draw_iconrow_number(fstyle, *offsx, ys, active, num_elements);
+		outliner_draw_iconrow_number(fstyle, *offsx, ys, num_elements);
 	}
 	(*offsx) += UI_UNIT_X;
 }
@@ -1451,22 +1484,18 @@ static int tree_element_id_type_to_index(TreeElement *te)
 	}
 }
 
+typedef struct MergedIconRow {
+	eOLDrawState active[INDEX_ID_MAX + OB_TYPE_MAX];
+	int num_elements[INDEX_ID_MAX + OB_TYPE_MAX];
+	TreeElement *tree_element[INDEX_ID_MAX + OB_TYPE_MAX];
+} MergedIconRow;
+
 static void outliner_draw_iconrow(
         bContext *C, uiBlock *block, const uiFontStyle *fstyle, Scene *scene, ViewLayer *view_layer, SpaceOops *soops,
-        ListBase *lb, int level, int xmax, int *offsx, int ys, float alpha_fac)
+        ListBase *lb, int level, int xmax, int *offsx, int ys, float alpha_fac, MergedIconRow *merged)
 {
 	eOLDrawState active;
 	const Object *obact = OBACT(view_layer);
-
-	struct {
-		eOLDrawState active[INDEX_ID_MAX + OB_TYPE_MAX];
-		int num_elements[INDEX_ID_MAX + OB_TYPE_MAX];
-		TreeElement *tree_element[INDEX_ID_MAX + OB_TYPE_MAX];
-	} data = {
-		.active = {0},
-		.num_elements = {0},
-		.tree_element = {NULL},
-	};
 
 	for (TreeElement *te = lb->first; te; te = te->next) {
 		/* exit drawing early */
@@ -1498,13 +1527,13 @@ static void outliner_draw_iconrow(
 			}
 			else {
 				const int index = tree_element_id_type_to_index(te);
-				data.num_elements[index]++;
-				if ((data.tree_element[index] == NULL) ||
-				    (active > data.active[index]))
+				merged->num_elements[index]++;
+				if ((merged->tree_element[index] == NULL) ||
+				    (active > merged->active[index]))
 				{
-					data.tree_element[index] = te;
+					merged->tree_element[index] = te;
 				}
-				data.active[index] = MAX2(active, data.active[index]);
+				merged->active[index] = MAX2(active, merged->active[index]);
 			}
 		}
 
@@ -1512,26 +1541,28 @@ static void outliner_draw_iconrow(
 		if (tselem->type != TSE_R_LAYER) {
 			outliner_draw_iconrow(
 			        C, block, fstyle, scene, view_layer, soops,
-			        &te->subtree, level + 1, xmax, offsx, ys, alpha_fac);
+			        &te->subtree, level + 1, xmax, offsx, ys, alpha_fac, merged);
 		}
 	}
 
-	for (int i = 0; i < INDEX_ID_MAX; i++) {
-		const int num_subtypes = (i == INDEX_ID_OB) ? OB_TYPE_MAX : 1;
-		/* See tree_element_id_type_to_index for the index logic. */
-		int index_base = i;
-		if (i > INDEX_ID_OB) {
-			index_base += OB_TYPE_MAX;
-		}
-		for (int j = 0; j < num_subtypes; j++) {
-			const int index = index_base + j;
-			if (data.num_elements[index] != 0) {
-				outliner_draw_iconrow_doit(block,
-				                           data.tree_element[index],
-				                           fstyle,
-				                           xmax, offsx, ys, alpha_fac,
-				                           data.active[index],
-				                           data.num_elements[index]);
+	if (level == 0) {
+		for (int i = 0; i < INDEX_ID_MAX; i++) {
+			const int num_subtypes = (i == INDEX_ID_OB) ? OB_TYPE_MAX : 1;
+			/* See tree_element_id_type_to_index for the index logic. */
+			int index_base = i;
+			if (i > INDEX_ID_OB) {
+				index_base += OB_TYPE_MAX;
+			}
+			for (int j = 0; j < num_subtypes; j++) {
+				const int index = index_base + j;
+				if (merged->num_elements[index] != 0) {
+					outliner_draw_iconrow_doit(block,
+					                           merged->tree_element[index],
+					                           fstyle,
+					                           xmax, offsx, ys, alpha_fac,
+					                           merged->active[index],
+					                           merged->num_elements[index]);
+				}
 			}
 		}
 	}
@@ -1742,8 +1773,8 @@ static void outliner_draw_tree_element(
 
 					/* divider */
 					{
-						Gwn_VertFormat *format = immVertexFormat();
-						uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+						GPUVertFormat *format = immVertexFormat();
+						uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 						unsigned char col[4];
 
 						immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -1758,9 +1789,10 @@ static void outliner_draw_tree_element(
 						immUnbindProgram();
 					}
 
+					MergedIconRow merged = {{0}};
 					outliner_draw_iconrow(
 					        C, block, fstyle, scene, view_layer, soops, &te->subtree, 0, xmax, &tempx,
-					        *starty, alpha_fac);
+					        *starty, alpha_fac, &merged);
 
 					GPU_blend(false);
 				}
@@ -1800,7 +1832,7 @@ static void outliner_draw_tree_element_floating(
 	const TreeElement *te_insert = te_floating->drag_data->insert_handle;
 	const int line_width = 2;
 
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	int coord_y = te_insert->ys;
 	int coord_x = te_insert->xs;
 	float col[4];
@@ -1821,7 +1853,7 @@ static void outliner_draw_tree_element_floating(
 		immUniformColor4fv(col);
 		GPU_line_width(line_width);
 
-		immBegin(GWN_PRIM_LINE_STRIP, 2);
+		immBegin(GPU_PRIM_LINE_STRIP, 2);
 		immVertex2f(pos, coord_x, coord_y);
 		immVertex2f(pos, ar->v2d.cur.xmax, coord_y);
 		immEnd();
@@ -1830,7 +1862,7 @@ static void outliner_draw_tree_element_floating(
 		BLI_assert(te_floating->drag_data->insert_type == TE_INSERT_INTO);
 		immUniformColor3fvAlpha(col, col[3] * 0.5f);
 
-		immBegin(GWN_PRIM_TRI_STRIP, 4);
+		immBegin(GPU_PRIM_TRI_STRIP, 4);
 		immVertex2f(pos, coord_x, coord_y + UI_UNIT_Y);
 		immVertex2f(pos, coord_x, coord_y);
 		immVertex2f(pos, ar->v2d.cur.xmax, coord_y + UI_UNIT_Y);
@@ -1904,8 +1936,8 @@ static void outliner_draw_hierarchy_lines_recursive(
 
 static void outliner_draw_hierarchy_lines(SpaceOops *soops, ListBase *lb, int startx, int *starty)
 {
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	unsigned char col[4];
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -1927,8 +1959,8 @@ static void outliner_draw_struct_marks(ARegion *ar, SpaceOops *soops, ListBase *
 		/* selection status */
 		if (TSELEM_OPEN(tselem, soops)) {
 			if (tselem->type == TSE_RNA_STRUCT) {
-				Gwn_VertFormat *format = immVertexFormat();
-				uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+				GPUVertFormat *format = immVertexFormat();
+				uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 				immThemeColorShadeAlpha(TH_BACK, -15, -200);
 				immRecti(pos, 0, *starty + 1, (int)ar->v2d.cur.xmax, *starty + UI_UNIT_Y - 1);
@@ -1940,12 +1972,12 @@ static void outliner_draw_struct_marks(ARegion *ar, SpaceOops *soops, ListBase *
 		if (TSELEM_OPEN(tselem, soops)) {
 			outliner_draw_struct_marks(ar, soops, &te->subtree, starty);
 			if (tselem->type == TSE_RNA_STRUCT) {
-				Gwn_VertFormat *format = immVertexFormat();
-				uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+				GPUVertFormat *format = immVertexFormat();
+				uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 				immThemeColorShadeAlpha(TH_BACK, -15, -200);
 
-				immBegin(GWN_PRIM_LINES, 2);
+				immBegin(GPU_PRIM_LINES, 2);
 				immVertex2f(pos, 0, (float)*starty + UI_UNIT_Y);
 				immVertex2f(pos, ar->v2d.cur.xmax, (float)*starty + UI_UNIT_Y);
 				immEnd();
@@ -2010,8 +2042,8 @@ static void outliner_draw_highlights(ARegion *ar, SpaceOops *soops, int startx, 
 	col_searchmatch[3] = 0.5f;
 
 	GPU_blend(true);
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	outliner_draw_highlights_recursive(
 	        pos, ar, soops, &soops->tree, col_selection, col_highlight, col_searchmatch,
@@ -2085,8 +2117,8 @@ static void outliner_back(ARegion *ar)
 	ystart = (int)ar->v2d.tot.ymax;
 	ystart = UI_UNIT_Y * (ystart / (UI_UNIT_Y)) - OL_Y_OFFSET;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShade(TH_BACK, 6);
@@ -2096,7 +2128,7 @@ static void outliner_back(ARegion *ar)
 	int tot = (int)floor(ystart - ar->v2d.cur.ymin + 2 * UI_UNIT_Y) / (2 * UI_UNIT_Y);
 
 	if (tot > 0) {
-		immBegin(GWN_PRIM_TRIS, 6 * tot);
+		immBegin(GPU_PRIM_TRIS, 6 * tot);
 		while (tot--) {
 			y1 -= 2 * UI_UNIT_Y;
 			y2 = y1 + UI_UNIT_Y;
@@ -2117,10 +2149,10 @@ static void outliner_draw_restrictcols(ARegion *ar)
 {
 	GPU_line_width(1.0f);
 
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShadeAlpha(TH_BACK, -15, -200);
-	immBegin(GWN_PRIM_LINES, 8);
+	immBegin(GPU_PRIM_LINES, 8);
 
 	immVertex2i(pos, (int)(ar->v2d.cur.xmax - OL_TOG_HIDEX), (int)ar->v2d.cur.ymax);
 	immVertex2i(pos, (int)(ar->v2d.cur.xmax - OL_TOG_HIDEX), (int)ar->v2d.cur.ymin);

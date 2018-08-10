@@ -33,6 +33,7 @@
 
 #include "BKE_node.h"
 #include "BKE_particle.h"
+#include "BKE_modifier.h"
 
 #include "DNA_image_types.h"
 #include "DNA_mesh_types.h"
@@ -79,9 +80,12 @@ extern char datatoc_workbench_common_lib_glsl[];
 extern char datatoc_workbench_world_light_lib_glsl[];
 
 /* static functions */
-static char *workbench_build_forward_vert(void)
+static char *workbench_build_forward_vert(bool is_hair)
 {
 	char *str = NULL;
+	if (!is_hair) {
+		return BLI_strdup(datatoc_workbench_prepass_vert_glsl);
+	}
 
 	DynStr *ds = BLI_dynstr_new();
 
@@ -205,7 +209,7 @@ static void ensure_forward_shaders(WORKBENCH_PrivateData *wpd, int index, bool u
 
 	if (e_data.transparent_accum_sh_cache[index] == NULL) {
 		char *defines = workbench_material_build_defines(wpd, use_textures, is_hair);
-		char *transparent_accum_vert = workbench_build_forward_vert();
+		char *transparent_accum_vert = workbench_build_forward_vert(is_hair);
 		char *transparent_accum_frag = workbench_build_forward_transparent_accum_frag();
 		e_data.transparent_accum_sh_cache[index] = DRW_shader_create(
 		        transparent_accum_vert, NULL,
@@ -242,14 +246,15 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_StorageList *stl = vedata->stl;
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	const DRWContextState *draw_ctx = DRW_context_state_get();
 	DRWShadingGroup *grp;
 
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
-		stl->g_data = MEM_mallocN(sizeof(*stl->g_data), __func__);
+		stl->g_data = MEM_callocN(sizeof(*stl->g_data), __func__);
 	}
 	if (!stl->effects) {
-		stl->effects = MEM_mallocN(sizeof(*stl->effects), __func__);
+		stl->effects = MEM_callocN(sizeof(*stl->effects), __func__);
 		workbench_effect_info_init(stl->effects);
 	}
 	WORKBENCH_PrivateData *wpd = stl->g_data;
@@ -265,7 +270,8 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		char *defines = workbench_material_build_defines(wpd, false, false);
 		char *defines_texture = workbench_material_build_defines(wpd, true, false);
 		char *defines_hair = workbench_material_build_defines(wpd, false, true);
-		char *forward_vert = workbench_build_forward_vert();
+		char *forward_vert = workbench_build_forward_vert(false);
+		char *forward_hair_vert = workbench_build_forward_vert(true);
 		e_data.object_outline_sh = DRW_shader_create(
 		        forward_vert, NULL,
 		        datatoc_workbench_forward_depth_frag_glsl, defines);
@@ -273,17 +279,19 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		        forward_vert, NULL,
 		        datatoc_workbench_forward_depth_frag_glsl, defines_texture);
 		e_data.object_outline_hair_sh = DRW_shader_create(
-		        forward_vert, NULL,
+		        forward_hair_vert, NULL,
 		        datatoc_workbench_forward_depth_frag_glsl, defines_hair);
 
 
 		e_data.checker_depth_sh = DRW_shader_create_fullscreen(
 		        datatoc_workbench_checkerboard_depth_frag_glsl, NULL);
+		MEM_freeN(forward_hair_vert);
 		MEM_freeN(forward_vert);
 		MEM_freeN(defines);
 		MEM_freeN(defines_texture);
 		MEM_freeN(defines_hair);
 	}
+	workbench_volume_engine_init();
 	workbench_fxaa_engine_init();
 	workbench_taa_engine_init(vedata);
 
@@ -305,13 +313,11 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		GPU_ATTACHMENT_TEXTURE(dtxl->depth),
 		GPU_ATTACHMENT_TEXTURE(e_data.object_id_tx),
 	});
-
 	GPU_framebuffer_ensure_config(&fbl->transparent_accum_fb, {
 		GPU_ATTACHMENT_NONE,
 		GPU_ATTACHMENT_TEXTURE(e_data.transparent_accum_tx),
 		GPU_ATTACHMENT_TEXTURE(e_data.transparent_revealage_tx),
 	});
-
 	GPU_framebuffer_ensure_config(&fbl->composite_fb, {
 		GPU_ATTACHMENT_NONE,
 		GPU_ATTACHMENT_TEXTURE(e_data.composite_buffer_tx),
@@ -321,14 +327,18 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		GPU_ATTACHMENT_TEXTURE(e_data.transparent_accum_tx),
 	});
 
+	workbench_volume_cache_init(vedata);
+	const bool do_cull = (draw_ctx->v3d && (draw_ctx->v3d->flag2 & V3D_BACKFACE_CULLING));
+	const int cull_state = (do_cull) ? DRW_STATE_CULL_BACK : 0;
+
 	/* Transparency Accum */
 	{
-		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND_OIT;
+		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND_OIT | cull_state;
 		psl->transparent_accum_pass = DRW_pass_create("Transparent Accum", state);
 	}
 	/* Depth */
 	{
-		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS;
+		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | cull_state;
 		psl->object_outline_pass = DRW_pass_create("Object Outline Pass", state);
 	}
 	/* Composite */
@@ -372,7 +382,9 @@ void workbench_forward_engine_free()
 	DRW_SHADER_FREE_SAFE(e_data.object_outline_hair_sh);
 	DRW_SHADER_FREE_SAFE(e_data.checker_depth_sh);
 
+	workbench_volume_engine_free();
 	workbench_fxaa_engine_free();
+	workbench_taa_engine_free();
 }
 
 void workbench_forward_cache_init(WORKBENCH_Data *UNUSED(vedata))
@@ -444,6 +456,8 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 {
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = draw_ctx->scene;
 
 	if (!DRW_object_is_renderable(ob))
 		return;
@@ -452,13 +466,22 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 		workbench_forward_cache_populate_particles(vedata, ob);
 	}
 
+	ModifierData *md;
+	if (((ob->base_flag & BASE_FROMDUPLI) == 0) &&
+	    (md = modifiers_findByType(ob, eModifierType_Smoke)) &&
+	    (modifier_isEnabled(scene, md, eModifierMode_Realtime)) &&
+	    (((SmokeModifierData *)md)->domain != NULL))
+	{
+		workbench_volume_cache_populate(vedata, scene, ob, md);
+		return; /* Do not draw solid in this case. */
+	}
+
 	if (!DRW_check_object_visible_within_active_context(ob)) {
 		return;
 	}
 
 	WORKBENCH_MaterialData *material;
 	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
-		const DRWContextState *draw_ctx = DRW_context_state_get();
 		const bool is_active = (ob == draw_ctx->obact);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
 		bool is_drawn = false;
@@ -468,7 +491,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 			if (me->mloopuv) {
 				const int materials_len = MAX2(1, (is_sculpt_mode ? 1 : ob->totcol));
 				struct GPUMaterial **gpumat_array = BLI_array_alloca(gpumat_array, materials_len);
-				struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+				struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 				if (materials_len > 0 && geom_array) {
 					for (int i = 0; i < materials_len; i++) {
 						if (geom_array[i] == NULL) {
@@ -501,7 +524,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 		if (!is_drawn) {
 			if (ELEM(wpd->shading.color_type, V3D_SHADING_SINGLE_COLOR, V3D_SHADING_RANDOM_COLOR)) {
 				/* No material split needed */
-				struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
+				struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 				if (geom) {
 					material = get_or_create_material_data(vedata, ob, NULL, NULL, wpd->shading.color_type);
 					if (is_sculpt_mode) {
@@ -521,7 +544,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 					gpumat_array[i] = NULL;
 				}
 
-				struct Gwn_Batch **mat_geom = DRW_cache_object_surface_material_get(
+				struct GPUBatch **mat_geom = DRW_cache_object_surface_material_get(
 				        ob, gpumat_array, materials_len, NULL, NULL, NULL);
 				if (mat_geom) {
 					for (int i = 0; i < materials_len; ++i) {
@@ -595,6 +618,7 @@ void workbench_forward_draw_scene(WORKBENCH_Data *vedata)
 	/* Composite */
 	GPU_framebuffer_bind(fbl->composite_fb);
 	DRW_draw_pass(psl->composite_pass);
+	DRW_draw_pass(psl->volume_pass);
 
 	/* Color correct and Anti aliasing */
 	workbench_aa_draw_pass(vedata, e_data.composite_buffer_tx);
@@ -604,4 +628,5 @@ void workbench_forward_draw_scene(WORKBENCH_Data *vedata)
 	DRW_draw_pass(psl->checker_depth_pass);
 
 	workbench_private_data_free(wpd);
+	workbench_volume_smoke_textures_free(wpd);
 }

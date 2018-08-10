@@ -55,6 +55,7 @@
 #include "draw_view.h"
 
 #include "draw_manager_profiling.h"
+#include "draw_debug.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -70,7 +71,7 @@ struct GPUMaterial;
 struct GPUTexture;
 struct GPUUniformBuffer;
 struct Object;
-struct Gwn_Batch;
+struct GPUBatch;
 struct DefaultFramebufferList;
 struct DefaultTextureList;
 struct DRWTextStore;
@@ -119,10 +120,20 @@ typedef char DRWViewportEmptyList;
 	if (dfbl->multisample_fb != NULL) { \
 		DRW_stats_query_start("Multisample Resolve"); \
 		GPU_framebuffer_bind(dfbl->default_fb); \
-		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color, true); \
 		DRW_stats_query_end(); \
 	} \
 }
+
+#define MULTISAMPLE_SYNC_DISABLE_NO_DEPTH(dfbl, dtxl) { \
+	if (dfbl->multisample_fb != NULL) { \
+		DRW_stats_query_start("Multisample Resolve"); \
+		GPU_framebuffer_bind(dfbl->default_fb); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color, false); \
+		DRW_stats_query_end(); \
+	} \
+}
+
 
 
 
@@ -224,9 +235,10 @@ void DRW_uniformbuffer_free(struct GPUUniformBuffer *ubo);
 	} \
 } while (0)
 
-void DRW_transform_to_display(struct GPUTexture *tex);
+void DRW_transform_to_display(struct GPUTexture *tex, bool use_view_settings);
+void DRW_transform_none(struct GPUTexture *tex);
 void DRW_multisamples_resolve(
-        struct GPUTexture *src_depth, struct GPUTexture *src_color);
+        struct GPUTexture *src_depth, struct GPUTexture *src_color, bool use_depth);
 
 /* Shaders */
 struct GPUShader *DRW_shader_create(
@@ -240,14 +252,14 @@ struct GPUShader *DRW_shader_create_2D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_fullscreen(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D_depth_only(void);
-struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options, bool no_deferred);
-struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options, bool no_deferred);
+struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options, bool deferred);
+struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options, bool deferred);
 struct GPUMaterial *DRW_shader_create_from_world(
         struct Scene *scene, struct World *wo, const void *engine_type, int options,
-        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool no_deferred);
+        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool deferred);
 struct GPUMaterial *DRW_shader_create_from_material(
         struct Scene *scene, struct Material *ma, const void *engine_type, int options,
-        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool no_deferred);
+        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool deferred);
 void DRW_shader_free(struct GPUShader *shader);
 #define DRW_SHADER_FREE_SAFE(shader) do { \
 	if (shader != NULL) { \
@@ -304,7 +316,7 @@ typedef struct DRWInstanceAttribFormat {
 	int components;
 } DRWInstanceAttribFormat;
 
-struct Gwn_VertFormat *DRW_shgroup_instance_format_array(const DRWInstanceAttribFormat attribs[], int arraysize);
+struct GPUVertFormat *DRW_shgroup_instance_format_array(const DRWInstanceAttribFormat attribs[], int arraysize);
 #define DRW_shgroup_instance_format(format, ...) do { \
 	if (format == NULL) { \
 		DRWInstanceAttribFormat drw_format[] = __VA_ARGS__;\
@@ -315,25 +327,25 @@ struct Gwn_VertFormat *DRW_shgroup_instance_format_array(const DRWInstanceAttrib
 DRWShadingGroup *DRW_shgroup_create(struct GPUShader *shader, DRWPass *pass);
 DRWShadingGroup *DRW_shgroup_material_create(struct GPUMaterial *material, DRWPass *pass);
 DRWShadingGroup *DRW_shgroup_material_instance_create(
-        struct GPUMaterial *material, DRWPass *pass, struct Gwn_Batch *geom, struct Object *ob,
-        struct Gwn_VertFormat *format);
+        struct GPUMaterial *material, DRWPass *pass, struct GPUBatch *geom, struct Object *ob,
+        struct GPUVertFormat *format);
 DRWShadingGroup *DRW_shgroup_material_empty_tri_batch_create(struct GPUMaterial *material, DRWPass *pass, int size);
 DRWShadingGroup *DRW_shgroup_instance_create(
-        struct GPUShader *shader, DRWPass *pass, struct Gwn_Batch *geom, struct Gwn_VertFormat *format);
+        struct GPUShader *shader, DRWPass *pass, struct GPUBatch *geom, struct GPUVertFormat *format);
 DRWShadingGroup *DRW_shgroup_point_batch_create(struct GPUShader *shader, DRWPass *pass);
 DRWShadingGroup *DRW_shgroup_line_batch_create_with_format(
-        struct GPUShader *shader, DRWPass *pass, struct Gwn_VertFormat *format);
+        struct GPUShader *shader, DRWPass *pass, struct GPUVertFormat *format);
 DRWShadingGroup *DRW_shgroup_line_batch_create(
         struct GPUShader *shader, DRWPass *pass);
 DRWShadingGroup *DRW_shgroup_empty_tri_batch_create(
         struct GPUShader *shader, DRWPass *pass, int size);
 DRWShadingGroup *DRW_shgroup_transform_feedback_create(
-        struct GPUShader *shader, DRWPass *pass, struct Gwn_VertBuf *tf_target);
+        struct GPUShader *shader, DRWPass *pass, struct GPUVertBuf *tf_target);
 
 
 typedef void (DRWCallGenerateFn)(
         DRWShadingGroup *shgroup,
-        void (*draw_fn)(DRWShadingGroup *shgroup, struct Gwn_Batch *geom),
+        void (*draw_fn)(DRWShadingGroup *shgroup, struct GPUBatch *geom),
         void *user_data);
 
 /* return final visibility */
@@ -341,27 +353,27 @@ typedef bool (DRWCallVisibilityFn)(
         bool vis_in,
         void *user_data);
 
-void DRW_shgroup_instance_batch(DRWShadingGroup *shgroup, struct Gwn_Batch *batch);
+void DRW_shgroup_instance_batch(DRWShadingGroup *shgroup, struct GPUBatch *batch);
 
 void DRW_shgroup_free(struct DRWShadingGroup *shgroup);
-void DRW_shgroup_call_add(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4]);
+void DRW_shgroup_call_add(DRWShadingGroup *shgroup, struct GPUBatch *geom, float (*obmat)[4]);
 void DRW_shgroup_call_range_add(
-        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4], uint v_sta, uint v_count);
+        DRWShadingGroup *shgroup, struct GPUBatch *geom, float (*obmat)[4], uint v_sta, uint v_count);
 void DRW_shgroup_call_procedural_points_add(DRWShadingGroup *shgroup, uint point_len, float (*obmat)[4]);
 void DRW_shgroup_call_procedural_lines_add(DRWShadingGroup *shgroup, uint line_count, float (*obmat)[4]);
 void DRW_shgroup_call_procedural_triangles_add(DRWShadingGroup *shgroup, uint tria_count, float (*obmat)[4]);
 void DRW_shgroup_call_object_procedural_triangles_culled_add(DRWShadingGroup *shgroup, uint tria_count, struct Object *ob);
-void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob, bool bypass_culling);
+void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob, bool bypass_culling);
 #define DRW_shgroup_call_object_add(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, false)
 #define DRW_shgroup_call_object_add_no_cull(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, true)
 void DRW_shgroup_call_object_add_with_callback(
-        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob,
+        DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob,
         DRWCallVisibilityFn *callback, void *user_data);
 /* Used for drawing a batch with instancing without instance attribs. */
 void DRW_shgroup_call_instances_add(
-        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, float (*obmat)[4], uint *count);
+        DRWShadingGroup *shgroup, struct GPUBatch *geom, float (*obmat)[4], uint *count);
 void DRW_shgroup_call_object_instances_add(
-        DRWShadingGroup *shgroup, struct Gwn_Batch *geom, struct Object *ob, uint *count);
+        DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob, uint *count);
 void DRW_shgroup_call_sculpt_add(DRWShadingGroup *shgroup, struct Object *ob, float (*obmat)[4]);
 void DRW_shgroup_call_generate_add(
         DRWShadingGroup *shgroup, DRWCallGenerateFn *geometry_fn, void *user_data, float (*obmat)[4]);
@@ -400,6 +412,8 @@ void DRW_shgroup_uniform_int_copy(DRWShadingGroup *shgroup, const char *name, co
 void DRW_shgroup_uniform_bool_copy(DRWShadingGroup *shgroup, const char *name, const bool value);
 void DRW_shgroup_uniform_float_copy(DRWShadingGroup *shgroup, const char *name, const float value);
 
+bool DRW_shgroup_is_empty(DRWShadingGroup *shgroup);
+
 /* Passes */
 DRWPass *DRW_pass_create(const char *name, DRWState state);
 void DRW_pass_state_set(DRWPass *pass, DRWState state);
@@ -407,6 +421,8 @@ void DRW_pass_state_add(DRWPass *pass, DRWState state);
 void DRW_pass_state_remove(DRWPass *pass, DRWState state);
 void DRW_pass_foreach_shgroup(DRWPass *pass, void (*callback)(void *userData, DRWShadingGroup *shgrp), void *userData);
 void DRW_pass_sort_shgroup_z(DRWPass *pass);
+
+bool DRW_pass_is_empty(DRWPass *pass);
 
 /* Viewport */
 typedef enum {

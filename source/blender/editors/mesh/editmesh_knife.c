@@ -1007,13 +1007,13 @@ static void knifetool_draw_angle_snapping(const KnifeTool_OpData *kcd)
 		copy_v3_v3(v2, ray_hit_best[1]);
 	}
 
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 	immUniformThemeColor(TH_TRANSFORM);
 	GPU_line_width(2.0);
 
-	immBegin(GWN_PRIM_LINES, 2);
+	immBegin(GPU_PRIM_LINES, 2);
 	immVertex3fv(pos, v1);
 	immVertex3fv(pos, v2);
 	immEnd();
@@ -1040,7 +1040,6 @@ static void knife_init_colors(KnifeColors *colors)
 static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void *arg)
 {
 	const KnifeTool_OpData *kcd = arg;
-
 	GPU_depth_test(false);
 
 	glPolygonOffset(1.0f, 1.0f);
@@ -1048,18 +1047,20 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 	GPU_matrix_push();
 	GPU_matrix_mul(kcd->ob->obmat);
 
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	if (kcd->mode == MODE_DRAGGING && kcd->is_angle_snapping) {
+		knifetool_draw_angle_snapping(kcd);
+	}
+
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 
 	if (kcd->mode == MODE_DRAGGING) {
-		if (kcd->is_angle_snapping)
-			knifetool_draw_angle_snapping(kcd);
-
 		immUniformColor3ubv(kcd->colors.line);
 		GPU_line_width(2.0);
 
-		immBegin(GWN_PRIM_LINES, 2);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex3fv(pos, kcd->prev.cage);
 		immVertex3fv(pos, kcd->curr.cage);
 		immEnd();
@@ -1069,7 +1070,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.point);
 		GPU_point_size(11);
 
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		immVertex3fv(pos, kcd->prev.cage);
 		immEnd();
 	}
@@ -1078,7 +1079,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.curpoint);
 		GPU_point_size(9);
 
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		immVertex3fv(pos, kcd->prev.cage);
 		immEnd();
 	}
@@ -1087,7 +1088,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.edge);
 		GPU_line_width(2.0);
 
-		immBegin(GWN_PRIM_LINES, 2);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex3fv(pos, kcd->curr.edge->v1->cageco);
 		immVertex3fv(pos, kcd->curr.edge->v2->cageco);
 		immEnd();
@@ -1096,7 +1097,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.point);
 		GPU_point_size(11);
 
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		immVertex3fv(pos, kcd->curr.cage);
 		immEnd();
 	}
@@ -1105,47 +1106,50 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.curpoint);
 		GPU_point_size(9);
 
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		immVertex3fv(pos, kcd->curr.cage);
 		immEnd();
 	}
 
 	if (kcd->totlinehit > 0) {
 		KnifeLineHit *lh;
-		int i;
+		int i, v, vs;
+		float fcol[4];
 
 		GPU_blend(true);
 		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
-		/* draw any snapped verts first */
-		immUniformColor4ubv(kcd->colors.point_a);
-		GPU_point_size(11);
-
-		immBeginAtMost(GWN_PRIM_POINTS, kcd->totlinehit);
+		GPUVertBuf *vert = GPU_vertbuf_create_with_format(format);
+		GPU_vertbuf_data_alloc(vert, kcd->totlinehit);
 
 		lh = kcd->linehits;
-		for (i = 0; i < kcd->totlinehit; i++, lh++) {
+		for (i = 0, v = 0, vs = kcd->totlinehit - 1; i < kcd->totlinehit; i++, lh++) {
 			if (lh->v) {
-				immVertex3fv(pos, lh->cagehit);
+				GPU_vertbuf_attr_set(vert, pos, v++, lh->cagehit);
+			}
+			else {
+				GPU_vertbuf_attr_set(vert, pos, vs--, lh->cagehit);
 			}
 		}
 
-		immEnd();
+		GPUBatch *batch = GPU_batch_create_ex(GPU_PRIM_POINTS, vert, NULL, GPU_BATCH_OWNS_VBO);
+		GPU_batch_program_set_builtin(batch, GPU_SHADER_3D_UNIFORM_COLOR);
+
+		/* draw any snapped verts first */
+		rgba_uchar_to_float(fcol, kcd->colors.point_a);
+		GPU_batch_uniform_4fv(batch, "color", fcol);
+		GPU_matrix_bind(batch->interface);
+		GPU_point_size(11);
+		GPU_batch_draw_range_ex(batch, 0, v - 1, false);
 
 		/* now draw the rest */
-		immUniformColor4ubv(kcd->colors.curpoint_a);
+		rgba_uchar_to_float(fcol, kcd->colors.curpoint_a);
+		GPU_batch_uniform_4fv(batch, "color", fcol);
 		GPU_point_size(7);
+		GPU_batch_draw_range_ex(batch, vs + 1, kcd->totlinehit - (vs + 1), false);
 
-		immBeginAtMost(GWN_PRIM_POINTS, kcd->totlinehit);
-
-		lh = kcd->linehits;
-		for (i = 0; i < kcd->totlinehit; i++, lh++) {
-			if (!lh->v) {
-				immVertex3fv(pos, lh->cagehit);
-			}
-		}
-
-		immEnd();
+		GPU_batch_program_use_end(batch);
+		GPU_batch_discard(batch);
 
 		GPU_blend(false);
 	}
@@ -1157,7 +1161,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.line);
 		GPU_line_width(1.0);
 
-		immBeginAtMost(GWN_PRIM_LINES, BLI_mempool_len(kcd->kedges) * 2);
+		GPUBatch *batch = immBeginBatchAtMost(GPU_PRIM_LINES, BLI_mempool_len(kcd->kedges) * 2);
 
 		BLI_mempool_iternew(kcd->kedges, &iter);
 		for (kfe = BLI_mempool_iterstep(&iter); kfe; kfe = BLI_mempool_iterstep(&iter)) {
@@ -1169,6 +1173,9 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		}
 
 		immEnd();
+
+		GPU_batch_draw(batch);
+		GPU_batch_discard(batch);
 	}
 
 	if (kcd->totkvert > 0) {
@@ -1178,7 +1185,7 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		immUniformColor3ubv(kcd->colors.point);
 		GPU_point_size(5.0);
 
-		immBeginAtMost(GWN_PRIM_POINTS, BLI_mempool_len(kcd->kverts));
+		GPUBatch *batch = immBeginBatchAtMost(GPU_PRIM_POINTS, BLI_mempool_len(kcd->kverts));
 
 		BLI_mempool_iternew(kcd->kverts, &iter);
 		for (kfv = BLI_mempool_iterstep(&iter); kfv; kfv = BLI_mempool_iterstep(&iter)) {
@@ -1189,6 +1196,9 @@ static void knifetool_draw(const bContext *UNUSED(C), ARegion *UNUSED(ar), void 
 		}
 
 		immEnd();
+
+		GPU_batch_draw(batch);
+		GPU_batch_discard(batch);
 	}
 
 	immUnbindProgram();

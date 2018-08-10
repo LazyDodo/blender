@@ -35,6 +35,7 @@
 #include <string.h>
 
 #ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #endif
 
@@ -114,11 +115,13 @@
 #include "ED_undo.h"
 
 #include "UI_interface.h"
+#include "UI_resources.h"
 #include "BLF_api.h"
 #include "BLT_lang.h"
 
 #include "GPU_material.h"
 #include "GPU_draw.h"
+#include "GPU_immediate.h"
 #include "GPU_init_exit.h"
 
 #include "BKE_sound.h"
@@ -235,6 +238,11 @@ void WM_init(bContext *C, int argc, const char **argv)
 	BLF_init();
 	BLT_lang_init();
 
+	/* Init icons before reading .blend files for preview icons, which can
+	 * get triggered by the depsgraph. This is also done in background mode
+	 * for scripts that do background processing with preview icons. */
+	BKE_icons_init(BIFICONID_LAST);
+
 	/* reports cant be initialized before the wm,
 	 * but keep before file reading, since that may report errors */
 	wm_init_reports(C);
@@ -256,13 +264,6 @@ void WM_init(bContext *C, int argc, const char **argv)
 
 		UI_init();
 		BKE_studiolight_init();
-	}
-	else {
-		/* Note: Currently only inits icons, which we now want in background mode too
-		 * (scripts could use those in background processing...).
-		 * In case we do more later, we may need to pass a 'background' flag.
-		 * Called from 'UI_init' above */
-		BKE_icons_init(1);
 	}
 
 	ED_spacemacros_init();
@@ -515,9 +516,11 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	BLF_exit();
 
 	if (opengl_is_init) {
+		DRW_opengl_context_enable_ex(false);
 		GPU_pass_cache_free();
-		DRW_opengl_context_destroy();
 		GPU_exit();
+		DRW_opengl_context_disable_ex(false);
+		DRW_opengl_context_destroy();
 	}
 
 #ifdef WITH_INTERNATIONAL

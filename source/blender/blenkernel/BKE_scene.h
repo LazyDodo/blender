@@ -130,6 +130,8 @@ int BKE_scene_camera_switch_update(struct Scene *scene);
 char *BKE_scene_find_marker_name(struct Scene *scene, int frame);
 char *BKE_scene_find_last_marker_name(struct Scene *scene, int frame);
 
+int BKE_scene_frame_snap_by_seconds(struct Scene *scene, double interval_in_seconds, int cfra);
+
 /* checks for cycle, returns 1 if it's all OK */
 bool BKE_scene_validate_setscene(struct Main *bmain, struct Scene *sce);
 
@@ -145,6 +147,9 @@ void BKE_scene_graph_update_tagged(struct Depsgraph *depsgraph,
 void BKE_scene_graph_update_for_newframe(struct Depsgraph *depsgraph,
                                          struct Main *bmain);
 
+void BKE_scene_view_layer_graph_evaluated_ensure(
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
+
 struct SceneRenderView *BKE_scene_add_render_view(struct Scene *sce, const char *name);
 bool BKE_scene_remove_render_view(struct Scene *scene, struct SceneRenderView *srv);
 
@@ -156,6 +161,7 @@ bool BKE_scene_use_shading_nodes_custom(struct Scene *scene);
 bool BKE_scene_use_spherical_stereo(struct Scene *scene);
 
 bool BKE_scene_uses_blender_eevee(const struct Scene *scene);
+bool BKE_scene_uses_blender_opengl(const struct Scene *scene);
 bool BKE_scene_uses_cycles(const struct Scene *scene);
 
 void BKE_scene_disable_color_management(struct Scene *scene);

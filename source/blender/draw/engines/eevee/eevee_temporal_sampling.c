@@ -174,6 +174,11 @@ void EEVEE_temporal_sampling_matrices_calc(
 	invert_m4_m4(effects->overide_wininv, effects->overide_winmat);
 }
 
+void EEVEE_temporal_sampling_reset(EEVEE_Data *vedata)
+{
+	vedata->stl->effects->taa_render_sample = 1;
+}
+
 int EEVEE_temporal_sampling_init(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *vedata)
 {
 	EEVEE_StorageList *stl = vedata->stl;
@@ -294,11 +299,11 @@ void EEVEE_temporal_sampling_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data 
 
 		DRW_shgroup_uniform_texture_ref(grp, "colorHistoryBuffer", &txl->color_double_buffer);
 		DRW_shgroup_uniform_texture_ref(grp, "colorBuffer", &txl->color);
+		DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 
 		if (effects->enabled_effects & EFFECT_TAA_REPROJECT) {
 			// DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 			DRW_shgroup_uniform_texture_ref(grp, "velocityBuffer", &effects->velocity_tx);
-			DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
 		}
 		else {
 			DRW_shgroup_uniform_float(grp, "alpha", &effects->taa_alpha, 1);

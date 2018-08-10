@@ -37,6 +37,8 @@
 
 #define SHADOW_CASTER_ALLOC_CHUNK 16
 
+// #define DEBUG_CSM
+
 static struct {
 	struct GPUShader *shadow_sh;
 	struct GPUShader *shadow_store_cube_sh[SHADOW_METHOD_MAX];
@@ -423,7 +425,7 @@ void EEVEE_lights_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 
 /* Add a shadow caster to the shadowpasses */
 void EEVEE_lights_cache_shcaster_add(
-        EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_StorageList *stl, struct Gwn_Batch *geom, Object *ob)
+        EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_StorageList *stl, struct GPUBatch *geom, Object *ob)
 {
 	DRW_shgroup_call_object_add(
 	        stl->g_data->shadow_shgrp,
@@ -432,7 +434,7 @@ void EEVEE_lights_cache_shcaster_add(
 
 void EEVEE_lights_cache_shcaster_material_add(
 	EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_PassList *psl, struct GPUMaterial *gpumat,
-	struct Gwn_Batch *geom, struct Object *ob, float *alpha_threshold)
+	struct GPUBatch *geom, struct Object *ob, float *alpha_threshold)
 {
 	/* TODO / PERF : reuse the same shading group for objects with the same material */
 	DRWShadingGroup *grp = DRW_shgroup_material_create(gpumat, psl->shadow_pass);
@@ -871,13 +873,13 @@ static void eevee_shadow_cascade_setup(
 		/* Given 8 frustum corners */
 		float corners[8][3] = {
 			/* Near Cap */
-			{-1.0f, -1.0f, splits_start_ndc[c]},
 			{ 1.0f, -1.0f, splits_start_ndc[c]},
+			{-1.0f, -1.0f, splits_start_ndc[c]},
 			{-1.0f,  1.0f, splits_start_ndc[c]},
 			{ 1.0f,  1.0f, splits_start_ndc[c]},
 			/* Far Cap */
-			{-1.0f, -1.0f, splits_end_ndc[c]},
 			{ 1.0f, -1.0f, splits_end_ndc[c]},
+			{-1.0f, -1.0f, splits_end_ndc[c]},
 			{-1.0f,  1.0f, splits_end_ndc[c]},
 			{ 1.0f,  1.0f, splits_end_ndc[c]}
 		};
@@ -890,8 +892,17 @@ static void eevee_shadow_cascade_setup(
 		float center[3];
 		frustum_min_bounding_sphere(corners, center, &(sh_data->radius[c]));
 
+#ifdef DEBUG_CSM
+		float dbg_col[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+		if (c < 3) {
+			dbg_col[c] = 1.0f;
+		}
+		DRW_debug_bbox((BoundBox *)&corners, dbg_col);
+		DRW_debug_sphere(center, sh_data->radius[c], dbg_col);
+#endif
+
 		/* Project into lightspace */
-		mul_mat3_m4_v3(viewmat, center);
+		mul_m4_v3(viewmat, center);
 
 		/* Snap projection center to nearest texel to cancel shimmering. */
 		float shadow_origin[2], shadow_texco[2];
@@ -919,6 +930,10 @@ static void eevee_shadow_cascade_setup(
 
 		mul_m4_m4m4(sh_data->viewprojmat[c], projmat, viewmat);
 		mul_m4_m4m4(cascade_data->shadowmat[c], texcomat, sh_data->viewprojmat[c]);
+
+#ifdef DEBUG_CSM
+		DRW_debug_m4_as_bbox(sh_data->viewprojmat[c], dbg_col, true);
+#endif
 	}
 
 	ubo_data->bias = 0.05f * la->bias;
