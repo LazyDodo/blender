@@ -163,8 +163,8 @@ static void initData(ModifierData *md)
 
 	if (!fmd->shared) {
 		fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
-		fmd->shared->refresh = true;
-		fmd->shared->reset_shards = true;
+		//fmd->shared->refresh = true;
+		//fmd->shared->reset_shards = true;
 	}
 }
 
@@ -188,14 +188,16 @@ static void copyData(ModifierData *md, ModifierData *target, const int flag)
 {
 	FractureModifierData *trmd = (FractureModifierData *)target;
 
+	modifier_copyData_generic(md, target, flag);
+
 	if ((flag & LIB_ID_CREATE_NO_MAIN) == 0) {
 		/* This is a regular copy, and not a CoW copy for depsgraph evaluation */
 		trmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
-		trmd->shared->refresh = true;
-		trmd->shared->reset_shards = true;
-	}
 
-	modifier_copyData_generic(md, target, flag);
+		/* this behaves oddly somehow incorrectly, as if it was an array modifier -> duplicates sim behavior */
+		//trmd->shared->refresh = true;
+		//trmd->shared->reset_shards = true;
+	}
 }
 
 static bool dependsOnTime(ModifierData *UNUSED(md))
