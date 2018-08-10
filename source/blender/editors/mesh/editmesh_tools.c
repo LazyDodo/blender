@@ -6918,7 +6918,7 @@ void MESH_OT_mark_freestyle_face(wmOperatorType *ot)
 
 /** \} */
 
-#endif  /* WITH_FREESTYLE */
+//#endif  /* WITH_FREESTYLE */
 
 /********************** Loop normals editing tools modal map. **********************/
 

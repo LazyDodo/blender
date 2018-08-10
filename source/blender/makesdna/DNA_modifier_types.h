@@ -91,7 +91,7 @@ typedef enum ModifierType {
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
 	eModifierType_WeightedNormal	= 54,
-	eModifierType_MyBMesh           = 54,
+	eModifierType_MyBMesh           = 55,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
