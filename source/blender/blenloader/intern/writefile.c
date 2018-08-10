@@ -192,7 +192,6 @@
 
 #include "BLO_writefile.h"
 #include "BLO_readfile.h"
-#include "BLO_runtime.h"
 #include "BLO_undofile.h"
 #include "BLO_blend_defs.h"
 

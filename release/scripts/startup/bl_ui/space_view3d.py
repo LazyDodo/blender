@@ -1481,12 +1481,12 @@ class INFO_MT_add(Menu):
         layout.menu("INFO_MT_surface_add", icon='OUTLINER_OB_SURFACE')
         layout.menu("INFO_MT_metaball_add", text="Metaball", icon='OUTLINER_OB_META')
         layout.operator("object.text_add", text="Text", icon='OUTLINER_OB_FONT')
+        layout.operator_menu_enum("object.gpencil_add", "type", text="Grease Pencil", icon='OUTLINER_OB_GREASEPENCIL')
         layout.separator()
 
         layout.menu("INFO_MT_armature_add", icon='OUTLINER_OB_ARMATURE')
         layout.operator("object.add", text="Lattice", icon='OUTLINER_OB_LATTICE').type = 'LATTICE'
         layout.operator_menu_enum("object.empty_add", "type", text="Empty", icon='OUTLINER_OB_EMPTY')
-        layout.operator_menu_enum("object.gpencil_add", "type", text="Grease Pencil", icon='OUTLINER_OB_GREASEPENCIL')
         layout.separator()
 
         layout.operator("object.speaker_add", text="Speaker", icon='OUTLINER_OB_SPEAKER')
@@ -3052,6 +3052,30 @@ class VIEW3D_MT_edit_mesh_normals(Menu):
         layout.operator("mesh.flip_normals")
         layout.operator("mesh.set_normals_from_faces", text="Set From Faces")
 
+        layout.operator("transform.rotate_normal", text="Rotate Normal")
+        layout.operator("mesh.point_normals", text="Point normals to target")
+
+        layout.operator("mesh.merge_normals", text="Merge")
+        layout.operator("mesh.split_normals", text="Split")
+
+        layout.operator("mesh.average_normals", text="Average Normals")
+
+        layout.label(text="Normal Vector")
+
+        layout.operator("mesh.normals_tools", text="Copy").mode = 'COPY'
+        layout.operator("mesh.normals_tools", text="Paste").mode = 'PASTE'
+
+        layout.operator("mesh.normals_tools", text="Multiply").mode = 'MULTIPLY'
+        layout.operator("mesh.normals_tools", text="Add").mode = 'ADD'
+
+        layout.operator("mesh.normals_tools", text="Reset").mode = 'RESET'
+
+        layout.operator("mesh.smoothen_normals", text="Smoothen")
+
+        layout.label(text="Face Strength")
+        layout.operator("mesh.mod_weighted_strength", text="Face select", icon = "FACESEL").set = False
+        layout.operator("mesh.mod_weighted_strength", text="Set Strength", icon = "ZOOMIN").set = True
+
 
 class VIEW3D_MT_edit_mesh_shading(Menu):
     bl_label = "Shading"
@@ -3546,9 +3570,10 @@ class VIEW3D_MT_assign_material(Menu):
 
     def draw(self, context):
         layout = self.layout
-        ob = context.active_object;
+        ob = context.active_object
 
-        for mat in ob.data.materials:
+        for slot in ob.material_slots:
+            mat = slot.material
             layout.operator("gpencil.stroke_change_color", text=mat.name).material = mat.name
 
 

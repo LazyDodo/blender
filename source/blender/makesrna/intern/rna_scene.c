@@ -534,13 +534,22 @@ static const EnumPropertyItem transform_orientation_items[] = {
 #endif
 
 /* Grease Pencil update cache */
-static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
+static void rna_GPencil_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
-	/* mark all grease pencil datablocks */
-	for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
-		gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	/* mark all grease pencil datablocks of the scene */
+	FOREACH_SCENE_COLLECTION_BEGIN(scene, collection)
+	{
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
+		{
+			if (ob->type == OB_GPENCIL) {
+				bGPdata *gpd = (bGPdata *)ob->data;
+				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+				DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
+	FOREACH_SCENE_COLLECTION_END;
 
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
@@ -2196,6 +2205,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	static EnumPropertyItem mod_weighted_strength[] = {
+		{FACE_STRENGTH_WEAK, "Weak", 0, "Weak", ""},
+		{FACE_STRENGTH_MEDIUM, "Medium", 0, "Medium", ""},
+		{FACE_STRENGTH_STRONG, "Strong", 0, "Strong", ""},
+		{0, NULL, 0, NULL, NULL},
+	};
+
 	static const EnumPropertyItem draw_groupuser_items[] = {
 		{OB_DRAW_GROUPUSER_NONE, "NONE", 0, "None", ""},
 		{OB_DRAW_GROUPUSER_ACTIVE, "ACTIVE", 0, "Active", "Show vertices with no weights in the active group"},
@@ -2611,6 +2627,14 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "edge_path_live_unwrap", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "edge_mode_live_unwrap", 1);
 	RNA_def_property_ui_text(prop, "Live Unwrap", "Changing edges seam re-calculates UV unwrap");
+
+	prop = RNA_def_property(srna, "normal_vector", PROP_FLOAT, PROP_XYZ);
+	RNA_def_property_ui_text(prop, "Normal Vector", "Normal Vector used to copy, add or multiply");
+	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 1, 3);
+
+	prop = RNA_def_property(srna, "face_strength", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, mod_weighted_strength);
+	RNA_def_property_ui_text(prop, "Face Strength", "Set strength of face to specified value");
 
 	/* Unified Paint Settings */
 	prop = RNA_def_property(srna, "unified_paint_settings", PROP_POINTER, PROP_NONE);
