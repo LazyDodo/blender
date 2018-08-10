@@ -226,23 +226,23 @@ static void lanpr_cache_init(void *vedata){
 
 		psl->edge_intermediate = DRW_pass_create("Edge Detection", DRW_STATE_WRITE_COLOR);
 		stl->g_data->edge_detect_shgrp = DRW_shgroup_create(lanpr_share.edge_detect_shader, psl->edge_intermediate);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample0", &txl->depth);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample1", &txl->color);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "TexSample2", &txl->normal);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "tex_sample_0", &txl->depth);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "tex_sample_1", &txl->color);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_detect_shgrp, "tex_sample_2", &txl->normal);
 
-		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zNear", &stl->g_data->znear, 1);
-		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "zfFar", &stl->g_data->zfar, 1);
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "z_near", &stl->g_data->znear, 1);
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "z_far", &stl->g_data->zfar, 1);
 
-		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue0", &stl->g_data->normal_clamp, 1);// normal clamp
-		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue1", &stl->g_data->normal_strength, 1);// normal strength
-		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue2", &stl->g_data->depth_clamp, 1);// depth clamp
-		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "uValue3", &stl->g_data->depth_strength, 1);// depth strength
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "normal_clamp", &stl->g_data->normal_clamp, 1);// normal clamp
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "normal_strength", &stl->g_data->normal_strength, 1);// normal strength
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "depth_clamp", &stl->g_data->depth_clamp, 1);// depth clamp
+		DRW_shgroup_uniform_float(stl->g_data->edge_detect_shgrp, "depth_strength", &stl->g_data->depth_strength, 1);// depth strength
 		DRW_shgroup_call_add(stl->g_data->edge_detect_shgrp, quad, NULL);
 
 		psl->edge_thinning = DRW_pass_create("Edge Thinning Stage 1", DRW_STATE_WRITE_COLOR);
 		stl->g_data->edge_thinning_shgrp = DRW_shgroup_create(lanpr_share.edge_thinning_shader, psl->edge_thinning);
-		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "TexSample0", &dtxl->color);
-		DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "Stage", &stl->g_data->stage, 1);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->edge_thinning_shgrp, "tex_sample_0", &dtxl->color);
+		DRW_shgroup_uniform_int(stl->g_data->edge_thinning_shgrp, "stage", &stl->g_data->stage, 1);
 		DRW_shgroup_call_add(stl->g_data->edge_thinning_shgrp, quad, NULL);
 
 	}
@@ -290,8 +290,8 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_material", &ll->thickness_material, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_edge_mark", &ll->thickness_edge_mark, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_intersection", &ll->thickness_intersection, 1);
-		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zNear", &stl->g_data->dpix_znear, 1);
-		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "zFar", &stl->g_data->dpix_zfar, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "z_near", &stl->g_data->dpix_znear, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "z_far", &stl->g_data->dpix_zfar, 1);
 
 		pd->begin_index = 0;
 		int fsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE * TNS_DPIX_TEXTURE_SIZE;

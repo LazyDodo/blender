@@ -1,7 +1,7 @@
 
 in vec4 uvcoordsvar;
-uniform sampler2D TexSample0;
-uniform int Stage;
+uniform sampler2D tex_sample_0;
+uniform int stage;
 
 int decisions[256] = int[] (0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
                             1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1,
@@ -23,7 +23,7 @@ int decisions[256] = int[] (0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
 int PickPixel(ivec2 sp){
 	vec4 accum = vec4(0);
 	//for(int i=0;i<4;i++){
-	accum += texelFetch(TexSample0, sp, 0);
+	accum += texelFetch(tex_sample_0, sp, 0);
 	//}
 	return (accum.r > 0.9) ? 1 : 0;
 
@@ -33,9 +33,9 @@ int PickPixel(ivec2 sp){
 
 void main(){
 
-	ivec2 texSize = textureSize(TexSample0, 0);
+	ivec2 texSize = textureSize(tex_sample_0, 0);
 	ivec2 sp = ivec2(uvcoordsvar.xy * texSize);
-	vec4 OriginalColor = texelFetch(TexSample0, sp, 0);
+	vec4 OriginalColor = texelFetch(tex_sample_0, sp, 0);
 
 	int p2 = PickPixel(sp + ivec2(0, +1));
 	int p3 = PickPixel(sp + ivec2(+1, +1));
@@ -59,7 +59,7 @@ void main(){
 
 	int Cp1 = int(!bp2 && (bp3 || bp4)) + int(!bp4 && (bp5 || bp6)) + int(!bp6 && (bp7 || bp8)) + int(!bp8 && (bp9 || bp2));
 
-	if (Stage == 0) {
+	if (stage == 0) {
 		if (((sp.x + sp.y) % 2 == 0) &&
 		    (Cp1 == 1)           &&
 		    (Bp1 >= 2 && Bp1 <= 7) &&
@@ -87,5 +87,5 @@ void main(){
 	//		 + PickPixel(sp+ivec2(-1,+1))*32 + PickPixel(sp+ivec2( 0,+1))*64 + PickPixel(sp+ivec2(+1,+1))*128;
 
 	//if(decisions[test]==1) gl_FragColor=vec4(1,0,0,1);
-	//else gl_FragColor=texelFetch(TexSample0, sp, 0);//vec4(1,1,1,1);
+	//else gl_FragColor=texelFetch(tex_sample_0, sp, 0);//vec4(1,1,1,1);
 }

@@ -3,24 +3,24 @@ layout(triangle_strip, max_vertices = 6) out;
 
 in vec2 gOffset[];
 
-uniform float LineWidth;
-uniform float TaperLDist;
-uniform float TaperRDist;
-uniform float TaperLStrength;
-uniform float TaperRStrength;
+uniform float line_width;
+uniform float taper_l_dist;
+uniform float taper_r_dist;
+uniform float taper_l_strength;
+uniform float taper_r_strength;
 
 
 #define M_PI 3.1415926535897932384626433832795
 
 vec4 MakeLeftTaperLinear(vec4 L, vec4 a, float offset){
-	if (offset >= TaperLDist) return a;
-	a = mix(mix(a, L, TaperLStrength), a, offset / TaperLDist);
+	if (offset >= taper_l_dist) return a;
+	a = mix(mix(a, L, taper_l_strength), a, offset / taper_l_dist);
 	return a;
 }
 
 vec4 MakeRightTaperLinear(vec4 R, vec4 c, float offset){
-	if (offset >= TaperRDist) return c;
-	c = mix(mix(c, R, TaperRStrength), c, offset / TaperRDist);
+	if (offset >= taper_r_dist) return c;
+	c = mix(mix(c, R, taper_r_strength), c, offset / taper_r_dist);
 	return c;
 }
 
@@ -47,17 +47,17 @@ void main() {
 	vec4 Line = R - L;
 	vec4 Normal = normalize(vec4(-Line.y, Line.x, 0, 0));
 
-	a = L - LineWidth * Normal * 0.001;
-	b = L + LineWidth * Normal * 0.001;
-	c = R - LineWidth * Normal * 0.001;
-	d = R + LineWidth * Normal * 0.001;
+	a = L - line_width * Normal * 0.001;
+	b = L + line_width * Normal * 0.001;
+	c = R - line_width * Normal * 0.001;
+	d = R + line_width * Normal * 0.001;
 
-	float lim = LineWidth * 0.002;
+	float lim = line_width * 0.002;
 
 	{
 		vec4 Tangent = normalize(normalize(L - LL) + normalize(R - L));
 		vec4 Minter = normalize(vec4(-Tangent.y, Tangent.x, 0, 0));
-		float length = LineWidth / (dot(Minter, Normal)) * 0.001;
+		float length = line_width / (dot(Minter, Normal)) * 0.001;
 		a = L - length * Minter;
 		b = L + length * Minter;
 		if (distance(a, b) > 2 * lim) { a =  L - lim * Minter; b = L + lim * Minter;}
@@ -66,7 +66,7 @@ void main() {
 	{
 		vec4 Tangent = normalize(normalize(RR - R) + normalize(R - L));
 		vec4 Minter = normalize(vec4(-Tangent.y, Tangent.x, 0, 0));
-		float length = LineWidth / (dot(Minter, Normal)) * 0.001;
+		float length = line_width / (dot(Minter, Normal)) * 0.001;
 		c = R - length * Minter;
 		d = R + length * Minter;
 		if (distance(c, d) > 2 * lim) { c =  R - lim * Minter; d = R + lim * Minter;}

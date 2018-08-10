@@ -28,10 +28,10 @@ uniform vec4 material_color;
 uniform vec4 edge_mark_color;
 uniform vec4 intersection_color;
 
-uniform float TaperLDist;
-uniform float TaperRDist;
-uniform float TaperLStrength;
-uniform float TaperRStrength;
+uniform float taper_l_dist;
+uniform float taper_r_dist;
+uniform float taper_l_strength;
+uniform float taper_r_strength;
 
 out vec4 out_color;
 
@@ -42,14 +42,14 @@ float use_thickness;
 vec4 END_POINT = vec4(vec2(3e30f), 0, 1);// end point flag
 
 vec4 MakeLeftTaperLinear(vec4 L, vec4 a, float offset){
-	if (offset >= TaperLDist) return a;
-	a = mix(mix(a, L, TaperLStrength), a, offset / TaperLDist);
+	if (offset >= taper_l_dist) return a;
+	a = mix(mix(a, L, taper_l_strength), a, offset / taper_l_dist);
 	return a;
 }
 
 vec4 MakeRightTaperLinear(vec4 R, vec4 c, float offset){
-	if (offset >= TaperRDist) return c;
-	c = mix(mix(c, R, TaperRStrength), c, offset / TaperRDist);
+	if (offset >= taper_r_dist) return c;
+	c = mix(mix(c, R, taper_r_strength), c, offset / taper_r_dist);
 	return c;
 }
 

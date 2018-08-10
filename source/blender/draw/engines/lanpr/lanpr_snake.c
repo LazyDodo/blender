@@ -463,12 +463,12 @@ void lanpr_snake_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, 
 
 	psl->snake_pass = DRW_pass_create("Snake Visualization Pass", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS);
 	pd->snake_shgrp = DRW_shgroup_create(lanpr_share.snake_connection_shader, psl->snake_pass);
-	DRW_shgroup_uniform_float(pd->snake_shgrp, "LineWidth", &lanpr->line_thickness, 1);
-	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLDist", tld, 1);
-	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperLStrength", tls, 1);
-	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRDist", lanpr->use_same_taper ? tld : trd, 1);
-	DRW_shgroup_uniform_float(pd->snake_shgrp, "TaperRStrength", lanpr->use_same_taper ? tls : trs, 1);
-	DRW_shgroup_uniform_vec4(pd->snake_shgrp, "LineColor", lanpr->line_color, 1);
+	DRW_shgroup_uniform_float(pd->snake_shgrp, "line_width", &lanpr->line_thickness, 1);
+	DRW_shgroup_uniform_float(pd->snake_shgrp, "taper_l_dist", tld, 1);
+	DRW_shgroup_uniform_float(pd->snake_shgrp, "taper_r_dist", tls, 1);
+	DRW_shgroup_uniform_float(pd->snake_shgrp, "taper_l_strength", lanpr->use_same_taper ? tld : trd, 1);
+	DRW_shgroup_uniform_float(pd->snake_shgrp, "taper_r_strength", lanpr->use_same_taper ? tls : trs, 1);
+	DRW_shgroup_uniform_vec4(pd->snake_shgrp, "line_color", lanpr->line_color, 1);
 
 	DRW_shgroup_call_add(pd->snake_shgrp, snake_batch, NULL);
 	GPU_framebuffer_bind(fbl->edge_intermediate);

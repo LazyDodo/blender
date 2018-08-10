@@ -1,13 +1,13 @@
 in vec4 uvcoordsvar;
-uniform sampler2DMS TexSample0;//depth
-uniform sampler2DMS TexSample1;//color
-uniform sampler2DMS TexSample2;//normal
-uniform float uValue0;//normal clamp
-uniform float uValue1;//normal strength
-uniform float uValue2;//depth clamp
-uniform float uValue3;//depth strength
-uniform float zNear;//znear
-uniform float zFar;//zfar
+uniform sampler2DMS tex_sampe_0;//depth
+uniform sampler2DMS tex_sample_1;//color
+uniform sampler2DMS tex_sample_2;//normal
+uniform float normal_clamp;//normal clamp
+uniform float normal_strength;//normal strength
+uniform float depth_clamp;//depth clamp
+uniform float depth_strength;//depth strength
+uniform float z_near;//z_near
+uniform float z_far;//z_far
 
 mat3 sx = mat3(
 	1.0, 2.0, 1.0,
@@ -30,7 +30,7 @@ vec3 rgb2hsv(vec3 c)
 }
 float linearDepth(float depthSample){
 	float d = 2.0 * depthSample - 1.0;
-	float zLinear = 2.0 * zNear * zFar / (zFar + zNear - d * (zFar - zNear));
+	float zLinear = 2.0 * z_near * z_far / (z_far + z_near - d * (z_far - z_near));
 	return zLinear;
 }
 
@@ -56,7 +56,7 @@ vec4 DetectEdge(sampler2DMS tex, float clamp, float strength){
 				K[i][j] += length(sample3) / 8;
 			}
 		}
-		cs += texelFetch(TexSample1, sp, s) / 8;
+		cs += texelFetch(tex_sample_1, sp, s) / 8;
 	}
 
 	float gx1 = dot(sx[0], I[0]) + dot(sx[1], I[1]) + dot(sx[2], I[2]);
@@ -83,12 +83,12 @@ vec4 DetectEdge(sampler2DMS tex, float clamp, float strength){
 
 void main()
 {
-	float nc = uValue0;//(uValue0==0? 0.01:uValue0);
-	float ns = uValue1;//(uValue1==0? 5:   uValue1);
-	float dc = uValue2;//(uValue2==0? 0.2: uValue2);
-	float ds = uValue3;//(uValue3==0? 2.5: uValue3);
+	float nc = normal_clamp;//(normal_clamp==0? 0.01:normal_clamp);
+	float ns = normal_strength;//(normal_strength==0? 5:   normal_strength);
+	float dc = depth_clamp;//(depth_clamp==0? 0.2: depth_clamp);
+	float ds = depth_strength;//(depth_strength==0? 2.5: depth_strength);
 
 	vec4 diffuse = vec4(1, 1, 1, 1);
-	vec4 color = (DetectEdge(TexSample0, dc, ds) + DetectEdge(TexSample2, nc, ns));
+	vec4 color = (DetectEdge(tex_sampe_0, dc, ds) + DetectEdge(tex_sample_2, nc, ns));
 	gl_FragColor = color;
 };

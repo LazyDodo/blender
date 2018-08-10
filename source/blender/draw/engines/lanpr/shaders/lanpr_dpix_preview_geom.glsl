@@ -15,8 +15,8 @@ uniform float depth_width_influence;
 uniform float depth_width_curve;
 uniform float depth_alpha_influence;
 uniform float depth_alpha_curve;
-uniform float zNear;
-uniform float zFar;
+uniform float z_near;
+uniform float z_far;
 
 uniform vec4 color;
 uniform vec4 background_color;
@@ -38,8 +38,8 @@ out vec4 out_color;
 vec4 use_color = color;
 
 float get_linear_depth(float z){
-	float ze = 2.0 * zNear * zFar / (zFar + zNear - z * (zFar - zNear));
-	return (ze - zNear) / (zFar - zNear);
+	float ze = 2.0 * z_near * z_far / (z_far + z_near - z * (z_far - z_near));
+	return (ze - z_near) / (z_far - z_near);
 }
 
 float curve_01(float z, float factor){

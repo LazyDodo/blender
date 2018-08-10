@@ -1,5 +1,5 @@
-uniform vec4 LineColor;
+uniform vec4 line_color;
 
 void main(){
-	gl_FragColor = LineColor;
+	gl_FragColor = line_color;
 }
