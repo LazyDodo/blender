@@ -73,7 +73,7 @@ class MATERIAL_PT_preview(MaterialButtonsPanel, Panel):
 
 
 class MATERIAL_PT_custom_props(MaterialButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
     _context_path = "material"
     _property_type = bpy.types.Material
 
@@ -82,7 +82,7 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
     bl_label = ""
     bl_context = "material"
     bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -157,7 +157,7 @@ def panel_node_draw(layout, ntree, output_type):
 class EEVEE_MATERIAL_PT_surface(MaterialButtonsPanel, Panel):
     bl_label = "Surface"
     bl_context = "material"
-    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -185,7 +185,7 @@ class EEVEE_MATERIAL_PT_surface(MaterialButtonsPanel, Panel):
 class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
     bl_label = "Options"
     bl_context = "material"
-    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):

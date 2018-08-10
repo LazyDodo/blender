@@ -43,7 +43,7 @@ class PhysicButtonsPanel:
 
 class PHYSICS_PT_fluid(PhysicButtonsPanel, Panel):
     bl_label = "Fluid"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_LANPR'}
 
     def draw(self, context):
         layout = self.layout
@@ -207,7 +207,7 @@ class PHYSICS_PT_domain_gravity(PhysicButtonsPanel, Panel):
     bl_label = "World"
     bl_parent_id = 'PHYSICS_PT_fluid'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -257,7 +257,7 @@ class PHYSICS_PT_domain_boundary(PhysicButtonsPanel, Panel):
     bl_label = "Boundary"
     bl_parent_id = 'PHYSICS_PT_fluid'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
@@ -288,7 +288,7 @@ class PHYSICS_PT_domain_particles(PhysicButtonsPanel, Panel):
     bl_label = "Particles"
     bl_parent_id = 'PHYSICS_PT_fluid'
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_LANPR'}
 
     @classmethod
     def poll(cls, context):
