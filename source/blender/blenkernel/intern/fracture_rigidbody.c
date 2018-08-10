@@ -2668,9 +2668,6 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 
 					zero_v3(rbo->lin_vel);
 					zero_v3(rbo->ang_vel);
-
-					//reset at start, there no cache read seems to happen
-					//BKE_update_velocity_layer(fmd, mi);
 				}
 
 				if ((ob->rigidbody_object->type == RBO_TYPE_ACTIVE) && (rbo->type == RBO_TYPE_ACTIVE || rbo->flag & RBO_FLAG_KINEMATIC)) {

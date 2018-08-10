@@ -196,5 +196,7 @@ struct Mesh* BKE_fracture_mesh_copy(struct Mesh* source, struct Object* ob);
 struct BMesh* BKE_fracture_mesh_to_bmesh(struct Mesh* me);
 struct Mesh* BKE_fracture_bmesh_to_mesh(struct BMesh* bm);
 
+void BKE_update_velocity_layer(struct FractureModifierData *fmd);
+
 
 #endif /* BKE_FRACTURE_H */

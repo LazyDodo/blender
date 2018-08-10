@@ -447,6 +447,9 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	bool do_merge = fmd->do_merge;
 	//struct BMeshToMeshParams bmt = {.calc_object_remap = 0};
 
+	//just before we mess up this mesh, ensure velocity precalculation.
+	BKE_update_velocity_layer(fmd);
+
 	if (fmd->use_centroids && !fmd->use_vertices)
 	{
 		BM_mesh_create(&bm_mesh_allocsize_default,  &((struct BMeshCreateParams){.use_toolflags = true,}));
