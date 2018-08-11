@@ -3068,6 +3068,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				float (*store_2d)[3][2] = BLI_array_alloca(store_2d, face_count);
 				float *face_area = BLI_array_alloca(face_area, face_count);
 				float tot_face_area = 0;
+				float tot_diff_facing = 0;
 				float mat[3][3];
 
 				bool done = false;
@@ -3084,9 +3085,14 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 
 					float no[3];
 					float P[3];
+					float view_vec[3];
 					BM_face_calc_normal(f, no);
 					BM_face_calc_center_mean(f, P);
-					if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+
+					sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+					float face_dir = dot_v3v3(no, view_vec);
+					if( inface->back_f != (face_dir < 0) ){
+						tot_diff_facing += fabs(face_dir);
 						nr_inco_faces++;
 					}
 					face_area[face_idx] = BM_face_calc_area(f);
@@ -3102,14 +3108,13 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				}
 
 				mul_v3_fl( cent, 1.0f / (float)BM_vert_edge_count(vert) );
-
 				{
-					float old_pos[3], best_pos[3], best_dist;
+					float old_pos[3], best_pos[3];
+					float best_diff_facing = tot_diff_facing;
+					float best_dist = len_v3v3(cent, vert->co);
 					int best_inco_faces = nr_inco_faces;
 
 					RNG *rng = BLI_rng_new(0);
-
-					best_dist = len_v3v3(cent, vert->co);
 
 					copy_v3_v3( old_pos, vert->co );
 					copy_v3_v3( best_pos, vert->co );
@@ -3161,10 +3166,12 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							int new_inco_faces = 0;
 							bool fold = false;
 							float new_dist = len_v3v3(cent, vert->co);
+							float new_diff_facing = 0;
 
 							BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 								float no[3];
 								float P[3];
+								float view_vec[3];
 								BM_face_calc_normal(f, no);
 								BM_face_calc_center_mean(f, P);
 
@@ -3174,7 +3181,10 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 									break;
 								}
 
-								if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+								sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+								float face_dir = dot_v3v3(no, view_vec);
+								if( inface->back_f != (face_dir < 0) ){
+									new_diff_facing += fabs(face_dir);
 									new_inco_faces++;
 								}
 							}
@@ -3186,10 +3196,15 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							if( new_inco_faces < best_inco_faces ){
 								best_inco_faces = new_inco_faces;
 								best_dist = new_dist;
+								best_diff_facing = new_diff_facing;
 								copy_v3_v3( best_pos, vert->co );
 								done = true;
-							} else if (new_inco_faces == best_inco_faces && new_dist < best_dist){
+							} else if (new_inco_faces == 0 && new_dist < best_dist){
 								best_dist = new_dist;
+								copy_v3_v3( best_pos, vert->co );
+								done = true;
+							} else if (new_inco_faces == best_inco_faces && new_diff_facing < best_diff_facing){
+								best_diff_facing = new_diff_facing;
 								copy_v3_v3( best_pos, vert->co );
 								done = true;
 							}
@@ -3329,21 +3344,29 @@ static void optimization( MeshData *m_d ){
 
 					//Calculate nr of info faces of egde
 					int nr_inco_faces = 0;
+					float P[3], no[3];
+					float view_vec[3], face_dir;
+					float cur_diff_facing = 0;
                     BMFace *face;
 					BMIter iter_f;
 					BM_ITER_ELEM (face, &iter_f, edge, BM_FACES_OF_EDGE) {
-						float P[3], no[3];
 						BM_face_calc_normal(face, no);
 						BM_face_calc_center_mean(face, P);
 
-						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+						//Calc facing of face
+						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+						face_dir = dot_v3v3(no, view_vec);
+
+						if( inface->back_f != (face_dir < 0) ){
+							cur_diff_facing += fabs(face_dir);
 							nr_inco_faces++;
 						}
 					}
 
 					{
-						float vec1[3], vec2[3], P[3], no[3];
+						float vec1[3], vec2[3];
 						int new_inco_faces = 0;
+						float new_diff_facing = 0;
 						BMVert *v1, *v2;
 
 						BM_edge_ordered_verts(edge, &v1, &v2);
@@ -3364,9 +3387,13 @@ static void optimization( MeshData *m_d ){
 
 						mul_v3_fl( P, 1.0f / 3.0f );
 
-						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+						//Facing of first new flip face
+						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+						face_dir = dot_v3v3(no, view_vec);
+						if( inface->back_f != (face_dir < 0) ){
 							//This is not a good flip!
 							//printf("Opti flip, first face not good\n");
+							new_diff_facing += fabs(face_dir);
 							new_inco_faces++;
 						}
 
@@ -3384,13 +3411,18 @@ static void optimization( MeshData *m_d ){
 
 						mul_v3_fl( P, 1.0f / 3.0f );
 
-						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+						//Facing of second new flip face
+						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+						face_dir = dot_v3v3(no, view_vec);
+						if( inface->back_f != (face_dir < 0) ){
 							//This is not a good flip!
 							//printf("Opti flip, second face not good\n");
+							new_diff_facing += fabs(face_dir);
 							new_inco_faces++;
 						}
-
 						if (new_inco_faces < nr_inco_faces){
+							best_edge = edge;
+						} else if ( new_inco_faces == nr_inco_faces && new_diff_facing < cur_diff_facing ){
 							best_edge = edge;
 						}
 					}
@@ -3420,7 +3452,6 @@ static void optimization( MeshData *m_d ){
 
 		}
 	}
-
 	// 3. Vertex wiggling in paramter space
 	int wiggled_verts = 0;
 	do {
@@ -3543,13 +3574,18 @@ static void optimization( MeshData *m_d ){
 
 			//Calculate number of inco faces in the vicinity
 			int nr_inco_faces = 0;
+			float tot_diff_facing = 0;
 			BM_ITER_MESH (f, &iter_f, bm_fan_copy, BM_FACES_OF_MESH){
 				float no[3];
 				float P[3];
+				float view_vec[3];
 				BM_face_calc_normal(f, no);
 				BM_face_calc_center_mean(f, P);
 
-				if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+				sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+				float face_dir = dot_v3v3(no, view_vec);
+				if( inface->back_f != (face_dir < 0) ){
+					tot_diff_facing += fabs(face_dir);
 					nr_inco_faces++;
 				}
 			}
@@ -3557,8 +3593,10 @@ static void optimization( MeshData *m_d ){
 				BMFace *copy_f = BLI_ghash_lookup(fhash, inface->face);
 
 				int new_inco_faces;
+				float new_diff_facing;
 				int best_inco_faces = nr_inco_faces;
 				int best_edge;
+				float best_diff_facing = tot_diff_facing;
 				float best_edge_split_pos[3];
 				float best_dist = INFINITY;
 				BMFace *best_edge_split_face = NULL;
@@ -3573,6 +3611,7 @@ static void optimization( MeshData *m_d ){
 						if (!valid_split_pos[edge_idx][j]){
 							continue;
 						}
+						new_diff_facing = 0;
 						new_inco_faces = 0;
 
 						if( split_vert == NULL){
@@ -3586,6 +3625,7 @@ static void optimization( MeshData *m_d ){
 						BM_ITER_MESH (f, &iter_f, bm_temp, BM_FACES_OF_MESH){
 							float no[3];
 							float P[3];
+							float view_vec[3];
 							BM_face_calc_normal(f, no);
 							BM_face_calc_center_mean(f, P);
 							//Will this new vert pos create a potential fold?
@@ -3594,7 +3634,10 @@ static void optimization( MeshData *m_d ){
 								break;
 							}
 
-							if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
+							sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+							float face_dir = dot_v3v3(no, view_vec);
+							if( inface->back_f != (face_dir < 0) ){
+								new_diff_facing += fabs(face_dir);
 								new_inco_faces++;
 							}
 						}
@@ -3623,11 +3666,20 @@ static void optimization( MeshData *m_d ){
 						if( new_inco_faces < best_inco_faces ){
 							best_edge = edge_idx;
 							best_inco_faces = new_inco_faces;
+							best_diff_facing = new_diff_facing;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
 							best_edge_split_face = valid_split_pos_face[edge_idx][j];
 							done = true;
-						} else if (new_inco_faces == best_inco_faces && new_dist < best_dist){
+						} else if ( new_inco_faces == best_inco_faces && new_diff_facing < best_diff_facing){
+							best_edge = edge_idx;
+							best_inco_faces = new_inco_faces;
+							best_diff_facing = new_diff_facing;
+							best_dist = new_dist;
+							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
+							best_edge_split_face = valid_split_pos_face[edge_idx][j];
+							done = true;
+						} else if (new_inco_faces == 0 && new_dist < best_dist){
 							best_edge = edge_idx;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
