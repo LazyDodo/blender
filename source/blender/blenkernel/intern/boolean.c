@@ -238,7 +238,7 @@ Mesh *BKE_boolean_operation(Mesh *mesh, struct Object *ob,
                 bool use_island_connect = true;
 
                 /* change for testing */
-                if (G.debug & G_DEBUG) {
+                if (G.debug & G_DEBUG && bmd) {
                     use_separate = (bmd->bm_flag & eBooleanModifierBMeshFlag_BMesh_Separate) != 0;
                     use_dissolve = (bmd->bm_flag & eBooleanModifierBMeshFlag_BMesh_NoDissolve) == 0;
                     use_island_connect = (bmd->bm_flag & eBooleanModifierBMeshFlag_BMesh_NoConnectRegions) == 0;

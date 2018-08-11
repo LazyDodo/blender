@@ -41,6 +41,7 @@ struct Mesh;
 
 struct RigidBodyWorld;
 struct FractureModifierData;
+struct ModifierData;
 struct Object;
 struct Group;
 struct MeshIsland;
@@ -197,6 +198,7 @@ struct BMesh* BKE_fracture_mesh_to_bmesh(struct Mesh* me);
 struct Mesh* BKE_fracture_bmesh_to_mesh(struct BMesh* bm);
 
 void BKE_update_velocity_layer(struct FractureModifierData *fmd);
+bool BKE_rigidbody_remove_modifier(struct RigidBodyWorld* rbw, struct ModifierData *md, struct Object *ob);
 
 
 #endif /* BKE_FRACTURE_H */
