@@ -39,12 +39,9 @@ extern "C" {
 
 /* Root point (follicle) of a hair on a surface */
 typedef struct HairFollicle {
-	/* Sample on the scalp mesh for the root vertex */
-	MeshSample mesh_sample;
-	/* Parent curve indices for shape interpolation */
-	unsigned int parent_index[4];
-	/* Parent curve weights for shape interpolation */
-	float parent_weight[4];
+	MeshSample mesh_sample;     /* Sample on the scalp mesh for the root vertex */
+	unsigned int curve;         /* Index of the curve used by the fiber */
+	int pad;
 } HairFollicle;
 
 /* Collection of hair roots on a surface */
@@ -54,33 +51,32 @@ typedef struct HairPattern {
 	int pad;
 } HairPattern;
 
-typedef struct HairGuideCurve {
-	MeshSample mesh_sample;             /* Sample on the scalp mesh for the root vertex */
+typedef struct HairFiberCurve {
 	int vertstart;                      /* Offset in the vertex array where the curve starts */
 	int numverts;                       /* Number of vertices in the curve */
 
 	/* Shape */
 	float taper_length;                 /* Distance at which final thickness is reached */
 	float taper_thickness;              /* Relative thickness of the strand */
-} HairGuideCurve;
+} HairFiberCurve;
 
-typedef struct HairGuideVertex {
+typedef struct HairFiberVertex {
 	int flag;
 	float co[3];
-} HairGuideVertex;
+} HairFiberVertex;
 
-/* Guide curve data */
-typedef struct HairGuideData
+/* Hair curve data */
+typedef struct HairCurveData
 {
-	/* Curves for guiding hair fibers */
-	struct HairGuideCurve *curves;
-	/* Control vertices on guide curves */
-	struct HairGuideVertex *verts;
-	/* Number of guide curves */
+	/* Curves for shaping hair fibers */
+	struct HairFiberCurve *curves;
+	/* Control vertices on curves */
+	struct HairFiberVertex *verts;
+	/* Number of curves */
 	int totcurves;
-	/* Number of guide curve vertices */
+	/* Number of curve vertices */
 	int totverts;
-} HairGuideData;
+} HairCurveData;
 
 typedef struct HairSystem {
 	int flag;
@@ -89,8 +85,8 @@ typedef struct HairSystem {
 	/* Set of hair follicles on the scalp mesh */
 	struct HairPattern *pattern;
 	
-	/* Guide curve data */
-	HairGuideData guides;
+	/* Curve data */
+	HairCurveData curve_data;
 	
 	/* Data buffers for drawing */
 	void *draw_batch_cache;
@@ -100,14 +96,14 @@ typedef struct HairSystem {
 
 typedef enum eHairSystemFlag
 {
-	/* Guide curve positions have changed, rebind hair follicles */
+	/* Curve positions have changed, rebind hair follicles */
 	HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING = (1 << 8),
 } eHairSystemFlag;
 
 typedef struct HairDrawSettings
 {
 	short follicle_mode;
-	short guide_mode;
+	short fiber_mode;
 	short shape_flag;
 	short pad;
 	
@@ -123,11 +119,11 @@ typedef enum eHairDrawFollicleMode
 	HAIR_DRAW_FOLLICLE_POINTS   = 1,
 } eHairDrawFollicleMode;
 
-typedef enum eHairDrawGuideMode
+typedef enum eHairDrawFiberMode
 {
-	HAIR_DRAW_GUIDE_NONE        = 0,
-	HAIR_DRAW_GUIDE_CURVES      = 1,
-} eHairDrawGuideMode;
+	HAIR_DRAW_FIBER_NONE        = 0,
+	HAIR_DRAW_FIBER_CURVES      = 1,
+} eHairDrawFiberMode;
 
 typedef enum eHairDrawShapeFlag {
 	HAIR_DRAW_CLOSE_TIP         = (1<<0),

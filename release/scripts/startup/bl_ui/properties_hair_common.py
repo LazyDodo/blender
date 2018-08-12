@@ -16,22 +16,43 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-# <pep8 compliant>
-import bpy
-from bpy.types import UIList
+# <pep8-80 compliant>
 
-class HAIR_UL_groups(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        group = item
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.prop(group, "name", text="", emboss=False, icon_value=icon)
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon_value=icon)
+import bpy
+
+
+def draw_hair_display_settings(layout, settings):
+    col = layout.column(align=True)
+    col.label("Follicles:")
+    col.prop(settings, "follicle_mode", expand=True)
+
+    col = layout.column(align=True)
+    col.label("Guide Curves:")
+    col.prop(settings, "guide_mode", expand=True)
+
+    layout.prop(settings, "shape")
+
+    col = layout.column(align=True)
+    col.prop(settings, "root_radius")
+    col.prop(settings, "tip_radius")
+
+    col = layout.column()
+    col.prop(settings, "radius_scale")
+    col.prop(settings, "use_close_tip")
+
+
+class HAIR_PT_display_settings:
+    # subclasses must define...
+    # ~ bl_space_type = 'PROPERTIES'
+    # ~ bl_region_type = 'WINDOW'
+    bl_label = "Hair Display Settings"
+
+    def draw(self, context):
+        settings = context.draw_hair_display_settings
+        draw_hair_display_settings(self.layout, hair_display_settings)
 
 
 classes = (
-    HAIR_UL_groups,
 )
 
 if __name__ == "__main__":  # only for live edit.

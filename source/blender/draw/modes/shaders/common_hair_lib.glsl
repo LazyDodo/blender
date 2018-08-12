@@ -6,13 +6,6 @@
  **/
 
 /**
- * hairStrandsRes: Number of points per hair strand.
- * 2 - no subdivision
- * 3+ - 1 or more interpolated points per hair.
- **/
-uniform int hairStrandsRes = 8;
-
-/**
  * hairThicknessRes : Subdiv around the hair.
  * 1 - Wire Hair: Only one pixel thick, independant of view distance.
  * 2 - Polystrip Hair: Correct width, flat if camera is parallel.
@@ -33,6 +26,7 @@ uniform samplerBuffer hairPointBuffer; /* RGBA32F */
 
 /* -- Per strands data -- */
 uniform usamplerBuffer hairStrandBuffer; /* R32UI */
+uniform usamplerBuffer hairIndexBuffer; /* R32UI */
 
 /* Not used, use one buffer per uv layer */
 //uniform samplerBuffer hairUVBuffer; /* RG32F */
@@ -49,6 +43,13 @@ void unpack_strand_data(uint data, out int strand_offset, out int strand_segment
 #endif
 }
 
+int hair_get_strand_id(void)
+{
+	//return gl_VertexID / (hairStrandsRes * hairThicknessRes);
+	uint strand_index = texelFetch(hairIndexBuffer, gl_VertexID).x;
+	return int(strand_index);
+}
+
 /* -- Subdivision stage -- */
 /**
  * We use a transform feedback to preprocess the strands and add more subdivision to it.
@@ -59,40 +60,40 @@ void unpack_strand_data(uint data, out int strand_offset, out int strand_segment
  **/
 
 #ifdef HAIR_PHASE_SUBDIV
-int hair_get_base_id(float local_time, int strand_segments, out float interp_time)
+/**
+ * Calculate segment and local time for interpolation
+ */
+void hair_get_interp_time(float local_time, int strand_segments, out int interp_segment, out float interp_time)
 {
 	float time_per_strand_seg = 1.0 / float(strand_segments);
 
 	float ratio = local_time / time_per_strand_seg;
+	interp_segment = int(ratio);
 	interp_time = fract(ratio);
-
-	return int(ratio);
 }
 
 void hair_get_interp_attribs(out vec4 data0, out vec4 data1, out vec4 data2, out vec4 data3, out float interp_time)
 {
-	float local_time = float(gl_VertexID % hairStrandsRes) / float(hairStrandsRes - 1);
-
-	int hair_id = gl_VertexID / hairStrandsRes;
-	uint strand_data = texelFetch(hairStrandBuffer, hair_id).x;
-
+	int strand_index = hair_get_strand_id();
+	uint strand_data = texelFetch(hairStrandBuffer, strand_index).x;
 	int strand_offset, strand_segments;
 	unpack_strand_data(strand_data, strand_offset, strand_segments);
 
-	int id = hair_get_base_id(local_time, strand_segments, interp_time);
+	float local_time = float(gl_VertexID - strand_offset) / float(strand_segments);
+	int interp_segment;
+	hair_get_interp_time(local_time, strand_segments, interp_segment, interp_time);
+	int interp_point = interp_segment + strand_offset;
 
-	int ofs_id = id + strand_offset;
+	data0 = texelFetch(hairPointBuffer, interp_point - 1);
+	data1 = texelFetch(hairPointBuffer, interp_point);
+	data2 = texelFetch(hairPointBuffer, interp_point + 1);
+	data3 = texelFetch(hairPointBuffer, interp_point + 2);
 
-	data0 = texelFetch(hairPointBuffer, ofs_id - 1);
-	data1 = texelFetch(hairPointBuffer, ofs_id);
-	data2 = texelFetch(hairPointBuffer, ofs_id + 1);
-	data3 = texelFetch(hairPointBuffer, ofs_id + 2);
-
-	if (id <= 0) {
+	if (interp_segment <= 0) {
 		/* root points. Need to reconstruct previous data. */
 		data0 = data1 * 2.0 - data2;
 	}
-	if (id + 1 >= strand_segments) {
+	if (interp_segment + 1 >= strand_segments) {
 		/* tip points. Need to reconstruct next data. */
 		data3 = data2 * 2.0 - data1;
 	}
@@ -105,11 +106,6 @@ void hair_get_interp_attribs(out vec4 data0, out vec4 data1, out vec4 data2, out
  **/
 
 #ifndef HAIR_PHASE_SUBDIV
-int hair_get_strand_id(void)
-{
-	return gl_VertexID / (hairStrandsRes * hairThicknessRes);
-}
-
 int hair_get_base_id(void)
 {
 	return gl_VertexID / hairThicknessRes;
@@ -165,25 +161,25 @@ void hair_get_pos_tan_binor_time(
 
 vec2 hair_get_customdata_vec2(const samplerBuffer cd_buf)
 {
-	int id = hair_get_strand_id();
-	return texelFetch(cd_buf, id).rg;
+	int strand_index = hair_get_strand_id();
+	return texelFetch(cd_buf, strand_index).rg;
 }
 
 vec3 hair_get_customdata_vec3(const samplerBuffer cd_buf)
 {
-	int id = hair_get_strand_id();
-	return texelFetch(cd_buf, id).rgb;
+	int strand_index = hair_get_strand_id();
+	return texelFetch(cd_buf, strand_index).rgb;
 }
 
 vec4 hair_get_customdata_vec4(const samplerBuffer cd_buf)
 {
-	int id = hair_get_strand_id();
-	return texelFetch(cd_buf, id).rgba;
+	int strand_index = hair_get_strand_id();
+	return texelFetch(cd_buf, strand_index).rgba;
 }
 
-vec3 hair_get_strand_pos(void)
+vec3 hair_get_strand_pos()
 {
-	int id = hair_get_strand_id() * hairStrandsRes;
+	int id = hair_get_base_id();
 	return texelFetch(hairPointBuffer, id).point_position;
 }
 

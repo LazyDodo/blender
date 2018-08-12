@@ -66,7 +66,6 @@ set(SRC
 	intern/draw_common.c
 	intern/draw_debug.c
 	intern/draw_hair.c
-	intern/draw_hair_fibers.c
 	intern/draw_instance_data.c
 	intern/draw_manager.c
 	intern/draw_manager_data.c
@@ -231,7 +230,6 @@ data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_hair_lib.glsl SRC)
-data_to_c_simple(modes/shaders/common_hair_guides_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_hair_refine_vert.glsl SRC)
 data_to_c_simple(modes/shaders/common_view_lib.glsl SRC)
 data_to_c_simple(modes/shaders/common_fxaa_lib.glsl SRC)

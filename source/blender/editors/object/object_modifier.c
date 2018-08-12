@@ -37,6 +37,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_curve_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -2440,12 +2441,36 @@ static int hair_generate_follicles_exec(bContext *C, wmOperator *op)
 	
 	BLI_assert(ob && ob->type == OB_MESH);
 	Mesh *scalp = (Mesh *)DEG_get_evaluated_id(depsgraph, ob->data);
+	HairSystem *hsys = hmd->hair_system;
 	
 	BKE_hair_generate_follicles(
-	            hmd->hair_system,
+	            hsys,
 	            scalp,
 	            (unsigned int)hmd->follicle_seed,
 	            hmd->follicle_count);
+	
+	{
+		const int numverts = 5;
+		const float hairlen = 0.05f;
+		const float taper_length = 0.02f;
+		const float taper_thickness = 0.8f;
+		BKE_hair_fiber_curves_begin(hsys, hsys->pattern->num_follicles);
+		for (int i = 0; i < hsys->pattern->num_follicles; ++i)
+		{
+			BKE_hair_set_fiber_curve(hsys, i, numverts, taper_length, taper_thickness);
+		}
+		BKE_hair_fiber_curves_end(hsys);
+		for (int i = 0; i < hsys->pattern->num_follicles; ++i)
+		{
+			float loc[3], nor[3], tan[3];
+			BKE_mesh_sample_eval(scalp, &hsys->pattern->follicles[i].mesh_sample, loc, nor, tan);
+			for (int j = 0; j < numverts; ++j)
+			{
+				madd_v3_v3fl(loc, nor, hairlen / (numverts-1));
+				BKE_hair_set_fiber_vertex(hsys, i * numverts + j, 0, loc);
+			}
+		}
+	}
 	
 	BKE_hair_bind_follicles(hmd->hair_system, scalp);
 	

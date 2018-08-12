@@ -39,7 +39,7 @@
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
-#define MAX_SHADERS (1 << 11)
+#define MAX_SHADERS (1 << 10)
 
 #define TEXTURE_DRAWING_ENABLED(wpd) (wpd->shading.color_type & V3D_SHADING_TEXTURE_COLOR)
 #define FLAT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_FLAT)
@@ -142,17 +142,13 @@ typedef struct WORKBENCH_PrivateData {
 	struct GHash *material_hash;
 	struct GPUShader *prepass_solid_sh;
 	struct GPUShader *prepass_solid_hair_sh;
-	struct GPUShader *prepass_solid_hair_fibers_sh;
 	struct GPUShader *prepass_texture_sh;
 	struct GPUShader *prepass_texture_hair_sh;
-	struct GPUShader *prepass_texture_hair_fibers_sh;
 	struct GPUShader *composite_sh;
 	struct GPUShader *transparent_accum_sh;
 	struct GPUShader *transparent_accum_hair_sh;
-	struct GPUShader *transparent_accum_hair_fibers_sh;
 	struct GPUShader *transparent_accum_texture_sh;
 	struct GPUShader *transparent_accum_texture_hair_sh;
-	struct GPUShader *transparent_accum_texture_hair_fibers_sh;
 	View3DShading shading;
 	StudioLight *studio_light;
 	UserDef *user_preferences;
@@ -261,18 +257,11 @@ void workbench_taa_view_updated(WORKBENCH_Data *vedata);
 int workbench_taa_calculate_num_iterations(WORKBENCH_Data *vedata);
 
 /* workbench_materials.c */
-typedef enum DRWShaderHairType
-{
-	DRW_SHADER_HAIR_NONE = 0,
-	DRW_SHADER_HAIR_PARTICLES = 1,
-	DRW_SHADER_HAIR_FIBERS = 2,
-} DRWShaderHairType;
-
 int workbench_material_determine_color_type(WORKBENCH_PrivateData *wpd, Image *ima);
-char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, bool use_textures, DRWShaderHairType hair_type);
+char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
 void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, WORKBENCH_MaterialData *data);
 uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template);
-int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, bool use_textures, DRWShaderHairType hair_type);
+int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
 void workbench_material_set_normal_world_matrix(
         DRWShadingGroup *grp, WORKBENCH_PrivateData *wpd, float persistent_matrix[3][3]);
 void workbench_material_shgroup_uniform(WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material);

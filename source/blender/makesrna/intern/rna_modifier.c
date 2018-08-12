@@ -1179,49 +1179,46 @@ static void rna_ParticleInstanceModifier_particle_system_set(PointerRNA *ptr, co
 	CLAMP_MIN(psmd->psys, 1);
 }
 
-static void rna_Hair_guide_curves_clear(HairModifierData *hmd)
+static void rna_Hair_fiber_curves_clear(HairModifierData *hmd)
 {
-	for (HairModifierGuideCurve* curve = hmd->guide_curves.first; curve; curve = curve->next)
+	for (HairModifierFiberCurve* curve = hmd->fiber_curves.first; curve; curve = curve->next)
 	{
 		if (curve->verts)
 		{
 			MEM_freeN(curve->verts);
 		}
 	}
-	BLI_freelistN(&hmd->guide_curves);
+	BLI_freelistN(&hmd->fiber_curves);
 }
 
-static void rna_Hair_guide_curves_new(HairModifierData *hmd, ReportList *UNUSED(reports), int numverts)
+static void rna_Hair_fiber_curves_new(HairModifierData *hmd, ReportList *UNUSED(reports), int numverts)
 {
-	HairModifierGuideCurve *curve = MEM_callocN(sizeof(HairModifierGuideCurve), "hair guide curve");
+	HairModifierFiberCurve *curve = MEM_callocN(sizeof(HairModifierFiberCurve), "hair fiber curve");
 	curve->numverts = numverts;
-	curve->verts = MEM_callocN(sizeof(HairGuideVertex) * numverts, "hair guide curve vertices");
+	curve->verts = MEM_callocN(sizeof(HairFiberVertex) * numverts, "hair fiber curve vertices");
 	
-	BLI_addtail(&hmd->guide_curves, curve);
+	BLI_addtail(&hmd->fiber_curves, curve);
 }
 
-static void rna_Hair_guide_curves_apply(ID *id, HairModifierData *hmd, bContext *C, ReportList *UNUSED(reports))
+static void rna_Hair_fiber_curves_apply(ID *id, HairModifierData *hmd, bContext *C, ReportList *UNUSED(reports))
 {
-	const int totcurves = BLI_listbase_count(&hmd->guide_curves);
+	const int totcurves = BLI_listbase_count(&hmd->fiber_curves);
 	int i = 0;
 	
-	MeshSample msample;
-	memset(&msample, 0, sizeof(msample));
-	
-	BKE_hair_guide_curves_begin(hmd->hair_system, totcurves);
+	BKE_hair_fiber_curves_begin(hmd->hair_system, totcurves);
 	i = 0;
-	for (HairModifierGuideCurve *curve = hmd->guide_curves.first; curve; curve = curve->next, ++i)
+	for (HairModifierFiberCurve *curve = hmd->fiber_curves.first; curve; curve = curve->next, ++i)
 	{
-		BKE_hair_set_guide_curve(hmd->hair_system, i, &msample, curve->numverts, 0.1, 1.0);
+		BKE_hair_set_fiber_curve(hmd->hair_system, i, curve->numverts, 0.1, 1.0);
 	}
-	BKE_hair_guide_curves_end(hmd->hair_system);
+	BKE_hair_fiber_curves_end(hmd->hair_system);
 	
 	i = 0;
-	for (HairModifierGuideCurve *curve = hmd->guide_curves.first; curve; curve = curve->next)
+	for (HairModifierFiberCurve *curve = hmd->fiber_curves.first; curve; curve = curve->next)
 	{
 		for (int j = 0; j < curve->numverts; ++j, ++i)
 		{
-			BKE_hair_set_guide_vertex(hmd->hair_system, i, curve->verts[j].flag, curve->verts[j].co);
+			BKE_hair_set_fiber_vertex(hmd->hair_system, i, curve->verts[j].flag, curve->verts[j].co);
 		}
 	}
 	
@@ -4941,49 +4938,49 @@ static void rna_def_modifier_surfacedeform(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 }
 
-static void rna_def_modifier_hair_guide_curve(BlenderRNA *brna)
+static void rna_def_modifier_hair_fiber_curve(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
 	
-	srna = RNA_def_struct(brna, "HairModifierGuideCurve", NULL);
-	RNA_def_struct_ui_text(srna, "Hair Modifier Guide Curve", "");
-	RNA_def_struct_sdna(srna, "HairModifierGuideCurve");
+	srna = RNA_def_struct(brna, "HairModifierFiberCurve", NULL);
+	RNA_def_struct_ui_text(srna, "Hair Modifier Fiber Curve", "");
+	RNA_def_struct_sdna(srna, "HairModifierFiberCurve");
 	
 	prop = RNA_def_property(srna, "vertices", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "verts", "numverts");
-	RNA_def_property_struct_type(prop, "HairModifierGuideVertex");
-	RNA_def_property_ui_text(prop, "Vertices", "Guide vertices");
+	RNA_def_property_struct_type(prop, "HairModifierFiberVertex");
+	RNA_def_property_ui_text(prop, "Vertices", "Fiber vertices");
 
 
-	srna = RNA_def_struct(brna, "HairModifierGuideVertex", NULL);
-	RNA_def_struct_ui_text(srna, "Hair Modifier Guide Vertex", "");
-	RNA_def_struct_sdna(srna, "HairGuideVertex");
+	srna = RNA_def_struct(brna, "HairModifierFiberVertex", NULL);
+	RNA_def_struct_ui_text(srna, "Hair Modifier Fiber Vertex", "");
+	RNA_def_struct_sdna(srna, "HairFiberVertex");
 	
 	prop = RNA_def_property(srna, "location", PROP_FLOAT, PROP_TRANSLATION);
 	RNA_def_property_float_sdna(prop, NULL, "co");
 	RNA_def_property_ui_text(prop, "Location", "Location of the vertex relative to the root");
 }
 
-static void rna_def_modifier_hair_guide_curves_api(BlenderRNA *brna, PropertyRNA *cprop)
+static void rna_def_modifier_hair_fiber_curves_api(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
 	
-	RNA_def_property_srna(cprop, "HairModifierGuideCurves");
-	srna = RNA_def_struct(brna, "HairModifierGuideCurves", NULL);
-	RNA_def_struct_ui_text(srna, "Hair Modifier Guide Curves", "");
+	RNA_def_property_srna(cprop, "HairModifierFiberCurves");
+	srna = RNA_def_struct(brna, "HairModifierFiberCurves", NULL);
+	RNA_def_struct_ui_text(srna, "Hair Modifier Fiber Curves", "");
 	RNA_def_struct_sdna(srna, "HairModifierData");
 	
-	/*func =*/ RNA_def_function(srna, "clear", "rna_Hair_guide_curves_clear");
+	/*func =*/ RNA_def_function(srna, "clear", "rna_Hair_fiber_curves_clear");
 	
-	func = RNA_def_function(srna, "new", "rna_Hair_guide_curves_new");
+	func = RNA_def_function(srna, "new", "rna_Hair_fiber_curves_new");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_int(func, "vertex_count", 2, 0, INT_MAX, "Vertex Count", "Number of vertices", 2, 1000);
 	RNA_def_property_flag(parm, PARM_REQUIRED);
 	
-	func = RNA_def_function(srna, "apply", "rna_Hair_guide_curves_apply");
+	func = RNA_def_function(srna, "apply", "rna_Hair_fiber_curves_apply");
 	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_CONTEXT | FUNC_USE_REPORTS);
 }
 
@@ -5015,13 +5012,13 @@ static void rna_def_modifier_hair(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Draw Settings", "Hair draw settings");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
-	prop = RNA_def_property(srna, "guide_curves", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "guide_curves", NULL);
-	RNA_def_property_struct_type(prop, "HairModifierGuideCurve");
-	RNA_def_property_ui_text(prop, "Guide Curves", "Guide curve data");
-	rna_def_modifier_hair_guide_curves_api(brna, prop);
+	prop = RNA_def_property(srna, "fiber_curves", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "fiber_curves", NULL);
+	RNA_def_property_struct_type(prop, "HairModifierFiberCurve");
+	RNA_def_property_ui_text(prop, "Fiber Curves", "Fiber curve data");
+	rna_def_modifier_hair_fiber_curves_api(brna, prop);
 
-	rna_def_modifier_hair_guide_curve(brna);
+	rna_def_modifier_hair_fiber_curve(brna);
 }
 
 void RNA_def_modifier(BlenderRNA *brna)

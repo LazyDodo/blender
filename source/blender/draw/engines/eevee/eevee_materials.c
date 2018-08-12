@@ -43,7 +43,6 @@
 #include "DNA_hair_types.h"
 
 #include "GPU_material.h"
-#include "GPU_texture.h"
 
 #include "eevee_engine.h"
 #include "eevee_lut.h"
@@ -57,8 +56,6 @@ static struct {
 
 	struct GPUShader *default_prepass_sh;
 	struct GPUShader *default_prepass_clip_sh;
-	struct GPUShader *default_prepass_hair_fiber_sh;
-	struct GPUShader *default_prepass_hair_fiber_clip_sh;
 	struct GPUShader *default_hair_prepass_sh;
 	struct GPUShader *default_hair_prepass_clip_sh;
 	struct GPUShader *default_lit[VAR_MAT_MAX];
@@ -91,7 +88,6 @@ extern char datatoc_bsdf_common_lib_glsl[];
 extern char datatoc_bsdf_sampling_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
 extern char datatoc_common_hair_lib_glsl[];
-extern char datatoc_common_hair_guides_lib_glsl[];
 extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_irradiance_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
@@ -290,9 +286,6 @@ static char *eevee_get_defines(int options)
 	}
 	if ((options & VAR_MAT_HAIR) != 0) {
 		BLI_dynstr_appendf(ds, "#define HAIR_SHADER\n");
-	}
-	if ((options & VAR_MAT_HAIR_FIBERS) != 0) {
-		BLI_dynstr_append(ds, DRW_hair_shader_defines());
 	}
 	if ((options & VAR_MAT_PROBE) != 0) {
 		BLI_dynstr_appendf(ds, "#define PROBE_CAPTURE\n");
@@ -573,7 +566,7 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		        datatoc_lit_surface_frag_glsl,
 		        datatoc_lit_surface_frag_glsl,
 		        datatoc_volumetric_lib_glsl);
-		
+
 		e_data.volume_shader_lib = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_uniforms_lib_glsl,
@@ -590,7 +583,6 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		e_data.vert_shader_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
 		        datatoc_common_hair_lib_glsl,
-		        datatoc_common_hair_guides_lib_glsl,
 		        datatoc_lit_surface_vert_glsl);
 
 		e_data.default_background = DRW_shader_create(
@@ -608,25 +600,6 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 		e_data.default_prepass_clip_sh = DRW_shader_create(
 		        datatoc_prepass_vert_glsl, NULL, datatoc_prepass_frag_glsl,
 		        "#define CLIP_PLANES\n");
-
-		char *hair_fiber_vert_str = BLI_string_joinN(
-		        datatoc_common_view_lib_glsl,
-		        datatoc_common_hair_lib_glsl,
-		        datatoc_common_hair_guides_lib_glsl,
-		        datatoc_prepass_vert_glsl);
-
-		e_data.default_prepass_hair_fiber_sh = DRW_shader_create(
-		        hair_fiber_vert_str, NULL, datatoc_prepass_frag_glsl, DRW_hair_shader_defines());
-
-		{
-			char defines[256];
-			BLI_snprintf(defines, sizeof(defines), "#define CLIP_PLANES\n%s",
-			             DRW_hair_shader_defines());
-			e_data.default_prepass_hair_fiber_clip_sh = DRW_shader_create(
-			        hair_fiber_vert_str, NULL, datatoc_prepass_frag_glsl, defines);
-		}
-
-		MEM_freeN(hair_fiber_vert_str);
 
 		char *vert_str = BLI_string_joinN(
 		        datatoc_common_view_lib_glsl,
@@ -832,14 +805,13 @@ struct GPUMaterial *EEVEE_material_mesh_depth_get(
 }
 
 struct GPUMaterial *EEVEE_material_hair_get(
-        struct Scene *scene, Material *ma, int shadow_method, bool use_fibers)
+        struct Scene *scene, Material *ma, int shadow_method)
 {
 	const void *engine = &DRW_engine_viewport_eevee_type;
-	int options = VAR_MAT_HAIR | VAR_MAT_MESH;
+	int options = VAR_MAT_MESH | VAR_MAT_HAIR;
+
 	options |= eevee_material_shadow_option(shadow_method);
-	if (use_fibers) {
-		options |= VAR_MAT_HAIR_FIBERS;
-	}
+
 	GPUMaterial *mat = DRW_shader_find_from_material(ma, engine, options, true);
 
 	if (mat) {
@@ -858,27 +830,19 @@ struct GPUMaterial *EEVEE_material_hair_get(
 	return mat;
 }
 
-typedef enum ShaderHairType
-{
-	DRW_SHADER_HAIR_NONE,
-	DRW_SHADER_HAIR_PARTICLES,
-	DRW_SHADER_HAIR_FIBERS,
-} ShaderHairType;
-
 /**
  * Create a default shading group inside the given pass.
  **/
 static struct DRWShadingGroup *EEVEE_default_shading_group_create(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, DRWPass *pass,
-        ShaderHairType hair_type, bool is_flat_normal, bool use_blend, bool use_ssr, int shadow_method)
+        bool is_hair, bool is_flat_normal, bool use_blend, bool use_ssr, int shadow_method)
 {
 	EEVEE_EffectsInfo *effects = vedata->stl->effects;
 	static int ssr_id;
 	ssr_id = (use_ssr) ? 1 : -1;
 	int options = VAR_MAT_MESH;
 
-	if (hair_type == DRW_SHADER_HAIR_PARTICLES) options |= VAR_MAT_HAIR;
-	if (hair_type == DRW_SHADER_HAIR_FIBERS) options |= VAR_MAT_HAIR | VAR_MAT_HAIR_FIBERS;
+	if (is_hair) options |= VAR_MAT_HAIR;
 	if (is_flat_normal) options |= VAR_MAT_FLAT;
 	if (use_blend) options |= VAR_MAT_BLEND;
 	if (((effects->enabled_effects & EFFECT_VOLUMETRIC) != 0) && use_blend) options |= VAR_MAT_VOLUME;
@@ -900,17 +864,18 @@ static struct DRWShadingGroup *EEVEE_default_shading_group_create(
  **/
 static struct DRWShadingGroup *EEVEE_default_shading_group_get(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
-        Object *ob, ParticleSystem *psys, ModifierData *md,
-        ShaderHairType hair_type, bool is_flat_normal, bool use_ssr, int shadow_method)
+        Object *ob,
+        ParticleSystem *psys, ModifierData *md,
+        HairSystem *hsys, const HairDrawSettings *hdraw, struct Mesh *scalp,
+        bool is_hair, bool is_flat_normal, bool use_ssr, int shadow_method)
 {
 	static int ssr_id;
 	ssr_id = (use_ssr) ? 1 : -1;
 	int options = VAR_MAT_MESH;
 
-	BLI_assert(hair_type != DRW_SHADER_HAIR_PARTICLES || (ob && psys && md));
+	BLI_assert(!is_hair || (ob && psys && md) || (ob && hsys && hdraw && scalp));
 
-	if (hair_type == DRW_SHADER_HAIR_PARTICLES) options |= VAR_MAT_HAIR;
-	if (hair_type == DRW_SHADER_HAIR_FIBERS) options |= VAR_MAT_HAIR | VAR_MAT_HAIR_FIBERS;
+	if (is_hair) options |= VAR_MAT_HAIR;
 	if (is_flat_normal) options |= VAR_MAT_FLAT;
 
 	options |= eevee_material_shadow_option(shadow_method);
@@ -920,23 +885,30 @@ static struct DRWShadingGroup *EEVEE_default_shading_group_get(
 	}
 
 	if (vedata->psl->default_pass[options] == NULL) {
-		//DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL | DRW_STATE_CLIP_PLANES | DRW_STATE_WIRE;
 		vedata->psl->default_pass[options] = DRW_pass_create("Default Lit Pass", state);
 
 		/* XXX / WATCH: This creates non persistent binds for the ubos and textures.
 		 * But it's currently OK because the following shgroups does not add any bind.
 		 * EDIT: THIS IS NOT THE CASE FOR HAIRS !!! DUMMY!!! */
-		if (hair_type != DRW_SHADER_HAIR_PARTICLES) {
+		if (!is_hair) {
 			DRWShadingGroup *shgrp = DRW_shgroup_create(e_data.default_lit[options], vedata->psl->default_pass[options]);
 			add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL, false, false);
 		}
 	}
 
-	if (hair_type == DRW_SHADER_HAIR_PARTICLES) {
-		DRWShadingGroup *shgrp = DRW_shgroup_hair_create(ob, psys, md,
-		                                                 vedata->psl->default_pass[options],
-		                                                 e_data.default_lit[options]);
+	if (is_hair) {
+		DRWShadingGroup *shgrp = NULL;
+		if (psys && md) {
+			shgrp = DRW_shgroup_particle_hair_create(ob, psys, md,
+			                                         vedata->psl->default_pass[options],
+			                                         e_data.default_lit[options]);
+		}
+		else if (hsys && hdraw && scalp) {
+			shgrp = DRW_shgroup_hair_create(ob, hsys, scalp, hdraw,
+			                                vedata->psl->default_pass[options],
+			                                e_data.default_lit[options]);
+		}
 		add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL, false, false);
 		return shgrp;
 	}
@@ -1288,8 +1260,8 @@ static void material_opaque(
 	if (*shgrp == NULL) {
 		bool use_ssr = ((effects->enabled_effects & EFFECT_SSR) != 0);
 		*shgrp = EEVEE_default_shading_group_get(sldata, vedata,
-		                                         NULL, NULL, NULL,
-		                                         DRW_SHADER_HAIR_NONE, use_flat_nor, use_ssr, linfo->shadow_method);
+		                                         NULL, NULL, NULL, NULL, NULL, NULL,
+		                                         false, use_flat_nor, use_ssr, linfo->shadow_method);
 		DRW_shgroup_uniform_vec3(*shgrp, "basecol", color_p, 1);
 		DRW_shgroup_uniform_float(*shgrp, "metallic", metal_p, 1);
 		DRW_shgroup_uniform_float(*shgrp, "specular", spec_p, 1);
@@ -1374,7 +1346,7 @@ static void material_transparent(
 	if (*shgrp == NULL) {
 		*shgrp = EEVEE_default_shading_group_create(
 		        sldata, vedata, psl->transparent_pass,
-		        DRW_SHADER_HAIR_NONE, use_flat_nor, true, false, linfo->shadow_method);
+		        false, use_flat_nor, true, false, linfo->shadow_method);
 		DRW_shgroup_uniform_vec3(*shgrp, "basecol", color_p, 1);
 		DRW_shgroup_uniform_float(*shgrp, "metallic", metal_p, 1);
 		DRW_shgroup_uniform_float(*shgrp, "specular", spec_p, 1);
@@ -1462,12 +1434,12 @@ static void material_particle_hair(
 	float *spec_p = &ma->spec;
 	float *rough_p = &ma->roughness;
 
-	shgrp = DRW_shgroup_hair_create(
+	shgrp = DRW_shgroup_particle_hair_create(
 	        ob, psys, md,
 	        psl->depth_pass,
 	        e_data.default_hair_prepass_sh);
 
-	shgrp = DRW_shgroup_hair_create(
+	shgrp = DRW_shgroup_particle_hair_create(
 	        ob, psys, md,
 	        psl->depth_pass_clip,
 	        e_data.default_hair_prepass_clip_sh);
@@ -1480,12 +1452,12 @@ static void material_particle_hair(
 		static float half = 0.5f;
 		static float error_col[3] = {1.0f, 0.0f, 1.0f};
 		static float compile_col[3] = {0.5f, 0.5f, 0.5f};
-		struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, ma, sldata->lamps->shadow_method, false);
+		struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, ma, sldata->lamps->shadow_method);
 
 		switch (GPU_material_status(gpumat)) {
 			case GPU_MAT_SUCCESS:
 			{
-				shgrp = DRW_shgroup_material_hair_create(
+				shgrp = DRW_shgroup_material_particle_hair_create(
 				        ob, psys, md,
 				        psl->material_pass,
 				        gpumat);
@@ -1509,8 +1481,8 @@ static void material_particle_hair(
 	/* Fallback to default shader */
 	if (shgrp == NULL) {
 		shgrp = EEVEE_default_shading_group_get(sldata, vedata,
-		                                        ob, psys, md,
-		                                        DRW_SHADER_HAIR_PARTICLES, false, use_ssr,
+		                                        ob, psys, md, NULL, NULL, NULL,
+		                                        true, false, use_ssr,
 		                                        sldata->lamps->shadow_method);
 		DRW_shgroup_uniform_vec3(shgrp, "basecol", color_p, 1);
 		DRW_shgroup_uniform_float(shgrp, "metallic", metal_p, 1);
@@ -1519,7 +1491,7 @@ static void material_particle_hair(
 	}
 	
 	/* Shadows */
-	DRW_shgroup_hair_create(
+	DRW_shgroup_particle_hair_create(
 	        ob, psys, md,
 	        psl->shadow_pass,
 	        e_data.default_hair_prepass_sh);
@@ -1542,15 +1514,26 @@ static void material_hair(
 	float mat[4][4];
 	copy_m4_m4(mat, ob->obmat);
 	
+	if (draw_set->fiber_mode != HAIR_DRAW_FIBER_CURVES)
+	{
+		return;
+	}
+	
 	if (ma == NULL) {
 		ma = &defmaterial;
 	}
 	
 	{
-		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, draw_set, psl->depth_pass, e_data.default_prepass_hair_fiber_sh);
+		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_create(
+		            ob, hsys, scalp, draw_set,
+		            psl->depth_pass,
+		            e_data.default_hair_prepass_sh);
 	}
 	{
-		DRWShadingGroup *shgrp = DRW_shgroup_hair_fibers_create(scene, ob, hsys, scalp, draw_set, psl->depth_pass_clip, e_data.default_prepass_hair_fiber_clip_sh);
+		DRWShadingGroup *shgrp = DRW_shgroup_hair_create(
+		                             ob, hsys, scalp, draw_set,
+		                             psl->depth_pass_clip,
+		                             e_data.default_hair_prepass_clip_sh);
 		DRW_shgroup_uniform_block(shgrp, "clip_block", sldata->clip_ubo);
 	}
 	
@@ -1567,15 +1550,15 @@ static void material_hair(
 			static float half = 0.5f;
 			static float error_col[3] = {1.0f, 0.0f, 1.0f};
 			static float compile_col[3] = {0.5f, 0.5f, 0.5f};
-			struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, ma, sldata->lamps->shadow_method, true);
+			struct GPUMaterial *gpumat = EEVEE_material_hair_get(scene, ma, sldata->lamps->shadow_method);
 			
 			switch (GPU_material_status(gpumat)) {
 				case GPU_MAT_SUCCESS:
 				{
-					shgrp = DRW_shgroup_material_hair_fibers_create(
-					        scene, ob, hsys, scalp,
-					        draw_set, psl->material_pass,
-					        gpumat);
+					shgrp = DRW_shgroup_material_hair_create(
+					            ob, hsys, scalp, draw_set,
+					            psl->material_pass,
+					            gpumat);
 					add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL, false, false);
 					break;
 				}
@@ -1596,8 +1579,8 @@ static void material_hair(
 		/* Fallback to default shader */
 		if (shgrp == NULL) {
 			shgrp = EEVEE_default_shading_group_get(sldata, vedata,
-			                                        NULL, NULL, NULL, DRW_SHADER_HAIR_FIBERS,
-			                                        false, use_ssr,
+			                                        ob, NULL, NULL, hsys, draw_set, scalp,
+			                                        true, false, use_ssr,
 			                                        sldata->lamps->shadow_method);
 			DRW_shgroup_uniform_vec3(shgrp, "basecol", color_p, 1);
 			DRW_shgroup_uniform_float(shgrp, "metallic", metal_p, 1);
@@ -1607,10 +1590,10 @@ static void material_hair(
 	}
 	
 	/* Shadows */
-	DRW_shgroup_hair_fibers_create(
-	        scene, ob, hsys, scalp,
-	        draw_set, psl->shadow_pass,
-	        e_data.default_prepass_hair_fiber_sh);
+	DRW_shgroup_hair_create(
+	            ob, hsys, scalp, draw_set,
+	            psl->shadow_pass,
+	            e_data.default_hair_prepass_sh);
 }
 
 void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, Object *ob, bool *cast_shadow)
@@ -1885,8 +1868,6 @@ void EEVEE_materials_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.default_hair_prepass_clip_sh);
 	DRW_SHADER_FREE_SAFE(e_data.default_prepass_sh);
 	DRW_SHADER_FREE_SAFE(e_data.default_prepass_clip_sh);
-	DRW_SHADER_FREE_SAFE(e_data.default_prepass_hair_fiber_sh);
-	DRW_SHADER_FREE_SAFE(e_data.default_prepass_hair_fiber_clip_sh);
 	DRW_SHADER_FREE_SAFE(e_data.default_background);
 	DRW_SHADER_FREE_SAFE(e_data.default_studiolight_background);
 	DRW_SHADER_FREE_SAFE(e_data.update_noise_sh);

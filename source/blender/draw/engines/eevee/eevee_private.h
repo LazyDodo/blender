@@ -122,12 +122,11 @@ enum {
 	VAR_MAT_VSM         = (1 << 5),
 	VAR_MAT_ESM         = (1 << 6),
 	VAR_MAT_VOLUME      = (1 << 7),
-	VAR_MAT_LOOKDEV     = (1 << 8),
-	VAR_MAT_HAIR_FIBERS = (1 << 9),
+	VAR_MAT_LOOKDEV = (1 << 8),
 	/* Max number of variation */
 	/* IMPORTANT : Leave it last and set
 	 * it's value accordingly. */
-	VAR_MAT_MAX         = (1 << 10),
+	VAR_MAT_MAX         = (1 << 9),
 	/* These are options that are not counted in VAR_MAT_MAX
 	 * because they are not cumulative with the others above. */
 	VAR_MAT_CLIP        = (1 << 10),
@@ -806,9 +805,7 @@ struct GPUMaterial *EEVEE_material_mesh_volume_get(
         struct Scene *scene, Material *ma);
 struct GPUMaterial *EEVEE_material_mesh_depth_get(
         struct Scene *scene, Material *ma, bool use_hashed_alpha, bool is_shadow);
-struct GPUMaterial *EEVEE_material_hair_get(
-        struct Scene *scene, Material *ma, int shadow_method, bool use_fibers);
-
+struct GPUMaterial *EEVEE_material_hair_get(struct Scene *scene, Material *ma, int shadow_method);
 void EEVEE_materials_free(void);
 void EEVEE_draw_default_passes(EEVEE_PassList *psl);
 void EEVEE_update_noise(EEVEE_PassList *psl, EEVEE_FramebufferList *fbl, const double offsets[3]);
