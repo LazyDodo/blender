@@ -2083,9 +2083,39 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 			return false;
 		}
 
+		//Taken from BM_edge_rotate_check_degenerate
+
+		//Check if the flip will cause a potential fold
 		BMLoop *l1, *l2;
 		BM_edge_calc_rotate(edge, true, &l1, &l2);
-		if( !BM_edge_rotate_check_degenerate(edge, l1, l2) ){
+		float ed_dir_new[3], ed_dir_v1_new[3], ed_dir_v2_new[3], no[3];
+		BMVert *v1, *v2;
+		BMVert *v1_old, *v2_old;
+		BMVert *v1_alt, *v2_alt;
+
+		BM_edge_ordered_verts(edge, &v1_old, &v2_old);
+
+		v1 = l1->v;
+		v2 = l2->v;
+
+		/* get the next vert along */
+		v1_alt = BM_face_other_vert_loop(l1->f, v1_old, v1)->v;
+		v2_alt = BM_face_other_vert_loop(l2->f, v2_old, v2)->v;
+
+		sub_v3_v3v3(ed_dir_new, v1->co, v2->co);
+		sub_v3_v3v3(ed_dir_v1_new, v1->co, v1_alt->co);
+		sub_v3_v3v3(ed_dir_v2_new, v2->co, v2_alt->co);
+
+		//First flipped face
+		cross_v3_v3v3(no, ed_dir_new, ed_dir_v1_new);
+		normalize_v3(no);
+		if( dot_v3v3(new_norm, no) < 0.0f ){
+			return false;
+		}
+		//Second flipped face
+		cross_v3_v3v3(no, ed_dir_new, ed_dir_v2_new);
+		normalize_v3(no);
+		if( dot_v3v3(new_norm, no) < 0.0f ){
 			return false;
 		}
 
@@ -3364,19 +3394,32 @@ static void optimization( MeshData *m_d ){
 					}
 
 					{
-						float vec1[3], vec2[3];
 						int new_inco_faces = 0;
 						float new_diff_facing = 0;
+
+						//Taken from BM_edge_rotate_check_degenerate
+
+						//Check if the flip will cause a potential fold
+						float ed_dir_new[3], ed_dir_v1_new[3], ed_dir_v2_new[3];
 						BMVert *v1, *v2;
+						BMVert *v1_old, *v2_old;
+						BMVert *v1_alt, *v2_alt;
 
-						BM_edge_ordered_verts(edge, &v1, &v2);
+						BM_edge_ordered_verts(edge, &v1_old, &v2_old);
 
-						//TODO perhaps use normal_tri_v3 instead for normal calc
+						v1 = l1->v;
+						v2 = l2->v;
 
-						sub_v3_v3v3(vec1, v1->co, l1->v->co);
-						sub_v3_v3v3(vec2, v1->co, l2->v->co);
+						/* get the next vert along */
+						v1_alt = BM_face_other_vert_loop(l1->f, v1_old, v1)->v;
+						v2_alt = BM_face_other_vert_loop(l2->f, v2_old, v2)->v;
 
-						cross_v3_v3v3(no, vec1, vec2);
+						sub_v3_v3v3(ed_dir_new, v1->co, v2->co);
+						sub_v3_v3v3(ed_dir_v1_new, v1->co, v1_alt->co);
+						sub_v3_v3v3(ed_dir_v2_new, v2->co, v2_alt->co);
+
+						//First flipped face
+						cross_v3_v3v3(no, ed_dir_new, ed_dir_v1_new);
 						normalize_v3(no);
 
 						//Calc center mean of new face
@@ -3397,10 +3440,8 @@ static void optimization( MeshData *m_d ){
 							new_inco_faces++;
 						}
 
-						sub_v3_v3v3(vec1, v2->co, l1->v->co);
-						sub_v3_v3v3(vec2, v2->co, l2->v->co);
-
-						cross_v3_v3v3(no, vec2, vec1);
+						//Second flipped face
+						cross_v3_v3v3(no, ed_dir_new, ed_dir_v2_new);
 						normalize_v3(no);
 
 						//Calc center mean of new face
