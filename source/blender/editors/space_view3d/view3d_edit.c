@@ -52,6 +52,7 @@
 #include "BKE_camera.h"
 #include "BKE_context.h"
 #include "BKE_font.h"
+#include "BKE_gpencil.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -77,7 +78,6 @@
 #include "ED_screen.h"
 #include "ED_transform.h"
 #include "ED_mesh.h"
-#include "ED_gpencil.h"
 #include "ED_view3d.h"
 #include "ED_transform_snap_object_context.h"
 
@@ -2811,7 +2811,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ViewLayer *view_layer_eval = DEG_get_evaluated_view_layer(depsgraph);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
-	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
+	const bool is_gp_edit = GPENCIL_ANY_MODE(gpd);
 	const bool is_face_map = ((is_gp_edit == false) && ar->gizmo_map &&
 	                          WM_gizmomap_is_any_selected(ar->gizmo_map));
 	Object *ob_eval = OBACT(view_layer_eval);
@@ -2850,9 +2850,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 		{
 			/* we're only interested in selected points here... */
 			if ((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) {
-				if (ED_gpencil_stroke_minmax(gps, true, min, max)) {
-					ok = true;
-				}
+				ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
 			}
 		}
 		CTX_DATA_END;
@@ -4625,7 +4623,7 @@ void VIEW3D_OT_clip_border(wmOperatorType *ot)
 
 /* cursor position in vec, result in vec, mval in region coords */
 /* note: cannot use event->mval here (called by object_add() */
-void ED_view3d_cursor3d_position(bContext *C, const int mval[2], bool use_depth, float cursor_co[3])
+void ED_view3d_cursor3d_position(bContext *C, const int mval[2], const bool use_depth, float cursor_co[3])
 {
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = CTX_wm_view3d(C);
@@ -4873,7 +4871,7 @@ static int toggle_shading_exec(bContext *C, wmOperator *op)
 	int type = RNA_enum_get(op->ptr, "type");
 
 	if (type == OB_SOLID) {
-		if (v3d->drawtype == OB_SOLID) {
+		if (v3d->shading.type == OB_SOLID) {
 			/* Toggle X-Ray if already in solid mode. */
 			if (ED_operator_posemode(C) || ED_operator_editmesh(C)) {
 				v3d->flag ^= V3D_ZBUF_SELECT;
@@ -4884,24 +4882,24 @@ static int toggle_shading_exec(bContext *C, wmOperator *op)
 		}
 		else {
 			/* Go to solid mode. */
-			v3d->drawtype = OB_SOLID;
+			v3d->shading.type = OB_SOLID;
 		}
 	}
 	else if (type == OB_MATERIAL) {
-		if (v3d->drawtype == OB_MATERIAL) {
-			v3d->drawtype = OB_SOLID;
+		if (v3d->shading.type == OB_MATERIAL) {
+			v3d->shading.type = OB_SOLID;
 		}
 		else {
-			v3d->drawtype = OB_MATERIAL;
+			v3d->shading.type = OB_MATERIAL;
 		}
 	}
 	else if (type == OB_RENDER) {
-		if (v3d->drawtype == OB_RENDER) {
-			v3d->drawtype = v3d->prev_drawtype;
+		if (v3d->shading.type == OB_RENDER) {
+			v3d->shading.type = v3d->shading.prev_type;
 		}
 		else {
-			v3d->prev_drawtype = v3d->drawtype;
-			v3d->drawtype = OB_RENDER;
+			v3d->shading.prev_type = v3d->shading.type;
+			v3d->shading.type = OB_RENDER;
 		}
 	}
 

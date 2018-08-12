@@ -118,10 +118,19 @@ set(SRC
 	engines/workbench/workbench_effect_taa.c
 	engines/workbench/workbench_forward.c
 	engines/workbench/workbench_materials.c
+	engines/workbench/workbench_render.c
 	engines/workbench/workbench_studiolight.c
+	engines/workbench/workbench_volume.c
 	engines/workbench/solid_mode.c
 	engines/workbench/transparent_mode.c
 	engines/external/external_engine.c
+	engines/gpencil/gpencil_engine.h
+	engines/gpencil/gpencil_engine.c
+	engines/gpencil/gpencil_render.c
+	engines/gpencil/gpencil_cache_utils.c
+	engines/gpencil/gpencil_draw_utils.c
+	engines/gpencil/gpencil_draw_cache_impl.c
+	engines/gpencil/gpencil_shader_fx.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -226,6 +235,8 @@ data_to_c_simple(engines/workbench/shaders/workbench_shadow_vert.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_geom.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_caps_geom.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_shadow_debug_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_volume_vert.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_volume_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_world_light_lib.glsl SRC)
 
 data_to_c_simple(modes/shaders/common_globals_lib.glsl SRC)
@@ -298,6 +309,34 @@ data_to_c_simple(modes/shaders/paint_wire_vert.glsl SRC)
 data_to_c_simple(modes/shaders/paint_vert_frag.glsl SRC)
 data_to_c_simple(modes/shaders/particle_strand_frag.glsl SRC)
 data_to_c_simple(modes/shaders/particle_strand_vert.glsl SRC)
+data_to_c_simple(modes/shaders/volume_velocity_vert.glsl SRC)
+
+data_to_c_simple(engines/gpencil/shaders/gpencil_fill_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_fill_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_stroke_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_stroke_geom.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_stroke_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_zdepth_mix_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_simple_mix_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_point_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_point_geom.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_point_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_background_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_paper_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_geom.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_frag.glsl SRC)
+
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_blur_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_colorize_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_flip_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_light_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_pixel_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_rim_prepare_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_rim_resolve_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_swirl_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_wave_frag.glsl SRC)
+
 
 list(APPEND INC
 )

@@ -192,6 +192,19 @@ MINLINE void copy_v4_v4_int(int r[4], const int a[4])
 	r[3] = a[3];
 }
 
+/* int <-> float */
+MINLINE void round_v2i_v2fl(int r[2], const float a[2])
+{
+	r[0] = (int)roundf(a[0]);
+	r[1] = (int)roundf(a[1]);
+}
+
+MINLINE void copy_v2fl_v2i(float r[2], const int a[2])
+{
+	r[0] = (float)a[0];
+	r[1] = (float)a[1];
+}
+
 /* double -> float */
 MINLINE void copy_v2fl_v2db(float r[2], const double a[2])
 {
@@ -751,6 +764,16 @@ MINLINE void cross_v3_v3v3(float r[3], const float a[3], const float b[3])
 	r[0] = a[1] * b[2] - a[2] * b[1];
 	r[1] = a[2] * b[0] - a[0] * b[2];
 	r[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+/* cross product suffers from severe precision loss when vectors are
+ * nearly parallel or opposite; doing the computation in double helps a lot */
+MINLINE void cross_v3_v3v3_hi_prec(float r[3], const float a[3], const float b[3])
+{
+	BLI_assert(r != a && r != b);
+	r[0] = (float)((double)a[1] * (double)b[2] - (double)a[2] * (double)b[1]);
+	r[1] = (float)((double)a[2] * (double)b[0] - (double)a[0] * (double)b[2]);
+	r[2] = (float)((double)a[0] * (double)b[1] - (double)a[1] * (double)b[0]);
 }
 
 /* Newell's Method */

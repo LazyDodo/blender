@@ -80,9 +80,9 @@ typedef struct ArrowGizmo3D {
 
 /* -------------------------------------------------------------------- */
 
-static void gizmo_arrow_matrix_basis_get(const wmGizmo *mpr, float r_matrix[4][4])
+static void gizmo_arrow_matrix_basis_get(const wmGizmo *gz, float r_matrix[4][4])
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 
 	copy_m4_m4(r_matrix, arrow->gizmo.matrix_basis);
 	madd_v3_v3fl(r_matrix[3], arrow->gizmo.matrix_basis[2], arrow->data.offset);
@@ -90,7 +90,7 @@ static void gizmo_arrow_matrix_basis_get(const wmGizmo *mpr, float r_matrix[4][4
 
 static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const float color[4])
 {
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 	bool unbind_shader = true;
 	const int draw_style = RNA_enum_get(arrow->gizmo.ptr, "draw_style");
 	const int draw_options = RNA_enum_get(arrow->gizmo.ptr, "draw_options");
@@ -100,7 +100,7 @@ static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const 
 	if (draw_style == ED_GIZMO_ARROW_STYLE_CROSS) {
 		immUniformColor4fv(color);
 
-		immBegin(GWN_PRIM_LINES, 4);
+		immBegin(GPU_PRIM_LINES, 4);
 		immVertex3f(pos, -1.0f,  0.0f, 0.0f);
 		immVertex3f(pos,  1.0f,  0.0f, 0.0f);
 		immVertex3f(pos,  0.0f, -1.0f, 0.0f);
@@ -120,7 +120,7 @@ static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const 
 		};
 
 		GPU_line_width(arrow->gizmo.line_width);
-		wm_gizmo_vec_draw(color, vec, ARRAY_SIZE(vec), pos, GWN_PRIM_LINE_LOOP);
+		wm_gizmo_vec_draw(color, vec, ARRAY_SIZE(vec), pos, GPU_PRIM_LINE_LOOP);
 	}
 	else {
 #ifdef USE_GIZMO_CUSTOM_ARROWS
@@ -135,7 +135,7 @@ static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const 
 
 		if (draw_options & ED_GIZMO_ARROW_DRAW_FLAG_STEM) {
 			GPU_line_width(arrow->gizmo.line_width);
-			wm_gizmo_vec_draw(color, vec, ARRAY_SIZE(vec), pos, GWN_PRIM_LINE_STRIP);
+			wm_gizmo_vec_draw(color, vec, ARRAY_SIZE(vec), pos, GPU_PRIM_LINE_STRIP);
 		}
 		else {
 			immUniformColor4fv(color);
@@ -143,15 +143,15 @@ static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const 
 
 		/* *** draw arrow head *** */
 
-		gpuPushMatrix();
+		GPU_matrix_push();
 
 		if (draw_style == ED_GIZMO_ARROW_STYLE_BOX) {
 			const float size = 0.05f;
 
 			/* translate to line end with some extra offset so box starts exactly where line ends */
-			gpuTranslate3f(0.0f, 0.0f, arrow_length + size);
+			GPU_matrix_translate_3f(0.0f, 0.0f, arrow_length + size);
 			/* scale down to box size */
-			gpuScale3f(size, size, size);
+			GPU_matrix_scale_3f(size, size, size);
 
 			/* draw cube */
 			immUnbindProgram();
@@ -165,13 +165,13 @@ static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const 
 			const float width = 0.06f;
 
 			/* translate to line end */
-			gpuTranslate3f(0.0f, 0.0f, arrow_length);
+			GPU_matrix_translate_3f(0.0f, 0.0f, arrow_length);
 
 			imm_draw_circle_fill_3d(pos, 0.0, 0.0, width, 8);
 			imm_draw_cylinder_fill_3d(pos, width, 0.0, len, 8, 1);
 		}
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 #endif  /* USE_GIZMO_CUSTOM_ARROWS */
 	}
 
@@ -182,48 +182,48 @@ static void arrow_draw_geom(const ArrowGizmo3D *arrow, const bool select, const 
 
 static void arrow_draw_intern(ArrowGizmo3D *arrow, const bool select, const bool highlight)
 {
-	wmGizmo *mpr = &arrow->gizmo;
+	wmGizmo *gz = &arrow->gizmo;
 	float color[4];
 	float matrix_final[4][4];
 
-	gizmo_color_get(mpr, highlight, color);
+	gizmo_color_get(gz, highlight, color);
 
-	WM_gizmo_calc_matrix_final(mpr, matrix_final);
+	WM_gizmo_calc_matrix_final(gz, matrix_final);
 
-	gpuPushMatrix();
-	gpuMultMatrix(matrix_final);
+	GPU_matrix_push();
+	GPU_matrix_mul(matrix_final);
 	GPU_blend(true);
 	arrow_draw_geom(arrow, select, color);
 	GPU_blend(false);
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 
-	if (mpr->interaction_data) {
-		GizmoInteraction *inter = mpr->interaction_data;
+	if (gz->interaction_data) {
+		GizmoInteraction *inter = gz->interaction_data;
 
-		gpuPushMatrix();
-		gpuMultMatrix(inter->init_matrix_final);
+		GPU_matrix_push();
+		GPU_matrix_mul(inter->init_matrix_final);
 
 
 		GPU_blend(true);
 		arrow_draw_geom(arrow, select, (const float[4]){0.5f, 0.5f, 0.5f, 0.5f});
 		GPU_blend(false);
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 }
 
 static void gizmo_arrow_draw_select(
-        const bContext *UNUSED(C), wmGizmo *mpr,
+        const bContext *UNUSED(C), wmGizmo *gz,
         int select_id)
 {
 	GPU_select_load_id(select_id);
-	arrow_draw_intern((ArrowGizmo3D *)mpr, true, false);
+	arrow_draw_intern((ArrowGizmo3D *)gz, true, false);
 }
 
-static void gizmo_arrow_draw(const bContext *UNUSED(C), wmGizmo *mpr)
+static void gizmo_arrow_draw(const bContext *UNUSED(C), wmGizmo *gz)
 {
-	arrow_draw_intern((ArrowGizmo3D *)mpr, false, (mpr->state & WM_GIZMO_STATE_HIGHLIGHT) != 0);
+	arrow_draw_intern((ArrowGizmo3D *)gz, false, (gz->state & WM_GIZMO_STATE_HIGHLIGHT) != 0);
 }
 
 /**
@@ -231,11 +231,11 @@ static void gizmo_arrow_draw(const bContext *UNUSED(C), wmGizmo *mpr)
  * meaning the range will not be offset by min value first.
  */
 static int gizmo_arrow_modal(
-        bContext *C, wmGizmo *mpr, const wmEvent *event,
+        bContext *C, wmGizmo *gz, const wmEvent *event,
         eWM_GizmoFlagTweak tweak_flag)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
-	GizmoInteraction *inter = mpr->interaction_data;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
+	GizmoInteraction *inter = gz->interaction_data;
 	View3D *v3d = CTX_wm_view3d(C);
 	ARegion *ar = CTX_wm_region(C);
 	RegionView3D *rv3d = ar->regiondata;
@@ -299,19 +299,19 @@ static int gizmo_arrow_modal(
 	GizmoCommonData *data = &arrow->data;
 	const float ofs_new = facdir * len_v3(offset);
 
-	wmGizmoProperty *mpr_prop = WM_gizmo_target_property_find(mpr, "offset");
+	wmGizmoProperty *gz_prop = WM_gizmo_target_property_find(gz, "offset");
 
 	/* set the property for the operator and call its modal function */
-	if (WM_gizmo_target_property_is_valid(mpr_prop)) {
+	if (WM_gizmo_target_property_is_valid(gz_prop)) {
 		const int transform_flag = RNA_enum_get(arrow->gizmo.ptr, "transform");
 		const bool constrained = (transform_flag & ED_GIZMO_ARROW_XFORM_FLAG_CONSTRAINED) != 0;
 		const bool inverted = (transform_flag & ED_GIZMO_ARROW_XFORM_FLAG_INVERTED) != 0;
 		const bool use_precision = (tweak_flag & WM_GIZMO_TWEAK_PRECISE) != 0;
 		float value = gizmo_value_from_offset(data, inter, ofs_new, constrained, inverted, use_precision);
 
-		WM_gizmo_target_property_value_set(C, mpr, mpr_prop, value);
+		WM_gizmo_target_property_value_set(C, gz, gz_prop, value);
 		/* get clamped value */
-		value = WM_gizmo_target_property_value_get(mpr, mpr_prop);
+		value = WM_gizmo_target_property_value_get(gz, gz_prop);
 
 		data->offset = gizmo_offset_from_value(data, value, constrained, inverted);
 	}
@@ -326,9 +326,9 @@ static int gizmo_arrow_modal(
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static void gizmo_arrow_setup(wmGizmo *mpr)
+static void gizmo_arrow_setup(wmGizmo *gz)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 
 	arrow->gizmo.flag |= WM_GIZMO_DRAW_MODAL;
 
@@ -336,15 +336,15 @@ static void gizmo_arrow_setup(wmGizmo *mpr)
 }
 
 static int gizmo_arrow_invoke(
-        bContext *UNUSED(C), wmGizmo *mpr, const wmEvent *event)
+        bContext *UNUSED(C), wmGizmo *gz, const wmEvent *event)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 	GizmoInteraction *inter = MEM_callocN(sizeof(GizmoInteraction), __func__);
-	wmGizmoProperty *mpr_prop = WM_gizmo_target_property_find(mpr, "offset");
+	wmGizmoProperty *gz_prop = WM_gizmo_target_property_find(gz, "offset");
 
 	/* Some gizmos don't use properties. */
-	if (WM_gizmo_target_property_is_valid(mpr_prop)) {
-		inter->init_value = WM_gizmo_target_property_value_get(mpr, mpr_prop);
+	if (WM_gizmo_target_property_is_valid(gz_prop)) {
+		inter->init_value = WM_gizmo_target_property_value_get(gz, gz_prop);
 	}
 
 	inter->init_offset = arrow->data.offset;
@@ -352,42 +352,42 @@ static int gizmo_arrow_invoke(
 	inter->init_mval[0] = event->mval[0];
 	inter->init_mval[1] = event->mval[1];
 
-	gizmo_arrow_matrix_basis_get(mpr, inter->init_matrix_basis);
-	WM_gizmo_calc_matrix_final(mpr, inter->init_matrix_final);
+	gizmo_arrow_matrix_basis_get(gz, inter->init_matrix_basis);
+	WM_gizmo_calc_matrix_final(gz, inter->init_matrix_final);
 
-	mpr->interaction_data = inter;
+	gz->interaction_data = inter;
 
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static void gizmo_arrow_property_update(wmGizmo *mpr, wmGizmoProperty *mpr_prop)
+static void gizmo_arrow_property_update(wmGizmo *gz, wmGizmoProperty *gz_prop)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 	const int transform_flag = RNA_enum_get(arrow->gizmo.ptr, "transform");
 	const bool constrained = (transform_flag & ED_GIZMO_ARROW_XFORM_FLAG_CONSTRAINED) != 0;
 	const bool inverted = (transform_flag & ED_GIZMO_ARROW_XFORM_FLAG_INVERTED) != 0;
-	gizmo_property_data_update(mpr, &arrow->data, mpr_prop, constrained, inverted);
+	gizmo_property_data_update(gz, &arrow->data, gz_prop, constrained, inverted);
 }
 
-static void gizmo_arrow_exit(bContext *C, wmGizmo *mpr, const bool cancel)
+static void gizmo_arrow_exit(bContext *C, wmGizmo *gz, const bool cancel)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 	GizmoCommonData *data = &arrow->data;
-	wmGizmoProperty *mpr_prop = WM_gizmo_target_property_find(mpr, "offset");
-	const bool is_prop_valid = WM_gizmo_target_property_is_valid(mpr_prop);
+	wmGizmoProperty *gz_prop = WM_gizmo_target_property_find(gz, "offset");
+	const bool is_prop_valid = WM_gizmo_target_property_is_valid(gz_prop);
 
 	if (!cancel) {
 		/* Assign incase applying the opetration needs an updated offset
 		 * editmesh bisect needs this. */
 		if (is_prop_valid) {
-			data->offset = WM_gizmo_target_property_value_get(mpr, mpr_prop);
+			data->offset = WM_gizmo_target_property_value_get(gz, gz_prop);
 		}
 		return;
 	}
 
-	GizmoInteraction *inter = mpr->interaction_data;
+	GizmoInteraction *inter = gz->interaction_data;
 	if (is_prop_valid) {
-		gizmo_property_value_reset(C, mpr, inter, mpr_prop);
+		gizmo_property_value_reset(C, gz, inter, gz_prop);
 	}
 	data->offset = inter->init_offset;
 }
@@ -403,12 +403,12 @@ static void gizmo_arrow_exit(bContext *C, wmGizmo *mpr, const bool cancel)
  *
  * \note Needs to be called before WM_gizmo_target_property_def_rna!
  */
-void ED_gizmo_arrow3d_set_ui_range(wmGizmo *mpr, const float min, const float max)
+void ED_gizmo_arrow3d_set_ui_range(wmGizmo *gz, const float min, const float max)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 
 	BLI_assert(min < max);
-	BLI_assert(!(WM_gizmo_target_property_is_valid(WM_gizmo_target_property_find(mpr, "offset")) &&
+	BLI_assert(!(WM_gizmo_target_property_is_valid(WM_gizmo_target_property_find(gz, "offset")) &&
 	             "Make sure this function is called before WM_gizmo_target_property_def_rna"));
 
 	arrow->data.range = max - min;
@@ -421,31 +421,31 @@ void ED_gizmo_arrow3d_set_ui_range(wmGizmo *mpr, const float min, const float ma
  *
  * \note Needs to be called before WM_gizmo_target_property_def_rna!
  */
-void ED_gizmo_arrow3d_set_range_fac(wmGizmo *mpr, const float range_fac)
+void ED_gizmo_arrow3d_set_range_fac(wmGizmo *gz, const float range_fac)
 {
-	ArrowGizmo3D *arrow = (ArrowGizmo3D *)mpr;
-	BLI_assert(!(WM_gizmo_target_property_is_valid(WM_gizmo_target_property_find(mpr, "offset")) &&
+	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
+	BLI_assert(!(WM_gizmo_target_property_is_valid(WM_gizmo_target_property_find(gz, "offset")) &&
 	             "Make sure this function is called before WM_gizmo_target_property_def_rna"));
 
 	arrow->data.range_fac = range_fac;
 }
 
-static void GIZMO_WT_arrow_3d(wmGizmoType *wt)
+static void GIZMO_GT_arrow_3d(wmGizmoType *gzt)
 {
 	/* identifiers */
-	wt->idname = "GIZMO_WT_arrow_3d";
+	gzt->idname = "GIZMO_GT_arrow_3d";
 
 	/* api callbacks */
-	wt->draw = gizmo_arrow_draw;
-	wt->draw_select = gizmo_arrow_draw_select;
-	wt->matrix_basis_get = gizmo_arrow_matrix_basis_get;
-	wt->modal = gizmo_arrow_modal;
-	wt->setup = gizmo_arrow_setup;
-	wt->invoke = gizmo_arrow_invoke;
-	wt->property_update = gizmo_arrow_property_update;
-	wt->exit = gizmo_arrow_exit;
+	gzt->draw = gizmo_arrow_draw;
+	gzt->draw_select = gizmo_arrow_draw_select;
+	gzt->matrix_basis_get = gizmo_arrow_matrix_basis_get;
+	gzt->modal = gizmo_arrow_modal;
+	gzt->setup = gizmo_arrow_setup;
+	gzt->invoke = gizmo_arrow_invoke;
+	gzt->property_update = gizmo_arrow_property_update;
+	gzt->exit = gizmo_arrow_exit;
 
-	wt->struct_size = sizeof(ArrowGizmo3D);
+	gzt->struct_size = sizeof(ArrowGizmo3D);
 
 	/* rna */
 	static EnumPropertyItem rna_enum_draw_style_items[] = {
@@ -466,27 +466,27 @@ static void GIZMO_WT_arrow_3d(wmGizmoType *wt)
 	};
 
 	RNA_def_enum(
-	        wt->srna, "draw_style", rna_enum_draw_style_items,
+	        gzt->srna, "draw_style", rna_enum_draw_style_items,
 	        ED_GIZMO_ARROW_STYLE_NORMAL,
 	        "Draw Style", "");
 	RNA_def_enum_flag(
-	        wt->srna, "draw_options", rna_enum_draw_options_items,
+	        gzt->srna, "draw_options", rna_enum_draw_options_items,
 	        ED_GIZMO_ARROW_DRAW_FLAG_STEM,
 	        "Draw Options", "");
 	RNA_def_enum_flag(
-	        wt->srna, "transform", rna_enum_transform_items,
+	        gzt->srna, "transform", rna_enum_transform_items,
 	        0,
 	        "Transform", "");
 
-	RNA_def_float(wt->srna, "length", 1.0f, 0.0f, FLT_MAX, "Arrow Line Length", "", 0.0f, FLT_MAX);
-	RNA_def_float_vector(wt->srna, "aspect", 2, NULL, 0, FLT_MAX, "Aspect", "Cone/box style only", 0.0f, FLT_MAX);
+	RNA_def_float(gzt->srna, "length", 1.0f, 0.0f, FLT_MAX, "Arrow Line Length", "", 0.0f, FLT_MAX);
+	RNA_def_float_vector(gzt->srna, "aspect", 2, NULL, 0, FLT_MAX, "Aspect", "Cone/box style only", 0.0f, FLT_MAX);
 
-	WM_gizmotype_target_property_def(wt, "offset", PROP_FLOAT, 1);
+	WM_gizmotype_target_property_def(gzt, "offset", PROP_FLOAT, 1);
 }
 
 void ED_gizmotypes_arrow_3d(void)
 {
-	WM_gizmotype_append(GIZMO_WT_arrow_3d);
+	WM_gizmotype_append(GIZMO_GT_arrow_3d);
 }
 
 /** \} */

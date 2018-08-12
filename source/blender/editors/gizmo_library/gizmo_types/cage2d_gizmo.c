@@ -68,7 +68,7 @@
 #define GIZMO_MARGIN_OFFSET_SCALE 1.5f
 
 static void gizmo_calc_rect_view_scale(
-        const wmGizmo *mpr, const float dims[2], float scale[2])
+        const wmGizmo *gz, const float dims[2], float scale[2])
 {
 	float matrix_final_no_offset[4][4];
 	float asp[2] = {1.0f, 1.0f};
@@ -79,9 +79,9 @@ static void gizmo_calc_rect_view_scale(
 		asp[1] = dims[0] / dims[1];
 	}
 	float x_axis[3], y_axis[3];
-	WM_gizmo_calc_matrix_final_no_offset(mpr, matrix_final_no_offset);
-	mul_v3_mat3_m4v3(x_axis, matrix_final_no_offset, mpr->matrix_offset[0]);
-	mul_v3_mat3_m4v3(y_axis, matrix_final_no_offset, mpr->matrix_offset[1]);
+	WM_gizmo_calc_matrix_final_no_offset(gz, matrix_final_no_offset);
+	mul_v3_mat3_m4v3(x_axis, matrix_final_no_offset, gz->matrix_offset[0]);
+	mul_v3_mat3_m4v3(y_axis, matrix_final_no_offset, gz->matrix_offset[1]);
 
 	mul_v2_v2(x_axis, asp);
 	mul_v2_v2(y_axis, asp);
@@ -91,18 +91,18 @@ static void gizmo_calc_rect_view_scale(
 }
 
 static void gizmo_calc_rect_view_margin(
-        const wmGizmo *mpr, const float dims[2], float margin[2])
+        const wmGizmo *gz, const float dims[2], float margin[2])
 {
 	float handle_size;
-	if (mpr->parent_mgroup->type->flag & WM_GIZMOGROUPTYPE_3D) {
+	if (gz->parent_gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) {
 		handle_size = 0.15f;
 	}
 	else {
 		handle_size = GIZMO_RESIZER_SIZE;
 	}
-	handle_size *= mpr->scale_final;
+	handle_size *= gz->scale_final;
 	float scale_xy[2];
-	gizmo_calc_rect_view_scale(mpr, dims, scale_xy);
+	gizmo_calc_rect_view_scale(gz, dims, scale_xy);
 	margin[0] = ((handle_size * scale_xy[0]));
 	margin[1] = ((handle_size * scale_xy[1]));
 }
@@ -136,12 +136,12 @@ static void gizmo_rect_pivot_from_scale_part(int part, float r_pt[2], bool r_con
 static void cage2d_draw_box_corners(
         const rctf *r, const float margin[2], const float color[3])
 {
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3fv(color);
 
-	immBegin(GWN_PRIM_LINES, 16);
+	immBegin(GPU_PRIM_LINES, 16);
 
 	immVertex2f(pos, r->xmin, r->ymin + margin[1]);
 	immVertex2f(pos, r->xmin, r->ymin);
@@ -176,7 +176,7 @@ static void cage2d_draw_box_interaction(
 	/* 4 verts for translate, otherwise only 3 are used. */
 	float verts[4][2];
 	uint verts_len = 0;
-	Gwn_PrimType prim_type = GWN_PRIM_NONE;
+	GPUPrimType prim_type = GPU_PRIM_NONE;
 
 	switch (highlighted) {
 		case ED_GIZMO_CAGE2D_PART_SCALE_MIN_X:
@@ -192,10 +192,10 @@ static void cage2d_draw_box_interaction(
 				ARRAY_SET_ITEMS(verts[2], r.xmax, r.ymax);
 				ARRAY_SET_ITEMS(verts[3], r.xmax, r.ymin);
 				verts_len += 2;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -212,10 +212,10 @@ static void cage2d_draw_box_interaction(
 				ARRAY_SET_ITEMS(verts[2], r.xmin, r.ymax);
 				ARRAY_SET_ITEMS(verts[3], r.xmin, r.ymin);
 				verts_len += 2;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -232,10 +232,10 @@ static void cage2d_draw_box_interaction(
 				ARRAY_SET_ITEMS(verts[2], r.xmax, r.ymax);
 				ARRAY_SET_ITEMS(verts[3], r.xmin, r.ymax);
 				verts_len += 2;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -252,10 +252,10 @@ static void cage2d_draw_box_interaction(
 				ARRAY_SET_ITEMS(verts[2], r.xmax, r.ymin);
 				ARRAY_SET_ITEMS(verts[3], r.xmin, r.ymin);
 				verts_len += 2;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -272,10 +272,10 @@ static void cage2d_draw_box_interaction(
 			if (is_solid) {
 				ARRAY_SET_ITEMS(verts[3], r.xmin, r.ymin);
 				verts_len += 1;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -292,10 +292,10 @@ static void cage2d_draw_box_interaction(
 			if (is_solid) {
 				ARRAY_SET_ITEMS(verts[3], r.xmin, r.ymax);
 				verts_len += 1;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -312,10 +312,10 @@ static void cage2d_draw_box_interaction(
 			if (is_solid) {
 				ARRAY_SET_ITEMS(verts[3], r.xmax, r.ymin);
 				verts_len += 1;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -332,10 +332,10 @@ static void cage2d_draw_box_interaction(
 			if (is_solid) {
 				ARRAY_SET_ITEMS(verts[3], r.xmax, r.ymax);
 				verts_len += 1;
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -355,10 +355,10 @@ static void cage2d_draw_box_interaction(
 			ARRAY_SET_ITEMS(verts[3], r_rotate.xmax, r_rotate.ymin);
 			verts_len = 4;
 			if (is_solid) {
-				prim_type = GWN_PRIM_TRI_FAN;
+				prim_type = GPU_PRIM_TRI_FAN;
 			}
 			else {
-				prim_type = GWN_PRIM_LINE_STRIP;
+				prim_type = GPU_PRIM_LINE_STRIP;
 			}
 			break;
 		}
@@ -371,10 +371,10 @@ static void cage2d_draw_box_interaction(
 				ARRAY_SET_ITEMS(verts[3],  margin[0] / 2, -margin[1] / 2);
 				verts_len = 4;
 				if (is_solid) {
-					prim_type = GWN_PRIM_TRI_FAN;
+					prim_type = GPU_PRIM_TRI_FAN;
 				}
 				else {
-					prim_type = GWN_PRIM_LINES;
+					prim_type = GPU_PRIM_LINES;
 				}
 			}
 			else {
@@ -385,12 +385,12 @@ static void cage2d_draw_box_interaction(
 				ARRAY_SET_ITEMS(verts[3], size[0],  -size[1]);
 				verts_len = 4;
 				if (is_solid) {
-					prim_type = GWN_PRIM_TRI_FAN;
+					prim_type = GPU_PRIM_TRI_FAN;
 				}
 				else {
 					/* unreachable */
 					BLI_assert(0);
-					prim_type = GWN_PRIM_LINE_STRIP;
+					prim_type = GPU_PRIM_LINE_STRIP;
 				}
 			}
 			break;
@@ -398,20 +398,20 @@ static void cage2d_draw_box_interaction(
 			return;
 	}
 
-	BLI_assert(prim_type != GWN_PRIM_NONE);
+	BLI_assert(prim_type != GPU_PRIM_NONE);
 
-	Gwn_VertFormat *format = immVertexFormat();
+	GPUVertFormat *format = immVertexFormat();
 	struct {
 		uint pos, col;
 	} attr_id = {
-		.pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT),
-		.col = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT),
+		.pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT),
+		.col = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 3, GPU_FETCH_FLOAT),
 	};
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
 	{
 		if (is_solid) {
-			BLI_assert(ELEM(prim_type, GWN_PRIM_TRI_FAN));
+			BLI_assert(ELEM(prim_type, GPU_PRIM_TRI_FAN));
 			immBegin(prim_type, verts_len);
 			immAttrib3f(attr_id.col, 0.0f, 0.0f, 0.0f);
 			for (uint i = 0; i < verts_len; i++) {
@@ -420,7 +420,7 @@ static void cage2d_draw_box_interaction(
 			immEnd();
 		}
 		else {
-			BLI_assert(ELEM(prim_type, GWN_PRIM_LINE_STRIP, GWN_PRIM_LINES));
+			BLI_assert(ELEM(prim_type, GPU_PRIM_LINE_STRIP, GPU_PRIM_LINES));
 			GPU_line_width(line_width + 3.0f);
 
 			immBegin(prim_type, verts_len);
@@ -455,7 +455,7 @@ static void cage2d_draw_box_interaction(
 static void imm_draw_point_aspect_2d(
         uint pos, float x, float y, float rad_x, float rad_y, bool solid)
 {
-	immBegin(solid ? GWN_PRIM_TRI_FAN : GWN_PRIM_LINE_LOOP, 4);
+	immBegin(solid ? GPU_PRIM_TRI_FAN : GPU_PRIM_LINE_LOOP, 4);
 	immVertex2f(pos, x - rad_x, y - rad_y);
 	immVertex2f(pos, x - rad_x, y + rad_y);
 	immVertex2f(pos, x + rad_x, y + rad_y);
@@ -467,12 +467,12 @@ static void cage2d_draw_circle_wire(
         const rctf *r, const float margin[2], const float color[3],
         const int transform_flag, const int draw_options)
 {
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3fv(color);
 
-	immBegin(GWN_PRIM_LINE_LOOP, 4);
+	immBegin(GPU_PRIM_LINE_LOOP, 4);
 	immVertex2f(pos, r->xmin, r->ymin);
 	immVertex2f(pos, r->xmax, r->ymin);
 	immVertex2f(pos, r->xmax, r->ymax);
@@ -480,7 +480,7 @@ static void cage2d_draw_circle_wire(
 	immEnd();
 
 	if (transform_flag & ED_GIZMO_CAGE2D_XFORM_FLAG_ROTATE) {
-		immBegin(GWN_PRIM_LINE_LOOP, 2);
+		immBegin(GPU_PRIM_LINE_LOOP, 2);
 		immVertex2f(pos, BLI_rctf_cent_x(r), r->ymax);
 		immVertex2f(pos, BLI_rctf_cent_x(r), r->ymax + margin[1]);
 		immEnd();
@@ -491,7 +491,7 @@ static void cage2d_draw_circle_wire(
 			const float rad[2] = {margin[0] / 2, margin[1] / 2};
 			const float center[2] = {BLI_rctf_cent_x(r), BLI_rctf_cent_y(r)};
 
-			immBegin(GWN_PRIM_LINES, 4);
+			immBegin(GPU_PRIM_LINES, 4);
 			immVertex2f(pos, center[0] - rad[0], center[1] - rad[1]);
 			immVertex2f(pos, center[0] + rad[0], center[1] + rad[1]);
 			immVertex2f(pos, center[0] + rad[0], center[1] - rad[1]);
@@ -508,7 +508,7 @@ static void cage2d_draw_circle_handles(
         const int transform_flag,
         bool solid)
 {
-	uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	void (*circle_fn)(uint, float, float, float, float, int) =
 	        (solid) ? imm_draw_circle_fill_aspect_2d : imm_draw_circle_wire_aspect_2d;
 	const int resolu = 12;
@@ -536,31 +536,31 @@ static void cage2d_draw_circle_handles(
 /** \} */
 
 static void gizmo_cage2d_draw_intern(
-        wmGizmo *mpr, const bool select, const bool highlight, const int select_id)
+        wmGizmo *gz, const bool select, const bool highlight, const int select_id)
 {
-	// const bool use_clamp = (mpr->parent_mgroup->type->flag & WM_GIZMOGROUPTYPE_3D) == 0;
+	// const bool use_clamp = (gz->parent_gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) == 0;
 	float dims[2];
-	RNA_float_get_array(mpr->ptr, "dimensions", dims);
+	RNA_float_get_array(gz->ptr, "dimensions", dims);
 	float matrix_final[4][4];
 
-	const int transform_flag = RNA_enum_get(mpr->ptr, "transform");
-	const int draw_style = RNA_enum_get(mpr->ptr, "draw_style");
-	const int draw_options = RNA_enum_get(mpr->ptr, "draw_options");
+	const int transform_flag = RNA_enum_get(gz->ptr, "transform");
+	const int draw_style = RNA_enum_get(gz->ptr, "draw_style");
+	const int draw_options = RNA_enum_get(gz->ptr, "draw_options");
 
 	const float size_real[2] = {dims[0] / 2.0f, dims[1] / 2.0f};
 
-	WM_gizmo_calc_matrix_final(mpr, matrix_final);
+	WM_gizmo_calc_matrix_final(gz, matrix_final);
 
-	gpuPushMatrix();
-	gpuMultMatrix(matrix_final);
+	GPU_matrix_push();
+	GPU_matrix_mul(matrix_final);
 
 	float margin[2];
-	gizmo_calc_rect_view_margin(mpr, dims, margin);
+	gizmo_calc_rect_view_margin(gz, dims, margin);
 
 	/* Handy for quick testing draw (if it's outside bounds). */
 	if (false) {
 		GPU_blend(true);
-		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor4fv((const float[4]){1, 1, 1, 0.5f});
 		float s = 0.5f;
@@ -588,18 +588,18 @@ static void gizmo_cage2d_draw_intern(
 			for (int i = 0; i < ARRAY_SIZE(scale_parts); i++) {
 				GPU_select_load_id(select_id | scale_parts[i]);
 				cage2d_draw_box_interaction(
-				        mpr->color, scale_parts[i], size, margin, mpr->line_width, true, draw_options);
+				        gz->color, scale_parts[i], size, margin, gz->line_width, true, draw_options);
 			}
 		}
 		if (transform_flag & ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE) {
 			const int transform_part = ED_GIZMO_CAGE2D_PART_TRANSLATE;
 			GPU_select_load_id(select_id | transform_part);
 			cage2d_draw_box_interaction(
-			        mpr->color, transform_part, size, margin, mpr->line_width, true, draw_options);
+			        gz->color, transform_part, size, margin, gz->line_width, true, draw_options);
 		}
 		if (transform_flag & ED_GIZMO_CAGE2D_XFORM_FLAG_ROTATE) {
 			cage2d_draw_box_interaction(
-			        mpr->color, ED_GIZMO_CAGE2D_PART_ROTATE, size_real, margin, mpr->line_width, true, draw_options);
+			        gz->color, ED_GIZMO_CAGE2D_PART_ROTATE, size_real, margin, gz->line_width, true, draw_options);
 		}
 	}
 	else {
@@ -611,17 +611,17 @@ static void gizmo_cage2d_draw_intern(
 		};
 		if (draw_style == ED_GIZMO_CAGE2D_STYLE_BOX) {
 			/* corner gizmos */
-			GPU_line_width(mpr->line_width + 3.0f);
+			GPU_line_width(gz->line_width + 3.0f);
 			cage2d_draw_box_corners(&r, margin, (const float[3]){0, 0, 0});
 
 			/* corner gizmos */
 			float color[4];
-			gizmo_color_get(mpr, highlight, color);
-			GPU_line_width(mpr->line_width);
+			gizmo_color_get(gz, highlight, color);
+			GPU_line_width(gz->line_width);
 			cage2d_draw_box_corners(&r, margin, color);
 
 			bool show = false;
-			if (mpr->highlight_part == ED_GIZMO_CAGE2D_PART_TRANSLATE) {
+			if (gz->highlight_part == ED_GIZMO_CAGE2D_PART_TRANSLATE) {
 				/* Only show if we're drawing the center handle
 				 * otherwise the entire rectangle is the hotspot. */
 				if (draw_options & ED_GIZMO_CAGE2D_DRAW_FLAG_XFORM_CENTER_HANDLE) {
@@ -634,24 +634,24 @@ static void gizmo_cage2d_draw_intern(
 
 			if (show) {
 				cage2d_draw_box_interaction(
-				        mpr->color, mpr->highlight_part, size_real, margin, mpr->line_width, false, draw_options);
+				        gz->color, gz->highlight_part, size_real, margin, gz->line_width, false, draw_options);
 			}
 
 			if (transform_flag & ED_GIZMO_CAGE2D_XFORM_FLAG_ROTATE) {
 				cage2d_draw_box_interaction(
-				        mpr->color, ED_GIZMO_CAGE2D_PART_ROTATE, size_real, margin, mpr->line_width, false, draw_options);
+				        gz->color, ED_GIZMO_CAGE2D_PART_ROTATE, size_real, margin, gz->line_width, false, draw_options);
 			}
 		}
 		else if (draw_style == ED_GIZMO_CAGE2D_STYLE_CIRCLE) {
 			float color[4];
-			gizmo_color_get(mpr, highlight, color);
+			gizmo_color_get(gz, highlight, color);
 
 			GPU_line_smooth(true);
 			GPU_blend(true);
 
-			GPU_line_width(mpr->line_width + 3.0f);
+			GPU_line_width(gz->line_width + 3.0f);
 			cage2d_draw_circle_wire(&r, margin, (const float[3]){0, 0, 0}, transform_flag, draw_options);
-			GPU_line_width(mpr->line_width);
+			GPU_line_width(gz->line_width);
 			cage2d_draw_circle_wire(&r, margin, color, transform_flag, draw_options);
 
 
@@ -668,28 +668,28 @@ static void gizmo_cage2d_draw_intern(
 	}
 
 	GPU_line_width(1.0);
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 /**
  * For when we want to draw 2d cage in 3d views.
  */
-static void gizmo_cage2d_draw_select(const bContext *UNUSED(C), wmGizmo *mpr, int select_id)
+static void gizmo_cage2d_draw_select(const bContext *UNUSED(C), wmGizmo *gz, int select_id)
 {
-	gizmo_cage2d_draw_intern(mpr, true, false, select_id);
+	gizmo_cage2d_draw_intern(gz, true, false, select_id);
 }
 
-static void gizmo_cage2d_draw(const bContext *UNUSED(C), wmGizmo *mpr)
+static void gizmo_cage2d_draw(const bContext *UNUSED(C), wmGizmo *gz)
 {
-	const bool is_highlight = (mpr->state & WM_GIZMO_STATE_HIGHLIGHT) != 0;
-	gizmo_cage2d_draw_intern(mpr, false, is_highlight, -1);
+	const bool is_highlight = (gz->state & WM_GIZMO_STATE_HIGHLIGHT) != 0;
+	gizmo_cage2d_draw_intern(gz, false, is_highlight, -1);
 }
 
-static int gizmo_cage2d_get_cursor(wmGizmo *mpr)
+static int gizmo_cage2d_get_cursor(wmGizmo *gz)
 {
-	int highlight_part = mpr->highlight_part;
+	int highlight_part = gz->highlight_part;
 
-	if (mpr->parent_mgroup->type->flag & WM_GIZMOGROUPTYPE_3D) {
+	if (gz->parent_gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) {
 		return BC_NSEW_SCROLLCURSOR;
 	}
 
@@ -718,26 +718,26 @@ static int gizmo_cage2d_get_cursor(wmGizmo *mpr)
 }
 
 static int gizmo_cage2d_test_select(
-        bContext *C, wmGizmo *mpr, const wmEvent *event)
+        bContext *C, wmGizmo *gz, const int mval[2])
 {
 	float point_local[2];
 	float dims[2];
-	RNA_float_get_array(mpr->ptr, "dimensions", dims);
+	RNA_float_get_array(gz->ptr, "dimensions", dims);
 	const float size_real[2] = {dims[0] / 2.0f, dims[1] / 2.0f};
 
 	if (gizmo_window_project_2d(
-	        C, mpr, (const float[2]){UNPACK2(event->mval)}, 2, true, point_local) == false)
+	        C, gz, (const float[2]){UNPACK2(mval)}, 2, true, point_local) == false)
 	{
 		return -1;
 	}
 
 	float margin[2];
-	gizmo_calc_rect_view_margin(mpr, dims, margin);
+	gizmo_calc_rect_view_margin(gz, dims, margin);
 	/* expand for hotspot */
 	const float size[2] = {size_real[0] + margin[0] / 2, size_real[1] + margin[1] / 2};
 
-	const int transform_flag = RNA_enum_get(mpr->ptr, "transform");
-	const int draw_options = RNA_enum_get(mpr->ptr, "draw_options");
+	const int transform_flag = RNA_enum_get(gz->ptr, "transform");
+	const int draw_options = RNA_enum_get(gz->ptr, "draw_options");
 
 	if (transform_flag & ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE) {
 		rctf r;
@@ -821,32 +821,32 @@ typedef struct RectTransformInteraction {
 	Dial *dial;
 } RectTransformInteraction;
 
-static void gizmo_cage2d_setup(wmGizmo *mpr)
+static void gizmo_cage2d_setup(wmGizmo *gz)
 {
-	mpr->flag |= WM_GIZMO_DRAW_MODAL | WM_GIZMO_DRAW_NO_SCALE;
+	gz->flag |= WM_GIZMO_DRAW_MODAL | WM_GIZMO_DRAW_NO_SCALE;
 }
 
 static int gizmo_cage2d_invoke(
-        bContext *C, wmGizmo *mpr, const wmEvent *event)
+        bContext *C, wmGizmo *gz, const wmEvent *event)
 {
 	RectTransformInteraction *data = MEM_callocN(sizeof(RectTransformInteraction), "cage_interaction");
 
-	copy_m4_m4(data->orig_matrix_offset, mpr->matrix_offset);
-	WM_gizmo_calc_matrix_final_no_offset(mpr, data->orig_matrix_final_no_offset);
+	copy_m4_m4(data->orig_matrix_offset, gz->matrix_offset);
+	WM_gizmo_calc_matrix_final_no_offset(gz, data->orig_matrix_final_no_offset);
 
 	if (gizmo_window_project_2d(
-	        C, mpr, (const float[2]){UNPACK2(event->mval)}, 2, false, data->orig_mouse) == 0)
+	        C, gz, (const float[2]){UNPACK2(event->mval)}, 2, false, data->orig_mouse) == 0)
 	{
 		zero_v2(data->orig_mouse);
 	}
 
-	mpr->interaction_data = data;
+	gz->interaction_data = data;
 
 	return OPERATOR_RUNNING_MODAL;
 }
 
 static int gizmo_cage2d_modal(
-        bContext *C, wmGizmo *mpr, const wmEvent *event,
+        bContext *C, wmGizmo *gz, const wmEvent *event,
         eWM_GizmoFlagTweak UNUSED(tweak_flag))
 {
 	/* For transform logic to be managable we operate in -0.5..0.5 2D space,
@@ -856,40 +856,40 @@ static int gizmo_cage2d_modal(
 	 * - The cursor offset are multiplied by 'dims'.
 	 * - Matrix translation is also multiplied by 'dims'.
 	 */
-	RectTransformInteraction *data = mpr->interaction_data;
+	RectTransformInteraction *data = gz->interaction_data;
 	float point_local[2];
 
 	float dims[2];
-	RNA_float_get_array(mpr->ptr, "dimensions", dims);
+	RNA_float_get_array(gz->ptr, "dimensions", dims);
 
 	{
 		float matrix_back[4][4];
-		copy_m4_m4(matrix_back, mpr->matrix_offset);
-		copy_m4_m4(mpr->matrix_offset, data->orig_matrix_offset);
+		copy_m4_m4(matrix_back, gz->matrix_offset);
+		copy_m4_m4(gz->matrix_offset, data->orig_matrix_offset);
 
 		bool ok = gizmo_window_project_2d(
-		        C, mpr, (const float[2]){UNPACK2(event->mval)}, 2, false, point_local);
-		copy_m4_m4(mpr->matrix_offset, matrix_back);
+		        C, gz, (const float[2]){UNPACK2(event->mval)}, 2, false, point_local);
+		copy_m4_m4(gz->matrix_offset, matrix_back);
 		if (!ok) {
 			return OPERATOR_RUNNING_MODAL;
 		}
 	}
 
-	const int transform_flag = RNA_enum_get(mpr->ptr, "transform");
-	wmGizmoProperty *mpr_prop;
+	const int transform_flag = RNA_enum_get(gz->ptr, "transform");
+	wmGizmoProperty *gz_prop;
 
-	mpr_prop = WM_gizmo_target_property_find(mpr, "matrix");
-	if (mpr_prop->type != NULL) {
-		WM_gizmo_target_property_value_get_array(mpr, mpr_prop, &mpr->matrix_offset[0][0]);
+	gz_prop = WM_gizmo_target_property_find(gz, "matrix");
+	if (gz_prop->type != NULL) {
+		WM_gizmo_target_property_value_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
 	}
 
-	if (mpr->highlight_part == ED_GIZMO_CAGE2D_PART_TRANSLATE) {
+	if (gz->highlight_part == ED_GIZMO_CAGE2D_PART_TRANSLATE) {
 		/* do this to prevent clamping from changing size */
-		copy_m4_m4(mpr->matrix_offset, data->orig_matrix_offset);
-		mpr->matrix_offset[3][0] = data->orig_matrix_offset[3][0] + (point_local[0] - data->orig_mouse[0]);
-		mpr->matrix_offset[3][1] = data->orig_matrix_offset[3][1] + (point_local[1] - data->orig_mouse[1]);
+		copy_m4_m4(gz->matrix_offset, data->orig_matrix_offset);
+		gz->matrix_offset[3][0] = data->orig_matrix_offset[3][0] + (point_local[0] - data->orig_mouse[0]);
+		gz->matrix_offset[3][1] = data->orig_matrix_offset[3][1] + (point_local[1] - data->orig_mouse[1]);
 	}
-	else if (mpr->highlight_part == ED_GIZMO_CAGE2D_PART_ROTATE) {
+	else if (gz->highlight_part == ED_GIZMO_CAGE2D_PART_ROTATE) {
 
 #define MUL_V2_V3_M4_FINAL(test_co, mouse_co) \
 		mul_v3_m4v3(test_co, data->orig_matrix_final_no_offset, ((const float[3]){UNPACK2(mouse_co), 0.0}))
@@ -915,28 +915,28 @@ static int gizmo_cage2d_modal(
 
 		copy_v3_v3(pivot, data->orig_matrix_offset[3]);
 
-		invert_m4_m4(matrix_space_inv, mpr->matrix_space);
+		invert_m4_m4(matrix_space_inv, gz->matrix_space);
 
 		unit_m4(matrix_rotate);
 		mul_m4_m4m4(matrix_rotate, matrix_rotate, matrix_space_inv);
 		rotate_m4(matrix_rotate, 'Z', -angle);
-		mul_m4_m4m4(matrix_rotate, matrix_rotate, mpr->matrix_space);
+		mul_m4_m4m4(matrix_rotate, matrix_rotate, gz->matrix_space);
 
 		zero_v3(matrix_rotate[3]);
 		transform_pivot_set_m4(matrix_rotate, pivot);
 
-		mul_m4_m4m4(mpr->matrix_offset, matrix_rotate, data->orig_matrix_offset);
+		mul_m4_m4m4(gz->matrix_offset, matrix_rotate, data->orig_matrix_offset);
 
 #undef MUL_V2_V3_M4_FINAL
 	}
 	else {
 		/* scale */
-		copy_m4_m4(mpr->matrix_offset, data->orig_matrix_offset);
+		copy_m4_m4(gz->matrix_offset, data->orig_matrix_offset);
 		float pivot[2];
 		bool constrain_axis[2] = {false};
 
 		if (transform_flag & ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE) {
-			gizmo_rect_pivot_from_scale_part(mpr->highlight_part, pivot, constrain_axis);
+			gizmo_rect_pivot_from_scale_part(gz->highlight_part, pivot, constrain_axis);
 		}
 		else {
 			zero_v2(pivot);
@@ -991,11 +991,11 @@ static int gizmo_cage2d_modal(
 		mul_v3_fl(matrix_scale[1], scale[1]);
 
 		transform_pivot_set_m4(matrix_scale, (const float[3]){pivot[0] * dims[0], pivot[1] * dims[1], 0.0f});
-		mul_m4_m4m4(mpr->matrix_offset, data->orig_matrix_offset, matrix_scale);
+		mul_m4_m4m4(gz->matrix_offset, data->orig_matrix_offset, matrix_scale);
 	}
 
-	if (mpr_prop->type != NULL) {
-		WM_gizmo_target_property_value_set_array(C, mpr, mpr_prop, &mpr->matrix_offset[0][0]);
+	if (gz_prop->type != NULL) {
+		WM_gizmo_target_property_value_set_array(C, gz, gz_prop, &gz->matrix_offset[0][0]);
 	}
 
 	/* tag the region for redraw */
@@ -1005,11 +1005,11 @@ static int gizmo_cage2d_modal(
 	return OPERATOR_RUNNING_MODAL;
 }
 
-static void gizmo_cage2d_property_update(wmGizmo *mpr, wmGizmoProperty *mpr_prop)
+static void gizmo_cage2d_property_update(wmGizmo *gz, wmGizmoProperty *gz_prop)
 {
-	if (STREQ(mpr_prop->type->idname, "matrix")) {
-		if (WM_gizmo_target_property_array_length(mpr, mpr_prop) == 16) {
-			WM_gizmo_target_property_value_get_array(mpr, mpr_prop, &mpr->matrix_offset[0][0]);
+	if (STREQ(gz_prop->type->idname, "matrix")) {
+		if (WM_gizmo_target_property_array_length(gz, gz_prop) == 16) {
+			WM_gizmo_target_property_value_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
 		}
 		else {
 			BLI_assert(0);
@@ -1020,24 +1020,24 @@ static void gizmo_cage2d_property_update(wmGizmo *mpr, wmGizmoProperty *mpr_prop
 	}
 }
 
-static void gizmo_cage2d_exit(bContext *C, wmGizmo *mpr, const bool cancel)
+static void gizmo_cage2d_exit(bContext *C, wmGizmo *gz, const bool cancel)
 {
-	RectTransformInteraction *data = mpr->interaction_data;
+	RectTransformInteraction *data = gz->interaction_data;
 
 	MEM_SAFE_FREE(data->dial);
 
 	if (!cancel)
 		return;
 
-	wmGizmoProperty *mpr_prop;
+	wmGizmoProperty *gz_prop;
 
 	/* reset properties */
-	mpr_prop = WM_gizmo_target_property_find(mpr, "matrix");
-	if (mpr_prop->type != NULL) {
-		WM_gizmo_target_property_value_set_array(C, mpr, mpr_prop, &data->orig_matrix_offset[0][0]);
+	gz_prop = WM_gizmo_target_property_find(gz, "matrix");
+	if (gz_prop->type != NULL) {
+		WM_gizmo_target_property_value_set_array(C, gz, gz_prop, &data->orig_matrix_offset[0][0]);
 	}
 
-	copy_m4_m4(mpr->matrix_offset, data->orig_matrix_offset);
+	copy_m4_m4(gz->matrix_offset, data->orig_matrix_offset);
 }
 
 
@@ -1046,23 +1046,23 @@ static void gizmo_cage2d_exit(bContext *C, wmGizmo *mpr, const bool cancel)
  *
  * \{ */
 
-static void GIZMO_WT_cage_2d(wmGizmoType *wt)
+static void GIZMO_GT_cage_2d(wmGizmoType *gzt)
 {
 	/* identifiers */
-	wt->idname = "GIZMO_WT_cage_2d";
+	gzt->idname = "GIZMO_GT_cage_2d";
 
 	/* api callbacks */
-	wt->draw = gizmo_cage2d_draw;
-	wt->draw_select = gizmo_cage2d_draw_select;
-	wt->test_select = gizmo_cage2d_test_select;
-	wt->setup = gizmo_cage2d_setup;
-	wt->invoke = gizmo_cage2d_invoke;
-	wt->property_update = gizmo_cage2d_property_update;
-	wt->modal = gizmo_cage2d_modal;
-	wt->exit = gizmo_cage2d_exit;
-	wt->cursor_get = gizmo_cage2d_get_cursor;
+	gzt->draw = gizmo_cage2d_draw;
+	gzt->draw_select = gizmo_cage2d_draw_select;
+	gzt->test_select = gizmo_cage2d_test_select;
+	gzt->setup = gizmo_cage2d_setup;
+	gzt->invoke = gizmo_cage2d_invoke;
+	gzt->property_update = gizmo_cage2d_property_update;
+	gzt->modal = gizmo_cage2d_modal;
+	gzt->exit = gizmo_cage2d_exit;
+	gzt->cursor_get = gizmo_cage2d_get_cursor;
 
-	wt->struct_size = sizeof(wmGizmo);
+	gzt->struct_size = sizeof(wmGizmo);
 
 	/* rna */
 	static EnumPropertyItem rna_enum_draw_style[] = {
@@ -1082,19 +1082,19 @@ static void GIZMO_WT_cage_2d(wmGizmoType *wt)
 		{0, NULL, 0, NULL, NULL}
 	};
 	static float unit_v2[2] = {1.0f, 1.0f};
-	RNA_def_float_vector(wt->srna, "dimensions", 2, unit_v2, 0, FLT_MAX, "Dimensions", "", 0.0f, FLT_MAX);
-	RNA_def_enum_flag(wt->srna, "transform", rna_enum_transform, 0, "Transform Options", "");
-	RNA_def_enum(wt->srna, "draw_style", rna_enum_draw_style, ED_GIZMO_CAGE2D_STYLE_CIRCLE, "Draw Style", "");
+	RNA_def_float_vector(gzt->srna, "dimensions", 2, unit_v2, 0, FLT_MAX, "Dimensions", "", 0.0f, FLT_MAX);
+	RNA_def_enum_flag(gzt->srna, "transform", rna_enum_transform, 0, "Transform Options", "");
+	RNA_def_enum(gzt->srna, "draw_style", rna_enum_draw_style, ED_GIZMO_CAGE2D_STYLE_CIRCLE, "Draw Style", "");
 	RNA_def_enum_flag(
-	        wt->srna, "draw_options", rna_enum_draw_options,
+	        gzt->srna, "draw_options", rna_enum_draw_options,
 	        ED_GIZMO_CAGE2D_DRAW_FLAG_XFORM_CENTER_HANDLE, "Draw Options", "");
 
-	WM_gizmotype_target_property_def(wt, "matrix", PROP_FLOAT, 16);
+	WM_gizmotype_target_property_def(gzt, "matrix", PROP_FLOAT, 16);
 }
 
 void ED_gizmotypes_cage_2d(void)
 {
-	WM_gizmotype_append(GIZMO_WT_cage_2d);
+	WM_gizmotype_append(GIZMO_GT_cage_2d);
 }
 
 /** \} */

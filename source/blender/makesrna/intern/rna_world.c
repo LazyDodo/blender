@@ -199,6 +199,8 @@ void RNA_def_world(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static float default_world_color[] = {0.05f, 0.05f, 0.05f};
+
 	srna = RNA_def_struct(brna, "World", "ID");
 	RNA_def_struct_ui_text(srna, "World",
 	                       "World data-block describing the environment and ambient lighting of a scene");
@@ -207,10 +209,11 @@ void RNA_def_world(BlenderRNA *brna)
 	rna_def_animdata_common(srna);
 
 	/* colors */
-	prop = RNA_def_property(srna, "horizon_color", PROP_FLOAT, PROP_COLOR);
+	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR);
 	RNA_def_property_float_sdna(prop, NULL, "horr");
 	RNA_def_property_array(prop, 3);
-	RNA_def_property_ui_text(prop, "Horizon Color", "Color at the horizon");
+	RNA_def_property_float_array_default(prop, default_world_color);
+	RNA_def_property_ui_text(prop, "Color", "Color of the background");
 	/* RNA_def_property_update(prop, 0, "rna_World_update"); */
 	/* render-only uses this */
 	RNA_def_property_update(prop, 0, "rna_World_draw_update");

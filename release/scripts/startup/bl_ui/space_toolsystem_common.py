@@ -74,7 +74,7 @@ ToolDef = namedtuple(
         "icon",
         # An optional cursor to use when this tool is active.
         "cursor",
-        # An optional manipulator group to activate when the tool is set or None for no widget.
+        # An optional gizmo group to activate when the tool is set or None for no gizmo.
         "widget",
         # Optional keymap for tool, either:
         # - A function that populates a keymaps passed in as an argument.
@@ -275,6 +275,7 @@ class ToolSelectPanelHelper:
                 mode = context.mode
             tool = context.workspace.tools.from_space_view3d_mode(mode, create)
             if tool is not None:
+                tool.refresh_from_context()
                 return tool
         elif space_type == 'IMAGE_EDITOR':
             space_data = context.space_data
@@ -282,6 +283,7 @@ class ToolSelectPanelHelper:
                 mode = space_data.mode
             tool = context.workspace.tools.from_space_image_mode(mode, create)
             if tool is not None:
+                tool.refresh_from_context()
                 return tool
         return None
 

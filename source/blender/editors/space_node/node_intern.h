@@ -224,11 +224,13 @@ void NODE_OT_viewer_border(struct wmOperatorType *ot);
 void NODE_OT_clear_viewer_border(struct wmOperatorType *ot);
 
 /* node_widgets.c */
-void NODE_WGT_backdrop_transform(struct wmGizmoGroupType *wgt);
-void NODE_WGT_backdrop_crop(struct wmGizmoGroupType *wgt);
-void NODE_WGT_backdrop_sun_beams(struct wmGizmoGroupType *wgt);
-void NODE_WGT_backdrop_corner_pin(struct wmGizmoGroupType *wgt);
+void NODE_GGT_backdrop_transform(struct wmGizmoGroupType *gzgt);
+void NODE_GGT_backdrop_crop(struct wmGizmoGroupType *gzgt);
+void NODE_GGT_backdrop_sun_beams(struct wmGizmoGroupType *gzgt);
+void NODE_GGT_backdrop_corner_pin(struct wmGizmoGroupType *gzgt);
 
+void NODE_OT_cryptomatte_layer_add(struct wmOperatorType *ot);
+void NODE_OT_cryptomatte_layer_remove(struct wmOperatorType *ot);
 
 extern const char *node_context_dir[];
 
@@ -236,7 +238,7 @@ extern const char *node_context_dir[];
 
 // nodes draw without dpi - the view zoom is flexible
 #define HIDDEN_RAD      (0.75f * U.widget_unit)
-#define BASIS_RAD       (0.4f * U.widget_unit)
+#define BASIS_RAD       (0.2f * U.widget_unit)
 #define NODE_DYS        (U.widget_unit / 2)
 #define NODE_DY         U.widget_unit
 #define NODE_SOCKDY     (0.08f * U.widget_unit)

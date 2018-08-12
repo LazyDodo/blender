@@ -38,21 +38,21 @@
 #include "BKE_global.h"
 
 #include "GPU_batch.h"
+#include "GPU_context.h"
 #include "GPU_debug.h"
 #include "GPU_draw.h"
 #include "GPU_extensions.h"
-#include "GPU_framebuffer.h"
 #include "GPU_glew.h"
+#include "GPU_framebuffer.h"
 #include "GPU_texture.h"
+
+#include "gpu_context_private.h"
 
 static struct GPUTextureGlobal {
 	GPUTexture *invalid_tex_1D; /* texture used in place of invalid textures (not loaded correctly, missing) */
 	GPUTexture *invalid_tex_2D;
 	GPUTexture *invalid_tex_3D;
 } GG = {NULL, NULL, NULL};
-
-static ListBase g_orphaned_tex = {NULL, NULL};
-static ThreadMutex g_orphan_lock;
 
 /* Maximum number of FBOs a texture can be attached to. */
 #define GPU_TEX_MAX_FBO_ATTACHED 8
@@ -160,9 +160,12 @@ static int gpu_get_component_count(GPUTextureFormat format)
 /* Definitely not complete, edit according to the gl specification. */
 static void gpu_validate_data_format(GPUTextureFormat tex_format, GPUDataFormat data_format)
 {
-	if (ELEM(tex_format, GPU_DEPTH_COMPONENT24,
-	                    GPU_DEPTH_COMPONENT16,
-	                    GPU_DEPTH_COMPONENT32F))
+	(void)data_format;
+
+	if (ELEM(tex_format,
+	         GPU_DEPTH_COMPONENT24,
+	         GPU_DEPTH_COMPONENT16,
+	         GPU_DEPTH_COMPONENT32F))
 	{
 		BLI_assert(data_format == GPU_DATA_FLOAT);
 	}
@@ -196,9 +199,10 @@ static void gpu_validate_data_format(GPUTextureFormat tex_format, GPUDataFormat 
 
 static GPUDataFormat gpu_get_data_format_from_tex_format(GPUTextureFormat tex_format)
 {
-	if (ELEM(tex_format, GPU_DEPTH_COMPONENT24,
-	                    GPU_DEPTH_COMPONENT16,
-	                    GPU_DEPTH_COMPONENT32F))
+	if (ELEM(tex_format,
+	         GPU_DEPTH_COMPONENT24,
+	         GPU_DEPTH_COMPONENT16,
+	         GPU_DEPTH_COMPONENT32F))
 	{
 		return GPU_DATA_FLOAT;
 	}
@@ -232,9 +236,10 @@ static GPUDataFormat gpu_get_data_format_from_tex_format(GPUTextureFormat tex_fo
 /* Definitely not complete, edit according to the gl specification. */
 static GLenum gpu_get_gl_dataformat(GPUTextureFormat data_type, GPUTextureFormatFlag *format_flag)
 {
-	if (ELEM(data_type, GPU_DEPTH_COMPONENT24,
-	                    GPU_DEPTH_COMPONENT16,
-	                    GPU_DEPTH_COMPONENT32F))
+	if (ELEM(data_type,
+	         GPU_DEPTH_COMPONENT24,
+	         GPU_DEPTH_COMPONENT16,
+	         GPU_DEPTH_COMPONENT32F))
 	{
 		*format_flag |= GPU_FORMAT_DEPTH;
 		return GL_DEPTH_COMPONENT;
@@ -429,6 +434,11 @@ static bool gpu_texture_try_alloc(
 			glTexImage2D(proxy, 0, internalformat, tex->w, tex->h, 0, data_format, data_type, NULL);
 			break;
 		case GL_PROXY_TEXTURE_2D_ARRAY:
+			/* HACK: Some driver wrongly check GL_PROXY_TEXTURE_2D_ARRAY as a GL_PROXY_TEXTURE_3D
+			 * checking all dimensions against GPU_max_texture_layers (see T55888). */
+			return (tex->w > 0) && (tex->w <= GPU_max_texture_size()) &&
+			       (tex->h > 0) && (tex->h <= GPU_max_texture_size()) &&
+			       (tex->d > 0) && (tex->d <= GPU_max_texture_layers());
 		case GL_PROXY_TEXTURE_3D:
 			glTexImage3D(proxy, 0, internalformat, tex->w, tex->h, tex->d, 0, data_format, data_type, NULL);
 			break;
@@ -532,7 +542,7 @@ GPUTexture *GPU_texture_create_nD(
 	gpu_texture_memory_footprint_add(tex);
 
 	/* Generate Texture object */
-	glGenTextures(1, &tex->bindcode);
+	tex->bindcode = GPU_tex_alloc();
 
 	if (!tex->bindcode) {
 		if (err_out)
@@ -665,7 +675,7 @@ static GPUTexture *GPU_texture_cube_create(
 	gpu_texture_memory_footprint_add(tex);
 
 	/* Generate Texture object */
-	glGenTextures(1, &tex->bindcode);
+	tex->bindcode = GPU_tex_alloc();
 
 	if (!tex->bindcode) {
 		if (err_out)
@@ -749,7 +759,7 @@ GPUTexture *GPU_texture_create_buffer(GPUTextureFormat tex_format, const GLuint 
 	}
 
 	/* Generate Texture object */
-	glGenTextures(1, &tex->bindcode);
+	tex->bindcode = GPU_tex_alloc();
 
 	if (!tex->bindcode) {
 		fprintf(stderr, "GPUTexture: texture create failed\n");
@@ -861,6 +871,13 @@ GPUTexture *GPU_texture_create_1D(
 	return GPU_texture_create_nD(w, 0, 0, 1, pixels, tex_format, data_format, 0, false, err_out);
 }
 
+GPUTexture *GPU_texture_create_1D_array(
+        int w, int h, GPUTextureFormat tex_format, const float *pixels, char err_out[256])
+{
+	GPUDataFormat data_format = gpu_get_data_format_from_tex_format(tex_format);
+	return GPU_texture_create_nD(w, h, 0, 1, pixels, tex_format, data_format, 0, false, err_out);
+}
+
 GPUTexture *GPU_texture_create_2D(
         int w, int h, GPUTextureFormat tex_format, const float *pixels, char err_out[256])
 {
@@ -911,28 +928,28 @@ GPUTexture *GPU_texture_create_cube(
 	                               tex_format, GPU_DATA_FLOAT, err_out);
 }
 
-GPUTexture *GPU_texture_create_from_vertbuf(Gwn_VertBuf *vert)
+GPUTexture *GPU_texture_create_from_vertbuf(GPUVertBuf *vert)
 {
-	Gwn_VertFormat *format = &vert->format;
-	Gwn_VertAttr *attr = &format->attribs[0];
+	GPUVertFormat *format = &vert->format;
+	GPUVertAttr *attr = &format->attribs[0];
 
 	/* Detect incompatible cases (not supported by texture buffers) */
 	BLI_assert(format->attr_len == 1 && vert->vbo_id != 0);
 	BLI_assert(attr->comp_len != 3); /* Not until OGL 4.0 */
-	BLI_assert(attr->comp_type != GWN_COMP_I10);
-	BLI_assert(attr->fetch_mode != GWN_FETCH_INT_TO_FLOAT);
+	BLI_assert(attr->comp_type != GPU_COMP_I10);
+	BLI_assert(attr->fetch_mode != GPU_FETCH_INT_TO_FLOAT);
 
 	unsigned int byte_per_comp = attr->sz / attr->comp_len;
-	bool is_uint = ELEM(attr->comp_type, GWN_COMP_U8, GWN_COMP_U16, GWN_COMP_U32);
+	bool is_uint = ELEM(attr->comp_type, GPU_COMP_U8, GPU_COMP_U16, GPU_COMP_U32);
 
 	/* Cannot fetch signed int or 32bit ints as normalized float. */
-	if (attr->fetch_mode == GWN_FETCH_INT_TO_FLOAT_UNIT) {
+	if (attr->fetch_mode == GPU_FETCH_INT_TO_FLOAT_UNIT) {
 		BLI_assert(is_uint || byte_per_comp <= 2);
 	}
 
 	GPUTextureFormat data_type;
 	switch (attr->fetch_mode) {
-		case GWN_FETCH_FLOAT:
+		case GPU_FETCH_FLOAT:
 			switch (attr->comp_len) {
 				case 1: data_type = GPU_R32F; break;
 				case 2: data_type = GPU_RG32F; break;
@@ -940,7 +957,7 @@ GPUTexture *GPU_texture_create_from_vertbuf(Gwn_VertBuf *vert)
 				default: data_type = GPU_RGBA32F; break;
 			}
 			break;
-		case GWN_FETCH_INT:
+		case GPU_FETCH_INT:
 			switch (attr->comp_len) {
 				case 1:
 					switch (byte_per_comp) {
@@ -965,7 +982,7 @@ GPUTexture *GPU_texture_create_from_vertbuf(Gwn_VertBuf *vert)
 					break;
 			}
 			break;
-		case GWN_FETCH_INT_TO_FLOAT_UNIT:
+		case GPU_FETCH_INT_TO_FLOAT_UNIT:
 			switch (attr->comp_len) {
 				case 1: data_type = (byte_per_comp == 1) ? GPU_R8 : GPU_R16; break;
 				case 2: data_type = (byte_per_comp == 1) ? GPU_RG8 : GPU_RG16; break;
@@ -1161,8 +1178,9 @@ void GPU_texture_bind(GPUTexture *tex, int number)
 	if ((G.debug & G_DEBUG)) {
 		for (int i = 0; i < GPU_TEX_MAX_FBO_ATTACHED; ++i) {
 			if (tex->fb[i] && GPU_framebuffer_bound(tex->fb[i])) {
-				fprintf(stderr, "Feedback loop warning!: Attempting to bind "
-				                "texture attached to current framebuffer!\n");
+				fprintf(stderr,
+				        "Feedback loop warning!: Attempting to bind "
+				        "texture attached to current framebuffer!\n");
 				BLI_assert(0); /* Should never happen! */
 				break;
 			}
@@ -1297,17 +1315,6 @@ void GPU_texture_filters(GPUTexture *tex, GPUFilterFunction min_filter, GPUFilte
 	glTexParameteri(tex->target_base, GL_TEXTURE_MAG_FILTER, gpu_get_gl_filterfunction(mag_filter));
 }
 
-
-static void gpu_texture_delete(GPUTexture *tex)
-{
-	if (tex->bindcode)
-		glDeleteTextures(1, &tex->bindcode);
-
-	gpu_texture_memory_footprint_remove(tex);
-
-	MEM_freeN(tex);
-}
-
 void GPU_texture_free(GPUTexture *tex)
 {
 	tex->refcount--;
@@ -1322,38 +1329,13 @@ void GPU_texture_free(GPUTexture *tex)
 			}
 		}
 
-		/* TODO(fclem): Check if the thread has an ogl context. */
-		if (BLI_thread_is_main()) {
-			gpu_texture_delete(tex);
-		}
-		else {
-			BLI_mutex_lock(&g_orphan_lock);
-			BLI_addtail(&g_orphaned_tex, BLI_genericNodeN(tex));
-			BLI_mutex_unlock(&g_orphan_lock);
-		}
+		if (tex->bindcode)
+			GPU_tex_free(tex->bindcode);
+
+		gpu_texture_memory_footprint_remove(tex);
+
+		MEM_freeN(tex);
 	}
-}
-
-void GPU_texture_orphans_init(void)
-{
-	BLI_mutex_init(&g_orphan_lock);
-}
-
-void GPU_texture_orphans_delete(void)
-{
-	BLI_mutex_lock(&g_orphan_lock);
-	LinkData *link;
-	while ((link = BLI_pophead(&g_orphaned_tex))) {
-		gpu_texture_delete((GPUTexture *)link->data);
-		MEM_freeN(link);
-	}
-	BLI_mutex_unlock(&g_orphan_lock);
-}
-
-void GPU_texture_orphans_exit(void)
-{
-	GPU_texture_orphans_delete();
-	BLI_mutex_end(&g_orphan_lock);
 }
 
 void GPU_texture_ref(GPUTexture *tex)

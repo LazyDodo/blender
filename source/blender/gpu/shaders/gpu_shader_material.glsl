@@ -238,13 +238,11 @@ void point_map_to_tube(vec3 vin, out vec3 vout)
 	vout = vec3(u, v, 0.0);
 }
 
-void mapping(vec3 vec, mat4 mat, vec3 minvec, vec3 maxvec, float domin, float domax, out vec3 outvec)
+void mapping(vec3 vec, vec4 m0, vec4 m1, vec4 m2, vec4 m3, vec3 minvec, vec3 maxvec, out vec3 outvec)
 {
+	mat4 mat = mat4(m0, m1, m2, m3);
 	outvec = (mat * vec4(vec, 1.0)).xyz;
-	if (domin == 1.0)
-		outvec = max(outvec, minvec);
-	if (domax == 1.0)
-		outvec = min(outvec, maxvec);
+	outvec = clamp(outvec, minvec, maxvec);
 }
 
 void camera(vec3 co, out vec3 outview, out float outdepth, out float outdist)
@@ -482,27 +480,26 @@ void normal_new_shading(vec3 dir, vec3 nor, out vec3 outnor, out float outdot)
 	outdot = dot(normalize(dir), nor);
 }
 
-void curves_vec(float fac, vec3 vec, sampler2D curvemap, out vec3 outvec)
+void curves_vec(float fac, vec3 vec, sampler1DArray curvemap, float layer, out vec3 outvec)
 {
-	outvec.x = texture(curvemap, vec2((vec.x + 1.0) * 0.5, 0.0)).x;
-	outvec.y = texture(curvemap, vec2((vec.y + 1.0) * 0.5, 0.0)).y;
-	outvec.z = texture(curvemap, vec2((vec.z + 1.0) * 0.5, 0.0)).z;
-
-	if (fac != 1.0)
-		outvec = (outvec * fac) + (vec * (1.0 - fac));
-
+	vec4 co = vec4(vec * 0.5 + 0.5, layer);
+	outvec.x = texture(curvemap, co.xw).x;
+	outvec.y = texture(curvemap, co.yw).y;
+	outvec.z = texture(curvemap, co.zw).z;
+	outvec = mix(vec, outvec, fac);
 }
 
-void curves_rgb(float fac, vec4 col, sampler2D curvemap, out vec4 outcol)
+void curves_rgb(float fac, vec4 col, sampler1DArray curvemap, float layer, out vec4 outcol)
 {
-	outcol.r = texture(curvemap, vec2(texture(curvemap, vec2(col.r, 0.0)).a, 0.0)).r;
-	outcol.g = texture(curvemap, vec2(texture(curvemap, vec2(col.g, 0.0)).a, 0.0)).g;
-	outcol.b = texture(curvemap, vec2(texture(curvemap, vec2(col.b, 0.0)).a, 0.0)).b;
-
-	if (fac != 1.0)
-		outcol = (outcol * fac) + (col * (1.0 - fac));
-
+	vec4 co = vec4(col.rgb, layer);
+	co.x = texture(curvemap, co.xw).a;
+	co.y = texture(curvemap, co.yw).a;
+	co.z = texture(curvemap, co.zw).a;
+	outcol.r = texture(curvemap, co.xw).r;
+	outcol.g = texture(curvemap, co.yw).g;
+	outcol.b = texture(curvemap, co.zw).b;
 	outcol.a = col.a;
+	outcol = mix(col, outcol, fac);
 }
 
 void set_value(float val, out float outval)
@@ -815,9 +812,15 @@ void mix_linear(float fac, vec4 col1, vec4 col2, out vec4 outcol)
 	outcol = col1 + fac * (2.0 * (col2 - vec4(0.5)));
 }
 
-void valtorgb(float fac, sampler2D colormap, out vec4 outcol, out float outalpha)
+void valtorgb(float fac, sampler1DArray colormap, float layer, out vec4 outcol, out float outalpha)
 {
-	outcol = texture(colormap, vec2(fac, 0.0));
+	outcol = texture(colormap, vec2(fac, layer));
+	outalpha = outcol.a;
+}
+
+void valtorgb_nearest(float fac, sampler1DArray colormap, float layer, out vec4 outcol, out float outalpha)
+{
+	outcol = texelFetch(colormap, ivec2(fac * textureSize(colormap, 0).x, layer), 0);
 	outalpha = outcol.a;
 }
 
@@ -1067,15 +1070,27 @@ float floorfrac(float x, out int i)
 
 /* bsdfs */
 
+vec3 tint_from_color(vec3 color)
+{
+	float lum = dot(color, vec3(0.3, 0.6, 0.1)); /* luminance approx. */
+	return (lum > 0) ? color / lum : vec3(1.0); /* normalize lum. to isolate hue+sat */
+}
+
 void convert_metallic_to_specular_tinted(
-        vec3 basecol, float metallic, float specular_fac, float specular_tint,
+        vec3 basecol, vec3 basecol_tint, float metallic, float specular_fac, float specular_tint,
         out vec3 diffuse, out vec3 f0)
 {
-	vec3 dielectric = vec3(0.034) * specular_fac * 2.0;
-	float lum = dot(basecol, vec3(0.3, 0.6, 0.1)); /* luminance approx. */
-	vec3 tint = lum > 0 ? basecol / lum : vec3(1.0); /* normalize lum. to isolate hue+sat */
-	f0 = mix(dielectric * mix(vec3(1.0), tint, specular_tint), basecol, metallic);
-	diffuse = mix(basecol, vec3(0.0), metallic);
+	vec3 tmp_col = mix(vec3(1.0), basecol_tint, specular_tint);
+	f0 = mix((0.08 * specular_fac) * tmp_col, basecol, metallic);
+	diffuse = basecol * (1.0 - metallic);
+}
+
+vec3 principled_sheen(float NV, vec3 basecol_tint, float sheen_tint)
+{
+	float f = 1.0 - NV;
+	/* Empirical approximation (manual curve fitting). Can be refined. */
+	float sheen = f*f*f*0.077 + f*0.01 + 0.00026;
+	return sheen * mix(vec3(1.0), basecol_tint, sheen_tint);
 }
 
 #ifndef VOLUMETRICS
@@ -1104,7 +1119,7 @@ void node_bsdf_anisotropic(
         vec4 color, float roughness, float anisotropy, float rotation, vec3 N, vec3 T,
         out Closure result)
 {
-	node_bsdf_diffuse(color, 0.0, N, result);
+	node_bsdf_glossy(color, roughness, N, -1, result);
 }
 
 void node_bsdf_glass(vec4 color, float roughness, float ior, vec3 N, float ssr_id, out Closure result)
@@ -1128,62 +1143,201 @@ void node_bsdf_toon(vec4 color, float size, float tsmooth, vec3 N, out Closure r
 	node_bsdf_diffuse(color, 0.0, N, result);
 }
 
-void node_bsdf_principled_clearcoat(vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
-	float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
-	float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
-	float sss_id, vec3 sss_scale, out Closure result)
+void node_bsdf_principled(
+        vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+        float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+        float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
+        float sss_id, vec3 sss_scale, out Closure result)
 {
+	ior = max(ior, 1e-5);
 	metallic = saturate(metallic);
 	transmission = saturate(transmission);
+	float dielectric = 1.0 - metallic;
+	transmission *= dielectric;
+	sheen *= dielectric;
+	subsurface_color *= dielectric;
 
 	vec3 diffuse, f0, out_diff, out_spec, out_trans, out_refr, ssr_spec;
-	convert_metallic_to_specular_tinted(base_color.rgb, metallic, specular, specular_tint, diffuse, f0);
+	vec3 ctint = tint_from_color(base_color.rgb);
+	convert_metallic_to_specular_tinted(base_color.rgb, ctint, metallic, specular, specular_tint, diffuse, f0);
 
-	transmission *= 1.0 - metallic;
-	subsurface *= 1.0 - metallic;
+	float NV = dot(N, cameraVec);
+	vec3 out_sheen = sheen * principled_sheen(NV, ctint, sheen_tint);
 
-	clearcoat *= 0.25;
-	clearcoat *= 1.0 - transmission;
+	/* Far from being accurate, but 2 glossy evaluation is too expensive.
+	 * Most noticeable difference is at grazing angles since the bsdf lut
+	 * f0 color interpolation is done on top of this interpolation. */
+	vec3 f0_glass = mix(vec3(1.0), base_color.rgb, specular_tint);
+	float fresnel = F_eta(ior, NV);
+	vec3 spec_col = F_color_blend(ior, fresnel, f0_glass) * fresnel;
+	f0 = mix(f0, spec_col, transmission);
 
-#ifdef USE_SSS
-	diffuse = mix(diffuse, vec3(0.0), subsurface);
-#else
-	diffuse = mix(diffuse, subsurface_color.rgb, subsurface);
-#endif
-	f0 = mix(f0, vec3(1.0), transmission);
+	vec3 mixed_ss_base_color = mix(diffuse, subsurface_color.rgb, subsurface);
 
-	float sss_scalef = dot(sss_scale, vec3(1.0 / 3.0));
-	eevee_closure_principled(N, diffuse, f0, int(ssr_id), roughness,
-	                         CN, clearcoat, clearcoat_roughness, 1.0, sss_scalef, ior,
+	float sss_scalef = dot(sss_scale, vec3(1.0 / 3.0)) * subsurface;
+	eevee_closure_principled(N, mixed_ss_base_color, f0, int(ssr_id), roughness,
+	                         CN, clearcoat * 0.25, clearcoat_roughness, 1.0, sss_scalef, ior,
 	                         out_diff, out_trans, out_spec, out_refr, ssr_spec);
 
 	vec3 refr_color = base_color.rgb;
 	refr_color *= (refractionDepth > 0.0) ? refr_color : vec3(1.0); /* Simulate 2 transmission event */
-
-	float fresnel = F_eta(ior, dot(N, cameraVec));
-	vec3 refr_spec_color = base_color.rgb * fresnel;
-	/* This bit maybe innacurate. */
-	out_refr = out_refr * refr_color * (1.0 - fresnel) + out_spec * refr_spec_color;
-
-	ssr_spec = mix(ssr_spec, refr_spec_color, transmission);
+	out_refr *= refr_color * (1.0 - fresnel) * transmission;
 
 	vec3 vN = normalize(mat3(ViewMatrix) * N);
 	result = CLOSURE_DEFAULT;
-	result.radiance = out_spec + out_diff * diffuse;
-	result.radiance = mix(result.radiance, out_refr, transmission);
+	result.radiance = out_spec + out_refr;
+	result.radiance += out_diff * out_sheen; /* Coarse approx. */
+#ifndef USE_SSS
+	result.radiance += (out_diff + out_trans) * mixed_ss_base_color *  (1.0 - transmission);
+#endif
 	result.ssr_data = vec4(ssr_spec, roughness);
 	result.ssr_normal = normal_encode(vN, viewCameraVec);
 	result.ssr_id = int(ssr_id);
 #ifdef USE_SSS
 	result.sss_data.a = sss_scalef;
 	result.sss_data.rgb = out_diff + out_trans;
-#ifdef USE_SSS_ALBEDO
-	result.sss_albedo.rgb = mix(vec3(0.0), subsurface_color.rgb, subsurface);
-#else
-	result.sss_data.rgb *= mix(vec3(0.0), subsurface_color.rgb, subsurface);
-#endif
+#  ifdef USE_SSS_ALBEDO
+	result.sss_albedo.rgb = mixed_ss_base_color;
+#  else
+	result.sss_data.rgb *= mixed_ss_base_color;
+#  endif
 	result.sss_data.rgb *= (1.0 - transmission);
 #endif
+}
+
+void node_bsdf_principled_dielectric(
+        vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+        float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+        float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
+        float sss_id, vec3 sss_scale, out Closure result)
+{
+	metallic = saturate(metallic);
+	float dielectric = 1.0 - metallic;
+
+	vec3 diffuse, f0, out_diff, out_spec, ssr_spec;
+	vec3 ctint = tint_from_color(base_color.rgb);
+	convert_metallic_to_specular_tinted(base_color.rgb, ctint, metallic, specular, specular_tint, diffuse, f0);
+
+	float NV = dot(N, cameraVec);
+	vec3 out_sheen = sheen * principled_sheen(NV, ctint, sheen_tint);
+
+	eevee_closure_default(N, diffuse, f0, int(ssr_id), roughness, 1.0, out_diff, out_spec, ssr_spec);
+
+	vec3 vN = normalize(mat3(ViewMatrix) * N);
+	result = CLOSURE_DEFAULT;
+	result.radiance = out_spec + out_diff * (diffuse + out_sheen);
+	result.ssr_data = vec4(ssr_spec, roughness);
+	result.ssr_normal = normal_encode(vN, viewCameraVec);
+	result.ssr_id = int(ssr_id);
+}
+
+void node_bsdf_principled_metallic(
+        vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+        float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+        float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
+        float sss_id, vec3 sss_scale, out Closure result)
+{
+	vec3 out_spec, ssr_spec;
+
+	eevee_closure_glossy(N, base_color.rgb, int(ssr_id), roughness, 1.0, out_spec, ssr_spec);
+
+	vec3 vN = normalize(mat3(ViewMatrix) * N);
+	result = CLOSURE_DEFAULT;
+	result.radiance = out_spec;
+	result.ssr_data = vec4(ssr_spec, roughness);
+	result.ssr_normal = normal_encode(vN, viewCameraVec);
+	result.ssr_id = int(ssr_id);
+}
+
+void node_bsdf_principled_clearcoat(
+        vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+        float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+        float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
+        float sss_id, vec3 sss_scale, out Closure result)
+{
+	vec3 out_spec, ssr_spec;
+
+	eevee_closure_clearcoat(N, base_color.rgb, int(ssr_id), roughness, CN, clearcoat * 0.25, clearcoat_roughness,
+	                        1.0, out_spec, ssr_spec);
+
+	vec3 vN = normalize(mat3(ViewMatrix) * N);
+	result = CLOSURE_DEFAULT;
+	result.radiance = out_spec;
+	result.ssr_data = vec4(ssr_spec, roughness);
+	result.ssr_normal = normal_encode(vN, viewCameraVec);
+	result.ssr_id = int(ssr_id);
+}
+
+void node_bsdf_principled_subsurface(
+        vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+        float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+        float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
+        float sss_id, vec3 sss_scale, out Closure result)
+{
+	metallic = saturate(metallic);
+
+	vec3 diffuse, f0, out_diff, out_spec, out_trans, ssr_spec;
+	vec3 ctint = tint_from_color(base_color.rgb);
+	convert_metallic_to_specular_tinted(base_color.rgb, ctint, metallic, specular, specular_tint, diffuse, f0);
+
+	subsurface_color = subsurface_color * (1.0 - metallic);
+	vec3 mixed_ss_base_color = mix(diffuse, subsurface_color.rgb, subsurface);
+	float sss_scalef = dot(sss_scale, vec3(1.0 / 3.0)) * subsurface;
+
+	float NV = dot(N, cameraVec);
+	vec3 out_sheen = sheen * principled_sheen(NV, ctint, sheen_tint);
+
+	eevee_closure_skin(N, mixed_ss_base_color, f0, int(ssr_id), roughness, 1.0, sss_scalef,
+	                   out_diff, out_trans, out_spec, ssr_spec);
+
+	vec3 vN = normalize(mat3(ViewMatrix) * N);
+	result = CLOSURE_DEFAULT;
+	result.radiance = out_spec;
+	result.ssr_data = vec4(ssr_spec, roughness);
+	result.ssr_normal = normal_encode(vN, viewCameraVec);
+	result.ssr_id = int(ssr_id);
+#ifdef USE_SSS
+	result.sss_data.a = sss_scalef;
+	result.sss_data.rgb = out_diff + out_trans;
+#  ifdef USE_SSS_ALBEDO
+	result.sss_albedo.rgb = mixed_ss_base_color;
+#  else
+	result.sss_data.rgb *= mixed_ss_base_color;
+#  endif
+#else
+	result.radiance += (out_diff + out_trans) * mixed_ss_base_color;
+#endif
+	result.radiance += out_diff * out_sheen;
+}
+
+void node_bsdf_principled_glass(
+        vec4 base_color, float subsurface, vec3 subsurface_radius, vec4 subsurface_color, float metallic, float specular,
+        float specular_tint, float roughness, float anisotropic, float anisotropic_rotation, float sheen, float sheen_tint, float clearcoat,
+        float clearcoat_roughness, float ior, float transmission, float transmission_roughness, vec3 N, vec3 CN, vec3 T, vec3 I, float ssr_id,
+        float sss_id, vec3 sss_scale, out Closure result)
+{
+	ior = max(ior, 1e-5);
+
+	vec3 f0, out_spec, out_refr, ssr_spec;
+	f0 = mix(vec3(1.0), base_color.rgb, specular_tint);
+
+	eevee_closure_glass(N, vec3(1.0), int(ssr_id), roughness, 1.0, ior, out_spec, out_refr, ssr_spec);
+
+	vec3 refr_color = base_color.rgb;
+	refr_color *= (refractionDepth > 0.0) ? refr_color : vec3(1.0); /* Simulate 2 transmission events */
+	out_refr *= refr_color;
+
+	float fresnel = F_eta(ior, dot(N, cameraVec));
+	vec3 spec_col = F_color_blend(ior, fresnel, f0);
+	out_spec *= spec_col;
+	ssr_spec *= spec_col * fresnel;
+
+	vec3 vN = normalize(mat3(ViewMatrix) * N);
+	result = CLOSURE_DEFAULT;
+	result.radiance = mix(out_refr, out_spec, fresnel);
+	result.ssr_data = vec4(ssr_spec, roughness);
+	result.ssr_normal = normal_encode(vN, viewCameraVec);
+	result.ssr_id = int(ssr_id);
 }
 
 void node_bsdf_translucent(vec4 color, vec3 N, out Closure result)
@@ -1219,13 +1373,13 @@ void node_subsurface_scattering(
 	result.sss_data.a = scale;
 	eevee_closure_subsurface(N, color.rgb, 1.0, scale, out_diff, out_trans);
 	result.sss_data.rgb = out_diff + out_trans;
-#ifdef USE_SSS_ALBEDO
+#  ifdef USE_SSS_ALBEDO
 	/* Not perfect for texture_blur not exaclty equal to 0.0 or 1.0. */
 	result.sss_albedo.rgb = mix(color.rgb, vec3(1.0), texture_blur);
 	result.sss_data.rgb *= mix(vec3(1.0), color.rgb, texture_blur);
-#else
+#  else
 	result.sss_data.rgb *= color.rgb;
-#endif
+#  endif
 #else
 	node_bsdf_diffuse(color, 0.0, N, result);
 #endif
@@ -1315,17 +1469,17 @@ void node_volume_absorption(vec4 color, float density, out Closure result)
 #endif
 }
 
-void node_blackbody(float temperature, sampler2D spectrummap, out vec4 color)
+void node_blackbody(float temperature, sampler1DArray spectrummap, float layer, out vec4 color)
 {
-    if(temperature >= 12000.0) {
+    if (temperature >= 12000.0) {
         color = vec4(0.826270103, 0.994478524, 1.56626022, 1.0);
     }
-    else if(temperature < 965.0) {
+    else if (temperature < 965.0) {
         color = vec4(4.70366907, 0.0, 0.0, 1.0);
     }
 	else {
 		float t = (temperature - 965.0) / (12000.0 - 965.0);
-		color = vec4(texture(spectrummap, vec2(t, 0.0)).rgb, 1.0);
+		color = vec4(texture(spectrummap, vec2(t, layer)).rgb, 1.0);
 	}
 }
 
@@ -1342,7 +1496,8 @@ void node_volume_principled(
 	float density_attribute,
 	vec4 color_attribute,
 	float temperature_attribute,
-	sampler2D spectrummap,
+	sampler1DArray spectrummap,
+	float layer,
 	out Closure result)
 {
 #ifdef VOLUMETRICS
@@ -1384,7 +1539,7 @@ void node_volume_principled(
 
 		if(intensity > 1e-5) {
 			vec4 bb;
-			node_blackbody(T, spectrummap, bb);
+			node_blackbody(T, spectrummap, layer, bb);
 			emission_coeff += bb.rgb * blackbody_tint.rgb * intensity;
 		}
 	}
@@ -1798,24 +1953,192 @@ void node_tex_environment_empty(vec3 co, out vec4 color)
 	color = vec4(1.0, 0.0, 1.0, 1.0);
 }
 
-void node_tex_image(vec3 co, sampler2D ima, out vec4 color, out float alpha)
+void node_tex_image_linear(vec3 co, sampler2D ima, out vec4 color, out float alpha)
 {
 	color = texture(ima, co.xy);
 	alpha = color.a;
 }
 
+void node_tex_image_nearest(vec3 co, sampler2D ima, out vec4 color, out float alpha)
+{
+	ivec2 pix = ivec2(fract(co.xy) * textureSize(ima, 0).xy);
+	color = texelFetch(ima, pix, 0);
+	alpha = color.a;
+}
+
+void node_tex_image_cubic(vec3 co, sampler2D ima, out vec4 color, out float alpha)
+{
+	vec2 tex_size = vec2(textureSize(ima, 0).xy);
+
+	co.xy *= tex_size;
+	/* texel center */
+	vec2 tc = floor(co.xy - 0.5) + 0.5;
+	vec2 f = co.xy - tc;
+	vec2 f2 = f * f;
+	vec2 f3 = f2 * f;
+	/* Bspline coefs (optimized) */
+	vec2 w3 =  f3 / 6.0;
+	vec2 w0 = -w3       + f2 * 0.5 - f * 0.5 + 1.0 / 6.0;
+	vec2 w1 =  f3 * 0.5 - f2 * 1.0           + 2.0 / 3.0;
+	vec2 w2 = 1.0 - w0 - w1 - w3;
+
+#if 1 /* Optimized version using 4 filtered tap. */
+	vec2 s0 = w0 + w1;
+	vec2 s1 = w2 + w3;
+
+	vec2 f0 = w1 / (w0 + w1);
+	vec2 f1 = w3 / (w2 + w3);
+
+	vec4 final_co;
+	final_co.xy = tc - 1.0 + f0;
+	final_co.zw = tc + 1.0 + f1;
+
+	final_co /= tex_size.xyxy;
+
+	color  = texture(ima, final_co.xy) * s0.x * s0.y;
+	color += texture(ima, final_co.zy) * s1.x * s0.y;
+	color += texture(ima, final_co.xw) * s0.x * s1.y;
+	color += texture(ima, final_co.zw) * s1.x * s1.y;
+
+#else /* Reference bruteforce 16 tap. */
+	color  = texelFetch(ima, ivec2(tc + vec2(-1.0, -1.0)), 0) * w0.x * w0.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 0.0, -1.0)), 0) * w1.x * w0.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 1.0, -1.0)), 0) * w2.x * w0.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 2.0, -1.0)), 0) * w3.x * w0.y;
+
+	color += texelFetch(ima, ivec2(tc + vec2(-1.0, 0.0)), 0) * w0.x * w1.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 0.0, 0.0)), 0) * w1.x * w1.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 1.0, 0.0)), 0) * w2.x * w1.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 2.0, 0.0)), 0) * w3.x * w1.y;
+
+	color += texelFetch(ima, ivec2(tc + vec2(-1.0, 1.0)), 0) * w0.x * w2.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 0.0, 1.0)), 0) * w1.x * w2.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 1.0, 1.0)), 0) * w2.x * w2.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 2.0, 1.0)), 0) * w3.x * w2.y;
+
+	color += texelFetch(ima, ivec2(tc + vec2(-1.0, 2.0)), 0) * w0.x * w3.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 0.0, 2.0)), 0) * w1.x * w3.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 1.0, 2.0)), 0) * w2.x * w3.y;
+	color += texelFetch(ima, ivec2(tc + vec2( 2.0, 2.0)), 0) * w3.x * w3.y;
+#endif
+
+	alpha = color.a;
+}
+
+void node_tex_image_smart(vec3 co, sampler2D ima, out vec4 color, out float alpha)
+{
+	/* use cubic for now */
+	node_tex_image_cubic(co, ima, color, alpha);
+}
+
+void tex_box_sample_linear(vec3 texco,
+                    vec3 N,
+                    sampler2D ima,
+                    out vec4 color1,
+                    out vec4 color2,
+                    out vec4 color3)
+{
+	/* X projection */
+	vec2 uv = texco.yz;
+	if (N.x < 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	color1 = texture(ima, uv);
+	/* Y projection */
+	uv = texco.xz;
+	if (N.y > 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	color2 = texture(ima, uv);
+	/* Z projection */
+	uv = texco.yx;
+	if (N.z > 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	color3 = texture(ima, uv);
+}
+
+void tex_box_sample_nearest(vec3 texco,
+                    vec3 N,
+                    sampler2D ima,
+                    out vec4 color1,
+                    out vec4 color2,
+                    out vec4 color3)
+{
+	/* X projection */
+	vec2 uv = texco.yz;
+	if (N.x < 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	ivec2 pix = ivec2(uv.xy * textureSize(ima, 0).xy);
+	color1 = texelFetch(ima, pix, 0);
+	/* Y projection */
+	uv = texco.xz;
+	if (N.y > 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	pix = ivec2(uv.xy * textureSize(ima, 0).xy);
+	color2 = texelFetch(ima, pix, 0);
+	/* Z projection */
+	uv = texco.yx;
+	if (N.z > 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	pix = ivec2(uv.xy * textureSize(ima, 0).xy);
+	color3 = texelFetch(ima, pix, 0);
+}
+
+void tex_box_sample_cubic(vec3 texco,
+                    vec3 N,
+                    sampler2D ima,
+                    out vec4 color1,
+                    out vec4 color2,
+                    out vec4 color3)
+{
+	float alpha;
+	/* X projection */
+	vec2 uv = texco.yz;
+	if (N.x < 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	node_tex_image_cubic(uv.xyy, ima, color1, alpha);
+	/* Y projection */
+	uv = texco.xz;
+	if (N.y > 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	node_tex_image_cubic(uv.xyy, ima, color2, alpha);
+	/* Z projection */
+	uv = texco.yx;
+	if (N.z > 0.0) {
+		uv.x = 1.0 - uv.x;
+	}
+	node_tex_image_cubic(uv.xyy, ima, color3, alpha);
+}
+
+void tex_box_sample_smart(vec3 texco,
+                    vec3 N,
+                    sampler2D ima,
+                    out vec4 color1,
+                    out vec4 color2,
+                    out vec4 color3)
+{
+	tex_box_sample_cubic(texco, N, ima, color1, color2, color3);
+}
+
 void node_tex_image_box(vec3 texco,
                         vec3 N,
+                        vec4 color1,
+                        vec4 color2,
+                        vec4 color3,
                         sampler2D ima,
                         float blend,
                         out vec4 color,
                         out float alpha)
 {
-	vec3 signed_N = N;
-
 	/* project from direction vector to barycentric coordinates in triangles */
-	N = vec3(abs(N.x), abs(N.y), abs(N.z));
-	N /= (N.x + N.y + N.z);
+	N = abs(N);
+	N /= dot(N, vec3(1.0));
 
 	/* basic idea is to think of this as a triangle, each corner representing
 	 * one of the 3 faces of the cube. in the corners we have single textures,
@@ -1825,72 +2148,36 @@ void node_tex_image_box(vec3 texco,
 	 * the Nxyz values are the barycentric coordinates in an equilateral
 	 * triangle, which in case of blending, in the middle has a smaller
 	 * equilateral triangle where 3 textures blend. this divides things into
-	 * 7 zones, with an if () test for each zone */
+	 * 7 zones, with an if () test for each zone
+	 * EDIT: Now there is only 4 if's. */
 
-	vec3 weight = vec3(0.0, 0.0, 0.0);
-	float limit = 0.5 * (1.0 + blend);
+	float limit = 0.5 + 0.5 * blend;
 
-	/* first test for corners with single texture */
-	if (N.x > limit * (N.x + N.y) && N.x > limit * (N.x + N.z)) {
-		weight.x = 1.0;
+	vec3 weight;
+	weight.x = N.x / (N.x + N.y);
+	weight.y = N.y / (N.y + N.z);
+	weight.z = N.z / (N.x + N.z);
+	weight = clamp((weight - 0.5 * (1.0 - blend)) / max(1e-8, blend), 0.0, 1.0);
+
+	/* test for mixes between two textures */
+	if (N.z < (1.0 - limit) * (N.y + N.x)) {
+		weight.z = 0.0;
+		weight.y = 1.0 - weight.x;
 	}
-	else if (N.y > limit * (N.x + N.y) && N.y > limit * (N.y + N.z)) {
-		weight.y = 1.0;
+	else if (N.x < (1.0 - limit) * (N.y + N.z)) {
+		weight.x = 0.0;
+		weight.z = 1.0 - weight.y;
 	}
-	else if (N.z > limit * (N.x + N.z) && N.z > limit * (N.y + N.z)) {
-		weight.z = 1.0;
-	}
-	else if (blend > 0.0) {
-		/* in case of blending, test for mixes between two textures */
-		if (N.z < (1.0 - limit) * (N.y + N.x)) {
-			weight.x = N.x / (N.x + N.y);
-			weight.x = clamp((weight.x - 0.5 * (1.0 - blend)) / blend, 0.0, 1.0);
-			weight.y = 1.0 - weight.x;
-		}
-		else if (N.x < (1.0 - limit) * (N.y + N.z)) {
-			weight.y = N.y / (N.y + N.z);
-			weight.y = clamp((weight.y - 0.5 * (1.0 - blend)) / blend, 0.0, 1.0);
-			weight.z = 1.0 - weight.y;
-		}
-		else if (N.y < (1.0 - limit) * (N.x + N.z)) {
-			weight.x = N.x / (N.x + N.z);
-			weight.x = clamp((weight.x - 0.5 * (1.0 - blend)) / blend, 0.0, 1.0);
-			weight.z = 1.0 - weight.x;
-		}
-		else {
-			/* last case, we have a mix between three */
-			weight.x = ((2.0 - limit) * N.x + (limit - 1.0)) / (2.0 * limit - 1.0);
-			weight.y = ((2.0 - limit) * N.y + (limit - 1.0)) / (2.0 * limit - 1.0);
-			weight.z = ((2.0 - limit) * N.z + (limit - 1.0)) / (2.0 * limit - 1.0);
-		}
+	else if (N.y < (1.0 - limit) * (N.x + N.z)) {
+		weight.y = 0.0;
+		weight.x = 1.0 - weight.z;
 	}
 	else {
-		/* Desperate mode, no valid choice anyway, fallback to one side.*/
-		weight.x = 1.0;
-	}
-	color = vec4(0);
-	if (weight.x > 0.0) {
-		vec2 uv = texco.yz;
-		if(signed_N.x < 0.0) {
-			uv.x = 1.0 - uv.x;
-		}
-		color += weight.x * texture(ima, uv);
-	}
-	if (weight.y > 0.0) {
-		vec2 uv = texco.xz;
-		if(signed_N.y > 0.0) {
-			uv.x = 1.0 - uv.x;
-		}
-		color += weight.y * texture(ima, uv);
-	}
-	if (weight.z > 0.0) {
-		vec2 uv = texco.yx;
-		if(signed_N.z > 0.0) {
-			uv.x = 1.0 - uv.x;
-		}
-		color += weight.z * texture(ima, uv);
+		/* last case, we have a mix between three */
+		weight = ((2.0 - limit) * N + (limit - 1.0)) / max(1e-8, 2.0 * limit - 1.0);
 	}
 
+	color = weight.x * color1 + weight.y * color2 + weight.z * color3;
 	alpha = color.a;
 }
 

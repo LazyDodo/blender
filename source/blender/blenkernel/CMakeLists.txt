@@ -38,6 +38,8 @@ set(INC
 	../makesrna
 	../bmesh
 	../modifiers
+	../gpencil_modifiers
+	../shader_fx
 	../nodes
 	../physics
 	../render/extern/include
@@ -115,6 +117,7 @@ set(SRC
 	intern/font.c
 	intern/freestyle.c
 	intern/gpencil.c
+	intern/gpencil_modifier.c
 	intern/hair.c
 	intern/hair_draw.c
 	intern/icons.c
@@ -183,12 +186,19 @@ set(SRC
 	intern/seqeffects.c
 	intern/seqmodifier.c
 	intern/sequencer.c
+	intern/shader_fx.c
 	intern/shrinkwrap.c
 	intern/smoke.c
 	intern/softbody.c
 	intern/sound.c
 	intern/speaker.c
 	intern/studiolight.c
+	intern/subdiv.c
+	intern/subdiv_converter.c
+	intern/subdiv_converter_mesh.c
+	intern/subdiv_eval.c
+	intern/subdiv_mesh.c
+	intern/subdiv_stats.c
 	intern/subsurf_ccg.c
 	intern/suggestions.c
 	intern/text.c
@@ -256,6 +266,7 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
+	BKE_gpencil_modifier.h
 	BKE_hair.h
 	BKE_icons.h
 	BKE_idcode.h
@@ -305,12 +316,14 @@ set(SRC
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
+	BKE_shader_fx.h
 	BKE_shrinkwrap.h
 	BKE_smoke.h
 	BKE_softbody.h
 	BKE_sound.h
 	BKE_speaker.h
 	BKE_studiolight.h
+	BKE_subdiv.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
@@ -328,8 +341,9 @@ set(SRC
 	intern/CCGSubSurf.h
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
-	intern/pbvh_intern.h
 	intern/data_transfer_intern.h
+	intern/pbvh_intern.h
+	intern/subdiv_converter.h
 )
 
 if(WITH_BINRELOC)

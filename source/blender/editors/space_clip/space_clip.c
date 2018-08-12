@@ -236,7 +236,7 @@ static SpaceLink *clip_new(const ScrArea *sa, const Scene *scene)
 	sc = MEM_callocN(sizeof(SpaceClip), "initclip");
 	sc->spacetype = SPACE_CLIP;
 	sc->flag = SC_SHOW_MARKER_PATTERN | SC_SHOW_TRACK_PATH |
-	           SC_SHOW_GRAPH_TRACKS_MOTION | SC_SHOW_GRAPH_FRAMES | SC_SHOW_GPENCIL;
+	           SC_SHOW_GRAPH_TRACKS_MOTION | SC_SHOW_GRAPH_FRAMES | SC_SHOW_ANNOTATION;
 	sc->zoom = 1.0f;
 	sc->path_length = 20;
 	sc->scopes.track_preview_height = 120;
@@ -847,7 +847,7 @@ static int clip_context(const bContext *C, const char *member, bContextDataResul
 }
 
 /* dropboxes */
-static bool clip_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool clip_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH)
 		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE, ICON_FILE_BLANK)) /* rule might not work? */
@@ -1185,18 +1185,18 @@ static void clip_main_region_draw(const bContext *C, ARegion *ar)
 	show_cursor |= sc->around == V3D_AROUND_CURSOR;
 
 	if (show_cursor) {
-		gpuPushMatrix();
-		gpuTranslate2f(x, y);
-		gpuScale2f(zoomx, zoomy);
-		gpuMultMatrix(sc->stabmat);
-		gpuScale2f(width, height);
+		GPU_matrix_push();
+		GPU_matrix_translate_2f(x, y);
+		GPU_matrix_scale_2f(zoomx, zoomy);
+		GPU_matrix_mul(sc->stabmat);
+		GPU_matrix_scale_2f(width, height);
 		ED_image_draw_cursor(ar, sc->cursor);
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 
 	clip_draw_cache_and_notes(C, sc, ar);
 
-	if (sc->flag & SC_SHOW_GPENCIL) {
+	if (sc->flag & SC_SHOW_ANNOTATION) {
 		/* Grease Pencil */
 		clip_draw_grease_pencil((bContext *)C, true);
 	}
@@ -1204,7 +1204,7 @@ static void clip_main_region_draw(const bContext *C, ARegion *ar)
 	/* reset view matrix */
 	UI_view2d_view_restore(C);
 
-	if (sc->flag & SC_SHOW_GPENCIL) {
+	if (sc->flag & SC_SHOW_ANNOTATION) {
 		/* draw Grease Pencil - screen space only */
 		clip_draw_grease_pencil((bContext *)C, false);
 	}

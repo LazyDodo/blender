@@ -70,6 +70,15 @@
 
 #include "armature_intern.h"
 
+
+#define DEBUG_TIME
+
+#include "PIL_time.h"
+#ifdef DEBUG_TIME
+#  include "PIL_time_utildefines.h"
+#endif
+
+
 /* matches logic with ED_operator_posemode_context() */
 Object *ED_pose_object_from_context(bContext *C)
 {
@@ -256,9 +265,17 @@ static int pose_calculate_paths_exec(bContext *C, wmOperator *op)
 	}
 	CTX_DATA_END;
 
+#ifdef DEBUG_TIME
+	TIMEIT_START(recalc_pose_paths);
+#endif
+
 	/* calculate the bones that now have motionpaths... */
 	/* TODO: only make for the selected bones? */
 	ED_pose_recalculate_paths(C, scene, ob);
+
+#ifdef DEBUG_TIME
+	TIMEIT_END(recalc_pose_paths);
+#endif
 
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
@@ -287,7 +304,8 @@ void POSE_OT_paths_calculate(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "end_frame", 250, MINAFRAME, MAXFRAME, "End",
 	            "Last frame to calculate bone paths on", MINFRAME, MAXFRAME / 2.0);
 
-	RNA_def_enum(ot->srna, "bake_location", rna_enum_motionpath_bake_location_items, 0,
+	RNA_def_enum(ot->srna, "bake_location", rna_enum_motionpath_bake_location_items,
+	             MOTIONPATH_BAKE_HEADS,
 	             "Bake Location",
 	             "Which point on the bones is used when calculating paths");
 }
@@ -364,6 +382,9 @@ static void ED_pose_clear_paths(Object *ob, bool only_selected)
 	/* if nothing was skipped, there should be no paths left! */
 	if (skipped == false)
 		ob->pose->avs.path_bakeflag &= ~MOTIONPATH_BAKE_HAS_PATHS;
+
+	/* tag armature object for copy on write - so removed paths don't still show */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 }
 
 /* operator callback - wrapper for the backend function  */
