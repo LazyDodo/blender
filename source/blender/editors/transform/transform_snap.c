@@ -165,7 +165,7 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 
 			invert_m4_m4(imat, rv3d->viewmat);
 
-			uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 
@@ -190,7 +190,7 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 			if (usingSnappingNormal(t) && validSnappingNormal(t)) {
 				immUniformColor4ubv(activeCol);
 
-				immBegin(GWN_PRIM_LINES, 2);
+				immBegin(GPU_PRIM_LINES, 2);
 				immVertex3f(pos, t->tsnap.snapPoint[0], t->tsnap.snapPoint[1], t->tsnap.snapPoint[2]);
 				immVertex3f(pos, t->tsnap.snapPoint[0] + t->tsnap.snapNormal[0],
 				            t->tsnap.snapPoint[1] + t->tsnap.snapNormal[1],
@@ -219,7 +219,7 @@ void drawSnapping(const struct bContext *C, TransInfo *t)
 
 			GPU_blend(true);
 
-			uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -1462,7 +1462,7 @@ void snapSequenceBounds(TransInfo *t, const int mval[2])
 	float xmouse, ymouse;
 	int frame;
 	int mframe;
-	TransSeq *ts = t->custom.type.data;
+	TransSeq *ts = TRANS_DATA_CONTAINER_FIRST_SINGLE(t)->custom.type.data;
 	/* reuse increment, strictly speaking could be another snap mode, but leave as is */
 	if (!(t->modifiers & MOD_SNAP_INVERT))
 		return;

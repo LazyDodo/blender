@@ -675,40 +675,31 @@ static void node_main_region_draw(const bContext *C, ARegion *ar)
 
 /* ************* dropboxes ************* */
 
-static bool node_ima_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool node_ima_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID) {
-		ID *id = drag->poin;
-		if (GS(id->name) == ID_IM)
-			return 1;
+	if (drag->type == WM_DRAG_PATH) {
+		return (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE));   /* rule might not work? */
 	}
-	else if (drag->type == WM_DRAG_PATH) {
-		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE))   /* rule might not work? */
-			return 1;
+	else {
+		return WM_drag_ID(drag, ID_IM) != NULL;
 	}
-	return 0;
 }
 
-static bool node_mask_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool node_mask_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID) {
-		ID *id = drag->poin;
-		if (GS(id->name) == ID_MSK)
-			return 1;
-	}
-	return 0;
+	return WM_drag_ID(drag, ID_MSK) != NULL;
 }
 
 static void node_id_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, 0);
 
 	RNA_string_set(drop->ptr, "name", id->name + 2);
 }
 
 static void node_id_path_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, 0);
 
 	if (id) {
 		RNA_string_set(drop->ptr, "name", id->name + 2);
@@ -752,7 +743,7 @@ static void node_region_listener(
         wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
-	wmGizmoMap *mmap = ar->gizmo_map;
+	wmGizmoMap *gzmap = ar->gizmo_map;
 
 	/* context changes */
 	switch (wmn->category) {
@@ -762,13 +753,13 @@ static void node_region_listener(
 					ED_region_tag_redraw(ar);
 					break;
 				case ND_SPACE_NODE_VIEW:
-					WM_gizmomap_tag_refresh(mmap);
+					WM_gizmomap_tag_refresh(gzmap);
 					break;
 			}
 			break;
 		case NC_SCREEN:
 			if (wmn->data == ND_LAYOUTSET || wmn->action == NA_EDITED) {
-				WM_gizmomap_tag_refresh(mmap);
+				WM_gizmomap_tag_refresh(gzmap);
 			}
 			switch (wmn->data) {
 				case ND_ANIMPLAY:
@@ -784,13 +775,13 @@ static void node_region_listener(
 		case NC_SCENE:
 			ED_region_tag_redraw(ar);
 			if (wmn->data == ND_RENDER_RESULT) {
-				WM_gizmomap_tag_refresh(mmap);
+				WM_gizmomap_tag_refresh(gzmap);
 			}
 			break;
 		case NC_NODE:
 			ED_region_tag_redraw(ar);
 			if (ELEM(wmn->action, NA_EDITED, NA_SELECTED)) {
-				WM_gizmomap_tag_refresh(mmap);
+				WM_gizmomap_tag_refresh(gzmap);
 			}
 			break;
 		case NC_MATERIAL:
@@ -863,12 +854,12 @@ static int node_context(const bContext *C, const char *member, bContextDataResul
 static void node_widgets(void)
 {
 	/* create the widgetmap for the area here */
-	wmGizmoMapType *mmap_type = WM_gizmomaptype_ensure(
+	wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(
 	        &(const struct wmGizmoMapType_Params){SPACE_NODE, RGN_TYPE_WINDOW});
-	WM_gizmogrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_transform);
-	WM_gizmogrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_crop);
-	WM_gizmogrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_sun_beams);
-	WM_gizmogrouptype_append_and_link(mmap_type, NODE_WGT_backdrop_corner_pin);
+	WM_gizmogrouptype_append_and_link(gzmap_type, NODE_GGT_backdrop_transform);
+	WM_gizmogrouptype_append_and_link(gzmap_type, NODE_GGT_backdrop_crop);
+	WM_gizmogrouptype_append_and_link(gzmap_type, NODE_GGT_backdrop_sun_beams);
+	WM_gizmogrouptype_append_and_link(gzmap_type, NODE_GGT_backdrop_corner_pin);
 }
 
 static void node_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID *new_id)

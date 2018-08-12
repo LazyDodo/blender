@@ -90,11 +90,10 @@
 #include "GPU_immediate.h"
 #include "GPU_material.h"
 #include "GPU_texture.h"
+#include "GPU_context.h"
 #include "BLF_api.h"
 
 #include "UI_resources.h"
-
-#include "../../../intern/gawain/gawain/gwn_context.h"
 
 /* for assert */
 #ifndef NDEBUG
@@ -124,7 +123,6 @@ static struct WMInitStruct {
 /* ******** win open & close ************ */
 
 static void wm_window_set_drawable(wmWindowManager *wm, wmWindow *win, bool activate);
-static void wm_window_clear_drawable(wmWindowManager *wm);
 
 /* XXX this one should correctly check for apple top header...
  * done for Cocoa : returns window contents (and not frame) max size*/
@@ -195,15 +193,14 @@ static void wm_ghostwindow_destroy(wmWindowManager *wm, wmWindow *win)
 
 		/* We need this window's opengl context active to discard it. */
 		GHOST_ActivateWindowDrawingContext(win->ghostwin);
-		GWN_context_active_set(win->gwnctx);
+		GPU_context_active_set(win->gpuctx);
 
-		/* Delete local gawain objects.  */
-		GWN_context_discard(win->gwnctx);
+		/* Delete local gpu context.  */
+		GPU_context_discard(win->gpuctx);
 
 		GHOST_DisposeWindow(g_system, win->ghostwin);
 		win->ghostwin = NULL;
-		win->gwnctx = NULL;
-
+		win->gpuctx = NULL;
 	}
 }
 
@@ -646,7 +643,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 		/* Clear drawable so we can set the new window. */
 		wm_window_clear_drawable(wm);
 
-		win->gwnctx = GWN_context_create();
+		win->gpuctx = GPU_context_create();
 
 		/* needed so we can detect the graphics card below */
 		GPU_init();
@@ -1100,11 +1097,11 @@ static void wm_window_set_drawable(wmWindowManager *wm, wmWindow *win, bool acti
 	if (activate) {
 		GHOST_ActivateWindowDrawingContext(win->ghostwin);
 	}
-	GWN_context_active_set(win->gwnctx);
+	GPU_context_active_set(win->gpuctx);
 	immActivate();
 }
 
-static void wm_window_clear_drawable(wmWindowManager *wm)
+void wm_window_clear_drawable(wmWindowManager *wm)
 {
 	if (wm->windrawable) {
 		BLF_batch_reset();
@@ -1116,7 +1113,7 @@ static void wm_window_clear_drawable(wmWindowManager *wm)
 
 void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 
 	if (win != wm->windrawable && win->ghostwin) {
 //		win->lmbut = 0;	/* keeps hanging when mousepressed while other window opened */
@@ -1137,7 +1134,7 @@ void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 void wm_window_reset_drawable(void)
 {
 	BLI_assert(BLI_thread_is_main());
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	wmWindowManager *wm = G_MAIN->wm.first;
 
 	if (wm == NULL)
@@ -1922,8 +1919,6 @@ void wm_window_raise(wmWindow *win)
 
 void wm_window_swap_buffers(wmWindow *win)
 {
-	GPU_texture_orphans_delete(); /* XXX should be done elsewhere. */
-	GPU_material_orphans_delete(); /* XXX Amen to that. */
 	GHOST_SwapWindowBuffers(win->ghostwin);
 }
 
@@ -2172,7 +2167,12 @@ ViewLayer *WM_window_get_active_view_layer(const wmWindow *win)
 		return view_layer;
 	}
 
-	return BKE_view_layer_default_view(scene);
+	view_layer = BKE_view_layer_default_view(scene);
+	if (view_layer) {
+		WM_window_set_active_view_layer((wmWindow *)win, view_layer);
+	}
+
+	return view_layer;
 }
 
 void WM_window_set_active_view_layer(wmWindow *win, ViewLayer *view_layer)
@@ -2280,24 +2280,24 @@ void *WM_opengl_context_create(void)
 	 * So we should call this function only on the main thread.
 	 */
 	BLI_assert(BLI_thread_is_main());
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	return GHOST_CreateOpenGLContext(g_system);
 }
 
 void WM_opengl_context_dispose(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_DisposeOpenGLContext(g_system, (GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_activate(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_ActivateOpenGLContext((GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_release(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_ReleaseOpenGLContext((GHOST_ContextHandle)context);
 }

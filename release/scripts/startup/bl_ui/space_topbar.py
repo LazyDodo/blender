@@ -128,6 +128,8 @@ class TOPBAR_HT_lower_bar(Header):
             pass
         elif mode == 'PARTICLE':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+        elif mode == 'GPENCIL_PAINT':
+            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
 
     def draw_center(self, context):
         pass
@@ -165,6 +167,15 @@ class TOPBAR_HT_lower_bar(Header):
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".particlemode", category="")
         elif mode == 'OBJECT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".objectmode", category="")
+        elif mode == 'GPENCIL_PAINT':
+            layout.prop(context.tool_settings, "gpencil_stroke_placement_view3d", text='')
+            if context.tool_settings.gpencil_stroke_placement_view3d in ('ORIGIN', 'CURSOR'):
+                layout.prop(context.tool_settings.gpencil_sculpt, "lockaxis", text='')
+            layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="", icon='ORTHO')
+            layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
+
+        elif mode == 'GPENCIL_SCULPT':
+            layout.prop(context.tool_settings.gpencil_sculpt, "lockaxis", text='')
 
 
 class _draw_left_context_mode:
@@ -213,6 +224,27 @@ class _draw_left_context_mode:
         UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
         UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
+    def PARTICLE(context, layout):
+        # See: 'VIEW3D_PT_tools_brush', basically a duplicate
+        settings = context.tool_settings.particle_edit
+        brush = settings.brush
+        tool = settings.tool
+        if tool != 'NONE':
+            layout.prop(brush, "size", slider=True)
+            if tool == 'ADD':
+                layout.prop(brush, "count")
+            else:
+                layout.prop(brush, "strength", slider=True)
+
+            if tool == 'ADD':
+                layout.prop(settings, "use_default_interpolate")
+                layout.prop(brush, "steps", slider=True)
+                layout.prop(settings, "default_key_count", slider=True)
+            elif tool == 'LENGTH':
+                layout.row().prop(brush, "length_mode", expand=True)
+            elif tool == 'PUFF':
+                layout.row().prop(brush, "puff_mode", expand=True)
+                layout.prop(brush, "use_puff_volume")
 
 class INFO_MT_editor_menus(Menu):
     bl_idname = "INFO_MT_editor_menus"
@@ -265,8 +297,8 @@ class INFO_MT_file(Menu):
         layout.separator()
 
         layout.operator_context = 'INVOKE_AREA'
-        layout.operator("wm.link", text="Link", icon='LINK_BLEND')
-        layout.operator("wm.append", text="Append", icon='APPEND_BLEND')
+        layout.operator("wm.link", text="Link...", icon='LINK_BLEND')
+        layout.operator("wm.append", text="Append...", icon='APPEND_BLEND')
         layout.menu("INFO_MT_file_previews")
 
         layout.separator()
@@ -383,26 +415,20 @@ class INFO_MT_render(Menu):
         props = layout.operator("render.render", text="Render Animation", icon='RENDER_ANIMATION')
         props.animation = True
         props.use_viewport = True
-        layout.operator("sound.mixdown", text="Render Audio", icon='PLAY_AUDIO')
 
         layout.separator()
 
+        layout.operator("sound.mixdown", text="Render Audio...")
+
+        layout.separator()
+
+        layout.operator("render.view_show", text="View Render")
+        layout.operator("render.play_rendered_anim", text="View Animation")
         layout.prop_menu_enum(rd, "display_mode", text="Display Mode")
+
+        layout.separator()
+
         layout.prop(rd, "use_lock_interface", text="Lock Interface")
-
-        layout.separator()
-
-        props = layout.operator("render.opengl", text="OpenGL Render Image", icon='RENDER_STILL')
-        props.view_context = False
-        props = layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION')
-        props.view_context = False
-        props.animation = True
-        layout.menu("INFO_MT_opengl_render")
-
-        layout.separator()
-
-        layout.operator("render.view_show")
-        layout.operator("render.play_rendered_anim", icon='PLAY')
 
 
 class INFO_MT_opengl_render(Menu):
@@ -495,12 +521,25 @@ class INFO_MT_help(Menu):
     def draw(self, context):
         layout = self.layout
 
+        show_developer = context.user_preferences.view.show_developer_ui
+
         layout.operator(
             "wm.url_open", text="Manual", icon='HELP',
         ).url = "https://docs.blender.org/manual/en/dev/"
+
         layout.operator(
-            "wm.url_open", text="Release Log", icon='URL',
-        ).url = "http://wiki.blender.org/index.php/Dev:Ref/Release_Notes/%d.%d" % bpy.app.version[:2]
+            "wm.url_open", text="Report a Bug", icon='URL',
+        ).url = "https://developer.blender.org/maniphest/task/edit/form/1"
+
+        layout.separator()
+
+        layout.operator(
+            "wm.url_open", text="User Communities", icon='URL',
+        ).url = "https://www.blender.org/community/"
+        layout.operator(
+            "wm.url_open", text="Developer Community", icon='URL',
+        ).url = "https://www.blender.org/get-involved/developers/"
+
         layout.separator()
 
         layout.operator(
@@ -509,24 +548,22 @@ class INFO_MT_help(Menu):
         layout.operator(
             "wm.url_open", text="Blender Store", icon='URL',
         ).url = "https://store.blender.org"
-        layout.operator(
-            "wm.url_open", text="Developer Community", icon='URL',
-        ).url = "https://www.blender.org/get-involved/"
-        layout.operator(
-            "wm.url_open", text="User Community", icon='URL',
-        ).url = "https://www.blender.org/support/user-community"
-        layout.separator()
-        layout.operator(
-            "wm.url_open", text="Report a Bug", icon='URL',
-        ).url = "https://developer.blender.org/maniphest/task/edit/form/1"
-        layout.separator()
 
         layout.operator(
-            "wm.url_open", text="Python API Reference", icon='URL',
-        ).url = bpy.types.WM_OT_doc_view._prefix
+            "wm.url_open", text="Release Notes", icon='URL',
+        ).url = "https://www.blender.org/download/releases/%d-%d/" % bpy.app.version[:2]
 
-        layout.operator("wm.operator_cheat_sheet", icon='TEXT')
-        layout.operator("wm.sysinfo", icon='TEXT')
+        layout.separator()
+
+        if show_developer:
+            layout.operator(
+                "wm.url_open", text="Python API Reference", icon='URL',
+            ).url = bpy.types.WM_OT_doc_view._prefix
+
+            layout.operator("wm.operator_cheat_sheet", icon='TEXT')
+
+        layout.operator("wm.sysinfo")
+
         layout.separator()
 
         layout.operator("wm.splash", icon='BLENDER')
@@ -539,8 +576,13 @@ class TOPBAR_MT_file_specials(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_AREA'
-        layout.operator("wm.link", text="Link", icon='LINK_BLEND')
-        layout.operator("wm.append", text="Append", icon='APPEND_BLEND')
+        layout.operator("wm.read_homefile", text="New", icon='NEW')
+        layout.operator("wm.open_mainfile", text="Open...", icon='FILE_FOLDER')
+
+        layout.separator()
+
+        layout.operator("wm.link", text="Link...", icon='LINK_BLEND')
+        layout.operator("wm.append", text="Append...", icon='APPEND_BLEND')
 
         layout.separator()
 
@@ -589,7 +631,6 @@ classes = (
     INFO_MT_edit,
     INFO_MT_game,
     INFO_MT_render,
-    INFO_MT_opengl_render,
     INFO_MT_window,
     INFO_MT_help,
 )

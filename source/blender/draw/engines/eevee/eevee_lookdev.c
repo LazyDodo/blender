@@ -60,7 +60,7 @@ void EEVEE_lookdev_cache_init(
 	if (LOOK_DEV_STUDIO_LIGHT_ENABLED(v3d)) {
 		StudioLight *sl = BKE_studiolight_find(v3d->shading.studio_light, STUDIOLIGHT_ORIENTATIONS_MATERIAL_MODE);
 		if (sl && (sl->flag & STUDIOLIGHT_ORIENTATION_WORLD)) {
-			struct Gwn_Batch *geom = DRW_cache_fullscreen_quad_get();
+			struct GPUBatch *geom = DRW_cache_fullscreen_quad_get();
 			GPUTexture *tex = NULL;
 
 			/* If one of the component is missing we start from scratch. */
@@ -112,18 +112,14 @@ void EEVEE_lookdev_cache_init(
 			if (!pinfo) {
 				/* Do not fadeout when doing probe rendering, only when drawing the background */
 				DRW_shgroup_uniform_float(*grp, "studioLightBackground", &v3d->shading.studiolight_background, 1);
-				if (v3d->shading.studiolight_background > 0.0f) {
-					BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EQUIRECTANGULAR_IRRADIANCE_GPUTEXTURE);
-					tex = sl->equirectangular_irradiance_gputexture;
-				}
+				BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EQUIRECTANGULAR_IRRADIANCE_GPUTEXTURE);
+				tex = sl->equirectangular_irradiance_gputexture;
 			}
 			else {
 				BKE_studiolight_ensure_flag(sl, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
 				tex = sl->equirectangular_radiance_gputexture;
 			}
-			if (tex != NULL) {
-				DRW_shgroup_uniform_texture(*grp, "image", tex);
-			}
+			DRW_shgroup_uniform_texture(*grp, "image", tex);
 
 			/* Do we need to recalc the lightprobes? */
 			if (pinfo &&

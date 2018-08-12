@@ -154,6 +154,7 @@ static void PAINT_WEIGHT_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->lwire_shgrp = DRW_shgroup_create(e_data.wire_overlay_shader, psl->wire_overlay);
+		DRW_shgroup_uniform_block(stl->g_data->lwire_shgrp, "globalsBlock", globals_ubo);
 	}
 
 	{
@@ -173,6 +174,7 @@ static void PAINT_WEIGHT_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->vert_shgrp = DRW_shgroup_create(e_data.vert_overlay_shader, psl->vert_overlay);
+		DRW_shgroup_uniform_block(stl->g_data->vert_shgrp, "globalsBlock", globals_ubo);
 	}
 }
 
@@ -190,7 +192,7 @@ static void PAINT_WEIGHT_cache_populate(void *vedata, Object *ob)
 		const bool use_surface = v3d->overlay.weight_paint_mode_opacity != 0.0f;
 		const bool use_face_sel = (me->editflag & ME_EDIT_PAINT_FACE_SEL) != 0;
 		const bool use_vert_sel = (me->editflag & ME_EDIT_PAINT_VERT_SEL) != 0;
-		struct Gwn_Batch *geom;
+		struct GPUBatch *geom;
 
 		if (use_surface) {
 			geom = DRW_cache_mesh_surface_weights_get(ob);

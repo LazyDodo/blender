@@ -62,6 +62,7 @@
 #include "BKE_particle.h"
 #include "BKE_pointcache.h"
 #include "BKE_scene.h"
+#include "BKE_gpencil.h"
 #include "BKE_groom.h"
 
 #include "MEM_guardedalloc.h"
@@ -324,6 +325,9 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 			break;
 		case OB_MBALL:
 			BKE_mball_batch_cache_dirty(ob->data, BKE_MBALL_BATCH_DIRTY_ALL);
+			break;
+		case OB_GPENCIL:
+			BKE_gpencil_batch_cache_dirty(ob->data);
 			break;
 		case OB_GROOM:
 			BKE_groom_batch_cache_dirty(ob->data, BKE_GROOM_BATCH_DIRTY_ALL);

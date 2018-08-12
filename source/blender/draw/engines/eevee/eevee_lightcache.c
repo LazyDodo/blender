@@ -45,7 +45,7 @@
 #include "eevee_lightcache.h"
 #include "eevee_private.h"
 
-#include "../../../intern/gawain/gawain/gwn_context.h"
+#include "GPU_context.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -83,8 +83,8 @@ extern void DRW_opengl_context_disable(void);
 
 extern void DRW_opengl_render_context_enable(void *re_gl_context);
 extern void DRW_opengl_render_context_disable(void *re_gl_context);
-extern void DRW_gawain_render_context_enable(void *re_gwn_context);
-extern void DRW_gawain_render_context_disable(void *re_gwn_context);
+extern void DRW_gawain_render_context_enable(void *re_gpu_context);
+extern void DRW_gawain_render_context_disable(void *re_gpu_context);
 
 typedef struct EEVEE_LightBake {
 	Depsgraph *depsgraph;
@@ -93,6 +93,7 @@ typedef struct EEVEE_LightBake {
 	LightCache *lcache;
 	Scene *scene;
 	struct Main *bmain;
+	EEVEE_ViewLayerData *sldata;
 
 	LightProbe **probe;              /* Current probe being rendered. */
 	GPUTexture *rt_color;            /* Target cube color texture. */
@@ -144,7 +145,7 @@ typedef struct EEVEE_LightBake {
 	bool own_light_cache;            /* If the lightcache was created for baking, it's first owned by the baker. */
 	int delay;                       /* ms. delay the start of the baking to not slowdown interactions (TODO remove) */
 
-	void *gl_context, *gwn_context;  /* If running in parallel (in a separate thread), use this context. */
+	void *gl_context, *gpu_context;  /* If running in parallel (in a separate thread), use this context. */
 } EEVEE_LightBake;
 
 /* -------------------------------------------------------------------- */
@@ -369,10 +370,10 @@ static void eevee_lightbake_context_enable(EEVEE_LightBake *lbake)
 {
 	if (lbake->gl_context) {
 		DRW_opengl_render_context_enable(lbake->gl_context);
-		if (lbake->gwn_context == NULL) {
-			lbake->gwn_context = GWN_context_create();
+		if (lbake->gpu_context == NULL) {
+			lbake->gpu_context = GPU_context_create();
 		}
-		DRW_gawain_render_context_enable(lbake->gwn_context);
+		DRW_gawain_render_context_enable(lbake->gpu_context);
 	}
 	else {
 		DRW_opengl_context_enable();
@@ -382,7 +383,7 @@ static void eevee_lightbake_context_enable(EEVEE_LightBake *lbake)
 static void eevee_lightbake_context_disable(EEVEE_LightBake *lbake)
 {
 	if (lbake->gl_context) {
-		DRW_gawain_render_context_disable(lbake->gwn_context);
+		DRW_gawain_render_context_disable(lbake->gpu_context);
 		DRW_opengl_render_context_disable(lbake->gl_context);
 	}
 	else {
@@ -586,7 +587,7 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 {
 	if (lbake->gl_context) {
 		DRW_opengl_render_context_enable(lbake->gl_context);
-		DRW_gawain_render_context_enable(lbake->gwn_context);
+		DRW_gawain_render_context_enable(lbake->gpu_context);
 	}
 	else if (!lbake->resource_only) {
 		DRW_opengl_context_enable();
@@ -597,6 +598,12 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 		lbake->lcache = NULL;
 	}
 
+	/* XXX Free the resources contained in the viewlayer data
+	 * to be able to free the context before deleting the depsgraph.  */
+	if (lbake->sldata) {
+		EEVEE_view_layer_data_free(lbake->sldata);
+	}
+
 	DRW_TEXTURE_FREE_SAFE(lbake->rt_depth);
 	DRW_TEXTURE_FREE_SAFE(lbake->rt_color);
 	DRW_TEXTURE_FREE_SAFE(lbake->grid_prev);
@@ -605,17 +612,17 @@ static void eevee_lightbake_delete_resources(EEVEE_LightBake *lbake)
 		GPU_FRAMEBUFFER_FREE_SAFE(lbake->rt_fb[i]);
 	}
 
-	if (lbake->gwn_context) {
-		DRW_gawain_render_context_disable(lbake->gwn_context);
-		DRW_gawain_render_context_enable(lbake->gwn_context);
-		GWN_context_discard(lbake->gwn_context);
+	if (lbake->gpu_context) {
+		DRW_gawain_render_context_disable(lbake->gpu_context);
+		DRW_gawain_render_context_enable(lbake->gpu_context);
+		GPU_context_discard(lbake->gpu_context);
 	}
 
 	if (lbake->gl_context && lbake->own_resources) {
 		/* Delete the baking context. */
 		DRW_opengl_render_context_disable(lbake->gl_context);
 		WM_opengl_context_dispose(lbake->gl_context);
-		lbake->gwn_context = NULL;
+		lbake->gpu_context = NULL;
 		lbake->gl_context = NULL;
 	}
 	else if (lbake->gl_context) {
@@ -633,6 +640,8 @@ static void eevee_lightbake_cache_create(EEVEE_Data *vedata, EEVEE_LightBake *lb
 	EEVEE_FramebufferList *fbl = vedata->fbl;
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 	Scene *scene_eval = DEG_get_evaluated_scene(lbake->depsgraph);
+	lbake->sldata = sldata;
+
 	/* Disable all effects BUT high bitdepth shadows. */
 	scene_eval->eevee.flag &= SCE_EEVEE_SHADOW_HIGH_BITDEPTH;
 	scene_eval->eevee.taa_samples = 1;
@@ -746,6 +755,9 @@ static void compute_cell_id(
 	                                            probe->grid_resolution_z)));
 
 	int visited_cells = 0;
+	*r_stride = 0;
+	*r_final_idx = 0;
+	r_local_cell[0] = r_local_cell[1] = r_local_cell[2] = 0;
 	for (int lvl = max_lvl; lvl >= 0; --lvl) {
 		*r_stride = 1 << lvl;
 		int prev_stride = *r_stride << 1;

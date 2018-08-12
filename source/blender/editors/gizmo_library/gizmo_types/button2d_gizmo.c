@@ -72,7 +72,7 @@ typedef struct ButtonGizmo2D {
 	bool is_init;
 	/* Use an icon or shape */
 	int icon;
-	Gwn_Batch *shape_batch[2];
+	GPUBatch *shape_batch[2];
 } ButtonGizmo2D;
 
 #define CIRCLE_RESOLUTION 32
@@ -80,12 +80,12 @@ typedef struct ButtonGizmo2D {
 /* -------------------------------------------------------------------- */
 
 static void button2d_geom_draw_backdrop(
-        const wmGizmo *mpr, const float color[4], const bool select)
+        const wmGizmo *gz, const float color[4], const bool select)
 {
-	GPU_line_width(mpr->line_width);
+	GPU_line_width(gz->line_width);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 
@@ -100,24 +100,24 @@ static void button2d_geom_draw_backdrop(
 }
 
 static void button2d_draw_intern(
-        const bContext *C, wmGizmo *mpr,
+        const bContext *C, wmGizmo *gz,
         const bool select, const bool highlight)
 {
-	ButtonGizmo2D *button = (ButtonGizmo2D *)mpr;
+	ButtonGizmo2D *button = (ButtonGizmo2D *)gz;
 
-	const int draw_options = RNA_enum_get(mpr->ptr, "draw_options");
+	const int draw_options = RNA_enum_get(gz->ptr, "draw_options");
 	if (button->is_init == false) {
 		button->is_init = true;
-		PropertyRNA *prop = RNA_struct_find_property(mpr->ptr, "icon");
-		if (RNA_property_is_set(mpr->ptr, prop)) {
-			button->icon = RNA_property_enum_get(mpr->ptr, prop);
+		PropertyRNA *prop = RNA_struct_find_property(gz->ptr, "icon");
+		if (RNA_property_is_set(gz->ptr, prop)) {
+			button->icon = RNA_property_enum_get(gz->ptr, prop);
 		}
 		else {
-			prop = RNA_struct_find_property(mpr->ptr, "shape");
-			const uint polys_len = RNA_property_string_length(mpr->ptr, prop);
+			prop = RNA_struct_find_property(gz->ptr, "shape");
+			const uint polys_len = RNA_property_string_length(gz->ptr, prop);
 			/* We shouldn't need the +1, but a NULL char is set. */
 			char *polys = MEM_mallocN(polys_len + 1, __func__);
-			RNA_property_string_get(mpr->ptr, prop, polys);
+			RNA_property_string_get(gz->ptr, prop, polys);
 			button->shape_batch[0] = GPU_batch_tris_from_poly_2d_encoded((uchar *)polys, polys_len, NULL);
 			button->shape_batch[1] = GPU_batch_wire_from_poly_2d_encoded((uchar *)polys, polys_len, NULL);
 			MEM_freeN(polys);
@@ -127,22 +127,22 @@ static void button2d_draw_intern(
 	float color[4];
 	float matrix_final[4][4];
 
-	gizmo_color_get(mpr, highlight, color);
-	WM_gizmo_calc_matrix_final(mpr, matrix_final);
+	gizmo_color_get(gz, highlight, color);
+	WM_gizmo_calc_matrix_final(gz, matrix_final);
 
 
-	bool is_3d = (mpr->parent_mgroup->type->flag & WM_GIZMOGROUPTYPE_3D) != 0;
+	bool is_3d = (gz->parent_gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) != 0;
 
 
 	if (draw_options & ED_GIZMO_BUTTON_SHOW_HELPLINE) {
 		float matrix_final_no_offset[4][4];
-		WM_gizmo_calc_matrix_final_no_offset(mpr, matrix_final_no_offset);
-		uint pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		WM_gizmo_calc_matrix_final_no_offset(gz, matrix_final_no_offset);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 		immUniformColor4fv(color);
-		GPU_line_width(mpr->line_width);
+		GPU_line_width(gz->line_width);
 		immUniformColor4fv(color);
-		immBegin(GWN_PRIM_LINE_STRIP, 2);
+		immBegin(GPU_PRIM_LINE_STRIP, 2);
 		immVertex3fv(pos, matrix_final[3]);
 		immVertex3fv(pos, matrix_final_no_offset[3]);
 		immEnd();
@@ -150,8 +150,8 @@ static void button2d_draw_intern(
 	}
 
 	bool need_to_pop = true;
-	gpuPushMatrix();
-	gpuMultMatrix(matrix_final);
+	GPU_matrix_push();
+	GPU_matrix_mul(matrix_final);
 
 	if (is_3d) {
 		RegionView3D *rv3d = CTX_wm_region_view3d(C);
@@ -161,12 +161,12 @@ static void button2d_draw_intern(
 		mul_m4_m4m4(matrix_align, rv3d->viewmat, matrix_final_unit);
 		zero_v3(matrix_align[3]);
 		transpose_m4(matrix_align);
-		gpuMultMatrix(matrix_align);
+		GPU_matrix_mul(matrix_align);
 	}
 
 	if (select) {
 		BLI_assert(is_3d);
-		button2d_geom_draw_backdrop(mpr, color, select);
+		button2d_geom_draw_backdrop(gz, color, select);
 	}
 	else {
 
@@ -177,9 +177,9 @@ static void button2d_draw_intern(
 			GPU_line_width(1.0f);
 			for (uint i = 0; i < ARRAY_SIZE(button->shape_batch) && button->shape_batch[i]; i++) {
 				/* Invert line color for wire. */
-				GWN_batch_program_set_builtin(button->shape_batch[i], GPU_SHADER_2D_UNIFORM_COLOR);
-				GWN_batch_uniform_4f(button->shape_batch[i], "color", UNPACK4(color));
-				GWN_batch_draw(button->shape_batch[i]);
+				GPU_batch_program_set_builtin(button->shape_batch[i], GPU_SHADER_2D_UNIFORM_COLOR);
+				GPU_batch_uniform_4f(button->shape_batch[i], "color", UNPACK4(color));
+				GPU_batch_draw(button->shape_batch[i]);
 
 				if (draw_options & ED_GIZMO_BUTTON_SHOW_OUTLINE) {
 					color[0] = 1.0f - color[0];
@@ -191,19 +191,19 @@ static void button2d_draw_intern(
 			GPU_polygon_smooth(true);
 		}
 		else if (button->icon != ICON_NONE) {
-			button2d_geom_draw_backdrop(mpr, color, select);
+			button2d_geom_draw_backdrop(gz, color, select);
 			float size[2];
 			if (is_3d) {
 				const float fac = 2.0f;
-				gpuTranslate2f(-(fac / 2), -(fac / 2));
-				gpuScale2f(fac / (ICON_DEFAULT_WIDTH *  UI_DPI_FAC), fac / (ICON_DEFAULT_HEIGHT * UI_DPI_FAC));
+				GPU_matrix_translate_2f(-(fac / 2), -(fac / 2));
+				GPU_matrix_scale_2f(fac / (ICON_DEFAULT_WIDTH *  UI_DPI_FAC), fac / (ICON_DEFAULT_HEIGHT * UI_DPI_FAC));
 				size[0] = 1.0f;
 				size[1] = 1.0f;
 			}
 			else {
-				size[0] = mpr->matrix_basis[3][0] - (ICON_DEFAULT_WIDTH / 2.0) * UI_DPI_FAC;
-				size[1] = mpr->matrix_basis[3][1] - (ICON_DEFAULT_HEIGHT / 2.0) * UI_DPI_FAC;
-				gpuPopMatrix();
+				size[0] = gz->matrix_basis[3][0] - (ICON_DEFAULT_WIDTH / 2.0) * UI_DPI_FAC;
+				size[1] = gz->matrix_basis[3][1] - (ICON_DEFAULT_HEIGHT / 2.0) * UI_DPI_FAC;
+				GPU_matrix_pop();
 				need_to_pop = false;
 			}
 			UI_icon_draw(size[0], size[1], button->icon);
@@ -212,44 +212,44 @@ static void button2d_draw_intern(
 	}
 
 	if (need_to_pop) {
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 }
 
-static void gizmo_button2d_draw_select(const bContext *C, wmGizmo *mpr, int select_id)
+static void gizmo_button2d_draw_select(const bContext *C, wmGizmo *gz, int select_id)
 {
 	GPU_select_load_id(select_id);
-	button2d_draw_intern(C, mpr, true, false);
+	button2d_draw_intern(C, gz, true, false);
 }
 
-static void gizmo_button2d_draw(const bContext *C, wmGizmo *mpr)
+static void gizmo_button2d_draw(const bContext *C, wmGizmo *gz)
 {
-	const bool is_highlight = (mpr->state & WM_GIZMO_STATE_HIGHLIGHT) != 0;
+	const bool is_highlight = (gz->state & WM_GIZMO_STATE_HIGHLIGHT) != 0;
 
 	GPU_blend(true);
-	button2d_draw_intern(C, mpr, false, is_highlight);
+	button2d_draw_intern(C, gz, false, is_highlight);
 	GPU_blend(false);
 }
 
 static int gizmo_button2d_test_select(
-        bContext *C, wmGizmo *mpr, const wmEvent *event)
+        bContext *C, wmGizmo *gz, const int mval[2])
 {
 	float point_local[2];
 
 	if (0) {
 		/* correct, but unnecessarily slow. */
 		if (gizmo_window_project_2d(
-		        C, mpr, (const float[2]){UNPACK2(event->mval)}, 2, true, point_local) == false)
+		        C, gz, (const float[2]){UNPACK2(mval)}, 2, true, point_local) == false)
 		{
 			return -1;
 		}
 	}
 	else {
-		copy_v2_v2(point_local, (float[2]){UNPACK2(event->mval)});
-		sub_v2_v2(point_local, mpr->matrix_basis[3]);
-		mul_v2_fl(point_local, 1.0f / (mpr->scale_basis * UI_DPI_FAC));
+		copy_v2_v2(point_local, (float[2]){UNPACK2(mval)});
+		sub_v2_v2(point_local, gz->matrix_basis[3]);
+		mul_v2_fl(point_local, 1.0f / (gz->scale_basis * UI_DPI_FAC));
 	}
-	/* The 'mpr->scale_final' is already applied when projecting. */
+	/* The 'gz->scale_final' is already applied when projecting. */
 	if (len_squared_v2(point_local) < 1.0f) {
 		return 0;
 	}
@@ -257,20 +257,20 @@ static int gizmo_button2d_test_select(
 	return -1;
 }
 
-static int gizmo_button2d_cursor_get(wmGizmo *mpr)
+static int gizmo_button2d_cursor_get(wmGizmo *gz)
 {
-	if (RNA_boolean_get(mpr->ptr, "show_drag")) {
+	if (RNA_boolean_get(gz->ptr, "show_drag")) {
 		return BC_NSEW_SCROLLCURSOR;
 	}
 	return CURSOR_STD;
 }
 
-static void gizmo_button2d_free(wmGizmo *mpr)
+static void gizmo_button2d_free(wmGizmo *gz)
 {
-	ButtonGizmo2D *shape = (ButtonGizmo2D *)mpr;
+	ButtonGizmo2D *shape = (ButtonGizmo2D *)gz;
 
 	for (uint i = 0; i < ARRAY_SIZE(shape->shape_batch); i++) {
-		GWN_BATCH_DISCARD_SAFE(shape->shape_batch[i]);
+		GPU_BATCH_DISCARD_SAFE(shape->shape_batch[i]);
 	}
 }
 
@@ -281,19 +281,19 @@ static void gizmo_button2d_free(wmGizmo *mpr)
  *
  * \{ */
 
-static void GIZMO_WT_button_2d(wmGizmoType *wt)
+static void GIZMO_GT_button_2d(wmGizmoType *gzt)
 {
 	/* identifiers */
-	wt->idname = "GIZMO_WT_button_2d";
+	gzt->idname = "GIZMO_GT_button_2d";
 
 	/* api callbacks */
-	wt->draw = gizmo_button2d_draw;
-	wt->draw_select = gizmo_button2d_draw_select;
-	wt->test_select = gizmo_button2d_test_select;
-	wt->cursor_get = gizmo_button2d_cursor_get;
-	wt->free = gizmo_button2d_free;
+	gzt->draw = gizmo_button2d_draw;
+	gzt->draw_select = gizmo_button2d_draw_select;
+	gzt->test_select = gizmo_button2d_test_select;
+	gzt->cursor_get = gizmo_button2d_cursor_get;
+	gzt->free = gizmo_button2d_free;
 
-	wt->struct_size = sizeof(ButtonGizmo2D);
+	gzt->struct_size = sizeof(ButtonGizmo2D);
 
 	/* rna */
 	static EnumPropertyItem rna_enum_draw_options[] = {
@@ -303,21 +303,21 @@ static void GIZMO_WT_button_2d(wmGizmoType *wt)
 	};
 	PropertyRNA *prop;
 
-	RNA_def_enum_flag(wt->srna, "draw_options", rna_enum_draw_options, 0, "Draw Options", "");
+	RNA_def_enum_flag(gzt->srna, "draw_options", rna_enum_draw_options, 0, "Draw Options", "");
 
-	prop = RNA_def_property(wt->srna, "icon", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(gzt->srna, "icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 
 	/* Passed to 'GPU_batch_tris_from_poly_2d_encoded' */
-	RNA_def_property(wt->srna, "shape", PROP_STRING, PROP_BYTESTRING);
+	RNA_def_property(gzt->srna, "shape", PROP_STRING, PROP_BYTESTRING);
 
 	/* Currently only used for cursor display. */
-	RNA_def_boolean(wt->srna, "show_drag", true, "Show Drag", "");
+	RNA_def_boolean(gzt->srna, "show_drag", true, "Show Drag", "");
 }
 
 void ED_gizmotypes_button_2d(void)
 {
-	WM_gizmotype_append(GIZMO_WT_button_2d);
+	WM_gizmotype_append(GIZMO_GT_button_2d);
 }
 
 /** \} */ // Button Gizmo API

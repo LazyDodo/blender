@@ -876,9 +876,9 @@ void CTX_wm_menu_set(bContext *C, ARegion *menu)
 	C->wm.menu = menu;
 }
 
-void CTX_wm_gizmo_group_set(bContext *C, struct wmGizmoGroup *mgroup)
+void CTX_wm_gizmo_group_set(bContext *C, struct wmGizmoGroup *gzgroup)
 {
-	C->wm.gizmo_group = mgroup;
+	C->wm.gizmo_group = gzgroup;
 }
 
 void CTX_wm_operator_poll_msg_set(bContext *C, const char *msg)
@@ -1016,6 +1016,10 @@ int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectM
 			else if (object_mode & OB_MODE_VERTEX_PAINT) return CTX_MODE_PAINT_VERTEX;
 			else if (object_mode & OB_MODE_TEXTURE_PAINT) return CTX_MODE_PAINT_TEXTURE;
 			else if (object_mode & OB_MODE_PARTICLE_EDIT) return CTX_MODE_PARTICLE;
+			else if (object_mode & OB_MODE_GPENCIL_PAINT) return CTX_MODE_GPENCIL_PAINT;
+			else if (object_mode & OB_MODE_GPENCIL_EDIT) return CTX_MODE_GPENCIL_EDIT;
+			else if (object_mode & OB_MODE_GPENCIL_SCULPT) return CTX_MODE_GPENCIL_SCULPT;
+			else if (object_mode & OB_MODE_GPENCIL_WEIGHT) return CTX_MODE_GPENCIL_WEIGHT;
 		}
 	}
 
@@ -1047,6 +1051,10 @@ static const char *data_mode_strings[] = {
 	"imagepaint",
 	"particlemode",
 	"objectmode",
+	"greasepencil_paint",
+	"greasepencil_edit",
+	"greasepencil_sculpt",
+	"greasepencil_weight",
 	NULL
 };
 BLI_STATIC_ASSERT(ARRAY_SIZE(data_mode_strings) == CTX_MODE_NUM + 1, "Must have a string for each context mode")
@@ -1215,17 +1223,7 @@ bGPDlayer *CTX_data_active_gpencil_layer(const bContext *C)
 	return ctx_data_pointer_get(C, "active_gpencil_layer");
 }
 
-bGPDpalette *CTX_data_active_gpencil_palette(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_palette");
-}
-
-bGPDpalettecolor *CTX_data_active_gpencil_palettecolor(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_palettecolor");
-}
-
-bGPDbrush *CTX_data_active_gpencil_brush(const bContext *C)
+Brush *CTX_data_active_gpencil_brush(const bContext *C)
 {
 	return ctx_data_pointer_get(C, "active_gpencil_brush");
 }

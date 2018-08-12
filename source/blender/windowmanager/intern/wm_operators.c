@@ -440,7 +440,7 @@ static const char *wm_context_member_from_ptr(bContext *C, const PointerRNA *ptr
 		switch (GS(((ID *)ptr->id.data)->name)) {
 			case ID_SCE:
 			{
-				CTX_TEST_PTR_DATA_TYPE(C, "active_gpencil_brush", RNA_GPencilBrush, ptr, CTX_data_active_gpencil_brush(C));
+				CTX_TEST_PTR_DATA_TYPE(C, "active_gpencil_brush", RNA_Brush, ptr, CTX_data_active_gpencil_brush(C));
 				CTX_TEST_PTR_ID(C, "scene", ptr->id.data);
 				break;
 			}
@@ -1043,15 +1043,17 @@ static uiBlock *wm_block_create_redo(bContext *C, ARegion *ar, void *arg_op)
 
 	if (op->type->flag & OPTYPE_MACRO) {
 		for (op = op->macro.first; op; op = op->next) {
-			uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
-			                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+			uiTemplateOperatorPropertyButs(
+			        C, layout, op, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+			        UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 			if (op->next)
 				uiItemS(layout);
 		}
 	}
 	else {
-		uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
-		                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+		uiTemplateOperatorPropertyButs(
+		        C, layout, op, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+		        UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 	}
 
 	UI_block_bounds_set_popup(block, 4, 0, 0);
@@ -1120,8 +1122,9 @@ static uiBlock *wm_block_dialog_create(bContext *C, ARegion *ar, void *userData)
 
 	layout = UI_block_layout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, data->width, data->height, 0, style);
 
-	uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
-	                               UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
+	uiTemplateOperatorPropertyButs(
+	        C, layout, op, UI_BUT_LABEL_ALIGN_SPLIT_COLUMN,
+	        UI_TEMPLATE_OP_PROPS_SHOW_TITLE);
 
 	/* clear so the OK button is left alone */
 	UI_block_func_set(block, NULL, NULL, NULL);
@@ -1160,7 +1163,7 @@ static uiBlock *wm_operator_ui_create(bContext *C, ARegion *ar, void *userData)
 	layout = UI_block_layout(block, UI_LAYOUT_VERTICAL, UI_LAYOUT_PANEL, 0, 0, data->width, data->height, 0, style);
 
 	/* since ui is defined the auto-layout args are not used */
-	uiTemplateOperatorPropertyButs(C, layout, op, NULL, UI_BUT_LABEL_ALIGN_COLUMN, 0);
+	uiTemplateOperatorPropertyButs(C, layout, op, UI_BUT_LABEL_ALIGN_COLUMN, 0);
 
 	UI_block_func_set(block, NULL, NULL, NULL);
 
@@ -2094,12 +2097,12 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 		RNA_property_float_get_array(fill_ptr, fill_prop, col);
 	}
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	if (rc->gltex) {
 
-		uint texCoord = GWN_vertformat_attr_add(format, "texCoord", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint texCoord = GPU_vertformat_attr_add(format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rc->gltex);
@@ -2118,12 +2121,12 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 		/* set up rotation if available */
 		if (rc->rot_prop) {
 			rot = RNA_property_float_get(&rc->rot_ptr, rc->rot_prop);
-			gpuPushMatrix();
-			gpuRotate2D(RAD2DEGF(rot));
+			GPU_matrix_push();
+			GPU_matrix_rotate_2d(RAD2DEGF(rot));
 		}
 
 		/* draw textured quad */
-		immBegin(GWN_PRIM_TRI_FAN, 4);
+		immBegin(GPU_PRIM_TRI_FAN, 4);
 
 		immAttrib2f(texCoord, 0, 0);
 		immVertex2f(pos, -radius, -radius);
@@ -2141,7 +2144,7 @@ static void radial_control_paint_tex(RadialControl *rc, float radius, float alph
 
 		/* undo rotation */
 		if (rc->rot_prop)
-			gpuPopMatrix();
+			GPU_matrix_pop();
 	}
 	else {
 		/* flat color if no texture available */
@@ -2208,7 +2211,7 @@ static void radial_control_paint_cursor(bContext *UNUSED(C), int x, int y, void 
 	/* Keep cursor in the original place */
 	x = rc->initial_mouse[0];
 	y = rc->initial_mouse[1];
-	gpuTranslate2f((float)x, (float)y);
+	GPU_matrix_translate_2f((float)x, (float)y);
 
 	glEnable(GL_BLEND);
 	glEnable(GL_LINE_SMOOTH);
@@ -2216,7 +2219,7 @@ static void radial_control_paint_cursor(bContext *UNUSED(C), int x, int y, void 
 	/* apply zoom if available */
 	if (rc->zoom_prop) {
 		RNA_property_float_get_array(&rc->zoom_ptr, rc->zoom_prop, zoom);
-		gpuScale2fv(zoom);
+		GPU_matrix_scale_2fv(zoom);
 	}
 
 	/* draw rotated texture */
@@ -2226,30 +2229,30 @@ static void radial_control_paint_cursor(bContext *UNUSED(C), int x, int y, void 
 	if (rc->col_prop)
 		RNA_property_float_get_array(&rc->col_ptr, rc->col_prop, col);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3fvAlpha(col, 0.5f);
 
 	if (rc->subtype == PROP_ANGLE) {
-		gpuPushMatrix();
+		GPU_matrix_push();
 
 		/* draw original angle line */
-		gpuRotate2D(RAD2DEGF(rc->initial_value));
-		immBegin(GWN_PRIM_LINES, 2);
+		GPU_matrix_rotate_2d(RAD2DEGF(rc->initial_value));
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_MIN_SIZE, 0.0f);
 		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_SIZE, 0.0f);
 		immEnd();
 
 		/* draw new angle line */
-		gpuRotate2D(RAD2DEGF(rc->current_value - rc->initial_value));
-		immBegin(GWN_PRIM_LINES, 2);
+		GPU_matrix_rotate_2d(RAD2DEGF(rc->current_value - rc->initial_value));
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_MIN_SIZE, 0.0f);
 		immVertex2f(pos, (float)WM_RADIAL_CONTROL_DISPLAY_SIZE, 0.0f);
 		immEnd();
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 
 	/* draw circles on top */

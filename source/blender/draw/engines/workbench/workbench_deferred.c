@@ -34,6 +34,7 @@
 
 #include "BKE_groom.h"
 #include "BKE_node.h"
+#include "BKE_modifier.h"
 #include "BKE_particle.h"
 
 #include "DNA_groom_types.h"
@@ -143,9 +144,12 @@ static char *workbench_build_prepass_frag(void)
 	return str;
 }
 
-static char *workbench_build_prepass_vert(void)
+static char *workbench_build_prepass_vert(bool is_hair)
 {
 	char *str = NULL;
+	if (!is_hair) {
+		return BLI_strdup(datatoc_workbench_prepass_vert_glsl);
+	}
 
 	DynStr *ds = BLI_dynstr_new();
 
@@ -177,7 +181,7 @@ static void ensure_deferred_shaders(WORKBENCH_PrivateData *wpd, int index, bool 
 	if (e_data.prepass_sh_cache[index] == NULL) {
 		char *defines = workbench_material_build_defines(wpd, use_textures, is_hair);
 		char *composite_frag = workbench_build_composite_frag(wpd);
-		char *prepass_vert = workbench_build_prepass_vert();
+		char *prepass_vert = workbench_build_prepass_vert(is_hair);
 		char *prepass_frag = workbench_build_prepass_frag();
 		e_data.prepass_sh_cache[index] = DRW_shader_create(
 		        prepass_vert, NULL,
@@ -273,6 +277,7 @@ void workbench_deferred_engine_init(WORKBENCH_Data *vedata)
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+	const DRWContextState *draw_ctx = DRW_context_state_get();
 
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
@@ -329,11 +334,10 @@ void workbench_deferred_engine_init(WORKBENCH_Data *vedata)
 		char *cavity_frag = workbench_build_cavity_frag();
 		e_data.cavity_sh = DRW_shader_create_fullscreen(cavity_frag, NULL);
 		MEM_freeN(cavity_frag);
-
 	}
+	workbench_volume_engine_init();
 	workbench_fxaa_engine_init();
 	workbench_taa_engine_init(vedata);
-
 
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	workbench_private_data_init(wpd);
@@ -372,6 +376,10 @@ void workbench_deferred_engine_init(WORKBENCH_Data *vedata)
 			GPU_ATTACHMENT_TEXTURE(dtxl->depth),
 			GPU_ATTACHMENT_TEXTURE(e_data.composite_buffer_tx),
 		});
+		GPU_framebuffer_ensure_config(&fbl->volume_fb, {
+			GPU_ATTACHMENT_NONE,
+			GPU_ATTACHMENT_TEXTURE(e_data.composite_buffer_tx),
+		});
 		GPU_framebuffer_ensure_config(&fbl->effect_fb, {
 			GPU_ATTACHMENT_NONE,
 			GPU_ATTACHMENT_TEXTURE(e_data.color_buffer_tx),
@@ -379,7 +387,6 @@ void workbench_deferred_engine_init(WORKBENCH_Data *vedata)
 	}
 
 	{
-		const DRWContextState *draw_ctx = DRW_context_state_get();
 		Scene *scene = draw_ctx->scene;
 		/* AO Samples Tex */
 		int num_iterations = workbench_taa_calculate_num_iterations(vedata);
@@ -403,8 +410,10 @@ void workbench_deferred_engine_init(WORKBENCH_Data *vedata)
 
 	/* Prepass */
 	{
+		const bool do_cull = (draw_ctx->v3d && (draw_ctx->v3d->flag2 & V3D_BACKFACE_CULLING));
+
 		int state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL;
-		psl->prepass_pass = DRW_pass_create("Prepass", state);
+		psl->prepass_pass = DRW_pass_create("Prepass", (do_cull) ? state | DRW_STATE_CULL_BACK : state);
 		psl->prepass_hair_pass = DRW_pass_create("Prepass", state);
 	}
 
@@ -448,6 +457,7 @@ void workbench_deferred_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.shadow_caps_sh);
 	DRW_SHADER_FREE_SAFE(e_data.shadow_caps_manifold_sh);
 
+	workbench_volume_engine_free();
 	workbench_fxaa_engine_free();
 	workbench_taa_engine_free();
 }
@@ -487,7 +497,10 @@ void workbench_deferred_cache_init(WORKBENCH_Data *vedata)
 
 	Scene *scene = draw_ctx->scene;
 
+	workbench_volume_cache_init(vedata);
+
 	select_deferred_shaders(wpd);
+
 	/* Deferred Mix Pass */
 	{
 		workbench_private_data_get_light_direction(wpd, e_data.display.light_direction);
@@ -666,6 +679,9 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = draw_ctx->scene;
+
 	if (!DRW_object_is_renderable(ob))
 		return;
 
@@ -676,13 +692,22 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 		workbench_cache_populate_groom(vedata, ob);
 	}
 
+	ModifierData *md;
+	if (((ob->base_flag & BASE_FROMDUPLI) == 0) &&
+	    (md = modifiers_findByType(ob, eModifierType_Smoke)) &&
+	    (modifier_isEnabled(scene, md, eModifierMode_Realtime)) &&
+	    (((SmokeModifierData *)md)->domain != NULL))
+	{
+		workbench_volume_cache_populate(vedata, scene, ob, md);
+		return; /* Do not draw solid in this case. */
+	}
+
 	if (!DRW_check_object_visible_within_active_context(ob)) {
 		return;
 	}
 
 	WORKBENCH_MaterialData *material;
 	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL, OB_GROOM)) {
-		const DRWContextState *draw_ctx = DRW_context_state_get();
 		const bool is_active = (ob == draw_ctx->obact);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
 		bool is_drawn = false;
@@ -691,7 +716,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 			if (me->mloopuv) {
 				const int materials_len = MAX2(1, (is_sculpt_mode ? 1 : ob->totcol));
 				struct GPUMaterial **gpumat_array = BLI_array_alloca(gpumat_array, materials_len);
-				struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+				struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 				if (materials_len > 0 && geom_array) {
 					for (int i = 0; i < materials_len; i++) {
 						if (geom_array[i] == NULL) {
@@ -714,7 +739,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 		if (!is_drawn) {
 			if (ELEM(wpd->shading.color_type, V3D_SHADING_SINGLE_COLOR, V3D_SHADING_RANDOM_COLOR)) {
 				/* No material split needed */
-				struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
+				struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 				if (geom) {
 					material = get_or_create_material_data(vedata, ob, NULL, NULL, wpd->shading.color_type);
 					if (is_sculpt_mode) {
@@ -732,7 +757,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 					gpumat_array[i] = NULL;
 				}
 
-				struct Gwn_Batch **mat_geom = DRW_cache_object_surface_material_get(
+				struct GPUBatch **mat_geom = DRW_cache_object_surface_material_get(
 				        ob, gpumat_array, materials_len, NULL, NULL, NULL);
 				if (mat_geom) {
 					for (int i = 0; i < materials_len; ++i) {
@@ -755,7 +780,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 
 		if (SHADOW_ENABLED(wpd) && (ob->display.flag & OB_SHOW_SHADOW)) {
 			bool is_manifold;
-			struct Gwn_Batch *geom_shadow = DRW_cache_object_edge_detection_get(ob, &is_manifold);
+			struct GPUBatch *geom_shadow = DRW_cache_object_edge_detection_get(ob, &is_manifold);
 			if (geom_shadow) {
 				if (is_sculpt_mode) {
 					/* Currently unsupported in sculpt mode. We could revert to the slow
@@ -893,6 +918,19 @@ void workbench_deferred_draw_scene(WORKBENCH_Data *vedata)
 		DRW_draw_pass(psl->composite_pass);
 	}
 
+	if (wpd->volumes_do) {
+		GPU_framebuffer_bind(fbl->volume_fb);
+		DRW_draw_pass(psl->volume_pass);
+	}
+
 	workbench_aa_draw_pass(vedata, e_data.composite_buffer_tx);
+}
+
+void workbench_deferred_draw_finish(WORKBENCH_Data *vedata)
+{
+	WORKBENCH_StorageList *stl = vedata->stl;
+	WORKBENCH_PrivateData *wpd = stl->g_data;
+
 	workbench_private_data_free(wpd);
+	workbench_volume_smoke_textures_free(wpd);
 }

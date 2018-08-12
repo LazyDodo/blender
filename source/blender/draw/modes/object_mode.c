@@ -38,6 +38,7 @@
 #include "DNA_lightprobe_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
+#include "DNA_smoke_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_world_types.h"
 
@@ -62,6 +63,7 @@
 
 #include "GPU_shader.h"
 #include "GPU_texture.h"
+#include "GPU_draw.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -146,6 +148,9 @@ typedef struct OBJECT_PrivateData {
 	DRWShadingGroup *cube;
 	DRWShadingGroup *circle;
 	DRWShadingGroup *sphere;
+	DRWShadingGroup *cylinder;
+	DRWShadingGroup *capsule_cap;
+	DRWShadingGroup *capsule_body;
 	DRWShadingGroup *cone;
 	DRWShadingGroup *single_arrow;
 	DRWShadingGroup *single_arrow_line;
@@ -162,6 +167,9 @@ typedef struct OBJECT_PrivateData {
 	DRWShadingGroup *field_curve_end;
 	DRWShadingGroup *field_tube_limit;
 	DRWShadingGroup *field_cone_limit;
+
+	/* Grease Pencil */
+	DRWShadingGroup *gpencil_axes;
 
 	/* Speaker */
 	DRWShadingGroup *speaker;
@@ -256,9 +264,9 @@ typedef struct OBJECT_PrivateData {
 
 static struct {
 	/* Instance Data format */
-	struct Gwn_VertFormat *particle_format;
-	struct Gwn_VertFormat *empty_image_format;
-	struct Gwn_VertFormat *empty_image_wire_format;
+	struct GPUVertFormat *particle_format;
+	struct GPUVertFormat *empty_image_format;
+	struct GPUVertFormat *empty_image_wire_format;
 
 	/* fullscreen shaders */
 	GPUShader *outline_prepass_sh;
@@ -294,6 +302,8 @@ static struct {
 	struct GPUTexture *outlines_id_tx;
 	struct GPUTexture *outlines_color_tx;
 	struct GPUTexture *outlines_blur_tx;
+
+	ListBase smoke_domains;
 } e_data = {NULL}; /* Engine data */
 
 
@@ -850,7 +860,7 @@ static void DRW_shgroup_empty_image(
 				{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16},
 			});
 
-			struct Gwn_Batch *geom = DRW_cache_image_plane_get();
+			struct GPUBatch *geom = DRW_cache_image_plane_get();
 			DRWShadingGroup *grp = DRW_shgroup_instance_create(
 			        e_data.object_empty_image_sh, psl->non_meshes, geom, e_data.empty_image_format);
 			DRW_shgroup_uniform_texture(grp, "image", tex);
@@ -870,7 +880,7 @@ static void DRW_shgroup_empty_image(
 				{"InstanceModelMatrix", DRW_ATTRIB_FLOAT, 16}
 			});
 
-			struct Gwn_Batch *geom = DRW_cache_image_plane_wire_get();
+			struct GPUBatch *geom = DRW_cache_image_plane_wire_get();
 			DRWShadingGroup *grp = DRW_shgroup_instance_create(
 			        e_data.object_empty_image_wire_sh, psl->non_meshes, geom, e_data.empty_image_wire_format);
 			DRW_shgroup_uniform_vec2(grp, "aspect", empty_image_data->image_aspect, 1);
@@ -906,7 +916,7 @@ static void OBJECT_cache_init(void *vedata)
 	OBJECT_PrivateData *g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	const bool xray_enabled = ((draw_ctx->v3d->shading.flag & V3D_SHADING_XRAY) != 0) &&
-	                           (draw_ctx->v3d->drawtype < OB_MATERIAL);
+	                           (draw_ctx->v3d->shading.type < OB_MATERIAL);
 	/* TODO : use dpi setting for enabling the second pass */
 	const bool do_outline_expand = false;
 
@@ -939,8 +949,8 @@ static void OBJECT_cache_init(void *vedata)
 	{
 		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_POINT;
 		DRWPass *pass = psl->lightprobes = DRW_pass_create("Object Probe Pass", state);
-		struct Gwn_Batch *sphere = DRW_cache_sphere_get();
-		struct Gwn_Batch *quad = DRW_cache_quad_get();
+		struct GPUBatch *sphere = DRW_cache_sphere_get();
+		struct GPUBatch *quad = DRW_cache_quad_get();
 
 		/* Cubemap */
 		g_data->lightprobes_cube_select       = shgroup_instance_outline(pass, sphere, &g_data->id_ofs_prb_select);
@@ -959,7 +969,7 @@ static void OBJECT_cache_init(void *vedata)
 
 	{
 		DRWState state = DRW_STATE_WRITE_COLOR;
-		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
+		struct GPUBatch *quad = DRW_cache_fullscreen_quad_get();
 		/* Don't occlude the "outline" detection pass if in xray mode (too much flickering). */
 		float alphaOcclu = (xray_enabled) ? 1.0f : 0.35f;
 		/* Reminder : bool uniforms need to be 4 bytes. */
@@ -999,7 +1009,7 @@ static void OBJECT_cache_init(void *vedata)
 		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND;
 		psl->outlines_resolve = DRW_pass_create("Outlines Resolve Pass", state);
 
-		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
+		struct GPUBatch *quad = DRW_cache_fullscreen_quad_get();
 		GPUTexture **outline_tx = (do_outline_expand) ? &e_data.outlines_blur_tx : &e_data.outlines_color_tx;
 
 		DRWShadingGroup *grp = DRW_shgroup_create(e_data.outline_resolve_aa_sh, psl->outlines_resolve);
@@ -1013,7 +1023,7 @@ static void OBJECT_cache_init(void *vedata)
 		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND;
 		psl->grid = DRW_pass_create("Infinite Grid Pass", state);
 
-		struct Gwn_Batch *quad = DRW_cache_fullscreen_quad_get();
+		struct GPUBatch *quad = DRW_cache_fullscreen_quad_get();
 		static float mat[4][4];
 		unit_m4(mat);
 
@@ -1074,7 +1084,7 @@ static void OBJECT_cache_init(void *vedata)
 
 	{
 		/* Non Meshes Pass (Camera, empties, lamps ...) */
-		struct Gwn_Batch *geom;
+		struct GPUBatch *geom;
 
 		DRWState state =
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH |
@@ -1086,7 +1096,7 @@ static void OBJECT_cache_init(void *vedata)
 		geom = DRW_cache_plain_axes_get();
 		stl->g_data->plain_axes = shgroup_instance(psl->non_meshes, geom);
 
-		geom = DRW_cache_cube_get();
+		geom = DRW_cache_empty_cube_get();
 		stl->g_data->cube = shgroup_instance(psl->non_meshes, geom);
 
 		geom = DRW_cache_circle_get();
@@ -1094,6 +1104,15 @@ static void OBJECT_cache_init(void *vedata)
 
 		geom = DRW_cache_empty_sphere_get();
 		stl->g_data->sphere = shgroup_instance(psl->non_meshes, geom);
+
+		geom = DRW_cache_empty_cylinder_get();
+		stl->g_data->cylinder = shgroup_instance(psl->non_meshes, geom);
+
+		geom = DRW_cache_empty_capsule_cap_get();
+		stl->g_data->capsule_cap = shgroup_instance(psl->non_meshes, geom);
+
+		geom = DRW_cache_empty_capsule_body_get();
+		stl->g_data->capsule_body = shgroup_instance(psl->non_meshes, geom);
 
 		geom = DRW_cache_empty_cone_get();
 		stl->g_data->cone = shgroup_instance(psl->non_meshes, geom);
@@ -1125,6 +1144,10 @@ static void OBJECT_cache_init(void *vedata)
 
 		geom = DRW_cache_screenspace_circle_get();
 		stl->g_data->field_curve_sta = shgroup_instance_screen_aligned(psl->non_meshes, geom);
+
+		/* Grease Pencil */
+		geom = DRW_cache_gpencil_axes_get();
+		stl->g_data->gpencil_axes = shgroup_instance(psl->non_meshes, geom);
 
 		/* Speaker */
 		geom = DRW_cache_speaker_get();
@@ -1164,7 +1187,7 @@ static void OBJECT_cache_init(void *vedata)
 		stl->g_data->camera_mist_points = shgroup_distance_lines_instance(psl->non_meshes, geom);
 
 		/* Texture Space */
-		geom = DRW_cache_cube_get();
+		geom = DRW_cache_empty_cube_get();
 		stl->g_data->texspace = shgroup_instance(psl->non_meshes, geom);
 	}
 
@@ -1211,7 +1234,7 @@ static void OBJECT_cache_init(void *vedata)
 		/* TODO
 		 * for now we create multiple times the same VBO with only lamp center coordinates
 		 * but ideally we would only create it once */
-		struct Gwn_Batch *geom;
+		struct GPUBatch *geom;
 
 		/* start with buflimit because we don't want stipples */
 		geom = DRW_cache_single_line_get();
@@ -1263,7 +1286,7 @@ static void OBJECT_cache_init(void *vedata)
 
 	{
 		/* -------- STIPPLES ------- */
-		struct Gwn_Batch *geom;
+		struct GPUBatch *geom;
 
 		/* Relationship Lines */
 		stl->g_data->relationship_lines = shgroup_dynlines_dashed_uniform_color(psl->non_meshes, ts.colorWire);
@@ -1667,7 +1690,7 @@ static void DRW_shgroup_forcefield(OBJECT_StorageList *stl, Object *ob, ViewLaye
 			}
 			break;
 		case PFIELD_GUIDE:
-			if (cu && (cu->flag & CU_PATH) && ob->curve_cache->path && ob->curve_cache->path->data) {
+			if (cu && (cu->flag & CU_PATH) && ob->runtime.curve_cache->path && ob->runtime.curve_cache->path->data) {
 				where_on_path(ob, 0.0f, pd->drawvec1, tmp, NULL, NULL, NULL);
 				where_on_path(ob, 1.0f, pd->drawvec2, tmp, NULL, NULL, NULL);
 			}
@@ -1708,7 +1731,7 @@ static void DRW_shgroup_forcefield(OBJECT_StorageList *stl, Object *ob, ViewLaye
 			DRW_shgroup_call_dynamic_add(stl->g_data->field_vortex, color, &pd->drawvec1, ob->obmat);
 			break;
 		case PFIELD_GUIDE:
-			if (cu && (cu->flag & CU_PATH) && ob->curve_cache->path && ob->curve_cache->path->data) {
+			if (cu && (cu->flag & CU_PATH) && ob->runtime.curve_cache->path && ob->runtime.curve_cache->path->data) {
 				DRW_shgroup_call_dynamic_add(stl->g_data->field_curve_sta, color, &pd->f_strength, ob->obmat);
 				DRW_shgroup_call_dynamic_add(stl->g_data->field_curve_end, color, &pd->f_strength, ob->obmat);
 			}
@@ -1743,6 +1766,93 @@ static void DRW_shgroup_forcefield(OBJECT_StorageList *stl, Object *ob, ViewLaye
 			DRW_shgroup_call_dynamic_add(stl->g_data->field_cone_limit, color, &pd->drawvec_falloff_min, ob->obmat);
 		}
 	}
+}
+
+static void DRW_shgroup_volume_extra(
+        OBJECT_PassList *psl, OBJECT_StorageList *stl,
+        Object *ob, ViewLayer *view_layer, Scene *scene, ModifierData *md)
+{
+	SmokeModifierData *smd = (SmokeModifierData *)md;
+	SmokeDomainSettings *sds = smd->domain;
+	float *color;
+	float one = 1.0f;
+
+	if (sds == NULL) {
+		return;
+	}
+
+	DRW_object_wire_theme_get(ob, view_layer, &color);
+
+	/* Small cube showing voxel size. */
+	float voxel_cubemat[4][4] = {{0.0f}};
+	voxel_cubemat[0][0] = 1.0f / (float)sds->res[0];
+	voxel_cubemat[1][1] = 1.0f / (float)sds->res[1];
+	voxel_cubemat[2][2] = 1.0f / (float)sds->res[2];
+	voxel_cubemat[3][0] = voxel_cubemat[3][1] = voxel_cubemat[3][2] = -1.0f;
+	voxel_cubemat[3][3] = 1.0f;
+	translate_m4(voxel_cubemat, 1.0f, 1.0f, 1.0f);
+	mul_m4_m4m4(voxel_cubemat, ob->obmat, voxel_cubemat);
+
+	DRW_shgroup_call_dynamic_add(stl->g_data->cube, color, &one, voxel_cubemat);
+
+	/* Don't show smoke before simulation starts, this could be made an option in the future. */
+	if (!sds->draw_velocity || !sds->fluid || CFRA < sds->point_cache[0]->startframe) {
+		return;
+	}
+
+	const bool use_needle = (sds->vector_draw_type == VECTOR_DRAW_NEEDLE);
+	int line_count = (use_needle) ? 6 : 1;
+	int slice_axis = -1;
+	line_count *= sds->res[0] * sds->res[1] * sds->res[2];
+
+	if (sds->slice_method == MOD_SMOKE_SLICE_AXIS_ALIGNED &&
+	    sds->axis_slice_method == AXIS_SLICE_SINGLE)
+	{
+		float invviewmat[4][4];
+		DRW_viewport_matrix_get(invviewmat, DRW_MAT_VIEWINV);
+
+		const int axis = (sds->slice_axis == SLICE_AXIS_AUTO)
+		                  ? axis_dominant_v3_single(invviewmat[2])
+		                  : sds->slice_axis - 1;
+		slice_axis = axis;
+		line_count /= sds->res[axis];
+	}
+
+	GPU_create_smoke_velocity(smd);
+
+	DRWShadingGroup *grp = DRW_shgroup_create(volume_velocity_shader_get(use_needle), psl->non_meshes);
+	DRW_shgroup_uniform_texture(grp, "velocityX", sds->tex_velocity_x);
+	DRW_shgroup_uniform_texture(grp, "velocityY", sds->tex_velocity_y);
+	DRW_shgroup_uniform_texture(grp, "velocityZ", sds->tex_velocity_z);
+	DRW_shgroup_uniform_float_copy(grp, "displaySize", sds->vector_scale);
+	DRW_shgroup_uniform_float_copy(grp, "slicePosition", sds->slice_depth);
+	DRW_shgroup_uniform_int_copy(grp, "sliceAxis", slice_axis);
+	DRW_shgroup_call_procedural_lines_add(grp, line_count, ob->obmat);
+
+	BLI_addtail(&e_data.smoke_domains, BLI_genericNodeN(smd));
+}
+
+static void volumes_free_smoke_textures(void)
+{
+	/* Free Smoke Textures after rendering */
+	/* XXX This is a waste of processing and GPU bandwidth if nothing
+	 * is updated. But the problem is since Textures are stored in the
+	 * modifier we don't want them to take precious VRAM if the
+	 * modifier is not used for display. We should share them for
+	 * all viewport in a redraw at least. */
+	for (LinkData *link = e_data.smoke_domains.first; link; link = link->next) {
+		SmokeModifierData *smd = (SmokeModifierData *)link->data;
+		GPU_free_smoke(smd);
+	}
+	BLI_freelistN(&e_data.smoke_domains);
+}
+
+static void DRW_shgroup_gpencil(OBJECT_StorageList *stl, Object *ob, ViewLayer *view_layer)
+{
+	float *color;
+	DRW_object_wire_theme_get(ob, view_layer, &color);
+
+	DRW_shgroup_call_dynamic_add(stl->g_data->gpencil_axes, color, &ob->empty_drawsize, ob->obmat);
 }
 
 static void DRW_shgroup_speaker(OBJECT_StorageList *stl, Object *ob, ViewLayer *view_layer)
@@ -1831,9 +1941,9 @@ static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl
 			DRW_shgroup_call_procedural_points_add(grp, prb_data->cell_count, NULL);
 		}
 		else if (prb->type == LIGHTPROBE_TYPE_CUBE) {
-			prb_data->draw_size = prb->data_draw_size * 0.1f;
-			unit_m4(prb_data->probe_cube_mat);
-			copy_v3_v3(prb_data->probe_cube_mat[3], ob->obmat[3]);
+			// prb_data->draw_size = prb->data_draw_size * 0.1f;
+			// unit_m4(prb_data->probe_cube_mat);
+			// copy_v3_v3(prb_data->probe_cube_mat[3], ob->obmat[3]);
 
 			DRWShadingGroup *grp = shgroup_theme_id_to_probe_cube_outline_shgrp(stl, theme_id);
 			/* TODO remove or change the drawing of the cube probes. Theses line draws nothing on purpose
@@ -2083,6 +2193,82 @@ static void DRW_shgroup_texture_space(OBJECT_StorageList *stl, Object *ob, int t
 	DRW_shgroup_call_dynamic_add(stl->g_data->texspace, color, &one, tmp);
 }
 
+static void DRW_shgroup_bounds(OBJECT_StorageList *stl, Object *ob, int theme_id)
+{
+	float color[4], center[3], size[3], tmp[4][4], final_mat[4][4], one = 1.0f;
+	BoundBox  bb_local;
+
+	if (ob->type == OB_MBALL && !BKE_mball_is_basis(ob)) {
+		return;
+	}
+
+	BoundBox *bb = BKE_object_boundbox_get(ob);
+
+	if (!ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT,
+	                    OB_MBALL, OB_ARMATURE, OB_LATTICE))
+	{
+		const float min[3] = {-1.0f, -1.0f, -1.0f}, max[3] = {1.0f, 1.0f, 1.0f};
+		bb = &bb_local;
+		BKE_boundbox_init_from_minmax(bb, min, max);
+	}
+
+	UI_GetThemeColor4fv(theme_id, color);
+	BKE_boundbox_calc_center_aabb(bb, center);
+	BKE_boundbox_calc_size_aabb(bb, size);
+
+	switch (ob->boundtype) {
+		case OB_BOUND_BOX:
+			size_to_mat4(tmp, size);
+			copy_v3_v3(tmp[3], center);
+			mul_m4_m4m4(tmp, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->cube, color, &one, tmp);
+			break;
+		case OB_BOUND_SPHERE:
+			size[0] = max_fff(size[0], size[1], size[2]);
+			size[1] = size[2] = size[0];
+			size_to_mat4(tmp, size);
+			copy_v3_v3(tmp[3], center);
+			mul_m4_m4m4(tmp, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->sphere, color, &one, tmp);
+			break;
+		case OB_BOUND_CYLINDER:
+			size[0] = max_ff(size[0], size[1]);
+			size[1] = size[0];
+			size_to_mat4(tmp, size);
+			copy_v3_v3(tmp[3], center);
+			mul_m4_m4m4(tmp, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->cylinder, color, &one, tmp);
+			break;
+		case OB_BOUND_CONE:
+			size[0] = max_ff(size[0], size[1]);
+			size[1] = size[0];
+			size_to_mat4(tmp, size);
+			copy_v3_v3(tmp[3], center);
+			/* Cone batch has base at 0 and is pointing towards +Y. */
+			swap_v3_v3(tmp[1], tmp[2]);
+			tmp[3][2] -= size[2];
+			mul_m4_m4m4(tmp, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->cone, color, &one, tmp);
+			break;
+		case OB_BOUND_CAPSULE:
+			size[0] = max_ff(size[0], size[1]);
+			size[1] = size[0];
+			scale_m4_fl(tmp, size[0]);
+			copy_v2_v2(tmp[3], center);
+			tmp[3][2] = center[2] + max_ff(0.0f, size[2] - size[0]);
+			mul_m4_m4m4(final_mat, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->capsule_cap, color, &one, final_mat);
+			negate_v3(tmp[2]);
+			tmp[3][2] = center[2] - max_ff(0.0f, size[2] - size[0]);
+			mul_m4_m4m4(final_mat, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->capsule_cap, color, &one, final_mat);
+			tmp[2][2] = max_ff(0.0f, size[2] * 2.0f - size[0] * 2.0f);
+			mul_m4_m4m4(final_mat, ob->obmat, tmp);
+			DRW_shgroup_call_dynamic_add(stl->g_data->capsule_body, color, &one, final_mat);
+			break;
+	}
+}
+
 static void OBJECT_cache_populate_particles(Object *ob,
                                             OBJECT_PassList *psl)
 {
@@ -2101,7 +2287,7 @@ static void OBJECT_cache_populate_particles(Object *ob,
 		unit_m4(mat);
 
 		if (draw_as != PART_DRAW_PATH) {
-			struct Gwn_Batch *geom = DRW_cache_particles_get_dots(ob, psys);
+			struct GPUBatch *geom = DRW_cache_particles_get_dots(ob, psys);
 			DRWShadingGroup *shgrp = NULL;
 			static int screen_space[2] = {0, 1};
 			static float def_prim_col[3] = {0.5f, 0.5f, 0.5f};
@@ -2164,7 +2350,9 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 	OBJECT_StorageList *stl = ((OBJECT_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	ViewLayer *view_layer = draw_ctx->view_layer;
+	Scene *scene = draw_ctx->scene;
 	View3D *v3d = draw_ctx->v3d;
+	ModifierData *md = NULL;
 	int theme_id = TH_UNDEFINED;
 
 	/* Handle particles first in case the emitter itself shouldn't be rendered. */
@@ -2176,15 +2364,15 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		return;
 	}
 
-	bool do_outlines = (draw_ctx->v3d->flag & V3D_SELECT_OUTLINE) && ((ob->base_flag & BASE_SELECTED) != 0);
-	bool show_relations = ((draw_ctx->v3d->flag & V3D_HIDE_HELPLINES) == 0);
+	const bool do_outlines = (draw_ctx->v3d->flag & V3D_SELECT_OUTLINE) && ((ob->base_flag & BASE_SELECTED) != 0);
+	const bool show_relations = ((draw_ctx->v3d->flag & V3D_HIDE_HELPLINES) == 0);
 	const bool hide_object_extra = (v3d->overlay.flag & V3D_OVERLAY_HIDE_OBJECT_XTRAS) != 0;
 
 	if (do_outlines) {
 		if ((ob != draw_ctx->object_edit) && !((ob == draw_ctx->obact) && (draw_ctx->object_mode & OB_MODE_ALL_PAINT))) {
-			struct Gwn_Batch *geom;
+			struct GPUBatch *geom;
 			const bool xray_enabled = ((v3d->shading.flag & V3D_SHADING_XRAY) != 0) &&
-			                           (v3d->drawtype < OB_MATERIAL);
+			                           (v3d->shading.type < OB_MATERIAL);
 			if (xray_enabled) {
 				geom = DRW_cache_object_edge_detection_get(ob, NULL);
 			}
@@ -2210,7 +2398,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			if (ob != draw_ctx->object_edit) {
 				Mesh *me = ob->data;
 				if (me->totedge == 0) {
-					struct Gwn_Batch *geom = DRW_cache_mesh_verts_get(ob);
+					struct GPUBatch *geom = DRW_cache_mesh_verts_get(ob);
 					if (geom) {
 						if (theme_id == TH_UNDEFINED) {
 							theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
@@ -2221,7 +2409,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 					}
 				}
 				else {
-					struct Gwn_Batch *geom = DRW_cache_mesh_loose_edges_get(ob);
+					struct GPUBatch *geom = DRW_cache_mesh_loose_edges_get(ob);
 					if (geom) {
 						if (theme_id == TH_UNDEFINED) {
 							theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
@@ -2242,7 +2430,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 				if (hide_object_extra) {
 					break;
 				}
-				struct Gwn_Batch *geom = DRW_cache_lattice_wire_get(ob, false);
+				struct GPUBatch *geom = DRW_cache_lattice_wire_get(ob, false);
 				if (theme_id == TH_UNDEFINED) {
 					theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
 				}
@@ -2258,7 +2446,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 				if (hide_object_extra) {
 					break;
 				}
-				struct Gwn_Batch *geom = DRW_cache_curve_edge_wire_get(ob);
+				struct GPUBatch *geom = DRW_cache_curve_edge_wire_get(ob);
 				if (theme_id == TH_UNDEFINED) {
 					theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
 				}
@@ -2311,6 +2499,9 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			}
 			DRW_shgroup_empty(stl, psl, ob, view_layer);
 			break;
+		case OB_GPENCIL:
+			DRW_shgroup_gpencil(stl, ob, view_layer);
+			break;
 		case OB_SPEAKER:
 			if (hide_object_extra) {
 				break;
@@ -2354,8 +2545,9 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 
 	/* don't show object extras in set's */
 	if ((ob->base_flag & (BASE_FROM_SET | BASE_FROMDUPLI)) == 0) {
-
-		DRW_shgroup_object_center(stl, ob, view_layer, v3d);
+		if ((draw_ctx->object_mode & OB_MODE_ALL_PAINT) == 0) {
+			DRW_shgroup_object_center(stl, ob, view_layer, v3d);
+		}
 
 		if (show_relations) {
 			DRW_shgroup_relationship_lines(stl, ob);
@@ -2379,6 +2571,17 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 
 		if ((ob->dtx & OB_TEXSPACE) && ELEM(ob->type, OB_MESH, OB_CURVE, OB_MBALL)) {
 			DRW_shgroup_texture_space(stl, ob, theme_id);
+		}
+
+		if (ob->dtx & OB_DRAWBOUNDOX) {
+			DRW_shgroup_bounds(stl, ob, theme_id);
+		}
+
+		if ((md = modifiers_findByType(ob, eModifierType_Smoke)) &&
+		    (modifier_isEnabled(scene, md, eModifierMode_Realtime)) &&
+		    (((SmokeModifierData *)md)->domain != NULL))
+		{
+			DRW_shgroup_volume_extra(psl, stl, ob, view_layer, scene, md);
 		}
 	}
 }
@@ -2479,6 +2682,8 @@ static void OBJECT_draw_scene(void *vedata)
 		BLI_ghash_free(stl->g_data->image_plane_map, NULL, MEM_freeN);
 		stl->g_data->image_plane_map = NULL;
 	}
+
+	volumes_free_smoke_textures();
 }
 
 static const DrawEngineDataSize OBJECT_data_size = DRW_VIEWPORT_DATA_SIZE(OBJECT_Data);

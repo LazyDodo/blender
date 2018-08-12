@@ -238,7 +238,7 @@ class CLIP_OT_track_to_empty(Operator):
         ob = bpy.data.objects.new(name=track.name, object_data=None)
         ob.select_set(action='SELECT')
         context.scene.objects.link(ob)
-        context.scene.objects.active = ob
+        context.view_layer.objects.active = ob
 
         for con in ob.constraints:
             if con.type == 'FOLLOW_TRACK':
@@ -300,7 +300,7 @@ class CLIP_OT_bundles_to_mesh(Operator):
             reconstruction = tracking_object.reconstruction
             framenr = scene.frame_current - clip.frame_start + 1
             reconstructed_matrix = reconstruction.cameras.matrix_from_frame(framenr)
-            matrix = camera.matrix_world * reconstructed_matrix.inverted()
+            matrix = camera.matrix_world @ reconstructed_matrix.inverted()
 
         for track in tracking_object.tracks:
             if track.has_bundle and track.select:
@@ -314,7 +314,7 @@ class CLIP_OT_bundles_to_mesh(Operator):
             ob.matrix_world = matrix
             context.scene.objects.link(ob)
             ob.select = True
-            context.scene.objects.active = ob
+            context.view_layer.objects.active = ob
         else:
             self.report({'WARNING'}, "No usable tracks selected")
 
@@ -580,10 +580,12 @@ class CLIP_OT_setup_tracking_scene(Operator):
 
         scene.camera = camob
 
-        camob.matrix_local = (Matrix.Translation((7.481, -6.508, 5.344)) *
-                              Matrix.Rotation(0.815, 4, 'Z') *
-                              Matrix.Rotation(0.011, 4, 'Y') *
-                              Matrix.Rotation(1.109, 4, 'X'))
+        camob.matrix_local = (
+            Matrix.Translation((7.481, -6.508, 5.344)) @
+            Matrix.Rotation(0.815, 4, 'Z') @
+            Matrix.Rotation(0.011, 4, 'Y') @
+            Matrix.Rotation(1.109, 4, 'X')
+        )
 
         return camob
 

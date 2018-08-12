@@ -752,9 +752,9 @@ enum {
 	ROUNDBOX_TRIA_MAX, /* don't use */
 };
 
-struct Gwn_Batch *ui_batch_roundbox_get(bool filled, bool antialiased);
-struct Gwn_Batch *ui_batch_roundbox_widget_get(int tria);
-struct Gwn_Batch *ui_batch_roundbox_shadow_get(void);
+struct GPUBatch *ui_batch_roundbox_get(bool filled, bool antialiased);
+struct GPUBatch *ui_batch_roundbox_widget_get(int tria);
+struct GPUBatch *ui_batch_roundbox_shadow_get(void);
 
 void ui_draw_anti_tria_rect(const rctf *rect, char dir, const float color[4]);
 void ui_draw_menu_back(struct uiStyle *style, uiBlock *block, rcti *rect);
@@ -780,7 +780,7 @@ void ui_draw_preview_item(struct uiFontStyle *fstyle, rcti *rect, const char *na
 #define UI_POPUP_MENU_TOP (int)(8 * UI_DPI_FAC)
 
 #define UI_PIXEL_AA_JITTER 8
-const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2];
+extern const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2];
 
 /* interface_style.c */
 void uiStyleInit(void);
@@ -831,7 +831,9 @@ bool ui_but_is_toggle(const uiBut *but);
 bool ui_but_is_popover_once_compat(const uiBut *but);
 
 extern bool ui_block_is_menu(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
+extern bool ui_block_is_popover(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
 extern bool ui_block_is_pie_menu(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
+extern bool ui_block_is_popup_any(const uiBlock *block) ATTR_WARN_UNUSED_RESULT;
 
 /* interface_context_menu.c */
 bool ui_popup_context_menu_for_button(struct bContext *C, uiBut *but);
@@ -843,6 +845,7 @@ struct wmKeyMap *eyedropper_colorband_modal_keymap(struct wmKeyConfig *keyconf);
 
 /* interface_eyedropper_color.c */
 void UI_OT_eyedropper_color(struct wmOperatorType *ot);
+void UI_OT_eyedropper_color_crypto(struct wmOperatorType *ot);
 
 /* interface_eyedropper_colorband.c */
 void UI_OT_eyedropper_colorband(struct wmOperatorType *ot);

@@ -54,9 +54,9 @@
 #include "DRW_render.h"
 
 /* ---------------------------------------------------------------------- */
-/* Hair Gwn_Batch Cache */
+/* Hair GPUBatch Cache */
 
-/* Gwn_Batch cache management. */
+/* GPUBatch cache management. */
 
 typedef struct HairBatchCache {
 	ParticleHairCache hair;
@@ -147,7 +147,7 @@ static void hair_batch_cache_ensure_count(
 
 static void hair_batch_cache_fill_segments_proc_pos(
         const HairExportCache *hair_export,
-        Gwn_VertBufRaw *attr_step)
+        GPUVertBufRaw *attr_step)
 {
 	for (int i = 0; i < hair_export->totcurves; i++) {
 		const HairFiberCurve *curve = &hair_export->fiber_curves[i];
@@ -159,7 +159,7 @@ static void hair_batch_cache_fill_segments_proc_pos(
 		const float *co_prev = NULL;
 		float *seg_data_first;
 		for (int j = 0; j < curve->numverts; j++) {
-			float *seg_data = (float *)GWN_vertbuf_raw_step(attr_step);
+			float *seg_data = (float *)GPU_vertbuf_raw_step(attr_step);
 			copy_v3_v3(seg_data, verts[j].co);
 			if (co_prev) {
 				total_len += len_v3v3(co_prev, verts[j].co);
@@ -188,19 +188,19 @@ static void hair_batch_cache_ensure_procedural_pos(
 	}
 
 	/* initialize vertex format */
-	Gwn_VertFormat format = {0};
-	uint pos_id = GWN_vertformat_attr_add(&format, "posTime", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	GPUVertFormat format = {0};
+	uint pos_id = GPU_vertformat_attr_add(&format, "posTime", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 
-	cache->proc_point_buf = GWN_vertbuf_create_with_format(&format);
-    GWN_vertbuf_data_alloc(cache->proc_point_buf, cache->point_len);
+	cache->proc_point_buf = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(cache->proc_point_buf, cache->point_len);
 
-	Gwn_VertBufRaw pos_step;
-	GWN_vertbuf_attr_get_raw_data(cache->proc_point_buf, pos_id, &pos_step);
+	GPUVertBufRaw pos_step;
+	GPU_vertbuf_attr_get_raw_data(cache->proc_point_buf, pos_id, &pos_step);
 
 	hair_batch_cache_fill_segments_proc_pos(hair_export, &pos_step);
 
 	/* Create vbo immediatly to bind to texture buffer. */
-	GWN_vertbuf_use(cache->proc_point_buf);
+	GPU_vertbuf_use(cache->proc_point_buf);
 
 	cache->point_tex = GPU_texture_create_from_vertbuf(cache->proc_point_buf);
 }
@@ -215,9 +215,9 @@ static void hair_pack_mcol(MCol *mcol, unsigned short r_scol[3])
 
 static int hair_batch_cache_fill_strands_data(
         const HairExportCache *hair_export,
-        Gwn_VertBufRaw *data_step,
-        Gwn_VertBufRaw *uv_step, int num_uv_layers,
-        Gwn_VertBufRaw *col_step, int num_col_layers)
+        GPUVertBufRaw *data_step,
+        GPUVertBufRaw *uv_step, int num_uv_layers,
+        GPUVertBufRaw *col_step, int num_col_layers)
 {
 	int curr_point = 0;
 	for (int i = 0; i < hair_export->totcurves; i++) {
@@ -226,7 +226,7 @@ static int hair_batch_cache_fill_strands_data(
 			continue;
 		}
 
-		uint *seg_data = (uint *)GWN_vertbuf_raw_step(data_step);
+		uint *seg_data = (uint *)GPU_vertbuf_raw_step(data_step);
 		const uint numseg = curve->numverts - 1;
 		*seg_data = (curr_point & 0xFFFFFF) | (numseg << 24);
 		curr_point += curve->numverts;
@@ -266,11 +266,11 @@ static int hair_batch_cache_fill_strands_data(
 #endif
 		
 		for (int k = 0; k < num_uv_layers; k++) {
-			float *t_uv = (float *)GWN_vertbuf_raw_step(uv_step + k);
+			float *t_uv = (float *)GPU_vertbuf_raw_step(uv_step + k);
 			copy_v2_v2(t_uv, uv[k]);
 		}
 		for (int k = 0; k < num_col_layers; k++) {
-			unsigned short *scol = (unsigned short *)GWN_vertbuf_raw_step(col_step + k);
+			unsigned short *scol = (unsigned short *)GPU_vertbuf_raw_step(col_step + k);
 			hair_pack_mcol(&mcol[k], scol);
 		}
 		
@@ -306,36 +306,36 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 	}
 #endif
 
-	Gwn_VertBufRaw data_step;
-	Gwn_VertBufRaw uv_step[MAX_MTFACE];
-	Gwn_VertBufRaw col_step[MAX_MCOL];
+	GPUVertBufRaw data_step;
+	GPUVertBufRaw uv_step[MAX_MTFACE];
+	GPUVertBufRaw col_step[MAX_MCOL];
 
 	MTFace *mtfaces[MAX_MTFACE] = {NULL};
 	MCol *mcols[MAX_MCOL] = {NULL};
 
-	Gwn_VertFormat format_data = {0};
-	uint data_id = GWN_vertformat_attr_add(&format_data, "data", GWN_COMP_U32, 1, GWN_FETCH_INT);
+	GPUVertFormat format_data = {0};
+	uint data_id = GPU_vertformat_attr_add(&format_data, "data", GPU_COMP_U32, 1, GPU_FETCH_INT);
 
-	Gwn_VertFormat format_uv = {0};
-	uint uv_id = GWN_vertformat_attr_add(&format_uv, "uv", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat format_uv = {0};
+	uint uv_id = GPU_vertformat_attr_add(&format_uv, "uv", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
-	Gwn_VertFormat format_col = {0};
-	uint col_id = GWN_vertformat_attr_add(&format_col, "col", GWN_COMP_U16, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat format_col = {0};
+	uint col_id = GPU_vertformat_attr_add(&format_col, "col", GPU_COMP_U16, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	memset(cache->uv_layer_names, 0, sizeof(cache->uv_layer_names));
 	memset(cache->col_layer_names, 0, sizeof(cache->col_layer_names));
 
 	/* Strand Data */
-	cache->proc_strand_buf = GWN_vertbuf_create_with_format(&format_data);
-    GWN_vertbuf_data_alloc(cache->proc_strand_buf, cache->strands_len);
-	GWN_vertbuf_attr_get_raw_data(cache->proc_strand_buf, data_id, &data_step);
+	cache->proc_strand_buf = GPU_vertbuf_create_with_format(&format_data);
+	GPU_vertbuf_data_alloc(cache->proc_strand_buf, cache->strands_len);
+	GPU_vertbuf_attr_get_raw_data(cache->proc_strand_buf, data_id, &data_step);
 
 #if 0 // TODO
 	/* UV layers */
 	for (int i = 0; i < cache->num_uv_layers; i++) {
-		cache->proc_uv_buf[i] = GWN_vertbuf_create_with_format(&format_uv);
-        GWN_vertbuf_data_alloc(cache->proc_uv_buf[i], cache->strands_len);
-		GWN_vertbuf_attr_get_raw_data(cache->proc_uv_buf[i], uv_id, &uv_step[i]);
+		cache->proc_uv_buf[i] = GPU_vertbuf_create_with_format(&format_uv);
+		GPU_vertbuf_data_alloc(cache->proc_uv_buf[i], cache->strands_len);
+		GPU_vertbuf_attr_get_raw_data(cache->proc_uv_buf[i], uv_id, &uv_step[i]);
 
 		const char *name = CustomData_get_layer_name(&psmd->mesh_final->ldata, CD_MLOOPUV, i);
 		uint hash = BLI_ghashutil_strhash_p(name);
@@ -349,9 +349,9 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 	}
 	/* Vertex colors */
 	for (int i = 0; i < cache->num_col_layers; i++) {
-		cache->proc_col_buf[i] = GWN_vertbuf_create_with_format(&format_col);
-        GWN_vertbuf_data_alloc(cache->proc_col_buf[i], cache->strands_len);
-		GWN_vertbuf_attr_get_raw_data(cache->proc_col_buf[i], col_id, &col_step[i]);
+		cache->proc_col_buf[i] = GPU_vertbuf_create_with_format(&format_col);
+		GPU_vertbuf_data_alloc(cache->proc_col_buf[i], cache->strands_len);
+		GPU_vertbuf_attr_get_raw_data(cache->proc_col_buf[i], col_id, &col_step[i]);
 
 		const char *name = CustomData_get_layer_name(&psmd->mesh_final->ldata, CD_MLOOPCOL, i);
 		uint hash = BLI_ghashutil_strhash_p(name);
@@ -390,15 +390,15 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 	            col_step, cache->num_col_layers);
 
 	/* Create vbo immediatly to bind to texture buffer. */
-	GWN_vertbuf_use(cache->proc_strand_buf);
+	GPU_vertbuf_use(cache->proc_strand_buf);
 	cache->strand_tex = GPU_texture_create_from_vertbuf(cache->proc_strand_buf);
 
 	for (int i = 0; i < cache->num_uv_layers; i++) {
-		GWN_vertbuf_use(cache->proc_uv_buf[i]);
+		GPU_vertbuf_use(cache->proc_uv_buf[i]);
 		cache->uv_tex[i] = GPU_texture_create_from_vertbuf(cache->proc_uv_buf[i]);
 	}
 	for (int i = 0; i < cache->num_col_layers; i++) {
-		GWN_vertbuf_use(cache->proc_col_buf[i]);
+		GPU_vertbuf_use(cache->proc_col_buf[i]);
 		cache->col_tex[i] = GPU_texture_create_from_vertbuf(cache->proc_col_buf[i]);
 	}
 }
@@ -422,17 +422,17 @@ static void hair_batch_cache_ensure_procedural_final_points(
         int subdiv)
 {
 	/* Same format as point_tex. */
-	Gwn_VertFormat format = { 0 };
-	GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+	GPUVertFormat format = { 0 };
+	GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 
-	cache->final[subdiv].proc_point_buf = GWN_vertbuf_create_with_format(&format);
+	cache->final[subdiv].proc_point_buf = GPU_vertbuf_create_with_format(&format);
 
 	/* Create a destination buffer for the tranform feedback. Sized appropriately */
 	/* Thoses are points! not line segments. */
-	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].point_len);
+	GPU_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].point_len);
 
 	/* Create vbo immediatly to bind to texture buffer. */
-	GWN_vertbuf_use(cache->final[subdiv].proc_point_buf);
+	GPU_vertbuf_use(cache->final[subdiv].proc_point_buf);
 
 	cache->final[subdiv].proc_tex = GPU_texture_create_from_vertbuf(cache->final[subdiv].proc_point_buf);
 }
@@ -441,7 +441,7 @@ static int hair_batch_cache_fill_segments_indices(
         const HairExportCache *hair_export,
         const int subdiv,
         const int thickness_res,
-        Gwn_IndexBufBuilder *elb)
+        GPUIndexBufBuilder *elb)
 {
 	int curr_point = 0;
 	for (int i = 0; i < hair_export->totcurves; i++) {
@@ -452,9 +452,9 @@ static int hair_batch_cache_fill_segments_indices(
 
 		const int res = (((curve->numverts - 1) << subdiv) + 1) * thickness_res;
 		for (int k = 0; k < res; k++) {
-			GWN_indexbuf_add_generic_vert(elb, curr_point++);
+			GPU_indexbuf_add_generic_vert(elb, curr_point++);
 		}
-		GWN_indexbuf_add_primitive_restart(elb);
+		GPU_indexbuf_add_primitive_restart(elb);
 	}
 	return curr_point;
 }
@@ -472,27 +472,27 @@ static void hair_batch_cache_ensure_procedural_indices(
 	}
 
 	int element_count = cache->final[subdiv].elems_len;
-	Gwn_PrimType prim_type = (thickness_res == 1) ? GWN_PRIM_LINE_STRIP : GWN_PRIM_TRI_STRIP;
+	GPUPrimType prim_type = (thickness_res == 1) ? GPU_PRIM_LINE_STRIP : GPU_PRIM_TRI_STRIP;
 
-	static Gwn_VertFormat format = { 0 };
-	GWN_vertformat_clear(&format);
+	static GPUVertFormat format = { 0 };
+	GPU_vertformat_clear(&format);
 
 	/* initialize vertex format */
-	GWN_vertformat_attr_add(&format, "dummy", GWN_COMP_U8, 1, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPU_vertformat_attr_add(&format, "dummy", GPU_COMP_U8, 1, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
-	Gwn_VertBuf *vbo = GWN_vertbuf_create_with_format(&format);
-	GWN_vertbuf_data_alloc(vbo, 1);
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, 1);
 
-	Gwn_IndexBufBuilder elb;
-	GWN_indexbuf_init_ex(&elb, prim_type, element_count, element_count, true);
+	GPUIndexBufBuilder elb;
+	GPU_indexbuf_init_ex(&elb, prim_type, element_count, element_count, true);
 
 	hair_batch_cache_fill_segments_indices(hair_export, subdiv, thickness_res, &elb);
 
-	cache->final[subdiv].proc_hairs[thickness_res - 1] = GWN_batch_create_ex(
+	cache->final[subdiv].proc_hairs[thickness_res - 1] = GPU_batch_create_ex(
 	        prim_type,
 	        vbo,
-	        GWN_indexbuf_build(&elb),
-	        GWN_BATCH_OWNS_VBO | GWN_BATCH_OWNS_INDEX);
+	        GPU_indexbuf_build(&elb),
+	        GPU_BATCH_OWNS_VBO | GPU_BATCH_OWNS_INDEX);
 }
 
 /* Ensure all textures and buffers needed for GPU accelerated drawing. */
@@ -541,14 +541,14 @@ bool hair_ensure_procedural_data(
 	return need_ft_update;
 }
 
-Gwn_Batch *DRW_hair_batch_cache_get_fibers(HairSystem *hsys, const HairExportCache *hair_export)
+GPUBatch *DRW_hair_batch_cache_get_fibers(HairSystem *hsys, const HairExportCache *hair_export)
 {
 	// TODO
 	UNUSED_VARS(hsys, hair_export);
 	return NULL;
 }
 
-Gwn_Batch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys, const HairExportCache *hair_export)
+GPUBatch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys, const HairExportCache *hair_export)
 {
 	// TODO
 	UNUSED_VARS(hsys, hair_export);

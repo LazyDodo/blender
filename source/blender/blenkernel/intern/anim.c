@@ -99,6 +99,8 @@ void animviz_settings_init(bAnimVizSettings *avs)
 	avs->path_viewflag = (MOTIONPATH_VIEW_KFRAS | MOTIONPATH_VIEW_KFNOS);
 
 	avs->path_step = 1;
+
+	avs->path_bakeflag |= MOTIONPATH_BAKE_HEADS;
 }
 
 /* ------------------- */
@@ -114,9 +116,9 @@ void animviz_free_motionpath_cache(bMotionPath *mpath)
 	if (mpath->points)
 		MEM_freeN(mpath->points);
 
-	GWN_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
-	GWN_BATCH_DISCARD_SAFE(mpath->batch_line);
-	GWN_BATCH_DISCARD_SAFE(mpath->batch_points);
+	GPU_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
+	GPU_BATCH_DISCARD_SAFE(mpath->batch_line);
+	GPU_BATCH_DISCARD_SAFE(mpath->batch_points);
 
 	/* reset the relevant parameters */
 	mpath->points = NULL;
@@ -495,9 +497,9 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 		BLI_dlrbTree_free(&mpt->keys);
 
 		/* Free previous batches to force update. */
-		GWN_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
-		GWN_BATCH_DISCARD_SAFE(mpath->batch_line);
-		GWN_BATCH_DISCARD_SAFE(mpath->batch_points);
+		GPU_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
+		GPU_BATCH_DISCARD_SAFE(mpath->batch_line);
+		GPU_BATCH_DISCARD_SAFE(mpath->batch_points);
 	}
 }
 
@@ -535,18 +537,18 @@ void calc_curvepath(Object *ob, ListBase *nurbs)
 		return;
 	}
 
-	if (ob->curve_cache->path) free_path(ob->curve_cache->path);
-	ob->curve_cache->path = NULL;
+	if (ob->runtime.curve_cache->path) free_path(ob->runtime.curve_cache->path);
+	ob->runtime.curve_cache->path = NULL;
 
 	/* weak! can only use first curve */
-	bl = ob->curve_cache->bev.first;
+	bl = ob->runtime.curve_cache->bev.first;
 	if (bl == NULL || !bl->nr) {
 		return;
 	}
 
 	nu = nurbs->first;
 
-	ob->curve_cache->path = path = MEM_callocN(sizeof(Path), "calc_curvepath");
+	ob->runtime.curve_cache->path = path = MEM_callocN(sizeof(Path), "calc_curvepath");
 
 	/* if POLY: last vertice != first vertice */
 	cycl = (bl->poly != -1);
@@ -663,15 +665,15 @@ int where_on_path(Object *ob, float ctime, float vec[4], float dir[3], float qua
 
 	if (ob == NULL || ob->type != OB_CURVE) return 0;
 	cu = ob->data;
-	if (ob->curve_cache == NULL || ob->curve_cache->path == NULL || ob->curve_cache->path->data == NULL) {
+	if (ob->runtime.curve_cache == NULL || ob->runtime.curve_cache->path == NULL || ob->runtime.curve_cache->path->data == NULL) {
 		printf("no path!\n");
 		return 0;
 	}
-	path = ob->curve_cache->path;
+	path = ob->runtime.curve_cache->path;
 	pp = path->data;
 
 	/* test for cyclic */
-	bl = ob->curve_cache->bev.first;
+	bl = ob->runtime.curve_cache->bev.first;
 	if (!bl) return 0;
 	if (!bl->nr) return 0;
 	if (bl->poly > -1) cycl = 1;

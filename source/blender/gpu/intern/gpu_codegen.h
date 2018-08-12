@@ -184,7 +184,7 @@ void GPU_nodes_extract_dynamic_inputs(struct GPUShader *shader, ListBase *inputs
 void GPU_nodes_get_vertex_attributes(ListBase *nodes, struct GPUVertexAttribs *attribs);
 void GPU_nodes_prune(ListBase *nodes, struct GPUNodeLink *outlink);
 
-void GPU_pass_compile(GPUPass *pass);
+void GPU_pass_compile(GPUPass *pass, const char *shname);
 void GPU_pass_release(GPUPass *pass);
 void GPU_pass_free_nodes(ListBase *nodes);
 
@@ -197,6 +197,7 @@ void gpu_codegen_exit(void);
 
 const char *GPU_builtin_name(GPUBuiltin builtin);
 void gpu_material_add_node(struct GPUMaterial *material, struct GPUNode *node);
+struct GPUTexture **gpu_material_ramp_texture_row_set(GPUMaterial *mat, int size, float *pixels, float *row);
 int GPU_link_changed(struct GPUNodeLink *link);
 
 #endif

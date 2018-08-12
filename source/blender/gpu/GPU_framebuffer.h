@@ -69,8 +69,7 @@ void GPU_framebuffer_restore(void);
 bool GPU_framebuffer_bound(GPUFrameBuffer *fb);
 bool GPU_framebuffer_check_valid(GPUFrameBuffer *fb, char err_out[256]);
 
-/* internal use only */
-unsigned int GPU_framebuffer_current_get(void);
+GPUFrameBuffer *GPU_framebuffer_active_get(void);
 
 #define GPU_FRAMEBUFFER_FREE_SAFE(fb) do { \
 	if (fb != NULL) { \
@@ -179,7 +178,8 @@ void GPU_framebuffer_recursive_downsample(
  * - wrapper around framebuffer and texture for simple offscreen drawing
  */
 
-GPUOffScreen *GPU_offscreen_create(int width, int height, int samples,
+GPUOffScreen *GPU_offscreen_create(
+        int width, int height, int samples,
         bool depth, bool high_bitdepth, char err_out[256]);
 void GPU_offscreen_free(GPUOffScreen *ofs);
 void GPU_offscreen_bind(GPUOffScreen *ofs, bool save);
