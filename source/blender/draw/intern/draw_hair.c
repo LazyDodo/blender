@@ -158,11 +158,8 @@ static DRWShadingGroup *drw_shgroup_create_particle_hair_procedural_ex(
 		}
 	}
 
-	// XXX HACK! soon to be removed in favor of per-strand res values (need the static for setting a uniform)
-	static int strands_res;
-	strands_res = (1 << (part->draw_step + subdiv)) + 1;
 	DRW_shgroup_uniform_texture(shgrp, "hairPointBuffer", hair_cache->final[subdiv].proc_tex);
-	DRW_shgroup_uniform_int(shgrp, "hairStrandsRes", &strands_res, 1);
+	DRW_shgroup_uniform_texture(shgrp, "hairIndexBuffer", hair_cache->final[subdiv].hair_index_tex);
 	DRW_shgroup_uniform_int_copy(shgrp, "hairThicknessRes", thickness_res);
 	DRW_shgroup_uniform_float(shgrp, "hairRadShape", &part->shape, 1);
 	DRW_shgroup_uniform_float_copy(shgrp, "hairRadRoot", part->rad_root * part->rad_scale * 0.5f);
@@ -178,7 +175,6 @@ static DRWShadingGroup *drw_shgroup_create_particle_hair_procedural_ex(
 		                                                                  hair_cache->final[subdiv].proc_point_buf);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairPointBuffer", hair_cache->point_tex);
 		DRW_shgroup_uniform_texture(tf_shgrp, "hairStrandBuffer", hair_cache->strand_tex);
-		DRW_shgroup_uniform_int(tf_shgrp, "hairStrandsRes", &strands_res, 1);
 		DRW_shgroup_call_procedural_points_add(tf_shgrp, hair_cache->final[subdiv].point_len, NULL);
 	}
 

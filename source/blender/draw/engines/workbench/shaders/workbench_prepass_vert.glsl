@@ -23,6 +23,8 @@ out vec3 normal_viewport;
 out vec2 uv_interp;
 #endif
 
+out int DEBUG;
+
 /* From http://libnoise.sourceforge.net/noisegen/index.html */
 float integer_noise(int n)
 {
@@ -34,6 +36,7 @@ float integer_noise(int n)
 void main()
 {
 #ifdef HAIR_SHADER
+	DEBUG = hair_get_strand_id();
 #  ifdef V3D_SHADING_TEXTURE_COLOR
 	vec2 uv = hair_get_customdata_vec2(u);
 #  endif

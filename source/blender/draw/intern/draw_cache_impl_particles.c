@@ -743,13 +743,23 @@ static void ensure_seg_pt_final_count(
 	final_cache->elems_len = (points_per_curve * thickness_res + 1) * final_cache->strands_len;
 }
 
+#define USE_POSITION_HAIR_INDEX
+
 static void particle_batch_cache_ensure_procedural_final_points(
+        const ParticleSystem *psys,
         ParticleHairCache *cache,
         int subdiv)
 {
+
 	/* Same format as point_tex. */
+#ifdef USE_POSITION_HAIR_INDEX
+	static Gwn_VertFormat format = { 0 };
+	GWN_vertformat_clear(&format);
+	uint pos_id = GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+#else
 	Gwn_VertFormat format = { 0 };
 	GWN_vertformat_attr_add(&format, "pos", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+#endif
 
 	cache->final[subdiv].proc_point_buf = GWN_vertbuf_create_with_format(&format);
 
@@ -757,10 +767,51 @@ static void particle_batch_cache_ensure_procedural_final_points(
 	/* Thoses are points! not line segments. */
 	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].point_len);
 
+#ifdef USE_POSITION_HAIR_INDEX
+	Gwn_VertBufRaw data_step;
+	GWN_vertbuf_attr_get_raw_data(cache->final[subdiv].proc_point_buf, pos_id, &data_step);
+	const int points_per_curve = (1 << (psys->part->draw_step + subdiv)) + 1;
+	for (int i = 0; i < cache->final[subdiv].strands_len; i++) {
+		for (int j = 0; j < points_per_curve; ++j) {
+			uint *data = (uint *)GWN_vertbuf_raw_step(&data_step);
+			*data = (uint)i;
+		}
+	}
+#endif
+
 	/* Create vbo immediatly to bind to texture buffer. */
 	GWN_vertbuf_use(cache->final[subdiv].proc_point_buf);
 
 	cache->final[subdiv].proc_tex = GPU_texture_create_from_vertbuf(cache->final[subdiv].proc_point_buf);
+}
+
+static void particle_batch_cache_ensure_procedural_final_hair_index(
+        const ParticleSystem *psys,
+        ParticleHairCache *cache,
+        int subdiv)
+{
+	/* Same format as point_tex. */
+	Gwn_VertFormat format = { 0 };
+	uint hair_index_id = GWN_vertformat_attr_add(&format, "hair_index", GWN_COMP_U32, 1, GWN_FETCH_INT);
+
+	cache->final[subdiv].proc_hair_index_buf = GWN_vertbuf_create_with_format(&format);
+
+	GWN_vertbuf_data_alloc(cache->final[subdiv].proc_hair_index_buf, cache->final[subdiv].point_len);
+
+	Gwn_VertBufRaw data_step;
+	GWN_vertbuf_attr_get_raw_data(cache->final[subdiv].proc_hair_index_buf, hair_index_id, &data_step);
+	const int points_per_curve = (1 << (psys->part->draw_step + subdiv)) + 1;
+	for (int i = 0; i < cache->final[subdiv].strands_len; i++) {
+		for (int j = 0; j < points_per_curve; ++j) {
+			uint *data = (uint *)GWN_vertbuf_raw_step(&data_step);
+			*data = (uint)i;
+		}
+	}
+
+	/* Create vbo immediatly to bind to texture buffer. */
+	GWN_vertbuf_use(cache->final[subdiv].proc_hair_index_buf);
+
+	cache->final[subdiv].hair_index_tex = GPU_texture_create_from_vertbuf(cache->final[subdiv].proc_hair_index_buf);
 }
 
 static void particle_batch_cache_ensure_procedural_strand_data(
@@ -1565,7 +1616,8 @@ bool particles_ensure_procedural_data(
 	/* Refreshed only on subdiv count change. */
 	if ((*r_hair_cache)->final[subdiv].proc_point_buf == NULL) {
 		ensure_seg_pt_final_count(psys, &cache->hair, subdiv, thickness_res);
-		particle_batch_cache_ensure_procedural_final_points(&cache->hair, subdiv);
+		particle_batch_cache_ensure_procedural_final_points(psys, &cache->hair, subdiv);
+		particle_batch_cache_ensure_procedural_final_hair_index(psys, &cache->hair, subdiv);
 		need_ft_update = true;
 	}
 	if ((*r_hair_cache)->final[subdiv].proc_hairs[thickness_res - 1] == NULL) {
