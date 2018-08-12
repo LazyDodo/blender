@@ -429,24 +429,6 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 				                                  &curvenum,
 				                                  &keyno);
 			}
-			if((b_mod->type() == b_mod->type_HAIR)) {
-				BL::HairModifier b_hmd((const PointerRNA)b_mod->ptr);
-				BL::HairSystem b_hsys = b_hmd.hair_system();
-				
-				const int material_index = 1; /* TODO */
-				int shader = clamp(material_index - 1, 0, mesh->used_shaders.size()-1);
-				
-				BL::Mesh b_scalp(b_ob->data());
-				
-				ObtainCacheDataFromHairSystem(b_ob,
-				                              &b_hsys,
-				                              &b_scalp,
-				                              shader,
-				                              background,
-				                              CData,
-				                              &curvenum,
-				                              &keyno);
-			}
 		}
 	}
 

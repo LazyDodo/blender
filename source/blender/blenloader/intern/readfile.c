@@ -5438,16 +5438,6 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				}
 			}
 		}
-		else if (md->type == eModifierType_Hair) {
-			HairModifierData *hmd = (HairModifierData *)md;
-			
-			hmd->hair_system = newdataadr(fd, hmd->hair_system);
-			direct_link_hair(fd, hmd->hair_system);
-			
-			hmd->draw_settings = newdataadr(fd, hmd->draw_settings);
-
-			BLI_listbase_clear(&hmd->fiber_curves); // runtime
-		}
 	}
 }
 

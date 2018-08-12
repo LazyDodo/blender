@@ -20,7 +20,7 @@
 import bpy
 from bpy.types import Panel
 from bpy.app.translations import pgettext_iface as iface_
-from .properties_hair_common import draw_hair_display_settings
+
 
 class ModifierButtonsPanel:
     bl_space_type = 'PROPERTIES'
@@ -1576,27 +1576,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         layout.prop(md, "rest_source")
         if md.rest_source == 'BIND':
             layout.operator("object.correctivesmooth_bind", text="Unbind" if is_bind else "Bind")
-
-    def HAIR(self, layout, ob, md):
-        hsys = md.hair_system
-
-        split = layout.split()
-
-        col = split.column()
-        col.label("Follicles:")
-        col.prop(md, "follicle_seed")
-        col.prop(md, "follicle_count")
-        col.operator("object.hair_generate_follicles", text="Generate")
-
-        col = split.column()
-
-        col.separator()
-
-        col.prop(hsys, "material_slot", text="")
-
-        col = layout.column()
-        col.label("Display Settings:")
-        draw_hair_display_settings(col, md.draw_settings)
 
     def WEIGHTED_NORMAL(self, layout, ob, md):
         layout.label("Weighting Mode:")

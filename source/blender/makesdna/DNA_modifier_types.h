@@ -91,7 +91,6 @@ typedef enum ModifierType {
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
 	eModifierType_WeightedNormal	= 54,
-	eModifierType_Hair              = 55,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -1692,33 +1691,5 @@ enum {
 
 #define MOD_MESHSEQ_READ_ALL \
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
-
-/* Hair modifier */
-typedef struct HairModifierFiberCurve {
-	struct HairModifierFiberCurve *next, *prev;
-	
-	/* Index for the mesh sample buffer */
-	int mesh_sample_index;
-	/* Number of vertices in the curve */
-	int numverts;
-	/* Vertex array */
-	struct HairFiberVertex *verts;
-} HairModifierFiberCurve;
-
-typedef struct HairModifierData {
-	ModifierData modifier;
-	
-	int flag;
-	int pad;
-	
-	struct HairSystem *hair_system;
-	struct HairDrawSettings *draw_settings;
-	
-	/* Follicle distribution parameters */
-	int follicle_seed;
-	int follicle_count;
-
-	ListBase fiber_curves;
-} HairModifierData;
 
 #endif  /* __DNA_MODIFIER_TYPES_H__ */

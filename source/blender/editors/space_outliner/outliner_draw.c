@@ -1039,9 +1039,6 @@ TreeElementIcon tree_element_get_icon(TreeStoreElem *tselem, TreeElement *te)
 						case eModifierType_WeightedNormal:
 							data.icon = ICON_MOD_NORMALEDIT;
 							break;
-						case eModifierType_Hair:
-							data.icon = ICON_STRANDS;
-							break;
 							/* Default */
 						case eModifierType_None:
 						case eModifierType_ShapeKey:

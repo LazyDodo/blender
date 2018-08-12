@@ -78,6 +78,7 @@ def is_not_gpencil_edit_mode(context):
     )
     return not is_gpmode
 
+
 # ********** default tools for editmode_mesh ****************
 
 
