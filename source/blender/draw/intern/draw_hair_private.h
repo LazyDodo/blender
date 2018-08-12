@@ -39,16 +39,22 @@ struct Object;
 struct ParticleSystem;
 struct ModifierData;
 struct ParticleHairCache;
+struct HairSystem;
 
 typedef struct ParticleHairFinalCache {
 	/* Output of the subdivision stage: vertex buff sized to subdiv level. */
-	Gwn_VertBuf *proc_buf;
+	Gwn_VertBuf *proc_point_buf;
 	GPUTexture *proc_tex;
 
-	 /* Just contains a huge index buffer used to draw the final hair. */
+	Gwn_VertBuf *proc_hair_index_buf; /* Hair strand index for each vertex */
+	GPUTexture *hair_index_tex;
+
+	/* Just contains a huge index buffer used to draw the final hair. */
 	Gwn_Batch *proc_hairs[MAX_THICKRES];
 
-	int strands_res; /* points per hair, at least 2 */
+	int strands_len;
+	int elems_len;
+	int point_len;
 } ParticleHairFinalCache;
 
 typedef struct ParticleHairCache {
@@ -81,10 +87,20 @@ typedef struct ParticleHairCache {
 	int point_len;
 } ParticleHairCache;
 
+void particle_batch_cache_clear_hair(struct ParticleHairCache *hair_cache);
+
 bool particles_ensure_procedural_data(
         struct Object *object,
         struct ParticleSystem *psys,
         struct ModifierData *md,
+        struct ParticleHairCache **r_hair_cache,
+        int subdiv,
+        int thickness_res);
+
+bool hair_ensure_procedural_data(
+        struct Object *object,
+        struct HairSystem *hsys,
+        struct Mesh *scalp,
         struct ParticleHairCache **r_hair_cache,
         int subdiv,
         int thickness_res);

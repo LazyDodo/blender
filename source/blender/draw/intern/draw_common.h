@@ -166,13 +166,25 @@ void DRW_shgroup_armature_edit(struct Object *ob, struct DRWArmaturePasses passe
 
 /* This creates a shading group with display hairs.
  * The draw call is already added by this function, just add additional uniforms. */
-struct DRWShadingGroup *DRW_shgroup_hair_create(
+struct DRWShadingGroup *DRW_shgroup_particle_hair_create(
         struct Object *object, struct ParticleSystem *psys, struct ModifierData *md,
         struct DRWPass *hair_pass,
         struct GPUShader *shader);
 
-struct DRWShadingGroup *DRW_shgroup_material_hair_create(
+struct DRWShadingGroup *DRW_shgroup_material_particle_hair_create(
         struct Object *object, struct ParticleSystem *psys, struct ModifierData *md,
+        struct DRWPass *hair_pass,
+        struct GPUMaterial *material);
+
+struct DRWShadingGroup *DRW_shgroup_hair_create(
+        struct Object *object, struct HairSystem *hsys,
+        struct Mesh *scalp, const struct HairDrawSettings *draw_set,
+        struct DRWPass *hair_pass,
+        struct GPUShader *shader);
+
+struct DRWShadingGroup *DRW_shgroup_material_hair_create(
+        struct Object *object, struct HairSystem *hsys,
+        struct Mesh *scalp, const struct HairDrawSettings *draw_set,
         struct DRWPass *hair_pass,
         struct GPUMaterial *material);
 
@@ -183,43 +195,5 @@ void DRW_hair_free(void);
 /* pose_mode.c */
 bool DRW_pose_mode_armature(
     struct Object *ob, struct Object *active_ob);
-
-/* hair drawing */
-typedef struct DRWHairFiberTextureBuffer {
-	void *data;
-	int strand_map_start;
-	int strand_vertex_start;
-	int fiber_start;
-	int width;
-	int height;
-} DRWHairFiberTextureBuffer;
-
-const char* DRW_hair_shader_defines(void);
-
-struct DRWShadingGroup *DRW_shgroup_hair_fibers_create(
-        struct Scene *scene,
-        struct Object *object,
-        struct HairSystem *hsys,
-        struct Mesh *scalp,
-        const struct HairDrawSettings *draw_set,
-        struct DRWPass *hair_pass,
-        struct GPUShader *shader);
-
-struct DRWShadingGroup *DRW_shgroup_material_hair_fibers_create(
-        struct Scene *scene,
-        struct Object *object,
-        struct HairSystem *hsys,
-        struct Mesh *scalp,
-        const struct HairDrawSettings *draw_set,
-        struct DRWPass *hair_pass,
-        struct GPUMaterial *material);
-
-void DRW_shgroup_hair(
-        struct Object *ob,
-        struct HairSystem *hsys,
-        struct HairDrawSettings *draw_settings,
-        struct Mesh *scalp,
-        struct DRWShadingGroup *shgrp_verts,
-        struct DRWShadingGroup *shgrp_edges);
 
 #endif /* __DRAW_COMMON_H__ */

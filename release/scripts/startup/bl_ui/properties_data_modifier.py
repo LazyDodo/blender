@@ -20,7 +20,7 @@
 import bpy
 from bpy.types import Panel
 from bpy.app.translations import pgettext_iface as iface_
-
+from .properties_hair_common import draw_hair_display_settings
 
 class ModifierButtonsPanel:
     bl_space_type = 'PROPERTIES'
@@ -1562,7 +1562,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if md.rest_source == 'BIND':
             layout.operator("object.correctivesmooth_bind", text="Unbind" if is_bind else "Bind")
 
-    def FUR(self, layout, ob, md):
+    def HAIR(self, layout, ob, md):
         hsys = md.hair_system
 
         split = layout.split()
@@ -1571,7 +1571,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label("Follicles:")
         col.prop(md, "follicle_seed")
         col.prop(md, "follicle_count")
-        col.operator("object.fur_generate_follicles", text="Generate")
+        col.operator("object.hair_generate_follicles", text="Generate")
 
         col = split.column()
 
@@ -1580,9 +1580,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(hsys, "material_slot", text="")
 
         col = layout.column()
-        col.label("Drawing:")
-        ds = md.draw_settings
-        col.prop(ds, "follicle_mode", expand=True)
+        col.label("Display Settings:")
+        draw_hair_display_settings(col, md.draw_settings)
 
 
 classes = (

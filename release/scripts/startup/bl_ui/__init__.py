@@ -43,7 +43,7 @@ _modules = [
     "properties_data_lightprobe",
     "properties_data_speaker",
     "properties_data_workspace",
-    "properties_hair",
+    "properties_hair_common",
     "properties_mask_common",
     "properties_material",
     "properties_object",

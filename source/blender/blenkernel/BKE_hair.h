@@ -34,13 +34,13 @@
 
 #include "BLI_utildefines.h"
 
-static const unsigned int HAIR_STRAND_INDEX_NONE = 0xFFFFFFFF;
+static const unsigned int HAIR_CURVE_INDEX_NONE = 0xFFFFFFFF;
 
 struct HairFollicle;
 struct HairPattern;
 struct HairSystem;
 struct HairDrawSettings;
-struct HairGuideData;
+struct HairCurveData;
 struct Mesh;
 struct MeshSample;
 struct MLoop;
@@ -53,10 +53,10 @@ struct HairSystem* BKE_hair_copy(struct HairSystem *hsys);
 /* Delete a hair system */
 void BKE_hair_free(struct HairSystem *hsys);
 
-/* === Guide Strands === */
+/* === Fiber curves === */
 
-/* Allocate buffers for defining guide curves
- * \param totcurves Number of guide curves to allocate
+/* Allocate buffers for defining fiber curves
+ * \param totcurves Number of fiber curves to allocate
  * \param totverts Number of guide curve vertices to allocate
  */
 void BKE_hair_guide_curves_alloc(struct HairSystem *hsys, int totcurves, int totverts);
@@ -64,33 +64,33 @@ void BKE_hair_guide_curves_alloc(struct HairSystem *hsys, int totcurves, int tot
 /* Allocate buffers for defining guide curves
  * \param totcurves Number of guide curves to allocate
  */
-void BKE_hair_guide_curves_begin(struct HairSystem *hsys, int totcurves);
+void BKE_hair_fiber_curves_begin(struct HairSystem *hsys, int totcurves);
 
-/* Set properties of a guide curve
- * \param index Index of the guide guide curve
- * \param mesh_sample Origin of the guide curve on the scalp mesh.
- * \param numverts Number of vertices in this guide curve
+/* Set properties of a fiber curve
+ * \param index Index of the fiber curve
+ * \param mesh_sample Origin of the fiber curve on the scalp mesh.
+ * \param numverts Number of vertices in this fiber curve
  */
-void BKE_hair_set_guide_curve(struct HairSystem *hsys, int index, const struct MeshSample *mesh_sample, int numverts,
+void BKE_hair_set_fiber_curve(struct HairSystem *hsys, int index, int numverts,
                               float taper_length, float taper_thickness);
 
-/* Finalize guide curve update */
-void BKE_hair_guide_curves_end(struct HairSystem *hsys);
+/* Finalize fiber curve update */
+void BKE_hair_fiber_curves_end(struct HairSystem *hsys);
 
-/* Set properties of a guide curve vertex
- * \param index Index of the guide curve vertex.
+/* Set properties of a fiber curve vertex
+ * \param index Index of the fiber curve vertex.
  * \param flag Flags to set on the vertex.
  * \param co Location of the vertex in object space.
  */
-void BKE_hair_set_guide_vertex(struct HairSystem *hsys, int index, int flag, const float co[3]);
+void BKE_hair_set_fiber_vertex(struct HairSystem *hsys, int index, int flag, const float co[3]);
 
-/* Set the hair guide data used by the hair system.
+/* Set the hair fiber curve data used by the hair system.
  */
-void BKE_hair_set_hair_guides(struct HairSystem *hsys, struct HairGuideData *guides);
+void BKE_hair_set_fiber_curves(struct HairSystem *hsys, struct HairCurveData *curves);
 
-/* Remove all guide curves.
+/* Remove all fiber curves.
  */
-void BKE_hair_clear_guides(struct HairSystem *hsys);
+void BKE_hair_clear_fiber_curves(struct HairSystem *hsys);
 
 /* === Follicles === */
 
@@ -137,22 +137,19 @@ void BKE_hair_draw_settings_free(struct HairDrawSettings *draw_settings);
 /* Intermediate data for export */
 typedef struct HairExportCache
 {
-	/* Per guide curve data */
-	int totguidecurves;
-	struct HairGuideCurve *guide_curves;
+	/* Per fiber curve data */
+	int totcurves;
+	struct HairFiberCurve *fiber_curves;
 	
-	/* Per guide vertex data */
-	int totguideverts;
-	struct HairGuideVertex *guide_verts;
-	float (*guide_tangents)[3];             /* Tangent vectors on guide curves */
-	float (*guide_normals)[3];              /* Normal vectors on guide curves */
+	/* Per fiber vertex data */
+	int totverts;
+	struct HairFiberVertex *fiber_verts;
+	float (*fiber_tangents)[3];             /* Tangent vectors on fiber curves */
+	float (*fiber_normals)[3];              /* Normal vectors on fiber curves */
 	
-	/* Per fiber data */
-	int totfibercurves;
-	int totfiberverts;
-	int *fiber_numverts;                    /* Number of vertices in each fiber */
-	float (*fiber_root_position)[3];        /* Root position of each fiber */
-	
+	/* Per follicle data */
+	int totfollicles;
+	float (*follicle_root_position)[3];     /* Root position of each follicle */
 	const struct HairFollicle *follicles;
 } HairExportCache;
 
@@ -160,28 +157,24 @@ typedef struct HairExportCache
 typedef enum eHairExportCacheUpdateFlags
 {
 	/* Follicle placement on the scalp mesh */
-	HAIR_EXPORT_FIBER_ROOT_POSITIONS      = (1 << 0),
-	/* Fiber vertex counts */
-	HAIR_EXPORT_FIBER_VERTEX_COUNTS     = (1 << 1),
-	/* Follicle parent indices and weights */
-	HAIR_EXPORT_FOLLICLE_BINDING        = (1 << 2),
-	/* Guide vertex positions (deform only) */
-	HAIR_EXPORT_GUIDE_VERTICES          = (1 << 3),
-	/* Guide curve number and vertex counts (topology changes) */
-	HAIR_EXPORT_GUIDE_CURVES            = (1 << 4),
+	HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS      = (1 << 0),
+	/* Follicle curve index */
+	HAIR_EXPORT_FOLLICLE_BINDING        = (1 << 1),
+	/* Fiber vertex positions (deform only) */
+	HAIR_EXPORT_FIBER_VERTICES          = (1 << 2),
+	/* Fiber curve number and vertex counts (topology changes) */
+	HAIR_EXPORT_FIBER_CURVES            = (1 << 3),
 	
 	HAIR_EXPORT_ALL                     =
-	    HAIR_EXPORT_FIBER_ROOT_POSITIONS |
-	    HAIR_EXPORT_FIBER_VERTEX_COUNTS |
+	    HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS |
 	    HAIR_EXPORT_FOLLICLE_BINDING |
-	    HAIR_EXPORT_GUIDE_VERTICES |
-	    HAIR_EXPORT_GUIDE_CURVES,
-	HAIR_EXPORT_GUIDES                  =
-	    HAIR_EXPORT_GUIDE_VERTICES |
-	    HAIR_EXPORT_GUIDE_CURVES,
+	    HAIR_EXPORT_FIBER_VERTICES |
+	    HAIR_EXPORT_FIBER_CURVES,
+	HAIR_EXPORT_FIBERS                  =
+	    HAIR_EXPORT_FIBER_VERTICES |
+	    HAIR_EXPORT_FIBER_CURVES,
 	HAIR_EXPORT_FOLLICLES               =
-	    HAIR_EXPORT_FIBER_ROOT_POSITIONS |
-	    HAIR_EXPORT_FIBER_VERTEX_COUNTS |
+	    HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS |
 	    HAIR_EXPORT_FOLLICLE_BINDING,
 } eHairExportCacheUpdateFlags;
 
@@ -233,6 +226,7 @@ void BKE_hair_get_texture_buffer(
 /* Calculate required size for render buffers. */
 void BKE_hair_render_get_buffer_size(
         const struct HairExportCache* cache,
+        int subdiv,
         int *r_totcurves,
         int *r_totverts);
 
@@ -241,6 +235,7 @@ void BKE_hair_render_get_buffer_size(
  */
 void BKE_hair_render_fill_buffers(
         const struct HairExportCache* cache,
+        int subdiv,
         int vertco_stride,
         int *r_curvestart,
         int *r_curvelen,
