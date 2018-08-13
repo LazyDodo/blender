@@ -202,6 +202,18 @@ static void add_shifted_vert( BMVert *vert, BMFace *orig_face, float uv[2], Mesh
 		buf->orig_face = orig_face;
 		buf->u = uv[0];
 		buf->v = uv[1];
+		return;
+	}
+
+	int orig_verts = BM_mesh_elem_count(m_d->bm_orig, BM_VERT);
+	int v_idx = BM_elem_index_get(vert);
+	if( (v_idx + 1) > orig_verts){
+		//If this is a non original vert, just update the data instead
+		Vert_buf *v_buf = &BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
+		v_buf->orig_face = orig_face;
+		v_buf->orig_edge = NULL;
+		v_buf->u = uv[0];
+		v_buf->v = uv[1];
 	} else {
 		Vert_buf new_buf;
 		new_buf.orig_face = orig_face;
@@ -465,9 +477,9 @@ static void get_vert_st_pos(MeshData *m_d, const float mat[3][3], BMVert *vert, 
 		//Check if edge verts doesn't belong to orig_face
 		int v_idx = BM_elem_index_get(vert);
 		if( (v_idx + 1) > orig_verts){
-			Vert_buf c_v_buf = BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
+			Vert_buf v_buf = BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
 
-			get_st_point(c_v_buf.orig_face, c_v_buf.u, c_v_buf.v, mat, st);
+			get_st_point(v_buf.orig_face, v_buf.u, v_buf.v, mat, st);
 		} else {
 			BMVert *temp_v = BLI_ghash_lookup(m_d->vert_hash, vert);
 
@@ -1961,7 +1973,7 @@ static void cusp_detection( MeshData *m_d ){
 								//Can we shift this vertex?
 								if( check_and_shift(edge_vert, P, new_no, m_d) ){
 									cusp.cusp_e = cusp_edge;
-									add_shifted_vert( edge_vert , orig_face, edge_uv, m_d );
+									add_shifted_vert( edge_vert, orig_face, edge_uv, m_d );
 									BLI_buffer_append(m_d->cusp_edges, Cusp, cusp);
 
 									//printf("Used existing edge for cusp!\n");
@@ -3154,6 +3166,9 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 					float best_dist = len_v3v3(cent, vert->co);
 					int best_inco_faces = nr_inco_faces;
 
+					BMFace *best_face;
+					float best_uv[2];
+
 					RNG *rng = BLI_rng_new(0);
 
 					copy_v3_v3( old_pos, vert->co );
@@ -3184,18 +3199,19 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 
 						for(int i=0; i < samples; i++ ){
 							float cur_v2[2];
+							float uv_P[2];
+							BMFace *uv_face;
 
 							// TODO check if the new point lies inside any of the new mesh faces
 							BLI_rng_get_tri_sample_float_v2(rng, store_2d[face_idx][0], store_2d[face_idx][1], store_2d[face_idx][2], cur_v2);
 
 							for (int f_idx = 0; f_idx < orig_faces.count; f_idx++) {
-								f = BLI_buffer_at(&orig_faces, BMFace*, f_idx);
-								if( point_inside_v2( mat, cur_v2, f ) ){
+								uv_face = BLI_buffer_at(&orig_faces, BMFace*, f_idx);
+								if( point_inside_v2( mat, cur_v2, uv_face ) ){
 									float P[3], du[3], dv[3];
-									float uv_P[2];
 
-									get_uv_point( f, uv_P, cur_v2, mat );
-									m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
+									get_uv_point( uv_face, uv_P, cur_v2, mat );
+									m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(uv_face), uv_P[0], uv_P[1], P, du, dv);
 
 									copy_v3_v3(vert->co, P);
 									//No need to iterate over the remaining faces
@@ -3239,14 +3255,23 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 								best_diff_facing = new_diff_facing;
 								copy_v3_v3( best_pos, vert->co );
 								done = true;
+
+								best_face = uv_face;
+								copy_v2_v2(best_uv, uv_P);
 							} else if (new_inco_faces == 0 && new_dist < best_dist){
 								best_dist = new_dist;
 								copy_v3_v3( best_pos, vert->co );
 								done = true;
+
+								best_face = uv_face;
+								copy_v2_v2(best_uv, uv_P);
 							} else if (new_inco_faces == best_inco_faces && new_diff_facing < best_diff_facing){
 								best_diff_facing = new_diff_facing;
 								copy_v3_v3( best_pos, vert->co );
 								done = true;
+
+								best_face = uv_face;
+								copy_v2_v2(best_uv, uv_P);
 							}
 
 						}
@@ -3257,6 +3282,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 					copy_v3_v3(vert->co, best_pos);
 
 					if( done ){
+						add_shifted_vert( vert, best_face, best_uv, m_d );
 						null_opti_vert(m_d, vert, inface->back_f, inco_faces);
 						wiggled_verts++;
 						//printf("Vertex wiggle\n");
@@ -3537,6 +3563,7 @@ static void optimization( MeshData *m_d ){
 
 			//Calculate edge split positions
 			float split_vert_pos[3][10][3];
+			float split_vert_pos_uv[3][10][2];
 			bool valid_split_pos[3][10];
 			BMFace *valid_split_pos_face[3][10];
 
@@ -3617,6 +3644,8 @@ static void optimization( MeshData *m_d ){
 							m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
 
 							copy_v3_v3(split_vert_pos[edge_idx][i], P);
+							copy_v2_v2(split_vert_pos_uv[edge_idx][i], uv_P);
+
 							valid_split_pos[edge_idx][i] = true;
 							valid_split_pos_face[edge_idx][i] = f;
 							//No need to iterate over the remaining faces
@@ -3653,6 +3682,7 @@ static void optimization( MeshData *m_d ){
 				int best_edge;
 				float best_diff_facing = tot_diff_facing;
 				float best_edge_split_pos[3];
+				float best_edge_split_uv[2];
 				float best_dist = INFINITY;
 				BMFace *best_edge_split_face = NULL;
 				bool done = false;
@@ -3724,6 +3754,7 @@ static void optimization( MeshData *m_d ){
 							best_diff_facing = new_diff_facing;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
+							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
 							best_edge_split_face = valid_split_pos_face[edge_idx][j];
 							done = true;
 						} else if ( new_inco_faces == best_inco_faces && new_diff_facing < best_diff_facing){
@@ -3732,12 +3763,14 @@ static void optimization( MeshData *m_d ){
 							best_diff_facing = new_diff_facing;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
+							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
 							best_edge_split_face = valid_split_pos_face[edge_idx][j];
 							done = true;
 						} else if (new_inco_faces == 0 && new_dist < best_dist){
 							best_edge = edge_idx;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
+							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
 							best_edge_split_face = valid_split_pos_face[edge_idx][j];
 							done = true;
 						}
@@ -3755,7 +3788,8 @@ static void optimization( MeshData *m_d ){
 
 							new_buf.orig_face = best_edge_split_face;
 							new_buf.orig_edge = NULL;
-							//No need to add uv coords, we wont use them.
+							new_buf.u = best_edge_split_uv[0];
+							new_buf.v = best_edge_split_uv[1];
 
 							BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, new_buf);
 							break;
