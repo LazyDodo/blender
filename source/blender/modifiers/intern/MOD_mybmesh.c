@@ -105,10 +105,10 @@ typedef struct {
 
 typedef struct {
 	BMVert *vert;
+	BMVert *C_vert;
 	//Can we extend this radial vert?
 	bool extendable;
 	bool is_B;
-	float c_pos[3];
 	float radi_plane_no[3];
 } Radi_vert;
 
@@ -389,20 +389,7 @@ static void get_uv_point(BMFace *face, float uv[2], const float point_v2[2], con
 	BMIter iter_v;
 
 	BM_ITER_ELEM_INDEX (v, &iter_v, face, BM_VERTS_OF_FACE, vert_idx) {
-		switch(vert_idx){
-			case 1 :
-				mul_v2_m3v3(st[1], mat, v->co);
-				break;
-			case 2 :
-				mul_v2_m3v3(st[2], mat, v->co);
-				break;
-			case 3 :
-				mul_v2_m3v3(st[3], mat, v->co);
-				break;
-			default:
-				mul_v2_m3v3(st[0], mat, v->co);
-				break;
-		}
+		mul_v2_m3v3(st[vert_idx], mat, v->co);
 	}
 
 	resolve_quad_uv_v2(uv, point_v2, st[0], st[1], st[2], st[3]);
@@ -419,6 +406,23 @@ static void get_uv_point(BMFace *face, float uv[2], const float point_v2[2], con
 		uv[1] = 0.0f;
 	}
 
+}
+
+static void get_st_point(BMFace *face, const float u, const float v, const float mat[3][3], float st[2]){
+	int vert_idx;
+	float face_st[4][3];
+	float temp_st[3];
+
+	BMVert *vert;
+	BMIter iter_v;
+
+	BM_ITER_ELEM_INDEX (vert, &iter_v, face, BM_VERTS_OF_FACE, vert_idx) {
+		zero_v3(face_st[vert_idx]);
+		mul_v2_m3v3(face_st[vert_idx], mat, vert->co);
+	}
+
+	interp_bilinear_quad_v3(face_st, u, v, temp_st);
+	copy_v2_v2(st, temp_st);
 }
 
 typedef struct FFBB_thread_data {
@@ -2082,43 +2086,6 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 		if( is_C_vert( edge->v1, m_d->C_verts) && is_C_vert( edge->v2, m_d->C_verts) ){
 			return false;
 		}
-
-		//Taken from BM_edge_rotate_check_degenerate
-
-		//Check if the flip will cause a potential fold
-		BMLoop *l1, *l2;
-		BM_edge_calc_rotate(edge, true, &l1, &l2);
-		float ed_dir_new[3], ed_dir_v1_new[3], ed_dir_v2_new[3], no[3];
-		BMVert *v1, *v2;
-		BMVert *v1_old, *v2_old;
-		BMVert *v1_alt, *v2_alt;
-
-		BM_edge_ordered_verts(edge, &v1_old, &v2_old);
-
-		v1 = l1->v;
-		v2 = l2->v;
-
-		/* get the next vert along */
-		v1_alt = BM_face_other_vert_loop(l1->f, v1_old, v1)->v;
-		v2_alt = BM_face_other_vert_loop(l2->f, v2_old, v2)->v;
-
-		sub_v3_v3v3(ed_dir_new, v1->co, v2->co);
-		sub_v3_v3v3(ed_dir_v1_new, v1->co, v1_alt->co);
-		sub_v3_v3v3(ed_dir_v2_new, v2->co, v2_alt->co);
-
-		//First flipped face
-		cross_v3_v3v3(no, ed_dir_new, ed_dir_v1_new);
-		normalize_v3(no);
-		if( dot_v3v3(new_norm, no) < 0.0f ){
-			return false;
-		}
-		//Second flipped face
-		cross_v3_v3v3(no, ed_dir_new, ed_dir_v2_new);
-		normalize_v3(no);
-		if( dot_v3v3(new_norm, no) < 0.0f ){
-			return false;
-		}
-
 	}
 
 	{
@@ -2181,9 +2148,9 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 	return true;
 }
 
-static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float edge1_mid[3], const float edge2_mid[3],
+static void mult_radi_search( BLI_Buffer *diff_f, const float mat[3][3], const float edge1_mid[2], const float edge2_mid[2],
 							const float val_1, const float val_2, bool is_B,
-							const float rad_plane_no[3], const float C_vert_pos[3], BMFace *poke_face, MeshData *m_d ){
+							const float rad_plane_no[3], BMVert *C_vert, BMFace *poke_face, MeshData *m_d ){
 	//Try to find a vert that is connected to both faces
 	BMVert *vert;
 	BMFace *face;
@@ -2205,34 +2172,27 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float
 		float uvs[2][2];
 		BMFace *face_ids[2];
 		float rad_dir[2];
-		float mat[3][3];
-
-		axis_dominant_v3_to_m3(mat, no);
 		rad_dir[0] = signf(val_1);
 		rad_dir[1] = signf(val_2);
 
 		for (int face_idx = 0; face_idx < search_faces.count; face_idx++) {
 			int found_points = 0;
 			for (int i = 0; i < 2; i++) {
-				float point[3];
+				float point[2];
 
 				switch(i){
 					case 1 :
-						copy_v3_v3(point, edge2_mid);
+						copy_v2_v2(point, edge2_mid);
 						break;
 					default:
-						copy_v3_v3(point, edge1_mid);
+						copy_v2_v2(point, edge1_mid);
 						break;
 				}
 
 				BMFace *f = BLI_buffer_at(&search_faces, BMFace*, face_idx);
 
-				if( point_inside(mat, point, f) ){
-					float point_v2[2];
-
-					mul_v2_m3v3(point_v2, mat, point);
-
-					get_uv_point(f, uvs[i], point_v2, mat);
+				if( point_inside_v2(mat, point, f) ){
+					get_uv_point(f, uvs[i], point, mat);
 
 					face_ids[i] = f;
 					found_points++;
@@ -2269,7 +2229,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float
 					interp_v2_v2v2( uv_P, uvs[0], uvs[1], step);
 					m_d->eval->evaluateLimit(m_d->eval, face_index, uv_P[0], uv_P[1], P, du, dv);
 
-					sub_v3_v3v3(temp, P, C_vert_pos);
+					sub_v3_v3v3(temp, P, C_vert->co);
 					search_val = dot_v3v3(rad_plane_no, temp);
 
 					if( fabs(search_val) < 1e-14 ){
@@ -2289,21 +2249,18 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float
 					step_len = step_len/2.0f;
 				}
 			} else {
-				//Work in coord space
-				float cur_p[3];
+				//Work in st space
+				float cur_st[3];
 
-				//printf("Coord space\n");
+				//printf("St space\n");
 
 				for(int i = 0; i < 10; i++ ){
-					interp_v3_v3v3(cur_p, edge1_mid, edge2_mid, step);
+					interp_v2_v2v2(cur_st, edge1_mid, edge2_mid, step);
 
 					for (int face_idx = 0; face_idx < search_faces.count; face_idx++) {
 						BMFace *f = BLI_buffer_at(&search_faces, BMFace*, face_idx);
-						if( point_inside(mat, cur_p, f) ){
-							float point_v2[2];
-							mul_v2_m3v3(point_v2, mat, cur_p);
-
-							get_uv_point(f, uv_P, point_v2, mat);
+						if( point_inside_v2(mat, cur_st, f) ){
+							get_uv_point(f, uv_P, cur_st, mat);
 
 							orig_face = f;
 							face_index = BM_elem_index_get(f);
@@ -2313,7 +2270,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float
 						}
 					}
 
-					sub_v3_v3v3(temp, P, C_vert_pos);
+					sub_v3_v3v3(temp, P, C_vert->co);
 					search_val = dot_v3v3(rad_plane_no, temp);
 
 					if( fabs(search_val) < 1e-14 ){
@@ -2343,7 +2300,7 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float no[3], const float
 
 				r_vert.extendable = true;
 				copy_v3_v3(r_vert.radi_plane_no, rad_plane_no);
-				copy_v3_v3(r_vert.c_pos, C_vert_pos);
+				r_vert.C_vert = C_vert;
 				r_vert.is_B = is_B;
 
 				BLI_buffer_append(m_d->radi_vert_buffer, Radi_vert, r_vert);
@@ -2398,6 +2355,15 @@ static void radial_insertion( MeshData *m_d ){
 					break;
 				}
 
+				//Do not attempt to insert radial edges on the "inside" region of the cusp
+				//That is, if the opposite edge as a cusp vert, do not try to insert a radial edge here.
+				/*
+				if (cur_vert != vert && is_C_vert(cur_vert, m_d->cusp_verts)){
+					skip_face = true;
+					break;
+				}
+				*/
+
 				for(vert_j = 0; vert_j < m_d->C_verts->count; vert_j++){
 					BMVert *vert2 = BLI_buffer_at(m_d->C_verts, BMVert*, vert_j);
 
@@ -2409,6 +2375,7 @@ static void radial_insertion( MeshData *m_d ){
 						break;
 					}
 				}
+
 				vert_arr[vert_idx] = cur_vert;
 				copy_v3_v3(co_arr[vert_idx], cur_vert->co);
 			}
@@ -2467,19 +2434,28 @@ static void radial_insertion( MeshData *m_d ){
 				}
 
 				{
+					float sts[3][2]; //2d coords in non uv space
+					float mat[3][3];
+
+					axis_dominant_v3_to_m3(mat, vert->no);
 					BLI_buffer_declare_static(BMFace*, faces, BLI_BUFFER_NOP, 32);
 					//Check if the triangle has been shifted so we can't use the original face for UV coords
 					for(int i = 0; i < 3; i++){
 						Vert_buf* shift_vert = get_shift_vert( vert_arr[i], m_d );
 						if( shift_vert != NULL ){
 							//This vert has been shifted
+							get_st_point(shift_vert->orig_face, shift_vert->u, shift_vert->v, mat, sts[i]);
 							append_face(&faces, shift_vert->orig_face);
 						} else {
 							//Check if edge verts doesn't belong to orig_face
 							int v_idx = BM_elem_index_get(vert_arr[i]);
 							if( (v_idx + 1) > orig_verts){
 								Vert_buf v_buf = BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
+
+								get_st_point(v_buf.orig_face, v_buf.u, v_buf.v, mat, sts[i]);
+
 								if( v_buf.orig_edge != NULL ){
+									//Add the other faces for searching
 									BMIter iter;
 									BMFace *face;
 
@@ -2495,6 +2471,8 @@ static void radial_insertion( MeshData *m_d ){
 								BMFace *face;
 								BMVert *temp_v = BLI_ghash_lookup(m_d->vert_hash, vert_arr[i]);
 
+								mul_v2_m3v3(sts[i], mat, temp_v->co);
+
 								BM_ITER_ELEM (face, &iter, temp_v, BM_FACES_OF_VERT) {
 									append_face(&faces, face);
 								}
@@ -2503,9 +2481,9 @@ static void radial_insertion( MeshData *m_d ){
 						}
 					}
 
-					//This search will spawn multiple faces, we must use coordinate space to do this.
-					float edge1_mid[3];
-					float edge2_mid[3];
+					//This search will spawn multiple faces.
+					float edge1_mid[2];
+					float edge2_mid[2];
 					//We need to figure out which facing the radial edge is supposed to have so we can
 					//try to fix it later if the inserted radial vert has the wrong facing
 					bool is_B;
@@ -2519,11 +2497,11 @@ static void radial_insertion( MeshData *m_d ){
 
 					is_B = calc_if_B_nor(m_d->cam_loc, b_vert->co, b_vert->no);
 
-					interp_v3_v3v3(edge1_mid, co_arr[CC_idx], co_arr[ mod_i(CC_idx-1, 3) ], 0.5f);
-					interp_v3_v3v3(edge2_mid, co_arr[CC_idx], co_arr[ mod_i(CC_idx+1, 3) ], 0.5f);
+					interp_v2_v2v2(edge1_mid, sts[CC_idx], sts[ mod_i(CC_idx-1, 3) ], 0.5f);
+					interp_v2_v2v2(edge2_mid, sts[CC_idx], sts[ mod_i(CC_idx+1, 3) ], 0.5f);
 
 					//printf("Diff faces\n");
-					mult_radi_search(&faces, vert->no, edge1_mid, edge2_mid, val_1, val_2, is_B, rad_plane_no, co_arr[CC_idx], f, m_d);
+					mult_radi_search(&faces, mat, edge1_mid, edge2_mid, val_1, val_2, is_B, rad_plane_no, vert_arr[CC_idx], f, m_d);
 					BLI_buffer_free(&faces);
 				}
 
@@ -2757,14 +2735,18 @@ static int radial_extention( MeshData *m_d ){
 
 		bool b_f = r_vert.is_B;
 		int prev_inco_faces = 0;
+		float prev_face_diff = 0;
 		BMEdge *flip_edge = NULL;
 		bool flipped_edge = false;
-		float cent_f[3], no[3];
+		float cent_f[3], no[3], view_vec[3];
 		BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 			BM_face_calc_center_mean(face, cent_f);
 			BM_face_calc_normal(face, no);
 
-			if( b_f != calc_if_B_nor(m_d->cam_loc, cent_f, no) ){
+			sub_v3_v3v3(view_vec, m_d->cam_loc, cent_f);
+			float face_dir = dot_v3v3(no, view_vec);
+			if( b_f != (face_dir < 0) ){
+				prev_face_diff += fabs(face_dir);
 				prev_inco_faces++;
 
 				BMIter iter_e;
@@ -2776,7 +2758,7 @@ static int radial_extention( MeshData *m_d ){
 						continue;
 					}
 					float plane[4];
-					plane_from_point_normal_v3(plane, r_vert.c_pos, r_vert.radi_plane_no);
+					plane_from_point_normal_v3(plane, r_vert.C_vert->co, r_vert.radi_plane_no);
 
                     //Make sure that the radi plane will cut the edge.
 					//IE the edge points lies on opposite sides of the plane
@@ -2794,6 +2776,7 @@ static int radial_extention( MeshData *m_d ){
 					cv = m_d->C_verts;
 					BMLoop *l1, *l2;
 					BM_edge_calc_rotate(edge, true, &l1, &l2);
+					//TODO actually check if we flip a radial edge!
 					if( !is_C_vert(edge->v1, cv) && !is_C_vert(edge->v2, cv) &&
 						!is_C_vert(l1->v, cv) && !is_C_vert(l2->v, cv)){
 						float lambda;
@@ -2828,8 +2811,8 @@ static int radial_extention( MeshData *m_d ){
 		//Begin extenting the radi edge
 		{
 			float mat[3][3];
-			float pos_v2[2];
-			float old_pos[3], i_pos[3], best_pos[3], mid_pos[3], best_dist;
+			float cur_pos_v2[2], c_pos_v2[2], r_pos_v2[2];
+			float old_pos[3], best_pos[3], best_diff_facing;
 
 			int orig_verts = BM_mesh_elem_count(m_d->bm_orig, BM_VERT);
 			int idx = BM_elem_index_get(r_vert.vert);
@@ -2842,22 +2825,39 @@ static int radial_extention( MeshData *m_d ){
 
 			copy_v3_v3( old_pos, r_vert.vert->co );
 
-			interp_v3_v3v3(mid_pos, flip_edge->v1->co, flip_edge->v2->co, 0.5f);
-
-			best_dist = len_v3v3(old_pos, mid_pos);
+			best_diff_facing = prev_face_diff;
 
 			axis_dominant_v3_to_m3(mat, r_vert.vert->no);
+
+			get_st_point(v_buf.orig_face, v_buf.u, v_buf.v, mat, r_pos_v2);
+
+			//Get C_vert st pos
+			Vert_buf* shift_vert = get_shift_vert( r_vert.C_vert, m_d );
+			if( shift_vert != NULL ){
+				//This vert has been shifted
+				get_st_point(shift_vert->orig_face, shift_vert->u, shift_vert->v, mat, c_pos_v2);
+			} else {
+				//Check if edge verts doesn't belong to orig_face
+				int v_idx = BM_elem_index_get(r_vert.C_vert);
+				if( (v_idx + 1) > orig_verts){
+					Vert_buf c_v_buf = BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
+
+					get_st_point(c_v_buf.orig_face, c_v_buf.u, c_v_buf.v, mat, c_pos_v2);
+				} else {
+					BMVert *temp_v = BLI_ghash_lookup(m_d->vert_hash, r_vert.C_vert);
+
+					mul_v2_m3v3(c_pos_v2, mat, temp_v->co);
+				}
+			}
 
 			for( int i=1; i < 11; i++ ){
 				float t = 1.0f + (float)i/10.0f;
 				float P[3], du[3], dv[3];
 				float uv_P[2];
 
-				interp_v3_v3v3(i_pos, r_vert.c_pos, old_pos, t);
+				interp_v2_v2v2(cur_pos_v2, c_pos_v2, r_pos_v2, t);
 
-				mul_v2_m3v3(pos_v2, mat, i_pos);
-
-				if( !point_inside_v2( mat, pos_v2, cur_face ) ){
+				if( !point_inside_v2( mat, cur_pos_v2, cur_face ) ){
 					BMFace *f;
 					BMVert *v;
 					BMIter iter_v, iter_f;
@@ -2865,7 +2865,7 @@ static int radial_extention( MeshData *m_d ){
 
 					BM_ITER_ELEM (v, &iter_v, cur_face, BM_VERTS_OF_FACE) {
 						BM_ITER_ELEM (f, &iter_f, v, BM_FACES_OF_VERT) {
-							if( point_inside_v2( mat, pos_v2, f ) ){
+							if( point_inside_v2( mat, cur_pos_v2, f ) ){
 								cur_face = f;
 								found_face = true;
 								break;
@@ -2880,7 +2880,7 @@ static int radial_extention( MeshData *m_d ){
 					}
 				}
 
-				get_uv_point( cur_face, uv_P, pos_v2, mat );
+				get_uv_point( cur_face, uv_P, cur_pos_v2, mat );
 				m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(cur_face), uv_P[0], uv_P[1], P, du, dv);
 
 				copy_v3_v3(r_vert.vert->co, P);
@@ -2888,7 +2888,8 @@ static int radial_extention( MeshData *m_d ){
                 //Did the nr of consistent triangles increase?
 				{
                     int new_inco_faces = 0;
-					float new_dist = len_v3v3(old_pos, P);
+					float new_diff_facing = 0;
+					float view_vec[3];
 					bool fold = false;
 					BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 						BM_face_calc_center_mean(face, cent_f);
@@ -2900,7 +2901,10 @@ static int radial_extention( MeshData *m_d ){
 							break;
 						}
 
-						if( b_f != calc_if_B_nor(m_d->cam_loc, cent_f, no) ){
+						sub_v3_v3v3(view_vec, m_d->cam_loc, cent_f);
+						float face_dir = dot_v3v3(no, view_vec);
+						if( b_f != (face_dir < 0) ){
+							new_diff_facing += fabs(face_dir);
 							new_inco_faces++;
 						}
 					}
@@ -2913,9 +2917,11 @@ static int radial_extention( MeshData *m_d ){
 						found_better_pos = true;
 						copy_v3_v3(best_pos, P);
                         prev_inco_faces = new_inco_faces;
-					} else if ( new_inco_faces == prev_inco_faces && new_dist < best_dist ){
+						best_diff_facing = new_diff_facing;
+					} else if ( new_inco_faces == prev_inco_faces && new_diff_facing < best_diff_facing ){
 						found_better_pos = true;
 						copy_v3_v3(best_pos, P);
+						best_diff_facing = new_diff_facing;
 					}
 				}
 			}
@@ -3415,8 +3421,12 @@ static void optimization( MeshData *m_d ){
 						v2_alt = BM_face_other_vert_loop(l2->f, v2_old, v2)->v;
 
 						sub_v3_v3v3(ed_dir_new, v1->co, v2->co);
+						normalize_v3(ed_dir_new);
+
 						sub_v3_v3v3(ed_dir_v1_new, v1->co, v1_alt->co);
 						sub_v3_v3v3(ed_dir_v2_new, v2->co, v2_alt->co);
+						normalize_v3(ed_dir_v1_new);
+						normalize_v3(ed_dir_v2_new);
 
 						//First flipped face
 						cross_v3_v3v3(no, ed_dir_new, ed_dir_v1_new);
