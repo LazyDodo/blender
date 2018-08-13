@@ -182,6 +182,36 @@ static void verts_to_limit(BMesh *bm, struct OpenSubdiv_Evaluator *eval){
 
 }
 
+static Vert_buf* get_shift_vert( BMVert *vert, MeshData *m_d ){
+	int vert_i;
+
+	//check if vert is in the buffer
+	for(vert_i = 0; vert_i < m_d->shifted_verts->count; vert_i++){
+		Vert_buf *buf = &BLI_buffer_at(m_d->shifted_verts, Vert_buf, vert_i);
+		if( vert == buf->vert ){
+			return buf;
+		}
+	}
+	return NULL;
+}
+
+static void add_shifted_vert( BMVert *vert, BMFace *orig_face, float uv[2], MeshData *m_d ){
+	Vert_buf *buf = get_shift_vert( vert, m_d );
+
+	if(buf != NULL){
+		buf->orig_face = orig_face;
+		buf->u = uv[0];
+		buf->v = uv[1];
+	} else {
+		Vert_buf new_buf;
+		new_buf.orig_face = orig_face;
+		new_buf.vert = vert;
+		new_buf.u = uv[0];
+		new_buf.v = uv[1];
+		BLI_buffer_append(m_d->shifted_verts, Vert_buf, new_buf);
+	}
+}
+
 static bool calc_if_B(const float cam_loc[3], const float P[3], const float du[3], const float dv[3]){
 	//Is the point back facing?
 	float nor[3], view_vec[3];
@@ -423,6 +453,27 @@ static void get_st_point(BMFace *face, const float u, const float v, const float
 
 	interp_bilinear_quad_v3(face_st, u, v, temp_st);
 	copy_v2_v2(st, temp_st);
+}
+
+static void get_vert_st_pos(MeshData *m_d, const float mat[3][3], BMVert *vert, float st[2]){
+	int orig_verts = BM_mesh_elem_count(m_d->bm_orig, BM_VERT);
+	Vert_buf* shift_vert = get_shift_vert( vert, m_d );
+	if( shift_vert != NULL ){
+		//This vert has been shifted
+		get_st_point(shift_vert->orig_face, shift_vert->u, shift_vert->v, mat, st);
+	} else {
+		//Check if edge verts doesn't belong to orig_face
+		int v_idx = BM_elem_index_get(vert);
+		if( (v_idx + 1) > orig_verts){
+			Vert_buf c_v_buf = BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
+
+			get_st_point(c_v_buf.orig_face, c_v_buf.u, c_v_buf.v, mat, st);
+		} else {
+			BMVert *temp_v = BLI_ghash_lookup(m_d->vert_hash, vert);
+
+			mul_v2_m3v3(st, mat, temp_v->co);
+		}
+	}
 }
 
 typedef struct FFBB_thread_data {
@@ -939,36 +990,6 @@ static bool append_face(BLI_Buffer *faces, BMFace *face){
 	}
 	BLI_buffer_append(faces, BMFace*, face);
 	return true;
-}
-
-static Vert_buf* get_shift_vert( BMVert *vert, MeshData *m_d ){
-	int vert_i;
-
-	//check if vert is in the buffer
-	for(vert_i = 0; vert_i < m_d->shifted_verts->count; vert_i++){
-		Vert_buf *buf = &BLI_buffer_at(m_d->shifted_verts, Vert_buf, vert_i);
-		if( vert == buf->vert ){
-			return buf;
-		}
-	}
-	return NULL;
-}
-
-static void add_shifted_vert( BMVert *vert, BMFace *orig_face, float uv[2], MeshData *m_d ){
-	Vert_buf *buf = get_shift_vert( vert, m_d );
-
-	if(buf != NULL){
-		buf->orig_face = orig_face;
-		buf->u = uv[0];
-		buf->v = uv[1];
-	} else {
-		Vert_buf new_buf;
-		new_buf.orig_face = orig_face;
-		new_buf.vert = vert;
-		new_buf.u = uv[0];
-		new_buf.v = uv[1];
-		BLI_buffer_append(m_d->shifted_verts, Vert_buf, new_buf);
-	}
 }
 
 static bool check_and_shift(BMVert *vert, const float new_loc[3], const float new_no[3], MeshData *m_d){
@@ -2832,23 +2853,7 @@ static int radial_extention( MeshData *m_d ){
 			get_st_point(v_buf.orig_face, v_buf.u, v_buf.v, mat, r_pos_v2);
 
 			//Get C_vert st pos
-			Vert_buf* shift_vert = get_shift_vert( r_vert.C_vert, m_d );
-			if( shift_vert != NULL ){
-				//This vert has been shifted
-				get_st_point(shift_vert->orig_face, shift_vert->u, shift_vert->v, mat, c_pos_v2);
-			} else {
-				//Check if edge verts doesn't belong to orig_face
-				int v_idx = BM_elem_index_get(r_vert.C_vert);
-				if( (v_idx + 1) > orig_verts){
-					Vert_buf c_v_buf = BLI_buffer_at(m_d->new_vert_buffer, Vert_buf, v_idx - orig_verts);
-
-					get_st_point(c_v_buf.orig_face, c_v_buf.u, c_v_buf.v, mat, c_pos_v2);
-				} else {
-					BMVert *temp_v = BLI_ghash_lookup(m_d->vert_hash, r_vert.C_vert);
-
-					mul_v2_m3v3(c_pos_v2, mat, temp_v->co);
-				}
-			}
+			get_vert_st_pos(m_d, mat, r_vert.C_vert, c_pos_v2);
 
 			for( int i=1; i < 11; i++ ){
 				float t = 1.0f + (float)i/10.0f;
@@ -3115,7 +3120,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				BMIter iter_f, iter_f_v;
 				BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, face_idx) {
 					BM_ITER_ELEM_INDEX (face_vert, &iter_f_v, f, BM_VERTS_OF_FACE, vert_idx) {
-						mul_v2_m3v3(store_2d[face_idx][vert_idx], mat, face_vert->co);
+						get_vert_st_pos(m_d, mat, face_vert, store_2d[face_idx][vert_idx]);
 					}
 
 					float no[3];
@@ -3568,8 +3573,8 @@ static void optimization( MeshData *m_d ){
 				float start[2], end[2], cur_v2[2];
 
 				axis_dominant_v3_to_m3(mat, inface->face->no);
-				mul_v2_m3v3(start, mat, edge->v1->co);
-				mul_v2_m3v3(end, mat, edge->v2->co);
+				get_vert_st_pos(m_d, mat, edge->v1, start);
+				get_vert_st_pos(m_d, mat, edge->v2, end);
 
 				BLI_buffer_declare_static(BMFace*, orig_faces, BLI_BUFFER_NOP, 32);
 
