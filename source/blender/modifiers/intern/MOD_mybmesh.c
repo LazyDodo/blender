@@ -1128,7 +1128,7 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 	return true;
 }
 
-static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, MeshData *m_d ){
+static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_uv[2], const float v2_uv[2], MeshData *m_d ){
 	//Create a list of faces that should be used when searching for the split
 	BMVert *vert;
 	BMFace *face;
@@ -1192,8 +1192,8 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, MeshData *m_d ){
 
 			interp_v3_v3v3(new_no, e->v1->no, e->v2->no, 0.5f);
 			axis_dominant_v3_to_m3(mat, new_no);
-			mul_v2_m3v3(start, mat, e->v1->co);
-			mul_v2_m3v3(end, mat, e->v2->co);
+			get_st_point(f, v1_uv[0], v1_uv[1], mat, start);
+			get_st_point(f2, v2_uv[0], v2_uv[1], mat, end);
 
 			for( int i = 0; i < 10; i++ ){
 				interp_v2_v2v2(cur_v2, start, end, step);
@@ -1486,7 +1486,7 @@ static void search_edge( const int i, BMEdge *e, MeshData *m_d){
 			//The edge spawns over multiple original edges, try to interpolate along this edge.
 			//If it fails, do not insert any new verts here
 			//printf("Mult face search\n");
-			mult_face_search( f, f2, e, m_d );
+			mult_face_search( f, f2, e, v1_uv, v2_uv, m_d );
 			return;
 		}
 
@@ -2889,7 +2889,6 @@ static int radial_extention( MeshData *m_d ){
 				{
                     int new_inco_faces = 0;
 					float new_diff_facing = 0;
-					float view_vec[3];
 					bool fold = false;
 					BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 						BM_face_calc_center_mean(face, cent_f);
