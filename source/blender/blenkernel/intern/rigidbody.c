@@ -1519,10 +1519,13 @@ static int object_sort_eval(const void *s1, const void *s2, void* context)
 {
 	Object **o1 = (Object**)s1;
 	Object **o2 = (Object**)s2;
+	FractureModifierData *fmd1, *fmd2;
 
-	FractureModifierData *fmd1 = (FractureModifierData*)modifiers_findByType(*o1, eModifierType_Fracture);
-	FractureModifierData *fmd2 = (FractureModifierData*)modifiers_findByType(*o2, eModifierType_Fracture);
+	if (!o1 || !o2 || !(*o1) || !(*o2))
+		return 0;
 
+	fmd1 = (FractureModifierData*)modifiers_findByType(*o1, eModifierType_Fracture);
+	fmd2 = (FractureModifierData*)modifiers_findByType(*o2, eModifierType_Fracture);
 
 	if ((fmd1 && fmd1->dm_group && fmd1->use_constraint_group) &&
 	   (fmd2 && fmd2->dm_group && fmd2->use_constraint_group))
@@ -1587,7 +1590,7 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 	l = rigidbody_group_count_items(&rbw->group->gobject, &m, &n);
 
 	rbw->shared->numbodies = m + n;
-	rbw->shared->objects = MEM_mallocN(sizeof(Object *) * l, "objects");
+	rbw->shared->objects = MEM_callocN(sizeof(Object *) * l, "objects");
 	rbw->shared->cache_index_map = MEM_mallocN(sizeof(RigidBodyOb *) *
 	                                           rbw->shared->numbodies, "cache_index_map");
 	rbw->shared->cache_offset_map = MEM_mallocN(sizeof(int) * rbw->shared->numbodies, "cache_offset_map");
@@ -1612,6 +1615,8 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 	//correct map if baked, it might be shifted
 	for (i = 0; i < l; i++) {
 		Object *ob = rbw->shared->objects[i];
+		if (!ob) continue;
+
 		printf("%s\n", ob->id.name + 2);
 
 		rmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);

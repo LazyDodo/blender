@@ -1482,6 +1482,11 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 				continue;
 			}
 
+			//sanity check
+			if (!object->rigidbody_object) {
+				continue;
+			}
+
 			/* hook up evaluation order...
 			 * 1) flushing rigidbody results follows base transforms being applied
 			 * 2) rigidbody flushing can only be performed after simulation has been run

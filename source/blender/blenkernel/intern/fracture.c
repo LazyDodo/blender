@@ -1831,22 +1831,25 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 		{
 			float fno[3], centr[3];
 
-			if (fmd->fix_normals) {
-				/*ignore global quaternion rotation here */
-				normal_short_to_float_v3(fno, mi->mesh->mvert[v].no);
-				mul_qt_v3(mi->rigidbody->orn, fno);
-				mul_qt_v3(iquat, fno);
-				normal_float_to_short_v3(mv->no, fno);
-			}
+			if (mi->rigidbody)
+			{
+				if (fmd->fix_normals) {
+					/*ignore global quaternion rotation here */
+					normal_short_to_float_v3(fno, mi->mesh->mvert[v].no);
+					mul_qt_v3(mi->rigidbody->orn, fno);
+					mul_qt_v3(iquat, fno);
+					normal_float_to_short_v3(mv->no, fno);
+				}
 
-			mul_v3_v3(mv->co, size);
-			mul_qt_v3(mi->rigidbody->orn, mv->co);
-			copy_v3_v3(centr, mi->centroid);
-			mul_v3_v3(centr, size);
-			mul_qt_v3(mi->rigidbody->orn, centr);
-			sub_v3_v3(mv->co, centr);
-			add_v3_v3(mv->co, mi->rigidbody->pos);
-			mul_m4_v3(imat, mv->co);
+				mul_v3_v3(mv->co, size);
+				mul_qt_v3(mi->rigidbody->orn, mv->co);
+				copy_v3_v3(centr, mi->centroid);
+				mul_v3_v3(centr, size);
+				mul_qt_v3(mi->rigidbody->orn, centr);
+				sub_v3_v3(mv->co, centr);
+				add_v3_v3(mv->co, mi->rigidbody->pos);
+				mul_m4_v3(imat, mv->co);
+			}
 
 			BLI_ghash_insert(fmd->shared->vert_index_map, SET_INT_IN_POINTER(vertstart + v), SET_INT_IN_POINTER(mi->id));
 		}

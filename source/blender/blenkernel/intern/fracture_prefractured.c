@@ -75,7 +75,7 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene,
 
 Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, Depsgraph* depsgraph)
 {
-	Scene *scene = DEG_get_input_scene(depsgraph);
+	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 	//Object *ob = DEG_get_evaluated_object(depsgraph, obj);
 
 	Mesh* me_assembled = NULL;
@@ -88,7 +88,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		Mesh *me_tmp = NULL;
 
 		// HACK
-		ob = DEG_get_original_object(ob);
+		//ob = DEG_get_original_object(ob);
 
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
@@ -117,6 +117,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;
+
+		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else if (fmd->shared->refresh_dynamic)
 	{
@@ -128,6 +130,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	if (fmd->shared->mesh_islands.first)
 	{
 		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, &fmd->shared->mesh_islands, ob);
+		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else {
 		me_assembled = me;
@@ -141,6 +144,10 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			BKE_fracture_constraints_free(fmd, scene);
 
 		BKE_fracture_external_constraints_setup(fmd, scene, ob);
+
+		if (!fmd->shared->refresh)
+			/* update scene here in case only the constraints updated, dont update twice*/
+			DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	fmd->shared->refresh = false;

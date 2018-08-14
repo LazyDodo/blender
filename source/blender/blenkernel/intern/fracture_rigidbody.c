@@ -1313,7 +1313,7 @@ static void fake_dynamic_collide(Object *ob1, Object *ob2, MeshIsland *mi1, Mesh
 
 static bool check_constraint_island(FractureModifierData* fmd, MeshIsland *mi1, MeshIsland *mi2)
 {
-	if (mi1 && mi2 && !fmd->use_compounds && (!fmd->use_constraint_collision || fmd->use_self_collision)) {
+	if (mi1 && mi2 && fmd && !fmd->use_compounds && (!fmd->use_constraint_collision || fmd->use_self_collision)) {
 
 		float dist_sq = len_squared_v3v3(mi1->centroid, mi2->centroid);
 		bool is_near = len_squared_v3v3(mi1->rigidbody->pos, mi2->rigidbody->pos) < dist_sq;
