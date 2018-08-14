@@ -161,6 +161,8 @@ typedef struct FractureModifierData_Shared {
 	struct KDTree *last_island_tree;
 	struct MeshIsland **last_islands;
 
+	float splinter_matrix[4][4];
+
 	int anim_bind_len;
 	int last_expected_islands;
 
@@ -218,8 +220,6 @@ typedef struct MeshIsland {
 	struct MeshIsland *parent;
 	struct RigidBodyOb *rigidbody;
 	struct RigidBodyShardCon **participating_constraints;
-
-	float matrix[4][4];
 
 	//might be useful for convert to keyframes, motion history ? either play back from cache
 	float (*locs)[3];

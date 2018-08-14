@@ -64,9 +64,8 @@ void uv_bbox(float uv[][2], int num_uv, float minv[2], float maxv[2]);
 void uv_translate(float uv[][2], int num_uv, float trans[2]);
 void uv_scale(float uv[][2], int num_uv, float scale);
 void uv_transform(float uv[][2], int num_uv, float mat[2][2]);
-void unwrap_shard_dm(Mesh *dm, char uv_layer[], bool do_boxpack);
-static void do_set_inner_material(MeshIsland **other, float mat[4][4], Mesh* left_dm, short inner_material_index,
-								  MeshIsland* s, Object *ob);
+void uv_unwrap_raw_geometry(Mesh *dm, char uv_layer[], bool do_boxpack);
+static void do_set_inner_material(Mesh *shard, short inner_material_index, Object *ob);
 
 /* UV Helpers */
 void uv_bbox(float uv[][2], int num_uv, float minv[2], float maxv[2])
@@ -186,7 +185,7 @@ static void do_unwrap(MPoly *mp, MVert *mvert, MLoop* mloop, int i, MLoopUV **ml
 	MEM_freeN(verts);
 }
 
-void unwrap_shard_dm(Mesh *dm, char uv_layer[64], bool do_boxpack)
+void uv_unwrap_raw_geometry(Mesh *dm, char uv_layer[64], bool do_boxpack)
 {
 	MVert *mvert;
 	MLoop *mloop;
@@ -247,7 +246,7 @@ static bool check_non_manifold(Mesh* dm)
 	/*check for watertightness*/
 	bm = BKE_fracture_mesh_to_bmesh(dm);
 
-	if (bm->totface < 4) {
+	if (bm->totvert == 0) {
 		BM_mesh_free(bm);
 		printf("Empty mesh...\n");
 		return true;
@@ -279,89 +278,34 @@ static bool check_non_manifold(Mesh* dm)
 	return false;
 }
 
-static bool compare_dm_size(Mesh *dmOld, Mesh *dmNew)
+static bool compare_size(Mesh *result, Mesh *check)
 {
 	float min[3], max[3];
 	float size[3];
 	float v1, v2;
+	double eps = 0.000001;
 
 	INIT_MINMAX(min, max);
-	BKE_mesh_minmax(dmOld, min, max);
+	BKE_mesh_minmax(result, min, max);
 	sub_v3_v3v3(size, max, min);
 
 	v1 = size[0] * size[1] * size[2];
 
 	INIT_MINMAX(min, max);
-	BKE_mesh_minmax(dmNew, min, max);
+	BKE_mesh_minmax(check, min, max);
 	sub_v3_v3v3(size, max, min);
 
 	v2 = size[0] * size[1] * size[2];
 
-	if (v2 > (v1 + 0.000001))
+	if (v2 > (v1 + eps))
 	{
 		printf("Size mismatch !\n");
 	}
 
-	return v2 <= (v1 + 0.000001);
+	return v2 <= (v1 + eps);
 }
 
-static MeshIsland* do_other_output(Mesh** other_dm, MeshIsland** other, Mesh** output_dm, Mesh** left_dm, float mat[4][4])
-{
-	if (*other_dm)
-	{
-		MeshIsland* mi = MEM_callocN(sizeof(MeshIsland), "do_other_output");
-		mi->mesh = *other_dm;
-		BKE_fracture_mesh_center_centroid_area(mi->mesh, mi->centroid);
-		unit_qt(mi->rot);
-		return mi;
-	}
-	else
-	{
-		if (other != NULL)
-			*other = NULL;
-		if (*left_dm != NULL) {
-			 BKE_mesh_free(*left_dm);
-			(*left_dm) = NULL;
-		}
-		if (*other_dm != NULL)
-		{
-			 BKE_mesh_free(*other_dm);
-			(*other_dm) = NULL;
-		}
-
-		/*discard only at fractal boolean */
-		if (mat != NULL)
-		{
-			if (*output_dm != NULL) {
-				 BKE_mesh_free(*output_dm);
-				(*output_dm) = NULL;
-			}
-			//return true;
-			return NULL;
-		}
-	}
-
-	return NULL;
-}
-
-static MeshIsland *do_output_shard_dm(Mesh** output_dm, MeshIsland *child, int num_cuts, float fractal, MeshIsland **other)
-{
-	MeshIsland *output_mi = MEM_callocN(sizeof(MeshIsland), "output_mi");
-	output_mi->mesh = *output_dm;
-
-	/* useless, because its a bisect fast-like approach here */
-	if (num_cuts == 0 || fractal == 0.0f || other == NULL) {
-		/* XXX TODO this might be wrong by now ... */
-		copy_v3_v3(output_mi->raw_centroid, child->raw_centroid);
-		output_mi->raw_volume = child->raw_volume;
-	}
-
-	BKE_fracture_mesh_center_centroid_area(output_mi->mesh, output_mi->centroid);
-	return output_mi;
-}
-
-static Mesh* do_fractal(float radius, float mat[4][4], bool use_smooth_inner, short inner_material_index,
-						 int num_levels, int num_cuts, float fractal)
+static Mesh* do_fractal(BooleanContext *ctx)
 {
 	BMFace* f;
 	BMIter iter;
@@ -373,10 +317,10 @@ static Mesh* do_fractal(float radius, float mat[4][4], bool use_smooth_inner, sh
 	bm = BM_mesh_create(&bm_mesh_allocsize_default,  &((struct BMeshCreateParams){.use_toolflags = true,}));
 	BMO_op_callf(bm, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 			"create_grid x_segments=%i y_segments=%i size=%f matrix=%m4",
-			1, 1, radius, mat);
+			1, 1, ctx->cutter_plane_radius, ctx->cutter_plane_matrix);
 
 	/*subdivide the plane fractally*/
-	for (i = 0; i < num_levels; i++)
+	for (i = 0; i < ctx->num_iterations; i++)
 	{
 		BMO_op_callf(bm,(BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 					 "subdivide_edges edges=ae "
@@ -388,13 +332,15 @@ static Mesh* do_fractal(float radius, float mat[4][4], bool use_smooth_inner, sh
 					 "use_only_quads=%b "
 					 "seed=%i",
 					 0.0f, SUBD_FALLOFF_ROOT, false,
-					 fractal, 1.0f,
-					 num_cuts,
+					 ctx->fractal_amount, 1.0f,
+					 ctx->num_cuts,
 					 SUBD_CORNER_INNERVERT,
 					 false, true,
 					 true,
 					 0);
 	}
+
+	//TODO extrude the plane to give thickness... solidify op
 
 	BMO_op_callf(bm, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 			"triangulate faces=af quad_method=%i ngon_method=%i", MOD_TRIANGULATE_QUAD_BEAUTY, MOD_TRIANGULATE_NGON_BEAUTY);
@@ -404,14 +350,14 @@ static Mesh* do_fractal(float radius, float mat[4][4], bool use_smooth_inner, sh
 
 	BM_ITER_MESH(f, &iter, bm, BM_FACES_OF_MESH)
 	{
-		if (use_smooth_inner)
+		if (ctx->use_smooth_inner)
 		{
 			BM_elem_flag_enable(f, BM_ELEM_SMOOTH);
 		}
 
-		if (inner_material_index > 0)
+		if (ctx->inner_material_index > 0)
 		{
-			f->mat_nr = inner_material_index;
+			f->mat_nr = ctx->inner_material_index;
 		}
 	}
 
@@ -422,184 +368,77 @@ static Mesh* do_fractal(float radius, float mat[4][4], bool use_smooth_inner, sh
 	return ret;
 }
 
-static bool do_check_watertight_other(Mesh **other_dm, Mesh **output_dm, Mesh **other, Mesh *right_dm,
-									  Mesh **left_dm, float mat[4][4])
+static void do_set_inner_material(Mesh *shard, short inner_material_index, Object *ob)
 {
-	bool do_return = false;
-
-	if (!other_dm || check_non_manifold(*other_dm) || !compare_dm_size(right_dm, *other_dm)) {
-		if (other != NULL)
-			*other = NULL;
-		if (*left_dm != NULL) {
-			BKE_mesh_free(*left_dm);
-			(*left_dm) = NULL;
-		}
-		if (*other_dm != NULL)
-		{
-			BKE_mesh_free(*other_dm);
-			(*other_dm) = NULL;
-		}
-
-		/*discard only at fractal boolean */
-		if (mat != NULL)
-		{
-			if (*output_dm != NULL) {
-				BKE_mesh_free(*output_dm);
-				(*output_dm) = NULL;
-			}
-			do_return = true;
-		}
-	}
-
-	return do_return;
-}
-
-static bool do_check_watertight(Mesh **output_dm, Mesh** left_dm, Mesh *right_dm, Mesh **other, float mat[4][4])
-{
-	bool do_return = false;
-
-	if (!(*output_dm) || check_non_manifold(*output_dm) || !compare_dm_size(right_dm, (*output_dm))) {
-		if (mat != NULL)
-		{
-			if (other != NULL)
-				*other = NULL;
-
-			if (*left_dm != NULL) {
-				BKE_mesh_free(*left_dm);
-				*left_dm = NULL;
-			}
-		}
-
-		if (*output_dm != NULL) {
-			BKE_mesh_free(*output_dm);
-			*output_dm = NULL;
-		}
-
-		if (mat != NULL)
-		{
-			do_return = true;
-		}
-	}
-
-	return do_return;
-}
-
-static void do_set_inner_material(MeshIsland **other, float mat[4][4], Mesh *left_dm, short inner_material_index,
-								  MeshIsland *s, Object *ob)
-{
-	MPoly *mpoly, *mp;
-	int totpoly, i = 0;
+	MPoly *mpoly = shard->mpoly, *mp;
+	int totpoly = shard->totpoly, i = 0;
 	MDeformVert *dvert;
-	int totvert = left_dm->totvert;
+	int totvert = shard->totvert;
 	FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 
-	/* set inner material on child shard */
-	if (other == NULL || mat == NULL)
-	{
-		mpoly = left_dm->mpoly;
-		totpoly = left_dm->totpoly;
-		for (i = 0, mp = mpoly; i < totpoly; i++, mp++) {
-			if (inner_material_index > 0) {
-				mp->mat_nr = inner_material_index;
-			}
-			mp->flag |= ME_FACE_SEL;
-			//set flag on shard too to have it available on load
-			s->mesh->mpoly[i].flag |= ME_FACE_SEL;
+	/* set inner material and inner group on raw shard to let boolean transfer it over to the target geometry
+	 * in the correct places */
+	for (i = 0, mp = mpoly; i < totpoly; i++, mp++) {
+		if (inner_material_index > 0) {
+			mp->mat_nr = inner_material_index;
 		}
+		mp->flag |= ME_FACE_SEL;
 	}
 
 	if (fmd && fmd->inner_defgrp_name[0]) {
 		int defgrp = defgroup_name_index(ob, fmd->inner_defgrp_name);
-		dvert = CustomData_add_layer(&left_dm->vdata, CD_MDEFORMVERT, CD_CALLOC, NULL, totvert);
+		dvert = CustomData_add_layer(&shard->vdata, CD_MDEFORMVERT, CD_CALLOC, NULL, totvert);
 		for (i = 0; i < totvert; i++) {
 			defvert_add_index_notest(dvert + i, defgrp, 1.0f);
 		}
 	}
 }
 
-MeshIsland *BKE_fracture_shard_boolean(Object *obj, MeshIsland *parent, MeshIsland *child, short inner_material_index,
-								  int num_cuts, float fractal, MeshIsland ** other, float mat[4][4], float radius,
-								  bool use_smooth_inner, int num_levels, char uv_layer[64], float thresh)
+Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, BooleanContext* ctx)
 {
-	Mesh *left_dm = NULL, *right_dm, *output_dm, *other_dm;
-	if (other != NULL && mat != NULL)
+	Mesh* result = NULL;
+
+	if (ctx->use_fractal == false)
 	{
-		left_dm = do_fractal(radius, mat, use_smooth_inner, inner_material_index, num_levels, num_cuts, fractal);
-		unwrap_shard_dm(left_dm, uv_layer, false);
-	}
-	else
-	{
-		left_dm = child->mesh;
-		unwrap_shard_dm(left_dm, uv_layer, true);
+		uv_unwrap_raw_geometry(shard, ctx->uv_layer, true);
+		do_set_inner_material(shard, ctx->inner_material_index, obj);
 	}
 
-	do_set_inner_material(other, mat, left_dm, inner_material_index, child, obj);
+	result = BKE_boolean_operation(geometry, obj, shard, obj, ctx->operation, ctx->thresh, NULL);
+	/*0 == intersection, 2 == difference*/
 
-	right_dm = parent->mesh;
-	output_dm = BKE_boolean_operation(right_dm, obj, left_dm, obj, 0, thresh, NULL); /*0 == intersection, 2 == difference*/
-
-	/*check for watertightness, but for fractal only*/
-	if (other != NULL && do_check_watertight(&output_dm, &left_dm, right_dm, other, mat))
-	{
+	if (!result || check_non_manifold(result) || !compare_size(geometry, result))
+	{	/* watertightness check */
 		return NULL;
 	}
 
-	if (other != NULL)
-	{
-		MeshIsland *mi;
-
-		other_dm = BKE_boolean_operation(left_dm, obj, right_dm, obj, 2, thresh, NULL);
-
-		/*check for watertightness again, true means do return NULL here*/
-		if (!other_dm || do_check_watertight_other(&other_dm, &output_dm, other, right_dm, &left_dm, mat))
-		{
-			if (!other_dm) {
-				/* in case of failed boolean op, clean up other dms too before returning NULL */
-				if (left_dm) {
-					BKE_mesh_free(left_dm);
-					left_dm = NULL;
-				}
-
-				if (output_dm) {
-					BKE_mesh_free(output_dm);
-					output_dm = NULL;
-				}
-			}
-
-			return NULL;
-		}
-
-		/*return here if this function returns true */
-		mi = do_other_output(&other_dm, other, &output_dm, &left_dm, mat);
-		if (mi == NULL)
-		{
-			return NULL;
-		}
-	}
-
-	if (left_dm)
-	{
-		BKE_mesh_free(left_dm);
-		left_dm = NULL;
-	}
-
-	if (output_dm)
-	{
-		do_clean_uv(output_dm, uv_layer);
-		return do_output_shard_dm(&output_dm, child, num_cuts, fractal, other);
-	}
-
-	return NULL;
+	return result;
 }
 
-static void do_fill(float plane_no[3], bool clear_outer, bool clear_inner, BMOperator bmop, short inner_mat_index, BMesh* bm_parent)
+void BKE_fracture_mesh_boolean_fractal(Mesh* geometry, Mesh **outputA, Mesh** outputB, Object* obj, BooleanContext* ctx)
+{
+	Mesh* cutter = do_fractal(ctx);
+	/* dont do fancy boxpacking of uv here, the uv of the fractal surface takes ages to process else */
+	uv_unwrap_raw_geometry(cutter, ctx->uv_layer, false);
+	do_set_inner_material(cutter, ctx->inner_material_index, obj);
+
+	/* first intersect, then difference with the cutter on inverted positions*/
+	ctx->use_fractal = true; //just make sure
+	ctx->operation = 0;
+	*outputA = BKE_fracture_mesh_boolean(geometry, cutter, obj, ctx);
+
+	ctx->operation = 2;
+	*outputB = BKE_fracture_mesh_boolean(cutter, geometry, obj, ctx);
+}
+
+static void do_fill(float plane_no[3], BMOperator bmop, BMesh* bm_parent, BisectContext* ctx)
 {
 	float normal_fill[3];
 	BMOperator bmop_fill;
 	//BMOperator bmop_attr;
 
 	normalize_v3_v3(normal_fill, plane_no);
-	if (clear_outer == true && clear_inner == false) {
+	if (ctx->clear_outer == true && ctx->clear_inner == false) {
 		negate_v3(normal_fill);
 	}
 /*
@@ -623,7 +462,7 @@ static void do_fill(float plane_no[3], bool clear_outer, bool clear_inner, BMOpe
 		BMO_op_initf(
 			bm_parent, &bmop_fill, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 			"edgenet_fill edges=%S mat_nr=%i use_smooth=%b sides=%i",
-			&bmop, "geom_cut.out", inner_mat_index, false, 2);
+			&bmop, "geom_cut.out", ctx->inner_mat_index, false, 2);
 		BMO_op_exec(bm_parent, &bmop_fill);
 	//}
 
@@ -634,7 +473,7 @@ static void do_fill(float plane_no[3], bool clear_outer, bool clear_inner, BMOpe
 		BMIter iter;
 		BM_ITER_MESH(f, &iter, bm_parent, BM_FACES_OF_MESH) {
 			if (BM_elem_flag_test(f, BM_ELEM_TAG)) {
-				f->mat_nr = inner_mat_index;
+				f->mat_nr = ctx->inner_mat_index;
 			}
 		}
 	}
@@ -642,65 +481,64 @@ static void do_fill(float plane_no[3], bool clear_outer, bool clear_inner, BMOpe
 	BMO_op_finish(bm_parent, &bmop_fill);
 }
 
-static void do_bisect(BMesh* bm_parent, BMesh* bm_child, float obmat[4][4], bool use_fill, bool clear_inner,
-			   bool clear_outer, int cutlimit, float centroid[3], short inner_mat_index, float normal[3])
+static void bisect_op(BMesh* bm_geometry, float plane_co[3], float plane_no[3], BisectContext* ctx)
+{
+	BMOperator bmop;
+	float thresh = 0.00001f;
+
+	BM_mesh_elem_hflag_enable_all(bm_geometry, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_TAG, false);
+	BMO_op_initf(bm_geometry, &bmop, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
+				 "bisect_plane geom=%hvef dist=%f plane_co=%v plane_no=%v use_snap_center=%b clear_inner=%b clear_outer=%b",
+				 BM_ELEM_TAG, thresh, plane_co, plane_no, false, ctx->clear_inner, ctx->clear_outer);
+	BMO_op_exec(bm_geometry, &bmop);
+
+	BM_mesh_elem_hflag_disable_all(bm_geometry, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_TAG, false);
+
+	if (ctx->use_fill) {
+		do_fill(plane_no, bmop, bm_geometry, ctx);
+	}
+
+	BMO_slot_buffer_hflag_enable(bm_geometry, bmop.slots_out, "geom_cut.out", BM_VERT | BM_EDGE, BM_ELEM_TAG, true);
+
+	BMO_op_finish(bm_geometry, &bmop);
+}
+
+static void do_bisect(BMesh* bm_geometry, BMesh* bm_raw_shard, BisectContext* ctx)
 {
 	BMIter iter;
 	BMFace *f;
 
-	BMOperator bmop;
 	float plane_co[3];
 	float plane_no[3];
 	float imat[4][4];
 
-	float thresh = 0.00001f;
-	bool do_break = false;
+	invert_m4_m4(imat, ctx->obmat);
 
-	int cut_index = 0;
-	invert_m4_m4(imat, obmat);
-
-	BM_ITER_MESH_INDEX (f, &iter, bm_child, BM_FACES_OF_MESH, cut_index)
+	if (ctx->do_fast_bisect)
 	{
-		if (do_break) {
-			break;
-		}
+		/* with fast bisect, only take one given face into account */
+		copy_v3_v3(plane_co, ctx->centroid);
+		copy_v3_v3(plane_no, ctx->normal);
 
-		if (cutlimit > -1) {
-			//f = BM_face_at_index_find(bm_child, cutlimit);
-			copy_v3_v3(plane_co, centroid);
-			copy_v3_v3(plane_no, normal); //f->no /*normal*/);
-			do_break = true;
+		bisect_op(bm_geometry, plane_co, plane_no, ctx);
+	}
+	else {
 
-			//mul_qt_v3(quat, plane_no);
-		}
-		else {
+		BM_ITER_MESH(f, &iter, bm_raw_shard, BM_FACES_OF_MESH)
+		{
+			/* with bisect, consider all faces (slower, but nicer looking) */
 			copy_v3_v3(plane_co, f->l_first->v->co);
 			copy_v3_v3(plane_no, f->no);
+
+			mul_m4_v3(imat, plane_co);
+			mul_mat3_m4_v3(imat, plane_no);
+
+			bisect_op(bm_geometry, plane_co, plane_no, ctx);
 		}
-
-		mul_m4_v3(imat, plane_co);
-		mul_mat3_m4_v3(imat, plane_no);
-
-		BM_mesh_elem_hflag_enable_all(bm_parent, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_TAG, false);
-
-		BMO_op_initf(bm_parent, &bmop, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
-					 "bisect_plane geom=%hvef dist=%f plane_co=%v plane_no=%v use_snap_center=%b clear_inner=%b clear_outer=%b",
-					 BM_ELEM_TAG, thresh, plane_co, plane_no, false, clear_inner, clear_outer);
-		BMO_op_exec(bm_parent, &bmop);
-
-		BM_mesh_elem_hflag_disable_all(bm_parent, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_TAG, false);
-
-		if (use_fill) {
-			do_fill(plane_no, clear_outer, clear_inner, bmop, inner_mat_index, bm_parent);
-		}
-
-		BMO_slot_buffer_hflag_enable(bm_parent, bmop.slots_out, "geom_cut.out", BM_VERT | BM_EDGE, BM_ELEM_TAG, true);
-
-		BMO_op_finish(bm_parent, &bmop);
 	}
 }
 
-static BMesh *do_preselection(MeshIsland* parent, MeshIsland *child, KDTree *preselect_tree)
+static BMesh *limit_geometry(MeshIsland* parent, MeshIsland *child, KDTree *preselect_tree)
 {
 	int i = 0, r = 0;
 	float max_dist = 0;
@@ -736,17 +574,9 @@ static BMesh *do_preselection(MeshIsland* parent, MeshIsland *child, KDTree *pre
 	//do a range search first in case we have many verts as in dense geometry
 	r = BLI_kdtree_range_search(preselect_tree, child->raw_centroid, &n, sqrt(max_dist)*1.5f);
 
-	//skip empty cells
-	/*if (r == 0) {
-		BM_mesh_free(bm_new);
-		return NULL;
-	}*/
-
 	//if we have sparse geometry, just return all
 	if (r < child->mesh->totvert) {
 
-		//BM_mesh_free(bm_new);
-		//return BM_mesh_copy(bm_orig);
 		int j = 0, s = 0;
 		KDTreeNearest *n2 = MEM_callocN(sizeof(KDTreeNearest) * child->mesh->totvert, "n2 kdtreenearest");
 		s = BLI_kdtree_find_nearest_n(preselect_tree, child->raw_centroid, n2, child->mesh->totvert);
@@ -798,44 +628,58 @@ static BMesh *do_preselection(MeshIsland* parent, MeshIsland *child, KDTree *pre
 	return bm_new;
 }
 
-
-MeshIsland *BKE_fracture_mesh_bisect(MeshIsland *parent, MeshIsland *child, float obmat[4][4], bool use_fill, bool clear_inner,
-								bool clear_outer, int cutlimit, float centroid[3], short inner_mat_index, char uv_layer[64],
-								KDTree *preselect_tree, float normal[3])
+Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Mesh* raw_shard, BisectContext *ctx)
 {
+	BMesh *bm_raw_shard;
+	BMesh *bm_geometry;
+	Mesh* result = NULL;
 
-	BMesh *bm_parent;
-	BMesh *bm_child;
-	MeshIsland* output_s;
+	if (!ctx->do_fast_bisect) {
 
-	unwrap_shard_dm(child->mesh, uv_layer, true);
-	bm_child = BKE_fracture_mesh_to_bmesh(child->mesh);
+		uv_unwrap_raw_geometry(raw_shard, ctx->uv_layer, true);
+		bm_raw_shard = BKE_fracture_mesh_to_bmesh(raw_shard);
 
-	//hmmm need to copy only preselection !!! or rebuild bm_parent from selected data only....
-	if (preselect_tree != NULL) {
-		bm_parent = do_preselection(parent, child, preselect_tree);
+		/* if we detected what shards did change and built a limitation tree, we use it here to chop away unneeded
+		 * geometry from the original geometry. So less geometry has to be processed and the bisect should be faster */
+		if (ctx->geometry_limitation_tree != NULL) {
+			bm_geometry = limit_geometry(geometry, raw_shard, ctx->geometry_limitation_tree);
+		}
+		else {
+			/* without limitation tree, just use the full geometry */
+			bm_geometry = BKE_fracture_mesh_to_bmesh(geometry);
+		}
 	}
 	else {
-		bm_parent = BKE_fracture_mesh_to_bmesh(parent->mesh);
+		/* limitation tree makes no sense with fast bisect, and raw shard also not */
+		bm_geometry = BKE_fracture_mesh_to_bmesh(geometry);
+		bm_raw_shard = NULL;
 	}
 
-	if (bm_parent != NULL) {
-		output_s = MEM_callocN(sizeof(MeshIsland), "mesh_island");
-		BM_mesh_elem_hflag_enable_all(bm_parent, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_TAG, false);
-		do_bisect(bm_parent, bm_child, obmat, use_fill, clear_inner, clear_outer, cutlimit, centroid, inner_mat_index, normal);
-		output_s->mesh = BKE_fracture_bmesh_to_mesh(bm_parent);
-		BKE_fracture_mesh_center_centroid_area(output_s->mesh, output_s->centroid);
-		unit_qt(output_s->rot);
+	if (bm_geometry)
+	{
+		//BM_mesh_elem_hflag_enable_all(bm_parent, BM_VERT | BM_EDGE | BM_FACE, BM_ELEM_TAG, false);
+		do_bisect(bm_geometry, bm_raw_shard, ctx);
+		result = BKE_fracture_bmesh_to_mesh(bm_geometry);
 
-		BM_mesh_free(bm_parent);
-	}
-	else {
-		output_s = NULL;
+		BM_mesh_free(bm_geometry);
 	}
 
-	BM_mesh_free(bm_child);
-	BKE_fracture_mesh_island_free(child, NULL);
-	child = NULL;
+	if (bm_raw_shard)
+	{
+		BM_mesh_free(bm_raw_shard);
+	}
 
-	return output_s;
+	return result;
+}
+
+void BKE_fracture_mesh_bisect_fast(Mesh* geometry, Mesh **outputA, Mesh** outputB, BisectContext* ctx)
+{
+	ctx->clear_inner = true;
+	ctx->clear_outer = false;
+	*outputA = BKE_fracture_mesh_bisect(geometry, NULL, ctx);
+
+
+	ctx->clear_inner = false;
+	ctx->clear_outer = true;
+	*outputB = BKE_fracture_mesh_bisect(geometry, NULL, ctx);
 }

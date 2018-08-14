@@ -4,6 +4,7 @@
 #include "BKE_customdata.h"
 #include "BKE_mesh.h"
 #include "BKE_pointcache.h"
+#include "BKE_material.h"
 
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
@@ -62,7 +63,7 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 	int i = 0;
 
 	//TODO, work with poly customdata int layer maybe to store "Innerness" ?
-	int inner_index = 1;// BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
+	int inner_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
 
 	//printf("Make Face Pairs\n");
 	int faces = 0, pairs = 0;
@@ -130,7 +131,7 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 	float f_centr[3], f_centr_other[3];
 	BMFace *f1, *f2;
 	int other = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->face_pairs, SET_INT_IN_POINTER(i)));
-	int inner_index = 1;// BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
+	int inner_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
 
 	if ((other == i) && (fmd->fracture_mode != MOD_FRACTURE_DYNAMIC))
 	{

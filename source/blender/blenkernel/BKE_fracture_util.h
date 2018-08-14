@@ -35,12 +35,41 @@
 
 #include "DNA_fracture_types.h"
 
-MeshIsland *BKE_fracture_shard_boolean(Object *obj, MeshIsland *dm_parent, MeshIsland *child, short inner_material_index, int num_cuts, float fractal,
-                                  MeshIsland **other, float mat[4][4], float radius, bool use_smooth_inner, int num_levels, char uv_layer[],
-                                  float thresh);
+typedef struct BisectContext {
+	bool clear_inner;
+	bool clear_outer;
+	bool use_fill;
+	bool do_fast_bisect;
 
-MeshIsland *BKE_fracture_mesh_bisect(MeshIsland *parent, MeshIsland *child, float obmat[4][4], bool use_fill, bool clear_inner,
-								bool clear_outer, int cutlimit, float centroid[3], short inner_mat_index, char uv_layer[64],
-								struct KDTree *preselect_tree, float normal[3]);
+	char uv_layer[64];
+	float normal[3];
+	float centroid[3];
+	float obmat[4][4];
+	short inner_mat_index;
+	struct KDTree *geometry_limitation_tree;
+
+} BisectContext;
+
+typedef struct BooleanContext {
+	short inner_material_index;
+	int operation; /*0 == intersection, 2 == difference*/
+
+	//fractal stuff
+	bool use_fractal;
+	bool use_smooth_inner;
+	int num_cuts;
+	int num_iterations;
+	float fractal_amount;
+	float cutter_plane_matrix[4][4];
+	float cutter_plane_radius;
+
+	char uv_layer[64];
+	float thresh;
+} BooleanContext;
+
+Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, BooleanContext *ctx);
+Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Mesh* raw_shard, BisectContext* ctx);
+void BKE_fracture_mesh_boolean_fractal(Mesh* geometry, Mesh **outputA, Mesh** outputB, Object *obj, BooleanContext *ctx);
+void BKE_fracture_mesh_bisect_fast(Mesh* geometry, Mesh **outputA, Mesh** outputB, BisectContext *ctx);
 
 #endif /* BKE_FRACTURE_UTIL_H*/

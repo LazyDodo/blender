@@ -204,7 +204,7 @@ void BKE_fracture_dynamic_free(struct FractureModifierData *fmd, struct Scene *s
 void BKE_fracture_external_constraints_setup(struct FractureModifierData *fmd, struct Scene *scene, struct Object *ob);
 void BKE_fracture_dynamic_new_entries_add(struct FractureModifierData* fmd, struct Scene *scene, bool is_new);
 
-struct Mesh* BKE_fracture_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *me, struct Depsgraph* depsgraph);
+struct Mesh* BKE_fracture_apply(struct FractureModifierData *fmd, struct Object *obj, struct Mesh *me, struct Depsgraph* depsgraph);
 
 struct MeshIsland *BKE_fracture_mesh_island_create(struct Mesh* me, struct Main* bmain, struct Scene *scene, struct Object *ob);
 void BKE_fracture_mesh_boundbox_calc(struct Mesh *me, float r_loc[], float r_size[]);
