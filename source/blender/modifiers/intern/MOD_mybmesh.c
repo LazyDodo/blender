@@ -1028,21 +1028,23 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 
 		BMFace* f;
 		BMIter iter_f;
-		float mat[3][3];
-		bool found_point_inside_face = false;
+		float face_no[3];
+		bool fold = false;
 
-		axis_dominant_v3_to_m3(mat, new_no);
+		copy_v3_v3( vert->co, new_loc );
 
 		//Check if the new position lies inside any of the vert faces (potential fold if outside)
 		BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 
+			BM_face_calc_normal(f, face_no);
 			// BM_face_point_inside_test is too inaccurate to use here as some overhangs are missed with it.
-			if( point_inside(mat, new_loc, f) ){
-				found_point_inside_face = true;
+			if( dot_v3v3(new_no, face_no) < 0.0f ){
+				fold = true;
 				break;
 			}
 		}
-		if( !found_point_inside_face ){
+		copy_v3_v3( vert->co, old_loc );
+		if( fold ){
 			//printf("Skipped shift vert!\n");
 			return false;
 		}
@@ -2147,10 +2149,15 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float mat[3][3], const f
 	BMFace *face;
 	BMIter iter_f, iter_v;
 	float poke_face_no[3], no[3];
+	zero_v3(poke_face_no);
 
 	BLI_buffer_declare_static(BMFace*, search_faces, BLI_BUFFER_NOP, 32);
 
-	BM_face_calc_normal(poke_face, poke_face_no);
+	BM_ITER_ELEM (vert, &iter_v, poke_face, BM_VERTS_OF_FACE) {
+		//Take the mean normal as face normal. It should represent the surface normal of the surface better
+		add_v3_v3(poke_face_no, vert->no);
+	}
+	mul_v3_fl( poke_face_no, 1.0f / 3.0f );
 
 	for(int f_idx = 0; f_idx < diff_f->count; f_idx++){
 		BMFace *f = BLI_buffer_at(diff_f, BMFace*, f_idx);
