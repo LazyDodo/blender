@@ -20,7 +20,7 @@
 #include "GPU_viewport.h"
 #include "bmesh.h"
 
-extern struct LANPRSharedResource lanpr_share;
+extern struct LANPR_SharedResource lanpr_share;
 
 int _TNS_colOffsets[] = { -1, 0, 1, 1, 1, 0, -1, -1 };
 int _TNS_rowOffsets[] = { -1, -1, -1, 0, 1, 1, 1, 0 };

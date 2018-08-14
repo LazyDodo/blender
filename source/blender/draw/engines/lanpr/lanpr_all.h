@@ -49,8 +49,12 @@
 #define tnsLinearItp(L, R, T) \
 	((L) * (1.0f - (T)) + (R)*(T))
 
+typedef struct LANPR_RenderBuffer LANPR_RenderBuffer;
 
-typedef struct LANPRSharedResource {
+typedef struct LANPR_SharedResource {
+
+	/* We only allocate once for all */
+	LANPR_RenderBuffer *render_buffer_shared;
 
 	/* Snake */
 	GPUShader *multichannel_shader;
@@ -76,7 +80,7 @@ typedef struct LANPRSharedResource {
 	int during_render;        // get/set using access funcion which uses render_flag_lock to lock.
 	                          // this prevents duplicate too much resource. (no render preview in viewport while rendering)
 
-} LANPRSharedResource;
+} LANPR_SharedResource;
 
 #define TNS_DPIX_TEXTURE_SIZE 2048
 

@@ -25,7 +25,7 @@
 
 #include <math.h>
 
-extern LANPRSharedResource lanpr_share;
+extern LANPR_SharedResource lanpr_share;
 extern char datatoc_lanpr_dpix_project_passthrough_vert_glsl[];
 extern char datatoc_lanpr_dpix_project_clip_frag_glsl[];
 extern char datatoc_lanpr_dpix_preview_geom_glsl[];

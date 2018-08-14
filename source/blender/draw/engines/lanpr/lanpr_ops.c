@@ -2620,6 +2620,8 @@ void lanpr_clear_render_state(LANPR_RenderBuffer *rb) {
 
 /* ====================================== render control ======================================= */
 
+extern LANPR_SharedResource lanpr_share;
+
 void lanpr_destroy_render_data(LANPR_RenderBuffer *rb) {
 	LANPR_RenderElementLinkNode *reln;
 
@@ -2664,7 +2666,8 @@ void lanpr_destroy_render_data(LANPR_RenderBuffer *rb) {
 }
 
 LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr) {
-	if (lanpr->render_buffer) {
+	if (lanpr_share.render_buffer_shared) {
+		lanpr->render_buffer = lanpr_share.render_buffer_shared;
 		lanpr_destroy_render_data(lanpr->render_buffer);
 		return lanpr->render_buffer;
 		//lanpr_destroy_render_data(lanpr->render_buffer);
@@ -2674,6 +2677,7 @@ LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr) {
 	LANPR_RenderBuffer *rb = MEM_callocN(sizeof(LANPR_RenderBuffer), "creating LANPR render buffer");
 
 	lanpr->render_buffer = rb;
+	lanpr_share.render_buffer_shared = rb;
 
 	rb->cached_for_frame = -1;
 
@@ -2998,8 +3002,6 @@ void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_Framebuffe
 
 
 void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_threshold);
-
-extern LANPRSharedResource lanpr_share;
 
 void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render) {
 	LANPR_LineLayer *ll;

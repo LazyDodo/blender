@@ -44,7 +44,7 @@ extern char datatoc_lanpr_software_passthrough_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_frag_glsl[];
 
-LANPRSharedResource lanpr_share;
+LANPR_SharedResource lanpr_share;
 
 
 static void lanpr_engine_init(void *ved){
