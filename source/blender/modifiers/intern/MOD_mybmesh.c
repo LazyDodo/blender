@@ -1048,41 +1048,19 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 		}
 	}
 
-	//Will this shift a cusp edge
+	//Will this shift a cusp edge. It does, then it might lead to a CCC triangle.
 	{
 		BMEdge *edge;
 		BMIter iter_e;
-		BMFace* f;
-		BMIter iter_f;
-		float mat[3][3];
-
-		copy_v3_v3(vert->co, new_loc);
 
 		BM_ITER_ELEM (edge, &iter_e, vert, BM_EDGES_OF_VERT) {
 			for(int cusp_i = 0; cusp_i < m_d->cusp_edges->count; cusp_i++){
 				Cusp cusp = BLI_buffer_at(m_d->cusp_edges, Cusp, cusp_i);
 				if( edge == cusp.cusp_e ){
-					bool still_inside_face = false;
-					//Check if moving this cusp edge will produce any folds
-					axis_dominant_v3_to_m3(mat, cusp.cusp_no);
-					BM_ITER_ELEM (f, &iter_f, edge, BM_FACES_OF_EDGE) {
-
-						// BM_face_point_inside_test is too inaccurate to use here as some overhangs are missed with it.
-						if( point_inside(mat, cusp.cusp_co, f) ){
-							still_inside_face = true;
-							break;
-						}
-					}
-					if (!still_inside_face){
-						copy_v3_v3(vert->co, old_loc);
-						return false;
-					}
+					return false;
 				}
 			}
 		}
-
-		//Move the vert back for future checks
-		copy_v3_v3(vert->co, old_loc);
 	}
 
 	//Check if the shift might/will cause a CCC face
