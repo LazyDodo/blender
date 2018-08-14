@@ -59,7 +59,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
 		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
-			hit->geomID = RTC_INVALID_GEOMETRY_ID;
+			*args->valid = 0;
 			return;
 		}
 	}
@@ -70,9 +70,20 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 	else if(ctx->type == CCLIntersectContext::RAY_SHADOW_ALL) {
 		/* Append the intersection to the end of the array. */
 		if(ctx->num_hits < ctx->max_hits) {
+			Intersection current_isect;
+			kernel_embree_convert_hit(kg, ray, hit, &current_isect);
+			for(size_t i = 0; i < ctx->max_hits; ++i) {
+				if(current_isect.object == ctx->isect_s[i].object &&
+				   current_isect.prim == ctx->isect_s[i].prim &&
+				   current_isect.t == ctx->isect_s[i].t) {
+					/* This intersection was already recorded, skip it. */
+					*args->valid = 0;
+					return;
+				}
+			}
 			Intersection *isect = &ctx->isect_s[ctx->num_hits];
 			ctx->num_hits++;
-			kernel_embree_convert_hit(kg, ray, hit, isect);
+			*isect = current_isect;
 			int prim = kernel_tex_fetch(__prim_index, isect->prim);
 			int shader = 0;
 			if(kernel_tex_fetch(__prim_type, isect->prim) & PRIMITIVE_ALL_TRIANGLE) {
@@ -86,10 +97,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 			/* If no transparent shadows, all light is blocked. */
 			if(flag & (SD_HAS_TRANSPARENT_SHADOW)) {
 				/* This tells Embree to continue tracing. */
-				hit->geomID = RTC_INVALID_GEOMETRY_ID;
-			}
-			else {
-				ctx->num_hits = ctx->max_hits+1;
+				*args->valid = 0;
 			}
 		}
 		else {
@@ -101,13 +109,13 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 	}
 	else if(ctx->type == CCLIntersectContext::RAY_SSS) {
 		/* No intersection information requested, just return a hit. */
-		if(ctx->ss_isect->num_hits == 0) {
+		if(ctx->max_hits == 0) {
 			return;
 		}
 		/* Only accept hits from the same object and triangles. */
 		if(hit->instID[0]/2 != ctx->sss_object_id || hit->geomID & 1) {
 			/* This tells Embree to continue tracing. */
-			hit->geomID = RTC_INVALID_GEOMETRY_ID;
+			*args->valid = 0;
 			return;
 		}
 
@@ -115,7 +123,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 		for(int i = min(ctx->max_hits, ctx->ss_isect->num_hits) - 1; i >= 0; --i) {
 			if(ctx->ss_isect->hits[i].t == ray->tfar) {
 				/* This tells Embree to continue tracing. */
-				hit->geomID = RTC_INVALID_GEOMETRY_ID;
+				*args->valid = 0;
 				return;
 			}
 		}
@@ -133,7 +141,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 
 			if(hit_idx >= ctx->max_hits) {
 				/* This tells Embree to continue tracing. */
-				hit->geomID = RTC_INVALID_GEOMETRY_ID;
+				*args->valid = 0;
 				return;
 			}
 		}
@@ -144,15 +152,26 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 		ctx->ss_isect->Ng[hit_idx].z = hit->Ng_z;
 		ctx->ss_isect->Ng[hit_idx] = normalize(ctx->ss_isect->Ng[hit_idx]);
 		/* this tells Embree to continue tracing */
-		hit->geomID = RTC_INVALID_GEOMETRY_ID;
+		*args->valid = 0;
 		return;
 	}
 	else if(ctx->type == CCLIntersectContext::RAY_VOLUME_ALL) {
 		/* Append the intersection to the end of the array. */
 		if(ctx->num_hits < ctx->max_hits) {
+			Intersection current_isect;
+			kernel_embree_convert_hit(kg, ray, hit, &current_isect);
+			for(size_t i = 0; i < ctx->max_hits; ++i) {
+				if(current_isect.object == ctx->isect_s[i].object &&
+				   current_isect.prim == ctx->isect_s[i].prim &&
+				   current_isect.t == ctx->isect_s[i].t) {
+					/* This intersection was already recorded, skip it. */
+					*args->valid = 0;
+					return;
+				}
+			}
 			Intersection *isect = &ctx->isect_s[ctx->num_hits];
 			ctx->num_hits++;
-			kernel_embree_convert_hit(kg, ray, hit, isect);
+			*isect = current_isect;
 			/* Only primitives from volume object. */
 			uint tri_object = (isect->object == OBJECT_NONE) ?kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
 			int object_flag = kernel_tex_fetch(__object_flag, tri_object);
@@ -160,7 +179,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 				ctx->num_hits--;
 			}
 			/* This tells Embree to continue tracing. */
-			hit->geomID = RTC_INVALID_GEOMETRY_ID;
+			*args->valid = 0;
 			return;
 		}
 		return;
