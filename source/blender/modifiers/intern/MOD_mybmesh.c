@@ -2146,14 +2146,21 @@ static void mult_radi_search( BLI_Buffer *diff_f, const float mat[3][3], const f
 	BMVert *vert;
 	BMFace *face;
 	BMIter iter_f, iter_v;
+	float poke_face_no[3], no[3];
 
 	BLI_buffer_declare_static(BMFace*, search_faces, BLI_BUFFER_NOP, 32);
+
+	BM_face_calc_normal(poke_face, poke_face_no);
 
 	for(int f_idx = 0; f_idx < diff_f->count; f_idx++){
 		BMFace *f = BLI_buffer_at(diff_f, BMFace*, f_idx);
 		BM_ITER_ELEM (vert, &iter_v, f, BM_VERTS_OF_FACE) {
 			BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
-				append_face(&search_faces, face);
+				//Do not add faces that can create overlaps in the projection mapping
+				BM_face_calc_normal(face, no);
+				if( dot_v3v3(no, poke_face_no) > 0.0f ){
+					append_face(&search_faces, face);
+				}
 			}
 		}
 	}
