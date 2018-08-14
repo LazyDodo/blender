@@ -80,7 +80,7 @@
 struct OpenSubdiv_Evaluator;
 
 typedef struct {
-	BMVert *vert;
+	BMVert *vert; //Only used for shifted verts
 	BMEdge *orig_edge;
 	BMFace *orig_face;
 	float u, v;
@@ -133,6 +133,7 @@ typedef struct {
 	BLI_Buffer *cusp_verts;
 	BLI_Buffer *radi_vert_buffer;
 	//Radial edge vert start idx
+	int new_vert_idx;
 	int radi_start_idx;
 
 	struct OpenSubdiv_Evaluator *eval;
@@ -269,9 +270,8 @@ static float get_facing_dir_nor(const float cam_loc[3], const float P[3], const 
 }
 
 
-static BMVert* split_edge_and_move_nor(BMesh *bm, BMEdge *edge, const float new_pos[3], const float new_no[3]){
+static BMVert* split_edge_and_move_nor(MeshData *m_d, BMesh *bm, BMEdge *edge, const float new_pos[3], const float new_no[3]){
 	//Split edge one time and move the created vert to new_pos
-
 	BMVert *vert;
     BMFace *face_arr[2];
 
@@ -279,7 +279,6 @@ static BMVert* split_edge_and_move_nor(BMesh *bm, BMEdge *edge, const float new_
 	BMFace *face;
 	int i;
 
-	int new_idx = BM_mesh_elem_count(bm, BM_VERT);
 	//Save the connected faces for triangulation later
 	BM_ITER_ELEM_INDEX (face, &iter, edge, BM_FACES_OF_EDGE, i){
 		face_arr[i] = face;
@@ -288,7 +287,9 @@ static BMVert* split_edge_and_move_nor(BMesh *bm, BMEdge *edge, const float new_
 
 	//TODO perhaps use BM_edge_split instead?
     vert = bmesh_kernel_split_edge_make_vert(bm, edge->v1, edge, NULL);
-	BM_elem_index_set(vert, new_idx);
+	if( m_d != NULL ){
+		BM_elem_index_set(vert, m_d->new_vert_idx++);
+	}
 
 	/*{
 		MemArena *pf_arena;
@@ -350,13 +351,13 @@ static BMVert* split_edge_and_move_nor(BMesh *bm, BMEdge *edge, const float new_
 	return vert;
 }
 
-static BMVert *split_edge_and_move_vert(BMesh *bm, BMEdge *edge, const float new_pos[3],
+static BMVert *split_edge_and_move_vert(MeshData *m_d, BMesh *bm, BMEdge *edge, const float new_pos[3],
 									const float du[3], const float dv[3]){
 
 	float new_no[3];
 
 	cross_v3_v3v3(new_no, du, dv);
-	return split_edge_and_move_nor(bm, edge, new_pos, new_no);
+	return split_edge_and_move_nor(m_d, bm, edge, new_pos, new_no);
 }
 
 static bool get_uv_coord(BMVert *vert, BMFace *f, float *u, float *v){
@@ -595,7 +596,7 @@ static void split_BB_FF_edges_thread(void *data_v) {
 					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
 						BLI_spin_lock(&th_data->spin);
-						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 						v_buf.u = u;
 						v_buf.v = v;
 						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
@@ -611,7 +612,7 @@ static void split_BB_FF_edges_thread(void *data_v) {
 					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
 						BLI_spin_lock(&th_data->spin);
-						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 						v_buf.u = u;
 						v_buf.v = v;
 						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
@@ -637,7 +638,7 @@ static void split_BB_FF_edges_thread(void *data_v) {
 					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
 						BLI_spin_lock(&th_data->spin);
-						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 						v_buf.u = u;
 						v_buf.v = v;
 						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
@@ -781,7 +782,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 					v = step_arr[j];
 					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
-						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 						v_buf.u = u;
 						v_buf.v = v;
 						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
@@ -795,7 +796,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 					u = step_arr[j];
 					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
-						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 						v_buf.u = u;
 						v_buf.v = v;
 						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
@@ -819,7 +820,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 					v = step_arr[j];
 					m_d->eval->evaluateLimit(m_d->eval, face_index, u, v, P, du, dv);
 					if( calc_if_B(m_d->cam_loc, P, du, dv) != is_B ){
-						split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+						split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 						v_buf.u = u;
 						v_buf.v = v;
 						BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, v_buf);
@@ -1006,9 +1007,6 @@ static bool append_face(BLI_Buffer *faces, BMFace *face){
 
 static bool check_and_shift(BMVert *vert, const float new_loc[3], const float new_no[3], MeshData *m_d){
 	//TODO add all shiftability checks from the paper
-	typedef struct {
-		float no[3];
-	} Normal;
 
 	float old_loc[3];
 
@@ -1026,44 +1024,28 @@ static bool check_and_shift(BMVert *vert, const float new_loc[3], const float ne
 	copy_v3_v3( old_loc, vert->co );
 
 	// Will the shift create folds?
-	// TODO perhaps only checking for huge normal changes in not enough?
 	{
 
-		BLI_buffer_declare_static(Normal, old_normals, BLI_BUFFER_NOP, 32);
 		BMFace* f;
 		BMIter iter_f;
-		int i = 0;
+		float mat[3][3];
+		bool found_point_inside_face = false;
 
-		//Copy old face normals
+		axis_dominant_v3_to_m3(mat, new_no);
+
+		//Check if the new position lies inside any of the vert faces (potential fold if outside)
 		BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
-			Normal nor;
-			BM_face_calc_normal(f, nor.no);
-			BLI_buffer_append(&old_normals, Normal, nor);
-		}
 
-		copy_v3_v3(vert->co, new_loc);
-
-		//Check if the new position changed any of the normals drastically (potential fold)
-		BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, i) {
-			float no[3];
-			float old_no[3];
-
-			BM_face_calc_normal(f, no);
-
-			copy_v3_v3( old_no, BLI_buffer_at(&old_normals, Normal, i).no );
-			if( dot_v3v3( old_no, no ) < 0.5f ){
-				//Big change in normal dir, potential fold, abort
-				copy_v3_v3(vert->co, old_loc);
-				//printf("Skipped shift vert!\n");
-				BLI_buffer_free(&old_normals);
-				return false;
+			// BM_face_point_inside_test is too inaccurate to use here as some overhangs are missed with it.
+			if( point_inside(mat, new_loc, f) ){
+				found_point_inside_face = true;
+				break;
 			}
 		}
-
-		//Move the vert back for future checks
-		copy_v3_v3(vert->co, old_loc);
-
-		BLI_buffer_free(&old_normals);
+		if( !found_point_inside_face ){
+			//printf("Skipped shift vert!\n");
+			return false;
+		}
 	}
 
 	//Will this shift a cusp edge
@@ -1281,7 +1263,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 
 				Vert_buf new_buf;
 
-				BMVert *c_vert = split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+				BMVert *c_vert = split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 				append_vert(m_d->C_verts, c_vert);
 
 				new_buf.orig_face = cur_face;
@@ -1345,7 +1327,7 @@ static bool bisect_search(const float v1_uv[2], const float v2_uv[2], BMEdge *e,
 
 	copy_v2_v2(uv_result, uv_P);
 	{
-		BMVert *vert = split_edge_and_move_vert(m_d->bm, e, P, du, dv);
+		BMVert *vert = split_edge_and_move_vert(m_d, m_d->bm, e, P, du, dv);
 		append_vert(m_d->C_verts, vert);
 	}
 	return true;
@@ -2011,7 +1993,7 @@ static void cusp_detection( MeshData *m_d ){
 								int cur_edge = BM_mesh_elem_count(m_d->bm, BM_EDGE);
 								BMEdge *cusp_e = NULL;
 
-								split_edge_and_move_vert(m_d->bm, edge, P, du, dv);
+								split_edge_and_move_vert(m_d, m_d->bm, edge, P, du, dv);
 
 								//Get the cusp edge
 								for(j = 0; j < 3; j++){
@@ -2063,7 +2045,7 @@ static void cusp_insertion(MeshData *m_d){
 			}
 		}
 
-		vert = split_edge_and_move_nor(m_d->bm, cusp.cusp_e, cusp.cusp_co, cusp.cusp_no);
+		vert = split_edge_and_move_nor(m_d, m_d->bm, cusp.cusp_e, cusp.cusp_co, cusp.cusp_no);
 		append_vert(m_d->C_verts, vert);
 		append_vert(m_d->cusp_verts, vert);
 
@@ -2132,11 +2114,9 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 
 		BMesh *bm = m_d->bm;
 
-		int new_idx = BM_mesh_elem_count(bm, BM_VERT);
-
 		vert = BM_vert_create(bm, new_pos, NULL, BM_CREATE_NOP);
 
-        BM_elem_index_set(vert, new_idx);
+        BM_elem_index_set(vert, m_d->new_vert_idx++);
 
 		//Silence asserts in BM_loop_interp_from_face
 		//TODO perhaps work around this in some other way?
@@ -2736,9 +2716,7 @@ static void radial_flip( MeshData *m_d ){
 				}
 
 				if( BM_disk_dissolve(m_d->bm, edge_vert) ){
-					//Count down m_d->radi_start_idx because we have fewer verts after the dissolve;
 					flips++;
-					m_d->radi_start_idx -= 1;
 					//printf("Dissolved vert!\n");
 				}
 
@@ -2906,16 +2884,10 @@ static int radial_extention( MeshData *m_d ){
 				{
                     int new_inco_faces = 0;
 					float new_diff_facing = 0;
-					bool fold = false;
+
 					BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 						BM_face_calc_center_mean(face, cent_f);
 						BM_face_calc_normal(face, no);
-
-						//Will this new vert pos create a potential fold?
-						if( dot_v3v3( face->no, no ) < 0.5f ){
-							fold = true;
-							break;
-						}
 
 						sub_v3_v3v3(view_vec, m_d->cam_loc, cent_f);
 						float face_dir = dot_v3v3(no, view_vec);
@@ -2923,10 +2895,6 @@ static int radial_extention( MeshData *m_d ){
 							new_diff_facing += fabs(face_dir);
 							new_inco_faces++;
 						}
-					}
-
-					if( fold ){
-						continue;
 					}
 
 					if( new_inco_faces < prev_inco_faces ){
@@ -3147,7 +3115,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 						tot_diff_facing += fabs(face_dir);
 						nr_inco_faces++;
 					}
-					face_area[face_idx] = BM_face_calc_area(f);
+					face_area[face_idx] = area_tri_v2( store_2d[face_idx][0], store_2d[face_idx][1], store_2d[face_idx][2]);
 					tot_face_area += face_area[face_idx];
 				}
 
@@ -3220,7 +3188,6 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							}
 
 							int new_inco_faces = 0;
-							bool fold = false;
 							float new_dist = len_v3v3(cent, vert->co);
 							float new_diff_facing = 0;
 
@@ -3231,22 +3198,12 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 								BM_face_calc_normal(f, no);
 								BM_face_calc_center_mean(f, P);
 
-								//Will this new vert pos create a potential fold?
-								if( dot_v3v3( vert->no, no ) < 0.5f ){
-									fold = true;
-									break;
-								}
-
 								sub_v3_v3v3(view_vec, m_d->cam_loc, P);
 								float face_dir = dot_v3v3(no, view_vec);
 								if( inface->back_f != (face_dir < 0) ){
 									new_diff_facing += fabs(face_dir);
 									new_inco_faces++;
 								}
-							}
-
-							if( fold ){
-								continue;
 							}
 
 							if( new_inco_faces < best_inco_faces ){
@@ -3538,7 +3495,6 @@ static void optimization( MeshData *m_d ){
 	do {
 		wiggled_verts = opti_vertex_wiggle(m_d, &inco_faces);
 	} while( wiggled_verts > 0 );
-
 	// 4. Edge Splitting
 	{
 		int face_i;
@@ -3658,7 +3614,6 @@ static void optimization( MeshData *m_d ){
 
 			//Calculate number of inco faces in the vicinity
 			int nr_inco_faces = 0;
-			float tot_diff_facing = 0;
 			BM_ITER_MESH (f, &iter_f, bm_fan_copy, BM_FACES_OF_MESH){
 				float no[3];
 				float P[3];
@@ -3669,7 +3624,6 @@ static void optimization( MeshData *m_d ){
 				sub_v3_v3v3(view_vec, m_d->cam_loc, P);
 				float face_dir = dot_v3v3(no, view_vec);
 				if( inface->back_f != (face_dir < 0) ){
-					tot_diff_facing += fabs(face_dir);
 					nr_inco_faces++;
 				}
 			}
@@ -3680,7 +3634,6 @@ static void optimization( MeshData *m_d ){
 				float new_diff_facing;
 				int best_inco_faces = nr_inco_faces;
 				int best_edge;
-				float best_diff_facing = tot_diff_facing;
 				float best_edge_split_pos[3];
 				float best_edge_split_uv[2];
 				float best_dist = INFINITY;
@@ -3700,12 +3653,10 @@ static void optimization( MeshData *m_d ){
 						new_inco_faces = 0;
 
 						if( split_vert == NULL){
-							split_vert = split_edge_and_move_nor(bm_temp, temp_e, split_vert_pos[edge_idx][j], inface->face->no);
+							split_vert = split_edge_and_move_nor(NULL, bm_temp, temp_e, split_vert_pos[edge_idx][j], inface->face->no);
 						} else {
 							copy_v3_v3(split_vert->co, split_vert_pos[edge_idx][j]);
 						}
-
-						bool fold = false;
 
 						BM_ITER_MESH (f, &iter_f, bm_temp, BM_FACES_OF_MESH){
 							float no[3];
@@ -3713,11 +3664,6 @@ static void optimization( MeshData *m_d ){
 							float view_vec[3];
 							BM_face_calc_normal(f, no);
 							BM_face_calc_center_mean(f, P);
-							//Will this new vert pos create a potential fold?
-							if( dot_v3v3( inface->face->no, no ) < 0.5f ){
-								fold = true;
-								break;
-							}
 
 							sub_v3_v3v3(view_vec, m_d->cam_loc, P);
 							float face_dir = dot_v3v3(no, view_vec);
@@ -3725,10 +3671,6 @@ static void optimization( MeshData *m_d ){
 								new_diff_facing += fabs(face_dir);
 								new_inco_faces++;
 							}
-						}
-
-						if (fold){
-							continue;
 						}
 
 						BMEdge *tmp_e;
@@ -3751,23 +3693,14 @@ static void optimization( MeshData *m_d ){
 						if( new_inco_faces < best_inco_faces ){
 							best_edge = edge_idx;
 							best_inco_faces = new_inco_faces;
-							best_diff_facing = new_diff_facing;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
 							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
 							best_edge_split_face = valid_split_pos_face[edge_idx][j];
 							done = true;
-						} else if ( new_inco_faces == best_inco_faces && new_diff_facing < best_diff_facing){
+						} else if ( new_inco_faces == best_inco_faces && new_dist < best_dist){
 							best_edge = edge_idx;
 							best_inco_faces = new_inco_faces;
-							best_diff_facing = new_diff_facing;
-							best_dist = new_dist;
-							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
-							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
-							best_edge_split_face = valid_split_pos_face[edge_idx][j];
-							done = true;
-						} else if (new_inco_faces == 0 && new_dist < best_dist){
-							best_edge = edge_idx;
 							best_dist = new_dist;
 							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
 							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
@@ -3784,7 +3717,7 @@ static void optimization( MeshData *m_d ){
 						if( edge_idx == best_edge ){
 							Vert_buf new_buf;
 							//print_v3("best split pos", best_edge_split_pos);
-							split_vert = split_edge_and_move_nor(m_d->bm, edge, best_edge_split_pos, inface->face->no);
+							split_vert = split_edge_and_move_nor(m_d, m_d->bm, edge, best_edge_split_pos, inface->face->no);
 
 							new_buf.orig_face = best_edge_split_face;
 							new_buf.orig_edge = NULL;
@@ -3796,9 +3729,9 @@ static void optimization( MeshData *m_d ){
 						}
 					}
 					null_opti_vert(m_d, split_vert, inface->back_f, &inco_faces);
-					printf("Edge wiggle\n");
+					//printf("Edge wiggle\n");
 				} else {
-					printf("Bad edge wiggle\n");
+					//printf("Bad edge wiggle\n");
 				}
 			}
 
@@ -3808,7 +3741,6 @@ static void optimization( MeshData *m_d ){
 			BM_mesh_free(bm_fan_copy);
 		}
 	}
-
 	//Try to wiggle again after split
 	do {
 		wiggled_verts = opti_vertex_wiggle(m_d, &inco_faces);
@@ -3883,9 +3815,6 @@ static void optimization( MeshData *m_d ){
 								printf("Failed to opti dissolve\n");
 								continue;
 							}
-							//Count down radi_start_idx because we have fewer verts after the dissolve;
-							m_d->radi_start_idx -= 1;
-
 							inface->face = NULL;
 							//Done with this face
 							break;
@@ -3951,7 +3880,7 @@ static void optimization( MeshData *m_d ){
 
 							if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
 								//Bad vertex move
-								printf("Bad vert smooth\n");
+								//printf("Bad vert smooth\n");
 								//Move the vertex back to it's original position
 
 								copy_v3_v3(vert->co, old_pos);
@@ -3963,7 +3892,7 @@ static void optimization( MeshData *m_d ){
 
 						if( done ){
 							//Good vert smooth
-							printf("vert smooth\n");
+							//printf("vert smooth\n");
 							null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
 							break;
 						}
@@ -4304,6 +4233,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 
 		mesh_data.bm = bm;
 		mesh_data.bm_orig = bm_orig;
+		mesh_data.new_vert_idx = BM_mesh_elem_count(bm, BM_VERT);
 
 		copy_v3_v3( mesh_data.cam_loc, cam_loc );
 
