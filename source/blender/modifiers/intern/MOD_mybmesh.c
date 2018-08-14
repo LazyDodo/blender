@@ -4148,8 +4148,6 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 	return result;
 }
 
-#endif /* WITH_OPENSUBDIV */
-
 /* MyBMesh */
 static void initData(ModifierData *md)
 {
@@ -4166,6 +4164,8 @@ static void freeData(ModifierData *md)
 	openSubdiv_deleteEvaluator(mmd->osd_eval);
 	}
 }
+
+#endif /* WITH_OPENSUBDIV */
 
 static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx,
 								Mesh *mesh)
