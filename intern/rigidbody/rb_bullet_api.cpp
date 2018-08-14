@@ -322,7 +322,6 @@ static void tickCallback(btDynamicsWorld *world, btScalar timeStep)
 				//odd check, but in debug mode we had already numcontacts = 2 but didnt have ANY contacts... gah
 				if (tworld->m_contactCallback && j < contactManifold->getNumContacts())
 				{
-
 					rbContactPoint* cp = tworld->make_contact_point(pt, obA, obB);
 					broken = weakenCompound(obA, cp->contact_force, pt.getPositionWorldOnA(), fworld);
 					broken = broken || weakenCompound(obB, cp->contact_force, pt.getPositionWorldOnB(), fworld);
@@ -368,10 +367,15 @@ rbContactPoint* TickDiscreteDynamicsWorld::make_contact_point(btManifoldPoint& p
 	rbRigidBody* rbA = (rbRigidBody*)(bodyA->getUserPointer());
 	rbRigidBody* rbB = (rbRigidBody*)(bodyB->getUserPointer());
 	if (rbA)
-		cp->contact_body_indexA = rbA->linear_index;
+	{
+		cp->contact_islandA = rbA->meshIsland;
+		cp->contact_objectA = rbA->blenderOb;
+	}
 
-	if (rbB)
-		cp->contact_body_indexB = rbB->linear_index;
+	if (rbB) {
+		cp->contact_islandB = rbB->meshIsland;
+		cp->contact_objectB = rbB->blenderOb;
+	}
 
 	cp->contact_force = point.getAppliedImpulse();
 	copy_v3_btvec3(cp->contact_pos_world_onA, point.getPositionWorldOnA());

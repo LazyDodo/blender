@@ -193,9 +193,10 @@ void BKE_rigidbody_free_object(Object *ob, RigidBodyWorld *rbw)
 				 * an object that's being freed, in which case this code isn't run anyway. */
 				RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 
+#if 0
 				if (fmd)
 				{
-					for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next) {
+					for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
 						RB_dworld_remove_body(rbw, mi->rigidbody->shared->physics_object);
 						RB_body_delete(mi->rigidbody->shared->physics_object);
 						mi->rigidbody->shared->physics_object = NULL;
@@ -210,6 +211,7 @@ void BKE_rigidbody_free_object(Object *ob, RigidBodyWorld *rbw)
 						mi->rigidbody = NULL;
 					}
 				}
+#endif
 			}
 
 			RB_body_delete(rbo->shared->physics_object);
@@ -341,7 +343,7 @@ rbCollisionShape *BKE_rigidbody_get_shape_convexhull_from_mesh(Mesh *dm, float m
 /* create collision shape of mesh - triangulated mesh
  * returns NULL if creation fails.
  */
-rbCollisionShape *BKE_rigidbody_get_shape_trimesh_from_mesh(Object *ob, MeshIsland* mi)
+rbCollisionShape *BKE_rigidbody_get_shape_trimesh_from_mesh(Object *ob, Mesh* me)
 {
 	rbCollisionShape *shape = NULL;
 	Mesh *dm = NULL;
@@ -351,8 +353,8 @@ rbCollisionShape *BKE_rigidbody_get_shape_trimesh_from_mesh(Object *ob, MeshIsla
 	int tottri;
 	const MLoop *mloop;
 
-	if (mi && mi->physics_mesh) {
-		dm = mi->physics_mesh;
+	if (me) {
+		dm = me;
 	}
 	else if (ob->type == OB_MESH) {
 		dm = rigidbody_get_mesh(ob);
@@ -1222,7 +1224,7 @@ RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, M
 
 		rbo->shape = mi->rigidbody->shape;
 		rbo->mesh_source = mi->rigidbody->mesh_source;
-		rbo->meshisland_index = mi->rigidbody->meshisland_index;
+		rbo->mesh_island_index = mi->id;
 		rbo->is_fractured = true;
 		copy_v3_v3(rbo->pos, mi->rigidbody->pos);
 		copy_qt_qt(rbo->orn, mi->rigidbody->orn);
@@ -1262,7 +1264,7 @@ RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, M
 		/* set initial transform */
 		mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
 
-		rbo->meshisland_index = -1;
+		rbo->mesh_island_index = -1;
 		rbo->is_fractured = false;
 	}
 
@@ -1494,7 +1496,7 @@ static int rigidbody_group_count_items(const ListBase *group, int *r_num_objects
 				if (BKE_rigidbody_modifier_active(rmd))
 				{
 					found_modifiers = true;
-					for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next)
+					for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next)
 					{
 						if (mi->rigidbody)
 						{
@@ -1614,14 +1616,14 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 
 		rmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 		if (rmd) {
-			for (mi = rmd->shared->meshIslands.first, j = 0; mi; mi = mi->next) {
+			for (mi = rmd->shared->mesh_islands.first, j = 0; mi; mi = mi->next) {
 				//store original position of the object in the object array, to be able to rearrange it later so it matches the baked cache
 				tmp_index[counter] = mi->rigidbody; /* map all shards of an object to this object index*/
 				tmp_offset[counter] = i;
 				mi->linear_index = counter;
 				if (mi->rigidbody && !do_bake_correction) {
 					//as we search by id now in the pointcache, we set the id here too
-					mi->rigidbody->meshisland_index = counter;
+					mi->rigidbody->mesh_island_index = counter;
 					if (mi->object_index != -1)
 					{
 						mi->object_index = i;
@@ -1637,7 +1639,7 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 			tmp_index[counter] = ob->rigidbody_object; /*1 object 1 index here (normal case)*/
 			tmp_offset[counter] = i;
 			if (ob->rigidbody_object && !do_bake_correction)
-				ob->rigidbody_object->meshisland_index = counter;
+				ob->rigidbody_object->mesh_island_index = counter;
 			counter++;
 		}
 
@@ -1650,10 +1652,10 @@ void BKE_rigidbody_update_ob_array(RigidBodyWorld *rbw, bool do_bake_correction)
 		RigidBodyOb *rbo = tmp_index[i];
 		int offset = tmp_offset[i];
 
-		if (rbo->meshisland_index != i && do_bake_correction)
+		if (rbo->mesh_island_index != i && do_bake_correction)
 		{
-			rbw->shared->cache_index_map[rbo->meshisland_index] = rbo;
-			rbw->shared->cache_offset_map[rbo->meshisland_index] = offset;
+			rbw->shared->cache_index_map[rbo->mesh_island_index] = rbo;
+			rbw->shared->cache_offset_map[rbo->mesh_island_index] = offset;
 			//printf("Shuffle %d -> %d\n", i, rbo->meshisland_index);
 		}
 		else {
@@ -2005,7 +2007,7 @@ static void rigidbody_update_simulation_post_step(Depsgraph* depsgraph, RigidBod
 			if (md->type == eModifierType_Fracture) {
 				rmd = (FractureModifierData *)md;
 				if (BKE_rigidbody_modifier_active(rmd)) {
-					for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+					for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
 						rbo = mi->rigidbody;
 						if (!rbo) continue;
 						/* reset kinematic state for transformed objects */
@@ -2215,7 +2217,7 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 		MeshIsland *mi;
 		rmd = (FractureModifierData *)md;
 		invert_m4_m4(imat, ob->obmat);
-		for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next)
+		for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next)
 		{
 			rbo = mi->rigidbody;
 			do_reset_rigidbody(rbo, ob, mi, loc, rot, quat, rotAxis, rotAngle);
@@ -2223,10 +2225,11 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 			{
 				BKE_rigidbody_passive_fake_parenting(rmd, ob, rbo, imat);
 			}
+			/*
 			else
 			{
 				BKE_rigidbody_passive_hook(rmd, mi, ob, scene, depsgraph);
-			}
+			}*/
 		}
 
 		//then update origmat

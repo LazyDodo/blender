@@ -69,10 +69,12 @@ typedef struct rbConstraint rbConstraint;
 /* Collision feedback (manifolds and contact points */
 typedef struct rbContactPoint {
 	float contact_force;
-	int contact_body_indexA;
-	int contact_body_indexB;
 	float contact_pos_world_onA[3];
 	float contact_pos_world_onB[3];
+	void *contact_islandA;
+	void *contact_islandB;
+	void *contact_objectA;
+	void *contact_objectB;
 } rbContactPoint;
 
 /*Subclass because of Internal Tick Callback... sigh why doesnt this work with a simple collision callback ? */

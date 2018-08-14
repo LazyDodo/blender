@@ -144,7 +144,7 @@ void foreach_shard_float(Object* ob, float value, void (*func)(RigidBodyOb *rbo,
             rmd = (FractureModifierData*)md;
             if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
-                for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
                         func(mi->rigidbody, value);
                     }
@@ -166,9 +166,9 @@ void foreach_shard_mass(Object *ob)
             rmd = (FractureModifierData*)md;
             if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
-                for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
-                        BKE_rigidbody_calc_shard_mass(ob, mi, NULL);
+                        BKE_rigidbody_calc_shard_mass(ob, mi);
                     }
                 }
             }
@@ -187,7 +187,7 @@ void foreach_shard_int(Object *ob, int value, void (*func)(RigidBodyOb *rbo, int
             rmd = (FractureModifierData*)md;
             if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
-                for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
                         func(mi->rigidbody, value);
                     }
@@ -208,7 +208,7 @@ void foreach_shard_bool(Object *ob, bool value, void (*func)(RigidBodyOb *rbo, b
             rmd = (FractureModifierData*)md;
             if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
-                for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
                         func(mi->rigidbody, value);
                     }
@@ -230,7 +230,7 @@ void foreach_shard_bools(Object *ob, const bool *value, void (*func)(RigidBodyOb
             rmd = (FractureModifierData*)md;
             if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
-                for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
                         func(mi->rigidbody, value);
                      }
@@ -252,7 +252,7 @@ void foreach_shard_flag_shape(Object *ob, int flag, short shape, bool reset)
             rmd = (FractureModifierData*)md;
             if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
-                for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
                         mi->rigidbody->flag = flag;
                         mi->rigidbody->shape = shape;
@@ -309,7 +309,7 @@ static char *rna_RigidBodyOb_path(PointerRNA *ptr)
     {
         char name_esc[sizeof(md->name) * 2];
         BLI_strescape(name_esc, md->name, sizeof(name_esc));
-        return BLI_sprintfN("modifiers[\"%s\"].mesh_islands[%d].rigidbody", name_esc, rbo->meshisland_index);
+        return BLI_sprintfN("modifiers[\"%s\"].mesh_islands[%d].rigidbody", name_esc, rbo->mesh_island_index);
     }
     else
     {

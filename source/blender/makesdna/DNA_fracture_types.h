@@ -42,6 +42,7 @@ extern "C" {
 
 struct DerivedMesh;
 struct KDTree;
+struct MeshIsland;
 
 enum {
 	MOD_RIGIDBODY_CENTROIDS = 0,
@@ -110,13 +111,6 @@ enum {
 	MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS     = (1 << 2),
 };
 
-typedef struct ShardSequence {
-	struct ShardSequence *next, *prev;
-	struct FracMesh *frac_mesh;
-	int frame;
-	int is_new;
-} ShardSequence;
-
 typedef struct MeshIslandSequence {
 	struct MeshIslandSequence *next, *prev;
 	struct Mesh *visible_dm;
@@ -127,8 +121,8 @@ typedef struct MeshIslandSequence {
 
 typedef struct FractureID {
 	struct FractureID *next, *prev;
-	int shardID;
-	char pad[4];
+	struct MeshIsland *mi;
+	//char pad[4];
 } FractureID;
 
 typedef struct AnimBind {
@@ -144,19 +138,11 @@ typedef struct AnimBind {
 
 typedef struct FractureModifierData_Shared {
 
-	struct FracMesh *frac_mesh; /* store only the current fracmesh here first, later maybe an entire history...*/
-	struct Mesh *dm; /*untransformed assembled shard mesh */
-
-	struct BMesh *visible_mesh; /* for halving / existing islands */
-	struct Mesh *visible_mesh_cached; /*transformed output mesh*/
-
-	ListBase meshIslands, meshConstraints;
-	ListBase islandShards; /* the additional islands after splitting the shards, so count(meshislands) = count(shards + islandshards) */
+	ListBase mesh_islands, mesh_constraints;
+	Mesh *mesh_cached; /* the unprocessed cached mesh, before autohide etc */
 
 	//dynamic stuff... heavy TODO
-	ListBase shard_sequence; /* used as mesh cache / history for dynamic fracturing, for shards (necessary for conversion to DM) */
 	ListBase meshIsland_sequence; /* used as mesh cache / history for dynamic fracturing, for meshIslands (necessary for loc/rot "pointcache") */
-	ShardSequence *current_shard_entry; /*volatile storage of current shard entry, so we dont have to search in the list */
 	MeshIslandSequence *current_mi_entry; /*analogous to current shard entry */
 	ListBase fracture_ids; /*volatile storage of shards being "hit" or fractured currently, needs to be cleaned up after usage! */
 	ListBase shared_verts; /* used for storing shared vertices for automerge */
@@ -171,7 +157,12 @@ typedef struct FractureModifierData_Shared {
 	struct GHash *defgrp_index_map; /*used to collect vertexgroups from objects to be packed, temporary data */
 	struct AnimBind *anim_bind; /* bound animation data */
 
+	//for optimization, only refracture islands which really changed
+	struct KDTree *last_island_tree;
+	struct MeshIsland **last_islands;
+
 	int anim_bind_len;
+	int last_expected_islands;
 
 	/*DANGER... what happens if the new compound object has more materials than fit into 1 short ? shouldnt happen but can...*/
 	/*so reserve an int here better */
@@ -179,6 +170,7 @@ typedef struct FractureModifierData_Shared {
 	int defstart;
 
 	int refresh;
+	int refresh_dynamic;
 	int refresh_constraints;
 	int refresh_autohide;
 	int reset_shards;
@@ -187,6 +179,7 @@ typedef struct FractureModifierData_Shared {
 
 } FractureModifierData_Shared;
 
+#if 0
 typedef struct Shard {
 	struct Shard *next, *prev;
 	struct MVert *mvert;
@@ -217,21 +210,20 @@ typedef struct Shard {
 	float impact_size[3]; /* size of impact area (simplified) */
 	//char pad2[4];
 } Shard;
+#endif
 
 typedef struct MeshIsland {
 	struct MeshIsland *next, *prev;
-	struct BMVert **vertices;
-	struct MVert **vertices_cached;
-	float *vertco;
-	short *vertno;
-	struct Mesh *physics_mesh;
+	struct Mesh *mesh;
+	struct MeshIsland *parent;
 	struct RigidBodyOb *rigidbody;
-	int *neighbor_ids;
-	int *vertex_indices;
-	struct BoundBox *bb;
 	struct RigidBodyShardCon **participating_constraints;
-	float *locs;
-	float *rots;
+
+	float matrix[4][4];
+
+	//might be useful for convert to keyframes, motion history ? either play back from cache
+	float (*locs)[3];
+	float (*rots)[4];
 
 	char name[66]; /* MAX_ID_NAME */
 	char pad1[2];
@@ -239,8 +231,8 @@ typedef struct MeshIsland {
 	int start_frame;
 	int frame_count;
 	int participating_constraint_count;
-	int vertex_count, id, neighbor_count;
-	float centroid[3], start_co[3];
+	int id;
+	float centroid[3];
 	float rot[4]; /*hrm, need this for constraints probably */
 	float thresh_weight, ground_weight;
 	int linear_index;  /* index in rigidbody world */
@@ -249,9 +241,20 @@ typedef struct MeshIsland {
 	int object_index;
 	int totcol; /*store number of used materials here, from the original object*/
 	int totdef; /*store number of used vertexgroups here, from the original object*/
-	char pad[4];
+
+	//formerly shard stuff
+	float min[3], max[3];
+	int *cluster_colors;
+	int cluster_count;
+	float raw_centroid[3];  /*store raw, unprocessed centroid here (might change when mesh shape changes via boolean / bisect) */
+	int flag;           /* flag for fracture state (INTACT, FRACTURED)*/
+	float raw_volume;
+	float impact_loc[3]; /* last impact location on this shard */
+	float impact_size[3]; /* size of impact area (simplified) */
+	//char pad[4];
 } MeshIsland;
 
+#if 0
 typedef struct FracMesh {
 	struct KDTree *last_shard_tree;
 	struct Shard **last_shards;
@@ -262,6 +265,7 @@ typedef struct FracMesh {
 	int progress_counter;   /* counts progress */
 	int last_expected_shards;
 } FracMesh;
+#endif
 
 typedef struct SharedVertGroup {
 	struct SharedVertGroup *next, *prev;

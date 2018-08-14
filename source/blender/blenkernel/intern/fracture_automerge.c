@@ -401,7 +401,7 @@ static Mesh* centroids_to_verts(FractureModifierData* fmd, BMesh* bm, Object* ob
 	float imat[4][4];
 	float *velX, *velY, *velZ;
 	int i = 0;
-	int dm_totvert = BLI_listbase_count(&fmd->shared->meshIslands);
+	int dm_totvert = BLI_listbase_count(&fmd->shared->mesh_islands);
 	int totvert = dm_totvert + bm->totvert;
 
 
@@ -414,7 +414,7 @@ static Mesh* centroids_to_verts(FractureModifierData* fmd, BMesh* bm, Object* ob
 	velY = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velY");
 	velZ = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velZ");
 
-	for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next)
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 	{
 		RigidBodyOb *rbo = mi->rigidbody;
 		mul_v3_m4v3(mv[i].co, imat, mi->rigidbody->pos);
@@ -612,25 +612,13 @@ void BKE_fracture_normal_find(Mesh *dm, KDTree *tree, float co[3], short no[3], 
 	copy_v3_v3_short(rno, mvert->no);
 }
 
-void BKE_fracture_physics_mesh_normals_fix(FractureModifierData *fmd, Shard* s, MeshIsland* mi, int i, Mesh* orig_dm)
+void BKE_fracture_physics_normals_fix(FractureModifierData *fmd, MeshIsland* mi, int i, Mesh* orig_dm)
 {
-	MVert *mv, *verts;
-	int totvert;
+	MVert *mv;
 	int j;
 
-	mi->physics_mesh = BKE_fracture_shard_to_mesh(s, true);
-	totvert = mi->physics_mesh->totvert;
-	verts = mi->physics_mesh->mvert;
-
-	mi->vertco = MEM_mallocN(sizeof(float) * 3 * totvert, "vertco");
-	mi->vertno = MEM_mallocN(sizeof(short) * 3 * totvert, "vertno");
-
-	for (mv = verts, j = 0; j < totvert; mv++, j++) {
+	for (mv = mi->mesh->mvert, j = 0; j < mi->mesh->totvert; mv++, j++) {
 		short no[3];
-
-		mi->vertco[j * 3] = mv->co[0];
-		mi->vertco[j * 3 + 1] = mv->co[1];
-		mi->vertco[j * 3 + 2] = mv->co[2];
 
 		/* either take orignormals or take ones from fractured mesh */
 		if (fmd->fix_normals) {
@@ -640,17 +628,8 @@ void BKE_fracture_physics_mesh_normals_fix(FractureModifierData *fmd, Shard* s, 
 			copy_v3_v3_short(no, mv->no);
 		}
 
-		mi->vertno[j * 3] = no[0];
-		mi->vertno[j * 3 + 1] = no[1];
-		mi->vertno[j * 3 + 2] = no[2];
-
-		if (fmd->fix_normals) {
-			copy_v3_v3_short(mi->vertices_cached[j]->no, no);
-			copy_v3_v3_short(mv->no, no);
-		}
-
 		/* then eliminate centroid in vertex coords*/
-		sub_v3_v3(mv->co, s->centroid);
+		sub_v3_v3(mv->co, mi->centroid);
 	}
 
 	if (fmd->fix_normals)
@@ -770,27 +749,14 @@ void BKE_fracture_shared_verts_free(ListBase* lb)
 	lb->last = NULL;
 }
 
-void BKE_fracture_automerge_refresh(FractureModifierData* fmd)
+void BKE_fracture_automerge_refresh(FractureModifierData* fmd, Mesh *me_assembled)
 {
-	printf("GAH, refreshing automerge\n");
+	printf("Refreshing automerge\n");
 	BKE_fracture_shared_verts_free(&fmd->shared->shared_verts);
-
-	/* in case of re-using existing islands this one might become invalid for automerge, so force fallback */
-	if (fmd->shared->dm && fmd->shared->dm->totvert > 0)
-	{
-		BKE_fracture_shared_vert_groups(fmd, fmd->shared->dm, &fmd->shared->shared_verts);
-	}
-	else if (fmd->shared->visible_mesh)
-	{
-		Mesh* fdm = BKE_fracture_bmesh_to_mesh(fmd->shared->visible_mesh);
-		BKE_fracture_shared_vert_groups(fmd, fdm, &fmd->shared->shared_verts);
-
-		BKE_mesh_free(fdm);
-		fdm = NULL;
-	}
+	BKE_fracture_shared_vert_groups(fmd, me_assembled, &fmd->shared->shared_verts);
 }
 
-void BKE_fracture_autohide_refresh(FractureModifierData *fmd, Object *ob)
+void BKE_fracture_autohide_refresh(FractureModifierData *fmd, Object *ob, Mesh* me_assembled)
 {
 	fmd->shared->refresh_autohide = false;
 	/*HERE make a kdtree of the fractured derivedmesh,
@@ -801,18 +767,5 @@ void BKE_fracture_autohide_refresh(FractureModifierData *fmd, Object *ob)
 	}
 
 	fmd->shared->face_pairs = BLI_ghash_int_new("face_pairs");
-
-	/* in case of re-using existing islands this one might become invalid for autohide, so force fallback */
-	if (fmd->shared->dm && fmd->shared->dm->totpoly > 0)
-	{
-		BKE_fracture_face_pairs(fmd, fmd->shared->dm, ob);
-	}
-	else if (fmd->shared->visible_mesh)
-	{
-		Mesh* fdm = BKE_fracture_bmesh_to_mesh(fmd->shared->visible_mesh);
-		BKE_fracture_face_pairs(fmd, fdm, ob);
-
-		BKE_mesh_free(fdm);
-		fdm = NULL;
-	}
+	BKE_fracture_face_pairs(fmd, me_assembled, ob);
 }

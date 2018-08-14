@@ -134,7 +134,7 @@ typedef struct RigidBodyOb {
 
 	int flag;				/* (eRigidBodyOb_Flag) */
 	int col_groups;			/* Collision groups that determines wich rigid bodies can collide with each other */
-	int meshisland_index;	/* determines "offset" inside an objects meshisland list, -1 for regular rigidbodies */
+	int mesh_island_index;	/* determines "offset" inside an objects meshisland list, -1 for regular rigidbodies */
 	short mesh_source;		/* (eRigidBody_MeshSource) mesh source for mesh based collision shapes */
 	short pad;
 
@@ -153,13 +153,13 @@ typedef struct RigidBodyOb {
 	float ang_sleep_thresh;	/* deactivation threshold for angular velocities */
 
 	float orn[4];			/* rigid body orientation */
-    float pos[3];			/* rigid body position */
+	float pos[3];			/* rigid body position */
 
-    float lin_vel[3];
-    float ang_vel[3];
+	float lin_vel[3];
+	float ang_vel[3];
 
-    float force_thresh;
-    int is_fractured;
+	float force_thresh;
+	int is_fractured;
 
 	struct RigidBodyOb_Shared *shared; /* This pointer is shared between all evaluated copies */
 

@@ -171,15 +171,7 @@ static void initData(ModifierData *md)
 static void freeData(ModifierData *md)
 {
 	FractureModifierData *fmd = (FractureModifierData *) md;
-
-	if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
-	{
-		BKE_fracture_dynamic_free(fmd, true, true, fmd->scene);
-	}
-	else
-	{
-		BKE_fracture_free(fmd, false, true, fmd->scene);
-	}
+	BKE_fracture_modifier_free(fmd, fmd->scene);
 }
 
 
@@ -329,26 +321,22 @@ static void foreachObjectLink(
 static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mesh *derivedData)
 {
 	FractureModifierData *fmd = (FractureModifierData *) md;
-	Mesh *pack_dm = BKE_fracture_mesh_from_packdata(fmd, derivedData);
-	Mesh *final_dm = derivedData;
+	//Mesh *pack_dm = BKE_fracture_mesh_from_packdata(fmd, derivedData);
+	Mesh *final_dm = NULL;
 	Object* ob = ctx->object;
 	Scene* scene = DEG_get_input_scene(ctx->depsgraph);
 
 	//store that damn thing here...
 	fmd->scene = scene;
 
+#if 0
 	if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
 	{
-		bool init = false;
-
 		//just track the frames for resetting automerge data when jumping
 		int frame = (int)BKE_scene_frame_get(scene);
 
 		//deactivate multiple settings for now, not working properly XXX TODO (also deactivated in RNA and python)
 		final_dm = BKE_fracture_prefractured_apply(fmd, ob, pack_dm, ctx->depsgraph);
-
-		if (init)
-			fmd->shard_count = 10;
 
 		fmd->last_frame = frame;
 	}
@@ -365,6 +353,9 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	{
 		final_dm = BKE_fracture_external_apply(fmd, ob, pack_dm, derivedData, scene);
 	}
+#endif
+
+	final_dm = BKE_fracture_apply(fmd, ob, derivedData, ctx->depsgraph);
 
 	if (final_dm != derivedData)
 	{
@@ -372,11 +363,13 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		final_dm->cd_flag |= (ME_CDFLAG_EDGE_CREASE | ME_CDFLAG_VERT_BWEIGHT | ME_CDFLAG_EDGE_BWEIGHT);
 	}
 
+#if 0
 	if (pack_dm != derivedData)
 	{
 		BKE_mesh_free(pack_dm);
 		pack_dm = NULL;
 	}
+#endif
 
 	return final_dm;
 }

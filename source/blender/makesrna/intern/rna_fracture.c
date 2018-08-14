@@ -390,7 +390,7 @@ static void rna_FractureModifier_use_breaking_set(PointerRNA *ptr, bool value)
 	rmd->use_breaking = value;
 	//rmd->refresh_constraints = true;
 
-	for (rbsc = rmd->shared->meshConstraints.first; rbsc; rbsc = rbsc->next)
+	for (rbsc = rmd->shared->mesh_constraints.first; rbsc; rbsc = rbsc->next)
 	{
 		if (value == true){
 			rbsc->flag |= RBC_FLAG_USE_BREAKING;

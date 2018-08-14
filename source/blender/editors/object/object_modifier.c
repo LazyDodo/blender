@@ -2473,17 +2473,12 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 
 	rmd->shared->reset_shards = RNA_boolean_get(op->ptr, "reset");
 
+#if 0
 	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
-		Mesh *dm = rmd->shared->visible_mesh_cached;
-		if (dm)
-		{
-			BKE_mesh_free(dm);
-			dm = rmd->shared->visible_mesh_cached = NULL;
-		}
-
 		BKE_fracture_update_visual_mesh(rmd, obact, true);
 	}
+#endif
 
 	if (scene->rigidbody_world != NULL)
 	{
@@ -2753,7 +2748,7 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
 
-	me = BKE_fracture_mesh_copy(mi->physics_mesh, ob);
+	me = BKE_fracture_mesh_copy(mi->mesh, ob);
 
 	if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
 	{
@@ -2764,17 +2759,21 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	}
 	else
 	{
-		Shard *s = BLI_findlink(&fmd->shared->frac_mesh->shard_map, mi->id);
-		if (s)
+		//here we seem to need the "Impact_size..." hmmm that was a hack to store something else inside
+		//Shard *s = BLI_findlink(&fmd->shared->frac_mesh->shard_map, mi->id);
+		//if (s)
 		{
 			float loc[3], rot[4], mat[4][4], size[3] = {1.0f, 1.0f, 1.0f};
 
 			mat4_to_loc_quat(loc, rot, ob->obmat);
 			add_v3_v3(loc, mi->rigidbody->pos);
-			copy_v3_v3(size, s->impact_size);
+			//copy_v3_v3(size, s->impact_size);
 
 			if (mode) {
 				mul_qt_qtqt(rot, rot, mi->rot);
+				//mi->rot -> initial rotation, but since they cant be rotated independently from object, its unit_qt here
+				//except fore external mode... there it can be set, so in general use it... since we dont want separate external
+				//mode any more
 			}
 
 			copy_v3_v3(ob_new->size, size);
@@ -2904,7 +2903,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 	const char *name = BLI_strdupcat(ob->id.name, "_conv");
 	Collection *g = BKE_collection_add(bmain, NULL, name);
 
-	int count = BLI_listbase_count(&rmd->shared->meshIslands);
+	int count = BLI_listbase_count(&rmd->shared->mesh_islands);
 	KDTree* objtree = BLI_kdtree_new(count);
 	Object** objs = MEM_callocN(sizeof(Object*) * count, "convert_objs");
 	float max_con_mass = 0;
@@ -2920,7 +2919,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 
 	start = PIL_check_seconds_timer();
 
-	for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+	for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
 		do_convert_meshisland_to_object(bmain, mi, scene, g, ob, rbw, i, &objs, &objtree, rmd, layer);
 		i++;
 	}
@@ -2942,7 +2941,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 
 	if (rmd->use_constraints || rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
-		for (con = rmd->shared->meshConstraints.first; con; con = con->next) {
+		for (con = rmd->shared->mesh_constraints.first; con; con = con->next) {
 			do_convert_constraints(bmain, rmd, con, scene, ob, objtree, objs, max_con_mass, reports, layer);
 			i++;
 		}
@@ -3156,7 +3155,7 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
 
-	me = BKE_fracture_mesh_copy(mi->physics_mesh, ob);
+	me = BKE_fracture_mesh_copy(mi->mesh, ob);
 
 	//last parameter here means deferring removing the bake after all has been converted.
 	ED_rigidbody_object_add(bmain, scene, ob_new, RBO_TYPE_ACTIVE, reports, true);
@@ -3228,14 +3227,8 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 					{
 						int x = i - start;
 
-						loc[0] = mi->locs[x*3];
-						loc[1] = mi->locs[x*3+1];
-						loc[2] = mi->locs[x*3+2];
-
-						rot[0] = mi->rots[x*4];
-						rot[1] = mi->rots[x*4+1];
-						rot[2] = mi->rots[x*4+2];
-						rot[3] = mi->rots[x*4+3];
+						copy_v3_v3(loc, mi->locs[x]);
+						copy_qt_qt(rot, mi->rots[x]);
 
 						if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) {
 							mul_qt_qtqt(rot, rot, mi->rot);
@@ -3397,7 +3390,7 @@ static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd
 	PointCache* cache = NULL;
 	MeshIsland *mi = NULL;
 	Object *parent = NULL;
-	int count = BLI_listbase_count(&fmd->shared->meshIslands);
+	int count = BLI_listbase_count(&fmd->shared->mesh_islands);
 	char *name = BLI_strdupcat(ob->id.name + 2, "_p_key");
 	float diff[3] = {0.0f, 0.0f, 0.0f};
 	float obloc[3];
@@ -3417,7 +3410,7 @@ static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd
 	sub_v3_v3v3(diff, obloc, parent->loc);
 
 	starttime = PIL_check_seconds_timer();
-	for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next)
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 	{
 		do_convert_meshIsland(bmain, depsgraph, fmd, mi, gr, ob, scene, start, end, count,
 											parent, is_baked, cache, obloc, diff, &k,
@@ -3483,14 +3476,14 @@ static int rigidbody_convert_keyframes_exec(bContext *C, wmOperator *op)
 			}
 
 			if (rmd) {
-				int count = BLI_listbase_count(&rmd->shared->meshIslands);
+				int count = BLI_listbase_count(&rmd->shared->mesh_islands);
 
 				if (count == 0)
 				{
 					//gaaah, undo frees sim data, rebuild....
 					rmd->shared->refresh = true;
 					makeDerivedMesh(depsgraph, scene, selob, NULL, scene->customdata_mask | CD_MASK_BAREMESH, 0);
-					count = BLI_listbase_count(&rmd->shared->meshIslands);
+					count = BLI_listbase_count(&rmd->shared->mesh_islands);
 
 					if (count == 0)
 					{

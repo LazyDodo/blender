@@ -47,14 +47,14 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 			{
 				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(go->ob, eModifierType_Fracture);
 				if (fmdi) {
-					islands += BLI_listbase_count(&fmdi->shared->meshIslands);
+					islands += BLI_listbase_count(&fmdi->shared->mesh_islands);
 				}
 			}
 		}
 	}
 	else {
 
-		islands = BLI_listbase_count(&rmd->shared->meshIslands);
+		islands = BLI_listbase_count(&rmd->shared->mesh_islands);
 	}
 
 	*mesh_islands = MEM_reallocN(*mesh_islands, islands * sizeof(MeshIsland *));
@@ -70,7 +70,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 			{
 				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(go->ob, eModifierType_Fracture);
 				if (fmdi) {
-					for (mi = fmdi->shared->meshIslands.first; mi; mi = mi->next) {
+					for (mi = fmdi->shared->mesh_islands.first; mi; mi = mi->next) {
 						mi->object_index = j;
 						(*mesh_islands)[i] = mi;
 						i++;
@@ -83,7 +83,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 	}
 	else {
 
-		for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next) {
+		for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
 			mi->object_index = -1;
 			(*mesh_islands)[i] = mi;
 			i++;
@@ -119,15 +119,15 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 				{
 					float imat[4][4];
 					FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(go->ob, eModifierType_Fracture);
-					if (fmdi && fmdi->shared->visible_mesh_cached) {
-						int v = fmdi->shared->visible_mesh_cached->totvert;
+					if (fmdi && fmdi->shared->mesh_cached) {
+						int v = fmdi->shared->mesh_cached->totvert;
 						int x = 0;
 
 						//invert_m4_m4(imat, go->ob->obmat);
 						copy_m4_m4(imat, go->ob->obmat);
 
 						mvert = MEM_reallocN(mvert, sizeof(MVert) * (totvert + v));
-						memcpy(mvert + totvert, fmdi->shared->visible_mesh_cached->mvert, v * sizeof(MVert));
+						memcpy(mvert + totvert, fmdi->shared->mesh_cached->mvert, v * sizeof(MVert));
 
 						for (x = totvert; x < totvert + v; x++)
 						{
@@ -139,9 +139,9 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 				}
 			}
 		}
-		else if (rmd && rmd->shared->visible_mesh_cached) {
-			totvert = rmd->shared->visible_mesh_cached->totvert;
-			mvert = rmd->shared->visible_mesh_cached->mvert;
+		else if (rmd && rmd->shared->mesh_cached) {
+			totvert = rmd->shared->mesh_cached->totvert;
+			mvert = rmd->shared->mesh_cached->mvert;
 		}
 
 		if (totvert > 0)
@@ -179,7 +179,7 @@ static void create_constraints(FractureModifierData *rmd, Object *ob, Scene *sce
 	MVert *mvert = NULL;
 
 	float max_mass = 0.0f;
-	for (mi = rmd->shared->meshIslands.first; mi; mi = mi->next)
+	for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next)
 	{
 		if (mi->rigidbody->mass > max_mass)
 			max_mass = mi->rigidbody->mass;
@@ -225,8 +225,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 	if ((rmd->fracture_mode == MOD_FRACTURE_DYNAMIC) &&
 		(rmd->dynamic_new_constraints != MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS))
 	{
-		Shard* s = BKE_fracture_shard_find(&rmd->shared->frac_mesh->shard_map, mi->id);
-		if (s->parent_id > -1) {
+		if (mi->parent && mi->parent->id > -1) {
 			return;
 		}
 	}
@@ -267,18 +266,15 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 
 			if ((rmd->fracture_mode == MOD_FRACTURE_DYNAMIC))
 			{
-				Shard* s1 = BKE_fracture_shard_find(&rmd->shared->frac_mesh->shard_map, mi->id);
-				Shard* s2 = BKE_fracture_shard_find(&rmd->shared->frac_mesh->shard_map, mi2->id);
-
 				if (rmd->dynamic_new_constraints == MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS) {
 					//only build between old and new
-					if (s1->parent_id > -1 && s2->parent_id > -1) {
+					if ((mi->parent && mi->parent->id > -1) && (mi2->parent && mi2->parent->id > -1)) {
 						continue;
 					}
 				}
 				else if (rmd->dynamic_new_constraints == MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS){
 					// dont build at all
-					if (s2->parent_id > -1) {
+					if (mi2->parent && mi2->parent->id > -1) {
 						continue;
 					}
 				}
@@ -337,7 +333,7 @@ void BKE_fracture_mesh_constraint_remove(FractureModifierData *fmd, RigidBodySha
 	remove_participants(con, con->mi1);
 	remove_participants(con, con->mi2);
 
-	BLI_remlink(&fmd->shared->meshConstraints, con);
+	BLI_remlink(&fmd->shared->mesh_constraints, con);
 	BKE_rigidbody_remove_shard_con(scene, con);
 	MEM_freeN(con);
 	if (fmd->constraint_count > 0)
@@ -429,7 +425,7 @@ void BKE_fracture_constraint_create(Scene* scene, FractureModifierData* fmd, Mes
 		rbsc->breaking_threshold = thresh * MIN2(mi1->thresh_weight, mi2->thresh_weight);
 	}
 
-	BLI_addtail(&fmd->shared->meshConstraints, rbsc);
+	BLI_addtail(&fmd->shared->mesh_constraints, rbsc);
 
 	if ((mi1->object_index == -1) && (mi2->object_index == -1))
 	{
@@ -472,11 +468,11 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 	}
 
 	/*initialize cluster "colors" -> membership of meshislands to clusters, initally all shards are "free" */
-	for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next ) {
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next ) {
 		mi->particle_index = -1;
 	}
 
-	mi_count = BLI_listbase_count(&fmd->shared->meshIslands);
+	mi_count = BLI_listbase_count(&fmd->shared->mesh_islands);
 	seed_count = (fmd->cluster_count > mi_count ? mi_count : fmd->cluster_count);
 	//seed_count = fmd->cluster_count;
 
@@ -491,7 +487,7 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 	/* pick n seed locations, randomly scattered over the object */
 	for (k = 0; k < seed_count; k++) {
 		int which_index = k * (int)(mi_count / seed_count);
-		MeshIsland *which = (MeshIsland *)BLI_findlink(&fmd->shared->meshIslands, which_index);
+		MeshIsland *which = (MeshIsland *)BLI_findlink(&fmd->shared->mesh_islands, which_index);
 		which->particle_index = k;
 		print_v3("INSERT", which->centroid);
 		BLI_kdtree_insert(tree, k, which->centroid);
@@ -514,7 +510,7 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 	BLI_kdtree_balance(tree);
 
 	/* assign each shard to its closest center */
-	for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next ) {
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next ) {
 		KDTreeNearest n;
 		int index;
 
@@ -573,12 +569,12 @@ RigidBodyShardCon *BKE_fracture_mesh_constraint_create(Scene *scene, FractureMod
 
 	copy_qt_qt(rbsc->orn, rbsc->mi1->rigidbody->orn);
 
-	if (BLI_listbase_is_empty(&fmd->shared->meshConstraints))
+	if (BLI_listbase_is_empty(&fmd->shared->mesh_constraints))
 	{
 		fmd->constraint_count = 0;
 	}
 
-	BLI_addtail(&fmd->shared->meshConstraints, rbsc);
+	BLI_addtail(&fmd->shared->mesh_constraints, rbsc);
 	fmd->constraint_count++;
 
 #if 0
@@ -636,7 +632,7 @@ void BKE_fracture_constraints_refresh(FractureModifierData *fmd, Object *ob, Sce
 	   // BLI_callback_exec(G.main, &ob->id, BLI_CB_EVT_FRACTURE_CONSTRAINT_REFRESH);
 
 		/*if we loaded constraints, dont create other ones now */
-		count = BLI_listbase_count(&fmd->shared->meshConstraints);
+		count = BLI_listbase_count(&fmd->shared->mesh_constraints);
 
 		if (count == 0 || fmd->dynamic_new_constraints != MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS) {
 			create_constraints(fmd, ob, scene); /* check for actually creating the constraints inside*/
@@ -644,7 +640,7 @@ void BKE_fracture_constraints_refresh(FractureModifierData *fmd, Object *ob, Sce
 	}
 
 	printf("Building constraints done, %g\n", PIL_check_seconds_timer() - start);
-	printf("Constraints: %d\n", BLI_listbase_count(&fmd->shared->meshConstraints));
+	printf("Constraints: %d\n", BLI_listbase_count(&fmd->shared->mesh_constraints));
 }
 
 void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
@@ -655,15 +651,15 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	//hmm after loading the pointers might be out of sync...
 	if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
 		if (fmd->shared->current_mi_entry) {
-			fmd->shared->meshIslands = fmd->shared->current_mi_entry->meshIslands;
+			fmd->shared->mesh_islands = fmd->shared->current_mi_entry->meshIslands;
 		}
 		else {
-			fmd->shared->meshIslands.first = NULL;
-			fmd->shared->meshIslands.last = NULL;
+			fmd->shared->mesh_islands.first = NULL;
+			fmd->shared->mesh_islands.last = NULL;
 		}
 	}
 
-	for (mi = fmd->shared->meshIslands.first; mi; mi = mi->next) {
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
 		if (mi->participating_constraints != NULL && mi->participating_constraint_count > 0) {
 			int i;
 			for (i = 0; i < mi->participating_constraint_count; i++)
@@ -681,9 +677,9 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 		}
 	}
 
-	while (fmd->shared->meshConstraints.first) {
-		rbsc = fmd->shared->meshConstraints.first;
-		BLI_remlink(&fmd->shared->meshConstraints, rbsc);
+	while (fmd->shared->mesh_constraints.first) {
+		rbsc = fmd->shared->mesh_constraints.first;
+		BLI_remlink(&fmd->shared->mesh_constraints, rbsc);
 
 		if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
 		{
@@ -693,7 +689,7 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 		rbsc = NULL;
 	}
 
-	fmd->shared->meshConstraints.first = NULL;
-	fmd->shared->meshConstraints.last = NULL;
+	fmd->shared->mesh_constraints.first = NULL;
+	fmd->shared->mesh_constraints.last = NULL;
 }
 

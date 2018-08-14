@@ -1568,7 +1568,6 @@ typedef struct FractureModifierData {
 	int cutter_axis;
 	int cluster_constraint_type;
 	int fracture_mode;
-	int boolean_solver;
 	int dynamic_percentage;
 	int constraint_type;
 	int grid_resolution[3];
@@ -1644,7 +1643,6 @@ typedef struct FractureModifierData {
 
 	/* internal flags */
 	int valid_mesh;
-	int refresh_images;
 	int update_dynamic;
 	int distortion_cached;
 
