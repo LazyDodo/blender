@@ -1230,29 +1230,43 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 			gpl->runtime.derived_data = (GHash *)BLI_ghash_str_new(gpl->info);
 		}
 
-		derived_gpf = BLI_ghash_lookup(gpl->runtime.derived_data, ob->id.name);
+		if (BLI_ghash_haskey(gpl->runtime.derived_data, ob->id.name)) {
+			derived_gpf = BLI_ghash_lookup(gpl->runtime.derived_data, ob->id.name);
+		}
+		else {
+			derived_gpf = NULL;
+		}
+
 		if (derived_gpf == NULL) {
 			cache->is_dirty = true;
 		}
 		if (cache->is_dirty) {
 			if (derived_gpf != NULL) {
 				/* first clear temp data */
+				if (BLI_ghash_haskey(gpl->runtime.derived_data, ob->id.name)) {
+					BLI_ghash_remove(gpl->runtime.derived_data, ob->id.name, NULL, NULL);
+				}
+
 				BKE_gpencil_free_frame_runtime_data(derived_gpf);
-				BLI_ghash_remove(gpl->runtime.derived_data, ob->id.name, NULL, NULL);
 			}
 			/* create new data */
 			derived_gpf = BKE_gpencil_frame_duplicate(gpf);
-			BLI_ghash_insert(gpl->runtime.derived_data, ob->id.name, derived_gpf);
+			if (!BLI_ghash_haskey(gpl->runtime.derived_data, ob->id.name)) {
+				BLI_ghash_insert(gpl->runtime.derived_data, ob->id.name, derived_gpf);
+			}
+			else {
+				BLI_ghash_reinsert(gpl->runtime.derived_data, ob->id.name, derived_gpf, NULL, NULL);
+			}
 		}
 
 		/* draw onion skins */
 		if ((gpd->flag & GP_DATA_SHOW_ONIONSKINS) &&
-		    (!no_onion) && (overlay) &&
-		    (gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
-		    ((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
+			(!no_onion) && (overlay) &&
+			(gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
+			((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
 		{
 			if ((!stl->storage->is_render) ||
-			    ((stl->storage->is_render) && (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
+				((stl->storage->is_render) && (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
 			{
 				gpencil_draw_onionskins(cache, e_data, vedata, ob, gpd, gpl, gpf);
 			}
@@ -1260,8 +1274,8 @@ void DRW_gpencil_populate_datablock(GPENCIL_e_data *e_data, void *vedata, Scene 
 
 		/* draw normal strokes */
 		gpencil_draw_strokes(
-		        cache, e_data, vedata, ts, ob, gpd, gpl, gpf, derived_gpf,
-		        gpl->opacity, gpl->tintcolor, false);
+			cache, e_data, vedata, ts, ob, gpd, gpl, gpf, derived_gpf,
+			gpl->opacity, gpl->tintcolor, false);
 
 	}
 
@@ -1286,8 +1300,11 @@ static void gp_instance_modifier_make_instances(GPENCIL_StorageList *stl, Object
 	for (int x = 0; x < mmd->count[0]; x++) {
 		for (int y = 0; y < mmd->count[1]; y++) {
 			for (int z = 0; z < mmd->count[2]; z++) {
-				Object *newob;
+				if ((x == 0) && (y == 0) && (z == 0)) {
+					continue;
+				}
 
+				Object *newob = NULL;
 				const int elem_idx[3] = {x, y, z};
 				float mat[4][4];
 				int sh;

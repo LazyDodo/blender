@@ -67,10 +67,10 @@
 
 //TODO this modifier depends on OpenSubDiv. So if it's not compiled in, remove this modifier
 
-#include "opensubdiv_capi.h"
-#include "opensubdiv_converter_capi.h"
-#include "opensubdiv_evaluator_capi.h"
-#include "opensubdiv_topology_refiner_capi.h"
+#include "../../../../intern/opensubdiv/opensubdiv_capi.h"
+#include "../../../../intern/opensubdiv/opensubdiv_converter_capi.h"
+#include "../../../../intern/opensubdiv/opensubdiv_evaluator_capi.h"
+#include "../../../../intern/opensubdiv/opensubdiv_topology_refiner_capi.h"
 
 #include "../../blenkernel/intern/subdiv_converter.h"
 
@@ -4039,7 +4039,7 @@ static void optimization( MeshData *m_d ){
 				if( done ){
 					copy_v3_v3(vert->co, new_pos);
 					null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
-					printf("Opti normal wiggle\n");
+					//printf("Opti normal wiggle\n");
 					if(inface->face == NULL){
 						break;
 					}
@@ -4095,7 +4095,7 @@ static struct OpenSubdiv_Evaluator *create_osd_eval(BMesh *bm, Mesh *mesh){
 	osd_evaluator = openSubdiv_createEvaluatorFromTopologyRefiner(topology_refiner);
 
 	if (osd_evaluator == NULL) {
-		BLI_assert(!"OpenSubdiv initialization failed, should not happen.");
+		printf("OpenSubdiv initialization failed, should not happen.");
 		return NULL;
 	}
 

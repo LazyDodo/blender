@@ -53,6 +53,7 @@ set(INC
 	../../../intern/atomic
 	../../../intern/clog
 	../../../intern/libmv
+	../../../intern/opensubdiv
 	../../../extern/curve_fit_nd
 )
 
@@ -193,6 +194,8 @@ set(SRC
 	intern/subdiv.c
 	intern/subdiv_converter.c
 	intern/subdiv_converter_mesh.c
+	intern/subdiv_displacement.c
+	intern/subdiv_displacement_multires.c
 	intern/subdiv_eval.c
 	intern/subdiv_mesh.c
 	intern/subdiv_stats.c
@@ -530,7 +533,6 @@ endif()
 if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
 	list(APPEND INC_SYS
-		../../../intern/opensubdiv
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
 endif()

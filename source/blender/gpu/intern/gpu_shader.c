@@ -158,10 +158,6 @@ extern char datatoc_gpu_shader_keyframe_diamond_frag_glsl[];
 extern char datatoc_gpu_shader_fire_frag_glsl[];
 extern char datatoc_gpu_shader_smoke_vert_glsl[];
 extern char datatoc_gpu_shader_smoke_frag_glsl[];
-extern char datatoc_gpu_shader_vsm_store_vert_glsl[];
-extern char datatoc_gpu_shader_vsm_store_frag_glsl[];
-extern char datatoc_gpu_shader_sep_gaussian_blur_vert_glsl[];
-extern char datatoc_gpu_shader_sep_gaussian_blur_frag_glsl[];
 
 extern char datatoc_gpu_shader_gpencil_stroke_vert_glsl[];
 extern char datatoc_gpu_shader_gpencil_stroke_frag_glsl[];
@@ -221,6 +217,14 @@ static void gpu_shader_standard_extensions(char defines[MAX_EXT_DEFINE_LENGTH])
 	 * don't use an extension for something already available!
 	 */
 
+	if (GLEW_ARB_texture_gather) {
+		/* There is a bug on older Nvidia GPU where GL_ARB_texture_gather
+		 * is reported to be supported but yield a compile error (see T55802). */
+		if (!GPU_type_matches(GPU_DEVICE_NVIDIA, GPU_OS_ANY, GPU_DRIVER_ANY) || GLEW_VERSION_4_0) {
+			strcat(defines, "#extension GL_ARB_texture_gather: enable\n");
+			strcat(defines, "#define GPU_ARB_texture_gather\n");
+		}
+	}
 	if (GLEW_ARB_texture_query_lod) {
 		/* a #version 400 feature, but we use #version 330 maximum so use extension */
 		strcat(defines, "#extension GL_ARB_texture_query_lod: enable\n");
@@ -232,13 +236,8 @@ static void gpu_shader_standard_defines(
         bool use_opensubdiv)
 {
 	/* some useful defines to detect GPU type */
-	if (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_ANY, GPU_DRIVER_ANY)) {
+	if (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_ANY, GPU_DRIVER_ANY))
 		strcat(defines, "#define GPU_ATI\n");
-		if (GLEW_VERSION_3_0) {
-			/* TODO(merwin): revisit this version check; GLEW_VERSION_3_0 means GL 3.0 or newer */
-			strcat(defines, "#define CLIP_WORKAROUND\n");
-		}
-	}
 	else if (GPU_type_matches(GPU_DEVICE_NVIDIA, GPU_OS_ANY, GPU_DRIVER_ANY))
 		strcat(defines, "#define GPU_NVIDIA\n");
 	else if (GPU_type_matches(GPU_DEVICE_INTEL, GPU_OS_ANY, GPU_DRIVER_ANY))
@@ -719,9 +718,6 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 	BLI_assert(shader != GPU_NUM_BUILTIN_SHADERS); /* don't be a troll */
 
 	static const GPUShaderStages builtin_shader_stages[GPU_NUM_BUILTIN_SHADERS] = {
-		[GPU_SHADER_VSM_STORE] = { datatoc_gpu_shader_vsm_store_vert_glsl, datatoc_gpu_shader_vsm_store_frag_glsl },
-		[GPU_SHADER_SEP_GAUSSIAN_BLUR] = { datatoc_gpu_shader_sep_gaussian_blur_vert_glsl,
-		                                   datatoc_gpu_shader_sep_gaussian_blur_frag_glsl },
 		[GPU_SHADER_SMOKE] = { datatoc_gpu_shader_smoke_vert_glsl, datatoc_gpu_shader_smoke_frag_glsl },
 		[GPU_SHADER_SMOKE_FIRE] = { datatoc_gpu_shader_smoke_vert_glsl, datatoc_gpu_shader_smoke_frag_glsl },
 		[GPU_SHADER_SMOKE_COBA] = { datatoc_gpu_shader_smoke_vert_glsl, datatoc_gpu_shader_smoke_frag_glsl },
