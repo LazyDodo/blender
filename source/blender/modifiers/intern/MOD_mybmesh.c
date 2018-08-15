@@ -1131,13 +1131,20 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 	BMIter iter_f, iter_v;
 	//There must be some overlap between the faces connected to f and f2. Otherwise this might fail
 	bool found_overlap = false;
+	float edge_no[3], no[3];
+
+	interp_v3_v3v3(edge_no, e->v1->no, e->v2->no, 0.5f);
 
 	BLI_buffer_declare_static(BMFace*, faces, BLI_BUFFER_NOP, 32);
 
 	//First face
 	BM_ITER_ELEM (vert, &iter_v, f, BM_VERTS_OF_FACE) {
 		BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
-			append_face(&faces, face);
+			BM_face_calc_normal(face, no);
+			//Do not add faces that can create overlaps in the projection mapping
+			if( dot_v3v3(no, edge_no) > 0.0f ){
+				append_face(&faces, face);
+			}
 		}
 	}
 
@@ -1160,6 +1167,11 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 				}
 			}
 			if (!dup_face){
+				BM_face_calc_normal(face, no);
+				//Do not add faces that can create overlaps in the projection mapping
+				if( dot_v3v3(no, edge_no) > 0.0f ){
+					append_face(&faces, face);
+				}
 				BLI_buffer_append(&faces, BMFace*, face);
 			}
 		}
@@ -1186,8 +1198,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 			float mat[3][3];
 			float start[2], end[2], cur_v2[2];
 
-			interp_v3_v3v3(new_no, e->v1->no, e->v2->no, 0.5f);
-			axis_dominant_v3_to_m3(mat, new_no);
+			axis_dominant_v3_to_m3(mat, edge_no);
 			get_st_point(f, v1_uv[0], v1_uv[1], mat, start);
 			get_st_point(f2, v2_uv[0], v2_uv[1], mat, end);
 
@@ -3208,14 +3219,16 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 								BM_face_calc_normal(f, no);
 								BM_face_calc_center_mean(f, P);
 
+								if( dot_v3v3(no, vert->no) < 0.0f ){
+									//Punish flipped faces
+									fold = true;
+									break;
+								}
+
 								sub_v3_v3v3(view_vec, m_d->cam_loc, P);
 								float face_dir = dot_v3v3(no, view_vec);
 								if( inface->back_f != (face_dir < 0) ){
 									new_diff_facing += fabs(face_dir);
-									if( dot_v3v3(no, vert->no) < 0.0f ){
-										//Punish flipped faces
-										fold = true;
-									}
 									new_inco_faces++;
 								}
 							}
