@@ -298,6 +298,7 @@ static void calculate_fast_bisect(FractureModifierData *fmd, Mesh* me, BisectCon
 	}
 
 	copy_v3_v3(ctx->normal, vec);
+	BKE_fracture_mesh_center_centroid_area(me, ctx->centroid);
 }
 
 static void calculate_fractal(FractureModifierData* fmd, Mesh* me, BooleanContext *ctx)
@@ -1902,7 +1903,6 @@ void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 	/* in dynamic mode we have to get rid of the entire Meshisland sequence */
 	/* either at manual refresh or when removing the modifier */
 	MeshIslandSequence *msq;
-	MeshIsland *mi;
 
 	while (fmd->shared->meshIsland_sequence.first) {
 		msq = fmd->shared->meshIsland_sequence.first;
@@ -1914,12 +1914,6 @@ void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 
 	fmd->shared->meshIsland_sequence.first = NULL;
 	fmd->shared->meshIsland_sequence.last = NULL;
-
-	while (fmd->shared->mesh_islands.first) {
-		mi = fmd->shared->mesh_islands.first;
-		BLI_remlink(&fmd->shared->mesh_islands, mi);
-		BKE_fracture_mesh_island_free(mi, scene);
-	}
 
 	fmd->shared->mesh_islands.first = NULL;
 	fmd->shared->mesh_islands.last = NULL;
