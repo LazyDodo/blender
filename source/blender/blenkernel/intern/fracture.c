@@ -529,7 +529,12 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 			temp_meshs[i+1] = meshB;
 
 			/*sort meshs by size*/
-			BLI_qsort_r(temp_meshs, i+2, sizeof(Mesh *), mesh_sortsize, NULL);
+			if(fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST ||
+			   fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST_FILL ||
+			   fmd->frac_algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL)
+			{
+				BLI_qsort_r(temp_meshs, i+2, sizeof(Mesh *), mesh_sortsize, NULL);
+			}
 		}
 	}
 
@@ -1897,6 +1902,7 @@ void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 	/* in dynamic mode we have to get rid of the entire Meshisland sequence */
 	/* either at manual refresh or when removing the modifier */
 	MeshIslandSequence *msq;
+	MeshIsland *mi;
 
 	while (fmd->shared->meshIsland_sequence.first) {
 		msq = fmd->shared->meshIsland_sequence.first;
@@ -1908,6 +1914,12 @@ void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 
 	fmd->shared->meshIsland_sequence.first = NULL;
 	fmd->shared->meshIsland_sequence.last = NULL;
+
+	while (fmd->shared->mesh_islands.first) {
+		mi = fmd->shared->mesh_islands.first;
+		BLI_remlink(&fmd->shared->mesh_islands, mi);
+		BKE_fracture_mesh_island_free(mi, scene);
+	}
 
 	fmd->shared->mesh_islands.first = NULL;
 	fmd->shared->mesh_islands.last = NULL;
