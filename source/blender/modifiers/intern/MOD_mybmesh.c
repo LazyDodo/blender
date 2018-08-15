@@ -357,6 +357,7 @@ static BMVert *split_edge_and_move_vert(MeshData *m_d, BMesh *bm, BMEdge *edge, 
 	float new_no[3];
 
 	cross_v3_v3v3(new_no, du, dv);
+	normalize_v3(new_no);
 	return split_edge_and_move_nor(m_d, bm, edge, new_pos, new_no);
 }
 
@@ -2397,6 +2398,7 @@ static void radial_insertion( MeshData *m_d ){
 
 				sub_v3_v3v3(cam_vec, m_d->cam_loc, co_arr[CC_idx]);
 				cross_v3_v3v3(rad_plane_no, vert_arr[CC_idx]->no, cam_vec);
+				normalize_v3(rad_plane_no);
 
 				{
 					//check if the radial plane intersects the vert's opposite edge
@@ -2422,6 +2424,7 @@ static void radial_insertion( MeshData *m_d ){
 
 					sub_v3_v3v3(cam_vec, m_d->cam_loc, co_arr[CC2_idx]);
 					cross_v3_v3v3(rad_plane_no2, vert_arr[CC2_idx]->no, cam_vec);
+					normalize_v3(rad_plane_no2);
 
 					//check if the radial plane intersects the vert's opposite edge
 					sub_v3_v3v3(temp, co_arr[ mod_i(CC2_idx-1, 3) ], co_arr[CC2_idx]);
@@ -2815,7 +2818,8 @@ static int radial_extention( MeshData *m_d ){
 		{
 			float mat[3][3];
 			float cur_pos_v2[2], c_pos_v2[2], r_pos_v2[2];
-			float old_pos[3], best_pos[3], best_diff_facing;
+			float old_pos[3], old_no[3];
+			float best_pos[3], best_no[3], best_diff_facing;
 
 			int orig_verts = BM_mesh_elem_count(m_d->bm_orig, BM_VERT);
 			int idx = BM_elem_index_get(r_vert.vert);
@@ -2827,6 +2831,7 @@ static int radial_extention( MeshData *m_d ){
             cur_face = v_buf.orig_face;
 
 			copy_v3_v3( old_pos, r_vert.vert->co );
+			copy_v3_v3( old_no, r_vert.vert->no );
 
 			best_diff_facing = prev_face_diff;
 
@@ -2870,7 +2875,11 @@ static int radial_extention( MeshData *m_d ){
 				get_uv_point( cur_face, uv_P, cur_pos_v2, mat );
 				m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(cur_face), uv_P[0], uv_P[1], P, du, dv);
 
+				cross_v3_v3v3(no, du, dv);
+				normalize_v3(no);
+
 				copy_v3_v3(r_vert.vert->co, P);
+				copy_v3_v3(r_vert.vert->no, no);
 
                 //Did the nr of consistent triangles increase?
 				{
@@ -2892,11 +2901,13 @@ static int radial_extention( MeshData *m_d ){
 					if( new_inco_faces < prev_inco_faces ){
 						found_better_pos = true;
 						copy_v3_v3(best_pos, P);
+						copy_v3_v3(best_no, no);
                         prev_inco_faces = new_inco_faces;
 						best_diff_facing = new_diff_facing;
 					} else if ( new_inco_faces == prev_inco_faces && new_diff_facing < best_diff_facing ){
 						found_better_pos = true;
 						copy_v3_v3(best_pos, P);
+						copy_v3_v3(best_no, no);
 						best_diff_facing = new_diff_facing;
 					}
 				}
@@ -2904,12 +2915,14 @@ static int radial_extention( MeshData *m_d ){
 
 			if(found_better_pos){
 				copy_v3_v3(r_vert.vert->co, best_pos);
+				copy_v3_v3(r_vert.vert->no, best_no);
 				exten++;
 				continue;
 			}
 
 			//Move back to original position and flip back edge
 			copy_v3_v3( r_vert.vert->co, old_pos );
+			copy_v3_v3( r_vert.vert->no, old_no );
 
 			if( flipped_edge ){
 				BM_edge_rotate(m_d->bm, flip_edge, false, 0);
@@ -3168,12 +3181,16 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							for (int f_idx = 0; f_idx < orig_faces.count; f_idx++) {
 								uv_face = BLI_buffer_at(&orig_faces, BMFace*, f_idx);
 								if( point_inside_v2( mat, cur_v2, uv_face ) ){
-									float P[3], du[3], dv[3];
+									float P[3], du[3], dv[3], no[3];
 
 									get_uv_point( uv_face, uv_P, cur_v2, mat );
 									m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(uv_face), uv_P[0], uv_P[1], P, du, dv);
 
+									cross_v3_v3v3(no, du, dv);
+									normalize_v3(no);
+
 									copy_v3_v3(vert->co, P);
+									copy_v3_v3(vert->no, no);
 									//No need to iterate over the remaining faces
 									break;
 								}
@@ -3182,6 +3199,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							int new_inco_faces = 0;
 							float new_dist = len_v3v3(cent, vert->co);
 							float new_diff_facing = 0;
+							bool fold = false;
 
 							BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 								float no[3];
@@ -3194,8 +3212,16 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 								float face_dir = dot_v3v3(no, view_vec);
 								if( inface->back_f != (face_dir < 0) ){
 									new_diff_facing += fabs(face_dir);
+									if( dot_v3v3(no, vert->no) < 0.0f ){
+										//Punish flipped faces
+										fold = true;
+									}
 									new_inco_faces++;
 								}
+							}
+
+							if( fold ){
+                            	continue;
 							}
 
 							if( new_inco_faces < best_inco_faces ){
@@ -3482,11 +3508,13 @@ static void optimization( MeshData *m_d ){
 
 		}
 	}
+
 	// 3. Vertex wiggling in paramter space
 	int wiggled_verts = 0;
 	do {
 		wiggled_verts = opti_vertex_wiggle(m_d, &inco_faces);
 	} while( wiggled_verts > 0 );
+
 	// 4. Edge Splitting
 	{
 		int face_i;
@@ -3510,10 +3538,7 @@ static void optimization( MeshData *m_d ){
 			create_fan_copy(bm_fan_copy, inface->face, vhash, ehash, fhash);
 
 			//Calculate edge split positions
-			float split_vert_pos[3][10][3];
-			float split_vert_pos_uv[3][10][2];
-			bool valid_split_pos[3][10];
-			BMFace *valid_split_pos_face[3][10];
+			Cusp split_data[3][10];
 
 			int edge_idx;
 			BMEdge *edge;
@@ -3533,7 +3558,7 @@ static void optimization( MeshData *m_d ){
 
 				if (c_radi_verts == 2){
 					for( int i = 0; i < 10; i++ ){
-						valid_split_pos[edge_idx][i] = false;
+						split_data[edge_idx][i].orig_face = NULL;
 					}
 					continue;
 				}
@@ -3545,9 +3570,12 @@ static void optimization( MeshData *m_d ){
 					step*8.0f, step*2.0f, step*9.0f, step*1.0f, step*10.0f };
 
 				float mat[3][3];
+				float edge_no[3];
 				float start[2], end[2], cur_v2[2];
 
-				axis_dominant_v3_to_m3(mat, inface->face->no);
+				interp_v3_v3v3(edge_no, edge->v1->no, edge->v2->no, 0.5f);
+
+				axis_dominant_v3_to_m3(mat, edge_no);
 				get_vert_st_pos(m_d, mat, edge->v1, start);
 				get_vert_st_pos(m_d, mat, edge->v2, end);
 
@@ -3581,7 +3609,7 @@ static void optimization( MeshData *m_d ){
 				for( int i = 0; i < 10; i++ ){
 					interp_v2_v2v2(cur_v2, start, end, step_arr[i]);
 
-					valid_split_pos[edge_idx][i] = false;
+					split_data[edge_idx][i].orig_face = NULL;
 					for (int f_idx = 0; f_idx < orig_faces.count; f_idx++) {
 						f = BLI_buffer_at(&orig_faces, BMFace*, f_idx);
 						if( point_inside_v2( mat, cur_v2, f ) ){
@@ -3591,11 +3619,14 @@ static void optimization( MeshData *m_d ){
 							get_uv_point( f, uv_P, cur_v2, mat );
 							m_d->eval->evaluateLimit(m_d->eval, BM_elem_index_get(f), uv_P[0], uv_P[1], P, du, dv);
 
-							copy_v3_v3(split_vert_pos[edge_idx][i], P);
-							copy_v2_v2(split_vert_pos_uv[edge_idx][i], uv_P);
+							copy_v3_v3(split_data[edge_idx][i].cusp_co, P);
+							cross_v3_v3v3(split_data[edge_idx][i].cusp_no, du, dv);
+							normalize_v3(split_data[edge_idx][i].cusp_no);
 
-							valid_split_pos[edge_idx][i] = true;
-							valid_split_pos_face[edge_idx][i] = f;
+							split_data[edge_idx][i].u = uv_P[0];
+							split_data[edge_idx][i].v = uv_P[1];
+
+							split_data[edge_idx][i].orig_face = f;
 							//No need to iterate over the remaining faces
 							break;
 						}
@@ -3626,10 +3657,8 @@ static void optimization( MeshData *m_d ){
 				float new_diff_facing;
 				int best_inco_faces = nr_inco_faces;
 				int best_edge;
-				float best_edge_split_pos[3];
-				float best_edge_split_uv[2];
+				Cusp best_edge_split;
 				float best_dist = INFINITY;
-				BMFace *best_edge_split_face = NULL;
 				bool done = false;
 
 				BM_ITER_ELEM_INDEX (edge, &iter_e, copy_f, BM_EDGES_OF_FACE, edge_idx) {
@@ -3638,16 +3667,18 @@ static void optimization( MeshData *m_d ){
 					BMVert *split_vert = NULL;
 
 					for(int j = 0; j < 10; j++){
-						if (!valid_split_pos[edge_idx][j]){
+						if (split_data[edge_idx][j].orig_face == NULL){
 							continue;
 						}
+						bool fold = false;
 						new_diff_facing = 0;
 						new_inco_faces = 0;
 
 						if( split_vert == NULL){
-							split_vert = split_edge_and_move_nor(NULL, bm_temp, temp_e, split_vert_pos[edge_idx][j], inface->face->no);
+							split_vert = split_edge_and_move_nor(NULL, bm_temp, temp_e, split_data[edge_idx][j].cusp_co, split_data[edge_idx][j].cusp_no);
 						} else {
-							copy_v3_v3(split_vert->co, split_vert_pos[edge_idx][j]);
+							copy_v3_v3(split_vert->co, split_data[edge_idx][j].cusp_co);
+							copy_v3_v3(split_vert->no, split_data[edge_idx][j].cusp_no);
 						}
 
 						BM_ITER_MESH (f, &iter_f, bm_temp, BM_FACES_OF_MESH){
@@ -3661,8 +3692,16 @@ static void optimization( MeshData *m_d ){
 							float face_dir = dot_v3v3(no, view_vec);
 							if( inface->back_f != (face_dir < 0) ){
 								new_diff_facing += fabs(face_dir);
+								if( dot_v3v3(no, split_vert->no) < 0.0f ){
+									//Punish flipped faces
+									fold = true;
+								}
 								new_inco_faces++;
 							}
+						}
+
+						if( fold ){
+                        	continue;
 						}
 
 						BMEdge *tmp_e;
@@ -3686,17 +3725,13 @@ static void optimization( MeshData *m_d ){
 							best_edge = edge_idx;
 							best_inco_faces = new_inco_faces;
 							best_dist = new_dist;
-							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
-							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
-							best_edge_split_face = valid_split_pos_face[edge_idx][j];
+							best_edge_split = split_data[edge_idx][j];
 							done = true;
 						} else if ( new_inco_faces == best_inco_faces && new_dist < best_dist){
 							best_edge = edge_idx;
 							best_inco_faces = new_inco_faces;
 							best_dist = new_dist;
-							copy_v3_v3( best_edge_split_pos, split_vert_pos[edge_idx][j] );
-							copy_v2_v2( best_edge_split_uv, split_vert_pos_uv[edge_idx][j] );
-							best_edge_split_face = valid_split_pos_face[edge_idx][j];
+							best_edge_split = split_data[edge_idx][j];
 							done = true;
 						}
 					}
@@ -3709,12 +3744,12 @@ static void optimization( MeshData *m_d ){
 						if( edge_idx == best_edge ){
 							Vert_buf new_buf;
 							//print_v3("best split pos", best_edge_split_pos);
-							split_vert = split_edge_and_move_nor(m_d, m_d->bm, edge, best_edge_split_pos, inface->face->no);
+							split_vert = split_edge_and_move_nor(m_d, m_d->bm, edge, best_edge_split.cusp_co, best_edge_split.cusp_no);
 
-							new_buf.orig_face = best_edge_split_face;
+							new_buf.orig_face = best_edge_split.orig_face;
 							new_buf.orig_edge = NULL;
-							new_buf.u = best_edge_split_uv[0];
-							new_buf.v = best_edge_split_uv[1];
+							new_buf.u = best_edge_split.u;
+							new_buf.v = best_edge_split.v;
 
 							BLI_buffer_append(m_d->new_vert_buffer, Vert_buf, new_buf);
 							break;
@@ -3733,6 +3768,7 @@ static void optimization( MeshData *m_d ){
 			BM_mesh_free(bm_fan_copy);
 		}
 	}
+
 	//Try to wiggle again after split
 	do {
 		wiggled_verts = opti_vertex_wiggle(m_d, &inco_faces);
@@ -3915,9 +3951,30 @@ static void optimization( MeshData *m_d ){
 					continue;
 				}
 
+				float tot_diff_facing = 0;
+				int nr_inco_faces = 0;
+
+				BMFace *f;
+				BMIter iter_f;
+				BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
+					float no[3];
+					float P[3];
+					float view_vec[3];
+					BM_face_calc_normal(f, no);
+					BM_face_calc_center_mean(f, P);
+
+					sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+					float face_dir = dot_v3v3(no, view_vec);
+					if( inface->back_f != (face_dir < 0) ){
+						tot_diff_facing += fabs(face_dir);
+						nr_inco_faces++;
+					}
+				}
+
 				BMEdge *edge;
 				BMIter iter_e;
 				float old_pos[3];
+				float new_pos[3];
 				float len = 0.0f;
 				int i = 0;
 				bool done = false;
@@ -3930,13 +3987,14 @@ static void optimization( MeshData *m_d ){
 				}
 
 				len = len / (float)i;
+				len = len * 0.2f;
 
 				for( i = 0; i < 100; i++ ){
-					BMFace *face;
-					BMIter iter_f;
-					bool found_point = true;
 					float co[3];
 					float cur_len;
+
+					float new_diff_facing = 0;
+					int new_inco_faces = 0;
 
 					copy_v3_v3(co, vert->no);
 
@@ -3950,29 +4008,41 @@ static void optimization( MeshData *m_d ){
 
 					add_v3_v3v3(vert->co, old_pos, co);
 
-					BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
+					BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 						float no[3];
 						float P[3];
-						BM_face_calc_normal(face, no);
-						BM_face_calc_center_mean(face, P);
+						float view_vec[3];
+						BM_face_calc_normal(f, no);
+						BM_face_calc_center_mean(f, P);
 
-						if( inface->back_f != calc_if_B_nor(m_d->cam_loc, P, no) ){
-							found_point = false;
-							break;
+						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
+						float face_dir = dot_v3v3(no, view_vec);
+						if( inface->back_f != (face_dir < 0) ){
+							new_diff_facing += fabs(face_dir);
+							new_inco_faces++;
 						}
 					}
 
-					if( found_point ){
+					if( new_inco_faces < nr_inco_faces ){
+						nr_inco_faces = new_inco_faces;
+						tot_diff_facing = new_diff_facing;
+						copy_v3_v3(new_pos, vert->co);
 						done = true;
-						break;
+					} else if (new_inco_faces == nr_inco_faces && new_diff_facing < tot_diff_facing ){
+						tot_diff_facing = new_diff_facing;
+						copy_v3_v3(new_pos, vert->co);
+						done = true;
 					}
 
 				}
 
 				if( done ){
+					copy_v3_v3(vert->co, new_pos);
 					null_opti_vert(m_d, vert, inface->back_f, &inco_faces);
-					//printf("Opti normal wiggle\n");
-					break;
+					printf("Opti normal wiggle\n");
+					if(inface->face == NULL){
+						break;
+					}
 				} else {
 					copy_v3_v3(vert->co, old_pos);
 				}
