@@ -220,6 +220,8 @@ typedef struct MeshIsland {
 	struct MeshIsland *parent;
 	struct RigidBodyOb *rigidbody;
 	struct RigidBodyShardCon **participating_constraints;
+	int *neighbors;
+	int *cluster_colors;
 
 	//might be useful for convert to keyframes, motion history ? either play back from cache
 	float (*locs)[3];
@@ -244,14 +246,14 @@ typedef struct MeshIsland {
 
 	//formerly shard stuff
 	float min[3], max[3];
-	int *cluster_colors;
 	int cluster_count;
+	int neighbor_count;
 	float raw_centroid[3];  /*store raw, unprocessed centroid here (might change when mesh shape changes via boolean / bisect) */
 	int flag;           /* flag for fracture state (INTACT, FRACTURED)*/
 	float raw_volume;
 	float impact_loc[3]; /* last impact location on this shard */
 	float impact_size[3]; /* size of impact area (simplified) */
-	//char pad[4];
+	char pad[4];
 } MeshIsland;
 
 #if 0

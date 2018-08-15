@@ -538,12 +538,12 @@ static void do_bisect(BMesh* bm_geometry, BMesh* bm_raw_shard, BisectContext* ct
 	}
 }
 
-static BMesh *limit_geometry(MeshIsland* parent, MeshIsland *child, KDTree *preselect_tree)
+static BMesh *limit_geometry(Mesh* geometry, MeshIsland *shard, KDTree *preselect_tree)
 {
 	int i = 0, r = 0;
 	float max_dist = 0;
 	KDTreeNearest* n = NULL;
-	BMesh *bm_orig = BKE_fracture_mesh_to_bmesh(parent->mesh);
+	BMesh *bm_orig = BKE_fracture_mesh_to_bmesh(geometry);
 	BMesh *bm_new = BM_mesh_create(&bm_mesh_allocsize_default, &((struct BMeshCreateParams){.use_toolflags = true,}));
 	BMIter iter;
 	BMFace *f;
@@ -561,9 +561,9 @@ static BMesh *limit_geometry(MeshIsland* parent, MeshIsland *child, KDTree *pres
 	CustomData_bmesh_init_pool(&bm_new->ldata, bm_mesh_allocsize_default.totloop, BM_LOOP);
 	CustomData_bmesh_init_pool(&bm_new->pdata, bm_mesh_allocsize_default.totface, BM_FACE);
 
-	for (i = 0; i < child->mesh->totvert; i++)
+	for (i = 0; i < shard->mesh->totvert; i++)
 	{
-		float dist = len_squared_v3v3(child->raw_centroid, child->mesh->mvert[i].co);
+		float dist = len_squared_v3v3(shard->raw_centroid, shard->mesh->mvert[i].co);
 		if (dist > max_dist) {
 			max_dist = dist;
 		}
@@ -572,20 +572,23 @@ static BMesh *limit_geometry(MeshIsland* parent, MeshIsland *child, KDTree *pres
 	BM_mesh_elem_hflag_disable_all(bm_orig, BM_VERT | BM_EDGE | BM_FACE, MY_TAG, false);
 
 	//do a range search first in case we have many verts as in dense geometry
-	r = BLI_kdtree_range_search(preselect_tree, child->raw_centroid, &n, sqrt(max_dist)*1.5f);
+	r = BLI_kdtree_range_search(preselect_tree, shard->raw_centroid, &n, sqrt(max_dist)*1.5f);
 
 	//if we have sparse geometry, just return all
-	if (r < child->mesh->totvert) {
+	if (r < shard->mesh->totvert) {
 
 		int j = 0, s = 0;
-		KDTreeNearest *n2 = MEM_callocN(sizeof(KDTreeNearest) * child->mesh->totvert, "n2 kdtreenearest");
-		s = BLI_kdtree_find_nearest_n(preselect_tree, child->raw_centroid, n2, child->mesh->totvert);
+		KDTreeNearest *n2 = MEM_callocN(sizeof(KDTreeNearest) * shard->mesh->totvert, "n2 kdtreenearest");
+		s = BLI_kdtree_find_nearest_n(preselect_tree, shard->raw_centroid, n2, shard->mesh->totvert);
 		for (j = 0; j < s; j++)
 		{
 			BMVert* v;
 			int index = n2[j].index;
-			v = BM_vert_at_index(bm_orig, index);
-			BM_elem_flag_enable(v, MY_TAG);
+			if (index < bm_orig->totvert)
+			{
+				v = BM_vert_at_index(bm_orig, index);
+				BM_elem_flag_enable(v, MY_TAG);
+			}
 		}
 		if (n2) {
 			MEM_freeN(n2);
@@ -596,8 +599,11 @@ static BMesh *limit_geometry(MeshIsland* parent, MeshIsland *child, KDTree *pres
 		BMVert *v = NULL;
 		for (i = 0; i < r; i++) {
 			int index = n[i].index;
-			v = BM_vert_at_index(bm_orig, index);
-			BM_elem_flag_enable(v, MY_TAG);
+			if (index < bm_orig->totvert)
+			{
+				v = BM_vert_at_index(bm_orig, index);
+				BM_elem_flag_enable(v, MY_TAG);
+			}
 		}
 	}
 
@@ -628,7 +634,7 @@ static BMesh *limit_geometry(MeshIsland* parent, MeshIsland *child, KDTree *pres
 	return bm_new;
 }
 
-Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Mesh* raw_shard, BisectContext *ctx)
+Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, MeshIsland* raw_shard, BisectContext *ctx)
 {
 	BMesh *bm_raw_shard;
 	BMesh *bm_geometry;
@@ -636,8 +642,8 @@ Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Mesh* raw_shard, BisectContext *c
 
 	if (!ctx->do_fast_bisect) {
 
-		uv_unwrap_raw_geometry(raw_shard, ctx->uv_layer, true);
-		bm_raw_shard = BKE_fracture_mesh_to_bmesh(raw_shard);
+		uv_unwrap_raw_geometry(raw_shard->mesh, ctx->uv_layer, true);
+		bm_raw_shard = BKE_fracture_mesh_to_bmesh(raw_shard->mesh);
 
 		/* if we detected what shards did change and built a limitation tree, we use it here to chop away unneeded
 		 * geometry from the original geometry. So less geometry has to be processed and the bisect should be faster */
@@ -674,12 +680,12 @@ Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Mesh* raw_shard, BisectContext *c
 
 void BKE_fracture_mesh_bisect_fast(Mesh* geometry, Mesh **outputA, Mesh** outputB, BisectContext* ctx)
 {
-	ctx->clear_inner = true;
-	ctx->clear_outer = false;
+	ctx->clear_inner = false;
+	ctx->clear_outer = true;
 	*outputA = BKE_fracture_mesh_bisect(geometry, NULL, ctx);
 
 
-	ctx->clear_inner = false;
-	ctx->clear_outer = true;
+	ctx->clear_inner = true;
+	ctx->clear_outer = false;
 	*outputB = BKE_fracture_mesh_bisect(geometry, NULL, ctx);
 }
