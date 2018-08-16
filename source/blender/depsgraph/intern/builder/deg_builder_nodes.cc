@@ -1359,6 +1359,9 @@ void DepsgraphNodeBuilder::build_nodetree(bNodeTree *ntree)
 		else if (id_type == ID_TXT) {
 			/* Ignore script nodes. */
 		}
+		else if (id_type == ID_MC) {
+			build_movieclip((MovieClip *)id);
+		}
 		else if (bnode->type == NODE_GROUP) {
 			bNodeTree *group_ntree = (bNodeTree *)id;
 			build_nodetree(group_ntree);
@@ -1499,7 +1502,7 @@ void DepsgraphNodeBuilder::build_movieclip(MovieClip *clip)
 		return;
 	}
 	ID *clip_id = &clip->id;
-	MovieClip *clip_cow = get_cow_datablock(clip);
+	MovieClip *clip_cow = (MovieClip *)ensure_cow_id(clip_id);
 	/* Animation. */
 	build_animdata(clip_id);
 	/* Movie clip evaluation. */
@@ -1507,6 +1510,11 @@ void DepsgraphNodeBuilder::build_movieclip(MovieClip *clip)
 	                   DEG_NODE_TYPE_PARAMETERS,
 	                   function_bind(BKE_movieclip_eval_update, _1, clip_cow),
 	                   DEG_OPCODE_MOVIECLIP_EVAL);
+
+	add_operation_node(clip_id,
+	                   DEG_NODE_TYPE_BATCH_CACHE,
+	                   function_bind(BKE_movieclip_eval_selection_update, _1, clip_cow),
+	                   DEG_OPCODE_MOVIECLIP_SELECT_UPDATE);
 }
 
 void DepsgraphNodeBuilder::build_lightprobe(LightProbe *probe)

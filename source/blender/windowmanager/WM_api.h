@@ -364,6 +364,7 @@ void        WM_operator_properties_select_action(struct wmOperatorType *ot, int 
 void        WM_operator_properties_select_action_simple(struct wmOperatorType *ot, int default_action);
 void        WM_operator_properties_select_random(struct wmOperatorType *ot);
 int         WM_operator_properties_select_random_seed_increment_get(wmOperator *op);
+void        WM_operator_properties_select_operation(struct wmOperatorType *ot);
 struct CheckerIntervalParams {
 	int nth;  /* bypass when set to zero */
 	int skip;
@@ -375,14 +376,6 @@ void        WM_operator_properties_checker_interval_from_op(
 bool        WM_operator_properties_checker_interval_test(
         const struct CheckerIntervalParams *op_params, int depth);
 
-
-/* MOVE THIS SOMEWHERE ELSE */
-#define	SEL_TOGGLE		0
-#define	SEL_SELECT		1
-#define SEL_DESELECT	2
-#define SEL_INVERT		3
-
-
 /* flags for WM_operator_properties_filesel */
 #define WM_FILESEL_RELPATH		(1 << 0)
 
@@ -390,7 +383,6 @@ bool        WM_operator_properties_checker_interval_test(
 #define WM_FILESEL_FILENAME		(1 << 2)
 #define WM_FILESEL_FILEPATH		(1 << 3)
 #define WM_FILESEL_FILES		(1 << 4)
-
 
 		/* operator as a python command (resultuing string must be freed) */
 char		*WM_operator_pystring_ex(struct bContext *C, struct wmOperator *op,
@@ -485,9 +477,15 @@ void                WM_drag_free(struct wmDrag *drag);
 void                WM_drag_free_list(struct ListBase *lb);
 
 struct wmDropBox	*WM_dropbox_add(
-        ListBase *lb, const char *idname, bool (*poll)(struct bContext *, struct wmDrag *, const struct wmEvent *event),
+        ListBase *lb, const char *idname,
+        bool (*poll)(struct bContext *, struct wmDrag *, const struct wmEvent *event, const char **),
         void (*copy)(struct wmDrag *, struct wmDropBox *));
 ListBase	*WM_dropboxmap_find(const char *idname, int spaceid, int regionid);
+
+			/* ID drag and drop */
+void                WM_drag_add_ID(struct wmDrag *drag, struct ID *id, struct ID *from_parent);
+struct ID          *WM_drag_ID(const struct wmDrag *drag, short idcode);
+struct ID          *WM_drag_ID_from_event(const struct wmEvent *event, short idcode);
 
 			/* Set OpenGL viewport and scissor */
 void		wmViewport(const struct rcti *rect);
