@@ -168,7 +168,8 @@ void modifier_free_ex(ModifierData *md, const int flag)
 	}
 
 	if ((flag & LIB_ID_FREE_COPY_ON_WRITE) == 0)
-	{	/* dont allow CoW to destroy FM data */
+	{	/* dont allow CoW to destroy FM data,
+		   else the fracture result disappears at once */
 		if (mti->freeData) mti->freeData(md);
 	}
 	else if (md->type != eModifierType_Fracture)

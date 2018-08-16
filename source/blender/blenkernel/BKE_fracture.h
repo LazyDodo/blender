@@ -208,6 +208,6 @@ struct Mesh* BKE_fracture_apply(struct FractureModifierData *fmd, struct Object 
 
 struct MeshIsland *BKE_fracture_mesh_island_create(struct Mesh* me, struct Main* bmain, struct Scene *scene, struct Object *ob);
 void BKE_fracture_mesh_boundbox_calc(struct Mesh *me, float r_loc[], float r_size[]);
-
+void BKE_fracture_mesh_free(struct Mesh *me);
 
 #endif /* BKE_FRACTURE_H */

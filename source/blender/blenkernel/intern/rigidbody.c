@@ -192,26 +192,6 @@ void BKE_rigidbody_free_object(Object *ob, RigidBodyWorld *rbw)
 				 * The world is generally only unknown if it's an evaluated copy of
 				 * an object that's being freed, in which case this code isn't run anyway. */
 				RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
-
-#if 0
-				if (fmd)
-				{
-					for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
-						RB_dworld_remove_body(rbw, mi->rigidbody->shared->physics_object);
-						RB_body_delete(mi->rigidbody->shared->physics_object);
-						mi->rigidbody->shared->physics_object = NULL;
-
-						if (mi->rigidbody->shared->physics_shape) {
-							RB_shape_delete(mi->rigidbody->shared->physics_shape);
-							mi->rigidbody->shared->physics_shape = NULL;
-						}
-
-						MEM_freeN(mi->rigidbody->shared);
-						MEM_freeN(mi->rigidbody);
-						mi->rigidbody = NULL;
-					}
-				}
-#endif
 			}
 
 			RB_body_delete(rbo->shared->physics_object);

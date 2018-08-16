@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software  Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Copyright (C) 2014 by Martin Felke.
+ * Copyright (C) 2014, 2018 by Martin Felke.
  * All rights reserved.
  *
  * The Original Code is: all of this file.
@@ -28,6 +28,8 @@
 /** \file blender/modifiers/intern/MOD_fracture.c
  *  \ingroup modifiers
  */
+
+#include <string.h> //for memcpy
 
 #include "MEM_guardedalloc.h"
 #include "BKE_fracture.h"
@@ -163,32 +165,33 @@ static void initData(ModifierData *md)
 
 	if (!fmd->shared) {
 		fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
-		//fmd->shared->refresh = true;
-		//fmd->shared->reset_shards = true;
 	}
 }
 
 static void freeData(ModifierData *md)
 {
 	FractureModifierData *fmd = (FractureModifierData *) md;
-	BKE_fracture_modifier_free(fmd, fmd->scene);
+	if (fmd->shared) {
+		BKE_fracture_modifier_free(fmd, fmd->shared->scene);
+		MEM_freeN(fmd->shared);
+		fmd->shared = NULL;
+	}
 }
 
 
 //XXX todo, simplify to copy generic stuff, maybe take shards over even, but re-init the meshisland verts as in packing system
-static void copyData(ModifierData *md, ModifierData *target, const int flag)
+static void copyData(ModifierData *md_src, ModifierData *md_dst, const int flag)
 {
-	FractureModifierData *trmd = (FractureModifierData *)target;
+	FractureModifierData *fmd_dst = (FractureModifierData *)md_dst;
 
-	modifier_copyData_generic(md, target, flag);
+	modifier_copyData_generic(md_src, md_dst, flag);
 
 	if ((flag & LIB_ID_CREATE_NO_MAIN) == 0) {
 		/* This is a regular copy, and not a CoW copy for depsgraph evaluation */
-		trmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
 
-		/* this behaves oddly somehow incorrectly, as if it was an array modifier -> duplicates sim behavior */
-		//trmd->shared->refresh = true;
-		//trmd->shared->reset_shards = true;
+		fmd_dst->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
+		fmd_dst->shared->refresh = true;
+		fmd_dst->shared->reset_shards = true;
 	}
 }
 
@@ -324,36 +327,8 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	//Mesh *pack_dm = BKE_fracture_mesh_from_packdata(fmd, derivedData);
 	Mesh *final_dm = NULL;
 	Object* ob = ctx->object;
-	Scene* scene = DEG_get_input_scene(ctx->depsgraph);
 
-	//store that damn thing here...
-	fmd->scene = scene;
-
-#if 0
-	if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
-	{
-		//just track the frames for resetting automerge data when jumping
-		int frame = (int)BKE_scene_frame_get(scene);
-
-		//deactivate multiple settings for now, not working properly XXX TODO (also deactivated in RNA and python)
-		final_dm = BKE_fracture_prefractured_apply(fmd, ob, pack_dm, ctx->depsgraph);
-
-		fmd->last_frame = frame;
-	}
-	else if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
-	{
-		if (ob->rigidbody_object == NULL) {
-			//initialize FM here once
-			fmd->shared->refresh = true;
-		}
-
-		final_dm = BKE_fracture_dynamic_apply(fmd, ob, pack_dm, scene);
-	}
-	else if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
-	{
-		final_dm = BKE_fracture_external_apply(fmd, ob, pack_dm, derivedData, scene);
-	}
-#endif
+	//store that damn thing here... because the free function called from freeData will need it, too
 
 	final_dm = BKE_fracture_apply(fmd, ob, derivedData, ctx->depsgraph);
 
@@ -362,14 +337,6 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		//dont forget to create customdatalayers for crease and bevel weights (else they wont be drawn in editmode)
 		final_dm->cd_flag |= (ME_CDFLAG_EDGE_CREASE | ME_CDFLAG_VERT_BWEIGHT | ME_CDFLAG_EDGE_BWEIGHT);
 	}
-
-#if 0
-	if (pack_dm != derivedData)
-	{
-		BKE_mesh_free(pack_dm);
-		pack_dm = NULL;
-	}
-#endif
 
 	return final_dm;
 }

@@ -1543,7 +1543,6 @@ typedef struct FractureModifierData {
 	char uvlayer_name[64];  /* MAX_CUSTOMDATA_LAYER_NAME */
 
 	struct Object *anim_mesh_ob; /*input object for animated mesh */
-	struct Scene *scene; //man is this a hack.. but earlier we had the scene in the modifier, was quite handy!
 	int anim_mesh_rot;
 
 	/* values */

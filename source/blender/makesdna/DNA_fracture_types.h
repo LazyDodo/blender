@@ -138,6 +138,8 @@ typedef struct AnimBind {
 
 typedef struct FractureModifierData_Shared {
 
+	struct Scene *scene;
+	//man is this a hack.. but earlier we had the scene in the modifier, was quite handy!
 	ListBase mesh_islands, mesh_constraints;
 	Mesh *mesh_cached; /* the unprocessed cached mesh, before autohide etc */
 

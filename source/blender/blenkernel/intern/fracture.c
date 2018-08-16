@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Copyright (C) 2014 by Martin Felke.
+ * Copyright (C) 2014, 2018 by Martin Felke.
  * All rights reserved.
  *
  * The Original Code is: all of this file.
@@ -565,16 +565,17 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 
 	if (fmd->shared->last_islands)
 	{
-		int j;
-		for (j = 0; j < fmd->shared->last_expected_islands; j++)
+		int k = 0;
+		for (k = 0; k < fmd->shared->last_expected_islands; k++)
 		{
-			BKE_fracture_mesh_island_free(fmd->shared->last_islands[i], scene);
+			BKE_fracture_mesh_island_free(fmd->shared->last_islands[k], scene);
 		}
 
 		MEM_freeN(fmd->shared->last_islands);
 	}
 
 	fmd->shared->last_islands = islands;
+	fmd->shared->last_expected_islands = count;
 }
 
 static MeshIsland *parse_cell(cell c)
@@ -600,7 +601,8 @@ static MeshIsland *parse_cell(cell c)
 		totloop = 0;
 
 	if (totloop > 0) {
-		me->mloop = MEM_callocN(sizeof(MLoop) * totloop, "loops");
+		/* mesh contains a zero length array already (i think) */
+		me->mloop = MEM_recallocN(me->mloop, sizeof(MLoop) * totloop);
 		me->totloop = totloop;
 		parse_cell_loops(c, me->mloop, totloop, me->mpoly, totpoly);
 	}
@@ -998,8 +1000,7 @@ void BKE_fracture_shard_by_greasepencil(FractureModifierData *fmd, Object *obj, 
 					//TODO FIX
 					//intersect_shards_by_dm(fmd, dm, obj, NULL, inner_material_index, mat, true, fmd->boolean_double_threshold);
 
-					BKE_mesh_free(dm);
-					dm = NULL;
+					BKE_fracture_mesh_free(dm);
 				}
 			}
 		}
@@ -1202,8 +1203,6 @@ void BKE_fracture_shard_by_points(FractureModifierData *fmd, FracPointCloud *poi
 	//parse_cells(fmd, voro_cells, pointcloud->totpoints, mi, ob, inner_material_index, splinter_mat, override_count, scene);
 	process_cells(fmd, mi->mesh, bmain, ob, scene, voro_cells, pointcloud->totpoints);
 
-	/* The original mesh island must not be in the collection any more, so unlink */
-	BLI_remlink(&fmd->shared->mesh_islands, mi);
 
 	/*Free structs in C++ area of memory */
 	cells_free(voro_cells, pointcloud->totpoints);
@@ -1878,7 +1877,7 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 	}
 
 	if (mesh_free) {
-		BKE_mesh_free(dm);
+		BKE_fracture_mesh_free(dm);
 		return;
 	}
 }
@@ -1980,9 +1979,9 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 
 		MEM_freeN(fmd->shared->last_islands);
 		fmd->shared->last_islands = NULL;
-	}
 
-	fmd->shared->last_expected_islands = 0;
+		fmd->shared->last_expected_islands = 0;
+	}
 }
 
 //XXXX TODO same applies for autohide prep and normals fixing, latter could be a separate operator or so, called from refresh op
@@ -2941,6 +2940,11 @@ void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
 
 			cleanup_splinters(fmd, fmd->shared->splinter_matrix, mi);
 		}
+
+		/* The original mesh island must not be in the collection any more, so unlink and free */
+		BLI_remlink(&fmd->shared->mesh_islands, mi);
+		BKE_fracture_mesh_island_free(mi, scene);
+		mi = NULL;
 
 		if (!fmd->auto_execute && fmd->execute_threaded) {
 			fmd->shared->reset_shards = false;
@@ -4382,4 +4386,11 @@ void BKE_fracture_mesh_boundbox_calc(Mesh *me, float r_loc[], float r_size[])
 		MEM_freeN(me->bb);
 		me->bb = NULL;
 	}
+}
+
+void BKE_fracture_mesh_free(Mesh *me)
+{
+	BKE_mesh_free(me);
+	MEM_freeN(me);
+	me = NULL;
 }

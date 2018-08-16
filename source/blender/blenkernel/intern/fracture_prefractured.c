@@ -1,3 +1,31 @@
+/*
+ * ***** BEGIN GPL LICENSE BLOCK *****
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software  Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
+ * Copyright (C) 2018 by Martin Felke.
+ * All rights reserved.
+ *
+ * The Original Code is: all of this file.
+ *
+ * Contributor(s): none yet.
+ *
+ * ***** END GPL LICENSE BLOCK *****
+ */
+
+
 #include "MEM_guardedalloc.h"
 
 #include "BLI_listbase.h"
@@ -88,6 +116,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		// HACK
 		//ob = DEG_get_original_object(obj);
+		fmd->shared->scene = scene;
 
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
@@ -117,7 +146,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;
 
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		//DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else if (fmd->shared->refresh_dynamic)
 	{
@@ -144,9 +173,9 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		BKE_fracture_external_constraints_setup(fmd, scene, ob);
 
-		if (!fmd->shared->refresh)
+		//if (!fmd->shared->refresh)
 			/* update scene here in case only the constraints updated, dont update twice*/
-			DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		//	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	fmd->shared->refresh = false;
@@ -169,7 +198,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	{
 		//printf("Autohide \n");
 		me_final = BKE_fracture_autohide_do(fmd, me_assembled, ob, scene);
-		BKE_mesh_free(me_assembled);
+		BKE_fracture_mesh_free(me_assembled);
 		me_assembled = NULL;
 	}
 	else {
