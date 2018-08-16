@@ -42,6 +42,7 @@ typedef struct cell {
 	int index;
 	int totvert;
 	int totpoly;
+	int totloop;
 } cell;
 
 container* container_new(double ax_,double bx_,double ay_,double by_,double az_,double bz_,

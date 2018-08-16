@@ -77,6 +77,7 @@ void container_compute_cells(container* con, particle_order* p_order, cell* cell
 				vc.face_vertices(face_verts);
 				c.poly_indices = new int*[c.totpoly];
 				int skip = 0;
+				int loopverts = 0;
 				for (fo = 0; fo < c.totpoly; fo++) {
 					int num_verts = c.poly_totvert[fo];
 					c.poly_indices[fo] = new int[num_verts];
@@ -84,7 +85,10 @@ void container_compute_cells(container* con, particle_order* p_order, cell* cell
 						c.poly_indices[fo][fv] = face_verts[skip + 1 + fv];
 					}
 					skip += (num_verts+1);
+					loopverts += num_verts;
 				}
+
+				c.totloop = loopverts;
 
 				// neighbors
 				vc.neighbors(neighbors);

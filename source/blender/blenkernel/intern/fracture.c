@@ -93,8 +93,8 @@
 /* prototypes */
 static MeshIsland *parse_cell(cell c);
 static void parse_cell_verts(cell c, MVert *mvert, int totvert);
-static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly, int *r_totloop);
-static void parse_cell_loops(cell c, MLoop *mloop, int totloop, MPoly *mpoly, int totpoly);
+static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly);
+static void parse_cell_loops(cell c, MLoop *mloop, MPoly *mpoly, int totpoly);
 static void parse_cell_neighbors(cell c, int *neighbors, int totpoly);
 static void arrange_shard(FractureModifierData *fmd, MeshIsland *mi, bool do_verts, float cent[3]);
 static void cleanup_arrange_shard(FractureModifierData *fmd, MeshIsland *s, float cent[]);
@@ -102,19 +102,16 @@ static void do_island_index_map(FractureModifierData *fmd, Object *ob);
 static void do_rigidbody(Main* bmain, Scene* scene, MeshIsland* mi, Object* ob, short rb_type, int i);
 
 
-static void fracture_meshisland_add(FractureModifierData *fmd, MeshIsland *mi,
-                                    Object* ob, Scene *scene, Main *bmain)
+static void fracture_meshisland_add(FractureModifierData *fmd, MeshIsland *mi)
 {
 	MVert *mv;
 	int i;
 
+	mul_m4_v3(fmd->shared->splinter_matrix, mi->centroid);
 	for (i = 0, mv = mi->mesh->mvert; i < mi->mesh->totvert; i++, mv++ )
 	{
 		mul_m4_v3(fmd->shared->splinter_matrix, mv->co);
 	}
-
-	mul_m4_v3(fmd->shared->splinter_matrix, mi->centroid);
-	do_rigidbody(bmain, scene, mi, ob, RBO_TYPE_ACTIVE, 0); //id and island_index set by caller
 
 	BLI_addtail(&fmd->shared->mesh_islands, mi);
 }
@@ -526,6 +523,11 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 			}
 
 			/* if successful, create processed meshisland in FM */
+			if (temp_meshs[i])
+				BKE_fracture_mesh_free(temp_meshs[i]);
+			if (temp_meshs[i+1])
+				BKE_fracture_mesh_free(temp_meshs[i+1]);
+
 			temp_meshs[i] = meshA;
 			temp_meshs[i+1] = meshB;
 
@@ -544,7 +546,7 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 		if (temp_meshs[i])
 		{
 			MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob);
-			fracture_meshisland_add(fmd, result, ob, scene, bmain);
+			fracture_meshisland_add(fmd, result);
 			result->id = j;
 			result->rigidbody->mesh_island_index = j;
 			j++;
@@ -581,7 +583,7 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 static MeshIsland *parse_cell(cell c)
 {
 	MeshIsland *mi = MEM_callocN(sizeof(MeshIsland), "mi_cell");
-	Mesh* me = BKE_mesh_new_nomain(c.totvert, 0, 0, 0, c.totpoly);
+	Mesh* me = BKE_mesh_new_nomain(c.totvert, 0, 0, c.totloop, c.totpoly);
 
 	int totpoly = 0, totloop = 0, totvert = 0;
 	float centr[3];
@@ -595,16 +597,12 @@ static MeshIsland *parse_cell(cell c)
 
 	totpoly = c.totpoly;
 	if (totpoly > 0) {
-		parse_cell_polys(c, me->mpoly, totpoly, &totloop);
+		parse_cell_polys(c, me->mpoly, totpoly);
 	}
-	else
-		totloop = 0;
 
+	totloop = c.totloop;
 	if (totloop > 0) {
-		/* mesh contains a zero length array already (i think) */
-		me->mloop = MEM_recallocN(me->mloop, sizeof(MLoop) * totloop);
-		me->totloop = totloop;
-		parse_cell_loops(c, me->mloop, totloop, me->mpoly, totpoly);
+		parse_cell_loops(c, me->mloop, me->mpoly, totpoly);
 	}
 
 	if (totpoly > 0) {
@@ -614,10 +612,6 @@ static MeshIsland *parse_cell(cell c)
 	}
 
 	copy_v3_v3(centr, c.centroid);
-
-	//XXXXXXXXX LOOK IT UP !!!! TODO
-	//mi = BKE_fracture_shard_create(mvert, mpoly, mloop, NULL, totvert, totpoly, totloop, 0, false);
-
 	copy_v3_v3(mi->centroid, centr);
 	copy_v3_v3(mi->raw_centroid, centr);
 	mi->raw_volume = c.volume;
@@ -638,7 +632,7 @@ static void parse_cell_verts(cell c, MVert *mvert, int totvert)
 	}
 }
 
-static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly, int *r_totloop)
+static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly)
 {
 	int i;
 	int totloop = 0;
@@ -653,11 +647,9 @@ static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly, int *r_totloop)
 
 		totloop += numloop;
 	}
-
-	*r_totloop = totloop;
 }
 
-static void parse_cell_loops(cell c, MLoop *mloop, int UNUSED(totloop), MPoly *mpoly, int totpoly)
+static void parse_cell_loops(cell c, MLoop *mloop, MPoly *mpoly, int totpoly)
 {
 	int i, k;
 

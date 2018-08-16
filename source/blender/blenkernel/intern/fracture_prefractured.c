@@ -85,17 +85,17 @@ Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mes
 MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene, Object *ob)
 {
 	MeshIsland *mi = MEM_callocN(sizeof(MeshIsland), "mesh_island");
-
 	mi->mesh = me;
-	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);
-	mi->rigidbody->type = RBO_TYPE_ACTIVE;
-	mi->rigidbody->mesh_island_index = 0; // set when adding !!!!
-	BKE_rigidbody_calc_shard_mass(ob, mi);
 
 	INIT_MINMAX(mi->min, mi->max);
 	BKE_mesh_minmax(mi->mesh, mi->min, mi->max);
 	BKE_fracture_mesh_center_centroid_area(mi->mesh, mi->centroid);
 	unit_qt(mi->rot);
+
+	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);
+	mi->rigidbody->type = RBO_TYPE_ACTIVE;
+	mi->rigidbody->mesh_island_index = 0; // set when adding !!!!
+	BKE_rigidbody_calc_shard_mass(ob, mi);
 
 	return mi;
 }
@@ -108,6 +108,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	Mesh* me_assembled = NULL;
 	Mesh *me_final = NULL;
 	Mesh *me = me_orig; //BKE_fracture_mesh_copy(me_orig, ob);
+	//Object* ob = DEG_get_evaluated_object(depsgraph, obj);
 
 	if (fmd->shared->refresh)
 	{
@@ -115,7 +116,6 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		Mesh *me_tmp = NULL;
 
 		// HACK
-		//ob = DEG_get_original_object(obj);
 		fmd->shared->scene = scene;
 
 		/*free old stuff here */
@@ -147,6 +147,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		fmd->shared->refresh_autohide = true;
 
 		//DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		//DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else if (fmd->shared->refresh_dynamic)
 	{
@@ -175,7 +176,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		//if (!fmd->shared->refresh)
 			/* update scene here in case only the constraints updated, dont update twice*/
-		//	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		//	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	fmd->shared->refresh = false;

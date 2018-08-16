@@ -2809,6 +2809,11 @@ RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, O
 		return NULL;
 	}
 
+	if (!ob->rigidbody_object) {
+		return NULL;
+	}
+
+#if 0
 	/* Add rigid body world and group if they don't exist for convenience */
 	if (rbw == NULL) {
 		rbw = BKE_rigidbody_create_world(scene);
@@ -2831,6 +2836,7 @@ RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, O
 	if (!BKE_collection_has_object(rbw->group, ob)) {
 		BKE_collection_object_add(bmain, rbw->group, ob);
 	}
+#endif
 
 	/* since we are always member of an object, dupe its settings,
 	 * create new settings data, and link it up */
@@ -3050,6 +3056,7 @@ bool BKE_rigidbody_remove_modifier(RigidBodyWorld* rbw, ModifierData *md, Object
 					rbw->shared->cache_index_map = NULL;
 				}
 
+				MEM_freeN(mi->rigidbody->shared);
 				MEM_freeN(mi->rigidbody);
 				mi->rigidbody = NULL;
 			}

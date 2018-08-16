@@ -328,8 +328,6 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	Mesh *final_dm = NULL;
 	Object* ob = ctx->object;
 
-	//store that damn thing here... because the free function called from freeData will need it, too
-
 	final_dm = BKE_fracture_apply(fmd, ob, derivedData, ctx->depsgraph);
 
 	if (final_dm != derivedData)
