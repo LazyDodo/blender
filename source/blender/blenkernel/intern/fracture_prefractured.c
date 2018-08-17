@@ -130,7 +130,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			me_tmp = BKE_fracture_assemble_mesh_from_islands(fmd, &fmd->shared->pack_storage, ob);
 		}
 		else {
-			me_tmp = me;
+			me_tmp = BKE_fracture_mesh_copy(me, ob);
 		}
 
 		mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob);
@@ -160,10 +160,10 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		//DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else {
-		me_assembled = me;
+		me_assembled = BKE_fracture_mesh_copy(me, ob);
 	}
 
-	fmd->shared->mesh_cached = me_assembled;
+	//fmd->shared->mesh_cached = me_assembled;
 
 	/*if refresh constraints, build constraints */
 	if (fmd->shared->refresh_constraints)
