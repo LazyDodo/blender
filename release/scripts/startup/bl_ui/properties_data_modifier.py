@@ -28,6 +28,7 @@ class ModifierButtonsPanel:
     bl_context = "modifier"
     bl_options = {'HIDE_HEADER'}
 
+
 class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
     bl_label = "Modifiers"
 
@@ -144,6 +145,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "use_only_vertices")
         col.prop(md, "use_clamp_overlap")
         col.prop(md, "loop_slide")
+        col.prop(md, "mark_seam")
+        col.prop(md, "mark_sharp")
 
         layout.label(text="Limit Method:")
         layout.row().prop(md, "limit_method", expand=True)
@@ -155,6 +158,12 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 
         layout.label(text="Width Method:")
         layout.row().prop(md, "offset_type", expand=True)
+
+        layout.label(text="Normal Mode")
+        layout.row().prop(md, "hnmode", expand=True)
+        layout.prop(md, "hn_strength")
+        layout.prop(md, "set_wn_strength")
+
 
     def BOOLEAN(self, layout, ob, md):
         split = layout.split()
@@ -604,6 +613,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "levels", text="Preview")
         col.prop(md, "sculpt_levels", text="Sculpt")
         col.prop(md, "render_levels", text="Render")
+        if hasattr(md, "quality"):
+            col.prop(md, "quality")
 
         col = split.column()
 
@@ -612,7 +623,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.operator("object.multires_higher_levels_delete", text="Delete Higher")
         col.operator("object.multires_reshape", text="Reshape")
         col.operator("object.multires_base_apply", text="Apply Base")
-        col.prop(md, "use_subsurf_uv")
+        col.prop(md, "uv_smooth", text="")
         col.prop(md, "show_only_control_edges")
 
         layout.separator()
@@ -740,23 +751,25 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "particle_amount", text="Amount")
         row.prop(md, "particle_offset", text="Offset")
 
+        row = layout.row(align=True)
+        row.prop(md, "axis", expand=True)
+
         layout.separator()
 
         layout.prop(md, "use_path", text="Create Along Paths")
 
-        split = layout.split()
-        split.active = md.use_path
-        col = split.column()
-        col.row().prop(md, "axis", expand=True)
+        col = layout.column()
+        col.active = md.use_path
         col.prop(md, "use_preserve_shape")
 
-        col = split.column()
-        col2 = col.column(align=True)
-        col2.prop(md, "position", slider=True)
-        col2.prop(md, "random_position", text="Random", slider=True)
-        col2 = col.column(align=True)
-        col2.prop(md, "rotation", slider=True)
-        col2.prop(md, "random_rotation", text="Random", slider=True)
+        row = col.row(align=True)
+        row.prop(md, "position", slider=True)
+        row.prop(md, "random_position", text="Random", slider=True)
+        row = col.row(align=True)
+        row.prop(md, "rotation", slider=True)
+        row.prop(md, "random_rotation", text="Random", slider=True)
+
+        layout.separator()
 
         col = layout.column()
         col.prop_search(md, "index_layer_name", ob.data, "vertex_colors", text="Index Layer")
@@ -975,17 +988,17 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             col.label(text="Subdivisions:")
             col.prop(md, "levels", text="View")
             col.prop(md, "render_levels", text="Render")
+            if hasattr(md, "quality"):
+                col.prop(md, "quality")
 
         col = split.column()
         col.label(text="Options:")
 
         sub = col.column()
         sub.active = (not show_adaptive_options) or (not ob.cycles.use_adaptive_subdivision)
-        sub.prop(md, "use_subsurf_uv")
+        sub.prop(md, "uv_smooth", text="")
 
         col.prop(md, "show_only_control_edges")
-        if hasattr(md, "use_opensubdiv"):
-            col.prop(md, "use_opensubdiv")
 
         if show_adaptive_options and ob.cycles.use_adaptive_subdivision:
             col = layout.column(align=True)
@@ -1566,6 +1579,22 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         if md.rest_source == 'BIND':
             layout.operator("object.correctivesmooth_bind", text="Unbind" if is_bind else "Bind")
 
+    def WEIGHTED_NORMAL(self, layout, ob, md):
+        layout.label("Weighting Mode:")
+        split = layout.split(align=True)
+        col = split.column(align=True)
+        col.prop(md, "mode", text="")
+        col.prop(md, "weight", text="Weight")
+        col.prop(md, "keep_sharp")
+
+        col = split.column(align=True)
+        row = col.row(align=True)
+        row.prop_search(md, "vertex_group", ob, "vertex_groups", text="")
+        row.active = bool(md.vertex_group)
+        row.prop(md, "invert_vertex_group", text="", icon='ARROW_LEFTRIGHT')
+        col.prop(md, "thresh", text="Threshold")
+        col.prop(md, "face_influence")
+
 
 class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
     bl_label = "Modifiers"
@@ -1755,7 +1784,9 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
 
         row = layout.row()
-        row.prop(md, "create_colors")
+        row.prop(md, "create_materials")
+        row.prop(md, "modify_color")
+        
 
     def GP_COLOR(self, layout, ob, md):
         gpd = ob.data
@@ -1777,7 +1808,8 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
 
         row = layout.row()
-        row.prop(md, "create_colors")
+        row.prop(md, "create_materials")
+        row.prop(md, "modify_color")
 
     def GP_OPACITY(self, layout, ob, md):
         gpd = ob.data
@@ -1801,13 +1833,16 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row = col.row(align=True)
         row.prop(md, "pass_index", text="Pass")
         row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
+        
+        row = layout.row()
+        row.prop(md, "create_materials")
+        row.prop(md, "modify_color")
 
     def GP_INSTANCE(self, layout, ob, md):
         gpd = ob.data
 
         col = layout.column()
         col.prop(md, "count")
-        col.prop(md, "use_make_objects")
 
         split = layout.split()
         col = split.column()
@@ -1857,7 +1892,7 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         if md.mode == 'CONCURRENT':
             col.prop(md, "concurrent_time_alignment")
         else:
-            col.separator() # For spacing
+            col.separator()  # For spacing
             col.separator()
         col.separator()
 
@@ -1929,7 +1964,6 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         layout.label(text="Object:")
         layout.prop(md, "object", text="")
 
-
     def GP_HOOK(self, layout, ob, md):
         gpd = ob.data
         split = layout.split()
@@ -1977,7 +2011,6 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         col = split.column()
         col.prop(md, "use_falloff_uniform")
 
-
     def GP_OFFSET(self, layout, ob, md):
         gpd = ob.data
         split = layout.split()
@@ -1988,7 +2021,6 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
 
         col = split.column()
         col.prop(md, "rotation")
-
 
         col.label("Layer:")
         row = col.row(align=True)

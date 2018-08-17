@@ -128,8 +128,8 @@ class GreasePencilDrawingToolsPanel:
             elif is_clip_editor:
                 row.prop(context.space_data, "grease_pencil_source", expand=True)
 
-        #col.separator()
-        #col.separator()
+        # col.separator()
+        # col.separator()
 
         gpencil_stroke_placement_settings(context, col)
 
@@ -204,7 +204,7 @@ class GreasePencilStrokeEditPanel:
         layout.separator()
         col = layout.column(align=True)
         col.operator_menu_enum("gpencil.stroke_arrange", text="Arrange Strokes...", property="direction")
-        col.operator("gpencil.stroke_change_color", text="Move to Color")
+        col.operator("gpencil.stroke_change_color", text="Assign Material")
 
         layout.separator()
         col = layout.column(align=True)
@@ -321,8 +321,6 @@ class GreasePencilAppearancePanel:
             col.row().prop(brush, "cursor_color_sub", text="Subtract")
 
 
-###############################
-
 class GPENCIL_MT_pie_tool_palette(Menu):
     """A pie menu for quick access to Grease Pencil tools"""
     bl_label = "Grease Pencil Tools"
@@ -406,7 +404,7 @@ class GPENCIL_MT_pie_settings_palette(Menu):
         pie = layout.menu_pie()
         gpd = context.gpencil_data
         gpl = context.active_gpencil_layer
-        palcolor = None #context.active_gpencil_palettecolor
+        palcolor = None  # context.active_gpencil_palettecolor
         brush = context.active_gpencil_brush
 
         is_editmode = bool(gpd and gpd.use_stroke_edit_mode and context.editable_gpencil_strokes)
@@ -508,7 +506,7 @@ class GPENCIL_MT_pie_tools_more(Menu):
 
 
 class GPENCIL_MT_pie_sculpt(Menu):
-    """A pie menu for accessing Grease Pencil stroke sculpting settings"""
+    """A pie menu for accessing Grease Pencil stroke sculpt settings"""
     bl_label = "Grease Pencil Sculpt"
 
     @classmethod
@@ -557,9 +555,6 @@ class GPENCIL_MT_pie_sculpt(Menu):
         row.prop_enum(settings, "tool", value='RANDOMIZE')
 
 
-###############################
-
-
 class GPENCIL_MT_snap(Menu):
     bl_label = "Snap"
 
@@ -587,59 +582,6 @@ class GPENCIL_MT_separate(Menu):
         layout.operator("gpencil.stroke_separate", text="Active Layer").mode = 'LAYER'
 
 
-class GPENCIL_MT_gpencil_edit_specials(Menu):
-    bl_label = "GPencil Specials"
-
-    def draw(self, context):
-        layout = self.layout
-        is_3d_view = context.space_data.type == 'VIEW_3D'
-
-        layout.operator_context = 'INVOKE_REGION_WIN'
-
-        layout.operator("gpencil.stroke_subdivide", text="Subdivide")
-        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
-        layout.operator("gpencil.stroke_simplify", text="Simplify Adaptative")
-
-        layout.separator()
-        layout.menu("GPENCIL_MT_separate", text="Separate")
-
-        layout.separator()
-        layout.operator("gpencil.stroke_split", text="Split")
-
-        layout.separator()
-
-        layout.operator("gpencil.stroke_join", text="Join").type = 'JOIN'
-        layout.operator("gpencil.stroke_join", text="Join & Copy").type = 'JOINCOPY'
-        layout.operator("gpencil.stroke_flip", text="Flip Direction")
-
-        layout.separator()
-        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
-        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame All Layers").mode = 'ALL'
-
-        if is_3d_view:
-            layout.separator()
-            layout.operator("gpencil.reproject")
-
-
-class GPENCIL_MT_gpencil_sculpt_specials(Menu):
-    bl_label = "GPencil Specials"
-
-    def draw(self, context):
-        layout = self.layout
-        is_3d_view = context.space_data.type == 'VIEW_3D'
-
-        layout.operator_context = 'INVOKE_REGION_WIN'
-
-        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
-        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame All Layers").mode = 'ALL'
-
-        layout.separator()
-
-        layout.operator("gpencil.stroke_subdivide", text="Subdivide")
-        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
-        layout.operator("gpencil.stroke_simplify", text="Simplify Adaptative")
-
-
 class GPENCIL_MT_gpencil_draw_specials(Menu):
     bl_label = "GPencil Draw Specials"
 
@@ -657,10 +599,6 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
         layout.operator("gpencil.primitive", text="Rectangle", icon='UV_FACESEL').type = 'BOX'
         layout.operator("gpencil.primitive", text="Circle", icon='ANTIALIASED').type = 'CIRCLE'
 
-        # colors
-        layout.separator()
-        layout.operator("gpencil.colorpick", text="Colors", icon="GROUP_VCOL")
-
 
 class GPENCIL_MT_gpencil_draw_delete(Menu):
     bl_label = "GPencil Draw Delete"
@@ -672,6 +610,21 @@ class GPENCIL_MT_gpencil_draw_delete(Menu):
         layout.operator_context = 'INVOKE_REGION_WIN'
 
         layout.operator("gpencil.active_frames_delete_all", text="Delete Frame")
+
+
+class GPENCIL_MT_cleanup(Menu):
+    bl_label = "Clean Up"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("gpencil.frame_clean_loose", text="Loose Points")
+        layout.separator()
+
+        layout.operator("gpencil.frame_clean_fill", text="Boundary Strokes").mode = 'ACTIVE'
+        layout.operator("gpencil.frame_clean_fill", text="Boundary Strokes all Frames").mode = 'ALL'
+        layout.separator()
+
+        layout.operator("gpencil.reproject")
 
 
 class GPENCIL_UL_annotation_layer(UIList):
@@ -699,6 +652,7 @@ class GPENCIL_UL_annotation_layer(UIList):
 class GreasePencilDataPanel:
     bl_label = "Annotations"
     bl_region_type = 'UI'
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -719,23 +673,20 @@ class GreasePencilDataPanel:
     @staticmethod
     def draw(self, context):
         layout = self.layout
-        #layout.use_property_split = True
         layout.use_property_decorate = False
 
-        # owner of Grease Pencil data
+        # Grease Pencil owner.
         gpd_owner = context.gpencil_data_owner
         gpd = context.gpencil_data
 
-        # Owner Selector
+        # Owner selector.
         if context.space_data.type == 'CLIP_EDITOR':
             layout.row().prop(context.space_data, "grease_pencil_source", expand=True)
-        # Grease Pencil data selector
+
         layout.template_ID(gpd_owner, "grease_pencil", new="gpencil.data_add", unlink="gpencil.data_unlink")
 
-        # Grease Pencil data...
-        if (gpd is None) or (not gpd.layers):
-            layout.operator("gpencil.layer_add", text="New Note")
-        else:
+        # List of layers/notes.
+        if gpd and gpd.layers:
             self.draw_layers(context, layout, gpd)
 
     def draw_layers(self, context, layout, gpd):
@@ -763,12 +714,14 @@ class GreasePencilDataPanel:
                 sub.operator("gpencil.layer_move", icon='TRIA_UP', text="").type = 'UP'
                 sub.operator("gpencil.layer_move", icon='TRIA_DOWN', text="").type = 'DOWN'
 
+        tool_settings = context.tool_settings
+        if gpd and gpl:
+            layout.prop(gpl, "thickness")
+        else:
+            layout.prop(tool_settings, "annotation_thickness", text="Thickness")
+
         if gpl:
             # layout.prop(gpl, "opacity", text="Opacity", slider=True)
-            # layout.prop(gpl, "thickness", text="Thickness")
-            #
-            # layout.separator()
-
             # Full-Row - Frame Locking (and Delete Frame)
             row = layout.row(align=True)
             row.active = not gpl.lock
@@ -787,52 +740,37 @@ class GreasePencilOnionPanel:
     @staticmethod
     def draw_settings(layout, gp):
         col = layout.column()
-
         col.prop(gp, "onion_mode")
+        col.prop(gp, "onion_factor", text="Opacity", slider=True)
 
-        row = col.row()
-        row.prop(gp, "onion_factor", text="Opacity", slider=True)
+        if gp.onion_mode in ('ABSOLUTE', 'RELATIVE'):
+            col = layout.column(align=True)
+            col.prop(gp, "ghost_before_range", text="Frames Before")
+            col.prop(gp, "ghost_after_range", text="After")
 
-        # - Before Frames
-        sub = layout.column(align=True)
-        row = sub.row(align=True)
-        row.active = gp.use_ghost_custom_colors
-        row.prop(gp, "before_color", text="Color Before")
+        layout.prop(gp, "use_ghost_custom_colors", text="Use Custom Colors")
 
-        row = sub.row(align=True)
-        row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
-        row.prop(gp, "ghost_before_range", text="Frames Before")
+        if gp.use_ghost_custom_colors:
+            col = layout.column(align=True)
+            col.active = gp.use_ghost_custom_colors
+            col.prop(gp, "before_color", text="Color Before")
+            col.prop(gp, "after_color", text="After")
 
-        # - After Frames
-        sub = layout.column(align=True)
-        row = sub.row(align=True)
-        row.active = gp.use_ghost_custom_colors
-        row.prop(gp, "after_color", text="Color After")
-
-        row = sub.row(align=True)
-        row.active = gp.onion_mode in ('ABSOLUTE', 'RELATIVE')
-        row.prop(gp, "ghost_after_range", text="Frames After")
-
-        layout.prop(gp, "use_ghost_custom_colors", text="Use Custom Color")
         layout.prop(gp, "use_ghosts_always", text="View In Render")
 
-        # - fade and loop
-        row = layout.row()
-        row.active = gp.use_onion_skinning
-        row.prop(gp, "use_onion_fade", text="Fade")
-        if hasattr(gp, "use_onion_loop"): # XXX
-            subrow = layout.row()
-            subrow.active = gp.onion_mode in ('RELATIVE', 'SELECTED')
-            subrow.prop(gp, "use_onion_loop", text="Loop")
+        col = layout.column(align=True)
+        col.active = gp.use_onion_skinning
+        col.prop(gp, "use_onion_fade", text="Fade")
+        if hasattr(gp, "use_onion_loop"):  # XXX
+            sub = layout.column()
+            sub.active = gp.onion_mode in ('RELATIVE', 'SELECTED')
+            sub.prop(gp, "use_onion_loop", text="Loop")
 
-
-###############################
 
 class GreasePencilToolsPanel:
     # For use in "2D" Editors without their own toolbar
     # subclass must set
     # bl_space_type = 'IMAGE_EDITOR'
-    # bl_options = {'DEFAULT_CLOSED'}
     bl_label = "Grease Pencil Settings"
     bl_region_type = 'UI'
     bl_options = {'DEFAULT_CLOSED'}
@@ -869,7 +807,6 @@ class GreasePencilToolsPanel:
 
         gpencil_stroke_placement_settings(context, layout)
 
-###############################
 
 classes = (
     GPENCIL_MT_pie_tool_palette,
@@ -879,9 +816,8 @@ classes = (
 
     GPENCIL_MT_snap,
     GPENCIL_MT_separate,
+    GPENCIL_MT_cleanup,
 
-    GPENCIL_MT_gpencil_edit_specials,
-    GPENCIL_MT_gpencil_sculpt_specials,
     GPENCIL_MT_gpencil_draw_specials,
     GPENCIL_MT_gpencil_draw_delete,
 

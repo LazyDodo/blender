@@ -53,7 +53,6 @@
 
 #include "interface_intern.h"
 
-#include "GPU_basic_shader.h"
 #include "GPU_batch.h"
 #include "GPU_batch_presets.h"
 #include "GPU_immediate.h"
@@ -1083,7 +1082,7 @@ static void widgetbase_set_uniform_colors_ubv(
 #define MAX_WIDGET_BASE_BATCH 6
 #define MAX_WIDGET_PARAMETERS 11
 
-struct {
+static struct {
 	GPUBatch *batch; /* Batch type */
 	uiWidgetBaseParameters params[MAX_WIDGET_BASE_BATCH];
 	int count;
@@ -1494,7 +1493,7 @@ float UI_text_clip_middle_ex(
 			rpart = rpart_buf;
 		}
 
-		l_end = BLF_width_to_strlen(fstyle->uifont_id, str, max_len, parts_strwidth, &rpart_width);
+		l_end = BLF_width_to_strlen(fstyle->uifont_id, str, max_len, parts_strwidth, NULL);
 		if (l_end < 10 || min_ff(parts_strwidth, strwidth - okwidth) < minwidth) {
 			/* If we really have no place, or we would clip a very small piece of string in the middle,
 			 * only show start of string.
@@ -1504,7 +1503,7 @@ float UI_text_clip_middle_ex(
 		else {
 			size_t r_offset, r_len;
 
-			r_offset = BLF_width_to_rstrlen(fstyle->uifont_id, str, max_len, parts_strwidth, &rpart_width);
+			r_offset = BLF_width_to_rstrlen(fstyle->uifont_id, str, max_len, parts_strwidth, NULL);
 			r_len = strlen(str + r_offset) + 1;  /* +1 for the trailing '\0'. */
 
 			if (l_end + sep_len + r_len + rpart_len > max_len) {
@@ -1525,6 +1524,7 @@ float UI_text_clip_middle_ex(
 		if (rpart) {
 			/* Add back preserved right part to our shorten str. */
 			memcpy(str + final_lpart_len, rpart, rpart_len + 1);  /* +1 for trailing '\0'. */
+			okwidth += rpart_width;
 		}
 
 		strwidth = BLF_width(fstyle->uifont_id, str, max_len);

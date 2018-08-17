@@ -48,6 +48,7 @@
 #include "DNA_lightprobe_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_modifier_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
@@ -846,7 +847,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			if (ntree->type == NTREE_SHADER) {
 				for (bNode *node = ntree->nodes.first; node; node = node->next) {
 					if (node->type == 194 /* SH_NODE_EEVEE_METALLIC */ &&
-						STREQ(node->idname, "ShaderNodeOutputMetallic"))
+					    STREQ(node->idname, "ShaderNodeOutputMetallic"))
 					{
 						BLI_strncpy(node->idname, "ShaderNodeEeveeMetallic", sizeof(node->idname));
 						error |= NTREE_DOVERSION_NEED_OUTPUT;
@@ -858,14 +859,14 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					}
 
 					else if (node->type == 196 /* SH_NODE_OUTPUT_EEVEE_MATERIAL */ &&
-						STREQ(node->idname, "ShaderNodeOutputEeveeMaterial"))
+					         STREQ(node->idname, "ShaderNodeOutputEeveeMaterial"))
 					{
 						node->type = SH_NODE_OUTPUT_MATERIAL;
 						BLI_strncpy(node->idname, "ShaderNodeOutputMaterial", sizeof(node->idname));
 					}
 
 					else if (node->type == 194 /* SH_NODE_EEVEE_METALLIC */ &&
-						STREQ(node->idname, "ShaderNodeEeveeMetallic"))
+					         STREQ(node->idname, "ShaderNodeEeveeMetallic"))
 					{
 						node->type = SH_NODE_BSDF_PRINCIPLED;
 						BLI_strncpy(node->idname, "ShaderNodeBsdfPrincipled", sizeof(node->idname));
@@ -1645,7 +1646,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
-							v3d->shading.background_type = (v3d->flag3 & V3D_SHOW_WORLD)? V3D_SHADING_BACKGROUND_WORLD: V3D_SHADING_BACKGROUND_THEME;
 							copy_v3_fl(v3d->shading.background_color, 0.05f);
 						}
 					}
@@ -1741,7 +1741,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
 							v3d->vertex_opacity = 1.0f;
-							v3d->flag3 |= V3D_GP_SHOW_EDIT_LINES;
+							v3d->gp_flag |= V3D_GP_SHOW_EDIT_LINES;
 						}
 					}
 				}
@@ -1827,7 +1827,62 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-
+		/* default loc axis */
+		if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "lock_axis")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				/* lock axis */
+				GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
+				if (gset) {
+					gset->lock_axis = GP_LOCKAXIS_Y;
+				}
+			}
+		}
 	}
 
+	{
+		/* Versioning code for Subsurf modifier. */
+		if (!DNA_struct_elem_find(fd->filesdna, "SubsurfModifier", "short", "uv_smooth")) {
+			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
+				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Subsurf) {
+						SubsurfModifierData *smd = (SubsurfModifierData *)md;
+						if (smd->flags & eSubsurfModifierFlag_SubsurfUv_DEPRECATED) {
+							smd->uv_smooth = SUBSURF_UV_SMOOTH_PRESERVE_CORNERS;
+						}
+						else {
+							smd->uv_smooth = SUBSURF_UV_SMOOTH_NONE;
+						}
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "SubsurfModifier", "short", "quality")) {
+			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
+				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Subsurf) {
+						SubsurfModifierData *smd = (SubsurfModifierData *)md;
+						smd->quality = 3;
+					}
+				}
+			}
+		}
+		/* Versioning code for Multires modifier. */
+		if (!DNA_struct_elem_find(fd->filesdna, "MultiresModifier", "short", "quality")) {
+			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
+				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Multires) {
+						MultiresModifierData *mmd = (MultiresModifierData *)md;
+						mmd->quality = 3;
+						if (mmd->flags & eMultiresModifierFlag_PlainUv_DEPRECATED) {
+							mmd->uv_smooth = SUBSURF_UV_SMOOTH_NONE;
+						}
+						else {
+							mmd->uv_smooth = SUBSURF_UV_SMOOTH_PRESERVE_CORNERS;
+						}
+					}
+				}
+			}
+		}
+	}
 }

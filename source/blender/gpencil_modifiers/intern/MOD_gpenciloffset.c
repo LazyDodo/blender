@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpenciloffset.c
+/** \file blender/gpencil_modifiers/intern/MOD_gpenciloffset.c
  *  \ingroup modifiers
  */
 
@@ -89,7 +89,7 @@ static void deformStroke(
 		MDeformVert *dvert = &gps->dvert[i];
 
 		/* verify vertex group */
-		float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_OFFSET_INVERT_VGROUP) == 0), vindex);
+		float weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_OFFSET_INVERT_VGROUP) != 0), vindex);
 		if (weight < 0) {
 			continue;
 		}
@@ -105,7 +105,7 @@ static void deformStroke(
 }
 
 static void bakeModifier(
-		struct Main *UNUSED(bmain), Depsgraph *depsgraph,
+        struct Main *UNUSED(bmain), Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;

@@ -28,9 +28,9 @@ from rna_prop_ui import PropertyPanel
 from bl_operators.presets import PresetMenu
 
 from .properties_physics_common import (
-        point_cache_ui,
-        effector_weights_ui,
-        )
+    point_cache_ui,
+    effector_weights_ui,
+)
 
 
 class SCENE_PT_units_length_presets(PresetMenu):
@@ -103,6 +103,7 @@ class SCENE_PT_unit(SceneButtonsPanel, Panel):
         col.enabled = unit.system != 'NONE'
         col.prop(unit, "scale_length")
         col.prop(unit, "use_separate")
+
 
 class SceneKeyingSetsPanel:
 
@@ -568,7 +569,8 @@ class SCENE_PT_simplify_render(SceneButtonsPanel, Panel):
 
 
 class SCENE_PT_simplify_greasepencil(SceneButtonsPanel, Panel):
-    bl_label = "Simplify Grease Pencil"
+    bl_label = "Grease Pencil"
+    bl_parent_id = "SCENE_PT_simplify"
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -578,20 +580,22 @@ class SCENE_PT_simplify_greasepencil(SceneButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         rd = context.scene.render
 
         layout.active = rd.simplify_gpencil
 
-        row = layout.row()
-        row.prop(rd, "simplify_gpencil_onplay", text="Only on Play")
-
-        split = layout.split()
-
-        col = split.column()
-        col.prop(rd, "simplify_gpencil_view_fill", text="Fill")
-        col.prop(rd, "simplify_gpencil_remove_lines", text="Remove Fill Lines")
+        col = layout.column()
+        col.prop(rd, "simplify_gpencil_onplay", text="Playback Only")
         col.prop(rd, "simplify_gpencil_view_modifier", text="Modifiers")
+        col.prop(rd, "simplify_gpencil_shader_fx", text="ShaderFX")
+
+        col = layout.column(align=True)
+        col.prop(rd, "simplify_gpencil_view_fill")
+        sub = col.column()
+        sub.active = rd.simplify_gpencil_view_fill
+        sub.prop(rd, "simplify_gpencil_remove_lines", text="Lines")
 
 
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):

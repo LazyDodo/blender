@@ -55,11 +55,10 @@ typedef struct ColorTemplate {
 /* Add color an ensure duplications (matched by name) */
 static int gpencil_monkey_color(Main *bmain, Object *ob, const ColorTemplate *pct)
 {
-	Material *ma = NULL;
-	Material ***matar = give_matarar(ob);
 	short *totcol = give_totcolp(ob);
+	Material *ma = NULL;
 	for (short i = 0; i < *totcol; i++) {
-		ma = (*matar)[i];
+		ma = give_current_material(ob, i + 1);
 		if (STREQ(ma->id.name, pct->name)) {
 			return i;
 		}
@@ -68,12 +67,12 @@ static int gpencil_monkey_color(Main *bmain, Object *ob, const ColorTemplate *pc
 	/* create a new one */
 	BKE_object_material_slot_add(bmain, ob);
 	ma = BKE_material_add_gpencil(bmain, pct->name);
-	assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+	assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_USERPREF);
 
 	copy_v4_v4(ma->gp_style->stroke_rgba, pct->line);
 	copy_v4_v4(ma->gp_style->fill_rgba, pct->fill);
 
-	return BKE_object_material_slot_find_index(ob, ma) - 1;
+	return BKE_gpencil_get_material_index(ob, ma) - 1;
 }
 
 /* ***************************************************************** */

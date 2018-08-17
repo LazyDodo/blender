@@ -433,6 +433,25 @@ void equalize_bbone_bezier(float *data, int desired)
 	copy_qt_qt(fp, temp[MAX_BBONE_SUBDIV]);
 }
 
+/* get "next" and "prev" bones - these are used for handle calculations */
+void BKE_pchan_get_bbone_handles(bPoseChannel *pchan, bPoseChannel **r_prev, bPoseChannel **r_next)
+{
+	if (pchan->bboneflag & PCHAN_BBONE_CUSTOM_HANDLES) {
+		/* use the provided bones as the next/prev - leave blank to eliminate this effect altogether */
+		*r_prev = pchan->bbone_prev;
+		*r_next = pchan->bbone_next;
+	}
+	else {
+		/* evaluate next and prev bones */
+		if (pchan->bone->flag & BONE_CONNECTED)
+			*r_prev = pchan->parent;
+		else
+			*r_prev = NULL;
+
+		*r_next = pchan->child;
+	}
+}
+
 /* returns pointer to static array, filled with desired amount of bone->segments elements */
 /* this calculation is done  within unit bone space */
 void b_bone_spline_setup(bPoseChannel *pchan, int rest, Mat4 result_array[MAX_BBONE_SUBDIV])
@@ -460,21 +479,7 @@ void b_bone_spline_setup(bPoseChannel *pchan, int rest, Mat4 result_array[MAX_BB
 		}
 	}
 
-	/* get "next" and "prev" bones - these are used for handle calculations */
-	if (pchan->bboneflag & PCHAN_BBONE_CUSTOM_HANDLES) {
-		/* use the provided bones as the next/prev - leave blank to eliminate this effect altogether */
-		prev = pchan->bbone_prev;
-		next = pchan->bbone_next;
-	}
-	else {
-		/* evaluate next and prev bones */
-		if (bone->flag & BONE_CONNECTED)
-			prev = pchan->parent;
-		else
-			prev = NULL;
-
-		next = pchan->child;
-	}
+	BKE_pchan_get_bbone_handles(pchan, &prev, &next);
 
 	/* find the handle points, since this is inside bone space, the
 	 * first point = (0, 0, 0)
@@ -1960,7 +1965,7 @@ void BKE_pose_remap_bone_pointers(bArmature *armature, bPose *pose)
  *
  * \param bmain May be NULL, only used to tag depsgraph as being dirty...
  */
-void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm)
+void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm, const bool do_id_user)
 {
 	Bone *bone;
 	bPose *pose;
@@ -1989,7 +1994,7 @@ void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm)
 	for (pchan = pose->chanbase.first; pchan; pchan = next) {
 		next = pchan->next;
 		if (pchan->bone == NULL) {
-			BKE_pose_channel_free(pchan);
+			BKE_pose_channel_free_ex(pchan, do_id_user);
 			BKE_pose_channels_hash_free(pose);
 			BLI_freelinkN(&pose->chanbase, pchan);
 		}
@@ -2291,7 +2296,7 @@ void BKE_pose_where_is(struct Depsgraph *depsgraph, Scene *scene, Object *ob)
 		return;
 	if ((ob->pose == NULL) || (ob->pose->flag & POSE_RECALC)) {
 		/* WARNING! passing NULL bmain here means we won't tag depsgraph's as dirty - hopefully this is OK. */
-		BKE_pose_rebuild(NULL, ob, arm);
+		BKE_pose_rebuild(NULL, ob, arm, true);
 	}
 
 	ctime = BKE_scene_frame_get(scene); /* not accurate... */

@@ -51,7 +51,9 @@ static int node_shader_gpu_bsdf_glossy(GPUMaterial *mat, bNode *node, bNodeExecD
 	if (!in[2].link)
 		GPU_link(mat, "world_normals_get", &in[2].link);
 
-	return GPU_stack_link(mat, node, "node_bsdf_glossy", in, out, GPU_uniform(&node->ssr_id));
+	GPU_material_flag_set(mat, GPU_MATFLAG_GLOSSY);
+
+	return GPU_stack_link(mat, node, "node_bsdf_glossy", in, out, GPU_constant(&node->ssr_id));
 }
 
 /* node type definition */

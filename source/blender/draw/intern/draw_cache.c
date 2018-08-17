@@ -242,13 +242,15 @@ static GPUVertBuf *sphere_wire_vbo(const float rad)
 				cv[0] = p[(i + j) % NSEGMENTS][0];
 				cv[1] = p[(i + j) % NSEGMENTS][1];
 
-				if (axis == 0)
-					v[0] = cv[0], v[1] = cv[1], v[2] = 0.0f;
-				else if (axis == 1)
-					v[0] = cv[0], v[1] = 0.0f,  v[2] = cv[1];
-				else
-					v[0] = 0.0f,  v[1] = cv[0], v[2] = cv[1];
-
+				if (axis == 0) {
+					ARRAY_SET_ITEMS(v, cv[0], cv[1], 0.0f);
+				}
+				else if (axis == 1) {
+					ARRAY_SET_ITEMS(v, cv[0], 0.0f, cv[1]);
+				}
+				else {
+					ARRAY_SET_ITEMS(v, 0.0f, cv[0], cv[1]);
+				}
 				GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 2 + j + (NSEGMENTS * 2 * axis), v);
 			}
 		}
@@ -603,7 +605,7 @@ GPUBatch *DRW_cache_gpencil_axes_get(void)
 			GPU_vertbuf_attr_set(vbo, pos_id, i + 6, verts[indices[i]]);
 		}
 
-		SHC.drw_gpencil_axes = GPU_batch_create(GPU_PRIM_LINES, vbo, NULL);
+		SHC.drw_gpencil_axes = GPU_batch_create_ex(GPU_PRIM_LINES, vbo, NULL, GPU_BATCH_OWNS_VBO);
 	}
 	return SHC.drw_gpencil_axes;
 }
@@ -825,17 +827,17 @@ GPUBatch *DRW_cache_empty_cone_get(void)
 			cv[1] = p[(i) % NSEGMENTS][1];
 
 			/* cone sides */
-			v[0] = cv[0], v[1] = 0.0f, v[2] = cv[1];
+			ARRAY_SET_ITEMS(v, cv[0], 0.0f, cv[1]);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4, v);
-			v[0] = 0.0f, v[1] = 2.0f, v[2] = 0.0f;
+			ARRAY_SET_ITEMS(v, 0.0f, 2.0f, 0.0f);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4 + 1, v);
 
 			/* end ring */
-			v[0] = cv[0], v[1] = 0.0f, v[2] = cv[1];
+			ARRAY_SET_ITEMS(v, cv[0], 0.0f, cv[1]);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4 + 2, v);
 			cv[0] = p[(i + 1) % NSEGMENTS][0];
 			cv[1] = p[(i + 1) % NSEGMENTS][1];
-			v[0] = cv[0], v[1] = 0.0f, v[2] = cv[1];
+			ARRAY_SET_ITEMS(v, cv[0], 0.0f, cv[1]);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4 + 3, v);
 		}
 
@@ -981,77 +983,6 @@ GPUBatch *DRW_cache_empty_capsule_cap_get(void)
 	}
 	return SHC.drw_empty_capsule_cap;
 #undef NSEGMENTS
-}
-
-GPUBatch *DRW_cache_arrows_get(void)
-{
-	if (!SHC.drw_arrows) {
-		GPUVertBuf *vbo = fill_arrows_vbo(1.0f);
-
-		SHC.drw_arrows = GPU_batch_create_ex(GPU_PRIM_LINES, vbo, NULL, GPU_BATCH_OWNS_VBO);
-	}
-	return SHC.drw_arrows;
-}
-
-GPUBatch *DRW_cache_axis_names_get(void)
-{
-	if (!SHC.drw_axis_names) {
-		const float size = 0.1f;
-		float v1[3], v2[3];
-
-		/* Position Only 3D format */
-		static GPUVertFormat format = { 0 };
-		static struct { uint pos; } attr_id;
-		if (format.attr_len == 0) {
-			/* Using 3rd component as axis indicator */
-			attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		}
-
-		/* Line */
-		GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-		GPU_vertbuf_data_alloc(vbo, 14);
-
-		/* X */
-		copy_v3_fl3(v1, -size,  size, 0.0f);
-		copy_v3_fl3(v2,  size, -size, 0.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 0, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 1, v2);
-
-		copy_v3_fl3(v1,  size,  size, 0.0f);
-		copy_v3_fl3(v2, -size, -size, 0.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 2, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 3, v2);
-
-		/* Y */
-		copy_v3_fl3(v1, -size + 0.25f * size,  size, 1.0f);
-		copy_v3_fl3(v2,  0.0f,  0.0f, 1.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 4, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 5, v2);
-
-		copy_v3_fl3(v1,  size - 0.25f * size,  size, 1.0f);
-		copy_v3_fl3(v2, -size + 0.25f * size, -size, 1.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 6, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 7, v2);
-
-		/* Z */
-		copy_v3_fl3(v1, -size,  size, 2.0f);
-		copy_v3_fl3(v2,  size,  size, 2.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 8, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 9, v2);
-
-		copy_v3_fl3(v1,  size,  size, 2.0f);
-		copy_v3_fl3(v2, -size, -size, 2.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 10, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 11, v2);
-
-		copy_v3_fl3(v1, -size, -size, 2.0f);
-		copy_v3_fl3(v2,  size, -size, 2.0f);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 12, v1);
-		GPU_vertbuf_attr_set(vbo, attr_id.pos, 13, v2);
-
-		SHC.drw_axis_names = GPU_batch_create_ex(GPU_PRIM_LINES, vbo, NULL, GPU_BATCH_OWNS_VBO);
-	}
-	return SHC.drw_axis_names;
 }
 
 GPUBatch *DRW_cache_image_plane_get(void)
@@ -1578,9 +1509,9 @@ GPUBatch *DRW_cache_lamp_spot_get(void)
 			cv[1] = p[i % NSEGMENTS][1];
 
 			/* cone sides */
-			v[0] = cv[0], v[1] = cv[1], v[2] = -1.0f;
+			ARRAY_SET_ITEMS(v, cv[0], cv[1], -1.0f);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4, v);
-			v[0] = 0.0f, v[1] = 0.0f, v[2] = 0.0f;
+			ARRAY_SET_ITEMS(v, 0.0f, 0.0f, 0.0f);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4 + 1, v);
 
 			GPU_vertbuf_attr_set(vbo, attr_id.n1, i * 4,     n[(i) % NSEGMENTS]);
@@ -1589,11 +1520,11 @@ GPUBatch *DRW_cache_lamp_spot_get(void)
 			GPU_vertbuf_attr_set(vbo, attr_id.n2, i * 4 + 1, n[(i + 1) % NSEGMENTS]);
 
 			/* end ring */
-			v[0] = cv[0], v[1] = cv[1], v[2] = -1.0f;
+			ARRAY_SET_ITEMS(v, cv[0], cv[1], -1.0f);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4 + 2, v);
 			cv[0] = p[(i + 1) % NSEGMENTS][0];
 			cv[1] = p[(i + 1) % NSEGMENTS][1];
-			v[0] = cv[0], v[1] = cv[1], v[2] = -1.0f;
+			ARRAY_SET_ITEMS(v, cv[0], cv[1], -1.0f);
 			GPU_vertbuf_attr_set(vbo, attr_id.pos, i * 4 + 3, v);
 
 			GPU_vertbuf_attr_set(vbo, attr_id.n1, i * 4 + 2, n[(i) % NSEGMENTS]);

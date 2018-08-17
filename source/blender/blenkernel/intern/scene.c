@@ -1336,7 +1336,7 @@ static void scene_armature_depsgraph_workaround(Main *bmain, Depsgraph *depsgrap
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->type == OB_ARMATURE && ob->adt && ob->adt->recalc & ADT_RECALC_ANIM) {
 			if (ob->pose == NULL || (ob->pose->flag & POSE_RECALC)) {
-				BKE_pose_rebuild(bmain, ob, ob->data);
+				BKE_pose_rebuild(bmain, ob, ob->data, true);
 			}
 		}
 	}
@@ -1475,6 +1475,18 @@ void BKE_scene_graph_update_for_newframe(Depsgraph *depsgraph,
 	DEG_ids_check_recalc(bmain, depsgraph, scene, view_layer, true);
 	/* clear recalc flags */
 	DEG_ids_clear_recalc(bmain, depsgraph);
+}
+
+/** Ensures given scene/view_layer pair has a valid, up-to-date depsgraph.
+ *
+ * \warning Sets matching depsgraph as active, so should only be called from the active editing context
+ *          (usually, from operators).
+ */
+void BKE_scene_view_layer_graph_evaluated_ensure(Main *bmain, Scene *scene, ViewLayer *view_layer)
+{
+	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
+	DEG_make_active(depsgraph);
+	BKE_scene_graph_update_tagged(depsgraph, bmain);
 }
 
 /* return default view */

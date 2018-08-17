@@ -35,6 +35,7 @@
 #include "rna_internal.h"
 
 #include "DNA_ID.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_screen_types.h"
@@ -51,7 +52,7 @@
 
 #include "bmesh.h"
 
-static const EnumPropertyItem particle_edit_hair_brush_items[] = {
+const EnumPropertyItem rna_enum_particle_edit_hair_brush_items[] = {
 	{PE_BRUSH_NONE, "NONE", 0, "None", "Don't use any brush"},
 	{PE_BRUSH_COMB, "COMB", 0, "Comb", "Comb hairs"},
 	{PE_BRUSH_SMOOTH, "SMOOTH", 0, "Smooth", "Smooth hairs"},
@@ -76,12 +77,12 @@ const EnumPropertyItem rna_enum_gpencil_sculpt_brush_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-EnumPropertyItem rna_enum_gpencil_weight_brush_items[] = {
+#ifndef RNA_RUNTIME
+static EnumPropertyItem rna_enum_gpencil_weight_brush_items[] = {
 	{ GP_EDITBRUSH_TYPE_WEIGHT, "WEIGHT", ICON_GPBRUSH_WEIGHT, "Weight", "Weight Paint for Vertex Groups" },
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-#ifndef RNA_RUNTIME
 static const EnumPropertyItem rna_enum_gpencil_lockaxis_items[] = {
 	{ GP_LOCKAXIS_NONE, "GP_LOCKAXIS_NONE", ICON_UNLOCKED, "None", "" },
 	{ GP_LOCKAXIS_X, "GP_LOCKAXIS_X", ICON_NDOF_DOM, "X", "Project strokes to plane locked to X" },
@@ -106,6 +107,7 @@ const EnumPropertyItem rna_enum_symmetrize_direction_items[] = {
 #ifdef RNA_RUNTIME
 #include "MEM_guardedalloc.h"
 
+#include "BKE_collection.h"
 #include "BKE_context.h"
 #include "BKE_particle.h"
 #include "BKE_pbvh.h"
@@ -118,13 +120,27 @@ const EnumPropertyItem rna_enum_symmetrize_direction_items[] = {
 
 #include "ED_particle.h"
 
-static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
+static void rna_GPencil_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
-	DEG_id_type_tag(bmain, ID_GD);
+	/* mark all grease pencil datablocks of the scene */
+	FOREACH_SCENE_COLLECTION_BEGIN(scene, collection)
+	{
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
+		{
+			if (ob->type == OB_GPENCIL) {
+				bGPdata *gpd = (bGPdata *)ob->data;
+				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+				DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+	}
+	FOREACH_SCENE_COLLECTION_END;
+
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
-static const EnumPropertyItem particle_edit_disconnected_hair_brush_items[] = {
+const EnumPropertyItem rna_enum_particle_edit_disconnected_hair_brush_items[] = {
 	{PE_BRUSH_NONE, "NONE", 0, "None", "Don't use any brush"},
 	{PE_BRUSH_COMB, "COMB", 0, "Comb", "Comb hairs"},
 	{PE_BRUSH_SMOOTH, "SMOOTH", 0, "Smooth", "Smooth hairs"},
@@ -201,8 +217,9 @@ static void rna_ParticleEdit_tool_set(PointerRNA *ptr, int value)
 
 	pset->brushtype = value;
 }
-static const EnumPropertyItem *rna_ParticleEdit_tool_itemf(bContext *C, PointerRNA *UNUSED(ptr),
-                                                     PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
+static const EnumPropertyItem *rna_ParticleEdit_tool_itemf(
+        bContext *C, PointerRNA *UNUSED(ptr),
+        PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = OBACT(view_layer);
@@ -219,10 +236,10 @@ static const EnumPropertyItem *rna_ParticleEdit_tool_itemf(bContext *C, PointerR
 
 	if (psys) {
 		if (psys->flag & PSYS_GLOBAL_HAIR) {
-			return particle_edit_disconnected_hair_brush_items;
+			return rna_enum_particle_edit_disconnected_hair_brush_items;
 		}
 		else {
-			return particle_edit_hair_brush_items;
+			return rna_enum_particle_edit_hair_brush_items;
 		}
 	}
 
@@ -935,7 +952,7 @@ static void rna_def_particle_edit(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "tool", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "brushtype");
-	RNA_def_property_enum_items(prop, particle_edit_hair_brush_items);
+	RNA_def_property_enum_items(prop, rna_enum_particle_edit_hair_brush_items);
 	RNA_def_property_enum_funcs(prop, NULL, "rna_ParticleEdit_tool_set", "rna_ParticleEdit_tool_itemf");
 	RNA_def_property_ui_text(prop, "Tool", "");
 

@@ -1789,7 +1789,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 					case OB_ARMATURE:
 						DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 						ob->data = ID_NEW_SET(ob->data, BKE_armature_copy(bmain, ob->data));
-						BKE_pose_rebuild(bmain, ob, ob->data);
+						BKE_pose_rebuild(bmain, ob, ob->data, true);
 						break;
 					case OB_SPEAKER:
 						ob->data = ID_NEW_SET(ob->data, BKE_speaker_copy(bmain, ob->data));
@@ -1875,6 +1875,7 @@ static void single_mat_users_expand(Main *bmain)
 	Mesh *me;
 	Curve *cu;
 	MetaBall *mb;
+	bGPdata *gpd;
 
 	for (ob = bmain->object.first; ob; ob = ob->id.next)
 		if (ob->id.tag & LIB_TAG_NEW)
@@ -1891,6 +1892,10 @@ static void single_mat_users_expand(Main *bmain)
 	for (mb = bmain->mball.first; mb; mb = mb->id.next)
 		if (mb->id.tag & LIB_TAG_NEW)
 			new_id_matar(bmain, mb->mat, mb->totcol);
+
+	for (gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next)
+		if (gpd->id.tag & LIB_TAG_NEW)
+			new_id_matar(bmain, gpd->mat, gpd->totcol);
 }
 
 /* used for copying scenes */
@@ -2220,6 +2225,14 @@ static void make_override_static_tag_object(Object *obact, Object *ob)
 	}
 }
 
+static void make_override_static_tag_collections(Collection *collection)
+{
+	collection->id.tag |= LIB_TAG_DOIT;
+	for (CollectionChild *coll_child = collection->children.first; coll_child != NULL; coll_child = coll_child->next) {
+		make_override_static_tag_collections(coll_child->collection);
+	}
+}
+
 /* Set the object to override. */
 static int make_override_static_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
@@ -2268,14 +2281,15 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 	bool success = false;
 
 	if (!ID_IS_LINKED(obact) && obact->dup_group != NULL && ID_IS_LINKED(obact->dup_group)) {
-		const ListBase dup_collection_objects = BKE_collection_object_cache_get(obact->dup_group);
-		Base *base = BLI_findlink(&dup_collection_objects, RNA_enum_get(op->ptr, "object"));
 		Object *obcollection = obact;
-		obact = base->object;
 		Collection *collection = obcollection->dup_group;
 
-		/* First, we make a static override of the linked collection itself. */
-		collection->id.tag |= LIB_TAG_DOIT;
+		const ListBase dup_collection_objects = BKE_collection_object_cache_get(collection);
+		Base *base = BLI_findlink(&dup_collection_objects, RNA_enum_get(op->ptr, "object"));
+		obact = base->object;
+
+		/* First, we make a static override of the linked collection itself, and all its children. */
+		make_override_static_tag_collections(collection);
 
 		/* Then, we make static override of the whole set of objects in the Collection. */
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)

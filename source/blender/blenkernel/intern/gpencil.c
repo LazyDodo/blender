@@ -419,13 +419,13 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 		/* set default thickness of new strokes for this layer */
 		gpl->thickness = 3;
 
-		/* onion-skinning settings */
-		gpl->onion_flag |= GP_LAYER_ONIONSKIN;
 	}
 	else {
 		/* thickness parameter represents "thickness change", not absolute thickness */
 		gpl->thickness = 0;
 		gpl->opacity = 1.0f;
+		/* onion-skinning settings */
+		gpl->onion_flag |= GP_LAYER_ONIONSKIN;
 	}
 
 	/* auto-name */
@@ -546,7 +546,7 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 	}
 	BLI_assert(gps_src->totpoints == gps_dst->totpoints);
 
-	if ((gps_src->dvert == NULL) || (gps_dst->dvert == NULL)){
+	if ((gps_src->dvert == NULL) || (gps_dst->dvert == NULL)) {
 		return;
 	}
 
@@ -673,7 +673,7 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
  *
  * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
-void BKE_gpencil_copy_data(Main *UNUSED(bmain), bGPdata *gpd_dst, const bGPdata *gpd_src, const int UNUSED(flag))
+void BKE_gpencil_copy_data(bGPdata *gpd_dst, const bGPdata *gpd_src, const int UNUSED(flag))
 {
 	/* cache data is not duplicated */
 	gpd_dst->runtime.batch_cache_data = NULL;
@@ -727,7 +727,7 @@ bGPdata *BKE_gpencil_data_duplicate(Main *bmain, const bGPdata *gpd_src, bool in
 	}
 
 	/* Copy internal data (layers, etc.) */
-	BKE_gpencil_copy_data(bmain, gpd_dst, gpd_src, 0);
+	BKE_gpencil_copy_data(gpd_dst, gpd_src, 0);
 
 	/* return new */
 	return gpd_dst;
@@ -1050,7 +1050,7 @@ Material *BKE_gpencil_get_material_from_brush(Brush *brush)
 	Material *ma = NULL;
 
 	if ((brush != NULL) && (brush->gpencil_settings != NULL) &&
-		(brush->gpencil_settings->material != NULL))
+	    (brush->gpencil_settings->material != NULL))
 	{
 		ma = brush->gpencil_settings->material;
 	}
@@ -1073,10 +1073,10 @@ Material *BKE_gpencil_material_ensure(Main *bmain, Object *ob)
 			BKE_object_material_slot_add(bmain, ob);
 		}
 		ma = BKE_material_add_gpencil(bmain, DATA_("Material"));
-		assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+		assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_USERPREF);
 	}
 	else if (ma->gp_style == NULL) {
-			BKE_material_init_gpencil_settings(ma);
+		BKE_material_init_gpencil_settings(ma);
 	}
 
 	return ma;
@@ -1629,4 +1629,19 @@ void BKE_gpencil_stats_update(bGPdata *gpd)
 		}
 	}
 
+}
+
+/* get material index */
+int BKE_gpencil_get_material_index(Object *ob, Material *ma)
+{
+	short *totcol = give_totcolp(ob);
+	Material *read_ma = NULL;
+	for (short i = 0; i < *totcol; i++) {
+		read_ma = give_current_material(ob, i + 1);
+		if (ma == read_ma) {
+			return i + 1;
+		}
+	}
+
+	return 0;
 }

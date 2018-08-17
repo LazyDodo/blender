@@ -1349,6 +1349,10 @@ typedef struct ToolSettings {
 	struct CurvePaintSettings curve_paint_settings;
 
 	struct MeshStatVis statvis;
+
+	/* Normal Editing */
+	float normal_vector[3];
+	int face_strength;
 } ToolSettings;
 
 /* *************************************************************** */
@@ -1576,15 +1580,15 @@ typedef struct Scene {
 /* RenderData.mode */
 #define R_OSA			0x0001
 /* #define R_SHADOW		0x0002 */
-/* #define R_GAMMA			0x0004 */
-#define R_ORTHO			0x0008
+/* #define R_GAMMA		0x0004 */
+/* #define R_ORTHO		0x0008 */
 /* #define R_ENVMAP		0x0010 */
-/* #define R_EDGE			0x0020 */
+/* #define R_EDGE		0x0020 */
 /* #define R_FIELDS		0x0040 */
 /*#define R_FIELDSTILL	0x0080 */
-/*#define R_RADIO			0x0100 */ /* deprecated */
+/*#define R_RADIO		0x0100 */ /* deprecated */
 #define R_BORDER		0x0200
-#define R_PANORAMA		0x0400
+#define R_PANORAMA		0x0400 /* deprecated */
 #define R_CROP			0x0800
 		/* Disable camera switching: runtime (DURIAN_CAMERA_SWITCH) */
 #define R_NO_CAMERA_SWITCH	0x1000
@@ -1884,6 +1888,13 @@ enum {
 	OB_DRAW_GROUPUSER_ALL       = 2
 };
 
+/* toolsettings->face_strength */
+enum {
+	FACE_STRENGTH_WEAK = -16384,
+	FACE_STRENGTH_MEDIUM = 0,
+	FACE_STRENGTH_STRONG = 16384,
+};
+
 /* object_vgroup.c */
 /* ToolSettings.vgroupsubset */
 typedef enum eVGroupSelect {
@@ -2042,9 +2053,13 @@ typedef enum eImagePaintMode {
 #define EDGE_MODE_TAG_FREESTYLE			5
 
 /* ToolSettings.gizmo_flag */
-#define SCE_MANIP_TRANSLATE	1
-#define SCE_MANIP_ROTATE		2
-#define SCE_MANIP_SCALE		4
+enum {
+	SCE_MANIP_TRANSLATE      = (1 << 0),
+	SCE_MANIP_ROTATE         = (1 << 1),
+	SCE_MANIP_SCALE          = (1 << 2),
+
+	SCE_MANIP_DISABLE_APRON  = (1 << 3),
+};
 
 /* ToolSettings.gpencil_flags */
 typedef enum eGPencil_Flags {
@@ -2067,7 +2082,9 @@ typedef enum eGPencil_SimplifyFlags {
 	/* Simplify modifier on viewport */
 	SIMPLIFY_GPENCIL_MODIFIER         = (1 << 3),
 	/* Remove fill external line */
-	SIMPLIFY_GPENCIL_REMOVE_FILL_LINE = (1 << 4)
+	SIMPLIFY_GPENCIL_REMOVE_FILL_LINE = (1 << 4),
+	/* Simplify Shader FX */
+	SIMPLIFY_GPENCIL_FX               = (1 << 5)
 } eGPencil_SimplifyFlags;
 
 /* ToolSettings.gpencil_*_align - Stroke Placement mode flags */

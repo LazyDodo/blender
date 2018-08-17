@@ -21,12 +21,13 @@ import bpy
 from bpy.types import Menu, Panel, UIList
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
-        GreasePencilDataPanel,
-        GreasePencilOnionPanel,
-        )
+    GreasePencilDataPanel,
+    GreasePencilOnionPanel,
+)
 
 ###############################
 # Base-Classes (for shared stuff - e.g. poll, attributes, etc.)
+
 
 class DataButtonsPanel:
     bl_space_type = 'PROPERTIES'
@@ -214,7 +215,7 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
         layout.enabled = not gpl.lock
         col = layout.column(align=True)
         col.prop(gpl, "tint_color")
-        col.prop(gpl, "tint_factor", slider=True)
+        col.prop(gpl, "tint_factor", text="Factor", slider=True)
 
         # Offsets - Thickness
         col = layout.row(align=True)
@@ -235,10 +236,10 @@ class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
         layout.use_property_decorate = False
 
         gpl = context.active_gpencil_layer
-        col = layout.column(align=True)
+        col = layout.column()
         col.active = not gpl.lock
-        col.prop(gpl, "parent", text="Parent")
-        col.prop(gpl, "parent_type", text="Parent Type")
+        col.prop(gpl, "parent")
+        col.prop(gpl, "parent_type", text="Type")
         parent = gpl.parent
 
         if parent and gpl.parent_type == 'BONE' and parent.type == 'ARMATURE':
@@ -265,7 +266,10 @@ class DATA_PT_gpencil_onionpanel(Panel):
 
         layout = self.layout
         layout.use_property_split = True
-        layout.enabled = gpd.use_onion_skinning
+        layout.enabled = gpd.use_onion_skinning and gpd.users <= 1
+
+        if gpd.use_onion_skinning and gpd.users > 1:
+            layout.label("Multiuser datablock not supported", icon='ERROR')
 
         GreasePencilOnionPanel.draw_settings(layout, gpd)
 
@@ -378,6 +382,7 @@ class DATA_PT_custom_props_gpencil(DataButtonsPanel, PropertyPanel, Panel):
     _property_type = bpy.types.GreasePencil
 
 ###############################
+
 
 classes = (
     DATA_PT_gpencil,

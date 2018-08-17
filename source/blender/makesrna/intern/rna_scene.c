@@ -532,9 +532,23 @@ static const EnumPropertyItem transform_orientation_items[] = {
 #endif
 
 /* Grease Pencil update cache */
-static void rna_GPencil_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
+static void rna_GPencil_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
-	DEG_id_type_tag(bmain, ID_GD);
+	/* mark all grease pencil datablocks of the scene */
+	FOREACH_SCENE_COLLECTION_BEGIN(scene, collection)
+	{
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, ob)
+		{
+			if (ob->type == OB_GPENCIL) {
+				bGPdata *gpd = (bGPdata *)ob->data;
+				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+				DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+	}
+	FOREACH_SCENE_COLLECTION_END;
+
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -2139,6 +2153,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	static EnumPropertyItem mod_weighted_strength[] = {
+		{FACE_STRENGTH_WEAK, "Weak", 0, "Weak", ""},
+		{FACE_STRENGTH_MEDIUM, "Medium", 0, "Medium", ""},
+		{FACE_STRENGTH_STRONG, "Strong", 0, "Strong", ""},
+		{0, NULL, 0, NULL, NULL},
+	};
+
 	static const EnumPropertyItem draw_groupuser_items[] = {
 		{OB_DRAW_GROUPUSER_NONE, "NONE", 0, "None", ""},
 		{OB_DRAW_GROUPUSER_ACTIVE, "ACTIVE", 0, "Active", "Show vertices with no weights in the active group"},
@@ -2405,6 +2426,11 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Gizmo Mode",  "");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_ToolSettings_gizmo_flag_update");
 
+	prop = RNA_def_property(srna, "use_gizmo_apron", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "gizmo_flag", SCE_MANIP_DISABLE_APRON);
+	RNA_def_property_ui_text(prop, "Apron", "Handle input not directly over the gizmo");
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
 	/* Grease Pencil */
 	prop = RNA_def_property(srna, "use_gpencil_additive_drawing", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_RETAIN_LAST);
@@ -2554,6 +2580,14 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "edge_path_live_unwrap", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "edge_mode_live_unwrap", 1);
 	RNA_def_property_ui_text(prop, "Live Unwrap", "Changing edges seam re-calculates UV unwrap");
+
+	prop = RNA_def_property(srna, "normal_vector", PROP_FLOAT, PROP_XYZ);
+	RNA_def_property_ui_text(prop, "Normal Vector", "Normal Vector used to copy, add or multiply");
+	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 1, 3);
+
+	prop = RNA_def_property(srna, "face_strength", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, mod_weighted_strength);
+	RNA_def_property_ui_text(prop, "Face Strength", "Set strength of face to specified value");
 
 	/* Unified Paint Settings */
 	prop = RNA_def_property(srna, "unified_paint_settings", PROP_POINTER, PROP_NONE);
@@ -5188,27 +5222,32 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	/* Grease Pencil - Simplify Options */
 	prop = RNA_def_property(srna, "simplify_gpencil", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_ENABLE);
-	RNA_def_property_ui_text(prop, "Simplify", "Simplify Grease Pencil Drawing");
+	RNA_def_property_ui_text(prop, "Simplify", "Simplify Grease Pencil drawing");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "simplify_gpencil_onplay", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_ON_PLAY);
-	RNA_def_property_ui_text(prop, "On Play", "Simplify Grease Pencil only when play animation");
+	RNA_def_property_ui_text(prop, "Simplify Playback", "Simplify Grease Pencil only during animation playback");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "simplify_gpencil_view_fill", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_FILL);
-	RNA_def_property_ui_text(prop, "Fill", "Do not fill strokes on viewport");
+	RNA_def_property_ui_text(prop, "Disable Fill", "Disable fill strokes in the viewport");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "simplify_gpencil_remove_lines", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_REMOVE_FILL_LINE);
-	RNA_def_property_ui_text(prop, "Remove Lines", "Remove External Lines of Filling Strokes");
+	RNA_def_property_ui_text(prop, "Disable Lines", "Disable external lines of fill strokes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "simplify_gpencil_view_modifier", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_MODIFIER);
-	RNA_def_property_ui_text(prop, "Fill", "Do not apply modifiers on viewport");
+	RNA_def_property_ui_text(prop, "Disable Modifiers", "Do not apply modifiers in the viewport");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_shader_fx", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_FX);
+	RNA_def_property_ui_text(prop, "Simplify Shaders", "Do not apply shader fx");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* persistent data */

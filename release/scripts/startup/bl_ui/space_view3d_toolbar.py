@@ -20,16 +20,16 @@
 import bpy
 from bpy.types import Menu, Panel, UIList
 from .properties_grease_pencil_common import (
-        GreasePencilStrokeEditPanel,
-        GreasePencilStrokeSculptPanel,
-        GreasePencilAppearancePanel,
-        )
+    GreasePencilStrokeEditPanel,
+    GreasePencilStrokeSculptPanel,
+    GreasePencilAppearancePanel,
+)
 from .properties_paint_common import (
-        UnifiedPaintPanel,
-        brush_texture_settings,
-        brush_texpaint_common,
-        brush_mask_texture_settings,
-        )
+    UnifiedPaintPanel,
+    brush_texture_settings,
+    brush_texpaint_common,
+    brush_mask_texture_settings,
+)
 from bl_operators.presets import PresetMenu
 
 
@@ -69,9 +69,13 @@ def draw_vpaint_symmetry(layout, vpaint):
     col.prop(vpaint, "radial_symmetry", text="Radial")
 
 # Most of these panels should not be visible in GP edit modes
+
+
 def is_not_gpencil_edit_mode(context):
-    is_gpmode = context.active_object and \
-                context.active_object.mode in {'GPENCIL_EDIT', 'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
+    is_gpmode = (
+        context.active_object and
+        context.active_object.mode in {'GPENCIL_EDIT', 'GPENCIL_PAINT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}
+    )
     return not is_gpmode
 
 
@@ -285,16 +289,16 @@ class VIEW3D_PT_tools_brush(Panel, View3DPaintPanel):
         if context.particle_edit_object:
             tool = settings.tool
 
-            layout.column().prop(settings, "tool", expand=True)
-
             if tool != 'NONE':
+                layout.column().prop(settings, "tool")
                 col = layout.column()
                 col.prop(brush, "size", slider=True)
-                if tool != 'ADD':
+                if tool == 'ADD':
+                    col.prop(brush, "count")
+                else:
                     col.prop(brush, "strength", slider=True)
 
             if tool == 'ADD':
-                col.prop(brush, "count")
                 col = layout.column()
                 col.prop(settings, "use_default_interpolate")
                 col.prop(brush, "steps", slider=True)
@@ -1345,6 +1349,26 @@ class VIEW3D_PT_tools_particlemode(View3DPanel, Panel):
             sub.prop(pe, "fade_frames", slider=True)
 
 
+class VIEW3D_PT_tools_normal(View3DPanel, Panel):
+    bl_category = ""
+    bl_context = ".mesh_edit"
+    bl_label = "Normal Tools"
+
+    def draw(self, context):
+        layout = self.layout
+        toolsettings = context.tool_settings
+
+        col = layout.column(align=True)
+        col.label(text="Normal Vector")
+        col.prop(toolsettings, "normal_vector", text="")
+
+        layout.separator()
+        layout.label(text="Face Strength")
+        layout.prop(toolsettings, "face_strength", text="")
+
+        col = layout.column(align=True)
+
+
 # ********** grease pencil object tool panels ****************
 
 # Grease Pencil drawing brushes
@@ -1518,14 +1542,17 @@ class VIEW3D_PT_tools_grease_pencil_brush_settings(View3DPanel, Panel):
         gp_settings = brush.gpencil_settings
         layout.active = gp_settings.enable_settings
 
-        layout.prop(gp_settings, "pen_smooth_factor")
-        layout.prop(gp_settings, "pen_smooth_steps")
+        col = layout.column(align=True)
+        col.prop(gp_settings, "pen_smooth_factor")
+        col.prop(gp_settings, "pen_thick_smooth_factor")
 
-        layout.prop(gp_settings, "pen_thick_smooth_factor")
-        layout.prop(gp_settings, "pen_thick_smooth_steps")
+        col = layout.column(align=True)
+        col.prop(gp_settings, "pen_smooth_steps")
+        col.prop(gp_settings, "pen_thick_smooth_steps")
 
-        layout.prop(gp_settings, "pen_subdivision_steps")
-        layout.prop(gp_settings, "random_subdiv", text="Randomness", slider=True)
+        col = layout.column(align=True)
+        col.prop(gp_settings, "pen_subdivision_steps")
+        col.prop(gp_settings, "random_subdiv", text="Randomness", slider=True)
 
 
 class VIEW3D_PT_tools_grease_pencil_brush_random(View3DPanel, Panel):
@@ -1768,6 +1795,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,
+    VIEW3D_PT_tools_normal,
 )
 
 if __name__ == "__main__":  # only for live edit.

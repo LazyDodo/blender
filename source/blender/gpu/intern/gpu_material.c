@@ -43,6 +43,7 @@
 #include "BLI_math.h"
 #include "BLI_listbase.h"
 #include "BLI_utildefines.h"
+#include "BLI_string.h"
 
 #include "BKE_main.h"
 #include "BKE_node.h"
@@ -62,6 +63,12 @@
 #endif
 
 /* Structs */
+#define MAX_COLOR_BAND 128
+
+typedef struct GPUColorBandBuilder {
+	float pixels[MAX_COLOR_BAND][CM_TABLE + 1][4];
+	int current_layer;
+} GPUColorBandBuilder;
 
 struct GPUMaterial {
 	Scene *scene; /* DEPRECATED was only usefull for lamps */
@@ -108,6 +115,9 @@ struct GPUMaterial {
 	 */
 	int domain;
 
+	/* Only used by Eevee to know which bsdf are used. */
+	int flag;
+
 	/* Used by 2.8 pipeline */
 	GPUUniformBuffer *ubo; /* UBOs for shader uniforms. */
 
@@ -120,6 +130,13 @@ struct GPUMaterial {
 	short int sss_falloff;
 	float sss_sharpness;
 	bool sss_dirty;
+
+	GPUTexture *coba_tex; /* 1D Texture array containing all color bands. */
+	GPUColorBandBuilder *coba_builder;
+
+#ifndef NDEBUG
+	char name[64];
+#endif
 };
 
 enum {
@@ -130,6 +147,47 @@ enum {
 
 /* Functions */
 
+/* Returns the adress of the future pointer to coba_tex */
+GPUTexture **gpu_material_ramp_texture_row_set(GPUMaterial *mat, int size, float *pixels, float *row)
+{
+	/* In order to put all the colorbands into one 1D array texture,
+	 * we need them to be the same size. */
+	BLI_assert(size == CM_TABLE + 1);
+
+	if (mat->coba_builder == NULL) {
+		mat->coba_builder = MEM_mallocN(sizeof(GPUColorBandBuilder), "GPUColorBandBuilder");
+		mat->coba_builder->current_layer = 0;
+	}
+
+	int layer = mat->coba_builder->current_layer;
+	*row = (float)layer;
+
+	if (*row == MAX_COLOR_BAND) {
+		printf("Too many color band in shader! Remove some Curve, Black Body or Color Ramp Node.\n");
+	}
+	else {
+		float *dst = (float *)mat->coba_builder->pixels[layer];
+		memcpy(dst, pixels, sizeof(float) * (CM_TABLE + 1) * 4);
+		mat->coba_builder->current_layer += 1;
+	}
+
+	return &mat->coba_tex;
+}
+
+static void gpu_material_ramp_texture_build(GPUMaterial *mat)
+{
+	if (mat->coba_builder == NULL)
+		return;
+
+	GPUColorBandBuilder *builder = mat->coba_builder;
+
+	mat->coba_tex = GPU_texture_create_1D_array(CM_TABLE + 1, builder->current_layer, GPU_RGBA16F,
+	                                            (float *)builder->pixels, NULL);
+
+	MEM_freeN(builder);
+	mat->coba_builder = NULL;
+}
+
 static void gpu_material_free_single(GPUMaterial *material)
 {
 	/* Cancel / wait any pending lazy compilation. */
@@ -138,19 +196,20 @@ static void gpu_material_free_single(GPUMaterial *material)
 	GPU_pass_free_nodes(&material->nodes);
 	GPU_inputs_free(&material->inputs);
 
-	if (material->pass)
+	if (material->pass != NULL) {
 		GPU_pass_release(material->pass);
-
+	}
 	if (material->ubo != NULL) {
 		GPU_uniformbuffer_free(material->ubo);
 	}
-
 	if (material->sss_tex_profile != NULL) {
 		GPU_texture_free(material->sss_tex_profile);
 	}
-
 	if (material->sss_profile != NULL) {
 		GPU_uniformbuffer_free(material->sss_profile);
+	}
+	if (material->coba_tex != NULL) {
+		GPU_texture_free(material->coba_tex);
 	}
 }
 
@@ -559,6 +618,16 @@ bool GPU_material_use_domain_volume(GPUMaterial *mat)
 	return (mat->domain & GPU_DOMAIN_VOLUME);
 }
 
+void GPU_material_flag_set(GPUMaterial *mat, GPUMatFlag flag)
+{
+	mat->flag |= flag;
+}
+
+bool GPU_material_flag_get(GPUMaterial *mat, GPUMatFlag flag)
+{
+	return (mat->flag & flag);
+}
+
 GPUMaterial *GPU_material_from_nodetree_find(
         ListBase *gpumaterials, const void *engine_type, int options)
 {
@@ -581,7 +650,7 @@ GPUMaterial *GPU_material_from_nodetree_find(
  */
 GPUMaterial *GPU_material_from_nodetree(
         Scene *scene, struct bNodeTree *ntree, ListBase *gpumaterials, const void *engine_type, int options,
-        const char *vert_code, const char *geom_code, const char *frag_lib, const char *defines)
+        const char *vert_code, const char *geom_code, const char *frag_lib, const char *defines, const char *name)
 {
 	LinkData *link;
 	bool has_volume_output, has_surface_output;
@@ -594,8 +663,17 @@ GPUMaterial *GPU_material_from_nodetree(
 	mat->scene = scene;
 	mat->engine_type = engine_type;
 	mat->options = options;
+#ifndef NDEBUG
+	BLI_snprintf(mat->name, sizeof(mat->name), "%s", name);
+#else
+	UNUSED_VARS(name);
+#endif
 
-	ntreeGPUMaterialNodes(ntree, mat, &has_surface_output, &has_volume_output);
+	/* localize tree to create links for reroute and mute */
+	bNodeTree *localtree = ntreeLocalize(ntree);
+	ntreeGPUMaterialNodes(localtree, mat, &has_surface_output, &has_volume_output);
+
+	gpu_material_ramp_texture_build(mat);
 
 	if (has_surface_output) {
 		mat->domain |= GPU_DOMAIN_SURFACE;
@@ -640,6 +718,11 @@ GPUMaterial *GPU_material_from_nodetree(
 		mat->status = GPU_MAT_FAILED;
 	}
 
+	/* Only free after GPU_pass_shader_get where GPUUniformBuffer
+	 * read data from the local tree. */
+	ntreeFreeTree(localtree);
+	MEM_freeN(localtree);
+
 	/* note that even if building the shader fails in some way, we still keep
 	 * it to avoid trying to compile again and again, and simply do not use
 	 * the actual shader on drawing */
@@ -659,7 +742,12 @@ void GPU_material_compile(GPUMaterial *mat)
 
 	/* NOTE: The shader may have already been compiled here since we are
 	 * sharing GPUShader across GPUMaterials. In this case it's a no-op. */
-	GPU_pass_compile(mat->pass);
+#ifndef NDEBUG
+	GPU_pass_compile(mat->pass, mat->name);
+#else
+	GPU_pass_compile(mat->pass, __func__);
+#endif
+
 	GPUShader *sh = GPU_pass_shader_get(mat->pass);
 
 	if (sh != NULL) {

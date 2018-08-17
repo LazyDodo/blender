@@ -633,7 +633,7 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 			BKE_particlesettings_copy_data(bmain, (ParticleSettings *)*r_newid, (ParticleSettings *)id, flag);
 			break;
 		case ID_GD:
-			BKE_gpencil_copy_data(bmain, (bGPdata *)*r_newid, (bGPdata *)id, flag);
+			BKE_gpencil_copy_data((bGPdata *)*r_newid, (bGPdata *)id, flag);
 			break;
 		case ID_MC:
 			BKE_movieclip_copy_data(bmain, (MovieClip *)*r_newid, (MovieClip *)id, flag);
@@ -784,6 +784,14 @@ bool id_single_user(bContext *C, ID *id, PointerRNA *ptr, PropertyRNA *prop)
 				RNA_id_pointer_create(newid, &idptr);
 				RNA_property_pointer_set(ptr, prop, idptr);
 				RNA_property_update(C, ptr, prop);
+
+				/* tag grease pencil datablock and disable onion */
+				if (GS(id->name) == ID_GD) {
+					DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA);
+					DEG_id_tag_update(newid, OB_RECALC_OB | OB_RECALC_DATA);
+					bGPdata *gpd = (bGPdata *)newid;
+					gpd->flag &= ~GP_DATA_SHOW_ONIONSKINS;
+				}
 
 				return true;
 			}
@@ -1407,13 +1415,13 @@ void *BKE_id_new_nomain(const short type, const char *name)
 
 /* by spec, animdata is first item after ID */
 /* and, trust that BKE_animdata_from_id() will only find AnimData for valid ID-types */
-static void id_copy_animdata(Main *bmain, ID *id, const bool do_action)
+static void id_copy_animdata(Main *bmain, ID *id, const bool do_action, const bool do_id_user)
 {
 	AnimData *adt = BKE_animdata_from_id(id);
 
 	if (adt) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)id;
-		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, true); /* could be set to false, need to investigate */
+		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, do_id_user);
 	}
 }
 
@@ -1470,7 +1478,9 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 	/* the duplicate should get a copy of the animdata */
 	if ((flag & LIB_ID_COPY_NO_ANIMDATA) == 0) {
 		BLI_assert((flag & LIB_ID_COPY_ACTIONS) == 0 || (flag & LIB_ID_CREATE_NO_MAIN) == 0);
-		id_copy_animdata(bmain, new_id, (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0);
+		id_copy_animdata(bmain, new_id,
+		                 (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0,
+		                 (flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0);
 	}
 	else if (id_can_have_animdata(new_id)) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)new_id;
@@ -2465,7 +2475,7 @@ void BKE_library_make_local(
 	 * Try "make all local" in 04_01_H.lighting.blend from Agent327 without this, e.g. */
 	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->data != NULL && ob->type == OB_ARMATURE && ob->pose != NULL && ob->pose->flag & POSE_RECALC) {
-			BKE_pose_rebuild(bmain, ob, ob->data);
+			BKE_pose_rebuild(bmain, ob, ob->data, true);
 		}
 	}
 

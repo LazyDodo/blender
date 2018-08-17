@@ -204,9 +204,10 @@ static bool object_has_modifier(const Object *ob, const ModifierData *exclude,
 * If the callback ever returns true, iteration will stop and the
 * function value will be true. Otherwise the function returns false.
 */
-bool ED_object_iter_other(Main *bmain, Object *orig_ob, const bool include_orig,
-						  bool (*callback)(Object *ob, void *callback_data),
-						  void *callback_data)
+bool ED_object_iter_other(
+        Main *bmain, Object *orig_ob, const bool include_orig,
+        bool (*callback)(Object *ob, void *callback_data),
+        void *callback_data)
 {
 	ID *ob_data_id = orig_ob->data;
 	int users = ob_data_id->us;
@@ -220,10 +221,10 @@ bool ED_object_iter_other(Main *bmain, Object *orig_ob, const bool include_orig,
 		int totfound = include_orig ? 0 : 1;
 
 		for (ob = bmain->object.first; ob && totfound < users;
-			ob = ob->id.next)
+		     ob = ob->id.next)
 		{
 			if (((ob != orig_ob) || include_orig) &&
-				(ob->data == orig_ob->data))
+			    (ob->data == orig_ob->data))
 			{
 				if (callback(ob, callback_data))
 					return true;
@@ -318,7 +319,7 @@ static bool object_modifier_remove(Main *bmain, Object *ob, ModifierData *md,
 	}
 
 	if (ELEM(md->type, eModifierType_Softbody, eModifierType_Cloth) &&
-		BLI_listbase_is_empty(&ob->particlesystem))
+	    BLI_listbase_is_empty(&ob->particlesystem))
 	{
 		ob->mode &= ~OB_MODE_PARTICLE_EDIT;
 	}
@@ -604,7 +605,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 			multires_force_update(ob);
 
 		if (mmd && mmd->totlvl && mti->type == eModifierTypeType_OnlyDeform) {
-			if (!multiresModifier_reshapeFromDeformMod(depsgraph, scene, mmd, ob, md)) {
+			if (!multiresModifier_reshapeFromDeformModifier(depsgraph, scene, mmd, ob, md)) {
 				BKE_report(reports, RPT_ERROR, "Multires modifier returned error, skipping apply");
 				return 0;
 			}
@@ -629,7 +630,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		ModifierEvalContext mectx = {depsgraph, ob, 0};
 
 		if (ELEM(mti->type, eModifierTypeType_Constructive, eModifierTypeType_Nonconstructive)) {
-			BKE_report(reports, RPT_ERROR, "Cannot apply constructive modifiers on curve");
+			BKE_report(reports, RPT_ERROR, "Transform curve to mesh in order to apply constructive modifiers");
 			return 0;
 		}
 
@@ -681,8 +682,8 @@ int ED_object_modifier_apply(
 		return 0;
 	}
 	else if ((ob->mode & OB_MODE_SCULPT) &&
-		(find_multires_modifier_before(scene, md)) &&
-		(modifier_isSameTopology(md) == false))
+	         (find_multires_modifier_before(scene, md)) &&
+	         (modifier_isSameTopology(md) == false))
 	{
 		BKE_report(reports, RPT_ERROR, "Constructive modifier cannot be applied to multi-res data in sculpt mode");
 		return 0;
@@ -826,11 +827,6 @@ bool edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_fla
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "modifier", rna_type);
 	Object *ob = (ptr.id.data) ? ptr.id.data : ED_object_active_context(C);
 
-	if (!ptr.data) {
-		CTX_wm_operator_poll_msg_set(C, "Context missing 'modifier'");
-		return 0;
-	}
-
 	if (!ob || ID_IS_LINKED(ob)) return 0;
 	if (obtype_flag && ((1 << ob->type) & obtype_flag) == 0) return 0;
 	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
@@ -850,7 +846,8 @@ bool edit_modifier_poll(bContext *C)
 
 void edit_modifier_properties(wmOperatorType *ot)
 {
-	RNA_def_string(ot->srna, "modifier", NULL, MAX_NAME, "Modifier", "Name of the modifier to edit");
+	PropertyRNA *prop = RNA_def_string(ot->srna, "modifier", NULL, MAX_NAME, "Modifier", "Name of the modifier to edit");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
 }
 
 int edit_modifier_invoke_properties(bContext *C, wmOperator *op)
@@ -1525,7 +1522,7 @@ static int skin_root_mark_exec(bContext *C, wmOperator *UNUSED(op))
 
 	BM_ITER_MESH (bm_vert, &bm_iter, bm, BM_VERTS_OF_MESH) {
 		if (BM_elem_flag_test(bm_vert, BM_ELEM_SELECT) &&
-			BLI_gset_add(visited, bm_vert))
+		    BLI_gset_add(visited, bm_vert))
 		{
 			MVertSkin *vs = BM_ELEM_CD_GET_VOID_P(bm_vert, cd_vert_skin_offset);
 

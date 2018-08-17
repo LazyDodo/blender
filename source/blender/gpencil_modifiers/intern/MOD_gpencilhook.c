@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpencilhook.c
+/** \file blender/gpencil_modifiers/intern/MOD_gpencilhook.c
  *  \ingroup modifiers
  */
 
@@ -253,7 +253,7 @@ static void deformStroke(
 		MDeformVert *dvert = &gps->dvert[i];
 
 		/* verify vertex group */
-		weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_HOOK_INVERT_VGROUP) == 0), vindex);
+		weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_HOOK_INVERT_VGROUP) != 0), vindex);
 		if (weight < 0) {
 			continue;
 		}
@@ -265,7 +265,7 @@ static void deformStroke(
  * (i.e. one where we don't have to worry about restoring state)
  */
 static void bakeModifier(
-		Main *bmain, Depsgraph *depsgraph,
+        Main *bmain, Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
 	HookGpencilModifierData *mmd = (HookGpencilModifierData *)md;

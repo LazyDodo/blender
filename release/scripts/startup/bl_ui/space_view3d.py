@@ -181,7 +181,7 @@ class VIEW3D_HT_header(Header):
         # Proportional editing
         if obj:
             gpd = context.gpencil_data
-            if gpd is not None:
+            if gpd is not None and obj.type == 'GPENCIL':
                 if gpd.use_stroke_edit_mode or gpd.is_stroke_sculpt_mode:
                     row = layout.row(align=True)
                     row.prop(tool_settings, "proportional_edit", icon_only=True)
@@ -1481,12 +1481,12 @@ class INFO_MT_add(Menu):
         layout.menu("INFO_MT_surface_add", icon='OUTLINER_OB_SURFACE')
         layout.menu("INFO_MT_metaball_add", text="Metaball", icon='OUTLINER_OB_META')
         layout.operator("object.text_add", text="Text", icon='OUTLINER_OB_FONT')
+        layout.operator_menu_enum("object.gpencil_add", "type", text="Grease Pencil", icon='OUTLINER_OB_GREASEPENCIL')
         layout.separator()
 
         layout.menu("INFO_MT_armature_add", icon='OUTLINER_OB_ARMATURE')
         layout.operator("object.add", text="Lattice", icon='OUTLINER_OB_LATTICE').type = 'LATTICE'
         layout.operator_menu_enum("object.empty_add", "type", text="Empty", icon='OUTLINER_OB_EMPTY')
-        layout.operator_menu_enum("object.gpencil_add", "type", text="Grease Pencil", icon='OUTLINER_OB_GREASEPENCIL')
         layout.separator()
 
         layout.operator("object.speaker_add", text="Speaker", icon='OUTLINER_OB_SPEAKER')
@@ -3051,6 +3051,30 @@ class VIEW3D_MT_edit_mesh_normals(Menu):
         layout.operator("mesh.flip_normals")
         layout.operator("mesh.set_normals_from_faces", text="Set From Faces")
 
+        layout.operator("transform.rotate_normal", text="Rotate Normal")
+        layout.operator("mesh.point_normals", text="Point normals to target")
+
+        layout.operator("mesh.merge_normals", text="Merge")
+        layout.operator("mesh.split_normals", text="Split")
+
+        layout.operator("mesh.average_normals", text="Average Normals")
+
+        layout.label(text="Normal Vector")
+
+        layout.operator("mesh.normals_tools", text="Copy").mode = 'COPY'
+        layout.operator("mesh.normals_tools", text="Paste").mode = 'PASTE'
+
+        layout.operator("mesh.normals_tools", text="Multiply").mode = 'MULTIPLY'
+        layout.operator("mesh.normals_tools", text="Add").mode = 'ADD'
+
+        layout.operator("mesh.normals_tools", text="Reset").mode = 'RESET'
+
+        layout.operator("mesh.smoothen_normals", text="Smoothen")
+
+        layout.label(text="Face Strength")
+        layout.operator("mesh.mod_weighted_strength", text="Face select", icon = "FACESEL").set = False
+        layout.operator("mesh.mod_weighted_strength", text="Set Strength", icon = "ZOOMIN").set = True
+
 
 class VIEW3D_MT_edit_mesh_shading(Menu):
     bl_label = "Shading"
@@ -3540,6 +3564,18 @@ class VIEW3D_MT_paint_gpencil(Menu):
         layout.operator("gpencil.active_frames_delete_all")
 
 
+class VIEW3D_MT_assign_material(Menu):
+    bl_label = "Assign Material"
+
+    def draw(self, context):
+        layout = self.layout
+        ob = context.active_object
+
+        for slot in ob.material_slots:
+            mat = slot.material
+            layout.operator("gpencil.stroke_change_color", text=mat.name).material = mat.name
+
+
 class VIEW3D_MT_edit_gpencil(Menu):
     bl_label = "Strokes"
 
@@ -3583,7 +3619,7 @@ class VIEW3D_MT_edit_gpencil(Menu):
         layout.separator()
 
         layout.operator_menu_enum("gpencil.move_to_layer", "layer", text="Move to Layer")
-        layout.operator("gpencil.stroke_change_color", text="Change Color")
+        layout.menu("VIEW3D_MT_assign_material")
         layout.operator_menu_enum("gpencil.stroke_arrange", "direction", text="Arrange Strokes...")
 
         layout.separator()
@@ -3597,7 +3633,7 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
+        layout.menu("GPENCIL_MT_cleanup")
 
 
 class VIEW3D_MT_sculpt_gpencil(Menu):
@@ -3633,7 +3669,7 @@ class VIEW3D_MT_sculpt_gpencil(Menu):
         layout.separator()
 
         layout.operator_menu_enum("gpencil.move_to_layer", "layer", text="Move to Layer")
-        layout.operator("gpencil.stroke_change_color", text="Change Color")
+        layout.menu("VIEW3D_MT_assign_material")
         layout.operator_menu_enum("gpencil.stroke_arrange", "direction", text="Arrange Strokes...")
 
         layout.separator()
@@ -3840,7 +3876,7 @@ class VIEW3D_PT_object_type_visibility(Panel):
             "armature",
             "lattice",
             "empty",
-		    "grease_pencil",
+            "grease_pencil",
             "camera",
             "light",
             "light_probe",
@@ -3902,7 +3938,7 @@ class VIEW3D_PT_shading_lighting(Panel):
             split = layout.split(0.9)
             col = split.column()
             sub = col.row()
-            sub.scale_y = 0.6 # smaller matcap/hdri preview
+            sub.scale_y = 0.6  # smaller matcap/hdri preview
 
             if shading.light == 'STUDIO':
                 sub.template_icon_view(shading, "studio_light", scale=3)
@@ -3941,7 +3977,7 @@ class VIEW3D_PT_shading_lighting(Panel):
                     col = split.column()
                     col.prop(shading, "studiolight_rotate_z", text="Rotation")
                     col.prop(shading, "studiolight_background_alpha")
-                    col = split.column() # to align properly with above
+                    col = split.column()  # to align properly with above
 
 
 class VIEW3D_PT_shading_color(Panel):
@@ -4889,6 +4925,63 @@ class VIEW3D_PT_gpencil_multi_frame(Panel):
             layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
 
 
+class VIEW3D_MT_gpencil_edit_specials(Menu):
+    bl_label = "Grease Pencil Specials"
+
+    def draw(self, context):
+        layout = self.layout
+        is_3d_view = context.space_data.type == 'VIEW_3D'
+
+        layout.operator_context = 'INVOKE_REGION_WIN'
+
+        layout.menu("VIEW3D_MT_assign_material")
+        layout.separator()
+
+        layout.operator("gpencil.stroke_subdivide", text="Subdivide")
+        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
+        layout.operator("gpencil.stroke_simplify", text="Simplify Adaptative")
+
+        layout.separator()
+        layout.menu("GPENCIL_MT_separate", text="Separate")
+
+        layout.separator()
+        layout.operator("gpencil.stroke_split", text="Split")
+
+        layout.separator()
+
+        layout.operator("gpencil.stroke_join", text="Join").type = 'JOIN'
+        layout.operator("gpencil.stroke_join", text="Join & Copy").type = 'JOINCOPY'
+        layout.operator("gpencil.stroke_flip", text="Flip Direction")
+
+        layout.separator()
+        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
+        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame All Layers").mode = 'ALL'
+
+        if is_3d_view:
+            layout.separator()
+            layout.menu("GPENCIL_MT_cleanup")
+
+
+class VIEW3D_MT_gpencil_sculpt_specials(Menu):
+    bl_label = "Grease Pencil Specials"
+
+    def draw(self, context):
+        layout = self.layout
+        is_3d_view = context.space_data.type == 'VIEW_3D'
+
+        layout.operator_context = 'INVOKE_REGION_WIN'
+        layout.menu("VIEW3D_MT_assign_material")
+        layout.separator()
+
+        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame")
+        layout.operator("gpencil.frame_duplicate", text="Duplicate Active Frame All Layers").mode = 'ALL'
+
+        layout.separator()
+
+        layout.operator("gpencil.stroke_subdivide", text="Subdivide")
+        layout.operator("gpencil.stroke_simplify_fixed", text="Simplify")
+        layout.operator("gpencil.stroke_simplify", text="Simplify Adaptative")
+
 
 classes = (
     VIEW3D_HT_header,
@@ -4998,6 +5091,7 @@ classes = (
     VIEW3D_MT_edit_mesh_delete,
     VIEW3D_MT_edit_mesh_showhide,
     VIEW3D_MT_paint_gpencil,
+    VIEW3D_MT_assign_material,
     VIEW3D_MT_edit_gpencil,
     VIEW3D_MT_edit_gpencil_delete,
     VIEW3D_MT_sculpt_gpencil,
@@ -5032,6 +5126,8 @@ classes = (
     VIEW3D_PT_object_type_visibility,
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_gpencil_multi_frame,
+    VIEW3D_MT_gpencil_edit_specials,
+    VIEW3D_MT_gpencil_sculpt_specials,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
     VIEW3D_PT_shading,

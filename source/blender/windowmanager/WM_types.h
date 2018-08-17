@@ -111,6 +111,7 @@ struct wmEvent;
 struct wmWindowManager;
 struct wmMsgBus;
 struct wmOperator;
+struct ID;
 struct ImBuf;
 
 #include "RNA_types.h"
@@ -145,6 +146,7 @@ enum {
 
 	OPTYPE_LOCK_BYPASS  = (1 << 7),  /* Allow operator to run when interface is locked */
 	OPTYPE_UNDO_GROUPED = (1 << 8),  /* Special type of undo which doesn't store itself multiple times */
+	OPTYPE_USE_EVAL_DATA = (1 << 9),  /* Need evaluated data (i.e. a valid, up-to-date depsgraph for current context) */
 };
 
 /* context to call operator in for WM_operator_name_call */
@@ -659,6 +661,12 @@ typedef enum wmDragFlags {
 
 /* note: structs need not exported? */
 
+typedef struct wmDragID {
+	struct wmDragID  *next, *prev;
+	struct ID *id;
+	struct ID *from_parent;
+} wmDragID;
+
 typedef struct wmDrag {
 	struct wmDrag *next, *prev;
 
@@ -673,6 +681,8 @@ typedef struct wmDrag {
 
 	char opname[200]; /* if set, draws operator name*/
 	unsigned int flags;
+
+	ListBase ids; /* List of wmDragIDs, all are guaranteed to have the same ID type. */
 } wmDrag;
 
 /* dropboxes are like keymaps, part of the screen/area/region definition */
@@ -681,7 +691,7 @@ typedef struct wmDropBox {
 	struct wmDropBox *next, *prev;
 
 	/* test if the dropbox is active, then can print optype name */
-	bool (*poll)(struct bContext *, struct wmDrag *, const wmEvent *);
+	bool (*poll)(struct bContext *, struct wmDrag *, const wmEvent *, const char **);
 
 	/* before exec, this copies drag info to wmDrop properties */
 	void (*copy)(struct wmDrag *, struct wmDropBox *);

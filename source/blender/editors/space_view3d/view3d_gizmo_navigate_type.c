@@ -218,7 +218,7 @@ static void axis_geom_draw(const wmGizmo *gz, const float color[4], const bool U
 		if ((draw_center_done == false) && (axis_order[axis_index].depth > -0.01f)) {
 
 			/* Circle defining active area (revert back to 2D space). */
-			{
+			if (color[3] != 0.0f) {
 				GPU_matrix_pop();
 				immUniformColor4fv(color);
 				imm_draw_circle_fill_3d(pos_id, 0, 0, 1.0f, DIAL_RESOLUTION);
@@ -343,9 +343,9 @@ static void gizmo_axis_draw(const bContext *C, wmGizmo *gz)
 }
 
 static int gizmo_axis_test_select(
-        bContext *UNUSED(C), wmGizmo *gz, const wmEvent *event)
+        bContext *UNUSED(C), wmGizmo *gz, const int mval[2])
 {
-	float point_local[2] = {UNPACK2(event->mval)};
+	float point_local[2] = {UNPACK2(mval)};
 	sub_v2_v2(point_local, gz->matrix_basis[3]);
 	mul_v2_fl(point_local, 1.0f / (gz->scale_basis * UI_DPI_FAC));
 

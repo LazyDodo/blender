@@ -1005,7 +1005,8 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 	 * for them to end up aligned oddly, but only for Monkey
 	 */
 	if ((RNA_struct_property_is_set(op->ptr, "view_align") == false) &&
-		(type == GP_MONKEY)) {
+	    (type == GP_MONKEY))
+	{
 		RNA_boolean_set(op->ptr, "view_align", true);
 	}
 
@@ -1034,6 +1035,19 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 
 	/* create relevant geometry */
 	switch (type) {
+		case GP_STROKE:
+		{
+			float radius = RNA_float_get(op->ptr, "radius");
+			float mat[4][4];
+
+			ED_object_new_primitive_matrix(C, ob, loc, rot, mat);
+			mul_v3_fl(mat[0], radius);
+			mul_v3_fl(mat[1], radius);
+			mul_v3_fl(mat[2], radius);
+
+			ED_gpencil_create_stroke(C, mat);
+			break;
+		}
 		case GP_MONKEY:
 		{
 			float radius = RNA_float_get(op->ptr, "radius");
@@ -1047,7 +1061,6 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 			ED_gpencil_create_monkey(C, mat);
 			break;
 		}
-
 		case GP_EMPTY:
 			/* do nothing */
 			break;
@@ -1350,6 +1363,12 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 			        "Cannot delete object '%s' from scene '%s', indirectly used objects need at least one user",
 			        ob->id.name + 2, scene->id.name + 2);
 			continue;
+		}
+
+		/* if grease pencil object, set cache as dirty */
+		if (ob->type == OB_GPENCIL) {
+			bGPdata *gpd = (bGPdata *)ob->data;
+			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 		}
 
 		/* This is sort of a quick hack to address T51243 - Proper thing to do here would be to nuke most of all this
@@ -1800,7 +1819,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Base *basen = NULL, *basact = NULL;
-	Object *ob1, *newob, *obact = CTX_data_active_object(C);
+	Object *ob1, *obact = CTX_data_active_object(C);
 	DerivedMesh *dm;
 	Curve *cu;
 	Nurb *nu;
@@ -1867,6 +1886,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	}
 
 	for (CollectionPointerLink *link = selected_editable_bases.first; link; link = link->next) {
+		Object *newob = NULL;
 		Base *base = link->ptr.data;
 		Object *ob = base->object;
 
@@ -2083,6 +2103,11 @@ static int convert_exec(bContext *C, wmOperator *op)
 		}
 		else {
 			continue;
+		}
+
+		/* Ensure new object has consistent material data with its new obdata. */
+		if (newob) {
+			test_object_materials(bmain, newob, newob->data);
 		}
 
 		/* tag obdata if it was been changed */
@@ -2332,7 +2357,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					ID_NEW_REMAP_US2(obn->data)
 					else {
 						obn->data = ID_NEW_SET(obn->data, BKE_armature_copy(bmain, obn->data));
-						BKE_pose_rebuild(bmain, obn, obn->data);
+						BKE_pose_rebuild(bmain, obn, obn->data, true);
 						didit = 1;
 					}
 					id_us_min(id);

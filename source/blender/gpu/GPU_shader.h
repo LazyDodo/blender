@@ -62,7 +62,8 @@ GPUShader *GPU_shader_create(
         const char *fragcode,
         const char *geocode,
         const char *libcode,
-        const char *defines);
+        const char *defines,
+        const char *shader_name);
 GPUShader *GPU_shader_create_ex(
         const char *vertexcode,
         const char *fragcode,
@@ -72,7 +73,8 @@ GPUShader *GPU_shader_create_ex(
         const int flags,
         const GPUShaderTFBType tf_type,
         const char **tf_names,
-        const int tf_count);
+        const int tf_count,
+        const char *shader_name);
 void GPU_shader_free(GPUShader *shader);
 
 void GPU_shader_bind(GPUShader *shader);
@@ -105,8 +107,7 @@ int GPU_shader_get_attribute(GPUShader *shader, const char *name);
 
 /* Builtin/Non-generated shaders */
 typedef enum GPUBuiltinShader {
-	GPU_SHADER_VSM_STORE,
-	GPU_SHADER_SEP_GAUSSIAN_BLUR,
+	/* UNUSED (TODO REMOVE) */
 	GPU_SHADER_SMOKE,
 	GPU_SHADER_SMOKE_FIRE,
 	GPU_SHADER_SMOKE_COBA,

@@ -393,6 +393,49 @@ static void region_draw_azones(ScrArea *sa, ARegion *ar)
 	GPU_blend(false);
 }
 
+static void region_draw_status_text(ScrArea *sa, ARegion *ar)
+{
+	bool overlap = ED_region_is_overlap(sa->spacetype, ar->regiontype);
+
+	if (overlap) {
+		GPU_clear_color(0.0, 0.0, 0.0, 0.0);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+	else {
+		UI_ThemeClearColor(TH_HEADER);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+
+	int fontid = BLF_set_default();
+
+	const float width = BLF_width(fontid, ar->headerstr, BLF_DRAW_STR_DUMMY_MAX);
+	const float x = UI_UNIT_X;
+	const float y = 0.4f * UI_UNIT_Y;
+
+	if (overlap) {
+		const float pad = 2.0f * UI_DPI_FAC;
+		const float x1 = x - (UI_UNIT_X - pad);
+		const float x2 = x + width + (UI_UNIT_X - pad);
+		const float y1 = pad;
+		const float y2 = ar->winy - pad;
+
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+
+		float color[4] = {0.0f, 0.0f, 0.0f, 0.5f};
+		UI_GetThemeColor3fv(TH_BACK, color);
+		UI_draw_roundbox_corner_set(UI_CNR_ALL);
+		UI_draw_roundbox_aa(true, x1, y1, x2, y2, 4.0f, color);
+
+		UI_FontThemeColor(fontid, TH_TEXT);
+	}
+	else {
+		UI_FontThemeColor(fontid, TH_TEXT);
+	}
+
+	BLF_position(fontid, x, y, 0.0f);
+	BLF_draw(fontid, ar->headerstr, BLF_DRAW_STR_DUMMY_MAX);
+}
+
 /* Follow wmMsgNotifyFn spec */
 void ED_region_do_msg_notify_tag_redraw(
         bContext *UNUSED(C), wmMsgSubscribeKey *UNUSED(msg_key), wmMsgSubscribeValue *msg_val)
@@ -480,11 +523,7 @@ void ED_region_do_draw(bContext *C, ARegion *ar)
 	}
 	/* optional header info instead? */
 	else if (ar->headerstr) {
-		UI_ThemeClearColor(TH_HEADER);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		UI_FontThemeColor(BLF_default(), TH_TEXT);
-		BLF_draw_default(UI_UNIT_X, 0.4f * UI_UNIT_Y, 0.0f, ar->headerstr, BLF_DRAW_STR_DUMMY_MAX);
+		region_draw_status_text(sa, ar);
 	}
 	else if (at->draw) {
 		at->draw(C, ar);
@@ -671,6 +710,7 @@ void ED_area_status_text(ScrArea *sa, const char *str)
 				if (ar->headerstr == NULL)
 					ar->headerstr = MEM_mallocN(UI_MAX_DRAW_STR, "headerprint");
 				BLI_strncpy(ar->headerstr, str, UI_MAX_DRAW_STR);
+				BLI_str_rstrip(ar->headerstr);
 			}
 			else if (ar->headerstr) {
 				MEM_freeN(ar->headerstr);
@@ -832,14 +872,17 @@ static void region_azone_edge(AZone *az, ARegion *ar)
 	BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
 }
 
-#define AZONEPAD_TAB_PLUSW  (0.7f * U.widget_unit)
-#define AZONEPAD_TAB_PLUSH  (0.7f * U.widget_unit)
-
 /* region already made zero sized, in shape of edge */
 static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 {
 	AZone *azt;
 	int tot = 0, add;
+	/* Edge offset multiplied by the  */
+
+	float edge_offset = 1.0f;
+	const float tab_size_x = 0.7f * U.widget_unit;
+	const float tab_size_y = 0.7f * U.widget_unit;
+
 
 	for (azt = sa->actionzones.first; azt; azt = azt->next) {
 		if (azt->edge == az->edge) tot++;
@@ -848,28 +891,28 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 	switch (az->edge) {
 		case AE_TOP_TO_BOTTOMRIGHT:
 			add = (ar->winrct.ymax == sa->totrct.ymin) ? 1 : 0;
-			az->x1 = ar->winrct.xmax - 2.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmax - ((edge_offset + 1.0f) * tab_size_x);
 			az->y1 = ar->winrct.ymax - add;
-			az->x2 = ar->winrct.xmax - 1.5f * AZONEPAD_TAB_PLUSW;
-			az->y2 = ar->winrct.ymax - add + AZONEPAD_TAB_PLUSH;
+			az->x2 = ar->winrct.xmax - (edge_offset * tab_size_x);
+			az->y2 = ar->winrct.ymax - add + tab_size_y;
 			break;
 		case AE_BOTTOM_TO_TOPLEFT:
-			az->x1 = ar->winrct.xmax - 2.5f * AZONEPAD_TAB_PLUSW;
-			az->y1 = ar->winrct.ymin - AZONEPAD_TAB_PLUSH;
-			az->x2 = ar->winrct.xmax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmax - ((edge_offset + 1.0f) * tab_size_x);
+			az->y1 = ar->winrct.ymin - tab_size_y;
+			az->x2 = ar->winrct.xmax - (edge_offset * tab_size_x);
 			az->y2 = ar->winrct.ymin;
 			break;
 		case AE_LEFT_TO_TOPRIGHT:
-			az->x1 = ar->winrct.xmin - AZONEPAD_TAB_PLUSH;
-			az->y1 = ar->winrct.ymax - 2.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmin - tab_size_y;
+			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
 			az->x2 = ar->winrct.xmin;
-			az->y2 = ar->winrct.ymax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 		case AE_RIGHT_TO_TOPLEFT:
 			az->x1 = ar->winrct.xmax - 1;
-			az->y1 = ar->winrct.ymax - 2.5f * AZONEPAD_TAB_PLUSW;
-			az->x2 = ar->winrct.xmax - 1 + AZONEPAD_TAB_PLUSH;
-			az->y2 = ar->winrct.ymax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
+			az->x2 = ar->winrct.xmax - 1 + tab_size_y;
+			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 	}
 	/* rect needed for mouse pointer test */

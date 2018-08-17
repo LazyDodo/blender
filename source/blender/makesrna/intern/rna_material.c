@@ -114,10 +114,11 @@ static void rna_MaterialGpencil_update(Main *bmain, Scene *scene, PointerRNA *pt
 	rna_Material_update(bmain, scene, ptr);
 
 	/* update previews (icon and thumbnail) */
-	preview->flag[ICON_SIZE_ICON] |= PRV_CHANGED;
-	preview->flag[ICON_SIZE_PREVIEW] |= PRV_CHANGED;
-	WM_main_add_notifier(NC_MATERIAL | ND_SHADING_PREVIEW, ma);
-
+	if (preview != NULL) {
+		preview->flag[ICON_SIZE_ICON] |= PRV_CHANGED;
+		preview->flag[ICON_SIZE_PREVIEW] |= PRV_CHANGED;
+		WM_main_add_notifier(NC_MATERIAL | ND_SHADING_PREVIEW, ma);
+	}
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA, ma);
 }
 
@@ -685,11 +686,6 @@ void RNA_def_material(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_screen_refraction", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "blend_flag", MA_BL_SS_REFRACTION);
 	RNA_def_property_ui_text(prop, "Screen Space Refraction", "Use raytraced screen space refractions");
-	RNA_def_property_update(prop, 0, "rna_Material_draw_update");
-
-	prop = RNA_def_property(srna, "use_screen_subsurface", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "blend_flag", MA_BL_SS_SUBSURFACE);
-	RNA_def_property_ui_text(prop, "Screen Space Subsurface Scattering", "Use post process subsurface scattering");
 	RNA_def_property_update(prop, 0, "rna_Material_draw_update");
 
 	prop = RNA_def_property(srna, "use_sss_translucency", PROP_BOOLEAN, PROP_NONE);

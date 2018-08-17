@@ -29,9 +29,12 @@
 #include "BLI_sys_types.h"
 
 struct Mesh;
+struct MultiresModifierData;
+struct Object;
 struct OpenSubdiv_Converter;
 struct OpenSubdiv_Evaluator;
 struct OpenSubdiv_TopologyRefiner;
+struct Subdiv;
 
 /** \file BKE_subdiv.h
  *  \ingroup bke
@@ -42,6 +45,8 @@ struct OpenSubdiv_TopologyRefiner;
 typedef enum {
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_NONE,
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_ONLY,
+	SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_AND_JUNCTIONS,
+	SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_JUNCTIONS_AND_CONCAVE,
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_BOUNDARIES,
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_ALL,
 } eSubdivFVarLinearInterpolation;
@@ -57,6 +62,7 @@ typedef struct SubdivSettings {
 typedef enum eSubdivStatsValue {
 	SUBDIV_STATS_TOPOLOGY_REFINER_CREATION_TIME = 0,
 	SUBDIV_STATS_SUBDIV_TO_MESH,
+	SUBDIV_STATS_SUBDIV_TO_MESH_GEOMETRY,
 	SUBDIV_STATS_EVALUATOR_CREATE,
 	SUBDIV_STATS_EVALUATOR_REFINE,
 
@@ -73,6 +79,8 @@ typedef struct SubdivStats {
 			double topology_refiner_creation_time;
 			/* Total time spent in BKE_subdiv_to_mesh(). */
 			double subdiv_to_mesh_time;
+			/* Geometry (MVert and co) creation time during SUBDIV_TYO_MESH. */
+			double subdiv_to_mesh_geometry_time;
 			/* Time spent on evaluator creation from topology refiner. */
 			double evaluator_creation_time;
 			/* Time spent on evaluator->refine(). */
@@ -87,24 +95,55 @@ typedef struct SubdivStats {
 	double begin_timestamp_[NUM_SUBDIV_STATS_VALUES];
 } SubdivStats;
 
+/* Functor which evaluates dispalcement at a given (u, v) of given ptex face. */
+typedef struct SubdivDisplacement {
+	/* Return displacement which is to be added to the original coordinate.
+	 *
+	 * NOTE: This function is supposed to return "continuous" displacement for
+	 * each pf PTex faces created for special (non-quad) polygon. This means,
+	 * if displacement is stored on per-corner manner (like MDisps for multires)
+	 * this is up the displacement implementation to average boundaries of the
+	 * displacement grids if needed.
+	 *
+	 * Averaging of displacement for vertices created for over coarse vertices
+	 * and edges is done by subdiv code.
+	 */
+	void (*eval_displacement)(struct SubdivDisplacement *displacement,
+	                          const int ptex_face_index,
+	                          const float u, const float v,
+	                          const float dPdu[3], const float dPdv[3],
+	                          float r_D[3]);
+
+	/* Free the data, not the evaluator itself. */
+	void (*free)(struct SubdivDisplacement *displacement);
+
+	void *user_data;
+} SubdivDisplacement;
+
 typedef struct Subdiv {
 	/* Settings this subdivision surface is created for.
 	 *
 	 * It is read-only after assignment in BKE_subdiv_new_from_FOO().
 	 */
 	SubdivSettings settings;
-
 	/* Topology refiner includes all the glue logic to feed Blender side
 	 * topology to OpenSubdiv. It can be shared by both evaluator and GL mesh
 	 * drawer.
 	 */
 	struct OpenSubdiv_TopologyRefiner *topology_refiner;
-
 	/* CPU side evaluator. */
 	struct OpenSubdiv_Evaluator *evaluator;
-
+	/* Optional displacement evaluator. */
+	struct SubdivDisplacement *displacement_evaluator;
+	/* Statistics for debugging. */
 	SubdivStats stats;
 } Subdiv;
+
+/* ================================ HELPERS ================================= */
+
+/* NOTE: uv_smooth is eSubsurfUVSmooth. */
+eSubdivFVarLinearInterpolation
+BKE_subdiv_fvar_interpolation_from_uv_smooth(int uv_smooth);
 
 /* =============================== STATISTICS =============================== */
 
@@ -127,8 +166,9 @@ void BKE_subdiv_free(Subdiv *subdiv);
 
 /* ============================= EVALUATION API ============================= */
 
-void BKE_subdiv_eval_begin(Subdiv *subdiv);
-void BKE_subdiv_eval_update_from_mesh(Subdiv *subdiv, const struct Mesh *mesh);
+/* Returns true if evaluator is ready for use. */
+bool BKE_subdiv_eval_begin(Subdiv *subdiv);
+bool BKE_subdiv_eval_update_from_mesh(Subdiv *subdiv, const struct Mesh *mesh);
 
 /* Single point queries. */
 
@@ -136,28 +176,49 @@ void BKE_subdiv_eval_limit_point(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3]);
+        float r_P[3]);
 void BKE_subdiv_eval_limit_point_and_derivatives(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3], float dPdu[3], float dPdv[3]);
+        float r_P[3], float r_dPdu[3], float r_dPdv[3]);
 void BKE_subdiv_eval_limit_point_and_normal(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3], float N[3]);
+        float r_P[3], float r_N[3]);
 void BKE_subdiv_eval_limit_point_and_short_normal(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3], short N[3]);
+        float r_P[3], short r_N[3]);
 
 void BKE_subdiv_eval_face_varying(
         Subdiv *subdiv,
+        const int face_varying_channel,
         const int ptex_face_index,
         const float u, const float v,
-        float varying[2]);
+        float r_varying[2]);
+
+/* NOTE: Expects derivatives to be correct.
+ *
+ * TODO(sergey): This is currently used together with
+ * BKE_subdiv_eval_final_point() which cas easily evaluate derivatives.
+ * Would be nice to have dispalcement evaluation function which does not require
+ * knowing derivatives ahead of a time.
+ */
+void BKE_subdiv_eval_displacement(
+        Subdiv *subdiv,
+        const int ptex_face_index,
+        const float u, const float v,
+		const float dPdu[3], const float dPdv[3],
+        float r_D[3]);
+
+void BKE_subdiv_eval_final_point(
+        Subdiv *subdiv,
+        const int ptex_face_index,
+        const float u, const float v,
+        float r_P[3]);
 
 /* Patch queries at given resolution.
  *
@@ -206,5 +267,14 @@ struct Mesh *BKE_subdiv_to_mesh(
         Subdiv *subdiv,
         const SubdivToMeshSettings *settings,
         const struct Mesh *coarse_mesh);
+
+/* ============================ DISPLACEMENT API ============================ */
+
+void BKE_subdiv_displacement_attach_from_multires(
+        Subdiv *subdiv,
+        const struct Object *object,
+        const struct MultiresModifierData *mmd);
+
+void BKE_subdiv_displacement_detach(Subdiv *subdiv);
 
 #endif  /* __BKE_SUBDIV_H__ */

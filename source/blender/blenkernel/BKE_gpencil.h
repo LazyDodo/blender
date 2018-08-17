@@ -83,7 +83,7 @@ struct bGPDlayer *BKE_gpencil_layer_duplicate(const struct bGPDlayer *gpl_src);
 void BKE_gpencil_frame_copy_strokes(struct bGPDframe *gpf_src, struct bGPDframe *gpf_dst);
 struct bGPDstroke *BKE_gpencil_stroke_duplicate(struct bGPDstroke *gps_src);
 
-void BKE_gpencil_copy_data(struct Main *bmain, struct bGPdata *gpd_dst, const struct bGPdata *gpd_src, const int flag);
+void BKE_gpencil_copy_data(struct bGPdata *gpd_dst, const struct bGPdata *gpd_src, const int flag);
 struct bGPdata   *BKE_gpencil_copy(struct Main *bmain, const struct bGPdata *gpd);
 struct bGPdata   *BKE_gpencil_data_duplicate(struct Main *bmain, const struct bGPdata *gpd, bool internal_copy);
 
@@ -94,6 +94,7 @@ void BKE_gpencil_frame_delete_laststroke(struct bGPDlayer *gpl, struct bGPDframe
 /* materials */
 void BKE_gpencil_material_index_remove(struct bGPdata *gpd, int index);
 void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len);
+int BKE_gpencil_get_material_index(struct Object *ob, struct Material *ma);
 
 /* statistics functions */
 void BKE_gpencil_stats_update(struct bGPdata *gpd);

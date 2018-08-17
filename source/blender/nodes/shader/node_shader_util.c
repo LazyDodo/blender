@@ -253,13 +253,18 @@ void node_shader_gpu_tex_mapping(GPUMaterial *mat, bNode *node, GPUNodeStack *in
 	float domax = (texmap->flag & TEXMAP_CLIP_MAX) != 0;
 
 	if (domin || domax || !(texmap->flag & TEXMAP_UNIT_MATRIX)) {
-		GPUNodeLink *tmat = GPU_uniform((float *)texmap->mat);
-		GPUNodeLink *tmin = GPU_uniform(texmap->min);
-		GPUNodeLink *tmax = GPU_uniform(texmap->max);
-		GPUNodeLink *tdomin = GPU_uniform(&domin);
-		GPUNodeLink *tdomax = GPU_uniform(&domax);
+		static float max[3] = { FLT_MAX,  FLT_MAX,  FLT_MAX};
+		static float min[3] = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+		GPUNodeLink *tmin, *tmax, *tmat0, *tmat1, *tmat2, *tmat3;
 
-		GPU_link(mat, "mapping", in[0].link, tmat, tmin, tmax, tdomin, tdomax, &in[0].link);
+		tmin = GPU_uniform((domin) ? texmap->min : min);
+		tmax = GPU_uniform((domax) ? texmap->max : max);
+		tmat0 = GPU_uniform((float *)texmap->mat[0]);
+		tmat1 = GPU_uniform((float *)texmap->mat[1]);
+		tmat2 = GPU_uniform((float *)texmap->mat[2]);
+		tmat3 = GPU_uniform((float *)texmap->mat[3]);
+
+		GPU_link(mat, "mapping", in[0].link, tmat0, tmat1, tmat2, tmat3, tmin, tmax, &in[0].link);
 
 		if (texmap->type == TEXMAP_TYPE_NORMAL)
 			GPU_link(mat, "texco_norm", in[0].link, &in[0].link);

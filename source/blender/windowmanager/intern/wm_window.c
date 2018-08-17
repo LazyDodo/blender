@@ -631,6 +631,10 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	wm_get_screensize(&scr_w, &scr_h);
 	posy = (scr_h - win->posy - win->sizey);
 
+	/* Clear drawable so we can set the new window. */
+	wmWindow *prev_windrawable = wm->windrawable;
+	wm_window_clear_drawable(wm);
+
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
 	                              (GHOST_TWindowState)win->windowstate,
@@ -640,9 +644,6 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	if (ghostwin) {
 		GHOST_RectangleHandle bounds;
 
-		/* Clear drawable so we can set the new window. */
-		wm_window_clear_drawable(wm);
-
 		win->gpuctx = GPU_context_create();
 
 		/* needed so we can detect the graphics card below */
@@ -650,8 +651,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 		/* Set window as drawable upon creation. Note this has already been
 		 * it has already been activated by GHOST_CreateWindow. */
-		bool activate = false;
-		wm_window_set_drawable(wm, win, activate);
+		wm_window_set_drawable(wm, win, false);
 
 		win->ghostwin = ghostwin;
 		GHOST_SetWindowUserData(ghostwin, win); /* pointer back */
@@ -688,6 +688,9 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 		/* standard state vars for window */
 		GPU_state_init();
+	}
+	else {
+		wm_window_set_drawable(wm, prev_windrawable, false);
 	}
 }
 
@@ -1113,7 +1116,7 @@ void wm_window_clear_drawable(wmWindowManager *wm)
 
 void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 
 	if (win != wm->windrawable && win->ghostwin) {
 //		win->lmbut = 0;	/* keeps hanging when mousepressed while other window opened */
@@ -1134,7 +1137,7 @@ void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 void wm_window_reset_drawable(void)
 {
 	BLI_assert(BLI_thread_is_main());
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	wmWindowManager *wm = G_MAIN->wm.first;
 
 	if (wm == NULL)
@@ -2169,7 +2172,7 @@ ViewLayer *WM_window_get_active_view_layer(const wmWindow *win)
 
 	view_layer = BKE_view_layer_default_view(scene);
 	if (view_layer) {
-		WM_window_set_active_view_layer((wmWindow*)win, view_layer);
+		WM_window_set_active_view_layer((wmWindow *)win, view_layer);
 	}
 
 	return view_layer;
@@ -2280,24 +2283,24 @@ void *WM_opengl_context_create(void)
 	 * So we should call this function only on the main thread.
 	 */
 	BLI_assert(BLI_thread_is_main());
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	return GHOST_CreateOpenGLContext(g_system);
 }
 
 void WM_opengl_context_dispose(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_DisposeOpenGLContext(g_system, (GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_activate(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_ActivateOpenGLContext((GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_release(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_ReleaseOpenGLContext((GHOST_ContextHandle)context);
 }

@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpencilcolor.c
+/** \file blender/gpencil_modifiers/intern/MOD_gpencilcolor.c
  *  \ingroup modifiers
  */
 
@@ -60,6 +60,7 @@ static void initData(GpencilModifierData *md)
 	ARRAY_SET_ITEMS(gpmd->hsv, 1.0f, 1.0f, 1.0f);
 	gpmd->layername[0] = '\0';
 	gpmd->flag |= GP_COLOR_CREATE_COLORS;
+	gpmd->modify_color = GP_MODIFY_COLOR_BOTH;
 }
 
 static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
@@ -86,19 +87,23 @@ static void deformStroke(
 	copy_v3_v3(factor, mmd->hsv);
 	add_v3_fl(factor, -1.0f);
 
-	rgb_to_hsv_v(gps->runtime.tmp_stroke_rgba, hsv);
-	add_v3_v3(hsv, factor);
-	CLAMP3(hsv, 0.0f, 1.0f);
-	hsv_to_rgb_v(hsv, gps->runtime.tmp_stroke_rgba);
+	if (mmd->modify_color != GP_MODIFY_COLOR_FILL) {
+		rgb_to_hsv_v(gps->runtime.tmp_stroke_rgba, hsv);
+		add_v3_v3(hsv, factor);
+		CLAMP3(hsv, 0.0f, 1.0f);
+		hsv_to_rgb_v(hsv, gps->runtime.tmp_stroke_rgba);
+	}
 
-	rgb_to_hsv_v(gps->runtime.tmp_fill_rgba, hsv);
-	add_v3_v3(hsv, factor);
-	CLAMP3(hsv, 0.0f, 1.0f);
-	hsv_to_rgb_v(hsv, gps->runtime.tmp_fill_rgba);
+	if (mmd->modify_color != GP_MODIFY_COLOR_STROKE) {
+		rgb_to_hsv_v(gps->runtime.tmp_fill_rgba, hsv);
+		add_v3_v3(hsv, factor);
+		CLAMP3(hsv, 0.0f, 1.0f);
+		hsv_to_rgb_v(hsv, gps->runtime.tmp_fill_rgba);
+	}
 }
 
 static void bakeModifier(
-		Main *bmain, Depsgraph *depsgraph,
+        Main *bmain, Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
 	ColorGpencilModifierData *mmd = (ColorGpencilModifierData *)md;
@@ -120,30 +125,11 @@ static void bakeModifier(
 				copy_v4_v4(gps->runtime.tmp_stroke_rgba, gp_style->stroke_rgba);
 				copy_v4_v4(gps->runtime.tmp_fill_rgba, gp_style->fill_rgba);
 
-				/* look for color */
-				if (mmd->flag & GP_TINT_CREATE_COLORS) {
-					Material *newmat = BLI_ghash_lookup(gh_color, mat->id.name);
-					if (newmat == NULL) {
-						BKE_object_material_slot_add(bmain, ob);
-						newmat = BKE_material_copy(bmain, mat);
-						assign_material(bmain, ob, newmat, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
-
-						copy_v4_v4(newmat->gp_style->stroke_rgba, gps->runtime.tmp_stroke_rgba);
-						copy_v4_v4(newmat->gp_style->fill_rgba, gps->runtime.tmp_fill_rgba);
-
-						BLI_ghash_insert(gh_color, mat->id.name, newmat);
-					}
-					/* reasign color index */
-					int idx = BKE_object_material_slot_find_index(ob, newmat);
-					gps->mat_nr = idx - 1;
-				}
-				else {
-					/* reuse existing color */
-					copy_v4_v4(gp_style->stroke_rgba, gps->runtime.tmp_stroke_rgba);
-					copy_v4_v4(gp_style->fill_rgba, gps->runtime.tmp_fill_rgba);
-				}
-
 				deformStroke(md, depsgraph, ob, gpl, gps);
+
+				gpencil_apply_modifier_material(
+				        bmain, ob, mat, gh_color, gps,
+				        (bool)(mmd->flag & GP_COLOR_CREATE_COLORS));
 			}
 		}
 	}

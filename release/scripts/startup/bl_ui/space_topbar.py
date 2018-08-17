@@ -224,6 +224,27 @@ class _draw_left_context_mode:
         UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
         UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
+    def PARTICLE(context, layout):
+        # See: 'VIEW3D_PT_tools_brush', basically a duplicate
+        settings = context.tool_settings.particle_edit
+        brush = settings.brush
+        tool = settings.tool
+        if tool != 'NONE':
+            layout.prop(brush, "size", slider=True)
+            if tool == 'ADD':
+                layout.prop(brush, "count")
+            else:
+                layout.prop(brush, "strength", slider=True)
+
+            if tool == 'ADD':
+                layout.prop(settings, "use_default_interpolate")
+                layout.prop(brush, "steps", slider=True)
+                layout.prop(settings, "default_key_count", slider=True)
+            elif tool == 'LENGTH':
+                layout.row().prop(brush, "length_mode", expand=True)
+            elif tool == 'PUFF':
+                layout.row().prop(brush, "puff_mode", expand=True)
+                layout.prop(brush, "use_puff_volume")
 
 class INFO_MT_editor_menus(Menu):
     bl_idname = "INFO_MT_editor_menus"
@@ -394,26 +415,20 @@ class INFO_MT_render(Menu):
         props = layout.operator("render.render", text="Render Animation", icon='RENDER_ANIMATION')
         props.animation = True
         props.use_viewport = True
-        layout.operator("sound.mixdown", text="Render Audio", icon='PLAY_AUDIO')
 
         layout.separator()
 
+        layout.operator("sound.mixdown", text="Render Audio...")
+
+        layout.separator()
+
+        layout.operator("render.view_show", text="View Render")
+        layout.operator("render.play_rendered_anim", text="View Animation")
         layout.prop_menu_enum(rd, "display_mode", text="Display Mode")
+
+        layout.separator()
+
         layout.prop(rd, "use_lock_interface", text="Lock Interface")
-
-        layout.separator()
-
-        props = layout.operator("render.opengl", text="OpenGL Render Image", icon='RENDER_STILL')
-        props.view_context = False
-        props = layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION')
-        props.view_context = False
-        props.animation = True
-        layout.menu("INFO_MT_opengl_render")
-
-        layout.separator()
-
-        layout.operator("render.view_show")
-        layout.operator("render.play_rendered_anim", icon='PLAY')
 
 
 class INFO_MT_opengl_render(Menu):
@@ -511,7 +526,6 @@ class INFO_MT_help(Menu):
         layout.operator(
             "wm.url_open", text="Manual", icon='HELP',
         ).url = "https://docs.blender.org/manual/en/dev/"
-
 
         layout.operator(
             "wm.url_open", text="Report a Bug", icon='URL',
@@ -617,7 +631,6 @@ classes = (
     INFO_MT_edit,
     INFO_MT_game,
     INFO_MT_render,
-    INFO_MT_opengl_render,
     INFO_MT_window,
     INFO_MT_help,
 )

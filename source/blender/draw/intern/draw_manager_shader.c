@@ -37,6 +37,8 @@
 #include "BKE_global.h"
 #include "BKE_main.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "GPU_shader.h"
 #include "GPU_material.h"
 
@@ -173,7 +175,9 @@ static void drw_deferred_shader_add(GPUMaterial *mat, bool deferred)
 	BLI_assert(DST.draw_ctx.evil_C);
 	wmWindowManager *wm = CTX_wm_manager(DST.draw_ctx.evil_C);
 	wmWindow *win = CTX_wm_window(DST.draw_ctx.evil_C);
-	Scene *scene = DST.draw_ctx.scene;
+
+	/* Use original scene ID since this is what the jobs template tests for. */
+	Scene *scene = (Scene *)DEG_get_original_id(&DST.draw_ctx.scene->id);
 
 	/* Get the running job or a new one if none is running. Can only have one job per type & owner.  */
 	wmJob *wm_job = WM_jobs_get(wm, win, scene, "Shaders Compilation",
@@ -215,6 +219,7 @@ static void drw_deferred_shader_add(GPUMaterial *mat, bool deferred)
 void DRW_deferred_shader_remove(GPUMaterial *mat)
 {
 	Scene *scene = GPU_material_scene(mat);
+	scene = (Scene *)DEG_get_original_id(&DST.draw_ctx.scene->id);
 
 	for (wmWindowManager *wm = G_MAIN->wm.first; wm; wm = wm->id.next) {
 		if (WM_jobs_test(wm, scene, WM_JOB_TYPE_SHADER_COMPILATION) == false) {
@@ -257,7 +262,7 @@ void DRW_deferred_shader_remove(GPUMaterial *mat)
 
 GPUShader *DRW_shader_create(const char *vert, const char *geom, const char *frag, const char *defines)
 {
-	return GPU_shader_create(vert, frag, geom, NULL, defines);
+	return GPU_shader_create(vert, frag, geom, NULL, defines, __func__);
 }
 
 GPUShader *DRW_shader_create_with_lib(
@@ -274,7 +279,7 @@ GPUShader *DRW_shader_create_with_lib(
 		geom_with_lib = BLI_string_joinN(lib, geom);
 	}
 
-	sh = GPU_shader_create(vert_with_lib, frag_with_lib, geom_with_lib, NULL, defines);
+	sh = GPU_shader_create(vert_with_lib, frag_with_lib, geom_with_lib, NULL, defines, __func__);
 
 	MEM_freeN(vert_with_lib);
 	MEM_freeN(frag_with_lib);
@@ -290,22 +295,22 @@ GPUShader *DRW_shader_create_with_transform_feedback(
         const GPUShaderTFBType prim_type, const char **varying_names, const int varying_count)
 {
 	return GPU_shader_create_ex(vert, NULL, geom, NULL, defines, GPU_SHADER_FLAGS_NONE,
-	                            prim_type, varying_names, varying_count);
+	                            prim_type, varying_names, varying_count, __func__);
 }
 
 GPUShader *DRW_shader_create_2D(const char *frag, const char *defines)
 {
-	return GPU_shader_create(datatoc_gpu_shader_2D_vert_glsl, frag, NULL, NULL, defines);
+	return GPU_shader_create(datatoc_gpu_shader_2D_vert_glsl, frag, NULL, NULL, defines, __func__);
 }
 
 GPUShader *DRW_shader_create_3D(const char *frag, const char *defines)
 {
-	return GPU_shader_create(datatoc_gpu_shader_3D_vert_glsl, frag, NULL, NULL, defines);
+	return GPU_shader_create(datatoc_gpu_shader_3D_vert_glsl, frag, NULL, NULL, defines, __func__);
 }
 
 GPUShader *DRW_shader_create_fullscreen(const char *frag, const char *defines)
 {
-	return GPU_shader_create(datatoc_common_fullscreen_vert_glsl, frag, NULL, NULL, defines);
+	return GPU_shader_create(datatoc_common_fullscreen_vert_glsl, frag, NULL, NULL, defines, __func__);
 }
 
 GPUShader *DRW_shader_create_3D_depth_only(void)
@@ -351,7 +356,7 @@ GPUMaterial *DRW_shader_create_from_world(
 	if (mat == NULL) {
 		mat = GPU_material_from_nodetree(
 		        scene, wo->nodetree, &wo->gpumaterial, engine_type, options,
-		        vert, geom, frag_lib, defines);
+		        vert, geom, frag_lib, defines, wo->id.name);
 	}
 
 	if (GPU_material_status(mat) == GPU_MAT_QUEUED) {
@@ -373,7 +378,7 @@ GPUMaterial *DRW_shader_create_from_material(
 	if (mat == NULL) {
 		mat = GPU_material_from_nodetree(
 		        scene, ma->nodetree, &ma->gpumaterial, engine_type, options,
-		        vert, geom, frag_lib, defines);
+		        vert, geom, frag_lib, defines, ma->id.name);
 	}
 
 	if (GPU_material_status(mat) == GPU_MAT_QUEUED) {

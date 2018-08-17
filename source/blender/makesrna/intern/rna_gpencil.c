@@ -32,6 +32,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_brush_types.h"
+#include "DNA_object_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -47,9 +48,6 @@
 #include "rna_internal.h"
 
 #include "WM_types.h"
-#include "DNA_meshdata_types.h"
-#include "DNA_object_types.h"
-#include "ED_gpencil.h"
 
 /* parent type */
 static const EnumPropertyItem parent_type_items[] = {
@@ -77,7 +75,6 @@ static EnumPropertyItem rna_enum_gpencil_onion_modes_items[] = {
 
 #ifdef RNA_RUNTIME
 
-#include "BLI_math.h"
 #include "BLI_ghash.h"
 
 #include "WM_api.h"
@@ -1076,7 +1073,7 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	/* Onion-Skinning */
 	prop = RNA_def_property(srna, "use_onion_skinning", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "onion_flag", GP_LAYER_ONIONSKIN);
-	RNA_def_property_ui_text(prop, "Onion Skinning", "Ghost frames on either side of frame");
+	RNA_def_property_ui_text(prop, "Onion Skinning", "Display onion skins before and after the current frame");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* Flags */
@@ -1306,7 +1303,7 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "show_constant_thickness", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_KEEPTHICKNESS);
-	RNA_def_property_ui_text(prop, "Keep thickness", "Show stroke with same thickness when viewport zoom change");
+	RNA_def_property_ui_text(prop, "Keep Thickness", "Maintain the thickness of the stroke when the viewport zoom changes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "pixfactor", PROP_FLOAT, PROP_NONE);

@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpencilthick.c
+/** \file blender/gpencil_modifiers/intern/MOD_gpencilthick.c
  *  \ingroup modifiers
  */
 
@@ -111,7 +111,7 @@ static void deformStroke(
 		MDeformVert *dvert = &gps->dvert[i];
 		float curvef = 1.0f;
 		/* verify vertex group */
-		float weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_THICK_INVERT_VGROUP) == 0), vindex);
+		float weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_THICK_INVERT_VGROUP) != 0), vindex);
 		if (weight < 0) {
 			continue;
 		}
@@ -133,7 +133,7 @@ static void deformStroke(
 }
 
 static void bakeModifier(
-		struct Main *UNUSED(bmain), Depsgraph *depsgraph,
+        struct Main *UNUSED(bmain), Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;

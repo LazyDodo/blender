@@ -80,10 +80,6 @@ enum {
 	 * who're using curve deform, where_on_path and so.
 	 */
 	DAG_EVAL_NEED_CURVE_PATH = 1,
-	/* Scene evaluation would need to have object's data on CPU,
-	 * meaning no GPU shortcuts is allowed.
-	 */
-	DAG_EVAL_NEED_CPU        = 2,
 };
 
 #ifdef __cplusplus
@@ -239,9 +235,9 @@ void DEG_make_inactive(struct Depsgraph *depsgraph);
 void DEG_debug_print_begin(struct Depsgraph *depsgraph);
 
 void DEG_debug_print_eval(struct Depsgraph *depsgraph,
-                          const char* function_name,
-                          const char* object_name,
-                          const void* object_address);
+                          const char *function_name,
+                          const char *object_name,
+                          const void *object_address);
 
 void DEG_debug_print_eval_subdata(struct Depsgraph *depsgraph,
                                   const char *function_name,

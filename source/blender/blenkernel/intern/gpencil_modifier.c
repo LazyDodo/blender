@@ -257,6 +257,11 @@ void BKE_gpencil_simplify_stroke(bGPDstroke *gps, float factor)
 	/* first create temp data and convert points to 2D */
 	vec2f *points2d = MEM_mallocN(sizeof(vec2f) * gps->totpoints, "GP Stroke temp 2d points");
 
+	/* for some old files, the weights array could not be initializated */
+	if (gps->dvert == NULL) {
+		gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
+	}
+
 	gpencil_stroke_project_2d(gps->points, gps->totpoints, points2d);
 
 	gpencil_rdp_stroke(gps, points2d, factor);
@@ -269,6 +274,11 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 {
 	if (gps->totpoints < 5) {
 		return;
+	}
+
+	/* for some old files, the weights array could not be initializated */
+	if (gps->dvert == NULL) {
+		gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
 	}
 
 	/* save points */
@@ -384,8 +394,7 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
 
 	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
-		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
-		{
+		if (GPENCIL_MODIFIER_ACTIVE(md, is_render)) {
 			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
 
 			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
@@ -407,8 +416,7 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
 
 	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
-		if (GPENCIL_MODIFIER_ACTIVE(md, is_render))
-		{
+		if (GPENCIL_MODIFIER_ACTIVE(md, is_render)) {
 			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
 
 			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {

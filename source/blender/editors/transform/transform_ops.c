@@ -82,6 +82,7 @@ static const char OP_VERT_SLIDE[] = "TRANSFORM_OT_vert_slide";
 static const char OP_EDGE_CREASE[] = "TRANSFORM_OT_edge_crease";
 static const char OP_EDGE_BWEIGHT[] = "TRANSFORM_OT_edge_bevelweight";
 static const char OP_SEQ_SLIDE[] = "TRANSFORM_OT_seq_slide";
+static const char OP_NORMAL_ROTATION[] = "TRANSFORM_OT_rotate_normal";
 
 static void TRANSFORM_OT_translate(struct wmOperatorType *ot);
 static void TRANSFORM_OT_rotate(struct wmOperatorType *ot);
@@ -100,6 +101,7 @@ static void TRANSFORM_OT_vert_slide(struct wmOperatorType *ot);
 static void TRANSFORM_OT_edge_crease(struct wmOperatorType *ot);
 static void TRANSFORM_OT_edge_bevelweight(struct wmOperatorType *ot);
 static void TRANSFORM_OT_seq_slide(struct wmOperatorType *ot);
+static void TRANSFORM_OT_rotate_normal(struct wmOperatorType *ot);
 
 static TransformModeItem transform_modes[] =
 {
@@ -120,6 +122,7 @@ static TransformModeItem transform_modes[] =
 	{OP_EDGE_CREASE, TFM_CREASE, TRANSFORM_OT_edge_crease},
 	{OP_EDGE_BWEIGHT, TFM_BWEIGHT, TRANSFORM_OT_edge_bevelweight},
 	{OP_SEQ_SLIDE, TFM_SEQ_SLIDE, TRANSFORM_OT_seq_slide},
+	{OP_NORMAL_ROTATION, TFM_NORMAL_ROTATION, TRANSFORM_OT_rotate_normal},
 	{NULL, 0}
 };
 
@@ -647,7 +650,7 @@ static void TRANSFORM_OT_translate(struct wmOperatorType *ot)
 	ot->poll   = ED_operator_screenactive;
 	ot->poll_property = transform_poll_property;
 
-	RNA_def_float_vector_xyz(ot->srna, "value", 3, NULL, -FLT_MAX, FLT_MAX, "Vector", "", -FLT_MAX, FLT_MAX);
+	RNA_def_float_vector_xyz(ot->srna, "value", 3, NULL, -FLT_MAX, FLT_MAX, "Move", "", -FLT_MAX, FLT_MAX);
 
 	WM_operatortype_props_advanced_begin(ot);
 
@@ -673,7 +676,7 @@ static void TRANSFORM_OT_resize(struct wmOperatorType *ot)
 	ot->poll   = ED_operator_screenactive;
 	ot->poll_property = transform_poll_property;
 
-	RNA_def_float_vector(ot->srna, "value", 3, VecOne, -FLT_MAX, FLT_MAX, "Vector", "", -FLT_MAX, FLT_MAX);
+	RNA_def_float_vector(ot->srna, "value", 3, VecOne, -FLT_MAX, FLT_MAX, "Scale", "", -FLT_MAX, FLT_MAX);
 
 	WM_operatortype_props_advanced_begin(ot);
 
@@ -707,7 +710,7 @@ static void TRANSFORM_OT_skin_resize(struct wmOperatorType *ot)
 	ot->poll   = skin_resize_poll;
 	ot->poll_property = transform_poll_property;
 
-	RNA_def_float_vector(ot->srna, "value", 3, VecOne, -FLT_MAX, FLT_MAX, "Vector", "", -FLT_MAX, FLT_MAX);
+	RNA_def_float_vector(ot->srna, "value", 3, VecOne, -FLT_MAX, FLT_MAX, "Scale", "", -FLT_MAX, FLT_MAX);
 
 	WM_operatortype_props_advanced_begin(ot);
 
@@ -1072,12 +1075,33 @@ static void TRANSFORM_OT_seq_slide(struct wmOperatorType *ot)
 	ot->cancel = transform_cancel;
 	ot->poll   = ED_operator_sequencer_active;
 
-	RNA_def_float_vector_xyz(ot->srna, "value", 2, NULL, -FLT_MAX, FLT_MAX, "Vector", "", -FLT_MAX, FLT_MAX);
+	RNA_def_float_vector_xyz(ot->srna, "value", 2, NULL, -FLT_MAX, FLT_MAX, "Offset", "", -FLT_MAX, FLT_MAX);
 
 	WM_operatortype_props_advanced_begin(ot);
 
 	Transform_Properties(ot, P_SNAP);
 }
+
+static void TRANSFORM_OT_rotate_normal(struct wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Normal Rotate";
+	ot->description = "Rotate split normal of selected items";
+	ot->idname = OP_NORMAL_ROTATION;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_BLOCKING;
+
+	/* api callbacks */
+	ot->invoke = transform_invoke;
+	ot->exec = transform_exec;
+	ot->modal = transform_modal;
+	ot->cancel = transform_cancel;
+	ot->poll = ED_operator_editmesh_auto_smooth;
+
+	RNA_def_float_rotation(ot->srna, "value", 0, NULL, -FLT_MAX, FLT_MAX, "Angle", "", -M_PI * 2, M_PI * 2);
+
+	Transform_Properties(ot, P_AXIS | P_CONSTRAINT | P_MIRROR);
+}
+
 
 static void TRANSFORM_OT_transform(struct wmOperatorType *ot)
 {

@@ -50,6 +50,7 @@
 #include "RNA_access.h"
 
 #include "ED_gpencil.h"
+#include "ED_select_utils.h"
 #include "ED_object.h"
 #include "ED_transform.h"
 
@@ -128,8 +129,8 @@ static bool gp_stroke_paintmode_draw_poll(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush)
-		&& (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_DRAW));
+	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) &&
+	        (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_DRAW));
 }
 
 /* Poll callback for stroke painting (erase brush) */
@@ -139,8 +140,8 @@ static bool gp_stroke_paintmode_erase_poll(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush)
-		&& (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE));
+	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) &&
+	        (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE));
 }
 
 /* Poll callback for stroke painting (fill) */
@@ -150,8 +151,8 @@ static bool gp_stroke_paintmode_fill_poll(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush)
-		&& (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_FILL));
+	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) &&
+	        (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_FILL));
 }
 
 /* Poll callback for stroke sculpting mode */
@@ -248,7 +249,17 @@ static void ed_keymap_gpencil_selection(wmKeyMap *keymap)
 	/* select more/less */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_select_more", PADPLUSKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "GPENCIL_OT_select_less", PADMINUS, KM_PRESS, KM_CTRL, 0);
+}
 
+static void ed_keymap_gpencil_display(wmKeyMap *keymap)
+{
+	wmKeyMapItem *kmi;
+
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
+	RNA_string_set(kmi->ptr, "data_path", "space_data.overlay.use_gpencil_edit_lines");
+
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", QKEY, KM_PRESS, KM_SHIFT | KM_ALT, 0);
+	RNA_string_set(kmi->ptr, "data_path", "space_data.overlay.use_gpencil_multiedit_line_only");
 }
 
 static void ed_keymap_gpencil_sculpt(wmKeyMap *keymap)
@@ -289,7 +300,7 @@ static void ed_keymap_gpencil_sculpt(wmKeyMap *keymap)
 	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_sculpt.brush.size");
 
 	/* menu sculpt specials */
-	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_sculpt_specials", WKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_menu(keymap, "VIEW3D_MT_gpencil_sculpt_specials", WKEY, KM_PRESS, 0, 0);
 }
 
 static void ed_keymap_gpencil_weight(wmKeyMap *keymap)
@@ -361,7 +372,7 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "GPENCIL_OT_active_frames_delete_all", DELKEY, KM_PRESS, KM_SHIFT, 0);
 
 	/* menu edit specials */
-	WM_keymap_add_menu(keymap, "GPENCIL_MT_gpencil_edit_specials", WKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_menu(keymap, "VIEW3D_MT_gpencil_edit_specials", WKEY, KM_PRESS, 0, 0);
 
 	/* menu separate */
 	WM_keymap_add_menu(keymap, "GPENCIL_MT_separate", PKEY, KM_PRESS, 0, 0);
@@ -403,12 +414,8 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 
 	WM_keymap_add_item(keymap, "GPENCIL_OT_selection_opacity_toggle", HKEY, KM_PRESS, KM_CTRL, 0);
 
-	/* toogle multiedit support */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "toggle_visibility", 0);
-
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
+	/* Display. */
+	ed_keymap_gpencil_display(keymap);
 
 	/* Isolate Layer */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_layer_isolate", PADASTERKEY, KM_PRESS, 0, 0);
@@ -593,7 +600,6 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 {
 	wmKeyMap *keymap = WM_keymap_find(keyconf, "Grease Pencil Stroke Sculpt Mode", 0, 0);
-	wmKeyMapItem *kmi;
 
 	/* set poll callback - so that this keymap only gets enabled when stroke sculptmode is enabled */
 	keymap->poll = gp_stroke_sculptmode_poll;
@@ -604,13 +610,8 @@ static void ed_keymap_gpencil_sculpting(wmKeyConfig *keyconf)
 	/* sculpt */
 	ed_keymap_gpencil_sculpt(keymap);
 
-	/* toogle multiedit support */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "toggle_visibility", 0);
-
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
-
+	/* Display. */
+	ed_keymap_gpencil_display(keymap);
 }
 
 /* Stroke Weight Paint Keymap - Only when weight is enabled */
@@ -636,13 +637,8 @@ static void ed_keymap_gpencil_weightpainting(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_sculpt.weight_brush.size");
 
-	/* toogle multiedit support */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "toggle_visibility", 0);
-
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_multiedit_toggle", QKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(kmi->ptr, "toggle_visibility", 1);
-
+	/* Display. */
+	ed_keymap_gpencil_display(keymap);
 }
 /* ==================== */
 
@@ -678,7 +674,6 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_sculptmode_toggle);
 	WM_operatortype_append(GPENCIL_OT_weightmode_toggle);
 	WM_operatortype_append(GPENCIL_OT_selection_opacity_toggle);
-	WM_operatortype_append(GPENCIL_OT_multiedit_toggle);
 
 	WM_operatortype_append(GPENCIL_OT_select);
 	WM_operatortype_append(GPENCIL_OT_select_all);
@@ -734,6 +729,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_active_frames_delete_all);
 	WM_operatortype_append(GPENCIL_OT_frame_duplicate);
 	WM_operatortype_append(GPENCIL_OT_frame_clean_fill);
+	WM_operatortype_append(GPENCIL_OT_frame_clean_loose);
 
 	WM_operatortype_append(GPENCIL_OT_convert);
 

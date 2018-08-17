@@ -24,7 +24,7 @@
  *
  */
 
-/** \file blender/modifiers/intern/MOD_gpencilnoise.c
+/** \file blender/gpencil_modifiers/intern/MOD_gpencilnoise.c
  *  \ingroup modifiers
  */
 
@@ -154,7 +154,7 @@ static void deformStroke(
 		}
 
 		/* verify vertex group */
-		weight = get_modifier_point_weight(dvert, (int)(!(mmd->flag & GP_NOISE_INVERT_VGROUP) == 0), vindex);
+		weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_NOISE_INVERT_VGROUP) != 0), vindex);
 		if (weight < 0) {
 			continue;
 		}

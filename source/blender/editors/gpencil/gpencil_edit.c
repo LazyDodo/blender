@@ -62,7 +62,6 @@
 #include "BKE_gpencil.h"
 #include "BKE_paint.h"
 #include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
@@ -487,44 +486,6 @@ void GPENCIL_OT_selection_opacity_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 }
 
-/* toggle multi edit strokes support */
-static int gpencil_multiedit_toggle_exec(bContext *C, wmOperator *op)
-{
-	View3D *v3d = CTX_wm_view3d(C);
-	const bool lines = RNA_boolean_get(op->ptr, "lines");
-
-	/* Just toggle value */
-	if (lines == 0) {
-		v3d->flag3 ^= V3D_GP_SHOW_EDIT_LINES;
-	}
-	else {
-		v3d->flag3 ^= V3D_GP_SHOW_MULTIEDIT_LINES;
-	}
-
-	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | ND_GPENCIL_EDITMODE, NULL);
-	WM_event_add_notifier(C, NC_SCENE | ND_MODE, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_multiedit_toggle(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Edit Lines Toggle";
-	ot->idname = "GPENCIL_OT_multiedit_toggle";
-	ot->description = "Enable/disable edit lines support";
-
-	/* callbacks */
-	ot->exec = gpencil_multiedit_toggle_exec;
-	ot->poll = gp_stroke_edit_poll;
-
-	/* flags */
-	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
-
-	/* properties */
-	RNA_def_boolean(ot->srna, "toggle_visibility", 0, "Toggle Visibility Only", "Toggle visibility of edit lines only");
-}
-
 /* ************** Duplicate Selected Strokes **************** */
 
 /* Make copies of selected point segments in a selected stroke */
@@ -771,9 +732,9 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 		int *key = BLI_ghashIterator_getKey(&gh_iter);
 		Material *ma = BLI_ghashIterator_getValue(&gh_iter);
 
-		if (BKE_object_material_slot_find_index(ob, ma) == 0) {
+		if (BKE_gpencil_get_material_index(ob, ma) == 0) {
 			BKE_object_material_slot_add(bmain, ob);
-			assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+			assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_USERPREF);
 		}
 
 		/* Store this mapping (for use later when pasting) */
@@ -861,8 +822,7 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 		for (bGPDstroke *gps = gp_strokes_copypastebuf.first; gps; gps = gps->next) {
 			if (ED_gpencil_stroke_can_use(C, gps)) {
 				ma = give_current_material(ob, gps->mat_nr + 1);
-				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, &gps->mat_nr) == false)
-				{
+				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, &gps->mat_nr) == false) {
 					BLI_ghash_insert(gp_strokes_copypastebuf_colors, &gps->mat_nr, ma);
 				}
 			}
@@ -1020,8 +980,8 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 
 				/* Remap material */
 				Material *ma = BLI_ghash_lookup(new_colors, &new_stroke->mat_nr);
-				if ((ma) && (BKE_object_material_slot_find_index(ob, ma) > 0)) {
-					gps->mat_nr = BKE_object_material_slot_find_index(ob, ma) - 1;
+				if ((ma) && (BKE_gpencil_get_material_index(ob, ma) > 0)) {
+					gps->mat_nr = BKE_gpencil_get_material_index(ob, ma) - 1;
 					CLAMP_MIN(gps->mat_nr, 0);
 				}
 				else {
@@ -1785,13 +1745,13 @@ void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke 
 			/* Copy over the relevant point data */
 			new_stroke->points    = MEM_callocN(sizeof(bGPDspoint) * new_stroke->totpoints, "gp delete stroke fragment");
 			memcpy(new_stroke->points, gps->points + island->start_idx, sizeof(bGPDspoint) * new_stroke->totpoints);
-			
+
 			/* Copy over vertex weight data (if available) */
 			if (new_stroke->dvert != NULL) {
 				/* Copy over the relevant vertex-weight points */
 				new_stroke->dvert     = MEM_callocN(sizeof(MDeformVert) * new_stroke->totpoints, "gp delete stroke fragment weight");
 				memcpy(new_stroke->dvert, gps->dvert + island->start_idx, sizeof(MDeformVert) * new_stroke->totpoints);
-				
+
 				/* Copy weights */
 				int e = island->start_idx;
 				for (int i = 0; i < new_stroke->totpoints; i++) {
@@ -2153,7 +2113,7 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 	}
 
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
-    DEG_id_tag_update(&obact->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&obact->id, DEG_TAG_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -2454,7 +2414,6 @@ static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, int id
                                       float pressure, float strength, float deltatime)
 {
 	bGPDspoint *newpoint;
-	MDeformVert *dvert, *newdvert;
 
 	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (gps->totpoints + 1));
 	if (gps->dvert != NULL) {
@@ -2462,11 +2421,6 @@ static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, int id
 	}
 	gps->totpoints++;
 	newpoint = &gps->points[gps->totpoints - 1];
-
-	if (gps->dvert != NULL) {
-		dvert = &gps->dvert[idx];
-		newdvert = &gps->dvert[gps->totpoints - 1];
-	}
 
 	newpoint->x = point->x * delta[0];
 	newpoint->y = point->y * delta[1];
@@ -2476,8 +2430,13 @@ static void gpencil_stroke_copy_point(bGPDstroke *gps, bGPDspoint *point, int id
 	newpoint->strength = strength;
 	newpoint->time = point->time + deltatime;
 
-	newdvert->totweight = dvert->totweight;
-	newdvert->dw = MEM_dupallocN(dvert->dw);
+	if (gps->dvert != NULL) {
+		MDeformVert *dvert = &gps->dvert[idx];
+		MDeformVert *newdvert = &gps->dvert[gps->totpoints - 1];
+
+		newdvert->totweight = dvert->totweight;
+		newdvert->dw = MEM_dupallocN(dvert->dw);
+	}
 }
 
 /* Helper: join two strokes using the shortest distance (reorder stroke if necessary ) */
@@ -2758,7 +2717,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	Object *ob = CTX_data_active_object(C);
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
- 	RegionView3D *rv3d = ar->regiondata;
+	RegionView3D *rv3d = ar->regiondata;
 	View3D *v3d = sa->spacedata.first;
 
 	GP_SpaceConversion gsc = {NULL};
@@ -2888,7 +2847,7 @@ void GPENCIL_OT_reproject(wmOperatorType *ot)
 	ot->poll = gp_strokes_edit3d_poll;
 
 	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", reproject_type, GP_REPROJECT_PLANAR, "Projection Type", "");
@@ -3225,7 +3184,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 
 							/* add duplicate materials */
 							ma = give_current_material(ob, gps->mat_nr + 1);
-							idx = BKE_object_material_slot_find_index(ob_dst, ma);
+							idx = BKE_gpencil_get_material_index(ob_dst, ma);
 							if (idx == 0) {
 
 								totadd++;
@@ -3236,7 +3195,7 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 									BKE_object_material_slot_add(bmain, ob_dst);
 								}
 
-								assign_material(bmain, ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_EXISTING);
+								assign_material(bmain, ob_dst, ma, ob_dst->totcol, BKE_MAT_ASSIGN_USERPREF);
 								idx = totadd;
 							}
 

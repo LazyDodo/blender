@@ -269,9 +269,11 @@ static Material *rna_Main_materials_new(Main *bmain, const char *name)
 	return (Material *)id;
 }
 
-static void rna_Main_materials_gpencil_data(Main *UNUSED(bmain), struct PointerRNA *ma)
+static void rna_Main_materials_gpencil_data(Main *UNUSED(bmain), PointerRNA *id_ptr)
 {
-	BKE_material_init_gpencil_settings((Material *)ma);
+	ID *id = id_ptr->data;
+	Material *ma = (Material *)id;
+	BKE_material_init_gpencil_settings(ma);
 }
 
 static const EnumPropertyItem *rna_Main_nodetree_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
@@ -440,6 +442,14 @@ static Brush *rna_Main_brushes_new(Main *bmain, const char *name, int mode)
 	id_us_min(&brush->id);
 	return brush;
 }
+
+static void rna_Main_brush_gpencil_data(Main *UNUSED(bmain), PointerRNA *id_ptr)
+{
+	ID *id = id_ptr->data;
+	Brush *brush = (Brush *)id;
+	BKE_brush_init_gpencil_settings(brush);
+}
+
 
 static World *rna_Main_worlds_new(Main *bmain, const char *name)
 {
@@ -1270,6 +1280,11 @@ void RNA_def_main_brushes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_brushes_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+
+	func = RNA_def_function(srna, "create_gpencil_data", "rna_Main_brush_gpencil_data");
+	RNA_def_function_ui_description(func, "Add grease pencil brush settings");
+	parm = RNA_def_pointer(func, "brush", "Brush", "", "Brush");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 }
 
 void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop)

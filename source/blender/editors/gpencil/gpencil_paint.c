@@ -61,8 +61,6 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
-#include "BKE_main.h"
-#include "BKE_paint.h"
 #include "BKE_report.h"
 #include "BKE_layer.h"
 #include "BKE_material.h"
@@ -624,7 +622,7 @@ static short gp_stroke_addpoint(
 		}
 		/* apply randomness to pressure */
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
-			(brush->gpencil_settings->draw_random_press > 0.0f))
+		    (brush->gpencil_settings->draw_random_press > 0.0f))
 		{
 			float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_sensitivity, 0, pressure);
 			float tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
@@ -672,7 +670,7 @@ static short gp_stroke_addpoint(
 
 		/* apply randomness to color strength */
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
-			(brush->gpencil_settings->draw_random_strength > 0.0f))
+		    (brush->gpencil_settings->draw_random_strength > 0.0f))
 		{
 			if (BLI_rng_get_float(p->rng) > 0.5f) {
 				pt->strength -= pt->strength * brush->gpencil_settings->draw_random_strength * BLI_rng_get_float(p->rng);
@@ -1152,7 +1150,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	}
 
 	/* Save material index */
-	gps->mat_nr = BKE_object_material_slot_find_index(p->ob, p->material) - 1;
+	gps->mat_nr = BKE_gpencil_get_material_index(p->ob, p->material) - 1;
 
 	/* calculate UVs along the stroke */
 	ED_gpencil_calc_stroke_uv(obact, gps);
@@ -1381,13 +1379,13 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 
 						/* 2) Tag any point with overly low influence for removal in the next pass */
 						if ((pt1->pressure < cull_thresh) || (p->flags & GP_PAINTFLAG_HARD_ERASER) ||
-							(eraser->gpencil_settings->eraser_mode == GP_BRUSH_ERASER_HARD))
+						    (eraser->gpencil_settings->eraser_mode == GP_BRUSH_ERASER_HARD))
 						{
 							pt1->flag |= GP_SPOINT_TAG;
 							do_cull = true;
 						}
 						if ((pt2->pressure < cull_thresh) || (p->flags & GP_PAINTFLAG_HARD_ERASER) ||
-							(eraser->gpencil_settings->eraser_mode == GP_BRUSH_ERASER_HARD))
+						    (eraser->gpencil_settings->eraser_mode == GP_BRUSH_ERASER_HARD))
 						{
 							pt2->flag |= GP_SPOINT_TAG;
 							do_cull = true;
@@ -1500,14 +1498,14 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 	Brush *brush_old = paint->brush;
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 		if ((brush->ob_mode == OB_MODE_GPENCIL_PAINT) &&
-			(brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
+		    (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
 		{
 			/* save first eraser to use later if no default */
 			if (brush_dft == NULL) {
 				brush_dft = brush;
 			}
 			/* found default */
-			if(brush->gpencil_settings->flag & GP_BRUSH_DEFAULT_ERASER) {
+			if (brush->gpencil_settings->flag & GP_BRUSH_DEFAULT_ERASER) {
 				return brush;
 			}
 		}
@@ -1604,9 +1602,9 @@ static void gp_init_colors(tGPsdata *p)
 	}
 
 	/* check if the material is already on object material slots and add it if missing */
-	if (BKE_object_material_slot_find_index(p->ob, p->material) == 0) {
+	if (BKE_gpencil_get_material_index(p->ob, p->material) == 0) {
 		BKE_object_material_slot_add(p->bmain, p->ob);
-		assign_material(p->bmain, p->ob, ma, p->ob->totcol, BKE_MAT_ASSIGN_EXISTING);
+		assign_material(p->bmain, p->ob, ma, p->ob->totcol, BKE_MAT_ASSIGN_USERPREF);
 	}
 
 	/* assign color information to temp tGPsdata */
@@ -1690,7 +1688,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 
 			break;
 		}
-		
+
 		/* unsupported views */
 		default:
 		{
@@ -1748,18 +1746,20 @@ static tGPsdata *gp_session_initpaint(bContext *C, wmOperator *op)
 {
 	tGPsdata *p = NULL;
 
-	/* create new context data */
+	/* Create new context data */
 	p = MEM_callocN(sizeof(tGPsdata), "GPencil Drawing Data");
 
-	gp_session_initdata(C, op, p);
-
-#if 0
-	/* radius for eraser circle is defined in userprefs now */
-	/* NOTE: we do this here, so that if we exit immediately,
-	 *       erase size won't get lost
+	/* Try to initialise context data
+	 * WARNING: This may not always succeed (e.g. using GP in an annotation-only context)
 	 */
-	p->radius = U.gp_eraser;
-#endif
+	if (gp_session_initdata(C, op, p) == 0) {
+		/* Invalid state - Exit
+		 * NOTE: It should be safe to just free the data, since failing context checks should
+		 * only happen when no data has been allocated.
+		 */
+		MEM_freeN(p);
+		return NULL;
+	}
 
 	/* Random generator, only init once. */
 	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
@@ -2094,26 +2094,7 @@ static bool gpencil_is_tablet_eraser_active(const wmEvent *event)
 static void gpencil_draw_exit(bContext *C, wmOperator *op)
 {
 	tGPsdata *p = op->customdata;
-	bGPdata *gpd = CTX_data_gpencil_data(C);
 
-	/* clear undo stack */
-	gpencil_undo_finish();
-
-	/* restore cursor to indicate end of drawing */
-	if (p->sa->spacetype != SPACE_VIEW3D) {
-		WM_cursor_modal_restore(CTX_wm_window(C));
-	}
-	else {
-		/* or restore paint if 3D view */
-		if ((p) && (p->paintmode == GP_PAINTMODE_ERASER)) {
-			WM_cursor_modal_set(p->win, CURSOR_STD);
-		}
-		/* drawing batch cache is dirty now */
-		if (gpd) {
-			gp_update_cache(gpd);
-		}
-
-	}
 	/* don't assume that operator data exists at all */
 	if (p) {
 		/* check size of buffer before cleanup, to determine if anything happened here */
@@ -2130,6 +2111,26 @@ static void gpencil_draw_exit(bContext *C, wmOperator *op)
 			p->eraser->size = p->radius;
 		}
 
+		/* restore cursor to indicate end of drawing */
+		if (p->sa->spacetype != SPACE_VIEW3D) {
+			WM_cursor_modal_restore(CTX_wm_window(C));
+		}
+		else {
+			/* or restore paint if 3D view */
+			if ((p) && (p->paintmode == GP_PAINTMODE_ERASER)) {
+				WM_cursor_modal_set(p->win, CURSOR_STD);
+			}
+
+			/* drawing batch cache is dirty now */
+			bGPdata *gpd = CTX_data_gpencil_data(C);
+			if (gpd) {
+				gp_update_cache(gpd);
+			}
+		}
+
+		/* clear undo stack */
+		gpencil_undo_finish();
+
 		/* cleanup */
 		gp_paint_cleanup(p);
 		gp_session_cleanup(p);
@@ -2137,6 +2138,7 @@ static void gpencil_draw_exit(bContext *C, wmOperator *op)
 
 		/* finally, free the temp data */
 		gp_session_free(p);
+		p = NULL;
 	}
 
 	op->customdata = NULL;
@@ -2201,7 +2203,7 @@ static void gpencil_draw_cursor_set(tGPsdata *p)
 {
 	Brush *brush = p->brush;
 	if ((p->paintmode == GP_PAINTMODE_ERASER) ||
-		(brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
+	    (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
 	{
 		WM_cursor_modal_set(p->win, BC_CROSSCURSOR);  /* XXX need a better cursor */
 	}
@@ -2218,17 +2220,20 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 
 #if 0 /* FIXME, this never runs! */
 		switch (p->paintmode) {
-				case GP_PAINTMODE_DRAW_POLY:
-					/* Provide usage tips, since this is modal, and unintuitive without hints */
-					ED_workspace_status_text(C, IFACE_("Annotation Create Poly: LMB click to place next stroke vertex | "
-					                                  "ESC/Enter to end  (or click outside this area)"));
-					break;
-				default:
-					/* Do nothing - the others are self explanatory, exit quickly once the mouse is released
-					 * Showing any text would just be annoying as it would flicker.
-					 */
-					break;
-			}
+			case GP_PAINTMODE_DRAW_POLY:
+				/* Provide usage tips, since this is modal, and unintuitive without hints */
+				ED_workspace_status_text(
+				        C, IFACE_(
+				                "Annotation Create Poly: LMB click to place next stroke vertex | "
+				                "ESC/Enter to end  (or click outside this area)"
+				        ));
+				break;
+			default:
+				/* Do nothing - the others are self explanatory, exit quickly once the mouse is released
+				 * Showing any text would just be annoying as it would flicker.
+				 */
+				break;
+		}
 #endif
 
 		case GP_STATUS_IDLING:

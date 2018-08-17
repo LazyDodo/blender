@@ -755,10 +755,11 @@ static bool gp_brush_randomize_apply(
 	const float inf = gp_brush_influence_calc(gso, radius, co) / 2.0f;
 	const float fac = BLI_rng_get_float(gso->rng) * inf;
 	/* need one flag enabled by default */
-	if ((gso->settings->flag & (GP_BRUSHEDIT_FLAG_APPLY_POSITION |
-	                            GP_BRUSHEDIT_FLAG_APPLY_STRENGTH |
-								GP_BRUSHEDIT_FLAG_APPLY_THICKNESS |
-								GP_BRUSHEDIT_FLAG_APPLY_UV)) == 0)
+	if ((gso->settings->flag &
+	     (GP_BRUSHEDIT_FLAG_APPLY_POSITION |
+	      GP_BRUSHEDIT_FLAG_APPLY_STRENGTH |
+	      GP_BRUSHEDIT_FLAG_APPLY_THICKNESS |
+	      GP_BRUSHEDIT_FLAG_APPLY_UV)) == 0)
 	{
 		gso->settings->flag |= GP_BRUSHEDIT_FLAG_APPLY_POSITION;
 	}
@@ -1052,8 +1053,8 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 
 			/* Fix color references */
 			Material *ma = BLI_ghash_lookup(data->new_colors, &new_stroke->mat_nr);
-			if ((ma) && (BKE_object_material_slot_find_index(ob, ma) > 0)) {
-				gps->mat_nr = BKE_object_material_slot_find_index(ob, ma) - 1;
+			if ((ma) && (BKE_gpencil_get_material_index(ob, ma) > 0)) {
+				gps->mat_nr = BKE_gpencil_get_material_index(ob, ma) - 1;
 				CLAMP_MIN(gps->mat_nr, 0);
 			}
 			else {
@@ -1813,8 +1814,17 @@ static int gpsculpt_brush_invoke(bContext *C, wmOperator *op, const wmEvent *eve
 {
 	tGP_BrushEditData *gso = NULL;
 	const bool is_modal = RNA_boolean_get(op->ptr, "wait_for_input");
+	const bool is_playing = ED_screen_animation_playing(CTX_wm_manager(C)) != NULL;
 	bool needs_timer = false;
 	float brush_rate = 0.0f;
+
+	/* the operator cannot work while play animation */
+	if (is_playing) {
+		BKE_report(op->reports, RPT_ERROR,
+			"Cannot sculpt while play animation");
+
+		return OPERATOR_CANCELLED;
+	}
 
 	/* init painting data */
 	if (!gpsculpt_brush_init(C, op))
