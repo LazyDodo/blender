@@ -105,6 +105,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 {
 	Scene *scene = DEG_get_evaluated_scene(depsgraph);
 
+	Main* bmain = G.main;
 	Mesh* me_assembled = NULL;
 	Mesh *me_final = NULL;
 	Mesh *me = me_orig; //BKE_fracture_mesh_copy(me_orig, ob);
@@ -132,27 +133,24 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			me_tmp = me;
 		}
 
-		mi = BKE_fracture_mesh_island_create(me_tmp, G.main, scene, ob);
+		mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob);
 		mi->id = 0;
 		mi->rigidbody->mesh_island_index = 0;
 		BLI_addtail(&fmd->shared->mesh_islands, mi);
 
 		/*if refresh, perform fracture */
-		BKE_fracture_do(fmd, mi, ob, depsgraph, G.main, scene);
+		BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
 
 		/* refresh means full reset for dynamic too, so rebuild here one state*/
 		BKE_fracture_dynamic_new_entries_add(fmd, scene, false);
 
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;
-
-		//DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
-		//DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else if (fmd->shared->refresh_dynamic)
 	{
 		/*if dynamic event, push state to fracture sequence*/
-		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, G.main);
+		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
 	}
 
 	/* assemble mesh from transformed meshislands */
@@ -164,6 +162,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	else {
 		me_assembled = me;
 	}
+
+	fmd->shared->mesh_cached = me_assembled;
 
 	/*if refresh constraints, build constraints */
 	if (fmd->shared->refresh_constraints)
@@ -190,9 +190,13 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		if (fmd->autohide_dist > 0 && !fmd->distortion_cached) {
 			BKE_fracture_automerge_refresh(fmd, me_assembled);
 		}
-	}
 
-	//fmd->shared->mesh_cached = me_assembled;
+#if 0
+		DEG_id_tag_update(DEG_get_original_id(&scene->id), DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(DEG_get_original_id(&ob->id), DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(DEG_get_original_id(&((Mesh*)(ob->data))->id), DEG_TAG_COPY_ON_WRITE);
+#endif
+	}
 
 	/* if autohide / automerge etc perform postprocess */
 	if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0 || fmd->use_centroids || fmd->use_vertices)

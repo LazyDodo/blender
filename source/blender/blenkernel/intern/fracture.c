@@ -310,7 +310,7 @@ static void calculate_fractal(FractureModifierData* fmd, Mesh* me, BooleanContex
 	int max_axis;
 
 	BKE_fracture_mesh_boundbox_calc(me, loc, size);
-	radius = sqrt(size[0]*size[0] + size[1]*size[1] + size[2]*size[2]);
+	radius = sqrt(size[0]*size[0] + size[1]*size[1] + size[2]*size[2]) * 1.5f;
 
 	vec[0] = BLI_thread_frand(0) * 2 - 1;
 	vec[1] = BLI_thread_frand(0) * 2 - 1;
@@ -420,7 +420,7 @@ static void prepare_bisect(FractureModifierData *fmd, Object* ob, BisectContext*
 	ctx->inner_mat_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
 	ctx->use_fill = false;
 	BLI_strncpy(ctx->uv_layer, fmd->uvlayer_name, 64);
-	copy_m4_m4(ctx->obmat, ob->obmat);
+	unit_m4(ctx->obmat); // hmm, why necessary ?
 }
 
 static void prepare_bisect_fill(FractureModifierData *fmd, Object* ob, BisectContext* ctx)
@@ -545,11 +545,17 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 	{
 		if (temp_meshs[i])
 		{
-			MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob);
-			fracture_meshisland_add(fmd, result);
-			result->id = j;
-			result->rigidbody->mesh_island_index = j;
-			j++;
+			if (temp_meshs[i]->totvert > 0)
+			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
+				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob);
+				fracture_meshisland_add(fmd, result);
+				result->id = j;
+				result->rigidbody->mesh_island_index = j;
+				j++;
+			}
+			else {
+				BKE_fracture_mesh_free(temp_meshs[i]);
+			}
 		}
 	}
 
@@ -1914,6 +1920,7 @@ void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 
 void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 {
+	BKE_fracture_constraints_free(fmd, scene);
 	BKE_fracture_dynamic_free(fmd, scene);
 
 	if (fmd->shared->material_index_map)
@@ -2692,11 +2699,11 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 	return points;
 }
 
-static Material* find_material(const char* name)
+static Material* find_material(Main* bmain, const char* name)
 {
 	ID* mat;
 
-	for (mat = G.main->mat.first; mat; mat = mat->next)
+	for (mat = bmain->mat.first; mat; mat = mat->next)
 	{
 		char *cmp = BLI_strdupcat("MA", name);
 		if (strcmp(cmp, mat->name) == 0)
@@ -2712,7 +2719,7 @@ static Material* find_material(const char* name)
 		}
 	}
 
-	return BKE_material_add(G.main, name);
+	return BKE_material_add(bmain, name);
 }
 
 //splinter handling is a case for BKE too
@@ -2765,6 +2772,7 @@ static MeshIsland* do_splinters(FractureModifierData *fmd, FracPointCloud points
 static short do_materials(Main* bmain, FractureModifierData *fmd, Object* obj)
 {
 	short mat_index = 0;
+	//Object *obj = DEG_get_original_object(ob);
 
 	if (fmd->inner_material) {
 		/* assign inner material as secondary mat to ob if not there already */
@@ -2790,14 +2798,14 @@ static short do_materials(Main* bmain, FractureModifierData *fmd, Object* obj)
 			/*create both materials if no material is present*/
 			Material* mat_inner;
 			char *matname = BLI_strdupcat(name, "_Outer");
-			Material* mat_outer = find_material(matname);
+			Material* mat_outer = find_material(bmain, matname);
 			BKE_object_material_slot_add(bmain, obj);
 			assign_material(bmain, obj, mat_outer, obj->totcol, BKE_MAT_ASSIGN_OBDATA);
 
 			MEM_freeN(matname);
 			matname = NULL;
 			matname = BLI_strdupcat(name, "_Inner");
-			mat_inner = find_material(matname);
+			mat_inner = find_material(bmain, matname);
 			BKE_object_material_slot_add(bmain, obj);
 			assign_material(bmain, obj, mat_inner, obj->totcol, BKE_MAT_ASSIGN_OBDATA);
 
@@ -2811,7 +2819,7 @@ static short do_materials(Main* bmain, FractureModifierData *fmd, Object* obj)
 		{
 			/* append inner material to the stack if materials are present */
 			char* matname = BLI_strdupcat(name, "_Inner");
-			Material* mat_inner = find_material(matname);
+			Material* mat_inner = find_material(bmain, matname);
 			BKE_object_material_slot_add(bmain, obj);
 			assign_material(bmain, obj, mat_inner, obj->totcol, BKE_MAT_ASSIGN_OBDATA);
 			MEM_freeN(matname);
@@ -4237,7 +4245,6 @@ static void do_island_index_map(FractureModifierData *fmd, Object* ob)
 	else {
 		int i,j = 0;
 		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next){
-			int i;
 			for (i = 0; i < mi->mesh->totvert; i++)
 			{
 				if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i+j)))
@@ -4299,12 +4306,16 @@ Mesh* BKE_fracture_bmesh_to_mesh(BMesh* bm)
 
 BMesh* BKE_fracture_mesh_to_bmesh(Mesh* me)
 {
-	struct BMeshFromMeshParams bmf = {.calc_face_normal = true};
-	struct BMeshCreateParams bmc = {.use_toolflags = true};
+	struct BMeshFromMeshParams bmf = {.calc_face_normal = true, };
+	struct BMeshCreateParams bmc = {.use_toolflags = true, };
 	BMesh* bm;
 
-	bm = BM_mesh_create(&bm_mesh_allocsize_default, &bmc);
+	const BMAllocTemplate allocsize = BMALLOC_TEMPLATE_FROM_ME(me);
+	bm = BM_mesh_create(&allocsize, &bmc);
+
 	BM_mesh_bm_from_me(bm, me, &bmf);
+
+	BM_mesh_elem_toolflags_ensure(bm);
 	BM_mesh_elem_index_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 	BM_mesh_elem_table_ensure(bm, BM_VERT | BM_EDGE | BM_FACE);
 

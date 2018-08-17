@@ -675,14 +675,12 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	RigidBodyShardCon *rbsc = NULL;
 
 	//hmm after loading the pointers might be out of sync...
-	if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
-		if (fmd->shared->current_mi_entry) {
-			fmd->shared->mesh_islands = fmd->shared->current_mi_entry->meshIslands;
-		}
-		else {
-			fmd->shared->mesh_islands.first = NULL;
-			fmd->shared->mesh_islands.last = NULL;
-		}
+	if (fmd->shared->current_mi_entry) {
+		fmd->shared->mesh_islands = fmd->shared->current_mi_entry->meshIslands;
+	}
+	else {
+		fmd->shared->mesh_islands.first = NULL;
+		fmd->shared->mesh_islands.last = NULL;
 	}
 
 	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
@@ -706,11 +704,8 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	while (fmd->shared->mesh_constraints.first) {
 		rbsc = fmd->shared->mesh_constraints.first;
 		BLI_remlink(&fmd->shared->mesh_constraints, rbsc);
-
-		if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
-		{
+		if (scene)
 			BKE_rigidbody_remove_shard_con(scene, rbsc);
-		}
 		MEM_freeN(rbsc);
 		rbsc = NULL;
 	}

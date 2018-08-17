@@ -341,6 +341,8 @@ static Mesh* do_fractal(BooleanContext *ctx)
 	}
 
 	//TODO extrude the plane to give thickness... solidify op
+	BMO_op_callf(bm, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
+			"solidify geom=af thickness=%f offset=%f", ctx->cutter_plane_radius * 2, -1.0f);
 
 	BMO_op_callf(bm, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 			"triangulate faces=af quad_method=%i ngon_method=%i", MOD_TRIANGULATE_QUAD_BEAUTY, MOD_TRIANGULATE_NGON_BEAUTY);
@@ -407,9 +409,12 @@ Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, Boolea
 	result = BKE_boolean_operation(geometry, obj, shard, obj, ctx->operation, ctx->thresh, NULL);
 	/*0 == intersection, 2 == difference*/
 
-	if (!result || check_non_manifold(result) || !compare_size(geometry, result))
-	{	/* watertightness check */
-		return NULL;
+	if (ctx->use_fractal == false)
+	{
+		if (!result || check_non_manifold(result) || !compare_size(geometry, result))
+		{	/* watertightness check */
+			return NULL;
+		}
 	}
 
 	return result;
@@ -428,7 +433,12 @@ void BKE_fracture_mesh_boolean_fractal(Mesh* geometry, Mesh **outputA, Mesh** ou
 	*outputA = BKE_fracture_mesh_boolean(geometry, cutter, obj, ctx);
 
 	ctx->operation = 2;
-	*outputB = BKE_fracture_mesh_boolean(cutter, geometry, obj, ctx);
+	*outputB = BKE_fracture_mesh_boolean(geometry, cutter, obj, ctx);
+
+	//BKE_mesh_calc_normals(*outputA);
+	//BKE_mesh_calc_normals(*outputB);
+
+	BKE_fracture_mesh_free(cutter);
 }
 
 static void do_fill(float plane_no[3], BMOperator bmop, BMesh* bm_parent, BisectContext* ctx)

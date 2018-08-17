@@ -2695,6 +2695,8 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	bool foundFracture = false;
 	Object* ob_new = NULL;
 	bool mode = fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
+	MVert* mv = NULL;
+	int v = 0;
 
 	char *name = mode ? BLI_strdupn(mi->name, MAX_ID_NAME) : BLI_strdupcat(ob->id.name + 2, "_shard");
 
@@ -2747,10 +2749,15 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 
 	assign_matarar(bmain, ob_new, give_matarar(ob), *give_totcolp(ob));
 
+	ob_new->data = BKE_fracture_mesh_copy(mi->mesh, ob);
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
 
-	me = BKE_fracture_mesh_copy(mi->mesh, ob);
+	//correct vertex positions, they are off by centroid location
+	for (mv = me->mvert, v = 0; v < me->totvert; v++, mv++)
+	{
+		sub_v3_v3(mv->co, mi->centroid);
+	}
 
 	if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
 	{

@@ -111,25 +111,45 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 
 	for (i = 0, mp = mpoly; i < totpoly; mp++, i++) {
 		if (mp->mat_nr == inner_index) { /* treat only inner faces ( with inner material) */
-			int index = -1, j = 0, r = 0;
+			int index = -1, j = 0, r = 0, val = -1;
 			KDTreeNearest *n;
-			float co[3];
+			float co[3], dist = fmd->autohide_dist;
 
 			BKE_fracture_face_calc_center_mean(dm, mp, co);
-			r = BLI_kdtree_range_search(tree, co, &n, fmd->autohide_dist);
-			//r = BLI_kdtree_find_nearest_n(tree, co, n, 2);
+			if (fmd->frac_algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL)
+			{
+				/*just as precaution, rather search a wider radius*/
+				dist = fmd->autohide_dist * 10;
+			}
+
+			r = BLI_kdtree_range_search(tree, co, &n, dist);
+			//r = BLI_kdtree_find_nearest_n(tree, co, &n, 2);
 			/*2nd nearest means not ourselves...*/
 			if (r == 0)
 				continue;
 
 			index = n[0].index;
-			while ((j < r) && i == index) {
+			while (j < r) {
+				int v1, v2;
+				MeshIsland *mi1, *mi2;
 				index = n[j].index;
 				//printf("I, INDEX %d %d %f\n", i, index, n[j].dist);
+				v1 = mloop[mp->loopstart].v;
+				v2 = mloop[(mpoly+index)->loopstart].v;
+				mi1 = BLI_ghash_lookup(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(v1));
+				mi2 = BLI_ghash_lookup(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(v2));
+
+				if (mi1 != mi2) {
+					/*dont delete faces on own meshisland if they are closer than faces on adjacent island
+					like with boolean fractal*/
+					break;
+				}
+
 				j++;
 			}
 
-			if (!BLI_ghash_haskey(fmd->shared->face_pairs, SET_INT_IN_POINTER(index))) {
+			val = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->face_pairs, SET_INT_IN_POINTER(index)));
+			if (val != i && index != i) {
 				BLI_ghash_insert(fmd->shared->face_pairs, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(index));
 				pairs++;
 				/*match normals...*/
@@ -160,7 +180,7 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 	int other = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->face_pairs, SET_INT_IN_POINTER(i)));
 	int inner_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
 
-	if ((other == i) && (fmd->fracture_mode != MOD_FRACTURE_DYNAMIC))
+	if ((other == i))
 	{
 		//printf("other == i %d \n", i);
 		f1 = BM_face_at_index(bm, i);
@@ -187,6 +207,7 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 		return;
 	}
 
+
 	BM_face_calc_center_mean(f1, f_centr);
 	BM_face_calc_center_mean(f2, f_centr_other);
 
@@ -195,6 +216,8 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 		(f1->mat_nr == inner_index) && (f2->mat_nr == inner_index))
 	{
 		bool in_filter = false;
+		int v1, v2;
+		MeshIsland *mi, *mi_other;
 
 		/*filter out face pairs, if we have an autohide filter group */
 		if (fmd->autohide_filter_group){
@@ -476,7 +499,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	//struct BMeshToMeshParams bmt = {.calc_object_remap = 0};
 
 	//just before we mess up this mesh, ensure velocity precalculation.
-	BKE_update_velocity_layer(fmd);
+//	BKE_update_velocity_layer(fmd);
 
 	if (fmd->use_centroids && !fmd->use_vertices)
 	{
@@ -490,9 +513,9 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	   bm = BKE_fracture_mesh_to_bmesh(dm);
 	}
 
-	BM_mesh_elem_index_ensure(bm, BM_FACE | BM_VERT);
-	BM_mesh_elem_table_ensure(bm, BM_FACE | BM_VERT);
-	BM_mesh_elem_toolflags_ensure(bm);
+//	BM_mesh_elem_index_ensure(bm, BM_FACE | BM_VERT);
+//	BM_mesh_elem_table_ensure(bm, BM_FACE | BM_VERT);
+//	BM_mesh_elem_toolflags_ensure(bm);
 
 	if (!fmd->use_centroids)
 	{
