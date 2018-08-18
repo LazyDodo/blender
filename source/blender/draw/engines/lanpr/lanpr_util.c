@@ -774,10 +774,22 @@ void tMatMakeTranslationMatrix44d(tnsMatrix44d mTrans, real x, real y, real z) {
 	mTrans[14] = z;
 }
 void tMatMakePerspectiveMatrix44d(tnsMatrix44d mProjection, real fFov_rad, real fAspect, real zMin, real zMax) {
-	real yMax = zMin * tanf(fFov_rad * 0.5f);
-	real yMin = -yMax;
-	real xMin = yMin * fAspect;
-	real xMax = -xMin;
+	real yMax;
+	real yMin;
+	real xMin;
+	real xMax;
+
+	if (fAspect < 1) {
+		yMax = zMin * tanf(fFov_rad * 0.5f);
+		yMin = -yMax;
+		xMin = yMin * fAspect;
+		xMax = -xMin;
+	}else {
+		xMax = zMin * tanf(fFov_rad * 0.5f);
+		xMin = -xMax;
+		yMin = xMin / fAspect;
+		yMax = -yMin;
+	}
 
 	tMatLoadIdentity44d(mProjection);
 
