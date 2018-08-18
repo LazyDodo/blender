@@ -294,7 +294,7 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	const bool invert_vgroup = (deformflag & ARM_DEF_INVERT_VGROUP) != 0;
 	int defbase_tot = 0;       /* safety for vertexgroup index overflow */
 	int i, target_totvert = 0; /* safety for vertexgroup overflow */
-	int armature_def_nr;
+	int armature_def_nr; // revisar
 	int totchan;
 
 	/* in editmode, or not an armature */
