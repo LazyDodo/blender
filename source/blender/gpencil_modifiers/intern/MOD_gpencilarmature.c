@@ -265,6 +265,7 @@ static void gpencil_armature_bbone_defmats_cb(void *userdata, Link *iter, int in
 
 static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstroke *gps)
 {
+	bGPDspoint *pt = NULL;
 	bPoseChanDeform *pdef_info_array;
 	bPoseChanDeform *pdef_info = NULL;
 	bArmature *arm = armOb->data;
@@ -293,7 +294,7 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	mul_m4_m4m4(postmat, obinv, armOb->obmat);
 	invert_m4_m4(premat, postmat);
 
-	/* initialize B_bone matrices and dual quaternions */
+	/* initialize B_bone matrices */
 	totchan = BLI_listbase_count(&armOb->pose->chanbase);
 
 	pdef_info_array = MEM_callocN(sizeof(bPoseChanDeform) * totchan, "bPoseChanDeform");
@@ -301,6 +302,7 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	GpArmatureBBoneDefmatsData data = {
 		.pdef_info_array = pdef_info_array,.dualquats = dualquats
 	};
+
 	BLI_task_parallel_listbase(&armOb->pose->chanbase, &data,
 		gpencil_armature_bbone_defmats_cb, totchan > 512);
 
@@ -332,10 +334,10 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	}
 	BLI_ghash_free(idx_hash, NULL, NULL);
 
-	for (i = 0; i < gps->totpoints; i++) {
-		MDeformVert *dvert;
+	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+		MDeformVert *dvert = &gps->dvert[i];
 		DualQuat *dq = NULL;
-		float *co;
+		float co[3];
 		float sumvec[3];
 		float *vec = NULL, (*smat)[3] = NULL;
 		float contrib = 0.0f;
@@ -344,7 +346,7 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 		vec = sumvec;
 
 		/* get the coord we work on */
-		//co = prevCos[i]; GPXX
+		copy_v3_v3(co, &pt->x);
 
 		/* Apply the object's matrix */
 		mul_m4_v3(premat, co);
@@ -379,6 +381,7 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 
 		/* always, check above code */
 		mul_m4_v3(postmat, co);
+		copy_v3_v3(&pt->x, co);
 	}
 
 	if (defnrToPC)
@@ -401,30 +404,14 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 /* deform stroke */
 static void deformStroke(
         GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
-        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+        Object *ob, bGPDlayer *UNUSED(gpl), bGPDstroke *gps)
 {
 	ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)md;
 	if (!mmd->object) {
 		return;
 	}
 
-	//int vindex = defgroup_name_index(ob, mmd->vgname);
-	//float weight = 1.0f;
-
-	//bPoseChannel *pchan = BKE_pose_channel_find_name(mmd->object->pose, mmd->subtarget);
-	//float dmat[4][4];
-
-	/* loop points and apply deform */
-	for (int i = 0; i < gps->totpoints; i++) {
-		bGPDspoint *pt = &gps->points[i];
-		MDeformVert *dvert = &gps->dvert[i];
-
-		//weight = get_modifier_point_weight(dvert, 0, vindex);
-		//if (weight < 0) {
-		//	continue;
-		//}
-	//		gp_armature_co_apply(&tData, weight, pt);
-	}
+	gpencil_armature_deform_verts(mmd->object, ob, gps);
 }
 
 static void bakeModifier(
