@@ -449,7 +449,7 @@ void *mem_static_destroy(nStaticMemoryPool *smp) {
 //=======================================================================[str]
 
 
-void tMatLoadIdentity44d(tnsMatrix44d m) {
+void tmat_load_identity_44d(tnsMatrix44d m) {
 	memset(m, 0, sizeof(tnsMatrix44d));
 	m[0] = 1.0f;
 	m[5] = 1.0f;
@@ -457,108 +457,108 @@ void tMatLoadIdentity44d(tnsMatrix44d m) {
 	m[15] = 1.0f;
 };
 
-real tMatDistIdv2(real x1, real y1, real x2, real y2) {
+real tmat_dist_idv2(real x1, real y1, real x2, real y2) {
 	real x = x2 - x1, y = y2 - y1;
 	return sqrt((x * x + y * y));
 }
-real tMatDist3dv(tnsVector3d l, tnsVector3d r) {
+real tmat_dist_3dv(tnsVector3d l, tnsVector3d r) {
 	real x = r[0] - l[0];
 	real y = r[1] - l[1];
 	real z = r[2] - l[2];
 	return sqrt(x * x + y * y + z * z);
 }
-real tMatDist2dv(tnsVector2d l, tnsVector2d r) {
+real tmat_dist_2dv(tnsVector2d l, tnsVector2d r) {
 	real x = r[0] - l[0];
 	real y = r[1] - l[1];
 	return sqrt(x * x + y * y);
 }
 
-real tMatLength3d(tnsVector3d l) {
+real tmat_length_3d(tnsVector3d l) {
 	return (sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]));
 }
-real tMatLength2d(tnsVector3d l) {
+real tmat_length_2d(tnsVector3d l) {
 	return (sqrt(l[0] * l[0] + l[1] * l[1]));
 }
-void tMatNormalize3d(tnsVector3d result, tnsVector3d l) {
+void tmat_normalize_3d(tnsVector3d result, tnsVector3d l) {
 	real r = sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
 	result[0] = l[0] / r;
 	result[1] = l[1] / r;
 	result[2] = l[2] / r;
 }
-void tMatNormalize3f(tnsVector3f result, tnsVector3f l) {
+void tmat_normalize_3f(tnsVector3f result, tnsVector3f l) {
 	float r = sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
 	result[0] = l[0] / r;
 	result[1] = l[1] / r;
 	result[2] = l[2] / r;
 }
-void tMatNormalize2d(tnsVector2d result, tnsVector2d l) {
+void tmat_normalize_2d(tnsVector2d result, tnsVector2d l) {
 	real r = sqrt(l[0] * l[0] + l[1] * l[1]);
 	result[0] = l[0] / r;
 	result[1] = l[1] / r;
 }
-void tMatNormalizeSelf3d(tnsVector3d result) {
+void tmat_normalize_self_3d(tnsVector3d result) {
 	real r = sqrt(result[0] * result[0] + result[1] * result[1] + result[2] * result[2]);
 	result[0] /= r;
 	result[1] /= r;
 	result[2] /= r;
 }
-real tMatDot3d(tnsVector3d l, tnsVector3d r, int normalize) {
+real tmat_dot_3d(tnsVector3d l, tnsVector3d r, int normalize) {
 	tnsVector3d ln, rn;
 	if (normalize) {
-		tMatNormalize3d(ln, l); tMatNormalize3d(rn, r);
+		tmat_normalize_3d(ln, l); tmat_normalize_3d(rn, r);
 		return (ln[0] * rn[0] + ln[1] * rn[1] + ln[2] * rn[2]);
 	}
 	return (l[0] * r[0] + l[1] * r[1] + l[2] * r[2]);
 }
-real tMatDot3df(tnsVector3d l, tnsVector3f r, int normalize) {
+real tmat_dot_3df(tnsVector3d l, tnsVector3f r, int normalize) {
 	tnsVector3d ln; tnsVector3f rn;
 	if (normalize) {
-		tMatNormalize3d(ln, l); tMatNormalize3f(rn, r);
+		tmat_normalize_3d(ln, l); tmat_normalize_3f(rn, r);
 		return (ln[0] * rn[0] + ln[1] * rn[1] + ln[2] * rn[2]);
 	}
 	return (l[0] * r[0] + l[1] * r[1] + l[2] * r[2]);
 }
-real tMatDot2d(tnsVector2d l, tnsVector2d r, int normalize) {
+real tmat_dot_2d(tnsVector2d l, tnsVector2d r, int normalize) {
 	tnsVector3d ln, rn;
 	if (normalize) {
-		tMatNormalize2d(ln, l); tMatNormalize2d(rn, r);
+		tmat_normalize_2d(ln, l); tmat_normalize_2d(rn, r);
 		return (ln[0] * rn[0] + ln[1] * rn[1]);
 	}
 	return (l[0] * r[0] + l[1] * r[1]);
 }
-real tMatVectorCross3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+real tmat_vector_cross_3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
 	result[0] = l[1] * r[2] - l[2] * r[1];
 	result[1] = l[2] * r[0] - l[0] * r[2];
 	result[2] = l[0] * r[1] - l[1] * r[0];
-	return tMatLength3d(result);
+	return tmat_length_3d(result);
 }
-void tMatVectorCrossOnly3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
+void tmat_vector_cross_only_3d(tnsVector3d result, tnsVector3d l, tnsVector3d r) {
 	result[0] = l[1] * r[2] - l[2] * r[1];
 	result[1] = l[2] * r[0] - l[0] * r[2];
 	result[2] = l[0] * r[1] - l[1] * r[0];
 }
-real tMatAngleRad3d(tnsVector3d from, tnsVector3d to, tnsVector3d PositiveReference) {
+real tmat_angle_rad_3d(tnsVector3d from, tnsVector3d to, tnsVector3d PositiveReference) {
 	if (PositiveReference) {
 		tnsVector3d res;
-		tMatVectorCross3d(res, from, to);
-		if (tMatDot3d(res, PositiveReference, 1) > 0)
-			return acosf(tMatDot3d(from, to, 1));
+		tmat_vector_cross_3d(res, from, to);
+		if (tmat_dot_3d(res, PositiveReference, 1) > 0)
+			return acosf(tmat_dot_3d(from, to, 1));
 		else
-			return -acosf(tMatDot3d(from, to, 1));
+			return -acosf(tmat_dot_3d(from, to, 1));
 	}
-	return acosf(tMatDot3d(from, to, 1));
+	return acosf(tmat_dot_3d(from, to, 1));
 }
-void tMatApplyRotation33d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+void tmat_apply_rotation_33d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
 	result[0] = mat[0] * v[0] + mat[1] * v[1] + mat[2] * v[2];
 	result[1] = mat[3] * v[0] + mat[4] * v[1] + mat[5] * v[2];
 	result[2] = mat[6] * v[0] + mat[7] * v[1] + mat[8] * v[2];
 }
-void tMatApplyRotation43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+void tmat_apply_rotation_43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
 	result[0] = mat[0] * v[0] + mat[1] * v[1] + mat[2] * v[2];
 	result[1] = mat[4] * v[0] + mat[5] * v[1] + mat[6] * v[2];
 	result[2] = mat[8] * v[0] + mat[9] * v[1] + mat[10] * v[2];
 }
-void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+void tmat_apply_transform_43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
 	real w;
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
@@ -568,32 +568,32 @@ void tMatApplyTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) 
 	result[1] /= w;
 	result[2] /= w;
 }
-void tMatApplyNormalTransform43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
+void tmat_apply_normal_transform_43d(tnsVector3d result, tnsMatrix44d mat, tnsVector3d v) {
 	real w;
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
 }
-void tMatApplyNormalTransform43df(tnsVector3d result, tnsMatrix44d mat, tnsVector3f v) {
+void tmat_apply_normal_transform_43df(tnsVector3d result, tnsMatrix44d mat, tnsVector3f v) {
 	real w;
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
 }
-void tMatApplyTransform44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
+void tmat_apply_transform_44d(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
 	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
 }
-void tMatApplyTransform43dfND(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
+void tmat_apply_transform_43dfND(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
 	real w;
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
 	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * 1;
 }
-void tMatApplyTransform43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
+void tmat_apply_transform_43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v) {
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * 1;
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * 1;
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * 1;
@@ -602,15 +602,15 @@ void tMatApplyTransform43df(tnsVector4d result, tnsMatrix44d mat, tnsVector3f v)
 	//result[1] /= w;
 	//result[2] /= w;
 }
-void tMatApplyTransform44dTrue(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
+void tmat_apply_transform_44dTrue(tnsVector4d result, tnsMatrix44d mat, tnsVector4d v) {
 	result[0] = mat[0] * v[0] + mat[4] * v[1] + mat[8] * v[2] + mat[12] * v[3];
 	result[1] = mat[1] * v[0] + mat[5] * v[1] + mat[9] * v[2] + mat[13] * v[3];
 	result[2] = mat[2] * v[0] + mat[6] * v[1] + mat[10] * v[2] + mat[14] * v[3];
 	result[3] = mat[3] * v[0] + mat[7] * v[1] + mat[11] * v[2] + mat[15] * v[3];
 }
 
-void tMatRemoveTranslation44d(tnsMatrix44d result, tnsMatrix44d mat) {
-	tMatLoadIdentity44d(result);
+void tmat_remove_translation_44d(tnsMatrix44d result, tnsMatrix44d mat) {
+	tmat_load_identity_44d(result);
 	result[0] = mat[0];
 	result[1] = mat[1];
 	result[2] = mat[2];
@@ -621,14 +621,14 @@ void tMatRemoveTranslation44d(tnsMatrix44d result, tnsMatrix44d mat) {
 	result[9] = mat[9];
 	result[10] = mat[10];
 }
-void tMatClearTranslation44d(tnsMatrix44d mat) {
+void tmat_clear_translation_44d(tnsMatrix44d mat) {
 	mat[3] = 0;
 	mat[7] = 0;
 	mat[11] = 0;
 }
 
 
-void tMatExtractXYZEuler44d(tnsMatrix44d mat, real *x_result, real *y_result, real *z_result) {
+void tmat_extract_xyz_euler_44d(tnsMatrix44d mat, real *x_result, real *y_result, real *z_result) {
 	real xRot, yRot, zRot;
 
 	if (mat[2] < 1) {
@@ -653,14 +653,14 @@ void tMatExtractXYZEuler44d(tnsMatrix44d mat, real *x_result, real *y_result, re
 	(*y_result) = -yRot;
 	(*z_result) = -zRot;
 }
-void tMatExtractLocation44d(tnsMatrix44d mat, real *x_result, real *y_result, real *z_result) {
+void tmat_extract_location_44d(tnsMatrix44d mat, real *x_result, real *y_result, real *z_result) {
 	*x_result = mat[12];
 	*y_result = mat[13];
 	*z_result = mat[14];
 }
-void tMatExtractUniformScale44d(tnsMatrix44d mat, real *result) {
+void tmat_extract_uniform_scale_44d(tnsMatrix44d mat, real *result) {
 	tnsVector3d v = { mat[0], mat[1], mat[2] };
-	*result = tMatLength3d(v);
+	*result = tmat_length_3d(v);
 }
 
 
@@ -669,7 +669,7 @@ void tMatExtractUniformScale44d(tnsMatrix44d mat, real *result) {
 #define R(row, col)  r[(col << 2) + row]
 #define P(row, col)  result[(col << 2) + row]
 
-void tMatPrintMatrix44d(tnsMatrix44d l) {
+void tmat_print_matrix_44d(tnsMatrix44d l) {
 	int i, j;
 	for (i = 0; i < 4; i++) {
 		for (j = 0; j < 4; j++) {
@@ -679,7 +679,7 @@ void tMatPrintMatrix44d(tnsMatrix44d l) {
 	}
 }
 
-void tMatObmatTo16d(float obmat[4][4], tnsMatrix44d out) {
+void tmat_obmat_to_16d(float obmat[4][4], tnsMatrix44d out) {
 	out[0] = obmat[0][0];
 	out[1] = obmat[0][1];
 	out[2] = obmat[0][2];
@@ -698,10 +698,10 @@ void tMatObmatTo16d(float obmat[4][4], tnsMatrix44d out) {
 	out[15] = obmat[3][3];
 }
 
-void tMatCopyMatrix44d(tnsMatrix44d from, tnsMatrix44d to) {
+void tmat_copy_matrix_44d(tnsMatrix44d from, tnsMatrix44d to) {
 	memcpy(to, from, sizeof(tnsMatrix44d));
 }
-void tMatMultiply44d(tnsMatrix44d result, tnsMatrix44d l, tnsMatrix44d r) {
+void tmat_multiply_44d(tnsMatrix44d result, tnsMatrix44d l, tnsMatrix44d r) {
 	int i;
 	for (i = 0; i < 4; i++) {
 		real ai0 = L(i, 0), ai1 = L(i, 1), ai2 = L(i, 2), ai3 = L(i, 3);
@@ -711,16 +711,16 @@ void tMatMultiply44d(tnsMatrix44d result, tnsMatrix44d l, tnsMatrix44d r) {
 		P(i, 3) = ai0 * R(0, 3) + ai1 * R(1, 3) + ai2 * R(2, 3) + ai3 * R(3, 3);
 	}
 };
-void tMatInverse44d(tnsMatrix44d inverse, tnsMatrix44d mat) {
+void tmat_inverse_44d(tnsMatrix44d inverse, tnsMatrix44d mat) {
 	int i, j, k;
 	double temp;
 	tnsMatrix44d tempmat;
 	real max;
 	int maxj;
 
-	tMatLoadIdentity44d(inverse);
+	tmat_load_identity_44d(inverse);
 
-	tMatCopyMatrix44d(mat, tempmat);
+	tmat_copy_matrix_44d(mat, tempmat);
 
 	for (i = 0; i < 4; i++) {
 		/* Look for row with max pivot */
@@ -767,13 +767,13 @@ void tMatInverse44d(tnsMatrix44d inverse, tnsMatrix44d mat) {
 		}
 	}
 }
-void tMatMakeTranslationMatrix44d(tnsMatrix44d mTrans, real x, real y, real z) {
-	tMatLoadIdentity44d(mTrans);
+void tmat_make_translation_matrix_44d(tnsMatrix44d mTrans, real x, real y, real z) {
+	tmat_load_identity_44d(mTrans);
 	mTrans[12] = x;
 	mTrans[13] = y;
 	mTrans[14] = z;
 }
-void tMatMakePerspectiveMatrix44d(tnsMatrix44d mProjection, real fFov_rad, real fAspect, real zMin, real zMax) {
+void tmat_make_perspective_matrix_44d(tnsMatrix44d mProjection, real fFov_rad, real fAspect, real zMin, real zMax) {
 	real yMax;
 	real yMin;
 	real xMin;
@@ -791,7 +791,7 @@ void tMatMakePerspectiveMatrix44d(tnsMatrix44d mProjection, real fFov_rad, real 
 		yMax = -yMin;
 	}
 
-	tMatLoadIdentity44d(mProjection);
+	tmat_load_identity_44d(mProjection);
 
 	mProjection[0] = (2.0f * zMin) / (xMax - xMin);
 	mProjection[5] = (2.0f * zMin) / (yMax - yMin);
@@ -802,7 +802,7 @@ void tMatMakePerspectiveMatrix44d(tnsMatrix44d mProjection, real fFov_rad, real 
 	mProjection[14] = -((2.0f * (zMax * zMin)) / (zMax - zMin));
 	mProjection[15] = 0.0f;
 }
-void tMatMakeZTrackingMatrix44d(tnsMatrix44d mat, tnsVector3d this, tnsVector3d that, tnsVector3d up) {
+void tmat_make_z_tracking_matrix_44d(tnsMatrix44d mat, tnsVector3d this, tnsVector3d that, tnsVector3d up) {
 	tnsVector4d fwd, l, t, rt;
 	fwd[3] = l[3] = t[3] = rt[3] = 1;
 	t[0] = up[0];
@@ -812,14 +812,14 @@ void tMatMakeZTrackingMatrix44d(tnsMatrix44d mat, tnsVector3d this, tnsVector3d 
 	fwd[1] = that[1] - this[1];
 	fwd[2] = that[2] - this[2];
 
-	tMatLoadIdentity44d(mat);
+	tmat_load_identity_44d(mat);
 
-	tMatVectorCross3d(l, t, fwd);
-	tMatVectorCross3d(rt, fwd, l);
+	tmat_vector_cross_3d(l, t, fwd);
+	tmat_vector_cross_3d(rt, fwd, l);
 
-	tMatNormalizeSelf3d(l);
-	tMatNormalizeSelf3d(rt);
-	tMatNormalizeSelf3d(fwd);
+	tmat_normalize_self_3d(l);
+	tmat_normalize_self_3d(rt);
+	tmat_normalize_self_3d(fwd);
 
 	mat[0] = l[0];
 	mat[1] = l[1];
@@ -833,7 +833,7 @@ void tMatMakeZTrackingMatrix44d(tnsMatrix44d mat, tnsVector3d this, tnsVector3d 
 	mat[9] = fwd[1];
 	mat[10] = fwd[2];
 }
-void tMatMakeZTrackingMatrixDelta44d(tnsMatrix44d mat, tnsVector3d delta, tnsVector3d up) {
+void tmat_make_z_tracking_delta_matrix_44d(tnsMatrix44d mat, tnsVector3d delta, tnsVector3d up) {
 	tnsVector4d fwd, l, t, rt;
 	fwd[3] = l[3] = t[3] = rt[3] = 1;
 	t[0] = up[0];
@@ -843,14 +843,14 @@ void tMatMakeZTrackingMatrixDelta44d(tnsMatrix44d mat, tnsVector3d delta, tnsVec
 	fwd[1] = delta[1];
 	fwd[2] = delta[2];
 
-	tMatLoadIdentity44d(mat);
+	tmat_load_identity_44d(mat);
 
-	tMatVectorCross3d(l, t, fwd);
-	tMatVectorCross3d(rt, fwd, l);
+	tmat_vector_cross_3d(l, t, fwd);
+	tmat_vector_cross_3d(rt, fwd, l);
 
-	tMatNormalizeSelf3d(l);
-	tMatNormalizeSelf3d(rt);
-	tMatNormalizeSelf3d(fwd);
+	tmat_normalize_self_3d(l);
+	tmat_normalize_self_3d(rt);
+	tmat_normalize_self_3d(fwd);
 
 	mat[0] = l[0];
 	mat[1] = l[1];
@@ -864,8 +864,8 @@ void tMatMakeZTrackingMatrixDelta44d(tnsMatrix44d mat, tnsVector3d delta, tnsVec
 	mat[9] = fwd[1];
 	mat[10] = fwd[2];
 }
-void tMatMakeOrthographicMatrix44d(tnsMatrix44d mProjection, real xMin, real xMax, real yMin, real yMax, real zMin, real zMax) {
-	tMatLoadIdentity44d(mProjection);
+void tmat_make_ortho_matrix_44d(tnsMatrix44d mProjection, real xMin, real xMax, real yMin, real yMax, real zMin, real zMax) {
+	tmat_load_identity_44d(mProjection);
 
 	mProjection[0] = 2.0f / (xMax - xMin);
 	mProjection[5] = 2.0f / (yMax - yMin);
@@ -875,7 +875,7 @@ void tMatMakeOrthographicMatrix44d(tnsMatrix44d mProjection, real xMin, real xMa
 	mProjection[14] = -((zMax + zMin) / (zMax - zMin));
 	mProjection[15] = 1.0f;
 }
-void tMatMakeRotationMatrix44d(tnsMatrix44d m, real angle_rad, real x, real y, real z)
+void tmat_make_rotation_matrix_44d(tnsMatrix44d m, real angle_rad, real x, real y, real z)
 {
 	real mag, s, c;
 	real xx, yy, zz, xy, yz, zx, xs, ys, zs, one_c;
@@ -887,7 +887,7 @@ void tMatMakeRotationMatrix44d(tnsMatrix44d m, real angle_rad, real x, real y, r
 
 	// Identity matrix
 	if (mag == 0.0f) {
-		tMatLoadIdentity44d(m);
+		tmat_load_identity_44d(m);
 		return;
 	}
 
@@ -931,35 +931,35 @@ void tMatMakeRotationMatrix44d(tnsMatrix44d m, real angle_rad, real x, real y, r
 
 #undef M
 }
-void tMatMakeRotationXMatrix44d(tnsMatrix44d m, real angle_rad) {
-	tMatLoadIdentity44d(m);
+void tmat_make_rotation_x_matrix_44d(tnsMatrix44d m, real angle_rad) {
+	tmat_load_identity_44d(m);
 	m[5] = cos(angle_rad);
 	m[6] = sin(angle_rad);
 	m[9] = -sin(angle_rad);
 	m[10] = cos(angle_rad);
 }
-void tMatMakeRotationYMatrix44d(tnsMatrix44d m, real angle_rad) {
-	tMatLoadIdentity44d(m);
+void tmat_make_rotation_y_matrix_44d(tnsMatrix44d m, real angle_rad) {
+	tmat_load_identity_44d(m);
 	m[0] = cos(angle_rad);
 	m[2] = -sin(angle_rad);
 	m[8] = sin(angle_rad);
 	m[10] = cos(angle_rad);
 }
-void tMatMakeRotationZMatrix44d(tnsMatrix44d m, real angle_rad) {
-	tMatLoadIdentity44d(m);
+void tmat_make_rotation_z_matrix_44d(tnsMatrix44d m, real angle_rad) {
+	tmat_load_identity_44d(m);
 	m[0] = cos(angle_rad);
 	m[1] = sin(angle_rad);
 	m[4] = -sin(angle_rad);
 	m[5] = cos(angle_rad);
 }
-void tMatMakeScaleMatrix44d(tnsMatrix44d m, real x, real y, real z) {
-	tMatLoadIdentity44d(m);
+void tmat_make_scale_matrix_44d(tnsMatrix44d m, real x, real y, real z) {
+	tmat_load_identity_44d(m);
 	m[0] = x;
 	m[5] = y;
 	m[10] = z;
 }
-void tMatMakeViewportMatrix44d(tnsMatrix44d m, real w, real h, real Far, real Near) {
-	tMatLoadIdentity44d(m);
+void tmat_make_viewport_matrix_44d(tnsMatrix44d m, real w, real h, real Far, real Near) {
+	tmat_load_identity_44d(m);
 	m[0] = w / 2;
 	m[5] = h / 2;
 	m[10] = (Far - Near) / 2;
