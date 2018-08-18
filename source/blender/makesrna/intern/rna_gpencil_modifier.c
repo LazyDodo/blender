@@ -67,6 +67,7 @@ const EnumPropertyItem rna_enum_object_greasepencil_modifier_type_items[] = {
 	{eGpencilModifierType_Simplify, "GP_SIMPLIFY", ICON_MOD_DECIM, "Simplify", "Simplify stroke reducing number of points"},
 	{eGpencilModifierType_Subdiv, "GP_SUBDIV", ICON_MOD_SUBSURF, "Subdivide", "Subdivide stroke adding more control points"},
 	{0, "", 0, N_("Deform"), "" },
+	{eGpencilModifierType_Armature, "GP_ARMATURE", ICON_MOD_ARMATURE, "Armature", "Deform stroke points using armature object"},
 	{eGpencilModifierType_Hook, "GP_HOOK", ICON_HOOK, "Hook", "Deform stroke points using objects"},
 	{eGpencilModifierType_Lattice, "GP_LATTICE", ICON_MOD_LATTICE, "Lattice", "Deform strokes using lattice"},
 	{eGpencilModifierType_Mirror, "GP_MIRROR", ICON_MOD_MIRROR, "Mirror", "Duplicate strokes like a mirror"},
@@ -160,6 +161,8 @@ static StructRNA *rna_GpencilModifier_refine(struct PointerRNA *ptr)
 			return &RNA_HookGpencilModifier;
 		case eGpencilModifierType_Offset:
 			return &RNA_OffsetGpencilModifier;
+		case eGpencilModifierType_Armature:
+			return &RNA_ArmatureGpencilModifier;
 			/* Default */
 		case eGpencilModifierType_None:
 		case NUM_GREASEPENCIL_MODIFIER_TYPES:
@@ -251,6 +254,7 @@ static void rna_##_type##GpencilModifier_##_prop##_set(PointerRNA *ptr, PointerR
 	greasepencil_modifier_object_set(ptr->id.data, &tmd->_prop, _obtype, value);                         \
 }
 
+RNA_GP_MOD_OBJECT_SET(Armature, object, OB_ARMATURE);
 RNA_GP_MOD_OBJECT_SET(Lattice, object, OB_LATTICE);
 RNA_GP_MOD_OBJECT_SET(Mirror, object, OB_EMPTY);
 
@@ -1261,6 +1265,24 @@ static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Uniform Falloff", "Compensate for non-uniform object scale");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
+
+static void rna_def_modifier_gpencilarmature(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "ArmatureGpencilModifier", "GpencilModifier");
+	RNA_def_struct_ui_text(srna, "Armature Modifier", "Change stroke using armature to deform modifier");
+	RNA_def_struct_sdna(srna, "ArmatureGpencilModifierData");
+	RNA_def_struct_ui_icon(srna, ICON_MOD_ARMATURE);
+
+	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Object", "Armature object to deform with");
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_ArmatureGpencilModifier_object_set", NULL, "rna_Armature_object_poll");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+}
+
 void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -1330,6 +1352,7 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	rna_def_modifier_gpencillattice(brna);
 	rna_def_modifier_gpencilmirror(brna);
 	rna_def_modifier_gpencilhook(brna);
+	rna_def_modifier_gpencilarmature(brna);
 }
 
 #endif

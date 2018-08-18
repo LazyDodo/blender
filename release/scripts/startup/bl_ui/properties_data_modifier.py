@@ -2036,6 +2036,11 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "pass_index", text="Pass")
         row.prop(md, "invert_pass", text="", icon="ARROW_LEFTRIGHT")
 
+    def GP_ARMATURE(self, layout, ob, md):
+        col = layout.column()
+        col.label(text="Object:")
+        col.prop(md, "object", text="")
+
 
 classes = (
     DATA_PT_modifiers,

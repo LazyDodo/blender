@@ -50,6 +50,7 @@ typedef enum GpencilModifierType {
 	eGpencilModifierType_Hook      = 12,
 	eGpencilModifierType_Offset    = 13,
 	eGpencilModifierType_Mirror    = 14,
+	eGpencilModifierType_Armature  = 15,
 	NUM_GREASEPENCIL_MODIFIER_TYPES
 } GpencilModifierType;
 
@@ -407,6 +408,14 @@ typedef enum eSmoothGpencil_Flag {
 	GP_SMOOTH_INVERT_VGROUP = (1 << 5),
 	GP_SMOOTH_MOD_UV         = (1 << 6),
 } eSmoothGpencil_Flag;
+
+typedef struct ArmatureGpencilModifierData {
+	GpencilModifierData modifier;
+
+	struct Object *object;
+	int flag;
+	char pad[4];
+} ArmatureGpencilModifierData;
 
 #define MOD_MESHSEQ_READ_ALL \
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
