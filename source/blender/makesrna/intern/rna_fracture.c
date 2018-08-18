@@ -646,6 +646,9 @@ static void rna_FractureModifier_anim_mesh_ob_set(PointerRNA* ptr, PointerRNA va
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
 	ModifierData* md = ptr->data;
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+
+	BKE_rigidbody_cache_reset(rbw);
 
 #if 0
 	if (md && md->type == eModifierType_Fracture)

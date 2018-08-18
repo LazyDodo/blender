@@ -1474,6 +1474,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
+		FractureModifierData *fmd = NULL;
 		build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
@@ -1486,6 +1487,8 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 			if (!object->rigidbody_object) {
 				continue;
 			}
+
+			fmd = (FractureModifierData*)modifiers_findByType(object, eModifierType_Fracture);
 
 			/* hook up evaluation order...
 			 * 1) flushing rigidbody results follows base transforms being applied
@@ -1504,7 +1507,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 			/* Geometry must be known to create the rigid body. RBO_MESH_BASE uses the non-evaluated
 			 * mesh, so then the evaluation is unnecessary. */
-			if (object->rigidbody_object->mesh_source != RBO_MESH_BASE) {
+			if (object->rigidbody_object->mesh_source != RBO_MESH_BASE && !fmd) {
 				ComponentKey geom_key(&object->id, DEG_NODE_TYPE_GEOMETRY);
 				add_relation(geom_key, init_key, "Object Geom Eval -> Rigidbody Rebuild");
 			}
@@ -1537,6 +1540,14 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 			/* Needed to get correct base values. */
 			add_relation(trans_op, sim_key, "Base Ob Transform -> Rigidbody Sim Eval");
+
+			if (fmd)
+			{
+				OperationKey uber_geom_key(&object->id,
+				                      DEG_NODE_TYPE_GEOMETRY,
+				                      DEG_OPCODE_GEOMETRY_UBEREVAL);
+				add_relation(rbo_key, uber_geom_key, "RBO Sync -> Uber Geom (Fracture)");
+			}
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}

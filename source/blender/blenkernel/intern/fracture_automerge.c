@@ -306,12 +306,11 @@ static void clamp_delta(SharedVert *sv, FractureModifierData *fmd)
 }
 
 static void handle_vertex(FractureModifierData *fmd, BMesh* bm, SharedVert *sv, float co[3], float no[3],
-						  int cd_edge_crease_offset)
+						  int cd_edge_crease_offset, Scene* sc)
 {
 	bool do_calc_delta = fmd->keep_distort;
 	float dist = fmd->autohide_dist;
 	BMEdge *e = NULL;
-	Scene *sc = NULL; //fmd->modifier.scene; TODO store "exceededness" in BMVert customdatalayer ? not framebased
 	int frame = sc ? (int)BKE_scene_frame_get(sc) : 1;
 	BMVert *v = bm->vtable[sv->index];
 	bool exceeded = (frame >= sv->excession_frame) && (sv->excession_frame > -1);
@@ -394,11 +393,11 @@ static void prepare_automerge(FractureModifierData *fmd, BMesh *bm, Scene* sc)
 		mul_v3_fl(no, inverse);
 		verts = 0;
 
-		handle_vertex(fmd, bm, (SharedVert*)vg, co, no, cd_edge_crease_offset);
+		handle_vertex(fmd, bm, (SharedVert*)vg, co, no, cd_edge_crease_offset, sc);
 
 		for (sv = vg->verts.first; sv; sv = sv->next)
 		{
-			handle_vertex(fmd, bm, sv, co, no, cd_edge_crease_offset);
+			handle_vertex(fmd, bm, sv, co, no, cd_edge_crease_offset, sc);
 		}
 	}
 }

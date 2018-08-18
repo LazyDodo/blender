@@ -103,13 +103,13 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene,
 
 Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, Depsgraph* depsgraph)
 {
-	Scene *scene = DEG_get_evaluated_scene(depsgraph);
+	Scene *scene = DEG_get_input_scene(depsgraph);
+	int frame = (int)BKE_scene_frame_get(scene);
 
 	Main* bmain = G.main;
 	Mesh* me_assembled = NULL;
 	Mesh *me_final = NULL;
-	Mesh *me = me_orig; //BKE_fracture_mesh_copy(me_orig, ob);
-	//Object* ob = DEG_get_evaluated_object(depsgraph, obj);
+	Mesh *me = me_orig;
 
 	if (fmd->shared->refresh)
 	{
@@ -190,12 +190,6 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		if (fmd->autohide_dist > 0 && !fmd->distortion_cached) {
 			BKE_fracture_automerge_refresh(fmd, me_assembled);
 		}
-
-#if 0
-		DEG_id_tag_update(DEG_get_original_id(&scene->id), DEG_TAG_COPY_ON_WRITE);
-		DEG_id_tag_update(DEG_get_original_id(&ob->id), DEG_TAG_COPY_ON_WRITE);
-		DEG_id_tag_update(DEG_get_original_id(&((Mesh*)(ob->data))->id), DEG_TAG_COPY_ON_WRITE);
-#endif
 	}
 
 	/* if autohide / automerge etc perform postprocess */
@@ -212,6 +206,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			BKE_mesh_calc_normals(me_final);
 		}
 	}
+
+	fmd->last_frame = frame;
 
 	/* return output mesh */
 	return me_final;

@@ -116,7 +116,7 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 		}
 	}
 
-	fmd->last_frame = frame;
+	//fmd->last_frame = frame;
 }
 
 #if 0

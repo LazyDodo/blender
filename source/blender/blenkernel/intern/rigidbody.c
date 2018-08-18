@@ -2194,7 +2194,7 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 	ModifierData *md;
 	FractureModifierData *rmd;
 	float imat[4][4];
-	Scene* scene = DEG_get_evaluated_scene(depsgraph); // or the eval one ?
+	Scene* scene = DEG_get_input_scene(depsgraph); // or the eval one ?
 
 	md = modifiers_findByType(ob, eModifierType_Fracture);
 	if (md != NULL)

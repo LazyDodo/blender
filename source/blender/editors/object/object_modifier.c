@@ -2469,6 +2469,8 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 			BKE_report(op->reports, RPT_WARNING, "Please jump back to cache start frame in order to refracture");
 			return OPERATOR_CANCELLED;
 		}
+
+		BKE_rigidbody_cache_reset(rbw);
 	}
 
 	rmd->shared->reset_shards = RNA_boolean_get(op->ptr, "reset");
@@ -2501,7 +2503,10 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	BKE_scene_frame_set(scene, start);
 
 	//add first rigidbody already here, seems to trigger an important depsgraph update
-	ED_rigidbody_object_add(bmain, scene, obact, RBO_TYPE_ACTIVE, op->reports, false);
+	if (! obact->rigidbody_object)
+	{
+		ED_rigidbody_object_add(bmain, scene, obact, RBO_TYPE_ACTIVE, op->reports, false);
+	}
 
 	rmd->shared->refresh = true;
 	rmd->last_frame = INT_MAX; // delete dynamic data as well

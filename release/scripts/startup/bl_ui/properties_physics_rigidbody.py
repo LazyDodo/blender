@@ -163,13 +163,11 @@ class PHYSICS_PT_rigid_body_collisions_sensitivity(PHYSICS_PT_rigidbody_panel, P
 
         if rbo.collision_shape in {'MESH', 'CONE'}:
             col.prop(rbo, "collision_margin", text="Margin")
-            col.prop(rbo, "use_random_margin", text="Randomize")
         else:
             col.prop(rbo, "use_margin")
             sub = col.column()
             sub.active = rbo.use_margin
             sub.prop(rbo, "collision_margin", text="Margin")
-            sub.prop(rbo, "use_random_margin", text="Randomize")
 
 
 class PHYSICS_PT_rigid_body_collisions_collections(PHYSICS_PT_rigidbody_panel, Panel):

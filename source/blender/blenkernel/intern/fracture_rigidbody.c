@@ -44,6 +44,7 @@
 #include "DNA_ID.h"
 #include "DNA_fracture_types.h"
 
+#include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
 
 #ifdef WITH_BULLET
