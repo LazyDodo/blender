@@ -477,7 +477,7 @@ GpencilModifierTypeInfo modifierType_Gpencil_Armature = {
 	/* structName */        "ArmatureGpencilModifierData",
 	/* structSize */        sizeof(ArmatureGpencilModifierData),
 	/* type */              eGpencilModifierTypeType_Gpencil,
-	/* flags */             0,
+	/* flags */             eGpencilModifierTypeFlag_Single,
 
 	/* copyData */          copyData,
 
