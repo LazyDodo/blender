@@ -172,7 +172,8 @@ static void freeData(ModifierData *md)
 {
 	FractureModifierData *fmd = (FractureModifierData *) md;
 	if (fmd->shared) {
-		BKE_fracture_modifier_free(fmd, fmd->shared->scene);
+		/* seems we dont need the scene reference here when freeing */
+		BKE_fracture_modifier_free(fmd, NULL);
 		MEM_freeN(fmd->shared);
 		fmd->shared = NULL;
 	}

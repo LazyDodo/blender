@@ -193,7 +193,7 @@ struct Mesh* BKE_fracture_mesh_copy(struct Mesh* source, struct Object* ob);
 struct BMesh* BKE_fracture_mesh_to_bmesh(struct Mesh* me);
 struct Mesh* BKE_fracture_bmesh_to_mesh(struct BMesh* bm);
 
-void BKE_update_velocity_layer(struct FractureModifierData *fmd);
+void BKE_update_velocity_layer(struct FractureModifierData *fmd, struct Mesh *dm);
 bool BKE_rigidbody_remove_modifier(struct RigidBodyWorld* rbw, struct ModifierData *md, struct Object *ob);
 
 void BKE_fracture_dynamic_do(struct FractureModifierData *fmd, struct Object* ob, struct Scene* scene,

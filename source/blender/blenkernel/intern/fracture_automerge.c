@@ -498,7 +498,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	//struct BMeshToMeshParams bmt = {.calc_object_remap = 0};
 
 	//just before we mess up this mesh, ensure velocity precalculation.
-//	BKE_update_velocity_layer(fmd);
+	BKE_update_velocity_layer(fmd, dm);
 
 	if (fmd->use_centroids && !fmd->use_vertices)
 	{

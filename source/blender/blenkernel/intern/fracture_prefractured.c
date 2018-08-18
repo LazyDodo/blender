@@ -117,7 +117,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		Mesh *me_tmp = NULL;
 
 		// HACK
-		fmd->shared->scene = scene;
+		//fmd->shared->scene = scene;
 
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);

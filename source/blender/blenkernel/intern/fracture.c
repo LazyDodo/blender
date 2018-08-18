@@ -461,7 +461,7 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 	MeshIsland** islands = NULL;
 	KDTree *tree = NULL;
 	Mesh** temp_meshs = NULL;
-	Mesh* me;
+	Mesh* me = NULL;
 
 	/*global preparations */
 	islands = MEM_callocN(sizeof(MeshIsland*) * count, "islands");
@@ -523,13 +523,22 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 			}
 
 			/* if successful, create processed meshisland in FM */
-			if (temp_meshs[i])
+			if (temp_meshs[i]) {
 				BKE_fracture_mesh_free(temp_meshs[i]);
-			if (temp_meshs[i+1])
+				temp_meshs[i] = NULL;
+			}
+			if (temp_meshs[i+1]) {
 				BKE_fracture_mesh_free(temp_meshs[i+1]);
+				temp_meshs[i+1] = NULL;
+			}
 
-			temp_meshs[i] = meshA;
-			temp_meshs[i+1] = meshB;
+			if (meshA != me) {
+				temp_meshs[i] = meshA;
+			}
+
+			if (meshB != me) {
+				temp_meshs[i+1] = meshB;
+			}
 
 			/*sort meshs by size*/
 			if(fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST ||
@@ -1524,9 +1533,8 @@ void BKE_bm_mesh_hflag_flush_vert(BMesh *bm, const char hflag)
 	}
 }
 
-void BKE_update_velocity_layer(FractureModifierData *fmd)
+void BKE_update_velocity_layer(FractureModifierData *fmd, Mesh *dm)
 {
-	Mesh *dm = fmd->shared->mesh_cached; //the unprocessed mesh, too !!!
 	float *velX=NULL, *velY=NULL, *velZ = NULL;
 	RigidBodyOb *rbo = NULL;
 	int i = 0;
