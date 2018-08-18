@@ -236,7 +236,7 @@ typedef enum eGPDframe_Flag {
 typedef struct bGPDlayer_runtime {
 	struct GHash *derived_data;     /* runtime data created by modifiers */
 	int icon_id;                    /* id for dynamic icon used to show annotation color preview for layer */
-	char pad[4];
+	int batch_index;                /* batch used for dupli instances */
 } bGPDlayer_runtime;
 
 /* Grease-Pencil Annotations - 'Layer' */
@@ -359,9 +359,10 @@ typedef struct bGPdata {
 	/* stats */
 	short totlayer;
 	short totframe;
-	short totstroke;
-	short totpoint;
 	char pad_2[6];
+	int   totstroke;
+	int   totpoint;
+	char pad_3[4];
 	bGPdata_runtime runtime;
 } bGPdata;
 

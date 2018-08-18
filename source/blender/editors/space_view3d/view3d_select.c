@@ -2345,17 +2345,23 @@ static int do_object_pose_box_select(bContext *C, ViewContext *vc, rcti *rect, c
 			for (; col != col_end; col += 4) {
 				/* should never fail */
 				if (bone != NULL) {
-					if (sel_op) {
-						if ((bone->flag & BONE_UNSELECTABLE) == 0) {
-							bone->flag |= BONE_SELECTED;
+					const bool is_select = (bone->flag & BONE_SELECTED) != 0;
+					const bool is_inside = true;
+					const int sel_op_result = ED_select_op_action_deselected(sel_op, is_select, is_inside);
+
+					if (sel_op_result != -1) {
+						if (sel_op_result) {
+							if ((bone->flag & BONE_UNSELECTABLE) == 0) {
+								bone->flag |= BONE_SELECTED;
+							}
 						}
-					}
-					else {
-						bArmature *arm = base->object->data;
-						if ((bone->flag & BONE_UNSELECTABLE) == 0) {
-							bone->flag &= ~BONE_SELECTED;
-							if (arm->act_bone == bone)
-								arm->act_bone = NULL;
+						else {
+							bArmature *arm = base->object->data;
+							if ((bone->flag & BONE_UNSELECTABLE) == 0) {
+								bone->flag &= ~BONE_SELECTED;
+								if (arm->act_bone == bone)
+									arm->act_bone = NULL;
+							}
 						}
 					}
 					changed = true;
@@ -2409,7 +2415,7 @@ static int do_object_pose_box_select(bContext *C, ViewContext *vc, rcti *rect, c
 		if (SEL_OP_USE_OUTSIDE(sel_op)) {
 			for (int i = 0; i < BLI_array_len(bases); i++) {
 				Base *base = bases[i];
-				if ((base->object->flag & OB_DONE) == 0) {
+				if ((base->object->id.tag & LIB_TAG_DOIT) == 0) {
 					const bool is_select = base->flag & BASE_SELECTED;
 					const bool is_inside = false;  /* we know there are no hits. */
 					const int sel_op_result = ED_select_op_action_deselected(sel_op, is_select, is_inside);

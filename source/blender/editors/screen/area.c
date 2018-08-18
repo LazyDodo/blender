@@ -872,14 +872,17 @@ static void region_azone_edge(AZone *az, ARegion *ar)
 	BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
 }
 
-#define AZONEPAD_TAB_PLUSW  (0.7f * U.widget_unit)
-#define AZONEPAD_TAB_PLUSH  (0.7f * U.widget_unit)
-
 /* region already made zero sized, in shape of edge */
 static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 {
 	AZone *azt;
 	int tot = 0, add;
+	/* Edge offset multiplied by the  */
+
+	float edge_offset = 1.0f;
+	const float tab_size_x = 0.7f * U.widget_unit;
+	const float tab_size_y = 0.7f * U.widget_unit;
+
 
 	for (azt = sa->actionzones.first; azt; azt = azt->next) {
 		if (azt->edge == az->edge) tot++;
@@ -888,28 +891,28 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 	switch (az->edge) {
 		case AE_TOP_TO_BOTTOMRIGHT:
 			add = (ar->winrct.ymax == sa->totrct.ymin) ? 1 : 0;
-			az->x1 = ar->winrct.xmax - 2.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmax - ((edge_offset + 1.0f) * tab_size_x);
 			az->y1 = ar->winrct.ymax - add;
-			az->x2 = ar->winrct.xmax - 1.5f * AZONEPAD_TAB_PLUSW;
-			az->y2 = ar->winrct.ymax - add + AZONEPAD_TAB_PLUSH;
+			az->x2 = ar->winrct.xmax - (edge_offset * tab_size_x);
+			az->y2 = ar->winrct.ymax - add + tab_size_y;
 			break;
 		case AE_BOTTOM_TO_TOPLEFT:
-			az->x1 = ar->winrct.xmax - 2.5f * AZONEPAD_TAB_PLUSW;
-			az->y1 = ar->winrct.ymin - AZONEPAD_TAB_PLUSH;
-			az->x2 = ar->winrct.xmax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmax - ((edge_offset + 1.0f) * tab_size_x);
+			az->y1 = ar->winrct.ymin - tab_size_y;
+			az->x2 = ar->winrct.xmax - (edge_offset * tab_size_x);
 			az->y2 = ar->winrct.ymin;
 			break;
 		case AE_LEFT_TO_TOPRIGHT:
-			az->x1 = ar->winrct.xmin - AZONEPAD_TAB_PLUSH;
-			az->y1 = ar->winrct.ymax - 2.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmin - tab_size_y;
+			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
 			az->x2 = ar->winrct.xmin;
-			az->y2 = ar->winrct.ymax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 		case AE_RIGHT_TO_TOPLEFT:
 			az->x1 = ar->winrct.xmax - 1;
-			az->y1 = ar->winrct.ymax - 2.5f * AZONEPAD_TAB_PLUSW;
-			az->x2 = ar->winrct.xmax - 1 + AZONEPAD_TAB_PLUSH;
-			az->y2 = ar->winrct.ymax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
+			az->x2 = ar->winrct.xmax - 1 + tab_size_y;
+			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 	}
 	/* rect needed for mouse pointer test */
@@ -1125,11 +1128,12 @@ bool ED_region_is_overlap(int spacetype, int regiontype)
 static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rcti *overlap_remainder, int quad)
 {
 	rcti *remainder_prev = remainder;
-	int prefsizex, prefsizey;
-	int alignment;
 
 	if (ar == NULL)
 		return;
+
+	int prev_winx = ar->winx;
+	int prev_winy = ar->winy;
 
 	/* no returns in function, winrct gets set in the end again */
 	BLI_rcti_init(&ar->winrct, 0, 0, 0, 0);
@@ -1139,7 +1143,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 		if (ar->prev)
 			remainder = &ar->prev->winrct;
 
-	alignment = ar->alignment & ~RGN_SPLIT_PREV;
+	int alignment = ar->alignment & ~RGN_SPLIT_PREV;
 
 	/* set here, assuming userpref switching forces to call this again */
 	ar->overlap = ED_region_is_overlap(sa->spacetype, ar->regiontype);
@@ -1152,7 +1156,8 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	}
 
 	/* prefsize, taking into account DPI */
-	prefsizex = UI_DPI_FAC * ((ar->sizex > 1) ? ar->sizex + 0.5f : ar->type->prefsizex);
+	int prefsizex = UI_DPI_FAC * ((ar->sizex > 1) ? ar->sizex + 0.5f : ar->type->prefsizex);
+	int prefsizey;
 
 	if (ar->regiontype == RGN_TYPE_HEADER) {
 		prefsizey = ED_area_headersize();
@@ -1374,6 +1379,11 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	}
 
 	region_rect_recursive(sa, ar->next, remainder, overlap_remainder, quad);
+
+	/* Tag for redraw if size changes. */
+	if (ar->winx != prev_winx || ar->winy != prev_winy) {
+		ED_region_tag_redraw(ar);
+	}
 }
 
 static void area_calc_totrct(ScrArea *sa, const rcti *window_rect)
