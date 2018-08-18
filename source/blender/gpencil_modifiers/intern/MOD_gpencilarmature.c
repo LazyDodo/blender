@@ -219,7 +219,6 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info
 	Bone *bone = pchan->bone;
 	Mat4 b_bone[MAX_BBONE_SUBDIV], b_bone_rest[MAX_BBONE_SUBDIV];
 	Mat4 *b_bone_mats;
-	DualQuat *b_bone_dual_quats = NULL;
 	int a;
 
 	b_bone_spline_setup(pchan, 0, b_bone);
@@ -334,6 +333,7 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	}
 	BLI_ghash_free(idx_hash, NULL, NULL);
 
+	/* deform points of stroke */
 	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 		MDeformVert *dvert = &gps->dvert[i];
 		DualQuat *dq = NULL;
@@ -381,9 +381,11 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 
 		/* always, check above code */
 		mul_m4_v3(postmat, co);
+		/* copy back new location to point */
 		copy_v3_v3(&pt->x, co);
 	}
 
+	/* free memory */
 	if (defnrToPC)
 		MEM_freeN(defnrToPC);
 	if (defnrToPCIndex)
