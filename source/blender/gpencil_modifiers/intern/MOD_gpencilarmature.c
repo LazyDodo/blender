@@ -71,11 +71,10 @@ typedef struct bPoseChanDeform {
 	DualQuat *b_bone_dual_quats;
 } bPoseChanDeform;
 
-typedef struct ArmatureBBoneDefmatsData {
+typedef struct GpArmatureBBoneDefmatsData {
 	bPoseChanDeform *pdef_info_array;
 	DualQuat *dualquats;
-	bool use_quaternion;
-} ArmatureBBoneDefmatsData;
+} GpArmatureBBoneDefmatsData;
 
 static void initData(GpencilModifierData *md)
 {
@@ -215,7 +214,7 @@ static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, f
 	return contrib;
 }
 
-static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info, const bool use_quaternion)
+static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info)
 {
 	Bone *bone = pchan->bone;
 	Mat4 b_bone[MAX_BBONE_SUBDIV], b_bone_rest[MAX_BBONE_SUBDIV];
@@ -226,14 +225,9 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info
 	b_bone_spline_setup(pchan, 0, b_bone);
 	b_bone_spline_setup(pchan, 1, b_bone_rest);
 
-	/* allocate b_bone matrices and dual quats */
+	/* allocate b_bone matrices */
 	b_bone_mats = MEM_mallocN((1 + bone->segments) * sizeof(Mat4), "BBone defmats");
 	pdef_info->b_bone_mats = b_bone_mats;
-
-	if (use_quaternion) {
-		b_bone_dual_quats = MEM_mallocN((bone->segments) * sizeof(DualQuat), "BBone dqs");
-		pdef_info->b_bone_dual_quats = b_bone_dual_quats;
-	}
 
 	/* first matrix is the inverse arm_mat, to bring points in local bone space
 	 * for finding out which segment it belongs to */
@@ -251,34 +245,25 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info
 		invert_m4_m4(tmat, b_bone_rest[a].mat);
 		mul_m4_series(b_bone_mats[a + 1].mat, pchan->chan_mat, bone->arm_mat, b_bone[a].mat, tmat, b_bone_mats[0].mat);
 
-		if (use_quaternion)
-			mat4_to_dquat(&b_bone_dual_quats[a], bone->arm_mat, b_bone_mats[a + 1].mat);
 	}
 }
 
 static void gpencil_armature_bbone_defmats_cb(void *userdata, Link *iter, int index)
 {
-	ArmatureBBoneDefmatsData *data = userdata;
+	GpArmatureBBoneDefmatsData *data = userdata;
 	bPoseChannel *pchan = (bPoseChannel *)iter;
 
 	if (!(pchan->bone->flag & BONE_NO_DEFORM)) {
 		bPoseChanDeform *pdef_info = &data->pdef_info_array[index];
-		const bool use_quaternion = data->use_quaternion;
 
 		if (pchan->bone->segments > 1) {
-			pchan_b_bone_defmats(pchan, pdef_info, use_quaternion);
+			pchan_b_bone_defmats(pchan, pdef_info);
 		}
 
-		if (use_quaternion) {
-			pdef_info->dual_quat = &data->dualquats[index];
-			mat4_to_dquat(pdef_info->dual_quat, pchan->bone->arm_mat, pchan->chan_mat);
-		}
 	}
 }
 
-static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstroke *gps, float(*vertexCos)[3],
-	float(*defMats)[3][3], int numVerts, int deformflag,
-	float(*prevCos)[3], const char *defgrp_name)
+static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstroke *gps)
 {
 	bPoseChanDeform *pdef_info_array;
 	bPoseChanDeform *pdef_info = NULL;
@@ -289,12 +274,8 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	bDeformGroup *dg;
 	DualQuat *dualquats = NULL;
 	float obinv[4][4], premat[4][4], postmat[4][4];
-	const bool use_envelope = (deformflag & ARM_DEF_ENVELOPE) != 0;
-	const bool use_quaternion = (deformflag & ARM_DEF_QUATERNION) != 0;
-	const bool invert_vgroup = (deformflag & ARM_DEF_INVERT_VGROUP) != 0;
 	int defbase_tot = 0;       /* safety for vertexgroup index overflow */
 	int i, target_totvert = 0; /* safety for vertexgroup overflow */
-	int armature_def_nr; // revisar
 	int totchan;
 
 	/* in editmode, or not an armature */
@@ -315,21 +296,13 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	/* initialize B_bone matrices and dual quaternions */
 	totchan = BLI_listbase_count(&armOb->pose->chanbase);
 
-	if (use_quaternion) {
-		dualquats = MEM_callocN(sizeof(DualQuat) * totchan, "dualquats");
-	}
-
 	pdef_info_array = MEM_callocN(sizeof(bPoseChanDeform) * totchan, "bPoseChanDeform");
 
-	ArmatureBBoneDefmatsData data = {
-		.pdef_info_array = pdef_info_array,.dualquats = dualquats,.use_quaternion = use_quaternion
+	GpArmatureBBoneDefmatsData data = {
+		.pdef_info_array = pdef_info_array,.dualquats = dualquats
 	};
 	BLI_task_parallel_listbase(&armOb->pose->chanbase, &data,
 		gpencil_armature_bbone_defmats_cb, totchan > 512);
-
-	/* get the def_nr for the overall armature vertex group if present */
-	//creo que esto sobra
-	armature_def_nr = defgroup_name_index(target, defgrp_name);
 
 	defbase_tot = BLI_listbase_count(&target->defbase);
 	dverts = gps->dvert;
@@ -359,54 +332,19 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	}
 	BLI_ghash_free(idx_hash, NULL, NULL);
 
-	for (i = 0; i < numVerts; i++) {
+	for (i = 0; i < gps->totpoints; i++) {
 		MDeformVert *dvert;
-		DualQuat sumdq, *dq = NULL;
-		float *co, dco[3];
-		float sumvec[3], summat[3][3];
+		DualQuat *dq = NULL;
+		float *co;
+		float sumvec[3];
 		float *vec = NULL, (*smat)[3] = NULL;
 		float contrib = 0.0f;
-		float armature_weight = 1.0f; /* default to 1 if no overall def group */
-		float prevco_weight = 1.0f;   /* weight for optional cached vertexcos */
 
-		if (use_quaternion) {
-			memset(&sumdq, 0, sizeof(DualQuat));
-			dq = &sumdq;
-		}
-		else {
-			sumvec[0] = sumvec[1] = sumvec[2] = 0.0f;
-			vec = sumvec;
-
-			if (defMats) {
-				zero_m3(summat);
-				smat = summat;
-			}
-		}
-
-		if (armature_def_nr != -1) {
-			BLI_assert(i < gps->totpoints);
-			dvert = gps->dvert + i;
-		}
-
-		if (armature_def_nr != -1 && dvert) {
-			armature_weight = defvert_find_weight(dvert, armature_def_nr);
-
-			if (invert_vgroup)
-				armature_weight = 1.0f - armature_weight;
-
-			/* hackish: the blending factor can be used for blending with prevCos too */
-			if (prevCos) {
-				prevco_weight = armature_weight;
-				armature_weight = 1.0f;
-			}
-		}
-
-		/* check if there's any  point in calculating for this vert */
-		if (armature_weight == 0.0f)
-			continue;
+		sumvec[0] = sumvec[1] = sumvec[2] = 0.0f;
+		vec = sumvec;
 
 		/* get the coord we work on */
-		co = prevCos ? prevCos[i] : vertexCos[i];
+		//co = prevCos[i]; GPXX
 
 		/* Apply the object's matrix */
 		mul_m4_v3(premat, co);
@@ -432,67 +370,17 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 					pchan_bone_deform(pchan, pdef_info, weight, vec, dq, smat, co, &contrib);
 				}
 			}
-			/* if there are vertexgroups but not groups with bones
-			 * (like for softbody groups) */
-			if (deformed == 0 && use_envelope) {
-				pdef_info = pdef_info_array;
-				for (pchan = armOb->pose->chanbase.first; pchan; pchan = pchan->next, pdef_info++) {
-					if (!(pchan->bone->flag & BONE_NO_DEFORM))
-						contrib += dist_bone_deform(pchan, pdef_info, vec, dq, smat, co);
-				}
-			}
 		}
 
-		/* actually should be EPSILON? weight values and contrib can be like 10e-39 small */
 		if (contrib > 0.0001f) {
-			if (use_quaternion) {
-				normalize_dq(dq, contrib);
-
-				if (armature_weight != 1.0f) {
-					copy_v3_v3(dco, co);
-					mul_v3m3_dq(dco, (defMats) ? summat : NULL, dq);
-					sub_v3_v3(dco, co);
-					mul_v3_fl(dco, armature_weight);
-					add_v3_v3(co, dco);
-				}
-				else
-					mul_v3m3_dq(co, (defMats) ? summat : NULL, dq);
-
-				smat = summat;
-			}
-			else {
-				mul_v3_fl(vec, armature_weight / contrib);
-				add_v3_v3v3(co, vec, co);
-			}
-
-			if (defMats) {
-				float pre[3][3], post[3][3], tmpmat[3][3];
-
-				copy_m3_m4(pre, premat);
-				copy_m3_m4(post, postmat);
-				copy_m3_m3(tmpmat, defMats[i]);
-
-				if (!use_quaternion) /* quaternion already is scale corrected */
-					mul_m3_fl(smat, armature_weight / contrib);
-
-				mul_m3_series(defMats[i], post, smat, pre, tmpmat);
-			}
+			mul_v3_fl(vec, 1.0f / contrib);
+			add_v3_v3v3(co, vec, co);
 		}
 
 		/* always, check above code */
 		mul_m4_v3(postmat, co);
-
-		/* interpolate with previous modifier position using weight group */
-		if (prevCos) {
-			float mw = 1.0f - prevco_weight;
-			vertexCos[i][0] = prevco_weight * vertexCos[i][0] + mw * co[0];
-			vertexCos[i][1] = prevco_weight * vertexCos[i][1] + mw * co[1];
-			vertexCos[i][2] = prevco_weight * vertexCos[i][2] + mw * co[2];
-		}
 	}
 
-	if (dualquats)
-		MEM_freeN(dualquats);
 	if (defnrToPC)
 		MEM_freeN(defnrToPC);
 	if (defnrToPCIndex)
