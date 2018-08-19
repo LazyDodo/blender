@@ -48,6 +48,7 @@
 
 #include "DNA_armature_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 
 #include "BKE_action.h"
@@ -77,6 +78,50 @@ enum {
 	GP_ARMATURE_NAME = 0,
 	GP_ARMATURE_AUTO = 1
 };
+
+/* test if a point is inside cylinder
+ * Return:  -1.0 if point is outside the cylinder
+ *          o distance squared from cylinder axis if point is inside.
+ */
+static float test_point_in_cylynder(float pt1[3], float pt2[3],
+									float lengthsq, float radius_sq, bGPDspoint *pt)
+{
+	float dx[3];	/* vector from line segment point 1 to point 2 */
+	float pdx[3];	/* vector pd from point 1 to test point */
+	float dot, dsq;
+
+	sub_v3_v3v3(dx, pt2, pt1);
+	sub_v3_v3v3(pdx, &pt->x, pt1);
+
+	/* Dot the d and pd vectors to see if point lies behind the */
+	dot = dot_v3v3(pdx, dx);
+
+	/* If dot is less than zero the point is behind the pt1 cap.
+	 * If greater than the cylinder axis line segment length squared
+	 * then the point is outside the other end cap at pt2.
+	 */
+	if (dot < 0.0f || dot > lengthsq)
+	{
+		return(-1.0f);
+	}
+	else
+	{
+		/* Point lies within the parallel caps, so find,
+		 * distance squared from point to line */
+
+		/* distance squared to the cylinder axis */
+		dsq = (pdx[0] * pdx[0] + pdx[1] * pdx[1] + pdx[2] * pdx[2]) - dot * dot / lengthsq;
+
+		if (dsq > radius_sq)
+		{
+			return(-1.0f);
+		}
+		else
+		{
+			return(dsq);		// return distance squared to axis
+		}
+	}
+}
 
 static int gpencil_bone_looper(Object *ob, Bone *bone, void *data,
 	int(*bone_func)(Object *, Bone *, void *))
@@ -196,17 +241,18 @@ static int dgroup_skinnable_cb(Object *ob, Bone *bone, void *datap)
 	 */
 	bDeformGroup ***hgroup, *defgroup = NULL;
 	int a, segments;
-	struct { Object *armob; void *list; int heat; bool is_weight_paint; } *data = datap;
+	struct { Object *armob; void *list; int heat; } *data = datap;
 	bArmature *arm = data->armob->data;
 
-	if (!data->is_weight_paint || !(bone->flag & BONE_HIDDEN_P)) {
+	if (!(bone->flag & BONE_HIDDEN_P)) {
 		if (!(bone->flag & BONE_NO_DEFORM)) {
 			if (data->heat && data->armob->pose && BKE_pose_channel_find_name(data->armob->pose, bone->name))
 				segments = bone->segments;
 			else
 				segments = 1;
 
-			if (!data->is_weight_paint || ((arm->layer & bone->layer) && (bone->flag & BONE_SELECTED))) {
+			//if (((arm->layer & bone->layer) && (bone->flag & BONE_SELECTED))) {
+			if (arm->layer & bone->layer) {
 				if (!(defgroup = defgroup_find_name(ob, bone->name))) {
 					defgroup = BKE_object_defgroup_add_name(ob, bone->name);
 				}
@@ -230,45 +276,34 @@ static int dgroup_skinnable_cb(Object *ob, Bone *bone, void *datap)
 	return 0;
 }
 
-static void add_verts_to_dgroups(
-	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *par,
-	int heat, const bool mirror)
+/* This functions implements the automatic computation of vertex group weights */
+static void gpencil_add_verts_to_dgroups(bContext *C,
+	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm)
 {
-	/* This functions implements the automatic computation of vertex group
-	 * weights, either through envelopes or using a heat equilibrium.
-	 *
-	 * This function can be called both when parenting a mesh to an armature,
-	 * or in weightpaint + posemode. In the latter case selection is taken
-	 * into account and vertex weights can be mirrored.
-	 *
-	 * The mesh vertex positions used are either the final deformed coords
-	 * from the evaluated mesh in weightpaint mode, the final subsurf coords
-	 * when parenting, or simply the original mesh coords.
-	 */
-
-	bArmature *arm = par->data;
+	bArmature *arm = ob_arm->data;
 	Bone **bonelist, *bone;
-	bDeformGroup **dgrouplist, **dgroupflip;
+	bDeformGroup **dgrouplist;
 	bDeformGroup *dgroup;
 	bPoseChannel *pchan;
-	bGPdata *gpd;
+	bGPdata *gpd = (bGPdata *)ob->data;
+	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+
 	Mat4 bbone_array[MAX_BBONE_SUBDIV], *bbone = NULL;
 	float(*root)[3], (*tip)[3], (*verts)[3];
+	float *lensqr, *radsqr;
 	int *selected;
-	int numbones, vertsfilled = 0, i, j, segments = 0;
+	float weight;
+	int numbones, i, j, segments = 0;
 	struct { Object *armob; void *list; int heat; } looper_data;
 
-	looper_data.armob = par;
-	looper_data.heat = heat;
+	looper_data.armob = ob_arm;
+	looper_data.heat = true;
 	looper_data.list = NULL;
 
 	/* count the number of skinnable bones */
 	numbones = gpencil_bone_looper(ob, arm->bonebase.first, &looper_data, bone_skinnable_cb);
 
 	if (numbones == 0)
-		return;
-
-	if (BKE_object_defgroup_data_create(ob->data) == NULL)
 		return;
 
 	/* create an array of pointer to bones that are skinnable
@@ -281,7 +316,6 @@ static void add_verts_to_dgroups(
 	 * correspond to the skinnable bones (creating them
 	 * as necessary. */
 	dgrouplist = MEM_callocN(numbones * sizeof(bDeformGroup *), "dgrouplist");
-	dgroupflip = MEM_callocN(numbones * sizeof(bDeformGroup *), "dgroupflip");
 
 	looper_data.list = dgrouplist;
 	gpencil_bone_looper(ob, arm->bonebase.first, &looper_data, dgroup_skinnable_cb);
@@ -291,28 +325,28 @@ static void add_verts_to_dgroups(
 	root = MEM_callocN(numbones * sizeof(float) * 3, "root");
 	tip = MEM_callocN(numbones * sizeof(float) * 3, "tip");
 	selected = MEM_callocN(numbones * sizeof(int), "selected");
+	lensqr = MEM_callocN(numbones * sizeof(float), "lensqr");
+	radsqr = MEM_callocN(numbones * sizeof(float), "radsqr");
 
 	for (j = 0; j < numbones; j++) {
 		bone = bonelist[j];
 		dgroup = dgrouplist[j];
 
 		/* handle bbone */
-		if (heat) {
-			if (segments == 0) {
-				segments = 1;
-				bbone = NULL;
+		if (segments == 0) {
+			segments = 1;
+			bbone = NULL;
 
-				if ((par->pose) && (pchan = BKE_pose_channel_find_name(par->pose, bone->name))) {
-					if (bone->segments > 1) {
-						segments = bone->segments;
-						b_bone_spline_setup(pchan, 1, bbone_array);
-						bbone = bbone_array;
-					}
+			if ((ob_arm->pose) && (pchan = BKE_pose_channel_find_name(ob_arm->pose, bone->name))) {
+				if (bone->segments > 1) {
+					segments = bone->segments;
+					b_bone_spline_setup(pchan, 1, bbone_array);
+					bbone = bbone_array;
 				}
 			}
-
-			segments--;
 		}
+
+		segments--;
 
 		/* compute root and tip */
 		if (bbone) {
@@ -329,85 +363,136 @@ static void add_verts_to_dgroups(
 			copy_v3_v3(tip[j], bone->arm_tail);
 		}
 
-		mul_m4_v3(par->obmat, root[j]);
-		mul_m4_v3(par->obmat, tip[j]);
+		mul_m4_v3(ob_arm->obmat, root[j]);
+		mul_m4_v3(ob_arm->obmat, tip[j]);
 
 		selected[j] = 1;
 
-		/* find flipped group */
-		if (dgroup && mirror) {
-			char name_flip[MAXBONENAME];
+		/* calculate len of bone squared */
+		lensqr[j] = len_squared_v3v3(root[j], tip[j]);
 
-			BLI_string_flip_side_name(name_flip, dgroup->name, false, sizeof(name_flip));
-			dgroupflip[j] = defgroup_find_name(ob, name_flip);
+		/* calculate radius squared */
+		radsqr[j] = lensqr[j] / 6.0f;
+	}
+
+	/* loop all strokes */
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
+	{
+		bGPDframe *init_gpf = gpl->actframe;
+		bGPDspoint *pt = NULL;
+
+		if (is_multiedit) {
+			init_gpf = gpl->frames.first;
+		}
+
+		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+
+				if (gpf == NULL)
+					continue;
+
+				for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+					/* skip strokes that are invalid for current view */
+					if (ED_gpencil_stroke_can_use(C, gps) == false)
+						continue;
+
+					/* create verts array */
+					verts = MEM_callocN(gps->totpoints * sizeof(*verts), __func__);
+
+					/* transform stroke points to global space */
+					for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+						copy_v3_v3(verts[i], &pt->x);
+						mul_m4_v3(ob->obmat, verts[i]);
+					}
+
+					/* loop groups and assign weight */
+					for (j = 0; j < numbones; j++) {
+						int def_nr = BLI_findindex(&ob->defbase, dgrouplist[j]);
+						if (def_nr < 0) {
+							continue;
+						}
+
+						for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+							MDeformVert *dvert = &gps->dvert[i];
+							float dist = test_point_in_cylynder(root[j], tip[j],
+																lensqr[j], radsqr[j],
+																pt);
+							if (dist < 0) {
+								/* if not in cylinder, check if inside sphere of extremes */
+								weight = 0.0f;
+								float rad = radsqr[j] * 0.75f;
+								dist = len_squared_v3v3(root[j], &pt->x);
+								if (dist < rad) {
+									weight = interpf(0.0f, 0.9f, dist / rad);
+								}
+								else {
+									dist = len_squared_v3v3(tip[j], &pt->x);
+									if (dist < rad) {
+										weight = interpf(0.0f, 0.9f, dist / rad);
+									}
+								}
+							}
+							else {
+								/* inside bone cylinder */
+								weight = 1.0f;
+							}
+
+							/* assign weight */
+							BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, weight);
+						}
+					}
+					MEM_SAFE_FREE(verts);
+
+				}
+			}
+
+			/* if not multiedit, exit loop*/
+			if (!is_multiedit) {
+				break;
+			}
 		}
 	}
-
-	/* create verts */
-	gpd = (bGPdata *)ob->data;
-#if 0
-	verts = MEM_callocN(mesh->totvert * sizeof(*verts), "closestboneverts");
-
-
-	/* transform verts to global space */
-	for (i = 0; i < mesh->totvert; i++) {
-		if (!vertsfilled)
-			copy_v3_v3(verts[i], mesh->mvert[i].co);
-		mul_m4_v3(ob->obmat, verts[i]);
-	}
-
-	/* compute the weights based on gathered vertices and bones */
-	if (heat) {
-		const char *error = NULL;
-
-		heat_bone_weighting(
-			ob, mesh, verts, numbones, dgrouplist, dgroupflip,
-			root, tip, selected, &error);
-		if (error) {
-			BKE_report(reports, RPT_WARNING, error);
-		}
-	}
-#endif
+	CTX_DATA_END;
 
 	/* free the memory allocated */
 	MEM_SAFE_FREE(bonelist);
 	MEM_SAFE_FREE(dgrouplist);
-	MEM_SAFE_FREE(dgroupflip);
 	MEM_SAFE_FREE(root);
 	MEM_SAFE_FREE(tip);
+	MEM_SAFE_FREE(lensqr);
+	MEM_SAFE_FREE(radsqr);
 	MEM_SAFE_FREE(selected);
-	MEM_SAFE_FREE(verts);
 }
 
-static void gpencil_object_vgroup_calc_from_armature(
-	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *par,
+static void gpencil_object_vgroup_calc_from_armature(bContext *C,
+	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm,
 	const int mode, const bool mirror)
 {
 	/* Lets try to create some vertex groups
 	 * based on the bones of the parent armature.
 	 */
-	bArmature *arm = par->data;
+	bArmature *arm = ob_arm->data;
 
-	if (mode == GP_ARMATURE_NAME) {
-		const int defbase_tot = BLI_listbase_count(&ob->defbase);
-		int defbase_add;
-		/* Traverse the bone list, trying to create empty vertex
-		 * groups corresponding to the bone.
-		 */
-		defbase_add = gpencil_bone_looper(ob, arm->bonebase.first, NULL, vgroup_add_unique_bone_cb);
+	/* always create groups */
+	const int defbase_tot = BLI_listbase_count(&ob->defbase);
+	int defbase_add;
+	/* Traverse the bone list, trying to create empty vertex
+		* groups corresponding to the bone.
+		*/
+	defbase_add = gpencil_bone_looper(ob, arm->bonebase.first, NULL, vgroup_add_unique_bone_cb);
 
-		if (defbase_add) {
-			/* its possible there are DWeight's outside the range of the current
-			 * objects deform groups, in this case the new groups wont be empty */
-			ED_vgroup_data_clamp_range(ob->data, defbase_tot);
-		}
+	if (defbase_add) {
+		/* its possible there are DWeight's outside the range of the current
+			* objects deform groups, in this case the new groups wont be empty */
+		ED_vgroup_data_clamp_range(ob->data, defbase_tot);
 	}
-	else if (mode == GP_ARMATURE_AUTO) {
-		/* Traverse the bone list, trying to create vertex groups
-		 * that are populated with the vertices for which the
+	
+	if (mode == GP_ARMATURE_AUTO) {
+		/* Traverse the bone list, trying to fill vertex groups
+		 * with the corresponding vertice weights for which the
 		 * bone is closest.
 		 */
-		add_verts_to_dgroups(reports, depsgraph, scene, ob, par, (mode == GP_ARMATURE_AUTO), mirror);
+		gpencil_add_verts_to_dgroups(C, reports, depsgraph, scene, ob, ob_arm);
 	}
 }
 
@@ -448,7 +533,7 @@ static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	gpencil_object_vgroup_calc_from_armature(op->reports,depsgraph, scene,
+	gpencil_object_vgroup_calc_from_armature(C, op->reports,depsgraph, scene,
 											ob, mmd->object, mode, false);
 
 	/* notifiers */
