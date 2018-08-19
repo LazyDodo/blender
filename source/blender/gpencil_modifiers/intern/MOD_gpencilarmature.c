@@ -438,7 +438,7 @@ GpencilModifierTypeInfo modifierType_Gpencil_Armature = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
 
 	/* initData */          initData,
 	/* freeData */          NULL,
