@@ -1620,7 +1620,7 @@ typedef struct FractureModifierData {
 	int use_animated_mesh;
 	int use_constraint_group;
 
-	int shards_to_islands;
+	int split_islands;
 	int execute_threaded;
 	int fix_normals;
 	int auto_execute;

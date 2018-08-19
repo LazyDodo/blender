@@ -77,9 +77,6 @@ class PHYSICS_PT_add(PhysicButtonsPanel, Panel):
             physics_add(self, col, context.dynamic_paint, "Dynamic Paint", 'DYNAMIC_PAINT', 'MOD_DYNAMICPAINT', True)
             physics_add(self, col, context.fracture, "Fracture", 'FRACTURE', 'MOD_EXPLODE', True)
 
-        if obj.type in {'CURVE', 'SURFACE', 'FONT'}:
-            physics_add(self, col, context.fracture, "Fracture", 'FRACTURE', 'MOD_EXPLODE', True)
-
         col = split.column()
 
         if obj.type in {'MESH', 'LATTICE', 'CURVE', 'SURFACE', 'FONT'}:

@@ -104,12 +104,19 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene,
 Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, Depsgraph* depsgraph)
 {
 	Scene *scene = DEG_get_input_scene(depsgraph);
-	int frame = (int)BKE_scene_frame_get(scene);
+	float ctime = BKE_scene_frame_get(scene);
+	int frame = (int)ctime;
+	RigidBodyWorld* rbw = scene->rigidbody_world;
 
 	Main* bmain = G.main;
 	Mesh* me_assembled = NULL;
 	Mesh *me_final = NULL;
 	Mesh *me = me_orig;
+
+	if (fmd->auto_execute && !BKE_rigidbody_check_sim_running(rbw, ctime)) {
+		if (ob->rigidbody_object)
+			fmd->shared->refresh = true;
+	}
 
 	if (fmd->shared->refresh)
 	{
@@ -163,7 +170,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		me_assembled = BKE_fracture_mesh_copy(me, ob);
 	}
 
-	//fmd->shared->mesh_cached = me_assembled;
+	fmd->shared->mesh_cached = me_assembled;
 
 	/*if refresh constraints, build constraints */
 	if (fmd->shared->refresh_constraints)

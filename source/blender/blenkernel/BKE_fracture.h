@@ -174,8 +174,8 @@ struct MDeformVert* BKE_fracture_shards_to_islands(struct FractureModifierData* 
 void BKE_fracture_fill_vgroup(struct FractureModifierData *rmd, struct Mesh *dm, struct MDeformVert *dvert, struct Object *ob,
                               struct Mesh *old_cached);
 
-void BKE_fracture_do_halving(struct FractureModifierData *fmd, struct Object* ob, struct Mesh *dm, struct Mesh *orig_dm,
-                             bool is_prehalving, ShardID id, struct Scene* scene);
+void BKE_fracture_split_islands(struct FractureModifierData *fmd, struct Object* ob, struct Mesh *me, struct Mesh ***temp_islands,
+int *count);
 
 struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct ListBase *islands, struct Object *ob);
 

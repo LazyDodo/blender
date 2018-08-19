@@ -461,10 +461,10 @@ static void rna_FractureModifier_extra_group_set(PointerRNA* ptr, PointerRNA val
 	rmd->shared->reset_shards = true;
 }
 
-static void rna_FractureModifier_shards_to_islands_set(PointerRNA* ptr, int value)
+static void rna_FractureModifier_split_islands_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->shards_to_islands = value;
+	rmd->split_islands = value;
 	rmd->shared->reset_shards = true;
 }
 
@@ -916,10 +916,10 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "shards_to_islands", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "shards_to_islands", false);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_shards_to_islands_set");
-	RNA_def_property_ui_text(prop, "Split Shards to Islands", "Split each shard to separate mesh islands");
+	prop = RNA_def_property(srna, "split_islands", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "split_islands", false);
+	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_split_islands_set");
+	RNA_def_property_ui_text(prop, "Split to Islands", "Split each piece to separate islands");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 

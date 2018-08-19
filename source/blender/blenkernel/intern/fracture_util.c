@@ -413,6 +413,10 @@ Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, Boolea
 	{
 		if (!result || check_non_manifold(result) || !compare_size(geometry, result))
 		{	/* watertightness check */
+			if (result) {
+				BKE_fracture_mesh_free(result);
+			}
+
 			return NULL;
 		}
 	}

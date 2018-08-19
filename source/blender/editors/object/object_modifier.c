@@ -2522,6 +2522,9 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
 
+	WM_event_add_notifier(C, NC_WINDOW, NULL);
+	WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING, NULL);
+
 	return OPERATOR_FINISHED;
 }
 
