@@ -167,53 +167,6 @@ static void pchan_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, f
 	(*contrib) += weight;
 }
 
-static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, float vec[3], DualQuat *dq,
-	float mat[3][3], const float co[3])
-{
-	Bone *bone = pchan->bone;
-	float fac, contrib = 0.0;
-	float cop[3], bbonemat[3][3];
-	DualQuat bbonedq;
-
-	if (bone == NULL)
-		return 0.0f;
-
-	copy_v3_v3(cop, co);
-
-	fac = distfactor_to_bone(cop, bone->arm_head, bone->arm_tail, bone->rad_head, bone->rad_tail, bone->dist);
-
-	if (fac > 0.0f) {
-		fac *= bone->weight;
-		contrib = fac;
-		if (contrib > 0.0f) {
-			if (vec) {
-				if (bone->segments > 1)
-					/* applies on cop and bbonemat */
-					b_bone_deform(pdef_info, bone, cop, NULL, (mat) ? bbonemat : NULL);
-				else
-					mul_m4_v3(pchan->chan_mat, cop);
-
-				/* Make this a delta from the base position */
-				sub_v3_v3(cop, co);
-				madd_v3_v3fl(vec, cop, fac);
-
-				if (mat)
-					pchan_deform_mat_add(pchan, fac, bbonemat, mat);
-			}
-			else {
-				if (bone->segments > 1) {
-					b_bone_deform(pdef_info, bone, cop, &bbonedq, NULL);
-					add_weighted_dq_dq(dq, &bbonedq, fac);
-				}
-				else
-					add_weighted_dq_dq(dq, pdef_info->dual_quat, fac);
-			}
-		}
-	}
-
-	return contrib;
-}
-
 static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info)
 {
 	Bone *bone = pchan->bone;
