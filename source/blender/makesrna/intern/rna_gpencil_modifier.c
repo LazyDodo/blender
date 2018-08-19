@@ -1281,6 +1281,12 @@ static void rna_def_modifier_gpencilarmature(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_ArmatureGpencilModifier_object_set", NULL, "rna_Armature_object_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+	prop = RNA_def_property(srna, "force_recalc", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARMATURE_RECALC_FILL);
+	RNA_def_property_ui_text(prop, "Force Recalc",
+		"Force to recalc fill geometry for extreme deformations (slower FPS)");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
 void RNA_def_greasepencil_modifier(BlenderRNA *brna)

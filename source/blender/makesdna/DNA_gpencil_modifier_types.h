@@ -417,6 +417,10 @@ typedef struct ArmatureGpencilModifierData {
 	char pad[4];
 } ArmatureGpencilModifierData;
 
+typedef enum eArmatureGpencil_Flag {
+	GP_ARMATURE_RECALC_FILL = (1 << 0),
+} eArmatureGpencil_Flag;
+
 #define MOD_MESHSEQ_READ_ALL \
 	(MOD_MESHSEQ_READ_VERT | MOD_MESHSEQ_READ_POLY | MOD_MESHSEQ_READ_UV | MOD_MESHSEQ_READ_COLOR)
 

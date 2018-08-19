@@ -215,8 +215,9 @@ static void gpencil_armature_bbone_defmats_cb(void *userdata, Link *iter, int in
 	}
 }
 
-static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstroke *gps)
+static void gpencil_armature_deform_verts(ArmatureGpencilModifierData *mmd, Object *target, bGPDstroke *gps)
 {
+	Object *armOb = mmd->object;
 	bGPDspoint *pt = NULL;
 	bPoseChanDeform *pdef_info_array;
 	bPoseChanDeform *pdef_info = NULL;
@@ -354,6 +355,11 @@ static void gpencil_armature_deform_verts(Object *armOb, Object *target, bGPDstr
 	}
 
 	MEM_freeN(pdef_info_array);
+
+	/* set recalc */
+	if (mmd->flag & GP_ARMATURE_RECALC_FILL) {
+		gps->flag |= GP_STROKE_RECALC_CACHES;
+	}
 }
 
 /* deform stroke */
@@ -366,7 +372,7 @@ static void deformStroke(
 		return;
 	}
 
-	gpencil_armature_deform_verts(mmd->object, ob, gps);
+	gpencil_armature_deform_verts(mmd, ob, gps);
 }
 
 static void bakeModifier(
