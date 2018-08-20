@@ -237,6 +237,7 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 		if ((marked[i]) || (i == 0) || (i == totpoints - 1)) {
 			memcpy(pt, pt_src, sizeof(bGPDspoint));
 			memcpy(dvert, dvert_src, sizeof(MDeformVert));
+			memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
 			j++;
 		}
 		else {
