@@ -70,6 +70,7 @@ static void deformStroke(
 {
 	SubdivGpencilModifierData *mmd = (SubdivGpencilModifierData *)md;
 	bGPDspoint *temp_points;
+	MDeformVert *temp_dverts;
 	int totnewpoints, oldtotpoints;
 	int i2;
 
@@ -85,6 +86,10 @@ static void deformStroke(
 		totnewpoints = gps->totpoints - 1;
 		/* duplicate points in a temp area */
 		temp_points = MEM_dupallocN(gps->points);
+		if (gps->dvert == NULL) {
+			gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
+		}
+		temp_dverts = MEM_dupallocN(gps->dvert);
 		oldtotpoints = gps->totpoints;
 
 		/* resize the points arrys */
@@ -99,7 +104,7 @@ static void deformStroke(
 			bGPDspoint *pt = &temp_points[i];
 			bGPDspoint *pt_final = &gps->points[i2];
 
-			MDeformVert *dvert = &gps->dvert[i];
+			MDeformVert *dvert = &temp_dverts[i];
 			MDeformVert *dvert_final = &gps->dvert[i2];
 
 			copy_v3_v3(&pt_final->x, &pt->x);
@@ -116,6 +121,8 @@ static void deformStroke(
 		i2 = 1;
 		for (int i = 0; i < oldtotpoints - 1; i++) {
 			bGPDspoint *pt = &temp_points[i];
+			MDeformVert *dvert = &temp_dverts[i];
+
 			bGPDspoint *next = &temp_points[i + 1];
 			bGPDspoint *pt_final = &gps->points[i2];
 			MDeformVert *dvert_final = &gps->dvert[i2];
@@ -127,12 +134,13 @@ static void deformStroke(
 			CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 			pt_final->time = interpf(pt->time, next->time, 0.5f);
 
-			dvert_final->totweight = 0;
-			dvert_final->dw = NULL;
+			dvert_final->totweight = dvert->totweight;
+			dvert_final->dw = MEM_dupallocN(dvert->dw);
 			i2 += 2;
 		}
 
 		MEM_SAFE_FREE(temp_points);
+		MEM_SAFE_FREE(temp_dverts);
 
 		/* move points to smooth stroke (not simple flag )*/
 		if ((mmd->flag & GP_SUBDIV_SIMPLE) == 0) {
