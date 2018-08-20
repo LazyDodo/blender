@@ -2945,6 +2945,7 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								}
 								/* Interpolate all values */
 								bGPDspoint *next = &temp_points[i + 1];
+								MDeformVert *dvert_next = &temp_dverts[i + 1];
 								interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
 								pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
 								pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
@@ -2954,6 +2955,17 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 
 								dvert_final->totweight = dvert->totweight;
 								dvert_final->dw = MEM_dupallocN(dvert->dw);
+
+								/* interpolate weight values */
+								for (int d = 0; d < dvert->totweight; d++) {
+									MDeformWeight *dw_a = &dvert->dw[d];
+									if (dvert_next->totweight > d) {
+										MDeformWeight *dw_b = &dvert_next->dw[d];
+										MDeformWeight *dw_final = &dvert_final->dw[d];
+										dw_final->weight= interpf(dw_a->weight,dw_b->weight, 0.5f);
+									}
+								}
+
 								i2++;
 							}
 						}

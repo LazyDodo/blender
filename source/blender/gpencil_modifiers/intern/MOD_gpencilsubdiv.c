@@ -124,6 +124,8 @@ static void deformStroke(
 			MDeformVert *dvert = &temp_dverts[i];
 
 			bGPDspoint *next = &temp_points[i + 1];
+			MDeformVert *dvert_next = &temp_dverts[i + 1];
+
 			bGPDspoint *pt_final = &gps->points[i2];
 			MDeformVert *dvert_final = &gps->dvert[i2];
 
@@ -136,6 +138,17 @@ static void deformStroke(
 
 			dvert_final->totweight = dvert->totweight;
 			dvert_final->dw = MEM_dupallocN(dvert->dw);
+
+			/* interpolate weight values */
+			for (int d = 0; d < dvert->totweight; d++) {
+				MDeformWeight *dw_a = &dvert->dw[d];
+				if (dvert_next->totweight > d) {
+					MDeformWeight *dw_b = &dvert_next->dw[d];
+					MDeformWeight *dw_final = &dvert_final->dw[d];
+					dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
+				}
+			}
+
 			i2 += 2;
 		}
 
