@@ -323,6 +323,9 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	int vertstart = 0;
 	short totcol = 0, totdef = 0;
 	float loc[3], quat[4], iquat[4];
+	int frame = BKE_scene_frame_get(scene);
+	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
+	//better: leave open... or update when changing endframe / startframe TODO FIX
 
 	if (own->type != OB_MESH || !own->data)
 		return NULL;
@@ -334,6 +337,9 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	mat4_to_loc_quat(loc, quat, target->obmat);
 
 	mi = fracture_object_to_island(own, target);
+	mi->startframe = frame;
+	mi->endframe = endframe;
+
 	copy_v3_v3(mi->centroid, loc);
 
 	//fracture_update_shards(fmd, s);
@@ -348,11 +354,6 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	copy_v3_v3(mi->centroid, loc);
 
 	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
-	if (mi->rigidbody)
-	{
-		mi->rigidbody->mesh_island_index = mi->id;
-	}
-
 	BLI_strncpy(mi->name, target->id.name + 2, MAX_ID_NAME - 2);
 
 	//handle materials
@@ -434,18 +435,27 @@ void BKE_fracture_mesh_island_free(MeshIsland *mi, Scene* scene)
 		mi->locs = NULL;
 	}
 
+	if (mi->vels) {
+		MEM_freeN(mi->vels);
+		mi->vels = NULL;
+	}
+
+	if (mi->aves) {
+		MEM_freeN(mi->aves);
+		mi->aves = NULL;
+	}
+
 	if (mi->neighbors) {
 		MEM_freeN(mi->neighbors);
 		mi->neighbors = NULL;
 		mi->neighbor_count = 0;
 	}
 
-	mi->frame_count = 0;
-
 	MEM_freeN(mi);
 	mi = NULL;
 }
 
+#if 0
 static void pack_storage_remove(FractureModifierData *fmd, MeshIsland *mi, Scene* scene)
 {
 	MeshIsland *t = fmd->shared->pack_storage.first;
@@ -461,6 +471,7 @@ static void pack_storage_remove(FractureModifierData *fmd, MeshIsland *mi, Scene
 		t = t->next;
 	}
 }
+#endif
 
 void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, Scene* scene)
 {
@@ -475,7 +486,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 		int i;
 
 		BLI_remlink(&fmd->shared->mesh_islands, mi);
-		pack_storage_remove(fmd, mi, scene);
+//		pack_storage_remove(fmd, mi, scene);
 
 		for (i = 0; i < mi->participating_constraint_count; i++)
 		{
@@ -488,6 +499,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 	}
 }
 
+#if 0
 static void pack_storage_remove_all(FractureModifierData* fmd, Scene* scene)
 {
 	MeshIsland *mi;
@@ -497,13 +509,14 @@ static void pack_storage_remove_all(FractureModifierData* fmd, Scene* scene)
 		BKE_fracture_mesh_island_free(mi, scene);
 	}
 }
+#endif
 
 void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene)
 {
 	MeshIsland *mi;
 
 	//free pack storage
-	pack_storage_remove_all(fmd, scene);
+//	pack_storage_remove_all(fmd, scene);
 
 	//free all constraints first
 	BKE_fracture_constraints_free(fmd, scene);

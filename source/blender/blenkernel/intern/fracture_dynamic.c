@@ -48,7 +48,7 @@
 #include "limits.h"
 #include "PIL_time.h"
 
-
+#if 0
 //static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66], Scene *scene);
 static void get_next_entries(FractureModifierData *fmd);
 static void get_prev_entries(FractureModifierData *fmd);
@@ -118,6 +118,7 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 
 	//fmd->last_frame = frame;
 }
+#endif
 
 #if 0
 static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66], Scene* scene)
@@ -178,6 +179,7 @@ static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, M
 }
 #endif
 
+#if 0
 bool BKE_fracture_dynamic_lookup_mesh_state(FractureModifierData *fmd, int frame)
 {
 	bool forward = false;
@@ -269,3 +271,4 @@ static void get_prev_entries(FractureModifierData *fmd)
 		fmd->shared->mesh_islands = fmd->shared->current_mi_entry->meshIslands;
 	}
 }
+#endif

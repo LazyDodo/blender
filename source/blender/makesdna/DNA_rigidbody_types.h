@@ -51,13 +51,6 @@ typedef struct RigidBodyWorld_Shared {
 	/* References to Physics Sim objects. Exist at runtime only ---------------------- */
 	void *physics_world;		/* Physics sim world (i.e. btDiscreteDynamicsWorld) */
 
-	struct Object **objects;	/* Array to access group objects by index, only used at runtime */
-	struct RigidBodyOb **cache_index_map; /*map from object, island to flat rigidbody array */
-	int *cache_offset_map; /* offset into objects array (?) for flat rigidbody index */
-	int numbodies; /* total number of rigidbodies,
-					  can be different than number of objects (if FMs are used)*/
-	char pad[4];
-
 } RigidBodyWorld_Shared;
 
 /* RigidBodyWorld (rbw)
@@ -71,6 +64,8 @@ typedef struct RigidBodyWorld {
 	struct EffectorWeights *effector_weights; /* effectors info */
 
 	struct Collection *group;		/* Group containing objects to use for Rigid Bodies */
+	struct Object **objects;		/* Array to access group objects by index, only used at runtime */
+
 	struct Collection *constraints;	/* Group containing objects to use for Rigid Body Constraints*/
 
 	int pad;
@@ -79,7 +74,7 @@ typedef struct RigidBodyWorld {
 	struct RigidBodyWorld_Shared *shared; /* This pointer is shared between all evaluated copies */
 	struct PointCache *pointcache DNA_DEPRECATED; /* Moved to shared->pointcache */
 	struct ListBase ptcaches DNA_DEPRECATED; /* Moved to shared->ptcaches */
-	int numbodies DNA_DEPRECATED;            /* number of objects in rigid body group */
+	int numbodies;				/* number of objects in rigid body group */
 
 	short steps_per_second;		/* number of simulation steps thaken per second */
 	short num_solver_iterations;/* number of constraint solver iterations made per simulation step */
@@ -132,9 +127,9 @@ typedef struct RigidBodyOb {
 	short type;				/* (eRigidBodyOb_Type) role of RigidBody in sim  */
 	short shape;			/* (eRigidBody_Shape) collision shape to use */
 
+	int is_fractured;
 	int flag;				/* (eRigidBodyOb_Flag) */
 	int col_groups;			/* Collision groups that determines wich rigid bodies can collide with each other */
-	int mesh_island_index;	/* determines "offset" inside an objects meshisland list, -1 for regular rigidbodies */
 	short mesh_source;		/* (eRigidBody_MeshSource) mesh source for mesh based collision shapes */
 	short pad;
 
@@ -159,7 +154,7 @@ typedef struct RigidBodyOb {
 	float ang_vel[3];
 
 	float force_thresh;
-	int is_fractured;
+	char pad2[4];
 
 	struct RigidBodyOb_Shared *shared; /* This pointer is shared between all evaluated copies */
 

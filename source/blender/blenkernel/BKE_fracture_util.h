@@ -45,7 +45,7 @@ typedef struct BisectContext {
 	float normal[3];
 	float centroid[3];
 	float obmat[4][4];
-	short inner_mat_index;
+	short inner_material_index;
 	struct KDTree *geometry_limitation_tree;
 
 } BisectContext;

@@ -3185,12 +3185,12 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 	copy_v3_v3(ob_new->loc, cent);
 
 	{
-		if (start < mi->start_frame) {
-			start = mi->start_frame;
+		if (start < mi->startframe) {
+			start = mi->startframe;
 		}
 
-		if (end > (mi->start_frame + mi->frame_count)) {
-			end = mi->start_frame + mi->frame_count;
+		if (end > mi->endframe) {
+			end = mi->endframe;
 		}
 	}
 
@@ -3244,8 +3244,8 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 					{
 						int x = i - start;
 
-						copy_v3_v3(loc, mi->locs[x]);
-						copy_qt_qt(rot, mi->rots[x]);
+						copy_v3_v3(loc, mi->rigidbody->pos);
+						copy_qt_qt(rot, mi->rigidbody->orn);
 
 						if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) {
 							mul_qt_qtqt(rot, rot, mi->rot);
@@ -3349,20 +3349,8 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 			U.ipo_new = interp;
 		}
 
-		if (mi->locs)
-		{
-			MEM_freeN(mi->locs);
-			mi->locs = NULL;
-		}
-
-		if (mi->rots)
-		{
-			MEM_freeN(mi->rots);
-			mi->rots = NULL;
-		}
-
-		mi->frame_count = 0;
-		mi->start_frame = cache->startframe;
+		//mi->frame_count = 0;
+		//mi->start_frame = cache->startframe;
 
 		/*if (i + step > end || i == end)
 		{

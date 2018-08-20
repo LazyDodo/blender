@@ -96,8 +96,6 @@ static void parse_cell_verts(cell c, MVert *mvert, int totvert);
 static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly);
 static void parse_cell_loops(cell c, MLoop *mloop, MPoly *mpoly, int totpoly);
 static void parse_cell_neighbors(cell c, int *neighbors, int totpoly);
-static void arrange_shard(FractureModifierData *fmd, MeshIsland *mi, bool do_verts, float cent[3]);
-static void cleanup_arrange_shard(FractureModifierData *fmd, MeshIsland *s, float cent[]);
 static void do_island_index_map(FractureModifierData *fmd, Object *ob);
 static void do_rigidbody(Main* bmain, Scene* scene, MeshIsland* mi, Object* ob, short rb_type, int i);
 
@@ -396,6 +394,9 @@ static void prepare_boolean(FractureModifierData* fmd, Object* ob, BooleanContex
 	ctx->thresh = fmd->boolean_double_threshold;
 	BLI_strncpy(ctx->uv_layer, fmd->uvlayer_name, 64);
 	ctx->inner_material_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
+	/*if no inner material has been found, just pick the first one */
+	if (ctx->inner_material_index < 0)
+		ctx->inner_material_index = 0;
 }
 
 
@@ -417,7 +418,12 @@ static void prepare_bisect(FractureModifierData *fmd, Object* ob, BisectContext*
 	ctx->clear_outer = true;
 	ctx->do_fast_bisect = false;
 	ctx->geometry_limitation_tree = fmd->shared->last_island_tree;
-	ctx->inner_mat_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
+	ctx->inner_material_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
+
+	/*if no inner material has been found, just pick the first one */
+	if (ctx->inner_material_index < 0)
+		ctx->inner_material_index = 0;
+
 	ctx->use_fill = false;
 	BLI_strncpy(ctx->uv_layer, fmd->uvlayer_name, 64);
 	unit_m4(ctx->obmat); // hmm, why necessary ?
@@ -453,7 +459,7 @@ static Mesh* get_mesh(Mesh** meshes, int index, Mesh* mesh)
 	}
 }
 
-static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Object* ob, Scene* scene, cell *c, int count)
+static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain, Object* ob, Scene* scene, cell *c, int count)
 {
 	int i, j = 0;
 	BisectContext bictx = {};
@@ -461,13 +467,16 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 	MeshIsland** islands = NULL;
 	KDTree *tree = NULL;
 	Mesh** temp_meshs = NULL;
-	Mesh* me = NULL;
+	Mesh* me = NULL, *mesh = mi->mesh;
 	int count_new = count+1;
+	float frame = BKE_scene_frame_get(scene);
 
 	/*global preparations */
 	islands = MEM_callocN(sizeof(MeshIsland*) * count, "islands");
 	tree = BLI_kdtree_new(count);
 	temp_meshs = MEM_callocN(sizeof(Mesh*) * count_new, "temp_meshs");
+
+	mi->endframe = frame;
 
 	/*for each cell...*/
 //#pragma omp parallel for
@@ -580,10 +589,9 @@ static void process_cells(FractureModifierData* fmd, Mesh* mesh, Main* bmain, Ob
 		{
 			if (temp_meshs[i]->totvert > 0)
 			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
-				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob);
+				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob, frame);
 				fracture_meshisland_add(fmd, result);
 				result->id = j;
-				result->rigidbody->mesh_island_index = j;
 				j++;
 			}
 			else {
@@ -1224,7 +1232,7 @@ void BKE_fracture_shard_by_points(FractureModifierData *fmd, FracPointCloud *poi
 	}
 
 	/*Evaluate result*/
-	process_cells(fmd, mi->mesh, bmain, ob, scene, voro_cells, pointcloud->totpoints);
+	process_cells(fmd, mi, bmain, ob, scene, voro_cells, pointcloud->totpoints);
 
 
 	/*Free structs in C++ area of memory */
@@ -1298,7 +1306,7 @@ void fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask ma
 }
 
 
-Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBase *islands, Object* ob)
+Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBase *islands, Object* ob, float ctime)
 {
 	float imat[4][4];
 	MeshIsland *mi;
@@ -1315,6 +1323,12 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 
 	for (mi = islands->first; mi; mi = mi->next)
 	{
+		RigidBodyOb *rbo = mi->rigidbody;
+
+		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
+ 			continue;
+		}
+
 		num_verts += mi->mesh->totvert;
 		num_polys += mi->mesh->totpoly;
 		num_loops += mi->mesh->totloop;
@@ -1340,6 +1354,11 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 		MEdge *me;
 		int i, v;
 		float iquat[4], irot[4], quat[4], size[3];
+		RigidBodyOb *rbo = mi->rigidbody;
+
+		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
+			continue;
+		}
 
 		memcpy(mesh->mvert + vertstart, mi->mesh->mvert, mi->mesh->totvert * sizeof(MVert));
 
@@ -1904,21 +1923,53 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 	}
 }
 
-void BKE_fracture_meshislands_free(FractureModifierData* fmd, ListBase* meshIslands, Scene* scene)
+bool BKE_fracture_meshisland_check_frame(FractureModifierData *fmd, MeshIsland* mi, int frame)
+{
+	return ((frame < mi->startframe && mi->startframe > fmd->shared->last_cache_start) ||
+		   (frame >= mi->endframe && mi->endframe < fmd->shared->last_cache_end));
+}
+
+void BKE_fracture_meshisland_check_realloc_cache(FractureModifierData *fmd, RigidBodyWorld *rbw, MeshIsland* mi, int frame)
+{
+	int endframe = rbw->shared->pointcache->endframe;
+	int startframe = rbw->shared->pointcache->startframe;
+
+	//only grow...
+	if (endframe != fmd->shared->last_cache_end)
+	{
+		//keep invalid shards untouched
+		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) && mi->endframe == fmd->shared->last_cache_end)
+		{
+			mi->endframe = endframe;
+			frame = mi->endframe - frame + 1;
+
+			mi->locs = MEM_reallocN(mi->locs, sizeof(float*) * 3 * frame);
+			mi->rots = MEM_reallocN(mi->rots, sizeof(float*) * 4 * frame);
+			mi->vels = MEM_reallocN(mi->vels, sizeof(float*) * 3 * frame);
+			mi->aves = MEM_reallocN(mi->aves, sizeof(float*) * 3 * frame);
+		}
+	}
+
+	fmd->shared->last_cache_end = endframe;
+	fmd->shared->last_cache_start = startframe;
+}
+
+void BKE_fracture_meshislands_free(FractureModifierData* fmd, Scene* scene)
 {
 	MeshIsland *mi;
 
-	while (meshIslands->first) {
-		mi = meshIslands->first;
-		BLI_remlink_safe(meshIslands, mi);
+	while (fmd->shared->mesh_islands.first) {
+		mi = fmd->shared->mesh_islands.first;
+		BLI_remlink_safe(&fmd->shared->mesh_islands, mi);
 		BKE_fracture_mesh_island_free(mi, scene);
 		mi = NULL;
 	}
 
-	meshIslands->first = NULL;
-	meshIslands->last = NULL;
+	fmd->shared->mesh_islands.first = NULL;
+	fmd->shared->mesh_islands.last = NULL;
 }
 
+#if 0
 void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 {
 	/* in dynamic mode we have to get rid of the entire Meshisland sequence */
@@ -1941,11 +1992,12 @@ void BKE_fracture_dynamic_free(FractureModifierData *fmd, Scene *scene)
 
 	fmd->shared->current_mi_entry = NULL;
 }
+#endif
 
 void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 {
 	BKE_fracture_constraints_free(fmd, scene);
-	BKE_fracture_dynamic_free(fmd, scene);
+	BKE_fracture_meshislands_free(fmd, scene);
 
 	if (fmd->shared->material_index_map)
 	{
@@ -2289,7 +2341,7 @@ static void points_from_verts(Object **ob, int totobj, FracPointCloud *points, f
 						float min[3], max[3], cent[3];
 						if (mi)
 						{
-							arrange_shard(emd, mi->id, false, cent);
+							//arrange_shard(emd, mi->id, false, cent);
 
 							//TODO FIX fill / cache mi->min / max
 							add_v3_v3v3(min, mi->min, cent);
@@ -2366,7 +2418,7 @@ static void points_from_particles(Object **ob, int totobj, Scene *scene, FracPoi
 						if (mi->id > 0)
 						{
 							float min[3], max[3], cent[3];
-							arrange_shard(fmd, mi->id, false, cent);
+//							arrange_shard(fmd, mi->id, false, cent);
 							add_v3_v3v3(min, mi->min, cent);
 							add_v3_v3v3(max, mi->max, cent);
 							if (in_bbox(co, min, max))
@@ -2493,10 +2545,11 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 		copy_v3_v3(mi->max, max);
 
 		//arrange shards according to their original centroid (parent centroid sum) position in shard-space (else they are centered at 0, 0, 0)
-		arrange_shard(emd, mi->id, false, cent);
+//		arrange_shard(emd, mi->id, false, cent);
 		add_v3_v3v3(bmax, max, cent);
 		add_v3_v3v3(bmin, min, cent);
 
+#if 0
 		//first impact only, so shard has id 0
 		if (emd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
 			//shrink pointcloud container around impact point, to a size
@@ -2504,10 +2557,10 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 			copy_v3_v3(max, bmax);
 			copy_v3_v3(min, bmin);
 
-			if (mi  && mi->impact_size[0] > 0.0f && emd->limit_impact) {
+			if (mi && mi->impact_size[0] > 0.0f && emd->limit_impact) {
 				float size[3], nmin[3], nmax[3], loc[3], tmin[3], tmax[3], rloc[3] = {0,0,0}, quat[4] = {1,0,0,0};
-				MeshIslandSequence *msq = emd->shared->current_mi_entry->prev ? emd->shared->current_mi_entry->prev :
-				                                                                emd->shared->current_mi_entry;
+				//MeshIslandSequence *msq = emd->shared->current_mi_entry->prev ? emd->shared->current_mi_entry->prev :
+				//                                                                emd->shared->current_mi_entry;
 				MeshIsland *mi = NULL;
 				RigidBodyOb *rbo = NULL;
 
@@ -2580,16 +2633,6 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 				print_v3("MAX:", max);*/
 			}
 		}
-
-#if 0
-		if (emd->frac_algorithm == MOD_FRACTURE_BISECT_FAST || emd->frac_algorithm == MOD_FRACTURE_BISECT_FAST_FILL ||
-			emd->frac_algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL) {
-			/* XXX need double amount of shards, because we create 2 islands at each cut... so this matches the input count */
-			if ((count > 1) || emd->frac_algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL) {
-				count--;
-				count *= 2;
-			}
-		}
 #endif
 
 		//omg, vary the seed here
@@ -2659,7 +2702,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 		copy_v3_v3(mi->max, max);
 
 		//arrange shards according to their original centroid (parent centroid sum) position in shard-space (else they are centered at 0, 0, 0)
-		arrange_shard(emd, mi->id, false, cent);
+//		arrange_shard(emd, mi->id, false, cent);
 		add_v3_v3v3(bmax, max, cent);
 		add_v3_v3v3(bmin, min, cent);
 
@@ -2875,6 +2918,7 @@ static void cleanup_splinters(FractureModifierData *fmd, float mat[4][4], MeshIs
 	}
 }
 
+#if 0
 static void arrange_shard(FractureModifierData *fmd, MeshIsland* mi, bool do_verts, float cent[3])
 {
 	if (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
@@ -2908,7 +2952,9 @@ static void arrange_shard(FractureModifierData *fmd, MeshIsland* mi, bool do_ver
 		}
 	}
 }
+#endif
 
+#if 0
 static void cleanup_arrange_shard(FractureModifierData *fmd, MeshIsland *sh, float cent[3])
 {
 	int i = 0;
@@ -2919,10 +2965,11 @@ static void cleanup_arrange_shard(FractureModifierData *fmd, MeshIsland *sh, flo
 		sub_v3_v3(sh->mesh->mvert[i].co, cent);
 	}
 }
+#endif
 
 
-void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
-							   int override_count, Depsgraph* depsgraph, Main *bmain, Scene *scene)
+void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi, Depsgraph* depsgraph, Main *bmain,
+                         Scene *scene)
 {
 	/* dummy point cloud, random */
 	FracPointCloud points;
@@ -2934,7 +2981,7 @@ void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
 		float mat[4][4];
 		float cent[3];
 
-		arrange_shard(fmd, mi, true, cent);
+//		arrange_shard(fmd, mi, true, cent);
 
 		/*splinters... just global axises and a length, for rotation rotate the object */
 		mi = do_splinters(fmd, points, &fmd->shared->splinter_matrix, mi);
@@ -2954,7 +3001,7 @@ void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
 
 		if (mi->mesh)
 		{
-			cleanup_arrange_shard(fmd, mi, cent);
+//			cleanup_arrange_shard(fmd, mi, cent);
 
 			/* here we REALLY need to fracture so deactivate the shards to islands flag and activate afterwards */
 			//fmd->shards_to_islands = false;
@@ -2964,10 +3011,12 @@ void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
 			cleanup_splinters(fmd, fmd->shared->splinter_matrix, mi);
 		}
 
+#if 0
 		/* The original mesh island must not be in the collection any more, so unlink and free */
 		BLI_remlink(&fmd->shared->mesh_islands, mi);
 		BKE_fracture_mesh_island_free(mi, scene);
 		mi = NULL;
+#endif
 
 		if (!fmd->auto_execute && fmd->execute_threaded) {
 			fmd->shared->reset_shards = false;
@@ -2979,12 +3028,12 @@ void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
 //this is the main fracture function, outsource to BKE, so op or rb system can call it
 void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Depsgraph *depsgraph, Main* bmain, Scene *scene)
 {
-	short mat_index = 0;
 	MeshIsland *mii = NULL;
 
 	/* no pointsource means re-use existing mesh islands*/
 	if (fmd->point_source == 0) {
 		int count = 1, i, j = 0;
+		int frame = (int)(BKE_scene_frame_get(scene)); //TODO ensure original scene !!!
 		Mesh** temp_meshs = MEM_callocN(sizeof(Mesh*) * count, "temp_islands no pointsource");
 		BKE_fracture_split_islands(fmd, obj, mi->mesh, &temp_meshs, &count);
 
@@ -2999,10 +3048,9 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 			{
 				if (temp_meshs[i]->totvert > 0)
 				{	/* skip invalid cells, e.g. those which are eliminated by bisect */
-					MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, obj);
+					MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, obj, frame);
 					fracture_meshisland_add(fmd, result);
 					result->id = j;
-					result->rigidbody->mesh_island_index = j;
 					j++;
 				}
 				else {
@@ -3032,13 +3080,13 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 		for (mii = fmd->shared->mesh_islands.first; mii; mii = mii->next)
 		{
 			printf("Fracturing MeshIsland %d\n", mii->id);
-			BKE_fracture_points(fmd, obj, mii, 0, depsgraph, bmain, scene);
+			BKE_fracture_points(fmd, obj, mii, depsgraph, bmain, scene);
 		}
 
 		fmd->shared->reset_shards = reset;
 	}
 	else {
-		BKE_fracture_points(fmd, obj, mi, -1, depsgraph, bmain, scene);
+		BKE_fracture_points(fmd, obj, mi, depsgraph, bmain, scene);
 	}
 }
 
@@ -3100,15 +3148,6 @@ static int BM_calc_center_centroid(BMesh *bm, float cent[3], int tagged)
 	return (bm->totface != 0);
 }
 
-static void do_rigidbody(Main* bmain, Scene* scene, MeshIsland* mi, Object* ob, short rb_type, int i)
-{
-	mi->rigidbody = NULL;
-	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);
-	mi->rigidbody->type = rb_type;
-	mi->rigidbody->mesh_island_index = i;
-	BKE_rigidbody_calc_shard_mass(ob, mi);
-}
-
 #if 0 //TODO FIX...
 static short do_vert_index_map(FractureModifierData *fmd, MeshIsland *mi, MeshIsland *par)
 {
@@ -3153,6 +3192,7 @@ static void do_fix_normals(FractureModifierData *fmd, MeshIsland *mi)
 }
 #endif
 
+#if 0
 static float do_setup_meshisland(FractureModifierData *fmd, Object *ob, int totvert, float centroid[3],
 								 BMVert **verts, float *vertco, short *vertno, BMesh **bm_new, Mesh *orig_dm,
 								 int id, Scene *scene, Main *bmain)
@@ -3246,6 +3286,8 @@ static float do_setup_meshisland(FractureModifierData *fmd, Object *ob, int totv
 
 	return vol;
 }
+
+#endif
 
 static void mesh_separate_tagged(FractureModifierData *fmd, Object *ob, BMVert** v_tag, int v_count,
 								  BMesh *bm_work, Mesh*** temp_islands, int* count)

@@ -144,11 +144,12 @@ typedef struct FractureModifierData_Shared {
 	Mesh *mesh_cached; /* the unprocessed cached mesh, before autohide etc */
 
 	//dynamic stuff... heavy TODO
-	ListBase meshIsland_sequence; /* used as mesh cache / history for dynamic fracturing, for meshIslands (necessary for loc/rot "pointcache") */
-	MeshIslandSequence *current_mi_entry; /*analogous to current shard entry */
+	//ListBase meshIsland_sequence;
+	/* used as mesh cache / history for dynamic fracturing, for meshIslands (necessary for loc/rot "pointcache") */
+	//MeshIslandSequence *current_mi_entry; /*analogous to current shard entry */
 	ListBase fracture_ids; /*volatile storage of shards being "hit" or fractured currently, needs to be cleaned up after usage! */
 	ListBase shared_verts; /* used for storing shared vertices for automerge */
-	ListBase pack_storage; /*used to store packed geometry when switching modes */
+	//ListBase pack_storage; /*used to store packed geometry when switching modes */
 
 	//runtime only data, can be shared too
 	struct KDTree *nor_tree; /* store original vertices here (coords), to find them later and reuse their normals */
@@ -179,6 +180,9 @@ typedef struct FractureModifierData_Shared {
 	int refresh_autohide;
 	int reset_shards;
 
+	int last_cache_start;
+	int last_cache_end;
+
 	char pad[4];
 
 } FractureModifierData_Shared;
@@ -186,7 +190,7 @@ typedef struct FractureModifierData_Shared {
 typedef struct MeshIsland {
 	struct MeshIsland *next, *prev;
 	struct Mesh *mesh;
-	struct MeshIsland *parent;
+	//struct MeshIsland *parent;
 	struct RigidBodyOb *rigidbody;
 	struct RigidBodyShardCon **participating_constraints;
 	int *neighbors;
@@ -195,12 +199,14 @@ typedef struct MeshIsland {
 	//might be useful for convert to keyframes, motion history ? either play back from cache
 	float (*locs)[3];
 	float (*rots)[4];
+	float (*vels)[3];
+	float (*aves)[3];
 
 	char name[66]; /* MAX_ID_NAME */
 	char pad1[2];
 
-	int start_frame;
-	int frame_count;
+	int startframe;
+	int endframe;
 	int participating_constraint_count;
 	int id;
 	float centroid[3];

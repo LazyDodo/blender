@@ -1289,29 +1289,56 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 {
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
+	Object* ob = rbw->objects[index];
+	FractureModifierData *fmd = modifiers_findByType(ob, eModifierType_Fracture);
 
-	if (!rbw->shared->cache_index_map || !rbw->shared->cache_offset_map)
-		return 1;
-
-	rbo = rbw->shared->cache_index_map[index];
-	
-	if (rbo == NULL) {
-		return 1;
-	}
-
-    if (rbo && rbo->shared && rbo->shared->physics_object)
-	{
+	if (!fmd) {
+		rbo = ob->rigidbody_object;
+		if (rbo && rbo->shared && rbo->shared->physics_object)
+		{
 
 #ifdef WITH_BULLET
-            RB_body_get_position(rbo->shared->physics_object, rbo->pos);
-            RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
-            RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
-            RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
+			RB_body_get_position(rbo->shared->physics_object, rbo->pos);
+			RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
+			RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
+			RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
 #endif
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_LOCATION, rbo->pos);
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_ROTATION, rbo->orn);
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_VELOCITY, rbo->lin_vel);
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_AVELOCITY, rbo->ang_vel);
+		}
+	}
+	else {
+		MeshIsland *mi;
+		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+		{
+			int frame = (int)cfra;
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
+				continue;
+			}
+
+			if (frame >= fmd->shared->last_cache_end) {
+				BKE_fracture_meshisland_check_realloc_cache(fmd, rbw, mi, frame);
+				//continue;
+			}
+
+			rbo = mi->rigidbody;
+#ifdef WITH_BULLET
+			if (rbo && rbo->shared && rbo->shared->physics_object) {
+				RB_body_get_position(rbo->shared->physics_object, rbo->pos);
+				RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
+				RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
+				RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
+			}
+#endif
+			//ensure valid values here, now !!!
+			frame = frame - mi->startframe;
+			copy_v3_v3(mi->locs[frame], rbo->pos);
+			copy_qt_qt(mi->rots[frame], rbo->orn);
+			copy_v3_v3(mi->vels[frame], rbo->lin_vel);
+			copy_v3_v3(mi->aves[frame], rbo->ang_vel);
+		}
 	}
 
 	return 1;
@@ -1320,72 +1347,147 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 {
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
-	
-	rbo = rbw->shared->cache_index_map[index];
-	
-	if (rbo == NULL) {
-		return;
+	Object* ob = rbw->objects[index];
+	FractureModifierData *fmd = modifiers_findByType(ob, eModifierType_Fracture);
+
+	if (!fmd) {
+		rbo = ob->rigidbody_object;
+		if (rbo && rbo->type == RBO_TYPE_ACTIVE) {
+
+			if (old_data) {
+				memcpy(rbo->pos, data, 3 * sizeof(float));
+				memcpy(rbo->orn, data + 3, 4 * sizeof(float));
+			}
+			else {
+				PTCACHE_DATA_TO(data, BPHYS_DATA_LOCATION, 0, rbo->pos);
+				PTCACHE_DATA_TO(data, BPHYS_DATA_ROTATION, 0, rbo->orn);
+				PTCACHE_DATA_TO(data, BPHYS_DATA_VELOCITY, 0, rbo->lin_vel);
+				PTCACHE_DATA_TO(data, BPHYS_DATA_AVELOCITY,0, rbo->ang_vel);
+			}
+		}
 	}
+	else {
+		MeshIsland *mi;
+		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+		{
+			int frame = (int)cfra;
 
-    if (rbo && rbo->type == RBO_TYPE_ACTIVE) {
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
+				continue;
+			}
 
-        if (old_data) {
-            memcpy(rbo->pos, data, 3 * sizeof(float));
-            memcpy(rbo->orn, data + 3, 4 * sizeof(float));
-        }
-        else {
-            PTCACHE_DATA_TO(data, BPHYS_DATA_LOCATION, 0, rbo->pos);
-            PTCACHE_DATA_TO(data, BPHYS_DATA_ROTATION, 0, rbo->orn);
-            PTCACHE_DATA_TO(data, BPHYS_DATA_VELOCITY, 0, rbo->lin_vel);
-            PTCACHE_DATA_TO(data, BPHYS_DATA_AVELOCITY,0, rbo->ang_vel);
-        }
-    }
+			if (frame >= fmd->shared->last_cache_end) {
+				continue;
+			}
+
+			rbo = mi->rigidbody;
+
+			//ensure valid values here, now !!!
+			frame = frame - mi->startframe;
+			copy_v3_v3(rbo->pos, mi->locs[frame]);
+			copy_qt_qt(rbo->orn, mi->rots[frame]);
+			copy_v3_v3(rbo->lin_vel, mi->vels[frame]);
+			copy_v3_v3(rbo->ang_vel, mi->aves[frame]);
+		}
+	}
 }
 static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, float cfra, float cfra1, float cfra2, float *old_data)
 {
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
-    ParticleKey keys[4], result;
+	Object* ob = rbw->objects[index];
+	FractureModifierData *fmd = modifiers_findByType(ob, eModifierType_Fracture);
+	ParticleKey keys[4], result;
 	float dfra;
-	
-	rbo = rbw->shared->cache_index_map[index];
-	if (rbo == NULL) {
-		return;
+
+	if (!fmd) {
+		rbo = ob->rigidbody_object;
+
+		if (rbo->type == RBO_TYPE_ACTIVE) {
+
+			copy_v3_v3(keys[1].co, rbo->pos);
+			copy_qt_qt(keys[1].rot, rbo->orn);
+			copy_v3_v3(keys[1].vel, rbo->lin_vel);
+			copy_v3_v3(keys[1].ave, rbo->ang_vel);
+
+			if (old_data) {
+				memcpy(keys[2].co, data, 3 * sizeof(float));
+				memcpy(keys[2].rot, data + 3, 4 * sizeof(float));
+				memcpy(keys[2].vel, data + 7, 3 * sizeof(float));
+				memcpy(keys[2].ave, data + 10, 3 * sizeof(float));
+			}
+			else {
+				BKE_ptcache_make_particle_key(keys+2, 0, data, cfra2);
+			}
+
+			dfra = cfra2 - cfra1;
+
+			/* note: keys[0] and keys[3] unused for type < 1 (crappy) */
+			psys_interpolate_particle(-1, keys, (cfra - cfra1) / dfra, &result, true);
+			interp_qt_qtqt(result.rot, keys[1].rot, keys[2].rot, (cfra - cfra1) / dfra);
+
+			copy_v3_v3(rbo->pos, result.co);
+			copy_qt_qt(rbo->orn, result.rot);
+		}
 	}
+	else {
+		MeshIsland *mi;
+		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+		{
+			int frame = (int)cfra;
+			int frame2 = (int)cfra2;
 
-    if (rbo->type == RBO_TYPE_ACTIVE) {
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
+				continue;
+			}
 
-		copy_v3_v3(keys[1].co, rbo->pos);
-		copy_qt_qt(keys[1].rot, rbo->orn);
-		copy_v3_v3(keys[1].vel, rbo->lin_vel);
-		copy_v3_v3(keys[1].ave, rbo->ang_vel);
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame2)) {
+				continue;
+			}
 
-        if (old_data) {
-            memcpy(keys[2].co, data, 3 * sizeof(float));
-            memcpy(keys[2].rot, data + 3, 4 * sizeof(float));
-            memcpy(keys[2].vel, data + 7, 3 * sizeof(float));
-            memcpy(keys[2].ave, data + 10, 3 * sizeof(float));
-        }
-        else {
-            BKE_ptcache_make_particle_key(keys+2, 0, data, cfra2);
-        }
+			if (frame >= fmd->shared->last_cache_end) {
+				continue;
+			}
 
-        dfra = cfra2 - cfra1;
+			if (frame2 >= fmd->shared->last_cache_end) {
+				continue;
+			}
 
-        /* note: keys[0] and keys[3] unused for type < 1 (crappy) */
-        psys_interpolate_particle(-1, keys, (cfra - cfra1) / dfra, &result, true);
-        interp_qt_qtqt(result.rot, keys[1].rot, keys[2].rot, (cfra - cfra1) / dfra);
+			frame = frame - mi->startframe;
+			frame2 = frame2 - mi->startframe;
 
-        copy_v3_v3(rbo->pos, result.co);
-        copy_qt_qt(rbo->orn, result.rot);
-    }
+			rbo = mi->rigidbody;
+			if (rbo->type == RBO_TYPE_ACTIVE) {
+
+				copy_v3_v3(keys[1].co, rbo->pos);
+				copy_qt_qt(keys[1].rot, rbo->orn);
+				copy_v3_v3(keys[1].vel, rbo->lin_vel);
+				copy_v3_v3(keys[1].ave, rbo->ang_vel);
+
+				copy_v3_v3(keys[2].co, mi->locs[frame2]);
+				copy_qt_qt(keys[2].rot, mi->rots[frame2]);
+				copy_v3_v3(keys[2].vel, mi->vels[frame2]);
+				copy_v3_v3(keys[2].ave, mi->aves[frame2]);
+				keys[2].time = cfra2;
+
+				dfra = cfra2 - cfra1;
+
+				/* note: keys[0] and keys[3] unused for type < 1 (crappy) */
+				psys_interpolate_particle(-1, keys, (cfra - cfra1) / dfra, &result, true);
+				interp_qt_qtqt(result.rot, keys[1].rot, keys[2].rot, (cfra - cfra1) / dfra);
+
+				copy_v3_v3(rbo->pos, result.co);
+				copy_qt_qt(rbo->orn, result.rot);
+			}
+		}
+	}
 }
 
 static int ptcache_rigidbody_totpoint(void *rb_v, int UNUSED(cfra))
 {
 	RigidBodyWorld *rbw = rb_v;
 
-	return rbw->shared->numbodies;
+	return rbw->numbodies;
 }
 
 static void ptcache_rigidbody_error(void *UNUSED(rb_v), const char *UNUSED(message))

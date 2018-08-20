@@ -89,7 +89,7 @@ void BKE_rigidbody_validate_sim_shard_constraint(struct RigidBodyWorld *rbw, str
                                                  struct RigidBodyShardCon *rbsc, short rebuild);
 
 void BKE_rigidbody_validate_sim_shard(struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob,
-                                      struct FractureModifierData *fmd, short rebuild, int transfer_speeds, float size[3]);
+                                      struct FractureModifierData *fmd, short rebuild, int transfer_speeds, float size[3], float ctime);
 
 void BKE_rigidbody_validate_sim_shard_shape(struct MeshIsland *mi, struct Object *ob, short rebuild);
 
@@ -152,7 +152,7 @@ void BKE_rigidbody_id_callback(void *world, void* island, int* objectId, int* is
 
 bool BKE_rigidbody_modifier_active(struct FractureModifierData *rmd);
 void BKE_rigidbody_shard_validate(struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob,
-                                  struct FractureModifierData *fmd, int rebuild, int transfer_speed, float size[3]);
+                                  struct FractureModifierData *fmd, int rebuild, int transfer_speed, float size[3], float frame);
 
 void BKE_rigidbody_activate(struct RigidBodyOb* rbo, struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob);
 bool BKE_rigidbody_modifier_update(struct Scene* scene, struct Object* ob, struct RigidBodyWorld *rbw,  bool rebuild,

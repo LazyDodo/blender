@@ -248,6 +248,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 	dist = rmd->contact_dist;
 	//factor = rmd->mass_threshold_factor;
 
+#if 0
 	if ((rmd->fracture_mode == MOD_FRACTURE_DYNAMIC) &&
 		(rmd->dynamic_new_constraints != MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS))
 	{
@@ -255,6 +256,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 			return;
 		}
 	}
+#endif
 
 	if (rmd->constraint_target == MOD_FRACTURE_CENTROID) {
 		mul_v3_m4v3(obj_centr, ob->obmat, mi->centroid);
@@ -289,7 +291,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 			if ((i >= limit) && (limit > 0)) {
 				break;
 			}
-
+#if 0
 			if ((rmd->fracture_mode == MOD_FRACTURE_DYNAMIC))
 			{
 				if (rmd->dynamic_new_constraints == MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS) {
@@ -305,6 +307,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 					}
 				}
 			}
+#endif
 
 			BKE_fracture_constraint_create(scene, rmd, mi, mi2, con_type, thresh);
 		}
@@ -674,6 +677,7 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	MeshIsland *mi = NULL;
 	RigidBodyShardCon *rbsc = NULL;
 
+#if 0
 	//hmm after loading the pointers might be out of sync...
 	if (fmd->shared->current_mi_entry) {
 		fmd->shared->mesh_islands = fmd->shared->current_mi_entry->meshIslands;
@@ -682,6 +686,7 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 		fmd->shared->mesh_islands.first = NULL;
 		fmd->shared->mesh_islands.last = NULL;
 	}
+#endif
 
 	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
 		if (mi->participating_constraints != NULL && mi->participating_constraint_count > 0) {

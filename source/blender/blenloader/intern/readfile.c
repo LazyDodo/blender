@@ -5427,6 +5427,9 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 
 			if (!fmd->shared) {
 				fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "shared");
+				/* initialize with halfway sane defaults here atleast*/
+				fmd->shared->last_cache_start = 0;
+				fmd->shared->last_cache_end = 250;
 				fmd->shared->refresh = true;
 				fmd->shared->reset_shards = true;
 			}
@@ -6476,10 +6479,8 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 				rbw->ltime = (float)rbw->shared->pointcache->startframe;
 			}
 		}
-		rbw->shared->objects = NULL;
+		rbw->objects = NULL;
 		rbw->numbodies = 0;
-		rbw->shared->cache_index_map = NULL;
-		rbw->shared->cache_offset_map = NULL;
 
 		/* set effector weights */
 		rbw->effector_weights = newdataadr(fd, rbw->effector_weights);

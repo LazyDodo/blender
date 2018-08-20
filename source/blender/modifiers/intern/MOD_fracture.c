@@ -165,6 +165,8 @@ static void initData(ModifierData *md)
 
 	if (!fmd->shared) {
 		fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
+		fmd->shared->last_cache_start = 0;
+		fmd->shared->last_cache_end = 250; // just the default values here
 	}
 }
 

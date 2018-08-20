@@ -308,7 +308,7 @@ static char *rna_RigidBodyOb_path(PointerRNA *ptr)
     {
         char name_esc[sizeof(md->name) * 2];
         BLI_strescape(name_esc, md->name, sizeof(name_esc));
-        return BLI_sprintfN("modifiers[\"%s\"].mesh_islands[%d].rigidbody", name_esc, rbo->mesh_island_index);
+        return BLI_sprintfN("modifiers[\"%s\"].mesh_islands[%d].rigidbody", name_esc, 0); //TODO
     }
     else
     {

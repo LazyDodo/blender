@@ -476,7 +476,7 @@ static void do_fill(float plane_no[3], BMOperator bmop, BMesh* bm_parent, Bisect
 		BMO_op_initf(
 			bm_parent, &bmop_fill, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 			"edgenet_fill edges=%S mat_nr=%i use_smooth=%b sides=%i",
-			&bmop, "geom_cut.out", ctx->inner_mat_index, false, 2);
+			&bmop, "geom_cut.out", ctx->inner_material_index, false, 2);
 		BMO_op_exec(bm_parent, &bmop_fill);
 	//}
 
@@ -487,7 +487,7 @@ static void do_fill(float plane_no[3], BMOperator bmop, BMesh* bm_parent, Bisect
 		BMIter iter;
 		BM_ITER_MESH(f, &iter, bm_parent, BM_FACES_OF_MESH) {
 			if (BM_elem_flag_test(f, BM_ELEM_TAG)) {
-				f->mat_nr = ctx->inner_mat_index;
+				f->mat_nr = ctx->inner_material_index;
 			}
 		}
 	}

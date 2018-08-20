@@ -103,19 +103,12 @@ void BKE_fracture_shared_verts_free(struct ListBase* lb);
 
 struct Mesh *BKE_fracture_autohide_do(struct FractureModifierData *fmd, struct Mesh *dm, struct Object *ob, struct Scene* sc);
 
-struct FracMesh* BKE_fracture_fracmesh_copy(struct FracMesh* fm);
-void BKE_fracture_simulation_free(struct FractureModifierData *fmd, struct Scene *scene);
-
-void BKE_fracture_meshislands_free(struct FractureModifierData* fmd, struct ListBase* meshIslands, struct Scene* scene);
+void BKE_fracture_meshislands_free(struct FractureModifierData* fmd, struct Scene* scene);
 
 void BKE_fracture_free(struct FractureModifierData *fmd, struct Scene *scene);
 
 void BKE_fracture_do(struct FractureModifierData *fmd, struct MeshIsland *mi, struct Object *obj,
                      struct Depsgraph *depsgraph, struct Main *bmain, struct Scene *scene);
-
-void BKE_fracture_normal_find(struct Mesh *dm, struct KDTree *tree, float co[3], short no[3], short rno[3], float range);
-void BKE_fracture_physics_normals_fix(struct FractureModifierData *fmd, struct MeshIsland* mi, int i,
-                                           struct Mesh* orig_dm);
 
 void BKE_fracture_collect_layers(struct Shard* s, struct Mesh *dm, int vertstart, int polystart, int loopstart, int edgestart);
 
@@ -177,7 +170,7 @@ void BKE_fracture_fill_vgroup(struct FractureModifierData *rmd, struct Mesh *dm,
 void BKE_fracture_split_islands(struct FractureModifierData *fmd, struct Object* ob, struct Mesh *me, struct Mesh ***temp_islands,
 int *count);
 
-struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct ListBase *islands, struct Object *ob);
+struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct ListBase *islands, struct Object *ob, float ctime);
 
 void BKE_fracture_modifier_free(struct FractureModifierData *fmd, struct Scene *scene);
 
@@ -195,19 +188,16 @@ struct Mesh* BKE_fracture_bmesh_to_mesh(struct BMesh* bm);
 
 void BKE_update_velocity_layer(struct FractureModifierData *fmd, struct Mesh *dm);
 bool BKE_rigidbody_remove_modifier(struct RigidBodyWorld* rbw, struct ModifierData *md, struct Object *ob);
-
-void BKE_fracture_dynamic_do(struct FractureModifierData *fmd, struct Object* ob, struct Scene* scene,
-                             struct Depsgraph* depsgraph, struct Main* bmain);
-
-void BKE_fracture_dynamic_free(struct FractureModifierData *fmd, struct Scene *scene);
-
 void BKE_fracture_external_constraints_setup(struct FractureModifierData *fmd, struct Scene *scene, struct Object *ob);
-void BKE_fracture_dynamic_new_entries_add(struct FractureModifierData* fmd, struct Scene *scene, bool is_new);
 
 struct Mesh* BKE_fracture_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *me, struct Depsgraph* depsgraph);
 
-struct MeshIsland *BKE_fracture_mesh_island_create(struct Mesh* me, struct Main* bmain, struct Scene *scene, struct Object *ob);
+struct MeshIsland *BKE_fracture_mesh_island_create(struct Mesh* me, struct Main* bmain, struct Scene *scene, struct Object *ob, int frame);
 void BKE_fracture_mesh_boundbox_calc(struct Mesh *me, float r_loc[], float r_size[]);
 void BKE_fracture_mesh_free(struct Mesh *me);
+
+void BKE_fracture_meshisland_check_realloc_cache(struct FractureModifierData *fmd, struct RigidBodyWorld *rbw, struct MeshIsland* mi, int frame);
+
+bool BKE_fracture_meshisland_check_frame(struct FractureModifierData *fmd, struct MeshIsland* mi, int frame);
 
 #endif /* BKE_FRACTURE_H */
