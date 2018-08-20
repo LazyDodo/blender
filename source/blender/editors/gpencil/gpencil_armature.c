@@ -71,6 +71,7 @@
 #include "ED_mesh.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "gpencil_intern.h"
 
@@ -276,9 +277,24 @@ static int dgroup_skinnable_cb(Object *ob, Bone *bone, void *datap)
 	return 0;
 }
 
+/* get weight value depending of distance and decay value */
+static float get_weight(float dist, float decay_rad, float dif_rad)
+{
+	float weight = 1.0f;
+	if (dist < decay_rad) {
+		weight = 1.0f;
+	}
+	else {
+		weight = interpf(0.0f, 0.9f, (dist - decay_rad) / dif_rad);
+	}
+
+	return weight;
+}
+
 /* This functions implements the automatic computation of vertex group weights */
 static void gpencil_add_verts_to_dgroups(bContext *C,
-	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm)
+	ReportList *reports, Depsgraph *depsgraph, Scene *scene,
+	Object *ob, Object *ob_arm, const float ratio, const float decay)
 {
 	bArmature *arm = ob_arm->data;
 	Bone **bonelist, *bone;
@@ -372,7 +388,7 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 		lensqr[j] = len_squared_v3v3(root[j], tip[j]);
 
 		/* calculate radius squared */
-		radsqr[j] = lensqr[j] / 6.0f;
+		radsqr[j] = lensqr[j] * ratio;
 	}
 
 	/* loop all strokes */
@@ -412,6 +428,9 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 							continue;
 						}
 
+						float decay_rad = radsqr[j] - (radsqr[j] * decay);
+						float dif_rad = radsqr[j] - decay_rad;
+
 						for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 							MDeformVert *dvert = &gps->dvert[i];
 							float dist = test_point_in_cylynder(root[j], tip[j],
@@ -420,21 +439,20 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 							if (dist < 0) {
 								/* if not in cylinder, check if inside sphere of extremes */
 								weight = 0.0f;
-								float rad = radsqr[j] * 0.75f;
 								dist = len_squared_v3v3(root[j], &pt->x);
-								if (dist < rad) {
-									weight = interpf(0.0f, 0.9f, dist / rad);
+								if (dist < radsqr[j]) {
+									weight = get_weight(dist, decay_rad, dif_rad);
 								}
 								else {
 									dist = len_squared_v3v3(tip[j], &pt->x);
-									if (dist < rad) {
-										weight = interpf(0.0f, 0.9f, dist / rad);
+									if (dist < radsqr[j]) {
+										weight = get_weight(dist, decay_rad, dif_rad);
 									}
 								}
 							}
 							else {
 								/* inside bone cylinder */
-								weight = 1.0f;
+								weight = get_weight(dist, decay_rad, dif_rad);
 							}
 
 							/* assign weight */
@@ -466,7 +484,7 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 
 static void gpencil_object_vgroup_calc_from_armature(bContext *C,
 	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm,
-	const int mode, const bool mirror)
+	const int mode, const float ratio, const float decay)
 {
 	/* Lets try to create some vertex groups
 	 * based on the bones of the parent armature.
@@ -492,17 +510,34 @@ static void gpencil_object_vgroup_calc_from_armature(bContext *C,
 		 * with the corresponding vertice weights for which the
 		 * bone is closest.
 		 */
-		gpencil_add_verts_to_dgroups(C, reports, depsgraph, scene, ob, ob_arm);
+		gpencil_add_verts_to_dgroups(C, reports, depsgraph, scene, ob, ob_arm,
+									ratio, decay);
 	}
 }
 
 /* ***************** Generate armature weights ************************** */
 bool gpencil_generate_weights_poll(bContext *C)
 {
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Object *ob = CTX_data_active_object(C);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	bGPdata *gpd = (bGPdata *)ob->data;
+	int t = BLI_listbase_count(&gpd->layers);
 
-	return (gpl != NULL);
+	if (t == 0) {
+		return false;
+	}
+
+	GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob_eval, eGpencilModifierType_Armature);
+	if (md == NULL) {
+		return false;
+	}
+	ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)md;
+	if (mmd->object == NULL) {
+		return false;
+	}
+
+	return true;
 }
 
 static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
@@ -510,16 +545,19 @@ static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	bGPdata *gpd = (bGPdata *)ob->data;
 
-	int mode = RNA_enum_get(op->ptr, "mode");
+	const int mode = RNA_enum_get(op->ptr, "mode");
+	const float ratio = RNA_float_get(op->ptr, "ratio");
+	const float decay = RNA_float_get(op->ptr, "decay");
 
 	/* sanity checks */
 	if (ELEM(NULL, ob, gpd))
 		return OPERATOR_CANCELLED;
 
 	/* get armature from modifier */
-	GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob, eGpencilModifierType_Armature);
+	GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob_eval, eGpencilModifierType_Armature);
 	if (md == NULL) {
 		BKE_report(op->reports, RPT_ERROR,
 				"The grease pencil object need an Armature modifier");
@@ -534,7 +572,7 @@ static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
 	}
 
 	gpencil_object_vgroup_calc_from_armature(C, op->reports,depsgraph, scene,
-											ob, mmd->object, mode, false);
+											ob, mmd->object, mode, ratio, decay);
 
 	/* notifiers */
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
@@ -546,15 +584,15 @@ static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
 void GPENCIL_OT_generate_weights(wmOperatorType *ot)
 {
 	static const EnumPropertyItem mode_type[] = {
-	{GP_ARMATURE_NAME, "NAME", 0, "With Empty Groups", ""},
-	{GP_ARMATURE_AUTO, "AUTO", 0, "With Automatic Weights", ""},
+	{GP_ARMATURE_NAME, "NAME", 0, "Empty Groups", ""},
+	{GP_ARMATURE_AUTO, "AUTO", 0, "Automatic Weights", ""},
 	{0, NULL, 0, NULL, NULL}
 	};
 
 	/* identifiers */
 	ot->name = "Generate Automatic Weights";
 	ot->idname = "GPENCIL_OT_generate_weights";
-	ot->description = "Generate automatic weights for armatures";
+	ot->description = "Generate automatic weights for armatures (requires armature modifier)";
 
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
@@ -563,4 +601,10 @@ void GPENCIL_OT_generate_weights(wmOperatorType *ot)
 	ot->poll = gpencil_generate_weights_poll;
 
 	ot->prop = RNA_def_enum(ot->srna, "mode", mode_type, 0, "Mode", "");
+
+	RNA_def_float(ot->srna, "ratio", 0.15f, 0.0f, 2.0f, "Ratio",
+		"Ratio between bone length and influence radius", 0.001f, 1.0f);
+
+	RNA_def_float(ot->srna, "decay", 0.1f, 0.0f, 1.0f, "Decay",
+		"Factor to reduce influence depending of distance to bone axis", 0.0f, 1.0f);
 }
