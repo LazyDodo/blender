@@ -308,6 +308,7 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 		if ((i == 0) || (i == gps->totpoints - 1) || ((i % 2) > 0.0)) {
 			memcpy(pt, pt_src, sizeof(bGPDspoint));
 			memcpy(dvert, dvert_src, sizeof(MDeformVert));
+			memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
 			j++;
 		}
 		else {
