@@ -2878,6 +2878,8 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDspoint *temp_points;
+	MDeformVert *temp_dverts;
+
 	const int cuts = RNA_int_get(op->ptr, "number_cuts");
 
 	int totnewpoints, oldtotpoints;
@@ -2899,20 +2901,25 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				}
 				/* duplicate points in a temp area */
 				temp_points = MEM_dupallocN(gps->points);
+				if (gps->dvert == NULL) {
+					gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
+				}
+				temp_dverts = MEM_dupallocN(gps->dvert);
+
 				oldtotpoints = gps->totpoints;
 
 				/* resize the points arrys */
 				gps->totpoints += totnewpoints;
 				gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
-				if (gps->dvert != NULL) {
-					gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
-				}
+				gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+
 				gps->flag |= GP_STROKE_RECALC_CACHES;
 
 				/* loop and interpolate */
 				i2 = 0;
 				for (int i = 0; i < oldtotpoints; i++) {
 					bGPDspoint *pt = &temp_points[i];
+					MDeformVert *dvert = &temp_dverts[i];
 					bGPDspoint *pt_final = &gps->points[i2];
 
 					MDeformVert *dvert_final = &gps->dvert[i2];
@@ -2924,8 +2931,8 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 					pt_final->time = pt->time;
 					pt_final->flag = pt->flag;
 
-					dvert_final->totweight = 0;
-					dvert_final->dw = NULL;
+					dvert_final->totweight = dvert->totweight;
+					dvert_final->dw = dvert->dw;
 					i2++;
 
 					/* if next point is selected add a half way point */
@@ -2945,9 +2952,8 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								pt_final->time = interpf(pt->time, next->time, 0.5f);
 								pt_final->flag |= GP_SPOINT_SELECT;
 
-								dvert_final->totweight = 0;
-								dvert_final->dw = NULL;
-
+								dvert_final->totweight = dvert->totweight;
+								dvert_final->dw = MEM_dupallocN(dvert->dw);
 								i2++;
 							}
 						}
@@ -2955,6 +2961,7 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				}
 				/* free temp memory */
 				MEM_freeN(temp_points);
+				MEM_freeN(temp_dverts);
 			}
 		}
 	}
