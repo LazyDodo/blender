@@ -528,6 +528,11 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 	bGPDframe *gpf;
 	bGPDstroke *gps;
 
+	ToolSettings *ts = tgpi->scene->toolsettings;
+
+	const int def_nr = tgpi->ob->actdef - 1;
+	const bool is_weight = (bool)BLI_findlink(&tgpi->ob->defbase, def_nr);
+
 	/* return to normal cursor and header status */
 	ED_workspace_status_text(C, NULL);
 	WM_cursor_modal_restore(win);
@@ -545,6 +550,14 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 	/* transfer stroke from temporary buffer to the actual frame */
 	BLI_movelisttolist(&gpf->strokes, &tgpi->gpf->strokes);
 	BLI_assert(BLI_listbase_is_empty(&tgpi->gpf->strokes));
+
+	/* add weights if required */
+	if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (is_weight)) {
+		for (int i = 0; i < gps->totpoints; i++) {
+			MDeformVert *ve = &gps->dvert[i];
+			BKE_gpencil_vgroup_add_point_weight(ve, def_nr, ts->vgroup_weight);
+		}
+	}
 
 	/* clean up temp data */
 	gpencil_primitive_exit(C, op);
