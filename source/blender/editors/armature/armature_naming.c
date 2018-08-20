@@ -34,6 +34,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_object_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_gpencil_modifier_types.h"
 
 #include "BLI_blenlib.h"
@@ -270,6 +271,15 @@ void ED_armature_bone_rename(Main *bmain, bArmature *arm, const char *oldnamep, 
 
 			/* fix grease pencil modifiers and vertex groups */
 			if (ob->type == OB_GPENCIL) {
+
+				bGPdata *gpd = (bGPdata *)ob->data;
+				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+					if ((gpl->parent != NULL) && (gpl->parent->data == arm)) {
+						if (STREQ(gpl->parsubstr, oldname))
+							BLI_strncpy(gpl->parsubstr, newname, MAXBONENAME);
+					}
+				}
+
 				GpencilModifierData *gp_md = BKE_gpencil_modifiers_findByType(ob, eGpencilModifierType_Armature);
 				if (gp_md) {
 					ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)gp_md;
