@@ -394,6 +394,7 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 	GpencilModifierData *md;
 	bGPdata *gpd = ob->data;
 	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
+	bool recalc_fill = false;
 
 	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
 		if (GPENCIL_MODIFIER_ACTIVE(md, is_render)) {
@@ -405,6 +406,20 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 
 			if (mti && mti->deformStroke) {
 				mti->deformStroke(md, depsgraph, ob, gpl, gps);
+
+				/* some modifiers could require a recalc of fill triangulation data */
+				if (gpd->flag & GP_DATA_STROKE_FORCE_RECALC) {
+					if (ELEM(md->type,
+							eGpencilModifierType_Armature,
+							eGpencilModifierType_Hook,
+							eGpencilModifierType_Lattice,
+							eGpencilModifierType_Noise,
+							eGpencilModifierType_Offset,
+							eGpencilModifierType_Smooth)) {
+
+						gps->flag |= GP_STROKE_RECALC_CACHES;
+					}
+				}
 			}
 		}
 	}

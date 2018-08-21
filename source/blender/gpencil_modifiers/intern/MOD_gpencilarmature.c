@@ -355,11 +355,6 @@ static void gpencil_armature_deform_verts(ArmatureGpencilModifierData *mmd, Obje
 	}
 
 	MEM_freeN(pdef_info_array);
-
-	/* set recalc */
-	if (mmd->flag & GP_ARMATURE_RECALC_FILL) {
-		gps->flag |= GP_STROKE_RECALC_CACHES;
-	}
 }
 
 /* deform stroke */
