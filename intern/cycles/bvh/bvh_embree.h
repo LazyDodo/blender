@@ -42,7 +42,6 @@ public:
 	static void destroy(RTCScene);
 	void mem_monitor(ssize_t mem);
 protected:
-	/* constructor */
 	friend class BVH;
 	BVHEmbree(const BVHParams& params, const vector<Object*>& objects);
 

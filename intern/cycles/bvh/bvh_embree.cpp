@@ -241,27 +241,27 @@ use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
 		ssize_t ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag. Ray visiblity will not work.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag. Ray visiblity will not work.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag. Renders may not look as expected.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag. Renders may not look as expected.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. Line primitives will not be rendered.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. Line primitives will not be rendered.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-	    VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. Triangle primitives will not be rendered.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. Triangle primitives will not be rendered.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED);
 		if(ret != 0) {
 			assert(0);
-	    VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. Renders may not look as expected.";
+			VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. Renders may not look as expected.";
 		}
 	}
 	rtc_shared_users++;
@@ -460,7 +460,6 @@ void BVHEmbree::add_triangles(Object *ob, int i)
 	}
 
 	const size_t num_triangles = mesh->num_triangles();
-	const size_t num_verts = mesh->verts.size();
 	RTCGeometry geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_TRIANGLE);
 	rtcSetGeometryBuildQuality(geom_id,params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_BUILD_QUALITY_LOW : RTC_BUILD_QUALITY_MEDIUM);
 	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
@@ -527,15 +526,14 @@ void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 			verts = &attr_mP->data_float3()[t_ * num_verts];
 		}
 
-		float *rtc_verts = (float*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, sizeof(float) * 4, num_verts);
+		float *rtc_verts = (float*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, sizeof(float) * 3, num_verts);
 		assert(rtc_verts);
 		if(rtc_verts) {
 			for(size_t j = 0; j < num_verts; j++) {
 				rtc_verts[0] = verts[j].x;
 				rtc_verts[1] = verts[j].y;
 				rtc_verts[2] = verts[j].z;
-				rtc_verts[3] = 0.0f;//verts[j].w;
-				rtc_verts += 4;
+				rtc_verts += 3;
 			}
 		}
 	}
