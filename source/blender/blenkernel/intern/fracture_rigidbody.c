@@ -1612,12 +1612,10 @@ static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi,
 
 		/*only fracture on new entries, this is necessary because after loading a file
 		 *the pointcache thinks it is empty and a fracture is attempted ! */
-		if (check_island_size(fmd, mi) /*&& (frame < mi->endframe && mi->endframe <= fmd->shared->last_cache_end)*/)
+		if (check_island_size(fmd, mi) && mi->fractured == false)
 		{
 			FractureID* fid = MEM_mallocN(sizeof(FractureID), "contact_callback_fractureid");
 			fid->mi = mi;
-			fid->fractured = false;
-			//fid->mi->endframe = frame;
 			BLI_addtail(&fmd->shared->fracture_ids, fid);
 			fmd->shared->refresh_dynamic = true;
 			printf("FRACTURE : %d\n", mi->id);

@@ -127,7 +127,7 @@ void BKE_fracture_constraint_create(struct Scene *scene, struct FractureModifier
 void BKE_fracture_split_islands(struct FractureModifierData *fmd, struct Object* ob, struct Mesh *me, struct Mesh ***temp_islands,
 int *count);
 
-struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct ListBase *islands, struct Object *ob, float ctime);
+struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct Scene* scene, struct Object *ob, float ctime);
 
 void BKE_fracture_modifier_free(struct FractureModifierData *fmd, struct Scene *scene);
 

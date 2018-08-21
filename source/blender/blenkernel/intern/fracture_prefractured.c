@@ -177,7 +177,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	/* assemble mesh from transformed meshislands */
 	if (fmd->shared->mesh_islands.first)
 	{
-		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, &fmd->shared->mesh_islands, ob, ctime);
+		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, scene, ob, ctime);
 		//DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else {

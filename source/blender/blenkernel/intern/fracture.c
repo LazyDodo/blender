@@ -617,8 +617,8 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain
 				copy_v3_v3(result->rigidbody->pos, centr);
 				copy_qt_qt(result->rigidbody->orn, qrot);
 
-				//copy_v3_v3(result->centroid, centr);
-				//copy_qt_qt(result->rot, qrot);
+				copy_v3_v3(result->rigidbody->lin_vel, mi->rigidbody->lin_vel);
+				copy_v3_v3(result->rigidbody->ang_vel, mi->rigidbody->ang_vel);
 
 				//validate already here at once... dynamic somehow doesnt get updated else
 				BKE_rigidbody_shard_validate(scene->rigidbody_world, result, ob, fmd, true,
@@ -1340,7 +1340,7 @@ void fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask ma
 }
 
 
-Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBase *islands, Object* ob, float ctime)
+Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *scene, Object* ob, float ctime)
 {
 	float imat[4][4];
 	MeshIsland *mi;
@@ -1355,11 +1355,15 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 		    CD_MASK_GRID_PAINT_MASK | CD_MASK_MVERT_SKIN | CD_MASK_FREESTYLE_EDGE | CD_MASK_FREESTYLE_FACE |
 		    CD_MASK_CUSTOMLOOPNORMAL | CD_MASK_FACEMAP;
 
-	for (mi = islands->first; mi; mi = mi->next)
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 	{
 		RigidBodyOb *rbo = mi->rigidbody;
 
 		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
+			if (scene && fmd->use_dynamic) {
+				/* remove rigidbody physics handles here too */
+				BKE_rigidbody_remove_shard(scene, mi);
+			}
  			continue;
 		}
 
@@ -1370,7 +1374,7 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 	}
 
 	mesh = BKE_mesh_new_nomain(num_verts, num_edges, 0, num_loops, num_polys);
-	mi = islands->first;
+	mi = fmd->shared->mesh_islands.first;
 
 	if (fmd->shared->vert_index_map) {
 		BLI_ghash_free(fmd->shared->vert_index_map, NULL, NULL);
@@ -1380,7 +1384,7 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 	fmd->shared->vert_index_map = BLI_ghash_int_new("vert_index_map");
 
 	invert_m4_m4(imat, ob->obmat);
-	for (mi = islands->first; mi; mi = mi->next)
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 	{
 		MVert *mv;
 		MPoly *mp;
@@ -2580,9 +2584,9 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 		add_v3_v3v3(bmax, max, cent);
 		add_v3_v3v3(bmin, min, cent);
 
-#if 0
 		//first impact only, so shard has id 0
-		if (emd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
+		if (emd->use_dynamic)
+		{
 			//shrink pointcloud container around impact point, to a size
 
 			copy_v3_v3(max, bmax);
@@ -2590,27 +2594,13 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 
 			if (mi && mi->impact_size[0] > 0.0f && emd->limit_impact) {
 				float size[3], nmin[3], nmax[3], loc[3], tmin[3], tmax[3], rloc[3] = {0,0,0}, quat[4] = {1,0,0,0};
-				//MeshIslandSequence *msq = emd->shared->current_mi_entry->prev ? emd->shared->current_mi_entry->prev :
-				//                                                                emd->shared->current_mi_entry;
-				MeshIsland *mi = NULL;
-				RigidBodyOb *rbo = NULL;
+				RigidBodyOb *rbo = mi->rigidbody;
 
 				mat4_to_quat(quat, ob->obmat);
 				invert_qt(quat);
 
-				if (msq) {
-					if (mi->parent) {
-						//TODO; this should be the same meshisland later, it should be solved via pointer redirect
-						//mi = find_meshisland(&msq->meshIslands, mi->id);
-						mi = mi->parent; // ????? TODO FIX
-					}
-
-					if (mi) {
-						rbo = mi->rigidbody;
-						copy_v3_v3(rloc, rbo->pos);
-						mul_qt_qtqt(quat, rbo->orn, quat);
-					}
-				}
+				copy_v3_v3(rloc, rbo->pos);
+				mul_qt_qtqt(quat, rbo->orn, quat);
 
 				print_v3("Impact Loc\n", mi->impact_loc);
 				print_v3("Impact Size\n", mi->impact_size);
@@ -2664,7 +2654,6 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 				print_v3("MAX:", max);*/
 			}
 		}
-#endif
 
 		//omg, vary the seed here
 		if (emd->split_islands) {
@@ -2672,7 +2661,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 		}
 		else
 		{
-			BLI_thread_srandom(0, emd->point_seed);
+			BLI_thread_srandom(0, emd->use_dynamic ? mi->id : emd->point_seed);
 		}
 		for (i = 0; i < count; ++i) {
 			if (BLI_thread_frand(0) < thresh) {

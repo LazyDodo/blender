@@ -122,8 +122,6 @@ typedef struct MeshIslandSequence {
 typedef struct FractureID {
 	struct FractureID *next, *prev;
 	struct MeshIsland *mi;
-	char fractured;
-	char pad[7];
 } FractureID;
 
 typedef struct AnimBind {
@@ -219,6 +217,7 @@ typedef struct MeshIsland {
 	int object_index;
 	int totcol; /*store number of used materials here, from the original object*/
 	int totdef; /*store number of used vertexgroups here, from the original object*/
+	int fractured;
 
 	//formerly shard stuff
 	float min[3], max[3];
@@ -229,7 +228,7 @@ typedef struct MeshIsland {
 	float raw_volume;
 	float impact_loc[3]; /* last impact location on this shard */
 	float impact_size[3]; /* size of impact area (simplified) */
-	char pad[4];
+	//char pad[4];
 } MeshIsland;
 
 typedef struct SharedVertGroup {
