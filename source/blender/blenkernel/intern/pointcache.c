@@ -1284,6 +1284,36 @@ static int ptcache_dynamicpaint_read(PTCacheFile *pf, void *dp_v)
 	return 1;
 }
 
+static void copy_to_3(float* dst, float src[3], int index)
+{
+	dst[index * 3] = src[0];
+	dst[index * 3 + 1] = src[1];
+	dst[index * 3 + 2] = src[2];
+}
+
+static void copy_to_4(float* dst, float src[4], int index)
+{
+	dst[index * 4] = src[0];
+	dst[index * 4 + 1] = src[1];
+	dst[index * 4 + 2] = src[2];
+	dst[index * 4 + 3] = src[3];
+}
+
+static void copy_from_3(float dst[3], float* src, int index)
+{
+	dst[0] = src[index * 3];
+	dst[1] = src[index * 3 + 1];
+	dst[2] = src[index * 3 + 2];
+}
+
+static void copy_from_4(float* dst, float src[4], int index)
+{
+	dst[0] = src[index * 4];
+	dst[1] = src[index * 4 + 1];
+	dst[2] = src[index * 4 + 2];
+	dst[3] = src[index * 4 + 3];
+}
+
 /* Rigid Body functions */
 static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra)
 {
@@ -1311,16 +1341,19 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 	}
 	else {
 		MeshIsland *mi;
+		bool changed = false;
+
 		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 		{
 			int frame = (int)cfra;
-			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
-				continue;
-			}
 
 			if (frame >= fmd->shared->last_cache_end) {
 				BKE_fracture_meshisland_check_realloc_cache(fmd, rbw, mi, frame);
-				//continue;
+				changed = true;
+			}
+
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
+				continue;
 			}
 
 			rbo = mi->rigidbody;
@@ -1334,15 +1367,21 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 #endif
 			//ensure valid values here, now !!!
 			frame = frame - mi->startframe;
-			copy_v3_v3(mi->locs[frame], rbo->pos);
-			copy_qt_qt(mi->rots[frame], rbo->orn);
-			copy_v3_v3(mi->vels[frame], rbo->lin_vel);
-			copy_v3_v3(mi->aves[frame], rbo->ang_vel);
+			copy_to_3(mi->locs, rbo->pos, frame);
+			copy_to_4(mi->rots, rbo->orn, frame);
+			copy_to_3(mi->vels, rbo->lin_vel, frame);
+			copy_to_3(mi->aves, rbo->ang_vel, frame);
+		}
+
+		if (changed) {
+			fmd->shared->last_cache_end = rbw->shared->pointcache->endframe;
+			fmd->shared->last_cache_start = rbw->shared->pointcache->startframe;
 		}
 	}
 
 	return 1;
 }
+
 static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfra, float *old_data)
 {
 	RigidBodyWorld *rbw = rb_v;
@@ -1384,10 +1423,10 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 
 			//ensure valid values here, now !!!
 			frame = frame - mi->startframe;
-			copy_v3_v3(rbo->pos, mi->locs[frame]);
-			copy_qt_qt(rbo->orn, mi->rots[frame]);
-			copy_v3_v3(rbo->lin_vel, mi->vels[frame]);
-			copy_v3_v3(rbo->ang_vel, mi->aves[frame]);
+			copy_from_3(rbo->pos, mi->locs, frame);
+			copy_from_4(rbo->orn, mi->rots, frame);
+			copy_from_3(rbo->lin_vel, mi->vels, frame);
+			copy_from_3(rbo->ang_vel, mi->aves, frame);
 		}
 	}
 }
@@ -1464,10 +1503,10 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 				copy_v3_v3(keys[1].vel, rbo->lin_vel);
 				copy_v3_v3(keys[1].ave, rbo->ang_vel);
 
-				copy_v3_v3(keys[2].co, mi->locs[frame2]);
-				copy_qt_qt(keys[2].rot, mi->rots[frame2]);
-				copy_v3_v3(keys[2].vel, mi->vels[frame2]);
-				copy_v3_v3(keys[2].ave, mi->aves[frame2]);
+				copy_from_3(keys[2].co, mi->locs, frame2);
+				copy_from_4(keys[2].rot, mi->rots, frame2);
+				copy_from_3(keys[2].vel, mi->vels, frame2);
+				copy_from_3(keys[2].ave, mi->aves, frame2);
 				keys[2].time = cfra2;
 
 				dfra = cfra2 - cfra1;

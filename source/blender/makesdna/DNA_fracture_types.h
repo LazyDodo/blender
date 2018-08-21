@@ -197,10 +197,10 @@ typedef struct MeshIsland {
 	int *cluster_colors;
 
 	//might be useful for convert to keyframes, motion history ? either play back from cache
-	float (*locs)[3];
-	float (*rots)[4];
-	float (*vels)[3];
-	float (*aves)[3];
+	float *locs;
+	float *rots;
+	float *vels;
+	float *aves;
 
 	char name[66]; /* MAX_ID_NAME */
 	char pad1[2];

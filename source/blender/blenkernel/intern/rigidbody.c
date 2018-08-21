@@ -150,7 +150,7 @@ void BKE_rigidbody_free_world(Scene *scene)
 	}
 
 	if (rbw->objects)
-		MEM_freeN(rbw->objects);
+		free(rbw->objects);
 
 	/* free effector weights */
 	if (rbw->effector_weights)
@@ -1059,7 +1059,7 @@ RigidBodyWorld *BKE_rigidbody_create_world(Scene *scene)
 	rbw->flag &=~ RBW_FLAG_OBJECT_CHANGED;
 	rbw->flag &=~ RBW_FLAG_REFRESH_MODIFIERS;
 
-	rbw->objects = MEM_mallocN(sizeof(Object *), "objects");
+	//rbw->objects = MEM_mallocN(sizeof(Object *), "objects");
 
 	/* return this sim world */
 	return rbw;
@@ -1102,44 +1102,15 @@ void BKE_rigidbody_world_groups_relink(RigidBodyWorld *rbw)
 
 void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func, void *userdata)
 {
-	CollectionObject *go;
-	int obj, shard;
-
 	func(rbw, (ID **)&rbw->group, userdata, IDWALK_CB_NOP);
 	func(rbw, (ID **)&rbw->constraints, userdata, IDWALK_CB_NOP);
 	func(rbw, (ID **)&rbw->effector_weights->group, userdata, IDWALK_CB_NOP);
 
-	/* in regular blender one rigidbody is equivalent to one object, but in FM build you can have more
-	 * rigidbodies in the world than objects in the object array... thats why loop over the group of objects
-	 * of the rigidbody world... the rbw->objects array would contain group objects only anyway, also dont forget
-	 * regular constraints if there are any */
-
-	/*if (rbw->objects) {
+	if (rbw->objects) {
 		int i;
 		int count = BLI_listbase_count(&rbw->group->gobject);
 		for (i = 0; i < count; i++) {
 			func(rbw, (ID **)&rbw->objects[i], userdata, IDWALK_CB_NOP);
-		}
-	}*/
-#if 0
-	if (rbw->shared->objects) {
-		int i;
-		int count = rigidbody_group_count_items(&rbw->group->gobject, &obj, &shard);
-		for (i = 0; i < count; i++) {
-			func(rbw, (ID **)&rbw->shared->objects[i], userdata, IDWALK_CB_NOP);
-		}
-	}
-#endif
-
-	if (rbw->group) {
-		for (go = rbw->group->gobject.first; go; go = go->next) {
-			func(rbw, (ID **)&go->ob, userdata, IDWALK_CB_NOP);
-		}
-	}
-
-	if (rbw->constraints) {
-		for (go = rbw->constraints->gobject.first; go; go = go->next) {
-			func(rbw, (ID **)&go->ob, userdata, IDWALK_CB_NOP);
 		}
 	}
 }

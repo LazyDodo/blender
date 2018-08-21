@@ -84,6 +84,7 @@ Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mes
 
 MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene, Object *ob, int frame)
 {
+	int i;
 	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
 	MeshIsland *mi = MEM_callocN(sizeof(MeshIsland), "mesh_island");
 	mi->mesh = me;
@@ -98,10 +99,10 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene,
 
 	if (endframe >= frame) {
 		frame = endframe - frame + 1;
-		mi->locs = MEM_callocN(sizeof (float*) * 3 * frame, "mi->locs");
-		mi->rots = MEM_callocN(sizeof (float*) * 4 * frame, "mi->rots");
-		mi->vels = MEM_callocN(sizeof (float*) * 3 * frame, "mi->vels");
-		mi->aves = MEM_callocN(sizeof (float*) * 3 * frame, "mi->aves");
+		mi->locs = MEM_callocN(sizeof (float) * 3 *frame, "mi->locs");
+		mi->rots = MEM_callocN(sizeof (float) * 4 *frame, "mi->rots");
+		mi->vels = MEM_callocN(sizeof (float) * 3 *frame, "mi->vels");
+		mi->aves = MEM_callocN(sizeof (float) * 3 *frame, "mi->aves");
 	}
 
 	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);

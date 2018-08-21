@@ -591,7 +591,7 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain
 			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
 				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob, frame);
 				fracture_meshisland_add(fmd, result);
-				result->id = j;
+				result->id = mi->id + j;
 				j++;
 			}
 			else {
@@ -1935,23 +1935,20 @@ void BKE_fracture_meshisland_check_realloc_cache(FractureModifierData *fmd, Rigi
 	int startframe = rbw->shared->pointcache->startframe;
 
 	//only grow...
-	if (endframe != fmd->shared->last_cache_end)
+	if (endframe > fmd->shared->last_cache_end)
 	{
 		//keep invalid shards untouched
-		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) && mi->endframe == fmd->shared->last_cache_end)
+		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) /*&& mi->endframe == fmd->shared->last_cache_end*/)
 		{
 			mi->endframe = endframe;
-			frame = mi->endframe - frame + 1;
+			frame = mi->endframe;
 
-			mi->locs = MEM_reallocN(mi->locs, sizeof(float*) * 3 * frame);
-			mi->rots = MEM_reallocN(mi->rots, sizeof(float*) * 4 * frame);
-			mi->vels = MEM_reallocN(mi->vels, sizeof(float*) * 3 * frame);
-			mi->aves = MEM_reallocN(mi->aves, sizeof(float*) * 3 * frame);
+			mi->locs = MEM_reallocN(mi->locs, sizeof(float) * 3 * frame);
+			mi->rots = MEM_reallocN(mi->rots, sizeof(float) * 4 * frame);
+			mi->vels = MEM_reallocN(mi->vels, sizeof(float) * 3 * frame);
+			mi->aves = MEM_reallocN(mi->aves, sizeof(float) * 3 * frame);
 		}
 	}
-
-	fmd->shared->last_cache_end = endframe;
-	fmd->shared->last_cache_start = startframe;
 }
 
 void BKE_fracture_meshislands_free(FractureModifierData* fmd, Scene* scene)
@@ -3032,15 +3029,16 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 
 	/* no pointsource means re-use existing mesh islands*/
 	if (fmd->point_source == 0) {
-		int count = 1, i, j = 0;
+		int count = 1, i, j = 1;
 		int frame = (int)(BKE_scene_frame_get(scene)); //TODO ensure original scene !!!
 		Mesh** temp_meshs = MEM_callocN(sizeof(Mesh*) * count, "temp_islands no pointsource");
 		BKE_fracture_split_islands(fmd, obj, mi->mesh, &temp_meshs, &count);
 
 		/* The original mesh island must not be in the collection any more, so unlink and free */
-		BLI_remlink(&fmd->shared->mesh_islands, mi);
-		BKE_fracture_mesh_island_free(mi, scene);
-		mi = NULL;
+		//BLI_remlink(&fmd->shared->mesh_islands, mi);
+		//BKE_fracture_mesh_island_free(mi, scene);
+		//mi = NULL;
+		mi->endframe = frame;
 
 		for (i = 0; i < count; i++)
 		{
@@ -3050,7 +3048,7 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 				{	/* skip invalid cells, e.g. those which are eliminated by bisect */
 					MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, obj, frame);
 					fracture_meshisland_add(fmd, result);
-					result->id = j;
+					result->id = mi->id + j;
 					j++;
 				}
 				else {

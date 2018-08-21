@@ -193,6 +193,8 @@ static void copyData(ModifierData *md_src, ModifierData *md_dst, const int flag)
 		/* This is a regular copy, and not a CoW copy for depsgraph evaluation */
 
 		fmd_dst->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
+		fmd_dst->shared->last_cache_start = 0;
+		fmd_dst->shared->last_cache_end = 250;
 		fmd_dst->shared->refresh = true;
 		fmd_dst->shared->reset_shards = true;
 	}
