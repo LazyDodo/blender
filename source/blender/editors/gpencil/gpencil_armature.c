@@ -82,52 +82,8 @@ enum {
 	GP_ARMATURE_AUTO = 1
 };
 
-#define DEFAULT_RATIO 0.15f
-#define DEFAULT_DECAY 0.25f
-
-/* test if a point is inside cylinder
- * Return:  -1.0 if point is outside the cylinder
- *          o distance squared from cylinder axis if point is inside.
- */
-static float test_point_in_cylynder(float pt1[3], float pt2[3],
-									float lengthsq, float radius_sq, bGPDspoint *pt)
-{
-	float dx[3];	/* vector from line segment point 1 to point 2 */
-	float pdx[3];	/* vector pd from point 1 to test point */
-	float dot, dsq;
-
-	sub_v3_v3v3(dx, pt2, pt1);
-	sub_v3_v3v3(pdx, &pt->x, pt1);
-
-	/* Dot the d and pd vectors to see if point lies behind the */
-	dot = dot_v3v3(pdx, dx);
-
-	/* If dot is less than zero the point is behind the pt1 cap.
-	 * If greater than the cylinder axis line segment length squared
-	 * then the point is outside the other end cap at pt2.
-	 */
-	if (dot < 0.0f || dot > lengthsq)
-	{
-		return(-1.0f);
-	}
-	else
-	{
-		/* Point lies within the parallel caps, so find,
-		 * distance squared from point to line */
-
-		/* distance squared to the cylinder axis */
-		dsq = (pdx[0] * pdx[0] + pdx[1] * pdx[1] + pdx[2] * pdx[2]) - dot * dot / lengthsq;
-
-		if (dsq > radius_sq)
-		{
-			return(-1.0f);
-		}
-		else
-		{
-			return(dsq);		// return distance squared to axis
-		}
-	}
-}
+#define DEFAULT_RATIO 0.10f
+#define DEFAULT_DECAY 0.8f
 
 static int gpencil_bone_looper(Object *ob, Bone *bone, void *data,
 	int(*bone_func)(Object *, Bone *, void *))
@@ -311,7 +267,7 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 
 	Mat4 bbone_array[MAX_BBONE_SUBDIV], *bbone = NULL;
 	float(*root)[3], (*tip)[3], (*verts)[3];
-	float *lensqr, *radsqr;
+	float *radsqr;
 	int *selected;
 	float weight;
 	int numbones, i, j, segments = 0;
@@ -346,7 +302,6 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 	root = MEM_callocN(numbones * sizeof(float) * 3, "root");
 	tip = MEM_callocN(numbones * sizeof(float) * 3, "tip");
 	selected = MEM_callocN(numbones * sizeof(int), "selected");
-	lensqr = MEM_callocN(numbones * sizeof(float), "lensqr");
 	radsqr = MEM_callocN(numbones * sizeof(float), "radsqr");
 
 	for (j = 0; j < numbones; j++) {
@@ -389,11 +344,8 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 
 		selected[j] = 1;
 
-		/* calculate len of bone squared */
-		lensqr[j] = len_squared_v3v3(root[j], tip[j]);
-
 		/* calculate radius squared */
-		radsqr[j] = lensqr[j] * ratio;
+		radsqr[j] = len_squared_v3v3(root[j], tip[j]) * ratio;
 	}
 
 	/* loop all strokes */
@@ -437,18 +389,16 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 
 						for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 							MDeformVert *dvert = &gps->dvert[i];
-							float dist = test_point_in_cylynder(root[j], tip[j],
-								lensqr[j], radsqr[j],
-								pt);
-							if (dist < 0) {
+							float dist = dist_squared_to_line_segment_v3(verts[i], root[j], tip[j]);
+							if (dist > radsqr[j]) {
 								/* if not in cylinder, check if inside sphere of extremes */
 								weight = 0.0f;
-								dist = len_squared_v3v3(root[j], &pt->x);
+								dist = len_squared_v3v3(root[j], verts[i]);
 								if (dist < radsqr[j]) {
 									weight = get_weight(dist, decay_rad, dif_rad);
 								}
 								else {
-									dist = len_squared_v3v3(tip[j], &pt->x);
+									dist = len_squared_v3v3(tip[j], verts[i]);
 									if (dist < radsqr[j]) {
 										weight = get_weight(dist, decay_rad, dif_rad);
 									}
@@ -480,7 +430,6 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 	MEM_SAFE_FREE(dgrouplist);
 	MEM_SAFE_FREE(root);
 	MEM_SAFE_FREE(tip);
-	MEM_SAFE_FREE(lensqr);
 	MEM_SAFE_FREE(radsqr);
 	MEM_SAFE_FREE(selected);
 }
