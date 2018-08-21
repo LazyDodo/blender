@@ -1314,6 +1314,16 @@ static void copy_from_4(float* dst, float src[4], int index)
 	dst[3] = src[index * 4 + 3];
 }
 
+int calc_frame(RigidBodyWorld *rbw, MeshIsland *mi, int frame)
+{
+	frame = frame - mi->startframe;
+	if (mi->startframe > rbw->shared->pointcache->startframe && frame > 0) {
+		frame--;
+	}
+
+	return frame;
+}
+
 /* Rigid Body functions */
 static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra)
 {
@@ -1366,7 +1376,8 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 			}
 #endif
 			//ensure valid values here, now !!!
-			frame = frame - mi->startframe;
+			frame = calc_frame(rbw, mi, frame);
+
 			copy_to_3(mi->locs, rbo->pos, frame);
 			copy_to_4(mi->rots, rbo->orn, frame);
 			copy_to_3(mi->vels, rbo->lin_vel, frame);
@@ -1421,8 +1432,8 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 
 			rbo = mi->rigidbody;
 
-			//ensure valid values here, now !!!
-			frame = frame - mi->startframe;
+			frame = calc_frame(rbw, mi, frame);
+
 			copy_from_3(rbo->pos, mi->locs, frame);
 			copy_from_4(rbo->orn, mi->rots, frame);
 			copy_from_3(rbo->lin_vel, mi->vels, frame);
@@ -1492,8 +1503,8 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 				continue;
 			}
 
-			frame = frame - mi->startframe;
-			frame2 = frame2 - mi->startframe;
+			frame = calc_frame(rbw, mi, frame);
+			frame2 = calc_frame(rbw, mi, frame2);
 
 			rbo = mi->rigidbody;
 			if (rbo->type == RBO_TYPE_ACTIVE) {

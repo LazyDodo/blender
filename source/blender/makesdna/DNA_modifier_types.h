@@ -1566,7 +1566,7 @@ typedef struct FractureModifierData {
 	int grease_decimate;
 	int cutter_axis;
 	int cluster_constraint_type;
-	int fracture_mode;
+	//int fracture_mode;
 	int dynamic_percentage;
 	int constraint_type;
 	int grid_resolution[3];
@@ -1575,8 +1575,8 @@ typedef struct FractureModifierData {
 	float breaking_distance;
 	float cluster_breaking_angle;
 	float cluster_breaking_distance;
-	float origmat[4][4];
-	float passive_parent_mat[4][4];
+	//float origmat[4][4];
+	//float passive_parent_mat[4][4];
 	float breaking_threshold;
 	float cluster_breaking_threshold;
 	float contact_dist;
@@ -1619,6 +1619,7 @@ typedef struct FractureModifierData {
 	int use_self_collision;
 	int use_animated_mesh;
 	int use_constraint_group;
+	int use_dynamic;
 
 	int split_islands;
 	int execute_threaded;

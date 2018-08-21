@@ -1208,7 +1208,7 @@ RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, M
 	zero_v3(rbo->ang_vel);
 
 	fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
-	if (fmd && fmd->fracture_mode == MOD_FRACTURE_DYNAMIC)
+	if (fmd && fmd->use_dynamic)
 	{	//keep cache here
 		return rbo;
 	}
@@ -1624,7 +1624,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 /* Updates and validates world, bodies and shapes.
  * < rebuild: rebuild entire simulation
  */
-static void rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool rebuild, Depsgraph *depsgraph)
+void BKE_rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool rebuild, Depsgraph *depsgraph)
 {
 
 	CollectionObject *go;
@@ -1796,7 +1796,7 @@ static void rigidbody_update_simulation_post_step(Depsgraph* depsgraph, RigidBod
 						}
 
 						/* update stored velocities, can be set again after sim rebuild */
-						if (rmd->fracture_mode == MOD_FRACTURE_DYNAMIC && rbo->shared->physics_object)
+						if (rmd->use_dynamic && rbo->shared->physics_object)
 						{
 							if (!(rbo->flag & RBO_FLAG_KINEMATIC))
 							{
@@ -1892,8 +1892,8 @@ void BKE_rigidbody_sync_transforms(Scene *scene, Object *ob, float ctime)
 		}
 		/* otherwise set rigid body transform to current obmat */
 		else {
-			if (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)
-				rbw->flag |= RBW_FLAG_OBJECT_CHANGED;
+			//if (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)
+				//rbw->flag |= RBW_FLAG_OBJECT_CHANGED;
 
 			mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
 		}
@@ -2008,7 +2008,7 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 		}
 
 		//then update origmat
-		copy_m4_m4(rmd->origmat, ob->obmat);
+//		copy_m4_m4(rmd->origmat, ob->obmat);
 	}
 	else {
 		rbo = ob->rigidbody_object;
@@ -2060,7 +2060,7 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 			}
 
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
-			rigidbody_update_simulation(scene, rbw, true, depsgraph);
+			BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 			BKE_ptcache_validate(cache, (int)ctime);
 			cache->last_exact = 0;
 			cache->flag &= ~PTCACHE_REDO_NEEDED;
@@ -2082,6 +2082,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	BKE_ptcache_id_time(&pid, scene, ctime, &startframe, &endframe, NULL);
 	cache = rbw->shared->pointcache;
 
+#if 0
 	/*trigger dynamic update*/
 	if (rbw->flag & RBW_FLAG_OBJECT_CHANGED)
 	{
@@ -2095,11 +2096,12 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 			if ((from_cache || baked) && ctime > startframe + 1)
 			{
 				/* dont mess with baked data */
-				rigidbody_update_simulation(scene, rbw, true, depsgraph);
+				BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 			}
 		}
 		//rbw->flag &= ~RBW_FLAG_REFRESH_MODIFIERS;
 	}
+#endif
 
 	if (ctime <= startframe) {
 		/* rebuild constraints */
@@ -2110,7 +2112,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 		{       /* flag modifier refresh at their next execution XXX TODO -> still used ? */
 			rbw->flag |= RBW_FLAG_REFRESH_MODIFIERS;
 			rbw->flag &= ~RBW_FLAG_OBJECT_CHANGED;
-			rigidbody_update_simulation(scene, rbw, true, depsgraph);
+			BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 		}
 		return;
 	}
@@ -2155,7 +2157,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 		//if (did_it)
 
 		//make 1st run like later runs... hack...
-		rigidbody_update_simulation(scene, rbw, true, depsgraph);
+		BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 	}
 
 	/* advance simulation, we can only step one frame forward */
@@ -2172,7 +2174,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 		}
 
 		/* update and validate simulation */
-		rigidbody_update_simulation(scene, rbw, false, depsgraph);
+		BKE_rigidbody_update_simulation(scene, rbw, false, depsgraph);
 
 		/* calculate how much time elapsed since last step in seconds */
 		timestep = 1.0f / (float)FPS * (ctime - rbw->ltime) * rbw->time_scale;

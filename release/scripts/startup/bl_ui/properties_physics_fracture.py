@@ -101,8 +101,48 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
         if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
             col.prop(md, "orthogonality_factor", text="Rectangular Alignment")
 
+class PHYSICS_PT_fracture_dynamic(PhysicButtonsPanel, Panel):
+      bl_label = "Dynamic"
+      bl_parent_id = 'PHYSICS_PT_fracture'
+      bl_options = {'DEFAULT_CLOSED'}
+
+      def draw_header(self, context):
+          md = context.fracture
+          self.layout.prop(md, "use_dynamic", text="")
+
+      def draw(self, context):
+          md = context.fracture
+          layout = self.layout
+          layout.active = md.use_dynamic
+          row = layout.row(align=True)
+          row.prop(md, "dynamic_force")
+          row.prop(md, "dynamic_percentage")
+          col = layout.column(align=True)
+          col.prop(md, "dynamic_new_constraints")
+          row = col.row(align=True)
+          row.prop(md, "limit_impact")
+          row.prop(md, "dynamic_min_size")
+
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     bl_label = "Fracture"
+
+    def draw(self, context):
+        md = context.fracture
+        layout = self.layout
+        layout.label(text="Presets:")
+        sub = layout.row(align=True)
+        sub.menu("FRACTURE_MT_presets", text=bpy.types.FRACTURE_MT_presets.bl_label)
+        sub.operator("fracture.preset_add", text="", icon='ZOOMIN')
+        sub.operator("fracture.preset_add", text="", icon='ZOOMOUT').remove_active = True
+
+        layout.context_pointer_set("modifier", md)
+        row = layout.row()
+        row.operator("object.fracture_refresh", text="Execute Fracture", icon='MOD_EXPLODE').reset = True
+
+class PHYSICS_PT_fracture_basic(PhysicButtonsPanel, Panel):
+    bl_label = "Basic"
+    bl_parent_id = 'PHYSICS_PT_fracture'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def icon(self, bool):
         if bool:
@@ -115,36 +155,6 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
 
         md = context.fracture
         ob = context.object
-
-        if md.fracture_mode != 'EXTERNAL':
-            layout.label(text="Presets:")
-            sub = layout.row(align=True)
-            sub.menu("FRACTURE_MT_presets", text=bpy.types.FRACTURE_MT_presets.bl_label)
-            sub.operator("fracture.preset_add", text="", icon='ZOOMIN')
-            sub.operator("fracture.preset_add", text="", icon='ZOOMOUT').remove_active = True
-        else:
-            layout.label(text="No UI controls here!")
-            layout.label(text="Control happens via Python")
-
-        row = layout.row()
-        row.prop(md, "fracture_mode")
-
-        if md.fracture_mode == 'EXTERNAL':
-        #    col = layout.column(align=True)
-        #    col.context_pointer_set("modifier", md)
-        #    col.operator("object.rigidbody_convert_to_objects", text = "Convert To Objects")
-        #    col.operator("object.rigidbody_convert_to_keyframes", text = "Convert To Keyframed Objects")
-            return
-
-        if md.fracture_mode == 'DYNAMIC':
-            row = layout.row(align=True)
-            row.prop(md, "dynamic_force")
-            row.prop(md, "dynamic_percentage")
-            col = layout.column(align=True)
-            col.prop(md, "dynamic_new_constraints")
-            row = col.row(align=True)
-            row.prop(md, "limit_impact")
-            row.prop(md, "dynamic_min_size")
 
         layout.prop(md, "frac_algorithm")
         if md.frac_algorithm in {'BOOLEAN', 'BOOLEAN_FRACTAL'}:
@@ -177,10 +187,6 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
         row.prop(md, "auto_execute")
         row.prop(md, "execute_threaded", text="Threaded (WIP)")
 
-        layout.context_pointer_set("modifier", md)
-        row = layout.row()
-        row.operator("object.fracture_refresh", text="Execute Fracture", icon='MOD_EXPLODE').reset = True
-
 class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
     bl_label = "Constraints"
     bl_options = {'DEFAULT_CLOSED'}
@@ -189,7 +195,7 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
     @classmethod
     def poll(cls, context):
         md = context.fracture
-        return PhysicButtonsPanel.poll(context) and md.fracture_mode != 'EXTERNAL'
+        return PhysicButtonsPanel.poll(context)
 
     def draw(self, context):
         layout = self.layout
@@ -315,7 +321,9 @@ class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
 classes = (
     FRACTURE_MT_presets,
     PHYSICS_PT_fracture,
+    PHYSICS_PT_fracture_basic,
     PHYSICS_PT_fracture_advanced,
+    PHYSICS_PT_fracture_dynamic,
     PHYSICS_PT_fracture_simulation,
     PHYSICS_PT_fracture_utilities,
     PHYSICS_PT_fracture_anim_mesh,

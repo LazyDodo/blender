@@ -122,7 +122,8 @@ typedef struct MeshIslandSequence {
 typedef struct FractureID {
 	struct FractureID *next, *prev;
 	struct MeshIsland *mi;
-	//char pad[4];
+	char fractured;
+	char pad[7];
 } FractureID;
 
 typedef struct AnimBind {

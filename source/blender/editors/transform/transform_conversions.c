@@ -6786,25 +6786,19 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			/* restore rigid body transform */
 			if (ob->rigidbody_object && canceled) {
 				float ctime = BKE_scene_frame_get(t->scene);
-				ModifierData* md = modifiers_findByType(ob, eModifierType_Fracture);
-				FractureModifierData *fmd;
 				if (BKE_rigidbody_check_sim_running(t->scene->rigidbody_world, ctime))
                     BKE_rigidbody_aftertrans_update(ob, td->ext->oloc, td->ext->orot,
                                                     td->ext->oquat, td->ext->orotAxis,
                                                     td->ext->orotAngle, depsgraph);
-				
+#if 0
 				if (md != NULL) {
 					//reset original matrix of modifier
 					fmd = (FractureModifierData*)md;
-					if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-					{
-						copy_m4_m4(fmd->origmat, td->ext->obmat);
-					}
-					else
-					{
-						zero_m4(fmd->origmat);
-					}
+
+					copy_m4_m4(fmd->origmat, td->ext->obmat);
+					//external did zero_m4
 				}
+#endif
 			}
 		}
 	}

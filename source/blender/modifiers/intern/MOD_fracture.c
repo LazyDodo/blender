@@ -114,7 +114,6 @@ static void initData(ModifierData *md)
 	fmd->constraint_type = RBC_TYPE_FIXED;
 	fmd->constraint_target = MOD_FRACTURE_CENTROID;
 
-	fmd->fracture_mode = MOD_FRACTURE_PREFRACTURED;
 	fmd->last_frame = 0; //INT_MIN
 	fmd->dynamic_force = 10.0f;
 	fmd->update_dynamic = false;

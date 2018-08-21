@@ -141,7 +141,7 @@ void foreach_shard_float(Object* ob, float value, void (*func)(RigidBodyOb *rbo,
     for (md = ob->modifiers.first; md; md = md->next) {
         if (md->type == eModifierType_Fracture) {
             rmd = (FractureModifierData*)md;
-            if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
                 for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
@@ -163,7 +163,7 @@ void foreach_shard_mass(Object *ob)
     for (md = ob->modifiers.first; md; md = md->next) {
         if (md->type == eModifierType_Fracture) {
             rmd = (FractureModifierData*)md;
-            if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
                 for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
@@ -184,7 +184,7 @@ void foreach_shard_int(Object *ob, int value, void (*func)(RigidBodyOb *rbo, int
     for (md = ob->modifiers.first; md; md = md->next) {
         if (md->type == eModifierType_Fracture) {
             rmd = (FractureModifierData*)md;
-            if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
                 for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
@@ -205,7 +205,7 @@ void foreach_shard_bool(Object *ob, bool value, void (*func)(RigidBodyOb *rbo, b
     for (md = ob->modifiers.first; md; md = md->next) {
         if (md->type == eModifierType_Fracture) {
             rmd = (FractureModifierData*)md;
-            if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
                 for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
@@ -227,7 +227,7 @@ void foreach_shard_bools(Object *ob, const bool *value, void (*func)(RigidBodyOb
     for (md = ob->modifiers.first; md; md = md->next) {
         if (md->type == eModifierType_Fracture) {
             rmd = (FractureModifierData*)md;
-            if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
                 for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {
@@ -249,7 +249,7 @@ void foreach_shard_flag_shape(Object *ob, int flag, short shape, bool reset)
     for (md = ob->modifiers.first; md; md = md->next) {
         if (md->type == eModifierType_Fracture) {
             rmd = (FractureModifierData*)md;
-            if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
             {
                 for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
                     if (mi->rigidbody != NULL) {

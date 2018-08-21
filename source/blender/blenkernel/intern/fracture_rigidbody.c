@@ -977,13 +977,16 @@ static void rigidbody_create_shard_physics_constraint(FractureModifierData* fmd,
 		return;
 	}
 
-	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL || (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC && fmd->is_dynamic_external))
-	{
+
+#if 0
+	{ //external ?
 		mul_v3_m4v3(loc, ob->obmat, rbc->pos);
 		mat4_to_quat(rot, ob->obmat);
 		mul_qt_qtqt(rot, rot, rbc->orn);
 	}
-	else
+#endif
+#if 1
+	//else
 	{
 		/* keep old constraint calculation for other fracture modes ! */
 		/* do this for all constraints */
@@ -1001,6 +1004,7 @@ static void rigidbody_create_shard_physics_constraint(FractureModifierData* fmd,
 		copy_v3_v3(loc, rbc->pos);
 		copy_qt_qt(rot, rbc->orn);
 	}
+#endif
 
 	if (rb1 && rb2) {
 		switch (rbc->type) {
@@ -1048,7 +1052,7 @@ static void rigidbody_create_shard_physics_constraint(FractureModifierData* fmd,
 			case RBC_TYPE_6DOF_SPRING:
 				rbc->physics_constraint = RB_constraint_new_6dof_spring(loc, rot, rb1, rb2);
 
-				if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL || (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC && fmd->is_dynamic_external))
+				//if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL || (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC && fmd->is_dynamic_external))
 				{
 					if ((rbc->plastic_angle < 0.0f) && (rbc->plastic_dist < 0.0f))
 					{
@@ -1072,11 +1076,13 @@ static void rigidbody_create_shard_physics_constraint(FractureModifierData* fmd,
 						}
 					}
 				}
+#if 0
 				else
 				{
 					/* no plastic mode available in other fracture modes */
 					rigidbody_set_springs_active(rbc, true);
 				}
+#endif
 
 				RB_constraint_set_equilibrium_6dof_spring(rbc->physics_constraint);
 
@@ -1526,8 +1532,6 @@ static bool check_island_size(FractureModifierData *fmd, MeshIsland *mi)
 		}
 	}
 
-	printf("FRACTURE : %d\n", mi->id);
-
 	return true;
 }
 
@@ -1581,7 +1585,7 @@ static bool check_constraints(FractureModifierData *fmd, MeshIsland *mi, RigidBo
 }
 
 static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi, Object* ob1, Object* ob2,
-                                      RigidBodyWorld *rbw, float contact_pos[3], float force)
+                                      RigidBodyWorld *rbw, float contact_pos[3], float force, int frame)
 {
 	bool canbreak = false;
 
@@ -1608,12 +1612,15 @@ static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi,
 
 		/*only fracture on new entries, this is necessary because after loading a file
 		 *the pointcache thinks it is empty and a fracture is attempted ! */
-		if (check_island_size(fmd, mi))
+		if (check_island_size(fmd, mi) /*&& (frame < mi->endframe && mi->endframe <= fmd->shared->last_cache_end)*/)
 		{
 			FractureID* fid = MEM_mallocN(sizeof(FractureID), "contact_callback_fractureid");
 			fid->mi = mi;
+			fid->fractured = false;
+			//fid->mi->endframe = frame;
 			BLI_addtail(&fmd->shared->fracture_ids, fid);
 			fmd->shared->refresh_dynamic = true;
+			printf("FRACTURE : %d\n", mi->id);
 		}
 	}
 }
@@ -1626,11 +1633,13 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 	FractureModifierData *fmd1, *fmd2;
 	RigidBodyWorld *rbw = NULL;
 	float force;
+	int frame;
 
 	if (!cp || !scene) {
 		return;
 	}
 
+	frame = (int)BKE_scene_frame_get(scene);
 	force = cp->contact_force;
 	ob1 = (Object*)cp->contact_objectA;
 	ob2 = (Object*)cp->contact_objectB;
@@ -1640,17 +1649,17 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 	}
 
 	fmd1 = (FractureModifierData*)modifiers_findByType(ob1, eModifierType_Fracture);
-	if (fmd1)
+	if (fmd1 && fmd1->use_dynamic)
 	{
 		mi1 = (MeshIsland*)cp->contact_islandA;
-		check_fracture_meshisland(fmd1, mi1, ob1, ob2, rbw, cp->contact_pos_world_onA, force);
+		check_fracture_meshisland(fmd1, mi1, ob1, ob2, rbw, cp->contact_pos_world_onA, force, frame);
 	}
 
 	fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
-	if (fmd2)
+	if (fmd2 && fmd2->use_dynamic)
 	{
 		mi2 = (MeshIsland*)cp->contact_islandB;
-		check_fracture_meshisland(fmd2, mi2, ob2, ob1, rbw, cp->contact_pos_world_onB, force);
+		check_fracture_meshisland(fmd2, mi2, ob2, ob1, rbw, cp->contact_pos_world_onB, force, frame);
 	}
 
 	//free contact point ?
@@ -1660,7 +1669,7 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 void BKE_rigidbody_contact_callback(rbContactPoint* cp, void* world)
 {
 	Scene* scene = (Scene*)DEG_get_original_id(world);
-	//check_fracture(cp,scene);
+	check_fracture(cp,scene);
 }
 
 /*void BKE_rigidbody_id_callback(void *world, void* island, int* objectId, int* islandId)
@@ -2199,11 +2208,13 @@ static void handle_solver_iterations(RigidBodyWorld *rbw, FractureModifierData *
 		}
 	}
 
+#if 0
 	/* dont automatically enable in External mode */
 	if ((iterations > 0) && (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)) {
 		rbsc->flag |= RBC_FLAG_OVERRIDE_SOLVER_ITERATIONS;
 		rbsc->num_solver_iterations = iterations;
 	}
+#endif
 }
 
 bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw, bool rebuild, Depsgraph *depsgraph)
@@ -2255,6 +2266,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 		}
 #endif
 
+#if 0
 		//else
 		{
 			if (rebuild || is_zero_m4(fmd->passive_parent_mat))
@@ -2267,6 +2279,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 			//print_m4("Passivemat: \n", fmd->passive_parent_mat);
 			//printf("WHERE IS CALC\n");
 		}
+#endif
 
 		BKE_object_where_is_calc(depsgraph, scene, ob);
 		fmd->constraint_island_count = 1;
@@ -2291,7 +2304,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 
 				BKE_mesh_boundbox_calc(mi->mesh, locbb, bbsize);
 
-				if ((rbw->flag & RBW_FLAG_REBUILD_CONSTRAINTS) && fmd->fracture_mode != MOD_FRACTURE_DYNAMIC)
+				if ((rbw->flag & RBW_FLAG_REBUILD_CONSTRAINTS) && !fmd->use_dynamic)
 				{
 					//reset speeds
 					//printf("ZEROIZING speed (shard)\n");
@@ -2303,7 +2316,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 
 				//BKE_rigidbody_passive_hook(fmd, mi, ob, scene, depsgraph);
 
-				if (fmd->use_breaking && fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
+				if (fmd->use_breaking)
 				{
 					float weight = mi->thresh_weight;
 					int breaking_percentage = fmd->breaking_percentage_weighted ? (fmd->breaking_percentage * weight) :
@@ -2317,7 +2330,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				}
 
 				BKE_rigidbody_shard_validate(rbw, is_empty ? NULL : mi, ob, fmd, do_rebuild,
-											 fmd->fracture_mode == MOD_FRACTURE_DYNAMIC, bbsize, frame);
+											 fmd->use_dynamic, bbsize, frame);
 
 				mi->constraint_index = mi->id;
 
@@ -2378,8 +2391,8 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 					rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
 				}
 
-				if (((fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) || ((fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) && fmd->is_dynamic_external))
-					&& (rbsc->type == RBC_TYPE_6DOF_SPRING))
+				//if (((fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) || ((fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) && fmd->is_dynamic_external))
+				//	&& (rbsc->type == RBC_TYPE_6DOF_SPRING))
 				{
 					if (rbsc->plastic_angle >= 0.0f || rbsc->plastic_dist >= 0.0f)
 					{
@@ -2409,24 +2422,20 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				//rbsc->mi2->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD) {
 				/* World has been rebuilt so rebuild constraint */
 				BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, true);
-				BKE_rigidbody_start_dist_angle(rbsc, fmd->fracture_mode == MOD_FRACTURE_EXTERNAL ||
-											   (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC && fmd->is_dynamic_external), true);
+				BKE_rigidbody_start_dist_angle(rbsc, true, true);
 				//TODO ensure evaluation on transform change too
 			}
 
-			else if (rbsc->flag & RBC_FLAG_NEEDS_VALIDATE || fmd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
+			else if (rbsc->flag & RBC_FLAG_NEEDS_VALIDATE || fmd->use_dynamic) {
 				BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
-				//if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
-				//	BKE_rigidbody_start_dist_angle(rbsc, true);
 			}
 
-			if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL && !rebuild)
+			if (!rebuild)
 			{
 				handle_regular_breaking(fmd, ob, rbw, rbsc, max_con_mass, rebuild);
 			}
 
-			if (((fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) || (fmd->fracture_mode == MOD_FRACTURE_DYNAMIC && fmd->is_dynamic_external)) &&
-				(rbsc->flag & RBC_FLAG_USE_BREAKING) && !rebuild)
+			if (!rebuild)
 			{
 				handle_plastic_breaking(rbsc, rbw, laststeps, lastscale);
 			}
@@ -2542,7 +2551,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 	if (md->type == eModifierType_Fracture) {
 
 		fmd = (FractureModifierData *)md;
-		bool mode = fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
+		//bool mode = fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
 
 		//exploOK = !fmd->valid_mesh || (fmd->valid_mesh && fmd->shared->frac_mesh && fmd->shared->dm) ||
 		//          mode || fmd->is_dynamic_external;
@@ -2563,7 +2572,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 			}
 #endif
 
-			invert_m4_m4(imat, fmd->passive_parent_mat);
+//			invert_m4_m4(imat, fmd->passive_parent_mat);
 			invert_m4_m4(ob->imat, ob->obmat);
 
 			for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
@@ -2587,7 +2596,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 				}
 
 				/* use rigid body transform after cache start frame if objects is not being transformed */
-				if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
+				if (BKE_rigidbody_check_sim_running(rbw, ctime)) /* && !(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ))*/ {
 
 					/* keep original transform when the simulation is muted */
 					if (rbw->flag & RBW_FLAG_MUTED)
@@ -2603,7 +2612,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 					mul_qt_v3(rbo->orn, centr);
 					add_v3_v3(rbo->pos, centr);
 
-					if (mode)
+					//if (mode)
 					{
 						mul_qt_qtqt(rbo->orn, rbo->orn, mi->rot);
 					}
@@ -2632,18 +2641,18 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 #endif
 			}
 
-			copy_m4_m4(fmd->passive_parent_mat, ob->obmat);
+//			copy_m4_m4(fmd->passive_parent_mat, ob->obmat);
 			//print_m4("Passivemat2: \n", fmd->passive_parent_mat);
 
 			if ((ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ) /* || (mode && rbw) */||
 				((ob->rigidbody_object) && (ob->rigidbody_object->flag & RBO_FLAG_KINEMATIC)))
 			{
 				/* update "original" matrix */
-				copy_m4_m4(fmd->origmat, ob->obmat);
+//				copy_m4_m4(fmd->origmat, ob->obmat);
 				if (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ && rbw) {
 					RigidBodyShardCon *con;
 
-					rbw->flag |= RBW_FLAG_OBJECT_CHANGED;
+					//rbw->flag |= RBW_FLAG_OBJECT_CHANGED;
 					BKE_rigidbody_cache_reset(rbw);
 					/* re-enable all constraints as well */
 					for (con = fmd->shared->mesh_constraints.first; con; con = con->next) {
@@ -2654,15 +2663,16 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 					}
 				}
 			}
-
+#if 0
 			if (!is_zero_m4(fmd->origmat) && rbw && !(rbw->flag & RBW_FLAG_OBJECT_CHANGED))
 			{
-				if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL /*&& !fmd->is_dynamic_external*/)
+				//if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL /*&& !fmd->is_dynamic_external*/)
 				{
 					copy_m4_m4(ob->obmat, fmd->origmat);
 					zero_m4(fmd->origmat);
 				}
 			}
+#endif
 
 			return modFound;
 		}

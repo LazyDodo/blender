@@ -48,35 +48,23 @@
 #include "limits.h"
 #include "PIL_time.h"
 
-#if 0
-//static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66], Scene *scene);
-static void get_next_entries(FractureModifierData *fmd);
-static void get_prev_entries(FractureModifierData *fmd);
-
 void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene, Depsgraph* depsgraph, Main* bmain)
 {
 	int frame = (int)BKE_scene_frame_get(scene);
 
-	/*HERE we must know which shard(s) to fracture... hmm shards... we should "merge" states which happen in the same frame automatically !*/
-	/* TODO_2 dynamic, this is called from rigidbody system only !!! so move out of the md loop as well, to BKE */
-	if (!BKE_fracture_dynamic_lookup_mesh_state(fmd, frame))
 	{
-		/*simulation mode*/
-		/* bullet callbacks may happen multiple times per frame, in next frame we can evaluate them all,
-		 * so we need some array of shardIDs or shards to fracture each *
-		 * we need to loop over those shard IDs here, but lookup of shard ids might be slow, but fracturing of many shards is slower...
-		 * should not have a visible effect in general */
-
 		int count = 0;
 		int totpoint = 0;
 		FractureID *fid = fmd->shared->fracture_ids.first;
 
 		while(fid) {
 			FracPointCloud points;
-			points = BKE_fracture_points_get(depsgraph, fmd, ob, fid->mi);
-			totpoint += points.totpoints;
-			MEM_freeN(points.points);
-			points.totpoints = 0;
+			if (!fid->fractured) {
+				points = BKE_fracture_points_get(depsgraph, fmd, ob, fid->mi);
+				totpoint += points.totpoints;
+				MEM_freeN(points.points);
+				points.totpoints = 0;
+			}
 			fid = fid->next;
 		}
 
@@ -95,30 +83,30 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 
 				printf("ADD NEW 2: %s \n", ob->id.name);
 				fmd->update_dynamic = false;
-				BKE_fracture_dynamic_new_entries_add(fmd, scene, true);
 			}
 
-			while(fmd->shared->fracture_ids.first){
-				fid = (FractureID*)fmd->shared->fracture_ids.first;
-				BKE_fracture_do(fmd, fid->mi, ob, depsgraph, bmain, scene);
-				BLI_remlink(&fmd->shared->fracture_ids, fid);
-				MEM_freeN(fid);
+			fid = (FractureID*)fmd->shared->fracture_ids.first;
+			while(fid){
+				if (!fid->fractured) {
+					BKE_fracture_do(fmd, fid->mi, ob, depsgraph, bmain, scene);
+				}
+				fid->fractured = true;
 				count++;
+
+				fid = fid->next;
 			}
 
+#if 0
 			if (count > 0)
 			{
-				//BKE_free_constraints(fmd);
 				printf("REFRESH: %s \n", ob->id.name);
 				scene->rigidbody_world->flag |= RBW_FLAG_OBJECT_CHANGED;
 				scene->rigidbody_world->flag |= RBW_FLAG_REFRESH_MODIFIERS;
 			}
+#endif
 		}
 	}
-
-	//fmd->last_frame = frame;
 }
-#endif
 
 #if 0
 static void fracture_dynamic_initialize(FractureModifierData *fmd, Object *ob, Mesh *dm, char (**names)[66], Scene* scene)

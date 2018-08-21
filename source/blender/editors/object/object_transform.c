@@ -84,6 +84,7 @@
 
 #include "object_intern.h"
 
+#if 0
 static void reset_fracturemodifier_matrix(Object* ob, bool do_refresh)
 {
 	/* reset modifier matrix here as well, else clear transforms wont have an effect with Fracture Modifier enabled */
@@ -95,6 +96,7 @@ static void reset_fracturemodifier_matrix(Object* ob, bool do_refresh)
 		fmd->shared->refresh = do_refresh;
 	}
 }
+#endif
 
 /*************************** Clear Transformation ****************************/
 
@@ -284,7 +286,7 @@ static int object_clear_transform_generic_exec(bContext *C, wmOperator *op,
 		if (!(ob->mode & OB_MODE_WEIGHT_PAINT)) {
 
 			/* reset modifier matrix here as well, else clear transforms wont have an effect with Fracture Modifier enabled */
-			reset_fracturemodifier_matrix(ob, false);
+			//reset_fracturemodifier_matrix(ob, false);
 
 			/* run provided clearing function */
 			clear_func(ob, clear_delta);
@@ -388,7 +390,7 @@ static int object_origin_clear_exec(bContext *C, wmOperator *UNUSED(op))
 
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
-		reset_fracturemodifier_matrix(ob, true);
+		//reset_fracturemodifier_matrix(ob, true);
 
 		if (ob->parent) {
 			/* vectors pointed to by v1 and v3 will get modified */
@@ -558,7 +560,7 @@ static int apply_objects_internal(
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
 		/* reset modifier matrix here as well, else clear transforms wont have an effect with Fracture Modifier enabled */
-		reset_fracturemodifier_matrix(ob, true);
+		//reset_fracturemodifier_matrix(ob, true);
 
 		/* calculate rotation/scale matrix */
 		if (apply_scale && apply_rot)
@@ -909,7 +911,7 @@ static int object_origin_set_exec(bContext *C, wmOperator *op)
 		Object *ob = ctx_ob->ptr.data;
 		ob->flag &= ~OB_DONE;
 
-		reset_fracturemodifier_matrix(ob, true);
+//		reset_fracturemodifier_matrix(ob, true);
 
 		/* move active first */
 		if (ob == obact) {

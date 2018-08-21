@@ -470,6 +470,7 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain
 	Mesh* me = NULL, *mesh = mi->mesh;
 	int count_new = count+1;
 	float frame = BKE_scene_frame_get(scene);
+	float quat[4], size[3];
 
 	/*global preparations */
 	islands = MEM_callocN(sizeof(MeshIsland*) * count, "islands");
@@ -583,15 +584,48 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain
 		}
 	}
 
+	mat4_to_quat(quat, ob->obmat);
+	invert_qt(quat);
+	mat4_to_size(size, ob->obmat);
+
 	for (i = 0; i < count_new; i++)
 	{
 		if (temp_meshs[i])
 		{
 			if (temp_meshs[i]->totvert > 0)
 			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
+				float loc[3], rot[4], qrot[4], centr[3];
 				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob, frame);
 				fracture_meshisland_add(fmd, result);
 				result->id = mi->id + j;
+
+				/*match transform and speed of rigidbody, for dynamic*/
+				copy_v3_v3(loc, mi->rigidbody->pos);
+				copy_qt_qt(rot, mi->rigidbody->orn);
+
+				//handle initial rot ?
+				invert_qt_qt(qrot, result->rot);
+				mul_qt_qtqt(qrot, rot, qrot);
+				//mul_qt_qtqt(qrot, quat, qrot);
+
+				copy_v3_v3(centr, result->centroid);
+				sub_v3_v3(centr, mi->centroid);
+				mul_qt_v3(qrot, centr);
+				add_v3_v3(centr, loc);
+
+				//init rigidbody properly ?
+				copy_v3_v3(result->rigidbody->pos, centr);
+				copy_qt_qt(result->rigidbody->orn, qrot);
+
+				//copy_v3_v3(result->centroid, centr);
+				//copy_qt_qt(result->rot, qrot);
+
+				//validate already here at once... dynamic somehow doesnt get updated else
+				BKE_rigidbody_shard_validate(scene->rigidbody_world, result, ob, fmd, true,
+											 true, size, frame);
+
+				result->constraint_index = result->id;
+
 				j++;
 			}
 			else {
@@ -1440,7 +1474,6 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, ListBas
 	return mesh;
 }
 
-#if 0
 void BKE_match_vertex_coords(MeshIsland* mi, MeshIsland *par, Object *ob, int frame, bool is_parent, bool shards_to_islands)
 {
 	float loc[3] = {0.0f, 0.0f, 0.0f};
@@ -1494,6 +1527,7 @@ void BKE_match_vertex_coords(MeshIsland* mi, MeshIsland *par, Object *ob, int fr
 		copy_v3_v3(centr, loc);
 	}
 
+#if 0
 	for (j = 0; j < mi->vertex_count; j++)
 	{
 		float co[3];
@@ -1524,12 +1558,12 @@ void BKE_match_vertex_coords(MeshIsland* mi, MeshIsland *par, Object *ob, int fr
 			mul_qt_v3(qrot, mv->co);
 		}
 	}
+#endif
 
 	//init rigidbody properly ?
 	copy_v3_v3(mi->centroid, centr);
 	copy_qt_qt(mi->rot, qrot);
 }
-#endif
 
 /* flush a hflag to from verts to edges/faces */
 void BKE_bm_mesh_hflag_flush_vert(BMesh *bm, const char hflag)
@@ -2401,7 +2435,7 @@ static void points_from_particles(Object **ob, int totobj, Scene *scene, FracPoi
 						/* birth coordinates are not sufficient in case we did pre-simulate the particles, so they are not
 						 * aligned with the emitter any more BUT as the particle cache is messy and shows initially wrong
 						 * positions "sabotaging" fracture, default use case is using birth coordinates, let user decide... */
-						if (fmd->use_particle_birth_coordinates && fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
+						if (fmd->use_particle_birth_coordinates)
 						{
 							psys_get_birth_coords(&sim, pa, &birth, 0, 0);
 						}
@@ -2633,7 +2667,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 #endif
 
 		//omg, vary the seed here
-		if (emd->split_islands && emd->fracture_mode == MOD_FRACTURE_DYNAMIC) {
+		if (emd->split_islands) {
 			BLI_thread_srandom(0, mi->id);
 		}
 		else
@@ -3028,7 +3062,7 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 	MeshIsland *mii = NULL;
 
 	/* no pointsource means re-use existing mesh islands*/
-	if (fmd->point_source == 0) {
+	if (fmd->point_source == 0 && !fmd->use_dynamic) {
 		int count = 1, i, j = 1;
 		int frame = (int)(BKE_scene_frame_get(scene)); //TODO ensure original scene !!!
 		Mesh** temp_meshs = MEM_callocN(sizeof(Mesh*) * count, "temp_islands no pointsource");

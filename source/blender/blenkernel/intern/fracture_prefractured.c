@@ -107,6 +107,7 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene,
 
 	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);
 	mi->rigidbody->type = RBO_TYPE_ACTIVE;
+	mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 	BKE_rigidbody_calc_shard_mass(ob, mi);
 
 	return mi;
@@ -130,40 +131,36 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->shared->refresh = true;
 	}
 
+#if 0
+	if (fmd->use_dynamic && frame == rbw->shared->pointcache->startframe) {
+		fmd->shared->refresh = true;
+	}
+#endif
+
 	if (fmd->shared->refresh)
 	{
 		MeshIsland *mi = NULL;
 		Mesh *me_tmp = NULL;
 
-		// HACK
-		//fmd->shared->scene = scene;
-
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
-		//BKE_fracture_dynamic_free(fmd, scene);
 		BKE_fracture_meshislands_free(fmd, scene);
 
-#if 0
-		/* if refresh and if having packdata, assemble an inputmesh here (override basemesh) */
-		if (fmd->shared->pack_storage.first)
-		{
-			//treat this as basemesh ?
-			me_tmp = BKE_fracture_assemble_mesh_from_islands(fmd, &fmd->shared->pack_storage, ob, ctime);
+		while (fmd->shared->fracture_ids.first) {
+			FractureID* fid = fmd->shared->fracture_ids.first;
+			BLI_remlink(&fmd->shared->fracture_ids, fid);
+			MEM_freeN(fid);
 		}
-		else {
-#endif
-			me_tmp = BKE_fracture_mesh_copy(me, ob);
-//		}
+
+		me_tmp = BKE_fracture_mesh_copy(me, ob);
 
 		mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob, frame);
 		mi->id = 0;
 		BLI_addtail(&fmd->shared->mesh_islands, mi);
 
-		/*if refresh, perform fracture */
-		BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
-
-		/* refresh means full reset for dynamic too, so rebuild here one state*/
-		//BKE_fracture_dynamic_new_entries_add(fmd, scene, false);
+		if (!fmd->use_dynamic)
+			/*if refresh, perform fracture */
+			BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
 
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;
@@ -171,7 +168,10 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	else if (fmd->shared->refresh_dynamic)
 	{
 		/*if dynamic event, push state to fracture sequence*/
-		//BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
+		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
+		fmd->shared->refresh_dynamic = false;
+		fmd->shared->refresh_constraints = true;
+		fmd->shared->refresh_autohide = true;
 	}
 
 	/* assemble mesh from transformed meshislands */

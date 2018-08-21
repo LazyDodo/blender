@@ -2702,15 +2702,13 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	ModifierData *md;
 	bool foundFracture = false;
 	Object* ob_new = NULL;
-	bool mode = fmd->fracture_mode == MOD_FRACTURE_EXTERNAL;
 	MVert* mv = NULL;
 	int v = 0;
 
-	char *name = mode ? BLI_strdupn(mi->name, MAX_ID_NAME) : BLI_strdupcat(ob->id.name + 2, "_shard");
+	char *name = mi->name ? BLI_strdupn(mi->name, MAX_ID_NAME) : BLI_strdupcat(ob->id.name + 2, "_shard");
 
 	ob_new = BKE_object_add(bmain, scene, layer, OB_MESH, name);
 
-	if (!mode)
 	{	//TODO, this still necessary ?
 		copy_m4_m4(ob_new->obmat, ob->obmat);
 		copy_v3_v3(ob_new->rot, ob->rot);
@@ -2767,14 +2765,6 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 		sub_v3_v3(mv->co, mi->centroid);
 	}
 
-	if (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-	{
-		/*set origin to centroid*/
-		copy_v3_v3(cent, mi->centroid);
-		mul_m4_v3(ob_new->obmat, cent);
-		copy_v3_v3(ob_new->loc, cent);
-	}
-	else
 	{
 		//here we seem to need the "Impact_size..." hmmm that was a hack to store something else inside
 		//Shard *s = BLI_findlink(&fmd->shared->frac_mesh->shard_map, mi->id);
@@ -2786,12 +2776,10 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 			add_v3_v3(loc, mi->rigidbody->pos);
 			//copy_v3_v3(size, s->impact_size);
 
-			if (mode) {
-				mul_qt_qtqt(rot, rot, mi->rot);
-				//mi->rot -> initial rotation, but since they cant be rotated independently from object, its unit_qt here
-				//except fore external mode... there it can be set, so in general use it... since we dont want separate external
-				//mode any more
-			}
+			mul_qt_qtqt(rot, rot, mi->rot);
+			//mi->rot -> initial rotation, but since they cant be rotated independently from object, its unit_qt here
+			//except fore external mode... there it can be set, so in general use it... since we dont want separate external
+			//mode any more
 
 			copy_v3_v3(ob_new->size, size);
 			copy_v3_v3(ob_new->loc, loc);
@@ -2826,7 +2814,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 	Object* rbcon;
 	int iterations;
 
-	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	if (con->name)
 	{
 		name = BLI_strdupn(con->name, MAX_ID_NAME);
 	}
@@ -2836,7 +2824,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 	}
 
 	rbcon = BKE_object_add(bmain, scene, layer, OB_EMPTY, name);
-	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	//if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
 		rbcon->rotmode = ROT_MODE_QUAT;
 	}
@@ -2848,7 +2836,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 		iterations = fmd->solver_iterations_override;
 	}
 
-	if (iterations > 0 && fmd->fracture_mode != MOD_FRACTURE_EXTERNAL) {
+	if (iterations > 0) {
 		con->flag |= RBC_FLAG_OVERRIDE_SOLVER_ITERATIONS;
 		con->num_solver_iterations = iterations;
 	}
@@ -2857,7 +2845,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 		BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
 	}
 
-	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+
 	{
 		/*TODO XXX, take own transform into account too*/
 		float loc[3], rot[4], mat[4][4], size[3] = {1.0f, 1.0f, 1.0f};
@@ -2873,12 +2861,16 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 
 		loc_quat_size_to_mat4(mat, loc, rot, size);
 		copy_m4_m4(rbcon->obmat, mat);
-	}
-	else
-	{
+
+
 		if ((fmd->use_mass_dependent_thresholds)) {
 			BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
 		}
+	}
+
+#if 0
+	else
+	{
 
 		/*use same settings as in modifier
 		 *XXX Maybe use the CENTER between objects ? Might be correct for Non fixed constraints*/
@@ -2893,6 +2885,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 			mul_v3_fl(rbcon->loc, 0.5f);
 		}
 	}
+#endif
 
 	/*omit check for existing objects in group, since this seems very slow, and should not be necessary in this internal function*/
 	do_unchecked_constraint_add(bmain, scene, rbcon, con, reports);
@@ -2956,7 +2949,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 
 	start = PIL_check_seconds_timer();
 
-	if (rmd->use_constraints || rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
+	if (rmd->use_constraints)
 	{
 		for (con = rmd->shared->mesh_constraints.first; con; con = con->next) {
 			do_convert_constraints(bmain, rmd, con, scene, ob, objtree, objs, max_con_mass, reports, layer);
@@ -3018,10 +3011,12 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 		scene->rigidbody_world = rbwn;
 	}
 
+#if 0
 	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
 	{
 		ED_object_base_free_and_unlink(bmain, scene, obact);
 	}
+#endif
 
 	DEG_relations_tag_update(bmain);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
@@ -3247,9 +3242,7 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 						copy_v3_v3(loc, mi->rigidbody->pos);
 						copy_qt_qt(rot, mi->rigidbody->orn);
 
-						if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) {
-							mul_qt_qtqt(rot, rot, mi->rot);
-						}
+						mul_qt_qtqt(rot, rot, mi->rot);
 
 						if (i >= start + 1)
 						{
@@ -3369,9 +3362,7 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 
 		copy_qt_qt(ob_new->quat, ob->quat);
 
-		if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL) {
-			mul_qt_qtqt(ob_new->quat, ob_new->quat, mi->rot);
-		}
+		mul_qt_qtqt(ob_new->quat, ob_new->quat, mi->rot);
 
 		copy_v3_v3(ob_new->rot, ob->rot);
 		copy_v3_v3(ob_new->size, ob->size);
