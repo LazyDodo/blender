@@ -2040,7 +2040,7 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         col = layout.column()
         col.label(text="Object:")
         col.prop(md, "object", text="")
-        col.prop(md, "force_recalc")
+        col.prop(md, "force_recalc", text="Force Fill Update")
 
 
 classes = (
