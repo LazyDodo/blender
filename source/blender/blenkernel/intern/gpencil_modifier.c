@@ -394,7 +394,6 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 	GpencilModifierData *md;
 	bGPdata *gpd = ob->data;
 	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
-	bool recalc_fill = false;
 
 	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
 		if (GPENCIL_MODIFIER_ACTIVE(md, is_render)) {
