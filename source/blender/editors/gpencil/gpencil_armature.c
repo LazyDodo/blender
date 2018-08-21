@@ -51,6 +51,7 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 
+#include "BKE_main.h"
 #include "BKE_action.h"
 #include "BKE_armature.h"
 #include "BKE_context.h"
@@ -68,6 +69,7 @@
 #include "RNA_enum_types.h"
 
 #include "ED_gpencil.h"
+#include "ED_object.h"
 #include "ED_mesh.h"
 
 #include "DEG_depsgraph.h"
@@ -79,6 +81,9 @@ enum {
 	GP_ARMATURE_NAME = 0,
 	GP_ARMATURE_AUTO = 1
 };
+
+#define DEFAULT_RATIO 0.15f
+#define DEFAULT_DECAY 0.25f
 
 /* test if a point is inside cylinder
  * Return:  -1.0 if point is outside the cylinder
@@ -292,7 +297,7 @@ static float get_weight(float dist, float decay_rad, float dif_rad)
 }
 
 /* This functions implements the automatic computation of vertex group weights */
-static void gpencil_add_verts_to_dgroups(bContext *C,
+static void gpencil_add_verts_to_dgroups(const bContext *C,
 	ReportList *reports, Depsgraph *depsgraph, Scene *scene,
 	Object *ob, Object *ob_arm, const float ratio, const float decay)
 {
@@ -392,8 +397,7 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 	}
 
 	/* loop all strokes */
-	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
-	{
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		bGPDframe *init_gpf = gpl->actframe;
 		bGPDspoint *pt = NULL;
 
@@ -434,8 +438,8 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 						for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 							MDeformVert *dvert = &gps->dvert[i];
 							float dist = test_point_in_cylynder(root[j], tip[j],
-																lensqr[j], radsqr[j],
-																pt);
+								lensqr[j], radsqr[j],
+								pt);
 							if (dist < 0) {
 								/* if not in cylinder, check if inside sphere of extremes */
 								weight = 0.0f;
@@ -470,7 +474,6 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 			}
 		}
 	}
-	CTX_DATA_END;
 
 	/* free the memory allocated */
 	MEM_SAFE_FREE(bonelist);
@@ -482,7 +485,7 @@ static void gpencil_add_verts_to_dgroups(bContext *C,
 	MEM_SAFE_FREE(selected);
 }
 
-static void gpencil_object_vgroup_calc_from_armature(bContext *C,
+static void gpencil_object_vgroup_calc_from_armature(const bContext *C,
 	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm,
 	const int mode, const float ratio, const float decay)
 {
@@ -515,6 +518,46 @@ static void gpencil_object_vgroup_calc_from_armature(bContext *C,
 	}
 }
 
+bool ED_gpencil_add_armature_weights(const bContext *C, ReportList *reports,
+	Object *ob, Object *ob_arm, int mode)
+{
+	Main *bmain = CTX_data_main(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Scene *scene = CTX_data_scene(C);
+
+	/* if no armature modifier, add a new one */
+	GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob, eGpencilModifierType_Armature);
+	if (md == NULL) {
+		md = ED_object_gpencil_modifier_add(reports, bmain, scene,
+										ob, "Armature", eGpencilModifierType_Armature);
+		if (md == NULL) {
+			BKE_report(reports, RPT_ERROR,
+				"Unable to add a new Armature modifier to object");
+			return false;
+		}
+		DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
+	}
+
+	/* verify armature */
+	ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)md;
+	if (mmd->object == NULL) {
+		mmd->object = ob_arm;
+	}
+	else {
+		if (ob_arm != mmd->object) {
+			BKE_report(reports, RPT_ERROR,
+				"The existing Armature modifier is already using a different Armature object");
+			return false;
+		}
+	}
+
+	/* add weights */
+	gpencil_object_vgroup_calc_from_armature(C, reports, depsgraph, scene,
+											ob, ob_arm, mode,
+											DEFAULT_RATIO, DEFAULT_DECAY);
+
+	return true;
+}
 /* ***************** Generate armature weights ************************** */
 bool gpencil_generate_weights_poll(bContext *C)
 {
@@ -602,9 +645,9 @@ void GPENCIL_OT_generate_weights(wmOperatorType *ot)
 
 	ot->prop = RNA_def_enum(ot->srna, "mode", mode_type, 0, "Mode", "");
 
-	RNA_def_float(ot->srna, "ratio", 0.15f, 0.0f, 2.0f, "Ratio",
+	RNA_def_float(ot->srna, "ratio", DEFAULT_RATIO, 0.0f, 2.0f, "Ratio",
 		"Ratio between bone length and influence radius", 0.001f, 1.0f);
 
-	RNA_def_float(ot->srna, "decay", 0.1f, 0.0f, 1.0f, "Decay",
+	RNA_def_float(ot->srna, "decay", DEFAULT_DECAY, 0.0f, 1.0f, "Decay",
 		"Factor to reduce influence depending of distance to bone axis", 0.0f, 1.0f);
 }
