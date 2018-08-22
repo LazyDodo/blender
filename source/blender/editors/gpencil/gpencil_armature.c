@@ -85,8 +85,9 @@ enum {
 #define DEFAULT_RATIO 0.10f
 #define DEFAULT_DECAY 0.8f
 
-static int gpencil_bone_looper(Object *ob, Bone *bone, void *data,
-	int(*bone_func)(Object *, Bone *, void *))
+static int gpencil_bone_looper(
+						Object *ob, Bone *bone, void *data,
+						int(*bone_func)(Object *, Bone *, void *))
 {
 	/* We want to apply the function bone_func to every bone
 	 * in an armature -- feed bone_looper the first bone and
@@ -142,17 +143,21 @@ static int bone_skinnable_cb(Object *UNUSED(ob), Bone *bone, void *datap)
 
 	if (!(bone->flag & BONE_HIDDEN_P)) {
 		if (!(bone->flag & BONE_NO_DEFORM)) {
-			if (data->heat && data->armob->pose && BKE_pose_channel_find_name(data->armob->pose, bone->name))
+			if (data->heat && data->armob->pose &&
+				BKE_pose_channel_find_name(data->armob->pose, bone->name))
+			{
 				segments = bone->segments;
-			else
+			}
+			else {
 				segments = 1;
+			}
 
 			if (data->list != NULL) {
 				hbone = (Bone ***)&data->list;
 
 				for (a = 0; a < segments; a++) {
 					**hbone = bone;
-					++*hbone;
+					*hbone++;
 				}
 			}
 			return segments;
@@ -208,12 +213,15 @@ static int dgroup_skinnable_cb(Object *ob, Bone *bone, void *datap)
 
 	if (!(bone->flag & BONE_HIDDEN_P)) {
 		if (!(bone->flag & BONE_NO_DEFORM)) {
-			if (data->heat && data->armob->pose && BKE_pose_channel_find_name(data->armob->pose, bone->name))
+			if (data->heat && data->armob->pose &&
+				BKE_pose_channel_find_name(data->armob->pose, bone->name))
+			{
 				segments = bone->segments;
-			else
+			}
+			else {
 				segments = 1;
+			}
 
-			//if (((arm->layer & bone->layer) && (bone->flag & BONE_SELECTED))) {
 			if (arm->layer & bone->layer) {
 				if (!(defgroup = defgroup_find_name(ob, bone->name))) {
 					defgroup = BKE_object_defgroup_add_name(ob, bone->name);
@@ -229,7 +237,7 @@ static int dgroup_skinnable_cb(Object *ob, Bone *bone, void *datap)
 
 				for (a = 0; a < segments; a++) {
 					**hgroup = defgroup;
-					++*hgroup;
+					*hgroup++;
 				}
 			}
 			return segments;
@@ -253,9 +261,10 @@ static float get_weight(float dist, float decay_rad, float dif_rad)
 }
 
 /* This functions implements the automatic computation of vertex group weights */
-static void gpencil_add_verts_to_dgroups(const bContext *C,
-	ReportList *reports, Depsgraph *depsgraph, Scene *scene,
-	Object *ob, Object *ob_arm, const float ratio, const float decay)
+static void gpencil_add_verts_to_dgroups(
+					const bContext *C, ReportList *reports,
+					Depsgraph *depsgraph, Scene *scene,
+					Object *ob, Object *ob_arm, const float ratio, const float decay)
 {
 	bArmature *arm = ob_arm->data;
 	Bone **bonelist, *bone;
@@ -313,7 +322,9 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 			segments = 1;
 			bbone = NULL;
 
-			if ((ob_arm->pose) && (pchan = BKE_pose_channel_find_name(ob_arm->pose, bone->name))) {
+			if ((ob_arm->pose) &&
+				(pchan = BKE_pose_channel_find_name(ob_arm->pose, bone->name)))
+			{
 				if (bone->segments > 1) {
 					segments = bone->segments;
 					b_bone_spline_setup(pchan, 1, bbone_array);
@@ -358,7 +369,9 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 		}
 
 		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
-			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+			if ((gpf == gpl->actframe) ||
+				((gpf->flag & GP_FRAME_SELECT) && (is_multiedit)))
+			{
 
 				if (gpf == NULL)
 					continue;
@@ -391,7 +404,7 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 							MDeformVert *dvert = &gps->dvert[i];
 							float dist = dist_squared_to_line_segment_v3(verts[i], root[j], tip[j]);
 							if (dist > radsqr[j]) {
-								/* if not in cylinder, check if inside sphere of extremes */
+								/* if not in cylinder, check if inside extreme spheres */
 								weight = 0.0f;
 								dist = len_squared_v3v3(root[j], verts[i]);
 								if (dist < radsqr[j]) {
@@ -414,7 +427,6 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 						}
 					}
 					MEM_SAFE_FREE(verts);
-
 				}
 			}
 
@@ -434,9 +446,10 @@ static void gpencil_add_verts_to_dgroups(const bContext *C,
 	MEM_SAFE_FREE(selected);
 }
 
-static void gpencil_object_vgroup_calc_from_armature(const bContext *C,
-	ReportList *reports, Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm,
-	const int mode, const float ratio, const float decay)
+static void gpencil_object_vgroup_calc_from_armature(
+						const bContext *C,	ReportList *reports,
+						Depsgraph *depsgraph, Scene *scene, Object *ob, Object *ob_arm,
+						const int mode, const float ratio, const float decay)
 {
 	/* Lets try to create some vertex groups
 	 * based on the bones of the parent armature.
@@ -449,7 +462,8 @@ static void gpencil_object_vgroup_calc_from_armature(const bContext *C,
 	/* Traverse the bone list, trying to create empty vertex
 		* groups corresponding to the bone.
 		*/
-	defbase_add = gpencil_bone_looper(ob, arm->bonebase.first, NULL, vgroup_add_unique_bone_cb);
+	defbase_add = gpencil_bone_looper(ob, arm->bonebase.first, NULL,
+									vgroup_add_unique_bone_cb);
 
 	if (defbase_add) {
 		/* its possible there are DWeight's outside the range of the current
@@ -467,8 +481,9 @@ static void gpencil_object_vgroup_calc_from_armature(const bContext *C,
 	}
 }
 
-bool ED_gpencil_add_armature_weights(const bContext *C, ReportList *reports,
-	Object *ob, Object *ob_arm, int mode)
+bool ED_gpencil_add_armature_weights(
+							const bContext *C, ReportList *reports,
+							Object *ob, Object *ob_arm, int mode)
 {
 	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -514,9 +529,8 @@ bool gpencil_generate_weights_poll(bContext *C)
 	Object *ob = CTX_data_active_object(C);
 	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	bGPdata *gpd = (bGPdata *)ob->data;
-	int t = BLI_listbase_count(&gpd->layers);
 
-	if (t == 0) {
+	if (BLI_listbase_count(&gpd->layers) == 0) {
 		return false;
 	}
 

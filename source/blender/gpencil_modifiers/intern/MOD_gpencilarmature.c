@@ -87,7 +87,9 @@ static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 	BKE_gpencil_modifier_copyData_generic(md, target);
 }
 
-static void b_bone_deform(bPoseChanDeform *pdef_info, Bone *bone, float co[3], DualQuat *dq, float defmat[3][3])
+static void b_bone_deform(
+					bPoseChanDeform *pdef_info, Bone *bone, float co[3],
+					DualQuat *dq, float defmat[3][3])
 {
 	Mat4 *b_bone = pdef_info->b_bone_mats;
 	float(*mat)[4] = b_bone[0].mat;
@@ -117,7 +119,9 @@ static void b_bone_deform(bPoseChanDeform *pdef_info, Bone *bone, float co[3], D
 	}
 }
 
-static void pchan_deform_mat_add(bPoseChannel *pchan, float weight, float bbonemat[3][3], float mat[3][3])
+static void pchan_deform_mat_add(
+				bPoseChannel *pchan, float weight, float bbonemat[3][3],
+				float mat[3][3])
 {
 	float wmat[3][3];
 
@@ -130,8 +134,10 @@ static void pchan_deform_mat_add(bPoseChannel *pchan, float weight, float bbonem
 	add_m3_m3m3(mat, mat, wmat);
 }
 
-static void pchan_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, float weight, float vec[3], DualQuat *dq,
-	float mat[3][3], const float co[3], float *contrib)
+static void pchan_bone_deform(
+				bPoseChannel *pchan, bPoseChanDeform *pdef_info, float weight,
+				float vec[3], DualQuat *dq,
+				float mat[3][3], const float co[3], float *contrib)
 {
 	float cop[3], bbonemat[3][3];
 	DualQuat bbonedq;
@@ -215,7 +221,9 @@ static void gpencil_armature_bbone_defmats_cb(void *userdata, Link *iter, int in
 	}
 }
 
-static void gpencil_armature_deform_verts(ArmatureGpencilModifierData *mmd, Object *target, bGPDstroke *gps)
+static void gpencil_armature_deform_verts(
+					ArmatureGpencilModifierData *mmd, Object *target,
+					bGPDstroke *gps)
 {
 	Object *armOb = mmd->object;
 	bGPDspoint *pt = NULL;
