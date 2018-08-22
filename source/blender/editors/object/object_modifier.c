@@ -2470,7 +2470,7 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 			return OPERATOR_CANCELLED;
 		}
 
-		BKE_rigidbody_cache_reset(rbw);
+		BKE_rigidbody_cache_reset(scene);
 	}
 
 	rmd->shared->reset_shards = RNA_boolean_get(op->ptr, "reset");
@@ -2997,7 +2997,7 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 		struct Collection* group = rbw->group;
 		RigidBodyWorld *rbwn = NULL;
 
-		BKE_rigidbody_cache_reset(rbw);
+		BKE_rigidbody_cache_reset(scene);
 		BKE_rigidbody_free_world(scene);
 		scene->rigidbody_world = NULL;
 		rbwn = BKE_rigidbody_create_world(scene);

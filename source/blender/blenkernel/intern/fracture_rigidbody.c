@@ -2651,7 +2651,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 					RigidBodyShardCon *con;
 
 					//rbw->flag |= RBW_FLAG_OBJECT_CHANGED;
-					BKE_rigidbody_cache_reset(rbw);
+					BKE_rigidbody_cache_reset(scene);
 					/* re-enable all constraints as well */
 					for (con = fmd->shared->mesh_constraints.first; con; con = con->next) {
 						//con->flag |= RBC_FLAG_ENABLED;
@@ -2912,7 +2912,7 @@ RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(Scene *scene, short typ
 
 	/* flag cache as outdated */
 	if (reset)
-		BKE_rigidbody_cache_reset(rbw);
+		BKE_rigidbody_cache_reset(scene);
 
 	/* return this object */
 	return rbc;

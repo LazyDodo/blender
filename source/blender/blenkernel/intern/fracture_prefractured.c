@@ -144,13 +144,15 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
-		BKE_fracture_meshislands_free(fmd, scene);
+		BKE_fracture_meshislands_free(fmd, fmd->use_dynamic ? NULL : scene);
 
+#if 0
 		while (fmd->shared->fracture_ids.first) {
 			FractureID* fid = fmd->shared->fracture_ids.first;
 			BLI_remlink(&fmd->shared->fracture_ids, fid);
 			MEM_freeN(fid);
 		}
+#endif
 
 		me_tmp = BKE_fracture_mesh_copy(me, ob);
 

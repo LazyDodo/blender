@@ -461,7 +461,7 @@ static Mesh* get_mesh(Mesh** meshes, int index, Mesh* mesh)
 
 static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain, Object* ob, Scene* scene, cell *c, int count)
 {
-	int i, j = 0;
+	int i, j = 1;
 	BisectContext bictx = {};
 	BooleanContext boctx = {};
 	MeshIsland** islands = NULL;
@@ -478,6 +478,11 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain
 	temp_meshs = MEM_callocN(sizeof(Mesh*) * count_new, "temp_meshs");
 
 	mi->endframe = frame;
+
+	mi->locs = MEM_reallocN(mi->locs, sizeof(float) * 3 * (mi->endframe - mi->startframe + 1));
+	mi->rots = MEM_reallocN(mi->rots, sizeof(float) * 4 * (mi->endframe - mi->startframe + 1));
+	mi->vels = MEM_reallocN(mi->vels, sizeof(float) * 3 * (mi->endframe - mi->startframe + 1));
+	mi->aves = MEM_reallocN(mi->aves, sizeof(float) * 3 * (mi->endframe - mi->startframe + 1));
 
 	/*for each cell...*/
 //#pragma omp parallel for
@@ -1339,6 +1344,62 @@ void fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask ma
 	}
 }
 
+void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scene)
+{
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	int startframe = rbw->shared->pointcache->startframe;
+	int endframe = rbw->shared->pointcache->endframe;
+	int frame = 0;
+	MeshIsland *mi, *next;
+
+	mi = fmd->shared->mesh_islands.first;
+	while (mi) {
+		if (mi->startframe > startframe || (!fmd->use_dynamic && mi->id == 0)) {
+			next = mi->next;
+			BLI_remlink(&fmd->shared->mesh_islands, mi);
+			BKE_fracture_mesh_island_free(mi, scene);
+			mi = next;
+		}
+		else {
+			mi->endframe = endframe;
+			MEM_freeN(mi->locs);
+			MEM_freeN(mi->rots);
+			MEM_freeN(mi->vels);
+			MEM_freeN(mi->aves);
+
+			frame = mi->endframe - mi->startframe + 1;
+			mi->locs = MEM_callocN(sizeof (float) * 3 *frame, "mi->locs");
+			mi->rots = MEM_callocN(sizeof (float) * 4 *frame, "mi->rots");
+			mi->vels = MEM_callocN(sizeof (float) * 3 *frame, "mi->vels");
+			mi->aves = MEM_callocN(sizeof (float) * 3 *frame, "mi->aves");
+			mi->fractured = false;
+
+			if (!mi->rigidbody->shared->physics_object)
+			{
+				float size[3];
+				mat4_to_size(size, ob->obmat);
+				int frame = (int)BKE_scene_frame_get(scene);
+
+				//mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
+				BKE_rigidbody_validate_sim_shard(rbw, ob, mi, fmd, true, true, size, frame);
+			}
+
+			mi = mi->next;
+		}
+	}
+
+#if 0
+	while (fmd->shared->fracture_ids.first) {
+		FractureID* fid = fmd->shared->fracture_ids.first;
+		BLI_remlink(&fmd->shared->fracture_ids, fid);
+		MEM_freeN(fid);
+	}
+#endif
+
+	fmd->shared->last_cache_end = endframe;
+	fmd->shared->last_cache_start = startframe;
+}
+
 
 Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *scene, Object* ob, float ctime)
 {
@@ -1360,9 +1421,9 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *
 		RigidBodyOb *rbo = mi->rigidbody;
 
 		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
-			if (scene && fmd->use_dynamic) {
-				/* remove rigidbody physics handles here too */
+			if (scene && mi->rigidbody->shared->physics_object) {
 				BKE_rigidbody_remove_shard(scene, mi);
+				mi->rigidbody->shared->physics_object = NULL;
 			}
  			continue;
 		}
@@ -1636,6 +1697,9 @@ void BKE_update_velocity_layer(FractureModifierData *fmd, Mesh *dm)
 	{
 		mi = BLI_ghash_lookup(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i));
 		rbo = mi->rigidbody;
+		if (!rbo) {
+			continue;
+		}
 
 		velX[i] = rbo->lin_vel[0] + rbo->ang_vel[0];
 		velY[i] = rbo->lin_vel[1] + rbo->ang_vel[1];

@@ -97,6 +97,9 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 				fid = (FractureID*)fmd->shared->fracture_ids.first;
 			}
 
+			fmd->shared->fracture_ids.first = NULL;
+			fmd->shared->fracture_ids.last = NULL;
+
 #if 0
 			if (count > 0)
 			{

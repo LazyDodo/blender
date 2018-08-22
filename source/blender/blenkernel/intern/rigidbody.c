@@ -1214,7 +1214,7 @@ RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, M
 	}
 
 	/* flag cache as outdated */
-	BKE_rigidbody_cache_reset(rbw);
+	BKE_rigidbody_cache_reset(scene);
 
 	/* return this object */
 	return rbo;
@@ -1321,7 +1321,7 @@ RigidBodyCon *BKE_rigidbody_create_constraint(Scene *scene, Object *ob, short ty
 	}
 
 	/* flag cache as outdated */
-	BKE_rigidbody_cache_reset(rbw);
+	BKE_rigidbody_cache_reset(scene);
 
 	/* return this object */
 	return rbc;
@@ -1386,7 +1386,7 @@ void BKE_rigidbody_remove_object(Main *bmain, Scene *scene, Object *ob)
 		BKE_rigidbody_free_object(ob, rbw);
 
 		/* flag cache as outdated */
-		BKE_rigidbody_cache_reset(rbw);
+		BKE_rigidbody_cache_reset(scene);
 
 		//BKE_rigidbody_update_ob_array(rbw, true);
 	}
@@ -1405,7 +1405,7 @@ void BKE_rigidbody_remove_constraint(Scene *scene, Object *ob)
 	BKE_rigidbody_free_constraint(ob);
 
 	/* flag cache as outdated */
-	BKE_rigidbody_cache_reset(rbw);
+	BKE_rigidbody_cache_reset(scene);
 }
 
 /* ************************************** */
@@ -2018,10 +2018,29 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 	}
 }
 
-void BKE_rigidbody_cache_reset(RigidBodyWorld *rbw)
+void BKE_rigidbody_cache_reset(Scene* scene)
 {
-	if (rbw) {
-		rbw->shared->pointcache->flag |= PTCACHE_OUTDATED;
+	if (scene) {
+		RigidBodyWorld *rbw = scene->rigidbody_world;
+
+		FractureModifierData *fmd;
+		Object *ob;
+		int i = 0;
+
+		if (rbw) {
+			rbw->shared->pointcache->flag |= PTCACHE_OUTDATED;
+			if (rbw->objects) {
+				for (i = 0; i < rbw->numbodies; i++) {
+					ob = rbw->objects[i];
+					if (ob) {
+						fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
+						if (fmd) {
+							BKE_fracture_clear_cache(fmd, ob, scene);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -2130,7 +2149,7 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	{
 		if (!was_changed)
 		{
-			BKE_rigidbody_cache_reset(rbw);
+			BKE_rigidbody_cache_reset(scene);
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
 		}
 
@@ -2161,8 +2180,8 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	}
 
 	/* advance simulation, we can only step one frame forward */
-	//if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64))
-	if (can_simulate)
+	if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64) && !(cache->flag & PTCACHE_BAKED))
+	//if (can_simulate)
 	{
 		/* write cache for first frame when on second frame */
 		if (rbw->ltime == startframe && (cache->flag & PTCACHE_OUTDATED || cache->last_exact == 0)) {

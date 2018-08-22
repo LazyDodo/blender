@@ -159,4 +159,6 @@ bool BKE_fracture_meshisland_check_frame(struct FractureModifierData *fmd, struc
 void BKE_fracture_dynamic_do(struct FractureModifierData *fmd, struct Object* ob, struct Scene* scene,
                              struct Depsgraph* depsgraph, struct Main* bmain);
 
+void BKE_fracture_clear_cache(struct FractureModifierData* fmd, struct Object *ob, struct Scene *scene);
+
 #endif /* BKE_FRACTURE_H */
