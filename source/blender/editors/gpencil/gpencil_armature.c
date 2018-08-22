@@ -113,7 +113,7 @@ static int gpencil_bone_looper(
 	return count;
 }
 
-static int bone_skinnable_cb(Object *UNUSED(ob), Bone *bone, void *datap)
+static int gpencil_bone_skinnable_cb(Object *UNUSED(ob), Bone *bone, void *datap)
 {
 	/* Bones that are deforming
 	 * are regarded to be "skinnable" and are eligible for
@@ -157,7 +157,7 @@ static int bone_skinnable_cb(Object *UNUSED(ob), Bone *bone, void *datap)
 
 				for (a = 0; a < segments; a++) {
 					**hbone = bone;
-					*hbone++;
+					++*hbone;
 				}
 			}
 			return segments;
@@ -237,7 +237,7 @@ static int dgroup_skinnable_cb(Object *ob, Bone *bone, void *datap)
 
 				for (a = 0; a < segments; a++) {
 					**hgroup = defgroup;
-					*hgroup++;
+					++*hgroup;
 				}
 			}
 			return segments;
@@ -287,7 +287,7 @@ static void gpencil_add_verts_to_dgroups(
 	looper_data.list = NULL;
 
 	/* count the number of skinnable bones */
-	numbones = gpencil_bone_looper(ob, arm->bonebase.first, &looper_data, bone_skinnable_cb);
+	numbones = gpencil_bone_looper(ob, arm->bonebase.first, &looper_data, gpencil_bone_skinnable_cb);
 
 	if (numbones == 0)
 		return;
@@ -296,7 +296,7 @@ static void gpencil_add_verts_to_dgroups(
 	 * and fill it with all of the skinnable bones */
 	bonelist = MEM_callocN(numbones * sizeof(Bone *), "bonelist");
 	looper_data.list = bonelist;
-	gpencil_bone_looper(ob, arm->bonebase.first, &looper_data, bone_skinnable_cb);
+	gpencil_bone_looper(ob, arm->bonebase.first, &looper_data, gpencil_bone_skinnable_cb);
 
 	/* create an array of pointers to the deform groups that
 	 * correspond to the skinnable bones (creating them
