@@ -347,6 +347,7 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float clear_depth = 1.0f;
 	uint clear_stencil = 0xFF;
+	int is_persp=1;
 
 	if (!lanpr->active_layer) return; /* return early in case we don't have line layers. DPIX only use the first layer. */
 
@@ -360,15 +361,19 @@ void lanpr_dpix_draw_scene(LANPR_TextureList *txl, LANPR_FramebufferList *fbl, L
 	if (v3d) {
 		RegionView3D *rv3d = draw_ctx->rv3d;
 		camera = (rv3d && rv3d->persp == RV3D_CAMOB) ? v3d->camera : NULL;
+		is_persp = rv3d->is_persp;
 	}
 	if (!camera) {
 		camera = scene->camera;
+		if(!v3d)is_persp = ((Camera *)camera->data)->type == CAM_PERSP ? 1 : 0;
 	}
 	if (is_render && !camera) return;
 
+	//XXX: should implement view angle functions for ortho camera.
+
 	pd->dpix_viewport[2] = texw;
 	pd->dpix_viewport[3] = texh;
-	pd->dpix_is_perspective = 1;
+	pd->dpix_is_perspective = is_persp;
 	pd->dpix_sample_step = 1;
 	pd->dpix_buffer_width = TNS_DPIX_TEXTURE_SIZE;
 	pd->dpix_depth_offset = 0.0001;
