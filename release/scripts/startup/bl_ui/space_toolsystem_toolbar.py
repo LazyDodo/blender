@@ -559,6 +559,10 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def edge_slide():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("transform.edge_slide")
+            layout.prop(props, "correct_uv")
+
         return dict(
             text="Edge Slide",
             icon="ops.transform.edge_slide",
@@ -568,10 +572,15 @@ class _defs_edit_mesh:
                  dict(type='ACTIONMOUSE', value='PRESS')
                  ),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
     def vert_slide():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("transform.vert_slide")
+            layout.prop(props, "correct_uv")
+
         return dict(
             text="Vertex Slide",
             icon="ops.transform.vert_slide",
@@ -580,6 +589,7 @@ class _defs_edit_mesh:
                 ("transform.vert_slide", dict(release_confirm=True),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -628,14 +638,22 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def bevel():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("mesh.bevel")
+            layout.prop(props, "offset_type")
+            layout.prop(props, "segments")
+            layout.prop(props, "profile", slider=True)
+            layout.prop(props, "vertex_only")
+
         return dict(
             text="Bevel",
             icon="ops.mesh.bevel",
             widget=None,
             keymap=(
-                ("mesh.bevel", dict(),
+                ("mesh.bevel", dict(release_confirm=True),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -676,13 +694,24 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def loopcut_slide():
+
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("mesh.loopcut_slide")
+            props_macro = props.MESH_OT_loopcut
+            layout.prop(props_macro, "number_cuts")
+            props_macro = props.TRANSFORM_OT_edge_slide
+            layout.prop(props_macro, "correct_uv")
+
         return dict(
             text="Loop Cut",
             icon="ops.mesh.loopcut_slide",
-            widget=None,
+            widget="VIEW3D_GGT_mesh_preselect_edgering",
             keymap=(
-                ("mesh.loopcut_slide", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+                ("mesh.loopcut_slide",
+                 dict(TRANSFORM_OT_edge_slide=dict(release_confirm=True)),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -900,6 +929,30 @@ class _defs_sculpt:
             )
         )
 
+    @ToolDef.from_fn
+    def hide_border():
+        return dict(
+            text="Border Hide",
+            icon="none",
+            widget=None,
+            keymap=(
+                ("paint.hide_show", dict(action='HIDE'), dict(type='EVT_TWEAK_A', value='ANY')),
+                ("paint.hide_show", dict(action='SHOW'), dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
+                ("paint.hide_show", dict(action='SHOW', area='ALL'), dict(type='SELECTMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def mask_border():
+        return dict(
+            text="Border Mask",
+            icon="none",
+            widget=None,
+            keymap=(
+                ("view3d.select_border", dict(mode='ADD'), dict(type='EVT_TWEAK_A', value='ANY')),
+                ("view3d.select_border", dict(mode='SUB'), dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
+            ),
+        )
 
 class _defs_vertex_paint:
 
@@ -1418,13 +1471,22 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
         ),
     )
 
+    _tools_annotate = (
+        (
+            _defs_annotate.scribble,
+            _defs_annotate.line,
+            _defs_annotate.poly,
+            _defs_annotate.eraser,
+        ),
+    )
+
     _tools = {
         None: [
             # for all modes
         ],
         'VIEW': [
             *_tools_select,
-
+            *_tools_annotate,
         ],
         'MASK': [
             None,
@@ -1491,10 +1553,12 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools = {
         None: [
-            _defs_view3d_generic.cursor,
+            # Don't use this! because of paint modes.
+            # _defs_view3d_generic.cursor,
             # End group.
         ],
         'OBJECT': [
+            _defs_view3d_generic.cursor,
             *_tools_select,
             None,
             *_tools_transform,
@@ -1502,7 +1566,9 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             *_tools_annotate,
         ],
         'POSE': [
+            _defs_view3d_generic.cursor,
             *_tools_select,
+            None,
             *_tools_transform,
             None,
             *_tools_annotate,
@@ -1514,6 +1580,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_ARMATURE': [
+            _defs_view3d_generic.cursor,
             *_tools_select,
             None,
             *_tools_transform,
@@ -1531,6 +1598,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_MESH': [
+            _defs_view3d_generic.cursor,
             *_tools_select,
             None,
             *_tools_transform,
@@ -1577,6 +1645,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_CURVE': [
+            _defs_view3d_generic.cursor,
             *_tools_select,
             None,
             *_tools_transform,
@@ -1587,10 +1656,14 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_edit_curve.extrude_cursor,
         ],
         'PARTICLE': [
+            _defs_view3d_generic.cursor,
             _defs_particle.generate_from_brushes,
         ],
         'SCULPT': [
             _defs_sculpt.generate_from_brushes,
+            None,
+            _defs_sculpt.hide_border,
+            _defs_sculpt.mask_border,
         ],
         'PAINT_TEXTURE': [
             _defs_texture_paint.generate_from_brushes,
@@ -1599,6 +1672,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_vertex_paint.generate_from_brushes,
         ],
         'PAINT_WEIGHT': [
+            # TODO, check for mixed pose mode
+            _defs_view3d_generic.cursor,
             _defs_weight_paint.generate_from_brushes,
             None,
             _defs_weight_paint.sample_weight,
@@ -1613,6 +1688,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_paint.generate_from_brushes,
         ],
         'GPENCIL_EDIT': [
+            _defs_view3d_generic.cursor,
             *_tools_select,
             None,
             *_tools_transform,

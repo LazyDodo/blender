@@ -46,12 +46,15 @@
 #include "BKE_armature.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
+#include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_layer.h"
+#include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -195,17 +198,45 @@ void ED_pose_recalculate_paths(bContext *C, Scene *scene, Object *ob)
 	struct Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ListBase targets = {NULL, NULL};
+	bool free_depsgraph = false;
+
+	/* Override depsgraph with a filtered, simpler copy */
+	if (G.debug_value != -1) {
+TIMEIT_START(filter_pose_depsgraph);
+		DEG_FilterQuery query = {0};
+
+		DEG_FilterTarget *dft_ob = MEM_callocN(sizeof(DEG_FilterTarget), "DEG_FilterTarget");
+		dft_ob->id = &ob->id;
+		BLI_addtail(&query.targets, dft_ob);
+
+		depsgraph = DEG_graph_filter(depsgraph, bmain, &query);
+		free_depsgraph = true;
+
+		MEM_freeN(dft_ob);
+TIMEIT_END(filter_pose_depsgraph);
+
+TIMEIT_START(filter_pose_update);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
+TIMEIT_END(filter_pose_update);
+	}
 
 	/* set flag to force recalc, then grab the relevant bones to target */
 	ob->pose->avs.recalc |= ANIMVIZ_RECALC_PATHS;
 	animviz_get_object_motionpaths(ob, &targets);
 
 	/* recalculate paths, then free */
+TIMEIT_START(pose_path_calc);
 	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets);
+TIMEIT_END(pose_path_calc);
 	BLI_freelistN(&targets);
 
 	/* tag armature object for copy on write - so paths will draw/redraw */
 	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+
+	/* Free temporary depsgraph instance */
+	if (free_depsgraph) {
+		DEG_graph_free(depsgraph);
+	}
 }
 
 
@@ -434,6 +465,43 @@ void POSE_OT_paths_clear(wmOperatorType *ot)
 	ot->prop = RNA_def_boolean(ot->srna, "only_selected", false, "Only Selected",
 	                           "Only clear paths from selected bones");
 	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
+}
+
+/* --------- */
+
+static int pose_update_paths_range_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Scene *scene = CTX_data_scene(C);
+	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
+
+	if (ELEM(NULL, scene, ob, ob->pose)) {
+		return OPERATOR_CANCELLED;
+	}
+
+	/* use Preview Range or Full Frame Range - whichever is in use */
+	ob->pose->avs.path_sf = PSFRA;
+	ob->pose->avs.path_ef = PEFRA;
+
+	/* tag for updates */
+	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+
+	return OPERATOR_FINISHED;
+}
+
+void POSE_OT_paths_range_update(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Update Range from Scene";
+	ot->idname = "POSE_OT_paths_range_update";
+	ot->description = "Update frame range for motion paths from the Scene's current frame range";
+
+	/* callbacks */
+	ot->exec = pose_update_paths_range_exec;
+	ot->poll = ED_operator_posemode_exclusive;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
 /* ********************************************** */

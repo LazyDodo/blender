@@ -152,6 +152,9 @@ bool DRW_object_is_renderable(Object *ob)
 {
 	BLI_assert(BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE));
 
+	if (ob->dt < OB_SOLID)
+		return false;
+
 	if (ob->type == OB_MESH) {
 		if ((ob == DST.draw_ctx.object_edit) || BKE_object_is_in_editmode(ob)) {
 			View3D *v3d = DST.draw_ctx.v3d;
@@ -834,7 +837,23 @@ DrawData *DRW_drawdata_ensure(
 	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
 
 	/* Allocate new data. */
-	dd = MEM_callocN(size, "DrawData");
+	if ((GS(id->name) == ID_OB) && (((Object *)id)->base_flag & BASE_FROMDUPLI) != 0) {
+		/* NOTE: data is not persistent in this case. It is reset each redraw. */
+		BLI_assert(free_cb == NULL); /* No callback allowed. */
+		/* Round to sizeof(float) for DRW_instance_data_request(). */
+		const size_t t = sizeof(float) - 1;
+		size = (size + t) & ~t;
+		size_t fsize = size / sizeof(float);
+		BLI_assert(fsize < MAX_INSTANCE_DATA_SIZE);
+		if (DST.object_instance_data[fsize] == NULL) {
+			DST.object_instance_data[fsize] = DRW_instance_data_request(DST.idatalist, fsize);
+		}
+		dd = (DrawData *)DRW_instance_data_next(DST.object_instance_data[fsize]);
+		memset(dd, 0, size);
+	}
+	else {
+		dd = MEM_callocN(size, "DrawData");
+	}
 	dd->engine_type = engine_type;
 	dd->free = free_cb;
 	/* Perform user-side initialization, if needed. */
@@ -860,6 +879,19 @@ void DRW_drawdata_free(ID *id)
 	}
 
 	BLI_freelistN((ListBase *)drawdata);
+}
+
+/* Unlink (but don't free) the drawdata from the DrawDataList if the ID is an OB from dupli. */
+static void drw_drawdata_unlink_dupli(ID *id)
+{
+	if ((GS(id->name) == ID_OB) && (((Object *)id)->base_flag & BASE_FROMDUPLI) != 0) {
+		DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+
+		if (drawdata == NULL)
+			return;
+
+		BLI_listbase_clear((ListBase *)drawdata);
+	}
 }
 
 /** \} */
@@ -925,6 +957,12 @@ static void drw_engines_cache_populate(Object *ob)
 {
 	DST.ob_state = NULL;
 
+	/* HACK: DrawData is copied by COW from the duplicated object.
+	 * This is valid for IDs that cannot be instanciated but this
+	 * is not what we want in this case so we clear the pointer
+	 * ourselves here. */
+	drw_drawdata_unlink_dupli((ID *)ob);
+
 	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
 		DrawEngineType *engine = link->data;
 		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
@@ -937,6 +975,10 @@ static void drw_engines_cache_populate(Object *ob)
 			engine->cache_populate(data, ob);
 		}
 	}
+
+	/* ... and clearing it here too because theses draw data are
+	 * from a mempool and must not be free individually by depsgraph. */
+	drw_drawdata_unlink_dupli((ID *)ob);
 }
 
 static void drw_engines_cache_finish(void)
@@ -1220,11 +1262,9 @@ static void drw_engines_enable_from_mode(int mode)
 	use_drw_engine(&draw_engine_gpencil_type);
 }
 
-static void drw_engines_enable_from_overlays(int overlay_flag)
+static void drw_engines_enable_from_overlays(int UNUSED(overlay_flag))
 {
-	if (overlay_flag) {
-		use_drw_engine(&draw_engine_overlay_type);
-	}
+	use_drw_engine(&draw_engine_overlay_type);
 }
 /**
  * Use for select and depth-drawing.
@@ -1456,10 +1496,11 @@ void DRW_draw_render_loop_ex(
 		}
 	}
 
+	GPU_framebuffer_bind(DST.default_framebuffer);
+
 	if (do_bg_image) {
 		ED_view3d_draw_bgpic_test(scene, depsgraph, ar, v3d, false, true);
 	}
-
 
 	DRW_draw_callbacks_pre_scene();
 	if (DST.draw_ctx.evil_C) {
