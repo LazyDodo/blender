@@ -305,6 +305,7 @@ class VIEW3D_MT_editor_menus(Menu):
                 layout.menu("VIEW3D_MT_edit_mesh_vertices")
                 layout.menu("VIEW3D_MT_edit_mesh_edges")
                 layout.menu("VIEW3D_MT_edit_mesh_faces")
+                layout.menu("VIEW3D_MT_uv_map", text="UV")
 
         elif obj:
             if mode_string != 'PAINT_TEXTURE':
@@ -2666,10 +2667,6 @@ class VIEW3D_MT_edit_mesh(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_uv_map", text="UV Unwrap...")
-
-        layout.separator()
-
         layout.operator("mesh.duplicate_move", text="Duplicate")
         layout.menu("VIEW3D_MT_edit_mesh_extrude")
         layout.operator("mesh.split")
@@ -3992,19 +3989,26 @@ class VIEW3D_PT_shading_color(Panel):
         shading = VIEW3D_PT_shading.get_shading(context)
         return shading.type == 'SOLID'
 
-    def draw(self, context):
+    def _draw_color_type(self, context):
         layout = self.layout
-
         shading = VIEW3D_PT_shading.get_shading(context)
 
         layout.row().prop(shading, 'color_type', expand=True)
         if shading.color_type == 'SINGLE':
             layout.row().prop(shading, 'single_color', text="")
 
+    def _draw_background_color(self, context):
+        layout = self.layout
+        shading = VIEW3D_PT_shading.get_shading(context)
+
         layout.row().label("Background")
         layout.row().prop(shading, 'background_type', expand=True)
         if shading.background_type == 'VIEWPORT':
             layout.row().prop(shading, "background_color", text="")
+
+    def draw(self, context):
+        self._draw_color_type(context)
+        self._draw_background_color(context)
 
 
 class VIEW3D_PT_shading_options(Panel):

@@ -28,6 +28,7 @@
 
 #include "DNA_userdef_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_constraint_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_mesh_types.h"
@@ -47,6 +48,7 @@
 
 #include "BKE_anim.h"
 #include "BKE_camera.h"
+#include "BKE_constraint.h"
 #include "BKE_curve.h"
 #include "BKE_global.h"
 #include "BKE_mball.h"
@@ -104,6 +106,7 @@ extern char datatoc_gpu_shader_uniform_color_frag_glsl[];
 /* *********** LISTS *********** */
 typedef struct OBJECT_PassList {
 	struct DRWPass *non_meshes[2];
+	struct DRWPass *spot_shapes[2];
 	struct DRWPass *ob_center;
 	struct DRWPass *outlines;
 	struct DRWPass *outlines_search;
@@ -144,6 +147,7 @@ typedef struct OBJECT_Data {
 typedef struct OBJECT_ShadingGroupList {
 	/* Reference only */
 	struct DRWPass *non_meshes;
+	struct DRWPass *spot_shapes;
 	struct DRWPass *bone_solid;
 	struct DRWPass *bone_outline;
 	struct DRWPass *bone_wire;
@@ -207,9 +211,14 @@ typedef struct OBJECT_ShadingGroupList {
 	DRWShadingGroup *lamp_spot_blend;
 	DRWShadingGroup *lamp_spot_pyramid;
 	DRWShadingGroup *lamp_spot_blend_rect;
+	DRWShadingGroup *lamp_spot_volume;
+	DRWShadingGroup *lamp_spot_volume_rect;
+	DRWShadingGroup *lamp_spot_volume_outside;
+	DRWShadingGroup *lamp_spot_volume_rect_outside;
 
 	/* Helpers */
 	DRWShadingGroup *relationship_lines;
+	DRWShadingGroup *constraint_lines;
 
 	/* Camera */
 	DRWShadingGroup *camera;
@@ -1097,8 +1106,7 @@ static void OBJECT_cache_init(void *vedata)
 
 		DRWState state =
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH |
-		        DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND | DRW_STATE_POINT;
-		state |= DRW_STATE_WIRE;
+		        DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND | DRW_STATE_POINT | DRW_STATE_WIRE;
 		sgl->non_meshes = psl->non_meshes[i] = DRW_pass_create("Non Meshes Pass", state);
 
 		/* Empties */
@@ -1274,6 +1282,7 @@ static void OBJECT_cache_init(void *vedata)
 
 		/* Relationship Lines */
 		sgl->relationship_lines = shgroup_dynlines_dashed_uniform_color(sgl->non_meshes, ts.colorWire);
+		sgl->constraint_lines = shgroup_dynlines_dashed_uniform_color(sgl->non_meshes, ts.colorGridAxisZ);
 
 		/* Force Field Curve Guide End (here because of stipple) */
 		/* TODO port to shader stipple */
@@ -1288,6 +1297,28 @@ static void OBJECT_cache_init(void *vedata)
 		/* TODO port to shader stipple */
 		geom = DRW_cache_field_cone_limit_get();
 		sgl->field_cone_limit = shgroup_instance_scaled(sgl->non_meshes, geom);
+
+		/* Spot shapes */
+		state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND | DRW_STATE_CULL_FRONT;
+		sgl->spot_shapes = psl->spot_shapes[i] = DRW_pass_create("Spot Shape Pass", state);
+		float cone_spot_alpha = 0.5f;
+
+		geom = DRW_cache_lamp_spot_volume_get();
+		sgl->lamp_spot_volume = shgroup_instance_alpha(sgl->spot_shapes, geom, cone_spot_alpha);
+
+		geom = DRW_cache_lamp_spot_square_volume_get();
+		sgl->lamp_spot_volume_rect = shgroup_instance_alpha(sgl->spot_shapes, geom, cone_spot_alpha);
+
+		cone_spot_alpha = 0.3f;
+		geom = DRW_cache_lamp_spot_volume_get();
+		sgl->lamp_spot_volume_outside = shgroup_instance_alpha(sgl->spot_shapes, geom, cone_spot_alpha);
+		DRW_shgroup_state_disable(sgl->lamp_spot_volume_outside, DRW_STATE_CULL_FRONT);
+		DRW_shgroup_state_enable(sgl->lamp_spot_volume_outside, DRW_STATE_CULL_BACK);
+
+		geom = DRW_cache_lamp_spot_square_volume_get();
+		sgl->lamp_spot_volume_rect_outside = shgroup_instance_alpha(sgl->spot_shapes, geom, cone_spot_alpha);
+		DRW_shgroup_state_disable(sgl->lamp_spot_volume_rect_outside, DRW_STATE_CULL_FRONT);
+		DRW_shgroup_state_enable(sgl->lamp_spot_volume_rect_outside, DRW_STATE_CULL_BACK);
 	}
 
 	{
@@ -1425,8 +1456,9 @@ static void DRW_shgroup_lamp(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer
 	else if (la->type == LA_SPOT) {
 		float size[3], sizemat[4][4];
 		static float one = 1.0f;
+		float cone_inside[3] = {0.0f, 0.0f, 0.0f};
+		float cone_outside[3] = {1.0f, 1.0f, 1.0f};
 		float blend = 1.0f - pow2f(la->spotblend);
-
 		size[0] = size[1] = sinf(la->spotsize * 0.5f) * la->dist;
 		size[2] = cosf(la->spotsize * 0.5f) * la->dist;
 
@@ -1448,6 +1480,12 @@ static void DRW_shgroup_lamp(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer
 			if (blend != 0.0f && blend != 1.0f) {
 				DRW_shgroup_call_dynamic_add(sgl->lamp_spot_blend_rect, color, &one, spotblendmat);
 			}
+
+			if (la->mode & LA_SHOW_CONE) {
+
+				DRW_shgroup_call_dynamic_add(sgl->lamp_spot_volume_rect, cone_inside, &one, shapemat);
+				DRW_shgroup_call_dynamic_add(sgl->lamp_spot_volume_rect_outside, cone_outside, &one, shapemat);
+			}
 		}
 		else {
 			DRW_shgroup_call_dynamic_add(sgl->lamp_spot_cone, color, shapemat);
@@ -1457,6 +1495,11 @@ static void DRW_shgroup_lamp(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer
 			 * confusing because it doesn't show the actual blend size */
 			if (blend != 0.0f && blend != 1.0f) {
 				DRW_shgroup_call_dynamic_add(sgl->lamp_spot_blend, color, &one, spotblendmat);
+			}
+
+			if (la->mode & LA_SHOW_CONE) {
+				DRW_shgroup_call_dynamic_add(sgl->lamp_spot_volume, cone_inside, &one, shapemat);
+				DRW_shgroup_call_dynamic_add(sgl->lamp_spot_volume_outside, cone_outside, &one, shapemat);
 			}
 		}
 
@@ -1631,7 +1674,7 @@ static void DRW_shgroup_camera(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLay
 
 	/* Motion Tracking. */
 	MovieClip *clip = BKE_object_movieclip_get(scene, ob, false);
-	if ((v3d->flag2 & V3D_SHOW_RECONSTRUCTION) && (clip != NULL)){
+	if ((v3d->flag2 & V3D_SHOW_RECONSTRUCTION) && (clip != NULL)) {
 		BLI_assert(BLI_listbase_is_empty(&sgl->camera_path));
 		const bool is_select = DRW_state_is_select();
 		const bool is_solid_bundle = (v3d->bundle_drawtype == OB_EMPTY_SPHERE) &&
@@ -1664,7 +1707,7 @@ static void DRW_shgroup_camera(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLay
 		{
 			float tracking_object_mat[4][4];
 
-			if (tracking_object->flag & TRACKING_OBJECT_CAMERA){
+			if (tracking_object->flag & TRACKING_OBJECT_CAMERA) {
 				copy_m4_m4(tracking_object_mat, camera_mat);
 			}
 			else {
@@ -2240,7 +2283,11 @@ static void DRW_shgroup_lightprobe(OBJECT_StorageList *stl, OBJECT_PassList *psl
 	}
 }
 
-static void DRW_shgroup_relationship_lines(OBJECT_ShadingGroupList *sgl, Object *ob)
+static void DRW_shgroup_relationship_lines(
+        OBJECT_ShadingGroupList *sgl,
+        Depsgraph *depsgraph,
+        Scene *scene,
+        Object *ob)
 {
 	if (ob->parent && DRW_check_object_visible_within_active_context(ob->parent)) {
 		DRW_shgroup_call_dynamic_add(sgl->relationship_lines, ob->parent->obmat[3]);
@@ -2258,6 +2305,74 @@ static void DRW_shgroup_relationship_lines(OBJECT_ShadingGroupList *sgl, Object 
 			DRW_shgroup_call_dynamic_add(sgl->relationship_lines, rbc_ob2->obmat[3]);
 			DRW_shgroup_call_dynamic_add(sgl->relationship_lines, ob->obmat[3]);
 		}
+	}
+
+	/* Drawing the constraint lines */
+	if (!BLI_listbase_is_empty(&ob->constraints)) {
+		bConstraint *curcon;
+		bConstraintOb *cob;
+		ListBase *list = &ob->constraints;
+
+		cob = BKE_constraints_make_evalob(depsgraph, scene, ob, NULL, CONSTRAINT_OBTYPE_OBJECT);
+
+		for (curcon = list->first; curcon; curcon = curcon->next) {
+			if (ELEM(curcon->type, CONSTRAINT_TYPE_FOLLOWTRACK, CONSTRAINT_TYPE_OBJECTSOLVER)) {
+				/* special case for object solver and follow track constraints because they don't fill
+				 * constraint targets properly (design limitation -- scene is needed for their target
+				 * but it can't be accessed from get_targets callback) */
+
+				Object *camob = NULL;
+
+				if (curcon->type == CONSTRAINT_TYPE_FOLLOWTRACK) {
+					bFollowTrackConstraint *data = (bFollowTrackConstraint *)curcon->data;
+
+					camob = data->camera ? data->camera : scene->camera;
+				}
+				else if (curcon->type == CONSTRAINT_TYPE_OBJECTSOLVER) {
+					bObjectSolverConstraint *data = (bObjectSolverConstraint *)curcon->data;
+
+					camob = data->camera ? data->camera : scene->camera;
+				}
+
+				if (camob) {
+					DRW_shgroup_call_dynamic_add(sgl->constraint_lines, camob->obmat[3]);
+					DRW_shgroup_call_dynamic_add(sgl->constraint_lines, ob->obmat[3]);
+				}
+			}
+			else {
+				const bConstraintTypeInfo *cti = BKE_constraint_typeinfo_get(curcon);
+
+				if ((cti && cti->get_constraint_targets) && (curcon->flag & CONSTRAINT_EXPAND)) {
+					ListBase targets = {NULL, NULL};
+					bConstraintTarget *ct;
+
+					cti->get_constraint_targets(curcon, &targets);
+
+					for (ct = targets.first; ct; ct = ct->next) {
+						/* calculate target's matrix */
+						if (cti->get_target_matrix) {
+							cti->get_target_matrix(depsgraph,
+							                       curcon,
+							                       cob,
+							                       ct,
+							                       DEG_get_ctime(depsgraph));
+						}
+						else {
+							unit_m4(ct->matrix);
+						}
+
+						DRW_shgroup_call_dynamic_add(sgl->constraint_lines, ct->matrix[3]);
+						DRW_shgroup_call_dynamic_add(sgl->constraint_lines, ob->obmat[3]);
+					}
+
+					if (cti->flush_constraint_targets) {
+						cti->flush_constraint_targets(curcon, &targets, 1);
+					}
+				}
+			}
+		}
+
+		BKE_constraints_clear_evalob(cob);
 	}
 }
 
@@ -2521,7 +2636,8 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		return;
 	}
 
-	const bool do_outlines = (draw_ctx->v3d->flag & V3D_SELECT_OUTLINE) && ((ob->base_flag & BASE_SELECTED) != 0);
+	const bool do_outlines = (draw_ctx->v3d->flag & V3D_SELECT_OUTLINE) && ((ob->base_flag & BASE_SELECTED) != 0) &&
+	                         (DRW_object_is_renderable(ob) || (ob->dt == OB_WIRE));
 	const bool show_relations = ((draw_ctx->v3d->flag & V3D_HIDE_HELPLINES) == 0);
 	const bool hide_object_extra = (v3d->overlay.flag & V3D_OVERLAY_HIDE_OBJECT_XTRAS) != 0;
 
@@ -2687,8 +2803,8 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			DRW_shgroup_object_center(stl, ob, view_layer, v3d);
 		}
 
-		if (show_relations) {
-			DRW_shgroup_relationship_lines(sgl, ob);
+		if (show_relations && !DRW_state_is_select()) {
+			DRW_shgroup_relationship_lines(sgl, draw_ctx->depsgraph, scene, ob);
 		}
 
 		if ((ob->dtx != 0) && theme_id == TH_UNDEFINED) {
@@ -2711,7 +2827,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			DRW_shgroup_texture_space(sgl, ob, theme_id);
 		}
 
-		if (ob->dtx & OB_DRAWBOUNDOX) {
+		if (ob->dtx & OB_DRAWBOUNDOX || ob->dt == OB_BOUNDBOX) {
 			DRW_shgroup_bounds(sgl, ob, theme_id);
 		}
 
@@ -2756,9 +2872,10 @@ static void OBJECT_draw_scene(void *vedata)
 
 //	DRW_draw_pass(psl->bone_envelope);  /* Never drawn in Object mode currently. */
 
-	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 
 	/* This needs to be drawn after the oultine */
+	DRW_draw_pass(stl->g_data->sgl.spot_shapes);
 	DRW_draw_pass(stl->g_data->sgl.bone_solid);
 	DRW_draw_pass(stl->g_data->sgl.bone_wire);
 	DRW_draw_pass(stl->g_data->sgl.bone_outline);
@@ -2830,10 +2947,10 @@ static void OBJECT_draw_scene(void *vedata)
 	batch_camera_path_free(&stl->g_data->sgl.camera_path);
 
 	if (!DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_solid) ||
-		!DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_wire) ||
-		!DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_outline) ||
-		!DRW_pass_is_empty(stl->g_data->sgl_ghost.non_meshes) ||
-		!DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_axes))
+	    !DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_wire) ||
+	    !DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_outline) ||
+	    !DRW_pass_is_empty(stl->g_data->sgl_ghost.non_meshes) ||
+	    !DRW_pass_is_empty(stl->g_data->sgl_ghost.bone_axes))
 	{
 		if (DRW_state_is_fbo()) {
 			/* meh, late init to not request a depth buffer we won't use. */
@@ -2850,6 +2967,7 @@ static void OBJECT_draw_scene(void *vedata)
 			GPU_framebuffer_clear_depth(fbl->ghost_fb, 1.0f);
 		}
 
+		DRW_draw_pass(stl->g_data->sgl_ghost.spot_shapes);
 		DRW_draw_pass(stl->g_data->sgl_ghost.bone_solid);
 		DRW_draw_pass(stl->g_data->sgl_ghost.bone_wire);
 		DRW_draw_pass(stl->g_data->sgl_ghost.bone_outline);

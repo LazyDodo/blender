@@ -36,7 +36,7 @@ set(BOOST_VERSION 1.68.0)
 set(BOOST_VERSION_NODOTS 1_68_0)
 set(BOOST_URI https://dl.bintray.com/boostorg/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_NODOTS}.tar.gz)
 set(BOOST_HASH 5d8b4503582fffa9eefdb9045359c239)
-  
+
 set(BLOSC_VERSION 1.14.4)
 set(BLOSC_URI https://github.com/Blosc/c-blosc/archive/v${BLOSC_VERSION}.tar.gz)
 set(BLOSC_HASH e80dfc71e4cba03b8d01ed0876547ffe)
@@ -47,7 +47,13 @@ set(PTHREADS_SHA512 9c06e85310766834370c3dceb83faafd397da18a32411ca7645c8eb6b949
 
 set(ILMBASE_VERSION 2.3.0)
 if (WIN32)
-	set(ILMBASE_VERSION_POSTFIX -2_3_s)
+	if(BUILD_MODE STREQUAL Release)
+		set(ILMBASE_VERSION_POSTFIX _s)
+		set(OPENEXR_VERSION_POSTFIX _s)
+	else()
+		set(ILMBASE_VERSION_POSTFIX _s_d)
+		set(OPENEXR_VERSION_POSTFIX _s_d)
+	endif()
 else()
 	set(ILMBASE_VERSION_POSTFIX)
 endif()
@@ -56,7 +62,6 @@ set(ILMBASE_HASH 354bf86de3b930ab87ac63619d60c860)
 
 set(OPENEXR_VERSION 2.3.0)
 if (WIN32) #release 2.3.0 tarball has broken cmake support
-	set(OPENEXR_VERSION_POSTFIX -2_3_s)
 	set(OPENEXR_URI https://github.com/openexr/openexr/archive/0ac2ea34c8f3134148a5df4052e40f155b76f6fb.tar.gz)
 	set(OPENEXR_HASH ed159435d508240712fbaaa21d94bafb)
 else()
@@ -266,5 +271,6 @@ set(PUGIXML_VERSION 1.9)
 set(PUGIXML_URI https://github.com/zeux/pugixml/archive/v1.9.tar.gz)
 set(PUGIXML_HASH 9346ca1dce2c48f1748c12fdac41a714)
 
-
-
+set(FLEXBISON_VERSION 2.5.5)
+set(FLEXBISON_URI http://prdownloads.sourceforge.net/winflexbison//win_flex_bison-2.5.5.zip)
+set(FLEXBISON_HASH d87a3938194520d904013abef3df10ce)

@@ -25,10 +25,12 @@ if(WIN32)
 	else()
 		set(OSL_SIMD_FLAGS -DOIIO_NOSIMD=1 -DOIIO_SIMD=sse2)
 	endif()
+	SET(OSL_PLATFORM_FLAGS -DLINKSTATIC=ON)
 else()
 	set(OSL_CMAKE_CXX_STANDARD_LIBRARIES)
 	set(OSL_FLEX_BISON)
 	set(OSL_OPENIMAGEIO_LIBRARY "${LIBDIR}/openimageio/lib/${LIBPREFIX}OpenImageIO${LIBEXT};${LIBDIR}/openimageio/lib/${LIBPREFIX}OpenImageIO_Util${LIBEXT};${LIBDIR}/png/lib/${LIBPREFIX}png16${LIBEXT};${LIBDIR}/jpg/lib/${LIBPREFIX}jpeg${LIBEXT};${LIBDIR}/tiff/lib/${LIBPREFIX}tiff${LIBEXT};${LIBDIR}/openexr/lib/${LIBPREFIX}IlmImf${OPENEXR_VERSION_POSTFIX}${LIBEXT}")
+	SET(OSL_PLATFORM_FLAGS)
 endif()
 
 set(OSL_ILMBASE_CUSTOM_LIBRARIES "${LIBDIR}/ilmbase/lib/Imath${ILMBASE_VERSION_POSTFIX}.lib^^${LIBDIR}/ilmbase/lib/Half{ILMBASE_VERSION_POSTFIX}.lib^^${LIBDIR}/ilmbase/lib/IlmThread${ILMBASE_VERSION_POSTFIX}.lib^^${LIBDIR}/ilmbase/lib/Iex${ILMBASE_VERSION_POSTFIX}.lib")
@@ -65,8 +67,7 @@ set(OSL_EXTRA_ARGS
 	${OSL_FLEX_BISON}
 	-DCMAKE_CXX_STANDARD_LIBRARIES=${OSL_CMAKE_CXX_STANDARD_LIBRARIES}
 	-DBUILDSTATIC=ON
-	# Don't use because it statically links pthreads, same as OIIO.
-	# -DLINKSTATIC=ON
+	${OSL_PLATFORM_FLAGS}
 	-DOSL_BUILD_PLUGINS=Off
 	-DSTOP_ON_WARNING=OFF
 	-DUSE_LLVM_BITCODE=OFF
@@ -82,7 +83,7 @@ ExternalProject_Add(external_osl
 	LIST_SEPARATOR ^^
 	URL_HASH MD5=${OSL_HASH}
 	PREFIX ${BUILD_DIR}/osl
-	PATCH_COMMAND ${PATCH_CMD} -p 3 -d ${BUILD_DIR}/osl/src/external_osl < ${PATCH_DIR}/osl.diff 
+	PATCH_COMMAND ${PATCH_CMD} -p 3 -d ${BUILD_DIR}/osl/src/external_osl < ${PATCH_DIR}/osl.diff
 	#	${PATCH_CMD} -p 0 -d ${BUILD_DIR}/osl/src/external_osl < ${PATCH_DIR}/osl_simd_oiio.diff
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${LIBDIR}/osl -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} ${DEFAULT_CMAKE_FLAGS} ${OSL_EXTRA_ARGS}
 	INSTALL_DIR ${LIBDIR}/osl
@@ -100,3 +101,20 @@ add_dependencies(
 	external_openimageio
 	external_pugixml
 )
+
+if(WIN32)
+	if(BUILD_MODE STREQUAL Release)
+		ExternalProject_Add_Step(external_osl after_install
+			COMMAND ${CMAKE_COMMAND} -E copy_directory ${LIBDIR}/osl/ ${HARVEST_TARGET}/osl
+			DEPENDEES install
+		)
+	endif()
+	if(BUILD_MODE STREQUAL Debug)
+		ExternalProject_Add_Step(external_osl after_install
+			COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/osl/lib/oslcomp.lib ${HARVEST_TARGET}/osl/lib/oslcomp_d.lib
+			COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/osl/lib/oslexec.lib ${HARVEST_TARGET}/osl/lib/oslexec_d.lib
+			COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/osl/lib/oslquery.lib ${HARVEST_TARGET}/osl/lib/oslquery_d.lib
+			DEPENDEES install
+		)
+	endif()
+endif()
