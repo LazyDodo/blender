@@ -70,32 +70,37 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
 
         layout.label("Fracture Point Source:")
         col = layout.column()
+        col.context_pointer_set("modifier", md)
         col.prop(md, "point_source")
         if 'GRID' in md.point_source:
             sub = col.split(0.33)
             sub.prop(md, "grid_resolution")
             sub.prop(md, "grid_offset")
             sub.prop(md, "grid_spacing")
-        if 'GREASE_PENCIL' in md.point_source:
-            col.prop(md, "use_greasepencil_edges")
-            col.prop(md, "grease_offset")
-            col.prop(md, "grease_decimate")
-            col.prop(md, "cutter_axis")
-        col.prop(md, "extra_group", text="Helpers")
-        col.prop(md, "dm_group", text="Combination")
-        col.prop(md, "use_constraint_group")
-        col.prop(md, "cutter_group")
-        if (md.cutter_group):
-            col.prop(md, "keep_cutter_shards")
-            col.label("Material Index Offset")
-            row = col.row(align=True)
-            row.prop(md, "material_offset_intersect", text="Intersect")
-            row.prop(md, "material_offset_difference", text="Difference")
+        #if 'GREASE_PENCIL' in md.point_source:
+        #    col.prop(md, "use_greasepencil_edges")
+        #    col.prop(md, "grease_offset")
+        #    col.prop(md, "grease_decimate")
+        #    col.prop(md, "cutter_axis")
+        if {'EXTRA_PARTICLES', 'EXTRA_VERTICES'} in md.point_source:
+            col.prop(md, "extra_group", text="Helpers")
+        if 'CUSTOM' in md.point_source:
+            col.prop(md, "cutter_group")
+            if (md.cutter_group):
+                col.prop(md, "keep_cutter_shards")
+                col.label("Material Index Offset")
+                row = col.row(align=True)
+                row.prop(md, "material_offset_intersect", text="Intersect")
+                row.prop(md, "material_offset_difference", text="Difference")
+        row = col.row()
+        row.prop(md, "dm_group", text="Pack Group")
+        row.prop(md, "use_constraint_group", text="Constraints Only")
+        col.operator("object.fracture_pack", text="Pack", icon="PACKAGE")
         col.prop(md, "use_particle_birth_coordinates")
         col.prop(md, "percentage")
         sub = col.column(align=True)
         sub.prop_search(md, "thresh_vertex_group", ob, "vertex_groups", text = "Threshold")
-        sub.prop_search(md, "ground_vertex_group", ob, "vertex_groups", text = "Passive")
+        sub.prop_search(md, "passive_vertex_group", ob, "vertex_groups", text = "Passive")
         sub.prop_search(md, "inner_vertex_group", ob, "vertex_groups", text = "Inner")
         sub.prop(md, "inner_crease")
         if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
@@ -315,8 +320,8 @@ class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
 
         col = layout.column(align=True)
         col.context_pointer_set("modifier", md)
-        col.operator("object.rigidbody_convert_to_objects", text = "Convert To Objects")
-        col.operator("object.rigidbody_convert_to_keyframes", text = "Convert To Keyframed Objects")
+        col.operator("object.rigidbody_convert_to_objects", text = "Convert To Objects", icon="UGLYPACKAGE")
+        col.operator("object.rigidbody_convert_to_keyframes", text = "Convert To Keyframed Objects", icon="KEY_HLT")
 
 classes = (
     FRACTURE_MT_presets,

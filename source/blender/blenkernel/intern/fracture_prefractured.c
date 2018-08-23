@@ -131,12 +131,6 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->shared->refresh = true;
 	}
 
-#if 0
-	if (fmd->use_dynamic && frame == rbw->shared->pointcache->startframe) {
-		fmd->shared->refresh = true;
-	}
-#endif
-
 	if (fmd->shared->refresh)
 	{
 		MeshIsland *mi = NULL;
@@ -144,25 +138,42 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
-		BKE_fracture_meshislands_free(fmd, fmd->use_dynamic ? NULL : scene);
 
-#if 0
-		while (fmd->shared->fracture_ids.first) {
-			FractureID* fid = fmd->shared->fracture_ids.first;
-			BLI_remlink(&fmd->shared->fracture_ids, fid);
-			MEM_freeN(fid);
+		if (!fmd->use_dynamic && fmd->dm_group && !BLI_listbase_is_empty(&fmd->shared->mesh_islands))
+		{
+			int i = 0;
+			int count = BLI_listbase_count(&fmd->shared->mesh_islands);
+			MeshIsland** mi_tmp = MEM_callocN(sizeof(MeshIsland*) * count, "mi_tmp");
+			for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+			{
+				mi_tmp[i] = mi;
+				i++;
+			}
+
+			/*decouple from listbase because it will continue growing ... */
+			for (mi = mi_tmp, i = 0; i < count; i++)
+			{
+				BKE_fracture_do(fmd, mi_tmp[i], ob, depsgraph, bmain, scene);
+				mi_tmp[i]->endframe = frame;
+			}
+
+			MEM_freeN(mi_tmp);
 		}
-#endif
+		else
+		{
+			BKE_fracture_meshislands_free(fmd, fmd->use_dynamic ? NULL : scene);
+			me_tmp = BKE_fracture_mesh_copy(me, ob);
 
-		me_tmp = BKE_fracture_mesh_copy(me, ob);
+			mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob, frame);
+			mi->id = 0;
+			BLI_addtail(&fmd->shared->mesh_islands, mi);
 
-		mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob, frame);
-		mi->id = 0;
-		BLI_addtail(&fmd->shared->mesh_islands, mi);
+			if (!fmd->use_dynamic)
+				/*if refresh, perform fracture */
+				BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
 
-		if (!fmd->use_dynamic)
-			/*if refresh, perform fracture */
-			BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
+			//mi->endframe = frame;
+		}
 
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;

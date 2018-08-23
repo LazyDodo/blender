@@ -201,7 +201,7 @@ static void rna_##_type##Modifier_##_prop##_set(PointerRNA *ptr, const char *val
 }
 
 RNA_MOD_VGROUP_NAME_SET(Fracture, thresh_defgrp_name);
-RNA_MOD_VGROUP_NAME_SET(Fracture, ground_defgrp_name);
+RNA_MOD_VGROUP_NAME_SET(Fracture, passive_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(Fracture, inner_defgrp_name);
 
 #undef RNA_MOD_VGROUP_NAME_SET
@@ -727,7 +727,8 @@ void RNA_def_fracture(BlenderRNA *brna)
 		{MOD_FRACTURE_OWN_VERTS, "OWN_VERTS", 0, "Own Vertices", "Use own vertices as point cloud"},
 		{MOD_FRACTURE_EXTRA_PARTICLES, "EXTRA_PARTICLES", 0, "Extra Particles", "Use particles of group objects as point cloud"},
 		{MOD_FRACTURE_EXTRA_VERTS, "EXTRA_VERTS", 0, "Extra Vertices", "Use vertices of group objects as point cloud"},
-		{MOD_FRACTURE_GREASEPENCIL, "GREASE_PENCIL", 0, "Grease Pencil", "Use grease pencil points as point cloud"},
+		{MOD_FRACTURE_CUSTOM, "CUSTOM", 0, "Custom", "Use custom cutter object group"},
+		//{MOD_FRACTURE_GREASEPENCIL, "GREASE_PENCIL", 0, "Grease Pencil", "Use grease pencil points as point cloud"},
 		{MOD_FRACTURE_UNIFORM, "UNIFORM", 0, "Uniform", "Use a random uniform pointcloud generated over the bounding box"},
 		{MOD_FRACTURE_GRID, "GRID", 0, "Grid", "Use a grid pointcloud generated over the bounding box"},
 		{0, NULL, 0, NULL, NULL}
@@ -932,10 +933,10 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "ground_vertex_group", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "ground_defgrp_name");
+	prop = RNA_def_property(srna, "passive_vertex_group", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "passive_defgrp_name");
 	RNA_def_property_ui_text(prop, "Passive Vertex Group", "Vertex group name for defining passive mesh parts (will remain static during rigidbody simulation");
-	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_FractureModifier_ground_defgrp_name_set");
+	//RNA_def_property_string_funcs(prop, NULL, NULL, "rna_FractureModifier__defgrp_name_set");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 

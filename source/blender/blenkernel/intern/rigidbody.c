@@ -1996,6 +1996,8 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 		{
 			rbo = mi->rigidbody;
 			do_reset_rigidbody(rbo, ob, mi, loc, rot, quat, rotAxis, rotAngle);
+
+#if 0
 			if (rbo->flag & RBO_FLAG_KINEMATIC)
 			{
 				BKE_rigidbody_passive_fake_parenting(rmd, ob, rbo, imat);
@@ -2005,10 +2007,8 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 			{
 				BKE_rigidbody_passive_hook(rmd, mi, ob, scene, depsgraph);
 			}*/
+#endif
 		}
-
-		//then update origmat
-//		copy_m4_m4(rmd->origmat, ob->obmat);
 	}
 	else {
 		rbo = ob->rigidbody_object;

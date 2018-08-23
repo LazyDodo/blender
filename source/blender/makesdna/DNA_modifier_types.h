@@ -1538,7 +1538,7 @@ typedef struct FractureModifierData {
 	struct FractureModifierData_Shared *shared;
 
 	char thresh_defgrp_name[64];  /* MAX_VGROUP_NAME */
-	char ground_defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char passive_defgrp_name[64];  /* MAX_VGROUP_NAME */
 	char inner_defgrp_name[64];  /* MAX_VGROUP_NAME */
 	char uvlayer_name[64];  /* MAX_CUSTOMDATA_LAYER_NAME */
 

@@ -160,5 +160,10 @@ void BKE_fracture_dynamic_do(struct FractureModifierData *fmd, struct Object* ob
                              struct Depsgraph* depsgraph, struct Main* bmain);
 
 void BKE_fracture_clear_cache(struct FractureModifierData* fmd, struct Object *ob, struct Scene *scene);
+void BKE_fracture_meshisland_vertexgroups_do(struct FractureModifierData *fmd, struct Object *ob, struct MeshIsland* mi);
+void BKE_fracture_meshislands_pack(struct FractureModifierData *fmd, struct Object* obj, struct Main* bmain, struct Scene* scene);
+
+void BKE_fracture_postprocess_meshisland(struct FractureModifierData *fmd, struct Object* ob, struct MeshIsland*mi,
+                                         struct Mesh** temp_meshs, int count, struct Main* bmain, struct Scene* scene, int frame);
 
 #endif /* BKE_FRACTURE_H */

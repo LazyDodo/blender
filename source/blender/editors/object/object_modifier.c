@@ -2642,6 +2642,47 @@ static int fracture_anim_bind_invoke(bContext *C, wmOperator *op, const wmEvent 
 }
 
 
+static int fracture_pack_exec(bContext *C, wmOperator *UNUSED(op)) {
+
+	Object *obact = ED_object_active_context(C);
+	Scene* scene = CTX_data_scene(C);
+	Main *bmain = CTX_data_main(C);
+	FractureModifierData *fmd;
+
+	fmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
+	if (!fmd)
+		return OPERATOR_CANCELLED;
+
+	BKE_fracture_meshislands_pack(fmd, obact, bmain, scene);
+
+	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+
+	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
+	WM_event_add_notifier(C, NC_OBJECT | ND_POINTCACHE, NULL);
+
+	//DEG_relations_tag_update(bmain);
+	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
+	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
+
+	WM_event_add_notifier(C, NC_WINDOW, NULL);
+	WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+static int fracture_pack_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
+{
+	if (edit_modifier_invoke_properties(C, op))
+	{
+		return fracture_pack_exec(C, op);
+	}
+
+	return OPERATOR_CANCELLED;
+}
+
+
 void OBJECT_OT_fracture_refresh(wmOperatorType *ot)
 {
 	ot->name = "Fracture Refresh";
@@ -3164,10 +3205,9 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 
 	do_add_group_unchecked(gr, ob_new);
 
+	ob_new->data = BKE_fracture_mesh_copy(mi->mesh, ob);
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
-
-	me = BKE_fracture_mesh_copy(mi->mesh, ob);
 
 	//last parameter here means deferring removing the bake after all has been converted.
 	ED_rigidbody_object_add(bmain, scene, ob_new, RBO_TYPE_ACTIVE, reports, true);
@@ -3239,8 +3279,15 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Fracture
 					{
 						int x = i - start;
 
-						copy_v3_v3(loc, mi->rigidbody->pos);
-						copy_qt_qt(rot, mi->rigidbody->orn);
+						loc[0] = mi->locs[x * 3];
+						loc[1] = mi->locs[x * 3+1];
+						loc[2] = mi->locs[x * 3+2];
+
+						rot[0] = mi->rots[x * 4];
+						rot[1] = mi->rots[x * 4+1];
+						rot[2] = mi->rots[x * 4+2];
+						rot[3] = mi->rots[x * 4+3];
+
 
 						mul_qt_qtqt(rot, rot, mi->rot);
 
@@ -3521,7 +3568,7 @@ void OBJECT_OT_rigidbody_convert_to_keyframes(wmOperatorType *ot)
 	ot->description = "Convert the Rigid Body modifier shards to keyframed real objects";
 	ot->idname = "OBJECT_OT_rigidbody_convert_to_keyframes";
 
-	ot->poll = fracture_poll;
+	//ot->poll = fracture_poll;
 	ot->exec = rigidbody_convert_keyframes_exec;
 	ot->invoke = rigidbody_convert_keyframes_invoke;
 
@@ -3547,6 +3594,21 @@ void OBJECT_OT_fracture_anim_bind(wmOperatorType *ot)
 	ot->poll = fracture_poll;
 	ot->invoke = fracture_anim_bind_invoke;
 	ot->exec = fracture_anim_bind_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
+	edit_modifier_properties(ot);
+}
+
+void OBJECT_OT_fracture_pack(wmOperatorType *ot)
+{
+	ot->name = "Fracture Pack";
+	ot->description = "Pack objects as mesh islands into Fracture Modifier";
+	ot->idname = "OBJECT_OT_fracture_pack";
+
+	ot->poll = fracture_poll;
+	ot->invoke = fracture_pack_invoke;
+	ot->exec = fracture_pack_exec;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;

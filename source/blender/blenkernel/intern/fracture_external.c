@@ -54,7 +54,7 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
-static MeshIsland* fracture_object_to_island( Object *own, Object* target);
+static MeshIsland* fracture_object_to_island(FractureModifierData *fmd, Object *own, Object* target, Main* bmain, Scene* scene);
 
 #if 0
 int BKE_fracture_update_visual_mesh(FractureModifierData *fmd, Object *ob, bool do_custom_data)
@@ -336,8 +336,7 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	//lets see whether we need to add loc here too XXX TODO
 	mat4_to_loc_quat(loc, quat, target->obmat);
 
-	mi = fracture_object_to_island(own, target);
-	mi->startframe = frame;
+	mi = fracture_object_to_island(fmd, own, target, bmain, scene);
 	mi->endframe = endframe;
 
 	copy_v3_v3(mi->centroid, loc);
@@ -353,7 +352,7 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	copy_qt_qt(mi->rot, quat);
 	copy_v3_v3(mi->centroid, loc);
 
-	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
+	//mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
 	BLI_strncpy(mi->name, target->id.name + 2, MAX_ID_NAME - 2);
 
 	//handle materials
@@ -615,36 +614,35 @@ Mesh* BKE_fracture_external_apply(FractureModifierData *fmd, Object* ob, Mesh* p
 }
 #endif
 
-static MeshIsland* fracture_object_to_island( Object *own, Object* target)
+static MeshIsland* fracture_object_to_island(FractureModifierData* fmd, Object *own, Object* target, Main* bmain, Scene* scene)
 {
 	MeshIsland *mi;
-	Mesh *me;
+	Mesh *me = target->runtime.mesh_eval;
 	MVert *mv;
 	int v;
-	//Object *ob_eval = NULL; //get eval object from target
 	SpaceTransform trans;
 	float mat[4][4], size[3] = {1.0f, 1.0f, 1.0f};
+	int frame = (int)BKE_scene_frame_get(scene);
 
-	//dm = target->derivedFinal; //eval ob, modifier mesh (TODO)
-	//dm = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_eval, &do_free);
-	me = target->runtime.mesh_eval;
-
-	if (!me)
+	if (me)
 	{	//fallback if no derivedFinal available
-		me = target->data;
+		me = BKE_fracture_mesh_copy(me, own);
+	}
+	else {
+		me = BKE_fracture_mesh_copy(target->data, own);
 	}
 
 	unit_m4(mat);
 	BLI_space_transform_from_matrices(&trans, target->obmat, mat);
 	//BLI_SPACE_TRANSFORM_SETUP(&trans, target, own);
-	mat4_to_size(size, target->obmat);
+	//mat4_to_size(size, target->obmat);
 
 	// create temp shard -> that necessary at all ?
-	mi = MEM_callocN(sizeof(MeshIsland), "mesh_island");
-	BKE_mesh_nomain_to_mesh(me, mi->mesh, own, CD_MASK_MESH, false); //or target ? lol
+	mi = BKE_fracture_mesh_island_create(me, bmain, scene, own, frame);
+	BLI_addtail(&fmd->shared->mesh_islands, mi);
 
 	//use this as size holder, and rawcentroid is the old ob location
-	copy_v3_v3(mi->impact_size, size);
+	//copy_v3_v3(mi->impact_size, size);
 
 	//compare centroid in worldspace with location
 	//mul_v3_m4v3(mi->raw_centroid, target->obmat, mi->centroid);

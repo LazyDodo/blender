@@ -71,7 +71,8 @@ enum {
 	MOD_FRACTURE_OWN_PARTICLES   = (1 << 1),
 	MOD_FRACTURE_EXTRA_VERTS     = (1 << 2),
 	MOD_FRACTURE_EXTRA_PARTICLES = (1 << 3),
-	MOD_FRACTURE_GREASEPENCIL    = (1 << 4),
+	MOD_FRACTURE_CUSTOM          = (1 << 4),
+	//MOD_FRACTURE_GREASEPENCIL    = (1 << 4),
 	MOD_FRACTURE_UNIFORM         = (1 << 5),
 	MOD_FRACTURE_GRID            = (1 << 6),
 };
@@ -210,7 +211,7 @@ typedef struct MeshIsland {
 	int id;
 	float centroid[3];
 	float rot[4]; /*hrm, need this for constraints probably */
-	float thresh_weight, ground_weight;
+	float thresh_weight, passive_weight;
 	int linear_index;  /* index in rigidbody world */
 	int particle_index;
 	int constraint_index;

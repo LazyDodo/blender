@@ -27,6 +27,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "BKE_collection.h"
 #include "BKE_fracture.h"
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
@@ -56,7 +57,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 static void remove_participants(RigidBodyShardCon* con, MeshIsland *mi);
 
 
-static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh_islands, KDTree **combined_tree, Object *ob,
+static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh_islands, KDTree **combined_tree, Object *obj,
 								   MVert** mverts)
 {
 	MeshIsland *mi;
@@ -65,18 +66,19 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 
 	if (rmd->dm_group && rmd->use_constraint_group)
 	{
-		CollectionObject *go;
+		Object* ob;
 
-		for (go = rmd->dm_group->gobject.first; go; go = go->next)
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rmd->dm_group, ob)
 		{
-			if ( go->ob != ob)
+			if (obj != ob)
 			{
-				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(go->ob, eModifierType_Fracture);
+				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(ob, eModifierType_Fracture);
 				if (fmdi) {
 					islands += BLI_listbase_count(&fmdi->shared->mesh_islands);
 				}
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 	else {
 
@@ -87,14 +89,14 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 
 	if (rmd->dm_group && rmd->use_constraint_group)
 	{
-		CollectionObject *go;
+		Object *ob;
 		int j = 0;
 
-		for (go = rmd->dm_group->gobject.first; go; go = go->next)
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rmd->dm_group, ob)
 		{
-			if ( go->ob != ob)
+			if (obj != ob)
 			{
-				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(go->ob, eModifierType_Fracture);
+				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(ob, eModifierType_Fracture);
 				if (fmdi) {
 					for (mi = fmdi->shared->mesh_islands.first; mi; mi = mi->next) {
 						mi->object_index = j;
@@ -106,6 +108,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 				j++;
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 	else {
 
@@ -121,7 +124,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 		*combined_tree = BLI_kdtree_new(islands);
 		for (i = 0; i < islands; i++) {
 			float obj_centr[3];
-			mul_v3_m4v3(obj_centr, ob->obmat, (*mesh_islands)[i]->centroid);
+			mul_v3_m4v3(obj_centr, obj->obmat, (*mesh_islands)[i]->centroid);
 			BLI_kdtree_insert(*combined_tree, i, obj_centr);
 		}
 
@@ -136,21 +139,21 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 
 		if (rmd->dm_group && rmd->use_constraint_group)
 		{
-			CollectionObject *go;
+			Object *ob;
 			mvert = MEM_mallocN(sizeof(MVert), "mvert");
 
-			for (go = rmd->dm_group->gobject.first; go; go = go->next)
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rmd->dm_group, ob)
 			{
-				if ( go->ob != ob)
+				if (obj != ob)
 				{
 					float imat[4][4];
-					FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(go->ob, eModifierType_Fracture);
+					FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(ob, eModifierType_Fracture);
 					if (fmdi && fmdi->shared->mesh_cached) {
 						int v = fmdi->shared->mesh_cached->totvert;
 						int x = 0;
 
 						//invert_m4_m4(imat, go->ob->obmat);
-						copy_m4_m4(imat, go->ob->obmat);
+						copy_m4_m4(imat, ob->obmat);
 
 						mvert = MEM_reallocN(mvert, sizeof(MVert) * (totvert + v));
 						memcpy(mvert + totvert, fmdi->shared->mesh_cached->mvert, v * sizeof(MVert));
@@ -164,6 +167,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 					}
 				}
 			}
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 		}
 		else if (rmd && rmd->shared->mesh_cached) {
 			totvert = rmd->shared->mesh_cached->totvert;
@@ -181,7 +185,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 					copy_v3_v3(co, mv->co);
 				}
 				else {
-					mul_v3_m4v3(co, ob->obmat, mv->co);
+					mul_v3_m4v3(co, obj->obmat, mv->co);
 				}
 
 				BLI_kdtree_insert(*combined_tree, i, co);
