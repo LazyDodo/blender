@@ -150,7 +150,7 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 
 			val = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->face_pairs, SET_INT_IN_POINTER(index)));
 			if (val != i && index != i) {
-				BLI_ghash_insert(fmd->shared->face_pairs, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(index));
+				BLI_ghash_insert(fmd->shared->face_pairs, SET_INT_IN_POINTER(index), SET_INT_IN_POINTER(i));
 				pairs++;
 				/*match normals...*/
 				if (fmd->fix_normals) {
@@ -495,10 +495,9 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	BMFace **faces = MEM_mallocN(sizeof(BMFace *), "faces");
 	int del_faces = 0;
 	bool do_merge = fmd->do_merge;
-	//struct BMeshToMeshParams bmt = {.calc_object_remap = 0};
 
 	//just before we mess up this mesh, ensure velocity precalculation.
-	BKE_update_velocity_layer(fmd, dm);
+//	BKE_update_velocity_layer(fmd, dm);
 
 	if (fmd->use_centroids && !fmd->use_vertices)
 	{
@@ -511,10 +510,6 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	else {
 	   bm = BKE_fracture_mesh_to_bmesh(dm);
 	}
-
-//	BM_mesh_elem_index_ensure(bm, BM_FACE | BM_VERT);
-//	BM_mesh_elem_table_ensure(bm, BM_FACE | BM_VERT);
-//	BM_mesh_elem_toolflags_ensure(bm);
 
 	if (!fmd->use_centroids)
 	{
@@ -640,7 +635,7 @@ void BKE_fracture_normal_find(Mesh *dm, KDTree *tree, float co[3], short no[3], 
 		index = n[i].index;
 		mvert = dm->mvert + index;
 		normal_short_to_float_v3(vno, mvert->no);
-		if ((dot_v3v3(fno, vno) > 0.0f)){
+		/*if ((dot_v3v3(fno, vno) > 0.0f)) */{
 			copy_v3_v3_short(rno, mvert->no);
 			if (n != NULL) {
 				MEM_freeN(n);
@@ -662,30 +657,39 @@ void BKE_fracture_normal_find(Mesh *dm, KDTree *tree, float co[3], short no[3], 
 	copy_v3_v3_short(rno, mvert->no);
 }
 
-void BKE_fracture_physics_normals_fix(FractureModifierData *fmd, MeshIsland* mi, int i, Mesh* orig_dm)
+//XXXX TODO same applies for autohide prep and normals fixing, latter could be a separate operator or so, called from refresh op
+static KDTree *build_nor_tree(Mesh *dm)
+{
+	int i = 0, totvert = dm->totvert;
+	KDTree *tree = BLI_kdtree_new(totvert);
+	MVert *mv, *mvert = dm->mvert;
+
+	for (i = 0, mv = mvert; i < totvert; i++, mv++) {
+		BLI_kdtree_insert(tree, i, mv->co);
+	}
+
+	BLI_kdtree_balance(tree);
+
+	return tree;
+}
+
+void BKE_fracture_meshisland_normals_fix(FractureModifierData *fmd, MeshIsland* mi, Mesh* orig_me)
 {
 	MVert *mv;
 	int j;
+	KDTree *tree;
+
+	tree = build_nor_tree(orig_me);
 
 	for (mv = mi->mesh->mvert, j = 0; j < mi->mesh->totvert; mv++, j++) {
 		short no[3];
 
-		/* either take orignormals or take ones from fractured mesh */
-		if (fmd->fix_normals) {
-		   BKE_fracture_normal_find(orig_dm, fmd->shared->nor_tree, mv->co, mv->no, no, fmd->nor_range);
-		}
-		else {
-			copy_v3_v3_short(no, mv->no);
-		}
-
-		/* then eliminate centroid in vertex coords*/
-		sub_v3_v3(mv->co, mi->centroid);
+		printf("Fixing Normals: %d\n", j);
+		BKE_fracture_normal_find(orig_me, tree, mv->co, mv->no, no, fmd->nor_range);
+		copy_v3_v3_short(mv->no, no);
 	}
 
-	if (fmd->fix_normals)
-	{
-		printf("Fixing Normals: %d\n", i);
-	}
+	BLI_kdtree_free(tree);
 }
 
 void BKE_fracture_shared_vert_groups(FractureModifierData* fmd, Mesh* dm, ListBase *shared_verts)

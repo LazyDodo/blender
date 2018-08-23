@@ -34,6 +34,7 @@
 
 #include "BLI_sys_types.h"
 #include "BKE_scene.h"
+#include "BKE_customdata.h"
 
 struct Mesh;
 
@@ -69,6 +70,15 @@ typedef struct FracPointCloud {
 	struct FracPoint *points;   /* just a bunch of positions in space*/
 	int totpoints; /* number of positions */
 } FracPointCloud;
+
+
+static const CustomDataMask CD_MASK_ISLAND =
+		CD_MASK_MDEFORMVERT |
+		CD_MASK_PROP_FLT | CD_MASK_PROP_INT | CD_MASK_PROP_STR | CD_MASK_MDISPS |
+		CD_MASK_MLOOPUV | CD_MASK_MLOOPCOL |
+		CD_MASK_RECAST | CD_MASK_PAINT_MASK |
+		CD_MASK_GRID_PAINT_MASK | CD_MASK_MVERT_SKIN | CD_MASK_FREESTYLE_EDGE | CD_MASK_FREESTYLE_FACE |
+		CD_MASK_CUSTOMLOOPNORMAL | CD_MASK_FACEMAP;
 
 
 void BKE_fracture_autohide_refresh(struct FractureModifierData* fmd, struct Object *ob, struct Mesh *me_assembled);
@@ -109,8 +119,6 @@ void BKE_fracture_mesh_island_remove_all(struct FractureModifierData *fmd, struc
 void BKE_fracture_mesh_constraint_remove(struct FractureModifierData *fmd, struct RigidBodyShardCon* con, struct Scene *scene);
 void BKE_fracture_constraints_free(struct FractureModifierData *fmd, struct Scene *scene);
 
-int BKE_fracture_update_visual_mesh(struct FractureModifierData *fmd, struct Object *ob, bool do_custom_data);
-
 struct RigidBodyShardCon *BKE_fracture_mesh_constraint_create(struct Scene *scene, struct FractureModifierData *fmd,
                                                      struct MeshIsland *mi1, struct MeshIsland *mi2, short con_type);
 
@@ -134,10 +142,6 @@ void BKE_fracture_modifier_free(struct FractureModifierData *fmd, struct Scene *
 void BKE_fracture_mesh_island_free(struct MeshIsland *mi, struct Scene* scene);
 
 short BKE_fracture_collect_materials(struct Main* bmain, struct Object* o, struct Object* ob, int matstart, struct GHash** mat_index_map);
-
-struct Mesh *BKE_fracture_prefractured_do(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *dm,
-                                          struct Mesh *orig_dm, char names [][66], int count, struct Scene* scene,
-										  struct Depsgraph *depsgraph);
 
 struct Mesh* BKE_fracture_mesh_copy(struct Mesh* source, struct Object* ob);
 struct BMesh* BKE_fracture_mesh_to_bmesh(struct Mesh* me);
@@ -165,5 +169,9 @@ void BKE_fracture_meshislands_pack(struct FractureModifierData *fmd, struct Obje
 
 void BKE_fracture_postprocess_meshisland(struct FractureModifierData *fmd, struct Object* ob, struct MeshIsland*mi,
                                          struct Mesh** temp_meshs, int count, struct Main* bmain, struct Scene* scene, int frame);
+void BKE_fracture_meshisland_normals_fix(struct FractureModifierData *fmd, struct MeshIsland* mi, struct Mesh* orig_me);
+
+void BKE_fracture_copy_customdata(struct CustomData* src, struct CustomData* dst, CustomDataMask mask, int src_ofs, int dst_ofs,
+                              int copyelem, int totelem);
 
 #endif /* BKE_FRACTURE_H */

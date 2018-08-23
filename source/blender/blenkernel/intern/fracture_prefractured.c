@@ -191,7 +191,6 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	if (fmd->shared->mesh_islands.first)
 	{
 		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, scene, ob, ctime);
-		//DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 	else {
 		me_assembled = BKE_fracture_mesh_copy(me, ob);
@@ -207,10 +206,6 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			BKE_fracture_constraints_free(fmd, scene);
 
 		BKE_fracture_external_constraints_setup(fmd, scene, ob);
-
-		//if (!fmd->shared->refresh)
-			/* update scene here in case only the constraints updated, dont update twice*/
-		//	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	fmd->shared->refresh = false;
@@ -226,18 +221,26 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		}
 	}
 
-	/* if autohide / automerge etc perform postprocess */
-	if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0 || fmd->use_centroids || fmd->use_vertices)
-	{
-		//printf("Autohide \n");
-		me_final = BKE_fracture_autohide_do(fmd, me_assembled, ob, scene);
+	if (me_assembled->totvert == 0) {
+		/* just return the original mesh in case our mesh is empty */
 		BKE_fracture_mesh_free(me_assembled);
-		me_assembled = NULL;
+		me_final = me_orig;
 	}
-	else {
-		me_final = me_assembled;
-		if (!fmd->fix_normals) {
-			BKE_mesh_calc_normals(me_final);
+	else
+	{
+		/* if autohide / automerge etc perform postprocess */
+		if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0 || fmd->use_centroids || fmd->use_vertices)
+		{
+			//printf("Autohide \n");
+			me_final = BKE_fracture_autohide_do(fmd, me_assembled, ob, scene);
+			BKE_fracture_mesh_free(me_assembled);
+			me_assembled = NULL;
+		}
+		else {
+			me_final = me_assembled;
+			if (!fmd->fix_normals) {
+				BKE_mesh_calc_normals(me_final);
+			}
 		}
 	}
 

@@ -40,6 +40,7 @@ typedef struct BisectContext {
 	bool clear_outer;
 	bool use_fill;
 	bool do_fast_bisect;
+	bool use_smooth_inner;
 
 	char uv_layer[64];
 	float normal[3];

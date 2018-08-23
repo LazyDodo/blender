@@ -275,7 +275,7 @@ static void rna_RigidBodyOb_reset(Main *UNUSED(bmain), Scene *scene, PointerRNA 
       RigidBodyOb* rbo = ptr->data;
       foreach_shard_flag_shape(ob, rbo->flag, rbo->shape, false);
 
-      BKE_rigidbody_cache_reset(rbw);
+      BKE_rigidbody_cache_reset(scene);
 }
 
 static void rna_RigidBodyOb_shape_update(Main *bmain, Scene *scene, PointerRNA *ptr)

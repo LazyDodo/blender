@@ -406,6 +406,11 @@ Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, Boolea
 		do_set_inner_material(shard, ctx->inner_material_index, obj);
 	}
 
+	BKE_fracture_copy_customdata(&geometry->vdata, &shard->vdata, CD_MASK_ISLAND, 0, 0, shard->totvert, shard->totvert);
+	BKE_fracture_copy_customdata(&geometry->edata, &shard->edata, CD_MASK_ISLAND, 0, 0, shard->totedge, shard->totedge);
+	BKE_fracture_copy_customdata(&geometry->ldata, &shard->ldata, CD_MASK_ISLAND, 0, 0, shard->totloop, shard->totloop);
+	BKE_fracture_copy_customdata(&geometry->pdata, &shard->pdata, CD_MASK_ISLAND, 0, 0, shard->totpoly, shard->totpoly);
+
 	result = BKE_boolean_operation(geometry, obj, shard, obj, ctx->operation, ctx->thresh, NULL);
 	/*0 == intersection, 2 == difference*/
 
@@ -476,7 +481,7 @@ static void do_fill(float plane_no[3], BMOperator bmop, BMesh* bm_parent, Bisect
 		BMO_op_initf(
 			bm_parent, &bmop_fill, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE),
 			"edgenet_fill edges=%S mat_nr=%i use_smooth=%b sides=%i",
-			&bmop, "geom_cut.out", ctx->inner_material_index, false, 2);
+			&bmop, "geom_cut.out", ctx->inner_material_index, ctx->use_smooth_inner, 2);
 		BMO_op_exec(bm_parent, &bmop_fill);
 	//}
 
@@ -488,6 +493,9 @@ static void do_fill(float plane_no[3], BMOperator bmop, BMesh* bm_parent, Bisect
 		BM_ITER_MESH(f, &iter, bm_parent, BM_FACES_OF_MESH) {
 			if (BM_elem_flag_test(f, BM_ELEM_TAG)) {
 				f->mat_nr = ctx->inner_material_index;
+				if (!ctx->use_smooth_inner) {
+					BM_elem_flag_disable(f, BM_ELEM_SMOOTH);
+				}
 			}
 		}
 	}

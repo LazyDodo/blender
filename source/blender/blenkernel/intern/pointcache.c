@@ -1376,12 +1376,15 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 			}
 #endif
 			//ensure valid values here, now !!!
-			frame = calc_frame(rbw, mi, frame);
+			if ((frame == fmd->last_frame + 1) && ((rbw->shared->pointcache->flag & PTCACHE_BAKED) == 0))
+			{
+				frame = calc_frame(rbw, mi, frame);
 
-			copy_to_3(mi->locs, rbo->pos, frame);
-			copy_to_4(mi->rots, rbo->orn, frame);
-			copy_to_3(mi->vels, rbo->lin_vel, frame);
-			copy_to_3(mi->aves, rbo->ang_vel, frame);
+				copy_to_3(mi->locs, rbo->pos, frame);
+				copy_to_4(mi->rots, rbo->orn, frame);
+				copy_to_3(mi->vels, rbo->lin_vel, frame);
+				copy_to_3(mi->aves, rbo->ang_vel, frame);
+			}
 		}
 
 		if (changed) {
