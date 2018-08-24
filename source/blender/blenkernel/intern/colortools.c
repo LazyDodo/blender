@@ -953,6 +953,28 @@ static void curvemapping_evaluateRGBF_filmlike(const CurveMapping *cumap, float 
 	vecout[channel_offset[1]] = v1;
 	vecout[channel_offset[2]] = v2;
 }
+
+static float curvemapping_weighted_standard_triangle(float a, float b, float a1)
+{
+	if (a != b)
+	{
+		float b1;
+		float a2 = a1 - a;
+
+		if (b < a)
+		{
+				b1 = b + a2 *      b  /     a ;
+		}
+		else {
+				b1 = b + a2 * (65535.f - b) / (65535.f - a);
+		}
+
+		return b1;
+	}
+
+	return a1;
+}
+
 /** same as #curvemapping_evaluate_premulRGBF
  * but black/bwmul are passed as args for the compositor
  * where they can change per pixel.
@@ -962,8 +984,9 @@ static void curvemapping_evaluateRGBF_filmlike(const CurveMapping *cumap, float 
  * \param black Use instead of cumap->black
  * \param bwmul Use instead of cumap->bwmul
  */
-void curvemapping_evaluate_premulRGBF_ex(const CurveMapping *cumap, float vecout[3], const float vecin[3],
-                                         const float black[3], const float bwmul[3])
+void curvemapping_evaluate_premulRGBF_ex(
+        const CurveMapping *cumap, float vecout[3], const float vecin[3],
+        const float black[3], const float bwmul[3])
 {
 	const float r = (vecin[0] - black[0]) * bwmul[0];
 	const float g = (vecin[1] - black[1]) * bwmul[1];
@@ -977,6 +1000,25 @@ void curvemapping_evaluate_premulRGBF_ex(const CurveMapping *cumap, float vecout
 			vecout[0] = curvemap_evaluateF(&cumap->cm[0], r);
 			vecout[1] = curvemap_evaluateF(&cumap->cm[1], g);
 			vecout[2] = curvemap_evaluateF(&cumap->cm[2], b);
+			break;
+		}
+		case CURVE_TONE_WEIGHTED_STANDARD:
+		{
+			float r1 = curvemap_evaluateF(&cumap->cm[0], r);
+			float g1 = curvemapping_weighted_standard_triangle(r, r1, g);
+			float b1 = curvemapping_weighted_standard_triangle(r, r1, b);
+
+			float g2 = curvemap_evaluateF(&cumap->cm[1], g);
+			float r2 = curvemapping_weighted_standard_triangle(g, g2, r);
+			float b2 = curvemapping_weighted_standard_triangle(g, g2, b);
+
+			float b3 = curvemap_evaluateF(&cumap->cm[2], b);
+			float r3 = curvemapping_weighted_standard_triangle(b, b3, r);
+			float g3 = curvemapping_weighted_standard_triangle(b, b3, g);
+
+			vecout[0] = r1 * 0.50f + r2 * 0.25f + r3 * 0.25f;
+			vecout[1] = g1 * 0.25f + g2 * 0.50f + g3 * 0.25f;
+			vecout[2] = b1 * 0.25f + b2 * 0.25f + b3 * 0.50f;
 			break;
 		}
 		case CURVE_TONE_FILMLIKE:
