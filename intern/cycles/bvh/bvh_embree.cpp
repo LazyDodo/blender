@@ -58,7 +58,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 	if((kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
-		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
+		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) < 0.0f) {
 			*args->valid = 0;
 			return;
 		}
@@ -173,7 +173,8 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 			ctx->num_hits++;
 			*isect = current_isect;
 			/* Only primitives from volume object. */
-			uint tri_object = (isect->object == OBJECT_NONE) ?kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
+			uint tri_object = (isect->object == OBJECT_NONE) ?
+			                   kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
 			int object_flag = kernel_tex_fetch(__object_flag, tri_object);
 			if((object_flag & SD_OBJECT_HAS_VOLUME) == 0) {
 				ctx->num_hits--;
@@ -228,8 +229,9 @@ thread_mutex BVHEmbree::rtc_shared_mutex;
 
 BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 : BVH(params_, objects_), scene(NULL), mem_used(0), top_level(NULL), stats(NULL),
-curve_subdivisions(params.curve_subdivisions), use_curves(params_.curve_flags & CURVE_KN_INTERPOLATE),
-use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
+  curve_subdivisions(params.curve_subdivisions), build_quality(RTC_BUILD_QUALITY_LOW),
+  use_curves(params_.curve_flags & CURVE_KN_INTERPOLATE),
+  use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
 {
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
@@ -241,27 +243,32 @@ use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
 		ssize_t ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag. Ray visiblity will not work.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag."\
+			           "Ray visiblity will not work.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag. Renders may not look as expected.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag."\
+			           "Renders may not look as expected.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. Line primitives will not be rendered.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. "\
+			           "Line primitives will not be rendered.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED);
 		if(ret != 1) {
 			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. Triangle primitives will not be rendered.";
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. "\
+			           "Triangle primitives will not be rendered.";
 		}
 		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED);
 		if(ret != 0) {
 			assert(0);
-			VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. Renders may not look as expected.";
+			VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. "\
+			           "Renders may not look as expected.";
 		}
 	}
 	rtc_shared_users++;
@@ -341,9 +348,11 @@ void BVHEmbree::build(Progress& progress, Stats *stats_)
 	const bool dynamic = params.bvh_type == SceneParams::BVH_DYNAMIC;
 
 	scene = rtcNewScene(rtc_shared_device);
-	const RTCSceneFlags scene_flags = (dynamic ? RTC_SCENE_FLAG_DYNAMIC : RTC_SCENE_FLAG_NONE) | RTC_SCENE_FLAG_COMPACT | RTC_SCENE_FLAG_ROBUST;
+	const RTCSceneFlags scene_flags = (dynamic ? RTC_SCENE_FLAG_DYNAMIC : RTC_SCENE_FLAG_NONE) |
+	                                   RTC_SCENE_FLAG_COMPACT | RTC_SCENE_FLAG_ROBUST;
 	rtcSetSceneFlags(scene, scene_flags);
-	const RTCBuildQuality build_quality = dynamic ? RTC_BUILD_QUALITY_LOW : (params.use_spatial_split ? RTC_BUILD_QUALITY_HIGH : RTC_BUILD_QUALITY_MEDIUM);
+	build_quality = dynamic ? RTC_BUILD_QUALITY_LOW :
+	               (params.use_spatial_split ? RTC_BUILD_QUALITY_HIGH : RTC_BUILD_QUALITY_MEDIUM);
 	rtcSetSceneBuildQuality(scene, build_quality);
 
 	int i = 0;
@@ -461,10 +470,11 @@ void BVHEmbree::add_triangles(Object *ob, int i)
 
 	const size_t num_triangles = mesh->num_triangles();
 	RTCGeometry geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_TRIANGLE);
-	rtcSetGeometryBuildQuality(geom_id,params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_BUILD_QUALITY_LOW : RTC_BUILD_QUALITY_MEDIUM);
+	rtcSetGeometryBuildQuality(geom_id, build_quality);
 	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
 
-	unsigned *rtc_indices = (unsigned*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof (int) * 3, num_triangles);
+	unsigned *rtc_indices = (unsigned*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
+	                                                           RTC_FORMAT_UINT3, sizeof (int) * 3, num_triangles);
 	assert(rtc_indices);
 	if(!rtc_indices) {
 		VLOG(0) << "Embree could not create new geometry buffer for mesh " << mesh->name.c_str() << ".\n";
@@ -526,7 +536,8 @@ void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 			verts = &attr_mP->data_float3()[t_ * num_verts];
 		}
 
-		float *rtc_verts = (float*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, sizeof(float) * 3, num_verts);
+		float *rtc_verts = (float*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t,
+		                                                    RTC_FORMAT_FLOAT3, sizeof(float) * 3, num_verts);
 		assert(rtc_verts);
 		if(rtc_verts) {
 			for(size_t j = 0; j < num_verts; j++) {
@@ -574,7 +585,8 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 			verts = &attr_mP->data_float3()[t_ * num_keys];
 		}
 
-		float4 *rtc_verts = (float4*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT4, sizeof (float) * 4, num_keys);
+		float4 *rtc_verts = (float4*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t,
+		                                                     RTC_FORMAT_FLOAT4, sizeof (float) * 4, num_keys);
 		assert(rtc_verts);
 		if(rtc_verts) {
 			if(use_curves) {
@@ -668,7 +680,8 @@ void BVHEmbree::add_curves(Object *ob, int i)
 		rtcSetGeometryTessellationRate(geom_id, curve_subdivisions);
 
 		/* Split the Cycles curves into Embree hair segments, each with 4 CVs */
-		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT, sizeof (int), num_segments);
+		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
+		                                                            RTC_FORMAT_UINT, sizeof (int), num_segments);
 		size_t rtc_index = 0;
 		size_t curve_start = 0;
 		for(size_t j = 0; j < num_curves; j++) {
@@ -678,7 +691,8 @@ void BVHEmbree::add_curves(Object *ob, int i)
 				curve_start += 3;
 				/* Cycles specific data */
 				pack.prim_object.push_back_reserved(i);
-				pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ? PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
+				pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ?
+				                                                         PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
 				pack.prim_index.push_back_reserved(j);
 				pack.prim_tri_index.push_back_reserved(rtc_index);
 
@@ -692,7 +706,8 @@ void BVHEmbree::add_curves(Object *ob, int i)
 		geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_FLAT_LINEAR_CURVE);
 
 		/* Split the Cycles curves into Embree line segments, each with 2 CVs */
-		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT, sizeof (int), num_segments);
+		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
+		                                                            RTC_FORMAT_UINT, sizeof (int), num_segments);
 		size_t rtc_index = 0;
 		for(size_t j = 0; j < num_curves; j++) {
 			Mesh::Curve c = mesh->get_curve(j);
@@ -700,7 +715,8 @@ void BVHEmbree::add_curves(Object *ob, int i)
 				rtc_indices[rtc_index] = c.first_key + k;
 				/* Cycles specific data */
 				pack.prim_object.push_back_reserved(i);
-				pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ? PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
+				pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ?
+				                                                         PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
 				pack.prim_index.push_back_reserved(j);
 				pack.prim_tri_index.push_back_reserved(rtc_index);
 
@@ -708,7 +724,7 @@ void BVHEmbree::add_curves(Object *ob, int i)
 			}
 		}
 	}
-	rtcSetGeometryBuildQuality(geom_id, params.bvh_type == SceneParams::BVH_DYNAMIC ? RTC_BUILD_QUALITY_LOW : RTC_BUILD_QUALITY_MEDIUM);
+	rtcSetGeometryBuildQuality(geom_id, build_quality);
 	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
 
 	update_curve_vertex_buffer(geom_id, mesh);

@@ -69,6 +69,7 @@ private:
 	Stats *stats;
 	vector<RTCScene> delayed_delete_scenes;
 	int curve_subdivisions;
+	enum RTCBuildQuality build_quality;
 	bool use_curves, use_ribbons, dynamic_scene;
 };
 
