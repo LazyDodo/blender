@@ -414,6 +414,7 @@ Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, Boolea
 	result = BKE_boolean_operation(geometry, obj, shard, obj, ctx->operation, ctx->thresh, NULL);
 	/*0 == intersection, 2 == difference*/
 
+#if 0
 	if (ctx->use_fractal == false)
 	{
 		if (!result || check_non_manifold(result) || !compare_size(geometry, result))
@@ -425,6 +426,7 @@ Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, Boolea
 			return NULL;
 		}
 	}
+#endif
 
 	return result;
 }

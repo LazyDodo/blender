@@ -75,6 +75,15 @@ static void initData(ModifierData *md)
 	bmd->clnordata.faceHash = NULL;
 }
 
+static void copyData(const ModifierData *md_src, ModifierData *md_dst, const int UNUSED(flag))
+{
+	BevelModifierData *bmd_src = (BevelModifierData *)md_src;
+	BevelModifierData *bmd_dst = (BevelModifierData *)md_dst;
+
+	*bmd_dst = *bmd_src;
+	bmd_dst->clnordata.faceHash = NULL;
+}
+
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 {
 	BevelModifierData *bmd = (BevelModifierData *)md;
@@ -111,8 +120,8 @@ static void bevel_set_weighted_normal_face_strength(BMesh *bm, Scene *scene)
 }
 
 static void bevel_mod_harden_normals(
-			BevelModifierData *bmd, BMesh *bm, const float hn_strength,
-			const int hnmode, MDeformVert *dvert, int vgroup)
+        BevelModifierData *bmd, BMesh *bm, const float hn_strength,
+        const int hnmode, MDeformVert *dvert, int vgroup)
 {
 	if (bmd->res > 20 || bmd->value == 0)
 		return;
@@ -136,7 +145,7 @@ static void bevel_mod_harden_normals(
 		l_cur = l_first = BM_FACE_FIRST_LOOP(f);
 		do {
 			if ((!BM_elem_flag_test(l_cur->e, BM_ELEM_TAG)) ||
-				(!BM_elem_flag_test(l_cur, BM_ELEM_TAG) && BM_loop_check_cyclic_smooth_fan(l_cur)))
+			    (!BM_elem_flag_test(l_cur, BM_ELEM_TAG) && BM_loop_check_cyclic_smooth_fan(l_cur)))
 			{
 
 				/* previous and next edge is sharp, accumulate face normals into loop */
@@ -187,8 +196,9 @@ static void bevel_mod_harden_normals(
 						}
 						else if (bmd->lim_flags & MOD_BEVEL_VGROUP) {
 							const bool has_vgroup = dvert != NULL;
-							const bool vert_of_group = has_vgroup &&
-									   (defvert_find_index(&dvert[BM_elem_index_get(l->v)], vgroup) != NULL);
+							const bool vert_of_group = (
+							        has_vgroup &&
+							        (defvert_find_index(&dvert[BM_elem_index_get(l->v)], vgroup) != NULL));
 
 							if (vert_of_group && hnmode == MOD_BEVEL_HN_FACE) {
 								float cur[3];
@@ -222,21 +232,22 @@ static void bevel_mod_harden_normals(
 						short *clnors = BM_ELEM_CD_GET_VOID_P(l, cd_clnors_offset);
 
 						/* If vertex is edge vert with 1 reconnected face */
-						if (recon_face_count == 1 || do_normal_to_recon) {
-							BKE_lnor_space_custom_normal_to_data(bm->lnor_spacearr->lspacearr[l_index], recon_face->no,
-																 clnors);
+						if (recon_face_count == 1 || (recon_face != NULL && do_normal_to_recon)) {
+							BKE_lnor_space_custom_normal_to_data(
+							        bm->lnor_spacearr->lspacearr[l_index], recon_face->no, clnors);
 						}
 						else if (vertex_only == false || recon_face_count == 0) {
 							copy_v3_v3(n_final, l->f->no);
 							mul_v3_fl(n_final, 1.0f - hn_strength);
 							add_v3_v3(n_final, cn_wght);
 							normalize_v3(n_final);
-							BKE_lnor_space_custom_normal_to_data(bm->lnor_spacearr->lspacearr[l_index], n_final,
-																 clnors);
+							BKE_lnor_space_custom_normal_to_data(
+							        bm->lnor_spacearr->lspacearr[l_index], n_final, clnors);
 						}
-						else if (BLI_ghash_haskey(faceHash, l->f))
-							BKE_lnor_space_custom_normal_to_data(bm->lnor_spacearr->lspacearr[l_index], l->v->no,
-																 clnors);
+						else if (BLI_ghash_haskey(faceHash, l->f)) {
+							BKE_lnor_space_custom_normal_to_data(
+							        bm->lnor_spacearr->lspacearr[l_index], l->v->no, clnors);
+						}
 					}
 				}
 			}
@@ -466,8 +477,8 @@ ModifierTypeInfo modifierType_Bevel = {
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode |
 	                        eModifierTypeFlag_AcceptsCVs,
-	
-	/* copyData */          modifier_copyData_generic,
+
+	/* copyData */          copyData,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

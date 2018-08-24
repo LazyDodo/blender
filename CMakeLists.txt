@@ -115,7 +115,11 @@ enable_testing()
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin CACHE INTERNAL "" FORCE)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib CACHE INTERNAL "" FORCE)
-set(TESTS_OUTPUT_DIR ${EXECUTABLE_OUTPUT_PATH}/tests CACHE INTERNAL "" FORCE)
+if(MSVC)
+	set(TESTS_OUTPUT_DIR ${EXECUTABLE_OUTPUT_PATH}/tests/$<CONFIG>/ CACHE INTERNAL "" FORCE)
+else()
+	set(TESTS_OUTPUT_DIR ${EXECUTABLE_OUTPUT_PATH}/tests/ CACHE INTERNAL "" FORCE)
+endif()
 
 #-----------------------------------------------------------------------------
 # Set default config options
@@ -237,6 +241,9 @@ option(WITH_VORO    "Enable Voronoi Fracture based on Voro++" ON)
 option(WITH_COMPOSITOR         "Enable the tile based nodal compositor" ON)
 
 option(WITH_OPENSUBDIV    "Enable OpenSubdiv for surface subdivision" _init_OPENSUBDIV)
+
+option(WITH_OPENSUBDIV_MODIFIER    "Use OpenSubdiv for CPU side of Subsurf/Multires modifiers" OFF)
+mark_as_advanced(WITH_OPENSUBDIV_MODIFIER)
 
 option(WITH_OPENVDB       "Enable features relying on OpenVDB" OFF)
 option(WITH_OPENVDB_BLOSC "Enable blosc compression for OpenVDB, only enable if OpenVDB was built with blosc support" OFF)
@@ -403,6 +410,8 @@ option(WITH_CYCLES_OSL				"Build Cycles with OSL support" ${_init_CYCLES_OSL})
 option(WITH_CYCLES_OPENSUBDIV		"Build Cycles with OpenSubdiv support" ${_init_CYCLES_OPENSUBDIV})
 option(WITH_CYCLES_CUDA_BINARIES	"Build Cycles CUDA binaries" OFF)
 option(WITH_CYCLES_CUBIN_COMPILER	"Build cubins with nvrtc based compiler instead of nvcc" OFF)
+option(WITH_CYCLES_CUDA_BUILD_SERIAL "Build cubins one after another (useful on machines with limited RAM)" OFF)
+mark_as_advanced(WITH_CYCLES_CUDA_BUILD_SERIAL)
 set(CYCLES_CUDA_BINARIES_ARCH sm_30 sm_35 sm_37 sm_50 sm_52 sm_60 sm_61 CACHE STRING "CUDA architectures to build binaries for")
 mark_as_advanced(CYCLES_CUDA_BINARIES_ARCH)
 unset(PLATFORM_DEFAULT)

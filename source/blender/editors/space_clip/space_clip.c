@@ -55,6 +55,7 @@
 #include "ED_mask.h"
 #include "ED_space_api.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_clip.h"
 #include "ED_transform.h"
 #include "ED_uvedit.h"  /* just for ED_image_draw_cursor */
@@ -847,7 +848,7 @@ static int clip_context(const bContext *C, const char *member, bContextDataResul
 }
 
 /* dropboxes */
-static bool clip_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool clip_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH)
 		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE, ICON_FILE_BLANK)) /* rule might not work? */
@@ -1617,5 +1618,9 @@ void ED_spacetype_clip(void)
 	art->init = clip_channels_region_init;
 	art->draw = clip_channels_region_draw;
 
+	BLI_addhead(&st->regiontypes, art);
+
+	/* regions: hud */
+	art = ED_area_type_hud(st->spaceid);
 	BLI_addhead(&st->regiontypes, art);
 }

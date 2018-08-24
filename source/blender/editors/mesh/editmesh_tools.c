@@ -363,7 +363,7 @@ void MESH_OT_unsubdivide(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "iterations", 2, 1, 1000, "Iterations", "Number of times to unsubdivide", 1, 100);
 }
 
-void EMBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
+void EDBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
 {
 	Main *bmain = CTX_data_main(C);
 	Object *obedit = em->ob;
@@ -2545,22 +2545,34 @@ static int edbm_rotate_colors_exec(bContext *C, wmOperator *op)
 
 static int edbm_reverse_colors_exec(bContext *C, wmOperator *op)
 {
-	Object *ob = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(ob);
-	BMOperator bmop;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	/* initialize the bmop using EDBM api, which does various ui error reporting and other stuff */
-	EDBM_op_init(em, &bmop, op, "reverse_colors faces=%hf", BM_ELEM_SELECT);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
 
-	/* execute the operator */
-	BMO_op_exec(em->bm, &bmop);
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
 
-	/* finish the operator */
-	if (!EDBM_op_finish(em, &bmop, op, true)) {
-		return OPERATOR_CANCELLED;
+		BMOperator bmop;
+
+		/* initialize the bmop using EDBM api, which does various ui error reporting and other stuff */
+		EDBM_op_init(em, &bmop, op, "reverse_colors faces=%hf", BM_ELEM_SELECT);
+
+		/* execute the operator */
+		BMO_op_exec(em->bm, &bmop);
+
+		/* finish the operator */
+		if (!EDBM_op_finish(em, &bmop, op, true)) {
+			return OPERATOR_CANCELLED;
+		}
+
+		EDBM_update_generic(em, false, false);
 	}
-
-	EDBM_update_generic(em, false, false);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -7064,7 +7076,7 @@ static void point_normals_update_header(bContext *C, wmOperator *op)
 	             WM_MODALKEY(EDBM_CLNOR_MODAL_POINTTO_SET_USE_SELECTED),
 	             WM_MODALKEY(EDBM_CLNOR_MODAL_POINTTO_INVERT), WM_bool_as_string(RNA_boolean_get(op->ptr, "invert")),
 	             WM_MODALKEY(EDBM_CLNOR_MODAL_POINTTO_SPHERIZE),
-				 WM_bool_as_string(RNA_boolean_get(op->ptr, "spherize")),
+	             WM_bool_as_string(RNA_boolean_get(op->ptr, "spherize")),
 	             WM_MODALKEY(EDBM_CLNOR_MODAL_POINTTO_ALIGN), WM_bool_as_string(RNA_boolean_get(op->ptr, "align")));
 
 #undef WM_MODALKEY
@@ -8064,8 +8076,8 @@ static int edbm_set_normals_from_faces_exec(bContext *C, wmOperator *op)
 				if (BLI_BITMAP_TEST(loop_set, BM_elem_index_get(l))) {
 					const int loop_index = BM_elem_index_get(l);
 					short *clnors = BM_ELEM_CD_GET_VOID_P(l, cd_clnors_offset);
-					BKE_lnor_space_custom_normal_to_data(bm->lnor_spacearr->lspacearr[loop_index], vnors[v_index],
-														 clnors);
+					BKE_lnor_space_custom_normal_to_data(
+					        bm->lnor_spacearr->lspacearr[loop_index], vnors[v_index], clnors);
 				}
 			}
 		}

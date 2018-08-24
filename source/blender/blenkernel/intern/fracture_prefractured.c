@@ -172,7 +172,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 				/*if refresh, perform fracture */
 				BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
 
-			//mi->endframe = frame;
+			if ((fmd->point_source & MOD_FRACTURE_CUSTOM) == 0)
+				mi->endframe = frame;
 		}
 
 		fmd->shared->refresh_constraints = true;

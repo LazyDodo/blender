@@ -1200,9 +1200,9 @@ static void rna_def_rigidbody_object(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Deforming", "Rigid body deforms during simulation");
 	RNA_def_property_update(prop, NC_OBJECT | ND_POINTCACHE, "rna_RigidBodyOb_reset");
 
-	prop = RNA_def_property(srna, "use_kinematic_deactivation", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "is_triggered", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", RBO_FLAG_IS_TRIGGERED);
-	RNA_def_property_ui_text(prop, "Kinematic Deactivation", "Allow kinematic state being reset by collisions");
+	RNA_def_property_ui_text(prop, "Triggered", "Allow kinematic state being reset by collisions");
 	RNA_def_property_update(prop, NC_OBJECT | ND_POINTCACHE, "rna_RigidBodyOb_reset");
 
 	prop = RNA_def_property(srna, "is_ghost", PROP_BOOLEAN, PROP_NONE);

@@ -1246,6 +1246,12 @@ void BKE_object_copy_data(Main *bmain, Object *ob_dst, const Object *ob_src, con
 		ob_dst->matbits = MEM_dupallocN(ob_src->matbits);
 		ob_dst->totcol = ob_src->totcol;
 	}
+	else if (ob_dst->mat != NULL || ob_dst->matbits != NULL) {
+		/* This shall not be needed, but better be safe than sorry. */
+		BLI_assert(!"Object copy: non-NULL material pointers with zero counter, should not happen.");
+		ob_dst->mat = NULL;
+		ob_dst->matbits = NULL;
+	}
 
 	if (ob_src->iuser) ob_dst->iuser = MEM_dupallocN(ob_src->iuser);
 
@@ -2436,7 +2442,7 @@ BoundBox *BKE_object_boundbox_get(Object *ob)
 		bb = BKE_curve_boundbox_get(ob);
 	}
 	else if (ob->type == OB_MBALL) {
-		bb = ob->bb;
+		bb = BKE_mball_boundbox_get(ob);
 	}
 	else if (ob->type == OB_LATTICE) {
 		bb = BKE_lattice_boundbox_get(ob);

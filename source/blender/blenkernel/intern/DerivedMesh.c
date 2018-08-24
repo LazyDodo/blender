@@ -1287,13 +1287,7 @@ static Mesh *create_orco_mesh(Object *ob, Mesh *me, BMEditMesh *em, int layer)
 		mesh = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
 	}
 	else {
-		BKE_id_copy_ex(
-		        NULL, &me->id, (ID **)&mesh,
-		        (LIB_ID_CREATE_NO_MAIN |
-		         LIB_ID_CREATE_NO_USER_REFCOUNT |
-		         LIB_ID_CREATE_NO_DEG_TAG |
-		         LIB_ID_COPY_CD_REFERENCE),
-		        false);
+		mesh = BKE_mesh_copy_for_eval(me);
 	}
 
 	orco = get_orco_coords_dm(ob, em, layer, &free);
@@ -2088,13 +2082,7 @@ static void mesh_calc_modifiers(
 		 * coordinates (vpaint, etc.)
 		 */
 		if (r_deform_mesh) {
-			BKE_id_copy_ex(
-			        NULL, &me->id, (ID **)r_deform_mesh,
-			        (LIB_ID_CREATE_NO_MAIN |
-			         LIB_ID_CREATE_NO_USER_REFCOUNT |
-			         LIB_ID_CREATE_NO_DEG_TAG |
-			         LIB_ID_COPY_CD_REFERENCE),
-			        false);
+			*r_deform_mesh = BKE_mesh_copy_for_eval(me);
 
 			/* XXX: Is build_shapekey_layers ever even true? This should have crashed long ago... */
 			BLI_assert(!build_shapekey_layers);
@@ -2234,13 +2222,7 @@ static void mesh_calc_modifiers(
 				}
 			}
 			else {
-				BKE_id_copy_ex(
-				        NULL, &me->id, (ID **)&mesh,
-				        (LIB_ID_CREATE_NO_MAIN |
-				         LIB_ID_CREATE_NO_USER_REFCOUNT |
-				         LIB_ID_CREATE_NO_DEG_TAG |
-				         LIB_ID_COPY_CD_REFERENCE),
-				        false);
+				mesh = BKE_mesh_copy_for_eval(me);
 				ASSERT_IS_VALID_MESH(mesh);
 
 				// XXX: port to Mesh if build_shapekey_layers can ever be true
@@ -2409,13 +2391,7 @@ static void mesh_calc_modifiers(
 #endif
 	}
 	else {
-		BKE_id_copy_ex(
-		        NULL, &me->id, (ID **)&final_mesh,
-		        (LIB_ID_CREATE_NO_MAIN |
-		         LIB_ID_CREATE_NO_USER_REFCOUNT |
-		         LIB_ID_CREATE_NO_DEG_TAG |
-		         LIB_ID_COPY_CD_REFERENCE),
-		        false);
+		final_mesh = BKE_mesh_copy_for_eval(me);
 
 		//if (build_shapekey_layers) {
 		//	add_shapekey_layers(final_mesh, me, ob);
@@ -2857,39 +2833,6 @@ static void editbmesh_calc_modifiers(
 		MEM_freeN(deformedVerts);
 }
 
-#ifdef WITH_OPENSUBDIV
-/* The idea is to skip CPU-side ORCO calculation when
- * we'll be using GPU backend of OpenSubdiv. This is so
- * playback performance is kept as high as possible.
- */
-static bool calc_modifiers_skip_orco(Depsgraph *depsgraph,
-                                     Scene *scene,
-                                     Object *ob,
-                                     bool use_render_params)
-{
-	ModifierData *last_md = ob->modifiers.last;
-	const int required_mode = use_render_params ? eModifierMode_Render : eModifierMode_Realtime;
-	if (last_md != NULL &&
-	    last_md->type == eModifierType_Subsurf &&
-	    modifier_isEnabled(scene, last_md, required_mode))
-	{
-		if (U.opensubdiv_compute_type == USER_OPENSUBDIV_COMPUTE_NONE) {
-			return false;
-		}
-		else if ((ob->mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)) != 0) {
-			return false;
-		}
-		else if ((DEG_get_eval_flags_for_id(depsgraph, &ob->id) & DAG_EVAL_NEED_CPU) != 0) {
-			return false;
-		}
-		SubsurfModifierData *smd = (SubsurfModifierData *)last_md;
-		/* TODO(sergey): Deduplicate this with checks from subsurf_ccg.c. */
-		return smd->use_opensubdiv != 0;
-	}
-	return false;
-}
-#endif
-
 static void mesh_finalize_eval(Object *object)
 {
 	Mesh *mesh = (Mesh *)object->data;
@@ -2941,12 +2884,6 @@ static void mesh_build_data(
 	BKE_object_free_derived_caches(ob);
 	BKE_object_sculpt_modifiers_changed(ob);
 
-#ifdef WITH_OPENSUBDIV
-	if (calc_modifiers_skip_orco(depsgraph, scene, ob, false)) {
-		dataMask &= ~(CD_MASK_ORCO | CD_MASK_PREVIEW_MCOL);
-	}
-#endif
-
 	mesh_calc_modifiers(
 	        depsgraph, scene, ob, NULL, 1, need_mapping, dataMask, -1, true, build_shapekey_layers,
 	        true,
@@ -2987,12 +2924,6 @@ static void editbmesh_build_data(
 	BKE_object_sculpt_modifiers_changed(obedit);
 
 	BKE_editmesh_free_derivedmesh(em);
-
-#ifdef WITH_OPENSUBDIV
-	if (calc_modifiers_skip_orco(depsgraph, scene, obedit, false)) {
-		dataMask &= ~(CD_MASK_ORCO | CD_MASK_PREVIEW_MCOL);
-	}
-#endif
 
 	editbmesh_calc_modifiers(
 	        depsgraph, scene, obedit, em, dataMask,

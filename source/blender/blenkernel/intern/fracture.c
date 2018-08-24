@@ -1015,7 +1015,7 @@ static MeshIsland* fracture_cutter_process(FractureModifierData* fmd, Object *ob
 
 	if (temp_meshs[0] && !temp_meshs[1]) {
 		/* only intersects, throw away whole object */
-		//miB->endframe = frame;
+		miB->endframe = frame;
 	}
 
 	//exchange difference against original mesh
@@ -2658,27 +2658,31 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 	}
 
 	if (fmd->cutter_group != NULL && fmd->point_source & MOD_FRACTURE_CUSTOM) {
-		Mesh *me_assembled = NULL;
 		int source = 0;
-		MeshIsland *mii;
+
 		fracture_meshisland_custom(fmd, obj, mi, bmain, scene, frame, depsgraph);
 		source = fmd->point_source &~ MOD_FRACTURE_CUSTOM;
 
 		/*test for further sources */
 		if (source != 0)
 		{
-			me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, scene, obj, frame);
-			for (mii = fmd->shared->mesh_islands.first; mii; mii = mii->next)
+			int i = 0;
+			int count = BLI_listbase_count(&fmd->shared->mesh_islands);
+			MeshIsland** mi_tmp = MEM_callocN(sizeof(MeshIsland*) * count, "mi_tmp");
+			for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 			{
-				//disable old Islands;
-				mii->endframe = frame;
+				mi_tmp[i] = mi;
+				i++;
 			}
 
-			mii = BKE_fracture_mesh_island_create(me_assembled, bmain, scene, obj, frame);
-			mii->id = 0;
-			BLI_addtail(&fmd->shared->mesh_islands, mii);
+			/*decouple from listbase because it will continue growing ... */
+			for (mi = mi_tmp, i = 0; i < count; i++)
+			{
+				BKE_fracture_points(fmd, obj, mi_tmp[i], depsgraph, bmain, scene);
+				mi_tmp[i]->endframe = frame;
+			}
 
-			BKE_fracture_points(fmd, obj, mii, depsgraph, bmain, scene);
+			MEM_freeN(mi_tmp);
 		}
 	}
 	else {

@@ -1365,6 +1365,12 @@ static int object_delete_exec(bContext *C, wmOperator *op)
 			continue;
 		}
 
+		/* if grease pencil object, set cache as dirty */
+		if (ob->type == OB_GPENCIL) {
+			bGPdata *gpd = (bGPdata *)ob->data;
+			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		}
+
 		/* This is sort of a quick hack to address T51243 - Proper thing to do here would be to nuke most of all this
 		 * custom scene/object/base handling, and use generic lib remap/query for that.
 		 * But this is for later (aka 2.8, once layers & co are settled and working).
@@ -1815,7 +1821,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Base *basen = NULL, *basact = NULL;
-	Object *ob1, *newob, *obact = CTX_data_active_object(C);
+	Object *ob1, *obact = CTX_data_active_object(C);
 	DerivedMesh *dm;
 	Curve *cu;
 	Nurb *nu;
@@ -1882,6 +1888,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 	}
 
 	for (CollectionPointerLink *link = selected_editable_bases.first; link; link = link->next) {
+		Object *newob = NULL;
 		Base *base = link->ptr.data;
 		Object *ob = base->object;
 
@@ -2098,6 +2105,11 @@ static int convert_exec(bContext *C, wmOperator *op)
 		}
 		else {
 			continue;
+		}
+
+		/* Ensure new object has consistent material data with its new obdata. */
+		if (newob) {
+			test_object_materials(bmain, newob, newob->data);
 		}
 
 		/* tag obdata if it was been changed */

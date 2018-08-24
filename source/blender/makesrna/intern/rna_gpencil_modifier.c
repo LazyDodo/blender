@@ -860,7 +860,7 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "count", PROP_INT, PROP_XYZ);
 	RNA_def_property_range(prop, 1, INT_MAX);
-	RNA_def_property_ui_range(prop, 1, 1000, 1, -1);
+	RNA_def_property_ui_range(prop, 1, 20, 1, -1);
 	RNA_def_property_ui_text(prop, "Count", "Number of items");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -928,11 +928,6 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "use_make_objects", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_MAKE_OBJECTS);
-	RNA_def_property_ui_text(prop, "Make Objects",
-		"When applying this modifier, instances get created as separate objects");
-	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
 static void rna_def_modifier_gpencilbuild(BlenderRNA *brna)

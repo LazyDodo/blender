@@ -28,6 +28,14 @@ set(BLOSC_EXTRA_ARGS
 	-DDEACTIVATE_SNAPPY=ON
 )
 
+if(WIN32)
+	#prevent blosc from including it's own local copy of zlib in the object file
+	#and cause linker errors with everybody else
+	set(BLOSC_EXTRA_ARGS ${BLOSC_EXTRA_ARGS}
+		-DPREFER_EXTERNAL_ZLIB=ON
+	)
+endif()
+
 ExternalProject_Add(external_blosc
 	URL ${BLOSC_URI}
 	DOWNLOAD_DIR ${DOWNLOAD_DIR}
@@ -47,4 +55,20 @@ if(WIN32)
 		external_blosc
 		external_pthreads
 	)
+endif()
+
+if (WIN32)
+	if(BUILD_MODE STREQUAL Release)
+		ExternalProject_Add_Step(external_blosc after_install
+			COMMAND	${CMAKE_COMMAND} -E copy ${LIBDIR}/blosc/lib/libblosc.lib ${HARVEST_TARGET}/blosc/lib/libblosc.lib
+			COMMAND	${CMAKE_COMMAND} -E copy_directory ${LIBDIR}/blosc/include/ ${HARVEST_TARGET}/blosc/include/
+			DEPENDEES install
+		)
+	endif()
+	if(BUILD_MODE STREQUAL Debug)
+		ExternalProject_Add_Step(external_blosc after_install
+			COMMAND	${CMAKE_COMMAND} -E copy ${LIBDIR}/blosc/lib/libblosc_d.lib ${HARVEST_TARGET}/blosc/lib/libblosc_d.lib
+			DEPENDEES install
+		)
+	endif()
 endif()

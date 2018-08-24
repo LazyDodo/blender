@@ -152,6 +152,9 @@ bool DRW_object_is_renderable(Object *ob)
 {
 	BLI_assert(BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE));
 
+	if (ob->dt < OB_SOLID)
+		return false;
+
 	if (ob->type == OB_MESH) {
 		if ((ob == DST.draw_ctx.object_edit) || BKE_object_is_in_editmode(ob)) {
 			View3D *v3d = DST.draw_ctx.v3d;
@@ -878,6 +881,19 @@ void DRW_drawdata_free(ID *id)
 	BLI_freelistN((ListBase *)drawdata);
 }
 
+/* Unlink (but don't free) the drawdata from the DrawDataList if the ID is an OB from dupli. */
+static void drw_drawdata_unlink_dupli(ID *id)
+{
+	if ((GS(id->name) == ID_OB) && (((Object *)id)->base_flag & BASE_FROMDUPLI) != 0) {
+		DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
+
+		if (drawdata == NULL)
+			return;
+
+		BLI_listbase_clear((ListBase *)drawdata);
+	}
+}
+
 /** \} */
 
 
@@ -941,6 +957,12 @@ static void drw_engines_cache_populate(Object *ob)
 {
 	DST.ob_state = NULL;
 
+	/* HACK: DrawData is copied by COW from the duplicated object.
+	 * This is valid for IDs that cannot be instanciated but this
+	 * is not what we want in this case so we clear the pointer
+	 * ourselves here. */
+	drw_drawdata_unlink_dupli((ID *)ob);
+
 	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
 		DrawEngineType *engine = link->data;
 		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
@@ -953,6 +975,10 @@ static void drw_engines_cache_populate(Object *ob)
 			engine->cache_populate(data, ob);
 		}
 	}
+
+	/* ... and clearing it here too because theses draw data are
+	 * from a mempool and must not be free individually by depsgraph. */
+	drw_drawdata_unlink_dupli((ID *)ob);
 }
 
 static void drw_engines_cache_finish(void)
@@ -1236,11 +1262,9 @@ static void drw_engines_enable_from_mode(int mode)
 	use_drw_engine(&draw_engine_gpencil_type);
 }
 
-static void drw_engines_enable_from_overlays(int overlay_flag)
+static void drw_engines_enable_from_overlays(int UNUSED(overlay_flag))
 {
-	if (overlay_flag) {
-		use_drw_engine(&draw_engine_overlay_type);
-	}
+	use_drw_engine(&draw_engine_overlay_type);
 }
 /**
  * Use for select and depth-drawing.
@@ -1472,10 +1496,11 @@ void DRW_draw_render_loop_ex(
 		}
 	}
 
+	GPU_framebuffer_bind(DST.default_framebuffer);
+
 	if (do_bg_image) {
 		ED_view3d_draw_bgpic_test(scene, depsgraph, ar, v3d, false, true);
 	}
-
 
 	DRW_draw_callbacks_pre_scene();
 	if (DST.draw_ctx.evil_C) {
@@ -2447,40 +2472,40 @@ void DRW_engines_register(void)
 	/* setup callbacks */
 	{
 		/* BKE: mball.c */
-		extern void *BKE_mball_batch_cache_dirty_cb;
+		extern void *BKE_mball_batch_cache_dirty_tag_cb;
 		extern void *BKE_mball_batch_cache_free_cb;
 		/* BKE: curve.c */
-		extern void *BKE_curve_batch_cache_dirty_cb;
+		extern void *BKE_curve_batch_cache_dirty_tag_cb;
 		extern void *BKE_curve_batch_cache_free_cb;
 		/* BKE: mesh.c */
-		extern void *BKE_mesh_batch_cache_dirty_cb;
+		extern void *BKE_mesh_batch_cache_dirty_tag_cb;
 		extern void *BKE_mesh_batch_cache_free_cb;
 		/* BKE: lattice.c */
-		extern void *BKE_lattice_batch_cache_dirty_cb;
+		extern void *BKE_lattice_batch_cache_dirty_tag_cb;
 		extern void *BKE_lattice_batch_cache_free_cb;
 		/* BKE: particle.c */
-		extern void *BKE_particle_batch_cache_dirty_cb;
+		extern void *BKE_particle_batch_cache_dirty_tag_cb;
 		extern void *BKE_particle_batch_cache_free_cb;
 		/* BKE: gpencil.c */
-		extern void *BKE_gpencil_batch_cache_dirty_cb;
+		extern void *BKE_gpencil_batch_cache_dirty_tag_cb;
 		extern void *BKE_gpencil_batch_cache_free_cb;
 
-		BKE_mball_batch_cache_dirty_cb = DRW_mball_batch_cache_dirty;
+		BKE_mball_batch_cache_dirty_tag_cb = DRW_mball_batch_cache_dirty_tag;
 		BKE_mball_batch_cache_free_cb = DRW_mball_batch_cache_free;
 
-		BKE_curve_batch_cache_dirty_cb = DRW_curve_batch_cache_dirty;
+		BKE_curve_batch_cache_dirty_tag_cb = DRW_curve_batch_cache_dirty_tag;
 		BKE_curve_batch_cache_free_cb = DRW_curve_batch_cache_free;
 
-		BKE_mesh_batch_cache_dirty_cb = DRW_mesh_batch_cache_dirty;
+		BKE_mesh_batch_cache_dirty_tag_cb = DRW_mesh_batch_cache_dirty_tag;
 		BKE_mesh_batch_cache_free_cb = DRW_mesh_batch_cache_free;
 
-		BKE_lattice_batch_cache_dirty_cb = DRW_lattice_batch_cache_dirty;
+		BKE_lattice_batch_cache_dirty_tag_cb = DRW_lattice_batch_cache_dirty_tag;
 		BKE_lattice_batch_cache_free_cb = DRW_lattice_batch_cache_free;
 
-		BKE_particle_batch_cache_dirty_cb = DRW_particle_batch_cache_dirty;
+		BKE_particle_batch_cache_dirty_tag_cb = DRW_particle_batch_cache_dirty_tag;
 		BKE_particle_batch_cache_free_cb = DRW_particle_batch_cache_free;
 
-		BKE_gpencil_batch_cache_dirty_cb = DRW_gpencil_batch_cache_dirty;
+		BKE_gpencil_batch_cache_dirty_tag_cb = DRW_gpencil_batch_cache_dirty_tag;
 		BKE_gpencil_batch_cache_free_cb = DRW_gpencil_batch_cache_free;
 	}
 }

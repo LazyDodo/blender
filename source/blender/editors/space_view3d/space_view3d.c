@@ -554,48 +554,29 @@ static void view3d_main_region_exit(wmWindowManager *wm, ARegion *ar)
 	}
 }
 
-static bool view3d_ob_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool view3d_ob_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID) {
-		ID *id = drag->poin;
-		if (GS(id->name) == ID_OB)
-			return 1;
-	}
-	return 0;
+	return WM_drag_ID(drag, ID_OB) != NULL;
 }
 
-static bool view3d_collection_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool view3d_collection_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID) {
-		ID *id = drag->poin;
-		if (GS(id->name) == ID_GR)
-			return 1;
-	}
-	return 0;
+	return WM_drag_ID(drag, ID_GR) != NULL;
 }
 
-static bool view3d_mat_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool view3d_mat_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID) {
-		ID *id = drag->poin;
-		if (GS(id->name) == ID_MA)
-			return 1;
-	}
-	return 0;
+	return WM_drag_ID(drag, ID_MA) != NULL;
 }
 
-static bool view3d_ima_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool view3d_ima_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID) {
-		ID *id = drag->poin;
-		if (GS(id->name) == ID_IM)
-			return 1;
+	if (drag->type == WM_DRAG_PATH) {
+		return (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE));   /* rule might not work? */
 	}
-	else if (drag->type == WM_DRAG_PATH) {
-		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE))   /* rule might not work? */
-			return 1;
+	else {
+		return WM_drag_ID(drag, ID_IM) != NULL;
 	}
-	return 0;
 }
 
 static bool view3d_ima_bg_is_camera_view(bContext *C)
@@ -610,19 +591,19 @@ static bool view3d_ima_bg_is_camera_view(bContext *C)
 	return false;
 }
 
-static bool view3d_ima_bg_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
+static bool view3d_ima_bg_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event, const char **tooltip)
 {
 	if (view3d_ima_bg_is_camera_view(C)) {
 		return true;
 	}
 
 	if (!ED_view3d_give_base_under_cursor(C, event->mval)) {
-		return view3d_ima_drop_poll(C, drag, event);
+		return view3d_ima_drop_poll(C, drag, event, tooltip);
 	}
 	return 0;
 }
 
-static bool view3d_ima_empty_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
+static bool view3d_ima_empty_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event, const char **tooltip)
 {
 	if (!view3d_ima_bg_is_camera_view(C)) {
 		return true;
@@ -634,31 +615,22 @@ static bool view3d_ima_empty_drop_poll(bContext *C, wmDrag *drag, const wmEvent 
 	if ((base == NULL) ||
 	    ((base != NULL) && base->object->type == OB_EMPTY))
 	{
-		return view3d_ima_drop_poll(C, drag, event);
+		return view3d_ima_drop_poll(C, drag, event, tooltip);
 	}
 
 	return 0;
 }
 
-static bool view3d_ima_mesh_drop_poll(bContext *C, wmDrag *drag, const wmEvent *event)
-{
-	Base *base = ED_view3d_give_base_under_cursor(C, event->mval);
-
-	if (base && base->object->type == OB_MESH)
-		return view3d_ima_drop_poll(C, drag, event);
-	return 0;
-}
-
 static void view3d_ob_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, ID_OB);
 
 	RNA_string_set(drop->ptr, "name", id->name + 2);
 }
 
 static void view3d_collection_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, ID_GR);
 
 	drop->opcontext = WM_OP_EXEC_DEFAULT;
 	RNA_string_set(drop->ptr, "name", id->name + 2);
@@ -666,14 +638,14 @@ static void view3d_collection_drop_copy(wmDrag *drag, wmDropBox *drop)
 
 static void view3d_id_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, 0);
 
 	RNA_string_set(drop->ptr, "name", id->name + 2);
 }
 
 static void view3d_id_path_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, 0);
 
 	if (id) {
 		RNA_string_set(drop->ptr, "name", id->name + 2);
@@ -712,7 +684,6 @@ static void view3d_dropboxes(void)
 
 	WM_dropbox_add(lb, "OBJECT_OT_add_named", view3d_ob_drop_poll, view3d_ob_drop_copy);
 	WM_dropbox_add(lb, "OBJECT_OT_drop_named_material", view3d_mat_drop_poll, view3d_id_drop_copy);
-	WM_dropbox_add(lb, "MESH_OT_drop_named_image", view3d_ima_mesh_drop_poll, view3d_id_path_drop_copy);
 	WM_dropbox_add(lb, "OBJECT_OT_drop_named_image", view3d_ima_empty_drop_poll, view3d_id_path_drop_copy);
 	WM_dropbox_add(lb, "VIEW3D_OT_background_image_add", view3d_ima_bg_drop_poll, view3d_id_path_drop_copy);
 	WM_dropbox_add(lb, "OBJECT_OT_collection_instance_add", view3d_collection_drop_poll, view3d_collection_drop_copy);
@@ -734,6 +705,7 @@ static void view3d_widgets(void)
 
 	WM_gizmogrouptype_append(TRANSFORM_GGT_gizmo);
 	WM_gizmogrouptype_append(VIEW3D_GGT_xform_cage);
+	WM_gizmogrouptype_append(VIEW3D_GGT_mesh_preselect_edgering);
 
 	WM_gizmogrouptype_append(VIEW3D_GGT_ruler);
 	WM_gizmotype_append(VIEW3D_GT_ruler_item);

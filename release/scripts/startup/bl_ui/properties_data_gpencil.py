@@ -21,7 +21,6 @@ import bpy
 from bpy.types import Menu, Panel, UIList
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
-    GreasePencilDataPanel,
     GreasePencilOnionPanel,
 )
 
@@ -266,7 +265,10 @@ class DATA_PT_gpencil_onionpanel(Panel):
 
         layout = self.layout
         layout.use_property_split = True
-        layout.enabled = gpd.use_onion_skinning
+        layout.enabled = gpd.use_onion_skinning and gpd.users <= 1
+
+        if gpd.use_onion_skinning and gpd.users > 1:
+            layout.label("Multiuser datablock not supported", icon='ERROR')
 
         GreasePencilOnionPanel.draw_settings(layout, gpd)
 
@@ -364,11 +366,13 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         layout.prop(gpd, "edit_line_color", text="Edit Line Color")
         layout.prop(ob, "empty_draw_size", text="Marker Size")
 
+        layout.prop(gpd, "use_force_fill_recalc", text="Force Fill Update")
+
         col = layout.column(align=True)
         col.prop(gpd, "show_constant_thickness")
         sub = col.column()
         sub.active = not gpd.show_constant_thickness
-        sub.prop(gpd, "pixfactor", text="Thickness Scale")
+        sub.prop(gpd, "pixel_factor", text="Thickness Scale")
 
         if gpl:
             layout.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")

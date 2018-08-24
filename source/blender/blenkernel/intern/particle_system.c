@@ -172,8 +172,9 @@ void psys_reset(ParticleSystem *psys, int mode)
 	}
 	else if (mode == PSYS_RESET_CACHE_MISS) {
 		/* set all particles to be skipped */
-		LOOP_PARTICLES
+		LOOP_PARTICLES {
 			pa->flag |= PARS_NO_DISP;
+		}
 	}
 
 	/* reset children */
@@ -276,8 +277,9 @@ static void realloc_particles(ParticleSimulationData *sim, int new_totpart)
 		psys->totpart=totpart;
 
 		if (newboids) {
-			LOOP_PARTICLES
+			LOOP_PARTICLES {
 				pa->boid = newboids++;
+			}
 		}
 	}
 
@@ -4143,14 +4145,16 @@ void psys_check_boid_data(ParticleSystem *psys)
 			if (!pa->boid) {
 				bpa = MEM_callocN(psys->totpart * sizeof(BoidParticle), "Boid Data");
 
-				LOOP_PARTICLES
+				LOOP_PARTICLES {
 					pa->boid = bpa++;
+				}
 			}
 		}
 		else if (pa->boid) {
 			MEM_freeN(pa->boid);
-			LOOP_PARTICLES
+			LOOP_PARTICLES {
 				pa->boid = NULL;
+			}
 		}
 }
 
@@ -4395,7 +4399,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	/* save matrix for duplicators, at rendertime the actual dupliobject's matrix is used so don't update! */
 	invert_m4_m4(psys->imat, ob->obmat);
 
-	BKE_particle_batch_cache_dirty(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
+	BKE_particle_batch_cache_dirty_tag(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
 }
 
 /* ID looper */

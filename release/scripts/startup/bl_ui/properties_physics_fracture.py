@@ -44,22 +44,25 @@ class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_fracture'
 
+    def draw_header(self, context):
+        md = context.fracture
+        self.layout.prop(md, "use_animated_mesh", text="")
+
     def draw(self, context):
         layout = self.layout
         md = context.fracture
         layout.context_pointer_set("modifier", md)
-        row = layout.row()
-        row.prop(md, "use_animated_mesh")
-        row.prop(md, "use_animated_mesh_rotation")
+        layout.active = md.use_animated_mesh
         row = layout.row()
         row.prop(md, "animated_mesh_limit")
+        row.prop(md, "use_animated_mesh_rotation")
         row = layout.row()
         row.prop(md, "animated_mesh_input")
         row = layout.row()
         row.operator("object.fracture_anim_bind", text="Bind", icon="UV_VERTEXSEL")
 
 class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
-    bl_label = "Advanced Fracture"
+    bl_label = "Advanced"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_fracture'
 
@@ -202,21 +205,23 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         md = context.fracture
         return PhysicButtonsPanel.poll(context)
 
+    def draw_header(self, context):
+        md = context.fracture
+        self.layout.prop(md, "use_constraints", text="")
+
     def draw(self, context):
         layout = self.layout
         md = context.fracture
         ob = context.object
 
+        layout.active = md.use_constraints
         layout.label("Constraint Building Settings")
         row = layout.row()
-        row.prop(md, "use_constraints")
         row.prop(md, "use_breaking")
+        row.prop(md, "activate_broken")
         row = layout.row()
         row.prop(md, "use_constraint_collision")
         row.prop(md, "use_self_collision")
-        row = layout.row()
-        row.prop(md, "use_compounds")
-        row.prop(md, "activate_broken")
 
         col = layout.column(align=True)
         col.prop(md, "constraint_target")

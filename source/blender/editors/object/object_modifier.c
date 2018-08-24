@@ -627,7 +627,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 			multires_force_update(ob);
 
 		if (mmd && mmd->totlvl && mti->type == eModifierTypeType_OnlyDeform) {
-			if (!multiresModifier_reshapeFromDeformMod(depsgraph, scene, mmd, ob, md)) {
+			if (!multiresModifier_reshapeFromDeformModifier(depsgraph, mmd, ob, md)) {
 				BKE_report(reports, RPT_ERROR, "Multires modifier returned error, skipping apply");
 				return 0;
 			}
@@ -652,7 +652,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		ModifierEvalContext mectx = {depsgraph, ob, 0};
 
 		if (ELEM(mti->type, eModifierTypeType_Constructive, eModifierTypeType_Nonconstructive)) {
-			BKE_report(reports, RPT_ERROR, "Cannot apply constructive modifiers on curve");
+			BKE_report(reports, RPT_ERROR, "Transform curve to mesh in order to apply constructive modifiers");
 			return 0;
 		}
 
@@ -849,11 +849,6 @@ bool edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_fla
 	PointerRNA ptr = CTX_data_pointer_get_type(C, "modifier", rna_type);
 	Object *ob = (ptr.id.data) ? ptr.id.data : ED_object_active_context(C);
 
-	if (!ptr.data) {
-		CTX_wm_operator_poll_msg_set(C, "Context missing 'modifier'");
-		return 0;
-	}
-
 	if (!ob || ID_IS_LINKED(ob)) return 0;
 	if (obtype_flag && ((1 << ob->type) & obtype_flag) == 0) return 0;
 	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
@@ -873,7 +868,8 @@ bool edit_modifier_poll(bContext *C)
 
 void edit_modifier_properties(wmOperatorType *ot)
 {
-	RNA_def_string(ot->srna, "modifier", NULL, MAX_NAME, "Modifier", "Name of the modifier to edit");
+	PropertyRNA *prop = RNA_def_string(ot->srna, "modifier", NULL, MAX_NAME, "Modifier", "Name of the modifier to edit");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
 }
 
 int edit_modifier_invoke_properties(bContext *C, wmOperator *op)
@@ -1276,7 +1272,6 @@ static int multires_reshape_exec(bContext *C, wmOperator *op)
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = ED_object_active_context(C), *secondob = NULL;
-	Scene *scene = CTX_data_scene(C);
 	MultiresModifierData *mmd = (MultiresModifierData *)edit_modifier_property_get(op, ob, eModifierType_Multires);
 
 	if (!mmd)
@@ -1301,7 +1296,7 @@ static int multires_reshape_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	if (!multiresModifier_reshape(depsgraph, scene, mmd, ob, secondob)) {
+	if (!multiresModifier_reshape(depsgraph, mmd, ob, secondob)) {
 		BKE_report(op->reports, RPT_ERROR, "Objects do not have the same number of vertices");
 		return OPERATOR_CANCELLED;
 	}

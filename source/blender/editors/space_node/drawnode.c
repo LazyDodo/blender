@@ -144,7 +144,7 @@ static void node_buts_time(uiLayout *layout, bContext *UNUSED(C), PointerRNA *pt
 	}
 #endif
 
-	uiTemplateCurveMapping(layout, ptr, "curve", 's', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "curve", 's', false, false, false, false);
 
 	row = uiLayoutRow(layout, true);
 	uiItemR(row, ptr, "frame_start", 0, IFACE_("Sta"), ICON_NONE);
@@ -158,7 +158,7 @@ static void node_buts_colorramp(uiLayout *layout, bContext *UNUSED(C), PointerRN
 
 static void node_buts_curvevec(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
-	uiTemplateCurveMapping(layout, ptr, "mapping", 'v', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "mapping", 'v', false, false, false, false);
 }
 
 #define SAMPLE_FLT_ISNONE FLT_MAX
@@ -186,7 +186,7 @@ static void node_buts_curvecol(uiLayout *layout, bContext *UNUSED(C), PointerRNA
 		cumap->flag &= ~CUMA_DRAW_SAMPLE;
 	}
 
-	uiTemplateCurveMapping(layout, ptr, "mapping", 'c', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "mapping", 'c', false, false, false, true);
 }
 
 static void node_buts_normal(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -1975,7 +1975,7 @@ static void node_composit_buts_huecorrect(uiLayout *layout, bContext *UNUSED(C),
 		cumap->flag &= ~CUMA_DRAW_SAMPLE;
 	}
 
-	uiTemplateCurveMapping(layout, ptr, "mapping", 'h', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "mapping", 'h', false, false, false, false);
 }
 
 static void node_composit_buts_ycc(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -3353,7 +3353,16 @@ static bool node_link_bezier_handles(View2D *v2d, SpaceNode *snode, bNodeLink *l
 	}
 
 	/* may be called outside of drawing (so pass spacetype) */
-	dist = UI_GetThemeValueType(TH_NODE_CURVING, SPACE_NODE) * 0.10f * fabsf(vec[0][0] - vec[3][0]);
+	int curving = UI_GetThemeValueType(TH_NODE_CURVING, SPACE_NODE);
+
+	if (curving == 0) {
+		/* Straight line: align all points. */
+		mid_v2_v2v2(vec[1], vec[0], vec[3]);
+		mid_v2_v2v2(vec[2], vec[1], vec[3]);
+		return 1;
+	}
+
+	dist = curving * 0.10f * fabsf(vec[0][0] - vec[3][0]);
 	deltax = vec[3][0] - vec[0][0];
 	deltay = vec[3][1] - vec[0][1];
 	/* check direction later, for top sockets */

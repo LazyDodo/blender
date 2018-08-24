@@ -1486,7 +1486,15 @@ static void area_move_apply_do(
 		ED_screen_areas_iter(win, sc, sa) {
 			if (sa->v1->editflag || sa->v2->editflag || sa->v3->editflag || sa->v4->editflag) {
 				if (ED_area_is_global(sa)) {
-					sa->global->cur_fixed_height = round_fl_to_int(screen_geom_area_height(sa) / UI_DPI_FAC);
+					/* Snap to minimum or maximum for global areas. */
+					int height = round_fl_to_int(screen_geom_area_height(sa) / UI_DPI_FAC);
+					if (abs(height - sa->global->size_min) < abs(height - sa->global->size_max)) {
+						sa->global->cur_fixed_height = sa->global->size_min;
+					}
+					else {
+						sa->global->cur_fixed_height = sa->global->size_max;
+					}
+
 					sc->do_refresh = true;
 					redraw_all = true;
 				}
@@ -1498,6 +1506,8 @@ static void area_move_apply_do(
 				ED_area_tag_redraw(sa);
 			}
 		}
+
+		ED_screen_global_areas_sync(win);
 
 		WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL); /* redraw everything */
 		/* Update preview thumbnail */
@@ -4826,7 +4836,7 @@ static void keymap_modal_set(wmKeyConfig *keyconf)
 
 }
 
-static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH) {
 		if (drag->icon == ICON_FILE_BLEND)

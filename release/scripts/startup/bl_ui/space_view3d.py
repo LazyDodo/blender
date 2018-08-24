@@ -20,7 +20,7 @@
 import bpy
 from bpy.types import Header, Menu, Panel
 from .properties_paint_common import UnifiedPaintPanel
-from .properties_grease_pencil_common import GreasePencilDataPanel
+from .properties_grease_pencil_common import AnnotationDataPanel
 from bpy.app.translations import contexts as i18n_contexts
 
 
@@ -305,6 +305,7 @@ class VIEW3D_MT_editor_menus(Menu):
                 layout.menu("VIEW3D_MT_edit_mesh_vertices")
                 layout.menu("VIEW3D_MT_edit_mesh_edges")
                 layout.menu("VIEW3D_MT_edit_mesh_faces")
+                layout.menu("VIEW3D_MT_uv_map", text="UV")
 
         elif obj:
             if mode_string != 'PAINT_TEXTURE':
@@ -2666,10 +2667,6 @@ class VIEW3D_MT_edit_mesh(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_uv_map", text="UV Unwrap...")
-
-        layout.separator()
-
         layout.operator("mesh.duplicate_move", text="Duplicate")
         layout.menu("VIEW3D_MT_edit_mesh_extrude")
         layout.operator("mesh.split")
@@ -3633,7 +3630,7 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
+        layout.menu("GPENCIL_MT_cleanup")
 
 
 class VIEW3D_MT_sculpt_gpencil(Menu):
@@ -3991,19 +3988,26 @@ class VIEW3D_PT_shading_color(Panel):
         shading = VIEW3D_PT_shading.get_shading(context)
         return shading.type == 'SOLID'
 
-    def draw(self, context):
+    def _draw_color_type(self, context):
         layout = self.layout
-
         shading = VIEW3D_PT_shading.get_shading(context)
 
         layout.row().prop(shading, 'color_type', expand=True)
         if shading.color_type == 'SINGLE':
             layout.row().prop(shading, 'single_color', text="")
 
+    def _draw_background_color(self, context):
+        layout = self.layout
+        shading = VIEW3D_PT_shading.get_shading(context)
+
         layout.row().label("Background")
         layout.row().prop(shading, 'background_type', expand=True)
         if shading.background_type == 'VIEWPORT':
             layout.row().prop(shading, "background_color", text="")
+
+    def draw(self, context):
+        self._draw_color_type(context)
+        self._draw_background_color(context)
 
 
 class VIEW3D_PT_shading_options(Panel):
@@ -4819,7 +4823,7 @@ class VIEW3D_PT_quad_view(Panel):
 
 
 # Annotation properties
-class VIEW3D_PT_grease_pencil(GreasePencilDataPanel, Panel):
+class VIEW3D_PT_grease_pencil(AnnotationDataPanel, Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -4959,7 +4963,7 @@ class VIEW3D_MT_gpencil_edit_specials(Menu):
 
         if is_3d_view:
             layout.separator()
-            layout.operator("gpencil.reproject")
+            layout.menu("GPENCIL_MT_cleanup")
 
 
 class VIEW3D_MT_gpencil_sculpt_specials(Menu):

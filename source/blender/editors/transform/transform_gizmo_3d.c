@@ -148,7 +148,9 @@ enum {
 #define MAN_AXIS_RANGE_SCALE_START MAN_AXIS_SCALE_X
 #define MAN_AXIS_RANGE_SCALE_END (MAN_AXIS_SCALE_ZX + 1)
 
-	MAN_AXIS_LAST = MAN_AXIS_RANGE_SCALE_END,
+	MAN_AXIS_APRON_C,
+
+	MAN_AXIS_LAST = MAN_AXIS_APRON_C + 1,
 };
 
 /* axis types */
@@ -162,6 +164,7 @@ enum {
 typedef struct GizmoGroup {
 	bool all_hidden;
 	int twtype;
+	int axis_type_default;
 
 	/* Users may change the twtype, detect changes to re-setup gizmo options. */
 	int twtype_init;
@@ -193,7 +196,7 @@ static wmGizmo *gizmo_get_axis_from_index(const GizmoGroup *man, const short axi
 	return man->gizmos[axis_idx];
 }
 
-static short gizmo_get_axis_type(const int axis_idx)
+static short gizmo_get_axis_type(const int axis_idx, const int axis_type_default)
 {
 	if (axis_idx >= MAN_AXIS_RANGE_TRANS_START && axis_idx < MAN_AXIS_RANGE_TRANS_END) {
 		return MAN_AXES_TRANSLATE;
@@ -203,6 +206,9 @@ static short gizmo_get_axis_type(const int axis_idx)
 	}
 	if (axis_idx >= MAN_AXIS_RANGE_SCALE_START && axis_idx < MAN_AXIS_RANGE_SCALE_END) {
 		return MAN_AXES_SCALE;
+	}
+	if (axis_idx == MAN_AXIS_APRON_C) {
+		return axis_type_default;
 	}
 	BLI_assert(0);
 	return -1;
@@ -326,6 +332,8 @@ static bool gizmo_is_axis_visible(
 			        rv3d->twdrawflag & MAN_SCALE_X &&
 			        (twtype & SCE_MANIP_TRANSLATE) == 0 &&
 			        (twtype & SCE_MANIP_ROTATE) == 0);
+		case MAN_AXIS_APRON_C:
+			return true;
 	}
 	return false;
 }
@@ -593,6 +601,101 @@ bool gimbal_axis(Object *ob, float gmat[3][3])
 	return 0;
 }
 
+void ED_transform_calc_orientation_from_type(
+        const bContext *C, float r_mat[3][3])
+{
+	ScrArea *sa = CTX_wm_area(C);
+	ARegion *ar = CTX_wm_region(C);
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *obedit = CTX_data_edit_object(C);
+	View3D *v3d = sa->spacedata.first;
+	RegionView3D *rv3d = ar->regiondata;
+	Object *ob = OBACT(view_layer);
+	const short orientation_type = scene->orientation_type;
+	const int pivot_point = scene->toolsettings->transform_pivot_point;
+
+	ED_transform_calc_orientation_from_type_ex(
+	        C, r_mat,
+	        scene, v3d, rv3d, ob, obedit, orientation_type, pivot_point);
+}
+
+void ED_transform_calc_orientation_from_type_ex(
+        const bContext *C, float r_mat[3][3],
+        /* extra args (can be accessed from context) */
+        Scene *scene, View3D *v3d, RegionView3D *rv3d, Object *ob, Object *obedit,
+        const short orientation_type, const int pivot_point)
+{
+	bool ok = false;
+
+	switch (orientation_type) {
+		case V3D_MANIP_GLOBAL:
+		{
+			break; /* nothing to do */
+		}
+		case V3D_MANIP_GIMBAL:
+		{
+			if (gimbal_axis(ob, r_mat)) {
+				ok = true;
+				break;
+			}
+			/* if not gimbal, fall through to normal */
+			ATTR_FALLTHROUGH;
+		}
+		case V3D_MANIP_NORMAL:
+		{
+			if (obedit || ob->mode & OB_MODE_POSE) {
+				ED_getTransformOrientationMatrix(C, r_mat, pivot_point);
+				ok = true;
+				break;
+			}
+			/* no break we define 'normal' as 'local' in Object mode */
+			ATTR_FALLTHROUGH;
+		}
+		case V3D_MANIP_LOCAL:
+		{
+			if (ob->mode & OB_MODE_POSE) {
+				/* each bone moves on its own local axis, but  to avoid confusion,
+				 * use the active pones axis for display [#33575], this works as expected on a single bone
+				 * and users who select many bones will understand whats going on and what local means
+				 * when they start transforming */
+				ED_getTransformOrientationMatrix(C, r_mat, pivot_point);
+				ok = true;
+				break;
+			}
+			copy_m3_m4(r_mat, ob->obmat);
+			normalize_m3(r_mat);
+			ok = true;
+			break;
+		}
+		case V3D_MANIP_VIEW:
+		{
+			copy_m3_m4(r_mat, rv3d->viewinv);
+			normalize_m3(r_mat);
+			ok = true;
+			break;
+		}
+		case V3D_MANIP_CURSOR:
+		{
+			ED_view3d_cursor3d_calc_mat3(scene, v3d, r_mat);
+			ok = true;
+			break;
+		}
+		case V3D_MANIP_CUSTOM:
+		{
+			TransformOrientation *custom_orientation = BKE_scene_transform_orientation_find(
+			        scene, scene->orientation_index_custom);
+			if (applyTransformOrientation(custom_orientation, r_mat, NULL)) {
+				ok = true;
+			}
+			break;
+		}
+	}
+
+	if (!ok) {
+		unit_m3(r_mat);
+	}
+}
 
 /* centroid, boundbox, of selection */
 /* returns total items selected */
@@ -629,77 +732,11 @@ int ED_transform_calc_gizmo_stats(
 	 * if we could check 'totsel' now, this should be skipped with no selection. */
 	if (ob && !is_gp_edit) {
 		const short orientation_type = params->orientation_type ? (params->orientation_type - 1) : scene->orientation_type;
-
-		switch (orientation_type) {
-
-			case V3D_MANIP_GLOBAL:
-			{
-				break; /* nothing to do */
-			}
-			case V3D_MANIP_GIMBAL:
-			{
-				float mat[3][3];
-				if (gimbal_axis(ob, mat)) {
-					copy_m4_m3(rv3d->twmat, mat);
-					break;
-				}
-				/* if not gimbal, fall through to normal */
-				ATTR_FALLTHROUGH;
-			}
-			case V3D_MANIP_NORMAL:
-			{
-				if (obedit || ob->mode & OB_MODE_POSE) {
-					float mat[3][3];
-					ED_getTransformOrientationMatrix(C, mat, pivot_point);
-					copy_m4_m3(rv3d->twmat, mat);
-					break;
-				}
-				/* no break we define 'normal' as 'local' in Object mode */
-				ATTR_FALLTHROUGH;
-			}
-			case V3D_MANIP_LOCAL:
-			{
-				if (ob->mode & OB_MODE_POSE) {
-					/* each bone moves on its own local axis, but  to avoid confusion,
-					 * use the active pones axis for display [#33575], this works as expected on a single bone
-					 * and users who select many bones will understand whats going on and what local means
-					 * when they start transforming */
-					float mat[3][3];
-					ED_getTransformOrientationMatrix(C, mat, pivot_point);
-					copy_m4_m3(rv3d->twmat, mat);
-					break;
-				}
-				copy_m4_m4(rv3d->twmat, ob->obmat);
-				normalize_m4(rv3d->twmat);
-				break;
-			}
-			case V3D_MANIP_VIEW:
-			{
-				float mat[3][3];
-				copy_m3_m4(mat, rv3d->viewinv);
-				normalize_m3(mat);
-				copy_m4_m3(rv3d->twmat, mat);
-				break;
-			}
-			case V3D_MANIP_CURSOR:
-			{
-				float mat[3][3];
-				ED_view3d_cursor3d_calc_mat3(scene, v3d, mat);
-				copy_m4_m3(rv3d->twmat, mat);
-				break;
-			}
-			case V3D_MANIP_CUSTOM:
-			{
-				TransformOrientation *custom_orientation = BKE_scene_transform_orientation_find(
-				        scene, scene->orientation_index_custom);
-				float mat[3][3];
-
-				if (applyTransformOrientation(custom_orientation, mat, NULL)) {
-					copy_m4_m3(rv3d->twmat, mat);
-				}
-				break;
-			}
-		}
+		float mat[3][3];
+		ED_transform_calc_orientation_from_type_ex(
+		        C, mat,
+		        scene, v3d, rv3d, ob, obedit, orientation_type, pivot_point);
+		copy_m4_m3(rv3d->twmat, mat);
 	}
 
 	/* transform widget centroid/center */
@@ -1169,9 +1206,11 @@ static void gizmo_xform_message_subscribe(
 	if (type_fn == TRANSFORM_GGT_gizmo) {
 		extern PropertyRNA rna_ToolSettings_transform_pivot_point;
 		extern PropertyRNA rna_ToolSettings_use_gizmo_mode;
+		extern PropertyRNA rna_ToolSettings_use_gizmo_apron;
 		const PropertyRNA *props[] = {
 			&rna_ToolSettings_transform_pivot_point,
 			&rna_ToolSettings_use_gizmo_mode,
+			&rna_ToolSettings_use_gizmo_apron,
 		};
 		for (int i = 0; i < ARRAY_SIZE(props); i++) {
 			WM_msg_subscribe_rna(mbus, &toolsettings_ptr, props[i], &msg_sub_value_gz_tag_refresh, __func__);
@@ -1203,6 +1242,12 @@ static GizmoGroup *gizmogroup_init(wmGizmoGroup *gzgroup)
 	const wmGizmoType *gzt_arrow = WM_gizmotype_find("GIZMO_GT_arrow_3d", true);
 	const wmGizmoType *gzt_dial = WM_gizmotype_find("GIZMO_GT_dial_3d", true);
 	const wmGizmoType *gzt_prim = WM_gizmotype_find("GIZMO_GT_primitive_3d", true);
+
+	/* Fallback action. */
+	{
+		const wmGizmoType *gzt_mask = WM_gizmotype_find("GIZMO_GT_blank_3d", true);
+		man->gizmos[MAN_AXIS_APRON_C] = WM_gizmo_new_ptr(gzt_mask, gzgroup, NULL);
+	}
 
 #define GIZMO_NEW_ARROW(v, draw_style) { \
 	man->gizmos[v] = WM_gizmo_new_ptr(gzt_arrow, gzgroup, NULL); \
@@ -1291,11 +1336,25 @@ static void gizmogroup_init_properties_from_twtype(wmGizmoGroup *gzgroup)
 		wmOperatorType *translate, *rotate, *trackball, *resize;
 	} ot_store = {NULL};
 	GizmoGroup *man = gzgroup->customdata;
+
+	if (man->twtype & SCE_MANIP_TRANSLATE) {
+		man->axis_type_default = MAN_AXES_TRANSLATE;
+	}
+	else if (man->twtype & SCE_MANIP_ROTATE) {
+		man->axis_type_default = MAN_AXES_ROTATE;
+	}
+	else if (man->twtype & SCE_MANIP_SCALE) {
+		man->axis_type_default = MAN_AXES_SCALE;
+	}
+	else {
+		man->axis_type_default = 0;
+	}
+
 	MAN_ITER_AXES_BEGIN(axis, axis_idx)
 	{
-		const short axis_type = gizmo_get_axis_type(axis_idx);
+		const short axis_type = gizmo_get_axis_type(axis_idx, man->axis_type_default);
 		bool constraint_axis[3] = {1, 0, 0};
-		PointerRNA *ptr;
+		PointerRNA *ptr = NULL;
 
 		gizmo_get_axis_constraint(axis_idx, constraint_axis);
 
@@ -1356,6 +1415,9 @@ static void gizmogroup_init_properties_from_twtype(wmGizmoGroup *gzgroup)
 					WM_gizmo_set_scale(axis, 0.2f);
 				}
 				break;
+			case MAN_AXIS_APRON_C:
+				WM_gizmo_set_scale(axis, 1.2f);
+				break;
 		}
 
 		switch (axis_type) {
@@ -1393,14 +1455,14 @@ static void gizmogroup_init_properties_from_twtype(wmGizmoGroup *gzgroup)
 			}
 		}
 
-		{
+		if (ptr) {
 			PropertyRNA *prop;
 			if ((prop = RNA_struct_find_property(ptr, "constraint_axis"))) {
 				RNA_property_boolean_set_array(ptr, prop, constraint_axis);
 			}
-		}
 
-		RNA_boolean_set(ptr, "release_confirm", 1);
+			RNA_boolean_set(ptr, "release_confirm", 1);
+		}
 	}
 	MAN_ITER_AXES_END;
 }
@@ -1472,7 +1534,7 @@ static void WIDGETGROUP_gizmo_refresh(const bContext *C, wmGizmoGroup *gzgroup)
 
 	MAN_ITER_AXES_BEGIN(axis, axis_idx)
 	{
-		const short axis_type = gizmo_get_axis_type(axis_idx);
+		const short axis_type = gizmo_get_axis_type(axis_idx, man->axis_type_default);
 		const int aidx_norm = gizmo_orientation_axis(axis_idx, NULL);
 
 		WM_gizmo_set_matrix_location(axis, rv3d->twmat[3]);
@@ -1537,6 +1599,7 @@ static void WIDGETGROUP_gizmo_message_subscribe(
 
 static void WIDGETGROUP_gizmo_draw_prepare(const bContext *C, wmGizmoGroup *gzgroup)
 {
+	const Scene *scene = CTX_data_scene(C);
 	GizmoGroup *man = gzgroup->customdata;
 	// ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -1560,9 +1623,13 @@ static void WIDGETGROUP_gizmo_draw_prepare(const bContext *C, wmGizmoGroup *gzgr
 
 	MAN_ITER_AXES_BEGIN(axis, axis_idx)
 	{
-		const short axis_type = gizmo_get_axis_type(axis_idx);
+		const short axis_type = gizmo_get_axis_type(axis_idx, man->axis_type_default);
 		/* XXX maybe unset _HIDDEN flag on redraw? */
-		if (gizmo_is_axis_visible(rv3d, man->twtype, idot, axis_type, axis_idx)) {
+
+		if (axis_idx == MAN_AXIS_APRON_C) {
+			WM_gizmo_set_flag(axis, WM_GIZMO_HIDDEN, (scene->toolsettings->gizmo_flag & SCE_MANIP_DISABLE_APRON) != 0);
+		}
+		else if (gizmo_is_axis_visible(rv3d, man->twtype, idot, axis_type, axis_idx)) {
 			WM_gizmo_set_flag(axis, WM_GIZMO_HIDDEN, false);
 		}
 		else {
@@ -1580,6 +1647,7 @@ static void WIDGETGROUP_gizmo_draw_prepare(const bContext *C, wmGizmoGroup *gzgr
 			case MAN_AXIS_ROT_C:
 			case MAN_AXIS_SCALE_C:
 			case MAN_AXIS_ROT_T:
+			case MAN_AXIS_APRON_C:
 				WM_gizmo_set_matrix_rotation_from_z_axis(axis, rv3d->viewinv[2]);
 				break;
 		}

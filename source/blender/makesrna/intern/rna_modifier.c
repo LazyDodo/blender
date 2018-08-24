@@ -1179,6 +1179,7 @@ static void rna_ParticleInstanceModifier_particle_system_set(PointerRNA *ptr, co
 
 #else
 
+/* NOTE: *MUST* return subdivision_type property. */
 static PropertyRNA *rna_def_property_subdivision_common(StructRNA *srna, const char type[])
 {
 	static const EnumPropertyItem prop_subdivision_type_items[] = {
@@ -1187,7 +1188,44 @@ static PropertyRNA *rna_def_property_subdivision_common(StructRNA *srna, const c
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	PropertyRNA *prop = RNA_def_property(srna, "subdivision_type", PROP_ENUM, PROP_NONE);
+	static const EnumPropertyItem prop_uv_smooth_items[] = {
+		{SUBSURF_UV_SMOOTH_NONE, "NONE", 0,
+		 "Sharp", "UVs are not smoothed, boundaries are kept sharp"},
+		{SUBSURF_UV_SMOOTH_PRESERVE_CORNERS, "PRESERVE_CORNERS", 0,
+		 "Smooth, keep corners", "UVs are smoothed, corners on discontinuous boundary are kept sharp"},
+#if 0
+		{SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_AND_JUNCTIONS, "PRESERVE_CORNERS_AND_JUNCTIONS", 0,
+		 "Smooth, keep corners+junctions", "UVs are smoothed, corners on discontinuous boundary and "
+		 "junctions of 3 or more regions are kept sharp"},
+		{SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_JUNCTIONS_AND_CONCAVE, "PRESERVE_CORNERS_JUNCTIONS_AND_CONCAVE", 0,
+		 "Smooth, keep corners+junctions+concave", "UVs are smoothed, corners on discontinuous boundary, "
+		 "junctions of 3 or more regions and darts and concave corners are kept sharp"},
+		{SUBSURF_UV_SMOOTH_PRESERVE_BOUNDARIES, "PRESERVE_BOUNDARIES", 0,
+		 "Smooth, keep corners", "UVs are smoothed, boundaries are kept sharp"},
+		{SUBSURF_UV_SMOOTH_ALL, "PRESERVE_BOUNDARIES", 0,
+		 "Smooth all", "UVs and boundaries are smoothed"},
+#endif
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	PropertyRNA *prop;
+
+	prop = RNA_def_property(srna, "uv_smooth", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "uv_smooth");
+	RNA_def_property_enum_items(prop, prop_uv_smooth_items);
+	RNA_def_property_ui_text(prop, "UV Smooth", "Controls how smoothing is applied to UVs");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
+#ifdef WITH_OPENSUBDIV_MODIFIER
+	prop = RNA_def_property(srna, "quality", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_sdna(prop, NULL, "quality");
+	RNA_def_property_range(prop, 1, 10);
+	RNA_def_property_ui_range(prop, 1, 6, 1, -1);
+	RNA_def_property_ui_text(prop, "Quality", "Accuracy of vertex positions, lower value is faster but less precise");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+#endif
+
+	prop = RNA_def_property(srna, "subdivision_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, type);
 	RNA_def_property_enum_items(prop, prop_subdivision_type_items);
 	RNA_def_property_ui_text(prop, "Subdivision Type", "Select type of subdivision algorithm");
@@ -1226,18 +1264,6 @@ static void rna_def_modifier_subsurf(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flags", eSubsurfModifierFlag_ControlEdges);
 	RNA_def_property_ui_text(prop, "Optimal Display", "Skip drawing/rendering of interior subdivided edges");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_subsurf_uv", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flags", eSubsurfModifierFlag_SubsurfUv);
-	RNA_def_property_ui_text(prop, "Subdivide UVs", "Use subsurf to subdivide UVs");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-#ifdef WITH_OPENSUBDIV
-	prop = RNA_def_property(srna, "use_opensubdiv", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_opensubdiv", 1);
-	RNA_def_property_ui_text(prop, "Use OpenSubdiv", "Use OpenSubdiv for the subdivisions (viewport only)");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-#endif
 }
 
 static void rna_def_modifier_generic_map_info(StructRNA *srna)
@@ -1382,11 +1408,6 @@ static void rna_def_modifier_multires(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_only_control_edges", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flags", eMultiresModifierFlag_ControlEdges);
 	RNA_def_property_ui_text(prop, "Optimal Display", "Skip drawing/rendering of interior subdivided edges");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_subsurf_uv", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "flags", eMultiresModifierFlag_PlainUv);
-	RNA_def_property_ui_text(prop, "Subdivide UVs", "Use subsurf to subdivide UVs");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 }
 
@@ -4961,7 +4982,7 @@ static void rna_def_modifier_weightednormal(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_WEIGHTEDNORMAL_KEEP_SHARP);
 	RNA_def_property_ui_text(prop, "Keep Sharp",
 	                         "Keep sharp edges as computed for default split normals, "
-	                         "instead of setting a single weighted normal for each vertex.");
+	                         "instead of setting a single weighted normal for each vertex");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);

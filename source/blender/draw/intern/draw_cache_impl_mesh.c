@@ -428,8 +428,9 @@ static MeshRenderData *mesh_render_data_create_ex(
 			if (is_auto_smooth) {
 				rdata->loop_normals = MEM_mallocN(sizeof(*rdata->loop_normals) * totloop, __func__);
 				int cd_loop_clnors_offset = CustomData_get_layer_index(&bm->ldata, CD_CUSTOMLOOPNORMAL);
-				BM_loops_calc_normal_vcos(bm, NULL, NULL, NULL, true, split_angle, rdata->loop_normals, NULL, NULL,
-										  cd_loop_clnors_offset, false);
+				BM_loops_calc_normal_vcos(
+				        bm, NULL, NULL, NULL, true, split_angle, rdata->loop_normals, NULL, NULL,
+				        cd_loop_clnors_offset, false);
 			}
 			rdata->loop_len = totloop;
 			bm_ensure_types |= BM_LOOP;
@@ -1733,7 +1734,7 @@ static MeshBatchCache *mesh_batch_cache_get(Mesh *me)
 	return me->runtime.batch_cache;
 }
 
-void DRW_mesh_batch_cache_dirty(Mesh *me, int mode)
+void DRW_mesh_batch_cache_dirty_tag(Mesh *me, int mode)
 {
 	MeshBatchCache *cache = me->runtime.batch_cache;
 	if (cache == NULL) {

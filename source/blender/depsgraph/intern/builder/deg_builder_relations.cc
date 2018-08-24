@@ -185,6 +185,23 @@ static bool check_id_has_anim_component(ID *id)
 	       (!BLI_listbase_is_empty(&adt->nla_tracks));
 }
 
+static eDepsOperation_Code bone_target_opcode(ID *target, const char *subtarget, ID *id, const char *component_subdata, RootPChanMap *root_map)
+{
+	/* same armature  */
+	if (target == id) {
+		/* Using "done" here breaks in-chain deps, while using
+		 * "ready" here breaks most production rigs instead.
+		 * So, we do a compromise here, and only do this when an
+		 * IK chain conflict may occur.
+		 */
+		if (root_map->has_common_root(component_subdata, subtarget)) {
+			return DEG_OPCODE_BONE_READY;
+		}
+	}
+
+	return DEG_OPCODE_BONE_DONE;
+}
+
 /* **** General purpose functions ****  */
 
 DepsgraphRelationBuilder::DepsgraphRelationBuilder(Main *bmain,
@@ -392,7 +409,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 			build_camera((Camera *)id);
 			break;
 		case ID_GR:
-			build_collection(DEG_COLLECTION_OWNER_UNKNOWN, NULL, (Collection *)id);
+			build_collection(NULL, (Collection *)id);
 			break;
 		case ID_OB:
 			build_object(NULL, (Object *)id);
@@ -441,37 +458,19 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 }
 
 void DepsgraphRelationBuilder::build_collection(
-        eDepsNode_CollectionOwner owner_type,
         Object *object,
         Collection *collection)
 {
-	const bool allow_restrict_flags = (owner_type == DEG_COLLECTION_OWNER_SCENE);
-	if (allow_restrict_flags) {
-		const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-		        ? COLLECTION_RESTRICT_VIEW
-		        : COLLECTION_RESTRICT_RENDER;
-		if (collection->flag & restrict_flag) {
-			return;
-		}
-	}
 	const bool group_done = built_map_.checkIsBuiltAndTag(collection);
 	OperationKey object_transform_final_key(object != NULL ? &object->id : NULL,
 	                                        DEG_NODE_TYPE_TRANSFORM,
 	                                        DEG_OPCODE_TRANSFORM_FINAL);
 	if (!group_done) {
 		LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
-			if (allow_restrict_flags) {
-				const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-				        ? OB_RESTRICT_VIEW
-				        : OB_RESTRICT_RENDER;
-				if (cob->ob->restrictflag & restrict_flag) {
-					continue;
-				}
-			}
 			build_object(NULL, cob->ob);
 		}
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-			build_collection(owner_type, NULL, child->collection);
+			build_collection(NULL, child->collection);
 		}
 	}
 	if (object != NULL) {
@@ -600,7 +599,7 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, object, object->dup_group);
+		build_collection(object, object->dup_group);
 	}
 }
 
@@ -907,38 +906,42 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					add_relation(target_transform_key, constraint_op_key, cti->name);
 				}
 				else if ((ct->tar->type == OB_ARMATURE) && (ct->subtarget[0])) {
-					/* bone */
-					if (&ct->tar->id == id) {
-						/* same armature  */
-						eDepsOperation_Code target_key_opcode;
-						/* Using "done" here breaks in-chain deps, while using
-						 * "ready" here breaks most production rigs instead.
-						 * So, we do a compromise here, and only do this when an
-						 * IK chain conflict may occur.
-						 */
-						if (root_map->has_common_root(component_subdata,
-						                              ct->subtarget))
-						{
-							target_key_opcode = DEG_OPCODE_BONE_READY;
+					eDepsOperation_Code opcode;
+					/* relation to bone */
+					opcode = bone_target_opcode(&ct->tar->id, ct->subtarget,
+					                            id, component_subdata, root_map);
+					OperationKey target_key(&ct->tar->id,
+					                        DEG_NODE_TYPE_BONE,
+					                        ct->subtarget,
+					                        opcode);
+					add_relation(target_key, constraint_op_key, cti->name);
+					/* if needs bbone shape, also reference handles */
+					if (con->flag & CONSTRAINT_BBONE_SHAPE) {
+						bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
+						/* actually a bbone */
+						if (pchan && pchan->bone && pchan->bone->segments > 1) {
+							bPoseChannel *prev, *next;
+							BKE_pchan_get_bbone_handles(pchan, &prev, &next);
+							/* add handle links */
+							if (prev) {
+								opcode = bone_target_opcode(&ct->tar->id, prev->name,
+								                            id, component_subdata, root_map);
+								OperationKey prev_key(&ct->tar->id,
+								                      DEG_NODE_TYPE_BONE,
+								                      prev->name,
+								                      opcode);
+								add_relation(prev_key, constraint_op_key, cti->name);
+							}
+							if (next) {
+								opcode = bone_target_opcode(&ct->tar->id, next->name,
+								                            id, component_subdata, root_map);
+								OperationKey next_key(&ct->tar->id,
+								                      DEG_NODE_TYPE_BONE,
+								                      next->name,
+								                      opcode);
+								add_relation(next_key, constraint_op_key, cti->name);
+							}
 						}
-						else {
-							target_key_opcode = DEG_OPCODE_BONE_DONE;
-						}
-						OperationKey target_key(&ct->tar->id,
-						                        DEG_NODE_TYPE_BONE,
-						                        ct->subtarget,
-						                        target_key_opcode);
-						add_relation(target_key, constraint_op_key, cti->name);
-					}
-					else {
-						/* Different armature - we can safely use the result
-						 * of that.
-						 */
-						OperationKey target_key(&ct->tar->id,
-						                        DEG_NODE_TYPE_BONE,
-						                        ct->subtarget,
-						                        DEG_OPCODE_BONE_DONE);
-						add_relation(target_key, constraint_op_key, cti->name);
 					}
 				}
 				else if (ELEM(ct->tar->type, OB_MESH, OB_LATTICE) &&
@@ -1475,7 +1478,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 	/* objects - simulation participants */
 	if (rbw->group) {
 		FractureModifierData *fmd = NULL;
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, rbw->group);
+		build_collection(NULL, rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
@@ -1672,7 +1675,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, part->dup_group);
+					build_collection(NULL, part->dup_group);
 					LISTBASE_FOREACH (CollectionObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,
@@ -2115,6 +2118,9 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 		}
 		else if (id_type == ID_TXT) {
 			/* Ignore script nodes. */
+		}
+		else if (id_type == ID_MC) {
+			build_movieclip((MovieClip *)id);
 		}
 		else if (bnode->type == NODE_GROUP) {
 			bNodeTree *group_ntree = (bNodeTree *)id;

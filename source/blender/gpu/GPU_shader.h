@@ -107,8 +107,7 @@ int GPU_shader_get_attribute(GPUShader *shader, const char *name);
 
 /* Builtin/Non-generated shaders */
 typedef enum GPUBuiltinShader {
-	GPU_SHADER_VSM_STORE,
-	GPU_SHADER_SEP_GAUSSIAN_BLUR,
+	/* UNUSED (TODO REMOVE) */
 	GPU_SHADER_SMOKE,
 	GPU_SHADER_SMOKE_FIRE,
 	GPU_SHADER_SMOKE_COBA,
@@ -352,6 +351,7 @@ typedef enum GPUBuiltinShader {
 	GPU_SHADER_GPENCIL_STROKE,
 	GPU_SHADER_GPENCIL_FILL,
 	/* specialized for widget drawing */
+	GPU_SHADER_2D_AREA_EDGES,
 	GPU_SHADER_2D_WIDGET_BASE,
 	GPU_SHADER_2D_WIDGET_BASE_INST,
 	GPU_SHADER_2D_WIDGET_SHADOW,
