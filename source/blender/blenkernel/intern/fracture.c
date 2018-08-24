@@ -1959,15 +1959,15 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 static int getGroupObjects(Collection *gr, Object ***obs, int g_exist)
 {
 	int ctr = g_exist;
-	CollectionObject *go;
 	if (gr == NULL) return ctr;
 
-	for (go = gr->gobject.first; go; go = go->next) {
-
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(gr, ob)
+	{
 		*obs = MEM_reallocN(*obs, sizeof(Object *) * (ctr + 1));
-		(*obs)[ctr] = go->ob;
+		(*obs)[ctr] = ob;
 		ctr++;
 	}
+	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
 	return ctr;
 }

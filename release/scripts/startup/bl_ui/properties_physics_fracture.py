@@ -85,7 +85,7 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
         #    col.prop(md, "grease_offset")
         #    col.prop(md, "grease_decimate")
         #    col.prop(md, "cutter_axis")
-        if {'EXTRA_PARTICLES', 'EXTRA_VERTICES'} in md.point_source:
+        if 'EXTRA_PARTICLES' in md.point_source or 'EXTRA_VERTS' in md.point_source:
             col.prop(md, "extra_group", text="Helpers")
         if 'CUSTOM' in md.point_source:
             col.prop(md, "cutter_group")
