@@ -32,6 +32,7 @@
 #include <string.h> //for memcpy
 
 #include "MEM_guardedalloc.h"
+#include "BKE_collection.h"
 #include "BKE_fracture.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
@@ -240,37 +241,58 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 
 	if (fmd->extra_group) {
-		CollectionObject *go;
-		for (go = fmd->extra_group->gobject.first; go; go = go->next) {
-			if (go->ob)
-			{
-				DEG_add_object_relation(ctx->node, go->ob, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Extra");
-				DEG_add_object_relation(ctx->node, go->ob, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Extra");
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->extra_group, obj)
+		{
+			if (ctx->object != obj) {
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Extra");
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Extra");
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
 	if (fmd->autohide_filter_group) {
-		CollectionObject *go;
-		for (go = fmd->autohide_filter_group->gobject.first; go; go = go->next) {
-			if (go->ob)
-			{
-				DEG_add_object_relation(ctx->node, go->ob, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Autohide Filter");
-				DEG_add_object_relation(ctx->node, go->ob, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Autohide Filter");
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->autohide_filter_group, obj)
+		{
+			if (ctx->object != obj) {
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Autohide Filter");
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Autohide Filter");
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
 	if (fmd->cutter_group) {
-		CollectionObject *go;
-		for (go = fmd->cutter_group->gobject.first; go; go = go->next) {
-			if (go->ob)
-			{
-
-				DEG_add_object_relation(ctx->node, go->ob, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Cutter");
-				DEG_add_object_relation(ctx->node, go->ob, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Cutter");
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->cutter_group, obj)
+		{
+			if (ctx->object != obj) {
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Cutter");
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Cutter");
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+	}
+
+	if (fmd->dm_group) {
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->dm_group, obj)
+		{
+			if (ctx->object != obj) {
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Pack");
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Pack");
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+	}
+
+	if (ctx->scene->rigidbody_world && ctx->scene->rigidbody_world->group) {
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(ctx->scene->rigidbody_world->group, obj)
+		{
+			if (ctx->object != obj) {
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier RBW");
+				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_GEOMETRY, "Fracture Modifier RBW");
+			}
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
 	/* We need own transformation as well. */
@@ -288,40 +310,43 @@ static void foreachObjectLink(
 		walk(userData, ob, &fmd->anim_mesh_ob, IDWALK_CB_NOP);
 
 	if (fmd->extra_group) {
-		CollectionObject *go;
-		for (go = fmd->extra_group->gobject.first; go; go = go->next) {
-			if (go->ob) {
-				walk(userData, ob, &go->ob, IDWALK_CB_NOP);
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->extra_group, obj)
+		{
+			if (ob != obj) {
+				walk(userData, ob, &obj, IDWALK_CB_NOP);
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
 	if (fmd->cutter_group) {
-		CollectionObject *go;
-		for (go = fmd->cutter_group->gobject.first; go; go = go->next) {
-			if (go->ob) {
-				walk(userData, ob, &go->ob, IDWALK_CB_NOP);
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->cutter_group, obj)
+		{
+			if (ob != obj) {
+				walk(userData, ob, &obj, IDWALK_CB_NOP);
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
 	if (fmd->autohide_filter_group) {
-		CollectionObject *go;
-		for (go = fmd->autohide_filter_group->gobject.first; go; go = go->next) {
-			if (go->ob) {
-				walk(userData, ob, &go->ob, IDWALK_CB_NOP);
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->autohide_filter_group, obj)
+		{
+			if (ob != obj) {
+				walk(userData, ob, &obj, IDWALK_CB_NOP);
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
-	if (fmd->cutter_group) {
-		CollectionObject *go;
-		for (go = fmd->cutter_group->gobject.first; go; go = go->next) {
-			if (go->ob)
-			{
-				walk(userData, ob, &go->ob, IDWALK_CB_NOP);
+	if (fmd->dm_group) {
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->dm_group, obj)
+		{
+			if (ob != obj) {
+				walk(userData, ob, &obj, IDWALK_CB_NOP);
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 }
 

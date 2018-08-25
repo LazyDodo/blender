@@ -294,7 +294,7 @@ static void rna_RigidBodyOb_shape_reset(Main *UNUSED(bmain), Scene *scene, Point
       Object *ob = ptr->id.data;
 
       foreach_shard_flag_shape(ob, rbo->flag, rbo->shape, true);
-      BKE_rigidbody_cache_reset(rbw);
+      BKE_rigidbody_cache_reset(scene);
       if (rbo->shared->physics_shape)
             rbo->flag |= RBO_FLAG_NEEDS_RESHAPE;
 }
@@ -598,11 +598,11 @@ static void rna_RigidBodyOb_force_threshold_set(PointerRNA *ptr, float value)
     foreach_shard_float(ob, value, set_force_threshold);
 }
 
-static void rna_RigidBodyWorld_reset(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+static void rna_RigidBodyWorld_reset(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
-	RigidBodyWorld *rbw = (RigidBodyWorld *)ptr->data;
+	//RigidBodyWorld *rbw = (RigidBodyWorld *)ptr->data;
 
-	BKE_rigidbody_cache_reset(rbw);
+	BKE_rigidbody_cache_reset(scene);
 }
 
 static char *rna_RigidBodyWorld_path(PointerRNA *UNUSED(ptr))
