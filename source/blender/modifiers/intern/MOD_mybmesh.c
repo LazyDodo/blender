@@ -3079,21 +3079,8 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 		}
 
 		BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
-			bool skip = false;
-			//Do not try to wiggle radial edge verts
-			for(int vert_i = 0; vert_i < m_d->radi_vert_buffer->count; vert_i++){
-				Radi_vert r_vert = BLI_buffer_at(m_d->radi_vert_buffer, Radi_vert, vert_i);
-				if (r_vert.vert == vert){
-					skip = true;
-					break;
-				}
-			}
 			//Do not try to wiggle C verts
 			if (is_vert_in_buffer( vert, m_d->C_verts)){
-				skip = true;
-			}
-
-			if (skip){
 				continue;
 			}
 
@@ -3103,6 +3090,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				int nr_inco_faces = 0;
 				float (*store_2d)[3][2] = BLI_array_alloca(store_2d, face_count);
 				float *face_area = BLI_array_alloca(face_area, face_count);
+				bool *radial_face = BLI_array_alloca(radial_face, face_count);
 				float tot_face_area = 0;
 				float tot_diff_facing = 0;
 				float mat[3][3];
@@ -3115,8 +3103,13 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				BMVert *face_vert;
 				BMIter iter_f, iter_f_v;
 				BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, face_idx) {
+					radial_face[face_idx] = false;
+
 					BM_ITER_ELEM_INDEX (face_vert, &iter_f_v, f, BM_VERTS_OF_FACE, vert_idx) {
 						get_vert_st_pos(m_d, mat, face_vert, store_2d[face_idx][vert_idx]);
+						if( is_vert_in_buffer(face_vert, m_d->C_verts) ) {
+							radial_face[face_idx] = true;
+						}
 					}
 
 					float no[3];
@@ -3208,11 +3201,12 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							}
 
 							int new_inco_faces = 0;
+							int f_idx;
 							float new_dist = len_v3v3(cent, vert->co);
 							float new_diff_facing = 0;
-							bool fold = false;
+							bool skip_pos = false;
 
-							BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
+							BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, f_idx) {
 								float no[3];
 								float P[3];
 								float view_vec[3];
@@ -3221,7 +3215,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 
 								if( dot_v3v3(no, vert->no) < 0.0f ){
 									//Punish flipped faces
-									fold = true;
+									skip_pos = true;
 									break;
 								}
 
@@ -3230,11 +3224,15 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 								if( inface->back_f != (face_dir < 0) ){
 									new_diff_facing += fabs(face_dir);
 									new_inco_faces++;
+									if( radial_face[f_idx] ){
+										//Don't allow new pos to create inco radi faces
+										skip_pos = true;
+									}
 								}
 							}
 
-							if( fold ){
-                            	continue;
+							if( skip_pos ){
+								continue;
 							}
 
 							if( new_inco_faces < best_inco_faces ){
