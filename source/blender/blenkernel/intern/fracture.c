@@ -464,8 +464,8 @@ static Mesh* get_mesh(Mesh** meshes, int index, Mesh* mesh)
 static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain, Object* ob, Scene* scene, cell *c, int count)
 {
 	int i, j = 1;
-	BisectContext bictx = {};
-	BooleanContext boctx = {};
+	BisectContext bictx = {0};
+	BooleanContext boctx = {0};
 	MeshIsland** islands = NULL;
 	KDTree *tree = NULL;
 	Mesh** temp_meshs = NULL;
@@ -873,7 +873,7 @@ void intersect_mesh_by_mesh(FractureModifierData* fmd, Object* ob, Mesh* meA, Me
 {
 	int i = 0;
 	Mesh* outA = NULL, *outB = NULL;
-	BooleanContext boctx = {};
+	BooleanContext boctx = {0};
 	prepare_boolean(fmd, ob, &boctx);
 
 	if (ELEM(fmd->keep_cutter_shards, MOD_FRACTURE_KEEP_BOTH, MOD_FRACTURE_KEEP_INTERSECT)) {
@@ -1290,7 +1290,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 				int frame = (int)BKE_scene_frame_get(scene);
 
 				//mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
-				BKE_rigidbody_validate_sim_shard(rbw, ob, mi, fmd, true, true, size, frame);
+				BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, true, true, size, frame);
 			}
 
 			mi = mi->next;
@@ -2201,7 +2201,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 	}
 
 	if (emd->point_source & (MOD_FRACTURE_OWN_VERTS | MOD_FRACTURE_EXTRA_VERTS)) {
-		points_from_verts(go, totgroup, &points, ob->obmat, thresh, emd, mi, ob);
+		points_from_verts(go, totgroup, &points, ob->obmat, thresh, emd, ob, mi);
 	}
 
 #if 0
@@ -2676,7 +2676,7 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 			}
 
 			/*decouple from listbase because it will continue growing ... */
-			for (mi = mi_tmp, i = 0; i < count; i++)
+			for (i = 0; i < count; i++)
 			{
 				BKE_fracture_points(fmd, obj, mi_tmp[i], depsgraph, bmain, scene);
 				mi_tmp[i]->endframe = frame;
@@ -2719,7 +2719,7 @@ static void mesh_separate_tagged(FractureModifierData *fmd, Object *ob, BMVert**
 	BMesh *bm_new;
 	BMesh *bm_old = bm_work;
 	Mesh *me = NULL;
-	struct BMeshCreateParams bmc = {};
+	struct BMeshCreateParams bmc = {0};
 	bmc.use_toolflags = true;
 
 	bm_new = BM_mesh_create(&bm_mesh_allocsize_default, &bmc);

@@ -1211,7 +1211,7 @@ int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, voi
 	bool validOb = true, check_activate = false;
 
 	// oh man... the pleasures of CoW.., mooo
-	sc_orig = DEG_get_original_id(sc);
+	sc_orig = (Scene*)DEG_get_original_id(&sc->id);
 	rbw = sc_orig->rigidbody_world;
 
 	mi1 = (MeshIsland*)island1;

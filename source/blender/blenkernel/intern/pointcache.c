@@ -1330,7 +1330,7 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
 	Object* ob = rbw->objects[index];
-	FractureModifierData *fmd = modifiers_findByType(ob, eModifierType_Fracture);
+	FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 
 	if (!fmd) {
 		rbo = ob->rigidbody_object;
@@ -1401,7 +1401,7 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
 	Object* ob = rbw->objects[index];
-	FractureModifierData *fmd = modifiers_findByType(ob, eModifierType_Fracture);
+	FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 
 	if (!fmd) {
 		rbo = ob->rigidbody_object;
@@ -1449,7 +1449,7 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 	RigidBodyWorld *rbw = rb_v;
 	RigidBodyOb *rbo = NULL;
 	Object* ob = rbw->objects[index];
-	FractureModifierData *fmd = modifiers_findByType(ob, eModifierType_Fracture);
+	FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 	ParticleKey keys[4], result;
 	float dfra;
 
