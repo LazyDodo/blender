@@ -390,10 +390,10 @@ static bool get_uv_coord(BMVert *vert, BMFace *f, float *u, float *v){
 	return false;
 }
 
-static bool is_C_vert(BMVert *v, BLI_Buffer *C_verts){
+static bool is_vert_in_buffer(BMVert *v, BLI_Buffer *vert_buf){
 	int vert_j;
-	for(vert_j = 0; vert_j < C_verts->count; vert_j++){
-		BMVert *c_vert = BLI_buffer_at(C_verts, BMVert*, vert_j);
+	for(vert_j = 0; vert_j < vert_buf->count; vert_j++){
+		BMVert *c_vert = BLI_buffer_at(vert_buf, BMVert*, vert_j);
 		if( c_vert == v ){
 			return true;
 		}
@@ -2090,7 +2090,7 @@ static bool poke_and_move(BMFace *f, const float new_pos[3], const float du[3], 
 			//Do not insert a radial edge here
 			return false;
 		}
-		if( is_C_vert( edge->v1, m_d->C_verts) && is_C_vert( edge->v2, m_d->C_verts) ){
+		if( is_vert_in_buffer( edge->v1, m_d->C_verts) && is_vert_in_buffer( edge->v2, m_d->C_verts) ){
 			return false;
 		}
 	}
@@ -2375,7 +2375,7 @@ static void radial_insertion( MeshData *m_d ){
 				//Do not attempt to insert radial edges on the "inside" region of the cusp
 				//That is, if the opposite edge as a cusp vert, do not try to insert a radial edge here.
 				/*
-				if (cur_vert != vert && is_C_vert(cur_vert, m_d->cusp_verts)){
+				if (cur_vert != vert && is_vert_in_buffer(cur_vert, m_d->cusp_verts)){
 					skip_face = true;
 					break;
 				}
@@ -2537,7 +2537,7 @@ static bool radial_C_vert(BMVert *v, MeshData *m_d){
 		return true;
 	}
 
-	if( is_C_vert( v, m_d->C_verts) ){
+	if( is_vert_in_buffer( v, m_d->C_verts) ){
 		return true;
 	}
 
@@ -2563,7 +2563,7 @@ static void radial_flip( MeshData *m_d ){
 		int edge_count = BM_vert_edge_count(vert);
 		BMEdge **edge_arr = BLI_array_alloca(edge_arr, edge_count);
 
-        if( is_C_vert(vert, m_d->cusp_verts) ){
+        if( is_vert_in_buffer(vert, m_d->cusp_verts) ){
 			//Do not flip cusp edges
 			//continue;
 		}
@@ -2794,8 +2794,8 @@ static int radial_extention( MeshData *m_d ){
 					BMLoop *l1, *l2;
 					BM_edge_calc_rotate(edge, true, &l1, &l2);
 					//TODO actually check if we flip a radial edge!
-					if( !is_C_vert(edge->v1, cv) && !is_C_vert(edge->v2, cv) &&
-						!is_C_vert(l1->v, cv) && !is_C_vert(l2->v, cv)){
+					if( !is_vert_in_buffer(edge->v1, cv) && !is_vert_in_buffer(edge->v2, cv) &&
+						!is_vert_in_buffer(l1->v, cv) && !is_vert_in_buffer(l2->v, cv)){
 						float lambda;
 						float temp[3];
 						sub_v3_v3v3(temp, edge->v2->co, edge->v1->co);
@@ -3079,21 +3079,8 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 		}
 
 		BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
-			bool skip = false;
-			//Do not try to wiggle radial edge verts
-			for(int vert_i = 0; vert_i < m_d->radi_vert_buffer->count; vert_i++){
-				Radi_vert r_vert = BLI_buffer_at(m_d->radi_vert_buffer, Radi_vert, vert_i);
-				if (r_vert.vert == vert){
-					skip = true;
-					break;
-				}
-			}
 			//Do not try to wiggle C verts
-			if (is_C_vert( vert, m_d->C_verts)){
-				skip = true;
-			}
-
-			if (skip){
+			if (is_vert_in_buffer( vert, m_d->C_verts)){
 				continue;
 			}
 
@@ -3103,6 +3090,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				int nr_inco_faces = 0;
 				float (*store_2d)[3][2] = BLI_array_alloca(store_2d, face_count);
 				float *face_area = BLI_array_alloca(face_area, face_count);
+				bool *radial_face = BLI_array_alloca(radial_face, face_count);
 				float tot_face_area = 0;
 				float tot_diff_facing = 0;
 				float mat[3][3];
@@ -3115,8 +3103,13 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 				BMVert *face_vert;
 				BMIter iter_f, iter_f_v;
 				BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, face_idx) {
+					radial_face[face_idx] = false;
+
 					BM_ITER_ELEM_INDEX (face_vert, &iter_f_v, f, BM_VERTS_OF_FACE, vert_idx) {
 						get_vert_st_pos(m_d, mat, face_vert, store_2d[face_idx][vert_idx]);
+						if( is_vert_in_buffer(face_vert, m_d->C_verts) ) {
+							radial_face[face_idx] = true;
+						}
 					}
 
 					float no[3];
@@ -3208,11 +3201,12 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							}
 
 							int new_inco_faces = 0;
+							int f_idx;
 							float new_dist = len_v3v3(cent, vert->co);
 							float new_diff_facing = 0;
-							bool fold = false;
+							bool skip_pos = false;
 
-							BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
+							BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, f_idx) {
 								float no[3];
 								float P[3];
 								float view_vec[3];
@@ -3221,7 +3215,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 
 								if( dot_v3v3(no, vert->no) < 0.0f ){
 									//Punish flipped faces
-									fold = true;
+									skip_pos = true;
 									break;
 								}
 
@@ -3230,11 +3224,15 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 								if( inface->back_f != (face_dir < 0) ){
 									new_diff_facing += fabs(face_dir);
 									new_inco_faces++;
+									if( radial_face[f_idx] ){
+										//Don't allow new pos to create inco radi faces
+										skip_pos = true;
+									}
 								}
 							}
 
-							if( fold ){
-                            	continue;
+							if( skip_pos ){
+								continue;
 							}
 
 							if( new_inco_faces < best_inco_faces ){
@@ -3330,7 +3328,7 @@ static void optimization( MeshData *m_d ){
 						bool found_c_vert = false;
 
 						BM_ITER_ELEM (v, &iter, face, BM_VERTS_OF_FACE) {
-							if( is_C_vert(v, m_d->C_verts) ) {
+							if( is_vert_in_buffer(v, m_d->C_verts) ) {
 								found_c_vert = true;
 								break;
 							}
@@ -3384,8 +3382,8 @@ static void optimization( MeshData *m_d ){
 				cv = m_d->C_verts;
 				BMLoop *l1, *l2;
 				BM_edge_calc_rotate(edge, true, &l1, &l2);
-				if( !is_C_vert(edge->v1, cv) && !is_C_vert(edge->v2, cv) &&
-					!is_C_vert(l1->v, cv) && !is_C_vert(l2->v, cv)){
+				if( !is_vert_in_buffer(edge->v1, cv) && !is_vert_in_buffer(edge->v2, cv) &&
+					!is_vert_in_buffer(l1->v, cv) && !is_vert_in_buffer(l2->v, cv)){
 					//This is not a radial triangle edge, see if we can flip it
 
 					if( !BM_edge_rotate_check_degenerate(edge, l1, l2) ){
@@ -3567,7 +3565,7 @@ static void optimization( MeshData *m_d ){
 					}
 				}
 				//Do not try to split CC edges
-				c_radi_verts += is_C_vert( edge->v1, m_d->C_verts) + is_C_vert( edge->v2, m_d->C_verts);
+				c_radi_verts += is_vert_in_buffer( edge->v1, m_d->C_verts) + is_vert_in_buffer( edge->v2, m_d->C_verts);
 
 				if (c_radi_verts == 2){
 					for( int i = 0; i < 10; i++ ){
@@ -3804,7 +3802,7 @@ static void optimization( MeshData *m_d ){
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
 				//Do not try to wiggle C verts
-				if (is_C_vert( vert, m_d->C_verts)){
+				if (is_vert_in_buffer( vert, m_d->C_verts)){
 					continue;
 				}
 				if( BM_elem_index_get(vert) < m_d->radi_start_idx ){
@@ -3884,7 +3882,7 @@ static void optimization( MeshData *m_d ){
 			}
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
-				if( !is_C_vert( vert, m_d->C_verts) ){
+				if( !is_vert_in_buffer( vert, m_d->C_verts) ){
 					//not a radial vert, try to smooth the vertex pos and see if the consistency improves
 
 					float old_pos[3], co[3], co2[3];
@@ -3960,7 +3958,7 @@ static void optimization( MeshData *m_d ){
 
 			BM_ITER_ELEM (vert, &iter_v, inface->face, BM_VERTS_OF_FACE) {
 				//Do not try to wiggle C verts
-				if (is_C_vert( vert, m_d->C_verts)){
+				if (is_vert_in_buffer( vert, m_d->C_verts)){
 					continue;
 				}
 
