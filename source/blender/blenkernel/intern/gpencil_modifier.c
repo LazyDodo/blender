@@ -220,8 +220,12 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 
 	/* adding points marked */
 	bGPDspoint *old_points = MEM_dupallocN(gps->points);
-	MDeformVert *old_dvert = MEM_dupallocN(gps->dvert);
+	MDeformVert *old_dvert = NULL;
+	MDeformVert *dvert_src = NULL;
 
+	if (gps->dvert != NULL) {
+		old_dvert = MEM_dupallocN(gps->dvert);
+	}
 	/* resize gps */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->tot_triangles = 0;
@@ -231,17 +235,21 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 		bGPDspoint *pt_src = &old_points[i];
 		bGPDspoint *pt = &gps->points[j];
 
-		MDeformVert *dvert_src = &old_dvert[i];
-		MDeformVert *dvert = &gps->dvert[j];
-
 		if ((marked[i]) || (i == 0) || (i == totpoints - 1)) {
 			memcpy(pt, pt_src, sizeof(bGPDspoint));
-			memcpy(dvert, dvert_src, sizeof(MDeformVert));
-			memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
+			if (gps->dvert != NULL) {
+				dvert_src = &old_dvert[i];
+				MDeformVert *dvert = &gps->dvert[j];
+				memcpy(dvert, dvert_src, sizeof(MDeformVert));
+				memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
+			}
 			j++;
 		}
 		else {
-			BKE_gpencil_free_point_weights(dvert_src);
+			if (gps->dvert != NULL) {
+				dvert_src = &old_dvert[i];
+				BKE_gpencil_free_point_weights(dvert_src);
+			}
 		}
 	}
 
@@ -258,11 +266,6 @@ void BKE_gpencil_simplify_stroke(bGPDstroke *gps, float factor)
 	/* first create temp data and convert points to 2D */
 	vec2f *points2d = MEM_mallocN(sizeof(vec2f) * gps->totpoints, "GP Stroke temp 2d points");
 
-	/* for some old files, the weights array could not be initializated */
-	if (gps->dvert == NULL) {
-		gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
-	}
-
 	gpencil_stroke_project_2d(gps->points, gps->totpoints, points2d);
 
 	gpencil_rdp_stroke(gps, points2d, factor);
@@ -277,14 +280,14 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 		return;
 	}
 
-	/* for some old files, the weights array could not be initializated */
-	if (gps->dvert == NULL) {
-		gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
-	}
-
 	/* save points */
 	bGPDspoint *old_points = MEM_dupallocN(gps->points);
-	MDeformVert *old_dvert = MEM_dupallocN(gps->dvert);
+	MDeformVert *old_dvert = NULL;
+	MDeformVert *dvert_src = NULL;
+
+	if (gps->dvert != NULL) {
+		old_dvert = MEM_dupallocN(gps->dvert);
+	}
 
 	/* resize gps */
 	int newtot = (gps->totpoints - 2) / 2;
@@ -294,7 +297,9 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 	newtot += 2;
 
 	gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * newtot);
-	gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * newtot);
+	if (gps->dvert != NULL) {
+		gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * newtot);
+	}
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->tot_triangles = 0;
 
@@ -303,17 +308,22 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 		bGPDspoint *pt_src = &old_points[i];
 		bGPDspoint *pt = &gps->points[j];
 
-		MDeformVert *dvert_src = &old_dvert[i];
-		MDeformVert *dvert = &gps->dvert[j];
 
 		if ((i == 0) || (i == gps->totpoints - 1) || ((i % 2) > 0.0)) {
 			memcpy(pt, pt_src, sizeof(bGPDspoint));
-			memcpy(dvert, dvert_src, sizeof(MDeformVert));
-			memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
+			if (gps->dvert != NULL) {
+				dvert_src = &old_dvert[i];
+				MDeformVert *dvert = &gps->dvert[j];
+				memcpy(dvert, dvert_src, sizeof(MDeformVert));
+				memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
+			}
 			j++;
 		}
 		else {
-			BKE_gpencil_free_point_weights(dvert_src);
+			if (gps->dvert != NULL) {
+				dvert_src = &old_dvert[i];
+				BKE_gpencil_free_point_weights(dvert_src);
+			}
 		}
 	}
 

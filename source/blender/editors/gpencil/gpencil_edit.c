@@ -2923,6 +2923,8 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 	MDeformVert *temp_dverts;
 
 	const int cuts = RNA_int_get(op->ptr, "number_cuts");
+	MDeformVert *temp_dvert = NULL;
+	MDeformVert *dvert_final = NULL;
 
 	int totnewpoints, oldtotpoints;
 	int i2;
@@ -2949,7 +2951,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				temp_dverts = MEM_dupallocN(gps->dvert);
 
 				oldtotpoints = gps->totpoints;
-
+				if (gps->dvert != NULL) {
+					temp_dvert = MEM_dupallocN(gps->dvert);
+				}
 				/* resize the points arrys */
 				gps->totpoints += totnewpoints;
 				gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
@@ -2964,7 +2968,10 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 					MDeformVert *dvert = &temp_dverts[i];
 					bGPDspoint *pt_final = &gps->points[i2];
 
-					MDeformVert *dvert_final = &gps->dvert[i2];
+					MDeformVert *dvert = NULL;
+					if (gps->dvert != NULL) {
+						dvert = &temp_dvert[i];
+					}
 
 					/* copy current point */
 					copy_v3_v3(&pt_final->x, &pt->x);
@@ -2973,8 +2980,11 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 					pt_final->time = pt->time;
 					pt_final->flag = pt->flag;
 
-					dvert_final->totweight = dvert->totweight;
-					dvert_final->dw = dvert->dw;
+					if (gps->dvert != NULL) {
+						dvert_final = &gps->dvert[i2];
+						dvert_final->totweight = dvert->totweight;
+						dvert_final->dw = dvert->dw;
+					}
 					i2++;
 
 					/* if next point is selected add a half way point */
@@ -2995,27 +3005,28 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								pt_final->time = interpf(pt->time, next->time, 0.5f);
 								pt_final->flag |= GP_SPOINT_SELECT;
 
-								dvert_final->totweight = dvert->totweight;
-								dvert_final->dw = MEM_dupallocN(dvert->dw);
+								if (gps->dvert != NULL) {
+									dvert_final->totweight = dvert->totweight;
+									dvert_final->dw = MEM_dupallocN(dvert->dw);
 
-								/* interpolate weight values */
-								for (int d = 0; d < dvert->totweight; d++) {
-									MDeformWeight *dw_a = &dvert->dw[d];
-									if (dvert_next->totweight > d) {
-										MDeformWeight *dw_b = &dvert_next->dw[d];
-										MDeformWeight *dw_final = &dvert_final->dw[d];
-										dw_final->weight= interpf(dw_a->weight,dw_b->weight, 0.5f);
+									/* interpolate weight values */
+									for (int d = 0; d < dvert->totweight; d++) {
+										MDeformWeight *dw_a = &dvert->dw[d];
+										if (dvert_next->totweight > d) {
+											MDeformWeight *dw_b = &dvert_next->dw[d];
+											MDeformWeight *dw_final = &dvert_final->dw[d];
+											dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
+										}
 									}
 								}
-
 								i2++;
 							}
 						}
 					}
 				}
 				/* free temp memory */
-				MEM_freeN(temp_points);
-				MEM_freeN(temp_dverts);
+				MEM_SAFE_FREE(temp_points);
+				MEM_SAFE_FREE(temp_dvert);
 			}
 		}
 	}

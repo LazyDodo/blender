@@ -846,7 +846,6 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	/* allocate memory for storage points */
 	gps->totpoints = tgpf->sbuffer_size;
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * tgpf->sbuffer_size, "gp_stroke_points");
-	gps->dvert = MEM_callocN(sizeof(MDeformVert) * tgpf->sbuffer_size, "gp_stroke_weights");
 
 	/* initialize triangle memory to dummy data */
 	gps->tot_triangles = 0;
