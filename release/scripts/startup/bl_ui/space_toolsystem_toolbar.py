@@ -939,7 +939,7 @@ class _defs_sculpt:
     def hide_border():
         return dict(
             text="Border Hide",
-            icon="none",
+            icon="ops.sculpt.border_hide",
             widget=None,
             keymap=(
                 ("paint.hide_show", dict(action='HIDE'), dict(type='EVT_TWEAK_A', value='ANY')),
@@ -952,7 +952,7 @@ class _defs_sculpt:
     def mask_border():
         return dict(
             text="Border Mask",
-            icon="none",
+            icon="ops.sculpt.border_mask",
             widget=None,
             keymap=(
                 ("view3d.select_border", dict(mode='ADD'), dict(type='EVT_TWEAK_A', value='ANY')),
@@ -1127,6 +1127,8 @@ class _defs_gpencil_paint:
             row.template_ID(gp_settings, "material", live_icon=True)
         else:
             row.template_greasepencil_color(gp_settings, "material", rows=3, cols=8, scale=0.8)
+        row.prop(gp_settings, "pin_material", text="")
+
 
     @staticmethod
     def draw_settings_common(context, layout, tool):
