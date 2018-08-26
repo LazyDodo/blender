@@ -381,6 +381,8 @@ static void gpencil_add_verts_to_dgroups(
 					if (ED_gpencil_stroke_can_use(C, gps) == false)
 						continue;
 
+					BKE_gpencil_dvert_ensure(gps);
+
 					/* create verts array */
 					verts = MEM_callocN(gps->totpoints * sizeof(*verts), __func__);
 

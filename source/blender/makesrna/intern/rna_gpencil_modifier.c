@@ -230,6 +230,7 @@ RNA_GP_MOD_VGROUP_NAME_SET(Lattice, vgname);
 RNA_GP_MOD_VGROUP_NAME_SET(Smooth, vgname);
 RNA_GP_MOD_VGROUP_NAME_SET(Hook, vgname);
 RNA_GP_MOD_VGROUP_NAME_SET(Offset, vgname);
+RNA_GP_MOD_VGROUP_NAME_SET(Armature, vgname);
 
 #undef RNA_GP_MOD_VGROUP_NAME_SET
 
@@ -1280,6 +1281,42 @@ static void rna_def_modifier_gpencilarmature(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Object", "Armature object to deform with");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_ArmatureGpencilModifier_object_set", NULL, "rna_Armature_object_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+	prop = RNA_def_property(srna, "use_bone_envelopes", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "deformflag", ARM_DEF_ENVELOPE);
+	RNA_def_property_ui_text(prop, "Use Bone Envelopes", "Bind Bone envelopes to armature modifier");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+	prop = RNA_def_property(srna, "use_vertex_groups", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "deformflag", ARM_DEF_VGROUP);
+	RNA_def_property_ui_text(prop, "Use Vertex Groups", "Bind vertex groups to armature modifier");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+	prop = RNA_def_property(srna, "use_deform_preserve_volume", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "deformflag", ARM_DEF_QUATERNION);
+	RNA_def_property_ui_text(prop, "Preserve Volume", "Deform rotation interpolation with quaternions");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+#if 0 /* GPXX keep disabled now */
+	prop = RNA_def_property(srna, "use_multi_modifier", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "multi", 0);
+	RNA_def_property_ui_text(prop, "Multi Modifier",
+		"Use same input as previous modifier, and mix results using overall vgroup");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+#endif
+
+	prop = RNA_def_property(srna, "vertex_group", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "vgname");
+	RNA_def_property_ui_text(prop, "Vertex Group",
+		"Name of Vertex Group which determines influence of modifier per point");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_ArmatureGpencilModifier_vgname_set");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
+	prop = RNA_def_property(srna, "invert_vertex_group", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "deformflag", ARM_DEF_INVERT_VGROUP);
+	RNA_def_property_ui_text(prop, "Invert", "Invert vertex group influence");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
 }
 

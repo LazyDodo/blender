@@ -799,13 +799,10 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 				invert_m4_m4(ob->parentinv, workob.obmat);
 			}
 			else if (pararm && (ob->type == OB_GPENCIL) && (par->type == OB_ARMATURE)) {
-				if (partype == PAR_ARMATURE_NAME) {
+				if ((partype == PAR_ARMATURE_NAME) ||
+					(partype == PAR_ARMATURE_ENVELOPE))
+				{
 					ED_gpencil_add_armature_weights(C, reports, ob, par, GP_PAR_ARMATURE_NAME);
-				}
-				else if (partype == PAR_ARMATURE_ENVELOPE) {
-					BKE_report(reports, RPT_ERROR,
-						"Envelop mode not supported for grease pencil objects");
-					return false;
 				}
 				else if (partype == PAR_ARMATURE_AUTO) {
 					WM_cursor_wait(1);
