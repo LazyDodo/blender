@@ -803,7 +803,7 @@ static void gpencil_points_from_stack(tGPDfill *tgpf)
 		point2D->y = v[1];
 
 		point2D->pressure = 1.0f;
-		point2D->strength = 1.0f;;
+		point2D->strength = 1.0f;
 		point2D->time = 0.0f;
 		point2D++;
 	}
@@ -882,7 +882,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		        &pt->x);
 
 		pt->pressure = 1.0f;
-		pt->strength = 1.0f;;
+		pt->strength = 1.0f;
 		pt->time = 0.0f;
 
 		if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
