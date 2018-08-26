@@ -555,7 +555,7 @@ static short gp_stroke_addpoint(
 	View3D *v3d = p->sa->spacedata.first;
 	MaterialGPencilStyle *gp_style = p->material->gp_style;
 	const int def_nr = obact->actdef - 1;
-	const bool is_weight = (bool)BLI_findlink(&obact->defbase, def_nr);
+	const bool have_weight = (bool)BLI_findlink(&obact->defbase, def_nr);
 
 	/* check painting mode */
 	if (p->paintmode == GP_PAINTMODE_DRAW_STRAIGHT) {
@@ -794,7 +794,8 @@ static short gp_stroke_addpoint(
 			pts->uv_fac = pt->uv_fac;
 			pts->uv_rot = pt->uv_rot;
 
-			if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (is_weight)) {
+			if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
+				BKE_gpencil_dvert_ensure(gps);
 				BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, ts->vgroup_weight);
 			}
 			else {
@@ -913,7 +914,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	Depsgraph *depsgraph = p->depsgraph;
 	Object *obact = (Object *)p->ownerPtr.data;
 	const int def_nr = obact->actdef - 1;
-	const bool is_weight = (bool)BLI_findlink(&obact->defbase, def_nr);
+	const bool have_weight = (bool)BLI_findlink(&obact->defbase, def_nr);
 
 	int i, totelem;
 	/* since strokes are so fine, when using their depth we need a margin otherwise they might get missed */
@@ -992,7 +993,8 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			pt->time = ptc->time;
 			pt++;
 
-			if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (is_weight)) {
+			if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
+				BKE_gpencil_dvert_ensure(gps);
 				BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, ts->vgroup_weight);
 				dvert++;
 			}
@@ -1002,8 +1004,6 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 					dvert->dw = NULL;
 					dvert++;
 				}
-			}
-
 			}
 		}
 
@@ -1019,7 +1019,8 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 			pt->time = ptc->time;
 
-			if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (is_weight)) {
+			if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
+				BKE_gpencil_dvert_ensure(gps);
 				BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, ts->vgroup_weight);
 			}
 			else {
@@ -1054,7 +1055,8 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		CLAMP(pt->strength, GPENCIL_STRENGTH_MIN, 1.0f);
 		pt->time = ptc->time;
 
-		if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (is_weight)) {
+		if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
+			BKE_gpencil_dvert_ensure(gps);
 			BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, ts->vgroup_weight);
 		}
 		else {
@@ -1143,8 +1145,10 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			pt->uv_fac = ptc->uv_fac;
 			pt->uv_rot = ptc->uv_rot;
 
-			dvert->totweight = 0;
-			dvert->dw = NULL;
+			if (gps->dvert != NULL) {
+				dvert->totweight = 0;
+				dvert->dw = NULL;
+			}
 		}
 
 		/* subdivide and smooth the stroke */
@@ -1211,7 +1215,8 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		BLI_addtail(&p->gpf->strokes, gps);
 	}
 	/* add weights */
-	if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (is_weight)) {
+	if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
+		BKE_gpencil_dvert_ensure(gps);
 		for (i = 0; i < gps->totpoints; i++) {
 			MDeformVert *ve = &gps->dvert[i];
 			BKE_gpencil_vgroup_add_point_weight(ve, def_nr, ts->vgroup_weight);

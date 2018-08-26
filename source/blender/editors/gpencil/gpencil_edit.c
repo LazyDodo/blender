@@ -2965,7 +2965,6 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				i2 = 0;
 				for (int i = 0; i < oldtotpoints; i++) {
 					bGPDspoint *pt = &temp_points[i];
-					MDeformVert *dvert = &temp_dverts[i];
 					bGPDspoint *pt_final = &gps->points[i2];
 
 					MDeformVert *dvert = NULL;
