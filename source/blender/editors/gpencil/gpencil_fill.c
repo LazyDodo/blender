@@ -868,7 +868,12 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	const int def_nr = tgpf->ob->actdef - 1;
 	const bool have_weight = (bool)BLI_findlink(&tgpf->ob->defbase, def_nr);
 
-	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++, dvert++) {
+	if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
+		BKE_gpencil_dvert_ensure(gps);
+		dvert = gps->dvert;
+	}
+
+	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++) {
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint(
 		        tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob,
@@ -881,12 +886,15 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		pt->time = 0.0f;
 
 		if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
-			BKE_gpencil_dvert_ensure(gps);
 			BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, ts->vgroup_weight);
+			dvert++;
 		}
 		else {
-			dvert->totweight = 0;
-			dvert->dw = NULL;
+			if (gps->dvert != NULL) {
+				dvert->totweight = 0;
+				dvert->dw = NULL;
+				dvert++;
+			}
 		}
 	}
 
