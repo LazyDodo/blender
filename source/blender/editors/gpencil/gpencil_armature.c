@@ -425,7 +425,10 @@ static void gpencil_add_verts_to_dgroups(
 							}
 
 							/* assign weight */
-							BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, weight);
+							MDeformWeight *dw = defvert_verify_index(dvert, def_nr);
+							if (dw) {
+								dw->weight = weight;
+							}
 						}
 					}
 					MEM_SAFE_FREE(verts);

@@ -56,6 +56,7 @@
 #include "BKE_main.h"
 #include "BKE_brush.h"
 #include "BKE_context.h"
+#include "BKE_deform.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_library.h"
@@ -559,7 +560,11 @@ static void gpencil_primitive_done(bContext *C, wmOperator *op, wmWindow *win, t
 		BKE_gpencil_dvert_ensure(gps);
 		for (int i = 0; i < gps->totpoints; i++) {
 			MDeformVert *ve = &gps->dvert[i];
-			BKE_gpencil_vgroup_add_point_weight(ve, def_nr, ts->vgroup_weight);
+			MDeformWeight *dw = defvert_verify_index(ve, def_nr);
+			if (dw) {
+				dw->weight = ts->vgroup_weight;
+			}
+
 		}
 	}
 

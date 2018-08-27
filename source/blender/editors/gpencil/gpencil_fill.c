@@ -47,6 +47,7 @@
 
 #include "BKE_main.h"
 #include "BKE_brush.h"
+#include "BKE_deform.h"
 #include "BKE_image.h"
 #include "BKE_gpencil.h"
 #include "BKE_material.h"
@@ -886,7 +887,11 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		pt->time = 0.0f;
 
 		if ((ts->gpencil_flags & GP_TOOL_FLAG_CREATE_WEIGHTS) && (have_weight)) {
-			BKE_gpencil_vgroup_add_point_weight(dvert, def_nr, ts->vgroup_weight);
+			MDeformWeight *dw = defvert_verify_index(dvert, def_nr);
+			if (dw) {
+				dw->weight = ts->vgroup_weight;
+			}
+
 			dvert++;
 		}
 		else {
