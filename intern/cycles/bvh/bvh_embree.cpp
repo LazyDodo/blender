@@ -327,7 +327,8 @@ void BVHEmbree::mem_monitor(ssize_t bytes)
 	if(stats) {
 		if(bytes > 0) {
 			stats->mem_alloc(bytes);
-		} else {
+		}
+		else {
 			stats->mem_free(-bytes);
 		}
 	}
@@ -537,7 +538,7 @@ void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 		}
 
 		float *rtc_verts = (float*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t,
-		                                                    RTC_FORMAT_FLOAT3, sizeof(float) * 3, num_verts);
+		                                                    RTC_FORMAT_FLOAT3, sizeof(float) * 3, num_verts + 1);
 		assert(rtc_verts);
 		if(rtc_verts) {
 			for(size_t j = 0; j < num_verts; j++) {
@@ -566,7 +567,7 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 	for (size_t j = 0; j < num_curves; j++) {
 		Mesh::Curve c = mesh->get_curve(j);
 		if(c.num_segments() > 0) {
-			num_keys += use_curves ? (c.num_segments() * 3 + 1) : c.num_keys;
+			num_keys += c.num_keys;
 		}
 		else {
 			assert(0);
@@ -587,36 +588,38 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 
 		float4 *rtc_verts = (float4*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_VERTEX, t,
 		                                                     RTC_FORMAT_FLOAT4, sizeof (float) * 4, num_keys);
+		float4 *rtc_tangents = NULL;
+		if(use_curves) {
+			rtc_tangents = (float4*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_TANGENT, t,
+																RTC_FORMAT_FLOAT4, sizeof (float) * 4, num_keys);
+		}
 		assert(rtc_verts);
 		if(rtc_verts) {
 			if(use_curves) {
+				assert(rtc_tangents);
 				const size_t num_curves = mesh->num_curves();
 				for(size_t j = 0; j < num_curves; j++) {
 					Mesh::Curve c = mesh->get_curve(j);
 					if(c.num_segments() > 0) {
-						const int& fk = c.first_key;
-						/* Create Embree's cubic splines that equal the cardinal splines that cycles uses */
-						//static float fc = 1.0f / ((0.29f - 1.0f) * 6.0f);
-						const float fc = -0.2347417840375f;
+						int fk = c.first_key;
 						rtc_verts[0] = float3_to_float4(verts[fk]);
 						rtc_verts[0].w = curve_radius[fk];
-						rtc_verts[1] = float3_to_float4(-fc * (verts[fk+1] - verts[fk]) + verts[fk]);
-						rtc_verts[1].w = lerp(curve_radius[fk], curve_radius[fk+1], 0.33f);
-						size_t k = 1;
-						for(;k < c.num_segments(); k++) {
-							const float3 d = (verts[fk+k+1] - verts[fk+k-1]);
-							rtc_verts[k*3-1] = float3_to_float4(fc * d + verts[fk+k]);
-							rtc_verts[k*3-1].w = lerp(curve_radius[fk+k-1], curve_radius[fk+k], 0.66f);
-							rtc_verts[k*3] = float3_to_float4(verts[fk+k]);
-							rtc_verts[k*3].w = curve_radius[fk+k];
-							rtc_verts[k*3+1] = float3_to_float4(-fc * d + verts[fk+k]);
-							rtc_verts[k*3+1].w = lerp(curve_radius[fk+k], curve_radius[fk+k+1], 0.33f);
+						rtc_tangents[0] = float3_to_float4(verts[fk + 1] - verts[fk]);
+						rtc_tangents[0].w = curve_radius[fk + 1] - curve_radius[fk];
+						fk++;
+						int k = 1;
+						for(;k < c.num_segments(); k++, fk++) {
+							rtc_verts[k] = float3_to_float4(verts[fk]);
+							rtc_verts[k].w = curve_radius[fk];
+							rtc_tangents[k] = float3_to_float4((verts[fk + 1] - verts[fk - 1]) * 0.5f);
+							rtc_tangents[k].w = (curve_radius[fk + 1] - curve_radius[fk - 1]) * 0.5f;
 						}
-						rtc_verts[k*3-1] = float3_to_float4(fc * (verts[fk+k] - verts[fk+k-1]) + verts[fk+k]);
-						rtc_verts[k*3-1].w = lerp(curve_radius[fk+k-1], curve_radius[fk+k], 0.66f);
-						rtc_verts[k*3] = float3_to_float4(verts[fk+k]);
-						rtc_verts[k*3].w = curve_radius[fk+k];
-						rtc_verts += c.num_segments()*3+1;
+						rtc_verts[k] = float3_to_float4(verts[fk]);
+						rtc_verts[k].w = curve_radius[fk];
+						rtc_tangents[k] = float3_to_float4(verts[fk] - verts[fk - 1]);
+						rtc_tangents[k].w = curve_radius[fk] - curve_radius[fk - 1];
+						rtc_verts += c.num_keys;
+						rtc_tangents += c.num_keys;
 					}
 					else {
 						assert(0);
@@ -629,7 +632,6 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 					rtc_verts[j].w = curve_radius[j];
 				}
 			}
-
 		}
 	}
 }
@@ -649,13 +651,11 @@ void BVHEmbree::add_curves(Object *ob, int i)
 	}
 
 	const size_t num_curves = mesh->num_curves();
-	size_t num_keys = 0;
 	size_t num_segments = 0;
 	for(size_t j = 0; j < num_curves; j++) {
 		Mesh::Curve c = mesh->get_curve(j);
 		if(c.num_segments() > 0) {
 			num_segments += c.num_segments();
-			num_keys += use_curves ? (c.num_segments() * 3 + 1) : c.num_keys;
 		}
 		else {
 			assert(0);
@@ -668,62 +668,30 @@ void BVHEmbree::add_curves(Object *ob, int i)
 	pack.prim_index.reserve(pack.prim_index.size() + num_segments);
 	pack.prim_tri_index.reserve(pack.prim_index.size() + num_segments);
 
-	RTCGeometry geom_id;
-	if(use_curves) {
-		/* curve segments */
-		if(use_ribbons) {
-			geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_FLAT_BEZIER_CURVE);
-		}
-		else {
-			geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE);
-		}
-		rtcSetGeometryTessellationRate(geom_id, curve_subdivisions);
+	enum RTCGeometryType type = (!use_curves) ? RTC_GEOMETRY_TYPE_FLAT_LINEAR_CURVE :
+	                            (use_ribbons ? RTC_GEOMETRY_TYPE_FLAT_HERMITE_CURVE :
+	                                           RTC_GEOMETRY_TYPE_ROUND_HERMITE_CURVE);
 
-		/* Split the Cycles curves into Embree hair segments, each with 4 CVs */
-		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
-		                                                            RTC_FORMAT_UINT, sizeof (int), num_segments);
-		size_t rtc_index = 0;
-		size_t curve_start = 0;
-		for(size_t j = 0; j < num_curves; j++) {
-			Mesh::Curve c = mesh->get_curve(j);
-			for(size_t k = 0; k < c.num_segments(); k++) {
-				rtc_indices[rtc_index] = curve_start;
-				curve_start += 3;
-				/* Cycles specific data */
-				pack.prim_object.push_back_reserved(i);
-				pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ?
-				                                                         PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
-				pack.prim_index.push_back_reserved(j);
-				pack.prim_tri_index.push_back_reserved(rtc_index);
+	RTCGeometry geom_id = rtcNewGeometry(rtc_shared_device, type);
+	rtcSetGeometryTessellationRate(geom_id, curve_subdivisions);
+	unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
+																RTC_FORMAT_UINT, sizeof (int), num_segments);
+	size_t rtc_index = 0;
+	for(size_t j = 0; j < num_curves; j++) {
+		Mesh::Curve c = mesh->get_curve(j);
+		for(size_t k = 0; k < c.num_segments(); k++) {
+			rtc_indices[rtc_index] = c.first_key + k;
+			/* Cycles specific data */
+			pack.prim_object.push_back_reserved(i);
+			pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ?
+																	 PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
+			pack.prim_index.push_back_reserved(j);
+			pack.prim_tri_index.push_back_reserved(rtc_index);
 
-				rtc_index++;
-			}
-			curve_start+=1;
-		}
-
-	}
-	else {
-		geom_id = rtcNewGeometry(rtc_shared_device, RTC_GEOMETRY_TYPE_FLAT_LINEAR_CURVE);
-
-		/* Split the Cycles curves into Embree line segments, each with 2 CVs */
-		unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
-		                                                            RTC_FORMAT_UINT, sizeof (int), num_segments);
-		size_t rtc_index = 0;
-		for(size_t j = 0; j < num_curves; j++) {
-			Mesh::Curve c = mesh->get_curve(j);
-			for(size_t k = 0; k < c.num_segments(); k++) {
-				rtc_indices[rtc_index] = c.first_key + k;
-				/* Cycles specific data */
-				pack.prim_object.push_back_reserved(i);
-				pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ?
-				                                                         PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
-				pack.prim_index.push_back_reserved(j);
-				pack.prim_tri_index.push_back_reserved(rtc_index);
-
-				rtc_index++;
-			}
+			rtc_index++;
 		}
 	}
+
 	rtcSetGeometryBuildQuality(geom_id, build_quality);
 	rtcSetGeometryTimeStepCount(geom_id, num_motion_steps);
 

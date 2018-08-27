@@ -1077,6 +1077,9 @@ void Mesh::compute_bvh(Device *device,
 			                              params->use_bvh_unaligned_nodes;
 			bparams.num_motion_triangle_steps = params->num_bvh_time_steps;
 			bparams.num_motion_curve_steps = params->num_bvh_time_steps;
+			bparams.bvh_type = params->bvh_type;
+			bparams.curve_flags = dscene->data.curve.curveflags;
+			bparams.curve_subdivisions = dscene->data.curve.subdivisions;
 
 			delete bvh;
 			bvh = BVH::create(bparams, objects);
