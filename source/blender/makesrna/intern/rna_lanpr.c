@@ -66,6 +66,7 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	static const EnumPropertyItem rna_enum_lanpr_normal_mode[] = {
 		{LANPR_NORMAL_DONT_CARE, "DISABLED", 0, "Disabled", "Normal value does not affect line style"},
 		{LANPR_NORMAL_DIRECTIONAL, "DIRECTIONAL", 0, "Directional", "Use directional vector to control line width"},
+		{LANPR_NORMAL_POINT, "POINT", 0, "Point", "Use Point Light Style"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -130,6 +131,11 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	RNA_def_property_float_default(prop, 1.5f);
 	RNA_def_property_ui_text(prop, "Thickness End", "Normal Thickness End Value");
 	RNA_def_property_ui_range(prop, 0.0f, 5.0f, 0.05, 2);
+
+	prop = RNA_def_property(srna, "normal_control_object", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "Object");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Object", "Normal Style Control Object");
 
 	prop = RNA_def_property(srna, "use_qi_range", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "QI Range", "Use QI Range (occlusion levels) to select lines");

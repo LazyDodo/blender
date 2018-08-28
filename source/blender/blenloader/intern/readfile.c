@@ -6525,13 +6525,13 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
 		link_list(fd, &ll->components);
 		for(LANPR_LineLayerComponent *llc = ll->components.first; llc;llc=llc->next){
-			llc->object_select = newdataadr(fd, llc->object_select);
-			llc->material_select = newdataadr(fd, llc->material_select);
-			llc->collection_select = newdataadr(fd, llc->collection_select);
+			llc->object_select = newlibadr(fd, sce->id.lib, llc->object_select);
+			llc->material_select = newlibadr(fd, sce->id.lib, llc->material_select);
+			llc->collection_select = newlibadr(fd, sce->id.lib, llc->collection_select);
 		}
 		ll->batch = NULL;
 		ll->shgrp = NULL;
-		ll->normal_control_object = newdataadr(fd, ll->normal_control_object);
+		ll->normal_control_object = newlibadr(fd, sce->id.lib, ll->normal_control_object);
 	}
 
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);
@@ -9902,6 +9902,8 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 	SceneRenderLayer *srl;
 	FreestyleModuleConfig *module;
 	FreestyleLineSet *lineset;
+	LANPR_LineLayer* ll;
+	LANPR_LineLayerComponent* llc;
 
 	for (Base *base_legacy = sce->base.first; base_legacy; base_legacy = base_legacy->next) {
 		expand_doit(fd, mainvar, base_legacy->object);
@@ -9947,6 +9949,15 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 			}
 			expand_doit(fd, mainvar, lineset->linestyle);
 		}
+	}
+
+	for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
+		for (LANPR_LineLayerComponent *llc = ll->components.first; llc; llc = llc->next) {
+			if (llc->object_select) expand_doit(fd, mainvar, llc->object_select);
+			if (llc->material_select) expand_doit(fd, mainvar, llc->material_select);
+			if (llc->collection_select) expand_doit(fd, mainvar, llc->collection_select);
+		}
+		if (ll->normal_control_object) expand_doit(fd, mainvar, ll->normal_control_object);
 	}
 
 	if (sce->gpd)

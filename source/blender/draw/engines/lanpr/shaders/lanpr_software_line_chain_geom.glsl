@@ -74,7 +74,10 @@ void decide_color_and_thickness(float component_id){
 	if(normal_mode == 0){
 		th=thickness;
 	}else if(normal_mode == 1){
-		float factor = dot(gNormal[0],vec3(0,0,1));
+		float factor = dot(gNormal[0],normal_direction);
+		th = factor_to_thickness(factor);
+	}else if(normal_mode == 2){
+		float factor = dot(gNormal[0],normal_direction);
 		th = factor_to_thickness(factor);
 	}
 

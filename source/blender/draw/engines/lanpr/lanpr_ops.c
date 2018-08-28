@@ -3028,6 +3028,38 @@ void lanpr_viewport_draw_offline_result(LANPR_TextureList *txl, LANPR_Framebuffe
 
 void lanpr_NO_THREAD_chain_feature_lines(LANPR_RenderBuffer *rb, float dist_threshold);
 
+void lanpr_calculate_normal_object_vector(LANPR_LineLayer* ll, float* normal_object_direction) {
+	Object* ob;
+	switch (ll->normal_mode) {
+	case LANPR_NORMAL_DONT_CARE:
+		return;
+	case LANPR_NORMAL_DIRECTIONAL:
+		if (!(ob = ll->normal_control_object)) {
+			normal_object_direction[0] = 0;
+			normal_object_direction[1] = 0;
+			normal_object_direction[2] = 1; // default z up direction
+		}else {
+			float dir[3] = {0,0,1};
+			mul_v3_m3v3(normal_object_direction, ob->obmat, dir);
+		}
+		return;
+	case LANPR_NORMAL_POINT:
+		if (!(ob = ll->normal_control_object)) {
+			normal_object_direction[0] = 0;
+			normal_object_direction[1] = 0;
+			normal_object_direction[2] = 0; // default origin position
+		}
+		else {
+			normal_object_direction[0] = ob->obmat[3][0];
+			normal_object_direction[1] = ob->obmat[3][1];
+			normal_object_direction[2] = ob->obmat[3][2];
+		}
+		return;
+	case LANPR_NORMAL_2D:
+		return;
+	}
+}
+
 void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render) {
 	LANPR_LineLayer *ll;
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
@@ -3040,6 +3072,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
 	float indentity_mat[4][4];
+	float normal_object_direction[3] = { 0,0,1 };
 
 	if (is_render) {
 		lanpr_rebuild_all_command(lanpr);
@@ -3091,6 +3124,9 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 				psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 				rb = lanpr->render_buffer;
 				rb->ChainShgrp = DRW_shgroup_create(lanpr_share.software_chaining_shader, psl->software_pass);
+
+				lanpr_calculate_normal_object_vector(ll, normal_object_direction);
+
 				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "color", ll->color, 1);
 				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "crease_color", ll->crease_color, 1);
 				DRW_shgroup_uniform_vec4(rb->ChainShgrp, "material_color", ll->material_color, 1);
@@ -3108,6 +3144,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_ramp_end", &ll->normal_ramp_end, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_thickness_begin", &ll->normal_thickness_begin, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_thickness_end", &ll->normal_thickness_end, 1);
+				DRW_shgroup_uniform_vec3(rb->ChainShgrp, "normal_direction", normal_object_direction, 1);
 
 				DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_begin", &ll->qi_begin, 1);
 				DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_end", &ll->qi_end, 1);
@@ -3136,6 +3173,9 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 				if (ll->batch) {
 					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 					ll->shgrp = DRW_shgroup_create(lanpr_share.software_shader, psl->software_pass);
+
+					lanpr_calculate_normal_object_vector(ll, normal_object_direction);
+
 					DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
@@ -3155,6 +3195,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 					DRW_shgroup_uniform_float(ll->shgrp, "normal_ramp_end", &ll->normal_ramp_end, 1);
 					DRW_shgroup_uniform_float(ll->shgrp, "normal_thickness_begin", &ll->normal_thickness_begin, 1);
 					DRW_shgroup_uniform_float(ll->shgrp, "normal_thickness_end", &ll->normal_thickness_end, 1);
+					DRW_shgroup_uniform_vec3(ll->shgrp, "normal_direction", normal_object_direction, 1);
 
 					DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
 					DRW_draw_pass(psl->software_pass);

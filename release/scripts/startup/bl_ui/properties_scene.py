@@ -676,6 +676,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 layout.label(text= "Normal:")
                 layout.prop(active_layer,"normal_mode", expand = True)
                 if active_layer.normal_mode != "DISABLED":
+                    layout.prop(active_layer,"normal_control_object")
                     layout.prop(active_layer,"normal_effect_inverse", toggle = True)
                     layout.prop(active_layer,"normal_ramp_begin")
                     layout.prop(active_layer,"normal_ramp_end")
