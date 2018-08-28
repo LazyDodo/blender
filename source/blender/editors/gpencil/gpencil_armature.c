@@ -569,18 +569,27 @@ static int gpencil_generate_weights_exec(bContext *C, wmOperator *op)
 
 	/* get armature */
 	const int arm_idx = RNA_enum_get(op->ptr, "armature");
-	if (arm_idx > -1) {
-		Base *base = BLI_findlink(&view_layer->object_bases, arm_idx);
+	if (arm_idx > 0) {
+		Base *base = BLI_findlink(&view_layer->object_bases, arm_idx - 1);
 		ob_arm = base->object;
 	}
 	else {
-		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			Object *ob = base->object;
-			if (ob->type == OB_ARMATURE) {
-				ob_arm = ob;
-				break;
-			}
+		/* get armature from modifier */
+		GpencilModifierData *md = BKE_gpencil_modifiers_findByType(ob_eval, eGpencilModifierType_Armature);
+		if (md == NULL) {
+			BKE_report(op->reports, RPT_ERROR,
+				"The grease pencil object need an Armature modifier");
+			return OPERATOR_CANCELLED;
 		}
+
+		ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)md;
+		if (mmd->object == NULL) {
+			BKE_report(op->reports, RPT_ERROR,
+				"Armature modifier is not valid or wrong defined");
+			return OPERATOR_CANCELLED;
+		}
+
+		ob_arm = mmd->object;
 	}
 
 	if (ob_arm == NULL) {
@@ -612,8 +621,9 @@ static const EnumPropertyItem *gpencil_armatures_enum_itemf(bContext *C, Pointer
 	}
 
 	/* add default */
-	item_tmp.identifier = item_tmp.name = "Default";
-	item_tmp.value = -1;
+	item_tmp.identifier = "DEFAULT";
+	item_tmp.name = "Default";
+	item_tmp.value = 0;
 	RNA_enum_item_add(&item, &totitem, &item_tmp);
 	i++;
 
@@ -621,7 +631,7 @@ static const EnumPropertyItem *gpencil_armatures_enum_itemf(bContext *C, Pointer
 		Object *ob = base->object;
 		if (ob->type == OB_ARMATURE) {
 			item_tmp.identifier = item_tmp.name = ob->id.name + 2;
-			item_tmp.value = i - 1;
+			item_tmp.value = i;
 			RNA_enum_item_add(&item, &totitem, &item_tmp);
 		}
 		i++;
@@ -656,7 +666,7 @@ void GPENCIL_OT_generate_weights(wmOperatorType *ot)
 
 	ot->prop = RNA_def_enum(ot->srna, "mode", mode_type, 0, "Mode", "");
 
-	prop = RNA_def_enum(ot->srna, "armature", DummyRNA_DEFAULT_items, -1, "Armature", "Armature to use");
+	prop = RNA_def_enum(ot->srna, "armature", DummyRNA_DEFAULT_items, 0, "Armature", "Armature to use");
 	RNA_def_enum_funcs(prop, gpencil_armatures_enum_itemf);
 
 	RNA_def_float(ot->srna, "ratio", DEFAULT_RATIO, 0.0f, 2.0f, "Ratio",
