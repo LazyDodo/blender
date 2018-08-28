@@ -6121,6 +6121,16 @@ static void lib_link_scene(FileData *fd, Main *main)
 					fls->group = newlibadr_us(fd, sce->id.lib, fls->group);
 				}
 			}
+
+			for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
+				for (LANPR_LineLayerComponent *llc = ll->components.first; llc; llc = llc->next) {
+					llc->object_select = newlibadr_us(fd, sce->id.lib, llc->object_select);
+					llc->material_select = newlibadr_us(fd, sce->id.lib, llc->material_select);
+					llc->collection_select = newlibadr_us(fd, sce->id.lib, llc->collection_select);
+				}
+				ll->normal_control_object = newlibadr_us(fd, sce->id.lib, ll->normal_control_object);
+			}
+
 			/* Motion Tracking */
 			sce->clip = newlibadr_us(fd, sce->id.lib, sce->clip);
 
@@ -6525,13 +6535,13 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
 		link_list(fd, &ll->components);
 		for(LANPR_LineLayerComponent *llc = ll->components.first; llc;llc=llc->next){
-			llc->object_select = newlibadr(fd, sce->id.lib, llc->object_select);
-			llc->material_select = newlibadr(fd, sce->id.lib, llc->material_select);
-			llc->collection_select = newlibadr(fd, sce->id.lib, llc->collection_select);
+			//llc->object_select = newlibadr(fd, sce->id.lib, llc->object_select);
+			//llc->material_select = newlibadr(fd, sce->id.lib, llc->material_select);
+			//llc->collection_select = newlibadr(fd, sce->id.lib, llc->collection_select);
 		}
 		ll->batch = NULL;
 		ll->shgrp = NULL;
-		ll->normal_control_object = newlibadr(fd, sce->id.lib, ll->normal_control_object);
+		//ll->normal_control_object = newlibadr(fd, sce->id.lib, ll->normal_control_object);
 	}
 
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);
