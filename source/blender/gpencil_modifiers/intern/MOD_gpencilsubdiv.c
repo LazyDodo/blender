@@ -69,13 +69,6 @@ static void deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SubdivGpencilModifierData *mmd = (SubdivGpencilModifierData *)md;
-	bGPDspoint *temp_points;
-	MDeformVert *temp_dverts = NULL;
-	MDeformVert *dvert = NULL;
-	MDeformVert *dvert_final = NULL;
-	MDeformVert *dvert_next = NULL;
-	int totnewpoints, oldtotpoints;
-	int i2;
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
@@ -84,99 +77,7 @@ static void deformStroke(
 		return;
 	}
 
-	/* loop as many times as levels */
-	for (int s = 0; s < mmd->level; s++) {
-		totnewpoints = gps->totpoints - 1;
-		/* duplicate points in a temp area */
-		temp_points = MEM_dupallocN(gps->points);
-		oldtotpoints = gps->totpoints;
-
-		/* resize the points arrys */
-		gps->totpoints += totnewpoints;
-		gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
-		if (gps->dvert != NULL) {
-			temp_dverts = MEM_dupallocN(gps->dvert);
-			gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
-		}
-		gps->flag |= GP_STROKE_RECALC_CACHES;
-
-		/* move points from last to first to new place */
-		i2 = gps->totpoints - 1;
-		for (int i = oldtotpoints - 1; i > 0; i--) {
-			bGPDspoint *pt = &temp_points[i];
-			bGPDspoint *pt_final = &gps->points[i2];
-
-			copy_v3_v3(&pt_final->x, &pt->x);
-			pt_final->pressure = pt->pressure;
-			pt_final->strength = pt->strength;
-			pt_final->time = pt->time;
-			pt_final->flag = pt->flag;
-
-			if (gps->dvert != NULL) {
-				dvert = &temp_dverts[i];
-				dvert_final = &gps->dvert[i2];
-				dvert_final->totweight = dvert->totweight;
-				dvert_final->dw = dvert->dw;
-			}
-			i2 -= 2;
-		}
-		/* interpolate mid points */
-		i2 = 1;
-		for (int i = 0; i < oldtotpoints - 1; i++) {
-			bGPDspoint *pt = &temp_points[i];
-			bGPDspoint *next = &temp_points[i + 1];
-			bGPDspoint *pt_final = &gps->points[i2];
-
-			/* add a half way point */
-			interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
-			pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
-			pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
-			CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
-			pt_final->time = interpf(pt->time, next->time, 0.5f);
-
-			if (gps->dvert != NULL) {
-				dvert = &temp_dverts[i];
-				dvert_next = &temp_dverts[i + 1];
-				dvert_final = &gps->dvert[i2];
-
-				dvert_final->totweight = dvert->totweight;
-				dvert_final->dw = MEM_dupallocN(dvert->dw);
-
-				/* interpolate weight values */
-				for (int d = 0; d < dvert->totweight; d++) {
-					MDeformWeight *dw_a = &dvert->dw[d];
-					if (dvert_next->totweight > d) {
-						MDeformWeight *dw_b = &dvert_next->dw[d];
-						MDeformWeight *dw_final = &dvert_final->dw[d];
-						dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
-					}
-				}
-			}
-
-			i2 += 2;
-		}
-
-		MEM_SAFE_FREE(temp_points);
-		MEM_SAFE_FREE(temp_dverts);
-
-		/* move points to smooth stroke (not simple flag )*/
-		if ((mmd->flag & GP_SUBDIV_SIMPLE) == 0) {
-			/* duplicate points in a temp area with the new subdivide data */
-			temp_points = MEM_dupallocN(gps->points);
-
-			/* extreme points are not changed */
-			for (int i = 0; i < gps->totpoints - 2; i++) {
-				bGPDspoint *pt = &temp_points[i];
-				bGPDspoint *next = &temp_points[i + 1];
-				bGPDspoint *pt_final = &gps->points[i + 1];
-
-				/* move point */
-				interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
-			}
-			/* free temp memory */
-			MEM_SAFE_FREE(temp_points);
-		}
-	}
+	BKE_gpencil_subdivide(gps, mmd->level, mmd->flag);
 }
 
 static void bakeModifier(
