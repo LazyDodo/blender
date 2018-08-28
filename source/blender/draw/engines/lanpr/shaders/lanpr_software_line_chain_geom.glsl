@@ -3,7 +3,12 @@ layout(triangle_strip, max_vertices = 6) out;
 
 in vec3 gNormal[];
 uniform int normal_mode;
-uniform vec3 normal_direction;
+uniform int normal_effect_inverse;
+uniform vec3 normal_direction; // also used as point position
+uniform float normal_ramp_begin;
+uniform float normal_ramp_end;
+uniform float normal_thickness_begin;
+uniform float normal_thickness_end;
 
 uniform float thickness;
 uniform float thickness_crease;
@@ -54,21 +59,30 @@ void draw_line(vec4 p1, vec4 p2){
 	EndPrimitive();
 }
 
+float factor_to_thickness(float factor){
+	float r = (factor - normal_ramp_begin)/(normal_ramp_end - normal_ramp_begin);
+	if(r>1) r=1;
+	if(r<0) r=0;
+	float thickness = normal_effect_inverse==1 ?
+					  mix(normal_thickness_begin,normal_thickness_end,r) :
+					  mix(normal_thickness_end,normal_thickness_begin,r);
+	return thickness;
+}
+
 void decide_color_and_thickness(float component_id){
-	float fac=1.0f;
+	float th=thickness;
 	if(normal_mode == 0){
-		fac*=1.0f;
+		th=thickness;
 	}else if(normal_mode == 1){
 		float factor = dot(gNormal[0],vec3(0,0,1));
-		fac *= factor;
-		if (fac<0.1) fac = 0.1;
+		th = factor_to_thickness(factor);
 	}
 
-	if (component_id < 1.5) { out_color = color;              use_thickness = fac * thickness;                          return; }
-	if (component_id < 2.5) { out_color = crease_color;       use_thickness = fac * thickness * thickness_crease;       return; }
-	if (component_id < 3.5) { out_color = material_color;     use_thickness = fac * thickness * thickness_material;     return; }
-	if (component_id < 4.5) { out_color = edge_mark_color;    use_thickness = fac * thickness * thickness_edge_mark;    return; }
-	if (component_id < 5.5) { out_color = intersection_color; use_thickness = fac * thickness * thickness_intersection; return; }
+	if (component_id < 1.5) { out_color = color;              use_thickness = th;                          return; }
+	if (component_id < 2.5) { out_color = crease_color;       use_thickness = th * thickness_crease;       return; }
+	if (component_id < 3.5) { out_color = material_color;     use_thickness = th * thickness_material;     return; }
+	if (component_id < 4.5) { out_color = edge_mark_color;    use_thickness = th * thickness_edge_mark;    return; }
+	if (component_id < 5.5) { out_color = intersection_color; use_thickness = th * thickness_intersection; return; }
 }
 
 void main() {

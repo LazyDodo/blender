@@ -3102,6 +3102,13 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "normal_mode", &ll->normal_mode, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "normal_effect_inverse", &ll->normal_effect_inverse, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_ramp_begin", &ll->normal_ramp_begin, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_ramp_end", &ll->normal_ramp_end, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_thickness_begin", &ll->normal_thickness_begin, 1);
+				DRW_shgroup_uniform_float(rb->ChainShgrp, "normal_thickness_end", &ll->normal_thickness_end, 1);
+
 				DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_begin", &ll->qi_begin, 1);
 				DRW_shgroup_uniform_int(rb->ChainShgrp, "occlusion_level_end", &ll->qi_end, 1);
 
@@ -3130,7 +3137,6 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 					ll->shgrp = DRW_shgroup_create(lanpr_share.software_shader, psl->software_pass);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
-					DRW_shgroup_uniform_int(ll->shgrp, "normal_mode", &ll->normal_mode, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "edge_mark_color", ll->edge_mark_color, 1);
@@ -3142,6 +3148,14 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 					DRW_shgroup_uniform_float(ll->shgrp, "thickness_intersection", &ll->thickness_intersection, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "preview_viewport", stl->g_data->dpix_viewport, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "output_viewport", stl->g_data->output_viewport, 1);
+
+					DRW_shgroup_uniform_int(ll->shgrp, "normal_mode", &ll->normal_mode, 1);
+					DRW_shgroup_uniform_int(ll->shgrp, "normal_effect_inverse", &ll->normal_effect_inverse, 1);
+					DRW_shgroup_uniform_float(ll->shgrp, "normal_ramp_begin", &ll->normal_ramp_begin, 1);
+					DRW_shgroup_uniform_float(ll->shgrp, "normal_ramp_end", &ll->normal_ramp_end, 1);
+					DRW_shgroup_uniform_float(ll->shgrp, "normal_thickness_begin", &ll->normal_thickness_begin, 1);
+					DRW_shgroup_uniform_float(ll->shgrp, "normal_thickness_end", &ll->normal_thickness_end, 1);
+
 					DRW_shgroup_call_add(ll->shgrp, ll->batch, NULL);
 					DRW_draw_pass(psl->software_pass);
 				}

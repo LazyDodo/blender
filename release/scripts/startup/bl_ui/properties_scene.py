@@ -672,6 +672,16 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                     layout.operator("scene.lanpr_rebuild_all_commands")
                 else:
                     layout.operator("scene.lanpr_add_line_layer")
+
+                layout.label(text= "Normal:")
+                layout.prop(active_layer,"normal_mode", expand = True)
+                if active_layer.normal_mode != "DISABLED":
+                    layout.prop(active_layer,"normal_effect_inverse", toggle = True)
+                    layout.prop(active_layer,"normal_ramp_begin")
+                    layout.prop(active_layer,"normal_ramp_end")
+                    layout.prop(active_layer,"normal_thickness_begin", slider=True)
+                    layout.prop(active_layer,"normal_thickness_end", slider=True)
+
             elif not lanpr.layers.active_layer:
                 layout.operator("scene.lanpr_add_line_layer")
             
@@ -733,9 +743,6 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
             row.prop(active_layer, "thickness_intersection", text="")
         else:
             row.label(text= "Intersection Calculation Disabled")
-
-        layout.label(text= "Normal:")
-        layout.prop(active_layer,"normal_mode", expand = True)
 
         if lanpr.master_mode == "DPIX" and active_layer.enable_intersection:
             row = col.row(align = True)

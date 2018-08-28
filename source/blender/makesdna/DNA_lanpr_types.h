@@ -111,10 +111,15 @@ typedef struct LANPR_LineLayer {
 	float intersection_color[4];
 
 	int normal_mode;
+	int normal_effect_inverse;
+    float normal_ramp_begin;
+    float normal_ramp_end;
+    float normal_thickness_begin;
+    float normal_thickness_end;
 
 	int logic_mode;      /* for component evaluation */
 
-	//int a;
+	int a;
 
 	ListBase components;
 

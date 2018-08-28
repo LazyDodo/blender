@@ -108,6 +108,29 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	RNA_def_property_enum_default(prop, LANPR_NORMAL_DONT_CARE);
 	RNA_def_property_ui_text(prop, "Normal", "Normal Controlled Style");
 
+	prop = RNA_def_property(srna, "normal_effect_inverse", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Inverse", "Inverse Normal Thickness");
+
+	prop = RNA_def_property(srna, "normal_ramp_begin", PROP_FLOAT, PROP_FACTOR); // begin is least strength
+	RNA_def_property_float_default(prop, 0.0f);
+	RNA_def_property_ui_text(prop, "Ramp Begin", "Normal Ramp Begin Value");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.05, 2);
+
+	prop = RNA_def_property(srna, "normal_ramp_end", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Ramp End", "Normal Ramp End Value");
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.05, 2);
+
+	prop = RNA_def_property(srna, "normal_thickness_begin", PROP_FLOAT, PROP_NONE); // begin is least strength
+	RNA_def_property_float_default(prop, 0.2f);
+	RNA_def_property_ui_text(prop, "Thickness Begin", "Normal Thickness Begin Value");
+	RNA_def_property_ui_range(prop, 0.0f, 5.0f, 0.05, 2);
+
+	prop = RNA_def_property(srna, "normal_thickness_end", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_default(prop, 1.5f);
+	RNA_def_property_ui_text(prop, "Thickness End", "Normal Thickness End Value");
+	RNA_def_property_ui_range(prop, 0.0f, 5.0f, 0.05, 2);
+
 	prop = RNA_def_property(srna, "use_qi_range", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "QI Range", "Use QI Range (occlusion levels) to select lines");
 

@@ -482,6 +482,7 @@ typedef struct LANPR_RenderLineChain {
 typedef struct LANPR_RenderLineChainItem {
 	nListItem Item;
 	float pos[3];       // need z value for fading
+	float normal[3];
 	char LineType;             //      style of [1]       style of [2]
 	char OcclusionLevel;         // [1]--------------->[2]---------------->[3]--....
 }LANPR_RenderLineChainItem;
