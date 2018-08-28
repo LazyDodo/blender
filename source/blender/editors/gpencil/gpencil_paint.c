@@ -803,7 +803,7 @@ static short gp_stroke_addpoint(
 				}
 			}
 			else {
-				if (gps->dvert != NULL) {
+				if (dvert != NULL) {
 					dvert->totweight = 0;
 					dvert->dw = NULL;
 				}
