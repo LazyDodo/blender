@@ -2958,7 +2958,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				/* resize the points arrys */
 				gps->totpoints += totnewpoints;
 				gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
-				gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+				if (gps->dvert != NULL) {
+					gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+				}
 
 				gps->flag |= GP_STROKE_RECALC_CACHES;
 
@@ -2997,7 +2999,6 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								}
 								/* Interpolate all values */
 								bGPDspoint *next = &temp_points[i + 1];
-								MDeformVert *dvert_next = &temp_dverts[i + 1];
 								interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
 								pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
 								pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
@@ -3006,6 +3007,7 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								pt_final->flag |= GP_SPOINT_SELECT;
 
 								if (gps->dvert != NULL) {
+									MDeformVert *dvert_next = &temp_dverts[i + 1];
 									dvert_final->totweight = dvert->totweight;
 									dvert_final->dw = MEM_dupallocN(dvert->dw);
 

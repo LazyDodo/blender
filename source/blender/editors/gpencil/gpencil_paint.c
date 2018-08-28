@@ -1146,7 +1146,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		dvert = gps->dvert;
 
 		/* convert all points (normal behavior) */
-		for (i = 0, ptc = gpd->runtime.sbuffer; i < gpd->runtime.sbuffer_size && ptc; i++, ptc++, pt++, dvert++) {
+		for (i = 0, ptc = gpd->runtime.sbuffer; i < gpd->runtime.sbuffer_size && ptc; i++, ptc++, pt++) {
 			/* convert screen-coordinates to appropriate coordinates (and store them) */
 			gp_stroke_convertcoords(p, &ptc->x, &pt->x, depth_arr ? depth_arr + i : NULL);
 
@@ -1161,6 +1161,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			if (gps->dvert != NULL) {
 				dvert->totweight = 0;
 				dvert->dw = NULL;
+				dvert++;
 			}
 		}
 

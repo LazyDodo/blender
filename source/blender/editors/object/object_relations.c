@@ -799,12 +799,12 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 				invert_m4_m4(ob->parentinv, workob.obmat);
 			}
 			else if (pararm && (ob->type == OB_GPENCIL) && (par->type == OB_ARMATURE)) {
-				if ((partype == PAR_ARMATURE_NAME) ||
-					(partype == PAR_ARMATURE_ENVELOPE))
-				{
+				if (partype == PAR_ARMATURE_NAME) {
 					ED_gpencil_add_armature_weights(C, reports, ob, par, GP_PAR_ARMATURE_NAME);
 				}
-				else if (partype == PAR_ARMATURE_AUTO) {
+				else if ((partype == PAR_ARMATURE_AUTO) ||
+					(partype == PAR_ARMATURE_ENVELOPE))
+				{
 					WM_cursor_wait(1);
 					ED_gpencil_add_armature_weights(C, reports, ob, par, GP_PAR_ARMATURE_AUTO);
 					WM_cursor_wait(0);
