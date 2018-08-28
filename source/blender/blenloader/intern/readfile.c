@@ -6524,8 +6524,14 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	link_list(fd, &sce->lanpr.line_layers);
 	for (LANPR_LineLayer *ll = sce->lanpr.line_layers.first; ll; ll = ll->next) {
 		link_list(fd, &ll->components);
+		for(LANPR_LineLayerComponent *llc = ll->components.first; llc;llc=llc->next){
+			llc->object_select = newdataadr(fd, llc->object_select);
+			llc->material_select = newdataadr(fd, llc->material_select);
+			llc->collection_select = newdataadr(fd, llc->collection_select);
+		}
 		ll->batch = NULL;
 		ll->shgrp = NULL;
+		ll->normal_control_object = newdataadr(fd, ll->normal_control_object);
 	}
 
 	sce->layer_properties = newdataadr(fd, sce->layer_properties);

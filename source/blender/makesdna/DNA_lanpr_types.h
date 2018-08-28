@@ -116,6 +116,7 @@ typedef struct LANPR_LineLayer {
     float normal_ramp_end;
     float normal_thickness_begin;
     float normal_thickness_end;
+	struct Object *normal_control_object;
 
 	int logic_mode;      /* for component evaluation */
 
