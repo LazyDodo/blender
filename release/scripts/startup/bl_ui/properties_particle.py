@@ -174,7 +174,7 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
             layout.prop(part, "type", text="Type")
 
         elif not psys.settings:
-            split = layout.split(percentage=0.32)
+            split = layout.split(factor=0.32)
 
             col = split.column()
             col.label(text="Settings:")
@@ -184,7 +184,7 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
         else:
             part = psys.settings
 
-            split = layout.split(percentage=0.32)
+            split = layout.split(factor=0.32)
             col = split.column()
             if part.is_fluid is False:
                 col.label(text="Settings:")
@@ -206,7 +206,7 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
             row.prop(psys, "seed")
 
         if part:
-            split = layout.split(percentage=0.65)
+            split = layout.split(factor=0.65)
             if part.type == 'HAIR':
                 if psys is not None and psys.is_edited:
                     split.operator("particle.edited_clear", text="Free Edit")
@@ -396,10 +396,10 @@ class PARTICLE_PT_hair_dynamics(ParticleButtonsPanel, Panel):
             else:
                 label = "ERROR"
                 icon = 'ERROR'
-            box.label(label, icon=icon)
-            box.label("Iterations: %d .. %d (avg. %d)" %
+            box.label(text=label, icon=icon)
+            box.label(text="Iterations: %d .. %d (avg. %d)" %
                       (result.min_iterations, result.max_iterations, result.avg_iterations))
-            box.label("Error: %.5f .. %.5f (avg. %.5f)" % (result.min_error, result.max_error, result.avg_error))
+            box.label(text="Error: %.5f .. %.5f (avg. %.5f)" % (result.min_error, result.max_error, result.avg_error))
 
 
 class PARTICLE_PT_hair_dynamics_structure(ParticleButtonsPanel, Panel):
@@ -1801,7 +1801,7 @@ class PARTICLE_PT_children_roughness(ParticleButtonsPanel, Panel):
             sub.prop(part, "roughness_1_size", text="Size")
 
             sub = col.column(align=True)
-            sub.prop(part, "roughness_endpoint", "Endpoint")
+            sub.prop(part, "roughness_endpoint", text="Endpoint")
             sub.prop(part, "roughness_end_shape")
 
             sub = col.column(align=True)

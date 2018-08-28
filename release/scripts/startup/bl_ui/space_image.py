@@ -292,7 +292,7 @@ class IMAGE_MT_uvs_proportional(Menu):
 
         layout.separator()
 
-        layout.label("Falloff:")
+        layout.label(text="Falloff:")
         layout.props_enum(context.tool_settings, "proportional_edit_falloff")
 
 
@@ -1068,7 +1068,7 @@ class IMAGE_PT_paint_stroke(BrushButtonsPanel, Panel):
 
         if brush.use_anchor:
             col.separator()
-            col.prop(brush, "use_edge_to_edge", "Edge To Edge")
+            col.prop(brush, "use_edge_to_edge", text="Edge To Edge")
 
         if brush.use_airbrush:
             col.separator()
@@ -1372,7 +1372,7 @@ class IMAGE_PT_view_waveform(ImageScopesPanel, Panel):
         sima = context.space_data
 
         layout.template_waveform(sima, "scopes")
-        row = layout.split(percentage=0.75)
+        row = layout.split(factor=0.75)
         row.prop(sima.scopes, "waveform_alpha")
         row.prop(sima.scopes, "waveform_mode", text="")
 
