@@ -45,6 +45,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_gpencil_modifier_types.h"
 
+#include "BKE_deform.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
@@ -121,12 +122,13 @@ bool is_stroke_affected_by_modifier(
 }
 
 /* verify if valid vertex group *and return weight */
-float get_modifier_point_weight(MDeformVert *dvert, int inverse, int vindex)
+float get_modifier_point_weight(MDeformVert *dvert, bool inverse, int def_nr)
 {
 	float weight = 1.0f;
 
-	if (vindex >= 0) {
-		weight = BKE_gpencil_vgroup_use_index(dvert, vindex);
+	if (def_nr != -1) {
+		MDeformWeight *dw = defvert_find_index(dvert, def_nr);
+		weight = dw ? dw->weight : -1.0f;
 		if ((weight >= 0.0f) && (inverse == 1)) {
 			return -1.0f;
 		}
@@ -147,8 +149,8 @@ float get_modifier_point_weight(MDeformVert *dvert, int inverse, int vindex)
 
 /* set material when apply modifiers (used in tint and color modifier) */
 void gpencil_apply_modifier_material(
-	Main *bmain, Object *ob, Material *mat,
-	GHash *gh_color, bGPDstroke *gps, bool crt_material)
+        Main *bmain, Object *ob, Material *mat,
+        GHash *gh_color, bGPDstroke *gps, bool crt_material)
 {
 	MaterialGPencilStyle *gp_style = mat->gp_style;
 
@@ -169,7 +171,7 @@ void gpencil_apply_modifier_material(
 			DEG_id_tag_update(&newmat->id, DEG_TAG_COPY_ON_WRITE);
 		}
 		/* reasign color index */
-		int idx = BKE_gpencil_get_material_index(ob, newmat);
+		int idx = BKE_object_material_slot_find_index(ob, newmat);
 		gps->mat_nr = idx - 1;
 	}
 	else {

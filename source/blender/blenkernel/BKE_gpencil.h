@@ -94,7 +94,6 @@ void BKE_gpencil_frame_delete_laststroke(struct bGPDlayer *gpl, struct bGPDframe
 /* materials */
 void BKE_gpencil_material_index_remove(struct bGPdata *gpd, int index);
 void BKE_gpencil_material_remap(struct bGPdata *gpd, const unsigned int *remap, unsigned int remap_len);
-int BKE_gpencil_get_material_index(struct Object *ob, struct Material *ma);
 
 /* statistics functions */
 void BKE_gpencil_stats_update(struct bGPdata *gpd);
@@ -151,10 +150,8 @@ struct BoundBox *BKE_gpencil_boundbox_get(struct Object *ob);
 void BKE_gpencil_centroid_3D(struct bGPdata *gpd, float r_centroid[3]);
 
 /* vertex groups */
-float BKE_gpencil_vgroup_use_index(struct MDeformVert *dvert, int index);
+void BKE_gpencil_dvert_ensure(struct bGPDstroke *gps);
 void BKE_gpencil_vgroup_remove(struct Object *ob, struct bDeformGroup *defgroup);
-struct MDeformWeight *BKE_gpencil_vgroup_add_point_weight(struct MDeformVert *dvert, int index, float weight);
-bool BKE_gpencil_vgroup_remove_point_weight(struct MDeformVert *dvert, int index);
 void BKE_gpencil_stroke_weights_duplicate(struct bGPDstroke *gps_src, struct bGPDstroke *gps_dst);
 
 /* GPencil geometry evaluation */
