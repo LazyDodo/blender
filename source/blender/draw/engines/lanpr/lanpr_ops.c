@@ -3040,7 +3040,10 @@ void lanpr_calculate_normal_object_vector(LANPR_LineLayer* ll, float* normal_obj
 			normal_object_direction[2] = 1; // default z up direction
 		}else {
 			float dir[3] = {0,0,1};
-			mul_v3_m3v3(normal_object_direction, ob->obmat, dir);
+			float mat[3][3];
+			copy_m3_m4(mat, ob->obmat);
+			mul_v3_m3v3(normal_object_direction, mat, dir);
+			normalize_v3(normal_object_direction);
 		}
 		return;
 	case LANPR_NORMAL_POINT:
