@@ -196,6 +196,7 @@ class _defs_view3d_generic:
             ),
         )
 
+
 def _defs_annotate_factory():
 
     class _defs_annotate:
@@ -237,7 +238,7 @@ def _defs_annotate_factory():
                 _defs_annotate.draw_settings_common(context, layout, tool)
 
             return dict(
-                text="Draw Line",
+                text="Annotate Line",
                 icon="ops.gpencil.draw.line",
                 cursor='CROSSHAIR',
                 keymap=(
@@ -254,7 +255,7 @@ def _defs_annotate_factory():
                 _defs_annotate.draw_settings_common(context, layout, tool)
 
             return dict(
-                text="Draw Polygon",
+                text="Annotate Polygon",
                 icon="ops.gpencil.draw.poly",
                 cursor='CROSSHAIR',
                 keymap=(
@@ -273,7 +274,7 @@ def _defs_annotate_factory():
                 layout.prop(user_prefs.edit, "grease_pencil_eraser_radius", text="Radius")
 
             return dict(
-                text="Eraser",
+                text="Annotate Eraser",
                 icon="ops.gpencil.draw.eraser",
                 cursor='CROSSHAIR',  # XXX: Always show brush circle when enabled
                 keymap=(
@@ -284,6 +285,7 @@ def _defs_annotate_factory():
                 draw_settings=draw_settings,
             )
     return _defs_annotate
+
 
 # Needed so annotation gets a keymap per space type.
 _defs_annotate_image = _defs_annotate_factory()
@@ -756,6 +758,30 @@ class _defs_edit_mesh:
         )
 
     @ToolDef.from_fn
+    def shear():
+        return dict(
+            text="Shear",
+            icon="ops.transform.shear",
+            widget=None,
+            keymap=(
+                ("transform.shear", dict(release_confirm=True),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
+    def tosphere():
+        return dict(
+            text="To Sphere",
+            icon="ops.transform.tosphere",
+            widget=None,
+            keymap=(
+                ("transform.tosphere", dict(release_confirm=True),
+                 dict(type='ACTIONMOUSE', value='PRESS')),
+            ),
+        )
+
+    @ToolDef.from_fn
     def shrink_fatten():
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("transform.shrink_fatten")
@@ -960,6 +986,7 @@ class _defs_sculpt:
             ),
         )
 
+
 class _defs_vertex_paint:
 
     @staticmethod
@@ -1129,7 +1156,6 @@ class _defs_gpencil_paint:
             row.template_greasepencil_color(gp_settings, "material", rows=3, cols=8, scale=0.8)
         row.prop(gp_settings, "pin_material", text="")
 
-
     @staticmethod
     def draw_settings_common(context, layout, tool):
         ob = context.active_object
@@ -1194,7 +1220,7 @@ class _defs_gpencil_edit:
             widget=None,
             keymap=(
                 ("transform.bend",
-                 dict(),
+                 dict(release_confirm=True),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
@@ -1207,7 +1233,7 @@ class _defs_gpencil_edit:
             widget=None,
             keymap=(
                 ("transform.mirror",
-                 dict(),
+                 dict(release_confirm=True),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
@@ -1220,7 +1246,7 @@ class _defs_gpencil_edit:
             widget=None,
             keymap=(
                 ("transform.shear",
-                 dict(),
+                 dict(release_confirm=True),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
@@ -1233,7 +1259,7 @@ class _defs_gpencil_edit:
             widget=None,
             keymap=(
                 ("transform.tosphere",
-                 dict(),
+                 dict(release_confirm=True),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
@@ -1646,6 +1672,10 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             (
                 _defs_edit_mesh.shrink_fatten,
                 _defs_edit_mesh.push_pull,
+            ),
+            (
+                _defs_edit_mesh.shear,
+                _defs_edit_mesh.tosphere,
             ),
             (
                 _defs_edit_mesh.rip_region,
