@@ -283,21 +283,6 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
-
-	if (ctx->scene->rigidbody_world && ctx->scene->rigidbody_world->group) {
-		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(ctx->scene->rigidbody_world->group, obj)
-		{
-			if (ctx->object != obj) {
-				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier RBW");
-				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_GEOMETRY, "Fracture Modifier RBW");
-			}
-		}
-		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
-	}
-
-	/* We need own transformation as well. */
-	//DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Fracture Modifier");
-	//DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_GEOMETRY, "Fracture Modifier");
 }
 
 static void foreachObjectLink(

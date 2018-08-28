@@ -2259,6 +2259,7 @@ void BKE_rigidbody_rebuild_sim(Depsgraph *depsgraph,
 	//Scene *scene = DEG_get_original_id(&sc->id);
 
 	DEG_debug_print_eval_time(depsgraph, __func__, scene->id.name, scene, ctime);
+
 	/* rebuild sim data (i.e. after resetting to start of timeline) */
 	if (BKE_scene_check_rigidbody_active(scene)) {
 		BKE_rigidbody_rebuild_world(depsgraph, scene, ctime);
@@ -2284,9 +2285,11 @@ void BKE_rigidbody_object_sync_transforms(Depsgraph *depsgraph,
 										  Scene *scene,
 										  Object *ob)
 {
-	//Scene *scene = DEG_get_original_id(&sc->id);
-	//RigidBodyWorld *rbw = scene->rigidbody_world;
 	float ctime = DEG_get_ctime(depsgraph);
+
+	//base flag update hack...seems it lacks some important synchronization here
+	ob->flag = ob->base_flag;
+
 	DEG_debug_print_eval_time(depsgraph, __func__, ob->id.name, ob, ctime);
 	/* read values pushed into RBO from sim/cache... */
 	BKE_rigidbody_sync_transforms(scene, ob, ctime);
