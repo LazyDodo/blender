@@ -1,6 +1,9 @@
 layout(lines) in;
 layout(triangle_strip, max_vertices = 6) out;
 
+in vec3 gNormal[];
+uniform int normal_mode;
+uniform vec3 normal_direction;
 
 uniform float thickness;
 uniform float thickness_crease;
@@ -52,11 +55,20 @@ void draw_line(vec4 p1, vec4 p2){
 }
 
 void decide_color_and_thickness(float component_id){
-	if (component_id < 1.5) { out_color = color;              use_thickness = thickness;                          return; }
-	if (component_id < 2.5) { out_color = crease_color;       use_thickness = thickness * thickness_crease;       return; }
-	if (component_id < 3.5) { out_color = material_color;     use_thickness = thickness * thickness_material;     return; }
-	if (component_id < 4.5) { out_color = edge_mark_color;    use_thickness = thickness * thickness_edge_mark;    return; }
-	if (component_id < 5.5) { out_color = intersection_color; use_thickness = thickness * thickness_intersection; return; }
+	float fac=1.0f;
+	if(normal_mode == 0){
+		fac*=1.0f;
+	}else if(normal_mode == 1){
+		float factor = dot(gNormal[0],vec3(0,0,1));
+		fac *= factor;
+		if (fac<0.1) fac = 0.1;
+	}
+
+	if (component_id < 1.5) { out_color = color;              use_thickness = fac * thickness;                          return; }
+	if (component_id < 2.5) { out_color = crease_color;       use_thickness = fac * thickness * thickness_crease;       return; }
+	if (component_id < 3.5) { out_color = material_color;     use_thickness = fac * thickness * thickness_material;     return; }
+	if (component_id < 4.5) { out_color = edge_mark_color;    use_thickness = fac * thickness * thickness_edge_mark;    return; }
+	if (component_id < 5.5) { out_color = intersection_color; use_thickness = fac * thickness * thickness_intersection; return; }
 }
 
 void main() {

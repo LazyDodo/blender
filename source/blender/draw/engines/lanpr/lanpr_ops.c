@@ -2418,6 +2418,8 @@ LANPR_RenderLine *lanpr_triangle_generate_intersection_line_only(LANPR_RenderBuf
 	Result = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_RenderLine));
 	Result->L = L;
 	Result->R = R;
+	Result->TL = rt;
+	Result->TR = Testing;
 	LANPR_RenderLineSegment *rls = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
 	BLI_addtail(&Result->Segments, rls);
 	BLI_addtail(&rb->AllRenderLines, Result);
@@ -2816,7 +2818,7 @@ int lanpr_count_this_line(LANPR_RenderLine *rl, LANPR_LineLayer *ll) {
 			}
 		} elif(llc->component_mode == LANPR_COMPONENT_MODE_MATERIAL && llc->material_select)
 		{
-			if ((rl->TL && rl->TL->MaterialID == llc->material_select->index) || (rl->TR && rl->TR->MaterialID == llc->material_select->index) || (!rl->TL && !rl->TR)) { OrResult = 1; }
+			if ((rl->TL && rl->TL->MaterialID == llc->material_select->index) || (rl->TR && rl->TR->MaterialID == llc->material_select->index) || (!(rl->Flags & LANPR_EDGE_FLAG_INTERSECTION))) { OrResult = 1; }
 			else {
 				AndResult = 0;
 			}
@@ -2858,7 +2860,7 @@ long lanpr_count_intersection_segment_count(LANPR_RenderBuffer *rb) {
 	}
 	return Count;
 }
-void *lanpr_make_leveled_edge_vertex_array(LANPR_RenderBuffer *rb, ListBase *LineList, float *VertexArray, LANPR_LineLayer *ll, float componet_id) {
+void *lanpr_make_leveled_edge_vertex_array(LANPR_RenderBuffer *rb, ListBase *LineList, float *VertexArray, float* NormalArray, float** NextNormal, LANPR_LineLayer *ll, float componet_id) {
 	nListItemPointer *lip;
 	LANPR_RenderLine *rl;
 	LANPR_RenderLineSegment *rls, *irls;
@@ -2866,12 +2868,30 @@ void *lanpr_make_leveled_edge_vertex_array(LANPR_RenderBuffer *rb, ListBase *Lin
 	real W = rb->W / 2, H = rb->H / 2;
 	long i = 0;
 	float *V = VertexArray;
+	float *N = NormalArray;
 	for (lip = LineList->first; lip; lip = lip->pNext) {
 		rl = lip->p;
 		if (!lanpr_count_this_line(rl, ll)) continue;
 
 		for (rls = rl->Segments.first; rls; rls = rls->Item.pNext) {
 			if (rls->OcclusionLevel >= ll->qi_begin && rls->OcclusionLevel <= ll->qi_end) {
+
+				if (rl->TL) {
+					N[0] += rl->TL->GN[0];
+					N[1] += rl->TL->GN[1];
+					N[2] += rl->TL->GN[2];
+				}
+				if (rl->TR) {
+					N[0] += rl->TR->GN[0];
+					N[1] += rl->TR->GN[1];
+					N[2] += rl->TR->GN[2];
+				}
+				if (rl->TL || rl->TR) {
+					normalize_v3(N);
+					copy_v3_v3(&N[3], N);
+				}
+				N += 6;
+
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
@@ -2887,6 +2907,7 @@ void *lanpr_make_leveled_edge_vertex_array(LANPR_RenderBuffer *rb, ListBase *Lin
 			}
 		}
 	}
+	*NextNormal = N;
 	return V;
 }
 
@@ -2897,15 +2918,16 @@ void lanpr_chain_generate_draw_command(LANPR_RenderBuffer *rb);
 void lanpr_rebuild_render_draw_command(LANPR_RenderBuffer *rb, LANPR_LineLayer *ll) {
 	int Count = 0;
 	int level;
-	float *V, *tv, *N;;
+	float *V, *tv, *N, *tn;
 	int i;
 	int VertCount;
 
 	if (ll->type == TNS_COMMAND_LINE) {
 		static GPUVertFormat format = { 0 };
-		static struct { uint pos, uvs; } attr_id;
+		static struct { uint pos, normal; } attr_id;
 		if (format.attr_len == 0) {
 			attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+			attr_id.normal = GPU_vertformat_attr_add(&format, "normal", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 		}
 
 		GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
@@ -2923,19 +2945,22 @@ void lanpr_rebuild_render_draw_command(LANPR_RenderBuffer *rb, LANPR_LineLayer *
 		GPU_vertbuf_data_alloc(vbo, VertCount);
 
 		tv = V = CreateNewBuffer(float, 6 * Count);
+		tn = N = CreateNewBuffer(float, 6 * Count);
 
-		if (ll->enable_contour) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->Contours, tv, ll, 1.0f);
-		if (ll->enable_crease) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->CreaseLines, tv, ll, 2.0f);
-		if (ll->enable_material_seperate) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->MaterialLines, tv, ll, 3.0f);
-		if (ll->enable_edge_mark) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->EdgeMarks, tv, ll, 4.0f);
-		if (ll->enable_intersection) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->IntersectionLines, tv, ll, 5.0f);
+		if (ll->enable_contour) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->Contours, tv, tn, &tn, ll, 1.0f);
+		if (ll->enable_crease) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->CreaseLines, tv, tn, &tn, ll, 2.0f);
+		if (ll->enable_material_seperate) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->MaterialLines, tv, tn, &tn, ll, 3.0f);
+		if (ll->enable_edge_mark) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->EdgeMarks, tv, tn, &tn, ll, 4.0f);
+		if (ll->enable_intersection) tv = lanpr_make_leveled_edge_vertex_array(rb, &rb->IntersectionLines, tv, tn, &tn, ll, 5.0f);
 
 
 		for (i = 0; i < VertCount; i++) {
-			GPU_vertbuf_attr_set(vbo, attr_id.pos, i, &V[i * 3]);
+			GPU_vertbuf_attr_set(vbo, attr_id.pos,    i, &V[i * 3]);
+			GPU_vertbuf_attr_set(vbo, attr_id.normal, i, &N[i * 3]);
 		}
 
 		FreeMem(V);
+		FreeMem(N);
 
 		ll->batch = GPU_batch_create_ex(GPU_PRIM_LINES, vbo, 0, GPU_USAGE_DYNAMIC | GPU_BATCH_OWNS_VBO);
 
@@ -3105,6 +3130,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 					psl->software_pass = DRW_pass_create("Software Render Preview", DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 					ll->shgrp = DRW_shgroup_create(lanpr_share.software_shader, psl->software_pass);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "color", ll->color, 1);
+					DRW_shgroup_uniform_int(ll->shgrp, "normal_mode", &ll->normal_mode, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "crease_color", ll->crease_color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "material_color", ll->material_color, 1);
 					DRW_shgroup_uniform_vec4(ll->shgrp, "edge_mark_color", ll->edge_mark_color, 1);

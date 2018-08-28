@@ -53,6 +53,9 @@ struct Collection;
 #define LANPR_DISABLE_TIP_EXTEND       0
 #define LANPR_ENABLE_TIP_EXTEND        1
 
+#define LANPR_NORMAL_DONT_CARE         0
+#define LANPR_NORMAL_DIRECTIONAL       1
+
 #define LANPR_COMPONENT_MODE_ALL          0
 #define LANPR_COMPONENT_MODE_OBJECT       1
 #define LANPR_COMPONENT_MODE_MATERIAL     2
@@ -107,9 +110,11 @@ typedef struct LANPR_LineLayer {
 	float edge_mark_color[4];
 	float intersection_color[4];
 
+	int normal_mode;
+
 	int logic_mode;      /* for component evaluation */
 
-	int a;
+	//int a;
 
 	ListBase components;
 

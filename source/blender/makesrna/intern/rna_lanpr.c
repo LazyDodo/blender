@@ -63,6 +63,12 @@ void RNA_def_lanpr(BlenderRNA *brna){
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	static const EnumPropertyItem rna_enum_lanpr_normal_mode[] = {
+		{LANPR_NORMAL_DONT_CARE, "DISABLED", 0, "Disabled", "Normal value does not affect line style"},
+		{LANPR_NORMAL_DIRECTIONAL, "DIRECTIONAL", 0, "Directional", "Use directional vector to control line width"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	srna = RNA_def_struct(brna, "LANPR_LineLayerComponent", NULL);
 	RNA_def_struct_sdna(srna, "LANPR_LineLayerComponent");
 	RNA_def_struct_ui_text(srna, "Line Layer Component", "LANPR_LineLayerComponent");
@@ -96,6 +102,11 @@ void RNA_def_lanpr(BlenderRNA *brna){
 	// removed for mow
 	//prop = RNA_def_property(srna, "use_differnt_style", PROP_BOOLEAN, PROP_NONE);
 	//RNA_def_property_ui_text(prop, "Different Style", "Use different line styles for differnt line types");
+
+	prop = RNA_def_property(srna, "normal_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_lanpr_normal_mode);
+	RNA_def_property_enum_default(prop, LANPR_NORMAL_DONT_CARE);
+	RNA_def_property_ui_text(prop, "Normal", "Normal Controlled Style");
 
 	prop = RNA_def_property(srna, "use_qi_range", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "QI Range", "Use QI Range (occlusion levels) to select lines");

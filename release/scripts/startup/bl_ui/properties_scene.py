@@ -617,7 +617,7 @@ class LANPR_linesets(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         lineset = item
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            split = layout.split(percentage=0.6)
+            split = layout.split(factor=0.6)
             split.label(text="Layer")
             row = split.row(align=True)
             row.prop(lineset, "color", text="", icon_value=icon)
@@ -655,7 +655,7 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 layout.label(text="RUN:")
                 layout.operator("scene.lanpr_calculate", icon='RENDER_STILL')
 
-                split = layout.split(percentage=0.7)
+                split = layout.split(factor=0.7)
                 col = split.column()
                 col.label(text="Layer Composition:")
                 col = split.column()
@@ -702,7 +702,7 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
 
         layout.operator("scene.lanpr_enable_all_line_types")
 
-        split = layout.split(percentage=0.3)
+        split = layout.split(factor=0.3)
         col = split.column()
         col.prop(active_layer, "enable_contour", text="Contour", toggle=True)
         col.prop(active_layer, "enable_crease", text="Crease", toggle=True)
@@ -733,6 +733,9 @@ class SCENE_PT_lanpr_line_types(SceneButtonsPanel, Panel):
             row.prop(active_layer, "thickness_intersection", text="")
         else:
             row.label(text= "Intersection Calculation Disabled")
+
+        layout.label(text= "Normal:")
+        layout.prop(active_layer,"normal_mode", expand = True)
 
         if lanpr.master_mode == "DPIX" and active_layer.enable_intersection:
             row = col.row(align = True)
@@ -767,9 +770,9 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
         
         i=0
         for c in active_layer.components:
-            split = layout.split(percentage=0.85)
+            split = layout.split(factor=0.85)
             col = split.column()
-            sp2 = col.split(percentage=0.4)
+            sp2 = col.split(factor=0.4)
             cl = sp2.column()
             cl.prop(c,"component_mode", text = "")
             cl = sp2.column()
