@@ -3140,6 +3140,11 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_material", &ll->thickness_material, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_edge_mark", &ll->thickness_edge_mark, 1);
 				DRW_shgroup_uniform_float(rb->ChainShgrp, "thickness_intersection", &ll->thickness_intersection, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "enable_contour", &ll->enable_contour, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "enable_crease", &ll->enable_crease, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "enable_material", &ll->enable_material_seperate, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "enable_edge_mark", &ll->enable_edge_mark, 1);
+				DRW_shgroup_uniform_int(rb->ChainShgrp, "enable_intersection", &ll->enable_intersection, 1);
 
 				DRW_shgroup_uniform_int(rb->ChainShgrp, "normal_mode", &ll->normal_mode, 1);
 				DRW_shgroup_uniform_int(rb->ChainShgrp, "normal_effect_inverse", &ll->normal_effect_inverse, 1);
