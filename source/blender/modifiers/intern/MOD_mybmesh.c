@@ -255,9 +255,9 @@ static float get_facing_dir(const float cam_loc[3], const float P[3], const floa
 	float nor[3], view_vec[3];
 
 	cross_v3_v3v3(nor, du, dv);
-	//TODO normalization is probably not needed
 	normalize_v3(nor);
 	sub_v3_v3v3(view_vec, cam_loc, P);
+	normalize_v3(view_vec);
 
 	return dot_v3v3(nor, view_vec);
 }
@@ -268,6 +268,7 @@ static float get_facing_dir_nor(const float cam_loc[3], const float P[3], const 
 	float view_vec[3];
 
 	sub_v3_v3v3(view_vec, cam_loc, P);
+	normalize_v3(view_vec);
 
 	return dot_v3v3(nor, view_vec);
 }
@@ -530,17 +531,28 @@ static void split_BB_FF_edges_thread(void *data_v) {
 	BMFace *f;
 	BMVert *v1, *v2;
 	float v1_u, v1_v, v2_u, v2_v;
+	float v1_face_dir, v2_face_dir;
 	bool is_B;
 
 	while ((i = FFBB_queue_next_e(th_data)) >= 0) {
 		Vert_buf v_buf;
 		e = th_data->edges[i];
 
-		is_B = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+		v1_face_dir = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+		v2_face_dir = get_facing_dir_nor(m_d->cam_loc, e->v2->co, e->v2->no);
 
-		if( is_B  != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
+		if( (v1_face_dir < 0) != (v2_face_dir < 0) ){
 			//This is not a FF or BB edge
 			continue;
+		}
+
+		//Is this edge FF or BB?
+		is_B = (v1_face_dir < 0);
+
+		//Check if any of the verts facing are near flipping
+		//It there is not, then it is highly unlikely that there is a zero crossing between them
+		if( fabs(v1_face_dir) > 0.2f && fabs(v2_face_dir) > 0.2f ){
+        	continue;
 		}
 
 		if( i < th_data->orig_edges ){
@@ -726,7 +738,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 
 		is_B = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 
-		if( is_B  != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
+		if( is_B != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
 			//This is not a FF or BB edge
 			continue;
 		}
@@ -1195,7 +1207,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 			float step = 0.5f;
 			float step_len = 0.25f;
 			int face_index;
-			float v1_face = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+			bool v1_face_dir = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 			BMFace *cur_face;
 
 			float mat[3][3];
@@ -1226,7 +1238,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 					break;
 				}
 
-				if( (face_dir < 0) == (v1_face < 0) ){
+				if( (face_dir < 0) == v1_face_dir ){
 					step += step_len;
 				} else {
 					step -= step_len;
@@ -1279,7 +1291,7 @@ static bool bisect_search(const float v1_uv[2], const float v2_uv[2], BMEdge *e,
 	float face_dir, uv_P[2], P[3], du[3], dv[3], new_no[3];
 	float step = 0.5f;
 	float step_len = 0.25f;
-	float v1_face = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+	bool v1_face_dir = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 	int face_index = BM_elem_index_get(orig_face);
 
 	for( i = 0; i < 10; i++){
@@ -1293,7 +1305,7 @@ static bool bisect_search(const float v1_uv[2], const float v2_uv[2], BMEdge *e,
 			break;
 		}
 
-		if( (face_dir < 0) == (v1_face < 0) ){
+		if( (face_dir < 0) == v1_face_dir ){
 			step += step_len;
 		} else {
 			step -= step_len;
@@ -4333,6 +4345,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 			split_BB_FF_edges_thread_start(&mesh_data);
 			//split_BB_FF_edges(&mesh_data);
 			TIMEIT_END(split_bb_ff);
+			printf("New verts: %d\n", new_vert_buffer.count);
 		}
 		// (6.2) Contour Insertion
 
