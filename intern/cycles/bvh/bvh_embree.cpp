@@ -438,7 +438,8 @@ void BVHEmbree::add_instance(Object *ob, int i)
 		for(size_t step = 0; step < num_motion_steps; ++step) {
 			rtcSetGeometryTransform(geom_id, step, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, (const float*)&ob->motion[step]);
 		}
-	} else {
+	}
+	else {
 		rtcSetGeometryTransform(geom_id, 0, RTC_FORMAT_FLOAT3X4_ROW_MAJOR, (const float*)&ob->tfm);
 	}
 
@@ -535,7 +536,8 @@ void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 		const float3 *verts;
 		if(t == t_mid) {
 			verts = &mesh->verts[0];
-		} else {
+		}
+		else {
 			int t_ = (t > t_mid) ? (t - 1) : t;
 			verts = &attr_mP->data_float3()[t_ * num_verts];
 		}
@@ -584,7 +586,8 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 		const float3 *verts;
 		if(t == t_mid || attr_mP == NULL) {
 			verts = &mesh->curve_keys[0];
-		} else {
+		}
+		else {
 			int t_ = (t > t_mid) ? (t - 1) : t;
 			verts = &attr_mP->data_float3()[t_ * num_keys];
 		}
@@ -754,7 +757,7 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 	pack.prim_index.resize(prim_index_size);
 	pack.prim_type.resize(prim_index_size);
 	pack.prim_object.resize(prim_index_size);
-	pack.prim_visibility.resize(prim_index_size);
+	pack.prim_visibility.clear();
 	pack.prim_tri_verts.resize(prim_tri_verts_size);
 	pack.prim_tri_index.resize(prim_index_size);
 	pack.object_node.resize(objects.size());
@@ -762,7 +765,6 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 	int *pack_prim_index = (pack.prim_index.size())? &pack.prim_index[0]: NULL;
 	int *pack_prim_type = (pack.prim_type.size())? &pack.prim_type[0]: NULL;
 	int *pack_prim_object = (pack.prim_object.size())? &pack.prim_object[0]: NULL;
-	uint *pack_prim_visibility = (pack.prim_visibility.size())? &pack.prim_visibility[0]: NULL;
 	float4 *pack_prim_tri_verts = (pack.prim_tri_verts.size())? &pack.prim_tri_verts[0]: NULL;
 	uint *pack_prim_tri_index = (pack.prim_tri_index.size())? &pack.prim_tri_index[0]: NULL;
 
@@ -809,7 +811,6 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 			size_t bvh_prim_index_size = bvh->pack.prim_index.size();
 			int *bvh_prim_index = &bvh->pack.prim_index[0];
 			int *bvh_prim_type = &bvh->pack.prim_type[0];
-			uint *bvh_prim_visibility = &bvh->pack.prim_visibility[0];
 			uint *bvh_prim_tri_index = &bvh->pack.prim_tri_index[0];
 
 			for(size_t i = 0; i < bvh_prim_index_size; i++) {
@@ -824,7 +825,6 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 				}
 
 				pack_prim_type[pack_prim_index_offset] = bvh_prim_type[i];
-				pack_prim_visibility[pack_prim_index_offset] = bvh_prim_visibility[i];
 				pack_prim_object[pack_prim_index_offset] = 0;  // unused for instances
 
 				pack_prim_index_offset++;

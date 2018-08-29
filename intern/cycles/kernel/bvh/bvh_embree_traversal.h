@@ -97,7 +97,8 @@ ccl_device_inline void kernel_embree_convert_hit(ccl::KernelGlobals *kg, const R
 		RTCScene inst_scene = (RTCScene)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, hit->instID[0]));
 		isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(inst_scene, hit->geomID)) + kernel_tex_fetch(__object_node, hit->instID[0]/2);
 		isect->object = hit->instID[0]/2;
-	} else {
+	}
+	else {
 		isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, hit->geomID));
 		isect->object = OBJECT_NONE;
 	}
