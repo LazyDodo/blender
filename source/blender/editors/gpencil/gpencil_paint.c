@@ -1158,7 +1158,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			pt->uv_fac = ptc->uv_fac;
 			pt->uv_rot = ptc->uv_rot;
 
-			if (gps->dvert != NULL) {
+			if (dvert != NULL) {
 				dvert->totweight = 0;
 				dvert->dw = NULL;
 				dvert++;

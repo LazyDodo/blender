@@ -823,7 +823,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	}
 
 	bGPDspoint *pt;
-	MDeformVert *dvert;
+	MDeformVert *dvert = NULL;
 	tGPspoint *point2D;
 
 	if (tgpf->sbuffer_size == 0) {
@@ -868,7 +868,6 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 
 	/* add points */
 	pt = gps->points;
-	dvert = gps->dvert;
 	point2D = (tGPspoint *)tgpf->sbuffer;
 
 	const int def_nr = tgpf->ob->actdef - 1;
@@ -900,7 +899,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 			dvert++;
 		}
 		else {
-			if (gps->dvert != NULL) {
+			if (dvert != NULL) {
 				dvert->totweight = 0;
 				dvert->dw = NULL;
 				dvert++;
