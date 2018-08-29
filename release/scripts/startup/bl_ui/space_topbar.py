@@ -127,7 +127,9 @@ class TOPBAR_HT_lower_bar(Header):
         elif mode == 'POSE':
             pass
         elif mode == 'PARTICLE':
-            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            # Disable, only shows "Brush" panel, which is already in the top-bar.
+            # layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            pass
         elif mode == 'GPENCIL_PAINT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
 
@@ -233,18 +235,19 @@ class _draw_left_context_mode:
             layout.prop(brush, "size", slider=True)
             if tool == 'ADD':
                 layout.prop(brush, "count")
-            else:
-                layout.prop(brush, "strength", slider=True)
 
-            if tool == 'ADD':
                 layout.prop(settings, "use_default_interpolate")
                 layout.prop(brush, "steps", slider=True)
                 layout.prop(settings, "default_key_count", slider=True)
-            elif tool == 'LENGTH':
-                layout.row().prop(brush, "length_mode", expand=True)
-            elif tool == 'PUFF':
-                layout.row().prop(brush, "puff_mode", expand=True)
-                layout.prop(brush, "use_puff_volume")
+            else:
+                layout.prop(brush, "strength", slider=True)
+
+                if tool == 'LENGTH':
+                    layout.row().prop(brush, "length_mode", expand=True)
+                elif tool == 'PUFF':
+                    layout.row().prop(brush, "puff_mode", expand=True)
+                    layout.prop(brush, "use_puff_volume")
+
 
 class INFO_MT_editor_menus(Menu):
     bl_idname = "INFO_MT_editor_menus"

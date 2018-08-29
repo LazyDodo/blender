@@ -638,7 +638,7 @@ class VIEW3D_MT_view_navigation(Menu):
         layout = self.layout
 
         layout.operator_enum("view3d.view_orbit", "type")
-        props = layout.operator("view3d.view_orbit", "Orbit Opposite")
+        props = layout.operator("view3d.view_orbit", text="Orbit Opposite")
         props.type = 'ORBITRIGHT'
         props.angle = pi
 
@@ -3070,8 +3070,8 @@ class VIEW3D_MT_edit_mesh_normals(Menu):
         layout.operator("mesh.smoothen_normals", text="Smoothen")
 
         layout.label(text="Face Strength")
-        layout.operator("mesh.mod_weighted_strength", text="Face select", icon = "FACESEL").set = False
-        layout.operator("mesh.mod_weighted_strength", text="Set Strength", icon = "ZOOMIN").set = True
+        layout.operator("mesh.mod_weighted_strength", text="Face Select", icon='FACESEL').set = False
+        layout.operator("mesh.mod_weighted_strength", text="Set Strength", icon='ZOOMIN').set = True
 
 
 class VIEW3D_MT_edit_mesh_shading(Menu):

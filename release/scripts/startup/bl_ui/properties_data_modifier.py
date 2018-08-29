@@ -164,7 +164,6 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         layout.prop(md, "hn_strength")
         layout.prop(md, "set_wn_strength")
 
-
     def BOOLEAN(self, layout, ob, md):
         split = layout.split()
 
@@ -640,7 +639,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             row.label()
 
     def MY_BMESH(self, layout, ob, md):
-        split = layout.split(percentage=0.25)
+        split = layout.split(factor=0.25)
 
         col = split.column()
         col.label(text="§6.1:")
@@ -1811,7 +1810,6 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row = layout.row()
         row.prop(md, "create_materials")
         row.prop(md, "modify_color")
-
 
     def GP_COLOR(self, layout, ob, md):
         gpd = ob.data
