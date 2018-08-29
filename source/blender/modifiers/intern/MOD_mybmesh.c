@@ -65,6 +65,9 @@
 
 #include "DEG_depsgraph_build.h"
 
+//BMesh intern
+#include "../../bmesh/intern/bmesh_private.h"
+
 //TODO this modifier depends on OpenSubDiv. So if it's not compiled in, remove this modifier
 
 #include "../../../../intern/opensubdiv/opensubdiv_capi.h"
@@ -3312,10 +3315,9 @@ static void optimization( MeshData *m_d ){
 				float P[3], no[3];
 
 				BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
-					//TODO mark inconsistent faces in an other way
 					// and only check each face once
-					// look at BM_face_exists_overlap for marks
-					if(face->mat_nr == 5){
+					// taken from BM_face_exists_overlap for marks
+					if(BM_ELEM_API_FLAG_TEST(face, _FLAG_OVERLAP) != 0){
 						//Already added this face to inco_faces
 						continue;
 					}
@@ -3346,13 +3348,19 @@ static void optimization( MeshData *m_d ){
 						IncoFace inface;
 						inface.face = face;
 						inface.back_f = b_f;
-						face->mat_nr = 5;
+						BM_ELEM_API_FLAG_ENABLE(face, _FLAG_OVERLAP);
 						BLI_buffer_append(&inco_faces, IncoFace, inface);
 					}
 
 				}
 			}
 
+		}
+
+		//Clear _OVERLAP flag
+		for(int face_i = 0; face_i < inco_faces.count; face_i++){
+			IncoFace *inface = &BLI_buffer_at(&inco_faces, IncoFace, face_i);
+			BM_ELEM_API_FLAG_DISABLE(inface->face, _FLAG_OVERLAP);
 		}
 	}
 
