@@ -20,6 +20,7 @@
 import bpy
 from bpy.types import Menu, Panel, UIList
 from rna_prop_ui import PropertyPanel
+from bl_operators.presets import PresetMenu
 
 
 class GPENCIL_MT_color_specials(Menu):
@@ -165,6 +166,9 @@ class MATERIAL_PT_gpencil_surface(GPMaterialButtonsPanel, Panel):
 
         return ob and ob.type == 'GPENCIL'
 
+    def draw_header_preset(self, context):
+        MATERIAL_PT_gpencil_material_presets.draw_panel_header(self.layout)
+
     @staticmethod
     def draw(self, context):
         layout = self.layout
@@ -278,7 +282,7 @@ class MATERIAL_PT_gpencil_preview(GPMaterialButtonsPanel, Panel):
 
     def draw(self, context):
         ma = context.object.active_material
-        self.layout.label(ma.name)
+        self.layout.label(text=ma.name)
         self.layout.template_preview(ma)
 
 
@@ -303,11 +307,20 @@ class MATERIAL_PT_gpencil_options(GPMaterialButtonsPanel, Panel):
             layout.prop(gpcolor, "pass_index")
 
 
+class MATERIAL_PT_gpencil_material_presets(PresetMenu):
+    """Material settings"""
+    bl_label = "Material Presets"
+    preset_subdir = "gpencil_material"
+    preset_operator = "script.execute_preset"
+    preset_add_operator = "scene.gpencil_material_preset_add"
+
+
 classes = (
     GPENCIL_UL_matslots,
     GPENCIL_MT_color_specials,
     MATERIAL_PT_gpencil_slots,
     MATERIAL_PT_gpencil_preview,
+    MATERIAL_PT_gpencil_material_presets,
     MATERIAL_PT_gpencil_surface,
     MATERIAL_PT_gpencil_strokecolor,
     MATERIAL_PT_gpencil_fillcolor,

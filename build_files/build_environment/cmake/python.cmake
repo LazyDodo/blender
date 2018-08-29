@@ -22,6 +22,12 @@ if(BUILD_MODE STREQUAL Debug)
 endif()
 
 if(WIN32)
+	if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
+		set(SSL_POSTFIX -x64)
+	else()
+		set(SSL_POSTFIX)
+	endif()
+
 	set(PYTHON_BINARY ${BUILD_DIR}/python/src/external_python/run/python${PYTHON_POSTFIX}.exe)
 
 	macro(cmake_to_dos_path MsysPath ResultingPath)
@@ -46,9 +52,9 @@ if(WIN32)
 		PREFIX ${BUILD_DIR}/python
 		PATCH_COMMAND
 			echo mklink /D "${PYTHON_EXTERNALS_FOLDER_DOS}" "${DOWNLOADS_EXTERNALS_FOLDER_DOS}" &&
-			mklink /D "${PYTHON_EXTERNALS_FOLDER_DOS}" "${DOWNLOADS_EXTERNALS_FOLDER_DOS}" 
+			mklink /D "${PYTHON_EXTERNALS_FOLDER_DOS}" "${DOWNLOADS_EXTERNALS_FOLDER_DOS}"
 		CONFIGURE_COMMAND ""
-		BUILD_COMMAND cd ${BUILD_DIR}/python/src/external_python/pcbuild/ && set IncludeTkinter=false && call build.bat -e -p ${PYTHON_ARCH} -c ${BUILD_MODE} 
+		BUILD_COMMAND cd ${BUILD_DIR}/python/src/external_python/pcbuild/ && set IncludeTkinter=false && call build.bat -e -p ${PYTHON_ARCH} -c ${BUILD_MODE}
 		INSTALL_COMMAND COMMAND
 			${CMAKE_COMMAND} -E copy ${PYTHON_OUTPUTDIR}/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.dll ${LIBDIR}/python/lib/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.dll &&
 			${CMAKE_COMMAND} -E copy ${PYTHON_OUTPUTDIR}/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.pdb ${LIBDIR}/python/lib/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.pdb &&
@@ -82,9 +88,19 @@ else()
 		set(PYTHON_BINARY ${BUILD_DIR}/python/src/external_python/python.exe)
 		#set(PYTHON_PATCH ${PATCH_CMD} --verbose -p1 -d ${BUILD_DIR}/python/src/external_python < ${PATCH_DIR}/python_apple.diff)
 		set(PYTHON_PATCH echo .)
+		set(PYTHON_CONFIGURE_EXTRA_ENV echo .)
+		set(PYTHON_CONFIGURE_EXTRA_ARGS)
 	else()
+		set(PYTHON_CONFIGURE_EXTRA_ARGS "--with-openssl=${LIBDIR}/ssl")
 		set(PYTHON_CONFIGURE_ENV ${CONFIGURE_ENV})
+		set(PYTHON_CFLAGS "-I${LIBDIR}/sqlite/include -I${LIBDIR}/bzip2/include -I${LIBDIR}/lzma/include -I${LIBDIR}/zlib/include")
+		set(PYTHON_LDFLAGS "-L${LIBDIR}/sqlite/lib -L${LIBDIR}/bzip2/lib -L${LIBDIR}/lzma/lib -L${LIBDIR}/zlib/lib")
+		set(PYTHON_CONFIGURE_EXTRA_ENV
+			export CFLAGS=${PYTHON_CFLAGS} &&
+			export CPPFLAGS=${PYTHON_CFLAGS} &&
+			export LDFLAGS=${PYTHON_LDFLAGS})
 		set(PYTHON_BINARY ${BUILD_DIR}/python/src/external_python/python)
+		set(PYTHON_PATCH ${PATCH_CMD} --verbose -p1 -d ${BUILD_DIR}/python/src/external_python < ${PATCH_DIR}/python_linux.diff)
 	endif()
 
 	ExternalProject_Add(external_python
@@ -93,7 +109,7 @@ else()
 		URL_HASH MD5=${PYTHON_HASH}
 		PREFIX ${BUILD_DIR}/python
 		PATCH_COMMAND ${PYTHON_PATCH}
-		CONFIGURE_COMMAND ${PYTHON_CONFIGURE_ENV} && cd ${BUILD_DIR}/python/src/external_python/ && ${CONFIGURE_COMMAND} --prefix=${LIBDIR}/python
+		CONFIGURE_COMMAND ${PYTHON_CONFIGURE_ENV} && ${PYTHON_CONFIGURE_EXTRA_ENV} && cd ${BUILD_DIR}/python/src/external_python/ && ${CONFIGURE_COMMAND} --prefix=${LIBDIR}/python ${PYTHON_CONFIGURE_EXTRA_ARGS}
 		BUILD_COMMAND ${PYTHON_CONFIGURE_ENV} && cd ${BUILD_DIR}/python/src/external_python/ && make -j${MAKE_THREADS}
 		INSTALL_COMMAND ${PYTHON_CONFIGURE_ENV} && cd ${BUILD_DIR}/python/src/external_python/ && make install
 		INSTALL_DIR ${LIBDIR}/python)
@@ -132,10 +148,14 @@ if(MSVC)
 		COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/select${PYTHON_POSTFIX}.pyd" ${BUILD_DIR}/python/src/external_python/redist/lib/select${PYTHON_POSTFIX}.pyd
 		COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/unicodedata${PYTHON_POSTFIX}.pyd" ${BUILD_DIR}/python/src/external_python/redist/lib/unicodedata${PYTHON_POSTFIX}.pyd
 		COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/winsound${PYTHON_POSTFIX}.pyd" ${BUILD_DIR}/python/src/external_python/redist/lib/winsound${PYTHON_POSTFIX}.pyd
-		COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/xxlimited${PYTHON_POSTFIX}.pyd" ${BUILD_DIR}/python/src/external_python/redist/lib/xxlimited${PYTHON_POSTFIX}.pyd
+		#xxlimited is an example extention module, we don't need to ship it and debug doesn't build it
+		#leaving it commented out, so I won't get confused again with the next update.
+		#COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/xxlimited${PYTHON_POSTFIX}.pyd" ${BUILD_DIR}/python/src/external_python/redist/lib/xxlimited${PYTHON_POSTFIX}.pyd
+		COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/libssl-1_1${SSL_POSTFIX}.dll" ${BUILD_DIR}/python/src/external_python/redist/lib/libssl-1_1${SSL_POSTFIX}.dll
+		COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_OUTPUTDIR}/libcrypto-1_1${SSL_POSTFIX}.dll" ${BUILD_DIR}/python/src/external_python/redist/lib/libcrypto-1_1${SSL_POSTFIX}.dll
 		COMMAND ${CMAKE_COMMAND} -E chdir "${BUILD_DIR}/python/src/external_python/redist" ${CMAKE_COMMAND} -E tar "cfvz" "${LIBDIR}/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.tar.gz" "."
-		COMMAND ${CMAKE_COMMAND} -E copy_directory ${LIBDIR}/python/ ${HARVEST_TARGET}/python/ 
-		COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/python${PYTHON_SHORT_VERSION_NO_DOTS}.tar.gz ${HARVEST_TARGET}/Release/python${PYTHON_SHORT_VERSION_NO_DOTS}.tar.gz 
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${LIBDIR}/python/ ${HARVEST_TARGET}/python/
+		COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.tar.gz ${HARVEST_TARGET}/Release/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.tar.gz
 	)
 
 	add_custom_target(Package_Python ALL DEPENDS external_python ${LIBDIR}/python${PYTHON_SHORT_VERSION_NO_DOTS}${PYTHON_POSTFIX}.tar.gz ${BUILD_DIR}/python/src/external_python/redist/bin/python${PYTHON_POSTFIX}.exe)
@@ -151,4 +171,16 @@ if(MSVC)
 		COMMAND	${BUILD_DIR}/python/src/external_python/run/python${PYTHON_POSTFIX}.exe -m ensurepip --upgrade
 	)
 	add_custom_target(Make_Python_Environment ALL DEPENDS ${BUILD_DIR}/python/src/external_python/run/python${PYTHON_POSTFIX}.exe Package_Python)
+endif()
+
+if(UNIX AND NOT APPLE)
+	add_dependencies(
+		external_python
+		external_bzip2
+		external_ffi
+		external_lzma
+		external_ssl
+		external_sqlite
+		external_zlib
+	)
 endif()

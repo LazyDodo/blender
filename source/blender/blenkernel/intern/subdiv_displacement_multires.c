@@ -23,7 +23,7 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/blenkernel/intern/subdiv_displacement.c
+/** \file blender/blenkernel/intern/subdiv_displacement_multires.c
  *  \ingroup bke
  */
 
@@ -118,7 +118,7 @@ static int displacement_get_grid_and_coord(
         SubdivDisplacement *displacement,
         const int ptex_face_index, const float u, const float v,
         const MDisps **r_displacement_grid,
-		float *grid_u, float *grid_v)
+        float *grid_u, float *grid_v)
 {
 	MultiresDisplacementData *data = displacement->user_data;
 	const PolyCornerIndex *poly_corner =
@@ -369,10 +369,9 @@ static int count_num_ptex_faces(const Mesh *mesh)
 }
 
 static void displacement_data_init_mapping(SubdivDisplacement *displacement,
-                                           const Object *object)
+                                           const Mesh *mesh)
 {
 	MultiresDisplacementData *data = displacement->user_data;
-	const Mesh *mesh = (Mesh *)object->data;
 	const MPoly *mpoly = mesh->mpoly;
 	const int num_ptex_faces = count_num_ptex_faces(mesh);
 	/* Allocate memory. */
@@ -388,7 +387,7 @@ static void displacement_data_init_mapping(SubdivDisplacement *displacement,
 			ptex_poly_corner[ptex_face_index].poly_index = poly_index;
 			ptex_poly_corner[ptex_face_index].corner = 0;
 			ptex_face_index++;
-		} 
+		}
 		else {
 			for (int corner = 0; corner < poly->totloop; corner++) {
 				ptex_poly_corner[ptex_face_index].poly_index = poly_index;
@@ -400,15 +399,14 @@ static void displacement_data_init_mapping(SubdivDisplacement *displacement,
 }
 
 static void displacement_init_data(SubdivDisplacement *displacement,
-                                   const Object *object,
+                                   const Mesh *mesh,
                                    const MultiresModifierData *mmd)
 {
 	MultiresDisplacementData *data = displacement->user_data;
-	Mesh *mesh = (Mesh *)object->data;
 	data->grid_size = (1 << (mmd->totlvl - 1)) + 1;
 	data->mpoly = mesh->mpoly;
 	data->mdisps = CustomData_get_layer(&mesh->ldata, CD_MDISPS);
-	displacement_data_init_mapping(displacement, object);
+	displacement_data_init_mapping(displacement, mesh);
 }
 
 static void displacement_init_functions(SubdivDisplacement *displacement)
@@ -419,21 +417,17 @@ static void displacement_init_functions(SubdivDisplacement *displacement)
 
 void BKE_subdiv_displacement_attach_from_multires(
         Subdiv *subdiv,
-        const Object *object,
+        const Mesh *mesh,
         const MultiresModifierData *mmd)
 {
-	if (object->type != OB_MESH) {
-		BLI_assert(!"Should never be called for non-mesh objects");
-		return;
-	}
 	/* Make sure we dont' have previously assigned displacement. */
 	BKE_subdiv_displacement_detach(subdiv);
 	/* Allocate all required memory. */
 	SubdivDisplacement *displacement = MEM_callocN(sizeof(SubdivDisplacement),
 	                                               "multires displacement");
 	displacement->user_data = MEM_callocN(sizeof(MultiresDisplacementData),
-			                              "multires displacement data");
-    displacement_init_data(displacement, object, mmd);
+	                                      "multires displacement data");
+	displacement_init_data(displacement, mesh, mmd);
 	displacement_init_functions(displacement);
 	/* Finish. */
 	subdiv->displacement_evaluator = displacement;

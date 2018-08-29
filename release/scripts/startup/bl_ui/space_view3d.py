@@ -20,7 +20,7 @@
 import bpy
 from bpy.types import Header, Menu, Panel
 from .properties_paint_common import UnifiedPaintPanel
-from .properties_grease_pencil_common import GreasePencilDataPanel
+from .properties_grease_pencil_common import AnnotationDataPanel
 from bpy.app.translations import contexts as i18n_contexts
 
 
@@ -305,6 +305,7 @@ class VIEW3D_MT_editor_menus(Menu):
                 layout.menu("VIEW3D_MT_edit_mesh_vertices")
                 layout.menu("VIEW3D_MT_edit_mesh_edges")
                 layout.menu("VIEW3D_MT_edit_mesh_faces")
+                layout.menu("VIEW3D_MT_uv_map", text="UV")
 
         elif obj:
             if mode_string != 'PAINT_TEXTURE':
@@ -541,7 +542,7 @@ class VIEW3D_MT_edit_proportional(Menu):
 
         layout.separator()
 
-        layout.label("Falloff:")
+        layout.label(text="Falloff:")
         layout.props_enum(tool_settings, "proportional_edit_falloff")
 
 
@@ -637,7 +638,7 @@ class VIEW3D_MT_view_navigation(Menu):
         layout = self.layout
 
         layout.operator_enum("view3d.view_orbit", "type")
-        props = layout.operator("view3d.view_orbit", "Orbit Opposite")
+        props = layout.operator("view3d.view_orbit", text="Orbit Opposite")
         props.type = 'ORBITRIGHT'
         props.angle = pi
 
@@ -2666,10 +2667,6 @@ class VIEW3D_MT_edit_mesh(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_uv_map", text="UV Unwrap...")
-
-        layout.separator()
-
         layout.operator("mesh.duplicate_move", text="Duplicate")
         layout.menu("VIEW3D_MT_edit_mesh_extrude")
         layout.operator("mesh.split")
@@ -3072,8 +3069,8 @@ class VIEW3D_MT_edit_mesh_normals(Menu):
         layout.operator("mesh.smoothen_normals", text="Smoothen")
 
         layout.label(text="Face Strength")
-        layout.operator("mesh.mod_weighted_strength", text="Face select", icon = "FACESEL").set = False
-        layout.operator("mesh.mod_weighted_strength", text="Set Strength", icon = "ZOOMIN").set = True
+        layout.operator("mesh.mod_weighted_strength", text="Face Select", icon='FACESEL').set = False
+        layout.operator("mesh.mod_weighted_strength", text="Set Strength", icon='ZOOMIN').set = True
 
 
 class VIEW3D_MT_edit_mesh_shading(Menu):
@@ -3576,6 +3573,28 @@ class VIEW3D_MT_assign_material(Menu):
             layout.operator("gpencil.stroke_change_color", text=mat.name).material = mat.name
 
 
+class VIEW3D_MT_gpencil_copy_layer(Menu):
+    bl_label = "Copy Layer to Object"
+
+    def draw(self, context):
+        layout = self.layout
+        view_layer = context.view_layer
+        obact = context.active_object
+        gpl = context.active_gpencil_layer
+
+        done = False
+        if gpl is not None:
+            for ob in view_layer.objects:
+                if ob.type == 'GPENCIL' and ob != obact:
+                    layout.operator("gpencil.layer_duplicate_object", text=ob.name).object = ob.name
+                    done = True
+
+            if done is False:
+                layout.label(text="No destination object", icon="ERROR")
+        else:
+            layout.label(text="No layer to copy", icon="ERROR")
+
+
 class VIEW3D_MT_edit_gpencil(Menu):
     bl_label = "Strokes"
 
@@ -3633,7 +3652,7 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator_menu_enum("gpencil.frame_clean_fill", text="Clean Boundary Strokes...", property="mode")
+        layout.menu("GPENCIL_MT_cleanup")
 
 
 class VIEW3D_MT_sculpt_gpencil(Menu):
@@ -3929,13 +3948,13 @@ class VIEW3D_PT_shading_lighting(Panel):
         shading = VIEW3D_PT_shading.get_shading(context)
 
         col = layout.column()
-        split = col.split(0.9)
+        split = col.split(factor=0.9)
 
         if shading.type == 'SOLID':
             split.row().prop(shading, "light", expand=True)
             col = split.column()
 
-            split = layout.split(0.9)
+            split = layout.split(factor=0.9)
             col = split.column()
             sub = col.row()
             sub.scale_y = 0.6  # smaller matcap/hdri preview
@@ -3962,7 +3981,7 @@ class VIEW3D_PT_shading_lighting(Panel):
 
             if not shading.use_scene_world:
                 col = layout.column()
-                split = col.split(0.9)
+                split = col.split(factor=0.9)
 
                 col = split.column()
                 sub = col.row()
@@ -3973,7 +3992,7 @@ class VIEW3D_PT_shading_lighting(Panel):
                 col.operator('wm.studiolight_userpref_show', emboss=False, text="", icon='PREFERENCES')
 
                 if shading.selected_studio_light.orientation == 'WORLD':
-                    split = layout.split(0.9)
+                    split = layout.split(factor=0.9)
                     col = split.column()
                     col.prop(shading, "studiolight_rotate_z", text="Rotation")
                     col.prop(shading, "studiolight_background_alpha")
@@ -3991,19 +4010,26 @@ class VIEW3D_PT_shading_color(Panel):
         shading = VIEW3D_PT_shading.get_shading(context)
         return shading.type == 'SOLID'
 
-    def draw(self, context):
+    def _draw_color_type(self, context):
         layout = self.layout
-
         shading = VIEW3D_PT_shading.get_shading(context)
 
         layout.row().prop(shading, 'color_type', expand=True)
         if shading.color_type == 'SINGLE':
             layout.row().prop(shading, 'single_color', text="")
 
-        layout.row().label("Background")
+    def _draw_background_color(self, context):
+        layout = self.layout
+        shading = VIEW3D_PT_shading.get_shading(context)
+
+        layout.row().label(text="Background")
         layout.row().prop(shading, 'background_type', expand=True)
         if shading.background_type == 'VIEWPORT':
             layout.row().prop(shading, "background_color", text="")
+
+    def draw(self, context):
+        self._draw_color_type(context)
+        self._draw_background_color(context)
 
 
 class VIEW3D_PT_shading_options(Panel):
@@ -4661,7 +4687,7 @@ class VIEW3D_PT_pivot_point(Panel):
 
         layout = self.layout
         col = layout.column()
-        col.label("Pivot Point")
+        col.label(text="Pivot Point")
         col.prop(toolsettings, "transform_pivot_point", expand=True)
 
         if (obj is None) or (mode in {'OBJECT', 'POSE', 'WEIGHT_PAINT'}):
@@ -4688,7 +4714,7 @@ class VIEW3D_PT_snapping(Panel):
 
         layout = self.layout
         col = layout.column()
-        col.label("Snapping")
+        col.label(text="Snapping")
         col.prop(toolsettings, "snap_elements", expand=True)
 
         col.separator()
@@ -4696,7 +4722,7 @@ class VIEW3D_PT_snapping(Panel):
             col.prop(toolsettings, "use_snap_grid_absolute")
 
         if snap_elements != {'INCREMENT'}:
-            col.label("Target")
+            col.label(text="Target")
             row = col.row(align=True)
             row.prop(toolsettings, "snap_target", expand=True)
 
@@ -4721,7 +4747,7 @@ class VIEW3D_PT_transform_orientations(Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label("Transform Orientations")
+        layout.label(text="Transform Orientations")
 
         scene = context.scene
         orientation = scene.current_orientation
@@ -4819,7 +4845,7 @@ class VIEW3D_PT_quad_view(Panel):
 
 
 # Annotation properties
-class VIEW3D_PT_grease_pencil(GreasePencilDataPanel, Panel):
+class VIEW3D_PT_grease_pencil(AnnotationDataPanel, Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
 
@@ -4948,6 +4974,12 @@ class VIEW3D_MT_gpencil_edit_specials(Menu):
         layout.operator("gpencil.stroke_split", text="Split")
 
         layout.separator()
+        layout.operator_menu_enum("gpencil.stroke_arrange", "direction", text="Arrange Strokes")
+
+        layout.separator()
+        layout.menu("VIEW3D_MT_gpencil_copy_layer")
+
+        layout.separator()
 
         layout.operator("gpencil.stroke_join", text="Join").type = 'JOIN'
         layout.operator("gpencil.stroke_join", text="Join & Copy").type = 'JOINCOPY'
@@ -4959,7 +4991,7 @@ class VIEW3D_MT_gpencil_edit_specials(Menu):
 
         if is_3d_view:
             layout.separator()
-            layout.operator("gpencil.reproject")
+            layout.menu("GPENCIL_MT_cleanup")
 
 
 class VIEW3D_MT_gpencil_sculpt_specials(Menu):
@@ -5098,6 +5130,7 @@ classes = (
     VIEW3D_MT_weight_gpencil,
     VIEW3D_MT_gpencil_animation,
     VIEW3D_MT_gpencil_simplify,
+    VIEW3D_MT_gpencil_copy_layer,
     VIEW3D_MT_edit_curve,
     VIEW3D_MT_edit_curve_ctrlpoints,
     VIEW3D_MT_edit_curve_segments,

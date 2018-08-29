@@ -156,8 +156,7 @@ static void rna_uiItemEnumR_string(
 	/* Get translated name (label). */
 	name = rna_translate_ui_text(name, text_ctxt, NULL, prop, translate);
 
-	/* XXX This will search property again :( */
-	uiItemEnumR_string(layout, ptr, propname, value, name, icon);
+	uiItemEnumR_string_prop(layout, ptr, prop, value, name, icon);
 }
 
 static void rna_uiItemPointerR(
@@ -166,17 +165,20 @@ static void rna_uiItemPointerR(
         const char *name, const char *text_ctxt, bool translate, int icon)
 {
 	PropertyRNA *prop = RNA_struct_find_property(ptr, propname);
-
 	if (!prop) {
 		RNA_warning("property not found: %s.%s", RNA_struct_identifier(ptr->type), propname);
+		return;
+	}
+	PropertyRNA *searchprop = RNA_struct_find_property(searchptr, searchpropname);
+	if (!searchprop) {
+		RNA_warning("property not found: %s.%s", RNA_struct_identifier(searchptr->type), searchpropname);
 		return;
 	}
 
 	/* Get translated name (label). */
 	name = rna_translate_ui_text(name, text_ctxt, NULL, prop, translate);
 
-	/* XXX This will search property again :( */
-	uiItemPointerR(layout, ptr, propname, searchptr, searchpropname, name, icon);
+	uiItemPointerR_prop(layout, ptr, prop, searchptr, searchprop, name, icon);
 }
 
 static PointerRNA rna_uiItemO(
@@ -541,7 +543,10 @@ void RNA_api_ui_layout(StructRNA *srna)
 	func = RNA_def_function(srna, "split", "uiLayoutSplit");
 	parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
 	RNA_def_function_return(func, parm);
-	RNA_def_float(func, "percentage", 0.0f, 0.0f, 1.0f, "Percentage", "Percentage of width to split at", 0.0f, 1.0f);
+	RNA_def_float(
+	        func, "factor", 0.0f, 0.0f, 1.0f, "Percentage",
+	        "Percentage of width to split at (leave unset for automatic calculation)",
+	        0.0f, 1.0f);
 	RNA_def_boolean(func, "align", false, "", "Align buttons to each other");
 
 	/* radial/pie layout */
@@ -787,7 +792,7 @@ void RNA_api_ui_layout(StructRNA *srna)
 	api_ui_item_rna_common(func);
 	RNA_def_string(func, "new", NULL, 0, "", "Operator identifier to create a new ID block");
 	RNA_def_string(func, "open", NULL, 0, "", "Operator identifier to open a file for creating a new ID block");
-	RNA_def_string(func, "unlink", NULL, 0, "", "Operator identifier to unlink the ID block");
+	RNA_def_string(func, "menu", NULL, 0, "", "Context menu identifier");
 	RNA_def_enum(func, "filter", id_template_filter_items, UI_TEMPLATE_ID_FILTER_ALL,
 	             "", "Optionally limit the items which can be selected");
 
@@ -883,6 +888,7 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_boolean(func, "levels", false, "", "Show black/white levels");
 	RNA_def_boolean(func, "brush", false, "", "Show brush options");
 	RNA_def_boolean(func, "use_negative_slope", false, "", "Use a negative slope by default");
+	RNA_def_boolean(func, "show_tone", false, "", "Show tone options");
 
 	func = RNA_def_function(srna, "template_color_ramp", "uiTemplateColorRamp");
 	RNA_def_function_ui_description(func, "Item. A color ramp widget");
@@ -1000,10 +1006,11 @@ void RNA_api_ui_layout(StructRNA *srna)
 	parm = RNA_def_string(func, "list_id", NULL, 0, "",
 	                      "Identifier of this list widget (mandatory when using default \"" UI_UL_DEFAULT_CLASS_NAME
 	                      "\" class). "
-	                      "If this is set, the uilist gets a custom ID, otherwise it takes the "
+	                      "If this not an empty string, the uilist gets a custom ID, otherwise it takes the "
 	                      "name of the class used to define the uilist (for example, if the "
 	                      "class name is \"OBJECT_UL_vgroups\", and list_id is not set by the "
 	                      "script, then bl_idname = \"OBJECT_UL_vgroups\")");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "dataptr", "AnyType", "", "Data from which to take the Collection property");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED | PARM_RNAPTR);
 	parm = RNA_def_string(func, "propname", NULL, 0, "", "Identifier of the Collection property in data");

@@ -39,6 +39,7 @@ void DRW_shape_cache_reset(void);
 struct GPUBatch *DRW_cache_cursor_get(bool crosshair_lines);
 
 /* Common Shapes */
+struct GPUBatch *DRW_cache_grid_get(void);
 struct GPUBatch *DRW_cache_fullscreen_quad_get(void);
 struct GPUBatch *DRW_cache_quad_get(void);
 struct GPUBatch *DRW_cache_cube_get(void);
@@ -70,8 +71,6 @@ struct GPUBatch *DRW_cache_empty_cylinder_get(void);
 struct GPUBatch *DRW_cache_empty_cone_get(void);
 struct GPUBatch *DRW_cache_empty_capsule_cap_get(void);
 struct GPUBatch *DRW_cache_empty_capsule_body_get(void);
-struct GPUBatch *DRW_cache_arrows_get(void);
-struct GPUBatch *DRW_cache_axis_names_get(void);
 struct GPUBatch *DRW_cache_image_plane_get(void);
 struct GPUBatch *DRW_cache_image_plane_wire_get(void);
 
@@ -93,7 +92,9 @@ struct GPUBatch *DRW_cache_lamp_area_square_get(void);
 struct GPUBatch *DRW_cache_lamp_area_disk_get(void);
 struct GPUBatch *DRW_cache_lamp_hemi_get(void);
 struct GPUBatch *DRW_cache_lamp_spot_get(void);
+struct GPUBatch *DRW_cache_lamp_spot_volume_get(void);
 struct GPUBatch *DRW_cache_lamp_spot_square_get(void);
+struct GPUBatch *DRW_cache_lamp_spot_square_volume_get(void);
 
 /* Camera */
 struct GPUBatch *DRW_cache_camera_get(void);

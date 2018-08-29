@@ -494,7 +494,9 @@ static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports
 	stroke->totpoints--;
 
 	stroke->points = MEM_callocN(sizeof(bGPDspoint) * stroke->totpoints, "gp_stroke_points");
-	stroke->dvert = MEM_callocN(sizeof(MDeformVert) * stroke->totpoints, "gp_stroke_weights");
+	if (pt_dvert != NULL) {
+		stroke->dvert = MEM_callocN(sizeof(MDeformVert) * stroke->totpoints, "gp_stroke_weights");
+	}
 
 	if (index > 0) {
 		memcpy(stroke->points, pt_tmp, sizeof(bGPDspoint) * index);
@@ -1306,7 +1308,7 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Keep Thickness", "Maintain the thickness of the stroke when the viewport zoom changes");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
-	prop = RNA_def_property(srna, "pixfactor", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "pixel_factor", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "pixfactor");
 	RNA_def_property_range(prop, 0.1f, 30.0f);
 	RNA_def_property_ui_range(prop, 0.1f, 30.0f, 1, 2);
@@ -1316,6 +1318,11 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_MULTIEDIT);
 	RNA_def_property_ui_text(prop, "MultiFrame", "Edit strokes from multiple grease pencil keyframes at the same time (keyframes must be selected to be included)");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "use_force_fill_recalc", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_FORCE_RECALC);
+	RNA_def_property_ui_text(prop, "Force Fill Update", "Force recalc of fill data after use deformation modifiers (reduce FPS)");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "edit_line_color", PROP_FLOAT, PROP_COLOR_GAMMA);

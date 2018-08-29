@@ -155,6 +155,8 @@ set(SRC
 	intern/modifier.c
 	intern/movieclip.c
 	intern/multires.c
+	intern/multires_reshape.c
+	intern/multires_subdiv.c
 	intern/nla.c
 	intern/node.c
 	intern/object.c
@@ -197,6 +199,7 @@ set(SRC
 	intern/subdiv_displacement.c
 	intern/subdiv_displacement_multires.c
 	intern/subdiv_eval.c
+	intern/subdiv_foreach.c
 	intern/subdiv_mesh.c
 	intern/subdiv_stats.c
 	intern/subsurf_ccg.c

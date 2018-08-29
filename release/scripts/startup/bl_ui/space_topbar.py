@@ -47,8 +47,8 @@ class TOPBAR_HT_upper_bar(Header):
         if not screen.show_fullscreen:
             layout.template_ID_tabs(
                 window, "workspace",
-                new="workspace.workspace_add_menu",
-                unlink="workspace.workspace_delete",
+                new="workspace.add_menu",
+                menu="TOPBAR_MT_workspace_menu",
             )
         else:
             layout.operator(
@@ -127,7 +127,9 @@ class TOPBAR_HT_lower_bar(Header):
         elif mode == 'POSE':
             pass
         elif mode == 'PARTICLE':
-            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            # Disable, only shows "Brush" panel, which is already in the top-bar.
+            # layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            pass
         elif mode == 'GPENCIL_PAINT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
 
@@ -233,18 +235,19 @@ class _draw_left_context_mode:
             layout.prop(brush, "size", slider=True)
             if tool == 'ADD':
                 layout.prop(brush, "count")
-            else:
-                layout.prop(brush, "strength", slider=True)
 
-            if tool == 'ADD':
                 layout.prop(settings, "use_default_interpolate")
                 layout.prop(brush, "steps", slider=True)
                 layout.prop(settings, "default_key_count", slider=True)
-            elif tool == 'LENGTH':
-                layout.row().prop(brush, "length_mode", expand=True)
-            elif tool == 'PUFF':
-                layout.row().prop(brush, "puff_mode", expand=True)
-                layout.prop(brush, "use_puff_volume")
+            else:
+                layout.prop(brush, "strength", slider=True)
+
+                if tool == 'LENGTH':
+                    layout.row().prop(brush, "length_mode", expand=True)
+                elif tool == 'PUFF':
+                    layout.row().prop(brush, "puff_mode", expand=True)
+                    layout.prop(brush, "use_puff_volume")
+
 
 class INFO_MT_editor_menus(Menu):
     bl_idname = "INFO_MT_editor_menus"
@@ -504,6 +507,11 @@ class INFO_MT_window(Menu):
 
         layout.separator()
 
+        layout.prop(context.screen, "show_topbar")
+        layout.prop(context.screen, "show_statusbar")
+
+        layout.separator()
+
         layout.operator("screen.screenshot")
 
         if sys.platform[:3] == "win":
@@ -617,11 +625,23 @@ class TOPBAR_MT_window_specials(Menu):
         layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
 
 
+class TOPBAR_MT_workspace_menu(Menu):
+    bl_label = "Workspace"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("workspace.duplicate", text="Duplicate")
+        if len(bpy.data.workspaces) > 1:
+            layout.operator("workspace.delete", text="Delete")
+
+
 classes = (
     TOPBAR_HT_upper_bar,
     TOPBAR_HT_lower_bar,
     TOPBAR_MT_file_specials,
     TOPBAR_MT_window_specials,
+    TOPBAR_MT_workspace_menu,
     INFO_MT_editor_menus,
     INFO_MT_file,
     INFO_MT_file_import,

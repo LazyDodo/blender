@@ -121,7 +121,7 @@ void gizmo_property_data_update(
 		return;
 	}
 
-	float value = WM_gizmo_target_property_value_get(gz, gz_prop);
+	float value = WM_gizmo_target_property_float_get(gz, gz_prop);
 
 	if (constrained) {
 		if ((data->flag & GIZMO_CUSTOM_RANGE_SET) == 0) {
@@ -145,7 +145,7 @@ void gizmo_property_value_reset(
         bContext *C, const wmGizmo *gz, GizmoInteraction *inter,
         wmGizmoProperty *gz_prop)
 {
-	WM_gizmo_target_property_value_set(C, gz, gz_prop, inter->init_value);
+	WM_gizmo_target_property_float_set(C, gz, gz_prop, inter->init_value);
 }
 
 /* -------------------------------------------------------------------- */
@@ -214,7 +214,7 @@ bool gizmo_window_project_2d(
 		float co[3] = {mval[0], mval[1], 0.0f};
 		float imat[4][4];
 		invert_m4_m4(imat, mat);
-		mul_mat3_m4_v3(imat, co);
+		mul_m4_v3(imat, co);
 		copy_v2_v2(r_co, co);
 		return true;
 	}

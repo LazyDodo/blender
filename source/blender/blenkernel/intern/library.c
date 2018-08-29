@@ -785,6 +785,14 @@ bool id_single_user(bContext *C, ID *id, PointerRNA *ptr, PropertyRNA *prop)
 				RNA_property_pointer_set(ptr, prop, idptr);
 				RNA_property_update(C, ptr, prop);
 
+				/* tag grease pencil datablock and disable onion */
+				if (GS(id->name) == ID_GD) {
+					DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA);
+					DEG_id_tag_update(newid, OB_RECALC_OB | OB_RECALC_DATA);
+					bGPdata *gpd = (bGPdata *)newid;
+					gpd->flag &= ~GP_DATA_SHOW_ONIONSKINS;
+				}
+
 				return true;
 			}
 		}
@@ -2525,6 +2533,25 @@ void BKE_id_ui_prefix(char name[MAX_ID_NAME + 1], const ID *id)
 	name[2] = ' ';
 
 	strcpy(name + 3, id->name + 2);
+}
+
+/**
+ * Returns an allocated string concatenating ID name (including two-chars type code) and its lib name if any,
+ * which is expected to be unique in a given Main database..
+ */
+char *BKE_id_to_unique_string_key(const struct ID *id)
+{
+	const size_t key_len_base = strlen(id->name) + 1;
+	const size_t key_len_ext = ((id->lib != NULL) ? strlen(id->lib->name) : 0) + 1;
+	const size_t key_len = key_len_base + key_len_ext - 1;
+	char *key = MEM_mallocN(key_len, __func__);
+
+	BLI_strncpy(key, id->name, key_len_base);
+	if (id->lib != NULL) {
+		BLI_strncpy(key + key_len_base - 1, id->lib->name, key_len_ext);
+	}
+
+	return key;
 }
 
 void BKE_library_filepath_set(Main *bmain, Library *lib, const char *filepath)

@@ -31,6 +31,12 @@ if(WIN32)
 		--disable-pthreads
 		--enable-libopenjpeg
 	)
+	if("${CMAKE_SIZEOF_VOID_P}" EQUAL "4")
+		set(FFMPEG_EXTRA_FLAGS
+			${FFMPEG_EXTRA_FLAGS}
+			--x86asmexe=yasm
+		)
+	endif()
 else()
 	set(FFMPEG_EXTRA_FLAGS
 		${FFMPEG_EXTRA_FLAGS}
@@ -51,6 +57,11 @@ ExternalProject_Add(external_ffmpeg
 	URL ${FFMPEG_URI}
 	DOWNLOAD_DIR ${DOWNLOAD_DIR}
 	URL_HASH MD5=${FFMPEG_HASH}
+	# OpenJpeg is compiled with pthread support on Linux, which is all fine and is what we
+	# want for maximum runtime performance, but due to static nature of that library we
+	# need to force ffmpeg to link against pthread, otherwise test program used by autoconf
+	# will fail. This patch does that in a way that is compatible with multiple distributions.
+	PATCH_COMMAND ${PATCH_CMD} --verbose -p 1 -N -d ${BUILD_DIR}/ffmpeg/src/external_ffmpeg < ${PATCH_DIR}/ffmpeg.diff
 	PREFIX ${BUILD_DIR}/ffmpeg
 	CONFIGURE_COMMAND ${CONFIGURE_ENV_NO_PERL} &&
 		cd ${BUILD_DIR}/ffmpeg/src/external_ffmpeg/ &&
@@ -138,5 +149,3 @@ if(BUILD_MODE STREQUAL Release AND WIN32)
 		DEPENDEES install
 	)
 endif()
-
-

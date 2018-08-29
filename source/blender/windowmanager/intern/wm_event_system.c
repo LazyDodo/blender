@@ -1871,13 +1871,15 @@ static void wm_event_modalkeymap(const bContext *C, wmOperator *op, wmEvent *eve
 
 		for (kmi = keymap->items.first; kmi; kmi = kmi->next) {
 			if (wm_eventmatch(event, kmi)) {
-
-				event->prevtype = event->type;
-				event->prevval = event->val;
-				event->type = EVT_MODAL_MAP;
-				event->val = kmi->propvalue;
-
-				break;
+				if ((keymap->poll_modal_item == NULL) ||
+				    (keymap->poll_modal_item(op, kmi->propvalue)))
+				{
+					event->prevtype = event->type;
+					event->prevval = event->val;
+					event->type = EVT_MODAL_MAP;
+					event->val = kmi->propvalue;
+					break;
+				}
 			}
 		}
 	}
@@ -4383,6 +4385,7 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
 	bScreen *screen = WM_window_get_active_screen(win);
 	ScrArea *sa_statusbar = WM_window_status_area_find(win, screen);
 	if (sa_statusbar == NULL) {
+		MEM_SAFE_FREE(win->cursor_keymap_status);
 		return;
 	}
 

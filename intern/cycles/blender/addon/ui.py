@@ -129,15 +129,15 @@ def draw_samples_info(layout, context):
     if use_branched_path(context) or (cscene.use_square_samples and integrator == 'PATH'):
         col = layout.column(align=True)
         col.scale_y = 0.6
-        col.label("Total Samples:")
+        col.label(text="Total Samples:")
         col.separator()
         if integrator == 'PATH':
-            col.label("%s AA" % aa)
+            col.label(text="%s AA" % aa)
         else:
-            col.label("%s AA, %s Diffuse, %s Glossy, %s Transmission" %
+            col.label(text="%s AA, %s Diffuse, %s Glossy, %s Transmission" %
                       (aa, d * aa, g * aa, t * aa))
             col.separator()
-            col.label("%s AO, %s Mesh Light, %s Subsurface, %s Volume" %
+            col.label(text="%s AO, %s Mesh Light, %s Subsurface, %s Volume" %
                       (ao * aa, ml * aa, sss * aa, vol * aa))
 
 
@@ -150,7 +150,6 @@ class CYCLES_RENDER_PT_sampling(CyclesButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False
 
         scene = context.scene
         cscene = scene.cycles
@@ -165,31 +164,70 @@ class CYCLES_RENDER_PT_sampling(CyclesButtonsPanel, Panel):
             col.prop(cscene, "preview_samples", text="Viewport")
             col.separator()
             col.prop(cscene, "use_square_samples")  # Duplicate below.
+
+
+class CYCLES_RENDER_PT_sampling_aa_samples(CyclesButtonsPanel, Panel):
+    bl_label = "AA Samples"
+    bl_parent_id = "CYCLES_RENDER_PT_sampling"
+
+    @classmethod
+    def poll(self, context):
+        scene = context.scene
+        cscene = scene.cycles
+        if cscene.progressive == 'PATH' or use_branched_path(context) is False:
+            return False
         else:
+            return True
 
-            col = layout.column(align=True)
-            col.label(text="AA Samples")
-            col.prop(cscene, "aa_samples", text="Render")
-            col.prop(cscene, "preview_aa_samples", text="Preview")
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
 
-            col = layout.column(align=True)
-            col.label(text="Samples")
-            col.prop(cscene, "diffuse_samples", text="Diffuse")
-            col.prop(cscene, "glossy_samples", text="Glossy")
-            col.prop(cscene, "transmission_samples", text="Transmission")
-            col.prop(cscene, "ao_samples", text="AO")
+        scene = context.scene
+        cscene = scene.cycles
 
-            sub = col.row(align=True)
-            sub.active = use_sample_all_lights(context)
-            sub.prop(cscene, "mesh_light_samples", text="Mesh Light")
-            col.prop(cscene, "subsurface_samples", text="Subsurface")
-            col.prop(cscene, "volume_samples", text="Volume")
-            col.separator()
-            col.prop(cscene, "use_square_samples")  # Duplicate above.
+        col = layout.column(align=True)
+        col.prop(cscene, "aa_samples", text="Render")
+        col.prop(cscene, "preview_aa_samples", text="Preview")
 
-            col = layout.column(align=True)
-            col.prop(cscene, "sample_all_lights_direct")
-            col.prop(cscene, "sample_all_lights_indirect")
+
+class CYCLES_RENDER_PT_sampling_samples(CyclesButtonsPanel, Panel):
+    bl_label = "Samples"
+    bl_parent_id = "CYCLES_RENDER_PT_sampling"
+
+    @classmethod
+    def poll(self, context):
+        scene = context.scene
+        cscene = scene.cycles
+        if cscene.progressive == 'PATH' or use_branched_path(context) is False:
+            return False
+        else:
+            return True
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        scene = context.scene
+        cscene = scene.cycles
+
+        col = layout.column(align=True)
+        col.prop(cscene, "diffuse_samples", text="Diffuse")
+        col.prop(cscene, "glossy_samples", text="Glossy")
+        col.prop(cscene, "transmission_samples", text="Transmission")
+        col.prop(cscene, "ao_samples", text="AO")
+
+        sub = col.row(align=True)
+        sub.active = use_sample_all_lights(context)
+        sub.prop(cscene, "mesh_light_samples", text="Mesh Light")
+        col.prop(cscene, "subsurface_samples", text="Subsurface")
+        col.prop(cscene, "volume_samples", text="Volume")
+        col.separator()
+        col.prop(cscene, "use_square_samples")  # Duplicate above.
+
+        col = layout.column(align=True)
+        col.prop(cscene, "sample_all_lights_direct")
+        col.prop(cscene, "sample_all_lights_indirect")
 
         row = layout.row(align=True)
         row.prop(cscene, "seed")
@@ -617,13 +655,13 @@ class CYCLES_RENDER_PT_filter(CyclesButtonsPanel, Panel):
         view_layer = context.view_layer
 
         col = layout.column()
-        col.prop(view_layer, "use_sky", "Use Environment")
-        col.prop(view_layer, "use_ao", "Use Ambient Occlusion")
-        col.prop(view_layer, "use_solid", "Use Surfaces")
-        col.prop(view_layer, "use_strand", "Use Hair")
+        col.prop(view_layer, "use_sky", text="Use Environment")
+        col.prop(view_layer, "use_ao", text="Use Ambient Occlusion")
+        col.prop(view_layer, "use_solid", text="Use Surfaces")
+        col.prop(view_layer, "use_strand", text="Use Hair")
         if with_freestyle:
             row = col.row()
-            row.prop(view_layer, "use_freestyle", "Use Freestyle")
+            row.prop(view_layer, "use_freestyle", text="Use Freestyle")
             row.active = rd.use_freestyle
 
 
@@ -764,28 +802,28 @@ class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
 
         layout.use_property_split = False
 
-        split = layout.split(percentage=0.5)
+        split = layout.split(factor=0.5)
         split.label(text="Diffuse")
         col = split.column()
         row = col.row(align=True)
         row.prop(cycles_view_layer, "denoising_diffuse_direct", text="Direct", toggle=True)
         row.prop(cycles_view_layer, "denoising_diffuse_indirect", text="Indirect", toggle=True)
 
-        split = layout.split(percentage=0.5)
+        split = layout.split(factor=0.5)
         split.label(text="Glossy")
         col = split.column()
         row = col.row(align=True)
         row.prop(cycles_view_layer, "denoising_glossy_direct", text="Direct", toggle=True)
         row.prop(cycles_view_layer, "denoising_glossy_indirect", text="Indirect", toggle=True)
 
-        split = layout.split(percentage=0.5)
+        split = layout.split(factor=0.5)
         split.label(text="Transmission")
         col = split.column()
         row = col.row(align=True)
         row.prop(cycles_view_layer, "denoising_transmission_direct", text="Direct", toggle=True)
         row.prop(cycles_view_layer, "denoising_transmission_indirect", text="Indirect", toggle=True)
 
-        split = layout.split(percentage=0.5)
+        split = layout.split(factor=0.5)
         split.label(text="Subsurface")
         col = split.column()
         row = col.row(align=True)
@@ -936,7 +974,7 @@ class CYCLES_PT_context_material(CyclesButtonsPanel, Panel):
                 row.operator("object.material_slot_select", text="Select")
                 row.operator("object.material_slot_deselect", text="Deselect")
 
-        split = layout.split(percentage=0.65)
+        split = layout.split(factor=0.65)
 
         if ob:
             split.template_ID(ob, "active_material", new="material.new")
@@ -1633,7 +1671,7 @@ class CYCLES_RENDER_PT_debug(CyclesButtonsPanel, Panel):
 
         col = layout.column()
 
-        col.label('CPU Flags:')
+        col.label(text="CPU Flags:")
         row = col.row(align=True)
         row.prop(cscene, "debug_use_cpu_sse2", toggle=True)
         row.prop(cscene, "debug_use_cpu_sse3", toggle=True)
@@ -1646,14 +1684,14 @@ class CYCLES_RENDER_PT_debug(CyclesButtonsPanel, Panel):
         col.separator()
 
         col = layout.column()
-        col.label('CUDA Flags:')
+        col.label(text="CUDA Flags:")
         col.prop(cscene, "debug_use_cuda_adaptive_compile")
         col.prop(cscene, "debug_use_cuda_split_kernel")
 
         col.separator()
 
         col = layout.column()
-        col.label('OpenCL Flags:')
+        col.label(text="OpenCL Flags:")
         col.prop(cscene, "debug_opencl_kernel_type", text="Kernel")
         col.prop(cscene, "debug_opencl_device_type", text="Device")
         col.prop(cscene, "debug_opencl_kernel_single_program", text="Single Program")
@@ -1810,6 +1848,8 @@ classes = (
     CYCLES_MT_sampling_presets,
     CYCLES_MT_integrator_presets,
     CYCLES_RENDER_PT_sampling,
+    CYCLES_RENDER_PT_sampling_aa_samples,
+    CYCLES_RENDER_PT_sampling_samples,
     CYCLES_RENDER_PT_sampling_light,
     CYCLES_RENDER_PT_geometry,
     CYCLES_RENDER_PT_geometry_subdivision,

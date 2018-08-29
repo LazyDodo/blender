@@ -625,7 +625,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 		workbench_material_copy(material, &material_template);
 		DRW_shgroup_stencil_mask(material->shgrp, (ob->dtx & OB_DRAWXRAY) ? 0x00 : 0xFF);
 		DRW_shgroup_uniform_int(material->shgrp, "object_id", &material->object_id, 1);
-		workbench_material_shgroup_uniform(wpd, material->shgrp, material);
+		workbench_material_shgroup_uniform(wpd, material->shgrp, material, ob);
 
 		BLI_ghash_insert(wpd->material_hash, SET_UINT_IN_POINTER(hash), material);
 	}
@@ -659,7 +659,7 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 			Image *image = NULL;
 			Material *mat = give_current_material(ob, part->omat);
 			ED_object_get_active_image(ob, part->omat, &image, NULL, NULL, NULL);
-			int color_type = workbench_material_determine_color_type(wpd, image);
+			int color_type = workbench_material_determine_color_type(wpd, image, ob);
 			WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 
 			struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR) ?
@@ -671,7 +671,7 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 			        shader);
 			DRW_shgroup_stencil_mask(shgrp, (ob->dtx & OB_DRAWXRAY) ? 0x00 : 0xFF);
 			DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
-			workbench_material_shgroup_uniform(wpd, shgrp, material);
+			workbench_material_shgroup_uniform(wpd, shgrp, material, ob);
 		}
 	}
 }
@@ -725,7 +725,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 						Material *mat = give_current_material(ob, i + 1);
 						Image *image;
 						ED_object_get_active_image(ob, i + 1, &image, NULL, NULL, NULL);
-						int color_type = workbench_material_determine_color_type(wpd, image);
+						int color_type = workbench_material_determine_color_type(wpd, image, ob);
 						material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 						DRW_shgroup_call_object_add(material->shgrp, geom_array[i], ob);
 					}
@@ -861,7 +861,7 @@ void workbench_deferred_draw_background(WORKBENCH_Data *vedata)
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	const float clear_depth = 1.0f;
 	const float clear_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-	uint clear_stencil = 0xFF;
+	uint clear_stencil = 0x00;
 
 	DRW_stats_group_start("Clear Background");
 	GPU_framebuffer_bind(fbl->prepass_fb);
@@ -923,8 +923,8 @@ void workbench_deferred_draw_scene(WORKBENCH_Data *vedata)
 		if (GHOST_ENABLED(psl)) {
 			/* We need to set the stencil buffer to 0 where Ghost objects
 			 * else they will get shadow and even badly shadowed. */
-			DRW_pass_state_set(psl->ghost_prepass_pass, DRW_STATE_WRITE_STENCIL);
-			DRW_pass_state_set(psl->ghost_prepass_hair_pass, DRW_STATE_WRITE_STENCIL);
+			DRW_pass_state_set(psl->ghost_prepass_pass, DRW_STATE_DEPTH_EQUAL | DRW_STATE_WRITE_STENCIL);
+			DRW_pass_state_set(psl->ghost_prepass_hair_pass, DRW_STATE_DEPTH_EQUAL | DRW_STATE_WRITE_STENCIL);
 
 			DRW_draw_pass(psl->ghost_prepass_pass);
 			DRW_draw_pass(psl->ghost_prepass_hair_pass);
@@ -938,6 +938,21 @@ void workbench_deferred_draw_scene(WORKBENCH_Data *vedata)
 	else {
 		GPU_framebuffer_bind(fbl->composite_fb);
 		DRW_draw_pass(psl->composite_pass);
+	}
+
+	/* TODO(fclem): only enable when needed (when there is overlays). */
+	if (GHOST_ENABLED(psl)) {
+		/* In order to not draw on top of ghost objects, we clear the stencil
+		 * to 0xFF and the ghost object to 0x00 and only draw overlays on top if
+		 * stencil is not 0. */
+		GPU_framebuffer_bind(dfbl->depth_only_fb);
+		GPU_framebuffer_clear_stencil(dfbl->depth_only_fb, 0xFF);
+
+		DRW_pass_state_set(psl->ghost_prepass_pass, DRW_STATE_DEPTH_EQUAL | DRW_STATE_WRITE_STENCIL);
+		DRW_pass_state_set(psl->ghost_prepass_hair_pass, DRW_STATE_DEPTH_EQUAL | DRW_STATE_WRITE_STENCIL);
+
+		DRW_draw_pass(psl->ghost_prepass_pass);
+		DRW_draw_pass(psl->ghost_prepass_hair_pass);
 	}
 
 	if (wpd->volumes_do) {

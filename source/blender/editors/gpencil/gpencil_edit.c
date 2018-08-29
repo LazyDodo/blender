@@ -683,6 +683,40 @@ ListBase gp_strokes_copypastebuf = {NULL, NULL};
  */
 static GHash *gp_strokes_copypastebuf_colors = NULL;
 
+static GHash *gp_strokes_copypastebuf_colors_material_to_name_create(Main *bmain)
+{
+	GHash *ma_to_name = BLI_ghash_ptr_new(__func__);
+
+	for (Material *ma = bmain->mat.first; ma != NULL; ma = ma->id.next) {
+		char *name = BKE_id_to_unique_string_key(&ma->id);
+		BLI_ghash_insert(ma_to_name, ma, name);
+	}
+
+	return ma_to_name;
+}
+
+static void gp_strokes_copypastebuf_colors_material_to_name_free(GHash *ma_to_name)
+{
+	BLI_ghash_free(ma_to_name, NULL, MEM_freeN);
+}
+
+static GHash *gp_strokes_copypastebuf_colors_name_to_material_create(Main *bmain)
+{
+	GHash *name_to_ma = BLI_ghash_str_new(__func__);
+
+	for (Material *ma = bmain->mat.first; ma != NULL; ma = ma->id.next) {
+		char *name = BKE_id_to_unique_string_key(&ma->id);
+		BLI_ghash_insert(name_to_ma, name, ma);
+	}
+
+	return name_to_ma;
+}
+
+static void gp_strokes_copypastebuf_colors_name_to_material_free(GHash *name_to_ma)
+{
+	BLI_ghash_free(name_to_ma, MEM_freeN, NULL);
+}
+
 /* Free copy/paste buffer data */
 void ED_gpencil_strokes_copybuf_free(void)
 {
@@ -692,7 +726,7 @@ void ED_gpencil_strokes_copybuf_free(void)
 	 * NOTE: This is done before the strokes so that the ptrs are still safe
 	 */
 	if (gp_strokes_copypastebuf_colors) {
-		BLI_ghash_free(gp_strokes_copypastebuf_colors, NULL, NULL);
+		BLI_ghash_free(gp_strokes_copypastebuf_colors, NULL, MEM_freeN);
 		gp_strokes_copypastebuf_colors = NULL;
 	}
 
@@ -723,16 +757,18 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 {
 	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
-	GHash *new_colors = BLI_ghash_str_new("GPencil Paste Dst Colors");
+	GHash *new_colors = BLI_ghash_int_new("GPencil Paste Dst Colors");
 	GHashIterator gh_iter;
 
 	/* For each color, check if exist and add if not */
+	GHash *name_to_ma = gp_strokes_copypastebuf_colors_name_to_material_create(bmain);
+
 	GHASH_ITER(gh_iter, gp_strokes_copypastebuf_colors) {
-
 		int *key = BLI_ghashIterator_getKey(&gh_iter);
-		Material *ma = BLI_ghashIterator_getValue(&gh_iter);
+		char *ma_name = BLI_ghashIterator_getValue(&gh_iter);
+		Material *ma = BLI_ghash_lookup(name_to_ma, ma_name);
 
-		if (BKE_gpencil_get_material_index(ob, ma) == 0) {
+		if (ma != NULL && BKE_gpencil_get_material_index(ob, ma) == 0) {
 			BKE_object_material_slot_add(bmain, ob);
 			assign_material(bmain, ob, ma, ob->totcol, BKE_MAT_ASSIGN_USERPREF);
 		}
@@ -740,6 +776,8 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 		/* Store this mapping (for use later when pasting) */
 		BLI_ghash_insert(new_colors, key, ma);
 	}
+
+	gp_strokes_copypastebuf_colors_name_to_material_free(name_to_ma);
 
 	return new_colors;
 }
@@ -749,6 +787,7 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 
 static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 
@@ -817,16 +856,19 @@ static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 
 	/* Build up hash of material colors used in these strokes */
 	if (gp_strokes_copypastebuf.first) {
-		gp_strokes_copypastebuf_colors = BLI_ghash_str_new("GPencil CopyBuf Colors");
-		Material *ma = NULL;
+		gp_strokes_copypastebuf_colors = BLI_ghash_int_new("GPencil CopyBuf Colors");
+		GHash *ma_to_name = gp_strokes_copypastebuf_colors_material_to_name_create(bmain);
 		for (bGPDstroke *gps = gp_strokes_copypastebuf.first; gps; gps = gps->next) {
 			if (ED_gpencil_stroke_can_use(C, gps)) {
-				ma = give_current_material(ob, gps->mat_nr + 1);
-				if (BLI_ghash_haskey(gp_strokes_copypastebuf_colors, &gps->mat_nr) == false) {
-					BLI_ghash_insert(gp_strokes_copypastebuf_colors, &gps->mat_nr, ma);
+				char **ma_name_val;
+				if (!BLI_ghash_ensure_p(gp_strokes_copypastebuf_colors, &gps->mat_nr, (void ***)&ma_name_val)) {
+					Material *ma = give_current_material(ob, gps->mat_nr + 1);
+					char *ma_name = BLI_ghash_lookup(ma_to_name, ma);
+					*ma_name_val = MEM_dupallocN(ma_name);
 				}
 			}
 		}
+		gp_strokes_copypastebuf_colors_material_to_name_free(ma_to_name);
 	}
 
 	/* updates (to ensure operator buttons are refreshed, when used via hotkeys) */
@@ -1020,7 +1062,7 @@ void GPENCIL_OT_paste(wmOperatorType *ot)
 	ot->poll = gp_strokes_paste_poll;
 
 	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", copy_type, 0, "Type", "");
@@ -1982,10 +2024,11 @@ static bool gp_snap_poll(bContext *C)
 static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	RegionView3D *rv3d = CTX_wm_region_data(C);
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+	View3D *v3d = CTX_wm_view3d(C);
+	Scene *scene = CTX_data_scene(C);
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obact = CTX_data_active_object(C);
-	const float gridf = rv3d->gridview;
+	const float gridf = ED_view3d_grid_scale(scene, v3d, NULL);
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* only editable and visible layers are considered */
@@ -2879,6 +2922,8 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDspoint *temp_points;
 	const int cuts = RNA_int_get(op->ptr, "number_cuts");
+	MDeformVert *temp_dvert = NULL;
+	MDeformVert *dvert_final = NULL;
 
 	int totnewpoints, oldtotpoints;
 	int i2;
@@ -2900,7 +2945,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 				/* duplicate points in a temp area */
 				temp_points = MEM_dupallocN(gps->points);
 				oldtotpoints = gps->totpoints;
-
+				if (gps->dvert != NULL) {
+					temp_dvert = MEM_dupallocN(gps->dvert);
+				}
 				/* resize the points arrys */
 				gps->totpoints += totnewpoints;
 				gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
@@ -2915,7 +2962,10 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 					bGPDspoint *pt = &temp_points[i];
 					bGPDspoint *pt_final = &gps->points[i2];
 
-					MDeformVert *dvert_final = &gps->dvert[i2];
+					MDeformVert *dvert = NULL;
+					if (gps->dvert != NULL) {
+						dvert = &temp_dvert[i];
+					}
 
 					/* copy current point */
 					copy_v3_v3(&pt_final->x, &pt->x);
@@ -2924,8 +2974,11 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 					pt_final->time = pt->time;
 					pt_final->flag = pt->flag;
 
-					dvert_final->totweight = 0;
-					dvert_final->dw = NULL;
+					if (gps->dvert != NULL) {
+						dvert_final = &gps->dvert[i2];
+						dvert_final->totweight = dvert->totweight;
+						dvert_final->dw = dvert->dw;
+					}
 					i2++;
 
 					/* if next point is selected add a half way point */
@@ -2945,16 +2998,18 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 								pt_final->time = interpf(pt->time, next->time, 0.5f);
 								pt_final->flag |= GP_SPOINT_SELECT;
 
-								dvert_final->totweight = 0;
-								dvert_final->dw = NULL;
-
+								if (gps->dvert != NULL) {
+									dvert_final->totweight = 0;
+									dvert_final->dw = NULL;
+								}
 								i2++;
 							}
 						}
 					}
 				}
 				/* free temp memory */
-				MEM_freeN(temp_points);
+				MEM_SAFE_FREE(temp_points);
+				MEM_SAFE_FREE(temp_dvert);
 			}
 		}
 	}

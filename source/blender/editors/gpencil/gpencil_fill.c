@@ -803,7 +803,7 @@ static void gpencil_points_from_stack(tGPDfill *tgpf)
 		point2D->y = v[1];
 
 		point2D->pressure = 1.0f;
-		point2D->strength = 1.0f;;
+		point2D->strength = 1.0f;
 		point2D->time = 0.0f;
 		point2D++;
 	}
@@ -842,11 +842,15 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	gps->flag |= GP_STROKE_3DSPACE;
 
 	gps->mat_nr = BKE_gpencil_get_material_index(tgpf->ob, tgpf->mat) - 1;
+	if (gps->mat_nr < 0) {
+		BKE_object_material_slot_add(tgpf->bmain, tgpf->ob);
+		assign_material(tgpf->bmain, tgpf->ob, tgpf->mat, tgpf->ob->totcol, BKE_MAT_ASSIGN_USERPREF);
+		gps->mat_nr = tgpf->ob->totcol - 1;
+	}
 
 	/* allocate memory for storage points */
 	gps->totpoints = tgpf->sbuffer_size;
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * tgpf->sbuffer_size, "gp_stroke_points");
-	gps->dvert = MEM_callocN(sizeof(MDeformVert) * tgpf->sbuffer_size, "gp_stroke_weights");
 
 	/* initialize triangle memory to dummy data */
 	gps->tot_triangles = 0;
@@ -865,7 +869,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	pt = gps->points;
 	dvert = gps->dvert;
 	point2D = (tGPspoint *)tgpf->sbuffer;
-	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++, dvert++) {
+	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++) {
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint(
 		        tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob,
@@ -874,11 +878,14 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		        &pt->x);
 
 		pt->pressure = 1.0f;
-		pt->strength = 1.0f;;
+		pt->strength = 1.0f;
 		pt->time = 0.0f;
 
-		dvert->totweight = 0;
-		dvert->dw = NULL;
+		if (gps->dvert != NULL) {
+			dvert->totweight = 0;
+			dvert->dw = NULL;
+			dvert++;
+		}
 	}
 
 	/* smooth stroke */

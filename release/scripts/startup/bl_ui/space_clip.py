@@ -23,8 +23,8 @@ from bpy.types import Panel, Header, Menu, UIList
 from bpy.app.translations import pgettext_iface as iface_
 from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
-    GreasePencilDrawingToolsPanel,
-    GreasePencilDataPanel,
+    AnnotationDrawingToolsPanel,
+    AnnotationDataPanel,
 )
 
 
@@ -756,7 +756,7 @@ class CLIP_PT_tracking_lens(Panel):
         clip = sc.clip
 
         row = layout.row(align=True)
-        sub = row.split(percentage=0.65, align=True)
+        sub = row.split(factor=0.65, align=True)
         if clip.tracking.camera.units == 'MILLIMETERS':
             sub.prop(clip.tracking.camera, "focal_length")
         else:
@@ -842,7 +842,7 @@ class CLIP_PT_marker_display(CLIP_PT_clip_view_panel, Panel):
 
         col = layout.column(align=True)
         row = col.row(align=True)
-        row.prop(sc, "show_disabled", "Disabled")
+        row.prop(sc, "show_disabled", text="Disabled")
         row.prop(sc, "show_names", text="Info")
 
         row = col.row(align=True)
@@ -1140,7 +1140,7 @@ class CLIP_PT_tools_scenesetup(Panel):
 
 
 # Grease Pencil properties
-class CLIP_PT_grease_pencil(GreasePencilDataPanel, CLIP_PT_clip_view_panel, Panel):
+class CLIP_PT_grease_pencil(AnnotationDataPanel, CLIP_PT_clip_view_panel, Panel):
     bl_space_type = 'CLIP_EDITOR'
     bl_region_type = 'UI'
     bl_options = {'DEFAULT_CLOSED'}
@@ -1150,7 +1150,7 @@ class CLIP_PT_grease_pencil(GreasePencilDataPanel, CLIP_PT_clip_view_panel, Pane
 
 
 # Grease Pencil drawing tools
-class CLIP_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
+class CLIP_PT_tools_grease_pencil_draw(AnnotationDrawingToolsPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
     bl_region_type = 'TOOLS'
 

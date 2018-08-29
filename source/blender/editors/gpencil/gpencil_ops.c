@@ -129,7 +129,8 @@ static bool gp_stroke_paintmode_draw_poll(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) &&
+	return ((gpd) && (gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
+	        (brush && brush->gpencil_settings) &&
 	        (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_DRAW));
 }
 
@@ -140,7 +141,8 @@ static bool gp_stroke_paintmode_erase_poll(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) &&
+	return ((gpd) && (gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
+	        (brush && brush->gpencil_settings) &&
 	        (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE));
 }
 
@@ -151,7 +153,8 @@ static bool gp_stroke_paintmode_fill_poll(bContext *C)
 	bGPdata *gpd = CTX_data_gpencil_data(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	return (gpd && (gpd->flag & GP_DATA_STROKE_PAINTMODE) && (brush) &&
+	return ((gpd) && (gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
+	        (brush && brush->gpencil_settings) &&
 	        (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_FILL));
 }
 
@@ -715,6 +718,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_layer_remove);
 	WM_operatortype_append(GPENCIL_OT_layer_move);
 	WM_operatortype_append(GPENCIL_OT_layer_duplicate);
+	WM_operatortype_append(GPENCIL_OT_layer_duplicate_object);
 
 	WM_operatortype_append(GPENCIL_OT_hide);
 	WM_operatortype_append(GPENCIL_OT_reveal);
@@ -729,6 +733,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_active_frames_delete_all);
 	WM_operatortype_append(GPENCIL_OT_frame_duplicate);
 	WM_operatortype_append(GPENCIL_OT_frame_clean_fill);
+	WM_operatortype_append(GPENCIL_OT_frame_clean_loose);
 
 	WM_operatortype_append(GPENCIL_OT_convert);
 

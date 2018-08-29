@@ -117,6 +117,9 @@ struct Mesh *BKE_mesh_new_nomain_from_template(
         int verts_len, int edges_len, int tessface_len,
         int loops_len, int polys_len);
 
+/* Performs copy for use during evaluation. */
+struct Mesh *BKE_mesh_copy_for_eval(struct Mesh *source);
+
 /* These functions construct a new Mesh, contrary to BKE_mesh_from_nurbs which modifies ob itself. */
 struct Mesh *BKE_mesh_new_nomain_from_curve(struct Object *ob);
 struct Mesh *BKE_mesh_new_nomain_from_curve_displist(struct Object *ob, struct ListBase *dispbase);
@@ -510,7 +513,7 @@ enum {
 	BKE_MESH_BATCH_DIRTY_SHADING,
 	BKE_MESH_BATCH_DIRTY_SCULPT_COORDS,
 };
-void BKE_mesh_batch_cache_dirty(struct Mesh *me, int mode);
+void BKE_mesh_batch_cache_dirty_tag(struct Mesh *me, int mode);
 void BKE_mesh_batch_cache_free(struct Mesh *me);
 
 
