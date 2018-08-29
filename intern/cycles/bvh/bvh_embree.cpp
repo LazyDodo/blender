@@ -44,8 +44,28 @@ CCL_NAMESPACE_BEGIN
  * Cycles' own BVH does that directly inside the traversal calls.
  */
 
-void rtc_filter_func(const RTCFilterFunctionNArguments* args);
-void rtc_filter_func(const RTCFilterFunctionNArguments* args)
+void rtc_filter_func(const RTCFilterFunctionNArguments *args);
+void rtc_filter_func(const RTCFilterFunctionNArguments *args)
+{
+	assert(args->N == 1);
+
+	const RTCRay *ray = (RTCRay*)args->ray;
+	const RTCHit *hit = (RTCHit*)args->hit;
+	CCLIntersectContext *ctx = ((IntersectContext*)args->context)->userRayExt;
+	KernelGlobals *kg = ctx->kg;
+
+	if((kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
+	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
+	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
+		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
+			*args->valid = 0;
+			return;
+		}
+	}
+}
+
+void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args);
+void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 {
 	assert(args->N == 1);
 
@@ -58,16 +78,13 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 	if((kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
-		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) < 0.0f) {
+		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
 			*args->valid = 0;
 			return;
 		}
 	}
 
-	if(ctx->type == CCLIntersectContext::RAY_REGULAR) {
-		return;
-	}
-	else if(ctx->type == CCLIntersectContext::RAY_SHADOW_ALL) {
+	if(ctx->type == CCLIntersectContext::RAY_SHADOW_ALL) {
 		/* Append the intersection to the end of the array. */
 		if(ctx->num_hits < ctx->max_hits) {
 			Intersection current_isect;
@@ -506,7 +523,8 @@ void BVHEmbree::add_triangles(Object *ob, int i)
 	}
 
 	rtcSetGeometryUserData(geom_id, (void*) prim_offset);
-	rtcSetGeometryOccludedFilterFunction(geom_id, rtc_filter_func);
+	rtcSetGeometryIntersectFilterFunction(geom_id, rtc_filter_func);
+	rtcSetGeometryOccludedFilterFunction(geom_id, rtc_filter_occluded_func);
 	rtcSetGeometryMask(geom_id, ob->visibility);
 
 	rtcCommitGeometry(geom_id);
@@ -570,17 +588,12 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 	const size_t num_curves = mesh->num_curves();
 	size_t num_keys = 0;
 	for (size_t j = 0; j < num_curves; j++) {
-		Mesh::Curve c = mesh->get_curve(j);
-		if(c.num_segments() > 0) {
-			num_keys += c.num_keys;
-		}
-		else {
-			assert(0);
-		}
+		const Mesh::Curve c = mesh->get_curve(j);
+		num_keys += c.num_keys;
 	}
 
 	/* Copy the CV data to Embree */
-	int t_mid = (num_motion_steps - 1) / 2;
+	const int t_mid = (num_motion_steps - 1) / 2;
 	const float *curve_radius = &mesh->curve_radius[0];
 	for(int t = 0; t < num_motion_steps; t++) {
 		const float3 *verts;
@@ -606,30 +619,25 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 				const size_t num_curves = mesh->num_curves();
 				for(size_t j = 0; j < num_curves; j++) {
 					Mesh::Curve c = mesh->get_curve(j);
-					if(c.num_segments() > 0) {
-						int fk = c.first_key;
-						rtc_verts[0] = float3_to_float4(verts[fk]);
-						rtc_verts[0].w = curve_radius[fk];
-						rtc_tangents[0] = float3_to_float4(verts[fk + 1] - verts[fk]);
-						rtc_tangents[0].w = curve_radius[fk + 1] - curve_radius[fk];
-						fk++;
-						int k = 1;
-						for(;k < c.num_segments(); k++, fk++) {
-							rtc_verts[k] = float3_to_float4(verts[fk]);
-							rtc_verts[k].w = curve_radius[fk];
-							rtc_tangents[k] = float3_to_float4((verts[fk + 1] - verts[fk - 1]) * 0.5f);
-							rtc_tangents[k].w = (curve_radius[fk + 1] - curve_radius[fk - 1]) * 0.5f;
-						}
+					int fk = c.first_key;
+					rtc_verts[0] = float3_to_float4(verts[fk]);
+					rtc_verts[0].w = curve_radius[fk];
+					rtc_tangents[0] = float3_to_float4(verts[fk + 1] - verts[fk]);
+					rtc_tangents[0].w = curve_radius[fk + 1] - curve_radius[fk];
+					fk++;
+					int k = 1;
+					for(;k < c.num_segments(); k++, fk++) {
 						rtc_verts[k] = float3_to_float4(verts[fk]);
 						rtc_verts[k].w = curve_radius[fk];
-						rtc_tangents[k] = float3_to_float4(verts[fk] - verts[fk - 1]);
-						rtc_tangents[k].w = curve_radius[fk] - curve_radius[fk - 1];
-						rtc_verts += c.num_keys;
-						rtc_tangents += c.num_keys;
+						rtc_tangents[k] = float3_to_float4((verts[fk + 1] - verts[fk - 1]) * 0.5f);
+						rtc_tangents[k].w = (curve_radius[fk + 1] - curve_radius[fk - 1]) * 0.5f;
 					}
-					else {
-						assert(0);
-					}
+					rtc_verts[k] = float3_to_float4(verts[fk]);
+					rtc_verts[k].w = curve_radius[fk];
+					rtc_tangents[k] = float3_to_float4(verts[fk] - verts[fk - 1]);
+					rtc_tangents[k].w = curve_radius[fk] - curve_radius[fk - 1];
+					rtc_verts += c.num_keys;
+					rtc_tangents += c.num_keys;
 				}
 			}
 			else {
@@ -645,8 +653,7 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 void BVHEmbree::add_curves(Object *ob, int i)
 {
 	size_t prim_offset = pack.prim_index.size();
-	Mesh *mesh = ob->mesh;
-
+	const Mesh *mesh = ob->mesh;
 	const Attribute *attr_mP = NULL;
 	size_t num_motion_steps = 1;
 	if(mesh->has_motion_blur()) {
@@ -704,7 +711,8 @@ void BVHEmbree::add_curves(Object *ob, int i)
 	update_curve_vertex_buffer(geom_id, mesh);
 
 	rtcSetGeometryUserData(geom_id, (void*) prim_offset);
-	rtcSetGeometryOccludedFilterFunction(geom_id, rtc_filter_func);
+	rtcSetGeometryIntersectFilterFunction(geom_id, rtc_filter_func);
+	rtcSetGeometryOccludedFilterFunction(geom_id, rtc_filter_occluded_func);
 	rtcSetGeometryMask(geom_id, ob->visibility);
 
 	rtcCommitGeometry(geom_id);
