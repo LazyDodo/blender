@@ -65,6 +65,9 @@
 
 #include "DEG_depsgraph_build.h"
 
+//BMesh intern
+#include "../../bmesh/intern/bmesh_private.h"
+
 //TODO this modifier depends on OpenSubDiv. So if it's not compiled in, remove this modifier
 
 #include "../../../../intern/opensubdiv/opensubdiv_capi.h"
@@ -252,9 +255,9 @@ static float get_facing_dir(const float cam_loc[3], const float P[3], const floa
 	float nor[3], view_vec[3];
 
 	cross_v3_v3v3(nor, du, dv);
-	//TODO normalization is probably not needed
 	normalize_v3(nor);
 	sub_v3_v3v3(view_vec, cam_loc, P);
+	normalize_v3(view_vec);
 
 	return dot_v3v3(nor, view_vec);
 }
@@ -265,6 +268,7 @@ static float get_facing_dir_nor(const float cam_loc[3], const float P[3], const 
 	float view_vec[3];
 
 	sub_v3_v3v3(view_vec, cam_loc, P);
+	normalize_v3(view_vec);
 
 	return dot_v3v3(nor, view_vec);
 }
@@ -527,17 +531,28 @@ static void split_BB_FF_edges_thread(void *data_v) {
 	BMFace *f;
 	BMVert *v1, *v2;
 	float v1_u, v1_v, v2_u, v2_v;
+	float v1_face_dir, v2_face_dir;
 	bool is_B;
 
 	while ((i = FFBB_queue_next_e(th_data)) >= 0) {
 		Vert_buf v_buf;
 		e = th_data->edges[i];
 
-		is_B = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+		v1_face_dir = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+		v2_face_dir = get_facing_dir_nor(m_d->cam_loc, e->v2->co, e->v2->no);
 
-		if( is_B  != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
+		if( (v1_face_dir < 0) != (v2_face_dir < 0) ){
 			//This is not a FF or BB edge
 			continue;
+		}
+
+		//Is this edge FF or BB?
+		is_B = (v1_face_dir < 0);
+
+		//Check if any of the verts facing are near flipping
+		//It there is not, then it is highly unlikely that there is a zero crossing between them
+		if( fabs(v1_face_dir) > 0.2f && fabs(v2_face_dir) > 0.2f ){
+        	continue;
 		}
 
 		if( i < th_data->orig_edges ){
@@ -723,7 +738,7 @@ static void split_BB_FF_edges(MeshData *m_d) {
 
 		is_B = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 
-		if( is_B  != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
+		if( is_B != calc_if_B_nor(m_d->cam_loc, e->v2->co, e->v2->no) ){
 			//This is not a FF or BB edge
 			continue;
 		}
@@ -1192,7 +1207,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 			float step = 0.5f;
 			float step_len = 0.25f;
 			int face_index;
-			float v1_face = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+			bool v1_face_dir = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 			BMFace *cur_face;
 
 			float mat[3][3];
@@ -1223,7 +1238,7 @@ static void mult_face_search( BMFace *f, BMFace *f2, BMEdge *e, const float v1_u
 					break;
 				}
 
-				if( (face_dir < 0) == (v1_face < 0) ){
+				if( (face_dir < 0) == v1_face_dir ){
 					step += step_len;
 				} else {
 					step -= step_len;
@@ -1276,7 +1291,7 @@ static bool bisect_search(const float v1_uv[2], const float v2_uv[2], BMEdge *e,
 	float face_dir, uv_P[2], P[3], du[3], dv[3], new_no[3];
 	float step = 0.5f;
 	float step_len = 0.25f;
-	float v1_face = get_facing_dir_nor(m_d->cam_loc, e->v1->co, e->v1->no);
+	bool v1_face_dir = calc_if_B_nor(m_d->cam_loc, e->v1->co, e->v1->no);
 	int face_index = BM_elem_index_get(orig_face);
 
 	for( i = 0; i < 10; i++){
@@ -1290,7 +1305,7 @@ static bool bisect_search(const float v1_uv[2], const float v2_uv[2], BMEdge *e,
 			break;
 		}
 
-		if( (face_dir < 0) == (v1_face < 0) ){
+		if( (face_dir < 0) == v1_face_dir ){
 			step += step_len;
 		} else {
 			step -= step_len;
@@ -2755,13 +2770,12 @@ static int radial_extention( MeshData *m_d ){
 		float prev_face_diff = 0;
 		BMEdge *flip_edge = NULL;
 		bool flipped_edge = false;
-		float cent_f[3], no[3], view_vec[3];
+		float cent_f[3], no[3];
 		BM_ITER_ELEM (face, &iter, r_vert.vert, BM_FACES_OF_VERT) {
 			BM_face_calc_center_mean(face, cent_f);
 			BM_face_calc_normal(face, no);
 
-			sub_v3_v3v3(view_vec, m_d->cam_loc, cent_f);
-			float face_dir = dot_v3v3(no, view_vec);
+			float face_dir = get_facing_dir_nor(m_d->cam_loc, cent_f, no);
 			if( b_f != (face_dir < 0) ){
 				prev_face_diff += fabs(face_dir);
 				prev_inco_faces++;
@@ -2901,8 +2915,7 @@ static int radial_extention( MeshData *m_d ){
 						BM_face_calc_center_mean(face, cent_f);
 						BM_face_calc_normal(face, no);
 
-						sub_v3_v3v3(view_vec, m_d->cam_loc, cent_f);
-						float face_dir = dot_v3v3(no, view_vec);
+						float face_dir = get_facing_dir_nor(m_d->cam_loc, cent_f, no);
 						if( b_f != (face_dir < 0) ){
 							new_diff_facing += fabs(face_dir);
 							new_inco_faces++;
@@ -3114,12 +3127,10 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 
 					float no[3];
 					float P[3];
-					float view_vec[3];
 					BM_face_calc_normal(f, no);
 					BM_face_calc_center_mean(f, P);
 
-					sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-					float face_dir = dot_v3v3(no, view_vec);
+					float face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 					if( inface->back_f != (face_dir < 0) ){
 						tot_diff_facing += fabs(face_dir);
 						nr_inco_faces++;
@@ -3209,7 +3220,6 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 							BM_ITER_ELEM_INDEX (f, &iter_f, vert, BM_FACES_OF_VERT, f_idx) {
 								float no[3];
 								float P[3];
-								float view_vec[3];
 								BM_face_calc_normal(f, no);
 								BM_face_calc_center_mean(f, P);
 
@@ -3219,8 +3229,7 @@ static int opti_vertex_wiggle( MeshData *m_d, BLI_Buffer *inco_faces ){
 									break;
 								}
 
-								sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-								float face_dir = dot_v3v3(no, view_vec);
+								float face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 								if( inface->back_f != (face_dir < 0) ){
 									new_diff_facing += fabs(face_dir);
 									new_inco_faces++;
@@ -3312,10 +3321,9 @@ static void optimization( MeshData *m_d ){
 				float P[3], no[3];
 
 				BM_ITER_ELEM (face, &iter_f, vert, BM_FACES_OF_VERT) {
-					//TODO mark inconsistent faces in an other way
 					// and only check each face once
-					// look at BM_face_exists_overlap for marks
-					if(face->mat_nr == 5){
+					// taken from BM_face_exists_overlap for marks
+					if(BM_ELEM_API_FLAG_TEST(face, _FLAG_OVERLAP) != 0){
 						//Already added this face to inco_faces
 						continue;
 					}
@@ -3346,13 +3354,19 @@ static void optimization( MeshData *m_d ){
 						IncoFace inface;
 						inface.face = face;
 						inface.back_f = b_f;
-						face->mat_nr = 5;
+						BM_ELEM_API_FLAG_ENABLE(face, _FLAG_OVERLAP);
 						BLI_buffer_append(&inco_faces, IncoFace, inface);
 					}
 
 				}
 			}
 
+		}
+
+		//Clear _OVERLAP flag
+		for(int face_i = 0; face_i < inco_faces.count; face_i++){
+			IncoFace *inface = &BLI_buffer_at(&inco_faces, IncoFace, face_i);
+			BM_ELEM_API_FLAG_DISABLE(inface->face, _FLAG_OVERLAP);
 		}
 	}
 
@@ -3397,17 +3411,16 @@ static void optimization( MeshData *m_d ){
 					//Calculate nr of info faces of egde
 					int nr_inco_faces = 0;
 					float P[3], no[3];
-					float view_vec[3], face_dir;
+					float face_dir;
 					float cur_diff_facing = 0;
-                    BMFace *face;
+					BMFace *face;
 					BMIter iter_f;
 					BM_ITER_ELEM (face, &iter_f, edge, BM_FACES_OF_EDGE) {
 						BM_face_calc_normal(face, no);
 						BM_face_calc_center_mean(face, P);
 
 						//Calc facing of face
-						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-						face_dir = dot_v3v3(no, view_vec);
+						face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 
 						if( inface->back_f != (face_dir < 0) ){
 							cur_diff_facing += fabs(face_dir);
@@ -3457,8 +3470,7 @@ static void optimization( MeshData *m_d ){
 						mul_v3_fl( P, 1.0f / 3.0f );
 
 						//Facing of first new flip face
-						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-						face_dir = dot_v3v3(no, view_vec);
+						face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 						if( inface->back_f != (face_dir < 0) ){
 							//This is not a good flip!
 							//printf("Opti flip, first face not good\n");
@@ -3479,8 +3491,7 @@ static void optimization( MeshData *m_d ){
 						mul_v3_fl( P, 1.0f / 3.0f );
 
 						//Facing of second new flip face
-						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-						face_dir = dot_v3v3(no, view_vec);
+						face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 						if( inface->back_f != (face_dir < 0) ){
 							//This is not a good flip!
 							//printf("Opti flip, second face not good\n");
@@ -3651,12 +3662,10 @@ static void optimization( MeshData *m_d ){
 			BM_ITER_MESH (f, &iter_f, bm_fan_copy, BM_FACES_OF_MESH){
 				float no[3];
 				float P[3];
-				float view_vec[3];
 				BM_face_calc_normal(f, no);
 				BM_face_calc_center_mean(f, P);
 
-				sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-				float face_dir = dot_v3v3(no, view_vec);
+				float face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 				if( inface->back_f != (face_dir < 0) ){
 					nr_inco_faces++;
 				}
@@ -3695,12 +3704,10 @@ static void optimization( MeshData *m_d ){
 						BM_ITER_MESH (f, &iter_f, bm_temp, BM_FACES_OF_MESH){
 							float no[3];
 							float P[3];
-							float view_vec[3];
 							BM_face_calc_normal(f, no);
 							BM_face_calc_center_mean(f, P);
 
-							sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-							float face_dir = dot_v3v3(no, view_vec);
+							float face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 							if( inface->back_f != (face_dir < 0) ){
 								new_diff_facing += fabs(face_dir);
 								if( dot_v3v3(no, split_vert->no) < 0.0f ){
@@ -3970,12 +3977,10 @@ static void optimization( MeshData *m_d ){
 				BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 					float no[3];
 					float P[3];
-					float view_vec[3];
 					BM_face_calc_normal(f, no);
 					BM_face_calc_center_mean(f, P);
 
-					sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-					float face_dir = dot_v3v3(no, view_vec);
+					float face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 					if( inface->back_f != (face_dir < 0) ){
 						tot_diff_facing += fabs(face_dir);
 						nr_inco_faces++;
@@ -4022,12 +4027,10 @@ static void optimization( MeshData *m_d ){
 					BM_ITER_ELEM (f, &iter_f, vert, BM_FACES_OF_VERT) {
 						float no[3];
 						float P[3];
-						float view_vec[3];
 						BM_face_calc_normal(f, no);
 						BM_face_calc_center_mean(f, P);
 
-						sub_v3_v3v3(view_vec, m_d->cam_loc, P);
-						float face_dir = dot_v3v3(no, view_vec);
+						float face_dir = get_facing_dir_nor(m_d->cam_loc, P, no);
 						if( inface->back_f != (face_dir < 0) ){
 							new_diff_facing += fabs(face_dir);
 							new_inco_faces++;
@@ -4325,6 +4328,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 			split_BB_FF_edges_thread_start(&mesh_data);
 			//split_BB_FF_edges(&mesh_data);
 			TIMEIT_END(split_bb_ff);
+			//printf("New verts: %d\n", new_vert_buffer.count);
 		}
 		// (6.2) Contour Insertion
 
