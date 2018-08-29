@@ -52,6 +52,7 @@ extern "C" {
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
@@ -80,6 +81,7 @@ extern "C" {
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
 #include "BKE_idcode.h"
+#include "BKE_hair.h"
 #include "BKE_key.h"
 #include "BKE_lattice.h"
 #include "BKE_library.h"
@@ -604,6 +606,7 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 		case OB_MBALL:
 		case OB_LATTICE:
 		case OB_GPENCIL:
+		case OB_HAIR:
 			build_object_data_geometry(object);
 			/* TODO(sergey): Only for until we support granular
 			 * update of curves.
@@ -1234,6 +1237,18 @@ void DepsgraphNodeBuilder::build_object_data_geometry_datablock(ID *obdata)
 			                             function_bind(BKE_gpencil_eval_geometry,
 			                                           _1,
 			                                           (bGPdata *)obdata_cow),
+			                             DEG_OPCODE_PLACEHOLDER,
+			                             "Geometry Eval");
+			op_node->set_as_entry();
+			break;
+		}
+		case ID_HA:
+		{
+			/* Hair evaluation operations. */
+			op_node = add_operation_node(obdata, DEG_NODE_TYPE_GEOMETRY,
+			                             function_bind(BKE_hair_eval_geometry,
+			                                           _1,
+			                                           (HairSystem *)obdata_cow),
 			                             DEG_OPCODE_PLACEHOLDER,
 			                             "Geometry Eval");
 			op_node->set_as_entry();

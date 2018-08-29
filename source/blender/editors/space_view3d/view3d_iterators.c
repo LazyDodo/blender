@@ -25,6 +25,7 @@
  */
 
 #include "DNA_curve_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_mesh_types.h"
@@ -34,6 +35,7 @@
 
 #include "BLI_utildefines.h"
 #include "BLI_rect.h"
+#include "BLI_math.h"
 
 #include "BKE_action.h"
 #include "BKE_armature.h"
@@ -41,6 +43,7 @@
 #include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
 #include "BKE_editmesh.h"
+#include "BKE_hair.h"
 #include "BKE_context.h"
 #include "BKE_mesh_runtime.h"
 
@@ -395,6 +398,43 @@ void lattice_foreachScreenVert(
 			float screen_co[2];
 			if (ED_view3d_project_float_object(vc->ar, dl ? co : bp->vec, screen_co, clip_flag) == V3D_PROJ_RET_OK) {
 				func(userData, bp, screen_co);
+			}
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+
+void hair_foreachScreenVert(
+        ViewContext *vc,
+        void (*func)(
+            void *userData,
+            HairFollicle *follicle, HairFiberCurve *curve, HairFiberVertex *vertex,
+            const float screen_co[2]),
+        void *userData, const eV3DProjTest clip_flag)
+{
+	HairEditSettings *edit_settings = &vc->scene->toolsettings->hair_edit_settings;
+	Object *obedit = vc->obedit;
+	HairSystem *hsys = obedit->data;
+	EditHair *edit = hsys->edithair;
+
+	ED_view3d_check_mats_rv3d(vc->rv3d);
+
+	if (clip_flag & V3D_PROJ_TEST_CLIP_BB) {
+		ED_view3d_clipping_local(vc->rv3d, obedit->obmat); /* for local clipping lookups */
+	}
+
+	if (edit->pattern) {
+		for (int i = 0; i < edit->pattern->num_follicles; ++i) {
+			HairFollicle *follicle = &edit->pattern->follicles[i];
+			HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
+			for (j = 0; j < curve->numverts; ++j) {
+				HairFiberVertex *vert = &edit->curve_data.verts[curve->vertstart + j];
+				float screen_co[2];
+				if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
+				{
+					func(userData, follicle, curve, vert, screen_co);
+				}
 			}
 		}
 	}

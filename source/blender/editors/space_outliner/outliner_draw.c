@@ -1207,6 +1207,8 @@ TreeElementIcon tree_element_get_icon(TreeStoreElem *tselem, TreeElement *te)
 					data.icon = ICON_OUTLINER_OB_CURVE; break;
 				case OB_MBALL:
 					data.icon = ICON_OUTLINER_OB_META; break;
+				case OB_HAIR:
+					data.icon = ICON_OUTLINER_OB_HAIR; break;
 				case OB_LATTICE:
 					data.icon = ICON_OUTLINER_OB_LATTICE; break;
 				case OB_ARMATURE:

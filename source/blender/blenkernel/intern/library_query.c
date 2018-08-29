@@ -38,6 +38,7 @@
 #include "DNA_constraint_types.h"
 #include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_lattice_types.h"
@@ -633,6 +634,15 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				break;
 			}
 
+			case ID_HA:
+			{
+				HairSystem *hsys = (HairSystem *) id;
+				for (i = 0; i < hsys->totcol; i++) {
+					CALLBACK_INVOKE(hsys->mat[i], IDWALK_CB_USER);
+				}
+				break;
+			}
+
 			case ID_MA:
 			{
 				Material *material = (Material *) id;
@@ -1108,6 +1118,8 @@ bool BKE_library_id_can_use_idtype(ID *id_owner, const short id_type_used)
 			return ELEM(id_type_used, ID_IM);
 		case ID_GD:
 			return ELEM(id_type_used, ID_MA);
+		case ID_HA:
+			return true;
 		case ID_WS:
 			return ELEM(id_type_used, ID_SCR, ID_SCE);
 		case ID_IM:

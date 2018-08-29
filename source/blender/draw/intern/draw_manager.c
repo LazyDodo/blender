@@ -1209,6 +1209,9 @@ static void drw_engines_enable_from_mode(int mode)
 		case CTX_MODE_EDIT_LATTICE:
 			use_drw_engine(&draw_engine_edit_lattice_type);
 			break;
+		case CTX_MODE_EDIT_HAIR:
+			use_drw_engine(&draw_engine_edit_hair_type);
+			break;
 		case CTX_MODE_POSE:
 			use_drw_engine(&draw_engine_pose_type);
 			break;
@@ -2429,6 +2432,7 @@ void DRW_engines_register(void)
 	DRW_engine_register(&draw_engine_object_type);
 	DRW_engine_register(&draw_engine_edit_armature_type);
 	DRW_engine_register(&draw_engine_edit_curve_type);
+	DRW_engine_register(&draw_engine_edit_hair_type);
 	DRW_engine_register(&draw_engine_edit_lattice_type);
 	DRW_engine_register(&draw_engine_edit_mesh_type);
 	DRW_engine_register(&draw_engine_edit_metaball_type);

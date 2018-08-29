@@ -65,6 +65,7 @@ extern "C" {
 #include "DNA_ID.h"
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
@@ -470,6 +471,14 @@ void update_mesh_edit_mode_pointers(const Depsgraph *depsgraph,
 	mesh_cow->edit_btmesh->derivedCage = NULL;
 }
 
+void update_hair_edit_mode_pointers(const Depsgraph *UNUSED(depsgraph),
+                                    const ID *id_orig, ID *id_cow)
+{
+	const HairSystem *hsys_orig = (const HairSystem *)id_orig;
+	HairSystem *hsys_cow = (HairSystem *)id_cow;
+	hsys_cow->edithair = hsys_orig->edithair;
+}
+
 /* Edit data is stored and owned by original datablocks, copied ones
  * are simply referencing to them.
  */
@@ -492,6 +501,9 @@ void update_edit_mode_pointers(const Depsgraph *depsgraph,
 			break;
 		case ID_LT:
 			update_lattice_edit_mode_pointers(depsgraph, id_orig, id_cow);
+			break;
+		case ID_HA:
+			update_hair_edit_mode_pointers(depsgraph, id_orig, id_cow);
 			break;
 		default:
 			break;
@@ -928,6 +940,12 @@ void discard_mesh_edit_mode_pointers(ID *id_cow)
 	mesh_cow->edit_btmesh = NULL;
 }
 
+void discard_hair_edit_mode_pointers(ID *id_cow)
+{
+	HairSystem *hsys_cow = (HairSystem *)id_cow;
+	hsys_cow->edithair = NULL;
+}
+
 void discard_scene_pointers(ID *id_cow)
 {
 	Scene *scene_cow = (Scene *)id_cow;
@@ -949,6 +967,9 @@ void discard_edit_mode_pointers(ID *id_cow)
 			break;
 		case ID_CU:
 			discard_curve_edit_mode_pointers(id_cow);
+			break;
+		case ID_HA:
+			discard_hair_edit_mode_pointers(id_cow);
 			break;
 		case ID_MB:
 			discard_mball_edit_mode_pointers(id_cow);

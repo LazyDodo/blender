@@ -806,6 +806,13 @@ static void recalcData_objects(TransInfo *t)
 				}
 			}
 		}
+		else if (t->obedit_type == OB_HAIR) {
+			flushTransHair(t);
+
+			FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+				DEG_id_tag_update(tc->obedit->data, 0);  /* sets recalc flags */
+			}
+		}
 		else if (t->obedit_type == OB_MESH) {
 			/* mirror modifier clipping? */
 			if (t->state != TRANS_CANCEL) {

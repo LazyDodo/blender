@@ -127,6 +127,7 @@ typedef struct Main {
 	ListBase linestyle;
 	ListBase cachefiles;
 	ListBase workspaces;
+	ListBase hair;
 
 	/* Must be generated, used and freed by same code - never assume this is valid data unless you know
 	 * when, who and how it was created.

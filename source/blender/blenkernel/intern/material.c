@@ -39,6 +39,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -277,6 +278,10 @@ Material ***give_matarar(Object *ob)
 		gpd = ob->data;
 		return &(gpd->mat);
 	}
+	else if (ob->type == OB_HAIR) {
+		HairSystem *hsys = ob->data;
+		return &(hsys->mat);
+	}
 	return NULL;
 }
 
@@ -303,6 +308,10 @@ short *give_totcolp(Object *ob)
 		gpd = ob->data;
 		return &(gpd->totcol);
 	}
+	else if (ob->type == OB_HAIR) {
+		HairSystem *hsys = ob->data;
+		return &(hsys->totcol);
+	}
 	return NULL;
 }
 
@@ -321,6 +330,8 @@ Material ***give_matarar_id(ID *id)
 			return &(((MetaBall *)id)->mat);
 		case ID_GD:
 			return &(((bGPdata *)id)->mat);
+		case ID_HA:
+			return &(((HairSystem *)id)->mat);
 		default:
 			break;
 	}
@@ -341,6 +352,8 @@ short *give_totcolp_id(ID *id)
 			return &(((MetaBall *)id)->totcol);
 		case ID_GD:
 			return &(((bGPdata *)id)->totcol);
+		case ID_HA:
+			return &(((HairSystem *)id)->totcol);
 		default:
 			break;
 	}

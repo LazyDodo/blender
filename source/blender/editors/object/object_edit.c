@@ -49,6 +49,7 @@
 #include "DNA_curve_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_material_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_scene_types.h"
@@ -92,6 +93,7 @@
 
 #include "ED_armature.h"
 #include "ED_curve.h"
+#include "ED_hair.h"
 #include "ED_mesh.h"
 #include "ED_mball.h"
 #include "ED_lattice.h"
@@ -492,6 +494,14 @@ static bool ED_object_editmode_load_ex(Main *bmain, Object *obedit, const bool f
 			ED_mball_editmball_free(obedit);
 		}
 	}
+	else if (obedit->type == OB_HAIR) {
+		const HairSystem *hsys = obedit->data;
+		if (hsys->edithair == NULL) {
+			return false;
+		}
+		ED_hair_edithair_load(obedit);
+		if (freedata) ED_hair_edithair_free(obedit);
+	}
 
 	return true;
 }
@@ -629,6 +639,12 @@ bool ED_object_editmode_enter_ex(Main *bmain, Scene *scene, Object *ob, int flag
 		ED_curve_editnurb_make(ob);
 
 		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_EDITMODE_CURVE, scene);
+	}
+	else if (ob->type == OB_HAIR) {
+		ok = 1;
+		ED_hair_edithair_make(ob);
+
+		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_EDITMODE_HAIR, scene);
 	}
 
 	if (ok) {

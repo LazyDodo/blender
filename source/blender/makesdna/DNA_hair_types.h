@@ -65,6 +65,11 @@ typedef struct HairFiberVertex {
 	float co[3];
 } HairFiberVertex;
 
+typedef enum HairFiberVertexFlag
+{
+	HAIR_VERTEX_SELECT          = (1 << 0),
+} HairFiberVertexFlag;
+
 /* Hair curve data */
 typedef struct HairCurveData
 {
@@ -78,16 +83,37 @@ typedef struct HairCurveData
 	int totverts;
 } HairCurveData;
 
-typedef struct HairSystem {
-	int flag;
-	int pad;
-	
+/* Editable hair data */
+typedef struct EditHair {
 	/* Set of hair follicles on the scalp mesh */
 	struct HairPattern *pattern;
-	
+
 	/* Curve data */
 	HairCurveData curve_data;
-	
+} EditHair;
+
+typedef struct HairSystem {
+	ID id;                      /* Hair data is a datablock */
+	struct AnimData *adt;       /* Animation data - for animating settings */
+
+	struct BoundBox *bb;
+
+	struct EditHair *edithair;
+
+	int flag;
+	int pad;
+
+	/* Set of hair follicles on the scalp mesh */
+	struct HairPattern *pattern;
+
+	/* Curve data */
+	HairCurveData curve_data;
+
+	struct Material **mat;      /* Material slots */
+	short totcol;               /* Number of material slots */
+	short pad3;
+	struct HairDrawSettings *draw_settings;
+
 	/* Data buffers for drawing */
 	void *draw_batch_cache;
 	/* Texture buffer for drawing */

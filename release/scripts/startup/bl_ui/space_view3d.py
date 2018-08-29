@@ -57,7 +57,10 @@ class VIEW3D_HT_header(Header):
             # object_mode = obj.mode
 
             # Particle edit
-            if object_mode == 'PARTICLE_EDIT':
+            if object_mode == 'EDIT' and obj.type == 'HAIR':
+                row = layout.row()
+                row.prop(tool_settings.hair_edit_settings, "mode", text="", expand=True)
+            elif object_mode == 'PARTICLE_EDIT':
                 row = layout.row()
                 row.prop(tool_settings.particle_edit, "select_mode", text="", expand=True)
 
@@ -285,6 +288,8 @@ class VIEW3D_MT_editor_menus(Menu):
             layout.menu("INFO_MT_surface_add", text="Add")
         elif mode_string == 'EDIT_METABALL':
             layout.menu("INFO_MT_metaball_add", text="Add")
+        elif mode_string == 'EDIT_HAIR':
+            layout.menu("INFO_MT_hair_add", text="Add")
         elif mode_string == 'EDIT_ARMATURE':
             layout.menu("INFO_MT_edit_armature_add", text="Add")
 
@@ -1390,6 +1395,17 @@ class INFO_MT_metaball_add(Menu):
         layout.operator_enum("object.metaball_add", "type")
 
 
+class INFO_MT_hair_add(Menu):
+    bl_idname = "INFO_MT_hair_add"
+    bl_label = "Hair"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator_context = 'INVOKE_REGION_WIN'
+        layout.operator("object.hair_add")
+
+
 class INFO_MT_edit_curve_add(Menu):
     bl_idname = "INFO_MT_edit_curve_add"
     bl_label = "Add"
@@ -1480,6 +1496,7 @@ class INFO_MT_add(Menu):
         # layout.operator_menu_enum("object.surface_add", "type", text="Surface", icon='OUTLINER_OB_SURFACE')
         layout.menu("INFO_MT_surface_add", icon='OUTLINER_OB_SURFACE')
         layout.menu("INFO_MT_metaball_add", text="Metaball", icon='OUTLINER_OB_META')
+        layout.menu("INFO_MT_hair_add", text="Hair", icon='OUTLINER_OB_HAIR')
         layout.operator("object.text_add", text="Text", icon='OUTLINER_OB_FONT')
         layout.operator_menu_enum("object.gpencil_add", "type", text="Grease Pencil", icon='OUTLINER_OB_GREASEPENCIL')
         layout.separator()
@@ -3420,6 +3437,28 @@ class VIEW3D_MT_edit_lattice(Menu):
         layout.operator("object.vertex_parent_set")
 
 
+class VIEW3D_MT_edit_hair(Menu):
+    bl_label = "Hair"
+
+    def draw(self, context):
+        layout = self.layout
+
+        edit_object = context.edit_object
+        hair = edit_object.data
+
+        layout.menu("VIEW3D_MT_undo_redo")
+
+        layout.separator()
+
+        layout.menu("VIEW3D_MT_transform")
+        layout.menu("VIEW3D_MT_mirror")
+        layout.menu("VIEW3D_MT_snap")
+
+        layout.separator()
+
+        layout.operator("hair.region_add")
+
+
 class VIEW3D_MT_edit_armature(Menu):
     bl_label = "Armature"
 
@@ -5025,6 +5064,7 @@ classes = (
     INFO_MT_curve_add,
     INFO_MT_surface_add,
     INFO_MT_metaball_add,
+    INFO_MT_hair_add,
     INFO_MT_edit_curve_add,
     INFO_MT_edit_armature_add,
     INFO_MT_armature_add,
@@ -5111,6 +5151,7 @@ classes = (
     VIEW3D_MT_edit_meta,
     VIEW3D_MT_edit_meta_showhide,
     VIEW3D_MT_edit_lattice,
+    VIEW3D_MT_edit_hair,
     VIEW3D_MT_edit_armature,
     VIEW3D_MT_armature_specials,
     VIEW3D_MT_edit_armature_parent,

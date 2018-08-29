@@ -47,6 +47,7 @@ struct ID;
 struct Image;
 struct FCurve;
 struct Collection;
+struct HairSystem;
 struct Key;
 struct Lamp;
 struct LayerCollection;

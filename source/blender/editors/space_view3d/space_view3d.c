@@ -518,6 +518,9 @@ static void view3d_main_region_init(wmWindowManager *wm, ARegion *ar)
 	keymap = WM_keymap_find(wm->defaultconf, "Particle", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
+	keymap = WM_keymap_find(wm->defaultconf, "HairSystem", 0, 0);
+	WM_event_add_keymap_handler(&ar->handlers, keymap);
+
 	/* editfont keymap swallows all... */
 	keymap = WM_keymap_find(wm->defaultconf, "Font", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
@@ -1030,6 +1033,11 @@ static void view3d_main_region_listener(
 
 			break;
 		case NC_GPENCIL:
+			if (wmn->data == ND_DATA || ELEM(wmn->action, NA_EDITED, NA_SELECTED)) {
+				ED_region_tag_redraw(ar);
+			}
+			break;
+		case NC_HAIR:
 			if (wmn->data == ND_DATA || ELEM(wmn->action, NA_EDITED, NA_SELECTED)) {
 				ED_region_tag_redraw(ar);
 			}

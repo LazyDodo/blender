@@ -105,6 +105,7 @@ bool ED_object_mode_compat_test(const Object *ob, eObjectMode mode)
 			case OB_SURF:
 			case OB_FONT:
 			case OB_MBALL:
+			case OB_HAIR:
 				if (mode & (OB_MODE_EDIT))
 					return true;
 				break;

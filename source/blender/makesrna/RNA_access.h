@@ -278,6 +278,7 @@ extern StructRNA RNA_GaussianBlurSequence;
 extern StructRNA RNA_GlowSequence;
 extern StructRNA RNA_GreasePencil;
 extern StructRNA RNA_HairPattern;
+extern StructRNA RNA_HairSystem;
 extern StructRNA RNA_Header;
 extern StructRNA RNA_HemiLight;
 extern StructRNA RNA_Histogram;

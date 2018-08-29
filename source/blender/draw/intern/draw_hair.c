@@ -198,11 +198,12 @@ DRWShadingGroup *DRW_shgroup_material_particle_hair_create(
 }
 
 static DRWShadingGroup *drw_shgroup_create_hair_procedural_ex(
-        Object *object, HairSystem *hsys, Mesh *scalp, const HairDrawSettings *draw_set,
+        Object *object, HairSystem *hsys,
         DRWPass *hair_pass,
         struct GPUMaterial *gpu_mat, GPUShader *gpu_shader)
 {
 	/* TODO(fclem): Pass the scene as parameter */
+	const HairDrawSettings *draw_set = hsys->draw_settings;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 
@@ -210,7 +211,7 @@ static DRWShadingGroup *drw_shgroup_create_hair_procedural_ex(
 	int thickness_res = (scene->r.hair_type == SCE_HAIR_SHAPE_STRAND) ? 1 : 2;
 
 	ParticleHairCache *hair_cache;
-	bool need_ft_update = hair_ensure_procedural_data(object, hsys, scalp, &hair_cache, subdiv, thickness_res);
+	bool need_ft_update = hair_ensure_procedural_data(object, hsys, &hair_cache, subdiv, thickness_res);
 
 	DRWShadingGroup *shgrp;
 	if (gpu_mat) {
@@ -260,20 +261,18 @@ static DRWShadingGroup *drw_shgroup_create_hair_procedural_ex(
 
 DRWShadingGroup *DRW_shgroup_hair_create(
         Object *object, HairSystem *hsys,
-        Mesh *scalp, const HairDrawSettings *draw_set,
         DRWPass *hair_pass,
         GPUShader *shader)
 {
-	return drw_shgroup_create_hair_procedural_ex(object, hsys, scalp, draw_set, hair_pass, NULL, shader);
+	return drw_shgroup_create_hair_procedural_ex(object, hsys, hair_pass, NULL, shader);
 }
 
 DRWShadingGroup *DRW_shgroup_material_hair_create(
         Object *object, HairSystem *hsys,
-        Mesh *scalp, const HairDrawSettings *draw_set,
         DRWPass *hair_pass,
         struct GPUMaterial *material)
 {
-	return drw_shgroup_create_hair_procedural_ex(object, hsys, scalp, draw_set, hair_pass, material, NULL);
+	return drw_shgroup_create_hair_procedural_ex(object, hsys, hair_pass, material, NULL);
 }
 
 void DRW_hair_update(void)

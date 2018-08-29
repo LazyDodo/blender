@@ -296,6 +296,7 @@ bool ED_operator_editsurfcurve_region_view3d(struct bContext *C);
 bool ED_operator_editfont(struct bContext *C);
 bool ED_operator_editlattice(struct bContext *C);
 bool ED_operator_editmball(struct bContext *C);
+bool ED_operator_edithair(struct bContext *C);
 bool ED_operator_uvedit(struct bContext *C);
 bool ED_operator_uvedit_space_image(struct bContext *C);
 bool ED_operator_uvmap(struct bContext *C);

@@ -36,27 +36,64 @@
 
 static const unsigned int HAIR_CURVE_INDEX_NONE = 0xFFFFFFFF;
 
+struct Depsgraph;
 struct HairFollicle;
 struct HairPattern;
 struct HairSystem;
 struct HairDrawSettings;
 struct HairCurveData;
+struct Main;
 struct Mesh;
 struct MeshSample;
 struct MLoop;
 struct Object;
 
-/* Create a new hair system instance */
-struct HairSystem* BKE_hair_new(void);
-/* Copy an existing hair system */
-struct HairSystem* BKE_hair_copy(struct HairSystem *hsys);
-/* Delete a hair system */
+/* === HairSystem Datablock === */
+
+void BKE_hair_init(struct HairSystem *hsys);
+void *BKE_hair_add(struct Main *bmain, const char *name);
+
 void BKE_hair_free(struct HairSystem *hsys);
+
+void BKE_hair_copy_data(struct Main *bmain, struct HairSystem *hsys_dst, const struct HairSystem *hsys_src, const int flag);
+struct HairSystem *BKE_hair_copy(struct Main *bmain, const struct HairSystem *hsys);
+
+void BKE_hair_make_local(struct Main *bmain, struct HairSystem *hsys, const bool lib_local);
+
+bool BKE_hair_minmax(struct HairSystem *hsys, float min[3], float max[3]);
+void BKE_hair_boundbox_calc(struct HairSystem *hsys);
+struct BoundBox *BKE_hair_boundbox_get(struct Object *ob);
+
+void BKE_hair_pattern_free(struct HairPattern *pattern);
+struct HairPattern *BKE_hair_pattern_copy(const struct HairPattern *src_pattern);
+
+/* Does not free the data pointer itself! */
+void BKE_hair_curve_data_free(struct HairCurveData *data);
+void BKE_hair_curve_data_copy(struct HairCurveData *dst_data, const struct HairCurveData *src_data);
+
+/* === Scalp object === */
+
+/* Find the mesh used as the scalp surface */
+const struct Mesh* BKE_hair_get_scalp(
+        const struct Depsgraph *depsgraph,
+        const struct Object *ob,
+        const struct HairSystem *hsys);
+
+/* Find the object used as the scalp surface */
+const struct Object* BKE_hair_get_scalp_object(
+        const struct Object *ob,
+        const struct HairSystem *hsys);
 
 /* === Fiber curves === */
 
 /* Allocate buffers for defining fiber curves
  * \param totcurves Number of fiber curves to allocate
+ * \param totverts Number of guide curve vertices to allocate
+ */
+void BKE_hair_guide_curves_alloc(struct HairSystem *hsys, int totcurves, int totverts);
+
+/* Allocate buffers for defining guide curves
+ * \param totcurves Number of guide curves to allocate
  */
 void BKE_hair_fiber_curves_begin(struct HairSystem *hsys, int totcurves);
 
@@ -125,6 +162,12 @@ bool BKE_hair_bind_follicles(struct HairSystem *hsys, const struct Mesh *scalp);
 struct HairDrawSettings* BKE_hair_draw_settings_new(void);
 struct HairDrawSettings* BKE_hair_draw_settings_copy(struct HairDrawSettings *draw_settings);
 void BKE_hair_draw_settings_free(struct HairDrawSettings *draw_settings);
+
+
+/* === Depsgraph evaluation === */
+
+void BKE_hair_eval_geometry(const struct Depsgraph *depsgraph, struct HairSystem *hsys);
+
 
 /* === Export === */
 
@@ -195,12 +238,12 @@ void BKE_hair_export_cache_clear(struct HairExportCache *cache);
  */
 void BKE_hair_export_cache_invalidate(struct HairExportCache *cache, int invalidate);
 
+
 /* === Draw Cache === */
 
 enum {
-	BKE_HAIR_BATCH_DIRTY_FIBERS = (1 << 0),
-	BKE_HAIR_BATCH_DIRTY_STRANDS = (1 << 1),
-	BKE_HAIR_BATCH_DIRTY_ALL = 0xFFFF,
+	BKE_HAIR_BATCH_DIRTY_ALL = 0,
+	BKE_HAIR_BATCH_DIRTY_SELECT,
 };
 void BKE_hair_batch_cache_dirty(struct HairSystem* hsys, int mode);
 void BKE_hair_batch_cache_free(struct HairSystem* hsys);

@@ -30,6 +30,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_curve_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_modifier_types.h"
@@ -49,6 +50,7 @@
 #include "BKE_camera.h"
 #include "BKE_curve.h"
 #include "BKE_global.h"
+#include "BKE_hair.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
@@ -2457,6 +2459,17 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		{
 			if (ob != draw_ctx->object_edit) {
 				DRW_shgroup_mball_handles(stl, ob, view_layer);
+			}
+			break;
+		}
+		case OB_HAIR:
+		{
+			if (ob != draw_ctx->object_edit) {
+				HairSystem *hsys = ob->data;
+				
+				// TODO
+//				DRW_shgroup_hair(ob, hsys, stl->g_data->hair_verts, stl->g_data->hair_edges);
+				UNUSED_VARS(hsys);
 			}
 			break;
 		}

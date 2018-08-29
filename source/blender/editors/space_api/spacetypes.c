@@ -48,6 +48,7 @@
 #include "ED_curve.h"
 #include "ED_fileselect.h"
 #include "ED_gpencil.h"
+#include "ED_hair.h"
 #include "ED_markers.h"
 #include "ED_mesh.h"
 #include "ED_node.h"
@@ -123,6 +124,7 @@ void ED_spacetypes_init(void)
 	ED_operatortypes_render();
 	ED_operatortypes_mask();
 	ED_operatortypes_io();
+	ED_operatortypes_hair();
 
 	ED_operatortypes_view2d();
 	ED_operatortypes_ui();
@@ -174,6 +176,7 @@ void ED_spacemacros_init(void)
 	ED_operatormacros_sequencer();
 	ED_operatormacros_paint();
 	ED_operatormacros_gpencil();
+	ED_operatormacros_hair();
 
 	/* register dropboxes (can use macros) */
 	spacetypes = BKE_spacetypes_list();
@@ -207,6 +210,7 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
 	ED_keymap_paint(keyconf);
 	ED_keymap_mask(keyconf);
 	ED_keymap_marker(keyconf);
+	ED_keymap_hair(keyconf);
 
 	ED_keymap_view2d(keyconf);
 	ED_keymap_ui(keyconf);

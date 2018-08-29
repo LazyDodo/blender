@@ -39,6 +39,7 @@
 #include "DNA_mesh_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_material_types.h"
@@ -71,6 +72,7 @@
 #include "BKE_displist.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
+#include "BKE_hair.h"
 #include "BKE_fcurve.h"
 #include "BKE_idprop.h"
 #include "BKE_lamp.h"
@@ -1794,6 +1796,9 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 					case OB_SPEAKER:
 						ob->data = ID_NEW_SET(ob->data, BKE_speaker_copy(bmain, ob->data));
 						break;
+					case OB_HAIR:
+						ob->data = ID_NEW_SET(ob->data, BKE_hair_copy(bmain, ob->data));
+						break;
 					case OB_LIGHTPROBE:
 						ob->data = ID_NEW_SET(ob->data, BKE_lightprobe_copy(bmain, ob->data));
 						break;
@@ -1896,6 +1901,10 @@ static void single_mat_users_expand(Main *bmain)
 	for (gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next)
 		if (gpd->id.tag & LIB_TAG_NEW)
 			new_id_matar(bmain, gpd->mat, gpd->totcol);
+	
+	for (HairSystem *hsys = bmain->hair.first; hsys; hsys = hsys->id.next)
+		if (hsys->id.tag & LIB_TAG_NEW)
+			new_id_matar(bmain, hsys->mat, hsys->totcol);
 }
 
 /* used for copying scenes */

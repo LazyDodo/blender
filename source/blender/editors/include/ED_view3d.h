@@ -43,6 +43,9 @@ struct BoundBox;
 struct Camera;
 struct Depsgraph;
 struct EditBone;
+struct HairFollicle;
+struct HairFiberCurve;
+struct HairFiberVertex;
 struct ImBuf;
 struct MVert;
 struct Main;
@@ -218,6 +221,12 @@ void pose_foreachScreenBone(
         struct ViewContext *vc,
         void (*func)(void *userData, struct bPoseChannel *pchan,
                      const float screen_co_a[2], const float screen_co_b[2]),
+        void *userData, const eV3DProjTest clip_flag);
+void hair_foreachScreenVert(
+        struct ViewContext *vc,
+        void (*func)(void *userData,
+                     struct HairFollicle *follicle, struct HairFiberCurve *curve, struct HairFiberVertex *vertex,
+                     const float screen_co[2]),
         void *userData, const eV3DProjTest clip_flag);
 /* *** end iterators *** */
 

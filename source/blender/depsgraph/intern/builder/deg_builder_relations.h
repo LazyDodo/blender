@@ -81,6 +81,7 @@ struct ViewLayer;
 struct Tex;
 struct World;
 struct EffectorWeights;
+struct HairSystem;
 
 struct PropertyRNA;
 

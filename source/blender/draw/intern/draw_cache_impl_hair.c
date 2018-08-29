@@ -62,6 +62,7 @@ typedef struct HairBatchCache {
 	ParticleHairCache hair;
 
 	bool is_dirty;
+	bool is_editmode;
 } HairBatchCache;
 
 static void hair_batch_cache_clear(HairSystem *hsys);
@@ -75,6 +76,10 @@ static bool hair_batch_cache_valid(HairSystem *hsys)
 	}
 
 	if (cache->is_dirty) {
+		return false;
+	}
+
+	if (cache->is_editmode != (hsys->edithair != NULL)) {
 		return false;
 	}
 
@@ -93,6 +98,7 @@ static void hair_batch_cache_init(HairSystem *hsys)
 	}
 	
 	cache->is_dirty = false;
+	cache->is_editmode = (hsys->edithair != NULL);
 }
 
 static HairBatchCache *hair_batch_cache_get(HairSystem *hsys)
@@ -115,6 +121,9 @@ void DRW_hair_batch_cache_dirty(HairSystem *hsys, int mode)
 	}
 	switch (mode) {
 		case BKE_HAIR_BATCH_DIRTY_ALL:
+			cache->is_dirty = true;
+			break;
+		case BKE_HAIR_BATCH_DIRTY_SELECT:
 			cache->is_dirty = true;
 			break;
 		default:
@@ -497,13 +506,14 @@ static void hair_batch_cache_ensure_procedural_indices(
 
 /* Ensure all textures and buffers needed for GPU accelerated drawing. */
 bool hair_ensure_procedural_data(
-        Object *UNUSED(object),
+        Object *object,
         HairSystem *hsys,
-        struct Mesh *scalp,
         ParticleHairCache **r_hair_cache,
         int subdiv,
         int thickness_res)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const Mesh *scalp = BKE_hair_get_scalp(draw_ctx->depsgraph, object, hsys);
 	bool need_ft_update = false;
 
 	HairExportCache *hair_export = BKE_hair_export_cache_new();

@@ -35,6 +35,7 @@
 #include "DNA_armature_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_linestyle_types.h"
 #include "DNA_material_types.h"
@@ -179,6 +180,11 @@ static void unlink_material_cb(
 		MetaBall *mb = (MetaBall *)tsep->id;
 		totcol = mb->totcol;
 		matar = mb->mat;
+	}
+	else if (GS(tsep->id->name) == ID_HA) {
+		HairSystem *hsys = (HairSystem *)tsep->id;
+		totcol = hsys->totcol;
+		matar = hsys->mat;
 	}
 	else {
 		BLI_assert(0);

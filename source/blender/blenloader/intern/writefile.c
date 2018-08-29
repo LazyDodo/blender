@@ -1620,6 +1620,12 @@ static void write_fmaps(WriteData *wd, ListBase *fbase)
 
 static void write_hair(WriteData *wd, HairSystem *hsys)
 {
+	writestruct(wd, ID_HA, HairSystem, 1, hsys);
+	write_iddata(wd, &hsys->id);
+	if (hsys->adt) {
+		write_animdata(wd, hsys->adt);
+	}
+
 	if ( hsys->pattern )
 	{
 		writestruct(wd, DATA, HairPattern, 1, hsys->pattern);
@@ -1628,6 +1634,13 @@ static void write_hair(WriteData *wd, HairSystem *hsys)
 	
 	writestruct(wd, DATA, HairFiberCurve, hsys->curve_data.totcurves, hsys->curve_data.curves);
 	writestruct(wd, DATA, HairFiberVertex, hsys->curve_data.totverts, hsys->curve_data.verts);
+
+	if (hsys->draw_settings)
+	{
+		writestruct(wd, DATA, HairDrawSettings, 1, hsys->draw_settings);
+	}
+
+	writedata(wd, DATA, sizeof(void *) * hsys->totcol, hsys->mat);
 }
 
 static void write_modifiers(WriteData *wd, ListBase *modbase)
@@ -3990,6 +4003,9 @@ static bool write_file_handle(
 						break;
 					case ID_CF:
 						write_cachefile(wd, (CacheFile *)id);
+						break;
+					case ID_HA:
+						write_hair(wd, (HairSystem *)id);
 						break;
 					case ID_LI:
 						/* Do nothing, handled below - and should never be reached. */

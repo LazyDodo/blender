@@ -49,6 +49,7 @@
 #include "DNA_camera_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_ipo_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -97,6 +98,7 @@
 #include "BKE_font.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
+#include "BKE_hair.h"
 #include "BKE_idcode.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
@@ -475,6 +477,9 @@ bool id_make_local(Main *bmain, ID *id, const bool test, const bool lib_local)
 		case ID_CF:
 			if (!test) BKE_cachefile_make_local(bmain, (CacheFile *)id, lib_local);
 			return true;
+		case ID_HA:
+			if (!test) BKE_hair_make_local(bmain, (HairSystem *)id, lib_local);
+			return true;
 		case ID_WS:
 		case ID_SCR:
 			/* A bit special: can be appended but not linked. Return false
@@ -659,6 +664,9 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 		case ID_VF:
 			BKE_vfont_copy_data(bmain, (VFont *)*r_newid, (VFont *)id, flag);
 			break;
+		case ID_HA:
+			BKE_hair_copy_data(bmain, (HairSystem *)*r_newid, (HairSystem *)id, flag);
+			break;
 		case ID_LI:
 		case ID_SCR:
 		case ID_WM:
@@ -744,6 +752,7 @@ void BKE_id_swap(Main *bmain, ID *id_a, ID *id_b)
 		CASE_SWAP(ID_PAL, Palette);
 		CASE_SWAP(ID_PC, PaintCurve);
 		CASE_SWAP(ID_CF, CacheFile);
+		CASE_SWAP(ID_HA, HairSystem);
 		case ID_IP:
 			break;  /* Deprecated. */
 	}
@@ -965,6 +974,8 @@ ListBase *which_libbase(Main *mainlib, short type)
 			return &(mainlib->cachefiles);
 		case ID_WS:
 			return &(mainlib->workspaces);
+		case ID_HA:
+			return &(mainlib->hair);
 	}
 	return NULL;
 }
@@ -1093,6 +1104,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[INDEX_ID_ME] = &(main->mesh);
 	lb[INDEX_ID_CU] = &(main->curve);
 	lb[INDEX_ID_MB] = &(main->mball);
+	lb[INDEX_ID_HA] = &(main->hair);
 
 	lb[INDEX_ID_LT] = &(main->latt);
 	lb[INDEX_ID_LA] = &(main->lamp);
@@ -1184,6 +1196,7 @@ size_t BKE_libblock_get_alloc_info(short type, const char **name)
 		CASE_RETURN(ID_PC,  PaintCurve);
 		CASE_RETURN(ID_CF,  CacheFile);
 		CASE_RETURN(ID_WS,  WorkSpace);
+		CASE_RETURN(ID_HA,  HairSystem);
 	}
 	return 0;
 #undef CASE_RETURN

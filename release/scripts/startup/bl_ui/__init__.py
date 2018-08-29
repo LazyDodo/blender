@@ -35,6 +35,7 @@ _modules = [
     "properties_data_curve",
     "properties_data_empty",
     "properties_data_gpencil",
+    "properties_data_hair",
     "properties_data_light",
     "properties_data_lattice",
     "properties_data_mesh",

@@ -32,10 +32,12 @@
 #include "BLI_utildefines.h"
 #include "BLI_rand.h"
 
+#include "BKE_hair.h"
 #include "BKE_node.h"
 #include "BKE_modifier.h"
 #include "BKE_particle.h"
 
+#include "DNA_hair_types.h"
 #include "DNA_image_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
@@ -644,6 +646,29 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 	}
 }
 
+static void workbench_cache_populate_hair(WORKBENCH_Data *vedata, Object *ob)
+{
+	const HairSystem *hsys = ob->data;
+	WORKBENCH_StorageList *stl = vedata->stl;
+	WORKBENCH_PassList *psl = vedata->psl;
+	WORKBENCH_PrivateData *wpd = stl->g_data;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	
+	Image *image = NULL;
+	Material *mat = give_current_material(ob, hsys->material_index);
+	ED_object_get_active_image(ob, hsys->material_index, &image, NULL, NULL, NULL);
+	int color_type = workbench_material_determine_color_type(wpd, image);
+	WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
+	
+	struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
+	                           ? wpd->prepass_solid_hair_fibers_sh
+	                           : wpd->prepass_texture_hair_fibers_sh;
+	DRWShadingGroup *shgrp = DRW_shgroup_hair_create(ob, hsys, psl->prepass_hair_pass, shader);
+	DRW_shgroup_stencil_mask(shgrp, 0xFF);
+	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
+	workbench_material_shgroup_uniform(wpd, shgrp, material);
+}
+
 void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 {
 	WORKBENCH_StorageList *stl = vedata->stl;
@@ -657,6 +682,9 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 
 	if (ob->type == OB_MESH) {
 		workbench_cache_populate_particles(vedata, ob);
+	}
+	if (ob->type == OB_HAIR) {
+		workbench_cache_populate_hair(vedata, ob);
 	}
 
 	ModifierData *md;
@@ -674,7 +702,7 @@ void workbench_deferred_solid_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	}
 
 	WORKBENCH_MaterialData *material;
-	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
+	if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL, OB_HAIR)) {
 		const bool is_active = (ob == draw_ctx->obact);
 		const bool is_sculpt_mode = is_active && (draw_ctx->object_mode & OB_MODE_SCULPT) != 0;
 		bool is_drawn = false;

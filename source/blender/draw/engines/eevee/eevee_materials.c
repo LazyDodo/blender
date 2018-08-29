@@ -1534,12 +1534,12 @@ static void material_hair(
         EEVEE_ViewLayerData *sldata,
         Object *ob,
         HairSystem *hsys,
-        const HairDrawSettings *draw_set,
         Material *ma,
         struct Mesh *scalp)
 {
 	EEVEE_PassList *psl = ((EEVEE_Data *)vedata)->psl;
 	EEVEE_StorageList *stl = ((EEVEE_Data *)vedata)->stl;
+	const HairDrawSettings *draw_set = hsys->draw_settings;
 	const bool use_ssr = ((stl->effects->enabled_effects & EFFECT_SSR) != 0);
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
@@ -1556,16 +1556,10 @@ static void material_hair(
 	}
 	
 	{
-		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_create(
-		            ob, hsys, scalp, draw_set,
-		            psl->depth_pass,
-		            e_data.default_hair_prepass_sh);
+		/*DRWShadingGroup *shgrp =*/ DRW_shgroup_hair_create(ob, hsys, psl->depth_pass, e_data.default_hair_prepass_sh);
 	}
 	{
-		DRWShadingGroup *shgrp = DRW_shgroup_hair_create(
-		                             ob, hsys, scalp, draw_set,
-		                             psl->depth_pass_clip,
-		                             e_data.default_hair_prepass_clip_sh);
+		DRWShadingGroup *shgrp = DRW_shgroup_hair_create(ob, hsys, psl->depth_pass_clip, e_data.default_hair_prepass_clip_sh);
 		DRW_shgroup_uniform_block(shgrp, "clip_block", sldata->clip_ubo);
 	}
 	
@@ -1591,10 +1585,7 @@ static void material_hair(
 					bool use_glossy = GPU_material_flag_get(gpumat, GPU_MATFLAG_GLOSSY);
 					bool use_refract = GPU_material_flag_get(gpumat, GPU_MATFLAG_REFRACT);
 
-					shgrp = DRW_shgroup_material_hair_create(
-					            ob, hsys, scalp, draw_set,
-					            psl->material_pass,
-					            gpumat);
+					shgrp = DRW_shgroup_material_hair_create(ob, hsys, psl->material_pass, gpumat);
 
 					add_standard_uniforms(shgrp, sldata, vedata, &ssr_id, NULL,
 					                      use_diffuse, use_glossy, use_refract, false, false);
@@ -1628,10 +1619,7 @@ static void material_hair(
 	}
 	
 	/* Shadows */
-	DRW_shgroup_hair_create(
-	            ob, hsys, scalp, draw_set,
-	            psl->shadow_pass,
-	            e_data.default_hair_prepass_sh);
+	DRW_shgroup_hair_create(ob, hsys, psl->shadow_pass, e_data.default_hair_prepass_sh);
 }
 
 void EEVEE_materials_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, Object *ob, bool *cast_shadow)
@@ -1837,6 +1825,13 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 				}
 			}
 		}
+	}
+	else if (ob->type == OB_HAIR) {
+		HairSystem *hsys = ob->data;
+		
+		Material *material = give_current_material(ob, hsys->material_index);
+		
+		material_hair(vedata, sldata, ob, hsys->hair_system, material, scalp);
 	}
 }
 

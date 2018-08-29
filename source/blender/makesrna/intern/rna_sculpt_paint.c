@@ -270,6 +270,23 @@ static char *rna_ParticleEdit_path(PointerRNA *UNUSED(ptr))
 	return BLI_strdup("tool_settings.particle_edit");
 }
 
+static char *rna_HairEditSettings_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_strdup("tool_settings.hair_edit_settings");
+}
+
+static void rna_HairEditSettings_update(bContext *C, PointerRNA *UNUSED(ptr))
+{
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
+
+	if (ob)
+	{
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
+	}
+}
+
 static bool rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 {
 	Scene *scene = (Scene *)ptr->id.data;
@@ -1099,6 +1116,16 @@ static void rna_def_particle_edit(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Curve", "");
 }
 
+static void rna_def_hair_edit_settings(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "HairEditSettings", NULL);
+	RNA_def_struct_path_func(srna, "rna_HairEditSettings_path");
+	RNA_def_struct_ui_text(srna, "Hair Edit", "Properties of hair editing mode");
+}
+
 static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 {
 	static const EnumPropertyItem prop_direction_items[] = {
@@ -1275,6 +1302,7 @@ void RNA_def_sculpt_paint(BlenderRNA *brna)
 	rna_def_vertex_paint(brna);
 	rna_def_image_paint(brna);
 	rna_def_particle_edit(brna);
+	rna_def_hair_edit_settings(brna);
 	rna_def_gpencil_sculpt(brna);
 	RNA_define_animate_sdna(true);
 }

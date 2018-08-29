@@ -136,7 +136,7 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Hair System", "Hair rendering and deformation data");
 	RNA_def_struct_sdna(srna, "HairSystem");
 	RNA_def_struct_ui_icon(srna, ICON_STRANDS);
-	
+
 	prop = RNA_def_property(srna, "pattern", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "HairPattern");
 	RNA_def_property_ui_text(prop, "Pattern", "Hair pattern");

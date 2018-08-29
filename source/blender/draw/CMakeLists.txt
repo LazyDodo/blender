@@ -77,6 +77,7 @@ set(SRC
 	intern/draw_view.c
 	modes/edit_armature_mode.c
 	modes/edit_curve_mode.c
+	modes/edit_hair_mode.c
 	modes/edit_lattice_mode.c
 	modes/edit_mesh_mode.c
 	modes/edit_mesh_mode_text.c
@@ -276,6 +277,8 @@ data_to_c_simple(modes/shaders/edit_mesh_overlay_facefill_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_curve_overlay_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_curve_overlay_handle_geom.glsl SRC)
 data_to_c_simple(modes/shaders/edit_curve_overlay_loosevert_vert.glsl SRC)
+data_to_c_simple(modes/shaders/edit_hair_overlay_frag.glsl SRC)
+data_to_c_simple(modes/shaders/edit_hair_overlay_loosevert_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_lattice_overlay_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_lattice_overlay_loosevert_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_normals_vert.glsl SRC)

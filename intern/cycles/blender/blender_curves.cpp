@@ -299,7 +299,6 @@ static void ObtainCacheVColFromParticleSystem(BL::Mesh *b_mesh,
 static void ObtainCacheDataFromHairSystem(BL::Object *b_ob,
                                           BL::HairSystem *b_hsys,
                                           BL::Mesh *b_scalp,
-                                          int shader,
                                           bool /*background*/,
                                           ParticleCurveData *CData,
                                           int *curvenum,
@@ -324,8 +323,10 @@ static void ObtainCacheDataFromHairSystem(BL::Object *b_ob,
 	CData->psys_curvenum.push_back_slow(totcurves);
 	
 	// Material
-	CData->psys_shader.push_back_slow(shader);
-	
+	// TODO
+//	int shader = clamp(b_part.material()-1, 0, mesh->used_shaders.size()-1);
+//	CData->psys_shader.push_back_slow(shader);
+
 	{
 		// Cycles settings
 //		PointerRNA cpsys = RNA_pointer_get(&b_hsys->ptr, "cycles");
@@ -414,6 +415,21 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 
 	if(!(mesh && b_ob && CData))
 		return false;
+
+	if(b_ob->type() == BL::Object::type_HAIR) {
+		BL::HairSystem b_hsys(b_ob->data());
+		
+		BL::Mesh b_scalp(b_hsys.scalp_object().data());
+		if (b_scalp) {
+			ObtainCacheDataFromHairSystem(b_ob,
+			                              &b_hsys,
+			                              &b_scalp,
+			                              background,
+			                              CData,
+			                              &curvenum,
+			                              &keyno);
+		}
+	}
 
 	BL::Object::modifiers_iterator b_mod;
 	for(b_ob->modifiers.begin(b_mod); b_mod != b_ob->modifiers.end(); ++b_mod) {

@@ -225,6 +225,7 @@ StructRNA *ID_code_to_RNA_type(short idcode)
 		case ID_CU: return &RNA_Curve;
 		case ID_GD: return &RNA_GreasePencil;
 		case ID_GR: return &RNA_Collection;
+		case ID_HA: return &RNA_HairSystem;
 		case ID_IM: return &RNA_Image;
 		case ID_KE: return &RNA_Key;
 		case ID_LA: return &RNA_Light;

@@ -36,6 +36,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
@@ -70,6 +71,7 @@
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
+#include "BKE_hair.h"
 #include "BKE_layer.h"
 #include "BKE_key.h"
 #include "BKE_main.h"
@@ -1992,6 +1994,116 @@ static void createTransLatticeVerts(TransInfo *t)
 			}
 			bp++;
 		}
+	}
+}
+
+/* ********************* hair *************** */
+
+static int hair_trans_count_verts(EditHair *edit, bool is_prop_edit)
+{
+	int count = 0, countsel = 0;
+	for (int i = 0; i < edit->pattern->num_follicles; ++i) {
+		HairFollicle *follicle = &edit->pattern->follicles[i];
+		HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
+		for (int j = 0; j < curve->numverts; ++j)
+		{
+			HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
+			++count;
+			if (vertex->flag & HAIR_VERTEX_SELECT)
+			{
+				++countsel;
+			}
+		}
+	}
+
+	/* note: in prop mode we need at least 1 selected */
+	if (countsel > 0)
+	{
+		return is_prop_edit ? count : countsel;
+	}
+	return 0;
+}
+
+static void hair_transdata_init_verts(
+        EditHair *edit,
+        bool is_prop_edit,
+        float obmat[4][4],
+        TransData *tdata,
+        TransData2D *tdata2d)
+{
+	float obmat3[3][3];
+	copy_m3_m4(obmat3, obmat);
+
+	/* local coordinate frame for the section */
+	float mtx[3][3], smtx[3][3];
+	copy_m3_m3(mtx, obmat3);
+	pseudoinverse_m3_m3(smtx, mtx, PSEUDOINVERSE_EPSILON);
+
+	TransData *td = tdata;
+	TransData2D *td2d = tdata2d;
+	for (int i = 0; i < edit->pattern->num_follicles; ++i) {
+		HairFollicle *follicle = &edit->pattern->follicles[i];
+		HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
+		for (int j = 0; j < curve->numverts; ++j)
+		{
+			HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
+			if (is_prop_edit || (vertex->flag & GM_VERTEX_SELECT))
+			{
+				copy_v2_v2(td2d->loc, vertex->co);
+				td2d->loc2d = vertex->co;
+
+				td->loc = td2d->loc;
+				copy_v3_v3(td->iloc, td->loc);
+				copy_v3_v3(td->center, td->loc);
+
+				if (vertex->flag & HAIR_VERTEX_SELECT)
+				{
+					td->flag = TD_SELECTED;
+				}
+				else
+				{
+					td->flag = 0;
+				}
+
+				copy_m3_m3(td->smtx, smtx);
+				copy_m3_m3(td->mtx, mtx);
+
+				unit_m3(td->axismtx);
+
+				td->ext = NULL;
+				td->val = NULL;
+
+				++td;
+				++td2d;
+			}
+		}
+	}
+}
+
+static void createTransHairVerts(TransInfo *t)
+{
+	FOREACH_TRANS_DATA_CONTAINER(t, tc)
+	{
+		const ToolSettings *tsettings = t->scene->toolsettings;
+		const bool is_prop_edit = t->flag & T_PROP_EDIT;
+		EditHair *edit = ((HairSystem *)tc->obedit->data)->edithair;
+		
+		tc->data_len = hair_trans_count_verts(edit, is_prop_edit);
+		if (tc->data_len > 0)
+		{
+			tc->data = MEM_callocN(tc->data_len * sizeof(TransData), "TransData(Hair EditMode)");
+			tc->data_2d = MEM_callocN(tc->data_len * sizeof(TransData2D), "TransData2D(Hair EditMode)");
+
+			hair_transdata_init_verts(edit, is_prop_edit, tc->obedit->obmat, tc->data, tc->data_2d);
+		}
+	}
+}
+
+void flushTransHair(TransInfo *t)
+{
+	FOREACH_TRANS_DATA_CONTAINER(t, tc)
+	{
+		UNUSED_VARS(tc);
 	}
 }
 
@@ -8577,6 +8689,9 @@ void createTransData(bContext *C, TransInfo *t)
 		}
 		else if (t->obedit_type == OB_MBALL) {
 			createTransMBallVerts(t);
+		}
+		else if (t->obedit_type == OB_HAIR) {
+			createTransHairVerts(t);
 		}
 		else if (t->obedit_type == OB_ARMATURE) {
 			t->flag &= ~T_PROP_EDIT;

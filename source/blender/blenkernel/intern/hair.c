@@ -47,70 +47,213 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
+#include "BKE_animsys.h"
+#include "DEG_depsgraph_query.h"
 #include "BKE_hair.h"
 #include "BKE_library.h"
+#include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_sample.h"
+#include "BKE_object.h"
 
 #include "BLT_translation.h"
 
-HairSystem* BKE_hair_new(void)
+void BKE_hair_init(HairSystem *hsys)
 {
-	HairSystem *hair = MEM_callocN(sizeof(HairSystem), "hair system");
-	
-	hair->pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
-	
-	return hair;
+	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(hsys, id));
+
+	hsys->bb = BKE_boundbox_alloc_unit();
+
+	hsys->pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
+	hsys->draw_settings = BKE_hair_draw_settings_new();
 }
 
-HairSystem* BKE_hair_copy(HairSystem *hsys)
+void *BKE_hair_add(Main *bmain, const char *name)
 {
-	HairSystem *nhsys = MEM_dupallocN(hsys);
-	
-	if (hsys->pattern)
-	{
-		nhsys->pattern = MEM_dupallocN(hsys->pattern);
-		nhsys->pattern->follicles = MEM_dupallocN(hsys->pattern->follicles);
-	}
-	
-	if (hsys->curve_data.curves)
-	{
-		nhsys->curve_data.curves = MEM_dupallocN(hsys->curve_data.curves);
-	}
-	if (hsys->curve_data.verts)
-	{
-		nhsys->curve_data.verts = MEM_dupallocN(hsys->curve_data.verts);
-	}
-	
-	nhsys->draw_batch_cache = NULL;
-	nhsys->draw_texture_cache = NULL;
-	
-	return nhsys;
+	HairSystem *hsys = BKE_libblock_alloc(bmain, ID_HA, name, 0);
+
+	BKE_hair_init(hsys);
+
+	return hsys;
 }
 
+void BKE_hair_pattern_free(HairPattern *pattern)
+{
+	if (pattern) {
+		MEM_SAFE_FREE(pattern->follicles);
+		MEM_freeN(pattern);
+	}
+}
+
+HairPattern *BKE_hair_pattern_copy(const HairPattern *src_pattern)
+{
+	HairPattern *dst_pattern = MEM_dupallocN(src_pattern);
+	if (src_pattern) {
+		dst_pattern->follicles = MEM_dupallocN(src_pattern->follicles);
+	}
+	return dst_pattern;
+}
+
+/* Does not free the data pointer itself! */
+void BKE_hair_curve_data_free(HairCurveData *data)
+{
+	MEM_SAFE_FREE(data->curves);
+	MEM_SAFE_FREE(data->verts);
+}
+
+void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_data)
+{
+	if (src_data->curves)
+	{
+		dst_data->curves = MEM_dupallocN(src_data->curves);
+	}
+	if (src_data->verts)
+	{
+		dst_data->verts = MEM_dupallocN(src_data->verts);
+	}
+}
+
+/** Free (or release) any data used by this hair system (does not free the hair system itself). */
 void BKE_hair_free(HairSystem *hsys)
 {
 	BKE_hair_batch_cache_free(hsys);
-	
-	if (hsys->curve_data.curves)
+
+	MEM_SAFE_FREE(hsys->bb);
+
+	if (hsys->edithair)
 	{
-		MEM_freeN(hsys->curve_data.curves);
+		EditHair *edit = hsys->edithair;
+
+		BKE_hair_curve_data_free(&edit->curve_data);
+		BKE_hair_pattern_free(edit->pattern);
+
+		MEM_freeN(edit);
+		hsys->edithair = NULL;
 	}
-	if (hsys->curve_data.verts)
+
+	BKE_hair_curve_data_free(&hsys->curve_data);
+	BKE_hair_pattern_free(hsys->pattern);
+	MEM_SAFE_FREE(hsys->draw_settings);
+	MEM_SAFE_FREE(hsys->mat);
+
+	BKE_animdata_free(&hsys->id, false);
+}
+
+/**
+ * Only copy internal data of HairSystem ID from source to already allocated/initialized destination.
+ * You probably never want to use that directly, use id_copy or BKE_id_copy_ex for typical needs.
+ *
+ * WARNING! This function will not handle ID user count!
+ *
+ * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ */
+void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSystem *hsys_src, const int UNUSED(flag))
+{
+	hsys_dst->bb = MEM_dupallocN(hsys_src->bb);
+
+	hsys_dst->edithair = NULL;
+
+	hsys_dst->pattern = BKE_hair_pattern_copy(hsys_src->pattern);
+	BKE_hair_curve_data_copy(&hsys_dst->curve_data, &hsys_src->curve_data);
+
+	hsys_dst->mat = MEM_dupallocN(hsys_src->mat);
+
+	if (hsys_src->draw_settings)
 	{
-		MEM_freeN(hsys->curve_data.verts);
+		hsys_dst->draw_settings = BKE_hair_draw_settings_copy(hsys_src->draw_settings);
 	}
-	
-	if (hsys->pattern)
+
+	hsys_dst->draw_batch_cache = NULL;
+	hsys_dst->draw_texture_cache = NULL;
+}
+
+HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)
+{
+	HairSystem *hsys_copy;
+	BKE_id_copy_ex(bmain, &hsys->id, (ID **)&hsys_copy, 0, false);
+	return hsys_copy;
+}
+
+void BKE_hair_make_local(Main *bmain, HairSystem *hsys, const bool lib_local)
+{
+	BKE_id_make_local_generic(bmain, &hsys->id, true, lib_local);
+}
+
+bool BKE_hair_minmax(HairSystem *hsys, float min[3], float max[3])
+{
+	if (hsys->curve_data.totverts == 0)
 	{
-		if (hsys->pattern->follicles)
-		{
-			MEM_freeN(hsys->pattern->follicles);
-		}
-		MEM_freeN(hsys->pattern);
+		return false;
 	}
-	
-	MEM_freeN(hsys);
+
+	HairFiberVertex *vert = hsys->curve_data.verts;
+	for (int i = 0; i < hsys->curve_data.totverts; ++i) {
+		minmax_v3v3_v3(min, max, vert->co);
+	}
+	return true;
+}
+
+BoundBox *BKE_hair_boundbox_get(Object *ob)
+{
+	BLI_assert(ob->type == OB_HAIR);
+	HairSystem *hsys = ob->data;
+
+	if (ob->bb)
+		return ob->bb;
+
+	if (hsys->bb == NULL || (hsys->bb->flag & BOUNDBOX_DIRTY)) {
+		BKE_hair_boundbox_calc(hsys);
+	}
+
+	return hsys->bb;
+}
+
+void BKE_hair_boundbox_calc(HairSystem *hsys)
+{
+	if (hsys->bb == NULL)
+	{
+		hsys->bb = MEM_callocN(sizeof(BoundBox), "boundbox");
+	}
+
+	float min[3], max[3];
+	INIT_MINMAX(min, max);
+	if (!BKE_hair_minmax(hsys, min, max)) {
+		min[0] = min[1] = min[2] = -1.0f;
+		max[0] = max[1] = max[2] = 1.0f;
+	}
+
+	BKE_boundbox_init_from_minmax(hsys->bb, min, max);
+	hsys->bb->flag &= ~BOUNDBOX_DIRTY;
+}
+
+/* Find the mesh used as the scalp surface */
+const struct Mesh* BKE_hair_get_scalp(
+        const Depsgraph *depsgraph,
+        const Object *ob,
+        const HairSystem *hsys)
+{
+	if (Object *scalp_object = BKE_hair_get_scalp_object(ob, hsys))
+	{
+		return (struct Mesh *)DEG_get_evaluated_id(depsgraph, scalp_object->data);
+	}
+
+	return NULL;
+}
+
+/* Find the object used as the scalp surface */
+const struct Object* BKE_hair_get_scalp_object(
+        const Object *ob,
+        const HairSystem *hsys)
+{
+	/* TODO add scalp mode and optional object pointer */
+	UNUSED_VARS(hsys);
+
+	if (ob->parent && ob->parent->type == OB_MESH)
+	{
+		return ob->parent;
+	}
+
+	return NULL;
 }
 
 /* Calculate surface area of a scalp mesh */
@@ -383,6 +526,23 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 	
 	return true;
 }
+
+
+/* === Depsgraph evaluation === */
+
+void BKE_hair_eval_geometry(const Depsgraph *depsgraph, HairSystem *hsys)
+{
+	if (G.debug & G_DEBUG_DEPSGRAPH) {
+		printf("%s on %s\n", __func__, hsys->id.name);
+	}
+
+	// TODO
+
+	if (hsys->bb == NULL || (hsys->bb->flag & BOUNDBOX_DIRTY)) {
+		BKE_hair_boundbox_calc(hsys);
+	}
+}
+
 
 /* === Export === */
 

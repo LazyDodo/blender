@@ -52,6 +52,7 @@ extern "C" {
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_group_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
@@ -79,6 +80,7 @@ extern "C" {
 #include "BKE_effect.h"
 #include "BKE_collision.h"
 #include "BKE_fcurve.h"
+#include "BKE_hair.h"
 #include "BKE_key.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -637,6 +639,7 @@ void DepsgraphRelationBuilder::build_object_data(Object *object)
 		case OB_MBALL:
 		case OB_LATTICE:
 		case OB_GPENCIL:
+		case OB_HAIR:
 		{
 			build_object_data_geometry(object);
 			break;
@@ -1821,6 +1824,19 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 				TimeSourceKey time_src_key;
 				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
 			}
+		}
+	}
+	/* Hair scalp dependency
+	 * TODO: eventually should be part of hair modifiers!
+	 */
+	if (object->type == OB_HAIR):
+	{
+		HairSystem *hsys = (HairSystem *)obdata;
+
+		if (Object *scalp_object = BKE_hair_get_scalp_object(object, hsys))
+		{
+			ComponentKey scalp_geom_key(&scalp_object->id, DEG_NODE_TYPE_GEOMETRY);
+			add_relation(scalp_geom_key, geom_key, "Scalp Object Geometry -> Hair Geometry");
 		}
 	}
 	/* Shader FX */

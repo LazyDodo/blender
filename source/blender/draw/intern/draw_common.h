@@ -26,14 +26,12 @@
 #ifndef __DRAW_COMMON_H__
 #define __DRAW_COMMON_H__
 
-struct Mesh;
 struct DRWPass;
 struct DRWShadingGroup;
 struct GPUBatch;
 struct GPUMaterial;
 struct GPUShader;
 struct GPUTexture;
-struct HairDrawSettings;
 struct HairSystem;
 struct Object;
 struct Scene;
@@ -180,13 +178,11 @@ struct DRWShadingGroup *DRW_shgroup_material_particle_hair_create(
 
 struct DRWShadingGroup *DRW_shgroup_hair_create(
         struct Object *object, struct HairSystem *hsys,
-        struct Mesh *scalp, const struct HairDrawSettings *draw_set,
         struct DRWPass *hair_pass,
         struct GPUShader *shader);
 
 struct DRWShadingGroup *DRW_shgroup_material_hair_create(
         struct Object *object, struct HairSystem *hsys,
-        struct Mesh *scalp, const struct HairDrawSettings *draw_set,
         struct DRWPass *hair_pass,
         struct GPUMaterial *material);
 

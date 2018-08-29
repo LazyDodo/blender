@@ -5096,25 +5096,6 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 	}
 }
 
-static void direct_link_hair(FileData *fd, HairSystem* hsys)
-{
-	if (!hsys) {
-		return;
-	}
-	
-	hsys->pattern = newdataadr(fd, hsys->pattern);
-	if ( hsys->pattern )
-	{
-		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
-	}
-	
-	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);
-	hsys->curve_data.verts = newdataadr(fd, hsys->curve_data.verts);
-	
-	hsys->draw_batch_cache = NULL;
-	hsys->draw_texture_cache = NULL;
-}
-
 static void direct_link_modifiers(FileData *fd, ListBase *lb)
 {
 	ModifierData *md;
@@ -8387,6 +8368,51 @@ static void direct_link_linestyle(FileData *fd, FreestyleLineStyle *linestyle)
 	}
 }
 
+/* ************ READ HAIR *************** */
+
+static void lib_link_hair(FileData *fd, Main *bmain)
+{
+	for (HairSystem *hsys = bmain->hair.first; hsys; hsys = hsys->id.next) {
+		ID *id = (ID *)hsys;
+
+		if ((id->tag & LIB_TAG_NEED_LINK) == 0) {
+			continue;
+		}
+		IDP_LibLinkProperty(id->properties, fd);
+		id_us_ensure_real(id);
+
+		for (int a = 0; a < hsys->totcol; a++) {
+			hsys->mat[a] = newlibadr_us(fd, hsys->id.lib, hsys->mat[a]);
+		}
+
+		id->tag &= ~LIB_TAG_NEED_LINK;
+	}
+}
+
+static void direct_link_hair(FileData *fd, HairSystem* hsys)
+{
+	hsys->adt= newdataadr(fd, hsys->adt);
+	direct_link_animdata(fd, hsys->adt);
+
+	hsys->pattern = newdataadr(fd, hsys->pattern);
+	if ( hsys->pattern )
+	{
+		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
+	}
+
+	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);
+	hsys->curve_data.verts = newdataadr(fd, hsys->curve_data.verts);
+
+	hsys->mat = newdataadr(fd, hsys->mat);
+	test_pointer_array(fd, (void **)&hsys->mat);
+	hsys->draw_settings = newdataadr(fd, hsys->draw_settings);
+
+	hsys->bb = NULL;
+	hsys->edithair = NULL;
+	hsys->draw_batch_cache = NULL;
+	hsys->draw_texture_cache = NULL;
+}
+
 /* ************** GENERAL & MAIN ******************** */
 
 
@@ -8684,6 +8710,9 @@ static BHead *read_libblock(FileData *fd, Main *main, BHead *bhead, const short 
 		case ID_WS:
 			direct_link_workspace(fd, (WorkSpace *)id, main);
 			break;
+		case ID_HA:
+			direct_link_hair(fd, (HairSystem *)id);
+			break;
 	}
 
 	oldnewmap_free_unused(fd->datamap);
@@ -8871,6 +8900,7 @@ static void lib_link_all(FileData *fd, Main *main)
 	lib_link_gpencil(fd, main);
 	lib_link_cachefiles(fd, main);
 	lib_link_workspaces(fd, main);
+	lib_link_hair(fd, main);
 
 	lib_link_library(fd, main);    /* only init users */
 }
@@ -9523,6 +9553,13 @@ static void expand_particlesettings(FileData *fd, Main *mainvar, ParticleSetting
 
 	for (ParticleDupliWeight *dw = part->dupliweights.first; dw; dw = dw->next) {
 		expand_doit(fd, mainvar, dw->ob);
+	}
+}
+
+static void expand_hair(FileData *fd, Main *mainvar, HairSystem *hsys)
+{
+	for (int a = 0; a < hsys->totcol; a++) {
+		expand_doit(fd, mainvar, hsys->mat[a]);
 	}
 }
 
@@ -10201,6 +10238,9 @@ void BLO_expand_main(void *fdhandle, Main *mainvar)
 						break;
 					case ID_AC:
 						expand_action(fd, mainvar, (bAction *)id); // XXX deprecated - old animation system
+						break;
+					case ID_HA:
+						expand_hair(fd, mainvar, (HairSystem *)id);
 						break;
 					case ID_GR:
 						expand_collection(fd, mainvar, (Collection *)id);

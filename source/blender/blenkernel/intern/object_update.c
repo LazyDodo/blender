@@ -63,6 +63,7 @@
 #include "BKE_pointcache.h"
 #include "BKE_scene.h"
 #include "BKE_gpencil.h"
+#include "BKE_hair.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -328,6 +329,9 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 		case OB_GPENCIL:
 			BKE_gpencil_batch_cache_dirty(ob->data);
 			break;
+		case OB_HAIR:
+			BKE_hair_batch_cache_dirty(ob->data, BKE_HAIR_BATCH_DIRTY_ALL);
+			break;
 	}
 }
 
@@ -378,6 +382,10 @@ void BKE_object_data_select_update(Depsgraph *depsgraph, ID *object_data)
 		case ID_LT:
 			BKE_lattice_batch_cache_dirty((struct Lattice *)object_data,
 			                              BKE_CURVE_BATCH_DIRTY_SELECT);
+			break;
+		case ID_HA:
+			BKE_hair_batch_cache_dirty((struct HairSystem *)object_data,
+			                            BKE_HAIR_BATCH_DIRTY_SELECT);
 			break;
 		default:
 			break;

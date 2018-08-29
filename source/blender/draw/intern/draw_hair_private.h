@@ -100,7 +100,6 @@ bool particles_ensure_procedural_data(
 bool hair_ensure_procedural_data(
         struct Object *object,
         struct HairSystem *hsys,
-        struct Mesh *scalp,
         struct ParticleHairCache **r_hair_cache,
         int subdiv,
         int thickness_res);

@@ -136,7 +136,7 @@ void EEVEE_cache_populate(void *vedata, Object *ob)
 	}
 
 	if (DRW_check_object_visible_within_active_context(ob)) {
-		if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
+		if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL, OB_HAIR)) {
 			EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
 		}
 		else if (!USE_SCENE_LIGHT(draw_ctx->v3d)) {

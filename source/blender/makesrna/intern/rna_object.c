@@ -161,6 +161,7 @@ const EnumPropertyItem rna_enum_object_type_items[] = {
 	{OB_LAMP, "LIGHT", 0, "Light", ""},
 	{OB_SPEAKER, "SPEAKER", 0, "Speaker", ""},
 	{OB_LIGHTPROBE, "LIGHT_PROBE", 0, "Probe", ""},
+	{OB_HAIR, "HAIR", 0, "Hair", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -397,6 +398,7 @@ static StructRNA *rna_Object_data_typef(PointerRNA *ptr)
 		case OB_SPEAKER: return &RNA_Speaker;
 		case OB_LIGHTPROBE: return &RNA_LightProbe;
 		case OB_GPENCIL: return &RNA_GreasePencil;
+		case OB_HAIR: return &RNA_HairSystem;
 		default: return &RNA_ID;
 	}
 }
