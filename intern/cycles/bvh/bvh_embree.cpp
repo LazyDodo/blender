@@ -188,12 +188,28 @@ void rtc_filter_func(const RTCFilterFunctionNArguments* args)
 
 	return;
 }
+
+static size_t unaccounted_mem = 0;
+
 bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool post);
 bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
 {
-	BVHEmbree *bvh = (BVHEmbree*)userPtr;
-	if(bvh) {
-		bvh->mem_monitor(bytes);
+	Stats *stats = (Stats*)userPtr;
+	if(stats) {
+		if(bytes > 0) {
+			stats->mem_alloc(bytes);
+		}
+		else {
+			stats->mem_free(-bytes);
+		}
+	}
+	else {
+		if(bytes >= 0) {
+			atomic_add_and_fetch_z(&unaccounted_mem, bytes);
+		}
+		else {
+			atomic_sub_and_fetch_z(&unaccounted_mem, -bytes);
+		}
 	}
 	return true;
 }
@@ -237,7 +253,7 @@ BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 	thread_scoped_lock lock(rtc_shared_mutex);
 	if(rtc_shared_users == 0) {
-		rtc_shared_device = rtcNewDevice("verbose=1");
+		rtc_shared_device = rtcNewDevice(NULL);
 
 		/* Check here if Embree was built with the correct flags. */
 		ssize_t ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED);
@@ -273,7 +289,6 @@ BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 	}
 	rtc_shared_users++;
 
-	rtcSetDeviceMemoryMonitorFunction(rtc_shared_device, rtc_memory_monitor_func, this);
 	rtcSetDeviceErrorFunction(rtc_shared_device, rtc_error_func, NULL);
 
 	/* BVH_CUSTOM as root index signals to the rest of the code that this is not Cycle's own BVH. */
@@ -322,22 +337,10 @@ void BVHEmbree::delete_rtcScene()
 	}
 }
 
-void BVHEmbree::mem_monitor(ssize_t bytes)
-{
-	if(stats) {
-		if(bytes > 0) {
-			stats->mem_alloc(bytes);
-		}
-		else {
-			stats->mem_free(-bytes);
-		}
-	}
-	mem_used += bytes;
-}
-
 void BVHEmbree::build(Progress& progress, Stats *stats_)
 {
 	stats = stats_;
+	rtcSetDeviceMemoryMonitorFunction(rtc_shared_device, rtc_memory_monitor_func, stats);
 
 	progress.set_substatus("Building BVH");
 
@@ -787,7 +790,8 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 
 		BVHEmbree *bvh = (BVHEmbree*)mesh->bvh;
 
-		mem_monitor(bvh->mem_used);
+		rtc_memory_monitor_func(stats, unaccounted_mem, true);
+		unaccounted_mem = 0;
 
 		int mesh_tri_offset = mesh->tri_offset;
 		int mesh_curve_offset = mesh->curve_offset;

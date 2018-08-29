@@ -40,12 +40,11 @@ public:
 	virtual ~BVHEmbree();
 	RTCScene scene;
 	static void destroy(RTCScene);
-	void mem_monitor(ssize_t mem);
 protected:
 	friend class BVH;
 	BVHEmbree(const BVHParams& params, const vector<Object*>& objects);
 
-	virtual void pack_nodes(const BVHNode *root);
+	virtual void pack_nodes(const BVHNode*);
 	virtual void refit_nodes();
 
 	void add_object(Object *ob, int i);
