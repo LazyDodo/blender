@@ -400,6 +400,9 @@ class _defs_view3d_select:
 
     @ToolDef.from_fn
     def circle():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("view3d.select_circle")
+            layout.prop(props, "radius")
         return dict(
             text="Select Circle",
             icon="ops.generic.select_circle",
@@ -412,6 +415,7 @@ class _defs_view3d_select:
                  dict(deselect=True),
                  dict(type='ACTIONMOUSE', value='PRESS', ctrl=True)),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -485,7 +489,9 @@ class _defs_edit_armature:
             icon="ops.armature.extrude_move",
             widget=None,
             keymap=(
-                ("armature.click_extrude", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
+                ("armature.extrude_move",
+                 dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
 
@@ -672,7 +678,8 @@ class _defs_edit_mesh:
             widget="MESH_GGT_extrude",
             operator="view3d.edit_mesh_extrude_move_normal",
             keymap=(
-                ("mesh.extrude_context_move", dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
+                ("mesh.extrude_context_move",
+                 dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
         )
@@ -877,6 +884,19 @@ class _defs_edit_curve:
         )
 
     @ToolDef.from_fn
+    def extrude():
+        return dict(
+            text="Extrude",
+            icon=None,
+            widget=None,
+            keymap=(
+                ("curve.extrude_move",
+                 dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+        )
+
+    @ToolDef.from_fn
     def extrude_cursor():
         return dict(
             text="Extrude Cursor",
@@ -990,6 +1010,11 @@ class _defs_sculpt:
 class _defs_vertex_paint:
 
     @staticmethod
+    def poll_select_mask(context):
+        mesh = context.object.data
+        return mesh.use_paint_mask
+
+    @staticmethod
     def generate_from_brushes(context):
         return generate_from_brushes_ex(
             context,
@@ -1031,6 +1056,11 @@ class _defs_texture_paint:
 
 
 class _defs_weight_paint:
+
+    @staticmethod
+    def poll_select_mask(context):
+        mesh = context.object.data
+        return (mesh.use_paint_mask or mesh.use_paint_mask_vertex)
 
     @staticmethod
     def generate_from_brushes(context):
@@ -1691,7 +1721,10 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             *_tools_annotate,
             None,
             _defs_edit_curve.draw,
-            _defs_edit_curve.extrude_cursor,
+            (
+                _defs_edit_curve.extrude,
+                _defs_edit_curve.extrude_cursor,
+            )
         ],
         'PARTICLE': [
             _defs_view3d_generic.cursor,
@@ -1708,6 +1741,12 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
         ],
         'PAINT_VERTEX': [
             _defs_vertex_paint.generate_from_brushes,
+            None,
+            lambda context: (
+                VIEW3D_PT_tools_active._tools_select
+                if _defs_vertex_paint.poll_select_mask(context)
+                else ()
+            ),
         ],
         'PAINT_WEIGHT': [
             # TODO, check for mixed pose mode
@@ -1717,8 +1756,11 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_weight_paint.sample_weight,
             _defs_weight_paint.sample_weight_group,
             None,
-            # TODO, override brush events
-            *_tools_select,
+            lambda context: (
+                VIEW3D_PT_tools_active._tools_select
+                if _defs_weight_paint.poll_select_mask(context)
+                else ()
+            ),
             None,
             _defs_weight_paint.gradient,
         ],
