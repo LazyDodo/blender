@@ -639,7 +639,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             row.label()
 
     def MY_BMESH(self, layout, ob, md):
-        split = layout.split(percentage=0.25)
+        split = layout.split(factor=0.25)
 
         col = split.column()
         col.label(text="§6.1:")
