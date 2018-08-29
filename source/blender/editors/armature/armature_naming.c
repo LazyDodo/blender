@@ -280,19 +280,19 @@ void ED_armature_bone_rename(Main *bmain, bArmature *arm, const char *oldnamep, 
 					}
 				}
 
-				GpencilModifierData *gp_md = BKE_gpencil_modifiers_findByType(ob, eGpencilModifierType_Armature);
-				if (gp_md) {
-					ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)gp_md;
-					if (mmd->object && mmd->object->data == arm) {
-						bDeformGroup *dg = defgroup_find_name(ob, oldname);
-						if (dg) {
-							BLI_strncpy(dg->name, newname, MAXBONENAME);
-						}
-					}
-				}
-
-				for (gp_md = ob->greasepencil_modifiers.first; gp_md; gp_md = gp_md->next) {
+				for (GpencilModifierData *gp_md = ob->greasepencil_modifiers.first; gp_md; gp_md = gp_md->next) {
 					switch (gp_md->type) {
+						case eGpencilModifierType_Armature:
+						{
+							ArmatureGpencilModifierData *mmd = (ArmatureGpencilModifierData *)gp_md;
+							if (mmd->object && mmd->object->data == arm) {
+								bDeformGroup *dg = defgroup_find_name(ob, oldname);
+								if (dg) {
+									BLI_strncpy(dg->name, newname, MAXBONENAME);
+								}
+							}
+							break;
+						}
 						case eGpencilModifierType_Hook:
 						{
 							HookGpencilModifierData *hgp_md = (HookGpencilModifierData *)gp_md;
