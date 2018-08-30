@@ -89,9 +89,6 @@ static void gpencil_deform_verts(
 		float co[3];
 		copy_v3_v3(co, &pt->x);
 		copy_v3_v3(pt_coords, co);
-
-		//if (i > 150)
-		//	printf("a: %d: %f, %f, %f\n", i, co[0], co[1], co[2]);
 	}
 
 	/* deform verts */
@@ -107,9 +104,6 @@ static void gpencil_deform_verts(
 	for (i = 0; i < gps->totpoints; i++, pt++) {
 		float *pt_coords = &all_vert_coords[3 * i];
 		copy_v3_v3(&pt->x, pt_coords);
-
-		//if (i > 150)
-		//	printf("b: %d: %f, %f, %f\n", i, pt_coords[0], pt_coords[1], pt_coords[2]);
 	}
 
 	MEM_SAFE_FREE(all_vert_coords);
