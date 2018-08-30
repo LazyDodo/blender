@@ -115,7 +115,11 @@ enable_testing()
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin CACHE INTERNAL "" FORCE)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib CACHE INTERNAL "" FORCE)
-set(TESTS_OUTPUT_DIR ${EXECUTABLE_OUTPUT_PATH}/tests CACHE INTERNAL "" FORCE)
+if(MSVC)
+	set(TESTS_OUTPUT_DIR ${EXECUTABLE_OUTPUT_PATH}/tests/$<CONFIG>/ CACHE INTERNAL "" FORCE)
+else()
+	set(TESTS_OUTPUT_DIR ${EXECUTABLE_OUTPUT_PATH}/tests/ CACHE INTERNAL "" FORCE)
+endif()
 
 #-----------------------------------------------------------------------------
 # Set default config options
@@ -163,6 +167,7 @@ option_defaults_init(
 	_init_FFTW3
 	_init_GAMEENGINE
 	_init_OPENSUBDIV
+	_init_SYSTEM_OPENJPG
 )
 
 # customize...
@@ -179,11 +184,13 @@ if(UNIX AND NOT APPLE)
 	set(_init_SDL                            OFF)
 	set(_init_FFTW3                          OFF)
 	set(_init_OPENSUBDIV                     OFF)
+	set(_init_SYSTEM_OPENJPG                 OFF)
 elseif(WIN32)
 	set(_init_JACK                           OFF)
 elseif(APPLE)
 	set(_init_JACK                           OFF)
 	set(_init_OPENSUBDIV                     OFF)
+	set(_init_SYSTEM_OPENJPG                 OFF)
 endif()
 
 
@@ -298,7 +305,7 @@ endif()
 
 
 # (unix defaults to System OpenJPEG On)
-option(WITH_SYSTEM_OPENJPEG "Use the operating systems OpenJPEG library" OFF)
+option(WITH_SYSTEM_OPENJPEG "Use the operating systems OpenJPEG library" ${_init_SYSTEM_OPENJPG})
 
 if(UNIX AND NOT APPLE)
 	option(WITH_SYSTEM_EIGEN3 "Use the systems Eigen3 library" OFF)
@@ -408,6 +415,8 @@ option(WITH_CYCLES_EMBREE			"Build Cycles with Embree support" ON)
 option(WITH_CYCLES_OPENSUBDIV		"Build Cycles with OpenSubdiv support" ${_init_CYCLES_OPENSUBDIV})
 option(WITH_CYCLES_CUDA_BINARIES	"Build Cycles CUDA binaries" OFF)
 option(WITH_CYCLES_CUBIN_COMPILER	"Build cubins with nvrtc based compiler instead of nvcc" OFF)
+option(WITH_CYCLES_CUDA_BUILD_SERIAL "Build cubins one after another (useful on machines with limited RAM)" OFF)
+mark_as_advanced(WITH_CYCLES_CUDA_BUILD_SERIAL)
 set(CYCLES_CUDA_BINARIES_ARCH sm_30 sm_35 sm_37 sm_50 sm_52 sm_60 sm_61 CACHE STRING "CUDA architectures to build binaries for")
 mark_as_advanced(CYCLES_CUDA_BINARIES_ARCH)
 unset(PLATFORM_DEFAULT)

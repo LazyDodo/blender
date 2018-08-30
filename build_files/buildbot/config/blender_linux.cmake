@@ -5,7 +5,17 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_full.cmake")
 # Detect which libc we'll be linking against.
 # Some of the paths will depend on this
 
-if(EXISTS "/lib/x86_64-linux-gnu/libc-2.19.so")
+if(EXISTS "/lib/x86_64-linux-gnu/libc-2.24.so")
+	message(STATUS "Building in GLibc-2.24 environment")
+	set(GLIBC "2.24")
+	set(MULTILIB "/x86_64-linux-gnu")
+	set(LIBDIR_NAME "linux_x86_64")
+elseif(EXISTS "/lib/i386-linux-gnu//libc-2.24.so")
+	message(STATUS "Building in GLibc-2.24 environment")
+	set(GLIBC "2.24")
+	set(MULTILIB "/i386-linux-gnu")
+	set(LIBDIR_NAME "linux_i686")
+elseif(EXISTS "/lib/x86_64-linux-gnu/libc-2.19.so")
 	message(STATUS "Building in GLibc-2.19 environment")
 	set(GLIBC "2.19")
 	set(MULTILIB "/x86_64-linux-gnu")
@@ -41,7 +51,10 @@ set(WITH_PYTHON_INSTALL_NUMPY    ON CACHE BOOL "" FORCE)
 set(WITH_PYTHON_INSTALL_REQUESTS ON CACHE BOOL "" FORCE)
 
 # ######## Release environment specific settings ########
-# All the hardcoded libraru paths and such
+
+if (NOT ${GLIBC} STREQUAL "2.24")
+
+# All the hardcoded library paths and such
 
 # LLVM libraries
 set(LLVM_VERSION             "3.4"  CACHE STRING "" FORCE)
@@ -147,6 +160,28 @@ set(BLOSC_LIBRARY
 	/opt/lib/blosc/lib/libblosc.a
 	CACHE BOOL "" FORCE
 )
+
+else()
+
+set(LIBDIR "/opt/blender-deps/${LIBDIR_NAME}" CACHE BOOL "" FORCE)
+
+# TODO(sergey): Remove once Python is oficially bumped to 3.7.
+set(PYTHON_VERSION    3.7 CACHE BOOL "" FORCE)
+
+# Platform specific configuration, to ensure static linking against everything.
+
+set(Boost_USE_STATIC_LIBS    ON CACHE BOOL "" FORCE)
+
+# Force using our precompiled openjpeg library.
+#
+# Also, FindOpenJPEG is stupid and is not aware about library called libopenjp2.
+set(WITH_SYSTEM_OPENJPEG     ON CACHE BOOL "" FORCE)
+set(OPENJPEG_LIBRARY "${LIBDIR}/openjpeg/lib/libopenjp2.a" CACHE BOOL "" FORCE)
+
+set(PCRE_INCLUDE_DIR          "/usr/include"                        CACHE STRING "" FORCE)
+set(PCRE_LIBRARY              "${LIBDIR}/opencollada/lib/libpcre.a" CACHE STRING "" FORCE)
+
+endif()
 
 # Additional linking libraries
 set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++"  CACHE STRING "" FORCE)

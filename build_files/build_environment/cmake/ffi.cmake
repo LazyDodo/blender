@@ -16,17 +16,23 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-ExternalProject_Add(external_orc
-	URL ${ORC_URI}
+ExternalProject_Add(external_ffi
+	URL ${FFI_URI}
+	URL_HASH SHA256=${FFI_HASH}
 	DOWNLOAD_DIR ${DOWNLOAD_DIR}
-	URL_HASH SHA256=${ORC_HASH}
-	PREFIX ${BUILD_DIR}/orc
-	CONFIGURE_COMMAND ${CONFIGURE_ENV} && cd ${BUILD_DIR}/orc/src/external_orc/ && ${CONFIGURE_COMMAND} --prefix=${LIBDIR}/orc --disable-shared --enable-static
-	BUILD_COMMAND ${CONFIGURE_ENV} && cd ${BUILD_DIR}/orc/src/external_orc/ && make -j${MAKE_THREADS}
-	INSTALL_COMMAND ${CONFIGURE_ENV} && cd ${BUILD_DIR}/orc/src/external_orc/ && make install
-	INSTALL_DIR ${LIBDIR}/orc
+	PREFIX ${BUILD_DIR}/ffi
+	CONFIGURE_COMMAND ${CONFIGURE_ENV} && cd ${BUILD_DIR}/ffi/src/external_ffi/ && ${CONFIGURE_COMMAND} --prefix=${LIBDIR}/ffi
+		--enable-shared=no
+		--enable-static=yes
+		--with-pic
+	BUILD_COMMAND ${CONFIGURE_ENV} && cd ${BUILD_DIR}/ffi/src/external_ffi/ && make -j${MAKE_THREADS}
+	INSTALL_COMMAND ${CONFIGURE_ENV} && cd ${BUILD_DIR}/ffi/src/external_ffi/ && make install
+	INSTALL_DIR ${LIBDIR}/ffi
 )
 
-if(MSVC)
-	set_target_properties(external_orc PROPERTIES FOLDER Mingw)
+if (UNIX AND NOT APPLE)
+	ExternalProject_Add_Step(external_ffi after_install
+		COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/ffi/lib/libffi.a ${LIBDIR}/ffi/lib/libffi_pic.a
+		DEPENDEES install
+	)
 endif()
