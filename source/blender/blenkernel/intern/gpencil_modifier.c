@@ -23,9 +23,9 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/blenkernel/intern/gpencil_modifier.c
- *  \ingroup bke
- */
+ /** \file blender/blenkernel/intern/gpencil_modifier.c
+  *  \ingroup bke
+  */
 
 
 #include <stdio.h>
@@ -347,7 +347,7 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
  * each loop over all the geometry being evaluated.
  */
 
-/* init lattice deform data */
+ /* init lattice deform data */
 void BKE_gpencil_lattice_init(Object *ob)
 {
 	GpencilModifierData *md;
@@ -426,8 +426,8 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 							eGpencilModifierType_Armature,
 							eGpencilModifierType_Hook,
 							eGpencilModifierType_Lattice,
-							eGpencilModifierType_Noise,
-							eGpencilModifierType_Offset)) {
+							eGpencilModifierType_Offset))
+					{
 
 						gps->flag |= GP_STROKE_RECALC_CACHES;
 					}
@@ -462,7 +462,7 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 /* *************************************************** */
 
 void BKE_gpencil_eval_geometry(Depsgraph *depsgraph,
-                               bGPdata *gpd)
+	bGPdata *gpd)
 {
 	DEG_debug_print_eval(depsgraph, __func__, gpd->id.name, gpd);
 	int ctime = (int)DEG_get_ctime(depsgraph);
@@ -476,10 +476,10 @@ void BKE_gpencil_eval_geometry(Depsgraph *depsgraph,
 	 * This would be better than inventing our own logic for this stuff...
 	 */
 
-	/* TODO: Move the following code to "BKE_gpencil_eval_done()" (marked as an exit node)
-	 * later when there's more happening here. For now, let's just keep this in here to avoid
-	 * needing to have one more node slowing down evaluation...
-	 */
+	 /* TODO: Move the following code to "BKE_gpencil_eval_done()" (marked as an exit node)
+	  * later when there's more happening here. For now, let's just keep this in here to avoid
+	  * needing to have one more node slowing down evaluation...
+	  */
 	if (DEG_is_active(depsgraph)) {
 		bGPdata *gpd_orig = (bGPdata *)DEG_get_original_id(&gpd->id);
 

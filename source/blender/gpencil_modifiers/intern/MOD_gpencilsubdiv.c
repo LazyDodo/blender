@@ -24,9 +24,9 @@
  *
  */
 
-/** \file blender/gpencil_modifiers/intern/MOD_gpencilsubdiv.c
- *  \ingroup modifiers
- */
+ /** \file blender/gpencil_modifiers/intern/MOD_gpencilsubdiv.c
+  *  \ingroup modifiers
+  */
 
 #include <stdio.h>
 
@@ -65,14 +65,14 @@ static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
 
 /* subdivide stroke to get more control points */
 static void deformStroke(
-        GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
-        Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
+	GpencilModifierData *md, Depsgraph *UNUSED(depsgraph),
+	Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SubdivGpencilModifierData *mmd = (SubdivGpencilModifierData *)md;
 
 	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 3, gpl, gps,
-	        mmd->flag & GP_SUBDIV_INVERT_LAYER, mmd->flag & GP_SUBDIV_INVERT_PASS))
+		mmd->layername, mmd->pass_index, 3, gpl, gps,
+		mmd->flag & GP_SUBDIV_INVERT_LAYER, mmd->flag & GP_SUBDIV_INVERT_PASS))
 	{
 		return;
 	}
@@ -81,8 +81,8 @@ static void deformStroke(
 }
 
 static void bakeModifier(
-        struct Main *UNUSED(bmain), Depsgraph *depsgraph,
-        GpencilModifierData *md, Object *ob)
+	struct Main *UNUSED(bmain), Depsgraph *depsgraph,
+	GpencilModifierData *md, Object *ob)
 {
 	bGPdata *gpd = ob->data;
 

@@ -25,9 +25,9 @@
  * Operators for creating new Grease Pencil primitives (boxes, circles, ...)
  */
 
-/** \file blender/editors/gpencil/gpencil_primitive.c
- *  \ingroup edgpencil
- */
+ /** \file blender/editors/gpencil/gpencil_primitive.c
+  *  \ingroup edgpencil
+  */
 
 
 #include <stdio.h>
@@ -90,10 +90,10 @@
 #define IDLE 0
 #define IN_PROGRESS 1
 
-/* ************************************************ */
-/* Core/Shared Utilities */
+  /* ************************************************ */
+  /* Core/Shared Utilities */
 
-/* Poll callback for primitive operators */
+  /* Poll callback for primitive operators */
 static bool gpencil_primitive_add_poll(bContext *C)
 {
 	/* only 3D view */
@@ -231,26 +231,26 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		else {
 			if (tgpi->flag == IN_PROGRESS) {
 				BLI_snprintf(
-				        status_str, sizeof(status_str), "%s: %d (%d, %d) (%d, %d)", msg_str, (int)tgpi->tot_edges,
-				        tgpi->top[0], tgpi->top[1], tgpi->bottom[0], tgpi->bottom[1]);
+					status_str, sizeof(status_str), "%s: %d (%d, %d) (%d, %d)", msg_str, (int)tgpi->tot_edges,
+					tgpi->top[0], tgpi->top[1], tgpi->bottom[0], tgpi->bottom[1]);
 			}
 			else {
 				BLI_snprintf(
-				        status_str, sizeof(status_str), "%s: %d (%d, %d)", msg_str, (int)tgpi->tot_edges,
-				        tgpi->bottom[0], tgpi->bottom[1]);
+					status_str, sizeof(status_str), "%s: %d (%d, %d)", msg_str, (int)tgpi->tot_edges,
+					tgpi->bottom[0], tgpi->bottom[1]);
 			}
 		}
 	}
 	else {
 		if (tgpi->flag == IN_PROGRESS) {
 			BLI_snprintf(
-			        status_str, sizeof(status_str), "%s: (%d, %d) (%d, %d)", msg_str,
-			        tgpi->top[0], tgpi->top[1], tgpi->bottom[0], tgpi->bottom[1]);
+				status_str, sizeof(status_str), "%s: (%d, %d) (%d, %d)", msg_str,
+				tgpi->top[0], tgpi->top[1], tgpi->bottom[0], tgpi->bottom[1]);
 		}
 		else {
 			BLI_snprintf(
-			        status_str, sizeof(status_str), "%s: (%d, %d)", msg_str,
-			        tgpi->bottom[0], tgpi->bottom[1]);
+				status_str, sizeof(status_str), "%s: (%d, %d)", msg_str,
+				tgpi->bottom[0], tgpi->bottom[1]);
 		}
 	}
 	ED_workspace_status_text(C, status_str);
@@ -368,12 +368,12 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		bGPDspoint *tpt = gps->points;
 		float origin[3];
 		ED_gp_get_drawing_reference(tgpi->v3d, tgpi->scene, tgpi->ob, tgpi->gpl,
-		                            ts->gpencil_v3d_align, origin);
+			ts->gpencil_v3d_align, origin);
 
 		for (int i = 0; i < gps->totpoints; i++, tpt++) {
 			ED_gp_project_point_to_plane(tgpi->ob, tgpi->rv3d, origin,
-			                             ts->gp_sculpt.lock_axis - 1,
-			                             tpt);
+				ts->gp_sculpt.lock_axis - 1,
+				tpt);
 		}
 	}
 
