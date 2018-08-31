@@ -2526,7 +2526,7 @@ void lanpr_compute_view_vector(LANPR_RenderBuffer *rb) {
 	//tMatVectorCopy3d(Trans, ((Camera*)rb->Scene->camera)->RenderViewDir);
 }
 
-void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb) {
+void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb, float threshold) {
 	real *ViewVector = rb->ViewVector;
 	BMEdge *e;
 	real Dot1 = 0, Dot2 = 0;
@@ -2572,7 +2572,7 @@ void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb) {
 
 		if (!Add) {
 			if ((Result = Dot1 * Dot2) <= 0) Add = 1;
-			elif(tmat_dot_3d(rl->TL->GN, rl->TR->GN, 0) < 0.7) Add = 2;
+			elif(tmat_dot_3d(rl->TL->GN, rl->TR->GN, 0) < threshold) Add = 2;
 			elif(rl->TL && rl->TR && rl->TL->MaterialID != rl->TR->MaterialID) Add = 3;
 		}
 
@@ -3236,7 +3236,7 @@ int lanpr_compute_feature_lines_internal(Depsgraph *depsgraph, SceneLANPR *lanpr
 
 	lanpr_make_initial_bounding_areas(rb);
 
-	lanpr_compute_scene_contours(rb);
+	lanpr_compute_scene_contours(rb, lanpr->crease_threshold);
 
 	lanpr_add_triangles(rb);
 
