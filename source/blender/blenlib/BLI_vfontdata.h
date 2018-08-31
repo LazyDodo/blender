@@ -43,8 +43,6 @@ typedef struct VFontData {
 	struct GHash *characters;
 	char name[128];
 	float scale;
-	float em_height;
-	float ascender;
 } VFontData;
 
 typedef struct VChar {
