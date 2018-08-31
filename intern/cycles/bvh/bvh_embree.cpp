@@ -129,12 +129,6 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 		if(ctx->max_hits == 0) {
 			return;
 		}
-		/* Only accept hits from the same object and triangles. */
-		if(hit->instID[0]/2 != ctx->sss_object_id || hit->geomID & 1) {
-			/* This tells Embree to continue tracing. */
-			*args->valid = 0;
-			return;
-		}
 
 		/* See triangle_intersect_subsurface() for the native equivalent. */
 		for(int i = min(ctx->max_hits, ctx->ss_isect->num_hits) - 1; i >= 0; --i) {
@@ -163,7 +157,7 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 			}
 		}
 		/* record intersection */
-		kernel_embree_convert_hit(kg, ray, hit, &ctx->ss_isect->hits[hit_idx]);
+		kernel_embree_convert_local_hit(kg, ray, hit, &ctx->ss_isect->hits[hit_idx], ctx->sss_object_id);
 		ctx->ss_isect->Ng[hit_idx].x = hit->Ng_x;
 		ctx->ss_isect->Ng[hit_idx].y = hit->Ng_y;
 		ctx->ss_isect->Ng[hit_idx].z = hit->Ng_z;
@@ -255,7 +249,8 @@ bool rtc_progress_func(void* user_ptr, const double n)
 	return !progress->get_cancel();
 }
 
-/* This is to have a shared device between all BVH instances */
+/* This is to have a shared device between all BVH instances.
+   It would be useful to actually to use a separte RTCDevice per Cycles instance. */
 RTCDevice BVHEmbree::rtc_shared_device = NULL;
 int BVHEmbree::rtc_shared_users = 0;
 thread_mutex BVHEmbree::rtc_shared_mutex;
@@ -308,8 +303,7 @@ BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 
 	rtcSetDeviceErrorFunction(rtc_shared_device, rtc_error_func, NULL);
 
-	/* BVH_CUSTOM as root index signals to the rest of the code that this is not Cycle's own BVH. */
-	pack.root_index = BVH_CUSTOM;
+	pack.root_index = -1;
 }
 
 BVHEmbree::~BVHEmbree()
@@ -807,10 +801,7 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 		int mesh_curve_offset = mesh->curve_offset;
 
 		/* fill in node indexes for instances */
-		if(bvh->pack.root_index == -1)
-			pack.object_node[object_offset++] = prim_offset;//todo (Stefan)
-		else
-			pack.object_node[object_offset++] = prim_offset; // todo (Stefan)
+		pack.object_node[object_offset++] = prim_offset; // TOOD (stefan)
 
 		mesh_map[mesh] = pack.object_node[object_offset-1];
 

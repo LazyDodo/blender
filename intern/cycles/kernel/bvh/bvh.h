@@ -243,7 +243,37 @@ ccl_device_intersect bool scene_intersect_local(KernelGlobals *kg,
 		IntersectContext rtc_ctx(&ctx);
 		RTCRay rtc_ray;
 		kernel_embree_setup_ray(ray, rtc_ray, PATH_RAY_ALL_VISIBILITY);
-		rtcOccluded1(kernel_data.bvh.scene, &rtc_ctx.context, &rtc_ray);
+
+		/* Get the Embree scene for this intersection. */
+		RTCGeometry geom = rtcGetGeometry(kernel_data.bvh.scene, local_object * 2);
+		if(geom) {
+			Transform ob_itfm;
+			float3 P = ray.P;
+			float3 dir = ray.D;
+			float3 idir = ray.D;
+			const int object_flag = kernel_tex_fetch(__object_flag, local_object);
+			if(!(object_flag & SD_OBJECT_TRANSFORM_APPLIED)) {
+				Transform ob_itfm;
+				rtc_ray.tfar = bvh_instance_motion_push(kg,
+												   local_object,
+												   &ray,
+												   &P,
+												   &dir,
+												   &idir,
+												   ray.t,
+												   &ob_itfm);
+				rtc_ray.org_x = P.x;
+				rtc_ray.org_y = P.y;
+				rtc_ray.org_z = P.z;
+				rtc_ray.dir_x = dir.x;
+				rtc_ray.dir_y = dir.y;
+				rtc_ray.dir_z = dir.z;
+			}
+			RTCScene scene = (RTCScene)rtcGetGeometryUserData(geom);
+			if(scene) {
+				rtcOccluded1(scene, &rtc_ctx.context, &rtc_ray);
+			}
+		}
 
 		return local_isect->num_hits > 0;
 	}

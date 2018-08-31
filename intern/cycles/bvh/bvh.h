@@ -36,7 +36,6 @@ class Progress;
 
 #define BVH_ALIGN     4096
 #define TRI_NODE_SIZE 3
-#define BVH_CUSTOM -1
 /* Packed BVH
  *
  * BVH stored as it will be used for traversal on the rendering device. */

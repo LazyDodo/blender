@@ -104,3 +104,15 @@ ccl_device_inline void kernel_embree_convert_hit(ccl::KernelGlobals *kg, const R
 	}
 	isect->type = kernel_tex_fetch(__prim_type, isect->prim);
 }
+
+ccl_device_inline void kernel_embree_convert_local_hit(ccl::KernelGlobals *kg, const RTCRay *ray, const RTCHit *hit, ccl::Intersection *isect, int local_object_id)
+{
+	isect->u = 1.0f - hit->v - hit->u;
+	isect->v = hit->u;
+	isect->t = ray->tfar;
+	isect->Ng = ccl::make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z);
+	RTCScene inst_scene = (RTCScene)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, local_object_id * 2));
+	isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(inst_scene, hit->geomID)) + kernel_tex_fetch(__object_node, local_object_id);
+	isect->object = local_object_id;
+	isect->type = kernel_tex_fetch(__prim_type, isect->prim);
+}
