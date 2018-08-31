@@ -27,7 +27,7 @@
 #include <stdlib.h>
 
 #include "DNA_brush_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
@@ -469,7 +469,7 @@ const EnumPropertyItem rna_enum_transform_pivot_items_full[] = {
 };
 
 /* Icons could be made a consistent set of images. */
-static const EnumPropertyItem transform_orientation_items[] = {
+const EnumPropertyItem rna_enum_transform_orientation_items[] = {
 	{V3D_MANIP_GLOBAL, "GLOBAL", ICON_SCENE_DATA, "Global", "Align the transformation axes to world space"},
 	{V3D_MANIP_LOCAL, "LOCAL", ICON_MANIPUL, "Local", "Align the transformation axes to the selected objects' local space"},
 	{V3D_MANIP_NORMAL, "NORMAL", ICON_SNAP_NORMAL, "Normal",
@@ -2012,7 +2012,7 @@ const EnumPropertyItem *rna_TransformOrientation_itemf(
 	EnumPropertyItem *item = NULL;
 	int i = V3D_MANIP_CUSTOM, totitem = 0;
 
-	RNA_enum_items_add(&item, &totitem, transform_orientation_items);
+	RNA_enum_items_add(&item, &totitem, rna_enum_transform_orientation_items);
 
 	Scene *scene;
 	if (ptr->type == &RNA_Scene) {
@@ -2451,6 +2451,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 		"Show compact list of color instead of thumbnails");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
+	prop = RNA_def_property(srna, "add_gpencil_weight_data", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_CREATE_WEIGHTS);
+	RNA_def_property_ui_text(prop, "Add weight data for new strokes",
+		"When creating new strokes, the weight data is added according to the current vertex group and weight, "
+		"if no vertex group selected, weight is not added");
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+	
 	prop = RNA_def_property(srna, "gpencil_sculpt", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "gp_sculpt");
 	RNA_def_property_struct_type(prop, "GPencilSculptSettings");
@@ -6256,7 +6263,7 @@ void RNA_def_scene(BlenderRNA *brna)
 	/* Orientations */
 	prop = RNA_def_property(srna, "transform_orientation", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "orientation_type");
-	RNA_def_property_enum_items(prop, transform_orientation_items);
+	RNA_def_property_enum_items(prop, rna_enum_transform_orientation_items);
 	RNA_def_property_enum_funcs(prop, "rna_Scene_transform_orientation_get", "rna_Scene_transform_orientation_set",
 	                            "rna_TransformOrientation_itemf");
 	RNA_def_property_ui_text(prop, "Transform Orientation", "Transformation orientation");

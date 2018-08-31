@@ -171,6 +171,7 @@ static EnumPropertyItem rna_enum_gpencil_brush_icons_items[] = {
 #include "BKE_colorband.h"
 #include "BKE_brush.h"
 #include "BKE_icons.h"
+#include "BKE_gpencil.h"
 #include "BKE_paint.h"
 
 #include "WM_api.h"
@@ -411,6 +412,31 @@ static void rna_Brush_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerR
 	/*WM_main_add_notifier(NC_SPACE|ND_SPACE_VIEW3D, NULL); */
 }
 
+static void rna_Brush_material_update(bContext *C, PointerRNA *ptr)
+{
+	Main *bmain = CTX_data_main(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
+	Brush *br = (Brush *)ptr->id.data;
+	int index;
+
+	/* set material slot to same material */
+	if ((ob) && (ob->type == OB_GPENCIL) && (br->gpencil_settings != NULL)) {
+		BrushGpencilSettings *gpencil_settings = br->gpencil_settings;
+		if (gpencil_settings->material != NULL) {
+
+			index = BKE_gpencil_get_material_index(ob, gpencil_settings->material);
+			if ((index > 0) && (ob->actcol != index)) {
+				ob->actcol = index;
+				/* update other brushes to keep all synchro */
+				BKE_brush_update_material(bmain, gpencil_settings->material, br);
+			}
+
+		}
+		WM_main_add_notifier(NC_SPACE | ND_SPACE_PROPERTIES, NULL);
+	}
+}
+
 static void rna_Brush_main_tex_update(bContext *C, PointerRNA *ptr)
 {
 	Main *bmain = CTX_data_main(C);
@@ -563,8 +589,8 @@ static const EnumPropertyItem *rna_Brush_direction_itemf(bContext *C, PointerRNA
 
 	/* sculpt mode */
 	static const EnumPropertyItem prop_flatten_contrast_items[] = {
-		{0, "FLATTEN", 0, "Flatten", "Add effect of brush"},
-		{BRUSH_DIR_IN, "CONTRAST", 0, "Contrast", "Subtract effect of brush"},
+		{BRUSH_DIR_IN, "CONTRAST", ICON_ZOOMIN, "Contrast", "Subtract effect of brush"},
+		{0, "FLATTEN", ICON_ZOOMOUT, "Flatten", "Add effect of brush"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -575,27 +601,27 @@ static const EnumPropertyItem *rna_Brush_direction_itemf(bContext *C, PointerRNA
 	};
 
 	static const EnumPropertyItem prop_scrape_peaks_items[] = {
-		{0, "SCRAPE", 0, "Scrape", "Add effect of brush"},
-		{BRUSH_DIR_IN, "PEAKS", 0, "Peaks", "Subtract effect of brush"},
+		{0, "SCRAPE", ICON_ZOOMIN, "Scrape", "Add effect of brush"},
+		{BRUSH_DIR_IN, "PEAKS", ICON_ZOOMOUT, "Peaks", "Subtract effect of brush"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
 	static const EnumPropertyItem prop_pinch_magnify_items[] = {
-		{0, "PINCH", 0, "Pinch", "Add effect of brush"},
-		{BRUSH_DIR_IN, "MAGNIFY", 0, "Magnify", "Subtract effect of brush"},
+		{BRUSH_DIR_IN, "MAGNIFY", ICON_ZOOMIN, "Magnify", "Subtract effect of brush"},
+		{0, "PINCH", ICON_ZOOMOUT, "Pinch", "Add effect of brush"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
 	static const EnumPropertyItem prop_inflate_deflate_items[] = {
-		{0, "INFLATE", 0, "Inflate", "Add effect of brush"},
-		{BRUSH_DIR_IN, "DEFLATE", 0, "Deflate", "Subtract effect of brush"},
+		{0, "INFLATE", ICON_ZOOMIN, "Inflate", "Add effect of brush"},
+		{BRUSH_DIR_IN, "DEFLATE", ICON_ZOOMOUT, "Deflate", "Subtract effect of brush"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
 	/* texture paint mode */
 	static const EnumPropertyItem prop_soften_sharpen_items[] = {
-		{0, "SOFTEN", 0, "Soften", "Blur effect of brush"},
-		{BRUSH_DIR_IN, "SHARPEN", 0, "Sharpen", "Sharpen effect of brush"},
+		{BRUSH_DIR_IN, "SHARPEN", ICON_ZOOMIN, "Sharpen", "Sharpen effect of brush"},
+		{0, "SOFTEN", ICON_ZOOMOUT, "Soften", "Blur effect of brush"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -935,8 +961,8 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 
 	/*  Grease Pencil Drawing - generated dynamically */
 	static const EnumPropertyItem prop_dynamic_gpencil_type[] = {
-		{ 1, "DRAW", 0, "Draw", "" },
-	{ 0, NULL, 0, NULL, NULL }
+		{1, "DRAW", 0, "Draw", ""},
+		{0, NULL, 0, NULL, NULL}
 	};
 
 	srna = RNA_def_struct(brna, "BrushGpencilSettings", NULL);
@@ -1202,10 +1228,10 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "material", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Material");
 	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_BrushGpencilSettings_material_poll");
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK | PROP_CONTEXT_UPDATE);
 	RNA_def_property_ui_text(prop, "Material", "Material used for strokes drawn using this brush");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_Brush_material_update");
 
 	prop = RNA_def_property(srna, "gpencil_fill_show_boundary", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_FILL_SHOW_HELPLINES);
@@ -1235,6 +1261,12 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "enable_random", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_GROUP_RANDOM);
 	RNA_def_property_ui_text(prop, "Random Settings", "Enable random settings for brush");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+
+	prop = RNA_def_property(srna, "pin_material", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BRUSH_MATERIAL_PINNED);
+	RNA_def_property_ui_icon(prop, ICON_UNPINNED, 1);
+	RNA_def_property_ui_text(prop, "Pin Material", "Keep material assigned to brush");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 }
 

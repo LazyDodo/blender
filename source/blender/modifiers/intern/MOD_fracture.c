@@ -40,7 +40,7 @@
 
 #include "BLI_ghash.h"
 
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_fracture_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"

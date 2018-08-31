@@ -219,7 +219,7 @@ class IMAGE_MT_image(Menu):
                 layout.operator("image.replace", text="Replace...")
                 layout.operator("image.reload", text="Reload")
 
-            layout.operator("image.external_edit", "Edit Externally")
+            layout.operator("image.external_edit", text="Edit Externally")
 
         layout.separator()
 
@@ -292,7 +292,7 @@ class IMAGE_MT_uvs_proportional(Menu):
 
         layout.separator()
 
-        layout.label("Falloff:")
+        layout.label(text="Falloff:")
         layout.props_enum(context.tool_settings, "proportional_edit_falloff")
 
 
@@ -960,10 +960,13 @@ class IMAGE_PT_tools_brush_overlay(BrushButtonsPanel, Panel):
         col.label(text="Curve:")
 
         row = col.row(align=True)
-        if brush.use_cursor_overlay:
-            row.prop(brush, "use_cursor_overlay", toggle=True, text="", icon='RESTRICT_VIEW_OFF')
-        else:
-            row.prop(brush, "use_cursor_overlay", toggle=True, text="", icon='RESTRICT_VIEW_ON')
+        row.prop(
+            brush,
+            "use_cursor_overlay",
+            text="",
+            toggle=True,
+            icon='RESTRICT_VIEW_OFF' if brush.use_cursor_overlay else 'RESTRICT_VIEW_ON',
+        )
 
         sub = row.row(align=True)
         sub.prop(brush, "cursor_overlay_alpha", text="Alpha")
@@ -973,10 +976,13 @@ class IMAGE_PT_tools_brush_overlay(BrushButtonsPanel, Panel):
         col.label(text="Texture:")
         row = col.row(align=True)
         if tex_slot.map_mode != 'STENCIL':
-            if brush.use_primary_overlay:
-                row.prop(brush, "use_primary_overlay", toggle=True, text="", icon='RESTRICT_VIEW_OFF')
-            else:
-                row.prop(brush, "use_primary_overlay", toggle=True, text="", icon='RESTRICT_VIEW_ON')
+            row.prop(
+                brush,
+                "use_primary_overlay",
+                text="",
+                toggle=True,
+                icon='RESTRICT_VIEW_OFF' if brush.use_primary_overlay else 'RESTRICT_VIEW_ON',
+            )
 
         sub = row.row(align=True)
         sub.prop(brush, "texture_overlay_alpha", text="Alpha")
@@ -986,10 +992,13 @@ class IMAGE_PT_tools_brush_overlay(BrushButtonsPanel, Panel):
 
         row = col.row(align=True)
         if tex_slot_mask.map_mode != 'STENCIL':
-            if brush.use_secondary_overlay:
-                row.prop(brush, "use_secondary_overlay", toggle=True, text="", icon='RESTRICT_VIEW_OFF')
-            else:
-                row.prop(brush, "use_secondary_overlay", toggle=True, text="", icon='RESTRICT_VIEW_ON')
+            row.prop(
+                brush,
+                "use_secondary_overlay",
+                text="",
+                toggle=True,
+                icon='RESTRICT_VIEW_OFF' if brush.use_secondary_overlay else 'RESTRICT_VIEW_ON',
+            )
 
         sub = row.row(align=True)
         sub.prop(brush, "mask_overlay_alpha", text="Alpha")
@@ -1068,7 +1077,7 @@ class IMAGE_PT_paint_stroke(BrushButtonsPanel, Panel):
 
         if brush.use_anchor:
             col.separator()
-            col.prop(brush, "use_edge_to_edge", "Edge To Edge")
+            col.prop(brush, "use_edge_to_edge", text="Edge To Edge")
 
         if brush.use_airbrush:
             col.separator()
@@ -1372,7 +1381,7 @@ class IMAGE_PT_view_waveform(ImageScopesPanel, Panel):
         sima = context.space_data
 
         layout.template_waveform(sima, "scopes")
-        row = layout.split(percentage=0.75)
+        row = layout.split(factor=0.75)
         row.prop(sima.scopes, "waveform_alpha")
         row.prop(sima.scopes, "waveform_mode", text="")
 

@@ -670,9 +670,11 @@ void ED_transform_calc_orientation_from_type_ex(
 		}
 		case V3D_MANIP_VIEW:
 		{
-			copy_m3_m4(r_mat, rv3d->viewinv);
-			normalize_m3(r_mat);
-			ok = true;
+			if (rv3d != NULL) {
+				copy_m3_m4(r_mat, rv3d->viewinv);
+				normalize_m3(r_mat);
+				ok = true;
+			}
 			break;
 		}
 		case V3D_MANIP_CURSOR:
@@ -1457,8 +1459,10 @@ static void gizmogroup_init_properties_from_twtype(wmGizmoGroup *gzgroup)
 
 		if (ptr) {
 			PropertyRNA *prop;
-			if ((prop = RNA_struct_find_property(ptr, "constraint_axis"))) {
-				RNA_property_boolean_set_array(ptr, prop, constraint_axis);
+			if (ELEM(true, UNPACK3(constraint_axis))) {
+				if ((prop = RNA_struct_find_property(ptr, "constraint_axis"))) {
+					RNA_property_boolean_set_array(ptr, prop, constraint_axis);
+				}
 			}
 
 			RNA_boolean_set(ptr, "release_confirm", 1);

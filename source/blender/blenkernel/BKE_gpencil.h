@@ -26,10 +26,10 @@
 #ifndef __BKE_GPENCIL_H__
 #define __BKE_GPENCIL_H__
 
-/** \file BKE_gpencil.h
- *  \ingroup bke
- *  \author Joshua Leung
- */
+ /** \file BKE_gpencil.h
+  *  \ingroup bke
+  *  \author Joshua Leung
+  */
 
 struct CurveMapping;
 struct Depsgraph;
@@ -106,9 +106,9 @@ void BKE_gpencil_stats_update(struct bGPdata *gpd);
 #define GP_PRIM_DATABUF_SIZE  5
 
 void BKE_gpencil_stroke_add_points(
-        struct bGPDstroke *gps,
-        const float *array, const int totpoints,
-        const float mat[4][4]);
+	struct bGPDstroke *gps,
+	const float *array, const int totpoints,
+	const float mat[4][4]);
 
 struct bGPDstroke *BKE_gpencil_add_stroke(struct bGPDframe *gpf, int mat_idx, int totpoints, short thickness);
 
@@ -144,17 +144,15 @@ struct Material *BKE_gpencil_material_ensure(struct Main *bmain, struct Object *
 
 /* object boundbox */
 bool BKE_gpencil_stroke_minmax(
-        const struct bGPDstroke *gps, const bool use_select,
-        float r_min[3], float r_max[3]);
+	const struct bGPDstroke *gps, const bool use_select,
+	float r_min[3], float r_max[3]);
 
 struct BoundBox *BKE_gpencil_boundbox_get(struct Object *ob);
 void BKE_gpencil_centroid_3D(struct bGPdata *gpd, float r_centroid[3]);
 
 /* vertex groups */
-float BKE_gpencil_vgroup_use_index(struct MDeformVert *dvert, int index);
+void BKE_gpencil_dvert_ensure(struct bGPDstroke *gps);
 void BKE_gpencil_vgroup_remove(struct Object *ob, struct bDeformGroup *defgroup);
-struct MDeformWeight *BKE_gpencil_vgroup_add_point_weight(struct MDeformVert *dvert, int index, float weight);
-bool BKE_gpencil_vgroup_remove_point_weight(struct MDeformVert *dvert, int index);
 void BKE_gpencil_stroke_weights_duplicate(struct bGPDstroke *gps_src, struct bGPDstroke *gps_dst);
 
 /* GPencil geometry evaluation */
@@ -164,6 +162,7 @@ void BKE_gpencil_eval_geometry(struct Depsgraph *depsgraph, struct bGPdata *gpd)
 void BKE_gpencil_stroke_normal(const struct bGPDstroke *gps, float r_normal[3]);
 void BKE_gpencil_simplify_stroke(struct bGPDstroke *gps, float factor);
 void BKE_gpencil_simplify_fixed(struct bGPDstroke *gps);
+void BKE_gpencil_subdivide(struct bGPDstroke *gps, int level, int flag);
 
 void BKE_gpencil_transform(struct bGPdata *gpd, float mat[4][4]);
 

@@ -36,7 +36,7 @@
 #include "DNA_fracture_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_rigidbody_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"

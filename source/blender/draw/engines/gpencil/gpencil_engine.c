@@ -382,7 +382,8 @@ void GPENCIL_cache_init(void *vedata)
 		    (stl->storage->is_playing == false))
 		{
 			if (((obact_gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
-			    (obact_gpd->runtime.sbuffer_size > 0))
+			    (obact_gpd->runtime.sbuffer_size > 0) &&
+			    ((obact_gpd->flag & GP_DATA_STROKE_POLYGON) == 0))
 			{
 				stl->g_data->session_flag |= GP_DRW_PAINT_PAINTING;
 			}
@@ -666,8 +667,7 @@ void GPENCIL_draw_scene(void *ved)
 	/* paper pass to display a confortable area to draw over complex scenes with geometry */
 	if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-		    (v3d->gp_flag & V3D_GP_SHOW_PAPER) &&
-		    (stl->g_data->gp_cache_used > 0))
+		    (v3d->gp_flag & V3D_GP_SHOW_PAPER))
 		{
 			DRW_draw_pass(psl->paper_pass);
 		}

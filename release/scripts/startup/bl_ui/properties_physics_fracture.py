@@ -71,7 +71,7 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
         md = context.fracture
         ob = context.object
 
-        layout.label("Fracture Point Source:")
+        layout.label(text="Fracture Point Source")
         col = layout.column()
         col.context_pointer_set("modifier", md)
         col.prop(md, "point_source")
@@ -91,7 +91,7 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
             col.prop(md, "cutter_group")
             if (md.cutter_group):
                 col.prop(md, "keep_cutter_shards")
-                col.label("Material Index Offset")
+                col.label(text="Material Index Offset")
                 row = col.row(align=True)
                 row.prop(md, "material_offset_intersect", text="Intersect")
                 row.prop(md, "material_offset_difference", text="Difference")
@@ -137,7 +137,7 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     def draw(self, context):
         md = context.fracture
         layout = self.layout
-        layout.label(text="Presets:")
+        layout.label(text="Presets")
         sub = layout.row(align=True)
         sub.menu("FRACTURE_MT_presets", text=bpy.types.FRACTURE_MT_presets.bl_label)
         sub.operator("fracture.preset_add", text="", icon='ZOOMIN')
@@ -215,7 +215,7 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         ob = context.object
 
         layout.active = md.use_constraints
-        layout.label("Constraint Building Settings")
+        layout.label(text="Constraint Building Settings")
         row = layout.row()
         row.prop(md, "use_breaking")
         row.prop(md, "activate_broken")
@@ -230,16 +230,16 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         col.prop(md, "constraint_limit", text="Constraint limit, per MeshIsland")
         col.prop(md, "contact_dist")
 
-        layout.label("Constraint Cluster Settings")
+        layout.label(text="Constraint Cluster Settings")
         layout.prop(md, "cluster_count")
         col = layout.column(align=True)
         col.prop(md, "cluster_group")
         col.prop(md, "cluster_constraint_type", text="Cluster Type")
 
         if md.use_compounds:
-            layout.label("Compound Breaking Settings")
+            layout.label(text="Compound Breaking Settings")
         else:
-            layout.label("Constraint Breaking Settings")
+            layout.label(text="Constraint Breaking Settings")
 
         col = layout.column(align=True)
         col.prop(md, "breaking_threshold", text="Threshold")
@@ -253,7 +253,7 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
             #col.prop(md, "directional_factor")
             col.prop(md, "mass_threshold_factor")
         else:
-            layout.label("Constraint Special Breaking Settings")
+            layout.label(text="Constraint Special Breaking Settings")
             col = layout.column(align=True)
             row = col.row(align=True)
             row.prop(md, "breaking_percentage", text="Percentage")
@@ -280,7 +280,7 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
             row.prop(md, "use_mass_dependent_thresholds", text="Mass Dependent Thresholds")
 
         if not md.use_compounds:
-            layout.label("Constraint Deform Settings")
+            layout.label(text="Constraint Deform Settings")
             col = layout.column(align=True)
             row = col.row(align=True)
             row.prop(md, "deform_angle", text="Deforming Angle")
