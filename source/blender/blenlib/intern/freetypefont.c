@@ -359,13 +359,18 @@ static VFontData *objfnt_to_ftvfontdata(PackedFile *pf)
 		lcode = charcode = FT_Get_First_Char(face, &glyph_index);
 	}
 
+	/* We can get descender as well, but we simple store descender in relation to the ascender.
+	 * Also note that descender is stored as a negative number. */
+	vfd->ascender = (float)face->ascender / (face->ascender - face->descender);
 
 	/* Adjust font size */
 	if (face->bbox.yMax != face->bbox.yMin) {
 		vfd->scale = (float)(1.0 / (double)(face->bbox.yMax - face->bbox.yMin));
+		vfd->em_height = (float)(face->ascender - face->descender) / (face->bbox.yMax - face->bbox.yMin);
 	}
 	else {
 		vfd->scale = 1.0f / 1000.0f;
+		vfd->em_height = 1.0f;
 	}
 
 	/* Load characters */
