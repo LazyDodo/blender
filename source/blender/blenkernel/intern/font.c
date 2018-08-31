@@ -635,23 +635,6 @@ struct TempLineInfo {
 	int   wspace_nr;  /* number of whitespaces of line */
 };
 
-/**
- * Font metric values explained:
- *
- * Baseline: Line where the text "rests", used as the origin vertical position for the glyphs.
- * Em height: Space most glyphs should fit within.
- * Ascent: the recommended distance above the baseline to fit most characters.
- * Descent: the recommended distance below the baseline to fit most characters.
- *
- * We obtain ascent and descent from the font itself (FT_Face->ascender / face->height).
- * And in some cases it is even the same value as FT_Face->bbox.yMax/yMin (font top and bottom respectively).
- *
- * The em_height here is relative to FT_Face->bbox.
-*/
-#define EM_HEIGHT vfd->em_height
-#define ASCENT vfd->ascender * EM_HEIGHT
-#define DESCENT EM_HEIGHT - ASCENT
-
 bool BKE_vfont_to_curve_ex(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
                            const wchar_t **r_text, int *r_text_len, bool *r_text_free,
                            struct CharTrans **r_chartransdata)
@@ -1036,33 +1019,27 @@ makebreak:
 	/* top-baseline is default, in this case, do nothing */
 	if (cu->align_y != CU_ALIGN_Y_TOP_BASELINE) {
 		if (tb_scale.h != 0.0f) {
-			if (i_textbox < slen) {
-				/* All previous textboxes are 'full', only align the last used text-box. */
-				struct CharTrans *ct_textbox = chartransdata + i_textbox;
+			/* top and top-baseline are the same when text-boxes are used */
+			if (cu->align_y != CU_ALIGN_Y_TOP && i_textbox < slen) {
+				/* all previous textboxes are 'full', only align the last used text-box */
 				float yoff = 0.0f;
+				int lines;
+				struct CharTrans *ct_last, *ct_textbox;
 
-/* The initial Y origin of the textbox is harcoded to 1.0f * text scale. */
-#define TEXTBOX_Y_ORIGIN 1.0f
+				ct_last = chartransdata + slen - 1;
+				ct_textbox = chartransdata + i_textbox;
 
-				switch (cu->align_y) {
-					case CU_ALIGN_Y_TOP_BASELINE:
-						break;
-					case CU_ALIGN_Y_TOP:
-						yoff = TEXTBOX_Y_ORIGIN - ASCENT;
-						break;
-					case CU_ALIGN_Y_CENTER:
-						yoff = (((EM_HEIGHT + (lnr - 1) * linedist) * 0.5f) - ASCENT)
-						       -(tb_scale.h  * 0.5f) + TEXTBOX_Y_ORIGIN;
-						break;
-					case CU_ALIGN_Y_BOTTOM_BASELINE:
-						yoff = TEXTBOX_Y_ORIGIN + ((lnr - 1) * linedist) - tb_scale.h;
-						break;
-					case CU_ALIGN_Y_BOTTOM:
-						yoff = TEXTBOX_Y_ORIGIN + ((lnr - 1) * linedist) - tb_scale.h + DESCENT;
-						break;
+				lines = ct_last->linenr - ct_textbox->linenr + 1;
+				if (mem[slen - 1] == '\n') {
+					lines++;
 				}
 
-#undef TEXTBOX_Y_ORIGIN
+				if (cu->align_y == CU_ALIGN_Y_BOTTOM) {
+					yoff = (lines * linedist) - tb_scale.h;
+				}
+				else if (cu->align_y == CU_ALIGN_Y_CENTER) {
+					yoff = 0.5f * ((lines * linedist) - tb_scale.h);
+				}
 
 				ct = ct_textbox;
 				for (i = i_textbox - 1; i < slen; i++) {
@@ -1072,25 +1049,18 @@ makebreak:
 			}
 		}
 		else {
-			/* Non text-box case handled separately. */
+			/* non text-box case handled separately */
 			ct = chartransdata;
 			float yoff = 0.0f;
 
-			switch (cu->align_y) {
-				case CU_ALIGN_Y_TOP_BASELINE:
-					break;
-				case CU_ALIGN_Y_TOP:
-					yoff = -ASCENT;
-					break;
-				case CU_ALIGN_Y_CENTER:
-					yoff = ((EM_HEIGHT + (lnr - 1) * linedist) * 0.5f) - ASCENT;
-					break;
-				case CU_ALIGN_Y_BOTTOM_BASELINE:
-					yoff = (lnr - 1) * linedist;
-					break;
-				case CU_ALIGN_Y_BOTTOM:
-					yoff = (lnr - 1) * linedist + DESCENT;
-					break;
+			if (cu->align_y == CU_ALIGN_Y_TOP) {
+				yoff = -linedist;
+			}
+			else if (cu->align_y == CU_ALIGN_Y_BOTTOM) {
+				yoff = (lnr - 1.0f) * linedist;
+			}
+			else if (cu->align_y == CU_ALIGN_Y_CENTER) {
+				yoff = (lnr - 2.0f) * linedist * 0.5f;
 			}
 
 			for (i = 0; i <= slen; i++) {
@@ -1369,9 +1339,6 @@ finally:
 #undef MARGIN_Y_MIN
 }
 
-#undef DESCENT
-#undef ASCENT
-#undef EM_HEIGHT
 
 bool BKE_vfont_to_curve_nubase(Object *ob, int mode, ListBase *r_nubase)
 {
