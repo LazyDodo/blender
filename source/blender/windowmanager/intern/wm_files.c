@@ -279,6 +279,10 @@ static void wm_window_match_replace_by_file_wm(
 	wm->initialized = 0;
 	wm->winactive = NULL;
 
+	/* Clearing drawable of before deleting any context
+	 * to avoid clearing the wrong wm. */
+	wm_window_clear_drawable(oldwm);
+
 	/* only first wm in list has ghostwins */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
 		for (wmWindow *oldwin = oldwm->windows.first; oldwin; oldwin = oldwin->next) {
@@ -365,8 +369,6 @@ static void wm_init_userdef(Main *bmain, const bool read_userdef_from_memory)
 
 	/* update tempdir from user preferences */
 	BKE_tempdir_init(U.tempdir);
-
-	BLF_antialias_set((U.text_render & USER_TEXT_DISABLE_AA) == 0);
 }
 
 
@@ -488,13 +490,7 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 
 	Main *bmain = CTX_data_main(C);
 	DEG_on_visible_update(bmain, true);
-
-	if (!is_startup_file) {
-		/* When starting up, the UI hasn't been fully initialised yet, and
-		 * this call can trigger icon updates, causing a segfault due to a
-		 * not-yet-initialised ghash for the icons. */
-		wm_event_do_depsgraph(C);
-	}
+	wm_event_do_depsgraph(C);
 
 	ED_editors_init(C);
 
@@ -672,6 +668,33 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 
 }
 
+struct {
+	char app_template[64];
+	bool override;
+} wm_init_state_app_template = {0};
+
+/**
+ * Used for setting app-template from the command line:
+ * - non-empty string: overrides.
+ * - empty string: override, using no app template.
+ * - NULL: clears override.
+ */
+void WM_init_state_app_template_set(const char *app_template)
+{
+	if (app_template) {
+		STRNCPY(wm_init_state_app_template.app_template, app_template);
+		wm_init_state_app_template.override = true;
+	}
+	else {
+		wm_init_state_app_template.app_template[0] = '\0';
+		wm_init_state_app_template.override = false;
+	}
+}
+
+const char *WM_init_state_app_template_get(void)
+{
+	return wm_init_state_app_template.override ? wm_init_state_app_template.app_template : NULL;
+}
 
 /**
  * Called on startup, (context entirely filled with NULLs)
@@ -780,7 +803,10 @@ int wm_homefile_read(
 	}
 
 	if ((app_template != NULL) && (app_template[0] != '\0')) {
-		BKE_appdir_app_template_id_search(app_template, app_template_system, sizeof(app_template_system));
+		if (!BKE_appdir_app_template_id_search(app_template, app_template_system, sizeof(app_template_system))) {
+			/* Can safely continue with code below, just warn it's not found. */
+			BKE_reportf(reports, RPT_WARNING, "Application Template '%s' not found.", app_template);
+		}
 
 		/* Insert template name into startup file. */
 
@@ -1577,42 +1603,6 @@ void WM_OT_save_userpref(wmOperatorType *ot)
 	ot->exec = wm_userpref_write_exec;
 }
 
-static int wm_workspace_configuration_file_write_exec(bContext *C, wmOperator *op)
-{
-	Main *bmain = CTX_data_main(C);
-	char filepath[FILE_MAX];
-
-	const char *app_template = U.app_template[0] ? U.app_template : NULL;
-	const char * const cfgdir = BKE_appdir_folder_id_create(BLENDER_USER_CONFIG, app_template);
-	if (cfgdir == NULL) {
-		BKE_report(op->reports, RPT_ERROR, "Unable to create workspace configuration file path");
-		return OPERATOR_CANCELLED;
-	}
-
-	BLI_path_join(filepath, sizeof(filepath), cfgdir, BLENDER_WORKSPACES_FILE, NULL);
-	printf("trying to save workspace configuration file at %s ", filepath);
-
-	if (BKE_blendfile_workspace_config_write(bmain, filepath, op->reports) != 0) {
-		printf("ok\n");
-		return OPERATOR_FINISHED;
-	}
-	else {
-		printf("fail\n");
-	}
-
-	return OPERATOR_CANCELLED;
-}
-
-void WM_OT_save_workspace_file(wmOperatorType *ot)
-{
-	ot->name = "Save Workspace Configuration";
-	ot->idname = "WM_OT_save_workspace_file";
-	ot->description = "Save workspaces of the current file as part of the user configuration";
-
-	ot->invoke = WM_operator_confirm;
-	ot->exec = wm_workspace_configuration_file_write_exec;
-}
-
 static int wm_history_file_read_exec(bContext *UNUSED(C), wmOperator *UNUSED(op))
 {
 	ED_file_read_bookmarks();
@@ -1676,9 +1666,13 @@ static int wm_homefile_read_exec(bContext *C, wmOperator *op)
 
 		/* Always load preferences when switching templates. */
 		use_userdef = true;
+
+		/* Turn override off, since we're explicitly loading a different app-template. */
+		WM_init_state_app_template_set(NULL);
 	}
 	else {
-		app_template = NULL;
+		/* Normally NULL, only set when overriding from the command-line. */
+		app_template = WM_init_state_app_template_get();
 	}
 
 	if (wm_homefile_read(C, op->reports, use_factory_settings, use_empty_data, use_userdef, filepath, app_template)) {

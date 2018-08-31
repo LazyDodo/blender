@@ -122,7 +122,7 @@ static void drw_shgroup_uniform(DRWShadingGroup *shgroup, const char *name,
 
 	if (location == -1) {
 		if (G.debug & G_DEBUG)
-			fprintf(stderr, "Uniform '%s' not found!\n", name);
+			fprintf(stderr, "Pass : %s, Uniform '%s' not found!\n", shgroup->pass_parent->name, name);
 		/* Nice to enable eventually, for now eevee uses uniforms that might not exist. */
 		// BLI_assert(0);
 		return;
@@ -539,7 +539,7 @@ static void sculpt_draw_cb(
 
 	if (pbvh) {
 		BKE_pbvh_draw_cb(
-		        pbvh, NULL, NULL, false,
+		        pbvh, NULL, NULL, false, false,
 		        (void (*)(void *, GPUBatch *))draw_fn, shgroup);
 	}
 }
@@ -730,7 +730,7 @@ static DRWShadingGroup *drw_shgroup_create_ex(struct GPUShader *shader, DRWPass 
 	shgroup->instance_vbo = NULL;
 #endif
 
-#ifdef USE_GPU_SELECT
+#if !defined(NDEBUG) || defined(USE_GPU_SELECT)
 	shgroup->pass_parent = pass;
 #endif
 
@@ -757,44 +757,25 @@ static DRWShadingGroup *drw_shgroup_material_create_ex(GPUPass *gpupass, DRWPass
 
 static DRWShadingGroup *drw_shgroup_material_inputs(DRWShadingGroup *grp, struct GPUMaterial *material)
 {
-	/* TODO : Ideally we should not convert. But since the whole codegen
-	 * is relying on GPUPass we keep it as is for now. */
-
 	ListBase *inputs = GPU_material_get_inputs(material);
 
 	/* Converting dynamic GPUInput to DRWUniform */
 	for (GPUInput *input = inputs->first; input; input = input->next) {
 		/* Textures */
-		if (input->ima) {
-			double time = 0.0; /* TODO make time variable */
-			GPUTexture *tex = GPU_texture_from_blender(
-			        input->ima, input->iuser, input->textarget, input->image_isdata, time);
+		if (input->source == GPU_SOURCE_TEX) {
+			GPUTexture *tex = NULL;
+
+			if (input->ima) {
+				double time = 0.0; /* TODO make time variable */
+				tex = GPU_texture_from_blender(input->ima, input->iuser, GL_TEXTURE_2D, input->image_isdata, time);
+			}
+			else {
+				/* Color Ramps */
+				tex = *input->coba;
+			}
 
 			if (input->bindtex) {
-				DRW_shgroup_uniform_texture(grp, input->shadername, tex);
-			}
-		}
-		/* Color Ramps */
-		else if (input->tex) {
-			DRW_shgroup_uniform_texture(grp, input->shadername, input->tex);
-		}
-		/* Floats */
-		else {
-			switch (input->type) {
-				case GPU_FLOAT:
-				case GPU_VEC2:
-				case GPU_VEC3:
-				case GPU_VEC4:
-					/* Should already be in the material ubo. */
-					break;
-				case GPU_MAT3:
-					DRW_shgroup_uniform_mat3(grp, input->shadername, (float (*)[3])input->dynamicvec);
-					break;
-				case GPU_MAT4:
-					DRW_shgroup_uniform_mat4(grp, input->shadername, (float (*)[4])input->dynamicvec);
-					break;
-				default:
-					break;
+				drw_shgroup_uniform_create_ex(grp, input->shaderloc, DRW_UNIFORM_TEXTURE, tex, 0, 1);
 			}
 		}
 	}
@@ -998,6 +979,23 @@ void DRW_shgroup_stencil_mask(DRWShadingGroup *shgroup, uint mask)
 	shgroup->stencil_mask = mask;
 }
 
+bool DRW_shgroup_is_empty(DRWShadingGroup *shgroup)
+{
+	switch (shgroup->type) {
+		case DRW_SHG_NORMAL:
+		case DRW_SHG_FEEDBACK_TRANSFORM:
+			return shgroup->calls.first == NULL;
+		case DRW_SHG_POINT_BATCH:
+		case DRW_SHG_LINE_BATCH:
+		case DRW_SHG_TRIANGLE_BATCH:
+		case DRW_SHG_INSTANCE:
+		case DRW_SHG_INSTANCE_EXTERNAL:
+			return shgroup->instance_count == 0;
+	}
+	BLI_assert(!"Shading Group type not supported");
+	return true;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -1009,7 +1007,7 @@ DRWPass *DRW_pass_create(const char *name, DRWState state)
 {
 	DRWPass *pass = BLI_mempool_alloc(DST.vmempool->passes);
 	pass->state = state;
-	if (G.debug_value > 20) {
+	if ((G.debug_value > 20) || (G.debug & G_DEBUG)) {
 		BLI_strncpy(pass->name, name, MAX_PASS_NAME);
 	}
 
@@ -1017,6 +1015,16 @@ DRWPass *DRW_pass_create(const char *name, DRWState state)
 	pass->shgroups.last = NULL;
 
 	return pass;
+}
+
+bool DRW_pass_is_empty(DRWPass *pass)
+{
+	for (DRWShadingGroup *shgroup = pass->shgroups.first; shgroup; shgroup = shgroup->next) {
+		if (!DRW_shgroup_is_empty(shgroup)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 void DRW_pass_state_set(DRWPass *pass, DRWState state)

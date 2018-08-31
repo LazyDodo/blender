@@ -293,7 +293,7 @@ static void image_operatortypes(void)
 
 static void image_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Image Generic", SPACE_IMAGE, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Image Generic", SPACE_IMAGE, 0);
 	wmKeyMapItem *kmi;
 	int i;
 
@@ -311,7 +311,7 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "IMAGE_OT_cycle_render_slot", JKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(WM_keymap_add_item(keymap, "IMAGE_OT_cycle_render_slot", JKEY, KM_PRESS, KM_ALT, 0)->ptr, "reverse", true);
 
-	keymap = WM_keymap_find(keyconf, "Image", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(keyconf, "Image", SPACE_IMAGE, 0);
 
 	WM_keymap_add_item(keymap, "IMAGE_OT_view_all", HOMEKEY, KM_PRESS, 0, 0);
 
@@ -387,7 +387,7 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 }
 
 /* dropboxes */
-static bool image_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool image_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH)
 		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE, ICON_FILE_BLANK)) /* rule might not work? */
@@ -608,23 +608,25 @@ static void image_widgets(void)
 static void image_main_region_set_view2d(SpaceImage *sima, ARegion *ar)
 {
 	Image *ima = ED_space_image(sima);
-	float x1, y1, w, h;
-	int width, height, winx, winy;
 
-#if 0
-	if (image_preview_active(curarea, &width, &height)) {}
-	else
-#endif
+	int width, height;
 	ED_space_image_get_size(sima, &width, &height);
 
-	w = width;
-	h = height;
+	float w = width;
+	float h = height;
 
 	if (ima)
 		h *= ima->aspy / ima->aspx;
 
-	winx = BLI_rcti_size_x(&ar->winrct) + 1;
-	winy = BLI_rcti_size_y(&ar->winrct) + 1;
+	int winx = BLI_rcti_size_x(&ar->winrct) + 1;
+	int winy = BLI_rcti_size_y(&ar->winrct) + 1;
+
+	/* For region overlap, move center so image doesn't overlap header. */
+	rcti visible_rect;
+	ED_region_visible_rect(ar, &visible_rect);
+	const int visible_winy = BLI_rcti_size_y(&visible_rect) + 1;
+	int visible_centerx = 0;
+	int visible_centery = visible_rect.ymin + (visible_winy - winy) / 2;
 
 	ar->v2d.tot.xmin = 0;
 	ar->v2d.tot.ymin = 0;
@@ -636,8 +638,8 @@ static void image_main_region_set_view2d(SpaceImage *sima, ARegion *ar)
 	ar->v2d.mask.ymax = winy;
 
 	/* which part of the image space do we see? */
-	x1 = ar->winrct.xmin + (winx - sima->zoom * w) / 2.0f;
-	y1 = ar->winrct.ymin + (winy - sima->zoom * h) / 2.0f;
+	float x1 = ar->winrct.xmin + visible_centerx + (winx - sima->zoom * w) / 2.0f;
+	float y1 = ar->winrct.ymin + visible_centery + (winy - sima->zoom * h) / 2.0f;
 
 	x1 -= sima->zoom * sima->xof;
 	y1 -= sima->zoom * sima->yof;
@@ -676,29 +678,29 @@ static void image_main_region_init(wmWindowManager *wm, ARegion *ar)
 	WM_gizmomap_add_handlers(ar, ar->gizmo_map);
 
 	/* mask polls mode */
-	keymap = WM_keymap_find(wm->defaultconf, "Mask Editing", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Mask Editing", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 	/* image paint polls for mode */
-	keymap = WM_keymap_find(wm->defaultconf, "Curve", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Curve", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Paint Curve", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Paint Curve", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Image Paint", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Paint", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "UV Editor", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "UV Editor", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
-	keymap = WM_keymap_find(wm->defaultconf, "UV Sculpt", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "UV Sculpt", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
 	/* own keymaps */
-	keymap = WM_keymap_find(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
-	keymap = WM_keymap_find(wm->defaultconf, "Image", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 }
 
@@ -866,7 +868,7 @@ static void image_buttons_region_init(wmWindowManager *wm, ARegion *ar)
 	ar->v2d.scroll = V2D_SCROLL_RIGHT | V2D_SCROLL_VERTICAL_HIDE;
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -920,7 +922,7 @@ static void image_tools_region_init(wmWindowManager *wm, ARegion *ar)
 	ar->v2d.scroll = V2D_SCROLL_RIGHT | V2D_SCROLL_VERTICAL_HIDE;
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 

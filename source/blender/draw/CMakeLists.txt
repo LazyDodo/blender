@@ -123,6 +123,13 @@ set(SRC
 	engines/workbench/solid_mode.c
 	engines/workbench/transparent_mode.c
 	engines/external/external_engine.c
+	engines/gpencil/gpencil_engine.h
+	engines/gpencil/gpencil_engine.c
+	engines/gpencil/gpencil_render.c
+	engines/gpencil/gpencil_cache_utils.c
+	engines/gpencil/gpencil_draw_utils.c
+	engines/gpencil/gpencil_draw_cache_impl.c
+	engines/gpencil/gpencil_shader_fx.c
 
 	DRW_engine.h
 	intern/DRW_render.h
@@ -220,6 +227,7 @@ data_to_c_simple(engines/workbench/shaders/workbench_effect_taa_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_forward_composite_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_forward_depth_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_forward_transparent_accum_frag.glsl SRC)
+data_to_c_simple(engines/workbench/shaders/workbench_ghost_resolve_frag.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_object_outline_lib.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_prepass_vert.glsl SRC)
 data_to_c_simple(engines/workbench/shaders/workbench_prepass_frag.glsl SRC)
@@ -262,6 +270,7 @@ data_to_c_simple(modes/shaders/edit_mesh_overlay_geom_edge.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_loosevert_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_facedot_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_facedot_vert.glsl SRC)
+data_to_c_simple(modes/shaders/edit_mesh_overlay_ghost_clear_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_mix_frag.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_facefill_vert.glsl SRC)
 data_to_c_simple(modes/shaders/edit_mesh_overlay_facefill_frag.glsl SRC)
@@ -277,6 +286,7 @@ data_to_c_simple(modes/shaders/overlay_face_orientation_vert.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_wireframe_vert.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_wireframe_geom.glsl SRC)
 data_to_c_simple(modes/shaders/overlay_face_wireframe_frag.glsl SRC)
+data_to_c_simple(modes/shaders/object_empty_axes_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_empty_image_frag.glsl SRC)
 data_to_c_simple(modes/shaders/object_empty_image_vert.glsl SRC)
 data_to_c_simple(modes/shaders/object_outline_resolve_frag.glsl SRC)
@@ -301,7 +311,35 @@ data_to_c_simple(modes/shaders/paint_wire_vert.glsl SRC)
 data_to_c_simple(modes/shaders/paint_vert_frag.glsl SRC)
 data_to_c_simple(modes/shaders/particle_strand_frag.glsl SRC)
 data_to_c_simple(modes/shaders/particle_strand_vert.glsl SRC)
+data_to_c_simple(modes/shaders/sculpt_mask_vert.glsl SRC)
 data_to_c_simple(modes/shaders/volume_velocity_vert.glsl SRC)
+
+data_to_c_simple(engines/gpencil/shaders/gpencil_fill_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_fill_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_stroke_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_stroke_geom.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_stroke_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_zdepth_mix_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_simple_mix_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_point_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_point_geom.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_point_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_background_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_paper_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_vert.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_geom.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/gpencil_edit_point_frag.glsl SRC)
+
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_blur_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_colorize_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_flip_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_light_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_pixel_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_rim_prepare_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_rim_resolve_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_swirl_frag.glsl SRC)
+data_to_c_simple(engines/gpencil/shaders/fx/gpencil_fx_wave_frag.glsl SRC)
+
 
 list(APPEND INC
 )

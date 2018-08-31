@@ -772,7 +772,7 @@ typedef enum {
 uiBut *uiDefAutoButR(uiBlock *block, struct PointerRNA *ptr, struct PropertyRNA *prop, int index, const char *name, int icon, int x1, int y1, int x2, int y2);
 eAutoPropButsReturn uiDefAutoButsRNA(
         uiLayout *layout, struct PointerRNA *ptr,
-        bool (*check_prop)(struct PointerRNA *, struct PropertyRNA *),
+        bool (*check_prop)(struct PointerRNA *ptr, struct PropertyRNA *prop, void *user_data), void *user_data,
         eButLabelAlign label_align, const bool compact);
 
 /* use inside searchfunc to add items */
@@ -935,6 +935,7 @@ enum {
 	UI_TEMPLATE_OP_PROPS_SHOW_TITLE       = (1 << 0),
 	UI_TEMPLATE_OP_PROPS_SHOW_EMPTY       = (1 << 1),
 	UI_TEMPLATE_OP_PROPS_COMPACT          = (1 << 2),
+	UI_TEMPLATE_OP_PROPS_HIDE_ADVANCED    = (1 << 3),
 };
 
 /* used for transp checkers */
@@ -1021,7 +1022,8 @@ uiLayout *uiLayoutRadial(uiLayout *layout);
 void uiTemplateHeader(uiLayout *layout, struct bContext *C);
 void uiTemplateID(
         uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
-        const char *newop, const char *openop, const char *unlinkop, int filter);
+        const char *newop, const char *openop, const char *unlinkop,
+        int filter, const bool live_icon);
 void uiTemplateIDBrowse(
         uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
         const char *newop, const char *openop, const char *unlinkop, int filter);
@@ -1031,7 +1033,7 @@ void uiTemplateIDPreview(
 void uiTemplateIDTabs(
         uiLayout *layout, struct bContext *C,
         PointerRNA *ptr, const char *propname,
-        const char *newop, const char *openop, const char *unlinkop,
+        const char *newop, const char *openop, const char *menu,
         int filter);
 void uiTemplateAnyID(
         uiLayout *layout, struct PointerRNA *ptr, const char *propname,
@@ -1051,6 +1053,12 @@ void uiTemplatePathBuilder(
         uiLayout *layout, struct PointerRNA *ptr, const char *propname,
         struct PointerRNA *root_ptr, const char *text);
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
+uiLayout *uiTemplateGpencilModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
+void uiTemplateGpencilColorPreview(
+	uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
+	int rows, int cols, float scale, int filter);
+
+uiLayout *uiTemplateShaderFx(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
 void uiTemplateOperatorRedoProperties(uiLayout *layout, const struct bContext *C);
 
@@ -1066,7 +1074,7 @@ void uiTemplateWaveform(uiLayout *layout, struct PointerRNA *ptr, const char *pr
 void uiTemplateVectorscope(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateCurveMapping(
         uiLayout *layout, struct PointerRNA *ptr, const char *propname, int type,
-        bool levels, bool brush, bool neg_slope);
+        bool levels, bool brush, bool neg_slope, bool tone);
 void uiTemplateColorPicker(uiLayout *layout, struct PointerRNA *ptr, const char *propname, bool value_slider, bool lock, bool lock_luminosity, bool cubic);
 void uiTemplatePalette(uiLayout *layout, struct PointerRNA *ptr, const char *propname, bool color);
 void uiTemplateCryptoPicker(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
@@ -1085,7 +1093,6 @@ void UI_but_func_operator_search(uiBut *but);
 void uiTemplateOperatorSearch(uiLayout *layout);
 eAutoPropButsReturn uiTemplateOperatorPropertyButs(
         const struct bContext *C, uiLayout *layout, struct wmOperator *op,
-        bool (*check_prop)(struct PointerRNA *, struct PropertyRNA *),
         const eButLabelAlign label_align, const short flag);
 void uiTemplateHeader3D_mode(uiLayout *layout, struct bContext *C);
 void uiTemplateHeader3D(uiLayout *layout, struct bContext *C);
@@ -1147,8 +1154,10 @@ void uiItemR(uiLayout *layout, struct PointerRNA *ptr, const char *propname, int
 void uiItemFullR(uiLayout *layout, struct PointerRNA *ptr, struct PropertyRNA *prop, int index, int value, int flag, const char *name, int icon);
 void uiItemEnumR_prop(uiLayout *layout, const char *name, int icon, struct PointerRNA *ptr, PropertyRNA *prop, int value);
 void uiItemEnumR(uiLayout *layout, const char *name, int icon, struct PointerRNA *ptr, const char *propname, int value);
+void uiItemEnumR_string_prop(uiLayout *layout, struct PointerRNA *ptr, PropertyRNA *prop, const char *value, const char *name, int icon);
 void uiItemEnumR_string(uiLayout *layout, struct PointerRNA *ptr, const char *propname, const char *value, const char *name, int icon);
 void uiItemsEnumR(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
+void uiItemPointerR_prop(uiLayout *layout, struct PointerRNA *ptr, PropertyRNA *prop, struct PointerRNA *searchptr, PropertyRNA *searchprop, const char *name, int icon);
 void uiItemPointerR(uiLayout *layout, struct PointerRNA *ptr, const char *propname, struct PointerRNA *searchptr, const char *searchpropname, const char *name, int icon);
 void uiItemsFullEnumO(
         uiLayout *layout, const char *opname, const char *propname,
@@ -1194,7 +1203,7 @@ void ED_operatortypes_ui(void);
 void ED_keymap_ui(struct wmKeyConfig *keyconf);
 
 void UI_drop_color_copy(struct wmDrag *drag, struct wmDropBox *drop);
-bool UI_drop_color_poll(struct bContext *C, struct wmDrag *drag, const struct wmEvent *event);
+bool UI_drop_color_poll(struct bContext *C, struct wmDrag *drag, const struct wmEvent *event, const char **tooltip);
 
 bool UI_context_copy_to_selected_list(
         struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop,
@@ -1214,6 +1223,7 @@ void UI_context_active_but_prop_get_filebrowser(
 void UI_context_active_but_prop_get_templateID(
         struct bContext *C,
         struct PointerRNA *r_ptr, struct PropertyRNA **r_prop);
+struct ID *UI_context_active_but_get_tab_ID(struct bContext *C);
 
 uiBut *UI_region_active_but_get(struct ARegion *ar);
 

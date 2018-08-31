@@ -56,6 +56,7 @@ KM_HIERARCHY = [
         ('Particle', 'EMPTY', 'WINDOW', []),
 
         ('Knife Tool Modal Map', 'EMPTY', 'WINDOW', []),
+        ('Custom Normals Modal Map', 'EMPTY', 'WINDOW', []),
         ('Paint Stroke Modal', 'EMPTY', 'WINDOW', []),
         ('Paint Curve', 'EMPTY', 'WINDOW', []),
 
@@ -121,6 +122,12 @@ KM_HIERARCHY = [
 
     ('Grease Pencil', 'EMPTY', 'WINDOW', [  # grease pencil stuff (per region)
         ('Grease Pencil Stroke Edit Mode', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint (Draw brush)', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint (Fill)', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint (Erase)', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint Mode', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Sculpt Mode', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Weight Mode', 'EMPTY', 'WINDOW', []),
     ]),
     ('Mask Editing', 'EMPTY', 'WINDOW', []),
     ('Frames', 'EMPTY', 'WINDOW', []),    # frame navigation (per region)

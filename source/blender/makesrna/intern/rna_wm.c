@@ -382,6 +382,10 @@ const EnumPropertyItem rna_enum_event_type_items[] = {
 	{NDOF_BUTTON_A, "NDOF_BUTTON_A", 0, "NDOF Button A", "NdofBA"},
 	{NDOF_BUTTON_B, "NDOF_BUTTON_B", 0, "NDOF Button B", "NdofBB"},
 	{NDOF_BUTTON_C, "NDOF_BUTTON_C", 0, "NDOF Button C", "NdofBC"},
+	/* Action Zones. */
+	{EVT_ACTIONZONE_AREA, "ACTIONZONE_AREA", 0, "ActionZone Area", "AZone Area"},
+	{EVT_ACTIONZONE_REGION, "ACTIONZONE_REGION", 0, "ActionZone Region", "AZone Region"},
+	{EVT_ACTIONZONE_FULLSCREEN, "ACTIONZONE_FULLSCREEN", 0, "ActionZone Fullscreen", "AZone FullScr"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -432,6 +436,8 @@ static const EnumPropertyItem operator_flag_items[] = {
 	                      "is enabled"},
 	{OPTYPE_PRESET, "PRESET", 0, "Preset", "Display a preset button with the operators settings"},
 	{OPTYPE_INTERNAL, "INTERNAL", 0, "Internal", "Removes the operator from search results"},
+	{OPTYPE_USE_EVAL_DATA, "USE_EVAL_DATA", 0, "Use Evaluated Data",
+	                       "Uses evaluated data (i.e. needs a valid depsgraph for current context)"},
 	{0, NULL, 0, NULL, NULL}
 };
 #endif

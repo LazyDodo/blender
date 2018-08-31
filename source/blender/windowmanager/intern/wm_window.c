@@ -123,7 +123,6 @@ static struct WMInitStruct {
 /* ******** win open & close ************ */
 
 static void wm_window_set_drawable(wmWindowManager *wm, wmWindow *win, bool activate);
-static void wm_window_clear_drawable(wmWindowManager *wm);
 
 /* XXX this one should correctly check for apple top header...
  * done for Cocoa : returns window contents (and not frame) max size*/
@@ -202,7 +201,6 @@ static void wm_ghostwindow_destroy(wmWindowManager *wm, wmWindow *win)
 		GHOST_DisposeWindow(g_system, win->ghostwin);
 		win->ghostwin = NULL;
 		win->gpuctx = NULL;
-
 	}
 }
 
@@ -633,6 +631,10 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	wm_get_screensize(&scr_w, &scr_h);
 	posy = (scr_h - win->posy - win->sizey);
 
+	/* Clear drawable so we can set the new window. */
+	wmWindow *prev_windrawable = wm->windrawable;
+	wm_window_clear_drawable(wm);
+
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
 	                              (GHOST_TWindowState)win->windowstate,
@@ -642,9 +644,6 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	if (ghostwin) {
 		GHOST_RectangleHandle bounds;
 
-		/* Clear drawable so we can set the new window. */
-		wm_window_clear_drawable(wm);
-
 		win->gpuctx = GPU_context_create();
 
 		/* needed so we can detect the graphics card below */
@@ -652,8 +651,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 		/* Set window as drawable upon creation. Note this has already been
 		 * it has already been activated by GHOST_CreateWindow. */
-		bool activate = false;
-		wm_window_set_drawable(wm, win, activate);
+		wm_window_set_drawable(wm, win, false);
 
 		win->ghostwin = ghostwin;
 		GHOST_SetWindowUserData(ghostwin, win); /* pointer back */
@@ -690,6 +688,9 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 		/* standard state vars for window */
 		GPU_state_init();
+	}
+	else {
+		wm_window_set_drawable(wm, prev_windrawable, false);
 	}
 }
 
@@ -766,13 +767,13 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		wm_window_ensure_eventstate(win);
 
 		/* add keymap handlers (1 handler for all keys in map!) */
-		keymap = WM_keymap_find(wm->defaultconf, "Window", 0, 0);
+		keymap = WM_keymap_ensure(wm->defaultconf, "Window", 0, 0);
 		WM_event_add_keymap_handler(&win->handlers, keymap);
 
-		keymap = WM_keymap_find(wm->defaultconf, "Screen", 0, 0);
+		keymap = WM_keymap_ensure(wm->defaultconf, "Screen", 0, 0);
 		WM_event_add_keymap_handler(&win->handlers, keymap);
 
-		keymap = WM_keymap_find(wm->defaultconf, "Screen Editing", 0, 0);
+		keymap = WM_keymap_ensure(wm->defaultconf, "Screen Editing", 0, 0);
 		WM_event_add_keymap_handler(&win->modalhandlers, keymap);
 
 		/* add drop boxes */
@@ -783,9 +784,7 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		wm_window_title(wm, win);
 
 		/* add topbar */
-		if (BLI_listbase_is_empty(&win->global_areas.areabase)) {
-			ED_screen_global_areas_create(win);
-		}
+		ED_screen_global_areas_refresh(win);
 	}
 }
 
@@ -1103,7 +1102,7 @@ static void wm_window_set_drawable(wmWindowManager *wm, wmWindow *win, bool acti
 	immActivate();
 }
 
-static void wm_window_clear_drawable(wmWindowManager *wm)
+void wm_window_clear_drawable(wmWindowManager *wm)
 {
 	if (wm->windrawable) {
 		BLF_batch_reset();
@@ -1115,7 +1114,7 @@ static void wm_window_clear_drawable(wmWindowManager *wm)
 
 void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 
 	if (win != wm->windrawable && win->ghostwin) {
 //		win->lmbut = 0;	/* keeps hanging when mousepressed while other window opened */
@@ -1136,7 +1135,7 @@ void wm_window_make_drawable(wmWindowManager *wm, wmWindow *win)
 void wm_window_reset_drawable(void)
 {
 	BLI_assert(BLI_thread_is_main());
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	wmWindowManager *wm = G_MAIN->wm.first;
 
 	if (wm == NULL)
@@ -2169,7 +2168,12 @@ ViewLayer *WM_window_get_active_view_layer(const wmWindow *win)
 		return view_layer;
 	}
 
-	return BKE_view_layer_default_view(scene);
+	view_layer = BKE_view_layer_default_view(scene);
+	if (view_layer) {
+		WM_window_set_active_view_layer((wmWindow *)win, view_layer);
+	}
+
+	return view_layer;
 }
 
 void WM_window_set_active_view_layer(wmWindow *win, ViewLayer *view_layer)
@@ -2277,24 +2281,24 @@ void *WM_opengl_context_create(void)
 	 * So we should call this function only on the main thread.
 	 */
 	BLI_assert(BLI_thread_is_main());
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	return GHOST_CreateOpenGLContext(g_system);
 }
 
 void WM_opengl_context_dispose(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_DisposeOpenGLContext(g_system, (GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_activate(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_ActivateOpenGLContext((GHOST_ContextHandle)context);
 }
 
 void WM_opengl_context_release(void *context)
 {
-	BLI_assert(GPU_framebuffer_current_get() == 0);
+	BLI_assert(GPU_framebuffer_active_get() == NULL);
 	GHOST_ReleaseOpenGLContext((GHOST_ContextHandle)context);
 }

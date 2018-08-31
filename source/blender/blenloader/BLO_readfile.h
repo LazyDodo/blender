@@ -115,6 +115,7 @@ void BLO_blendhandle_close(BlendHandle *bh);
 /***/
 
 #define BLO_GROUP_MAX 32
+#define BLO_EMBEDDED_STARTUP_BLEND "<startup.blend>"
 
 bool BLO_has_bfile_extension(const char *str);
 bool BLO_library_path_explode(const char *path, char *r_dir, char **r_group, char **r_name);
@@ -142,8 +143,6 @@ void BLO_library_link_end(
 void BLO_library_link_copypaste(struct Main *mainl, BlendHandle *bh);
 
 void *BLO_library_read_struct(struct FileData *fd, struct BHead *bh, const char *blockname);
-
-BlendFileData *blo_read_blendafterruntime(int file, const char *name, int actualsize, struct ReportList *reports);
 
 /* internal function but we need to expose it */
 void blo_lib_link_restore(

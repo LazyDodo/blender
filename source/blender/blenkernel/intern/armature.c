@@ -27,7 +27,6 @@
  *  \ingroup bke
  */
 
-
 #include <ctype.h>
 #include <stdlib.h>
 #include <math.h>
@@ -47,6 +46,7 @@
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_listBase.h"
@@ -433,6 +433,25 @@ void equalize_bbone_bezier(float *data, int desired)
 	copy_qt_qt(fp, temp[MAX_BBONE_SUBDIV]);
 }
 
+/* get "next" and "prev" bones - these are used for handle calculations */
+void BKE_pchan_get_bbone_handles(bPoseChannel *pchan, bPoseChannel **r_prev, bPoseChannel **r_next)
+{
+	if (pchan->bboneflag & PCHAN_BBONE_CUSTOM_HANDLES) {
+		/* use the provided bones as the next/prev - leave blank to eliminate this effect altogether */
+		*r_prev = pchan->bbone_prev;
+		*r_next = pchan->bbone_next;
+	}
+	else {
+		/* evaluate next and prev bones */
+		if (pchan->bone->flag & BONE_CONNECTED)
+			*r_prev = pchan->parent;
+		else
+			*r_prev = NULL;
+
+		*r_next = pchan->child;
+	}
+}
+
 /* returns pointer to static array, filled with desired amount of bone->segments elements */
 /* this calculation is done  within unit bone space */
 void b_bone_spline_setup(bPoseChannel *pchan, int rest, Mat4 result_array[MAX_BBONE_SUBDIV])
@@ -460,21 +479,7 @@ void b_bone_spline_setup(bPoseChannel *pchan, int rest, Mat4 result_array[MAX_BB
 		}
 	}
 
-	/* get "next" and "prev" bones - these are used for handle calculations */
-	if (pchan->bboneflag & PCHAN_BBONE_CUSTOM_HANDLES) {
-		/* use the provided bones as the next/prev - leave blank to eliminate this effect altogether */
-		prev = pchan->bbone_prev;
-		next = pchan->bbone_next;
-	}
-	else {
-		/* evaluate next and prev bones */
-		if (bone->flag & BONE_CONNECTED)
-			prev = pchan->parent;
-		else
-			prev = NULL;
-
-		next = pchan->child;
-	}
+	BKE_pchan_get_bbone_handles(pchan, &prev, &next);
 
 	/* find the handle points, since this is inside bone space, the
 	 * first point = (0, 0, 0)
@@ -966,7 +971,7 @@ static void armature_bbone_defmats_cb(void *userdata, Link *iter, int index)
 
 void armature_deform_verts(Object *armOb, Object *target, const Mesh * mesh, float (*vertexCos)[3],
                            float (*defMats)[3][3], int numVerts, int deformflag,
-                           float (*prevCos)[3], const char *defgrp_name)
+                           float (*prevCos)[3], const char *defgrp_name, bGPDstroke *gps)
 {
 	bPoseChanDeform *pdef_info_array;
 	bPoseChanDeform *pdef_info = NULL;
@@ -1020,7 +1025,7 @@ void armature_deform_verts(Object *armOb, Object *target, const Mesh * mesh, flo
 	/* get the def_nr for the overall armature vertex group if present */
 	armature_def_nr = defgroup_name_index(target, defgrp_name);
 
-	if (ELEM(target->type, OB_MESH, OB_LATTICE)) {
+	if (ELEM(target->type, OB_MESH, OB_LATTICE, OB_GPENCIL)) {
 		defbase_tot = BLI_listbase_count(&target->defbase);
 
 		if (target->type == OB_MESH) {
@@ -1029,17 +1034,22 @@ void armature_deform_verts(Object *armOb, Object *target, const Mesh * mesh, flo
 			if (dverts)
 				target_totvert = me->totvert;
 		}
-		else {
+		else if (target->type == OB_LATTICE) {
 			Lattice *lt = target->data;
 			dverts = lt->dvert;
 			if (dverts)
 				target_totvert = lt->pntsu * lt->pntsv * lt->pntsw;
 		}
+		else if (target->type == OB_GPENCIL) {
+			dverts = gps->dvert;
+			if (dverts)
+				target_totvert = gps->totpoints;
+		}
 	}
 
 	/* get a vertex-deform-index to posechannel array */
 	if (deformflag & ARM_DEF_VGROUP) {
-		if (ELEM(target->type, OB_MESH, OB_LATTICE)) {
+		if (ELEM(target->type, OB_MESH, OB_LATTICE, OB_GPENCIL)) {
 			/* if we have a Mesh, only use dverts if it has them */
 			if (mesh) {
 				use_dverts = (mesh->dvert != NULL);
@@ -1960,7 +1970,7 @@ void BKE_pose_remap_bone_pointers(bArmature *armature, bPose *pose)
  *
  * \param bmain May be NULL, only used to tag depsgraph as being dirty...
  */
-void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm)
+void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm, const bool do_id_user)
 {
 	Bone *bone;
 	bPose *pose;
@@ -1989,7 +1999,7 @@ void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm)
 	for (pchan = pose->chanbase.first; pchan; pchan = next) {
 		next = pchan->next;
 		if (pchan->bone == NULL) {
-			BKE_pose_channel_free(pchan);
+			BKE_pose_channel_free_ex(pchan, do_id_user);
 			BKE_pose_channels_hash_free(pose);
 			BLI_freelinkN(&pose->chanbase, pchan);
 		}
@@ -2291,7 +2301,7 @@ void BKE_pose_where_is(struct Depsgraph *depsgraph, Scene *scene, Object *ob)
 		return;
 	if ((ob->pose == NULL) || (ob->pose->flag & POSE_RECALC)) {
 		/* WARNING! passing NULL bmain here means we won't tag depsgraph's as dirty - hopefully this is OK. */
-		BKE_pose_rebuild(NULL, ob, arm);
+		BKE_pose_rebuild(NULL, ob, arm, true);
 	}
 
 	ctime = BKE_scene_frame_get(scene); /* not accurate... */

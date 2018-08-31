@@ -37,6 +37,7 @@
 
 #include "ED_mball.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_object.h"
 
 #include "mball_intern.h"
@@ -72,7 +73,7 @@ void ED_keymap_metaball(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "Metaball", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Metaball", 0, 0);
 	keymap->poll = ED_operator_editmball;
 
 	WM_keymap_add_item(keymap, "OBJECT_OT_metaball_add", AKEY, KM_PRESS, KM_SHIFT, 0);

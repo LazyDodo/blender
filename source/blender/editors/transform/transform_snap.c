@@ -1095,17 +1095,18 @@ static void TargetSnapMedian(TransInfo *t)
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			TransData *td = tc->data;
 			int i;
+			float v[3];
+			zero_v3(v);
+
 			for (i = 0; i < tc->data_len && td->flag & TD_SELECTED; i++, td++) {
-				/* TODO(campbell): perform the global transformation once per TransDataContainer */
-				if (tc->use_local_mat) {
-					float v[3];
-					mul_v3_m4v3(v, tc->mat, td->center);
-					add_v3_v3(t->tsnap.snapTarget, v);
-				}
-				else {
-					add_v3_v3(t->tsnap.snapTarget, td->center);
-				}
+				add_v3_v3(v, td->center);
 			}
+
+			if (tc->use_local_mat) {
+				mul_m4_v3(tc->mat, v);
+			}
+
+			add_v3_v3(t->tsnap.snapTarget, v);
 			i_accum += i;
 		}
 
@@ -1462,7 +1463,7 @@ void snapSequenceBounds(TransInfo *t, const int mval[2])
 	float xmouse, ymouse;
 	int frame;
 	int mframe;
-	TransSeq *ts = t->custom.type.data;
+	TransSeq *ts = TRANS_DATA_CONTAINER_FIRST_SINGLE(t)->custom.type.data;
 	/* reuse increment, strictly speaking could be another snap mode, but leave as is */
 	if (!(t->modifiers & MOD_SNAP_INVERT))
 		return;

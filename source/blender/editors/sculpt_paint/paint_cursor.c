@@ -634,14 +634,10 @@ static void paint_draw_tex_overlay(
 			}
 
 			if (ups->draw_anchored) {
-				float aim[2] = {
-				    ups->anchored_initial_mouse[0] + vc->ar->winrct.xmin,
-				    ups->anchored_initial_mouse[1] + vc->ar->winrct.ymin,
-				};
-				quad.xmin = aim[0] - ups->anchored_size;
-				quad.ymin = aim[1] - ups->anchored_size;
-				quad.xmax = aim[0] + ups->anchored_size;
-				quad.ymax = aim[1] + ups->anchored_size;
+				quad.xmin = ups->anchored_initial_mouse[0] - ups->anchored_size;
+				quad.ymin = ups->anchored_initial_mouse[1] - ups->anchored_size;
+				quad.xmax = ups->anchored_initial_mouse[0] + ups->anchored_size;
+				quad.ymax = ups->anchored_initial_mouse[1] + ups->anchored_size;
 			}
 			else {
 				const int radius = BKE_brush_size_get(vc->scene, brush) * zoom;
@@ -689,6 +685,7 @@ static void paint_draw_tex_overlay(
 			immUniformColor4f(1.0f, 1.0f, 1.0f, overlay_alpha * 0.01f);
 		}
 		else {
+			GPU_blend_set_func(GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 			immBindBuiltinProgram(GPU_SHADER_2D_IMAGE_ALPHA_COLOR);
 			immUniformColor3fvAlpha(U.sculpt_paint_overlay_col, overlay_alpha * 0.01f);
 		}
@@ -708,6 +705,7 @@ static void paint_draw_tex_overlay(
 		immEnd();
 
 		immUnbindProgram();
+		GPU_blend_set_func(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
 
 		if (ELEM(mtex->brush_map_mode, MTEX_MAP_MODE_STENCIL, MTEX_MAP_MODE_VIEW)) {
 			GPU_matrix_pop();
@@ -738,15 +736,11 @@ static void paint_draw_cursor_overlay(
 		glDepthFunc(GL_ALWAYS);
 
 		if (ups->draw_anchored) {
-			float aim[2] = {
-			    ups->anchored_initial_mouse[0] + vc->ar->winrct.xmin,
-			    ups->anchored_initial_mouse[1] + vc->ar->winrct.ymin,
-			};
-			copy_v2_v2(center, aim);
-			quad.xmin = aim[0] - ups->anchored_size;
-			quad.ymin = aim[1] - ups->anchored_size;
-			quad.xmax = aim[0] + ups->anchored_size;
-			quad.ymax = aim[1] + ups->anchored_size;
+			copy_v2_v2(center, ups->anchored_initial_mouse);
+			quad.xmin = ups->anchored_initial_mouse[0] - ups->anchored_size;
+			quad.ymin = ups->anchored_initial_mouse[1] - ups->anchored_size;
+			quad.xmax = ups->anchored_initial_mouse[0] + ups->anchored_size;
+			quad.ymax = ups->anchored_initial_mouse[1] + ups->anchored_size;
 		}
 		else {
 			const int radius = BKE_brush_size_get(vc->scene, brush) * zoom;
@@ -763,7 +757,6 @@ static void paint_draw_cursor_overlay(
 		if (ups->stroke_active && BKE_brush_use_size_pressure(vc->scene, brush)) {
 			do_pop = true;
 			GPU_matrix_push();
-			GPU_matrix_identity_set();
 			GPU_matrix_translate_2fv(center);
 			GPU_matrix_scale_1f(ups->size_pressure_value);
 			GPU_matrix_translate_2f(-center[0], -center[1]);
@@ -773,7 +766,8 @@ static void paint_draw_cursor_overlay(
 		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		uint texCoord = GPU_vertformat_attr_add(format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
-		immBindBuiltinProgram(GPU_SHADER_2D_IMAGE_COLOR);
+		GPU_blend_set_func(GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+		immBindBuiltinProgram(GPU_SHADER_2D_IMAGE_ALPHA_COLOR);
 
 		immUniformColor3fvAlpha(U.sculpt_paint_overlay_col, brush->cursor_overlay_alpha * 0.01f);
 
@@ -795,6 +789,8 @@ static void paint_draw_cursor_overlay(
 
 		immUnbindProgram();
 
+		GPU_blend_set_func(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+
 		if (do_pop)
 			GPU_matrix_pop();
 	}
@@ -808,6 +804,12 @@ static void paint_draw_alpha_overlay(
 	bool col = ELEM(mode, ePaintTextureProjective, ePaintTexture2D, ePaintVertex) ? true : false;
 	eOverlayControlFlags flags = BKE_paint_get_overlay_flags();
 	gpuPushAttrib(GPU_DEPTH_BUFFER_BIT | GPU_BLEND_BIT);
+
+	/* Translate to region. */
+	GPU_matrix_push();
+	GPU_matrix_translate_2f(vc->ar->winrct.xmin, vc->ar->winrct.ymin);
+	x -= vc->ar->winrct.xmin;
+	y -= vc->ar->winrct.ymin;
 
 	/* coloured overlay should be drawn separately */
 	if (col) {
@@ -825,6 +827,7 @@ static void paint_draw_alpha_overlay(
 			paint_draw_cursor_overlay(ups, brush, vc, x, y, zoom);
 	}
 
+	GPU_matrix_pop();
 	gpuPopAttrib();
 }
 

@@ -100,6 +100,7 @@ void depsgraph_geometry_tag_to_component(const ID *id,
 				case OB_FONT:
 				case OB_LATTICE:
 				case OB_MBALL:
+				case OB_GPENCIL:
 					*component_type = DEG_NODE_TYPE_GEOMETRY;
 					break;
 				case OB_ARMATURE:
@@ -112,9 +113,15 @@ void depsgraph_geometry_tag_to_component(const ID *id,
 		case ID_ME:
 			*component_type = DEG_NODE_TYPE_GEOMETRY;
 			break;
-		case ID_PA:
+		case ID_PA: /* Particles */
 			return;
 		case ID_LP:
+			*component_type = DEG_NODE_TYPE_PARAMETERS;
+			break;
+		case ID_GD:
+			*component_type = DEG_NODE_TYPE_GEOMETRY;
+			break;
+		case ID_PAL: /* Palettes */
 			*component_type = DEG_NODE_TYPE_PARAMETERS;
 			break;
 		default:
@@ -144,6 +151,10 @@ void depsgraph_select_tag_to_component_opcode(
 	else if (id_type == ID_OB) {
 		*component_type = DEG_NODE_TYPE_OBJECT_FROM_LAYER;
 		*operation_code = DEG_OPCODE_OBJECT_BASE_FLAGS;
+	}
+	else if (id_type == ID_MC) {
+		*component_type = DEG_NODE_TYPE_BATCH_CACHE;
+		*operation_code = DEG_OPCODE_MOVIECLIP_SELECT_UPDATE;
 	}
 	else {
 		*component_type = DEG_NODE_TYPE_BATCH_CACHE;

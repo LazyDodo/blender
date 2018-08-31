@@ -25,12 +25,17 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/gpu/intern/gpu_shader.c
+ *  \ingroup gpu
+ */
+
 #include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_math_base.h"
 #include "BLI_math_vector.h"
 #include "BLI_path_util.h"
+#include "BLI_string.h"
 
 #include "BKE_appdir.h"
 #include "BKE_global.h"
@@ -62,6 +67,7 @@ extern char datatoc_gpu_shader_simple_lighting_smooth_color_alpha_frag_glsl[];
 extern char datatoc_gpu_shader_flat_color_frag_glsl[];
 extern char datatoc_gpu_shader_flat_color_alpha_test_0_frag_glsl[];
 extern char datatoc_gpu_shader_flat_id_frag_glsl[];
+extern char datatoc_gpu_shader_2D_area_borders_vert_glsl[];
 extern char datatoc_gpu_shader_2D_vert_glsl[];
 extern char datatoc_gpu_shader_2D_flat_color_vert_glsl[];
 extern char datatoc_gpu_shader_2D_smooth_color_uniform_alpha_vert_glsl[];
@@ -157,13 +163,20 @@ extern char datatoc_gpu_shader_keyframe_diamond_frag_glsl[];
 extern char datatoc_gpu_shader_fire_frag_glsl[];
 extern char datatoc_gpu_shader_smoke_vert_glsl[];
 extern char datatoc_gpu_shader_smoke_frag_glsl[];
-extern char datatoc_gpu_shader_vsm_store_vert_glsl[];
-extern char datatoc_gpu_shader_vsm_store_frag_glsl[];
-extern char datatoc_gpu_shader_sep_gaussian_blur_vert_glsl[];
-extern char datatoc_gpu_shader_sep_gaussian_blur_frag_glsl[];
+
+extern char datatoc_gpu_shader_gpencil_stroke_vert_glsl[];
+extern char datatoc_gpu_shader_gpencil_stroke_frag_glsl[];
+extern char datatoc_gpu_shader_gpencil_stroke_geom_glsl[];
+
+extern char datatoc_gpu_shader_gpencil_fill_vert_glsl[];
+extern char datatoc_gpu_shader_gpencil_fill_frag_glsl[];
 
 /* cache of built-in shaders (each is created on first use) */
 static GPUShader *builtin_shaders[GPU_NUM_BUILTIN_SHADERS] = { NULL };
+
+#ifndef NDEBUG
+static uint g_shaderid = 0;
+#endif
 
 typedef struct {
 	const char *vert;
@@ -209,6 +222,14 @@ static void gpu_shader_standard_extensions(char defines[MAX_EXT_DEFINE_LENGTH])
 	 * don't use an extension for something already available!
 	 */
 
+	if (GLEW_ARB_texture_gather) {
+		/* There is a bug on older Nvidia GPU where GL_ARB_texture_gather
+		 * is reported to be supported but yield a compile error (see T55802). */
+		if (!GPU_type_matches(GPU_DEVICE_NVIDIA, GPU_OS_ANY, GPU_DRIVER_ANY) || GLEW_VERSION_4_0) {
+			strcat(defines, "#extension GL_ARB_texture_gather: enable\n");
+			strcat(defines, "#define GPU_ARB_texture_gather\n");
+		}
+	}
 	if (GLEW_ARB_texture_query_lod) {
 		/* a #version 400 feature, but we use #version 330 maximum so use extension */
 		strcat(defines, "#extension GL_ARB_texture_query_lod: enable\n");
@@ -220,13 +241,8 @@ static void gpu_shader_standard_defines(
         bool use_opensubdiv)
 {
 	/* some useful defines to detect GPU type */
-	if (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_ANY, GPU_DRIVER_ANY)) {
+	if (GPU_type_matches(GPU_DEVICE_ATI, GPU_OS_ANY, GPU_DRIVER_ANY))
 		strcat(defines, "#define GPU_ATI\n");
-		if (GLEW_VERSION_3_0) {
-			/* TODO(merwin): revisit this version check; GLEW_VERSION_3_0 means GL 3.0 or newer */
-			strcat(defines, "#define CLIP_WORKAROUND\n");
-		}
-	}
 	else if (GPU_type_matches(GPU_DEVICE_NVIDIA, GPU_OS_ANY, GPU_DRIVER_ANY))
 		strcat(defines, "#define GPU_NVIDIA\n");
 	else if (GPU_type_matches(GPU_DEVICE_INTEL, GPU_OS_ANY, GPU_DRIVER_ANY))
@@ -265,7 +281,8 @@ GPUShader *GPU_shader_create(
         const char *fragcode,
         const char *geocode,
         const char *libcode,
-        const char *defines)
+        const char *defines,
+        const char *shname)
 {
 	return GPU_shader_create_ex(
 	        vertexcode,
@@ -276,7 +293,8 @@ GPUShader *GPU_shader_create(
 	        GPU_SHADER_FLAGS_NONE,
 	        GPU_SHADER_TFB_NONE,
 	        NULL,
-	        0);
+	        0,
+	        shname);
 }
 
 #define DEBUG_SHADER_NONE ""
@@ -335,7 +353,8 @@ GPUShader *GPU_shader_create_ex(
         const int flags,
         const GPUShaderTFBType tf_type,
         const char **tf_names,
-        const int tf_count)
+        const int tf_count,
+        const char *shname)
 {
 #ifdef WITH_OPENSUBDIV
 	bool use_opensubdiv = (flags & GPU_SHADER_FLAGS_SPECIAL_OPENSUBDIV) != 0;
@@ -352,6 +371,12 @@ GPUShader *GPU_shader_create_ex(
 
 	shader = MEM_callocN(sizeof(GPUShader), "GPUShader");
 	gpu_dump_shaders(NULL, 0, DEBUG_SHADER_NONE);
+
+#ifndef NDEBUG
+	BLI_snprintf(shader->name, sizeof(shader->name), "%s_%u", shname, g_shaderid++);
+#else
+	UNUSED_VARS(shname);
+#endif
 
 	if (vertexcode)
 		shader->vertex = glCreateShader(GL_VERTEX_SHADER);
@@ -573,7 +598,10 @@ void GPU_shader_transform_feedback_disable(GPUShader *UNUSED(shader))
 
 void GPU_shader_free(GPUShader *shader)
 {
+#if 0 /* Would be nice to have, but for now the Deferred compilation
+       * does not have a GPUContext. */
 	BLI_assert(GPU_context_active_get() != NULL);
+#endif
 	BLI_assert(shader);
 
 	if (shader->vertex)
@@ -695,9 +723,6 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 	BLI_assert(shader != GPU_NUM_BUILTIN_SHADERS); /* don't be a troll */
 
 	static const GPUShaderStages builtin_shader_stages[GPU_NUM_BUILTIN_SHADERS] = {
-		[GPU_SHADER_VSM_STORE] = { datatoc_gpu_shader_vsm_store_vert_glsl, datatoc_gpu_shader_vsm_store_frag_glsl },
-		[GPU_SHADER_SEP_GAUSSIAN_BLUR] = { datatoc_gpu_shader_sep_gaussian_blur_vert_glsl,
-		                                   datatoc_gpu_shader_sep_gaussian_blur_frag_glsl },
 		[GPU_SHADER_SMOKE] = { datatoc_gpu_shader_smoke_vert_glsl, datatoc_gpu_shader_smoke_frag_glsl },
 		[GPU_SHADER_SMOKE_FIRE] = { datatoc_gpu_shader_smoke_vert_glsl, datatoc_gpu_shader_smoke_frag_glsl },
 		[GPU_SHADER_SMOKE_COBA] = { datatoc_gpu_shader_smoke_vert_glsl, datatoc_gpu_shader_smoke_frag_glsl },
@@ -738,6 +763,10 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_4] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
 		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_8] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
 		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_16] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
+		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_2_DEPTH_TEST] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
+		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_4_DEPTH_TEST] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
+		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_8_DEPTH_TEST] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
+		[GPU_SHADER_2D_IMAGE_MULTISAMPLE_16_DEPTH_TEST] = { datatoc_gpu_shader_2D_vert_glsl, datatoc_gpu_shader_image_multisample_resolve_frag_glsl },
 
 		[GPU_SHADER_2D_IMAGE_INTERLACE] = { datatoc_gpu_shader_2D_image_vert_glsl,
 		                                    datatoc_gpu_shader_image_interlace_frag_glsl },
@@ -854,6 +883,8 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		                                               datatoc_gpu_shader_flat_color_frag_glsl,
 		                                               datatoc_gpu_shader_instance_edges_variying_color_geom_glsl},
 
+		[GPU_SHADER_2D_AREA_EDGES] = { datatoc_gpu_shader_2D_area_borders_vert_glsl,
+		                               datatoc_gpu_shader_uniform_color_frag_glsl},
 		[GPU_SHADER_2D_WIDGET_BASE] = { datatoc_gpu_shader_2D_widget_base_vert_glsl,
 		                                datatoc_gpu_shader_2D_widget_base_frag_glsl},
 		[GPU_SHADER_2D_WIDGET_BASE_INST] = { datatoc_gpu_shader_2D_widget_base_vert_glsl,
@@ -864,6 +895,13 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		                             datatoc_gpu_shader_2D_nodelink_frag_glsl },
 		[GPU_SHADER_2D_NODELINK_INST] = { datatoc_gpu_shader_2D_nodelink_vert_glsl,
 		                                  datatoc_gpu_shader_2D_nodelink_frag_glsl },
+
+		[GPU_SHADER_GPENCIL_STROKE] = { datatoc_gpu_shader_gpencil_stroke_vert_glsl,
+		                                datatoc_gpu_shader_gpencil_stroke_frag_glsl,
+		                                datatoc_gpu_shader_gpencil_stroke_geom_glsl },
+
+		[GPU_SHADER_GPENCIL_FILL] = { datatoc_gpu_shader_gpencil_fill_vert_glsl,
+		                              datatoc_gpu_shader_gpencil_fill_frag_glsl },
 	};
 
 	if (builtin_shaders[shader] == NULL) {
@@ -873,14 +911,30 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_2:
 				defines = "#define SAMPLES 2\n";
 				break;
+			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_2_DEPTH_TEST:
+				defines = "#define SAMPLES 2\n"
+				          "#define USE_DEPTH\n";
+				break;
 			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_4:
 				defines = "#define SAMPLES 4\n";
+				break;
+			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_4_DEPTH_TEST:
+				defines = "#define SAMPLES 4\n"
+				          "#define USE_DEPTH\n";
 				break;
 			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_8:
 				defines = "#define SAMPLES 8\n";
 				break;
+			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_8_DEPTH_TEST:
+				defines = "#define SAMPLES 8\n"
+				          "#define USE_DEPTH\n";
+				break;
 			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_16:
 				defines = "#define SAMPLES 16\n";
+				break;
+			case GPU_SHADER_2D_IMAGE_MULTISAMPLE_16_DEPTH_TEST:
+				defines = "#define SAMPLES 16\n"
+				          "#define USE_DEPTH\n";
 				break;
 			case GPU_SHADER_2D_WIDGET_BASE_INST:
 			case GPU_SHADER_2D_NODELINK_INST:
@@ -932,7 +986,7 @@ GPUShader *GPU_shader_get_builtin_shader(GPUBuiltinShader shader)
 		}
 
 		/* common case */
-		builtin_shaders[shader] = GPU_shader_create(stages->vert, stages->frag, stages->geom, NULL, defines);
+		builtin_shaders[shader] = GPU_shader_create(stages->vert, stages->frag, stages->geom, NULL, defines, __func__);
 	}
 
 	return builtin_shaders[shader];

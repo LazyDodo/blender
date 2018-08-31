@@ -36,13 +36,16 @@
 
 #include "BKE_object.h"
 #include "BKE_unit.h"
+#include "BKE_material.h"
 
+#include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_view3d_types.h"
 
 #include "BIF_gl.h"
 
+#include "ED_gpencil.h"
 #include "ED_screen.h"
 #include "ED_transform_snap_object_context.h"
 #include "ED_view3d.h"
@@ -385,35 +388,26 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmGizmoGroup *gzgroup)
 	// RulerInfo *ruler_info = gzgroup->customdata;
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+
+	bGPdata *gpd;
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
 	bGPDstroke *gps;
-	bGPDpalette *palette;
-	bGPDpalettecolor *palcolor;
 	RulerItem *ruler_item;
 	const char *ruler_name = RULER_ID;
 	bool changed = false;
 
 	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew(bmain, "GPencil");
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "Annotations");
 	}
+	gpd = scene->gpd;
 
-	gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
+	gpl = BLI_findstring(&gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 	if (gpl == NULL) {
-		gpl = BKE_gpencil_layer_addnew(scene->gpd, ruler_name, false);
+		gpl = BKE_gpencil_layer_addnew(gpd, ruler_name, false);
+		copy_v4_v4(gpl->color, U.gpencil_new_layer_col);
 		gpl->thickness = 1;
 		gpl->flag |= GP_LAYER_HIDE;
-	}
-
-	/* try to get active palette or create a new one */
-	palette = BKE_gpencil_palette_getactive(scene->gpd);
-	if (palette == NULL) {
-		palette = BKE_gpencil_palette_addnew(scene->gpd, DATA_("GP_Palette"), true);
-	}
-	/* try to get color with the ruler name or create a new one */
-	palcolor = BKE_gpencil_palettecolor_getbyname(palette, (char *)ruler_name);
-	if (palcolor == NULL) {
-		palcolor = BKE_gpencil_palettecolor_addnew(palette, (char *)ruler_name, true);
 	}
 
 	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
@@ -447,9 +441,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmGizmoGroup *gzgroup)
 		}
 		gps->flag = GP_STROKE_3DSPACE;
 		gps->thickness = 3;
-		/* assign color to stroke */
-		BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
-		gps->palcolor = palcolor;
+
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
 	}
@@ -805,10 +797,10 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 }
 
 static int gizmo_ruler_test_select(
-        bContext *UNUSED(C), wmGizmo *gz, const wmEvent *event)
+        bContext *UNUSED(C), wmGizmo *gz, const int mval[2])
 {
 	RulerItem *ruler_item_pick = (RulerItem *)gz;
-	float mval_fl[2] = {UNPACK2(event->mval)};
+	float mval_fl[2] = {UNPACK2(mval)};
 	int co_index;
 
 	/* select and drag */

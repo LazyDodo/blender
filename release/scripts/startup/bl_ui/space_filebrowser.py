@@ -56,6 +56,8 @@ class FILEBROWSER_HT_header(Header):
 
         layout.separator_spacer()
 
+        layout.template_running_jobs()
+
         if params:
             layout.prop(params, "use_filter", text="", icon='FILTER')
 
@@ -66,7 +68,7 @@ class FILEBROWSER_HT_header(Header):
             if params.filter_glob:
                 # if st.active_operator and hasattr(st.active_operator, "filter_glob"):
                 #     row.prop(params, "filter_glob", text="")
-                row.label(params.filter_glob)
+                row.label(text=params.filter_glob)
             else:
                 row.prop(params, "use_filter_blender", text="")
                 row.prop(params, "use_filter_backup", text="")
@@ -85,8 +87,6 @@ class FILEBROWSER_HT_header(Header):
 
             row.separator()
             row.prop(params, "filter_search", text="", icon='VIEWZOOM')
-
-        layout.template_running_jobs()
 
 
 class FILEBROWSER_UL_dir(UIList):

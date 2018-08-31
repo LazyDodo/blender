@@ -31,6 +31,8 @@ set(INC
 	../../makesdna
 	../../makesrna
 	../../modifiers
+	../../gpencil_modifiers
+	../../shader_fx
 	../../python
 	../../render/extern/include
 	../../windowmanager
@@ -46,13 +48,15 @@ set(SRC
 	object_add.c
 	object_bake.c
 	object_bake_api.c
+	object_collection.c
 	object_constraint.c
 	object_edit.c
 	object_facemap_ops.c
-	object_group.c
 	object_hook.c
 	object_modes.c
 	object_modifier.c
+	object_gpencil_modifier.c
+	object_shader_fx.c
 	object_ops.c
 	object_random.c
 	object_relations.c

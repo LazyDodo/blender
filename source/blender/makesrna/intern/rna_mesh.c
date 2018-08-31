@@ -239,7 +239,7 @@ static void rna_Mesh_update_data_edit_color(Main *bmain, Scene *scene, PointerRN
 
 static void rna_Mesh_update_data_edit_weight(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	BKE_mesh_batch_cache_dirty(rna_mesh(ptr), BKE_MESH_BATCH_DIRTY_ALL);
+	BKE_mesh_batch_cache_dirty_tag(rna_mesh(ptr), BKE_MESH_BATCH_DIRTY_ALL);
 
 	rna_Mesh_update_data(bmain, scene, ptr);
 }
@@ -247,7 +247,7 @@ static void rna_Mesh_update_data_edit_weight(Main *bmain, Scene *scene, PointerR
 
 static void rna_Mesh_update_data_edit_active_color(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	BKE_mesh_batch_cache_dirty(rna_mesh(ptr), BKE_MESH_BATCH_DIRTY_ALL);
+	BKE_mesh_batch_cache_dirty_tag(rna_mesh(ptr), BKE_MESH_BATCH_DIRTY_ALL);
 
 	rna_Mesh_update_data(bmain, scene, ptr);
 }
@@ -277,7 +277,7 @@ static void rna_Mesh_update_vertmask(Main *bmain, Scene *scene, PointerRNA *ptr)
 		me->editflag &= ~ME_EDIT_PAINT_FACE_SEL;
 	}
 
-	BKE_mesh_batch_cache_dirty(me, BKE_MESH_BATCH_DIRTY_ALL);
+	BKE_mesh_batch_cache_dirty_tag(me, BKE_MESH_BATCH_DIRTY_ALL);
 
 	rna_Mesh_update_draw(bmain, scene, ptr);
 }
@@ -289,7 +289,7 @@ static void rna_Mesh_update_facemask(Main *bmain, Scene *scene, PointerRNA *ptr)
 		me->editflag &= ~ME_EDIT_PAINT_VERT_SEL;
 	}
 
-	BKE_mesh_batch_cache_dirty(me, BKE_MESH_BATCH_DIRTY_ALL);
+	BKE_mesh_batch_cache_dirty_tag(me, BKE_MESH_BATCH_DIRTY_ALL);
 
 	rna_Mesh_update_draw(bmain, scene, ptr);
 }
@@ -2704,7 +2704,7 @@ static void rna_def_mesh_vertices(BlenderRNA *brna, PropertyRNA *cprop)
 /*	PropertyRNA *prop; */
 
 	FunctionRNA *func;
-/*	PropertyRNA *parm; */
+	PropertyRNA *parm;
 
 	RNA_def_property_srna(cprop, "MeshVertices");
 	srna = RNA_def_struct(brna, "MeshVertices", NULL);
@@ -2713,7 +2713,8 @@ static void rna_def_mesh_vertices(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "add", "ED_mesh_vertices_add");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of vertices to add", 0, INT_MAX);
+	parm = RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of vertices to add", 0, INT_MAX);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 #if 0 /* BMESH_TODO Remove until BMesh merge */
 	func = RNA_def_function(srna, "remove", "ED_mesh_vertices_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
@@ -2728,7 +2729,7 @@ static void rna_def_mesh_edges(BlenderRNA *brna, PropertyRNA *cprop)
 /*	PropertyRNA *prop; */
 
 	FunctionRNA *func;
-/*	PropertyRNA *parm; */
+	PropertyRNA *parm;
 
 	RNA_def_property_srna(cprop, "MeshEdges");
 	srna = RNA_def_struct(brna, "MeshEdges", NULL);
@@ -2737,7 +2738,8 @@ static void rna_def_mesh_edges(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "add", "ED_mesh_edges_add");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of edges to add", 0, INT_MAX);
+	parm = RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of edges to add", 0, INT_MAX);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 #if 0 /* BMESH_TODO Remove until BMesh merge */
 	func = RNA_def_function(srna, "remove", "ED_mesh_edges_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
@@ -2752,7 +2754,7 @@ static void rna_def_mesh_tessfaces(BlenderRNA *brna, PropertyRNA *cprop)
 	PropertyRNA *prop;
 
 	FunctionRNA *func;
-/*	PropertyRNA *parm; */
+	PropertyRNA *parm;
 
 	RNA_def_property_srna(cprop, "MeshTessFaces");
 	srna = RNA_def_struct(brna, "MeshTessFaces", NULL);
@@ -2765,7 +2767,8 @@ static void rna_def_mesh_tessfaces(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "add", "ED_mesh_tessfaces_add");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of faces to add", 0, INT_MAX);
+	parm = RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of faces to add", 0, INT_MAX);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 #if 0 /* BMESH_TODO Remove until BMesh merge */
 	func = RNA_def_function(srna, "remove", "ED_mesh_faces_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
@@ -2781,7 +2784,7 @@ static void rna_def_mesh_loops(BlenderRNA *brna, PropertyRNA *cprop)
 	/*PropertyRNA *prop;*/
 
 	FunctionRNA *func;
-	/*PropertyRNA *parm;*/
+	PropertyRNA *parm;
 
 	RNA_def_property_srna(cprop, "MeshLoops");
 	srna = RNA_def_struct(brna, "MeshLoops", NULL);
@@ -2790,7 +2793,8 @@ static void rna_def_mesh_loops(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "add", "ED_mesh_loops_add");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of loops to add", 0, INT_MAX);
+	parm = RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of loops to add", 0, INT_MAX);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 }
 
 /* mesh.polygons */
@@ -2801,7 +2805,7 @@ static void rna_def_mesh_polygons(BlenderRNA *brna, PropertyRNA *cprop)
 	PropertyRNA *prop;
 
 	FunctionRNA *func;
-	/* PropertyRNA *parm; */
+	PropertyRNA *parm;
 
 	RNA_def_property_srna(cprop, "MeshPolygons");
 	srna = RNA_def_struct(brna, "MeshPolygons", NULL);
@@ -2814,7 +2818,8 @@ static void rna_def_mesh_polygons(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "add", "ED_mesh_polys_add");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of polygons to add", 0, INT_MAX);
+	parm = RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Number of polygons to add", 0, INT_MAX);
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 }
 
 
@@ -3140,7 +3145,9 @@ static void rna_def_skin_vertices(BlenderRNA *brna, PropertyRNA *UNUSED(cprop))
 
 	prop = RNA_def_property(srna, "use_root", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", MVERT_SKIN_ROOT);
-	RNA_def_property_ui_text(prop, "Root", "Vertex is a root for rotation calculations and armature generation");
+	RNA_def_property_ui_text(prop, "Root",
+	                         "Vertex is a root for rotation calculations and armature generation, "
+	                         "setting this flag does not clear other roots in the same mesh island");
 	RNA_def_property_update(prop, 0, "rna_Mesh_update_data");
 
 	prop = RNA_def_property(srna, "use_loose", PROP_BOOLEAN, PROP_NONE);
@@ -3514,6 +3521,11 @@ static void rna_def_mesh(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_faces", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "drawflag", ME_DRAWFACES);
 	RNA_def_property_ui_text(prop, "Draw Faces", "Display all faces as shades in the 3D view and UV editor");
+	RNA_def_property_update(prop, 0, "rna_Mesh_update_draw");
+
+	prop = RNA_def_property(srna, "show_face_center", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "drawflag", ME_DRAW_FACE_DOT);
+	RNA_def_property_ui_text(prop, "Draw Face Center", "Display face center");
 	RNA_def_property_update(prop, 0, "rna_Mesh_update_draw");
 
 	prop = RNA_def_property(srna, "show_edge_crease", PROP_BOOLEAN, PROP_NONE);

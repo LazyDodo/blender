@@ -40,11 +40,13 @@
 #include "BKE_context.h"
 
 #include "RNA_access.h"
+#include "RNA_enum_types.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_object.h"
 
 #include "DEG_depsgraph.h"
@@ -76,6 +78,7 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_paths_calculate);
 	WM_operatortype_append(OBJECT_OT_paths_update);
 	WM_operatortype_append(OBJECT_OT_paths_clear);
+	WM_operatortype_append(OBJECT_OT_paths_range_update);
 	WM_operatortype_append(OBJECT_OT_forcefield_toggle);
 
 	WM_operatortype_append(OBJECT_OT_parent_set);
@@ -114,6 +117,7 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_empty_add);
 	WM_operatortype_append(OBJECT_OT_lightprobe_add);
 	WM_operatortype_append(OBJECT_OT_drop_named_image);
+	WM_operatortype_append(OBJECT_OT_gpencil_add);
 	WM_operatortype_append(OBJECT_OT_light_add);
 	WM_operatortype_append(OBJECT_OT_camera_add);
 	WM_operatortype_append(OBJECT_OT_speaker_add);
@@ -145,6 +149,20 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_skin_loose_mark_clear);
 	WM_operatortype_append(OBJECT_OT_skin_radii_equalize);
 	WM_operatortype_append(OBJECT_OT_skin_armature_create);
+
+	/* grease pencil modifiers */
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_add);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_remove);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_move_up);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_move_down);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_apply);
+	WM_operatortype_append(OBJECT_OT_gpencil_modifier_copy);
+
+	/* shader fx */
+	WM_operatortype_append(OBJECT_OT_shaderfx_add);
+	WM_operatortype_append(OBJECT_OT_shaderfx_remove);
+	WM_operatortype_append(OBJECT_OT_shaderfx_move_up);
+	WM_operatortype_append(OBJECT_OT_shaderfx_move_down);
 
 	WM_operatortype_append(OBJECT_OT_correctivesmooth_bind);
 	WM_operatortype_append(OBJECT_OT_meshdeform_bind);
@@ -290,7 +308,7 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* Objects, Regardless of Mode -------------------------------------------------- */
-	keymap = WM_keymap_find(keyconf, "Object Non-modal", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Object Non-modal", 0, 0);
 
 	/* modes */
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_mode_set", TABKEY, KM_PRESS, 0, 0);
@@ -309,7 +327,7 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 
 	/* Object Mode ---------------------------------------------------------------- */
 	/* Note: this keymap gets disabled in non-objectmode,  */
-	keymap = WM_keymap_find(keyconf, "Object Mode", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Object Mode", 0, 0);
 	keymap->poll = object_mode_poll;
 
 	/* object mode supports PET now */
@@ -384,7 +402,7 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_delete", DELKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "use_global", true);
 
-	WM_keymap_add_menu(keymap, "INFO_MT_add", AKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_menu(keymap, "VIEW3D_MT_add", AKEY, KM_PRESS, KM_SHIFT, 0);
 
 #ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "OBJECT_OT_duplicates_make_real", AKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
@@ -488,5 +506,28 @@ void ED_keymap_proportional_editmode(struct wmKeyConfig *UNUSED(keyconf), struct
 		RNA_string_set(kmi->ptr, "data_path", "tool_settings.proportional_edit");
 		RNA_string_set(kmi->ptr, "value_1", "DISABLED");
 		RNA_string_set(kmi->ptr, "value_2", "CONNECTED");
+	}
+}
+
+/**
+ * Map 1..3 to Vert/Edge/Face.
+ */
+void ED_keymap_editmesh_elem_mode(struct wmKeyConfig *UNUSED(keyconf), struct wmKeyMap *keymap)
+{
+	for (int i = 0; i < 4; i++) {
+		const bool is_extend = (i & 1);
+		const bool is_expand = (i & 2);
+		const int key_modifier = (is_extend ? KM_SHIFT : 0) | (is_expand ? KM_CTRL : 0);
+		for (int j = 0; j < 3; j++) {
+			wmKeyMapItem *kmi = WM_keymap_add_item(
+			        keymap, "MESH_OT_select_mode", ONEKEY + j, KM_PRESS, key_modifier, 0);
+			RNA_enum_set(kmi->ptr, "type", SCE_SELECT_VERTEX << j);
+			if (is_extend) {
+				RNA_boolean_set(kmi->ptr, "use_extend", true);
+			}
+			if (is_expand) {
+				RNA_boolean_set(kmi->ptr, "use_expand", true);
+			}
+		}
 	}
 }

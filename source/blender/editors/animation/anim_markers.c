@@ -71,6 +71,7 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_util.h"
 #include "ED_numinput.h"
 #include "ED_object.h"
@@ -1647,7 +1648,7 @@ void ED_operatortypes_marker(void)
 /* called in screen_ops.c:ED_keymap_screen() */
 void ED_keymap_marker(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Markers", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Markers", 0, 0);
 	wmKeyMapItem *kmi;
 
 	WM_keymap_verify_item(keymap, "MARKER_OT_add", MKEY, KM_PRESS, 0, 0);

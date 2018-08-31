@@ -85,7 +85,6 @@ static FontBLF *global_font[BLF_MAX_FONT] = {NULL};
 static int global_font_default = -1;
 static int global_font_points = 11;
 static int global_font_dpi = 72;
-static bool global_use_antialias = true;
 
 /* XXX, should these be made into global_font_'s too? */
 int blf_mono_font = -1;
@@ -188,16 +187,6 @@ int BLF_default(void)
 {
 	ASSERT_DEFAULT_SET;
 	return global_font_default;
-}
-
-void BLF_antialias_set(bool enabled)
-{
-	global_use_antialias = enabled;
-}
-
-bool BLF_antialias_get(void)
-{
-	return global_use_antialias;
 }
 
 int BLF_load(const char *name)
@@ -579,6 +568,15 @@ void BLF_draw_default_ascii(float x, float y, float z, const char *str, size_t l
 	BLF_size(global_font_default, global_font_points, global_font_dpi);
 	BLF_position(global_font_default, x, y, z);
 	BLF_draw_ascii(global_font_default, str, len); /* XXX, use real length */
+}
+
+int BLF_set_default(void)
+{
+	ASSERT_DEFAULT_SET;
+
+	BLF_size(global_font_default, global_font_points, global_font_dpi);
+
+	return global_font_default;
 }
 
 static void blf_draw_gl__start(FontBLF *font)

@@ -718,7 +718,7 @@ static int gizmo_cage2d_get_cursor(wmGizmo *gz)
 }
 
 static int gizmo_cage2d_test_select(
-        bContext *C, wmGizmo *gz, const wmEvent *event)
+        bContext *C, wmGizmo *gz, const int mval[2])
 {
 	float point_local[2];
 	float dims[2];
@@ -726,7 +726,7 @@ static int gizmo_cage2d_test_select(
 	const float size_real[2] = {dims[0] / 2.0f, dims[1] / 2.0f};
 
 	if (gizmo_window_project_2d(
-	        C, gz, (const float[2]){UNPACK2(event->mval)}, 2, true, point_local) == false)
+	        C, gz, (const float[2]){UNPACK2(mval)}, 2, true, point_local) == false)
 	{
 		return -1;
 	}
@@ -880,7 +880,7 @@ static int gizmo_cage2d_modal(
 
 	gz_prop = WM_gizmo_target_property_find(gz, "matrix");
 	if (gz_prop->type != NULL) {
-		WM_gizmo_target_property_value_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
+		WM_gizmo_target_property_float_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
 	}
 
 	if (gz->highlight_part == ED_GIZMO_CAGE2D_PART_TRANSLATE) {
@@ -995,7 +995,7 @@ static int gizmo_cage2d_modal(
 	}
 
 	if (gz_prop->type != NULL) {
-		WM_gizmo_target_property_value_set_array(C, gz, gz_prop, &gz->matrix_offset[0][0]);
+		WM_gizmo_target_property_float_set_array(C, gz, gz_prop, &gz->matrix_offset[0][0]);
 	}
 
 	/* tag the region for redraw */
@@ -1009,7 +1009,7 @@ static void gizmo_cage2d_property_update(wmGizmo *gz, wmGizmoProperty *gz_prop)
 {
 	if (STREQ(gz_prop->type->idname, "matrix")) {
 		if (WM_gizmo_target_property_array_length(gz, gz_prop) == 16) {
-			WM_gizmo_target_property_value_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
+			WM_gizmo_target_property_float_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
 		}
 		else {
 			BLI_assert(0);
@@ -1034,7 +1034,7 @@ static void gizmo_cage2d_exit(bContext *C, wmGizmo *gz, const bool cancel)
 	/* reset properties */
 	gz_prop = WM_gizmo_target_property_find(gz, "matrix");
 	if (gz_prop->type != NULL) {
-		WM_gizmo_target_property_value_set_array(C, gz, gz_prop, &data->orig_matrix_offset[0][0]);
+		WM_gizmo_target_property_float_set_array(C, gz, gz_prop, &data->orig_matrix_offset[0][0]);
 	}
 
 	copy_m4_m4(gz->matrix_offset, data->orig_matrix_offset);

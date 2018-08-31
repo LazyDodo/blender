@@ -135,8 +135,8 @@ int     ED_area_header_switchbutton(const struct bContext *C, struct uiBlock *bl
 void    ED_area_initialize(struct wmWindowManager *wm, struct wmWindow *win, struct ScrArea *sa);
 void    ED_area_exit(struct bContext *C, struct ScrArea *sa);
 int     ED_screen_area_active(const struct bContext *C);
-void    ED_screen_global_areas_create(
-            struct wmWindow *win);
+void    ED_screen_global_areas_refresh(struct wmWindow *win);
+void    ED_screen_global_areas_sync(struct wmWindow *win);
 void    ED_area_do_listen(struct wmWindow *win, ScrArea *sa, struct wmNotifier *note, Scene *scene);
 void    ED_area_tag_redraw(ScrArea *sa);
 void    ED_area_tag_redraw_no_rebuild(ScrArea *sa);
@@ -286,6 +286,7 @@ bool ED_operator_object_active_editable_font(struct bContext *C);
 bool ED_operator_editmesh(struct bContext *C);
 bool ED_operator_editmesh_view3d(struct bContext *C);
 bool ED_operator_editmesh_region_view3d(struct bContext *C);
+bool ED_operator_editmesh_auto_smooth(struct bContext *C);
 bool ED_operator_editarmature(struct bContext *C);
 bool ED_operator_editcurve(struct bContext *C);
 bool ED_operator_editcurve_3d(struct bContext *C);

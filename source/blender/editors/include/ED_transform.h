@@ -89,6 +89,7 @@ enum TfmMode {
 	TFM_VERT_SLIDE,
 	TFM_SEQ_SLIDE,
 	TFM_BONE_ENVELOPE_DIST,
+	TFM_NORMAL_ROTATION,
 };
 
 /* TRANSFORM CONTEXTS */
@@ -154,6 +155,7 @@ int BIF_countTransformOrientation(const struct bContext *C);
 #define P_CENTER        (1 << 12)
 #define P_GPENCIL_EDIT  (1 << 13)
 #define P_CURSOR_EDIT   (1 << 14)
+#define P_CLNOR_INVALIDATE (1 << 15)
 
 void Transform_Properties(struct wmOperatorType *ot, int flags);
 
@@ -195,6 +197,14 @@ bool snapNodesTransform(
         struct TransInfo *t, const int mval[2],
         /* return args */
         float r_loc[2], float *r_dist_px, char *r_node_border);
+
+void ED_transform_calc_orientation_from_type(
+        const struct bContext *C, float r_mat[3][3]);
+ void ED_transform_calc_orientation_from_type_ex(
+         const struct bContext *C, float r_mat[3][3],
+         /* extra args */
+         struct Scene *scene, struct View3D *v3d, struct RegionView3D *rv3d, struct Object *ob, struct Object *obedit,
+         const short orientation_type, const int pivot_point);
 
 struct TransformBounds {
 	float center[3];		/* Center for transform widget. */

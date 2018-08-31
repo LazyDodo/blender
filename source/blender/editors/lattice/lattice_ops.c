@@ -36,6 +36,7 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_object.h"
 #include "ED_lattice.h"
 
@@ -58,7 +59,7 @@ void ED_keymap_lattice(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "Lattice", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Lattice", 0, 0);
 	keymap->poll = ED_operator_editlattice;
 
 	kmi = WM_keymap_add_item(keymap, "LATTICE_OT_select_all", AKEY, KM_PRESS, 0, 0);

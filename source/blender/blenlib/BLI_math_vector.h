@@ -78,6 +78,9 @@ MINLINE void zero_v3_int(int r[3]);
 MINLINE void copy_v2_v2_int(int r[2], const int a[2]);
 MINLINE void copy_v3_v3_int(int r[3], const int a[3]);
 MINLINE void copy_v4_v4_int(int r[4], const int a[4]);
+/* int <-> float */
+MINLINE void copy_v2fl_v2i(float r[2], const int a[2]);
+MINLINE void round_v2i_v2fl(int r[2], const float a[2]);
 /* double -> float */
 MINLINE void copy_v2fl_v2db(float r[2], const double a[2]);
 MINLINE void copy_v3fl_v3db(float r[3], const double a[3]);
@@ -354,6 +357,8 @@ void range_vn_u(unsigned int *array_tar, const int size, const unsigned int star
 void range_vn_fl(float *array_tar, const int size, const float start, const float step);
 void negate_vn(float *array_tar, const int size);
 void negate_vn_vn(float *array_tar, const float *array_src, const int size);
+void mul_vn_vn(float *array_tar, const float *array_src, const int size);
+void mul_vn_vnvn(float *array_tar, const float *array_src_a, const float *array_src_b, const int size);
 void mul_vn_fl(float *array_tar, const int size, const float f);
 void mul_vn_vn_fl(float *array_tar, const float *array_src, const int size, const float f);
 void add_vn_vn(float *array_tar, const float *array_src, const int size);

@@ -38,6 +38,8 @@ set(INC
 	../makesrna
 	../bmesh
 	../modifiers
+	../gpencil_modifiers
+	../shader_fx
 	../nodes
 	../physics
 	../render/extern/include
@@ -51,6 +53,7 @@ set(INC
 	../../../intern/atomic
 	../../../intern/clog
 	../../../intern/libmv
+	../../../intern/opensubdiv
 	../../../extern/curve_fit_nd
 )
 
@@ -115,6 +118,7 @@ set(SRC
 	intern/font.c
 	intern/freestyle.c
 	intern/gpencil.c
+	intern/gpencil_modifier.c
 	intern/icons.c
 	intern/icons_rasterize.c
 	intern/idcode.c
@@ -151,6 +155,8 @@ set(SRC
 	intern/modifier.c
 	intern/movieclip.c
 	intern/multires.c
+	intern/multires_reshape.c
+	intern/multires_subdiv.c
 	intern/nla.c
 	intern/node.c
 	intern/object.c
@@ -180,6 +186,7 @@ set(SRC
 	intern/seqeffects.c
 	intern/seqmodifier.c
 	intern/sequencer.c
+	intern/shader_fx.c
 	intern/shrinkwrap.c
 	intern/smoke.c
 	intern/softbody.c
@@ -189,7 +196,10 @@ set(SRC
 	intern/subdiv.c
 	intern/subdiv_converter.c
 	intern/subdiv_converter_mesh.c
+	intern/subdiv_displacement.c
+	intern/subdiv_displacement_multires.c
 	intern/subdiv_eval.c
+	intern/subdiv_foreach.c
 	intern/subdiv_mesh.c
 	intern/subdiv_stats.c
 	intern/subsurf_ccg.c
@@ -259,6 +269,7 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
+	BKE_gpencil_modifier.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
@@ -306,6 +317,7 @@ set(SRC
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
+	BKE_shader_fx.h
 	BKE_shrinkwrap.h
 	BKE_smoke.h
 	BKE_softbody.h
@@ -524,7 +536,6 @@ endif()
 if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
 	list(APPEND INC_SYS
-		../../../intern/opensubdiv
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
 endif()

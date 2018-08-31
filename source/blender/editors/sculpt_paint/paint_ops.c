@@ -29,20 +29,28 @@
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
 #include "BLI_math_vector.h"
+#include "BLI_math_color.h"
 
 #include "DNA_customdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_brush_types.h"
+#include "DNA_gpencil_types.h"
 
 #include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_paint.h"
+#include "BKE_gpencil.h"
 #include "BKE_main.h"
+#include "BKE_report.h"
+
+#include "DEG_depsgraph.h"
 
 #include "ED_paint.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_image.h"
+#include "ED_gpencil.h"
 #include "UI_resources.h"
 
 #include "WM_api.h"
@@ -96,6 +104,43 @@ static void BRUSH_OT_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
+static int brush_add_gpencil_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	/*int type = RNA_enum_get(op->ptr, "type");*/
+	ToolSettings *ts = CTX_data_tool_settings(C);
+	Paint *paint = &ts->gp_paint->paint;
+	Brush *br = BKE_paint_brush(paint);
+	Main *bmain = CTX_data_main(C);
+	// ePaintMode mode = ePaintGpencil;
+
+	if (br) {
+		br = BKE_brush_copy(bmain, br);
+	}
+	else {
+		br = BKE_brush_add(bmain, "Brush", OB_MODE_GPENCIL_PAINT);
+		id_us_min(&br->id);  /* fake user only */
+	}
+
+	BKE_paint_brush_set(paint, br);
+
+	/* TODO init grease pencil specific data */
+
+	return OPERATOR_FINISHED;
+}
+
+static void BRUSH_OT_add_gpencil(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Add Drawing Brush";
+	ot->description = "Add brush for grease pencil";
+	ot->idname = "BRUSH_OT_add_gpencil";
+
+	/* api callbacks */
+	ot->exec = brush_add_gpencil_exec;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
 
 static int brush_scale_size_exec(bContext *C, wmOperator *op)
 {
@@ -231,7 +276,6 @@ static void PALETTE_OT_color_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
-
 
 static int palette_color_delete_exec(bContext *C, wmOperator *UNUSED(op))
 {
@@ -1031,6 +1075,7 @@ void ED_operatortypes_paint(void)
 
 	/* brush */
 	WM_operatortype_append(BRUSH_OT_add);
+	WM_operatortype_append(BRUSH_OT_add_gpencil);
 	WM_operatortype_append(BRUSH_OT_scale_size);
 	WM_operatortype_append(BRUSH_OT_curve_preset);
 	WM_operatortype_append(BRUSH_OT_reset);
@@ -1252,13 +1297,13 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 	int i;
 
-	keymap = WM_keymap_find(keyconf, "Paint Curve", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Paint Curve", 0, 0);
 	keymap->poll = paint_curve_poll;
 
 	paint_keymap_curve(keymap);
 
 	/* Sculpt mode */
-	keymap = WM_keymap_find(keyconf, "Sculpt", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Sculpt", 0, 0);
 	keymap->poll = sculpt_mode_poll;
 
 	RNA_enum_set(WM_keymap_add_item(keymap, "SCULPT_OT_brush_stroke", LEFTMOUSE, KM_PRESS, 0,        0)->ptr, "mode", BRUSH_STROKE_NORMAL);
@@ -1333,7 +1378,7 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	WM_keymap_add_menu(keymap, "VIEW3D_MT_angle_control", RKEY, KM_PRESS, 0, 0);
 
 	/* Vertex Paint mode */
-	keymap = WM_keymap_find(keyconf, "Vertex Paint", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Vertex Paint", 0, 0);
 	keymap->poll = vertex_paint_mode_poll;
 
 	WM_keymap_verify_item(keymap, "PAINT_OT_vertex_paint", LEFTMOUSE, KM_PRESS, 0, 0);
@@ -1359,7 +1404,7 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.vertex_paint.brush.stroke_method");
 
 	/* Weight Paint mode */
-	keymap = WM_keymap_find(keyconf, "Weight Paint", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Weight Paint", 0, 0);
 	keymap->poll = weight_paint_mode_poll;
 
 	WM_keymap_verify_item(keymap, "PAINT_OT_weight_paint", LEFTMOUSE, KM_PRESS, 0, 0);
@@ -1390,7 +1435,7 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.weight_paint.brush.use_smooth_stroke");
 
 	/*Weight paint's Vertex Selection Mode */
-	keymap = WM_keymap_find(keyconf, "Weight Paint Vertex Selection", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Weight Paint Vertex Selection", 0, 0);
 	keymap->poll = vert_paint_poll;
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", AKEY, KM_PRESS, 0, 0);
 	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
@@ -1400,13 +1445,13 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
 	WM_keymap_add_item(keymap, "VIEW3D_OT_select_border", BKEY, KM_PRESS, 0, 0);
 	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "deselect", false);
+	RNA_enum_set(kmi->ptr, "mode", SEL_OP_ADD);
 	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_SHIFT | KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "deselect", true);
+	RNA_enum_set(kmi->ptr, "mode", SEL_OP_SUB);
 	WM_keymap_add_item(keymap, "VIEW3D_OT_select_circle", CKEY, KM_PRESS, 0, 0);
 
 	/* Image/Texture Paint mode */
-	keymap = WM_keymap_find(keyconf, "Image Paint", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Image Paint", 0, 0);
 	keymap->poll = image_texture_paint_poll;
 
 	RNA_enum_set(WM_keymap_add_item(keymap, "PAINT_OT_image_paint", LEFTMOUSE, KM_PRESS, 0,        0)->ptr, "mode", BRUSH_STROKE_NORMAL);
@@ -1434,7 +1479,7 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.image_paint.brush.stroke_method");
 
 	/* face-mask mode */
-	keymap = WM_keymap_find(keyconf, "Face Mask", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Face Mask", 0, 0);
 	keymap->poll = facemask_paint_poll;
 
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", AKEY, KM_PRESS, 0, 0);
@@ -1455,7 +1500,7 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_linked_pick", LKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "deselect", true);
 
-	keymap = WM_keymap_find(keyconf, "UV Sculpt", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "UV Sculpt", 0, 0);
 	keymap->poll = uv_sculpt_keymap_poll;
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", QKEY, KM_PRESS, 0, 0);

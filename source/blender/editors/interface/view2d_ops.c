@@ -354,7 +354,7 @@ static int view_scrollright_exec(bContext *C, wmOperator *op)
 	}
 
 	/* set RNA-Props - only movement in positive x-direction */
-	RNA_int_set(op->ptr, "deltax", 20);
+	RNA_int_set(op->ptr, "deltax", 40);
 	RNA_int_set(op->ptr, "deltay", 0);
 
 	/* apply movement, then we're done */
@@ -398,7 +398,7 @@ static int view_scrollleft_exec(bContext *C, wmOperator *op)
 	}
 
 	/* set RNA-Props - only movement in negative x-direction */
-	RNA_int_set(op->ptr, "deltax", -20);
+	RNA_int_set(op->ptr, "deltax", -40);
 	RNA_int_set(op->ptr, "deltay", 0);
 
 	/* apply movement, then we're done */
@@ -2130,7 +2130,7 @@ void ED_operatortypes_view2d(void)
 
 void ED_keymap_view2d(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "View2D", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "View2D", 0, 0);
 	wmKeyMapItem *kmi;
 
 	/* scrollers */
@@ -2190,7 +2190,7 @@ void ED_keymap_view2d(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "VIEW2D_OT_zoom_border", BKEY, KM_PRESS, KM_SHIFT, 0);
 
 	/* Alternative keymap for buttons listview */
-	keymap = WM_keymap_find(keyconf, "View2D Buttons List", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "View2D Buttons List", 0, 0);
 
 	WM_keymap_add_item(keymap, "VIEW2D_OT_scroller_activate", LEFTMOUSE, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "VIEW2D_OT_scroller_activate", MIDDLEMOUSE, KM_PRESS, 0, 0);

@@ -257,7 +257,7 @@ class PresetMenu(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'HEADER'
     bl_label = "Presets"
-    path_menu: Menu.path_menu
+    path_menu = Menu.path_menu
 
     @classmethod
     def draw_panel_header(cls, layout):
@@ -670,6 +670,85 @@ class AddPresetUnitsLength(AddPresetBase, Operator):
     preset_subdir = "units_length"
 
 
+class AddPresetGpencilBrush(AddPresetBase, Operator):
+    """Add or remove grease pencil brush preset"""
+    bl_idname = "scene.gpencil_brush_preset_add"
+    bl_label = "Add Grease Pencil Brush Preset"
+    preset_menu = "VIEW3D_PT_gpencil_brush_presets"
+
+    preset_defines = [
+        "brush = bpy.context.active_gpencil_brush",
+        "settings = brush.gpencil_settings"
+    ]
+
+    preset_values = [
+        "settings.input_samples",
+        "settings.active_smooth_factor",
+        "settings.angle",
+        "settings.angle_factor",
+        "settings.use_stabilizer",
+        "brush.smooth_stroke_radius",
+        "brush.smooth_stroke_factor",
+        "settings.pen_smooth_factor",
+        "settings.pen_smooth_steps",
+        "settings.pen_thick_smooth_factor",
+        "settings.pen_thick_smooth_steps",
+        "settings.pen_subdivision_steps",
+        "settings.random_subdiv",
+        "settings.enable_random",
+        "settings.random_pressure",
+        "settings.random_strength",
+        "settings.uv_random",
+        "settings.pen_jitter",
+        "settings.use_jitter_pressure",
+    ]
+
+    preset_subdir = "gpencil_brush"
+
+
+class AddPresetGpencilMaterial(AddPresetBase, Operator):
+    """Add or remove grease pencil material preset"""
+    bl_idname = "scene.gpencil_material_preset_add"
+    bl_label = "Add Grease Pencil Material Preset"
+    preset_menu = "MATERIAL_PT_gpencil_material_presets"
+
+    preset_defines = [
+        "material = bpy.context.object.active_material",
+        "gpcolor = material.grease_pencil"
+    ]
+
+    preset_values = [
+        "gpcolor.mode",
+        "gpcolor.stroke_style",
+        "gpcolor.color",
+        "gpcolor.stroke_image",
+        "gpcolor.pixel_size",
+        "gpcolor.use_stroke_pattern",
+        "gpcolor.fill_style",
+        "gpcolor.fill_color",
+        "gpcolor.fill_image",
+        "gpcolor.gradient_type",
+        "gpcolor.mix_color",
+        "gpcolor.mix_factor",
+        "gpcolor.flip",
+        "gpcolor.pattern_shift",
+        "gpcolor.pattern_scale",
+        "gpcolor.pattern_radius",
+        "gpcolor.pattern_angle",
+        "gpcolor.pattern_gridsize",
+        "gpcolor.use_fill_pattern",
+        "gpcolor.texture_offset",
+        "gpcolor.texture_scale",
+        "gpcolor.texture_angle",
+        "gpcolor.texture_opacity",
+        "gpcolor.texture_clamp",
+        "gpcolor.texture_mix",
+        "gpcolor.mix_factor",
+    ]
+
+    preset_subdir = "gpencil_material"
+
+
 classes = (
     AddPresetCamera,
     AddPresetCloth,
@@ -686,6 +765,8 @@ classes = (
     AddPresetTrackingSettings,
     AddPresetTrackingTrackColor,
     AddPresetUnitsLength,
+    AddPresetGpencilBrush,
+    AddPresetGpencilMaterial,
     ExecutePreset,
     WM_MT_operator_presets,
 )

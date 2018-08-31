@@ -134,7 +134,7 @@ static int panel_aligned(ScrArea *sa, ARegion *ar)
 		return BUT_VERTICAL;
 	else if (sa->spacetype == SPACE_IMAGE && ar->regiontype == RGN_TYPE_PREVIEW)
 		return BUT_VERTICAL;
-	else if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_TOOLS, RGN_TYPE_TOOL_PROPS))
+	else if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_TOOLS, RGN_TYPE_TOOL_PROPS, RGN_TYPE_HUD))
 		return BUT_VERTICAL;
 
 	return 0;
@@ -454,9 +454,9 @@ static void ui_offset_panel_block(uiBlock *block)
 /* triangle 'icon' for panel header */
 void UI_draw_icon_tri(float x, float y, char dir, const float color[4])
 {
-	float f3 = 0.15 * U.widget_unit;
-	float f5 = 0.25 * U.widget_unit;
-	float f7 = 0.35 * U.widget_unit;
+	float f3 = 0.05 * U.widget_unit;
+	float f5 = 0.15 * U.widget_unit;
+	float f7 = 0.25 * U.widget_unit;
 
 	if (dir == 'h') {
 		UI_draw_anti_tria(x - f3, y - f5, x - f3, y + f5, x + f7, y, color);
@@ -1563,10 +1563,15 @@ static void ui_handle_panel_header(const bContext *C, uiBlock *block, int mx, in
 			}
 		}
 
-		if (align)
+		if (align) {
 			panel_activate_state(C, block->panel, PANEL_STATE_ANIMATION);
-		else
+		}
+		else {
+			/* FIXME: this doesn't update the panel drawing, assert to avoid debugging why this is.
+			 * We could fix this in the future if it's ever needed. */
+			BLI_assert(0);
 			ED_region_tag_redraw(ar);
+		}
 	}
 	else if (show_drag && BLI_rctf_isect_x(&rect_drag, mx)) {
 		/* XXX, for now don't allow dragging in floating windows yet. */

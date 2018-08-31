@@ -37,6 +37,7 @@
 
 #include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "BLI_utildefines.h"
 
@@ -44,6 +45,7 @@
 #include "BKE_mesh.h"
 #include "BKE_multires.h"
 #include "BKE_modifier.h"
+#include "BKE_subdiv.h"
 #include "BKE_subsurf.h"
 
 #include "DEG_depsgraph_query.h"
@@ -58,6 +60,8 @@ static void initData(ModifierData *md)
 	mmd->sculptlvl = 0;
 	mmd->renderlvl = 0;
 	mmd->totlvl = 0;
+	mmd->uv_smooth = SUBSURF_UV_SMOOTH_PRESERVE_CORNERS;
+	mmd->quality = 3;
 }
 
 static DerivedMesh *applyModifier(
@@ -137,6 +141,42 @@ static DerivedMesh *applyModifier(
 	return result;
 }
 
+#ifdef WITH_OPENSUBDIV_MODIFIER
+static Mesh *applyModifier_subdiv(ModifierData *md,
+                                  const ModifierEvalContext *ctx,
+                                  Mesh *mesh)
+{
+	const bool use_render_params = (ctx->flag & MOD_APPLY_RENDER);
+	const bool ignore_simplify = (ctx->flag & MOD_APPLY_IGNORE_SIMPLIFY);
+	const Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+	Object *object = ctx->object;
+	Mesh *result = mesh;
+	MultiresModifierData *mmd = (MultiresModifierData *)md;
+	SubdivSettings subdiv_settings;
+	BKE_multires_subdiv_settings_init(&subdiv_settings, mmd);
+	SubdivToMeshSettings mesh_settings;
+	BKE_multires_subdiv_mesh_settings_init(
+        &mesh_settings, scene, object, mmd, use_render_params, ignore_simplify);
+	if (subdiv_settings.level == 0 || mesh_settings.resolution < 3) {
+		/* NOTE: Shouldn't really happen, is supposed to be catched by
+		 * isDisabled() callback.
+		 */
+		return result;
+	}
+	/* TODO(sergey): Try to re-use subdiv when possible. */
+	Subdiv *subdiv = BKE_subdiv_new_from_mesh(&subdiv_settings, mesh);
+	if (subdiv == NULL) {
+		/* Happens on bad topology, ut also on empty input mesh. */
+		return result;
+	}
+	BKE_subdiv_displacement_attach_from_multires(subdiv, mesh, mmd);
+	result = BKE_subdiv_to_mesh(subdiv, &mesh_settings, mesh);
+	/* TODO(sergey): Cache subdiv somehow. */
+	// BKE_subdiv_stats_print(&subdiv->stats);
+	BKE_subdiv_free(subdiv);
+	return result;
+}
+#endif
 
 ModifierTypeInfo modifierType_Multires = {
 	/* name */              "Multires",
@@ -160,7 +200,11 @@ ModifierTypeInfo modifierType_Multires = {
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
+#ifdef WITH_OPENSUBDIV_MODIFIER
+	/* applyModifier */     applyModifier_subdiv,
+#else
 	/* applyModifier */     NULL,
+#endif
 	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,

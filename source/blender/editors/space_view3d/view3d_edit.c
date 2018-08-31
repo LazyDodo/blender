@@ -52,6 +52,7 @@
 #include "BKE_camera.h"
 #include "BKE_context.h"
 #include "BKE_font.h"
+#include "BKE_gpencil.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -77,7 +78,6 @@
 #include "ED_screen.h"
 #include "ED_transform.h"
 #include "ED_mesh.h"
-#include "ED_gpencil.h"
 #include "ED_view3d.h"
 #include "ED_transform_snap_object_context.h"
 
@@ -2811,7 +2811,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ViewLayer *view_layer_eval = DEG_get_evaluated_view_layer(depsgraph);
 	bGPdata *gpd = CTX_data_gpencil_data(C);
-	const bool is_gp_edit = ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE));
+	const bool is_gp_edit = GPENCIL_ANY_MODE(gpd);
 	const bool is_face_map = ((is_gp_edit == false) && ar->gizmo_map &&
 	                          WM_gizmomap_is_any_selected(ar->gizmo_map));
 	Object *ob_eval = OBACT(view_layer_eval);
@@ -2850,9 +2850,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 		{
 			/* we're only interested in selected points here... */
 			if ((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) {
-				if (ED_gpencil_stroke_minmax(gps, true, min, max)) {
-					ok = true;
-				}
+				ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
 			}
 		}
 		CTX_DATA_END;
@@ -4625,7 +4623,7 @@ void VIEW3D_OT_clip_border(wmOperatorType *ot)
 
 /* cursor position in vec, result in vec, mval in region coords */
 /* note: cannot use event->mval here (called by object_add() */
-void ED_view3d_cursor3d_position(bContext *C, const int mval[2], bool use_depth, float cursor_co[3])
+void ED_view3d_cursor3d_position(bContext *C, const int mval[2], const bool use_depth, float cursor_co[3])
 {
 	ARegion *ar = CTX_wm_region(C);
 	View3D *v3d = CTX_wm_view3d(C);
@@ -4686,6 +4684,11 @@ void ED_view3d_cursor3d_position_rotation(
 	else if (orientation == V3D_CURSOR_ORIENT_VIEW) {
 		copy_qt_qt(cursor_quat, rv3d->viewquat);
 		cursor_quat[0] *= -1.0f;
+	}
+	else if (orientation == V3D_CURSOR_ORIENT_XFORM) {
+		float mat[3][3];
+		ED_transform_calc_orientation_from_type(C, mat);
+		mat3_to_quat(cursor_quat, mat);
 	}
 	else if (orientation == V3D_CURSOR_ORIENT_GEOM) {
 		copy_qt_qt(cursor_quat, rv3d->viewquat);
@@ -4835,9 +4838,10 @@ void VIEW3D_OT_cursor3d(wmOperatorType *ot)
 
 	PropertyRNA *prop;
 	static const EnumPropertyItem orientation_items[] = {
-		{V3D_CURSOR_ORIENT_NONE,    "NONE", 0, "None", "Leave orientation unchanged"},
-		{V3D_CURSOR_ORIENT_VIEW,    "VIEW", 0, "View", "Orient to the viewport"},
-		{V3D_CURSOR_ORIENT_GEOM,    "GEOM", 0, "Geometry", "Match the surface normal"},
+		{V3D_CURSOR_ORIENT_NONE,    "NONE",  0, "None", "Leave orientation unchanged"},
+		{V3D_CURSOR_ORIENT_VIEW,    "VIEW",  0, "View", "Orient to the viewport"},
+		{V3D_CURSOR_ORIENT_XFORM,   "XFORM", 0, "Transform", "Orient to the current transform setting"},
+		{V3D_CURSOR_ORIENT_GEOM,    "GEOM",  0, "Geometry", "Match the surface normal"},
 		{0, NULL, 0, NULL, NULL}
 	};
 

@@ -33,33 +33,75 @@
 #include "DNA_meshdata_types.h"
 
 #include "BLI_utildefines.h"
+#include "BLI_bitmap.h"
 #include "BLI_math_vector.h"
 
 #include "BKE_customdata.h"
 
-#ifdef WITH_OPENSUBDIV
-#  include "opensubdiv_evaluator_capi.h"
-#  include "opensubdiv_topology_refiner_capi.h"
-#endif
+#include "MEM_guardedalloc.h"
 
-void BKE_subdiv_eval_begin(Subdiv *subdiv)
+#include "opensubdiv_evaluator_capi.h"
+#include "opensubdiv_topology_refiner_capi.h"
+
+bool BKE_subdiv_eval_begin(Subdiv *subdiv)
 {
-#ifdef WITH_OPENSUBDIV
-	if (subdiv->evaluator == NULL) {
+	if (subdiv->topology_refiner == NULL) {
+		/* Happens on input mesh with just loose geometry,
+		 * or when OpenSubdiv is disabled
+		 */
+		return false;
+	}
+	else if (subdiv->evaluator == NULL) {
 		BKE_subdiv_stats_begin(&subdiv->stats, SUBDIV_STATS_EVALUATOR_CREATE);
 		subdiv->evaluator = openSubdiv_createEvaluatorFromTopologyRefiner(
 		        subdiv->topology_refiner);
 		BKE_subdiv_stats_end(&subdiv->stats, SUBDIV_STATS_EVALUATOR_CREATE);
+		if (subdiv->evaluator == NULL) {
+			return false;
+		}
 	}
 	else {
 		/* TODO(sergey): Check for topology change. */
 	}
-#else
-	UNUSED_VARS(subdiv);
-#endif
+	return true;
 }
 
-#ifdef WITH_OPENSUBDIV
+static void set_coarse_positions(Subdiv *subdiv, const Mesh *mesh)
+{
+	const MVert *mvert = mesh->mvert;
+	const MLoop *mloop = mesh->mloop;
+	const MPoly *mpoly = mesh->mpoly;
+	/* Mark vertices which needs new coordinates. */
+	/* TODO(sergey): This is annoying to calculate this on every update,
+	 * maybe it's better to cache this mapping. Or make it possible to have
+	 * OpenSubdiv's vertices match mesh ones?
+	 */
+	BLI_bitmap *vertex_used_map =
+	        BLI_BITMAP_NEW(mesh->totvert, "vert used map");
+	for (int poly_index = 0; poly_index < mesh->totpoly; poly_index++) {
+		const MPoly *poly = &mpoly[poly_index];
+		for (int corner = 0; corner < poly->totloop; corner++) {
+			const MLoop *loop = &mloop[poly->loopstart + corner];
+			BLI_BITMAP_ENABLE(vertex_used_map, loop->v);
+		}
+	}
+	for (int vertex_index = 0, manifold_veretx_index = 0;
+	     vertex_index < mesh->totvert;
+	     vertex_index++)
+	{
+		if (!BLI_BITMAP_TEST_BOOL(vertex_used_map, vertex_index)) {
+			continue;
+		}
+		const MVert *vertex = &mvert[vertex_index];
+		subdiv->evaluator->setCoarsePositions(
+		        subdiv->evaluator,
+		        vertex->co,
+		        manifold_veretx_index, 1);
+		manifold_veretx_index++;
+	}
+	MEM_freeN(vertex_used_map);
+}
+
 static void set_face_varying_data_from_uv(Subdiv *subdiv,
                                           const MLoopUV *mloopuv,
                                           const int layer_index)
@@ -81,25 +123,26 @@ static void set_face_varying_data_from_uv(Subdiv *subdiv,
 		     vertex_index++, mluv++)
 		{
 			evaluator->setFaceVaryingData(evaluator,
+			                              layer_index,
 			                              mluv->uv,
 			                              uv_indicies[vertex_index],
 			                              1);
 		}
 	}
 }
-#endif
 
-void BKE_subdiv_eval_update_from_mesh(Subdiv *subdiv, const Mesh *mesh)
+bool BKE_subdiv_eval_update_from_mesh(Subdiv *subdiv, const Mesh *mesh)
 {
-#ifdef WITH_OPENSUBDIV
-	BKE_subdiv_eval_begin(subdiv);
+	if (!BKE_subdiv_eval_begin(subdiv)) {
+		return false;
+	}
+	if (subdiv->evaluator == NULL) {
+		/* NOTE: This situation is supposed to be handled by begin(). */
+		BLI_assert(!"Is not supposed to happen");
+		return false;
+	}
 	/* Set coordinates of base mesh vertices. */
-	subdiv->evaluator->setCoarsePositionsFromBuffer(
-	        subdiv->evaluator,
-	        mesh->mvert,
-	        offsetof(MVert, co),
-	        sizeof(MVert),
-	        0, mesh->totvert);
+	set_coarse_positions(subdiv, mesh);
 	/* Set face-varyign data to UV maps. */
 	const int num_uv_layers =
 	        CustomData_number_of_layers(&mesh->ldata, CD_MLOOPUV);
@@ -107,19 +150,12 @@ void BKE_subdiv_eval_update_from_mesh(Subdiv *subdiv, const Mesh *mesh)
 		const MLoopUV *mloopuv = CustomData_get_layer_n(
 		        &mesh->ldata, CD_MLOOPUV, layer_index);
 		set_face_varying_data_from_uv(subdiv, mloopuv, layer_index);
-		/* NOTE: Currently evaluator can only handle single face varying layer.
-		 * This is a limitation of C-API and some underlying helper classes from
-		 * our side which will get fixed.
-		 */
-		break;
 	}
 	/* Update evaluator to the new coarse geometry. */
 	BKE_subdiv_stats_begin(&subdiv->stats, SUBDIV_STATS_EVALUATOR_REFINE);
 	subdiv->evaluator->refine(subdiv->evaluator);
 	BKE_subdiv_stats_end(&subdiv->stats, SUBDIV_STATS_EVALUATOR_REFINE);
-#else
-	UNUSED_VARS(subdiv, mesh);
-#endif
+	return true;
 }
 
 /* ========================== Single point queries ========================== */
@@ -128,73 +164,107 @@ void BKE_subdiv_eval_limit_point(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3])
+        float r_P[3])
 {
 	BKE_subdiv_eval_limit_point_and_derivatives(subdiv,
 	                                            ptex_face_index,
 	                                            u, v,
-	                                            P, NULL, NULL);
+	                                            r_P, NULL, NULL);
 }
 
 void BKE_subdiv_eval_limit_point_and_derivatives(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3], float dPdu[3], float dPdv[3])
+        float r_P[3], float r_dPdu[3], float r_dPdv[3])
 {
-#ifdef WITH_OPENSUBDIV
 	subdiv->evaluator->evaluateLimit(subdiv->evaluator,
 	                                 ptex_face_index,
 	                                 u, v,
-	                                 P, dPdu, dPdv);
-#else
-	UNUSED_VARS(subdiv, ptex_face_index, u, v, P, dPdu, dPdv);
-#endif
+	                                 r_P, r_dPdu, r_dPdv);
 }
 
 void BKE_subdiv_eval_limit_point_and_normal(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3], float N[3])
+        float r_P[3], float r_N[3])
 {
 	float dPdu[3], dPdv[3];
 	BKE_subdiv_eval_limit_point_and_derivatives(subdiv,
 	                                            ptex_face_index,
 	                                            u, v,
-	                                            P, dPdu, dPdv);
-	cross_v3_v3v3(N, dPdu, dPdv);
-	normalize_v3(N);
+	                                            r_P, dPdu, dPdv);
+	cross_v3_v3v3(r_N, dPdu, dPdv);
+	normalize_v3(r_N);
 }
 
 void BKE_subdiv_eval_limit_point_and_short_normal(
         Subdiv *subdiv,
         const int ptex_face_index,
         const float u, const float v,
-        float P[3], short N[3])
+        float r_P[3], short r_N[3])
 {
 	float N_float[3];
 	BKE_subdiv_eval_limit_point_and_normal(subdiv,
 	                                       ptex_face_index,
 	                                       u, v,
-	                                       P, N_float);
-	normal_float_to_short_v3(N, N_float);
+	                                       r_P, N_float);
+	normal_float_to_short_v3(r_N, N_float);
 }
 
 void BKE_subdiv_eval_face_varying(
         Subdiv *subdiv,
+        const int face_varying_channel,
         const int ptex_face_index,
         const float u, const float v,
-        float face_varying[2])
+        float r_face_varying[2])
 {
-#ifdef WITH_OPENSUBDIV
 	subdiv->evaluator->evaluateFaceVarying(subdiv->evaluator,
+	                                       face_varying_channel,
 	                                       ptex_face_index,
 	                                       u, v,
-	                                       face_varying);
-#else
-	UNUSED_VARS(subdiv, ptex_face_index, u, v, face_varying);
-#endif
+	                                       r_face_varying);
+}
+
+void BKE_subdiv_eval_displacement(
+        Subdiv *subdiv,
+        const int ptex_face_index,
+        const float u, const float v,
+        const float dPdu[3], const float dPdv[3],
+        float r_D[3])
+{
+	if (subdiv->displacement_evaluator == NULL) {
+		zero_v3(r_D);
+		return;
+	}
+	subdiv->displacement_evaluator->eval_displacement(
+	        subdiv->displacement_evaluator,
+	        ptex_face_index,
+	        u, v,
+	        dPdu, dPdv,
+	        r_D);
+}
+
+void BKE_subdiv_eval_final_point(
+        Subdiv *subdiv,
+        const int ptex_face_index,
+        const float u, const float v,
+        float r_P[3])
+{
+	if (subdiv->displacement_evaluator) {
+		float dPdu[3], dPdv[3], D[3];
+		BKE_subdiv_eval_limit_point_and_derivatives(
+		        subdiv, ptex_face_index, u, v, r_P, dPdu, dPdv);
+		BKE_subdiv_eval_displacement(subdiv,
+		                             ptex_face_index, u, v,
+		                             dPdu, dPdv,
+		                             D);
+		add_v3_v3(r_P, D);
+	}
+	else {
+		BKE_subdiv_eval_limit_point(subdiv, ptex_face_index, u, v, r_P);
+	}
 }
 
 /* ===================  Patch queries at given resolution =================== */

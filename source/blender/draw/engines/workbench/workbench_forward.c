@@ -80,9 +80,12 @@ extern char datatoc_workbench_common_lib_glsl[];
 extern char datatoc_workbench_world_light_lib_glsl[];
 
 /* static functions */
-static char *workbench_build_forward_vert(void)
+static char *workbench_build_forward_vert(bool is_hair)
 {
 	char *str = NULL;
+	if (!is_hair) {
+		return BLI_strdup(datatoc_workbench_prepass_vert_glsl);
+	}
 
 	DynStr *ds = BLI_dynstr_new();
 
@@ -150,7 +153,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 	material_template.object_id = OBJECT_ID_PASS_ENABLED(wpd) ? engine_object_data->object_id : 1;
 	material_template.color_type = color_type;
 	material_template.ima = ima;
-	uint hash = workbench_material_get_hash(&material_template);
+	uint hash = workbench_material_get_hash(&material_template, false);
 
 	material = BLI_ghash_lookup(wpd->material_hash, SET_UINT_IN_POINTER(hash));
 	if (material == NULL) {
@@ -173,11 +176,11 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 			DRW_shgroup_uniform_vec2(grp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
 		}
 
-		workbench_material_shgroup_uniform(wpd, grp, material);
+		workbench_material_shgroup_uniform(wpd, grp, material, ob);
 		material->shgrp = grp;
 
 		/* Depth */
-		if (workbench_material_determine_color_type(wpd, material->ima) == V3D_SHADING_TEXTURE_COLOR) {
+		if (workbench_material_determine_color_type(wpd, material->ima, ob) == V3D_SHADING_TEXTURE_COLOR) {
 			material->shgrp_object_outline = DRW_shgroup_create(
 			        e_data.object_outline_texture_sh, psl->object_outline_pass);
 			GPUTexture *tex = GPU_texture_from_blender(material->ima, NULL, GL_TEXTURE_2D, false, 0.0f);
@@ -206,7 +209,7 @@ static void ensure_forward_shaders(WORKBENCH_PrivateData *wpd, int index, bool u
 
 	if (e_data.transparent_accum_sh_cache[index] == NULL) {
 		char *defines = workbench_material_build_defines(wpd, use_textures, is_hair);
-		char *transparent_accum_vert = workbench_build_forward_vert();
+		char *transparent_accum_vert = workbench_build_forward_vert(is_hair);
 		char *transparent_accum_frag = workbench_build_forward_transparent_accum_frag();
 		e_data.transparent_accum_sh_cache[index] = DRW_shader_create(
 		        transparent_accum_vert, NULL,
@@ -267,7 +270,8 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		char *defines = workbench_material_build_defines(wpd, false, false);
 		char *defines_texture = workbench_material_build_defines(wpd, true, false);
 		char *defines_hair = workbench_material_build_defines(wpd, false, true);
-		char *forward_vert = workbench_build_forward_vert();
+		char *forward_vert = workbench_build_forward_vert(false);
+		char *forward_hair_vert = workbench_build_forward_vert(true);
 		e_data.object_outline_sh = DRW_shader_create(
 		        forward_vert, NULL,
 		        datatoc_workbench_forward_depth_frag_glsl, defines);
@@ -275,12 +279,13 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		        forward_vert, NULL,
 		        datatoc_workbench_forward_depth_frag_glsl, defines_texture);
 		e_data.object_outline_hair_sh = DRW_shader_create(
-		        forward_vert, NULL,
+		        forward_hair_vert, NULL,
 		        datatoc_workbench_forward_depth_frag_glsl, defines_hair);
 
 
 		e_data.checker_depth_sh = DRW_shader_create_fullscreen(
 		        datatoc_workbench_checkerboard_depth_frag_glsl, NULL);
+		MEM_freeN(forward_hair_vert);
 		MEM_freeN(forward_vert);
 		MEM_freeN(defines);
 		MEM_freeN(defines_texture);
@@ -414,7 +419,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			Image *image = NULL;
 			Material *mat = give_current_material(ob, part->omat);
 			ED_object_get_active_image(ob, part->omat, &image, NULL, NULL, NULL);
-			int color_type = workbench_material_determine_color_type(wpd, image);
+			int color_type = workbench_material_determine_color_type(wpd, image, ob);
 			WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 
 			struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
@@ -426,7 +431,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			                                shader);
 			workbench_material_set_normal_world_matrix(shgrp, wpd, e_data.normal_world_matrix);
 			DRW_shgroup_uniform_block(shgrp, "world_block", wpd->world_ubo);
-			workbench_material_shgroup_uniform(wpd, shgrp, material);
+			workbench_material_shgroup_uniform(wpd, shgrp, material, ob);
 			DRW_shgroup_uniform_vec4(shgrp, "viewvecs[0]", (float *)wpd->viewvecs, 3);
 			/* Hairs have lots of layer and can rapidly become the most prominent surface.
 			 * So lower their alpha artificially. */
@@ -621,6 +626,12 @@ void workbench_forward_draw_scene(WORKBENCH_Data *vedata)
 	/* Apply checker pattern */
 	GPU_framebuffer_bind(dfbl->depth_only_fb);
 	DRW_draw_pass(psl->checker_depth_pass);
+}
+
+void workbench_forward_draw_finish(WORKBENCH_Data *vedata)
+{
+	WORKBENCH_StorageList *stl = vedata->stl;
+	WORKBENCH_PrivateData *wpd = stl->g_data;
 
 	workbench_private_data_free(wpd);
 	workbench_volume_smoke_textures_free(wpd);

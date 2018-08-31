@@ -80,6 +80,7 @@
 #include "BKE_subsurf.h"
 #include "BKE_unit.h"
 #include "BKE_tracking.h"
+#include "BKE_gpencil.h"
 
 #include "BKE_editmesh.h"
 
@@ -94,7 +95,6 @@
 
 #include "GPU_draw.h"
 #include "GPU_select.h"
-#include "GPU_basic_shader.h"
 #include "GPU_shader.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"

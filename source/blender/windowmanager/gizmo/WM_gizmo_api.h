@@ -104,7 +104,7 @@ void WM_gizmo_set_matrix_offset_rotation_from_yz_axis(
         struct wmGizmo *gz, const float y_axis[3], const float z_axis[3]);
 
 void WM_gizmo_set_flag(struct wmGizmo *gz, const int flag, const bool enable);
-void WM_gizmo_set_scale(struct wmGizmo *gz, float scale);
+void WM_gizmo_set_scale(struct wmGizmo *gz, const float scale);
 void WM_gizmo_set_line_width(struct wmGizmo *gz, const float line_width);
 
 void WM_gizmo_get_color(const struct wmGizmo *gz, float color[4]);
@@ -199,16 +199,16 @@ void WM_gizmo_target_property_clear_rna(
 bool WM_gizmo_target_property_is_valid_any(struct wmGizmo *gz);
 bool WM_gizmo_target_property_is_valid(
         const struct wmGizmoProperty *gz_prop);
-float WM_gizmo_target_property_value_get(
+float WM_gizmo_target_property_float_get(
         const struct wmGizmo *gz, struct wmGizmoProperty *gz_prop);
-void  WM_gizmo_target_property_value_set(
+void  WM_gizmo_target_property_float_set(
         struct bContext *C, const struct wmGizmo *gz, struct wmGizmoProperty *gz_prop,
         const float value);
 
-void WM_gizmo_target_property_value_get_array(
+void WM_gizmo_target_property_float_get_array(
         const struct wmGizmo *gz, struct wmGizmoProperty *gz_prop,
         float *value);
-void WM_gizmo_target_property_value_set_array(
+void WM_gizmo_target_property_float_set_array(
         struct bContext *C, const struct wmGizmo *gz, struct wmGizmoProperty *gz_prop,
         const float *value);
 

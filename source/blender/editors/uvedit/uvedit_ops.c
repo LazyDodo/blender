@@ -76,10 +76,12 @@
 #include "ED_uvedit.h"
 #include "ED_object.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_transform.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -4395,7 +4397,7 @@ void ED_keymap_uvedit(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "UV Editor", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "UV Editor", 0, 0);
 	keymap->poll = ED_operator_uvedit_can_uv_sculpt;
 
 #ifdef USE_WM_KEYMAP_27X
@@ -4403,6 +4405,15 @@ void ED_keymap_uvedit(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", QKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_uv_sculpt");
 #endif
+
+	/* Select Element (Sync Select: on) */
+	ED_keymap_editmesh_elem_mode(keyconf, keymap);
+	/* Hack to prevent fall-through, when the button isn't visible. */
+	WM_keymap_add_item(keymap, "MESH_OT_select_mode", FOURKEY, KM_PRESS, 0, 0);
+	/* Select Element (Sync Select: off) */
+	WM_keymap_add_context_enum_set_items(
+	        keymap, rna_enum_mesh_select_mode_uv_items, "tool_settings.uv_select_mode",
+	        ONEKEY, KM_PRESS, 0, 0);
 
 	/* Mark edge seam */
 	WM_keymap_add_item(keymap, "UV_OT_mark_seam", EKEY, KM_PRESS, KM_CTRL, 0);

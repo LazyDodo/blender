@@ -153,7 +153,7 @@ wmGizmo *wm_gizmogroup_find_intersected_gizmo(
 {
 	for (wmGizmo *gz = gzgroup->gizmos.first; gz; gz = gz->next) {
 		if (gz->type->test_select && (gz->flag & WM_GIZMO_HIDDEN) == 0) {
-			if ((*r_part = gz->type->test_select(C, gz, event)) != -1) {
+			if ((*r_part = gz->type->test_select(C, gz, event->mval)) != -1) {
 				return gz;
 			}
 		}
@@ -169,7 +169,7 @@ void wm_gizmogroup_intersectable_gizmos_to_list(const wmGizmoGroup *gzgroup, Lis
 {
 	for (wmGizmo *gz = gzgroup->gizmos.first; gz; gz = gz->next) {
 		if ((gz->flag & WM_GIZMO_HIDDEN) == 0) {
-			if (((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) && gz->type->draw_select) ||
+			if (((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) && (gz->type->draw_select || gz->type->test_select)) ||
 			    ((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) == 0 && gz->type->test_select))
 			{
 				BLI_addhead(listbase, BLI_genericNodeN(gz));
@@ -296,8 +296,6 @@ static int gizmo_select_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 		BLI_assert(0);
 		return (OPERATOR_CANCELLED | OPERATOR_PASS_THROUGH);
 	}
-
-	return OPERATOR_PASS_THROUGH;
 }
 
 void GIZMOGROUP_OT_gizmo_select(wmOperatorType *ot)
@@ -658,7 +656,7 @@ wmKeyMap *WM_gizmogroup_keymap_common(
         const wmGizmoGroupType *gzgt, wmKeyConfig *config)
 {
 	/* Use area and region id since we might have multiple gizmos with the same name in different areas/regions */
-	wmKeyMap *km = WM_keymap_find(config, gzgt->name, gzgt->gzmap_params.spaceid, gzgt->gzmap_params.regionid);
+	wmKeyMap *km = WM_keymap_ensure(config, gzgt->name, gzgt->gzmap_params.spaceid, gzgt->gzmap_params.regionid);
 
 	WM_keymap_add_item(km, "GIZMOGROUP_OT_gizmo_tweak", LEFTMOUSE, KM_PRESS, KM_ANY, 0);
 	gizmogroup_tweak_modal_keymap(config, gzgt->name);
@@ -673,7 +671,7 @@ wmKeyMap *WM_gizmogroup_keymap_common_select(
         const wmGizmoGroupType *gzgt, wmKeyConfig *config)
 {
 	/* Use area and region id since we might have multiple gizmos with the same name in different areas/regions */
-	wmKeyMap *km = WM_keymap_find(config, gzgt->name, gzgt->gzmap_params.spaceid, gzgt->gzmap_params.regionid);
+	wmKeyMap *km = WM_keymap_ensure(config, gzgt->name, gzgt->gzmap_params.spaceid, gzgt->gzmap_params.regionid);
 
 	WM_keymap_add_item(km, "GIZMOGROUP_OT_gizmo_tweak", ACTIONMOUSE, KM_PRESS, KM_ANY, 0);
 	WM_keymap_add_item(km, "GIZMOGROUP_OT_gizmo_tweak", EVT_TWEAK_S, KM_ANY, 0, 0);

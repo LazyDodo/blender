@@ -153,6 +153,8 @@ void RNA_def_dynamic_paint(struct BlenderRNA *brna);
 void RNA_def_fluidsim(struct BlenderRNA *brna);
 void RNA_def_fcurve(struct BlenderRNA *brna);
 void RNA_def_gpencil(struct BlenderRNA *brna);
+void RNA_def_greasepencil_modifier(struct BlenderRNA *brna);
+void RNA_def_shader_fx(struct BlenderRNA *brna);
 void RNA_def_image(struct BlenderRNA *brna);
 void RNA_def_key(struct BlenderRNA *brna);
 void RNA_def_light(struct BlenderRNA *brna);
@@ -283,6 +285,7 @@ void rna_TextureSlot_update(struct bContext *C, struct PointerRNA *ptr);
 bool rna_Armature_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Camera_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Curve_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
+bool rna_GPencil_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Light_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Lattice_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Mesh_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
@@ -290,6 +293,10 @@ bool rna_Mesh_object_poll(struct PointerRNA *ptr, struct PointerRNA value);
 /* basic poll functions for actions (to prevent actions getting set in wrong places) */
 bool rna_Action_id_poll(struct PointerRNA *ptr, struct PointerRNA value);
 bool rna_Action_actedit_assign_poll(struct PointerRNA *ptr, struct PointerRNA value);
+
+/* Grease Pencil datablock polling functions - for filtering GP Object vs Annotation datablocks */
+bool rna_GPencil_datablocks_annotations_poll(struct PointerRNA *ptr, const struct PointerRNA value);
+bool rna_GPencil_datablocks_obdata_poll(struct PointerRNA *ptr, const struct PointerRNA value);
 
 char *rna_TextureSlot_path(struct PointerRNA *ptr);
 char *rna_Node_ImageUser_path(struct PointerRNA *ptr);
@@ -301,6 +308,7 @@ void RNA_api_armature_edit_bone(StructRNA *srna);
 void RNA_api_bone(StructRNA *srna);
 void RNA_api_camera(StructRNA *srna);
 void RNA_api_curve(StructRNA *srna);
+void RNA_api_curve_nurb(StructRNA *srna);
 void RNA_api_fcurves(StructRNA *srna);
 void RNA_api_drivers(StructRNA *srna);
 void RNA_api_image_packed_file(struct StructRNA *srna);

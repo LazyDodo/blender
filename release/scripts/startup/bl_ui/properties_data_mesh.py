@@ -92,7 +92,7 @@ class MESH_UL_shape_keys(UIList):
         # key = data
         key_block = item
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            split = layout.split(0.66, False)
+            split = layout.split(factor=0.66, align=False)
             split.prop(key_block, "name", text="", emboss=False, icon_value=icon)
             row = split.row(align=True)
             if key_block.mute or (obj.mode == 'EDIT' and not (obj.use_shape_key_edit_mode and obj.type == 'MESH')):
@@ -152,6 +152,7 @@ class DATA_PT_context_mesh(MeshButtonsPanel, Panel):
 
 class DATA_PT_normals(MeshButtonsPanel, Panel):
     bl_label = "Normals"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw(self, context):
@@ -239,6 +240,7 @@ class DATA_PT_vertex_groups(MeshButtonsPanel, Panel):
 
 class DATA_PT_face_maps(MeshButtonsPanel, Panel):
     bl_label = "Face Maps"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     @classmethod
@@ -324,7 +326,7 @@ class DATA_PT_shape_keys(MeshButtonsPanel, Panel):
             sub.operator("object.shape_key_move", icon='TRIA_UP', text="").type = 'UP'
             sub.operator("object.shape_key_move", icon='TRIA_DOWN', text="").type = 'DOWN'
 
-            split = layout.split(percentage=0.4)
+            split = layout.split(factor=0.4)
             row = split.row()
             row.enabled = enable_edit
             row.prop(key, "use_relative")
@@ -450,13 +452,13 @@ classes = (
     MESH_UL_shape_keys,
     MESH_UL_uvmaps_vcols,
     DATA_PT_context_mesh,
-    DATA_PT_normals,
-    DATA_PT_texture_space,
     DATA_PT_vertex_groups,
-    DATA_PT_face_maps,
     DATA_PT_shape_keys,
     DATA_PT_uv_texture,
     DATA_PT_vertex_colors,
+    DATA_PT_face_maps,
+    DATA_PT_normals,
+    DATA_PT_texture_space,
     DATA_PT_customdata,
     DATA_PT_custom_props_mesh,
 )

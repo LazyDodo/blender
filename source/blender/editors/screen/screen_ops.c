@@ -47,6 +47,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_meta_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_mask_types.h"
 #include "DNA_node_types.h"
 #include "DNA_workspace_types.h"
@@ -356,6 +357,15 @@ bool ED_operator_editmesh_region_view3d(bContext *C)
 		return 1;
 
 	CTX_wm_operator_poll_msg_set(C, "expected a view3d region & editmesh");
+	return 0;
+}
+
+bool ED_operator_editmesh_auto_smooth(bContext *C)
+{
+	Object *obedit = CTX_data_edit_object(C);
+	if (obedit && obedit->type == OB_MESH && (((Mesh *)(obedit->data))->flag & ME_AUTOSMOOTH)) {
+		return NULL != BKE_editmesh_from_object(obedit);
+	}
 	return 0;
 }
 
@@ -1476,7 +1486,15 @@ static void area_move_apply_do(
 		ED_screen_areas_iter(win, sc, sa) {
 			if (sa->v1->editflag || sa->v2->editflag || sa->v3->editflag || sa->v4->editflag) {
 				if (ED_area_is_global(sa)) {
-					sa->global->cur_fixed_height = round_fl_to_int(screen_geom_area_height(sa) / UI_DPI_FAC);
+					/* Snap to minimum or maximum for global areas. */
+					int height = round_fl_to_int(screen_geom_area_height(sa) / UI_DPI_FAC);
+					if (abs(height - sa->global->size_min) < abs(height - sa->global->size_max)) {
+						sa->global->cur_fixed_height = sa->global->size_min;
+					}
+					else {
+						sa->global->cur_fixed_height = sa->global->size_max;
+					}
+
 					sc->do_refresh = true;
 					redraw_all = true;
 				}
@@ -1488,6 +1506,8 @@ static void area_move_apply_do(
 				ED_area_tag_redraw(sa);
 			}
 		}
+
+		ED_screen_global_areas_sync(win);
 
 		WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL); /* redraw everything */
 		/* Update preview thumbnail */
@@ -2608,11 +2628,14 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 
 	/* populate tree with keyframe nodes */
 	scene_to_keylist(&ads, scene, &keys, NULL);
-	gpencil_to_keylist(&ads, scene->gpd, &keys);
 
 	if (ob) {
 		ob_to_keylist(&ads, ob, &keys, NULL);
-		gpencil_to_keylist(&ads, ob->gpd, &keys);
+
+		if (ob->type == OB_GPENCIL) {
+			const bool active = !(scene->flag & SCE_KEYS_NO_SELONLY);
+			gpencil_to_keylist(&ads, ob->data, &keys, active);
+		}
 	}
 
 	{
@@ -4813,7 +4836,7 @@ static void keymap_modal_set(wmKeyConfig *keyconf)
 
 }
 
-static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH) {
 		if (drag->icon == ICON_FILE_BLEND)
@@ -4838,7 +4861,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* Screen Editing ------------------------------------------------ */
-	keymap = WM_keymap_find(keyconf, "Screen Editing", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Screen Editing", 0, 0);
 
 	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, 0, 0)->ptr, "modifier", 0);
 	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "modifier", 1);
@@ -4863,12 +4886,12 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 	/* Header Editing ------------------------------------------------ */
 	/* note: this is only used when the cursor is inside the header */
-	keymap = WM_keymap_find(keyconf, "Header", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Header", 0, 0);
 
 	WM_keymap_add_item(keymap, "SCREEN_OT_header_context_menu", RIGHTMOUSE, KM_PRESS, 0, 0);
 
 	/* Screen General ------------------------------------------------ */
-	keymap = WM_keymap_find(keyconf, "Screen", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Screen", 0, 0);
 
 	/* standard timers */
 	WM_keymap_add_item(keymap, "SCREEN_OT_animation_step", TIMER0, KM_ANY, KM_ANY, 0);
@@ -4947,7 +4970,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 
 	/* Anim Playback ------------------------------------------------ */
-	keymap = WM_keymap_find(keyconf, "Frames", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Frames", 0, 0);
 
 	/* frame offsets */
 #ifdef USE_WM_KEYMAP_27X
@@ -5000,7 +5023,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 	/* Alternative keys for animation and sequencer playing */
 #if 0 /* XXX: disabled for restoring later... bad implementation */
-	keymap = WM_keymap_find(keyconf, "Frames", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Frames", 0, 0);
 	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", RIGHTARROWKEY, KM_PRESS, KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "cycle_speed", true);
 

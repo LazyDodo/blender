@@ -46,9 +46,9 @@
 #include "BLT_translation.h"
 
 #include "DNA_armature_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_material_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_scene_types.h"
@@ -100,6 +100,7 @@
 #include "ED_screen.h"
 #include "ED_undo.h"
 #include "ED_image.h"
+#include "ED_gpencil.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -1377,6 +1378,9 @@ static void object_clear_mpath(Object *ob)
 		animviz_free_motionpath(ob->mpath);
 		ob->mpath = NULL;
 		ob->avs.path_bakeflag &= ~MOTIONPATH_BAKE_HAS_PATHS;
+
+		/* tag object for copy on write - so removed paths don't still show */
+		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
 	}
 }
 
@@ -1445,6 +1449,43 @@ void OBJECT_OT_paths_clear(wmOperatorType *ot)
 	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
 }
 
+/* --------- */
+
+static int object_update_paths_range_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Scene *scene = CTX_data_scene(C);
+
+	/* loop over all edtiable objects in scene */
+	CTX_DATA_BEGIN(C, Object *, ob, editable_objects)
+	{
+		/* use Preview Range or Full Frame Range - whichever is in use */
+		ob->avs.path_sf = PSFRA;
+		ob->avs.path_ef = PEFRA;
+
+		/* tag for updates */
+		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+	}
+	CTX_DATA_END;
+
+	return OPERATOR_FINISHED;
+}
+
+void OBJECT_OT_paths_range_update(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Update Range from Scene";
+	ot->idname = "OBJECT_OT_paths_range_update";
+	ot->description = "Update frame range for motion paths from the Scene's current frame range";
+
+	/* callbacks */
+	ot->exec = object_update_paths_range_exec;
+	ot->poll = ED_operator_object_active_editable;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
 
 /********************** Smooth/Flat *********************/
 
@@ -1468,7 +1509,7 @@ static int shade_smooth_exec(bContext *C, wmOperator *op)
 		if (ob->type == OB_MESH) {
 			BKE_mesh_smooth_flag_set(ob, !clear);
 
-			BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+			BKE_mesh_batch_cache_dirty_tag(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 
@@ -1539,7 +1580,6 @@ static const EnumPropertyItem *object_mode_set_itemsf(
 	const EnumPropertyItem *input = rna_enum_object_mode_items;
 	EnumPropertyItem *item = NULL;
 	Object *ob;
-	bGPdata *gpd;
 	int totitem = 0;
 
 	if (!C) /* needed for docs */
@@ -1555,7 +1595,9 @@ static const EnumPropertyItem *object_mode_set_itemsf(
 			    (input->value == OB_MODE_POSE && (ob->type == OB_ARMATURE)) ||
 			    (input->value == OB_MODE_PARTICLE_EDIT && use_mode_particle_edit) ||
 			    (ELEM(input->value, OB_MODE_SCULPT, OB_MODE_VERTEX_PAINT,
-			           OB_MODE_WEIGHT_PAINT, OB_MODE_TEXTURE_PAINT) && (ob->type == OB_MESH)) ||
+			          OB_MODE_WEIGHT_PAINT, OB_MODE_TEXTURE_PAINT) && (ob->type == OB_MESH)) ||
+			    (ELEM(input->value, OB_MODE_GPENCIL_EDIT, OB_MODE_GPENCIL_PAINT,
+			          OB_MODE_GPENCIL_SCULPT, OB_MODE_GPENCIL_WEIGHT) && (ob->type == OB_GPENCIL)) ||
 			    (input->value == OB_MODE_OBJECT))
 			{
 				RNA_enum_item_add(&item, &totitem, input);
@@ -1566,14 +1608,6 @@ static const EnumPropertyItem *object_mode_set_itemsf(
 	else {
 		/* We need at least this one! */
 		RNA_enum_items_add_value(&item, &totitem, input, OB_MODE_OBJECT);
-	}
-
-	/* On top of all the rest, GPencil Stroke Edit Mode
-	 * is available if there's a valid gp datablock...
-	 */
-	gpd = CTX_data_gpencil_data(C);
-	if (gpd) {
-		RNA_enum_items_add_value(&item, &totitem, rna_enum_object_mode_items, OB_MODE_GPENCIL);
 	}
 
 	RNA_enum_item_end(&item, &totitem);
@@ -1600,7 +1634,6 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 {
 	bool use_submode = STREQ(op->idname, "OBJECT_OT_mode_set_or_submode");
 	Object *ob = CTX_data_active_object(C);
-	bGPdata *gpd = CTX_data_gpencil_data(C);
 	eObjectMode mode = RNA_enum_get(op->ptr, "mode");
 	eObjectMode restore_mode = (ob) ? ob->mode : OB_MODE_OBJECT;
 	const bool toggle = RNA_boolean_get(op->ptr, "toggle");
@@ -1620,22 +1653,9 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	if (gpd) {
-		/* GP Mode is not bound to a specific object. Therefore,
-		 * we don't want it to be actually saved on any objects,
-		 * as weirdness can happen if you select other objects,
-		 * or load old files.
-		 *
-		 * Instead, we use the following 2 rules to ensure that
-		 * the mode selector works as expected:
-		 *  1) If there's no object, we want to enter editmode.
-		 *     (i.e. with no object, we're in object mode)
-		 *  2) Otherwise, exit stroke editmode, so that we can
-		 *     enter another mode...
-		 */
-		if (!ob || (gpd->flag & GP_DATA_STROKE_EDITMODE)) {
-			WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_EXEC_REGION_WIN, NULL);
-		}
+	/* by default the operator assume is a mesh, but if gp object change mode */
+	if ((ob != NULL) && (ob->type == OB_GPENCIL) && (mode == OB_MODE_EDIT)) {
+		mode = OB_MODE_GPENCIL_EDIT;
 	}
 
 	if (!ob || !ED_object_mode_compat_test(ob, mode))
@@ -1663,6 +1683,14 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 		}
 		else if (ob->restore_mode != OB_MODE_OBJECT && ob->restore_mode != mode) {
 			ED_object_mode_toggle(C, ob->restore_mode);
+		}
+	}
+
+	/* if type is OB_GPENCIL, set cursor mode */
+	if ((ob) && (ob->type == OB_GPENCIL)) {
+		if (ob->data) {
+			bGPdata *gpd = (bGPdata *)ob->data;
+			ED_gpencil_setup_modes(C, gpd, ob->mode);
 		}
 	}
 

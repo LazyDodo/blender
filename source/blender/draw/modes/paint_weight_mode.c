@@ -95,7 +95,7 @@ static void PAINT_WEIGHT_engine_init(void *UNUSED(vedata))
 	if (e_data.actdef != draw_ctx->obact->actdef) {
 		e_data.actdef = draw_ctx->obact->actdef;
 
-		BKE_mesh_batch_cache_dirty(draw_ctx->obact->data, BKE_MESH_BATCH_DIRTY_ALL);
+		BKE_mesh_batch_cache_dirty_tag(draw_ctx->obact->data, BKE_MESH_BATCH_DIRTY_ALL);
 	}
 
 	if (!e_data.weight_face_shader) {
@@ -154,6 +154,7 @@ static void PAINT_WEIGHT_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->lwire_shgrp = DRW_shgroup_create(e_data.wire_overlay_shader, psl->wire_overlay);
+		DRW_shgroup_uniform_block(stl->g_data->lwire_shgrp, "globalsBlock", globals_ubo);
 	}
 
 	{
@@ -173,6 +174,7 @@ static void PAINT_WEIGHT_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->vert_shgrp = DRW_shgroup_create(e_data.vert_overlay_shader, psl->vert_overlay);
+		DRW_shgroup_uniform_block(stl->g_data->vert_shgrp, "globalsBlock", globals_ubo);
 	}
 }
 

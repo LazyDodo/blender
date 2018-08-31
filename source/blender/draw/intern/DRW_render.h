@@ -114,16 +114,26 @@ typedef char DRWViewportEmptyList;
 		GPU_framebuffer_clear_color_depth(dfbl->multisample_fb, (const float[4]){0.0f}, 1.0f); \
 		DRW_stats_query_end(); \
 	} \
-}
+} ((void)0)
 
 #define MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl) { \
 	if (dfbl->multisample_fb != NULL) { \
 		DRW_stats_query_start("Multisample Resolve"); \
 		GPU_framebuffer_bind(dfbl->default_fb); \
-		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color, true); \
 		DRW_stats_query_end(); \
 	} \
 }
+
+#define MULTISAMPLE_SYNC_DISABLE_NO_DEPTH(dfbl, dtxl) { \
+	if (dfbl->multisample_fb != NULL) { \
+		DRW_stats_query_start("Multisample Resolve"); \
+		GPU_framebuffer_bind(dfbl->default_fb); \
+		DRW_multisamples_resolve(dtxl->multisample_depth, dtxl->multisample_color, false); \
+		DRW_stats_query_end(); \
+	} \
+}
+
 
 
 
@@ -225,10 +235,10 @@ void DRW_uniformbuffer_free(struct GPUUniformBuffer *ubo);
 	} \
 } while (0)
 
-void DRW_transform_to_display(struct GPUTexture *tex);
+void DRW_transform_to_display(struct GPUTexture *tex, bool use_view_settings);
 void DRW_transform_none(struct GPUTexture *tex);
 void DRW_multisamples_resolve(
-        struct GPUTexture *src_depth, struct GPUTexture *src_color);
+        struct GPUTexture *src_depth, struct GPUTexture *src_color, bool use_depth);
 
 /* Shaders */
 struct GPUShader *DRW_shader_create(
@@ -242,14 +252,14 @@ struct GPUShader *DRW_shader_create_2D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_fullscreen(const char *frag, const char *defines);
 struct GPUShader *DRW_shader_create_3D_depth_only(void);
-struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options, bool no_deferred);
-struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options, bool no_deferred);
+struct GPUMaterial *DRW_shader_find_from_world(struct World *wo, const void *engine_type, int options, bool deferred);
+struct GPUMaterial *DRW_shader_find_from_material(struct Material *ma, const void *engine_type, int options, bool deferred);
 struct GPUMaterial *DRW_shader_create_from_world(
         struct Scene *scene, struct World *wo, const void *engine_type, int options,
-        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool no_deferred);
+        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool deferred);
 struct GPUMaterial *DRW_shader_create_from_material(
         struct Scene *scene, struct Material *ma, const void *engine_type, int options,
-        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool no_deferred);
+        const char *vert, const char *geom, const char *frag_lib, const char *defines, bool deferred);
 void DRW_shader_free(struct GPUShader *shader);
 #define DRW_SHADER_FREE_SAFE(shader) do { \
 	if (shader != NULL) { \
@@ -402,6 +412,8 @@ void DRW_shgroup_uniform_int_copy(DRWShadingGroup *shgroup, const char *name, co
 void DRW_shgroup_uniform_bool_copy(DRWShadingGroup *shgroup, const char *name, const bool value);
 void DRW_shgroup_uniform_float_copy(DRWShadingGroup *shgroup, const char *name, const float value);
 
+bool DRW_shgroup_is_empty(DRWShadingGroup *shgroup);
+
 /* Passes */
 DRWPass *DRW_pass_create(const char *name, DRWState state);
 void DRW_pass_state_set(DRWPass *pass, DRWState state);
@@ -409,6 +421,8 @@ void DRW_pass_state_add(DRWPass *pass, DRWState state);
 void DRW_pass_state_remove(DRWPass *pass, DRWState state);
 void DRW_pass_foreach_shgroup(DRWPass *pass, void (*callback)(void *userData, DRWShadingGroup *shgrp), void *userData);
 void DRW_pass_sort_shgroup_z(DRWPass *pass);
+
+bool DRW_pass_is_empty(DRWPass *pass);
 
 /* Viewport */
 typedef enum {

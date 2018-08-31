@@ -44,6 +44,7 @@ struct Scene;
 struct BPoint;
 struct MDeformVert;
 struct Depsgraph;
+struct bGPDstroke;
 
 void BKE_lattice_resize(struct Lattice *lt, int u, int v, int w, struct Object *ltOb);
 void BKE_lattice_init(struct Lattice *lt);
@@ -54,7 +55,6 @@ void BKE_lattice_free(struct Lattice *lt);
 void BKE_lattice_make_local(struct Main *bmain, struct Lattice *lt, const bool lib_local);
 void calc_lat_fudu(int flag, int res, float *r_fu, float *r_du);
 
-struct LatticeDeformData;
 struct LatticeDeformData *init_latt_deform(struct Object *oblatt, struct Object *ob) ATTR_WARN_UNUSED_RESULT;
 void calc_latt_deform(struct LatticeDeformData *lattice_deform_data, float co[3], float weight);
 void end_latt_deform(struct LatticeDeformData *lattice_deform_data);
@@ -74,7 +74,8 @@ void lattice_deform_verts(struct Object *laOb, struct Object *target,
 void armature_deform_verts(struct Object *armOb, struct Object *target,
                            const struct Mesh *mesh, float (*vertexCos)[3],
                            float (*defMats)[3][3], int numVerts, int deformflag,
-                           float (*prevCos)[3], const char *defgrp_name);
+                           float (*prevCos)[3], const char *defgrp_name,
+						   struct bGPDstroke *gps);
 
 float (*BKE_lattice_vertexcos_get(struct Object *ob, int *r_numVerts))[3];
 void    BKE_lattice_vertexcos_apply(struct Object *ob, float (*vertexCos)[3]);
@@ -112,7 +113,7 @@ enum {
 	BKE_LATTICE_BATCH_DIRTY_ALL = 0,
 	BKE_LATTICE_BATCH_DIRTY_SELECT,
 };
-void BKE_lattice_batch_cache_dirty(struct Lattice *lt, int mode);
+void BKE_lattice_batch_cache_dirty_tag(struct Lattice *lt, int mode);
 void BKE_lattice_batch_cache_free(struct Lattice *lt);
 
 #endif  /* __BKE_LATTICE_H__ */

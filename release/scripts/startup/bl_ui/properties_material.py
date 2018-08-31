@@ -86,8 +86,11 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
 
     @classmethod
     def poll(cls, context):
-        engine = context.engine
-        return (context.material or context.object) and (engine in cls.COMPAT_ENGINES)
+        if context.active_object and context.active_object.type == 'GPENCIL':
+            return False
+        else:
+            engine = context.engine
+            return (context.material or context.object) and (engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -209,11 +212,7 @@ class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
 
         layout.prop(mat, "use_screen_refraction")
         layout.prop(mat, "refraction_depth")
-
-        layout.prop(mat, "use_screen_subsurface")
-        row = layout.row()
-        row.active = mat.use_screen_subsurface
-        row.prop(mat, "use_sss_translucency")
+        layout.prop(mat, "use_sss_translucency")
 
 
 class MATERIAL_PT_viewport(MaterialButtonsPanel, Panel):

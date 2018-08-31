@@ -422,7 +422,7 @@ static CurveBatchCache *curve_batch_cache_get(Curve *cu)
 	return cu->batch_cache;
 }
 
-void DRW_curve_batch_cache_dirty(Curve *cu, int mode)
+void DRW_curve_batch_cache_dirty_tag(Curve *cu, int mode)
 {
 	CurveBatchCache *cache = cu->batch_cache;
 	if (cache == NULL) {
@@ -458,12 +458,8 @@ static void curve_batch_cache_clear(Curve *cu)
 
 	GPU_VERTBUF_DISCARD_SAFE(cache->surface.verts);
 	GPU_INDEXBUF_DISCARD_SAFE(cache->surface.triangles_in_order);
-	if (cache->surface.shaded_triangles) {
-		for (int i = 0; i < cache->surface.mat_len; ++i) {
-			GPU_BATCH_DISCARD_SAFE(cache->surface.shaded_triangles[i]);
-		}
-	}
-	MEM_SAFE_FREE(cache->surface.shaded_triangles);
+
+	GPU_BATCH_DISCARD_ARRAY_SAFE(cache->surface.shaded_triangles, cache->surface.mat_len);
 	GPU_BATCH_DISCARD_SAFE(cache->surface.batch);
 
 	/* don't own vbo & elems */
@@ -1037,13 +1033,7 @@ GPUBatch **DRW_curve_batch_cache_get_surface_shaded(
 	CurveBatchCache *cache = curve_batch_cache_get(cu);
 
 	if (cache->surface.mat_len != gpumat_array_len) {
-		/* TODO: deduplicate code */
-		if (cache->surface.shaded_triangles) {
-			for (int i = 0; i < cache->surface.mat_len; ++i) {
-				GPU_BATCH_DISCARD_SAFE(cache->surface.shaded_triangles[i]);
-			}
-		}
-		MEM_SAFE_FREE(cache->surface.shaded_triangles);
+		GPU_BATCH_DISCARD_ARRAY_SAFE(cache->surface.shaded_triangles, cache->surface.mat_len);
 	}
 
 	if (cache->surface.shaded_triangles == NULL) {

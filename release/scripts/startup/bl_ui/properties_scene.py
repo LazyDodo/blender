@@ -71,6 +71,7 @@ class SCENE_PT_scene(SceneButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         scene = context.scene
 
@@ -92,6 +93,7 @@ class SCENE_PT_unit(SceneButtonsPanel, Panel):
         unit = context.scene.unit_settings
 
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
 
@@ -568,6 +570,36 @@ class SCENE_PT_simplify_render(SceneButtonsPanel, Panel):
         col.prop(rd, "simplify_child_particles_render", text="Max Child Particles")
 
 
+class SCENE_PT_simplify_greasepencil(SceneButtonsPanel, Panel):
+    bl_label = "Grease Pencil"
+    bl_parent_id = "SCENE_PT_simplify"
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw_header(self, context):
+        rd = context.scene.render
+        self.layout.prop(rd, "simplify_gpencil", text="")
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+
+        rd = context.scene.render
+
+        layout.active = rd.simplify_gpencil
+
+        col = layout.column()
+        col.prop(rd, "simplify_gpencil_onplay", text="Playback Only")
+        col.prop(rd, "simplify_gpencil_view_modifier", text="Modifiers")
+        col.prop(rd, "simplify_gpencil_shader_fx", text="ShaderFX")
+
+        col = layout.column(align=True)
+        col.prop(rd, "simplify_gpencil_view_fill")
+        sub = col.column()
+        sub.active = rd.simplify_gpencil_view_fill
+        sub.prop(rd, "simplify_gpencil_remove_lines", text="Lines")
+
+
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
     _context_path = "scene"
@@ -593,6 +625,7 @@ classes = (
     SCENE_PT_simplify,
     SCENE_PT_simplify_viewport,
     SCENE_PT_simplify_render,
+    SCENE_PT_simplify_greasepencil,
     SCENE_PT_custom_props,
 )
 

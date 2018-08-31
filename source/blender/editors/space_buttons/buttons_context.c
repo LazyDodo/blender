@@ -39,7 +39,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_armature_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
 #include "DNA_node_types.h"
@@ -59,7 +59,6 @@
 #include "BKE_screen.h"
 #include "BKE_texture.h"
 #include "BKE_linestyle.h"
-#include "BKE_workspace.h"
 
 #include "RNA_access.h"
 
@@ -188,14 +187,6 @@ static int buttons_context_path_linestyle(ButsContextPath *path, wmWindow *windo
 	return 0;
 }
 
-static int buttons_context_path_workspace(ButsContextPath *path)
-{
-	PointerRNA *ptr = &path->ptr[path->len - 1];
-
-	/* This one just verifies. */
-	return RNA_struct_is_a(ptr->type, &RNA_WorkSpace);
-}
-
 static int buttons_context_path_object(ButsContextPath *path)
 {
 	PointerRNA *ptr = &path->ptr[path->len - 1];
@@ -237,6 +228,7 @@ static int buttons_context_path_data(ButsContextPath *path, int type)
 	else if (RNA_struct_is_a(ptr->type, &RNA_Light) && (type == -1 || type == OB_LAMP)) return 1;
 	else if (RNA_struct_is_a(ptr->type, &RNA_Speaker) && (type == -1 || type == OB_SPEAKER)) return 1;
 	else if (RNA_struct_is_a(ptr->type, &RNA_LightProbe) && (type == -1 || type == OB_LIGHTPROBE)) return 1;
+	else if (RNA_struct_is_a(ptr->type, &RNA_GreasePencil) && (type == -1 || type == OB_GPENCIL)) return 1;
 	/* try to get an object in the path, no pinning supported here */
 	else if (buttons_context_path_object(path)) {
 		ob = path->ptr[path->len - 1].data;
@@ -260,7 +252,21 @@ static int buttons_context_path_modifier(ButsContextPath *path)
 	if (buttons_context_path_object(path)) {
 		ob = path->ptr[path->len - 1].data;
 
-		if (ob && ELEM(ob->type, OB_MESH, OB_CURVE, OB_FONT, OB_SURF, OB_LATTICE))
+		if (ob && ELEM(ob->type, OB_MESH, OB_CURVE, OB_FONT, OB_SURF, OB_LATTICE, OB_GPENCIL))
+			return 1;
+	}
+
+	return 0;
+}
+
+static int buttons_context_path_shaderfx(ButsContextPath *path)
+{
+	Object *ob;
+
+	if (buttons_context_path_object(path)) {
+		ob = path->ptr[path->len - 1].data;
+
+		if (ob && ELEM(ob->type, OB_GPENCIL))
 			return 1;
 	}
 
@@ -482,9 +488,9 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	wmWindow *window = CTX_wm_window(C);
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	ID *id;
 	int found;
+	Object *ob = CTX_data_active_object(C);
 
 	memset(path, 0, sizeof(*path));
 	path->flag = flag;
@@ -497,19 +503,13 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 		path->len++;
 	}
 	/* No pinned root, use scene as initial root. */
-	else {
-		if (ELEM(mainb, BCONTEXT_WORKSPACE, BCONTEXT_TOOL)) {
-			RNA_id_pointer_create(&workspace->id, &path->ptr[0]);
-			path->len++;
-		}
-		else {
-			RNA_id_pointer_create(&scene->id, &path->ptr[0]);
-			path->len++;
+	else if (mainb != BCONTEXT_TOOL) {
+		RNA_id_pointer_create(&scene->id, &path->ptr[0]);
+		path->len++;
 
-			if (!ELEM(mainb, BCONTEXT_SCENE, BCONTEXT_RENDER, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD)) {
-				RNA_pointer_create(NULL, &RNA_ViewLayer, view_layer, &path->ptr[path->len]);
-				path->len++;
-			}
+		if (!ELEM(mainb, BCONTEXT_SCENE, BCONTEXT_RENDER, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD)) {
+			RNA_pointer_create(NULL, &RNA_ViewLayer, view_layer, &path->ptr[path->len]);
+			path->len++;
 		}
 	}
 
@@ -535,8 +535,7 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 			found = buttons_context_path_world(path);
 			break;
 		case BCONTEXT_TOOL:
-		case BCONTEXT_WORKSPACE:
-			found = buttons_context_path_workspace(path);
+			found = true;
 			break;
 		case BCONTEXT_OBJECT:
 		case BCONTEXT_PHYSICS:
@@ -546,6 +545,9 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 		case BCONTEXT_MODIFIER:
 			found = buttons_context_path_modifier(path);
 			break;
+		case BCONTEXT_SHADERFX:
+			found = buttons_context_path_shaderfx(path);
+			break;
 		case BCONTEXT_DATA:
 			found = buttons_context_path_data(path, -1);
 			break;
@@ -553,7 +555,14 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 			found = buttons_context_path_particle(path);
 			break;
 		case BCONTEXT_MATERIAL:
-			found = buttons_context_path_material(path);
+			/* NOTE: Grease Pencil materials use different panels... */
+			if (ob && ob->type == OB_GPENCIL) {
+				/* XXX: Why path_data? */
+				found = buttons_context_path_data(path, -1);
+			}
+			else {
+				found = buttons_context_path_material(path);
+			}
 			break;
 		case BCONTEXT_TEXTURE:
 			found = buttons_context_path_texture(C, path, sbuts->texuser);
@@ -626,10 +635,18 @@ void buttons_context_compute(const bContext *C, SpaceButs *sbuts)
 			if (a == BCONTEXT_DATA) {
 				ptr = &path->ptr[path->len - 1];
 
-				if (ptr->type)
+				if (ptr->type) {
 					sbuts->dataicon = RNA_struct_ui_icon(ptr->type);
-				else
-					sbuts->dataicon = ICON_EMPTY_DATA;
+				}
+				else {
+					Object *ob = CTX_data_active_object(C);
+					if (ob->type == OB_GPENCIL) {
+						sbuts->dataicon = ICON_GREASEPENCIL;
+					}
+					else {
+						sbuts->dataicon = ICON_EMPTY_DATA;
+					}
+				}
 			}
 		}
 	}
@@ -1031,7 +1048,13 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 	}
 }
 
-static void buttons_panel_context(const bContext *C, Panel *pa)
+static bool buttons_panel_context_poll(const bContext *C, PanelType *UNUSED(pt))
+{
+	SpaceButs *sbuts = CTX_wm_space_buts(C);
+	return (sbuts->mainb != BCONTEXT_TOOL);
+}
+
+static void buttons_panel_context_draw(const bContext *C, Panel *pa)
 {
 	buttons_context_draw(C, pa->layout);
 }
@@ -1044,7 +1067,8 @@ void buttons_context_register(ARegionType *art)
 	strcpy(pt->idname, "BUTTONS_PT_context");
 	strcpy(pt->label, N_("Context"));  /* XXX C panels are not available through RNA (bpy.types)! */
 	strcpy(pt->translation_context, BLT_I18NCONTEXT_DEFAULT_BPYRNA);
-	pt->draw = buttons_panel_context;
+	pt->poll = buttons_panel_context_poll;
+	pt->draw = buttons_panel_context_draw;
 	pt->flag = PNL_NO_HEADER;
 	BLI_addtail(&art->paneltypes, pt);
 }

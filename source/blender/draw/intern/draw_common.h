@@ -116,10 +116,11 @@ struct DRWShadingGroup *shgroup_instance_screenspace(struct DRWPass *pass, struc
 struct DRWShadingGroup *shgroup_instance_solid(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_wire(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_screen_aligned(struct DRWPass *pass, struct GPUBatch *geom);
-struct DRWShadingGroup *shgroup_instance_axis_names(struct DRWPass *pass, struct GPUBatch *geom);
+struct DRWShadingGroup *shgroup_instance_empty_axes(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_image_plane(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_scaled(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance(struct DRWPass *pass, struct GPUBatch *geom);
+struct DRWShadingGroup *shgroup_instance_alpha(struct DRWPass *pass, struct GPUBatch *geom, float alpha);
 struct DRWShadingGroup *shgroup_instance_outline(struct DRWPass *pass, struct GPUBatch *geom, int *baseid);
 struct DRWShadingGroup *shgroup_camera_instance(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_distance_lines_instance(struct DRWPass *pass, struct GPUBatch *geom);
@@ -128,11 +129,11 @@ struct DRWShadingGroup *shgroup_instance_mball_handles(struct DRWPass *pass);
 struct DRWShadingGroup *shgroup_instance_bone_axes(struct DRWPass *pass);
 struct DRWShadingGroup *shgroup_instance_bone_envelope_distance(struct DRWPass *pass);
 struct DRWShadingGroup *shgroup_instance_bone_envelope_outline(struct DRWPass *pass);
-struct DRWShadingGroup *shgroup_instance_bone_envelope_solid(struct DRWPass *pass);
+struct DRWShadingGroup *shgroup_instance_bone_envelope_solid(struct DRWPass *pass, bool transp);
 struct DRWShadingGroup *shgroup_instance_bone_shape_outline(struct DRWPass *pass, struct GPUBatch *geom);
-struct DRWShadingGroup *shgroup_instance_bone_shape_solid(struct DRWPass *pass, struct GPUBatch *geom);
+struct DRWShadingGroup *shgroup_instance_bone_shape_solid(struct DRWPass *pass, struct GPUBatch *geom, bool transp);
 struct DRWShadingGroup *shgroup_instance_bone_sphere_outline(struct DRWPass *pass);
-struct DRWShadingGroup *shgroup_instance_bone_sphere_solid(struct DRWPass *pass);
+struct DRWShadingGroup *shgroup_instance_bone_sphere_solid(struct DRWPass *pass, bool transp);
 struct DRWShadingGroup *shgroup_instance_bone_stick(struct DRWPass *pass);
 
 struct GPUShader *mpath_line_shader_get(void);
@@ -155,8 +156,8 @@ typedef struct DRWArmaturePasses {
 } DRWArmaturePasses;
 
 void DRW_shgroup_armature_object(struct Object *ob, struct ViewLayer *view_layer, struct DRWArmaturePasses passes);
-void DRW_shgroup_armature_pose(struct Object *ob, struct DRWArmaturePasses passes);
-void DRW_shgroup_armature_edit(struct Object *ob, struct DRWArmaturePasses passes);
+void DRW_shgroup_armature_pose(struct Object *ob, struct DRWArmaturePasses passes, bool transp);
+void DRW_shgroup_armature_edit(struct Object *ob, struct DRWArmaturePasses passes, bool transp);
 
 /* draw_hair.c */
 

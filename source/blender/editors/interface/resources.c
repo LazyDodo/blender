@@ -83,7 +83,7 @@ static struct bThemeState g_theme_state = {
 
 void ui_resources_init(void)
 {
-	UI_icons_init(BIFICONID_LAST);
+	UI_icons_init();
 }
 
 void ui_resources_free(void)
@@ -799,51 +799,6 @@ void UI_Theme_Restore(struct bThemeState *theme_state)
 	g_theme_state = *theme_state;
 }
 
-/* for space windows only */
-void UI_ThemeColor(int colorid)
-{
-	const unsigned char *cp;
-
-	cp = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid);
-	glColor3ubv(cp);
-
-}
-
-/* plus alpha */
-void UI_ThemeColor4(int colorid)
-{
-	const unsigned char *cp;
-
-	cp = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid);
-	glColor4ubv(cp);
-}
-
-/* set the color with offset for shades */
-void UI_ThemeColorShade(int colorid, int offset)
-{
-	unsigned char col[4];
-	UI_GetThemeColorShade4ubv(colorid, offset, col);
-	glColor4ubv(col);
-}
-
-void UI_ThemeColorShadeAlpha(int colorid, int coloffset, int alphaoffset)
-{
-	int r, g, b, a;
-	const unsigned char *cp;
-
-	cp = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid);
-	r = coloffset + (int) cp[0];
-	CLAMP(r, 0, 255);
-	g = coloffset + (int) cp[1];
-	CLAMP(g, 0, 255);
-	b = coloffset + (int) cp[2];
-	CLAMP(b, 0, 255);
-	a = alphaoffset + (int) cp[3];
-	CLAMP(a, 0, 255);
-
-	glColor4ub(r, g, b, a);
-}
-
 void UI_GetThemeColorShadeAlpha4ubv(int colorid, int coloffset, int alphaoffset, unsigned char col[4])
 {
 	int r, g, b, a;
@@ -889,58 +844,6 @@ void UI_GetThemeColorBlend3f(int colorid1, int colorid2, float fac, float r_col[
 	r_col[0] = ((1.0f - fac) * cp1[0] + fac * cp2[0]) / 255.0f;
 	r_col[1] = ((1.0f - fac) * cp1[1] + fac * cp2[1]) / 255.0f;
 	r_col[2] = ((1.0f - fac) * cp1[2] + fac * cp2[2]) / 255.0f;
-}
-
-/* blend between to theme colors, and set it */
-void UI_ThemeColorBlend(int colorid1, int colorid2, float fac)
-{
-	unsigned char col[3];
-	UI_GetThemeColorBlend3ubv(colorid1, colorid2, fac, col);
-	glColor3ubv(col);
-}
-
-/* blend between to theme colors, shade it, and set it */
-void UI_ThemeColorBlendShade(int colorid1, int colorid2, float fac, int offset)
-{
-	int r, g, b;
-	const unsigned char *cp1, *cp2;
-
-	cp1 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid1);
-	cp2 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid2);
-
-	CLAMP(fac, 0.0f, 1.0f);
-	r = offset + floorf((1.0f - fac) * cp1[0] + fac * cp2[0]);
-	g = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
-	b = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
-
-	CLAMP(r, 0, 255);
-	CLAMP(g, 0, 255);
-	CLAMP(b, 0, 255);
-
-	glColor3ub(r, g, b);
-}
-
-/* blend between to theme colors, shade it, and set it */
-void UI_ThemeColorBlendShadeAlpha(int colorid1, int colorid2, float fac, int offset, int alphaoffset)
-{
-	int r, g, b, a;
-	const unsigned char *cp1, *cp2;
-
-	cp1 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid1);
-	cp2 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid2);
-
-	CLAMP(fac, 0.0f, 1.0f);
-	r = offset + floorf((1.0f - fac) * cp1[0] + fac * cp2[0]);
-	g = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
-	b = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
-	a = alphaoffset + floorf((1.0f - fac) * cp1[3] + fac * cp2[3]);
-
-	CLAMP(r, 0, 255);
-	CLAMP(g, 0, 255);
-	CLAMP(b, 0, 255);
-	CLAMP(a, 0, 255);
-
-	glColor4ub(r, g, b, a);
 }
 
 void UI_FontThemeColor(int fontid, int colorid)
@@ -1208,22 +1111,6 @@ void UI_GetThemeColorType4ubv(int colorid, int spacetype, char col[4])
 	col[1] = cp[1];
 	col[2] = cp[2];
 	col[3] = cp[3];
-}
-
-/* blends and shades between two char color pointers */
-void UI_ColorPtrBlendShade3ubv(const unsigned char cp1[3], const unsigned char cp2[3], float fac, int offset)
-{
-	int r, g, b;
-	CLAMP(fac, 0.0f, 1.0f);
-	r = offset + floorf((1.0f - fac) * cp1[0] + fac * cp2[0]);
-	g = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
-	b = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
-
-	r = r < 0 ? 0 : (r > 255 ? 255 : r);
-	g = g < 0 ? 0 : (g > 255 ? 255 : g);
-	b = b < 0 ? 0 : (b > 255 ? 255 : b);
-
-	glColor3ub(r, g, b);
 }
 
 void UI_GetColorPtrShade3ubv(const unsigned char cp[3], unsigned char col[3], int offset)
@@ -1536,15 +1423,6 @@ void init_userdef_do_versions(Main *bmain)
 #undef USER_VERSION_ATLEAST
 #define USER_VERSION_ATLEAST(ver, subver) MAIN_VERSION_ATLEAST((&(U)), ver, subver)
 
-
-	if (!USER_VERSION_ATLEAST(269, 9)) {
-		/* grease pencil - new layer color */
-		if (U.gpencil_new_layer_col[3] < 0.1f) {
-			/* defaults to black, but must at least be visible! */
-			U.gpencil_new_layer_col[3] = 0.9f;
-		}
-	}
-
 	if (!USER_VERSION_ATLEAST(271, 5)) {
 		U.pie_menu_radius = 100;
 		U.pie_menu_threshold = 12;
@@ -1581,6 +1459,17 @@ void init_userdef_do_versions(Main *bmain)
 		/* Reset theme, old themes will not be compatible with minor version updates from now on. */
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
 			memcpy(btheme, &U_theme_default, sizeof(*btheme));
+		}
+
+		/* Annotations - new layer color
+		 * Replace anything that used to be set if it looks like was left
+		 * on the old default (i.e. black), which most users used
+		 */
+		if ((U.gpencil_new_layer_col[3] < 0.1f) || (U.gpencil_new_layer_col[0] < 0.1f)) {
+			/* - New color matches the annotation pencil icon
+			 * - Non-full alpha looks better!
+			 */
+			ARRAY_SET_ITEMS(U.gpencil_new_layer_col, 0.38f, 0.61f, 0.78f, 0.9f);
 		}
 	}
 

@@ -42,6 +42,7 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_mask.h"  /* own include */
 #include "ED_image.h"
 #include "ED_object.h" /* ED_keymap_proportional_maskmode only */
@@ -525,7 +526,7 @@ void ED_keymap_mask(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "Mask Editing", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Mask Editing", 0, 0);
 	keymap->poll = ED_maskedit_poll;
 
 	WM_keymap_add_item(keymap, "MASK_OT_new", NKEY, KM_PRESS, KM_ALT, 0);

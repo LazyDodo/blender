@@ -67,6 +67,7 @@
 #include "ED_keyframes_edit.h" // XXX move the select modes out of there!
 #include "ED_object.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -1727,8 +1728,7 @@ static int animchannels_delete_exec(bContext *C, wmOperator *UNUSED(op))
 				bGPDlayer *gpl = (bGPDlayer *)ale->data;
 
 				/* try to delete the layer's data and the layer itself */
-				BKE_gpencil_free_frames(gpl);
-				BLI_freelinkN(&gpd->layers, gpl);
+				BKE_gpencil_layer_delete(gpd, gpl);
 				break;
 			}
 			case ANIMTYPE_MASKLAYER:
@@ -3194,7 +3194,7 @@ void ED_operatortypes_animchannels(void)
 // TODO: check on a poll callback for this, to get hotkeys into menus
 void ED_keymap_animchannels(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Animation Channels", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Animation Channels", 0, 0);
 	wmKeyMapItem *kmi;
 
 	/* click-select */

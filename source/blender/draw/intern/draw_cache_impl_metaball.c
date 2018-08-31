@@ -91,7 +91,7 @@ static MetaBallBatchCache *metaball_batch_cache_get(MetaBall *mb)
 	return mb->batch_cache;
 }
 
-void DRW_mball_batch_cache_dirty(MetaBall *mb, int mode)
+void DRW_mball_batch_cache_dirty_tag(MetaBall *mb, int mode)
 {
 	MetaBallBatchCache *cache = mb->batch_cache;
 	if (cache == NULL) {
@@ -140,7 +140,7 @@ GPUBatch *DRW_metaball_batch_cache_get_triangles_with_normals(Object *ob)
 	MetaBallBatchCache *cache = metaball_batch_cache_get(mb);
 
 	if (cache->batch == NULL) {
-		ListBase *lb = &ob->curve_cache->disp;
+		ListBase *lb = &ob->runtime.curve_cache->disp;
 		cache->batch = GPU_batch_create_ex(
 		        GPU_PRIM_TRIS,
 		        DRW_displist_vertbuf_calc_pos_with_normals(lb),

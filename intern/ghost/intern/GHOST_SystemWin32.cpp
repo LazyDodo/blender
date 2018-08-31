@@ -1110,8 +1110,10 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, UINT msg, WPARAM wParam, 
 							break;
 #ifdef WITH_INPUT_NDOF
 						case RIM_TYPEHID:
-							if (system->processNDOF(raw))
+							if (system->processNDOF(raw)) {
+								system->m_ndofManager->sendMotionEvent();
 								eventHandled = true;
+							}
 							break;
 #endif
 					}
@@ -1360,7 +1362,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, UINT msg, WPARAM wParam, 
 					 * will not be dispatched to OUR active window if we minimize one of OUR windows. */
 					if (LOWORD(wParam) == WA_INACTIVE)
 						window->lostMouseCapture();
-
+					window->processWin32TabletActivateEvent(GET_WM_ACTIVATE_STATE(wParam, lParam));
 					lResult = ::DefWindowProc(hwnd, msg, wParam, lParam);
 					break;
 				}

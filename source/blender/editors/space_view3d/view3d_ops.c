@@ -33,8 +33,8 @@
 #include <math.h>
 
 
+#include "DNA_collection_types.h"
 #include "DNA_object_types.h"
-#include "DNA_group_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -57,6 +57,7 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_transform.h"
 
 #include "view3d_intern.h"
@@ -236,13 +237,13 @@ void view3d_keymap(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "3D View Generic", SPACE_VIEW3D, 0);
+	keymap = WM_keymap_ensure(keyconf, "3D View Generic", SPACE_VIEW3D, 0);
 
 	WM_keymap_add_item(keymap, "VIEW3D_OT_properties", NKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "VIEW3D_OT_toolshelf", TKEY, KM_PRESS, 0, 0);
 
 	/* only for region 3D window */
-	keymap = WM_keymap_find(keyconf, "3D View", SPACE_VIEW3D, 0);
+	keymap = WM_keymap_ensure(keyconf, "3D View", SPACE_VIEW3D, 0);
 
 	WM_keymap_verify_item(keymap, "VIEW3D_OT_cursor3d", ACTIONMOUSE, KM_CLICK, 0, 0);
 
@@ -487,9 +488,9 @@ void view3d_keymap(wmKeyConfig *keyconf)
 
 	WM_keymap_add_item(keymap, "VIEW3D_OT_select_border", BKEY, KM_PRESS, 0, 0);
 	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "deselect", false);
+	RNA_enum_set(kmi->ptr, "mode", SEL_OP_ADD);
 	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_SHIFT | KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "deselect", true);
+	RNA_enum_set(kmi->ptr, "mode", SEL_OP_SUB);
 	WM_keymap_add_item(keymap, "VIEW3D_OT_select_circle", CKEY, KM_PRESS, 0, 0);
 
 	WM_keymap_add_item(keymap, "VIEW3D_OT_clip_border", BKEY, KM_PRESS, KM_ALT, 0);

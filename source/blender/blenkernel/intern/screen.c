@@ -361,7 +361,7 @@ void BKE_region_callback_free_gizmomap_set(void (*callback)(struct wmGizmoMap *)
 	region_free_gizmomap_callback = callback;
 }
 
-static void panel_list_free(ListBase *lb)
+void BKE_area_region_panels_free(ListBase *lb)
 {
 	Panel *pa, *pa_next;
 	for (pa = lb->first; pa; pa = pa_next) {
@@ -369,9 +369,10 @@ static void panel_list_free(ListBase *lb)
 		if (pa->activedata) {
 			MEM_freeN(pa->activedata);
 		}
-		panel_list_free(&pa->children);
-		MEM_freeN(pa);
+		BKE_area_region_panels_free(&pa->children);
 	}
+
+	BLI_freelistN(lb);
 }
 
 /* not region itself */
@@ -396,7 +397,7 @@ void BKE_area_region_free(SpaceType *st, ARegion *ar)
 		ar->v2d.tab_offset = NULL;
 	}
 
-	panel_list_free(&ar->panels);
+	BKE_area_region_panels_free(&ar->panels);
 
 	for (uilst = ar->ui_lists.first; uilst; uilst = uilst->next) {
 		if (uilst->dyn_data) {
@@ -869,6 +870,7 @@ void BKE_screen_view3d_shading_init(View3DShading *shading)
 	shading->cavity_valley_factor = 1.0f;
 	shading->cavity_ridge_factor = 1.0f;
 	copy_v3_fl(shading->single_color, 0.8f);
+	copy_v3_fl(shading->background_color, 0.05f);
 }
 
 /* magic zoom calculation, no idea what

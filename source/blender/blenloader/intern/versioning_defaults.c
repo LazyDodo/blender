@@ -25,30 +25,24 @@
  *  \ingroup blenloader
  */
 
+#include "MEM_guardedalloc.h"
+
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_string.h"
 
-#include "DNA_camera_types.h"
-#include "DNA_brush_types.h"
-#include "DNA_freestyle_types.h"
-#include "DNA_lamp_types.h"
-#include "DNA_linestyle_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
 #include "DNA_userdef_types.h"
-#include "DNA_mesh_types.h"
-#include "DNA_material_types.h"
 #include "DNA_object_types.h"
 #include "DNA_workspace_types.h"
 
-#include "BKE_brush.h"
-#include "BKE_library.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
-#include "BKE_scene.h"
-#include "BKE_workspace.h"
+#include "BKE_node.h"
+#include "BKE_screen.h"
 
 #include "BLO_readfile.h"
 
@@ -57,30 +51,6 @@
  */
 void BLO_update_defaults_userpref_blend(void)
 {
-	/* Defaults from T37518. */
-	U.uiflag |= USER_DEPTH_CURSOR;
-	U.uiflag |= USER_QUIT_PROMPT;
-	U.uiflag |= USER_CONTINUOUS_MOUSE;
-
-	/* See T45301 */
-	U.uiflag |= USER_LOCK_CURSOR_ADJUST;
-
-	/* Default from T47064. */
-	U.audiorate = 48000;
-
-	/* Defaults from T54943 (phase 1). */
-	U.flag &= ~USER_TOOLTIPS_PYTHON;
-	U.uiflag |= USER_AUTOPERSP;
-	U.uiflag2 |= USER_REGION_OVERLAP;
-
-	U.versions = 1;
-	U.savetime = 2;
-
-	/* Keep this a very small, non-zero number so zero-alpha doesn't mask out objects behind it.
-	 * but take care since some hardware has driver bugs here (T46962).
-	 * Further hardware workarounds should be made in gpu_extensions.c */
-	U.glalphaclip = (1.0f / 255);
-
 	/* default so DPI is detected automatically */
 	U.dpi = 0;
 	U.ui_scale = 1.0f;
@@ -102,158 +72,35 @@ void BLO_update_defaults_userpref_blend(void)
 }
 
 /**
- * New workspace design: Remove all screens/workspaces except of "Default" one and rename the workspace to "General".
- * For compatibility, a new workspace has been created for each screen of old files,
- * we only want one workspace and one screen in the default startup file however.
- */
-static void update_defaults_startup_workspaces(Main *bmain)
-{
-	WorkSpace *workspace_default = NULL;
-
-	for (WorkSpace *workspace = bmain->workspaces.first, *workspace_next; workspace; workspace = workspace_next) {
-		workspace_next = workspace->id.next;
-
-		if (STREQ(workspace->id.name + 2, "Default")) {
-			/* don't rename within iterator, renaming causes listbase to be re-sorted */
-			workspace_default = workspace;
-		}
-		else {
-			BKE_workspace_remove(bmain, workspace);
-		}
-	}
-
-	/* rename "Default" workspace to "General" */
-	BKE_libblock_rename(bmain, (ID *)workspace_default, "General");
-	BLI_assert(BLI_listbase_count(BKE_workspace_layouts_get(workspace_default)) == 1);
-}
-
-/**
  * Update defaults in startup.blend, without having to save and embed the file.
  * This function can be emptied each time the startup.blend is updated. */
 void BLO_update_defaults_startup_blend(Main *bmain)
 {
-	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
-		BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(scene->r.engine));
+	for (WorkSpace *workspace = bmain->workspaces.first; workspace; workspace = workspace->id.next) {
+		const char *name = workspace->id.name + 2;
 
-		scene->r.im_format.planes = R_IMF_PLANES_RGBA;
-		scene->r.im_format.compress = 15;
-
-		for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-			view_layer->freestyle_config.sphere_radius = 0.1f;
-			view_layer->pass_alpha_threshold = 0.5f;
+		if (STREQ(name, "2D Animation")) {
+			workspace->object_mode = OB_MODE_GPENCIL_PAINT;
 		}
-
-		if (scene->toolsettings) {
-			ToolSettings *ts = scene->toolsettings;
-
-			ts->object_flag |= SCE_OBJECT_MODE_LOCK;
-
-			ts->uvcalc_flag |= UVCALC_TRANSFORM_CORRECT;
-
-			if (ts->sculpt) {
-				Sculpt *sculpt = ts->sculpt;
-				sculpt->paint.symmetry_flags |= PAINT_SYMM_X;
-				sculpt->flags |= SCULPT_DYNTOPO_COLLAPSE;
-				sculpt->detail_size = 12;
-			}
-
-			if (ts->vpaint) {
-				VPaint *vp = ts->vpaint;
-				vp->radial_symm[0] = vp->radial_symm[1] = vp->radial_symm[2] = 1;
-			}
-
-			if (ts->wpaint) {
-				VPaint *wp = ts->wpaint;
-				wp->radial_symm[0] = wp->radial_symm[1] = wp->radial_symm[2] = 1;
-			}
-
-			if (ts->gp_sculpt.brush[0].size == 0) {
-				GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
-				GP_EditBrush_Data *brush;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_SMOOTH];
-				brush->size = 25;
-				brush->strength = 0.3f;
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_SMOOTH_PRESSURE;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_THICKNESS];
-				brush->size = 25;
-				brush->strength = 0.5f;
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_STRENGTH];
-				brush->size = 25;
-				brush->strength = 0.5f;
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_GRAB];
-				brush->size = 50;
-				brush->strength = 0.3f;
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_PUSH];
-				brush->size = 25;
-				brush->strength = 0.3f;
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_TWIST];
-				brush->size = 50;
-				brush->strength = 0.3f; // XXX?
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_PINCH];
-				brush->size = 50;
-				brush->strength = 0.5f; // XXX?
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-
-				brush = &gset->brush[GP_EDITBRUSH_TYPE_RANDOMIZE];
-				brush->size = 25;
-				brush->strength = 0.5f;
-				brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF;
-			}
-
-			ts->gpencil_v3d_align = GP_PROJECT_VIEWSPACE;
-			ts->gpencil_v2d_align = GP_PROJECT_VIEWSPACE;
-			ts->gpencil_seq_align = GP_PROJECT_VIEWSPACE;
-			ts->gpencil_ima_align = GP_PROJECT_VIEWSPACE;
-
-			ParticleEditSettings *pset = &ts->particle;
-			for (int a = 0; a < ARRAY_SIZE(pset->brush); a++) {
-				pset->brush[a].strength = 0.5f;
-				pset->brush[a].count = 10;
-			}
-			pset->brush[PE_BRUSH_CUT].strength = 1.0f;
+		if (STREQ(name, "3D Animation")) {
+			workspace->object_mode = OB_MODE_POSE;
 		}
-
-		scene->r.ffcodecdata.audio_mixrate = 48000;
-
-		/* set av sync by default */
-		scene->audio.flag |= AUDIO_SYNC;
-		scene->flag &= ~SCE_FRAME_DROP;
+		else if (STREQ(name, "Texture Paint")) {
+			workspace->object_mode = OB_MODE_TEXTURE_PAINT;
+		}
+		else if (STREQ(name, "Sculpting")) {
+			workspace->object_mode = OB_MODE_SCULPT;
+		}
+		else if (STREQ(name, "UV Editing")) {
+			workspace->object_mode = OB_MODE_EDIT;
+		}
 	}
-
-	for (FreestyleLineStyle *linestyle = bmain->linestyle.first; linestyle; linestyle = linestyle->id.next) {
-		linestyle->flag = LS_SAME_OBJECT | LS_NO_SORTING | LS_TEXTURE;
-		linestyle->sort_key = LS_SORT_KEY_DISTANCE_FROM_CAMERA;
-		linestyle->integration_type = LS_INTEGRATION_MEAN;
-		linestyle->texstep = 1.0;
-		linestyle->chain_count = 10;
-	}
-
-	update_defaults_startup_workspaces(bmain);
 
 	for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 		for (ScrArea *area = screen->areabase.first; area; area = area->next) {
-			for (SpaceLink *space_link = area->spacedata.first; space_link; space_link = space_link->next) {
-				if (space_link->spacetype == SPACE_CLIP) {
-					SpaceClip *space_clip = (SpaceClip *) space_link;
-					space_clip->flag &= ~SC_MANUAL_CALIBRATION;
-				}
-			}
-
 			for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 				/* Remove all stored panels, we want to use defaults (order, open/closed) as defined by UI code here! */
-				BLI_freelistN(&ar->panels);
+				BKE_area_region_panels_free(&ar->panels);
 
 				/* some toolbars have been saved as initialized,
 				 * we don't want them to have odd zoom-level or scrolling set, see: T47047 */
@@ -261,151 +108,53 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 					ar->v2d.flag &= ~V2D_IS_INITIALISED;
 				}
 			}
-		}
-	}
 
-	for (Mesh *me = bmain->mesh.first; me; me = me->id.next) {
-		me->smoothresh = DEG2RADF(180.0f);
-		me->flag &= ~ME_TWOSIDED;
-	}
+			if (area->spacetype == SPACE_FILE) {
+				SpaceFile *sfile = area->spacedata.first;
 
-	for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
-		mat->line_col[0] = mat->line_col[1] = mat->line_col[2] = 0.0f;
-		mat->line_col[3] = 1.0f;
-	}
-
-	{
-		Object *ob;
-
-		ob = (Object *)BKE_libblock_find_name(bmain, ID_OB, "Camera");
-		if (ob) {
-			ob->rot[1] = 0.0f;
-		}
-	}
-
-	{
-		Brush *br;
-
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Fill");
-		if (!br) {
-			br = BKE_brush_add(bmain, "Fill", OB_MODE_TEXTURE_PAINT);
-			id_us_min(&br->id);  /* fake user only */
-			br->imagepaint_tool = PAINT_TOOL_FILL;
-			br->ob_mode = OB_MODE_TEXTURE_PAINT;
-		}
-
-		/* Vertex/Weight Paint */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Average");
-		if (!br) {
-			br = BKE_brush_add(bmain, "Average", OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT);
-			id_us_min(&br->id);  /* fake user only */
-			br->vertexpaint_tool = PAINT_BLEND_AVERAGE;
-			br->ob_mode = OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT;
-		}
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Smear");
-		if (!br) {
-			br = BKE_brush_add(bmain, "Smear", OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT);
-			id_us_min(&br->id);  /* fake user only */
-			br->vertexpaint_tool = PAINT_BLEND_SMEAR;
-			br->ob_mode = OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT;
-		}
-
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Mask");
-		if (br) {
-			br->imagepaint_tool = PAINT_TOOL_MASK;
-			br->ob_mode |= OB_MODE_TEXTURE_PAINT;
-		}
-
-		/* remove polish brush (flatten/contrast does the same) */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Polish");
-		if (br) {
-			BKE_libblock_delete(bmain, br);
-		}
-
-		/* remove brush brush (huh?) from some modes (draw brushes do the same) */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Brush");
-		if (br) {
-			BKE_libblock_delete(bmain, br);
-		}
-
-		/* remove draw brush from texpaint (draw brushes do the same) */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Draw");
-		if (br) {
-			br->ob_mode &= ~OB_MODE_TEXTURE_PAINT;
-		}
-
-		/* rename twist brush to rotate brush to match rotate tool */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Twist");
-		if (br) {
-			BKE_libblock_rename(bmain, &br->id, "Rotate");
-		}
-
-		/* use original normal for grab brush (otherwise flickers with normal weighting). */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Grab");
-		if (br) {
-			br->flag |= BRUSH_ORIGINAL_NORMAL;
-		}
-
-		/* increase strength, better for smoothing method */
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Blur");
-		if (br) {
-			br->alpha = 1.0f;
-		}
-
-		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Flatten/Contrast");
-		if (br) {
-			br->flag |= BRUSH_ACCUMULATE;
-		}
-	}
-
-	/* Defaults from T54943. */
-	{
-		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
-			scene->r.displaymode = R_OUTPUT_WINDOW;
-			scene->r.size = 100;
-			scene->r.dither_intensity = 1.0f;
-			scene->unit.system = USER_UNIT_METRIC;
-			STRNCPY(scene->view_settings.view_transform, "Filmic");
-		}
-
-		for (bScreen *sc = bmain->screen.first; sc; sc = sc->id.next) {
-			for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
-				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-					switch (sl->spacetype) {
-						case SPACE_VIEW3D:
-						{
-							View3D *v3d = (View3D *)sl;
-							v3d->lens = 50;
-							break;
-						}
-						case SPACE_BUTS:
-						{
-							SpaceButs *sbuts = (SpaceButs *)sl;
-							sbuts->mainb = sbuts->mainbuser = BCONTEXT_OBJECT;
-							break;
-						}
+				if (sfile->params) {
+					if (STREQ(screen->id.name, "SRDefault.003")) {
+						/* Shading. */
+						sfile->params->filter = FILE_TYPE_FOLDER |
+						                        FILE_TYPE_IMAGE;
 					}
-
-					ListBase *lb = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
-					for (ARegion *ar = lb->first; ar; ar = ar->next) {
-						if (ar->regiontype == RGN_TYPE_HEADER) {
-							if (sl->spacetype != SPACE_ACTION) {
-								ar->alignment = RGN_ALIGN_TOP;
-							}
-						}
+					else {
+						/* Video Editing. */
+						sfile->params->filter = FILE_TYPE_FOLDER |
+						                        FILE_TYPE_IMAGE |
+						                        FILE_TYPE_MOVIE |
+						                        FILE_TYPE_SOUND;
 					}
 				}
 			}
 		}
+	}
 
-		for (Camera *ca = bmain->camera.first; ca; ca = ca->id.next) {
-			ca->lens = 50;
-			ca->sensor_x = DEFAULT_SENSOR_WIDTH;
-			ca->sensor_y = DEFAULT_SENSOR_HEIGHT;
+	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+		BLI_strncpy(scene->r.engine, RE_engine_id_BLENDER_EEVEE, sizeof(scene->r.engine));
+
+		scene->r.cfra = 1.0f;
+
+		/* Don't enable compositing nodes. */
+		if (scene->nodetree) {
+			ntreeFreeTree(scene->nodetree);
+			MEM_freeN(scene->nodetree);
+			scene->nodetree = NULL;
+			scene->use_nodes = false;
 		}
 
-		for (Lamp *la = bmain->lamp.first; la; la = la->id.next) {
-			la->energy = 10.0;
+		/* Select only cube by default. */
+		for (ViewLayer *layer = scene->view_layers.first; layer; layer = layer->next) {
+			for (Base *base = layer->object_bases.first; base; base = base->next) {
+				if (STREQ(base->object->id.name + 2, "Cube")) {
+					base->flag |= BASE_SELECTED;
+				}
+				else {
+					base->flag &= ~BASE_SELECTED;
+				}
+			}
+
+			BKE_layer_collection_sync(scene, layer);
 		}
 	}
 }
