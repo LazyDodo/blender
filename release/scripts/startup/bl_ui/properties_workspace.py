@@ -28,12 +28,24 @@ from rna_prop_ui import PropertyPanel
 class WorkSpaceButtonsPanel:
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_context = "workspace"
+    bl_context = ".workspace"
 
 
-class WORKSPACE_PT_owner_ids(WorkSpaceButtonsPanel, Panel):
-    bl_label = "Workspace Add-ons"
+class WORKSPACE_PT_main(WorkSpaceButtonsPanel, Panel):
+    bl_label = "Workspace"
     bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        workspace = context.workspace
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(workspace, "object_mode", text="Mode")
+
+
+class WORKSPACE_PT_addons(WorkSpaceButtonsPanel, Panel):
+    bl_label = "Filter Add-ons"
+    bl_parent_id = "WORKSPACE_PT_main"
 
     def draw_header(self, context):
         workspace = context.workspace
@@ -86,12 +98,15 @@ class WORKSPACE_PT_owner_ids(WorkSpaceButtonsPanel, Panel):
 
 
 class WORKSPACE_PT_custom_props(WorkSpaceButtonsPanel, PropertyPanel, Panel):
+    bl_parent_id = "WORKSPACE_PT_main"
+
     _context_path = "workspace"
     _property_type = bpy.types.WorkSpace
 
 
 classes = (
-    WORKSPACE_PT_owner_ids,
+    WORKSPACE_PT_main,
+    WORKSPACE_PT_addons,
     WORKSPACE_PT_custom_props,
 )
 

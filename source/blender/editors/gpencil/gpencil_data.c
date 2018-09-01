@@ -683,9 +683,9 @@ static int gp_frame_clean_fill_exec(bContext *C, wmOperator *op)
 void GPENCIL_OT_frame_clean_fill(wmOperatorType *ot)
 {
 	static const EnumPropertyItem duplicate_mode[] = {
-	{ GP_FRAME_CLEAN_FILL_ACTIVE, "ACTIVE", 0, "Active Frame Only", "Clean active frame only" },
-	{ GP_FRAME_CLEAN_FILL_ALL, "ALL", 0, "All Frames", "Clean all frames in all layers" },
-	{ 0, NULL, 0, NULL, NULL }
+		{GP_FRAME_CLEAN_FILL_ACTIVE, "ACTIVE", 0, "Active Frame Only", "Clean active frame only"},
+		{GP_FRAME_CLEAN_FILL_ALL, "ALL", 0, "All Frames", "Clean all frames in all layers"},
+		{0, NULL, 0, NULL, NULL}
 	};
 
 	/* identifiers */
@@ -722,9 +722,6 @@ static int gp_frame_clean_loose_exec(bContext *C, wmOperator *op)
 
 		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
 			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
-				if (gpf == NULL)
-					continue;
-
 				if (gpf == NULL)
 					continue;
 

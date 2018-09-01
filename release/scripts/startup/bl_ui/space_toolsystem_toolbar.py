@@ -163,6 +163,9 @@ class _defs_view3d_generic:
 
         return dict(
             text="Cursor",
+            description=(
+                "Set the 3D cursor location, drag to transform"
+            ),
             icon="ops.generic.cursor",
             keymap=(
                 ("view3d.cursor3d", dict(), dict(type='ACTIONMOUSE', value='PRESS')),
@@ -369,6 +372,9 @@ class _defs_transform:
 
         return dict(
             text="Transform",
+            description=(
+                "Supports any combination of grab, rotate & scale at once"
+            ),
             icon="ops.transform.transform",
             widget="TRANSFORM_GGT_gizmo",
             # No keymap default action, only for gizmo!
@@ -682,6 +688,24 @@ class _defs_edit_mesh:
                  dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
+        )
+
+    @ToolDef.from_fn
+    def extrude_normals():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("mesh.extrude_region_shrink_fatten")
+            props_macro = props.TRANSFORM_OT_shrink_fatten
+            layout.prop(props_macro, "use_even_offset")
+        return dict(
+            text="Extrude Along Normals",
+            icon="ops.mesh.extrude_region_shrink_fatten",
+            widget=None,
+            keymap=(
+                ("mesh.extrude_region_shrink_fatten",
+                 dict(TRANSFORM_OT_shrink_fatten=dict(release_confirm=True)),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -1673,6 +1697,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             None,
             (
                 _defs_edit_mesh.extrude,
+                _defs_edit_mesh.extrude_normals,
                 _defs_edit_mesh.extrude_individual,
                 _defs_edit_mesh.extrude_cursor,
             ),

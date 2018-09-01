@@ -25,14 +25,14 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file DNA_group_types.h
+/** \file DNA_collection_types.h
  *  \ingroup DNA
  *
  * \brief Object groups, one object can be in many groups at once.
  */
 
-#ifndef __DNA_GROUP_TYPES_H__
-#define __DNA_GROUP_TYPES_H__
+#ifndef __DNA_COLLECTION_TYPES_H__
+#define __DNA_COLLECTION_TYPES_H__
 
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
@@ -91,4 +91,4 @@ enum {
 	COLLECTION_IS_MASTER           = (1 << 5), /* Is master collection embedded in the scene. */
 };
 
-#endif  /* __DNA_GROUP_TYPES_H__ */
+#endif  /* __DNA_COLLECTION_TYPES_H__ */
