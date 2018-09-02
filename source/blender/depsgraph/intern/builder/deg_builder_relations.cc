@@ -2037,6 +2037,8 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 			}
 			break;
 		}
+		case ID_HA:
+			break;
 		default:
 			BLI_assert(!"Should not happen");
 			break;
