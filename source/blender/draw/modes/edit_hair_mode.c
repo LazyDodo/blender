@@ -32,6 +32,8 @@
 #include "DRW_engine.h"
 #include "DRW_render.h"
 
+#include "DNA_hair_types.h"
+
 /* If builtin shaders are needed */
 #include "GPU_shader.h"
 
@@ -203,12 +205,13 @@ static void EDIT_HAIR_cache_populate(void *vedata, Object *ob)
 	if (ob->type == OB_HAIR) {
 		if (ob == obedit) {
 			/* Get geometry cache */
+			HairSystem *hsys = ob->data;
 			struct Gwn_Batch *geom;
 
-			geom = DRW_cache_groom_wire_get(ob);
+			geom = DRW_cache_hair_get_wire(hsys);
 			DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 
-			geom = DRW_cache_groom_vert_overlay_get(ob, editsettings->mode);
+			geom = DRW_cache_hair_get_verts(hsys);
 			DRW_shgroup_call_add(stl->g_data->vert_shgrp, geom, ob->obmat);
 		}
 	}

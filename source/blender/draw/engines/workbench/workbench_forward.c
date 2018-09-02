@@ -456,21 +456,23 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 
 static void workbench_forward_cache_populate_hair(WORKBENCH_Data *vedata, Object *ob)
 {
-	const HairSystem *hsys = ob->data;
+	HairSystem *hsys = ob->data;
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
-	const DRWContextState *draw_ctx = DRW_context_state_get();
 
 	Image *image = NULL;
-	Material *mat = give_current_material(ob, hsys->material_index);
-	ED_object_get_active_image(ob, hsys->material_index, &image, NULL, NULL, NULL);
+	// TODO
+//	Material *mat = give_current_material(ob, hsys->material_index);
+//	ED_object_get_active_image(ob, hsys->material_index, &image, NULL, NULL, NULL);
+	Material *mat = give_current_material(ob, 0);
+	ED_object_get_active_image(ob, 0, &image, NULL, NULL, NULL);
 	int color_type = workbench_material_determine_color_type(wpd, image);
 	WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 	
 	struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
-	                           ? wpd->transparent_accum_hair_fibers_sh
-	                           : wpd->transparent_accum_texture_hair_fibers_sh;
+	                           ? wpd->transparent_accum_hair_sh
+	                           : wpd->transparent_accum_texture_hair_sh;
 	DRWShadingGroup *shgrp = DRW_shgroup_hair_create(ob, hsys, psl->transparent_accum_pass, shader);
 	workbench_material_set_normal_world_matrix(shgrp, wpd, e_data.normal_world_matrix);
 	DRW_shgroup_uniform_block(shgrp, "world_block", wpd->world_ubo);
@@ -491,7 +493,7 @@ static void workbench_forward_cache_populate_hair(WORKBENCH_Data *vedata, Object
 	if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 		DRW_shgroup_uniform_vec2(shgrp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
 	}
-	shgrp = DRW_shgroup_hair_create(ob, hsys, vedata->psl->object_outline_pass, e_data.object_outline_hair_fibers_sh);
+	shgrp = DRW_shgroup_hair_create(ob, hsys, vedata->psl->object_outline_pass, e_data.object_outline_hair_sh);
 	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);
 }
 

@@ -111,7 +111,9 @@ typedef struct HairSystem {
 
 	struct Material **mat;      /* Material slots */
 	short totcol;               /* Number of material slots */
-	short pad3;
+	short pad2;
+	int pad3;
+
 	struct HairDrawSettings *draw_settings;
 
 	/* Data buffers for drawing */

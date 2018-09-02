@@ -3375,9 +3375,19 @@ GPUBatch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairEx
 	return DRW_hair_batch_cache_get_fibers(hsys, hair_export);
 }
 
-GPUBatch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys, const struct HairExportCache *hair_export)
+GPUBatch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys)
 {
-	return DRW_hair_batch_cache_get_follicle_points(hsys, hair_export);
+	return DRW_hair_batch_cache_get_follicle_points(hsys);
+}
+
+GPUBatch *DRW_cache_hair_get_verts(struct HairSystem *hsys)
+{
+	return DRW_hair_batch_cache_get_verts(hsys);
+}
+
+GPUBatch *DRW_cache_hair_get_wire(struct HairSystem *hsys)
+{
+	return DRW_hair_batch_cache_get_wire(hsys);
 }
 
 /* 3D cursor */

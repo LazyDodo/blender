@@ -2874,7 +2874,7 @@ static void hair_circle_select__doSelect(
 
 	if (len_squared_v2v2(data->mval_fl, screen_co) <= data->radius_squared)
 	{
-		vertex->flag data->select ? (vertex->flag | HAIR_VERTEX_SELECT) : (vertex->flag & ~HAIR_VERTEX_SELECT);
+		vertex->flag = data->select ? (vertex->flag | HAIR_VERTEX_SELECT) : (vertex->flag & ~HAIR_VERTEX_SELECT);
 	}
 }
 

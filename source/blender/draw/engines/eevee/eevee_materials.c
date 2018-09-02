@@ -906,7 +906,7 @@ static struct DRWShadingGroup *EEVEE_default_shading_group_get(
 			                                         e_data.default_lit[options]);
 		}
 		else if (hsys && hdraw && scalp) {
-			shgrp = DRW_shgroup_hair_create(ob, hsys, scalp, hdraw,
+			shgrp = DRW_shgroup_hair_create(ob, hsys,
 			                                vedata->psl->default_pass[options],
 			                                e_data.default_lit[options]);
 		}
@@ -1534,8 +1534,7 @@ static void material_hair(
         EEVEE_ViewLayerData *sldata,
         Object *ob,
         HairSystem *hsys,
-        Material *ma,
-        struct Mesh *scalp)
+        Material *ma)
 {
 	EEVEE_PassList *psl = ((EEVEE_Data *)vedata)->psl;
 	EEVEE_StorageList *stl = ((EEVEE_Data *)vedata)->stl;
@@ -1543,6 +1542,7 @@ static void material_hair(
 	const bool use_ssr = ((stl->effects->enabled_effects & EFFECT_SSR) != 0);
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
+	struct Mesh *scalp = BKE_hair_get_scalp(draw_ctx->depsgraph, ob, hsys);
 	float mat[4][4];
 	copy_m4_m4(mat, ob->obmat);
 	
@@ -1829,9 +1829,11 @@ void EEVEE_hair_cache_populate(EEVEE_Data *vedata, EEVEE_ViewLayerData *sldata, 
 	else if (ob->type == OB_HAIR) {
 		HairSystem *hsys = ob->data;
 		
-		Material *material = give_current_material(ob, hsys->material_index);
+		// TODO
+		//Material *material = give_current_material(ob, hsys->material_index);
+		Material *material = give_current_material(ob, 0);
 		
-		material_hair(vedata, sldata, ob, hsys->hair_system, material, scalp);
+		material_hair(vedata, sldata, ob, hsys, material);
 	}
 }
 

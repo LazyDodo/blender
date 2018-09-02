@@ -2047,7 +2047,7 @@ static void hair_transdata_init_verts(
 		for (int j = 0; j < curve->numverts; ++j)
 		{
 			HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
-			if (is_prop_edit || (vertex->flag & GM_VERTEX_SELECT))
+			if (is_prop_edit || (vertex->flag & HAIR_VERTEX_SELECT))
 			{
 				copy_v2_v2(td2d->loc, vertex->co);
 				td2d->loc2d = vertex->co;

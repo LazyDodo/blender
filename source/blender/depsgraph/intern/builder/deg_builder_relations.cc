@@ -1829,7 +1829,7 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 	/* Hair scalp dependency
 	 * TODO: eventually should be part of hair modifiers!
 	 */
-	if (object->type == OB_HAIR):
+	if (object->type == OB_HAIR)
 	{
 		HairSystem *hsys = (HairSystem *)obdata;
 

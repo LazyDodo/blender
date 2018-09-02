@@ -49,6 +49,7 @@
 
 #include "BKE_animsys.h"
 #include "DEG_depsgraph_query.h"
+#include "BKE_global.h"
 #include "BKE_hair.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -227,12 +228,13 @@ void BKE_hair_boundbox_calc(HairSystem *hsys)
 }
 
 /* Find the mesh used as the scalp surface */
-const struct Mesh* BKE_hair_get_scalp(
+struct Mesh* BKE_hair_get_scalp(
         const Depsgraph *depsgraph,
         const Object *ob,
         const HairSystem *hsys)
 {
-	if (Object *scalp_object = BKE_hair_get_scalp_object(ob, hsys))
+	Object *scalp_object = BKE_hair_get_scalp_object(ob, hsys);
+	if (scalp_object)
 	{
 		return (struct Mesh *)DEG_get_evaluated_id(depsgraph, scalp_object->data);
 	}
@@ -241,7 +243,7 @@ const struct Mesh* BKE_hair_get_scalp(
 }
 
 /* Find the object used as the scalp surface */
-const struct Object* BKE_hair_get_scalp_object(
+struct Object* BKE_hair_get_scalp_object(
         const Object *ob,
         const HairSystem *hsys)
 {

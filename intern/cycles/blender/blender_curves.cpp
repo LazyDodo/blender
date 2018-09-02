@@ -296,7 +296,8 @@ static void ObtainCacheVColFromParticleSystem(BL::Mesh *b_mesh,
 	}
 }
 
-static void ObtainCacheDataFromHairSystem(BL::Object *b_ob,
+static void ObtainCacheDataFromHairSystem(BL::Depsgraph& b_depsgraph,
+                                          BL::Object *b_ob,
                                           BL::HairSystem *b_hsys,
                                           BL::Mesh *b_scalp,
                                           bool /*background*/,
@@ -406,6 +407,7 @@ static void ObtainCacheDataFromHairSystem(BL::Object *b_ob,
 }
 
 static bool ObtainCacheDataFromObject(Mesh *mesh,
+                                      BL::Depsgraph& b_depsgraph,
                                       BL::Object *b_ob,
                                       ParticleCurveData *CData,
                                       bool background)
@@ -421,7 +423,8 @@ static bool ObtainCacheDataFromObject(Mesh *mesh,
 		
 		BL::Mesh b_scalp(b_hsys.scalp_object().data());
 		if (b_scalp) {
-			ObtainCacheDataFromHairSystem(b_ob,
+			ObtainCacheDataFromHairSystem(b_depsgraph,
+			                              b_ob,
 			                              &b_hsys,
 			                              &b_scalp,
 			                              background,
@@ -1052,6 +1055,7 @@ void BlenderSync::sync_curve_settings()
 }
 
 void BlenderSync::sync_curves(Mesh *mesh,
+                              BL::Depsgraph& b_depsgraph,
                               BL::Mesh& b_mesh,
                               BL::Object& b_ob,
                               bool motion,
@@ -1086,7 +1090,7 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	ParticleCurveData CData;
 
-	ObtainCacheDataFromObject(mesh, &b_ob, &CData, !preview);
+	ObtainCacheDataFromObject(mesh, b_depsgraph, &b_ob, &CData, !preview);
 
 	/* add hair geometry to mesh */
 	if(primitive == CURVE_TRIANGLES) {

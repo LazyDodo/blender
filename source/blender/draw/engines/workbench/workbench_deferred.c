@@ -648,21 +648,23 @@ static void workbench_cache_populate_particles(WORKBENCH_Data *vedata, Object *o
 
 static void workbench_cache_populate_hair(WORKBENCH_Data *vedata, Object *ob)
 {
-	const HairSystem *hsys = ob->data;
+	HairSystem *hsys = ob->data;
 	WORKBENCH_StorageList *stl = vedata->stl;
 	WORKBENCH_PassList *psl = vedata->psl;
 	WORKBENCH_PrivateData *wpd = stl->g_data;
-	const DRWContextState *draw_ctx = DRW_context_state_get();
 	
 	Image *image = NULL;
-	Material *mat = give_current_material(ob, hsys->material_index);
-	ED_object_get_active_image(ob, hsys->material_index, &image, NULL, NULL, NULL);
+	// TODO
+//	Material *mat = give_current_material(ob, hsys->material_index);
+//	ED_object_get_active_image(ob, hsys->material_index, &image, NULL, NULL, NULL);
+	Material *mat = give_current_material(ob, 0);
+	ED_object_get_active_image(ob, 0, &image, NULL, NULL, NULL);
 	int color_type = workbench_material_determine_color_type(wpd, image);
 	WORKBENCH_MaterialData *material = get_or_create_material_data(vedata, ob, mat, image, color_type);
 	
 	struct GPUShader *shader = (color_type != V3D_SHADING_TEXTURE_COLOR)
-	                           ? wpd->prepass_solid_hair_fibers_sh
-	                           : wpd->prepass_texture_hair_fibers_sh;
+	                           ? wpd->prepass_solid_hair_sh
+	                           : wpd->prepass_texture_hair_sh;
 	DRWShadingGroup *shgrp = DRW_shgroup_hair_create(ob, hsys, psl->prepass_hair_pass, shader);
 	DRW_shgroup_stencil_mask(shgrp, 0xFF);
 	DRW_shgroup_uniform_int(shgrp, "object_id", &material->object_id, 1);

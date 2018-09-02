@@ -428,7 +428,7 @@ void hair_foreachScreenVert(
 		for (int i = 0; i < edit->pattern->num_follicles; ++i) {
 			HairFollicle *follicle = &edit->pattern->follicles[i];
 			HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
-			for (j = 0; j < curve->numverts; ++j) {
+			for (int j = 0; j < curve->numverts; ++j) {
 				HairFiberVertex *vert = &edit->curve_data.verts[curve->vertstart + j];
 				float screen_co[2];
 				if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)

@@ -513,7 +513,7 @@ bool hair_ensure_procedural_data(
         int thickness_res)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	const Mesh *scalp = BKE_hair_get_scalp(draw_ctx->depsgraph, object, hsys);
+	struct Mesh *scalp = BKE_hair_get_scalp(draw_ctx->depsgraph, object, hsys);
 	bool need_ft_update = false;
 
 	HairExportCache *hair_export = BKE_hair_export_cache_new();
@@ -558,9 +558,23 @@ GPUBatch *DRW_hair_batch_cache_get_fibers(HairSystem *hsys, const HairExportCach
 	return NULL;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys, const HairExportCache *hair_export)
+GPUBatch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys)
 {
 	// TODO
-	UNUSED_VARS(hsys, hair_export);
+	UNUSED_VARS(hsys);
+	return NULL;
+}
+
+GPUBatch *DRW_hair_batch_cache_get_verts(HairSystem *hsys)
+{
+	// TODO
+	UNUSED_VARS(hsys);
+	return NULL;
+}
+
+GPUBatch *DRW_hair_batch_cache_get_wire(HairSystem *hsys)
+{
+	// TODO
+	UNUSED_VARS(hsys);
 	return NULL;
 }

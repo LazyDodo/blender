@@ -74,13 +74,13 @@ void BKE_hair_curve_data_copy(struct HairCurveData *dst_data, const struct HairC
 /* === Scalp object === */
 
 /* Find the mesh used as the scalp surface */
-const struct Mesh* BKE_hair_get_scalp(
+struct Mesh* BKE_hair_get_scalp(
         const struct Depsgraph *depsgraph,
         const struct Object *ob,
         const struct HairSystem *hsys);
 
 /* Find the object used as the scalp surface */
-const struct Object* BKE_hair_get_scalp_object(
+struct Object* BKE_hair_get_scalp_object(
         const struct Object *ob,
         const struct HairSystem *hsys);
 
