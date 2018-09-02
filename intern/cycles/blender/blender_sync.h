@@ -119,7 +119,6 @@ private:
 	                bool object_updated,
 	                bool hide_tris);
 	void sync_curves(Mesh *mesh,
-	                 BL::Depsgraph& b_depsgraph,
 	                 BL::Mesh& b_mesh,
 	                 BL::Object& b_ob,
 	                 bool motion,

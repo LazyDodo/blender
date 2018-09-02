@@ -250,8 +250,7 @@ struct Object* BKE_hair_get_scalp_object(
 	/* TODO add scalp mode and optional object pointer */
 	UNUSED_VARS(hsys);
 
-	if (ob->parent && ob->parent->type == OB_MESH)
-	{
+	if (ob->parent && ob->parent->type == OB_MESH) {
 		return ob->parent;
 	}
 

@@ -75,23 +75,18 @@ static void rna_HairDrawSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
 }
 
-static PointerRNA rna_HairSystem_scalp_object_get(PointerRNA *ptr)
+static PointerRNA rna_HairSystem_get_scalp_object(HairSystem *hsys, Object *object)
 {
-	Object *ob = ptr->id.data;
-	HairSystem *hsys = ptr->data;
 	PointerRNA r_ptr;
-
-	Object *scalp_ob = BKE_hair_get_scalp_object(ob, hsys);
+	Object *scalp_ob = BKE_hair_get_scalp_object(object, hsys);
 	RNA_id_pointer_create(&scalp_ob->id, &r_ptr);
 	return r_ptr;
 }
 
-static PointerRNA rna_HairSystem_get_scalp(ID *id_ptr, HairSystem *hsys, struct bContext *C)
+static PointerRNA rna_HairSystem_get_scalp_mesh(HairSystem *hsys, struct bContext *C, Object *object)
 {
-	Object *ob = (Object *)id_ptr;
 	PointerRNA r_ptr;
-
-	Mesh *scalp = BKE_hair_get_scalp(CTX_data_depsgraph(C), ob, hsys);
+	Mesh *scalp = BKE_hair_get_scalp(CTX_data_depsgraph(C), object, hsys);
 	RNA_id_pointer_create(&scalp->id, &r_ptr);
 	return r_ptr;
 }
@@ -162,14 +157,17 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "HairPattern");
 	RNA_def_property_ui_text(prop, "Pattern", "Hair pattern");
 
-	prop = RNA_def_property(srna, "scalp_object", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "Object");
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_pointer_funcs(prop, "rna_HairSystem_scalp_object_get", NULL, NULL, NULL);
-	RNA_def_property_ui_text(prop, "Scalp object", "Object that generates the scalp mesh");
+	func = RNA_def_function(srna, "get_scalp_object", "rna_HairSystem_get_scalp_object");
+	parm = RNA_def_pointer(func, "object", "Object", "Object", "Object containing the hair system");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	parm = RNA_def_pointer(func, "scalp_object", "Object", "Scalp Object", "Object that generates the scalp mesh");
+	RNA_def_function_return(func, parm);
+	RNA_def_parameter_flags(parm, 0, PARM_RNAPTR);
 
-	func = RNA_def_function(srna, "get_scalp", "rna_HairSystem_get_scalp");
-	RNA_def_function_flag(func, FUNC_USE_CONTEXT | FUNC_USE_SELF_ID);
+	func = RNA_def_function(srna, "get_scalp_mesh", "rna_HairSystem_get_scalp_mesh");
+	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
+	parm = RNA_def_pointer(func, "object", "Object", "Object", "Object containing the hair system");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "scalp", "Mesh", "Scalp", "Scalp mesh used for hair placement");
 	RNA_def_function_return(func, parm);
 	RNA_def_parameter_flags(parm, 0, PARM_RNAPTR);

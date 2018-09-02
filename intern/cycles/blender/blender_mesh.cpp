@@ -1191,7 +1191,7 @@ Mesh *BlenderSync::sync_mesh(BL::Depsgraph& b_depsgraph,
 		}
 
 		if(view_layer.use_hair && mesh->subdivision_type == Mesh::SUBDIVISION_NONE)
-			sync_curves(mesh, b_depsgraph, b_mesh, b_ob, false);
+			sync_curves(mesh, b_mesh, b_ob, false);
 
 		if(b_mesh) {
 			/* free derived mesh */
@@ -1369,7 +1369,7 @@ void BlenderSync::sync_mesh_motion(BL::Depsgraph& b_depsgraph,
 
 	/* hair motion */
 	if(numkeys)
-		sync_curves(mesh, b_depsgraph, b_mesh, b_ob, true, motion_step);
+		sync_curves(mesh, b_mesh, b_ob, true, motion_step);
 
 	/* free derived mesh */
 	b_data.meshes.remove(b_mesh, false, true, false);
