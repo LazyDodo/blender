@@ -755,7 +755,7 @@ static void rna_Particle_hair_dynamics_update(Main *bmain, Scene *scene, Pointer
 	if (psys && !psys->clmd) {
 		psys->clmd = (ClothModifierData *)modifier_new(eModifierType_Cloth);
 		psys->clmd->sim_parms->goalspring = 0.0f;
-		psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_GOAL | CLOTH_SIMSETTINGS_FLAG_NO_SPRING_COMPRESS;
+		psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_GOAL | CLOTH_SIMSETTINGS_FLAG_RESIST_SPRING_COMPRESS;
 		psys->clmd->coll_parms->flags &= ~CLOTH_COLLSETTINGS_FLAG_SELF;
 		rna_Particle_redo(bmain, scene, ptr);
 	}
@@ -1499,7 +1499,7 @@ static void rna_def_particle(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Keyed States", "");
 /* */
 /*	float fuv[4], foffset;	 *//* coordinates on face/edge number "num" and depth along*/
-/*							 *//* face normal for volume emission						*/
+/*							 *//* face normal for volume emission */
 
 	prop = RNA_def_property(srna, "birth_time", PROP_FLOAT, PROP_TIME);
 	RNA_def_property_float_sdna(prop, NULL, "time");

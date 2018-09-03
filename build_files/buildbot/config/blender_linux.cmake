@@ -1,6 +1,6 @@
 # ######## Global feature set settings ########
 
-include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_full.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_release.cmake")
 
 # Detect which libc we'll be linking against.
 # Some of the paths will depend on this
@@ -184,4 +184,4 @@ set(PCRE_LIBRARY              "${LIBDIR}/opencollada/lib/libpcre.a" CACHE STRING
 endif()
 
 # Additional linking libraries
-set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++"  CACHE STRING "" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++ -no-pie"  CACHE STRING "" FORCE)
