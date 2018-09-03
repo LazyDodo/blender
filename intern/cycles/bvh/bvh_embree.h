@@ -19,24 +19,25 @@
 
 #ifdef WITH_EMBREE
 
+#include <embree3/rtcore.h>
+#include <embree3/rtcore_scene.h>
+
 #include "bvh/bvh.h"
 #include "bvh/bvh_params.h"
 
+#include "util/util_thread.h"
 #include "util/util_types.h"
 #include "util/util_vector.h"
-#include "util/util_thread.h"
-
-#include "embree3/rtcore.h"
-#include "embree3/rtcore_scene.h"
 
 CCL_NAMESPACE_BEGIN
 
 class Mesh;
+struct EmbreeInstance;
 
 class BVHEmbree : public BVH
 {
 public:
-	void build(Progress& progress, Stats *stats);
+	virtual void build(Progress& progress, Stats *stats) override;
 	virtual ~BVHEmbree();
 	RTCScene scene;
 	static void destroy(RTCScene);
@@ -44,8 +45,8 @@ protected:
 	friend class BVH;
 	BVHEmbree(const BVHParams& params, const vector<Object*>& objects);
 
-	virtual void pack_nodes(const BVHNode*);
-	virtual void refit_nodes();
+	virtual void pack_nodes(const BVHNode*) override;
+	virtual void refit_nodes() override;
 
 	void add_object(Object *ob, int i);
 	void add_instance(Object *ob, int i);

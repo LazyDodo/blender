@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 , Blender Foundation.
+ * Copyright 2017-2018, Blender Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
-#include "embree3/rtcore_ray.h"
-#include "embree3/rtcore_scene.h"
+#include <embree3/rtcore_ray.h>
+#include <embree3/rtcore_scene.h>
+
+#include "kernel/kernel_compat_cpu.h"
+#include "kernel/split/kernel_split_data_types.h"
+#include "kernel/kernel_globals.h"
+#include "util/util_vector.h"
+
+CCL_NAMESPACE_BEGIN
 
 struct CCLIntersectContext  {
 	typedef enum {
@@ -26,21 +33,20 @@ struct CCLIntersectContext  {
 		
 	} RayType;
 
-	// cycles extensions:
-	ccl::KernelGlobals *kg;
+	KernelGlobals *kg;
 	RayType type;
 
-	// for shadow rays
-	ccl::Intersection *isect_s;
+	/* for shadow rays */
+	Intersection *isect_s;
 	int max_hits;
 	int num_hits;
 
-	// for SSS Rays:
-	ccl::LocalIntersection *ss_isect;
+	/* for SSS Rays: */
+	LocalIntersection *ss_isect;
 	int sss_object_id;
-	ccl::uint *lcg_state;
+	uint *lcg_state;
 
-	CCLIntersectContext(const ccl::Ray& ray, ccl::KernelGlobals *kg_,  RayType type_)
+	CCLIntersectContext(const Ray& ray, KernelGlobals *kg_,  RayType type_)
 	{
 		kg = kg_;
 		type = type_;
@@ -65,7 +71,7 @@ public:
 	CCLIntersectContext* userRayExt;
 };
 
-ccl_device_inline void kernel_embree_setup_ray(const ccl::Ray& ray, RTCRay& rtc_ray, const ccl::uint visibility)
+ccl_device_inline void kernel_embree_setup_ray(const Ray& ray, RTCRay& rtc_ray, const uint visibility)
 {
 	rtc_ray.org_x = ray.P.x;
 	rtc_ray.org_y = ray.P.y;
@@ -79,20 +85,20 @@ ccl_device_inline void kernel_embree_setup_ray(const ccl::Ray& ray, RTCRay& rtc_
 	rtc_ray.mask = visibility;
 }
 
-ccl_device_inline void kernel_embree_setup_rayhit(const ccl::Ray& ray, RTCRayHit& rayhit, const ccl::uint visibility)
+ccl_device_inline void kernel_embree_setup_rayhit(const Ray& ray, RTCRayHit& rayhit, const uint visibility)
 {
 	kernel_embree_setup_ray(ray, rayhit.ray, visibility);
 	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
 	rayhit.hit.primID = RTC_INVALID_GEOMETRY_ID;
 }
 
-ccl_device_inline void kernel_embree_convert_hit(ccl::KernelGlobals *kg, const RTCRay *ray, const RTCHit *hit, ccl::Intersection *isect)
+ccl_device_inline void kernel_embree_convert_hit(KernelGlobals *kg, const RTCRay *ray, const RTCHit *hit, Intersection *isect)
 {
 	bool is_hair = hit->geomID & 1;
 	isect->u = is_hair ? hit->u : 1.0f - hit->v - hit->u;
 	isect->v = is_hair ? hit->v : hit->u;
 	isect->t = ray->tfar;
-	isect->Ng = ccl::make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z);
+	isect->Ng = make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z);
 	if(hit->instID[0] != RTC_INVALID_GEOMETRY_ID) {
 		RTCScene inst_scene = (RTCScene)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, hit->instID[0]));
 		isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(inst_scene, hit->geomID)) + kernel_tex_fetch(__object_node, hit->instID[0]/2);
@@ -105,14 +111,16 @@ ccl_device_inline void kernel_embree_convert_hit(ccl::KernelGlobals *kg, const R
 	isect->type = kernel_tex_fetch(__prim_type, isect->prim);
 }
 
-ccl_device_inline void kernel_embree_convert_local_hit(ccl::KernelGlobals *kg, const RTCRay *ray, const RTCHit *hit, ccl::Intersection *isect, int local_object_id)
+ccl_device_inline void kernel_embree_convert_local_hit(KernelGlobals *kg, const RTCRay *ray, const RTCHit *hit, Intersection *isect, int local_object_id)
 {
 	isect->u = 1.0f - hit->v - hit->u;
 	isect->v = hit->u;
 	isect->t = ray->tfar;
-	isect->Ng = ccl::make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z);
+	isect->Ng = make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z);
 	RTCScene inst_scene = (RTCScene)rtcGetGeometryUserData(rtcGetGeometry(kernel_data.bvh.scene, local_object_id * 2));
 	isect->prim = hit->primID + (intptr_t)rtcGetGeometryUserData(rtcGetGeometry(inst_scene, hit->geomID)) + kernel_tex_fetch(__object_node, local_object_id);
 	isect->object = local_object_id;
 	isect->type = kernel_tex_fetch(__prim_type, isect->prim);
 }
+
+CCL_NAMESPACE_END

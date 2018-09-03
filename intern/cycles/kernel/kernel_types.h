@@ -26,8 +26,8 @@
 #endif
 
 #if defined(__KERNEL_CPU__) && defined(WITH_EMBREE)
-#include "embree3/rtcore.h"
-#include "embree3/rtcore_scene.h"
+#include <embree3/rtcore.h>
+#include <embree3/rtcore_scene.h>
 #endif
 
 /* TODO(sergey): This is only to make it possible to include this header

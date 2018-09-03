@@ -26,7 +26,7 @@
  * with CPU/CUDA/OpenCL. */
 
 #ifdef __EMBREE__
-#include "kernel/bvh/bvh_embree_traversal.h"
+#include "kernel/bvh/bvh_embree.h"
 #endif
 
 CCL_NAMESPACE_BEGIN

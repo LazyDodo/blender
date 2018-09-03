@@ -16,25 +16,24 @@
 
 #ifdef WITH_EMBREE
 
+#include <pmmintrin.h>
+#include <xmmintrin.h>
+#include <embree3/rtcore_geometry.h>
+
 #include "bvh/bvh_embree.h"
 
-#include "render/mesh.h"
-#include "render/object.h"
-#include "util/util_progress.h"
-#include "util/util_foreach.h"
-#include "util/util_logging.h"
-
-#include "embree3/rtcore_geometry.h"
-
 /* Kernel includes are necessary so that the filter function for Embree can access the packed BVH. */
+#include "kernel/bvh/bvh_embree.h"
 #include "kernel/kernel_compat_cpu.h"
 #include "kernel/split/kernel_split_data_types.h"
 #include "kernel/kernel_globals.h"
 #include "kernel/kernel_random.h"
-#include "kernel/bvh/bvh_embree_traversal.h"
 
-#include "xmmintrin.h"
-#include "pmmintrin.h"
+#include "render/mesh.h"
+#include "render/object.h"
+#include "util/util_foreach.h"
+#include "util/util_logging.h"
+#include "util/util_progress.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -866,4 +865,3 @@ void BVHEmbree::refit_nodes()
 CCL_NAMESPACE_END
 
 #endif /* WITH_EMBREE */
-
