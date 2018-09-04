@@ -15,27 +15,18 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * The Original Code is Copyright (C) 2014 Blender Foundation.
- * All rights reserved.
- *
- * Original Author: Lukas Toenne
- * Contributor(s):
- *
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/depsgraph/util/deg_util_function.h
- *  \ingroup depsgraph
+/** \file ED_keymap_templates.h
+ *  \ingroup editors
  */
 
-#pragma once
+#ifndef __ED_KEYMAP_TEMPLATES_H__
+#define __ED_KEYMAP_TEMPLATES_H__
 
-#include <functional>
+struct wmKeyMap;
 
-namespace DEG {
+void ED_keymap_template_select_all(struct wmKeyMap *keymap, const char *idname);
 
-using std::function;
-using namespace std::placeholders;
-#define function_bind std::bind
-
-}  // namespace
+#endif /*  __ED_KEYMAP_TEMPLATES_H__ */

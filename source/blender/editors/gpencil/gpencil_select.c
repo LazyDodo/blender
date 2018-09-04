@@ -376,7 +376,7 @@ static void gp_select_same_layer(bContext *C)
 
 	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
 		bGPDstroke *gps;
 		bool found = false;
 
@@ -886,7 +886,7 @@ static bool gp_stroke_do_circle_sel(
 				if (gp_stroke_inside_circle(mval, mvalo, radius, x0, y0, x1, y1)) {
 					/* change selection of stroke, and then of both points
 					 * (as the last point otherwise wouldn't get selected
-					 *  as we only do n-1 loops through)
+					 * as we only do n-1 loops through).
 					 */
 					if (select) {
 						pt1->flag |= GP_SPOINT_SELECT;

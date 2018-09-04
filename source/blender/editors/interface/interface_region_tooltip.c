@@ -45,6 +45,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_userdef_types.h"
+#include "DNA_brush_types.h"
 
 #include "BLI_math.h"
 #include "BLI_string.h"
@@ -54,6 +55,7 @@
 
 #include "BKE_context.h"
 #include "BKE_screen.h"
+#include "BKE_library.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -387,20 +389,32 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but)
 	/* it turns out to be most simple to do this via Python since C
 	 * doesn't have access to information about non-active tools.
 	 */
-	char expr[256];
 
-	/* Tip */
+	/* Title (when icon-only). */
+	if (but->drawstr[0] == '\0') {
+		uiTooltipField *field = text_field_add(
+		        data, &(uiTooltipFormat){
+		            .style = UI_TIP_STYLE_NORMAL,
+		            .color_id = UI_TIP_LC_MAIN,
+		            .is_pad = true,
+		        });
+		field->text = BLI_strdup(tool_name);
+	}
+
+	/* Tip. */
 	{
+		const char *expr_imports[] = {"bpy", "bl_ui", NULL};
+		char expr[256];
 		SNPRINTF(
 		        expr,
-		        "__import__('bl_ui').space_toolsystem_common.description_from_name("
-		        "__import__('bpy').context, "
-		        "__import__('bpy').context.space_data.type, "
+		        "bl_ui.space_toolsystem_common.description_from_name("
+		        "bpy.context, "
+		        "bpy.context.space_data.type, "
 		        "'%s') + '.'",
 		        tool_name);
 
 		char *expr_result = NULL;
-		if (BPY_execute_string_as_string(C, expr, true, &expr_result)) {
+		if (BPY_execute_string_as_string(C, expr_imports, expr, true, &expr_result)) {
 			if (!STREQ(expr_result, ".")) {
 				uiTooltipField *field = text_field_add(
 				        data, &(uiTooltipFormat){
@@ -414,28 +428,167 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but)
 				MEM_freeN(expr_result);
 			}
 		}
+		else {
+			BLI_assert(0);
+		}
+	}
+
+	/* Shortcut. */
+	{
+		/* There are different kinds of shortcuts:
+		 *
+		 * - Direct access to the tool (as if the toolbar button is pressed).
+		 * - The key is bound to a brush type (not the exact brush name).
+		 * - The key is assigned to the operator it's self (bypassing the tool, executing the operator).
+		 *
+		 * Either way case it's useful to show the shortcut.
+		 */
+		char *shortcut = NULL;
+
+		{
+			uiStringInfo op_keymap = {BUT_GET_OP_KEYMAP, NULL};
+			UI_but_string_info_get(C, but, &op_keymap, NULL);
+			shortcut = op_keymap.strinfo;
+		}
+
+		if (shortcut == NULL) {
+			int mode = CTX_data_mode_enum(C);
+			const char *tool_attr = NULL;
+			uint tool_offset = 0;
+
+			switch (mode) {
+				case CTX_MODE_SCULPT:
+					tool_attr = "sculpt_tool";
+					tool_offset = offsetof(Brush, sculpt_tool);
+					break;
+				case CTX_MODE_PAINT_VERTEX:
+					tool_attr = "vertex_paint_tool";
+					tool_offset = offsetof(Brush, vertexpaint_tool);
+					break;
+				case CTX_MODE_PAINT_WEIGHT:
+					tool_attr = "weight_paint_tool";
+					tool_offset = offsetof(Brush, vertexpaint_tool);
+					break;
+				case CTX_MODE_PAINT_TEXTURE:
+					tool_attr = "texture_paint_tool";
+					tool_offset = offsetof(Brush, imagepaint_tool);
+					break;
+				default:
+					break;
+			}
+
+			if (tool_attr != NULL) {
+				struct Main *bmain = CTX_data_main(C);
+				Brush *brush = (Brush *)BKE_libblock_find_name(bmain, ID_BR, tool_name);
+				if (brush) {
+					Object *ob = CTX_data_active_object(C);
+					wmOperatorType *ot = WM_operatortype_find("paint.brush_select", true);
+
+					PointerRNA op_props;
+					WM_operator_properties_create_ptr(&op_props, ot);
+					RNA_enum_set(&op_props, "paint_mode", ob->mode);
+					RNA_enum_set(&op_props, tool_attr, *(((char *)brush) + tool_offset));
+
+					/* Check for direct access to the tool. */
+					char shortcut_brush[128] = "";
+					if (WM_key_event_operator_string(
+					            C, ot->idname, WM_OP_INVOKE_REGION_WIN, op_props.data, true,
+					            shortcut_brush, ARRAY_SIZE(shortcut_brush)))
+					{
+						shortcut = BLI_strdup(shortcut_brush);
+					}
+					WM_operator_properties_free(&op_props);
+				}
+			}
+		}
+
+		if (shortcut == NULL) {
+			/* Check for direct access to the tool. */
+			char shortcut_toolbar[128] = "";
+			if (WM_key_event_operator_string(
+			            C, "WM_OT_toolbar", WM_OP_INVOKE_REGION_WIN, NULL, true,
+			            shortcut_toolbar, ARRAY_SIZE(shortcut_toolbar)))
+			{
+				/* Generate keymap in order to inspect it.
+				 * Note, we could make a utility to avoid the keymap generation part of this. */
+				const char *expr_imports[] = {"bpy", "bl_ui", NULL};
+				const char *expr = (
+				        "getattr("
+				        "bl_ui.space_toolsystem_common.keymap_from_context("
+				        "bpy.context, "
+				        "bpy.context.space_data.type), "
+				        "'as_pointer', lambda: 0)()");
+
+				intptr_t expr_result = 0;
+				if (BPY_execute_string_as_intptr(C, expr_imports, expr, true, &expr_result)) {
+					if (expr_result != 0) {
+						wmKeyMap *keymap = (wmKeyMap *)expr_result;
+						for (wmKeyMapItem *kmi = keymap->items.first; kmi; kmi = kmi->next) {
+							if (STREQ(kmi->idname, but->optype->idname)) {
+								char tool_name_test[MAX_NAME];
+								RNA_string_get(kmi->ptr, "name", tool_name_test);
+								if (STREQ(tool_name, tool_name_test)) {
+									char buf[128];
+									WM_keymap_item_to_string(kmi, false, buf, sizeof(buf));
+									shortcut = BLI_sprintfN("%s, %s", shortcut_toolbar, buf);
+									break;
+								}
+							}
+						}
+					}
+				}
+				else {
+					BLI_assert(0);
+				}
+			}
+		}
+
+		if (shortcut != NULL) {
+			uiTooltipField *field = text_field_add(
+			        data, &(uiTooltipFormat){
+			            .style = UI_TIP_STYLE_NORMAL,
+			            .color_id = UI_TIP_LC_VALUE,
+			            .is_pad = true,
+			        });
+			field->text = BLI_sprintfN(TIP_("Shortcut: %s"), shortcut);
+			MEM_freeN(shortcut);
+		}
 	}
 
 	/* Keymap */
 
 	/* This is too handy not to expose somehow, let's be sneaky for now. */
 	if (CTX_wm_window(C)->eventstate->shift) {
+		const char *expr_imports[] = {"bpy", "bl_ui", NULL};
+		char expr[256];
 		SNPRINTF(
 		        expr,
 		        "getattr("
-		        "__import__('bl_ui').space_toolsystem_common.keymap_from_name("
-		        "__import__('bpy').context, "
-		        "__import__('bpy').context.space_data.type, "
+		        "bl_ui.space_toolsystem_common.keymap_from_name("
+		        "bpy.context, "
+		        "bpy.context.space_data.type, "
 		        "'%s'), "
 		        "'as_pointer', lambda: 0)()",
 		        tool_name);
 
 		intptr_t expr_result = 0;
-		if (BPY_execute_string_as_intptr(C, expr, true, &expr_result)) {
+		if (BPY_execute_string_as_intptr(C, expr_imports, expr, true, &expr_result)) {
 			if (expr_result != 0) {
+				{
+					uiTooltipField *field = text_field_add(
+					        data, &(uiTooltipFormat){
+					            .style = UI_TIP_STYLE_NORMAL,
+					            .color_id = UI_TIP_LC_NORMAL,
+					            .is_pad = true,
+					        });
+					field->text = BLI_strdup("Tool Keymap:");
+				}
 				wmKeyMap *keymap = (wmKeyMap *)expr_result;
 				ui_tooltip_data_append_from_keymap(C, data, keymap);
 			}
+		}
+		else {
+			BLI_assert(0);
 		}
 	}
 #endif  /* WITH_PYTHON */

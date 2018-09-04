@@ -1109,9 +1109,9 @@ typedef struct UnifiedPaintSettings {
 	float brush_rotation;
 	float brush_rotation_sec;
 
-	/*********************************************************************************
-	*  all data below are used to communicate with cursor drawing and tex sampling  *
-	*********************************************************************************/
+	/*******************************************************************************
+	 * all data below are used to communicate with cursor drawing and tex sampling *
+	 *******************************************************************************/
 	int anchored_size;
 
 	float overlap_factor; /* normalization factor due to accumulated value of curve along spacing.
@@ -1552,7 +1552,7 @@ typedef struct Scene {
 
 	unsigned int lay;           /* bitflags for layer visibility */
 	int layact;     /* active layer */
-	unsigned int lay_updated;       /* runtime flag, has layer ever been updated since load? */
+	unsigned int pad1;
 
 	short flag;                             /* various settings */
 
