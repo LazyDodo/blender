@@ -262,6 +262,9 @@ ccl_device_intersect bool scene_intersect_local(KernelGlobals *kg,
 												   &idir,
 												   ray.t,
 												   &ob_itfm);
+				/* bvh_instance_motion_push() returns the inverse transform but it's not needed here. */
+				(void)ob_itfm;
+
 				rtc_ray.org_x = P.x;
 				rtc_ray.org_y = P.y;
 				rtc_ray.org_z = P.z;
@@ -305,7 +308,7 @@ ccl_device_intersect bool scene_intersect_shadow_all(KernelGlobals *kg,
                                                      uint max_hits,
                                                      uint *num_hits)
 {
-#ifdef __EMBREE__
+#  ifdef __EMBREE__
 	if(kernel_data.bvh.scene) {
 		CCLIntersectContext ctx(*ray, kg, CCLIntersectContext::RAY_SHADOW_ALL);
 		ctx.isect_s = isect;
@@ -322,7 +325,7 @@ ccl_device_intersect bool scene_intersect_shadow_all(KernelGlobals *kg,
 		*num_hits = ctx.num_hits;
 		return rtc_ray.tfar == -INFINITY;
 	}
-#endif
+#  endif
 #  ifdef __OBJECT_MOTION__
 	if(kernel_data.bvh.have_motion) {
 #    ifdef __HAIR__
@@ -410,7 +413,7 @@ ccl_device_intersect uint scene_intersect_volume_all(KernelGlobals *kg,
                                                      const uint max_hits,
                                                      const uint visibility)
 {
-#ifdef __EMBREE__
+#  ifdef __EMBREE__
 	if(kernel_data.bvh.scene) {
 		CCLIntersectContext ctx(*ray, kg, CCLIntersectContext::RAY_VOLUME_ALL);
 		ctx.isect_s = isect;
@@ -422,7 +425,7 @@ ccl_device_intersect uint scene_intersect_volume_all(KernelGlobals *kg,
 		rtcOccluded1(kernel_data.bvh.scene, &rtc_ctx.context, &rtc_ray);
 		return rtc_ray.tfar == -INFINITY;
 	}
-#endif
+#  endif
 #  ifdef __OBJECT_MOTION__
 	if(kernel_data.bvh.have_motion) {
 		return bvh_intersect_volume_all_motion(kg, ray, isect, max_hits, visibility);

@@ -214,6 +214,7 @@ bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
 		}
 	}
 	else {
+		/* A stats pointer may not yet be available. Keep track of the memory usage for later. */
 		if(bytes >= 0) {
 			atomic_add_and_fetch_z(&unaccounted_mem, bytes);
 		}
