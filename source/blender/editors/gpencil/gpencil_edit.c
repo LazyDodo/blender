@@ -96,11 +96,17 @@
   /* Stroke Edit Mode Management */
 static bool gpencil_editmode_toggle_poll(bContext *C)
 {
-	/* if using gpencil object, use this gpd */
+	/* edit only supported with grease pencil objects */
 	Object *ob = CTX_data_active_object(C);
-	if ((ob) && (ob->type == OB_GPENCIL)) {
+	if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+		return false;
+	}
+
+	/* if using gpencil object, use this gpd */
+	if (ob->type == OB_GPENCIL) {
 		return ob->data != NULL;
 	}
+
 	return ED_gpencil_data_get_active(C) != NULL;
 }
 
@@ -434,6 +440,12 @@ void GPENCIL_OT_weightmode_toggle(wmOperatorType *ot)
 /* poll callback for all stroke editing operators */
 static bool gp_stroke_edit_poll(bContext *C)
 {
+	/* edit only supported with grease pencil objects */
+	Object *ob = CTX_data_active_object(C);
+	if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+		return false;
+	}
+
 	/* NOTE: this is a bit slower, but is the most accurate... */
 	return CTX_DATA_COUNT(C, editable_gpencil_strokes) != 0;
 }
@@ -441,6 +453,13 @@ static bool gp_stroke_edit_poll(bContext *C)
 /* poll callback to verify edit mode in 3D view only */
 static bool gp_strokes_edit3d_poll(bContext *C)
 {
+	/* edit only supported with grease pencil objects */
+	Object *ob = CTX_data_active_object(C);
+	if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+		return false;
+	}
+
+
 	/* 2 Requirements:
 	 * - 1) Editable GP data
 	 * - 2) 3D View only
@@ -1003,7 +1022,7 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 			 *       we are obliged to add a new frame if one
 			 *       doesn't exist already
 			 */
-			gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, true);
+			gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_ADD_NEW);
 			if (gpf) {
 				/* Create new stroke */
 				bGPDstroke *new_stroke = MEM_dupallocN(gps);
@@ -1146,7 +1165,7 @@ static int gp_move_to_layer_exec(bContext *C, wmOperator *op)
 
 	/* Paste them all in one go */
 	if (strokes.first) {
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(target_layer, cfra_eval, true);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(target_layer, cfra_eval, GP_GETFRAME_ADD_NEW);
 
 		BLI_movelisttolist(&gpf->strokes, &strokes);
 		BLI_assert((strokes.first == strokes.last) && (strokes.first == NULL));
@@ -1283,7 +1302,7 @@ static int gp_actframe_delete_exec(bContext *C, wmOperator *op)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 
-	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
+	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
 
 	/* if there's no existing Grease-Pencil data there, add some */
 	if (gpd == NULL) {
@@ -1342,7 +1361,7 @@ static int gp_actframe_delete_all_exec(bContext *C, wmOperator *op)
 	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
 		/* try to get the "active" frame - but only if it actually occurs on this frame */
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
 
 		if (gpf == NULL)
 			continue;

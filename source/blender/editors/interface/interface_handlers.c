@@ -7066,7 +7066,8 @@ static void button_tooltip_timer_reset(bContext *C, uiBut *but)
 	if ((U.flag & USER_TOOLTIPS) || (data->tooltip_force)) {
 		if (!but->block->tooltipdisabled) {
 			if (!wm->drags.first) {
-				WM_tooltip_timer_init(C, data->window, data->region, ui_but_tooltip_init);
+				bool quick = UI_but_is_tooltip_no_overlap(but);
+				WM_tooltip_timer_init(C, data->window, data->region, ui_but_tooltip_init, quick);
 			}
 		}
 	}
@@ -7821,8 +7822,11 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 				}
 				else if (event->x != event->prevx || event->y != event->prevy) {
 					/* re-enable tooltip on mouse move */
-					ui_blocks_set_tooltips(ar, true);
-					button_tooltip_timer_reset(C, but);
+					if (!UI_but_is_tooltip_no_overlap(but)) {
+						/* Since this may overlap, close on mouse-move. */
+						ui_blocks_set_tooltips(ar, true);
+						button_tooltip_timer_reset(C, but);
+					}
 				}
 
 				break;

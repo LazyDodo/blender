@@ -1488,9 +1488,9 @@ typedef struct Scene {
 
 	View3DCursor cursor;			/* 3d cursor location */
 
-	unsigned int lay;			/* bitflags for layer visibility */
-	int layact;		/* active layer */
-	unsigned int lay_updated;       /* runtime flag, has layer ever been updated since load? */
+	unsigned int lay DNA_DEPRECATED;	/* bitflags for layer visibility */
+	int layact DNA_DEPRECATED;			/* active layer */
+	unsigned int pad1;
 
 	short flag;								/* various settings */
 
