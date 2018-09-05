@@ -196,10 +196,10 @@ struct GPUBatch *DRW_cache_particles_get_edit_tip_points(
 struct GPUBatch *DRW_cache_particles_get_prim(int type);
 
 /* Hair */
-struct GPUBatch *DRW_cache_hair_get_fibers(struct HairSystem *hsys, const struct HairExportCache *hair_export);
-struct GPUBatch *DRW_cache_hair_get_follicle_points(struct HairSystem *hsys);
-struct GPUBatch *DRW_cache_hair_get_verts(struct HairSystem *hsys);
-struct GPUBatch *DRW_cache_hair_get_wire(struct HairSystem *hsys);
+struct GPUBatch *DRW_cache_hair_get_fibers(struct Object *ob, struct HairSystem *hsys, const struct HairExportCache *hair_export);
+struct GPUBatch *DRW_cache_hair_get_follicle_points(struct Object *ob, struct HairSystem *hsys);
+struct GPUBatch *DRW_cache_hair_get_verts(struct Object *ob, struct HairSystem *hsys);
+struct GPUBatch *DRW_cache_hair_get_edit_strands(struct Object *ob, struct HairSystem *hsys);
 
 /* Metaball */
 struct GPUBatch *DRW_cache_mball_surface_get(struct Object *ob);

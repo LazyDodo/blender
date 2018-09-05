@@ -32,6 +32,7 @@ struct Mesh;
 struct MFace;
 struct MVert;
 struct MPoly;
+struct MCol;
 
 struct MeshSample;
 struct MeshSampleGenerator;
@@ -56,6 +57,11 @@ bool BKE_mesh_sample_is_volume_sample(const struct MeshSample *sample);
 
 /* Evaluate position and normal on the given mesh */
 bool BKE_mesh_sample_eval(const struct Mesh *mesh, const struct MeshSample *sample, float loc[3], float nor[3], float tang[3]);
+
+/* Evaluate UV coordinates on the given mesh */
+bool BKE_mesh_sample_eval_uv(const struct Mesh *mesh, const struct MeshSample *sample, int uv_layer, float uv[2]);
+/* Evaluate vertex color on the given mesh */
+bool BKE_mesh_sample_eval_col(const struct Mesh *mesh, const struct MeshSample *sample, int col_layer, struct MLoopCol *col);
 
 /* Evaluate position for the given shapekey */
 bool BKE_mesh_sample_shapekey(struct Key *key, struct KeyBlock *kb, const struct MeshSample *sample, float loc[3]);

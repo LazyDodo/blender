@@ -199,10 +199,6 @@ bool BKE_mesh_sample_is_volume_sample(const MeshSample *sample)
 
 bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[3], float nor[3], float tang[3])
 {
-	const MVert *mverts = mesh->mvert;
-	const unsigned int totverts = (unsigned int)mesh->totvert;
-	const MVert *v1, *v2, *v3;
-	
 	zero_v3(loc);
 	zero_v3(nor);
 	zero_v3(tang);
@@ -218,6 +214,11 @@ bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[
 	}
 	else {
 		/* SURFACE SAMPLE */
+
+		const MVert *mverts = mesh->mvert;
+		const unsigned int totverts = (unsigned int)mesh->totvert;
+		const MVert *v1, *v2, *v3;
+
 		if (sample->orig_verts[0] >= totverts ||
 		    sample->orig_verts[1] >= totverts ||
 		    sample->orig_verts[2] >= totverts)
@@ -261,6 +262,78 @@ bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[
 			normalize_v3_v3(tang, edge);
 		}
 		
+		return true;
+	}
+}
+
+/* Evaluate UV coordinates on the given mesh */
+
+bool BKE_mesh_sample_eval_uv(const Mesh *mesh, const MeshSample *sample, int uv_layer, float uv[2])
+{
+	if (BKE_mesh_sample_is_volume_sample(sample)) {
+		/* VOLUME SAMPLE */
+		zero_v2(uv);
+		return true;
+	}
+	else {
+		/* SURFACE SAMPLE */
+
+		const unsigned int totloops = (unsigned int)mesh->totloop;
+		if (sample->orig_loops[0] >= totloops  ||
+		    sample->orig_loops[1] >= totloops  ||
+		    sample->orig_loops[2] >= totloops )
+			return false;
+
+		const MLoopUV *mloopuvs = CustomData_get_layer_n(&mesh->ldata, CD_MLOOPUV, uv_layer);
+		if (!mloopuvs)
+		{
+			return false;
+		}
+
+		madd_v2_v2fl(uv, mloopuvs[sample->orig_loops[0]].uv, sample->orig_weights[0]);
+		madd_v2_v2fl(uv, mloopuvs[sample->orig_loops[1]].uv, sample->orig_weights[1]);
+		madd_v2_v2fl(uv, mloopuvs[sample->orig_loops[2]].uv, sample->orig_weights[2]);
+
+		return true;
+	}
+}
+
+/* Evaluate vertex color on the given mesh */
+
+bool BKE_mesh_sample_eval_col(const Mesh *mesh, const MeshSample *sample, int col_layer, MLoopCol *col)
+{
+	if (BKE_mesh_sample_is_volume_sample(sample)) {
+		/* VOLUME SAMPLE */
+		col->r = col->g = col->b = col->a = 0;
+		return true;
+	}
+	else {
+		/* SURFACE SAMPLE */
+
+		const unsigned int totloops = (unsigned int)mesh->totloop;
+		if (sample->orig_loops[0] >= totloops  ||
+		    sample->orig_loops[1] >= totloops  ||
+		    sample->orig_loops[2] >= totloops )
+			return false;
+
+		MLoopCol *mloopcols = CustomData_get_layer_n(&mesh->ldata, CD_MLOOPCOL, col_layer);
+		if (!mloopcols)
+		{
+			return false;
+		}
+
+		const unsigned char *col1 = &mloopcols[sample->orig_loops[0]].r;
+		const unsigned char *col2 = &mloopcols[sample->orig_loops[1]].r;
+		const unsigned char *col3 = &mloopcols[sample->orig_loops[2]].r;
+		for (int i = 0; i < 4; ++i)
+		{
+			float f = 0.0f;
+			f += (float)col1[i] * sample->orig_weights[0];
+			f += (float)col2[i] * sample->orig_weights[1];
+			f += (float)col3[i] * sample->orig_weights[2];
+			((unsigned char *)col)[i] = (unsigned char)f;
+		}
+
 		return true;
 	}
 }

@@ -36,8 +36,10 @@
 #include "BLI_ghash.h"
 
 #include "DNA_hair_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 
+#include "BKE_customdata.h"
 #include "BKE_hair.h"
 #include "BKE_mesh_sample.h"
 
@@ -60,6 +62,9 @@
 
 typedef struct HairBatchCache {
 	ParticleHairCache hair;
+
+	/* Control points when in edit mode. */
+	ParticleHairCache edit_hair;
 
 	bool is_dirty;
 	bool is_editmode;
@@ -136,6 +141,7 @@ static void hair_batch_cache_clear(HairSystem *hsys)
 	HairBatchCache *cache = hsys->draw_batch_cache;
 	if (cache) {
 		particle_batch_cache_clear_hair(&cache->hair);
+		particle_batch_cache_clear_hair(&cache->edit_hair);
 	}
 }
 
@@ -214,12 +220,12 @@ static void hair_batch_cache_ensure_procedural_pos(
 	cache->point_tex = GPU_texture_create_from_vertbuf(cache->proc_point_buf);
 }
 
-static void hair_pack_mcol(MCol *mcol, unsigned short r_scol[3])
+static void hair_pack_mcol(MLoopCol *mcol, ushort r_scol[4])
 {
 	/* Convert to linear ushort and swizzle */
-	r_scol[0] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->b]);
+	r_scol[0] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->r]);
 	r_scol[1] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->g]);
-	r_scol[2] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->r]);
+	r_scol[2] = unit_float_to_ushort_clamp(BLI_color_from_srgb_table[mcol->b]);
 }
 
 static int hair_batch_cache_fill_strands_data(
@@ -274,15 +280,15 @@ static int hair_batch_cache_fill_strands_data(
 		}
 #endif
 		
-		for (int k = 0; k < num_uv_layers; k++) {
-			float *t_uv = (float *)GPU_vertbuf_raw_step(uv_step + k);
-			copy_v2_v2(t_uv, uv[k]);
-		}
-		for (int k = 0; k < num_col_layers; k++) {
-			unsigned short *scol = (unsigned short *)GPU_vertbuf_raw_step(col_step + k);
-			hair_pack_mcol(&mcol[k], scol);
-		}
-		
+//		for (int k = 0; k < num_uv_layers; k++) {
+//			float *t_uv = (float *)GPU_vertbuf_raw_step(uv_step + k);
+//			copy_v2_v2(t_uv, uv[k]);
+//		}
+//		for (int k = 0; k < num_col_layers; k++) {
+//			unsigned short *scol = (unsigned short *)GPU_vertbuf_raw_step(col_step + k);
+//			hair_pack_mcol(&mcol[k], scol);
+//		}
+
 		if (uv) {
 			MEM_freeN(uv);
 		}
@@ -551,30 +557,224 @@ bool hair_ensure_procedural_data(
 	return need_ft_update;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_fibers(HairSystem *hsys, const HairExportCache *hair_export)
+typedef struct HairScalpAttributeData
+{
+	uint *uv_id;
+	uint *col_id;
+	int num_uv_layers;
+	int num_col_layers;
+	int active_uv;
+	int active_col;
+
+	float (*hair_uv)[2];
+	ushort (*hair_col)[4];
+} HairScalpAttributeData;
+
+static void hair_batch_cache_scalp_attributes_get(Mesh *scalp, HairScalpAttributeData *data, GPUVertFormat *format)
+{
+	memset(data, 0, sizeof(*data));
+
+	if (scalp == NULL) {
+		return;
+	}
+
+	if (CustomData_has_layer(&scalp->ldata, CD_MLOOPUV)) {
+		data->num_uv_layers = CustomData_number_of_layers(&scalp->ldata, CD_MLOOPUV);
+		data->active_uv = CustomData_get_active_layer(&scalp->ldata, CD_MLOOPUV);
+	}
+	if (CustomData_has_layer(&scalp->ldata, CD_MLOOPCOL)) {
+		data->num_col_layers = CustomData_number_of_layers(&scalp->ldata, CD_MLOOPCOL);
+		data->active_col = CustomData_get_active_layer(&scalp->ldata, CD_MLOOPCOL);
+	}
+
+	data->uv_id = MEM_mallocN(sizeof(*data->uv_id) * data->num_uv_layers, "UV attrib format");
+	data->col_id = MEM_mallocN(sizeof(*data->col_id) * data->num_col_layers, "Col attrib format");
+
+	for (int i = 0; i < data->num_uv_layers; i++) {
+		const char *name = CustomData_get_layer_name(&scalp->ldata, CD_MLOOPUV, i);
+		char uuid[32];
+
+		BLI_snprintf(uuid, sizeof(uuid), "u%u", BLI_ghashutil_strhash_p(name));
+		data->uv_id[i] = GPU_vertformat_attr_add(format, uuid, GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+
+		if (i == data->active_uv) {
+			GPU_vertformat_alias_add(format, "u");
+		}
+	}
+
+	for (int i = 0; i < data->num_col_layers; i++) {
+		const char *name = CustomData_get_layer_name(&scalp->ldata, CD_MLOOPCOL, i);
+		char uuid[32];
+
+		BLI_snprintf(uuid, sizeof(uuid), "c%u", BLI_ghashutil_strhash_p(name));
+		data->col_id[i] = GPU_vertformat_attr_add(format, uuid, GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+
+		if (i == data->active_col) {
+			GPU_vertformat_alias_add(format, "c");
+		}
+	}
+
+	data->hair_uv = MEM_callocN(sizeof(*data->hair_uv) * data->num_uv_layers, "Hair UVs");
+	data->hair_col = MEM_callocN(sizeof(*data->hair_col) * data->num_col_layers, "Hair MCol");
+}
+
+static void hair_batch_cache_scalp_attributes_free(HairScalpAttributeData *data)
+{
+	MEM_SAFE_FREE(data->uv_id);
+	MEM_SAFE_FREE(data->col_id);
+	MEM_SAFE_FREE(data->hair_uv);
+	MEM_SAFE_FREE(data->hair_col);
+}
+
+typedef struct HairAttributeID {
+	uint pos;
+	uint tan;
+	uint ind;
+} HairAttributeID;
+
+static int hair_batch_cache_fill_segments(
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
+        const Mesh *scalp,
+        const HairScalpAttributeData *scalp_attr,
+        GPUIndexBufBuilder *elb,
+        HairAttributeID *attr_id,
+        ParticleHairCache *hair_cache)
+{
+	int curr_point = 0;
+	for (int i = 0; i < pattern->num_follicles; ++i) {
+		const HairFollicle *follicle = &pattern->follicles[i];
+		const HairFiberCurve *curve = &curve_data->curves[follicle->curve];
+		if (curve->numverts < 2) {
+			continue;
+		}
+
+		for (int k = 0; k < scalp_attr->num_uv_layers; k++) {
+			BKE_mesh_sample_eval_uv(scalp, &follicle->mesh_sample, k, scalp_attr->hair_uv[k]);
+		}
+		for (int k = 0; k < scalp_attr->num_col_layers; k++) {
+			MLoopCol col;
+			BKE_mesh_sample_eval_col(scalp, &follicle->mesh_sample, k, &col);
+			hair_pack_mcol(&col, scalp_attr->hair_col[k]);
+		}
+
+		const HairFiberVertex *vert_start = &curve_data->verts[curve->vertstart];
+		for (int j = 0; j < curve->numverts; ++j) {
+			const HairFiberVertex *vert = vert_start + j;
+			const HairFiberVertex *vert_prev = (j > 0 ? vert_start + j - 1 : vert_start + j);
+			const HairFiberVertex *vert_next = (j < curve->numverts-1 ? vert_start + j + 1 : vert_start + j);
+			float tangent[3];
+			sub_v3_v3v3(tangent, vert_next->co, vert_prev->co);
+
+			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->pos, curr_point, vert->co);
+			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->tan, curr_point, tangent);
+			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->ind, curr_point, &i);
+
+			for (int k = 0; k < scalp_attr->num_uv_layers; k++) {
+				GPU_vertbuf_attr_set(hair_cache->pos, scalp_attr->uv_id[k], curr_point, scalp_attr->hair_uv[k]);
+			}
+			for (int k = 0; k < scalp_attr->num_col_layers; k++) {
+				GPU_vertbuf_attr_set(hair_cache->pos, scalp_attr->col_id[k], curr_point, scalp_attr->hair_col[k]);
+			}
+
+			GPU_indexbuf_add_generic_vert(elb, curr_point);
+			++curr_point;
+		}
+
+		/* Add restart primitive. */
+		GPU_indexbuf_add_primitive_restart(elb);
+		++curr_point;
+	}
+
+	return curr_point;
+}
+
+static void hair_batch_cache_ensure_pos_and_seg(
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
+        Mesh *scalp,
+        ParticleHairCache *hair_cache)
+{
+	if (hair_cache->pos != NULL && hair_cache->indices != NULL) {
+		return;
+	}
+
+	GPU_VERTBUF_DISCARD_SAFE(hair_cache->pos);
+	GPU_INDEXBUF_DISCARD_SAFE(hair_cache->indices);
+
+	static GPUVertFormat format = { 0 };
+	HairAttributeID attr_id;
+	HairScalpAttributeData scalp_attr;
+
+	GPU_vertformat_clear(&format);
+
+	/* initialize vertex format */
+	attr_id.pos = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+	attr_id.tan = GPU_vertformat_attr_add(&format, "nor", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+	attr_id.ind = GPU_vertformat_attr_add(&format, "ind", GPU_COMP_I32, 1, GPU_FETCH_INT);
+	hair_batch_cache_scalp_attributes_get(scalp, &scalp_attr, &format);
+
+	hair_cache->pos = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(hair_cache->pos, hair_cache->point_len);
+
+	GPUIndexBufBuilder elb;
+	GPU_indexbuf_init_ex(
+	        &elb,
+	        GPU_PRIM_LINE_STRIP,
+	        hair_cache->elems_len, hair_cache->point_len,
+	        true);
+
+	hair_batch_cache_fill_segments(pattern, curve_data, scalp, &scalp_attr, &elb, &attr_id, hair_cache);
+
+	/* Cleanup. */
+	hair_batch_cache_scalp_attributes_free(&scalp_attr);
+
+	hair_cache->indices = GPU_indexbuf_build(&elb);
+}
+
+GPUBatch *DRW_hair_batch_cache_get_fibers(Object *ob, HairSystem *hsys, const HairExportCache *hair_export)
 {
 	// TODO
-	UNUSED_VARS(hsys, hair_export);
+	UNUSED_VARS(ob, hsys, hair_export);
 	return NULL;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_follicle_points(HairSystem *hsys)
+GPUBatch *DRW_hair_batch_cache_get_follicle_points(Object *ob, HairSystem *hsys)
 {
 	// TODO
-	UNUSED_VARS(hsys);
+	UNUSED_VARS(ob, hsys);
 	return NULL;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_verts(HairSystem *hsys)
+GPUBatch *DRW_hair_batch_cache_get_verts(Object *ob, HairSystem *hsys)
 {
 	// TODO
-	UNUSED_VARS(hsys);
+	UNUSED_VARS(ob, hsys);
 	return NULL;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_wire(HairSystem *hsys)
+GPUBatch *DRW_hair_batch_cache_get_edit_strands(Object *ob, HairSystem *hsys)
 {
-	// TODO
-	UNUSED_VARS(hsys);
-	return NULL;
+	HairBatchCache *cache = hair_batch_cache_get(hsys);
+	if (cache->edit_hair.hairs != NULL) {
+		return cache->edit_hair.hairs;
+	}
+
+	Mesh *scalp = BKE_hair_get_scalp(DRW_context_state_get()->depsgraph, ob, hsys);
+	const HairPattern *pattern;
+	const HairCurveData *curve_data;
+	if (hsys->edithair) {
+		pattern = hsys->edithair->pattern;
+		curve_data = &hsys->edithair->curve_data;
+	}
+	else {
+		pattern = hsys->pattern;
+		curve_data = &hsys->curve_data;
+	}
+	hair_batch_cache_ensure_pos_and_seg(pattern, curve_data, scalp, &cache->edit_hair);
+	cache->edit_hair.hairs = GPU_batch_create(
+	        GPU_PRIM_LINE_STRIP,
+	        cache->edit_hair.pos,
+	        cache->edit_hair.indices);
+	return cache->edit_hair.hairs;
 }

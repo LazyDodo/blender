@@ -206,13 +206,13 @@ static void EDIT_HAIR_cache_populate(void *vedata, Object *ob)
 		if (ob == obedit) {
 			/* Get geometry cache */
 			HairSystem *hsys = ob->data;
-			struct Gwn_Batch *geom;
+			struct GPUBatch *geom;
 
-			geom = DRW_cache_hair_get_wire(hsys);
+			geom = DRW_cache_hair_get_edit_strands(ob, hsys);
 			DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 
-			geom = DRW_cache_hair_get_verts(hsys);
-			DRW_shgroup_call_add(stl->g_data->vert_shgrp, geom, ob->obmat);
+//			geom = DRW_cache_hair_get_verts(ob, hsys);
+//			DRW_shgroup_call_add(stl->g_data->vert_shgrp, geom, ob->obmat);
 		}
 	}
 }
