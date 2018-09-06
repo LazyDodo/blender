@@ -345,7 +345,9 @@ bool testProfileEdge(ivec2 texcoord, vec3 world_position)
 	mat3 nm = mat3(transpose(inverse(ModelMatrix)));
 	vec3 face_normal_0 = mat3(nm) * texelFetch(face_normal0_tex, texcoord, 0).xyz;
 	vec3 face_normal_1 = mat3(nm) * texelFetch(face_normal1_tex, texcoord, 0).xyz;
-	vec3 camera_to_line = world_position - view_pos;//modelview * vec4(world_position, 1.0);
+	vec3 camera_to_line = is_perspective == 1 ?
+	                      world_position - view_pos :
+						  view_dir;//modelview * vec4(world_position, 1.0);
 
 	vec4 edge_mask = texelFetch(edge_mask_tex, texcoord, 0);
 
@@ -396,27 +398,30 @@ void main(){
 		return;
 	}
 
-	// clip to the near plane
 	vec3 v0_clipped_near = v0_world_pos.xyz;
 	vec3 v1_clipped_near = v1_world_pos.xyz;
-	bool v0_beyond_near = pointBeyondNear(v0_world_pos.xyz);
-	bool v1_beyond_near = pointBeyondNear(v1_world_pos.xyz);
 
-	if (!v0_beyond_near && !v1_beyond_near)
-	{
-		// segment entirely behind the camera
-		gl_FragData[0] = vec4(0.0, 1.0, 0.0, 0.0);
-		gl_FragData[1] = vec4(0.0, 0.0, 1.0, 0.0);
-		gl_FragData[2] = vec4(0.0, 1.0, 0.0, 0.0);
-		return;
-	}
-	else if (!v0_beyond_near)
-	{
-		v0_clipped_near = clipSegmentToNear(v0_world_pos.xyz, v1_clipped_near);
-	}
-	else if (!v1_beyond_near)
-	{
-		v1_clipped_near = clipSegmentToNear(v1_world_pos.xyz, v0_clipped_near);
+	if(is_perspective==1){
+		// clip to the near plane
+		bool v0_beyond_near = pointBeyondNear(v0_world_pos.xyz);
+		bool v1_beyond_near = pointBeyondNear(v1_world_pos.xyz);
+
+		if (!v0_beyond_near && !v1_beyond_near)
+		{
+			// segment entirely behind the camera
+			gl_FragData[0] = vec4(0.0, 1.0, 0.0, 0.0);
+			gl_FragData[1] = vec4(0.0, 0.0, 1.0, 0.0);
+			gl_FragData[2] = vec4(0.0, 1.0, 0.0, 0.0);
+			return;
+		}
+		else if (!v0_beyond_near)
+		{
+			v0_clipped_near = clipSegmentToNear(v0_world_pos.xyz, v1_clipped_near);
+		}
+		else if (!v1_beyond_near)
+		{
+			v1_clipped_near = clipSegmentToNear(v1_world_pos.xyz, v0_clipped_near);
+		}
 	}
 
 	// If this segment is a profile edge, test to see if it should be turned on.
@@ -438,9 +443,12 @@ void main(){
 	vec4 v1_pre_div = projection * ViewMatrix * vec4(v1_clipped_near, 1.0);
 
 	// perspective divide
-	vec3 v0_clip_pos = v0_pre_div.xyz / v0_pre_div.w;
-	vec3 v1_clip_pos = v1_pre_div.xyz / v1_pre_div.w;
-
+	vec3 v0_clip_pos = v0_pre_div.xyz;
+	vec3 v1_clip_pos = v1_pre_div.xyz;
+	if(is_perspective==1){
+		v0_clip_pos /= v0_pre_div.w;
+		v1_clip_pos /= v1_pre_div.w;
+	}
 	// clip to frustum
 	bool v0_on_screen = !pointOffScreen(v0_clip_pos);
 	bool v1_on_screen = !pointOffScreen(v1_clip_pos);
