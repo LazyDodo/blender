@@ -78,6 +78,14 @@ void DRW_globals_update(void)
 	UI_GetThemeColor4fv(TH_FACE_DOT, ts.colorFaceDot);
 	UI_GetThemeColor4fv(TH_BACK, ts.colorBackground);
 
+#ifdef WITH_FREESTYLE
+	UI_GetThemeColor4fv(TH_FREESTYLE_EDGE_MARK, ts.colorEdgeFreestyle);
+	UI_GetThemeColor4fv(TH_FREESTYLE_FACE_MARK, ts.colorFaceFreestyle);
+#else
+	zero_v4(ts.colorEdgeFreestyle);
+	zero_v4(ts.colorFaceFreestyle);
+#endif
+
 	/* Curve */
 	UI_GetThemeColor4fv(TH_HANDLE_FREE, ts.colorHandleFree);
 	UI_GetThemeColor4fv(TH_HANDLE_AUTO, ts.colorHandleAuto);
@@ -842,7 +850,7 @@ int DRW_object_wire_theme_get(Object *ob, ViewLayer *view_layer, float **r_color
 	return theme_id;
 }
 
-/* XXX This is utter shit, better find something more general */
+/* XXX This is very stupid, better find something more general. */
 float *DRW_color_background_blend_get(int theme_id)
 {
 	static float colors[11][4];
