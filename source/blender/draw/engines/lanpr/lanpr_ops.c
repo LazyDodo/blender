@@ -547,7 +547,7 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 		}
 	}else { // X difference == 0;
 		if (PositiveY > 0) {
-			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], This->U);
+			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], This->U);
 			if (r1 > 1) return 0;
 			for (lip = This->UP.first; lip; lip = lip->pNext) {
 				ba = lip->p;
@@ -555,7 +555,7 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 			}
 		}
 		else if (PositiveY < 0) {
-			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], This->B);
+			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], This->B);
 			if (r1 > 1) return 0;
 			for (lip = This->BP.first; lip; lip = lip->pNext) {
 				ba = lip->p;
@@ -1768,7 +1768,7 @@ void lanpr_make_render_geometry_buffers(Depsgraph *depsgraph, Scene *s, Object *
 		tmat_make_perspective_matrix_44d(proj, fov, asp, cam->clipsta, cam->clipend);
 	} elif(cam->type == CAM_ORTHO)
 	{
-		real w = cam->ortho_scale;
+		real w = cam->ortho_scale/2;
 		tmat_make_ortho_matrix_44d(proj, -w, w, -w / asp, w / asp, cam->clipsta, cam->clipend);
 	}
 
@@ -2944,15 +2944,18 @@ void *lanpr_make_leveled_edge_vertex_array(LANPR_RenderBuffer *rb, ListBase *Lin
 				}
 				N += 6;
 
+				CLAMP(rls->at, 0, 1);
+				if(irls = rls->Item.pNext) CLAMP(irls->at, 0, 1);
+
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at);
 				V++;
 				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at);
 				V++;
 				*V = componet_id;
 				V++;
-				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->Item.pNext ? (irls = rls->Item.pNext)->at : 1);
+				*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], irls ? irls->at : 1);
 				V++;
-				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->Item.pNext ? (irls = rls->Item.pNext)->at : 1);
+				*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], irls ? irls->at : 1);
 				V++;
 				*V = componet_id;
 				V++;

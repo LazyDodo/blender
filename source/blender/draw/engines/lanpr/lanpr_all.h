@@ -620,13 +620,14 @@ BLI_INLINE int lanpr_LineIntersectTest2d(const double *a1, const double *a2, con
 			return 0;
 		}
 		double r2 = tMatGetLinearRatio(b1[0], b2[0], a1[0]);
+		x = tnsLinearItp(b1[0], b2[0], r2);
 		y = tnsLinearItp(b1[1], b2[1], r2);
 		*aRatio = Ratio = tMatGetLinearRatio(a1[1], a2[1], y);
 	}
 	else {
 		if (xDiff2 == 0) {
 			Ratio = tMatGetLinearRatio(a1[0], a2[0], b1[0]);
-			//y = tnsLinearItp(a1[1], a2[1], r2);
+			x = tnsLinearItp(a1[0], a2[0], Ratio);
 			*aRatio = Ratio;
 		}
 		else {
