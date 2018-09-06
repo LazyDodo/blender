@@ -30,6 +30,10 @@ uniform vec4 material_color;
 uniform vec4 edge_mark_color;
 uniform vec4 intersection_color;
 
+// for line width correction
+uniform vec4 output_viewport;
+uniform vec4 preview_viewport;
+
 out vec4 out_color;
 
 float use_thickness;
@@ -41,6 +45,8 @@ void draw_line(vec4 p1, vec4 p2){
 
 	vec4 a, b, c, d;
 
+	float x_scale = preview_viewport.w / preview_viewport.z;
+	Normal.x *= x_scale;
 	vec4 offset = Normal * use_thickness * 0.001;
 
 	a = p1 + offset;
@@ -89,8 +95,16 @@ void decide_color_and_thickness(float component_id){
 }
 
 void main() {
+
+	float asp1 = output_viewport.z / output_viewport.w;
+	float asp2 = preview_viewport.z / preview_viewport.w;
+	float x_scale = asp1 / asp2;
+
 	vec4 p1 = vec4(gl_in[0].gl_Position.xy, 0, 1);
 	vec4 p2 = vec4(gl_in[1].gl_Position.xy, 0, 1);
+
+	p1.x *= x_scale;
+	p2.x *= x_scale;
 
 	decide_color_and_thickness(gl_in[0].gl_Position.z);
 

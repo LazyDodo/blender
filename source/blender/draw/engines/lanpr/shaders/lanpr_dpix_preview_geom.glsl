@@ -69,6 +69,10 @@ void draw_line(vec4 p1, vec4 p2, int is_crease){
 	vec4 a, b, c, d;
 
 	vec4 offset = Normal * use_thickness * 0.001;
+
+	//correct thickness
+	offset.x *= viewport.w/viewport.z;
+
 	a = p1 + offset;
 	b = p1 - offset;
 	c = p2 + offset;

@@ -48,6 +48,10 @@ uniform float taper_r_dist;
 uniform float taper_l_strength;
 uniform float taper_r_strength;
 
+// for line width correction
+uniform vec4 output_viewport;
+uniform vec4 preview_viewport;
+
 out vec4 out_color;
 
 float use_thickness;
@@ -96,6 +100,8 @@ void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 
 	float lim = use_thickness * 0.002;
 
+	float x_scale = preview_viewport.w / preview_viewport.z;
+
 	if (LL.x < 3e20) {
 		vec4 avg = normalize(L - LL) + normalize(R - L);
 		if (length(avg) > 0.001) {
@@ -103,6 +109,7 @@ void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 			vec4 Minter = normalize(vec4(-Tangent.y, Tangent.x, 0, 0));
 			float length = use_thickness / (dot(Minter, Normal)) * 0.001;
 			if (length < 4 * lim) {
+				Minter.x *= x_scale;
 				a = L - length * Minter;
 				b = L + length * Minter;
 			}
@@ -116,6 +123,7 @@ void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 			vec4 Minter = normalize(vec4(-Tangent.y, Tangent.x, 0, 0));
 			float length = use_thickness / (dot(Minter, Normal)) * 0.001;
 			if (length < 4 * lim) {
+				Minter.x *= x_scale;
 				c = R - length * Minter;
 				d = R + length * Minter;
 			}
@@ -135,7 +143,7 @@ void draw_line(vec4 LL, vec4 L, vec4 R, vec4 RR){
 	a.w = 1;
 	b.w = 1;
 	c.w = 1;
-	d.w = 1;
+	d.w = 1;	
 
 	gl_Position = a;
 	EmitVertex();
@@ -188,10 +196,19 @@ void main() {
 
 	if (occlusion_level_begin > level || occlusion_level_end < level) return;
 
+	float asp1 = output_viewport.z / output_viewport.w;
+	float asp2 = preview_viewport.z / preview_viewport.w;
+	float x_scale = asp1 / asp2;
+	
 	vec4 LL = vec4(gl_in[0].gl_Position.xy, 0, 1),
 	     L  = vec4(gl_in[1].gl_Position.xy, 0, 1),
 	     R  = vec4(gl_in[2].gl_Position.xy, 0, 1),
 	     RR = vec4(gl_in[3].gl_Position.xy, 0, 1);
+	
+	LL.x *= x_scale;
+	L.x  *= x_scale;
+	R.x  *= x_scale;
+	RR.x *= x_scale;
 
 	int type = gType[1];
 
