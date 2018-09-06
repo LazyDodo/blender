@@ -14,9 +14,10 @@ out vec3 gNormal;
 
 void main(){
 	vec4 p = pos;
-	float asp1 = output_viewport.z / output_viewport.w;
-	float asp2 = preview_viewport.z / preview_viewport.w;
-	p.x = pos.x / asp2 * asp1;
+	// move to geo shader
+	//float asp1 = output_viewport.z / output_viewport.w;
+	//float asp2 = preview_viewport.z / preview_viewport.w;
+	//p.x = pos.x / asp2 * asp1;
 
 	gOffset = uvs;
 	gType = type;

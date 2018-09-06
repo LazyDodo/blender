@@ -1106,11 +1106,11 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 				t_count = 0;
 			}
 
-			if ((!rt->RL[0]->Item.pNext && !rt->RL[0]->Item.pPrev) ||
-			    (!rt->RL[1]->Item.pNext && !rt->RL[1]->Item.pPrev) ||
-			    (!rt->RL[2]->Item.pNext && !rt->RL[2]->Item.pPrev)) {
-				printf("'"); // means this triangle is lonely????
-			}
+			//if ((!rt->RL[0]->Item.pNext && !rt->RL[0]->Item.pPrev) ||
+			//    (!rt->RL[1]->Item.pNext && !rt->RL[1]->Item.pPrev) ||
+			//    (!rt->RL[2]->Item.pNext && !rt->RL[2]->Item.pPrev)) {
+			//	printf("'"); // means this triangle is lonely????
+			//}
 
 			rv = &((LANPR_RenderVert *)veln->Pointer)[v_count];
 			rt1 = (void *)(((BYTE *)teln->Pointer) + rb->TriangleSize * t_count);
