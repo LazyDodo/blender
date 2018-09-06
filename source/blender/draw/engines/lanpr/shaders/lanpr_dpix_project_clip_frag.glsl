@@ -337,7 +337,8 @@ bool pointBeyondNear(vec3 p)
 	return beyond;
 }
 
-bool testProfileEdge(ivec2 texcoord, vec3 world_position)
+// 1 for contour 2 for others
+int testProfileEdge(ivec2 texcoord, vec3 world_position)
 {
 	// This should really be the inverse transpose of the modelview matrix, but
 	// that only matters if the camera has a weird anisotropic scale or skew.
@@ -362,12 +363,12 @@ bool testProfileEdge(ivec2 texcoord, vec3 world_position)
 	                  ((dot2 - crease_threshold) / (crease_fade_threshold - crease_threshold) / 2) : 0;
 	// use 0 to 0.5 to repesent the range, because 1 will represent another meaning
 
-	return contour ||
-	       ((enable_crease > 0) && (is_crease > 0)) ||
+	if(contour) return 1;
+	else if(((enable_crease > 0) && (is_crease > 0)) ||
 	       ((enable_material > 0) && (edge_mask.r > 0)) ||
 	       ((enable_edge_mark > 0) && (edge_mask.g > 0)) ||
 	       ((enable_intersection > 0) && (edge_mask.b > 0)) ||
-	       false;
+	       false) return 2;
 }
 
 void main(){
@@ -427,8 +428,8 @@ void main(){
 	// If this segment is a profile edge, test to see if it should be turned on.
 	//if (v1_world_pos.w > 0.5)
 	//{
-	bool profile_on = testProfileEdge(texcoord, v0_clipped_near);
-	if (!profile_on)
+	int profile_on = testProfileEdge(texcoord, v0_clipped_near);
+	if (profile_on==0)
 	{
 		// Profile edge should be off.
 		gl_FragData[0] = vec4(0.0, 1.0, 0.5, 0.0);
@@ -510,9 +511,8 @@ void main(){
 	//if(v0_clipped_pre_div == v1_clipped_pre_div)gl_FragData[0] =vec4(1);
 	//else gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);
 
-
-	gl_FragData[0] = vec4(v0_clipped_pre_div.xyz, 1);//v0_clipped_pre_div;
-	gl_FragData[1] = vec4(v1_clipped_pre_div.xyz, is_crease > 0 ? crease_strength : 1);//v1_clipped_pre_div;
+	gl_FragData[0] = vec4(v0_clipped_pre_div.xyz, profile_on==1 ? 1 : 0);//contour has priority
+	gl_FragData[1] = vec4(v1_clipped_pre_div.xyz, is_crease > 0 ? crease_strength : 1);
 	//gl_FragData[2] = packOffsetTexel(num_samples, segment_screen_length,
 	//num_samples, segment_screen_length);
 	//num_samples + total_padding, segment_screen_length);

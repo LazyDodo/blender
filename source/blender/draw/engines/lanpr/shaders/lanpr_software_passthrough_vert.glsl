@@ -23,5 +23,5 @@ void main(){
 	gType = type;
 	gLevel = level;
 	gNormal = normal;
-	gl_Position = vec4(vec2(p), 0, 1);
+	gl_Position = vec4(vec3(p), 1);
 }
