@@ -1086,9 +1086,9 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 		for (i; i < reln->ElementCount; i++) {
 			int In1 = 0, In2 = 0, In3 = 0;
 			rt = (void *)(((BYTE *)reln->Pointer) + rb->TriangleSize * i);
-			if (rt->V[0]->FrameBufferCoord[2] < 0) In1 = 1;
-			if (rt->V[1]->FrameBufferCoord[2] < 0) In2 = 1;
-			if (rt->V[2]->FrameBufferCoord[2] < 0) In3 = 1;
+			if (rt->V[0]->FrameBufferCoord[3] < 0) In1 = 1;
+			if (rt->V[1]->FrameBufferCoord[3] < 0) In2 = 1;
+			if (rt->V[2]->FrameBufferCoord[3] < 0) In3 = 1;
 
 			rt->RL[0]->ObjectRef = o;
 			rt->RL[1]->ObjectRef = o;
@@ -1109,7 +1109,7 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 			if ((!rt->RL[0]->Item.pNext && !rt->RL[0]->Item.pPrev) ||
 			    (!rt->RL[1]->Item.pNext && !rt->RL[1]->Item.pPrev) ||
 			    (!rt->RL[2]->Item.pNext && !rt->RL[2]->Item.pPrev)) {
-				printf("'");
+				printf("'"); // means this triangle is lonely????
 			}
 
 			rv = &((LANPR_RenderVert *)veln->Pointer)[v_count];
