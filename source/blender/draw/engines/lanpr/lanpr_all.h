@@ -279,6 +279,9 @@ typedef struct LANPR_RenderTaskInfo {
 	struct nListItemPointer *Material;
 	ListBase MaterialPointers;
 
+	struct nListItemPointer *EdgeMark;
+	ListBase EdgeMarkPointers;
+
 } LANPR_RenderTaskInfo;
 
 typedef struct LANPR_RenderBuffer {

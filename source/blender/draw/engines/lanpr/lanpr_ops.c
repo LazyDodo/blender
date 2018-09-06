@@ -449,10 +449,10 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 	real rx, ry, ux, uy, lx, ly, bx, by;
 	real r1, r2;
 	LANPR_BoundingArea *ba; nListItemPointer *lip;
-	if (PositiveX) {
+	if (PositiveX > 0) {
 		rx = This->R;
 		ry = y + k * (rx - x);
-		if (PositiveY) {
+		if (PositiveY > 0) {
 			uy = This->U;
 			ux = x + (uy - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rx);
@@ -471,7 +471,7 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 				}
 			}
 		}
-		else {
+		else if (PositiveY < 0) {
 			by = This->B;
 			bx = x + (by - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rx);
@@ -489,12 +489,18 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 					if (ba->R >= bx && ba->L < bx) { *NextX = bx; *NextY = by; return ba; }
 				}
 			}
+		}else { // Y diffence == 0
+			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], This->R);
+			if (r1 > 1) return 0;
+			for (lip = This->RP.first; lip; lip = lip->pNext) {
+				ba = lip->p;
+				if (ba->U >= y && ba->B < y) { *NextX = This->R; *NextY = y; return ba; }
+			}
 		}
-	}
-	else {
+	}else if (PositiveX < 0) { // X diffence < 0
 		lx = This->L;
 		ly = y + k * (lx - x);
-		if (PositiveY) {
+		if (PositiveY > 0) {
 			uy = This->U;
 			ux = x + (uy - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], lx);
@@ -513,7 +519,7 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 				}
 			}
 		}
-		else {
+		else if (PositiveY < 0) {
 			by = This->B;
 			bx = x + (by - y) / k;
 			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], lx);
@@ -531,7 +537,32 @@ LANPR_BoundingArea *lanpr_get_next_bounding_area(LANPR_BoundingArea *This, LANPR
 					if (ba->R >= bx && ba->L < bx) { *NextX = bx; *NextY = by; return ba; }
 				}
 			}
+		}else { // Y diffence == 0
+			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], This->L);
+			if (r1 > 1) return 0;
+			for (lip = This->LP.first; lip; lip = lip->pNext) {
+				ba = lip->p;
+				if (ba->U >= y && ba->B < y) { *NextX = This->L; *NextY = y; return ba; }
+			}
 		}
+	}else { // X difference == 0;
+		if (PositiveY > 0) {
+			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], This->U);
+			if (r1 > 1) return 0;
+			for (lip = This->UP.first; lip; lip = lip->pNext) {
+				ba = lip->p;
+				if (ba->R > x && ba->L <= x) { *NextX = x; *NextY = This->U; return ba; }
+			}
+		}
+		else if (PositiveY < 0) {
+			r1 = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], This->B);
+			if (r1 > 1) return 0;
+			for (lip = This->BP.first; lip; lip = lip->pNext) {
+				ba = lip->p;
+				if (ba->R > x && ba->L <= x) { *NextX = x; *NextY = This->B; return ba; }
+			}
+		}
+		else return 0; // segment has no length
 	}
 	return 0;
 }
@@ -753,6 +784,22 @@ int lanpr_make_next_occlusion_task_info(LANPR_RenderBuffer *rb, LANPR_RenderTask
 		rti->Material = 0;
 	}
 
+	if (rb->EdgeMarkManaged) {
+		p = rb->EdgeMarkManaged;
+		rti->EdgeMark = (void *)p;
+		rti->EdgeMarkPointers.first = p;
+		for (i = 0; i < TNS_THREAD_LINE_COUNT && p; i++) {
+			p = p->pNext;
+		}
+		rb->EdgeMarkManaged = p;
+		rti->EdgeMarkPointers.last = p ? p->pPrev : rb->EdgeMarks.last;
+		res = 1;
+	}
+	else {
+		list_handle_empty(&rti->EdgeMarkPointers);
+		rti->EdgeMark = 0;
+	}
+
 	BLI_spin_unlock(&rb->csManagement);
 
 	return res;
@@ -766,8 +813,8 @@ void lanpr_calculate_single_line_occlusion(LANPR_RenderBuffer *rb, LANPR_RenderL
 	Object *c = rb->Scene->camera;
 	real l, r;
 	real k = (rl->R->FrameBufferCoord[1] - rl->L->FrameBufferCoord[1]) / (rl->R->FrameBufferCoord[0] - rl->L->FrameBufferCoord[0] + 1e-30);
-	int PositiveX = (rl->R->FrameBufferCoord[0] - rl->L->FrameBufferCoord[0]) > 0 ? 1 : 0;
-	int PositiveY = (rl->R->FrameBufferCoord[1] - rl->L->FrameBufferCoord[1]) > 0 ? 1 : 0;
+	int PositiveX = (rl->R->FrameBufferCoord[0] - rl->L->FrameBufferCoord[0]) > 0 ? 1 : (rl->R->FrameBufferCoord[0] == rl->L->FrameBufferCoord[0] ? 0 : -1);
+	int PositiveY = (rl->R->FrameBufferCoord[1] - rl->L->FrameBufferCoord[1]) > 0 ? 1 : (rl->R->FrameBufferCoord[1] == rl->L->FrameBufferCoord[1] ? 0 : -1);
 
 	while (nba) {
 
@@ -808,6 +855,10 @@ void lanpr_THREAD_calculate_line_occlusion(TaskPool *__restrict pool, LANPR_Rend
 		for (lip = (void *)rti->Material; lip && lip->pPrev != rti->MaterialPointers.last; lip = lip->pNext) {
 			lanpr_calculate_single_line_occlusion(rb, lip->p, rti->ThreadID);
 		}
+
+		for (lip = (void *)rti->EdgeMark; lip && lip->pPrev != rti->EdgeMarkPointers.last; lip = lip->pNext) {
+			lanpr_calculate_single_line_occlusion(rb, lip->p, rti->ThreadID);
+		}
 	}
 }
 void lanpr_THREAD_calculate_line_occlusion_begin(LANPR_RenderBuffer *rb) {
@@ -820,6 +871,7 @@ void lanpr_THREAD_calculate_line_occlusion_begin(LANPR_RenderBuffer *rb) {
 	rb->CreaseManaged = rb->CreaseLines.first;
 	rb->IntersectionManaged = rb->IntersectionLines.first;
 	rb->MaterialManaged = rb->MaterialLines.first;
+	rb->EdgeMarkManaged = rb->EdgeMarks.first;
 
 	TaskPool *tp = BLI_task_pool_create(scheduler, 0);
 
@@ -2554,12 +2606,6 @@ void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb, float threshold) {
 		//if (!lanpr_line_crosses_frame(rl->L->FrameBufferCoord, rl->R->FrameBufferCoord))
 		//	continue;
 
-		if (rl->Flags & LANPR_EDGE_FLAG_EDGE_MARK) {
-			// no need to mark again
-			list_append_pointer_static(&rb->EdgeMarks, &rb->RenderDataPool, rl);
-			continue;
-		}
-
 		Add = 0; Dot1 = 0; Dot2 = 0;
 
 		if (c->type == CAM_PERSP) {
@@ -2590,6 +2636,12 @@ void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb, float threshold) {
 			rl->Flags |= LANPR_EDGE_FLAG_MATERIAL;
 			list_append_pointer_static(&rb->MaterialLines, &rb->RenderDataPool, rl);
 			MaterialCount++;
+		}
+		if (rl->Flags & LANPR_EDGE_FLAG_EDGE_MARK) {
+			// no need to mark again
+			Add = 4;
+			list_append_pointer_static(&rb->EdgeMarks, &rb->RenderDataPool, rl);
+			//continue;
 		}
 		if (Add) {
 			int r1, r2, c1, c2, row, col;
