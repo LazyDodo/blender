@@ -423,11 +423,11 @@ class VIEW3D_MT_transform_armature(VIEW3D_MT_transform_base):
         # armature specific extensions follow...
         obj = context.object
         if obj.type == 'ARMATURE' and obj.mode in {'EDIT', 'POSE'}:
-            if obj.data.draw_type == 'BBONE':
+            if obj.data.display_type == 'BBONE':
                 layout.separator()
 
                 layout.operator("transform.transform", text="Scale BBone").mode = 'BONE_SIZE'
-            elif obj.data.draw_type == 'ENVELOPE':
+            elif obj.data.display_type == 'ENVELOPE':
                 layout.separator()
 
                 layout.operator("transform.transform", text="Scale Envelope Distance").mode = 'BONE_SIZE'
@@ -521,6 +521,11 @@ class VIEW3D_MT_uv_map(Menu):
         layout.operator_context = 'INVOKE_REGION_WIN'
         layout.operator("uv.project_from_view").scale_to_bounds = False
         layout.operator("uv.project_from_view", text="Project from View (Bounds)").scale_to_bounds = True
+
+        layout.separator()
+
+        layout.operator("mesh.mark_seam").clear = False
+        layout.operator("mesh.mark_seam", text="Clear Seam").clear = True
 
         layout.separator()
 
@@ -1599,6 +1604,7 @@ class VIEW3D_MT_object(Menu):
         layout.separator()
 
         layout.operator("object.delete", text="Delete...").use_global = False
+        layout.operator("object.delete", text="Delete Global...").use_global = True
 
 
 class VIEW3D_MT_object_animation(Menu):
@@ -1760,7 +1766,7 @@ class VIEW3D_MT_object_specials(Menu):
 
             props = layout.operator("wm.context_modal_mouse", text="Empty Draw Size")
             props.data_path_iter = "selected_editable_objects"
-            props.data_path_item = "empty_draw_size"
+            props.data_path_item = "empty_display_size"
             props.input_scale = 0.01
             props.header_text = "Empty Draw Size: %.3f"
 
@@ -4329,8 +4335,8 @@ class VIEW3D_PT_overlay_motion_tracking(Panel):
             col = layout.column()
             col.label(text="Tracks:")
             row = col.row(align=True)
-            row.prop(view, "tracks_draw_type", text="")
-            row.prop(view, "tracks_draw_size", text="Size")
+            row.prop(view, "tracks_display_type", text="")
+            row.prop(view, "tracks_display_size", text="Size")
 
 
 class VIEW3D_PT_overlay_edit_mesh(Panel):
@@ -4369,9 +4375,7 @@ class VIEW3D_PT_overlay_edit_mesh(Panel):
         row.prop(data, "show_edge_crease", text="Creases", toggle=True)
         row.prop(data, "show_edge_sharp", text="Sharp", text_ctxt=i18n_contexts.plural, toggle=True)
         row.prop(data, "show_edge_bevel_weight", text="Bevel", toggle=True)
-
-        if not with_freestyle:
-            row.prop(data, "show_edge_seams", text="Seams", toggle=True)
+        row.prop(data, "show_edge_seams", text="Seams", toggle=True)
 
 
 class VIEW3D_PT_overlay_edit_mesh_shading(Panel):
@@ -4523,7 +4527,6 @@ class VIEW3D_PT_overlay_edit_mesh_freestyle(Panel):
         row = col.row()
         row.prop(data, "show_freestyle_edge_marks", text="Edge Marks")
         row.prop(data, "show_freestyle_face_marks", text="Face Marks")
-        row.prop(data, "show_edge_seams", text="Seams")
 
 
 class VIEW3D_PT_overlay_edit_mesh_developer(Panel):

@@ -192,6 +192,14 @@ class _defs_view3d_generic:
     def ruler():
         return dict(
             text="Measure",
+            description=(
+                "Measure distance and angles.\n"
+                "\u2022 Drag anywhere for new measurement.\n"
+                "\u2022 Drag ruler segment to measure an angle.\n"
+                "\u2022 Drag ruler outside the view to remove.\n"
+                "\u2022 Ctrl to snap.\n"
+                "\u2022 Shift to measure surface thickness"
+            ),
             icon="ops.view3d.ruler",
             widget="VIEW3D_GGT_ruler",
             keymap=(
@@ -304,7 +312,7 @@ class _defs_transform:
             layout.prop(tool_settings, "use_gizmo_apron")
 
         return dict(
-            text="Grab",
+            text="Move",
             # cursor='SCROLL_XY',
             icon="ops.transform.translate",
             widget="TRANSFORM_GGT_gizmo",
@@ -553,7 +561,8 @@ class _defs_edit_mesh:
             icon="ops.mesh.rip_edge",
             widget=None,
             keymap=(
-                ("mesh.rip_edge_edge_move", dict(),
+                ("mesh.rip_edge_move",
+                 dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='ACTIONMOUSE', value='PRESS')),
             ),
         )
@@ -1131,6 +1140,10 @@ class _defs_weight_paint:
     @ToolDef.from_fn
     def gradient():
         def draw_settings(context, layout, tool):
+            brush = context.tool_settings.weight_paint.brush
+            if brush is not None:
+                from .properties_paint_common import UnifiedPaintPanel
+                UnifiedPaintPanel.prop_unified_weight(layout, context, brush, "weight", slider=True, text="Weight")
             props = tool.operator_properties("paint.weight_gradient")
             layout.prop(props, "type")
 

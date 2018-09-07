@@ -368,7 +368,7 @@ static bool ui_tooltip_data_append_from_keymap(
 /**
  * Special tool-system exception.
  */
-static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but)
+static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but, bool is_label)
 {
 	if (but->optype == NULL) {
 		return NULL;
@@ -407,7 +407,7 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but)
 	}
 
 	/* Tip. */
-	{
+	if (is_label == false) {
 		const char *expr_imports[] = {"bpy", "bl_ui", NULL};
 		char expr[256];
 		SNPRINTF(
@@ -439,7 +439,7 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but)
 	}
 
 	/* Shortcut. */
-	{
+	if (is_label == false) {
 		/* There are different kinds of shortcuts:
 		 *
 		 * - Direct access to the tool (as if the toolbar button is pressed).
@@ -563,7 +563,7 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but)
 	/* Keymap */
 
 	/* This is too handy not to expose somehow, let's be sneaky for now. */
-	if (CTX_wm_window(C)->eventstate->shift) {
+	if ((is_label == false) && CTX_wm_window(C)->eventstate->shift) {
 		const char *expr_imports[] = {"bpy", "bl_ui", NULL};
 		char expr[256];
 		SNPRINTF(
@@ -1071,6 +1071,7 @@ static ARegion *ui_tooltip_create_with_data(
 #undef TIP_BORDER_X
 #undef TIP_BORDER_Y
 
+// #define USE_ALIGN_Y_CENTER
 
 	/* Clamp to window bounds. */
 	{
@@ -1094,7 +1095,9 @@ static ARegion *ui_tooltip_create_with_data(
 			const int size_x = BLI_rcti_size_x(&rect_i);
 			const int size_y = BLI_rcti_size_y(&rect_i);
 			const int cent_overlap_x = BLI_rcti_cent_x(&init_rect);
+#ifdef USE_ALIGN_Y_CENTER
 			const int cent_overlap_y = BLI_rcti_cent_y(&init_rect);
+#endif
 			struct {
 				rcti xpos;
 				rcti xneg;
@@ -1106,16 +1109,30 @@ static ARegion *ui_tooltip_create_with_data(
 				rcti r = rect_i;
 				r.xmin = init_rect.xmax;
 				r.xmax = r.xmin + size_x;
+#ifdef USE_ALIGN_Y_CENTER
 				r.ymin = cent_overlap_y - (size_y / 2);
 				r.ymax = r.ymin + size_y;
+#else
+				r.ymin = init_rect.ymax - BLI_rcti_size_y(&rect_i);
+				r.ymax = init_rect.ymax;
+				r.ymin -= UI_POPUP_MARGIN;
+				r.ymax -= UI_POPUP_MARGIN;
+#endif
 				rect.xpos = r;
 			}
 			{	/* xneg */
 				rcti r = rect_i;
 				r.xmin = init_rect.xmin - size_x;
 				r.xmax = r.xmin + size_x;
+#ifdef USE_ALIGN_Y_CENTER
 				r.ymin = cent_overlap_y - (size_y / 2);
 				r.ymax = r.ymin + size_y;
+#else
+				r.ymin = init_rect.ymax - BLI_rcti_size_y(&rect_i);
+				r.ymax = init_rect.ymax;
+				r.ymin -= UI_POPUP_MARGIN;
+				r.ymax -= UI_POPUP_MARGIN;
+#endif
 				rect.xneg = r;
 			}
 			{	/* ypos */
@@ -1165,6 +1182,8 @@ static ARegion *ui_tooltip_create_with_data(
 		}
 	}
 
+#undef USE_ALIGN_Y_CENTER
+
 	/* add padding */
 	BLI_rcti_resize(&rect_i,
 	                BLI_rcti_size_x(&rect_i) + pad_px,
@@ -1174,7 +1193,9 @@ static ARegion *ui_tooltip_create_with_data(
 	{
 		/* Compensate for margin offset, visually this corrects the position. */
 		const int margin = UI_POPUP_MARGIN;
-		BLI_rcti_translate(&rect_i, margin, margin / 2);
+		if (init_rect_overlap != NULL) {
+			BLI_rcti_translate(&rect_i, margin, margin / 2);
+		}
 
 		data->bbox.xmin = margin;
 		data->bbox.xmax = BLI_rcti_size_x(&rect_i) - margin;
@@ -1204,7 +1225,7 @@ static ARegion *ui_tooltip_create_with_data(
  * \{ */
 
 
-ARegion *UI_tooltip_create_from_button(bContext *C, ARegion *butregion, uiBut *but)
+ARegion *UI_tooltip_create_from_button(bContext *C, ARegion *butregion, uiBut *but, bool is_label)
 {
 	wmWindow *win = CTX_wm_window(C);
 	/* aspect values that shrink text are likely unreadable */
@@ -1217,7 +1238,7 @@ ARegion *UI_tooltip_create_from_button(bContext *C, ARegion *butregion, uiBut *b
 	uiTooltipData *data = NULL;
 
 	if (data == NULL) {
-		data = ui_tooltip_data_from_tool(C, but);
+		data = ui_tooltip_data_from_tool(C, but, is_label);
 	}
 
 	if (data == NULL) {
@@ -1228,7 +1249,7 @@ ARegion *UI_tooltip_create_from_button(bContext *C, ARegion *butregion, uiBut *b
 		return NULL;
 	}
 
-	const bool is_no_overlap = UI_but_is_tooltip_no_overlap(but);
+	const bool is_no_overlap = UI_but_has_tooltip_label(but) || UI_but_is_tool(but);
 	rcti init_rect;
 	if (is_no_overlap) {
 		rctf overlap_rect_fl;
