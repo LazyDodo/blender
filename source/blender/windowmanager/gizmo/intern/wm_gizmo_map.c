@@ -569,7 +569,8 @@ static wmGizmo *gizmo_find_intersected_3d(
 		int select_id = 0;
 		for (LinkData *link = visible_gizmos->first; link; link = link->next, select_id++) {
 			wmGizmo *gz = link->data;
-			if (gz->type->test_select) {
+			/* With both defined, favor the 3D, incase the manipulator can be used in 2D or 3D views. */
+			if (gz->type->test_select && (gz->type->draw_select == NULL)) {
 				if ((*r_part = gz->type->test_select(C, gz, co)) != -1) {
 					hit = select_id;
 					result = gz;
@@ -955,7 +956,7 @@ void wm_gizmomap_modal_set(
 		gz->state |= WM_GIZMO_STATE_MODAL;
 		gzmap->gzmap_context.modal = gz;
 
-		if ((gz->flag & WM_GIZMO_GRAB_CURSOR) &&
+		if ((gz->flag & WM_GIZMO_MOVE_CURSOR) &&
 		    (event->is_motion_absolute == false))
 		{
 			WM_cursor_grab_enable(win, true, true, NULL);
@@ -1056,7 +1057,7 @@ void WM_gizmomap_message_subscribe(
  * \{ */
 
 struct ARegion *WM_gizmomap_tooltip_init(
-        struct bContext *C, struct ARegion *ar, bool *r_exit_on_event)
+        struct bContext *C, struct ARegion *ar, int *UNUSED(r_pass), double *UNUSED(pass_delay), bool *r_exit_on_event)
 {
 	wmGizmoMap *gzmap = ar->gizmo_map;
 	*r_exit_on_event = true;

@@ -157,7 +157,8 @@ set(SRC
 	engines/eevee/eevee_lut.h
 	engines/eevee/eevee_private.h
 	engines/external/external_engine.h
-
+	engines/workbench/workbench_engine.h
+	engines/workbench/workbench_private.h
 	engines/lanpr/lanpr_util.h
 	engines/lanpr/lanpr_all.h
 )

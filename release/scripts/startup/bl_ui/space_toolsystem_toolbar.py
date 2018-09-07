@@ -192,6 +192,14 @@ class _defs_view3d_generic:
     def ruler():
         return dict(
             text="Measure",
+            description=(
+                "Measure distance and angles.\n"
+                "\u2022 Drag anywhere for new measurement.\n"
+                "\u2022 Drag ruler segment to measure an angle.\n"
+                "\u2022 Drag ruler outside the view to remove.\n"
+                "\u2022 Ctrl to snap.\n"
+                "\u2022 Shift to measure surface thickness"
+            ),
             icon="ops.view3d.ruler",
             widget="VIEW3D_GGT_ruler",
             keymap=(
@@ -230,7 +238,7 @@ def _defs_annotate_factory():
                 keymap=(
                     ("gpencil.annotate",
                      dict(mode='DRAW', wait_for_input=False),
-                     dict(type='EVT_TWEAK_A', value='ANY')),
+                     dict(type='ACTIONMOUSE', value='PRESS')),
                 ),
                 draw_settings=draw_settings,
             )
@@ -304,7 +312,7 @@ class _defs_transform:
             layout.prop(tool_settings, "use_gizmo_apron")
 
         return dict(
-            text="Grab",
+            text="Move",
             # cursor='SCROLL_XY',
             icon="ops.transform.translate",
             widget="TRANSFORM_GGT_gizmo",

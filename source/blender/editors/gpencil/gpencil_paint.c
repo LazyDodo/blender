@@ -386,7 +386,7 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 
 			 /* verify valid zdepth, if it's wrong, the default darwing mode is used
 			  * and the function doesn't return now */
-			if (*depth <= 1.0f) {
+			if ((depth == NULL) || (*depth <= 1.0f)) {
 				return;
 			}
 		}
@@ -2713,6 +2713,7 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 	if (p->sa->spacetype == SPACE_VIEW3D) {
 		Object *ob = CTX_data_active_object(C);
 		if (ob && (ob->type == OB_GPENCIL) && ((p->gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0)) {
+			/* FIXME: use the mode switching operator, this misses notifiers, messages. */
 			/* Just set paintmode flag... */
 			p->gpd->flag |= GP_DATA_STROKE_PAINTMODE;
 			/* disable other GP modes */
