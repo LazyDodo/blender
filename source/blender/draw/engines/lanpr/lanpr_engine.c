@@ -493,20 +493,41 @@ static void workbench_render_matrices_init(RenderEngine *engine, Depsgraph *deps
 int lanpr_compute_feature_lines_internal(Depsgraph *depsgraph, SceneLANPR *lanpr, Scene *scene);
 LANPR_RenderBuffer *lanpr_create_render_buffer(SceneLANPR *lanpr);
 
+extern DrawEngineType draw_engine_lanpr_type;
+
+static int LANPR_GLOBAL_update_tag;
+
+void lanpr_id_update(LANPR_Data *vedata, ID *id){
+	//if (vedata->engine_type != &draw_engine_lanpr_type) return;
+
+	/* Handle updates based on ID type. */
+	switch (GS(id->name)) {
+	case ID_WO:
+	case ID_OB:
+	case ID_ME:
+		LANPR_GLOBAL_update_tag = 1;
+	default:
+		/* pass */
+		break;
+	}
+}
+
 static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, struct RenderLayer *render_layer, const rcti *rect){
 	LANPR_StorageList *stl = vedata->stl;
 	LANPR_TextureList *txl = vedata->txl;
 	LANPR_FramebufferList *fbl = vedata->fbl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	//int update_mark = DEG_id_type_any_updated(draw_ctx->depsgraph);
 	Scene *scene = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 	SceneLANPR *lanpr = &scene->lanpr;
+
 
 	lanpr_set_render_flag();
 
 	if (lanpr->master_mode == LANPR_MASTER_MODE_SOFTWARE ||
 	    (lanpr->master_mode == LANPR_MASTER_MODE_DPIX && lanpr->enable_intersections)) {
 		if (!lanpr->render_buffer) lanpr_create_render_buffer(lanpr);
-		if (lanpr->render_buffer->cached_for_frame != scene->r.cfra) {
+		if (lanpr->render_buffer->cached_for_frame != scene->r.cfra || LANPR_GLOBAL_update_tag) {
 			lanpr_compute_feature_lines_internal(draw_ctx->depsgraph, lanpr, scene);
 		}
 	}
@@ -613,7 +634,7 @@ DrawEngineType draw_engine_lanpr_type = {
 	NULL,//draw background
 	&lanpr_draw_scene,//draw scene, looks like that not much difference except a camera overlay image.
 	&lanpr_view_update,
-	NULL, //&lanpr_id_update, wait till I figure out how to do this.
+	&lanpr_id_update, //&lanpr_id_update, wait till I figure out how to do this.
 	&lanpr_render_to_image,
 };
 

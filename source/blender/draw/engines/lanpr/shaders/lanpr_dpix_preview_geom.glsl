@@ -105,10 +105,10 @@ void main() {
 	int is_crease = 0;
 
 	if (p1.w>0)               { use_color = color;               use_thickness = line_thickness; } // contour override
+	else if (p2.w>0)          { use_color = crease_color;        use_thickness = line_thickness * line_thickness_crease; is_crease = 1; }
 	else if (edge_mask.g > 0) { use_color = edge_mark_color;     use_thickness = line_thickness * line_thickness_edge_mark; }
 	else if (edge_mask.r > 0) { use_color = material_color;      use_thickness = line_thickness * line_thickness_material;  }
 	else if (edge_mask.b > 0) { use_color = intersection_color;  use_thickness = line_thickness * line_thickness_intersection;  }
-	else if (p2.w>0)          { use_color = crease_color;        use_thickness = line_thickness * line_thickness_crease; is_crease = 1; }
 
 	draw_line(p1, p2, is_crease);
 }
