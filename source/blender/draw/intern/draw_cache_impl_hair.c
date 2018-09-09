@@ -644,6 +644,9 @@ static int hair_batch_cache_fill_segments(
 	int curr_point = 0;
 	for (int i = 0; i < pattern->num_follicles; ++i) {
 		const HairFollicle *follicle = &pattern->follicles[i];
+		if (follicle->curve == HAIR_CURVE_INDEX_NONE) {
+			continue;
+		}
 		const HairFiberCurve *curve = &curve_data->curves[follicle->curve];
 		if (curve->numverts < 2) {
 			continue;

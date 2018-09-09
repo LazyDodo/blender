@@ -2004,14 +2004,15 @@ static int hair_trans_count_verts(EditHair *edit, bool is_prop_edit)
 	int count = 0, countsel = 0;
 	for (int i = 0; i < edit->pattern->num_follicles; ++i) {
 		HairFollicle *follicle = &edit->pattern->follicles[i];
-		HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
-		for (int j = 0; j < curve->numverts; ++j)
-		{
-			HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
-			++count;
-			if (vertex->flag & HAIR_VERTEX_SELECT)
-			{
-				++countsel;
+		if (follicle->curve != HAIR_CURVE_INDEX_NONE) {
+			HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
+			for (int j = 0; j < curve->numverts; ++j) {
+				HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
+				++count;
+				if (vertex->flag & HAIR_VERTEX_SELECT)
+				{
+					++countsel;
+				}
 			}
 		}
 	}
@@ -2043,6 +2044,9 @@ static void hair_transdata_init_verts(
 	TransData2D *td2d = tdata2d;
 	for (int i = 0; i < edit->pattern->num_follicles; ++i) {
 		HairFollicle *follicle = &edit->pattern->follicles[i];
+		if (follicle->curve == HAIR_CURVE_INDEX_NONE) {
+			continue;
+		}
 		HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
 		for (int j = 0; j < curve->numverts; ++j)
 		{

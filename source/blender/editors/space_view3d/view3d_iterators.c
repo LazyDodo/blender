@@ -427,13 +427,15 @@ void hair_foreachScreenVert(
 	if (edit->pattern) {
 		for (int i = 0; i < edit->pattern->num_follicles; ++i) {
 			HairFollicle *follicle = &edit->pattern->follicles[i];
-			HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
-			for (int j = 0; j < curve->numverts; ++j) {
-				HairFiberVertex *vert = &edit->curve_data.verts[curve->vertstart + j];
-				float screen_co[2];
-				if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
-				{
-					func(userData, follicle, curve, vert, screen_co);
+			if (follicle->curve != HAIR_CURVE_INDEX_NONE) {
+				HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
+				for (int j = 0; j < curve->numverts; ++j) {
+					HairFiberVertex *vert = &edit->curve_data.verts[curve->vertstart + j];
+					float screen_co[2];
+					if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
+					{
+						func(userData, follicle, curve, vert, screen_co);
+					}
 				}
 			}
 		}

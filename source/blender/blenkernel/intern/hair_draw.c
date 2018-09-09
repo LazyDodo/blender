@@ -167,8 +167,11 @@ void BKE_hair_render_get_buffer_size(
 	const int subdiv_factor = 1 << subdiv;
 	for (int i = 0; i < cache->totfollicles; ++i)
 	{
-		const int numverts = cache->fiber_curves[cache->follicles[i].curve].numverts;
-		*r_totverts = (numverts - 1) * subdiv_factor + 1;
+		const HairFollicle *follicle = &cache->follicles[i];
+		if (follicle->curve != HAIR_CURVE_INDEX_NONE) {
+			const int numverts = cache->fiber_curves[follicle->curve].numverts;
+			*r_totverts = (numverts - 1) * subdiv_factor + 1;
+		}
 	}
 }
 
@@ -187,15 +190,18 @@ void BKE_hair_render_fill_buffers(
 	float *vert = r_vertco;
 	for (int i = 0; i < cache->totfollicles; ++i)
 	{
-		const HairFiberCurve *curve = &cache->fiber_curves[cache->follicles[i].curve];
-		const HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
-		const int numverts = curve->numverts;
-		r_curvestart[i] = vertstart;
-		r_curvelen[i] = numverts;
-		
-		hair_curve_subdivide(curve, verts, subdiv, vertco_stride, vert);
-		
-		vertstart += numverts;
-		vert = POINTER_OFFSET(vert, vertco_stride * numverts);
+		const HairFollicle *follicle = &cache->follicles[i];
+		if (follicle->curve != HAIR_CURVE_INDEX_NONE) {
+			const HairFiberCurve *curve = &cache->fiber_curves[follicle->curve];
+			const HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
+			const int numverts = curve->numverts;
+			r_curvestart[i] = vertstart;
+			r_curvelen[i] = numverts;
+
+			hair_curve_subdivide(curve, verts, subdiv, vertco_stride, vert);
+
+			vertstart += numverts;
+			vert = POINTER_OFFSET(vert, vertco_stride * numverts);
+		}
 	}
 }
