@@ -248,16 +248,6 @@ enum {
 void BKE_hair_batch_cache_dirty(struct HairSystem* hsys, int mode);
 void BKE_hair_batch_cache_free(struct HairSystem* hsys);
 
-void BKE_hair_get_texture_buffer_size(
-        const struct HairExportCache *cache,
-        int *r_size,
-        int *r_strand_map_start,
-        int *r_strand_vertex_start,
-        int *r_fiber_start);
-void BKE_hair_get_texture_buffer(
-        const struct HairExportCache *cache,
-        void *texbuffer);
-
 /* === Render API === */
 
 /* Calculate required size for render buffers. */
