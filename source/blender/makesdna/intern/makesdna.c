@@ -101,7 +101,7 @@ static const char *includefiles[] = {
 	"DNA_effect_types.h",
 	"DNA_outliner_types.h",
 	"DNA_sound_types.h",
-	"DNA_group_types.h",
+	"DNA_collection_types.h",
 	"DNA_armature_types.h",
 	"DNA_action_types.h",
 	"DNA_constraint_types.h",
@@ -113,6 +113,8 @@ static const char *includefiles[] = {
 	"DNA_particle_types.h",
 	"DNA_cloth_types.h",
 	"DNA_gpencil_types.h",
+	"DNA_gpencil_modifier_types.h",
+	"DNA_shader_fx_types.h",
 	"DNA_windowmanager_types.h",
 	"DNA_anim_types.h",
 	"DNA_boid_types.h",
@@ -1325,7 +1327,7 @@ int main(int argc, char **argv)
 #include "DNA_effect_types.h"
 #include "DNA_outliner_types.h"
 #include "DNA_sound_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_action_types.h"
 #include "DNA_constraint_types.h"
@@ -1337,6 +1339,8 @@ int main(int argc, char **argv)
 #include "DNA_particle_types.h"
 #include "DNA_cloth_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_gpencil_modifier_types.h"
+#include "DNA_shader_fx_types.h"
 #include "DNA_windowmanager_types.h"
 #include "DNA_anim_types.h"
 #include "DNA_boid_types.h"

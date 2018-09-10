@@ -44,8 +44,8 @@
 #include "BKE_object.h"
 #include "BKE_scene.h"
 
-#include "DNA_group_types.h"
 #include "DNA_ID.h"
+#include "DNA_collection_types.h"
 #include "DNA_layer_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -57,7 +57,7 @@
 
 /******************************** Prototypes ********************************/
 
-static bool collection_child_add(Collection *parent, Collection *collection, int flag, const bool add_us);
+static bool collection_child_add(Collection *parent, Collection *collection, const int flag, const bool add_us);
 static bool collection_child_remove(Collection *parent, Collection *collection);
 static bool collection_object_add(Main *bmain, Collection *collection, Object *ob, int flag, const bool add_us);
 static bool collection_object_remove(Main *bmain, Collection *collection, Object *ob, const bool free_us);
@@ -473,7 +473,7 @@ static bool collection_object_add(Main *bmain, Collection *collection, Object *o
 {
 	if (ob->dup_group) {
 		/* Cyclic dependency check. */
-		if (collection_find_child_recursive(collection, ob->dup_group)) {
+		if (collection_find_child_recursive(ob->dup_group, collection)) {
 			return false;
 		}
 	}
@@ -611,29 +611,36 @@ bool BKE_scene_collections_object_remove(Main *bmain, Scene *scene, Object *ob, 
 }
 
 /*
- * Remove all NULL objects from non-scene collections.
+ * Remove all NULL objects from collections.
  * This is used for library remapping, where these pointers have been set to NULL.
  * Otherwise this should never happen.
  */
+static void collection_object_remove_nulls(Collection *collection)
+{
+	bool changed = false;
+
+	for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
+		cob_next = cob->next;
+
+		if (cob->ob == NULL) {
+			BLI_freelinkN(&collection->gobject, cob);
+			changed = true;
+		}
+	}
+
+	if (changed) {
+		BKE_collection_object_cache_free(collection);
+	}
+}
+
 void BKE_collections_object_remove_nulls(Main *bmain)
 {
+	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+		collection_object_remove_nulls(scene->master_collection);
+	}
+
 	for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-		if (!BKE_collection_is_in_scene(collection)) {
-			bool changed = false;
-
-			for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
-				cob_next = cob->next;
-
-				if (cob->ob == NULL) {
-					BLI_freelinkN(&collection->gobject, cob);
-					changed = true;
-				}
-			}
-
-			if (changed) {
-				BKE_collection_object_cache_free(collection);
-			}
-		}
+		collection_object_remove_nulls(collection);
 	}
 }
 
@@ -646,15 +653,9 @@ void BKE_collections_child_remove_nulls(Main *bmain, Collection *old_collection)
 {
 	bool changed = false;
 
-	for (CollectionChild *child = old_collection->children.first; child; child = child->next) {
-		CollectionParent *cparent = collection_find_parent(child->collection, old_collection);
-		if (cparent) {
-			BLI_freelinkN(&child->collection->parents, cparent);
-		}
-	}
-
-	for (CollectionParent *cparent = old_collection->parents.first; cparent; cparent = cparent->next) {
+	for (CollectionParent *cparent = old_collection->parents.first, *cnext; cparent; cparent = cnext) {
 		Collection *parent = cparent->collection;
+		cnext = cparent->next;
 
 		for (CollectionChild *child = parent->children.first, *child_next = NULL; child; child = child_next) {
 			child_next = child->next;
@@ -664,12 +665,15 @@ void BKE_collections_child_remove_nulls(Main *bmain, Collection *old_collection)
 				changed = true;
 			}
 		}
+
+		if (!collection_find_child(parent, old_collection)) {
+			BLI_freelinkN(&old_collection->parents, cparent);
+			changed = true;
+		}
 	}
 
-	BLI_freelistN(&old_collection->parents);
-
 	if (changed) {
-		BKE_main_collection_sync(bmain);
+		BKE_main_collection_sync_remap(bmain);
 	}
 }
 

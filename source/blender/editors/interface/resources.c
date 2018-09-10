@@ -83,7 +83,7 @@ static struct bThemeState g_theme_state = {
 
 void ui_resources_init(void)
 {
-	UI_icons_init(BIFICONID_LAST);
+	UI_icons_init();
 }
 
 void ui_resources_free(void)
@@ -260,14 +260,6 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 					cp = ts->panelcolors.back; break;
 				case TH_PANEL_SUB_BACK:
 					cp = ts->panelcolors.sub_back; break;
-				case TH_PANEL_SHOW_HEADER:
-					cp = &setting;
-					setting = ts->panelcolors.show_header;
-					break;
-				case TH_PANEL_SHOW_BACK:
-					cp = &setting;
-					setting = ts->panelcolors.show_back;
-					break;
 
 				case TH_BUTBACK:
 					cp = ts->button; break;
@@ -687,16 +679,16 @@ const unsigned char *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colo
 				case TH_AXIS_Z:
 					cp = btheme->tui.zaxis; break;
 
-				case TH_MANIPULATOR_HI:
-					cp = btheme->tui.manipulator_hi; break;
-				case TH_MANIPULATOR_PRIMARY:
-					cp = btheme->tui.manipulator_primary; break;
-				case TH_MANIPULATOR_SECONDARY:
-					cp = btheme->tui.manipulator_secondary; break;
-				case TH_MANIPULATOR_A:
-					cp = btheme->tui.manipulator_a; break;
-				case TH_MANIPULATOR_B:
-					cp = btheme->tui.manipulator_b; break;
+				case TH_GIZMO_HI:
+					cp = btheme->tui.gizmo_hi; break;
+				case TH_GIZMO_PRIMARY:
+					cp = btheme->tui.gizmo_primary; break;
+				case TH_GIZMO_SECONDARY:
+					cp = btheme->tui.gizmo_secondary; break;
+				case TH_GIZMO_A:
+					cp = btheme->tui.gizmo_a; break;
+				case TH_GIZMO_B:
+					cp = btheme->tui.gizmo_b; break;
 
 				case TH_INFO_SELECTED:
 					cp = ts->info_selected;
@@ -755,7 +747,9 @@ void ui_theme_init_default(void)
 
 	UI_SetTheme(0, 0);  /* make sure the global used in this file is set */
 
+	const int active_theme_area = btheme->active_theme_area;
 	memcpy(btheme, &U_theme_default, sizeof(*btheme));
+	btheme->active_theme_area = active_theme_area;
 }
 
 void ui_style_init_default(void)
@@ -805,51 +799,6 @@ void UI_Theme_Restore(struct bThemeState *theme_state)
 	g_theme_state = *theme_state;
 }
 
-/* for space windows only */
-void UI_ThemeColor(int colorid)
-{
-	const unsigned char *cp;
-
-	cp = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid);
-	glColor3ubv(cp);
-
-}
-
-/* plus alpha */
-void UI_ThemeColor4(int colorid)
-{
-	const unsigned char *cp;
-
-	cp = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid);
-	glColor4ubv(cp);
-}
-
-/* set the color with offset for shades */
-void UI_ThemeColorShade(int colorid, int offset)
-{
-	unsigned char col[4];
-	UI_GetThemeColorShade4ubv(colorid, offset, col);
-	glColor4ubv(col);
-}
-
-void UI_ThemeColorShadeAlpha(int colorid, int coloffset, int alphaoffset)
-{
-	int r, g, b, a;
-	const unsigned char *cp;
-
-	cp = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid);
-	r = coloffset + (int) cp[0];
-	CLAMP(r, 0, 255);
-	g = coloffset + (int) cp[1];
-	CLAMP(g, 0, 255);
-	b = coloffset + (int) cp[2];
-	CLAMP(b, 0, 255);
-	a = alphaoffset + (int) cp[3];
-	CLAMP(a, 0, 255);
-
-	glColor4ub(r, g, b, a);
-}
-
 void UI_GetThemeColorShadeAlpha4ubv(int colorid, int coloffset, int alphaoffset, unsigned char col[4])
 {
 	int r, g, b, a;
@@ -895,58 +844,6 @@ void UI_GetThemeColorBlend3f(int colorid1, int colorid2, float fac, float r_col[
 	r_col[0] = ((1.0f - fac) * cp1[0] + fac * cp2[0]) / 255.0f;
 	r_col[1] = ((1.0f - fac) * cp1[1] + fac * cp2[1]) / 255.0f;
 	r_col[2] = ((1.0f - fac) * cp1[2] + fac * cp2[2]) / 255.0f;
-}
-
-/* blend between to theme colors, and set it */
-void UI_ThemeColorBlend(int colorid1, int colorid2, float fac)
-{
-	unsigned char col[3];
-	UI_GetThemeColorBlend3ubv(colorid1, colorid2, fac, col);
-	glColor3ubv(col);
-}
-
-/* blend between to theme colors, shade it, and set it */
-void UI_ThemeColorBlendShade(int colorid1, int colorid2, float fac, int offset)
-{
-	int r, g, b;
-	const unsigned char *cp1, *cp2;
-
-	cp1 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid1);
-	cp2 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid2);
-
-	CLAMP(fac, 0.0f, 1.0f);
-	r = offset + floorf((1.0f - fac) * cp1[0] + fac * cp2[0]);
-	g = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
-	b = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
-
-	CLAMP(r, 0, 255);
-	CLAMP(g, 0, 255);
-	CLAMP(b, 0, 255);
-
-	glColor3ub(r, g, b);
-}
-
-/* blend between to theme colors, shade it, and set it */
-void UI_ThemeColorBlendShadeAlpha(int colorid1, int colorid2, float fac, int offset, int alphaoffset)
-{
-	int r, g, b, a;
-	const unsigned char *cp1, *cp2;
-
-	cp1 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid1);
-	cp2 = UI_ThemeGetColorPtr(theme_active, theme_spacetype, colorid2);
-
-	CLAMP(fac, 0.0f, 1.0f);
-	r = offset + floorf((1.0f - fac) * cp1[0] + fac * cp2[0]);
-	g = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
-	b = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
-	a = alphaoffset + floorf((1.0f - fac) * cp1[3] + fac * cp2[3]);
-
-	CLAMP(r, 0, 255);
-	CLAMP(g, 0, 255);
-	CLAMP(b, 0, 255);
-	CLAMP(a, 0, 255);
-
-	glColor4ub(r, g, b, a);
 }
 
 void UI_FontThemeColor(int fontid, int colorid)
@@ -1216,22 +1113,6 @@ void UI_GetThemeColorType4ubv(int colorid, int spacetype, char col[4])
 	col[3] = cp[3];
 }
 
-/* blends and shades between two char color pointers */
-void UI_ColorPtrBlendShade3ubv(const unsigned char cp1[3], const unsigned char cp2[3], float fac, int offset)
-{
-	int r, g, b;
-	CLAMP(fac, 0.0f, 1.0f);
-	r = offset + floorf((1.0f - fac) * cp1[0] + fac * cp2[0]);
-	g = offset + floorf((1.0f - fac) * cp1[1] + fac * cp2[1]);
-	b = offset + floorf((1.0f - fac) * cp1[2] + fac * cp2[2]);
-
-	r = r < 0 ? 0 : (r > 255 ? 255 : r);
-	g = g < 0 ? 0 : (g > 255 ? 255 : g);
-	b = b < 0 ? 0 : (b > 255 ? 255 : b);
-
-	glColor3ub(r, g, b);
-}
-
 void UI_GetColorPtrShade3ubv(const unsigned char cp[3], unsigned char col[3], int offset)
 {
 	int r, g, b;
@@ -1344,9 +1225,9 @@ void init_userdef_do_versions(Main *bmain)
 		U.savetime = 1;
 // XXX		error(STRINGIFY(BLENDER_STARTUP_FILE)" is buggy, please consider removing it.\n");
 	}
-	if (U.manipulator_size == 0) {
-		U.manipulator_size = 75;
-		U.manipulator_flag |= USER_MANIPULATOR_DRAW;
+	if (U.gizmo_size == 0) {
+		U.gizmo_size = 75;
+		U.gizmo_flag |= USER_GIZMO_DRAW;
 	}
 	if (U.pad_rot_angle == 0.0f)
 		U.pad_rot_angle = 15.0f;
@@ -1389,7 +1270,7 @@ void init_userdef_do_versions(Main *bmain)
 		if (U.rvisize == 0) {
 			U.rvisize = 15;
 			U.rvibright = 8;
-			U.uiflag |= USER_SHOW_ROTVIEWICON;
+			U.uiflag |= USER_SHOW_GIZMO_AXIS;
 		}
 
 	}
@@ -1542,15 +1423,6 @@ void init_userdef_do_versions(Main *bmain)
 #undef USER_VERSION_ATLEAST
 #define USER_VERSION_ATLEAST(ver, subver) MAIN_VERSION_ATLEAST((&(U)), ver, subver)
 
-
-	if (!USER_VERSION_ATLEAST(269, 9)) {
-		/* grease pencil - new layer color */
-		if (U.gpencil_new_layer_col[3] < 0.1f) {
-			/* defaults to black, but must at least be visible! */
-			U.gpencil_new_layer_col[3] = 0.9f;
-		}
-	}
-
 	if (!USER_VERSION_ATLEAST(271, 5)) {
 		U.pie_menu_radius = 100;
 		U.pie_menu_threshold = 12;
@@ -1568,7 +1440,7 @@ void init_userdef_do_versions(Main *bmain)
 	if (!USER_VERSION_ATLEAST(278, 6)) {
 		/* Clear preference flags for re-use. */
 		U.flag &= ~(
-		    USER_FLAG_DEPRECATED_1 | USER_FLAG_DEPRECATED_2 | USER_FLAG_DEPRECATED_3 |
+		    USER_FLAG_NUMINPUT_ADVANCED | USER_FLAG_DEPRECATED_2 | USER_FLAG_DEPRECATED_3 |
 		    USER_FLAG_DEPRECATED_6 | USER_FLAG_DEPRECATED_7 |
 		    USER_FLAG_DEPRECATED_9 | USER_DEVELOPER_UI);
 		U.uiflag &= ~(
@@ -1587,6 +1459,17 @@ void init_userdef_do_versions(Main *bmain)
 		/* Reset theme, old themes will not be compatible with minor version updates from now on. */
 		for (bTheme *btheme = U.themes.first; btheme; btheme = btheme->next) {
 			memcpy(btheme, &U_theme_default, sizeof(*btheme));
+		}
+
+		/* Annotations - new layer color
+		 * Replace anything that used to be set if it looks like was left
+		 * on the old default (i.e. black), which most users used
+		 */
+		if ((U.gpencil_new_layer_col[3] < 0.1f) || (U.gpencil_new_layer_col[0] < 0.1f)) {
+			/* - New color matches the annotation pencil icon
+			 * - Non-full alpha looks better!
+			 */
+			ARRAY_SET_ITEMS(U.gpencil_new_layer_col, 0.38f, 0.61f, 0.78f, 0.9f);
 		}
 	}
 
@@ -1608,11 +1491,7 @@ void init_userdef_do_versions(Main *bmain)
 
 	/* Not versioning, just avoid errors. */
 #ifndef WITH_CYCLES
-	bAddon *addon = BLI_findstring(&U.addons, "cycles", offsetof(bAddon, module));
-	if (addon) {
-		BLI_remlink(&U.addons, addon);
-		BKE_addon_free(addon);
-	}
+	BKE_addon_remove_safe(&U.addons, "cycles");
 #endif
 
 	/* funny name, but it is GE stuff, moves userdef stuff to engine */

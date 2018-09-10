@@ -26,7 +26,7 @@ __all__ = (
     "object_add_grid_scale_apply_operator",
     "object_image_guess",
     "world_to_camera_view",
-    )
+)
 
 
 import bpy
@@ -100,7 +100,7 @@ def add_object_align_init(context, operator):
         if operator:
             properties.rotation = rotation.to_euler()
 
-    return location * rotation
+    return location @ rotation
 
 
 def object_data_add(context, obdata, operator=None, name=None):
@@ -166,7 +166,7 @@ def object_data_add(context, obdata, operator=None, name=None):
 
         obj_act.select_set(action='SELECT')
         scene.update()  # apply location
-        # scene.objects.active = obj_new
+        # layer.objects.active = obj_new
 
         # Match up UV layers, this is needed so adding an object with UV's
         # doesn't create new layers when there happens to be a naming mis-match.
@@ -194,19 +194,19 @@ class AddObjectHelper:
         if not self.view_align:
             self.rotation.zero()
 
-    view_align = BoolProperty(
-            name="Align to View",
-            default=False,
-            update=view_align_update_callback,
-            )
-    location = FloatVectorProperty(
-            name="Location",
-            subtype='TRANSLATION',
-            )
-    rotation = FloatVectorProperty(
-            name="Rotation",
-            subtype='EULER',
-            )
+    view_align: BoolProperty(
+        name="Align to View",
+        default=False,
+        update=view_align_update_callback,
+    )
+    location: FloatVectorProperty(
+        name="Location",
+        subtype='TRANSLATION',
+    )
+    rotation: FloatVectorProperty(
+        name="Rotation",
+        subtype='EULER',
+    )
 
     @classmethod
     def poll(self, context):
@@ -308,7 +308,7 @@ def world_to_camera_view(scene, obj, coord):
     """
     from mathutils import Vector
 
-    co_local = obj.matrix_world.normalized().inverted() * coord
+    co_local = obj.matrix_world.normalized().inverted() @ coord
     z = -co_local.z
 
     camera = obj.data

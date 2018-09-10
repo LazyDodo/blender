@@ -62,7 +62,8 @@ GPUShader *GPU_shader_create(
         const char *fragcode,
         const char *geocode,
         const char *libcode,
-        const char *defines);
+        const char *defines,
+        const char *shader_name);
 GPUShader *GPU_shader_create_ex(
         const char *vertexcode,
         const char *fragcode,
@@ -72,7 +73,8 @@ GPUShader *GPU_shader_create_ex(
         const int flags,
         const GPUShaderTFBType tf_type,
         const char **tf_names,
-        const int tf_count);
+        const int tf_count,
+        const char *shader_name);
 void GPU_shader_free(GPUShader *shader);
 
 void GPU_shader_bind(GPUShader *shader);
@@ -89,10 +91,12 @@ void *GPU_shader_get_interface(GPUShader *shader);
 int GPU_shader_get_uniform(GPUShader *shader, const char *name);
 int GPU_shader_get_builtin_uniform(GPUShader *shader, int builtin);
 int GPU_shader_get_uniform_block(GPUShader *shader, const char *name);
-void GPU_shader_uniform_vector(GPUShader *shader, int location, int length,
-	int arraysize, const float *value);
-void GPU_shader_uniform_vector_int(GPUShader *shader, int location, int length,
-	int arraysize, const int *value);
+void GPU_shader_uniform_vector(
+        GPUShader *shader, int location, int length,
+        int arraysize, const float *value);
+void GPU_shader_uniform_vector_int(
+        GPUShader *shader, int location, int length,
+        int arraysize, const int *value);
 
 void GPU_shader_uniform_buffer(GPUShader *shader, int location, struct GPUUniformBuffer *ubo);
 void GPU_shader_uniform_texture(GPUShader *shader, int location, struct GPUTexture *tex);
@@ -103,8 +107,7 @@ int GPU_shader_get_attribute(GPUShader *shader, const char *name);
 
 /* Builtin/Non-generated shaders */
 typedef enum GPUBuiltinShader {
-	GPU_SHADER_VSM_STORE,
-	GPU_SHADER_SEP_GAUSSIAN_BLUR,
+	/* UNUSED (TODO REMOVE) */
 	GPU_SHADER_SMOKE,
 	GPU_SHADER_SMOKE_FIRE,
 	GPU_SHADER_SMOKE_COBA,
@@ -156,6 +159,10 @@ typedef enum GPUBuiltinShader {
 	GPU_SHADER_2D_IMAGE_MULTISAMPLE_4,
 	GPU_SHADER_2D_IMAGE_MULTISAMPLE_8,
 	GPU_SHADER_2D_IMAGE_MULTISAMPLE_16,
+	GPU_SHADER_2D_IMAGE_MULTISAMPLE_2_DEPTH_TEST,
+	GPU_SHADER_2D_IMAGE_MULTISAMPLE_4_DEPTH_TEST,
+	GPU_SHADER_2D_IMAGE_MULTISAMPLE_8_DEPTH_TEST,
+	GPU_SHADER_2D_IMAGE_MULTISAMPLE_16_DEPTH_TEST,
 	GPU_SHADER_2D_CHECKER,
 	GPU_SHADER_2D_DIAG_STRIPES,
 	/* for simple 3D drawing */
@@ -340,7 +347,11 @@ typedef enum GPUBuiltinShader {
 	GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SIZE, /* Uniformly scaled */
 	GPU_SHADER_INSTANCE_VARIYING_COLOR_VARIYING_SCALE,
 	GPU_SHADER_INSTANCE_EDGES_VARIYING_COLOR,
-	/* specialized for UI drawing */
+	/* grease pencil drawing */
+	GPU_SHADER_GPENCIL_STROKE,
+	GPU_SHADER_GPENCIL_FILL,
+	/* specialized for widget drawing */
+	GPU_SHADER_2D_AREA_EDGES,
 	GPU_SHADER_2D_WIDGET_BASE,
 	GPU_SHADER_2D_WIDGET_BASE_INST,
 	GPU_SHADER_2D_WIDGET_SHADOW,
@@ -350,10 +361,10 @@ typedef enum GPUBuiltinShader {
 	GPU_NUM_BUILTIN_SHADERS /* (not an actual shader) */
 } GPUBuiltinShader;
 
-/* Keep these in sync with:
- *  gpu_shader_image_interlace_frag.glsl
- *  gpu_shader_image_rect_interlace_frag.glsl
- **/
+/** Keep these in sync with:
+ * - `gpu_shader_image_interlace_frag.glsl`
+ * - `gpu_shader_image_rect_interlace_frag.glsl`
+ */
 typedef enum GPUInterlaceShader {
 	GPU_SHADER_INTERLACE_ROW               = 0,
 	GPU_SHADER_INTERLACE_COLUMN            = 1,
@@ -375,7 +386,7 @@ typedef struct GPUVertexAttribs {
 		int glinfoindoex;
 		int gltexco;
 		int attribid;
-		char name[64];	/* MAX_CUSTOMDATA_LAYER_NAME */
+		char name[64];  /* MAX_CUSTOMDATA_LAYER_NAME */
 	} layer[GPU_MAX_ATTRIB];
 
 	int totlayer;

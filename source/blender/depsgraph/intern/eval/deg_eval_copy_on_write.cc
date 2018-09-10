@@ -70,6 +70,8 @@ extern "C" {
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 
+#include "DRW_engine.h"
+
 #ifdef NESTED_ID_NASTY_WORKAROUND
 #  include "DNA_curve_types.h"
 #  include "DNA_key_types.h"
@@ -546,11 +548,22 @@ void update_special_pointers(const Depsgraph *depsgraph,
 				object_cow->runtime.mesh_orig = (Mesh *)object_cow->data;
 			}
 			if (object_cow->type == OB_ARMATURE) {
-				BKE_pose_remap_bone_pointers((bArmature *)object_cow->data,
-				                             object_cow->pose);
-				update_pose_orig_pointers(object_orig->pose, object_cow->pose);
+				const bArmature *armature_orig = (bArmature *)object_orig->data;
+				bArmature *armature_cow = (bArmature *)object_cow->data;
+				BKE_pose_remap_bone_pointers(armature_cow, object_cow->pose);
+				if (armature_orig->edbo == NULL) {
+					update_pose_orig_pointers(object_orig->pose,
+					                          object_cow->pose);
+				}
 			}
 			update_particle_system_orig_pointers(object_orig, object_cow);
+			break;
+		}
+		case ID_SCE:
+		{
+			Scene *scene_cow = (Scene *)id_cow;
+			const Scene *scene_orig = (const Scene *)id_orig;
+			scene_cow->eevee.light_cache = scene_orig->eevee.light_cache;
 			break;
 		}
 		default:
@@ -710,20 +723,19 @@ static void deg_update_copy_on_write_animation(const Depsgraph *depsgraph,
 }
 
 typedef struct ObjectRuntimeBackup {
-	CurveCache *curve_cache;
 	Object_Runtime runtime;
 	short base_flag;
 } ObjectRuntimeBackup;
 
 /* Make a backup of object's evaluation runtime data, additionally
- * male object to be safe for free without invalidating backed up
+ * make object to be safe for free without invalidating backed up
  * pointers.
  */
 static void deg_backup_object_runtime(
         Object *object,
         ObjectRuntimeBackup *object_runtime_backup)
 {
-	/* Store evaluated mesh, and make sure we don't free it. */
+	/* Store evaluated mesh and curve_cache, and make sure we don't free it. */
 	Mesh *mesh_eval = object->runtime.mesh_eval;
 	object_runtime_backup->runtime = object->runtime;
 	BKE_object_runtime_reset(object);
@@ -734,9 +746,6 @@ static void deg_backup_object_runtime(
 	if (mesh_eval != NULL && object->data == mesh_eval) {
 		object->data = object->runtime.mesh_orig;
 	}
-	/* Store curve cache and make sure we don't free it. */
-	object_runtime_backup->curve_cache = object->curve_cache;
-	object->curve_cache = NULL;
 	/* Make a backup of base flags. */
 	object_runtime_backup->base_flag = object->base_flag;
 }
@@ -748,7 +757,7 @@ static void deg_restore_object_runtime(
 	Mesh *mesh_orig = object->runtime.mesh_orig;
 	object->runtime = object_runtime_backup->runtime;
 	object->runtime.mesh_orig = mesh_orig;
-	if (object->runtime.mesh_eval != NULL) {
+	if (object->type == OB_MESH && object->runtime.mesh_eval != NULL) {
 		if (object->id.recalc & ID_RECALC_GEOMETRY) {
 			/* If geometry is tagged for update it means, that part of
 			 * evaluated mesh are not valid anymore. In this case we can not
@@ -764,18 +773,13 @@ static void deg_restore_object_runtime(
 			/* Do same thing as object update: override actual object data
 			 * pointer with evaluated datablock.
 			 */
-			if (object->type == OB_MESH) {
-				object->data = mesh_eval;
-				/* Evaluated mesh simply copied edit_btmesh pointer from
-				 * original mesh during update, need to make sure no dead
-				 * pointers are left behind.
-				*/
-				mesh_eval->edit_btmesh = mesh_orig->edit_btmesh;
-			}
+			object->data = mesh_eval;
+			/* Evaluated mesh simply copied edit_btmesh pointer from
+			 * original mesh during update, need to make sure no dead
+			 * pointers are left behind.
+			 */
+			mesh_eval->edit_btmesh = mesh_orig->edit_btmesh;
 		}
-	}
-	if (object_runtime_backup->curve_cache != NULL) {
-		object->curve_cache = object_runtime_backup->curve_cache;
 	}
 	object->base_flag = object_runtime_backup->base_flag;
 }
@@ -806,6 +810,8 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 	 */
 	ListBase gpumaterial_backup;
 	ListBase *gpumaterial_ptr = NULL;
+	DrawDataList drawdata_backup;
+	DrawDataList *drawdata_ptr = NULL;
 	ObjectRuntimeBackup object_runtime_backup = {NULL};
 	if (check_datablock_expanded(id_cow)) {
 		switch (id_type) {
@@ -841,9 +847,11 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 				break;
 			}
 			case ID_OB:
-				deg_backup_object_runtime((Object *)id_cow,
-				                          &object_runtime_backup);
+			{
+				Object *ob = (Object *)id_cow;
+				deg_backup_object_runtime(ob, &object_runtime_backup);
 				break;
+			}
 			default:
 				break;
 		}
@@ -851,12 +859,21 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 			gpumaterial_backup = *gpumaterial_ptr;
 			gpumaterial_ptr->first = gpumaterial_ptr->last = NULL;
 		}
+		drawdata_ptr = DRW_drawdatalist_from_id(id_cow);
+		if (drawdata_ptr != NULL) {
+			drawdata_backup = *drawdata_ptr;
+			drawdata_ptr->first = drawdata_ptr->last = NULL;
+		}
 	}
 	deg_free_copy_on_write_datablock(id_cow);
 	deg_expand_copy_on_write_datablock(depsgraph, id_node);
 	/* Restore GPU materials. */
 	if (gpumaterial_ptr != NULL) {
 		*gpumaterial_ptr = gpumaterial_backup;
+	}
+	/* Restore DrawData. */
+	if (drawdata_ptr != NULL) {
+		*drawdata_ptr = drawdata_backup;
 	}
 	if (id_type == ID_OB) {
 		deg_restore_object_runtime((Object *)id_cow, &object_runtime_backup);
@@ -911,6 +928,12 @@ void discard_mesh_edit_mode_pointers(ID *id_cow)
 	mesh_cow->edit_btmesh = NULL;
 }
 
+void discard_scene_pointers(ID *id_cow)
+{
+	Scene *scene_cow = (Scene *)id_cow;
+	scene_cow->eevee.light_cache = NULL;
+}
+
 /* NULL-ify all edit mode pointers which points to data from
  * original object.
  */
@@ -932,6 +955,11 @@ void discard_edit_mode_pointers(ID *id_cow)
 			break;
 		case ID_LT:
 			discard_lattice_edit_mode_pointers(id_cow);
+			break;
+		case ID_SCE:
+			/* Not really edit mode but still needs to run before
+			 * BKE_libblock_free_datablock() */
+			discard_scene_pointers(id_cow);
 			break;
 		default:
 			break;

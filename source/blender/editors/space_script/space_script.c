@@ -133,7 +133,7 @@ static void script_main_region_init(wmWindowManager *wm, ARegion *ar)
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_STANDARD, ar->winx, ar->winy);
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Script", SPACE_SCRIPT, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Script", SPACE_SCRIPT, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 }
 
@@ -178,7 +178,7 @@ static void script_header_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void script_main_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
         wmNotifier *UNUSED(wmn), const Scene *UNUSED(scene))
 {
 	/* context changes */

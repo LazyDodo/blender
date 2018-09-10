@@ -45,6 +45,8 @@ static int node_shader_gpu_bsdf_translucent(GPUMaterial *mat, bNode *node, bNode
 	if (!in[1].link)
 		GPU_link(mat, "world_normals_get", &in[1].link);
 
+	GPU_material_flag_set(mat, GPU_MATFLAG_DIFFUSE);
+
 	return GPU_stack_link(mat, node, "node_bsdf_translucent", in, out);
 }
 
@@ -54,7 +56,6 @@ void register_node_type_sh_bsdf_translucent(void)
 	static bNodeType ntype;
 
 	sh_node_type_base(&ntype, SH_NODE_BSDF_TRANSLUCENT, "Translucent BSDF", NODE_CLASS_SHADER, 0);
-	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_bsdf_translucent_in, sh_node_bsdf_translucent_out);
 	node_type_init(&ntype, NULL);
 	node_type_storage(&ntype, "", NULL, NULL);

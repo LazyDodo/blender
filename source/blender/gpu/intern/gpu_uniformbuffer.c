@@ -35,6 +35,7 @@
 #include "BLI_blenlib.h"
 
 #include "gpu_codegen.h"
+#include "gpu_context_private.h"
 
 #include "GPU_extensions.h"
 #include "GPU_glew.h"
@@ -88,7 +89,7 @@ GPUUniformBuffer *GPU_uniformbuffer_create(int size, const void *data, char err_
 	ubo->bindpoint = -1;
 
 	/* Generate Buffer object */
-	glGenBuffers(1, &ubo->bindcode);
+	ubo->bindcode = GPU_buf_alloc();
 
 	if (!ubo->bindcode) {
 		if (err_out)
@@ -127,7 +128,7 @@ GPUUniformBuffer *GPU_uniformbuffer_dynamic_create(ListBase *inputs, char err_ou
 	ubo->flag = GPU_UBO_FLAG_DIRTY;
 
 	/* Generate Buffer object. */
-	glGenBuffers(1, &ubo->buffer.bindcode);
+	ubo->buffer.bindcode = GPU_buf_alloc();
 
 	if (!ubo->buffer.bindcode) {
 		if (err_out)
@@ -158,9 +159,8 @@ GPUUniformBuffer *GPU_uniformbuffer_dynamic_create(ListBase *inputs, char err_ou
 	float *offset = ubo->data;
 	for (LinkData *link = inputs->first; link; link = link->next) {
 		GPUInput *input = link->data;
-		const GPUType gputype = get_padded_gpu_type(link);
-		memcpy(offset, input->dynamicvec, gputype * sizeof(float));
-		offset += gputype;
+		memcpy(offset, input->vec, input->type * sizeof(float));
+		offset += get_padded_gpu_type(link);
 	}
 
 	/* Note since we may create the UBOs in the CPU in a different thread than the main drawing one,
@@ -190,7 +190,7 @@ void GPU_uniformbuffer_free(GPUUniformBuffer *ubo)
 		gpu_uniformbuffer_dynamic_free(ubo);
 	}
 
-	glDeleteBuffers(1, &ubo->bindcode);
+	GPU_buf_free(ubo->bindcode);
 	MEM_freeN(ubo);
 }
 

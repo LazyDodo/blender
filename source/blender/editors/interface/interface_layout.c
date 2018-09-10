@@ -143,6 +143,7 @@ enum {
 	/* Show an icon button next to each property (to set keyframes, show status).
 	 * Enabled by default, depends on 'UI_ITEM_PROP_SEP'. */
 	UI_ITEM_PROP_DECORATE = 1 << 4,
+	UI_ITEM_PROP_DECORATE_NO_PAD  = 1 << 5,
 };
 
 typedef struct uiButtonItem {
@@ -594,8 +595,9 @@ static void ui_item_array(
 					icon = boolarr[a] ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
 				}
 
-				width_item = (compact && type == PROP_BOOLEAN) ?
-				                 min_ii(w, ui_text_icon_width(layout, str_buf, icon, false)) : w;
+				width_item = (
+				        (compact && type == PROP_BOOLEAN) ?
+				        min_ii(w, ui_text_icon_width(layout, str_buf, icon, false)) : w);
 
 				but = uiDefAutoButR(block, ptr, prop, a, str_buf, icon, 0, 0, width_item, UI_UNIT_Y);
 				if (slider && but->type == UI_BTYPE_NUM)
@@ -680,8 +682,14 @@ static void ui_item_enum_expand(
 
 	for (item = item_array; item->identifier; item++) {
 		if (!item->identifier[0]) {
-			if (radial && layout_radial) {
-				uiItemS(layout_radial);
+			const EnumPropertyItem *next_item = item + 1;
+			if (next_item->identifier) {
+				if (radial && layout_radial) {
+					uiItemS(layout_radial);
+				}
+				else {
+					uiItemS(block->curlayout);
+				}
 			}
 			continue;
 		}
@@ -741,7 +749,8 @@ static uiBut *ui_item_with_label(
 	int prop_but_width = w_hint;
 	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
 
-	sub = uiLayoutRow(layout, layout->align);
+	/* Always align item with label since text is already given enough space not to overlap. */
+	sub = uiLayoutRow(layout, true);
 	UI_block_layout_set_current(block, sub);
 
 	if (name[0]) {
@@ -776,8 +785,9 @@ static uiBut *ui_item_with_label(
 		but = uiDefAutoButR(block, ptr, prop, index, "", icon, x, y, prop_but_width - UI_UNIT_X, h);
 
 		/* BUTTONS_OT_file_browse calls UI_context_active_but_prop_get_filebrowser */
-		uiDefIconButO(block, UI_BTYPE_BUT, subtype == PROP_DIRPATH ? "BUTTONS_OT_directory_browse" : "BUTTONS_OT_file_browse",
-		              WM_OP_INVOKE_DEFAULT, ICON_FILESEL, x, y, UI_UNIT_X, h, NULL);
+		uiDefIconButO(
+		        block, UI_BTYPE_BUT, subtype == PROP_DIRPATH ? "BUTTONS_OT_directory_browse" : "BUTTONS_OT_file_browse",
+		        WM_OP_INVOKE_DEFAULT, ICON_FILESEL, x, y, UI_UNIT_X, h, NULL);
 	}
 	else if (flag & UI_ITEM_R_EVENT) {
 		but = uiDefButR_prop(block, UI_BTYPE_KEY_EVENT, 0, name, x, y, prop_but_width, h, ptr, prop, index, 0, 0, -1, -1, NULL);
@@ -796,9 +806,21 @@ static uiBut *ui_item_with_label(
 	}
 	else {
 		const char *str = (type == PROP_ENUM && !(flag & UI_ITEM_R_ICON_ONLY)) ? NULL : "";
-		but = uiDefAutoButR(block, ptr, prop, index, str, icon,
-		                    x, y, prop_but_width, h);
+		but = uiDefAutoButR(
+		        block, ptr, prop, index, str, icon,
+		        x, y, prop_but_width, h);
 	}
+
+#ifdef UI_PROP_DECORATE
+	/* Only for alignment. */
+	if (layout->item.flag & UI_ITEM_PROP_SEP) {
+		if ((layout->item.flag & UI_ITEM_PROP_DECORATE) &&
+		    (layout->item.flag & UI_ITEM_PROP_DECORATE_NO_PAD) == 0)
+		{
+			uiItemL(sub, NULL, ICON_BLANK1);
+		}
+	}
+#endif  /* UI_PROP_DECORATE */
 
 	UI_block_layout_set_current(block, layout);
 	return but;
@@ -1185,8 +1207,9 @@ void uiItemsFullEnumO_items(
 				}
 				else {
 					/* Do not use uiItemL here, as our root layout is a menu one, it will add a fake blank icon! */
-					but = uiDefBut(block, UI_BTYPE_LABEL, 0, item->name, 0, 0, UI_UNIT_X * 5, UI_UNIT_Y, NULL,
-					               0.0, 0.0, 0, 0, "");
+					but = uiDefBut(
+					        block, UI_BTYPE_LABEL, 0, item->name, 0, 0, UI_UNIT_X * 5, UI_UNIT_Y, NULL,
+					        0.0, 0.0, 0, 0, "");
 				}
 				ui_but_tip_from_enum_item(but, item);
 			}
@@ -1234,7 +1257,15 @@ void uiItemsFullEnumO(
 		bool free;
 
 		if (ui_layout_is_radial(layout)) {
+			/* XXX: While "_all()" guarantees spatial stability, it's bad when an enum has > 8 items total,
+			 * but only a small subset will ever be shown at once (e.g. Mode Switch menu, after the
+			 * introduction of GP editing modes)
+			 */
+#if 0
 			RNA_property_enum_items_gettexted_all(block->evil_C, &ptr, prop, &item_array, &totitem, &free);
+#else
+			RNA_property_enum_items_gettexted(block->evil_C, &ptr, prop, &item_array, &totitem, &free);
+#endif
 		}
 		else {
 			RNA_property_enum_items_gettexted(block->evil_C, &ptr, prop, &item_array, &totitem, &free);
@@ -1550,19 +1581,34 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 	    /* use checkboxes only as a fallback in pie-menu's, when no icon is defined */
 	    ((layout->root->type == UI_LAYOUT_PIEMENU) && (icon == ICON_NONE)))
 	{
+		int prop_flag = RNA_property_flag(prop);
 		if (type == PROP_BOOLEAN && ((is_array == false) || (index != RNA_NO_INDEX))) {
-			if (is_array) icon = (RNA_property_boolean_get_index(ptr, prop, index)) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
-			else icon = (RNA_property_boolean_get(ptr, prop)) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
+			if (prop_flag & PROP_ICONS_CONSECUTIVE) {
+				icon = ICON_CHECKBOX_DEHLT; /* but->iconadd will set to correct icon */
+			}
+			else if (is_array) {
+				icon = (RNA_property_boolean_get_index(ptr, prop, index)) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
+			}
+			else {
+				icon = (RNA_property_boolean_get(ptr, prop)) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
+			}
 		}
 		else if (type == PROP_ENUM && index == RNA_ENUM_VALUE) {
 			int enum_value = RNA_property_enum_get(ptr, prop);
-			if (RNA_property_flag(prop) & PROP_ENUM_FLAG) {
+			if (prop_flag & PROP_ICONS_CONSECUTIVE) {
+				icon = ICON_CHECKBOX_DEHLT; /* but->iconadd will set to correct icon */
+			}
+			else if (prop_flag & PROP_ENUM_FLAG) {
 				icon = (enum_value & value) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
 			}
 			else {
 				icon = (enum_value == value) ? ICON_CHECKBOX_HLT : ICON_CHECKBOX_DEHLT;
 			}
 		}
+	}
+
+	if ((type == PROP_ENUM) && (RNA_property_flag(prop) & PROP_ENUM_FLAG)) {
+		flag |= UI_ITEM_R_EXPAND;
 	}
 
 	slider = (flag & UI_ITEM_R_SLIDER) != 0;
@@ -1601,7 +1647,6 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 			uiLayout *layout_split;
 #ifdef UI_PROP_SEP_ICON_WIDTH_EXCEPTION
 			if (type == PROP_BOOLEAN && (icon == ICON_NONE) && !icon_only) {
-				w = UI_UNIT_X;
 				layout_split = uiLayoutRow(layout_row ? layout_row : layout, true);
 			}
 			else
@@ -1647,15 +1692,29 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 				}
 			}
 
-			/* Watch out! We can only write into the new column now. */
-			layout = uiLayoutColumn(layout_split, true);
-			layout->space = 0;
+			/* Watch out! We can only write into the new layout now. */
 			if ((type == PROP_ENUM) && (flag & UI_ITEM_R_EXPAND)) {
-				/* pass (expanded enums each have their own name) */
+				/* Expanded enums each have their own name. */
+
+				/* Often expanded enum's are better arranged into a row, so check the existing layout. */
+				if (ui_layout_local_dir(layout) == UI_LAYOUT_HORIZONTAL) {
+					layout = uiLayoutRow(layout_split, true);
+				}
+				else {
+					layout = uiLayoutColumn(layout_split, true);
+				}
 			}
 			else {
 				name = "";
+				layout = uiLayoutColumn(layout_split, true);
 			}
+			layout->space = 0;
+
+#ifdef UI_PROP_SEP_ICON_WIDTH_EXCEPTION
+			if (type == PROP_BOOLEAN && (icon == ICON_NONE) && !icon_only) {
+				w = UI_UNIT_X;
+			}
+#endif  /* UI_PROP_SEP_ICON_WIDTH_EXCEPTION */
 		}
 
 #ifdef UI_PROP_DECORATE
@@ -1664,6 +1723,9 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 			ui_decorate.layout->space = 0;
 			UI_block_layout_set_current(block, layout);
 			ui_decorate.but = block->buttons.last;
+
+			/* Clear after. */
+			layout->item.flag |= UI_ITEM_PROP_DECORATE_NO_PAD;
 		}
 #endif  /* UI_PROP_DECORATE */
 	}
@@ -1685,8 +1747,9 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 			uiDefButR_prop(block, UI_BTYPE_ROW, 0, name, 0, 0, w, h, ptr, prop, -1, 0, value, -1, -1, NULL);
 	}
 	/* expanded enum */
-	else if (type == PROP_ENUM && (expand || RNA_property_flag(prop) & PROP_ENUM_FLAG))
+	else if (type == PROP_ENUM && expand) {
 		ui_item_enum_expand(layout, block, ptr, prop, name, h, icon_only);
+	}
 	/* property with separate label */
 	else if (type == PROP_ENUM || type == PROP_STRING || type == PROP_POINTER) {
 		but = ui_item_with_label(layout, block, name, icon, ptr, prop, index, 0, 0, w, h, flag);
@@ -1745,6 +1808,8 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 			but_decorate = but->next;
 		}
 		BLI_assert(ELEM(i, 1, ui_decorate.len));
+
+		layout->item.flag &= ~UI_ITEM_PROP_DECORATE_NO_PAD;
 	}
 #endif  /* UI_PROP_DECORATE */
 
@@ -1797,22 +1862,26 @@ void uiItemEnumR(uiLayout *layout, const char *name, int icon, struct PointerRNA
 	uiItemFullR(layout, ptr, prop, RNA_ENUM_VALUE, value, 0, name, icon);
 }
 
-void uiItemEnumR_string(uiLayout *layout, struct PointerRNA *ptr, const char *propname, const char *value, const char *name, int icon)
+
+void uiItemEnumR_string_prop(
+        uiLayout *layout, struct PointerRNA *ptr, PropertyRNA *prop,
+        const char *value, const char *name, int icon)
 {
-	PropertyRNA *prop = RNA_struct_find_property(ptr, propname);
 	const EnumPropertyItem *item;
 	int ivalue, a;
 	bool free;
 
-	if (!prop || RNA_property_type(prop) != PROP_ENUM) {
+	if (UNLIKELY(RNA_property_type(prop) != PROP_ENUM)) {
+		const char *propname = RNA_property_identifier(prop);
 		ui_item_disabled(layout, propname);
-		RNA_warning("enum property not found: %s.%s", RNA_struct_identifier(ptr->type), propname);
+		RNA_warning("not an enum property: %s.%s", RNA_struct_identifier(ptr->type), propname);
 		return;
 	}
 
 	RNA_property_enum_items(layout->root->block->evil_C, ptr, prop, &item, NULL, &free);
 
 	if (!RNA_enum_value_from_id(item, value, &ivalue)) {
+		const char *propname = RNA_property_identifier(prop);
 		if (free) {
 			MEM_freeN((void *)item);
 		}
@@ -1834,6 +1903,19 @@ void uiItemEnumR_string(uiLayout *layout, struct PointerRNA *ptr, const char *pr
 	if (free) {
 		MEM_freeN((void *)item);
 	}
+}
+
+void uiItemEnumR_string(
+        uiLayout *layout, struct PointerRNA *ptr, const char *propname,
+        const char *value, const char *name, int icon)
+{
+	PropertyRNA *prop = RNA_struct_find_property(ptr, propname);
+	if (UNLIKELY(prop == NULL)) {
+		ui_item_disabled(layout, propname);
+		RNA_warning("enum property not found: %s.%s", RNA_struct_identifier(ptr->type), propname);
+		return;
+	}
+	uiItemEnumR_string_prop(layout, ptr, prop, value, name, icon);
 }
 
 void uiItemsEnumR(uiLayout *layout, struct PointerRNA *ptr, const char *propname)
@@ -1964,8 +2046,8 @@ void ui_but_add_search(uiBut *but, PointerRNA *ptr, PropertyRNA *prop, PointerRN
 		}
 
 		UI_but_func_search_set(
-		            but, ui_searchbox_create_generic, ui_rna_collection_search_cb,
-		            coll_search, NULL, NULL);
+		        but, ui_searchbox_create_generic, ui_rna_collection_search_cb,
+		        coll_search, NULL, NULL);
 		but->free_search_arg = true;
 	}
 	else if (but->type == UI_BTYPE_SEARCH_MENU) {
@@ -1974,9 +2056,12 @@ void ui_but_add_search(uiBut *but, PointerRNA *ptr, PropertyRNA *prop, PointerRN
 	}
 }
 
-void uiItemPointerR(uiLayout *layout, struct PointerRNA *ptr, const char *propname, struct PointerRNA *searchptr, const char *searchpropname, const char *name, int icon)
+void uiItemPointerR_prop(
+        uiLayout *layout,
+        PointerRNA *ptr, PropertyRNA *prop,
+        PointerRNA *searchptr, PropertyRNA *searchprop,
+        const char *name, int icon)
 {
-	PropertyRNA *prop, *searchprop;
 	PropertyType type;
 	uiBut *but;
 	uiBlock *block;
@@ -1985,32 +2070,15 @@ void uiItemPointerR(uiLayout *layout, struct PointerRNA *ptr, const char *propna
 	char namestr[UI_MAX_NAME_STR];
 	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
 
-	/* validate arguments */
-	prop = RNA_struct_find_property(ptr, propname);
-
-	if (!prop) {
-		RNA_warning("property not found: %s.%s",
-		            RNA_struct_identifier(ptr->type), propname);
-		return;
-	}
-
 	type = RNA_property_type(prop);
 	if (!ELEM(type, PROP_POINTER, PROP_STRING, PROP_ENUM)) {
-		RNA_warning("Property %s must be a pointer, string or enum", propname);
+		RNA_warning("Property %s.%s must be a pointer, string or enum",
+		            RNA_struct_identifier(ptr->type), RNA_property_identifier(prop));
 		return;
 	}
-
-	searchprop = RNA_struct_find_property(searchptr, searchpropname);
-
-
-	if (!searchprop) {
-		RNA_warning("search collection property not found: %s.%s",
-		            RNA_struct_identifier(searchptr->type), searchpropname);
-		return;
-	}
-	else if (RNA_property_type(searchprop) != PROP_COLLECTION) {
+	if (RNA_property_type(searchprop) != PROP_COLLECTION) {
 		RNA_warning("search collection property is not a collection type: %s.%s",
-		            RNA_struct_identifier(searchptr->type), searchpropname);
+		            RNA_struct_identifier(searchptr->type), RNA_property_identifier(searchprop));
 		return;
 	}
 
@@ -2038,6 +2106,31 @@ void uiItemPointerR(uiLayout *layout, struct PointerRNA *ptr, const char *propna
 	but = ui_item_with_label(layout, block, name, icon, ptr, prop, 0, 0, 0, w, h, 0);
 
 	ui_but_add_search(but, ptr, prop, searchptr, searchprop);
+}
+
+void uiItemPointerR(
+        uiLayout *layout,
+        PointerRNA *ptr, const char *propname,
+        PointerRNA *searchptr, const char *searchpropname,
+        const char *name, int icon)
+{
+	PropertyRNA *prop, *searchprop;
+
+	/* validate arguments */
+	prop = RNA_struct_find_property(ptr, propname);
+	if (!prop) {
+		RNA_warning("property not found: %s.%s",
+		            RNA_struct_identifier(ptr->type), propname);
+		return;
+	}
+	searchprop = RNA_struct_find_property(searchptr, searchpropname);
+	if (!searchprop) {
+		RNA_warning("search collection property not found: %s.%s",
+		            RNA_struct_identifier(searchptr->type), searchpropname);
+		return;
+	}
+
+	uiItemPointerR_prop(layout, ptr, prop, searchptr, searchprop, name, icon);
 }
 
 /* menu item */
@@ -2164,32 +2257,13 @@ void uiItemPopoverPanel_ptr(uiLayout *layout, bContext *C, PanelType *pt, const 
 
 void uiItemPopoverPanel(
         uiLayout *layout, bContext *C,
-        int space_id, int region_id, const char *panel_type,
-        const char *name, int icon)
+        const char *panel_type, const char *name, int icon)
 {
-	SpaceType *st = BKE_spacetype_from_id(space_id);
-	if (st == NULL) {
-		RNA_warning("space type not found %d", space_id);
-		return;
-	}
-	ARegionType *art = BKE_regiontype_from_id(st, region_id);
-	if (art == NULL) {
-		RNA_warning("region type not found %d", region_id);
-		return;
-	}
-
-	PanelType *pt;
-	for (pt = art->paneltypes.first; pt; pt = pt->next) {
-		if (STREQ(pt->idname, panel_type)) {
-			break;
-		}
-	}
-
+	PanelType *pt = WM_paneltype_find(panel_type, true);
 	if (pt == NULL) {
-		RNA_warning("area type not found %s", panel_type);
+		RNA_warning("Panel type not found '%s'", panel_type);
 		return;
 	}
-
 	uiItemPopoverPanel_ptr(layout, C, pt, name, icon);
 }
 
@@ -2386,8 +2460,9 @@ void uiItemMenuEnumO_ptr(
 	BLI_strncpy(lvl->propname, propname, sizeof(lvl->propname));
 	lvl->opcontext = layout->root->opcontext;
 
-	but = ui_item_menu(layout, name, icon, menu_item_enum_opname_menu, NULL, lvl,
-	                   RNA_struct_ui_description(ot->srna), true);
+	but = ui_item_menu(
+	        layout, name, icon, menu_item_enum_opname_menu, NULL, lvl,
+	        RNA_struct_ui_description(ot->srna), true);
 
 	/* add hotkey here, lower UI code can't detect it */
 	if ((layout->root->block->flag & UI_BLOCK_LOOP) &&

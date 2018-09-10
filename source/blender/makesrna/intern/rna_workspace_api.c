@@ -41,6 +41,8 @@
 
 #ifdef RNA_RUNTIME
 
+#include "BKE_paint.h"
+
 #include "ED_screen.h"
 
 static void rna_WorkspaceTool_setup(
@@ -51,19 +53,66 @@ static void rna_WorkspaceTool_setup(
         /* Args for: 'bToolRef_Runtime'. */
         int cursor,
         const char *keymap,
-        const char *manipulator_group,
+        const char *gizmo_group,
         const char *data_block,
+        const char *operator,
         int index)
 {
 	bToolRef_Runtime tref_rt = {0};
 
 	tref_rt.cursor = cursor;
 	STRNCPY(tref_rt.keymap, keymap);
-	STRNCPY(tref_rt.manipulator_group, manipulator_group);
+	STRNCPY(tref_rt.gizmo_group, gizmo_group);
 	STRNCPY(tref_rt.data_block, data_block);
+	STRNCPY(tref_rt.operator, operator);
 	tref_rt.index = index;
 
 	WM_toolsystem_ref_set_from_runtime(C, (WorkSpace *)id, tref, &tref_rt, name);
+}
+
+static void rna_WorkspaceTool_refresh_from_context(
+        ID *id,
+        bToolRef *tref,
+        Main *bmain)
+{
+	bToolRef_Runtime *tref_rt = tref->runtime;
+	if ((tref_rt == NULL) || (tref_rt->data_block[0] == '\0')) {
+		return;
+	}
+	wmWindowManager *wm = bmain->wm.first;
+	for (wmWindow *win = wm->windows.first; win; win = win->next) {
+		WorkSpace *workspace = WM_window_get_active_workspace(win);
+		if (&workspace->id == id) {
+			Scene *scene = WM_window_get_active_scene(win);
+			ToolSettings *ts = scene->toolsettings;
+			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+			Object *ob = OBACT(view_layer);
+			if (ob == NULL) {
+				/* pass */
+			}
+			else if (ob->mode & OB_MODE_PARTICLE_EDIT) {
+				const EnumPropertyItem *items = rna_enum_particle_edit_hair_brush_items;
+				const int i = RNA_enum_from_value(items, ts->particle.brushtype);
+				const EnumPropertyItem *item = &items[i];
+				if (!STREQ(tref_rt->data_block, item->identifier)) {
+					STRNCPY(tref_rt->data_block, item->identifier);
+					STRNCPY(tref->idname, item->name);
+				}
+			}
+			else {
+				Paint *paint = BKE_paint_get_active(scene, view_layer);
+				if (paint) {
+					const ID *brush = (ID *)paint->brush;
+					if (brush) {
+						if (!STREQ(tref_rt->data_block, brush->name + 2)) {
+							STRNCPY(tref_rt->data_block, brush->name + 2);
+							STRNCPY(tref->idname, brush->name + 2);
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 static PointerRNA rna_WorkspaceTool_operator_properties(
@@ -108,8 +157,9 @@ void RNA_api_workspace_tool(StructRNA *srna)
 	parm = RNA_def_property(func, "cursor", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(parm, rna_enum_window_cursor_items);
 	RNA_def_string(func, "keymap", NULL, KMAP_MAX_NAME, "Key Map", "");
-	RNA_def_string(func, "manipulator_group", NULL, MAX_NAME, "Manipulator Group", "");
+	RNA_def_string(func, "gizmo_group", NULL, MAX_NAME, "Gizmo Group", "");
 	RNA_def_string(func, "data_block", NULL, MAX_NAME, "Data Block", "");
+	RNA_def_string(func, "operator", NULL, MAX_NAME, "Operator", "");
 	RNA_def_int(func, "index", 0, INT_MIN, INT_MAX, "Index", "", INT_MIN, INT_MAX);
 
 	/* Access tool operator options (optionally create). */
@@ -121,6 +171,8 @@ void RNA_api_workspace_tool(StructRNA *srna)
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_RNAPTR);
 	RNA_def_function_return(func, parm);
 
+	func = RNA_def_function(srna, "refresh_from_context", "rna_WorkspaceTool_refresh_from_context");
+	RNA_def_function_flag(func, FUNC_USE_SELF_ID | FUNC_USE_MAIN);
 }
 
 #endif

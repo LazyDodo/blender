@@ -243,7 +243,7 @@ enum {
 	ME_DRAW_VNORMALS       = 1 << 3,
 
 	ME_DRAWEIGHT           = 1 << 4,
-	/* ME_HIDDENEDGES      = 1 << 5, */  /* DEPRECATED */
+	ME_DRAW_FACE_DOT       = 1 << 5,
 
 	ME_DRAWCREASES         = 1 << 6,
 	ME_DRAWSEAMS           = 1 << 7,
@@ -278,9 +278,6 @@ enum {
 
 /* this is so we can save bmesh files that load in trunk, ignoring NGons
  * will eventually be removed */
-
-#define USE_BMESH_SAVE_AS_COMPAT
-#define USE_BMESH_SAVE_WITHOUT_MFACE
 
 /* enable this so meshes get tessfaces calculated by default */
 /* #define USE_TESSFACE_DEFAULT */

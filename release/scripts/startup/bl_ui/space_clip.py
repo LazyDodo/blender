@@ -23,13 +23,8 @@ from bpy.types import Panel, Header, Menu, UIList
 from bpy.app.translations import pgettext_iface as iface_
 from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
-    GreasePencilDrawingToolsPanel,
-    GreasePencilStrokeEditPanel,
-    GreasePencilStrokeSculptPanel,
-    GreasePencilBrushPanel,
-    GreasePencilBrushCurvesPanel,
-    GreasePencilDataPanel,
-    GreasePencilPaletteColorPanel,
+    AnnotationDrawingToolsPanel,
+    AnnotationDataPanel,
 )
 
 
@@ -761,7 +756,7 @@ class CLIP_PT_tracking_lens(Panel):
         clip = sc.clip
 
         row = layout.row(align=True)
-        sub = row.split(percentage=0.65, align=True)
+        sub = row.split(factor=0.65, align=True)
         if clip.tracking.camera.units == 'MILLIMETERS':
             sub.prop(clip.tracking.camera, "focal_length")
         else:
@@ -847,7 +842,7 @@ class CLIP_PT_marker_display(CLIP_PT_clip_view_panel, Panel):
 
         col = layout.column(align=True)
         row = col.row(align=True)
-        row.prop(sc, "show_disabled", "Disabled")
+        row.prop(sc, "show_disabled", text="Disabled")
         row.prop(sc, "show_names", text="Info")
 
         row = col.row(align=True)
@@ -931,7 +926,7 @@ class CLIP_PT_stabilization(CLIP_PT_reconstruction_panel, Panel):
             sub.menu('CLIP_MT_stabilize_2d_specials', text="",
                      icon='DOWNARROW_HLT')
 
-            # Usually we don't hide things from iterface, but here every pixel of
+            # Usually we don't hide things from interface, but here every pixel of
             # vertical space is precious.
             if stab.use_stabilize_rotation:
                 box.label(text="Tracks For Rotation / Scale")
@@ -1145,17 +1140,7 @@ class CLIP_PT_tools_scenesetup(Panel):
 
 
 # Grease Pencil properties
-class CLIP_PT_grease_pencil(GreasePencilDataPanel, CLIP_PT_clip_view_panel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-    bl_region_type = 'UI'
-    bl_options = {'DEFAULT_CLOSED'}
-
-    # NOTE: this is just a wrapper around the generic GP Panel
-    # But, this should only be visible in "clip" view
-
-
-# Grease Pencil palette colors
-class CLIP_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, CLIP_PT_clip_view_panel, Panel):
+class CLIP_PT_grease_pencil(AnnotationDataPanel, CLIP_PT_clip_view_panel, Panel):
     bl_space_type = 'CLIP_EDITOR'
     bl_region_type = 'UI'
     bl_options = {'DEFAULT_CLOSED'}
@@ -1165,28 +1150,9 @@ class CLIP_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, CLIP_PT_
 
 
 # Grease Pencil drawing tools
-class CLIP_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
+class CLIP_PT_tools_grease_pencil_draw(AnnotationDrawingToolsPanel, Panel):
     bl_space_type = 'CLIP_EDITOR'
-
-
-# Grease Pencil stroke editing tools
-class CLIP_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-
-
-# Grease Pencil stroke sculpting tools
-class CLIP_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-
-
-# Grease Pencil drawing brushes
-class CLIP_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
-
-
-# Grease Pencil drawing curves
-class CLIP_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
-    bl_space_type = 'CLIP_EDITOR'
+    bl_region_type = 'TOOLS'
 
 
 class CLIP_MT_view(Menu):
@@ -1515,12 +1481,7 @@ classes = (
     CLIP_PT_footage_info,
     CLIP_PT_tools_scenesetup,
     CLIP_PT_grease_pencil,
-    CLIP_PT_grease_pencil_palettecolor,
     CLIP_PT_tools_grease_pencil_draw,
-    CLIP_PT_tools_grease_pencil_edit,
-    CLIP_PT_tools_grease_pencil_sculpt,
-    CLIP_PT_tools_grease_pencil_brush,
-    CLIP_PT_tools_grease_pencil_brushcurves,
     CLIP_MT_view,
     CLIP_MT_clip,
     CLIP_MT_proxy,

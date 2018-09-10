@@ -63,8 +63,8 @@ struct BLaplacianSystem {
 	int numLoops;           /* Number of edges*/
 	int numPolys;           /* Number of faces*/
 	int numVerts;           /* Number of verts*/
-	short *numNeFa;         /* Number of neighboors faces around vertice*/
-	short *numNeEd;         /* Number of neighboors Edges around vertice*/
+	short *numNeFa;         /* Number of neighbors faces around vertice*/
+	short *numNeEd;         /* Number of neighbors Edges around vertice*/
 	short *zerola;          /* Is zero area or length*/
 
 	/* Pointers to data*/
@@ -81,7 +81,7 @@ struct BLaplacianSystem {
 typedef struct BLaplacianSystem LaplacianSystem;
 
 static CustomDataMask required_data_mask(Object *ob, ModifierData *md);
-static bool is_disabled(const struct Scene *UNUSED(scene), ModifierData *md, int useRenderParams);
+static bool is_disabled(const struct Scene *UNUSED(scene), ModifierData *md, bool useRenderParams);
 static float compute_volume(const float center[3], float (*vertexCos)[3], const MPoly *mpoly, int numPolys, const MLoop *mloop);
 static LaplacianSystem *init_laplacian_system(int a_numEdges, int a_numPolys, int a_numLoops, int a_numVerts);
 static void delete_laplacian_system(LaplacianSystem *sys);
@@ -271,7 +271,7 @@ static void init_laplacian_matrix(LaplacianSystem *sys)
 	for (i = 0; i < sys->numEdges; i++) {
 		idv1 = sys->medges[i].v1;
 		idv2 = sys->medges[i].v2;
-		/* if is boundary, apply scale-dependent umbrella operator only with neighboors in boundary */
+		/* if is boundary, apply scale-dependent umbrella operator only with neighbors in boundary */
 		if (sys->numNeEd[idv1] != sys->numNeFa[idv1] && sys->numNeEd[idv2] != sys->numNeFa[idv2]) {
 			sys->vlengths[idv1] += sys->eweights[i];
 			sys->vlengths[idv2] += sys->eweights[i];
@@ -474,7 +474,7 @@ static void init_data(ModifierData *md)
 	smd->defgrp_name[0] = '\0';
 }
 
-static bool is_disabled(const struct Scene *UNUSED(scene), ModifierData *md, int UNUSED(useRenderParams))
+static bool is_disabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	LaplacianSmoothModifierData *smd = (LaplacianSmoothModifierData *) md;
 	short flag;

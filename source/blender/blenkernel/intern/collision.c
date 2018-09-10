@@ -33,8 +33,8 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_cloth_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_effect_types.h"
-#include "DNA_group_types.h"
 #include "DNA_object_types.h"
 #include "DNA_object_force_types.h"
 #include "DNA_scene_types.h"
@@ -1347,6 +1347,14 @@ void cloth_find_point_contacts(Depsgraph *depsgraph, Object *ob, ClothModifierDa
 	// static collisions
 	////////////////////////////////////////////////////////////
 
+	/* Check we do have collision objects to test against, before doing anything else. */
+	collobjs = BKE_collision_objects_create(depsgraph, ob, clmd->coll_parms->group, &numcollobj, eModifierType_Collision);
+	if (!collobjs) {
+		*r_collider_contacts = NULL;
+		*r_totcolliders = 0;
+		return;
+	}
+
 	// create temporary cloth points bvh
 	cloth_bvh = BLI_bvhtree_new(mvert_num, max_ff(clmd->coll_parms->epsilon, clmd->coll_parms->distance_repel), 4, 6);
 	/* fill tree */
@@ -1360,13 +1368,6 @@ void cloth_find_point_contacts(Depsgraph *depsgraph, Object *ob, ClothModifierDa
 	}
 	/* balance tree */
 	BLI_bvhtree_balance(cloth_bvh);
-
-	collobjs = BKE_collision_objects_create(depsgraph, ob, clmd->coll_parms->group, &numcollobj, eModifierType_Collision);
-	if (!collobjs) {
-		*r_collider_contacts = NULL;
-		*r_totcolliders = 0;
-		return;
-	}
 
 	/* move object to position (step) in time */
 	for (i = 0; i < numcollobj; i++) {

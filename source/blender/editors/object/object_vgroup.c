@@ -2466,7 +2466,7 @@ static void vgroup_assign_verts(Object *ob, const float weight)
 
 /********************** vertex group operators *********************/
 
-static int vertex_group_poll(bContext *C)
+static bool vertex_group_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2477,7 +2477,7 @@ static int vertex_group_poll(bContext *C)
 	        ob->defbase.first);
 }
 
-static int vertex_group_supported_poll(bContext *C)
+static bool vertex_group_supported_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2485,7 +2485,7 @@ static int vertex_group_supported_poll(bContext *C)
 	        data && !ID_IS_LINKED(data));
 }
 
-static int vertex_group_mesh_poll(bContext *C)
+static bool vertex_group_mesh_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2496,7 +2496,7 @@ static int vertex_group_mesh_poll(bContext *C)
 	        ob->defbase.first);
 }
 
-static int UNUSED_FUNCTION(vertex_group_mesh_supported_poll)(bContext *C)
+static bool UNUSED_FUNCTION(vertex_group_mesh_supported_poll)(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2504,7 +2504,7 @@ static int UNUSED_FUNCTION(vertex_group_mesh_supported_poll)(bContext *C)
 }
 
 
-static int UNUSED_FUNCTION(vertex_group_poll_edit) (bContext *C)
+static bool UNUSED_FUNCTION(vertex_group_poll_edit) (bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2516,7 +2516,7 @@ static int UNUSED_FUNCTION(vertex_group_poll_edit) (bContext *C)
 }
 
 /* editmode _or_ weight paint vertex sel */
-static int vertex_group_vert_poll_ex(bContext *C, const bool needs_select, const short ob_type_flag)
+static bool vertex_group_vert_poll_ex(bContext *C, const bool needs_select, const short ob_type_flag)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2551,25 +2551,25 @@ static int vertex_group_vert_poll_ex(bContext *C, const bool needs_select, const
 }
 
 #if 0
-static int vertex_group_vert_poll(bContext *C)
+static bool vertex_group_vert_poll(bContext *C)
 {
 	return vertex_group_vert_poll_ex(C, false, 0);
 }
 #endif
 
 
-static int vertex_group_mesh_vert_poll(bContext *C)
+static bool vertex_group_mesh_vert_poll(bContext *C)
 {
 	return vertex_group_vert_poll_ex(C, false, (1 << OB_MESH));
 }
 
-static int vertex_group_vert_select_poll(bContext *C)
+static bool vertex_group_vert_select_poll(bContext *C)
 {
 	return vertex_group_vert_poll_ex(C, true, 0);
 }
 
 #if 0
-static int vertex_group_mesh_vert_select_poll(bContext *C)
+static bool vertex_group_mesh_vert_select_poll(bContext *C)
 {
 	return vertex_group_vert_poll_ex(C, true, (1 << OB_MESH));
 }
@@ -2577,7 +2577,7 @@ static int vertex_group_mesh_vert_select_poll(bContext *C)
 
 
 /* editmode _or_ weight paint vertex sel and active group unlocked */
-static int vertex_group_vert_select_unlocked_poll(bContext *C)
+static bool vertex_group_vert_select_unlocked_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -2600,7 +2600,7 @@ static int vertex_group_vert_select_unlocked_poll(bContext *C)
 	return 1;
 }
 
-static int vertex_group_vert_select_mesh_poll(bContext *C)
+static bool vertex_group_vert_select_mesh_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -3119,21 +3119,32 @@ void OBJECT_OT_vertex_group_invert(wmOperatorType *ot)
 
 static int vertex_group_smooth_exec(bContext *C, wmOperator *op)
 {
-	Object *ob = ED_object_context(C);
 	const float fac = RNA_float_get(op->ptr, "factor");
 	const int repeat = RNA_int_get(op->ptr, "repeat");
 	eVGroupSelect subset_type  = RNA_enum_get(op->ptr, "group_select_mode");
 	const float fac_expand = RNA_float_get(op->ptr, "expand");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	int subset_count, vgroup_tot;
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
 
-	const bool *vgroup_validmap = BKE_object_defgroup_subset_from_select_type(ob, subset_type, &vgroup_tot, &subset_count);
-	vgroup_smooth_subset(ob, vgroup_validmap, vgroup_tot, subset_count, fac, repeat, fac_expand);
-	MEM_freeN((void *)vgroup_validmap);
+		int subset_count, vgroup_tot;
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);
+		const bool *vgroup_validmap = BKE_object_defgroup_subset_from_select_type(ob,
+		                                                                          subset_type,
+		                                                                          &vgroup_tot,
+		                                                                          &subset_count);
+
+		vgroup_smooth_subset(ob, vgroup_validmap, vgroup_tot, subset_count, fac, repeat, fac_expand);
+		MEM_freeN((void *)vgroup_validmap);
+
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
+		WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }

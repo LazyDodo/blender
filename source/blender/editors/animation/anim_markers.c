@@ -71,6 +71,8 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_util.h"
 #include "ED_numinput.h"
 #include "ED_object.h"
@@ -400,13 +402,13 @@ static void draw_marker(
 	if (flag & DRAW_MARKERS_LINES)
 #endif
 	{
-		Gwn_VertFormat *format = immVertexFormat();
-		uint pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 		float viewport_size[4];
-		GPU_viewport_size_getf(viewport_size);
+		GPU_viewport_size_get_f(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2] / UI_DPI_FAC, viewport_size[3] / UI_DPI_FAC);
 
 		if (marker->flag & SELECT) {
@@ -418,7 +420,7 @@ static void draw_marker(
 		immUniform1f("dash_width", 6.0f);
 		immUniform1f("dash_factor", 0.5f);
 
-		immBegin(GWN_PRIM_LINES, 2);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex2f(pos, xpos + 0.5f, 12.0f);
 		immVertex2f(pos, xpos + 0.5f, (v2d->cur.ymax + 12.0f) * yscale);
 		immEnd();
@@ -486,7 +488,7 @@ void ED_markers_draw(const bContext *C, int flag)
 	v2d = UI_view2d_fromcontext(C);
 
 	if (flag & DRAW_MARKERS_MARGIN) {
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 		const unsigned char shade[4] = {0, 0, 0, 16};
@@ -505,8 +507,8 @@ void ED_markers_draw(const bContext *C, int flag)
 	/* no time correction for framelen! space is drawn with old values */
 	ypixels = BLI_rcti_size_y(&v2d->mask);
 	UI_view2d_scale_get(v2d, &xscale, &yscale);
-	gpuPushMatrix();
-	gpuScale2f(1.0f / xscale, 1.0f);
+	GPU_matrix_push();
+	GPU_matrix_scale_2f(1.0f / xscale, 1.0f);
 
 	/* x-bounds with offset for text (adjust for long string, avoid checking string width) */
 	font_width_max = (10 * UI_DPI_FAC) / xscale;
@@ -529,7 +531,7 @@ void ED_markers_draw(const bContext *C, int flag)
 		}
 	}
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 /* ************************ Marker Wrappers API ********************* */
@@ -541,7 +543,7 @@ void ED_markers_draw(const bContext *C, int flag)
 /* ------------------------ */
 
 /* special poll() which checks if there are selected markers first */
-static int ed_markers_poll_selected_markers(bContext *C)
+static bool ed_markers_poll_selected_markers(bContext *C)
 {
 	ListBase *markers = ED_context_get_markers(C);
 
@@ -553,7 +555,7 @@ static int ed_markers_poll_selected_markers(bContext *C)
 	return ED_markers_get_first_selected(markers) != NULL;
 }
 
-static int ed_markers_poll_selected_no_locked_markers(bContext *C)
+static bool ed_markers_poll_selected_no_locked_markers(bContext *C)
 {
 	ListBase *markers = ED_context_get_markers(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
@@ -571,7 +573,7 @@ static int ed_markers_poll_selected_no_locked_markers(bContext *C)
 
 
 /* special poll() which checks if there are any markers at all first */
-static int ed_markers_poll_markers_exist(bContext *C)
+static bool ed_markers_poll_markers_exist(bContext *C)
 {
 	ListBase *markers = ED_context_get_markers(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
@@ -1647,7 +1649,7 @@ void ED_operatortypes_marker(void)
 /* called in screen_ops.c:ED_keymap_screen() */
 void ED_keymap_marker(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Markers", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Markers", 0, 0);
 	wmKeyMapItem *kmi;
 
 	WM_keymap_verify_item(keymap, "MARKER_OT_add", MKEY, KM_PRESS, 0, 0);
@@ -1670,11 +1672,12 @@ void ED_keymap_marker(wmKeyConfig *keyconf)
 #endif
 
 	WM_keymap_verify_item(keymap, "MARKER_OT_select_border", BKEY, KM_PRESS, 0, 0);
-	WM_keymap_verify_item(keymap, "MARKER_OT_select_all", AKEY, KM_PRESS, 0, 0);
-#ifdef USE_WM_KEYMAP_27X
+
+	ED_keymap_template_select_all(keymap, "MARKER_OT_select_all");
+
 	WM_keymap_add_item(keymap, "MARKER_OT_delete", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_item(keymap, "MARKER_OT_delete", DELKEY, KM_PRESS, 0, 0);
+
 	WM_keymap_verify_item(keymap, "MARKER_OT_rename", MKEY, KM_PRESS, KM_CTRL, 0);
 
 	WM_keymap_add_item(keymap, "MARKER_OT_move", GKEY, KM_PRESS, 0, 0);

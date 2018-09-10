@@ -74,6 +74,7 @@
 #include "BKE_armature.h"
 #include "BKE_curve.h"
 #include "BKE_fcurve.h"
+#include "BKE_gpencil.h"
 #include "BKE_lattice.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -105,6 +106,7 @@
 #include "ED_curve.h" /* for curve_editnurbs */
 #include "ED_clip.h"
 #include "ED_screen.h"
+#include "ED_gpencil.h"
 
 #include "WM_types.h"
 #include "WM_api.h"
@@ -379,7 +381,8 @@ static void recalcData_actedit(TransInfo *t)
 		/* flush transform values back to actual coordinates */
 		flushTransIntFrameActionData(t);
 	}
-	else {
+
+	if (ac.datatype != ANIMCONT_MASK) {
 		/* get animdata blocks visible in editor, assuming that these will be the ones where things changed */
 		filter = (ANIMFILTER_DATA_VISIBLE | ANIMFILTER_ANIMDATA);
 		ANIM_animdata_filter(&ac, &anim_data, filter, ac.data, ac.datatype);
@@ -463,13 +466,13 @@ static void recalcData_graphedit(TransInfo *t)
 /* helper for recalcData() - for NLA Editor transforms */
 static void recalcData_nla(TransInfo *t)
 {
-	TransDataNla *tdn = t->custom.type.data;
 	SpaceNla *snla = (SpaceNla *)t->sa->spacedata.first;
 	Scene *scene = t->scene;
 	double secf = FPS;
 	int i;
 
 	TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_SINGLE(t);
+	TransDataNla *tdn = tc->custom.type.data;
 
 	/* for each strip we've got, perform some additional validation of the values that got set before
 	 * using RNA to set the value (which does some special operations when setting these values to make
@@ -1116,7 +1119,7 @@ void drawLine(TransInfo *t, const float center[3], const float dir[3], char axis
 	if (t->spacetype == SPACE_VIEW3D) {
 		View3D *v3d = t->view;
 
-		gpuPushMatrix();
+		GPU_matrix_push();
 
 		copy_v3_v3(v3, dir);
 		mul_v3_fl(v3, v3d->far);
@@ -1132,19 +1135,19 @@ void drawLine(TransInfo *t, const float center[3], const float dir[3], char axis
 		}
 		UI_make_axis_color(col, col2, axis);
 
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 		immUniformColor3ubv(col2);
 
-		immBegin(GWN_PRIM_LINES, 2);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex3fv(pos, v1);
 		immVertex3fv(pos, v2);
 		immEnd();
 
 		immUnbindProgram();
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 }
 
@@ -1311,7 +1314,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	}
 
 	/* GPencil editing context */
-	if ((gpd) && (gpd->flag & GP_DATA_STROKE_EDITMODE)) {
+	if (GPENCIL_ANY_MODE(gpd)) {
 		t->options |= CTX_GPENCIL_STROKES;
 	}
 
@@ -1348,10 +1351,10 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		t->view = v3d;
 		t->animtimer = (animscreen) ? animscreen->animtimer : NULL;
 
-		/* turn manipulator off during transform */
+		/* turn gizmo off during transform */
 		if (t->flag & T_MODAL) {
-			t->twflag = v3d->twflag;
-			v3d->twflag = 0;
+			t->gizmo_flag = v3d->gizmo_flag;
+			v3d->gizmo_flag = V3D_GIZMO_HIDE;
 		}
 
 		if (t->scene->toolsettings->transform_flag & SCE_XFORM_AXIS_ALIGN) {
@@ -1688,9 +1691,9 @@ void postTrans(bContext *C, TransInfo *t)
 	}
 	else if (t->spacetype == SPACE_VIEW3D) {
 		View3D *v3d = t->sa->spacedata.first;
-		/* restore manipulator */
+		/* restore gizmo */
 		if (t->flag & T_MODAL) {
-			v3d->twflag = t->twflag;
+			v3d->gizmo_flag = t->gizmo_flag;
 		}
 	}
 
@@ -1822,6 +1825,21 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 			r_center[1] = t->ar->winy / 2.0f;
 		}
 		r_center[2] = 0.0f;
+	}
+	else if (t->options & CTX_GPENCIL_STROKES) {
+		 /* move cursor in local space */
+		TransData *td = NULL;
+		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+			float mat[3][3], imat[3][3];
+
+			td = tc->data;
+			Object *ob = td->ob;
+
+			sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
+			copy_m3_m4(mat, ob->obmat);
+			invert_m3_m3(imat, mat);
+			mul_m3_v3(imat, r_center);
+		}
 	}
 }
 

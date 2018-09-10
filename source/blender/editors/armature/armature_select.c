@@ -54,7 +54,9 @@
 #include "WM_types.h"
 
 #include "ED_armature.h"
+#include "ED_object.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_view3d.h"
 
 #include "DEG_depsgraph.h"
@@ -349,7 +351,7 @@ static int armature_select_linked_invoke(bContext *C, wmOperator *op, const wmEv
 	return OPERATOR_FINISHED;
 }
 
-static int armature_select_linked_poll(bContext *C)
+static bool armature_select_linked_poll(bContext *C)
 {
 	return (ED_operator_view3d_active(C) && ED_operator_editarmature(C));
 }
@@ -426,7 +428,7 @@ static EditBone *get_nearest_editbonepoint(
 	if (use_cycle) {
 		static int last_mval[2] = {-100, -100};
 
-		if (vc->v3d->drawtype > OB_WIRE) {
+		if (vc->v3d->shading.type > OB_WIRE) {
 			do_nearest = true;
 			if (len_manhattan_v2v2_int(vc->mval, last_mval) < 3) {
 				do_nearest = false;
@@ -435,7 +437,7 @@ static EditBone *get_nearest_editbonepoint(
 		copy_v2_v2_int(last_mval, vc->mval);
 	}
 	else {
-		if (vc->v3d->drawtype > OB_WIRE) {
+		if (vc->v3d->shading.type > OB_WIRE) {
 			do_nearest = true;
 		}
 	}
@@ -722,9 +724,7 @@ bool ED_armature_edit_select_pick(bContext *C, const int mval[2], bool extend, b
 			}
 
 			if (vc.view_layer->basact != basact) {
-				vc.view_layer->basact = basact;
-				DEG_id_tag_update(&vc.scene->id, DEG_TAG_SELECT_UPDATE);
-				WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, vc.scene);
+				ED_object_base_activate(C, basact);
 			}
 		}
 

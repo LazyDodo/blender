@@ -1,6 +1,6 @@
 
 /* Infinite grid
- * Clément Foucault */
+ * Author: Clément Foucault */
 
 out vec4 FragColor;
 
@@ -113,12 +113,15 @@ void main()
 		viewvec /= dist;
 
 		float angle;
-		if ((gridFlag & PLANE_XZ) > 0)
+		if ((gridFlag & PLANE_XZ) != 0) {
 			angle = viewvec.y;
-		else if ((gridFlag & PLANE_YZ) > 0)
+		}
+		else if ((gridFlag & PLANE_YZ) != 0) {
 			angle = viewvec.x;
-		else
+		}
+		else {
 			angle = viewvec.z;
+		}
 
 		angle = 1.0 - abs(angle);
 		angle *= angle;
@@ -130,7 +133,7 @@ void main()
 		fade = 1.0 - smoothstep(0.0, 0.5, dist - 0.5);
 		dist = 1.0; /* avoid branch after */
 
-		if ((gridFlag & PLANE_XY) > 0) {
+		if ((gridFlag & PLANE_XY) != 0) {
 			float angle = 1.0 - abs(eye.z);
 			dist = 1.0 + angle * 2.0;
 			angle *= angle;
@@ -138,7 +141,7 @@ void main()
 		}
 	}
 
-	if ((gridFlag & GRID) > 0) {
+	if ((gridFlag & GRID) != 0) {
 		float grid_res = log(dist * gridResolution) * gridOneOverLogSubdiv;
 
 		float blend = fract(-max(grid_res, 0.0));
@@ -150,11 +153,11 @@ void main()
 		float scaleC = gridScale * pow(gridSubdiv, max(lvl + 1.0, 1.0));
 
 		vec2 grid_pos, grid_fwidth;
-		if ((gridFlag & PLANE_XZ) > 0) {
+		if ((gridFlag & PLANE_XZ) != 0) {
 			grid_pos = wPos.xz;
 			grid_fwidth = fwidthPos.xz;
 		}
-		else if ((gridFlag & PLANE_YZ) > 0) {
+		else if ((gridFlag & PLANE_YZ) != 0) {
 			grid_pos = wPos.yz;
 			grid_fwidth = fwidthPos.yz;
 		}
@@ -175,19 +178,19 @@ void main()
 		FragColor = vec4(colorGrid.rgb, 0.0);
 	}
 
-	if ((gridFlag & (AXIS_X | AXIS_Y | AXIS_Z)) > 0) {
+	if ((gridFlag & (AXIS_X | AXIS_Y | AXIS_Z)) != 0) {
 		/* Setup axes 'domains' */
 		vec3 axes_dist, axes_fwidth;
 
-		if ((gridFlag & AXIS_X) > 0) {
+		if ((gridFlag & AXIS_X) != 0) {
 			axes_dist.x = dot(wPos.yz, planeAxes.yz);
 			axes_fwidth.x = dot(fwidthPos.yz, planeAxes.yz);
 		}
-		if ((gridFlag & AXIS_Y) > 0) {
+		if ((gridFlag & AXIS_Y) != 0) {
 			axes_dist.y = dot(wPos.xz, planeAxes.xz);
 			axes_fwidth.y = dot(fwidthPos.xz, planeAxes.xz);
 		}
-		if ((gridFlag & AXIS_Z) > 0) {
+		if ((gridFlag & AXIS_Z) != 0) {
 			axes_dist.z = dot(wPos.xy, planeAxes.xy);
 			axes_fwidth.z = dot(fwidthPos.xy, planeAxes.xy);
 		}
@@ -195,31 +198,34 @@ void main()
 		/* Computing all axes at once using vec3 */
 		vec3 axes = get_axes(axes_dist, axes_fwidth, 0.1);
 
-		if ((gridFlag & AXIS_X) > 0) {
-			FragColor = mix(FragColor, colorGridAxisX, axes.x);
+		if ((gridFlag & AXIS_X) != 0) {
+			FragColor.a = max(FragColor.a, axes.x);
+			FragColor.rgb = (axes.x < 1e-8) ? FragColor.rgb : colorGridAxisX.rgb;
 		}
-		if ((gridFlag & AXIS_Y) > 0) {
-			FragColor = mix(FragColor, colorGridAxisY, axes.y);
+		if ((gridFlag & AXIS_Y) != 0) {
+			FragColor.a = max(FragColor.a, axes.y);
+			FragColor.rgb = (axes.y < 1e-8) ? FragColor.rgb : colorGridAxisY.rgb;
 		}
-		if ((gridFlag & AXIS_Z) > 0) {
-			FragColor = mix(FragColor, colorGridAxisZ, axes.z);
+		if ((gridFlag & AXIS_Z) != 0) {
+			FragColor.a = max(FragColor.a, axes.z);
+			FragColor.rgb = (axes.z < 1e-8) ? FragColor.rgb : colorGridAxisZ.rgb;
 		}
 	}
 
+	/* Add a small bias so the grid will always
+	 * be on top of a mesh with the same depth. */
+	float grid_depth = gl_FragCoord.z - 6e-8 - fwidth(gl_FragCoord.z);
 	float scene_depth = texture(depthBuffer, sPos).r;
-	if ((gridFlag & GRID_BACK) > 0) {
+	if ((gridFlag & GRID_BACK) != 0) {
 		fade *= (scene_depth == 1.0) ? 1.0 : 0.0;
 	}
 	else {
 		/* Manual, non hard, depth test:
 		 * Progressively fade the grid below occluders
 		 * (avoids poping visuals due to depth buffer precision) */
-		/* Add a small bias so the grid will always
-		 * be on top of a mesh with the same depth. */
-		float grid_depth = gl_FragCoord.z - 1e-8;
 		/* Harder settings tend to flicker more,
 		 * but have less "see through" appearance. */
-		const float test_hardness = 1e4;
+		const float test_hardness = 1e7;
 		fade *= 1.0 - clamp((grid_depth - scene_depth) * test_hardness, 0.0, 1.0);
 	}
 

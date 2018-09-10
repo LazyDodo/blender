@@ -117,6 +117,9 @@ struct Mesh *BKE_mesh_new_nomain_from_template(
         int verts_len, int edges_len, int tessface_len,
         int loops_len, int polys_len);
 
+/* Performs copy for use during evaluation. */
+struct Mesh *BKE_mesh_copy_for_eval(struct Mesh *source);
+
 /* These functions construct a new Mesh, contrary to BKE_mesh_from_nurbs which modifies ob itself. */
 struct Mesh *BKE_mesh_new_nomain_from_curve(struct Object *ob);
 struct Mesh *BKE_mesh_new_nomain_from_curve_displist(struct Object *ob, struct ListBase *dispbase);
@@ -204,6 +207,7 @@ int  BKE_mesh_mselect_active_get(struct Mesh *me, int type);
 void BKE_mesh_mselect_active_set(struct Mesh *me, int index, int type);
 
 void BKE_mesh_apply_vert_coords(struct Mesh *mesh, float (*vertCoords)[3]);
+void BKE_mesh_apply_vert_normals(struct Mesh *mesh, short (*vertNormals)[3]);
 
 
 /* *** mesh_evaluate.c *** */
@@ -269,6 +273,8 @@ typedef struct MLoopNorSpace {
 	 *     - BMLoop pointers. */
 	struct LinkNode *loops;
 	char flags;
+
+	void *user_data;  /* To be used for extended processing related to loop normal spaces (aka smooth fans). */
 } MLoopNorSpace;
 /**
  * MLoopNorSpace.flags
@@ -284,6 +290,7 @@ typedef struct MLoopNorSpaceArray {
 	MLoopNorSpace **lspacearr;    /* MLoop aligned array */
 	struct LinkNode *loops_pool;  /* Allocated once, avoids to call BLI_linklist_prepend_arena() for each loop! */
 	char data_type;               /* Whether we store loop indices, or pointers to BMLoop. */
+	int num_spaces;               /* Number of clnors spaces defined in this array. */
 	struct MemArena *mem;
 } MLoopNorSpaceArray;
 /**
@@ -392,9 +399,6 @@ void BKE_mesh_recalc_looptri(
         const struct MVert *mvert,
         int totloop, int totpoly,
         struct MLoopTri *mlooptri);
-int BKE_mesh_mpoly_to_mface(
-        struct CustomData *fdata, struct CustomData *ldata,
-        struct CustomData *pdata, int totface, int totloop, int totpoly);
 void BKE_mesh_convert_mfaces_to_mpolys(struct Mesh *mesh);
 void BKE_mesh_do_versions_convert_mfaces_to_mpolys(struct Mesh *mesh);
 void BKE_mesh_convert_mfaces_to_mpolys_ex(
@@ -509,7 +513,7 @@ enum {
 	BKE_MESH_BATCH_DIRTY_SHADING,
 	BKE_MESH_BATCH_DIRTY_SCULPT_COORDS,
 };
-void BKE_mesh_batch_cache_dirty(struct Mesh *me, int mode);
+void BKE_mesh_batch_cache_dirty_tag(struct Mesh *me, int mode);
 void BKE_mesh_batch_cache_free(struct Mesh *me);
 
 

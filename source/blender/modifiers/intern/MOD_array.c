@@ -456,9 +456,10 @@ static Mesh *arrayModifier_doArray(
 	if (amd->fit_type == MOD_ARR_FITCURVE && amd->curve_ob) {
 		Curve *cu = amd->curve_ob->data;
 		if (cu) {
-			if (amd->curve_ob->curve_cache && amd->curve_ob->curve_cache->path) {
+			CurveCache *curve_cache = amd->curve_ob->runtime.curve_cache;
+			if (curve_cache != NULL && curve_cache->path != NULL) {
 				float scale_fac = mat4_to_scale(amd->curve_ob->obmat);
-				length = scale_fac * amd->curve_ob->curve_cache->path->totdist;
+				length = scale_fac * curve_cache->path->totdist;
 			}
 		}
 	}
@@ -504,7 +505,7 @@ static Mesh *arrayModifier_doArray(
 	CustomData_copy_data(&mesh->ldata, &result->ldata, 0, 0, chunk_nloops);
 	CustomData_copy_data(&mesh->pdata, &result->pdata, 0, 0, chunk_npolys);
 
-	/* Subsurf for eg wont have mesh data in the custom data arrays.
+	/* Subsurf for eg won't have mesh data in the custom data arrays.
 	 * now add mvert/medge/mpoly layers. */
 	if (!CustomData_has_layer(&mesh->vdata, CD_MVERT)) {
 		memcpy(result->mvert, mesh->mvert, sizeof(*result->mvert) * mesh->totvert);

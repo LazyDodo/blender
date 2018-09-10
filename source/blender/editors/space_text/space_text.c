@@ -126,8 +126,7 @@ static SpaceLink *text_duplicate(SpaceLink *sl)
 	return (SpaceLink *)stextn;
 }
 
-static void text_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
-                          WorkSpace *UNUSED(workspace))
+static void text_listener(wmWindow *UNUSED(win), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene))
 {
 	SpaceText *st = sa->spacedata.first;
 
@@ -245,7 +244,7 @@ static void text_keymap(struct wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "Text Generic", SPACE_TEXT, 0);
+	keymap = WM_keymap_ensure(keyconf, "Text Generic", SPACE_TEXT, 0);
 	WM_keymap_add_item(keymap, "TEXT_OT_start_find", FKEY, KM_PRESS, KM_CTRL, 0);
 #ifdef __APPLE__
 	WM_keymap_add_item(keymap, "TEXT_OT_start_find", FKEY, KM_PRESS, KM_OSKEY, 0);
@@ -255,7 +254,7 @@ static void text_keymap(struct wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "TEXT_OT_replace", HKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "TEXT_OT_properties", TKEY, KM_PRESS, KM_CTRL, 0);
 
-	keymap = WM_keymap_find(keyconf, "Text", SPACE_TEXT, 0);
+	keymap = WM_keymap_ensure(keyconf, "Text", SPACE_TEXT, 0);
 
 #ifdef __APPLE__
 	RNA_enum_set(WM_keymap_add_item(keymap, "TEXT_OT_move", LEFTARROWKEY, KM_PRESS, KM_OSKEY, 0)->ptr, "type", LINE_BEGIN);
@@ -427,9 +426,9 @@ static void text_main_region_init(wmWindowManager *wm, ARegion *ar)
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_STANDARD, ar->winx, ar->winy);
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Text Generic", SPACE_TEXT, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Text Generic", SPACE_TEXT, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
-	keymap = WM_keymap_find(wm->defaultconf, "Text", SPACE_TEXT, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Text", SPACE_TEXT, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 	/* add drop boxes */
@@ -475,7 +474,7 @@ static void text_cursor(wmWindow *win, ScrArea *sa, ARegion *ar)
 
 /* ************* dropboxes ************* */
 
-static int text_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool text_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH) {
 		/* rule might not work? */
@@ -492,18 +491,15 @@ static void text_drop_copy(wmDrag *drag, wmDropBox *drop)
 	RNA_string_set(drop->ptr, "filepath", drag->path);
 }
 
-static int text_drop_paste_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool text_drop_paste_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
-	if (drag->type == WM_DRAG_ID)
-		return true;
-
-	return false;
+	return (drag->type == WM_DRAG_ID);
 }
 
 static void text_drop_paste(wmDrag *drag, wmDropBox *drop)
 {
 	char *text;
-	ID *id = drag->poin;
+	ID *id = WM_drag_ID(drag, 0);
 
 	/* copy drag path to properties */
 	text = RNA_path_full_ID_py(id);
@@ -547,7 +543,7 @@ static void text_properties_region_init(wmWindowManager *wm, ARegion *ar)
 	ED_region_panels_init(wm, ar);
 
 	/* own keymaps */
-	keymap = WM_keymap_find(wm->defaultconf, "Text Generic", SPACE_TEXT, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Text Generic", SPACE_TEXT, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 }

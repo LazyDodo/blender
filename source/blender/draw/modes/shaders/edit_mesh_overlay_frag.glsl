@@ -10,6 +10,7 @@
  * TODO Refine the range to only affect GPUs. */
 
 uniform float faceAlphaMod;
+uniform float edgeScale;
 
 flat in vec3 edgesCrease;
 flat in vec3 edgesBweight;
@@ -36,11 +37,10 @@ out vec4 FragColor;
 void distToEdgeAndPoint(vec2 dir, vec2 ori, out float edge, out float point)
 {
 	dir = normalize(dir.xy);
+	dir = vec2(-dir.y, dir.x);
 	vec2 of = gl_FragCoord.xy - ori;
-	point = dot(of, of);
-	float dof = dot(dir, of);
-	edge = sqrt(abs(point - dof * dof));
-	point = sqrt(point);
+	point = sqrt(dot(of, of));
+	edge = abs(dot(dir, of));
 }
 
 void colorDist(vec4 color, float dist)
@@ -75,10 +75,12 @@ void main()
 	FragColor.a *= faceAlphaMod;
 
 	/* Edges */
+	float sizeEdgeFinal = sizeEdge * edgeScale;
+
 	for (int v = 0; v < 3; ++v) {
 		if ((flag[v] & EDGE_EXISTS) != 0) {
 			/* Outer large edge */
-			float largeEdge = e[v] - sizeEdge * LARGE_EDGE_SIZE;
+			float largeEdge = e[v] - sizeEdgeFinal * LARGE_EDGE_SIZE;
 
 			vec4 large_edge_color = EDIT_MESH_edge_color_outer(flag[v], (flag[0]& FACE_ACTIVE) != 0, edgesCrease[v], edgesBweight[v]);
 
@@ -87,7 +89,7 @@ void main()
 			}
 
 			/* Inner thin edge */
-			float innerEdge = e[v] - sizeEdge;
+			float innerEdge = e[v] - sizeEdgeFinal;
 #ifdef ANTI_ALIASING
 			innerEdge += 0.4;
 #endif

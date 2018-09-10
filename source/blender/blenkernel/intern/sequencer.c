@@ -2420,21 +2420,21 @@ void BKE_sequencer_color_balance_apply(StripColorBalance *cb, ImBuf *ibuf, float
 }
 
 /*
- *  input preprocessing for SEQ_TYPE_IMAGE, SEQ_TYPE_MOVIE, SEQ_TYPE_MOVIECLIP and SEQ_TYPE_SCENE
+ * input preprocessing for SEQ_TYPE_IMAGE, SEQ_TYPE_MOVIE, SEQ_TYPE_MOVIECLIP and SEQ_TYPE_SCENE
  *
- *  Do all the things you can't really do afterwards using sequence effects
- *  (read: before rescaling to render resolution has been done)
+ * Do all the things you can't really do afterwards using sequence effects
+ * (read: before rescaling to render resolution has been done)
  *
- *  Order is important!
+ * Order is important!
  *
- *  - Deinterlace
- *  - Crop and transform in image source coordinate space
- *  - Flip X + Flip Y (could be done afterwards, backward compatibility)
- *  - Promote image to float data (affects pipeline operations afterwards)
- *  - Color balance (is most efficient in the byte -> float
- *    (future: half -> float should also work fine!)
- *    case, if done on load, since we can use lookup tables)
- *  - Premultiply
+ * - Deinterlace
+ * - Crop and transform in image source coordinate space
+ * - Flip X + Flip Y (could be done afterwards, backward compatibility)
+ * - Promote image to float data (affects pipeline operations afterwards)
+ * - Color balance (is most efficient in the byte -> float
+ *   (future: half -> float should also work fine!)
+ *   case, if done on load, since we can use lookup tables)
+ * - Premultiply
  */
 
 bool BKE_sequencer_input_have_to_preprocess(const SeqRenderData *context, Sequence *seq, float UNUSED(cfra))
@@ -3367,7 +3367,7 @@ static ImBuf *seq_render_scene_strip(const SeqRenderData *context, Sequence *seq
 			if (re == NULL)
 				re = RE_NewSceneRender(scene);
 
-			RE_BlenderFrame(re, context->bmain, scene, view_layer, camera, scene->lay, frame, false);
+			RE_BlenderFrame(re, context->bmain, scene, view_layer, camera, frame, false);
 
 			/* restore previous state after it was toggled on & off by RE_BlenderFrame */
 			G.is_rendering = is_rendering;
@@ -5530,6 +5530,7 @@ static Sequence *seq_dupli(const Scene *scene_src, Scene *scene_dst, Sequence *s
 
 	if (scene_src == scene_dst) {
 		if (dupe_flag & SEQ_DUPE_UNIQUE_NAME) {
+			/* TODO this is broken in case of Meta strips recursive duplication... Not trivial to fix. */
 			BKE_sequence_base_unique_name_recursive(&scene_dst->ed->seqbase, seqn);
 		}
 

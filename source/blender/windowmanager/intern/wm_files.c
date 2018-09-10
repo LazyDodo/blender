@@ -64,7 +64,6 @@
 
 #include "BLF_api.h"
 
-#include "DNA_mesh_types.h" /* only for USE_BMESH_SAVE_AS_COMPAT */
 #include "DNA_object_types.h"
 #include "DNA_space_types.h"
 #include "DNA_userdef_types.h"
@@ -186,19 +185,24 @@ static void wm_window_match_init(bContext *C, ListBase *wmlist)
 	ED_editors_exit(C);
 }
 
-static void wm_window_substitute_old(wmWindowManager *wm, wmWindow *oldwin, wmWindow *win)
+static void wm_window_substitute_old(wmWindowManager *oldwm, wmWindowManager *wm, wmWindow *oldwin, wmWindow *win)
 {
 	win->ghostwin = oldwin->ghostwin;
-	win->gwnctx = oldwin->gwnctx;
+	win->gpuctx = oldwin->gpuctx;
 	win->active = oldwin->active;
-	if (win->active)
+	if (win->active) {
 		wm->winactive = win;
+	}
+	if (oldwm->windrawable == oldwin) {
+		oldwm->windrawable = NULL;
+		wm->windrawable = win;
+	}
 
 	if (!G.background) /* file loading in background mode still calls this */
 		GHOST_SetWindowUserData(win->ghostwin, win);    /* pointer back */
 
 	oldwin->ghostwin = NULL;
-	oldwin->gwnctx = NULL;
+	oldwin->gpuctx = NULL;
 
 	win->eventstate = oldwin->eventstate;
 	oldwin->eventstate = NULL;
@@ -275,19 +279,23 @@ static void wm_window_match_replace_by_file_wm(
 	wm->initialized = 0;
 	wm->winactive = NULL;
 
+	/* Clearing drawable of before deleting any context
+	 * to avoid clearing the wrong wm. */
+	wm_window_clear_drawable(oldwm);
+
 	/* only first wm in list has ghostwins */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
 		for (wmWindow *oldwin = oldwm->windows.first; oldwin; oldwin = oldwin->next) {
 			if (oldwin->winid == win->winid) {
 				has_match = true;
 
-				wm_window_substitute_old(wm, oldwin, win);
+				wm_window_substitute_old(oldwm, wm, oldwin, win);
 			}
 		}
 	}
 	/* make sure at least one window is kept open so we don't lose the context, check T42303 */
 	if (!has_match) {
-		wm_window_substitute_old(wm, oldwm->windows.first, wm->windows.first);
+		wm_window_substitute_old(oldwm, wm, oldwm->windows.first, wm->windows.first);
 	}
 
 	wm_close_and_free_all(C, current_wm_list);
@@ -361,8 +369,6 @@ static void wm_init_userdef(Main *bmain, const bool read_userdef_from_memory)
 
 	/* update tempdir from user preferences */
 	BKE_tempdir_init(U.tempdir);
-
-	BLF_antialias_set((U.text_render & USER_TEXT_DISABLE_AA) == 0);
 }
 
 
@@ -482,10 +488,11 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 
 	CTX_wm_window_set(C, wm->windows.first);
 
-	ED_editors_init(C);
-
 	Main *bmain = CTX_data_main(C);
 	DEG_on_visible_update(bmain, true);
+	wm_event_do_depsgraph(C);
+
+	ED_editors_init(C);
 
 #ifdef WITH_PYTHON
 	if (is_startup_file) {
@@ -666,6 +673,33 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 
 }
 
+struct {
+	char app_template[64];
+	bool override;
+} wm_init_state_app_template = {0};
+
+/**
+ * Used for setting app-template from the command line:
+ * - non-empty string: overrides.
+ * - empty string: override, using no app template.
+ * - NULL: clears override.
+ */
+void WM_init_state_app_template_set(const char *app_template)
+{
+	if (app_template) {
+		STRNCPY(wm_init_state_app_template.app_template, app_template);
+		wm_init_state_app_template.override = true;
+	}
+	else {
+		wm_init_state_app_template.app_template[0] = '\0';
+		wm_init_state_app_template.override = false;
+	}
+}
+
+const char *WM_init_state_app_template_get(void)
+{
+	return wm_init_state_app_template.override ? wm_init_state_app_template.app_template : NULL;
+}
 
 /**
  * Called on startup, (context entirely filled with NULLs)
@@ -774,7 +808,10 @@ int wm_homefile_read(
 	}
 
 	if ((app_template != NULL) && (app_template[0] != '\0')) {
-		BKE_appdir_app_template_id_search(app_template, app_template_system, sizeof(app_template_system));
+		if (!BKE_appdir_app_template_id_search(app_template, app_template_system, sizeof(app_template_system))) {
+			/* Can safely continue with code below, just warn it's not found. */
+			BKE_reportf(reports, RPT_WARNING, "Application Template '%s' not found.", app_template);
+		}
 
 		/* Insert template name into startup file. */
 
@@ -1576,42 +1613,6 @@ void WM_OT_save_userpref(wmOperatorType *ot)
 	ot->exec = wm_userpref_write_exec;
 }
 
-static int wm_workspace_configuration_file_write_exec(bContext *C, wmOperator *op)
-{
-	Main *bmain = CTX_data_main(C);
-	char filepath[FILE_MAX];
-
-	const char *app_template = U.app_template[0] ? U.app_template : NULL;
-	const char * const cfgdir = BKE_appdir_folder_id_create(BLENDER_USER_CONFIG, app_template);
-	if (cfgdir == NULL) {
-		BKE_report(op->reports, RPT_ERROR, "Unable to create workspace configuration file path");
-		return OPERATOR_CANCELLED;
-	}
-
-	BLI_path_join(filepath, sizeof(filepath), cfgdir, BLENDER_WORKSPACES_FILE, NULL);
-	printf("trying to save workspace configuration file at %s ", filepath);
-
-	if (BKE_blendfile_workspace_config_write(bmain, filepath, op->reports) != 0) {
-		printf("ok\n");
-		return OPERATOR_FINISHED;
-	}
-	else {
-		printf("fail\n");
-	}
-
-	return OPERATOR_CANCELLED;
-}
-
-void WM_OT_save_workspace_file(wmOperatorType *ot)
-{
-	ot->name = "Save Workspace Configuration";
-	ot->idname = "WM_OT_save_workspace_file";
-	ot->description = "Save workspaces of the current file as part of the user configuration";
-
-	ot->invoke = WM_operator_confirm;
-	ot->exec = wm_workspace_configuration_file_write_exec;
-}
-
 static int wm_history_file_read_exec(bContext *UNUSED(C), wmOperator *UNUSED(op))
 {
 	ED_file_read_bookmarks();
@@ -1675,9 +1676,13 @@ static int wm_homefile_read_exec(bContext *C, wmOperator *op)
 
 		/* Always load preferences when switching templates. */
 		use_userdef = true;
+
+		/* Turn override off, since we're explicitly loading a different app-template. */
+		WM_init_state_app_template_set(NULL);
 	}
 	else {
-		app_template = NULL;
+		/* Normally NULL, only set when overriding from the command-line. */
+		app_template = WM_init_state_app_template_get();
 	}
 
 	if (wm_homefile_read(C, op->reports, use_factory_settings, use_empty_data, use_userdef, filepath, app_template)) {
@@ -1940,7 +1945,7 @@ static int wm_revert_mainfile_exec(bContext *C, wmOperator *op)
 	}
 }
 
-static int wm_revert_mainfile_poll(bContext *UNUSED(C))
+static bool wm_revert_mainfile_poll(bContext *UNUSED(C))
 {
 	return G.relbase_valid;
 }
@@ -2146,16 +2151,6 @@ static int wm_save_as_mainfile_exec(bContext *C, wmOperator *op)
 	         RNA_boolean_get(op->ptr, "copy")),
 	        G_FILE_SAVE_COPY);
 
-#ifdef USE_BMESH_SAVE_AS_COMPAT
-	SET_FLAG_FROM_TEST(
-	        fileflags,
-	        (RNA_struct_find_property(op->ptr, "use_mesh_compat") &&
-	         RNA_boolean_get(op->ptr, "use_mesh_compat")),
-	        G_FILE_MESH_COMPAT);
-#else
-#  error "don't remove by accident"
-#endif
-
 	if (wm_file_write(C, path, fileflags, op->reports) != 0)
 		return OPERATOR_CANCELLED;
 
@@ -2207,11 +2202,6 @@ void WM_OT_save_as_mainfile(wmOperatorType *ot)
 	prop = RNA_def_boolean(ot->srna, "copy", false, "Save Copy",
 	                "Save a copy of the actual working state but does not make saved file active");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
-#ifdef USE_BMESH_SAVE_AS_COMPAT
-	RNA_def_boolean(ot->srna, "use_mesh_compat", false, "Legacy Mesh Format",
-	                "Save using legacy mesh format (no ngons) - WARNING: only saves tris and quads, other ngons will "
-	                "be lost (no implicit triangulation)");
-#endif
 }
 
 static int wm_save_mainfile_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))

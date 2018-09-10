@@ -44,6 +44,7 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_clip.h"
 
 #include "RNA_access.h"
@@ -55,7 +56,7 @@
 
 /******************** common graph-editing utilities ********************/
 
-static int ED_space_clip_graph_poll(bContext *C)
+static bool ED_space_clip_graph_poll(bContext *C)
 {
 	if (ED_space_clip_tracking_poll(C)) {
 		SpaceClip *sc = CTX_wm_space_clip(C);
@@ -66,7 +67,7 @@ static int ED_space_clip_graph_poll(bContext *C)
 	return false;
 }
 
-static int clip_graph_knots_poll(bContext *C)
+static bool clip_graph_knots_poll(bContext *C)
 {
 	if (ED_space_clip_graph_poll(C)) {
 		SpaceClip *sc = CTX_wm_space_clip(C);

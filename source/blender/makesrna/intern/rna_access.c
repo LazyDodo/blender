@@ -620,7 +620,7 @@ StructRNA *RNA_struct_base(StructRNA *type)
 /**
  * Use to find the subtype directly below a base-type.
  *
- * So if type were `RNA_SpotLamp`, `RNA_struct_base_of(type, &RNA_ID)` would return `&RNA_Lamp`.
+ * So if type were `RNA_SpotLIght`, `RNA_struct_base_of(type, &RNA_ID)` would return `&RNA_Light`.
  */
 const StructRNA *RNA_struct_base_child_of(const StructRNA *type, const StructRNA *parent_type)
 {
@@ -975,7 +975,7 @@ bool RNA_struct_bl_idname_ok_or_report(ReportList *reports, const char *identifi
 
 /* Property Information */
 
-const char *RNA_property_identifier(PropertyRNA *prop)
+const char *RNA_property_identifier(const PropertyRNA *prop)
 {
 	return rna_ensure_property_identifier(prop);
 }
@@ -1390,7 +1390,7 @@ StructRNA *RNA_property_pointer_type(PointerRNA *ptr, PropertyRNA *prop)
 	return &RNA_UnknownType;
 }
 
-int RNA_property_pointer_poll(PointerRNA *ptr, PropertyRNA *prop, PointerRNA *value)
+bool RNA_property_pointer_poll(PointerRNA *ptr, PropertyRNA *prop, PointerRNA *value)
 {
 	prop = rna_ensure_property(prop);
 

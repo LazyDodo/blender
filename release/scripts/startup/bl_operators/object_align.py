@@ -75,7 +75,7 @@ def worldspace_bounds_from_object_data(scene, obj):
     me = obj.to_mesh(scene=scene, apply_modifiers=True, settings='PREVIEW')
     verts = me.vertices
 
-    val = matrix_world * (verts[-1].co if verts else Vector((0.0, 0.0, 0.0)))
+    val = matrix_world @ (verts[-1].co if verts else Vector((0.0, 0.0, 0.0)))
 
     left, right, front, back, down, up = (
         val[0],
@@ -88,7 +88,7 @@ def worldspace_bounds_from_object_data(scene, obj):
 
     # Test against all other verts
     for v in verts:
-        vco = matrix_world * v.co
+        vco = matrix_world @ v.co
 
         # X Range
         val = vco[0]
@@ -146,7 +146,7 @@ def align_objects(context,
 
     for obj in context.selected_objects:
         matrix_world = obj.matrix_world.copy()
-        bb_world = [matrix_world * Vector(v) for v in obj.bound_box]
+        bb_world = [matrix_world @ Vector(v) for v in obj.bound_box]
         objects.append((obj, bb_world))
 
     if not objects:
@@ -216,7 +216,7 @@ def align_objects(context,
 
     for obj, bb_world in objects:
         matrix_world = obj.matrix_world.copy()
-        bb_world = [matrix_world * Vector(v[:]) for v in obj.bound_box]
+        bb_world = [matrix_world @ Vector(v[:]) for v in obj.bound_box]
 
         if bb_quality and obj.type == 'MESH':
             GBB = worldspace_bounds_from_object_data(scene, obj)
@@ -363,7 +363,7 @@ class AlignObjects(Operator):
     bl_label = "Align Objects"
     bl_options = {'REGISTER', 'UNDO'}
 
-    bb_quality = BoolProperty(
+    bb_quality: BoolProperty(
         name="High Quality",
         description=(
             "Enables high quality calculation of the "
@@ -372,7 +372,7 @@ class AlignObjects(Operator):
         ),
         default=True,
     )
-    align_mode = EnumProperty(
+    align_mode: EnumProperty(
         name="Align Mode:",
         description="Side of object to use for alignment",
         items=(
@@ -382,7 +382,7 @@ class AlignObjects(Operator):
         ),
         default='OPT_2',
     )
-    relative_to = EnumProperty(
+    relative_to: EnumProperty(
         name="Relative To:",
         description="Reference location to align to",
         items=(
@@ -393,7 +393,7 @@ class AlignObjects(Operator):
         ),
         default='OPT_4',
     )
-    align_axis = EnumProperty(
+    align_axis: EnumProperty(
         name="Align",
         description="Align to axis",
         items=(

@@ -34,7 +34,7 @@ extern "C" {
 #include "RNA_types.h"
 
 #include "DNA_camera_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_listBase.h"
 #include "DNA_linestyle_types.h"
 #include "DNA_material_types.h"
@@ -91,7 +91,7 @@ BlenderStrokeRenderer::BlenderStrokeRenderer(Render *re, int render_count) : Str
 	freestyle_scene = BKE_scene_add(freestyle_bmain, name);
 	freestyle_scene->r.cfra = old_scene->r.cfra;
 	freestyle_scene->r.mode = old_scene->r.mode &
-	                          ~(R_EDGE_FRS | R_PANORAMA | R_MBLUR | R_BORDER);
+	                          ~(R_EDGE_FRS | R_BORDER);
 	freestyle_scene->r.xsch = re->rectx; // old_scene->r.xsch
 	freestyle_scene->r.ysch = re->recty; // old_scene->r.ysch
 	freestyle_scene->r.xasp = 1.0f; // old_scene->r.xasp;
@@ -193,17 +193,17 @@ BlenderStrokeRenderer::~BlenderStrokeRenderer()
 		}
 #endif
 		switch (ob->type) {
-		case OB_MESH:
-			BKE_libblock_free(freestyle_bmain, ob);
-			BKE_libblock_free(freestyle_bmain, data);
-			break;
-		case OB_CAMERA:
-			BKE_libblock_free(freestyle_bmain, ob);
-			BKE_libblock_free(freestyle_bmain, data);
-			freestyle_scene->camera = NULL;
-			break;
-		default:
-			cerr << "Warning: unexpected object in the scene: " << name[0] << name[1] << ":" << (name + 2) << endl;
+			case OB_MESH:
+				BKE_libblock_free(freestyle_bmain, ob);
+				BKE_libblock_free(freestyle_bmain, data);
+				break;
+			case OB_CAMERA:
+				BKE_libblock_free(freestyle_bmain, ob);
+				BKE_libblock_free(freestyle_bmain, data);
+				freestyle_scene->camera = NULL;
+				break;
+			default:
+				cerr << "Warning: unexpected object in the scene: " << name[0] << name[1] << ":" << (name + 2) << endl;
 		}
 	}
 
@@ -860,7 +860,6 @@ Object *BlenderStrokeRenderer::NewMesh() const
 	ob = BKE_object_add_only_object(freestyle_bmain, OB_MESH, name);
 	BLI_snprintf(name, MAX_ID_NAME, "0%08xME", mesh_id);
 	ob->data = BKE_mesh_add(freestyle_bmain, name);
-	ob->lay = 1;
 
 	Collection *collection_master = BKE_collection_master(freestyle_scene);
 	BKE_collection_object_add(freestyle_bmain, collection_master, ob);

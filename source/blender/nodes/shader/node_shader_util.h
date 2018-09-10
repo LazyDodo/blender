@@ -81,7 +81,7 @@
 #include "GPU_uniformbuffer.h"
 
 
-int sh_node_poll_default(struct bNodeType *ntype, struct bNodeTree *ntree);
+bool sh_node_poll_default(struct bNodeType *ntype, struct bNodeTree *ntree);
 void sh_node_type_base(struct bNodeType *ntype, int type, const char *name, short nclass, short flag);
 
 
@@ -98,6 +98,6 @@ void node_gpu_stack_from_data(struct GPUNodeStack *gs, int type, struct bNodeSta
 void node_data_from_gpu_stack(struct bNodeStack *ns, struct GPUNodeStack *gs);
 void node_shader_gpu_tex_mapping(struct GPUMaterial *mat, struct bNode *node, struct GPUNodeStack *in, struct GPUNodeStack *out);
 
-void ntreeExecGPUNodes(struct bNodeTreeExec *exec, struct GPUMaterial *mat, int do_outputs, short compatibility);
+void ntreeExecGPUNodes(struct bNodeTreeExec *exec, struct GPUMaterial *mat, int do_outputs);
 
 #endif

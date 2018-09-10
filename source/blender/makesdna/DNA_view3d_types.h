@@ -49,6 +49,7 @@ struct GPUViewport;
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
 #include "DNA_image_types.h"
+#include "DNA_object_types.h"
 #include "DNA_movieclip_types.h"
 #include "DNA_gpu_types.h"
 
@@ -89,13 +90,13 @@ typedef struct RegionView3D {
 	struct wmTimer *smooth_timer;
 
 
-	/* transform manipulator matrix */
+	/* transform gizmo matrix */
 	float twmat[4][4];
 	/* min/max dot product on twmat xyz axis. */
 	float tw_axis_min[3], tw_axis_max[3];
 	float tw_axis_matrix[3][3];
 
-	float gridview;
+	float gridview DNA_DEPRECATED;
 
 	float viewquat[4];			/* view rotation, must be kept normalized */
 	float dist;					/* distance from 'ofs' along -viewinv[2] vector, where result is negative as is 'ofs' */
@@ -134,11 +135,16 @@ typedef struct View3DCursor {
 
 /* 3D Viewport Shading setings */
 typedef struct View3DShading {
+	short type;        /* Shading type (VIEW3D_SHADE_SOLID, ..) */
+	short prev_type;   /* Runtime, for toggle between rendered viewport. */
+
 	short flag;
 	short color_type;
 
 	short light;
-	char pad[2];
+	short background_type;
+	short pad2[2];
+
 	char studio_light[256]; /* FILE_MAXFILE */
 	char matcap[256]; /* FILE_MAXFILE */
 
@@ -153,6 +159,10 @@ typedef struct View3DShading {
 
 	float cavity_valley_factor;
 	float cavity_ridge_factor;
+
+	float background_color[3];
+	int pad;
+
 } View3DShading;
 
 /* 3D Viewport Overlay setings */
@@ -174,12 +184,20 @@ typedef struct View3DOverlay {
 
 	/* Armature edit/pose mode settings */
 	int arm_flag;
-	float bone_selection_alpha;
+	float bone_select_alpha;
 
 	/* Other settings */
 	float wireframe_threshold;
+	char _pad0[4];
 
-	int pad;
+	/* grease pencil setttings */
+	float gpencil_grid_scale;
+	float gpencil_paper_opacity;
+	int   gpencil_grid_lines;
+	int   gpencil_grid_axis;
+	float gpencil_grid_opacity;
+	char _pad1[4];
+
 } View3DOverlay;
 
 /* 3D ViewPort Struct */
@@ -198,8 +216,11 @@ typedef struct View3D {
 	char bundle_drawtype;		/* display style for bundle */
 	char pad[3];
 
-	unsigned int lay_prev; /* for active layer toggle */
-	unsigned int lay_used; /* used while drawing */
+	unsigned int lay_prev DNA_DEPRECATED; /* for active layer toggle */
+	unsigned int lay_used DNA_DEPRECATED; /* used while drawing */
+
+	int object_type_exclude_viewport;
+	int object_type_exclude_select;
 
 	short persp  DNA_DEPRECATED;
 	short view   DNA_DEPRECATED;
@@ -211,12 +232,14 @@ typedef struct View3D {
 
 	char ob_centre_bone[64];		/* optional string for armature bone to define center, MAXBONENAME */
 
-	unsigned int lay;
-	int layact;
+	unsigned int lay DNA_DEPRECATED;
+	int layact DNA_DEPRECATED;
 
 	short ob_centre_cursor;		/* optional bool for 3d cursor to define center */
-	short scenelock, _pad1;
-	short flag, flag2, pad2;
+	short scenelock;
+	short gp_flag;
+	short flag;
+	int flag2;
 
 	float lens, grid;
 	float near, far;
@@ -232,17 +255,19 @@ typedef struct View3D {
 	short gridsubdiv;	/* Number of subdivisions in the grid between each highlighted grid line */
 	char gridflag;
 
-	/* transform manipulator info */
-	char twtype, _pad5, twflag;
+	/* transform gizmo info */
+	char _pad5[2], gizmo_flag;
 
-	short flag3;
+	short _pad2;
 
 	/* drawflags, denoting state */
-	char zbuf, transp, xray;
+	char _pad3;
+	char transp, xray;
 
 	char multiview_eye;				/* multiview current eye - for internal use */
 
-	char pad3[4];
+	/* actually only used to define the opacity of the grease pencil vertex in edit mode */
+	float vertex_opacity;
 
 	/* note, 'fx_settings.dof' is currently _not_ allocated,
 	 * instead set (temporarily) from camera */
@@ -262,9 +287,8 @@ typedef struct View3D {
 	float stereo3d_convergence_alpha;
 
 	/* Display settings */
-	short drawtype;         /* Shading mode (OB_SOLID, OB_TEXTURE, ..) */
-	short prev_drawtype;    /* Runtime, for toggle between rendered viewport. */
-	int pad5;
+	short drawtype DNA_DEPRECATED;
+	short pad5[3];
 
 	View3DShading shading;
 	View3DOverlay overlay;
@@ -324,10 +348,10 @@ typedef struct View3D {
 #define RV3D_VIEW_IS_AXIS(view) \
 	(((view) >= RV3D_VIEW_FRONT) && ((view) <= RV3D_VIEW_BOTTOM))
 
-/* View3d->flag2 (short) */
+/* View3d->flag2 (int) */
 #define V3D_RENDER_OVERRIDE		(1 << 2)
 #define V3D_SOLID_TEX			(1 << 3)
-#define V3D_SHOW_GPENCIL		(1 << 4)
+#define V3D_SHOW_ANNOTATION     (1 << 4)
 #define V3D_LOCK_CAMERA			(1 << 5)
 #define V3D_RENDER_SHADOW		(1 << 6)		/* This is a runtime only flag that's used to tell draw_mesh_object() that we're doing a shadow pass instead of a regular draw */
 #define V3D_SHOW_RECONSTRUCTION	(1 << 7)
@@ -340,9 +364,12 @@ typedef struct View3D {
 #define V3D_OCCLUDE_WIRE		(1 << 14)
 #define V3D_SHOW_MODE_SHADE_OVERRIDE (1 << 15) /* XXX: DNA deprecated */
 
-
-/* View3d->flag3 (short) */
-#define V3D_SHOW_WORLD			(1 << 0)
+/* View3d->gp_flag (short) */
+#define V3D_GP_SHOW_PAPER            (1 << 0) /* Activate paper to cover all viewport */
+#define V3D_GP_SHOW_GRID             (1 << 1) /* Activate paper grid */
+#define V3D_GP_SHOW_EDIT_LINES       (1 << 2)
+#define V3D_GP_SHOW_MULTIEDIT_LINES  (1 << 3)
+#define V3D_GP_SHOW_ONION_SKIN       (1 << 4) /* main switch at view level */
 
 /* View3DShading->light */
 enum {
@@ -356,10 +383,11 @@ enum {
 	V3D_SHADING_OBJECT_OUTLINE      = (1 << 0),
 	V3D_SHADING_XRAY                = (1 << 1),
 	V3D_SHADING_SHADOW              = (1 << 2),
-	V3D_SHADING_SCENE_LIGHT         = (1 << 3),
+	V3D_SHADING_SCENE_LIGHTS        = (1 << 3),
 	V3D_SHADING_SPECULAR_HIGHLIGHT  = (1 << 4),
 	V3D_SHADING_CAVITY              = (1 << 5),
 	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
+	V3D_SHADING_SCENE_WORLD         = (1 << 7),
 };
 
 /* View3DShading->color_type */
@@ -370,16 +398,26 @@ enum {
 	V3D_SHADING_TEXTURE_COLOR  = 3,
 };
 
+/* View3DShading->background_type */
+enum {
+	V3D_SHADING_BACKGROUND_THEME    = 0,
+	V3D_SHADING_BACKGROUND_WORLD    = 1,
+	V3D_SHADING_BACKGROUND_VIEWPORT = 2,
+};
+
 /* View3DOverlay->flag */
 enum {
 	V3D_OVERLAY_FACE_ORIENTATION  = (1 << 0),
 	V3D_OVERLAY_HIDE_CURSOR       = (1 << 1),
-	V3D_OVERLAY_BONE_SELECTION    = (1 << 2),
+	V3D_OVERLAY_BONE_SELECT       = (1 << 2),
 	V3D_OVERLAY_LOOK_DEV          = (1 << 3),
 	V3D_OVERLAY_WIREFRAMES        = (1 << 4),
 	V3D_OVERLAY_HIDE_TEXT         = (1 << 5),
 	V3D_OVERLAY_HIDE_MOTION_PATHS = (1 << 6),
 	V3D_OVERLAY_ONION_SKINS       = (1 << 7),
+	V3D_OVERLAY_HIDE_BONES        = (1 << 8),
+	V3D_OVERLAY_HIDE_OBJECT_XTRAS = (1 << 9),
+	V3D_OVERLAY_HIDE_OBJECT_ORIGINS = (1 << 10),
 };
 
 /* View3DOverlay->edit_flag */
@@ -442,9 +480,13 @@ enum {
 #define V3D_MANIP_CURSOR		5
 #define V3D_MANIP_CUSTOM		1024
 
-/* View3d->twflag (also) */
+/* View3d.mpr_flag (also) */
 enum {
-	V3D_MANIPULATOR_DRAW        = (1 << 0),
+	/** All gizmos. */
+	V3D_GIZMO_HIDE                = (1 << 0),
+	V3D_GIZMO_HIDE_NAVIGATE       = (1 << 1),
+	V3D_GIZMO_HIDE_CONTEXT        = (1 << 2),
+	V3D_GIZMO_HIDE_TOOL           = (1 << 3),
 };
 
 #define RV3D_CAMZOOM_MIN -30
@@ -453,5 +495,13 @@ enum {
 /* #BKE_screen_view3d_zoom_to_fac() values above */
 #define RV3D_CAMZOOM_MIN_FACTOR  0.1657359312880714853f
 #define RV3D_CAMZOOM_MAX_FACTOR 44.9852813742385702928f
+
+/* View3d.gpencil_grid_axis */
+enum {
+	V3D_GP_GRID_AXIS_LOCK = (1 << 0),
+	V3D_GP_GRID_AXIS_X    = (1 << 1),
+	V3D_GP_GRID_AXIS_Y    = (1 << 2),
+	V3D_GP_GRID_AXIS_Z    = (1 << 3),
+};
 
 #endif

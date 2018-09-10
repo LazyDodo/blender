@@ -102,7 +102,7 @@ static void get_knots(std::vector<float> &knots, const int num_knots, float *nu_
 		return;
 	}
 
-	/* Add an extra knot at the beggining and end of the array since most apps
+	/* Add an extra knot at the beginning and end of the array since most apps
 	 * require/expect them. */
 	knots.reserve(num_knots + 2);
 
@@ -130,8 +130,8 @@ void AbcNurbsWriter::do_write()
 	Curve *curve = static_cast<Curve *>(m_object->data);
 	ListBase *nulb;
 
-	if (m_object->curve_cache->deformed_nurbs.first != NULL) {
-		nulb = &m_object->curve_cache->deformed_nurbs;
+	if (m_object->runtime.curve_cache->deformed_nurbs.first != NULL) {
+		nulb = &m_object->runtime.curve_cache->deformed_nurbs;
 	}
 	else {
 		nulb = BKE_curve_nurbs_get(curve);
@@ -166,7 +166,7 @@ void AbcNurbsWriter::do_write()
 		sample.setNu(nu->pntsu);
 		sample.setNv(nu->pntsv);
 
-		/* TODO(kevin): to accomodate other software we should duplicate control
+		/* TODO(kevin): to accommodate other software we should duplicate control
 		 * points to indicate that a NURBS is cyclic. */
 		OCompoundProperty user_props = m_nurbs_schema[count].getUserProperties();
 

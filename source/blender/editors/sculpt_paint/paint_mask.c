@@ -75,9 +75,10 @@ static const EnumPropertyItem mode_items[] = {
 	{0}};
 
 
-static void mask_flood_fill_set_elem(float *elem,
-                                     PaintMaskFloodMode mode,
-                                     float value)
+static void mask_flood_fill_set_elem(
+        float *elem,
+        PaintMaskFloodMode mode,
+        float value)
 {
 	switch (mode) {
 		case PAINT_MASK_FLOOD_VALUE:
@@ -162,8 +163,9 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	BLI_parallel_range_settings_defaults(&settings);
 	settings.use_threading = ((sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT);
 	BLI_task_parallel_range(
-	            0, totnode, &data, mask_flood_fill_task_cb,
-	            &settings);
+
+	        0, totnode, &data, mask_flood_fill_task_cb,
+	        &settings);
 
 	if (multires)
 		multires_mark_as_modified(ob, MULTIRES_COORDS_MODIFIED);
@@ -256,7 +258,7 @@ static void mask_box_select_task_cb(
 	} BKE_pbvh_vertex_iter_end;
 }
 
-int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select, bool UNUSED(extend))
+int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select)
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Sculpt *sd = vc->scene->toolsettings->sculpt;

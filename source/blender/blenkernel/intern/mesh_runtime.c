@@ -205,13 +205,13 @@ void BKE_mesh_runtime_clear_geometry(Mesh *mesh)
  * \{ */
 
 /* Draw Engine */
-void (*BKE_mesh_batch_cache_dirty_cb)(Mesh *me, int mode) = NULL;
+void (*BKE_mesh_batch_cache_dirty_tag_cb)(Mesh *me, int mode) = NULL;
 void (*BKE_mesh_batch_cache_free_cb)(Mesh *me) = NULL;
 
-void BKE_mesh_batch_cache_dirty(Mesh *me, int mode)
+void BKE_mesh_batch_cache_dirty_tag(Mesh *me, int mode)
 {
 	if (me->runtime.batch_cache) {
-		BKE_mesh_batch_cache_dirty_cb(me, mode);
+		BKE_mesh_batch_cache_dirty_tag_cb(me, mode);
 	}
 }
 void BKE_mesh_batch_cache_free(Mesh *me)
@@ -246,9 +246,10 @@ static void mesh_runtime_debug_info_layers(
 			const char *structname;
 			int structnum;
 			CustomData_file_write_info(type, &structname, &structnum);
-			BLI_dynstr_appendf(dynstr,
-			                   "        dict(name='%s', struct='%s', type=%d, ptr='%p', elem=%d, length=%d),\n",
-			                   name, structname, type, (const void *)pt, size, pt_size);
+			BLI_dynstr_appendf(
+			        dynstr,
+			        "        dict(name='%s', struct='%s', type=%d, ptr='%p', elem=%d, length=%d),\n",
+			        name, structname, type, (const void *)pt, size, pt_size);
 		}
 	}
 }
@@ -346,21 +347,21 @@ bool BKE_mesh_runtime_is_valid(Mesh *me_eval)
 	}
 
 	is_valid &= BKE_mesh_validate_all_customdata(
-	                &me_eval->vdata, &me_eval->edata, &me_eval->ldata, &me_eval->pdata,
-	                false,  /* setting mask here isn't useful, gives false positives */
-	                do_verbose, do_fixes,
-	                &changed);
+	        &me_eval->vdata, &me_eval->edata, &me_eval->ldata, &me_eval->pdata,
+	        false,  /* setting mask here isn't useful, gives false positives */
+	        do_verbose, do_fixes,
+	        &changed);
 
 	is_valid &= BKE_mesh_validate_arrays(
-	                me_eval,
-	                me_eval->mvert, me_eval->totvert,
-	                me_eval->medge, me_eval->totedge,
-	                me_eval->mface, me_eval->totface,
-	                me_eval->mloop, me_eval->totloop,
-	                me_eval->mpoly, me_eval->totpoly,
-	                me_eval->dvert,
-	                do_verbose, do_fixes,
-	                &changed);
+	        me_eval,
+	        me_eval->mvert, me_eval->totvert,
+	        me_eval->medge, me_eval->totedge,
+	        me_eval->mface, me_eval->totface,
+	        me_eval->mloop, me_eval->totloop,
+	        me_eval->mpoly, me_eval->totpoly,
+	        me_eval->dvert,
+	        do_verbose, do_fixes,
+	        &changed);
 
 	BLI_assert(changed == false);
 

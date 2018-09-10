@@ -60,6 +60,10 @@ link_directories(${OPENIMAGEIO_LIBPATH}
                  ${TIFF_LIBPATH}
                  ${OPENEXR_LIBPATH})
 
+if(WITH_OPENCOLORIO)
+	link_directories(${OPENCOLORIO_LIBPATH})
+endif()
+
 add_definitions(${GL_DEFINITIONS})
 
 include_directories(${INC})
@@ -81,7 +85,6 @@ macro(cycles_target_link_libraries target)
 		target_link_libraries(${target} ${OPENSUBDIV_LIBRARIES})
 	endif()
 	if(WITH_OPENCOLORIO)
-		link_directories(${OPENCOLORIO_LIBPATH})
 		target_link_libraries(${target} ${OPENCOLORIO_LIBRARIES})
 	endif()
 	target_link_libraries(
@@ -131,7 +134,7 @@ if(WITH_CYCLES_CUBIN_COMPILER)
 	# to be build to compile the cubins.
 	if(MSVC AND NOT CMAKE_CL_64)
 		message("Building with CUDA not supported on 32 bit, skipped")
-		set(WITH_CYCLES_CUDA_BINARIES OFF)
+		set(WITH_CYCLES_CUDA_BINARIES OFF CACHE BOOL "" FORCE)
 	else()
 		set(SRC
 			cycles_cubin_cc.cpp

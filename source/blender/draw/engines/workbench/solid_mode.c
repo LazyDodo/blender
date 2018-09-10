@@ -30,6 +30,8 @@
 
 #include "GPU_shader.h"
 
+#include "RE_pipeline.h"
+
 #include "workbench_private.h"
 
 /* Functions */
@@ -63,12 +65,8 @@ static void workbench_solid_draw_background(void *vedata)
 {
 	WORKBENCH_Data *data = vedata;
 	workbench_deferred_draw_background(data);
-}
-
-static void workbench_solid_draw_scene(void *vedata)
-{
-	WORKBENCH_Data *data = vedata;
 	workbench_deferred_draw_scene(data);
+	workbench_deferred_draw_finish(data);
 }
 
 static void workbench_solid_engine_free(void)
@@ -80,6 +78,22 @@ static void workbench_solid_view_update(void *vedata)
 {
 	WORKBENCH_Data *data = vedata;
 	workbench_taa_view_updated(data);
+}
+
+static void workbench_solid_id_update(void *UNUSED(vedata), struct ID *id)
+{
+	if (GS(id->name) == ID_OB) {
+		WORKBENCH_ObjectData *oed = (WORKBENCH_ObjectData *)DRW_drawdata_get(id, &draw_engine_workbench_solid);
+		if (oed != NULL && oed->dd.recalc != 0) {
+			oed->shadow_bbox_dirty = (oed->dd.recalc & ID_RECALC_ALL) != 0;
+			oed->dd.recalc = 0;
+		}
+	}
+}
+
+static void workbench_render_to_image(void *vedata, RenderEngine *engine, RenderLayer *render_layer, const rcti *rect)
+{
+	workbench_render(vedata, engine, render_layer, rect);
 }
 
 static const DrawEngineDataSize workbench_data_size = DRW_VIEWPORT_DATA_SIZE(WORKBENCH_Data);
@@ -94,8 +108,8 @@ DrawEngineType draw_engine_workbench_solid = {
 	&workbench_solid_cache_populate,
 	&workbench_solid_cache_finish,
 	&workbench_solid_draw_background,
-	&workbench_solid_draw_scene,
+	NULL,
 	&workbench_solid_view_update,
-	NULL,
-	NULL,
+	&workbench_solid_id_update,
+	&workbench_render_to_image,
 };

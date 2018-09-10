@@ -75,7 +75,7 @@ class DATA_PT_display(ArmatureButtonsPanel, Panel):
         ob = context.object
         arm = context.armature
 
-        layout.row().prop(arm, "draw_type", expand=True)
+        layout.row().prop(arm, "display_type", expand=True)
 
         layout.use_property_split = True
 
@@ -85,7 +85,7 @@ class DATA_PT_display(ArmatureButtonsPanel, Panel):
         col.prop(arm, "show_bone_custom_shapes", text="Shapes")
         col.prop(arm, "show_group_colors", text="Group Colors")
         if ob:
-            col.prop(ob, "show_x_ray", text="X-Ray")
+            col.prop(ob, "show_in_front", text="In Front")
         col.prop(arm, "use_deform_delay", text="Delay Refresh")
 
 
@@ -211,6 +211,7 @@ class DATA_PT_pose_library(ArmatureButtonsPanel, Panel):
 # TODO: this panel will soon be deprecated too
 class DATA_PT_ghost(ArmatureButtonsPanel, Panel):
     bl_label = "Ghost"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
@@ -328,7 +329,7 @@ class DATA_PT_onion_skinning(OnionSkinButtonsPanel):  # , Panel): # inherit from
 
 
 class DATA_PT_custom_props_arm(ArmatureButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
     _context_path = "object.data"
     _property_type = bpy.types.Armature
 
@@ -340,9 +341,9 @@ classes = (
     DATA_MT_bone_group_specials,
     DATA_PT_bone_groups,
     DATA_PT_pose_library,
+    DATA_PT_motion_paths,
     DATA_PT_ghost,
     DATA_PT_iksolver_itasc,
-    DATA_PT_motion_paths,
     DATA_PT_custom_props_arm,
 )
 

@@ -77,6 +77,18 @@ struct IDDepsNode : public DepsNode {
 
 	eDepsNode_LinkedState_Type linked_state;
 
+	/* Indicates the datablock is visible, meaning, it is to be evaluated by
+	 * the dependency graph.
+	 */
+	bool is_visible;
+	/* Is used to detect when ID becomes visible within a dependency graph,
+	 * this value equals to:
+	 *   - False if the ID was never inside of the dependency graph.
+	 *   - Value if is_visible of ID node from the previous state of the
+	 *     dependency graph.
+	 */
+	bool is_previous_visible;
+
 	DEG_DEPSNODE_DECLARE;
 };
 

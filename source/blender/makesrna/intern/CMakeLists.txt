@@ -41,6 +41,7 @@ set(DEFSRC
 	rna_cachefile.c
 	rna_camera.c
 	rna_cloth.c
+	rna_collection.c
 	rna_color.c
 	rna_constraint.c
 	rna_context.c
@@ -50,12 +51,13 @@ set(DEFSRC
 	rna_fcurve.c
 	rna_fluidsim.c
 	rna_gpencil.c
-	rna_group.c
+	rna_gpencil_modifier.c
 	rna_image.c
 	rna_key.c
 	rna_lamp.c
 	rna_lattice.c
 	rna_layer.c
+	rna_lightprobe.c
 	rna_linestyle.c
 	rna_main.c
 	rna_mask.c
@@ -72,7 +74,6 @@ set(DEFSRC
 	rna_palette.c
 	rna_particle.c
 	rna_pose.c
-	rna_lightprobe.c
 	rna_render.c
 	rna_rigidbody.c
 	rna_rna.c
@@ -80,6 +81,7 @@ set(DEFSRC
 	rna_screen.c
 	rna_sculpt_paint.c
 	rna_sequencer.c
+	rna_shader_fx.c
 	rna_smoke.c
 	rna_sound.c
 	rna_space.c
@@ -93,7 +95,7 @@ set(DEFSRC
 	rna_userdef.c
 	rna_vfont.c
 	rna_wm.c
-	rna_wm_manipulator.c
+	rna_wm_gizmo.c
 	rna_workspace.c
 	rna_world.c
 )
@@ -122,7 +124,7 @@ set(APISRC
 	rna_ui_api.c
 	rna_vfont_api.c
 	rna_wm_api.c
-	rna_wm_manipulator_api.c
+	rna_wm_gizmo_api.c
 	rna_workspace_api.c
 )
 
@@ -302,6 +304,10 @@ if(WITH_OPENSUBDIV)
 		../../../../intern/opensubdiv
 	)
 	add_definitions(-DWITH_OPENSUBDIV)
+endif()
+
+if(WITH_OPENSUBDIV_MODIFIER)
+	add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
 endif()
 
 if(WITH_OPENVDB)

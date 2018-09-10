@@ -37,6 +37,7 @@ extern "C" {
 #endif
 
 #include "DNA_listBase.h"
+#include "DNA_defs.h"
 
 /* pd->forcefield:  Effector Fields types */
 typedef enum ePFieldType {
@@ -136,8 +137,8 @@ typedef struct EffectorWeights {
 /* Point cache file data types:
  * - used as (1<<flag) so poke jahka if you reach the limit of 15
  * - to add new data types update:
- *		* BKE_ptcache_data_size()
- *		* ptcache_file_init_pointers()
+ *   - BKE_ptcache_data_size()
+ *   - ptcache_file_init_pointers()
  */
 #define BPHYS_DATA_INDEX		0
 #define BPHYS_DATA_LOCATION		1
@@ -218,6 +219,15 @@ typedef struct SBVertex {
 	float vec[4];
 } SBVertex;
 
+/* Container for data that is shared among CoW copies.
+ *
+ * This is placed in a separate struct so that values can be changed
+ * without having to update all CoW copies. */
+typedef struct SoftBody_Shared {
+	struct PointCache *pointcache;
+	struct ListBase ptcaches;
+} SoftBody_Shared;
+
 typedef struct SoftBody {
 	/* dynamic data */
 	int totpoint, totspring;
@@ -289,8 +299,9 @@ typedef struct SoftBody {
 	float shearstiff;
 	float inpush;
 
-	struct PointCache *pointcache;
-	struct ListBase ptcaches;
+	struct SoftBody_Shared *shared;
+	struct PointCache *pointcache DNA_DEPRECATED;  /* Moved to SoftBody_Shared */
+	struct ListBase ptcaches DNA_DEPRECATED;  /* Moved to SoftBody_Shared */
 
 	struct Collection *collision_group;
 

@@ -33,7 +33,7 @@
 
 #include "rna_internal.h"
 
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_object_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
@@ -74,6 +74,12 @@ const EnumPropertyItem rna_enum_rigidbody_constraint_type_items[] = {
 	{RBC_TYPE_6DOF_SPRING, "GENERIC_SPRING", ICON_NONE, "Generic Spring",
 	                       "Restrict translation and rotation to specified axes with springs"},
 	{RBC_TYPE_MOTOR, "MOTOR", ICON_NONE, "Motor", "Drive rigid body around or along an axis"},
+	{0, NULL, 0, NULL, NULL}};
+
+/* bullet spring type */
+static const EnumPropertyItem rna_enum_rigidbody_constraint_spring_type_items[] = {
+	{RBC_SPRING_TYPE1, "SPRING1", ICON_NONE, "Blender 2.7", "Spring implementation used in blender 2.7. Damping is capped at 1.0"},
+	{RBC_SPRING_TYPE2, "SPRING2", ICON_NONE, "Blender 2.8", "New implementation available since 2.8"},
 	{0, NULL, 0, NULL, NULL}};
 
 #ifndef RNA_RUNTIME
@@ -130,7 +136,7 @@ static void rna_RigidBodyWorld_num_solver_iterations_set(PointerRNA *ptr, int va
 #endif
 }
 
-static void rna_RigidBodyWorld_split_impulse_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyWorld_split_impulse_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyWorld *rbw = (RigidBodyWorld *)ptr->data;
 
@@ -193,7 +199,7 @@ static void rna_RigidBodyOb_shape_set(PointerRNA *ptr, int value)
 	rbo->flag |= RBO_FLAG_NEEDS_VALIDATE;
 }
 
-static void rna_RigidBodyOb_disabled_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyOb_disabled_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyOb *rbo = (RigidBodyOb *)ptr->data;
 
@@ -275,7 +281,7 @@ static void rna_RigidBodyOb_collision_groups_set(PointerRNA *ptr, const bool *va
 	rbo->flag |= RBO_FLAG_NEEDS_VALIDATE;
 }
 
-static void rna_RigidBodyOb_kinematic_state_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyOb_kinematic_state_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyOb *rbo = (RigidBodyOb *)ptr->data;
 
@@ -291,7 +297,7 @@ static void rna_RigidBodyOb_kinematic_state_set(PointerRNA *ptr, int value)
 #endif
 }
 
-static void rna_RigidBodyOb_activation_state_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyOb_activation_state_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyOb *rbo = (RigidBodyOb *)ptr->data;
 
@@ -375,7 +381,15 @@ static void rna_RigidBodyCon_type_set(PointerRNA *ptr, int value)
 	rbc->flag |= RBC_FLAG_NEEDS_VALIDATE;
 }
 
-static void rna_RigidBodyCon_enabled_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyCon_spring_type_set(PointerRNA *ptr, int value)
+{
+	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
+
+	rbc->spring_type = value;
+	rbc->flag |= RBC_FLAG_NEEDS_VALIDATE;
+}
+
+static void rna_RigidBodyCon_enabled_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
 
@@ -388,7 +402,7 @@ static void rna_RigidBodyCon_enabled_set(PointerRNA *ptr, int value)
 #endif
 }
 
-static void rna_RigidBodyCon_disable_collisions_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyCon_disable_collisions_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
 
@@ -397,7 +411,7 @@ static void rna_RigidBodyCon_disable_collisions_set(PointerRNA *ptr, int value)
 	rbc->flag |= RBC_FLAG_NEEDS_VALIDATE;
 }
 
-static void rna_RigidBodyCon_use_breaking_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyCon_use_breaking_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
 
@@ -432,7 +446,7 @@ static void rna_RigidBodyCon_breaking_threshold_set(PointerRNA *ptr, float value
 #endif
 }
 
-static void rna_RigidBodyCon_override_solver_iterations_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyCon_override_solver_iterations_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
 
@@ -467,6 +481,22 @@ static void rna_RigidBodyCon_num_solver_iterations_set(PointerRNA *ptr, int valu
 #endif
 }
 
+#ifdef WITH_BULLET
+static void rna_RigidBodyCon_do_set_spring_stiffness(RigidBodyCon *rbc, float value, int flag, int axis)
+{
+	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & flag)) {
+		switch (rbc->spring_type) {
+			case RBC_SPRING_TYPE1:
+				RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, axis, value);
+				break;
+			case RBC_SPRING_TYPE2:
+				RB_constraint_set_stiffness_6dof_spring2(rbc->physics_constraint, axis, value);
+				break;
+		}
+	}
+}
+#endif
+
 static void rna_RigidBodyCon_spring_stiffness_x_set(PointerRNA *ptr, float value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
@@ -474,9 +504,7 @@ static void rna_RigidBodyCon_spring_stiffness_x_set(PointerRNA *ptr, float value
 	rbc->spring_stiffness_x = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_X)) {
-		RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, RB_LIMIT_LIN_X, value);
-	}
+	rna_RigidBodyCon_do_set_spring_stiffness(rbc, value, RBC_FLAG_USE_SPRING_X, RB_LIMIT_LIN_X);
 #endif
 }
 
@@ -487,9 +515,7 @@ static void rna_RigidBodyCon_spring_stiffness_y_set(PointerRNA *ptr, float value
 	rbc->spring_stiffness_y = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_Y)) {
-		RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, RB_LIMIT_LIN_Y, value);
-	}
+	rna_RigidBodyCon_do_set_spring_stiffness(rbc, value, RBC_FLAG_USE_SPRING_Y, RB_LIMIT_LIN_Y);
 #endif
 }
 
@@ -500,9 +526,7 @@ static void rna_RigidBodyCon_spring_stiffness_z_set(PointerRNA *ptr, float value
 	rbc->spring_stiffness_z = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_Z)) {
-		RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, RB_LIMIT_LIN_Z, value);
-	}
+	rna_RigidBodyCon_do_set_spring_stiffness(rbc, value, RBC_FLAG_USE_SPRING_Z, RB_LIMIT_LIN_Z);
 #endif
 }
 
@@ -513,9 +537,7 @@ static void rna_RigidBodyCon_spring_stiffness_ang_x_set(PointerRNA *ptr, float v
 	rbc->spring_stiffness_ang_x = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_ANG_X)) {
-		RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, RB_LIMIT_ANG_X, value);
-	}
+	rna_RigidBodyCon_do_set_spring_stiffness(rbc, value, RBC_FLAG_USE_SPRING_ANG_X, RB_LIMIT_ANG_X);
 #endif
 }
 
@@ -526,9 +548,7 @@ static void rna_RigidBodyCon_spring_stiffness_ang_y_set(PointerRNA *ptr, float v
 	rbc->spring_stiffness_ang_y = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_ANG_Y)) {
-		RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, RB_LIMIT_ANG_Y, value);
-	}
+	rna_RigidBodyCon_do_set_spring_stiffness(rbc, value, RBC_FLAG_USE_SPRING_ANG_Y, RB_LIMIT_ANG_Y);
 #endif
 }
 
@@ -539,11 +559,25 @@ static void rna_RigidBodyCon_spring_stiffness_ang_z_set(PointerRNA *ptr, float v
 	rbc->spring_stiffness_ang_z = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_ANG_Z)) {
-		RB_constraint_set_stiffness_6dof_spring(rbc->physics_constraint, RB_LIMIT_ANG_Z, value);
-	}
+	rna_RigidBodyCon_do_set_spring_stiffness(rbc, value, RBC_FLAG_USE_SPRING_ANG_Z, RB_LIMIT_ANG_Z);
 #endif
 }
+
+#ifdef WITH_BULLET
+static void rna_RigidBodyCon_do_set_spring_damping(RigidBodyCon *rbc, float value, int flag, int axis)
+{
+	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & flag)) {
+		switch (rbc->spring_type) {
+			case RBC_SPRING_TYPE1:
+				RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, axis, value);
+				break;
+			case RBC_SPRING_TYPE2:
+				RB_constraint_set_damping_6dof_spring2(rbc->physics_constraint, axis, value);
+				break;
+		}
+	}
+}
+#endif
 
 static void rna_RigidBodyCon_spring_damping_x_set(PointerRNA *ptr, float value)
 {
@@ -552,9 +586,7 @@ static void rna_RigidBodyCon_spring_damping_x_set(PointerRNA *ptr, float value)
 	rbc->spring_damping_x = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_X)) {
-		RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, RB_LIMIT_LIN_X, value);
-	}
+	rna_RigidBodyCon_do_set_spring_damping(rbc, value, RBC_FLAG_USE_SPRING_X, RB_LIMIT_LIN_X);
 #endif
 }
 
@@ -564,9 +596,7 @@ static void rna_RigidBodyCon_spring_damping_y_set(PointerRNA *ptr, float value)
 
 	rbc->spring_damping_y = value;
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_Y)) {
-		RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, RB_LIMIT_LIN_Y, value);
-	}
+	rna_RigidBodyCon_do_set_spring_damping(rbc, value, RBC_FLAG_USE_SPRING_Y, RB_LIMIT_LIN_Y);
 #endif
 }
 
@@ -576,9 +606,7 @@ static void rna_RigidBodyCon_spring_damping_z_set(PointerRNA *ptr, float value)
 
 	rbc->spring_damping_z = value;
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_Z)) {
-		RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, RB_LIMIT_LIN_Z, value);
-	}
+	rna_RigidBodyCon_do_set_spring_damping(rbc, value, RBC_FLAG_USE_SPRING_Z, RB_LIMIT_LIN_Z);
 #endif
 }
 
@@ -589,9 +617,7 @@ static void rna_RigidBodyCon_spring_damping_ang_x_set(PointerRNA *ptr, float val
 	rbc->spring_damping_ang_x = value;
 
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_ANG_X)) {
-		RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, RB_LIMIT_ANG_X, value);
-	}
+	rna_RigidBodyCon_do_set_spring_damping(rbc, value, RBC_FLAG_USE_SPRING_ANG_X, RB_LIMIT_ANG_X);
 #endif
 }
 
@@ -601,9 +627,7 @@ static void rna_RigidBodyCon_spring_damping_ang_y_set(PointerRNA *ptr, float val
 
 	rbc->spring_damping_ang_y = value;
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_ANG_Y)) {
-		RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, RB_LIMIT_ANG_Y, value);
-	}
+	rna_RigidBodyCon_do_set_spring_damping(rbc, value, RBC_FLAG_USE_SPRING_ANG_Y, RB_LIMIT_ANG_Y);
 #endif
 }
 
@@ -613,9 +637,7 @@ static void rna_RigidBodyCon_spring_damping_ang_z_set(PointerRNA *ptr, float val
 
 	rbc->spring_damping_ang_z = value;
 #ifdef WITH_BULLET
-	if (rbc->physics_constraint && rbc->type == RBC_TYPE_6DOF_SPRING && (rbc->flag & RBC_FLAG_USE_SPRING_ANG_Z)) {
-		RB_constraint_set_damping_6dof_spring(rbc->physics_constraint, RB_LIMIT_ANG_Z, value);
-	}
+	rna_RigidBodyCon_do_set_spring_damping(rbc, value, RBC_FLAG_USE_SPRING_ANG_Z, RB_LIMIT_ANG_Z);
 #endif
 }
 
@@ -632,7 +654,7 @@ static void rna_RigidBodyCon_motor_lin_max_impulse_set(PointerRNA *ptr, float va
 #endif
 }
 
-static void rna_RigidBodyCon_use_motor_lin_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyCon_use_motor_lin_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
 
@@ -645,7 +667,7 @@ static void rna_RigidBodyCon_use_motor_lin_set(PointerRNA *ptr, int value)
 #endif
 }
 
-static void rna_RigidBodyCon_use_motor_ang_set(PointerRNA *ptr, int value)
+static void rna_RigidBodyCon_use_motor_ang_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyCon *rbc = (RigidBodyCon *)ptr->data;
 
@@ -1028,6 +1050,14 @@ static void rna_def_rigidbody_constraint(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_rigidbody_constraint_type_items);
 	RNA_def_property_enum_funcs(prop, NULL, "rna_RigidBodyCon_type_set", NULL);
 	RNA_def_property_ui_text(prop, "Type", "Type of Rigid Body Constraint");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_OBJECT | ND_POINTCACHE, "rna_RigidBodyOb_reset");
+
+	prop = RNA_def_property(srna, "spring_type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "spring_type");
+	RNA_def_property_enum_items(prop, rna_enum_rigidbody_constraint_spring_type_items);
+	RNA_def_property_enum_funcs(prop, NULL, "rna_RigidBodyCon_spring_type_set", NULL);
+	RNA_def_property_ui_text(prop, "Spring Type", "Which implementation of spring to use");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, NC_OBJECT | ND_POINTCACHE, "rna_RigidBodyOb_reset");
 

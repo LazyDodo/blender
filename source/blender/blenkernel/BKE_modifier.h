@@ -119,12 +119,6 @@ typedef enum ModifierApplyFlag {
 	MOD_APPLY_IGNORE_SIMPLIFY = 1 << 3, /* Ignore scene simplification flag and use subdivisions
 	                                     * level set in multires modifier.
 	                                     */
-	MOD_APPLY_ALLOW_GPU = 1 << 4,  /* Allow modifier to be applied and stored in the GPU.
-	                                * Used by the viewport in order to be able to have SS
-	                                * happening on GPU.
-	                                * Render pipeline (including viewport render) should
-	                                * have DM on the CPU.
-	                                */
 } ModifierApplyFlag;
 
 typedef struct ModifierUpdateDepsgraphContext {
@@ -162,8 +156,10 @@ typedef struct ModifierTypeInfo {
 
 	/* Copy instance data for this modifier type. Should copy all user
 	 * level settings to the target modifier.
+	 *
+	 * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
 	 */
-	void (*copyData)(const struct ModifierData *md, struct ModifierData *target);
+	void (*copyData)(const struct ModifierData *md, struct ModifierData *target, const int flag);
 
 
 	/********************* Deform modifier functions *********************/ /* DEPRECATED */
@@ -315,7 +311,7 @@ typedef struct ModifierTypeInfo {
 	 *
 	 * This function is optional (assumes never disabled if not present).
 	 */
-	bool (*isDisabled)(const struct Scene *scene, struct ModifierData *md, int userRenderParams);
+	bool (*isDisabled)(const struct Scene *scene, struct ModifierData *md, bool userRenderParams);
 
 	/* Add the appropriate relations to the dependency graph.
 	 *
@@ -387,7 +383,7 @@ void          modifier_free(struct ModifierData *md);
 
 bool          modifier_unique_name(struct ListBase *modifiers, struct ModifierData *md);
 
-void          modifier_copyData_generic(const struct ModifierData *md, struct ModifierData *target);
+void          modifier_copyData_generic(const struct ModifierData *md, struct ModifierData *target, const int flag);
 void          modifier_copyData(struct ModifierData *md, struct ModifierData *target);
 void          modifier_copyData_ex(struct ModifierData *md, struct ModifierData *target, const int flag);
 bool          modifier_dependsOnTime(struct ModifierData *md);

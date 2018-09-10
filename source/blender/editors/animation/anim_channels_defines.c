@@ -64,6 +64,7 @@
 
 #include "BKE_animsys.h"
 #include "BKE_curve.h"
+#include "BKE_gpencil.h"
 #include "BKE_key.h"
 #include "BKE_main.h"
 #include "BKE_nla.h"
@@ -146,7 +147,7 @@ static void acf_generic_dataexpand_backdrop(bAnimContext *ac, bAnimListElem *ale
 	short offset = (acf->get_offset) ? acf->get_offset(ac, ale) : 0;
 	float color[3];
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	/* set backdrop drawing color */
 	acf->get_backdrop_color(ac, ale, color);
@@ -223,7 +224,7 @@ static void acf_generic_channel_color(bAnimContext *ac, bAnimListElem *ale, floa
 	else {
 		// FIXME: what happens when the indention is 1 greater than what it should be (due to grouping)?
 		int colOfs = 20 - 20 * indent;
-		UI_GetThemeColorShade3fv(TH_HEADER, colOfs, r_color);
+		UI_GetThemeColorShade3fv(TH_DOPESHEET_CHANNELSUBOB, colOfs, r_color);
 	}
 }
 
@@ -235,7 +236,7 @@ static void acf_generic_channel_backdrop(bAnimContext *ac, bAnimListElem *ale, f
 	short offset = (acf->get_offset) ? acf->get_offset(ac, ale) : 0;
 	float color[3];
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	/* set backdrop drawing color */
 	acf->get_backdrop_color(ac, ale, color);
@@ -638,7 +639,7 @@ static int acf_object_icon(bAnimListElem *ale)
 	/* icon depends on object-type */
 	switch (ob->type) {
 		case OB_LAMP:
-			return ICON_OUTLINER_OB_LAMP;
+			return ICON_OUTLINER_OB_LIGHT;
 		case OB_MESH:
 			return ICON_OUTLINER_OB_MESH;
 		case OB_CAMERA:
@@ -661,6 +662,8 @@ static int acf_object_icon(bAnimListElem *ale)
 			return ICON_OUTLINER_OB_SURFACE;
 		case OB_EMPTY:
 			return ICON_OUTLINER_OB_EMPTY;
+		case OB_GPENCIL:
+			return ICON_OUTLINER_OB_GREASEPENCIL;
 		default:
 			return ICON_OBJECT_DATA;
 	}
@@ -1452,16 +1455,16 @@ static bAnimChannelType ACF_DSMAT =
 	acf_dsmat_setting_ptr                   /* pointer for setting */
 };
 
-/* Lamp Expander  ------------------------------------------- */
+/* Light Expander  ------------------------------------------- */
 
 // TODO: just get this from RNA?
-static int acf_dslam_icon(bAnimListElem *UNUSED(ale))
+static int acf_dslight_icon(bAnimListElem *UNUSED(ale))
 {
-	return ICON_LAMP_DATA;
+	return ICON_LIGHT_DATA;
 }
 
 /* get the appropriate flag(s) for the setting when it is valid  */
-static int acf_dslam_setting_flag(bAnimContext *UNUSED(ac), eAnimChannel_Settings setting, bool *neg)
+static int acf_dslight_setting_flag(bAnimContext *UNUSED(ac), eAnimChannel_Settings setting, bool *neg)
 {
 	/* clear extra return data first */
 	*neg = false;
@@ -1486,7 +1489,7 @@ static int acf_dslam_setting_flag(bAnimContext *UNUSED(ac), eAnimChannel_Setting
 }
 
 /* get pointer to the setting */
-static void *acf_dslam_setting_ptr(bAnimListElem *ale, eAnimChannel_Settings setting, short *type)
+static void *acf_dslight_setting_ptr(bAnimListElem *ale, eAnimChannel_Settings setting, short *type)
 {
 	Lamp *la = (Lamp *)ale->data;
 
@@ -1510,9 +1513,9 @@ static void *acf_dslam_setting_ptr(bAnimListElem *ale, eAnimChannel_Settings set
 }
 
 /* lamp expander type define */
-static bAnimChannelType ACF_DSLAM =
+static bAnimChannelType ACF_DSLIGHT =
 {
-	"Lamp Expander",                /* type name */
+	"Light Expander",               /* type name */
 	ACHANNEL_ROLE_EXPANDER,         /* role */
 
 	acf_generic_dataexpand_color,   /* backdrop color */
@@ -1521,12 +1524,12 @@ static bAnimChannelType ACF_DSLAM =
 	acf_generic_basic_offset,       /* offset */
 
 	acf_generic_idblock_name,       /* name */
-	acf_generic_idblock_name_prop,   /* name prop */
-	acf_dslam_icon,                 /* icon */
+	acf_generic_idblock_name_prop,  /* name prop */
+	acf_dslight_icon,               /* icon */
 
 	acf_generic_dataexpand_setting_valid,   /* has setting */
-	acf_dslam_setting_flag,                 /* flag for setting */
-	acf_dslam_setting_ptr                   /* pointer for setting */
+	acf_dslight_setting_flag,               /* flag for setting */
+	acf_dslight_setting_ptr                 /* pointer for setting */
 };
 
 /* Texture Expander  ------------------------------------------- */
@@ -3580,7 +3583,7 @@ static void ANIM_init_channel_typeinfo_data(void)
 		animchannelTypeInfo[type++] = &ACF_FILLDRIVERS;  /* Drivers Expander */
 
 		animchannelTypeInfo[type++] = &ACF_DSMAT;        /* Material Channel */
-		animchannelTypeInfo[type++] = &ACF_DSLAM;        /* Lamp Channel */
+		animchannelTypeInfo[type++] = &ACF_DSLIGHT;      /* Light Channel */
 		animchannelTypeInfo[type++] = &ACF_DSCAM;        /* Camera Channel */
 		animchannelTypeInfo[type++] = &ACF_DSCACHEFILE;  /* CacheFile Channel */
 		animchannelTypeInfo[type++] = &ACF_DSCUR;        /* Curve Channel */
@@ -3868,7 +3871,7 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 			/* for F-Curves, draw color-preview of curve behind checkbox */
 			if (ELEM(ale->type, ANIMTYPE_FCURVE, ANIMTYPE_NLACURVE)) {
 				FCurve *fcu = (FCurve *)ale->data;
-				unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+				uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 				immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -3924,7 +3927,7 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 
 		/* draw red underline if channel is disabled */
 		if (ELEM(ale->type, ANIMTYPE_FCURVE, ANIMTYPE_NLACURVE) && (ale->flag & FCURVE_DISABLED)) {
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -3933,7 +3936,7 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 
 			GPU_line_width(2.0f);
 
-			immBegin(GWN_PRIM_LINES, 2);
+			immBegin(GPU_PRIM_LINES, 2);
 			immVertex2f(pos, (float)offset, yminc);
 			immVertex2f(pos, (float)v2d->cur.xmax, yminc);
 			immEnd();
@@ -3952,7 +3955,7 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 		short draw_sliders = 0;
 		float ymin_ofs = 0.0f;
 		float color[3];
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -4048,8 +4051,16 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 		return;
 	}
 
-	if (ale_setting->type == ANIMTYPE_GPLAYER)
+	if (ale_setting->type == ANIMTYPE_GPLAYER) {
+		/* draw cache updates for settings that affect the visible strokes */
+		if (setting == ACHANNEL_SETTING_VISIBLE) {
+			bGPdata *gpd = (bGPdata *)ale_setting->id;
+			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		}
+
+		/* UI updates */
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL);
+	}
 
 	/* tag copy-on-write flushing (so that the settings will have an effect) */
 	if (ale_setting->id) {

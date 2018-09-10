@@ -119,12 +119,15 @@ void DRW_draw_render_loop_offscreen(
 void DRW_draw_select_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d,
-        bool use_obedit_skip, bool use_nearest, const struct rcti *rect,
+        bool use_obedit_skip, bool draw_surface, bool use_nearest, const struct rcti *rect,
         DRW_SelectPassFn select_pass_fn, void *select_pass_user_data,
         DRW_ObjectFilterFn object_filter_fn, void *object_filter_user_data);
 void DRW_draw_depth_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d);
+
+/* grease pencil render */
+void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph);
 
 /* This is here because GPUViewport needs it */
 void DRW_pass_free(struct DRWPass *pass);
@@ -136,6 +139,18 @@ void DRW_opengl_context_destroy(void);
 void DRW_opengl_context_enable(void);
 void DRW_opengl_context_disable(void);
 
+/* Never use this. Only for closing blender. */
+void DRW_opengl_context_enable_ex(bool restore);
+void DRW_opengl_context_disable_ex(bool restore);
+
+void DRW_opengl_render_context_enable(void *re_gl_context);
+void DRW_opengl_render_context_disable(void *re_gl_context);
+void DRW_gawain_render_context_enable(void *re_gpu_context);
+void DRW_gawain_render_context_disable(void *re_gpu_context);
+
 void DRW_deferred_shader_remove(struct GPUMaterial *mat);
+
+struct DrawDataList *DRW_drawdatalist_from_id(struct ID *id);
+void DRW_drawdata_free(struct ID *id);
 
 #endif /* __DRW_ENGINE_H__ */

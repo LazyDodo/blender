@@ -65,8 +65,10 @@
 #include "ED_anim_api.h"
 #include "ED_armature.h"
 #include "ED_keyframes_edit.h" // XXX move the select modes out of there!
+#include "ED_keymap_templates.h"
 #include "ED_object.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -659,7 +661,7 @@ void ANIM_fcurve_delete_from_animdata(bAnimContext *ac, AnimData *adt, FCurve *f
 /* ****************** Operator Utilities ********************************** */
 
 /* poll callback for being in an Animation Editor channels list region */
-static int animedit_poll_channels_active(bContext *C)
+static bool animedit_poll_channels_active(bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 
@@ -675,7 +677,7 @@ static int animedit_poll_channels_active(bContext *C)
 }
 
 /* poll callback for Animation Editor channels list region + not in NLA-tweakmode for NLA */
-static int animedit_poll_channels_nla_tweakmode_off(bContext *C)
+static bool animedit_poll_channels_nla_tweakmode_off(bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	Scene *scene = CTX_data_scene(C);
@@ -1415,7 +1417,7 @@ static void ANIM_OT_channels_move(wmOperatorType *ot)
 
 /* ******************** Group Channel Operator ************************ */
 
-static int animchannels_grouping_poll(bContext *C)
+static bool animchannels_grouping_poll(bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	SpaceLink *sl;
@@ -1727,8 +1729,7 @@ static int animchannels_delete_exec(bContext *C, wmOperator *UNUSED(op))
 				bGPDlayer *gpl = (bGPDlayer *)ale->data;
 
 				/* try to delete the layer's data and the layer itself */
-				BKE_gpencil_free_frames(gpl);
-				BLI_freelinkN(&gpd->layers, gpl);
+				BKE_gpencil_layer_delete(gpd, gpl);
 				break;
 			}
 			case ANIMTYPE_MASKLAYER:
@@ -2190,7 +2191,7 @@ static void ANIM_OT_channels_clean_empty(wmOperatorType *ot)
 
 /* ******************* Reenable Disabled Operator ******************* */
 
-static int animchannels_enable_poll(bContext *C)
+static bool animchannels_enable_poll(bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 
@@ -2264,7 +2265,7 @@ static void ANIM_OT_channels_fcurves_enable(wmOperatorType *ot)
 /* ****************** Find / Set Filter Operator ******************** */
 
 /* XXX: make this generic? */
-static int animchannels_find_poll(bContext *C)
+static bool animchannels_find_poll(bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 
@@ -2339,10 +2340,24 @@ static int animchannels_deselectall_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	/* 'standard' behavior - check if selected, then apply relevant selection */
-	if (RNA_boolean_get(op->ptr, "invert"))
-		ANIM_deselect_anim_channels(&ac, ac.data, ac.datatype, false, ACHANNEL_SETFLAG_INVERT);
-	else
-		ANIM_deselect_anim_channels(&ac, ac.data, ac.datatype, true, ACHANNEL_SETFLAG_ADD);
+	const int action = RNA_enum_get(op->ptr, "action");
+	switch (action) {
+		case SEL_TOGGLE:
+			ANIM_deselect_anim_channels(&ac, ac.data, ac.datatype, true, ACHANNEL_SETFLAG_ADD);
+			break;
+		case SEL_SELECT:
+			ANIM_deselect_anim_channels(&ac, ac.data, ac.datatype, false, ACHANNEL_SETFLAG_ADD);
+			break;
+		case SEL_DESELECT:
+			ANIM_deselect_anim_channels(&ac, ac.data, ac.datatype, false, ACHANNEL_SETFLAG_CLEAR);
+			break;
+		case SEL_INVERT:
+			ANIM_deselect_anim_channels(&ac, ac.data, ac.datatype, false, ACHANNEL_SETFLAG_INVERT);
+			break;
+		default:
+			BLI_assert(0);
+			break;
+	}
 
 	/* send notifier that things have changed */
 	WM_event_add_notifier(C, NC_ANIMATION | ND_ANIMCHAN | NA_SELECTED, NULL);
@@ -2350,11 +2365,11 @@ static int animchannels_deselectall_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static void ANIM_OT_channels_select_all_toggle(wmOperatorType *ot)
+static void ANIM_OT_channels_select_all(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Select All";
-	ot->idname = "ANIM_OT_channels_select_all_toggle";
+	ot->idname = "ANIM_OT_channels_select_all";
 	ot->description = "Toggle selection of all animation channels";
 
 	/* api callbacks */
@@ -2364,8 +2379,8 @@ static void ANIM_OT_channels_select_all_toggle(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	/* props */
-	ot->prop = RNA_def_boolean(ot->srna, "invert", false, "Invert", "");
+	/* properties */
+	WM_operator_properties_select_all(ot);
 }
 
 /* ******************** Borderselect Operator *********************** */
@@ -3146,7 +3161,7 @@ static void ANIM_OT_channel_select_keys(wmOperatorType *ot)
 
 void ED_operatortypes_animchannels(void)
 {
-	WM_operatortype_append(ANIM_OT_channels_select_all_toggle);
+	WM_operatortype_append(ANIM_OT_channels_select_all);
 	WM_operatortype_append(ANIM_OT_channels_select_border);
 
 	WM_operatortype_append(ANIM_OT_channels_click);
@@ -3180,7 +3195,7 @@ void ED_operatortypes_animchannels(void)
 // TODO: check on a poll callback for this, to get hotkeys into menus
 void ED_keymap_animchannels(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Animation Channels", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Animation Channels", 0, 0);
 	wmKeyMapItem *kmi;
 
 	/* click-select */
@@ -3199,17 +3214,14 @@ void ED_keymap_animchannels(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "ANIM_OT_channels_find", FKEY, KM_PRESS, KM_CTRL, 0);
 
 	/* deselect all */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_select_all_toggle", AKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_select_all_toggle", IKEY, KM_PRESS, KM_CTRL, 0)->ptr, "invert", true);
+	ED_keymap_template_select_all(keymap, "ANIM_OT_channels_select_all");
 
 	/* borderselect */
 	WM_keymap_add_item(keymap, "ANIM_OT_channels_select_border", BKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "ANIM_OT_channels_select_border", EVT_TWEAK_L, KM_ANY, 0, 0);
 
 	/* delete */
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "ANIM_OT_channels_delete", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_item(keymap, "ANIM_OT_channels_delete", DELKEY, KM_PRESS, 0, 0);
 
 	/* settings */
@@ -3237,7 +3249,7 @@ void ED_keymap_animchannels(wmKeyConfig *keyconf)
 
 	/* grouping */
 	WM_keymap_add_item(keymap, "ANIM_OT_channels_group", GKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_ungroup", GKEY, KM_PRESS, KM_ALT, 0);
+	WM_keymap_add_item(keymap, "ANIM_OT_channels_ungroup", GKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 }
 
 /* ************************************************************************** */

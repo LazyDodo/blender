@@ -125,7 +125,7 @@ static void image_info(Scene *scene, ImageUser *iuser, Image *ima, ImBuf *ibuf, 
 	/* the frame number, even if we cant */
 	if (ima->source == IMA_SRC_SEQUENCE) {
 		/* don't use iuser->framenr directly because it may not be updated if auto-refresh is off */
-		const int framenr = BKE_image_user_frame_get(iuser, CFRA, 0, NULL);
+		const int framenr = BKE_image_user_frame_get(iuser, CFRA, NULL);
 		ofs += BLI_snprintf(str + ofs, len - ofs, IFACE_(", Frame: %d"), framenr);
 	}
 }
@@ -863,7 +863,7 @@ void uiTemplateImage(uiLayout *layout, bContext *C, PointerRNA *ptr, const char 
 	ima = imaptr.data;
 	iuser = userptr->data;
 
-	BKE_image_user_check_frame_calc(iuser, (int)scene->r.cfra, 0);
+	BKE_image_user_check_frame_calc(iuser, (int)scene->r.cfra);
 
 	cb = MEM_callocN(sizeof(RNAUpdateCb), "RNAUpdateCb");
 	cb->ptr = *ptr;
@@ -876,7 +876,7 @@ void uiTemplateImage(uiLayout *layout, bContext *C, PointerRNA *ptr, const char 
 	if (!compact) {
 		uiTemplateID(
 		        layout, C, ptr, propname,
-		        ima ? NULL : "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+		        ima ? NULL : "IMAGE_OT_new", "IMAGE_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL, false);
 	}
 
 	if (ima) {
@@ -1000,25 +1000,6 @@ void uiTemplateImage(uiLayout *layout, bContext *C, PointerRNA *ptr, const char 
 						col = uiLayoutColumn(layout, false);
 						uiItemR(col, &imaptr, "use_deinterlace", 0, IFACE_("Deinterlace"), ICON_NONE);
 					}
-
-					split = uiLayoutSplit(layout, 0.0f, false);
-
-					col = uiLayoutColumn(split, false);
-					/* XXX Why only display fields_per_frame only for video image types?
-					 *     And why allow fields for non-video image types at all??? */
-					if (BKE_image_is_animated(ima)) {
-						uiLayout *subsplit = uiLayoutSplit(col, 0.0f, false);
-						uiLayout *subcol = uiLayoutColumn(subsplit, false);
-						uiItemR(subcol, &imaptr, "use_fields", 0, NULL, ICON_NONE);
-						subcol = uiLayoutColumn(subsplit, false);
-						uiLayoutSetActive(subcol, RNA_boolean_get(&imaptr, "use_fields"));
-						uiItemR(subcol, userptr, "fields_per_frame", 0, IFACE_("Fields"), ICON_NONE);
-					}
-					else
-						uiItemR(col, &imaptr, "use_fields", 0, NULL, ICON_NONE);
-					row = uiLayoutRow(col, false);
-					uiLayoutSetActive(row, RNA_boolean_get(&imaptr, "use_fields"));
-					uiItemR(row, &imaptr, "field_order", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
 				}
 			}
 
@@ -1073,16 +1054,16 @@ void uiTemplateImageSettings(uiLayout *layout, PointerRNA *imfptr, bool color_ma
 	/* some settings depend on this being a scene thats rendered */
 	const bool is_render_out = (id && GS(id->name) == ID_SCE);
 
-	uiLayout *col, *row, *split, *sub;
+	uiLayout *col;
 	bool show_preview = false;
 
 	col = uiLayoutColumn(layout, false);
 
-	split = uiLayoutSplit(col, 0.5f, false);
+	uiLayoutSetPropSep(col, true);
+	uiLayoutSetPropDecorate(col, false);
 
-	uiItemR(split, imfptr, "file_format", 0, "", ICON_NONE);
-	sub = uiLayoutRow(split, false);
-	uiItemR(sub, imfptr, "color_mode", UI_ITEM_R_EXPAND, IFACE_("Color"), ICON_NONE);
+	uiItemR(col, imfptr, "file_format", 0, NULL, ICON_NONE);
+	uiItemR(uiLayoutRow(col, true), imfptr, "color_mode", UI_ITEM_R_EXPAND, IFACE_("Color"), ICON_NONE);
 
 	/* only display depth setting if multiple depths can be used */
 	if ((ELEM(depth_ok,
@@ -1094,10 +1075,7 @@ void uiTemplateImageSettings(uiLayout *layout, PointerRNA *imfptr, bool color_ma
 	          R_IMF_CHAN_DEPTH_24,
 	          R_IMF_CHAN_DEPTH_32)) == 0)
 	{
-		row = uiLayoutRow(col, false);
-
-		uiItemL(row, IFACE_("Color Depth:"), ICON_NONE);
-		uiItemR(row, imfptr, "color_depth", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
+		uiItemR(uiLayoutRow(col, true), imfptr, "color_depth", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
 	}
 
 	if (BKE_imtype_supports_quality(imf->imtype)) {
@@ -1112,22 +1090,20 @@ void uiTemplateImageSettings(uiLayout *layout, PointerRNA *imfptr, bool color_ma
 		uiItemR(col, imfptr, "exr_codec", 0, NULL, ICON_NONE);
 	}
 
-	row = uiLayoutRow(col, false);
 	if (BKE_imtype_supports_zbuf(imf->imtype)) {
-		uiItemR(row, imfptr, "use_zbuffer", 0, NULL, ICON_NONE);
+		uiItemR(col, imfptr, "use_zbuffer", 0, NULL, ICON_NONE);
 	}
 
 	if (is_render_out && ELEM(imf->imtype, R_IMF_IMTYPE_OPENEXR, R_IMF_IMTYPE_MULTILAYER)) {
 		show_preview = true;
-		uiItemR(row, imfptr, "use_preview", 0, NULL, ICON_NONE);
+		uiItemR(col, imfptr, "use_preview", 0, NULL, ICON_NONE);
 	}
 
 	if (imf->imtype == R_IMF_IMTYPE_JP2) {
 		uiItemR(col, imfptr, "jpeg2k_codec", 0, NULL, ICON_NONE);
 
-		row = uiLayoutRow(col, false);
-		uiItemR(row, imfptr, "use_jpeg2k_cinema_preset", 0, NULL, ICON_NONE);
-		uiItemR(row, imfptr, "use_jpeg2k_cinema_48", 0, NULL, ICON_NONE);
+		uiItemR(col, imfptr, "use_jpeg2k_cinema_preset", 0, NULL, ICON_NONE);
+		uiItemR(col, imfptr, "use_jpeg2k_cinema_48", 0, NULL, ICON_NONE);
 
 		uiItemR(col, imfptr, "use_jpeg2k_ycc", 0, NULL, ICON_NONE);
 	}
@@ -1203,17 +1179,19 @@ void uiTemplateImageStereo3d(uiLayout *layout, PointerRNA *stereo3d_format_ptr)
 
 static void uiTemplateViewsFormat(uiLayout *layout, PointerRNA *ptr, PointerRNA *stereo3d_format_ptr)
 {
-	uiLayout *col, *box;
+	uiLayout *col;
 
 	col = uiLayoutColumn(layout, false);
 
-	uiItemL(col, IFACE_("Views Format:"), ICON_NONE);
-	uiItemR(uiLayoutRow(col, false), ptr, "views_format", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
+	uiLayoutSetPropSep(col, true);
+	uiLayoutSetPropDecorate(col, false);
 
-	if (stereo3d_format_ptr) {
-		box = uiLayoutBox(col);
-		uiLayoutSetActive(box, RNA_enum_get(ptr, "views_format") == R_IMF_VIEWS_STEREO_3D);
-		uiTemplateImageStereo3d(box, stereo3d_format_ptr);
+	uiItemR(col, ptr, "views_format", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
+
+	if (stereo3d_format_ptr &&
+	    RNA_enum_get(ptr, "views_format") == R_IMF_VIEWS_STEREO_3D)
+	{
+		uiTemplateImageStereo3d(col, stereo3d_format_ptr);
 	}
 }
 

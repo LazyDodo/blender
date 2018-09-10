@@ -37,19 +37,18 @@ class NLA_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
+        NLA_MT_editor_menus.draw_collapsible(context, layout)
+
+        layout.separator_spacer()
+
+        dopesheet_filter(layout, context)
+
         layout.popover(
-            space_type='NLA_EDITOR',
-            region_type='HEADER',
-            panel_type="NLA_PT_filters",
+            panel="NLA_PT_filters",
             text="",
             icon='FILTER',
         )
 
-        NLA_MT_editor_menus.draw_collapsible(context, layout)
-
-        dopesheet_filter(layout, context)
-
-        layout.separator_spacer()
         layout.prop(st, "auto_snap", text="")
 
 
@@ -125,9 +124,9 @@ class NLA_MT_select(Menu):
     def draw(self, context):
         layout = self.layout
 
-        # This is a bit misleading as the operator's default text is "Select All" while it actually *toggles* All/None
-        layout.operator("nla.select_all_toggle").invert = False
-        layout.operator("nla.select_all_toggle", text="Invert Selection").invert = True
+        layout.operator("nla.select_all", text="All").action = 'SELECT'
+        layout.operator("nla.select_all", text="None").action = 'DESELECT'
+        layout.operator("nla.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
         layout.operator("nla.select_border").axis_range = False
@@ -229,7 +228,7 @@ class NLA_MT_edit_transform(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("transform.translate", text="Grab/Move")
+        layout.operator("transform.translate", text="Move")
         layout.operator("transform.transform", text="Extend").mode = 'TIME_EXTEND'
         layout.operator("transform.transform", text="Scale").mode = 'TIME_SCALE'
 

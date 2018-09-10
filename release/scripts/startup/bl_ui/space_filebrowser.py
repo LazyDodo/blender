@@ -18,7 +18,7 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Header, Panel, Menu
+from bpy.types import Header, Panel, Menu, UIList
 
 
 class FILEBROWSER_HT_header(Header):
@@ -40,6 +40,8 @@ class FILEBROWSER_HT_header(Header):
             row.prop(st, "asset_engine_type", text="")
             layout.separator()
 
+        layout.menu("FILEBROWSER_MT_view")
+
         row = layout.row(align=True)
         row.operator("file.previous", text="", icon='BACK')
         row.operator("file.next", text="", icon='FORWARD')
@@ -60,15 +62,15 @@ class FILEBROWSER_HT_header(Header):
 
             # can be None when save/reload with a file selector open
             if params:
-                layout.prop(params, "recursion_level", text="")
-
                 layout.prop(params, "display_type", expand=True, text="")
-
-                layout.prop(params, "display_size", text="")
-
                 layout.prop(params, "sort_method", expand=True, text="")
-
                 layout.prop(params, "show_hidden", text="", icon='FILE_HIDDEN')
+
+            layout.separator_spacer()
+
+            layout.template_running_jobs()
+
+            if params:
                 layout.prop(params, "use_filter", text="", icon='FILTER')
 
                 row = layout.row(align=True)
@@ -99,10 +101,8 @@ class FILEBROWSER_HT_header(Header):
                 row.separator()
                 row.prop(params, "filter_search", text="", icon='VIEWZOOM')
 
-        layout.template_running_jobs()
 
-
-class FILEBROWSER_UL_dir(bpy.types.UIList):
+class FILEBROWSER_UL_dir(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         direntry = item
         # space = context.space_data
@@ -255,6 +255,22 @@ class FILEBROWSER_PT_advanced_filter(Panel):
                 col.prop(params, "filter_id")
 
 
+class FILEBROWSER_MT_view(Menu):
+    bl_label = "View"
+
+    def draw(self, context):
+        layout = self.layout
+        st = context.space_data
+        params = st.params
+
+        layout.prop_menu_enum(params, "display_size")
+        layout.prop_menu_enum(params, "recursion_level")
+
+        layout.separator()
+
+        layout.menu("INFO_MT_area")
+
+
 classes = (
     FILEBROWSER_HT_header,
     FILEBROWSER_UL_dir,
@@ -264,6 +280,7 @@ classes = (
     FILEBROWSER_PT_bookmarks,
     FILEBROWSER_PT_recent_folders,
     FILEBROWSER_PT_advanced_filter,
+    FILEBROWSER_MT_view,
 )
 
 if __name__ == "__main__":  # only for live edit.

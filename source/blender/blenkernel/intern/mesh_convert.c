@@ -134,9 +134,10 @@ void BKE_mesh_from_metaball(ListBase *lb, Mesh *me)
 /**
  * Specialized function to use when we _know_ existing edges don't overlap with poly edges.
  */
-static void make_edges_mdata_extend(MEdge **r_alledge, int *r_totedge,
-                                    const MPoly *mpoly, MLoop *mloop,
-                                    const int totpoly)
+static void make_edges_mdata_extend(
+        MEdge **r_alledge, int *r_totedge,
+        const MPoly *mpoly, MLoop *mloop,
+        const int totpoly)
 {
 	int totedge = *r_totedge;
 	int totedge_new;
@@ -216,8 +217,8 @@ int BKE_mesh_nurbs_to_mdata(
 {
 	ListBase disp = {NULL, NULL};
 
-	if (ob->curve_cache) {
-		disp = ob->curve_cache->disp;
+	if (ob->runtime.curve_cache) {
+		disp = ob->runtime.curve_cache->disp;
 	}
 
 	return BKE_mesh_nurbs_displist_to_mdata(
@@ -536,8 +537,8 @@ Mesh *BKE_mesh_new_nomain_from_curve(Object *ob)
 {
 	ListBase disp = {NULL, NULL};
 
-	if (ob->curve_cache) {
-		disp = ob->curve_cache->disp;
+	if (ob->runtime.curve_cache) {
+		disp = ob->runtime.curve_cache->disp;
 	}
 
 	return BKE_mesh_new_nomain_from_curve_displist(ob, &disp);
@@ -561,10 +562,11 @@ void BKE_mesh_from_nurbs_displist(
 	cu = ob->data;
 
 	if (dm == NULL) {
-		if (BKE_mesh_nurbs_displist_to_mdata(ob, dispbase, &allvert, &totvert,
-		                                     &alledge, &totedge, &allloop,
-		                                     &allpoly, (use_orco_uv) ? &alluv : NULL,
-		                                     &totloop, &totpoly) != 0)
+		if (BKE_mesh_nurbs_displist_to_mdata(
+		            ob, dispbase, &allvert, &totvert,
+		            &alledge, &totedge, &allloop,
+		            &allpoly, (use_orco_uv) ? &alluv : NULL,
+		            &totloop, &totpoly) != 0)
 		{
 			/* Error initializing */
 			return;
@@ -648,8 +650,8 @@ void BKE_mesh_from_nurbs(Main *bmain, Object *ob)
 	bool use_orco_uv = (cu->flag & CU_UV_ORCO) != 0;
 	ListBase disp = {NULL, NULL};
 
-	if (ob->curve_cache) {
-		disp = ob->curve_cache->disp;
+	if (ob->runtime.curve_cache) {
+		disp = ob->runtime.curve_cache->disp;
 	}
 
 	BKE_mesh_from_nurbs_displist(bmain, ob, &disp, use_orco_uv, cu->id.name, false);
@@ -869,11 +871,11 @@ Mesh *BKE_mesh_new_from_object(
 			 *
 			 * TODO(sergey): Look into more proper solution.
 			 */
-			if (ob->curve_cache != NULL) {
-				if (tmpobj->curve_cache == NULL) {
-					tmpobj->curve_cache = MEM_callocN(sizeof(CurveCache), "CurveCache for curve types");
+			if (ob->runtime.curve_cache != NULL) {
+				if (tmpobj->runtime.curve_cache == NULL) {
+					tmpobj->runtime.curve_cache = MEM_callocN(sizeof(CurveCache), "CurveCache for curve types");
 				}
-				BKE_displist_copy(&tmpobj->curve_cache->disp, &ob->curve_cache->disp);
+				BKE_displist_copy(&tmpobj->runtime.curve_cache->disp, &ob->runtime.curve_cache->disp);
 			}
 
 			/* if getting the original caged mesh, delete object modifiers */
@@ -951,8 +953,8 @@ Mesh *BKE_mesh_new_from_object(
 			}
 			else {
 				ListBase disp = {NULL, NULL};
-				if (ob->curve_cache) {
-					disp = ob->curve_cache->disp;
+				if (ob->runtime.curve_cache) {
+					disp = ob->runtime.curve_cache->disp;
 				}
 				BKE_mesh_from_metaball(&disp, tmpmesh);
 			}
@@ -1143,12 +1145,13 @@ Mesh *BKE_mesh_create_derived_for_modifier(
 		float (*deformedVerts)[3] = BKE_mesh_vertexCos_get(me, &numVerts);
 
 		modifier_deformVerts(md, &mectx, NULL, deformedVerts, numVerts);
-		BKE_id_copy_ex(NULL, &me->id, (ID **)&result,
-		               LIB_ID_CREATE_NO_MAIN |
-		               LIB_ID_CREATE_NO_USER_REFCOUNT |
-		               LIB_ID_CREATE_NO_DEG_TAG |
-		               LIB_ID_COPY_NO_PREVIEW,
-		               false);
+		BKE_id_copy_ex(
+		        NULL, &me->id, (ID **)&result,
+		        LIB_ID_CREATE_NO_MAIN |
+		        LIB_ID_CREATE_NO_USER_REFCOUNT |
+		        LIB_ID_CREATE_NO_DEG_TAG |
+		        LIB_ID_COPY_NO_PREVIEW,
+		        false);
 		BKE_mesh_apply_vert_coords(result, deformedVerts);
 
 		if (build_shapekey_layers)
@@ -1158,12 +1161,13 @@ Mesh *BKE_mesh_create_derived_for_modifier(
 	}
 	else {
 		Mesh *mesh_temp;
-		BKE_id_copy_ex(NULL, &me->id, (ID **)&mesh_temp,
-		               LIB_ID_CREATE_NO_MAIN |
-		               LIB_ID_CREATE_NO_USER_REFCOUNT |
-		               LIB_ID_CREATE_NO_DEG_TAG |
-		               LIB_ID_COPY_NO_PREVIEW,
-		               false);
+		BKE_id_copy_ex(
+		        NULL, &me->id, (ID **)&mesh_temp,
+		        LIB_ID_CREATE_NO_MAIN |
+		        LIB_ID_CREATE_NO_USER_REFCOUNT |
+		        LIB_ID_CREATE_NO_DEG_TAG |
+		        LIB_ID_COPY_NO_PREVIEW,
+		        false);
 
 		if (build_shapekey_layers)
 			add_shapekey_layers(mesh_temp, me);
@@ -1314,14 +1318,16 @@ void BKE_mesh_nomain_to_mesh(Mesh *mesh_src, Mesh *mesh_dst, Object *ob, CustomD
 	/* TODO(Sybren): we could probably replace CD_ASSIGN with alloctype and always directly pass mesh_src->mxxx,
 	 * instead of using a ternary operator. */
 	if (!CustomData_has_layer(&tmp.vdata, CD_MVERT)) {
-		CustomData_add_layer(&tmp.vdata, CD_MVERT, CD_ASSIGN,
-		                     (alloctype == CD_ASSIGN) ? mesh_src->mvert : MEM_dupallocN(mesh_src->mvert),
-		                     totvert);
+		CustomData_add_layer(
+		        &tmp.vdata, CD_MVERT, CD_ASSIGN,
+		        (alloctype == CD_ASSIGN) ? mesh_src->mvert : MEM_dupallocN(mesh_src->mvert),
+		        totvert);
 	}
 	if (!CustomData_has_layer(&tmp.edata, CD_MEDGE)) {
-		CustomData_add_layer(&tmp.edata, CD_MEDGE, CD_ASSIGN,
-		                     (alloctype == CD_ASSIGN) ? mesh_src->medge : MEM_dupallocN(mesh_src->medge),
-		                     totedge);
+		CustomData_add_layer(
+		        &tmp.edata, CD_MEDGE, CD_ASSIGN,
+		        (alloctype == CD_ASSIGN) ? mesh_src->medge : MEM_dupallocN(mesh_src->medge),
+		        totedge);
 	}
 	if (!CustomData_has_layer(&tmp.pdata, CD_MPOLY)) {
 		/* TODO(Sybren): assigment to tmp.mxxx is probably not necessary due to the

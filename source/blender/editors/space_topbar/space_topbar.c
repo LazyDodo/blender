@@ -128,7 +128,7 @@ static void topbar_main_region_init(wmWindowManager *wm, ARegion *region)
 	}
 	UI_view2d_region_reinit(&region->v2d, V2D_COMMONVIEW_HEADER, region->winx, region->winy);
 
-	keymap = WM_keymap_find(wm->defaultconf, "View2D Buttons List", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "View2D Buttons List", 0, 0);
 	WM_event_add_keymap_handler(&region->handlers, keymap);
 }
 
@@ -151,7 +151,7 @@ static void topbar_header_region_init(wmWindowManager *UNUSED(wm), ARegion *ar)
 	ED_region_header_init(ar);
 }
 
-static void topbar_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+static void topbar_main_region_listener(wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
                                         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -168,10 +168,14 @@ static void topbar_main_region_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa)
 			if (wmn->data == ND_SPACE_VIEW3D)
 				ED_region_tag_redraw(ar);
 			break;
+		case NC_GPENCIL:
+			if (wmn->data == ND_DATA)
+				ED_region_tag_redraw(ar);
+			break;
 	}
 }
 
-static void topbar_header_listener(bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+static void topbar_header_listener(wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
                                    wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */

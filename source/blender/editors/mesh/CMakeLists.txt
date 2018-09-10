@@ -44,7 +44,7 @@ set(INC_SYS
 set(SRC
 	editface.c
 	editmesh_add.c
-	editmesh_add_manipulator.c
+	editmesh_add_gizmo.c
 	editmesh_bevel.c
 	editmesh_bisect.c
 	editmesh_extrude.c
@@ -57,6 +57,8 @@ set(SRC
 	editmesh_loopcut.c
 	editmesh_path.c
 	editmesh_polybuild.c
+	editmesh_preselect_edgering.c
+	editmesh_preselect_elem.c
 	editmesh_rip.c
 	editmesh_rip_edge.c
 	editmesh_select.c

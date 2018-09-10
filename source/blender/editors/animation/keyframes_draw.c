@@ -48,6 +48,7 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_brush_types.h"
 #include "DNA_mask_types.h"
 
 #include "BKE_fcurve.h"
@@ -585,20 +586,20 @@ static void draw_keylist(View2D *v2d, DLRBT_Tree *keys, DLRBT_Tree *blocks, floa
 		copy_v4_v4(unsel_mhcol, unsel_color);
 		unsel_mhcol[3] *= 0.8f;
 
-		unsigned int block_ct = 0;
+		uint block_len = 0;
 		for (ActKeyBlock *ab = blocks->first; ab; ab = ab->next) {
 			if (actkeyblock_is_valid(ab, keys)) {
-				block_ct++;
+				block_len++;
 			}
 		}
 
-		if (block_ct > 0) {
-			Gwn_VertFormat *format = immVertexFormat();
-			unsigned int pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			unsigned int color_id = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
+		if (block_len > 0) {
+			GPUVertFormat *format = immVertexFormat();
+			uint pos_id = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+			uint color_id = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
-			immBegin(GWN_PRIM_TRIS, 6 * block_ct);
+			immBegin(GPU_PRIM_TRIS, 6 * block_len);
 			for (ActKeyBlock *ab = blocks->first; ab; ab = ab->next) {
 				if (actkeyblock_is_valid(ab, keys)) {
 					if (ab->flag & ACTKEYBLOCK_FLAG_MOVING_HOLD) {
@@ -622,25 +623,25 @@ static void draw_keylist(View2D *v2d, DLRBT_Tree *keys, DLRBT_Tree *blocks, floa
 
 	if (keys) {
 		/* count keys */
-		unsigned int key_ct = 0;
+		uint key_len = 0;
 		for (ActKeyColumn *ak = keys->first; ak; ak = ak->next) {
 			/* optimization: if keyframe doesn't appear within 5 units (screenspace) in visible area, don't draw
 			 *	- this might give some improvements, since we current have to flip between view/region matrices
 			 */
 			if (IN_RANGE_INCL(ak->cfra, v2d->cur.xmin, v2d->cur.xmax))
-				key_ct++;
+				key_len++;
 		}
 
-		if (key_ct > 0) {
+		if (key_len > 0) {
 			/* draw keys */
-			Gwn_VertFormat *format = immVertexFormat();
-			unsigned int pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			unsigned int size_id = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-			unsigned int color_id = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
-			unsigned int outline_color_id = GWN_vertformat_attr_add(format, "outlineColor", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+			GPUVertFormat *format = immVertexFormat();
+			uint pos_id = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+			uint size_id = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+			uint color_id = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
+			uint outline_color_id = GPU_vertformat_attr_add(format, "outlineColor", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
 			immBindBuiltinProgram(GPU_SHADER_KEYFRAME_DIAMOND);
 			GPU_enable_program_point_size();
-			immBegin(GWN_PRIM_POINTS, key_ct);
+			immBegin(GPU_PRIM_POINTS, key_len);
 
 			for (ActKeyColumn *ak = keys->first; ak; ak = ak->next) {
 				if (IN_RANGE_INCL(ak->cfra, v2d->cur.xmin, v2d->cur.xmax)) {
@@ -783,7 +784,7 @@ void draw_gpencil_channel(View2D *v2d, bDopeSheet *ads, bGPdata *gpd, float ypos
 
 	BLI_dlrbTree_init(&keys);
 
-	gpencil_to_keylist(ads, gpd, &keys);
+	gpencil_to_keylist(ads, gpd, &keys, false);
 
 	BLI_dlrbTree_linkedlist_sync(&keys);
 
@@ -1019,7 +1020,7 @@ void action_to_keylist(AnimData *adt, bAction *act, DLRBT_Tree *keys, DLRBT_Tree
 }
 
 
-void gpencil_to_keylist(bDopeSheet *ads, bGPdata *gpd, DLRBT_Tree *keys)
+void gpencil_to_keylist(bDopeSheet *ads, bGPdata *gpd, DLRBT_Tree *keys, const bool active)
 {
 	bGPDlayer *gpl;
 
@@ -1027,7 +1028,9 @@ void gpencil_to_keylist(bDopeSheet *ads, bGPdata *gpd, DLRBT_Tree *keys)
 		/* for now, just aggregate out all the frames, but only for visible layers */
 		for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 			if ((gpl->flag & GP_LAYER_HIDE) == 0) {
-				gpl_to_keylist(ads, gpl, keys);
+				if ((!active) || ((active) && (gpl->flag & GP_LAYER_SELECT))) {
+					gpl_to_keylist(ads, gpl, keys);
+				}
 			}
 		}
 	}

@@ -71,6 +71,7 @@ struct ViewLayer;
 typedef enum eEvaluationMode {
 	DAG_EVAL_VIEWPORT       = 0,    /* evaluate for OpenGL viewport */
 	DAG_EVAL_RENDER         = 1,    /* evaluate for render purposes */
+	DAG_EVAL_BACKGROUND     = 2,    /* evaluate in background for baking/caching */
 } eEvaluationMode;
 
 /* DagNode->eval_flags */
@@ -80,10 +81,6 @@ enum {
 	 * who're using curve deform, where_on_path and so.
 	 */
 	DAG_EVAL_NEED_CURVE_PATH = 1,
-	/* Scene evaluation would need to have object's data on CPU,
-	 * meaning no GPU shortcuts is allowed.
-	 */
-	DAG_EVAL_NEED_CPU        = 2,
 };
 
 #ifdef __cplusplus
@@ -130,7 +127,7 @@ typedef enum eDepsgraph_Tag {
 	DEG_TAG_GEOMETRY    = (1 << 1),
 	/* Time changed and animation is to be re-evaluated, OB_RECALC_TIME. */
 	DEG_TAG_TIME        = (1 << 2),
-	/* Particle system changed. */
+	/* Particle system changed; values are aligned with PSYS_RECALC_xxx. */
 	DEG_TAG_PSYS_REDO   = (1 << 3),
 	DEG_TAG_PSYS_RESET  = (1 << 4),
 	DEG_TAG_PSYS_TYPE   = (1 << 5),
@@ -239,9 +236,9 @@ void DEG_make_inactive(struct Depsgraph *depsgraph);
 void DEG_debug_print_begin(struct Depsgraph *depsgraph);
 
 void DEG_debug_print_eval(struct Depsgraph *depsgraph,
-                          const char* function_name,
-                          const char* object_name,
-                          const void* object_address);
+                          const char *function_name,
+                          const char *object_name,
+                          const void *object_address);
 
 void DEG_debug_print_eval_subdata(struct Depsgraph *depsgraph,
                                   const char *function_name,
@@ -269,9 +266,9 @@ void DEG_debug_print_eval_parent_typed(struct Depsgraph *depsgraph,
                                        const void *parent_address);
 
 void DEG_debug_print_eval_time(struct Depsgraph *depsgraph,
-                               const char* function_name,
-                               const char* object_name,
-                               const void* object_address,
+                               const char *function_name,
+                               const char *object_name,
+                               const void *object_address,
                                float time);
 
 #ifdef __cplusplus

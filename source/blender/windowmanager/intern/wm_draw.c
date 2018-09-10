@@ -96,8 +96,7 @@ static void wm_paintcursor_draw(bContext *C, ARegion *ar)
 		for (pc = wm->paintcursors.first; pc; pc = pc->next) {
 			if (pc->poll == NULL || pc->poll(C)) {
 				/* Prevent drawing outside region. */
-				GLint scissor[4];
-				glGetIntegerv(GL_SCISSOR_BOX, scissor);
+				glEnable(GL_SCISSOR_TEST);
 				glScissor(ar->winrct.xmin,
 				          ar->winrct.ymin,
 				          BLI_rcti_size_x(&ar->winrct) + 1,
@@ -112,7 +111,7 @@ static void wm_paintcursor_draw(bContext *C, ARegion *ar)
 					pc->draw(C, win->eventstate->x, win->eventstate->y, pc->customdata);
 				}
 
-				glScissor(scissor[0], scissor[1], scissor[2], scissor[3]);
+				glDisable(GL_SCISSOR_TEST);
 			}
 		}
 	}
@@ -456,9 +455,9 @@ void wm_draw_region_blend(ARegion *ar, int view, bool blend)
 	glUniform1i(GPU_shader_get_uniform(shader, "image"), 0);
 	glUniform4f(GPU_shader_get_uniform(shader, "rect_icon"), halfx, halfy, 1.0f + halfx, 1.0f + halfy);
 	glUniform4f(GPU_shader_get_uniform(shader, "rect_geom"), ar->winrct.xmin, ar->winrct.ymin, ar->winrct.xmax + 1, ar->winrct.ymax + 1);
-	glUniform4f(GPU_shader_get_builtin_uniform(shader, GWN_UNIFORM_COLOR), alpha, alpha, alpha, alpha);
+	glUniform4f(GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_COLOR), alpha, alpha, alpha, alpha);
 
-	GWN_draw_primitive(GWN_PRIM_TRI_STRIP, 4);
+	GPU_draw_primitive(GPU_PRIM_TRI_STRIP, 4);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -729,9 +728,8 @@ static void wm_draw_window(bContext *C, wmWindow *win)
 /* quick test to prevent changing window drawable */
 static bool wm_draw_update_test_window(wmWindow *win)
 {
-	struct WorkSpace *workspace = WM_window_get_active_workspace(win);
 	Scene *scene = WM_window_get_active_scene(win);
-	ViewLayer *view_layer = BKE_workspace_view_layer_get(workspace, scene);
+	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	struct Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
 	bScreen *screen = WM_window_get_active_screen(win);
 	ARegion *ar;

@@ -118,7 +118,6 @@ struct Render {
 	ListBase view_layers;
 	int active_view_layer;
 	struct Object *camera_override;
-	unsigned int lay, layer_override;
 
 	ThreadRWMutex partsmutex;
 	ListBase parts;
@@ -160,7 +159,7 @@ struct Render {
 
 	/* TODO replace by a whole draw manager. */
 	void *gl_context;
-	void *gwn_context;
+	void *gpu_context;
 };
 
 /* **************** defines ********************* */

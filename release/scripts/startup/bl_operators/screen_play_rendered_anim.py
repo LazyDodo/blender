@@ -122,7 +122,7 @@ class PlayRenderedAnim(Operator):
                 file = rd.frame_path(frame=scene.frame_start, preview=False)
                 file = bpy.path.abspath(file)  # expand '//'
                 if not os.path.exists(file):
-                    self.report({'WARNING'}, "File {file!r} not found")
+                    self.report({'WARNING'}, f"File {file!r} not found")
 
         cmd = [player_path]
         # extra options, fps controls etc.
@@ -149,7 +149,7 @@ class PlayRenderedAnim(Operator):
             opts = [file, f"{scene.frame_start:d}-{scene.frame_end:d}"]
             cmd.extend(opts)
         elif preset == 'RV':
-            opts = ["-fps", str(rd.fps), "-play", f"[ {file} ]"]
+            opts = ["-fps", str(rd.fps), "-play", f"[ {file:s} ]"]
             cmd.extend(opts)
         elif preset == 'MPLAYER':
             opts = []

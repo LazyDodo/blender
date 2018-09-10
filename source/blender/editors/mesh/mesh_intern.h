@@ -73,7 +73,7 @@ bool EDBM_op_finish(struct BMEditMesh *em, struct BMOperator *bmop,
 
 void EDBM_stats_update(struct BMEditMesh *em);
 
-int  EDBM_view3d_poll(struct bContext *C);
+bool EDBM_view3d_poll(struct bContext *C);
 
 struct BMElem *EDBM_elem_from_selectmode(
         struct BMEditMesh *em,
@@ -92,8 +92,8 @@ void MESH_OT_primitive_monkey_add(struct wmOperatorType *ot);
 void MESH_OT_primitive_uv_sphere_add(struct wmOperatorType *ot);
 void MESH_OT_primitive_ico_sphere_add(struct wmOperatorType *ot);
 
-/* *** editmesh_add_manipulator.c *** */
-void MESH_OT_primitive_cube_add_manipulator(struct wmOperatorType *ot);
+/* *** editmesh_add_gizmo.c *** */
+void MESH_OT_primitive_cube_add_gizmo(struct wmOperatorType *ot);
 
 /* *** editmesh_bevel.c *** */
 void MESH_OT_bevel(struct wmOperatorType *ot);
@@ -240,6 +240,16 @@ void MESH_OT_duplicate(struct wmOperatorType *ot);
 void MESH_OT_merge(struct wmOperatorType *ot);
 void MESH_OT_remove_doubles(struct wmOperatorType *ot);
 void MESH_OT_poke(struct wmOperatorType *ot);
+void MESH_OT_point_normals(struct wmOperatorType *ot);
+void MESH_OT_merge_normals(struct wmOperatorType *ot);
+void MESH_OT_split_normals(struct wmOperatorType *ot);
+void MESH_OT_normals_tools(struct wmOperatorType *ot);
+void MESH_OT_set_normals_from_faces(struct wmOperatorType *ot);
+void MESH_OT_average_normals(struct wmOperatorType *ot);
+void MESH_OT_smoothen_normals(struct wmOperatorType *ot);
+void MESH_OT_mod_weighted_strength(struct wmOperatorType *ot);
+
+struct wmKeyMap *point_normals_modal_keymap(wmKeyConfig *keyconf);
 
 #ifdef WITH_FREESTYLE
 void MESH_OT_mark_freestyle_edge(struct wmOperatorType *ot);
@@ -257,7 +267,6 @@ void MESH_OT_customdata_skin_add(struct wmOperatorType *ot);
 void MESH_OT_customdata_skin_clear(struct wmOperatorType *ot);
 void MESH_OT_customdata_custom_splitnormals_add(struct wmOperatorType *ot);
 void MESH_OT_customdata_custom_splitnormals_clear(struct wmOperatorType *ot);
-void MESH_OT_drop_named_image(struct wmOperatorType *ot);
 
 
 #endif  /* __MESH_INTERN_H__ */

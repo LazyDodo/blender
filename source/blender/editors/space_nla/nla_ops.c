@@ -39,6 +39,8 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_transform.h"
 
 #include "WM_api.h"
@@ -52,7 +54,7 @@
 /* ************************** poll callbacks for operators **********************************/
 
 /* tweakmode is NOT enabled */
-int nlaop_poll_tweakmode_off(bContext *C)
+bool nlaop_poll_tweakmode_off(bContext *C)
 {
 	Scene *scene;
 
@@ -74,7 +76,7 @@ int nlaop_poll_tweakmode_off(bContext *C)
 }
 
 /* tweakmode IS enabled */
-int nlaop_poll_tweakmode_on(bContext *C)
+bool nlaop_poll_tweakmode_on(bContext *C)
 {
 	Scene *scene;
 
@@ -124,7 +126,7 @@ void nla_operatortypes(void)
 	/* select */
 	WM_operatortype_append(NLA_OT_click_select);
 	WM_operatortype_append(NLA_OT_select_border);
-	WM_operatortype_append(NLA_OT_select_all_toggle);
+	WM_operatortype_append(NLA_OT_select_all);
 	WM_operatortype_append(NLA_OT_select_leftright);
 
 	/* view */
@@ -193,9 +195,7 @@ static void nla_keymap_channels(wmKeyMap *keymap)
 	RNA_boolean_set(kmi->ptr, "above_selected", true);
 
 	/* delete tracks */
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "NLA_OT_tracks_delete", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_item(keymap, "NLA_OT_tracks_delete", DELKEY, KM_PRESS, 0, 0);
 }
 
@@ -225,13 +225,8 @@ static void nla_keymap_main(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	RNA_boolean_set(kmi->ptr, "extend", false);
 	RNA_enum_set(kmi->ptr, "mode", NLAEDIT_LRSEL_RIGHT);
 
-
 	/* deselect all */
-	/* TODO: uniformize with other select_all ops? */
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_all_toggle", AKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "invert", false);
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_all_toggle", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "invert", true);
+	ED_keymap_template_select_all(keymap, "NLA_OT_select_all");
 
 	/* borderselect */
 	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_border", BKEY, KM_PRESS, 0, 0);
@@ -258,8 +253,8 @@ static void nla_keymap_main(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	WM_keymap_add_item(keymap, "NLA_OT_soundclip_add", KKEY, KM_PRESS, KM_SHIFT, 0);
 
 	/* meta-strips */
-	WM_keymap_add_item(keymap, "NLA_OT_meta_add", GKEY, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "NLA_OT_meta_remove", GKEY, KM_PRESS, KM_ALT, 0);
+	WM_keymap_add_item(keymap, "NLA_OT_meta_add", GKEY, KM_PRESS, KM_CTRL, 0);
+	WM_keymap_add_item(keymap, "NLA_OT_meta_remove", GKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 
 	/* duplicate */
 	kmi = WM_keymap_add_item(keymap, "NLA_OT_duplicate", DKEY, KM_PRESS, KM_SHIFT, 0);
@@ -272,9 +267,7 @@ static void nla_keymap_main(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	WM_keymap_add_item(keymap, "NLA_OT_make_single_user", UKEY, KM_PRESS, 0, 0);
 
 	/* delete */
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "NLA_OT_delete", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_item(keymap, "NLA_OT_delete", DELKEY, KM_PRESS, 0, 0);
 
 	/* split */
@@ -317,7 +310,7 @@ void nla_keymap(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* keymap for all regions ------------------------------------------- */
-	keymap = WM_keymap_find(keyconf, "NLA Generic", SPACE_NLA, 0);
+	keymap = WM_keymap_ensure(keyconf, "NLA Generic", SPACE_NLA, 0);
 
 	/* region management */
 	WM_keymap_add_item(keymap, "NLA_OT_properties", NKEY, KM_PRESS, 0, 0);
@@ -349,10 +342,10 @@ void nla_keymap(wmKeyConfig *keyconf)
 	 *
 	 * However, those operations which involve clicking on channels and/or the placement of them in the view are implemented here instead
 	 */
-	keymap = WM_keymap_find(keyconf, "NLA Channels", SPACE_NLA, 0);
+	keymap = WM_keymap_ensure(keyconf, "NLA Channels", SPACE_NLA, 0);
 	nla_keymap_channels(keymap);
 
 	/* data ------------------------------------------------------------- */
-	keymap = WM_keymap_find(keyconf, "NLA Editor", SPACE_NLA, 0);
+	keymap = WM_keymap_ensure(keyconf, "NLA Editor", SPACE_NLA, 0);
 	nla_keymap_main(keyconf, keymap);
 }

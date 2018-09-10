@@ -287,8 +287,8 @@ static int add_driver_with_target(
 }
 
 /* Main Driver Management API calls:
- *  Add a new driver for the specified property on the given ID block,
- *  and make it be driven by the specified target.
+ * Add a new driver for the specified property on the given ID block,
+ * and make it be driven by the specified target.
  *
  * This is intended to be used in conjunction with a modal "eyedropper"
  * for picking the variable that is going to be used to drive this one.
@@ -370,7 +370,7 @@ int ANIM_add_driver_with_target(
 /* --------------------------------- */
 
 /* Main Driver Management API calls:
- *  Add a new driver for the specified property on the given ID block
+ * Add a new driver for the specified property on the given ID block
  */
 int ANIM_add_driver(ReportList *reports, ID *id, const char rna_path[], int array_index, short flag, int type)
 {
@@ -477,7 +477,7 @@ int ANIM_add_driver(ReportList *reports, ID *id, const char rna_path[], int arra
 }
 
 /* Main Driver Management API calls:
- *  Remove the driver for the specified property on the given ID block (if available)
+ * Remove the driver for the specified property on the given ID block (if available)
  */
 bool ANIM_remove_driver(ReportList *UNUSED(reports), ID *id, const char rna_path[], int array_index, short UNUSED(flag))
 {
@@ -819,7 +819,7 @@ static const EnumPropertyItem *driver_mapping_type_itemsf(bContext *C, PointerRN
 
 /* Add Driver (With Menu) Button Operator ------------------------ */
 
-static int add_driver_button_poll(bContext *C)
+static bool add_driver_button_poll(bContext *C)
 {
 	PointerRNA ptr = {{NULL}};
 	PropertyRNA *prop = NULL;
@@ -953,7 +953,7 @@ static int add_driver_button_invoke(bContext *C, wmOperator *op, const wmEvent *
 
 		/* 2) Show editing panel for setting up this driver */
 		/* TODO: Use a different one from the editing popever, so we can have the single/all toggle? */
-		UI_popover_panel_invoke(C, SPACE_IPO, RGN_TYPE_UI, "GRAPH_PT_drivers_popover", true, op->reports);
+		UI_popover_panel_invoke(C, "GRAPH_PT_drivers_popover", true, op->reports);
 	}
 
 	return OPERATOR_INTERFACE;
@@ -1041,7 +1041,7 @@ static int edit_driver_button_exec(bContext *C, wmOperator *op)
 	UI_context_active_but_prop_get(C, &ptr, &prop, &index);
 
 	if (ptr.id.data && ptr.data && prop) {
-		UI_popover_panel_invoke(C, SPACE_IPO, RGN_TYPE_UI, "GRAPH_PT_drivers_popover", true, op->reports);
+		UI_popover_panel_invoke(C, "GRAPH_PT_drivers_popover", true, op->reports);
 	}
 
 	return OPERATOR_INTERFACE;

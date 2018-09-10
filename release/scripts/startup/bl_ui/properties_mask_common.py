@@ -177,7 +177,7 @@ class MASK_PT_point:
         # so do not over-complicate things for now by using single template_ID
         #col.template_any_ID(parent, "id", "id_type", text="")
 
-        col.label("Parent:")
+        col.label(text="Parent:")
         col.prop(parent, "id", text="")
 
         if parent.id_type == 'MOVIECLIP' and parent.id:
@@ -219,7 +219,7 @@ class MASK_PT_display:
         space_data = context.space_data
         row = layout.row(align=True)
         row.prop(space_data, "show_mask_smooth", text="Smooth")
-        row.prop(space_data, "mask_draw_type", text="")
+        row.prop(space_data, "mask_display_type", text="")
         row = layout.row(align=True)
         row.prop(space_data, "show_mask_overlay", text="Overlay")
         sub = row.row()
@@ -378,6 +378,12 @@ class MASK_MT_select(Menu):
     def draw(self, context):
         layout = self.layout
 
+        layout.operator("mask.select_all", text="All").action = 'SELECT'
+        layout.operator("mask.select_all", text="None").action = 'DESELECT'
+        layout.operator("mask.select_all", text="Invert").action = 'INVERT'
+
+        layout.separator()
+
         layout.operator("mask.select_border")
         layout.operator("mask.select_circle")
 
@@ -388,8 +394,6 @@ class MASK_MT_select(Menu):
 
         layout.separator()
 
-        layout.operator("mask.select_all").action = 'TOGGLE'
-        layout.operator("mask.select_all", text="Inverse").action = 'INVERT'
         layout.operator("mask.select_linked", text="Select Linked")
 
 

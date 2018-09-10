@@ -66,7 +66,9 @@
 #include "BKE_global.h"
 #include "BKE_material.h"
 #include "BKE_modifier.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_node.h"
+#include "BKE_shader_fx.h"
 #include "BKE_sound.h"
 #include "BKE_image.h"
 #include "BKE_particle.h"
@@ -237,7 +239,7 @@ int main(
 	struct CreatorAtExitData app_init_data = {NULL};
 	BKE_blender_atexit_register(callback_main_atexit, &app_init_data);
 
-	/* Unbuffered stdout makes stdout and stderr better synchronised, and helps
+	/* Unbuffered stdout makes stdout and stderr better synchronized, and helps
 	 * when stepping through code in a debugger (prints are immediately
 	 * visible). */
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -372,6 +374,8 @@ int main(
 	BKE_cachefiles_init();
 	BKE_images_init();
 	BKE_modifier_init();
+	BKE_gpencil_modifier_init();
+	BKE_shaderfx_init();
 	DEG_register_node_types();
 
 	BKE_brush_system_init();
@@ -523,7 +527,7 @@ int main(
 	WM_main(C);
 
 	return 0;
-} /* end of int main(argc, argv)	*/
+} /* end of int main(argc, argv) */
 
 #ifdef WITH_PYTHON_MODULE
 void main_python_exit(void)

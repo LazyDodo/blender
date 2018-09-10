@@ -39,8 +39,8 @@
 #include "DNA_constraint_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cachefile_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
@@ -319,112 +319,11 @@ static void outliner_add_scene_contents(SpaceOops *soops, ListBase *lb, Scene *s
 	if (outliner_animdata_test(sce->adt))
 		outliner_add_element(soops, lb, sce, te, TSE_ANIM_DATA, 0);
 
-	/* Grease Pencil */
-	outliner_add_element(soops, lb, sce->gpd, te, 0, 0);
-}
-
-TreeTraversalAction outliner_find_selected_objects(TreeElement *te, void *customdata)
-{
-	struct ObjectsSelectedData *data = customdata;
-	TreeStoreElem *tselem = TREESTORE(te);
-
-	if (outliner_is_collection_tree_element(te)) {
-		return TRAVERSE_CONTINUE;
-	}
-
-	if (tselem->type || (tselem->id == NULL) || (GS(tselem->id->name) != ID_OB)) {
-		return TRAVERSE_SKIP_CHILDS;
-	}
-
-	BLI_addtail(&data->objects_selected_array, BLI_genericNodeN(te));
-
-	return TRAVERSE_CONTINUE;
-}
-
-/**
- * Move objects from a collection to another.
- * We ignore the original object being inserted, we used it for polling only.
- * Instead we move all the selected objects around.
- */
-static void outliner_object_reorder(
-        Main *bmain, Scene *scene,
-        SpaceOops *soops,
-        TreeElement *insert_element,
-        TreeElement *insert_handle, TreeElementInsertType action,
-        const wmEvent *event)
-{
-	Collection *collection = outliner_collection_from_tree_element(insert_handle);
-	Collection *collection_ob_parent = NULL;
-	ID *id = insert_handle->store_elem->id;
-
-	BLI_assert(action == TE_INSERT_INTO);
-	UNUSED_VARS_NDEBUG(action);
-
-	struct ObjectsSelectedData data = {
-		.objects_selected_array  = {NULL, NULL},
-	};
-
-	const bool is_append = event->ctrl;
-
-	/* Make sure we include the originally inserted element as well. */
-	TREESTORE(insert_element)->flag |= TSE_SELECTED;
-
-	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, outliner_find_selected_objects, &data);
-	LISTBASE_FOREACH (LinkData *, link, &data.objects_selected_array) {
-		TreeElement *ten_selected = (TreeElement *)link->data;
-		Object *ob = (Object *)TREESTORE(ten_selected)->id;
-
-		if (is_append) {
-			BKE_collection_object_add(bmain, collection, ob);
-			continue;
-		}
-
-		/* Find parent collection of object. */
-		if (ten_selected->parent) {
-			for (TreeElement *te_ob_parent = ten_selected->parent; te_ob_parent; te_ob_parent = te_ob_parent->parent) {
-				if (outliner_is_collection_tree_element(te_ob_parent)) {
-					collection_ob_parent = outliner_collection_from_tree_element(te_ob_parent);
-					break;
-				}
-			}
-		}
-		else {
-			collection_ob_parent = BKE_collection_master(scene);
-		}
-
-		BKE_collection_object_move(bmain, scene, collection, collection_ob_parent, ob);
-	}
-
-	BLI_freelistN(&data.objects_selected_array);
-
-	DEG_relations_tag_update(bmain);
-
-	/* TODO(sergey): Use proper flag for tagging here. */
-	DEG_id_tag_update(id, 0);
-
-	WM_main_add_notifier(NC_SCENE | ND_LAYER, NULL);
-}
-
-static bool outliner_object_reorder_poll(
-        const TreeElement *insert_element,
-        TreeElement **io_insert_handle, TreeElementInsertType *io_action)
-{
-	if (outliner_is_collection_tree_element(*io_insert_handle) &&
-	    (insert_element->parent != *io_insert_handle))
-	{
-		*io_action = TE_INSERT_INTO;
-		return true;
-	}
-
-	return false;
 }
 
 // can be inlined if necessary
 static void outliner_add_object_contents(SpaceOops *soops, TreeElement *te, TreeStoreElem *tselem, Object *ob)
 {
-	te->reinsert = outliner_object_reorder;
-	te->reinsert_poll = outliner_object_reorder_poll;
-
 	if (outliner_animdata_test(ob->adt))
 		outliner_add_element(soops, &te->subtree, ob, te, TSE_ANIM_DATA, 0);
 
@@ -1387,80 +1286,6 @@ static void outliner_add_orphaned_datablocks(Main *mainvar, SpaceOops *soops)
 	}
 }
 
-static void outliner_collections_reorder(
-        Main *bmain,
-        Scene *UNUSED(scene),
-        SpaceOops *soops,
-        TreeElement *insert_element,
-        TreeElement *insert_handle,
-        TreeElementInsertType action,
-        const wmEvent *UNUSED(event))
-{
-	TreeElement *from_parent_te, *to_parent_te;
-	Collection *from_parent, *to_parent;
-
-	Collection *collection = outliner_collection_from_tree_element(insert_element);
-	Collection *relative = NULL;
-	bool relative_after = false;
-
-	from_parent_te = outliner_find_parent_element(&soops->tree, NULL, insert_element);
-	from_parent = (from_parent_te) ? outliner_collection_from_tree_element(from_parent_te) : NULL;
-
-	if (ELEM(action, TE_INSERT_BEFORE, TE_INSERT_AFTER)) {
-		to_parent_te = outliner_find_parent_element(&soops->tree, NULL, insert_handle);
-		to_parent = (to_parent_te) ? outliner_collection_from_tree_element(to_parent_te) : NULL;
-
-		relative = outliner_collection_from_tree_element(insert_handle);
-		relative_after = (action == TE_INSERT_AFTER);
-	}
-	else if (action == TE_INSERT_INTO) {
-		to_parent = outliner_collection_from_tree_element(insert_handle);
-	}
-	else {
-		BLI_assert(0);
-		return;
-	}
-
-	if (!to_parent) {
-		return;
-	}
-
-	BKE_collection_move(bmain, to_parent, from_parent, relative, relative_after, collection);
-
-	DEG_relations_tag_update(bmain);
-}
-
-static bool outliner_collections_reorder_poll(
-        const TreeElement *insert_element,
-        TreeElement **io_insert_handle,
-        TreeElementInsertType *io_action)
-{
-	/* Can't move master collection. */
-	Collection *collection = outliner_collection_from_tree_element(insert_element);
-	if (collection->flag & COLLECTION_IS_MASTER) {
-		return false;
-	}
-
-	/* Can only move into collections. */
-	Collection *collection_handle = outliner_collection_from_tree_element(*io_insert_handle);
-	if (collection_handle == NULL) {
-		return false;
-	}
-
-	/* We can't insert/before after master collection. */
-	if (collection_handle->flag & COLLECTION_IS_MASTER) {
-		if (*io_action == TE_INSERT_BEFORE) {
-			/* can't go higher than master collection, insert into it */
-			*io_action = TE_INSERT_INTO;
-		}
-		else if (*io_action == TE_INSERT_AFTER) {
-			*io_insert_handle = (*io_insert_handle)->subtree.last;
-		}
-	}
-
-	return true;
-}
-
 static void outliner_add_layer_collection_objects(
         SpaceOops *soops, ListBase *tree, ViewLayer *layer,
         LayerCollection *lc, TreeElement *ten)
@@ -1487,8 +1312,6 @@ static void outliner_add_layer_collections_recursive(
 
 		ten->name = id->name + 2;
 		ten->directdata = lc;
-		ten->reinsert = outliner_collections_reorder;
-		ten->reinsert_poll = outliner_collections_reorder_poll;
 
 		const bool exclude = (lc->flag & LAYER_COLLECTION_EXCLUDE) != 0;
 		if (exclude ||
@@ -1530,8 +1353,6 @@ BLI_INLINE void outliner_add_collection_init(TreeElement *te, Collection *collec
 	}
 
 	te->directdata = collection;
-	te->reinsert = outliner_collections_reorder;
-	te->reinsert_poll = outliner_collections_reorder_poll;
 }
 
 BLI_INLINE void outliner_add_collection_objects(
@@ -2124,7 +1945,7 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 	else
 		soops->search_flags &= ~SO_SEARCH_RECURSIVE;
 
-	if (soops->treehash && (soops->storeflag & SO_TREESTORE_REBUILD)) {
+	if (soops->treehash && (soops->storeflag & SO_TREESTORE_REBUILD) && soops->treestore) {
 		soops->storeflag &= ~SO_TREESTORE_REBUILD;
 		BKE_outliner_treehash_rebuild_from_treestore(soops->treehash, soops->treestore);
 	}
@@ -2160,28 +1981,30 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 		}
 		/* make hierarchy */
 		ten = soops->tree.first;
-		ten = ten->next;  /* first one is main */
-		while (ten) {
-			TreeElement *nten = ten->next, *par;
-			tselem = TREESTORE(ten);
-			lib = (Library *)tselem->id;
-			if (lib && lib->parent) {
-				par = (TreeElement *)lib->parent->id.newid;
-				if (tselem->id->tag & LIB_TAG_INDIRECT) {
-					/* Only remove from 'first level' if lib is not also directly used. */
-					BLI_remlink(&soops->tree, ten);
-					BLI_addtail(&par->subtree, ten);
-					ten->parent = par;
-				}
-				else {
-					/* Else, make a new copy of the libtree for our parent. */
-					TreeElement *dupten = outliner_add_library_contents(mainvar, soops, &par->subtree, lib);
-					if (dupten) {
-						dupten->parent = par;
+		if (ten != NULL) {
+			ten = ten->next;  /* first one is main */
+			while (ten) {
+				TreeElement *nten = ten->next, *par;
+				tselem = TREESTORE(ten);
+				lib = (Library *)tselem->id;
+				if (lib && lib->parent) {
+					par = (TreeElement *)lib->parent->id.newid;
+					if (tselem->id->tag & LIB_TAG_INDIRECT) {
+						/* Only remove from 'first level' if lib is not also directly used. */
+						BLI_remlink(&soops->tree, ten);
+						BLI_addtail(&par->subtree, ten);
+						ten->parent = par;
+					}
+					else {
+						/* Else, make a new copy of the libtree for our parent. */
+						TreeElement *dupten = outliner_add_library_contents(mainvar, soops, &par->subtree, lib);
+						if (dupten) {
+							dupten->parent = par;
+						}
 					}
 				}
+				ten = nten;
 			}
-			ten = nten;
 		}
 		/* restore newid pointers */
 		for (lib = mainvar->library.first; lib; lib = lib->id.next)

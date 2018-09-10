@@ -85,6 +85,7 @@
 
 #include "IMB_colormanagement.h"
 
+#include "ED_datafiles.h"
 #include "ED_screen.h"
 #include "ED_fileselect.h"
 #include "ED_view3d.h"
@@ -97,7 +98,7 @@
 
 /* **************** link/append *************** */
 
-static int wm_link_append_poll(bContext *C)
+static bool wm_link_append_poll(bContext *C)
 {
 	if (WM_operator_winactive(C)) {
 		/* linking changes active object which is pretty useful in general,
@@ -360,7 +361,12 @@ static void wm_link_do(
 			continue;
 		}
 
-		bh = BLO_blendhandle_from_file(libname, reports);
+		if (STREQ(libname, BLO_EMBEDDED_STARTUP_BLEND)) {
+			bh = BLO_blendhandle_from_memory(datatoc_startup_blend, datatoc_startup_blend_size);
+		}
+		else {
+			bh = BLO_blendhandle_from_file(libname, reports);
+		}
 
 		if (bh == NULL) {
 			/* Unlikely since we just browsed it, but possible

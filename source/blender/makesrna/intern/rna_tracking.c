@@ -209,14 +209,14 @@ static void rna_trackingTrack_name_set(PointerRNA *ptr, const char *value)
 	}
 }
 
-static int rna_trackingTrack_select_get(PointerRNA *ptr)
+static bool rna_trackingTrack_select_get(PointerRNA *ptr)
 {
 	MovieTrackingTrack *track = (MovieTrackingTrack *)ptr->data;
 
 	return TRACK_SELECTED(track);
 }
 
-static void rna_trackingTrack_select_set(PointerRNA *ptr, int value)
+static void rna_trackingTrack_select_set(PointerRNA *ptr, bool value)
 {
 	MovieTrackingTrack *track = (MovieTrackingTrack *)ptr->data;
 
@@ -1480,6 +1480,7 @@ static void rna_def_trackingTrack(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "grease_pencil", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "gpd");
 	RNA_def_property_struct_type(prop, "GreasePencil");
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_GPencil_datablocks_annotations_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
 	RNA_def_property_ui_text(prop, "Grease Pencil", "Grease pencil data for this track");
 	RNA_def_property_update(prop, NC_MOVIECLIP | ND_DISPLAY, NULL);

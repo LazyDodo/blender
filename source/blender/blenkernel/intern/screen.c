@@ -45,9 +45,10 @@
 #include "DNA_view3d_types.h"
 #include "DNA_workspace_types.h"
 
+#include "BLI_math_vector.h"
 #include "BLI_listbase.h"
-#include "BLI_utildefines.h"
 #include "BLI_rect.h"
+#include "BLI_utildefines.h"
 
 #include "BKE_icons.h"
 #include "BKE_idprop.h"
@@ -222,7 +223,7 @@ ARegion *BKE_area_region_copy(SpaceType *st, ARegion *ar)
 	BLI_listbase_clear(&newar->panels_category_active);
 	BLI_listbase_clear(&newar->ui_lists);
 	newar->visible = 0;
-	newar->manipulator_map = NULL;
+	newar->gizmo_map = NULL;
 	newar->regiontimer = NULL;
 	newar->headerstr = NULL;
 	newar->draw_buffer = NULL;
@@ -324,18 +325,18 @@ void BKE_spacedata_id_unref(struct ScrArea *sa, struct SpaceLink *sl, struct ID 
 }
 
 /**
- * Avoid bad-level calls to #WM_manipulatormap_tag_refresh.
+ * Avoid bad-level calls to #WM_gizmomap_tag_refresh.
  */
-static void (*region_refresh_tag_manipulatormap_callback)(struct wmManipulatorMap *) = NULL;
+static void (*region_refresh_tag_gizmomap_callback)(struct wmGizmoMap *) = NULL;
 
-void BKE_region_callback_refresh_tag_manipulatormap_set(void (*callback)(struct wmManipulatorMap *))
+void BKE_region_callback_refresh_tag_gizmomap_set(void (*callback)(struct wmGizmoMap *))
 {
-	region_refresh_tag_manipulatormap_callback = callback;
+	region_refresh_tag_gizmomap_callback = callback;
 }
 
-void BKE_screen_manipulator_tag_refresh(struct bScreen *sc)
+void BKE_screen_gizmo_tag_refresh(struct bScreen *sc)
 {
-	if (region_refresh_tag_manipulatormap_callback == NULL) {
+	if (region_refresh_tag_gizmomap_callback == NULL) {
 		return;
 	}
 
@@ -343,24 +344,24 @@ void BKE_screen_manipulator_tag_refresh(struct bScreen *sc)
 	ARegion *ar;
 	for (sa = sc->areabase.first; sa; sa = sa->next) {
 		for (ar = sa->regionbase.first; ar; ar = ar->next) {
-			if (ar->manipulator_map != NULL) {
-				region_refresh_tag_manipulatormap_callback(ar->manipulator_map);
+			if (ar->gizmo_map != NULL) {
+				region_refresh_tag_gizmomap_callback(ar->gizmo_map);
 			}
 		}
 	}
 }
 
 /**
- * Avoid bad-level calls to #WM_manipulatormap_delete.
+ * Avoid bad-level calls to #WM_gizmomap_delete.
  */
-static void (*region_free_manipulatormap_callback)(struct wmManipulatorMap *) = NULL;
+static void (*region_free_gizmomap_callback)(struct wmGizmoMap *) = NULL;
 
-void BKE_region_callback_free_manipulatormap_set(void (*callback)(struct wmManipulatorMap *))
+void BKE_region_callback_free_gizmomap_set(void (*callback)(struct wmGizmoMap *))
 {
-	region_free_manipulatormap_callback = callback;
+	region_free_gizmomap_callback = callback;
 }
 
-static void panel_list_free(ListBase *lb)
+void BKE_area_region_panels_free(ListBase *lb)
 {
 	Panel *pa, *pa_next;
 	for (pa = lb->first; pa; pa = pa_next) {
@@ -368,9 +369,10 @@ static void panel_list_free(ListBase *lb)
 		if (pa->activedata) {
 			MEM_freeN(pa->activedata);
 		}
-		panel_list_free(&pa->children);
-		MEM_freeN(pa);
+		BKE_area_region_panels_free(&pa->children);
 	}
+
+	BLI_freelistN(lb);
 }
 
 /* not region itself */
@@ -395,7 +397,7 @@ void BKE_area_region_free(SpaceType *st, ARegion *ar)
 		ar->v2d.tab_offset = NULL;
 	}
 
-	panel_list_free(&ar->panels);
+	BKE_area_region_panels_free(&ar->panels);
 
 	for (uilst = ar->ui_lists.first; uilst; uilst = uilst->next) {
 		if (uilst->dyn_data) {
@@ -414,8 +416,8 @@ void BKE_area_region_free(SpaceType *st, ARegion *ar)
 		}
 	}
 
-	if (ar->manipulator_map != NULL) {
-		region_free_manipulatormap_callback(ar->manipulator_map);
+	if (ar->gizmo_map != NULL) {
+		region_free_gizmomap_callback(ar->gizmo_map);
 	}
 
 	BLI_freelistN(&ar->ui_lists);
@@ -472,26 +474,6 @@ void BKE_screen_free(bScreen *sc)
 	/* Region and timer are freed by the window manager. */
 	MEM_SAFE_FREE(sc->tool_tip);
 }
-
-/* for depsgraph */
-unsigned int BKE_screen_visible_layers(bScreen *screen, Scene *scene)
-{
-	ScrArea *sa;
-	unsigned int layer = 0;
-
-	if (screen) {
-		/* get all used view3d layers */
-		for (sa = screen->areabase.first; sa; sa = sa->next)
-			if (sa->spacetype == SPACE_VIEW3D)
-				layer |= ((View3D *)sa->spacedata.first)->lay;
-	}
-
-	if (!layer)
-		return scene->lay;
-
-	return layer;
-}
-
 
 /* ***************** Screen edges & verts ***************** */
 
@@ -748,71 +730,26 @@ ScrArea *BKE_screen_find_big_area(bScreen *sc, const int spacetype, const short 
 	return big;
 }
 
-ScrArea *BKE_screen_find_area_xy(bScreen *sc, const int spacetype, int x, int y)
+ScrArea *BKE_screen_area_map_find_area_xy(const ScrAreaMap *areamap, const int spacetype, int x, int y)
 {
-	ScrArea *sa, *sa_found = NULL;
-
-	for (sa = sc->areabase.first; sa; sa = sa->next) {
+	for (ScrArea *sa = areamap->areabase.first; sa; sa = sa->next) {
 		if (BLI_rcti_isect_pt(&sa->totrct, x, y)) {
 			if ((spacetype == SPACE_TYPE_ANY) || (sa->spacetype == spacetype)) {
-				sa_found = sa;
+				return sa;
 			}
 			break;
 		}
 	}
-	return sa_found;
+	return NULL;
 }
-
-
-/**
- * Utility function to get the active layer to use when adding new objects.
- */
-unsigned int BKE_screen_view3d_layer_active_ex(const View3D *v3d, const Scene *scene, bool use_localvd)
+ScrArea *BKE_screen_find_area_xy(bScreen *sc, const int spacetype, int x, int y)
 {
-	unsigned int lay;
-	if ((v3d == NULL) || (v3d->scenelock && !v3d->localvd)) {
-		lay = scene->layact;
-	}
-	else {
-		lay = v3d->layact;
-	}
-
-	if (use_localvd) {
-		if (v3d && v3d->localvd) {
-			lay |= v3d->lay;
-		}
-	}
-
-	return lay;
-}
-unsigned int BKE_screen_view3d_layer_active(const struct View3D *v3d, const struct Scene *scene)
-{
-	return BKE_screen_view3d_layer_active_ex(v3d, scene, true);
-}
-
-/**
- * Accumulate all visible layers on this screen.
- */
-unsigned int BKE_screen_view3d_layer_all(const bScreen *sc)
-{
-	const ScrArea *sa;
-	unsigned int lay = 0;
-	for (sa = sc->areabase.first; sa; sa = sa->next) {
-		if (sa->spacetype == SPACE_VIEW3D) {
-			View3D *v3d = sa->spacedata.first;
-			lay |= v3d->lay;
-		}
-	}
-
-	return lay;
+	return BKE_screen_area_map_find_area_xy(AREAMAP_FROM_SCREEN(sc), spacetype, x, y);
 }
 
 void BKE_screen_view3d_sync(View3D *v3d, struct Scene *scene)
 {
-	int bit;
-
 	if (v3d->scenelock && v3d->localvd == NULL) {
-		v3d->lay = scene->lay;
 		v3d->camera = scene->camera;
 
 		if (v3d->camera == NULL) {
@@ -823,15 +760,6 @@ void BKE_screen_view3d_sync(View3D *v3d, struct Scene *scene)
 					RegionView3D *rv3d = ar->regiondata;
 					if (rv3d->persp == RV3D_CAMOB)
 						rv3d->persp = RV3D_PERSP;
-				}
-			}
-		}
-
-		if ((v3d->lay & v3d->layact) == 0) {
-			for (bit = 0; bit < 32; bit++) {
-				if (v3d->lay & (1u << bit)) {
-					v3d->layact = (1u << bit);
-					break;
 				}
 			}
 		}
@@ -851,6 +779,22 @@ void BKE_screen_view3d_scene_sync(bScreen *sc, Scene *scene)
 			}
 		}
 	}
+}
+
+void BKE_screen_view3d_shading_init(View3DShading *shading)
+{
+	memset(shading, 0, sizeof(*shading));
+
+	shading->type = OB_SOLID;
+	shading->prev_type = OB_SOLID;
+	shading->flag = V3D_SHADING_SPECULAR_HIGHLIGHT;
+	shading->light = V3D_LIGHTING_STUDIO;
+	shading->shadow_intensity = 0.5f;
+	shading->xray_alpha = 0.5f;
+	shading->cavity_valley_factor = 1.0f;
+	shading->cavity_ridge_factor = 1.0f;
+	copy_v3_fl(shading->single_color, 0.8f);
+	copy_v3_fl(shading->background_color, 0.05f);
 }
 
 /* magic zoom calculation, no idea what

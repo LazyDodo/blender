@@ -46,7 +46,6 @@
 #include "RNA_types.h"
 
 #include "bpy.h"
-#include "gpu.h"
 #include "bpy_rna.h"
 #include "bpy_path.h"
 #include "bpy_capi_utils.h"
@@ -75,7 +74,7 @@
 #include "../generic/blf_py_api.h"
 #include "../generic/idprop_py_api.h"
 #include "../generic/imbuf_py_api.h"
-#include "../gawain/gwn_py_api.h"
+#include "../gpu/gpu_py_api.h"
 #include "../bmesh/bmesh_py_api.h"
 #include "../mathutils/mathutils.h"
 
@@ -219,7 +218,6 @@ static struct _inittab bpy_internal_modules[] = {
 	{"mathutils.kdtree", PyInit_mathutils_kdtree},
 #endif
 	{"_bpy_path", BPyInit__bpy_path},
-	{"_gawain", BPyInit_gawain},
 	{"bgl", BPyInit_bgl},
 	{"blf", BPyInit_blf},
 	{"imbuf", BPyInit_imbuf},
@@ -235,7 +233,7 @@ static struct _inittab bpy_internal_modules[] = {
 #ifdef WITH_CYCLES
 	{"_cycles", CCL_initPython},
 #endif
-	{"gpu", GPU_initPython},
+	{"gpu", BPyInit_gpu},
 	{"idprop", BPyInit_idprop},
 	{NULL, NULL}
 };
@@ -591,7 +589,9 @@ void BPY_DECREF_RNA_INVALIDATE(void *pyob_ptr)
 /**
  * \return success
  */
-bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verbose, double *r_value)
+bool BPY_execute_string_as_number(
+        bContext *C, const char *imports[],
+        const char *expr, const bool verbose, double *r_value)
 {
 	PyGILState_STATE gilstate;
 	bool ok = true;
@@ -607,7 +607,7 @@ bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verb
 
 	bpy_context_set(C, &gilstate);
 
-	ok = PyC_RunString_AsNumber(expr, "<blender button>", r_value);
+	ok = PyC_RunString_AsNumber(imports, expr, "<expr as number>", r_value);
 
 	if (ok == false) {
 		if (verbose) {
@@ -626,14 +626,13 @@ bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verb
 /**
  * \return success
  */
-bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verbose, char **r_value)
+bool BPY_execute_string_as_string(
+        bContext *C, const char *imports[],
+        const char *expr, const bool verbose, char **r_value)
 {
+	BLI_assert(r_value && expr);
 	PyGILState_STATE gilstate;
 	bool ok = true;
-
-	if (!r_value || !expr) {
-		return -1;
-	}
 
 	if (expr[0] == '\0') {
 		*r_value = NULL;
@@ -642,7 +641,7 @@ bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verb
 
 	bpy_context_set(C, &gilstate);
 
-	ok = PyC_RunString_AsString(expr, "<blender button>", r_value);
+	ok = PyC_RunString_AsString(imports, expr, "<expr as str>", r_value);
 
 	if (ok == false) {
 		if (verbose) {
@@ -658,16 +657,50 @@ bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verb
 	return ok;
 }
 
+/**
+ * Support both int and pointers.
+ *
+ * \return success
+ */
+bool BPY_execute_string_as_intptr(
+        bContext *C, const char *imports[],
+        const char *expr, const bool verbose, intptr_t *r_value)
+{
+	BLI_assert(r_value && expr);
+	PyGILState_STATE gilstate;
+	bool ok = true;
+
+	if (expr[0] == '\0') {
+		*r_value = 0;
+		return ok;
+	}
+
+	bpy_context_set(C, &gilstate);
+
+	ok = PyC_RunString_AsIntPtr(imports, expr, "<expr as intptr>", r_value);
+
+	if (ok == false) {
+		if (verbose) {
+			BPy_errors_to_report_ex(CTX_wm_reports(C), false, false);
+		}
+		else {
+			PyErr_Clear();
+		}
+	}
+
+	bpy_context_clear(C, &gilstate);
+
+	return ok;
+}
 
 bool BPY_execute_string_ex(bContext *C, const char *expr, bool use_eval)
 {
+	BLI_assert(expr);
 	PyGILState_STATE gilstate;
 	PyObject *main_mod = NULL;
 	PyObject *py_dict, *retval;
 	bool ok = true;
 	Main *bmain_back; /* XXX, quick fix for release (Copy Settings crash), needs further investigation */
-
-	if (!expr) return -1;
 
 	if (expr[0] == '\0') {
 		return ok;

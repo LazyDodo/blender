@@ -69,7 +69,7 @@ void MOD_init_texture(const Depsgraph *depsgraph, Tex *tex)
 		return;
 
 	if (tex->ima && BKE_image_is_animated(tex->ima)) {
-		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(depsgraph), 0);
+		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(depsgraph));
 	}
 }
 
@@ -290,5 +290,6 @@ void modifier_type_init(ModifierTypeInfo *types[])
 	INIT_TYPE(CorrectiveSmooth);
 	INIT_TYPE(MeshSequenceCache);
 	INIT_TYPE(SurfaceDeform);
+	INIT_TYPE(WeightedNormal);
 #undef INIT_TYPE
 }

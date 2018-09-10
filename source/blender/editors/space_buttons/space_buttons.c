@@ -65,7 +65,6 @@ static SpaceLink *buttons_new(const ScrArea *UNUSED(area), const Scene *UNUSED(s
 
 	sbuts = MEM_callocN(sizeof(SpaceButs), "initbuts");
 	sbuts->spacetype = SPACE_BUTS;
-	sbuts->align = BUT_VERTICAL;
 
 	sbuts->mainb = sbuts->mainbuser = BCONTEXT_OBJECT;
 
@@ -109,17 +108,8 @@ static void buttons_free(SpaceLink *sl)
 }
 
 /* spacetype; init callback */
-static void buttons_init(struct wmWindowManager *UNUSED(wm), ScrArea *sa)
+static void buttons_init(struct wmWindowManager *UNUSED(wm), ScrArea *UNUSED(sa))
 {
-	SpaceButs *sbuts = sa->spacedata.first;
-
-	/* auto-align based on size */
-	if (sbuts->align == BUT_AUTO || !sbuts->align) {
-		if (sa->winx > sa->winy)
-			sbuts->align = BUT_HORIZONTAL;
-		else
-			sbuts->align = BUT_VERTICAL;
-	}
 }
 
 static SpaceLink *buttons_duplicate(SpaceLink *sl)
@@ -140,14 +130,12 @@ static void buttons_main_region_init(wmWindowManager *wm, ARegion *ar)
 
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Property Editor", SPACE_BUTS, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Property Editor", SPACE_BUTS, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
 static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *sbuts, ARegion *ar)
 {
-	const bool vertical = (sbuts->align == BUT_VERTICAL);
-
 	buttons_context_compute(C, sbuts);
 
 	const char *contexts[2] = {NULL, NULL};
@@ -164,9 +152,6 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 			break;
 		case BCONTEXT_WORLD:
 			contexts[0] = "world";
-			break;
-		case BCONTEXT_WORKSPACE:
-			contexts[0] = "workspace";
 			break;
 		case BCONTEXT_OBJECT:
 			contexts[0] = "object";
@@ -192,6 +177,9 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 		case BCONTEXT_MODIFIER:
 			contexts[0] = "modifier";
 			break;
+		case BCONTEXT_SHADERFX:
+			contexts[0] = "shaderfx";
+			break;
 		case BCONTEXT_CONSTRAINT:
 			contexts[0] = "constraint";
 			break;
@@ -203,17 +191,20 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 			break;
 	}
 
+	const bool vertical = true;
 	ED_region_panels_layout_ex(C, ar, contexts, sbuts->mainb, vertical);
 }
 
-static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts, ARegion *ar)
+static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 {
-	const bool vertical = (sbuts->align == BUT_VERTICAL);
-	const char *contexts[3] = {NULL};
-
 	const WorkSpace *workspace = CTX_wm_workspace(C);
+	const int mode = CTX_data_mode_enum(C);
+
+	const char *contexts_base[5] = {NULL};
+	contexts_base[0] = ".active_tool";
+	const char **contexts = &contexts_base[1];
+
 	if (workspace->tools_space_type == SPACE_VIEW3D) {
-		const int mode = CTX_data_mode_enum(C);
 		switch (mode) {
 			case CTX_MODE_EDIT_MESH:
 				ARRAY_SET_ITEMS(contexts, ".mesh_edit");
@@ -225,16 +216,16 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 				ARRAY_SET_ITEMS(contexts, ".curve_edit");
 				break;
 			case CTX_MODE_EDIT_TEXT:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".text_edit");
 				break;
 			case CTX_MODE_EDIT_ARMATURE:
 				ARRAY_SET_ITEMS(contexts, ".armature_edit");
 				break;
 			case CTX_MODE_EDIT_METABALL:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".mball_edit");
 				break;
 			case CTX_MODE_EDIT_LATTICE:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".lattice_edit");
 				break;
 			case CTX_MODE_POSE:
 				ARRAY_SET_ITEMS(contexts, ".posemode");
@@ -252,10 +243,19 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 				ARRAY_SET_ITEMS(contexts, ".paint_common", ".imagepaint");
 				break;
 			case CTX_MODE_PARTICLE:
-				ARRAY_SET_ITEMS(contexts, ".particlemode");
+				ARRAY_SET_ITEMS(contexts, ".paint_common", ".particlemode");
 				break;
 			case CTX_MODE_OBJECT:
-				ARRAY_SET_ITEMS(contexts, ".todo");
+				ARRAY_SET_ITEMS(contexts, ".objectmode");
+				break;
+			case CTX_MODE_GPENCIL_PAINT:
+				ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
+				break;
+			case CTX_MODE_GPENCIL_SCULPT:
+				ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
+				break;
+			case CTX_MODE_GPENCIL_WEIGHT:
+				ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
 				break;
 		}
 	}
@@ -263,7 +263,33 @@ static void buttons_main_region_layout_tool(const bContext *C, SpaceButs *sbuts,
 		/* TODO */
 	}
 
-	ED_region_panels_layout_ex(C, ar, contexts, -1, vertical);
+	/* for grease pencil we don't use tool system yet, so we need check outside
+	 * workspace->tools_space_type because this value is not available
+	 */
+	switch (mode) {
+		case CTX_MODE_GPENCIL_PAINT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
+			break;
+		case CTX_MODE_GPENCIL_SCULPT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
+			break;
+		case CTX_MODE_GPENCIL_WEIGHT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
+			break;
+		case CTX_MODE_GPENCIL_EDIT:
+			ARRAY_SET_ITEMS(contexts, ".greasepencil_edit");
+			break;
+	}
+
+	int i = 0;
+	while (contexts_base[i]) {
+		i++;
+	}
+	BLI_assert(i < ARRAY_SIZE(contexts_base));
+	contexts_base[i] = ".workspace";
+
+	const bool vertical = true;
+	ED_region_panels_layout_ex(C, ar, contexts_base, -1, vertical);
 }
 
 static void buttons_main_region_layout(const bContext *C, ARegion *ar)
@@ -272,18 +298,17 @@ static void buttons_main_region_layout(const bContext *C, ARegion *ar)
 	SpaceButs *sbuts = CTX_wm_space_buts(C);
 
 	if (sbuts->mainb == BCONTEXT_TOOL) {
-		buttons_main_region_layout_tool(C, sbuts, ar);
+		buttons_main_region_layout_tool(C, ar);
 	}
 	else {
 		buttons_main_region_layout_properties(C, sbuts, ar);
 	}
 
-	sbuts->re_align = 0;
 	sbuts->mainbo = sbuts->mainb;
 }
 
 static void buttons_main_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn,
         const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -305,7 +330,7 @@ static void buttons_operatortypes(void)
 
 static void buttons_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Property Editor", SPACE_BUTS, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Property Editor", SPACE_BUTS, 0);
 
 	WM_keymap_add_item(keymap, "BUTTONS_OT_context_menu", RIGHTMOUSE, KM_PRESS, 0, 0);
 }
@@ -346,6 +371,10 @@ static void buttons_header_region_message_subscribe(
 	if (!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_SCENE, BCONTEXT_WORLD)) {
 		WM_msg_subscribe_rna_anon_prop(mbus, ViewLayer, name, &msg_sub_value_region_tag_redraw);
 	}
+
+	if (sbuts->mainb == BCONTEXT_TOOL) {
+		WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
+	}
 }
 
 /* draw a certain button set only if properties area is currently
@@ -361,8 +390,7 @@ static void buttons_area_redraw(ScrArea *sa, short buttons)
 
 /* reused! */
 static void buttons_area_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
-        WorkSpace *UNUSED(workspace))
+        wmWindow *UNUSED(win), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene))
 {
 	SpaceButs *sbuts = sa->spacedata.first;
 
@@ -503,6 +531,14 @@ static void buttons_area_listener(
 		case NC_ANIMATION:
 			switch (wmn->data) {
 				case ND_KEYFRAME:
+					if (ELEM(wmn->action, NA_EDITED, NA_ADDED, NA_REMOVED))
+						ED_area_tag_redraw(sa);
+					break;
+			}
+			break;
+		case NC_GPENCIL:
+			switch (wmn->data) {
+				case ND_DATA:
 					if (ELEM(wmn->action, NA_EDITED, NA_ADDED, NA_REMOVED))
 						ED_area_tag_redraw(sa);
 					break;

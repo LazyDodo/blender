@@ -90,6 +90,7 @@ typedef enum ModifierType {
 	eModifierType_CorrectiveSmooth  = 51,
 	eModifierType_MeshSequenceCache = 52,
 	eModifierType_SurfaceDeform     = 53,
+	eModifierType_WeightedNormal	= 54,
 	NUM_MODIFIER_TYPES
 } ModifierType;
 
@@ -119,14 +120,9 @@ typedef struct ModifierData {
 typedef enum {
 	/* This modifier has been inserted in local override, and hence can be fully edited. */
 	eModifierFlag_StaticOverride_Local  = (1 << 0),
+	/* This modifier does not own its caches, but instead shares them with another modifier. */
+	eModifierFlag_SharedCaches          = (1 << 1),
 } ModifierFlag;
-
-typedef enum {
-	eSubsurfModifierFlag_Incremental  = (1 << 0),
-	eSubsurfModifierFlag_DebugIncr    = (1 << 1),
-	eSubsurfModifierFlag_ControlEdges = (1 << 2),
-	eSubsurfModifierFlag_SubsurfUv    = (1 << 3),
-} SubsurfModifierFlag;
 
 /* not a real modifier */
 typedef struct MappingInfoModifierData {
@@ -139,11 +135,35 @@ typedef struct MappingInfoModifierData {
 	int texmapping;
 } MappingInfoModifierData;
 
+typedef enum {
+	eSubsurfModifierFlag_Incremental  = (1 << 0),
+	eSubsurfModifierFlag_DebugIncr    = (1 << 1),
+	eSubsurfModifierFlag_ControlEdges = (1 << 2),
+	/* DEPRECATED, ONLY USED FOR DO-VERSIONS */
+	eSubsurfModifierFlag_SubsurfUv_DEPRECATED    = (1 << 3),
+} SubsurfModifierFlag;
+
+typedef enum {
+	SUBSURF_TYPE_CATMULL_CLARK = 0,
+	SUBSURF_TYPE_SIMPLE = 1,
+} eSubsurfModifierType;
+
+typedef enum {
+	SUBSURF_UV_SMOOTH_NONE = 0,
+	SUBSURF_UV_SMOOTH_PRESERVE_CORNERS = 1,
+	SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_AND_JUNCTIONS = 2,
+	SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_JUNCTIONS_AND_CONCAVE = 3,
+	SUBSURF_UV_SMOOTH_PRESERVE_BOUNDARIES = 4,
+	SUBSURF_UV_SMOOTH_ALL = 5,
+} eSubsurfUVSmooth;
+
 typedef struct SubsurfModifierData {
 	ModifierData modifier;
 
 	short subdivType, levels, renderLevels, flags;
-	short use_opensubdiv, pad[3];
+	short uv_smooth;
+	short quality;
+	short pad[2];
 
 	void *emCache, *mCache;
 } SubsurfModifierData;
@@ -315,6 +335,10 @@ enum {
 	MOD_EDGESPLIT_FROMFLAG   = (1 << 2),
 };
 
+typedef struct BevelModNorEditData {
+	struct GHash *faceHash;
+} BevelModNorEditData;
+
 typedef struct BevelModifierData {
 	ModifierData modifier;
 
@@ -325,13 +349,16 @@ typedef struct BevelModifierData {
 	short lim_flags;      /* flags to tell the tool how to limit the bevel */
 	short e_flags;        /* flags to direct how edge weights are applied to verts */
 	short mat;            /* material index if >= 0, else material inherited from surrounding faces */
-	short pad;
+	short edge_flags;
 	int pad2;
 	float profile;        /* controls profile shape (0->1, .5 is round) */
 	/* if the MOD_BEVEL_ANGLE is set, this will be how "sharp" an edge must be before it gets beveled */
 	float bevel_angle;
 	/* if the MOD_BEVEL_VWEIGHT option is set, this will be the name of the vert group, MAX_VGROUP_NAME */
+	int hnmode;
+	float hn_strength;
 	char defgrp_name[64];
+	struct BevelModNorEditData clnordata;
 } BevelModifierData;
 
 /* BevelModifierData->flags and BevelModifierData->lim_flags */
@@ -352,6 +379,7 @@ enum {
 /*	MOD_BEVEL_DIST          = (1 << 12), */  /* same as above */
 	MOD_BEVEL_OVERLAP_OK    = (1 << 13),
 	MOD_BEVEL_EVEN_WIDTHS   = (1 << 14),
+	MOD_BEVEL_SET_WN_STR	= (1 << 15),
 };
 
 /* BevelModifierData->val_flags (not used as flags any more) */
@@ -360,6 +388,20 @@ enum {
 	MOD_BEVEL_AMT_WIDTH = 1,
 	MOD_BEVEL_AMT_DEPTH = 2,
 	MOD_BEVEL_AMT_PERCENT = 3,
+};
+
+/* BevelModifierData->edge_flags */
+enum {
+	MOD_BEVEL_MARK_SEAM	 = (1 << 0),
+	MOD_BEVEL_MARK_SHARP = (1 << 1),
+};
+
+/* BevelModifierData->hnmode */
+enum {
+	MOD_BEVEL_HN_NONE,
+	MOD_BEVEL_HN_FACE,
+	MOD_BEVEL_HN_ADJ,
+	MOD_BEVEL_FIX_SHA,
 };
 
 typedef struct SmokeModifierData {
@@ -608,8 +650,12 @@ typedef struct ClothModifierData {
 	struct Cloth *clothObject;            /* The internal data structure for cloth. */
 	struct ClothSimSettings *sim_parms;   /* definition is in DNA_cloth_types.h */
 	struct ClothCollSettings *coll_parms; /* definition is in DNA_cloth_types.h */
+
+	/* PointCache can be shared with other instances of ClothModifierData.
+	 * Inspect (modifier.flag & eModifierFlag_SharedCaches) to find out. */
 	struct PointCache *point_cache;       /* definition is in DNA_object_force_types.h */
 	struct ListBase ptcaches;
+
 	/* XXX nasty hack, remove once hair can be separated from cloth modifier data */
 	struct ClothHairData *hairdata;
 	/* grid geometry values of hair continuum */
@@ -798,18 +844,21 @@ typedef struct MultiresModifierData {
 
 	char lvl, sculptlvl, renderlvl, totlvl;
 	char simple, flags, pad[2];
+	short quality;
+	short uv_smooth;
+	short pad2[2];
 } MultiresModifierData;
 
 typedef enum {
 	eMultiresModifierFlag_ControlEdges = (1 << 0),
-	eMultiresModifierFlag_PlainUv      = (1 << 1),
+	/* DEPRECATED, only used for versioning. */
+	eMultiresModifierFlag_PlainUv_DEPRECATED      = (1 << 1),
 } MultiresModifierFlag;
 
 typedef struct FluidsimModifierData {
 	ModifierData modifier;
 
 	struct FluidsimSettings *fss;   /* definition is in DNA_object_fluidsim_types.h */
-	struct PointCache *point_cache; /* definition is in DNA_object_force_types.h */
 } FluidsimModifierData;
 
 typedef struct ShrinkwrapModifierData {
@@ -992,7 +1041,7 @@ typedef struct OceanModifierData {
 	char geometry_mode;
 
 	char flag;
-	char refresh;
+	char pad2;
 
 	short repeat_x;
 	short repeat_y;
@@ -1012,13 +1061,6 @@ enum {
 	MOD_OCEAN_GEOM_SIM_ONLY = 2,
 };
 
-enum {
-	MOD_OCEAN_REFRESH_RESET        = (1 << 0),
-	MOD_OCEAN_REFRESH_SIM          = (1 << 1),
-	MOD_OCEAN_REFRESH_ADD          = (1 << 2),
-	MOD_OCEAN_REFRESH_CLEAR_CACHE  = (1 << 3),
-	MOD_OCEAN_REFRESH_TOPOLOGY     = (1 << 4),
-};
 
 enum {
 	MOD_OCEAN_GENERATE_FOAM     = (1 << 0),
@@ -1635,6 +1677,32 @@ enum {
 	MOD_SDEF_MODE_LOOPTRI = 0,
 	MOD_SDEF_MODE_NGON = 1,
 	MOD_SDEF_MODE_CENTROID = 2,
+};
+
+typedef struct WeightedNormalModifierData {
+	ModifierData modifier;
+
+	char defgrp_name[64];  /* MAX_VGROUP_NAME */
+	char mode, flag;
+	short weight;
+	float thresh;
+} WeightedNormalModifierData;
+
+/* Name/id of the generic PROP_INT cdlayer storing face weights. */
+#define MOD_WEIGHTEDNORMALS_FACEWEIGHT_CDLAYER_ID "__mod_weightednormals_faceweight"
+
+/* WeightedNormalModifierData.mode */
+enum {
+	MOD_WEIGHTEDNORMAL_MODE_FACE = 0,
+	MOD_WEIGHTEDNORMAL_MODE_ANGLE = 1,
+	MOD_WEIGHTEDNORMAL_MODE_FACE_ANGLE = 2,
+};
+
+/* WeightedNormalModifierData.flag */
+enum {
+	MOD_WEIGHTEDNORMAL_KEEP_SHARP = (1 << 0),
+	MOD_WEIGHTEDNORMAL_INVERT_VGROUP = (1 << 1),
+	MOD_WEIGHTEDNORMAL_FACE_INFLUENCE = (1 << 2),
 };
 
 #define MOD_MESHSEQ_READ_ALL \

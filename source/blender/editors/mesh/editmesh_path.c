@@ -48,6 +48,7 @@
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
 
+#include "ED_object.h"
 #include "ED_mesh.h"
 #include "ED_screen.h"
 #include "ED_uvedit.h"
@@ -180,7 +181,8 @@ static void mouse_mesh_shortest_path_vert(
 			}
 		} while ((node = node->next));
 
-		int depth = 1;
+		/* We need to start as if just *after* a 'skip' block... */
+		int depth = op_params->interval_params.skip;
 		node = path;
 		do {
 			if ((is_path_ordered == false) ||
@@ -369,7 +371,8 @@ static void mouse_mesh_shortest_path_edge(
 			}
 		} while ((node = node->next));
 
-		int depth = 1;
+		/* We need to start as if just *after* a 'skip' block... */
+		int depth = op_params->interval_params.skip;
 		node = path;
 		do {
 			if ((is_path_ordered == false) ||
@@ -513,7 +516,8 @@ static void mouse_mesh_shortest_path_face(
 			}
 		} while ((node = node->next));
 
-		int depth = 1;
+		/* We need to start as if just *after* a 'skip' block... */
+		int depth = op_params->interval_params.skip;
 		node = path;
 		do {
 			if ((is_path_ordered == false) ||
@@ -560,7 +564,7 @@ static bool edbm_shortest_path_pick_ex(
         BMElem *ele_src, BMElem *ele_dst)
 {
 
-	if (ELEM(NULL, ele_src, ele_dst) && (ele_src->head.htype != ele_dst->head.htype)) {
+	if (ELEM(NULL, ele_src, ele_dst) || (ele_src->head.htype != ele_dst->head.htype)) {
 		/* pass */
 	}
 	else if (ele_src->head.htype == BM_VERT) {
@@ -616,6 +620,11 @@ static int edbm_shortest_path_pick_invoke(bContext *C, wmOperator *op, const wmE
 		return edbm_shortest_path_pick_exec(C, op);
 	}
 
+	Base *basact = NULL;
+	BMVert *eve = NULL;
+	BMEdge *eed = NULL;
+	BMFace *efa = NULL;
+
 	ViewContext vc;
 	BMEditMesh *em;
 	bool track_active = true;
@@ -625,6 +634,28 @@ static int edbm_shortest_path_pick_invoke(bContext *C, wmOperator *op, const wmE
 	em = vc.em;
 
 	view3d_operator_needs_opengl(C);
+
+	{
+		int base_index = -1;
+		uint bases_len = 0;
+		Base **bases = BKE_view_layer_array_from_bases_in_edit_mode(vc.view_layer, &bases_len);
+		if (EDBM_unified_findnearest(&vc, bases, bases_len, &base_index, &eve, &eed, &efa)) {
+			basact = bases[base_index];
+			ED_view3d_viewcontext_init_object(&vc, basact->object);
+			em = vc.em;
+		}
+		MEM_freeN(bases);
+	}
+
+	/* If nothing is selected, let's select the picked vertex/edge/face. */
+	if ((vc.em->bm->totvertsel == 0) && (eve || eed || efa)) {
+		/* TODO (dfelinto) right now we try to find the closest element twice.
+		 * The ideal is to refactor EDBM_select_pick so it doesn't
+		 * have to pick the nearest vert/edge/face again.
+		 */
+		EDBM_select_pick(C, event->mval, true, false, false);
+		return OPERATOR_FINISHED;
+	}
 
 	BMElem *ele_src, *ele_dst;
 	if (!(ele_src = edbm_elem_active_elem_or_face_get(em->bm)) ||
@@ -653,6 +684,10 @@ static int edbm_shortest_path_pick_invoke(bContext *C, wmOperator *op, const wmE
 
 	if (!edbm_shortest_path_pick_ex(vc.scene, vc.obedit, &op_params, ele_src, ele_dst)) {
 		return OPERATOR_PASS_THROUGH;
+	}
+
+	if (vc.view_layer->basact != basact) {
+		ED_object_base_activate(C, basact);
 	}
 
 	/* to support redo */

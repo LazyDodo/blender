@@ -136,12 +136,12 @@ static void freeData(ModifierData *md)
 	}
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target, const int flag)
 {
 	const SurfaceDeformModifierData *smd = (const SurfaceDeformModifierData *)md;
 	SurfaceDeformModifierData *tsmd = (SurfaceDeformModifierData *)target;
 
-	modifier_copyData_generic(md, target);
+	modifier_copyData_generic(md, target, flag);
 
 	if (smd->verts) {
 		tsmd->verts = MEM_dupallocN(smd->verts);
@@ -1028,7 +1028,7 @@ static bool surfacedeformBind(
 	}
 	else if (data.success == MOD_SDEF_BIND_RESULT_GENERIC_ERR) {
 		/* I know this message is vague, but I could not think of a way
-		 * to explain this whith a reasonably sized message.
+		 * to explain this with a reasonably sized message.
 		 * Though it shouldn't really matter all that much,
 		 * because this is very unlikely to occur */
 		modifier_setError((ModifierData *)smd, "Target contains invalid polygons");
@@ -1195,7 +1195,7 @@ static void deformVertsEM(
 	surfacedeformModifier_do(md, ctx, vertexCos, numVerts, ctx->object);
 }
 
-static bool isDisabled(const Scene *UNUSED(scene), ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
 

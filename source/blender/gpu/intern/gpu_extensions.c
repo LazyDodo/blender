@@ -38,7 +38,6 @@
 
 #include "BKE_global.h"
 
-#include "GPU_basic_shader.h"
 #include "GPU_extensions.h"
 #include "GPU_glew.h"
 #include "GPU_texture.h"
@@ -66,6 +65,7 @@
 
 static struct GPUGlobal {
 	GLint maxtexsize;
+	GLint maxtexlayers;
 	GLint maxcubemapsize;
 	GLint maxtextures;
 	GLint maxubosize;
@@ -94,6 +94,11 @@ bool GPU_type_matches(GPUDeviceType device, GPUOSType os, GPUDriverType driver)
 int GPU_max_texture_size(void)
 {
 	return GG.maxtexsize;
+}
+
+int GPU_max_texture_layers(void)
+{
+	return GG.maxtexlayers;
 }
 
 int GPU_max_textures(void)
@@ -142,6 +147,7 @@ void gpu_extensions_init(void)
 	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &GG.maxtextures);
 
 	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &GG.maxtexsize);
+	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &GG.maxtexlayers);
 	glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &GG.maxcubemapsize);
 
 	if (GLEW_EXT_texture_filter_anisotropic)
@@ -252,12 +258,10 @@ void gpu_extensions_init(void)
 
 
 	GPU_invalid_tex_init();
-	GPU_basic_shaders_init();
 }
 
 void gpu_extensions_exit(void)
 {
-	GPU_basic_shaders_exit();
 	GPU_invalid_tex_free();
 }
 

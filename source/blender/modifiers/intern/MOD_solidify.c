@@ -774,7 +774,7 @@ static Mesh *applyModifier(
 
 		/* add faces & edges */
 		origindex_edge = CustomData_get_layer(&result->edata, CD_ORIGINDEX);
-		BLI_assert(origindex_edge != NULL);
+		BLI_assert((numEdges == 0) || (origindex_edge != NULL));
 		ed = &medge[(numEdges * stride) + newEdges];  /* start after copied edges */
 		orig_ed = &origindex_edge[(numEdges * stride) + newEdges];
 		for (i = 0; i < rimVerts; i++, ed++, orig_ed++) {
@@ -815,7 +815,7 @@ static Mesh *applyModifier(
 			mp->flag = mpoly[fidx].flag;
 
 			/* notice we use 'mp->totloop' which is later overwritten,
-			 * we could lookup the original face but theres no point since this is a copy
+			 * we could lookup the original face but there's no point since this is a copy
 			 * and will have the same value, just take care when changing order of assignment */
 			k1 = mpoly[fidx].loopstart + (((edge_order[eidx] - 1) + mp->totloop) % mp->totloop);  /* prev loop */
 			k2 = mpoly[fidx].loopstart +   (edge_order[eidx]);

@@ -29,7 +29,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_object_types.h"
 
 #include "BKE_context.h"
@@ -99,10 +99,45 @@ Collection *outliner_collection_from_tree_element(const TreeElement *te)
 	return NULL;
 }
 
+TreeTraversalAction outliner_find_selected_collections(TreeElement *te, void *customdata)
+{
+	struct IDsSelectedData *data = customdata;
+	TreeStoreElem *tselem = TREESTORE(te);
+
+	if (outliner_is_collection_tree_element(te)) {
+		BLI_addtail(&data->selected_array, BLI_genericNodeN(te));
+		return TRAVERSE_CONTINUE;
+	}
+
+	if (tselem->type || (tselem->id && GS(tselem->id->name) != ID_GR)) {
+		return TRAVERSE_SKIP_CHILDS;
+	}
+
+	return TRAVERSE_CONTINUE;
+}
+
+TreeTraversalAction outliner_find_selected_objects(TreeElement *te, void *customdata)
+{
+	struct IDsSelectedData *data = customdata;
+	TreeStoreElem *tselem = TREESTORE(te);
+
+	if (outliner_is_collection_tree_element(te)) {
+		return TRAVERSE_CONTINUE;
+	}
+
+	if (tselem->type || (tselem->id == NULL) || (GS(tselem->id->name) != ID_OB)) {
+		return TRAVERSE_SKIP_CHILDS;
+	}
+
+	BLI_addtail(&data->selected_array, BLI_genericNodeN(te));
+
+	return TRAVERSE_CONTINUE;
+}
+
 /* -------------------------------------------------------------------- */
 /* Poll functions. */
 
-int ED_outliner_collections_editor_poll(bContext *C)
+bool ED_outliner_collections_editor_poll(bContext *C)
 {
 	SpaceOops *so = CTX_wm_space_outliner(C);
 	return (so != NULL) && ELEM(so->outlinevis, SO_VIEW_LAYER, SO_SCENES, SO_LIBRARIES);
@@ -138,8 +173,10 @@ static TreeTraversalAction collection_find_selected_to_add(TreeElement *te, void
 static int collection_new_exec(bContext *C, wmOperator *op)
 {
 	SpaceOops *soops = CTX_wm_space_outliner(C);
+	ARegion *ar = CTX_wm_region(C);
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
 	struct CollectionNewData data = {
 		.error = false,
@@ -147,6 +184,8 @@ static int collection_new_exec(bContext *C, wmOperator *op)
 	};
 
 	if (RNA_boolean_get(op->ptr, "nested")) {
+		outliner_build_tree(bmain, scene, view_layer, soops, ar);
+
 		outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, collection_find_selected_to_add, &data);
 
 		if (data.error) {
@@ -518,7 +557,7 @@ static int collection_instance_exec(bContext *C, wmOperator *UNUSED(op))
 	/* Effectively instance the collections. */
 	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
 		Collection *collection = BLI_gsetIterator_getKey(&collections_to_edit_iter);
-		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false, scene->layact);
+		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false);
 		ob->dup_group = collection;
 		ob->transflag |= OB_DUPLICOLLECTION;
 		id_lib_extern(&collection->id);
@@ -574,7 +613,7 @@ static TreeTraversalAction layer_collection_find_data_to_edit(TreeElement *te, v
 	return TRAVERSE_CONTINUE;
 }
 
-static int collections_view_layer_poll(bContext *C, bool include)
+static bool collections_view_layer_poll(bContext *C, bool clear, int flag)
 {
 	/* Poll function so the right click menu show current state of selected collections. */
 	SpaceOops *soops = CTX_wm_space_outliner(C);
@@ -593,10 +632,10 @@ static int collections_view_layer_poll(bContext *C, bool include)
 	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
 		LayerCollection *lc = BLI_gsetIterator_getKey(&collections_to_edit_iter);
 
-		if (include && (lc->flag & LAYER_COLLECTION_EXCLUDE)) {
+		if (clear && (lc->flag & flag)) {
 			result = true;
 		}
-		else if (!include && !(lc->flag & LAYER_COLLECTION_EXCLUDE)) {
+		else if (!clear && !(lc->flag & flag)) {
 			result = true;
 		}
 	}
@@ -605,27 +644,47 @@ static int collections_view_layer_poll(bContext *C, bool include)
 	return result;
 }
 
-static int collections_exclude_poll(bContext *C)
+static bool collections_exclude_set_poll(bContext *C)
 {
-	return collections_view_layer_poll(C, false);
+	return collections_view_layer_poll(C, false, LAYER_COLLECTION_EXCLUDE);
 }
 
-static int collections_include_poll(bContext *C)
+static bool collections_exclude_clear_poll(bContext *C)
 {
-	return collections_view_layer_poll(C, true);
+	return collections_view_layer_poll(C, true, LAYER_COLLECTION_EXCLUDE);
 }
 
-static void layer_collection_exclude_recursive_set(LayerCollection *lc)
+static bool collections_holdout_set_poll(bContext *C)
+{
+	return collections_view_layer_poll(C, false, LAYER_COLLECTION_HOLDOUT);
+}
+
+static bool collections_holdout_clear_poll(bContext *C)
+{
+	return collections_view_layer_poll(C, true, LAYER_COLLECTION_HOLDOUT);
+}
+
+static bool collections_indirect_only_set_poll(bContext *C)
+{
+	return collections_view_layer_poll(C, false, LAYER_COLLECTION_INDIRECT_ONLY);
+}
+
+static bool collections_indirect_only_clear_poll(bContext *C)
+{
+	return collections_view_layer_poll(C, true, LAYER_COLLECTION_INDIRECT_ONLY);
+}
+
+static void layer_collection_flag_recursive_set(LayerCollection *lc, int flag)
 {
 	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
-		if (lc->flag & LAYER_COLLECTION_EXCLUDE) {
-			nlc->flag |= LAYER_COLLECTION_EXCLUDE;
+		if (lc->flag & flag) {
+			nlc->flag |= flag;
 		}
 		else {
-			nlc->flag &= ~LAYER_COLLECTION_EXCLUDE;
+			nlc->flag &= ~flag;
 		}
 
-		layer_collection_exclude_recursive_set(nlc);
+		layer_collection_flag_recursive_set(nlc, flag);
 	}
 }
 
@@ -636,7 +695,10 @@ static int collection_view_layer_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
 	struct CollectionEditData data = {.scene = scene, .soops = soops};
-	bool include = STREQ(op->idname, "OUTLINER_OT_collection_include_set");
+	bool clear = strstr(op->idname, "clear") != NULL;
+	int flag = strstr(op->idname, "holdout") ?       LAYER_COLLECTION_HOLDOUT :
+	           strstr(op->idname, "indirect_only") ? LAYER_COLLECTION_INDIRECT_ONLY :
+	                                                 LAYER_COLLECTION_EXCLUDE;
 
 	data.collections_to_edit = BLI_gset_ptr_new(__func__);
 
@@ -647,14 +709,14 @@ static int collection_view_layer_exec(bContext *C, wmOperator *op)
 		LayerCollection *lc = BLI_gsetIterator_getKey(&collections_to_edit_iter);
 
 		if (!(lc->collection->flag & COLLECTION_IS_MASTER)) {
-			if (include) {
-				lc->flag &= ~LAYER_COLLECTION_EXCLUDE;
+			if (clear) {
+				lc->flag &= ~flag;
 			}
 			else {
-				lc->flag |= LAYER_COLLECTION_EXCLUDE;
+				lc->flag |= flag;
 			}
 
-			layer_collection_exclude_recursive_set(lc);
+			layer_collection_flag_recursive_set(lc, flag);
 		}
 	}
 
@@ -671,28 +733,88 @@ static int collection_view_layer_exec(bContext *C, wmOperator *op)
 void OUTLINER_OT_collection_exclude_set(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Exclude from View Layer";
+	ot->name = "Set Exclude";
 	ot->idname = "OUTLINER_OT_collection_exclude_set";
 	ot->description = "Exclude collection from the active view layer";
 
 	/* api callbacks */
 	ot->exec = collection_view_layer_exec;
-	ot->poll = collections_exclude_poll;
+	ot->poll = collections_exclude_set_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-void OUTLINER_OT_collection_include_set(wmOperatorType *ot)
+void OUTLINER_OT_collection_exclude_clear(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Include in View Layer";
-	ot->idname = "OUTLINER_OT_collection_include_set";
+	ot->name = "Clear Exclude";
+	ot->idname = "OUTLINER_OT_collection_exclude_clear";
 	ot->description = "Include collection in the active view layer";
 
 	/* api callbacks */
 	ot->exec = collection_view_layer_exec;
-	ot->poll = collections_include_poll;
+	ot->poll = collections_exclude_clear_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+void OUTLINER_OT_collection_holdout_set(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Set Holdout";
+	ot->idname = "OUTLINER_OT_collection_holdout_set";
+	ot->description = "Mask collection in the active view layer";
+
+	/* api callbacks */
+	ot->exec = collection_view_layer_exec;
+	ot->poll = collections_holdout_set_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+void OUTLINER_OT_collection_holdout_clear(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Clear Holdout";
+	ot->idname = "OUTLINER_OT_collection_holdout_clear";
+	ot->description = "Clear masking of collection in the active view layer";
+
+	/* api callbacks */
+	ot->exec = collection_view_layer_exec;
+	ot->poll = collections_holdout_clear_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+void OUTLINER_OT_collection_indirect_only_set(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Set Indirect Only";
+	ot->idname = "OUTLINER_OT_collection_indirect_only_set";
+	ot->description = "Set collection to only contribute indirectly (through shadows and reflections) in the view layer";
+
+	/* api callbacks */
+	ot->exec = collection_view_layer_exec;
+	ot->poll = collections_indirect_only_set_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+void OUTLINER_OT_collection_indirect_only_clear(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Clear Indirect Only";
+	ot->idname = "OUTLINER_OT_collection_indirect_only_clear";
+	ot->description = "Clear collection contributing only indirectly in the view layer";
+
+	/* api callbacks */
+	ot->exec = collection_view_layer_exec;
+	ot->poll = collections_indirect_only_clear_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -706,12 +828,12 @@ void OUTLINER_OT_collection_include_set(wmOperatorType *ot)
 void ED_outliner_selected_objects_get(const bContext *C, ListBase *objects)
 {
 	SpaceOops *soops = CTX_wm_space_outliner(C);
-	struct ObjectsSelectedData data = {{NULL}};
+	struct IDsSelectedData data = {{NULL}};
 	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, outliner_find_selected_objects, &data);
-	LISTBASE_FOREACH (LinkData *, link, &data.objects_selected_array) {
+	LISTBASE_FOREACH (LinkData *, link, &data.selected_array) {
 		TreeElement *ten_selected = (TreeElement *)link->data;
 		Object *ob = (Object *)TREESTORE(ten_selected)->id;
 		BLI_addtail(objects, BLI_genericNodeN(ob));
 	}
-	BLI_freelistN(&data.objects_selected_array);
+	BLI_freelistN(&data.selected_array);
 }

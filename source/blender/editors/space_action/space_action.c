@@ -33,7 +33,7 @@
 #include <stdio.h>
 
 #include "DNA_action_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
@@ -205,9 +205,9 @@ static void action_main_region_init(wmWindowManager *wm, ARegion *ar)
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_CUSTOM, ar->winx, ar->winy);
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Dopesheet", SPACE_ACTION, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Dopesheet", SPACE_ACTION, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
-	keymap = WM_keymap_find(wm->defaultconf, "Dopesheet Generic", SPACE_ACTION, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Dopesheet Generic", SPACE_ACTION, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -296,12 +296,12 @@ static void action_channel_region_init(wmWindowManager *wm, ARegion *ar)
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_LIST, ar->winx, ar->winy);
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Animation Channels", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Animation Channels", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_specials_channels", WKEY, KM_PRESS, 0, 0);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Dopesheet Generic", SPACE_ACTION, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Dopesheet Generic", SPACE_ACTION, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -341,7 +341,7 @@ static void action_header_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void action_channel_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -432,7 +432,7 @@ static void saction_channel_region_message_subscribe(
 }
 
 static void action_main_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -531,8 +531,7 @@ static void saction_main_region_message_subscribe(
 
 /* editor level listener */
 static void action_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
-        WorkSpace *UNUSED(workspace))
+        wmWindow *UNUSED(win), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene))
 {
 	SpaceAction *saction = (SpaceAction *)sa->spacedata.first;
 
@@ -686,7 +685,7 @@ static void action_listener(
 }
 
 static void action_header_region_listener(
-        bScreen *UNUSED(sc), ScrArea *sa, ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *sa, ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	SpaceAction *saction = (SpaceAction *)sa->spacedata.first;
@@ -750,7 +749,7 @@ static void action_buttons_area_init(wmWindowManager *wm, ARegion *ar)
 
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Dopesheet Generic", SPACE_ACTION, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Dopesheet Generic", SPACE_ACTION, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -760,7 +759,7 @@ static void action_buttons_area_draw(const bContext *C, ARegion *ar)
 }
 
 static void action_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */

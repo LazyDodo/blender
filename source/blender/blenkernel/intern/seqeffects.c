@@ -1727,10 +1727,10 @@ static float check_zone(WipeZone *wipezone, int x, int y, Sequence *seq, float f
 			break;
 		case DO_CLOCK_WIPE:
 			/*
-			 *  temp1: angle of effect center in rads
-			 *  temp2: angle of line through (halfx, halfy) and (x, y) in rads
-			 *  temp3: angle of low side of blur
-			 *  temp4: angle of high side of blur
+			 * temp1: angle of effect center in rads
+			 * temp2: angle of line through (halfx, halfy) and (x, y) in rads
+			 * temp3: angle of low side of blur
+			 * temp4: angle of high side of blur
 			 */
 			output = 1.0f - facf0;
 			widthf = wipe->edgeWidth * 2.0f * (float)M_PI;
@@ -1772,8 +1772,9 @@ static float check_zone(WipeZone *wipezone, int x, int y, Sequence *seq, float f
 			/* BOX WIPE IS NOT WORKING YET */
 #if 0
 		case DO_BOX_WIPE:
-			if (!wipe->forward)
+			if (!wipe->forward) {
 				facf0 = 1.0f - facf0;  /* Go the other direction */
+			}
 
 			width = (int)(wipe->edgeWidth * ((xo + yo) / 2.0));
 			hwidth = (float)width / 2.0;

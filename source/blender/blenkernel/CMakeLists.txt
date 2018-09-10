@@ -38,6 +38,8 @@ set(INC
 	../makesrna
 	../bmesh
 	../modifiers
+	../gpencil_modifiers
+	../shader_fx
 	../nodes
 	../physics
 	../render/extern/include
@@ -51,6 +53,7 @@ set(INC
 	../../../intern/atomic
 	../../../intern/clog
 	../../../intern/libmv
+	../../../intern/opensubdiv
 	../../../extern/curve_fit_nd
 )
 
@@ -116,6 +119,7 @@ set(SRC
 	intern/font.c
 	intern/freestyle.c
 	intern/gpencil.c
+	intern/gpencil_modifier.c
 	intern/icons.c
 	intern/icons_rasterize.c
 	intern/idcode.c
@@ -153,6 +157,8 @@ set(SRC
 	intern/modifier.c
 	intern/movieclip.c
 	intern/multires.c
+	intern/multires_reshape.c
+	intern/multires_subdiv.c
 	intern/nla.c
 	intern/node.c
 	intern/object.c
@@ -182,12 +188,23 @@ set(SRC
 	intern/seqeffects.c
 	intern/seqmodifier.c
 	intern/sequencer.c
+	intern/shader_fx.c
 	intern/shrinkwrap.c
 	intern/smoke.c
 	intern/softbody.c
 	intern/sound.c
 	intern/speaker.c
 	intern/studiolight.c
+	intern/subdiv.c
+	intern/subdiv_ccg.c
+	intern/subdiv_converter.c
+	intern/subdiv_converter_mesh.c
+	intern/subdiv_displacement.c
+	intern/subdiv_displacement_multires.c
+	intern/subdiv_eval.c
+	intern/subdiv_foreach.c
+	intern/subdiv_mesh.c
+	intern/subdiv_stats.c
 	intern/subsurf_ccg.c
 	intern/suggestions.c
 	intern/text.c
@@ -218,6 +235,7 @@ set(SRC
 	BKE_blender.h
 	BKE_blender_copybuffer.h
 	BKE_blender_undo.h
+	BKE_blender_user_menu.h
 	BKE_blender_version.h
 	BKE_blendfile.h
 	BKE_bmfont.h
@@ -256,6 +274,7 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
+	BKE_gpencil_modifier.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
@@ -279,6 +298,7 @@ set(SRC
 	BKE_mesh_iterators.h
 	BKE_mesh_mapping.h
 	BKE_mesh_remap.h
+	BKE_mesh_runtime.h
 	BKE_mesh_tangent.h
 	BKE_modifier.h
 	BKE_movieclip.h
@@ -302,12 +322,18 @@ set(SRC
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
+	BKE_shader_fx.h
 	BKE_shrinkwrap.h
 	BKE_smoke.h
 	BKE_softbody.h
 	BKE_sound.h
 	BKE_speaker.h
 	BKE_studiolight.h
+	BKE_subdiv.h
+	BKE_subdiv_ccg.h
+	BKE_subdiv_eval.h
+	BKE_subdiv_foreach.h
+	BKE_subdiv_mesh.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
@@ -325,8 +351,9 @@ set(SRC
 	intern/CCGSubSurf.h
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
-	intern/pbvh_intern.h
 	intern/data_transfer_intern.h
+	intern/pbvh_intern.h
+	intern/subdiv_converter.h
 )
 
 if(WITH_BINRELOC)
@@ -518,7 +545,6 @@ endif()
 if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
 	list(APPEND INC_SYS
-		../../../intern/opensubdiv
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
 endif()

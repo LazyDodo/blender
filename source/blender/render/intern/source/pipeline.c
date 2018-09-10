@@ -37,7 +37,7 @@
 #include <errno.h>
 
 #include "DNA_anim_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_image_types.h"
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
@@ -64,6 +64,7 @@
 #include "BKE_animsys.h"  /* <------ should this be here?, needed for sequencer update */
 #include "BKE_camera.h"
 #include "BKE_colortools.h"
+#include "BKE_context.h" /* XXX needed by wm_window.h */
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_layer.h"
@@ -95,7 +96,8 @@
 #include "RE_render_ext.h"
 
 #include "../../../windowmanager/WM_api.h" /* XXX */
-#include "../../../intern/gawain/gawain/gwn_context.h"
+#include "../../../windowmanager/wm_window.h" /* XXX */
+#include "GPU_context.h"
 
 #ifdef WITH_FREESTYLE
 #  include "FRS_freestyle.h"
@@ -360,6 +362,13 @@ Scene *RE_GetScene(Render *re)
 	if (re)
 		return re->scene;
 	return NULL;
+}
+
+void RE_SetScene(Render *re, Scene* sce)
+{
+	if (re) {
+		re->scene = sce;
+	}
 }
 
 /**
@@ -937,7 +946,6 @@ void RE_SetWindow(Render *re, const rctf *viewplane, float clipsta, float clipen
 	re->viewplane = *viewplane;
 	re->clipsta = clipsta;
 	re->clipend = clipend;
-	re->r.mode &= ~R_ORTHO;
 
 	perspective_m4(re->winmat,
 	               re->viewplane.xmin, re->viewplane.xmax,
@@ -952,7 +960,6 @@ void RE_SetOrtho(Render *re, const rctf *viewplane, float clipsta, float clipend
 	re->viewplane = *viewplane;
 	re->clipsta = clipsta;
 	re->clipend = clipend;
-	re->r.mode |= R_ORTHO;
 
 	orthographic_m4(re->winmat,
 	                re->viewplane.xmin, re->viewplane.xmax,
@@ -1034,17 +1041,21 @@ void RE_gl_context_create(Render *re)
 {
 	/* Needs to be created in the main ogl thread. */
 	re->gl_context = WM_opengl_context_create();
+	/* So we activate the window's one afterwards. */
+	wm_window_reset_drawable();
 }
 
 void RE_gl_context_destroy(Render *re)
 {
 	/* Needs to be called from the thread which used the ogl context for rendering. */
-	if (re->gwn_context) {
-		GWN_context_active_set(re->gwn_context);
-		GWN_context_discard(re->gwn_context);
-		re->gwn_context = NULL;
-	}
 	if (re->gl_context) {
+		if (re->gpu_context) {
+			WM_opengl_context_activate(re->gl_context);
+			GPU_context_active_set(re->gpu_context);
+			GPU_context_discard(re->gpu_context);
+			re->gpu_context = NULL;
+		}
+
 		WM_opengl_context_dispose(re->gl_context);
 		re->gl_context = NULL;
 	}
@@ -1055,12 +1066,12 @@ void *RE_gl_context_get(Render *re)
 	return re->gl_context;
 }
 
-void *RE_gwn_context_get(Render *re)
+void *RE_gpu_context_get(Render *re)
 {
-	if (re->gwn_context == NULL) {
-		re->gwn_context = GWN_context_create();
+	if (re->gpu_context == NULL) {
+		re->gpu_context = GPU_context_create();
 	}
-	return re->gwn_context;
+	return re->gpu_context;
 }
 
 /* ********* add object data (later) ******** */
@@ -1198,7 +1209,6 @@ static void render_scene(Render *re, Scene *sce, int cfra)
 	/* still unsure entity this... */
 	resc->main = re->main;
 	resc->scene = sce;
-	resc->lay = sce->lay;
 
 	/* ensure scene has depsgraph, base flags etc OK */
 	BKE_scene_set_background(re->main, sce);
@@ -1854,24 +1864,6 @@ bool RE_is_rendering_allowed(Scene *scene, ViewLayer *single_layer, Object *came
 		return 0;
 	}
 
-	/* get panorama & ortho, only after camera is set */
-	BKE_camera_object_mode(&scene->r, camera_override ? camera_override : scene->camera);
-
-	/* forbidden combinations */
-	if (scene->r.mode & R_PANORAMA) {
-		if (scene->r.mode & R_ORTHO) {
-			BKE_report(reports, RPT_ERROR, "No ortho render possible for panorama");
-			return 0;
-		}
-
-#ifdef WITH_FREESTYLE
-		if (scene->r.mode & R_EDGE_FRS) {
-			BKE_report(reports, RPT_ERROR, "Panoramic camera not supported in Freestyle");
-			return 0;
-		}
-#endif
-	}
-
 	if (RE_seq_render_active(scene, &scene->r)) {
 		if (scene->r.mode & R_BORDER) {
 			BKE_report(reports, RPT_ERROR, "Border rendering is not supported by sequencer");
@@ -1925,7 +1917,7 @@ const char *RE_GetActiveRenderView(Render *re)
 
 /* evaluating scene options for general Blender render */
 static int render_initialize_from_main(Render *re, RenderData *rd, Main *bmain, Scene *scene,
-                                       ViewLayer *single_layer, Object *camera_override, unsigned int lay_override,
+                                       ViewLayer *single_layer, Object *camera_override,
                                        int anim, int anim_init)
 {
 	int winx, winy;
@@ -1955,9 +1947,6 @@ static int render_initialize_from_main(Render *re, RenderData *rd, Main *bmain, 
 	re->main = bmain;
 	re->scene = scene;
 	re->camera_override = camera_override;
-	re->lay = lay_override ? lay_override : scene->lay;
-	re->layer_override = lay_override;
-	re->i.localview = (re->lay & 0xFF000000) != 0;
 	re->viewname[0] = '\0';
 
 	/* not too nice, but it survives anim-border render */
@@ -2006,7 +1995,7 @@ void RE_SetReports(Render *re, ReportList *reports)
 
 /* general Blender frame render call */
 void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, ViewLayer *single_layer, Object *camera_override,
-                     unsigned int lay_override, int frame, const bool write_still)
+                     int frame, const bool write_still)
 {
 	BLI_callback_exec(re->main, (ID *)scene, BLI_CB_EVT_RENDER_INIT);
 
@@ -2016,7 +2005,7 @@ void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, ViewLayer *single_la
 	scene->r.cfra = frame;
 
 	if (render_initialize_from_main(re, &scene->r, bmain, scene, single_layer,
-	                                camera_override, lay_override, 0, 0))
+	                                camera_override, 0, 0))
 	{
 		MEM_reset_peak_memory();
 
@@ -2059,7 +2048,7 @@ void RE_BlenderFrame(Render *re, Main *bmain, Scene *scene, ViewLayer *single_la
 void RE_RenderFreestyleStrokes(Render *re, Main *bmain, Scene *scene, int render)
 {
 	re->result_ok= 0;
-	if (render_initialize_from_main(re, &scene->r, bmain, scene, NULL, NULL, scene->lay, 0, 0)) {
+	if (render_initialize_from_main(re, &scene->r, bmain, scene, NULL, NULL, 0, 0)) {
 		if (render)
 			do_render_3d(re);
 	}
@@ -2361,7 +2350,7 @@ static void re_movie_free_all(Render *re, bMovieHandle *mh, int totvideos)
 
 /* saves images to disk */
 void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_override,
-                    unsigned int lay_override, int sfra, int efra, int tfra)
+                    int sfra, int efra, int tfra)
 {
 	RenderData rd = scene->r;
 	bMovieHandle *mh = NULL;
@@ -2375,7 +2364,7 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 	BLI_callback_exec(re->main, (ID *)scene, BLI_CB_EVT_RENDER_INIT);
 
 	/* do not fully call for each frame, it initializes & pops output window */
-	if (!render_initialize_from_main(re, &rd, bmain, scene, NULL, camera_override, lay_override, 0, 1))
+	if (!render_initialize_from_main(re, &rd, bmain, scene, NULL, camera_override, 0, 1))
 		return;
 
 	if (is_movie) {
@@ -2462,7 +2451,7 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 
 			/* only border now, todo: camera lens. (ton) */
 			render_initialize_from_main(re, &rd, bmain, scene,
-			                            NULL, camera_override, lay_override, 1, 0);
+			                            NULL, camera_override, 1, 0);
 
 			if (nfra != scene->r.cfra) {
 				/* Skip this frame, but could update for physics and particles system. */
@@ -2626,7 +2615,6 @@ void RE_PreviewRender(Render *re, Main *bmain, Scene *sce)
 
 	re->main = bmain;
 	re->scene = sce;
-	re->lay = sce->lay;
 
 	camera = RE_GetCamera(re);
 	RE_SetCamera(re, camera);

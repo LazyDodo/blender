@@ -81,12 +81,12 @@ static void freeData(ModifierData *md)
 	curvemapping_free(wmd->cmap_curve);
 }
 
-static void copyData(const ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target, const int flag)
 {
 	const WeightVGEditModifierData *wmd  = (const WeightVGEditModifierData *) md;
 	WeightVGEditModifierData *twmd = (WeightVGEditModifierData *) target;
 
-	modifier_copyData_generic(md, target);
+	modifier_copyData_generic(md, target, flag);
 
 	twmd->cmap_curve = curvemapping_copy(wmd->cmap_curve);
 }
@@ -148,7 +148,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	}
 }
 
-static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	WeightVGEditModifierData *wmd = (WeightVGEditModifierData *) md;
 	/* If no vertex group, bypass. */
@@ -203,20 +203,18 @@ static Mesh *applyModifier(
 		}
 	}
 
-	Mesh *result = mesh;
-
 	if (has_mdef) {
-		dvert = CustomData_duplicate_referenced_layer(&result->vdata, CD_MDEFORMVERT, numVerts);
+		dvert = CustomData_duplicate_referenced_layer(&mesh->vdata, CD_MDEFORMVERT, numVerts);
 	}
 	else {
 		/* Add a valid data layer! */
-		dvert = CustomData_add_layer(&result->vdata, CD_MDEFORMVERT, CD_CALLOC, NULL, numVerts);
+		dvert = CustomData_add_layer(&mesh->vdata, CD_MDEFORMVERT, CD_CALLOC, NULL, numVerts);
 	}
 	/* Ultimate security check. */
 	if (!dvert) {
-		BKE_id_free(NULL, result);
 		return mesh;
 	}
+	mesh->dvert = dvert;
 
 	/* Get org weights, assuming 0.0 for vertices not in given vgroup. */
 	org_w = MEM_malloc_arrayN(numVerts, sizeof(float), "WeightVGEdit Modifier, org_w");
@@ -249,7 +247,7 @@ static Mesh *applyModifier(
 
 	/* Do masking. */
 	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
-	weightvg_do_mask(ctx, numVerts, NULL, org_w, new_w, ctx->object, result, wmd->mask_constant,
+	weightvg_do_mask(ctx, numVerts, NULL, org_w, new_w, ctx->object, mesh, wmd->mask_constant,
 	                 wmd->mask_defgrp_name, scene, wmd->mask_texture,
 	                 wmd->mask_tex_use_channel, wmd->mask_tex_mapping,
 	                 wmd->mask_tex_map_obj, wmd->mask_tex_uvlayer_name);
@@ -270,7 +268,7 @@ static Mesh *applyModifier(
 	MEM_freeN(dw);
 
 	/* Return the vgroup-modified mesh. */
-	return result;
+	return mesh;
 }
 
 

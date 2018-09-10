@@ -153,11 +153,10 @@ static void view2d_masks(View2D *v2d, bool check_scrollers)
 	 *	- if they overlap, they must not occupy the corners (which are reserved for other widgets)
 	 */
 	if (scroll) {
-		int scroll_width  = (v2d->scroll & V2D_SCROLL_SCALE_VERTICAL) ?   V2D_SCROLL_WIDTH_TEXT  : v2d->size_vert;
-		int scroll_height = (v2d->scroll & V2D_SCROLL_SCALE_HORIZONTAL) ? V2D_SCROLL_HEIGHT_TEXT : v2d->size_hor;
-
-		CLAMP_MIN(scroll_width, V2D_SCROLL_WIDTH_MIN);
-		CLAMP_MIN(scroll_height, V2D_SCROLL_HEIGHT_MIN);
+		const int scroll_width = (v2d->scroll & V2D_SCROLL_SCALE_VERTICAL) ?
+		                             V2D_SCROLL_WIDTH_TEXT : V2D_SCROLL_WIDTH;
+		const int scroll_height = (v2d->scroll & V2D_SCROLL_SCALE_HORIZONTAL) ?
+		                              V2D_SCROLL_HEIGHT_TEXT : V2D_SCROLL_HEIGHT;
 
 		/* vertical scroller */
 		if (scroll & V2D_SCROLL_LEFT) {
@@ -217,8 +216,8 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
 	/* see eView2D_CommonViewTypes in UI_view2d.h for available view presets */
 	switch (type) {
 		/* 'standard view' - optimum setup for 'standard' view behavior,
-		 *  that should be used new views as basis for their
-		 *  own unique View2D settings, which should be used instead of this in most cases...
+		 * that should be used new views as basis for their
+		 * own unique View2D settings, which should be used instead of this in most cases...
 		 */
 		case V2D_COMMONVIEW_STANDARD:
 		{
@@ -228,9 +227,9 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
 			v2d->maxzoom = 1000.0f;
 
 			/* tot rect and cur should be same size, and aligned using 'standard' OpenGL coordinates for now
-			 *	- region can resize 'tot' later to fit other data
-			 *	- keeptot is only within bounds, as strict locking is not that critical
-			 *	- view is aligned for (0,0) -> (winx-1, winy-1) setup
+			 * - region can resize 'tot' later to fit other data
+			 * - keeptot is only within bounds, as strict locking is not that critical
+			 * - view is aligned for (0,0) -> (winx-1, winy-1) setup
 			 */
 			v2d->align = (V2D_ALIGN_NO_NEG_X | V2D_ALIGN_NO_NEG_Y);
 			v2d->keeptot = V2D_KEEPTOT_BOUNDS;
@@ -262,7 +261,7 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
 			break;
 		}
 		/* 'stack view' - practically the same as list/channel view, except is located in the pos y half instead.
-		 *  zoom, aspect ratio, and alignment restrictions are set here */
+		 * zoom, aspect ratio, and alignment restrictions are set here */
 		case V2D_COMMONVIEW_STACK:
 		{
 			/* zoom + aspect ratio are locked */
@@ -635,7 +634,7 @@ static void ui_view2d_curRect_validate_resize(View2D *v2d, bool resize, bool mas
 			}
 			else if (cur->xmax > tot->xmax) {
 				/* - only offset by difference of cur-xmax and tot-xmax if that would not move
-				 *  cur-xmin to lie past tot-xmin
+				 *   cur-xmin to lie past tot-xmin
 				 * - otherwise, simply shift to tot-xmin???
 				 */
 				temp = cur->xmax - tot->xmax;
@@ -679,7 +678,7 @@ static void ui_view2d_curRect_validate_resize(View2D *v2d, bool resize, bool mas
 			}
 			else if (cur->xmax > tot->xmax) {
 				/* - only offset by difference of cur-xmax and tot-xmax if that would not move
-				 *  cur-xmin to lie past tot-xmin
+				 *   cur-xmin to lie past tot-xmin
 				 * - otherwise, simply shift to tot-xmin???
 				 */
 				temp = cur->xmax - tot->xmax;
@@ -1152,7 +1151,7 @@ void UI_view2d_view_restore(const bContext *C)
 	int height = BLI_rcti_size_y(&ar->winrct) + 1;
 
 	wmOrtho2(0.0f, (float)width, 0.0f, (float)height);
-	gpuLoadIdentity();
+	GPU_matrix_identity_set();
 
 	//	ED_region_pixelspace(CTX_wm_region(C));
 }
@@ -1339,12 +1338,12 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 	if (vertex_count == 0)
 		return;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 3, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBegin(GWN_PRIM_LINES, vertex_count);
+	immBegin(GPU_PRIM_LINES, vertex_count);
 
 	/* vertical lines */
 	if (flag & V2D_VERTICAL_LINES) {
@@ -1481,15 +1480,15 @@ void UI_view2d_constant_grid_draw(View2D *v2d, float step)
 		count_y = (v2d->cur.ymax - start_y) / step + 1;
 
 	if (count_x > 0 || count_y > 0) {
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 		float theme_color[3];
 
 		UI_GetThemeColorShade3fv(TH_BACK, -10, theme_color);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-		immBegin(GWN_PRIM_LINES, count_x * 2 + count_y * 2 + 4);
+		immBegin(GPU_PRIM_LINES, count_x * 2 + count_y * 2 + 4);
 
 		immAttrib3fv(color, theme_color);
 		for (int i = 0; i < count_x ; start_x += step, i++) {
@@ -1532,14 +1531,14 @@ void UI_view2d_multi_grid_draw(View2D *v2d, int colorid, float step, int level_s
 	vertex_count += 2 * ((int)((v2d->cur.xmax - v2d->cur.xmin) / lstep) + 1);
 	vertex_count += 2 * ((int)((v2d->cur.ymax - v2d->cur.ymin) / lstep) + 1);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-	unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 3, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 	GPU_line_width(1.0f);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-	immBeginAtMost(GWN_PRIM_LINES, vertex_count);
+	immBeginAtMost(GPU_PRIM_LINES, vertex_count);
 
 	for (int level = 0; level < totlevels; ++level) {
 		UI_GetThemeColorShade3ubv(colorid, offset, grid_line_color);
@@ -1755,9 +1754,10 @@ View2DScrollers *UI_view2d_scrollers_calc(
 		scrollers->yclamp = yclamp;
 		scrollers->yunits = yunits;
 
-		scrollers->grid = UI_view2d_grid_calc(CTX_data_scene(C), v2d,
-		                                      xunits, xclamp, yunits, yclamp,
-		                                      BLI_rcti_size_x(&hor), BLI_rcti_size_y(&vert));
+		scrollers->grid = UI_view2d_grid_calc(
+		        CTX_data_scene(C), v2d,
+		        xunits, xclamp, yunits, yclamp,
+		        BLI_rcti_size_x(&hor), BLI_rcti_size_y(&vert));
 	}
 
 	/* return scrollers */
@@ -2132,12 +2132,14 @@ void UI_view2d_listview_visible_cells(
 	/* using 'cur' rect coordinates, call the cell-getting function to get the cells for this */
 	if (v2d) {
 		/* min */
-		UI_view2d_listview_view_to_cell(v2d, columnwidth, rowheight, startx, starty,
-		                                v2d->cur.xmin, v2d->cur.ymin, column_min, row_min);
+		UI_view2d_listview_view_to_cell(
+		        v2d, columnwidth, rowheight, startx, starty,
+		        v2d->cur.xmin, v2d->cur.ymin, column_min, row_min);
 
 		/* max*/
-		UI_view2d_listview_view_to_cell(v2d, columnwidth, rowheight, startx, starty,
-		                                v2d->cur.xmax, v2d->cur.ymax, column_max, row_max);
+		UI_view2d_listview_view_to_cell(
+		        v2d, columnwidth, rowheight, startx, starty,
+		        v2d->cur.xmax, v2d->cur.ymax, column_max, row_max);
 	}
 }
 
@@ -2547,8 +2549,9 @@ void UI_view2d_text_cache_draw(ARegion *ar)
 		}
 
 		if (v2s->rect.xmin >= v2s->rect.xmax)
-			BLF_draw_default((float)(v2s->mval[0] + xofs), (float)(v2s->mval[1] + yofs), 0.0,
-			                  v2s->str, BLF_DRAW_STR_DUMMY_MAX);
+			BLF_draw_default(
+			        (float)(v2s->mval[0] + xofs), (float)(v2s->mval[1] + yofs), 0.0,
+			        v2s->str, BLF_DRAW_STR_DUMMY_MAX);
 		else {
 			BLF_enable(font_id, BLF_CLIPPING);
 			BLF_clipping(font_id, v2s->rect.xmin - 4, v2s->rect.ymin - 4, v2s->rect.xmax + 4, v2s->rect.ymax + 4);

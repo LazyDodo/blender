@@ -135,7 +135,7 @@ class DATA_PT_shape_curve(CurveButtonsPanel, Panel):
 class DATA_PT_curve_texture_space(CurveButtonsPanel, Panel):
     bl_label = "Texture Space"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw(self, context):
         layout = self.layout
@@ -328,16 +328,16 @@ class DATA_PT_font(CurveButtonsPanelText, Panel):
         text = context.curve
         char = context.curve.edit_format
 
-        row = layout.split(percentage=0.25)
+        row = layout.split(factor=0.25)
         row.label(text="Regular")
         row.template_ID(text, "font", open="font.open", unlink="font.unlink")
-        row = layout.split(percentage=0.25)
+        row = layout.split(factor=0.25)
         row.label(text="Bold")
         row.template_ID(text, "font_bold", open="font.open", unlink="font.unlink")
-        row = layout.split(percentage=0.25)
+        row = layout.split(factor=0.25)
         row.label(text="Italic")
         row.template_ID(text, "font_italic", open="font.open", unlink="font.unlink")
-        row = layout.split(percentage=0.25)
+        row = layout.split(factor=0.25)
         row.label(text="Bold & Italic")
         row.template_ID(text, "font_bold_italic", open="font.open", unlink="font.unlink")
 
@@ -398,12 +398,13 @@ class DATA_PT_paragraph_alignment(CurveButtonsPanelText, Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False
+        layout.use_property_split = True
 
         text = context.curve
 
-        layout.row().prop(text, "align_x", expand=True)
-        layout.row().prop(text, "align_y", expand=True)
+        col = layout.column()
+        col.prop(text, "align_x", text="Horizontal")
+        col.prop(text, "align_y", text="Vertical")
 
 
 class DATA_PT_paragraph_spacing(CurveButtonsPanelText, Panel):
@@ -459,7 +460,7 @@ class DATA_PT_text_boxes(CurveButtonsPanelText, Panel):
 
 
 class DATA_PT_custom_props_curve(CurveButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
     _context_path = "object.data"
     _property_type = bpy.types.Curve
 

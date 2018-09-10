@@ -26,9 +26,11 @@
 
 /* defines VIEW3D_OT_ruler modal operator */
 
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 #include "DNA_gpencil_types.h"
+#include "DNA_brush_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -40,6 +42,7 @@
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_unit.h"
 
 #include "BIF_gl.h"
@@ -51,6 +54,7 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
+#include "ED_gpencil.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
 #include "ED_transform_snap_object_context.h"
@@ -300,38 +304,29 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+
 	bGPDlayer *gpl;
 	bGPDframe *gpf;
 	bGPDstroke *gps;
-	bGPDpalette *palette;
-	bGPDpalettecolor *palcolor;
 	RulerItem *ruler_item;
 	const char *ruler_name = RULER_ID;
 	bool changed = false;
 
+	/* FIXME: This needs to be reviewed. Should it keep being done like this? */
 	if (scene->gpd == NULL) {
-		scene->gpd = BKE_gpencil_data_addnew(bmain, "GPencil");
+		scene->gpd = BKE_gpencil_data_addnew(bmain, "Annotations");
 	}
+	bGPdata *gpd = scene->gpd;
 
-	gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
+	gpl = BLI_findstring(&gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 	if (gpl == NULL) {
-		gpl = BKE_gpencil_layer_addnew(scene->gpd, ruler_name, false);
+		gpl = BKE_gpencil_layer_addnew(gpd, ruler_name, false);
+		copy_v4_v4(gpl->color, U.gpencil_new_layer_col);
 		gpl->thickness = 1;
 		gpl->flag |= GP_LAYER_HIDE;
 	}
 
-	/* try to get active palette or create a new one */
-	palette = BKE_gpencil_palette_getactive(scene->gpd);
-	if (palette == NULL) {
-		palette = BKE_gpencil_palette_addnew(scene->gpd, DATA_("GP_Palette"), true);
-	}
-	/* try to get color with the ruler name or create a new one */
-	palcolor = BKE_gpencil_palettecolor_getbyname(palette, (char *)ruler_name);
-	if (palcolor == NULL) {
-		palcolor = BKE_gpencil_palettecolor_addnew(palette, (char *)ruler_name, true);
-	}
-
-	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
+	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_ADD_NEW);
 	BKE_gpencil_free_strokes(gpf);
 
 	for (ruler_item = ruler_info->items.first; ruler_item; ruler_item = ruler_item->next) {
@@ -362,9 +357,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		}
 		gps->flag = GP_STROKE_3DSPACE;
 		gps->thickness = 3;
-		/* assign color to stroke */
-		BLI_strncpy(gps->colorname, palcolor->info, sizeof(gps->colorname));
-		gps->palcolor = palcolor;
+
 		BLI_addtail(&gpf->strokes, gps);
 		changed = true;
 	}
@@ -383,7 +376,7 @@ static bool view3d_ruler_from_gpencil(bContext *C, RulerInfo *ruler_info)
 		gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 		if (gpl) {
 			bGPDframe *gpf;
-			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, false);
+			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_USE_PREV);
 			if (gpf) {
 				bGPDstroke *gps;
 				for (gps = gpf->strokes.first; gps; gps = gps->next) {
@@ -440,6 +433,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 
 	/* anti-aliased lines for more consistent appearance */
 	GPU_line_smooth(true);
+	GPU_line_width(1.0f * U.pixelsize);
 
 	BLF_enable(blf_mono_font, BLF_ROTATION);
 	BLF_size(blf_mono_font, 14 * U.pixelsize, U.dpi);
@@ -461,13 +455,13 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 
 		GPU_blend(true);
 
-		const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		const uint shdr_pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		if (ruler_item->flag & RULERITEM_USE_ANGLE) {
 			immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 			float viewport_size[4];
-			GPU_viewport_size_getf(viewport_size);
+			GPU_viewport_size_get_f(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 			immUniform1i("colors_len", 2);  /* "advanced" mode */
@@ -475,7 +469,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 			immUniformArray4fv("colors", (float *)(float[][4]){{0.67f, 0.67f, 0.67f, 1.0f}, {col[0], col[1], col[2], col[3]}}, 2);
 			immUniform1f("dash_width", 6.0f);
 
-			immBegin(GWN_PRIM_LINE_STRIP, 3);
+			immBegin(GPU_PRIM_LINE_STRIP, 3);
 
 			immVertex2fv(shdr_pos, co_ss[0]);
 			immVertex2fv(shdr_pos, co_ss[1]);
@@ -498,7 +492,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 				float quat[4];
 				float axis[3];
 				float angle;
-				const float px_scale = (ED_view3d_pixel_size(rv3d, ruler_item->co[1]) *
+				const float px_scale = (ED_view3d_pixel_size_no_ui_scale(rv3d, ruler_item->co[1]) *
 				                        min_fff(arc_size,
 				                                len_v2v2(co_ss[0], co_ss[1]) / 2.0f,
 				                                len_v2v2(co_ss[2], co_ss[1]) / 2.0f));
@@ -517,7 +511,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 
 				immUniformColor3ubv(color_wire);
 
-				immBegin(GWN_PRIM_LINE_STRIP, arc_steps + 1);
+				immBegin(GPU_PRIM_LINE_STRIP, arc_steps + 1);
 
 				for (j = 0; j <= arc_steps; j++) {
 					madd_v3_v3v3fl(co_tmp, ruler_item->co[1], dir_tmp, px_scale);
@@ -550,7 +544,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 
 				immUniformColor3ubv(color_wire);
 
-				immBegin(GWN_PRIM_LINES, 8);
+				immBegin(GPU_PRIM_LINES, 8);
 
 				madd_v2_v2v2fl(cap, co_ss[0], rot_90_vec_a, cap_size);
 				immVertex2fv(shdr_pos, cap);
@@ -606,7 +600,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 			immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 			float viewport_size[4];
-			GPU_viewport_size_getf(viewport_size);
+			GPU_viewport_size_get_f(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 			immUniform1i("colors_len", 2);  /* "advanced" mode */
@@ -614,7 +608,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 			immUniformArray4fv("colors", (float *)(float[][4]){{0.67f, 0.67f, 0.67f, 1.0f}, {col[0], col[1], col[2], col[3]}}, 2);
 			immUniform1f("dash_width", 6.0f);
 
-			immBegin(GWN_PRIM_LINES, 2);
+			immBegin(GPU_PRIM_LINES, 2);
 
 			immVertex2fv(shdr_pos, co_ss[0]);
 			immVertex2fv(shdr_pos, co_ss[2]);
@@ -638,7 +632,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 
 				immUniformColor3ubv(color_wire);
 
-				immBegin(GWN_PRIM_LINES, 4);
+				immBegin(GPU_PRIM_LINES, 4);
 
 				madd_v2_v2v2fl(cap, co_ss[0], rot_90_vec, cap_size);
 				immVertex2fv(shdr_pos, cap);
@@ -703,7 +697,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 			float co_ss[3];
 			ED_view3d_project_float_global(ar, ruler_item->co[ruler_item->co_index], co_ss, V3D_PROJ_TEST_NOP);
 
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 			immUniformColor4fv(color_act);
@@ -911,7 +905,7 @@ static int view3d_ruler_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					    BLI_listbase_is_empty(&ruler_info->items))
 					{
 						View3D *v3d = CTX_wm_view3d(C);
-						const bool use_depth = (v3d->drawtype >= OB_SOLID);
+						const bool use_depth = (v3d->shading.type >= OB_SOLID);
 
 						/* Create new line */
 						RulerItem *ruler_item_prev = ruler_item_active_get(ruler_info);

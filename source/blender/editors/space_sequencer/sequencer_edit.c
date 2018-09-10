@@ -100,8 +100,11 @@ EnumPropertyItem sequencer_prop_effect_types[] = {
 
 /* mute operator */
 
+#define SEQ_SIDE_MOUSE -1
+
 EnumPropertyItem prop_side_types[] = {
-	{SEQ_SIDE_LEFT, "LEFT", 0, "Left", ""},
+	{SEQ_SIDE_MOUSE, "MOUSE", 0, "Mouse position", "" },
+	{SEQ_SIDE_LEFT, "LEFT", 0, "Left", "" },
 	{SEQ_SIDE_RIGHT, "RIGHT", 0, "Right", ""},
 	{SEQ_SIDE_BOTH, "BOTH", 0, "Both", ""},
 	{0, NULL, 0, NULL, NULL}
@@ -476,7 +479,7 @@ void recurs_sel_seq(Sequence *seqm)
 	}
 }
 
-int ED_space_sequencer_maskedit_mask_poll(bContext *C)
+bool ED_space_sequencer_maskedit_mask_poll(bContext *C)
 {
 	/* in this case both funcs are the same, for clip editor not */
 	return ED_space_sequencer_maskedit_poll(C);
@@ -491,7 +494,7 @@ bool ED_space_sequencer_check_show_maskedit(SpaceSeq *sseq, Scene *scene)
 	return false;
 }
 
-int ED_space_sequencer_maskedit_poll(bContext *C)
+bool ED_space_sequencer_maskedit_poll(bContext *C)
 {
 	SpaceSeq *sseq = CTX_wm_space_seq(C);
 
@@ -739,7 +742,7 @@ static Sequence *cut_seq_hard(Scene *scene, Sequence *seq, int cutframe)
 
 	if (!skip_dup) {
 		/* Duplicate AFTER the first change */
-		seqn = BKE_sequence_dupli_recursive(scene, scene, seq, SEQ_DUPE_UNIQUE_NAME | SEQ_DUPE_ANIM);
+		seqn = BKE_sequence_dupli_recursive(scene, scene, seq, SEQ_DUPE_ANIM);
 	}
 
 	if (seqn) {
@@ -848,7 +851,7 @@ static Sequence *cut_seq_soft(Scene *scene, Sequence *seq, int cutframe)
 
 	if (!skip_dup) {
 		/* Duplicate AFTER the first change */
-		seqn = BKE_sequence_dupli_recursive(scene, scene, seq, SEQ_DUPE_UNIQUE_NAME | SEQ_DUPE_ANIM);
+		seqn = BKE_sequence_dupli_recursive(scene, scene, seq, SEQ_DUPE_ANIM);
 	}
 
 	if (seqn) {
@@ -1149,27 +1152,27 @@ static int seq_get_snaplimit(View2D *v2d)
 #endif
 
 /* Operator functions */
-int sequencer_edit_poll(bContext *C)
+bool sequencer_edit_poll(bContext *C)
 {
 	return (BKE_sequencer_editing_get(CTX_data_scene(C), false) != NULL);
 }
 
 #if 0 /* UNUSED */
-int sequencer_strip_poll(bContext *C)
+bool sequencer_strip_poll(bContext *C)
 {
 	Editing *ed;
 	return (((ed = BKE_sequencer_editing_get(CTX_data_scene(C), false)) != NULL) && (ed->act_seq != NULL));
 }
 #endif
 
-int sequencer_strip_has_path_poll(bContext *C)
+bool sequencer_strip_has_path_poll(bContext *C)
 {
 	Editing *ed;
 	Sequence *seq;
 	return (((ed = BKE_sequencer_editing_get(CTX_data_scene(C), false)) != NULL) && ((seq = ed->act_seq) != NULL) && (SEQ_HAS_PATH(seq)));
 }
 
-int sequencer_view_preview_poll(bContext *C)
+bool sequencer_view_preview_poll(bContext *C)
 {
 	SpaceSeq *sseq = CTX_wm_space_seq(C);
 	Editing *ed = BKE_sequencer_editing_get(CTX_data_scene(C), false);
@@ -1179,7 +1182,7 @@ int sequencer_view_preview_poll(bContext *C)
 	return 0;
 }
 
-int sequencer_view_strips_poll(bContext *C)
+bool sequencer_view_strips_poll(bContext *C)
 {
 	SpaceSeq *sseq = CTX_wm_space_seq(C);
 	if (sseq && ED_space_sequencer_check_show_strip(sseq))
@@ -1914,7 +1917,7 @@ void SEQUENCER_OT_reload(struct wmOperatorType *ot)
 }
 
 /* reload operator */
-static int sequencer_refresh_all_poll(bContext *C)
+static bool sequencer_refresh_all_poll(bContext *C)
 {
 	if (G.is_rendering) {
 		return 0;
@@ -1976,7 +1979,7 @@ static int sequencer_reassign_inputs_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static int sequencer_effect_poll(bContext *C)
+static bool sequencer_effect_poll(bContext *C)
 {
 	Scene *scene = CTX_data_scene(C);
 	Editing *ed = BKE_sequencer_editing_get(scene, false);
@@ -2091,6 +2094,7 @@ static int sequencer_cut_exec(bContext *C, wmOperator *op)
 
 		SEQP_BEGIN (ed, seq)
 		{
+			BKE_sequence_base_unique_name_recursive(&ed->seqbase, seq);
 			if (seq->seq1 || seq->seq2 || seq->seq3) {
 				BKE_sequence_calc(scene, seq);
 			}
@@ -2116,16 +2120,20 @@ static int sequencer_cut_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	Scene *scene = CTX_data_scene(C);
 	View2D *v2d = UI_view2d_fromcontext(C);
 
-	int cut_side = SEQ_SIDE_BOTH;
+	int cut_side = RNA_enum_get(op->ptr, "side");
 	int cut_frame = CFRA;
 
-	if (ED_operator_sequencer_active(C) && v2d)
-		cut_side = mouse_frame_side(v2d, event->mval[0], cut_frame);
-
+	if (cut_side == SEQ_SIDE_MOUSE) {
+		if (ED_operator_sequencer_active(C) && v2d) {
+			cut_side = mouse_frame_side(v2d, event->mval[0], cut_frame);
+		}
+		else {
+			cut_side = SEQ_SIDE_BOTH;
+		}
+	}
 	RNA_int_set(op->ptr, "frame", cut_frame);
 	RNA_enum_set(op->ptr, "side", cut_side);
 	/*RNA_enum_set(op->ptr, "type", cut_hard); */ /*This type is set from the key shortcut */
-
 	return sequencer_cut_exec(C, op);
 }
 
@@ -2145,10 +2153,14 @@ void SEQUENCER_OT_cut(struct wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
+	PropertyRNA *prop;
 	RNA_def_int(ot->srna, "frame", 0, INT_MIN, INT_MAX, "Frame", "Frame where selected strips will be cut", INT_MIN, INT_MAX);
 	RNA_def_enum(ot->srna, "type", prop_cut_types, SEQ_CUT_SOFT, "Type", "The type of cut operation to perform on strips");
-	RNA_def_enum(ot->srna, "side", prop_side_types, SEQ_SIDE_BOTH, "Side", "The side that remains selected after cutting");
+	prop = RNA_def_enum(ot->srna, "side", prop_side_types, SEQ_SIDE_MOUSE, "Side", "The side that remains selected after cutting");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
+
+#undef SEQ_SIDE_MOUSE
 
 /* duplicate operator */
 static int apply_unique_name_cb(Sequence *seq, void *arg_pt)
@@ -2970,7 +2982,7 @@ static bool strip_jump_internal(Scene *scene,
 	return changed;
 }
 
-static int sequencer_strip_jump_poll(bContext *C)
+static bool sequencer_strip_jump_poll(bContext *C)
 {
 	/* prevent changes during render */
 	if (G.is_rendering)
@@ -3953,7 +3965,7 @@ static int sequencer_export_subtitles_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-static int sequencer_strip_is_text_poll(bContext *C)
+static bool sequencer_strip_is_text_poll(bContext *C)
 {
 	Editing *ed;
 	Sequence *seq;

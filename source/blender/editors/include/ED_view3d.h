@@ -103,6 +103,7 @@ typedef struct ViewDepths {
 enum eV3DCursorOrient {
 	V3D_CURSOR_ORIENT_NONE = 0,
 	V3D_CURSOR_ORIENT_VIEW,
+	V3D_CURSOR_ORIENT_XFORM,
 	V3D_CURSOR_ORIENT_GEOM,
 };
 
@@ -119,7 +120,7 @@ void ED_view3d_cursor3d_position_rotation(
         float cursor_co[3], float cursor_quat[4]);
 void ED_view3d_cursor3d_update(
         struct bContext *C, const int mval[2],
-        bool use_depth, enum eV3DCursorOrient orientation);
+        const bool use_depth, enum eV3DCursorOrient orientation);
 
 struct Camera *ED_view3d_camera_data_get(struct View3D *v3d, struct RegionView3D *rv3d);
 
@@ -396,7 +397,7 @@ bool edge_inside_circle(const float cent[2], float radius, const float screen_co
 /* get 3d region from context, also if mouse is in header or toolbar */
 struct RegionView3D *ED_view3d_context_rv3d(struct bContext *C);
 bool ED_view3d_context_user_region(struct bContext *C, struct View3D **r_v3d, struct ARegion **r_ar);
-int ED_operator_rv3d_user_region_poll(struct bContext *C);
+bool ED_operator_rv3d_user_region_poll(struct bContext *C);
 
 void ED_view3d_init_mats_rv3d(struct Object *ob, struct RegionView3D *rv3d);
 void ED_view3d_init_mats_rv3d_gl(struct Object *ob, struct RegionView3D *rv3d);
@@ -523,7 +524,7 @@ void ED_view3d_stop_render_preview(struct wmWindowManager *wm, struct ARegion *a
 void ED_view3d_shade_update(struct Main *bmain, struct View3D *v3d, struct ScrArea *sa);
 
 #define V3D_IS_ZBUF(v3d) \
-	(((v3d)->flag & V3D_ZBUF_SELECT) && ((v3d)->drawtype > OB_WIRE))
+	(((v3d)->flag & V3D_ZBUF_SELECT) && ((v3d)->shading.type > OB_WIRE))
 
 void ED_view3d_id_remap(struct View3D *v3d, const struct ID *old_id, struct ID *new_id);
 

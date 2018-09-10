@@ -99,6 +99,8 @@ void animviz_settings_init(bAnimVizSettings *avs)
 	avs->path_viewflag = (MOTIONPATH_VIEW_KFRAS | MOTIONPATH_VIEW_KFNOS);
 
 	avs->path_step = 1;
+
+	avs->path_bakeflag |= MOTIONPATH_BAKE_HEADS;
 }
 
 /* ------------------- */
@@ -114,9 +116,9 @@ void animviz_free_motionpath_cache(bMotionPath *mpath)
 	if (mpath->points)
 		MEM_freeN(mpath->points);
 
-	GWN_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
-	GWN_BATCH_DISCARD_SAFE(mpath->batch_line);
-	GWN_BATCH_DISCARD_SAFE(mpath->batch_points);
+	GPU_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
+	GPU_BATCH_DISCARD_SAFE(mpath->batch_line);
+	GPU_BATCH_DISCARD_SAFE(mpath->batch_points);
 
 	/* reset the relevant parameters */
 	mpath->points = NULL;
@@ -338,7 +340,7 @@ static void motionpaths_calc_update_scene(Main *bmain,
 /* ........ */
 
 /* perform baking for the targets on the current frame */
-static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
+static void motionpaths_calc_bake_targets(ListBase *targets, int cframe)
 {
 	MPathTarget *mpt;
 
@@ -350,12 +352,12 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 		/* current frame must be within the range the cache works for
 		 *	- is inclusive of the first frame, but not the last otherwise we get buffer overruns
 		 */
-		if ((CFRA < mpath->start_frame) || (CFRA >= mpath->end_frame)) {
+		if ((cframe < mpath->start_frame) || (cframe >= mpath->end_frame)) {
 			continue;
 		}
 
 		/* get the relevant cache vert to write to */
-		mpv = mpath->points + (CFRA - mpath->start_frame);
+		mpv = mpath->points + (cframe - mpath->start_frame);
 
 		Object *ob_eval = mpt->ob_eval;
 
@@ -384,7 +386,7 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 			copy_v3_v3(mpv->co, ob_eval->obmat[3]);
 		}
 
-		float mframe = (float)(CFRA);
+		float mframe = (float)(cframe);
 
 		/* Tag if it's a keyframe */
 		if (BLI_dlrbTree_search_exact(&mpt->keys, compare_ak_cfraPtr, &mframe)) {
@@ -464,18 +466,22 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 	}
 
 	/* calculate path over requested range */
+	printf("Calculating MotionPaths between frames %d - %d (%d frames)\n", sfra, efra, efra - sfra + 1);
 	for (CFRA = sfra; CFRA <= efra; CFRA++) {
 		/* update relevant data for new frame */
 		motionpaths_calc_update_scene(bmain, depsgraph);
 
 		/* perform baking for targets */
-		motionpaths_calc_bake_targets(scene, targets);
+		motionpaths_calc_bake_targets(targets, CFRA);
 	}
 
 	/* reset original environment */
-	// XXX: Soon to be obsolete
+	/* NOTE: We shouldn't need to reevaluate the main scene,
+	 * as the depsgraph passed in calculates the results on a
+	 * a copy-on-write copy of the data. That said, we have to
+	 * restore the current frame settings
+	 */
 	CFRA = cfra;
-	motionpaths_calc_update_scene(bmain, depsgraph);
 
 	/* clear recalc flags from targets */
 	for (mpt = targets->first; mpt; mpt = mpt->next) {
@@ -495,9 +501,9 @@ static void motionpaths_calc_bake_targets(Scene *scene, ListBase *targets)
 		BLI_dlrbTree_free(&mpt->keys);
 
 		/* Free previous batches to force update. */
-		GWN_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
-		GWN_BATCH_DISCARD_SAFE(mpath->batch_line);
-		GWN_BATCH_DISCARD_SAFE(mpath->batch_points);
+		GPU_VERTBUF_DISCARD_SAFE(mpath->points_vbo);
+		GPU_BATCH_DISCARD_SAFE(mpath->batch_line);
+		GPU_BATCH_DISCARD_SAFE(mpath->batch_points);
 	}
 }
 
@@ -535,18 +541,18 @@ void calc_curvepath(Object *ob, ListBase *nurbs)
 		return;
 	}
 
-	if (ob->curve_cache->path) free_path(ob->curve_cache->path);
-	ob->curve_cache->path = NULL;
+	if (ob->runtime.curve_cache->path) free_path(ob->runtime.curve_cache->path);
+	ob->runtime.curve_cache->path = NULL;
 
 	/* weak! can only use first curve */
-	bl = ob->curve_cache->bev.first;
+	bl = ob->runtime.curve_cache->bev.first;
 	if (bl == NULL || !bl->nr) {
 		return;
 	}
 
 	nu = nurbs->first;
 
-	ob->curve_cache->path = path = MEM_callocN(sizeof(Path), "calc_curvepath");
+	ob->runtime.curve_cache->path = path = MEM_callocN(sizeof(Path), "calc_curvepath");
 
 	/* if POLY: last vertice != first vertice */
 	cycl = (bl->poly != -1);
@@ -663,15 +669,15 @@ int where_on_path(Object *ob, float ctime, float vec[4], float dir[3], float qua
 
 	if (ob == NULL || ob->type != OB_CURVE) return 0;
 	cu = ob->data;
-	if (ob->curve_cache == NULL || ob->curve_cache->path == NULL || ob->curve_cache->path->data == NULL) {
+	if (ob->runtime.curve_cache == NULL || ob->runtime.curve_cache->path == NULL || ob->runtime.curve_cache->path->data == NULL) {
 		printf("no path!\n");
 		return 0;
 	}
-	path = ob->curve_cache->path;
+	path = ob->runtime.curve_cache->path;
 	pp = path->data;
 
 	/* test for cyclic */
-	bl = ob->curve_cache->bev.first;
+	bl = ob->runtime.curve_cache->bev.first;
 	if (!bl) return 0;
 	if (!bl->nr) return 0;
 	if (bl->poly > -1) cycl = 1;

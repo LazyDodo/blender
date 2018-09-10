@@ -138,8 +138,8 @@ typedef struct SpaceButs {
 	short space_subtype;
 
 	short mainb, mainbo, mainbuser; /* context tabs */
-	short re_align, align;          /* align for panels */
 	short preview;                  /* preview is signal to refresh */
+	short pad[2];
 	char flag;
 	char collection_context;
 
@@ -197,7 +197,7 @@ typedef enum eSpaceButtons_Context {
 	BCONTEXT_BONE_CONSTRAINT = 12,
 	BCONTEXT_VIEW_LAYER = 13,
 	BCONTEXT_TOOL = 14,
-	BCONTEXT_WORKSPACE = 15,
+	BCONTEXT_SHADERFX = 15,
 
 	/* always as last... */
 	BCONTEXT_TOT
@@ -212,14 +212,6 @@ typedef enum eSpaceButtons_Flag {
 	SB_TEX_USER_LIMITED = (1 << 3), /* Do not add materials, particles, etc. in TemplateTextureUser list. */
 	SB_SHADING_CONTEXT = (1 << 4),
 } eSpaceButtons_Flag;
-
-/* SpaceButs.align */
-typedef enum eSpaceButtons_Align {
-	BUT_FREE = 0,
-	BUT_HORIZONTAL = 1,
-	BUT_VERTICAL = 2,
-	BUT_AUTO = 3,
-} eSpaceButtons_Align;
 
 /** \} */
 
@@ -921,8 +913,7 @@ typedef struct SpaceImage {
 	char dt_uvstretch;
 	char around;
 
-	/* Filter settings when editor shows other object's UVs. */
-	int other_uv_filter;
+	int pad2;
 
 	int flag;
 
@@ -992,7 +983,7 @@ typedef enum eSpaceImage_Flag {
 	SI_SMOOTH_UV          = (1 << 20),
 	SI_DRAW_STRETCH       = (1 << 21),
 	SI_SHOW_GPENCIL       = (1 << 22),
-	SI_DRAW_OTHER         = (1 << 23),
+/*	SI_DEPRECATED6        = (1 << 23), */  /* deprecated */
 
 	SI_COLOR_CORRECTION   = (1 << 24),
 
@@ -1350,7 +1341,7 @@ typedef enum eSpaceClip_Flag {
 	SC_SHOW_GRID                = (1 << 9),
 	SC_SHOW_STABLE              = (1 << 10),
 	SC_MANUAL_CALIBRATION       = (1 << 11),
-	SC_SHOW_GPENCIL             = (1 << 12),
+	SC_SHOW_ANNOTATION          = (1 << 12),
 	SC_SHOW_FILTERS             = (1 << 13),
 	SC_SHOW_GRAPH_FRAMES        = (1 << 14),
 	SC_SHOW_GRAPH_TRACKS_MOTION = (1 << 15),

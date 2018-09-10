@@ -89,7 +89,7 @@ bool BlenderSync::object_is_light(BL::Object& b_ob)
 {
 	BL::ID b_ob_data = b_ob.data();
 
-	return (b_ob_data && b_ob_data.is_a(&RNA_Lamp));
+	return (b_ob_data && b_ob_data.is_a(&RNA_Light));
 }
 
 static uint object_ray_visibility(BL::Object& b_ob)
@@ -126,57 +126,57 @@ void BlenderSync::sync_light(BL::Object& b_parent,
 			*use_portal = true;
 		return;
 	}
-	
-	BL::Lamp b_lamp(b_ob.data());
+
+	BL::Light b_light(b_ob.data());
 
 	/* type */
-	switch(b_lamp.type()) {
-		case BL::Lamp::type_POINT: {
-			BL::PointLamp b_point_lamp(b_lamp);
-			light->size = b_point_lamp.shadow_soft_size();
+	switch(b_light.type()) {
+		case BL::Light::type_POINT: {
+			BL::PointLight b_point_light(b_light);
+			light->size = b_point_light.shadow_soft_size();
 			light->type = LIGHT_POINT;
 			break;
 		}
-		case BL::Lamp::type_SPOT: {
-			BL::SpotLamp b_spot_lamp(b_lamp);
-			light->size = b_spot_lamp.shadow_soft_size();
+		case BL::Light::type_SPOT: {
+			BL::SpotLight b_spot_light(b_light);
+			light->size = b_spot_light.shadow_soft_size();
 			light->type = LIGHT_SPOT;
-			light->spot_angle = b_spot_lamp.spot_size();
-			light->spot_smooth = b_spot_lamp.spot_blend();
+			light->spot_angle = b_spot_light.spot_size();
+			light->spot_smooth = b_spot_light.spot_blend();
 			break;
 		}
-		case BL::Lamp::type_HEMI: {
+		case BL::Light::type_HEMI: {
 			light->type = LIGHT_DISTANT;
 			light->size = 0.0f;
 			break;
 		}
-		case BL::Lamp::type_SUN: {
-			BL::SunLamp b_sun_lamp(b_lamp);
-			light->size = b_sun_lamp.shadow_soft_size();
+		case BL::Light::type_SUN: {
+			BL::SunLight b_sun_light(b_light);
+			light->size = b_sun_light.shadow_soft_size();
 			light->type = LIGHT_DISTANT;
 			break;
 		}
-		case BL::Lamp::type_AREA: {
-			BL::AreaLamp b_area_lamp(b_lamp);
+		case BL::Light::type_AREA: {
+			BL::AreaLight b_area_light(b_light);
 			light->size = 1.0f;
 			light->axisu = transform_get_column(&tfm, 0);
 			light->axisv = transform_get_column(&tfm, 1);
-			light->sizeu = b_area_lamp.size();
-			switch(b_area_lamp.shape()) {
-				case BL::AreaLamp::shape_SQUARE:
+			light->sizeu = b_area_light.size();
+			switch(b_area_light.shape()) {
+				case BL::AreaLight::shape_SQUARE:
 					light->sizev = light->sizeu;
 					light->round = false;
 					break;
-				case BL::AreaLamp::shape_RECTANGLE:
-					light->sizev = b_area_lamp.size_y();
+				case BL::AreaLight::shape_RECTANGLE:
+					light->sizev = b_area_light.size_y();
 					light->round = false;
 					break;
-				case BL::AreaLamp::shape_DISK:
+				case BL::AreaLight::shape_DISK:
 					light->sizev = light->sizeu;
 					light->round = true;
 					break;
-				case BL::AreaLamp::shape_ELLIPSE:
-					light->sizev = b_area_lamp.size_y();
+				case BL::AreaLight::shape_ELLIPSE:
+					light->sizev = b_area_light.size_y();
 					light->round = true;
 					break;
 			}
@@ -192,22 +192,22 @@ void BlenderSync::sync_light(BL::Object& b_parent,
 
 	/* shader */
 	vector<Shader*> used_shaders;
-	find_shader(b_lamp, used_shaders, scene->default_light);
+	find_shader(b_light, used_shaders, scene->default_light);
 	light->shader = used_shaders[0];
 
 	/* shadow */
 	PointerRNA cscene = RNA_pointer_get(&b_scene.ptr, "cycles");
-	PointerRNA clamp = RNA_pointer_get(&b_lamp.ptr, "cycles");
-	light->cast_shadow = get_boolean(clamp, "cast_shadow");
-	light->use_mis = get_boolean(clamp, "use_multiple_importance_sampling");
-	
-	int samples = get_int(clamp, "samples");
+	PointerRNA clight = RNA_pointer_get(&b_light.ptr, "cycles");
+	light->cast_shadow = get_boolean(clight, "cast_shadow");
+	light->use_mis = get_boolean(clight, "use_multiple_importance_sampling");
+
+	int samples = get_int(clight, "samples");
 	if(get_boolean(cscene, "use_square_samples"))
 		light->samples = samples * samples;
 	else
 		light->samples = samples;
 
-	light->max_bounces = get_int(clamp, "max_bounces");
+	light->max_bounces = get_int(clight, "max_bounces");
 
 	if(b_ob != b_ob_instance) {
 		light->random_id = random_id;
@@ -217,7 +217,7 @@ void BlenderSync::sync_light(BL::Object& b_parent,
 	}
 
 	if(light->type == LIGHT_AREA)
-		light->is_portal = get_boolean(clamp, "is_portal");
+		light->is_portal = get_boolean(clight, "is_portal");
 	else
 		light->is_portal = false;
 
@@ -291,8 +291,8 @@ void BlenderSync::sync_background_light(bool use_portal)
 /* Object */
 
 Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
+                                 BL::ViewLayer& b_view_layer,
                                  BL::DepsgraphObjectInstance& b_instance,
-                                 uint layer_flag,
                                  float motion_time,
                                  bool hide_tris,
                                  BlenderObjectCulling& culling,
@@ -314,10 +314,13 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 	}
 
 	/* light is handled separately */
-	if(object_is_light(b_ob)) {
-		/* don't use lamps for excluded layers used as mask layer */
-		if(!motion && !((layer_flag & view_layer.holdout_layer) &&
-		                (layer_flag & view_layer.exclude_layer)))
+	if(!motion && object_is_light(b_ob)) {
+		/* TODO: don't use lights for excluded layers used as mask layer,
+		 * when dynamic overrides are back. */
+#if 0
+		if(!((layer_flag & view_layer.holdout_layer) &&
+		     (layer_flag & view_layer.exclude_layer)))
+#endif
 		{
 			sync_light(b_parent,
 			           persistent_id,
@@ -343,21 +346,24 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 
 	/* Visibility flags for both parent and child. */
 	PointerRNA cobject = RNA_pointer_get(&b_ob.ptr, "cycles");
-	bool use_holdout = (layer_flag & view_layer.holdout_layer) != 0 ||
-	                   get_boolean(cobject, "is_holdout");
+	bool use_holdout = get_boolean(cobject, "is_holdout") ||
+	                   b_parent.holdout_get(b_view_layer);
 	uint visibility = object_ray_visibility(b_ob) & PATH_RAY_ALL_VISIBILITY;
 
 	if(b_parent.ptr.data != b_ob.ptr.data) {
 		visibility &= object_ray_visibility(b_parent);
 	}
 
-	/* Make holdout objects on excluded layer invisible for non-camera rays. */
+	/* TODO: make holdout objects on excluded layer invisible for non-camera rays. */
+#if 0
 	if(use_holdout && (layer_flag & view_layer.exclude_layer)) {
 		visibility &= ~(PATH_RAY_ALL_VISIBILITY - PATH_RAY_CAMERA);
 	}
+#endif
 
-	/* Hide objects not on render layer from camera rays. */
-	if(!(layer_flag & view_layer.layer)) {
+	/* Clear camera visibility for indirect only objects. */
+	bool use_indirect_only = b_parent.indirect_only_get(b_view_layer);
+	if(use_indirect_only) {
 		visibility &= ~PATH_RAY_CAMERA;
 	}
 
@@ -394,7 +400,7 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 
 	if(object_map.sync(&object, b_ob, b_parent, key))
 		object_updated = true;
-	
+
 	/* mesh sync */
 	object->mesh = sync_mesh(b_depsgraph, b_ob, b_ob_instance, object_updated, hide_tris);
 
@@ -448,6 +454,7 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 				mesh->motion_steps = motion_steps;
 			}
 
+			object->motion.clear();
 			object->motion.resize(motion_steps, transform_empty());
 
 			if(motion_steps) {
@@ -542,7 +549,7 @@ static bool object_render_hide(BL::Object& b_ob,
 		}
 		parent = parent.parent();
 	}
-	
+
 	hide_triangles = hide_emitter;
 
 	if(show_emitter) {
@@ -562,7 +569,7 @@ void BlenderSync::sync_objects(BL::Depsgraph& b_depsgraph, float motion_time)
 {
 	/* layer data */
 	bool motion = motion_time != 0.0f;
-	
+
 	if(!motion) {
 		/* prepare for sync */
 		light_map.pre_sync();
@@ -582,6 +589,7 @@ void BlenderSync::sync_objects(BL::Depsgraph& b_depsgraph, float motion_time)
 	bool cancel = false;
 	bool use_portal = false;
 
+	BL::ViewLayer b_view_layer = b_depsgraph.view_layer_eval();
 	BL::Depsgraph::mode_enum depsgraph_mode = b_depsgraph.mode();
 
 	BL::Depsgraph::object_instances_iterator b_instance_iter;
@@ -603,8 +611,8 @@ void BlenderSync::sync_objects(BL::Depsgraph& b_depsgraph, float motion_time)
 		 if(!object_render_hide(b_ob, true, true, hide_tris, depsgraph_mode)) {
 			/* object itself */
 			sync_object(b_depsgraph,
+			            b_view_layer,
 			            b_instance,
-			            ~(0), /* until we get rid of layers */
 			            motion_time,
 			            hide_tris,
 			            culling,
@@ -728,4 +736,3 @@ void BlenderSync::sync_motion(BL::RenderSettings& b_render,
 }
 
 CCL_NAMESPACE_END
-

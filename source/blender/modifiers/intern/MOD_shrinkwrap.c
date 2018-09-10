@@ -84,7 +84,7 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *) md;
 	return !smd->target;
@@ -108,11 +108,11 @@ static void deformVerts(
 	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
 	Mesh *mesh_src = mesh;
 
-	if (mesh_src == NULL) {
+	if (mesh_src == NULL && ctx->object->type == OB_MESH) {
 		mesh_src = ctx->object->data;
 	}
 
-	BLI_assert(mesh_src->totvert == numVerts);
+	BLI_assert(mesh_src == NULL || mesh_src->totvert == numVerts);
 
 	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, scene, ctx->object, mesh_src, vertexCos, numVerts);
 }

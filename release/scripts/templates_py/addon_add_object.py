@@ -45,7 +45,7 @@ class OBJECT_OT_add_object(Operator, AddObjectHelper):
     bl_label = "Add Mesh Object"
     bl_options = {'REGISTER', 'UNDO'}
 
-    scale = FloatVectorProperty(
+    scale: FloatVectorProperty(
         name="scale",
         default=(1.0, 1.0, 1.0),
         subtype='TRANSLATION',
@@ -80,13 +80,13 @@ def add_object_manual_map():
 def register():
     bpy.utils.register_class(OBJECT_OT_add_object)
     bpy.utils.register_manual_map(add_object_manual_map)
-    bpy.types.INFO_MT_mesh_add.append(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
 
 
 def unregister():
     bpy.utils.unregister_class(OBJECT_OT_add_object)
     bpy.utils.unregister_manual_map(add_object_manual_map)
-    bpy.types.INFO_MT_mesh_add.remove(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.remove(add_object_button)
 
 
 if __name__ == "__main__":

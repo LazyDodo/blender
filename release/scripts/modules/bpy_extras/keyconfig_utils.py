@@ -56,6 +56,7 @@ KM_HIERARCHY = [
         ('Particle', 'EMPTY', 'WINDOW', []),
 
         ('Knife Tool Modal Map', 'EMPTY', 'WINDOW', []),
+        ('Custom Normals Modal Map', 'EMPTY', 'WINDOW', []),
         ('Paint Stroke Modal', 'EMPTY', 'WINDOW', []),
         ('Paint Curve', 'EMPTY', 'WINDOW', []),
 
@@ -121,6 +122,12 @@ KM_HIERARCHY = [
 
     ('Grease Pencil', 'EMPTY', 'WINDOW', [  # grease pencil stuff (per region)
         ('Grease Pencil Stroke Edit Mode', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint (Draw brush)', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint (Fill)', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint (Erase)', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Paint Mode', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Sculpt Mode', 'EMPTY', 'WINDOW', []),
+        ('Grease Pencil Stroke Weight Mode', 'EMPTY', 'WINDOW', []),
     ]),
     ('Mask Editing', 'EMPTY', 'WINDOW', []),
     ('Frames', 'EMPTY', 'WINDOW', []),    # frame navigation (per region)
@@ -176,8 +183,8 @@ def addon_keymap_register(wm, keymaps_description):
     for km_info, km_items in keymaps_description:
         km_name, km_sptype, km_regtype, km_ismodal = km_info
         kmap = [k for k in kconf.keymaps
-                  if k.name == km_name and k.region_type == km_regtype and
-                     k.space_type == km_sptype and k.is_modal == km_ismodal]
+                if k.name == km_name and k.region_type == km_regtype and
+                k.space_type == km_sptype and k.is_modal == km_ismodal]
         if kmap:
             kmap = kmap[0]
         else:
@@ -201,8 +208,8 @@ def addon_keymap_unregister(wm, keymaps_description):
         for km_info, km_items in keymaps_description:
             km_name, km_sptype, km_regtype, km_ismodal = km_info
             kmaps = (k for k in kconf.keymaps
-                       if k.name == km_name and k.region_type == km_regtype and
-                          k.space_type == km_sptype and k.is_modal == km_ismodal)
+                     if k.name == km_name and k.region_type == km_regtype and
+                     k.space_type == km_sptype and k.is_modal == km_ismodal)
             for kmap in kmaps:
                 for kmi_kwargs, props in km_items:
                     idname = kmi_kwargs["idname"]
@@ -239,9 +246,9 @@ def _export_properties(prefix, properties, kmi_id, lines=None):
         lines = []
 
     def string_value(value):
-        if isinstance(value, str) or isinstance(value, bool) or isinstance(value, float) or isinstance(value, int):
+        if isinstance(value, (str, bool, float, int)):
             return repr(value)
-        elif getattr(value, '__len__', False):
+        elif hasattr(value, "__len__"):
             return repr(list(value))
 
         print("Export key configuration: can't write ", value)
@@ -295,8 +302,10 @@ def _kmistr(kmi, is_modal):
     return "".join(s)
 
 
-def keyconfig_export(wm, kc, filepath):
-
+def keyconfig_export(
+        wm, kc, filepath, *,
+        all_keymaps=False,
+):
     f = open(filepath, "w")
 
     f.write("import bpy\n")
@@ -326,7 +335,7 @@ def keyconfig_export(wm, kc, filepath):
         keymaps = []
     edited_kc = FakeKeyConfig()
     for km in wm.keyconfigs.user.keymaps:
-        if km.is_user_modified:
+        if all_keymaps or km.is_user_modified:
             edited_kc.keymaps.append(km)
     # merge edited keymaps with non-default keyconfig, if it exists
     if kc != wm.keyconfigs.default:
@@ -405,3 +414,11 @@ def keyconfig_test(kc):
         if testEntry(kc, entry):
             result = True
     return result
+
+
+# Note, we may eventually replace existing logic with this
+# so key configs are always data.
+from .keyconfig_utils_experimental import (
+    keyconfig_export_as_data,
+    keyconfig_import_from_data,
+)

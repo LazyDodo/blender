@@ -34,6 +34,7 @@
 
 #include "GPU_draw.h"
 #include "GPU_extensions.h"
+#include "intern/gpu_shader_private.h"
 
 #ifdef USE_GPU_SELECT
 #  include "ED_view3d.h"
@@ -48,6 +49,8 @@ void DRW_select_load_id(uint id)
 	DST.select_id = id;
 }
 #endif
+
+#define DEBUG_UBO_BINDING
 
 struct GPUUniformBuffer *view_ubo;
 
@@ -350,7 +353,7 @@ void drw_state_set(DRWState state)
 				/* disable write & test */
 				DST.stencil_mask = 0;
 				glStencilMask(0x00);
-				glStencilFunc(GL_ALWAYS, 1, 0xFF);
+				glStencilFunc(GL_ALWAYS, 0, 0xFF);
 				glDisable(GL_STENCIL_TEST);
 			}
 		}
@@ -419,10 +422,10 @@ void DRW_state_invert_facing(void)
  * and if the shaders have support for it (see usage of gl_ClipDistance).
  * Be sure to call DRW_state_clip_planes_reset() after you finish drawing.
  **/
-void DRW_state_clip_planes_count_set(uint plane_ct)
+void DRW_state_clip_planes_count_set(uint plane_len)
 {
-	BLI_assert(plane_ct <= MAX_CLIP_PLANES);
-	DST.num_clip_planes = plane_ct;
+	BLI_assert(plane_len <= MAX_CLIP_PLANES);
+	DST.num_clip_planes = plane_len;
 }
 
 void DRW_state_clip_planes_reset(void)
@@ -827,29 +830,29 @@ static void draw_geometry_prepare(DRWShadingGroup *shgroup, DRWCallState *state)
 }
 
 static void draw_geometry_execute_ex(
-        DRWShadingGroup *shgroup, Gwn_Batch *geom, uint start, uint count, bool draw_instance)
+        DRWShadingGroup *shgroup, GPUBatch *geom, uint start, uint count, bool draw_instance)
 {
 	/* Special case: empty drawcall, placement is done via shader, don't bind anything. */
 	/* TODO use DRW_CALL_PROCEDURAL instead */
 	if (geom == NULL) {
 		BLI_assert(shgroup->type == DRW_SHG_TRIANGLE_BATCH); /* Add other type if needed. */
 		/* Shader is already bound. */
-		GWN_draw_primitive(GWN_PRIM_TRIS, count);
+		GPU_draw_primitive(GPU_PRIM_TRIS, count);
 		return;
 	}
 
 	/* step 2 : bind vertex array & draw */
-	GWN_batch_program_set_no_use(
+	GPU_batch_program_set_no_use(
 	        geom, GPU_shader_get_program(shgroup->shader), GPU_shader_get_interface(shgroup->shader));
 	/* XXX hacking gawain. we don't want to call glUseProgram! (huge performance loss) */
 	geom->program_in_use = true;
 
-	GWN_batch_draw_range_ex(geom, start, count, draw_instance);
+	GPU_batch_draw_range_ex(geom, start, count, draw_instance);
 
 	geom->program_in_use = false; /* XXX hacking gawain */
 }
 
-static void draw_geometry_execute(DRWShadingGroup *shgroup, Gwn_Batch *geom)
+static void draw_geometry_execute(DRWShadingGroup *shgroup, GPUBatch *geom)
 {
 	draw_geometry_execute_ex(shgroup, geom, 0, 0, false);
 }
@@ -911,6 +914,54 @@ static void bind_ubo(GPUUniformBuffer *ubo, char bind_type)
 	slot_flags[bind_num] = bind_type;
 }
 
+#ifndef NDEBUG
+/**
+ * Opengl specification is strict on buffer binding.
+ *
+ * " If any active uniform block is not backed by a
+ * sufficiently large buffer object, the results of shader
+ * execution are undefined, and may result in GL interruption or
+ * termination. " - Opengl 3.3 Core Specification
+ *
+ * For now we only check if the binding is correct. Not the size of
+ * the bound ubo.
+ *
+ * See T55475.
+ * */
+static bool ubo_bindings_validate(DRWShadingGroup *shgroup)
+{
+	bool valid = true;
+#  ifdef DEBUG_UBO_BINDING
+	/* Check that all active uniform blocks have a non-zero buffer bound. */
+	GLint program = 0;
+	GLint active_blocks = 0;
+
+	glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+	glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCKS, &active_blocks);
+
+	for (uint i = 0; i < active_blocks; ++i) {
+		int binding = 0;
+		int buffer = 0;
+
+		glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_BINDING, &binding);
+		glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, binding, &buffer);
+
+		if (buffer == 0) {
+			char blockname[64];
+			glGetActiveUniformBlockName(program, i, sizeof(blockname), NULL, blockname);
+
+			if (valid) {
+				printf("Trying to draw with missing UBO binding.\n");
+				valid = false;
+			}
+			printf("Pass : %s, Shader : %s, Block : %s\n", shgroup->pass_parent->name, shgroup->shader->name, blockname);
+		}
+	}
+#  endif
+	return valid;
+}
+#endif
+
 static void release_texture_slots(bool with_persist)
 {
 	if (with_persist) {
@@ -923,7 +974,7 @@ static void release_texture_slots(bool with_persist)
 		}
 	}
 
-	/* Reset so that slots are consistenly assigned for different shader
+	/* Reset so that slots are consistently assigned for different shader
 	 * draw calls, to avoid shader specialization/patching by the driver. */
 	DST.RST.bind_tex_inc = 0;
 }
@@ -940,7 +991,7 @@ static void release_ubo_slots(bool with_persist)
 		}
 	}
 
-	/* Reset so that slots are consistenly assigned for different shader
+	/* Reset so that slots are consistently assigned for different shader
 	 * draw calls, to avoid shader specialization/patching by the driver. */
 	DST.RST.bind_ubo_inc = 0;
 }
@@ -1055,9 +1106,9 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	if (G.f & G_PICKSEL) {                                           \
 		if (_shgroup->override_selectid == -1) {                        \
 			/* Hack : get vbo data without actually drawing. */     \
-			Gwn_VertBufRaw raw;                   \
-			GWN_vertbuf_attr_get_raw_data(_shgroup->inst_selectid, 0, &raw); \
-			select_id = GWN_vertbuf_raw_step(&raw);                               \
+			GPUVertBufRaw raw;                   \
+			GPU_vertbuf_attr_get_raw_data(_shgroup->inst_selectid, 0, &raw); \
+			select_id = GPU_vertbuf_raw_step(&raw);                               \
 			switch (_shgroup->type) {                                             \
 				case DRW_SHG_TRIANGLE_BATCH: _count = 3; break;                   \
 				case DRW_SHG_LINE_BATCH: _count = 2; break;                       \
@@ -1086,6 +1137,8 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 	_count = _shgroup->instance_count;
 
 #endif
+
+	BLI_assert(ubo_bindings_validate(shgroup));
 
 	/* Rendering Calls */
 	if (!ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM)) {
@@ -1168,7 +1221,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 					call->generate.geometry_fn(shgroup, draw_geometry_execute, call->generate.user_data);
 					break;
 				case DRW_CALL_PROCEDURAL:
-					GWN_draw_primitive(call->procedural.prim_type, call->procedural.vert_count);
+					GPU_draw_primitive(call->procedural.prim_type, call->procedural.vert_count);
 					break;
 				default:
 					BLI_assert(0);

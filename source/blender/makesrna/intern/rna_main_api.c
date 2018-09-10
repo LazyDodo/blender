@@ -99,7 +99,7 @@
 #include "DNA_lightprobe_types.h"
 #include "DNA_text_types.h"
 #include "DNA_texture_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_meta_types.h"
@@ -185,7 +185,7 @@ static void rna_Main_scenes_remove(Main *bmain, bContext *C, ReportList *reports
 				BPy_BEGIN_ALLOW_THREADS;
 #endif
 
-				WM_window_change_active_scene(bmain, C, win, scene_new);
+				WM_window_set_active_scene(bmain, C, win, scene_new);
 
 #ifdef WITH_PYTHON
 				BPy_END_ALLOW_THREADS;
@@ -231,6 +231,9 @@ static Object *rna_Main_objects_new(Main *bmain, ReportList *reports, const char
 			case ID_LT:
 				type = OB_LATTICE;
 				break;
+			case ID_GD:
+				type = OB_GPENCIL;
+				break;
 			case ID_AR:
 				type = OB_ARMATURE;
 				break;
@@ -264,6 +267,13 @@ static Material *rna_Main_materials_new(Main *bmain, const char *name)
 	ID *id = (ID *)BKE_material_add(bmain, safe_name);
 	id_us_min(id);
 	return (Material *)id;
+}
+
+static void rna_Main_materials_gpencil_data(Main *UNUSED(bmain), PointerRNA *id_ptr)
+{
+	ID *id = id_ptr->data;
+	Material *ma = (Material *)id;
+	BKE_material_init_gpencil_settings(ma);
 }
 
 static const EnumPropertyItem *rna_Main_nodetree_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
@@ -319,7 +329,7 @@ Mesh *rna_Main_meshes_new_from_object(
 	return BKE_mesh_new_from_object(depsgraph, bmain, sce, ob, apply_modifiers, calc_tessface, calc_undeformed);
 }
 
-static Lamp *rna_Main_lamps_new(Main *bmain, const char *name, int type)
+static Lamp *rna_Main_lights_new(Main *bmain, const char *name, int type)
 {
 	char safe_name[MAX_ID_NAME - 2];
 	rna_idname_validate(name, safe_name);
@@ -432,6 +442,14 @@ static Brush *rna_Main_brushes_new(Main *bmain, const char *name, int mode)
 	id_us_min(&brush->id);
 	return brush;
 }
+
+static void rna_Main_brush_gpencil_data(Main *UNUSED(bmain), PointerRNA *id_ptr)
+{
+	ID *id = id_ptr->data;
+	Brush *brush = (Brush *)id;
+	BKE_brush_init_gpencil_settings(brush);
+}
+
 
 static World *rna_Main_worlds_new(Main *bmain, const char *name)
 {
@@ -603,7 +621,7 @@ RNA_MAIN_ID_TAG_FUNCS_DEF(objects, object, ID_OB)
 RNA_MAIN_ID_TAG_FUNCS_DEF(materials, mat, ID_MA)
 RNA_MAIN_ID_TAG_FUNCS_DEF(node_groups, nodetree, ID_NT)
 RNA_MAIN_ID_TAG_FUNCS_DEF(meshes, mesh, ID_ME)
-RNA_MAIN_ID_TAG_FUNCS_DEF(lamps, lamp, ID_LA)
+RNA_MAIN_ID_TAG_FUNCS_DEF(lights, lamp, ID_LA)
 RNA_MAIN_ID_TAG_FUNCS_DEF(libraries, library, ID_LI)
 RNA_MAIN_ID_TAG_FUNCS_DEF(screens, screen, ID_SCR)
 RNA_MAIN_ID_TAG_FUNCS_DEF(window_managers, wm, ID_WM)
@@ -783,6 +801,11 @@ void RNA_def_main_materials(BlenderRNA *brna, PropertyRNA *cprop)
 	parm = RNA_def_pointer(func, "material", "Material", "", "New material data-block");
 	RNA_def_function_return(func, parm);
 
+	func = RNA_def_function(srna, "create_gpencil_data", "rna_Main_materials_gpencil_data");
+	RNA_def_function_ui_description(func, "Add grease pencil material settings");
+	parm = RNA_def_pointer(func, "material", "Material", "", "Material");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+
 	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_function_ui_description(func, "Remove a material from the current blendfile");
@@ -894,42 +917,43 @@ void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 }
-void RNA_def_main_lamps(BlenderRNA *brna, PropertyRNA *cprop)
+
+void RNA_def_main_lights(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
 
-	RNA_def_property_srna(cprop, "BlendDataLamps");
-	srna = RNA_def_struct(brna, "BlendDataLamps", NULL);
+	RNA_def_property_srna(cprop, "BlendDataLights");
+	srna = RNA_def_struct(brna, "BlendDataLights", NULL);
 	RNA_def_struct_sdna(srna, "Main");
-	RNA_def_struct_ui_text(srna, "Main Lamps", "Collection of lamps");
+	RNA_def_struct_ui_text(srna, "Main Lights", "Collection of lights");
 
-	func = RNA_def_function(srna, "new", "rna_Main_lamps_new");
-	RNA_def_function_ui_description(func, "Add a new lamp to the main database");
-	parm = RNA_def_string(func, "name", "Lamp", 0, "", "New name for the data-block");
+	func = RNA_def_function(srna, "new", "rna_Main_lights_new");
+	RNA_def_function_ui_description(func, "Add a new light to the main database");
+	parm = RNA_def_string(func, "name", "Light", 0, "", "New name for the data-block");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_enum(func, "type", rna_enum_lamp_type_items, 0, "Type", "The type of texture to add");
+	parm = RNA_def_enum(func, "type", rna_enum_light_type_items, 0, "Type", "The type of texture to add");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
-	parm = RNA_def_pointer(func, "lamp", "Lamp", "", "New lamp data-block");
+	parm = RNA_def_pointer(func, "light", "Light", "", "New light data-block");
 	RNA_def_function_return(func, parm);
 
 	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_function_ui_description(func, "Remove a lamp from the current blendfile");
-	parm = RNA_def_pointer(func, "lamp", "Lamp", "", "Lamp to remove");
+	RNA_def_function_ui_description(func, "Remove a light from the current blendfile");
+	parm = RNA_def_pointer(func, "light", "Light", "", "Light to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 	RNA_def_boolean(func, "do_unlink", true, "",
-	                "Unlink all usages of this lamp before deleting it "
-	                "(WARNING: will also delete objects instancing that lamp data)");
+	                "Unlink all usages of this Light before deleting it "
+	                "(WARNING: will also delete objects instancing that light data)");
 	RNA_def_boolean(func, "do_id_user", true, "",
-	                "Decrement user counter of all datablocks used by this lamp data");
+	                "Decrement user counter of all datablocks used by this light data");
 	RNA_def_boolean(func, "do_ui_user", true, "",
-	                "Make sure interface does not reference this lamp data");
+	                "Make sure interface does not reference this light data");
 
-	func = RNA_def_function(srna, "tag", "rna_Main_lamps_tag");
+	func = RNA_def_function(srna, "tag", "rna_Main_lights_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 }
@@ -1256,6 +1280,11 @@ void RNA_def_main_brushes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_brushes_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+
+	func = RNA_def_function(srna, "create_gpencil_data", "rna_Main_brush_gpencil_data");
+	RNA_def_function_ui_description(func, "Add grease pencil brush settings");
+	parm = RNA_def_pointer(func, "brush", "Brush", "", "Brush");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 }
 
 void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop)

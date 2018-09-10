@@ -25,7 +25,7 @@ __all__ = (
     "draw_filtered",
     "draw_hierarchy",
     "draw_keymaps",
-    )
+)
 
 
 import bpy
@@ -39,7 +39,7 @@ def _indented_layout(layout, level):
         level = 0.0001   # Tweak so that a percentage of 0 won't split by half
     indent = level * indentpx / bpy.context.region.width
 
-    split = layout.split(percentage=indent)
+    split = layout.split(factor=indent)
     col = split.column()
     col = split.column()
     return col
@@ -103,7 +103,7 @@ def draw_km(display_keymaps, kc, km, children, layout, level):
 
             # "Add New" at end of keymap item list
             subcol = _indented_layout(col, kmi_level)
-            subcol = subcol.split(percentage=0.2).column()
+            subcol = subcol.split(factor=0.2).column()
             subcol.operator("wm.keyitem_add", text="Add New", text_ctxt=i18n_contexts.id_windowmanager,
                             icon='ZOOMIN')
 
@@ -167,14 +167,14 @@ def draw_kmi(display_keymaps, kc, km, kmi, layout, level):
     if kmi.show_expanded:
         box = col.box()
 
-        split = box.split(percentage=0.4)
+        split = box.split(factor=0.4)
         sub = split.row()
 
         if km.is_modal:
             sub.prop(kmi, "propvalue", text="")
         else:
             # One day...
-            #~ sub.prop_search(kmi, "idname", bpy.context.window_manager, "operators_all", text="")
+            # sub.prop_search(kmi, "idname", bpy.context.window_manager, "operators_all", text="")
             sub.prop(kmi, "idname", text="")
 
         if map_type not in {'TEXTINPUT', 'TIMER'}:
@@ -207,6 +207,7 @@ def draw_kmi(display_keymaps, kc, km, kmi, layout, level):
                 draw_km(display_keymaps, kc, kmm, None, layout, level + 1)
                 layout.context_pointer_set("keymap", km)
 
+
 _EVENT_TYPES = set()
 _EVENT_TYPE_MAP = {}
 _EVENT_TYPE_MAP_EXTRA = {}
@@ -234,10 +235,10 @@ def draw_filtered(display_keymaps, filter_type, filter_text, layout):
                 "RMB": 'RIGHTMOUSE',
                 "LMB": 'LEFTMOUSE',
                 "MMB": 'MIDDLEMOUSE',
-                })
+            })
             _EVENT_TYPE_MAP_EXTRA.update({
                 "%d" % i: "NUMPAD_%d" % i for i in range(10)
-                })
+            })
         # done with once off init
 
         filter_text_split = filter_text.strip()
@@ -251,7 +252,7 @@ def draw_filtered(display_keymaps, filter_type, filter_text, layout):
             "cmd": "oskey",
             "oskey": "oskey",
             "any": "any",
-            }
+        }
         # KeyMapItem like dict, use for comparing against
         # attr: {states, ...}
         kmi_test_dict = {}
@@ -260,8 +261,8 @@ def draw_filtered(display_keymaps, filter_type, filter_text, layout):
         kmi_test_type = []
 
         # initialize? - so if a if a kmi has a MOD assigned it wont show up.
-        #~ for kv in key_mod.values():
-        #~    kmi_test_dict[kv] = {False}
+        # for kv in key_mod.values():
+        #     kmi_test_dict[kv] = {False}
 
         # altname: attr
         for kk, kv in key_mod.items():
@@ -348,7 +349,7 @@ def draw_filtered(display_keymaps, filter_type, filter_text, layout):
 
             # "Add New" at end of keymap item list
             col = _indented_layout(layout, 1)
-            subcol = col.split(percentage=0.2).column()
+            subcol = col.split(factor=0.2).column()
             subcol.operator("wm.keyitem_add", text="Add New", icon='ZOOMIN')
     return True
 
@@ -374,7 +375,7 @@ def draw_keymaps(context, layout):
 
     row = subcol.row(align=True)
 
-    #~ row.prop_search(wm.keyconfigs, "active", wm, "keyconfigs", text="Key Config")
+    # row.prop_search(wm.keyconfigs, "active", wm, "keyconfigs", text="Key Config")
     text = bpy.path.display_name(wm.keyconfigs.active.name)
     if not text:
         text = "Blender (default)"
@@ -382,10 +383,10 @@ def draw_keymaps(context, layout):
     row.operator("wm.keyconfig_preset_add", text="", icon='ZOOMIN')
     row.operator("wm.keyconfig_preset_add", text="", icon='ZOOMOUT').remove_active = True
 
-    #~ layout.context_pointer_set("keyconfig", wm.keyconfigs.active)
-    #~ row.operator("wm.keyconfig_remove", text="", icon='X')
+    # layout.context_pointer_set("keyconfig", wm.keyconfigs.active)
+    # row.operator("wm.keyconfig_remove", text="", icon='X')
     row.separator()
-    rowsub = row.split(align=True, percentage=0.33)
+    rowsub = row.split(factor=0.33, align=True)
     # postpone drawing into rowsub, so we can set alert!
 
     col.separator()

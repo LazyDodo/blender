@@ -184,7 +184,7 @@ void ED_view3d_smooth_view_ex(
 	}
 
 	/* skip smooth viewing for render engine draw */
-	if (smooth_viewtx && v3d->drawtype != OB_RENDER) {
+	if (smooth_viewtx && v3d->shading.type != OB_RENDER) {
 		bool changed = false; /* zero means no difference */
 
 		if (sview->camera_old != sview->camera)
@@ -464,7 +464,7 @@ static int view3d_camera_to_view_exec(bContext *C, wmOperator *UNUSED(op))
 
 }
 
-static int view3d_camera_to_view_poll(bContext *C)
+static bool view3d_camera_to_view_poll(bContext *C)
 {
 	View3D *v3d;
 	ARegion *ar;
@@ -663,7 +663,7 @@ static int view3d_setobjectascamera_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-int ED_operator_rv3d_user_region_poll(bContext *C)
+bool ED_operator_rv3d_user_region_poll(bContext *C)
 {
 	View3D *v3d_dummy;
 	ARegion *ar_dummy;
@@ -721,14 +721,14 @@ void view3d_winmatrix_set(Depsgraph *depsgraph, ARegion *ar, const View3D *v3d, 
 	}
 
 	if (is_ortho) {
-		gpuOrtho(viewplane.xmin, viewplane.xmax, viewplane.ymin, viewplane.ymax, clipsta, clipend);
+		GPU_matrix_ortho_set(viewplane.xmin, viewplane.xmax, viewplane.ymin, viewplane.ymax, clipsta, clipend);
 	}
 	else {
-		gpuFrustum(viewplane.xmin, viewplane.xmax, viewplane.ymin, viewplane.ymax, clipsta, clipend);
+		GPU_matrix_frustum_set(viewplane.xmin, viewplane.xmax, viewplane.ymin, viewplane.ymax, clipsta, clipend);
 	}
 
 	/* update matrix in 3d view region */
-	gpuGetProjectionMatrix(rv3d->winmat);
+	GPU_matrix_projection_get(rv3d->winmat);
 }
 
 static void obmat_to_viewmat(RegionView3D *rv3d, Object *ob)
@@ -857,7 +857,6 @@ void view3d_opengl_select_cache_end(void)
 	GPU_select_cache_end();
 }
 
-#ifndef WITH_OPENGL_LEGACY
 struct DrawSelectLoopUserData {
 	uint  pass;
 	uint  hits;
@@ -894,7 +893,6 @@ static bool drw_select_loop_pass(eDRWSelectStage stage, void *user_data)
 	return continue_pass;
 
 }
-#endif /* WITH_OPENGL_LEGACY */
 
 /** Implement #VIEW3D_SELECT_FILTER_OBJECT_MODE_LOCK. */
 static bool drw_select_filter_object_mode_lock(Object *ob, void *user_data)
@@ -920,7 +918,7 @@ int view3d_opengl_select(
 	View3D *v3d = vc->v3d;
 	ARegion *ar = vc->ar;
 	rcti rect;
-	int hits;
+	int hits = 0;
 	const bool use_obedit_skip = (OBEDIT_FROM_VIEW_LAYER(vc->view_layer) != NULL) && (vc->obedit == NULL);
 	const bool is_pick_select = (U.gpu_select_pick_deph != 0);
 	const bool do_passes = (
@@ -928,6 +926,7 @@ int view3d_opengl_select(
 	        (select_mode == VIEW3D_SELECT_PICK_NEAREST) &&
 	        GPU_select_query_check_active());
 	const bool use_nearest = (is_pick_select && select_mode == VIEW3D_SELECT_PICK_NEAREST);
+	bool draw_surface = true;
 
 	char gpu_select_mode;
 
@@ -992,10 +991,8 @@ int view3d_opengl_select(
 		goto finally;
 	}
 
-#ifndef WITH_OPENGL_LEGACY
 	/* All of the queries need to be perform on the drawing context. */
 	DRW_opengl_context_enable();
-#endif
 
 	G.f |= G_PICKSEL;
 
@@ -1003,30 +1000,16 @@ int view3d_opengl_select(
 	 * the object & bone view locking takes 'rect' into account, see: T51629. */
 	ED_view3d_draw_setup_view(vc->win, depsgraph, scene, ar, v3d, vc->rv3d->viewmat, NULL, &rect);
 
-	if (v3d->drawtype > OB_WIRE) {
-		v3d->zbuf = true;
+	if (v3d->shading.type > OB_WIRE) {
 		GPU_depth_test(true);
 	}
 
-	if (vc->rv3d->rflag & RV3D_CLIPPING)
+	if (vc->rv3d->rflag & RV3D_CLIPPING) {
 		ED_view3d_clipping_set(vc->rv3d);
-
-
-#ifdef WITH_OPENGL_LEGACY
-	if (IS_VIEWPORT_LEGACY(vc->v3d)) {
-		GPU_select_begin(buffer, bufsize, &rect, gpu_select_mode, 0);
-		ED_view3d_draw_select_loop(vc, scene, sl, v3d, ar, use_obedit_skip, use_nearest);
-		hits = GPU_select_end();
-
-		if (do_passes && (hits > 0)) {
-			GPU_select_begin(buffer, bufsize, &rect, GPU_SELECT_NEAREST_SECOND_PASS, hits);
-			ED_view3d_draw_select_loop(vc, scene, sl, v3d, ar, use_obedit_skip, use_nearest);
-			GPU_select_end();
-		}
 	}
-	else
-#else
-	{
+
+	/* If in xray mode, we select the wires in priority. */
+	if (v3d->shading.flag & V3D_SHADING_XRAY) {
 		/* We need to call "GPU_select_*" API's inside DRW_draw_select_loop
 		 * because the OpenGL context created & destroyed inside this function. */
 		struct DrawSelectLoopUserData drw_select_loop_user_data = {
@@ -1037,29 +1020,49 @@ int view3d_opengl_select(
 			.rect = &rect,
 			.gpu_select_mode = gpu_select_mode,
 		};
+		draw_surface = false;
 		DRW_draw_select_loop(
 		        depsgraph, ar, v3d,
-		        use_obedit_skip, use_nearest, &rect,
+		        use_obedit_skip, draw_surface, use_nearest, &rect,
+		        drw_select_loop_pass, &drw_select_loop_user_data,
+		        object_filter.fn, object_filter.user_data);
+		hits = drw_select_loop_user_data.hits;
+		/* FIX: This cleanup the state before doing another selection pass.
+		 * (see T56695) */
+		GPU_select_cache_end();
+	}
+
+	if (hits == 0) {
+		/* We need to call "GPU_select_*" API's inside DRW_draw_select_loop
+		 * because the OpenGL context created & destroyed inside this function. */
+		struct DrawSelectLoopUserData drw_select_loop_user_data = {
+			.pass = 0,
+			.hits = 0,
+			.buffer = buffer,
+			.buffer_len = bufsize,
+			.rect = &rect,
+			.gpu_select_mode = gpu_select_mode,
+		};
+		draw_surface = true;
+		DRW_draw_select_loop(
+		        depsgraph, ar, v3d,
+		        use_obedit_skip, draw_surface, use_nearest, &rect,
 		        drw_select_loop_pass, &drw_select_loop_user_data,
 		        object_filter.fn, object_filter.user_data);
 		hits = drw_select_loop_user_data.hits;
 	}
-#endif /* WITH_OPENGL_LEGACY */
 
 	G.f &= ~G_PICKSEL;
 	ED_view3d_draw_setup_view(vc->win, depsgraph, scene, ar, v3d, vc->rv3d->viewmat, NULL, NULL);
 
-	if (v3d->drawtype > OB_WIRE) {
-		v3d->zbuf = 0;
+	if (v3d->shading.type > OB_WIRE) {
 		GPU_depth_test(false);
 	}
 
 	if (vc->rv3d->rflag & RV3D_CLIPPING)
 		ED_view3d_clipping_disable();
 
-#ifndef WITH_OPENGL_LEGACY
 	DRW_opengl_context_disable();
-#endif
 
 finally:
 

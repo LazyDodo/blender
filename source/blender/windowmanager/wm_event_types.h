@@ -26,9 +26,8 @@
 
 
 /*
- *  These define have its origin at sgi, where all device defines were written down in device.h.
- *  Blender copied the conventions quite some, and expanded it with internal new defines (ton)
- *
+ * These define have its origin at sgi, where all device defines were written down in device.h.
+ * Blender copied the conventions quite some, and expanded it with internal new defines (ton)
  */
 
 
@@ -339,8 +338,8 @@ enum {
 	EVT_DROP              = 0x5023,
 	EVT_BUT_CANCEL        = 0x5024,
 
-	/* could become manipulator callback */
-	EVT_MANIPULATOR_UPDATE     = 0x5025,
+	/* could become gizmo callback */
+	EVT_GIZMO_UPDATE     = 0x5025,
 	/* ********** End of Blender internal events. ********** */
 };
 

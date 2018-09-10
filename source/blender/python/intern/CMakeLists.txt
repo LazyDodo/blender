@@ -66,7 +66,7 @@ set(SRC
 	bpy_intern_string.c
 	bpy_library_load.c
 	bpy_library_write.c
-	bpy_manipulator_wrap.c
+	bpy_gizmo_wrap.c
 	bpy_msgbus.c
 	bpy_operator.c
 	bpy_operator_wrap.c
@@ -78,14 +78,10 @@ set(SRC
 	bpy_rna_callback.c
 	bpy_rna_driver.c
 	bpy_rna_id_collection.c
-	bpy_rna_manipulator.c
+	bpy_rna_gizmo.c
 	bpy_traceback.c
 	bpy_utils_previews.c
 	bpy_utils_units.c
-	gpu.c
-	gpu_offscreen.c
-	gpu_py_matrix.c
-	gpu_py_select.c
 	stubs.c
 
 	bpy.h
@@ -105,7 +101,7 @@ set(SRC
 	bpy_driver.h
 	bpy_intern_string.h
 	bpy_library.h
-	bpy_manipulator_wrap.h
+	bpy_gizmo_wrap.h
 	bpy_msgbus.h
 	bpy_operator.h
 	bpy_operator_wrap.h
@@ -116,11 +112,10 @@ set(SRC
 	bpy_rna_callback.h
 	bpy_rna_driver.h
 	bpy_rna_id_collection.h
-	bpy_rna_manipulator.h
+	bpy_rna_gizmo.h
 	bpy_traceback.h
 	bpy_utils_previews.h
 	bpy_utils_units.h
-	gpu.h
 	../BPY_extern.h
 	../BPY_extern_clog.h
 )

@@ -395,7 +395,7 @@ static void rna_Curve_bevelObject_set(PointerRNA *ptr, PointerRNA value)
 	}
 }
 
-static int rna_Curve_otherObject_poll(PointerRNA *ptr, PointerRNA value)
+static bool rna_Curve_otherObject_poll(PointerRNA *ptr, PointerRNA value)
 {
 	Curve *cu = (Curve *)ptr->id.data;
 	Object *ob = (Object *)value.data;
@@ -737,7 +737,7 @@ static void rna_Curve_splines_begin(CollectionPropertyIterator *iter, PointerRNA
 	rna_iterator_listbase_begin(iter, BKE_curve_nurbs_get(cu), NULL);
 }
 
-static int rna_Curve_is_editmode_get(PointerRNA *ptr)
+static bool rna_Curve_is_editmode_get(PointerRNA *ptr)
 {
 	Curve *cu = (Curve *)ptr->id.data;
 	const short type = BKE_curve_type_get(cu);
@@ -969,6 +969,8 @@ static void rna_def_font(BlenderRNA *UNUSED(brna), StructRNA *srna)
 		{CU_ALIGN_Y_TOP, "TOP", 0, "Top", "Align text to the top"},
 		{CU_ALIGN_Y_CENTER, "CENTER", 0, "Center", "Align text to the middle"},
 		{CU_ALIGN_Y_BOTTOM, "BOTTOM", 0, "Bottom", "Align text to the bottom"},
+		{CU_ALIGN_Y_BOTTOM_BASELINE, "BOTTOM_BASELINE", 0, "Bottom Base-Line",
+		"Align text to the bottom but use the base-line of the text"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -1761,6 +1763,8 @@ static void rna_def_curve_nurb(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_Curve_update_data");
 
 	RNA_def_struct_path_func(srna, "rna_Curve_spline_path");
+
+	RNA_api_curve_nurb(srna);
 }
 
 void RNA_def_curve(BlenderRNA *brna)

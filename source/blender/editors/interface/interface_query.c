@@ -41,16 +41,18 @@
 
 bool ui_but_is_editable(const uiBut *but)
 {
-	return !ELEM(but->type,
-	             UI_BTYPE_LABEL, UI_BTYPE_SEPR, UI_BTYPE_SEPR_LINE,
-	             UI_BTYPE_ROUNDBOX, UI_BTYPE_LISTBOX, UI_BTYPE_PROGRESS_BAR);
+	return !ELEM(
+	        but->type,
+	        UI_BTYPE_LABEL, UI_BTYPE_SEPR, UI_BTYPE_SEPR_LINE,
+	        UI_BTYPE_ROUNDBOX, UI_BTYPE_LISTBOX, UI_BTYPE_PROGRESS_BAR);
 }
 
 bool ui_but_is_editable_as_text(const uiBut *but)
 {
-	return  ELEM(but->type,
-	             UI_BTYPE_TEXT, UI_BTYPE_NUM, UI_BTYPE_NUM_SLIDER,
-	             UI_BTYPE_SEARCH_MENU);
+	return ELEM(
+	        but->type,
+	        UI_BTYPE_TEXT, UI_BTYPE_NUM, UI_BTYPE_NUM_SLIDER,
+	        UI_BTYPE_SEARCH_MENU);
 
 }
 
@@ -94,6 +96,14 @@ bool UI_but_is_tool(const uiBut *but)
 	return false;
 }
 
+bool UI_but_has_tooltip_label(const uiBut *but)
+{
+	if ((but->drawstr[0] == '\0') && !ui_block_is_popover(but->block)) {
+		return UI_but_is_tool(but);
+	}
+	return false;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -107,9 +117,23 @@ bool ui_block_is_menu(const uiBlock *block)
 	        ((block->flag & UI_BLOCK_KEEP_OPEN) == 0));
 }
 
+bool ui_block_is_popover(const uiBlock *block)
+{
+	return (block->flag & UI_BLOCK_POPOVER) != 0;
+}
+
 bool ui_block_is_pie_menu(const uiBlock *block)
 {
 	return ((block->flag & UI_BLOCK_RADIAL) != 0);
+}
+
+bool ui_block_is_popup_any(const uiBlock *block)
+{
+	return (
+	        ui_block_is_menu(block) ||
+	        ui_block_is_popover(block) ||
+	        ui_block_is_pie_menu(block)
+	);
 }
 
 bool UI_block_is_empty(const uiBlock *block)

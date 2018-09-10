@@ -47,7 +47,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_cachefile_types.h"
 #include "DNA_camera_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_ipo_types.h"
 #include "DNA_key_types.h"
@@ -637,7 +637,7 @@ bool BKE_id_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int flag, con
 			BKE_particlesettings_copy_data(bmain, (ParticleSettings *)*r_newid, (ParticleSettings *)id, flag);
 			break;
 		case ID_GD:
-			BKE_gpencil_copy_data(bmain, (bGPdata *)*r_newid, (bGPdata *)id, flag);
+			BKE_gpencil_copy_data((bGPdata *)*r_newid, (bGPdata *)id, flag);
 			break;
 		case ID_MC:
 			BKE_movieclip_copy_data(bmain, (MovieClip *)*r_newid, (MovieClip *)id, flag);
@@ -788,6 +788,14 @@ bool id_single_user(bContext *C, ID *id, PointerRNA *ptr, PropertyRNA *prop)
 				RNA_id_pointer_create(newid, &idptr);
 				RNA_property_pointer_set(ptr, prop, idptr);
 				RNA_property_update(C, ptr, prop);
+
+				/* tag grease pencil datablock and disable onion */
+				if (GS(id->name) == ID_GD) {
+					DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA);
+					DEG_id_tag_update(newid, OB_RECALC_OB | OB_RECALC_DATA);
+					bGPdata *gpd = (bGPdata *)newid;
+					gpd->flag &= ~GP_DATA_SHOW_ONIONSKINS;
+				}
 
 				return true;
 			}
@@ -1077,6 +1085,7 @@ int set_listbasepointers(Main *main, ListBase **lb)
 	lb[INDEX_ID_IP] = &(main->ipo);
 	lb[INDEX_ID_AC] = &(main->action); /* moved here to avoid problems when freeing with animato (aligorith) */
 	lb[INDEX_ID_KE] = &(main->key);
+	lb[INDEX_ID_PAL] = &(main->palettes); /* referenced by gpencil, so needs to be before that to avoid crashes */
 	lb[INDEX_ID_GD] = &(main->gpencil); /* referenced by nodes, objects, view, scene etc, before to free after. */
 	lb[INDEX_ID_NT] = &(main->nodetree);
 	lb[INDEX_ID_IM] = &(main->image);
@@ -1410,13 +1419,13 @@ void *BKE_id_new_nomain(const short type, const char *name)
 
 /* by spec, animdata is first item after ID */
 /* and, trust that BKE_animdata_from_id() will only find AnimData for valid ID-types */
-static void id_copy_animdata(Main *bmain, ID *id, const bool do_action)
+static void id_copy_animdata(Main *bmain, ID *id, const bool do_action, const bool do_id_user)
 {
 	AnimData *adt = BKE_animdata_from_id(id);
 
 	if (adt) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)id;
-		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, true); /* could be set to false, need to investigate */
+		iat->adt = BKE_animdata_copy(bmain, iat->adt, do_action, do_id_user);
 	}
 }
 
@@ -1473,7 +1482,9 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 	/* the duplicate should get a copy of the animdata */
 	if ((flag & LIB_ID_COPY_NO_ANIMDATA) == 0) {
 		BLI_assert((flag & LIB_ID_COPY_ACTIONS) == 0 || (flag & LIB_ID_CREATE_NO_MAIN) == 0);
-		id_copy_animdata(bmain, new_id, (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0);
+		id_copy_animdata(bmain, new_id,
+		                 (flag & LIB_ID_COPY_ACTIONS) != 0 && (flag & LIB_ID_CREATE_NO_MAIN) == 0,
+		                 (flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0);
 	}
 	else if (id_can_have_animdata(new_id)) {
 		IdAdtTemplate *iat = (IdAdtTemplate *)new_id;
@@ -2473,7 +2484,7 @@ void BKE_library_make_local(
 	 * Try "make all local" in 04_01_H.lighting.blend from Agent327 without this, e.g. */
 	for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->data != NULL && ob->type == OB_ARMATURE && ob->pose != NULL && ob->pose->flag & POSE_RECALC) {
-			BKE_pose_rebuild(ob, ob->data);
+			BKE_pose_rebuild(bmain, ob, ob->data, true);
 		}
 	}
 
@@ -2531,6 +2542,25 @@ void BKE_id_ui_prefix(char name[MAX_ID_NAME + 1], const ID *id)
 	name[2] = ' ';
 
 	strcpy(name + 3, id->name + 2);
+}
+
+/**
+ * Returns an allocated string concatenating ID name (including two-chars type code) and its lib name if any,
+ * which is expected to be unique in a given Main database..
+ */
+char *BKE_id_to_unique_string_key(const struct ID *id)
+{
+	const size_t key_len_base = strlen(id->name) + 1;
+	const size_t key_len_ext = ((id->lib != NULL) ? strlen(id->lib->name) : 0) + 1;
+	const size_t key_len = key_len_base + key_len_ext - 1;
+	char *key = MEM_mallocN(key_len, __func__);
+
+	BLI_strncpy(key, id->name, key_len_base);
+	if (id->lib != NULL) {
+		BLI_strncpy(key + key_len_base - 1, id->lib->name, key_len_ext);
+	}
+
+	return key;
 }
 
 void BKE_library_filepath_set(Main *bmain, Library *lib, const char *filepath)

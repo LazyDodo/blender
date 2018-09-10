@@ -47,11 +47,11 @@ extern "C" {
 #include "DNA_armature_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cachefile_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
@@ -85,10 +85,12 @@ extern "C" {
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_modifier.h"
+#include "BKE_gpencil_modifier.h"
 #include "BKE_node.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
 #include "BKE_rigidbody.h"
+#include "BKE_shader_fx.h"
 #include "BKE_sound.h"
 #include "BKE_tracking.h"
 #include "BKE_world.h"
@@ -181,6 +183,23 @@ static bool check_id_has_anim_component(ID *id)
 	}
 	return (adt->action != NULL) ||
 	       (!BLI_listbase_is_empty(&adt->nla_tracks));
+}
+
+static eDepsOperation_Code bone_target_opcode(ID *target, const char *subtarget, ID *id, const char *component_subdata, RootPChanMap *root_map)
+{
+	/* same armature  */
+	if (target == id) {
+		/* Using "done" here breaks in-chain deps, while using
+		 * "ready" here breaks most production rigs instead.
+		 * So, we do a compromise here, and only do this when an
+		 * IK chain conflict may occur.
+		 */
+		if (root_map->has_common_root(component_subdata, subtarget)) {
+			return DEG_OPCODE_BONE_READY;
+		}
+	}
+
+	return DEG_OPCODE_BONE_DONE;
 }
 
 /* **** General purpose functions ****  */
@@ -390,7 +409,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 			build_camera((Camera *)id);
 			break;
 		case ID_GR:
-			build_collection(DEG_COLLECTION_OWNER_UNKNOWN, NULL, (Collection *)id);
+			build_collection(NULL, (Collection *)id);
 			break;
 		case ID_OB:
 			build_object(NULL, (Object *)id);
@@ -439,37 +458,19 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 }
 
 void DepsgraphRelationBuilder::build_collection(
-        eDepsNode_CollectionOwner owner_type,
         Object *object,
         Collection *collection)
 {
-	const bool allow_restrict_flags = (owner_type == DEG_COLLECTION_OWNER_SCENE);
-	if (allow_restrict_flags) {
-		const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-		        ? COLLECTION_RESTRICT_VIEW
-		        : COLLECTION_RESTRICT_RENDER;
-		if (collection->flag & restrict_flag) {
-			return;
-		}
-	}
 	const bool group_done = built_map_.checkIsBuiltAndTag(collection);
 	OperationKey object_transform_final_key(object != NULL ? &object->id : NULL,
 	                                        DEG_NODE_TYPE_TRANSFORM,
 	                                        DEG_OPCODE_TRANSFORM_FINAL);
 	if (!group_done) {
 		LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
-			if (allow_restrict_flags) {
-				const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-				        ? OB_RESTRICT_VIEW
-				        : OB_RESTRICT_RENDER;
-				if (cob->ob->restrictflag & restrict_flag) {
-					continue;
-				}
-			}
 			build_object(NULL, cob->ob);
 		}
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-			build_collection(owner_type, NULL, child->collection);
+			build_collection(NULL, child->collection);
 		}
 	}
 	if (object != NULL) {
@@ -525,6 +526,18 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 		data.builder = this;
 		modifiers_foreachIDLink(object, modifier_walk, &data);
 	}
+	/* Grease Pencil Modifiers. */
+	if (object->greasepencil_modifiers.first != NULL) {
+		BuilderWalkUserData data;
+		data.builder = this;
+		BKE_gpencil_modifiers_foreachIDLink(object, modifier_walk, &data);
+	}
+	/* Shader FX. */
+	if (object->shader_fx.first != NULL) {
+		BuilderWalkUserData data;
+		data.builder = this;
+		BKE_shaderfx_foreachIDLink(object, modifier_walk, &data);
+	}
 	/* Constraints. */
 	if (object->constraints.first != NULL) {
 		BuilderWalkUserData data;
@@ -570,17 +583,9 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	if (object->particlesystem.first != NULL) {
 		build_particles(object);
 	}
-	/* Grease pencil. */
-	if (object->gpd != NULL) {
-		build_gpencil(object->gpd);
-	}
 	/* Proxy object to copy from. */
 	if (object->proxy_from != NULL) {
 		build_object(NULL, object->proxy_from);
-		ComponentKey ob_pose_key(&object->proxy_from->id, DEG_NODE_TYPE_EVAL_POSE);
-		ComponentKey proxy_pose_key(&object->id, DEG_NODE_TYPE_EVAL_POSE);
-		add_relation(ob_pose_key, proxy_pose_key, "Proxy Pose");
-
 		ComponentKey ob_transform_key(&object->proxy_from->id, DEG_NODE_TYPE_TRANSFORM);
 		ComponentKey proxy_transform_key(&object->id, DEG_NODE_TYPE_TRANSFORM);
 		add_relation(ob_transform_key, proxy_transform_key, "Proxy Transform");
@@ -594,7 +599,7 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, object, object->dup_group);
+		build_collection(object, object->dup_group);
 	}
 }
 
@@ -630,6 +635,7 @@ void DepsgraphRelationBuilder::build_object_data(Object *object)
 		case OB_SURF:
 		case OB_MBALL:
 		case OB_LATTICE:
+		case OB_GPENCIL:
 		{
 			build_object_data_geometry(object);
 			break;
@@ -679,7 +685,7 @@ void DepsgraphRelationBuilder::build_object_data_lamp(Object *object)
 	build_lamp(lamp);
 	ComponentKey object_parameters_key(&object->id, DEG_NODE_TYPE_PARAMETERS);
 	ComponentKey lamp_parameters_key(&lamp->id, DEG_NODE_TYPE_PARAMETERS);
-	add_relation(lamp_parameters_key, object_parameters_key, "Lamp -> Object");
+	add_relation(lamp_parameters_key, object_parameters_key, "Light -> Object");
 }
 
 void DepsgraphRelationBuilder::build_object_data_lightprobe(Object *object)
@@ -900,38 +906,42 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					add_relation(target_transform_key, constraint_op_key, cti->name);
 				}
 				else if ((ct->tar->type == OB_ARMATURE) && (ct->subtarget[0])) {
-					/* bone */
-					if (&ct->tar->id == id) {
-						/* same armature  */
-						eDepsOperation_Code target_key_opcode;
-						/* Using "done" here breaks in-chain deps, while using
-						 * "ready" here breaks most production rigs instead.
-						 * So, we do a compromise here, and only do this when an
-						 * IK chain conflict may occur.
-						 */
-						if (root_map->has_common_root(component_subdata,
-						                              ct->subtarget))
-						{
-							target_key_opcode = DEG_OPCODE_BONE_READY;
+					eDepsOperation_Code opcode;
+					/* relation to bone */
+					opcode = bone_target_opcode(&ct->tar->id, ct->subtarget,
+					                            id, component_subdata, root_map);
+					OperationKey target_key(&ct->tar->id,
+					                        DEG_NODE_TYPE_BONE,
+					                        ct->subtarget,
+					                        opcode);
+					add_relation(target_key, constraint_op_key, cti->name);
+					/* if needs bbone shape, also reference handles */
+					if (con->flag & CONSTRAINT_BBONE_SHAPE) {
+						bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
+						/* actually a bbone */
+						if (pchan && pchan->bone && pchan->bone->segments > 1) {
+							bPoseChannel *prev, *next;
+							BKE_pchan_get_bbone_handles(pchan, &prev, &next);
+							/* add handle links */
+							if (prev) {
+								opcode = bone_target_opcode(&ct->tar->id, prev->name,
+								                            id, component_subdata, root_map);
+								OperationKey prev_key(&ct->tar->id,
+								                      DEG_NODE_TYPE_BONE,
+								                      prev->name,
+								                      opcode);
+								add_relation(prev_key, constraint_op_key, cti->name);
+							}
+							if (next) {
+								opcode = bone_target_opcode(&ct->tar->id, next->name,
+								                            id, component_subdata, root_map);
+								OperationKey next_key(&ct->tar->id,
+								                      DEG_NODE_TYPE_BONE,
+								                      next->name,
+								                      opcode);
+								add_relation(next_key, constraint_op_key, cti->name);
+							}
 						}
-						else {
-							target_key_opcode = DEG_OPCODE_BONE_DONE;
-						}
-						OperationKey target_key(&ct->tar->id,
-						                        DEG_NODE_TYPE_BONE,
-						                        ct->subtarget,
-						                        target_key_opcode);
-						add_relation(target_key, constraint_op_key, cti->name);
-					}
-					else {
-						/* Different armature - we can safely use the result
-						 * of that.
-						 */
-						OperationKey target_key(&ct->tar->id,
-						                        DEG_NODE_TYPE_BONE,
-						                        ct->subtarget,
-						                        DEG_OPCODE_BONE_DONE);
-						add_relation(target_key, constraint_op_key, cti->name);
 					}
 				}
 				else if (ELEM(ct->tar->type, OB_MESH, OB_LATTICE) &&
@@ -1351,6 +1361,14 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 				continue;
 			}
 			build_id(dtar->id);
+			/* Initialize relations coming to proxy_from. */
+			Object *proxy_from = NULL;
+			if ((GS(dtar->id->name) == ID_OB) &&
+			    (((Object *)dtar->id)->proxy_from != NULL))
+			{
+				proxy_from = ((Object *)dtar->id)->proxy_from;
+				build_id(&proxy_from->id);
+			}
 			/* Special handling for directly-named bones. */
 			if ((dtar->flag & DTAR_FLAG_STRUCT_REF) &&
 			    (((Object *)dtar->id)->type == OB_ARMATURE) &&
@@ -1398,6 +1416,13 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 					continue;
 				}
 				add_relation(variable_key, driver_key, "RNA Target -> Driver");
+				if (proxy_from != NULL) {
+					RNAPathKey proxy_from_variable_key(&proxy_from->id,
+					                                   dtar->rna_path);
+					add_relation(proxy_from_variable_key,
+					             variable_key,
+					             "Proxy From -> Variable");
+				}
 			}
 			else {
 				if (dtar->id == id) {
@@ -1452,7 +1477,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, rbw->group);
+		build_collection(NULL, rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
@@ -1634,7 +1659,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, part->dup_group);
+					build_collection(NULL, part->dup_group);
 					LISTBASE_FOREACH (CollectionObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,
@@ -1783,6 +1808,42 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 			}
 		}
 	}
+	/* Grease Pencil Modifiers */
+	if (object->greasepencil_modifiers.first != NULL) {
+		ModifierUpdateDepsgraphContext ctx = {};
+		ctx.scene = scene_;
+		ctx.object = object;
+		LISTBASE_FOREACH(GpencilModifierData *, md, &object->greasepencil_modifiers) {
+			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo((GpencilModifierType)md->type);
+			if (mti->updateDepsgraph) {
+				DepsNodeHandle handle = create_node_handle(obdata_ubereval_key);
+				ctx.node = reinterpret_cast< ::DepsNodeHandle* >(&handle);
+				mti->updateDepsgraph(md, &ctx);
+			}
+			if (BKE_object_modifier_gpencil_use_time(object, md)) {
+				TimeSourceKey time_src_key;
+				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
+			}
+		}
+	}
+	/* Shader FX */
+	if (object->shader_fx.first != NULL) {
+		ModifierUpdateDepsgraphContext ctx = {};
+		ctx.scene = scene_;
+		ctx.object = object;
+		LISTBASE_FOREACH(ShaderFxData *, fx, &object->shader_fx) {
+			const ShaderFxTypeInfo *fxi = BKE_shaderfxType_getInfo((ShaderFxType)fx->type);
+			if (fxi->updateDepsgraph) {
+				DepsNodeHandle handle = create_node_handle(obdata_ubereval_key);
+				ctx.node = reinterpret_cast< ::DepsNodeHandle* >(&handle);
+				fxi->updateDepsgraph(fx, &ctx);
+			}
+			if (BKE_object_shaderfx_use_time(object, fx)) {
+				TimeSourceKey time_src_key;
+				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
+			}
+		}
+	}
 	/* Materials. */
 	if (object->totcol) {
 		for (int a = 1; a <= object->totcol; a++) {
@@ -1880,13 +1941,13 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 	}
 	/* Link object data evaluation node to exit operation. */
 	OperationKey obdata_geom_eval_key(obdata,
-	                                  DEG_NODE_TYPE_GEOMETRY,
-	                                  DEG_OPCODE_PLACEHOLDER,
-	                                  "Geometry Eval");
+		DEG_NODE_TYPE_GEOMETRY,
+		DEG_OPCODE_PLACEHOLDER,
+		"Geometry Eval");
 	OperationKey obdata_geom_done_key(obdata,
-	                                  DEG_NODE_TYPE_GEOMETRY,
-	                                  DEG_OPCODE_PLACEHOLDER,
-	                                  "Eval Done");
+		DEG_NODE_TYPE_GEOMETRY,
+		DEG_OPCODE_PLACEHOLDER,
+		"Eval Done");
 	add_relation(obdata_geom_eval_key,
 	             obdata_geom_done_key,
 	             "ObData Geom Eval Done");
@@ -1902,35 +1963,67 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 			Curve *cu = (Curve *)obdata;
 			if (cu->bevobj != NULL) {
 				ComponentKey bevob_geom_key(&cu->bevobj->id,
-				                            DEG_NODE_TYPE_GEOMETRY);
+					DEG_NODE_TYPE_GEOMETRY);
 				add_relation(bevob_geom_key,
-				             obdata_geom_eval_key,
-				             "Curve Bevel Geometry");
+					obdata_geom_eval_key,
+					"Curve Bevel Geometry");
 				ComponentKey bevob_key(&cu->bevobj->id,
-				                       DEG_NODE_TYPE_TRANSFORM);
+					DEG_NODE_TYPE_TRANSFORM);
 				add_relation(bevob_key,
-				             obdata_geom_eval_key,
-				             "Curve Bevel Transform");
+					obdata_geom_eval_key,
+					"Curve Bevel Transform");
 				build_object(NULL, cu->bevobj);
 			}
 			if (cu->taperobj != NULL) {
 				ComponentKey taperob_key(&cu->taperobj->id,
-				                         DEG_NODE_TYPE_GEOMETRY);
+					DEG_NODE_TYPE_GEOMETRY);
 				add_relation(taperob_key, obdata_geom_eval_key, "Curve Taper");
 				build_object(NULL, cu->taperobj);
 			}
 			if (cu->textoncurve != NULL) {
 				ComponentKey textoncurve_key(&cu->textoncurve->id,
-				                             DEG_NODE_TYPE_GEOMETRY);
+					DEG_NODE_TYPE_GEOMETRY);
 				add_relation(textoncurve_key,
-				             obdata_geom_eval_key,
-				             "Text on Curve");
+					obdata_geom_eval_key,
+					"Text on Curve");
 				build_object(NULL, cu->textoncurve);
 			}
 			break;
 		}
 		case ID_LT:
 			break;
+		case ID_GD: /* Grease Pencil */
+		{
+			bGPdata *gpd = (bGPdata *)obdata;
+
+			/* Geometry cache needs to be recalculated on frame change
+			 * (e.g. to fix crashes after scrubbing the timeline when
+			 * onion skinning is enabled, since the ghosts need to be
+			 * re-added to the cache once scrubbing ends)
+			 */
+			TimeSourceKey time_key;
+			ComponentKey geometry_key(obdata, DEG_NODE_TYPE_GEOMETRY);
+			add_relation(time_key,
+			             geometry_key,
+			             "GP Frame Change");
+
+			/* Geometry cache also needs to be recalculated when Material
+			 * settings change (e.g. when fill.opacity changes on/off,
+			 * we need to rebuild the bGPDstroke->triangles caches)
+			 */
+			for (int i = 0; i < gpd->totcol; i++) {
+				Material *ma = gpd->mat[i];
+				if ((ma != NULL) && (ma->gp_style != NULL)) {
+					OperationKey material_key(&ma->id,
+					                          DEG_NODE_TYPE_SHADING,
+					                          DEG_OPCODE_MATERIAL_UPDATE);
+					add_relation(material_key,
+					             geometry_key,
+					             "Material -> GP Data");
+				}
+			}
+			break;
+		}
 		default:
 			BLI_assert(!"Should not happen");
 			break;
@@ -1968,7 +2061,7 @@ void DepsgraphRelationBuilder::build_lamp(Lamp *lamp)
 		build_nodetree(lamp->nodetree);
 		ComponentKey lamp_parameters_key(&lamp->id, DEG_NODE_TYPE_PARAMETERS);
 		ComponentKey nodetree_key(&lamp->nodetree->id, DEG_NODE_TYPE_SHADING);
-		add_relation(nodetree_key, lamp_parameters_key, "NTree->Lamp Parameters");
+		add_relation(nodetree_key, lamp_parameters_key, "NTree->Light Parameters");
 		build_nested_nodetree(&lamp->id, lamp->nodetree);
 	}
 }
@@ -2009,6 +2102,9 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 		}
 		else if (id_type == ID_TXT) {
 			/* Ignore script nodes. */
+		}
+		else if (id_type == ID_MC) {
+			build_movieclip((MovieClip *)id);
 		}
 		else if (bnode->type == NODE_GROUP) {
 			bNodeTree *group_ntree = (bNodeTree *)id;
@@ -2186,7 +2282,7 @@ void DepsgraphRelationBuilder::build_nested_shapekey(ID *owner, Key *key)
 void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node)
 {
 	ID *id_orig = id_node->id_orig;
-
+	const ID_Type id_type = GS(id_orig->name);
 	TimeSourceKey time_source_key;
 	OperationKey copy_on_write_key(id_orig,
 	                               DEG_NODE_TYPE_COPY_ON_WRITE,
@@ -2209,9 +2305,33 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 			/* Component explicitly requests to not add relation. */
 			continue;
 		}
-		int rel_flag = 0;
-		if (comp_node->type == DEG_NODE_TYPE_ANIMATION) {
-			rel_flag |= DEPSREL_FLAG_NO_FLUSH;
+		int rel_flag = DEPSREL_FLAG_NO_FLUSH;
+		if (id_type == ID_ME && comp_node->type == DEG_NODE_TYPE_GEOMETRY) {
+			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
+		}
+		/* materials need update grease pencil objects */
+		if (id_type == ID_MA) {
+			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
+		}
+
+		/* Notes on exceptions:
+		 * - Parameters component is where drivers are living. Changing any
+		 *   of the (custom) properties in the original datablock (even the
+		 *   ones which do not imply other component update) need to make
+		 *   sure drivers are properly updated.
+		 *   This way, for example, changing ID property will properly poke
+		 *   all drivers to be updated.
+		 *
+		 * - View layers have cached array of bases in them, which is not
+		 *   copied by copy-on-write, and not preserved. PROBABLY it is better
+		 *   to preserve that cache in copy-on-write, but for the time being
+		 *   we allow flush to layer collections component which will ensure
+		 *   that cached array fo bases exists and is up-to-date.
+		 */
+		if (comp_node->type == DEG_NODE_TYPE_PARAMETERS ||
+		    comp_node->type == DEG_NODE_TYPE_LAYER_COLLECTIONS)
+		{
+			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
 		/* All entry operations of each component should wait for a proper
 		 * copy of ID.

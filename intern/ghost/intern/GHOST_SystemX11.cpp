@@ -261,7 +261,7 @@ GHOST_SystemX11::
 #endif /* WITH_X11_XINPUT */
 
 	if (m_xkb_descr) {
-		XkbFreeNames(m_xkb_descr, XkbKeyNamesMask, false);
+		XkbFreeKeyboard (m_xkb_descr, XkbAllComponentsMask, true);
 	}
 
 	XCloseDisplay(m_display);
@@ -1903,7 +1903,7 @@ ghost_key_from_keycode(const XkbDescPtr xkb_descr, const KeyCode keycode)
 #endif
 		}
 	}
-	else {
+	else if (keycode != 0) {
 		GHOST_ASSERT(false, "KeyCode out of range!");
 	}
 	return GHOST_kKeyUnknown;

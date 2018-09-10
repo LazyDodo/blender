@@ -66,8 +66,10 @@ static void eevee_engine_init(void *ved)
 		/* Alloc transient pointers */
 		stl->g_data = MEM_callocN(sizeof(*stl->g_data), __func__);
 	}
+	stl->g_data->use_color_view_settings = USE_SCENE_LIGHT(v3d) || !LOOK_DEV_STUDIO_LIGHT_ENABLED(v3d);
 	stl->g_data->background_alpha = DRW_state_draw_background() ? 1.0f : 0.0f;
 	stl->g_data->valid_double_buffer = (txl->color_double_buffer != NULL);
+	stl->g_data->valid_taa_history = (txl->taa_history != NULL);
 
 	/* Main Buffer */
 	DRW_texture_ensure_fullscreen_2D(&txl->color, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
@@ -123,7 +125,7 @@ static void eevee_cache_init(void *vedata)
 	EEVEE_volumes_cache_init(sldata, vedata);
 }
 
-static void eevee_cache_populate(void *vedata, Object *ob)
+void EEVEE_cache_populate(void *vedata, Object *ob)
 {
 	EEVEE_ViewLayerData *sldata = EEVEE_view_layer_data_ensure();
 
@@ -146,7 +148,7 @@ static void eevee_cache_populate(void *vedata, Object *ob)
 				/* TODO: Special case for dupli objects because we cannot save the object pointer. */
 			}
 			else {
-				EEVEE_lightprobes_cache_add(sldata, ob);
+				EEVEE_lightprobes_cache_add(sldata, vedata, ob);
 			}
 		}
 		else if (ob->type == OB_LAMP) {
@@ -191,13 +193,13 @@ static void eevee_draw_background(void *vedata)
 
 	/* Number of iteration: needed for all temporal effect (SSR, volumetrics)
 	 * when using opengl render. */
-	int loop_ct = (DRW_state_is_image_render() &&
+	int loop_len = (DRW_state_is_image_render() &&
 	               (stl->effects->enabled_effects & (EFFECT_VOLUMETRIC | EFFECT_SSR)) != 0) ? 4 : 1;
 
-	while (loop_ct--) {
+	while (loop_len--) {
 		float clear_col[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		float clear_depth = 1.0f;
-		uint clear_stencil = 0xFF;
+		uint clear_stencil = 0x0;
 		uint primes[3] = {2, 3, 7};
 		double offset[3] = {0.0, 0.0, 0.0};
 		double r[3];
@@ -282,7 +284,9 @@ static void eevee_draw_background(void *vedata)
 		EEVEE_subsurface_compute(sldata, vedata);
 		EEVEE_reflection_compute(sldata, vedata);
 		EEVEE_occlusion_draw_debug(sldata, vedata);
-		DRW_draw_pass(psl->probe_display);
+		if (psl->probe_display) {
+			DRW_draw_pass(psl->probe_display);
+		}
 		EEVEE_refraction_compute(sldata, vedata);
 
 		/* Opaque refraction */
@@ -314,37 +318,39 @@ static void eevee_draw_background(void *vedata)
 
 
 	/* Tonemapping and transfer result to default framebuffer. */
+	bool use_view_settings = stl->g_data->use_color_view_settings;
+
 	GPU_framebuffer_bind(dfbl->default_fb);
-	DRW_transform_to_display(stl->effects->final_tx);
+	DRW_transform_to_display(stl->effects->final_tx, use_view_settings);
 
 	/* Debug : Ouput buffer to view. */
 	switch (G.debug_value) {
 		case 1:
-			if (txl->maxzbuffer) DRW_transform_to_display(txl->maxzbuffer);
+			if (txl->maxzbuffer) DRW_transform_to_display(txl->maxzbuffer, use_view_settings);
 			break;
 		case 2:
-			if (effects->ssr_pdf_output) DRW_transform_to_display(effects->ssr_pdf_output);
+			if (effects->ssr_pdf_output) DRW_transform_to_display(effects->ssr_pdf_output, use_view_settings);
 			break;
 		case 3:
-			if (effects->ssr_normal_input) DRW_transform_to_display(effects->ssr_normal_input);
+			if (effects->ssr_normal_input) DRW_transform_to_display(effects->ssr_normal_input, use_view_settings);
 			break;
 		case 4:
-			if (effects->ssr_specrough_input) DRW_transform_to_display(effects->ssr_specrough_input);
+			if (effects->ssr_specrough_input) DRW_transform_to_display(effects->ssr_specrough_input, use_view_settings);
 			break;
 		case 5:
-			if (txl->color_double_buffer) DRW_transform_to_display(txl->color_double_buffer);
+			if (txl->color_double_buffer) DRW_transform_to_display(txl->color_double_buffer, use_view_settings);
 			break;
 		case 6:
-			if (effects->gtao_horizons_debug) DRW_transform_to_display(effects->gtao_horizons_debug);
+			if (effects->gtao_horizons_debug) DRW_transform_to_display(effects->gtao_horizons_debug, use_view_settings);
 			break;
 		case 7:
-			if (effects->gtao_horizons) DRW_transform_to_display(effects->gtao_horizons);
+			if (effects->gtao_horizons) DRW_transform_to_display(effects->gtao_horizons, use_view_settings);
 			break;
 		case 8:
-			if (effects->sss_data) DRW_transform_to_display(effects->sss_data);
+			if (effects->sss_data) DRW_transform_to_display(effects->sss_data, use_view_settings);
 			break;
 		case 9:
-			if (effects->velocity_tx) DRW_transform_to_display(effects->velocity_tx);
+			if (effects->velocity_tx) DRW_transform_to_display(effects->velocity_tx, use_view_settings);
 			break;
 		default:
 			break;
@@ -365,21 +371,35 @@ static void eevee_view_update(void *vedata)
 
 static void eevee_id_object_update(void *UNUSED(vedata), Object *object)
 {
-	/* This is a bit mask of components which update is to be ignored. */
 	EEVEE_LightProbeEngineData *ped = EEVEE_lightprobe_data_get(object);
-	if (ped != NULL && ped->engine_data.recalc != 0) {
-		ped->need_full_update = true;
-		ped->engine_data.recalc = 0;
+	if (ped != NULL && ped->dd.recalc != 0) {
+		ped->need_update = (ped->dd.recalc & (ID_RECALC_TRANSFORM | ID_RECALC_COPY_ON_WRITE)) != 0;
+		ped->dd.recalc = 0;
 	}
 	EEVEE_LampEngineData *led = EEVEE_lamp_data_get(object);
-	if (led != NULL && led->engine_data.recalc != 0) {
+	if (led != NULL && led->dd.recalc != 0) {
 		led->need_update = true;
-		led->engine_data.recalc = 0;
+		led->dd.recalc = 0;
 	}
 	EEVEE_ObjectEngineData *oedata = EEVEE_object_data_get(object);
-	if (oedata != NULL && oedata->engine_data.recalc != 0) {
+	if (oedata != NULL && oedata->dd.recalc != 0) {
 		oedata->need_update = true;
-		oedata->engine_data.recalc = 0;
+		oedata->dd.recalc = 0;
+	}
+}
+
+static void eevee_id_world_update(void *vedata, World *wo)
+{
+	EEVEE_StorageList *stl = ((EEVEE_Data *)vedata)->stl;
+	LightCache *lcache = stl->g_data->light_cache;
+
+	EEVEE_WorldEngineData *wedata = EEVEE_world_data_ensure(wo);
+
+	if (wedata != NULL && wedata->dd.recalc != 0) {
+		if ((lcache->flag & (LIGHTCACHE_BAKED | LIGHTCACHE_BAKING)) == 0) {
+			lcache->flag |= LIGHTCACHE_UPDATE_WORLD;
+		}
+		wedata->dd.recalc = 0;
 	}
 }
 
@@ -387,6 +407,9 @@ static void eevee_id_update(void *vedata, ID *id)
 {
 	/* Handle updates based on ID type. */
 	switch (GS(id->name)) {
+		case ID_WO:
+			eevee_id_world_update(vedata, (World *)id);
+			break;
 		case ID_OB:
 			eevee_id_object_update(vedata, (Object *)id);
 			break;
@@ -433,7 +456,7 @@ DrawEngineType draw_engine_eevee_type = {
 	&eevee_engine_init,
 	&eevee_engine_free,
 	&eevee_cache_init,
-	&eevee_cache_populate,
+	&EEVEE_cache_populate,
 	&eevee_cache_finish,
 	&eevee_draw_background,
 	NULL, /* Everything is drawn in the background pass (see comment on function) */

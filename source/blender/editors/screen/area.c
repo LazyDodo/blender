@@ -105,12 +105,12 @@ static void region_draw_emboss(const ARegion *ar, const rcti *scirct, int sides)
 	float color[4] = {0.0f, 0.0f, 0.0f, 0.25f};
 	UI_GetThemeColor3fv(TH_EDITOR_OUTLINE, color);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4fv(color);
 
-	immBeginAtMost(GWN_PRIM_LINES, 8);
+	immBeginAtMost(GPU_PRIM_LINES, 8);
 
 	/* right */
 	if (sides & REGION_EMBOSS_RIGHT) {
@@ -146,11 +146,11 @@ static void region_draw_emboss(const ARegion *ar, const rcti *scirct, int sides)
 void ED_region_pixelspace(ARegion *ar)
 {
 	wmOrtho2_region_pixelspace(ar);
-	gpuLoadIdentity();
+	GPU_matrix_identity_set();
 }
 
 /* only exported for WM */
-void ED_region_do_listen(bScreen *sc, ScrArea *sa, ARegion *ar, wmNotifier *note, const Scene *scene)
+void ED_region_do_listen(wmWindow *win, ScrArea *sa, ARegion *ar, wmNotifier *note, const Scene *scene)
 {
 	/* generic notes first */
 	switch (note->category) {
@@ -164,15 +164,15 @@ void ED_region_do_listen(bScreen *sc, ScrArea *sa, ARegion *ar, wmNotifier *note
 	}
 
 	if (ar->type && ar->type->listener)
-		ar->type->listener(sc, sa, ar, note, scene);
+		ar->type->listener(win, sa, ar, note, scene);
 }
 
 /* only exported for WM */
-void ED_area_do_listen(bScreen *sc, ScrArea *sa, wmNotifier *note, Scene *scene, WorkSpace *workspace)
+void ED_area_do_listen(wmWindow *win, ScrArea *sa, wmNotifier *note, Scene *scene)
 {
 	/* no generic notes? */
 	if (sa->type && sa->type->listener) {
-		sa->type->listener(sc, sa, note, scene, workspace);
+		sa->type->listener(win, sa, note, scene);
 	}
 }
 
@@ -262,8 +262,8 @@ static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, f
 
 		BLI_rcti_init(&click_rect, x, x + icon_size, y, y + icon_size);
 
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -271,7 +271,7 @@ static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, f
 		imm_draw_box_wire_2d(pos, click_rect.xmin, click_rect.ymin, click_rect.xmax, click_rect.ymax);
 
 		immUniformColor4f(0.0f, 1.0f, 1.0f, alpha);
-		immBegin(GWN_PRIM_LINES, 4);
+		immBegin(GPU_PRIM_LINES, 4);
 		immVertex2f(pos, click_rect.xmin, click_rect.ymin);
 		immVertex2f(pos, click_rect.xmax, click_rect.ymax);
 		immVertex2f(pos, click_rect.xmin, click_rect.ymax);
@@ -295,8 +295,8 @@ static void draw_azone_plus(float x1, float y1, float x2, float y2)
 	float width = 0.1f * U.widget_unit;
 	float pad = 0.2f * U.widget_unit;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	GPU_blend(true);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -352,8 +352,8 @@ static void region_draw_azones(ScrArea *sa, ARegion *ar)
 	GPU_blend(true);
 	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
-	gpuPushMatrix();
-	gpuTranslate2f(-ar->winrct.xmin, -ar->winrct.ymin);
+	GPU_matrix_push();
+	GPU_matrix_translate_2f(-ar->winrct.xmin, -ar->winrct.ymin);
 
 	for (az = sa->actionzones.first; az; az = az->next) {
 		/* test if action zone is over this region */
@@ -388,9 +388,52 @@ static void region_draw_azones(ScrArea *sa, ARegion *ar)
 		}
 	}
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 
 	GPU_blend(false);
+}
+
+static void region_draw_status_text(ScrArea *sa, ARegion *ar)
+{
+	bool overlap = ED_region_is_overlap(sa->spacetype, ar->regiontype);
+
+	if (overlap) {
+		GPU_clear_color(0.0, 0.0, 0.0, 0.0);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+	else {
+		UI_ThemeClearColor(TH_HEADER);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+
+	int fontid = BLF_set_default();
+
+	const float width = BLF_width(fontid, ar->headerstr, BLF_DRAW_STR_DUMMY_MAX);
+	const float x = UI_UNIT_X;
+	const float y = 0.4f * UI_UNIT_Y;
+
+	if (overlap) {
+		const float pad = 2.0f * UI_DPI_FAC;
+		const float x1 = x - (UI_UNIT_X - pad);
+		const float x2 = x + width + (UI_UNIT_X - pad);
+		const float y1 = pad;
+		const float y2 = ar->winy - pad;
+
+		GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+
+		float color[4] = {0.0f, 0.0f, 0.0f, 0.5f};
+		UI_GetThemeColor3fv(TH_BACK, color);
+		UI_draw_roundbox_corner_set(UI_CNR_ALL);
+		UI_draw_roundbox_aa(true, x1, y1, x2, y2, 4.0f, color);
+
+		UI_FontThemeColor(fontid, TH_TEXT);
+	}
+	else {
+		UI_FontThemeColor(fontid, TH_TEXT);
+	}
+
+	BLF_position(fontid, x, y, 0.0f);
+	BLF_draw(fontid, ar->headerstr, BLF_DRAW_STR_DUMMY_MAX);
 }
 
 /* Follow wmMsgNotifyFn spec */
@@ -480,11 +523,7 @@ void ED_region_do_draw(bContext *C, ARegion *ar)
 	}
 	/* optional header info instead? */
 	else if (ar->headerstr) {
-		UI_ThemeClearColor(TH_HEADER);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		UI_FontThemeColor(BLF_default(), TH_TEXT);
-		BLF_draw_default(UI_UNIT_X, 0.4f * UI_UNIT_Y, 0.0f, ar->headerstr, BLF_DRAW_STR_DUMMY_MAX);
+		region_draw_status_text(sa, ar);
 	}
 	else if (at->draw) {
 		at->draw(C, ar);
@@ -500,8 +539,8 @@ void ED_region_do_draw(bContext *C, ARegion *ar)
 	/* for debugging unneeded area redraws and partial redraw */
 #if 0
 	GPU_blend(true);
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4f(drand48(), drand48(), drand48(), 0.1f);
 	immRectf(pos, ar->drawrct.xmin - ar->winrct.xmin, ar->drawrct.ymin - ar->winrct.ymin,
@@ -671,6 +710,7 @@ void ED_area_status_text(ScrArea *sa, const char *str)
 				if (ar->headerstr == NULL)
 					ar->headerstr = MEM_mallocN(UI_MAX_DRAW_STR, "headerprint");
 				BLI_strncpy(ar->headerstr, str, UI_MAX_DRAW_STR);
+				BLI_str_rstrip(ar->headerstr);
 			}
 			else if (ar->headerstr) {
 				MEM_freeN(ar->headerstr);
@@ -832,14 +872,17 @@ static void region_azone_edge(AZone *az, ARegion *ar)
 	BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
 }
 
-#define AZONEPAD_TAB_PLUSW  (0.7f * U.widget_unit)
-#define AZONEPAD_TAB_PLUSH  (0.7f * U.widget_unit)
-
 /* region already made zero sized, in shape of edge */
 static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 {
 	AZone *azt;
 	int tot = 0, add;
+	/* Edge offset multiplied by the  */
+
+	float edge_offset = 1.0f;
+	const float tab_size_x = 0.7f * U.widget_unit;
+	const float tab_size_y = 0.7f * U.widget_unit;
+
 
 	for (azt = sa->actionzones.first; azt; azt = azt->next) {
 		if (azt->edge == az->edge) tot++;
@@ -848,28 +891,28 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 	switch (az->edge) {
 		case AE_TOP_TO_BOTTOMRIGHT:
 			add = (ar->winrct.ymax == sa->totrct.ymin) ? 1 : 0;
-			az->x1 = ar->winrct.xmax - 2.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmax - ((edge_offset + 1.0f) * tab_size_x);
 			az->y1 = ar->winrct.ymax - add;
-			az->x2 = ar->winrct.xmax - 1.5f * AZONEPAD_TAB_PLUSW;
-			az->y2 = ar->winrct.ymax - add + AZONEPAD_TAB_PLUSH;
+			az->x2 = ar->winrct.xmax - (edge_offset * tab_size_x);
+			az->y2 = ar->winrct.ymax - add + tab_size_y;
 			break;
 		case AE_BOTTOM_TO_TOPLEFT:
-			az->x1 = ar->winrct.xmax - 2.5f * AZONEPAD_TAB_PLUSW;
-			az->y1 = ar->winrct.ymin - AZONEPAD_TAB_PLUSH;
-			az->x2 = ar->winrct.xmax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmax - ((edge_offset + 1.0f) * tab_size_x);
+			az->y1 = ar->winrct.ymin - tab_size_y;
+			az->x2 = ar->winrct.xmax - (edge_offset * tab_size_x);
 			az->y2 = ar->winrct.ymin;
 			break;
 		case AE_LEFT_TO_TOPRIGHT:
-			az->x1 = ar->winrct.xmin - AZONEPAD_TAB_PLUSH;
-			az->y1 = ar->winrct.ymax - 2.5f * AZONEPAD_TAB_PLUSW;
+			az->x1 = ar->winrct.xmin - tab_size_y;
+			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
 			az->x2 = ar->winrct.xmin;
-			az->y2 = ar->winrct.ymax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 		case AE_RIGHT_TO_TOPLEFT:
 			az->x1 = ar->winrct.xmax - 1;
-			az->y1 = ar->winrct.ymax - 2.5f * AZONEPAD_TAB_PLUSW;
-			az->x2 = ar->winrct.xmax - 1 + AZONEPAD_TAB_PLUSH;
-			az->y2 = ar->winrct.ymax - 1.5f * AZONEPAD_TAB_PLUSW;
+			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
+			az->x2 = ar->winrct.xmax - 1 + tab_size_y;
+			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 	}
 	/* rect needed for mouse pointer test */
@@ -1085,11 +1128,12 @@ bool ED_region_is_overlap(int spacetype, int regiontype)
 static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rcti *overlap_remainder, int quad)
 {
 	rcti *remainder_prev = remainder;
-	int prefsizex, prefsizey;
-	int alignment;
 
 	if (ar == NULL)
 		return;
+
+	int prev_winx = ar->winx;
+	int prev_winy = ar->winy;
 
 	/* no returns in function, winrct gets set in the end again */
 	BLI_rcti_init(&ar->winrct, 0, 0, 0, 0);
@@ -1099,7 +1143,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 		if (ar->prev)
 			remainder = &ar->prev->winrct;
 
-	alignment = ar->alignment & ~RGN_SPLIT_PREV;
+	int alignment = ar->alignment & ~RGN_SPLIT_PREV;
 
 	/* set here, assuming userpref switching forces to call this again */
 	ar->overlap = ED_region_is_overlap(sa->spacetype, ar->regiontype);
@@ -1112,7 +1156,8 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	}
 
 	/* prefsize, taking into account DPI */
-	prefsizex = UI_DPI_FAC * ((ar->sizex > 1) ? ar->sizex + 0.5f : ar->type->prefsizex);
+	int prefsizex = UI_DPI_FAC * ((ar->sizex > 1) ? ar->sizex + 0.5f : ar->type->prefsizex);
+	int prefsizey;
 
 	if (ar->regiontype == RGN_TYPE_HEADER) {
 		prefsizey = ED_area_headersize();
@@ -1334,6 +1379,11 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	}
 
 	region_rect_recursive(sa, ar->next, remainder, overlap_remainder, quad);
+
+	/* Tag for redraw if size changes. */
+	if (ar->winx != prev_winx || ar->winy != prev_winy) {
+		ED_region_tag_redraw(ar);
+	}
 }
 
 static void area_calc_totrct(ScrArea *sa, const rcti *window_rect)
@@ -1391,7 +1441,7 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 
 	/* XXX it would be good to have boundbox checks for some of these... */
 	if (flag & ED_KEYMAP_UI) {
-		wmKeyMap *keymap = WM_keymap_find(wm->defaultconf, "User Interface", 0, 0);
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "User Interface", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap);
 
 		/* user interface widgets */
@@ -1399,12 +1449,12 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 	}
 	if (flag & ED_KEYMAP_VIEW2D) {
 		/* 2d-viewport handling+manipulation */
-		wmKeyMap *keymap = WM_keymap_find(wm->defaultconf, "View2D", 0, 0);
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "View2D", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap);
 	}
 	if (flag & ED_KEYMAP_MARKERS) {
 		/* time-markers */
-		wmKeyMap *keymap = WM_keymap_find(wm->defaultconf, "Markers", 0, 0);
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Markers", 0, 0);
 
 		/* use a boundbox restricted map */
 		ARegion *ar;
@@ -1418,32 +1468,46 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 	}
 	if (flag & ED_KEYMAP_ANIMATION) {
 		/* frame changing and timeline operators (for time spaces) */
-		wmKeyMap *keymap = WM_keymap_find(wm->defaultconf, "Animation", 0, 0);
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Animation", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap);
 	}
 	if (flag & ED_KEYMAP_FRAMES) {
 		/* frame changing/jumping (for all spaces) */
-		wmKeyMap *keymap = WM_keymap_find(wm->defaultconf, "Frames", 0, 0);
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Frames", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap);
 	}
 	if (flag & ED_KEYMAP_GPENCIL) {
 		/* grease pencil */
-		/* NOTE: This is now 2 keymaps - One for basic functionality,
-		 *       and one that only applies when "Edit Mode" is enabled
-		 *       for strokes.
+		/* NOTE: This is now 4 keymaps - One for basic functionality,
+		 *       and others for special stroke modes (edit, paint and sculpt).
 		 *
-		 *       For now, it's easier to just include both,
-		 *       since you hardly want one without the other.
+		 *       For now, it's easier to just include all,
+		 *       since you hardly want one without the others.
 		 */
-		wmKeyMap *keymap_general = WM_keymap_find(wm->defaultconf, "Grease Pencil", 0, 0);
-		wmKeyMap *keymap_edit = WM_keymap_find(wm->defaultconf, "Grease Pencil Stroke Edit Mode", 0, 0);
-
+		wmKeyMap *keymap_general = WM_keymap_ensure(wm->defaultconf, "Grease Pencil", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap_general);
+
+		wmKeyMap *keymap_edit = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Edit Mode", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap_edit);
+
+		wmKeyMap *keymap_paint = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Paint Mode", 0, 0);
+		WM_event_add_keymap_handler(handlers, keymap_paint);
+
+		wmKeyMap *keymap_paint_draw = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Paint (Draw brush)", 0, 0);
+		WM_event_add_keymap_handler(handlers, keymap_paint_draw);
+
+		wmKeyMap *keymap_paint_erase = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Paint (Erase)", 0, 0);
+		WM_event_add_keymap_handler(handlers, keymap_paint_erase);
+
+		wmKeyMap *keymap_paint_fill = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Paint (Fill)", 0, 0);
+		WM_event_add_keymap_handler(handlers, keymap_paint_fill);
+
+		wmKeyMap *keymap_sculpt = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Sculpt Mode", 0, 0);
+		WM_event_add_keymap_handler(handlers, keymap_sculpt);
 	}
 	if (flag & ED_KEYMAP_HEADER) {
 		/* standard keymap for headers regions */
-		wmKeyMap *keymap = WM_keymap_find(wm->defaultconf, "Header", 0, 0);
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Header", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap);
 	}
 }
@@ -1482,7 +1546,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 {
 	WorkSpace *workspace = WM_window_get_active_workspace(win);
 	const bScreen *screen = BKE_workspace_active_screen_get(win->workspace_hook);
-	Scene *scene = WM_window_get_active_scene(win);
+	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	ARegion *ar;
 	rcti rect, overlap_rect;
 	rcti window_rect;
@@ -1542,7 +1606,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 		region_azones_add(screen, sa, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
 
-	WM_toolsystem_refresh_screen_area(workspace, scene, sa);
+	WM_toolsystem_refresh_screen_area(workspace, view_layer, sa);
 }
 
 static void region_update_rect(ARegion *ar)
@@ -2243,7 +2307,7 @@ void ED_region_panels_init(wmWindowManager *wm, ARegion *ar)
 
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_PANELS_UI, ar->winx, ar->winy);
 
-	keymap = WM_keymap_find(wm->defaultconf, "View2D Buttons List", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "View2D Buttons List", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -2466,14 +2530,14 @@ void ED_region_info_draw_multiline(ARegion *ar, const char *text_array[], float 
 	rect.ymin = rect.ymax - header_height * num_lines;
 
 	/* setup scissor */
-	GPU_scissor_geti(scissor);
+	GPU_scissor_get_i(scissor);
 	GPU_scissor(rect.xmin, rect.ymin,
 	          BLI_rcti_size_x(&rect) + 1, BLI_rcti_size_y(&rect) + 1);
 
 	GPU_blend(true);
 	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4fv(fill_color);
 	immRecti(pos, rect.xmin, rect.ymin, rect.xmax + 1, rect.ymax + 1);
@@ -2674,11 +2738,11 @@ void ED_region_image_metadata_draw(int x, int y, ImBuf *ibuf, const rctf *frame,
 		return;
 
 	/* find window pixel coordinates of origin */
-	gpuPushMatrix();
+	GPU_matrix_push();
 
 	/* offset and zoom using ogl */
-	gpuTranslate2f(x, y);
-	gpuScale2f(zoomx, zoomy);
+	GPU_matrix_translate_2f(x, y);
+	GPU_matrix_scale_2f(zoomx, zoomy);
 
 	BLF_size(blf_mono_font, style->widgetlabel.points * 1.5f * U.pixelsize, U.dpi);
 
@@ -2691,8 +2755,8 @@ void ED_region_image_metadata_draw(int x, int y, ImBuf *ibuf, const rctf *frame,
 		/* set up rect */
 		BLI_rctf_init(&rect, frame->xmin, frame->xmax, frame->ymax, frame->ymax + box_y);
 		/* draw top box */
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformThemeColor(TH_METADATA_BG);
 		immRectf(pos, rect.xmin, rect.ymin, rect.xmax, rect.ymax);
@@ -2716,8 +2780,8 @@ void ED_region_image_metadata_draw(int x, int y, ImBuf *ibuf, const rctf *frame,
 		/* set up box rect */
 		BLI_rctf_init(&rect, frame->xmin, frame->xmax, frame->ymin - box_y, frame->ymin);
 		/* draw top box */
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformThemeColor(TH_METADATA_BG);
 		immRectf(pos, rect.xmin, rect.ymin, rect.xmax, rect.ymax);
@@ -2732,7 +2796,7 @@ void ED_region_image_metadata_draw(int x, int y, ImBuf *ibuf, const rctf *frame,
 		BLF_disable(blf_mono_font, BLF_CLIPPING);
 	}
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
@@ -2745,8 +2809,8 @@ void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
 	UI_view2d_view_to_region(&ar->v2d, 0.0f, 0.0f, &x1, &y1);
 	UI_view2d_view_to_region(&ar->v2d, 1.0f, 1.0f, &x2, &y2);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShade(TH_BACK, 20);
@@ -2778,12 +2842,12 @@ void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
 	int count_large = 1.0f / (4.0f * gridstep);
 
 	if (count_fine > 0) {
-		GWN_vertformat_clear(format);
-		pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-		unsigned color = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+		GPU_vertformat_clear(format);
+		pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+		unsigned color = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-		immBegin(GWN_PRIM_LINES, 4 * count_fine + 4 * count_large);
+		immBegin(GPU_PRIM_LINES, 4 * count_fine + 4 * count_large);
 
 		float theme_color[3];
 		UI_GetThemeColorShade3fv(TH_BACK, (int)(20.0f * (1.0f - blendfac)), theme_color);
@@ -2877,7 +2941,7 @@ void ED_region_visible_rect(ARegion *ar, rcti *rect)
 
 void ED_region_cache_draw_background(const ARegion *ar)
 {
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4ub(128, 128, 255, 64);
 	immRecti(pos, 0, 0, ar->winx, 8 * UI_DPI_FAC);
@@ -2897,7 +2961,7 @@ void ED_region_cache_draw_curfra_label(const int framenr, const float x, const f
 
 	BLF_width_and_height(fontid, numstr, sizeof(numstr), &font_dims[0], &font_dims[1]);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColor(TH_CFRAME);
 	immRecti(pos, x, y, x + font_dims[0] + 6.0f, y + font_dims[1] + 4.0f);
@@ -2911,7 +2975,7 @@ void ED_region_cache_draw_curfra_label(const int framenr, const float x, const f
 void ED_region_cache_draw_cached_segments(const ARegion *ar, const int num_segments, const int *points, const int sfra, const int efra)
 {
 	if (num_segments) {
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor4ub(128, 128, 255, 128);
 
@@ -2936,8 +3000,8 @@ void ED_region_message_subscribe(
         struct bScreen *screen, struct ScrArea *sa, struct ARegion *ar,
         struct wmMsgBus *mbus)
 {
-	if (ar->manipulator_map != NULL) {
-		WM_manipulatormap_message_subscribe(C, ar->manipulator_map, ar, mbus);
+	if (ar->gizmo_map != NULL) {
+		WM_gizmomap_message_subscribe(C, ar->gizmo_map, ar, mbus);
 	}
 
 	if (BLI_listbase_is_empty(&ar->uiblocks)) {

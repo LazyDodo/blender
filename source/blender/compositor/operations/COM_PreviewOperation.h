@@ -20,8 +20,8 @@
  *		Monique Dewanchand
  */
 
-#ifndef _COM_PreviewOperation_h
-#define _COM_PreviewOperation_h
+#ifndef __COM_PREVIEWOPERATION_H__
+#define __COM_PREVIEWOPERATION_H__
 #include "COM_NodeOperation.h"
 #include "DNA_image_types.h"
 #include "DNA_color_types.h"
@@ -33,7 +33,7 @@ protected:
 	unsigned char *m_outputBuffer;
 
 	/**
-	 * @brief holds reference to the SDNA bNode, where this nodes will render the preview image for
+	 * \brief holds reference to the SDNA bNode, where this nodes will render the preview image for
 	 */
 	bNodePreview *m_preview;
 	SocketReader *m_input;

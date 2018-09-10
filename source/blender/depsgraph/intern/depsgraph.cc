@@ -140,9 +140,9 @@ static bool pointer_to_component_node_criteria(
 		bPoseChannel *pchan = (bPoseChannel *)ptr->data;
 		if (prop != NULL && RNA_property_is_idprop(prop)) {
 			*type = DEG_NODE_TYPE_PARAMETERS;
-			*subdata = "";
-			*operation_code = DEG_OPCODE_PARAMETERS_EVAL;
-			*operation_name = pchan->name;
+			*operation_code = DEG_OPCODE_ID_PROPERTY;
+			*operation_name = RNA_property_identifier((PropertyRNA *)prop);
+			*operation_name_tag = -1;
 		}
 		else {
 			/* Bone - generally, we just want the bone component. */
@@ -380,20 +380,6 @@ DepsRelation *Depsgraph::add_new_relation(OperationDepsNode *from,
 	}
 	/* Create new relation, and add it to the graph. */
 	rel = OBJECT_GUARDED_NEW(DepsRelation, from, to, description);
-	/* TODO(sergey): Find a better place for this. */
-#ifdef WITH_OPENSUBDIV
-	ComponentDepsNode *comp_node = from->owner;
-	if (comp_node->type == DEG_NODE_TYPE_GEOMETRY) {
-		IDDepsNode *id_to = to->owner->owner;
-		IDDepsNode *id_from = from->owner->owner;
-		if (id_to != id_from && (id_to->id_orig->recalc & ID_RECALC_ALL)) {
-			if ((id_from->eval_flags & DAG_EVAL_NEED_CPU) == 0) {
-				id_from->tag_update(this);
-				id_from->eval_flags |= DAG_EVAL_NEED_CPU;
-			}
-		}
-	}
-#endif
 	return rel;
 }
 

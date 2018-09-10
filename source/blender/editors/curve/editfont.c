@@ -273,8 +273,7 @@ static void text_update_edited(bContext *C, Object *obedit, int mode)
 		}
 	}
 
-	BKE_curve_batch_cache_dirty(cu, BKE_CURVE_BATCH_DIRTY_SELECT);
-
+	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 }
 
@@ -1454,6 +1453,7 @@ static int textbox_add_exec(bContext *C, wmOperator *UNUSED(op))
 		cu->totbox++;
 	}
 
+	DEG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	return OPERATOR_FINISHED;
 }
@@ -1496,6 +1496,7 @@ static int textbox_remove_exec(bContext *C, wmOperator *op)
 			cu->actbox--;
 	}
 
+	DEG_id_tag_update(obedit->data, 0);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 
 	return OPERATOR_FINISHED;

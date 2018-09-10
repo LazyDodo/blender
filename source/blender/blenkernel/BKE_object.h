@@ -37,8 +37,11 @@ extern "C" {
 
 struct Base;
 struct Depsgraph;
+struct GpencilModifierData;
 struct Scene;
+struct ShaderFxData;
 struct ViewLayer;
+struct ID;
 struct Object;
 struct BoundBox;
 struct View3D;
@@ -49,6 +52,7 @@ struct Mesh;
 struct RigidBodyWorld;
 struct HookModifierData;
 struct ModifierData;
+struct HookGpencilModifierData;
 
 #include "DNA_object_enums.h"
 
@@ -56,10 +60,9 @@ void BKE_object_workob_clear(struct Object *workob);
 void BKE_object_workob_calc_parent(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct Object *workob);
 
 void BKE_object_transform_copy(struct Object *ob_tar, const struct Object *ob_src);
-struct SoftBody *copy_softbody(const struct SoftBody *sb, const int flag);
+void BKE_object_copy_softbody(struct Object *ob_dst, const struct Object *ob_src, const int flag);
 struct ParticleSystem *BKE_object_copy_particlesystem(struct ParticleSystem *psys, const int flag);
 void BKE_object_copy_particlesystems(struct Object *ob_dst, const struct Object *ob_src, const int flag);
-void BKE_object_copy_softbody(struct Object *ob_dst, const struct Object *ob_src);
 void BKE_object_free_particlesystems(struct Object *ob);
 void BKE_object_free_softbody(struct Object *ob);
 void BKE_object_free_curve_cache(struct Object *ob);
@@ -70,13 +73,18 @@ void BKE_object_free_derived_mesh_caches(struct Object *ob);
 void BKE_object_free_caches(struct Object *object);
 
 void BKE_object_modifier_hook_reset(struct Object *ob, struct HookModifierData *hmd);
+void BKE_object_modifier_gpencil_hook_reset(struct Object *ob, struct HookGpencilModifierData *hmd);
+bool BKE_object_modifier_gpencil_use_time(struct Object *ob, struct GpencilModifierData *md);
+
+bool BKE_object_shaderfx_use_time(struct Object *ob, struct ShaderFxData *md);
 
 bool BKE_object_support_modifier_type_check(const struct Object *ob, int modifier_type);
 
 void BKE_object_link_modifiers(struct Scene *scene, struct Object *ob_dst, const struct Object *ob_src);
 void BKE_object_free_modifiers(struct Object *ob, const int flag);
+void BKE_object_free_shaderfx(struct Object *ob, const int flag);
 
-void BKE_object_make_proxy(struct Object *ob, struct Object *target, struct Object *gob);
+void BKE_object_make_proxy(struct Main *bmain, struct Object *ob, struct Object *target, struct Object *gob);
 void BKE_object_copy_proxy_drivers(struct Object *ob, struct Object *target);
 
 bool BKE_object_exists_check(struct Main *bmain, const struct Object *obtest);
@@ -109,6 +117,9 @@ struct Object *BKE_object_add_from(
         struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer,
         int type, const char *name, struct Object *ob_src)
         ATTR_NONNULL(1, 2, 3, 6) ATTR_RETURNS_NONNULL;
+struct Object *BKE_object_add_for_data(
+        struct Main *bmain, struct ViewLayer *view_layer,
+        int type, const char *name, struct ID *data, bool do_id_user) ATTR_RETURNS_NONNULL;
 void *BKE_object_obdata_add_from_type(
         struct Main *bmain,
         int type, const char *name)
@@ -296,6 +307,8 @@ void BKE_object_data_relink(struct Object *ob);
 struct MovieClip *BKE_object_movieclip_get(struct Scene *scene, struct Object *ob, bool use_default);
 
 void BKE_object_runtime_reset(struct Object *object);
+
+void BKE_object_batch_cache_dirty_tag(struct Object *ob);
 
 /* this function returns a superset of the scenes selection based on relationships */
 

@@ -32,13 +32,14 @@
 #include <stdlib.h>
 
 #include "DNA_armature_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_sequence_types.h"
 #include "DNA_world_types.h"
+#include "DNA_gpencil_types.h"
 
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
@@ -46,9 +47,11 @@
 #include "BKE_armature.h"
 #include "BKE_collection.h"
 #include "BKE_context.h"
+#include "BKE_gpencil.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
+#include "BKE_paint.h"
 #include "BKE_scene.h"
 #include "BKE_sequencer.h"
 #include "BKE_workspace.h"
@@ -60,6 +63,7 @@
 #include "ED_screen.h"
 #include "ED_sequencer.h"
 #include "ED_undo.h"
+#include "ED_gpencil.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -173,24 +177,25 @@ void outliner_object_mode_toggle(
 /* Outliner Element Selection/Activation on Click */
 
 static eOLDrawState active_viewlayer(
-        bContext *C, Scene *UNUSED(scene), ViewLayer *UNUSED(sl), TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
+        bContext *C, Scene *UNUSED(scene), ViewLayer *UNUSED(sl), TreeElement *te, const eOLSetState set)
 {
-	Scene *sce;
-
 	/* paranoia check */
 	if (te->idcode != ID_SCE)
 		return OL_DRAWSEL_NONE;
-	sce = (Scene *)tselem->id;
 
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	ViewLayer *view_layer = te->directdata;
 
 	if (set != OL_SETSEL_NONE) {
-		BKE_workspace_view_layer_set(workspace, view_layer, sce);
-		WM_event_add_notifier(C, NC_SCREEN | ND_LAYER, NULL);
+		wmWindow *win = CTX_wm_window(C);
+		Scene *scene = WM_window_get_active_scene(win);
+
+		if (BLI_findindex(&scene->view_layers, view_layer) != -1) {
+			WM_window_set_active_view_layer(win, view_layer);
+			WM_event_add_notifier(C, NC_SCREEN | ND_LAYER, NULL);
+		}
 	}
 	else {
-		return BKE_workspace_view_layer_get(workspace, sce) == view_layer;
+		return CTX_data_view_layer(C) == view_layer;
 	}
 	return OL_DRAWSEL_NONE;
 }
@@ -262,7 +267,7 @@ static eOLDrawState tree_element_set_active_object(
 
 	sce = (Scene *)outliner_search_back(soops, te, ID_SCE);
 	if (sce && scene != sce) {
-		WM_window_change_active_scene(CTX_data_main(C), C, CTX_wm_window(C), sce);
+		WM_window_set_active_scene(CTX_data_main(C), C, CTX_wm_window(C), sce);
 		scene = sce;
 	}
 
@@ -431,7 +436,7 @@ static eOLDrawState tree_element_active_world(
 	if (set != OL_SETSEL_NONE) {
 		/* make new scene active */
 		if (sce && scene != sce) {
-			WM_window_change_active_scene(CTX_data_main(C), C, CTX_wm_window(C), sce);
+			WM_window_set_active_scene(CTX_data_main(C), C, CTX_wm_window(C), sce);
 		}
 	}
 
@@ -466,6 +471,28 @@ static eOLDrawState tree_element_active_defgroup(
 				return OL_DRAWSEL_NORMAL;
 			}
 	}
+	return OL_DRAWSEL_NONE;
+}
+
+static eOLDrawState UNUSED_FUNCTION(tree_element_active_gplayer)(
+        bContext *C, Scene *UNUSED(scene), TreeElement *te, TreeStoreElem *tselem, const eOLSetState set)
+{
+	bGPdata *gpd = (bGPdata *)tselem->id;
+	bGPDlayer *gpl = te->directdata;
+
+	/* We can only have a single "active" layer at a time
+	 * and there must always be an active layer...
+	 */
+	if (set != OL_SETSEL_NONE) {
+		if (gpl) {
+			BKE_gpencil_layer_setactive(gpd, gpl);
+			WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_SELECTED, gpd);
+		}
+	}
+	else {
+		return OL_DRAWSEL_NORMAL;
+	}
+
 	return OL_DRAWSEL_NONE;
 }
 
@@ -895,7 +922,7 @@ eOLDrawState tree_element_type_active(
 		case TSE_CONSTRAINT:
 			return tree_element_active_constraint(C, scene, view_layer, te, tselem, set);
 		case TSE_R_LAYER:
-			return active_viewlayer(C, scene, view_layer, te, tselem, set);
+			return active_viewlayer(C, scene, view_layer, te, set);
 		case TSE_POSEGRP:
 			return tree_element_active_posegroup(C, scene, view_layer, te, tselem, set);
 		case TSE_SEQUENCE:
@@ -950,7 +977,7 @@ static void do_outliner_item_activate_tree_element(
 		/* editmode? */
 		if (te->idcode == ID_SCE) {
 			if (scene != (Scene *)tselem->id) {
-				WM_window_change_active_scene(CTX_data_main(C), C, CTX_wm_window(C), (Scene *)tselem->id);
+				WM_window_set_active_scene(CTX_data_main(C), C, CTX_wm_window(C), (Scene *)tselem->id);
 			}
 		}
 		else if (te->idcode == ID_GR) {
@@ -1005,6 +1032,10 @@ static void do_outliner_item_activate_tree_element(
 				}
 			}
 		}
+		else if (ELEM(te->idcode, ID_GD)) {
+			/* set grease pencil to object mode */
+			WM_operator_name_call(C, "GPENCIL_OT_editmode_toggle", WM_OP_INVOKE_REGION_WIN, NULL);
+		}
 		else {  // rest of types
 			tree_element_active(C, scene, view_layer, soops, te, OL_SETSEL_NORMAL, false);
 		}
@@ -1027,7 +1058,7 @@ void outliner_item_select(SpaceOops *soops, const TreeElement *te, const bool ex
 	const short new_flag = toggle ? (tselem->flag ^ TSE_SELECTED) : (tselem->flag | TSE_SELECTED);
 
 	if (extend == false) {
-		outliner_set_flag(&soops->tree, TSE_SELECTED, false);
+		outliner_flag_set(&soops->tree, TSE_SELECTED, false);
 	}
 	tselem->flag = new_flag;
 }
@@ -1038,8 +1069,8 @@ static void outliner_item_toggle_closed(TreeElement *te, const bool toggle_child
 	if (toggle_children) {
 		tselem->flag &= ~TSE_CLOSED;
 
-		const bool all_opened = !outliner_has_one_flag(&te->subtree, TSE_CLOSED, 1);
-		outliner_set_flag(&te->subtree, TSE_CLOSED, all_opened);
+		const bool all_opened = !outliner_flag_is_any_test(&te->subtree, TSE_CLOSED, 1);
+		outliner_flag_set(&te->subtree, TSE_CLOSED, all_opened);
 	}
 	else {
 		tselem->flag ^= TSE_CLOSED;

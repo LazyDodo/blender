@@ -66,7 +66,6 @@
 #include "BKE_screen.h"
 #include "BKE_scene.h"
 #include "BKE_undo_system.h"
-#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 
@@ -112,7 +111,6 @@ typedef struct RenderJob {
 	Depsgraph *depsgraph;
 	Render *re;
 	struct Object *camera_override;
-	int lay_override;
 	bool v3d_override;
 	bool anim, write_still;
 	Image *image;
@@ -263,7 +261,7 @@ static void image_buffer_rect_update(RenderJob *rj, RenderResult *rr, ImBuf *ibu
 /* set callbacks, exported to sequence render too.
  * Only call in foreground (UI) renders. */
 
-static void screen_render_single_layer_set(wmOperator *op, Main *mainp, WorkSpace *workspace, Scene **scene, ViewLayer **single_layer)
+static void screen_render_single_layer_set(wmOperator *op, Main *mainp, ViewLayer *active_layer, Scene **scene, ViewLayer **single_layer)
 {
 	/* single layer re-render */
 	if (RNA_struct_property_is_set(op->ptr, "scene")) {
@@ -292,8 +290,8 @@ static void screen_render_single_layer_set(wmOperator *op, Main *mainp, WorkSpac
 		if (rl)
 			*single_layer = rl;
 	}
-	else if (((*scene)->r.scemode & R_SINGLE_LAYER) && workspace) {
-		*single_layer = BKE_view_layer_from_workspace_get(*scene, workspace);
+	else if (((*scene)->r.scemode & R_SINGLE_LAYER) && active_layer) {
+		*single_layer = active_layer;
 	}
 }
 
@@ -302,13 +300,12 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	RenderEngineType *re_type = RE_engines_find(scene->r.engine);
+	ViewLayer *active_layer = CTX_data_view_layer(C);
 	ViewLayer *single_layer = NULL;
 	Render *re;
 	Image *ima;
 	View3D *v3d = CTX_wm_view3d(C);
 	Main *mainp = CTX_data_main(C);
-	WorkSpace *workspace = CTX_wm_workspace(C);
-	unsigned int lay_override;
 	const bool is_animation = RNA_boolean_get(op->ptr, "animation");
 	const bool is_write_still = RNA_boolean_get(op->ptr, "write_still");
 	struct Object *camera_override = v3d ? V3D_CAMERA_LOCAL(v3d) : NULL;
@@ -319,7 +316,7 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 	}
 
 	/* custom scene and single layer re-render */
-	screen_render_single_layer_set(op, mainp, workspace, &scene, &single_layer);
+	screen_render_single_layer_set(op, mainp, active_layer, &scene, &single_layer);
 
 	if (!is_animation && is_write_still && BKE_imtype_is_movie(scene->r.im_format.imtype)) {
 		BKE_report(op->reports, RPT_ERROR, "Cannot write a single file with an animation format selected");
@@ -327,7 +324,6 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 	}
 
 	re = RE_NewSceneRender(scene);
-	lay_override = (v3d && v3d->lay != scene->lay) ? v3d->lay : 0;
 
 	G.is_break = false;
 	RE_test_break_cb(re, NULL, render_break);
@@ -346,9 +342,9 @@ static int screen_render_exec(bContext *C, wmOperator *op)
 
 	BLI_threaded_malloc_begin();
 	if (is_animation)
-		RE_BlenderAnim(re, mainp, scene, camera_override, lay_override, scene->r.sfra, scene->r.efra, scene->r.frame_step);
+		RE_BlenderAnim(re, mainp, scene, camera_override, scene->r.sfra, scene->r.efra, scene->r.frame_step);
 	else
-		RE_BlenderFrame(re, mainp, scene, single_layer, camera_override, lay_override, scene->r.cfra, is_write_still);
+		RE_BlenderFrame(re, mainp, scene, single_layer, camera_override, scene->r.cfra, is_write_still);
 	BLI_threaded_malloc_end();
 
 	RE_SetReports(re, NULL);
@@ -428,7 +424,7 @@ static void make_renderinfo_string(const RenderStats *rs,
 		if (rs->totface) spos += sprintf(spos, IFACE_("Fa:%d "), rs->totface);
 		if (rs->tothalo) spos += sprintf(spos, IFACE_("Ha:%d "), rs->tothalo);
 		if (rs->totstrand) spos += sprintf(spos, IFACE_("St:%d "), rs->totstrand);
-		if (rs->totlamp) spos += sprintf(spos, IFACE_("La:%d "), rs->totlamp);
+		if (rs->totlamp) spos += sprintf(spos, IFACE_("Li:%d "), rs->totlamp);
 
 		if (rs->mem_peak == 0.0f)
 			spos += sprintf(spos, IFACE_("| Mem:%.2fM (%.2fM, Peak %.2fM) "),
@@ -621,9 +617,9 @@ static void render_startjob(void *rjv, short *stop, short *do_update, float *pro
 	RE_SetReports(rj->re, rj->reports);
 
 	if (rj->anim)
-		RE_BlenderAnim(rj->re, rj->main, rj->scene, rj->camera_override, rj->lay_override, rj->scene->r.sfra, rj->scene->r.efra, rj->scene->r.frame_step);
+		RE_BlenderAnim(rj->re, rj->main, rj->scene, rj->camera_override, rj->scene->r.sfra, rj->scene->r.efra, rj->scene->r.frame_step);
 	else
-		RE_BlenderFrame(rj->re, rj->main, rj->scene, rj->single_layer, rj->camera_override, rj->lay_override, rj->scene->r.cfra, rj->write_still);
+		RE_BlenderFrame(rj->re, rj->main, rj->scene, rj->single_layer, rj->camera_override, rj->scene->r.cfra, rj->write_still);
 
 	RE_SetReports(rj->re, NULL);
 }
@@ -735,24 +731,11 @@ static void render_endjob(void *rjv)
 
 	/* Finally unlock the user interface (if it was locked). */
 	if (rj->interface_locked) {
-		Scene *scene;
-
 		/* Interface was locked, so window manager couldn't have been changed
 		 * and using one from Global will unlock exactly the same manager as
 		 * was locked before running the job.
 		 */
 		WM_set_locked_interface(G_MAIN->wm.first, false);
-
-		/* We've freed all the derived caches before rendering, which is
-		 * effectively the same as if we re-loaded the file.
-		 *
-		 * So let's not try being smart here and just reset all updated
-		 * scene layers and use generic DAG_on_visible_update.
-		 */
-		for (scene = G_MAIN->scene.first; scene; scene = scene->id.next) {
-			scene->lay_updated = 0;
-		}
-
 		DEG_on_visible_update(G_MAIN, false);
 	}
 }
@@ -846,8 +829,7 @@ static void clean_viewport_memory(Main *bmain, Scene *scene)
 	/* Go over all the visible objects. */
 	for (wmWindowManager *wm = bmain->wm.first; wm; wm = wm->id.next) {
 		for (wmWindow *win = wm->windows.first; win; win = win->next) {
-			WorkSpace *workspace = BKE_workspace_active_get(win->workspace_hook);
-			ViewLayer *view_layer = BKE_view_layer_from_workspace_get(scene, workspace);
+			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 
 			for (base = view_layer->object_bases.first; base; base = base->next) {
 				clean_viewport_memory_base(base);
@@ -865,8 +847,9 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 {
 	/* new render clears all callbacks */
 	Main *bmain = CTX_data_main(C);
-	ViewLayer *single_layer = NULL;
 	Scene *scene = CTX_data_scene(C);
+	ViewLayer *active_layer = CTX_data_view_layer(C);
+	ViewLayer *single_layer = NULL;
 	RenderEngineType *re_type = RE_engines_find(scene->r.engine);
 	Render *re;
 	wmJob *wm_job;
@@ -877,7 +860,6 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	const bool is_write_still = RNA_boolean_get(op->ptr, "write_still");
 	const bool use_viewport = RNA_boolean_get(op->ptr, "use_viewport");
 	View3D *v3d = use_viewport ? CTX_wm_view3d(C) : NULL;
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	struct Object *camera_override = v3d ? V3D_CAMERA_LOCAL(v3d) : NULL;
 	const char *name;
 	ScrArea *sa;
@@ -888,7 +870,7 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	}
 
 	/* custom scene and single layer re-render */
-	screen_render_single_layer_set(op, bmain, workspace, &scene, &single_layer);
+	screen_render_single_layer_set(op, bmain, active_layer, &scene, &single_layer);
 
 	/* only one render job at a time */
 	if (WM_jobs_test(CTX_wm_manager(C), scene, WM_JOB_TYPE_RENDER))
@@ -943,7 +925,6 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	/* TODO(sergey): Render engine should be using own depsgraph. */
 	rj->depsgraph = CTX_data_depsgraph(C);
 	rj->camera_override = camera_override;
-	rj->lay_override = 0;
 	rj->anim = is_animation;
 	rj->write_still = is_write_still && !is_animation;
 	rj->iuser.scene = scene;
@@ -963,15 +944,8 @@ static int screen_render_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	}
 
 	if (v3d) {
-		if (scene->lay != v3d->lay) {
-			rj->lay_override = v3d->lay;
+		if (camera_override && camera_override != scene->camera)
 			rj->v3d_override = true;
-		}
-		else if (camera_override && camera_override != scene->camera)
-			rj->v3d_override = true;
-
-		if (v3d->localvd)
-			rj->lay_override |= v3d->localvd->lay;
 	}
 
 	/* Lock the user interface depending on render settings. */

@@ -223,7 +223,7 @@ static void rna_Action_frame_range_get(PointerRNA *ptr, float *values)
 
 
 /* used to check if an action (value pointer) is suitable to be assigned to the ID-block that is ptr */
-int rna_Action_id_poll(PointerRNA *ptr, PointerRNA value)
+bool rna_Action_id_poll(PointerRNA *ptr, PointerRNA value)
 {
 	ID *srcId = (ID *)ptr->id.data;
 	bAction *act = (bAction *)value.id.data;
@@ -243,7 +243,7 @@ int rna_Action_id_poll(PointerRNA *ptr, PointerRNA value)
 }
 
 /* used to check if an action (value pointer) can be assigned to Action Editor given current mode */
-int rna_Action_actedit_assign_poll(PointerRNA *ptr, PointerRNA value)
+bool rna_Action_actedit_assign_poll(PointerRNA *ptr, PointerRNA value)
 {
 	SpaceAction *saction = (SpaceAction *)ptr->data;
 	bAction *act = (bAction *)value.id.data;
@@ -423,10 +423,10 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	RNA_def_property_ui_icon(prop, ICON_MATERIAL_DATA, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
-	prop = RNA_def_property(srna, "show_lamps", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_lights", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOLAM);
-	RNA_def_property_ui_text(prop, "Display Lamp", "Include visualization of lamp related animation data");
-	RNA_def_property_ui_icon(prop, ICON_LAMP_DATA, 0);
+	RNA_def_property_ui_text(prop, "Display Light", "Include visualization of light related animation data");
+	RNA_def_property_ui_icon(prop, ICON_LIGHT_DATA, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_linestyles", PROP_BOOLEAN, PROP_NONE);

@@ -39,6 +39,9 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_transform.h"
+#include "ED_object.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 
 #include "action_intern.h"
 
@@ -57,7 +60,7 @@ void action_operatortypes(void)
 	/* keyframes */
 	/* selection */
 	WM_operatortype_append(ACTION_OT_clickselect);
-	WM_operatortype_append(ACTION_OT_select_all_toggle);
+	WM_operatortype_append(ACTION_OT_select_all);
 	WM_operatortype_append(ACTION_OT_select_border);
 	WM_operatortype_append(ACTION_OT_select_lasso);
 	WM_operatortype_append(ACTION_OT_select_circle);
@@ -169,10 +172,7 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	RNA_enum_set(kmi->ptr, "mode", ACTKEYS_LRSEL_RIGHT);
 
 	/* deselect all */
-	kmi = WM_keymap_add_item(keymap, "ACTION_OT_select_all_toggle", AKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "invert", false);
-	kmi = WM_keymap_add_item(keymap, "ACTION_OT_select_all_toggle", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "invert", true);
+	ED_keymap_template_select_all(keymap, "ACTION_OT_select_all");
 
 	/* borderselect */
 	kmi = WM_keymap_add_item(keymap, "ACTION_OT_select_border", BKEY, KM_PRESS, 0, 0);
@@ -208,7 +208,7 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 
 	/* menu + single-step transform */
 	WM_keymap_add_item(keymap, "ACTION_OT_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "ACTION_OT_mirror", MKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "ACTION_OT_mirror", MKEY, KM_PRESS, KM_CTRL, 0);
 
 	/* menu + set setting */
 	WM_keymap_add_item(keymap, "ACTION_OT_handle_type", VKEY, KM_PRESS, 0, 0);
@@ -220,11 +220,9 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_specials", WKEY, KM_PRESS, 0, 0);
 
 	/* destructive */
-	WM_keymap_add_item(keymap, "ACTION_OT_sample", OKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "ACTION_OT_sample", OKEY, KM_PRESS, KM_SHIFT | KM_ALT, 0);
 
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_delete", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_menu(keymap, "DOPESHEET_MT_delete", DELKEY, KM_PRESS, 0, 0);
 
 	WM_keymap_add_item(keymap, "ACTION_OT_duplicate_move", DKEY, KM_PRESS, KM_SHIFT, 0);
@@ -266,6 +264,7 @@ static void action_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", OKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_proportional_action");
+	ED_keymap_proportional_cycle(keyconf, keymap);
 
 	/* special markers hotkeys for anim editors: see note in definition of this function */
 	ED_marker_keymap_animedit_conflictfree(keymap);
@@ -278,7 +277,7 @@ void action_keymap(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 
 	/* keymap for all regions */
-	keymap = WM_keymap_find(keyconf, "Dopesheet Generic", SPACE_ACTION, 0);
+	keymap = WM_keymap_ensure(keyconf, "Dopesheet Generic", SPACE_ACTION, 0);
 
 	/* region management... */
 	WM_keymap_add_item(keymap, "ACTION_OT_properties", NKEY, KM_PRESS, 0, 0);
@@ -291,6 +290,6 @@ void action_keymap(wmKeyConfig *keyconf)
 	 */
 
 	/* keyframes */
-	keymap = WM_keymap_find(keyconf, "Dopesheet", SPACE_ACTION, 0);
+	keymap = WM_keymap_ensure(keyconf, "Dopesheet", SPACE_ACTION, 0);
 	action_keymap_keyframes(keyconf, keymap);
 }

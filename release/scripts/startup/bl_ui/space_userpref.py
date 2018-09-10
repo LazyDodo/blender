@@ -28,25 +28,6 @@ from bpy.app.translations import pgettext_iface as iface_
 from bpy.app.translations import contexts as i18n_contexts
 
 
-def opengl_lamp_buttons(column, lamp):
-    split = column.row()
-
-    split.prop(lamp, "use", text="", icon='OUTLINER_OB_LAMP' if lamp.use else 'LAMP_DATA')
-
-    col = split.column()
-    col.active = lamp.use
-    row = col.row()
-    row.label(text="Diffuse:")
-    row.prop(lamp, "diffuse_color", text="")
-    row = col.row()
-    row.label(text="Specular:")
-    row.prop(lamp, "specular_color", text="")
-
-    col = split.column()
-    col.active = lamp.use
-    col.prop(lamp, "direction", text="")
-
-
 class USERPREF_HT_header(Header):
     bl_space_type = 'USER_PREFERENCES'
 
@@ -63,9 +44,7 @@ class USERPREF_HT_header(Header):
 
         layout.operator_context = 'INVOKE_DEFAULT'
 
-        if userpref.active_section == 'INTERFACE':
-            layout.operator("wm.save_workspace_file")
-        elif userpref.active_section == 'INPUT':
+        if userpref.active_section == 'INPUT':
             layout.operator("wm.keyconfig_import")
             layout.operator("wm.keyconfig_export")
         elif userpref.active_section == 'ADDONS':
@@ -180,17 +159,17 @@ class USERPREF_MT_splash(Menu):
         row = split.row()
 
         if any(bpy.utils.app_template_paths()):
-            row.label("Template:")
+            row.label(text="Template:")
             template = context.user_preferences.app_template
             row.menu(
                 "USERPREF_MT_templates_splash",
                 text=bpy.path.display_name(template) if template else "Default",
             )
         else:
-            row.label("")
+            row.label(text="")
 
         row = split.row()
-        row.label("Interaction:")
+        row.label(text="Interaction:")
 
         text = bpy.path.display_name(context.window_manager.keyconfigs.active.name)
         if not text:
@@ -223,9 +202,10 @@ class USERPREF_PT_interface(Panel):
         userpref = context.user_preferences
         view = userpref.view
 
-        row = layout.row()
-
+        split = layout.split()
+        row = split.row()
         col = row.column()
+
         col.label(text="Display:")
         col.prop(view, "ui_scale", text="Scale")
         col.prop(view, "ui_line_width", text="Line Width")
@@ -238,15 +218,15 @@ class USERPREF_PT_interface(Panel):
 
         col.separator()
 
-        col.prop(view, "show_manipulator_navigate")
+        # col.prop(view, "show_gizmo_navigate")
 
         sub = col.column(align=True)
 
-        sub.prop(view, "show_mini_axis", text="Display Mini Axis")
-        sub.active = not view.show_manipulator_navigate
+        sub.label(text="3D Viewport Axis:")
+        sub.row().prop(view, "mini_axis_type", text="")
 
         sub = col.column(align=True)
-        sub.active = view.show_mini_axis
+        sub.active = view.mini_axis_type == 'MINIMAL'
         sub.prop(view, "mini_axis_size", text="Size")
         sub.prop(view, "mini_axis_brightness", text="Brightness")
 
@@ -258,24 +238,22 @@ class USERPREF_PT_interface(Panel):
         #col.label(text="Open Toolbox Delay:")
         #col.prop(view, "open_left_mouse_delay", text="Hold LMB")
         #col.prop(view, "open_right_mouse_delay", text="Hold RMB")
-        col.prop(view, "show_manipulator", text="Transform Manipulator")
-        # Currently not working
-        # col.prop(view, "show_manipulator_shaded")
+        col.prop(view, "show_gizmo", text="Gizmos")
         sub = col.column()
-        sub.active = view.show_manipulator
-        sub.prop(view, "manipulator_size", text="Size")
+        sub.active = view.show_gizmo
+        sub.prop(view, "gizmo_size", text="Size")
 
         col.separator()
 
-        col.label("Development")
+        col.label(text="Development:")
         col.prop(view, "show_tooltips_python")
         col.prop(view, "show_developer_ui")
 
+        row = split.row()
         row.separator()
-        row.separator()
-
         col = row.column()
-        col.label(text="View Manipulation:")
+
+        col.label(text="View Gizmos:")
         col.prop(view, "use_mouse_depth_cursor")
         col.prop(view, "use_cursor_lock_adjust")
         col.prop(view, "use_mouse_depth_navigate")
@@ -301,9 +279,8 @@ class USERPREF_PT_interface(Panel):
         elif view.view_frame_type == 'KEYFRAMES':
             col.prop(view, "view_frame_keyframes")
 
+        row = split.row()
         row.separator()
-        row.separator()
-
         col = row.column()
 
         col.label(text="Menus:")
@@ -326,7 +303,7 @@ class USERPREF_PT_interface(Panel):
 
         col.prop(view, "show_splash")
 
-        col.label("Warnings")
+        col.label(text="Warnings:")
         col.prop(view, "use_quit_dialog")
 
         col.separator()
@@ -354,9 +331,10 @@ class USERPREF_PT_edit(Panel):
         userpref = context.user_preferences
         edit = userpref.edit
 
-        row = layout.row()
-
+        split = layout.split()
+        row = split.row()
         col = row.column()
+
         col.label(text="Link Materials To:")
         col.prop(edit, "material_link", text="")
 
@@ -378,17 +356,19 @@ class USERPREF_PT_edit(Panel):
         col.prop(edit, "undo_steps", text="Steps")
         col.prop(edit, "undo_memory_limit", text="Memory Limit")
 
+        row = split.row()
         row.separator()
-        row.separator()
-
         col = row.column()
-        col.label(text="Grease Pencil:")
+
+        col.label(text="Annotations:")
+        sub = col.row()
+        sub.prop(edit, "grease_pencil_default_color", text="Default Color")
         col.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
+        col.separator()
+        col.label(text="Grease Pencil/Annotations:")
         col.separator()
         col.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
         col.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
-        col.separator()
-        col.prop(edit, "grease_pencil_default_color", text="Default Color")
         col.separator()
         col.prop(edit, "use_grease_pencil_simplify_stroke", text="Simplify Stroke")
         col.separator()
@@ -405,10 +385,10 @@ class USERPREF_PT_edit(Panel):
         col.label(text="Animation Editors:")
         col.prop(edit, "fcurve_unselected_alpha", text="F-Curve Visibility")
 
+        row = split.row()
         row.separator()
-        row.separator()
-
         col = row.column()
+
         col.label(text="Keyframing:")
         col.prop(edit, "use_visual_keying")
         col.prop(edit, "use_keyframe_insert_needed", text="Only Insert Needed")
@@ -436,11 +416,12 @@ class USERPREF_PT_edit(Panel):
 
         col.label(text="Transform:")
         col.prop(edit, "use_drag_immediately")
+        col.prop(edit, "use_numeric_input_advanced")
 
+        row = split.row()
         row.separator()
-        row.separator()
-
         col = row.column()
+
         col.prop(edit, "sculpt_paint_overlay_color", text="Sculpt Overlay Color")
 
         col.separator()
@@ -454,7 +435,7 @@ class USERPREF_PT_edit(Panel):
         col.prop(edit, "use_duplicate_text", text="Text")
         col.prop(edit, "use_duplicate_metaball", text="Metaball")
         col.prop(edit, "use_duplicate_armature", text="Armature")
-        col.prop(edit, "use_duplicate_lamp", text="Lamp")
+        col.prop(edit, "use_duplicate_light", text="Light")
         col.prop(edit, "use_duplicate_material", text="Material")
         col.prop(edit, "use_duplicate_texture", text="Texture")
         #col.prop(edit, "use_duplicate_fcurve", text="F-Curve")
@@ -484,7 +465,7 @@ class USERPREF_PT_system(Panel):
 
         # 1. Column
         column = split.column()
-        colsplit = column.split(percentage=0.85)
+        colsplit = column.split(factor=0.85)
 
         col = colsplit.column()
         col.label(text="General:")
@@ -517,7 +498,7 @@ class USERPREF_PT_system(Panel):
 
         # 2. Column
         column = split.column()
-        colsplit = column.split(percentage=0.85)
+        colsplit = column.split(factor=0.85)
 
         col = colsplit.column()
         col.label(text="OpenGL:")
@@ -526,13 +507,13 @@ class USERPREF_PT_system(Panel):
         col.prop(system, "use_16bit_textures")
 
         col.separator()
-        col.label(text="Selection")
+        col.label(text="Selection:")
         col.prop(system, "select_method", text="")
         col.prop(system, "use_select_pick_depth")
 
         col.separator()
 
-        col.label(text="Anisotropic Filtering")
+        col.label(text="Anisotropic Filtering:")
         col.prop(system, "anisotropic_filter", text="")
 
         col.separator()
@@ -547,47 +528,35 @@ class USERPREF_PT_system(Panel):
         col.prop(system, "gpu_viewport_quality")
 
         col.separator()
+        col.label(text="Grease Pencil Options:")
+        col.prop(system, "gpencil_multi_sample", text="")
 
+        col.separator()
         col.label(text="Text Draw Options:")
-        col.prop(system, "use_text_antialiasing")
-
-        col.separator()
-
-        col.label(text="Textures:")
-        col.prop(system, "gl_texture_limit", text="Limit Size")
-        col.prop(system, "texture_time_out", text="Time Out")
-        col.prop(system, "texture_collection_rate", text="Collection Rate")
-
-        col.separator()
-
-        col.label(text="Images Draw Method:")
-        col.prop(system, "image_draw_method", text="")
-
-        col.separator()
-
-        col.label(text="Sequencer/Clip Editor:")
-        # currently disabled in the code
-        # col.prop(system, "prefetch_frames")
-        col.prop(system, "memory_cache_limit")
+        col.prop(system, "use_text_antialiasing", text="Anti-aliasing")
+        sub = col.column()
+        sub.active = system.use_text_antialiasing
+        sub.prop(system, "text_hinting", text="Hinting")
 
         # 3. Column
         column = split.column()
 
-        column.label(text="Solid OpenGL Lights:")
+        column.label(text="Textures:")
+        column.prop(system, "gl_texture_limit", text="Limit Size")
+        column.prop(system, "texture_time_out", text="Time Out")
+        column.prop(system, "texture_collection_rate", text="Collection Rate")
 
-        split = column.split(percentage=0.1)
-        split.label()
-        split.label(text="Colors:")
-        split.label(text="Direction:")
+        column.separator()
 
-        lamp = system.solid_lights[0]
-        opengl_lamp_buttons(column, lamp)
+        column.label(text="Images Draw Method:")
+        column.prop(system, "image_draw_method", text="")
 
-        lamp = system.solid_lights[1]
-        opengl_lamp_buttons(column, lamp)
+        column.separator()
 
-        lamp = system.solid_lights[2]
-        opengl_lamp_buttons(column, lamp)
+        column.label(text="Sequencer/Clip Editor:")
+        # currently disabled in the code
+        # column.prop(system, "prefetch_frames")
+        column.prop(system, "memory_cache_limit")
 
         column.separator()
 
@@ -666,16 +635,16 @@ class USERPREF_PT_theme(Panel):
         col = split.column()
 
         def theme_generic_recurse(data):
-            col.label(data.rna_type.name)
+            col.label(text=data.rna_type.name)
             row = col.row()
-            subsplit = row.split(percentage=0.95)
+            subsplit = row.split(factor=0.95)
 
-            padding1 = subsplit.split(percentage=0.15)
+            padding1 = subsplit.split(factor=0.15)
             padding1.column()
 
-            subsplit = row.split(percentage=0.85)
+            subsplit = row.split(factor=0.85)
 
-            padding2 = subsplit.split(percentage=0.15)
+            padding2 = subsplit.split(factor=0.15)
             padding2.column()
 
             colsub_pair = padding1.column(), padding2.column()
@@ -708,9 +677,9 @@ class USERPREF_PT_theme(Panel):
                             if prop.identifier in th_delimiters:
                                 if i:
                                     colsub = colsub_pair[1]
-                                    colsub.row().label("")
-                                colsub_pair[0].row().label("")
-                                colsub_pair[1].row().label("")
+                                    colsub.row().label(text="")
+                                colsub_pair[0].row().label(text="")
+                                colsub_pair[1].row().label(text="")
                                 i = 0
 
         theme_generic_recurse(themedata)
@@ -720,9 +689,9 @@ class USERPREF_PT_theme(Panel):
 
         row = layout.row()
 
-        subsplit = row.split(percentage=0.95)
+        subsplit = row.split(factor=0.95)
 
-        padding = subsplit.split(percentage=0.15)
+        padding = subsplit.split(factor=0.15)
         colsub = padding.column()
         colsub = padding.column()
         colsub.row().prop(widget_style, "outline")
@@ -731,9 +700,9 @@ class USERPREF_PT_theme(Panel):
         colsub.row().prop(widget_style, "inner_sel", slider=True)
         colsub.row().prop(widget_style, "roundness")
 
-        subsplit = row.split(percentage=0.85)
+        subsplit = row.split(factor=0.85)
 
-        padding = subsplit.split(percentage=0.15)
+        padding = subsplit.split(factor=0.15)
         colsub = padding.column()
         colsub = padding.column()
         colsub.row().prop(widget_style, "text")
@@ -778,7 +747,7 @@ class USERPREF_PT_theme(Panel):
 
         theme = context.user_preferences.themes[0]
 
-        split_themes = layout.split(percentage=0.2)
+        split_themes = layout.split(factor=0.2)
 
         sub = split_themes.column()
 
@@ -792,7 +761,7 @@ class USERPREF_PT_theme(Panel):
 
         sub.prop(theme, "theme_area", expand=True)
 
-        split = layout.split(percentage=0.4)
+        split = layout.split(factor=0.4)
 
         layout.separator()
         layout.separator()
@@ -868,9 +837,9 @@ class USERPREF_PT_theme(Panel):
 
             row = col.row()
 
-            subsplit = row.split(percentage=0.95)
+            subsplit = row.split(factor=0.95)
 
-            padding = subsplit.split(percentage=0.15)
+            padding = subsplit.split(factor=0.15)
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui_state, "inner_anim")
@@ -879,9 +848,9 @@ class USERPREF_PT_theme(Panel):
             colsub.row().prop(ui_state, "inner_driven_sel")
             colsub.row().prop(ui_state, "blend")
 
-            subsplit = row.split(percentage=0.85)
+            subsplit = row.split(factor=0.85)
 
-            padding = subsplit.split(percentage=0.15)
+            padding = subsplit.split(factor=0.15)
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui_state, "inner_key")
@@ -892,13 +861,13 @@ class USERPREF_PT_theme(Panel):
             col.separator()
             col.separator()
 
-            col.label("Styles:")
+            col.label(text="Styles:")
 
             row = col.row()
 
-            subsplit = row.split(percentage=0.95)
+            subsplit = row.split(factor=0.95)
 
-            padding = subsplit.split(percentage=0.15)
+            padding = subsplit.split(factor=0.15)
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "menu_shadow_fac")
@@ -906,9 +875,9 @@ class USERPREF_PT_theme(Panel):
             colsub.row().prop(ui, "icon_saturation")
             colsub.row().prop(ui, "editor_outline")
 
-            subsplit = row.split(percentage=0.85)
+            subsplit = row.split(factor=0.85)
 
-            padding = subsplit.split(percentage=0.15)
+            padding = subsplit.split(factor=0.15)
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "menu_shadow_width")
@@ -917,28 +886,28 @@ class USERPREF_PT_theme(Panel):
             col.separator()
             col.separator()
 
-            col.label("Axis & Manipulator Colors:")
+            col.label(text="Axis & Gizmo Colors:")
 
             row = col.row()
 
-            subsplit = row.split(percentage=0.95)
+            subsplit = row.split(factor=0.95)
 
-            padding = subsplit.split(percentage=0.15)
+            padding = subsplit.split(factor=0.15)
             colsub = padding.column()
             colsub = padding.column()
             colsub.row().prop(ui, "axis_x")
             colsub.row().prop(ui, "axis_y")
             colsub.row().prop(ui, "axis_z")
 
-            subsplit = row.split(percentage=0.85)
+            subsplit = row.split(factor=0.85)
 
-            padding = subsplit.split(percentage=0.15)
+            padding = subsplit.split(factor=0.15)
             colsub = padding.column()
             colsub = padding.column()
-            colsub.row().prop(ui, "manipulator_primary")
-            colsub.row().prop(ui, "manipulator_secondary")
-            colsub.row().prop(ui, "manipulator_a")
-            colsub.row().prop(ui, "manipulator_b")
+            colsub.row().prop(ui, "gizmo_primary")
+            colsub.row().prop(ui, "gizmo_secondary")
+            colsub.row().prop(ui, "gizmo_a")
+            colsub.row().prop(ui, "gizmo_b")
 
             col.separator()
             col.separator()
@@ -946,22 +915,22 @@ class USERPREF_PT_theme(Panel):
             col = split.column()
 
             for i, ui in enumerate(theme.bone_color_sets, 1):
-                col.label(iface_(f"Color Set {i:d}"), translate=False)
+                col.label(text=iface_(f"Color Set {i:d}"), translate=False)
 
                 row = col.row()
 
-                subsplit = row.split(percentage=0.95)
+                subsplit = row.split(factor=0.95)
 
-                padding = subsplit.split(percentage=0.15)
+                padding = subsplit.split(factor=0.15)
                 colsub = padding.column()
                 colsub = padding.column()
                 colsub.row().prop(ui, "normal")
                 colsub.row().prop(ui, "select")
                 colsub.row().prop(ui, "active")
 
-                subsplit = row.split(percentage=0.85)
+                subsplit = row.split(factor=0.85)
 
-                padding = subsplit.split(percentage=0.15)
+                padding = subsplit.split(factor=0.15)
                 colsub = padding.column()
                 colsub = padding.column()
                 colsub.row().prop(ui, "show_colored_constraints")
@@ -1004,13 +973,13 @@ class USERPREF_PT_file(Panel):
         paths = userpref.filepaths
         system = userpref.system
 
-        split = layout.split(percentage=0.7)
+        split = layout.split(factor=0.7)
 
         col = split.column()
         col.label(text="File Paths:")
 
-        colsplit = col.split(percentage=0.95)
-        col1 = colsplit.split(percentage=0.3)
+        colsplit = col.split(factor=0.95)
+        col1 = colsplit.split(factor=0.3)
 
         sub = col1.column()
         sub.label(text="Fonts:")
@@ -1034,17 +1003,17 @@ class USERPREF_PT_file(Panel):
         sub.prop(paths, "render_cache_directory", text="")
         sub.prop(paths, "i18n_branches_directory", text="")
         sub.prop(paths, "image_editor", text="")
-        subsplit = sub.split(percentage=0.3)
+        subsplit = sub.split(factor=0.3)
         subsplit.prop(paths, "animation_player_preset", text="")
         subsplit.prop(paths, "animation_player", text="")
 
         col.separator()
         col.separator()
 
-        colsplit = col.split(percentage=0.95)
+        colsplit = col.split(factor=0.95)
         sub = colsplit.column()
 
-        row = sub.split(percentage=0.3)
+        row = sub.split(factor=0.3)
         row.label(text="Auto Execution:")
         row.prop(system, "use_scripts_auto_execute")
 
@@ -1090,8 +1059,8 @@ class USERPREF_PT_file(Panel):
         col.label(text="Text Editor:")
         col.prop(system, "use_tabs_as_spaces")
 
-        colsplit = col.split(percentage=0.95)
-        col1 = colsplit.split(percentage=0.3)
+        colsplit = col.split(factor=0.95)
+        col1 = colsplit.split(factor=0.3)
 
         sub = col1.column()
         sub.label(text="Author:")
@@ -1289,7 +1258,7 @@ class USERPREF_PT_input(Panel):
 
         inputs = userpref.inputs
 
-        split = layout.split(percentage=0.25)
+        split = layout.split(factor=0.25)
 
         # Input settings
         self.draw_input_prefs(inputs, split)
@@ -1366,10 +1335,10 @@ class USERPREF_PT_addons(Panel):
         lines = message.split("\n")
         box = layout.box()
         sub = box.row()
-        sub.label(lines[0])
+        sub.label(text=lines[0])
         sub.label(icon='ERROR')
         for l in lines[1:]:
-            box.label(l)
+            box.label(text=l)
 
     def draw(self, context):
         import os
@@ -1389,7 +1358,7 @@ class USERPREF_PT_addons(Panel):
             for mod in addon_utils.modules(refresh=False)
         ]
 
-        split = layout.split(percentage=0.2)
+        split = layout.split(factor=0.2)
         col = split.column()
         col.prop(context.window_manager, "addon_search", text="", icon='VIEWZOOM')
 
@@ -1405,15 +1374,15 @@ class USERPREF_PT_addons(Panel):
         if addon_utils.error_duplicates:
             box = col.box()
             row = box.row()
-            row.label("Multiple add-ons with the same name found!")
+            row.label(text="Multiple add-ons with the same name found!")
             row.label(icon='ERROR')
-            box.label("Please delete one of each pair:")
+            box.label(text="Delete one of each pair to resolve:")
             for (addon_name, addon_file, addon_path) in addon_utils.error_duplicates:
                 box.separator()
                 sub_col = box.column(align=True)
-                sub_col.label(addon_name + ":")
-                sub_col.label("    " + addon_file)
-                sub_col.label("    " + addon_path)
+                sub_col.label(text=addon_name + ":")
+                sub_col.label(text="    " + addon_file)
+                sub_col.label(text="    " + addon_path)
 
         if addon_utils.error_encoding:
             self.draw_error(
@@ -1473,7 +1442,14 @@ class USERPREF_PT_addons(Panel):
                 sub = row.row()
                 sub.active = is_enabled
                 sub.label(text="%s: %s" % (info["category"], info["name"]))
-                if info["warning"]:
+
+                # WARNING: 2.8x exception, may be removed
+                # use disabled state for old add-ons, chances are they are broken.
+                if info.get("blender", (0,)) < (2, 80):
+                    sub.label(text="upgrade to 2.8x required")
+                    sub.label(icon='ERROR')
+                # Remove code above after 2.8x migration is complete.
+                elif info["warning"]:
                     sub.label(icon='ERROR')
 
                 # icon showing support level.
@@ -1482,27 +1458,27 @@ class USERPREF_PT_addons(Panel):
                 # Expanded UI (only if additional info is available)
                 if info["show_expanded"]:
                     if info["description"]:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="Description:")
                         split.label(text=info["description"])
                     if info["location"]:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="Location:")
                         split.label(text=info["location"])
                     if mod:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="File:")
                         split.label(text=mod.__file__, translate=False)
                     if info["author"]:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="Author:")
                         split.label(text=info["author"], translate=False)
                     if info["version"]:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="Version:")
                         split.label(text=".".join(str(x) for x in info["version"]), translate=False)
                     if info["warning"]:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="Warning:")
                         split.label(text="  " + info["warning"], icon='ERROR')
 
@@ -1510,7 +1486,7 @@ class USERPREF_PT_addons(Panel):
                     tot_row = bool(info["wiki_url"]) + bool(user_addon)
 
                     if tot_row:
-                        split = colsub.row().split(percentage=0.15)
+                        split = colsub.row().split(factor=0.15)
                         split.label(text="Internet:")
                         if info["wiki_url"]:
                             split.operator(
@@ -1541,7 +1517,7 @@ class USERPREF_PT_addons(Panel):
                             if draw is not None:
                                 addon_preferences_class = type(addon_preferences)
                                 box_prefs = col_box.box()
-                                box_prefs.label("Preferences:")
+                                box_prefs.label(text="Preferences:")
                                 addon_preferences_class.layout = box_prefs
                                 try:
                                     draw(context)
@@ -1590,13 +1566,6 @@ class StudioLightPanelMixin():
     def _get_lights(self, userpref):
         return [light for light in userpref.studio_lights if light.is_user_defined and light.orientation == self.sl_orientation]
 
-    def draw_header(self, context):
-        layout = self.layout
-        row = layout.row()
-        userpref = context.user_preferences
-        lights = self._get_lights(userpref)
-        row.label("({})".format(len(lights)))
-
     def draw(self, context):
         layout = self.layout
         userpref = context.user_preferences
@@ -1606,7 +1575,7 @@ class StudioLightPanelMixin():
             for studio_light in lights:
                 self.draw_studio_light(flow, studio_light)
         else:
-            layout.label("No custom {} configured".format(self.bl_label))
+            layout.label(text="No custom {} configured".format(self.bl_label))
 
     def draw_studio_light(self, layout, studio_light):
         box = layout.box()
@@ -1634,6 +1603,48 @@ class USERPREF_PT_studiolight_camera(Panel, StudioLightPanelMixin):
     sl_orientation = 'CAMERA'
 
 
+class USERPREF_PT_studiolight_specular(Panel, StudioLightPanelMixin):
+    bl_label = "Specular Lights"
+    sl_orientation = 'CAMERA'
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'LIGHTS')
+
+    def opengl_light_buttons(self, column, light):
+        split = column.split()
+
+        col = split.column()
+        col.prop(light, "use", text="Use", icon='OUTLINER_OB_LIGHT' if light.use else 'LIGHT_DATA')
+
+        sub = col.column()
+        sub.active = light.use
+        sub.prop(light, "specular_color")
+
+        col = split.column()
+        col.active = light.use
+        col.prop(light, "direction", text="")
+
+    def draw(self, context):
+        layout = self.layout
+        column = layout.split()
+
+        userpref = context.user_preferences
+        system = userpref.system
+
+        light = system.solid_lights[0]
+        colsplit = column.split(factor=0.85)
+        self.opengl_light_buttons(colsplit, light)
+
+        light = system.solid_lights[1]
+        colsplit = column.split(factor=0.85)
+        self.opengl_light_buttons(colsplit, light)
+
+        light = system.solid_lights[2]
+        self.opengl_light_buttons(column, light)
+
+
 classes = (
     USERPREF_HT_header,
     USERPREF_PT_tabs,
@@ -1657,6 +1668,7 @@ classes = (
     USERPREF_PT_studiolight_matcaps,
     USERPREF_PT_studiolight_world,
     USERPREF_PT_studiolight_camera,
+    USERPREF_PT_studiolight_specular,
 )
 
 if __name__ == "__main__":  # only for live edit.

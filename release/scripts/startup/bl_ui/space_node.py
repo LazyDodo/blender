@@ -23,14 +23,9 @@ from bpy.types import Header, Menu, Panel
 from bpy.app.translations import pgettext_iface as iface_
 from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
-    GreasePencilDrawingToolsPanel,
-    GreasePencilStrokeEditPanel,
-    GreasePencilStrokeSculptPanel,
-    GreasePencilBrushPanel,
-    GreasePencilBrushCurvesPanel,
-    GreasePencilDataPanel,
-    GreasePencilPaletteColorPanel,
-    GreasePencilToolsPanel
+    AnnotationDrawingToolsPanel,
+    AnnotationDataPanel,
+    GreasePencilToolsPanel,
 )
 
 
@@ -53,7 +48,7 @@ class NODE_HT_header(Header):
         # layout.prop(snode, "tree_type", text="")
 
         if snode.tree_type == 'ShaderNodeTree':
-            layout.prop(snode, "shader_type", text="", expand=True)
+            layout.prop(snode, "shader_type", text="")
 
             ob = context.object
             if snode.shader_type == 'OBJECT' and ob:
@@ -61,7 +56,7 @@ class NODE_HT_header(Header):
                 NODE_MT_editor_menus.draw_collapsible(context, layout)
 
                 # No shader nodes for Eevee lamps
-                if snode_id and not (context.engine == 'BLENDER_EEVEE' and ob.type == 'LAMP'):
+                if snode_id and not (context.engine == 'BLENDER_EEVEE' and ob.type == 'LIGHT'):
                     row = layout.row()
                     row.prop(snode_id, "use_nodes")
 
@@ -73,12 +68,11 @@ class NODE_HT_header(Header):
                 # Show material.new when no active ID/slot exists
                 if not id_from and ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'METABALL'}:
                     row.template_ID(ob, "active_material", new="material.new")
-                # Material ID, but not for Lamps
-                if id_from and ob.type != 'LAMP':
+                # Material ID, but not for Lights
+                if id_from and ob.type != 'LIGHT':
                     row.template_ID(id_from, "active_material", new="material.new")
 
             if snode.shader_type == 'WORLD':
-
                 NODE_MT_editor_menus.draw_collapsible(context, layout)
 
                 if snode_id:
@@ -109,7 +103,7 @@ class NODE_HT_header(Header):
                     row.template_ID(lineset, "linestyle", new="scene.freestyle_linestyle_new")
 
         elif snode.tree_type == 'TextureNodeTree':
-            layout.prop(snode, "texture_type", text="", expand=True)
+            layout.prop(snode, "texture_type", text="")
 
             NODE_MT_editor_menus.draw_collapsible(context, layout)
 
@@ -144,15 +138,13 @@ class NODE_HT_header(Header):
             layout.separator_spacer()
 
             layout.template_ID(snode, "node_tree", new="node.new_node_tree")
+
         layout.separator_spacer()
+
+        layout.template_running_jobs()
 
         layout.prop(snode, "pin", text="")
         layout.operator("node.tree_path_parent", text="", icon='FILE_PARENT')
-
-        layout.separator()
-
-        # Auto-offset nodes (called "insert_offset" in code)
-        layout.prop(snode, "use_insert_offset", text="")
 
         # Snap
         row = layout.row(align=True)
@@ -164,8 +156,6 @@ class NODE_HT_header(Header):
         row = layout.row(align=True)
         row.operator("node.clipboard_copy", text="", icon='COPYDOWN')
         row.operator("node.clipboard_paste", text="", icon='PASTEDOWN')
-
-        layout.template_running_jobs()
 
 
 class NODE_MT_editor_menus(Menu):
@@ -204,8 +194,15 @@ class NODE_MT_view(Menu):
     def draw(self, context):
         layout = self.layout
 
+        snode = context.space_data
+
         layout.operator("node.properties", icon='MENU_PANEL')
         layout.operator("node.toolbar", icon='MENU_PANEL')
+
+        layout.separator()
+
+        # Auto-offset nodes (called "insert_offset" in code)
+        layout.prop(snode, "use_insert_offset")
 
         layout.separator()
 
@@ -362,7 +359,6 @@ class NODE_PT_active_node_generic(Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
     bl_label = "Node"
-#    bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
@@ -381,6 +377,7 @@ class NODE_PT_active_node_color(Panel):
     bl_region_type = 'UI'
     bl_label = "Color"
     bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'NODE_PT_active_node_generic'
 
     @classmethod
     def poll(cls, context):
@@ -408,6 +405,8 @@ class NODE_PT_active_node_properties(Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
     bl_label = "Properties"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'NODE_PT_active_node_generic'
 
     @classmethod
     def poll(cls, context):
@@ -428,7 +427,7 @@ class NODE_PT_active_node_properties(Panel):
         value_inputs = [socket for socket in node.inputs if socket.enabled and not socket.is_linked]
         if value_inputs:
             layout.separator()
-            layout.label("Inputs:")
+            layout.label(text="Inputs:")
             for socket in value_inputs:
                 row = layout.row()
                 socket.draw(context, row, node, iface_(socket.name, socket.bl_rna.translation_context))
@@ -451,18 +450,22 @@ class NODE_PT_backdrop(Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         snode = context.space_data
         layout.active = snode.show_backdrop
-        layout.prop(snode, "backdrop_channels", text="")
-        layout.prop(snode, "backdrop_zoom", text="Zoom")
 
-        col = layout.column(align=True)
-        col.label(text="Offset:")
-        col.prop(snode, "backdrop_offset", text="")
+        col = layout.column()
+
+        col.prop(snode, "backdrop_channels", text="Channels")
+        col.prop(snode, "backdrop_zoom", text="Zoom")
+
+        col.prop(snode, "backdrop_offset", text="Offset")
+
+        col.separator()
+
         col.operator("node.backimage_move", text="Move")
-
-        layout.operator("node.backimage_fit", text="Fit")
+        col.operator("node.backimage_fit", text="Fit")
 
 
 class NODE_PT_quality(bpy.types.Panel):
@@ -477,6 +480,7 @@ class NODE_PT_quality(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         snode = context.space_data
         tree = snode.node_tree
@@ -517,22 +521,10 @@ class NODE_UL_interface_sockets(bpy.types.UIList):
 
 
 # Grease Pencil properties
-class NODE_PT_grease_pencil(GreasePencilDataPanel, Panel):
+class NODE_PT_grease_pencil(AnnotationDataPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
-
-    # NOTE: this is just a wrapper around the generic GP Panel
-
-    @classmethod
-    def poll(cls, context):
-        snode = context.space_data
-        return snode is not None and snode.node_tree is not None
-
-
-# Grease Pencil palette colors
-class NODE_PT_grease_pencil_palettecolor(GreasePencilPaletteColorPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'UI'
+    bl_options = {'DEFAULT_CLOSED'}
 
     # NOTE: this is just a wrapper around the generic GP Panel
 
@@ -556,35 +548,10 @@ class NODE_PT_grease_pencil_tools(GreasePencilToolsPanel, Panel):
 
 
 # Grease Pencil drawing tools
-class NODE_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
+class NODE_PT_tools_grease_pencil_draw(AnnotationDrawingToolsPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'TOOLS'
 
-
-# Grease Pencil stroke editing tools
-class NODE_PT_tools_grease_pencil_edit(GreasePencilStrokeEditPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-
-# Grease Pencil stroke sculpting tools
-class NODE_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-# Grease Pencil drawing brushes
-
-
-class NODE_PT_tools_grease_pencil_brush(GreasePencilBrushPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-# Grease Pencil drawing curves
-
-
-class NODE_PT_tools_grease_pencil_brushcurves(GreasePencilBrushCurvesPanel, Panel):
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
 
 # -----------------------------
 
@@ -610,13 +577,8 @@ classes = (
     NODE_PT_quality,
     NODE_UL_interface_sockets,
     NODE_PT_grease_pencil,
-    NODE_PT_grease_pencil_palettecolor,
     NODE_PT_grease_pencil_tools,
     NODE_PT_tools_grease_pencil_draw,
-    NODE_PT_tools_grease_pencil_edit,
-    NODE_PT_tools_grease_pencil_sculpt,
-    NODE_PT_tools_grease_pencil_brush,
-    NODE_PT_tools_grease_pencil_brushcurves,
 )
 
 

@@ -280,11 +280,11 @@ static void get_face_uv_map_vert(UvVertMap *vmap, struct MPoly *mpoly, struct ML
 		for (nv = v = BKE_mesh_uv_vert_map_get_vert(vmap, ml[j].v); v; v = v->next) {
 			if (v->separate)
 				nv = v;
-			if (v->f == fi)
+			if (v->poly_index == fi)
 				break;
 		}
 
-		fverts[j] = SET_UINT_IN_POINTER(mpoly[nv->f].loopstart + nv->tfindex);
+		fverts[j] = SET_UINT_IN_POINTER(mpoly[nv->poly_index].loopstart + nv->loop_of_poly_index);
 	}
 }
 
@@ -292,7 +292,6 @@ static int ss_sync_from_uv(CCGSubSurf *ss, CCGSubSurf *origss, DerivedMesh *dm, 
 {
 	MPoly *mpoly = dm->getPolyArray(dm);
 	MLoop *mloop = dm->getLoopArray(dm);
-	MVert *mvert = dm->getVertArray(dm);
 	int totvert = dm->getNumVerts(dm);
 	int totface = dm->getNumPolys(dm);
 	int i, seam;
@@ -304,13 +303,12 @@ static int ss_sync_from_uv(CCGSubSurf *ss, CCGSubSurf *origss, DerivedMesh *dm, 
 	BLI_array_declare(fverts);
 #endif
 	EdgeSet *eset;
-	float creaseFactor = (float)ccgSubSurf_getSubdivisionLevels(ss);
 	float uv[3] = {0.0f, 0.0f, 0.0f}; /* only first 2 values are written into */
 
 	limit[0] = limit[1] = STD_UV_CONNECT_LIMIT;
 	/* previous behavior here is without accounting for winding, however this causes stretching in
 	 * UV map in really simple cases with mirror + subsurf, see second part of T44530. Also, initially
-	 * intention is to treat merged vertices from mirror modifier as seams, see code below with ME_VERT_MERGED
+	 * intention is to treat merged vertices from mirror modifier as seams.
 	 * This fixes a very old regression (2.49 was correct here) */
 	vmap = BKE_mesh_uv_vert_map_create(mpoly, mloop, mloopuv, totface, totvert, limit, false, true);
 	if (!vmap)
@@ -327,12 +325,12 @@ static int ss_sync_from_uv(CCGSubSurf *ss, CCGSubSurf *origss, DerivedMesh *dm, 
 			if (v->separate)
 				break;
 
-		seam = (v != NULL) || ((mvert + i)->flag & ME_VERT_MERGED);
+		seam = (v != NULL);
 
 		for (v = BKE_mesh_uv_vert_map_get_vert(vmap, i); v; v = v->next) {
 			if (v->separate) {
 				CCGVert *ssv;
-				int loopid = mpoly[v->f].loopstart + v->tfindex;
+				int loopid = mpoly[v->poly_index].loopstart + v->loop_of_poly_index;
 				CCGVertHDL vhdl = SET_INT_IN_POINTER(loopid);
 
 				copy_v2_v2(uv, mloopuv[loopid].uv);
@@ -365,18 +363,11 @@ static int ss_sync_from_uv(CCGSubSurf *ss, CCGSubSurf *origss, DerivedMesh *dm, 
 		for (j = 0, j_next = nverts - 1; j < nverts; j_next = j++) {
 			unsigned int v0 = GET_UINT_FROM_POINTER(fverts[j_next]);
 			unsigned int v1 = GET_UINT_FROM_POINTER(fverts[j]);
-			MVert *mv0 = mvert + (ml[j_next].v);
-			MVert *mv1 = mvert + (ml[j].v);
 
 			if (BLI_edgeset_add(eset, v0, v1)) {
 				CCGEdge *e, *orige = ccgSubSurf_getFaceEdge(origf, j_next);
 				CCGEdgeHDL ehdl = SET_INT_IN_POINTER(mp->loopstart + j_next);
-				float crease;
-
-				if ((mv0->flag & mv1->flag) & ME_VERT_MERGED)
-					crease = creaseFactor;
-				else
-					crease = ccgSubSurf_getEdgeCrease(orige);
+				float crease = ccgSubSurf_getEdgeCrease(orige);
 
 				ccgSubSurf_syncEdge(ss, ehdl, fverts[j_next], fverts[j], crease, &e);
 			}
@@ -2283,8 +2274,9 @@ static struct PBVH *ccgDM_getPBVH(Object *ob, DerivedMesh *dm)
 	if (ob->sculpt->pbvh) {
 		/* Note that we have to clean up exisitng pbvh instead of updating it in case it does not match current
 		 * grid_pbvh status. */
+		const PBVHType pbvh_type = BKE_pbvh_type(ob->sculpt->pbvh);
 		if (grid_pbvh) {
-			if (BKE_pbvh_get_ccgdm(ob->sculpt->pbvh) != NULL) {
+			if (pbvh_type == PBVH_GRIDS) {
 				/* pbvh's grids, gridadj and gridfaces points to data inside ccgdm
 				 * but this can be freed on ccgdm release, this updates the pointers
 				 * when the ccgdm gets remade, the assumption is that the topology
@@ -2298,7 +2290,7 @@ static struct PBVH *ccgDM_getPBVH(Object *ob, DerivedMesh *dm)
 				ob->sculpt->pbvh = NULL;
 			}
 		}
-		else if (BKE_pbvh_get_ccgdm(ob->sculpt->pbvh) != NULL) {
+		else if (pbvh_type == PBVH_GRIDS) {
 			BKE_pbvh_free(ob->sculpt->pbvh);
 			ob->sculpt->pbvh = NULL;
 		}
@@ -2307,10 +2299,6 @@ static struct PBVH *ccgDM_getPBVH(Object *ob, DerivedMesh *dm)
 	}
 
 	if (ccgdm->pbvh) {
-		/* For grid pbvh, keep track of ccgdm */
-		if (grid_pbvh) {
-			BKE_pbvh_set_ccgdm(ccgdm->pbvh, ccgdm);
-		}
 		return ccgdm->pbvh;
 	}
 
@@ -2362,10 +2350,6 @@ static struct PBVH *ccgDM_getPBVH(Object *ob, DerivedMesh *dm)
 		pbvh_show_mask_set(ccgdm->pbvh, ob->sculpt->show_mask);
 	}
 
-	/* For grid pbvh, keep track of ccgdm. */
-	if (grid_pbvh && ccgdm->pbvh) {
-		BKE_pbvh_set_ccgdm(ccgdm->pbvh, ccgdm);
-	}
 	return ccgdm->pbvh;
 }
 
@@ -2936,7 +2920,7 @@ struct DerivedMesh *subsurf_make_derived_from_derived(
 {
 	int useSimple = (smd->subdivType == ME_SIMPLE_SUBSURF) ? CCG_SIMPLE_SUBDIV : 0;
 	CCGFlags useAging = (smd->flags & eSubsurfModifierFlag_DebugIncr) ? CCG_USE_AGING : 0;
-	int useSubsurfUv = smd->flags & eSubsurfModifierFlag_SubsurfUv;
+	int useSubsurfUv = (smd->uv_smooth != SUBSURF_UV_SMOOTH_NONE);
 	int drawInteriorEdges = !(smd->flags & eSubsurfModifierFlag_ControlEdges);
 	CCGDerivedMesh *result;
 	bool use_gpu_backend = subsurf_use_gpu_backend(flags);

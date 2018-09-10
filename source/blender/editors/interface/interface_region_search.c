@@ -406,7 +406,7 @@ static void ui_searchbox_region_draw_cb(const bContext *C, ARegion *ar)
 	wmOrtho2_region_pixelspace(ar);
 
 	if (data->noback == false) {
-		ui_draw_widget_back(UI_WTYPE_BOX, true, &data->bbox);
+		ui_draw_widget_back(UI_WTYPE_MENU_BACK, true, &data->bbox);
 	}
 
 	/* draw text */
@@ -423,8 +423,9 @@ static void ui_searchbox_region_draw_cb(const bContext *C, ARegion *ar)
 				ui_searchbox_butrect(&rect, data, a);
 
 				/* widget itself */
-				ui_draw_preview_item(&data->fstyle, &rect, data->items.names[a], data->items.icons[a],
-				                     (a == data->active) ? UI_ACTIVE : 0);
+				ui_draw_preview_item(
+				        &data->fstyle, &rect, data->items.names[a], data->items.icons[a],
+				        (a == data->active) ? UI_ACTIVE : 0);
 			}
 
 			/* indicate more */
@@ -448,8 +449,9 @@ static void ui_searchbox_region_draw_cb(const bContext *C, ARegion *ar)
 				ui_searchbox_butrect(&rect, data, a);
 
 				/* widget itself */
-				ui_draw_menu_item(&data->fstyle, &rect, data->items.names[a], data->items.icons[a],
-				                  (a == data->active) ? UI_ACTIVE : 0, data->use_sep);
+				ui_draw_menu_item(
+				        &data->fstyle, &rect, data->items.names[a], data->items.icons[a],
+				        (a == data->active) ? UI_ACTIVE : 0, data->use_sep);
 
 			}
 			/* indicate more */
@@ -684,7 +686,7 @@ static void ui_searchbox_region_draw_cb__operator(const bContext *UNUSED(C), ARe
 	wmOrtho2_region_pixelspace(ar);
 
 	if (data->noback == false) {
-		ui_draw_widget_back(UI_WTYPE_BOX, true, &data->bbox);
+		ui_draw_widget_back(UI_WTYPE_MENU_BACK, true, &data->bbox);
 	}
 
 	/* draw text */
@@ -724,8 +726,9 @@ static void ui_searchbox_region_draw_cb__operator(const bContext *UNUSED(C), ARe
 				}
 
 				rect_pre.xmax += 4;  /* sneaky, avoid showing ugly margin */
-				ui_draw_menu_item(&data->fstyle, &rect_pre, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, text_pre),
-				                  data->items.icons[a], state, false);
+				ui_draw_menu_item(
+				        &data->fstyle, &rect_pre, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, text_pre),
+				        data->items.icons[a], state, false);
 				ui_draw_menu_item(&data->fstyle, &rect_post, data->items.names[a], 0, state, data->use_sep);
 			}
 

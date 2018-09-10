@@ -1226,7 +1226,7 @@ static bool ui_drag_toggle_but_is_supported(const uiBut *but)
 		return true;
 	}
 	else if (UI_but_is_decorator(but)) {
-		return ELEM(but->icon, ICON_SPACE2, ICON_SPACE3, ICON_DOT, ICON_LIBRARY_DATA_OVERRIDE);
+		return ELEM(but->icon, ICON_DECORATE, ICON_DECORATE_KEYFRAME, ICON_DECORATE_ANIMATE, ICON_DECORATE_OVERRIDE);
 	}
 	else {
 		return false;
@@ -1239,7 +1239,7 @@ static bool ui_drag_toggle_but_is_pushed(uiBut *but)
 		return ui_but_is_pushed(but);
 	}
 	else if (UI_but_is_decorator(but)) {
-		return (but->icon == ICON_SPACE2);
+		return (but->icon == ICON_DECORATE_KEYFRAME);
 	}
 	else {
 		return false;
@@ -1325,8 +1325,10 @@ static void ui_drag_toggle_set(bContext *C, uiDragToggleHandle *drag_info, const
 
 		if (but) {
 			if (but->flag & UI_BUT_DRAG_LOCK) {
-				const float but_cent_new[2] = {BLI_rctf_cent_x(&but->rect),
-				                               BLI_rctf_cent_y(&but->rect)};
+				const float but_cent_new[2] = {
+					BLI_rctf_cent_x(&but->rect),
+					BLI_rctf_cent_y(&but->rect),
+				};
 
 				/* check if this is a different button, chances are high the button wont move about :) */
 				if (len_manhattan_v2v2(drag_info->but_cent_start, but_cent_new) > 1.0f) {
@@ -1398,10 +1400,11 @@ static int ui_handler_region_drag_toggle(bContext *C, const wmEvent *event, void
 			ui_apply_but_undo(but);
 		}
 
-		WM_event_remove_ui_handler(&win->modalhandlers,
-		                           ui_handler_region_drag_toggle,
-		                           ui_handler_region_drag_toggle_remove,
-		                           drag_info, false);
+		WM_event_remove_ui_handler(
+		        &win->modalhandlers,
+		        ui_handler_region_drag_toggle,
+		        ui_handler_region_drag_toggle_remove,
+		        drag_info, false);
 		ui_handler_region_drag_toggle_remove(C, drag_info);
 
 		WM_event_add_mousemove(C);
@@ -2014,7 +2017,7 @@ static void ui_but_drop(bContext *C, const wmEvent *event, uiBut *but, uiHandleB
 		if (wmd->type == WM_DRAG_ID) {
 			/* align these types with UI_but_active_drop_name */
 			if (ELEM(but->type, UI_BTYPE_TEXT, UI_BTYPE_SEARCH_MENU)) {
-				ID *id = (ID *)wmd->poin;
+				ID *id = WM_drag_ID(wmd, 0);
 
 				button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
 
@@ -3159,13 +3162,15 @@ static void ui_do_but_textedit(
 				}
 				break;
 			case RIGHTARROWKEY:
-				ui_textedit_move(but, data, STRCUR_DIR_NEXT,
-				                 event->shift != 0, event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
+				ui_textedit_move(
+				        but, data, STRCUR_DIR_NEXT,
+				        event->shift != 0, event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 			case LEFTARROWKEY:
-				ui_textedit_move(but, data, STRCUR_DIR_PREV,
-				                 event->shift != 0, event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
+				ui_textedit_move(
+				        but, data, STRCUR_DIR_PREV,
+				        event->shift != 0, event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 			case WHEELDOWNMOUSE:
@@ -3182,8 +3187,9 @@ static void ui_do_but_textedit(
 				}
 				ATTR_FALLTHROUGH;
 			case ENDKEY:
-				ui_textedit_move(but, data, STRCUR_DIR_NEXT,
-				                 event->shift != 0, STRCUR_JUMP_ALL);
+				ui_textedit_move(
+				        but, data, STRCUR_DIR_NEXT,
+				        event->shift != 0, STRCUR_JUMP_ALL);
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 			case WHEELUPMOUSE:
@@ -3200,8 +3206,9 @@ static void ui_do_but_textedit(
 				}
 				ATTR_FALLTHROUGH;
 			case HOMEKEY:
-				ui_textedit_move(but, data, STRCUR_DIR_PREV,
-				                 event->shift != 0, STRCUR_JUMP_ALL);
+				ui_textedit_move(
+				        but, data, STRCUR_DIR_PREV,
+				        event->shift != 0, STRCUR_JUMP_ALL);
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 			case PADENTER:
@@ -3210,14 +3217,16 @@ static void ui_do_but_textedit(
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 			case DELKEY:
-				changed = ui_textedit_delete(but, data, 1,
-				                             event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
+				changed = ui_textedit_delete(
+				        but, data, 1,
+				        event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 
 			case BACKSPACEKEY:
-				changed = ui_textedit_delete(but, data, 0,
-				                             event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
+				changed = ui_textedit_delete(
+				        but, data, 0,
+				        event->ctrl ? STRCUR_JUMP_DELIM : STRCUR_JUMP_NONE);
 				retval = WM_UI_HANDLER_BREAK;
 				break;
 
@@ -3232,10 +3241,12 @@ static void ui_do_but_textedit(
 				if (event->ctrl && !IS_EVENT_MOD(event, shift, alt, oskey))
 #endif
 				{
-					ui_textedit_move(but, data, STRCUR_DIR_PREV,
-					                 false, STRCUR_JUMP_ALL);
-					ui_textedit_move(but, data, STRCUR_DIR_NEXT,
-					                 true, STRCUR_JUMP_ALL);
+					ui_textedit_move(
+					        but, data, STRCUR_DIR_PREV,
+					        false, STRCUR_JUMP_ALL);
+					ui_textedit_move(
+					        but, data, STRCUR_DIR_NEXT,
+					        true, STRCUR_JUMP_ALL);
 					retval = WM_UI_HANDLER_BREAK;
 				}
 				break;
@@ -3752,17 +3763,6 @@ static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButton
 			return WM_UI_HANDLER_BREAK;
 		}
 		else if (ELEM(event->type, LEFTMOUSE, PADENTER, RETKEY) && (event->val == KM_CLICK)) {
-			const bool has_icon_extra = ui_but_icon_extra_get(but) == UI_BUT_ICONEXTRA_CLEAR;
-
-			if (has_icon_extra && ui_but_is_mouse_over_icon_extra(data->region, but, &event->x)) {
-				uiButTab *tab = (uiButTab *)but;
-				wmOperatorType *ot_backup = but->optype;
-
-				but->optype = tab->unlink_ot;
-				/* Force calling unlink/delete operator. */
-				ui_apply_but(C, block, but, data, true);
-				but->optype = ot_backup;
-			}
 			button_activate_state(C, but, BUTTON_STATE_EXIT);
 			return WM_UI_HANDLER_BREAK;
 		}
@@ -7046,12 +7046,21 @@ void UI_but_tooltip_timer_remove(bContext *C, uiBut *but)
 	}
 }
 
-static ARegion *ui_but_tooltip_init(bContext *C, ARegion *ar, bool *r_exit_on_event)
+static ARegion *ui_but_tooltip_init(
+        bContext *C, ARegion *ar,
+        int *pass, double *r_pass_delay, bool *r_exit_on_event)
 {
+	bool is_label = false;
+	if (*pass == 1) {
+		is_label = true;
+		(*pass)--;
+		(*r_pass_delay) = UI_TOOLTIP_DELAY - UI_TOOLTIP_DELAY_LABEL;
+	}
+
 	uiBut *but = UI_region_active_but_get(ar);
 	*r_exit_on_event = false;
 	if (but) {
-		return UI_tooltip_create_from_button(C, ar, but);
+		return UI_tooltip_create_from_button(C, ar, but, is_label);
 	}
 	return NULL;
 }
@@ -7066,7 +7075,15 @@ static void button_tooltip_timer_reset(bContext *C, uiBut *but)
 	if ((U.flag & USER_TOOLTIPS) || (data->tooltip_force)) {
 		if (!but->block->tooltipdisabled) {
 			if (!wm->drags.first) {
-				WM_tooltip_timer_init(C, data->window, data->region, ui_but_tooltip_init);
+				bool is_label = UI_but_has_tooltip_label(but);
+				double delay = is_label ? UI_TOOLTIP_DELAY_LABEL : UI_TOOLTIP_DELAY;
+				WM_tooltip_timer_init_ex(C, data->window, data->region, ui_but_tooltip_init, delay);
+				if (is_label) {
+					bScreen *sc = WM_window_get_active_screen(data->window);
+					if (sc->tool_tip) {
+						sc->tool_tip->pass = 1;
+					}
+				}
 			}
 		}
 	}
@@ -7250,6 +7267,7 @@ static void button_activate_init(bContext *C, ARegion *ar, uiBut *but, uiButtonA
 
 	/* activate button */
 	but->flag |= UI_ACTIVE;
+
 	but->active = data;
 
 	/* we disable auto_open in the block after a threshold, because we still
@@ -7299,6 +7317,19 @@ static void button_activate_init(bContext *C, ARegion *ar, uiBut *but, uiButtonA
 	}
 	else if (but->type == UI_BTYPE_NUM) {
 		ui_numedit_set_active(but);
+	}
+
+	if (UI_but_has_tooltip_label(but)) {
+		/* Show a label for this button. */
+		bScreen *sc = WM_window_get_active_screen(data->window);
+		if ((PIL_check_seconds_timer() - WM_tooltip_time_closed()) < 0.1) {
+			WM_tooltip_immediate_init(
+			        C, CTX_wm_window(C), ar,
+			        ui_but_tooltip_init);
+			if (sc->tool_tip) {
+				sc->tool_tip->pass = 1;
+			}
+		}
 	}
 }
 
@@ -8217,7 +8248,7 @@ static void ui_handle_button_return_submenu(bContext *C, const wmEvent *event, u
 
 static void ui_mouse_motion_towards_init_ex(uiPopupBlockHandle *menu, const int xy[2], const bool force)
 {
-	BLI_assert(((uiBlock *)menu->region->uiblocks.first)->flag & UI_BLOCK_MOVEMOUSE_QUIT);
+	BLI_assert(((uiBlock *)menu->region->uiblocks.first)->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER));
 
 	if (!menu->dotowards || force) {
 		menu->dotowards = true;
@@ -8252,7 +8283,7 @@ static bool ui_mouse_motion_towards_check(
 	const float margin = MENU_TOWARDS_MARGIN;
 	rctf rect_px;
 
-	BLI_assert(block->flag & UI_BLOCK_MOVEMOUSE_QUIT);
+	BLI_assert(block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER));
 
 
 	/* annoying fix for [#36269], this is a bit odd but in fact works quite well
@@ -8568,7 +8599,7 @@ static int ui_handle_menu_event(
 #endif
 
 	if (but && button_modal_state(but->active->state)) {
-		if (block->flag & UI_BLOCK_MOVEMOUSE_QUIT) {
+		if (block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER)) {
 			/* if a button is activated modal, always reset the start mouse
 			 * position of the towards mechanism to avoid loosing focus,
 			 * and don't handle events */
@@ -8582,7 +8613,7 @@ static int ui_handle_menu_event(
 	else {
 		/* for ui_mouse_motion_towards_block */
 		if (event->type == MOUSEMOVE) {
-			if (block->flag & UI_BLOCK_MOVEMOUSE_QUIT) {
+			if (block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER)) {
 				ui_mouse_motion_towards_init(menu, &event->x);
 			}
 
@@ -8899,7 +8930,7 @@ static int ui_handle_menu_event(
 			else {
 
 				/* check mouse moving outside of the menu */
-				if (inside == 0 && (block->flag & UI_BLOCK_MOVEMOUSE_QUIT)) {
+				if (inside == 0 && (block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER))) {
 					uiSafetyRct *saferct;
 
 					ui_mouse_motion_towards_check(block, menu, &event->x, is_parent_inside == false);
@@ -9008,7 +9039,7 @@ static int ui_handle_menu_return_submenu(bContext *C, const wmEvent *event, uiPo
 			submenu->menuretval = 0;
 	}
 
-	if (block->flag & UI_BLOCK_MOVEMOUSE_QUIT) {
+	if (block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER)) {
 		/* for cases where close does not cascade, allow the user to
 		 * move the mouse back towards the menu without closing */
 		ui_mouse_motion_towards_reinit(menu, &event->x);
@@ -9408,7 +9439,7 @@ static int ui_handle_menus_recursive(
 
 			retval = ui_handle_menu_button(C, event, menu);
 
-			if (block->flag & UI_BLOCK_MOVEMOUSE_QUIT) {
+			if (block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER)) {
 				/* when there is a active search button and we close it,
 				 * we need to reinit the mouse coords [#35346] */
 				if (ui_but_find_active_in_region(menu->region) != but) {
@@ -9675,8 +9706,9 @@ static int ui_popup_handler(bContext *C, const wmEvent *event, void *userdata)
 
 #ifdef USE_DRAG_TOGGLE
 		{
-			WM_event_free_ui_handler_all(C, &win->modalhandlers,
-			                             ui_handler_region_drag_toggle, ui_handler_region_drag_toggle_remove);
+			WM_event_free_ui_handler_all(
+			        C, &win->modalhandlers,
+			        ui_handler_region_drag_toggle, ui_handler_region_drag_toggle_remove);
 		}
 #endif
 

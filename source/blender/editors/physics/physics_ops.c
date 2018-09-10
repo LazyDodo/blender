@@ -34,6 +34,8 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_physics.h"
 #include "ED_object.h"
 
@@ -113,13 +115,10 @@ static void keymap_particle(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 	wmKeyMap *keymap;
 
-	keymap = WM_keymap_find(keyconf, "Particle", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Particle", 0, 0);
 	keymap->poll = PE_poll;
 
-	kmi = WM_keymap_add_item(keymap, "PARTICLE_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
-	kmi = WM_keymap_add_item(keymap, "PARTICLE_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "PARTICLE_OT_select_all");
 
 	WM_keymap_add_item(keymap, "PARTICLE_OT_select_more", PADPLUSKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "PARTICLE_OT_select_less", PADMINUS, KM_PRESS, KM_CTRL, 0);
@@ -129,9 +128,7 @@ static void keymap_particle(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "PARTICLE_OT_select_linked", LKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "deselect", true);
 
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "PARTICLE_OT_delete", XKEY, KM_PRESS, 0, 0);
-#endif
 	WM_keymap_add_item(keymap, "PARTICLE_OT_delete", DELKEY, KM_PRESS, 0, 0);
 
 	WM_keymap_add_item(keymap, "PARTICLE_OT_reveal", HKEY, KM_PRESS, KM_ALT, 0);
@@ -207,7 +204,7 @@ static void operatortypes_dynamicpaint(void)
 
 //static void keymap_pointcache(wmWindowManager *wm)
 //{
-//	wmKeyMap *keymap = WM_keymap_find(wm, "Pointcache", 0, 0);
+//	wmKeyMap *keymap = WM_keymap_ensure(wm, "Pointcache", 0, 0);
 //
 //	WM_keymap_add_item(keymap, "PHYSICS_OT_bake_all", AKEY, KM_PRESS, 0, 0);
 //	WM_keymap_add_item(keymap, "PHYSICS_OT_free_all", PADPLUSKEY, KM_PRESS, KM_CTRL, 0);

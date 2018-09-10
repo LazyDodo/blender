@@ -50,6 +50,8 @@
 #include "BKE_main.h"
 #include "BKE_report.h"
 
+#include "DEG_depsgraph_build.h"
+
 #include "ED_node.h"  /* own include */
 #include "ED_screen.h"
 #include "ED_render.h"
@@ -65,7 +67,7 @@
 #include "node_intern.h"  /* own include */
 #include "NOD_common.h"
 
-static int node_group_operator_active(bContext *C)
+static bool node_group_operator_active(bContext *C)
 {
 	if (ED_operator_node_active(C)) {
 		SpaceNode *snode = CTX_wm_space_node(C);
@@ -84,7 +86,7 @@ static int node_group_operator_active(bContext *C)
 	return false;
 }
 
-static int node_group_operator_editable(bContext *C)
+static bool node_group_operator_editable(bContext *C)
 {
 	if (ED_operator_node_editable(C)) {
 		SpaceNode *snode = CTX_wm_space_node(C);
@@ -961,6 +963,7 @@ static int node_group_make_exec(bContext *C, wmOperator *op)
 
 	snode_notify(C, snode);
 	snode_dag_update(C, snode);
+	DEG_relations_tag_update(bmain);  /* We broke relations in node tree, need to rebuild them in the grahes. */
 
 	return OPERATOR_FINISHED;
 }

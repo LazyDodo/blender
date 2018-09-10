@@ -52,7 +52,7 @@ static int gpu_shader_bump(GPUMaterial *mat, bNode *node, bNodeExecData *UNUSED(
 	else
 		GPU_link(mat, "direction_transform_m4v3", in[3].link, GPU_builtin(GPU_VIEW_MATRIX), &in[3].link);
 	float invert = node->custom1;
-	GPU_stack_link(mat, node, "node_bump", in, out, GPU_builtin(GPU_VIEW_POSITION), GPU_uniform(&invert));
+	GPU_stack_link(mat, node, "node_bump", in, out, GPU_builtin(GPU_VIEW_POSITION), GPU_constant(&invert));
 	/* Other nodes are applying view matrix if the input Normal has a link.
 	 * We don't want normal to have view matrix applied twice, so we cancel it here.
 	 *
@@ -68,7 +68,6 @@ void register_node_type_sh_bump(void)
 	static bNodeType ntype;
 
 	sh_node_type_base(&ntype, SH_NODE_BUMP, "Bump", NODE_CLASS_OP_VECTOR, 0);
-	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_bump_in, sh_node_bump_out);
 	node_type_storage(&ntype, "", NULL, NULL);
 	node_type_gpu(&ntype, gpu_shader_bump);

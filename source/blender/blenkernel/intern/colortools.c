@@ -282,6 +282,7 @@ void curvemap_reset(CurveMap *cuma, const rctf *clipr, int preset, int slope)
 		case CURVE_PRESET_MID9: cuma->totpoint = 9; break;
 		case CURVE_PRESET_ROUND: cuma->totpoint = 4; break;
 		case CURVE_PRESET_ROOT: cuma->totpoint = 4; break;
+		case CURVE_PRESET_GAUSS: cuma->totpoint = 7; break;
 	}
 
 	cuma->curve = MEM_callocN(cuma->totpoint * sizeof(CurveMapPoint), "curve points");
@@ -351,6 +352,24 @@ void curvemap_reset(CurveMap *cuma, const rctf *clipr, int preset, int slope)
 			cuma->curve[2].y = 0.44;
 			cuma->curve[3].x = 1;
 			cuma->curve[3].y = 0;
+			break;
+		case CURVE_PRESET_GAUSS:
+			cuma->curve[0].x = 0;
+			cuma->curve[0].y = 0.025f;
+			cuma->curve[1].x = 0.16f;
+			cuma->curve[1].y = 0.135f;
+			cuma->curve[2].x = 0.298f;
+			cuma->curve[2].y = 0.36f;
+
+			cuma->curve[3].x = 0.50f;
+			cuma->curve[3].y = 1.0f;
+
+			cuma->curve[4].x = 0.70f;
+			cuma->curve[4].y = 0.36f;
+			cuma->curve[5].x = 0.84f;
+			cuma->curve[5].y = 0.135f;
+			cuma->curve[6].x = 1.0f;
+			cuma->curve[6].y = 0.025f;
 			break;
 	}
 
@@ -919,6 +938,41 @@ void curvemapping_evaluateRGBF(const CurveMapping *cumap, float vecout[3], const
 	vecout[2] = curvemap_evaluateF(&cumap->cm[2], curvemap_evaluateF(&cumap->cm[3], vecin[2]));
 }
 
+static void curvemapping_evaluateRGBF_filmlike(const CurveMapping *cumap, float vecout[3], const float vecin[3],
+                                               const int channel_offset[3])
+{
+	const float v0in = vecin[channel_offset[0]];
+	const float v1in = vecin[channel_offset[1]];
+	const float v2in = vecin[channel_offset[2]];
+
+	const float v0 = curvemap_evaluateF(&cumap->cm[channel_offset[0]], v0in);
+	const float v2 = curvemap_evaluateF(&cumap->cm[channel_offset[2]], v2in);
+	const float v1 = v2 + ((v0 - v2) * (v1in - v2in) / (v0in - v2in));
+
+	vecout[channel_offset[0]] = v0;
+	vecout[channel_offset[1]] = v1;
+	vecout[channel_offset[2]] = v2;
+}
+
+static float curvemapping_weighted_standard_triangle(float a, float b, float a1)
+{
+	if (a != b) {
+		float b1;
+		float a2 = a1 - a;
+
+		if (b < a) {
+			b1 = b + a2 * b / a ;
+		}
+		else {
+			b1 = b + a2 * (65535.0f - b) / (65535.0f - a);
+		}
+
+		return b1;
+	}
+
+	return a1;
+}
+
 /** same as #curvemapping_evaluate_premulRGBF
  * but black/bwmul are passed as args for the compositor
  * where they can change per pixel.
@@ -928,20 +982,92 @@ void curvemapping_evaluateRGBF(const CurveMapping *cumap, float vecout[3], const
  * \param black Use instead of cumap->black
  * \param bwmul Use instead of cumap->bwmul
  */
-void curvemapping_evaluate_premulRGBF_ex(const CurveMapping *cumap, float vecout[3], const float vecin[3],
-                                         const float black[3], const float bwmul[3])
+void curvemapping_evaluate_premulRGBF_ex(
+        const CurveMapping *cumap, float vecout[3], const float vecin[3],
+        const float black[3], const float bwmul[3])
 {
-	vecout[0] = curvemap_evaluateF(&cumap->cm[0], (vecin[0] - black[0]) * bwmul[0]);
-	vecout[1] = curvemap_evaluateF(&cumap->cm[1], (vecin[1] - black[1]) * bwmul[1]);
-	vecout[2] = curvemap_evaluateF(&cumap->cm[2], (vecin[2] - black[2]) * bwmul[2]);
+	const float r = (vecin[0] - black[0]) * bwmul[0];
+	const float g = (vecin[1] - black[1]) * bwmul[1];
+	const float b = (vecin[2] - black[2]) * bwmul[2];
+
+	switch (cumap->tone) {
+		default:
+		case CURVE_TONE_STANDARD:
+		{
+			vecout[0] = curvemap_evaluateF(&cumap->cm[0], r);
+			vecout[1] = curvemap_evaluateF(&cumap->cm[1], g);
+			vecout[2] = curvemap_evaluateF(&cumap->cm[2], b);
+			break;
+		}
+		case CURVE_TONE_WEIGHTED_STANDARD:
+		{
+			float r1 = curvemap_evaluateF(&cumap->cm[0], r);
+			float g1 = curvemapping_weighted_standard_triangle(r, r1, g);
+			float b1 = curvemapping_weighted_standard_triangle(r, r1, b);
+
+			float g2 = curvemap_evaluateF(&cumap->cm[1], g);
+			float r2 = curvemapping_weighted_standard_triangle(g, g2, r);
+			float b2 = curvemapping_weighted_standard_triangle(g, g2, b);
+
+			float b3 = curvemap_evaluateF(&cumap->cm[2], b);
+			float r3 = curvemapping_weighted_standard_triangle(b, b3, r);
+			float g3 = curvemapping_weighted_standard_triangle(b, b3, g);
+
+			vecout[0] = r1 * 0.50f + r2 * 0.25f + r3 * 0.25f;
+			vecout[1] = g1 * 0.25f + g2 * 0.50f + g3 * 0.25f;
+			vecout[2] = b1 * 0.25f + b2 * 0.25f + b3 * 0.50f;
+			break;
+		}
+		case CURVE_TONE_FILMLIKE:
+		{
+			if (r >= g) {
+				if (g > b) {
+					/* Case 1: r >= g >  b */
+					const int shuffeled_channels[] = {0, 1, 2};
+					curvemapping_evaluateRGBF_filmlike(cumap, vecout, vecin, shuffeled_channels);
+				}
+				else if (b > r) {
+					/* Case 2: b >  r >= g */
+					const int shuffeled_channels[] = {2, 0, 1};
+					curvemapping_evaluateRGBF_filmlike(cumap, vecout, vecin, shuffeled_channels);
+				}
+				else if (b > g) {
+					/* Case 3: r >= b >  g */
+					const int shuffeled_channels[] = {0, 2, 1};
+					curvemapping_evaluateRGBF_filmlike(cumap, vecout, vecin, shuffeled_channels);
+				}
+				else {
+					/* Case 4: r >= g == b */
+					copy_v2_fl2(vecout, curvemap_evaluateF(&cumap->cm[0], r), curvemap_evaluateF(&cumap->cm[1], g));
+					vecout[2] = vecout[1];
+				}
+			}
+			else {
+				if (r >= b) {
+					/* Case 5: g >  r >= b */
+					const int shuffeled_channels[] = {1, 0, 2};
+					curvemapping_evaluateRGBF_filmlike(cumap, vecout, vecin, shuffeled_channels);
+				}
+				else if (b >  g) {
+					/* Case 6: b >  g >  r */
+					const int shuffeled_channels[] = {2, 1, 0};
+					curvemapping_evaluateRGBF_filmlike(cumap, vecout, vecin, shuffeled_channels);
+				}
+				else {
+					/* Case 7: g >= b >  r */
+					const int shuffeled_channels[] = {1, 2, 0};
+					curvemapping_evaluateRGBF_filmlike(cumap, vecout, vecin, shuffeled_channels);
+				}
+			}
+			break;
+		}
+	}
 }
 
 /* RGB with black/white points and premult. tables are checked */
 void curvemapping_evaluate_premulRGBF(const CurveMapping *cumap, float vecout[3], const float vecin[3])
 {
-	vecout[0] = curvemap_evaluateF(&cumap->cm[0], (vecin[0] - cumap->black[0]) * cumap->bwmul[0]);
-	vecout[1] = curvemap_evaluateF(&cumap->cm[1], (vecin[1] - cumap->black[1]) * cumap->bwmul[1]);
-	vecout[2] = curvemap_evaluateF(&cumap->cm[2], (vecin[2] - cumap->black[2]) * cumap->bwmul[2]);
+	curvemapping_evaluate_premulRGBF_ex(cumap, vecout, vecin, cumap->black, cumap->bwmul);
 }
 
 /* same as above, byte version */

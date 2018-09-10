@@ -55,6 +55,8 @@
 #include "ED_mask.h"
 #include "ED_space_api.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_clip.h"
 #include "ED_transform.h"
 #include "ED_uvedit.h"  /* just for ED_image_draw_cursor */
@@ -236,7 +238,7 @@ static SpaceLink *clip_new(const ScrArea *sa, const Scene *scene)
 	sc = MEM_callocN(sizeof(SpaceClip), "initclip");
 	sc->spacetype = SPACE_CLIP;
 	sc->flag = SC_SHOW_MARKER_PATTERN | SC_SHOW_TRACK_PATH |
-	           SC_SHOW_GRAPH_TRACKS_MOTION | SC_SHOW_GRAPH_FRAMES | SC_SHOW_GPENCIL;
+	           SC_SHOW_GRAPH_TRACKS_MOTION | SC_SHOW_GRAPH_FRAMES | SC_SHOW_ANNOTATION;
 	sc->zoom = 1.0f;
 	sc->path_length = 20;
 	sc->scopes.track_preview_height = 120;
@@ -323,8 +325,7 @@ static SpaceLink *clip_duplicate(SpaceLink *sl)
 	return (SpaceLink *)scn;
 }
 
-static void clip_listener(bScreen *UNUSED(sc), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene),
-                          WorkSpace *UNUSED(workspace))
+static void clip_listener(wmWindow *UNUSED(win), ScrArea *sa, wmNotifier *wmn, Scene *UNUSED(scene))
 {
 	/* context changes */
 	switch (wmn->category) {
@@ -543,7 +544,7 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 
 	/* ******** Global hotkeys avalaible for all regions ******** */
 
-	keymap = WM_keymap_find(keyconf, "Clip", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(keyconf, "Clip", SPACE_CLIP, 0);
 
 	WM_keymap_add_item(keymap, "CLIP_OT_open", OKEY, KM_PRESS, KM_ALT, 0);
 
@@ -583,7 +584,7 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 
 	/* ******** Hotkeys avalaible for main region only ******** */
 
-	keymap = WM_keymap_find(keyconf, "Clip Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(keyconf, "Clip Editor", SPACE_CLIP, 0);
 //	keymap->poll = ED_space_clip_tracking_poll;
 	/* ** View/navigation ** */
 
@@ -645,10 +646,9 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "extend", false);
 	kmi = WM_keymap_add_item(keymap, "CLIP_OT_select", SELECTMOUSE, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "extend", true);
-	kmi = WM_keymap_add_item(keymap, "CLIP_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
-	kmi = WM_keymap_add_item(keymap, "CLIP_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+
+	ED_keymap_template_select_all(keymap, "CLIP_OT_select_all");
+
 	WM_keymap_add_item(keymap, "CLIP_OT_select_border", BKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "CLIP_OT_select_circle", CKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_menu(keymap, "CLIP_MT_select_grouped", GKEY, KM_PRESS, KM_SHIFT, 0);
@@ -661,10 +661,8 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 	/* marker */
 	WM_keymap_add_item(keymap, "CLIP_OT_add_marker_slide", LEFTMOUSE, KM_PRESS, KM_CTRL, 0);
 
-	WM_keymap_add_item(keymap, "CLIP_OT_delete_marker", DELKEY, KM_PRESS, KM_SHIFT, 0);
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "CLIP_OT_delete_marker", XKEY, KM_PRESS, KM_SHIFT, 0);
-#endif
+	WM_keymap_add_item(keymap, "CLIP_OT_delete_marker", DELKEY, KM_PRESS, KM_SHIFT, 0);
 
 	WM_keymap_add_item(keymap, "CLIP_OT_slide_marker", LEFTMOUSE, KM_PRESS, 0, 0);
 
@@ -672,10 +670,8 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 	RNA_enum_set(kmi->ptr, "action", 2);    /* toggle */
 
 	/* tracks */
-	WM_keymap_add_item(keymap, "CLIP_OT_delete_track", DELKEY, KM_PRESS, 0, 0);
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "CLIP_OT_delete_track", XKEY, KM_PRESS, 0, 0);
-#endif
+	WM_keymap_add_item(keymap, "CLIP_OT_delete_track", DELKEY, KM_PRESS, 0, 0);
 
 	kmi = WM_keymap_add_item(keymap, "CLIP_OT_lock_tracks", LKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "action", 0);    /* lock */
@@ -755,7 +751,7 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 
 	/* ******** Hotkeys avalaible for preview region only ******** */
 
-	keymap = WM_keymap_find(keyconf, "Clip Graph Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(keyconf, "Clip Graph Editor", SPACE_CLIP, 0);
 
 	/* "timeline" */
 	WM_keymap_add_item(keymap, "CLIP_OT_change_frame", ACTIONMOUSE, KM_PRESS, 0, 0);
@@ -766,30 +762,23 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "CLIP_OT_graph_select", SELECTMOUSE, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "extend", true);
 
-	kmi = WM_keymap_add_item(keymap, "CLIP_OT_graph_select_all_markers", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_TOGGLE);
-	kmi = WM_keymap_add_item(keymap, "CLIP_OT_graph_select_all_markers", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "CLIP_OT_graph_select_all_markers");
 
 	WM_keymap_add_item(keymap, "CLIP_OT_graph_select_border", BKEY, KM_PRESS, 0, 0);
 
 	/* delete */
-	WM_keymap_add_item(keymap, "CLIP_OT_graph_delete_curve", DELKEY, KM_PRESS, 0, 0);
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "CLIP_OT_graph_delete_curve", XKEY, KM_PRESS, 0, 0);
-#endif
+	WM_keymap_add_item(keymap, "CLIP_OT_graph_delete_curve", DELKEY, KM_PRESS, 0, 0);
 
-	WM_keymap_add_item(keymap, "CLIP_OT_graph_delete_knot", DELKEY, KM_PRESS, KM_SHIFT, 0);
-#ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "CLIP_OT_graph_delete_knot", XKEY, KM_PRESS, KM_SHIFT, 0);
-#endif
+	WM_keymap_add_item(keymap, "CLIP_OT_graph_delete_knot", DELKEY, KM_PRESS, KM_SHIFT, 0);
 
 	/* view */
 	WM_keymap_add_item(keymap, "CLIP_OT_graph_view_all", HOMEKEY, KM_PRESS, 0, 0);
 #ifdef WITH_INPUT_NDOF
 	WM_keymap_add_item(keymap, "CLIP_OT_graph_view_all", NDOF_BUTTON_FIT, KM_PRESS, 0, 0);
 #endif
-	WM_keymap_add_item(keymap, "CLIP_OT_graph_center_current_frame", PADPERIOD, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "CLIP_OT_graph_center_current_frame", PAD0, KM_PRESS, 0, 0);
 
 	kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", LKEY, KM_PRESS, 0, 0);
 	RNA_string_set(kmi->ptr, "data_path", "space_data.lock_time_cursor");
@@ -813,7 +802,7 @@ static void clip_keymap(struct wmKeyConfig *keyconf)
 
 	/* ******** Hotkeys avalaible for channels region only ******** */
 
-	keymap = WM_keymap_find(keyconf, "Clip Dopesheet Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(keyconf, "Clip Dopesheet Editor", SPACE_CLIP, 0);
 
 	kmi = WM_keymap_add_item(keymap, "CLIP_OT_dopesheet_select_channel", LEFTMOUSE, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "extend", true);  /* toggle */
@@ -851,7 +840,7 @@ static int clip_context(const bContext *C, const char *member, bContextDataResul
 }
 
 /* dropboxes */
-static int clip_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event))
+static bool clip_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH)
 		if (ELEM(drag->icon, 0, ICON_FILE_IMAGE, ICON_FILE_MOVIE, ICON_FILE_BLANK)) /* rule might not work? */
@@ -1112,14 +1101,14 @@ static void clip_main_region_init(wmWindowManager *wm, ARegion *ar)
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_STANDARD, ar->winx, ar->winy);
 
 	/* mask polls mode */
-	keymap = WM_keymap_find(wm->defaultconf, "Mask Editing", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Mask Editing", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Clip", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Clip Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip Editor", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 }
 
@@ -1189,18 +1178,18 @@ static void clip_main_region_draw(const bContext *C, ARegion *ar)
 	show_cursor |= sc->around == V3D_AROUND_CURSOR;
 
 	if (show_cursor) {
-		gpuPushMatrix();
-		gpuTranslate2f(x, y);
-		gpuScale2f(zoomx, zoomy);
-		gpuMultMatrix(sc->stabmat);
-		gpuScale2f(width, height);
+		GPU_matrix_push();
+		GPU_matrix_translate_2f(x, y);
+		GPU_matrix_scale_2f(zoomx, zoomy);
+		GPU_matrix_mul(sc->stabmat);
+		GPU_matrix_scale_2f(width, height);
 		ED_image_draw_cursor(ar, sc->cursor);
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 
 	clip_draw_cache_and_notes(C, sc, ar);
 
-	if (sc->flag & SC_SHOW_GPENCIL) {
+	if (sc->flag & SC_SHOW_ANNOTATION) {
 		/* Grease Pencil */
 		clip_draw_grease_pencil((bContext *)C, true);
 	}
@@ -1208,14 +1197,14 @@ static void clip_main_region_draw(const bContext *C, ARegion *ar)
 	/* reset view matrix */
 	UI_view2d_view_restore(C);
 
-	if (sc->flag & SC_SHOW_GPENCIL) {
+	if (sc->flag & SC_SHOW_ANNOTATION) {
 		/* draw Grease Pencil - screen space only */
 		clip_draw_grease_pencil((bContext *)C, false);
 	}
 }
 
 static void clip_main_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1238,13 +1227,13 @@ static void clip_preview_region_init(wmWindowManager *wm, ARegion *ar)
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_CUSTOM, ar->winx, ar->winy);
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Clip", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Clip Graph Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip Graph Editor", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Clip Dopesheet Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip Dopesheet Editor", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 }
 
@@ -1346,7 +1335,7 @@ static void clip_preview_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void clip_preview_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
         wmNotifier *UNUSED(wmn), const Scene *UNUSED(scene))
 {
 }
@@ -1362,7 +1351,7 @@ static void clip_channels_region_init(wmWindowManager *wm, ARegion *ar)
 
 	UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_LIST, ar->winx, ar->winy);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Clip Dopesheet Editor", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip Dopesheet Editor", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 }
 
@@ -1389,7 +1378,7 @@ static void clip_channels_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void clip_channels_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *UNUSED(ar),
         wmNotifier *UNUSED(wmn), const Scene *UNUSED(scene))
 {
 }
@@ -1408,7 +1397,7 @@ static void clip_header_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void clip_header_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1438,7 +1427,7 @@ static void clip_tools_region_init(wmWindowManager *wm, ARegion *ar)
 
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Clip", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -1450,7 +1439,7 @@ static void clip_tools_region_draw(const bContext *C, ARegion *ar)
 /****************** tool properties region ******************/
 
 static void clip_props_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1483,7 +1472,7 @@ static void clip_properties_region_init(wmWindowManager *wm, ARegion *ar)
 
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Clip", SPACE_CLIP, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Clip", SPACE_CLIP, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -1497,7 +1486,7 @@ static void clip_properties_region_draw(const bContext *C, ARegion *ar)
 }
 
 static void clip_properties_region_listener(
-        bScreen *UNUSED(sc), ScrArea *UNUSED(sa), ARegion *ar,
+        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar,
         wmNotifier *wmn, const Scene *UNUSED(scene))
 {
 	/* context changes */
@@ -1621,5 +1610,9 @@ void ED_spacetype_clip(void)
 	art->init = clip_channels_region_init;
 	art->draw = clip_channels_region_draw;
 
+	BLI_addhead(&st->regiontypes, art);
+
+	/* regions: hud */
+	art = ED_area_type_hud(st->spaceid);
 	BLI_addhead(&st->regiontypes, art);
 }

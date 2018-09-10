@@ -843,6 +843,7 @@ static void calc_shapeKeys(Object *obedit, ListBase *newnurbs)
 				}
 
 				nu = nu->next;
+				newnu = newnu->next;
 			}
 
 			if (apply_offset) {
@@ -6244,7 +6245,7 @@ bool ED_curve_active_center(Curve *cu, float center[3])
 
 /******************** Match texture space operator ***********************/
 
-static int match_texture_space_poll(bContext *C)
+static bool match_texture_space_poll(bContext *C)
 {
 	Object *object = CTX_data_active_object(C);
 
@@ -6260,12 +6261,12 @@ static int match_texture_space_exec(bContext *C, wmOperator *UNUSED(op))
 	float min[3], max[3], size[3], loc[3];
 	int a;
 
-	if (object->curve_cache == NULL) {
+	if (object->runtime.curve_cache == NULL) {
 		BKE_displist_make_curveTypes(depsgraph, scene, object, false);
 	}
 
 	INIT_MINMAX(min, max);
-	BKE_displist_minmax(&object->curve_cache->disp, min, max);
+	BKE_displist_minmax(&object->runtime.curve_cache->disp, min, max);
 
 	mid_v3_v3v3(loc, min, max);
 

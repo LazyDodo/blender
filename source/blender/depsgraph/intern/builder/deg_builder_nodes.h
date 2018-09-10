@@ -158,16 +158,16 @@ struct DepsgraphNodeBuilder {
 	                                       const char *name = "",
 	                                       int name_tag = -1);
 
-	void build_id(ID* id);
+	void build_id(ID *id);
 	void build_layer_collections(ListBase *lb);
 	void build_view_layer(Scene *scene,
 	                      ViewLayer *view_layer,
 	                      eDepsNode_LinkedState_Type linked_state);
-	void build_collection(eDepsNode_CollectionOwner owner_type,
-	                      Collection *collection);
+	void build_collection(Collection *collection);
 	void build_object(int base_index,
 	                  Object *object,
-	                  eDepsNode_LinkedState_Type linked_state);
+	                  eDepsNode_LinkedState_Type linked_state,
+	                  bool is_visible = true);
 	void build_object_flags(int base_index,
 	                        Object *object,
 	                        eDepsNode_LinkedState_Type linked_state);
@@ -215,9 +215,25 @@ struct DepsgraphNodeBuilder {
 	void build_lightprobe(LightProbe *probe);
 	void build_speaker(Speaker *speaker);
 
+	/* Per-ID information about what was already in the dependency graph.
+	 * Allows to re-use certain values, to speed up following evaluation.
+	 */
+	struct IDInfo {
+		/* Copy-on-written pointer of the corresponding ID. */
+		ID *id_cow;
+		/* State of the is_visible from ID node from previous state of the
+		 * dependency graph.
+		 */
+		bool is_visible;
+	};
+
 protected:
+	/* Allows to identify an operation which was tagged for update at the time
+	 * relations are being updated. We can not reuse operation node pointer
+	 * since it will change during dependency graph construction.
+	 */
 	struct SavedEntryTag {
-		ID *id;
+		ID *id_orig;
 		eDepsNode_Type component_type;
 		eDepsOperation_Code opcode;
 	};
@@ -226,12 +242,10 @@ protected:
 	struct BuilderWalkUserData {
 		DepsgraphNodeBuilder *builder;
 	};
-
 	static void modifier_walk(void *user_data,
 	                          struct Object *object,
 	                          struct ID **idpoin,
 	                          int cb_flag);
-
 	static void constraint_walk(bConstraint *constraint,
 	                            ID **idpoin,
 	                            bool is_reference,
@@ -245,8 +259,22 @@ protected:
 	Scene *scene_;
 	ViewLayer *view_layer_;
 	int view_layer_index_;
+	/* NOTE: Collection are possibly built recursively, so be careful when
+	 * setting the current state.
+	 */
+	Collection *collection_;
+	/* Accumulated flag over the hierarchy opf currently building collections.
+	 * Denotes whether all the hierarchy from parent of collection_ to the
+	 * very root is visible (aka not restricted.).
+	 */
+	bool is_parent_collection_visible_;
 
-	GHash *cow_id_hash_;
+	/* Indexed by original ID, values are IDInfo. */
+	GHash *id_info_hash_;
+
+	/* Set of IDs which were already build. Makes it easier to keep track of
+	 * what was already built and what was not.
+	 */
 	BuilderMap built_map_;
 };
 

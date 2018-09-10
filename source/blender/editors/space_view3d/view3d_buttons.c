@@ -60,6 +60,7 @@
 #include "BKE_deform.h"
 #include "BKE_object.h"
 #include "BKE_object_deform.h"
+#include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
 
@@ -786,7 +787,7 @@ static void do_view3d_vgroup_buttons(bContext *C, void *UNUSED(arg), int event)
 	}
 }
 
-static int view3d_panel_vgroup_poll(const bContext *C, PanelType *UNUSED(pt))
+static bool view3d_panel_vgroup_poll(const bContext *C, PanelType *UNUSED(pt))
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = OBACT(view_layer);
@@ -937,6 +938,7 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 	colsub = uiLayoutColumn(split, true);
 	uiItemR(colsub, ptr, "location", 0, NULL, ICON_NONE);
 	colsub = uiLayoutColumn(split, true);
+	uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 	uiItemL(colsub, "", ICON_NONE);
 	uiItemR(colsub, ptr, "lock_location", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
 
@@ -947,6 +949,7 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 			colsub = uiLayoutColumn(split, true);
 			uiItemR(colsub, ptr, "rotation_quaternion", 0, IFACE_("Rotation"), ICON_NONE);
 			colsub = uiLayoutColumn(split, true);
+			uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 			uiItemR(colsub, ptr, "lock_rotations_4d", UI_ITEM_R_TOGGLE, IFACE_("4L"), ICON_NONE);
 			if (RNA_boolean_get(ptr, "lock_rotations_4d"))
 				uiItemR(colsub, ptr, "lock_rotation_w", UI_ITEM_R_TOGGLE + UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
@@ -958,6 +961,7 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 			colsub = uiLayoutColumn(split, true);
 			uiItemR(colsub, ptr, "rotation_axis_angle", 0, IFACE_("Rotation"), ICON_NONE);
 			colsub = uiLayoutColumn(split, true);
+			uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 			uiItemR(colsub, ptr, "lock_rotations_4d", UI_ITEM_R_TOGGLE, IFACE_("4L"), ICON_NONE);
 			if (RNA_boolean_get(ptr, "lock_rotations_4d"))
 				uiItemR(colsub, ptr, "lock_rotation_w", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
@@ -969,6 +973,7 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 			colsub = uiLayoutColumn(split, true);
 			uiItemR(colsub, ptr, "rotation_euler", 0, IFACE_("Rotation"), ICON_NONE);
 			colsub = uiLayoutColumn(split, true);
+			uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 			uiItemL(colsub, "", ICON_NONE);
 			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
 			break;
@@ -979,6 +984,7 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 	colsub = uiLayoutColumn(split, true);
 	uiItemR(colsub, ptr, "scale", 0, NULL, ICON_NONE);
 	colsub = uiLayoutColumn(split, true);
+	uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 	uiItemL(colsub, "", ICON_NONE);
 	uiItemR(colsub, ptr, "lock_scale", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
 
@@ -1120,7 +1126,7 @@ static void do_view3d_region_buttons(bContext *C, void *UNUSED(index), int event
 	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
 }
 
-static int view3d_panel_transform_poll(const bContext *C, PanelType *UNUSED(pt))
+static bool view3d_panel_transform_poll(const bContext *C, PanelType *UNUSED(pt))
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	return (view_layer->basact != NULL);
@@ -1217,6 +1223,36 @@ void VIEW3D_OT_properties(wmOperatorType *ot)
 	ot->idname = "VIEW3D_OT_properties";
 
 	ot->exec = view3d_properties_toggle_exec;
+	ot->poll = ED_operator_view3d_active;
+
+	/* flags */
+	ot->flag = 0;
+}
+
+static int view3d_object_mode_menu(bContext *C, wmOperator *op)
+{
+	Object *ob = CTX_data_active_object(C);
+	if (ob == NULL) {
+		BKE_report(op->reports, RPT_WARNING, "No active object found");
+		return OPERATOR_CANCELLED;
+	}
+	else if (((ob->mode & OB_MODE_EDIT) == 0) && (ELEM(ob->type, OB_ARMATURE))) {
+		ED_object_mode_toggle(C, OB_MODE_POSE);
+		return OPERATOR_CANCELLED;
+	}
+	else {
+		UI_pie_menu_invoke(C, "VIEW3D_MT_object_mode_pie", CTX_wm_window(C)->eventstate);
+		return OPERATOR_CANCELLED;
+	}
+}
+
+void VIEW3D_OT_object_mode_pie_or_toggle(wmOperatorType *ot)
+{
+	ot->name = "Object Mode Menu";
+	ot->description = "";
+	ot->idname = "VIEW3D_OT_object_mode_pie_or_toggle";
+
+	ot->exec = view3d_object_mode_menu;
 	ot->poll = ED_operator_view3d_active;
 
 	/* flags */

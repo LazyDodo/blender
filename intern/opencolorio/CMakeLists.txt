@@ -27,8 +27,8 @@ set(INC
 	.
 	../glew-mx
 	../guardedalloc
-	../gawain
 	../../source/blender/blenlib
+	../../source/blender/gpu
 )
 
 set(INC_SYS
@@ -63,6 +63,9 @@ if(WITH_OPENCOLORIO)
 	if(WIN32)
 		list(APPEND INC_SYS
 			${BOOST_INCLUDE_DIR}
+		)
+		add_definitions(
+			-DOpenColorIO_STATIC
 		)
 	endif()
 

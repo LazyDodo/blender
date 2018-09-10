@@ -21,7 +21,7 @@ import bpy
 from bpy.types import Menu, Panel, UIList
 from rna_prop_ui import PropertyPanel
 from bpy.app.translations import pgettext_iface as iface_
-from bpy_extras.node_utils import find_node_input, find_output_node
+from bpy_extras.node_utils import find_node_input
 
 
 class MATERIAL_MT_specials(Menu):
@@ -65,6 +65,7 @@ class MaterialButtonsPanel:
 
 class MATERIAL_PT_preview(MaterialButtonsPanel, Panel):
     bl_label = "Preview"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     def draw(self, context):
@@ -72,7 +73,7 @@ class MATERIAL_PT_preview(MaterialButtonsPanel, Panel):
 
 
 class MATERIAL_PT_custom_props(MaterialButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
     _context_path = "material"
     _property_type = bpy.types.Material
 
@@ -81,12 +82,15 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
     bl_label = ""
     bl_context = "material"
     bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
-        engine = context.engine
-        return (context.material or context.object) and (engine in cls.COMPAT_ENGINES)
+        if context.active_object and context.active_object.type == 'GPENCIL':
+            return False
+        else:
+            engine = context.engine
+            return (context.material or context.object) and (engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -118,29 +122,27 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
                 col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
 
+        row = layout.row()
+
+        if ob:
+            row.template_ID(ob, "active_material", new="material.new")
+
+            if slot:
+                icon_link = 'MESH_DATA' if slot.link == 'DATA' else 'OBJECT_DATA'
+                row.prop(slot, "link", icon=icon_link, icon_only=True)
+
             if ob.mode == 'EDIT':
                 row = layout.row(align=True)
                 row.operator("object.material_slot_assign", text="Assign")
                 row.operator("object.material_slot_select", text="Select")
                 row.operator("object.material_slot_deselect", text="Deselect")
 
-        split = layout.split(percentage=0.65)
-
-        if ob:
-            split.template_ID(ob, "active_material", new="material.new")
-            row = split.row()
-
-            if slot:
-                row.prop(slot, "link", text="")
-            else:
-                row.label()
         elif mat:
-            split.template_ID(space, "pin_id")
-            split.separator()
+            row.template_ID(space, "pin_id")
 
 
 def panel_node_draw(layout, ntree, output_type):
-    node = find_output_node(ntree, output_type)
+    node = ntree.get_output_node('EEVEE')
 
     if node:
         input = find_node_input(node, 'Surface')
@@ -171,7 +173,7 @@ class EEVEE_MATERIAL_PT_surface(MaterialButtonsPanel, Panel):
         layout.separator()
 
         if mat.use_nodes:
-            panel_node_draw(layout, mat.node_tree, ('OUTPUT_EEVEE_MATERIAL', 'OUTPUT_MATERIAL'))
+            panel_node_draw(layout, mat.node_tree, 'OUTPUT_MATERIAL')
         else:
             layout.use_property_split = True
             layout.prop(mat, "diffuse_color", text="Base Color")
@@ -210,11 +212,7 @@ class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
 
         layout.prop(mat, "use_screen_refraction")
         layout.prop(mat, "refraction_depth")
-
-        layout.prop(mat, "use_screen_subsurface")
-        row = layout.row()
-        row.active = mat.use_screen_subsurface
-        row.prop(mat, "use_sss_translucency")
+        layout.prop(mat, "use_sss_translucency")
 
 
 class MATERIAL_PT_viewport(MaterialButtonsPanel, Panel):
@@ -242,11 +240,11 @@ classes = (
     MATERIAL_MT_specials,
     MATERIAL_UL_matslots,
     MATERIAL_PT_preview,
-    MATERIAL_PT_custom_props,
     EEVEE_MATERIAL_PT_context_material,
     EEVEE_MATERIAL_PT_surface,
     EEVEE_MATERIAL_PT_options,
     MATERIAL_PT_viewport,
+    MATERIAL_PT_custom_props,
 )
 
 

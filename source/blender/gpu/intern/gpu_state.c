@@ -66,10 +66,11 @@ void GPU_blend_set_func_separate(
 	GPUBlendFunction src_rgb, GPUBlendFunction dst_rgb,
 	GPUBlendFunction src_alpha, GPUBlendFunction dst_alpha)
 {
-	glBlendFuncSeparate(gpu_get_gl_blendfunction(src_rgb),
-		gpu_get_gl_blendfunction(dst_rgb),
-		gpu_get_gl_blendfunction(src_alpha),
-		gpu_get_gl_blendfunction(dst_alpha));
+	glBlendFuncSeparate(
+	        gpu_get_gl_blendfunction(src_rgb),
+	        gpu_get_gl_blendfunction(dst_rgb),
+	        gpu_get_gl_blendfunction(src_alpha),
+	        gpu_get_gl_blendfunction(dst_alpha));
 }
 
 void GPU_depth_test(bool enable)
@@ -132,22 +133,22 @@ void GPU_scissor(int x, int y, int width, int height)
 	glScissor(x, y, width, height);
 }
 
-void GPU_scissor_getf(float coords[4])
+void GPU_scissor_get_f(float coords[4])
 {
 	glGetFloatv(GL_SCISSOR_BOX, coords);
 }
 
-void GPU_scissor_geti(int coords[4])
+void GPU_scissor_get_i(int coords[4])
 {
 	glGetIntegerv(GL_SCISSOR_BOX, coords);
 }
 
-void GPU_viewport_size_getf(float coords[4])
+void GPU_viewport_size_get_f(float coords[4])
 {
 	glGetFloatv(GL_VIEWPORT, coords);
 }
 
-void GPU_viewport_size_geti(int coords[4])
+void GPU_viewport_size_get_i(int coords[4])
 {
 	glGetIntegerv(GL_VIEWPORT, coords);
 }

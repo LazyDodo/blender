@@ -1287,13 +1287,7 @@ static Mesh *create_orco_mesh(Object *ob, Mesh *me, BMEditMesh *em, int layer)
 		mesh = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
 	}
 	else {
-		BKE_id_copy_ex(
-		        NULL, &me->id, (ID **)&mesh,
-		        (LIB_ID_CREATE_NO_MAIN |
-		         LIB_ID_CREATE_NO_USER_REFCOUNT |
-		         LIB_ID_CREATE_NO_DEG_TAG |
-		         LIB_ID_COPY_CD_REFERENCE),
-		        false);
+		mesh = BKE_mesh_copy_for_eval(me);
 	}
 
 	orco = get_orco_coords_dm(ob, em, layer, &free);
@@ -1972,7 +1966,6 @@ static void mesh_calc_modifiers(
         int useDeform,
         const bool need_mapping, CustomDataMask dataMask,
         const int index, const bool useCache, const bool build_shapekey_layers,
-        const bool allow_gpu,
         /* return args */
         Mesh **r_deform_mesh, Mesh **r_final_mesh)
 {
@@ -2014,8 +2007,6 @@ static void mesh_calc_modifiers(
 
 	if (useCache)
 		app_flags |= MOD_APPLY_USECACHE;
-	if (allow_gpu)
-		app_flags |= MOD_APPLY_ALLOW_GPU;
 	if (useDeform)
 		deform_app_flags |= MOD_APPLY_USECACHE;
 
@@ -2088,16 +2079,11 @@ static void mesh_calc_modifiers(
 		 * coordinates (vpaint, etc.)
 		 */
 		if (r_deform_mesh) {
-			BKE_id_copy_ex(
-			        NULL, &me->id, (ID **)r_deform_mesh,
-			        (LIB_ID_CREATE_NO_MAIN |
-			         LIB_ID_CREATE_NO_USER_REFCOUNT |
-			         LIB_ID_CREATE_NO_DEG_TAG |
-			         LIB_ID_COPY_CD_REFERENCE),
-			        false);
+			*r_deform_mesh = BKE_mesh_copy_for_eval(me);
 
 			/* XXX: Is build_shapekey_layers ever even true? This should have crashed long ago... */
 			BLI_assert(!build_shapekey_layers);
+			UNUSED_VARS_NDEBUG(build_shapekey_layers);
 			//if (build_shapekey_layers)
 			//	add_shapekey_layers(*r_deform_mesh, me, ob);
 
@@ -2233,13 +2219,7 @@ static void mesh_calc_modifiers(
 				}
 			}
 			else {
-				BKE_id_copy_ex(
-				        NULL, &me->id, (ID **)&mesh,
-				        (LIB_ID_CREATE_NO_MAIN |
-				         LIB_ID_CREATE_NO_USER_REFCOUNT |
-				         LIB_ID_CREATE_NO_DEG_TAG |
-				         LIB_ID_COPY_CD_REFERENCE),
-				        false);
+				mesh = BKE_mesh_copy_for_eval(me);
 				ASSERT_IS_VALID_MESH(mesh);
 
 				// XXX: port to Mesh if build_shapekey_layers can ever be true
@@ -2408,13 +2388,7 @@ static void mesh_calc_modifiers(
 #endif
 	}
 	else {
-		BKE_id_copy_ex(
-		        NULL, &me->id, (ID **)&final_mesh,
-		        (LIB_ID_CREATE_NO_MAIN |
-		         LIB_ID_CREATE_NO_USER_REFCOUNT |
-		         LIB_ID_CREATE_NO_DEG_TAG |
-		         LIB_ID_COPY_CD_REFERENCE),
-		        false);
+		final_mesh = BKE_mesh_copy_for_eval(me);
 
 		//if (build_shapekey_layers) {
 		//	add_shapekey_layers(final_mesh, me, ob);
@@ -2489,7 +2463,6 @@ static void mesh_calc_modifiers_dm(
         int useDeform,
         const bool need_mapping, CustomDataMask dataMask,
         const int index, const bool useCache, const bool build_shapekey_layers,
-        const bool allow_gpu,
         /* return args */
         DerivedMesh **r_deformdm, DerivedMesh **r_finaldm)
 {
@@ -2497,7 +2470,7 @@ static void mesh_calc_modifiers_dm(
 
 	mesh_calc_modifiers(
 	        depsgraph, scene, ob, inputVertexCos, useDeform,
-	        need_mapping, dataMask, index, useCache, build_shapekey_layers, allow_gpu,
+	        need_mapping, dataMask, index, useCache, build_shapekey_layers,
 	        (r_deformdm ? &deform_mesh : NULL), &final_mesh);
 
 	if (deform_mesh) {
@@ -2573,7 +2546,7 @@ static void editbmesh_calc_modifiers(
 	/* TODO(sybren): do we really need multiple objects, or shall we change the flags where needed? */
 	const ModifierEvalContext mectx = {depsgraph, ob, 0};
 	const ModifierEvalContext mectx_orco = {depsgraph, ob, MOD_APPLY_ORCO};
-	const ModifierEvalContext mectx_cache_gpu = {depsgraph, ob, MOD_APPLY_USECACHE | MOD_APPLY_ALLOW_GPU};
+	const ModifierEvalContext mectx_cache = {depsgraph, ob, MOD_APPLY_USECACHE};
 
 	const bool do_loop_normals = (((Mesh *)(ob->data))->flag & ME_AUTOSMOOTH) != 0;
 	const float loop_normals_split_angle = ((Mesh *)(ob->data))->smoothresh;
@@ -2711,9 +2684,9 @@ static void editbmesh_calc_modifiers(
 			}
 
 			if (mti->applyModifierEM || mti->applyModifierEM_DM)
-				ndm = modwrap_applyModifierEM(md, &mectx_cache_gpu, em, dm);
+				ndm = modwrap_applyModifierEM(md, &mectx_cache, em, dm);
 			else
-				ndm = modwrap_applyModifier(md, &mectx_cache_gpu, dm);
+				ndm = modwrap_applyModifier(md, &mectx_cache, dm);
 			ASSERT_IS_VALID_DM(ndm);
 
 			if (ndm) {
@@ -2856,39 +2829,6 @@ static void editbmesh_calc_modifiers(
 		MEM_freeN(deformedVerts);
 }
 
-#ifdef WITH_OPENSUBDIV
-/* The idea is to skip CPU-side ORCO calculation when
- * we'll be using GPU backend of OpenSubdiv. This is so
- * playback performance is kept as high as possible.
- */
-static bool calc_modifiers_skip_orco(Depsgraph *depsgraph,
-                                     Scene *scene,
-                                     Object *ob,
-                                     bool use_render_params)
-{
-	ModifierData *last_md = ob->modifiers.last;
-	const int required_mode = use_render_params ? eModifierMode_Render : eModifierMode_Realtime;
-	if (last_md != NULL &&
-	    last_md->type == eModifierType_Subsurf &&
-	    modifier_isEnabled(scene, last_md, required_mode))
-	{
-		if (U.opensubdiv_compute_type == USER_OPENSUBDIV_COMPUTE_NONE) {
-			return false;
-		}
-		else if ((ob->mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT | OB_MODE_TEXTURE_PAINT)) != 0) {
-			return false;
-		}
-		else if ((DEG_get_eval_flags_for_id(depsgraph, &ob->id) & DAG_EVAL_NEED_CPU) != 0) {
-			return false;
-		}
-		SubsurfModifierData *smd = (SubsurfModifierData *)last_md;
-		/* TODO(sergey): Deduplicate this with checks from subsurf_ccg.c. */
-		return smd->use_opensubdiv != 0;
-	}
-	return false;
-}
-#endif
-
 static void mesh_finalize_eval(Object *object)
 {
 	Mesh *mesh = (Mesh *)object->data;
@@ -2940,15 +2880,8 @@ static void mesh_build_data(
 	BKE_object_free_derived_caches(ob);
 	BKE_object_sculpt_modifiers_changed(ob);
 
-#ifdef WITH_OPENSUBDIV
-	if (calc_modifiers_skip_orco(depsgraph, scene, ob, false)) {
-		dataMask &= ~(CD_MASK_ORCO | CD_MASK_PREVIEW_MCOL);
-	}
-#endif
-
 	mesh_calc_modifiers(
 	        depsgraph, scene, ob, NULL, 1, need_mapping, dataMask, -1, true, build_shapekey_layers,
-	        true,
 	        &ob->runtime.mesh_deform_eval, &ob->runtime.mesh_eval);
 
 	mesh_finalize_eval(ob);
@@ -2986,12 +2919,6 @@ static void editbmesh_build_data(
 	BKE_object_sculpt_modifiers_changed(obedit);
 
 	BKE_editmesh_free_derivedmesh(em);
-
-#ifdef WITH_OPENSUBDIV
-	if (calc_modifiers_skip_orco(depsgraph, scene, obedit, false)) {
-		dataMask &= ~(CD_MASK_ORCO | CD_MASK_PREVIEW_MCOL);
-	}
-#endif
 
 	editbmesh_calc_modifiers(
 	        depsgraph, scene, obedit, em, dataMask,
@@ -3150,23 +3077,40 @@ DerivedMesh *mesh_create_derived_render(struct Depsgraph *depsgraph, Scene *scen
 	DerivedMesh *final;
 
 	mesh_calc_modifiers_dm(
-	        depsgraph, scene, ob, NULL, 1, false, dataMask, -1, false, false, false,
+	        depsgraph, scene, ob, NULL, 1, false, dataMask, -1, false, false,
 	        NULL, &final);
 
 	return final;
 }
 
+#ifdef USE_DERIVEDMESH
+/* Deprecated, use `mesh_create_eval_final_index_render` instead. */
 DerivedMesh *mesh_create_derived_index_render(struct Depsgraph *depsgraph, Scene *scene, Object *ob, CustomDataMask dataMask, int index)
 {
 	DerivedMesh *final;
 
 	mesh_calc_modifiers_dm(
-	        depsgraph, scene, ob, NULL, 1, false, dataMask, index, false, false, false,
+	        depsgraph, scene, ob, NULL, 1, false, dataMask, index, false, false,
+	        NULL, &final);
+
+	return final;
+}
+#endif
+struct Mesh *mesh_create_eval_final_index_render(
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Object *ob, CustomDataMask dataMask, int index)
+{
+	Mesh *final;
+
+	mesh_calc_modifiers(
+	        depsgraph, scene, ob, NULL, 1, false, dataMask, index, false, false,
 	        NULL, &final);
 
 	return final;
 }
 
+#ifdef USE_DERIVEDMESH
+/* Deprecated, use `mesh_create_eval_final_view` instead. */
 DerivedMesh *mesh_create_derived_view(
         struct Depsgraph *depsgraph, Scene *scene,
         Object *ob, CustomDataMask dataMask)
@@ -3180,7 +3124,29 @@ DerivedMesh *mesh_create_derived_view(
 	ob->transflag |= OB_NO_PSYS_UPDATE;
 
 	mesh_calc_modifiers_dm(
-	        depsgraph, scene, ob, NULL, 1, false, dataMask, -1, false, false, false,
+	        depsgraph, scene, ob, NULL, 1, false, dataMask, -1, false, false,
+	        NULL, &final);
+
+	ob->transflag &= ~OB_NO_PSYS_UPDATE;
+
+	return final;
+}
+#endif
+
+Mesh *mesh_create_eval_final_view(
+        struct Depsgraph *depsgraph, Scene *scene,
+        Object *ob, CustomDataMask dataMask)
+{
+	Mesh *final;
+
+	/* XXX hack
+	 * psys modifier updates particle state when called during dupli-list generation,
+	 * which can lead to wrong transforms. This disables particle system modifier execution.
+	 */
+	ob->transflag |= OB_NO_PSYS_UPDATE;
+
+	mesh_calc_modifiers(
+	        depsgraph, scene, ob, NULL, 1, false, dataMask, -1, false, false,
 	        NULL, &final);
 
 	ob->transflag &= ~OB_NO_PSYS_UPDATE;
@@ -3195,7 +3161,7 @@ DerivedMesh *mesh_create_derived_no_deform(
 	DerivedMesh *final;
 
 	mesh_calc_modifiers_dm(
-	        depsgraph, scene, ob, vertCos, 0, false, dataMask, -1, false, false, false,
+	        depsgraph, scene, ob, vertCos, 0, false, dataMask, -1, false, false,
 	        NULL, &final);
 
 	return final;

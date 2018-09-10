@@ -41,9 +41,11 @@
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_mask_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_movieclip_types.h"
 #include "DNA_scene_types.h"  /* PET modes */
 #include "DNA_workspace_types.h"
+#include "DNA_gpencil_types.h"
 
 #include "BLI_alloca.h"
 #include "BLI_utildefines.h"
@@ -64,6 +66,7 @@
 #include "BKE_unit.h"
 #include "BKE_scene.h"
 #include "BKE_mask.h"
+#include "BKE_mesh.h"
 #include "BKE_report.h"
 #include "BKE_workspace.h"
 
@@ -85,6 +88,7 @@
 #include "ED_mesh.h"
 #include "ED_clip.h"
 #include "ED_node.h"
+#include "ED_gpencil.h"
 
 #include "WM_types.h"
 #include "WM_api.h"
@@ -95,6 +99,7 @@
 #include "UI_resources.h"
 
 #include "RNA_access.h"
+#include "RNA_define.h"
 
 #include "BLF_api.h"
 #include "BLT_translation.h"
@@ -115,6 +120,7 @@ static void postInputRotation(TransInfo *t, float values[3]);
 static void ElementRotation(TransInfo *t, TransDataContainer *tc, TransData *td, float mat[3][3], const short around);
 static void initSnapSpatial(TransInfo *t, float r_snap[3]);
 
+static void storeCustomLNorValue(TransDataContainer *t, BMesh *bm);
 
 /* Transform Callbacks */
 static void initBend(TransInfo *t);
@@ -139,6 +145,9 @@ static void applyToSphere(TransInfo *t, const int mval[2]);
 
 static void initRotation(TransInfo *t);
 static void applyRotation(TransInfo *t, const int mval[2]);
+
+static void initNormalRotation(TransInfo *t);
+static void applyNormalRotation(TransInfo *t, const int mval[2]);
 
 static void initShrinkFatten(TransInfo *t);
 static void applyShrinkFatten(TransInfo *t, const int mval[2]);
@@ -571,6 +580,10 @@ void removeAspectRatio(TransInfo *t, float vec[2])
 static void viewRedrawForce(const bContext *C, TransInfo *t)
 {
 	if (t->options & CTX_GPENCIL_STROKES) {
+		bGPdata *gpd = ED_gpencil_data_get_active(C);
+		if (gpd) {
+			DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+		}
 		WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	}
 	else if (t->spacetype == SPACE_VIEW3D) {
@@ -813,25 +826,100 @@ enum {
 	TFM_MODAL_INSERTOFS_TOGGLE_DIR         = 27,
 };
 
+static bool transform_modal_item_poll(const wmOperator *op, int value)
+{
+	const TransInfo *t = op->customdata;
+	switch (value) {
+		case TFM_MODAL_PROPSIZE:
+		case TFM_MODAL_PROPSIZE_UP:
+		case TFM_MODAL_PROPSIZE_DOWN:
+		{
+			if ((t->flag & T_PROP_EDIT) == 0) {
+				return false;
+			}
+			break;
+		}
+		case TFM_MODAL_ADD_SNAP:
+		case TFM_MODAL_REMOVE_SNAP:
+		{
+			if (t->spacetype != SPACE_VIEW3D) {
+				return false;
+			}
+			else if (t->tsnap.mode & (SCE_SNAP_MODE_INCREMENT | SCE_SNAP_MODE_GRID)) {
+				return false;
+			}
+			else if (!validSnap(t)) {
+				return false;
+			}
+			break;
+		}
+		case TFM_MODAL_AXIS_X:
+		case TFM_MODAL_AXIS_Y:
+		case TFM_MODAL_AXIS_Z:
+		case TFM_MODAL_PLANE_X:
+		case TFM_MODAL_PLANE_Y:
+		case TFM_MODAL_PLANE_Z:
+		{
+			if (t->flag & T_NO_CONSTRAINT) {
+				return false;
+			}
+			if (!ELEM(value, TFM_MODAL_AXIS_X, TFM_MODAL_AXIS_Y)) {
+				if (t->flag & T_2D_EDIT) {
+					return false;
+				}
+			}
+			break;
+		}
+		case TFM_MODAL_CONS_OFF:
+		{
+			if ((t->con.mode & CON_APPLY) == 0) {
+				return false;
+			}
+			break;
+		}
+		case TFM_MODAL_EDGESLIDE_UP:
+		case TFM_MODAL_EDGESLIDE_DOWN:
+		{
+			if (t->mode != TFM_EDGE_SLIDE) {
+				return false;
+			}
+			break;
+		}
+		case TFM_MODAL_INSERTOFS_TOGGLE_DIR:
+		{
+			if (t->spacetype != SPACE_NODE) {
+				return false;
+			}
+			break;
+		}
+		case TFM_MODAL_AUTOIK_LEN_INC:
+		case TFM_MODAL_AUTOIK_LEN_DEC:
+		{
+			if ((t->flag & T_AUTOIK) == 0) {
+				return false;
+			}
+			break;
+		}
+	}
+	return true;
+}
+
 /* called in transform_ops.c, on each regeneration of keymaps */
 wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
 {
 	static const EnumPropertyItem modal_items[] = {
-		{TFM_MODAL_CANCEL, "CANCEL", 0, "Cancel", ""},
 		{TFM_MODAL_CONFIRM, "CONFIRM", 0, "Confirm", ""},
-		{TFM_MODAL_TRANSLATE, "TRANSLATE", 0, "Translate", ""},
-		{TFM_MODAL_ROTATE, "ROTATE", 0, "Rotate", ""},
-		{TFM_MODAL_RESIZE, "RESIZE", 0, "Resize", ""},
-		{TFM_MODAL_SNAP_INV_ON, "SNAP_INV_ON", 0, "Invert Snap On", ""},
-		{TFM_MODAL_SNAP_INV_OFF, "SNAP_INV_OFF", 0, "Invert Snap Off", ""},
+		{TFM_MODAL_CANCEL, "CANCEL", 0, "Cancel", ""},
+		{TFM_MODAL_AXIS_X, "AXIS_X", 0, "X axis", ""},
+		{TFM_MODAL_AXIS_Y, "AXIS_Y", 0, "Y axis", ""},
+		{TFM_MODAL_AXIS_Z, "AXIS_Z", 0, "Z axis", ""},
+		{TFM_MODAL_PLANE_X, "PLANE_X", 0, "X plane", ""},
+		{TFM_MODAL_PLANE_Y, "PLANE_Y", 0, "Y plane", ""},
+		{TFM_MODAL_PLANE_Z, "PLANE_Z", 0, "Z plane", ""},
+		{TFM_MODAL_CONS_OFF, "CONS_OFF", 0, "Clear Constraints", ""},
+		{TFM_MODAL_SNAP_INV_ON, "SNAP_INV_ON", 0, "Snap Invert", ""},
+		{TFM_MODAL_SNAP_INV_OFF, "SNAP_INV_OFF", 0, "Snap Invert (Off)", ""},
 		{TFM_MODAL_SNAP_TOGGLE, "SNAP_TOGGLE", 0, "Snap Toggle", ""},
-		{TFM_MODAL_AXIS_X, "AXIS_X", 0, "Orientation X axis", ""},
-		{TFM_MODAL_AXIS_Y, "AXIS_Y", 0, "Orientation Y axis", ""},
-		{TFM_MODAL_AXIS_Z, "AXIS_Z", 0, "Orientation Z axis", ""},
-		{TFM_MODAL_PLANE_X, "PLANE_X", 0, "Orientation X plane", ""},
-		{TFM_MODAL_PLANE_Y, "PLANE_Y", 0, "Orientation Y plane", ""},
-		{TFM_MODAL_PLANE_Z, "PLANE_Z", 0, "Orientation Z plane", ""},
-		{TFM_MODAL_CONS_OFF, "CONS_OFF", 0, "Remove Constraints", ""},
 		{TFM_MODAL_ADD_SNAP, "ADD_SNAP", 0, "Add Snap Point", ""},
 		{TFM_MODAL_REMOVE_SNAP, "REMOVE_SNAP", 0, "Remove Last Snap Point", ""},
 		{NUM_MODAL_INCREMENT_UP, "INCREMENT_UP", 0, "Numinput Increment Up", ""},
@@ -844,6 +932,9 @@ wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
 		{TFM_MODAL_EDGESLIDE_DOWN, "EDGESLIDE_PREV_NEXT", 0, "Select previous Edge Slide Edge", ""},
 		{TFM_MODAL_PROPSIZE, "PROPORTIONAL_SIZE", 0, "Adjust Proportional Influence", ""},
 		{TFM_MODAL_INSERTOFS_TOGGLE_DIR, "INSERTOFS_TOGGLE_DIR", 0, "Toggle Direction for Node Auto-offset", ""},
+		{TFM_MODAL_TRANSLATE, "TRANSLATE", 0, "Move", ""},
+		{TFM_MODAL_ROTATE, "ROTATE", 0, "Rotate", ""},
+		{TFM_MODAL_RESIZE, "RESIZE", 0, "Resize", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -853,12 +944,24 @@ wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
 	if (keymap && keymap->modal_items) return NULL;
 
 	keymap = WM_modalkeymap_add(keyconf, "Transform Modal Map", modal_items);
+	keymap->poll_modal_item = transform_modal_item_poll;
 
 	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, ESCKEY,    KM_PRESS, KM_ANY, 0, TFM_MODAL_CANCEL);
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE, KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, RETKEY,    KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, PADENTER,  KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
+	WM_modalkeymap_add_item(keymap, LEFTMOUSE,  KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
+	WM_modalkeymap_add_item(keymap, RETKEY,     KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
+	WM_modalkeymap_add_item(keymap, PADENTER,   KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
+	WM_modalkeymap_add_item(keymap, RIGHTMOUSE, KM_PRESS, KM_ANY, 0, TFM_MODAL_CANCEL);
+	WM_modalkeymap_add_item(keymap, ESCKEY,     KM_PRESS, KM_ANY, 0, TFM_MODAL_CANCEL);
+
+	WM_modalkeymap_add_item(keymap, XKEY, KM_PRESS, 0, 0, TFM_MODAL_AXIS_X);
+	WM_modalkeymap_add_item(keymap, YKEY, KM_PRESS, 0, 0, TFM_MODAL_AXIS_Y);
+	WM_modalkeymap_add_item(keymap, ZKEY, KM_PRESS, 0, 0, TFM_MODAL_AXIS_Z);
+
+	WM_modalkeymap_add_item(keymap, XKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PLANE_X);
+	WM_modalkeymap_add_item(keymap, YKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PLANE_Y);
+	WM_modalkeymap_add_item(keymap, ZKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PLANE_Z);
+
+	WM_modalkeymap_add_item(keymap, CKEY, KM_PRESS, 0, 0, TFM_MODAL_CONS_OFF);
 
 	WM_modalkeymap_add_item(keymap, GKEY, KM_PRESS, 0, 0, TFM_MODAL_TRANSLATE);
 	WM_modalkeymap_add_item(keymap, RKEY, KM_PRESS, 0, 0, TFM_MODAL_ROTATE);
@@ -899,7 +1002,7 @@ wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
 	return keymap;
 }
 
-static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cmode)
+static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cmode, bool is_plane)
 {
 	if (!(t->flag & T_NO_CONSTRAINT)) {
 		int constraint_axis, constraint_plane;
@@ -952,17 +1055,21 @@ static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cm
 				else {
 					short orientation = (t->current_orientation != V3D_MANIP_GLOBAL ?
 					                     t->current_orientation : V3D_MANIP_LOCAL);
-					if (!(t->modifiers & MOD_CONSTRAINT_PLANE))
+					if (is_plane == false) {
 						setUserConstraint(t, orientation, constraint_axis, msg2);
-					else if (t->modifiers & MOD_CONSTRAINT_PLANE)
+					}
+					else {
 						setUserConstraint(t, orientation, constraint_plane, msg3);
+					}
 				}
 			}
 			else {
-				if (!(t->modifiers & MOD_CONSTRAINT_PLANE))
+				if (is_plane == false) {
 					setUserConstraint(t, V3D_MANIP_GLOBAL, constraint_axis, msg2);
-				else if (t->modifiers & MOD_CONSTRAINT_PLANE)
+				}
+				else {
 					setUserConstraint(t, V3D_MANIP_GLOBAL, constraint_plane, msg3);
+				}
 			}
 		}
 		t->redraw |= TREDRAW_HARD;
@@ -1142,57 +1249,42 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 				break;
 			case TFM_MODAL_AXIS_X:
 				if (!(t->flag & T_NO_CONSTRAINT)) {
-					transform_event_xyz_constraint(t, XKEY, cmode);
+					transform_event_xyz_constraint(t, XKEY, cmode, false);
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
 				}
 				break;
 			case TFM_MODAL_AXIS_Y:
 				if ((t->flag & T_NO_CONSTRAINT) == 0) {
-					transform_event_xyz_constraint(t, YKEY, cmode);
+					transform_event_xyz_constraint(t, YKEY, cmode, false);
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
 				}
 				break;
 			case TFM_MODAL_AXIS_Z:
 				if ((t->flag & (T_NO_CONSTRAINT)) == 0) {
-					transform_event_xyz_constraint(t, ZKEY, cmode);
+					transform_event_xyz_constraint(t, ZKEY, cmode, false);
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
 				}
 				break;
 			case TFM_MODAL_PLANE_X:
 				if ((t->flag & (T_NO_CONSTRAINT | T_2D_EDIT)) == 0) {
-					if (cmode == 'X') {
-						stopConstraint(t);
-					}
-					else {
-						setUserConstraint(t, t->current_orientation, (CON_AXIS1 | CON_AXIS2), IFACE_("locking %s X"));
-					}
+					transform_event_xyz_constraint(t, XKEY, cmode, true);
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
 				}
 				break;
 			case TFM_MODAL_PLANE_Y:
 				if ((t->flag & (T_NO_CONSTRAINT | T_2D_EDIT)) == 0) {
-					if (cmode == 'Y') {
-						stopConstraint(t);
-					}
-					else {
-						setUserConstraint(t, t->current_orientation, (CON_AXIS0 | CON_AXIS2), IFACE_("locking %s Y"));
-					}
+					transform_event_xyz_constraint(t, YKEY, cmode, true);
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
 				}
 				break;
 			case TFM_MODAL_PLANE_Z:
 				if ((t->flag & (T_NO_CONSTRAINT | T_2D_EDIT)) == 0) {
-					if (cmode == 'Z') {
-						stopConstraint(t);
-					}
-					else {
-						setUserConstraint(t, t->current_orientation, (CON_AXIS0 | CON_AXIS1), IFACE_("locking %s Z"));
-					}
+					transform_event_xyz_constraint(t, ZKEY, cmode, true);
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
 				}
@@ -1410,21 +1502,6 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 						handled = true;
 					}
 				}
-				else {
-					if (!(t->flag & T_NO_CONSTRAINT)) {
-						stopConstraint(t);
-						t->redraw |= TREDRAW_HARD;
-						handled = true;
-					}
-				}
-				break;
-			case XKEY:
-			case YKEY:
-			case ZKEY:
-				if (!(t->flag & T_NO_CONSTRAINT)) {
-					transform_event_xyz_constraint(t, event->type, cmode);
-					handled = true;
-				}
 				break;
 			case OKEY:
 				if (t->flag & T_PROP_EDIT && event->shift) {
@@ -1480,6 +1557,18 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 					t->flag |= T_ALT_TRANSFORM;
 					t->redraw |= TREDRAW_HARD;
 					handled = true;
+				}
+				break;
+			case NKEY:
+				if (ELEM(t->mode, TFM_ROTATION)) {
+					if ((t->flag & T_EDIT) && t->obedit_type == OB_MESH) {
+						restoreTransObjects(t);
+						resetTransModal(t);
+						resetTransRestrictions(t);
+						initNormalRotation(t);
+						t->redraw = TREDRAW_HARD;
+						handled = true;
+					}
 				}
 				break;
 			default:
@@ -1551,6 +1640,12 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 		handled = true;
 	}
 
+	if (t->redraw &&
+	    !ELEM(event->type, MOUSEMOVE, INBETWEEN_MOUSEMOVE))
+	{
+		WM_window_status_area_tag_redraw(CTX_wm_window(t->context));
+	}
+
 	if (handled || t->redraw) {
 		return 0;
 	}
@@ -1619,13 +1714,13 @@ typedef enum {
 } ArrowDirection;
 
 #define POS_INDEX 0
-/* NOTE: this --^ is a bit hackish, but simplifies Gwn_VertFormat usage among functions
+/* NOTE: this --^ is a bit hackish, but simplifies GPUVertFormat usage among functions
  * private to this file  - merwin
  */
 
 static void drawArrow(ArrowDirection d, short offset, short length, short size)
 {
-	immBegin(GWN_PRIM_LINES, 6);
+	immBegin(GPU_PRIM_LINES, 6);
 
 	switch (d) {
 		case LEFT:
@@ -1662,7 +1757,7 @@ static void drawArrow(ArrowDirection d, short offset, short length, short size)
 
 static void drawArrowHead(ArrowDirection d, short size)
 {
-	immBegin(GWN_PRIM_LINES, 4);
+	immBegin(GPU_PRIM_LINES, 4);
 
 	switch (d) {
 		case LEFT:
@@ -1695,7 +1790,7 @@ static void drawArc(float size, float angle_start, float angle_end, int segments
 	float angle;
 	int a;
 
-	immBegin(GWN_PRIM_LINE_STRIP, segments + 1);
+	immBegin(GPU_PRIM_LINE_STRIP, segments + 1);
 
 	for (angle = angle_start, a = 0; a < segments; angle += delta, a++) {
 		immVertex2f(POS_INDEX, cosf(angle) * size, sinf(angle) * size);
@@ -1705,7 +1800,7 @@ static void drawArc(float size, float angle_start, float angle_end, int segments
 	immEnd();
 }
 
-static int helpline_poll(bContext *C)
+static bool helpline_poll(bContext *C)
 {
 	ARegion *ar = CTX_wm_region(C);
 
@@ -1714,7 +1809,7 @@ static int helpline_poll(bContext *C)
 	return 0;
 }
 
-static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
+static void drawHelpline(bContext *C, int x, int y, void *customdata)
 {
 	TransInfo *t = (TransInfo *)customdata;
 
@@ -1730,7 +1825,31 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 		    (float)t->mval[1],
 		};
 
-		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		/* grease pencil only can edit one object at time because GP has
+		 * multiframe edition that replaces multiobject edition.
+		 * If multiobject edition is added, maybe this code will need
+		 * an update
+		 */
+		if ((t->flag & T_POINTS) && (t->options & CTX_GPENCIL_STROKES) &&
+		    (t->around != V3D_AROUND_ACTIVE))
+		{
+			Object *ob = CTX_data_active_object(C);
+			if ((ob) && (ob->type == OB_GPENCIL)) {
+				FOREACH_TRANS_DATA_CONTAINER(t, tc) {
+					float vecrot[3];
+					copy_v3_v3(vecrot, t->center_global);
+					mul_m4_v3(ob->obmat, vecrot);
+					projectFloatViewEx(t, vecrot, cent, V3D_PROJ_TEST_CLIP_ZERO);
+				}
+			}
+			else {
+				/* normally, never must be used */
+				projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
+			}
+		}
+		else {
+			projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
+		}
 
 		/* Offset the values for the area region. */
 		const float offset[2] = {
@@ -1743,11 +1862,11 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			tmval[i] += offset[i];
 		}
 
-		gpuPushMatrix();
+		GPU_matrix_push();
 
 		/* Dashed lines first. */
 		if (ELEM(t->helpline, HLP_SPRING, HLP_ANGLE)) {
-			const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			const uint shdr_pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 			UNUSED_VARS_NDEBUG(shdr_pos); /* silence warning */
 			BLI_assert(shdr_pos == POS_INDEX);
@@ -1757,7 +1876,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 			float viewport_size[4];
-			GPU_viewport_size_getf(viewport_size);
+			GPU_viewport_size_get_f(viewport_size);
 			immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 			immUniform1i("colors_len", 0);  /* "simple" mode */
@@ -1765,7 +1884,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			immUniform1f("dash_width", 6.0f);
 			immUniform1f("dash_factor", 0.5f);
 
-			immBegin(GWN_PRIM_LINES, 2);
+			immBegin(GPU_PRIM_LINES, 2);
 			immVertex2fv(POS_INDEX, cent);
 			immVertex2f(POS_INDEX, tmval[0], tmval[1]);
 			immEnd();
@@ -1774,7 +1893,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 		}
 
 		/* And now, solid lines. */
-		unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		UNUSED_VARS_NDEBUG(pos); /* silence warning */
 		BLI_assert(pos == POS_INDEX);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -1783,8 +1902,8 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			case HLP_SPRING:
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
-				gpuTranslate3fv(mval);
-				gpuRotateAxis(-RAD2DEGF(atan2f(cent[0] - tmval[0], cent[1] - tmval[1])), 'Z');
+				GPU_matrix_translate_3fv(mval);
+				GPU_matrix_rotate_axis(-RAD2DEGF(atan2f(cent[0] - tmval[0], cent[1] - tmval[1])), 'Z');
 
 				GPU_line_width(3.0f);
 				drawArrow(UP, 5, 10, 5);
@@ -1792,7 +1911,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				break;
 			case HLP_HARROW:
 				immUniformThemeColor(TH_VIEW_OVERLAY);
-				gpuTranslate3fv(mval);
+				GPU_matrix_translate_3fv(mval);
 
 				GPU_line_width(3.0f);
 				drawArrow(RIGHT, 5, 10, 5);
@@ -1801,7 +1920,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 			case HLP_VARROW:
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
-				gpuTranslate3fv(mval);
+				GPU_matrix_translate_3fv(mval);
 
 				GPU_line_width(3.0f);
 				drawArrow(UP, 5, 10, 5);
@@ -1817,23 +1936,23 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 
 				immUniformThemeColor(TH_VIEW_OVERLAY);
 
-				gpuTranslate3f(cent[0] - tmval[0] + mval[0], cent[1] - tmval[1] + mval[1], 0);
+				GPU_matrix_translate_3f(cent[0] - tmval[0] + mval[0], cent[1] - tmval[1] + mval[1], 0);
 
 				GPU_line_width(3.0f);
 				drawArc(dist, angle - delta_angle, angle - spacing_angle, 10);
 				drawArc(dist, angle + spacing_angle, angle + delta_angle, 10);
 
-				gpuPushMatrix();
+				GPU_matrix_push();
 
-				gpuTranslate3f(cosf(angle - delta_angle) * dist, sinf(angle - delta_angle) * dist, 0);
-				gpuRotateAxis(RAD2DEGF(angle - delta_angle), 'Z');
+				GPU_matrix_translate_3f(cosf(angle - delta_angle) * dist, sinf(angle - delta_angle) * dist, 0);
+				GPU_matrix_rotate_axis(RAD2DEGF(angle - delta_angle), 'Z');
 
 				drawArrowHead(DOWN, 5);
 
-				gpuPopMatrix();
+				GPU_matrix_pop();
 
-				gpuTranslate3f(cosf(angle + delta_angle) * dist, sinf(angle + delta_angle) * dist, 0);
-				gpuRotateAxis(RAD2DEGF(angle + delta_angle), 'Z');
+				GPU_matrix_translate_3f(cosf(angle + delta_angle) * dist, sinf(angle + delta_angle) * dist, 0);
+				GPU_matrix_rotate_axis(RAD2DEGF(angle + delta_angle), 'Z');
 
 				drawArrowHead(UP, 5);
 				break;
@@ -1843,7 +1962,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 				unsigned char col[3], col2[3];
 				UI_GetThemeColor3ubv(TH_GRID, col);
 
-				gpuTranslate3fv(mval);
+				GPU_matrix_translate_3fv(mval);
 
 				GPU_line_width(3.0f);
 
@@ -1863,7 +1982,7 @@ static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 		}
 
 		immUnbindProgram();
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 }
 
@@ -2083,7 +2202,11 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 			}
 		}
 
-		RNA_property_boolean_set_array(op->ptr, prop, constraint_axis);
+		/* Only set if needed, so we can hide in the UI when nothing is set.
+		 * See 'transform_poll_property'. */
+		if (ELEM(true, UNPACK3(constraint_axis))) {
+			RNA_property_boolean_set_array(op->ptr, prop, constraint_axis);
+		}
 	}
 
 	{
@@ -2145,7 +2268,7 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	t->launch_event = event ? WM_userdef_event_type_from_keymap_type(event->type) : -1;
 
 	// XXX Remove this when wm_operator_call_internal doesn't use window->eventstate (which can have type = 0)
-	// For manipulator only, so assume LEFTMOUSE
+	// For gizmo only, so assume LEFTMOUSE
 	if (t->launch_event == 0) {
 		t->launch_event = LEFTMOUSE;
 	}
@@ -2197,10 +2320,10 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		/* keymap for shortcut header prints */
 		t->keymap = WM_keymap_active(CTX_wm_manager(C), op->type->modalkeymap);
 
-		/* Stupid code to have Ctrl-Click on manipulator work ok
+		/* Stupid code to have Ctrl-Click on gizmo work ok
 		 *
 		 * do this only for translation/rotation/resize due to only this
-		 * moded are available from manipulator and doing such check could
+		 * moded are available from gizmo and doing such check could
 		 * lead to keymap conflicts for other modes (see #31584)
 		 */
 		if (ELEM(mode, TFM_TRANSLATION, TFM_ROTATION, TFM_RESIZE)) {
@@ -2431,11 +2554,47 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		case TFM_SEQ_SLIDE:
 			initSeqSlide(t);
 			break;
+		case TFM_NORMAL_ROTATION:
+			initNormalRotation(t);
+			break;
 	}
 
 	if (t->state == TRANS_CANCEL) {
 		postTrans(C, t);
 		return 0;
+	}
+
+	if ((prop = RNA_struct_find_property(op->ptr, "preserve_clnor"))) {
+		if ((t->flag & T_EDIT) && t->obedit_type == OB_MESH) {
+
+			FOREACH_TRANS_DATA_CONTAINER(t, tc) {
+				if ((((Mesh *)(tc->obedit->data))->flag & ME_AUTOSMOOTH)) {
+					BMEditMesh *em = NULL;// BKE_editmesh_from_object(t->obedit);
+					bool do_skip = false;
+
+					/* Currently only used for two of three most frequent transform ops, can include more ops.
+					 * Note that scaling cannot be included here, non-uniform scaling will affect normals. */
+					if (ELEM(t->mode, TFM_TRANSLATION, TFM_ROTATION)) {
+						if (em->bm->totvertsel == em->bm->totvert) {
+							/* No need to invalidate if whole mesh is selected. */
+							do_skip = true;
+						}
+					}
+
+					if (t->flag & T_MODAL) {
+						RNA_property_boolean_set(op->ptr, prop, false);
+					}
+					else if (!do_skip) {
+						const bool preserve_clnor = RNA_property_boolean_get(op->ptr, prop);
+						if (preserve_clnor) {
+							BKE_editmesh_lnorspace_update(em);
+							t->flag |= T_CLNOR_REBUILD;
+						}
+						BM_lnorspace_invalidate(em->bm, true);
+					}
+				}
+			}
+		}
 	}
 
 	t->context = NULL;
@@ -2498,6 +2657,12 @@ int transformEnd(bContext *C, TransInfo *t)
 			restoreTransObjects(t); // calls recalcData()
 		}
 		else {
+			if (t->flag & T_CLNOR_REBUILD) {
+				FOREACH_TRANS_DATA_CONTAINER(t, tc) {
+					BMEditMesh *em = BKE_editmesh_from_object(tc->obedit);
+					BM_lnorspace_rebuild(em->bm, true);
+				}
+			}
 			exit_code = OPERATOR_FINISHED;
 		}
 
@@ -3477,7 +3642,25 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 	else
 		sub_v3_v3(vec, td->center);
 
-	mul_v3_fl(vec, td->factor);
+	/* grease pencil falloff */
+	if (t->options & CTX_GPENCIL_STROKES) {
+		bGPDstroke *gps = (bGPDstroke *)td->extra;
+		mul_v3_fl(vec, td->factor * gps->runtime.multi_frame_falloff);
+
+		/* scale stroke thickness */
+		if (td->val) {
+			snapGridIncrement(t, t->values);
+			applyNumInput(&t->num, t->values);
+
+			float ratio = t->values[0];
+			*td->val = td->ival * ratio * gps->runtime.multi_frame_falloff;
+			CLAMP_MIN(*td->val, 0.001f);
+		}
+
+	}
+	else {
+		mul_v3_fl(vec, td->factor);
+	}
 
 	if (t->flag & (T_OBJECT | T_POSE)) {
 		mul_m3_v3(td->smtx, vec);
@@ -3520,7 +3703,7 @@ static void applyResize(TransInfo *t, const int UNUSED(mval[2]))
 		t->con.applySize(t, NULL, NULL, mat);
 	}
 
-	copy_m3_m3(t->mat, mat);    // used in manipulator
+	copy_m3_m3(t->mat, mat);    // used in gizmo
 
 	headerResize(t, t->values, str);
 
@@ -3816,6 +3999,28 @@ static void initRotation(TransInfo *t)
 	copy_v3_v3(t->axis_orig, t->axis);
 }
 
+/* Used by Transform Rotation and Transform Normal Rotation */
+static void headerRotation(TransInfo *t, char str[UI_MAX_DRAW_STR], float final)
+{
+	size_t ofs = 0;
+
+	if (hasNumInput(&t->num)) {
+		char c[NUM_STR_REP_LEN];
+
+		outputNumInput(&(t->num), c, &t->scene->unit);
+
+		ofs += BLI_snprintf(str + ofs, UI_MAX_DRAW_STR - ofs, IFACE_("Rot: %s %s %s"), &c[0], t->con.text, t->proptext);
+	}
+	else {
+		ofs += BLI_snprintf(str + ofs, UI_MAX_DRAW_STR - ofs, IFACE_("Rot: %.2f%s %s"),
+			RAD2DEGF(final), t->con.text, t->proptext);
+	}
+
+	if (t->flag & T_PROP_EDIT_ALL) {
+		ofs += BLI_snprintf(str + ofs, UI_MAX_DRAW_STR - ofs, IFACE_(" Proportional size: %.2f"), t->prop_size);
+	}
+}
+
 /**
  * Applies values of rotation to `td->loc` and `td->ext->quat`
  * based on a rotation matrix (mat) and a pivot (center).
@@ -3830,6 +4035,20 @@ static void ElementRotation_ex(TransInfo *t, TransDataContainer *tc, TransData *
 	if (t->flag & T_POINTS) {
 		mul_m3_m3m3(totmat, mat, td->mtx);
 		mul_m3_m3m3(smat, td->smtx, totmat);
+
+		/* apply gpencil falloff */
+		if (t->options & CTX_GPENCIL_STROKES) {
+			bGPDstroke *gps = (bGPDstroke *)td->extra;
+			float sx = smat[0][0];
+			float sy = smat[1][1];
+			float sz = smat[2][2];
+
+			mul_m3_fl(smat, gps->runtime.multi_frame_falloff);
+			/* fix scale */
+			smat[0][0] = sx;
+			smat[1][1] = sy;
+			smat[2][2] = sz;
+		}
 
 		sub_v3_v3v3(vec, td->iloc, center);
 		mul_m3_v3(smat, vec);
@@ -4079,7 +4298,6 @@ static void applyRotationValue(TransInfo *t, float angle, float axis[3])
 static void applyRotation(TransInfo *t, const int UNUSED(mval[2]))
 {
 	char str[UI_MAX_DRAW_STR];
-	size_t ofs = 0;
 
 	float final;
 
@@ -4102,21 +4320,7 @@ static void applyRotation(TransInfo *t, const int UNUSED(mval[2]))
 
 	t->values[0] = final;
 
-	if (hasNumInput(&t->num)) {
-		char c[NUM_STR_REP_LEN];
-
-		outputNumInput(&(t->num), c, &t->scene->unit);
-
-		ofs += BLI_snprintf(str + ofs, sizeof(str) - ofs, IFACE_("Rot: %s %s %s"), &c[0], t->con.text, t->proptext);
-	}
-	else {
-		ofs += BLI_snprintf(str + ofs, sizeof(str) - ofs, IFACE_("Rot: %.2f%s %s"),
-		                    RAD2DEGF(final), t->con.text, t->proptext);
-	}
-
-	if (t->flag & T_PROP_EDIT_ALL) {
-		ofs += BLI_snprintf(str + ofs, sizeof(str) - ofs, IFACE_(" Proportional size: %.2f"), t->prop_size);
-	}
+	headerRotation(t, str, final);
 
 	applyRotationValue(t, final, t->axis);
 
@@ -4232,7 +4436,7 @@ static void applyTrackball(TransInfo *t, const int UNUSED(mval[2]))
 	mul_m3_m3m3(mat, smat, totmat);
 
 	// TRANSFORM_FIX_ME
-	//copy_m3_m3(t->mat, mat);	// used in manipulator
+	//copy_m3_m3(t->mat, mat);	// used in gizmo
 #endif
 
 	applyTrackballValue(t, axis1, axis2, phi);
@@ -4245,6 +4449,127 @@ static void applyTrackball(TransInfo *t, const int UNUSED(mval[2]))
 
 
 /* -------------------------------------------------------------------- */
+/* Transform (Normal Rotation) */
+
+/** \name Transform Normal Rotation
+* \{ */
+
+static void storeCustomLNorValue(TransDataContainer *tc, BMesh *bm)
+{
+	BMLoopNorEditDataArray *lnors_ed_arr = BM_loop_normal_editdata_array_init(bm);
+	// BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
+
+	tc->custom.mode.data = lnors_ed_arr;
+	tc->custom.mode.free_cb = freeCustomNormalArray;
+}
+
+void freeCustomNormalArray(TransInfo *t, TransDataContainer *tc, TransCustomData *custom_data)
+{
+	BMLoopNorEditDataArray *lnors_ed_arr = custom_data->data;
+
+	if (t->state == TRANS_CANCEL) {
+		BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
+		BMEditMesh *em = BKE_editmesh_from_object(tc->obedit);
+		BMesh *bm = em->bm;
+
+		for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {  /* Restore custom loop normal on cancel */
+			BKE_lnor_space_custom_normal_to_data(
+				bm->lnor_spacearr->lspacearr[lnor_ed->loop_index], lnor_ed->niloc, lnor_ed->clnors_data);
+		}
+	}
+
+	BM_loop_normal_editdata_array_free(lnors_ed_arr);
+
+	tc->custom.mode.data = NULL;
+	tc->custom.mode.free_cb = NULL;
+}
+
+static void initNormalRotation(TransInfo *t)
+{
+	t->mode = TFM_NORMAL_ROTATION;
+	t->transform = applyNormalRotation;
+
+	setInputPostFct(&t->mouse, postInputRotation);
+	initMouseInputMode(t, &t->mouse, INPUT_ANGLE);
+
+	t->idx_max = 0;
+	t->num.idx_max = 0;
+	t->snap[0] = 0.0f;
+	t->snap[1] = DEG2RAD(5.0);
+	t->snap[2] = DEG2RAD(1.0);
+
+	copy_v3_fl(t->num.val_inc, t->snap[2]);
+	t->num.unit_sys = t->scene->unit.system;
+	t->num.unit_use_radians = (t->scene->unit.system_rotation == USER_UNIT_ROT_RADIANS);
+	t->num.unit_type[0] = B_UNIT_ROTATION;
+
+	FOREACH_TRANS_DATA_CONTAINER(t, tc) {
+		BMEditMesh *em = BKE_editmesh_from_object(tc->obedit);
+		BMesh *bm = em->bm;
+
+		BKE_editmesh_lnorspace_update(em);
+
+		storeCustomLNorValue(tc, bm);
+	}
+
+	negate_v3_v3(t->axis, t->viewinv[2]);
+	normalize_v3(t->axis);
+
+	copy_v3_v3(t->axis_orig, t->axis);
+}
+
+/* Works by getting custom normal from clnor_data, transform, then store */
+static void applyNormalRotation(TransInfo *t, const int UNUSED(mval[2]))
+{
+	char str[UI_MAX_DRAW_STR];
+
+	if ((t->con.mode & CON_APPLY) && t->con.applyRot) {
+		t->con.applyRot(t, NULL, NULL, t->axis, NULL);
+	}
+	else {
+		/* reset axis if constraint is not set */
+		copy_v3_v3(t->axis, t->axis_orig);
+	}
+
+	FOREACH_TRANS_DATA_CONTAINER(t, tc) {
+		BMEditMesh *em = BKE_editmesh_from_object(tc->obedit);
+		BMesh *bm = em->bm;
+
+		BMLoopNorEditDataArray *lnors_ed_arr = tc->custom.mode.data;
+		BMLoopNorEditData *lnor_ed = lnors_ed_arr->lnor_editdata;
+
+		float axis[3];
+		float mat[3][3];
+		float angle = t->values[0];
+		copy_v3_v3(axis, t->axis);
+
+		snapGridIncrement(t, &angle);
+
+		applySnapping(t, &angle);
+
+		applyNumInput(&t->num, &angle);
+
+		headerRotation(t, str, angle);
+
+		axis_angle_normalized_to_mat3(mat, axis, angle);
+
+		for (int i = 0; i < lnors_ed_arr->totloop; i++, lnor_ed++) {
+			mul_v3_m3v3(lnor_ed->nloc, mat, lnor_ed->niloc);
+
+			BKE_lnor_space_custom_normal_to_data(
+				bm->lnor_spacearr->lspacearr[lnor_ed->loop_index], lnor_ed->nloc, lnor_ed->clnors_data);
+		}
+	}
+
+	recalcData(t);
+
+	ED_area_status_text(t->sa, str);
+}
+
+/** \} */
+
+
+/* -------------------------------------------------------------------- */
 /* Transform (Translation) */
 
 static void initSnapSpatial(TransInfo *t, float r_snap[3])
@@ -4253,8 +4578,9 @@ static void initSnapSpatial(TransInfo *t, float r_snap[3])
 		RegionView3D *rv3d = t->ar->regiondata;
 
 		if (rv3d) {
+			View3D *v3d = t->sa->spacedata.first;
 			r_snap[0] = 0.0f;
-			r_snap[1] = rv3d->gridview * 1.0f;
+			r_snap[1] = ED_view3d_grid_scale(t->scene, v3d, NULL) * 1.0f;
 			r_snap[2] = r_snap[1] * 0.1f;
 		}
 	}
@@ -4504,7 +4830,21 @@ static void applyTranslationValue(TransInfo *t, const float vec[3])
 			}
 
 			mul_m3_v3(td->smtx, tvec);
-			mul_v3_fl(tvec, td->factor);
+
+			if (t->options & CTX_GPENCIL_STROKES) {
+				/* grease pencil multiframe falloff */
+				bGPDstroke *gps = (bGPDstroke *)td->extra;
+				if (gps != NULL) {
+					mul_v3_fl(tvec, td->factor * gps->runtime.multi_frame_falloff);
+				}
+				else {
+					mul_v3_fl(tvec, td->factor);
+				}
+			}
+			else {
+				/* proportional editing falloff */
+				mul_v3_fl(tvec, td->factor);
+			}
 
 			protectedTransBits(td->protectflag, tvec);
 
@@ -5383,7 +5723,7 @@ static void applyBoneSize(TransInfo *t, const int UNUSED(mval[2]))
 		t->con.applySize(t, NULL, NULL, mat);
 	}
 
-	copy_m3_m3(t->mat, mat);    // used in manipulator
+	copy_m3_m3(t->mat, mat);    // used in gizmo
 
 	headerBoneSize(t, size, str);
 
@@ -6584,7 +6924,7 @@ static bool createEdgeSlideVerts_double_side(TransInfo *t, TransDataContainer *t
 	if (t->spacetype == SPACE_VIEW3D) {
 		v3d = t->sa ? t->sa->spacedata.first : NULL;
 		rv3d = t->ar ? t->ar->regiondata : NULL;
-		use_occlude_geometry = (v3d && TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->dt > OB_WIRE && v3d->drawtype > OB_WIRE);
+		use_occlude_geometry = (v3d && TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->dt > OB_WIRE && v3d->shading.type > OB_WIRE);
 	}
 
 	calcEdgeSlide_mval_range(t, tc, sld, sv_table, loop_nr, mval, use_occlude_geometry, true);
@@ -6779,7 +7119,7 @@ static bool createEdgeSlideVerts_single_side(TransInfo *t, TransDataContainer *t
 	if (t->spacetype == SPACE_VIEW3D) {
 		v3d = t->sa ? t->sa->spacedata.first : NULL;
 		rv3d = t->ar ? t->ar->regiondata : NULL;
-		use_occlude_geometry = (v3d && TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->dt > OB_WIRE && v3d->drawtype > OB_WIRE);
+		use_occlude_geometry = (v3d && TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->dt > OB_WIRE && v3d->shading.type > OB_WIRE);
 	}
 
 	calcEdgeSlide_mval_range(t, tc, sld, sv_table, loop_nr, mval, use_occlude_geometry, false);
@@ -6972,19 +7312,17 @@ static void drawEdgeSlide(TransInfo *t)
 
 		/* Even mode */
 		if ((slp->use_even == true) || (is_clamp == false)) {
-			View3D *v3d = t->view;
 			const float line_size = UI_GetThemeValuef(TH_OUTLINE_WIDTH) + 0.5f;
 
-			if (v3d && v3d->zbuf)
-				GPU_depth_test(false);
+			GPU_depth_test(false);
 
 			GPU_blend(true);
 			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
-			gpuPushMatrix();
-			gpuMultMatrix(TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->obmat);
+			GPU_matrix_push();
+			GPU_matrix_mul(TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->obmat);
 
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 
@@ -7001,7 +7339,7 @@ static void drawEdgeSlide(TransInfo *t)
 
 				GPU_line_width(line_size);
 				immUniformThemeColorShadeAlpha(TH_EDGE_SELECT, 80, alpha_shade);
-				immBeginAtMost(GWN_PRIM_LINES, 4);
+				immBeginAtMost(GPU_PRIM_LINES, 4);
 				if (curr_sv->v_side[0]) {
 					immVertex3fv(pos, curr_sv->v_side[0]->co);
 					immVertex3fv(pos, curr_sv->v_co_orig);
@@ -7014,7 +7352,7 @@ static void drawEdgeSlide(TransInfo *t)
 
 				immUniformThemeColorShadeAlpha(TH_SELECT, -30, alpha_shade);
 				GPU_point_size(ctrl_size);
-				immBegin(GWN_PRIM_POINTS, 1);
+				immBegin(GPU_PRIM_POINTS, 1);
 				if (slp->flipped) {
 					if (curr_sv->v_side[1]) immVertex3fv(pos, curr_sv->v_side[1]->co);
 				}
@@ -7025,7 +7363,7 @@ static void drawEdgeSlide(TransInfo *t)
 
 				immUniformThemeColorShadeAlpha(TH_SELECT, 255, alpha_shade);
 				GPU_point_size(guide_size);
-				immBegin(GWN_PRIM_POINTS, 1);
+				immBegin(GPU_PRIM_POINTS, 1);
 				interp_line_v3_v3v3v3(co_mark, co_b, curr_sv->v_co_orig, co_a, fac);
 				immVertex3fv(pos, co_mark);
 				immEnd();
@@ -7039,7 +7377,7 @@ static void drawEdgeSlide(TransInfo *t)
 
 					GPU_line_width(line_size);
 					immUniformThemeColorShadeAlpha(TH_EDGE_SELECT, 80, alpha_shade);
-					immBegin(GWN_PRIM_LINES, sld->totsv * 2);
+					immBegin(GPU_PRIM_LINES, sld->totsv * 2);
 
 					/* TODO(campbell): Loop over all verts  */
 					sv = sld->sv;
@@ -7070,12 +7408,11 @@ static void drawEdgeSlide(TransInfo *t)
 
 			immUnbindProgram();
 
-			gpuPopMatrix();
+			GPU_matrix_pop();
 
 			GPU_blend(false);
 
-			if (v3d && v3d->zbuf)
-				GPU_depth_test(true);
+			GPU_depth_test(true);
 		}
 	}
 }
@@ -7603,7 +7940,6 @@ static void drawVertSlide(TransInfo *t)
 
 		/* Non-Prop mode */
 		{
-			View3D *v3d = t->view;
 			TransDataVertSlideVert *curr_sv = &sld->sv[sld->curr_sv_index];
 			TransDataVertSlideVert *sv;
 			const float ctrl_size = UI_GetThemeValuef(TH_FACEDOT_SIZE) + 1.5f;
@@ -7611,23 +7947,22 @@ static void drawVertSlide(TransInfo *t)
 			const int alpha_shade = -160;
 			int i;
 
-			if (v3d && v3d->zbuf)
-				GPU_depth_test(false);
+			GPU_depth_test(false);
 
 			GPU_blend(true);
 			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
-			gpuPushMatrix();
-			gpuMultMatrix(TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->obmat);
+			GPU_matrix_push();
+			GPU_matrix_mul(TRANS_DATA_CONTAINER_FIRST_OK(t)->obedit->obmat);
 
 			GPU_line_width(line_size);
 
-			const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			const uint shdr_pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 			immUniformThemeColorShadeAlpha(TH_EDGE_SELECT, 80, alpha_shade);
 
-			immBegin(GWN_PRIM_LINES, sld->totsv * 2);
+			immBegin(GPU_PRIM_LINES, sld->totsv * 2);
 			if (is_clamp) {
 				sv = sld->sv;
 				for (i = 0; i < sld->totsv; i++, sv++) {
@@ -7653,7 +7988,7 @@ static void drawVertSlide(TransInfo *t)
 
 			GPU_point_size(ctrl_size);
 
-			immBegin(GWN_PRIM_POINTS, 1);
+			immBegin(GPU_PRIM_POINTS, 1);
 			immVertex3fv(shdr_pos, (slp->flipped && slp->use_even) ?
 			            curr_sv->co_link_orig_3d[curr_sv->co_link_curr] :
 			            curr_sv->co_orig_3d);
@@ -7688,7 +8023,7 @@ static void drawVertSlide(TransInfo *t)
 				immBindBuiltinProgram(GPU_SHADER_3D_LINE_DASHED_UNIFORM_COLOR);
 
 				float viewport_size[4];
-				GPU_viewport_size_getf(viewport_size);
+				GPU_viewport_size_get_f(viewport_size);
 				immUniform2f("viewport_size", viewport_size[2], viewport_size[3]);
 
 				immUniform1i("colors_len", 0);  /* "simple" mode */
@@ -7696,7 +8031,7 @@ static void drawVertSlide(TransInfo *t)
 				immUniform1f("dash_width", 6.0f);
 				immUniform1f("dash_factor", 0.5f);
 
-				immBegin(GWN_PRIM_LINES, 2);
+				immBegin(GPU_PRIM_LINES, 2);
 				immVertex3fv(shdr_pos, curr_sv->co_orig_3d);
 				immVertex3fv(shdr_pos, co_dest_3d);
 				immEnd();
@@ -7704,10 +8039,9 @@ static void drawVertSlide(TransInfo *t)
 				immUnbindProgram();
 			}
 
-			gpuPopMatrix();
+			GPU_matrix_pop();
 
-			if (v3d && v3d->zbuf)
-				GPU_depth_test(true);
+			GPU_depth_test(true);
 		}
 	}
 }

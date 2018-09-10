@@ -152,7 +152,7 @@ typedef enum eDepsNode_Type {
 	DEG_NODE_TYPE_SHADING_PARAMETERS,
 	/* Cache Component */
 	DEG_NODE_TYPE_CACHE,
-	/* Batch Cache Component */
+	/* Batch Cache Component - TODO (dfelinto/sergey) rename to make it more generic. */
 	DEG_NODE_TYPE_BATCH_CACHE,
 
 	/* Total number of meaningful node types. */
@@ -274,20 +274,10 @@ typedef enum eDepsOperation_Code {
 
 	/* Movie clips. ------------------------------------ */
 	DEG_OPCODE_MOVIECLIP_EVAL,
+	DEG_OPCODE_MOVIECLIP_SELECT_UPDATE,
 
 	DEG_NUM_OPCODES,
 } eDepsOperation_Code;
 const char *operationCodeAsString(eDepsOperation_Code opcode);
-
-typedef enum eDepsNode_CollectionOwner {
-	/* Unknown owner of collection, collection is pulled directly, maybe
-	 * via driver.
-	 */
-	DEG_COLLECTION_OWNER_UNKNOWN,
-	/* Collection belongs to a scene. */
-	DEG_COLLECTION_OWNER_SCENE,
-	/* Collection is used by object, as a dupli-system. */
-	DEG_COLLECTION_OWNER_OBJECT,
-} eDepsNode_CollectionOwner;
 
 }  // namespace DEG

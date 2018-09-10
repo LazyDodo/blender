@@ -64,10 +64,12 @@ static int node_shader_gpu_eevee_specular(GPUMaterial *mat, bNode *node, bNodeEx
 
 	/* Occlusion */
 	if (!in[9].link) {
-		GPU_link(mat, "set_value", GPU_uniform(&one), &in[9].link);
+		GPU_link(mat, "set_value", GPU_constant(&one), &in[9].link);
 	}
 
-	return GPU_stack_link(mat, node, "node_eevee_specular", in, out, GPU_uniform(&node->ssr_id));
+	GPU_material_flag_set(mat, GPU_MATFLAG_DIFFUSE | GPU_MATFLAG_GLOSSY);
+
+	return GPU_stack_link(mat, node, "node_eevee_specular", in, out, GPU_constant(&node->ssr_id));
 }
 
 
@@ -77,7 +79,6 @@ void register_node_type_sh_eevee_specular(void)
 	static bNodeType ntype;
 
 	sh_node_type_base(&ntype, SH_NODE_EEVEE_SPECULAR, "Specular", NODE_CLASS_SHADER, 0);
-	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_eevee_specular_in, sh_node_eevee_specular_out);
 	node_type_init(&ntype, NULL);
 	node_type_storage(&ntype, "", NULL, NULL);

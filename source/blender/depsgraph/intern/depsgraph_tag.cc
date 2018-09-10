@@ -67,6 +67,7 @@ extern "C" {
 #include "DEG_depsgraph_query.h"
 
 #include "intern/builder/deg_builder.h"
+#include "intern/eval/deg_eval_copy_on_write.h"
 #include "intern/eval/deg_eval_flush.h"
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
@@ -100,6 +101,7 @@ void depsgraph_geometry_tag_to_component(const ID *id,
 				case OB_FONT:
 				case OB_LATTICE:
 				case OB_MBALL:
+				case OB_GPENCIL:
 					*component_type = DEG_NODE_TYPE_GEOMETRY;
 					break;
 				case OB_ARMATURE:
@@ -112,9 +114,15 @@ void depsgraph_geometry_tag_to_component(const ID *id,
 		case ID_ME:
 			*component_type = DEG_NODE_TYPE_GEOMETRY;
 			break;
-		case ID_PA:
+		case ID_PA: /* Particles */
 			return;
 		case ID_LP:
+			*component_type = DEG_NODE_TYPE_PARAMETERS;
+			break;
+		case ID_GD:
+			*component_type = DEG_NODE_TYPE_GEOMETRY;
+			break;
+		case ID_PAL: /* Palettes */
 			*component_type = DEG_NODE_TYPE_PARAMETERS;
 			break;
 		default:
@@ -144,6 +152,10 @@ void depsgraph_select_tag_to_component_opcode(
 	else if (id_type == ID_OB) {
 		*component_type = DEG_NODE_TYPE_OBJECT_FROM_LAYER;
 		*operation_code = DEG_OPCODE_OBJECT_BASE_FLAGS;
+	}
+	else if (id_type == ID_MC) {
+		*component_type = DEG_NODE_TYPE_BATCH_CACHE;
+		*operation_code = DEG_OPCODE_MOVIECLIP_SELECT_UPDATE;
 	}
 	else {
 		*component_type = DEG_NODE_TYPE_BATCH_CACHE;
@@ -299,6 +311,7 @@ void depsgraph_tag_component(Depsgraph *graph,
  * explicitly, but not all areas are aware of this yet.
  */
 void deg_graph_id_tag_legacy_compat(Main *bmain,
+                                    Depsgraph *depsgraph,
                                     ID *id,
                                     eDepsgraph_Tag tag)
 {
@@ -309,7 +322,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Object *object = (Object *)id;
 				ID *data_id = (ID *)object->data;
 				if (data_id != NULL) {
-					DEG_id_tag_update_ex(bmain, data_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, data_id, 0);
 				}
 				break;
 			}
@@ -322,7 +335,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Mesh *mesh = (Mesh *)id;
 				ID *key_id = &mesh->key->id;
 				if (key_id != NULL) {
-					DEG_id_tag_update_ex(bmain, key_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, key_id, 0);
 				}
 				break;
 			}
@@ -331,7 +344,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Lattice *lattice = (Lattice *)id;
 				ID *key_id = &lattice->key->id;
 				if (key_id != NULL) {
-					DEG_id_tag_update_ex(bmain, key_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, key_id, 0);
 				}
 				break;
 			}
@@ -340,7 +353,7 @@ void deg_graph_id_tag_legacy_compat(Main *bmain,
 				Curve *curve = (Curve *)id;
 				ID *key_id = &curve->key->id;
 				if (key_id != NULL) {
-					DEG_id_tag_update_ex(bmain, key_id, 0);
+					deg_graph_id_tag_update(bmain, depsgraph, key_id, 0);
 				}
 				break;
 			}
@@ -396,7 +409,7 @@ static void deg_graph_id_tag_update_single_flag(Main *bmain,
 	/* TODO(sergey): Get rid of this once all areas are using proper data ID
 	 * for tagging.
 	 */
-	deg_graph_id_tag_legacy_compat(bmain, id, tag);
+	deg_graph_id_tag_legacy_compat(bmain, graph, id, tag);
 
 }
 
@@ -454,7 +467,7 @@ void deg_graph_node_tag_zero(Main *bmain, Depsgraph *graph, IDDepsNode *id_node)
 		comp_node->tag_update(graph);
 	}
 	GHASH_FOREACH_END();
-	deg_graph_id_tag_legacy_compat(bmain, id, (eDepsgraph_Tag)0);
+	deg_graph_id_tag_legacy_compat(bmain, graph, id, (eDepsgraph_Tag)0);
 }
 
 void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
@@ -507,33 +520,49 @@ void deg_id_tag_update(Main *bmain, ID *id, int flag)
 
 void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 {
-	/* Make sure objects are up to date. */
 	foreach (DEG::IDDepsNode *id_node, graph->id_nodes) {
-		const ID_Type id_type = GS(id_node->id_orig->name);
-		int flag = DEG_TAG_COPY_ON_WRITE;
+		if (!id_node->is_visible) {
+			/* ID is not visible within the current dependency graph, no need
+			 * botherwith it to tag or anything.
+			 */
+			continue;
+		}
+		if (id_node->is_previous_visible) {
+			/* The ID was already visible and evaluated, all the subsequent
+			 * updates and tags are to be done explicitly.
+			 */
+			continue;
+		}
+		int flag = 0;
+		if (!DEG::deg_copy_on_write_is_expanded(id_node->id_cow)) {
+			flag |= DEG_TAG_COPY_ON_WRITE;
+		}
 		/* We only tag components which needs an update. Tagging everything is
 		 * not a good idea because that might reset particles cache (or any
 		 * other type of cache).
 		 *
 		 * TODO(sergey): Need to generalize this somehow.
 		 */
+		const ID_Type id_type = GS(id_node->id_orig->name);
 		if (id_type == ID_OB) {
 			flag |= OB_RECALC_OB | OB_RECALC_DATA;
 		}
 		deg_graph_id_tag_update(bmain, graph, id_node->id_orig, flag);
-	}
-	/* Make sure collection properties are up to date. */
-	for (Scene *scene_iter = graph->scene;
-	     scene_iter != NULL;
-	     scene_iter = scene_iter->set)
-	{
-		IDDepsNode *scene_id_node = graph->find_id_node(&scene_iter->id);
-		if (scene_id_node != NULL) {
-			scene_id_node->tag_update(graph);
+		if (id_type == ID_SCE) {
+			/* Make sure collection properties are up to date. */
+			id_node->tag_update(graph);
 		}
-		else {
-			BLI_assert(graph->need_update);
-		}
+		/* Now when ID is updated to the new visibility state, prevent it from
+		 * being re-tagged again. Simplest way to do so is to pretend that it
+		 * was already updated by the "previous" dependency graph.
+		 *
+		 * NOTE: Even if the on_visible_update() is called from the state when
+		 * dependency graph is tagged for relations update, it will be fine:
+		 * since dependency graph builder re-schedules entry tags, all the
+		 * tags we request from here will be applied in the updated state of
+		 * dependency graph.
+		 */
+		id_node->is_previous_visible = true;
 	}
 }
 

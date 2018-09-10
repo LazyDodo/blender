@@ -86,7 +86,7 @@ static void rna_CurveMapping_curves_begin(CollectionPropertyIterator *iter, Poin
 	rna_iterator_array_begin(iter, cumap->cm, sizeof(CurveMap), rna_CurveMapping_curves_length(ptr), 0, NULL);
 }
 
-static void rna_CurveMapping_clip_set(PointerRNA *ptr, int value)
+static void rna_CurveMapping_clip_set(PointerRNA *ptr, bool value)
 {
 	CurveMapping *cumap = (CurveMapping *)ptr->data;
 
@@ -112,6 +112,12 @@ static void rna_CurveMapping_white_level_set(PointerRNA *ptr, const float *value
 	cumap->white[1] = values[1];
 	cumap->white[2] = values[2];
 	curvemapping_set_black_white(cumap, NULL, NULL);
+}
+
+static void rna_CurveMapping_tone_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
+{
+	WM_main_add_notifier(NC_NODE | NA_EDITED, NULL);
+	WM_main_add_notifier(NC_SCENE | ND_SEQUENCER, NULL);
 }
 
 static void rna_CurveMapping_clipminx_range(PointerRNA *ptr, float *min, float *max,
@@ -495,7 +501,7 @@ static const EnumPropertyItem *rna_ColorManagedViewSettings_look_itemf(
 	return items;
 }
 
-static void rna_ColorManagedViewSettings_use_curves_set(PointerRNA *ptr, int value)
+static void rna_ColorManagedViewSettings_use_curves_set(PointerRNA *ptr, bool value)
 {
 	ColorManagedViewSettings *view_settings = (ColorManagedViewSettings *) ptr->data;
 
@@ -757,10 +763,24 @@ static void rna_def_curvemapping(BlenderRNA *brna)
 	PropertyRNA *prop;
 	FunctionRNA *func;
 
+	static const EnumPropertyItem tone_items[] = {
+		{CURVE_TONE_STANDARD,          "STANDARD", 0, "Standard",          ""},
+		{CURVE_TONE_WEIGHTED_STANDARD, "WEIGHTED", 0, "Weighted Standard", ""},
+		{CURVE_TONE_FILMLIKE,          "FILMLIKE", 0, "Film like",         ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	srna = RNA_def_struct(brna, "CurveMapping", NULL);
 	RNA_def_struct_ui_text(srna, "CurveMapping",
 	                       "Curve mapping to map color, vector and scalar values to other values using "
 	                       "a user defined curve");
+
+	prop = RNA_def_property(srna, "tone", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "tone");
+	RNA_def_property_enum_items(prop, tone_items);
+	RNA_def_property_ui_text(prop, "Tone", "Tone of the curve");
+	RNA_def_property_update(prop, 0, "rna_CurveMapping_tone_update");
+
 
 	prop = RNA_def_property(srna, "use_clip", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", CUMA_DO_CLIP);
@@ -1102,8 +1122,9 @@ static void rna_def_colormanage(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "exposure", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "exposure");
-	RNA_def_property_range(prop, -10.0f, 10.0f);
 	RNA_def_property_float_default(prop, 0.0f);
+	RNA_def_property_range(prop, -32.0f, 32.0f);
+	RNA_def_property_ui_range(prop, -10.0f, 10.0f, 1, 3);
 	RNA_def_property_ui_text(prop, "Exposure", "Exposure (stops) applied before display transform");
 	RNA_def_property_update(prop, NC_WINDOW, "rna_ColorManagement_update");
 
