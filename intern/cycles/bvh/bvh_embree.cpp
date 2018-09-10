@@ -246,8 +246,8 @@ bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
 	return true;
 }
 
-
-void rtc_error_func(void*, enum RTCError code, const char* str)
+void rtc_error_func(void*, enum RTCError code, const char* str);
+void rtc_error_func(void*, enum RTCError, const char* str)
 {
 	VLOG(0) << str;
 }

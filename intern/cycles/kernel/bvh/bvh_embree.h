@@ -46,7 +46,7 @@ struct CCLIntersectContext  {
 	int sss_object_id;
 	uint *lcg_state;
 
-	CCLIntersectContext(const Ray& ray, KernelGlobals *kg_,  RayType type_)
+	CCLIntersectContext(KernelGlobals *kg_,  RayType type_)
 	{
 		kg = kg_;
 		type = type_;

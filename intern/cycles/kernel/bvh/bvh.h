@@ -176,7 +176,7 @@ ccl_device_intersect bool scene_intersect(KernelGlobals *kg,
 #ifdef __EMBREE__
 	if(kernel_data.bvh.scene) {
 		isect->t = ray.t;
-		CCLIntersectContext ctx(ray, kg, CCLIntersectContext::RAY_REGULAR);
+		CCLIntersectContext ctx(kg, CCLIntersectContext::RAY_REGULAR);
 		IntersectContext rtc_ctx(&ctx);
 		RTCRayHit ray_hit;
 		kernel_embree_setup_rayhit(ray, ray_hit, visibility);
@@ -234,7 +234,7 @@ ccl_device_intersect bool scene_intersect_local(KernelGlobals *kg,
 {
 #ifdef __EMBREE__
 	if(kernel_data.bvh.scene) {
-		CCLIntersectContext ctx(ray, kg, CCLIntersectContext::RAY_SSS);
+		CCLIntersectContext ctx(kg, CCLIntersectContext::RAY_SSS);
 		ctx.lcg_state = lcg_state;
 		ctx.max_hits = max_hits;
 		ctx.ss_isect = local_isect;
@@ -310,7 +310,7 @@ ccl_device_intersect bool scene_intersect_shadow_all(KernelGlobals *kg,
 {
 #  ifdef __EMBREE__
 	if(kernel_data.bvh.scene) {
-		CCLIntersectContext ctx(*ray, kg, CCLIntersectContext::RAY_SHADOW_ALL);
+		CCLIntersectContext ctx(kg, CCLIntersectContext::RAY_SHADOW_ALL);
 		ctx.isect_s = isect;
 		ctx.max_hits = max_hits;
 		ctx.num_hits = 0;
@@ -415,7 +415,7 @@ ccl_device_intersect uint scene_intersect_volume_all(KernelGlobals *kg,
 {
 #  ifdef __EMBREE__
 	if(kernel_data.bvh.scene) {
-		CCLIntersectContext ctx(*ray, kg, CCLIntersectContext::RAY_VOLUME_ALL);
+		CCLIntersectContext ctx(kg, CCLIntersectContext::RAY_VOLUME_ALL);
 		ctx.isect_s = isect;
 		ctx.max_hits = max_hits;
 		ctx.num_hits = 0;
