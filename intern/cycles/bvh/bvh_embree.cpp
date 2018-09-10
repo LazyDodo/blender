@@ -1,5 +1,5 @@
 /*
- * Copyright 2017, Blender Foundation.
+ * Copyright 2018, Blender Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,24 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ */
+
+/* This class implemens a ray accelerator for Cycles using Intel's Embree library.
+ * It supports triangles, curves, object and deformation blur and instancing.
+ * Not supported are thick line segments, those have no native equivalent in Embree.
+ * They could be implemented using Embree's thick curves, at the expense of wasted memory.
+ * User defined intersections for Embree could also be an option, but since Embree only uses aligned BVHs
+ * for user geometry, this would come with reduced performance and/or higher memory usage.
+ *
+ * Since Embree allows object to be either curves or triangles but not both, Cycles object IDs are maapped
+ * to Embree IDs by multiplying by two and adding one for curves.
+ *
+ * This implementation shares RTCDevices between Cycles instances. Eventually each instance should get
+ * a separate RTCDevice to correctly keep track of memory usage.
+ *
+ * Vertex and index buffers are duplicated between Cycles device arrays and Embree. These could be merged,
+ * which would requrie changes to intersection refinement, shader setup, mesh light sampling and a few
+ * other places in Cycles where direct access to vertex data is required.
  */
 
 #ifdef WITH_EMBREE
@@ -46,6 +64,7 @@ CCL_NAMESPACE_BEGIN
 void rtc_filter_func(const RTCFilterFunctionNArguments *args);
 void rtc_filter_func(const RTCFilterFunctionNArguments *args)
 {
+	/* Current implementation in Cycles assumes only single-ray intersection queries. */
 	assert(args->N == 1);
 
 	const RTCRay *ray = (RTCRay*)args->ray;
@@ -83,120 +102,122 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 		}
 	}
 
-	if(ctx->type == CCLIntersectContext::RAY_SHADOW_ALL) {
-		/* Append the intersection to the end of the array. */
-		if(ctx->num_hits < ctx->max_hits) {
-			Intersection current_isect;
-			kernel_embree_convert_hit(kg, ray, hit, &current_isect);
-			for(size_t i = 0; i < ctx->max_hits; ++i) {
-				if(current_isect.object == ctx->isect_s[i].object &&
-				   current_isect.prim == ctx->isect_s[i].prim &&
-				   current_isect.t == ctx->isect_s[i].t) {
-					/* This intersection was already recorded, skip it. */
-					*args->valid = 0;
-					return;
+	switch(ctx->type) {
+		case CCLIntersectContext::RAY_SHADOW_ALL: {
+			/* Append the intersection to the end of the array. */
+			if(ctx->num_hits < ctx->max_hits) {
+				Intersection current_isect;
+				kernel_embree_convert_hit(kg, ray, hit, &current_isect);
+				for(size_t i = 0; i < ctx->max_hits; ++i) {
+					if(current_isect.object == ctx->isect_s[i].object &&
+					   current_isect.prim == ctx->isect_s[i].prim &&
+					   current_isect.t == ctx->isect_s[i].t) {
+						/* This intersection was already recorded, skip it. */
+						*args->valid = 0;
+						break;
+					}
 				}
-			}
-			Intersection *isect = &ctx->isect_s[ctx->num_hits];
-			ctx->num_hits++;
-			*isect = current_isect;
-			int prim = kernel_tex_fetch(__prim_index, isect->prim);
-			int shader = 0;
-			if(kernel_tex_fetch(__prim_type, isect->prim) & PRIMITIVE_ALL_TRIANGLE) {
-				shader = kernel_tex_fetch(__tri_shader, prim);
+				Intersection *isect = &ctx->isect_s[ctx->num_hits];
+				ctx->num_hits++;
+				*isect = current_isect;
+				int prim = kernel_tex_fetch(__prim_index, isect->prim);
+				int shader = 0;
+				if(kernel_tex_fetch(__prim_type, isect->prim) & PRIMITIVE_ALL_TRIANGLE) {
+					shader = kernel_tex_fetch(__tri_shader, prim);
+				}
+				else {
+					float4 str = kernel_tex_fetch(__curves, prim);
+					shader = __float_as_int(str.z);
+				}
+				int flag = kernel_tex_fetch(__shaders, shader & SHADER_MASK).flags;
+				/* If no transparent shadows, all light is blocked. */
+				if(flag & (SD_HAS_TRANSPARENT_SHADOW)) {
+					/* This tells Embree to continue tracing. */
+					*args->valid = 0;
+				}
 			}
 			else {
-				float4 str = kernel_tex_fetch(__curves, prim);
-				shader = __float_as_int(str.z);
+				/* Increase the number of hits beyond ray.max_hits
+				 * so that the caller can detect this as opaque. */
+				ctx->num_hits++;
 			}
-			int flag = kernel_tex_fetch(__shaders, shader & SHADER_MASK).flags;
-			/* If no transparent shadows, all light is blocked. */
-			if(flag & (SD_HAS_TRANSPARENT_SHADOW)) {
-				/* This tells Embree to continue tracing. */
-				*args->valid = 0;
+			break;
+		}
+		case CCLIntersectContext::RAY_SSS: {
+			/* No intersection information requested, just return a hit. */
+			if(ctx->max_hits == 0) {
+				break;
 			}
-		}
-		else {
-			/* Increase the number of hits beyond ray.max_hits
-			 * so that the caller can detect this as opaque. */
-			ctx->num_hits++;
-		}
-		return;
-	}
-	else if(ctx->type == CCLIntersectContext::RAY_SSS) {
-		/* No intersection information requested, just return a hit. */
-		if(ctx->max_hits == 0) {
-			return;
-		}
 
-		/* See triangle_intersect_subsurface() for the native equivalent. */
-		for(int i = min(ctx->max_hits, ctx->ss_isect->num_hits) - 1; i >= 0; --i) {
-			if(ctx->ss_isect->hits[i].t == ray->tfar) {
-				/* This tells Embree to continue tracing. */
-				*args->valid = 0;
-				return;
-			}
-		}
-
-		ctx->ss_isect->num_hits++;
-		int hit_idx;
-
-		if(ctx->ss_isect->num_hits <= ctx->max_hits) {
-			hit_idx = ctx->ss_isect->num_hits - 1;
-		}
-		else {
-			/* reservoir sampling: if we are at the maximum number of
-			 * hits, randomly replace element or skip it */
-			hit_idx = lcg_step_uint(ctx->lcg_state) % ctx->ss_isect->num_hits;
-
-			if(hit_idx >= ctx->max_hits) {
-				/* This tells Embree to continue tracing. */
-				*args->valid = 0;
-				return;
-			}
-		}
-		/* record intersection */
-		kernel_embree_convert_local_hit(kg, ray, hit, &ctx->ss_isect->hits[hit_idx], ctx->sss_object_id);
-		ctx->ss_isect->Ng[hit_idx].x = hit->Ng_x;
-		ctx->ss_isect->Ng[hit_idx].y = hit->Ng_y;
-		ctx->ss_isect->Ng[hit_idx].z = hit->Ng_z;
-		ctx->ss_isect->Ng[hit_idx] = normalize(ctx->ss_isect->Ng[hit_idx]);
-		/* this tells Embree to continue tracing */
-		*args->valid = 0;
-		return;
-	}
-	else if(ctx->type == CCLIntersectContext::RAY_VOLUME_ALL) {
-		/* Append the intersection to the end of the array. */
-		if(ctx->num_hits < ctx->max_hits) {
-			Intersection current_isect;
-			kernel_embree_convert_hit(kg, ray, hit, &current_isect);
-			for(size_t i = 0; i < ctx->max_hits; ++i) {
-				if(current_isect.object == ctx->isect_s[i].object &&
-				   current_isect.prim == ctx->isect_s[i].prim &&
-				   current_isect.t == ctx->isect_s[i].t) {
-					/* This intersection was already recorded, skip it. */
+			/* See triangle_intersect_subsurface() for the native equivalent. */
+			for(int i = min(ctx->max_hits, ctx->ss_isect->num_hits) - 1; i >= 0; --i) {
+				if(ctx->ss_isect->hits[i].t == ray->tfar) {
+					/* This tells Embree to continue tracing. */
 					*args->valid = 0;
-					return;
+					break;
 				}
 			}
-			Intersection *isect = &ctx->isect_s[ctx->num_hits];
-			ctx->num_hits++;
-			*isect = current_isect;
-			/* Only primitives from volume object. */
-			uint tri_object = (isect->object == OBJECT_NONE) ?
-			                   kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
-			int object_flag = kernel_tex_fetch(__object_flag, tri_object);
-			if((object_flag & SD_OBJECT_HAS_VOLUME) == 0) {
-				ctx->num_hits--;
-			}
-			/* This tells Embree to continue tracing. */
-			*args->valid = 0;
-			return;
-		}
-		return;
-	}
 
-	return;
+			ctx->ss_isect->num_hits++;
+			int hit_idx;
+
+			if(ctx->ss_isect->num_hits <= ctx->max_hits) {
+				hit_idx = ctx->ss_isect->num_hits - 1;
+			}
+			else {
+				/* reservoir sampling: if we are at the maximum number of
+				 * hits, randomly replace element or skip it */
+				hit_idx = lcg_step_uint(ctx->lcg_state) % ctx->ss_isect->num_hits;
+
+				if(hit_idx >= ctx->max_hits) {
+					/* This tells Embree to continue tracing. */
+					*args->valid = 0;
+					break;
+				}
+			}
+			/* record intersection */
+			kernel_embree_convert_local_hit(kg, ray, hit, &ctx->ss_isect->hits[hit_idx], ctx->sss_object_id);
+			ctx->ss_isect->Ng[hit_idx].x = hit->Ng_x;
+			ctx->ss_isect->Ng[hit_idx].y = hit->Ng_y;
+			ctx->ss_isect->Ng[hit_idx].z = hit->Ng_z;
+			ctx->ss_isect->Ng[hit_idx] = normalize(ctx->ss_isect->Ng[hit_idx]);
+			/* this tells Embree to continue tracing */
+			*args->valid = 0;
+			break;
+		}
+		case CCLIntersectContext::RAY_VOLUME_ALL: {
+			/* Append the intersection to the end of the array. */
+			if(ctx->num_hits < ctx->max_hits) {
+				Intersection current_isect;
+				kernel_embree_convert_hit(kg, ray, hit, &current_isect);
+				for(size_t i = 0; i < ctx->max_hits; ++i) {
+					if(current_isect.object == ctx->isect_s[i].object &&
+					   current_isect.prim == ctx->isect_s[i].prim &&
+					   current_isect.t == ctx->isect_s[i].t) {
+						/* This intersection was already recorded, skip it. */
+						*args->valid = 0;
+						break;
+					}
+				}
+				Intersection *isect = &ctx->isect_s[ctx->num_hits];
+				ctx->num_hits++;
+				*isect = current_isect;
+				/* Only primitives from volume object. */
+				uint tri_object = (isect->object == OBJECT_NONE) ?
+								   kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
+				int object_flag = kernel_tex_fetch(__object_flag, tri_object);
+				if((object_flag & SD_OBJECT_HAS_VOLUME) == 0) {
+					ctx->num_hits--;
+				}
+				/* This tells Embree to continue tracing. */
+				*args->valid = 0;
+				break;
+			}
+		}
+		case CCLIntersectContext::RAY_REGULAR:
+			/* nothing to do here. */
+			break;
+	}
 }
 
 static size_t unaccounted_mem = 0;
@@ -605,11 +626,11 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 		if(use_curves) {
 			rtc_tangents = (float4*)rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_TANGENT, t,
 																RTC_FORMAT_FLOAT4, sizeof (float) * 4, num_keys);
+			assert(rtc_tangents);
 		}
 		assert(rtc_verts);
 		if(rtc_verts) {
-			if(use_curves) {
-				assert(rtc_tangents);
+			if(use_curves && rtc_tangents) {
 				const size_t num_curves = mesh->num_curves();
 				for(size_t j = 0; j < num_curves; j++) {
 					Mesh::Curve c = mesh->get_curve(j);
@@ -661,12 +682,8 @@ void BVHEmbree::add_curves(Object *ob, int i)
 	size_t num_segments = 0;
 	for(size_t j = 0; j < num_curves; j++) {
 		Mesh::Curve c = mesh->get_curve(j);
-		if(c.num_segments() > 0) {
-			num_segments += c.num_segments();
-		}
-		else {
-			assert(0);
-		}
+		assert(c.num_segments() > 0);
+		num_segments += c.num_segments();
 	}
 
 	/* Make room for Cycles specific data */
@@ -801,7 +818,7 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 		int mesh_curve_offset = mesh->curve_offset;
 
 		/* fill in node indexes for instances */
-		pack.object_node[object_offset++] = prim_offset; // TOOD (stefan)
+		pack.object_node[object_offset++] = prim_offset;
 
 		mesh_map[mesh] = pack.object_node[object_offset-1];
 
