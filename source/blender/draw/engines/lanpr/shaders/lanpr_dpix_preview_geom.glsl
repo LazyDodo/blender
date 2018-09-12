@@ -31,11 +31,11 @@ uniform float line_thickness_material;
 uniform float line_thickness_edge_mark;
 uniform float line_thickness_intersection;
 
-float use_thickness = line_thickness;
+float use_thickness;
 
 out vec4 out_color;
 
-vec4 use_color = color;
+vec4 use_color;
 
 float get_linear_depth(float z){
 	float ze = 2.0 * z_near * z_far / (z_far + z_near - z * (z_far - z_near));
@@ -104,11 +104,13 @@ void main() {
 
 	int is_crease = 0;
 
-	if (p1.w>0)               { use_color = color;               use_thickness = line_thickness; } // contour override
-	else if (p2.w>0)          { use_color = crease_color;        use_thickness = line_thickness * line_thickness_crease; is_crease = 1; }
-	else if (edge_mask.g > 0) { use_color = edge_mark_color;     use_thickness = line_thickness * line_thickness_edge_mark; }
+	use_thickness = line_thickness;
+	use_color = color;
+
+	if (edge_mask.g > 0)      { use_color = edge_mark_color;     use_thickness = line_thickness * line_thickness_edge_mark; }
 	else if (edge_mask.r > 0) { use_color = material_color;      use_thickness = line_thickness * line_thickness_material;  }
 	else if (edge_mask.b > 0) { use_color = intersection_color;  use_thickness = line_thickness * line_thickness_intersection;  }
+	else if (p2.w != p1.w)    { use_color = crease_color;        use_thickness = line_thickness * line_thickness_crease; is_crease = 1; }
 
 	draw_line(p1, p2, is_crease);
 }

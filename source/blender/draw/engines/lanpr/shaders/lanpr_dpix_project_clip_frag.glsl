@@ -369,6 +369,7 @@ int testProfileEdge(ivec2 texcoord, vec3 world_position)
 	       ((enable_edge_mark > 0) && (edge_mask.g > 0)) ||
 	       ((enable_intersection > 0) && (edge_mask.b > 0)) ||
 	       false) return 2;
+	return 0;
 }
 
 void main(){
@@ -511,7 +512,7 @@ void main(){
 	//if(v0_clipped_pre_div == v1_clipped_pre_div)gl_FragData[0] =vec4(1);
 	//else gl_FragData[0] = vec4(v0_clipped_pre_div.xyz,1);
 
-	gl_FragData[0] = vec4(v0_clipped_pre_div.xyz, profile_on==1 ? 1 : 0);//contour has priority
+	gl_FragData[0] = vec4(v0_clipped_pre_div.xyz, 1);//contour has priority, modification cause trouble
 	gl_FragData[1] = vec4(v1_clipped_pre_div.xyz, is_crease > 0 ? crease_strength : 1);
 	//gl_FragData[2] = packOffsetTexel(num_samples, segment_screen_length,
 	//num_samples, segment_screen_length);
