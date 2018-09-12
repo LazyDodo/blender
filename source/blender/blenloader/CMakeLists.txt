@@ -59,6 +59,7 @@ set(SRC
 	intern/versioning_280.c
 	intern/versioning_defaults.c
 	intern/versioning_legacy.c
+	intern/versioning_userdef.c
 	intern/writefile.c
 
 	BLO_blend_defs.h
@@ -91,6 +92,11 @@ if(WITH_ALEMBIC)
 		../alembic
 	)
 	add_definitions(-DWITH_ALEMBIC)
+endif()
+
+# Needed for versioning userdef.
+if(WITH_CYCLES)
+	add_definitions(-DWITH_CYCLES)
 endif()
 
 blender_add_lib(bf_blenloader "${SRC}" "${INC}" "${INC_SYS}")

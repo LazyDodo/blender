@@ -1465,8 +1465,12 @@ void UI_block_draw(const bContext *C, uiBlock *block)
 		ui_draw_popover_back(ar, &style, block, &rect);
 	else if (block->flag & UI_BLOCK_LOOP)
 		ui_draw_menu_back(&style, block, &rect);
-	else if (block->panel)
-		ui_draw_aligned_panel(&style, block, &rect, UI_panel_category_is_visible(ar));
+	else if (block->panel) {
+		bool show_background = ar->alignment != RGN_ALIGN_FLOAT;
+		ui_draw_aligned_panel(
+		        &style, block, &rect,
+		        UI_panel_category_is_visible(ar), show_background);
+	}
 
 	BLF_batch_draw_begin();
 	UI_icon_draw_cache_begin();
@@ -2943,6 +2947,11 @@ void UI_block_emboss_set(uiBlock *block, char dt)
 	block->dt = dt;
 }
 
+void UI_block_theme_style_set(uiBlock *block, char theme_style)
+{
+	block->theme_style = theme_style;
+}
+
 /**
  * \param but: Button to update.
  * \param validate: When set, this function may change the button value.
@@ -3519,7 +3528,7 @@ static void ui_def_but_rna__menu(bContext *UNUSED(C), uiLayout *layout, void *bu
 static void ui_but_submenu_enable(uiBlock *block, uiBut *but)
 {
 	but->flag |= UI_BUT_ICON_SUBMENU;
-	block->content_hints |= BLOCK_CONTAINS_SUBMENU_BUT;
+	block->content_hints |= UI_BLOCK_CONTAINS_SUBMENU_BUT;
 }
 
 /**

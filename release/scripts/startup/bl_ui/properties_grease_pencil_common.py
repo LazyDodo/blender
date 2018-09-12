@@ -295,8 +295,6 @@ class GreasePencilAppearancePanel:
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
 
-            layout.prop(gp_settings, "gpencil_brush_type", text="Brush Type")
-
             sub = layout.column(align=True)
             sub.enabled = not brush.use_custom_icon
             sub.prop(gp_settings, "gp_icon", text="Icon")
@@ -405,7 +403,7 @@ class GPENCIL_MT_pie_settings_palette(Menu):
         gpd = context.gpencil_data
         gpl = context.active_gpencil_layer
         palcolor = None  # context.active_gpencil_palettecolor
-        brush = context.active_gpencil_brush
+        # brush = context.active_gpencil_brush
 
         is_editmode = bool(gpd and gpd.use_stroke_edit_mode and context.editable_gpencil_strokes)
 
@@ -587,7 +585,6 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_3d_view = context.space_data.type == 'VIEW_3D'
 
         layout.operator_context = 'INVOKE_REGION_WIN'
 
@@ -605,7 +602,6 @@ class GPENCIL_MT_gpencil_draw_delete(Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_3d_view = context.space_data.type == 'VIEW_3D'
 
         layout.operator_context = 'INVOKE_REGION_WIN'
 
@@ -631,7 +627,6 @@ class GPENCIL_UL_annotation_layer(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.GPencilLayer)
         gpl = item
-        gpd = context.gpencil_data
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             if gpl.lock:
@@ -785,7 +780,6 @@ class GreasePencilToolsPanel:
     def draw(self, context):
         layout = self.layout
 
-        # gpd_owner = context.gpencil_data_owner
         gpd = context.gpencil_data
 
         layout.prop(gpd, "use_stroke_edit_mode", text="Enable Editing", icon='EDIT', toggle=True)

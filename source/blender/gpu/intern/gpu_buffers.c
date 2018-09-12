@@ -58,15 +58,6 @@
 
 #include "bmesh.h"
 
-static ThreadMutex buffer_mutex = BLI_MUTEX_INITIALIZER;
-
-/* multires global buffer, can be used for many grids having the same grid size */
-typedef struct GridCommonGPUBuffer {
-	GPUIndexBuf *mres_buffer;
-	int mres_prev_gridsize;
-	unsigned mres_prev_totquad;
-} GridCommonGPUBuffer;
-
 /* XXX: the rest of the code in this file is used for optimized PBVH
  * drawing and doesn't interact at all with the buffer code above */
 
@@ -98,7 +89,7 @@ struct GPU_PBVH_Buffers {
 
 	bool use_bmesh;
 
-	unsigned int tot_tri, tot_quad;
+	uint tot_tri, tot_quad;
 
 	/* The PBVH ensures that either all faces in the node are
 	 * smooth-shaded or all faces are flat-shaded */
@@ -113,7 +104,7 @@ static struct {
 
 /* Allocates a non-initialized buffer to be sent to GPU.
  * Return is false it indicates that the memory map failed. */
-static bool gpu_pbvh_vert_buf_data_set(GPU_PBVH_Buffers *buffers, unsigned int vert_len)
+static bool gpu_pbvh_vert_buf_data_set(GPU_PBVH_Buffers *buffers, uint vert_len)
 {
 	if (buffers->vert_buf == NULL) {
 		/* Initialize vertex buffer */
@@ -201,13 +192,13 @@ void GPU_pbvh_mesh_buffers_update(
 			}
 			else {
 				/* calculate normal for each polygon only once */
-				unsigned int mpoly_prev = UINT_MAX;
+				uint mpoly_prev = UINT_MAX;
 				short no[3];
 				int vbo_index = 0;
 
 				for (uint i = 0; i < buffers->face_indices_len; i++) {
 					const MLoopTri *lt = &buffers->looptri[buffers->face_indices[i]];
-					const unsigned int vtri[3] = {
+					const uint vtri[3] = {
 					    buffers->mloop[lt->tri[0]].v,
 					    buffers->mloop[lt->tri[1]].v,
 					    buffers->mloop[lt->tri[2]].v,
@@ -398,6 +389,20 @@ void GPU_pbvh_grid_buffers_update(
 							normal_float_to_short_v3(no_short, fno);
 							GPU_vertbuf_attr_set(buffers->vert_buf, g_vbo_id.nor, vbo_index, no_short);
 
+							/* Copy normal to first row and last column. */
+							if (k == key->grid_size - 2) {
+								const int next_vbo_index = vbo_index_offset + ((j + 1) * key->grid_size + k + 1);
+								GPU_vertbuf_attr_set(buffers->vert_buf, g_vbo_id.nor, next_vbo_index, no_short);
+							}
+							if (j == 0) {
+								int prev_vbo_index = vbo_index_offset + ((j) * key->grid_size + k);
+								GPU_vertbuf_attr_set(buffers->vert_buf, g_vbo_id.nor, prev_vbo_index, no_short);
+							}
+							if (j == 0 && k == key->grid_size - 2) {
+								int diag_vbo_index = vbo_index_offset + ((j) * key->grid_size + k + 1);
+								GPU_vertbuf_attr_set(buffers->vert_buf, g_vbo_id.nor, diag_vbo_index, no_short);
+							}
+
 							if (has_mask && show_mask) {
 								float fmask = (*CCG_elem_mask(key, elems[0]) +
 								               *CCG_elem_mask(key, elems[1]) +
@@ -428,7 +433,7 @@ void GPU_pbvh_grid_buffers_update(
 }
 
 /* Build the element array buffer of grid indices using either
- * unsigned shorts or unsigned ints. */
+ * ushorts or uints. */
 #define FILL_QUAD_BUFFER(max_vert_, tot_quad_, buffer_)                 \
 	{                                                                   \
 		int offset = 0;                                                 \
@@ -469,44 +474,22 @@ void GPU_pbvh_grid_buffers_update(
 /* end FILL_QUAD_BUFFER */
 
 static GPUIndexBuf *gpu_get_grid_buffer(
-        int gridsize, unsigned *totquad, GridCommonGPUBuffer **grid_common_gpu_buffer,
+        int gridsize, uint *totquad,
         /* remove this arg  when GPU gets base-vertex support! */
         int totgrid)
 {
 	/* used in the FILL_QUAD_BUFFER macro */
 	BLI_bitmap * const *grid_hidden = NULL;
 	const int *grid_indices = NULL;
-	// int totgrid = 1;
-
-	GridCommonGPUBuffer *gridbuff = *grid_common_gpu_buffer;
-
-	if (gridbuff == NULL) {
-		*grid_common_gpu_buffer = gridbuff = MEM_mallocN(sizeof(GridCommonGPUBuffer), __func__);
-		gridbuff->mres_buffer = NULL;
-		gridbuff->mres_prev_gridsize = -1;
-		gridbuff->mres_prev_totquad = 0;
-	}
-
-	/* VBO is already built */
-	if (gridbuff->mres_buffer && gridbuff->mres_prev_gridsize == gridsize) {
-		*totquad = gridbuff->mres_prev_totquad;
-		return gridbuff->mres_buffer;
-	}
-	/* we can't reuse old, delete the existing buffer */
-	else if (gridbuff->mres_buffer) {
-		GPU_indexbuf_discard(gridbuff->mres_buffer);
-		gridbuff->mres_buffer = NULL;
-	}
 
 	/* Build new VBO */
 	*totquad = (gridsize - 1) * (gridsize - 1) * totgrid;
 	int max_vert = gridsize * gridsize * totgrid;
 
-	FILL_QUAD_BUFFER(max_vert, *totquad, gridbuff->mres_buffer);
+	GPUIndexBuf *mres_buffer;
+	FILL_QUAD_BUFFER(max_vert, *totquad, mres_buffer);
 
-	gridbuff->mres_prev_gridsize = gridsize;
-	gridbuff->mres_prev_totquad = *totquad;
-	return gridbuff->mres_buffer;
+	return mres_buffer;
 }
 
 #define FILL_FAST_BUFFER() \
@@ -525,8 +508,7 @@ static GPUIndexBuf *gpu_get_grid_buffer(
 } (void)0
 
 GPU_PBVH_Buffers *GPU_pbvh_grid_buffers_build(
-        int *grid_indices, int totgrid, BLI_bitmap **grid_hidden, int gridsize, const CCGKey *UNUSED(key),
-        GridCommonGPUBuffer **grid_common_gpu_buffer)
+        int *grid_indices, int totgrid, BLI_bitmap **grid_hidden, int gridsize, const CCGKey *UNUSED(key))
 {
 	GPU_PBVH_Buffers *buffers;
 	int totquad;
@@ -549,10 +531,9 @@ GPU_PBVH_Buffers *GPU_pbvh_grid_buffers_build(
 	FILL_FAST_BUFFER();
 
 	if (totquad == fully_visible_totquad) {
-		buffers->index_buf = gpu_get_grid_buffer(
-		        gridsize, &buffers->tot_quad, grid_common_gpu_buffer, totgrid);
+		buffers->index_buf = gpu_get_grid_buffer(gridsize, &buffers->tot_quad, totgrid);
 		buffers->has_hidden = false;
-		buffers->is_index_buf_global = true;
+		buffers->is_index_buf_global = false;
 	}
 	else {
 		uint max_vert = totgrid * gridsize * gridsize;
@@ -863,23 +844,8 @@ void GPU_pbvh_buffers_free(GPU_PBVH_Buffers *buffers)
 	}
 }
 
-void GPU_pbvh_multires_buffers_free(GridCommonGPUBuffer **grid_common_gpu_buffer)
-{
-	GridCommonGPUBuffer *gridbuff = *grid_common_gpu_buffer;
-
-	if (gridbuff) {
-		if (gridbuff->mres_buffer) {
-			BLI_mutex_lock(&buffer_mutex);
-			GPU_INDEXBUF_DISCARD_SAFE(gridbuff->mres_buffer);
-			BLI_mutex_unlock(&buffer_mutex);
-		}
-		MEM_freeN(gridbuff);
-		*grid_common_gpu_buffer = NULL;
-	}
-}
-
 /* debug function, draws the pbvh BB */
-void GPU_pbvh_BB_draw(float min[3], float max[3], bool leaf, unsigned int pos)
+void GPU_pbvh_BB_draw(float min[3], float max[3], bool leaf, uint pos)
 {
 	if (leaf)
 		immUniformColor4f(0.0, 1.0, 0.0, 0.5);

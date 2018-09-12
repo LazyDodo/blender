@@ -572,7 +572,7 @@ class _defs_edit_mesh:
         return dict(
             text="Poly Build",
             icon="ops.mesh.polybuild_hover",
-            widget=None,
+            widget="VIEW3D_GGT_mesh_preselect_elem",
             keymap=(
                 ("mesh.polybuild_face_at_cursor_move",
                  dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
@@ -581,8 +581,6 @@ class _defs_edit_mesh:
                  dict(TRANSFORM_OT_translate=dict(release_confirm=True)),
                  dict(type='ACTIONMOUSE', value='PRESS', ctrl=True)),
                 ("mesh.polybuild_dissolve_at_cursor", dict(), dict(type='ACTIONMOUSE', value='CLICK', alt=True)),
-                ("mesh.polybuild_hover", dict(use_boundary=False), dict(type='MOUSEMOVE', value='ANY', alt=True)),
-                ("mesh.polybuild_hover", dict(use_boundary=True), dict(type='MOUSEMOVE', value='ANY', any=True)),
             ),
         )
 
@@ -871,6 +869,12 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def bisect():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("mesh.bisect")
+            layout.prop(props, "use_fill")
+            layout.prop(props, "clear_inner")
+            layout.prop(props, "clear_outer")
+            layout.prop(props, "threshold")
         return dict(
             text="Bisect",
             icon="ops.mesh.bisect",
@@ -880,6 +884,7 @@ class _defs_edit_mesh:
                  dict(),
                  dict(type='EVT_TWEAK_A', value='ANY')),
             ),
+            draw_settings=draw_settings,
         )
 
 
@@ -1229,7 +1234,6 @@ class _defs_gpencil_paint:
         if ob and ob.mode == 'GPENCIL_PAINT':
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
-            tool_settings = context.tool_settings
 
             if gp_settings.gpencil_brush_type == 'ERASE':
                 row = layout.row()

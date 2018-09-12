@@ -421,10 +421,11 @@ static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3]
 }
 
 /* apply jitter to stroke */
-static void gp_brush_jitter(bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2], int r_mval[2], RNG *rng)
+static void gp_brush_jitter(
+		bGPdata *gpd, Brush *brush, tGPspoint *pt, const int mval[2],
+		const float pressure, int r_mval[2], RNG *rng)
 {
-	float pressure = pt->pressure;
-	float tmp_pressure = pt->pressure;
+	float tmp_pressure = pressure;
 	if (brush->gpencil_settings->draw_jitter > 0.0f) {
 		float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_jitter, 0, pressure);
 		tmp_pressure = curvef * brush->gpencil_settings->draw_sensitivity;
@@ -604,9 +605,6 @@ static short gp_stroke_addpoint(
 			gpd->runtime.sbuffer_size = 2;
 		}
 
-		/* tag depsgraph to update object */
-		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
-
 		/* can keep carrying on this way :) */
 		return GP_STROKEADD_NORMAL;
 	}
@@ -629,9 +627,12 @@ static short gp_stroke_addpoint(
 		}
 
 		/* Apply jitter to position */
-		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) && (brush->gpencil_settings->draw_jitter > 0.0f)) {
+		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
+			(brush->gpencil_settings->draw_jitter > 0.0f))
+		{
 			int r_mval[2];
-			gp_brush_jitter(gpd, brush, pt, mval, r_mval, p->rng);
+			const float jitpress = (brush->gpencil_settings->flag & GP_BRUSH_USE_JITTER_PRESSURE) ? pressure : 1.0f;
+			gp_brush_jitter(gpd, brush, pt, mval, jitpress, r_mval, p->rng);
 			copy_v2_v2_int(&pt->x, r_mval);
 		}
 		else {
@@ -667,8 +668,7 @@ static short gp_stroke_addpoint(
 		}
 
 		/* apply angle of stroke to brush size */
-		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
-		    (brush->gpencil_settings->draw_angle_factor > 0.0f))
+		if (brush->gpencil_settings->draw_angle_factor != 0.0f)
 		{
 			gp_brush_angle(gpd, brush, pt, mval);
 		}
@@ -738,9 +738,6 @@ static short gp_stroke_addpoint(
 				gp_smooth_buffer(p, brush->gpencil_settings->active_smooth * ((3.0f - s) / 3.0f), gpd->runtime.sbuffer_size - s);
 			}
 		}
-
-		/* tag depsgraph to update object */
-		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 
 		/* check if another operation can still occur */
 		if (gpd->runtime.sbuffer_size == GP_STROKE_BUFFER_MAX)
@@ -832,9 +829,6 @@ static short gp_stroke_addpoint(
 		/* increment counters */
 		if (gpd->runtime.sbuffer_size == 0)
 			gpd->runtime.sbuffer_size++;
-
-		/* tag depsgraph to update object */
-		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
 
 		return GP_STROKEADD_NORMAL;
 	}
@@ -1199,7 +1193,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		{
 			float reduce = 0.0f;
 			for (int r = 0; r < brush->gpencil_settings->draw_smoothlvl; r++) {
-				for (i = 0; i < gps->totpoints; i++) {
+				for (i = 0; i < gps->totpoints - 1; i++) {
 					BKE_gpencil_smooth_stroke(gps, i, brush->gpencil_settings->draw_smoothfac - reduce);
 					BKE_gpencil_smooth_stroke_strength(gps, i, brush->gpencil_settings->draw_smoothfac);
 				}
@@ -1211,7 +1205,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		    (brush->gpencil_settings->thick_smoothfac > 0.0f))
 		{
 			for (int r = 0; r < brush->gpencil_settings->thick_smoothlvl * 2; r++) {
-				for (i = 0; i < gps->totpoints; i++) {
+				for (i = 0; i < gps->totpoints - 1; i++) {
 					BKE_gpencil_smooth_stroke_thickness(gps, i, brush->gpencil_settings->thick_smoothfac);
 				}
 			}

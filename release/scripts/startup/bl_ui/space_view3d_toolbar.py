@@ -517,7 +517,7 @@ class VIEW3D_PT_tools_brush(Panel, View3DPaintPanel):
 
 class TEXTURE_UL_texpaintslots(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        mat = data
+        # mat = data
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             layout.prop(item, "name", text="", emboss=False, icon_value=icon)
@@ -553,7 +553,6 @@ class VIEW3D_PT_slots_projectpaint(View3DPanel, Panel):
         layout = self.layout
 
         settings = context.tool_settings.image_paint
-        # brush = settings.brush
 
         ob = context.active_object
         col = layout.column()
@@ -969,7 +968,6 @@ class VIEW3D_PT_sculpt_options(Panel, View3DPaintPanel):
 
     def draw(self, context):
         layout = self.layout
-        # scene = context.scene
 
         toolsettings = context.tool_settings
         sculpt = toolsettings.sculpt
@@ -1150,9 +1148,6 @@ class VIEW3D_PT_tools_vertexpaint(Panel, View3DPaintPanel):
 
     def draw(self, context):
         layout = self.layout
-
-        toolsettings = context.tool_settings
-        vpaint = toolsettings.vertex_paint
 
         col = layout.column()
 
@@ -1467,6 +1462,13 @@ class VIEW3D_PT_tools_grease_pencil_brush_option(View3DPanel, Panel):
     bl_label = "Options"
     bl_options = {'DEFAULT_CLOSED'}
 
+    @classmethod
+    def poll(cls, context):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+
+        return brush is not None and gp_settings.gpencil_brush_type != 'ERASE'
+
     def draw_header_preset(self, context):
         VIEW3D_PT_gpencil_brush_presets.draw_panel_header(self.layout)
 
@@ -1533,8 +1535,9 @@ class VIEW3D_PT_tools_grease_pencil_brush_settings(View3DPanel, Panel):
     @classmethod
     def poll(cls, context):
         brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
 
-        return brush is not None
+        return brush is not None and gp_settings.gpencil_brush_type != 'ERASE'
 
     def draw_header(self, context):
         brush = context.active_gpencil_brush
@@ -1553,11 +1556,11 @@ class VIEW3D_PT_tools_grease_pencil_brush_settings(View3DPanel, Panel):
 
         col = layout.column(align=True)
         col.prop(gp_settings, "pen_smooth_factor")
-        col.prop(gp_settings, "pen_thick_smooth_factor")
+        col.prop(gp_settings, "pen_smooth_steps")
 
         col = layout.column(align=True)
-        col.prop(gp_settings, "pen_smooth_steps")
-        col.prop(gp_settings, "pen_thick_smooth_steps")
+        col.prop(gp_settings, "pen_thick_smooth_factor")
+        col.prop(gp_settings, "pen_thick_smooth_steps", text="Iterations")
 
         col = layout.column(align=True)
         col.prop(gp_settings, "pen_subdivision_steps")
@@ -1573,8 +1576,9 @@ class VIEW3D_PT_tools_grease_pencil_brush_random(View3DPanel, Panel):
     @classmethod
     def poll(cls, context):
         brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
 
-        return brush is not None
+        return brush is not None and gp_settings.gpencil_brush_type != 'ERASE'
 
     def draw_header(self, context):
         brush = context.active_gpencil_brush
@@ -1605,6 +1609,13 @@ class VIEW3D_PT_tools_grease_pencil_brushcurves(View3DPanel, Panel):
     bl_context = ".greasepencil_paint"
     bl_label = "Curves"
     bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        brush = context.active_gpencil_brush
+        gp_settings = brush.gpencil_settings
+
+        return brush is not None and gp_settings.gpencil_brush_type != 'ERASE'
 
     @staticmethod
     def draw(self, context):
@@ -1720,9 +1731,7 @@ class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        gpd = context.gpencil_data
         settings = context.tool_settings.gpencil_sculpt
-        tool = settings.tool
         brush = settings.brush
 
         layout.template_icon_view(settings, "weight_tool", show_labels=True)
