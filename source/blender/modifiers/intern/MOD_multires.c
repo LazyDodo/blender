@@ -200,6 +200,7 @@ static Mesh *multires_as_ccg(MultiresModifierData *mmd,
 	if (ccg_settings.resolution < 3) {
 		return result;
 	}
+	BKE_subdiv_displacement_attach_from_multires(subdiv, mesh, mmd);
 	result = BKE_subdiv_to_ccg_mesh(subdiv, &ccg_settings, mesh);
 	return result;
 }
@@ -223,18 +224,24 @@ static Mesh *applyModifier_subdiv(ModifierData *md,
 	}
 	/* TODO(sergey): Some of production machines are using OpenSubdiv already.
 	 * so better not enable semi-finished multires sculpting for now. Will give
-	 * a wrong impression that things do work, eben though crucial areas are
-	 * styill missing in implementation.
+	 * a wrong impression that things do work, even though crucial areas are
+	 * still missing in implementation.
 	 */
-	if ((ctx->object->mode & OB_MODE_SCULPT) && G.debug_value == 128) {
+	const bool for_orco = (ctx->flag & MOD_APPLY_ORCO) != 0;
+	if ((ctx->object->mode & OB_MODE_SCULPT) &&
+	    G.debug_value == 128 &&
+	    !for_orco)
+	{
+		/* NOTE: CCG takes ownership over Subdiv. */
 		result = multires_as_ccg(mmd, ctx, mesh, subdiv);
+		// BKE_subdiv_stats_print(&subdiv->stats);
 	}
 	else {
 		result = multires_as_mesh(mmd, ctx, mesh, subdiv);
+		/* TODO(sergey): Cache subdiv somehow. */
+		// BKE_subdiv_stats_print(&subdiv->stats);
+		BKE_subdiv_free(subdiv);
 	}
-	/* TODO(sergey): Cache subdiv somehow. */
-	// BKE_subdiv_stats_print(&subdiv->stats);
-	BKE_subdiv_free(subdiv);
 	return result;
 }
 #endif

@@ -1419,15 +1419,22 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
 
             # Brush details
             if gp_settings.gpencil_brush_type == 'ERASE':
-                col = layout.column(align=True)
-                col.prop(brush, "size", text="Radius")
+                row = layout.row(align=True)
+                row.prop(brush, "size", text="Radius")
+                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
 
-                col.separator()
-                row = col.row()
-                row.prop(gp_settings, "eraser_mode", expand=True)
+                if gp_settings.eraser_mode == 'SOFT':
+                    row = layout.row(align=True)
+                    row.prop(gp_settings, "pen_strength", slider=True)
+                    row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+                    row = layout.row(align=True)
+                    row.prop(gp_settings, "eraser_strength_factor")
+                    row = layout.row(align=True)
+                    row.prop(gp_settings, "eraser_thickness_factor")
             elif gp_settings.gpencil_brush_type == 'FILL':
                 col = layout.column(align=True)
                 col.prop(gp_settings, "gpencil_fill_leak", text="Leak Size")
+                col.separator()
                 col.prop(brush, "size", text="Thickness")
                 col.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
 
@@ -1440,7 +1447,7 @@ class VIEW3D_PT_tools_grease_pencil_brush(View3DPanel, Panel):
 
                 col = layout.column(align=True)
                 col.enabled = gp_settings.gpencil_fill_draw_mode != 'STROKE'
-                col.prop(gp_settings, "gpencil_fill_hide", text="Hide Transparent Lines")
+                col.prop(gp_settings, "gpencil_fill_hide", text="Ignore Transparent Strokes")
                 sub = col.row(align=True)
                 sub.enabled = gp_settings.gpencil_fill_hide
                 sub.prop(gp_settings, "gpencil_fill_threshold", text="Threshold")
