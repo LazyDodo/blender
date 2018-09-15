@@ -2230,7 +2230,7 @@ void MESH_OT_vertices_smooth(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	RNA_def_float(ot->srna, "factor", 0.5f, -10.0f, 10.0f, "Smoothing", "Smoothing factor", 0.0f, 1.0f);
+	ot->prop = RNA_def_float(ot->srna, "factor", 0.5f, -10.0f, 10.0f, "Smoothing", "Smoothing factor", 0.0f, 1.0f);
 	RNA_def_int(ot->srna, "repeat", 1, 1, 1000, "Repeat", "Number of times to smooth the mesh", 1, 100);
 
 	WM_operatortype_props_advanced_begin(ot);
@@ -7654,6 +7654,7 @@ static void normals_split(BMesh *bm)
 				}
 				else {
 					BMVert *v_pivot = l_curr->v;
+					UNUSED_VARS_NDEBUG(v_pivot);
 					BMEdge *e_next;
 					const BMEdge *e_org = l_curr->e;
 					BMLoop *lfan_pivot, *lfan_pivot_next;
@@ -7838,6 +7839,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 				}
 				else {
 					BMVert *v_pivot = l_curr->v;
+					UNUSED_VARS_NDEBUG(v_pivot);
 					BMEdge *e_next;
 					const BMEdge *e_org = l_curr->e;
 					BMLoop *lfan_pivot, *lfan_pivot_next;

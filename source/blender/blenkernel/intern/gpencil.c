@@ -1221,11 +1221,13 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 			for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 				for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-					for (int i = 0; i < gps->totpoints; i++) {
-						dvert = &gps->dvert[i];
-						MDeformWeight *dw = defvert_find_index(dvert, def_nr);
-						if (dw != NULL) {
-							defvert_remove_group(dvert, dw);
+					if (gps->dvert != NULL) {
+						for (int i = 0; i < gps->totpoints; i++) {
+							dvert = &gps->dvert[i];
+							MDeformWeight *dw = defvert_find_index(dvert, def_nr);
+							if (dw != NULL) {
+								defvert_remove_group(dvert, dw);
+							}
 						}
 					}
 				}
@@ -1235,6 +1237,7 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 
 	/* Remove the group */
 	BLI_freelinkN(&ob->defbase, defgroup);
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 }
 
 
@@ -1334,7 +1337,11 @@ bool BKE_gpencil_smooth_stroke_strength(bGPDstroke *gps, int point_index, float 
 	/* the optimal value is the corresponding to the interpolation of the strength
 	 * at the distance of point b
 	 */
-	const float fac = line_point_factor_v3(&ptb->x, &pta->x, &ptc->x);
+	float fac = line_point_factor_v3(&ptb->x, &pta->x, &ptc->x);
+	/* sometimes the factor can be wrong due stroke geometry, so use middle point */
+	if ((fac < 0.0f) || (fac > 1.0f)) {
+		fac = 0.5f;
+	}
 	const float optimal = (1.0f - fac) * pta->strength + fac * ptc->strength;
 
 	/* Based on influence factor, blend between original and optimal */
@@ -1350,7 +1357,7 @@ bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int point_index, float
 	bGPDspoint *ptb = &gps->points[point_index];
 
 	/* Do nothing if not enough points */
-	if (gps->totpoints <= 2) {
+	if ((gps->totpoints <= 2) || (point_index < 1)) {
 		return false;
 	}
 
@@ -1369,6 +1376,10 @@ bool BKE_gpencil_smooth_stroke_thickness(bGPDstroke *gps, int point_index, float
 	 * at the distance of point b
 	 */
 	float fac = line_point_factor_v3(&ptb->x, &pta->x, &ptc->x);
+	/* sometimes the factor can be wrong due stroke geometry, so use middle point */
+	if ((fac < 0.0f) || (fac > 1.0f)) {
+		fac = 0.5f;
+	}
 	float optimal = interpf(ptc->pressure, pta->pressure, fac);
 
 	/* Based on influence factor, blend between original and optimal */
@@ -1403,6 +1414,10 @@ bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int point_index, float influe
 	 * at the distance of point b
 	 */
 	float fac = line_point_factor_v3(&ptb->x, &pta->x, &ptc->x);
+	/* sometimes the factor can be wrong due stroke geometry, so use middle point */
+	if ((fac < 0.0f) || (fac > 1.0f)) {
+		fac = 0.5f;
+	}
 	float optimal = interpf(ptc->uv_rot, pta->uv_rot, fac);
 
 	/* Based on influence factor, blend between original and optimal */

@@ -387,7 +387,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 
 	/* object scale and depth */
 	if ((ob) && (id > -1)) {
-		stl->shgroups[id].obj_scale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
+		stl->shgroups[id].obj_scale = mat4_to_scale(ob->obmat);
 		DRW_shgroup_uniform_float(grp, "objscale", &stl->shgroups[id].obj_scale, 1);
 		stl->shgroups[id].keep_size = (int)((gpd) && (gpd->flag & GP_DATA_STROKE_KEEPTHICKNESS));
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->shgroups[id].keep_size, 1);
@@ -477,7 +477,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 
 	/* object scale and depth */
 	if ((ob) && (id > -1)) {
-		stl->shgroups[id].obj_scale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
+		stl->shgroups[id].obj_scale = mat4_to_scale(ob->obmat);;
 		DRW_shgroup_uniform_float(grp, "objscale", &stl->shgroups[id].obj_scale, 1);
 		stl->shgroups[id].keep_size = (int)((gpd) && (gpd->flag & GP_DATA_STROKE_KEEPTHICKNESS));
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->shgroups[id].keep_size, 1);
@@ -906,10 +906,13 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	bGPdata *gpd = ob->data;
+	bGPdata *gpd_eval = ob->data;
+	/* need the original to avoid cow overhead while drawing */
+	bGPdata *gpd = (bGPdata *)DEG_get_original_id(&gpd_eval->id);
+
 	MaterialGPencilStyle *gp_style = NULL;
 
-	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
+	float obscale = mat4_to_scale(ob->obmat);
 
 	/* use the brush material */
 	Material *ma = BKE_gpencil_get_material_from_brush(brush);
