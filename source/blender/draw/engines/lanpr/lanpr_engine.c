@@ -193,6 +193,8 @@ static void lanpr_engine_free(void){
 	stl->g_data = 0;
 }
 
+void lanpr_calculate_normal_object_vector(LANPR_LineLayer* ll, float* normal_object_direction);
+
 static void lanpr_cache_init(void *vedata){
 
 	LANPR_PassList *psl = ((LANPR_Data *)vedata)->psl;
@@ -200,6 +202,8 @@ static void lanpr_cache_init(void *vedata){
 	LANPR_TextureList *txl = ((LANPR_Data *)vedata)->txl;
 
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
+
+	static float normal_object_direction[3] = { 0,0,1 };
 
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
@@ -271,6 +275,8 @@ static void lanpr_cache_init(void *vedata){
 		stl->g_data->dpix_preview_shgrp = DRW_shgroup_create(lanpr_share.dpix_preview_shader, psl->dpix_preview_pass);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert0_tex", &txl->dpix_out_pl);
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "vert1_tex", &txl->dpix_out_pr);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "face_normal0_tex", &txl->dpix_in_nl);
+		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "face_normal1_tex", &txl->dpix_in_nr);// these are for normal shading
 		DRW_shgroup_uniform_texture_ref(stl->g_data->dpix_preview_shgrp, "edge_mask_tex", &txl->dpix_in_edge_mask);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "viewport", stl->g_data->dpix_viewport, 1);
 		DRW_shgroup_uniform_vec4(stl->g_data->dpix_preview_shgrp, "color", ll->color, 1);
@@ -292,6 +298,16 @@ static void lanpr_cache_init(void *vedata){
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "line_thickness_intersection", &ll->thickness_intersection, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "z_near", &stl->g_data->dpix_znear, 1);
 		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "z_far", &stl->g_data->dpix_zfar, 1);
+
+		lanpr_calculate_normal_object_vector(ll, normal_object_direction);
+
+		DRW_shgroup_uniform_int(stl->g_data->dpix_preview_shgrp, "normal_mode", &ll->normal_mode, 1);
+		DRW_shgroup_uniform_int(stl->g_data->dpix_preview_shgrp, "normal_effect_inverse", &ll->normal_effect_inverse, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "normal_ramp_begin", &ll->normal_ramp_begin, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "normal_ramp_end", &ll->normal_ramp_end, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "normal_thickness_begin", &ll->normal_thickness_begin, 1);
+		DRW_shgroup_uniform_float(stl->g_data->dpix_preview_shgrp, "normal_thickness_end", &ll->normal_thickness_end, 1);
+		DRW_shgroup_uniform_vec3(stl->g_data->dpix_preview_shgrp, "normal_direction", normal_object_direction, 1);
 
 		pd->begin_index = 0;
 		int fsize = sizeof(float) * 4 * TNS_DPIX_TEXTURE_SIZE * TNS_DPIX_TEXTURE_SIZE;

@@ -3135,7 +3135,7 @@ void lanpr_software_draw_scene(void *vedata, GPUFrameBuffer *dfb, int is_render)
 	SceneLANPR *lanpr = &scene->lanpr;
 	View3D *v3d = draw_ctx->v3d;
 	float indentity_mat[4][4];
-	float normal_object_direction[3] = { 0,0,1 };
+	static float normal_object_direction[3] = { 0,0,1 };
 
 	if (is_render) {
 		lanpr_rebuild_all_command(lanpr);

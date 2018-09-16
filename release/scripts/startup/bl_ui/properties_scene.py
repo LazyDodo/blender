@@ -675,15 +675,15 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 else:
                     layout.operator("scene.lanpr_add_line_layer")
 
-                layout.label(text= "Normal:")
-                layout.prop(active_layer,"normal_mode", expand = True)
-                if active_layer.normal_mode != "DISABLED":
-                    layout.prop(active_layer,"normal_control_object")
-                    layout.prop(active_layer,"normal_effect_inverse", toggle = True)
-                    layout.prop(active_layer,"normal_ramp_begin")
-                    layout.prop(active_layer,"normal_ramp_end")
-                    layout.prop(active_layer,"normal_thickness_begin", slider=True)
-                    layout.prop(active_layer,"normal_thickness_end", slider=True)
+            layout.label(text= "Normal:")
+            layout.prop(active_layer,"normal_mode", expand = True)
+            if active_layer.normal_mode != "DISABLED":
+                layout.prop(active_layer,"normal_control_object")
+                layout.prop(active_layer,"normal_effect_inverse", toggle = True)
+                layout.prop(active_layer,"normal_ramp_begin")
+                layout.prop(active_layer,"normal_ramp_end")
+                layout.prop(active_layer,"normal_thickness_begin", slider=True)
+                layout.prop(active_layer,"normal_thickness_end", slider=True)
 
             elif not lanpr.layers.active_layer:
                 layout.operator("scene.lanpr_add_line_layer")

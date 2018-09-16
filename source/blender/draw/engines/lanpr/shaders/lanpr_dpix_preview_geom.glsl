@@ -3,6 +3,8 @@ layout(triangle_strip, max_vertices = 6) out;
 
 uniform sampler2D vert0_tex;//L
 uniform sampler2D vert1_tex;//R
+uniform sampler2D face_normal0_tex;
+uniform sampler2D face_normal1_tex;// caution: these are face normals!
 uniform sampler2D edge_mask_tex;
 
 //uniform float uValue0; // buffer_w
@@ -30,6 +32,15 @@ uniform float line_thickness_crease;
 uniform float line_thickness_material;
 uniform float line_thickness_edge_mark;
 uniform float line_thickness_intersection;
+
+// the same as software mode
+uniform int normal_mode;
+uniform int normal_effect_inverse;
+uniform vec3 normal_direction; // also used as point position
+uniform float normal_ramp_begin;
+uniform float normal_ramp_end;
+uniform float normal_thickness_begin;
+uniform float normal_thickness_end;
 
 float use_thickness;
 
@@ -94,9 +105,24 @@ void draw_line(vec4 p1, vec4 p2, int is_crease){
 	EndPrimitive();
 }
 
+float factor_to_thickness(float factor){
+	float r = (factor - normal_ramp_begin)/(normal_ramp_end - normal_ramp_begin);
+	if(r>1) r=1;
+	if(r<0) r=0;
+	float thickness = normal_effect_inverse==1 ?
+					  mix(normal_thickness_begin,normal_thickness_end,r) :
+					  mix(normal_thickness_end,normal_thickness_begin,r);
+	return thickness;
+}
+
 void main() {
 	vec4 p1 = texelFetch(vert0_tex, ivec2(gl_in[0].gl_Position.xy), 0);
 	vec4 p2 = texelFetch(vert1_tex, ivec2(gl_in[0].gl_Position.xy), 0);
+
+	vec4 n1 = texelFetch(face_normal0_tex, ivec2(gl_in[0].gl_Position.xy), 0);
+	vec4 n2 = texelFetch(face_normal1_tex, ivec2(gl_in[0].gl_Position.xy), 0);
+
+	vec3 use_normal = normalize(mix(n1,n2,0.5).xyz);
 
 	if (p1.w == 0 && p2.w == 0) return;
 
@@ -104,13 +130,25 @@ void main() {
 
 	int is_crease = 0;
 
-	use_thickness = line_thickness;
 	use_color = color;
 
-	if (edge_mask.g > 0)      { use_color = edge_mark_color;     use_thickness = line_thickness * line_thickness_edge_mark; }
-	else if (edge_mask.r > 0) { use_color = material_color;      use_thickness = line_thickness * line_thickness_material;  }
-	else if (edge_mask.b > 0) { use_color = intersection_color;  use_thickness = line_thickness * line_thickness_intersection;  }
-	else if (p2.w != p1.w)    { use_color = crease_color;        use_thickness = line_thickness * line_thickness_crease; is_crease = 1; }
+	float th=line_thickness;
+	if(normal_mode == 0){
+		th=line_thickness;
+	}else if(normal_mode == 1){
+		float factor = dot(use_normal,normal_direction);
+		th = factor_to_thickness(factor);
+	}else if(normal_mode == 2){
+		float factor = dot(use_normal,normal_direction);
+		th = factor_to_thickness(factor);
+	}
+
+    use_thickness = th;
+	
+	if (edge_mask.g > 0)      { use_color = edge_mark_color;     use_thickness = th * line_thickness_edge_mark; }
+	else if (edge_mask.r > 0) { use_color = material_color;      use_thickness = th * line_thickness_material;  }
+	else if (edge_mask.b > 0) { use_color = intersection_color;  use_thickness = th * line_thickness_intersection;  }
+	else if (p2.w != p1.w)    { use_color = crease_color;        use_thickness = th * line_thickness_crease; is_crease = 1; }
 
 	draw_line(p1, p2, is_crease);
 }
