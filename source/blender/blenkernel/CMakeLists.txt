@@ -268,6 +268,7 @@ set(SRC
 	BKE_gpencil.h
 	BKE_gpencil_modifier.h
 	BKE_hair.h
+	BKE_hair_iterators.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h

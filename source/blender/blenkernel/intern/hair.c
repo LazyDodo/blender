@@ -51,6 +51,7 @@
 #include "DEG_depsgraph_query.h"
 #include "BKE_global.h"
 #include "BKE_hair.h"
+#include "BKE_hair_iterators.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
@@ -491,11 +492,10 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 	/* Need at least one curve for binding */
 	if (num_strands == 0)
 	{
-		HairFollicle *follicle = pattern->follicles;
-		for (int i = 0; i < pattern->num_follicles; ++i, ++follicle)
-		{
-			for (int k = 0; k < 4; ++k)
-			{
+		HairIterator iter;
+		HairFollicle *follicle;
+		BKE_HAIR_ITER_FOLLICLES(follicle, &iter, pattern) {
+			for (int k = 0; k < 4; ++k) {
 				follicle->curve = HAIR_CURVE_INDEX_NONE;
 			}
 		}
@@ -512,12 +512,11 @@ bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
 	BLI_kdtree_balance(tree);
 	
 	{
-		HairFollicle *follicle = pattern->follicles;
-		for (int i = 0; i < pattern->num_follicles; ++i, ++follicle)
-		{
+		HairIterator iter;
+		HairFollicle *follicle;
+		BKE_HAIR_ITER_FOLLICLES(follicle, &iter, pattern) {
 			float loc[3], nor[3], tang[3];
-			if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang))
-			{
+			if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang)) {
 				follicle->curve = BLI_kdtree_find_nearest(tree, loc, NULL);
 			}
 		}
@@ -725,8 +724,10 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 		cache->fiber_curves = MEM_reallocN_id(cache->fiber_curves, sizeof(HairFiberCurve) * totcurves, "hair export curves");
 		
 		int totverts = 0;
-		for (int i = 0; i < totcurves; ++i) {
-			const HairFiberCurve *curve_orig = &hsys->curve_data.curves[i];
+		HairFiberCurve *curve_orig;
+		HairIterator iter;
+		int i;
+		BKE_HAIR_ITER_CURVES_INDEX(curve_orig, &iter, &hsys->curve_data, i) {
 			HairFiberCurve *curve = &cache->fiber_curves[i];
 			
 			memcpy(curve, curve_orig, sizeof(HairFiberCurve));
@@ -740,14 +741,15 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 	
 	if (data & HAIR_EXPORT_FIBER_VERTICES)
 	{
-		const int totcurves = cache->totcurves;
 		const int totverts = cache->totverts;
 		cache->fiber_verts = MEM_reallocN_id(cache->fiber_verts, sizeof(HairFiberVertex) * totverts, "hair export verts");
 		cache->fiber_tangents = MEM_reallocN_id(cache->fiber_tangents, sizeof(float[3]) * totverts, "hair export tangents");
 		cache->fiber_normals = MEM_reallocN_id(cache->fiber_normals, sizeof(float[3]) * totverts, "hair export normals");
 		
-		for (int i = 0; i < totcurves; ++i) {
-			const HairFiberCurve *curve_orig = &hsys->curve_data.curves[i];
+		HairFiberCurve *curve_orig;
+		HairIterator iter;
+		int i;
+		BKE_HAIR_ITER_CURVES_INDEX(curve_orig, &iter, &hsys->curve_data, i) {
 			const HairFiberVertex *verts_orig = &hsys->curve_data.verts[curve_orig->vertstart];
 			const HairFiberCurve *curve = &cache->fiber_curves[i];
 			HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
@@ -770,11 +772,11 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 
 		if (data & HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS)
 		{
-			const int totfibercurves = cache->totfollicles;
-			
-			cache->follicle_root_position = MEM_reallocN_id(cache->follicle_root_position, sizeof(float[3]) * totfibercurves, "fiber root position");
-			const HairFollicle *follicle = hsys->pattern->follicles;
-			for (int i = 0; i < totfibercurves; ++i, ++follicle) {
+			cache->follicle_root_position = MEM_reallocN_id(cache->follicle_root_position, sizeof(float[3]) * cache->totfollicles, "fiber root position");
+			const HairFollicle *follicle;
+			HairIterator iter;
+			int i;
+			BKE_HAIR_ITER_FOLLICLES_INDEX(follicle, &iter, hsys->pattern, i) {
 				/* Cache fiber root position */
 				float nor[3], tang[3];
 				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->follicle_root_position[i], nor, tang);

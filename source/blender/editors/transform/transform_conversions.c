@@ -72,6 +72,7 @@
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_hair.h"
+#include "BKE_hair_iterators.h"
 #include "BKE_layer.h"
 #include "BKE_key.h"
 #include "BKE_main.h"
@@ -2002,17 +2003,16 @@ static void createTransLatticeVerts(TransInfo *t)
 static int hair_trans_count_verts(EditHair *edit, bool is_prop_edit)
 {
 	int count = 0, countsel = 0;
-	for (int i = 0; i < edit->pattern->num_follicles; ++i) {
-		HairFollicle *follicle = &edit->pattern->follicles[i];
-		if (follicle->curve != HAIR_CURVE_INDEX_NONE) {
-			HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
-			for (int j = 0; j < curve->numverts; ++j) {
-				HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
-				++count;
-				if (vertex->flag & HAIR_VERTEX_SELECT)
-				{
-					++countsel;
-				}
+	HairFiberCurve *curve;
+	HairFiberVertex *vertex;
+	HairIterator fiter;
+	HairIterator viter;
+	BKE_HAIR_ITER_CURVES(curve, &fiter, &edit->curve_data) {
+		BKE_HAIR_ITER_CURVE_VERTS(vertex, &viter, &edit->curve_data, curve) {
+			++count;
+			if (vertex->flag & HAIR_VERTEX_SELECT)
+			{
+				++countsel;
 			}
 		}
 	}
@@ -2042,15 +2042,12 @@ static void hair_transdata_init_verts(
 
 	TransData *td = tdata;
 	TransData2D *td2d = tdata2d;
-	for (int i = 0; i < edit->pattern->num_follicles; ++i) {
-		HairFollicle *follicle = &edit->pattern->follicles[i];
-		if (follicle->curve == HAIR_CURVE_INDEX_NONE) {
-			continue;
-		}
-		HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
-		for (int j = 0; j < curve->numverts; ++j)
-		{
-			HairFiberVertex *vertex = &edit->curve_data.verts[curve->vertstart + j];
+	HairFiberCurve *curve;
+	HairFiberVertex *vertex;
+	HairIterator fiter;
+	HairIterator viter;
+	BKE_HAIR_ITER_CURVES(curve, &fiter, &edit->curve_data) {
+		BKE_HAIR_ITER_CURVE_VERTS(vertex, &viter, &edit->curve_data, curve) {
 			if (is_prop_edit || (vertex->flag & HAIR_VERTEX_SELECT))
 			{
 				copy_v2_v2(td2d->loc, vertex->co);

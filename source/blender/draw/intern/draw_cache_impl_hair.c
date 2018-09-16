@@ -41,6 +41,7 @@
 
 #include "BKE_customdata.h"
 #include "BKE_hair.h"
+#include "BKE_hair_iterators.h"
 #include "BKE_mesh_sample.h"
 
 #include "DEG_depsgraph.h"
@@ -642,12 +643,10 @@ static int hair_batch_cache_fill_segments(
         ParticleHairCache *hair_cache)
 {
 	int curr_point = 0;
-	for (int i = 0; i < pattern->num_follicles; ++i) {
-		const HairFollicle *follicle = &pattern->follicles[i];
-		if (follicle->curve == HAIR_CURVE_INDEX_NONE) {
-			continue;
-		}
-		const HairFiberCurve *curve = &curve_data->curves[follicle->curve];
+	const HairFollicle *follicle;
+	const HairFiberCurve *curve;
+	HairIterator iter;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, pattern, curve_data) {
 		if (curve->numverts < 2) {
 			continue;
 		}
@@ -671,7 +670,7 @@ static int hair_batch_cache_fill_segments(
 
 			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->pos, curr_point, vert->co);
 			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->tan, curr_point, tangent);
-			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->ind, curr_point, &i);
+			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->ind, curr_point, &j);
 
 			for (int k = 0; k < scalp_attr->num_uv_layers; k++) {
 				GPU_vertbuf_attr_set(hair_cache->pos, scalp_attr->uv_id[k], curr_point, scalp_attr->hair_uv[k]);

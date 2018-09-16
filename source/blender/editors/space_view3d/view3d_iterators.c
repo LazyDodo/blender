@@ -44,6 +44,7 @@
 #include "BKE_displist.h"
 #include "BKE_editmesh.h"
 #include "BKE_hair.h"
+#include "BKE_hair_iterators.h"
 #include "BKE_context.h"
 #include "BKE_mesh_runtime.h"
 
@@ -425,17 +426,17 @@ void hair_foreachScreenVert(
 	}
 
 	if (edit->pattern) {
-		for (int i = 0; i < edit->pattern->num_follicles; ++i) {
-			HairFollicle *follicle = &edit->pattern->follicles[i];
-			if (follicle->curve != HAIR_CURVE_INDEX_NONE) {
-				HairFiberCurve *curve = &edit->curve_data.curves[follicle->curve];
-				for (int j = 0; j < curve->numverts; ++j) {
-					HairFiberVertex *vert = &edit->curve_data.verts[curve->vertstart + j];
-					float screen_co[2];
-					if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
-					{
-						func(userData, follicle, curve, vert, screen_co);
-					}
+		const HairFollicle *follicle;
+		const HairFiberCurve *curve;
+		const HairFiberVertex *vert;
+		HairIterator fiter;
+		HairIterator viter;
+		BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &fiter, edit->pattern, &edit->curve_data) {
+			BKE_HAIR_ITER_CURVE_VERTS(vert, &viter, &edit->curve_data, curve) {
+				float screen_co[2];
+				if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
+				{
+					func(userData, follicle, curve, vert, screen_co);
 				}
 			}
 		}
