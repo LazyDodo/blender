@@ -426,9 +426,9 @@ void hair_foreachScreenVert(
 	}
 
 	if (edit->pattern) {
-		const HairFollicle *follicle;
-		const HairFiberCurve *curve;
-		const HairFiberVertex *vert;
+		HairFollicle *follicle;
+		HairFiberCurve *curve;
+		HairFiberVertex *vert;
 		HairIterator fiter;
 		HairIterator viter;
 		BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &fiter, edit->pattern, &edit->curve_data) {
