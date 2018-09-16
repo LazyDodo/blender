@@ -1121,9 +1121,25 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static const EnumPropertyItem follicle_draw_mode_items[] = {
+	    {HAIR_FOLLICLE_DRAW_NONE, "NONE", ICON_NONE, "None", "Don't draw hair follicles"},
+	    {HAIR_FOLLICLE_DRAW_POINT, "POINT", ICON_NONE, "Point", "Draw point on follicle location"},
+	    {HAIR_FOLLICLE_DRAW_NORMAL, "NORMAL", ICON_NONE, "Normal", "Draw surface normal at follicle location"},
+	    {HAIR_FOLLICLE_DRAW_AXES, "AXES", ICON_NONE, "Axes", "Draw local coordinate system at follicle location"},
+	    {0, NULL, 0, NULL, NULL}
+	};
+
 	srna = RNA_def_struct(brna, "HairEditSettings", NULL);
 	RNA_def_struct_path_func(srna, "rna_HairEditSettings_path");
 	RNA_def_struct_ui_text(srna, "Hair Edit", "Properties of hair editing mode");
+
+	prop = RNA_def_property(srna, "follicle_draw_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "follicle_draw_mode");
+	RNA_def_property_enum_items(prop, follicle_draw_mode_items);
+	RNA_def_property_ui_text(prop, "Follicle Draw Mode", "Mode of drawing hair follicles");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_HairEditSettings_update");
 }
 
 static void rna_def_gpencil_sculpt(BlenderRNA *brna)

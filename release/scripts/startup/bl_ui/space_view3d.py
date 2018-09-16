@@ -57,12 +57,13 @@ class VIEW3D_HT_header(Header):
             # object_mode = obj.mode
 
             # Particle edit
-            if object_mode == 'EDIT' and obj.type == 'HAIR':
-                row = layout.row()
-                row.prop(tool_settings.hair_edit_settings, "mode", text="", expand=True)
-            elif object_mode == 'PARTICLE_EDIT':
+            if object_mode == 'PARTICLE_EDIT':
                 row = layout.row()
                 row.prop(tool_settings.particle_edit, "select_mode", text="", expand=True)
+            # Hair edit
+            if object_mode == 'EDIT' and obj.type == 'HAIR':
+                row = layout.row()
+                row.prop(tool_settings.hair_edit_settings, "follicle_draw_mode", text="")
 
             # Occlude geometry
             if (
