@@ -816,6 +816,8 @@ void lanpr_calculate_single_line_occlusion(LANPR_RenderBuffer *rb, LANPR_RenderL
 	int PositiveX = (rl->R->FrameBufferCoord[0] - rl->L->FrameBufferCoord[0]) > 0 ? 1 : (rl->R->FrameBufferCoord[0] == rl->L->FrameBufferCoord[0] ? 0 : -1);
 	int PositiveY = (rl->R->FrameBufferCoord[1] - rl->L->FrameBufferCoord[1]) > 0 ? 1 : (rl->R->FrameBufferCoord[1] == rl->L->FrameBufferCoord[1] ? 0 : -1);
 
+	//printf("PX %d %lf   PY %d %lf\n", PositiveX, rl->R->FrameBufferCoord[0] - rl->L->FrameBufferCoord[0], PositiveY, rl->R->FrameBufferCoord[1] - rl->L->FrameBufferCoord[1]);
+
 	while (nba) {
 
 
@@ -2203,8 +2205,11 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 	//Trans[2] = tmat_dist_3dv(GLocation, cam->Base.GLocation);
 	//Trans[2] = cam->clipsta*cam->clipend / (cam->clipend - fabs(Trans[2]) * (cam->clipend - cam->clipsta));
 
-
-	Cut = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], Trans[0]);
+	//prevent vertical problem ?
+	if(rl->L->FrameBufferCoord[0] != rl->R->FrameBufferCoord[0])
+		Cut = tMatGetLinearRatio(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], Trans[0]);
+	else
+		Cut = tMatGetLinearRatio(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], Trans[1]);
 
 	In = lanpr_point_inside_triangled(Trans, rt->V[0]->FrameBufferCoord, rt->V[1]->FrameBufferCoord, rt->V[2]->FrameBufferCoord);
 

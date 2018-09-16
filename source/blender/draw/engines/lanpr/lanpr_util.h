@@ -46,7 +46,7 @@ typedef int tnsVector2i[2];
 	typedef struct _##a a; \
 	struct _##a
 
-#define DBL_TRIANGLE_LIM 1e-11
+#define DBL_TRIANGLE_LIM 1e-8
 #define DBL_EDGE_LIM 1e-9
 
 
