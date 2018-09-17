@@ -408,15 +408,17 @@ void lanpr_batch_free(SceneLANPR *lanpr) {
 
 }
 
+// below are commented to prevent interface lock in some conditions.
+// should look into it,
 void lanpr_set_render_flag() {
-	BLI_spin_lock(&lanpr_share.render_flag_lock);
-	lanpr_share.during_render = 1;
-	BLI_spin_unlock(&lanpr_share.render_flag_lock);
+	//BLI_spin_lock(&lanpr_share.render_flag_lock);
+	//lanpr_share.during_render = 1;
+	//BLI_spin_unlock(&lanpr_share.render_flag_lock);
 }
 void lanpr_clear_render_flag() {
-	BLI_spin_lock(&lanpr_share.render_flag_lock);
-	lanpr_share.during_render = 0;
-	BLI_spin_unlock(&lanpr_share.render_flag_lock);
+	//BLI_spin_lock(&lanpr_share.render_flag_lock);
+	//lanpr_share.during_render = 0;
+	//BLI_spin_unlock(&lanpr_share.render_flag_lock);
 }
 int lanpr_during_render() {
 	int status;
@@ -577,6 +579,8 @@ static void lanpr_render_to_image(LANPR_Data *vedata, RenderEngine *engine, stru
 	lanpr_cache_init(vedata);
 	DRW_render_object_iter(vedata, engine, draw_ctx->depsgraph, LANPR_render_cache);
 	lanpr_cache_finish(vedata);
+
+	DRW_render_instance_buffer_finish();
 
 	float clear_col[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float clear_depth = 1.0f;
