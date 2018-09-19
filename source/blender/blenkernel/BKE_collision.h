@@ -62,6 +62,7 @@ typedef enum {
 	COLLISION_USE_COLLFACE =    (1 << 2),
 	COLLISION_IS_EDGES =        (1 << 3),
 #endif
+	COLLISION_INACTIVE =        (1 << 4),
 } COLLISION_FLAGS;
 
 

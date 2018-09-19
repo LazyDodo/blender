@@ -72,16 +72,16 @@ typedef struct ColDetectData {
 	CollisionModifierData *collmd;
 	BVHTreeOverlap *overlap;
 	CollPair *collisions;
-	unsigned int *coll_count;
 	bool culling;
 	bool use_normal;
+	bool collided;
 } ColDetectData;
 
 typedef struct SelfColDetectData {
 	ClothModifierData *clmd;
 	BVHTreeOverlap *overlap;
 	CollPair *collisions;
-	unsigned int *coll_count;
+	bool collided;
 } SelfColDetectData;
 
 /***********************************
@@ -681,7 +681,7 @@ static int cloth_collision_response_static(ClothModifierData *clmd, CollisionMod
 		zero_v3(i3);
 
 		/* only handle static collisions here */
-		if (collpair->flag & COLLISION_IN_FUTURE) {
+		if (collpair->flag & (COLLISION_IN_FUTURE | COLLISION_INACTIVE)) {
 			continue;
 		}
 
@@ -857,7 +857,7 @@ static int cloth_selfcollision_response_static(ClothModifierData *clmd, CollPair
 		zero_v3(i3);
 
 		/* only handle static collisions here */
-		if (collpair->flag & COLLISION_IN_FUTURE) {
+		if (collpair->flag & (COLLISION_IN_FUTURE | COLLISION_INACTIVE)) {
 			continue;
 		}
 
@@ -1030,7 +1030,6 @@ static void cloth_collision(
 	ClothModifierData *clmd = data->clmd;
 	CollisionModifierData *collmd = data->collmd;
 	CollPair *collpair = data->collisions;
-	unsigned int *coll_count = data->coll_count;
 	const MVertTri *tri_a, *tri_b;
 	ClothVertex *verts1 = clmd->clothObject->verts;
 	float distance = 0.0f;
@@ -1047,28 +1046,29 @@ static void cloth_collision(
 									   data->culling, data->use_normal, pa, pb, vect);
 
 	if ((distance <= (epsilon1 + epsilon2 + ALMOST_ZERO)) && (len_squared_v3(vect) > FLT_EPSILON)) {
-		int ind;
-
-		ind = atomic_add_and_fetch_u(coll_count, 1) - 1;
-
 		/* fill face_a */
-		collpair[ind].ap1 = tri_a->tri[0];
-		collpair[ind].ap2 = tri_a->tri[1];
-		collpair[ind].ap3 = tri_a->tri[2];
+		collpair[index].ap1 = tri_a->tri[0];
+		collpair[index].ap2 = tri_a->tri[1];
+		collpair[index].ap3 = tri_a->tri[2];
 
 		/* fill face_b */
-		collpair[ind].bp1 = tri_b->tri[0];
-		collpair[ind].bp2 = tri_b->tri[1];
-		collpair[ind].bp3 = tri_b->tri[2];
+		collpair[index].bp1 = tri_b->tri[0];
+		collpair[index].bp2 = tri_b->tri[1];
+		collpair[index].bp3 = tri_b->tri[2];
 
-		copy_v3_v3(collpair[ind].pa, pa);
-		copy_v3_v3(collpair[ind].pb, pb);
-		copy_v3_v3(collpair[ind].vector, vect);
+		copy_v3_v3(collpair[index].pa, pa);
+		copy_v3_v3(collpair[index].pb, pb);
+		copy_v3_v3(collpair[index].vector, vect);
 
-		normalize_v3_v3(collpair[ind].normal, collpair[ind].vector);
+		normalize_v3_v3(collpair[index].normal, collpair[index].vector);
 
-		collpair[ind].distance = distance;
-		collpair[ind].flag = 0;
+		collpair[index].distance = distance;
+		collpair[index].flag = 0;
+
+		data->collided = true;
+	}
+	else {
+		collpair[index].flag = COLLISION_INACTIVE;
 	}
 }
 
@@ -1081,7 +1081,6 @@ static void cloth_selfcollision(
 
 	ClothModifierData *clmd = data->clmd;
 	CollPair *collpair = data->collisions;
-	unsigned int *coll_count = data->coll_count;
 	const MVertTri *tri_a, *tri_b;
 	ClothVertex *verts1 = clmd->clothObject->verts;
 	float distance = 0.0f;
@@ -1112,28 +1111,29 @@ static void cloth_selfcollision(
 
 	// distance -1 means no collision result
 	if ((distance <= (epsilon * 2.0f + ALMOST_ZERO)) && (len_squared_v3(vect) > FLT_EPSILON)) {
-		int ind;
-
-		ind = atomic_add_and_fetch_u(coll_count, 1) - 1;
-
 		/* fill face_a */
-		collpair[ind].ap1 = tri_a->tri[0];
-		collpair[ind].ap2 = tri_a->tri[1];
-		collpair[ind].ap3 = tri_a->tri[2];
+		collpair[index].ap1 = tri_a->tri[0];
+		collpair[index].ap2 = tri_a->tri[1];
+		collpair[index].ap3 = tri_a->tri[2];
 
 		/* fill face_b */
-		collpair[ind].bp1 = tri_b->tri[0];
-		collpair[ind].bp2 = tri_b->tri[1];
-		collpair[ind].bp3 = tri_b->tri[2];
+		collpair[index].bp1 = tri_b->tri[0];
+		collpair[index].bp2 = tri_b->tri[1];
+		collpair[index].bp3 = tri_b->tri[2];
 
-		copy_v3_v3(collpair[ind].pa, pa);
-		copy_v3_v3(collpair[ind].pb, pb);
-		copy_v3_v3(collpair[ind].vector, vect);
+		copy_v3_v3(collpair[index].pa, pa);
+		copy_v3_v3(collpair[index].pb, pb);
+		copy_v3_v3(collpair[index].vector, vect);
 
-		normalize_v3_v3(collpair[ind].normal, collpair[ind].vector);
+		normalize_v3_v3(collpair[index].normal, collpair[index].vector);
 
-		collpair[ind].distance = distance;
-		collpair[ind].flag = 0;
+		collpair[index].distance = distance;
+		collpair[index].flag = 0;
+
+		data->collided = true;
+	}
+	else {
+		collpair[index].flag = COLLISION_INACTIVE;
 	}
 }
 
@@ -1287,8 +1287,8 @@ void free_collider_cache(ListBase **colliders)
 	}
 }
 
-static void cloth_bvh_objcollisions_nearcheck(ClothModifierData * clmd, CollisionModifierData *collmd,
-                                              CollPair **collisions, unsigned int *coll_count, int numresult,
+static bool cloth_bvh_objcollisions_nearcheck(ClothModifierData * clmd, CollisionModifierData *collmd,
+                                              CollPair **collisions, int numresult,
                                               BVHTreeOverlap *overlap, bool culling, bool use_normal)
 {
 	*collisions = (CollPair *)MEM_mallocN(sizeof(CollPair) * numresult, "collision array");
@@ -1297,28 +1297,32 @@ static void cloth_bvh_objcollisions_nearcheck(ClothModifierData * clmd, Collisio
 	                      .collmd = collmd,
 	                      .overlap = overlap,
 	                      .collisions = *collisions,
-	                      .coll_count = coll_count,
 	                      .culling = culling,
-	                      .use_normal = use_normal};
+	                      .use_normal = use_normal,
+	                      .collided = false};
 
 	ParallelRangeSettings settings;
 	BLI_parallel_range_settings_defaults(&settings);
 	settings.use_threading = true;
 	BLI_task_parallel_range(0, numresult, &data, cloth_collision, &settings);
+
+	return data.collided;
 }
 
-static void cloth_bvh_selfcollisions_nearcheck(ClothModifierData * clmd, CollPair *collisions, unsigned int *coll_count,
+static bool cloth_bvh_selfcollisions_nearcheck(ClothModifierData * clmd, CollPair *collisions,
                                                int numresult, BVHTreeOverlap *overlap)
 {
 	SelfColDetectData data = {.clmd = clmd,
 	                          .overlap = overlap,
 	                          .collisions = collisions,
-	                          .coll_count = coll_count};
+	                          .collided = false};
 
 	ParallelRangeSettings settings;
 	BLI_parallel_range_settings_defaults(&settings);
 	settings.use_threading = true;
 	BLI_task_parallel_range(0, numresult, &data, cloth_selfcollision, &settings);
+
+	return data.collided;
 }
 
 static int cloth_bvh_objcollisions_resolve (ClothModifierData * clmd, Object **collobjs, CollPair **collisions,
@@ -1482,43 +1486,46 @@ int cloth_bvh_objcollision(Object *ob, ClothModifierData *clmd, float step, floa
 
 		if (clmd->coll_parms->flags & CLOTH_COLLSETTINGS_FLAG_ENABLED) {
 			CollPair **collisions;
-			unsigned int *collision_counts;
+			unsigned int *coll_counts;
+			bool collided = false;
 
 			collisions = MEM_callocN(sizeof(CollPair *) *numcollobj, "CollPair");
-			collision_counts = MEM_callocN(sizeof(*collision_counts) *numcollobj, "CollPair");
+			coll_counts = MEM_callocN(sizeof(unsigned int) * numcollobj, "CollCounts");
 
 			// check all collision objects
 			for (i = 0; i < numcollobj; i++) {
 				Object *collob = collobjs[i];
 				CollisionModifierData *collmd = (CollisionModifierData *)modifiers_findByType(collob, eModifierType_Collision);
 				BVHTreeOverlap *overlap = NULL;
-				unsigned int result = 0;
 
 				if (!collmd->bvhtree)
 					continue;
 
 				/* search for overlapping collision pairs */
-				overlap = BLI_bvhtree_overlap(cloth_bvh, collmd->bvhtree, &result, NULL, NULL);
+				overlap = BLI_bvhtree_overlap(cloth_bvh, collmd->bvhtree, &coll_counts[i], NULL, NULL);
 
 				// go to next object if no overlap is there
-				if (result && overlap) {
+				if (coll_counts[i] && overlap) {
 					/* check if collisions really happen (costly near check) */
-					cloth_bvh_objcollisions_nearcheck(clmd, collmd, &collisions[i], &collision_counts[i], result, overlap,
-					                                  (collob->pd->flag & PFIELD_CLOTH_USE_CULLING), (collob->pd->flag & PFIELD_CLOTH_USE_NORMAL));
+					collided = cloth_bvh_objcollisions_nearcheck(clmd, collmd, &collisions[i], coll_counts[i], overlap,
+					                                             (collob->pd->flag & PFIELD_CLOTH_USE_CULLING),
+					                                             (collob->pd->flag & PFIELD_CLOTH_USE_NORMAL)) || collided;
 				}
 
 				MEM_SAFE_FREE(overlap);
 			}
 
-			ret += cloth_bvh_objcollisions_resolve(clmd, collobjs, collisions, collision_counts, numcollobj, dt);
-			ret2 += ret;
+			if (collided) {
+				ret += cloth_bvh_objcollisions_resolve(clmd, collobjs, collisions, coll_counts, numcollobj, dt);
+				ret2 += ret;
+			}
 
 			for (i = 0; i < numcollobj; i++) {
 				MEM_SAFE_FREE(collisions[i]);
 			}
 
 			MEM_freeN(collisions);
-			MEM_freeN(collision_counts);
+			MEM_freeN(coll_counts);
 		}
 
 		////////////////////////////////////////////////////////////
@@ -1526,9 +1533,8 @@ int cloth_bvh_objcollision(Object *ob, ClothModifierData *clmd, float step, floa
 		////////////////////////////////////////////////////////////
 		if (clmd->coll_parms->flags & CLOTH_COLLSETTINGS_FLAG_SELF) {
 			BVHTreeOverlap *overlap = NULL;
-			unsigned int result = 0;
 			CollPair *collisions = NULL;
-			unsigned int collision_count = 0;
+			unsigned int coll_count = 0;
 
 			// collisions = 1;
 			verts = cloth->verts; // needed for openMP
@@ -1540,15 +1546,15 @@ int cloth_bvh_objcollision(Object *ob, ClothModifierData *clmd, float step, floa
 
 			if ( cloth->bvhselftree ) {
 				// search for overlapping collision pairs
-				overlap = BLI_bvhtree_overlap(cloth->bvhselftree, cloth->bvhselftree, &result, NULL, NULL);
+				overlap = BLI_bvhtree_overlap(cloth->bvhselftree, cloth->bvhselftree, &coll_count, NULL, NULL);
 
-				if (result && overlap) {
-					collisions = (CollPair *)MEM_mallocN(sizeof(CollPair) * result, "collision array");
+				if (coll_count && overlap) {
+					collisions = (CollPair *)MEM_mallocN(sizeof(CollPair) * coll_count, "collision array");
 
-					cloth_bvh_selfcollisions_nearcheck(clmd, collisions, &collision_count, result, overlap);
-
-					ret += cloth_bvh_selfcollisions_resolve(clmd, collisions, collision_count, dt);
-					ret2 += ret;
+					if (cloth_bvh_selfcollisions_nearcheck(clmd, collisions, coll_count, overlap)) {
+						ret += cloth_bvh_selfcollisions_resolve(clmd, collisions,  coll_count, dt);
+						ret2 += ret;
+					}
 				}
 
 				MEM_SAFE_FREE(overlap);
