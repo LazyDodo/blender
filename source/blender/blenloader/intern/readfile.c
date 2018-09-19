@@ -2676,6 +2676,7 @@ static void direct_link_fcurves(FileData *fd, ListBase *list)
 
 			/* compiled expression data will need to be regenerated (old pointer may still be set here) */
 			driver->expr_comp = NULL;
+			driver->expr_simple = NULL;
 
 			/* give the driver a fresh chance - the operating environment may be different now
 			 * (addons, etc. may be different) so the driver namespace may be sane now [#32155]
@@ -8963,6 +8964,9 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 	user->uifonts.first = user->uifonts.last= NULL;
 
 	link_list(fd, &user->uistyles);
+
+	/* Don't read the active app template, use the default one. */
+	user->app_template[0] = '\0';
 
 	/* free fd->datamap again */
 	oldnewmap_free_unused(fd->datamap);

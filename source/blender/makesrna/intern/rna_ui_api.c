@@ -791,7 +791,6 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
 	api_ui_item_rna_common(func);
 	RNA_def_string(func, "new", NULL, 0, "", "Operator identifier to create a new ID block");
-	RNA_def_string(func, "open", NULL, 0, "", "Operator identifier to open a file for creating a new ID block");
 	RNA_def_string(func, "menu", NULL, 0, "", "Context menu identifier");
 	RNA_def_enum(func, "filter", id_template_filter_items, UI_TEMPLATE_ID_FILTER_ALL,
 	             "", "Optionally limit the items which can be selected");
@@ -1104,6 +1103,12 @@ void RNA_api_ui_layout(StructRNA *srna)
 	RNA_def_function_ui_description(func, "Item(s). User interface for selecting cache files and their source paths");
 	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
 	api_ui_item_rna_common(func);
+
+	func = RNA_def_function(srna, "template_recent_files", "uiTemplateRecentFiles");
+	RNA_def_function_ui_description(func, "Show list of recently saved .blend files");
+	RNA_def_int(func, "rows", 5, 1, INT_MAX, "", "Maximum number of items to show", 1, INT_MAX);
+	parm = RNA_def_int(func, "found", 0, 0, INT_MAX, "", "Number of items drawn", 0, INT_MAX);
+	RNA_def_function_return(func, parm);
 }
 
 #endif

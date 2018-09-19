@@ -612,26 +612,36 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def spin():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("mesh.spin")
+            layout.prop(props, "steps")
+
         return dict(
             text="Spin",
             icon="ops.mesh.spin",
-            widget=None,
+            widget="MESH_GGT_spin",
             keymap=(
                 ("mesh.spin", dict(),
-                 dict(type='ACTIONMOUSE', value='PRESS')),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
     def spin_duplicate():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("mesh.spin")
+            layout.prop(props, "steps")
+
         return dict(
             text="Spin (Duplicate)",
             icon="ops.mesh.spin.duplicate",
-            widget=None,
+            widget="MESH_GGT_spin",
             keymap=(
                 ("mesh.spin", dict(dupli=True),
-                 dict(type='ACTIONMOUSE', value='PRESS')),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
             ),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn

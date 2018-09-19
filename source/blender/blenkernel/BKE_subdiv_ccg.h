@@ -37,6 +37,7 @@
 #include "BLI_sys_types.h"
 
 struct CCGElem;
+struct CCGFace;
 struct CCGKey;
 struct DMFlagMat;
 struct Mesh;
@@ -54,6 +55,18 @@ typedef struct SubdivToCCGSettings {
 	bool need_normal;
 	bool need_mask;
 } SubdivToCCGSettings;
+
+/* This is actually a coarse face, which consists of multiple CCG grids. */
+typedef struct SubdivCCGFace {
+	/* Total number of grids in this face.
+	 *
+	 * This 1:1 corresponds to a number of corners (or loops) from a coarse
+	 * face.
+	 */
+	int num_grids;
+	/* Index of first grid from this face in SubdivCCG->grids array. */
+	int start_grid_index;
+} SubdivCCGFace;
 
 /* Representation of subdivision surface which uses CCG grids. */
 typedef struct SubdivCCG {
@@ -103,6 +116,12 @@ typedef struct SubdivCCG {
 	/* Offsets of corresponding data layers in the elements. */
 	int normal_offset;
 	int mask_offset;
+
+	/* Faces from which grids are emitted. */
+	int num_faces;
+	SubdivCCGFace *faces;
+	/* Indexed by grid index, points to corresponding face from `faces`. */
+	SubdivCCGFace **grid_faces;
 
 	struct DMFlagMat *grid_flag_mats;
 	BLI_bitmap **grid_hidden;
@@ -157,5 +176,16 @@ void BKE_subdiv_ccg_key(
         struct CCGKey *key, const SubdivCCG *subdiv_ccg, int level);
 void BKE_subdiv_ccg_key_top_level(
         struct CCGKey *key, const SubdivCCG *subdiv_ccg);
+
+/* Recalculate all normals based on grid element coordinates. */
+void BKE_subdiv_ccg_recalc_normals(SubdivCCG *subdiv_ccg);
+
+/* Average grid coordinates and normals along the grid boundatries. */
+void BKE_subdiv_ccg_average_grids(SubdivCCG *subdiv_ccg);
+
+/* Similar to above, but only updates given faces. */
+void BKE_subdiv_ccg_average_stitch_faces(SubdivCCG *subdiv_ccg,
+                                         struct CCGFace **effected_faces,
+                                         int num_effected_faces);
 
 #endif  /* __BKE_SUBDIV_CCG_H__ */

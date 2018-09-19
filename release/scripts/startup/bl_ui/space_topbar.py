@@ -47,7 +47,7 @@ class TOPBAR_HT_upper_bar(Header):
         if not screen.show_fullscreen:
             layout.template_ID_tabs(
                 window, "workspace",
-                new="workspace.add_menu",
+                new="workspace.add",
                 menu="TOPBAR_MT_workspace_menu",
             )
         else:
@@ -287,7 +287,7 @@ class TOPBAR_MT_file(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_AREA'
-        layout.operator("wm.read_homefile", text="New", icon='NEW')
+        layout.menu("TOPBAR_MT_file_new", text="New", icon='FILE')
         layout.operator("wm.open_mainfile", text="Open...", icon='FILE_FOLDER')
         layout.menu("TOPBAR_MT_file_open_recent")
         layout.operator("wm.revert_mainfile")
@@ -305,10 +305,27 @@ class TOPBAR_MT_file(Menu):
         layout.operator("wm.save_as_mainfile", text="Save Copy...").copy = True
 
         layout.separator()
-
         layout.operator_context = 'INVOKE_AREA'
-        layout.operator("wm.save_homefile")
-        layout.operator("wm.read_factory_settings")
+
+        if any(bpy.utils.app_template_paths()):
+            app_template = context.user_preferences.app_template
+        else:
+            app_template = None
+
+        if app_template:
+            layout.label(text=bpy.path.display_name(app_template))
+            layout.operator("wm.save_homefile")
+            layout.operator(
+                "wm.read_factory_settings",
+                text="Load Factory Settings",
+            ).app_template = app_template
+        else:
+            layout.operator("wm.save_homefile")
+            layout.operator("wm.read_factory_settings")
+
+        layout.separator()
+
+        layout.operator("wm.app_template_install", text="Install Application Template...")
 
         layout.separator()
 
@@ -332,6 +349,75 @@ class TOPBAR_MT_file(Menu):
         if bpy.data.is_dirty and context.user_preferences.view.use_quit_dialog:
             layout.operator_context = 'INVOKE_SCREEN'  # quit dialog
         layout.operator("wm.quit_blender", text="Quit", icon='QUIT')
+
+
+class TOPBAR_MT_file_new(Menu):
+    bl_label = "New File"
+
+    @staticmethod
+    def app_template_paths():
+        import os
+
+        template_paths = bpy.utils.app_template_paths()
+
+        # expand template paths
+        app_templates = []
+        for path in template_paths:
+            for d in os.listdir(path):
+                if d.startswith(("__", ".")):
+                    continue
+                template = os.path.join(path, d)
+                if os.path.isdir(template):
+                    # template_paths_expand.append(template)
+                    app_templates.append(d)
+
+        return sorted(app_templates)
+
+    def draw_ex(layout, context, *, use_splash=False, use_more=False):
+        layout.operator_context = 'EXEC_DEFAULT'
+
+        # Limit number of templates in splash screen, spill over into more menu.
+        paths = TOPBAR_MT_file_new.app_template_paths()
+        splash_limit = 5
+
+        if use_splash:
+            icon = 'FILE'
+            show_more = len(paths) > (splash_limit - 1)
+            if show_more:
+                paths = paths[:splash_limit - 2]
+        elif use_more:
+            icon = 'FILE'
+            paths = paths[splash_limit - 2:]
+            show_more = False
+        else:
+            icon = 'NONE'
+            show_more = False
+
+        # Draw application templates.
+        if not use_more:
+            props = layout.operator("wm.read_homefile", text="General", icon=icon)
+            props.app_template = ""
+
+        for d in paths:
+            props = layout.operator(
+                "wm.read_homefile",
+                text=bpy.path.display_name(d),
+                icon=icon,
+            )
+            props.app_template = d
+
+        if show_more:
+            layout.menu("TOPBAR_MT_templates_more", text="...")
+
+    def draw(self, context):
+        TOPBAR_MT_file_new.draw_ex(self.layout, context)
+
+
+class TOPBAR_MT_templates_more(Menu):
+    bl_label = "Templates"
+
+    def draw(self, context):
+        bpy.types.TOPBAR_MT_file_new.draw_ex(self.layout, context, use_more=True)
 
 
 class TOPBAR_MT_file_import(Menu):
@@ -532,12 +618,23 @@ class TOPBAR_MT_help(Menu):
             "wm.url_open", text="Blender Website", icon='URL',
         ).url = "https://www.blender.org"
         layout.operator(
-            "wm.url_open", text="Blender Store", icon='URL',
-        ).url = "https://store.blender.org"
-
-        layout.operator(
             "wm.url_open", text="Release Notes", icon='URL',
         ).url = "https://www.blender.org/download/releases/%d-%d/" % bpy.app.version[:2]
+        layout.operator(
+            "wm.url_open", text="Credits", icon='URL',
+        ).url = "https://www.blender.org/about/credits/"
+
+        layout.separator()
+
+        layout.operator(
+            "wm.url_open", text="Blender Store", icon='URL',
+        ).url = "https://store.blender.org"
+        layout.operator(
+            "wm.url_open", text="Development Fund", icon='URL'
+        ).url = "https://www.blender.org/foundation/development-fund/"
+        layout.operator(
+            "wm.url_open", text="Donate", icon='URL',
+        ).url = "https://www.blender.org/foundation/donation-payment/"
 
         layout.separator()
 
@@ -562,7 +659,7 @@ class TOPBAR_MT_file_specials(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_AREA'
-        layout.operator("wm.read_homefile", text="New", icon='NEW')
+        layout.operator("wm.read_homefile", text="New", icon='FILE')
         layout.operator("wm.open_mainfile", text="Open...", icon='FILE_FOLDER')
 
         layout.separator()
@@ -625,6 +722,7 @@ class TOPBAR_PT_active_tool(Panel):
     bl_category = ""
     bl_context = ".active_tool"  # dot on purpose (access from tool settings)
     bl_label = "Active Tool"
+    bl_options = {'HIDE_HEADER'}
 
     def draw(self, context):
         layout = self.layout
@@ -647,6 +745,8 @@ classes = (
     TOPBAR_MT_workspace_menu,
     TOPBAR_MT_editor_menus,
     TOPBAR_MT_file,
+    TOPBAR_MT_file_new,
+    TOPBAR_MT_templates_more,
     TOPBAR_MT_file_import,
     TOPBAR_MT_file_export,
     TOPBAR_MT_file_external_data,
