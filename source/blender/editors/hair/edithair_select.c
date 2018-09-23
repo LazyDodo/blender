@@ -144,8 +144,8 @@ static int hair_select_all_exec(bContext *C, wmOperator *op)
 	}
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_SELECT);
-	DEG_id_tag_update(&obedit->id, DEG_TAG_SELECT_UPDATE);
-	WM_event_add_notifier(C, NC_OBJECT|ND_DATA|NA_SELECTED, obedit);
+	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_GEOM|ND_SELECT|NA_SELECTED, obedit);
 
 	return OPERATOR_FINISHED;
 }

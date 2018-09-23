@@ -42,6 +42,8 @@
 #include "BKE_hair.h"
 #include "BKE_mesh_sample.h"
 
+#include "DEG_depsgraph.h"
+
 #include "ED_hair.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
@@ -123,6 +125,8 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	//	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
+	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_GEOM|ND_DRAW, obedit);
 
 	return OPERATOR_FINISHED;
 }
