@@ -118,8 +118,6 @@ typedef struct HairSystem {
 
 	/* Data buffers for drawing */
 	void *draw_batch_cache;
-	/* Texture buffer for drawing */
-	void *draw_texture_cache;
 } HairSystem;
 
 typedef enum eHairSystemFlag

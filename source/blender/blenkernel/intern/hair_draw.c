@@ -84,7 +84,7 @@ void BKE_hair_batch_cache_dirty(HairSystem* hsys, int mode)
 
 void BKE_hair_batch_cache_free(HairSystem* hsys)
 {
-	if (hsys->draw_batch_cache || hsys->draw_texture_cache) {
+	if (hsys->draw_batch_cache) {
 		BKE_hair_batch_cache_free_cb(hsys);
 	}
 }

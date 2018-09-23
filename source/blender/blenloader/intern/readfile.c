@@ -8410,7 +8410,6 @@ static void direct_link_hair(FileData *fd, HairSystem* hsys)
 	hsys->bb = NULL;
 	hsys->edithair = NULL;
 	hsys->draw_batch_cache = NULL;
-	hsys->draw_texture_cache = NULL;
 }
 
 /* ************** GENERAL & MAIN ******************** */

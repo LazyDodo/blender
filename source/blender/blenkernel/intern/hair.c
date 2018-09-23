@@ -166,7 +166,6 @@ void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSys
 	}
 
 	hsys_dst->draw_batch_cache = NULL;
-	hsys_dst->draw_texture_cache = NULL;
 }
 
 HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)
