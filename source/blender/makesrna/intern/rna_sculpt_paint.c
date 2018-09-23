@@ -1121,6 +1121,13 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static const EnumPropertyItem select_mode_items[] = {
+	    {HAIR_SELECT_FOLLICLES, "FOLLICLES", ICON_NONE, "Follicles", "Select hair follicles"},
+	    {HAIR_SELECT_VERTICES, "VERTICES", ICON_NONE, "Vertices", "Select hair curve vertices"},
+	    {HAIR_SELECT_TIPS, "TIPS", ICON_NONE, "Tips", "Select only last vertices of hair curves"},
+	    {0, NULL, 0, NULL, NULL}
+	};
+
 	static const EnumPropertyItem follicle_draw_mode_items[] = {
 	    {HAIR_FOLLICLE_DRAW_NONE, "NONE", ICON_NONE, "None", "Don't draw hair follicles"},
 	    {HAIR_FOLLICLE_DRAW_POINT, "POINT", ICON_NONE, "Point", "Draw point on follicle location"},
@@ -1132,6 +1139,14 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "HairEditSettings", NULL);
 	RNA_def_struct_path_func(srna, "rna_HairEditSettings_path");
 	RNA_def_struct_ui_text(srna, "Hair Edit", "Properties of hair editing mode");
+
+	prop = RNA_def_property(srna, "select_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "select_mode");
+	RNA_def_property_enum_items(prop, select_mode_items);
+	RNA_def_property_ui_text(prop, "Selection Mode", "Mode of selecting editable hair points");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_HairEditSettings_update");
 
 	prop = RNA_def_property(srna, "follicle_draw_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "follicle_draw_mode");

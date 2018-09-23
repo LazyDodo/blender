@@ -63,6 +63,7 @@ class VIEW3D_HT_header(Header):
             # Hair edit
             if object_mode == 'EDIT' and obj.type == 'HAIR':
                 row = layout.row()
+                row.prop(tool_settings.hair_edit_settings, "select_mode", text="")
                 row.prop(tool_settings.hair_edit_settings, "follicle_draw_mode", text="")
 
             # Occlude geometry

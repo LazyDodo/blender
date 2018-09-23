@@ -875,6 +875,12 @@ typedef struct ParticleEditSettings {
 //typedef enum HairEditFlags {
 //} HairEditFlags;
 
+typedef enum HairEditSelectMode {
+	HAIR_SELECT_FOLLICLES,
+	HAIR_SELECT_VERTICES,
+	HAIR_SELECT_TIPS,
+} HairEditSelectMode;
+
 typedef enum HairEditFollicleDrawMode {
 	HAIR_FOLLICLE_DRAW_NONE,
 	HAIR_FOLLICLE_DRAW_POINT,
@@ -885,8 +891,8 @@ typedef enum HairEditFollicleDrawMode {
 /* Hair Edit Mode Settings */
 typedef struct HairEditSettings {
 	int flag;
+	short select_mode;
 	short follicle_draw_mode;
-	short pad;
 } HairEditSettings;
 
 /* ------------------------------------------- */
