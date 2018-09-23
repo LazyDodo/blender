@@ -37,11 +37,16 @@
 extern "C" {
 #endif
 
+typedef enum HairFollicleFlag
+{
+	HAIR_FOLLICLE_SELECT            = (1 << 0),
+} HairFollicleFlag;
+
 /* Root point (follicle) of a hair on a surface */
 typedef struct HairFollicle {
-	MeshSample mesh_sample;     /* Sample on the scalp mesh for the root vertex */
+	int flag;
 	unsigned int curve;         /* Index of the curve used by the fiber */
-	int pad;
+	MeshSample mesh_sample;     /* Sample on the scalp mesh for the root vertex */
 } HairFollicle;
 
 /* Collection of hair roots on a surface */

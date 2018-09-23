@@ -768,7 +768,7 @@ static void hair_batch_cache_ensure_edit_follicle_pos(
 	if (format.attr_len == 0) {
 		/* initialize vertex format */
 		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		data_id = GPU_vertformat_attr_add(&format, "data", GPU_COMP_U8, 1, GPU_FETCH_INT);
+		data_id = GPU_vertformat_attr_add(&format, "data", GPU_COMP_U32, 1, GPU_FETCH_INT);
 	}
 
 	cache->edit_follicle_pos = GPU_vertbuf_create_with_format(&format);
@@ -783,8 +783,7 @@ static void hair_batch_cache_ensure_edit_follicle_pos(
 
 		GPU_vertbuf_attr_set(cache->edit_follicle_pos, pos_id, point_index, loc);
 
-		unsigned char flag = 0;
-		GPU_vertbuf_attr_set(cache->edit_follicle_pos, data_id, point_index, &flag);
+		GPU_vertbuf_attr_set(cache->edit_follicle_pos, data_id, point_index, &follicle->flag);
 	}
 }
 
