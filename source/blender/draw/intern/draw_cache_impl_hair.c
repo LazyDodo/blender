@@ -67,6 +67,10 @@ typedef struct HairBatchCache {
 	/* Control points when in edit mode. */
 	ParticleHairCache edit_hair;
 
+	GPUVertBuf *edit_follicle_pos;
+	GPUBatch *edit_follicle_points;
+	int edit_follicle_point_len;
+
 	bool is_dirty;
 	bool is_editmode;
 } HairBatchCache;
@@ -143,6 +147,9 @@ static void hair_batch_cache_clear(HairSystem *hsys)
 	if (cache) {
 		particle_batch_cache_clear_hair(&cache->hair);
 		particle_batch_cache_clear_hair(&cache->edit_hair);
+
+		GPU_BATCH_DISCARD_SAFE(cache->edit_follicle_points);
+		GPU_VERTBUF_DISCARD_SAFE(cache->edit_follicle_pos);
 	}
 }
 
@@ -734,21 +741,86 @@ static void hair_batch_cache_ensure_pos_and_seg(
 	hair_cache->indices = GPU_indexbuf_build(&elb);
 }
 
-GPUBatch *DRW_hair_batch_cache_get_fibers(Object *ob, HairSystem *hsys, const HairExportCache *hair_export)
+static void ensure_edit_follicle_points_count(
+        const HairPattern *pattern,
+        HairBatchCache *cache)
 {
-	// TODO
-	UNUSED_VARS(ob, hsys, hair_export);
-	return NULL;
+	if (cache->edit_follicle_pos != NULL) {
+		return;
+	}
+	cache->edit_follicle_point_len = pattern->num_follicles;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_follicle_points(Object *ob, HairSystem *hsys)
+static void hair_batch_cache_ensure_edit_follicle_pos(
+        const HairPattern *pattern,
+        const Mesh *scalp,
+        HairBatchCache *cache)
+{
+	if (cache->edit_follicle_pos != NULL) {
+		return;
+	}
+
+	static GPUVertFormat format = { 0 };
+	static uint pos_id, data_id;
+
+	GPU_VERTBUF_DISCARD_SAFE(cache->edit_follicle_pos);
+
+	if (format.attr_len == 0) {
+		/* initialize vertex format */
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		data_id = GPU_vertformat_attr_add(&format, "data", GPU_COMP_U8, 1, GPU_FETCH_INT);
+	}
+
+	cache->edit_follicle_pos = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(cache->edit_follicle_pos, cache->edit_follicle_point_len);
+
+	const HairFollicle *follicle;
+	HairIterator iter;
+	int point_index;
+	BKE_HAIR_ITER_FOLLICLES_INDEX(follicle, &iter, pattern, point_index) {
+		float loc[3], nor[3], tang[3];
+		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang);
+
+		GPU_vertbuf_attr_set(cache->edit_follicle_pos, pos_id, point_index, loc);
+
+		unsigned char flag = 0;
+		GPU_vertbuf_attr_set(cache->edit_follicle_pos, data_id, point_index, &flag);
+	}
+}
+
+GPUBatch *DRW_hair_batch_cache_get_edit_follicle_points(Object *ob, HairSystem *hsys)
+{
+	HairBatchCache *cache = hair_batch_cache_get(hsys);
+	if (cache->edit_follicle_points != NULL) {
+		return cache->edit_follicle_points;
+	}
+
+	Mesh *scalp = BKE_hair_get_scalp(DRW_context_state_get()->depsgraph, ob, hsys);
+	const HairPattern *pattern;
+	if (hsys->edithair) {
+		pattern = hsys->edithair->pattern;
+	}
+	else {
+		pattern = hsys->pattern;
+	}
+
+	ensure_edit_follicle_points_count(pattern, cache);
+	hair_batch_cache_ensure_edit_follicle_pos(pattern, scalp, cache);
+	cache->edit_follicle_points = GPU_batch_create(
+	        GPU_PRIM_POINTS,
+	        cache->edit_follicle_pos,
+	        NULL);
+	return cache->edit_follicle_points;
+}
+
+GPUBatch *DRW_hair_batch_cache_get_edit_follicle_normals(Object *ob, HairSystem *hsys)
 {
 	// TODO
 	UNUSED_VARS(ob, hsys);
 	return NULL;
 }
 
-GPUBatch *DRW_hair_batch_cache_get_verts(Object *ob, HairSystem *hsys)
+GPUBatch *DRW_hair_batch_cache_get_edit_follicle_axes(Object *ob, HairSystem *hsys)
 {
 	// TODO
 	UNUSED_VARS(ob, hsys);

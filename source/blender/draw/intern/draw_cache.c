@@ -3370,19 +3370,19 @@ GPUBatch *DRW_cache_particles_get_prim(int type)
 
 /** \name Hair */
 
-GPUBatch *DRW_cache_hair_get_fibers(struct Object *ob, struct HairSystem *hsys, const struct HairExportCache *hair_export)
+GPUBatch *DRW_cache_hair_get_edit_follicle_points(struct Object *ob, struct HairSystem *hsys)
 {
-	return DRW_hair_batch_cache_get_fibers(ob, hsys, hair_export);
+	return DRW_hair_batch_cache_get_edit_follicle_points(ob, hsys);
 }
 
-GPUBatch *DRW_cache_hair_get_follicle_points(struct Object *ob, struct HairSystem *hsys)
+GPUBatch *DRW_cache_hair_get_edit_follicle_normals(struct Object *ob, struct HairSystem *hsys)
 {
-	return DRW_hair_batch_cache_get_follicle_points(ob, hsys);
+	return DRW_hair_batch_cache_get_edit_follicle_normals(ob, hsys);
 }
 
-GPUBatch *DRW_cache_hair_get_verts(struct Object *ob, struct HairSystem *hsys)
+GPUBatch *DRW_cache_hair_get_edit_follicle_axes(struct Object *ob, struct HairSystem *hsys)
 {
-	return DRW_hair_batch_cache_get_verts(ob, hsys);
+	return DRW_hair_batch_cache_get_edit_follicle_axes(ob, hsys);
 }
 
 GPUBatch *DRW_cache_hair_get_edit_strands(struct Object *ob, struct HairSystem *hsys)

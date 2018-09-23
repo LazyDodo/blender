@@ -100,6 +100,12 @@ static void hair_generate_follicles_ex(
 
 		BKE_mesh_sample_free_generator(gen);
 	}
+
+	for (int i = 0; i < pattern->num_follicles; ++i) {
+		HairFollicle *follicle = &pattern->follicles[i];
+
+		follicle->curve = HAIR_CURVE_INDEX_NONE;
+	}
 }
 
 static int add_test_hair_exec(bContext *C, wmOperator *op)

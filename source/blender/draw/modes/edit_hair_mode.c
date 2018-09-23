@@ -54,6 +54,7 @@ extern char datatoc_edit_hair_overlay_frag_glsl[];
 extern char datatoc_gpu_shader_3D_vert_glsl[];
 extern char datatoc_gpu_shader_uniform_color_frag_glsl[];
 extern char datatoc_gpu_shader_point_uniform_color_frag_glsl[];
+extern char datatoc_gpu_shader_flat_color_frag_glsl[];
 
 /* *********** LISTS *********** */
 /* All lists are per viewport specific datas.
@@ -67,7 +68,8 @@ typedef struct EDIT_HAIR_PassList {
 	 * EDIT_GROOM_cache_init().
 	 * Only contains (DRWPass *) */
 	struct DRWPass *wire_pass;
-	struct DRWPass *vert_pass;
+	struct DRWPass *overlay_vert_pass;
+	struct DRWPass *overlay_edge_pass;
 } EDIT_HAIR_PassList;
 
 typedef struct EDIT_HAIR_FramebufferList {
@@ -113,6 +115,7 @@ static struct {
 	GPUShader *wire_sh;
 
 	GPUShader *overlay_vert_sh;
+	GPUShader *overlay_edge_sh;
 
 } e_data = {NULL}; /* Engine data */
 
@@ -120,7 +123,8 @@ typedef struct EDIT_HAIR_PrivateData {
 	/* This keeps the references of the shading groups for
 	 * easy access in EDIT_GROOM_cache_populate() */
 	DRWShadingGroup *wire_shgrp;
-	DRWShadingGroup *vert_shgrp;
+	DRWShadingGroup *overlay_verts_shgrp;
+	DRWShadingGroup *overlay_edges_shgrp;
 } EDIT_HAIR_PrivateData; /* Transient data */
 
 /* *********** FUNCTIONS *********** */
@@ -161,6 +165,13 @@ static void EDIT_HAIR_engine_init(void *vedata)
 		        datatoc_edit_hair_overlay_frag_glsl,
 		        datatoc_common_globals_lib_glsl, NULL);
 	}
+
+	if (!e_data.overlay_edge_sh) {
+		e_data.overlay_edge_sh = DRW_shader_create_with_lib(
+		        datatoc_edit_hair_overlay_loosevert_vert_glsl, NULL,
+		        datatoc_edit_hair_overlay_frag_glsl,
+		        datatoc_common_globals_lib_glsl, NULL);
+	}
 }
 
 /* Here init all passes and shading groups
@@ -181,12 +192,18 @@ static void EDIT_HAIR_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE);
 		stl->g_data->wire_shgrp = DRW_shgroup_create(e_data.wire_sh, psl->wire_pass);
 
-		psl->vert_pass = DRW_pass_create(
-		        "Hair Verts",
+		psl->overlay_vert_pass = DRW_pass_create(
+		        "Hair Overlay Verts",
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_POINT);
-		stl->g_data->vert_shgrp = DRW_shgroup_create(e_data.overlay_vert_sh, psl->vert_pass);
+		stl->g_data->overlay_verts_shgrp = DRW_shgroup_create(e_data.overlay_vert_sh, psl->overlay_vert_pass);
 
-		DRW_shgroup_uniform_block(stl->g_data->vert_shgrp, "globalsBlock", globals_ubo);
+		psl->overlay_edge_pass = DRW_pass_create(
+		        "Hair Overlay Edges",
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_WIRE);
+		stl->g_data->overlay_edges_shgrp = DRW_shgroup_create(e_data.overlay_edge_sh, psl->overlay_edge_pass);
+
+		DRW_shgroup_uniform_block(stl->g_data->overlay_verts_shgrp, "globalsBlock", globals_ubo);
+		DRW_shgroup_uniform_block(stl->g_data->overlay_edges_shgrp, "globalsBlock", globals_ubo);
 	}
 }
 
@@ -211,8 +228,24 @@ static void EDIT_HAIR_cache_populate(void *vedata, Object *ob)
 			geom = DRW_cache_hair_get_edit_strands(ob, hsys);
 			DRW_shgroup_call_add(stl->g_data->wire_shgrp, geom, ob->obmat);
 
-//			geom = DRW_cache_hair_get_verts(ob, hsys);
-//			DRW_shgroup_call_add(stl->g_data->vert_shgrp, geom, ob->obmat);
+			if (ELEM(editsettings->follicle_draw_mode,
+			         HAIR_FOLLICLE_DRAW_POINT,
+			         HAIR_FOLLICLE_DRAW_NORMAL,
+			         HAIR_FOLLICLE_DRAW_AXES)) {
+				geom = DRW_cache_hair_get_edit_follicle_points(ob, hsys);
+				DRW_shgroup_call_add(stl->g_data->overlay_verts_shgrp, geom, ob->obmat);
+
+				switch (editsettings->follicle_draw_mode) {
+					case HAIR_FOLLICLE_DRAW_NORMAL:
+						geom = DRW_cache_hair_get_edit_follicle_normals(ob, hsys);
+						DRW_shgroup_call_add(stl->g_data->overlay_edges_shgrp, geom, ob->obmat);
+						break;
+					case HAIR_FOLLICLE_DRAW_AXES:
+						geom = DRW_cache_hair_get_edit_follicle_axes(ob, hsys);
+						DRW_shgroup_call_add(stl->g_data->overlay_edges_shgrp, geom, ob->obmat);
+						break;
+				}
+			}
 		}
 	}
 }
@@ -252,7 +285,7 @@ static void EDIT_HAIR_draw_scene(void *vedata)
 
 	/* ... or just render passes on default framebuffer. */
 	DRW_draw_pass(psl->wire_pass);
-	DRW_draw_pass(psl->vert_pass);
+	DRW_draw_pass(psl->overlay_vert_pass);
 
 	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
 
