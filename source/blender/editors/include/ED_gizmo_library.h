@@ -215,11 +215,12 @@ enum {
 
 enum {
 	ED_GIZMO_BUTTON_SHOW_OUTLINE = (1 << 0),
+	ED_GIZMO_BUTTON_SHOW_BACKDROP = (1 << 1),
 	/**
 	 * Draw a line from the origin to the offset (similar to an arrow)
 	 * sometimes needed to show what the button edits.
 	 */
-	ED_GIZMO_BUTTON_SHOW_HELPLINE = (1 << 1),
+	ED_GIZMO_BUTTON_SHOW_HELPLINE = (1 << 2),
 };
 
 
@@ -229,5 +230,21 @@ enum {
 enum {
 	ED_GIZMO_PRIMITIVE_STYLE_PLANE = 0,
 };
+
+
+/* -------------------------------------------------------------------- */
+/* Gizmo Drawing Functions */
+
+void ED_gizmotypes_dial_3d_draw_util(
+        const float matrix_basis[4][4],
+        const float matrix_final[4][4],
+        const float line_width,
+        const float color[4],
+        const float clip_plane[4],
+        const float arc_partial_angle,
+        const float arc_inner_factor,
+        const int draw_options,
+        const float angle_ofs,
+        const float angle_delta);
 
 #endif  /* __ED_GIZMO_LIBRARY_H__ */

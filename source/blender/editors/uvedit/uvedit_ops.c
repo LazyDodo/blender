@@ -1689,7 +1689,7 @@ static void uv_weld_align(bContext *C, eUVWeldAlign tool)
 						if (BM_elem_flag_test(eed, BM_ELEM_TAG)) {
 							BMVert *eve_other = BM_edge_other_vert(eed, eve);
 							if (BM_elem_flag_test(eve_other, BM_ELEM_TAG)) {
-								/* this is a tagged vert we didnt walk over yet, step onto it */
+								/* this is a tagged vert we didn't walk over yet, step onto it */
 								eve_next = eve_other;
 								break;
 							}
@@ -4505,13 +4505,6 @@ static int uv_seams_from_islands_exec(bContext *C, wmOperator *op)
 			}
 		}
 
-		if (mark_seams) {
-			me->drawflag |= ME_DRAWSEAMS;
-		}
-		if (mark_sharp) {
-			me->drawflag |= ME_DRAWSHARP;
-		}
-
 		BM_uv_vert_map_free(vmap);
 
 		DEG_id_tag_update(&me->id, 0);
@@ -4587,8 +4580,6 @@ static int uv_mark_seam_exec(bContext *C, wmOperator *op)
 		}
 
 		if (changed) {
-			me->drawflag |= ME_DRAWSEAMS;
-
 			if (scene->toolsettings->edge_mode_live_unwrap) {
 				ED_unwrap_lscm(scene, ob, false, false);
 			}
@@ -4788,7 +4779,7 @@ void ED_keymap_uvedit(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "UV_OT_cursor_set", ACTIONMOUSE, KM_PRESS, 0, 0);
 
 	/* menus */
-	WM_keymap_add_menu(keymap, "IMAGE_MT_uvs_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_menu_pie(keymap, "IMAGE_MT_uvs_snap_pie", SKEY, KM_PRESS, KM_SHIFT, 0);
 	WM_keymap_add_menu(keymap, "IMAGE_MT_uvs_select_mode", TABKEY, KM_PRESS, KM_CTRL, 0);
 
 	ED_keymap_proportional_cycle(keyconf, keymap);

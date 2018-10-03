@@ -195,7 +195,7 @@ enum {
 	UI_BUT_TEXTEDIT_UPDATE = (1 << 29),  /* when widget is in textedit mode, update value on each char stroke */
 	UI_BUT_VALUE_CLEAR     = (1 << 30),  /* show 'x' icon to clear/unlink value of text or search button */
 
-	UI_BUT_OVERRIDEN       = (1 << 31),  /* RNA property of the button is overriden from linked reference data. */
+	UI_BUT_OVERRIDEN       = (1 << 31),  /* RNA property of the button is overridden from linked reference data. */
 };
 
 #define UI_PANEL_WIDTH          340
@@ -991,6 +991,8 @@ void uiLayoutSetAlignment(uiLayout *layout, char alignment);
 void uiLayoutSetKeepAspect(uiLayout *layout, bool keepaspect);
 void uiLayoutSetScaleX(uiLayout *layout, float scale);
 void uiLayoutSetScaleY(uiLayout *layout, float scale);
+void uiLayoutSetUnitsX(uiLayout *layout, float unit);
+void uiLayoutSetUnitsY(uiLayout *layout, float unit);
 void uiLayoutSetEmboss(uiLayout *layout, char emboss);
 void uiLayoutSetPropSep(uiLayout *layout, bool is_sep);
 void uiLayoutSetPropDecorate(uiLayout *layout, bool is_sep);
@@ -1004,6 +1006,8 @@ bool uiLayoutGetKeepAspect(uiLayout *layout);
 int uiLayoutGetWidth(uiLayout *layout);
 float uiLayoutGetScaleX(uiLayout *layout);
 float uiLayoutGetScaleY(uiLayout *layout);
+float uiLayoutGetUnitsX(uiLayout *layout);
+float uiLayoutGetUnitsY(uiLayout *layout);
 int uiLayoutGetEmboss(uiLayout *layout);
 bool uiLayoutGetPropSep(uiLayout *layout);
 bool uiLayoutGetPropDecorate(uiLayout *layout);

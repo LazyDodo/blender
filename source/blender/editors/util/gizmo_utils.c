@@ -42,8 +42,27 @@ bool ED_gizmo_poll_or_unlink_delayed_from_operator(
         const bContext *C, wmGizmoGroupType *gzgt,
         const char *idname)
 {
+#if 0
+	/* Causes selection to continue showing the last gizmo. */
 	wmOperator *op = WM_operator_last_redo(C);
+#else
+	wmWindowManager *wm = CTX_wm_manager(C);
+	wmOperator *op = wm->operators.last;
+#endif
+
 	if (op == NULL || !STREQ(op->type->idname, idname)) {
+		WM_gizmo_group_type_unlink_delayed_ptr(gzgt);
+		return false;
+	}
+	return true;
+}
+
+bool ED_gizmo_poll_or_unlink_delayed_from_tool_ex(const bContext *C, wmGizmoGroupType *gzgt, const char *gzgt_idname)
+{
+	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
+	if ((tref_rt == NULL) ||
+	    !STREQ(gzgt_idname, tref_rt->gizmo_group))
+	{
 		WM_gizmo_group_type_unlink_delayed_ptr(gzgt);
 		return false;
 	}
@@ -53,12 +72,5 @@ bool ED_gizmo_poll_or_unlink_delayed_from_operator(
 /** Can use this as poll function directly. */
 bool ED_gizmo_poll_or_unlink_delayed_from_tool(const bContext *C, wmGizmoGroupType *gzgt)
 {
-	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
-	if ((tref_rt == NULL) ||
-	    !STREQ(gzgt->idname, tref_rt->gizmo_group))
-	{
-		WM_gizmo_group_type_unlink_delayed_ptr(gzgt);
-		return false;
-	}
-	return true;
+	return ED_gizmo_poll_or_unlink_delayed_from_tool_ex(C, gzgt, gzgt->idname);
 }

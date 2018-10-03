@@ -44,6 +44,7 @@ typedef enum ShaderFxType {
 	eShaderFxType_Wave      = 6,
 	eShaderFxType_Rim       = 7,
 	eShaderFxType_Colorize  = 8,
+	eShaderFxType_Shadow    = 9,
 	NUM_SHADER_FX_TYPES
 } ShaderFxType;
 
@@ -168,6 +169,29 @@ typedef enum RimShaderFxModes {
 	eShaderFxRimMode_Multiply = 4,
 	eShaderFxRimMode_Divide = 5,
 } RimShaderFxModes;
+
+typedef struct ShadowShaderFxData {
+	ShaderFxData shaderfx;
+	struct Object *object;
+	int offset[2];
+	int flag;                    /* flags */
+	float shadow_rgba[4];
+	float amplitude;
+	float period;
+	float phase;
+	int orientation;
+	float scale[2];
+	float rotation;
+	int   blur[2];
+	int   samples;
+	char pad[4];
+	ShaderFxData_runtime runtime;
+} ShadowShaderFxData;
+
+typedef enum eShadowShaderFx_Flag {
+	FX_SHADOW_USE_OBJECT = (1 << 0),
+	FX_SHADOW_USE_WAVE   = (1 << 1),
+} eShadowShaderFx_Flag;
 
 typedef struct SwirlShaderFxData {
 	ShaderFxData shaderfx;

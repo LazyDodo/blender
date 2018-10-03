@@ -100,7 +100,6 @@ static const EnumPropertyItem rna_enum_studio_light_orientation_items[] = {
 #include "DNA_screen_types.h"
 
 #include "BKE_blender.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
 #include "BKE_main.h"
@@ -329,9 +328,6 @@ static void rna_UserDef_weight_color_update(Main *bmain, Scene *scene, PointerRN
 {
 	Object *ob;
 
-	bTheme *btheme = UI_GetTheme();
-	BKE_mesh_runtime_color_band_store((U.flag & USER_CUSTOM_RANGE) ? (&U.coba_weight) : NULL, btheme->tv3d.vertex_unreferenced);
-
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ob->mode & OB_MODE_WEIGHT_PAINT)
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
@@ -468,11 +464,7 @@ static void rna_userdef_opensubdiv_update(Main *bmain, Scene *UNUSED(scene), Poi
 	     object;
 	     object = object->id.next)
 	{
-		if (object->derivedFinal != NULL &&
-		    object->derivedFinal->type == DM_TYPE_CCGDM)
-		{
-			DEG_id_tag_update(&object->id, OB_RECALC_OB);
-		}
+		DEG_id_tag_update(&object->id, OB_RECALC_OB);
 	}
 }
 

@@ -664,8 +664,6 @@ static void do_lasso_select_curve__doSelect(
         void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
 {
 	LassoSelectUserData *data = userData;
-	Object *obedit = data->vc->obedit;
-	Curve *cu = (Curve *)obedit->data;
 
 	const bool is_inside = BLI_lasso_is_point_inside(data->mcords, data->moves, screen_co[0], screen_co[1], IS_CLIPPED);
 	if (bp) {
@@ -676,7 +674,7 @@ static void do_lasso_select_curve__doSelect(
 		}
 	}
 	else {
-		if (cu->drawflag & CU_HIDE_HANDLES) {
+		if ((data->vc->v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) {
 			/* can only be (beztindex == 0) here since handles are hidden */
 			const bool is_select = bezt->f2 & SELECT;
 			const int sel_op_result = ED_select_op_action_deselected(data->sel_op, is_select, is_inside);
@@ -875,7 +873,7 @@ static void do_lasso_select_meshobject__doSelectVert(void *userData, MVert *mv, 
 }
 static void do_lasso_select_paintvert(ViewContext *vc, const int mcords[][2], short moves, const eSelectOp sel_op)
 {
-	const bool use_zbuf = (vc->v3d->flag & V3D_ZBUF_SELECT) != 0;
+	const bool use_zbuf = V3D_IS_ZBUF(vc->v3d);
 	Object *ob = vc->obact;
 	Mesh *me = ob->data;
 	rcti rect;
@@ -1819,7 +1817,7 @@ static bool ed_object_select_pick(
 			/* Set special modes for grease pencil
 			   The grease pencil modes are not real modes, but a hack to make the interface
 			   consistent, so need some tricks to keep UI synchronized */
-			// XXX: This stuff neeeds reviewing (Aligorith)
+			// XXX: This stuff needs reviewing (Aligorith)
 			if (false &&
 			    (((oldbasact) && oldbasact->object->type == OB_GPENCIL) ||
 			     (basact->object->type == OB_GPENCIL)))
@@ -1896,7 +1894,7 @@ static void do_paintvert_box_select__doSelectVert(void *userData, MVert *mv, con
 static int do_paintvert_box_select(
         ViewContext *vc, rcti *rect, const eSelectOp sel_op)
 {
-	const bool use_zbuf = (vc->v3d->flag & V3D_ZBUF_SELECT) != 0;
+	const bool use_zbuf = V3D_IS_ZBUF(vc->v3d);
 	Mesh *me;
 	MVert *mvert;
 	struct ImBuf *ibuf;
@@ -1984,8 +1982,6 @@ static void do_nurbs_box_select__doSelect(
         void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
 {
 	BoxSelectUserData *data = userData;
-	Object *obedit = data->vc->obedit;
-	Curve *cu = (Curve *)obedit->data;
 
 	const bool is_inside = BLI_rctf_isect_pt_v(data->rect_fl, screen_co);
 	if (bp) {
@@ -1996,7 +1992,7 @@ static void do_nurbs_box_select__doSelect(
 		}
 	}
 	else {
-		if (cu->drawflag & CU_HIDE_HANDLES) {
+		if ((data->vc->v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) {
 			/* can only be (beztindex == 0) here since handles are hidden */
 			const bool is_select = bezt->f2 & SELECT;
 			const int sel_op_result = ED_select_op_action_deselected(data->sel_op, is_select, is_inside);
@@ -2606,7 +2602,7 @@ static bool ed_wpaint_vertex_select_pick(
         bool extend, bool deselect, bool toggle, Object *obact)
 {
 	View3D *v3d = CTX_wm_view3d(C);
-	const bool use_zbuf = (v3d->flag & V3D_ZBUF_SELECT) != 0;
+	const bool use_zbuf = V3D_IS_ZBUF(v3d);
 
 	Mesh *me = obact->data; /* already checked for NULL */
 	unsigned int index = 0;
@@ -2877,7 +2873,7 @@ static void paint_vertsel_circle_select_doSelectVert(void *userData, MVert *mv, 
 }
 static void paint_vertsel_circle_select(ViewContext *vc, const bool select, const int mval[2], float rad)
 {
-	const bool use_zbuf = (vc->v3d->flag & V3D_ZBUF_SELECT) != 0;
+	const bool use_zbuf = V3D_IS_ZBUF(vc->v3d);
 	Object *ob = vc->obact;
 	Mesh *me = ob->data;
 	bool bbsel;
@@ -2912,15 +2908,13 @@ static void nurbscurve_circle_doSelect(
         void *userData, Nurb *UNUSED(nu), BPoint *bp, BezTriple *bezt, int beztindex, const float screen_co[2])
 {
 	CircleSelectUserData *data = userData;
-	Object *obedit = data->vc->obedit;
-	Curve *cu = (Curve *)obedit->data;
 
 	if (len_squared_v2v2(data->mval_fl, screen_co) <= data->radius_squared) {
 		if (bp) {
 			bp->f1 = data->select ? (bp->f1 | SELECT) : (bp->f1 & ~SELECT);
 		}
 		else {
-			if (cu->drawflag & CU_HIDE_HANDLES) {
+			if ((data->vc->v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) {
 				/* can only be (beztindex == 0) here since handles are hidden */
 				bezt->f1 = bezt->f2 = bezt->f3 = data->select ? (bezt->f2 | SELECT) : (bezt->f2 & ~SELECT);
 			}

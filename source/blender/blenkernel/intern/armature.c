@@ -1153,7 +1153,7 @@ void armature_deform_verts(Object *armOb, Object *target, const Mesh * mesh, flo
 			MDeformWeight *dw = dvert->dw;
 			int deformed = 0;
 			unsigned int j;
-
+			float acum_weight = 0;
 			for (j = dvert->totweight; j != 0; j--, dw++) {
 				const int index = dw->def_nr;
 				if (index >= 0 && index < defbase_tot && (pchan = defnrToPC[index])) {
@@ -1167,7 +1167,21 @@ void armature_deform_verts(Object *armOb, Object *target, const Mesh * mesh, flo
 						weight *= distfactor_to_bone(co, bone->arm_head, bone->arm_tail,
 						                             bone->rad_head, bone->rad_tail, bone->dist);
 					}
+
+					/* check limit of weight */
+					if (target->type == OB_GPENCIL) {
+						if (acum_weight + weight >= 1.0f) {
+							weight = 1.0f - acum_weight;
+						}
+						acum_weight += weight;
+					}
+
 					pchan_bone_deform(pchan, pdef_info, weight, vec, dq, smat, co, &contrib);
+
+					/* if acumulated weight limit exceed, exit loop */
+					if ((target->type == OB_GPENCIL) && (acum_weight >= 1.0f)) {
+						break;
+					}
 				}
 			}
 			/* if there are vertexgroups but not groups with bones
@@ -1478,7 +1492,7 @@ void BKE_armature_mat_pose_to_bone_ex(struct Depsgraph *depsgraph, Object *ob, b
 	BKE_pose_where_is_bone(depsgraph, NULL, ob, &work_pchan, 0.0f, false);
 
 	/* find the matrix, need to remove the bone transforms first so this is
-	 * calculated as a matrix to set rather then a difference ontop of whats
+	 * calculated as a matrix to set rather then a difference ontop of what's
 	 * already there. */
 	unit_m4(outmat);
 	BKE_pchan_apply_mat4(&work_pchan, outmat, false);
@@ -2010,7 +2024,7 @@ void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm, const bool do_id_
 
 	/* synchronize protected layers with proxy */
 	/* HACK! To preserve 2.7x behavior that you always can pose even locked bones,
-	 * do not do any restauration if this is a COW temp copy! */
+	 * do not do any restoration if this is a COW temp copy! */
 	/* Switched back to just NO_MAIN tag, for some reasons (c) using COW tag was working this morning, but not anymore... */
 	if (ob->proxy != NULL && (ob->id.tag & LIB_TAG_NO_MAIN) == 0) {
 		BKE_object_copy_proxy_drivers(ob, ob->proxy);
@@ -2265,7 +2279,7 @@ void BKE_pose_where_is_bone(
 			cob = BKE_constraints_make_evalob(depsgraph, scene, ob, pchan, CONSTRAINT_OBTYPE_BONE);
 
 			/* Solve PoseChannel's Constraints */
-			BKE_constraints_solve(depsgraph, &pchan->constraints, cob, ctime); /* ctime doesnt alter objects */
+			BKE_constraints_solve(depsgraph, &pchan->constraints, cob, ctime); /* ctime doesn't alter objects */
 
 			/* cleanup after Constraint Solving
 			 * - applies matrix back to pchan, and frees temporary struct used

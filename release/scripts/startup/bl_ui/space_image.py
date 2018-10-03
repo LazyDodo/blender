@@ -33,7 +33,6 @@ from .properties_paint_common import (
     brush_mask_texture_settings,
 )
 from .properties_grease_pencil_common import (
-    AnnotationDrawingToolsPanel,
     AnnotationDataPanel,
 )
 from bpy.app.translations import pgettext_iface as iface_
@@ -488,6 +487,36 @@ class IMAGE_MT_specials(Menu):
             layout.menu("IMAGE_MT_uvs_snap")
 
 
+class IMAGE_MT_pivot_pie(Menu):
+    bl_label = "Pivot Point"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        pie.prop_enum(context.space_data, "pivot_point", value='CENTER')
+        pie.prop_enum(context.space_data, "pivot_point", value='CURSOR')
+        pie.prop_enum(context.space_data, "pivot_point", value='INDIVIDUAL_ORIGINS')
+        pie.prop_enum(context.space_data, "pivot_point", value='MEDIAN')
+
+
+class IMAGE_MT_uvs_snap_pie(Menu):
+    bl_label = "Snap"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        layout.operator_context = 'EXEC_REGION_WIN'
+
+        pie.operator("uv.snap_selected", text="Selected to Pixels", icon='RESTRICT_SELECT_OFF').target = 'PIXELS'
+        pie.operator("uv.snap_cursor", text="Cursor to Pixels", icon='CURSOR').target = 'PIXELS'
+        pie.operator("uv.snap_cursor", text="Cursor to Selected", icon='CURSOR').target = 'SELECTED'
+        pie.operator("uv.snap_selected", text="Selected to Cursor", icon='RESTRICT_SELECT_OFF').target = 'CURSOR'
+        pie.operator("uv.snap_selected", text="Selected to Cursor (Offset)", icon='RESTRICT_SELECT_OFF').target = 'CURSOR_OFFSET'
+        pie.operator("uv.snap_selected", text="Selected to Adjacent Unselected", icon='RESTRICT_SELECT_OFF').target = 'ADJACENT_UNSELECTED'
+
+
 class IMAGE_HT_header(Header):
     bl_space_type = 'IMAGE_EDITOR'
 
@@ -754,7 +783,10 @@ class IMAGE_PT_view_display_uv_edit_overlays(Panel):
 
         col = layout.column()
 
-        col.prop(uvedit, "edge_display_type", text="Edges")
+        split = col.split(factor=0.6)
+        split.prop(uvedit, "show_edges", text="Edges")
+        split.prop(uvedit, "edge_display_type", text="")
+
         col.prop(uvedit, "show_faces", text="Faces")
 
         col = layout.column()
@@ -1444,11 +1476,6 @@ class IMAGE_PT_grease_pencil(AnnotationDataPanel, Panel):
 # Grease Pencil drawing tools.
 
 
-class IMAGE_PT_tools_grease_pencil_draw(AnnotationDrawingToolsPanel, Panel):
-    bl_space_type = 'IMAGE_EDITOR'
-    bl_region_type = 'TOOLS'
-
-
 classes = (
     IMAGE_MT_view,
     IMAGE_MT_view_zoom,
@@ -1465,6 +1492,8 @@ classes = (
     IMAGE_MT_uvs_weldalign,
     IMAGE_MT_uvs_select_mode,
     IMAGE_MT_specials,
+    IMAGE_MT_pivot_pie,
+    IMAGE_MT_uvs_snap_pie,
     IMAGE_HT_header,
     MASK_MT_editor_menus,
     IMAGE_PT_mask,
@@ -1503,7 +1532,6 @@ classes = (
     IMAGE_PT_sample_line,
     IMAGE_PT_scope_sample,
     IMAGE_PT_grease_pencil,
-    IMAGE_PT_tools_grease_pencil_draw,
 )
 
 

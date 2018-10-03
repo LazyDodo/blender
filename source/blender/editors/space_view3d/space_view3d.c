@@ -330,6 +330,16 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->overlay.texture_paint_mode_opacity = 0.8;
 	v3d->overlay.weight_paint_mode_opacity = 0.8;
 	v3d->overlay.vertex_paint_mode_opacity = 0.8;
+	v3d->overlay.edit_flag = V3D_OVERLAY_EDIT_FACES |
+	                         V3D_OVERLAY_EDIT_SEAMS |
+	                         V3D_OVERLAY_EDIT_SHARP |
+	                         V3D_OVERLAY_EDIT_FREESTYLE_EDGE |
+	                         V3D_OVERLAY_EDIT_FREESTYLE_FACE |
+	                         V3D_OVERLAY_EDIT_EDGES |
+	                         V3D_OVERLAY_EDIT_CREASES |
+	                         V3D_OVERLAY_EDIT_BWEIGHTS |
+	                         V3D_OVERLAY_EDIT_CU_HANDLES |
+	                         V3D_OVERLAY_EDIT_CU_NORMALS;
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 
@@ -1215,7 +1225,7 @@ static void view3d_buttons_region_init(wmWindowManager *wm, ARegion *ar)
 
 static void view3d_buttons_region_draw(const bContext *C, ARegion *ar)
 {
-	ED_region_panels(C, ar);
+	ED_region_panels_ex(C, ar, (const char * []){CTX_data_mode_string(C), NULL}, -1, true);
 }
 
 static void view3d_buttons_region_listener(
@@ -1533,7 +1543,7 @@ void ED_spacetype_view3d(void)
 	/* regions: tool(bar) */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype view3d tools region");
 	art->regionid = RGN_TYPE_TOOLS;
-	art->prefsizex = 160; /* XXX */
+	art->prefsizex = 58; /* XXX */
 	art->prefsizey = 50; /* XXX */
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = view3d_buttons_region_listener;

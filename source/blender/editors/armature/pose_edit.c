@@ -195,7 +195,7 @@ static bool pose_has_protected_selected(Object *ob, short warn)
  */
 void ED_pose_recalculate_paths(bContext *C, Scene *scene, Object *ob, bool current_frame_only)
 {
-	/* Transform doesn't always have context avaialble to do update. */
+	/* Transform doesn't always have context available to do update. */
 	if (C == NULL) {
 		return;
 	}
@@ -208,7 +208,7 @@ void ED_pose_recalculate_paths(bContext *C, Scene *scene, Object *ob, bool curre
 	/* Override depsgraph with a filtered, simpler copy */
 	if (!current_frame_only && G.debug_value != -1) {
 		TIMEIT_START(filter_pose_depsgraph);
-		DEG_FilterQuery query = {0};
+		DEG_FilterQuery query = {{0}};
 
 		DEG_FilterTarget *dft_ob = MEM_callocN(sizeof(DEG_FilterTarget), "DEG_FilterTarget");
 		dft_ob->id = &ob->id;
@@ -974,27 +974,37 @@ static int armature_layers_invoke(bContext *C, wmOperator *op, const wmEvent *ev
 /* Set the visible layers for the active armature (edit and pose modes) */
 static int armature_layers_exec(bContext *C, wmOperator *op)
 {
-	Object *ob = CTX_data_active_object(C);
-	bArmature *arm = armature_layers_get_data(&ob);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	PointerRNA ptr;
 	bool layers[32]; /* hardcoded for now - we can only have 32 armature layers, so this should be fine... */
-
-	if (arm == NULL) {
-		return OPERATOR_CANCELLED;
-	}
+	bool changed = false;
 
 	/* get the values set in the operator properties */
 	RNA_boolean_get_array(op->ptr, "layers", layers);
 
-	/* get pointer for armature, and write data there... */
-	RNA_id_pointer_create((ID *)arm, &ptr);
-	RNA_boolean_set_array(&ptr, "layers", layers);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		bArmature *arm = armature_layers_get_data(&ob);
 
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
-	DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
+		if (arm == NULL) {
+			continue;
+		}
 
-	return OPERATOR_FINISHED;
+		/* Get pointer for armature, and write data there... */
+		RNA_id_pointer_create((ID *)arm, &ptr);
+		RNA_boolean_set_array(&ptr, "layers", layers);
+
+		/* Note, notifier might evolve. */
+		WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+		DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
+
+		changed = true;
+	}
+	MEM_freeN(objects);
+
+	return changed ? OPERATOR_FINISHED : OPERATOR_CANCELLED;
 }
 
 void ARMATURE_OT_armature_layers(wmOperatorType *ot)

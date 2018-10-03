@@ -802,7 +802,7 @@ int count_set_pose_transflags(Object *ob, const int mode, const short around, bo
 					}
 				}
 				else {
-					has_translate_rotate[1] = true;
+					has_translate_rotate[0] = true;
 				}
 			}
 		}
@@ -1097,19 +1097,8 @@ static short pose_grab_with_ik(Main *bmain, Object *ob)
 /**
  * When objects array is NULL, use 't->data_container' as is.
  */
-static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
+static void createTransPose(TransInfo *t)
 {
-	if (objects != NULL) {
-		if (t->data_container) {
-			MEM_freeN(t->data_container);
-		}
-		t->data_container = MEM_callocN(sizeof(*t->data_container) * objects_len, __func__);
-		t->data_container_len = objects_len;
-		int th_index;
-		FOREACH_TRANS_DATA_CONTAINER_INDEX (t, tc, th_index) {
-			tc->poseobj = objects[th_index];
-		}
-	}
 	Main *bmain = CTX_data_main(t->context);
 
 	t->data_len_all = 0;
@@ -1671,7 +1660,8 @@ static void createTransCurveVerts(TransInfo *t)
 		int a;
 		int count = 0, countsel = 0;
 		const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
-		short hide_handles = (cu->drawflag & CU_HIDE_HANDLES);
+		View3D *v3d = t->view;
+		short hide_handles = (v3d != NULL) ? ((v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) : false;
 		ListBase *nurbs;
 
 		/* to be sure */
@@ -2387,7 +2377,7 @@ static struct TransIslandData *editmesh_islands_info_calc(
 
 	vert_map = MEM_mallocN(sizeof(*vert_map) * bm->totvert, __func__);
 	/* we shouldn't need this, but with incorrect selection flushing
-	 * its possible we have a selected vertex thats not in a face, for now best not crash in that case. */
+	 * its possible we have a selected vertex that's not in a face, for now best not crash in that case. */
 	copy_vn_i(vert_map, bm->totvert, -1);
 
 	BM_mesh_elem_table_ensure(bm, htype);
@@ -3000,7 +2990,7 @@ void flushTransSeq(TransInfo *t)
 
 		if (seq != seq_prev) {
 			if (seq->depth == 0) {
-				/* test overlap, displayes red outline */
+				/* test overlap, displays red outline */
 				seq->flag &= ~SEQ_OVERLAP;
 				if (BKE_sequence_test_overlap(seqbasep, seq)) {
 					seq->flag |= SEQ_OVERLAP;
@@ -4191,7 +4181,7 @@ static void createTransActionData(bContext *C, TransInfo *t)
 					else {
 						bGPDframe *gpf_iter;
 						int min = INT_MAX;
-						for (gpf_iter = gpl->frames.first; gpf_iter; gpf_iter = gpf->next) {
+						for (gpf_iter = gpl->frames.first; gpf_iter; gpf_iter = gpf_iter->next) {
 							if (gpf_iter->flag & GP_FRAME_SELECT) {
 								if (FrameOnMouseSide(t->frame_side, (float)gpf_iter->framenum, cfra)) {
 									int val = abs(gpf->framenum - gpf_iter->framenum);
@@ -8440,7 +8430,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->options & CTX_EDGE) {
 		/* Multi object editing. */
-		initTransDataContainers_FromObjectData(t);
+		initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			tc->data_ext = NULL;
 		}
@@ -8490,7 +8480,7 @@ void createTransData(bContext *C, TransInfo *t)
 		}
 		else if (t->obedit_type == OB_MESH) {
 
-			initTransDataContainers_FromObjectData(t);
+			initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 			createTransUVs(C, t);
 			countAndCleanTransDataContainer(t);
 
@@ -8579,7 +8569,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->obedit_type != -1) {
 		/* Multi object editing. */
-		initTransDataContainers_FromObjectData(t);
+		initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			tc->data_ext = NULL;
@@ -8643,8 +8633,8 @@ void createTransData(bContext *C, TransInfo *t)
 		// XXX active-layer checking isn't done as that should probably be checked through context instead
 
 		/* Multi object editing. */
-		initTransDataContainers_FromObjectData(t);
-		createTransPose(t, NULL, 0);
+		initTransDataContainers_FromObjectData(t, ob, NULL, 0);
+		createTransPose(t);
 		countAndCleanTransDataContainer(t);
 	}
 	else if (ob && (ob->mode & OB_MODE_WEIGHT_PAINT) && !(t->options & CTX_PAINT_CURVE)) {
@@ -8658,7 +8648,8 @@ void createTransData(bContext *C, TransInfo *t)
 					Object *objects[1];
 					objects[0] = ob_armature;
 					uint objects_len = 1;
-					createTransPose(t, objects, objects_len);
+					initTransDataContainers_FromObjectData(t, ob_armature, objects, objects_len);
+					createTransPose(t);
 					countAndCleanTransDataContainer(t);
 				}
 			}

@@ -659,7 +659,7 @@ void ED_transform_calc_orientation_from_type_ex(
 			if (ob->mode & OB_MODE_POSE) {
 				/* each bone moves on its own local axis, but  to avoid confusion,
 				 * use the active pones axis for display [#33575], this works as expected on a single bone
-				 * and users who select many bones will understand whats going on and what local means
+				 * and users who select many bones will understand what's going on and what local means
 				 * when they start transforming */
 				ED_getTransformOrientationMatrix(C, r_mat, pivot_point);
 				ok = true;
@@ -816,7 +816,7 @@ int ED_transform_calc_gizmo_stats(
 			BMEditSelection ese;
 			float vec[3] = {0, 0, 0};
 
-			/* USE LAST SELECTE WITH ACTIVE */
+			/* USE LAST SELECT WITH ACTIVE */
 			if ((pivot_point == V3D_AROUND_ACTIVE) && BM_select_history_active_get(em->bm, &ese)) {
 				BM_editselection_center(&ese, vec);
 				calc_tw_center(tbounds, vec);
@@ -904,7 +904,7 @@ int ED_transform_calc_gizmo_stats(
 							 * if handles are hidden then only check the center points.
 							 * If the center knot is selected then only use this as the center point.
 							 */
-							if (cu->drawflag & CU_HIDE_HANDLES) {
+							if ((v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) {
 								if (bezt->f2 & SELECT) {
 									calc_tw_center(tbounds, bezt->vec[1]);
 									totsel++;
@@ -1855,8 +1855,7 @@ static void WIDGETGROUP_xform_cage_draw_prepare(const bContext *C, wmGizmoGroup 
 	}
 
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
-	/* Avoid slowdown on view adjustments. */
-	if ((rv3d->rflag & RV3D_NAVIGATING) == 0) {
+	{
 		Scene *scene = CTX_data_scene(C);
 		switch (scene->orientation_type) {
 			case V3D_MANIP_VIEW:

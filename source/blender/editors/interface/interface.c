@@ -80,6 +80,7 @@
 #include "BPY_extern.h"
 
 #include "ED_screen.h"
+#include "ED_numinput.h"
 
 #include "IMB_colormanagement.h"
 
@@ -2177,7 +2178,6 @@ void ui_but_convert_to_unit_alt_name(uiBut *but, char *str, size_t maxlen)
 static void ui_get_but_string_unit(uiBut *but, char *str, int len_max, double value, bool pad, int float_precision)
 {
 	UnitSettings *unit = but->block->unit;
-	const bool do_split = (unit->flag & USER_UNIT_OPT_SPLIT) != 0;
 	int unit_type = UI_but_unit_type_get(but);
 	int precision;
 
@@ -2194,9 +2194,9 @@ static void ui_get_but_string_unit(uiBut *but, char *str, int len_max, double va
 		precision = float_precision;
 	}
 
-	bUnit_AsString(
+	bUnit_AsString2(
 	        str, len_max, ui_get_but_scale_unit(but, value), precision,
-	        unit->system, RNA_SUBTYPE_UNIT_VALUE(unit_type), do_split, pad);
+	        RNA_SUBTYPE_UNIT_VALUE(unit_type), unit, pad);
 }
 
 static float ui_get_but_step_unit(uiBut *but, float step_default)
@@ -2406,26 +2406,12 @@ char *ui_but_string_get_dynamic(uiBut *but, int *r_str_size)
 	return str;
 }
 
-#ifdef WITH_PYTHON
-
 static bool ui_set_but_string_eval_num_unit(bContext *C, uiBut *but, const char *str, double *r_value)
 {
-	char str_unit_convert[256];
-	const int unit_type = UI_but_unit_type_get(but);
-
-	BLI_strncpy(str_unit_convert, str, sizeof(str_unit_convert));
-
-	/* ugly, use the draw string to get the value,
-	 * this could cause problems if it includes some text which resolves to a unit */
-	bUnit_ReplaceString(
-	        str_unit_convert, sizeof(str_unit_convert), but->drawstr,
-	        ui_get_but_scale_unit(but, 1.0), but->block->unit->system, RNA_SUBTYPE_UNIT_VALUE(unit_type));
-
-	return BPY_execute_string_as_number(C, NULL, str_unit_convert, true, r_value);
+	const UnitSettings *unit = but->block->unit;
+	int type = RNA_SUBTYPE_UNIT_VALUE(UI_but_unit_type_get(but));
+	return user_string_to_number(C, str, unit, type, r_value);
 }
-
-#endif /* WITH_PYTHON */
-
 
 bool ui_but_string_set_eval_num(bContext *C, uiBut *but, const char *str, double *r_value)
 {
@@ -4240,7 +4226,7 @@ void UI_but_drag_set_value(uiBut *but)
 void UI_but_drag_set_image(uiBut *but, const char *path, int icon, struct ImBuf *imb, float scale, const bool use_free)
 {
 	but->dragtype = WM_DRAG_PATH;
-	ui_def_but_icon(but, icon, 0);  /* no flag UI_HAS_ICON, so icon doesnt draw in button */
+	ui_def_but_icon(but, icon, 0);  /* no flag UI_HAS_ICON, so icon doesn't draw in button */
 	if ((but->dragflag & UI_BUT_DRAGPOIN_FREE)) {
 		MEM_SAFE_FREE(but->dragpoin);
 		but->dragflag &= ~UI_BUT_DRAGPOIN_FREE;

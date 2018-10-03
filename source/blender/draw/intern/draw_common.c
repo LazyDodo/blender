@@ -47,6 +47,12 @@
 GlobalsUboStorage ts;
 struct GPUUniformBuffer *globals_ubo = NULL;
 struct GPUTexture *globals_ramp = NULL;
+struct GPUTexture *globals_weight_ramp = NULL;
+
+static bool weight_ramp_custom = false;
+static ColorBand weight_ramp_copy;
+
+static struct GPUTexture *DRW_create_weight_colorramp_texture(void);
 
 void DRW_globals_update(void)
 {
@@ -63,6 +69,8 @@ void DRW_globals_update(void)
 	UI_GetThemeColor4fv(TH_EMPTY, ts.colorEmpty);
 	UI_GetThemeColor4fv(TH_VERTEX, ts.colorVertex);
 	UI_GetThemeColor4fv(TH_VERTEX_SELECT, ts.colorVertexSelect);
+	UI_GetThemeColor4fv(TH_VERTEX_UNREFERENCED, ts.colorVertexUnreferenced);
+	UI_COLOR_RGBA_FROM_U8(0xB0, 0x00, 0xB0, 0xFF, ts.colorVertexMissingData);
 	UI_GetThemeColor4fv(TH_EDITMESH_ACTIVE, ts.colorEditMeshActive);
 	UI_GetThemeColor4fv(TH_EDGE_SELECT, ts.colorEdgeSelect);
 
@@ -99,7 +107,9 @@ void DRW_globals_update(void)
 	UI_GetThemeColor4fv(TH_HANDLE_SEL_ALIGN, ts.colorHandleSelAlign);
 	UI_GetThemeColor4fv(TH_HANDLE_SEL_AUTOCLAMP, ts.colorHandleSelAutoclamp);
 	UI_GetThemeColor4fv(TH_NURB_ULINE, ts.colorNurbUline);
+	UI_GetThemeColor4fv(TH_NURB_VLINE, ts.colorNurbVline);
 	UI_GetThemeColor4fv(TH_NURB_SEL_ULINE, ts.colorNurbSelUline);
+	UI_GetThemeColor4fv(TH_NURB_SEL_VLINE, ts.colorNurbSelVline);
 	UI_GetThemeColor4fv(TH_ACTIVE_SPLINE, ts.colorActiveSpline);
 
 	UI_GetThemeColor4fv(TH_BONE_POSE, ts.colorBonePose);
@@ -172,6 +182,22 @@ void DRW_globals_update(void)
 	globals_ramp = GPU_texture_create_1D(col_size, GPU_RGBA8, colors, NULL);
 
 	MEM_freeN(colors);
+
+	/* Weight Painting color ramp texture */
+	bool user_weight_ramp = (U.flag & USER_CUSTOM_RANGE) != 0;
+
+	if (weight_ramp_custom != user_weight_ramp ||
+	    (user_weight_ramp && memcmp(&weight_ramp_copy, &U.coba_weight, sizeof(ColorBand)) != 0))
+	{
+		DRW_TEXTURE_FREE_SAFE(globals_weight_ramp);
+	}
+
+	if (globals_weight_ramp == NULL) {
+		weight_ramp_custom = user_weight_ramp;
+		memcpy(&weight_ramp_copy, &U.coba_weight, sizeof(ColorBand));
+
+		globals_weight_ramp = DRW_create_weight_colorramp_texture();
+	}
 }
 
 /* ********************************* SHGROUP ************************************* */
@@ -921,4 +947,36 @@ bool DRW_object_axis_orthogonal_to_view(Object *ob, int axis)
 	}
 
 	return false;
+}
+
+static void DRW_evaluate_weight_to_color(const float weight, float result[4])
+{
+	if (U.flag & USER_CUSTOM_RANGE) {
+		BKE_colorband_evaluate(&U.coba_weight, weight, result);
+	}
+	else {
+		/* Use gamma correction to even out the color bands:
+		 * increasing widens yellow/cyan vs red/green/blue.
+		 * Gamma 1.0 produces the original 2.79 color ramp. */
+		const float gamma = 1.5f;
+		float hsv[3] = {(2.0f / 3.0f) * (1.0f - weight), 1.0f, pow(0.5f + 0.5f * weight, gamma)};
+
+		hsv_to_rgb_v(hsv, result);
+
+		for (int i = 0; i < 3; i++) {
+			result[i] = pow(result[i], 1.0f / gamma);
+		}
+	}
+}
+
+static GPUTexture *DRW_create_weight_colorramp_texture(void)
+{
+	char error[256];
+	float pixels[256][4];
+	for (int i = 0 ; i < 256 ; i ++) {
+		DRW_evaluate_weight_to_color(i / 255.0f, pixels[i]);
+		pixels[i][3] = 1.0f;
+	}
+
+	return GPU_texture_create_1D(256, GPU_RGBA8, pixels[0], error);
 }

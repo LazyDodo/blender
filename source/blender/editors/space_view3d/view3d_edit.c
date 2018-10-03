@@ -802,7 +802,7 @@ static void viewrotate_apply(ViewOpsData *vod, const int event_xy[2])
 	/* avoid precision loss over time */
 	normalize_qt(vod->curr.viewquat);
 
-	/* use a working copy so view rotation locking doesnt overwrite the locked
+	/* use a working copy so view rotation locking doesn't overwrite the locked
 	 * rotation back into the view we calculate with */
 	copy_qt_qt(rv3d->viewquat, vod->curr.viewquat);
 
@@ -1045,7 +1045,7 @@ static float view3d_ndof_pan_speed_calc(RegionView3D *rv3d)
 /**
  * Zoom and pan in the same function since sometimes zoom is interpreted as dolly (pan forward).
  *
- * \param has_zoom zoom, otherwise dolly, often `!rv3d->is_persp` since it doesnt make sense to dolly in ortho.
+ * \param has_zoom zoom, otherwise dolly, often `!rv3d->is_persp` since it doesn't make sense to dolly in ortho.
  */
 static void view3d_ndof_pan_zoom(
         const struct wmNDOFMotionData *ndof, ScrArea *sa, ARegion *ar,
@@ -3858,7 +3858,7 @@ static int view_camera_exec(bContext *C, wmOperator *op)
 			if (v3d->camera == NULL)
 				v3d->camera = BKE_view_layer_camera_find(view_layer);
 
-			/* couldnt find any useful camera, bail out */
+			/* couldn't find any useful camera, bail out */
 			if (v3d->camera == NULL)
 				return OPERATOR_CANCELLED;
 
@@ -4863,7 +4863,8 @@ void VIEW3D_OT_cursor3d(wmOperatorType *ot)
  * \{ */
 
 static const EnumPropertyItem prop_shading_type_items[] = {
-	{OB_SOLID, "SOLID", 0, "Solid and X-Ray", "Toggle solid and X-ray shading"},
+	{OB_WIRE, "WIREFRAME", 0, "Wireframe", "Toggle wireframe shading"},
+	{OB_SOLID, "SOLID", 0, "Solid", "Toggle solid shading"},
 	{OB_MATERIAL, "MATERIAL", 0, "LookDev", "Toggle lookdev shading"},
 	{OB_RENDER, "RENDERED", 0, "Rendered", "Toggle rendered shading"},
 	{0, NULL, 0, NULL, NULL}
@@ -4876,36 +4877,25 @@ static int toggle_shading_exec(bContext *C, wmOperator *op)
 	ScrArea *sa = CTX_wm_area(C);
 	int type = RNA_enum_get(op->ptr, "type");
 
-	if (type == OB_SOLID) {
-		if (v3d->shading.type == OB_SOLID) {
-			/* Toggle X-Ray if already in solid mode. */
-			if (ED_operator_posemode(C) || ED_operator_editmesh(C)) {
-				v3d->flag ^= V3D_ZBUF_SELECT;
-			}
-			else {
-				v3d->shading.flag ^= V3D_SHADING_XRAY;
-			}
+	if (ELEM(type, OB_WIRE, OB_SOLID)) {
+		if (v3d->shading.type != type) {
+			v3d->shading.type = type;
 		}
-		else {
-			/* Go to solid mode. */
-			v3d->shading.type = OB_SOLID;
-		}
-	}
-	else if (type == OB_MATERIAL) {
-		if (v3d->shading.type == OB_MATERIAL) {
+		else if (v3d->shading.type == OB_WIRE) {
 			v3d->shading.type = OB_SOLID;
 		}
 		else {
-			v3d->shading.type = OB_MATERIAL;
+			v3d->shading.type = OB_WIRE;
 		}
 	}
-	else if (type == OB_RENDER) {
-		if (v3d->shading.type == OB_RENDER) {
+	else {
+
+		if (v3d->shading.type == type) {
 			v3d->shading.type = v3d->shading.prev_type;
 		}
 		else {
 			v3d->shading.prev_type = v3d->shading.type;
-			v3d->shading.type = OB_RENDER;
+			v3d->shading.type = type;
 		}
 	}
 

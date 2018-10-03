@@ -517,6 +517,7 @@ const EnumPropertyItem rna_enum_transform_orientation_items[] = {
 #include "BKE_animsys.h"
 #include "BKE_freestyle.h"
 #include "BKE_gpencil.h"
+#include "BKE_unit.h"
 
 #include "ED_info.h"
 #include "ED_node.h"
@@ -2017,6 +2018,69 @@ const EnumPropertyItem *rna_TransformOrientation_itemf(
 	return item;
 }
 
+static const EnumPropertyItem *get_unit_enum_items(int system, int type, bool *r_free)
+{
+	const void *usys;
+	int len;
+	bUnit_GetSystem(system, type, &usys, &len);
+
+	EnumPropertyItem *items = NULL;
+	int totitem = 0;
+
+	EnumPropertyItem adaptive = { 0 };
+	adaptive.identifier = "ADAPTIVE";
+	adaptive.name = "Adaptive";
+	adaptive.value = USER_UNIT_ADAPTIVE;
+	RNA_enum_item_add(&items, &totitem, &adaptive);
+
+	for (int i = 0; i < len; i++) {
+		if (!bUnit_IsSuppressed(usys, i)) {
+			EnumPropertyItem tmp = { 0 };
+			tmp.identifier = bUnit_GetName(usys, i);
+			tmp.name = bUnit_GetNameDisplay(usys, i);
+			tmp.value = i;
+			RNA_enum_item_add(&items, &totitem, &tmp);
+		}
+	}
+
+	*r_free = true;
+	return items;
+}
+
+const EnumPropertyItem *rna_get_length_unit_items(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	UnitSettings *units = ptr->data;
+	return get_unit_enum_items(units->system, B_UNIT_LENGTH, r_free);
+}
+
+const EnumPropertyItem *rna_get_mass_unit_items(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	UnitSettings *units = ptr->data;
+	return get_unit_enum_items(units->system, B_UNIT_MASS, r_free);
+}
+
+const EnumPropertyItem *rna_get_time_unit_items(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	UnitSettings *units = ptr->data;
+	return get_unit_enum_items(units->system, B_UNIT_TIME, r_free);
+}
+
+static void rna_unit_system_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
+{
+	UnitSettings *unit = &scene->unit;
+	if (unit->system == USER_UNIT_NONE) {
+		unit->length_unit = USER_UNIT_ADAPTIVE;
+		unit->mass_unit = USER_UNIT_ADAPTIVE;
+	}
+	else {
+		unit->length_unit = bUnit_GetBaseUnitOfType(unit->system, B_UNIT_LENGTH);
+		unit->mass_unit = bUnit_GetBaseUnitOfType(unit->system, B_UNIT_MASS);
+	}
+}
+
 
 /* lanpr */
 
@@ -2205,6 +2269,12 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 		{GP_PROJECT_VIEWSPACE, "ORIGIN", ICON_OBJECT_ORIGIN, "Origin", "Draw stroke at Object origin"},
 		{GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR, "CURSOR", ICON_CURSOR, "3D Cursor", "Draw stroke at 3D cursor location" },
 		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_VIEW, "SURFACE", ICON_FACESEL, "Surface", "Stick stroke to surfaces"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	static const EnumPropertyItem gpencil_selectmode_items[] = {
+		{GP_SELECTMODE_POINT, "POINT", ICON_VERTEXSEL, "Point", "Select only points"},
+		{GP_SELECTMODE_STROKE, "STROKE", ICON_EDGESEL, "Stroke", "Select all stroke points" },
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -2478,7 +2548,7 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	                         "Show compact list of color instead of thumbnails");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	prop = RNA_def_property(srna, "add_gpencil_weight_data", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_gpencil_weight_data_add", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_CREATE_WEIGHTS);
 	RNA_def_property_ui_text(prop, "Add weight data for new strokes",
 		"When creating new strokes, the weight data is added according to the current vertex group and weight, "
@@ -2508,6 +2578,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_v3d_align", GP_PROJECT_DEPTH_STROKE_ENDPOINTS);
 	RNA_def_property_ui_text(prop, "Only Endpoints", "Only use the first and last parts of the stroke for snapping");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+
+	/* Grease Pencil - Select mode */
+	prop = RNA_def_property(srna, "gpencil_selectmode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "gpencil_selectmode");
+	RNA_def_property_enum_items(prop, gpencil_selectmode_items);
+	RNA_def_property_ui_text(prop, "Select Mode", "");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	/* Annotations - 2D Views Stroke Placement */
 	prop = RNA_def_property(srna, "annotation_stroke_placement_view2d", PROP_ENUM, PROP_NONE);
@@ -2983,7 +3060,7 @@ static void rna_def_unit_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "system", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, unit_systems);
 	RNA_def_property_ui_text(prop, "Unit System", "The unit system to use for button display");
-	RNA_def_property_update(prop, NC_WINDOW, NULL);
+	RNA_def_property_update(prop, NC_WINDOW, "rna_unit_system_update");
 
 	prop = RNA_def_property(srna, "system_rotation", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rotation_units);
@@ -2991,7 +3068,9 @@ static void rna_def_unit_settings(BlenderRNA  *brna)
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
 
 	prop = RNA_def_property(srna, "scale_length", PROP_FLOAT, PROP_UNSIGNED);
-	RNA_def_property_ui_text(prop, "Unit Scale", "Scale to use when converting between blender units and dimensions");
+	RNA_def_property_ui_text(prop, "Unit Scale", "Scale to use when converting between blender units and dimensions."
+	                         " When working at microscopic or astronomical scale, a small or large unit scale"
+	                         " respectively can be used to avoid numerical precision problems");
 	RNA_def_property_range(prop, 0.00001, 100000.0);
 	RNA_def_property_ui_range(prop, 0.001, 100.0, 0.1, 6);
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
@@ -2999,6 +3078,24 @@ static void rna_def_unit_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_separate", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", USER_UNIT_OPT_SPLIT);
 	RNA_def_property_ui_text(prop, "Separate Units", "Display units in pairs (e.g. 1m 0cm)");
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "length_unit", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_get_length_unit_items");
+	RNA_def_property_ui_text(prop, "Length Unit", "Unit that will be used to display length values");
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "mass_unit", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_get_mass_unit_items");
+	RNA_def_property_ui_text(prop, "Mass Unit", "Unit that will be used to display mass values");
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "time_unit", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_get_time_unit_items");
+	RNA_def_property_ui_text(prop, "Time Unit", "Unit that will be used to display time values");
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
 }
 
@@ -3883,7 +3980,7 @@ static void rna_def_gpu_dof_fx(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPUDOFSettings_update");
 
 	prop = RNA_def_property(srna, "rotation", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_ui_text(prop, "Rotation", "Rotation of blades in apperture");
+	RNA_def_property_ui_text(prop, "Rotation", "Rotation of blades in aperture");
 	RNA_def_property_range(prop, -M_PI, M_PI);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
@@ -4388,11 +4485,11 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 #endif
 
 	static const EnumPropertyItem audio_channel_items[] = {
-		{1, "MONO", 0, "Mono", "Set audio channels to mono"},
-		{2, "STEREO", 0, "Stereo", "Set audio channels to stereo"},
-		{4, "SURROUND4", 0, "4 Channels", "Set audio channels to 4 channels"},
-		{6, "SURROUND51", 0, "5.1 Surround", "Set audio channels to 5.1 surround sound"},
-		{8, "SURROUND71", 0, "7.1 Surround", "Set audio channels to 7.1 surround sound"},
+		{FFM_CHANNELS_MONO, "MONO", 0, "Mono", "Set audio channels to mono"},
+		{FFM_CHANNELS_STEREO, "STEREO", 0, "Stereo", "Set audio channels to stereo"},
+		{FFM_CHANNELS_SURROUND4, "SURROUND4", 0, "4 Channels", "Set audio channels to 4 channels"},
+		{FFM_CHANNELS_SURROUND51, "SURROUND51", 0, "5.1 Surround", "Set audio channels to 5.1 surround sound"},
+		{FFM_CHANNELS_SURROUND71, "SURROUND71", 0, "7.1 Surround", "Set audio channels to 7.1 surround sound"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -5702,7 +5799,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_sss_separate_albedo", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_SSS_SEPARATE_ALBEDO);
 	RNA_def_property_boolean_default(prop, 0);
-	RNA_def_property_ui_text(prop, "Separate Albedo", "Avoid albedo being blured by the subsurface scattering "
+	RNA_def_property_ui_text(prop, "Separate Albedo", "Avoid albedo being blurred by the subsurface scattering "
 	                         "but uses more video memory");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
@@ -5884,7 +5981,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_bloom", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_BLOOM_ENABLED);
 	RNA_def_property_boolean_default(prop, 0);
-	RNA_def_property_ui_text(prop, "Bloom", "High brighness pixels generate a glowing effect");
+	RNA_def_property_ui_text(prop, "Bloom", "High brightness pixels generate a glowing effect");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
 	prop = RNA_def_property(srna, "bloom_threshold", PROP_FLOAT, PROP_FACTOR);

@@ -1454,6 +1454,7 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		"/wd4305"  # truncation from 'type1' to 'type2'
 		"/wd4800"  # forcing value to bool 'true' or 'false'
 		"/wd4828"  # The file contains a character that is illegal
+		"/wd4996"  # identifier was declared deprecated
 		# errors:
 		"/we4013"  # 'function' undefined; assuming extern returning int
 		"/we4133"  # incompatible pointer types
@@ -1517,12 +1518,8 @@ if(
 	(CMAKE_C_COMPILER_ID MATCHES "Clang" AND (NOT MSVC)) OR
 	(CMAKE_C_COMPILER_ID MATCHES "Intel")
 )
-	# Use C99 + GNU extensions, works with GCC, Clang, ICC
-	if(WITH_C11)
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
-	else()
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
-	endif()
+	# Use C11 + GNU extensions, works with GCC, Clang, ICC
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
 endif()
 
 # Include warnings first, so its possible to disable them with user defined flags

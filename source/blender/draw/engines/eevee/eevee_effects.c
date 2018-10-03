@@ -220,7 +220,7 @@ void EEVEE_effects_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object 
 	}
 
 	/**
-	 * Compute Mipmap texel alignement.
+	 * Compute Mipmap texel alignment.
 	 */
 	for (int i = 0; i < 10; ++i) {
 		int mip_size[2];
@@ -561,7 +561,7 @@ void EEVEE_draw_effects(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *vedata)
 	/* Update double buffer status if render mode. */
 	if (DRW_state_is_image_render()) {
 		stl->g_data->valid_double_buffer = (txl->color_double_buffer != NULL);
-		stl->g_data->valid_taa_history = (txl->taa_history != NULL);;
+		stl->g_data->valid_taa_history = (txl->taa_history != NULL);
 	}
 }
 

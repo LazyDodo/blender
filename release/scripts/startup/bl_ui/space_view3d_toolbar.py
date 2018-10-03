@@ -22,6 +22,7 @@ from bpy.types import Menu, Panel, UIList
 from .properties_grease_pencil_common import (
     GreasePencilStrokeEditPanel,
     GreasePencilStrokeSculptPanel,
+    GreasePencilSculptOptionsPanel,
     GreasePencilAppearancePanel,
 )
 from .properties_paint_common import (
@@ -205,64 +206,6 @@ class VIEW3D_PT_tools_posemode_options(View3DPanel, Panel):
 class View3DPaintPanel(UnifiedPaintPanel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-
-
-class VIEW3D_PT_imapaint_tools_missing(Panel, View3DPaintPanel):
-    bl_category = "Tools"
-    bl_context = ".imagepaint"  # dot on purpose (access from topbar)
-    bl_label = "Missing Data"
-
-    @classmethod
-    def poll(cls, context):
-        toolsettings = context.tool_settings.image_paint
-        return context.image_paint_object and not toolsettings.detect_data()
-
-    def draw(self, context):
-        layout = self.layout
-        toolsettings = context.tool_settings.image_paint
-
-        col = layout.column()
-        col.label(text="Missing Data", icon='ERROR')
-        if toolsettings.missing_uvs:
-            col.separator()
-            col.label(text="Missing UVs", icon='INFO')
-            col.label(text="Unwrap the mesh in edit mode or generate a simple UV layer")
-            col.operator("paint.add_simple_uvs")
-
-        if toolsettings.mode == 'MATERIAL':
-            if toolsettings.missing_materials:
-                col.separator()
-                col.label(text="Missing Materials", icon='INFO')
-                col.label(text="Add a material and paint slot below")
-                col.operator_menu_enum("paint.add_texture_paint_slot", "type", text="Add Paint Slot")
-            elif toolsettings.missing_texture:
-                ob = context.active_object
-                mat = ob.active_material
-
-                col.separator()
-                if mat:
-                    col.label(text="Missing Texture Slots", icon='INFO')
-                    col.label(text="Add a paint slot below")
-                    col.operator_menu_enum("paint.add_texture_paint_slot", "type", text="Add Paint Slot")
-                else:
-                    col.label(text="Missing Materials", icon='INFO')
-                    col.label(text="Add a material and paint slot below")
-                    col.operator_menu_enum("paint.add_texture_paint_slot", "type", text="Add Paint Slot")
-
-        elif toolsettings.mode == 'IMAGE':
-            if toolsettings.missing_texture:
-                col.separator()
-                col.label(text="Missing Canvas", icon='INFO')
-                col.label(text="Add or assign a canvas image below")
-                col.label(text="Canvas Image:")
-                col.template_ID(toolsettings, "canvas", new="image.new", open="image.open")
-
-        if toolsettings.missing_stencil:
-            col.separator()
-            col.label(text="Missing Stencil", icon='INFO')
-            col.label(text="Add or assign a stencil image below")
-            col.label(text="Stencil Image:")
-            col.template_ID(toolsettings, "stencil_image", new="image.new", open="image.open")
 
 
 # TODO, move to space_view3d.py
@@ -567,7 +510,6 @@ class VIEW3D_PT_slots_projectpaint(View3DPanel, Panel):
                 col.template_list("MATERIAL_UL_matslots", "layers",
                                   ob, "material_slots",
                                   ob, "active_material_index", rows=2)
-
             mat = ob.active_material
             if mat:
                 col.label(text="Available Paint Slots:")
@@ -595,8 +537,47 @@ class VIEW3D_PT_slots_projectpaint(View3DPanel, Panel):
         col.separator()
         col.operator("image.save_dirty", text="Save All Images")
 
+        # Add Texture paint UVs/slots
+        if settings.missing_uvs:
+            col.separator()
+            col.label(text="No UVs available", icon='INFO')
+            col.operator("paint.add_simple_uvs")
+
+        if settings.mode == 'MATERIAL':
+            if settings.missing_materials:
+                col.separator()
+                col.label(text="Add a material and paint slot below")
+                col.operator_menu_enum("paint.add_texture_paint_slot", "type", text="Add Paint Slot")
+            else:
+                ob = context.active_object
+                mat = ob.active_material
+
+                col.separator()
+                if mat:
+                    col.label(text="Add a paint slot below")
+                    col.operator_menu_enum("paint.add_texture_paint_slot", "type", text="Add Paint Slot")
+                else:
+                    col.label(text="Add a material and paint slot below")
+                    col.operator_menu_enum("paint.add_texture_paint_slot", "type", text="Add Paint Slot")
+
+        elif settings.mode == 'IMAGE':
+            if settings.missing_texture:
+                col.separator()
+                col.label(text="Missing Canvas", icon='INFO')
+                col.label(text="Add or assign a canvas image below")
+                col.label(text="Canvas Image:")
+                col.template_ID(settings, "canvas", new="image.new", open="image.open")
+
+        if settings.missing_stencil:
+            col.separator()
+            col.label(text="Missing Stencil", icon='INFO')
+            col.label(text="Add or assign a stencil image below")
+            col.label(text="Stencil Image:")
+            col.template_ID(settings, "stencil_image", new="image.new", open="image.open")
 
 # TODO, move to space_view3d.py
+
+
 class VIEW3D_PT_stencil_projectpaint(View3DPanel, Panel):
     bl_context = ".imagepaint"  # dot on purpose (access from topbar)
     bl_label = "Mask"
@@ -647,6 +628,7 @@ class VIEW3D_PT_stencil_projectpaint(View3DPanel, Panel):
 class VIEW3D_PT_tools_brush_overlay(Panel, View3DPaintPanel):
     bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Overlay"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -1055,6 +1037,7 @@ class VIEW3D_PT_tools_brush_appearance(Panel, View3DPaintPanel):
     bl_context = ".paint_common"  # dot on purpose (access from topbar)
     bl_label = "Appearance"
     bl_parent_id = "VIEW3D_PT_tools_brush_overlay"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -1222,6 +1205,7 @@ class VIEW3D_PT_tools_imagepaint_symmetry(Panel, View3DPaintPanel):
 class VIEW3D_PT_tools_projectpaint(View3DPaintPanel, Panel):
     bl_context = ".imagepaint"  # dot on purpose (access from topbar)
     bl_label = "Project Paint"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -1723,14 +1707,14 @@ class VIEW3D_PT_tools_grease_pencil_interpolate(Panel):
 class VIEW3D_PT_tools_grease_pencil_sculpt(GreasePencilStrokeSculptPanel, View3DPanel, Panel):
     bl_context = ".greasepencil_sculpt"
     bl_category = "Tools"
-    bl_label = "Sculpt Strokes"
+    bl_label = "Brush"
 
 
 # Grease Pencil weight painting tools
 class VIEW3D_PT_tools_grease_pencil_weight_paint(View3DPanel, Panel):
     bl_context = ".greasepencil_weight"
     bl_category = "Tools"
-    bl_label = "Weight Paint"
+    bl_label = "Brush"
 
     @staticmethod
     def draw(self, context):
@@ -1763,6 +1747,12 @@ class VIEW3D_PT_tools_grease_pencil_sculpt_appearance(GreasePencilAppearancePane
     bl_label = "Appearance"
 
 
+class VIEW3D_PT_tools_grease_pencil_sculpt_options(GreasePencilSculptOptionsPanel, View3DPanel, Panel):
+    bl_context = ".greasepencil_sculpt"
+    bl_label = "Sculpt Strokes"
+    bl_parent_id = 'VIEW3D_PT_tools_grease_pencil_sculpt'
+
+
 class VIEW3D_PT_tools_grease_pencil_weight_appearance(GreasePencilAppearancePanel, View3DPanel, Panel):
     bl_context = ".greasepencil_weight"
     bl_label = "Appearance"
@@ -1781,7 +1771,6 @@ classes = (
     VIEW3D_PT_tools_curveedit_options_stroke,
     VIEW3D_PT_tools_armatureedit_options,
     VIEW3D_PT_tools_posemode_options,
-    VIEW3D_PT_imapaint_tools_missing,
     VIEW3D_PT_tools_brush,
     TEXTURE_UL_texpaintslots,
     VIEW3D_MT_tools_projectpaint_uvlayer,
@@ -1817,6 +1806,7 @@ classes = (
     VIEW3D_PT_tools_grease_pencil_sculpt,
     VIEW3D_PT_tools_grease_pencil_weight_paint,
     VIEW3D_PT_tools_grease_pencil_paint_appearance,
+    VIEW3D_PT_tools_grease_pencil_sculpt_options,
     VIEW3D_PT_tools_grease_pencil_sculpt_appearance,
     VIEW3D_PT_tools_grease_pencil_weight_appearance,
     VIEW3D_PT_tools_grease_pencil_interpolate,

@@ -32,12 +32,16 @@
 #include "MEM_guardedalloc.h"
 
 #include "BLI_kdtree.h"
+#include "BLI_listbase.h"
 #include "BLI_math.h"
 
 #include "BKE_context.h"
 #include "BKE_editmesh.h"
 #include "BKE_layer.h"
+#include "BKE_material.h"
 #include "BKE_report.h"
+
+#include "DNA_meshdata_types.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -53,6 +57,12 @@
 /* -------------------------------------------------------------------- */
 /** \name Select Similar (Vert/Edge/Face) Operator - common
  * \{ */
+
+enum {
+	SIM_CMP_EQ = 0,
+	SIM_CMP_GT,
+	SIM_CMP_LT
+};
 
 static const EnumPropertyItem prop_similar_compare_types[] = {
 	{SIM_CMP_EQ, "EQUAL", 0, "Equal", ""},
@@ -95,22 +105,22 @@ static const EnumPropertyItem prop_similar_types[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-static int UNUSED_FUNCTION(bm_sel_similar_cmp_fl)(const float delta, const float thresh, const int compare)
+static int mesh_select_similar_compare_float(const float delta, const float thresh, const int compare)
 {
 	switch (compare) {
 		case SIM_CMP_EQ:
-			return (fabsf(delta) <= thresh);
+			return (fabsf(delta) < thresh + FLT_EPSILON);
 		case SIM_CMP_GT:
-			return ((delta + thresh) >= 0.0f);
+			return ((delta + thresh) > -FLT_EPSILON);
 		case SIM_CMP_LT:
-			return ((delta - thresh) <= 0.0f);
+			return ((delta - thresh) < FLT_EPSILON);
 		default:
 			BLI_assert(0);
 			return 0;
 	}
 }
 
-static int bm_sel_similar_cmp_i(const int delta, const int compare)
+static int mesh_select_similar_compare_int(const int delta, const int compare)
 {
 	switch (compare) {
 		case SIM_CMP_EQ:
@@ -125,47 +135,510 @@ static int bm_sel_similar_cmp_i(const int delta, const int compare)
 	}
 }
 
+static bool mesh_select_similar_compare_float_tree(const KDTree *tree, const float length, const float thresh, const int compare)
+{
+	/* Length of the edge we want to compare against. */
+	float nearest_edge_length;
+
+	switch (compare) {
+		case SIM_CMP_EQ:
+			/* Compare to the edge closest to the current edge. */
+			nearest_edge_length = length;
+			break;
+		case SIM_CMP_GT:
+			/* Compare against the shortest edge. */
+			/* -FLT_MAX leads to some precision issues and the wrong edge being selected.
+			 * For example, in a tree with 1, 2 and 3, which is stored squared as 1, 4, 9, it returns as the nearest
+			 * length/node the "4" instead of "1". */
+			nearest_edge_length = -1.0f;
+			break;
+		case SIM_CMP_LT:
+			/* Compare against the longest edge. */
+			nearest_edge_length = FLT_MAX;
+			break;
+		default:
+			BLI_assert(0);
+			return false;
+	}
+
+	KDTreeNearest nearest;
+	float dummy[3] = {nearest_edge_length, 0.0f, 0.0f};
+	if (BLI_kdtree_find_nearest(tree, dummy, &nearest) != -1) {
+		float delta = length - nearest.co[0];
+		return mesh_select_similar_compare_float(delta, thresh, compare);
+	}
+
+	return false;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
 /** \name Select Similar Face
  * \{ */
 
+enum {
+	SIMFACE_DATA_NONE  = 0,
+	SIMFACE_DATA_TRUE  = (1 << 0),
+	SIMFACE_DATA_FALSE = (1 << 1),
+	SIMFACE_DATA_ALL   = (SIMFACE_DATA_TRUE | SIMFACE_DATA_FALSE),
+};
+
+/**
+ * Return true if we still don't know the final value for this edge data.
+ * In other words, if we need to keep iterating over the objects or we can
+ * just go ahead and select all the objects.
+ */
+static bool face_data_value_set(BMFace *face, const int hflag, int *r_value)
+{
+	if (BM_elem_flag_test(face, hflag)) {
+		*r_value |= SIMFACE_DATA_TRUE;
+	}
+	else {
+		*r_value |= SIMFACE_DATA_FALSE;
+	}
+
+	return *r_value != SIMFACE_DATA_ALL;
+}
+
+/**
+ * Note: This is not normal, but the face direction itself and always in
+ * a positive quadrant (tries z, y then x).
+ * Also, unlike edge_pos_direction_worldspace_get we don't normalize the direction.
+ * In fact we scale the direction by the distance of the face center to the origin.
+ */
+static void face_pos_direction_worldspace_scaled_get(Object *ob, BMFace *face, float *r_dir)
+{
+	float distance;
+	float center[3];
+
+	copy_v3_v3(r_dir, face->no);
+	normalize_v3(r_dir);
+
+	BM_face_calc_center_mean(face, center);
+	mul_m4_v3(ob->obmat, center);
+
+	distance = dot_v3v3(r_dir, center);
+	mul_v3_fl(r_dir, distance);
+
+	/* Make sure we have a consistent direction regardless of the face orientation.
+	 * This spares us from storing dir and -dir in the tree. */
+	if (fabs(r_dir[2]) < FLT_EPSILON) {
+		if (fabs(r_dir[1]) < FLT_EPSILON) {
+			if (r_dir[0] < 0.0f) {
+				mul_v3_fl(r_dir, -1.0f);
+			}
+		}
+		else if (r_dir[1] < 0.0f) {
+			mul_v3_fl(r_dir, -1.0f);
+		}
+	}
+	else if (r_dir[2] < 0.0f) {
+		mul_v3_fl(r_dir, -1.0f);
+	}
+}
+
+/* TODO(dfelinto): `types` that should technically be compared in world space but are not:
+ *  -SIMFACE_AREA
+ *  -SIMFACE_PERIMETER
+ */
 static int similar_face_select_exec(bContext *C, wmOperator *op)
 {
-	/* TODO (dfelinto) port the face modes to multi-object. */
-	BKE_report(op->reports, RPT_ERROR, "Select similar not supported for faces at the moment");
-	return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	Object *ob = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(ob);
-	BMOperator bmop;
-
-	/* get the type from RNA */
 	const int type = RNA_enum_get(op->ptr, "type");
 	const float thresh = RNA_float_get(op->ptr, "threshold");
+	const float thresh_radians = thresh * (float)M_PI;
 	const int compare = RNA_enum_get(op->ptr, "compare");
 
-	/* initialize the bmop using EDBM api, which does various ui error reporting and other stuff */
-	EDBM_op_init(em, &bmop, op,
-	             "similar_faces faces=%hf type=%i thresh=%f compare=%i",
-	             BM_ELEM_SELECT, type, thresh, compare);
+	int tot_faces_selected_all = 0;
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	/* execute the operator */
-	BMO_op_exec(em->bm, &bmop);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		tot_faces_selected_all += em->bm->totfacesel;
+	}
 
-	/* clear the existing selection */
-	EDBM_flag_disable_all(em, BM_ELEM_SELECT);
-
-	/* select the output */
-	BMO_slot_buffer_hflag_enable(em->bm, bmop.slots_out, "faces.out", BM_FACE, BM_ELEM_SELECT, true);
-
-	/* finish the operator */
-	if (!EDBM_op_finish(em, &bmop, op, true)) {
+	if (tot_faces_selected_all == 0) {
+		BKE_report(op->reports, RPT_ERROR, "No face selected");
+		MEM_freeN(objects);
 		return OPERATOR_CANCELLED;
 	}
 
-	EDBM_update_generic(em, false, false);
+	KDTree *tree = NULL;
+	GSet *gset = NULL;
+	GSet **gset_array = NULL;
+	int face_data_value = SIMFACE_DATA_NONE;
+
+	switch (type) {
+		case SIMFACE_AREA:
+		case SIMFACE_PERIMETER:
+		case SIMFACE_NORMAL:
+		case SIMFACE_COPLANAR:
+			tree = BLI_kdtree_new(tot_faces_selected_all);
+			break;
+		case SIMFACE_SIDES:
+		case SIMFACE_MATERIAL:
+			gset = BLI_gset_ptr_new("Select similar face");
+			break;
+		case SIMFACE_FACEMAP:
+			gset_array = MEM_callocN(sizeof(GSet *) * objects_len, "Select similar face: facemap gset array");
+			break;
+	}
+
+	int tree_index = 0;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		BMesh *bm = em->bm;
+		Material ***material_array = NULL;
+		invert_m4_m4(ob->imat, ob->obmat);
+		int custom_data_offset = 0;
+
+		if (bm->totfacesel == 0) {
+			continue;
+		}
+
+		switch (type) {
+			case SIMFACE_MATERIAL:
+			{
+				if (ob->totcol == 0) {
+					continue;
+				}
+				material_array = give_matarar(ob);
+				break;
+			}
+			case SIMFACE_FREESTYLE:
+			{
+				if (!CustomData_has_layer(&bm->pdata, CD_FREESTYLE_FACE)) {
+					face_data_value |= SIMFACE_DATA_FALSE;
+					continue;
+				}
+				break;
+			}
+			case SIMFACE_FACEMAP:
+			{
+				custom_data_offset = CustomData_get_offset(&bm->pdata, CD_FACEMAP);
+				if (custom_data_offset == -1) {
+					continue;
+				}
+				else {
+					gset_array[ob_index] = BLI_gset_ptr_new("Select similar face: facemap gset");
+				}
+			}
+		}
+
+		BMFace *face; /* Mesh face. */
+		BMIter iter; /* Selected faces iterator. */
+
+		BM_ITER_MESH (face, &iter, bm, BM_FACES_OF_MESH) {
+			if (BM_elem_flag_test(face, BM_ELEM_SELECT)) {
+				switch (type) {
+					case SIMFACE_SIDES:
+						BLI_gset_add(gset, POINTER_FROM_INT(face->len));
+						break;
+					case SIMFACE_MATERIAL:
+					{
+						Material *material = (*material_array)[face->mat_nr];
+						if (material != NULL) {
+							BLI_gset_add(gset, material);
+						}
+						break;
+					}
+					case SIMFACE_AREA:
+					{
+						float area = BM_face_calc_area(face);
+						float dummy[3] = {area, 0.0f, 0.0f};
+						BLI_kdtree_insert(tree, tree_index++, dummy);
+						break;
+					}
+					case SIMFACE_PERIMETER:
+					{
+						float perimeter = BM_face_calc_perimeter(face);
+						float dummy[3] = {perimeter, 0.0f, 0.0f};
+						BLI_kdtree_insert(tree, tree_index++, dummy);
+						break;
+						break;
+					}
+					case SIMFACE_NORMAL:
+					{
+						float normal[3];
+						copy_v3_v3(normal, face->no);
+						mul_transposed_mat3_m4_v3(ob->imat, normal);
+						normalize_v3(normal);
+
+						BLI_kdtree_insert(tree, tree_index++, normal);
+						break;
+					}
+					case SIMFACE_COPLANAR:
+					{
+						float dir[3];
+						face_pos_direction_worldspace_scaled_get(ob, face, dir);
+						BLI_kdtree_insert(tree, tree_index++, dir);
+						break;
+					}
+					case SIMFACE_SMOOTH:
+					{
+						if (!face_data_value_set(face, BM_ELEM_SMOOTH, &face_data_value)) {
+							goto face_select_all;
+						}
+						break;
+					}
+					case SIMFACE_FREESTYLE:
+					{
+						FreestyleFace *fface;
+						fface = CustomData_bmesh_get(&bm->pdata, face->head.data, CD_FREESTYLE_FACE);
+						if ((fface == NULL) || ((fface->flag & FREESTYLE_FACE_MARK) == 0)) {
+							face_data_value |= SIMFACE_DATA_FALSE;
+						}
+						else {
+							face_data_value |= SIMFACE_DATA_TRUE;
+						}
+						if (face_data_value == SIMFACE_DATA_ALL) {
+							goto face_select_all;
+						}
+						break;
+					}
+					case SIMFACE_FACEMAP:
+					{
+						BLI_assert(custom_data_offset != -1);
+						int *face_map = BM_ELEM_CD_GET_VOID_P(face, custom_data_offset);
+						BLI_gset_add(gset_array[ob_index], face_map);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	BLI_assert((type != SIMFACE_FREESTYLE) || (face_data_value != SIMFACE_DATA_NONE));
+
+	if (tree != NULL) {
+		BLI_kdtree_balance(tree);
+	}
+
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		BMesh *bm = em->bm;
+		bool changed = false;
+		Material ***material_array = NULL;
+		int custom_data_offset;
+
+		bool has_custom_data_layer = false;
+		switch (type) {
+			case SIMFACE_MATERIAL:
+			{
+				if (ob->totcol == 0) {
+					continue;
+				}
+				material_array = give_matarar(ob);
+				break;
+			}
+			case SIMFACE_FREESTYLE:
+			{
+				has_custom_data_layer = CustomData_has_layer(&bm->pdata, CD_FREESTYLE_FACE);
+				if ((face_data_value == SIMFACE_DATA_TRUE) && !has_custom_data_layer) {
+					continue;
+				}
+				break;
+			}
+			case SIMFACE_FACEMAP:
+			{
+				custom_data_offset = CustomData_get_offset(&bm->pdata, CD_FACEMAP);
+				if (custom_data_offset == -1) {
+					continue;
+				}
+			}
+		}
+		
+		BMFace *face; /* Mesh face. */
+		BMIter iter; /* Selected faces iterator. */
+
+		BM_ITER_MESH (face, &iter, bm, BM_FACES_OF_MESH) {
+			if (!BM_elem_flag_test(face, BM_ELEM_SELECT) &&
+			    !BM_elem_flag_test(face, BM_ELEM_HIDDEN))
+			{
+				bool select = false;
+				switch (type) {
+					case SIMFACE_SIDES:
+					{
+						const int num_sides = face->len;
+						GSetIterator gs_iter;
+						GSET_ITER(gs_iter, gset) {
+							const int num_sides_iter = POINTER_AS_INT(BLI_gsetIterator_getKey(&gs_iter));
+							const int delta_i = num_sides - num_sides_iter;
+							if (mesh_select_similar_compare_int(delta_i, compare)) {
+								select = true;
+								break;
+							}
+						}
+						break;
+					}
+					case SIMFACE_MATERIAL:
+					{
+						const Material *material = (*material_array)[face->mat_nr];
+						if (material == NULL) {
+							continue;
+						}
+
+						GSetIterator gs_iter;
+						GSET_ITER(gs_iter, gset) {
+							const Material *material_iter = BLI_gsetIterator_getKey(&gs_iter);
+							if (material == material_iter) {
+								select = true;
+								break;
+							}
+						}
+						break;
+					}
+					case SIMFACE_AREA:
+					{
+						float area = BM_face_calc_area(face);
+						if (mesh_select_similar_compare_float_tree(tree, area, thresh, compare)) {
+							select = true;
+						}
+						break;
+					}
+					case SIMFACE_PERIMETER:
+					{
+						float perimeter = BM_face_calc_perimeter(face);
+						if (mesh_select_similar_compare_float_tree(tree, perimeter, thresh, compare)) {
+							select = true;
+						}
+						break;
+					}
+					case SIMFACE_NORMAL:
+					{
+						float normal[3];
+						copy_v3_v3(normal, face->no);
+						mul_transposed_mat3_m4_v3(ob->imat, normal);
+						normalize_v3(normal);
+
+						/* We are treating the normals as coordinates, the "nearest" one will
+						 * also be the one closest to the angle. */
+						KDTreeNearest nearest;
+						if (BLI_kdtree_find_nearest(tree, normal, &nearest) != -1) {
+							if (angle_normalized_v3v3(normal, nearest.co) <= thresh_radians) {
+								select = true;
+							}
+						}
+						break;
+					}
+					case SIMFACE_COPLANAR:
+					{
+						float diff[3];
+						float dir[3];
+						face_pos_direction_worldspace_scaled_get(ob, face, dir);
+
+						/* We are treating the direction as coordinates, the "nearest" one will
+						 * also be the one closest to the angle.
+						 * And since the direction is scaled by the face center distance to the origin,
+						 * the nearest point will also be the closest between the planes. */
+						KDTreeNearest nearest;
+						if (BLI_kdtree_find_nearest(tree, dir, &nearest) != -1) {
+							sub_v3_v3v3(diff, dir, nearest.co);
+							if (len_v3(diff) <= thresh) {
+								if (angle_v3v3(dir, nearest.co) <= thresh_radians) {
+									select = true;
+								}
+							}
+						}
+						break;
+					}
+					case SIMFACE_SMOOTH:
+						if ((BM_elem_flag_test(face, BM_ELEM_SMOOTH) != 0) ==
+						    ((face_data_value & SIMFACE_DATA_TRUE) != 0))
+						{
+							select = true;
+						}
+						break;
+					case SIMFACE_FREESTYLE:
+					{
+						FreestyleFace *fface;
+
+						if (!has_custom_data_layer) {
+							BLI_assert(face_data_value == SIMFACE_DATA_FALSE);
+							select = true;
+							break;
+						}
+
+						fface = CustomData_bmesh_get(&bm->pdata, face->head.data, CD_FREESTYLE_FACE);
+						if (((fface != NULL) && (fface->flag & FREESTYLE_FACE_MARK)) ==
+						    ((face_data_value & SIMFACE_DATA_TRUE) != 0))
+						{
+							select = true;
+						}
+						break;
+					}
+					case SIMFACE_FACEMAP:
+					{
+						const int *face_map = BM_ELEM_CD_GET_VOID_P(face, custom_data_offset);
+						GSetIterator gs_iter;
+						GSET_ITER(gs_iter, gset_array[ob_index]) {
+							const int *face_map_iter = BLI_gsetIterator_getKey(&gs_iter);
+							if (*face_map == *face_map_iter) {
+								select = true;
+								break;
+							}
+						}
+						break;
+					}
+				}
+
+				if (select) {
+					BM_face_select_set(bm, face, true);
+					changed = true;
+				}
+			}
+		}
+
+		if (changed) {
+			EDBM_selectmode_flush(em);
+			EDBM_update_generic(em, false, false);
+		}
+	}
+
+	if (false) {
+face_select_all:
+		BLI_assert(ELEM(type,
+		                SIMFACE_SMOOTH,
+		                SIMFACE_FREESTYLE
+		                ));
+
+		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+			Object *ob = objects[ob_index];
+			BMEditMesh *em = BKE_editmesh_from_object(ob);
+			BMesh *bm = em->bm;
+
+			BMFace *face; /* Mesh face. */
+			BMIter iter; /* Selected faces iterator. */
+
+			BM_ITER_MESH (face, &iter, bm, BM_FACES_OF_MESH) {
+				if (!BM_elem_flag_test(face, BM_ELEM_SELECT)) {
+					BM_face_select_set(bm, face, true);
+				}
+			}
+			EDBM_selectmode_flush(em);
+			EDBM_update_generic(em, false, false);
+		}
+	}
+
+	MEM_freeN(objects);
+	BLI_kdtree_free(tree);
+	if (gset != NULL) {
+		BLI_gset_free(gset, NULL);
+	}
+	if (gset_array != NULL) {
+		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+			if (gset_array[ob_index] != NULL) {
+				BLI_gset_free(gset_array[ob_index], NULL);
+			}
+		}
+		MEM_freeN(gset_array);
+	}
 
 	return OPERATOR_FINISHED;
 }
@@ -176,45 +649,416 @@ static int similar_face_select_exec(bContext *C, wmOperator *op)
 /** \name Select Similar Edge
  * \{ */
 
-/* EDGE GROUP */
 
-/* wrap the above function but do selection flushing edge to face */
+/**
+ * Note: This is not normal, but the edge direction itself and always in
+ * a positive quadrant (tries z, y then x).
+ * Therefore we need to use the entire object transformation matrix.
+ */
+static void edge_pos_direction_worldspace_get(Object *ob, BMEdge *edge, float *r_dir)
+{
+	float v1[3], v2[3];
+	copy_v3_v3(v1, edge->v1->co);
+	copy_v3_v3(v2, edge->v2->co);
+
+	mul_m4_v3(ob->obmat, v1);
+	mul_m4_v3(ob->obmat, v2);
+
+	sub_v3_v3v3(r_dir, v1, v2);
+	normalize_v3(r_dir);
+
+	/* Make sure we have a consistent direction that can be checked regardless of
+	 * the verts order of the edges. This spares us from storing dir and -dir in the tree. */
+	if (fabs(r_dir[2]) < FLT_EPSILON) {
+		if (fabs(r_dir[1]) < FLT_EPSILON) {
+			if (r_dir[0] < 0.0f) {
+				mul_v3_fl(r_dir, -1.0f);
+			}
+		}
+		else if (r_dir[1] < 0.0f) {
+			mul_v3_fl(r_dir, -1.0f);
+		}
+	}
+	else if (r_dir[2] < 0.0f) {
+		mul_v3_fl(r_dir, -1.0f);
+	}
+}
+
+static float edge_length_squared_worldspace_get(Object *ob, BMEdge *edge)
+{
+	float v1[3], v2[3];
+
+	mul_v3_mat3_m4v3(v1, ob->obmat, edge->v1->co);
+	mul_v3_mat3_m4v3(v2, ob->obmat, edge->v2->co);
+
+	return len_squared_v3v3(v1, v2);
+}
+
+enum {
+	SIMEDGE_DATA_NONE  = 0,
+	SIMEDGE_DATA_TRUE  = (1 << 0),
+	SIMEDGE_DATA_FALSE = (1 << 1),
+	SIMEDGE_DATA_ALL   = (SIMEDGE_DATA_TRUE | SIMEDGE_DATA_FALSE),
+};
+
+/**
+ * Return true if we still don't know the final value for this edge data.
+ * In other words, if we need to keep iterating over the objects or we can
+ * just go ahead and select all the objects.
+ */
+static bool edge_data_value_set(BMEdge *edge, const int hflag, int *r_value)
+{
+	if (BM_elem_flag_test(edge, hflag)) {
+		*r_value |= SIMEDGE_DATA_TRUE;
+	}
+	else {
+		*r_value |= SIMEDGE_DATA_FALSE;
+	}
+
+	return *r_value != SIMEDGE_DATA_ALL;
+}
+
+/* TODO(dfelinto): `types` that should technically be compared in world space but are not:
+ *  -SIMEDGE_FACE_ANGLE
+ */
 static int similar_edge_select_exec(bContext *C, wmOperator *op)
 {
-	/* TODO (dfelinto) port the edge modes to multi-object. */
-	BKE_report(op->reports, RPT_ERROR, "Select similar not supported for edges at the moment");
-	return OPERATOR_CANCELLED;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 
-	Object *ob = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(ob);
-	BMOperator bmop;
-
-	/* get the type from RNA */
 	const int type = RNA_enum_get(op->ptr, "type");
 	const float thresh = RNA_float_get(op->ptr, "threshold");
+	const float thresh_radians = thresh * (float)M_PI + FLT_EPSILON;
 	const int compare = RNA_enum_get(op->ptr, "compare");
+	int custom_data_type = -1;
 
-	/* initialize the bmop using EDBM api, which does various ui error reporting and other stuff */
-	EDBM_op_init(em, &bmop, op,
-	             "similar_edges edges=%he type=%i thresh=%f compare=%i",
-	             BM_ELEM_SELECT, type, thresh, compare);
+	int tot_edges_selected_all = 0;
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	/* execute the operator */
-	BMO_op_exec(em->bm, &bmop);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		tot_edges_selected_all += em->bm->totedgesel;
+	}
 
-	/* clear the existing selection */
-	EDBM_flag_disable_all(em, BM_ELEM_SELECT);
-
-	/* select the output */
-	BMO_slot_buffer_hflag_enable(em->bm, bmop.slots_out, "edges.out", BM_EDGE, BM_ELEM_SELECT, true);
-	EDBM_selectmode_flush(em);
-
-	/* finish the operator */
-	if (!EDBM_op_finish(em, &bmop, op, true)) {
+	if (tot_edges_selected_all == 0) {
+		BKE_report(op->reports, RPT_ERROR, "No edge selected");
+		MEM_freeN(objects);
 		return OPERATOR_CANCELLED;
 	}
 
-	EDBM_update_generic(em, false, false);
+	KDTree *tree = NULL;
+	GSet *gset = NULL;
+	int edge_data_value = SIMEDGE_DATA_NONE;
+
+	switch (type) {
+		case SIMEDGE_CREASE:
+		case SIMEDGE_BEVEL:
+		case SIMEDGE_FACE_ANGLE:
+		case SIMEDGE_LENGTH:
+		case SIMEDGE_DIR:
+			tree = BLI_kdtree_new(tot_edges_selected_all);
+			break;
+		case SIMEDGE_FACE:
+			gset = BLI_gset_ptr_new("Select similar edge: face");
+			break;
+	}
+
+	switch (type) {
+		case SIMEDGE_CREASE:
+			custom_data_type = CD_CREASE;
+			break;
+		case SIMEDGE_BEVEL:
+			custom_data_type = CD_BWEIGHT;
+			break;
+	}
+
+	int tree_index = 0;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		BMesh *bm = em->bm;
+
+		if (bm->totedgesel == 0) {
+			continue;
+		}
+
+		switch (type) {
+			case SIMEDGE_FREESTYLE:
+			{
+				if (!CustomData_has_layer(&bm->edata, CD_FREESTYLE_EDGE)) {
+					edge_data_value |= SIMEDGE_DATA_FALSE;
+					continue;
+				}
+				break;
+			}
+			case SIMEDGE_CREASE:
+			case SIMEDGE_BEVEL:
+			{
+				if (!CustomData_has_layer(&bm->edata, custom_data_type)) {
+					float dummy[3] = {0.0f, 0.0f, 0.0f};
+					BLI_kdtree_insert(tree, tree_index++, dummy);
+					continue;
+				}
+				break;
+			}
+		}
+
+		BMEdge *edge; /* Mesh edge. */
+		BMIter iter; /* Selected edges iterator. */
+
+		BM_ITER_MESH (edge, &iter, bm, BM_EDGES_OF_MESH) {
+			if (BM_elem_flag_test(edge, BM_ELEM_SELECT)) {
+				switch (type) {
+					case SIMEDGE_FACE:
+						BLI_gset_add(gset, POINTER_FROM_INT(BM_edge_face_count(edge)));
+						break;
+					case SIMEDGE_DIR:
+					{
+						float dir[3];
+						edge_pos_direction_worldspace_get(ob, edge, dir);
+						BLI_kdtree_insert(tree, tree_index++, dir);
+						break;
+					}
+					case SIMEDGE_LENGTH:
+					{
+						float length = edge_length_squared_worldspace_get(ob, edge);
+						float dummy[3] = {length, 0.0f, 0.0f};
+						BLI_kdtree_insert(tree, tree_index++, dummy);
+						break;
+					}
+					case SIMEDGE_FACE_ANGLE:
+					{
+						if (BM_edge_face_count_at_most(edge, 2) == 2) {
+							float angle = BM_edge_calc_face_angle(edge);
+							float dummy[3] = {angle, 0.0f, 0.0f};
+							BLI_kdtree_insert(tree, tree_index++, dummy);
+						}
+						break;
+					}
+					case SIMEDGE_SEAM:
+						if (!edge_data_value_set(edge, BM_ELEM_SEAM, &edge_data_value)) {
+							goto edge_select_all;
+						}
+						break;
+					case SIMEDGE_SHARP:
+						if (!edge_data_value_set(edge, BM_ELEM_SMOOTH, &edge_data_value)) {
+							goto edge_select_all;
+						}
+						break;
+					case SIMEDGE_FREESTYLE:
+					{
+						FreestyleEdge *fedge;
+						fedge = CustomData_bmesh_get(&bm->edata, edge->head.data, CD_FREESTYLE_EDGE);
+						if ((fedge == NULL) || ((fedge->flag & FREESTYLE_EDGE_MARK) == 0)) {
+							edge_data_value |= SIMEDGE_DATA_FALSE;
+						}
+						else {
+							edge_data_value |= SIMEDGE_DATA_TRUE;
+						}
+						if (edge_data_value == SIMEDGE_DATA_ALL) {
+							goto edge_select_all;
+						}
+						break;
+					}
+					case SIMEDGE_CREASE:
+					case SIMEDGE_BEVEL:
+					{
+						const float *value = CustomData_bmesh_get(&bm->edata, edge->head.data, custom_data_type);
+						float dummy[3] = {*value, 0.0f, 0.0f};
+						BLI_kdtree_insert(tree, tree_index++, dummy);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	BLI_assert((type != SIMEDGE_FREESTYLE) || (edge_data_value != SIMEDGE_DATA_NONE));
+
+	if (tree != NULL) {
+		BLI_kdtree_balance(tree);
+	}
+
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *ob = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(ob);
+		BMesh *bm = em->bm;
+		bool changed = false;
+
+		bool has_custom_data_layer = false;
+		switch (type) {
+			case SIMEDGE_FREESTYLE:
+			{
+				has_custom_data_layer = CustomData_has_layer(&bm->edata, CD_FREESTYLE_EDGE);
+				if ((edge_data_value == SIMEDGE_DATA_TRUE) && !has_custom_data_layer) {
+					continue;
+				}
+				break;
+			}
+			case SIMEDGE_CREASE:
+			case SIMEDGE_BEVEL:
+			{
+				has_custom_data_layer = CustomData_has_layer(&bm->edata, custom_data_type);
+				if (!has_custom_data_layer) {
+					/* Proceed only if we have to select all the edges that have custom data value of 0.0f.
+					 * In this case we will just select all the edges.
+					 * Otherwise continue the for loop. */
+					if (!mesh_select_similar_compare_float_tree(tree, 0.0f, thresh, compare)) {
+						continue;
+					}
+				}
+			}
+		}
+
+		BMEdge *edge; /* Mesh edge. */
+		BMIter iter; /* Selected edges iterator. */
+
+		BM_ITER_MESH (edge, &iter, bm, BM_EDGES_OF_MESH) {
+			if (!BM_elem_flag_test(edge, BM_ELEM_SELECT) &&
+			    !BM_elem_flag_test(edge, BM_ELEM_HIDDEN))
+			{
+				bool select = false;
+				switch (type) {
+					case SIMEDGE_FACE:
+					{
+						const int num_faces = BM_edge_face_count(edge);
+						GSetIterator gs_iter;
+						GSET_ITER(gs_iter, gset) {
+							const int num_faces_iter = POINTER_AS_INT(BLI_gsetIterator_getKey(&gs_iter));
+							const int delta_i = num_faces - num_faces_iter;
+							if (mesh_select_similar_compare_int(delta_i, compare)) {
+								select = true;
+								break;
+							}
+						}
+						break;
+					}
+					case SIMEDGE_DIR:
+					{
+						float dir[3];
+						edge_pos_direction_worldspace_get(ob, edge, dir);
+
+						/* We are treating the direction as coordinates, the "nearest" one will
+						 * also be the one closest to the intended direction. */
+						KDTreeNearest nearest;
+						if (BLI_kdtree_find_nearest(tree, dir, &nearest) != -1) {
+							if (angle_normalized_v3v3(dir, nearest.co) <= thresh_radians) {
+								select = true;
+							}
+						}
+						break;
+					}
+					case SIMEDGE_LENGTH:
+					{
+						float length = edge_length_squared_worldspace_get(ob, edge);
+						if (mesh_select_similar_compare_float_tree(tree, length, thresh, compare)) {
+							select = true;
+						}
+						break;
+					}
+					case SIMEDGE_FACE_ANGLE:
+					{
+						if (BM_edge_face_count_at_most(edge, 2) == 2) {
+							float angle = BM_edge_calc_face_angle(edge);
+							if (mesh_select_similar_compare_float_tree(tree, angle, thresh, SIM_CMP_EQ)) {
+								select = true;
+							}
+						}
+						break;
+					}
+					case SIMEDGE_SEAM:
+						if ((BM_elem_flag_test(edge, BM_ELEM_SEAM) != 0) ==
+						    ((edge_data_value & SIMEDGE_DATA_TRUE) != 0))
+						{
+							select = true;
+						}
+						break;
+					case SIMEDGE_SHARP:
+						if ((BM_elem_flag_test(edge, BM_ELEM_SMOOTH) != 0) ==
+						    ((edge_data_value & SIMEDGE_DATA_TRUE) != 0))
+						{
+							select = true;
+						}
+						break;
+					case SIMEDGE_FREESTYLE:
+					{
+						FreestyleEdge *fedge;
+
+						if (!has_custom_data_layer) {
+							BLI_assert(edge_data_value == SIMEDGE_DATA_FALSE);
+							select = true;
+							break;
+						}
+
+						fedge = CustomData_bmesh_get(&bm->edata, edge->head.data, CD_FREESTYLE_EDGE);
+						if (((fedge != NULL) && (fedge->flag & FREESTYLE_EDGE_MARK)) ==
+						    ((edge_data_value & SIMEDGE_DATA_TRUE) != 0))
+						{
+							select = true;
+						}
+						break;
+					}
+					case SIMEDGE_CREASE:
+					case SIMEDGE_BEVEL:
+					{
+						if (!has_custom_data_layer) {
+							select = true;
+							break;
+						}
+
+						const float *value = CustomData_bmesh_get(&bm->edata, edge->head.data, custom_data_type);
+						if (mesh_select_similar_compare_float_tree(tree, *value, thresh, compare)) {
+							select = true;
+						}
+						break;
+					}
+				}
+
+				if (select) {
+					BM_edge_select_set(bm, edge, true);
+					changed = true;
+				}
+			}
+		}
+
+		if (changed) {
+			EDBM_selectmode_flush(em);
+			EDBM_update_generic(em, false, false);
+		}
+	}
+
+	if (false) {
+edge_select_all:
+		BLI_assert(ELEM(type,
+		                SIMEDGE_SEAM,
+		                SIMEDGE_SHARP,
+		                SIMEDGE_FREESTYLE
+		                ));
+
+		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+			Object *ob = objects[ob_index];
+			BMEditMesh *em = BKE_editmesh_from_object(ob);
+			BMesh *bm = em->bm;
+
+			BMEdge *edge; /* Mesh edge. */
+			BMIter iter; /* Selected edges iterator. */
+
+			BM_ITER_MESH (edge, &iter, bm, BM_EDGES_OF_MESH) {
+				if (!BM_elem_flag_test(edge, BM_ELEM_SELECT)) {
+					BM_edge_select_set(bm, edge, true);
+				}
+			}
+			EDBM_selectmode_flush(em);
+			EDBM_update_generic(em, false, false);
+		}
+	}
+
+	MEM_freeN(objects);
+	BLI_kdtree_free(tree);
+	if (gset != NULL) {
+		BLI_gset_free(gset, NULL);
+	}
 
 	return OPERATOR_FINISHED;
 }
@@ -233,11 +1077,6 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 	const float thresh = RNA_float_get(op->ptr, "threshold");
 	const float thresh_radians = thresh * (float)M_PI + FLT_EPSILON;
 	const int compare = RNA_enum_get(op->ptr, "compare");
-
-	if (type == SIMVERT_VGROUP) {
-		BKE_report(op->reports, RPT_ERROR, "Select similar vertex groups not supported at the moment.");
-		return OPERATOR_CANCELLED;
-	}
 
 	int tot_verts_selected_all = 0;
 	uint objects_len = 0;
@@ -266,6 +1105,9 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 		case SIMVERT_FACE:
 			gset = BLI_gset_ptr_new("Select similar vertex: edge/face");
 			break;
+		case SIMVERT_VGROUP:
+			gset = BLI_gset_str_new("Select similar vertex: vertex groups");
+			break;
 	}
 
 	int normal_tree_index = 0;
@@ -273,10 +1115,19 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 		Object *ob = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(ob);
 		BMesh *bm = em->bm;
+		int cd_dvert_offset = -1;
+		int dvert_selected = 0;
 		invert_m4_m4(ob->imat, ob->obmat);
 
 		if (bm->totvertsel == 0) {
 			continue;
+		}
+
+		if (type == SIMVERT_VGROUP) {
+			cd_dvert_offset = CustomData_get_offset(&bm->vdata, CD_MDEFORMVERT);
+			if (cd_dvert_offset == -1) {
+				continue;
+			}
 		}
 
 		BMVert *vert; /* Mesh vertex. */
@@ -301,8 +1152,40 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 						BLI_kdtree_insert(tree, normal_tree_index++, normal);
 						break;
 					}
+					case SIMVERT_VGROUP:
+					{
+						MDeformVert *dvert = BM_ELEM_CD_GET_VOID_P(vert, cd_dvert_offset);
+						MDeformWeight *dw = dvert->dw;
+
+						for (int i = 0; i < dvert->totweight; i++, dw++) {
+							if (dw->weight > 0.0f) {
+								dvert_selected |= (1 << dw->def_nr);
+							}
+						}
+						break;
+					}
 				}
 			}
+		}
+
+		if (type == SIMVERT_VGROUP) {
+			/* We store the names of the vertex groups, so we can select
+			 * vertex groups with the same name in  different objects. */
+			const int dvert_tot = BLI_listbase_count(&ob->defbase);
+			for (int i = 0; i < dvert_tot; i++) {
+				if (dvert_selected & (1 << i)) {
+					bDeformGroup *dg = BLI_findlink(&ob->defbase, i);
+					BLI_gset_add(gset, dg->name);
+				}
+			}
+		}
+	}
+
+	if (type == SIMVERT_VGROUP) {
+		if (BLI_gset_len(gset) == 0) {
+			BKE_report(op->reports,
+			           RPT_INFO,
+			           "No vertex group among the selected vertices");
 		}
 	}
 
@@ -317,12 +1200,40 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 		BMEditMesh *em = BKE_editmesh_from_object(ob);
 		BMesh *bm = em->bm;
 		bool changed = false;
+		int cd_dvert_offset = -1;
+		int dvert_selected = 0;
+
+		if (type == SIMVERT_VGROUP) {
+			cd_dvert_offset = CustomData_get_offset(&bm->vdata, CD_MDEFORMVERT);
+			if (cd_dvert_offset == -1) {
+				continue;
+			}
+
+			/* We map back the names of the vertex groups to their corresponsing indices
+			 * for this object. This is fast, and keep the logic for each vertex very simple. */
+			GSetIterator gs_iter;
+			GSET_ITER(gs_iter, gset) {
+				const char *name = BLI_gsetIterator_getKey(&gs_iter);
+				int vgroup_id = BLI_findstringindex(&ob->defbase,
+				                                    name,
+				                                    offsetof(bDeformGroup, name));
+				if (vgroup_id != -1) {
+					dvert_selected |= (1 << vgroup_id);
+				}
+			}
+			if (dvert_selected == 0) {
+				continue;
+			}
+		}
 
 		BMVert *vert; /* Mesh vertex. */
 		BMIter iter; /* Selected verts iterator. */
 
 		BM_ITER_MESH (vert, &iter, bm, BM_VERTS_OF_MESH) {
-			if (!BM_elem_flag_test(vert, BM_ELEM_SELECT)) {
+			if (!BM_elem_flag_test(vert, BM_ELEM_SELECT) &&
+			    !BM_elem_flag_test(vert, BM_ELEM_HIDDEN))
+			{
+				bool select = false;
 				switch (type) {
 					case SIMVERT_EDGE:
 					{
@@ -331,9 +1242,8 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 						GSET_ITER(gs_iter, gset) {
 							const int num_edges_iter = POINTER_AS_INT(BLI_gsetIterator_getKey(&gs_iter));
 							const int delta_i = num_edges - num_edges_iter;
-							if (bm_sel_similar_cmp_i(delta_i, compare)) {
-								BM_vert_select_set(bm, vert, true);
-								changed = true;
+							if (mesh_select_similar_compare_int(delta_i, compare)) {
+								select = true;
 								break;
 							}
 						}
@@ -346,9 +1256,8 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 						GSET_ITER(gs_iter, gset) {
 							const int num_faces_iter = POINTER_AS_INT(BLI_gsetIterator_getKey(&gs_iter));
 							const int delta_i = num_faces - num_faces_iter;
-							if (bm_sel_similar_cmp_i(delta_i, compare)) {
-								BM_vert_select_set(bm, vert, true);
-								changed = true;
+							if (mesh_select_similar_compare_int(delta_i, compare)) {
+								select = true;
 								break;
 							}
 						}
@@ -366,12 +1275,31 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 						KDTreeNearest nearest;
 						if (BLI_kdtree_find_nearest(tree, normal, &nearest) != -1) {
 							if (angle_normalized_v3v3(normal, nearest.co) <= thresh_radians) {
-								BM_vert_select_set(bm, vert, true);
-								changed = true;
+								select = true;
 							}
 						}
 						break;
 					}
+					case SIMVERT_VGROUP:
+					{
+						MDeformVert *dvert = BM_ELEM_CD_GET_VOID_P(vert, cd_dvert_offset);
+						MDeformWeight *dw = dvert->dw;
+
+						for (int i = 0; i < dvert->totweight; i++, dw++) {
+							if (dw->weight > 0.0f) {
+								if (dvert_selected & (1 << dw->def_nr)) {
+									select = true;
+									break;
+								}
+							}
+						}
+						break;
+					}
+				}
+
+				if (select) {
+					BM_vert_select_set(bm, vert, true);
+					changed = true;
 				}
 			}
 		}

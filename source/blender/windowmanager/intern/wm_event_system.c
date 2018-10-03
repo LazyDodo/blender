@@ -2304,7 +2304,7 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 	/* modal handlers can get removed in this loop, we keep the loop this way
 	 *
 	 * note: check 'handlers->first' because in rare cases the handlers can be cleared
-	 * by the event thats called, for eg:
+	 * by the event that's called, for eg:
 	 *
 	 * Calling a python script which changes the area.type, see [#32232] */
 	for (handler = handlers->first; handler && handlers->first; handler = nexthandler) {
@@ -2440,7 +2440,9 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 					int part;
 					gz = wm_gizmomap_highlight_find(gzmap, C, event, &part);
 					if (wm_gizmomap_highlight_set(gzmap, C, gz, part) && gz != NULL) {
-						WM_tooltip_timer_init(C, CTX_wm_window(C), region, WM_gizmomap_tooltip_init);
+						if (U.flag & USER_TOOLTIPS) {
+							WM_tooltip_timer_init(C, CTX_wm_window(C), region, WM_gizmomap_tooltip_init);
+						}
 					}
 				}
 				else {
@@ -2882,7 +2884,7 @@ void wm_event_do_handlers(bContext *C)
 		bScreen *screen = WM_window_get_active_screen(win);
 		wmEvent *event;
 
-		/* some safty checks - these should always be set! */
+		/* some safety checks - these should always be set! */
 		BLI_assert(WM_window_get_active_scene(win));
 		BLI_assert(WM_window_get_active_screen(win));
 		BLI_assert(WM_window_get_active_workspace(win));

@@ -152,7 +152,7 @@ wmGizmo *wm_gizmogroup_find_intersected_gizmo(
         int *r_part)
 {
 	for (wmGizmo *gz = gzgroup->gizmos.first; gz; gz = gz->next) {
-		if (gz->type->test_select && (gz->flag & WM_GIZMO_HIDDEN) == 0) {
+		if (gz->type->test_select && (gz->flag & (WM_GIZMO_HIDDEN | WM_GIZMO_HIDDEN_SELECT)) == 0) {
 			if ((*r_part = gz->type->test_select(C, gz, event->mval)) != -1) {
 				return gz;
 			}
@@ -168,7 +168,7 @@ wmGizmo *wm_gizmogroup_find_intersected_gizmo(
 void wm_gizmogroup_intersectable_gizmos_to_list(const wmGizmoGroup *gzgroup, ListBase *listbase)
 {
 	for (wmGizmo *gz = gzgroup->gizmos.first; gz; gz = gz->next) {
-		if ((gz->flag & WM_GIZMO_HIDDEN) == 0) {
+		if ((gz->flag & (WM_GIZMO_HIDDEN | WM_GIZMO_HIDDEN_SELECT)) == 0) {
 			if (((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) && (gz->type->draw_select || gz->type->test_select)) ||
 			    ((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) == 0 && gz->type->test_select))
 			{
@@ -381,6 +381,9 @@ static bool gizmo_tweak_start_and_finish(
 			}
 		}
 		else {
+			if (gz->parent_gzgroup->type->invoke_prepare) {
+				gz->parent_gzgroup->type->invoke_prepare(C, gz->parent_gzgroup, gz);
+			}
 			/* Allow for 'button' gizmos, single click to run an action. */
 			WM_operator_name_call_ptr(C, mpop->type, WM_OP_INVOKE_DEFAULT, &mpop->ptr);
 		}

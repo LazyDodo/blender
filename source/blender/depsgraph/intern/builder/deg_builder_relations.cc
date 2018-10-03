@@ -995,11 +995,11 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					/* Standard object relation. */
 					// TODO: loc vs rot vs scale?
 					if (&ct->tar->id == id) {
-						/* Constraint targetting own object:
+						/* Constraint targeting own object:
 						 * - This case is fine IFF we're dealing with a bone
 						 *   constraint pointing to its own armature. In that
 						 *   case, it's just transform -> bone.
-						 * - If however it is a real self targetting case, just
+						 * - If however it is a real self targeting case, just
 						 *   make it depend on the previous constraint (or the
 						 *   pre-constraint state).
 						 */
@@ -1765,7 +1765,7 @@ void DepsgraphRelationBuilder::build_shapekeys(Key *key)
  * ==========================
  *
  * The evaluation of geometry on objects is as follows:
- * - The actual evaluated of the derived geometry (e.g. DerivedMesh, DispList)
+ * - The actual evaluated of the derived geometry (e.g. Mesh, DispList)
  *   occurs in the Geometry component of the object which references this.
  *   This includes modifiers, and the temporary "ubereval" for geometry.
  *   Therefore, each user of a piece of shared geometry data ends up evaluating
@@ -1899,6 +1899,13 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 		add_relation(geom_init_key,
 		             obdata_ubereval_key,
 		             "Object Geometry UberEval");
+		if (object->totcol != 0 && object->type == OB_MESH) {
+			ComponentKey object_shading_key(&object->id, DEG_NODE_TYPE_SHADING);
+			DepsRelation *rel = add_relation(obdata_ubereval_key,
+			                                 object_shading_key,
+			                                 "Object Geometry batch Update");
+			rel->flag |= DEPSREL_FLAG_NO_FLUSH;
+		}
 	}
 	if (object->type == OB_MBALL) {
 		Object *mom = BKE_mball_basis_find(scene_, object);

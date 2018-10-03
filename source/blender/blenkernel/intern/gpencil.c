@@ -458,6 +458,7 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 
 	/* general flags */
 	gpd->flag |= GP_DATA_VIEWALIGN;
+	gpd->flag |= GP_DATA_STROKE_FORCE_RECALC;
 
 	/* GP object specific settings */
 	ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
@@ -1464,6 +1465,11 @@ float BKE_gpencil_multiframe_falloff_calc(bGPDframe *gpf, int actnum, int f_init
 {
 	float fnum = 0.5f; /* default mid curve */
 	float value;
+
+	/* check curve is available */
+	if (cur_falloff == NULL) {
+		return 1.0f;
+	}
 
 	/* frames to the right of the active frame */
 	if (gpf->framenum < actnum) {

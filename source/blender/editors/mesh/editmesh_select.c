@@ -1118,7 +1118,7 @@ bool EDBM_unified_findnearest_from_raycast(
 		BMElem *ele;
 	} best = {0, NULL};
 
-	if (ED_view3d_win_to_ray(
+	if (ED_view3d_win_to_ray_clipped(
 	        vc->depsgraph,
 	        vc->ar, vc->v3d, mval_fl,
 	        ray_origin, ray_direction, true))
@@ -3192,6 +3192,7 @@ static int edbm_select_linked_pick_invoke(bContext *C, wmOperator *op, const wmE
 	DEG_id_tag_update(basact->object->data, DEG_TAG_SELECT_UPDATE);
 	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, basact->object->data);
 
+	MEM_freeN(bases);
 	return OPERATOR_FINISHED;
 }
 

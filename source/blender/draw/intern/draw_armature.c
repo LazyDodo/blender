@@ -286,7 +286,7 @@ static void drw_shgroup_bone_envelope(
 		float fac_head = (len - head_sphere[3]) / len;
 		float fac_tail = (len - tail_sphere[3]) / len;
 
-		/* Small epsilon to avoid problem with float precison in shader. */
+		/* Small epsilon to avoid problem with float precision in shader. */
 		if (len > (tail_sphere[3] + head_sphere[3]) + 1e-8f) {
 
 			copy_v4_v4(tmp_sphere, head_sphere);
@@ -1602,7 +1602,7 @@ static void draw_armature_edit(Object *ob)
 					struct DRWTextStore *dt = DRW_text_cache_ensure();
 					DRW_text_cache_add(
 					        dt, vec, eBone->name, strlen(eBone->name),
-					        10, DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR, color);
+					        10, 0, DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR, color);
 				}
 
 				/*	Draw additional axes */
@@ -1716,7 +1716,7 @@ static void draw_armature_pose(Object *ob, const float const_color[4])
 					struct DRWTextStore *dt = DRW_text_cache_ensure();
 					DRW_text_cache_add(
 					        dt, vec, pchan->name, strlen(pchan->name),
-					        10, DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR, color);
+					        10, 0, DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR, color);
 				}
 
 				/*	Draw additional axes */

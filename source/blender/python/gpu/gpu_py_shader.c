@@ -54,6 +54,7 @@ static void bpygpu_shader_add_enum_objects(PyObject *submodule)
 	PY_DICT_ADD_INT(GPU_SHADER_2D_UNIFORM_COLOR);
 	PY_DICT_ADD_INT(GPU_SHADER_2D_FLAT_COLOR);
 	PY_DICT_ADD_INT(GPU_SHADER_2D_SMOOTH_COLOR);
+	PY_DICT_ADD_INT(GPU_SHADER_2D_IMAGE);
 	PY_DICT_ADD_INT(GPU_SHADER_3D_UNIFORM_COLOR);
 	PY_DICT_ADD_INT(GPU_SHADER_3D_FLAT_COLOR);
 	PY_DICT_ADD_INT(GPU_SHADER_3D_SMOOTH_COLOR);
@@ -84,10 +85,6 @@ static int bpygpu_pyLong_as_shader_enum(PyObject *o)
 
 static PyObject *bpygpu_shader_new(PyTypeObject *UNUSED(type), PyObject *args, PyObject *kwds)
 {
-	static const char *kwlist[] = {
-	        "vertexcode", "fragcode", "geocode",
-	        "libcode", "defines", NULL};
-
 	struct {
 		const char *vertexcode;
 		const char *fragcode;
@@ -96,8 +93,13 @@ static PyObject *bpygpu_shader_new(PyTypeObject *UNUSED(type), PyObject *args, P
 		const char *defines;
 	} params = {0};
 
-	if (!PyArg_ParseTupleAndKeywords(
-	        args, kwds, "ss|$sss:GPUShader.__new__", (char **)kwlist,
+	static const char *_keywords[] = {
+	        "vertexcode", "fragcode", "geocode",
+	        "libcode", "defines", NULL};
+
+	static _PyArg_Parser _parser = {"ss|$sss:GPUShader.__new__", _keywords, 0};
+	if (!_PyArg_ParseTupleAndKeywordsFast(
+	        args, kwds, &_parser,
 	        &params.vertexcode, &params.fragcode, &params.geocode,
 	        &params.libcode, &params.defines))
 	{
@@ -118,7 +120,7 @@ static PyObject *bpygpu_shader_new(PyTypeObject *UNUSED(type), PyObject *args, P
 		return NULL;
 	}
 
-	return BPyGPUShader_CreatePyObject(shader);
+	return BPyGPUShader_CreatePyObject(shader, false);
 }
 
 PyDoc_STRVAR(bpygpu_shader_bind_doc,
@@ -322,6 +324,34 @@ static PyObject *bpygpu_shader_uniform_vector_int(
 	Py_RETURN_NONE;
 }
 
+PyDoc_STRVAR(bpygpu_shader_uniform_float_doc,
+	".. method:: uniform_float(location, value)\n"
+	"\n"
+	"   Set uniform value.\n"
+	"\n"
+	"   :param location: builtin identifier.\n"
+	"   :type location: `int`\n"
+	"   :param value: uniform value.\n"
+	"   :type value: `float`\n"
+);
+static PyObject *bpygpu_shader_uniform_float(
+	BPyGPUShader *self, PyObject *args)
+{
+	int location;
+	float value;
+
+	if (!PyArg_ParseTuple(
+	            args, "if:GPUShader.uniform_float",
+	            &location, &value))
+	{
+		return NULL;
+	}
+
+	GPU_shader_uniform_float(self->shader, location, value);
+
+	Py_RETURN_NONE;
+}
+
 PyDoc_STRVAR(bpygpu_shader_uniform_int_doc,
 ".. method:: uniform_int(location, value)\n"
 "\n"
@@ -329,7 +359,7 @@ PyDoc_STRVAR(bpygpu_shader_uniform_int_doc,
 "\n"
 "   :param location: builtin identifier.\n"
 "   :type location: `int`\n"
-"   :param value: builtin identifier.\n"
+"   :param value: uniform value.\n"
 "   :type value: `int`\n"
 );
 static PyObject *bpygpu_shader_uniform_int(
@@ -407,6 +437,9 @@ static struct PyMethodDef bpygpu_shader_methods[] = {
 	{"uniform_vector_int",
 	 (PyCFunction)bpygpu_shader_uniform_vector_int,
 	 METH_VARARGS, bpygpu_shader_uniform_vector_int_doc},
+	{"uniform_float",
+	 (PyCFunction)bpygpu_shader_uniform_float,
+	 METH_VARARGS, bpygpu_shader_uniform_float_doc},
 	{"uniform_int",
 	 (PyCFunction)bpygpu_shader_uniform_int,
 	 METH_VARARGS, bpygpu_shader_uniform_int_doc},
@@ -426,7 +459,9 @@ static PyGetSetDef bpygpu_shader_getseters[] = {
 
 static void bpygpu_shader_dealloc(BPyGPUShader *self)
 {
-	GPU_shader_free(self->shader);
+	if (self->is_builtin == false) {
+		GPU_shader_free(self->shader);
+	}
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -512,7 +547,7 @@ static PyObject *bpygpu_shader_from_builtin(PyObject *UNUSED(self), PyObject *ar
 
 	GPUShader *shader = GPU_shader_get_builtin_shader(shader_id);
 
-	return BPyGPUShader_CreatePyObject(shader);
+	return BPyGPUShader_CreatePyObject(shader, true);
 }
 
 PyDoc_STRVAR(bpygpu_shader_code_from_builtin_doc,
@@ -607,12 +642,13 @@ static PyModuleDef BPyGPU_shader_builtin_module_def = {
 /** \name Public API
  * \{ */
 
-PyObject *BPyGPUShader_CreatePyObject(GPUShader *shader)
+PyObject *BPyGPUShader_CreatePyObject(GPUShader *shader, bool is_builtin)
 {
 	BPyGPUShader *self;
 
 	self = PyObject_New(BPyGPUShader, &BPyGPUShader_Type);
 	self->shader = shader;
+	self->is_builtin = is_builtin;
 
 	return (PyObject *)self;
 }
