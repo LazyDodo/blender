@@ -1313,13 +1313,13 @@ static void rigidbody_update_sim_ob(Depsgraph *depsgraph, Scene *scene, RigidBod
 		RB_shape_set_margin(rbo->shared->physics_shape, RBO_GET_MARGIN(rbo) * MIN3(scale[0], scale[1], scale[2]));
 
 	/* make transformed objects temporarily kinmatic so that they can be moved by the user during simulation */
-	if (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ) {
+	if (ob->transflag & OB_PHYS_MOVING) {
 		RB_body_set_kinematic_state(rbo->shared->physics_object, true);
 		RB_body_set_mass(rbo->shared->physics_object, 0.0f);
 	}
 
 	/* update rigid body location and rotation for kinematic bodies */
-	if (rbo->flag & RBO_FLAG_KINEMATIC || (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
+	if (rbo->flag & RBO_FLAG_KINEMATIC || (ob->transflag & OB_PHYS_MOVING)) {
 		RB_body_activate(rbo->shared->physics_object);
 		RB_body_set_loc_rot(rbo->shared->physics_object, loc, rot);
 	}
@@ -1484,19 +1484,22 @@ static void rigidbody_update_simulation(Depsgraph *depsgraph, Scene *scene, Rigi
 
 static void rigidbody_update_simulation_post_step(Depsgraph *depsgraph, RigidBodyWorld *rbw)
 {
-	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
-
 	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, ob)
 	{
-		Base *base = BKE_view_layer_base_find(view_layer, ob);
 		RigidBodyOb *rbo = ob->rigidbody_object;
 		/* Reset kinematic state for transformed objects. */
-		if (rbo && base && (base->flag & BASE_SELECTED) && (G.moving & G_TRANSFORM_OBJ)) {
-			RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC || rbo->flag & RBO_FLAG_DISABLED);
-			RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
-			/* Deactivate passive objects so they don't interfere with deactivation of active objects. */
-			if (rbo->type == RBO_TYPE_PASSIVE)
-				RB_body_deactivate(rbo->shared->physics_object);
+		if (rbo) {
+			if (ob->transflag & OB_PHYS_MOVING) {
+				RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC || rbo->flag & RBO_FLAG_DISABLED);
+				RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
+				/* Deactivate passive objects so they don't interfere with deactivation of active objects. */
+				if (rbo->type == RBO_TYPE_PASSIVE)
+					RB_body_deactivate(rbo->shared->physics_object);
+			}
+			else if (rbo->type == RBO_TYPE_ACTIVE) {
+				RB_body_get_position(rbo->shared->physics_object, rbo->pos);
+				RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
+			}
 		}
 	}
 	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
@@ -1517,7 +1520,7 @@ void BKE_rigidbody_sync_transforms(RigidBodyWorld *rbw, Object *ob, float ctime)
 		return;
 
 	/* use rigid body transform after cache start frame if objects is not being transformed */
-	if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
+	if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->transflag & OB_PHYS_MOVING)) {
 		float mat[4][4], size_mat[4][4], size[3];
 
 		normalize_qt(rbo->orn); // RB_TODO investigate why quaternion isn't normalized at this point

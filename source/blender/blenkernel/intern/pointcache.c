@@ -1295,8 +1295,11 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int UNUS
 
 		if (rbo->type == RBO_TYPE_ACTIVE) {
 #ifdef WITH_BULLET
-			RB_body_get_position(rbo->shared->physics_object, rbo->pos);
-			RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);
+			/* retrieving physics sim position should not be dependent on caching,
+			 * moved to rigidbody_update_simulation_post_step()
+			 */
+			/*RB_body_get_position(rbo->shared->physics_object, rbo->pos);*/
+			/*RB_body_get_orientation(rbo->shared->physics_object, rbo->orn);*/
 #endif
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_LOCATION, rbo->pos);
 			PTCACHE_DATA_FROM(data, BPHYS_DATA_ROTATION, rbo->orn);

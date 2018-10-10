@@ -5650,7 +5650,8 @@ static void ObjectToTransData(TransInfo *t, TransData *td, Object *ob)
 
 		/* only use rigid body transform if simulation is running, avoids problems with initial setup of rigid bodies */
 		if (BKE_rigidbody_check_sim_running(scene->rigidbody_world, ctime)) {
-
+			/* remember that this object is moving to make it static in simulation */
+			ob->transflag |= OB_PHYS_MOVING;
 			/* save original object transform */
 			copy_v3_v3(td->ext->oloc, ob->loc);
 
@@ -6784,6 +6785,8 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			ListBase pidlist;
 			PTCacheID *pid;
 			ob = td->ob;
+			/* reset this temp flag when the transformation ends */
+			ob->transflag &= ~OB_PHYS_MOVING;
 
 			if (td->flag & TD_NOACTION)
 				break;

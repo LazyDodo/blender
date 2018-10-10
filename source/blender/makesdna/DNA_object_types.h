@@ -419,6 +419,7 @@ enum {
 	OB_RENDER_DUPLI     = 1 << 12,
 	OB_NO_CONSTRAINTS   = 1 << 13,  /* runtime constraints disable */
 	OB_NO_PSYS_UPDATE   = 1 << 14,  /* hack to work around particle issue */
+	OB_PHYS_MOVING      = 1 << 15,  /* hack to set object static when moving by transform */
 
 	OB_DUPLI            = OB_DUPLIFRAMES | OB_DUPLIVERTS | OB_DUPLICOLLECTION | OB_DUPLIFACES | OB_DUPLIPARTS,
 };
