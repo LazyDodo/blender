@@ -1661,6 +1661,24 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	PTCacheID pid;
 	int startframe, endframe;
 
+	if (scene->flag & SCE_INTERACTIVE) {
+		/* No caching when in interactive mode */
+		if (rbw->shared->physics_world == NULL)
+			return;
+		else if (rbw->objects == NULL)
+			rigidbody_update_ob_array(rbw);
+
+		rigidbody_update_simulation(depsgraph, scene, rbw, false);
+
+		/* TODO: get the actual time difference from previous step so that the physics simulation is real time */
+		timestep = 1.0f / (float)FPS * rbw->time_scale;
+		/* step simulation by the requested timestep, steps per second are adjusted to take time scale into account */
+		RB_dworld_step_simulation(rbw->shared->physics_world, timestep, INT_MAX, 1.0f / (float)rbw->steps_per_second * min_ff(rbw->time_scale, 1.0f));
+
+		rigidbody_update_simulation_post_step(depsgraph, rbw);
+		return;
+	}
+
 	BKE_ptcache_id_from_rigidbody(&pid, NULL, rbw);
 	BKE_ptcache_id_time(&pid, scene, ctime, &startframe, &endframe, NULL);
 	cache = rbw->shared->pointcache;

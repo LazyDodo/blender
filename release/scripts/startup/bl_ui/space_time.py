@@ -38,6 +38,8 @@ class TIME_HT_editor_buttons(Header):
 
         layout.separator_spacer()
 
+        layout.prop(scene, "use_interactive_mode", text="", icon='GAME', toggle=True)
+
         layout.prop(toolsettings, "use_keyframe_insert_auto", text="", toggle=True)
 
         row = layout.row(align=True)

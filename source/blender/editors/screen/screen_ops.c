@@ -3882,6 +3882,7 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
 		ScrArea *sa;
 		int sync;
 		float time;
+		int pfra = scene->r.cfra;
 
 		/* sync, don't sync, or follow scene setting */
 		if (sad->flag & ANIMPLAY_FLAG_SYNC) sync = 1;
@@ -3939,7 +3940,10 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
 		/* reset 'jumped' flag before checking if we need to jump... */
 		sad->flag &= ~ANIMPLAY_FLAG_JUMPED;
 
-		if (sad->flag & ANIMPLAY_FLAG_REVERSE) {
+		if (scene->flag & SCE_INTERACTIVE) {
+			/* TODO: remember what was the frame increment so that it can be used in physics simulation to stick to real time */
+			scene->r.cfra = pfra;
+		} else if (sad->flag & ANIMPLAY_FLAG_REVERSE) {
 			/* jump back to end? */
 			if (PRVRANGEON) {
 				if (scene->r.cfra < scene->r.psfra) {

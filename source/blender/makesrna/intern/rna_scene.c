@@ -6194,6 +6194,13 @@ void RNA_def_scene(BlenderRNA *brna)
 	                         "(in timeline and when jumping between keyframes)");
 	RNA_def_property_update(prop, NC_SCENE | ND_FRAME, NULL);
 
+	/* Timeline / Interactive mode */
+	prop = RNA_def_property(srna, "use_interactive_mode", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_INTERACTIVE);
+	RNA_def_property_ui_text(prop, "Run interactive mode for physics",
+	                         "The scene frame is no longer incrementing (and thus animation is stopped) but the physics engine still executes");
+	RNA_def_property_update(prop, NC_SCENE | ND_FRAME, NULL);
+
 	/* Stamp */
 	prop = RNA_def_property(srna, "use_stamp_note", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "r.stamp_udata");
