@@ -50,7 +50,10 @@ ccl_device bool BVH_FUNCTION_FULL_NAME(OBVH)(KernelGlobals *kg,
 	int object = OBJECT_NONE;
 	float isect_t = ray->t;
 
-	local_isect->num_hits = 0;
+	if(local_isect != NULL) {
+		local_isect->num_hits = 0;
+	}
+	kernel_assert((local_isect == NULL) == (max_hits == 0));
 
 	const int object_flag = kernel_tex_fetch(__object_flag, local_object);
 	if(!(object_flag & SD_OBJECT_TRANSFORM_APPLIED)) {
@@ -69,12 +72,6 @@ ccl_device bool BVH_FUNCTION_FULL_NAME(OBVH)(KernelGlobals *kg,
 #endif
 		object = local_object;
 	}
-
-#ifndef __KERNEL_SSE41__
-	if(!isfinite(P.x)) {
-		return false;
-	}
-#endif
 
 	avxf tnear(0.0f), tfar(isect_t);
 #if BVH_FEATURE(BVH_HAIR)

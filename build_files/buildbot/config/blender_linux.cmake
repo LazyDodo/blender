@@ -1,6 +1,6 @@
 # ######## Global feature set settings ########
 
-include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_full.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_release.cmake")
 
 # Detect which libc we'll be linking against.
 # Some of the paths will depend on this
@@ -87,7 +87,7 @@ set(SNDFILE_LIBRARY          "/usr/lib${MULTILIB}/libsndfile.a;/usr/lib${MULTILI
 
 # OpenAL libraries
 set(OPENAL_ROOT_DIR           "/opt/lib/openal" CACHE STRING "" FORCE)
-set(OPENAL_INCLUDE_DIR        "${OPENAL_ROOT_DIR}/include" CACHE STRING "" FORCE)
+set(OPENAL_INCLUDE_DIR        "${OPENAL_ROOT_DIR}/include/AL" CACHE STRING "" FORCE)
 set(OPENAL_LIBRARY
 	${OPENAL_ROOT_DIR}/lib/libopenal.a
 	${OPENAL_ROOT_DIR}/lib/libcommon.a
@@ -172,16 +172,13 @@ set(PYTHON_VERSION    3.7 CACHE BOOL "" FORCE)
 
 set(Boost_USE_STATIC_LIBS    ON CACHE BOOL "" FORCE)
 
-# Force using our precompiled openjpeg library.
-#
-# Also, FindOpenJPEG is stupid and is not aware about library called libopenjp2.
-set(WITH_SYSTEM_OPENJPEG     ON CACHE BOOL "" FORCE)
-set(OPENJPEG_LIBRARY "${LIBDIR}/openjpeg/lib/libopenjp2.a" CACHE BOOL "" FORCE)
-
+# We need to link OpenCOLLADA against PCRE library. Even though it is not installed
+# on /usr, we do not really care -- all we care is PCRE_FOUND be TRUE and its
+# library pointing to a valid one.
 set(PCRE_INCLUDE_DIR          "/usr/include"                        CACHE STRING "" FORCE)
 set(PCRE_LIBRARY              "${LIBDIR}/opencollada/lib/libpcre.a" CACHE STRING "" FORCE)
 
 endif()
 
 # Additional linking libraries
-set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++"  CACHE STRING "" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++ -no-pie"  CACHE STRING "" FORCE)
