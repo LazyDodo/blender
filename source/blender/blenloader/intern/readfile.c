@@ -340,12 +340,6 @@ static void oldnewmap_insert(OldNewMap *onm, const void *oldaddr, void *newaddr,
 
 	if (oldaddr==NULL || newaddr==NULL) return;
 
-	for (int i = 0; i < onm->nentries; i++) {
-		if (onm->entries[i].old == oldaddr && onm->entries[i].newp != newaddr) {
-			abort();
-		}
-	}
-
 	if (UNLIKELY(onm->nentries == onm->entriessize)) {
 		onm->entriessize *= 2;
 		onm->entries = MEM_reallocN(onm->entries, sizeof(*onm->entries) * onm->entriessize);
@@ -2681,6 +2675,7 @@ static void direct_link_fcurves(FileData *fd, ListBase *list)
 
 			/* compiled expression data will need to be regenerated (old pointer may still be set here) */
 			driver->expr_comp = NULL;
+			driver->expr_simple = NULL;
 
 			/* give the driver a fresh chance - the operating environment may be different now
 			 * (addons, etc. may be different) so the driver namespace may be sane now [#32155]
@@ -2955,15 +2950,13 @@ static void lib_link_workspaces(FileData *fd, Main *bmain)
 		id_us_ensure_real(id);
 
 		for (WorkSpaceLayout *layout = layouts->first, *layout_next; layout; layout = layout_next) {
-			bScreen *screen = newlibadr(fd, id->lib, BKE_workspace_layout_screen_get(layout));
+			layout->screen = newlibadr_us(fd, id->lib, layout->screen);
 
 			layout_next = layout->next;
-			if (screen) {
-				BKE_workspace_layout_screen_set(layout, screen);
-
+			if (layout->screen) {
 				if (ID_IS_LINKED(id)) {
-					screen->winid = 0;
-					if (screen->temp) {
+					layout->screen->winid = 0;
+					if (layout->screen->temp) {
 						/* delete temp layouts when appending */
 						BKE_workspace_layout_remove(bmain, workspace, layout);
 					}
@@ -3553,7 +3546,7 @@ static void lib_link_pose(FileData *fd, Main *bmain, Object *ob, bPose *pose)
 	bool rebuild = false;
 
 	if (fd->memfile == NULL) {
-		if (ob->proxy || (ob->id.lib==NULL && arm->id.lib)) {
+		if (ob->proxy || ob->id.lib != arm->id.lib) {
 			rebuild = true;
 		}
 	}
@@ -3634,6 +3627,9 @@ static void direct_link_bones(FileData *fd, Bone *bone)
 	bone->parent = newdataadr(fd, bone->parent);
 	bone->prop = newdataadr(fd, bone->prop);
 	IDP_DirectLinkGroup_OrFree(&bone->prop, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
+
+	bone->bbone_next = newdataadr(fd, bone->bbone_next);
+	bone->bbone_prev = newdataadr(fd, bone->bbone_prev);
 
 	bone->flag &= ~BONE_DRAW_ACTIVE;
 
@@ -5172,6 +5168,9 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				smd->domain->tex = NULL;
 				smd->domain->tex_shadow = NULL;
 				smd->domain->tex_flame = NULL;
+				smd->domain->tex_flame_coba = NULL;
+				smd->domain->tex_coba = NULL;
+				smd->domain->tex_field = NULL;
 				smd->domain->tex_velocity_x = NULL;
 				smd->domain->tex_velocity_y = NULL;
 				smd->domain->tex_velocity_z = NULL;
@@ -5205,7 +5204,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				smd->coll = NULL;
 				smd->flow = newdataadr(fd, smd->flow);
 				smd->flow->smd = smd;
-				smd->flow->dm = NULL;
+				smd->flow->mesh = NULL;
 				smd->flow->verts_old = NULL;
 				smd->flow->numverts = 0;
 				smd->flow->psys = newdataadr(fd, smd->flow->psys);
@@ -5218,7 +5217,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 					smd->coll->smd = smd;
 					smd->coll->verts_old = NULL;
 					smd->coll->numverts = 0;
-					smd->coll->dm = NULL;
+					smd->coll->mesh = NULL;
 				}
 				else {
 					smd->type = 0;
@@ -5234,7 +5233,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 			if (pmd->canvas) {
 				pmd->canvas = newdataadr(fd, pmd->canvas);
 				pmd->canvas->pmd = pmd;
-				pmd->canvas->dm = NULL;
+				pmd->canvas->mesh = NULL;
 				pmd->canvas->flags &= ~MOD_DPAINT_BAKING; /* just in case */
 
 				if (pmd->canvas->surfaces.first) {
@@ -5257,7 +5256,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				pmd->brush->psys = newdataadr(fd, pmd->brush->psys);
 				pmd->brush->paint_ramp = newdataadr(fd, pmd->brush->paint_ramp);
 				pmd->brush->vel_ramp = newdataadr(fd, pmd->brush->vel_ramp);
-				pmd->brush->dm = NULL;
+				pmd->brush->mesh = NULL;
 			}
 		}
 		else if (md->type == eModifierType_Collision) {
@@ -5771,6 +5770,9 @@ static void lib_link_view_layer(FileData *fd, Library *lib, ViewLayer *view_laye
 		if (base->object == NULL) {
 			/* Free in case linked object got lost. */
 			BLI_freelinkN(&view_layer->object_bases, base);
+			if (view_layer->basact == base) {
+				view_layer->basact = NULL;
+			}
 		}
 	}
 
@@ -6244,7 +6246,6 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 	sce->depsgraph_hash = NULL;
 	sce->fps_info = NULL;
 	sce->customdata_mask_modal = 0;
-	sce->lay_updated = 0;
 
 	BKE_sound_create_scene(sce);
 
@@ -7255,7 +7256,6 @@ static void lib_link_screen(FileData *fd, Main *main)
 	for (bScreen *sc = main->screen.first; sc; sc = sc->id.next) {
 		if (sc->id.tag & LIB_TAG_NEED_LINK) {
 			IDP_LibLinkProperty(sc->id.properties, fd);
-			id_us_ensure_real(&sc->id);
 
 			/* deprecated, but needed for versioning (will be NULL'ed then) */
 			sc->scene = newlibadr(fd, sc->id.lib, sc->scene);
@@ -8944,6 +8944,9 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 	link_list(fd, &user->uistyles);
 
+	/* Don't read the active app template, use the default one. */
+	user->app_template[0] = '\0';
+
 	/* free fd->datamap again */
 	oldnewmap_free_unused(fd->datamap);
 	oldnewmap_clear(fd->datamap);
@@ -10223,6 +10226,7 @@ void BLO_expand_main(void *fdhandle, Main *mainvar)
 							break;
 						case ID_WS:
 							expand_workspace(fd, mainvar, (WorkSpace *)id);
+							break;
 						default:
 							break;
 					}

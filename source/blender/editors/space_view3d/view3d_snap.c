@@ -93,10 +93,13 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 			obedit = objects[ob_index];
-			BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-			if (em->bm->totvertsel == 0) {
-				continue;
+			if (obedit->type == OB_MESH) {
+				BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+				if (em->bm->totvertsel == 0) {
+					continue;
+				}
 			}
 
 			if (ED_transverts_check_obedit(obedit)) {
@@ -268,10 +271,13 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 			obedit = objects[ob_index];
-			BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-			if (em->bm->totvertsel == 0) {
-				continue;
+			if (obedit->type == OB_MESH) {
+				BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+				if (em->bm->totvertsel == 0) {
+					continue;
+				}
 			}
 
 			if (ED_transverts_check_obedit(obedit)) {
@@ -321,11 +327,11 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 
 			for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 				if ((pchan->bone->flag & BONE_SELECTED) &&
-					(PBONE_VISIBLE(arm, pchan->bone)) &&
-					/* if the bone has a parent and is connected to the parent,
-					 * don't do anything - will break chain unless we do auto-ik.
-					 */
-					(pchan->bone->flag & BONE_CONNECTED) == 0)
+				    (PBONE_VISIBLE(arm, pchan->bone)) &&
+				    /* if the bone has a parent and is connected to the parent,
+				     * don't do anything - will break chain unless we do auto-ik.
+				     */
+				    (pchan->bone->flag & BONE_CONNECTED) == 0)
 				{
 					pchan->bone->flag |= BONE_TRANSFORM;
 				}
@@ -336,9 +342,9 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 
 			for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 				if ((pchan->bone->flag & BONE_TRANSFORM) &&
-					/* check that our parents not transformed (if we have one) */
-					((pchan->bone->parent &&
-					  BKE_armature_bone_flag_test_recursive(pchan->bone->parent, BONE_TRANSFORM)) == 0))
+				    /* check that our parents not transformed (if we have one) */
+				    ((pchan->bone->parent &&
+				      BKE_armature_bone_flag_test_recursive(pchan->bone->parent, BONE_TRANSFORM)) == 0))
 				{
 					/* Get position in pchan (pose) space. */
 					float cursor_pose[3];
@@ -621,10 +627,14 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
 		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 			obedit = objects[ob_index];
-			BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-			if (em->bm->totvertsel == 0) {
-				continue;
+			/* We can do that quick check for meshes only... */
+			if (obedit->type == OB_MESH) {
+				BMEditMesh *em = BKE_editmesh_from_object(obedit);
+
+				if (em->bm->totvertsel == 0) {
+					continue;
+				}
 			}
 
 			if (ED_transverts_check_obedit(obedit)) {
@@ -758,10 +768,8 @@ static bool snap_calc_active_center(bContext *C, const bool select_only, float r
 	Object *obedit = CTX_data_edit_object(C);
 
 	if (obedit) {
-		Object *ob_edit_eval = DEG_get_evaluated_object(depsgraph, obedit);
-
-		if (ED_object_editmode_calc_active_center(ob_edit_eval, select_only, r_center)) {
-			mul_m4_v3(ob_edit_eval->obmat, r_center);
+		if (ED_object_editmode_calc_active_center(obedit, select_only, r_center)) {
+			mul_m4_v3(obedit->obmat, r_center);
 			return true;
 		}
 	}

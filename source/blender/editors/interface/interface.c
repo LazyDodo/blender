@@ -80,6 +80,7 @@
 #include "BPY_extern.h"
 
 #include "ED_screen.h"
+#include "ED_numinput.h"
 
 #include "IMB_colormanagement.h"
 
@@ -1216,8 +1217,12 @@ static void ui_menu_block_set_keymaps(const bContext *C, uiBlock *block)
 	BLI_assert(block->flag & (UI_BLOCK_LOOP | UI_BLOCK_SHOW_SHORTCUT_ALWAYS));
 
 	/* only do it before bounding */
-	if (block->rect.xmin != block->rect.xmax)
+	if (block->rect.xmin != block->rect.xmax) {
 		return;
+	}
+	if (STREQ(block->name, "splash")) {
+		return;
+	}
 
 	if (block->flag & UI_BLOCK_RADIAL) {
 		for (but = block->buttons.first; but; but = but->next) {
@@ -1232,6 +1237,10 @@ static void ui_menu_block_set_keymaps(const bContext *C, uiBlock *block)
 			if (block->flag & UI_BLOCK_SHOW_SHORTCUT_ALWAYS) {
 				/* Skip icon-only buttons (as used in the toolbar). */
 				if (but->drawstr[0] == '\0') {
+					continue;
+				}
+				else if (((block->flag & UI_BLOCK_POPOVER) == 0) && UI_but_is_tool(but)) {
+					/* For non-popovers, shown in shortcut only (has special shortcut handling code). */
 					continue;
 				}
 			}
@@ -1461,8 +1470,12 @@ void UI_block_draw(const bContext *C, uiBlock *block)
 		ui_draw_popover_back(ar, &style, block, &rect);
 	else if (block->flag & UI_BLOCK_LOOP)
 		ui_draw_menu_back(&style, block, &rect);
-	else if (block->panel)
-		ui_draw_aligned_panel(&style, block, &rect, UI_panel_category_is_visible(ar));
+	else if (block->panel) {
+		bool show_background = ar->alignment != RGN_ALIGN_FLOAT;
+		ui_draw_aligned_panel(
+		        &style, block, &rect,
+		        UI_panel_category_is_visible(ar), show_background);
+	}
 
 	BLF_batch_draw_begin();
 	UI_icon_draw_cache_begin();
@@ -2165,7 +2178,6 @@ void ui_but_convert_to_unit_alt_name(uiBut *but, char *str, size_t maxlen)
 static void ui_get_but_string_unit(uiBut *but, char *str, int len_max, double value, bool pad, int float_precision)
 {
 	UnitSettings *unit = but->block->unit;
-	const bool do_split = (unit->flag & USER_UNIT_OPT_SPLIT) != 0;
 	int unit_type = UI_but_unit_type_get(but);
 	int precision;
 
@@ -2182,9 +2194,9 @@ static void ui_get_but_string_unit(uiBut *but, char *str, int len_max, double va
 		precision = float_precision;
 	}
 
-	bUnit_AsString(
+	bUnit_AsString2(
 	        str, len_max, ui_get_but_scale_unit(but, value), precision,
-	        unit->system, RNA_SUBTYPE_UNIT_VALUE(unit_type), do_split, pad);
+	        RNA_SUBTYPE_UNIT_VALUE(unit_type), unit, pad);
 }
 
 static float ui_get_but_step_unit(uiBut *but, float step_default)
@@ -2394,26 +2406,12 @@ char *ui_but_string_get_dynamic(uiBut *but, int *r_str_size)
 	return str;
 }
 
-#ifdef WITH_PYTHON
-
 static bool ui_set_but_string_eval_num_unit(bContext *C, uiBut *but, const char *str, double *r_value)
 {
-	char str_unit_convert[256];
-	const int unit_type = UI_but_unit_type_get(but);
-
-	BLI_strncpy(str_unit_convert, str, sizeof(str_unit_convert));
-
-	/* ugly, use the draw string to get the value,
-	 * this could cause problems if it includes some text which resolves to a unit */
-	bUnit_ReplaceString(
-	        str_unit_convert, sizeof(str_unit_convert), but->drawstr,
-	        ui_get_but_scale_unit(but, 1.0), but->block->unit->system, RNA_SUBTYPE_UNIT_VALUE(unit_type));
-
-	return BPY_execute_string_as_number(C, str_unit_convert, true, r_value);
+	const UnitSettings *unit = but->block->unit;
+	int type = RNA_SUBTYPE_UNIT_VALUE(UI_but_unit_type_get(but));
+	return user_string_to_number(C, str, unit, type, r_value);
 }
-
-#endif /* WITH_PYTHON */
-
 
 bool ui_but_string_set_eval_num(bContext *C, uiBut *but, const char *str, double *r_value)
 {
@@ -2424,7 +2422,7 @@ bool ui_but_string_set_eval_num(bContext *C, uiBut *but, const char *str, double
 	if (str[0] != '\0') {
 		bool is_unit_but = (ui_but_is_float(but) && ui_but_is_unit(but));
 		/* only enable verbose if we won't run again with units */
-		if (BPY_execute_string_as_number(C, str, is_unit_but == false, r_value)) {
+		if (BPY_execute_string_as_number(C, NULL, str, is_unit_but == false, r_value)) {
 			/* if the value parsed ok without unit conversion this button may still need a unit multiplier */
 			if (is_unit_but) {
 				char str_new[128];
@@ -2939,6 +2937,11 @@ void UI_block_emboss_set(uiBlock *block, char dt)
 	block->dt = dt;
 }
 
+void UI_block_theme_style_set(uiBlock *block, char theme_style)
+{
+	block->theme_style = theme_style;
+}
+
 /**
  * \param but: Button to update.
  * \param validate: When set, this function may change the button value.
@@ -3313,10 +3316,11 @@ static uiBut *ui_def_but(
 
 	if (block->flag & UI_BLOCK_RADIAL) {
 		but->drawflag |= UI_BUT_TEXT_LEFT;
-		if (but->str && but->str[0])
+		if (but->str && but->str[0]) {
 			but->drawflag |= UI_BUT_ICON_LEFT;
+		}
 	}
-	else if ((block->flag & UI_BLOCK_LOOP) ||
+	else if (((block->flag & UI_BLOCK_LOOP) && !ui_block_is_popover(block)) ||
 	         ELEM(but->type,
 	              UI_BTYPE_MENU, UI_BTYPE_TEXT, UI_BTYPE_LABEL,
 	              UI_BTYPE_BLOCK, UI_BTYPE_BUT_MENU, UI_BTYPE_SEARCH_MENU,
@@ -3515,7 +3519,7 @@ static void ui_def_but_rna__menu(bContext *UNUSED(C), uiLayout *layout, void *bu
 static void ui_but_submenu_enable(uiBlock *block, uiBut *but)
 {
 	but->flag |= UI_BUT_ICON_SUBMENU;
-	block->content_hints |= BLOCK_CONTAINS_SUBMENU_BUT;
+	block->content_hints |= UI_BLOCK_CONTAINS_SUBMENU_BUT;
 }
 
 /**
@@ -4223,7 +4227,7 @@ void UI_but_drag_set_value(uiBut *but)
 void UI_but_drag_set_image(uiBut *but, const char *path, int icon, struct ImBuf *imb, float scale, const bool use_free)
 {
 	but->dragtype = WM_DRAG_PATH;
-	ui_def_but_icon(but, icon, 0);  /* no flag UI_HAS_ICON, so icon doesnt draw in button */
+	ui_def_but_icon(but, icon, 0);  /* no flag UI_HAS_ICON, so icon doesn't draw in button */
 	if ((but->dragflag & UI_BUT_DRAGPOIN_FREE)) {
 		MEM_SAFE_FREE(but->dragpoin);
 		but->dragflag &= ~UI_BUT_DRAGPOIN_FREE;
@@ -4543,7 +4547,7 @@ static void operator_enum_search_cb(const struct bContext *C, void *but, const c
 		for (item = item_array; item->identifier; item++) {
 			/* note: need to give the index rather than the identifier because the enum can be freed */
 			if (BLI_strcasestr(item->name, str)) {
-				if (false == UI_search_item_add(items, item->name, SET_INT_IN_POINTER(item->value), item->icon))
+				if (false == UI_search_item_add(items, item->name, POINTER_FROM_INT(item->value), item->icon))
 					break;
 			}
 		}
@@ -4561,7 +4565,7 @@ static void operator_enum_call_cb(struct bContext *UNUSED(C), void *but, void *a
 
 	if (ot) {
 		if (ot->prop) {
-			RNA_property_enum_set(opptr, ot->prop, GET_INT_FROM_POINTER(arg2));
+			RNA_property_enum_set(opptr, ot->prop, POINTER_AS_INT(arg2));
 			/* We do not call op from here, will be called by button code.
 			 * ui_apply_but_funcs_after() (in interface_handlers.c) called this func before checking operators,
 			 * because one of its parameters is the button itself!

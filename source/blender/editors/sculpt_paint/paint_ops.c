@@ -49,6 +49,7 @@
 #include "ED_paint.h"
 #include "ED_screen.h"
 #include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_image.h"
 #include "ED_gpencil.h"
 #include "UI_resources.h"
@@ -539,16 +540,22 @@ static void PAINT_OT_brush_select(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* props */
-	RNA_def_enum(ot->srna, "paint_mode", paint_mode_items, OB_MODE_ACTIVE, "Paint Mode", "");
-	RNA_def_enum(ot->srna, "sculpt_tool", rna_enum_brush_sculpt_tool_items, 0, "Sculpt Tool", "");
-	RNA_def_enum(ot->srna, "vertex_paint_tool", rna_enum_brush_vertex_tool_items, 0, "Vertex Paint Tool", "");
-	RNA_def_enum(ot->srna, "weight_paint_tool", rna_enum_brush_vertex_tool_items, 0, "Weight Paint Tool", "");
-	RNA_def_enum(ot->srna, "texture_paint_tool", rna_enum_brush_image_tool_items, 0, "Texture Paint Tool", "");
+	/* All properties are hidden, so as not to show the redo panel. */
+	prop = RNA_def_enum(ot->srna, "paint_mode", paint_mode_items, OB_MODE_ACTIVE, "Paint Mode", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
+	prop = RNA_def_enum(ot->srna, "sculpt_tool", rna_enum_brush_sculpt_tool_items, 0, "Sculpt Tool", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
+	prop = RNA_def_enum(ot->srna, "vertex_paint_tool", rna_enum_brush_vertex_tool_items, 0, "Vertex Paint Tool", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
+	prop = RNA_def_enum(ot->srna, "weight_paint_tool", rna_enum_brush_vertex_tool_items, 0, "Weight Paint Tool", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
+	prop = RNA_def_enum(ot->srna, "texture_paint_tool", rna_enum_brush_image_tool_items, 0, "Texture Paint Tool", "");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
 
 	prop = RNA_def_boolean(ot->srna, "toggle", 0, "Toggle", "Toggle between two brushes rather than cycling");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 	prop = RNA_def_boolean(ot->srna, "create_missing", 0, "Create Missing", "If the requested brush type does not exist, create a new brush");
-	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 static wmKeyMapItem *keymap_brush_select(
@@ -1381,7 +1388,8 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	keymap = WM_keymap_ensure(keyconf, "Vertex Paint", 0, 0);
 	keymap->poll = vertex_paint_mode_poll;
 
-	WM_keymap_verify_item(keymap, "PAINT_OT_vertex_paint", LEFTMOUSE, KM_PRESS, 0, 0);
+	RNA_enum_set(WM_keymap_add_item(keymap, "PAINT_OT_vertex_paint", LEFTMOUSE, KM_PRESS, 0,        0)->ptr, "mode", BRUSH_STROKE_NORMAL);
+	RNA_enum_set(WM_keymap_add_item(keymap, "PAINT_OT_vertex_paint", LEFTMOUSE, KM_PRESS, KM_CTRL,  0)->ptr, "mode", BRUSH_STROKE_INVERT);
 	WM_keymap_add_item(keymap, "PAINT_OT_brush_colors_flip", XKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "PAINT_OT_sample_color", SKEY, KM_PRESS, 0, 0);
 
@@ -1437,13 +1445,10 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	/*Weight paint's Vertex Selection Mode */
 	keymap = WM_keymap_ensure(keyconf, "Weight Paint Vertex Selection", 0, 0);
 	keymap->poll = vert_paint_poll;
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_vert_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
-	WM_keymap_add_item(keymap, "VIEW3D_OT_select_border", BKEY, KM_PRESS, 0, 0);
+
+	ED_keymap_template_select_all(keymap, "PAINT_OT_vert_select_all");
+
+	WM_keymap_add_item(keymap, "VIEW3D_OT_select_box", BKEY, KM_PRESS, 0, 0);
 	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL, 0);
 	RNA_enum_set(kmi->ptr, "mode", SEL_OP_ADD);
 	kmi = WM_keymap_add_item(keymap, "VIEW3D_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_SHIFT | KM_CTRL, 0);
@@ -1482,12 +1487,8 @@ void ED_keymap_paint(wmKeyConfig *keyconf)
 	keymap = WM_keymap_ensure(keyconf, "Face Mask", 0, 0);
 	keymap->poll = facemask_paint_poll;
 
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "PAINT_OT_face_select_all");
+
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_hide", HKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "unselected", false);
 	kmi = WM_keymap_add_item(keymap, "PAINT_OT_face_select_hide", HKEY, KM_PRESS, KM_SHIFT, 0);

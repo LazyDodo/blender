@@ -236,6 +236,13 @@ static void rna_def_workspace_tool(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_space_type_items);
 	RNA_def_property_ui_text(prop, "Space Type", "");
 
+	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "mode");
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_WorkSpace_tools_mode_itemf");
+	RNA_def_property_ui_text(prop, "Tool Mode", "");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+
 	RNA_define_verify_sdna(0);
 	prop = RNA_def_property(srna, "has_datablock", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
@@ -287,7 +294,7 @@ static void rna_def_workspace(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "WorkSpace");
 	RNA_def_struct_ui_text(srna, "Workspace", "Workspace data-block, defining the working environment for the user");
 	/* TODO: real icon, just to show something */
-	RNA_def_struct_ui_icon(srna, ICON_SPLITSCREEN);
+	RNA_def_struct_ui_icon(srna, ICON_WORKSPACE);
 
 	prop = RNA_def_property(srna, "screens", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "layouts", NULL);
@@ -310,14 +317,14 @@ static void rna_def_workspace(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "tools_space_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "tools_space_type");
 	RNA_def_property_enum_items(prop, rna_enum_space_type_items);
-	RNA_def_property_ui_text(prop, "Active Tool Space", "Tool space type");
+	RNA_def_property_ui_text(prop, "Active Tool Space", "");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "tools_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "tools_mode");
 	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
 	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_WorkSpace_tools_mode_itemf");
-	RNA_def_property_ui_text(prop, "Active Tool Space", "Tool mode");
+	RNA_def_property_ui_text(prop, "Active Tool Mode", "");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "object_mode", PROP_ENUM, PROP_NONE);

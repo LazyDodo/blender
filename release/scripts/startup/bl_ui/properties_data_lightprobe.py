@@ -58,7 +58,6 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        ob = context.object
         probe = context.lightprobe
 
 #        layout.prop(probe, "type")
@@ -94,7 +93,7 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
         sub = col.column()
         sub.prop(probe, "clip_start", text="Clipping Start")
 
-        if probe.type != "PLANAR":
+        if probe.type != 'PLANAR':
             sub.prop(probe, "clip_end", text="End")
 
         if probe.type == 'GRID':
@@ -155,7 +154,7 @@ class DATA_PT_lightprobe_display(DataButtonsPanel, Panel):
         col = layout.column()
 
         if probe.type == 'PLANAR':
-            col.prop(ob, "empty_draw_size", text="Arrow Size")
+            col.prop(ob, "empty_display_size", text="Arrow Size")
             col.prop(probe, "show_data")
 
         if probe.type in {'GRID', 'CUBEMAP'}:

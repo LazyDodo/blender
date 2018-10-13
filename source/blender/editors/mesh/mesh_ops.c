@@ -41,6 +41,7 @@
 #include "ED_mesh.h"
 #include "ED_screen.h"
 #include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 
 #include "mesh_intern.h"  /* own include */
 
@@ -156,7 +157,6 @@ void ED_operatortypes_mesh(void)
 	WM_operatortype_append(MESH_OT_polybuild_face_at_cursor);
 	WM_operatortype_append(MESH_OT_polybuild_split_at_cursor);
 	WM_operatortype_append(MESH_OT_polybuild_dissolve_at_cursor);
-	WM_operatortype_append(MESH_OT_polybuild_hover);
 
 	WM_operatortype_append(MESH_OT_uv_texture_add);
 	WM_operatortype_append(MESH_OT_uv_texture_remove);
@@ -277,7 +277,7 @@ void ED_operatormacros_mesh(void)
 	RNA_boolean_set(otmacro->ptr, "mirror", false);
 
 	ot = WM_operatortype_append_macro("MESH_OT_extrude_region_shrink_fatten", "Extrude Region and Shrink/Fatten",
-	                                  "Extrude region and move result", OPTYPE_UNDO | OPTYPE_REGISTER);
+	                                  "Extrude along normals and move result", OPTYPE_UNDO | OPTYPE_REGISTER);
 	otmacro = WM_operatortype_macro_define(ot, "MESH_OT_extrude_region");
 	otmacro = WM_operatortype_macro_define(ot, "TRANSFORM_OT_shrink_fatten");
 	RNA_enum_set(otmacro->ptr, "proportional", 0);
@@ -306,7 +306,7 @@ void ED_operatormacros_mesh(void)
 
 
 	ot = WM_operatortype_append_macro(
-	        "MESH_OT_polybuild_face_at_cursor_move", "Face At Cursor Move", "",
+	        "MESH_OT_polybuild_face_at_cursor_move", "Face at Cursor Move", "",
 	        OPTYPE_UNDO | OPTYPE_REGISTER);
 	WM_operatortype_macro_define(ot, "MESH_OT_polybuild_face_at_cursor");
 	otmacro = WM_operatortype_macro_define(ot, "TRANSFORM_OT_translate");
@@ -314,7 +314,7 @@ void ED_operatormacros_mesh(void)
 	RNA_boolean_set(otmacro->ptr, "mirror", false);
 
 	ot = WM_operatortype_append_macro(
-	        "MESH_OT_polybuild_split_at_cursor_move", "Split At Cursor Move", "",
+	        "MESH_OT_polybuild_split_at_cursor_move", "Split at Cursor Move", "",
 	        OPTYPE_UNDO | OPTYPE_REGISTER);
 	WM_operatortype_macro_define(ot, "MESH_OT_polybuild_split_at_cursor");
 	otmacro = WM_operatortype_macro_define(ot, "TRANSFORM_OT_translate");
@@ -379,12 +379,7 @@ void ED_keymap_mesh(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "MESH_OT_shortest_path_pick", SELECTMOUSE, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "use_fill", true);
 
-	kmi = WM_keymap_add_item(keymap, "MESH_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "MESH_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "MESH_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "MESH_OT_select_all");
 
 	WM_keymap_add_item(keymap, "MESH_OT_select_more", PADPLUSKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "MESH_OT_select_less", PADMINUS, KM_PRESS, KM_CTRL, 0);

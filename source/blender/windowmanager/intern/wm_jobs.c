@@ -64,12 +64,12 @@
  *   - add timer notifier to handle progress
  *
  * Stop job
- *   - signal job to end
- *  on end, job will tag itself as sleeping
+ * - signal job to end
+ * on end, job will tag itself as sleeping
  *
  * Remove job
  * - signal job to end
- *  on end, job will remove itself
+ * on end, job will remove itself
  *
  * When job is done:
  * - it puts timer to sleep (or removes?)
@@ -175,7 +175,7 @@ static wmJob *wm_job_find(wmWindowManager *wm, void *owner, const int job_type)
 /* ******************* public API ***************** */
 
 /**
- * \return current job or adds new job, but doesnt run it.
+ * \return current job or adds new job, but doesn't run it.
  *
  * \note every owner only gets a single job,
  * adding a new one will stop running job and when stopped it starts the new one.

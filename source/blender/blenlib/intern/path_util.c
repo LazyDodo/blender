@@ -928,6 +928,48 @@ bool BLI_path_frame_check_chars(const char *path)
 }
 
 /**
+ * Creates a display string from path to be used menus and the user interface.
+ * Like bpy.path.display_name().
+ */
+void BLI_path_to_display_name(char *display_name, int maxlen, const char *name)
+{
+	/* Strip leading underscores and spaces. */
+	int strip_offset = 0;
+	while (ELEM(name[strip_offset], '_', ' ')) {
+		strip_offset++;
+	}
+
+	BLI_strncpy(display_name, name + strip_offset, maxlen);
+
+	/* Replace underscores with spaces. */
+	BLI_str_replace_char(display_name, '_', ' ');
+
+	/* Strip extension. */
+	BLI_path_extension_replace(display_name, maxlen, "");
+
+	/* Test if string has any upper case characters. */
+	bool all_lower = true;
+	for (int i = 0; display_name[i]; i++) {
+		if (isupper(display_name[i])) {
+			all_lower = false;
+			break;
+		}
+	}
+
+	if (all_lower) {
+		/* For full lowercase string, use title case. */
+		bool prevspace = true;
+		for (int i = 0; display_name[i]; i++) {
+			if (prevspace) {
+				display_name[i] = toupper(display_name[i]);
+			}
+
+			prevspace = isspace(display_name[i]);
+		}
+	}
+}
+
+/**
  * If path begins with "//", strips that and replaces it with basepath directory.
  *
  * \note Also converts drive-letter prefix to something more sensible
@@ -1095,7 +1137,7 @@ bool BLI_path_program_extensions_add_win32(char *name, const size_t maxlen)
 	if ((type == 0) || S_ISDIR(type)) {
 		/* typically 3-5, ".EXE", ".BAT"... etc */
 		const int ext_max = 12;
-		const char *ext = getenv("PATHEXT");
+		const char *ext = BLI_getenv("PATHEXT");
 		if (ext) {
 			const int name_len = strlen(name);
 			char *filename = alloca(name_len + ext_max);
@@ -1152,7 +1194,7 @@ bool BLI_path_program_search(
 	const char separator = ':';
 #endif
 
-	path = getenv("PATH");
+	path = BLI_getenv("PATH");
 	if (path) {
 		char filename[FILE_MAX];
 		const char *temp;
@@ -1160,12 +1202,12 @@ bool BLI_path_program_search(
 		do {
 			temp = strchr(path, separator);
 			if (temp) {
-				strncpy(filename, path, temp - path);
+				memcpy(filename, path, temp - path);
 				filename[temp - path] = 0;
 				path = temp + 1;
 			}
 			else {
-				strncpy(filename, path, sizeof(filename));
+				BLI_strncpy(filename, path, sizeof(filename));
 			}
 
 			BLI_path_append(filename, maxlen, name);
@@ -1220,9 +1262,26 @@ void BLI_setenv(const char *env, const char *val)
  */
 void BLI_setenv_if_new(const char *env, const char *val)
 {
-	if (getenv(env) == NULL)
+	if (BLI_getenv(env) == NULL)
 		BLI_setenv(env, val);
 }
+
+/**
+* get an env var, result has to be used immediately
+*/
+const char *BLI_getenv(const char *env)
+{
+#ifdef _MSC_VER
+	static char buffer[32767]; /* 32767 is the total size of the environment block on windows*/
+	if (GetEnvironmentVariableA(env, buffer, sizeof(buffer)))
+		return buffer;
+	else
+		return NULL;
+#else
+	return getenv(env);
+#endif
+}
+
 
 /**
  * Strips off nonexistent (or non-accessible) subdirectories from the end of *dir, leaving the path of

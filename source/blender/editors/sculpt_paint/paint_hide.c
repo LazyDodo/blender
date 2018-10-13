@@ -391,8 +391,7 @@ static int hide_show_exec(bContext *C, wmOperator *op)
 
 	clip_planes_from_rect(C, clip_planes, &rect);
 
-	Mesh *me_eval_deform = mesh_get_eval_deform(depsgraph, CTX_data_scene(C), ob, CD_MASK_BAREMESH);
-	pbvh = BKE_sculpt_object_pbvh_ensure(ob, me_eval_deform);
+	pbvh = BKE_sculpt_object_pbvh_ensure(depsgraph, ob);
 	BLI_assert(ob->sculpt->pbvh == pbvh);
 
 	get_pbvh_nodes(pbvh, &nodes, &totnode, clip_planes, area);
@@ -444,7 +443,7 @@ static int hide_show_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	PartialVisArea area = RNA_enum_get(op->ptr, "area");
 
 	if (!ELEM(area, PARTIALVIS_ALL, PARTIALVIS_MASKED))
-		return WM_gesture_border_invoke(C, op, event);
+		return WM_gesture_box_invoke(C, op, event);
 	else
 		return op->type->exec(C, op);
 }
@@ -472,7 +471,7 @@ void PAINT_OT_hide_show(struct wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->invoke = hide_show_invoke;
-	ot->modal = WM_gesture_border_modal;
+	ot->modal = WM_gesture_box_modal;
 	ot->exec = hide_show_exec;
 	/* sculpt-only for now */
 	ot->poll = sculpt_mode_poll_view3d;

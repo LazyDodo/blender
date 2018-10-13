@@ -325,7 +325,7 @@ int area_getorientation(ScrArea *sa, ScrArea *sb)
 }
 
 /* Helper function to join 2 areas, it has a return value, 0=failed 1=success
- *  used by the split, join operators
+ * used by the split, join operators
  */
 int screen_area_join(bContext *C, bScreen *scr, ScrArea *sa1, ScrArea *sa2)
 {
@@ -680,7 +680,7 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 			}
 		}
 
-		/* cursors, for time being set always on edges, otherwise aregion doesnt switch */
+		/* cursors, for time being set always on edges, otherwise aregion doesn't switch */
 		if (scr->active_region == NULL) {
 			screen_cursor_set(win, xy);
 		}

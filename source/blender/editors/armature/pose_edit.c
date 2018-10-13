@@ -193,31 +193,48 @@ static bool pose_has_protected_selected(Object *ob, short warn)
  *
  * To be called from various tools that do incremental updates
  */
-void ED_pose_recalculate_paths(bContext *C, Scene *scene, Object *ob)
+void ED_pose_recalculate_paths(bContext *C, Scene *scene, Object *ob, bool current_frame_only)
 {
-	struct Main *bmain = CTX_data_main(C);
+	/* Transform doesn't always have context available to do update. */
+	if (C == NULL) {
+		return;
+	}
+
+	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ListBase targets = {NULL, NULL};
 	bool free_depsgraph = false;
 
 	/* Override depsgraph with a filtered, simpler copy */
-	if (G.debug_value != -1) {
-		TIMEIT_START(filter_pose_depsgraph);
-		DEG_FilterQuery query = {0};
+	if (!current_frame_only && G.debug_value != -1) {
+		DEG_FilterQuery query = {{0}};
 
 		DEG_FilterTarget *dft_ob = MEM_callocN(sizeof(DEG_FilterTarget), "DEG_FilterTarget");
 		dft_ob->id = &ob->id;
 		BLI_addtail(&query.targets, dft_ob);
 
+#ifdef DEBUG_TIME
+		TIMEIT_START(filter_pose_depsgraph);
+#endif
+
 		depsgraph = DEG_graph_filter(depsgraph, bmain, &query);
-		free_depsgraph = true;
 
-		MEM_freeN(dft_ob);
+#ifdef DEBUG_TIME
 		TIMEIT_END(filter_pose_depsgraph);
+#endif
 
+		free_depsgraph = true;
+		MEM_freeN(dft_ob);
+
+#ifdef DEBUG_TIME
 		TIMEIT_START(filter_pose_update);
+#endif
+
 		BKE_scene_graph_update_tagged(depsgraph, bmain);
+
+#ifdef DEBUG_TIME
 		TIMEIT_END(filter_pose_update);
+#endif
 	}
 
 	/* set flag to force recalc, then grab the relevant bones to target */
@@ -225,14 +242,23 @@ void ED_pose_recalculate_paths(bContext *C, Scene *scene, Object *ob)
 	animviz_get_object_motionpaths(ob, &targets);
 
 	/* recalculate paths, then free */
+#ifdef DEBUG_TIME
 	TIMEIT_START(pose_path_calc);
-	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets);
+#endif
+
+	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets, !free_depsgraph, current_frame_only);
+
+#ifdef DEBUG_TIME
 	TIMEIT_END(pose_path_calc);
+#endif
 
 	BLI_freelistN(&targets);
 
-	/* tag armature object for copy on write - so paths will draw/redraw */
-	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	if (!current_frame_only) {
+		/* Tag armature object for copy on write - so paths will draw/redraw.
+		 * For currently frame only we update evaluated object directly. */
+		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	}
 
 	/* Free temporary depsgraph instance */
 	if (free_depsgraph) {
@@ -290,7 +316,7 @@ static int pose_calculate_paths_exec(bContext *C, wmOperator *op)
 	}
 
 	/* set up path data for bones being calculated */
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+	CTX_DATA_BEGIN_FOR_ID (C, bPoseChannel *, pchan, selected_pose_bones, &ob->id)
 	{
 		/* verify makes sure that the selected bone has a bone with the appropriate settings */
 		animviz_verify_motionpaths(op->reports, scene, ob, pchan);
@@ -303,7 +329,7 @@ static int pose_calculate_paths_exec(bContext *C, wmOperator *op)
 
 	/* calculate the bones that now have motionpaths... */
 	/* TODO: only make for the selected bones? */
-	ED_pose_recalculate_paths(C, scene, ob);
+	ED_pose_recalculate_paths(C, scene, ob, false);
 
 #ifdef DEBUG_TIME
 	TIMEIT_END(recalc_pose_paths);
@@ -364,7 +390,7 @@ static int pose_update_paths_exec(bContext *C, wmOperator *UNUSED(op))
 
 	/* calculate the bones that now have motionpaths... */
 	/* TODO: only make for the selected bones? */
-	ED_pose_recalculate_paths(C, scene, ob);
+	ED_pose_recalculate_paths(C, scene, ob, false);
 
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
@@ -767,30 +793,29 @@ void POSE_OT_flip_names(wmOperatorType *ot)
 static int pose_autoside_names_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
-	bArmature *arm;
 	char newname[MAXBONENAME];
 	short axis = RNA_enum_get(op->ptr, "axis");
-
-	/* paranoia checks */
-	if (ELEM(NULL, ob, ob->pose))
-		return OPERATOR_CANCELLED;
-	arm = ob->data;
+	Object *ob_prev = NULL;
 
 	/* loop through selected bones, auto-naming them */
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+	CTX_DATA_BEGIN_WITH_ID(C, bPoseChannel *, pchan, selected_pose_bones, Object *, ob)
 	{
+		bArmature *arm = ob->data;
 		BLI_strncpy(newname, pchan->name, sizeof(newname));
-		if (bone_autoside_name(newname, 1, axis, pchan->bone->head[axis], pchan->bone->tail[axis]))
+		if (bone_autoside_name(newname, 1, axis, pchan->bone->head[axis], pchan->bone->tail[axis])) {
 			ED_armature_bone_rename(bmain, arm, pchan->name, newname);
+		}
+
+		if (ob_prev != ob) {
+			/* since we renamed stuff... */
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+
+			/* note, notifier might evolve */
+			WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+			ob_prev = ob;
+		}
 	}
 	CTX_DATA_END;
-
-	/* since we renamed stuff... */
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
 
 	return OPERATOR_FINISHED;
 }
@@ -825,19 +850,23 @@ void POSE_OT_autoside_names(wmOperatorType *ot)
 
 static int pose_bone_rotmode_exec(bContext *C, wmOperator *op)
 {
-	Object *ob = CTX_data_active_object(C);
-	int mode = RNA_enum_get(op->ptr, "type");
+	const int mode = RNA_enum_get(op->ptr, "type");
+	Object *prev_ob = NULL;
 
 	/* set rotation mode of selected bones  */
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+	CTX_DATA_BEGIN_WITH_ID (C, bPoseChannel *, pchan, selected_pose_bones, Object *, ob)
 	{
 		pchan->rotmode = mode;
+
+		if (prev_ob != ob) {
+			/* Notifiers and updates. */
+			DEG_id_tag_update((ID *)ob, OB_RECALC_DATA);
+			WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
+			WM_event_add_notifier(C, NC_OBJECT | ND_BONE_SELECT, ob);
+			prev_ob = ob;
+		}
 	}
 	CTX_DATA_END;
-
-	/* notifiers and updates */
-	DEG_id_tag_update((ID *)ob, OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
 
 	return OPERATOR_FINISHED;
 }
@@ -904,8 +933,8 @@ static int pose_armature_layers_showall_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	/* use RNA to set the layers
-	 *  although it would be faster to just set directly using bitflags, we still
-	 *	need to setup a RNA pointer so that we get the "update" callbacks for free...
+	 * although it would be faster to just set directly using bitflags, we still
+	 * need to setup a RNA pointer so that we get the "update" callbacks for free...
 	 */
 	RNA_id_pointer_create(&arm->id, &ptr);
 
@@ -1037,30 +1066,29 @@ static int pose_bone_layers_invoke(bContext *C, wmOperator *op, const wmEvent *e
 /* Set the visible layers for the active armature (edit and pose modes) */
 static int pose_bone_layers_exec(bContext *C, wmOperator *op)
 {
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
 	PointerRNA ptr;
 	bool layers[32]; /* hardcoded for now - we can only have 32 armature layers, so this should be fine... */
-
-	if (ob == NULL || ob->data == NULL) {
-		return OPERATOR_CANCELLED;
-	}
 
 	/* get the values set in the operator properties */
 	RNA_boolean_get_array(op->ptr, "layers", layers);
 
+	Object *prev_ob = NULL;
+
 	/* set layers of pchans based on the values set in the operator props */
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+	CTX_DATA_BEGIN_WITH_ID (C, bPoseChannel *, pchan, selected_pose_bones, Object *, ob)
 	{
 		/* get pointer for pchan, and write flags this way */
 		RNA_pointer_create((ID *)ob->data, &RNA_Bone, pchan->bone, &ptr);
 		RNA_boolean_set_array(&ptr, "layers", layers);
+
+		if (prev_ob != ob) {
+			/* Note, notifier might evolve. */
+			WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+			DEG_id_tag_update((ID *)ob->data, DEG_TAG_COPY_ON_WRITE);
+			prev_ob = ob;
+		}
 	}
 	CTX_DATA_END;
-
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
-	DEG_id_tag_update((ID *)ob->data, DEG_TAG_COPY_ON_WRITE);
-
 	return OPERATOR_FINISHED;
 }
 
@@ -1161,7 +1189,7 @@ void ARMATURE_OT_bone_layers(wmOperatorType *ot)
 static int hide_pose_bone_fn(Object *ob, Bone *bone, void *ptr)
 {
 	bArmature *arm = ob->data;
-	const bool hide_select = (bool)GET_INT_FROM_POINTER(ptr);
+	const bool hide_select = (bool)POINTER_AS_INT(ptr);
 	int count = 0;
 	if (arm->layer & bone->layer) {
 		if (((bone->flag & BONE_SELECTED) != 0) == hide_select) {
@@ -1186,7 +1214,7 @@ static int pose_hide_exec(bContext *C, wmOperator *op)
 	bool changed_multi = false;
 
 	const int hide_select = !RNA_boolean_get(op->ptr, "unselected");
-	void     *hide_select_p = SET_INT_IN_POINTER(hide_select);
+	void     *hide_select_p = POINTER_FROM_INT(hide_select);
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *ob_iter = objects[ob_index];
@@ -1228,7 +1256,7 @@ void POSE_OT_hide(wmOperatorType *ot)
 
 static int show_pose_bone_cb(Object *ob, Bone *bone, void *data)
 {
-	const bool select = GET_INT_FROM_POINTER(data);
+	const bool select = POINTER_AS_INT(data);
 
 	bArmature *arm = ob->data;
 	int count = 0;
@@ -1253,7 +1281,7 @@ static int pose_reveal_exec(bContext *C, wmOperator *op)
 	Object **objects = BKE_object_pose_array_get_unique(view_layer, &objects_len);
 	bool changed_multi = false;
 	const bool select = RNA_boolean_get(op->ptr, "select");
-	void *select_p = SET_INT_IN_POINTER(select);
+	void *select_p = POINTER_FROM_INT(select);
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *ob_iter = objects[ob_index];

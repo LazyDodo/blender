@@ -216,7 +216,7 @@ typedef struct Object {
 	 */
 	float imat_ren[4][4];
 
-	unsigned int lay;	/* copy of Base's layer in the scene */
+	unsigned int lay DNA_DEPRECATED;	/* copy of Base's layer in the scene */
 
 	short flag;			/* copy of Base */
 	short colbits DNA_DEPRECATED;		/* deprecated, use 'matbits' */
@@ -292,7 +292,7 @@ typedef struct Object {
 	struct RigidBodyCon *rigidbody_constraint;	/* settings for Bullet constraint */
 
 	float ima_ofs[2];		/* offset for image empties */
-	ImageUser *iuser;		/* must be non-null when oject is an empty image */
+	ImageUser *iuser;		/* must be non-null when object is an empty image */
 
 	ListBase lodlevels;		/* contains data for levels of detail */
 	LodLevel *currentlod;

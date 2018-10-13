@@ -42,6 +42,8 @@ set(INC_SYS
 set(SRC
 	ed_transverts.c
 	ed_util.c
+	gizmo_utils.c
+	keymap_templates.c
 	numinput.c
 	select_utils.c
 
@@ -56,12 +58,14 @@ set(SRC
 	../include/ED_datafiles.h
 	../include/ED_fileselect.h
 	../include/ED_gizmo_library.h
+	../include/ED_gizmo_utils.h
 	../include/ED_gpencil.h
 	../include/ED_image.h
 	../include/ED_info.h
 	../include/ED_keyframes_draw.h
 	../include/ED_keyframes_edit.h
 	../include/ED_keyframing.h
+	../include/ED_keymap_templates.h
 	../include/ED_lattice.h
 	../include/ED_logic.h
 	../include/ED_markers.h

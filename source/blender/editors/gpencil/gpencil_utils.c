@@ -50,6 +50,7 @@
 #include "DNA_view3d_types.h"
 
 #include "BKE_action.h"
+#include "BKE_colortools.h"
 #include "BKE_deform.h"
 #include "BKE_main.h"
 #include "BKE_brush.h"
@@ -392,7 +393,7 @@ const EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
 		item_tmp.identifier = "__CREATE__";
 		item_tmp.name = "New Layer";
 		item_tmp.value = -1;
-		item_tmp.icon = ICON_ZOOMIN;
+		item_tmp.icon = ICON_ADD;
 		RNA_enum_item_add(&item, &totitem, &item_tmp);
 
 		/* separator */
@@ -433,8 +434,9 @@ const EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
  * \param x0, y0   The screen-space x and y coordinates of the start of the stroke segment
  * \param x1, y1   The screen-space x and y coordinates of the end of the stroke segment
  */
-bool gp_stroke_inside_circle(const int mval[2], const int UNUSED(mvalo[2]),
-                             int rad, int x0, int y0, int x1, int y1)
+bool gp_stroke_inside_circle(
+        const int mval[2], const int UNUSED(mvalo[2]),
+        int rad, int x0, int y0, int x1, int y1)
 {
 	/* simple within-radius check for now */
 	const float mval_fl[2]     = {mval[0], mval[1]};
@@ -549,9 +551,9 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
 /**
  * Convert point to parent space
  *
- * \param pt         Original point
- * \param diff_mat   Matrix with the difference between original parent matrix
- * \param[out] r_pt  Pointer to new point after apply matrix
+ * \param pt: Original point
+ * \param diff_mat: Matrix with the difference between original parent matrix
+ * \param[out] r_pt: Pointer to new point after apply matrix
  */
 void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *r_pt)
 {
@@ -609,8 +611,9 @@ void gp_apply_parent_point(Depsgraph *depsgraph, Object *obact, bGPdata *gpd, bG
  *
  * \warning This assumes that the caller has already checked whether the stroke in question can be drawn.
  */
-void gp_point_to_xy(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
-                    int *r_x, int *r_y)
+void gp_point_to_xy(
+        GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
+        int *r_x, int *r_y)
 {
 	ARegion *ar = gsc->ar;
 	View2D *v2d = gsc->v2d;
@@ -662,8 +665,9 @@ void gp_point_to_xy(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
  *
  * \warning This assumes that the caller has already checked whether the stroke in question can be drawn
  */
-void gp_point_to_xy_fl(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
-                       float *r_x, float *r_y)
+void gp_point_to_xy_fl(
+        GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
+        float *r_x, float *r_y)
 {
 	ARegion *ar = gsc->ar;
 	View2D *v2d = gsc->v2d;
@@ -777,8 +781,8 @@ void gp_stroke_convertcoords_tpoint(
 
 	if ((depth != NULL) && (ED_view3d_autodist_simple(ar, mval, r_out, 0, depth))) {
 		/* projecting onto 3D-Geometry
-		*	- nothing more needs to be done here, since view_autodist_simple() has already done it
-		*/
+		 * - nothing more needs to be done here, since view_autodist_simple() has already done it
+		 */
 	}
 	else {
 		float mval_f[2] = {(float)point2D->x, (float)point2D->y};
@@ -849,8 +853,8 @@ void ED_gp_project_stroke_to_plane(Object *ob, RegionView3D *rv3d, bGPDstroke *g
 	zero_v3(plane_normal);
 	if (axis < 0) {
 		/* if the axis is not locked, need a vector to the view direction
-		* in order to get the right size of the stroke.
-		*/
+		 * in order to get the right size of the stroke.
+		 */
 		ED_view3d_global_to_vector(rv3d, origin, plane_normal);
 	}
 	else {
@@ -928,8 +932,8 @@ void ED_gp_project_point_to_plane(Object *ob, RegionView3D *rv3d, const float or
 
 /**
  * Subdivide a stroke once, by adding a point half way between each pair of existing points
- * \param gps           Stroke data
- * \param subdivide      Number of times to subdivide
+ * \param gps: Stroke data
+ * \param subdivide: Number of times to subdivide
  */
 void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 {
@@ -944,7 +948,7 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 		temp_points = MEM_dupallocN(gps->points);
 		oldtotpoints = gps->totpoints;
 
-		/* resize the points arrys */
+		/* resize the points arrays */
 		gps->totpoints += totnewpoints;
 		gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
 		if (gps->dvert != NULL) {
@@ -1023,8 +1027,8 @@ void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 
 /**
  * Add randomness to stroke
- * \param gps           Stroke data
- * \param brush         Brush data
+ * \param gps: Stroke data
+ * \param brush: Brush data
  */
 void gp_randomize_stroke(bGPDstroke *gps, Brush *brush, RNG *rng)
 {
@@ -1165,11 +1169,11 @@ void ED_gpencil_reset_layers_parent(Depsgraph *depsgraph, Object *obact, bGPdata
 /* GP Object Stuff */
 
 /* Helper function to create new OB_GPENCIL Object */
-Object *ED_add_gpencil_object(bContext *C, Scene *scene, const float loc[3])
+Object *ED_add_gpencil_object(bContext *C, Scene *UNUSED(scene), const float loc[3])
 {
 	float rot[3] = {0.0f};
 
-	Object *ob = ED_object_add_type(C, OB_GPENCIL, NULL, loc, rot, false, scene->lay);
+	Object *ob = ED_object_add_type(C, OB_GPENCIL, NULL, loc, rot, false);
 
 	/* define size */
 	BKE_object_obdata_size_init(ob, GP_OBGPENCIL_DEFAULT_SIZE);
@@ -1204,6 +1208,16 @@ void ED_gpencil_add_defaults(bContext *C)
 		BKE_brush_gpencil_presets(C);
 	}
 
+	/* ensure multiframe falloff curve */
+	if (ts->gp_sculpt.cur_falloff == NULL) {
+		ts->gp_sculpt.cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+		CurveMapping *gp_falloff_curve = ts->gp_sculpt.cur_falloff;
+		curvemapping_initialize(gp_falloff_curve);
+		curvemap_reset(gp_falloff_curve->cm,
+			&gp_falloff_curve->clipr,
+			CURVE_PRESET_GAUSS,
+			CURVEMAP_SLOPE_POSITIVE);
+	}
 }
 
 /* ******************************************************** */
@@ -1212,25 +1226,52 @@ void ED_gpencil_add_defaults(bContext *C)
 /* assign points to vertex group */
 void ED_gpencil_vgroup_assign(bContext *C, Object *ob, float weight)
 {
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	const int def_nr = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, def_nr))
 		return;
 
-	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
-		if (gps->flag & GP_STROKE_SELECT) {
-			/* verify the weight array is created */
-			BKE_gpencil_dvert_ensure(gps);
+		bGPDframe *init_gpf = gpl->actframe;
+		bGPDstroke *gps = NULL;
+		if (is_multiedit) {
+			init_gpf = gpl->frames.first;
+		}
 
-			for (int i = 0; i < gps->totpoints; i++) {
-				bGPDspoint *pt = &gps->points[i];
-				MDeformVert *dvert = &gps->dvert[i];
-				if (pt->flag & GP_SPOINT_SELECT) {
-					MDeformWeight *dw = defvert_verify_index(dvert, def_nr);
-					if (dw) {
-						dw->weight = weight;
+		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+				if (gpf == NULL)
+					continue;
+
+				for (gps = gpf->strokes.first; gps; gps = gps->next) {
+
+					/* skip strokes that are invalid for current view */
+					if (ED_gpencil_stroke_can_use(C, gps) == false)
+						continue;
+
+					if (gps->flag & GP_STROKE_SELECT) {
+						/* verify the weight array is created */
+						BKE_gpencil_dvert_ensure(gps);
+
+						for (int i = 0; i < gps->totpoints; i++) {
+							bGPDspoint *pt = &gps->points[i];
+							MDeformVert *dvert = &gps->dvert[i];
+							if (pt->flag & GP_SPOINT_SELECT) {
+								MDeformWeight *dw = defvert_verify_index(dvert, def_nr);
+								if (dw) {
+									dw->weight = weight;
+								}
+							}
+						}
 					}
 				}
+			}
+
+			/* if not multiedit, exit loop*/
+			if (!is_multiedit) {
+				break;
 			}
 		}
 	}
@@ -1240,24 +1281,51 @@ void ED_gpencil_vgroup_assign(bContext *C, Object *ob, float weight)
 /* remove points from vertex group */
 void ED_gpencil_vgroup_remove(bContext *C, Object *ob)
 {
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	const int def_nr = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, def_nr))
 		return;
 
-	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
-		for (int i = 0; i < gps->totpoints; i++) {
-			bGPDspoint *pt = &gps->points[i];
-			if (gps->dvert == NULL) {
-				continue;
-			}
-			MDeformVert *dvert = &gps->dvert[i];
+		bGPDframe *init_gpf = gpl->actframe;
+		bGPDstroke *gps = NULL;
+		if (is_multiedit) {
+			init_gpf = gpl->frames.first;
+		}
 
-			if ((pt->flag & GP_SPOINT_SELECT) && (dvert->totweight > 0)) {
-				MDeformWeight *dw = defvert_find_index(dvert, def_nr);
-				if (dw != NULL) {
-					defvert_remove_group(dvert, dw);
+		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+				if (gpf == NULL)
+					continue;
+
+				for (gps = gpf->strokes.first; gps; gps = gps->next) {
+
+					/* skip strokes that are invalid for current view */
+					if (ED_gpencil_stroke_can_use(C, gps) == false)
+						continue;
+
+					for (int i = 0; i < gps->totpoints; i++) {
+						bGPDspoint *pt = &gps->points[i];
+						if (gps->dvert == NULL) {
+							continue;
+						}
+						MDeformVert *dvert = &gps->dvert[i];
+
+						if ((pt->flag & GP_SPOINT_SELECT) && (dvert->totweight > 0)) {
+							MDeformWeight *dw = defvert_find_index(dvert, def_nr);
+							if (dw != NULL) {
+								defvert_remove_group(dvert, dw);
+							}
+						}
+					}
 				}
+			}
+
+			/* if not multiedit, exit loop*/
+			if (!is_multiedit) {
+				break;
 			}
 		}
 	}
@@ -1267,22 +1335,49 @@ void ED_gpencil_vgroup_remove(bContext *C, Object *ob)
 /* select points of vertex group */
 void ED_gpencil_vgroup_select(bContext *C, Object *ob)
 {
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	const int def_nr = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, def_nr))
 		return;
 
-	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
-		for (int i = 0; i < gps->totpoints; i++) {
-			bGPDspoint *pt = &gps->points[i];
-			if (gps->dvert == NULL) {
-				continue;
-			}
-			MDeformVert *dvert = &gps->dvert[i];
+		bGPDframe *init_gpf = gpl->actframe;
+		bGPDstroke *gps = NULL;
+		if (is_multiedit) {
+			init_gpf = gpl->frames.first;
+		}
 
-			if (defvert_find_index(dvert, def_nr) != NULL) {
-				pt->flag |= GP_SPOINT_SELECT;
-				gps->flag |= GP_STROKE_SELECT;
+		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+				if (gpf == NULL)
+					continue;
+
+				for (gps = gpf->strokes.first; gps; gps = gps->next) {
+
+					/* skip strokes that are invalid for current view */
+					if (ED_gpencil_stroke_can_use(C, gps) == false)
+						continue;
+
+					for (int i = 0; i < gps->totpoints; i++) {
+						bGPDspoint *pt = &gps->points[i];
+						if (gps->dvert == NULL) {
+							continue;
+						}
+						MDeformVert *dvert = &gps->dvert[i];
+
+						if (defvert_find_index(dvert, def_nr) != NULL) {
+							pt->flag |= GP_SPOINT_SELECT;
+							gps->flag |= GP_STROKE_SELECT;
+						}
+					}
+				}
+			}
+
+			/* if not multiedit, exit loop*/
+			if (!is_multiedit) {
+				break;
 			}
 		}
 	}
@@ -1292,22 +1387,48 @@ void ED_gpencil_vgroup_select(bContext *C, Object *ob)
 /* unselect points of vertex group */
 void ED_gpencil_vgroup_deselect(bContext *C, Object *ob)
 {
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 	const int def_nr = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, def_nr))
 		return;
 
-	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
 	{
-		for (int i = 0; i < gps->totpoints; i++) {
-			bGPDspoint *pt = &gps->points[i];
-			if (gps->dvert == NULL) {
-				continue;
-			}
-			MDeformVert *dvert = &gps->dvert[i];
+		bGPDframe *init_gpf = gpl->actframe;
+		bGPDstroke *gps = NULL;
+		if (is_multiedit) {
+			init_gpf = gpl->frames.first;
+		}
 
-			if (defvert_find_index(dvert, def_nr) != NULL) {
-				pt->flag &= ~GP_SPOINT_SELECT;
-				gps->flag |= GP_STROKE_SELECT;
+		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+				if (gpf == NULL)
+					continue;
+
+				for (gps = gpf->strokes.first; gps; gps = gps->next) {
+
+					/* skip strokes that are invalid for current view */
+					if (ED_gpencil_stroke_can_use(C, gps) == false)
+						continue;
+
+					for (int i = 0; i < gps->totpoints; i++) {
+						bGPDspoint *pt = &gps->points[i];
+						if (gps->dvert == NULL) {
+							continue;
+						}
+						MDeformVert *dvert = &gps->dvert[i];
+
+						if (defvert_find_index(dvert, def_nr) != NULL) {
+							pt->flag &= ~GP_SPOINT_SELECT;
+						}
+					}
+				}
+			}
+
+			/* if not multiedit, exit loop*/
+			if (!is_multiedit) {
+				break;
 			}
 		}
 	}
@@ -1370,10 +1491,11 @@ void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 	immUniform1f("dash_width", 12.0f);
 	immUniform1f("dash_factor", 0.5f);
 
-	imm_draw_circle_wire_2d(shdr_pos, x, y, radius,
-		/* XXX Dashed shader gives bad results with sets of small segments currently,
-		*     temp hack around the issue. :( */
-		max_ii(8, radius / 2));  /* was fixed 40 */
+	imm_draw_circle_wire_2d(
+	        shdr_pos, x, y, radius,
+	        /* XXX Dashed shader gives bad results with sets of small segments currently,
+	         *     temp hack around the issue. :( */
+	        max_ii(8, radius / 2));  /* was fixed 40 */
 
 	immUnbindProgram();
 
@@ -1560,10 +1682,11 @@ void ED_gpencil_toggle_brush_cursor(bContext *C, bool enable, void *customdata)
 			gset->paintcursor = NULL;
 		}
 		/* enable cursor */
-		gset->paintcursor = WM_paint_cursor_activate(CTX_wm_manager(C),
-		                                             NULL,
-		                                             gp_brush_drawcursor,
-		                                             (lastpost) ? customdata : NULL);
+		gset->paintcursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        NULL,
+		        gp_brush_drawcursor,
+		        (lastpost) ? customdata : NULL);
 	}
 }
 

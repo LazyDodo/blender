@@ -20,6 +20,7 @@
 
 import bpy
 from bpy.types import (
+    Menu,
     Operator,
     OperatorFileListElement
 )
@@ -111,7 +112,7 @@ def operator_path_is_undo(context, data_path):
     # note that if we have data paths that use strings this could fail
     # luckily we don't do this!
     #
-    # When we cant find the data owner assume no undo is needed.
+    # When we can't find the data owner assume no undo is needed.
     data_path_head = data_path.rpartition(".")[0]
 
     if not data_path_head:
@@ -628,7 +629,7 @@ class WM_OT_operator_pie_enum(Operator):
         del op_mod_str, ob_id_str
 
         try:
-            op_rna = op.get_rna()
+            op_rna = op.get_rna_type()
         except KeyError:
             self.report({'ERROR'}, "Operator not found: bpy.ops.%s" % data_path)
             return {'CANCELLED'}
@@ -638,7 +639,7 @@ class WM_OT_operator_pie_enum(Operator):
             pie = layout.menu_pie()
             pie.operator_enum(data_path, prop_string)
 
-        wm.popup_menu_pie(draw_func=draw_cb, title=op_rna.bl_rna.name, event=event)
+        wm.popup_menu_pie(draw_func=draw_cb, title=op_rna.name, event=event)
 
         return {'FINISHED'}
 
@@ -836,12 +837,12 @@ class WM_OT_context_modal_mouse(Operator):
         elif 'LEFTMOUSE' == event_type:
             item = next(iter(self._values.keys()))
             self._values_clear()
-            context.area.header_text_set()
+            context.area.header_text_set("")
             return operator_value_undo_return(item)
 
         elif event_type in {'RIGHTMOUSE', 'ESC'}:
             self._values_restore()
-            context.area.header_text_set()
+            context.area.header_text_set("")
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
@@ -1490,33 +1491,51 @@ class WM_OT_copy_prev_settings(Operator):
     bl_idname = "wm.copy_prev_settings"
     bl_label = "Copy Previous Settings"
 
+    @staticmethod
+    def previous_version():
+        ver = bpy.app.version
+        ver_old = ((ver[0] * 100) + ver[1]) - 1
+        return ver_old // 100, ver_old % 100
+
+    @staticmethod
+    def _old_path():
+        ver = bpy.app.version
+        ver_old = ((ver[0] * 100) + ver[1]) - 1
+        return bpy.utils.resource_path('USER', ver_old // 100, ver_old % 100)
+
+    @staticmethod
+    def _new_path():
+        return bpy.utils.resource_path('USER')
+
+    @classmethod
+    def poll(cls, context):
+        import os
+
+        old = cls._old_path()
+        new = cls._new_path()
+        if os.path.isdir(old) and not os.path.isdir(new):
+            return True
+
+        old_userpref = os.path.join(old, "config", "userpref.blend")
+        new_userpref = os.path.join(new, "config", "userpref.blend")
+        return os.path.isfile(old_userpref) and not os.path.isfile(new_userpref)
+
     def execute(self, context):
         import os
         import shutil
-        ver = bpy.app.version
-        ver_old = ((ver[0] * 100) + ver[1]) - 1
-        path_src = bpy.utils.resource_path('USER', ver_old // 100, ver_old % 100)
-        path_dst = bpy.utils.resource_path('USER')
 
-        if os.path.isdir(path_dst):
-            self.report({'ERROR'}, "Target path %r exists" % path_dst)
-        elif not os.path.isdir(path_src):
-            self.report({'ERROR'}, "Source path %r does not exist" % path_src)
+        shutil.copytree(self._old_path(), self._new_path(), symlinks=True)
+
+        # reload recent-files.txt
+        bpy.ops.wm.read_history()
+
+        # don't loose users work if they open the splash later.
+        if bpy.data.is_saved is bpy.data.is_dirty is False:
+            bpy.ops.wm.read_homefile()
         else:
-            shutil.copytree(path_src, path_dst, symlinks=True)
+            self.report({'INFO'}, "Reload Start-Up file to restore settings")
 
-            # reload recent-files.txt
-            bpy.ops.wm.read_history()
-
-            # don't loose users work if they open the splash later.
-            if bpy.data.is_saved is bpy.data.is_dirty is False:
-                bpy.ops.wm.read_homefile()
-            else:
-                self.report({'INFO'}, "Reload Start-Up file to restore settings")
-
-            return {'FINISHED'}
-
-        return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 class WM_OT_keyconfig_test(Operator):
@@ -2276,7 +2295,6 @@ class WM_OT_app_template_install(Operator):
     def execute(self, context):
         import traceback
         import zipfile
-        import shutil
         import os
 
         filepath = self.filepath
@@ -2389,6 +2407,10 @@ class WM_OT_toolbar(Operator):
     bl_idname = "wm.toolbar"
     bl_label = "Toolbar"
 
+    @classmethod
+    def poll(cls, context):
+        return context.space_data is not None
+
     def execute(self, context):
         from bl_ui.space_toolsystem_common import (
             ToolSelectPanelHelper,
@@ -2407,7 +2429,7 @@ class WM_OT_toolbar(Operator):
         def draw_menu(popover, context):
             layout = popover.layout
 
-            layout.operator_context = 'INVOKE_DEFAULT'
+            layout.operator_context = 'INVOKE_REGION_WIN'
             layout.operator("wm.search_menu", text="Search Commands...", icon='VIEWZOOM')
 
             cls.draw_cls(layout, context, detect_layout=False, scale_y=1.0)
@@ -2522,6 +2544,139 @@ class WM_OT_studiolight_userpref_show(Operator):
         return {'FINISHED'}
 
 
+class WM_MT_splash(Menu):
+    bl_label = "Splash"
+
+    def draw_setup(self, context):
+        layout = self.layout
+        layout.operator_context = 'EXEC_DEFAULT'
+
+        layout.label(text="Quick Setup")
+
+        split = layout.split(factor=0.25)
+        split.label()
+        split = split.split(factor=2.0 / 3.0)
+
+        col = split.column()
+
+        sub = col.column(align=True)
+        sub.label(text="Input and Shortcuts:")
+        text = bpy.path.display_name(context.window_manager.keyconfigs.active.name)
+        if not text:
+            text = "Blender (default)"
+        sub.menu("USERPREF_MT_appconfigs", text=text)
+
+        col.separator()
+
+        sub = col.column(align=True)
+        sub.label(text="Theme:")
+        label = bpy.types.USERPREF_MT_interface_theme_presets.bl_label
+        if label == "Presets":
+            label = "Blender Dark"
+        sub.menu("USERPREF_MT_interface_theme_presets", text=label)
+
+        # We need to make switching to a language easier first
+        #sub = col.column(align=False)
+        # sub.label(text="Language:")
+        #userpref = context.user_preferences
+        #sub.prop(userpref.system, "language", text="")
+
+        col.label()
+
+        layout.label()
+
+        row = layout.row()
+
+        sub = row.row()
+        if bpy.types.WM_OT_copy_prev_settings.poll(context):
+            old_version = bpy.types.WM_OT_copy_prev_settings.previous_version()
+            sub.operator("wm.copy_prev_settings", text="Load %d.%d Settings" % old_version)
+            sub.operator("wm.save_userpref", text="Save New Settings")
+        else:
+            sub.label()
+            sub.label()
+            sub.operator("wm.save_userpref", text="Next")
+
+        layout.separator()
+
+    def draw(self, context):
+        # Draw setup screen if no user preferences have been saved yet.
+        import os
+
+        user_path = bpy.utils.resource_path('USER')
+        userdef_path = os.path.join(user_path, "config", "userpref.blend")
+
+        if not os.path.isfile(userdef_path):
+            self.draw_setup(context)
+            return
+
+        # Pass
+        layout = self.layout
+        layout.operator_context = 'EXEC_DEFAULT'
+        layout.emboss = 'PULLDOWN_MENU'
+
+        split = layout.split()
+
+        # Templates
+        col1 = split.column()
+        col1.label(text="New File")
+
+        bpy.types.TOPBAR_MT_file_new.draw_ex(col1, context, use_splash=True)
+
+        # Recent
+        col2 = split.column()
+        col2_title = col2.row()
+
+        found_recent = col2.template_recent_files()
+
+        if found_recent:
+            col2_title.label(text="Recent Files")
+        else:
+            # Links if no recent files
+            col2_title.label(text="Getting Started")
+
+            col2.operator(
+                "wm.url_open", text="Manual", icon='URL'
+            ).url = "https://docs.blender.org/manual/en/dev/"
+            col2.operator(
+                "wm.url_open", text="Release Notes", icon='URL',
+            ).url = "https://www.blender.org/download/releases/%d-%d/" % bpy.app.version[:2]
+            col2.operator(
+                "wm.url_open", text="Blender Website", icon='URL',
+            ).url = "https://www.blender.org"
+            col2.operator(
+                "wm.url_open", text="Credits", icon='URL',
+            ).url = "https://www.blender.org/about/credits/"
+
+        layout.separator()
+
+        split = layout.split()
+
+        col1 = split.column()
+        sub = col1.row()
+        sub.operator_context = 'INVOKE_DEFAULT'
+        sub.operator("wm.open_mainfile", text="Open...", icon='FILE_FOLDER')
+        col1.operator("wm.recover_last_session", icon='RECOVER_LAST')
+
+        col2 = split.column()
+        if found_recent:
+            col2.operator(
+                "wm.url_open", text="Release Notes", icon='URL',
+            ).url = "https://www.blender.org/download/releases/%d-%d/" % bpy.app.version[:2]
+            col2.operator(
+                "wm.url_open", text="Development Fund", icon='URL'
+            ).url = "https://www.blender.org/foundation/development-fund/"
+        else:
+            col2.operator(
+                "wm.url_open", text="Development Fund", icon='URL'
+            ).url = "https://www.blender.org/foundation/development-fund/"
+            col2.operator(
+                "wm.url_open", text="Donate", icon='URL'
+            ).url = "https://www.blender.org/foundation/donation-payment/"
+
+        layout.separator()
+
+
 classes = (
     BRUSH_OT_active_index_set,
     WM_OT_addon_disable,
@@ -2581,4 +2736,5 @@ classes = (
     WM_OT_studiolight_userpref_show,
     WM_OT_tool_set_by_name,
     WM_OT_toolbar,
+    WM_MT_splash,
 )

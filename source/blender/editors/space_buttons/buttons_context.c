@@ -118,6 +118,13 @@ static int buttons_context_path_scene(ButsContextPath *path)
 
 static int buttons_context_path_view_layer(ButsContextPath *path, wmWindow *win)
 {
+	PointerRNA *ptr = &path->ptr[path->len - 1];
+
+	/* View Layer may have already been resolved in a previous call (e.g. in buttons_context_path_linestyle). */
+	if (RNA_struct_is_a(ptr->type, &RNA_ViewLayer)) {
+		return 1;
+	}
+
 	if (buttons_context_path_scene(path)) {
 		Scene *scene = path->ptr[path->len - 1].data;
 		ViewLayer *view_layer = (win->scene == scene) ?
@@ -1022,7 +1029,7 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 		ptr = &path->ptr[a];
 
 		if (a != 0)
-			uiItemL(row, "", VICO_SMALL_TRI_RIGHT_VEC);
+			uiItemL(row, "", ICON_SMALL_TRI_RIGHT_VEC);
 
 		if (ptr->data) {
 			icon = RNA_struct_ui_icon(ptr->type);

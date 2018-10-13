@@ -195,7 +195,7 @@ enum {
 	UI_BUT_TEXTEDIT_UPDATE = (1 << 29),  /* when widget is in textedit mode, update value on each char stroke */
 	UI_BUT_VALUE_CLEAR     = (1 << 30),  /* show 'x' icon to clear/unlink value of text or search button */
 
-	UI_BUT_OVERRIDEN       = (1 << 31),  /* RNA property of the button is overriden from linked reference data. */
+	UI_BUT_OVERRIDEN       = (1 << 31),  /* RNA property of the button is overridden from linked reference data. */
 };
 
 #define UI_PANEL_WIDTH          340
@@ -407,6 +407,7 @@ typedef bool (*uiMenuStepFunc)(struct bContext *C, int direction, void *arg1);
 
 
 /* interface_query.c */
+bool UI_but_has_tooltip_label(const uiBut *but);
 bool UI_but_is_tool(const uiBut *but);
 #define UI_but_is_decorator(but) \
 	((but)->func == ui_but_anim_decorate_cb)
@@ -505,6 +506,11 @@ void UI_blocklist_update_window_matrix(const struct bContext *C, const struct Li
 void UI_blocklist_draw(const struct bContext *C, const struct ListBase *lb);
 void UI_block_update_from_old(const struct bContext *C, struct uiBlock *block);
 
+enum {
+	UI_BLOCK_THEME_STYLE_REGULAR = 0,
+	UI_BLOCK_THEME_STYLE_POPUP = 1,
+};
+void UI_block_theme_style_set(uiBlock *block, char theme_style);
 void UI_block_emboss_set(uiBlock *block, char dt);
 
 void UI_block_free(const struct bContext *C, uiBlock *block);
@@ -985,6 +991,8 @@ void uiLayoutSetAlignment(uiLayout *layout, char alignment);
 void uiLayoutSetKeepAspect(uiLayout *layout, bool keepaspect);
 void uiLayoutSetScaleX(uiLayout *layout, float scale);
 void uiLayoutSetScaleY(uiLayout *layout, float scale);
+void uiLayoutSetUnitsX(uiLayout *layout, float unit);
+void uiLayoutSetUnitsY(uiLayout *layout, float unit);
 void uiLayoutSetEmboss(uiLayout *layout, char emboss);
 void uiLayoutSetPropSep(uiLayout *layout, bool is_sep);
 void uiLayoutSetPropDecorate(uiLayout *layout, bool is_sep);
@@ -998,6 +1006,8 @@ bool uiLayoutGetKeepAspect(uiLayout *layout);
 int uiLayoutGetWidth(uiLayout *layout);
 float uiLayoutGetScaleX(uiLayout *layout);
 float uiLayoutGetScaleY(uiLayout *layout);
+float uiLayoutGetUnitsX(uiLayout *layout);
+float uiLayoutGetUnitsY(uiLayout *layout);
 int uiLayoutGetEmboss(uiLayout *layout);
 bool uiLayoutGetPropSep(uiLayout *layout);
 bool uiLayoutGetPropDecorate(uiLayout *layout);
@@ -1033,7 +1043,7 @@ void uiTemplateIDPreview(
 void uiTemplateIDTabs(
         uiLayout *layout, struct bContext *C,
         PointerRNA *ptr, const char *propname,
-        const char *newop, const char *openop, const char *menu,
+        const char *newop, const char *menu,
         int filter);
 void uiTemplateAnyID(
         uiLayout *layout, struct PointerRNA *ptr, const char *propname,
@@ -1110,7 +1120,7 @@ void uiTemplateList(
         uiLayout *layout, struct bContext *C, const char *listtype_name, const char *list_id,
         struct PointerRNA *dataptr, const char *propname, struct PointerRNA *active_dataptr,
         const char *active_propname, const char *item_dyntip_propname,
-        int rows, int maxrows, int layout_type, int columns);
+        int rows, int maxrows, int layout_type, int columns, bool reverse);
 void uiTemplateNodeLink(uiLayout *layout, struct bNodeTree *ntree, struct bNode *node, struct bNodeSocket *input);
 void uiTemplateNodeView(uiLayout *layout, struct bContext *C, struct bNodeTree *ntree, struct bNode *node, struct bNodeSocket *input);
 void uiTemplateTextureUser(uiLayout *layout, struct bContext *C);
@@ -1123,6 +1133,8 @@ void uiTemplateMovieclipInformation(struct uiLayout *layout, struct PointerRNA *
 
 void uiTemplateColorspaceSettings(struct uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateColormanagedViewSettings(struct uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname);
+
+int uiTemplateRecentFiles(struct uiLayout *layout, int rows);
 
 /* items */
 void uiItemO(uiLayout *layout, const char *name, int icon, const char *opname);
@@ -1275,12 +1287,13 @@ bool UI_butstore_register_update(uiBlock *block, uiBut *but_dst, const uiBut *bu
 void UI_butstore_unregister(uiButStore *bs_handle, uiBut **but_p);
 
 /* ui_interface_region_tooltip.c */
-struct ARegion *UI_tooltip_create_from_button(struct bContext *C, struct ARegion *butregion, uiBut *but);
+struct ARegion *UI_tooltip_create_from_button(struct bContext *C, struct ARegion *butregion, uiBut *but, bool is_label);
 struct ARegion *UI_tooltip_create_from_gizmo(struct bContext *C, struct wmGizmo *gz);
 void UI_tooltip_free(struct bContext *C, struct bScreen *sc, struct ARegion *ar);
 
 /* How long before a tool-tip shows. */
 #define UI_TOOLTIP_DELAY 0.5
+#define UI_TOOLTIP_DELAY_LABEL 0.2
 
 /* Float precision helpers */
 #define UI_PRECISION_FLOAT_MAX 6

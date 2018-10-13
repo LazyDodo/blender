@@ -4206,7 +4206,7 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Border Select Operator (Template)
+/** \name Box Select Operator (Template)
  * \{ */
 
 /* operator state vars used: (added by default WM callbacks)
@@ -4228,31 +4228,31 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
  * poll()	has to be filled in by user for context
  */
 #if 0
-static int border_select_exec(bContext *C, wmOperator *op)
+static int box_select_exec(bContext *C, wmOperator *op)
 {
 	int event_type = RNA_int_get(op->ptr, "event_type");
 
 	if (event_type == LEFTMOUSE)
-		printf("border select do select\n");
+		printf("box select do select\n");
 	else if (event_type == RIGHTMOUSE)
-		printf("border select deselect\n");
+		printf("box select deselect\n");
 	else
-		printf("border select do something\n");
+		printf("box select do something\n");
 
 	return 1;
 }
 
-static void SCREEN_OT_border_select(wmOperatorType *ot)
+static void SCREEN_OT_box_select(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
-	ot->idname = "SCREEN_OT_border_select";
+	ot->name = "Box Select";
+	ot->idname = "SCREEN_OT_box_select";
 
 	/* api callbacks */
-	ot->exec = border_select_exec;
-	ot->invoke = WM_gesture_border_invoke;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->exec = box_select_exec;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_areaactive;
 
@@ -4472,7 +4472,7 @@ static void SCREEN_OT_delete(wmOperatorType *ot)
 
 /* implementation note: a disappearing region needs at least 1 last draw with 100% backbuffer
  * texture over it- then triple buffer will clear it entirely.
- * This because flag RGN_HIDDEN is set in end - region doesnt draw at all then */
+ * This because flag RGN_HIDDEN is set in end - region doesn't draw at all then */
 
 typedef struct RegionAlphaInfo {
 	ScrArea *sa;
@@ -4712,15 +4712,37 @@ static int space_workspace_cycle_invoke(bContext *C, wmOperator *op, const wmEve
 	Main *bmain = CTX_data_main(C);
 	const int direction = RNA_enum_get(op->ptr, "direction");
 	WorkSpace *workspace_src = WM_window_get_active_workspace(win);
-	WorkSpace *workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? workspace_src->id.prev : workspace_src->id.next;
+	WorkSpace *workspace_dst = NULL;
+
+	ListBase ordered;
+	BKE_id_ordered_list(&ordered, &bmain->workspaces);
+
+	for (LinkData *link = ordered.first; link; link = link->next) {
+		if (link->data == workspace_src) {
+			if (direction == SPACE_CONTEXT_CYCLE_PREV) {
+				workspace_dst = (link->prev) ? link->prev->data : NULL;
+			}
+			else {
+				workspace_dst = (link->next) ? link->next->data : NULL;
+			}
+		}
+	}
+
 	if (workspace_dst == NULL) {
-		workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? bmain->workspaces.last : bmain->workspaces.first;
+		LinkData *link = (direction == SPACE_CONTEXT_CYCLE_PREV) ? ordered.last : ordered.first;
+		workspace_dst =  link->data;
 	}
-	if (workspace_src != workspace_dst) {
-		win->workspace_hook->temp_workspace_store = workspace_dst;
-		WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
-		win->workspace_hook->temp_workspace_store = NULL;
+
+	BLI_freelistN(&ordered);
+
+	if (workspace_src == workspace_dst) {
+		return OPERATOR_CANCELLED;
 	}
+
+	win->workspace_hook->temp_workspace_store = workspace_dst;
+	WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
+	win->workspace_hook->temp_workspace_store = NULL;
+
 	return OPERATOR_FINISHED;
 }
 
@@ -4733,7 +4755,7 @@ static void SCREEN_OT_workspace_cycle(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->invoke = space_workspace_cycle_invoke;
-	ot->poll = ED_operator_screenactive;;
+	ot->poll = ED_operator_screenactive;
 
 	ot->flag = 0;
 

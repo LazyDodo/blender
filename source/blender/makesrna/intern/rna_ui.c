@@ -113,7 +113,7 @@ static bool panel_poll(const bContext *C, PanelType *pt)
 	ParameterList list;
 	FunctionRNA *func;
 	void *ret;
-	int visible;
+	bool visible;
 
 	RNA_pointer_create(NULL, pt->ext.srna, NULL, &ptr); /* dummy */
 	func = &rna_Panel_poll_func; /* RNA_struct_find_function(&ptr, "poll"); */
@@ -202,10 +202,15 @@ static void rna_Panel_unregister(Main *UNUSED(bmain), StructRNA *type)
 		BLI_freelinkN(&pt->parent->children, link);
 	}
 
+	WM_paneltype_remove(pt);
+
+	for (LinkData *link = pt->children.first; link; link = link->next) {
+		PanelType *child_pt = link->data;
+		child_pt->parent = NULL;
+	}
+
 	BLI_freelistN(&pt->children);
 	BLI_freelinkN(&art->paneltypes, pt);
-
-	WM_paneltype_remove(pt);
 
 	/* update while blender is running */
 	WM_main_add_notifier(NC_WINDOW, NULL);
@@ -373,7 +378,7 @@ static void uilist_draw_item(uiList *ui_list, bContext *C, uiLayout *layout, Poi
 	RNA_parameter_list_free(&list);
 }
 
-static void uilist_draw_filter(uiList *ui_list, bContext *C, uiLayout *layout)
+static void uilist_draw_filter(uiList *ui_list, bContext *C, uiLayout *layout, bool reverse)
 {
 	extern FunctionRNA rna_UIList_draw_filter_func;
 
@@ -387,6 +392,7 @@ static void uilist_draw_filter(uiList *ui_list, bContext *C, uiLayout *layout)
 	RNA_parameter_list_create(&list, &ul_ptr, func);
 	RNA_parameter_set_lookup(&list, "context", &C);
 	RNA_parameter_set_lookup(&list, "layout", &layout);
+	RNA_parameter_set_lookup(&list, "reverse", &reverse);
 	ui_list->type->ext.call((bContext *)C, &ul_ptr, func, &list);
 
 	RNA_parameter_list_free(&list);
@@ -947,6 +953,26 @@ static void rna_UILayout_scale_y_set(PointerRNA *ptr, float value)
 	uiLayoutSetScaleY(ptr->data, value);
 }
 
+static float rna_UILayout_units_x_get(PointerRNA *ptr)
+{
+	return uiLayoutGetUnitsX(ptr->data);
+}
+
+static void rna_UILayout_units_x_set(PointerRNA *ptr, float value)
+{
+	uiLayoutSetUnitsX(ptr->data, value);
+}
+
+static float rna_UILayout_units_y_get(PointerRNA *ptr)
+{
+	return uiLayoutGetUnitsY(ptr->data);
+}
+
+static void rna_UILayout_units_y_set(PointerRNA *ptr, float value)
+{
+	uiLayoutSetUnitsY(ptr->data, value);
+}
+
 static int rna_UILayout_emboss_get(PointerRNA *ptr)
 {
 	return uiLayoutGetEmboss(ptr->data);
@@ -1036,6 +1062,14 @@ static void rna_def_ui_layout(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "scale_y", PROP_FLOAT, PROP_UNSIGNED);
 	RNA_def_property_float_funcs(prop, "rna_UILayout_scale_y_get", "rna_UILayout_scale_y_set", NULL);
 	RNA_def_property_ui_text(prop, "Scale Y", "Scale factor along the Y for items in this (sub)layout");
+
+	prop = RNA_def_property(srna, "ui_units_x", PROP_FLOAT, PROP_UNSIGNED);
+	RNA_def_property_float_funcs(prop, "rna_UILayout_units_x_get", "rna_UILayout_units_x_set", NULL);
+	RNA_def_property_ui_text(prop, "Units X", "Fixed Size along the X for items in this (sub)layout");
+
+	prop = RNA_def_property(srna, "ui_units_y", PROP_FLOAT, PROP_UNSIGNED);
+	RNA_def_property_float_funcs(prop, "rna_UILayout_units_y_get", "rna_UILayout_units_y_set", NULL);
+	RNA_def_property_ui_text(prop, "Units Y", "Fixed Size along the Y for items in this (sub)layout");
 	RNA_api_ui_layout(srna);
 
 	prop = RNA_def_property(srna, "emboss", PROP_ENUM, PROP_NONE);
@@ -1274,6 +1308,7 @@ static void rna_def_uilist(BlenderRNA *brna)
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "layout", "UILayout", "", "Layout to draw the item");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
+	RNA_def_boolean(func, "reverse", false, "", "Display items in reverse order");
 
 	/* filter */
 	func = RNA_def_function(srna, "filter_items", NULL);

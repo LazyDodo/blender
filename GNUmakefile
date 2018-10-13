@@ -45,12 +45,18 @@ endif
 
 # Dependencies DIR's
 DEPS_SOURCE_DIR:=$(BLENDER_DIR)/build_files/build_environment
-DEPS_BUILD_DIR:=$(BUILD_DIR)/deps
-DEPS_INSTALL_DIR:=$(shell dirname "$(BLENDER_DIR)")/lib/$(OS_NCASE)
 
-ifneq ($(OS_NCASE),darwin)
-	# Add processor type to directory name
-	DEPS_INSTALL_DIR:=$(DEPS_INSTALL_DIR)_$(shell uname -p)
+ifndef DEPS_BUILD_DIR
+	DEPS_BUILD_DIR:=$(BUILD_DIR)/deps
+endif
+
+ifndef DEPS_INSTALL_DIR
+	DEPS_INSTALL_DIR:=$(shell dirname "$(BLENDER_DIR)")/lib/$(OS_NCASE)
+
+	ifneq ($(OS_NCASE),darwin)
+		# Add processor type to directory name
+		DEPS_INSTALL_DIR:=$(DEPS_INSTALL_DIR)_$(shell uname -p)
+	endif
 endif
 
 # Allow to use alternative binary (pypy3, etc)
@@ -462,6 +468,7 @@ update: .FORCE
 
 # Simple version of ./doc/python_api/sphinx_doc_gen.sh with no PDF generation.
 doc_py: .FORCE
+	ASAN_OPTIONS=halt_on_error=0 \
 	$(BLENDER_BIN) --background -noaudio --factory-startup \
 		--python doc/python_api/sphinx_doc_gen.py
 	cd doc/python_api ; sphinx-build -b html sphinx-in sphinx-out
@@ -480,15 +487,7 @@ doc_man: .FORCE
 	$(PYTHON) doc/manpage/blender.1.py $(BLENDER_BIN) blender.1
 
 help_features: .FORCE
-	@$(PYTHON) -c \
-		"import re; \
-		print('\n'.join([ \
-		w for l in open('"$(BLENDER_DIR)"/CMakeLists.txt', 'r').readlines() \
-		if not l.lstrip().startswith('#') \
-		for w in (re.sub(\
-		    r'.*\boption\s*\(\s*(WITH_[a-zA-Z0-9_]+)\s+(\".*\")\s*.*', r'\g<1> - \g<2>', l).strip('() \n'),) \
-		if w.startswith('WITH_')]))" | uniq
-
+	@$(PYTHON) "$(BLENDER_DIR)/build_files/cmake/cmake_print_build_options.py" $(BLENDER_DIR)"/CMakeLists.txt"
 
 clean: .FORCE
 	$(MAKE) -C "$(BUILD_DIR)" clean

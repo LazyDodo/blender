@@ -316,9 +316,7 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 
 	v3d = MEM_callocN(sizeof(View3D), "initview3d");
 	v3d->spacetype = SPACE_VIEW3D;
-	v3d->lay = v3d->layact = 1;
 	if (scene) {
-		v3d->lay = v3d->layact = scene->lay;
 		v3d->camera = scene->camera;
 	}
 	v3d->scenelock = true;
@@ -332,6 +330,16 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->overlay.texture_paint_mode_opacity = 0.8;
 	v3d->overlay.weight_paint_mode_opacity = 0.8;
 	v3d->overlay.vertex_paint_mode_opacity = 0.8;
+	v3d->overlay.edit_flag = V3D_OVERLAY_EDIT_FACES |
+	                         V3D_OVERLAY_EDIT_SEAMS |
+	                         V3D_OVERLAY_EDIT_SHARP |
+	                         V3D_OVERLAY_EDIT_FREESTYLE_EDGE |
+	                         V3D_OVERLAY_EDIT_FREESTYLE_FACE |
+	                         V3D_OVERLAY_EDIT_EDGES |
+	                         V3D_OVERLAY_EDIT_CREASES |
+	                         V3D_OVERLAY_EDIT_BWEIGHTS |
+	                         V3D_OVERLAY_EDIT_CU_HANDLES |
+	                         V3D_OVERLAY_EDIT_CU_NORMALS;
 
 	v3d->gridflag = V3D_SHOW_X | V3D_SHOW_Y | V3D_SHOW_FLOOR;
 
@@ -342,10 +350,7 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	v3d->near = 0.01f;
 	v3d->far = 1000.0f;
 
-	v3d->overlay.gpencil_grid_scale = 1.0; // Scales
-	v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES; // NUmber of Lines
 	v3d->overlay.gpencil_paper_opacity = 0.5f;
-	v3d->overlay.gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
 	v3d->overlay.gpencil_grid_opacity = 0.9f;
 
 	v3d->bundle_size = 0.2f;
@@ -432,7 +437,6 @@ static SpaceLink *view3d_duplicate(SpaceLink *sl)
 	if (v3dn->localvd) {
 		v3dn->localvd = NULL;
 		v3dn->properties_storage = NULL;
-		v3dn->lay = v3do->localvd->lay & 0xFFFFFF;
 	}
 
 	if (v3dn->shading.type == OB_RENDER)
@@ -705,6 +709,7 @@ static void view3d_widgets(void)
 
 	WM_gizmogrouptype_append(TRANSFORM_GGT_gizmo);
 	WM_gizmogrouptype_append(VIEW3D_GGT_xform_cage);
+	WM_gizmogrouptype_append(VIEW3D_GGT_mesh_preselect_elem);
 	WM_gizmogrouptype_append(VIEW3D_GGT_mesh_preselect_edgering);
 
 	WM_gizmogrouptype_append(VIEW3D_GGT_ruler);
@@ -766,25 +771,6 @@ static void *view3d_main_region_duplicate(void *poin)
 	return NULL;
 }
 
-static void view3d_recalc_used_layers(ARegion *ar, wmNotifier *wmn, const Scene *UNUSED(scene))
-{
-	wmWindow *win = wmn->wm->winactive;
-	unsigned int lay_used = 0;
-
-	if (!win) return;
-
-	const bScreen *screen = WM_window_get_active_screen(win);
-	for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-		if (sa->spacetype == SPACE_VIEW3D) {
-			if (BLI_findindex(&sa->regionbase, ar) != -1) {
-				View3D *v3d = sa->spacedata.first;
-				v3d->lay_used = lay_used;
-				break;
-			}
-		}
-	}
-}
-
 static void view3d_main_region_listener(
         wmWindow *UNUSED(win), ScrArea *sa, ARegion *ar,
         wmNotifier *wmn, const Scene *scene)
@@ -821,8 +807,6 @@ static void view3d_main_region_listener(
 			switch (wmn->data) {
 				case ND_SCENEBROWSE:
 				case ND_LAYER_CONTENT:
-					if (wmn->reference)
-						view3d_recalc_used_layers(ar, wmn, wmn->reference);
 					ED_region_tag_redraw(ar);
 					WM_gizmomap_tag_refresh(gzmap);
 					break;
@@ -1116,20 +1100,6 @@ static void view3d_main_region_message_subscribe(
 	}
 }
 
-static void view3d_tools_region_message_subscribe(
-        const struct bContext *UNUSED(C),
-        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
-        struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
-        struct wmMsgBus *mbus)
-{
-	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
-		.owner = ar,
-		.user_data = ar,
-		.notify = ED_region_do_msg_notify_tag_redraw,
-	};
-	WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
-}
-
 /* concept is to retrieve cursor type context-less */
 static void view3d_main_region_cursor(wmWindow *win, ScrArea *sa, ARegion *ar)
 {
@@ -1237,7 +1207,7 @@ static void view3d_buttons_region_init(wmWindowManager *wm, ARegion *ar)
 
 static void view3d_buttons_region_draw(const bContext *C, ARegion *ar)
 {
-	ED_region_panels(C, ar);
+	ED_region_panels_ex(C, ar, (const char * []){CTX_data_mode_string(C), NULL}, -1, true);
 }
 
 static void view3d_buttons_region_listener(
@@ -1330,27 +1300,6 @@ static void view3d_buttons_region_listener(
 				ED_region_tag_redraw(ar);
 			break;
 	}
-}
-
-static int view3d_tools_region_snap_size(const ARegion *ar, int size, int axis)
-{
-	if (axis == 0) {
-		/* Note, this depends on the icon size: see #ICON_DEFAULT_HEIGHT_TOOLBAR. */
-		const float snap_units[] = {2 + 0.8f, 4 + 0.8f};
-		const float aspect = BLI_rctf_size_x(&ar->v2d.cur) / (BLI_rcti_size_x(&ar->v2d.mask) + 1);
-		int best_diff = INT_MAX;
-		int best_size = size;
-		for (uint i = 0; i < ARRAY_SIZE(snap_units); i += 1) {
-			const int test_size = (snap_units[i] * U.widget_unit) / (UI_DPI_FAC * aspect);
-			const int test_diff = ABS(test_size - size);
-			if (test_diff < best_diff) {
-				best_size = test_size;
-				best_diff = test_diff;
-			}
-		}
-		return best_size;
-	}
-	return size;
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
@@ -1555,12 +1504,12 @@ void ED_spacetype_view3d(void)
 	/* regions: tool(bar) */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype view3d tools region");
 	art->regionid = RGN_TYPE_TOOLS;
-	art->prefsizex = 160; /* XXX */
+	art->prefsizex = 58; /* XXX */
 	art->prefsizey = 50; /* XXX */
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = view3d_buttons_region_listener;
-	art->message_subscribe = view3d_tools_region_message_subscribe;
-	art->snap_size = view3d_tools_region_snap_size;
+	art->message_subscribe = ED_region_generic_tools_region_message_subscribe;
+	art->snap_size = ED_region_generic_tools_region_snap_size;
 	art->init = view3d_tools_region_init;
 	art->draw = view3d_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);

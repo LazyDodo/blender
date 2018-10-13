@@ -80,7 +80,7 @@ static LayerCollection *layer_collection_add(ListBase *lb_parent, Collection *co
 static void layer_collection_free(ViewLayer *view_layer, LayerCollection *lc)
 {
 	if (lc == view_layer->active_collection) {
-		view_layer->active_collection = view_layer->layer_collections.first;
+		view_layer->active_collection = NULL;
 	}
 
 	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
@@ -311,7 +311,9 @@ static void view_layer_bases_hash_create(ViewLayer *view_layer)
 		view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
 
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+			if (base->object) {
+				BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+			}
 		}
 
 		BLI_mutex_unlock(&hash_lock);
@@ -436,13 +438,16 @@ void BKE_view_layer_rename(Main *bmain, Scene *scene, ViewLayer *view_layer, con
 		}
 	}
 
-	/* fix all the animation data and windows which may link to this */
+	/* Fix all the animation data and windows which may link to this. */
 	BKE_animdata_fix_paths_rename_all(NULL, "view_layers", oldname, view_layer->name);
 
+	/* WM can be missing on startup. */
 	wmWindowManager *wm = bmain->wm.first;
-	for (wmWindow *win = wm->windows.first; win; win = win->next) {
-		if (win->scene == scene && STREQ(win->view_layer_name, oldname)) {
-			STRNCPY(win->view_layer_name, view_layer->name);
+	if (wm) {
+		for (wmWindow *win = wm->windows.first; win; win = win->next) {
+			if (win->scene == scene && STREQ(win->view_layer_name, oldname)) {
+				STRNCPY(win->view_layer_name, view_layer->name);
+			}
 		}
 	}
 
@@ -786,7 +791,9 @@ void BKE_layer_collection_sync(const Scene *scene, ViewLayer *view_layer)
 			view_layer->basact = NULL;
 		}
 
-		BLI_ghash_remove(view_layer->object_bases_hash, base->object, NULL, NULL);
+		if (base->object) {
+			BLI_ghash_remove(view_layer->object_bases_hash, base->object, NULL, NULL);
+		}
 	}
 
 	BLI_freelistN(&view_layer->object_bases);

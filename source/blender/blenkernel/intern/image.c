@@ -68,7 +68,6 @@
 #include "BLI_timecode.h"  /* for stamp timecode format */
 #include "BLI_utildefines.h"
 
-#include "BKE_bmfont.h"
 #include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_icons.h"
@@ -2813,7 +2812,7 @@ static RenderPass *image_render_pass_get(RenderLayer *rl, const int pass, const 
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
-/* note it is called for rendered results, but it doesnt use the index! */
+/* note it is called for rendered results, but it doesn't use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 RenderPass *BKE_image_multilayer_index(RenderResult *rr, ImageUser *iuser)
 {
@@ -2865,7 +2864,7 @@ void BKE_image_multiview_index(Image *ima, ImageUser *iuser)
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
-/* note it is called for rendered results, but it doesnt use the index! */
+/* note it is called for rendered results, but it doesn't use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 bool BKE_image_is_multilayer(Image *ima)
 {
@@ -3417,7 +3416,7 @@ static ImBuf *load_image_single(
 		flag |= imbuf_alpha_flags_for_image(ima);
 
 		/* get the correct filepath */
-		BKE_image_user_frame_calc(iuser, cfra, 0);
+		BKE_image_user_frame_calc(iuser, cfra);
 
 		if (iuser)
 			iuser_t = *iuser;
@@ -3449,9 +3448,6 @@ static ImBuf *load_image_single(
 		{
 			image_initialize_after_load(ima, ibuf);
 			*r_assign = true;
-
-			/* check if the image is a font image... */
-			detectBitmapFont(ibuf);
 
 			/* make packed file for autopack */
 			if ((has_packed == false) && (G.fileflags & G_AUTOPACK)) {
@@ -3707,7 +3703,7 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **r_loc
 	 *
 	 * This is mainly to make it so color management treats byte buffer
 	 * from render result with Save Buffers enabled as final display buffer
-	 * and doesnt' apply any color management on it.
+	 * and doesn't apply any color management on it.
 	 *
 	 * For other cases we need to be sure it stays to default byte buffer space.
 	 */
@@ -4172,7 +4168,7 @@ void BKE_image_pool_release_ibuf(Image *ima, ImBuf *ibuf, ImagePool *pool)
 	}
 }
 
-int BKE_image_user_frame_get(const ImageUser *iuser, int cfra, int fieldnr, bool *r_is_in_range)
+int BKE_image_user_frame_get(const ImageUser *iuser, int cfra, bool *r_is_in_range)
 {
 	const int len = iuser->frames;
 
@@ -4210,10 +4206,6 @@ int BKE_image_user_frame_get(const ImageUser *iuser, int cfra, int fieldnr, bool
 			}
 		}
 
-		/* convert current frame to current field */
-		cfra = 2 * (cfra);
-		if (fieldnr) cfra++;
-
 		/* transform to images space */
 		framenr = cfra;
 		if (framenr > iuser->frames) framenr = iuser->frames;
@@ -4231,11 +4223,11 @@ int BKE_image_user_frame_get(const ImageUser *iuser, int cfra, int fieldnr, bool
 	}
 }
 
-void BKE_image_user_frame_calc(ImageUser *iuser, int cfra, int fieldnr)
+void BKE_image_user_frame_calc(ImageUser *iuser, int cfra)
 {
 	if (iuser) {
 		bool is_in_range;
-		const int framenr = BKE_image_user_frame_get(iuser, cfra, fieldnr, &is_in_range);
+		const int framenr = BKE_image_user_frame_get(iuser, cfra, &is_in_range);
 
 		if (is_in_range) {
 			iuser->flag |= IMA_USER_FRAME_IN_RANGE;
@@ -4254,10 +4246,10 @@ void BKE_image_user_frame_calc(ImageUser *iuser, int cfra, int fieldnr)
 	}
 }
 
-void BKE_image_user_check_frame_calc(ImageUser *iuser, int cfra, int fieldnr)
+void BKE_image_user_check_frame_calc(ImageUser *iuser, int cfra)
 {
 	if ((iuser->flag & IMA_ANIM_ALWAYS) || (iuser->flag & IMA_NEED_FRAME_RECALC)) {
-		BKE_image_user_frame_calc(iuser, cfra, fieldnr);
+		BKE_image_user_frame_calc(iuser, cfra);
 
 		iuser->flag &= ~IMA_NEED_FRAME_RECALC;
 	}
@@ -4268,7 +4260,7 @@ static void image_update_frame(struct Image *UNUSED(ima), struct ImageUser *iuse
 {
 	int cfra = *(int *)customdata;
 
-	BKE_image_user_check_frame_calc(iuser, cfra, 0);
+	BKE_image_user_check_frame_calc(iuser, cfra);
 }
 
 void BKE_image_update_frame(const Main *bmain, int cfra)

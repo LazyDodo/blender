@@ -53,6 +53,7 @@
 
 #include "ED_screen.h"
 #include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 
 #include "outliner_intern.h"
 
@@ -62,7 +63,7 @@ void outliner_operatortypes(void)
 {
 	WM_operatortype_append(OUTLINER_OT_highlight_update);
 	WM_operatortype_append(OUTLINER_OT_item_activate);
-	WM_operatortype_append(OUTLINER_OT_select_border);
+	WM_operatortype_append(OUTLINER_OT_select_box);
 	WM_operatortype_append(OUTLINER_OT_item_openclose);
 	WM_operatortype_append(OUTLINER_OT_item_rename);
 	WM_operatortype_append(OUTLINER_OT_item_drag_drop);
@@ -144,7 +145,7 @@ void outliner_keymap(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "extend", true);
 
 
-	WM_keymap_add_item(keymap, "OUTLINER_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "OUTLINER_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	kmi = WM_keymap_add_item(keymap, "OUTLINER_OT_item_openclose", RETKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "all", false);
@@ -170,12 +171,7 @@ void outliner_keymap(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "OUTLINER_OT_show_one_level", PADMINUS, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "open", false); /* close */
 
-	kmi = WM_keymap_add_item(keymap, "OUTLINER_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "OUTLINER_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "OUTLINER_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "OUTLINER_OT_select_all");
 
 	WM_keymap_add_item(keymap, "OUTLINER_OT_expanded_toggle", AKEY, KM_PRESS, KM_SHIFT, 0);
 

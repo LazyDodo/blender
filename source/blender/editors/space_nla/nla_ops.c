@@ -40,6 +40,7 @@
 #include "ED_markers.h"
 #include "ED_screen.h"
 #include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_transform.h"
 
 #include "WM_api.h"
@@ -124,7 +125,7 @@ void nla_operatortypes(void)
 
 	/* select */
 	WM_operatortype_append(NLA_OT_click_select);
-	WM_operatortype_append(NLA_OT_select_border);
+	WM_operatortype_append(NLA_OT_select_box);
 	WM_operatortype_append(NLA_OT_select_all);
 	WM_operatortype_append(NLA_OT_select_leftright);
 
@@ -225,17 +226,12 @@ static void nla_keymap_main(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	RNA_enum_set(kmi->ptr, "mode", NLAEDIT_LRSEL_RIGHT);
 
 	/* deselect all */
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "NLA_OT_select_all");
 
-	/* borderselect */
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box_select */
+	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_box", BKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "axis_range", false);
-	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_border", BKEY, KM_PRESS, KM_ALT, 0);
+	kmi = WM_keymap_add_item(keymap, "NLA_OT_select_box", BKEY, KM_PRESS, KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "axis_range", true);
 
 	/* view ---------------------------------------------------- */
@@ -294,7 +290,7 @@ static void nla_keymap_main(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	WM_keymap_add_item(keymap, "NLA_OT_clear_scale", SKEY, KM_PRESS, KM_ALT, 0);
 
 	/* snap */
-	WM_keymap_add_item(keymap, "NLA_OT_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_menu_pie(keymap, "NLA_MT_snap_pie", SKEY, KM_PRESS, KM_SHIFT, 0);
 
 	/* add f-modifier */
 	WM_keymap_add_item(keymap, "NLA_OT_fmodifier_add", MKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);

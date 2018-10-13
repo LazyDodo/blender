@@ -358,9 +358,9 @@ GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	float (*points2d)[2] = MEM_mallocN(sizeof(*points2d) * totpoints, __func__);
 
 	/* Convert points to array and triangulate
-	* Here a cache is not used because while drawing the information changes all the time, so the cache
-	* would be recalculated constantly, so it is better to do direct calculation for each function call
-	*/
+	 * Here a cache is not used because while drawing the information changes all the time, so the cache
+	 * would be recalculated constantly, so it is better to do direct calculation for each function call
+	 */
 	for (int i = 0; i < totpoints; i++) {
 		const tGPspoint *pt = &points[i];
 		points2d[i][0] = pt->x;
@@ -414,7 +414,7 @@ GPUBatch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float col
 
 	/* Calculate triangles cache for filling area (must be done only after changes) */
 	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
-		DRW_gpencil_triangulate_stroke_fill(gps);
+		DRW_gpencil_triangulate_stroke_fill(ob, gps);
 		ED_gpencil_calc_stroke_uv(ob, gps);
 	}
 
@@ -460,10 +460,10 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	}
 
 	/* Get size of verts:
-	* - The selected state needs to be larger than the unselected state so that
-	*   they stand out more.
-	* - We use the theme setting for size of the unselected verts
-	*/
+	 * - The selected state needs to be larger than the unselected state so that
+	 *   they stand out more.
+	 * - We use the theme setting for size of the unselected verts
+	 */
 	float bsize = UI_GetThemeValuef(TH_GP_VERTEX_SIZE);
 	float vsize;
 	if ((int)bsize > 8) {
@@ -478,6 +478,10 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	float selectColor[4];
 	UI_GetThemeColor3fv(TH_GP_VERTEX_SELECT, selectColor);
 	selectColor[3] = alpha;
+
+	float unselectColor[4];
+	UI_GetThemeColor3fv(TH_GP_VERTEX, unselectColor);
+	unselectColor[3] = alpha;
 
 	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, size_id;
@@ -503,7 +507,7 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	for (int i = 0; i < gps->totpoints; i++, pt++) {
 		/* weight paint */
 		if (is_weight_paint) {
-			float weight = gps->dvert ? defvert_find_weight(dvert, vgindex) : 0.0f;
+			float weight = (dvert && dvert->dw) ? defvert_find_weight(dvert, vgindex) : 0.0f;
 			float hue = 2.0f * (1.0f - weight) / 3.0f;
 			hsv_to_rgb(hue, 1.0f, 1.0f, &selectColor[0], &selectColor[1], &selectColor[2]);
 			selectColor[3] = 1.0f;
@@ -526,7 +530,7 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 				fsize = vsize;
 			}
 			else {
-				copy_v4_v4(fcolor, gps->runtime.tmp_stroke_rgba);
+				copy_v4_v4(fcolor, unselectColor);
 				fsize = bsize;
 			}
 		}
@@ -581,7 +585,7 @@ GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(
 	for (int i = 0; i < gps->totpoints; i++, pt++) {
 		/* weight paint */
 		if (is_weight_paint) {
-			float weight = gps->dvert ? defvert_find_weight(dvert, vgindex) : 0.0f;
+			float weight = (dvert && dvert->dw) ? defvert_find_weight(dvert, vgindex) : 0.0f;
 			float hue = 2.0f * (1.0f - weight) / 3.0f;
 			hsv_to_rgb(hue, 1.0f, 1.0f, &selectColor[0], &selectColor[1], &selectColor[2]);
 			selectColor[3] = 1.0f;
@@ -617,12 +621,12 @@ static void set_grid_point(
 
 	float pos[3];
 	/* Set the grid in the selected axis (default is always Y axis) */
-	if (axis & V3D_GP_GRID_AXIS_X) {
+	if (axis & GP_GRID_AXIS_X) {
 		pos[0] = 0.0f;
 		pos[1] = v1;
 		pos[2] = v2;
 	}
-	else if (axis & V3D_GP_GRID_AXIS_Z) {
+	else if (axis & GP_GRID_AXIS_Z) {
 		pos[0] = v1;
 		pos[1] = v2;
 		pos[2] = 0.0f;
@@ -639,63 +643,67 @@ static void set_grid_point(
 }
 
 /* Draw grid lines */
-GPUBatch *DRW_gpencil_get_grid(void)
+GPUBatch *DRW_gpencil_get_grid(Object *ob)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool do_center = (gpd->grid.lines <= 0) ? false : true;
 
 	float col_grid[4];
 
 	/* verify we have something to draw and valid values */
-	if (v3d->overlay.gpencil_grid_lines < 1) {
-		v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
+	if (gpd->grid.scale[0] == 0.0f) {
+		gpd->grid.scale[0] = 1.0f;
 	}
-
-	if (v3d->overlay.gpencil_grid_scale == 0.0f) {
-		v3d->overlay.gpencil_grid_scale = 1.0f;
+	if (gpd->grid.scale[1] == 0.0f) {
+		gpd->grid.scale[1] = 1.0f;
 	}
 
 	if (v3d->overlay.gpencil_grid_opacity < 0.1f) {
 		v3d->overlay.gpencil_grid_opacity = 0.1f;
 	}
 
-	UI_GetThemeColor3fv(TH_GRID, col_grid);
+	/* set color */
+	copy_v3_v3(col_grid, gpd->grid.color);
 	col_grid[3] = v3d->overlay.gpencil_grid_opacity;
 
 	/* if use locked axis, copy value */
-	int axis = v3d->overlay.gpencil_grid_axis;
-	if ((v3d->overlay.gpencil_grid_axis & V3D_GP_GRID_AXIS_LOCK) == 0) {
+	int axis = gpd->grid.axis;
+	if ((gpd->grid.axis & GP_GRID_AXIS_LOCK) == 0) {
 
-		axis = v3d->overlay.gpencil_grid_axis;
+		axis = gpd->grid.axis;
 	}
 	else {
 		switch (ts->gp_sculpt.lock_axis) {
 			case GP_LOCKAXIS_X:
 			{
-				axis = V3D_GP_GRID_AXIS_X;
+				axis = GP_GRID_AXIS_X;
 				break;
 			}
 			case GP_LOCKAXIS_NONE:
 			case GP_LOCKAXIS_Y:
 			{
-				axis = V3D_GP_GRID_AXIS_Y;
+				axis = GP_GRID_AXIS_Y;
 				break;
 			}
 			case GP_LOCKAXIS_Z:
 			{
-				axis = V3D_GP_GRID_AXIS_Z;
+				axis = GP_GRID_AXIS_Z;
 				break;
 			}
 		}
 	}
 
 	const char *grid_unit = NULL;
-	const int gridlines = v3d->overlay.gpencil_grid_lines;
-	const float grid_scale = v3d->overlay.gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
-	const float grid = grid_scale;
-	const float space = (grid_scale / gridlines);
+	const int gridlines = (gpd->grid.lines <= 0) ? 1 : gpd->grid.lines;
+	const float grid_w = gpd->grid.scale[0] * ED_scene_grid_scale(scene, &grid_unit);
+	const float grid_h = gpd->grid.scale[1] * ED_scene_grid_scale(scene, &grid_unit);
+	const float space_w = (grid_w / gridlines);
+	const float space_h = (grid_h / gridlines);
+	const float offset[2] = { gpd->grid.offset[0], gpd->grid.offset[1] };
 
 	const uint vertex_len = 2 * (gridlines * 4 + 2);
 
@@ -712,36 +720,38 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	int idx = 0;
 
 	for (int a = 1; a <= gridlines; a++) {
-		const float line = a * space;
+		const float line_w = a * space_w;
+		const float line_h = a * space_h;
 
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, -line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid_w + offset[0], -line_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, -line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid_w + offset[0], -line_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, +line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid_w + offset[0], +line_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, +line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid_w + offset[0], +line_h + offset[1], axis);
 		idx++;
 
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, -grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line_w + offset[0], -grid_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, +grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line_w + offset[0], +grid_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, -grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line_w + offset[0], -grid_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, +grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line_w + offset[0], +grid_h + offset[1], axis);
 		idx++;
 	}
 	/* center lines */
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, 0.0f, axis);
-	idx++;
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, 0.0f, axis);
-	idx++;
+	if (do_center) {
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid_w + offset[0], 0.0f + offset[1], axis);
+		idx++;
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid_w + offset[0], 0.0f + offset[1], axis);
+		idx++;
 
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, -grid, axis);
-	idx++;
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, +grid, axis);
-	idx++;
-
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f + offset[0], -grid_h + offset[1], axis);
+		idx++;
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f + offset[0], +grid_h + offset[1], axis);
+		idx++;
+	}
 	return GPU_batch_create_ex(GPU_PRIM_LINES, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }

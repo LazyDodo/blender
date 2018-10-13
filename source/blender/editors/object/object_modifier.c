@@ -1,31 +1,31 @@
 /*
-* ***** BEGIN GPL LICENSE BLOCK *****
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 2
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software Foundation,
-* Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
-*
-* The Original Code is Copyright (C) 2001-2002 by NaN Holding BV.
-* All rights reserved.
-*
-* Contributor(s): Blender Foundation, 2009
-*
-* ***** END GPL LICENSE BLOCK *****
-*/
+ * ***** BEGIN GPL LICENSE BLOCK *****
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
+ * The Original Code is Copyright (C) 2001-2002 by NaN Holding BV.
+ * All rights reserved.
+ *
+ * Contributor(s): Blender Foundation, 2009
+ *
+ * ***** END GPL LICENSE BLOCK *****
+ */
 
 /** \file blender/editors/object/object_modifier.c
-*  \ingroup edobj
-*/
+ *  \ingroup edobj
+ */
 
 
 #include <math.h>
@@ -56,6 +56,7 @@
 #include "BKE_context.h"
 #include "BKE_displist.h"
 #include "BKE_DerivedMesh.h"
+#include "BKE_editmesh.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_key.h"
@@ -72,8 +73,8 @@
 #include "BKE_ocean.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
+#include "BKE_scene.h"
 #include "BKE_softbody.h"
-#include "BKE_editmesh.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -97,6 +98,23 @@ static void modifier_skin_customdata_delete(struct Object *ob);
 
 /******************************** API ****************************/
 
+static void object_force_modifier_update_for_bind(Depsgraph *depsgraph, Scene *scene, Object *ob)
+{
+	if (ob->type == OB_MESH) {
+		Mesh *me_eval = mesh_create_eval_final_view(depsgraph, scene, ob, 0);
+		BKE_id_free(NULL, me_eval);
+	}
+	else if (ob->type == OB_LATTICE) {
+		BKE_lattice_modifiers_calc(depsgraph, scene, ob);
+	}
+	else if (ob->type == OB_MBALL) {
+		BKE_displist_make_mball(depsgraph, scene, ob);
+	}
+	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
+		BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
+	}
+}
+
 ModifierData *ED_object_modifier_add(ReportList *reports, Main *bmain, Scene *scene, Object *ob, const char *name, int type)
 {
 	ModifierData *md = NULL, *new_md = NULL;
@@ -117,8 +135,8 @@ ModifierData *ED_object_modifier_add(ReportList *reports, Main *bmain, Scene *sc
 
 	if (type == eModifierType_ParticleSystem) {
 		/* don't need to worry about the new modifier's name, since that is set to the number
-		* of particle systems which shouldn't have too many duplicates
-		*/
+		 * of particle systems which shouldn't have too many duplicates
+		 */
 		new_md = object_add_particle_system(bmain, scene, ob, name);
 	}
 	else {
@@ -182,7 +200,7 @@ ModifierData *ED_object_modifier_add(ReportList *reports, Main *bmain, Scene *sc
 }
 
 /* Return true if the object has a modifier of type 'type' other than
-* the modifier pointed to be 'exclude', otherwise returns false. */
+ * the modifier pointed to be 'exclude', otherwise returns false. */
 static bool object_has_modifier(const Object *ob, const ModifierData *exclude,
 	ModifierType type)
 {
@@ -197,13 +215,13 @@ static bool object_has_modifier(const Object *ob, const ModifierData *exclude,
 }
 
 /* If the object data of 'orig_ob' has other users, run 'callback' on
-* each of them.
-*
-* If include_orig is true, the callback will run on 'orig_ob' too.
-*
-* If the callback ever returns true, iteration will stop and the
-* function value will be true. Otherwise the function returns false.
-*/
+ * each of them.
+ *
+ * If include_orig is true, the callback will run on 'orig_ob' too.
+ *
+ * If the callback ever returns true, iteration will stop and the
+ * function value will be true. Otherwise the function returns false.
+ */
 bool ED_object_iter_other(
         Main *bmain, Object *orig_ob, const bool include_orig,
         bool (*callback)(Object *ob, void *callback_data),
@@ -278,8 +296,8 @@ static bool object_modifier_remove(Main *bmain, Object *ob, ModifierData *md,
 	bool *r_sort_depsgraph)
 {
 	/* It seems on rapid delete it is possible to
-	* get called twice on same modifier, so make
-	* sure it is in list. */
+	 * get called twice on same modifier, so make
+	 * sure it is in list. */
 	if (BLI_findindex(&ob->modifiers, md) == -1) {
 		return 0;
 	}
@@ -533,15 +551,15 @@ static int modifier_apply_shape(
 	}
 
 	/*
-	* It should be ridiculously easy to extract the original verts that we want
-	* and form the shape data.  We can probably use the CD KEYINDEX layer (or
-	* whatever I ended up calling it, too tired to check now), though this would
-	* by necessity have to make some potentially ugly assumptions about the order
-	* of the mesh data :-/  you can probably assume in 99% of cases that the first
-	* element of a given index is the original, and any subsequent duplicates are
-	* copies/interpolates, but that's an assumption that would need to be tested
-	* and then predominantly stated in comments in a half dozen headers.
-	*/
+	 * It should be ridiculously easy to extract the original verts that we want
+	 * and form the shape data.  We can probably use the CD KEYINDEX layer (or
+	 * whatever I ended up calling it, too tired to check now), though this would
+	 * by necessity have to make some potentially ugly assumptions about the order
+	 * of the mesh data :-/  you can probably assume in 99% of cases that the first
+	 * element of a given index is the original, and any subsequent duplicates are
+	 * copies/interpolates, but that's an assumption that would need to be tested
+	 * and then predominantly stated in comments in a half dozen headers.
+	 */
 
 	if (ob->type == OB_MESH) {
 		Mesh *mesh_applied;
@@ -564,7 +582,7 @@ static int modifier_apply_shape(
 			key = me->key = BKE_key_add(bmain, (ID *)me);
 			key->type = KEY_RELATIVE;
 			/* if that was the first key block added, then it was the basis.
-			* Initialize it with the mesh, and add another for the modifier */
+			 * Initialize it with the mesh, and add another for the modifier */
 			kb = BKE_keyblock_add(key, NULL);
 			BKE_keyblock_convert_from_mesh(me, key, kb);
 		}
@@ -638,7 +656,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		BKE_report(reports, RPT_INFO, "Applied modifier only changed CV points, not tessellated/bevel vertices");
 
 		vertexCos = BKE_curve_nurbs_vertexCos_get(&cu->nurb, &numVerts);
-		modifier_deformVerts(md, &mectx, NULL, vertexCos, numVerts);
+		mti->deformVerts(md, &mectx, NULL, vertexCos, numVerts);
 		BK_curve_nurbs_vertexCos_apply(&cu->nurb, vertexCos);
 
 		MEM_freeN(vertexCos);
@@ -693,7 +711,7 @@ int ED_object_modifier_apply(
 		BKE_report(reports, RPT_INFO, "Applied modifier was not first, result may not be as expected");
 
 	/* Get evaluated modifier, so object links pointer to evaluated data,
-	* but still use original object it is applied to the original mesh. */
+	 * but still use original object it is applied to the original mesh. */
 	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	ModifierData *md_eval = (ob_eval) ? modifiers_findByName(ob_eval, md->name) : md;
 
@@ -832,7 +850,7 @@ bool edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_fla
 	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
 
 	if (ID_IS_STATIC_OVERRIDE(ob)) {
-		CTX_wm_operator_poll_msg_set(C, "Cannot edit modifiers comming from static override");
+		CTX_wm_operator_poll_msg_set(C, "Cannot edit modifiers coming from static override");
 		return (((ModifierData *)ptr.data)->flag & eModifierFlag_StaticOverride_Local) != 0;
 	}
 
@@ -1274,7 +1292,7 @@ static int multires_reshape_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	if (!multiresModifier_reshape(depsgraph, mmd, ob, secondob)) {
+	if (!multiresModifier_reshapeFromObject(depsgraph, mmd, ob, secondob)) {
 		BKE_report(op->reports, RPT_ERROR, "Objects do not have the same number of vertices");
 		return OPERATOR_CANCELLED;
 	}
@@ -1748,14 +1766,14 @@ static Object *modifier_skin_armature_create(Depsgraph *depsgraph, Main *bmain, 
 	edges_visited = BLI_BITMAP_NEW(me->totedge, "edge_visited");
 
 	/* note: we use EditBones here, easier to set them up and use
-	* edit-armature functions to convert back to regular bones */
+	 * edit-armature functions to convert back to regular bones */
 	for (v = 0; v < me->totvert; v++) {
 		if (mvert_skin[v].flag & MVERT_SKIN_ROOT) {
 			EditBone *bone = NULL;
 
 			/* Unless the skin root has just one adjacent edge, create
-			* a fake root bone (have it going off in the Y direction
-			* (arbitrary) */
+			 * a fake root bone (have it going off in the Y direction
+			 * (arbitrary) */
 			if (emap[v].count > 1) {
 				bone = ED_armature_ebone_add(arm, "Bone");
 
@@ -1922,9 +1940,9 @@ static bool meshdeform_poll(bContext *C)
 
 static int meshdeform_bind_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
-	Object *ob = ED_object_active_context(C);
+	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Object *ob = ED_object_active_context(C);
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *)edit_modifier_property_get(op, ob, eModifierType_MeshDeform);
 
 	if (!mmd)
@@ -1951,35 +1969,22 @@ static int meshdeform_bind_exec(bContext *C, wmOperator *op)
 		mmd->totvert = 0;
 		mmd->totcagevert = 0;
 		mmd->totinfluence = 0;
-
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 	else {
-		DerivedMesh *dm;
 		int mode = mmd->modifier.mode;
-
-		/* force modifier to run, it will call binding routine */
 		mmd->bindfunc = ED_mesh_deform_bind_callback;
 		mmd->modifier.mode |= eModifierMode_Realtime;
 
-		if (ob->type == OB_MESH) {
-			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
-			dm->release(dm);
-		}
-		else if (ob->type == OB_LATTICE) {
-			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
-		}
-		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(depsgraph, scene, ob);
-		}
-		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
-		}
+		/* Force depsgraph update, this will do binding. */
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 
 		mmd->bindfunc = NULL;
 		mmd->modifier.mode = mode;
 	}
+
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 
 	return OPERATOR_FINISHED;
 }
@@ -2088,7 +2093,7 @@ static int oceanbake_breakjob(void *UNUSED(customdata))
 	//return *(ob->stop);
 
 	/* this is not nice yet, need to make the jobs list template better
-	* for identifying/acting upon various different jobs */
+	 * for identifying/acting upon various different jobs */
 	/* but for now we'll reuse the render break... */
 	return (G.is_break);
 }
@@ -2172,22 +2177,22 @@ static int ocean_bake_exec(bContext *C, wmOperator *op)
 	/* precalculate time variable before baking */
 	for (f = omd->bakestart; f <= omd->bakeend; f++) {
 		/* from physics_fluid.c:
-		*
-		* XXX: This can't be used due to an anim sys optimization that ignores recalc object animation,
-		* leaving it for the depgraph (this ignores object animation such as modifier properties though... :/ )
-		* --> BKE_animsys_evaluate_all_animation(bmain, eval_time);
-		* This doesn't work with drivers:
-		* --> BKE_animsys_evaluate_animdata(&fsDomain->id, fsDomain->adt, eval_time, ADT_RECALC_ALL);
-		*/
+		 *
+		 * XXX: This can't be used due to an anim sys optimization that ignores recalc object animation,
+		 * leaving it for the depgraph (this ignores object animation such as modifier properties though... :/ )
+		 * --> BKE_animsys_evaluate_all_animation(bmain, eval_time);
+		 * This doesn't work with drivers:
+		 * --> BKE_animsys_evaluate_animdata(&fsDomain->id, fsDomain->adt, eval_time, ADT_RECALC_ALL);
+		 */
 
 		/* Modifying the global scene isn't nice, but we can do it in
-		* this part of the process before a threaded job is created */
+		 * this part of the process before a threaded job is created */
 
 		//scene->r.cfra = f;
 		//ED_update_for_newframe(bmain, scene);
 
 		/* ok, this doesn't work with drivers, but is way faster.
-		* let's use this for now and hope nobody wants to drive the time value... */
+		 * let's use this for now and hope nobody wants to drive the time value... */
 		BKE_animsys_evaluate_animdata(CTX_data_depsgraph(C), scene, (ID *)ob, ob->adt, f, ADT_RECALC_ANIM);
 
 		och->time[i] = omd->time;
@@ -2281,27 +2286,13 @@ static int laplaciandeform_bind_exec(bContext *C, wmOperator *op)
 		lmd->flag &= ~MOD_LAPLACIANDEFORM_BIND;
 	}
 	else {
-		DerivedMesh *dm;
 		int mode = lmd->modifier.mode;
 
 		/* Force modifier to run, it will call binding routine. */
-		/* TODO(Sybren): deduplicate the code below, it's used multiple times here. */
 		lmd->modifier.mode |= eModifierMode_Realtime;
 		lmd->flag |= MOD_LAPLACIANDEFORM_BIND;
 
-		if (ob->type == OB_MESH) {
-			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
-			dm->release(dm);
-		}
-		else if (ob->type == OB_LATTICE) {
-			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
-		}
-		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(depsgraph, scene, ob);
-		}
-		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
-		}
+		object_force_modifier_update_for_bind(depsgraph, scene, ob);
 
 		lmd->modifier.mode = mode;
 	}
@@ -2352,39 +2343,24 @@ static int surfacedeform_bind_exec(bContext *C, wmOperator *op)
 
 	if (!smd)
 		return OPERATOR_CANCELLED;
-
 	if (smd->flags & MOD_SDEF_BIND) {
 		/* Un-binding happens inside the modifier when it's evaluated. */
 		smd->flags &= ~MOD_SDEF_BIND;
 	}
 	else if (smd->target) {
-		DerivedMesh *dm;
 		int mode = smd->modifier.mode;
 
 		/* Force modifier to run, it will call binding routine. */
 		smd->modifier.mode |= eModifierMode_Realtime;
 		smd->flags |= MOD_SDEF_BIND;
 
-		if (ob->type == OB_MESH) {
-			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
-			dm->release(dm);
-		}
-		else if (ob->type == OB_LATTICE) {
-			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
-		}
-		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(depsgraph, scene, ob);
-		}
-		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
-		}
+		object_force_modifier_update_for_bind(depsgraph, scene, ob);
 
 		smd->modifier.mode = mode;
 	}
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
-
 	return OPERATOR_FINISHED;
 }
 

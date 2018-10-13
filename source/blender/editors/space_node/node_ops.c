@@ -38,6 +38,7 @@
 #include "ED_node.h"  /* own include */
 #include "ED_screen.h"
 #include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_transform.h"
 
 #include "RNA_access.h"
@@ -56,7 +57,7 @@ void node_operatortypes(void)
 	WM_operatortype_append(NODE_OT_select_all);
 	WM_operatortype_append(NODE_OT_select_linked_to);
 	WM_operatortype_append(NODE_OT_select_linked_from);
-	WM_operatortype_append(NODE_OT_select_border);
+	WM_operatortype_append(NODE_OT_select_box);
 	WM_operatortype_append(NODE_OT_select_circle);
 	WM_operatortype_append(NODE_OT_select_lasso);
 	WM_operatortype_append(NODE_OT_select_grouped);
@@ -248,7 +249,7 @@ void node_keymap(struct wmKeyConfig *keyconf)
 	node_select_keymap(keymap, false);
 	node_select_keymap(keymap, true);
 
-	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_border", EVT_TWEAK_S, KM_ANY, 0, 0);
+	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_box", EVT_TWEAK_S, KM_ANY, 0, 0);
 	RNA_boolean_set(kmi->ptr, "tweak", true);
 
 	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
@@ -305,7 +306,7 @@ void node_keymap(struct wmKeyConfig *keyconf)
 #endif
 	WM_keymap_add_item(keymap, "NODE_OT_view_selected", PADPERIOD, KM_PRESS, 0, 0);
 
-	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_box", BKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "tweak", false);
 
 	WM_keymap_add_item(keymap, "NODE_OT_delete", XKEY, KM_PRESS, 0, 0);
@@ -314,12 +315,7 @@ void node_keymap(struct wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "NODE_OT_delete_reconnect", XKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "NODE_OT_delete_reconnect", DELKEY, KM_PRESS, KM_CTRL, 0);
 
-	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "NODE_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "NODE_OT_select_all");
 
 	WM_keymap_add_item(keymap, "NODE_OT_select_linked_to", LKEY, KM_PRESS, KM_SHIFT, 0);
 	WM_keymap_add_item(keymap, "NODE_OT_select_linked_from", LKEY, KM_PRESS, 0, 0);

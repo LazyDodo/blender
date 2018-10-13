@@ -238,6 +238,13 @@ class ExecutePreset(Operator):
 
         ext = splitext(filepath)[1].lower()
 
+        if ext not in {".py", ".xml"}:
+            self.report({'ERROR'}, "unknown filetype: %r" % ext)
+            return {'CANCELLED'}
+
+        if hasattr(preset_class, "reset_cb"):
+            preset_class.reset_cb(context)
+
         # execute the preset using script.python_file_run
         if ext == ".py":
             bpy.ops.script.python_file_run(filepath=filepath)
@@ -246,9 +253,9 @@ class ExecutePreset(Operator):
             rna_xml.xml_file_run(context,
                                  filepath,
                                  preset_class.preset_xml_map)
-        else:
-            self.report({'ERROR'}, "unknown filetype: %r" % ext)
-            return {'CANCELLED'}
+
+        if hasattr(preset_class, "post_cb"):
+            preset_class.post_cb(context)
 
         return {'FINISHED'}
 
@@ -614,7 +621,7 @@ class AddPresetOperator(AddPresetBase, Operator):
 
         prefix, suffix = self.operator.split("_OT_", 1)
         op = getattr(getattr(bpy.ops, prefix.lower()), suffix)
-        operator_rna = op.get_rna().bl_rna
+        operator_rna = op.get_rna_type()
         del op
 
         ret = []
@@ -650,24 +657,6 @@ class WM_MT_operator_presets(Menu):
         return AddPresetOperator.operator_path(self.operator)
 
     preset_operator = "script.execute_preset"
-
-
-class AddPresetUnitsLength(AddPresetBase, Operator):
-    """Add or remove length units preset"""
-    bl_idname = "scene.units_length_preset_add"
-    bl_label = "Add Length Units Preset"
-    preset_menu = "SCENE_PT_units_length_presets"
-
-    preset_defines = [
-        "scene = bpy.context.scene"
-    ]
-
-    preset_values = [
-        "scene.unit_settings.system",
-        "scene.unit_settings.scale_length",
-    ]
-
-    preset_subdir = "units_length"
 
 
 class AddPresetGpencilBrush(AddPresetBase, Operator):
@@ -764,7 +753,6 @@ classes = (
     AddPresetTrackingCamera,
     AddPresetTrackingSettings,
     AddPresetTrackingTrackColor,
-    AddPresetUnitsLength,
     AddPresetGpencilBrush,
     AddPresetGpencilMaterial,
     ExecutePreset,

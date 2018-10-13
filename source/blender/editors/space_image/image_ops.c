@@ -288,13 +288,12 @@ static bool image_sample_poll(bContext *C)
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	if (sima) {
-		Scene *scene = CTX_data_scene(C);
 		Object *obedit = CTX_data_edit_object(C);
-		ToolSettings *toolsettings = scene->toolsettings;
-
 		if (obedit) {
-			if (ED_space_image_show_uvedit(sima, obedit) && (toolsettings->use_uv_sculpt))
+			/* Disable when UV editing so it doesn't swallow all click events (use for setting cursor). */
+			if (ED_space_image_show_uvedit(sima, obedit)) {
 				return false;
+			}
 		}
 		else if (sima->mode != SI_MODE_VIEW) {
 			return false;
@@ -1041,15 +1040,15 @@ void IMAGE_OT_view_zoom_border(wmOperatorType *ot)
 	ot->idname = "IMAGE_OT_view_zoom_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = image_view_zoom_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = space_image_main_region_poll;
 
 	/* rna */
-	WM_operator_properties_gesture_border_zoom(ot);
+	WM_operator_properties_gesture_box_zoom(ot);
 }
 
 /**************** load/replace/save callbacks ******************/
@@ -1495,7 +1494,7 @@ static int image_match_len_exec(bContext *C, wmOperator *UNUSED(op))
 	if (!anim)
 		return OPERATOR_CANCELLED;
 	iuser->frames = IMB_anim_get_duration(anim, IMB_TC_RECORD_RUN);
-	BKE_image_user_frame_calc(iuser, scene->r.cfra, 0);
+	BKE_image_user_frame_calc(iuser, scene->r.cfra);
 
 	return OPERATOR_FINISHED;
 }
@@ -1859,6 +1858,8 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 		rr = BKE_image_acquire_renderresult(scene, ima);
 		bool is_mono = rr ? BLI_listbase_count_at_most(&rr->views, 2) < 2 : BLI_listbase_count_at_most(&ima->views, 2) < 2;
 		bool is_exr_rr = rr && ELEM(imf->imtype, R_IMF_IMTYPE_OPENEXR, R_IMF_IMTYPE_MULTILAYER) && RE_HasFloatPixels(rr);
+		bool is_multilayer = is_exr_rr && (imf->imtype == R_IMF_IMTYPE_MULTILAYER);
+		int layer = (is_multilayer) ? -1 : sima->iuser.layer;
 
 		/* error handling */
 		if (!rr) {
@@ -1890,14 +1891,14 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 		/* fancy multiview OpenEXR */
 		if (imf->views_format == R_IMF_VIEWS_MULTIVIEW && is_exr_rr) {
 			/* save render result */
-			ok = RE_WriteRenderResult(op->reports, rr, simopts->filepath, imf, NULL, sima->iuser.layer);
+			ok = RE_WriteRenderResult(op->reports, rr, simopts->filepath, imf, NULL, layer);
 			save_image_post(bmain, op, ibuf, ima, ok, true, relbase, relative, do_newpath, simopts->filepath);
 			ED_space_image_release_buffer(sima, ibuf, lock);
 		}
 		/* regular mono pipeline */
 		else if (is_mono) {
 			if (is_exr_rr) {
-				ok = RE_WriteRenderResult(op->reports, rr, simopts->filepath, imf, NULL, -1);
+				ok = RE_WriteRenderResult(op->reports, rr, simopts->filepath, imf, NULL, layer);
 			}
 			else {
 				colormanaged_ibuf = IMB_colormanagement_imbuf_for_write(ibuf, save_as_render, true, &imf->view_settings, &imf->display_settings, imf);
@@ -1925,7 +1926,7 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 
 				if (is_exr_rr) {
 					BKE_scene_multiview_view_filepath_get(&scene->r, simopts->filepath, view, filepath);
-					ok_view = RE_WriteRenderResult(op->reports, rr, filepath, imf, view, -1);
+					ok_view = RE_WriteRenderResult(op->reports, rr, filepath, imf, view, layer);
 					save_image_post(bmain, op, ibuf, ima, ok_view, true, relbase, relative, do_newpath, filepath);
 				}
 				else {
@@ -1960,7 +1961,7 @@ static bool save_image_doit(bContext *C, SpaceImage *sima, wmOperator *op, SaveI
 		/* stereo (multiview) images */
 		else if (simopts->im_format.views_format == R_IMF_VIEWS_STEREO_3D) {
 			if (imf->imtype == R_IMF_IMTYPE_MULTILAYER) {
-				ok = RE_WriteRenderResult(op->reports, rr, simopts->filepath, imf, NULL, -1);
+				ok = RE_WriteRenderResult(op->reports, rr, simopts->filepath, imf, NULL, layer);
 				save_image_post(bmain, op, ibuf, ima, ok, true, relbase, relative, do_newpath, simopts->filepath);
 				ED_space_image_release_buffer(sima, ibuf, lock);
 			}
@@ -3768,10 +3769,10 @@ void IMAGE_OT_render_border(wmOperatorType *ot)
 	ot->idname = "IMAGE_OT_render_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = render_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 	ot->poll = image_cycle_render_slot_poll;
 
 	/* flags */

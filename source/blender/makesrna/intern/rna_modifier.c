@@ -64,63 +64,63 @@
 
 const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	{0, "", 0, N_("Modify"), ""},
-	{eModifierType_DataTransfer, "DATA_TRANSFER", ICON_MOD_DATA_TRANSFER, "Data Transfer", ""},
-	{eModifierType_MeshCache, "MESH_CACHE", ICON_MOD_MESHDEFORM, "Mesh Cache", ""},
-	{eModifierType_MeshSequenceCache, "MESH_SEQUENCE_CACHE", ICON_MOD_MESHDEFORM, "Mesh Sequence Cache", ""},
-	{eModifierType_NormalEdit, "NORMAL_EDIT", ICON_MOD_NORMALEDIT, "Normal Edit", ""},
-	{eModifierType_WeightedNormal, "WEIGHTED_NORMAL", ICON_MOD_NORMALEDIT, "Weighted Normal", ""},
-	{eModifierType_UVProject, "UV_PROJECT", ICON_MOD_UVPROJECT, "UV Project", ""},
-	{eModifierType_UVWarp, "UV_WARP", ICON_MOD_UVPROJECT, "UV Warp", ""},
-	{eModifierType_WeightVGEdit, "VERTEX_WEIGHT_EDIT", ICON_MOD_VERTEX_WEIGHT, "Vertex Weight Edit", ""},
-	{eModifierType_WeightVGMix, "VERTEX_WEIGHT_MIX", ICON_MOD_VERTEX_WEIGHT, "Vertex Weight Mix", ""},
-	{eModifierType_WeightVGProximity, "VERTEX_WEIGHT_PROXIMITY", ICON_MOD_VERTEX_WEIGHT,
+	{eModifierType_DataTransfer, "DATA_TRANSFER", ICON_MODIFIER, "Data Transfer", ""},
+	{eModifierType_MeshCache, "MESH_CACHE", ICON_MODIFIER, "Mesh Cache", ""},
+	{eModifierType_MeshSequenceCache, "MESH_SEQUENCE_CACHE", ICON_MODIFIER, "Mesh Sequence Cache", ""},
+	{eModifierType_NormalEdit, "NORMAL_EDIT", ICON_MODIFIER, "Normal Edit", ""},
+	{eModifierType_WeightedNormal, "WEIGHTED_NORMAL", ICON_MODIFIER, "Weighted Normal", ""},
+	{eModifierType_UVProject, "UV_PROJECT", ICON_MODIFIER, "UV Project", ""},
+	{eModifierType_UVWarp, "UV_WARP", ICON_MODIFIER, "UV Warp", ""},
+	{eModifierType_WeightVGEdit, "VERTEX_WEIGHT_EDIT", ICON_MODIFIER, "Vertex Weight Edit", ""},
+	{eModifierType_WeightVGMix, "VERTEX_WEIGHT_MIX", ICON_MODIFIER, "Vertex Weight Mix", ""},
+	{eModifierType_WeightVGProximity, "VERTEX_WEIGHT_PROXIMITY", ICON_MODIFIER,
 	                                  "Vertex Weight Proximity", ""},
 	{0, "", 0, N_("Generate"), ""},
-	{eModifierType_Array, "ARRAY", ICON_MOD_ARRAY, "Array", ""},
-	{eModifierType_Bevel, "BEVEL", ICON_MOD_BEVEL, "Bevel", ""},
-	{eModifierType_Boolean, "BOOLEAN", ICON_MOD_BOOLEAN, "Boolean", ""},
-	{eModifierType_Build, "BUILD", ICON_MOD_BUILD, "Build", ""},
-	{eModifierType_Decimate, "DECIMATE", ICON_MOD_DECIM, "Decimate", ""},
-	{eModifierType_EdgeSplit, "EDGE_SPLIT", ICON_MOD_EDGESPLIT, "Edge Split", ""},
-	{eModifierType_Mask, "MASK", ICON_MOD_MASK, "Mask", ""},
-	{eModifierType_Mirror, "MIRROR", ICON_MOD_MIRROR, "Mirror", ""},
-	{eModifierType_Multires, "MULTIRES", ICON_MOD_MULTIRES, "Multiresolution", ""},
-	{eModifierType_Remesh, "REMESH", ICON_MOD_REMESH, "Remesh", ""},
-	{eModifierType_Screw, "SCREW", ICON_MOD_SCREW, "Screw", ""},
-	{eModifierType_Skin, "SKIN", ICON_MOD_SKIN, "Skin", ""},
-	{eModifierType_Solidify, "SOLIDIFY", ICON_MOD_SOLIDIFY, "Solidify", ""},
-	{eModifierType_Subsurf, "SUBSURF", ICON_MOD_SUBSURF, "Subdivision Surface", ""},
-	{eModifierType_Triangulate, "TRIANGULATE", ICON_MOD_TRIANGULATE, "Triangulate", ""},
-	{eModifierType_Wireframe, "WIREFRAME", ICON_MOD_WIREFRAME, "Wireframe", "Generate a wireframe on the edges of a mesh"},
+	{eModifierType_Array, "ARRAY", ICON_MODIFIER, "Array", ""},
+	{eModifierType_Bevel, "BEVEL", ICON_MODIFIER, "Bevel", ""},
+	{eModifierType_Boolean, "BOOLEAN", ICON_MODIFIER, "Boolean", ""},
+	{eModifierType_Build, "BUILD", ICON_MODIFIER, "Build", ""},
+	{eModifierType_Decimate, "DECIMATE", ICON_MODIFIER, "Decimate", ""},
+	{eModifierType_EdgeSplit, "EDGE_SPLIT", ICON_MODIFIER, "Edge Split", ""},
+	{eModifierType_Mask, "MASK", ICON_MODIFIER, "Mask", ""},
+	{eModifierType_Mirror, "MIRROR", ICON_MODIFIER, "Mirror", ""},
+	{eModifierType_Multires, "MULTIRES", ICON_MODIFIER, "Multiresolution", ""},
+	{eModifierType_Remesh, "REMESH", ICON_MODIFIER, "Remesh", ""},
+	{eModifierType_Screw, "SCREW", ICON_MODIFIER, "Screw", ""},
+	{eModifierType_Skin, "SKIN", ICON_MODIFIER, "Skin", ""},
+	{eModifierType_Solidify, "SOLIDIFY", ICON_MODIFIER, "Solidify", ""},
+	{eModifierType_Subsurf, "SUBSURF", ICON_MODIFIER, "Subdivision Surface", ""},
+	{eModifierType_Triangulate, "TRIANGULATE", ICON_MODIFIER, "Triangulate", ""},
+	{eModifierType_Wireframe, "WIREFRAME", ICON_MODIFIER, "Wireframe", "Generate a wireframe on the edges of a mesh"},
 	{0, "", 0, N_("Deform"), ""},
-	{eModifierType_Armature, "ARMATURE", ICON_MOD_ARMATURE, "Armature", ""},
-	{eModifierType_Cast, "CAST", ICON_MOD_CAST, "Cast", ""},
-	{eModifierType_CorrectiveSmooth, "CORRECTIVE_SMOOTH", ICON_MOD_SMOOTH, "Corrective Smooth", ""},
-	{eModifierType_Curve, "CURVE", ICON_MOD_CURVE, "Curve", ""},
-	{eModifierType_Displace, "DISPLACE", ICON_MOD_DISPLACE, "Displace", ""},
-	{eModifierType_Hook, "HOOK", ICON_HOOK, "Hook", ""},
-	{eModifierType_LaplacianSmooth, "LAPLACIANSMOOTH", ICON_MOD_SMOOTH, "Laplacian Smooth", ""},
-	{eModifierType_LaplacianDeform, "LAPLACIANDEFORM", ICON_MOD_MESHDEFORM, "Laplacian Deform", ""},
-	{eModifierType_Lattice, "LATTICE", ICON_MOD_LATTICE, "Lattice", ""},
-	{eModifierType_MeshDeform, "MESH_DEFORM", ICON_MOD_MESHDEFORM, "Mesh Deform", ""},
-	{eModifierType_Shrinkwrap, "SHRINKWRAP", ICON_MOD_SHRINKWRAP, "Shrinkwrap", ""},
-	{eModifierType_SimpleDeform, "SIMPLE_DEFORM", ICON_MOD_SIMPLEDEFORM, "Simple Deform", ""},
-	{eModifierType_Smooth, "SMOOTH", ICON_MOD_SMOOTH, "Smooth", ""},
-	{eModifierType_SurfaceDeform, "SURFACE_DEFORM", ICON_MOD_MESHDEFORM, "Surface Deform", ""},
-	{eModifierType_Warp, "WARP", ICON_MOD_WARP, "Warp", ""},
-	{eModifierType_Wave, "WAVE", ICON_MOD_WAVE, "Wave", ""},
+	{eModifierType_Armature, "ARMATURE", ICON_MODIFIER, "Armature", ""},
+	{eModifierType_Cast, "CAST", ICON_MODIFIER, "Cast", ""},
+	{eModifierType_Curve, "CURVE", ICON_MODIFIER, "Curve", ""},
+	{eModifierType_Displace, "DISPLACE", ICON_MODIFIER, "Displace", ""},
+	{eModifierType_Hook, "HOOK", ICON_MODIFIER, "Hook", ""},
+	{eModifierType_LaplacianDeform, "LAPLACIANDEFORM", ICON_MODIFIER, "Laplacian Deform", ""},
+	{eModifierType_Lattice, "LATTICE", ICON_MODIFIER, "Lattice", ""},
+	{eModifierType_MeshDeform, "MESH_DEFORM", ICON_MODIFIER, "Mesh Deform", ""},
+	{eModifierType_Shrinkwrap, "SHRINKWRAP", ICON_MODIFIER, "Shrinkwrap", ""},
+	{eModifierType_SimpleDeform, "SIMPLE_DEFORM", ICON_MODIFIER, "Simple Deform", ""},
+	{eModifierType_Smooth, "SMOOTH", ICON_MODIFIER, "Smooth", ""},
+	{eModifierType_CorrectiveSmooth, "CORRECTIVE_SMOOTH", ICON_MODIFIER, "Smooth Corrective", ""},
+	{eModifierType_LaplacianSmooth, "LAPLACIANSMOOTH", ICON_MODIFIER, "Smooth Laplacian", ""},
+	{eModifierType_SurfaceDeform, "SURFACE_DEFORM", ICON_MODIFIER, "Surface Deform", ""},
+	{eModifierType_Warp, "WARP", ICON_MODIFIER, "Warp", ""},
+	{eModifierType_Wave, "WAVE", ICON_MODIFIER, "Wave", ""},
 	{0, "", 0, N_("Simulate"), ""},
-	{eModifierType_Cloth, "CLOTH", ICON_MOD_CLOTH, "Cloth", ""},
-	{eModifierType_Collision, "COLLISION", ICON_MOD_PHYSICS, "Collision", ""},
-	{eModifierType_DynamicPaint, "DYNAMIC_PAINT", ICON_MOD_DYNAMICPAINT, "Dynamic Paint", ""},
-	{eModifierType_Explode, "EXPLODE", ICON_MOD_EXPLODE, "Explode", ""},
-	{eModifierType_Fluidsim, "FLUID_SIMULATION", ICON_MOD_FLUIDSIM, "Fluid Simulation", ""},
-	{eModifierType_Ocean, "OCEAN", ICON_MOD_OCEAN, "Ocean", ""},
-	{eModifierType_ParticleInstance, "PARTICLE_INSTANCE", ICON_MOD_PARTICLES, "Particle Instance", ""},
-	{eModifierType_ParticleSystem, "PARTICLE_SYSTEM", ICON_MOD_PARTICLES, "Particle System", ""},
-	{eModifierType_Smoke, "SMOKE", ICON_MOD_SMOKE, "Smoke", ""},
-	{eModifierType_Softbody, "SOFT_BODY", ICON_MOD_SOFT, "Soft Body", ""},
-	{eModifierType_Surface, "SURFACE", ICON_MOD_PHYSICS, "Surface", ""},
+	{eModifierType_Cloth, "CLOTH", ICON_MODIFIER, "Cloth", ""},
+	{eModifierType_Collision, "COLLISION", ICON_MODIFIER, "Collision", ""},
+	{eModifierType_DynamicPaint, "DYNAMIC_PAINT", ICON_MODIFIER, "Dynamic Paint", ""},
+	{eModifierType_Explode, "EXPLODE", ICON_MODIFIER, "Explode", ""},
+	{eModifierType_Fluidsim, "FLUID_SIMULATION", ICON_MODIFIER, "Fluid Simulation", ""},
+	{eModifierType_Ocean, "OCEAN", ICON_MODIFIER, "Ocean", ""},
+	{eModifierType_ParticleInstance, "PARTICLE_INSTANCE", ICON_MODIFIER, "Particle Instance", ""},
+	{eModifierType_ParticleSystem, "PARTICLE_SYSTEM", ICON_MODIFIER, "Particle System", ""},
+	{eModifierType_Smoke, "SMOKE", ICON_MODIFIER, "Smoke", ""},
+	{eModifierType_Softbody, "SOFT_BODY", ICON_MODIFIER, "Soft Body", ""},
+	{eModifierType_Surface, "SURFACE", ICON_MODIFIER, "Surface", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -139,6 +139,24 @@ const EnumPropertyItem rna_enum_modifier_triangulate_ngon_method_items[] = {
 	{MOD_TRIANGULATE_NGON_EARCLIP, "CLIP", 0, "Clip", "Split the polygons with an ear clipping algorithm"},
 	{0, NULL, 0, NULL, NULL}
 };
+
+const EnumPropertyItem rna_enum_modifier_shrinkwrap_mode_items[] = {
+	{MOD_SHRINKWRAP_ON_SURFACE, "ON_SURFACE", 0, "On Surface",
+	                            "The point is constrained to the surface of the target object, "
+	                            "with distance offset towards the original point location"},
+	{MOD_SHRINKWRAP_INSIDE, "INSIDE", 0, "Inside",
+	                        "The point is constrained to be inside the target object"},
+	{MOD_SHRINKWRAP_OUTSIDE, "OUTSIDE", 0, "Outside",
+	                         "The point is constrained to be outside the target object"},
+	{MOD_SHRINKWRAP_OUTSIDE_SURFACE, "OUTSIDE_SURFACE", 0, "Outside Surface",
+	                                 "The point is constrained to the surface of the target object, "
+	                                 "with distance offset always to the outside, towards or away from the original location"},
+	{MOD_SHRINKWRAP_ABOVE_SURFACE, "ABOVE_SURFACE", 0, "Above Surface",
+	                               "The point is constrained to the surface of the target object, "
+	                               "with distance offset applied exactly along the target normal"},
+	{0, NULL, 0, NULL, NULL}
+};
+
 
 #ifndef RNA_RUNTIME
 /* use eWarp_Falloff_*** & eHook_Falloff_***, they're in sync */
@@ -696,15 +714,13 @@ static int rna_MultiresModifier_filepath_length(PointerRNA *ptr)
 static int rna_ShrinkwrapModifier_face_cull_get(PointerRNA *ptr)
 {
 	ShrinkwrapModifierData *swm = (ShrinkwrapModifierData *)ptr->data;
-	return swm->shrinkOpts & (MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE);
+	return swm->shrinkOpts & MOD_SHRINKWRAP_CULL_TARGET_MASK;
 }
 
 static void rna_ShrinkwrapModifier_face_cull_set(struct PointerRNA *ptr, int value)
 {
 	ShrinkwrapModifierData *swm = (ShrinkwrapModifierData *)ptr->data;
-
-	swm->shrinkOpts =
-	    (swm->shrinkOpts & ~(MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE)) | value;
+	swm->shrinkOpts = (swm->shrinkOpts & ~MOD_SHRINKWRAP_CULL_TARGET_MASK) | value;
 }
 
 static bool rna_MeshDeformModifier_is_bound_get(PointerRNA *ptr)
@@ -3173,6 +3189,12 @@ static void rna_def_modifier_shrinkwrap(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Mode", "");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+	prop = RNA_def_property(srna, "wrap_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "shrinkMode");
+	RNA_def_property_enum_items(prop, rna_enum_modifier_shrinkwrap_mode_items);
+	RNA_def_property_ui_text(prop, "Snap Mode", "Select how vertices are constrained to the target surface");
+	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
 	prop = RNA_def_property(srna, "cull_face", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "shrinkOpts");
 	RNA_def_property_enum_items(prop, shrink_face_cull_items);
@@ -3249,9 +3271,9 @@ static void rna_def_modifier_shrinkwrap(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Positive", "Allow vertices to move in the positive direction of axis");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "use_keep_above_surface", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "shrinkOpts", MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE);
-	RNA_def_property_ui_text(prop, "Keep Above Surface", "");
+	prop = RNA_def_property(srna, "use_invert_cull", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "shrinkOpts", MOD_SHRINKWRAP_INVERT_CULL_TARGET);
+	RNA_def_property_ui_text(prop, "Invert Cull", "When projecting in the negative direction invert the face cull mode");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "invert_vertex_group", PROP_BOOLEAN, PROP_NONE);

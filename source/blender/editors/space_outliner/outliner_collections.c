@@ -226,7 +226,7 @@ void OUTLINER_OT_collection_new(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	PropertyRNA *prop = RNA_def_boolean(ot->srna, "nested", true, "Nested", "Add as child of selected collection");;
+	PropertyRNA *prop = RNA_def_boolean(ot->srna, "nested", true, "Nested", "Add as child of selected collection");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
@@ -248,7 +248,7 @@ static TreeTraversalAction collection_find_data_to_edit(TreeElement *te, void *c
 	}
 
 	if (collection == BKE_collection_master(data->scene)) {
-		/* skip - showing warning/error message might be missleading
+		/* skip - showing warning/error message might be misleading
 		 * when deleting multiple collections, so just do nothing */
 	}
 	else {
@@ -557,7 +557,7 @@ static int collection_instance_exec(bContext *C, wmOperator *UNUSED(op))
 	/* Effectively instance the collections. */
 	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
 		Collection *collection = BLI_gsetIterator_getKey(&collections_to_edit_iter);
-		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false, scene->layact);
+		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false);
 		ob->dup_group = collection;
 		ob->transflag |= OB_DUPLICOLLECTION;
 		id_lib_extern(&collection->id);
@@ -601,7 +601,7 @@ static TreeTraversalAction layer_collection_find_data_to_edit(TreeElement *te, v
 	LayerCollection *lc = te->directdata;
 
 	if (lc->collection->flag & COLLECTION_IS_MASTER) {
-		/* skip - showing warning/error message might be missleading
+		/* skip - showing warning/error message might be misleading
 		 * when deleting multiple collections, so just do nothing */
 	}
 	else {

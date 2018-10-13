@@ -113,16 +113,6 @@ static const EnumPropertyItem node_chunksize_items[] = {
 };
 #endif
 
-#define DEF_ICON_BLANK_SKIP
-#define DEF_ICON(name) {ICON_##name, (#name), 0, (#name), ""},
-#define DEF_VICO(name)
-const EnumPropertyItem rna_enum_node_icon_items[] = {
-#include "UI_icons.h"
-	{0, NULL, 0, NULL, NULL}};
-#undef DEF_ICON_BLANK_SKIP
-#undef DEF_ICON
-#undef DEF_VICO
-
 const EnumPropertyItem rna_enum_node_math_items[] = {
 	{NODE_MATH_ADD,     "ADD",          0, "Add",          ""},
 	{NODE_MATH_SUB,     "SUBTRACT",     0, "Subtract",     ""},
@@ -552,7 +542,7 @@ static bool rna_NodeTree_poll(const bContext *C, bNodeTreeType *ntreetype)
 	ParameterList list;
 	FunctionRNA *func;
 	void *ret;
-	int visible;
+	bool visible;
 
 	RNA_pointer_create(NULL, ntreetype->ext.srna, NULL, &ptr); /* dummy */
 	func = &rna_NodeTree_poll_func; /* RNA_struct_find_function(&ptr, "poll"); */
@@ -6255,11 +6245,6 @@ static void def_cmp_mask(StructRNA *srna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Mask", "");
 
-	prop = RNA_def_property(srna, "use_antialiasing", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", CMP_NODEFLAG_MASK_AA);
-	RNA_def_property_ui_text(prop, "Anti-Alias", "Apply an anti-aliasing filter to the mask");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-
 	prop = RNA_def_property(srna, "use_feather", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "custom1", CMP_NODEFLAG_MASK_NO_FEATHER);
 	RNA_def_property_ui_text(prop, "Feather", "Use feather information from the mask");
@@ -8026,7 +8011,7 @@ static void rna_def_node(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "bl_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->ui_icon");
-	RNA_def_property_enum_items(prop, rna_enum_node_icon_items);
+	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 	RNA_def_property_enum_default(prop, ICON_NODE);
 	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL);
 	RNA_def_property_ui_text(prop, "Icon", "The node icon");
@@ -8414,7 +8399,7 @@ static void rna_def_nodetree(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "bl_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->ui_icon");
-	RNA_def_property_enum_items(prop, rna_enum_node_icon_items);
+	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 	RNA_def_property_enum_default(prop, ICON_NODETREE);
 	RNA_def_property_flag(prop, PROP_REGISTER);
 	RNA_def_property_ui_text(prop, "Icon", "The node tree icon");

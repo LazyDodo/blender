@@ -117,6 +117,7 @@
 #include "BKE_speaker.h"
 #include "BKE_softbody.h"
 #include "BKE_subsurf.h"
+#include "BKE_subdiv_ccg.h"
 #include "BKE_material.h"
 #include "BKE_camera.h"
 #include "BKE_image.h"
@@ -339,6 +340,93 @@ void BKE_object_link_modifiers(Scene *scene, struct Object *ob_dst, const struct
 	/* TODO: smoke?, cloth? */
 }
 
+/* Copy CCG related data. Used to sync copy of mesh with reshaped original
+ * mesh.
+ */
+static void copy_ccg_data(Mesh *mesh_destination,
+                          Mesh *mesh_source,
+                          int layer_type)
+{
+	BLI_assert(mesh_destination->totloop == mesh_source->totloop);
+	CustomData *data_destination = &mesh_destination->ldata;
+	CustomData *data_source = &mesh_source->ldata;
+	const int num_elements = mesh_source->totloop;
+	if (!CustomData_has_layer(data_source, layer_type)) {
+		return;
+	}
+	const int layer_index = CustomData_get_layer_index(
+	        data_destination, layer_type);
+	CustomData_free_layer(
+	        data_destination, layer_type, num_elements, layer_index);
+	BLI_assert(!CustomData_has_layer(data_destination, layer_type));
+	CustomData_add_layer(
+	        data_destination, layer_type, CD_CALLOC, NULL, num_elements);
+	BLI_assert(CustomData_has_layer(data_destination, layer_type));
+	CustomData_copy_layer_type_data(data_source, data_destination,
+	                                layer_type, 0, 0, num_elements);
+}
+
+static void object_update_from_subsurf_ccg(Object *object)
+{
+	/* Currently CCG is only created for Mesh objects. */
+	if (object->type != OB_MESH) {
+		return;
+	}
+	/* Object was never evaluated, so can not have CCG subdivision surface. */
+	Mesh *mesh_eval = object->runtime.mesh_eval;
+	if (mesh_eval == NULL) {
+		return;
+	}
+	SubdivCCG *subdiv_ccg = mesh_eval->runtime.subdiv_ccg;
+	if (subdiv_ccg == NULL) {
+		return;
+	}
+	/* Check whether there is anything to be reshaped. */
+	if (!subdiv_ccg->dirty.coords && !subdiv_ccg->dirty.hidden) {
+		return;
+	}
+	const int tot_level = mesh_eval->runtime.subdiv_ccg_tot_level;
+	Object *object_orig = DEG_get_original_object(object);
+	Mesh *mesh_orig = (Mesh *)object_orig->data;
+	multiresModifier_reshapeFromCCG(tot_level, mesh_orig, subdiv_ccg);
+	/* NOTE: we need to reshape into an original mesh from main database,
+	 * allowing:
+	 *
+	 *  - Update copies of that mesh at any moment.
+	 *  - Save the file without doing extra reshape.
+	 *  - All the users of the mesh have updated displacement.
+	 *
+	 * However, the tricky part here is that we only know about sculpted
+	 * state of a mesh on an object level, and object is being updated after
+	 * mesh datablock is updated. This forces us to:
+	 *
+	 *  - Update mesh datablock from object evaluation, which is technically
+	 *    forbidden, but there is no other place for this yet.
+	 *  - Reshape to the original mesh from main database, and then copy updated
+	 *    layer to copy of that mesh (since copy of the mesh has decoupled
+	 *    custom data layers).
+	 *
+	 * All this is defeating all the designs we need to follow to allow safe
+	 * threaded evaluation, but this is as good as we can make it within the
+	 * current sculpt//evaluated mesh design. This is also how we've survived
+	 * with old DerivedMesh based solutions. So, while this is all wrong and
+	 * needs reconsideration, doesn't seem to be a big stopper for real
+	 * production artists.
+	 */
+	/* TODO(sergey): Solve this somehow, to be fully stable for threaded
+	 * evaluation environment.
+	 */
+	/* NOTE: runtime.mesh_orig is what was before assigning mesh_eval,
+	 * it is orig as in what was in object_eval->data before evaluating
+	 * modifier stack.
+	 *
+	 * mesh_cow is a copy-on-written version od object_orig->data.
+	 */
+	Mesh *mesh_cow = object->runtime.mesh_orig;
+	copy_ccg_data(mesh_cow, mesh_orig, CD_MDISPS);
+	copy_ccg_data(mesh_cow, mesh_orig, CD_GRID_PAINT_MASK);
+}
+
 /* free data derived from mesh, called when mesh changes or is freed */
 void BKE_object_free_derived_caches(Object *ob)
 {
@@ -368,6 +456,7 @@ void BKE_object_free_derived_caches(Object *ob)
 		ob->bb = NULL;
 	}
 
+	object_update_from_subsurf_ccg(ob);
 	BKE_object_free_derived_mesh_caches(ob);
 
 	if (ob->runtime.mesh_eval != NULL) {
@@ -638,7 +727,7 @@ bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode)
 /**
  * Return if the object is visible, as evaluated by depsgraph
  */
-bool BKE_object_is_visible(Object *ob, const eObjectVisibilityCheck mode)
+bool BKE_object_is_visible(const Object *ob, const eObjectVisibilityCheck mode)
 {
 	if ((ob->base_flag & BASE_VISIBLE) == 0) {
 		return false;
@@ -1296,7 +1385,7 @@ void BKE_object_copy_data(Main *bmain, Object *ob_dst, const Object *ob_src, con
 	BKE_object_facemap_copy_list(&ob_dst->fmaps, &ob_src->fmaps);
 	BKE_constraints_copy_ex(&ob_dst->constraints, &ob_src->constraints, flag_subdata, true);
 
-	ob_dst->mode = OB_MODE_OBJECT;
+	ob_dst->mode = ob_dst->type != OB_GPENCIL ? OB_MODE_OBJECT : ob_dst->mode;
 	ob_dst->sculpt = NULL;
 
 	if (ob_src->pd) {
@@ -1940,7 +2029,7 @@ static void ob_parbone(Object *ob, Object *par, float mat[4][4])
 
 	/* get bone transform */
 	if (pchan->bone->flag & BONE_RELATIVE_PARENTING) {
-		/* the new option uses the root - expected bahaviour, but differs from old... */
+		/* the new option uses the root - expected behaviour, but differs from old... */
 		/* XXX check on version patching? */
 		copy_m4_m4(mat, pchan->chan_mat);
 	}
@@ -1963,7 +2052,11 @@ static void give_parvert(Object *par, int nr, float vec[3])
 		BMEditMesh *em = me->edit_btmesh;
 		DerivedMesh *dm;
 
+#if 0	/* FIXME(campbell): use mesh for both. */
 		dm = (em) ? em->derivedFinal : par->derivedFinal;
+#else
+		dm = par->derivedFinal;
+#endif
 
 		if (dm) {
 			int count = 0;
@@ -2010,7 +2103,7 @@ static void give_parvert(Object *par, int nr, float vec[3])
 				if (use_special_ss_case) {
 					/* Special case if the last modifier is SS and no constructive modifier are in front of it. */
 					CCGDerivedMesh *ccgdm = (CCGDerivedMesh *)dm;
-					CCGVert *ccg_vert = ccgSubSurf_getVert(ccgdm->ss, SET_INT_IN_POINTER(nr));
+					CCGVert *ccg_vert = ccgSubSurf_getVert(ccgdm->ss, POINTER_FROM_INT(nr));
 					/* In case we deleted some verts, nr may refer to inexistent one now, see T42557. */
 					if (ccg_vert) {
 						float *co = ccgSubSurf_getVertData(ccgdm->ss, ccg_vert);
@@ -2313,8 +2406,8 @@ void BKE_object_where_is_calc(Depsgraph *depsgraph, Scene *scene, Object *ob)
  *
  * It assumes the object parent is already in the depsgraph.
  * Otherwise, after changing ob->parent you need to call:
- *  DEG_relations_tag_update(bmain);
- *  BKE_scene_graph_update_tagged(depsgraph, bmain);
+ * - #DEG_relations_tag_update(bmain);
+ * - #BKE_scene_graph_update_tagged(depsgraph, bmain);
  */
 void BKE_object_workob_calc_parent(Depsgraph *depsgraph, Scene *scene, Object *ob, Object *workob)
 {
@@ -2849,7 +2942,7 @@ void BKE_object_handle_update_ex(Depsgraph *depsgraph,
 /* WARNING: "scene" here may not be the scene object actually resides in.
  * When dealing with background-sets, "scene" is actually the active scene.
  * e.g. "scene" <-- set 1 <-- set 2 ("ob" lives here) <-- set 3 <-- ... <-- set n
- * rigid bodies depend on their world so use BKE_object_handle_update_ex() to also pass along the corrent rigid body world
+ * rigid bodies depend on their world so use BKE_object_handle_update_ex() to also pass along the current rigid body world
  */
 void BKE_object_handle_update(Depsgraph *depsgraph, Scene *scene, Object *ob)
 {
@@ -2993,7 +3086,7 @@ Mesh *BKE_object_get_original_mesh(Object *object)
 static int pc_cmp(const void *a, const void *b)
 {
 	const LinkData *ad = a, *bd = b;
-	if (GET_INT_FROM_POINTER(ad->data) > GET_INT_FROM_POINTER(bd->data))
+	if (POINTER_AS_INT(ad->data) > POINTER_AS_INT(bd->data))
 		return 1;
 	else return 0;
 }
@@ -3006,14 +3099,14 @@ int BKE_object_insert_ptcache(Object *ob)
 	BLI_listbase_sort(&ob->pc_ids, pc_cmp);
 
 	for (link = ob->pc_ids.first, i = 0; link; link = link->next, i++) {
-		int index = GET_INT_FROM_POINTER(link->data);
+		int index = POINTER_AS_INT(link->data);
 
 		if (i < index)
 			break;
 	}
 
 	link = MEM_callocN(sizeof(LinkData), "PCLink");
-	link->data = SET_INT_IN_POINTER(i);
+	link->data = POINTER_FROM_INT(i);
 	BLI_addtail(&ob->pc_ids, link);
 
 	return i;
@@ -3028,7 +3121,7 @@ static int pc_findindex(ListBase *listbase, int index)
 
 	link = listbase->first;
 	while (link) {
-		if (GET_INT_FROM_POINTER(link->data) == index)
+		if (POINTER_AS_INT(link->data) == index)
 			return number;
 
 		number++;
@@ -3312,7 +3405,7 @@ int BKE_object_is_modified(Scene *scene, Object *ob)
  * This makes it possible to give some degree of false-positives here,
  * but it's currently an acceptable tradeoff between complexity and check
  * speed. In combination with checks of modifier stack and real life usage
- * percentage of false-positives shouldn't be that hight.
+ * percentage of false-positives shouldn't be that height.
  */
 static bool object_moves_in_time(Object *object)
 {
@@ -3660,12 +3753,12 @@ KDTree *BKE_object_as_kdtree(Object *ob, int *r_tot)
 			Mesh *me = ob->data;
 			unsigned int i;
 
-			DerivedMesh *dm = ob->derivedDeform ? ob->derivedDeform : ob->derivedFinal;
+			Mesh *me_eval = ob->runtime.mesh_deform_eval ? ob->runtime.mesh_deform_eval : ob->runtime.mesh_deform_eval;
 			const int *index;
 
-			if (dm && (index = CustomData_get_layer(&dm->vertData, CD_ORIGINDEX))) {
-				MVert *mvert = dm->getVertArray(dm);
-				unsigned int totvert = dm->getNumVerts(dm);
+			if (me_eval && (index = CustomData_get_layer(&me_eval->vdata, CD_ORIGINDEX))) {
+				MVert *mvert = me_eval->mvert;
+				uint totvert = me_eval->totvert;
 
 				/* tree over-allocs in case where some verts have ORIGINDEX_NONE */
 				tot = 0;
@@ -3934,7 +4027,7 @@ bool BKE_object_modifier_update_subframe(
 		if (ob->track) no_update |= BKE_object_modifier_update_subframe(depsgraph, scene, ob->track, 0, recursion, frame, type);
 
 		/* skip subframe if object is parented
-		 *  to vertex of a dynamic paint canvas */
+		 * to vertex of a dynamic paint canvas */
 		if (no_update && (ob->partype == PARVERT1 || ob->partype == PARVERT3))
 			return false;
 
@@ -3963,7 +4056,7 @@ bool BKE_object_modifier_update_subframe(
 	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, frame, ADT_RECALC_ANIM);
 	if (update_mesh) {
 		/* ignore cache clear during subframe updates
-		 *  to not mess up cache validity */
+		 * to not mess up cache validity */
 		object_cacheIgnoreClear(ob, 1);
 		BKE_object_handle_update(depsgraph, scene, ob);
 		object_cacheIgnoreClear(ob, 0);

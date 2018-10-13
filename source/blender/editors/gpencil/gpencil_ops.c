@@ -51,6 +51,7 @@
 
 #include "ED_gpencil.h"
 #include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_object.h"
 #include "ED_transform.h"
 
@@ -92,8 +93,10 @@ static void ed_keymap_gpencil_general(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, DKEY);
 
 	/* Pie Menu - For standard tools */
+#if 0 /* disable while we decide what to do here, maybe an add-on */
 	WM_keymap_add_menu_pie(keymap, "GPENCIL_MT_pie_tool_palette", QKEY, KM_PRESS, 0, DKEY);
 	WM_keymap_add_menu_pie(keymap, "GPENCIL_MT_pie_settings_palette", WKEY, KM_PRESS, 0, DKEY);
+#endif
 
 	/* Add Blank Frame */
 	/* XXX: BKEY or NKEY? BKEY is easier to reach from DKEY, so we'll use that for now */
@@ -197,19 +200,13 @@ static void ed_keymap_gpencil_selection(wmKeyMap *keymap)
 	wmKeyMapItem *kmi;
 
 	/* select all */
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-
-	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "GPENCIL_OT_select_all");
 
 	/* circle select */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_select_circle", CKEY, KM_PRESS, 0, 0);
 
-	/* border select */
-	WM_keymap_add_item(keymap, "GPENCIL_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box select */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	/* lasso select */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL, 0);
@@ -217,10 +214,11 @@ static void ed_keymap_gpencil_selection(wmKeyMap *keymap)
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_SHIFT | KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "deselect", true);
 
-	/* In the Node Editor, lasso select needs ALT modifier too (as somehow CTRL+LMB drag gets taken for "cut" quite early)
-	* There probably isn't too much harm adding this for other editors too as part of standard GP editing keymap. This hotkey
-	* combo doesn't seem to see much use under standard scenarios?
-	*/
+	/* In the Node Editor, lasso select needs ALT modifier too
+	 * (as somehow CTRL+LMB drag gets taken for "cut" quite early)
+	 * There probably isn't too much harm adding this for other editors too as part of standard GP editing keymap.
+	 * This hotkey combo doesn't seem to see much use under standard scenarios?
+	 */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "deselect", false);
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_SHIFT | KM_CTRL | KM_ALT, 0);
@@ -270,16 +268,18 @@ static void ed_keymap_gpencil_sculpt(wmKeyMap *keymap)
 	wmKeyMapItem *kmi;
 
 	/* Pie Menu - For settings/tools easy access */
+#if 0 /* disable while we decide what to do here, maybe an add-on */
 	WM_keymap_add_menu_pie(keymap, "GPENCIL_PIE_sculpt", EKEY, KM_PRESS, 0, DKEY);
+#endif
 
 	/* Sculpting ------------------------------------- */
 
 	/* Brush-Based Editing:
-	*   EKEY + LMB                          = Single stroke, draw immediately
-	*        + Other Modifiers (Ctrl/Shift) = Invert, Smooth, etc.
-	*
-	* For the modal version, use D+E -> Sculpt
-	*/
+	 *   EKEY + LMB                          = Single stroke, draw immediately
+	 *        + Other Modifiers (Ctrl/Shift) = Invert, Smooth, etc.
+	 *
+	 * For the modal version, use D+E -> Sculpt
+	 */
 	/* GPXX: disabled to make toolsystem works */
 	//kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, 0);
 	//RNA_boolean_set(kmi->ptr, "wait_for_input", false);
@@ -312,11 +312,11 @@ static void ed_keymap_gpencil_weight(wmKeyMap *keymap)
 
 
 	/* Brush-Based Editing:
-	*   EKEY + LMB                          = Single stroke, draw immediately
-	*        + Other Modifiers (Ctrl/Shift) = Invert, Smooth, etc.
-	*
-	* For the modal version, use D+E -> Sculpt
-	*/
+	 *   EKEY + LMB                          = Single stroke, draw immediately
+	 *        + Other Modifiers (Ctrl/Shift) = Invert, Smooth, etc.
+	 *
+	 * For the modal version, use D+E -> Sculpt
+	 */
 	/* GPXX: disabled to make toolsystem works */
 	//kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, 0);
 	//RNA_boolean_set(kmi->ptr, "wait_for_input", false);
@@ -458,6 +458,13 @@ static void ed_keymap_gpencil_editing(wmKeyConfig *keyconf)
 
 	/* toggle edit mode */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_editmode_toggle", TABKEY, KM_PRESS, 0, 0);
+
+	/* select mode */
+	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_selectmode_toggle", ONEKEY, KM_PRESS, 0, 0);
+	RNA_int_set(kmi->ptr, "mode", 0);
+
+	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_selectmode_toggle", TWOKEY, KM_PRESS, 0, 0);
+	RNA_int_set(kmi->ptr, "mode", 1);
 }
 
 /* keys for draw with a drawing brush (no fill) */
@@ -494,8 +501,8 @@ static void ed_keymap_gpencil_painting_draw(wmKeyConfig *keyconf)
 
 	/* Tablet Mappings for Drawing ------------------ */
 	/* For now, only support direct drawing using the eraser, as most users using a tablet
-	* may still want to use that as their primary pointing device!
-	*/
+	 * may still want to use that as their primary pointing device!
+	 */
 #if 0
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_draw", TABLET_STYLUS, KM_PRESS, 0, 0);
 	RNA_enum_set(kmi->ptr, "mode", GP_PAINTMODE_DRAW);
@@ -507,8 +514,8 @@ static void ed_keymap_gpencil_painting_draw(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	/* Selection (used by eraser) */
-	/* border select */
-	WM_keymap_add_item(keymap, "GPENCIL_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box select */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	/* lasso select */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
@@ -534,8 +541,8 @@ static void ed_keymap_gpencil_painting_erase(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	/* Selection (used by eraser) */
-	/* border select */
-	WM_keymap_add_item(keymap, "GPENCIL_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box select */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	/* lasso select */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
@@ -582,6 +589,10 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	/* set poll callback - so that this keymap only gets enabled when stroke paintmode is enabled */
 	keymap->poll = gp_stroke_paintmode_poll;
+
+	/* Shift-FKEY = Brush Strength */
+	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_SHIFT, 0);
+	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_paint.brush.gpencil_settings.pen_strength");
 
 	/* FKEY = Brush Size */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
@@ -673,6 +684,7 @@ void ED_operatortypes_gpencil(void)
 	/* Editing (Strokes) ------------ */
 
 	WM_operatortype_append(GPENCIL_OT_editmode_toggle);
+	WM_operatortype_append(GPENCIL_OT_selectmode_toggle);
 	WM_operatortype_append(GPENCIL_OT_paintmode_toggle);
 	WM_operatortype_append(GPENCIL_OT_sculptmode_toggle);
 	WM_operatortype_append(GPENCIL_OT_weightmode_toggle);
@@ -681,7 +693,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_select);
 	WM_operatortype_append(GPENCIL_OT_select_all);
 	WM_operatortype_append(GPENCIL_OT_select_circle);
-	WM_operatortype_append(GPENCIL_OT_select_border);
+	WM_operatortype_append(GPENCIL_OT_select_box);
 	WM_operatortype_append(GPENCIL_OT_select_lasso);
 
 	WM_operatortype_append(GPENCIL_OT_select_linked);

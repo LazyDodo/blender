@@ -69,6 +69,7 @@ static void eevee_engine_init(void *ved)
 	stl->g_data->use_color_view_settings = USE_SCENE_LIGHT(v3d) || !LOOK_DEV_STUDIO_LIGHT_ENABLED(v3d);
 	stl->g_data->background_alpha = DRW_state_draw_background() ? 1.0f : 0.0f;
 	stl->g_data->valid_double_buffer = (txl->color_double_buffer != NULL);
+	stl->g_data->valid_taa_history = (txl->taa_history != NULL);
 
 	/* Main Buffer */
 	DRW_texture_ensure_fullscreen_2D(&txl->color, GPU_RGBA16F, DRW_TEX_FILTER | DRW_TEX_MIPMAP);
@@ -135,7 +136,9 @@ void EEVEE_cache_populate(void *vedata, Object *ob)
 		EEVEE_hair_cache_populate(vedata, sldata, ob, &cast_shadow);
 	}
 
-	if (DRW_check_object_visible_within_active_context(ob)) {
+	if (DRW_object_is_renderable(ob) &&
+	    DRW_object_is_visible_in_active_context(ob))
+	{
 		if (ELEM(ob->type, OB_MESH, OB_CURVE, OB_SURF, OB_FONT, OB_MBALL)) {
 			EEVEE_materials_cache_populate(vedata, sldata, ob, &cast_shadow);
 		}
@@ -322,7 +325,7 @@ static void eevee_draw_background(void *vedata)
 	GPU_framebuffer_bind(dfbl->default_fb);
 	DRW_transform_to_display(stl->effects->final_tx, use_view_settings);
 
-	/* Debug : Ouput buffer to view. */
+	/* Debug : Output buffer to view. */
 	switch (G.debug_value) {
 		case 1:
 			if (txl->maxzbuffer) DRW_transform_to_display(txl->maxzbuffer, use_view_settings);

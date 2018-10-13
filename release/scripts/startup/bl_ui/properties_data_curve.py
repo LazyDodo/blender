@@ -358,7 +358,6 @@ class DATA_PT_font_transform(CurveButtonsPanelText, Panel):
         layout = self.layout
 
         text = context.curve
-        char = context.curve.edit_format
 
         layout.use_property_split = True
 
@@ -387,9 +386,8 @@ class DATA_PT_paragraph(CurveButtonsPanelText, Panel):
     bl_label = "Paragraph"
 
     def draw(self, context):
-        layout = self.layout
-
-        text = context.curve
+        # Parent panel
+        pass
 
 
 class DATA_PT_paragraph_alignment(CurveButtonsPanelText, Panel):
@@ -398,12 +396,13 @@ class DATA_PT_paragraph_alignment(CurveButtonsPanelText, Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False
+        layout.use_property_split = True
 
         text = context.curve
 
-        layout.row().prop(text, "align_x", expand=True)
-        layout.row().prop(text, "align_y", expand=True)
+        col = layout.column()
+        col.prop(text, "align_x", text="Horizontal")
+        col.prop(text, "align_y", text="Vertical")
 
 
 class DATA_PT_paragraph_spacing(CurveButtonsPanelText, Panel):
@@ -436,7 +435,7 @@ class DATA_PT_text_boxes(CurveButtonsPanelText, Panel):
 
         text = context.curve
 
-        layout.operator("font.textbox_add", icon='ZOOMIN')
+        layout.operator("font.textbox_add", icon='ADD')
 
         for i, box in enumerate(text.text_boxes):
 

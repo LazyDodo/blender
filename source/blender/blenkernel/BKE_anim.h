@@ -57,7 +57,12 @@ void animviz_free_motionpath(struct bMotionPath *mpath);
 struct bMotionPath *animviz_verify_motionpaths(struct ReportList *reports, struct Scene *scene, struct Object *ob, struct bPoseChannel *pchan);
 
 void animviz_get_object_motionpaths(struct Object *ob, ListBase *targets);
-void animviz_calc_motionpaths(struct Depsgraph *depsgraph, struct Main *bmain, struct Scene *scene, ListBase *targets);
+void animviz_calc_motionpaths(struct Depsgraph *depsgraph,
+                              struct Main *bmain,
+                              struct Scene *scene,
+                              ListBase *targets,
+                              bool restore,
+                              bool current_frame_only);
 
 /* ---------------------------------------------------- */
 /* Curve Paths */
@@ -72,16 +77,6 @@ int where_on_path(struct Object *ob, float ctime, float vec[4], float dir[3], fl
 struct ListBase *object_duplilist(struct Depsgraph *depsgraph, struct Scene *sce, struct Object *ob);
 void free_object_duplilist(struct ListBase *lb);
 int count_duplilist(struct Object *ob);
-
-typedef struct DupliExtraData {
-	float obmat[4][4];
-	unsigned int lay;
-} DupliExtraData;
-
-typedef struct DupliApplyData {
-	int num_objects;
-	DupliExtraData *extra;
-} DupliApplyData;
 
 typedef struct DupliObject {
 	struct DupliObject *next, *prev;
@@ -102,9 +97,5 @@ typedef struct DupliObject {
 	/* Random ID for shading */
 	unsigned int random_id;
 } DupliObject;
-
-DupliApplyData *duplilist_apply(struct Depsgraph *depsgraph, struct Object *ob, struct Scene *scene, struct ListBase *duplilist);
-void duplilist_restore(struct ListBase *duplilist, DupliApplyData *apply_data);
-void duplilist_free_apply_data(DupliApplyData *apply_data);
 
 #endif

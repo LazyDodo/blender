@@ -166,7 +166,7 @@ float view3d_depth_near(struct ViewDepths *d);
 /* view3d_select.c */
 void VIEW3D_OT_select(struct wmOperatorType *ot);
 void VIEW3D_OT_select_circle(struct wmOperatorType *ot);
-void VIEW3D_OT_select_border(struct wmOperatorType *ot);
+void VIEW3D_OT_select_box(struct wmOperatorType *ot);
 void VIEW3D_OT_select_lasso(struct wmOperatorType *ot);
 void VIEW3D_OT_select_menu(struct wmOperatorType *ot);
 
@@ -263,6 +263,7 @@ void VIEW3D_GGT_force_field(struct wmGizmoGroupType *gzgt);
 void VIEW3D_GGT_empty_image(struct wmGizmoGroupType *gzgt);
 void VIEW3D_GGT_armature_spline(struct wmGizmoGroupType *gzgt);
 void VIEW3D_GGT_navigate(struct wmGizmoGroupType *gzgt);
+void VIEW3D_GGT_mesh_preselect_elem(struct wmGizmoGroupType *gzgt);
 void VIEW3D_GGT_mesh_preselect_edgering(struct wmGizmoGroupType *gzgt);
 
 void VIEW3D_GGT_ruler(struct wmGizmoGroupType *gzgt);

@@ -37,11 +37,15 @@ void ED_gizmotypes_button_2d(void);
 void ED_gizmotypes_cage_2d(void);
 void ED_gizmotypes_cage_3d(void);
 void ED_gizmotypes_dial_3d(void);
-void ED_gizmotypes_grab_3d(void);
+void ED_gizmotypes_move_3d(void);
 void ED_gizmotypes_facemap_3d(void);
 void ED_gizmotypes_preselect_3d(void);
 void ED_gizmotypes_primitive_3d(void);
 void ED_gizmotypes_blank_3d(void);
+void ED_gizmotypes_value_2d(void);
+
+/* gizmo group types */
+void ED_gizmogrouptypes_value_2d(void);
 
 struct bContext;
 struct Object;
@@ -186,22 +190,24 @@ enum {
 	ED_GIZMO_DIAL_DRAW_FLAG_FILL              = (1 << 1),
 	ED_GIZMO_DIAL_DRAW_FLAG_ANGLE_MIRROR      = (1 << 2),
 	ED_GIZMO_DIAL_DRAW_FLAG_ANGLE_START_Y     = (1 << 3),
+	/* Always show the angle value as an arc in the dial. */
+	ED_GIZMO_DIAL_DRAW_FLAG_ANGLE_VALUE       = (1 << 4),
 };
 
 /* -------------------------------------------------------------------- */
-/* Grab Gizmo */
+/* Move Gizmo */
 
 /* draw_options */
 enum {
-	ED_GIZMO_GRAB_DRAW_FLAG_NOP               = 0,
+	ED_GIZMO_MOVE_DRAW_FLAG_NOP               = 0,
 	/* only for solid shapes */
-	ED_GIZMO_GRAB_DRAW_FLAG_FILL              = (1 << 0),
-	ED_GIZMO_GRAB_DRAW_FLAG_ALIGN_VIEW        = (1 << 1),
+	ED_GIZMO_MOVE_DRAW_FLAG_FILL              = (1 << 0),
+	ED_GIZMO_MOVE_DRAW_FLAG_ALIGN_VIEW        = (1 << 1),
 };
 
 enum {
-	ED_GIZMO_GRAB_STYLE_RING_2D = 0,
-	ED_GIZMO_GRAB_STYLE_CROSS_2D = 1,
+	ED_GIZMO_MOVE_STYLE_RING_2D = 0,
+	ED_GIZMO_MOVE_STYLE_CROSS_2D = 1,
 };
 
 /* -------------------------------------------------------------------- */
@@ -209,11 +215,12 @@ enum {
 
 enum {
 	ED_GIZMO_BUTTON_SHOW_OUTLINE = (1 << 0),
+	ED_GIZMO_BUTTON_SHOW_BACKDROP = (1 << 1),
 	/**
 	 * Draw a line from the origin to the offset (similar to an arrow)
 	 * sometimes needed to show what the button edits.
 	 */
-	ED_GIZMO_BUTTON_SHOW_HELPLINE = (1 << 1),
+	ED_GIZMO_BUTTON_SHOW_HELPLINE = (1 << 2),
 };
 
 
@@ -223,5 +230,25 @@ enum {
 enum {
 	ED_GIZMO_PRIMITIVE_STYLE_PLANE = 0,
 };
+
+
+/* -------------------------------------------------------------------- */
+/* Gizmo Drawing Functions */
+
+struct Dial3dParams {
+	int draw_options;
+	float angle_ofs;
+	float angle_delta;
+	float angle_increment;
+	float arc_partial_angle;
+	float arc_inner_factor;
+	float *clip_plane;
+};
+void ED_gizmotypes_dial_3d_draw_util(
+        const float matrix_basis[4][4],
+        const float matrix_final[4][4],
+        const float line_width,
+        const float color[4],
+        struct Dial3dParams *params);
 
 #endif  /* __ED_GIZMO_LIBRARY_H__ */

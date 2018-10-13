@@ -216,8 +216,8 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
 	/* see eView2D_CommonViewTypes in UI_view2d.h for available view presets */
 	switch (type) {
 		/* 'standard view' - optimum setup for 'standard' view behavior,
-		 *  that should be used new views as basis for their
-		 *  own unique View2D settings, which should be used instead of this in most cases...
+		 * that should be used new views as basis for their
+		 * own unique View2D settings, which should be used instead of this in most cases...
 		 */
 		case V2D_COMMONVIEW_STANDARD:
 		{
@@ -227,9 +227,9 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
 			v2d->maxzoom = 1000.0f;
 
 			/* tot rect and cur should be same size, and aligned using 'standard' OpenGL coordinates for now
-			 *	- region can resize 'tot' later to fit other data
-			 *	- keeptot is only within bounds, as strict locking is not that critical
-			 *	- view is aligned for (0,0) -> (winx-1, winy-1) setup
+			 * - region can resize 'tot' later to fit other data
+			 * - keeptot is only within bounds, as strict locking is not that critical
+			 * - view is aligned for (0,0) -> (winx-1, winy-1) setup
 			 */
 			v2d->align = (V2D_ALIGN_NO_NEG_X | V2D_ALIGN_NO_NEG_Y);
 			v2d->keeptot = V2D_KEEPTOT_BOUNDS;
@@ -261,7 +261,7 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
 			break;
 		}
 		/* 'stack view' - practically the same as list/channel view, except is located in the pos y half instead.
-		 *  zoom, aspect ratio, and alignment restrictions are set here */
+		 * zoom, aspect ratio, and alignment restrictions are set here */
 		case V2D_COMMONVIEW_STACK:
 		{
 			/* zoom + aspect ratio are locked */
@@ -484,7 +484,7 @@ static void ui_view2d_curRect_validate_resize(View2D *v2d, bool resize, bool mas
 		float curRatio, winRatio;
 
 		/* when a window edge changes, the aspect ratio can't be used to
-		 * find which is the best new 'cur' rect. thats why it stores 'old'
+		 * find which is the best new 'cur' rect. that's why it stores 'old'
 		 */
 		if (winx != v2d->oldwinx) do_x = true;
 		if (winy != v2d->oldwiny) do_y = true;
@@ -634,7 +634,7 @@ static void ui_view2d_curRect_validate_resize(View2D *v2d, bool resize, bool mas
 			}
 			else if (cur->xmax > tot->xmax) {
 				/* - only offset by difference of cur-xmax and tot-xmax if that would not move
-				 *  cur-xmin to lie past tot-xmin
+				 *   cur-xmin to lie past tot-xmin
 				 * - otherwise, simply shift to tot-xmin???
 				 */
 				temp = cur->xmax - tot->xmax;
@@ -678,7 +678,7 @@ static void ui_view2d_curRect_validate_resize(View2D *v2d, bool resize, bool mas
 			}
 			else if (cur->xmax > tot->xmax) {
 				/* - only offset by difference of cur-xmax and tot-xmax if that would not move
-				 *  cur-xmin to lie past tot-xmin
+				 *   cur-xmin to lie past tot-xmin
 				 * - otherwise, simply shift to tot-xmin???
 				 */
 				temp = cur->xmax - tot->xmax;
@@ -1189,7 +1189,7 @@ static void step_to_grid(float *step, int *power, int unit)
 		/* for frames, we want 1.0 frame intervals only */
 		if (unit == V2D_UNIT_FRAMES) {
 			rem = 1.0f;
-			*step = 2.0f; /* use 2 since there are grid lines drawn in between, this way to get 1 line per frane */
+			*step = 2.0f; /* use 2 since there are grid lines drawn in between, this way to get 1 line per frame */
 		}
 
 		/* prevents printing 1.0 2.0 3.0 etc */
@@ -1358,9 +1358,9 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 			UI_GetThemeColor3ubv(TH_GRID, grid_line_color);
 
 			for (a = 0; a < step; a++) {
-				immSkipAttrib(color);
+				immAttrSkip(color);
 				immVertex2fv(pos, vec1);
-				immAttrib3ubv(color, grid_line_color);
+				immAttr3ubv(color, grid_line_color);
 				immVertex2fv(pos, vec2);
 
 				vec2[0] = vec1[0] += grid->dx;
@@ -1374,9 +1374,9 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 
 		step++;
 		for (a = 0; a <= step; a++) {
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2fv(pos, vec1);
-			immAttrib3ubv(color, grid_line_color);
+			immAttr3ubv(color, grid_line_color);
 			immVertex2fv(pos, vec2);
 
 			vec2[0] = vec1[0] -= grid->dx;
@@ -1395,9 +1395,9 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		UI_GetThemeColor3ubv(TH_GRID, grid_line_color);
 
 		for (a = 0; a <= step; a++) {
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2fv(pos, vec1);
-			immAttrib3ubv(color, grid_line_color);
+			immAttr3ubv(color, grid_line_color);
 			immVertex2fv(pos, vec2);
 
 			vec2[1] = vec1[1] += grid->dy;
@@ -1410,9 +1410,9 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		if (flag & V2D_HORIZONTAL_FINELINES) {
 			UI_GetThemeColorShade3ubv(TH_GRID, 16, grid_line_color);
 			for (a = 0; a < step; a++) {
-				immSkipAttrib(color);
+				immAttrSkip(color);
 				immVertex2fv(pos, vec1);
-				immAttrib3ubv(color, grid_line_color);
+				immAttr3ubv(color, grid_line_color);
 				immVertex2fv(pos, vec2);
 
 				vec2[1] = vec1[1] -= grid->dy;
@@ -1429,9 +1429,9 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		vec2[0] = v2d->cur.xmax;
 		vec1[1] = vec2[1] = 0.0f;
 
-		immSkipAttrib(color);
+		immAttrSkip(color);
 		immVertex2fv(pos, vec1);
-		immAttrib3ubv(color, grid_line_color);
+		immAttr3ubv(color, grid_line_color);
 		immVertex2fv(pos, vec2);
 	}
 
@@ -1441,9 +1441,9 @@ void UI_view2d_grid_draw(View2D *v2d, View2DGrid *grid, int flag)
 		vec2[1] = v2d->cur.ymax;
 		vec1[0] = vec2[0] = 0.0f;
 
-		immSkipAttrib(color);
+		immAttrSkip(color);
 		immVertex2fv(pos, vec1);
-		immAttrib3ubv(color, grid_line_color);
+		immAttr3ubv(color, grid_line_color);
 		immVertex2fv(pos, vec2);
 	}
 
@@ -1490,7 +1490,7 @@ void UI_view2d_constant_grid_draw(View2D *v2d, float step)
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 		immBegin(GPU_PRIM_LINES, count_x * 2 + count_y * 2 + 4);
 
-		immAttrib3fv(color, theme_color);
+		immAttr3fv(color, theme_color);
 		for (int i = 0; i < count_x ; start_x += step, i++) {
 			immVertex2f(pos, start_x, v2d->cur.ymin);
 			immVertex2f(pos, start_x, v2d->cur.ymax);
@@ -1504,7 +1504,7 @@ void UI_view2d_constant_grid_draw(View2D *v2d, float step)
 		/* X and Y axis */
 		UI_GetThemeColorShade3fv(TH_BACK, -18, theme_color);
 
-		immAttrib3fv(color, theme_color);
+		immAttr3fv(color, theme_color);
 		immVertex2f(pos, 0.0f, v2d->cur.ymin);
 		immVertex2f(pos, 0.0f, v2d->cur.ymax);
 		immVertex2f(pos, v2d->cur.xmin, 0.0f);
@@ -1552,9 +1552,9 @@ void UI_view2d_multi_grid_draw(View2D *v2d, int colorid, float step, int level_s
 			if (i == 0 || (level < totlevels - 1 && i % level_size == 0))
 				continue;
 
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2f(pos, start, v2d->cur.ymin);
-			immAttrib3ubv(color, grid_line_color);
+			immAttr3ubv(color, grid_line_color);
 			immVertex2f(pos, start, v2d->cur.ymax);
 		}
 
@@ -1567,9 +1567,9 @@ void UI_view2d_multi_grid_draw(View2D *v2d, int colorid, float step, int level_s
 			if (i == 0 || (level < totlevels - 1 && i % level_size == 0))
 				continue;
 
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2f(pos, v2d->cur.xmin, start);
-			immAttrib3ubv(color, grid_line_color);
+			immAttr3ubv(color, grid_line_color);
 			immVertex2f(pos, v2d->cur.xmax, start);
 		}
 
@@ -1580,14 +1580,14 @@ void UI_view2d_multi_grid_draw(View2D *v2d, int colorid, float step, int level_s
 	/* X and Y axis */
 	UI_GetThemeColorShade3ubv(colorid, -18 + ((totlevels - 1) * -6), grid_line_color);
 
-	immSkipAttrib(color);
+	immAttrSkip(color);
 	immVertex2f(pos, 0.0f, v2d->cur.ymin);
-	immAttrib3ubv(color, grid_line_color);
+	immAttr3ubv(color, grid_line_color);
 	immVertex2f(pos, 0.0f, v2d->cur.ymax);
 
-	immSkipAttrib(color);
+	immAttrSkip(color);
 	immVertex2f(pos, v2d->cur.xmin, 0.0f);
-	immAttrib3ubv(color, grid_line_color);
+	immAttr3ubv(color, grid_line_color);
 	immVertex2f(pos, v2d->cur.xmax, 0.0f);
 
 	immEnd();

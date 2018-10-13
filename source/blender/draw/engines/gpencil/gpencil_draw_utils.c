@@ -62,6 +62,8 @@
 #define TEXTURE 4
 #define PATTERN 5
 
+#define GP_SET_SRC_GPS(src_gps) if (src_gps) src_gps = src_gps->next
+
 /* Helper for doing all the checks on whether a stroke can be drawn */
 static bool gpencil_can_draw_stroke(
         struct MaterialGPencilStyle *gp_style, const bGPDstroke *gps,
@@ -90,7 +92,7 @@ static bool gpencil_can_draw_stroke(
 
 /* calc bounding box in 2d using flat projection data */
 static void gpencil_calc_2d_bounding_box(
-        const float(*points2d)[2], int totpoints, float minv[2], float maxv[2], bool expand)
+        const float(*points2d)[2], int totpoints, float minv[2], float maxv[2])
 {
 	minv[0] = points2d[0][0];
 	minv[1] = points2d[0][1];
@@ -113,14 +115,12 @@ static void gpencil_calc_2d_bounding_box(
 			maxv[1] = points2d[i][1];
 		}
 	}
-	/* If not expanded, use a perfect square */
-	if (expand == false) {
-		if (maxv[0] > maxv[1]) {
-			maxv[1] = maxv[0];
-		}
-		else {
-			maxv[0] = maxv[1];
-		}
+	/* use a perfect square */
+	if (maxv[0] > maxv[1]) {
+		maxv[1] = maxv[0];
+	}
+	else {
+		maxv[0] = maxv[1];
 	}
 }
 
@@ -182,9 +182,11 @@ static void gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, floa
 }
 
 /* Triangulate stroke for high quality fill (this is done only if cache is null or stroke was modified) */
-void DRW_gpencil_triangulate_stroke_fill(bGPDstroke *gps)
+void DRW_gpencil_triangulate_stroke_fill(Object *ob, bGPDstroke *gps)
 {
 	BLI_assert(gps->totpoints >= 3);
+
+	bGPdata *gpd = (bGPdata *)ob->data;
 
 	/* allocate memory for temporary areas */
 	gps->tot_triangles = gps->totpoints - 2;
@@ -202,7 +204,14 @@ void DRW_gpencil_triangulate_stroke_fill(bGPDstroke *gps)
 	float minv[2];
 	float maxv[2];
 	/* first needs bounding box data */
-	gpencil_calc_2d_bounding_box(points2d, gps->totpoints, minv, maxv, false);
+	if (gpd->flag & GP_DATA_UV_ADAPTATIVE) {
+		gpencil_calc_2d_bounding_box(points2d, gps->totpoints, minv, maxv);
+	}
+	else {
+		ARRAY_SET_ITEMS(minv, -1.0f, -1.0f);
+		ARRAY_SET_ITEMS(maxv, 1.0f, 1.0f);
+	}
+
 	/* calc uv data */
 	gpencil_calc_stroke_fill_uv(points2d, gps->totpoints, minv, maxv, uv);
 
@@ -254,7 +263,7 @@ static void DRW_gpencil_recalc_geometry_caches(Object *ob, MaterialGPencilStyle 
 			if ((gps->totpoints > 2) &&
 			    ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)))
 			{
-				DRW_gpencil_triangulate_stroke_fill(gps);
+				DRW_gpencil_triangulate_stroke_fill(ob, gps);
 			}
 		}
 
@@ -378,7 +387,6 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 	DRW_shgroup_uniform_vec2(grp, "Viewport", viewport_size, 1);
 
 	DRW_shgroup_uniform_float(grp, "pixsize", stl->storage->pixsize, 1);
-	DRW_shgroup_uniform_float(grp, "pixelsize", &U.pixelsize, 1);
 
 	/* avoid wrong values */
 	if ((gpd) && (gpd->pixfactor == 0)) {
@@ -387,7 +395,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 
 	/* object scale and depth */
 	if ((ob) && (id > -1)) {
-		stl->shgroups[id].obj_scale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
+		stl->shgroups[id].obj_scale = mat4_to_scale(ob->obmat);
 		DRW_shgroup_uniform_float(grp, "objscale", &stl->shgroups[id].obj_scale, 1);
 		stl->shgroups[id].keep_size = (int)((gpd) && (gpd->flag & GP_DATA_STROKE_KEEPTHICKNESS));
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->shgroups[id].keep_size, 1);
@@ -468,7 +476,6 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 
 	DRW_shgroup_uniform_vec2(grp, "Viewport", viewport_size, 1);
 	DRW_shgroup_uniform_float(grp, "pixsize", stl->storage->pixsize, 1);
-	DRW_shgroup_uniform_float(grp, "pixelsize", &U.pixelsize, 1);
 
 	/* avoid wrong values */
 	if ((gpd) && (gpd->pixfactor == 0)) {
@@ -477,7 +484,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 
 	/* object scale and depth */
 	if ((ob) && (id > -1)) {
-		stl->shgroups[id].obj_scale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
+		stl->shgroups[id].obj_scale = mat4_to_scale(ob->obmat);
 		DRW_shgroup_uniform_float(grp, "objscale", &stl->shgroups[id].obj_scale, 1);
 		stl->shgroups[id].keep_size = (int)((gpd) && (gpd->flag & GP_DATA_STROKE_KEEPTHICKNESS));
 		DRW_shgroup_uniform_int(grp, "keep_size", &stl->shgroups[id].keep_size, 1);
@@ -796,10 +803,12 @@ static void gpencil_draw_strokes(
 
 		/* check if stroke can be drawn */
 		if (gpencil_can_draw_stroke(gp_style, gps, false, is_mat_preview) == false) {
+			GP_SET_SRC_GPS(src_gps);
 			continue;
 		}
 		/* limit the number of shading groups */
 		if (stl->storage->shgroup_id >= GPENCIL_MAX_SHGROUPS) {
+			GP_SET_SRC_GPS(src_gps);
 			continue;
 		}
 
@@ -814,6 +823,7 @@ static void gpencil_draw_strokes(
 			if ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) ||
 			    (gp_style->fill_style > GP_STYLE_FILL_STYLE_SOLID))
 			{
+				GP_SET_SRC_GPS(src_gps);
 				continue;
 			}
 		}
@@ -866,7 +876,7 @@ static void gpencil_draw_strokes(
 			if ((fillgrp) && (!stl->storage->simplify_fill)) {
 				gpencil_add_fill_shgroup(
 				        cache, fillgrp, ob, derived_gpf, gps,
-						opacity, tintcolor, false, custonion);
+				        opacity, tintcolor, false, custonion);
 			}
 			/* stroke */
 			if (strokegrp) {
@@ -878,7 +888,8 @@ static void gpencil_draw_strokes(
 
 		/* edit points (only in edit mode and not play animation not render) */
 		if ((draw_ctx->obact == ob) && (src_gps) &&
-		    (!playing) && (!is_render) && (!cache_ob->is_dup_ob))
+		    (!playing) && (!is_render) && (!cache_ob->is_dup_ob) &&
+		    ((gpl->flag & GP_LAYER_LOCKED) == 0))
 		{
 			if (!stl->g_data->shgrps_edit_line) {
 				stl->g_data->shgrps_edit_line = DRW_shgroup_create(e_data->gpencil_line_sh, psl->edit_pass);
@@ -892,9 +903,7 @@ static void gpencil_draw_strokes(
 			gpencil_add_editpoints_shgroup(stl, cache, ts, ob, gpd, gpl, derived_gpf, src_gps);
 		}
 
-		if (src_gps) {
-			src_gps = src_gps->next;
-		}
+		GP_SET_SRC_GPS(src_gps);
 
 		cache->cache_idx++;
 	}
@@ -906,10 +915,13 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	Brush *brush = BKE_brush_getactive_gpencil(ts);
-	bGPdata *gpd = ob->data;
+	bGPdata *gpd_eval = ob->data;
+	/* need the original to avoid cow overhead while drawing */
+	bGPdata *gpd = (bGPdata *)DEG_get_original_id(&gpd_eval->id);
+
 	MaterialGPencilStyle *gp_style = NULL;
 
-	float obscale = (ob->size[0] + ob->size[1] + ob->size[2]) / 3.0f;
+	float obscale = mat4_to_scale(ob->obmat);
 
 	/* use the brush material */
 	Material *ma = BKE_gpencil_get_material_from_brush(brush);
@@ -928,8 +940,8 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	if (ED_gpencil_session_active() && (gpd->runtime.sbuffer_size > 0)) {
 		if ((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) {
 			/* It should also be noted that sbuffer contains temporary point types
-			* i.e. tGPspoints NOT bGPDspoints
-			*/
+			 * i.e. tGPspoints NOT bGPDspoints
+			 */
 			short lthick = brush->size * obscale;
 			/* if only one point, don't need to draw buffer because the user has no time to see it */
 			if (gpd->runtime.sbuffer_size > 1) {
@@ -964,8 +976,10 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 				        e_data->batch_buffer_stroke,
 				        stl->storage->unit_matrix);
 
-				if ((gpd->runtime.sbuffer_size >= 3) && (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
-				    ((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0))
+				if ((gpd->runtime.sbuffer_size >= 3) &&
+				    (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
+				    ((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0) &&
+				    ((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0))
 				{
 					/* if not solid, fill is simulated with solid color */
 					if (gpd->runtime.bfill_style > 0) {
@@ -1190,7 +1204,7 @@ void DRW_gpencil_populate_multiedit(
 			}
 		}
 		else {
-			gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
+			gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
 			if (gpf) {
 				gpencil_draw_strokes(
 				        cache, e_data, vedata, ts, ob, gpd, gpl, gpf, gpf,
@@ -1239,13 +1253,13 @@ void DRW_gpencil_populate_datablock(
 		if (gpl->flag & GP_LAYER_HIDE)
 			continue;
 
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, 0);
+		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
 		if (gpf == NULL)
 			continue;
 
 		/* if pose mode, maybe the overlay to fade geometry is enabled */
 		if ((draw_ctx->obact) && (draw_ctx->object_mode == OB_MODE_POSE) &&
-			(v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT))
+		    (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT))
 		{
 			opacity = gpl->opacity * v3d->overlay.bone_select_alpha;
 		}
@@ -1294,8 +1308,8 @@ void DRW_gpencil_populate_datablock(
 		if (!ID_IS_LINKED(&gpd->id)) {
 			ID *orig_id = gpd->id.orig_id;
 			/* GPXX: Now only a datablock with one use is allowed to be compatible
-			* with instances
-			*/
+			 * with instances
+			 */
 			if ((!cache_ob->is_dup_onion) && (gpd->flag & GP_DATA_SHOW_ONIONSKINS) &&
 			    (do_onion) && (gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
 			    ((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)) &&

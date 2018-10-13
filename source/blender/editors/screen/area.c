@@ -250,7 +250,7 @@ static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, f
 
 	alpha = min_ff(alpha, 0.75f);
 
-	UI_icon_draw_aspect(x, y, ICON_FULLSCREEN_EXIT, 0.7f / UI_DPI_FAC, alpha);
+	UI_icon_draw_aspect(x, y, ICON_FULLSCREEN_EXIT, 0.7f / UI_DPI_FAC, alpha, NULL);
 
 	/* debug drawing :
 	 * The click_rect is the same as defined in fullscreen_click_rcti_init
@@ -700,7 +700,7 @@ void ED_area_status_text(ScrArea *sa, const char *str)
 {
 	ARegion *ar;
 
-	/* happens when running transform operators in backround mode */
+	/* happens when running transform operators in background mode */
 	if (sa == NULL)
 		return;
 
@@ -756,7 +756,7 @@ static void area_azone_initialize(wmWindow *win, const bScreen *screen, ScrArea 
 {
 	AZone *az;
 
-	/* reinitalize entirely, regions and fullscreen add azones too */
+	/* reinitialize entirely, regions and fullscreen add azones too */
 	BLI_freelistN(&sa->actionzones);
 
 	if (screen->state != SCREENNORMAL) {
@@ -1183,6 +1183,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 		 *
 		 * This aligns to the lower left of the area.
 		 */
+		const int size_min[2] = {UI_UNIT_X, UI_UNIT_Y};
 		rcti overlap_remainder_margin = *overlap_remainder;
 		BLI_rcti_resize(
 		        &overlap_remainder_margin,
@@ -1194,8 +1195,17 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 		ar->winrct.ymax = ar->winrct.ymin + ar->sizey - 1;
 
 		BLI_rcti_isect(&ar->winrct, &overlap_remainder_margin, &ar->winrct);
-		if (BLI_rcti_size_x(&ar->winrct) < UI_UNIT_X ||
-		    BLI_rcti_size_y(&ar->winrct) < UI_UNIT_Y)
+
+		/* We need to use a test that wont have been previously clamped. */
+		rcti winrct_test = {
+			.xmin = ar->winrct.xmin,
+			.ymin = ar->winrct.ymin,
+			.xmax = ar->winrct.xmin + size_min[0],
+			.ymax = ar->winrct.ymin + size_min[1],
+		};
+		BLI_rcti_isect(&winrct_test, &overlap_remainder_margin, &winrct_test);
+		if (BLI_rcti_size_x(&winrct_test) < size_min[0] ||
+		    BLI_rcti_size_y(&winrct_test) < size_min[1])
 		{
 			ar->flag |= RGN_FLAG_TOO_SMALL;
 		}
@@ -1582,7 +1592,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 	if (sa->type->init)
 		sa->type->init(wm, sa);
 
-	/* clear all azones, add the area triange widgets */
+	/* clear all azones, add the area triangle widgets */
 	area_azone_initialize(win, screen, sa);
 
 	/* region windows, default and own handlers */
@@ -1648,7 +1658,7 @@ void ED_region_cursor_set(wmWindow *win, ScrArea *sa, ARegion *ar)
 	}
 }
 
-/* for use after changing visiblity of regions */
+/* for use after changing visibility of regions */
 void ED_region_visibility_change_update(bContext *C, ARegion *ar)
 {
 	ScrArea *sa = CTX_wm_area(C);
@@ -2855,13 +2865,13 @@ void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
 
 		/* the fine resolution level */
 		for (int i = 0; i < count_fine; i++) {
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x1, y1 * (1.0f - fac) + y2 * fac);
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x2, y1 * (1.0f - fac) + y2 * fac);
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y1);
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y2);
 			fac += gridstep;
 		}
@@ -2872,13 +2882,13 @@ void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
 
 			/* the large resolution level */
 			for (int i = 0; i < count_large; i++) {
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x1, y1 * (1.0f - fac) + y2 * fac);
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x2, y1 * (1.0f - fac) + y2 * fac);
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y1);
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y2);
 				fac += 4.0f * gridstep;
 			}

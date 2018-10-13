@@ -75,7 +75,7 @@ class DATA_PT_display(ArmatureButtonsPanel, Panel):
         ob = context.object
         arm = context.armature
 
-        layout.row().prop(arm, "draw_type", expand=True)
+        layout.row().prop(arm, "display_type", expand=True)
 
         layout.use_property_split = True
 
@@ -85,7 +85,7 @@ class DATA_PT_display(ArmatureButtonsPanel, Panel):
         col.prop(arm, "show_bone_custom_shapes", text="Shapes")
         col.prop(arm, "show_group_colors", text="Group Colors")
         if ob:
-            col.prop(ob, "show_x_ray", text="X-Ray")
+            col.prop(ob, "show_in_front", text="In Front")
         col.prop(arm, "use_deform_delay", text="Delay Refresh")
 
 
@@ -121,8 +121,8 @@ class DATA_PT_bone_groups(ArmatureButtonsPanel, Panel):
 
         col = row.column(align=True)
         col.active = (ob.proxy is None)
-        col.operator("pose.group_add", icon='ZOOMIN', text="")
-        col.operator("pose.group_remove", icon='ZOOMOUT', text="")
+        col.operator("pose.group_add", icon='ADD', text="")
+        col.operator("pose.group_remove", icon='REMOVE', text="")
         col.menu("DATA_MT_bone_group_specials", icon='DOWNARROW_HLT', text="")
         if group:
             col.separator()
@@ -187,14 +187,14 @@ class DATA_PT_pose_library(ArmatureButtonsPanel, Panel):
 
             # invoke should still be used for 'add', as it is needed to allow
             # add/replace options to be used properly
-            col.operator("poselib.pose_add", icon='ZOOMIN', text="")
+            col.operator("poselib.pose_add", icon='ADD', text="")
 
             col.operator_context = 'EXEC_DEFAULT'  # exec not invoke, so that menu doesn't need showing
 
             pose_marker_active = poselib.pose_markers.active
 
             if pose_marker_active is not None:
-                col.operator("poselib.pose_remove", icon='ZOOMOUT', text="")
+                col.operator("poselib.pose_remove", icon='REMOVE', text="")
                 col.operator(
                     "poselib.apply_pose",
                     icon='ZOOM_SELECTED',
@@ -288,6 +288,7 @@ class DATA_PT_iksolver_itasc(ArmatureButtonsPanel, Panel):
 
 from .properties_animviz import (
     MotionPathButtonsPanel,
+    MotionPathButtonsPanel_display,
     OnionSkinButtonsPanel,
 )
 
@@ -295,6 +296,29 @@ from .properties_animviz import (
 class DATA_PT_motion_paths(MotionPathButtonsPanel, Panel):
     #bl_label = "Bones Motion Paths"
     bl_context = "data"
+
+    @classmethod
+    def poll(cls, context):
+        # XXX: include pose-mode check?
+        return (context.object) and (context.armature)
+
+    def draw(self, context):
+        # layout = self.layout
+
+        ob = context.object
+        avs = ob.pose.animation_visualization
+
+        pchan = context.active_pose_bone
+        mpath = pchan.motion_path if pchan else None
+
+        self.draw_settings(context, avs, mpath, bones=True)
+
+
+class DATA_PT_motion_paths_display(MotionPathButtonsPanel_display, Panel):
+    #bl_label = "Bones Motion Paths"
+    bl_context = "data"
+    bl_parent_id = "DATA_PT_motion_paths"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -342,6 +366,7 @@ classes = (
     DATA_PT_bone_groups,
     DATA_PT_pose_library,
     DATA_PT_motion_paths,
+    DATA_PT_motion_paths_display,
     DATA_PT_ghost,
     DATA_PT_iksolver_itasc,
     DATA_PT_custom_props_arm,
