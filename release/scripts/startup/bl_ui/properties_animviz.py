@@ -43,8 +43,7 @@ class MotionPathButtonsPanel:
 
         if mps.type == 'CURRENT_FRAME':
             col = layout.column(align=True)
-            col.label(text="Frame Range")
-            col.prop(mps, "frame_before", text="Before")
+            col.prop(mps, "frame_before", text="Frame Range Before")
             col.prop(mps, "frame_after", text="After")
             col.prop(mps, "frame_step", text="Step")
         elif mps.type == 'RANGE':
@@ -56,8 +55,7 @@ class MotionPathButtonsPanel:
                 else:
                     sub.operator("object.paths_range_update", text="", icon='TIME')
             sub = row.column(align=True)
-            sub.label(text="Frame Range")
-            sub.prop(mps, "frame_start", text="Start")
+            sub.prop(mps, "frame_start", text="Frame Range Start")
             sub.prop(mps, "frame_end", text="End")
             sub.prop(mps, "frame_step", text="Step")
 
@@ -65,11 +63,9 @@ class MotionPathButtonsPanel:
             col = layout.column(align=True)
             col.enabled = False
             if bones:
-                col.label(text="Bone Cache")
-                col.prop(mpath, "frame_start", text="From")
+                col.prop(mpath, "frame_start", text="Bone Cache From")
             else:
-                col.label(text="Cache")
-                col.prop(mpath, "frame_start", text="From")
+                col.prop(mpath, "frame_start", text="Cache From")
             col.prop(mpath, "frame_end", text="To")
 
             row = layout.row(align=True)

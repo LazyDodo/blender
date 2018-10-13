@@ -54,51 +54,48 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
 
         ob = context.object
 
-        # Location.
         col = flow.column()
         row = col.row(align=True)
         row.prop(ob, "location")
-        sub = row.column(align=True)
-        sub.use_property_decorate = False
-        sub.label(text="") # Empty row for alignment (matches the property name).
-        sub.prop(ob, "lock_location", text="", emboss=False, icon='DECORATE_UNLOCKED')
+        row.use_property_decorate = False
+        row.prop(ob, "lock_location", text="", emboss=False, icon='DECORATE_UNLOCKED')
 
-        # Rotation.
-        col = flow.column()
-        row = col.row(align=True)
-        left = row.column(align=True)
         if ob.rotation_mode == 'QUATERNION':
-            left.prop(ob, "rotation_quaternion", text="Rotation")
-            right = row.column(align=True)
-            right.use_property_decorate = False
-            right.label(text="") # Empty row for alignment (matches the property name).
-            right.prop(ob, "lock_rotation_w", text="", emboss=False, icon='DECORATE_UNLOCKED')
-            right.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
+            col = flow.column()
+            row = col.row(align=True)
+            row.prop(ob, "rotation_quaternion", text="Rotation")
+            sub = row.column(align=True)
+            sub.use_property_decorate = False
+            sub.prop(ob, "lock_rotation_w", text="", emboss=False, icon='DECORATE_UNLOCKED')
+            sub.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
         elif ob.rotation_mode == 'AXIS_ANGLE':
-            left.prop(ob, "rotation_axis_angle", text="Rotation")
-            right = row.column(align=True)
-            right.use_property_decorate = False
-            right.label(text="") # Empty row for alignment (matches the property name).
-            right.prop(ob, "lock_rotation_w", text="", emboss=False, icon='DECORATE_UNLOCKED')
-            right.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
-        else:
-            left.prop(ob, "rotation_euler", text="Rotation")
-            right = row.column(align=True)
-            right.use_property_decorate = False
-            right.label(text="") # Empty row for alignment (matches the property name).
-            right.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
-        # Rotation Mode.
-        row = left.row(align=True)
-        row.prop(ob, "rotation_mode", text="")
+            # row.column().label(text="Rotation")
+            #row.column().prop(pchan, "rotation_angle", text="Angle")
+            #row.column().prop(pchan, "rotation_axis", text="Axis")
+            col = flow.column()
+            row = col.row(align=True)
+            row.prop(ob, "rotation_axis_angle", text="Rotation")
 
-        # Scale.
+            sub = row.column(align=True)
+            sub.use_property_decorate = False
+            sub.prop(ob, "lock_rotation_w", text="", emboss=False, icon='DECORATE_UNLOCKED')
+            sub.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
+        else:
+            col = flow.column()
+            row = col.row(align=True)
+            row.prop(ob, "rotation_euler", text="Rotation")
+            row.use_property_decorate = False
+            row.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
+
         col = flow.column()
         row = col.row(align=True)
         row.prop(ob, "scale")
-        sub = row.column(align=True)
-        sub.use_property_decorate = False
-        sub.label(text="") # Empty row for alignment (matches the property name).
-        sub.prop(ob, "lock_scale", text="", emboss=False, icon='DECORATE_UNLOCKED')
+        row.use_property_decorate = False
+        row.prop(ob, "lock_scale", text="", emboss=False, icon='DECORATE_UNLOCKED')
+
+        row = layout.row(align=True)
+        row.prop(ob, "rotation_mode")
+        row.label(text="", icon='BLANK1')
 
 
 class OBJECT_PT_delta_transform(ObjectButtonsPanel, Panel):

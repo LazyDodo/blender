@@ -156,7 +156,6 @@ class USERPREF_PT_interface(Panel):
         col.label(text="Development:")
         col.prop(view, "show_tooltips_python")
         col.prop(view, "show_developer_ui")
-        col.prop(view, "layout_row_enums")
 
         row = split.row()
         row.separator()

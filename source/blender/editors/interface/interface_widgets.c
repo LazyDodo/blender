@@ -1943,12 +1943,7 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 		drawstr_right = strchr(drawstr + but->ofs, ':');
 		if (drawstr_right) {
 			drawstr_right++;
-#define UI_PROP_DONT_SHOW_COLONS
-#ifdef UI_PROP_DONT_SHOW_COLONS
-			drawstr_left_len = (drawstr_right-1 - drawstr);
-#else
 			drawstr_left_len = (drawstr_right - drawstr);
-#endif
 
 			while (*drawstr_right == ' ') {
 				drawstr_right++;

@@ -142,34 +142,30 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         scene = context.scene
         rd = scene.render
 
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        col = flow.column(align=True)
-        col.label(text="Resolution")
-        col.prop(rd, "resolution_x", text="X")
+        col = layout.column(align=True)
+        col.prop(rd, "resolution_x", text="Resolution X")
         col.prop(rd, "resolution_y", text="Y")
         col.prop(rd, "resolution_percentage", text="%")
 
-        col = flow.column(align=True)
-        col.label(text="Frame Range")
-        col.prop(scene, "frame_start", text="Start")
-        col.prop(scene, "frame_end", text="End")
-        col.prop(scene, "frame_step", text="Step")
-
-        col = flow.column(align=True)
-        col.label(text="Aspect Ratio")
-        col.prop(rd, "pixel_aspect_x", text="X")
+        col = layout.column(align=True)
+        col.prop(rd, "pixel_aspect_x", text="Aspect X")
         col.prop(rd, "pixel_aspect_y", text="Y")
 
-        col = flow.column(align=True)
+        col = layout.column(align=True)
         col.prop(rd, "use_border", text="Border")
         sub = col.column(align=True)
         sub.active = rd.use_border
         sub.prop(rd, "use_crop_to_border", text="Crop")
 
-        col = flow.column(align=True)
+        col = layout.column(align=True)
+        col.prop(scene, "frame_start", text="Frame Start")
+        col.prop(scene, "frame_end", text="End")
+        col.prop(scene, "frame_step", text="Step")
+
+        col = layout.split()
+        col.alignment = 'RIGHT'
         col.label(text="Frame Rate")
-        self.draw_framerate(flow, col, rd)
+        self.draw_framerate(layout, col, rd)
 
 
 class RENDER_PT_frame_remapping(RenderButtonsPanel, Panel):
@@ -256,9 +252,9 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
             col = flow.column()
             col.prop(rd, "use_stamp_strip_meta", text="Use Strip Metadata")
 
-        col = layout.column()
-        col.prop(rd, "use_stamp_note", text="Note")
-        sub = col.column()
+        row = layout.split(factor=0.3)
+        row.prop(rd, "use_stamp_note", text="Note")
+        sub = row.row()
         sub.active = rd.use_stamp_note
         sub.prop(rd, "stamp_note_text", text="")
 

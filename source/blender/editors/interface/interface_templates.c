@@ -4338,7 +4338,7 @@ eAutoPropButsReturn uiTemplateOperatorPropertyButs(
 
 		RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
 
-		uiLayoutSetPropSingleCol(layout, true);
+		uiLayoutSetPropSep(layout, true);
 
 		/* main draw call */
 		return_info = uiDefAutoButsRNA(
