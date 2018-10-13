@@ -67,9 +67,6 @@
 /* Show an icon button after each RNA button to use to quickly set keyframes,
  * this is a way to display animation/driven/override status, see T54951. */
 #define UI_PROP_DECORATE
-/* Alternate draw mode where some buttons can use single icon width,
- * giving more room for the text at the expense of nicely aligned text. */
-#define UI_PROP_SEP_ICON_WIDTH_EXCEPTION
 
 /************************ Structs and Defines *************************/
 
@@ -139,11 +136,12 @@ enum {
 	UI_ITEM_MIN       = 1 << 1,
 
 	UI_ITEM_BOX_ITEM  = 1 << 2, /* The item is "inside" a box item */
-	UI_ITEM_PROP_SEP  = 1 << 3,
+
+	/* If an item is included in a layout adhering to the new Blender 2.8 single column layout. */
+	UI_ITEM_PROP_SINGLE_COL = 1 << 3,
 	/* Show an icon button next to each property (to set keyframes, show status).
-	 * Enabled by default, depends on 'UI_ITEM_PROP_SEP'. */
+	 * Enabled by default, depends on 'UI_ITEM_PROP_SINGLE_COL'. */
 	UI_ITEM_PROP_DECORATE = 1 << 4,
-	UI_ITEM_PROP_DECORATE_NO_PAD  = 1 << 5,
 };
 
 typedef struct uiButtonItem {
@@ -436,7 +434,8 @@ static void ui_layer_but_cb(bContext *C, void *arg_but, void *arg_index)
 static void ui_item_array(
         uiLayout *layout, uiBlock *block, const char *name, int icon,
         PointerRNA *ptr, PropertyRNA *prop, int len, int x, int y, int w, int UNUSED(h),
-        bool expand, bool slider, bool toggle, bool icon_only, bool compact, bool show_text)
+        bool expand, bool slider, bool toggle, bool icon_only, bool compact,
+		bool show_embedded_text, bool show_prop_name)
 {
 	uiStyle *style = layout->root->style;
 	uiBut *but;
@@ -453,7 +452,7 @@ static void ui_item_array(
 	UI_block_layout_set_current(block, sub);
 
 	/* create label */
-	if (name[0] && show_text) {
+	if (name && name[0] && show_prop_name) {
 		uiDefBut(block, UI_BTYPE_LABEL, 0, name, 0, 0, w, UI_UNIT_Y, NULL, 0.0, 0.0, 0, 0, "");
 	}
 
@@ -573,7 +572,7 @@ static void ui_item_array(
 			/* layout for known array subtypes */
 			char str[3] = {'\0'};
 
-			if (!icon_only && show_text) {
+			if (!icon_only && show_embedded_text) {
 				if (type != PROP_BOOLEAN) {
 					str[1] = ':';
 				}
@@ -585,11 +584,11 @@ static void ui_item_array(
 				RNA_property_boolean_get_array(ptr, prop, boolarr);
 			}
 
-			const char *str_buf = show_text ? str: "";
+			const char *str_buf = show_embedded_text ? str: "";
 			for (a = 0; a < len; a++) {
 				int width_item;
 
-				if (!icon_only && show_text) {
+				if (!icon_only && show_embedded_text) {
 					str[0] = RNA_property_array_item_char(prop, a);
 				}
 				if (boolarr) {
@@ -655,6 +654,7 @@ static void ui_item_enum_expand(
 	int itemw, icon, value;
 	bool free;
 	bool radial = (layout->root->type == UI_LAYOUT_PIEMENU);
+	const bool single_col = ((layout->item.flag & UI_ITEM_PROP_SINGLE_COL) != 0);
 
 	if (radial)
 		RNA_property_enum_items_gettexted_all(block->evil_C, ptr, prop, &item_array, NULL, &free);
@@ -695,7 +695,10 @@ static void ui_item_enum_expand(
 			continue;
 		}
 
-		name = (!uiname || uiname[0]) ? item->name : "";
+		if (single_col)
+			name = icon_only ? "" : item->name ;
+		else
+			name = (!uiname || uiname[0]) ? item->name : "";
 		icon = item->icon;
 		value = item->value;
 		itemw = ui_text_icon_width(block->curlayout, icon_only ? "" : name, icon, 0);
@@ -748,7 +751,6 @@ static uiBut *ui_item_with_label(
 	PropertyType type;
 	PropertySubType subtype;
 	int prop_but_width = w_hint;
-	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
 
 	/* Always align item with label since text is already given enough space not to overlap. */
 	sub = uiLayoutRow(layout, true);
@@ -757,25 +759,16 @@ static uiBut *ui_item_with_label(
 	if (name[0]) {
 		int w_label;
 
-		if (use_prop_sep) {
-			w_label = (int)((w_hint * 2) * UI_ITEM_PROP_SEP_DIVIDE);
+		if (ui_layout_variable_size(layout)) {
+			/* w_hint is width for label in this case. Use a default width for property button(s) */
+			prop_but_width = UI_UNIT_X * 5;
+			w_label = w_hint;
 		}
 		else {
-			if (ui_layout_variable_size(layout)) {
-				/* w_hint is width for label in this case. Use a default width for property button(s) */
-				prop_but_width = UI_UNIT_X * 5;
-				w_label = w_hint;
-			}
-			else {
-				w_label = w_hint / 3;
-			}
+			w_label = w_hint / 3;
 		}
 
-		uiBut *but_label = uiDefBut(block, UI_BTYPE_LABEL, 0, name, x, y, w_label, h, NULL, 0.0, 0.0, 0, 0, "");
-		if (use_prop_sep) {
-			but_label->drawflag |= UI_BUT_TEXT_RIGHT;
-			but_label->drawflag &= ~UI_BUT_TEXT_LEFT;
-		}
+		uiDefBut(block, UI_BTYPE_LABEL, 0, name, x, y, w_label, h, NULL, 0.0, 0.0, 0, 0, "");
 	}
 
 	type = RNA_property_type(prop);
@@ -811,17 +804,6 @@ static uiBut *ui_item_with_label(
 		        block, ptr, prop, index, str, icon,
 		        x, y, prop_but_width, h);
 	}
-
-#ifdef UI_PROP_DECORATE
-	/* Only for alignment. */
-	if (layout->item.flag & UI_ITEM_PROP_SEP) {
-		if ((layout->item.flag & UI_ITEM_PROP_DECORATE) &&
-		    (layout->item.flag & UI_ITEM_PROP_DECORATE_NO_PAD) == 0)
-		{
-			uiItemL(sub, NULL, ICON_BLANK1);
-		}
-	}
-#endif  /* UI_PROP_DECORATE */
 
 	UI_block_layout_set_current(block, layout);
 	return but;
@@ -1487,7 +1469,7 @@ static void ui_item_rna_size(
 	if (index == RNA_NO_INDEX && len > 0) {
 		if (!name[0] && icon == ICON_NONE)
 			h = 0;
-		if (layout->item.flag & UI_ITEM_PROP_SEP)
+		if (layout->item.flag & UI_ITEM_PROP_SINGLE_COL)
 			h = 0;
 		if (ELEM(subtype, PROP_LAYER, PROP_LAYER_MEMBER))
 			h += 2 * UI_UNIT_Y;
@@ -1513,76 +1495,61 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 {
 	uiBlock *block = layout->root->block;
 	uiBut *but = NULL;
-	PropertyType type;
 	char namestr[UI_MAX_NAME_STR];
-	int len, w, h;
-	bool slider, toggle, expand, icon_only, no_bg, compact;
-	bool is_array;
-	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
+	/* Retrive property information. */
+	const PropertyType type = RNA_property_type(prop);
+	const int prop_flag = RNA_property_flag(prop);
+	const bool slider = (flag & UI_ITEM_R_SLIDER) != 0;
+	const bool toggle = (flag & UI_ITEM_R_TOGGLE) != 0;
+	const bool expand = (flag & UI_ITEM_R_EXPAND) != 0;
+	const bool icon_only = (flag & UI_ITEM_R_ICON_ONLY) != 0;
+	const bool no_bg = (flag & UI_ITEM_R_NO_BG) != 0;
+	const bool compact = (flag & UI_ITEM_R_COMPACT) != 0;
+	const bool is_array = RNA_property_array_check(prop);
+	const int array_len = (is_array) ? RNA_property_array_length(ptr, prop) : 0;
+	/* If this item is included in a layout adhering to the new Blender 2.8 single column layout. */
+	const bool single_col = ((layout->item.flag & UI_ITEM_PROP_SINGLE_COL) != 0);
+	const bool can_have_embedded_text = ELEM(type, PROP_INT, PROP_FLOAT, PROP_STRING, PROP_POINTER);
 
 #ifdef UI_PROP_DECORATE
 	struct {
-		bool use_prop_decorate;
+		bool use_prop_decorate; /* If this property should have an animation decorator. */
 		int len;
 		uiLayout *layout;
 		uiBut *but;
 	} ui_decorate = {
 		.use_prop_decorate = (
-		        ((layout->item.flag & UI_ITEM_PROP_DECORATE) != 0) &&
-		        (use_prop_sep && ptr->id.data && id_can_have_animdata(ptr->id.data))),
+		    ((layout->item.flag & UI_ITEM_PROP_DECORATE) != 0) &&
+		    (ptr->id.data && id_can_have_animdata(ptr->id.data)) &&
+		    single_col),
 	};
 #endif  /* UI_PROP_DECORATE */
 
 	UI_block_layout_set_current(block, layout);
 
-	/* retrieve info */
-	type = RNA_property_type(prop);
-	is_array = RNA_property_array_check(prop);
-	len = (is_array) ? RNA_property_array_length(ptr, prop) : 0;
-
-	/* set name and icon */
-	if (!name) {
-		if ((flag & UI_ITEM_R_ICON_ONLY) == 0) {
-			name = RNA_property_ui_name(prop);
-		}
-		else {
-			name = "";
-		}
-	}
-
+	/* Set the icon for this item. */
 	if (icon == ICON_NONE)
 		icon = RNA_property_ui_icon(prop);
 
-	if (flag & UI_ITEM_R_ICON_ONLY) {
-		/* pass */
+	/* Set the display name (label) for this item. */
+	if (!name && !icon_only) {
+		/* No name suplied: use the defined name for this property. */
+		name = RNA_property_ui_name(prop);
 	}
-	else if (ELEM(type, PROP_INT, PROP_FLOAT, PROP_STRING, PROP_POINTER)) {
-		if (use_prop_sep == false) {
-			name = ui_item_name_add_colon(name, namestr);
-		}
+	/* Adjust the display name depending on how the item will be displayed. */
+	if (icon_only || (type == PROP_ENUM && index != RNA_ENUM_VALUE && compact)) {
+		name = "";
 	}
-	else if (type == PROP_BOOLEAN && is_array && index == RNA_NO_INDEX) {
-		if (use_prop_sep == false) {
-			name = ui_item_name_add_colon(name, namestr);
-		}
+	else if (can_have_embedded_text) {
+		name = ui_item_name_add_colon(name, namestr);
 	}
-	else if (type == PROP_ENUM && index != RNA_ENUM_VALUE) {
-		if (flag & UI_ITEM_R_COMPACT) {
-			name = "";
-		}
-		else {
-			if (use_prop_sep == false) {
-				name = ui_item_name_add_colon(name, namestr);
-			}
-		}
-	}
+
 
 	/* menus and pie-menus don't show checkbox without this */
 	if ((layout->root->type == UI_LAYOUT_MENU) ||
 	    /* use checkboxes only as a fallback in pie-menu's, when no icon is defined */
 	    ((layout->root->type == UI_LAYOUT_PIEMENU) && (icon == ICON_NONE)))
 	{
-		int prop_flag = RNA_property_flag(prop);
 		if (type == PROP_BOOLEAN && ((is_array == false) || (index != RNA_NO_INDEX))) {
 			if (prop_flag & PROP_ICONS_CONSECUTIVE) {
 				icon = ICON_CHECKBOX_DEHLT; /* but->iconadd will set to correct icon */
@@ -1608,135 +1575,71 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 		}
 	}
 
-	if ((type == PROP_ENUM) && (RNA_property_flag(prop) & PROP_ENUM_FLAG)) {
-		flag |= UI_ITEM_R_EXPAND;
-	}
-
-	slider = (flag & UI_ITEM_R_SLIDER) != 0;
-	toggle = (flag & UI_ITEM_R_TOGGLE) != 0;
-	expand = (flag & UI_ITEM_R_EXPAND) != 0;
-	icon_only = (flag & UI_ITEM_R_ICON_ONLY) != 0;
-	no_bg = (flag & UI_ITEM_R_NO_BG) != 0;
-	compact = (flag & UI_ITEM_R_COMPACT) != 0;
-
-	/* get size */
+	/* Get the size for this item. */
+	int w, h;
 	ui_item_rna_size(layout, name, icon, ptr, prop, index, icon_only, compact, &w, &h);
 
-	int prev_emboss = layout->emboss;
 	if (no_bg) {
 		layout->emboss = UI_EMBOSS_NONE;
 	}
 
-	/* Split the label / property. */
-	if (use_prop_sep) {
-		uiLayout *layout_row = NULL;
-#ifdef UI_PROP_DECORATE
+	/* For the new single-column layout in 2.8:
+	- Add a label with the property's name on top of the control for the value, depending on the property type.
+	- Add the animation decorator, if the property supports it.
+	*/
+	bool label_on_top = false;
+	if (single_col)
+	{
+		/* Should this property be displayed as an array of subproperties? */
+		const PropertySubType subtype = RNA_property_subtype(prop);
+		const bool should_display_array = ((index == RNA_NO_INDEX && is_array) &&
+		        ((!expand && ELEM(subtype, PROP_COLOR, PROP_COLOR_GAMMA, PROP_DIRECTION)) == 0));
+
+		/* Decide if this item should have the label on top of the control or embedded in it. */
+		/* property with separate label */
+		label_on_top = should_display_array || type == PROP_ENUM || type == PROP_STRING || type == PROP_POINTER;
+		if (label_on_top) {
+			/* Display a label with the property name. */
+			if (name && name[0] != '\0') {
+				layout = uiLayoutColumn(layout, true);
+
+				but = uiDefBut(
+				        block, UI_BTYPE_LABEL, 0, name,
+				        0, 0, w, UI_UNIT_Y, NULL, 0.0, 0.0, 0, 0, "");
+				but->drawflag |= UI_BUT_TEXT_LEFT;
+				but->drawflag &= ~UI_BUT_TEXT_RIGHT;
+			}
+			/* Don't show the display name in the value control
+			(Note: string must exist or it might be created later). */
+			name = "";
+		}
+
+		#ifdef UI_PROP_DECORATE
 		if (ui_decorate.use_prop_decorate) {
-			layout_row = uiLayoutRow(layout, true);
+			/* Make a row to set the value on the left and the animation decorator on the right.
+			For arrays, the sub-properties are arranged in a colunm inside this row. */
+			uiLayout *layout_row = uiLayoutRow(layout, false);
+			/* Don't align the property controller with the animation decorator in order to
+			show rounded corners, but remove the spacing. */
 			layout_row->space = 0;
-			ui_decorate.len = max_ii(1, len);
-		}
-#endif  /* UI_PROP_DECORATE */
-
-		if (name[0] == '\0') {
-			/* Ensure we get a column when text is not set. */
-			layout = uiLayoutColumn(layout_row ? layout_row : layout, true);
-			layout->space = 0;
-		}
-		else {
-			const PropertySubType subtype = RNA_property_subtype(prop);
-			uiLayout *layout_split;
-#ifdef UI_PROP_SEP_ICON_WIDTH_EXCEPTION
-			if (type == PROP_BOOLEAN && (icon == ICON_NONE) && !icon_only) {
-				layout_split = uiLayoutRow(layout_row ? layout_row : layout, true);
-			}
-			else
-#endif  /* UI_PROP_SEP_ICON_WIDTH_EXCEPTION */
-			{
-				layout_split = uiLayoutSplit(
-				        layout_row ? layout_row : layout,
-				        UI_ITEM_PROP_SEP_DIVIDE, true);
-			}
-			layout_split->space = 0;
-			uiLayout *layout_sub = uiLayoutColumn(layout_split, true);
-			layout_sub->space = 0;
-
-			if ((index == RNA_NO_INDEX && is_array) &&
-			    ((!expand && ELEM(subtype, PROP_COLOR, PROP_COLOR_GAMMA, PROP_DIRECTION)) == 0))
-			{
-				char name_with_suffix[UI_MAX_DRAW_STR + 2];
-				char str[2] = {'\0'};
-				for (int a = 0; a < len; a++) {
-					str[0] = RNA_property_array_item_char(prop, a);
-					const bool use_prefix = (a == 0 && name && name[0]);
-					if (use_prefix) {
-						char *s = name_with_suffix;
-						s += STRNCPY_RLEN(name_with_suffix, name);
-						*s++ = ' ';
-						*s++ = str[0];
-						*s++ = '\0';
-					}
-					but = uiDefBut(
-					        block, UI_BTYPE_LABEL, 0, use_prefix ? name_with_suffix : str,
-					        0, 0, w, UI_UNIT_Y, NULL, 0.0, 0.0, 0, 0, "");
-					but->drawflag |= UI_BUT_TEXT_RIGHT;
-					but->drawflag &= ~UI_BUT_TEXT_LEFT;
-				}
-			}
-			else {
-				if (name) {
-					but = uiDefBut(
-					        block, UI_BTYPE_LABEL, 0, name,
-					        0, 0, w, UI_UNIT_Y, NULL, 0.0, 0.0, 0, 0, "");
-					but->drawflag |= UI_BUT_TEXT_RIGHT;
-					but->drawflag &= ~UI_BUT_TEXT_LEFT;
-				}
-			}
-
-			/* Watch out! We can only write into the new layout now. */
-			if ((type == PROP_ENUM) && (flag & UI_ITEM_R_EXPAND)) {
-				/* Expanded enums each have their own name. */
-
-				/* Often expanded enum's are better arranged into a row, so check the existing layout. */
-				if (ui_layout_local_dir(layout) == UI_LAYOUT_HORIZONTAL) {
-					layout = uiLayoutRow(layout_split, true);
-				}
-				else {
-					layout = uiLayoutColumn(layout_split, true);
-				}
-			}
-			else {
-				name = "";
-				layout = uiLayoutColumn(layout_split, true);
-			}
-			layout->space = 0;
-
-#ifdef UI_PROP_SEP_ICON_WIDTH_EXCEPTION
-			if (type == PROP_BOOLEAN && (icon == ICON_NONE) && !icon_only) {
-				w = UI_UNIT_X;
-			}
-#endif  /* UI_PROP_SEP_ICON_WIDTH_EXCEPTION */
-		}
-
-#ifdef UI_PROP_DECORATE
-		if (ui_decorate.use_prop_decorate) {
-			ui_decorate.layout = uiLayoutColumn(layout_row, true);
-			ui_decorate.layout->space = 0;
-			UI_block_layout_set_current(block, layout);
+			uiLayout *layout_value = uiLayoutColumn(layout_row, true);
+			uiLayout *layout_decor = uiLayoutColumn(layout_row, true);
+			ui_decorate.layout = layout_decor;
+			ui_decorate.len = max_ii(1, array_len);
 			ui_decorate.but = block->buttons.last;
 
-			/* Clear after. */
-			layout->item.flag |= UI_ITEM_PROP_DECORATE_NO_PAD;
+			/* Set the active layout to put the value control in. */
+			UI_block_layout_set_current(block, layout_value);
+			layout = layout_value;
 		}
-#endif  /* UI_PROP_DECORATE */
+		#endif  /* UI_PROP_DECORATE */
 	}
-	/* End split. */
 
 	/* array property */
 	if (index == RNA_NO_INDEX && is_array) {
 		ui_item_array(
-		        layout, block, name, icon, ptr, prop, len, 0, 0, w, h,
-		        expand, slider, toggle, icon_only, compact, !use_prop_sep);
+		        layout, block, name, icon, ptr, prop, array_len, 0, 0, w, h,
+		        expand, slider, toggle, icon_only, compact, true, !single_col);
 	}
 	/* enum item */
 	else if (type == PROP_ENUM && index == RNA_ENUM_VALUE) {
@@ -1749,7 +1652,7 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 	}
 	/* expanded enum */
 	else if (type == PROP_ENUM && expand) {
-		ui_item_enum_expand(layout, block, ptr, prop, name, h, icon_only);
+		ui_item_enum_expand(single_col ? uiLayoutRow(layout, true) : layout, block, ptr, prop, name, h, icon_only);
 	}
 	/* property with separate label */
 	else if (type == PROP_ENUM || type == PROP_STRING || type == PROP_POINTER) {
@@ -1778,13 +1681,17 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 		UI_but_flag_enable(but, UI_BUT_LIST_ITEM);
 	}
 
-#ifdef UI_PROP_DECORATE
+	#ifdef UI_PROP_DECORATE
 	if (ui_decorate.use_prop_decorate) {
 		const bool is_anim = RNA_property_animateable(ptr, prop);
+
+		/* Set the active layout to the one saved earlier. */
+		uiLayout *layout_decor = ui_decorate.layout;
+		layout_decor->emboss = UI_EMBOSS_NONE;
+		UI_block_layout_set_current(block, layout_decor);
+
+		/* Create a button for the decorator and associate it with the property or subprop it controls. */
 		uiBut *but_decorate = ui_decorate.but ? ui_decorate.but->next : block->buttons.first;
-		uiLayout *layout_col = uiLayoutColumn(ui_decorate.layout, false);
-		layout_col->space = 0;
-		layout_col->emboss = UI_EMBOSS_NONE;
 		int i;
 		for (i = 0; i < ui_decorate.len && but_decorate; i++) {
 			/* The icons are set in 'ui_but_anim_flag' */
@@ -1809,16 +1716,10 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 			but_decorate = but->next;
 		}
 		BLI_assert(ELEM(i, 1, ui_decorate.len));
-
-		layout->item.flag &= ~UI_ITEM_PROP_DECORATE_NO_PAD;
 	}
-#endif  /* UI_PROP_DECORATE */
+	#endif  /* UI_PROP_DECORATE */
 
-	if (no_bg) {
-		layout->emboss = prev_emboss;
-	}
-
-	/* ensure text isn't added to icon_only buttons */
+	/* Ensure text isn't added to icon_only buttons. */
 	if (but && icon_only) {
 		BLI_assert(but->str[0] == '\0');
 	}
@@ -2069,7 +1970,8 @@ void uiItemPointerR_prop(
 	StructRNA *icontype;
 	int w, h;
 	char namestr[UI_MAX_NAME_STR];
-	const bool use_prop_sep = ((layout->item.flag & UI_ITEM_PROP_SEP) != 0);
+	const bool single_col = ((layout->item.flag & UI_ITEM_PROP_SINGLE_COL) != 0);
+
 
 	type = RNA_property_type(prop);
 	if (!ELEM(type, PROP_POINTER, PROP_STRING, PROP_ENUM)) {
@@ -2095,9 +1997,8 @@ void uiItemPointerR_prop(
 	if (!name)
 		name = RNA_property_ui_name(prop);
 
-	if (use_prop_sep == false) {
+	if (!single_col)
 		name = ui_item_name_add_colon(name, namestr);
-	}
 
 	/* create button */
 	block = uiLayoutGetBlock(layout);
@@ -3607,7 +3508,7 @@ static void ui_litem_init_from_parent(uiLayout *litem, uiLayout *layout, int ali
 	litem->redalert = layout->redalert;
 	litem->w = layout->w;
 	litem->emboss = layout->emboss;
-	litem->item.flag = (layout->item.flag & (UI_ITEM_PROP_SEP | UI_ITEM_PROP_DECORATE));
+	litem->item.flag = (layout->item.flag & (UI_ITEM_PROP_SINGLE_COL | UI_ITEM_PROP_DECORATE));
 	BLI_addtail(&layout->items, litem);
 }
 
@@ -3867,24 +3768,19 @@ void uiLayoutSetUnitsY(uiLayout *layout, float unit)
 	layout->units[1] = unit;
 }
 
+void uiLayoutSetSpacing(uiLayout *layout, short spacing)
+{
+	layout->space = spacing;
+}
+
 void uiLayoutSetEmboss(uiLayout *layout, char emboss)
 {
 	layout->emboss = emboss;
 }
 
-bool uiLayoutGetPropSep(uiLayout *layout)
+void uiLayoutSetPropSingleCol(uiLayout *layout, bool is_sep)
 {
-	return (layout->item.flag & UI_ITEM_PROP_SEP) != 0;
-}
-
-void uiLayoutSetPropSep(uiLayout *layout, bool is_sep)
-{
-	SET_FLAG_FROM_TEST(layout->item.flag, is_sep, UI_ITEM_PROP_SEP);
-}
-
-bool uiLayoutGetPropDecorate(uiLayout *layout)
-{
-	return (layout->item.flag & UI_ITEM_PROP_DECORATE) != 0;
+	SET_FLAG_FROM_TEST(layout->item.flag, is_sep, UI_ITEM_PROP_SINGLE_COL);
 }
 
 void uiLayoutSetPropDecorate(uiLayout *layout, bool is_sep)
@@ -3942,6 +3838,11 @@ float uiLayoutGetUnitsY(uiLayout *layout)
 	return layout->units[1];
 }
 
+short uiLayoutGetSpacing(uiLayout *layout)
+{
+	return layout->space;
+}
+
 int uiLayoutGetEmboss(uiLayout *layout)
 {
 	if (layout->emboss == UI_EMBOSS_UNDEFINED) {
@@ -3950,6 +3851,16 @@ int uiLayoutGetEmboss(uiLayout *layout)
 	else {
 		return layout->emboss;
 	}
+}
+
+bool uiLayoutGetPropSingleCol(uiLayout *layout)
+{
+	return (layout->item.flag & UI_ITEM_PROP_SINGLE_COL) != 0;
+}
+
+bool uiLayoutGetPropDecorate(uiLayout *layout)
+{
+	return (layout->item.flag & UI_ITEM_PROP_DECORATE) != 0;
 }
 
 /********************** Layout *******************/
@@ -4217,7 +4128,7 @@ uiLayout *UI_block_layout(uiBlock *block, int dir, int type, int x, int y, int s
 	layout = MEM_callocN(sizeof(uiLayout), "uiLayout");
 	layout->item.type = ITEM_LAYOUT_ROOT;
 
-	/* Only used when 'UI_ITEM_PROP_SEP' is set. */
+	/* Only used when 'UI_ITEM_PROP_SINGLE_COL' is set. */
 	layout->item.flag = UI_ITEM_PROP_DECORATE;
 
 	layout->x = x;

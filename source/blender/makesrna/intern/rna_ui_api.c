@@ -117,8 +117,15 @@ static void rna_uiItemR(
 	/* Get translated name (label). */
 	name = rna_translate_ui_text(name, text_ctxt, NULL, prop, translate);
 
+	/* Enum properties that allow multiple values to be selected should be expanded. */
+	if ((RNA_property_type(prop) == PROP_ENUM) && (RNA_property_flag(prop) & PROP_ENUM_FLAG) && !expand) {
+		RNA_warning("expand was false for multi value enum %s.%s", RNA_struct_identifier(ptr->type), propname);
+		expand = true;
+	}
+
+	/* Compose the flag. */
 	flag |= (slider) ? UI_ITEM_R_SLIDER : 0;
-	flag |= (expand) ? UI_ITEM_R_EXPAND : 0;
+	flag |= (expand ) ? UI_ITEM_R_EXPAND : 0;
 	flag |= (toggle) ? UI_ITEM_R_TOGGLE : 0;
 	flag |= (icon_only) ? UI_ITEM_R_ICON_ONLY : 0;
 	flag |= (event) ? UI_ITEM_R_EVENT : 0;
@@ -713,6 +720,7 @@ void RNA_api_ui_layout(StructRNA *srna)
 	api_ui_item_common(func);
 	parm = RNA_def_property(func, "icon_value", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_ui_text(parm, "Icon Value", "Override automatic icon of the item");
+	RNA_def_property_ui_text(parm, "Group Following Items", "XXX");
 
 	func = RNA_def_function(srna, "menu", "rna_uiItemM");
 	parm = RNA_def_string(func, "menu", NULL, 0, "", "Identifier of the menu");

@@ -993,8 +993,10 @@ void uiLayoutSetScaleX(uiLayout *layout, float scale);
 void uiLayoutSetScaleY(uiLayout *layout, float scale);
 void uiLayoutSetUnitsX(uiLayout *layout, float unit);
 void uiLayoutSetUnitsY(uiLayout *layout, float unit);
+void uiLayoutSetSpacing(uiLayout *layout, short spacing);
 void uiLayoutSetEmboss(uiLayout *layout, char emboss);
-void uiLayoutSetPropSep(uiLayout *layout, bool is_sep);
+void uiLayoutSetGroupItems(uiLayout *layout, bool group_items);
+void uiLayoutSetPropSingleCol(uiLayout *layout, bool is_sep);
 void uiLayoutSetPropDecorate(uiLayout *layout, bool is_sep);
 
 int uiLayoutGetOperatorContext(uiLayout *layout);
@@ -1008,8 +1010,10 @@ float uiLayoutGetScaleX(uiLayout *layout);
 float uiLayoutGetScaleY(uiLayout *layout);
 float uiLayoutGetUnitsX(uiLayout *layout);
 float uiLayoutGetUnitsY(uiLayout *layout);
+short uiLayoutGetSpacing(uiLayout *layout);
 int uiLayoutGetEmboss(uiLayout *layout);
-bool uiLayoutGetPropSep(uiLayout *layout);
+bool uiLayoutGetGroupItems(uiLayout *layout);
+bool uiLayoutGetPropSingleCol(uiLayout *layout);
 bool uiLayoutGetPropDecorate(uiLayout *layout);
 
 /* layout specifiers */

@@ -142,30 +142,34 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         scene = context.scene
         rd = scene.render
 
-        col = layout.column(align=True)
-        col.prop(rd, "resolution_x", text="Resolution X")
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+
+        col = flow.column(align=True)
+        col.label(text="Resolution")
+        col.prop(rd, "resolution_x", text="X")
         col.prop(rd, "resolution_y", text="Y")
         col.prop(rd, "resolution_percentage", text="%")
 
-        col = layout.column(align=True)
-        col.prop(rd, "pixel_aspect_x", text="Aspect X")
+        col = flow.column(align=True)
+        col.label(text="Aspect Ratio")
+        col.prop(rd, "pixel_aspect_x", text="X")
         col.prop(rd, "pixel_aspect_y", text="Y")
 
-        col = layout.column(align=True)
+        col = flow.column(align=True)
         col.prop(rd, "use_border", text="Border")
         sub = col.column(align=True)
         sub.active = rd.use_border
         sub.prop(rd, "use_crop_to_border", text="Crop")
 
-        col = layout.column(align=True)
-        col.prop(scene, "frame_start", text="Frame Start")
+        col = flow.column(align=True)
+        col.label(text="Frame Range")
+        col.prop(scene, "frame_start", text="Start")
         col.prop(scene, "frame_end", text="End")
         col.prop(scene, "frame_step", text="Step")
 
-        col = layout.split()
-        col.alignment = 'RIGHT'
+        col = flow.column(align=True)
         col.label(text="Frame Rate")
-        self.draw_framerate(layout, col, rd)
+        self.draw_framerate(flow, col, rd)
 
 
 class RENDER_PT_frame_remapping(RenderButtonsPanel, Panel):
