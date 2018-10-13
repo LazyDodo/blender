@@ -1059,7 +1059,7 @@ void uiTemplateImageSettings(uiLayout *layout, PointerRNA *imfptr, bool color_ma
 
 	col = uiLayoutColumn(layout, false);
 
-	uiLayoutSetPropSep(col, true);
+	uiLayoutSetPropSingleCol(col, true);
 	uiLayoutSetPropDecorate(col, false);
 
 	uiItemR(col, imfptr, "file_format", 0, NULL, ICON_NONE);
@@ -1183,7 +1183,7 @@ static void uiTemplateViewsFormat(uiLayout *layout, PointerRNA *ptr, PointerRNA 
 
 	col = uiLayoutColumn(layout, false);
 
-	uiLayoutSetPropSep(col, true);
+	uiLayoutSetPropSingleCol(col, true);
 	uiLayoutSetPropDecorate(col, false);
 
 	uiItemR(col, ptr, "views_format", UI_ITEM_R_EXPAND, NULL, ICON_NONE);

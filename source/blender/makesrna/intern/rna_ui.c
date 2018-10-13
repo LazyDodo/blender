@@ -985,12 +985,12 @@ static void rna_UILayout_emboss_set(PointerRNA *ptr, int value)
 
 static bool rna_UILayout_property_split_get(PointerRNA *ptr)
 {
-	return uiLayoutGetPropSep(ptr->data);
+	return uiLayoutGetPropSingleCol(ptr->data);
 }
 
 static void rna_UILayout_property_split_set(PointerRNA *ptr, bool value)
 {
-	uiLayoutSetPropSep(ptr->data, value);
+	uiLayoutSetPropSingleCol(ptr->data, value);
 }
 
 static bool rna_UILayout_property_decorate_get(PointerRNA *ptr)
