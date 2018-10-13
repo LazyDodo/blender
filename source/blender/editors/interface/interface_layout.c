@@ -77,8 +77,6 @@
 		return_statement;                                                     \
 	} (void)0                                                                 \
 
-#define UI_ITEM_PROP_SEP_DIVIDE 0.5f
-
 /* uiLayoutRoot */
 
 typedef struct uiLayoutRoot {
@@ -639,6 +637,7 @@ static void ui_item_enum_expand(
         uiLayout *layout, uiBlock *block, PointerRNA *ptr, PropertyRNA *prop,
         const char *uiname, int h, bool icon_only)
 {
+	/* XXX Maybe now is the time! */
 	/* XXX The way this function currently handles uiname parameter is insane and inconsistent with general UI API:
 	 *     * uiname is the *enum property* label.
 	 *     * when it is NULL or empty, we do not draw *enum items* labels, this doubles the icon_only parameter.
@@ -1597,7 +1596,8 @@ void uiItemFullR(uiLayout *layout, PointerRNA *ptr, PropertyRNA *prop, int index
 
 		/* Decide if this item should have the label on top of the control or embedded in it. */
 		/* property with separate label */
-		label_on_top = should_display_array || type == PROP_ENUM || type == PROP_STRING || type == PROP_POINTER;
+		label_on_top = should_display_array || type == PROP_STRING || type == PROP_POINTER ||
+			(type == PROP_ENUM && ((U.flag & TEMP_USER_PROP_1LINE_ENUM) == 0) || expand);
 		if (label_on_top) {
 			/* Display a label with the property name. */
 			if (name && name[0] != '\0') {

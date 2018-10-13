@@ -151,6 +151,12 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         col.prop(rd, "resolution_percentage", text="%")
 
         col = flow.column(align=True)
+        col.label(text="Frame Range")
+        col.prop(scene, "frame_start", text="Start")
+        col.prop(scene, "frame_end", text="End")
+        col.prop(scene, "frame_step", text="Step")
+
+        col = flow.column(align=True)
         col.label(text="Aspect Ratio")
         col.prop(rd, "pixel_aspect_x", text="X")
         col.prop(rd, "pixel_aspect_y", text="Y")
@@ -160,12 +166,6 @@ class RENDER_PT_dimensions(RenderButtonsPanel, Panel):
         sub = col.column(align=True)
         sub.active = rd.use_border
         sub.prop(rd, "use_crop_to_border", text="Crop")
-
-        col = flow.column(align=True)
-        col.label(text="Frame Range")
-        col.prop(scene, "frame_start", text="Start")
-        col.prop(scene, "frame_end", text="End")
-        col.prop(scene, "frame_step", text="Step")
 
         col = flow.column(align=True)
         col.label(text="Frame Rate")
@@ -256,9 +256,9 @@ class RENDER_PT_stamp(RenderButtonsPanel, Panel):
             col = flow.column()
             col.prop(rd, "use_stamp_strip_meta", text="Use Strip Metadata")
 
-        row = layout.split(factor=0.3)
-        row.prop(rd, "use_stamp_note", text="Note")
-        sub = row.row()
+        col = layout.column()
+        col.prop(rd, "use_stamp_note", text="Note")
+        sub = col.column()
         sub.active = rd.use_stamp_note
         sub.prop(rd, "stamp_note_text", text="")
 

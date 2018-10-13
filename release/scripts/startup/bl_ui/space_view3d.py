@@ -3892,15 +3892,15 @@ class VIEW3D_PT_view3d_properties(Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
 
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
-        col = flow.column()
+        col = layout.column()
 
         subcol = col.column()
         subcol.active = bool(view.region_3d.view_perspective != 'CAMERA' or view.region_quadviews)
         subcol.prop(view, "lens", text="Focal Length")
 
         subcol = col.column(align=True)
-        subcol.prop(view, "clip_start", text="Clip Start")
+        subcol.label(text="Clip")
+        subcol.prop(view, "clip_start", text="Start")
         subcol.prop(view, "clip_end", text="End")
 
         subcol.separator()
