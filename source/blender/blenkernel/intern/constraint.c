@@ -107,6 +107,8 @@
  * type-info structs.
  */
 
+static void damptrack_do_transform(float matrix[4][4], const float tarvec[3], int track_axis);
+
 /* -------------- Naming -------------- */
 
 /* Find the first available, non-duplicate name for a given constraint */
@@ -1326,21 +1328,7 @@ static void followpath_get_tarmat(struct Depsgraph *UNUSED(depsgraph),
 				unit_m4(totmat);
 
 				if (data->followflag & FOLLOWPATH_FOLLOW) {
-#if 0
-					float x1, q[4];
-					vec_to_quat(quat, dir, (short)data->trackflag, (short)data->upflag);
-
-					normalize_v3(dir);
-					q[0] = cosf(0.5 * vec[3]);
-					x1 = sinf(0.5 * vec[3]);
-					q[1] = -x1 * dir[0];
-					q[2] = -x1 * dir[1];
-					q[3] = -x1 * dir[2];
-					mul_qt_qtqt(quat, q, quat);
-#else
 					quat_apply_track(quat, data->trackflag, data->upflag);
-#endif
-
 					quat_to_mat4(totmat, quat);
 				}
 
@@ -2090,15 +2078,6 @@ static void pycon_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *targe
 	/* only evaluate in python if we're allowed to do so */
 	if ((G.f & G_SCRIPT_AUTOEXEC) == 0) return;
 
-/* currently removed, until I this can be re-implemented for multiple targets */
-#if 0
-	/* Firstly, run the 'driver' function which has direct access to the objects involved
-	 * Technically, this is potentially dangerous as users may abuse this and cause dependency-problems,
-	 * but it also allows certain 'clever' rigging hacks to work.
-	 */
-	BPY_pyconstraint_driver(data, cob, targets);
-#endif
-
 	/* Now, run the actual 'constraint' function, which should only access the matrices */
 	BPY_pyconstraint_exec(data, cob, targets);
 #endif /* WITH_PYTHON */
@@ -2571,7 +2550,7 @@ static void locktrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 			unit_m3(totmat);
 		}
 
-		/* apply out transformaton to the object */
+		/* apply out transformation to the object */
 		mul_m4_m3m4(cob->matrix, totmat, cob->matrix);
 	}
 }
@@ -3440,15 +3419,18 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 
 		bool fail = false;
 		float co[3] = {0.0f, 0.0f, 0.0f};
+		bool track_normal = false;
+		float track_no[3] = {0.0f, 0.0f, 0.0f};
 
 		SpaceTransform transform;
 		Mesh *target_eval = mesh_get_eval_final(depsgraph, DEG_get_input_scene(depsgraph), ct->tar, CD_MASK_BAREMESH);
 
-		BVHTreeFromMesh treeData = {NULL};
+		copy_m4_m4(ct->matrix, cob->matrix);
 
-		unit_m4(ct->matrix);
+		bool do_track_normal = (scon->flag & CON_SHRINKWRAP_TRACK_NORMAL) != 0;
+		ShrinkwrapTreeData tree;
 
-		if (target_eval != NULL) {
+		if (BKE_shrinkwrap_init_tree(&tree, target_eval, scon->shrinkType, scon->shrinkMode, do_track_normal)) {
 			BLI_space_transform_from_matrices(&transform, cob->matrix, ct->tar->obmat);
 
 			switch (scon->shrinkType) {
@@ -3456,29 +3438,37 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 				case MOD_SHRINKWRAP_NEAREST_VERTEX:
 				{
 					BVHTreeNearest nearest;
-					float dist;
 
 					nearest.index = -1;
 					nearest.dist_sq = FLT_MAX;
 
-					if (scon->shrinkType == MOD_SHRINKWRAP_NEAREST_VERTEX)
-						BKE_bvhtree_from_mesh_get(&treeData, target_eval, BVHTREE_FROM_VERTS, 2);
-					else
-						BKE_bvhtree_from_mesh_get(&treeData, target_eval, BVHTREE_FROM_LOOPTRI, 2);
+					BLI_space_transform_apply(&transform, co);
 
-					if (treeData.tree == NULL) {
+					BVHTreeFromMesh *treeData = &tree.treeData;
+					BLI_bvhtree_find_nearest(treeData->tree, co, &nearest, treeData->nearest_callback, treeData);
+
+					if (nearest.index < 0) {
 						fail = true;
 						break;
 					}
 
-					BLI_space_transform_apply(&transform, co);
+					if (scon->shrinkType == MOD_SHRINKWRAP_NEAREST_SURFACE) {
+						if (do_track_normal) {
+							track_normal = true;
+							BKE_shrinkwrap_compute_smooth_normal(&tree, NULL, nearest.index, nearest.co, nearest.no, track_no);
+							BLI_space_transform_invert_normal(&transform, track_no);
+						}
 
-					BLI_bvhtree_find_nearest(treeData.tree, co, &nearest, treeData.nearest_callback, &treeData);
-
-					dist = len_v3v3(co, nearest.co);
-					if (dist != 0.0f) {
-						interp_v3_v3v3(co, co, nearest.co, (dist - scon->dist) / dist);   /* linear interpolation */
+						BKE_shrinkwrap_snap_point_to_surface(&tree, NULL, scon->shrinkMode, nearest.index, nearest.co, nearest.no, scon->dist, co, co);
 					}
+					else {
+						const float dist = len_v3v3(co, nearest.co);
+
+						if (dist != 0.0f) {
+							interp_v3_v3v3(co, co, nearest.co, (dist - scon->dist) / dist);   /* linear interpolation */
+						}
+					}
+
 					BLI_space_transform_invert(&transform, co);
 					break;
 				}
@@ -3516,24 +3506,37 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 						break;
 					}
 
-					BKE_bvhtree_from_mesh_get(&treeData, target_eval, BVHTREE_FROM_LOOPTRI, 4);
-					if (treeData.tree == NULL) {
+					char cull_mode = scon->flag & CON_SHRINKWRAP_PROJECT_CULL_MASK;
+
+					BKE_shrinkwrap_project_normal(cull_mode, co, no, 0.0f, &transform, &tree, &hit);
+
+					if (scon->flag & CON_SHRINKWRAP_PROJECT_OPPOSITE) {
+						float inv_no[3];
+						negate_v3_v3(inv_no, no);
+
+						if ((scon->flag & CON_SHRINKWRAP_PROJECT_INVERT_CULL) && (cull_mode != 0)) {
+							cull_mode ^= CON_SHRINKWRAP_PROJECT_CULL_MASK;
+						}
+
+						BKE_shrinkwrap_project_normal(cull_mode, co, inv_no, 0.0f, &transform, &tree, &hit);
+					}
+
+					if (hit.index < 0) {
 						fail = true;
 						break;
 					}
 
-					if (BKE_shrinkwrap_project_normal(0, co, no, scon->dist, &transform, treeData.tree,
-					                                  &hit, treeData.raycast_callback, &treeData) == false)
-					{
-						fail = true;
-						break;
+					if (do_track_normal) {
+						track_normal = true;
+						BKE_shrinkwrap_compute_smooth_normal(&tree, &transform, hit.index, hit.co, hit.no, track_no);
 					}
-					copy_v3_v3(co, hit.co);
+
+					BKE_shrinkwrap_snap_point_to_surface(&tree, &transform, scon->shrinkMode, hit.index, hit.co, hit.no, scon->dist, co, co);
 					break;
 				}
 			}
 
-			free_bvhtree_from_mesh(&treeData);
+			BKE_shrinkwrap_free_tree(&tree);
 
 			if (fail == true) {
 				/* Don't move the point */
@@ -3543,6 +3546,11 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 			/* co is in local object coordinates, change it to global and update target position */
 			mul_m4_v3(cob->matrix, co);
 			copy_v3_v3(ct->matrix[3], co);
+
+			if (track_normal) {
+				mul_mat3_m4_v3(cob->matrix, track_no);
+				damptrack_do_transform(ct->matrix, track_no, scon->trackAxis);
+			}
 		}
 	}
 }
@@ -3553,7 +3561,7 @@ static void shrinkwrap_evaluate(bConstraint *UNUSED(con), bConstraintOb *cob, Li
 
 	/* only evaluate if there is a target */
 	if (VALID_CONS_TARGET(ct)) {
-		copy_v3_v3(cob->matrix[3], ct->matrix[3]);
+		copy_m4_m4(cob->matrix, ct->matrix);
 	}
 }
 
@@ -3627,7 +3635,22 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 	bConstraintTarget *ct = targets->first;
 
 	if (VALID_CONS_TARGET(ct)) {
-		float obvec[3], tarvec[3], obloc[3];
+		float tarvec[3];
+
+		/* find the (unit) direction vector going from the owner to the target */
+		sub_v3_v3v3(tarvec, ct->matrix[3], cob->matrix[3]);
+
+		damptrack_do_transform(cob->matrix, tarvec, data->trackflag);
+	}
+}
+
+static void damptrack_do_transform(float matrix[4][4], const float tarvec_in[3], int track_axis)
+{
+	/* find the (unit) direction vector going from the owner to the target */
+	float tarvec[3];
+
+	if (normalize_v3_v3(tarvec, tarvec_in) != 0.0f) {
+		float obvec[3], obloc[3];
 		float raxis[3], rangle;
 		float rmat[3][3], tmat[4][4];
 
@@ -3636,24 +3659,15 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 		 *	- the normalization step at the end should take care of any unwanted scaling
 		 *	  left over in the 3x3 matrix we used
 		 */
-		copy_v3_v3(obvec, track_dir_vecs[data->trackflag]);
-		mul_mat3_m4_v3(cob->matrix, obvec);
+		copy_v3_v3(obvec, track_dir_vecs[track_axis]);
+		mul_mat3_m4_v3(matrix, obvec);
 
 		if (normalize_v3(obvec) == 0.0f) {
 			/* exceptional case - just use the track vector as appropriate */
-			copy_v3_v3(obvec, track_dir_vecs[data->trackflag]);
+			copy_v3_v3(obvec, track_dir_vecs[track_axis]);
 		}
 
-		/* find the (unit) direction vector going from the owner to the target */
-		copy_v3_v3(obloc, cob->matrix[3]);
-		sub_v3_v3v3(tarvec, ct->matrix[3], obloc);
-
-		if (normalize_v3(tarvec) == 0.0f) {
-			/* the target is sitting on the owner, so just make them use the same direction vectors */
-			/* FIXME: or would it be better to use the pure direction vector? */
-			copy_v3_v3(tarvec, obvec);
-			//copy_v3_v3(tarvec, track_dir_vecs[data->trackflag]);
-		}
+		copy_v3_v3(obloc, matrix[3]);
 
 		/* determine the axis-angle rotation, which represents the smallest possible rotation
 		 * between the two rotation vectors (i.e. the 'damping' referred to in the name)
@@ -3686,8 +3700,8 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 			}
 
 			rangle = M_PI;
-			copy_v3_v3(tmpvec, track_dir_vecs[(data->trackflag + 1) % 6]);
-			mul_mat3_m4_v3(cob->matrix, tmpvec);
+			copy_v3_v3(tmpvec, track_dir_vecs[(track_axis + 1) % 6]);
+			mul_mat3_m4_v3(matrix, tmpvec);
 			cross_v3_v3v3(raxis, obvec, tmpvec);
 
 			if (normalize_v3(raxis) == 0.0f) {
@@ -3705,10 +3719,10 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 		 * we may have destroyed that in the process of multiplying the matrix
 		 */
 		unit_m4(tmat);
-		mul_m4_m3m4(tmat, rmat, cob->matrix); // m1, m3, m2
+		mul_m4_m3m4(tmat, rmat, matrix); // m1, m3, m2
 
-		copy_m4_m4(cob->matrix, tmat);
-		copy_v3_v3(cob->matrix[3], obloc);
+		copy_m4_m4(matrix, tmat);
+		copy_v3_v3(matrix[3], obloc);
 	}
 }
 
@@ -3974,7 +3988,7 @@ static void followtrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase 
 	                         depsgraph,
 	                         data->camera ? data->camera : scene->camera);
 
-	float ctime = DEG_get_ctime(depsgraph);;
+	float ctime = DEG_get_ctime(depsgraph);
 	float framenr;
 
 	if (data->flag & FOLLOWTRACK_ACTIVECLIP)

@@ -129,10 +129,7 @@ void DepsgraphRelationBuilder::build_ik_pose(Object *object,
 			add_relation(target_key, solver_key, con->name);
 
 			if (data->tar->type == OB_MESH) {
-				OperationDepsNode *node2 = find_operation_node(target_key);
-				if (node2 != NULL) {
-					node2->customdata_mask |= CD_MASK_MDEFORMVERT;
-				}
+				add_customdata_mask(target_key, CD_MASK_MDEFORMVERT);
 			}
 		}
 		else {
@@ -164,10 +161,7 @@ void DepsgraphRelationBuilder::build_ik_pose(Object *object,
 			add_relation(target_key, solver_key, con->name);
 
 			if (data->poletar->type == OB_MESH) {
-				OperationDepsNode *node2 = find_operation_node(target_key);
-				if (node2 != NULL) {
-					node2->customdata_mask |= CD_MASK_MDEFORMVERT;
-				}
+				add_customdata_mask(target_key, CD_MASK_MDEFORMVERT);
 			}
 		}
 		else {
@@ -240,7 +234,11 @@ void DepsgraphRelationBuilder::build_splineik_pose(Object *object,
 	bSplineIKConstraint *data = (bSplineIKConstraint *)con->data;
 	bPoseChannel *rootchan = BKE_armature_splineik_solver_find_root(pchan, data);
 	OperationKey transforms_key(&object->id, DEG_NODE_TYPE_BONE, pchan->name, DEG_OPCODE_BONE_READY);
+	OperationKey init_ik_key(&object->id, DEG_NODE_TYPE_EVAL_POSE, DEG_OPCODE_POSE_INIT_IK);
 	OperationKey solver_key(&object->id, DEG_NODE_TYPE_EVAL_POSE, rootchan->name, DEG_OPCODE_POSE_SPLINE_IK_SOLVER);
+
+	/* Solver depends on initialization. */
+	add_relation(init_ik_key, solver_key, "Init IK -> IK Solver");
 
 	/* attach owner to IK Solver too
 	 * - assume that owner is always part of chain
@@ -405,7 +403,7 @@ void DepsgraphRelationBuilder::build_rig(Object *object)
 			OperationKey parent_key(&object->id, DEG_NODE_TYPE_BONE, pchan->parent->name, parent_key_opcode);
 			add_relation(parent_key, bone_pose_key, "Parent Bone -> Child Bone");
 		}
-		/* Buil constraints. */
+		/* Build constraints. */
 		if (pchan->constraints.first != NULL) {
 			/* Build relations for indirectly linked objects. */
 			BuilderWalkUserData data;

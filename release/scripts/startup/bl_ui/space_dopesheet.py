@@ -19,15 +19,19 @@
 # <pep8 compliant>
 
 import bpy
-from bpy.types import Header, Menu, Panel
-from .space_time import *
-
+from bpy.types import (
+    Header,
+    Menu,
+    Panel,
+)
 
 #######################################
 # DopeSheet Filtering - Header Buttons
 
 # used for DopeSheet, NLA, and Graph Editors
-def dopesheet_filter(layout, context, genericFiltersOnly=False):
+
+
+def dopesheet_filter(layout, context, generic_filters_only=False):
     dopesheet = context.space_data.dopesheet
     is_nla = context.area.type == 'NLA_EDITOR'
 
@@ -40,7 +44,7 @@ def dopesheet_filter(layout, context, genericFiltersOnly=False):
     else:  # graph and dopesheet editors - F-Curves and drivers only
         row.prop(dopesheet, "show_only_errors", text="")
 
-    if not genericFiltersOnly:
+    if not generic_filters_only:
         if bpy.data.collections:
             row = layout.row(align=True)
             row.prop(dopesheet, "filter_collection", text="")
@@ -205,6 +209,10 @@ class DOPESHEET_HT_header(Header):
         row.template_header()
 
         if st.mode == 'TIMELINE':
+            from .space_time import (
+                TIME_MT_editor_menus,
+                TIME_HT_editor_buttons,
+            )
             TIME_MT_editor_menus.draw_collapsible(context, layout)
             TIME_HT_editor_buttons.draw_header(context, layout)
         else:
@@ -247,9 +255,9 @@ class DOPESHEET_HT_editor_buttons(Header):
         if st.mode == 'DOPESHEET':
             dopesheet_filter(layout, context)
         elif st.mode == 'ACTION':
-            # 'genericFiltersOnly' limits the options to only the relevant 'generic' subset of
+            # 'generic_filters_only' limits the options to only the relevant 'generic' subset of
             # filters which will work here and are useful (especially for character animation)
-            dopesheet_filter(layout, context, genericFiltersOnly=True)
+            dopesheet_filter(layout, context, generic_filters_only=True)
         elif st.mode == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(st.dopesheet, "show_gpencil_3d_only", text="Active Only")
@@ -277,12 +285,6 @@ class DOPESHEET_HT_editor_buttons(Header):
         sub = row.row(align=True)
         sub.active = toolsettings.use_proportional_action
         sub.prop(toolsettings, "proportional_edit_falloff", text="", icon_only=True)
-
-        row = layout.row(align=True)
-        row.operator("action.copy", text="", icon='COPYDOWN')
-        row.operator("action.paste", text="", icon='PASTEDOWN')
-        if st.mode not in {'GPENCIL', 'MASK'}:
-            row.operator("action.paste", text="", icon='PASTEFLIPDOWN').flipped = True
 
 
 class DOPESHEET_MT_editor_menus(Menu):
@@ -361,8 +363,8 @@ class DOPESHEET_MT_select(Menu):
         layout.operator("action.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
-        layout.operator("action.select_border").axis_range = False
-        layout.operator("action.select_border", text="Border Axis Range").axis_range = True
+        layout.operator("action.select_box").axis_range = False
+        layout.operator("action.select_box", text="Border Axis Range").axis_range = True
 
         layout.operator("action.select_circle")
 
@@ -465,6 +467,9 @@ class DOPESHEET_MT_key(Menu):
         layout.operator("action.frame_jump")
 
         layout.separator()
+        layout.operator("action.copy")
+        layout.operator("action.paste")
+        layout.operator("action.paste", text="Paste Flipped").flipped = True
         layout.operator("action.duplicate_move")
         layout.operator("action.delete")
 
@@ -477,10 +482,6 @@ class DOPESHEET_MT_key(Menu):
         layout.operator("action.clean").channels = False
         layout.operator("action.clean", text="Clean Channels").channels = True
         layout.operator("action.sample")
-
-        layout.separator()
-        layout.operator("action.copy")
-        layout.operator("action.paste")
 
 
 class DOPESHEET_MT_key_transform(Menu):
@@ -621,6 +622,19 @@ class DOPESHEET_MT_channel_specials(Menu):
         layout.operator("anim.channels_delete")
 
 
+class DOPESHEET_MT_snap_pie(Menu):
+    bl_label = "Snap"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        pie.operator("action.snap", text="Current Frame").type = 'CFRA'
+        pie.operator("action.snap", text="Nearest Frame").type = 'NEAREST_FRAME'
+        pie.operator("action.snap", text="Nearest Second").type = 'NEAREST_SECOND'
+        pie.operator("action.snap", text="Nearest Marker").type = 'NEAREST_MARKER'
+
+
 classes = (
     DOPESHEET_HT_header,
     DOPESHEET_HT_editor_buttons,
@@ -636,6 +650,7 @@ classes = (
     DOPESHEET_MT_delete,
     DOPESHEET_MT_specials,
     DOPESHEET_MT_channel_specials,
+    DOPESHEET_MT_snap_pie,
     DOPESHEET_PT_filters,
 )
 

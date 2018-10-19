@@ -548,8 +548,6 @@ float dist_signed_squared_to_corner_v3v3v3(
 	dist_b = dist_signed_squared_to_plane3_v3(s_p_v2, plane_b);
 #endif
 
-
-
 	if (flip) {
 		return min_ff(dist_a, dist_b);
 	}
@@ -1123,6 +1121,70 @@ int isect_seg_seg_v2(const float v1[2], const float v2[2], const float v3[2], co
 	return ISECT_LINE_LINE_NONE;
 }
 
+/* Returns a point on each segment that is closest to the other. */
+void isect_seg_seg_v3(
+        const float a0[3], const float a1[3],
+        const float b0[3], const float b1[3],
+        float r_a[3], float r_b[3])
+{
+	float fac_a, fac_b;
+	float a_dir[3], b_dir[3], a0b0[3], crs_ab[3];
+	sub_v3_v3v3(a_dir, a1, a0);
+	sub_v3_v3v3(b_dir, b1, b0);
+	sub_v3_v3v3(a0b0, b0, a0);
+	cross_v3_v3v3(crs_ab, b_dir, a_dir);
+	const float nlen = len_squared_v3(crs_ab);
+
+	if (nlen == 0.0f) {
+		/* Parallel Lines */
+		/* In this case return any point that
+		 * is between the closest segments. */
+		float a0b1[3], a1b0[3], len_a, len_b, fac1, fac2;
+		sub_v3_v3v3(a0b1, b1, a0);
+		sub_v3_v3v3(a1b0, b0, a1);
+		len_a = len_squared_v3(a_dir);
+		len_b = len_squared_v3(b_dir);
+
+		if (len_a) {
+			fac1 = dot_v3v3(a0b0, a_dir);
+			fac2 = dot_v3v3(a0b1, a_dir);
+			CLAMP(fac1, 0.0f, len_a);
+			CLAMP(fac2, 0.0f, len_a);
+			fac_a = (fac1 + fac2) / (2 * len_a);
+		}
+		else {
+			fac_a = 0.0f;
+		}
+
+		if (len_b) {
+			fac1 = -dot_v3v3(a0b0, b_dir);
+			fac2 = -dot_v3v3(a1b0, b_dir);
+			CLAMP(fac1, 0.0f, len_b);
+			CLAMP(fac2, 0.0f, len_b);
+			fac_b = (fac1 + fac2) / (2 * len_b);
+		}
+		else {
+			fac_b = 0.0f;
+		}
+	}
+	else {
+		float c[3], cray[3];
+		sub_v3_v3v3(c, crs_ab, a0b0);
+
+		cross_v3_v3v3(cray, c, b_dir);
+		fac_a = dot_v3v3(cray, crs_ab) / nlen;
+
+		cross_v3_v3v3(cray, c, a_dir);
+		fac_b = dot_v3v3(cray, crs_ab) / nlen;
+
+		CLAMP(fac_a, 0.0f, 1.0f);
+		CLAMP(fac_b, 0.0f, 1.0f);
+	}
+
+	madd_v3_v3v3fl(r_a, a0, a_dir, fac_a);
+	madd_v3_v3v3fl(r_b, b0, b_dir, fac_b);
+}
+
 /**
  * Get intersection point of two 2D segments.
  *
@@ -1392,90 +1454,6 @@ int isect_line_sphere_v2(const float l1[2], const float l2[2],
 }
 
 /* point in polygon (keep float and int versions in sync) */
-#if 0
-bool isect_point_poly_v2(const float pt[2], const float verts[][2], const unsigned int nr,
-                         const bool use_holes)
-{
-	/* we do the angle rule, define that all added angles should be about zero or (2 * PI) */
-	float angletot = 0.0;
-	float fp1[2], fp2[2];
-	unsigned int i;
-	const float *p1, *p2;
-
-	p1 = verts[nr - 1];
-
-	/* first vector */
-	fp1[0] = (float)(p1[0] - pt[0]);
-	fp1[1] = (float)(p1[1] - pt[1]);
-
-	for (i = 0; i < nr; i++) {
-		p2 = verts[i];
-
-		/* second vector */
-		fp2[0] = (float)(p2[0] - pt[0]);
-		fp2[1] = (float)(p2[1] - pt[1]);
-
-		/* dot and angle and cross */
-		angletot += angle_signed_v2v2(fp1, fp2);
-
-		/* circulate */
-		copy_v2_v2(fp1, fp2);
-		p1 = p2;
-	}
-
-	angletot = fabsf(angletot);
-	if (use_holes) {
-		const float nested = floorf((angletot / (float)(M_PI * 2.0)) + 0.00001f);
-		angletot -= nested * (float)(M_PI * 2.0);
-		return (angletot > 4.0f) != ((int)nested % 2);
-	}
-	else {
-		return (angletot > 4.0f);
-	}
-}
-bool isect_point_poly_v2_int(const int pt[2], const int verts[][2], const unsigned int nr,
-                             const bool use_holes)
-{
-	/* we do the angle rule, define that all added angles should be about zero or (2 * PI) */
-	float angletot = 0.0;
-	float fp1[2], fp2[2];
-	unsigned int i;
-	const int *p1, *p2;
-
-	p1 = verts[nr - 1];
-
-	/* first vector */
-	fp1[0] = (float)(p1[0] - pt[0]);
-	fp1[1] = (float)(p1[1] - pt[1]);
-
-	for (i = 0; i < nr; i++) {
-		p2 = verts[i];
-
-		/* second vector */
-		fp2[0] = (float)(p2[0] - pt[0]);
-		fp2[1] = (float)(p2[1] - pt[1]);
-
-		/* dot and angle and cross */
-		angletot += angle_signed_v2v2(fp1, fp2);
-
-		/* circulate */
-		copy_v2_v2(fp1, fp2);
-		p1 = p2;
-	}
-
-	angletot = fabsf(angletot);
-	if (use_holes) {
-		const float nested = floorf((angletot / (float)(M_PI * 2.0)) + 0.00001f);
-		angletot -= nested * (float)(M_PI * 2.0);
-		return (angletot > 4.0f) != ((int)nested % 2);
-	}
-	else {
-		return (angletot > 4.0f);
-	}
-}
-
-#else
-
 bool isect_point_poly_v2(const float pt[2], const float verts[][2], const unsigned int nr,
                          const bool UNUSED(use_holes))
 {
@@ -1504,8 +1482,6 @@ bool isect_point_poly_v2_int(const int pt[2], const int verts[][2], const unsign
 	}
 	return isect;
 }
-
-#endif
 
 /* point in tri */
 
@@ -2528,18 +2504,6 @@ bool isect_axial_line_segment_tri_v3(
 	float u, v, f;
 	int a0 = axis, a1 = (axis + 1) % 3, a2 = (axis + 2) % 3;
 
-#if 0
-	return isect_line_segment_tri_v3(p1, p2, v0, v1, v2, lambda);
-
-	/* first a simple bounding box test */
-	if (min_fff(v0[a1], v1[a1], v2[a1]) > p1[a1]) return false;
-	if (min_fff(v0[a2], v1[a2], v2[a2]) > p1[a2]) return false;
-	if (max_fff(v0[a1], v1[a1], v2[a1]) < p1[a1]) return false;
-	if (max_fff(v0[a2], v1[a2], v2[a2]) < p1[a2]) return false;
-
-	/* then a full intersection test */
-#endif
-
 	sub_v3_v3v3(e1, v1, v0);
 	sub_v3_v3v3(e2, v2, v0);
 	sub_v3_v3v3(p, v0, p1);
@@ -2856,13 +2820,10 @@ float line_point_factor_v3_ex(
 	float dot;
 	sub_v3_v3v3(u, l2, l1);
 	sub_v3_v3v3(h, p, l1);
-#if 0
-	return (dot_v3v3(u, h) / dot_v3v3(u, u));
-#else
+
 	/* better check for zero */
 	dot = len_squared_v3(u);
 	return (dot > epsilon) ? (dot_v3v3(u, h) / dot) : fallback;
-#endif
 }
 float line_point_factor_v3(
         const float p[3], const float l1[3], const float l2[3])
@@ -2878,13 +2839,9 @@ float line_point_factor_v2_ex(
 	float dot;
 	sub_v2_v2v2(u, l2, l1);
 	sub_v2_v2v2(h, p, l1);
-#if 0
-	return (dot_v2v2(u, h) / dot_v2v2(u, u));
-#else
 	/* better check for zero */
 	dot = len_squared_v2(u);
 	return (dot > epsilon) ? (dot_v2v2(u, h) / dot) : fallback;
-#endif
 }
 
 float line_point_factor_v2(const float p[2], const float l1[2], const float l2[2])
@@ -2979,29 +2936,25 @@ static bool point_in_slice(const float p[3], const float v1[3], const float l1[3
 	return (h >= 0.0f && h <= 1.0f);
 }
 
-#if 0
-
 /* adult sister defining the slice planes by the origin and the normal
  * NOTE |normal| may not be 1 but defining the thickness of the slice */
-static int point_in_slice_as(float p[3], float origin[3], float normal[3])
+static bool point_in_slice_as(float p[3], float origin[3], float normal[3])
 {
 	float h, rp[3];
 	sub_v3_v3v3(rp, p, origin);
 	h = dot_v3v3(normal, rp) / dot_v3v3(normal, normal);
-	if (h < 0.0f || h > 1.0f) return 0;
-	return 1;
+	if (h < 0.0f || h > 1.0f) return false;
+	return true;
 }
 
-/*mama (knowing the squared length of the normal) */
-static int point_in_slice_m(float p[3], float origin[3], float normal[3], float lns)
+bool point_in_slice_seg(float p[3], float l1[3], float l2[3])
 {
-	float h, rp[3];
-	sub_v3_v3v3(rp, p, origin);
-	h = dot_v3v3(normal, rp) / lns;
-	if (h < 0.0f || h > 1.0f) return 0;
-	return 1;
+	float normal[3];
+
+	sub_v3_v3v3(normal, l2, l1);
+
+	return point_in_slice_as(p, l1, normal);
 }
-#endif
 
 bool isect_point_tri_prism_v3(const float p[3], const float v1[3], const float v2[3], const float v3[3])
 {

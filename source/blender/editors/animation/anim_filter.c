@@ -1529,7 +1529,7 @@ static size_t animfilter_nla_controls(ListBase *anim_data, bDopeSheet *ads, Anim
 		items += tmp_items;
 	}
 
-	/* return the numebr of items added to the list */
+	/* return the number of items added to the list */
 	return items;
 }
 
@@ -1625,8 +1625,8 @@ static size_t animdata_filter_gpencil_layers_data(ListBase *anim_data, bDopeShee
 	bGPDlayer *gpl;
 	size_t items = 0;
 
-	/* loop over layers as the conditions are acceptable */
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+	/* loop over layers as the conditions are acceptable (top-Down order) */
+	for (gpl = gpd->layers.last; gpl; gpl = gpl->prev) {
 		/* only if selected */
 		if (ANIMCHANNEL_SELOK(SEL_GPL(gpl)) ) {
 			/* only if editable */

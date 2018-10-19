@@ -48,63 +48,63 @@
 /* please keep the names in sync with constraint.c */
 const EnumPropertyItem rna_enum_constraint_type_items[] = {
 	{0, "", 0, N_("Motion Tracking"), ""},
-	{CONSTRAINT_TYPE_CAMERASOLVER, "CAMERA_SOLVER", ICON_CONSTRAINT_DATA, "Camera Solver", ""},
-	{CONSTRAINT_TYPE_FOLLOWTRACK,  "FOLLOW_TRACK", ICON_CONSTRAINT_DATA, "Follow Track", ""},
-	{CONSTRAINT_TYPE_OBJECTSOLVER, "OBJECT_SOLVER", ICON_CONSTRAINT_DATA, "Object Solver", ""},
+	{CONSTRAINT_TYPE_CAMERASOLVER, "CAMERA_SOLVER", ICON_CONSTRAINT, "Camera Solver", ""},
+	{CONSTRAINT_TYPE_FOLLOWTRACK,  "FOLLOW_TRACK", ICON_CONSTRAINT, "Follow Track", ""},
+	{CONSTRAINT_TYPE_OBJECTSOLVER, "OBJECT_SOLVER", ICON_CONSTRAINT, "Object Solver", ""},
 	{0, "", 0, N_("Transform"), ""},
-	{CONSTRAINT_TYPE_LOCLIKE,   "COPY_LOCATION", ICON_CONSTRAINT_DATA, "Copy Location",
+	{CONSTRAINT_TYPE_LOCLIKE,   "COPY_LOCATION", ICON_CONSTRAINT, "Copy Location",
 	                            "Copy the location of a target (with an optional offset), so that they move together"},
-	{CONSTRAINT_TYPE_ROTLIKE,   "COPY_ROTATION", ICON_CONSTRAINT_DATA, "Copy Rotation",
+	{CONSTRAINT_TYPE_ROTLIKE,   "COPY_ROTATION", ICON_CONSTRAINT, "Copy Rotation",
 	                            "Copy the rotation of a target (with an optional offset), so that they rotate together"},
-	{CONSTRAINT_TYPE_SIZELIKE,  "COPY_SCALE", ICON_CONSTRAINT_DATA, "Copy Scale",
+	{CONSTRAINT_TYPE_SIZELIKE,  "COPY_SCALE", ICON_CONSTRAINT, "Copy Scale",
 	                            "Copy the scale factors of a target (with an optional offset), so that they are scaled by the same amount"},
-	{CONSTRAINT_TYPE_TRANSLIKE, "COPY_TRANSFORMS", ICON_CONSTRAINT_DATA, "Copy Transforms",
+	{CONSTRAINT_TYPE_TRANSLIKE, "COPY_TRANSFORMS", ICON_CONSTRAINT, "Copy Transforms",
 	                            "Copy all the transformations of a target, so that they move together"},
-	{CONSTRAINT_TYPE_DISTLIMIT, "LIMIT_DISTANCE", ICON_CONSTRAINT_DATA, "Limit Distance",
+	{CONSTRAINT_TYPE_DISTLIMIT, "LIMIT_DISTANCE", ICON_CONSTRAINT, "Limit Distance",
 	                            "Restrict movements to within a certain distance of a target (at the time of constraint evaluation only)"},
-	{CONSTRAINT_TYPE_LOCLIMIT,  "LIMIT_LOCATION", ICON_CONSTRAINT_DATA, "Limit Location",
+	{CONSTRAINT_TYPE_LOCLIMIT,  "LIMIT_LOCATION", ICON_CONSTRAINT, "Limit Location",
 	                            "Restrict movement along each axis within given ranges"},
-	{CONSTRAINT_TYPE_ROTLIMIT,  "LIMIT_ROTATION", ICON_CONSTRAINT_DATA, "Limit Rotation",
+	{CONSTRAINT_TYPE_ROTLIMIT,  "LIMIT_ROTATION", ICON_CONSTRAINT, "Limit Rotation",
 	                            "Restrict rotation along each axis within given ranges"},
-	{CONSTRAINT_TYPE_SIZELIMIT, "LIMIT_SCALE", ICON_CONSTRAINT_DATA, "Limit Scale",
+	{CONSTRAINT_TYPE_SIZELIMIT, "LIMIT_SCALE", ICON_CONSTRAINT, "Limit Scale",
 	                            "Restrict scaling along each axis with given ranges"},
-	{CONSTRAINT_TYPE_SAMEVOL,   "MAINTAIN_VOLUME", ICON_CONSTRAINT_DATA, "Maintain Volume",
+	{CONSTRAINT_TYPE_SAMEVOL,   "MAINTAIN_VOLUME", ICON_CONSTRAINT, "Maintain Volume",
 	                            "Compensate for scaling one axis by applying suitable scaling to the other two axes"},
-	{CONSTRAINT_TYPE_TRANSFORM, "TRANSFORM", ICON_CONSTRAINT_DATA, "Transformation",
+	{CONSTRAINT_TYPE_TRANSFORM, "TRANSFORM", ICON_CONSTRAINT, "Transformation",
 	                            "Use one transform property from target to control another (or same) property on owner"},
-	{CONSTRAINT_TYPE_TRANSFORM_CACHE, "TRANSFORM_CACHE", ICON_CONSTRAINT_DATA, "Transform Cache",
+	{CONSTRAINT_TYPE_TRANSFORM_CACHE, "TRANSFORM_CACHE", ICON_CONSTRAINT, "Transform Cache",
 	                            "Look up the transformation matrix from an external file"},
 	{0, "", 0, N_("Tracking"), ""},
-	{CONSTRAINT_TYPE_CLAMPTO,   "CLAMP_TO", ICON_CONSTRAINT_DATA, "Clamp To",
+	{CONSTRAINT_TYPE_CLAMPTO,   "CLAMP_TO", ICON_CONSTRAINT, "Clamp To",
 	                            "Restrict movements to lie along a curve by remapping location along curve's longest axis"},
-	{CONSTRAINT_TYPE_DAMPTRACK, "DAMPED_TRACK", ICON_CONSTRAINT_DATA, "Damped Track",
+	{CONSTRAINT_TYPE_DAMPTRACK, "DAMPED_TRACK", ICON_CONSTRAINT, "Damped Track",
 	                            "Point towards a target by performing the smallest rotation necessary"},
-	{CONSTRAINT_TYPE_KINEMATIC, "IK", ICON_CONSTRAINT_DATA, "Inverse Kinematics",
+	{CONSTRAINT_TYPE_KINEMATIC, "IK", ICON_CONSTRAINT, "Inverse Kinematics",
 	                            "Control a chain of bones by specifying the endpoint target (Bones only)"},
-	{CONSTRAINT_TYPE_LOCKTRACK, "LOCKED_TRACK", ICON_CONSTRAINT_DATA, "Locked Track",
+	{CONSTRAINT_TYPE_LOCKTRACK, "LOCKED_TRACK", ICON_CONSTRAINT, "Locked Track",
 	                            "Rotate around the specified ('locked') axis to point towards a target"},
-	{CONSTRAINT_TYPE_SPLINEIK,  "SPLINE_IK", ICON_CONSTRAINT_DATA, "Spline IK",
+	{CONSTRAINT_TYPE_SPLINEIK,  "SPLINE_IK", ICON_CONSTRAINT, "Spline IK",
 	                            "Align chain of bones along a curve (Bones only)"},
-	{CONSTRAINT_TYPE_STRETCHTO, "STRETCH_TO", ICON_CONSTRAINT_DATA, "Stretch To",
+	{CONSTRAINT_TYPE_STRETCHTO, "STRETCH_TO", ICON_CONSTRAINT, "Stretch To",
 	                            "Stretch along Y-Axis to point towards a target"},
-	{CONSTRAINT_TYPE_TRACKTO,   "TRACK_TO", ICON_CONSTRAINT_DATA, "Track To",
+	{CONSTRAINT_TYPE_TRACKTO,   "TRACK_TO", ICON_CONSTRAINT, "Track To",
 	                            "Legacy tracking constraint prone to twisting artifacts"},
 	{0, "", 0, N_("Relationship"), ""},
-	{CONSTRAINT_TYPE_ACTION,     "ACTION", ICON_CONSTRAINT_DATA, "Action",
+	{CONSTRAINT_TYPE_ACTION,     "ACTION", ICON_CONSTRAINT, "Action",
 	                             "Use transform property of target to look up pose for owner from an Action"},
-	{CONSTRAINT_TYPE_CHILDOF,    "CHILD_OF", ICON_CONSTRAINT_DATA, "Child Of",
+	{CONSTRAINT_TYPE_CHILDOF,    "CHILD_OF", ICON_CONSTRAINT, "Child Of",
 	                             "Make target the 'detachable' parent of owner"},
-	{CONSTRAINT_TYPE_MINMAX,     "FLOOR", ICON_CONSTRAINT_DATA, "Floor",
+	{CONSTRAINT_TYPE_MINMAX,     "FLOOR", ICON_CONSTRAINT, "Floor",
 	                             "Use position (and optionally rotation) of target to define a 'wall' or 'floor' that the owner can not cross"},
-	{CONSTRAINT_TYPE_FOLLOWPATH, "FOLLOW_PATH", ICON_CONSTRAINT_DATA, "Follow Path",
+	{CONSTRAINT_TYPE_FOLLOWPATH, "FOLLOW_PATH", ICON_CONSTRAINT, "Follow Path",
 	                             "Use to animate an object/bone following a path"},
-	{CONSTRAINT_TYPE_PIVOT,      "PIVOT", ICON_CONSTRAINT_DATA, "Pivot",
+	{CONSTRAINT_TYPE_PIVOT,      "PIVOT", ICON_CONSTRAINT, "Pivot",
 	                             "Change pivot point for transforms (buggy)"},
 	/* {CONSTRAINT_TYPE_RIGIDBODYJOINT, "RIGID_BODY_JOINT", ICON_CONSTRAINT_DATA, "Rigid Body Joint",
 	                                 "Use to define a Rigid Body Constraint (for Game Engine use only)"}, */
 	/* {CONSTRAINT_TYPE_PYTHON,     "SCRIPT", ICON_CONSTRAINT_DATA, "Script",
 	                             "Custom constraint(s) written in Python (Not yet implemented)"}, */
-	{CONSTRAINT_TYPE_SHRINKWRAP, "SHRINKWRAP", ICON_CONSTRAINT_DATA, "Shrinkwrap",
+	{CONSTRAINT_TYPE_SHRINKWRAP, "SHRINKWRAP", ICON_CONSTRAINT, "Shrinkwrap",
 	                             "Restrict movements to surface of target mesh"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -135,6 +135,16 @@ static const EnumPropertyItem owner_space_pchan_items[] = {
 	                            "with the parent transformation added"},
 	{CONSTRAINT_SPACE_LOCAL,    "LOCAL", 0, "Local Space",
 	                            "The constraint is applied relative to the local coordinate system of the object"},
+	{0, NULL, 0, NULL, NULL}
+};
+
+static const EnumPropertyItem track_axis_items[] = {
+	{TRACK_X, "TRACK_X", 0, "X", ""},
+	{TRACK_Y, "TRACK_Y", 0, "Y", ""},
+	{TRACK_Z, "TRACK_Z", 0, "Z", ""},
+	{TRACK_nX, "TRACK_NEGATIVE_X", 0, "-X", ""},
+	{TRACK_nY, "TRACK_NEGATIVE_Y", 0, "-Y", ""},
+	{TRACK_nZ, "TRACK_NEGATIVE_Z", 0, "-Z", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -394,6 +404,20 @@ static void rna_SplineIKConstraint_joint_bindings_set(PointerRNA *ptr, const flo
 	bSplineIKConstraint *ikData = (bSplineIKConstraint *)con->data;
 
 	memcpy(ikData->points, values, ikData->numpoints * sizeof(float));
+}
+
+static int rna_ShrinkwrapConstraint_face_cull_get(PointerRNA *ptr)
+{
+	bConstraint *con = (bConstraint *)ptr->data;
+	bShrinkwrapConstraint *swc = (bShrinkwrapConstraint *)con->data;
+	return swc->flag & CON_SHRINKWRAP_PROJECT_CULL_MASK;
+}
+
+static void rna_ShrinkwrapConstraint_face_cull_set(struct PointerRNA *ptr, int value)
+{
+	bConstraint *con = (bConstraint *)ptr->data;
+	bShrinkwrapConstraint *swc = (bShrinkwrapConstraint *)con->data;
+	swc->flag = (swc->flag & ~CON_SHRINKWRAP_PROJECT_CULL_MASK) | value;
 }
 
 static bool rna_Constraint_cameraObject_poll(PointerRNA *ptr, PointerRNA value)
@@ -794,16 +818,6 @@ static void rna_def_constraint_track_to(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static const EnumPropertyItem track_items[] = {
-		{TRACK_X, "TRACK_X", 0, "X", ""},
-		{TRACK_Y, "TRACK_Y", 0, "Y", ""},
-		{TRACK_Z, "TRACK_Z", 0, "Z", ""},
-		{TRACK_nX, "TRACK_NEGATIVE_X", 0, "-X", ""},
-		{TRACK_nY, "TRACK_NEGATIVE_Y", 0, "-Y", ""},
-		{TRACK_nZ, "TRACK_NEGATIVE_Z", 0, "-Z", ""},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	static const EnumPropertyItem up_items[] = {
 		{TRACK_X, "UP_X", 0, "X", ""},
 		{TRACK_Y, "UP_Y", 0, "Y", ""},
@@ -822,7 +836,7 @@ static void rna_def_constraint_track_to(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "track_axis", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "reserved1");
-	RNA_def_property_enum_items(prop, track_items);
+	RNA_def_property_enum_items(prop, track_axis_items);
 	RNA_def_property_ui_text(prop, "Track Axis", "Axis that points to the target object");
 	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
 
@@ -1137,16 +1151,6 @@ static void rna_def_constraint_locked_track(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static const EnumPropertyItem locktrack_items[] = {
-		{TRACK_X, "TRACK_X", 0, "X", ""},
-		{TRACK_Y, "TRACK_Y", 0, "Y", ""},
-		{TRACK_Z, "TRACK_Z", 0, "Z", ""},
-		{TRACK_nX, "TRACK_NEGATIVE_X", 0, "-X", ""},
-		{TRACK_nY, "TRACK_NEGATIVE_Y", 0, "-Y", ""},
-		{TRACK_nZ, "TRACK_NEGATIVE_Z", 0, "-Z", ""},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	static const EnumPropertyItem lock_items[] = {
 		{TRACK_X, "LOCK_X", 0, "X", ""},
 		{TRACK_Y, "LOCK_Y", 0, "Y", ""},
@@ -1166,7 +1170,7 @@ static void rna_def_constraint_locked_track(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "track_axis", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "trackflag");
-	RNA_def_property_enum_items(prop, locktrack_items);
+	RNA_def_property_enum_items(prop, track_axis_items);
 	RNA_def_property_ui_text(prop, "Track Axis", "Axis that points to the target object");
 	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
 
@@ -1916,6 +1920,13 @@ static void rna_def_constraint_shrinkwrap(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	static const EnumPropertyItem shrink_face_cull_items[] = {
+		{0, "OFF", 0, "Off", "No culling"},
+		{CON_SHRINKWRAP_PROJECT_CULL_FRONTFACE, "FRONT", 0, "Front", "No projection when in front of the face"},
+		{CON_SHRINKWRAP_PROJECT_CULL_BACKFACE, "BACK", 0, "Back", "No projection when behind the face"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	srna = RNA_def_struct(brna, "ShrinkwrapConstraint", "Constraint");
 	RNA_def_struct_ui_text(srna, "Shrinkwrap Constraint", "Create constraint-based shrinkwrap relationship");
 	RNA_def_struct_sdna_from(srna, "bShrinkwrapConstraint", "data");
@@ -1932,7 +1943,13 @@ static void rna_def_constraint_shrinkwrap(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "shrinkType");
 	RNA_def_property_enum_items(prop, type_items);
 	RNA_def_property_ui_text(prop, "Shrinkwrap Type", "Select type of shrinkwrap algorithm for target position");
-	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_dependency_update");
+
+	prop = RNA_def_property(srna, "wrap_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "shrinkMode");
+	RNA_def_property_enum_items(prop, rna_enum_modifier_shrinkwrap_mode_items);
+	RNA_def_property_ui_text(prop, "Snap Mode", "Select how to constrain the object to the target surface");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_dependency_update");
 
 	prop = RNA_def_property(srna, "distance", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "dist");
@@ -1959,22 +1976,42 @@ static void rna_def_constraint_shrinkwrap(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0.0f, 100.0f, 10, 3);
 	RNA_def_property_ui_text(prop, "Project Distance", "Limit the distance used for projection (zero disables)");
 	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
+
+	prop = RNA_def_property(srna, "use_project_opposite", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", CON_SHRINKWRAP_PROJECT_OPPOSITE);
+	RNA_def_property_ui_text(prop, "Project Opposite", "Project in both specified and opposite directions");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
+
+	prop = RNA_def_property(srna, "cull_face", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "flag");
+	RNA_def_property_enum_items(prop, shrink_face_cull_items);
+	RNA_def_property_enum_funcs(prop, "rna_ShrinkwrapConstraint_face_cull_get",
+	                            "rna_ShrinkwrapConstraint_face_cull_set", NULL);
+	RNA_def_property_ui_text(prop, "Face Cull",
+	                         "Stop vertices from projecting to a face on the target when facing towards/away");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
+
+	prop = RNA_def_property(srna, "use_invert_cull", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", CON_SHRINKWRAP_PROJECT_INVERT_CULL);
+	RNA_def_property_ui_text(prop, "Invert Cull", "When projecting in the opposite direction invert the face cull mode");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
+
+	prop = RNA_def_property(srna, "use_track_normal", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", CON_SHRINKWRAP_TRACK_NORMAL);
+	RNA_def_property_ui_text(prop, "Align Axis To Normal", "Align the specified axis to the surface normal");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_dependency_update");
+
+	prop = RNA_def_property(srna, "track_axis", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "trackAxis");
+	RNA_def_property_enum_items(prop, track_axis_items);
+	RNA_def_property_ui_text(prop, "Track Axis", "Axis that is aligned to the normal");
+	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
 }
 
 static void rna_def_constraint_damped_track(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-
-	static const EnumPropertyItem damptrack_items[] = {
-		{TRACK_X, "TRACK_X", 0, "X", ""},
-		{TRACK_Y, "TRACK_Y", 0, "Y", ""},
-		{TRACK_Z, "TRACK_Z", 0, "Z", ""},
-		{TRACK_nX, "TRACK_NEGATIVE_X", 0, "-X", ""},
-		{TRACK_nY, "TRACK_NEGATIVE_Y", 0, "-Y", ""},
-		{TRACK_nZ, "TRACK_NEGATIVE_Z", 0, "-Z", ""},
-		{0, NULL, 0, NULL, NULL}
-	};
 
 	srna = RNA_def_struct(brna, "DampedTrackConstraint", "Constraint");
 	RNA_def_struct_ui_text(srna, "Damped Track Constraint",
@@ -1988,7 +2025,7 @@ rna_def_constraint_headtail_common(srna);
 
 	prop = RNA_def_property(srna, "track_axis", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "trackflag");
-	RNA_def_property_enum_items(prop, damptrack_items);
+	RNA_def_property_enum_items(prop, track_axis_items);
 	RNA_def_property_ui_text(prop, "Track Axis", "Axis that points to the target object");
 	RNA_def_property_update(prop, NC_OBJECT | ND_CONSTRAINT, "rna_Constraint_update");
 }

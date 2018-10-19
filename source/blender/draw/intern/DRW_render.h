@@ -325,6 +325,7 @@ struct GPUVertFormat *DRW_shgroup_instance_format_array(const DRWInstanceAttribF
 } while (0)
 
 DRWShadingGroup *DRW_shgroup_create(struct GPUShader *shader, DRWPass *pass);
+DRWShadingGroup *DRW_shgroup_create_sub(DRWShadingGroup *shgroup);
 DRWShadingGroup *DRW_shgroup_material_create(struct GPUMaterial *material, DRWPass *pass);
 DRWShadingGroup *DRW_shgroup_material_instance_create(
         struct GPUMaterial *material, DRWPass *pass, struct GPUBatch *geom, struct Object *ob,
@@ -363,11 +364,12 @@ void DRW_shgroup_call_procedural_points_add(DRWShadingGroup *shgroup, uint point
 void DRW_shgroup_call_procedural_lines_add(DRWShadingGroup *shgroup, uint line_count, float (*obmat)[4]);
 void DRW_shgroup_call_procedural_triangles_add(DRWShadingGroup *shgroup, uint tria_count, float (*obmat)[4]);
 void DRW_shgroup_call_object_procedural_triangles_culled_add(DRWShadingGroup *shgroup, uint tria_count, struct Object *ob);
-void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob, bool bypass_culling);
-#define DRW_shgroup_call_object_add(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, false)
-#define DRW_shgroup_call_object_add_no_cull(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, true)
+void DRW_shgroup_call_object_add_ex(
+        DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob, struct Material *ma, bool bypass_culling);
+#define DRW_shgroup_call_object_add(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, NULL, false)
+#define DRW_shgroup_call_object_add_no_cull(shgroup, geom, ob) DRW_shgroup_call_object_add_ex(shgroup, geom, ob, NULL, true)
 void DRW_shgroup_call_object_add_with_callback(
-        DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob,
+        DRWShadingGroup *shgroup, struct GPUBatch *geom, struct Object *ob, struct Material *ma,
         DRWCallVisibilityFn *callback, void *user_data);
 /* Used for drawing a batch with instancing without instance attribs. */
 void DRW_shgroup_call_instances_add(
@@ -482,6 +484,7 @@ void DRW_render_object_iter(
 	void *vedata, struct RenderEngine *engine, struct Depsgraph *depsgraph,
 	void (*callback)(void *vedata, struct Object *ob, struct RenderEngine *engine, struct Depsgraph *depsgraph));
 void DRW_render_instance_buffer_finish(void);
+void DRW_render_viewport_size_set(int size[2]);
 
 void DRW_custom_pipeline(
         DrawEngineType *draw_engine_type,
@@ -506,11 +509,11 @@ DrawData *DRW_drawdata_ensure(
         DrawDataFreeCb free_cb);
 
 /* Settings */
-bool DRW_object_is_renderable(struct Object *ob);
-bool DRW_check_object_visible_within_active_context(struct Object *ob);
+bool DRW_object_is_renderable(const struct Object *ob);
+bool DRW_object_is_visible_in_active_context(const struct Object *ob);
 bool DRW_object_is_flat_normal(const struct Object *ob);
 
-bool DRW_check_psys_visible_within_active_context(struct Object *object, struct ParticleSystem *psys);
+bool DRW_object_is_visible_psys_in_active_context(const struct Object *object, const struct ParticleSystem *psys);
 
 /* Draw commands */
 void DRW_draw_pass(DRWPass *pass);
@@ -590,5 +593,9 @@ typedef struct DRWContextState {
 } DRWContextState;
 
 const DRWContextState *DRW_context_state_get(void);
+
+#define XRAY_ALPHA(v3d)   (((v3d)->shading.type == OB_WIRE) ? (v3d)->shading.xray_alpha_wire : (v3d)->shading.xray_alpha)
+#define XRAY_FLAG(v3d)    (((v3d)->shading.type == OB_WIRE) ? V3D_SHADING_XRAY_WIREFRAME : V3D_SHADING_XRAY)
+#define XRAY_ENABLED(v3d) ((((v3d)->shading.flag & XRAY_FLAG(v3d)) != 0) && (XRAY_ALPHA(v3d) < 1.0f))
 
 #endif /* __DRW_RENDER_H__ */

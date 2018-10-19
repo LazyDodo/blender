@@ -653,14 +653,6 @@ void assign_material_id(Main *bmain, ID *id, Material *ma, short act)
 	if (act > MAXMAT) return;
 	if (act < 1) act = 1;
 
-	/* this is needed for Python overrides,
-	 * we just have to take care that the UI can't do this */
-#if 0
-	/* prevent crashing when using accidentally */
-	BLI_assert(id->lib == NULL);
-	if (id->lib) return;
-#endif
-
 	/* test arraylens */
 
 	totcolp = give_totcolp_id(id);
@@ -827,7 +819,7 @@ void BKE_material_remap_object_calc(
 
 	for (int i = 0; i < ob_dst->totcol; i++) {
 		Material *ma_src = give_current_material(ob_dst, i + 1);
-		BLI_ghash_reinsert(gh_mat_map, ma_src, SET_INT_IN_POINTER(i), NULL, NULL);
+		BLI_ghash_reinsert(gh_mat_map, ma_src, POINTER_FROM_INT(i), NULL, NULL);
 	}
 
 	/* setup default mapping (when materials don't match) */
@@ -857,7 +849,7 @@ void BKE_material_remap_object_calc(
 		else {
 			void **index_src_p = BLI_ghash_lookup_p(gh_mat_map, ma_src);
 			if (index_src_p) {
-				remap_src_to_dst[i] = GET_INT_FROM_POINTER(*index_src_p);
+				remap_src_to_dst[i] = POINTER_AS_INT(*index_src_p);
 			}
 		}
 	}

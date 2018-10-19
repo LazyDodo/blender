@@ -147,12 +147,30 @@ void wm_gizmogroup_gizmo_register(wmGizmoGroup *gzgroup, wmGizmo *gz)
 	gz->parent_gzgroup = gzgroup;
 }
 
+int WM_gizmo_cmp_temp_fl(const void *gz_a_ptr, const void *gz_b_ptr)
+{
+	const wmGizmo *gz_a = gz_a_ptr;
+	const wmGizmo *gz_b = gz_b_ptr;
+	if      (gz_a->temp.f < gz_b->temp.f) return -1;
+	else if (gz_a->temp.f > gz_b->temp.f) return  1;
+	else                                  return  0;
+}
+
+int WM_gizmo_cmp_temp_fl_reverse(const void *gz_a_ptr, const void *gz_b_ptr)
+{
+	const wmGizmo *gz_a = gz_a_ptr;
+	const wmGizmo *gz_b = gz_b_ptr;
+	if      (gz_a->temp.f < gz_b->temp.f) return  1;
+	else if (gz_a->temp.f > gz_b->temp.f) return -1;
+	else                                  return  0;
+}
+
 wmGizmo *wm_gizmogroup_find_intersected_gizmo(
         const wmGizmoGroup *gzgroup, bContext *C, const wmEvent *event,
         int *r_part)
 {
 	for (wmGizmo *gz = gzgroup->gizmos.first; gz; gz = gz->next) {
-		if (gz->type->test_select && (gz->flag & WM_GIZMO_HIDDEN) == 0) {
+		if (gz->type->test_select && (gz->flag & (WM_GIZMO_HIDDEN | WM_GIZMO_HIDDEN_SELECT)) == 0) {
 			if ((*r_part = gz->type->test_select(C, gz, event->mval)) != -1) {
 				return gz;
 			}
@@ -168,7 +186,7 @@ wmGizmo *wm_gizmogroup_find_intersected_gizmo(
 void wm_gizmogroup_intersectable_gizmos_to_list(const wmGizmoGroup *gzgroup, ListBase *listbase)
 {
 	for (wmGizmo *gz = gzgroup->gizmos.first; gz; gz = gz->next) {
-		if ((gz->flag & WM_GIZMO_HIDDEN) == 0) {
+		if ((gz->flag & (WM_GIZMO_HIDDEN | WM_GIZMO_HIDDEN_SELECT)) == 0) {
 			if (((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) && (gz->type->draw_select || gz->type->test_select)) ||
 			    ((gzgroup->type->flag & WM_GIZMOGROUPTYPE_3D) == 0 && gz->type->test_select))
 			{
@@ -351,20 +369,20 @@ static bool gizmo_tweak_start(
 static bool gizmo_tweak_start_and_finish(
         bContext *C, wmGizmoMap *gzmap, wmGizmo *gz, const wmEvent *event, bool *r_is_modal)
 {
-	wmGizmoOpElem *mpop = WM_gizmo_operator_get(gz, gz->highlight_part);
+	wmGizmoOpElem *gzop = WM_gizmo_operator_get(gz, gz->highlight_part);
 	if (r_is_modal) {
 		*r_is_modal = false;
 	}
-	if (mpop && mpop->type) {
+	if (gzop && gzop->type) {
 
 		/* Undo/Redo */
-		if (mpop->is_redo) {
+		if (gzop->is_redo) {
 			wmWindowManager *wm = CTX_wm_manager(C);
 			wmOperator *op = WM_operator_last_redo(C);
 
 			/* We may want to enable this, for now the gizmo can manage it's own properties. */
 #if 0
-			IDP_MergeGroup(mpop->ptr.data, op->properties, false);
+			IDP_MergeGroup(gzop->ptr.data, op->properties, false);
 #endif
 
 			WM_operator_free_all_after(wm, op);
@@ -373,7 +391,7 @@ static bool gizmo_tweak_start_and_finish(
 
 		/* XXX temporary workaround for modal gizmo operator
 		 * conflicting with modal operator attached to gizmo */
-		if (mpop->type->modal) {
+		if (gzop->type->modal) {
 			/* activate highlighted gizmo */
 			wm_gizmomap_modal_set(gzmap, C, gz, event, true);
 			if (r_is_modal) {
@@ -381,8 +399,11 @@ static bool gizmo_tweak_start_and_finish(
 			}
 		}
 		else {
+			if (gz->parent_gzgroup->type->invoke_prepare) {
+				gz->parent_gzgroup->type->invoke_prepare(C, gz->parent_gzgroup, gz);
+			}
 			/* Allow for 'button' gizmos, single click to run an action. */
-			WM_operator_name_call_ptr(C, mpop->type, WM_OP_INVOKE_DEFAULT, &mpop->ptr);
+			WM_operator_name_call_ptr(C, gzop->type, WM_OP_INVOKE_DEFAULT, &gzop->ptr);
 		}
 		return true;
 	}
@@ -545,9 +566,9 @@ static int gizmo_tweak_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	bool use_drag_detect = false;
 #ifdef USE_DRAG_DETECT
 	if (use_drag_fallback) {
-		wmGizmoOpElem *mpop = WM_gizmo_operator_get(gz, gz->highlight_part);
-		if (mpop && mpop->type) {
-			if (mpop->type->modal == NULL) {
+		wmGizmoOpElem *gzop = WM_gizmo_operator_get(gz, gz->highlight_part);
+		if (gzop && gzop->type) {
+			if (gzop->type->modal == NULL) {
 				use_drag_detect = true;
 			}
 		}
@@ -879,26 +900,28 @@ void WM_gizmo_group_type_add(const char *idname)
 	WM_gizmo_group_type_add_ptr(gzgt);
 }
 
-void WM_gizmo_group_type_ensure_ptr_ex(
+bool WM_gizmo_group_type_ensure_ptr_ex(
         wmGizmoGroupType *gzgt,
         wmGizmoMapType *gzmap_type)
 {
 	wmGizmoGroupTypeRef *gzgt_ref = WM_gizmomaptype_group_find_ptr(gzmap_type, gzgt);
 	if (gzgt_ref == NULL) {
 		WM_gizmo_group_type_add_ptr_ex(gzgt, gzmap_type);
+		return true;
 	}
+	return false;
 }
-void WM_gizmo_group_type_ensure_ptr(
+bool WM_gizmo_group_type_ensure_ptr(
         wmGizmoGroupType *gzgt)
 {
 	wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(&gzgt->gzmap_params);
-	WM_gizmo_group_type_ensure_ptr_ex(gzgt, gzmap_type);
+	return WM_gizmo_group_type_ensure_ptr_ex(gzgt, gzmap_type);
 }
-void WM_gizmo_group_type_ensure(const char *idname)
+bool WM_gizmo_group_type_ensure(const char *idname)
 {
 	wmGizmoGroupType *gzgt = WM_gizmogrouptype_find(idname, false);
 	BLI_assert(gzgt != NULL);
-	WM_gizmo_group_type_ensure_ptr(gzgt);
+	return WM_gizmo_group_type_ensure_ptr(gzgt);
 }
 
 void WM_gizmo_group_type_remove_ptr_ex(
@@ -919,6 +942,29 @@ void WM_gizmo_group_type_remove(struct Main *bmain, const char *idname)
 	wmGizmoGroupType *gzgt = WM_gizmogrouptype_find(idname, false);
 	BLI_assert(gzgt != NULL);
 	WM_gizmo_group_type_remove_ptr(bmain, gzgt);
+}
+
+void WM_gizmo_group_type_reinit_ptr_ex(
+        struct Main *bmain, wmGizmoGroupType *gzgt,
+        wmGizmoMapType *gzmap_type)
+{
+	wmGizmoGroupTypeRef *gzgt_ref = WM_gizmomaptype_group_find_ptr(gzmap_type, gzgt);
+	BLI_assert(gzgt_ref != NULL);
+	UNUSED_VARS_NDEBUG(gzgt_ref);
+	WM_gizmomaptype_group_unlink(NULL, bmain, gzmap_type, gzgt);
+	WM_gizmo_group_type_add_ptr_ex(gzgt, gzmap_type);
+}
+void WM_gizmo_group_type_reinit_ptr(
+        struct Main *bmain, wmGizmoGroupType *gzgt)
+{
+	wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(&gzgt->gzmap_params);
+	WM_gizmo_group_type_reinit_ptr_ex(bmain, gzgt, gzmap_type);
+}
+void WM_gizmo_group_type_reinit(struct Main *bmain, const char *idname)
+{
+	wmGizmoGroupType *gzgt = WM_gizmogrouptype_find(idname, false);
+	BLI_assert(gzgt != NULL);
+	WM_gizmo_group_type_reinit_ptr(bmain, gzgt);
 }
 
 /* delayed versions */

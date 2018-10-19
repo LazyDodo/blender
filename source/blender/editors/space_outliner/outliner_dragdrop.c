@@ -206,19 +206,9 @@ static TreeElement *outliner_drop_insert_collection_find(
 		return NULL;
 	}
 
-	/* We can't insert/before after master collection. */
+	/* We can't insert before/after master collection. */
 	if (collection->flag & COLLECTION_IS_MASTER) {
-		if (*r_insert_type == TE_INSERT_BEFORE) {
-			/* can't go higher than master collection, insert into it */
-			*r_insert_type = TE_INSERT_INTO;
-		}
-		else if (*r_insert_type == TE_INSERT_AFTER) {
-			te = te->subtree.last;
-			collection = outliner_collection_from_tree_element(te);
-			if (!collection) {
-				return NULL;
-			}
-		}
+		*r_insert_type = TE_INSERT_INTO;
 	}
 
 	return te;
@@ -885,7 +875,12 @@ static int outliner_item_drag_drop_invoke(bContext *C, wmOperator *UNUSED(op), c
 
 	if (ELEM(GS(data.drag_id->name), ID_OB, ID_GR)) {
 		/* For collections and objects we cheat and drag all selected. */
-		TREESTORE(te)->flag |= TSE_SELECTED;
+
+		/* Only drag element under mouse if it was not selected before. */
+		if ((TREESTORE(te)->flag & TSE_SELECTED) == 0) {
+			outliner_flag_set(&soops->tree, TSE_SELECTED, 0);
+			TREESTORE(te)->flag |= TSE_SELECTED;
+		}
 
 		/* Gather all selected elements. */
 		struct IDsSelectedData selected = {

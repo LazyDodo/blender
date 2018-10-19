@@ -760,7 +760,7 @@ static void graph_draw_driven_property_panel(uiLayout *layout, ID *id, FCurve *f
 	uiItemL(row, id->name + 2, icon);
 
 	/* -> user friendly 'name' for F-Curve/driver target */
-	uiItemL(row, "", VICO_SMALL_TRI_RIGHT_VEC);
+	uiItemL(row, "", ICON_SMALL_TRI_RIGHT_VEC);
 	uiItemL(row, name, ICON_RNA);
 }
 
@@ -817,12 +817,17 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 		col = uiLayoutColumn(layout, true);
 		block = uiLayoutGetBlock(col);
 
-		if ((G.f & G_SCRIPT_AUTOEXEC) == 0) {
-			/* TODO: Add button to enable? */
-			uiItemL(col, IFACE_("WARNING: Python expressions limited for security"), ICON_ERROR);
-		}
-		else if (driver->flag & DRIVER_FLAG_INVALID) {
+		if (driver->flag & DRIVER_FLAG_INVALID) {
 			uiItemL(col, IFACE_("ERROR: Invalid Python expression"), ICON_CANCEL);
+		}
+		else if (!BKE_driver_has_simple_expression(driver)) {
+			if ((G.f & G_SCRIPT_AUTOEXEC) == 0) {
+				/* TODO: Add button to enable? */
+				uiItemL(col, IFACE_("WARNING: Python expressions limited for security"), ICON_ERROR);
+			}
+			else {
+				uiItemL(col, IFACE_("Slow Python expression"), ICON_INFO);
+			}
 		}
 
 		/* Explicit bpy-references are evil. Warn about these to prevent errors */
@@ -869,7 +874,7 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 		/* add driver variable - add blank */
 		row = uiLayoutRow(layout, true);
 		block = uiLayoutGetBlock(row);
-		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ZOOMIN, IFACE_("Add Input Variable"),
+		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ADD, IFACE_("Add Input Variable"),
 		                       0, 0, 10 * UI_UNIT_X, UI_UNIT_Y,
 		                       NULL, 0.0, 0.0, 0, 0,
 		                       TIP_("Add a Driver Variable to keep track an input used by the driver"));
@@ -883,7 +888,7 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 		/* add driver variable */
 		row = uiLayoutRow(layout, false);
 		block = uiLayoutGetBlock(row);
-		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ZOOMIN, IFACE_("Add Input Variable"),
+		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ADD, IFACE_("Add Input Variable"),
 		                       0, 0, 10 * UI_UNIT_X, UI_UNIT_Y,
 		                       NULL, 0.0, 0.0, 0, 0,
 		                       TIP_("Driver variables ensure that all dependencies will be accounted for, eusuring that drivers will update correctly"));

@@ -1225,7 +1225,7 @@ void OBJECT_OT_forcefield_toggle(wmOperatorType *ot)
  */
 void ED_objects_recalculate_paths(bContext *C, Scene *scene, bool current_frame_only)
 {
-	/* Transform doesn't always have context avaialble to do update. */
+	/* Transform doesn't always have context available to do update. */
 	if (C == NULL) {
 		return;
 	}
@@ -1993,7 +1993,7 @@ static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout
 	uiItemFullO_ptr(layout,
 	                menu->ot,
 	                "New Collection",
-	                ICON_ZOOMIN,
+	                ICON_ADD,
 	                menu->ptr.data,
 	                WM_OP_INVOKE_DEFAULT,
 	                0,

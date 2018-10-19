@@ -764,9 +764,8 @@ static void rna_def_curvemapping(BlenderRNA *brna)
 	FunctionRNA *func;
 
 	static const EnumPropertyItem tone_items[] = {
-		{CURVE_TONE_STANDARD,          "STANDARD", 0, "Standard",          ""},
-		{CURVE_TONE_WEIGHTED_STANDARD, "WEIGHTED", 0, "Weighted Standard", ""},
-		{CURVE_TONE_FILMLIKE,          "FILMLIKE", 0, "Film like",         ""},
+		{CURVE_TONE_STANDARD, "STANDARD", 0, "Standard",  ""},
+		{CURVE_TONE_FILMLIKE, "FILMLIKE", 0, "Film like", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -1006,7 +1005,7 @@ static void rna_def_histogram(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_line", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", HISTO_FLAG_LINE);
 	RNA_def_property_ui_text(prop, "Show Line", "Display lines rather than filled shapes");
-	RNA_def_property_ui_icon(prop, ICON_IPO, 0);
+	RNA_def_property_ui_icon(prop, ICON_GRAPH, 0);
 }
 
 static void rna_def_scopes(BlenderRNA *brna)

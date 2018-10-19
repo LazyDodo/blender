@@ -56,6 +56,7 @@
 #include "BKE_context.h"
 #include "BKE_displist.h"
 #include "BKE_DerivedMesh.h"
+#include "BKE_editmesh.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_key.h"
@@ -72,8 +73,8 @@
 #include "BKE_ocean.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
+#include "BKE_scene.h"
 #include "BKE_softbody.h"
-#include "BKE_editmesh.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -96,6 +97,23 @@
 static void modifier_skin_customdata_delete(struct Object *ob);
 
 /******************************** API ****************************/
+
+static void object_force_modifier_update_for_bind(Depsgraph *depsgraph, Scene *scene, Object *ob)
+{
+	if (ob->type == OB_MESH) {
+		Mesh *me_eval = mesh_create_eval_final_view(depsgraph, scene, ob, 0);
+		BKE_id_free(NULL, me_eval);
+	}
+	else if (ob->type == OB_LATTICE) {
+		BKE_lattice_modifiers_calc(depsgraph, scene, ob);
+	}
+	else if (ob->type == OB_MBALL) {
+		BKE_displist_make_mball(depsgraph, scene, ob);
+	}
+	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
+		BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
+	}
+}
 
 ModifierData *ED_object_modifier_add(ReportList *reports, Main *bmain, Scene *scene, Object *ob, const char *name, int type)
 {
@@ -638,7 +656,7 @@ static int modifier_apply_obdata(ReportList *reports, Depsgraph *depsgraph, Scen
 		BKE_report(reports, RPT_INFO, "Applied modifier only changed CV points, not tessellated/bevel vertices");
 
 		vertexCos = BKE_curve_nurbs_vertexCos_get(&cu->nurb, &numVerts);
-		modifier_deformVerts(md, &mectx, NULL, vertexCos, numVerts);
+		mti->deformVerts(md, &mectx, NULL, vertexCos, numVerts);
 		BK_curve_nurbs_vertexCos_apply(&cu->nurb, vertexCos);
 
 		MEM_freeN(vertexCos);
@@ -832,7 +850,7 @@ bool edit_modifier_poll_generic(bContext *C, StructRNA *rna_type, int obtype_fla
 	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
 
 	if (ID_IS_STATIC_OVERRIDE(ob)) {
-		CTX_wm_operator_poll_msg_set(C, "Cannot edit modifiers comming from static override");
+		CTX_wm_operator_poll_msg_set(C, "Cannot edit modifiers coming from static override");
 		return (((ModifierData *)ptr.data)->flag & eModifierFlag_StaticOverride_Local) != 0;
 	}
 
@@ -1712,7 +1730,7 @@ static void skin_armature_bone_create(Object *skin_ob,
 static Object *modifier_skin_armature_create(Depsgraph *depsgraph, Main *bmain, Scene *scene, Object *skin_ob)
 {
 	BLI_bitmap *edges_visited;
-	DerivedMesh *deform_dm;
+	Mesh *me_eval_deform;
 	MVert *mvert;
 	Mesh *me = skin_ob->data;
 	Object *arm_ob;
@@ -1722,8 +1740,8 @@ static Object *modifier_skin_armature_create(Depsgraph *depsgraph, Main *bmain, 
 	int *emap_mem;
 	int v;
 
-	deform_dm = mesh_get_derived_deform(depsgraph, scene, skin_ob, CD_MASK_BAREMESH);
-	mvert = deform_dm->getVertArray(deform_dm);
+	me_eval_deform = mesh_get_eval_deform(depsgraph, scene, skin_ob, CD_MASK_BAREMESH);
+	mvert = me_eval_deform->mvert;
 
 	/* add vertex weights to original mesh */
 	CustomData_add_layer(&me->vdata,
@@ -1922,9 +1940,9 @@ static bool meshdeform_poll(bContext *C)
 
 static int meshdeform_bind_exec(bContext *C, wmOperator *op)
 {
-	Scene *scene = CTX_data_scene(C);
-	Object *ob = ED_object_active_context(C);
+	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Object *ob = ED_object_active_context(C);
 	MeshDeformModifierData *mmd = (MeshDeformModifierData *)edit_modifier_property_get(op, ob, eModifierType_MeshDeform);
 
 	if (!mmd)
@@ -1951,35 +1969,22 @@ static int meshdeform_bind_exec(bContext *C, wmOperator *op)
 		mmd->totvert = 0;
 		mmd->totcagevert = 0;
 		mmd->totinfluence = 0;
-
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 	else {
-		DerivedMesh *dm;
 		int mode = mmd->modifier.mode;
-
-		/* force modifier to run, it will call binding routine */
 		mmd->bindfunc = ED_mesh_deform_bind_callback;
 		mmd->modifier.mode |= eModifierMode_Realtime;
 
-		if (ob->type == OB_MESH) {
-			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
-			dm->release(dm);
-		}
-		else if (ob->type == OB_LATTICE) {
-			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
-		}
-		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(depsgraph, scene, ob);
-		}
-		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
-		}
+		/* Force depsgraph update, this will do binding. */
+		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 
 		mmd->bindfunc = NULL;
 		mmd->modifier.mode = mode;
 	}
+
+	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 
 	return OPERATOR_FINISHED;
 }
@@ -2281,27 +2286,13 @@ static int laplaciandeform_bind_exec(bContext *C, wmOperator *op)
 		lmd->flag &= ~MOD_LAPLACIANDEFORM_BIND;
 	}
 	else {
-		DerivedMesh *dm;
 		int mode = lmd->modifier.mode;
 
 		/* Force modifier to run, it will call binding routine. */
-		/* TODO(Sybren): deduplicate the code below, it's used multiple times here. */
 		lmd->modifier.mode |= eModifierMode_Realtime;
 		lmd->flag |= MOD_LAPLACIANDEFORM_BIND;
 
-		if (ob->type == OB_MESH) {
-			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
-			dm->release(dm);
-		}
-		else if (ob->type == OB_LATTICE) {
-			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
-		}
-		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(depsgraph, scene, ob);
-		}
-		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
-		}
+		object_force_modifier_update_for_bind(depsgraph, scene, ob);
 
 		lmd->modifier.mode = mode;
 	}
@@ -2352,39 +2343,24 @@ static int surfacedeform_bind_exec(bContext *C, wmOperator *op)
 
 	if (!smd)
 		return OPERATOR_CANCELLED;
-
 	if (smd->flags & MOD_SDEF_BIND) {
 		/* Un-binding happens inside the modifier when it's evaluated. */
 		smd->flags &= ~MOD_SDEF_BIND;
 	}
 	else if (smd->target) {
-		DerivedMesh *dm;
 		int mode = smd->modifier.mode;
 
 		/* Force modifier to run, it will call binding routine. */
 		smd->modifier.mode |= eModifierMode_Realtime;
 		smd->flags |= MOD_SDEF_BIND;
 
-		if (ob->type == OB_MESH) {
-			dm = mesh_create_derived_view(depsgraph, scene, ob, 0);
-			dm->release(dm);
-		}
-		else if (ob->type == OB_LATTICE) {
-			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
-		}
-		else if (ob->type == OB_MBALL) {
-			BKE_displist_make_mball(depsgraph, scene, ob);
-		}
-		else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
-		}
+		object_force_modifier_update_for_bind(depsgraph, scene, ob);
 
 		smd->modifier.mode = mode;
 	}
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
-
 	return OPERATOR_FINISHED;
 }
 

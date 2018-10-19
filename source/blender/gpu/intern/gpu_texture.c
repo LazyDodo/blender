@@ -138,6 +138,7 @@ static int gpu_get_component_count(GPUTextureFormat format)
 {
 	switch (format) {
 		case GPU_RGBA8:
+		case GPU_RGBA8UI:
 		case GPU_RGBA16F:
 		case GPU_RGBA16:
 		case GPU_RGBA32F:
@@ -183,7 +184,7 @@ static void gpu_validate_data_format(GPUTextureFormat tex_format, GPUDataFormat 
 			}
 		}
 		/* Byte formats */
-		else if (ELEM(tex_format, GPU_R8, GPU_RG8, GPU_RGBA8)) {
+		else if (ELEM(tex_format, GPU_R8, GPU_RG8, GPU_RGBA8, GPU_RGBA8UI)) {
 			BLI_assert(ELEM(data_format, GPU_DATA_UNSIGNED_BYTE, GPU_DATA_FLOAT));
 		}
 		/* Special case */
@@ -298,6 +299,7 @@ static uint gpu_get_bytesize(GPUTextureFormat data_type)
 		case GPU_RG16:
 		case GPU_DEPTH24_STENCIL8:
 		case GPU_DEPTH_COMPONENT32F:
+		case GPU_RGBA8UI:
 		case GPU_RGBA8:
 		case GPU_R11F_G11F_B10F:
 		case GPU_R32F:
@@ -335,6 +337,7 @@ static GLenum gpu_get_gl_internalformat(GPUTextureFormat format)
 		case GPU_RG16I: return GL_RG16I;
 		case GPU_RG16: return GL_RG16;
 		case GPU_RGBA8: return GL_RGBA8;
+		case GPU_RGBA8UI: return GL_RGBA8UI;
 		case GPU_R32F: return GL_R32F;
 		case GPU_R32UI: return GL_R32UI;
 		case GPU_R32I: return GL_R32I;
@@ -764,7 +767,7 @@ GPUTexture *GPU_texture_create_buffer(GPUTextureFormat tex_format, const GLuint 
 	if (!tex->bindcode) {
 		fprintf(stderr, "GPUTexture: texture create failed\n");
 		GPU_texture_free(tex);
-		BLI_assert(0 && "glGenTextures failled: Are you sure a valid OGL context is active on this thread?\n");
+		BLI_assert(0 && "glGenTextures failed: Are you sure a valid OGL context is active on this thread?\n");
 		return NULL;
 	}
 
@@ -1441,7 +1444,7 @@ int GPU_texture_detach_framebuffer(GPUTexture *tex, GPUFrameBuffer *fb)
 
 void GPU_texture_get_mipmap_size(GPUTexture *tex, int lvl, int *size)
 {
-	/* TODO assert if lvl is bellow the limit of 1px in each dimension. */
+	/* TODO assert if lvl is below the limit of 1px in each dimension. */
 	int div = 1 << lvl;
 	size[0] = max_ii(1, tex->w / div);
 

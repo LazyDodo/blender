@@ -1213,6 +1213,54 @@ void nodeDetachNode(struct bNode *node)
 	}
 }
 
+void nodePositionRelative(bNode *from_node, bNode *to_node, bNodeSocket *from_sock, bNodeSocket *to_sock)
+{
+	float offset_x;
+	int tot_sock_idx;
+
+	/* Socket to plug into. */
+	if (SOCK_IN == to_sock->in_out) {
+		offset_x = - (from_node->typeinfo->width + 50);
+		tot_sock_idx = BLI_listbase_count(&to_node->outputs);
+		tot_sock_idx += BLI_findindex(&to_node->inputs, to_sock);
+	}
+	else {
+		offset_x = to_node->typeinfo->width + 50;
+		tot_sock_idx = BLI_findindex(&to_node->outputs, to_sock);
+	}
+
+	BLI_assert(tot_sock_idx != -1);
+
+	float offset_y = U.widget_unit * tot_sock_idx;
+
+	/* Output socket. */
+	if (SOCK_IN == from_sock->in_out) {
+		tot_sock_idx = BLI_listbase_count(&from_node->outputs);
+		tot_sock_idx += BLI_findindex(&from_node->inputs, from_sock);
+	}
+	else {
+		tot_sock_idx = BLI_findindex(&from_node->outputs, from_sock);
+	}
+
+	BLI_assert(tot_sock_idx != -1);
+
+	offset_y -= U.widget_unit * tot_sock_idx;
+
+	from_node->locx = to_node->locx + offset_x;
+	from_node->locy = to_node->locy - offset_y;
+}
+
+void nodePositionPropagate(bNode *node)
+{
+	for (bNodeSocket *nsock = node->inputs.first; nsock; nsock = nsock->next) {
+		if (nsock->link != NULL) {
+			bNodeLink *link = nsock->link;
+			nodePositionRelative(link->fromnode, link->tonode, link->fromsock, link->tosock);
+			nodePositionPropagate(link->fromnode);
+		}
+	}
+}
+
 void ntreeInitDefault(bNodeTree *ntree)
 {
 	ntree_set_typeinfo(ntree, NULL);
@@ -1593,54 +1641,6 @@ void BKE_node_preview_set_pixel(bNodePreview *preview, const float col[4], int x
 		//else printf("prv out bound x y %d %d\n", x, y);
 	}
 }
-
-#if 0
-static void nodeClearPreview(bNode *node)
-{
-	if (node->preview && node->preview->rect)
-		memset(node->preview->rect, 0, MEM_allocN_len(node->preview->rect));
-}
-
-/* use it to enforce clear */
-void ntreeClearPreview(bNodeTree *ntree)
-{
-	bNode *node;
-
-	if (ntree == NULL)
-		return;
-
-	for (node = ntree->nodes.first; node; node = node->next) {
-		if (node->typeinfo->flag & NODE_PREVIEW)
-			nodeClearPreview(node);
-		if (node->type == NODE_GROUP)
-			ntreeClearPreview((bNodeTree *)node->id);
-	}
-}
-
-/* hack warning! this function is only used for shader previews, and
- * since it gets called multiple times per pixel for Ztransp we only
- * add the color once. Preview gets cleared before it starts render though */
-void nodeAddToPreview(bNode *node, const float col[4], int x, int y, int do_manage)
-{
-	bNodePreview *preview = node->preview;
-	if (preview) {
-		if (x >= 0 && y >= 0) {
-			if (x < preview->xsize && y < preview->ysize) {
-				unsigned char *tar = preview->rect + 4 * ((preview->xsize * y) + x);
-
-				if (do_manage) {
-					linearrgb_to_srgb_uchar4(tar, col);
-				}
-				else {
-					rgba_float_to_uchar(tar, col);
-				}
-			}
-			//else printf("prv out bound x y %d %d\n", x, y);
-		}
-		//else printf("prv out bound x y %d %d\n", x, y);
-	}
-}
-#endif
 
 /* ************** Free stuff ********** */
 
@@ -2047,7 +2047,7 @@ bNodeTree *ntreeLocalize(bNodeTree *ntree)
 
 /* sync local composite with real tree */
 /* local tree is supposed to be running, be careful moving previews! */
-/* is called by jobs manager, outside threads, so it doesnt happen during draw */
+/* is called by jobs manager, outside threads, so it doesn't happen during draw */
 void ntreeLocalSync(bNodeTree *localtree, bNodeTree *ntree)
 {
 	if (localtree && ntree) {

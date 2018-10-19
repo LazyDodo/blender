@@ -1,10 +1,10 @@
 
-uniform mat4 ModelMatrix;
 uniform mat4 ModelViewMatrix;
 uniform mat4 ModelViewMatrixInverse;
 uniform mat3 NormalMatrix;
 
 #ifndef ATTRIB
+uniform mat4 ModelMatrix;
 uniform mat4 ModelMatrixInverse;
 #endif
 
@@ -1375,7 +1375,7 @@ void node_subsurface_scattering(
 	eevee_closure_subsurface(N, color.rgb, 1.0, scale, out_diff, out_trans);
 	result.sss_data.rgb = out_diff + out_trans;
 #  ifdef USE_SSS_ALBEDO
-	/* Not perfect for texture_blur not exaclty equal to 0.0 or 1.0. */
+	/* Not perfect for texture_blur not exactly equal to 0.0 or 1.0. */
 	result.sss_albedo.rgb = mix(color.rgb, vec3(1.0), texture_blur);
 	result.sss_data.rgb *= mix(vec3(1.0), color.rgb, texture_blur);
 #  else
@@ -1421,6 +1421,29 @@ void node_emission(vec4 color, float strength, vec3 vN, out Closure result)
 #else
 	result = Closure(vec3(0.0), vec3(0.0), color.rgb * strength, 0.0);
 #endif
+}
+
+void node_wireframe(float size, vec2 barycentric, vec3 barycentric_dist, out float fac)
+{
+	vec3 barys = barycentric.xyy;
+	barys.z = 1.0 - barycentric.x - barycentric.y;
+
+	size *= 0.5;
+	vec3 s = step(-size, -barys * barycentric_dist);
+
+	fac = max(s.x, max(s.y, s.z));
+}
+
+void node_wireframe_screenspace(float size, vec2 barycentric, out float fac)
+{
+	vec3 barys = barycentric.xyy;
+	barys.z = 1.0 - barycentric.x - barycentric.y;
+
+	size *= (1.0 / 3.0);
+	vec3 deltas = fwidth(barys);
+	vec3 s = step(-deltas * size, -barys);
+
+	fac = max(s.x, max(s.y, s.z));
 }
 
 /* background */
@@ -1726,6 +1749,19 @@ void node_geometry(
 	pointiness = 0.5;
 }
 
+void generated_texco(vec3 I, vec3 attr_orco, out vec3 generated)
+{
+	vec4 v = (ProjectionMatrix[3][3] == 0.0) ? vec4(I, 1.0) : vec4(0.0, 0.0, 1.0, 1.0);
+	vec4 co_homogenous = (ProjectionMatrixInverse * v);
+	vec4 co = vec4(co_homogenous.xyz / co_homogenous.w, 0.0);
+	co.xyz = normalize(co.xyz);
+#if defined(WORLD_BACKGROUND) || defined(PROBE_CAPTURE)
+	generated = (ViewMatrixInverse * co).xyz;
+#else
+	generated_from_orco(attr_orco, generated);
+#endif
+}
+
 void node_tex_coord(
         vec3 I, vec3 N, mat4 viewinvmat, mat4 obinvmat, vec4 camerafac,
         vec3 attr_orco, vec3 attr_uv,
@@ -1836,9 +1872,7 @@ void node_tex_checker(vec3 co, vec4 color1, vec4 color2, float scale, out vec4 c
 	vec3 p = co * scale;
 
 	/* Prevent precision issues on unit coordinates. */
-	p.x = (p.x + 0.000001) * 0.999999;
-	p.y = (p.y + 0.000001) * 0.999999;
-	p.z = (p.z + 0.000001) * 0.999999;
+	p = (p + 0.000001) * 0.999999;
 
 	int xi = int(abs(floor(p.x)));
 	int yi = int(abs(floor(p.y)));

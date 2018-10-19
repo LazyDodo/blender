@@ -279,6 +279,8 @@ typedef struct OBJECT_PrivateData {
 	int id_ofs_prb_active;
 	int id_ofs_prb_select;
 	int id_ofs_prb_transform;
+
+	bool xray_enabled;
 } OBJECT_PrivateData; /* Transient data */
 
 static struct {
@@ -632,7 +634,7 @@ static void OBJECT_engine_init(void *vedata)
 		}
 
 		float dist;
-		if (rv3d->persp == RV3D_CAMOB && v3d->camera) {
+		if (rv3d->persp == RV3D_CAMOB && v3d->camera && v3d->camera->type == OB_CAMERA) {
 			Object *camera_object = DEG_get_evaluated_object(draw_ctx->depsgraph, v3d->camera);
 			dist = ((Camera *)(camera_object->data))->clipend;
 		}
@@ -934,8 +936,6 @@ static void OBJECT_cache_init(void *vedata)
 	DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
 	OBJECT_PrivateData *g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	const bool xray_enabled = ((draw_ctx->v3d->shading.flag & V3D_SHADING_XRAY) != 0) &&
-	                           (draw_ctx->v3d->shading.type < OB_MATERIAL);
 	/* TODO : use dpi setting for enabling the second pass */
 	const bool do_outline_expand = false;
 
@@ -945,6 +945,7 @@ static void OBJECT_cache_init(void *vedata)
 	}
 
 	g_data = stl->g_data;
+	g_data->xray_enabled = XRAY_ENABLED(draw_ctx->v3d) && (draw_ctx->v3d->shading.type < OB_MATERIAL);
 
 	{
 		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE;
@@ -952,7 +953,7 @@ static void OBJECT_cache_init(void *vedata)
 
 		GPUShader *sh = e_data.outline_prepass_sh;
 
-		if (xray_enabled) {
+		if (g_data->xray_enabled) {
 			sh = e_data.outline_prepass_wire_sh;
 		}
 
@@ -990,14 +991,14 @@ static void OBJECT_cache_init(void *vedata)
 		DRWState state = DRW_STATE_WRITE_COLOR;
 		struct GPUBatch *quad = DRW_cache_fullscreen_quad_get();
 		/* Don't occlude the "outline" detection pass if in xray mode (too much flickering). */
-		float alphaOcclu = (xray_enabled) ? 1.0f : 0.35f;
+		float alphaOcclu = (g_data->xray_enabled) ? 1.0f : 0.35f;
 		/* Reminder : bool uniforms need to be 4 bytes. */
 		static const int bTrue = true;
 		static const int bFalse = false;
 
 		psl->outlines_search = DRW_pass_create("Outlines Detect Pass", state);
 
-		GPUShader *sh = (xray_enabled) ? e_data.outline_detect_wire_sh : e_data.outline_detect_sh;
+		GPUShader *sh = (g_data->xray_enabled) ? e_data.outline_detect_wire_sh : e_data.outline_detect_sh;
 		DRWShadingGroup *grp = DRW_shgroup_create(sh, psl->outlines_search);
 		DRW_shgroup_uniform_texture_ref(grp, "outlineId", &e_data.outlines_id_tx);
 		DRW_shgroup_uniform_texture_ref(grp, "outlineDepth", &e_data.outlines_depth_tx);
@@ -1679,7 +1680,7 @@ static void DRW_shgroup_camera(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLay
 		const bool is_select = DRW_state_is_select();
 		const bool is_solid_bundle = (v3d->bundle_drawtype == OB_EMPTY_SPHERE) &&
 		                             ((v3d->shading.type != OB_SOLID) ||
-		                              ((v3d->shading.flag & V3D_SHADING_XRAY) == 0));
+		                              ((v3d->shading.flag & XRAY_FLAG(v3d)) == 0));
 
 		MovieTracking *tracking = &clip->tracking;
 		/* Index must start in 1, to mimic BKE_tracking_track_get_indexed. */
@@ -1788,7 +1789,7 @@ static void DRW_shgroup_camera(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLay
 					                   bundle_mat[3],
 					                   track->name,
 					                   strlen(track->name),
-					                   10,
+					                   10, 0,
 					                   DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR,
 					                   is_selected ? text_color_selected : text_color_unselected);
 				}
@@ -2039,7 +2040,7 @@ static void volumes_free_smoke_textures(void)
 	 * all viewport in a redraw at least. */
 	for (LinkData *link = e_data.smoke_domains.first; link; link = link->next) {
 		SmokeModifierData *smd = (SmokeModifierData *)link->data;
-		GPU_free_smoke(smd);
+		GPU_free_smoke_velocity(smd);
 	}
 	BLI_freelistN(&e_data.smoke_domains);
 }
@@ -2280,7 +2281,7 @@ static void DRW_shgroup_relationship_lines(
         Scene *scene,
         Object *ob)
 {
-	if (ob->parent && DRW_check_object_visible_within_active_context(ob->parent)) {
+	if (ob->parent && DRW_object_is_visible_in_active_context(ob->parent)) {
 		DRW_shgroup_call_dynamic_add(sgl->relationship_lines, ob->parent->obmat[3]);
 		DRW_shgroup_call_dynamic_add(sgl->relationship_lines, ob->obmat[3]);
 	}
@@ -2288,11 +2289,11 @@ static void DRW_shgroup_relationship_lines(
 	if (ob->rigidbody_constraint) {
 		Object *rbc_ob1 = ob->rigidbody_constraint->ob1;
 		Object *rbc_ob2 = ob->rigidbody_constraint->ob2;
-		if (rbc_ob1 && DRW_check_object_visible_within_active_context(rbc_ob1)) {
+		if (rbc_ob1 && DRW_object_is_visible_in_active_context(rbc_ob1)) {
 			DRW_shgroup_call_dynamic_add(sgl->relationship_lines, rbc_ob1->obmat[3]);
 			DRW_shgroup_call_dynamic_add(sgl->relationship_lines, ob->obmat[3]);
 		}
-		if (rbc_ob2 && DRW_check_object_visible_within_active_context(rbc_ob2)) {
+		if (rbc_ob2 && DRW_object_is_visible_in_active_context(rbc_ob2)) {
 			DRW_shgroup_call_dynamic_add(sgl->relationship_lines, rbc_ob2->obmat[3]);
 			DRW_shgroup_call_dynamic_add(sgl->relationship_lines, ob->obmat[3]);
 		}
@@ -2372,7 +2373,6 @@ static void DRW_shgroup_object_center(OBJECT_StorageList *stl, Object *ob, ViewL
 	if (v3d->overlay.flag & V3D_OVERLAY_HIDE_OBJECT_ORIGINS) {
 		return;
 	}
-
 	const bool is_library = ob->id.us > 1 || ID_IS_LINKED(ob);
 	DRWShadingGroup *shgroup;
 
@@ -2538,7 +2538,7 @@ static void OBJECT_cache_populate_particles(Object *ob,
 		if (!psys_check_enabled(ob, psys, false)) {
 			continue;
 		}
-		if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
+		if (!DRW_object_is_visible_psys_in_active_context(ob, psys)) {
 			continue;
 		}
 
@@ -2624,20 +2624,18 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		OBJECT_cache_populate_particles(ob, psl);
 	}
 
-	if (DRW_check_object_visible_within_active_context(ob) == false) {
+	if (DRW_object_is_visible_in_active_context(ob) == false) {
 		return;
 	}
 
 	const bool do_outlines = (draw_ctx->v3d->flag & V3D_SELECT_OUTLINE) && ((ob->base_flag & BASE_SELECTED) != 0) &&
-	                         (DRW_object_is_renderable(ob) || (ob->dt == OB_WIRE));
+	                         ((DRW_object_is_renderable(ob) && (ob->dt > OB_WIRE)) || (ob->dt == OB_WIRE));
 	const bool show_relations = ((draw_ctx->v3d->flag & V3D_HIDE_HELPLINES) == 0);
 	const bool hide_object_extra = (v3d->overlay.flag & V3D_OVERLAY_HIDE_OBJECT_XTRAS) != 0;
 
 	if (do_outlines) {
 		if (!BKE_object_is_in_editmode(ob) && !((ob == draw_ctx->obact) && (draw_ctx->object_mode & OB_MODE_ALL_PAINT))) {
 			struct GPUBatch *geom;
-			const bool xray_enabled = ((v3d->shading.flag & V3D_SHADING_XRAY) != 0) &&
-			                           (v3d->shading.type < OB_MATERIAL);
 
 			/* This fixes only the biggest case which is a plane in ortho view. */
 			int flat_axis = 0;
@@ -2645,7 +2643,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			                                       DRW_object_is_flat(ob, &flat_axis) &&
 			                                       DRW_object_axis_orthogonal_to_view(ob, flat_axis);
 
-			if (xray_enabled || is_flat_object_viewed_from_side) {
+			if (stl->g_data->xray_enabled || is_flat_object_viewed_from_side) {
 				geom = DRW_cache_object_edge_detection_get(ob, NULL);
 			}
 			else {
@@ -2757,6 +2755,10 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			if (hide_object_extra) {
 				break;
 			}
+			/* in all modes except object mode hide always */
+			if (draw_ctx->object_mode != OB_MODE_OBJECT) {
+				break;
+			}
 			DRW_shgroup_gpencil(sgl, ob, view_layer);
 			break;
 		case OB_SPEAKER:
@@ -2800,9 +2802,16 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 		DRW_shgroup_forcefield(sgl, ob, view_layer);
 	}
 
+	if (ob->dt == OB_BOUNDBOX) {
+		if (theme_id == TH_UNDEFINED) {
+			theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
+		}
+		DRW_shgroup_bounds(sgl, ob, theme_id);
+	}
+
 	/* don't show object extras in set's */
 	if ((ob->base_flag & (BASE_FROM_SET | BASE_FROMDUPLI)) == 0) {
-		if ((draw_ctx->object_mode & OB_MODE_ALL_PAINT) == 0) {
+		if ((draw_ctx->object_mode & (OB_MODE_ALL_PAINT | OB_MODE_ALL_PAINT_GPENCIL)) == 0) {
 			DRW_shgroup_object_center(stl, ob, view_layer, v3d);
 		}
 
@@ -2810,7 +2819,8 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			DRW_shgroup_relationship_lines(sgl, draw_ctx->depsgraph, scene, ob);
 		}
 
-		if ((ob->dtx != 0) && theme_id == TH_UNDEFINED) {
+		const bool draw_extra = (ob->dtx != 0);
+		if (draw_extra && (theme_id == TH_UNDEFINED)) {
 			theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
 		}
 
@@ -2823,14 +2833,15 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			DRW_text_cache_add(
 			        dt, ob->obmat[3],
 			        ob->id.name + 2, strlen(ob->id.name + 2),
-			        10, DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR, color);
+			        10, 0, DRW_TEXT_CACHE_GLOBALSPACE | DRW_TEXT_CACHE_STRING_PTR, color);
 		}
 
 		if ((ob->dtx & OB_TEXSPACE) && ELEM(ob->type, OB_MESH, OB_CURVE, OB_MBALL)) {
 			DRW_shgroup_texture_space(sgl, ob, theme_id);
 		}
 
-		if (ob->dtx & OB_DRAWBOUNDOX || ob->dt == OB_BOUNDBOX) {
+		/* Don't draw bounding box again if draw type is bound box. */
+		if (ob->dtx & OB_DRAWBOUNDOX && ob->dt != OB_BOUNDBOX) {
 			DRW_shgroup_bounds(sgl, ob, theme_id);
 		}
 

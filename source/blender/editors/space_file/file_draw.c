@@ -221,13 +221,13 @@ void file_draw_buttons(const bContext *C, ARegion *ar)
 	/* Filename number increment / decrement buttons. */
 	if (fnumbuttons && (params->flag & FILE_DIRSEL_ONLY) == 0) {
 		UI_block_align_begin(block);
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ZOOMOUT,
+		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_REMOVE,
 		                    min_x + line2_w + separator - chan_offs, line2_y,
 		                    btn_fn_w, btn_h,
 		                    TIP_("Decrement the filename number"));
 		RNA_int_set(UI_but_operator_ptr_get(but), "increment", -1);
 
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ZOOMIN,
+		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ADD,
 		                    min_x + line2_w + separator + btn_fn_w - chan_offs, line2_y,
 		                    btn_fn_w, btn_h,
 		                    TIP_("Increment the filename number"));
@@ -397,7 +397,7 @@ static void file_draw_preview(
 	                       scale, scale, 1.0f, 1.0f, col);
 
 	if (icon) {
-		UI_icon_draw_aspect((float)xco, (float)yco, icon, icon_aspect, 1.0f);
+		UI_icon_draw_aspect((float)xco, (float)yco, icon, icon_aspect, 1.0f, NULL);
 	}
 
 	/* border */
@@ -515,15 +515,15 @@ static void draw_dividers(FileLayout *layout, View2D *v2d)
 			sx += step;
 
 			v1[0] = v2[0] = sx;
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2iv(pos, v1);
-			immAttrib3ubv(color, col_lo);
+			immAttr3ubv(color, col_lo);
 			immVertex2iv(pos, v2);
 
 			v1[0] = v2[0] = sx + 1;
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2iv(pos, v1);
-			immAttrib3ubv(color, col_hi);
+			immAttr3ubv(color, col_hi);
 			immVertex2iv(pos, v2);
 		}
 
@@ -595,7 +595,7 @@ void file_draw_list(const bContext *C, ARegion *ar)
 		filelist_cache_previews_update(files);
 
 		/* Handle preview timer here, since it's filelist_file_cache_block() and filelist_cache_previews_update()
-		 * which controlls previews task. */
+		 * which controls previews task. */
 		{
 			const bool previews_running = filelist_cache_previews_running(files);
 //			printf("%s: preview task: %d\n", __func__, previews_running);

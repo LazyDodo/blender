@@ -84,8 +84,11 @@ struct MLoopTri_Store {
 typedef struct Mesh_Runtime {
 	struct EditMeshData *edit_data;
 	void *batch_cache;
-	struct SubdivCCG *subsurf_ccg;
+
+	struct SubdivCCG *subdiv_ccg;
 	void  *pad1;
+	int subdiv_ccg_tot_level;
+	int pad2;
 
 	int64_t cd_dirty_vert;
 	int64_t cd_dirty_edge;
@@ -97,8 +100,14 @@ typedef struct Mesh_Runtime {
 	/** 'BVHCache', for 'BKE_bvhutil.c' */
 	struct LinkNode *bvh_cache;
 
-	int deformed_only; /* set by modifier stack if only deformed from original */
-	char padding[4];
+	/** Set by modifier stack if only deformed from original. */
+	char deformed_only;
+	/**
+	 * Copied from edit-mesh (hint, draw with editmesh data).
+	 * In the future we may leave the mesh-data empty
+	 * since its not needed if we can use edit-mesh data. */
+	char is_original;
+	char padding[6];
 } Mesh_Runtime;
 
 typedef struct Mesh {
@@ -238,6 +247,7 @@ enum {
 	ME_CDFLAG_EDGE_CREASE  = 1 << 2,
 };
 
+#if 0 /* Was moved to overlay options for 2.8 */
 /* me->drawflag, short */
 enum {
 	ME_DRAWEDGES           = 1 << 0,
@@ -270,6 +280,7 @@ enum {
 /* draw loop normals */
 	ME_DRAW_LNORMALS       = 1 << 18,
 };
+#endif
 
 /* Subsurf Type */
 enum {

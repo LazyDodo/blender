@@ -824,9 +824,9 @@ static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 	for (int axis_i = 0; axis_i < 3; axis_i++) {
 		int i = axis_order[axis_i];
 
-		immAttrib4ubv(col, axis_col[i]);
+		immAttr4ubv(col, axis_col[i]);
 		immVertex2f(pos, startx, starty);
-		immAttrib4ubv(col, axis_col[i]);
+		immAttr4ubv(col, axis_col[i]);
 		immVertex2fv(pos, axis_pos[i]);
 	}
 
@@ -874,7 +874,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 
 		immBegin(GPU_PRIM_LINE_STRIP, 3);
 		color[3] = 0; /* more transparent toward the ends */
-		immAttrib4ubv(col, color);
+		immAttr4ubv(col, color);
 		add_v3_v3v3(end, o, scaled_axis);
 		immVertex3fv(pos, end);
 
@@ -884,11 +884,11 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 #endif
 
 		color[3] = 127; /* more opaque toward the center */
-		immAttrib4ubv(col, color);
+		immAttr4ubv(col, color);
 		immVertex3fv(pos, o);
 
 		color[3] = 0;
-		immAttrib4ubv(col, color);
+		immAttr4ubv(col, color);
 		sub_v3_v3v3(end, o, scaled_axis);
 		immVertex3fv(pos, end);
 		immEnd();
@@ -913,7 +913,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 
 			immBegin(GPU_PRIM_LINE_LOOP, ROT_AXIS_DETAIL);
 			color[3] = 63; /* somewhat faint */
-			immAttrib4ubv(col, color);
+			immAttr4ubv(col, color);
 			float angle = 0.0f;
 			for (int i = 0; i < ROT_AXIS_DETAIL; ++i, angle += step) {
 				float p[3] = {s * cosf(angle), s * sinf(angle), 0.0f};
@@ -941,7 +941,7 @@ static void UNUSED_FUNCTION(draw_rotation_guide)(RegionView3D *rv3d)
 	immBindBuiltinProgram(GPU_SHADER_3D_POINT_FIXED_SIZE_VARYING_COLOR);
 	GPU_point_size(5.0f);
 	immBegin(GPU_PRIM_POINTS, 1);
-	immAttrib4ubv(col, color);
+	immAttr4ubv(col, color);
 	immVertex3fv(pos, o);
 	immEnd();
 	immUnbindProgram();
@@ -1194,7 +1194,7 @@ void view3d_draw_region_info(const bContext *C, ARegion *ar, const int UNUSED(of
 	/* correct projection matrix */
 	ED_region_pixelspace(ar);
 
-	/* local coordinate visible rect inside region, to accomodate overlapping ui */
+	/* local coordinate visible rect inside region, to accommodate overlapping ui */
 	rcti rect;
 	ED_region_visible_rect(ar, &rect);
 
@@ -1255,14 +1255,14 @@ static void view3d_draw_view(const bContext *C, ARegion *ar)
 {
 	ED_view3d_draw_setup_view(CTX_wm_window(C), CTX_data_depsgraph(C), CTX_data_scene(C), ar, CTX_wm_view3d(C), NULL, NULL, NULL);
 
-	/* Only 100% compliant on new spec goes bellow */
+	/* Only 100% compliant on new spec goes below */
 	DRW_draw_view(C);
 }
 
 RenderEngineType *ED_view3d_engine_type(Scene *scene, int drawtype)
 {
 	/*
-	 * Tempory viewport draw modes until we have a proper system.
+	 * Temporary viewport draw modes until we have a proper system.
 	 * all modes are done in the draw manager, except
 	 * cycles material as it is an external render engine.
 	 */

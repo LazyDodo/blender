@@ -2070,7 +2070,7 @@ static void rna_property_update(bContext *C, Main *bmain, Scene *scene, PointerR
 				prop->update(bmain, scene, ptr);
 		}
 
-#if 1
+#if 0
 		/* TODO(campbell): Should eventually be replaced entirely by message bus (below)
 		 * for now keep since COW, bugs are hard to track when we have other missing updates. */
 		if (prop->noteflag) {
@@ -7075,7 +7075,7 @@ int RNA_function_call_direct_va(bContext *C, ReportList *reports, PointerRNA *pt
 				case PROP_COLLECTION:
 				{
 					StructRNA *srna = va_arg(args, StructRNA *);
-					ListBase **arg = va_arg(args, ListBase * *);
+					ListBase **arg = va_arg(args, ListBase **);
 					err = rna_function_parameter_parse(&funcptr, parm, type, ftype, len, arg, retdata,
 					                                   srna, tid, fid, pid);
 					break;
@@ -7516,13 +7516,13 @@ static bool rna_property_override_operation_apply(
 	}
 
 	if (ELEM(override_op, IDOVERRIDESTATIC_OP_ADD, IDOVERRIDESTATIC_OP_SUBTRACT, IDOVERRIDESTATIC_OP_MULTIPLY) && !ptr_storage) {
-		/* We cannot apply 'diff' override operations without some refference storage.
+		/* We cannot apply 'diff' override operations without some reference storage.
 		 * This should typically only happen at read time of .blend file... */
 		return false;
 	}
 
 	if (ELEM(override_op, IDOVERRIDESTATIC_OP_ADD, IDOVERRIDESTATIC_OP_SUBTRACT, IDOVERRIDESTATIC_OP_MULTIPLY) && !prop_storage) {
-		/* We cannot apply 'diff' override operations without some refference storage.
+		/* We cannot apply 'diff' override operations without some reference storage.
 		 * This should typically only happen at read time of .blend file... */
 		return false;
 	}
@@ -7582,7 +7582,7 @@ static bool rna_property_override_operation_apply(
 }
 
 /**
- * Check whether reference and local overriden data match (are the same),
+ * Check whether reference and local overridden data match (are the same),
  * with respect to given restrictive sets of properties.
  * If requested, will generate needed new property overrides, and/or restore values from reference.
  *

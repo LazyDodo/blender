@@ -68,7 +68,6 @@
 #include "BLI_timecode.h"  /* for stamp timecode format */
 #include "BLI_utildefines.h"
 
-#include "BKE_bmfont.h"
 #include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_icons.h"
@@ -2671,11 +2670,6 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 				ima->name[0] = '\0';
 			}
 
-#if 0
-			/* force reload on first use, but not for multilayer, that makes nodes and buttons in ui drawing fail */
-			if (ima->type != IMA_TYPE_MULTILAYER)
-				BKE_image_free_buffers(ima);
-#else
 			/* image buffers for non-sequence multilayer will share buffers with RenderResult,
 			 * however sequence multilayer will own buffers. Such logic makes switching from
 			 * single multilayer file to sequence completely unstable
@@ -2684,7 +2678,6 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 			 * sequences behave stable
 			 */
 			BKE_image_free_buffers(ima);
-#endif
 
 			ima->ok = 1;
 			if (iuser)
@@ -2813,7 +2806,7 @@ static RenderPass *image_render_pass_get(RenderLayer *rl, const int pass, const 
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
-/* note it is called for rendered results, but it doesnt use the index! */
+/* note it is called for rendered results, but it doesn't use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 RenderPass *BKE_image_multilayer_index(RenderResult *rr, ImageUser *iuser)
 {
@@ -2865,7 +2858,7 @@ void BKE_image_multiview_index(Image *ima, ImageUser *iuser)
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
-/* note it is called for rendered results, but it doesnt use the index! */
+/* note it is called for rendered results, but it doesn't use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 bool BKE_image_is_multilayer(Image *ima)
 {
@@ -3450,9 +3443,6 @@ static ImBuf *load_image_single(
 			image_initialize_after_load(ima, ibuf);
 			*r_assign = true;
 
-			/* check if the image is a font image... */
-			detectBitmapFont(ibuf);
-
 			/* make packed file for autopack */
 			if ((has_packed == false) && (G.fileflags & G_AUTOPACK)) {
 				ImagePackedFile *imapf = MEM_mallocN(sizeof(ImagePackedFile), "Image Packefile");
@@ -3707,7 +3697,7 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **r_loc
 	 *
 	 * This is mainly to make it so color management treats byte buffer
 	 * from render result with Save Buffers enabled as final display buffer
-	 * and doesnt' apply any color management on it.
+	 * and doesn't apply any color management on it.
 	 *
 	 * For other cases we need to be sure it stays to default byte buffer space.
 	 */
@@ -4472,15 +4462,6 @@ bool BKE_image_is_dirty(Image *image)
 
 void BKE_image_file_format_set(Image *image, int ftype, const ImbFormatOptions *options)
 {
-#if 0
-	ImBuf *ibuf = BKE_image_acquire_ibuf(image, NULL, NULL);
-	if (ibuf) {
-		ibuf->ftype = ftype;
-		ibuf->foptions = options;
-	}
-	BKE_image_release_ibuf(image, ibuf, NULL);
-#endif
-
 	BLI_spin_lock(&image_spin);
 	if (image->cache != NULL) {
 		struct MovieCacheIter *iter = IMB_moviecacheIter_new(image->cache);

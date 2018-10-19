@@ -748,6 +748,9 @@ class ConstraintButtonsPanel:
         layout.prop(con, "distance")
         layout.prop(con, "shrinkwrap_type")
 
+        if con.shrinkwrap_type in {'PROJECT', 'NEAREST_SURFACE'}:
+            layout.prop(con, 'wrap_mode', text="Snap Mode")
+
         if con.shrinkwrap_type == 'PROJECT':
             row = layout.row(align=True)
             row.prop(con, "project_axis", expand=True)
@@ -755,7 +758,23 @@ class ConstraintButtonsPanel:
             split.label(text="Axis Space:")
             rowsub = split.row()
             rowsub.prop(con, "project_axis_space", text="")
+            split = layout.split(factor=0.4)
+            split.label(text="Face Culling:")
+            rowsub = split.row()
+            rowsub.prop(con, "cull_face", expand=True)
+            row = layout.row()
+            row.prop(con, "use_project_opposite")
+            rowsub = row.row()
+            rowsub.active = con.use_project_opposite and con.cull_face != 'OFF'
+            rowsub.prop(con, "use_invert_cull")
             layout.prop(con, "project_limit")
+
+        if con.shrinkwrap_type in {'PROJECT', 'NEAREST_SURFACE'}:
+            layout.prop(con, "use_track_normal")
+
+            row = layout.row(align=True)
+            row.active = con.use_track_normal
+            row.prop(con, "track_axis", expand=True)
 
     def DAMPED_TRACK(self, context, layout, con):
         self.target_template(layout, con)

@@ -418,7 +418,7 @@ void BKE_sequence_clipboard_pointers_restore(Sequence *seq, Main *bmain)
 	seqclipboard_ptr_restore(bmain, (ID **)&seq->sound);
 }
 
-/* recursive versions of funcions above */
+/* recursive versions of functions above */
 void BKE_sequencer_base_clipboard_pointers_free(ListBase *seqbase)
 {
 	Sequence *seq;
@@ -1065,7 +1065,7 @@ void BKE_sequencer_sort(Scene *scene)
 	*(ed->seqbasep) = seqbase;
 }
 
-/** Comparision function suitable to be used with BLI_listbase_sort()... */
+/** Comparison function suitable to be used with BLI_listbase_sort()... */
 int BKE_sequencer_cmp_time_startdisp(const void *a, const void *b)
 {
 	const Sequence *seq_a = a;
@@ -1596,12 +1596,8 @@ static void seq_open_anim_file(Scene *scene, Sequence *seq, bool openfile)
 				}
 
 				if (sanim->anim) {
-#if 0
-					seq_anim_add_suffix(scene, sanim->anim, i);
-#else
 					/* we already have the suffix */
 					IMB_suffix_anim(sanim->anim, suffix);
-#endif
 				}
 				else {
 					if (openfile) {
@@ -4520,7 +4516,7 @@ Sequence *BKE_sequencer_foreground_frame_get(Scene *scene, int frame)
 	return best_seq;
 }
 
-/* return 0 if there werent enough space */
+/* return 0 if there weren't enough space */
 bool BKE_sequence_base_shuffle_ex(ListBase *seqbasep, Sequence *test, Scene *evil_scene, int channel_delta)
 {
 	const int orig_machine = test->machine;
@@ -5253,11 +5249,6 @@ Sequence *BKE_sequencer_add_sound_strip(bContext *C, ListBase *seqbasep, SeqLoad
 
 	if (sound->playback_handle == NULL) {
 		BKE_libblock_free(bmain, sound);
-#if 0
-		if (op)
-			BKE_report(op->reports, RPT_ERROR, "Unsupported audio format");
-#endif
-
 		return NULL;
 	}
 
@@ -5265,10 +5256,6 @@ Sequence *BKE_sequencer_add_sound_strip(bContext *C, ListBase *seqbasep, SeqLoad
 
 	if (info.specs.channels == AUD_CHANNELS_INVALID) {
 		BKE_libblock_free(bmain, sound);
-#if 0
-		if (op)
-			BKE_report(op->reports, RPT_ERROR, "Unsupported audio format");
-#endif
 		return NULL;
 	}
 

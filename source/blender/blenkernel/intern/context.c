@@ -94,13 +94,6 @@ struct bContext {
 		int py_init; /* true if python is initialized */
 		void *py_context;
 	} data;
-
-	/* data evaluation */
-#if 0
-	struct {
-		int render;
-	} eval;
-#endif
 };
 
 /* context */
@@ -217,7 +210,7 @@ void CTX_store_free_list(ListBase *contexts)
 	}
 }
 
-/* is python initialied? */
+/* is python initialized? */
 
 int CTX_py_init_get(bContext *C)
 {

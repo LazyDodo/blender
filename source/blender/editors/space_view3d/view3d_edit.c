@@ -802,7 +802,7 @@ static void viewrotate_apply(ViewOpsData *vod, const int event_xy[2])
 	/* avoid precision loss over time */
 	normalize_qt(vod->curr.viewquat);
 
-	/* use a working copy so view rotation locking doesnt overwrite the locked
+	/* use a working copy so view rotation locking doesn't overwrite the locked
 	 * rotation back into the view we calculate with */
 	copy_qt_qt(rv3d->viewquat, vod->curr.viewquat);
 
@@ -1045,7 +1045,7 @@ static float view3d_ndof_pan_speed_calc(RegionView3D *rv3d)
 /**
  * Zoom and pan in the same function since sometimes zoom is interpreted as dolly (pan forward).
  *
- * \param has_zoom zoom, otherwise dolly, often `!rv3d->is_persp` since it doesnt make sense to dolly in ortho.
+ * \param has_zoom zoom, otherwise dolly, often `!rv3d->is_persp` since it doesn't make sense to dolly in ortho.
  */
 static void view3d_ndof_pan_zoom(
         const struct wmNDOFMotionData *ndof, ScrArea *sa, ARegion *ar,
@@ -2825,7 +2825,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	const int smooth_viewtx = WM_operator_smooth_viewtx_get(op);
 
 	INIT_MINMAX(min, max);
-	if (is_gp_edit || is_face_map) {
+	if (is_face_map) {
 		ob_eval = NULL;
 	}
 
@@ -2845,7 +2845,6 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	}
 
 	if (is_gp_edit) {
-		/* TODO(sergey): Check on this after gpencil merge. */
 		CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
 		{
 			/* we're only interested in selected points here... */
@@ -2854,6 +2853,14 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 			}
 		}
 		CTX_DATA_END;
+
+		if ((ob_eval) && (ok)) {
+			add_v3_v3(min, ob_eval->obmat[3]);
+			add_v3_v3(max, ob_eval->obmat[3]);
+		}
+	}
+	else if (ob_eval && (ob_eval->type == OB_GPENCIL)) {
+		ok |= BKE_gpencil_data_minmax(ob_eval, gpd, min, max);
 	}
 	else if (is_face_map) {
 		ok = WM_gizmomap_minmax(ar->gizmo_map, true, true, min, max);
@@ -3230,7 +3237,7 @@ static int render_border_exec(bContext *C, wmOperator *op)
 	rcti rect;
 	rctf vb, border;
 
-	/* get border select values using rna */
+	/* get box select values using rna */
 	WM_operator_properties_border_to_rcti(op, &rect);
 
 	/* calculate range */
@@ -3296,10 +3303,10 @@ void VIEW3D_OT_render_border(wmOperatorType *ot)
 	ot->idname = "VIEW3D_OT_render_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = render_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_view3d_active;
 
@@ -3392,7 +3399,7 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
 	/* note; otherwise opengl won't work */
 	view3d_operator_needs_opengl(C);
 
-	/* get border select values using rna */
+	/* get box select values using rna */
 	WM_operator_properties_border_to_rcti(op, &rect);
 
 	/* check if zooming in/out view */
@@ -3514,10 +3521,10 @@ void VIEW3D_OT_zoom_border(wmOperatorType *ot)
 	ot->idname = "VIEW3D_OT_zoom_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = view3d_zoom_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_region_view3d_active;
 
@@ -3525,7 +3532,7 @@ void VIEW3D_OT_zoom_border(wmOperatorType *ot)
 	ot->flag = 0;
 
 	/* properties */
-	WM_operator_properties_gesture_border_zoom(ot);
+	WM_operator_properties_gesture_box_zoom(ot);
 }
 
 /** \} */
@@ -3858,7 +3865,7 @@ static int view_camera_exec(bContext *C, wmOperator *op)
 			if (v3d->camera == NULL)
 				v3d->camera = BKE_view_layer_camera_find(view_layer);
 
-			/* couldnt find any useful camera, bail out */
+			/* couldn't find any useful camera, bail out */
 			if (v3d->camera == NULL)
 				return OPERATOR_CANCELLED;
 
@@ -4588,7 +4595,7 @@ static int view3d_clipping_invoke(bContext *C, wmOperator *op, const wmEvent *ev
 		return OPERATOR_FINISHED;
 	}
 	else {
-		return WM_gesture_border_invoke(C, op, event);
+		return WM_gesture_box_invoke(C, op, event);
 	}
 }
 
@@ -4603,8 +4610,8 @@ void VIEW3D_OT_clip_border(wmOperatorType *ot)
 	/* api callbacks */
 	ot->invoke = view3d_clipping_invoke;
 	ot->exec = view3d_clipping_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_region_view3d_active;
 
@@ -4863,7 +4870,8 @@ void VIEW3D_OT_cursor3d(wmOperatorType *ot)
  * \{ */
 
 static const EnumPropertyItem prop_shading_type_items[] = {
-	{OB_SOLID, "SOLID", 0, "Solid and X-Ray", "Toggle solid and X-ray shading"},
+	{OB_WIRE, "WIREFRAME", 0, "Wireframe", "Toggle wireframe shading"},
+	{OB_SOLID, "SOLID", 0, "Solid", "Toggle solid shading"},
 	{OB_MATERIAL, "MATERIAL", 0, "LookDev", "Toggle lookdev shading"},
 	{OB_RENDER, "RENDERED", 0, "Rendered", "Toggle rendered shading"},
 	{0, NULL, 0, NULL, NULL}
@@ -4876,36 +4884,25 @@ static int toggle_shading_exec(bContext *C, wmOperator *op)
 	ScrArea *sa = CTX_wm_area(C);
 	int type = RNA_enum_get(op->ptr, "type");
 
-	if (type == OB_SOLID) {
-		if (v3d->shading.type == OB_SOLID) {
-			/* Toggle X-Ray if already in solid mode. */
-			if (ED_operator_posemode(C) || ED_operator_editmesh(C)) {
-				v3d->flag ^= V3D_ZBUF_SELECT;
-			}
-			else {
-				v3d->shading.flag ^= V3D_SHADING_XRAY;
-			}
+	if (ELEM(type, OB_WIRE, OB_SOLID)) {
+		if (v3d->shading.type != type) {
+			v3d->shading.type = type;
 		}
-		else {
-			/* Go to solid mode. */
-			v3d->shading.type = OB_SOLID;
-		}
-	}
-	else if (type == OB_MATERIAL) {
-		if (v3d->shading.type == OB_MATERIAL) {
+		else if (v3d->shading.type == OB_WIRE) {
 			v3d->shading.type = OB_SOLID;
 		}
 		else {
-			v3d->shading.type = OB_MATERIAL;
+			v3d->shading.type = OB_WIRE;
 		}
 	}
-	else if (type == OB_RENDER) {
-		if (v3d->shading.type == OB_RENDER) {
+	else {
+
+		if (v3d->shading.type == type) {
 			v3d->shading.type = v3d->shading.prev_type;
 		}
 		else {
 			v3d->shading.prev_type = v3d->shading.type;
-			v3d->shading.type = OB_RENDER;
+			v3d->shading.type = type;
 		}
 	}
 

@@ -67,7 +67,6 @@
 #include "BKE_context.h"
 #include "BKE_constraint.h"
 #include "BKE_curve.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
 #include "BKE_effect.h"
 #include "BKE_font.h"
@@ -869,9 +868,7 @@ static int empty_drop_named_image_invoke(bContext *C, wmOperator *op, const wmEv
 {
 	Scene *scene = CTX_data_scene(C);
 
-	Base *base = NULL;
 	Image *ima = NULL;
-	Object *ob = NULL;
 
 	ima = (Image *)WM_operator_drop_load_path(C, op, ID_IM);
 	if (!ima) {
@@ -880,26 +877,22 @@ static int empty_drop_named_image_invoke(bContext *C, wmOperator *op, const wmEv
 	/* handled below */
 	id_us_min((ID *)ima);
 
-	base = ED_view3d_give_base_under_cursor(C, event->mval);
+	Object *ob = NULL;
+	Object *ob_cursor = ED_view3d_give_object_under_cursor(C, event->mval);
 
-	/* if empty under cursor, then set object */
-	if (base && base->object->type == OB_EMPTY) {
-		ob = base->object;
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	/* either change empty under cursor or create a new empty */
+	if (ob_cursor && ob_cursor->type == OB_EMPTY) {
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
+		DEG_id_tag_update((ID *)ob_cursor, DEG_TAG_TRANSFORM);
+		ob = ob_cursor;
 	}
 	else {
-		/* add new empty */
-		float rot[3];
+		ob = ED_object_add_type(C, OB_EMPTY, NULL, NULL, NULL, false);
 
-		if (!ED_object_add_generic_get_opts(C, op, 'Z', NULL, rot, NULL, NULL))
-			return OPERATOR_CANCELLED;
-
-		ob = ED_object_add_type(C, OB_EMPTY, NULL, NULL, rot, false);
-
-		/* add under the mouse */
 		ED_object_location_from_view(C, ob->loc);
 		ED_view3d_cursor3d_position(C, event->mval, false, ob->loc);
+		ED_object_rotation_from_view(C, ob->rot, 'Z');
+		ob->empty_drawsize = 5.0f;
 	}
 
 	BKE_object_empty_draw_type_set(ob, OB_EMPTY_IMAGE);
@@ -1631,7 +1624,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 			 * still work out ok */
 			BKE_object_apply_mat4(ob_dst, dob->mat, false, true);
 
-			/* to set ob_dst->orig and in case theres any other discrepicies */
+			/* to set ob_dst->orig and in case there's any other discrepancies */
 			DEG_id_tag_update(&ob_dst->id, OB_RECALC_OB);
 		}
 	}
@@ -1774,7 +1767,6 @@ static int convert_exec(bContext *C, wmOperator *op)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Base *basen = NULL, *basact = NULL;
 	Object *ob1, *obact = CTX_data_active_object(C);
-	DerivedMesh *dm;
 	Curve *cu;
 	Nurb *nu;
 	MetaBall *mb;
@@ -1790,7 +1782,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 		{
 			ob->flag &= ~OB_DONE;
 
-			/* flag data thats not been edited (only needed for !keep_original) */
+			/* flag data that's not been edited (only needed for !keep_original) */
 			if (ob->data) {
 				((ID *)ob->data)->tag |= LIB_TAG_DOIT;
 			}
@@ -1819,7 +1811,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			Base *base = link->ptr.data;
 			Object *ob = base->object;
 
-			/* The way object type conversion works currently (enforcing conversion of *all* objetcs using converted
+			/* The way object type conversion works currently (enforcing conversion of *all* objects using converted
 			 * obdata, even some un-selected/hidden/inother scene ones, sounds totally bad to me.
 			 * However, changing this is more design than bugfix, not to mention convoluted code below,
 			 * so that will be for later.
@@ -1909,14 +1901,13 @@ static int convert_exec(bContext *C, wmOperator *op)
 
 			/* make new mesh data from the original copy */
 			/* note: get the mesh from the original, not from the copy in some
-			 * cases this doesnt give correct results (when MDEF is used for eg)
+			 * cases this doesn't give correct results (when MDEF is used for eg)
 			 */
-			dm = mesh_get_derived_final(depsgraph, scene, newob, CD_MASK_MESH);
-
-			DM_to_mesh(dm, newob->data, newob, CD_MASK_MESH, true);
-
-			/* re-tessellation is called by DM_to_mesh */
-
+			Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, newob, CD_MASK_MESH);
+			if (newob->runtime.mesh_eval == me_eval) {
+				newob->runtime.mesh_eval = NULL;
+			}
+			BKE_mesh_nomain_to_mesh(me_eval, newob->data, newob, CD_MASK_MESH, true);
 			BKE_object_free_modifiers(newob, 0);   /* after derivedmesh calls! */
 		}
 		else if (ob->type == OB_FONT) {
@@ -1942,6 +1933,7 @@ static int convert_exec(bContext *C, wmOperator *op)
 			 *               datablock, but for until we've got granular update
 			 *               lets take care by selves.
 			 */
+			/* XXX This may fail/crash, since BKE_vfont_to_curve() accesses evaluated data in some cases (bastien). */
 			BKE_vfont_to_curve(newob, FO_EDIT);
 
 			newob->type = OB_CURVE;

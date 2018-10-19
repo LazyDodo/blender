@@ -46,7 +46,6 @@
 #endif
 
 #ifdef _WIN32
-#include "BLI_path_util.h"  /* BLI_setenv() */
 #include "BLI_math_base.h"  /* isfinite() */
 #endif
 
@@ -618,7 +617,7 @@ const char *PyC_UnicodeAsByteAndSize(PyObject *py_str, Py_ssize_t *size, PyObjec
 
 	if (result) {
 		/* 99% of the time this is enough but we better support non unicode
-		 * chars since blender doesnt limit this */
+		 * chars since blender doesn't limit this */
 		return result;
 	}
 	else {
@@ -671,7 +670,7 @@ PyObject *PyC_UnicodeFromByteAndSize(const char *str, Py_ssize_t size)
 	PyObject *result = PyUnicode_FromStringAndSize(str, size);
 	if (result) {
 		/* 99% of the time this is enough but we better support non unicode
-		 * chars since blender doesnt limit this */
+		 * chars since blender doesn't limit this */
 		return result;
 	}
 	else {
@@ -1327,6 +1326,84 @@ uint32_t PyC_Long_AsU32(PyObject *value)
 /* Inlined in header:
  * PyC_Long_AsU64
  */
+
+/* -------------------------------------------------------------------- */
+
+/** \name Py_buffer Utils
+ *
+ * \{ */
+
+char PyC_StructFmt_type_from_str(const char *typestr)
+{
+	switch (typestr[0]) {
+		case '!':
+		case '<':
+		case '=':
+		case '>':
+		case '@':
+			return typestr[1];
+		default:
+			return typestr[0];
+	}
+}
+
+bool PyC_StructFmt_type_is_float_any(char format)
+{
+	switch (format) {
+		case 'f':
+		case 'd':
+		case 'e':
+			return true;
+		default:
+			return false;
+	}
+}
+
+bool PyC_StructFmt_type_is_int_any(char format)
+{
+	switch (format) {
+		case 'i':
+		case 'I':
+		case 'l':
+		case 'L':
+		case 'h':
+		case 'H':
+		case 'b':
+		case 'B':
+		case 'q':
+		case 'Q':
+		case 'n':
+		case 'N':
+		case 'P':
+			return true;
+		default:
+			return false;
+	}
+}
+
+bool PyC_StructFmt_type_is_byte(char format)
+{
+	switch (format) {
+		case 'c':
+		case 's':
+		case 'p':
+			return true;
+		default:
+			return false;
+	}
+}
+
+bool PyC_StructFmt_type_is_bool(char format)
+{
+	switch (format) {
+		case '?':
+			return true;
+		default:
+			return false;
+	}
+}
+
+/** \} */
 
 #ifdef __GNUC__
 #  pragma warning(pop)

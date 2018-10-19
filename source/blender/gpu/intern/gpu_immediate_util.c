@@ -89,35 +89,35 @@ void immRecti(uint pos, int x1, int y1, int x2, int y2)
 
 void immRectf_fast_with_color(uint pos, uint col, float x1, float y1, float x2, float y2, const float color[4])
 {
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2f(pos, x1, y1);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2f(pos, x2, y1);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2f(pos, x2, y2);
 
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2f(pos, x1, y1);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2f(pos, x2, y2);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2f(pos, x1, y2);
 }
 
 void immRecti_fast_with_color(uint pos, uint col, int x1, int y1, int x2, int y2, const float color[4])
 {
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2i(pos, x1, y1);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2i(pos, x2, y1);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2i(pos, x2, y2);
 
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2i(pos, x1, y1);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2i(pos, x2, y2);
-	immAttrib4fv(col, color);
+	immAttr4fv(col, color);
 	immVertex2i(pos, x1, y2);
 }
 
@@ -201,13 +201,39 @@ void imm_draw_circle_fill_aspect_2d(uint shdr_pos, float x, float y, float rad_x
 	imm_draw_circle(GPU_PRIM_TRI_FAN, shdr_pos, x, y, rad_x, rad_y, nsegments);
 }
 
-/**
- * \note We could have `imm_draw_lined_disk_partial` but currently there is no need.
- */
+static void imm_draw_circle_partial(
+        GPUPrimType prim_type, uint pos, float x, float y,
+        float rad, int nsegments, float start, float sweep)
+{
+	/* shift & reverse angle, increase 'nsegments' to match gluPartialDisk */
+	const float angle_start = -(DEG2RADF(start)) + (float)(M_PI / 2);
+	const float angle_end   = -(DEG2RADF(sweep) - angle_start);
+	nsegments += 1;
+	immBegin(prim_type, nsegments);
+	for (int i = 0; i < nsegments; ++i) {
+		const float angle = interpf(angle_start, angle_end, ((float)i / (float)(nsegments - 1)));
+		const float angle_sin = sinf(angle);
+		const float angle_cos = cosf(angle);
+		immVertex2f(pos, x + rad * angle_cos, y + rad * angle_sin);
+	}
+	immEnd();
+}
+
+void imm_draw_circle_partial_wire_2d(
+        uint pos, float x, float y,
+        float rad, int nsegments, float start, float sweep)
+{
+	imm_draw_circle_partial(GPU_PRIM_LINE_STRIP, pos, x, y, rad, nsegments, start, sweep);
+}
+
 static void imm_draw_disk_partial(
         GPUPrimType prim_type, uint pos, float x, float y,
         float rad_inner, float rad_outer, int nsegments, float start, float sweep)
 {
+	/* to avoid artifacts */
+	const float max_angle = 3 * 360;
+	CLAMP(sweep, -max_angle, max_angle);
+
 	/* shift & reverse angle, increase 'nsegments' to match gluPartialDisk */
 	const float angle_start = -(DEG2RADF(start)) + (float)(M_PI / 2);
 	const float angle_end   = -(DEG2RADF(sweep) - angle_start);
@@ -399,16 +425,16 @@ void imm_draw_cylinder_fill_normal_3d(
 			n2[0] = cos2; n2[1] = sin2; n2[2] = 1 - n2[2];
 
 			/* first tri */
-			immAttrib3fv(nor, n2);
+			immAttr3fv(nor, n2);
 			immVertex3fv(pos, v1);
 			immVertex3fv(pos, v2);
-			immAttrib3fv(nor, n1);
+			immAttr3fv(nor, n1);
 			immVertex3fv(pos, v3);
 
 			/* second tri */
 			immVertex3fv(pos, v3);
 			immVertex3fv(pos, v4);
-			immAttrib3fv(nor, n2);
+			immAttr3fv(nor, n2);
 			immVertex3fv(pos, v1);
 		}
 	}

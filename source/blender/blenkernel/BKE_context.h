@@ -224,11 +224,6 @@ short CTX_data_type_get(struct bContextDataResult *result);
 bool CTX_data_equals(const char *member, const char *str);
 bool CTX_data_dir(const char *member);
 
-#if 0
-void CTX_data_pointer_set(bContextDataResult *result, void *data);
-void CTX_data_list_add(bContextDataResult *result, void *data);
-#endif
-
 #define CTX_DATA_BEGIN(C, Type, instance, member)                             \
 	{                                                                         \
 		ListBase ctx_data_list;                                               \
@@ -248,6 +243,12 @@ void CTX_data_list_add(bContextDataResult *result, void *data);
 #define CTX_DATA_BEGIN_WITH_ID(C, Type, instance, member, Type_id, instance_id)      \
 	CTX_DATA_BEGIN(C, Type, instance, member) \
 	Type_id instance_id = ctx_link->ptr.id.data; \
+
+#define CTX_DATA_BEGIN_FOR_ID(C, Type, instance, member, instance_id) \
+	CTX_DATA_BEGIN(C, Type, instance, member) \
+	if (ctx_link->ptr.id.data != (instance_id)) { \
+		continue; \
+	}
 
 int ctx_data_list_count(const bContext *C, int (*func)(const bContext *, ListBase *));
 

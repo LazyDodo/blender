@@ -174,7 +174,7 @@ void ANIM_draw_previewrange(const bContext *C, View2D *v2d, int end_frame_width)
 		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-		immUniformThemeColorShadeAlpha(TH_ANIM_ACTIVE, -25, -30);
+		immUniformThemeColorShadeAlpha(TH_ANIM_PREVIEW_RANGE, -25, -30);
 		//immUniformColor4f(0.8f, 0.44f, 0.1f, 0.2f); /* XXX: Fix this hardcoded color (anim_active) */
 
 		/* only draw two separate 'curtains' if there's no overlap between them */
@@ -551,11 +551,11 @@ static bool find_prev_next_keyframes(struct bContext *C, int *nextfra, int *prev
 	}
 
 	/* populate tree with keyframe nodes */
-	scene_to_keylist(&ads, scene, &keys, NULL);
+	scene_to_keylist(&ads, scene, &keys);
 	gpencil_to_keylist(&ads, scene->gpd, &keys, false);
 
 	if (ob) {
-		ob_to_keylist(&ads, ob, &keys, NULL);
+		ob_to_keylist(&ads, ob, &keys);
 		gpencil_to_keylist(&ads, ob->data, &keys, false);
 	}
 
@@ -563,9 +563,6 @@ static bool find_prev_next_keyframes(struct bContext *C, int *nextfra, int *prev
 		MaskLayer *masklay = BKE_mask_layer_active(mask);
 		mask_to_keylist(&ads, masklay, &keys);
 	}
-
-	/* build linked-list for searching */
-	BLI_dlrbTree_linkedlist_sync(&keys);
 
 	/* find matching keyframe in the right direction */
 	do {

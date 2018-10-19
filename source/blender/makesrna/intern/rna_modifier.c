@@ -95,17 +95,17 @@ const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	{0, "", 0, N_("Deform"), ""},
 	{eModifierType_Armature, "ARMATURE", ICON_MOD_ARMATURE, "Armature", ""},
 	{eModifierType_Cast, "CAST", ICON_MOD_CAST, "Cast", ""},
-	{eModifierType_CorrectiveSmooth, "CORRECTIVE_SMOOTH", ICON_MOD_SMOOTH, "Corrective Smooth", ""},
 	{eModifierType_Curve, "CURVE", ICON_MOD_CURVE, "Curve", ""},
 	{eModifierType_Displace, "DISPLACE", ICON_MOD_DISPLACE, "Displace", ""},
 	{eModifierType_Hook, "HOOK", ICON_HOOK, "Hook", ""},
-	{eModifierType_LaplacianSmooth, "LAPLACIANSMOOTH", ICON_MOD_SMOOTH, "Laplacian Smooth", ""},
 	{eModifierType_LaplacianDeform, "LAPLACIANDEFORM", ICON_MOD_MESHDEFORM, "Laplacian Deform", ""},
 	{eModifierType_Lattice, "LATTICE", ICON_MOD_LATTICE, "Lattice", ""},
 	{eModifierType_MeshDeform, "MESH_DEFORM", ICON_MOD_MESHDEFORM, "Mesh Deform", ""},
 	{eModifierType_Shrinkwrap, "SHRINKWRAP", ICON_MOD_SHRINKWRAP, "Shrinkwrap", ""},
 	{eModifierType_SimpleDeform, "SIMPLE_DEFORM", ICON_MOD_SIMPLEDEFORM, "Simple Deform", ""},
 	{eModifierType_Smooth, "SMOOTH", ICON_MOD_SMOOTH, "Smooth", ""},
+	{eModifierType_CorrectiveSmooth, "CORRECTIVE_SMOOTH", ICON_MOD_SMOOTH, "Smooth Corrective", ""},
+	{eModifierType_LaplacianSmooth, "LAPLACIANSMOOTH", ICON_MOD_SMOOTH, "Smooth Laplacian", ""},
 	{eModifierType_SurfaceDeform, "SURFACE_DEFORM", ICON_MOD_MESHDEFORM, "Surface Deform", ""},
 	{eModifierType_Warp, "WARP", ICON_MOD_WARP, "Warp", ""},
 	{eModifierType_Wave, "WAVE", ICON_MOD_WAVE, "Wave", ""},
@@ -119,8 +119,8 @@ const EnumPropertyItem rna_enum_object_modifier_type_items[] = {
 	{eModifierType_ParticleInstance, "PARTICLE_INSTANCE", ICON_MOD_PARTICLES, "Particle Instance", ""},
 	{eModifierType_ParticleSystem, "PARTICLE_SYSTEM", ICON_MOD_PARTICLES, "Particle System", ""},
 	{eModifierType_Smoke, "SMOKE", ICON_MOD_SMOKE, "Smoke", ""},
-	{eModifierType_Softbody, "SOFT_BODY", ICON_MOD_SOFT, "Soft Body", ""},
-	{eModifierType_Surface, "SURFACE", ICON_MOD_PHYSICS, "Surface", ""},
+	{eModifierType_Softbody, "SOFT_BODY", ICON_MODIFIER, "Soft Body", ""},
+	{eModifierType_Surface, "SURFACE", ICON_MODIFIER, "Surface", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -139,6 +139,24 @@ const EnumPropertyItem rna_enum_modifier_triangulate_ngon_method_items[] = {
 	{MOD_TRIANGULATE_NGON_EARCLIP, "CLIP", 0, "Clip", "Split the polygons with an ear clipping algorithm"},
 	{0, NULL, 0, NULL, NULL}
 };
+
+const EnumPropertyItem rna_enum_modifier_shrinkwrap_mode_items[] = {
+	{MOD_SHRINKWRAP_ON_SURFACE, "ON_SURFACE", 0, "On Surface",
+	                            "The point is constrained to the surface of the target object, "
+	                            "with distance offset towards the original point location"},
+	{MOD_SHRINKWRAP_INSIDE, "INSIDE", 0, "Inside",
+	                        "The point is constrained to be inside the target object"},
+	{MOD_SHRINKWRAP_OUTSIDE, "OUTSIDE", 0, "Outside",
+	                         "The point is constrained to be outside the target object"},
+	{MOD_SHRINKWRAP_OUTSIDE_SURFACE, "OUTSIDE_SURFACE", 0, "Outside Surface",
+	                                 "The point is constrained to the surface of the target object, "
+	                                 "with distance offset always to the outside, towards or away from the original location"},
+	{MOD_SHRINKWRAP_ABOVE_SURFACE, "ABOVE_SURFACE", 0, "Above Surface",
+	                               "The point is constrained to the surface of the target object, "
+	                               "with distance offset applied exactly along the target normal"},
+	{0, NULL, 0, NULL, NULL}
+};
+
 
 #ifndef RNA_RUNTIME
 /* use eWarp_Falloff_*** & eHook_Falloff_***, they're in sync */
@@ -696,15 +714,13 @@ static int rna_MultiresModifier_filepath_length(PointerRNA *ptr)
 static int rna_ShrinkwrapModifier_face_cull_get(PointerRNA *ptr)
 {
 	ShrinkwrapModifierData *swm = (ShrinkwrapModifierData *)ptr->data;
-	return swm->shrinkOpts & (MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE);
+	return swm->shrinkOpts & MOD_SHRINKWRAP_CULL_TARGET_MASK;
 }
 
 static void rna_ShrinkwrapModifier_face_cull_set(struct PointerRNA *ptr, int value)
 {
 	ShrinkwrapModifierData *swm = (ShrinkwrapModifierData *)ptr->data;
-
-	swm->shrinkOpts =
-	    (swm->shrinkOpts & ~(MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE)) | value;
+	swm->shrinkOpts = (swm->shrinkOpts & ~MOD_SHRINKWRAP_CULL_TARGET_MASK) | value;
 }
 
 static bool rna_MeshDeformModifier_is_bound_get(PointerRNA *ptr)
@@ -820,7 +836,7 @@ static void rna_DataTransferModifier_use_data_update(Main *bmain, Scene *scene, 
 		dtmd->data_types &= ~DT_TYPE_POLY_ALL;
 	}
 
-	rna_Modifier_update(bmain, scene, ptr);
+	rna_Modifier_dependency_update(bmain, scene, ptr);
 }
 
 static void rna_DataTransferModifier_data_types_update(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -841,7 +857,7 @@ static void rna_DataTransferModifier_data_types_update(Main *bmain, Scene *scene
 		dtmd->flags |= MOD_DATATRANSFER_USE_POLY;
 	}
 
-	rna_Modifier_update(bmain, scene, ptr);
+	rna_Modifier_dependency_update(bmain, scene, ptr);
 }
 
 static void rna_DataTransferModifier_verts_data_types_set(struct PointerRNA *ptr, int value)
@@ -3171,7 +3187,13 @@ static void rna_def_modifier_shrinkwrap(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "shrinkType");
 	RNA_def_property_enum_items(prop, shrink_type_items);
 	RNA_def_property_ui_text(prop, "Mode", "");
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
+
+	prop = RNA_def_property(srna, "wrap_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "shrinkMode");
+	RNA_def_property_enum_items(prop, rna_enum_modifier_shrinkwrap_mode_items);
+	RNA_def_property_ui_text(prop, "Snap Mode", "Select how vertices are constrained to the target surface");
+	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
 
 	prop = RNA_def_property(srna, "cull_face", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "shrinkOpts");
@@ -3249,9 +3271,9 @@ static void rna_def_modifier_shrinkwrap(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Positive", "Allow vertices to move in the positive direction of axis");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "use_keep_above_surface", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "shrinkOpts", MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE);
-	RNA_def_property_ui_text(prop, "Keep Above Surface", "");
+	prop = RNA_def_property(srna, "use_invert_cull", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "shrinkOpts", MOD_SHRINKWRAP_INVERT_CULL_TARGET);
+	RNA_def_property_ui_text(prop, "Invert Cull", "When projecting in the negative direction invert the face cull mode");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "invert_vertex_group", PROP_BOOLEAN, PROP_NONE);
