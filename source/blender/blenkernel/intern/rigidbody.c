@@ -1313,13 +1313,13 @@ static void rigidbody_update_sim_ob(Depsgraph *depsgraph, Scene *scene, RigidBod
 		RB_shape_set_margin(rbo->shared->physics_shape, RBO_GET_MARGIN(rbo) * MIN3(scale[0], scale[1], scale[2]));
 
 	/* make transformed objects temporarily kinmatic so that they can be moved by the user during simulation */
-	if (ob->transflag & OB_PHYS_MOVING) {
+	if ((ob->transflag & OB_PHYS_MOVING) || (ob->id.recalc & ID_RECALC_PHYS)) {
 		RB_body_set_kinematic_state(rbo->shared->physics_object, true);
 		RB_body_set_mass(rbo->shared->physics_object, 0.0f);
 	}
 
 	/* update rigid body location and rotation for kinematic bodies */
-	if (rbo->flag & RBO_FLAG_KINEMATIC || (ob->transflag & OB_PHYS_MOVING)) {
+	if (rbo->flag & RBO_FLAG_KINEMATIC || (ob->transflag & OB_PHYS_MOVING) || (ob->id.recalc & ID_RECALC_PHYS)) {
 		RB_body_activate(rbo->shared->physics_object);
 		RB_body_set_loc_rot(rbo->shared->physics_object, loc, rot);
 	}
@@ -1484,14 +1484,18 @@ static void rigidbody_update_simulation(Depsgraph *depsgraph, Scene *scene, Rigi
 
 static void rigidbody_update_simulation_post_step(Depsgraph *depsgraph, RigidBodyWorld *rbw)
 {
+	static float null_vel[3] = {0.f, 0.f, 0.f};
+
 	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, ob)
 	{
 		RigidBodyOb *rbo = ob->rigidbody_object;
 		/* Reset kinematic state for transformed objects. */
 		if (rbo) {
-			if (ob->transflag & OB_PHYS_MOVING) {
+			if ((ob->transflag & OB_PHYS_MOVING) || (ob->id.recalc & ID_RECALC_PHYS)) {
 				RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC || rbo->flag & RBO_FLAG_DISABLED);
 				RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
+				RB_body_set_linear_velocity(rbo->shared->physics_object, null_vel);
+				RB_body_set_angular_velocity(rbo->shared->physics_object, null_vel);
 				/* Deactivate passive objects so they don't interfere with deactivation of active objects. */
 				if (rbo->type == RBO_TYPE_PASSIVE)
 					RB_body_deactivate(rbo->shared->physics_object);
@@ -1520,7 +1524,7 @@ void BKE_rigidbody_sync_transforms(RigidBodyWorld *rbw, Object *ob, float ctime)
 		return;
 
 	/* use rigid body transform after cache start frame if objects is not being transformed */
-	if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->transflag & OB_PHYS_MOVING)) {
+	if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->transflag & OB_PHYS_MOVING) && !(ob->id.recalc & ID_RECALC_PHYS)) {
 		float mat[4][4], size_mat[4][4], size[3];
 
 		normalize_qt(rbo->orn); // RB_TODO investigate why quaternion isn't normalized at this point
@@ -1623,6 +1627,12 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 	PointCache *cache;
 	PTCacheID pid;
 	int startframe, endframe;
+
+	if (scene->flag & SCE_INTERACTIVE) {
+		if (rbw->shared->physics_world == NULL)
+			rigidbody_update_simulation(depsgraph, scene, rbw, true);
+		return;
+	}
 
 	BKE_ptcache_id_from_rigidbody(&pid, NULL, rbw);
 	BKE_ptcache_id_time(&pid, scene, ctime, &startframe, &endframe, NULL);
