@@ -357,7 +357,10 @@ void DRW_gpencil_freecache(struct Object *ob)
 	if ((ob) && (ob->type == OB_GPENCIL)) {
 		gpencil_batch_cache_clear(ob->runtime.gpencil_cache);
 		MEM_SAFE_FREE(ob->runtime.gpencil_cache);
+		bGPdata *gpd = (bGPdata *)ob->data;
+		if (gpd) {
+			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+		}
 	}
-
 }
 

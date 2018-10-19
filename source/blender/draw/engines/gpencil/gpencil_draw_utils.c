@@ -1320,12 +1320,11 @@ void DRW_gpencil_populate_datablock(
 
 		/* draw onion skins */
 		if (!ID_IS_LINKED(&gpd->id)) {
-			ID *orig_id = gpd->id.orig_id;
-			if ((orig_id) && (!cache_ob->is_dup_data) &&
+			if ((!cache_ob->is_dup_data) &&
 				(gpd->flag & GP_DATA_SHOW_ONIONSKINS) &&
 			    (do_onion) && (gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
 			    ((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)) &&
-			    (!cache_ob->is_dup_ob) && (orig_id->us <= 1))
+			    (!cache_ob->is_dup_ob) && (gpd->id.us <= 1))
 			{
 				if (((!stl->storage->is_render) && (overlay)) ||
 				    ((stl->storage->is_render) && (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)))
