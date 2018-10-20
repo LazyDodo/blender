@@ -87,11 +87,6 @@ set(SRC
 	intern/gpu_vertex_format.c
 	intern/gpu_viewport.c
 
-	shaders/gpu_shader_material.glsl
-	shaders/gpu_shader_fire_frag.glsl
-	shaders/gpu_shader_smoke_frag.glsl
-	shaders/gpu_shader_smoke_vert.glsl
-
 	GPU_attr_binding.h
 	GPU_batch.h
 	GPU_batch_presets.h
@@ -140,7 +135,6 @@ data_to_c_simple(shaders/gpu_shader_diag_stripes_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_simple_lighting_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_simple_lighting_smooth_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_simple_lighting_smooth_color_alpha_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_multiply_and_blend_preprocessing.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_color_alpha_test_0_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_id_frag.glsl SRC)
@@ -240,9 +234,6 @@ data_to_c_simple(shaders/gpu_shader_keyframe_diamond_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_keyframe_diamond_frag.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_geometry.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_fire_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_smoke_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_smoke_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_material.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_gpencil_stroke_vert.glsl SRC)

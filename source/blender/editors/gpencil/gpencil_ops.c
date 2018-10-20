@@ -205,8 +205,8 @@ static void ed_keymap_gpencil_selection(wmKeyMap *keymap)
 	/* circle select */
 	WM_keymap_add_item(keymap, "GPENCIL_OT_select_circle", CKEY, KM_PRESS, 0, 0);
 
-	/* border select */
-	WM_keymap_add_item(keymap, "GPENCIL_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box select */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	/* lasso select */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL, 0);
@@ -514,8 +514,8 @@ static void ed_keymap_gpencil_painting_draw(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	/* Selection (used by eraser) */
-	/* border select */
-	WM_keymap_add_item(keymap, "GPENCIL_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box select */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	/* lasso select */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
@@ -541,8 +541,8 @@ static void ed_keymap_gpencil_painting_erase(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "wait_for_input", false);
 
 	/* Selection (used by eraser) */
-	/* border select */
-	WM_keymap_add_item(keymap, "GPENCIL_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box select */
+	WM_keymap_add_item(keymap, "GPENCIL_OT_select_box", BKEY, KM_PRESS, 0, 0);
 
 	/* lasso select */
 	kmi = WM_keymap_add_item(keymap, "GPENCIL_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
@@ -589,6 +589,10 @@ static void ed_keymap_gpencil_painting(wmKeyConfig *keyconf)
 
 	/* set poll callback - so that this keymap only gets enabled when stroke paintmode is enabled */
 	keymap->poll = gp_stroke_paintmode_poll;
+
+	/* Shift-FKEY = Brush Strength */
+	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_SHIFT, 0);
+	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.gpencil_paint.brush.gpencil_settings.pen_strength");
 
 	/* FKEY = Brush Size */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
@@ -689,7 +693,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_select);
 	WM_operatortype_append(GPENCIL_OT_select_all);
 	WM_operatortype_append(GPENCIL_OT_select_circle);
-	WM_operatortype_append(GPENCIL_OT_select_border);
+	WM_operatortype_append(GPENCIL_OT_select_box);
 	WM_operatortype_append(GPENCIL_OT_select_lasso);
 
 	WM_operatortype_append(GPENCIL_OT_select_linked);

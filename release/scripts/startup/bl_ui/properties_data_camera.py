@@ -182,6 +182,7 @@ class DATA_PT_camera_stereoscopy(CameraButtonsPanel, Panel):
 class DATA_PT_camera(CameraButtonsPanel, Panel):
     bl_label = "Camera"
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL', 'BLENDER_LANPR'}
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header_preset(self, context):
         CAMERA_PT_presets.draw_panel_header(self.layout)

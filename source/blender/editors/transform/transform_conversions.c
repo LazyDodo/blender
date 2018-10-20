@@ -345,7 +345,40 @@ static void createTransTexspace(TransInfo *t)
 	copy_v3_v3(td->ext->isize, td->ext->size);
 }
 
-static void createTransCursor3D(TransInfo *t)
+/* -------------------------------------------------------------------- */
+/** \name Cursor Transform Creation
+ *
+ * Instead of transforming the selection, move the 2D/3D cursor.
+ *
+ * \{ */
+
+static void createTransCursor_image(TransInfo *t)
+{
+	TransData *td;
+	SpaceImage *sima = t->sa->spacedata.first;
+	float *cursor_location = sima->cursor;
+
+	{
+		BLI_assert(t->data_container_len == 1);
+		TransDataContainer *tc = t->data_container;
+		tc->data_len = 1;
+		td = tc->data = MEM_callocN(sizeof(TransData), "TransTexspace");
+		td->ext = tc->data_ext = MEM_callocN(sizeof(TransDataExtension), "TransTexspace");
+	}
+
+	td->flag = TD_SELECTED;
+	copy_v3_v3(td->center, cursor_location);
+	td->ob = NULL;
+
+	unit_m3(td->mtx);
+	unit_m3(td->axismtx);
+	pseudoinverse_m3_m3(td->smtx, td->mtx, PSEUDOINVERSE_EPSILON);
+
+	td->loc = cursor_location;
+	copy_v3_v3(td->iloc, cursor_location);
+}
+
+static void createTransCursor_view3d(TransInfo *t)
 {
 	TransData *td;
 
@@ -381,6 +414,8 @@ static void createTransCursor3D(TransInfo *t)
 	td->ext->quat = cursor->rotation;
 	copy_qt_qt(td->ext->iquat, cursor->rotation);
 }
+
+/** \} */
 
 /* ********************* edge (for crease) ***** */
 
@@ -6655,6 +6690,14 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			}
 		}
 	}
+	else if (t->flag & T_POSE && (t->mode == TFM_BONESIZE)) {
+		/* Handle the exception where for TFM_BONESIZE in edit mode we pretend to be
+		 * in pose mode (to use bone orientation matrix), in that case we don't do operations like autokeyframing. */
+		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+			ob = tc->poseobj;
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		}
+	}
 	else if (t->flag & T_POSE) {
 		GSet *motionpath_updates = BLI_gset_ptr_new("motionpath updates");
 
@@ -8418,7 +8461,12 @@ void createTransData(bContext *C, TransInfo *t)
 		t->flag |= T_CURSOR;
 		t->obedit_type = -1;
 
-		createTransCursor3D(t);
+		if (t->spacetype == SPACE_IMAGE) {
+			createTransCursor_image(t);
+		}
+		else {
+			createTransCursor_view3d(t);
+		}
 		countAndCleanTransDataContainer(t);
 	}
 	else if (t->options & CTX_TEXTURE) {

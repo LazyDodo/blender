@@ -157,8 +157,8 @@ class IMAGE_MT_select(Menu):
 
         layout.separator()
 
-        layout.operator("uv.select_border").pinned = False
-        layout.operator("uv.select_border", text="Border Select Pinned").pinned = True
+        layout.operator("uv.select_box").pinned = False
+        layout.operator("uv.select_box", text="Box Select Pinned").pinned = True
         layout.operator("uv.circle_select")
 
         layout.separator()
@@ -356,7 +356,7 @@ class IMAGE_MT_uvs_weldalign(Menu):
 
 
 class IMAGE_MT_uvs(Menu):
-    bl_label = "UVs"
+    bl_label = "UV"
 
     def draw(self, context):
         layout = self.layout
@@ -560,13 +560,10 @@ class IMAGE_HT_header(Header):
             row = layout.row()
             row.template_ID(sima, "mask", new="mask.new")
 
-        layout.separator_spacer()
-
-        if show_uvedit or show_maskedit or mode == 'PAINT':
-            layout.prop(sima, "use_realtime_update", icon_only=True, icon='FILE_REFRESH')
-
         if not show_render:
             layout.prop(sima, "use_image_pin", text="")
+
+        layout.separator_spacer()
 
         if show_uvedit:
             uvedit = sima.uv_editor
@@ -588,7 +585,8 @@ class IMAGE_HT_header(Header):
             sub.active = toolsettings.proportional_edit != 'DISABLED'
             sub.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
 
-        layout.prop(sima, "pivot_point", icon_only=True)
+        if show_uvedit or show_maskedit:
+            layout.prop(sima, "pivot_point", icon_only=True)
 
         row = layout.row()
         row.popover(
@@ -852,94 +850,12 @@ class IMAGE_PT_render_slots(Panel):
         )
 
         col = row.column(align=True)
-        col.operator("image.add_render_slot", icon='ZOOMIN', text="")
-        col.operator("image.remove_render_slot", icon='ZOOMOUT', text="")
+        col.operator("image.add_render_slot", icon='ADD', text="")
+        col.operator("image.remove_render_slot", icon='REMOVE', text="")
 
         col.separator()
 
         col.operator("image.clear_render_slot", icon='X', text="")
-
-
-class IMAGE_PT_tools_transform_uvs(Panel, UVToolsPanel):
-    bl_label = "Transform"
-
-    @classmethod
-    def poll(cls, context):
-        sima = context.space_data
-        return sima.show_uvedit and not context.tool_settings.use_uv_sculpt
-
-    def draw(self, context):
-        layout = self.layout
-
-        col = layout.column(align=True)
-        col.operator("transform.translate")
-        col.operator("transform.rotate")
-        col.operator("transform.resize", text="Scale")
-        col.operator("transform.shear")
-
-
-class IMAGE_PT_tools_align_uvs(Panel, UVToolsPanel):
-    bl_label = "UV Align"
-
-    @classmethod
-    def poll(cls, context):
-        sima = context.space_data
-        return sima.show_uvedit and not context.tool_settings.use_uv_sculpt
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator_context = 'EXEC_REGION_WIN'
-
-        split = layout.split()
-        col = split.column(align=True)
-        col.operator("transform.mirror", text="Mirror X").constraint_axis[0] = True
-        col.operator("transform.mirror", text="Mirror Y").constraint_axis[1] = True
-        col = split.column(align=True)
-        col.operator("transform.rotate", text="Rotate +90°").value = math.pi / 2
-        col.operator("transform.rotate", text="Rotate  - 90°").value = math.pi / -2
-
-        split = layout.split()
-        col = split.column(align=True)
-        col.operator("uv.align", text="Straighten").axis = 'ALIGN_S'
-        col.operator("uv.align", text="Straighten X").axis = 'ALIGN_T'
-        col.operator("uv.align", text="Straighten Y").axis = 'ALIGN_U'
-        col = split.column(align=True)
-        col.operator("uv.align", text="Align Auto").axis = 'ALIGN_AUTO'
-        col.operator("uv.align", text="Align X").axis = 'ALIGN_X'
-        col.operator("uv.align", text="Align Y").axis = 'ALIGN_Y'
-
-
-class IMAGE_PT_tools_uvs(Panel, UVToolsPanel):
-    bl_label = "UV Tools"
-
-    @classmethod
-    def poll(cls, context):
-        sima = context.space_data
-        return sima.show_uvedit and not context.tool_settings.use_uv_sculpt
-
-    def draw(self, context):
-        layout = self.layout
-
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.operator("uv.weld")
-        row.operator("uv.stitch")
-        col.operator("uv.remove_doubles")
-        col.operator("uv.average_islands_scale")
-        col.operator("uv.pack_islands")
-        col.operator("mesh.faces_mirror_uv")
-        col.operator("uv.minimize_stretch")
-
-        layout.label(text="UV Unwrap:")
-        row = layout.row(align=True)
-        row.operator("uv.pin").clear = False
-        row.operator("uv.pin", text="Unpin").clear = True
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.operator("uv.mark_seam", text="Mark Seam").clear = False
-        row.operator("uv.mark_seam", text="Clear Seam").clear = True
-        col.operator("uv.seams_from_islands", text="Mark Seams from Islands")
-        col.operator("uv.unwrap")
 
 
 class IMAGE_PT_paint(Panel, ImagePaintPanel):
@@ -1240,22 +1156,16 @@ class IMAGE_PT_tools_paint_options(BrushButtonsPanel, Panel):
 
 
 class IMAGE_PT_uv_sculpt_curve(Panel):
-    bl_space_type = 'IMAGE_EDITOR'
-    bl_region_type = 'TOOLS'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = ".uv_sculpt"  # dot on purpose (access from topbar)
+    bl_category = "Options"
     bl_label = "UV Sculpt Curve"
-    bl_category = "Tools"
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        sima = context.space_data
-        toolsettings = context.tool_settings.image_paint
-
-        return (
-            sima.show_uvedit and
-            context.tool_settings.use_uv_sculpt and
-            not (sima.show_paint and toolsettings.brush)
-        )
+        return (context.uv_sculpt_object is not None)
 
     def draw(self, context):
         layout = self.layout
@@ -1275,39 +1185,36 @@ class IMAGE_PT_uv_sculpt_curve(Panel):
         row.operator("brush.curve_preset", icon='NOCURVE', text="").shape = 'MAX'
 
 
-class IMAGE_PT_uv_sculpt(Panel, ImagePaintPanel):
-    bl_space_type = 'IMAGE_EDITOR'
-    bl_region_type = 'TOOLS'
-    bl_category = "Tools"
+class IMAGE_PT_uv_sculpt(Panel):
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = ".uv_sculpt"  # dot on purpose (access from topbar)
+    bl_category = "Options"
     bl_label = "UV Sculpt"
 
     @classmethod
     def poll(cls, context):
-        sima = context.space_data
-        toolsettings = context.tool_settings.image_paint
-        return (
-            sima.show_uvedit and
-            context.tool_settings.use_uv_sculpt and
-            not (sima.show_paint and toolsettings.brush)
-        )
+        return (context.uv_sculpt_object is not None)
 
     def draw(self, context):
+        from .properties_paint_common import UnifiedPaintPanel
         layout = self.layout
 
         toolsettings = context.tool_settings
         uvsculpt = toolsettings.uv_sculpt
         brush = uvsculpt.brush
 
-        if brush:
-            col = layout.column()
+        if not self.is_popover:
+            if brush:
+                col = layout.column()
 
-            row = col.row(align=True)
-            self.prop_unified_size(row, context, brush, "size", slider=True, text="Radius")
-            self.prop_unified_size(row, context, brush, "use_pressure_size")
+                row = col.row(align=True)
+                UnifiedPaintPanel.prop_unified_size(row, context, brush, "size", slider=True, text="Radius")
+                UnifiedPaintPanel.prop_unified_size(row, context, brush, "use_pressure_size")
 
-            row = col.row(align=True)
-            self.prop_unified_strength(row, context, brush, "strength", slider=True, text="Strength")
-            self.prop_unified_strength(row, context, brush, "use_pressure_strength")
+                row = col.row(align=True)
+                UnifiedPaintPanel.prop_unified_strength(row, context, brush, "strength", slider=True, text="Strength")
+                UnifiedPaintPanel.prop_unified_strength(row, context, brush, "use_pressure_strength")
 
         col = layout.column()
         col.prop(toolsettings, "uv_sculpt_lock_borders")
@@ -1318,29 +1225,6 @@ class IMAGE_PT_uv_sculpt(Panel, ImagePaintPanel):
             col.prop(toolsettings, "uv_relax_method")
 
         col.prop(uvsculpt, "show_brush")
-
-
-class IMAGE_PT_options_uvs(Panel, UVToolsPanel):
-    bl_label = "UV Options"
-    bl_category = "Options"
-
-    @classmethod
-    def poll(cls, context):
-        sima = context.space_data
-        return sima.show_uvedit
-
-    def draw(self, context):
-        layout = self.layout
-
-        sima = context.space_data
-        uv = sima.uv_editor
-        toolsettings = context.tool_settings
-
-        layout.prop(toolsettings, "use_uv_sculpt")
-        layout.prop(uv, "use_live_unwrap")
-
-        layout.prop(uv, "use_snap_to_pixels")
-        layout.prop(uv, "lock_bounds")
 
 
 class ImageScopesPanel:
@@ -1508,10 +1392,6 @@ classes = (
     IMAGE_PT_view_display,
     IMAGE_PT_view_display_uv_edit_overlays,
     IMAGE_PT_view_display_uv_edit_overlays_advanced,
-    IMAGE_PT_tools_transform_uvs,
-    IMAGE_PT_tools_align_uvs,
-    IMAGE_PT_tools_uvs,
-    IMAGE_PT_options_uvs,
     IMAGE_PT_paint,
     IMAGE_PT_tools_brush_overlay,
     IMAGE_PT_tools_brush_texture,

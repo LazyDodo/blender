@@ -694,13 +694,13 @@ static void paint_draw_tex_overlay(
 		immUniform1i("image", GL_TEXTURE0);
 
 		immBegin(GPU_PRIM_TRI_FAN, 4);
-		immAttrib2f(texCoord, 0.0f, 0.0f);
+		immAttr2f(texCoord, 0.0f, 0.0f);
 		immVertex2f(pos, quad.xmin, quad.ymin);
-		immAttrib2f(texCoord, 1.0f, 0.0f);
+		immAttr2f(texCoord, 1.0f, 0.0f);
 		immVertex2f(pos, quad.xmax, quad.ymin);
-		immAttrib2f(texCoord, 1.0f, 1.0f);
+		immAttr2f(texCoord, 1.0f, 1.0f);
 		immVertex2f(pos, quad.xmax, quad.ymax);
-		immAttrib2f(texCoord, 0.0f, 1.0f);
+		immAttr2f(texCoord, 0.0f, 1.0f);
 		immVertex2f(pos, quad.xmin, quad.ymax);
 		immEnd();
 
@@ -777,13 +777,13 @@ static void paint_draw_cursor_overlay(
 		immUniform1i("image", 0);
 
 		immBegin(GPU_PRIM_TRI_FAN, 4);
-		immAttrib2f(texCoord, 0.0f, 0.0f);
+		immAttr2f(texCoord, 0.0f, 0.0f);
 		immVertex2f(pos, quad.xmin, quad.ymin);
-		immAttrib2f(texCoord, 1.0f, 0.0f);
+		immAttr2f(texCoord, 1.0f, 0.0f);
 		immVertex2f(pos, quad.xmax, quad.ymin);
-		immAttrib2f(texCoord, 1.0f, 1.0f);
+		immAttr2f(texCoord, 1.0f, 1.0f);
 		immVertex2f(pos, quad.xmax, quad.ymax);
-		immAttrib2f(texCoord, 0.0f, 1.0f);
+		immAttr2f(texCoord, 0.0f, 1.0f);
 		immVertex2f(pos, quad.xmin, quad.ymax);
 		immEnd();
 
@@ -922,8 +922,11 @@ BLI_INLINE void draw_bezier_handle_lines(unsigned int pos, float sel_col[4], Bez
 	immEnd();
 }
 
-static void paint_draw_curve_cursor(Brush *brush)
+static void paint_draw_curve_cursor(Brush *brush, ViewContext *vc)
 {
+	GPU_matrix_push();
+	GPU_matrix_translate_2f(vc->ar->winrct.xmin, vc->ar->winrct.ymin);
+
 	if (brush->paint_curve && brush->paint_curve->points) {
 		int i;
 		PaintCurve *pc = brush->paint_curve;
@@ -990,6 +993,7 @@ static void paint_draw_curve_cursor(Brush *brush)
 
 		immUnbindProgram();
 	}
+	GPU_matrix_pop();
 }
 
 /* Special actions taken when paint cursor goes over mesh */
@@ -1060,7 +1064,7 @@ static void paint_draw_cursor(bContext *C, int x, int y, void *UNUSED(unused))
 
 	/* skip everything and draw brush here */
 	if (brush->flag & BRUSH_CURVE) {
-		paint_draw_curve_cursor(brush);
+		paint_draw_curve_cursor(brush, &vc);
 		return;
 	}
 

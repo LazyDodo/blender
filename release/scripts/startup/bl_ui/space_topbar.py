@@ -66,23 +66,6 @@ class TOPBAR_HT_upper_bar(Header):
         window = context.window
         scene = window.scene
 
-        # messages
-        layout.template_reports_banner()
-
-        row = layout.row(align=True)
-        if bpy.app.autoexec_fail is True and bpy.app.autoexec_fail_quiet is False:
-            row.label(text="Auto-run disabled", icon='ERROR')
-            if bpy.data.is_saved:
-                props = row.operator("wm.revert_mainfile", icon='SCREEN_BACK', text="Reload Trusted")
-                props.use_scripts = True
-
-            row.operator("script.autoexec_warn_clear", text="Ignore")
-
-            # include last so text doesn't push buttons out of the header
-            row.label(text=bpy.app.autoexec_fail_message)
-
-        layout.template_running_jobs()
-
         # Active workspace view-layer is retrieved through window, not through workspace.
         layout.template_ID(window, "scene", new="scene.new", unlink="scene.delete")
 
@@ -110,12 +93,13 @@ class TOPBAR_HT_lower_bar(Header):
 
     def draw_left(self, context):
         layout = self.layout
-        mode = context.mode
 
         # Active Tool
         # -----------
         from .space_toolsystem_common import ToolSelectPanelHelper
         tool = ToolSelectPanelHelper.draw_active_tool_header(context, layout)
+        tool_space_type = 'VIEW_3D' if tool is None else tool.space_type
+        tool_mode = context.mode if tool is None else tool.mode
 
         # Object Mode Options
         # -------------------
@@ -124,42 +108,46 @@ class TOPBAR_HT_lower_bar(Header):
 
         # TODO(campbell): editing options should be after active tool options
         # (obviously separated for from the users POV)
-        draw_fn = getattr(_draw_left_context_mode, mode, None)
+        draw_fn = getattr(getattr(_draw_left_context_mode, tool_space_type, None), tool_mode, None)
         if draw_fn is not None:
             draw_fn(context, layout, tool)
 
-        # Note: general mode options should be added to 'draw_right'.
-        if mode == 'SCULPT':
-            if (tool is not None) and tool.has_datablock:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
-        elif mode == 'PAINT_VERTEX':
-            if (tool is not None) and tool.has_datablock:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
-        elif mode == 'PAINT_WEIGHT':
-            if (tool is not None) and tool.has_datablock:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
-        elif mode == 'PAINT_TEXTURE':
-            if (tool is not None) and tool.has_datablock:
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
-        elif mode == 'EDIT_ARMATURE':
-            pass
-        elif mode == 'EDIT_CURVE':
-            pass
-        elif mode == 'EDIT_MESH':
-            pass
-        elif mode == 'POSE':
-            pass
-        elif mode == 'PARTICLE':
-            # Disable, only shows "Brush" panel, which is already in the top-bar.
-            # if tool.has_datablock:
-            #     layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
-            pass
-        elif mode == 'GPENCIL_PAINT':
-            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
-        elif mode == 'GPENCIL_SCULPT':
-            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_sculpt", category="")
-        elif mode == 'GPENCIL_WEIGHT':
-            layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_weight", category="")
+        if tool_space_type == 'VIEW_3D':
+            # Note: general mode options should be added to 'draw_right'.
+            if tool_mode == 'SCULPT':
+                if (tool is not None) and tool.has_datablock:
+                    layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            elif tool_mode == 'PAINT_VERTEX':
+                if (tool is not None) and tool.has_datablock:
+                    layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            elif tool_mode == 'PAINT_WEIGHT':
+                if (tool is not None) and tool.has_datablock:
+                    layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            elif tool_mode == 'PAINT_TEXTURE':
+                if (tool is not None) and tool.has_datablock:
+                    layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+            elif tool_mode == 'EDIT_ARMATURE':
+                pass
+            elif tool_mode == 'EDIT_CURVE':
+                pass
+            elif tool_mode == 'EDIT_MESH':
+                pass
+            elif tool_mode == 'POSE':
+                pass
+            elif tool_mode == 'PARTICLE':
+                # Disable, only shows "Brush" panel, which is already in the top-bar.
+                # if tool.has_datablock:
+                #     layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
+                pass
+            elif tool_mode == 'GPENCIL_PAINT':
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
+            elif tool_mode == 'GPENCIL_SCULPT':
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_sculpt", category="")
+            elif tool_mode == 'GPENCIL_WEIGHT':
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_weight", category="")
+        elif tool_space_type == 'IMAGE_EDITOR':
+            if context.uv_sculpt_object is not None:
+                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".uv_sculpt", category="")
 
     def draw_center(self, context):
         pass
@@ -170,16 +158,6 @@ class TOPBAR_HT_lower_bar(Header):
         # General options, note, these _could_ display at the RHS of the draw_left callback.
         # we just want them not to be confused with tool options.
         mode = context.mode
-
-        # grease pencil layer
-        gpl = context.active_gpencil_layer
-        if gpl and gpl.info is not None:
-            txt = gpl.info
-            maxw = 25
-            if len(txt) > maxw:
-                txt = txt[:maxw - 5] + '..' + txt[-3:]
-        else:
-            txt = ""
 
         if mode == 'SCULPT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".sculpt_mode", category="")
@@ -207,103 +185,134 @@ class TOPBAR_HT_lower_bar(Header):
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".particlemode", category="")
         elif mode == 'OBJECT':
             layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".objectmode", category="")
-        elif mode == 'GPENCIL_PAINT':
-            layout.label(text="Layer:")
-            sub = layout.row()
-            sub.ui_units_x = 8
-            sub.popover(
-                panel="TOPBAR_PT_gpencil_layers",
-                text=txt,
-            )
+        elif mode in {'GPENCIL_PAINT', 'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
+            # Grease pencil layer.
+            gpl = context.active_gpencil_layer
+            if gpl and gpl.info is not None:
+                text = gpl.info
+                maxw = 25
+                if len(text) > maxw:
+                    text = text[:maxw - 5] + '..' + text[-3:]
+            else:
+                text = ""
 
-            layout.prop(context.tool_settings, "use_gpencil_draw_onback", text="", icon='ORTHO')
-            layout.prop(context.tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
-            layout.prop(context.tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
-        elif mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.label(text="Layer:")
             sub = layout.row()
             sub.ui_units_x = 8
             sub.popover(
                 panel="TOPBAR_PT_gpencil_layers",
-                text=txt,
+                text=text,
             )
+            if mode == 'GPENCIL_PAINT':
+                tool_settings = context.tool_settings
+                layout.prop(tool_settings, "use_gpencil_draw_onback", text="", icon='XRAY')
+                layout.prop(tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
+                layout.prop(tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
 
 
 class _draw_left_context_mode:
-    @staticmethod
-    def SCULPT(context, layout, tool):
-        if (tool is None) or (not tool.has_datablock):
-            return
-        brush = context.tool_settings.sculpt.brush
-        if brush is None:
-            return
+    class VIEW_3D:
+        @staticmethod
+        def SCULPT(context, layout, tool):
+            if (tool is None) or (not tool.has_datablock):
+                return
+            brush = context.tool_settings.sculpt.brush
+            if brush is None:
+                return
 
-        from .properties_paint_common import UnifiedPaintPanel
+            from .properties_paint_common import UnifiedPaintPanel
 
-        UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
-        UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
-        layout.prop(brush, "direction", text="", expand=True)
+            UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
+            UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
+            layout.prop(brush, "direction", text="", expand=True)
 
-    def PAINT_TEXTURE(context, layout, tool):
-        if (tool is None) or (not tool.has_datablock):
-            return
-        brush = context.tool_settings.vertex_paint.brush
-        if brush is None:
-            return
+        def PAINT_TEXTURE(context, layout, tool):
+            if (tool is None) or (not tool.has_datablock):
+                return
+            brush = context.tool_settings.vertex_paint.brush
+            if brush is None:
+                return
 
-        from .properties_paint_common import UnifiedPaintPanel
+            from .properties_paint_common import UnifiedPaintPanel
 
-        layout.prop(brush, "color", text="")
-        UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
-        UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
+            layout.prop(brush, "color", text="")
+            UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
+            UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
-    def PAINT_VERTEX(context, layout, tool):
-        if (tool is None) or (not tool.has_datablock):
-            return
-        brush = context.tool_settings.vertex_paint.brush
-        if brush is None:
-            return
+        def PAINT_VERTEX(context, layout, tool):
+            if (tool is None) or (not tool.has_datablock):
+                return
+            brush = context.tool_settings.vertex_paint.brush
+            if brush is None:
+                return
 
-        from .properties_paint_common import UnifiedPaintPanel
+            from .properties_paint_common import UnifiedPaintPanel
 
-        layout.prop(brush, "color", text="")
-        UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
-        UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
+            layout.prop(brush, "color", text="")
+            UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
+            UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
-    def PAINT_WEIGHT(context, layout, tool):
-        if (tool is None) or (not tool.has_datablock):
-            return
-        brush = context.tool_settings.weight_paint.brush
-        if brush is None:
-            return
+        def PAINT_WEIGHT(context, layout, tool):
+            if (tool is None) or (not tool.has_datablock):
+                return
+            brush = context.tool_settings.weight_paint.brush
+            if brush is None:
+                return
 
-        from .properties_paint_common import UnifiedPaintPanel
+            from .properties_paint_common import UnifiedPaintPanel
 
-        UnifiedPaintPanel.prop_unified_weight(layout, context, brush, "weight", slider=True, text="Weight")
-        UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
-        UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
+            UnifiedPaintPanel.prop_unified_weight(layout, context, brush, "weight", slider=True, text="Weight")
+            UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
+            UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
-    def PARTICLE(context, layout, tool):
-        # See: 'VIEW3D_PT_tools_brush', basically a duplicate
-        settings = context.tool_settings.particle_edit
-        brush = settings.brush
-        tool = settings.tool
-        if tool != 'NONE':
-            layout.prop(brush, "size", slider=True)
-            if tool == 'ADD':
-                layout.prop(brush, "count")
+        def PARTICLE(context, layout, tool):
+            # See: 'VIEW3D_PT_tools_brush', basically a duplicate
+            settings = context.tool_settings.particle_edit
+            brush = settings.brush
+            tool = settings.tool
+            if tool != 'NONE':
+                layout.prop(brush, "size", slider=True)
+                if tool == 'ADD':
+                    layout.prop(brush, "count")
 
-                layout.prop(settings, "use_default_interpolate")
-                layout.prop(brush, "steps", slider=True)
-                layout.prop(settings, "default_key_count", slider=True)
-            else:
-                layout.prop(brush, "strength", slider=True)
+                    layout.prop(settings, "use_default_interpolate")
+                    layout.prop(brush, "steps", slider=True)
+                    layout.prop(settings, "default_key_count", slider=True)
+                else:
+                    layout.prop(brush, "strength", slider=True)
 
-                if tool == 'LENGTH':
-                    layout.row().prop(brush, "length_mode", expand=True)
-                elif tool == 'PUFF':
-                    layout.row().prop(brush, "puff_mode", expand=True)
-                    layout.prop(brush, "use_puff_volume")
+                    if tool == 'LENGTH':
+                        layout.row().prop(brush, "length_mode", expand=True)
+                    elif tool == 'PUFF':
+                        layout.row().prop(brush, "puff_mode", expand=True)
+                        layout.prop(brush, "use_puff_volume")
+                    elif tool == 'COMB':
+                        # Note: actually in 'Options' panel,
+                        # disabled when used in popover.
+                        row = layout.row()
+                        row.active = settings.is_editable
+                        row.prop(settings, "use_emitter_deflect", text="Deflect Emitter")
+                        sub = row.row(align=True)
+                        sub.active = settings.use_emitter_deflect
+                        sub.prop(settings, "emitter_distance", text="Distance")
+
+    class IMAGE_EDITOR:
+        def VIEW(context, layout, tool):
+            tool_settings = context.tool_settings
+            if tool_settings.use_uv_sculpt:
+                if context.mode == 'EDIT_MESH':
+                    uv_sculpt = tool_settings.uv_sculpt
+                    brush = uv_sculpt.brush
+                    if brush:
+                        from .properties_paint_common import UnifiedPaintPanel
+
+                        row = layout.row(align=True)
+                        UnifiedPaintPanel.prop_unified_size(row, context, brush, "size", slider=True, text="Radius")
+                        UnifiedPaintPanel.prop_unified_size(row, context, brush, "use_pressure_size")
+
+                        row = layout.row(align=True)
+                        UnifiedPaintPanel.prop_unified_strength(row, context, brush, "strength", slider=True, text="Strength")
+                        UnifiedPaintPanel.prop_unified_strength(row, context, brush, "use_pressure_strength")
 
 
 class TOPBAR_PT_gpencil_layers(Panel):
@@ -339,13 +348,14 @@ class TOPBAR_PT_gpencil_layers(Panel):
 
         col = row.column()
         layer_rows = 10
-        col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index", rows=layer_rows)
+        col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index",
+                          rows=layer_rows, reverse=True)
 
         col = row.column()
 
         sub = col.column(align=True)
-        sub.operator("gpencil.layer_add", icon='ZOOMIN', text="")
-        sub.operator("gpencil.layer_remove", icon='ZOOMOUT', text="")
+        sub.operator("gpencil.layer_add", icon='ADD', text="")
+        sub.operator("gpencil.layer_remove", icon='REMOVE', text="")
 
         gpl = context.active_gpencil_layer
         if gpl:
@@ -394,7 +404,7 @@ class TOPBAR_MT_file(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_AREA'
-        layout.menu("TOPBAR_MT_file_new", text="New", icon='FILE')
+        layout.menu("TOPBAR_MT_file_new", text="New", icon='FILE_NEW')
         layout.operator("wm.open_mainfile", text="Open...", icon='FILE_FOLDER')
         layout.menu("TOPBAR_MT_file_open_recent")
         layout.operator("wm.revert_mainfile")
@@ -488,7 +498,7 @@ class TOPBAR_MT_file_new(Menu):
         splash_limit = 5
 
         if use_splash:
-            icon = 'FILE'
+            icon = 'FILE_NEW'
             show_more = len(paths) > (splash_limit - 1)
             if show_more:
                 paths = paths[:splash_limit - 2]
@@ -738,7 +748,7 @@ class TOPBAR_MT_help(Menu):
         ).url = "https://store.blender.org"
         layout.operator(
             "wm.url_open", text="Development Fund", icon='URL'
-        ).url = "https://www.blender.org/foundation/development-fund/"
+        ).url = "https://fund.blender.org"
         layout.operator(
             "wm.url_open", text="Donate", icon='URL',
         ).url = "https://www.blender.org/foundation/donation-payment/"
@@ -766,7 +776,7 @@ class TOPBAR_MT_file_specials(Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_AREA'
-        layout.operator("wm.read_homefile", text="New", icon='FILE')
+        layout.operator("wm.read_homefile", text="New", icon='FILE_NEW')
         layout.operator("wm.open_mainfile", text="Open...", icon='FILE_FOLDER')
 
         layout.separator()

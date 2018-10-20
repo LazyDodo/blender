@@ -177,6 +177,10 @@ typedef struct View3DOverlay {
 	/* Paint mode settings */
 	int paint_flag;
 
+	/* Weight paint mode settings */
+	int wpaint_flag;
+	char _pad2[4];
+
 	/* Alpha for texture, weight, vertex paint overlay */
 	float texture_paint_mode_opacity;
 	float vertex_paint_mode_opacity;
@@ -188,13 +192,9 @@ typedef struct View3DOverlay {
 
 	/* Other settings */
 	float wireframe_threshold;
-	char _pad0[4];
 
 	/* grease pencil settings */
-	float gpencil_grid_scale;
 	float gpencil_paper_opacity;
-	int   gpencil_grid_lines;
-	int   gpencil_grid_axis;
 	float gpencil_grid_opacity;
 	char _pad1[4];
 
@@ -464,6 +464,11 @@ enum {
 	V3D_OVERLAY_PAINT_WIRE        = (1 << 0),
 };
 
+/* View3DOverlay->wpaint_flag */
+enum {
+	V3D_OVERLAY_WPAINT_CONTOURS   = (1 << 0),
+};
+
 /* View3D->around */
 enum {
 	/* center of the bounding box */
@@ -518,13 +523,5 @@ enum {
 /* #BKE_screen_view3d_zoom_to_fac() values above */
 #define RV3D_CAMZOOM_MIN_FACTOR  0.1657359312880714853f
 #define RV3D_CAMZOOM_MAX_FACTOR 44.9852813742385702928f
-
-/* View3d.gpencil_grid_axis */
-enum {
-	V3D_GP_GRID_AXIS_LOCK = (1 << 0),
-	V3D_GP_GRID_AXIS_X    = (1 << 1),
-	V3D_GP_GRID_AXIS_Y    = (1 << 2),
-	V3D_GP_GRID_AXIS_Z    = (1 << 3),
-};
 
 #endif

@@ -27,6 +27,7 @@
 
 #include <string.h>
 
+#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "DNA_userdef_types.h"
@@ -49,6 +50,32 @@ static void do_versions_theme(UserDef *userdef, bTheme *btheme)
 #define USER_VERSION_ATLEAST(ver, subver) MAIN_VERSION_ATLEAST(userdef, ver, subver)
 	if (!USER_VERSION_ATLEAST(280, 20)) {
 		memcpy(btheme, &U_theme_default, sizeof(*btheme));
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 25)) {
+		copy_v4_v4_char(btheme->tact.anim_preview_range, btheme->tact.anim_active);
+		copy_v4_v4_char(btheme->tnla.anim_preview_range, btheme->tnla.anim_active);
+		copy_v4_v4_char(btheme->tipo.anim_preview_range, btheme->tact.anim_active);
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 26)) {
+		copy_v4_v4_char(btheme->tui.icon_collection, U_theme_default.tui.icon_collection);
+		copy_v4_v4_char(btheme->tui.icon_object, U_theme_default.tui.icon_object);
+		copy_v4_v4_char(btheme->tui.icon_object_data, U_theme_default.tui.icon_object_data);
+		copy_v4_v4_char(btheme->tui.icon_modifier, U_theme_default.tui.icon_modifier);
+		copy_v4_v4_char(btheme->tui.icon_shading, U_theme_default.tui.icon_shading);
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 27)) {
+		copy_v4_v4_char(btheme->tact.shade2, U_theme_default.tact.shade2);
+		copy_v4_v4_char(btheme->tact.hilite, U_theme_default.tact.hilite);
+		copy_v4_v4_char(btheme->tact.group, U_theme_default.tact.group);
+		copy_v4_v4_char(btheme->tact.group_active, U_theme_default.tact.group_active);
+		copy_v4_v4_char(btheme->tact.strip_select, U_theme_default.tact.strip_select);
+		copy_v4_v4_char(btheme->tact.ds_channel, U_theme_default.tact.ds_channel);
+		copy_v4_v4_char(btheme->tact.ds_subchannel, U_theme_default.tact.ds_subchannel);
+		copy_v4_v4_char(btheme->tact.keytype_movehold, U_theme_default.tact.keytype_movehold);
+		copy_v4_v4_char(btheme->tact.keytype_movehold_select, U_theme_default.tact.keytype_movehold_select);
 	}
 #undef USER_VERSION_ATLEAST
 

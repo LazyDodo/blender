@@ -94,8 +94,8 @@ class MASK_PT_layers:
 
         sub = row.column(align=True)
 
-        sub.operator("mask.layer_new", icon='ZOOMIN', text="")
-        sub.operator("mask.layer_remove", icon='ZOOMOUT', text="")
+        sub.operator("mask.layer_new", icon='ADD', text="")
+        sub.operator("mask.layer_remove", icon='REMOVE', text="")
 
         if active_layer:
             sub.separator()
@@ -391,7 +391,7 @@ class MASK_MT_select(Menu):
 
         layout.separator()
 
-        layout.operator("mask.select_border")
+        layout.operator("mask.select_box")
         layout.operator("mask.select_circle")
 
         layout.separator()

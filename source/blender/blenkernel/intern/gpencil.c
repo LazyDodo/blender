@@ -467,6 +467,12 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 	gpd->runtime.batch_cache_data = NULL;
 	gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 
+	/* grid settings */
+	ARRAY_SET_ITEMS(gpd->grid.color, 0.5f, 0.5f, 0.5f); // Color
+	ARRAY_SET_ITEMS(gpd->grid.scale, 1.0f, 1.0f); // Scale
+	gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
+	gpd->grid.axis = GP_GRID_AXIS_Y;
+
 	/* onion-skinning settings (datablock level) */
 	gpd->onion_flag |= (GP_ONION_GHOST_PREVCOL | GP_ONION_GHOST_NEXTCOL);
 	gpd->onion_flag |= GP_ONION_FADE;
@@ -1102,22 +1108,35 @@ bool BKE_gpencil_stroke_minmax(
 }
 
 /* get min/max bounds of all strokes in GP datablock */
-static void gpencil_minmax(bGPdata *gpd, float r_min[3], float r_max[3])
+bool BKE_gpencil_data_minmax(Object *ob, const bGPdata *gpd, float r_min[3], float r_max[3])
 {
+	float bmat[3][3];
+	bool changed = false;
+
 	INIT_MINMAX(r_min, r_max);
 
 	if (gpd == NULL)
-		return;
+		return changed;
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		bGPDframe *gpf = gpl->actframe;
 
 		if (gpf != NULL) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				BKE_gpencil_stroke_minmax(gps, false, r_min, r_max);
+				changed = BKE_gpencil_stroke_minmax(gps, false, r_min, r_max);
 			}
 		}
 	}
+
+	if ((changed) && (ob)) {
+		copy_m3_m4(bmat, ob->obmat);
+		mul_m3_v3(bmat, r_min);
+		add_v3_v3(r_min, ob->obmat[3]);
+		mul_m3_v3(bmat, r_max);
+		add_v3_v3(r_max, ob->obmat[3]);
+	}
+
+	return changed;
 }
 
 /* compute center of bounding box */
@@ -1125,7 +1144,7 @@ void BKE_gpencil_centroid_3D(bGPdata *gpd, float r_centroid[3])
 {
 	float min[3], max[3], tot[3];
 
-	gpencil_minmax(gpd, min, max);
+	BKE_gpencil_data_minmax(NULL, gpd, min, max);
 
 	add_v3_v3v3(tot, min, max);
 	mul_v3_v3fl(r_centroid, tot, 0.5f);
@@ -1146,7 +1165,7 @@ static void boundbox_gpencil(Object *ob)
 	bb  = ob->bb;
 	gpd = ob->data;
 
-	gpencil_minmax(gpd, min, max);
+	BKE_gpencil_data_minmax(NULL, gpd, min, max);
 	BKE_boundbox_init_from_minmax(bb, min, max);
 
 	bb->flag &= ~BOUNDBOX_DIRTY;

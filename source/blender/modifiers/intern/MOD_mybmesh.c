@@ -4256,7 +4256,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 			debug_colorize(bm, cam_loc);
 		}
 
-		result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
+		result = BKE_mesh_from_bmesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 
 		BM_mesh_free(bm);
 
@@ -4292,7 +4292,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 
 	if( mmd->camera_ob == NULL){
 		//Can't proceed without camera obj
-		result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
+		result = BKE_mesh_from_bmesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 		BM_mesh_free(bm);
 		BM_mesh_free(bm_orig);
 		return result;
@@ -4389,7 +4389,7 @@ static Mesh *mybmesh_do(Mesh *mesh, MyBMeshModifierData *mmd, float cam_loc[3])
 		BLI_buffer_free(&cusp_verts);
 		BLI_buffer_free(&radi_vert_buffer);
 	}
-	result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
+	result = BKE_mesh_from_bmesh_nomain(bm, &((struct BMeshToMeshParams){0}));
 
 	BM_mesh_free(bm);
 	BM_mesh_free(bm_orig);

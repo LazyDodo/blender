@@ -2521,11 +2521,11 @@ class WM_OT_studiolight_uninstall(Operator):
         userpref = context.user_preferences
         for studio_light in userpref.studio_lights:
             if studio_light.index == self.index:
-                if len(studio_light.path) > 0:
+                if studio_light.path:
                     self._remove_path(pathlib.Path(studio_light.path))
-                if len(studio_light.path_irr_cache) > 0:
+                if studio_light.path_irr_cache:
                     self._remove_path(pathlib.Path(studio_light.path_irr_cache))
-                if len(studio_light.path_sh_cache) > 0:
+                if studio_light.path_sh_cache:
                     self._remove_path(pathlib.Path(studio_light.path_sh_cache))
                 userpref.studio_lights.remove(studio_light)
                 return {'FINISHED'}
@@ -2559,8 +2559,6 @@ class WM_MT_splash(Menu):
 
         col = split.column()
 
-        col.label()
-
         sub = col.column(align=True)
         sub.label(text="Input and Shortcuts:")
         text = bpy.path.display_name(context.window_manager.keyconfigs.active.name)
@@ -2570,13 +2568,19 @@ class WM_MT_splash(Menu):
 
         col.separator()
 
+        sub = col.column(align=True)
+        sub.label(text="Theme:")
+        label = bpy.types.USERPREF_MT_interface_theme_presets.bl_label
+        if label == "Presets":
+            label = "Blender Dark"
+        sub.menu("USERPREF_MT_interface_theme_presets", text=label)
+
         # We need to make switching to a language easier first
         #sub = col.column(align=False)
         # sub.label(text="Language:")
         #userpref = context.user_preferences
         #sub.prop(userpref.system, "language", text="")
 
-        col.label()
         col.label()
 
         layout.label()
@@ -2661,11 +2665,11 @@ class WM_MT_splash(Menu):
             ).url = "https://www.blender.org/download/releases/%d-%d/" % bpy.app.version[:2]
             col2.operator(
                 "wm.url_open", text="Development Fund", icon='URL'
-            ).url = "https://www.blender.org/foundation/development-fund/"
+            ).url = "https://fund.blender.org"
         else:
             col2.operator(
                 "wm.url_open", text="Development Fund", icon='URL'
-            ).url = "https://www.blender.org/foundation/development-fund/"
+            ).url = "https://fund.blender.org"
             col2.operator(
                 "wm.url_open", text="Donate", icon='URL'
             ).url = "https://www.blender.org/foundation/donation-payment/"

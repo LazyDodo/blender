@@ -45,6 +45,7 @@ typedef enum ShaderFxType {
 	eShaderFxType_Rim       = 7,
 	eShaderFxType_Colorize  = 8,
 	eShaderFxType_Shadow    = 9,
+	eShaderFxType_Glow      = 10,
 	NUM_SHADER_FX_TYPES
 } ShaderFxType;
 
@@ -73,11 +74,11 @@ typedef struct ShaderFxData {
 } ShaderFxData;
 
 /* Runtime temp data */
-typedef struct ShaderFxData_runtime {
+typedef struct ShaderFxData_Runtime {
 	struct DRWShadingGroup *fx_sh;
 	struct DRWShadingGroup *fx_sh_b;
 	struct DRWShadingGroup *fx_sh_c;
-} ShaderFxData_runtime;
+} ShaderFxData_Runtime;
 
 typedef struct BlurShaderFxData {
 	ShaderFxData shaderfx;
@@ -87,7 +88,8 @@ typedef struct BlurShaderFxData {
 	float coc;                   /* circle of confusion */
 	int blur[2];                 /* not visible in rna */
 	char pad[4];
-	ShaderFxData_runtime runtime;
+
+	ShaderFxData_Runtime runtime;
 } BlurShaderFxData;
 
 typedef enum eBlurShaderFx_Flag {
@@ -102,7 +104,8 @@ typedef struct ColorizeShaderFxData {
 	float factor;
 	int flag;                    /* flags */
 	char pad[4];
-	ShaderFxData_runtime runtime;
+
+	ShaderFxData_Runtime runtime;
 } ColorizeShaderFxData;
 
 typedef enum ColorizeShaderFxModes {
@@ -117,13 +120,34 @@ typedef struct FlipShaderFxData {
 	ShaderFxData shaderfx;
 	int flag;                    /* flags */
 	int flipmode;  /* internal, not visible in rna */
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } FlipShaderFxData;
 
 typedef enum eFlipShaderFx_Flag {
 	FX_FLIP_HORIZONTAL = (1 << 0),
 	FX_FLIP_VERTICAL = (1 << 1),
 } eFlipShaderFx_Flag;
+
+typedef struct GlowShaderFxData {
+	ShaderFxData shaderfx;
+	float glow_color[3];
+	float select_color[3];
+	float threshold;
+	int   flag; /* flags */
+	int   mode;
+	int   blur[2];
+	int   samples;
+	ShaderFxData_Runtime runtime;
+} GlowShaderFxData;
+
+typedef enum GlowShaderFxModes {
+	eShaderFxGlowMode_Luminance = 0,
+	eShaderFxGlowMode_Color = 1,
+} GlowShaderFxModes;
+
+typedef enum eGlowShaderFx_Flag {
+	FX_GLOW_USE_ALPHA = (1 << 0),
+} eGlowShaderFx_Flag;
 
 typedef struct LightShaderFxData {
 	ShaderFxData shaderfx;
@@ -133,7 +157,7 @@ typedef struct LightShaderFxData {
 	float ambient;
 	float loc[4]; /* internal, not visible in rna */
 	char pad[4];
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } LightShaderFxData;
 
 typedef struct PixelShaderFxData {
@@ -141,7 +165,7 @@ typedef struct PixelShaderFxData {
 	int size[3];                 /* last element used for shader only */
 	int flag;                    /* flags */
 	float rgba[4];
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } PixelShaderFxData;
 
 typedef enum ePixelShaderFx_Flag {
@@ -158,7 +182,7 @@ typedef struct RimShaderFxData {
 	int   blur[2];
 	int   samples;
 	char pad[4];
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } RimShaderFxData;
 
 typedef enum RimShaderFxModes {
@@ -185,7 +209,7 @@ typedef struct ShadowShaderFxData {
 	int   blur[2];
 	int   samples;
 	char pad[4];
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } ShadowShaderFxData;
 
 typedef enum eShadowShaderFx_Flag {
@@ -200,7 +224,7 @@ typedef struct SwirlShaderFxData {
 	int radius;
 	float angle;
 	int transparent;  /* not visible in rna */
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } SwirlShaderFxData;
 
 typedef enum eSwirlShaderFx_Flag {
@@ -215,6 +239,6 @@ typedef struct WaveShaderFxData {
 	int orientation;
 	int flag;                    /* flags */
 	char pad[4];
-	ShaderFxData_runtime runtime;
+	ShaderFxData_Runtime runtime;
 } WaveShaderFxData;
 #endif  /* __DNA_SHADER_FX_TYPES_H__ */

@@ -72,7 +72,7 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
 	/* General */
 	{0, "", ICON_NONE, "General", ""},
 	{SPACE_VIEW3D, "VIEW_3D", ICON_VIEW3D, "3D View", "3D viewport"},
-	{SPACE_IMAGE, "IMAGE_EDITOR", ICON_IMAGE_COL, "UV/Image Editor", "View and edit images and UV Maps"},
+	{SPACE_IMAGE, "IMAGE_EDITOR", ICON_IMAGE, "UV/Image Editor", "View and edit images and UV Maps"},
 	{SPACE_NODE, "NODE_EDITOR", ICON_NODETREE, "Node Editor", "Editor for node-based shading and compositing tools"},
 	{SPACE_SEQ, "SEQUENCE_EDITOR", ICON_SEQUENCE, "Video Sequencer", "Video editing tools"},
 	{SPACE_CLIP, "CLIP_EDITOR", ICON_CLIP, "Movie Clip Editor", "Motion tracking tools"},
@@ -81,7 +81,7 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
 	{0, "", ICON_NONE, "Animation", ""},
 	//{SPACE_ACTION, "TIMELINE", ICON_TIME, "Timeline", "Timeline and playback controls (NOTE: Switch to 'Timeline' mode)"}, /* XXX */
 	{SPACE_ACTION, "DOPESHEET_EDITOR", ICON_ACTION, "Dope Sheet", "Adjust timing of keyframes"},
-	{SPACE_IPO, "GRAPH_EDITOR", ICON_IPO, "Graph Editor", "Edit drivers and keyframe interpolation"},
+	{SPACE_IPO, "GRAPH_EDITOR", ICON_GRAPH, "Graph Editor", "Edit drivers and keyframe interpolation"},
 	{SPACE_NLA, "NLA_EDITOR", ICON_NLA, "Nonlinear Animation", "Combine and layer Actions"},
 
 	/* Scripting */
@@ -99,16 +99,16 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
 
 	/* Data */
 	{0, "", ICON_NONE, "Data", ""},
-	{SPACE_OUTLINER, "OUTLINER", ICON_OOPS, "Outliner", "Overview of scene graph and all available data-blocks"},
-	{SPACE_BUTS, "PROPERTIES", ICON_BUTS, "Properties", "Edit properties of active object and related data-blocks"},
-	{SPACE_FILE, "FILE_BROWSER", ICON_FILESEL, "File Browser", "Browse for files and assets"},
+	{SPACE_OUTLINER, "OUTLINER", ICON_OUTLINER, "Outliner", "Overview of scene graph and all available data-blocks"},
+	{SPACE_BUTS, "PROPERTIES", ICON_PROPERTIES, "Properties", "Edit properties of active object and related data-blocks"},
+	{SPACE_FILE, "FILE_BROWSER", ICON_FILEBROWSER, "File Browser", "Browse for files and assets"},
 	{SPACE_USERPREF, "USER_PREFERENCES", ICON_PREFERENCES, "User Preferences",
 	                 "Edit persistent configuration settings"},
 	{0, NULL, 0, NULL, NULL}
 };
 
 const EnumPropertyItem rna_enum_space_graph_mode_items[] = {
-	{SIPO_MODE_ANIMATION, "FCURVES", ICON_IPO, "Graph Editor",
+	{SIPO_MODE_ANIMATION, "FCURVES", ICON_GRAPH, "Graph Editor",
 	 "Edit animation/keyframes displayed as 2D curves"},
 	{SIPO_MODE_DRIVERS, "DRIVERS", ICON_DRIVER, "Drivers", "Edit drivers"},
 	{0, NULL, 0, NULL, NULL}
@@ -168,7 +168,8 @@ const EnumPropertyItem rna_enum_space_action_mode_items[] = {
 #undef SACT_ITEM_CACHEFILE
 
 const EnumPropertyItem rna_enum_space_image_mode_items[] = {
-	{SI_MODE_VIEW, "VIEW", ICON_FILE_IMAGE, "View", "View the image and UV edit in mesh editmode"},
+	{SI_MODE_VIEW, "VIEW", ICON_FILE_IMAGE, "View", "View the image"},
+	{SI_MODE_UV, "UV", ICON_GROUP_UVS, "UV Edit", "UV edit in mesh editmode"},
 	{SI_MODE_PAINT, "PAINT", ICON_TPAINT_HLT, "Paint", "2D image painting mode"},
 	{SI_MODE_MASK, "MASK", ICON_MOD_MASK, "Mask", "Mask editing"},
 	{0, NULL, 0, NULL, NULL}
@@ -238,10 +239,10 @@ static const EnumPropertyItem autosnap_items[] = {
 #endif
 
 const EnumPropertyItem rna_enum_shading_type_items[] = {
-	{OB_WIRE,     "WIREFRAME", ICON_WIRE,          "Wireframe", "Display the object as wire edges"},
-	{OB_SOLID,    "SOLID",     ICON_SOLID,         "Solid",     "Display in solid mode"},
-	{OB_MATERIAL, "MATERIAL",  ICON_MATERIAL_DATA, "LookDev",   "Display in LookDev mode"},
-	{OB_RENDER,   "RENDERED",  ICON_SMOOTH,        "Rendered",  "Display render preview"},
+	{OB_WIRE,     "WIREFRAME", ICON_SHADING_WIRE,     "Wireframe", "Display the object as wire edges"},
+	{OB_SOLID,    "SOLID",     ICON_SHADING_SOLID,    "Solid",     "Display in solid mode"},
+	{OB_MATERIAL, "MATERIAL",  ICON_SHADING_TEXTURE,  "LookDev",   "Display in LookDev mode"},
+	{OB_RENDER,   "RENDERED",  ICON_SHADING_RENDERED, "Rendered",  "Display render preview"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -307,14 +308,6 @@ const EnumPropertyItem rna_enum_file_sort_items[] = {
 	{FILE_SORT_EXTENSION, "FILE_SORT_EXTENSION", ICON_SORTBYEXT, "Sort by extension", "Sort the file list by extension/type"},
 	{FILE_SORT_TIME, "FILE_SORT_TIME", ICON_SORTTIME, "Sort by time", "Sort files by modification time"},
 	{FILE_SORT_SIZE, "FILE_SORT_SIZE", ICON_SORTSIZE, "Sort by size", "Sort files by size"},
-	{0, NULL, 0, NULL, NULL}
-};
-
-static const EnumPropertyItem rna_enum_gpencil_grid_axis_items[] = {
-	{V3D_GP_GRID_AXIS_LOCK, "LOCK", 0, "Drawing Plane", "Use current drawing locked axis" },
-	{V3D_GP_GRID_AXIS_X, "X", 0, "Y-Z", ""},
-	{V3D_GP_GRID_AXIS_Y, "Y", 0, "X-Z", ""},
-	{V3D_GP_GRID_AXIS_Z, "Z", 0, "X-Y", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -1205,10 +1198,10 @@ static const EnumPropertyItem *rna_SpaceImageEditor_pivot_itemf(
         PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
 {
 	static const EnumPropertyItem pivot_items[] = {
-		{V3D_AROUND_CENTER_BOUNDS, "CENTER", ICON_ROTATE, "Bounding Box Center", ""},
-		{V3D_AROUND_CENTER_MEAN, "MEDIAN", ICON_ROTATECENTER, "Median Point", ""},
-		{V3D_AROUND_CURSOR, "CURSOR", ICON_CURSOR, "2D Cursor", ""},
-		{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_ROTATECOLLECTION,
+		{V3D_AROUND_CENTER_BOUNDS, "CENTER", ICON_PIVOT_BOUNDBOX, "Bounding Box Center", ""},
+		{V3D_AROUND_CENTER_MEAN, "MEDIAN", ICON_PIVOT_MEDIAN, "Median Point", ""},
+		{V3D_AROUND_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "2D Cursor", ""},
+		{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_PIVOT_INDIVIDUAL,
 		            "Individual Origins", "Pivot around each selected island's own median point"},
 		{0, NULL, 0, NULL, NULL}
 	};
@@ -2303,7 +2296,7 @@ static void rna_def_space_outliner(BlenderRNA *brna)
 		{SO_SEQUENCE, "SEQUENCE", ICON_SEQUENCE, "Sequence", "Display sequence data-blocks"},
 		{SO_LIBRARIES, "LIBRARIES", ICON_FILE_BLEND, "Blender File", "Display data of current file and linked libraries"},
 		{SO_DATA_API, "DATA_API", ICON_RNA, "Data API", "Display low level Blender data and its properties"},
-		{SO_ID_ORPHANS, "ORPHAN_DATA", ICON_EXTERNAL_DATA, "Orphan Data",
+		{SO_ID_ORPHANS, "ORPHAN_DATA", ICON_ORPHAN_DATA, "Orphan Data",
 		                "Display data-blocks which are unused and/or will be lost when the file is reloaded"},
 		{0, NULL, 0, NULL, NULL}
 	};
@@ -2724,9 +2717,9 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Text", "Display overlay text");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
-	prop = RNA_def_property(srna, "show_ornaments", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_extras", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "overlay.flag", V3D_OVERLAY_HIDE_OBJECT_XTRAS);
-	RNA_def_property_ui_text(prop, "Ornaments", "Object details, including empty wire, cameras and other extras");
+	RNA_def_property_ui_text(prop, "Extras", "Object details, including empty wire, cameras and other visual guides");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "show_bones", PROP_BOOLEAN, PROP_NONE);
@@ -2789,6 +2782,11 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_paint_wire", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "overlay.paint_flag", V3D_OVERLAY_PAINT_WIRE);
 	RNA_def_property_ui_text(prop, "Show Wire", "Use wireframe display in painting modes");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "show_wpaint_contours", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "overlay.wpaint_flag", V3D_OVERLAY_WPAINT_CONTOURS);
+	RNA_def_property_ui_text(prop, "Show Weight Contours", "Show contour lines formed by points with the same interpolated weight");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "show_weight", PROP_BOOLEAN, PROP_NONE);
@@ -2959,26 +2957,6 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", V3D_GP_SHOW_GRID);
 	RNA_def_property_ui_text(prop, "Use Grid",
 		"Display a grid over grease pencil paper");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "gpencil_grid_scale", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "overlay.gpencil_grid_scale");
-	RNA_def_property_range(prop, 0.01f, FLT_MAX);
-	RNA_def_property_float_default(prop, 1.0f);
-	RNA_def_property_ui_text(prop, "Scale", "Grid scale");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "gpencil_grid_lines", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "overlay.gpencil_grid_lines");
-	RNA_def_property_range(prop, 1, INT_MAX);
-	RNA_def_property_int_default(prop, GP_DEFAULT_GRID_LINES);
-	RNA_def_property_ui_text(prop, "Subdivisions", "Number of subdivisions in each side of symmetry line");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "gpencil_grid_axis", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "overlay.gpencil_grid_axis");
-	RNA_def_property_enum_items(prop, rna_enum_gpencil_grid_axis_items);
-	RNA_def_property_ui_text(prop, "Canvas Plane", "Axis to display grid");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_grid_opacity", PROP_FLOAT, PROP_NONE);
@@ -4055,9 +4033,9 @@ static void rna_def_space_graph(BlenderRNA *brna)
 
 	/* this is basically the same as the one for the 3D-View, but with some entries omitted */
 	static const EnumPropertyItem gpivot_items[] = {
-		{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_ROTATE, "Bounding Box Center", ""},
-		{V3D_AROUND_CURSOR, "CURSOR", ICON_CURSOR, "2D Cursor", ""},
-		{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_ROTATECOLLECTION, "Individual Centers", ""},
+		{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_PIVOT_BOUNDBOX, "Bounding Box Center", ""},
+		{V3D_AROUND_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "2D Cursor", ""},
+		{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_PIVOT_INDIVIDUAL, "Individual Centers", ""},
 		/*{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", 0, "Median Point", ""}, */
 		/*{V3D_AROUND_ACTIVE, "ACTIVE_ELEMENT", 0, "Active Element", ""}, */
 		{0, NULL, 0, NULL, NULL}
@@ -4949,7 +4927,7 @@ static void rna_def_space_clip(BlenderRNA *brna)
 
 	static const EnumPropertyItem view_items[] = {
 		{SC_VIEW_CLIP, "CLIP", ICON_SEQUENCE, "Clip", "Show editing clip preview"},
-		{SC_VIEW_GRAPH, "GRAPH", ICON_IPO, "Graph", "Show graph view for active element"},
+		{SC_VIEW_GRAPH, "GRAPH", ICON_GRAPH, "Graph", "Show graph view for active element"},
 		{SC_VIEW_DOPESHEET, "DOPESHEET", ICON_ACTION, "Dopesheet", "Dopesheet view for tracking data"},
 		{0, NULL, 0, NULL, NULL}
 	};
@@ -4961,12 +4939,12 @@ static void rna_def_space_clip(BlenderRNA *brna)
 	};
 
 	static const EnumPropertyItem pivot_items[] = {
-		{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_ROTATE, "Bounding Box Center",
+		{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_PIVOT_BOUNDBOX, "Bounding Box Center",
 		             "Pivot around bounding box center of selected object(s)"},
-		{V3D_AROUND_CURSOR, "CURSOR", ICON_CURSOR, "2D Cursor", "Pivot around the 2D cursor"},
-		{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_ROTATECOLLECTION,
+		{V3D_AROUND_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "2D Cursor", "Pivot around the 2D cursor"},
+		{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_CENTER_ONLY,
 		            "Individual Origins", "Pivot around each object's own origin"},
-		{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", ICON_ROTATECENTER, "Median Point",
+		{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", ICON_PIVOT_MEDIAN, "Median Point",
 		               "Pivot around the median point of selected objects"},
 		{0, NULL, 0, NULL, NULL}
 	};

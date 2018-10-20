@@ -101,11 +101,6 @@ int GPU_shader_get_attribute(GPUShader *shader, const char *name);
 
 /* Builtin/Non-generated shaders */
 typedef enum GPUBuiltinShader {
-	/* UNUSED (TODO REMOVE) */
-	GPU_SHADER_SMOKE,
-	GPU_SHADER_SMOKE_FIRE,
-	GPU_SHADER_SMOKE_COBA,
-
 	/* specialized drawing */
 	GPU_SHADER_TEXT,
 	GPU_SHADER_TEXT_SIMPLE,
@@ -118,7 +113,6 @@ typedef enum GPUBuiltinShader {
 	GPU_SHADER_SIMPLE_LIGHTING_FLAT_COLOR,
 	GPU_SHADER_SIMPLE_LIGHTING_SMOOTH_COLOR,
 	GPU_SHADER_SIMPLE_LIGHTING_SMOOTH_COLOR_ALPHA,
-	GPU_SHADER_MULTIPLY_AND_BLEND_PREPROCESSING,
 
 	/* for simple 2D drawing */
 	/**

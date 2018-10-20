@@ -909,8 +909,10 @@ static void wm_operator_finished(bContext *C, wmOperator *op, const bool repeat,
 			wm_operator_register(C, op);
 			WM_operator_region_active_win_set(C);
 
-			/* Show the redo panel. */
-			hud_status = SET;
+			if (WM_operator_last_redo(C) == op) {
+				/* Show the redo panel. */
+				hud_status = SET;
+			}
 		}
 		else {
 			WM_operator_free(op);
@@ -1465,9 +1467,21 @@ static int wm_operator_call_internal(
 					break;
 			}
 		}
+		else {
+			switch (context) {
+				case WM_OP_EXEC_DEFAULT:
+				case WM_OP_EXEC_REGION_WIN:
+				case WM_OP_EXEC_REGION_PREVIEW:
+				case WM_OP_EXEC_REGION_CHANNELS:
+				case WM_OP_EXEC_AREA:
+				case WM_OP_EXEC_SCREEN:
+					event = NULL;
+				default:
+					break;
+			}
+		}
 
 		switch (context) {
-
 			case WM_OP_EXEC_REGION_WIN:
 			case WM_OP_INVOKE_REGION_WIN:
 			case WM_OP_EXEC_REGION_CHANNELS:

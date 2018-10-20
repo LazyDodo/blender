@@ -203,7 +203,7 @@ static struct bUnitCollection buImperialVolCollection = {buImperialVolDef, 4, 0,
 
 /* Mass */
 static struct bUnitDef buMetricMassDef[] = {
-	{"ton", "tonnes",           "ton", "t",  "1000 Kilograms", UN_SC_MTON, 0.0,  B_UNIT_DEF_NONE},
+	{"ton", "tonnes",           "ton", "t",  "Tonnes", UN_SC_MTON, 0.0,  B_UNIT_DEF_NONE},
 	{"quintal", "quintals",     "ql",  "q",  "100 Kilograms", UN_SC_QL, 0.0,     B_UNIT_DEF_SUPPRESS},
 	{"kilogram", "kilograms",   "kg",  NULL, "Kilograms", UN_SC_KG, 0.0,         B_UNIT_DEF_NONE}, /* base unit */
 	{"hectogram", "hectograms", "hg",  NULL, "Hectograms", UN_SC_HG, 0.0,        B_UNIT_DEF_SUPPRESS},
@@ -346,7 +346,7 @@ static void unit_dual_convert(
         double value, const bUnitCollection *usys,
         bUnitDef const **r_unit_a, bUnitDef const **r_unit_b,
         double *r_value_a, double *r_value_b,
-		const bUnitDef *main_unit)
+        const bUnitDef *main_unit)
 {
 	const bUnitDef *unit;
 	if (main_unit) unit = main_unit;
@@ -412,17 +412,6 @@ static size_t unit_as_string(char *str, int len_max, double value, int prec, con
 		while (unit->name_short[j] && (i < len_max)) {
 			str[i++] = unit->name_short[j++];
 		}
-#if 0
-		if (pad) {
-			/* this loop only runs if so many zeros were removed that
-			 * the unit name only used padded chars,
-			 * In that case add padding for the name. */
-
-			while (i <= len + j && (i < len_max)) {
-				str[i++] = pad;
-			}
-		}
-#endif
 	}
 
 	/* terminate no matter what's done with padding above */
@@ -500,25 +489,24 @@ static const bUnitDef *get_preferred_unit_if_used(int type, PreferredUnits units
 
 	int max_offset = usys->length - 1;
 
-	switch (type)
-	{
-	case B_UNIT_LENGTH:
-	case B_UNIT_AREA:
-	case B_UNIT_VOLUME:
-		if (units.length == USER_UNIT_ADAPTIVE) return NULL;
-		return usys->units + MIN2(units.length, max_offset);
-	case B_UNIT_MASS:
-		if (units.mass == USER_UNIT_ADAPTIVE) return NULL;
-		return usys->units + MIN2(units.mass, max_offset);
-	case B_UNIT_TIME:
-		if (units.time == USER_UNIT_ADAPTIVE) return NULL;
-		return usys->units + MIN2(units.time, max_offset);
-	case B_UNIT_ROTATION:
-		if (units.rotation == 0) return usys->units + 0;
-		else if (units.rotation == USER_UNIT_ROT_RADIANS) return usys->units + 3;
-		break;
-	default:
-		break;
+	switch (type) {
+		case B_UNIT_LENGTH:
+		case B_UNIT_AREA:
+		case B_UNIT_VOLUME:
+			if (units.length == USER_UNIT_ADAPTIVE) return NULL;
+			return usys->units + MIN2(units.length, max_offset);
+		case B_UNIT_MASS:
+			if (units.mass == USER_UNIT_ADAPTIVE) return NULL;
+			return usys->units + MIN2(units.mass, max_offset);
+		case B_UNIT_TIME:
+			if (units.time == USER_UNIT_ADAPTIVE) return NULL;
+			return usys->units + MIN2(units.time, max_offset);
+		case B_UNIT_ROTATION:
+			if (units.rotation == 0) return usys->units + 0;
+			else if (units.rotation == USER_UNIT_ROT_RADIANS) return usys->units + 3;
+			break;
+		default:
+			break;
 	}
 	return NULL;
 }
