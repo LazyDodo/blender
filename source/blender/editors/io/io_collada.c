@@ -606,7 +606,7 @@ static int wm_collada_import_exec(bContext *C, wmOperator *op)
 		return OPERATOR_FINISHED;
 	}
 	else {
-		BKE_report(op->reports, RPT_ERROR, "Errors found during parsing COLLADA document (see console for details)");
+		BKE_report(op->reports, RPT_ERROR, "Parsing errors in Document (see Blender Console)");
 		return OPERATOR_CANCELLED;
 	}
 }
