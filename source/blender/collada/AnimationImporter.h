@@ -182,11 +182,11 @@ public:
 	// prerequisites:
 	// animlist_map - map animlist id -> animlist
 	// curve_map - map anim id -> curve(s)
-	Object * translate_animation_OLD(COLLADAFW::Node *node,
-	                                 std::map<COLLADAFW::UniqueId, Object*>& object_map,
-	                                 std::map<COLLADAFW::UniqueId, COLLADAFW::Node*>& root_map,
-	                                 COLLADAFW::Transformation::TransformationType tm_type,
-	                                 Object *par_job = NULL);
+	Object *AnimationImporter::translate_animation_OLD(COLLADAFW::Node *node,
+		std::map<COLLADAFW::UniqueId, Object *>& object_map,
+		std::map<COLLADAFW::UniqueId, COLLADAFW::Node *>& root_map,
+		COLLADAFW::Transformation::TransformationType tm_type,
+		Object *par_job = NULL);
 
 	void find_frames( std::vector<float>* frames, std::vector<FCurve*>* curves );
 	void find_frames_old( std::vector<float>* frames, COLLADAFW::Node * node, COLLADAFW::Transformation::TransformationType tm_type );

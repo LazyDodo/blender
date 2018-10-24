@@ -312,7 +312,7 @@ void MESH_OT_unsubdivide(wmOperatorType *ot)
 	RNA_def_int(ot->srna, "iterations", 2, 1, 1000, "Iterations", "Number of times to unsubdivide", 1, 100);
 }
 
-void EMBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
+void EDBM_project_snap_verts(bContext *C, ARegion *ar, BMEditMesh *em)
 {
 	Object *obedit = em->ob;
 	BMIter iter;
@@ -2898,7 +2898,7 @@ static float bm_edge_seg_isect(
 		b2 = ((x22 * y21) - (x21 * y22)) / xdiff2;
 	}
 	else {
-		m2 = MAXSLOPE;  /* Verticle slope  */
+		m2 = MAXSLOPE;  /* Vertical slope  */
 		b2 = x22;
 	}
 
