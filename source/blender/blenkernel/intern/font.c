@@ -364,8 +364,7 @@ static VChar *find_vfont_char(VFontData *vfd, unsigned int character)
 }
 
 static void build_underline(Curve *cu, ListBase *nubase, const rctf *rect,
-                            float yofs, float rot, int charidx, short mat_nr,
-                            const float font_size)
+                            float yofs, float rot, int charidx, short mat_nr)
 {
 	Nurb *nu2;
 	BPoint *bp;
@@ -418,19 +417,18 @@ static void build_underline(Curve *cu, ListBase *nubase, const rctf *rect,
 		bp = nu2->bp;
 	}
 
-	mul_v2_fl(bp[0].vec, font_size);
-	mul_v2_fl(bp[1].vec, font_size);
-	mul_v2_fl(bp[2].vec, font_size);
-	mul_v2_fl(bp[3].vec, font_size);
+	mul_v2_fl(bp[0].vec, cu->fsize);
+	mul_v2_fl(bp[1].vec, cu->fsize);
+	mul_v2_fl(bp[2].vec, cu->fsize);
+	mul_v2_fl(bp[3].vec, cu->fsize);
 }
 
 static void buildchar(Curve *cu, ListBase *nubase, unsigned int character, CharInfo *info,
-                      float ofsx, float ofsy, float rot, int charidx,
-                      const float fsize)
+                      float ofsx, float ofsy, float rot, int charidx)
 {
 	BezTriple *bezt1, *bezt2;
 	Nurb *nu1 = NULL, *nu2 = NULL;
-	float *fp, shear, x, si, co;
+	float *fp, fsize, shear, x, si, co;
 	VFontData *vfd = NULL;
 	VChar *che = NULL;
 	int i;
@@ -450,6 +448,7 @@ static void buildchar(Curve *cu, ListBase *nubase, unsigned int character, CharI
 #endif
 
 	/* make a copy at distance ofsx, ofsy with shear */
+	fsize = cu->fsize;
 	shear = cu->shear;
 	si = sinf(rot);
 	co = cosf(rot);
@@ -652,10 +651,9 @@ struct TempLineInfo {
 #define ASCENT(vfd) ((vfd)->ascender * (vfd)->em_height)
 #define DESCENT(vfd) ((vfd)->em_height - ASCENT(vfd))
 
-static bool vfont_to_curve(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
+bool BKE_vfont_to_curve_ex(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
                            const wchar_t **r_text, int *r_text_len, bool *r_text_free,
-                           struct CharTrans **r_chartransdata,
-                           const float scale)
+                           struct CharTrans **r_chartransdata)
 {
 	EditFont *ef = cu->editfont;
 	EditFontSelBox *selboxes = NULL;
@@ -673,16 +671,11 @@ static bool vfont_to_curve(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
 	int curbox;
 	int selstart, selend;
 	int cnr = 0, lnr = 0, wsnr = 0;
-	const wchar_t *mem = NULL;
+	const wchar_t *mem;
 	wchar_t ascii;
 	bool ok = false;
-	const float font_size = cu->fsize * scale;
-	const float xof_scale = cu->xof / font_size;
-	const float yof_scale = cu->yof / font_size;
-	int last_line = -1;
-	/* Length of the text disregarding \n breaks. */
-	float current_line_length = 0.0f;
-	float longest_line_length = 0.0f;
+	const float xof_scale = cu->xof / cu->fsize;
+	const float yof_scale = cu->yof / cu->fsize;
 
 	/* Text at the beginning of the last used text-box (use for y-axis alignment).
 	 * We overallocate by one to simplify logic of getting last char. */
@@ -763,7 +756,7 @@ static bool vfont_to_curve(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
 	linedist = cu->linedist;
 
 	curbox = 0;
-	textbox_scale(&tb_scale, &cu->tb[curbox], 1.0f / font_size);
+	textbox_scale(&tb_scale, &cu->tb[curbox], 1.0f / cu->fsize);
 	use_textbox = (tb_scale.w != 0.0f);
 
 
@@ -775,7 +768,7 @@ static bool vfont_to_curve(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
 	oldvfont = NULL;
 
 	for (i = 0; i < slen; i++) {
-		custrinfo[i].flag &= ~(CU_CHINFO_WRAP | CU_CHINFO_SMALLCAPS_CHECK | CU_CHINFO_OVERFLOW);
+		custrinfo[i].flag &= ~(CU_CHINFO_WRAP | CU_CHINFO_SMALLCAPS_CHECK);
 	}
 
 	for (i = 0; i <= slen; i++) {
@@ -844,7 +837,6 @@ makebreak:
 		{
 			//		fprintf(stderr, "linewidth exceeded: %c%c%c...\n", mem[i], mem[i+1], mem[i+2]);
 			for (j = i; j && (mem[j] != '\n') && (chartransdata[j].dobreak == 0); j--) {
-				bool dobreak = false;
 				if (mem[j] == ' ' || mem[j] == '-') {
 					ct -= (i - (j - 1));
 					cnr -= (i - (j - 1));
@@ -854,9 +846,9 @@ makebreak:
 					xof = ct->xof;
 					ct[1].dobreak = 1;
 					custrinfo[i + 1].flag |= CU_CHINFO_WRAP;
-					dobreak = true;
+					goto makebreak;
 				}
-				else if (chartransdata[j].dobreak) {
+				if (chartransdata[j].dobreak) {
 					//				fprintf(stderr, "word too long: %c%c%c...\n", mem[j], mem[j+1], mem[j+2]);
 					ct->dobreak = 1;
 					custrinfo[i + 1].flag |= CU_CHINFO_WRAP;
@@ -864,13 +856,6 @@ makebreak:
 					cnr -= 1;
 					i--;
 					xof = ct->xof;
-					dobreak = true;
-				}
-				if (dobreak) {
-					if (tb_scale.h == 0.0f) {
-						/* Note: If underlined text is truncated away, the extra space is also truncated. */
-						custrinfo[i + 1].flag |= CU_CHINFO_OVERFLOW;
-					}
 					goto makebreak;
 				}
 			}
@@ -892,30 +877,16 @@ makebreak:
 			CLAMP_MIN(maxlen, lineinfo[lnr].x_min);
 
 			if ((tb_scale.h != 0.0f) &&
+			    (cu->totbox > (curbox + 1)) &&
 			    ((-(yof - tb_scale.y)) > (tb_scale.h - linedist) - yof_scale))
 			{
-				if (cu->totbox > (curbox + 1)) {
-					maxlen = 0;
-					curbox++;
-					i_textbox_array[curbox] = i + 1;
+				maxlen = 0;
+				curbox++;
+				i_textbox_array[curbox] = i + 1;
 
-					textbox_scale(&tb_scale, &cu->tb[curbox], 1.0f / font_size);
+				textbox_scale(&tb_scale, &cu->tb[curbox], 1.0f / cu->fsize);
 
-					yof = MARGIN_Y_MIN;
-				}
-				else if (last_line == -1) {
-					last_line = lnr + 1;
-					info->flag |= CU_CHINFO_OVERFLOW;
-				}
-			}
-
-			current_line_length += xof;
-			if (ct->dobreak) {
-				current_line_length += twidth;
-			}
-			else {
-				longest_line_length = MAX2(current_line_length, longest_line_length);
-				current_line_length = 0.0f;
+				yof = MARGIN_Y_MIN;
 			}
 
 			/* XXX, has been unused for years, need to check if this is useful, r4613 r5282 - campbell */
@@ -954,9 +925,9 @@ makebreak:
 
 			if (selboxes && (i >= selstart) && (i <= selend)) {
 				sb = &selboxes[i - selstart];
-				sb->y = yof * font_size - linedist * font_size * 0.1f;
-				sb->h = linedist * font_size;
-				sb->w = xof * font_size;
+				sb->y = yof * cu->fsize - linedist * cu->fsize * 0.1f;
+				sb->h = linedist * cu->fsize;
+				sb->w = xof * cu->fsize;
 			}
 
 			if (ascii == 32) {
@@ -973,13 +944,11 @@ makebreak:
 			xof += (twidth * wsfac * (1.0f + (info->kern / 40.0f)) ) + xtrax;
 
 			if (sb) {
-				sb->w = (xof * font_size) - sb->w;
+				sb->w = (xof * cu->fsize) - sb->w;
 			}
 		}
 		ct++;
 	}
-	current_line_length += xof + twidth;
-	longest_line_length = MAX2(current_line_length, longest_line_length);
 
 	cu->lines = 1;
 	for (i = 0; i <= slen; i++) {
@@ -1081,7 +1050,7 @@ makebreak:
 				ct_last = chartransdata + (is_last_filled_textbox ? slen: i_textbox_next - 1);
 				lines = ct_last->linenr - ct_first->linenr + 1;
 
-				textbox_scale(&tb_scale, &cu->tb[tb_index], 1.0f / font_size);
+				textbox_scale(&tb_scale, &cu->tb[tb_index], 1.0f / cu->fsize);
 				/* The initial Y origin of the textbox is hardcoded to 1.0f * text scale. */
 				const float textbox_y_origin = 1.0f;
 				float yoff;
@@ -1164,7 +1133,7 @@ makebreak:
 
 			copy_m3_m4(cmat, cu->textoncurve->obmat);
 			mul_m3_m3m3(cmat, cmat, imat3);
-			sizefac = normalize_v3(cmat[0]) / font_size;
+			sizefac = normalize_v3(cmat[0]) / cu->fsize;
 
 			minx = miny = 1.0e20f;
 			maxx = maxy = -1.0e20f;
@@ -1257,8 +1226,8 @@ makebreak:
 		ct = chartransdata;
 		for (i = 0; i <= selend; i++, ct++) {
 			if (i >= selstart) {
-				selboxes[i - selstart].x = ct->xof * font_size;
-				selboxes[i - selstart].y = ct->yof * font_size;
+				selboxes[i - selstart].x = ct->xof * cu->fsize;
+				selboxes[i - selstart].y = ct->yof * cu->fsize;
 			}
 		}
 	}
@@ -1308,25 +1277,27 @@ makebreak:
 
 		f = ef->textcurs[0];
 
-		f[0] = font_size * (-0.1f * co + ct->xof);
-		f[1] = font_size * ( 0.1f * si + ct->yof);
+		f[0] = cu->fsize * (-0.1f * co + ct->xof);
+		f[1] = cu->fsize * ( 0.1f * si + ct->yof);
 
-		f[2] = font_size * ( 0.1f * co + ct->xof);
-		f[3] = font_size * (-0.1f * si + ct->yof);
+		f[2] = cu->fsize * ( 0.1f * co + ct->xof);
+		f[3] = cu->fsize * (-0.1f * si + ct->yof);
 
-		f[4] = font_size * ( 0.1f * co + 0.8f * si + ct->xof);
-		f[5] = font_size * (-0.1f * si + 0.8f * co + ct->yof);
+		f[4] = cu->fsize * ( 0.1f * co + 0.8f * si + ct->xof);
+		f[5] = cu->fsize * (-0.1f * si + 0.8f * co + ct->yof);
 
-		f[6] = font_size * (-0.1f * co + 0.8f * si + ct->xof);
-		f[7] = font_size * ( 0.1f * si + 0.8f * co + ct->yof);
+		f[6] = cu->fsize * (-0.1f * co + 0.8f * si + ct->xof);
+		f[7] = cu->fsize * ( 0.1f * si + 0.8f * co + ct->yof);
 
 	}
 
 	if (mode == FO_SELCHANGE) {
 		MEM_freeN(chartransdata);
 		chartransdata = NULL;
+		goto finally;
 	}
-	else if (mode == FO_EDIT) {
+
+	if (mode == FO_EDIT) {
 		/* make nurbdata */
 		BKE_nurbList_free(r_nubase);
 
@@ -1334,13 +1305,6 @@ makebreak:
 		for (i = 0; i < slen; i++) {
 			unsigned int cha = (unsigned int) mem[i];
 			info = &(custrinfo[i]);
-
-			if ((cu->overflow == CU_OVERFLOW_TRUNCATE) &&
-			    (ob && ob->mode != OB_MODE_EDIT) &&
-			    (info->flag & CU_CHINFO_OVERFLOW))
-			{
-				break;
-			}
 
 			if (info->flag & CU_CHINFO_SMALLCAPS_CHECK) {
 				cha = towupper(cha);
@@ -1352,7 +1316,7 @@ makebreak:
 			}
 			/* We do not want to see any character for \n or \r */
 			if (cha != '\n')
-				buildchar(cu, r_nubase, cha, info, ct->xof, ct->yof, ct->rot, i, font_size);
+				buildchar(cu, r_nubase, cha, info, ct->xof, ct->yof, ct->rot, i);
 
 			if ((info->flag & CU_CHINFO_UNDERLINE) && (cha != '\n')) {
 				float ulwidth, uloverlap = 0.0f;
@@ -1379,94 +1343,17 @@ makebreak:
 
 				build_underline(cu, r_nubase,
 				                &rect, cu->ulpos - 0.05f,
-				                ct->rot, i, info->mat_nr,
-				                font_size);
+				                ct->rot, i, info->mat_nr);
 			}
 			ct++;
 		}
 	}
 
-	float scale_to_fit = 1.0f;
-	if (scale != 1.0f) {
-		/* That means we are in the second run, in this case, just exit. */
-		BLI_assert(cu->overflow == CU_OVERFLOW_SCALE);
-	}
-	else if (cu->overflow == CU_OVERFLOW_NONE) {
-		/* Do nothing. */
-	}
-	else if ((tb_scale.h == 0.0f) && (tb_scale.w == 0.0f)) {
-		/* Do nothing. */
-	}
-	else if (cu->totbox > 1) {
-		/* Do nothing. This is too complex to tackle. */
-	}
-	else if (cu->overflow == CU_OVERFLOW_SCALE) {
-		if (tb_scale.w == 0.0) {
-			/* This is a potential vertical overflow.
-			 * Since there is no width limit, all the new lines are from line breaks. */
-			if ((last_line != -1) && (lnr > last_line)) {
-				const float total_text_height = lnr * linedist;
-				scale_to_fit = tb_scale.h / total_text_height;
-			}
-		}
-		else if (tb_scale.h == 0.0f) {
-			/* This is a horizontal overflow. */
-			if (lnr > 1) {
-				/* We make sure longest line before it broke can fit here. */
-				scale_to_fit = tb_scale.w / (longest_line_length);
-				scale_to_fit -= FLT_EPSILON;
-			}
-		}
-		else {
-			/* This is the really complicated case, the one I'm not sure we can find a magic bullet for.
-			 * Keep in mind that there is no single number that will make all fit to the end.
-			 * In a way, our ultimate goal is to get the number of extra lines to zero.
-			 */
-			if ((last_line != -1) && (lnr > last_line)) {
-				scale_to_fit = (float) last_line / lnr;
-			}
-		}
-	}
-#ifdef DEBUG_PRINT
-	printf("%s: %d %d %4.9f %4.2f\n",
-	       __func__,
-	       last_line,
-	       lnr,
-	       scale_to_fit,
-	       longest_line_length);
-#endif
+	ok = true;
 
-	/* Scale to fit only works for single text box layouts. */
-	if ((scale_to_fit < 1.0f) &&
-	    (cu->totbox == 1))
-	{
-		/* Always cleanup before going to the scale-to-fit repetition. */
-		if (r_nubase != NULL) {
-			BKE_nurbList_free(r_nubase);
-		}
-
-		if (chartransdata != NULL) {
-			MEM_freeN(chartransdata);
-		}
-
-		if (ef == NULL) {
-			MEM_freeN((void *)mem);
-		}
-
-		ok = vfont_to_curve(ob,
-		               cu,
-		               mode,
-		               r_nubase,
-		               r_text,
-		               r_text_len,
-		               r_text_free,
-		               r_chartransdata,
-		               scale_to_fit);
-		return ok;
-	}
-	else {
-		ok = true;
 finally:
+
+	{
 		if (r_text) {
 			*r_text = mem;
 			*r_text_len = slen;
@@ -1477,19 +1364,17 @@ finally:
 				MEM_freeN((void *)mem);
 			}
 		}
-
-		if (chartransdata) {
-			if (ok && r_chartransdata) {
-				*r_chartransdata = chartransdata;
-			}
-			else {
-				MEM_freeN(chartransdata);
-			}
-		}
-
-		/* Store the effective scale, to use for the textbox lines. */
-		cu->fsize_realtime = font_size;
 	}
+
+	if (chartransdata) {
+		if (ok && r_chartransdata) {
+			*r_chartransdata = chartransdata;
+		}
+		else {
+			MEM_freeN(chartransdata);
+		}
+	}
+
 	return ok;
 
 #undef MARGIN_X_MIN
@@ -1498,21 +1383,6 @@ finally:
 
 #undef DESCENT
 #undef ASCENT
-
-bool BKE_vfont_to_curve_ex(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
-                           const wchar_t **r_text, int *r_text_len, bool *r_text_free,
-                           struct CharTrans **r_chartransdata)
-{
-	return vfont_to_curve(ob,
-	                      cu,
-	                      mode,
-	                      r_nubase,
-	                      r_text,
-	                      r_text_len,
-	                      r_text_free,
-	                      r_chartransdata,
-	                      1.0f);
-}
 
 bool BKE_vfont_to_curve_nubase(Object *ob, int mode, ListBase *r_nubase)
 {
