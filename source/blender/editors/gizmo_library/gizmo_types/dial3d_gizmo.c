@@ -340,6 +340,7 @@ static void dial_draw_intern(
 	float matrix_final[4][4];
 	float color[4];
 
+	(void)C;
 	BLI_assert(CTX_wm_area(C)->spacetype == SPACE_VIEW3D);
 
 	gizmo_color_get(gz, highlight, color);

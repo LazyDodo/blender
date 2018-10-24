@@ -1443,9 +1443,10 @@ static char *rna_SceneRenderView_path(PointerRNA *ptr)
 static void rna_Scene_use_nodes_update(bContext *C, PointerRNA *ptr)
 {
 	Scene *scene = (Scene *)ptr->data;
-
-	if (scene->use_nodes && scene->nodetree == NULL)
+	if (scene->use_nodes && scene->nodetree == NULL) {
 		ED_node_composit_default(C, scene);
+	}
+	DEG_relations_tag_update(CTX_data_main(C));
 }
 
 static void rna_Physics_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -2228,8 +2229,8 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	};
 
 	static const EnumPropertyItem gpencil_selectmode_items[] = {
-		{GP_SELECTMODE_POINT, "POINT", ICON_VERTEXSEL, "Point", "Select only points"},
-		{GP_SELECTMODE_STROKE, "STROKE", ICON_EDGESEL, "Stroke", "Select all stroke points" },
+		{GP_SELECTMODE_POINT, "POINT", ICON_GP_SELECT_POINTS, "Point", "Select only points"},
+		{GP_SELECTMODE_STROKE, "STROKE", ICON_GP_SELECT_STROKES, "Stroke", "Select all stroke points" },
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -2479,11 +2480,6 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Gizmo Mode",  "");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_ToolSettings_gizmo_flag_update");
 
-	prop = RNA_def_property(srna, "use_gizmo_apron", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "gizmo_flag", SCE_GIZMO_DISABLE_APRON);
-	RNA_def_property_ui_text(prop, "Click Anywhere", "Handle input not directly over the gizmo");
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
 	/* Grease Pencil */
 	prop = RNA_def_property(srna, "use_gpencil_additive_drawing", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_RETAIN_LAST);
@@ -2617,7 +2613,7 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_uv_select_sync", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uv_flag", UV_SYNC_SELECTION);
 	RNA_def_property_ui_text(prop, "UV Sync Selection", "Keep UV and edit mode mesh selection in sync");
-	RNA_def_property_ui_icon(prop, ICON_EDIT, 0);
+	RNA_def_property_ui_icon(prop, ICON_UV_SYNC_SELECT, 0);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 
 	prop = RNA_def_property(srna, "show_uv_local_view", PROP_BOOLEAN, PROP_NONE);

@@ -2165,30 +2165,6 @@ static float mesh_calc_poly_area_centroid(
 	return total_area;
 }
 
-#if 0 /* slow version of the function below */
-void BKE_mesh_calc_poly_angles(
-        MPoly *mpoly, MLoop *loopstart,
-        MVert *mvarray, float angles[])
-{
-	MLoop *ml;
-	MLoop *mloop = &loopstart[-mpoly->loopstart];
-
-	int j;
-	for (j = 0, ml = loopstart; j < mpoly->totloop; j++, ml++) {
-		MLoop *ml_prev = ME_POLY_LOOP_PREV(mloop, mpoly, j);
-		MLoop *ml_next = ME_POLY_LOOP_NEXT(mloop, mpoly, j);
-
-		float e1[3], e2[3];
-
-		sub_v3_v3v3(e1, mvarray[ml_next->v].co, mvarray[ml->v].co);
-		sub_v3_v3v3(e2, mvarray[ml_prev->v].co, mvarray[ml->v].co);
-
-		angles[j] = (float)M_PI - angle_v3v3(e1, e2);
-	}
-}
-
-#else /* equivalent the function above but avoid multiple subtractions + normalize */
-
 void BKE_mesh_calc_poly_angles(
         const MPoly *mpoly, const MLoop *loopstart,
         const MVert *mvarray, float angles[])
@@ -2213,7 +2189,6 @@ void BKE_mesh_calc_poly_angles(
 		i_next++;
 	}
 }
-#endif
 
 void BKE_mesh_poly_edgehash_insert(EdgeHash *ehash, const MPoly *mp, const MLoop *mloop)
 {

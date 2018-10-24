@@ -68,6 +68,7 @@ class DATA_PT_skeleton(ArmatureButtonsPanel, Panel):
 
 class DATA_PT_display(ArmatureButtonsPanel, Panel):
     bl_label = "Display"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
@@ -100,6 +101,7 @@ class DATA_MT_bone_group_specials(Menu):
 
 class DATA_PT_bone_groups(ArmatureButtonsPanel, Panel):
     bl_label = "Bone Groups"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -173,7 +175,7 @@ class DATA_PT_pose_library(ArmatureButtonsPanel, Panel):
 
         if poselib:
             # warning about poselib being in an invalid state
-            if len(poselib.fcurves) > 0 and len(poselib.pose_markers) == 0:
+            if poselib.fcurves and not poselib.pose_markers:
                 layout.label(icon='ERROR', text="Error: Potentially corrupt library, run 'Sanitize' operator to fix")
 
             # list of poses in pose library
@@ -295,6 +297,7 @@ from .properties_animviz import (
 
 class DATA_PT_motion_paths(MotionPathButtonsPanel, Panel):
     #bl_label = "Bones Motion Paths"
+    bl_options = {'DEFAULT_CLOSED'}
     bl_context = "data"
 
     @classmethod
@@ -344,7 +347,7 @@ class DATA_PT_onion_skinning(OnionSkinButtonsPanel):  # , Panel): # inherit from
     @classmethod
     def poll(cls, context):
         # XXX: include pose-mode check?
-        return (context.object) and (context.armature)
+        return context.object and context.armature
 
     def draw(self, context):
         ob = context.object

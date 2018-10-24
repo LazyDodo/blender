@@ -287,8 +287,8 @@ typedef struct ThemeSpace {
 	char handle_sel_free[4], handle_sel_auto[4], handle_sel_vect[4], handle_sel_align[4], handle_sel_auto_clamped[4];
 
 	char ds_channel[4], ds_subchannel[4]; /* dopesheet */
-	char keytype_keyframe[4], keytype_extreme[4], keytype_breakdown[4], keytype_jitter[4]; /* keytypes */
-	char keytype_keyframe_select[4], keytype_extreme_select[4], keytype_breakdown_select[4], keytype_jitter_select[4]; /* keytypes */
+	char keytype_keyframe[4], keytype_extreme[4], keytype_breakdown[4], keytype_jitter[4], keytype_movehold[4]; /* keytypes */
+	char keytype_keyframe_select[4], keytype_extreme_select[4], keytype_breakdown_select[4], keytype_jitter_select[4], keytype_movehold_select[4]; /* keytypes */
 	char keyborder[4], keyborder_select[4];
 
 	char console_output[4], console_input[4], console_info[4], console_error[4];
@@ -885,7 +885,6 @@ typedef enum eText_Draw_Options {
 typedef enum eGP_UserdefSettings {
 	GP_PAINT_DOSMOOTH		    = (1 << 0),
 	GP_PAINT_DOSIMPLIFY		    = (1 << 1),
-	GP_PAINT_REVERSE_LAYERS     = (1 << 2),
 } eGP_UserdefSettings;
 
 enum {

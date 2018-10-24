@@ -218,6 +218,7 @@ static void DRW_gpencil_fx_blur(
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_a);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_a);
+	DRW_shgroup_uniform_vec2(fx_shgrp, "Viewport", DRW_viewport_size_get(), 1);
 	DRW_shgroup_uniform_int(fx_shgrp, "blur", &fxd->blur[0], 2);
 
 	DRW_shgroup_uniform_vec3(fx_shgrp, "loc", &cache->loc[0], 1);
@@ -409,6 +410,7 @@ static void DRW_gpencil_fx_rim(
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_fx);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_fx);
+	DRW_shgroup_uniform_vec2(fx_shgrp, "Viewport", DRW_viewport_size_get(), 1);
 	DRW_shgroup_uniform_int(fx_shgrp, "blur", &fxd->blur[0], 2);
 
 	DRW_shgroup_uniform_vec3(fx_shgrp, "loc", &cache->loc[0], 1);
@@ -493,6 +495,7 @@ static void DRW_gpencil_fx_shadow(
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_fx);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_fx);
+	DRW_shgroup_uniform_vec2(fx_shgrp, "Viewport", DRW_viewport_size_get(), 1);
 	DRW_shgroup_uniform_int(fx_shgrp, "blur", &fxd->blur[0], 2);
 
 	DRW_shgroup_uniform_vec3(fx_shgrp, "loc", &cache->loc[0], 1);
@@ -551,6 +554,7 @@ static void DRW_gpencil_fx_glow(
 	DRW_shgroup_call_add(fx_shgrp, fxquad, NULL);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeColor", &e_data->temp_color_tx_fx);
 	DRW_shgroup_uniform_texture_ref(fx_shgrp, "strokeDepth", &e_data->temp_depth_tx_fx);
+	DRW_shgroup_uniform_vec2(fx_shgrp, "Viewport", DRW_viewport_size_get(), 1);
 	DRW_shgroup_uniform_int(fx_shgrp, "blur", &fxd->blur[0], 2);
 
 	DRW_shgroup_uniform_vec3(fx_shgrp, "loc", &cache->loc[0], 1);
@@ -887,7 +891,7 @@ static void draw_gpencil_do_blur(
 	e_data->input_color_tx = e_data->temp_color_tx_b;
 
 	if ((samples > 0) && ((bx > 0) || (by > 0))) {
-		for (int x = 0; x < samples * 4; x++) {
+		for (int x = 0; x < samples; x++) {
 
 			/* horizontal */
 			blur[0] = bx;

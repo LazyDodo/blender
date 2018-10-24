@@ -66,23 +66,6 @@ class TOPBAR_HT_upper_bar(Header):
         window = context.window
         scene = window.scene
 
-        # messages
-        layout.template_reports_banner()
-
-        row = layout.row(align=True)
-        if bpy.app.autoexec_fail is True and bpy.app.autoexec_fail_quiet is False:
-            row.label(text="Auto-run disabled", icon='ERROR')
-            if bpy.data.is_saved:
-                props = row.operator("wm.revert_mainfile", icon='SCREEN_BACK', text="Reload Trusted")
-                props.use_scripts = True
-
-            row.operator("script.autoexec_warn_clear", text="Ignore")
-
-            # include last so text doesn't push buttons out of the header
-            row.label(text=bpy.app.autoexec_fail_message)
-
-        layout.template_running_jobs()
-
         # Active workspace view-layer is retrieved through window, not through workspace.
         layout.template_ID(window, "scene", new="scene.new", unlink="scene.delete")
 
@@ -303,6 +286,15 @@ class _draw_left_context_mode:
                     elif tool == 'PUFF':
                         layout.row().prop(brush, "puff_mode", expand=True)
                         layout.prop(brush, "use_puff_volume")
+                    elif tool == 'COMB':
+                        # Note: actually in 'Options' panel,
+                        # disabled when used in popover.
+                        row = layout.row()
+                        row.active = settings.is_editable
+                        row.prop(settings, "use_emitter_deflect", text="Deflect Emitter")
+                        sub = row.row(align=True)
+                        sub.active = settings.use_emitter_deflect
+                        sub.prop(settings, "emitter_distance", text="Distance")
 
     class IMAGE_EDITOR:
         def VIEW(context, layout, tool):
@@ -352,15 +344,12 @@ class TOPBAR_PT_gpencil_layers(Panel):
             self.draw_layers(context, layout, gpd)
 
     def draw_layers(self, context, layout, gpd):
-        userpref = context.user_preferences
-        edit = userpref.edit
-        reverse = edit.use_grease_pencil_reverse_layers
         row = layout.row()
 
         col = row.column()
         layer_rows = 10
         col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index",
-                          rows=layer_rows, reverse=reverse)
+                          rows=layer_rows, reverse=True)
 
         col = row.column()
 
@@ -759,7 +748,7 @@ class TOPBAR_MT_help(Menu):
         ).url = "https://store.blender.org"
         layout.operator(
             "wm.url_open", text="Development Fund", icon='URL'
-        ).url = "https://www.blender.org/foundation/development-fund/"
+        ).url = "https://fund.blender.org"
         layout.operator(
             "wm.url_open", text="Donate", icon='URL',
         ).url = "https://www.blender.org/foundation/donation-payment/"

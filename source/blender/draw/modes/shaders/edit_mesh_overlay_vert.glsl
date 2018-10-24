@@ -20,7 +20,6 @@ in vec3 vnor;
 #ifdef EDGE_FIX
 in ivec4 data;
 
-out vec4 vPos;
 out vec4 pPos;
 out ivec4 vData;
 #  ifdef VERTEX_FACING
@@ -29,14 +28,14 @@ out float vFacing;
 
 void main()
 {
-	vPos = ModelViewMatrix * vec4(pos, 1.0);
 	pPos = ModelViewProjectionMatrix * vec4(pos, 1.0);
 	pPos.z -= ofs;
 	vData = data & dataMask;
 #  ifdef VERTEX_FACING
+	vec4 vpos = ModelViewMatrix * vec4(pos, 1.0);
 	vec3 view_normal = normalize(NormalMatrix * vnor);
 	vec3 view_vec = (ProjectionMatrix[3][3] == 0.0)
-		? normalize(vPos.xyz)
+		? normalize(vpos.xyz)
 		: vec3(0.0, 0.0, 1.0);
 	vFacing = dot(view_vec, view_normal);
 #  endif
@@ -64,8 +63,7 @@ void main()
 
 	int v_0 = (gl_VertexID / 3) * 3;
 	int vidx = gl_VertexID % 3;
-	barycentric = vec3(0.0);
-	barycentric[vidx] = 1.0;
+	barycentric = vec3(equal(ivec3(0, 1, 2), ivec3(vidx)));
 
 	/* Edge */
 	ivec4 vData[3], data = ivec4(0);

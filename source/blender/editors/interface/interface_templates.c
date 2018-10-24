@@ -463,7 +463,7 @@ static void template_id_cb(bContext *C, void *arg_litem, void *arg_event)
 		case UI_ID_LOCAL:
 			if (id) {
 				Main *bmain = CTX_data_main(C);
-				if (CTX_wm_window(C)->eventstate->shift) {
+				if (BKE_override_static_is_enabled() && CTX_wm_window(C)->eventstate->shift) {
 					ID *override_id = BKE_override_static_create_from_id(bmain, id);
 					if (override_id != NULL) {
 						BKE_main_id_clear_newpoins(bmain);
@@ -1657,9 +1657,13 @@ static uiLayout *gpencil_draw_modifier(
 		UI_block_lock_set(block, BKE_object_obdata_is_libdata(ob), ERROR_LIBDATA_MESSAGE);
 
 		uiLayoutSetOperatorContext(row, WM_OP_INVOKE_DEFAULT);
-		uiItemEnumO(row, "OBJECT_OT_gpencil_modifier_apply", CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Apply"),
-			0, "apply_as", MODIFIER_APPLY_DATA);
 
+		sub = uiLayoutRow(row, false);
+		if (mti->flags & eGpencilModifierTypeFlag_NoApply) {
+			uiLayoutSetEnabled(sub, false);
+		}
+		uiItemEnumO(sub, "OBJECT_OT_gpencil_modifier_apply", CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Apply"),
+		            0, "apply_as", MODIFIER_APPLY_DATA);
 		uiItemO(row, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Copy"), ICON_NONE,
 			"OBJECT_OT_gpencil_modifier_copy");
 
@@ -4630,22 +4634,19 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
 	UI_fontstyle_set(&style->widgetlabel);
 	width = BLF_width(style->widgetlabel.uifont_id, report->message, report->len);
 	width = min_ii((int)(rti->widthfac * width), width);
-	width = max_ii(width, 10);
+	width = max_ii(width, 10 * UI_DPI_FAC);
 
 	/* make a box around the report to make it stand out */
 	UI_block_align_begin(block);
 	but = uiDefBut(block, UI_BTYPE_ROUNDBOX, 0, "", 0, 0, UI_UNIT_X + 5, UI_UNIT_Y, NULL, 0.0f, 0.0f, 0, 0, "");
 	/* set the report's bg color in but->col - UI_BTYPE_ROUNDBOX feature */
-	rgb_float_to_uchar(but->col, rti->col);
-	but->col[3] = 255;
+	rgba_float_to_uchar(but->col, rti->col);
 
 	but = uiDefBut(block, UI_BTYPE_ROUNDBOX, 0, "", UI_UNIT_X + 5, 0, UI_UNIT_X + width, UI_UNIT_Y,
 	               NULL, 0.0f, 0.0f, 0, 0, "");
+	rgba_float_to_uchar(but->col, rti->col);
 
 	UI_block_align_end(block);
-
-	UI_GetThemeColorShade3ubv(TH_BACK, 20, but->col);
-	but->col[3] = 255;
 
 	/* icon and report message on top */
 	icon = UI_icon_from_report_type(report->type);

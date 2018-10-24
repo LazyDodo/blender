@@ -82,7 +82,7 @@ class VIEW3D_HT_header(Header):
                     row.prop(tool_settings.gpencil_sculpt, "use_select_mask", text="")
                     row.separator()
 
-                row.prop(gpd, "use_multiedit", text="", icon='FORCE_HARMONIC')
+                row.prop(gpd, "use_multiedit", text="", icon='GP_MULTIFRAME_EDITING')
 
                 sub = row.row(align=True)
                 sub.active = gpd.use_multiedit
@@ -1185,6 +1185,11 @@ class VIEW3D_MT_select_edit_lattice(Menu):
 
         layout.operator("lattice.select_mirror")
         layout.operator("lattice.select_random")
+
+        layout.separator()
+
+        layout.operator("lattice.select_more")
+        layout.operator("lattice.select_less")
 
         layout.separator()
 
@@ -4463,9 +4468,9 @@ class VIEW3D_PT_overlay_edit_mesh(Panel):
         sub.prop(overlay, "show_faces", text="Faces")
         sub = split.column()
         if shading.type == 'WIREFRAME':
-            sub.active = shading.show_xray_wireframe
+            sub.active = not shading.show_xray_wireframe
         else:
-            sub.active = shading.show_xray
+            sub.active = not shading.show_xray
         sub.prop(overlay, "show_face_center", text="Center")
 
         row = col.row(align=True)

@@ -641,7 +641,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 			if (partype == PAR_FOLLOW) {
 				/* get or create F-Curve */
 				bAction *act = verify_adt_action(bmain, &cu->id, 1);
-				FCurve *fcu = verify_fcurve(act, NULL, NULL, "eval_time", 0, 1);
+				FCurve *fcu = verify_fcurve(bmain, act, NULL, NULL, "eval_time", 0, 1);
 
 				/* setup dummy 'generator' modifier here to get 1-1 correspondence still working */
 				if (!fcu->bezt && !fcu->fpt && !fcu->modifiers.first)
@@ -2404,7 +2404,8 @@ static bool make_override_static_poll(bContext *C)
 	Object *obact = CTX_data_active_object(C);
 
 	/* Object must be directly linked to be overridable. */
-	return (ED_operator_objectmode(C) && obact != NULL &&
+	return (BKE_override_static_is_enabled() &&
+	        ED_operator_objectmode(C) && obact != NULL &&
 	        ((ID_IS_LINKED(obact) && obact->id.tag & LIB_TAG_EXTERN) ||
 	         (!ID_IS_LINKED(obact) && obact->dup_group != NULL && ID_IS_LINKED(obact->dup_group))));
 }
