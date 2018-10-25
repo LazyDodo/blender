@@ -109,6 +109,11 @@ void main()
 	shaded_color *= 1.0 + cavity.y;
 #endif
 
+#ifdef V3D_SHADING_CURVATURE
+	float curvature = calculate_curvature(objectId, normalBuffer, texel, world_data.curvature_ridge, world_data.curvature_valley);
+	shaded_color *= curvature + 1.0;
+#endif
+
 #ifdef V3D_SHADING_SHADOW
 	float light_factor = -dot(normal_viewport, world_data.shadow_direction_vs.xyz);
 	/* The step function might be ok for meshes but it's

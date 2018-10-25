@@ -163,6 +163,9 @@ typedef struct View3DShading {
 
 	float background_color[3];
 
+	float curvature_ridge_factor;
+	float curvature_valley_factor;
+
 } View3DShading;
 
 /* 3D Viewport Overlay settings */
@@ -389,6 +392,7 @@ enum {
 	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
 	V3D_SHADING_SCENE_WORLD         = (1 << 7),
 	V3D_SHADING_XRAY_WIREFRAME      = (1 << 8),
+	V3D_SHADING_CURVATURE           = (1 << 9),
 };
 
 /* View3DShading->color_type */

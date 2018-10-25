@@ -104,6 +104,7 @@ extern char datatoc_workbench_cavity_lib_glsl[];
 extern char datatoc_workbench_common_lib_glsl[];
 extern char datatoc_workbench_data_lib_glsl[];
 extern char datatoc_workbench_object_outline_lib_glsl[];
+extern char datatoc_workbench_curvature_lib_glsl[];
 extern char datatoc_workbench_world_light_lib_glsl[];
 
 extern char datatoc_gpu_shader_depth_only_frag_glsl[];
@@ -123,6 +124,9 @@ static char *workbench_build_composite_frag(WORKBENCH_PrivateData *wpd)
 	}
 	if (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE) {
 		BLI_dynstr_append(ds, datatoc_workbench_object_outline_lib_glsl);
+	}
+	if (wpd->shading.flag & V3D_SHADING_CURVATURE) {
+		BLI_dynstr_append(ds, datatoc_workbench_curvature_lib_glsl);
 	}
 
 	BLI_dynstr_append(ds, datatoc_workbench_deferred_composite_frag_glsl);
