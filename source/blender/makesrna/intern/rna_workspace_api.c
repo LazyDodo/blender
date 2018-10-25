@@ -55,7 +55,7 @@ static void rna_WorkspaceTool_setup(
         const char *keymap,
         const char *gizmo_group,
         const char *data_block,
-        const char *operator,
+        const char *coperator,
         int index)
 {
 	bToolRef_Runtime tref_rt = {0};
@@ -64,7 +64,7 @@ static void rna_WorkspaceTool_setup(
 	STRNCPY(tref_rt.keymap, keymap);
 	STRNCPY(tref_rt.gizmo_group, gizmo_group);
 	STRNCPY(tref_rt.data_block, data_block);
-	STRNCPY(tref_rt.operator, operator);
+	STRNCPY(tref_rt.coperator, coperator);
 	tref_rt.index = index;
 
 	WM_toolsystem_ref_set_from_runtime(C, (WorkSpace *)id, tref, &tref_rt, name);

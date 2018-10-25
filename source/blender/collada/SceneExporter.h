@@ -94,13 +94,15 @@ extern "C" {
 class SceneExporter: COLLADASW::LibraryVisualScenes, protected TransformWriter, protected InstanceWriter
 {
 public:
-	SceneExporter(COLLADASW::StreamWriter *sw, ArmatureExporter *arm, const ExportSettings *export_settings);
+	SceneExporter(bContext *C, COLLADASW::StreamWriter *sw, ArmatureExporter *arm, const ExportSettings *export_settings);
 	void exportScene(bContext *C, Depsgraph *depsgraph, Scene *sce);
+	bContext *mContext;
 
 private:
 	friend class ArmatureExporter;
-	void exportHierarchy(bContext *C, struct Depsgraph *depsgraph, Scene *sce);
-	void writeNodes(bContext *C, struct Depsgraph *depsgraph, Object *ob, Scene *sce);
+	void exportHierarchy(bContext *C, Depsgraph *depsgraph, Scene *sce);
+	void writeNodeList(bContext *C, Depsgraph *depsgraph, std::vector<Object *> &child_objects, Object *parent, Scene *sce);
+	void writeNodes(bContext *C, Depsgraph *depsgraph, Object *ob, Scene *sce);
 
 	ArmatureExporter *arm_exporter;
 	const ExportSettings *export_settings;

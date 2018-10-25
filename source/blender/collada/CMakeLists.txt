@@ -49,8 +49,12 @@ set(INC_SYS
 set(SRC
 	AnimationImporter.cpp
 	AnimationExporter.cpp
+	AnimationClipExporter.cpp
 	ArmatureExporter.cpp
 	ArmatureImporter.cpp
+	BCAnimationCurve.cpp
+	BCAnimationSampler.cpp
+	BCSampleData.cpp
 	CameraExporter.cpp
 	ControllerExporter.cpp
 	DocumentExporter.cpp
@@ -77,8 +81,12 @@ set(SRC
 
 	AnimationImporter.h
 	AnimationExporter.h
+	AnimationClipExporter.h
 	ArmatureExporter.h
 	ArmatureImporter.h
+	BCAnimationCurve.h
+	BCAnimationSampler.h
+	BCSampleData.h
 	CameraExporter.h
 	ControllerExporter.h
 	DocumentExporter.h

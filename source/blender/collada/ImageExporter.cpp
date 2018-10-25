@@ -175,9 +175,9 @@ void ImagesExporter::exportImages(Scene *sce)
 	openLibrary();
 
 	MaterialFunctor mf;
-	if (this->export_settings->include_material_textures) {
+	//if (this->export_settings->include_material_textures) {
 		mf.forEachMaterialInExportSet<ImagesExporter>(sce, *this, this->export_settings->export_set);
-	}
+	//}
 
 	closeLibrary();
 }

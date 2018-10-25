@@ -105,12 +105,12 @@ extern "C" {
 
 DocumentImporter::DocumentImporter(bContext *C, const ImportSettings *import_settings) :
 	import_settings(import_settings),
-	mImportStage(General),
+	mImportStage(Fetching_Scene_data),
 	mContext(C),
 	view_layer(CTX_data_view_layer(mContext)),
 	armature_importer(&unit_converter, &mesh_importer, CTX_data_main(C), CTX_data_scene(C), view_layer, import_settings),
 	mesh_importer(&unit_converter, &armature_importer, CTX_data_main(C), CTX_data_scene(C), view_layer),
-	anim_importer(&unit_converter, &armature_importer, CTX_data_scene(C))
+	anim_importer(C, &unit_converter, &armature_importer, CTX_data_scene(C))
 {
 }
 
@@ -150,9 +150,7 @@ bool DocumentImporter::import()
 	}
 
 	/** TODO set up scene graph and such here */
-
-	mImportStage = Controller;
-
+	mImportStage = Fetching_Controller_data;
 	COLLADASaxFWL::Loader loader2;
 	COLLADAFW::Root root2(&loader2, this);
 
@@ -183,7 +181,7 @@ void DocumentImporter::start()
 
 void DocumentImporter::finish()
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return;
 
 	Main *bmain = CTX_data_main(mContext);
@@ -278,7 +276,6 @@ void DocumentImporter::finish()
 
 void DocumentImporter::translate_anim_recursive(COLLADAFW::Node *node, COLLADAFW::Node *par = NULL, Object *parob = NULL)
 {
-	Main *bmain = CTX_data_main(mContext);
 	// The split in #29246, rootmap must point at actual root when
 	// calculating bones in apply_curves_as_matrix. - actual root is the root node.
 	// This has to do with inverse bind poses being world space
@@ -313,7 +310,7 @@ void DocumentImporter::translate_anim_recursive(COLLADAFW::Node *node, COLLADAFW
 		translate_anim_recursive(node, node, parob);
 	}
 	else {
-		anim_importer.translate_Animations(bmain, node, root_map, object_map, FW_object_map, uid_material_map);
+		anim_importer.translate_Animations(node, root_map, object_map, FW_object_map, uid_material_map);
 		COLLADAFW::NodePointerArray &children = node->getChildNodes();
 		for (i = 0; i < children.getCount(); i++) {
 			translate_anim_recursive(children[i], node, NULL);
@@ -701,7 +698,7 @@ finally:
  */
 bool DocumentImporter::writeVisualScene(const COLLADAFW::VisualScene *visualScene)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	// this method called on post process after writeGeometry, writeMaterial, etc.
@@ -724,7 +721,7 @@ bool DocumentImporter::writeVisualScene(const COLLADAFW::VisualScene *visualScen
  * \return The writer should return true, if writing succeeded, false otherwise.*/
 bool DocumentImporter::writeLibraryNodes(const COLLADAFW::LibraryNodes *libraryNodes)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	Scene *sce = CTX_data_scene(mContext);
@@ -744,7 +741,7 @@ bool DocumentImporter::writeLibraryNodes(const COLLADAFW::LibraryNodes *libraryN
  * \return The writer should return true, if writing succeeded, false otherwise.*/
 bool DocumentImporter::writeGeometry(const COLLADAFW::Geometry *geom)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	return mesh_importer.write_geometry(geom);
@@ -754,7 +751,7 @@ bool DocumentImporter::writeGeometry(const COLLADAFW::Geometry *geom)
  * \return The writer should return true, if writing succeeded, false otherwise.*/
 bool DocumentImporter::writeMaterial(const COLLADAFW::Material *cmat)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	Main *bmain = CTX_data_main(mContext);
@@ -904,7 +901,7 @@ void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Materia
 
 bool DocumentImporter::writeEffect(const COLLADAFW::Effect *effect)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	const COLLADAFW::UniqueId& uid = effect->getUniqueId();
@@ -941,7 +938,7 @@ bool DocumentImporter::writeEffect(const COLLADAFW::Effect *effect)
  * \return The writer should return true, if writing succeeded, false otherwise.*/
 bool DocumentImporter::writeCamera(const COLLADAFW::Camera *camera)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	Main *bmain = CTX_data_main(mContext);
@@ -1067,7 +1064,7 @@ bool DocumentImporter::writeCamera(const COLLADAFW::Camera *camera)
  * \return The writer should return true, if writing succeeded, false otherwise.*/
 bool DocumentImporter::writeImage(const COLLADAFW::Image *image)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	const std::string& imagepath = image->getImageURI().toNativePath();
@@ -1104,7 +1101,7 @@ bool DocumentImporter::writeImage(const COLLADAFW::Image *image)
  * \return The writer should return true, if writing succeeded, false otherwise.*/
 bool DocumentImporter::writeLight(const COLLADAFW::Light *light)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	Main *bmain = CTX_data_main(mContext);
@@ -1251,7 +1248,7 @@ bool DocumentImporter::writeLight(const COLLADAFW::Light *light)
 // this function is called only for animations that pass COLLADAFW::validate
 bool DocumentImporter::writeAnimation(const COLLADAFW::Animation *anim)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	// return true;
@@ -1261,7 +1258,7 @@ bool DocumentImporter::writeAnimation(const COLLADAFW::Animation *anim)
 // called on post-process stage after writeVisualScenes
 bool DocumentImporter::writeAnimationList(const COLLADAFW::AnimationList *animationList)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	// return true;
@@ -1278,7 +1275,7 @@ bool DocumentImporter::writeSkinControllerData(const COLLADAFW::SkinControllerDa
 // this is called on postprocess, before writeVisualScenes
 bool DocumentImporter::writeController(const COLLADAFW::Controller *controller)
 {
-	if (mImportStage != General)
+	if (mImportStage == Fetching_Controller_data)
 		return true;
 
 	return armature_importer.write_controller(controller);

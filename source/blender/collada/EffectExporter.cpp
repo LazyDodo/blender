@@ -49,7 +49,6 @@ extern "C" {
 	#include "BKE_material.h"
 }
 
-// OB_MESH is assumed
 static std::string getActiveUVLayerName(Object *ob)
 {
 	Mesh *me = (Mesh *)ob->data;
@@ -61,8 +60,11 @@ static std::string getActiveUVLayerName(Object *ob)
 	return "";
 }
 
-EffectsExporter::EffectsExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) : COLLADASW::LibraryEffects(sw), export_settings(export_settings) {
-}
+EffectsExporter::EffectsExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) :
+	COLLADASW::LibraryEffects(sw),
+	export_settings(export_settings)
+{}
+
 
 bool EffectsExporter::hasEffects(Scene *sce)
 {
@@ -210,7 +212,7 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 		key = translate_id(key);
 		int i = im_samp_map[key];
 		std::string uvname = strlen(t->uvname) ? t->uvname : active_uv;
-		COLLADASW::Sampler *sampler = (COLLADASW::Sampler *)samp_surf[i];
+		COLLADASW::Sampler *sampler = (COLLADASW::Sampler *)samp_surf[i]; // possibly uninitialised memory ...
 		writeTextures(ep, key, sampler, t, ima, uvname);
 	}
 #endif
