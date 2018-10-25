@@ -1188,6 +1188,11 @@ class VIEW3D_MT_select_edit_lattice(Menu):
 
         layout.separator()
 
+        layout.operator("lattice.select_more")
+        layout.operator("lattice.select_less")
+
+        layout.separator()
+
         layout.operator("lattice.select_ungrouped", text="Ungrouped Verts")
 
 
@@ -3843,7 +3848,6 @@ class VIEW3D_MT_orientations_pie(Menu):
         layout = self.layout
         pie = layout.menu_pie()
         scene = context.scene
-        orientation = scene.current_orientation
 
         pie.prop(scene, "transform_orientation", expand=True)
 

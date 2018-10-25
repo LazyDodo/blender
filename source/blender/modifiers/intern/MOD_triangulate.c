@@ -47,9 +47,12 @@ static Mesh *triangulate_mesh(Mesh *mesh, const int quad_method, const int ngon_
 	MEdge *me;
 
 	bm = BKE_mesh_to_bmesh_ex(
-	         mesh,
-	         &((struct BMeshCreateParams){0}),
-	         &((struct BMeshFromMeshParams){.calc_face_normal = true,}));
+	        mesh,
+	        &((struct BMeshCreateParams){0}),
+	        &((struct BMeshFromMeshParams){
+	            .calc_face_normal = true,
+	            .cd_mask_extra = CD_MASK_ORIGINDEX,
+	        }));
 
 	BM_mesh_triangulate(bm, quad_method, ngon_method, false, NULL, NULL, NULL);
 
@@ -111,14 +114,12 @@ ModifierTypeInfo modifierType_Triangulate = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL, //requiredDataMask,

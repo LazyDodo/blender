@@ -152,9 +152,12 @@ static Mesh *applyModifier(
 	}
 
 	bm = BKE_mesh_to_bmesh_ex(
-	         mesh,
-	         &((struct BMeshCreateParams){0}),
-	         &((struct BMeshFromMeshParams){.calc_face_normal = calc_face_normal,}));
+	        mesh,
+	        &(struct BMeshCreateParams){0},
+	        &(struct BMeshFromMeshParams){
+	            .calc_face_normal = calc_face_normal,
+	            .cd_mask_extra = CD_MASK_ORIGINDEX,
+	        });
 
 	switch (dmd->mode) {
 		case MOD_DECIM_MODE_COLLAPSE:
@@ -220,14 +223,12 @@ ModifierTypeInfo modifierType_Decimate = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
