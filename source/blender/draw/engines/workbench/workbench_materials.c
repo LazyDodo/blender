@@ -57,15 +57,6 @@ char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, bool use_text
 	if (CAVITY_ENABLED(wpd)) {
 		BLI_dynstr_appendf(ds, "#define V3D_SHADING_CAVITY\n");
 	}
-	if (CURVATURE_ENABLED(wpd)) {
-		BLI_dynstr_appendf(ds, "#define V3D_SHADING_CURVATURE\n");
-		if (U.pixelsize > 1.5f) {
-			BLI_dynstr_appendf(ds, "#define CURVATURE_OFFSET 2\n");
-		}
-		else {
-			BLI_dynstr_appendf(ds, "#define CURVATURE_OFFSET 1\n");
-		}
-	}
 	if (SPECULAR_HIGHLIGHT_ENABLED(wpd)) {
 		BLI_dynstr_appendf(ds, "#define V3D_SHADING_SPECULAR_HIGHLIGHT\n");
 	}
@@ -160,14 +151,11 @@ int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, bool use_tex
 	SET_FLAG_FROM_TEST(index, wpd->shading.flag & V3D_SHADING_SHADOW, 1 << 4);
 	SET_FLAG_FROM_TEST(index, wpd->shading.flag & V3D_SHADING_CAVITY, 1 << 5);
 	SET_FLAG_FROM_TEST(index, wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE, 1 << 6);
-	bool uses_curvature = wpd->shading.flag & V3D_SHADING_CURVATURE;
-	SET_FLAG_FROM_TEST(index, uses_curvature, 1 << 7);
-	SET_FLAG_FROM_TEST(index, uses_curvature && (U.pixelsize > 1.5f), 1 << 8);
 	/* 2 bits STUDIOLIGHT_ORIENTATION */
-	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD, 1 << 9);
-	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL, 1 << 10);
+	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD, 1 << 7);
+	SET_FLAG_FROM_TEST(index, wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL, 1 << 8);
 	/* 1 bit for hair */
-	SET_FLAG_FROM_TEST(index, is_hair, 1 << 11);
+	SET_FLAG_FROM_TEST(index, is_hair, 1 << 9);
 	return index;
 }
 

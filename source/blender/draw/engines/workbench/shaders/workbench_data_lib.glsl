@@ -13,7 +13,5 @@ struct WorldData {
 	int num_lights;
 	int matcap_orientation;
 	float background_alpha;
-	float curvature_ridge;
-	float curvature_valley;
-	int pad[3];
+	int pad[1];
 };

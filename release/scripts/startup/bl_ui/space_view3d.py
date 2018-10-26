@@ -4185,17 +4185,6 @@ class VIEW3D_PT_shading_options(Panel):
             col = layout.column()
             row = col.row()
             row.active = not shading.show_xray
-            row.prop(shading, "show_curvature")
-
-            if shading.show_curvature:
-                sub = col.row(align=True)
-                sub.active = not shading.show_xray and shading.show_curvature
-                sub.prop(shading, "curvature_ridge_factor")
-                sub.prop(shading, "curvature_valley_factor")
-
-            col = layout.column()
-            row = col.row()
-            row.active = not shading.show_xray
             row.prop(shading, "show_cavity")
 
             if shading.show_cavity:
