@@ -30,7 +30,7 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -94,13 +94,6 @@ struct bContext {
 		int py_init; /* true if python is initialized */
 		void *py_context;
 	} data;
-
-	/* data evaluation */
-#if 0
-	struct {
-		int render;
-	} eval;
-#endif
 };
 
 /* context */
@@ -217,7 +210,7 @@ void CTX_store_free_list(ListBase *contexts)
 	}
 }
 
-/* is python initialied? */
+/* is python initialized? */
 
 int CTX_py_init_get(bContext *C)
 {
@@ -1206,6 +1199,11 @@ struct bPoseChannel *CTX_data_active_pose_bone(const bContext *C)
 int CTX_data_selected_pose_bones(const bContext *C, ListBase *list)
 {
 	return ctx_data_collection_get(C, "selected_pose_bones", list);
+}
+
+int CTX_data_selected_pose_bones_from_active_object(const bContext *C, ListBase *list)
+{
+	return ctx_data_collection_get(C, "selected_pose_bones_from_active_object", list);
 }
 
 int CTX_data_visible_pose_bones(const bContext *C, ListBase *list)

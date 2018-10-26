@@ -75,7 +75,7 @@ static void deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	OpacityGpencilModifierData *mmd = (OpacityGpencilModifierData *)md;
-	int vindex = defgroup_name_index(ob, mmd->vgname);
+	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(
 	            ob,
@@ -107,11 +107,11 @@ static void deformStroke(
 	if (mmd->factor > 1.0f) {
 		for (int i = 0; i < gps->totpoints; i++) {
 			bGPDspoint *pt = &gps->points[i];
-			MDeformVert *dvert = &gps->dvert[i];
+			MDeformVert *dvert = gps->dvert != NULL ? &gps->dvert[i] : NULL;
 
 			/* verify vertex group */
-			float weight = get_modifier_point_weight(dvert, ((mmd->flag & GP_OPACITY_INVERT_VGROUP) != 0), vindex);
-			if (weight < 0) {
+			const float weight = get_modifier_point_weight(dvert, (mmd->flag & GP_OPACITY_INVERT_VGROUP) != 0, def_nr);
+			if (weight < 0.0f) {
 				pt->strength += mmd->factor - 1.0f;
 			}
 			else {
@@ -147,8 +147,9 @@ static void bakeModifier(
 
 				deformStroke(md, depsgraph, ob, gpl, gps);
 
-				gpencil_apply_modifier_material(bmain, ob, mat, gh_color, gps,
-					(bool)(mmd->flag & GP_OPACITY_CREATE_COLORS));
+				gpencil_apply_modifier_material(
+				        bmain, ob, mat, gh_color, gps,
+				        (bool)(mmd->flag & GP_OPACITY_CREATE_COLORS));
 			}
 		}
 	}
@@ -170,7 +171,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Opacity = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

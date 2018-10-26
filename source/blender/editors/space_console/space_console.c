@@ -146,7 +146,7 @@ static void console_main_region_init(wmWindowManager *wm, ARegion *ar)
 	}
 
 	/* own keymap */
-	keymap = WM_keymap_find(wm->defaultconf, "Console", SPACE_CONSOLE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Console", SPACE_CONSOLE, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 	/* add drop boxes */
@@ -235,7 +235,7 @@ static void console_main_region_draw(const bContext *C, ARegion *ar)
 	UI_view2d_view_restore(C);
 
 	/* scrollers */
-	scrollers = UI_view2d_scrollers_calc(C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_GRID_CLAMP);
+	scrollers = UI_view2d_scrollers_calc(C, v2d, NULL, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_GRID_CLAMP);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
 }
@@ -265,7 +265,7 @@ static void console_operatortypes(void)
 
 static void console_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Console", SPACE_CONSOLE, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Console", SPACE_CONSOLE, 0);
 	wmKeyMapItem *kmi;
 
 #ifdef __APPLE__

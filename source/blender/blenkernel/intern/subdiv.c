@@ -30,6 +30,7 @@
 #include "BKE_subdiv.h"
 
 #include "DNA_mesh_types.h"
+#include "DNA_modifier_types.h"
 
 #include "BLI_utildefines.h"
 
@@ -37,17 +38,35 @@
 
 #include "subdiv_converter.h"
 
-#ifdef WITH_OPENSUBDIV
-#  include "opensubdiv_capi.h"
-#  include "opensubdiv_converter_capi.h"
-#  include "opensubdiv_evaluator_capi.h"
-#  include "opensubdiv_topology_refiner_capi.h"
-#endif
+#include "opensubdiv_capi.h"
+#include "opensubdiv_converter_capi.h"
+#include "opensubdiv_evaluator_capi.h"
+#include "opensubdiv_topology_refiner_capi.h"
+
+eSubdivFVarLinearInterpolation
+BKE_subdiv_fvar_interpolation_from_uv_smooth(int uv_smooth)
+{
+	switch (uv_smooth) {
+		case SUBSURF_UV_SMOOTH_NONE:
+			return SUBDIV_FVAR_LINEAR_INTERPOLATION_ALL;
+		case SUBSURF_UV_SMOOTH_PRESERVE_CORNERS:
+			return SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_ONLY;
+		case SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_AND_JUNCTIONS:
+			return SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_AND_JUNCTIONS;
+		case SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_JUNCTIONS_AND_CONCAVE:
+			return SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_JUNCTIONS_AND_CONCAVE;
+		case SUBSURF_UV_SMOOTH_PRESERVE_BOUNDARIES:
+			return SUBDIV_FVAR_LINEAR_INTERPOLATION_BOUNDARIES;
+		case SUBSURF_UV_SMOOTH_ALL:
+			return SUBDIV_FVAR_LINEAR_INTERPOLATION_NONE;
+	}
+	BLI_assert(!"Unknown uv smooth flag");
+	return SUBDIV_FVAR_LINEAR_INTERPOLATION_ALL;
+}
 
 Subdiv *BKE_subdiv_new_from_converter(const SubdivSettings *settings,
                                       struct OpenSubdiv_Converter *converter)
 {
-#ifdef WITH_OPENSUBDIV
 	SubdivStats stats;
 	BKE_subdiv_stats_init(&stats);
 	BKE_subdiv_stats_begin(&stats, SUBDIV_STATS_TOPOLOGY_REFINER_CREATION_TIME);
@@ -71,19 +90,15 @@ Subdiv *BKE_subdiv_new_from_converter(const SubdivSettings *settings,
 	subdiv->settings = *settings;
 	subdiv->topology_refiner = osd_topology_refiner;
 	subdiv->evaluator = NULL;
+	subdiv->displacement_evaluator = NULL;
 	BKE_subdiv_stats_end(&stats, SUBDIV_STATS_TOPOLOGY_REFINER_CREATION_TIME);
 	subdiv->stats = stats;
 	return subdiv;
-#else
-	UNUSED_VARS(settings, converter);
-	return NULL;
-#endif
 }
 
 Subdiv *BKE_subdiv_new_from_mesh(const SubdivSettings *settings,
                                  struct Mesh *mesh)
 {
-#ifdef WITH_OPENSUBDIV
 	if (mesh->totvert == 0) {
 		return NULL;
 	}
@@ -92,23 +107,43 @@ Subdiv *BKE_subdiv_new_from_mesh(const SubdivSettings *settings,
 	Subdiv *subdiv = BKE_subdiv_new_from_converter(settings, &converter);
 	BKE_subdiv_converter_free(&converter);
 	return subdiv;
-#else
-	UNUSED_VARS(settings, mesh);
-	return NULL;
-#endif
 }
 
 void BKE_subdiv_free(Subdiv *subdiv)
 {
-#ifdef WITH_OPENSUBDIV
 	if (subdiv->evaluator != NULL) {
 		openSubdiv_deleteEvaluator(subdiv->evaluator);
 	}
 	if (subdiv->topology_refiner != NULL) {
 		openSubdiv_deleteTopologyRefiner(subdiv->topology_refiner);
 	}
+	BKE_subdiv_displacement_detach(subdiv);
+	if (subdiv->cache_.face_ptex_offset != NULL) {
+		MEM_freeN(subdiv->cache_.face_ptex_offset);
+	}
 	MEM_freeN(subdiv);
-#else
-	UNUSED_VARS(subdiv);
-#endif
+}
+
+int *BKE_subdiv_face_ptex_offset_get(Subdiv *subdiv)
+{
+	if (subdiv->cache_.face_ptex_offset != NULL) {
+		return subdiv->cache_.face_ptex_offset;
+	}
+	OpenSubdiv_TopologyRefiner *topology_refiner = subdiv->topology_refiner;
+	if (topology_refiner == NULL) {
+		return NULL;
+	}
+	const int num_coarse_faces =
+	        topology_refiner->getNumFaces(topology_refiner);
+	subdiv->cache_.face_ptex_offset = MEM_malloc_arrayN(
+	        num_coarse_faces, sizeof(int), "subdiv face_ptex_offset");
+	int ptex_offset = 0;
+	for (int face_index = 0; face_index < num_coarse_faces; face_index++) {
+		const int num_ptex_faces =
+		        topology_refiner->getNumFacePtexFaces(
+		                topology_refiner, face_index);
+		subdiv->cache_.face_ptex_offset[face_index] = ptex_offset;
+		ptex_offset += num_ptex_faces;
+	}
+	return subdiv->cache_.face_ptex_offset;
 }

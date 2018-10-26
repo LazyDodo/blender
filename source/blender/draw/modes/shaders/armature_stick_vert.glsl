@@ -4,18 +4,18 @@ uniform mat4 ViewProjectionMatrix;
 uniform mat4 ViewMatrix;
 uniform vec2 viewportSize;
 
-/* ---- Instanciated Attribs ---- */
+/* ---- Instantiated Attribs ---- */
 in vec2 pos; /* bone aligned screen space */
 in uint flag;
 
-#define COL_WIRE (1u << 0u)
-#define COL_HEAD (1u << 1u)
-#define COL_TAIL (1u << 2u)
-#define COL_BONE (1u << 3u)
+#define COL_WIRE 1u /* (1 << 0) */
+#define COL_HEAD 2u /* (1 << 1) */
+#define COL_TAIL 4u /* (1 << 2) */
+#define COL_BONE 8u /* (1 << 3) */
 
-#define POS_HEAD (1u << 4u)
-#define POS_TAIL (1u << 5u) /* UNUSED */
-#define POS_BONE (1u << 6u)
+#define POS_HEAD 16u /* (1 << 4) */
+#define POS_TAIL 32u /* (1 << 5) */ /* UNUSED */
+#define POS_BONE 64u /* (1 << 6) */
 
 /* ---- Per instance Attribs ---- */
 in vec3 boneStart;
@@ -26,14 +26,14 @@ in vec4 headColor; /* alpha encode if we do head. If 0.0 we dont. */
 in vec4 tailColor; /* alpha encode if we do tail. If 0.0 we dont. */
 
 #define do_wire (wireColor.a > 0.0)
-#define is_head ((flag & POS_HEAD) != 0u)
-#define is_bone ((flag & POS_BONE) != 0u)
+#define is_head bool(flag & POS_HEAD)
+#define is_bone bool(flag & POS_BONE)
 
 noperspective out float colorFac;
 flat out vec4 finalWireColor;
 flat out vec4 finalInnerColor;
 
-uniform float stickSize = 5.0; /* might be dependant on DPI setting in the future. */
+uniform float stickSize = 5.0; /* might be dependent on DPI setting in the future. */
 
 /* project to screen space */
 vec2 proj(vec4 pos)
@@ -54,7 +54,7 @@ void main()
 
 	/* Clip the bone to the camera origin plane (not the clip plane)
 	 * to avoid glitches if one end is behind the camera origin (in persp). */
-	const float clip_dist = -1e-7; /* hardcoded, -1e-8 is giving gliches. */
+	float clip_dist = (ProjectionMatrix[3][3] == 0.0) ? -1e-7 : 1e20; /* hardcoded, -1e-8 is giving gliches. */
 	vec3 bvec = v1.xyz - v0.xyz;
 	vec3 clip_pt = v0.xyz + bvec * ((v0.z - clip_dist) / -bvec.z);
 	if (v0.z > clip_dist) {

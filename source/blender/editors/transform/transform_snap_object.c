@@ -100,6 +100,7 @@ typedef struct SnapObjectData {
 typedef struct SnapObjectData_Mesh {
 	SnapObjectData sd;
 	BVHTreeFromMesh treedata;
+	const struct MPoly *poly;
 	BVHTree *bvhtree[2]; /* from loose verts and from loose edges */
 	uint has_looptris   : 1;
 	uint has_loose_edge : 1;
@@ -194,7 +195,7 @@ static SnapObjectData_EditMesh *snap_object_data_editmesh_create(SnapObjectConte
 }
 
 /**
- * Walks through all objects in the scene to create the list of objets to snap.
+ * Walks through all objects in the scene to create the list of objects to snap.
  *
  * \param sctx: Snap context to store data.
  * \param snap_select : from enum eSnapSelect.
@@ -428,11 +429,18 @@ static bool raycastMesh(
 			if (treedata->looptri && treedata->looptri_allocated == false) {
 				treedata->looptri = BKE_mesh_runtime_looptri_ensure(me);
 			}
+			/* required for snapping with occlusion. */
+			treedata->edge = me->medge;
+			sod->poly = me->mpoly;
 		}
 	}
 
 	if (treedata->tree == NULL) {
 		BKE_bvhtree_from_mesh_get(treedata, me, BVHTREE_FROM_LOOPTRI, 4);
+
+		/* required for snapping with occlusion. */
+		treedata->edge = me->medge;
+		sod->poly = me->mpoly;
 
 		if (treedata->tree == NULL) {
 			return retval;
@@ -727,7 +735,7 @@ static bool raycastObj(
 
 	if (use_occlusion_test) {
 		if (use_obedit && sctx->use_v3d &&
-		    !(sctx->v3d_data.v3d->flag & V3D_ZBUF_SELECT))
+		    !V3D_IS_ZBUF(sctx->v3d_data.v3d))
 		{
 			/* Use of occlude geometry in editing mode disabled. */
 			return false;
@@ -736,22 +744,31 @@ static bool raycastObj(
 
 	switch (ob->type) {
 		case OB_MESH:
-			if (use_obedit && BKE_object_is_in_editmode(ob)) {
+		{
+			Mesh *me = ob->data;
+			if (BKE_object_is_in_editmode(ob)) {
 				BMEditMesh *em = BKE_editmesh_from_object(ob);
-				retval = raycastEditMesh(
-				        sctx,
-				        ray_start, ray_dir,
-				        ob, em, obmat, ob_index,
-				        ray_depth, r_loc, r_no, r_index, r_hit_list);
+				if (use_obedit) {
+					retval = raycastEditMesh(
+					        sctx,
+					        ray_start, ray_dir,
+					        ob, em, obmat, ob_index,
+					        ray_depth, r_loc, r_no, r_index, r_hit_list);
+					break;
+				}
+				else if (em->mesh_eval_final &&
+				         (em->mesh_eval_final->runtime.deformed_only == false))
+				{
+					me = em->mesh_eval_final;
+				}
 			}
-			else {
-				retval = raycastMesh(
-				        sctx,
-				        ray_start, ray_dir,
-				        ob, ob->data, obmat, ob_index,
-				        ray_depth, r_loc, r_no, r_index, r_hit_list);
-			}
+			retval = raycastMesh(
+			        sctx,
+			        ray_start, ray_dir,
+			        ob, me, obmat, ob_index,
+			        ray_depth, r_loc, r_no, r_index, r_hit_list);
 			break;
+		}
 	}
 
 	if (retval) {
@@ -1202,12 +1219,11 @@ static short snap_mesh_polygon(
 		nearest2d.get_edge_verts_index = (Nearest2DGetEdgeVertsCallback)cb_medge_verts_get;
 		nearest2d.copy_vert_no         = (Nearest2DCopyVertNoCallback)cb_mvert_no_copy;
 
-		MPoly *mp = &((Mesh *)ob->data)->mpoly[*r_index];
-		const MLoop *ml;
+		const MPoly *mp = &((SnapObjectData_Mesh *)sod)->poly[*r_index];
+		const MLoop *ml = &treedata->loop[mp->loopstart];
 		if (snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 			elem = SCE_SNAP_MODE_EDGE;
-			treedata->edge = ((Mesh *)ob->data)->medge;
-			ml = &treedata->loop[mp->loopstart];
+			BLI_assert(treedata->edge != NULL);
 			for (int i = mp->totloop; i--; ml++) {
 				cb_snap_edge(
 				        &nearest2d, ml->e, &neasrest_precalc,
@@ -1217,7 +1233,6 @@ static short snap_mesh_polygon(
 		}
 		else {
 			elem = SCE_SNAP_MODE_VERTEX;
-			ml = &treedata->loop[mp->loopstart];
 			for (int i = mp->totloop; i--; ml++) {
 				cb_snap_vert(
 				        &nearest2d, ml->v, &neasrest_precalc,
@@ -2243,21 +2258,29 @@ static short snapObject(
 
 	switch (ob->type) {
 		case OB_MESH:
-			if (use_obedit && BKE_object_is_in_editmode(ob)) {
+		{
+			Mesh *me = ob->data;
+			if (BKE_object_is_in_editmode(ob)) {
 				BMEditMesh *em = BKE_editmesh_from_object(ob);
-				retval = snapEditMesh(
-				        sctx, snapdata, ob, em, obmat,
-				        dist_px,
-				        r_loc, r_no, r_index);
+				if (use_obedit) {
+					retval = snapEditMesh(
+					        sctx, snapdata, ob, em, obmat,
+					        dist_px,
+					        r_loc, r_no, r_index);
+					break;
+				}
+				else if (em->mesh_eval_final &&
+				         (em->mesh_eval_final->runtime.deformed_only == false))
+				{
+					me = em->mesh_eval_final;
+				}
 			}
-			else {
-				retval = snapMesh(
-				        sctx, snapdata, ob, ob->data, obmat,
-				        dist_px,
-				        r_loc, r_no, r_index);
-			}
+			retval = snapMesh(
+			        sctx, snapdata, ob, me, obmat,
+			        dist_px,
+			        r_loc, r_no, r_index);
 			break;
-
+		}
 		case OB_ARMATURE:
 			retval = snapArmature(
 			        snapdata,
@@ -2601,12 +2624,12 @@ static short transform_snap_context_project_view3d_mixed_impl(
 
 	bool use_occlusion_test =
 	        params->use_occlusion_test &&
-	        !(sctx->v3d_data.v3d->shading.flag & V3D_SHADING_XRAY);
+	        !(sctx->v3d_data.v3d->shading.flag & V3D_XRAY_FLAG(sctx->v3d_data.v3d));
 
 	if (snap_to_flag & SCE_SNAP_MODE_FACE || use_occlusion_test) {
 		float ray_start[3], ray_normal[3];
 
-		if (!ED_view3d_win_to_ray_ex(
+		if (!ED_view3d_win_to_ray_clipped_ex(
 		        sctx->depsgraph,
 		        sctx->v3d_data.ar, sctx->v3d_data.v3d,
 		        mval, NULL, ray_normal, ray_start, true))
@@ -2654,6 +2677,9 @@ static short transform_snap_context_project_view3d_mixed_impl(
 				/* The plane is facing the wrong direction. */
 				negate_v4(new_clipplane);
 			}
+
+			/* Small offset to simulate a kind of volume for edges and vertices. */
+			new_clipplane[3] += 0.01f;
 
 			/* Try to snap only to the polygon. */
 			elem = snap_mesh_polygon(
@@ -2767,7 +2793,7 @@ bool ED_transform_snap_object_project_all_view3d_ex(
 {
 	float ray_start[3], ray_normal[3];
 
-	if (!ED_view3d_win_to_ray_ex(
+	if (!ED_view3d_win_to_ray_clipped_ex(
 	        sctx->depsgraph,
 	        sctx->v3d_data.ar, sctx->v3d_data.v3d,
 	        mval, NULL, ray_normal, ray_start, true))

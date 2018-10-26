@@ -119,10 +119,20 @@ class PARTICLE_UL_particle_systems(bpy.types.UIList):
 
             layout.prop(psys, "name", text="", emboss=False, icon_value=icon)
             if md:
-                layout.prop(md, "show_render", emboss=False, icon_only=True,
-                            icon='RESTRICT_RENDER_OFF' if md.show_render else 'RESTRICT_RENDER_ON')
-                layout.prop(md, "show_viewport", emboss=False, icon_only=True,
-                            icon='RESTRICT_VIEW_OFF' if md.show_viewport else 'RESTRICT_VIEW_ON')
+                layout.prop(
+                    md,
+                    "show_render",
+                    emboss=False,
+                    icon_only=True,
+                    icon='RESTRICT_RENDER_OFF' if md.show_render else 'RESTRICT_RENDER_ON',
+                )
+                layout.prop(
+                    md,
+                    "show_viewport",
+                    emboss=False,
+                    icon_only=True,
+                    icon='RESTRICT_VIEW_OFF' if md.show_viewport else 'RESTRICT_VIEW_ON',
+                )
 
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
@@ -153,14 +163,14 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
                               ob.particle_systems, "active_index", rows=2)
 
             col = row.column(align=True)
-            col.operator("object.particle_system_add", icon='ZOOMIN', text="")
-            col.operator("object.particle_system_remove", icon='ZOOMOUT', text="")
+            col.operator("object.particle_system_add", icon='ADD', text="")
+            col.operator("object.particle_system_remove", icon='REMOVE', text="")
             col.menu("PARTICLE_MT_specials", icon='DOWNARROW_HLT', text="")
 
         if psys is None:
             part = particle_get_settings(context)
 
-            layout.operator("object.particle_system_add", icon='ZOOMIN', text="New")
+            layout.operator("object.particle_system_add", icon='ADD', text="New")
 
             if part is None:
                 return
@@ -174,7 +184,7 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
             layout.prop(part, "type", text="Type")
 
         elif not psys.settings:
-            split = layout.split(percentage=0.32)
+            split = layout.split(factor=0.32)
 
             col = split.column()
             col.label(text="Settings:")
@@ -184,7 +194,7 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
         else:
             part = psys.settings
 
-            split = layout.split(percentage=0.32)
+            split = layout.split(factor=0.32)
             col = split.column()
             if part.is_fluid is False:
                 col.label(text="Settings:")
@@ -206,7 +216,7 @@ class PARTICLE_PT_context_particles(ParticleButtonsPanel, Panel):
             row.prop(psys, "seed")
 
         if part:
-            split = layout.split(percentage=0.65)
+            split = layout.split(factor=0.65)
             if part.type == 'HAIR':
                 if psys is not None and psys.is_edited:
                     split.operator("particle.edited_clear", text="Free Edit")
@@ -267,7 +277,7 @@ class PARTICLE_PT_emission(ParticleButtonsPanel, Panel):
         if part.type == 'HAIR':
             col.prop(part, "hair_length")
             if not part.use_advanced_hair:
-                row = layout.row()
+                layout.row()  # is this needed?
                 col.prop(part, "use_modifier_stack")
                 return
 
@@ -396,10 +406,10 @@ class PARTICLE_PT_hair_dynamics(ParticleButtonsPanel, Panel):
             else:
                 label = "ERROR"
                 icon = 'ERROR'
-            box.label(label, icon=icon)
-            box.label("Iterations: %d .. %d (avg. %d)" %
+            box.label(text=label, icon=icon)
+            box.label(text="Iterations: %d .. %d (avg. %d)" %
                       (result.min_iterations, result.max_iterations, result.avg_iterations))
-            box.label("Error: %.5f .. %.5f (avg. %.5f)" % (result.min_error, result.max_error, result.avg_error))
+            box.label(text="Error: %.5f .. %.5f (avg. %.5f)" % (result.min_error, result.max_error, result.avg_error))
 
 
 class PARTICLE_PT_hair_dynamics_structure(ParticleButtonsPanel, Panel):
@@ -418,7 +428,6 @@ class PARTICLE_PT_hair_dynamics_structure(ParticleButtonsPanel, Panel):
         psys = context.particle_system
         cloth_md = psys.cloth
         cloth = cloth_md.settings
-        result = cloth_md.solver_result
 
         layout.enabled = psys.use_hair_dynamics and psys.point_cache.is_baked is False
 
@@ -450,7 +459,6 @@ class PARTICLE_PT_hair_dynamics_volume(ParticleButtonsPanel, Panel):
         psys = context.particle_system
         cloth_md = psys.cloth
         cloth = cloth_md.settings
-        result = cloth_md.solver_result
 
         layout.enabled = psys.use_hair_dynamics and psys.point_cache.is_baked is False
 
@@ -688,7 +696,6 @@ class PARTICLE_PT_physics_fluid_advanced(ParticleButtonsPanel, Panel):
     @classmethod
     def poll(cls, context):
         part = particle_get_settings(context)
-        fluid = part.fluid
         if part.physics_type == 'FLUID':
             return True
         else:
@@ -698,7 +705,6 @@ class PARTICLE_PT_physics_fluid_advanced(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         fluid = part.fluid
 
@@ -748,7 +754,6 @@ class PARTICLE_PT_physics_fluid_springs(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         fluid = part.fluid
 
@@ -773,7 +778,6 @@ class PARTICLE_PT_physics_fluid_springs_viscoelastic(ParticleButtonsPanel, Panel
             return False
 
     def draw_header(self, context):
-        psys = context.particle_system
         part = particle_get_settings(context)
         fluid = part.fluid
 
@@ -783,7 +787,6 @@ class PARTICLE_PT_physics_fluid_springs_viscoelastic(ParticleButtonsPanel, Panel
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         fluid = part.fluid
 
@@ -817,7 +820,6 @@ class PARTICLE_PT_physics_fluid_springs_advanced(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         fluid = part.fluid
 
@@ -841,7 +843,6 @@ class PARTICLE_PT_physics_boids_movement(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         boids = part.boids
 
@@ -895,7 +896,6 @@ class PARTICLE_PT_physics_boids_battle(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         boids = part.boids
 
@@ -923,7 +923,6 @@ class PARTICLE_PT_physics_boids_misc(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
         boids = part.boids
 
@@ -959,8 +958,8 @@ class PARTICLE_PT_physics_relations(ParticleButtonsPanel, Panel):
         col = row.column()
         sub = col.row()
         subsub = sub.column(align=True)
-        subsub.operator("particle.new_target", icon='ZOOMIN', text="")
-        subsub.operator("particle.target_remove", icon='ZOOMOUT', text="")
+        subsub.operator("particle.new_target", icon='ADD', text="")
+        subsub.operator("particle.target_remove", icon='REMOVE', text="")
         sub = col.row()
         subsub = sub.column(align=True)
         subsub.operator("particle.target_move_up", icon='TRIA_UP', text="")
@@ -1113,8 +1112,8 @@ class PARTICLE_PT_boidbrain(ParticleButtonsPanel, Panel):
         #                  boids, "active_boid_state_index", compact="True")
         #col = row.row()
         #sub = col.row(align=True)
-        #sub.operator("boid.state_add", icon='ZOOMIN', text="")
-        #sub.operator("boid.state_del", icon='ZOOMOUT', text="")
+        #sub.operator("boid.state_add", icon='ADD', text="")
+        #sub.operator("boid.state_del", icon='REMOVE', text="")
         #sub = row.row(align=True)
         #sub.operator("boid.state_move_up", icon='TRIA_UP', text="")
         #sub.operator("boid.state_move_down", icon='TRIA_DOWN', text="")
@@ -1137,8 +1136,8 @@ class PARTICLE_PT_boidbrain(ParticleButtonsPanel, Panel):
         col = row.column()
         sub = col.row()
         subsub = sub.column(align=True)
-        subsub.operator_menu_enum("boid.rule_add", "type", icon='ZOOMIN', text="")
-        subsub.operator("boid.rule_del", icon='ZOOMOUT', text="")
+        subsub.operator_menu_enum("boid.rule_add", "type", icon='ADD', text="")
+        subsub.operator("boid.rule_del", icon='REMOVE', text="")
         sub = col.row()
         subsub = sub.column(align=True)
         subsub.operator("boid.rule_move_up", icon='TRIA_UP', text="")
@@ -1210,8 +1209,10 @@ class PARTICLE_PT_render(ParticleButtonsPanel, Panel):
 
         layout.prop(part, "render_type", text="Render As")
 
-        if part.type == 'EMITTER' or \
-           (part.render_type in {'OBJECT', 'COLLECTION'} and part.type == 'HAIR'):
+        if (
+                part.type == 'EMITTER' or
+                (part.render_type in {'OBJECT', 'COLLECTION'} and part.type == 'HAIR')
+        ):
             if part.render_type not in {'NONE'}:
 
                 col = layout.column(align=True)
@@ -1224,6 +1225,10 @@ class PARTICLE_PT_render(ParticleButtonsPanel, Panel):
                 # col.enabled = False
                 col.prop(part, "material_slot", text="Material")
                 col.prop(psys, "parent", text="Coordinate System")
+
+        if context.object:
+            layout.separator()
+            layout.prop(context.object, "show_duplicator_for_render", text="Show Emitter")
 
 
 class PARTICLE_PT_render_extra(ParticleButtonsPanel, Panel):
@@ -1241,8 +1246,6 @@ class PARTICLE_PT_render_extra(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1268,8 +1271,6 @@ class PARTICLE_PT_render_line(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1296,8 +1297,6 @@ class PARTICLE_PT_render_path(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1332,7 +1331,6 @@ class PARTICLE_PT_render_path_timing(ParticleButtonsPanel, Panel):
         layout.use_property_split = True
 
         psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1363,8 +1361,6 @@ class PARTICLE_PT_render_object(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1391,8 +1387,6 @@ class PARTICLE_PT_render_collection(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1431,8 +1425,6 @@ class PARTICLE_PT_render_collection_use_count(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1446,8 +1438,8 @@ class PARTICLE_PT_render_collection_use_count(ParticleButtonsPanel, Panel):
         col = row.column()
         sub = col.row()
         subsub = sub.column(align=True)
-        subsub.operator("particle.dupliob_copy", icon='ZOOMIN', text="")
-        subsub.operator("particle.dupliob_remove", icon='ZOOMOUT', text="")
+        subsub.operator("particle.dupliob_copy", icon='ADD', text="")
+        subsub.operator("particle.dupliob_remove", icon='REMOVE', text="")
         subsub.operator("particle.dupliob_move_up", icon='TRIA_UP', text="")
         subsub.operator("particle.dupliob_move_down", icon='TRIA_DOWN', text="")
         subsub.separator()
@@ -1474,8 +1466,6 @@ class PARTICLE_PT_render_billboards_alignment(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1500,8 +1490,6 @@ class PARTICLE_PT_render_billboards_tilt(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
-        ob = context.object
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1570,7 +1558,6 @@ class PARTICLE_PT_render_trails(ParticleButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        psys = context.particle_system
         part = particle_get_settings(context)
 
         col = layout.column()
@@ -1604,29 +1591,29 @@ class PARTICLE_PT_draw(ParticleButtonsPanel, Panel):
         psys = context.particle_system
         part = particle_get_settings(context)
 
-        layout.prop(part, "draw_method", text="Display As")
+        layout.prop(part, "display_method", text="Display As")
 
-        if part.draw_method == 'NONE' or (part.render_type == 'NONE' and part.draw_method == 'RENDER'):
+        if part.display_method == 'NONE' or (part.render_type == 'NONE' and part.display_method == 'RENDER'):
             return
 
-        path = (part.render_type == 'PATH' and part.draw_method == 'RENDER') or part.draw_method == 'PATH'
+        path = (part.render_type == 'PATH' and part.display_method == 'RENDER') or part.display_method == 'PATH'
 
         layout.separator()
 
         col = layout.column()
-        col.prop(part, "draw_color", text="Color")
-        if part.draw_color in {'VELOCITY', 'ACCELERATION'}:
+        col.prop(part, "display_color", text="Color")
+        if part.display_color in {'VELOCITY', 'ACCELERATION'}:
             col.prop(part, "color_maximum", text="Fade Distance")
 
         col = layout.column()
 
         if path:
-            col.prop(part, "draw_step", text="Strand Steps")
-        col.prop(part, "draw_percentage", slider=True, text="Amount")
-        if part.draw_method != 'RENDER' or part.render_type == 'HALO':
-            col.prop(part, "draw_size", text="Size")
+            col.prop(part, "display_step", text="Strand Steps")
+        col.prop(part, "display_percentage", slider=True, text="Amount")
+        if part.display_method != 'RENDER' or part.render_type == 'HALO':
+            col.prop(part, "display_size", text="Size")
 
-        if part.draw_percentage != 100 and psys is not None:
+        if part.display_percentage != 100 and psys is not None:
             if part.type == 'HAIR':
                 if psys.use_hair_dynamics and psys.point_cache.is_baked is False:
                     layout.row().label(text="Display percentage makes dynamics inaccurate without baking")
@@ -1635,7 +1622,7 @@ class PARTICLE_PT_draw(ParticleButtonsPanel, Panel):
                 if phystype != 'NO' and phystype != 'KEYED' and psys.point_cache.is_baked is False:
                     layout.row().label(text="Display percentage makes dynamics inaccurate without baking")
         else:
-            layout.row().label(text="")
+            layout.separator()
 
         col = layout.column()
         col.prop(part, "show_guide_hairs", text="Guide Hairs")
@@ -1644,6 +1631,10 @@ class PARTICLE_PT_draw(ParticleButtonsPanel, Panel):
         col.prop(part, "show_number")
         if part.physics_type == 'BOIDS':
             col.prop(part, "show_health")
+
+        if context.object:
+            layout.separator()
+            layout.prop(context.object, "show_duplicator_for_viewport", text="Show Emitter")
 
 
 class PARTICLE_PT_children(ParticleButtonsPanel, Panel):
@@ -1715,7 +1706,6 @@ class PARTICLE_PT_children_parting(ParticleButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
 
-        psys = context.particle_system
         part = particle_get_settings(context)
 
         layout.use_property_split = True
@@ -1740,7 +1730,6 @@ class PARTICLE_PT_children_clumping(ParticleButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
 
-        psys = context.particle_system
         part = particle_get_settings(context)
 
         layout.use_property_split = True
@@ -1782,7 +1771,6 @@ class PARTICLE_PT_children_roughness(ParticleButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
 
-        psys = context.particle_system
         part = particle_get_settings(context)
 
         layout.use_property_split = True
@@ -1801,7 +1789,7 @@ class PARTICLE_PT_children_roughness(ParticleButtonsPanel, Panel):
             sub.prop(part, "roughness_1_size", text="Size")
 
             sub = col.column(align=True)
-            sub.prop(part, "roughness_endpoint", "Endpoint")
+            sub.prop(part, "roughness_endpoint", text="Endpoint")
             sub.prop(part, "roughness_end_shape")
 
             sub = col.column(align=True)
@@ -1824,7 +1812,6 @@ class PARTICLE_PT_children_kink(ParticleButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
 
-        psys = context.particle_system
         part = particle_get_settings(context)
 
         layout.use_property_split = True

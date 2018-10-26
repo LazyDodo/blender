@@ -58,7 +58,7 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
         row = col.row(align=True)
         row.prop(ob, "location")
         row.use_property_decorate = False
-        row.prop(ob, "lock_location", text="", emboss=False)
+        row.prop(ob, "lock_location", text="", emboss=False, icon='DECORATE_UNLOCKED')
 
         if ob.rotation_mode == 'QUATERNION':
             col = flow.column()
@@ -66,8 +66,8 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
             row.prop(ob, "rotation_quaternion", text="Rotation")
             sub = row.column(align=True)
             sub.use_property_decorate = False
-            sub.prop(ob, "lock_rotation_w", text="", emboss=False)
-            sub.prop(ob, "lock_rotation", text="", emboss=False)
+            sub.prop(ob, "lock_rotation_w", text="", emboss=False, icon='DECORATE_UNLOCKED')
+            sub.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
         elif ob.rotation_mode == 'AXIS_ANGLE':
             # row.column().label(text="Rotation")
             #row.column().prop(pchan, "rotation_angle", text="Angle")
@@ -78,20 +78,20 @@ class OBJECT_PT_transform(ObjectButtonsPanel, Panel):
 
             sub = row.column(align=True)
             sub.use_property_decorate = False
-            sub.prop(ob, "lock_rotation_w", text="", emboss=False)
-            sub.prop(ob, "lock_rotation", text="", emboss=False)
+            sub.prop(ob, "lock_rotation_w", text="", emboss=False, icon='DECORATE_UNLOCKED')
+            sub.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
         else:
             col = flow.column()
             row = col.row(align=True)
             row.prop(ob, "rotation_euler", text="Rotation")
             row.use_property_decorate = False
-            row.prop(ob, "lock_rotation", text="", emboss=False)
+            row.prop(ob, "lock_rotation", text="", emboss=False, icon='DECORATE_UNLOCKED')
 
         col = flow.column()
         row = col.row(align=True)
         row.prop(ob, "scale")
         row.use_property_decorate = False
-        row.prop(ob, "lock_scale", text="", emboss=False)
+        row.prop(ob, "lock_scale", text="", emboss=False, icon='DECORATE_UNLOCKED')
 
         row = layout.row(align=True)
         row.prop(ob, "rotation_mode")
@@ -193,11 +193,11 @@ class OBJECT_PT_collections(ObjectButtonsPanel, Panel):
             row.operator("object.collection_link", text="Add to Collection")
         else:
             row.operator("object.collection_add", text="Add to Collection")
-        row.operator("object.collection_add", text="", icon='ZOOMIN')
+        row.operator("object.collection_add", text="", icon='ADD')
 
         obj_name = obj.name
         for collection in bpy.data.collections:
-            # XXX this is slow and stupid!, we need 2 checks, one thats fast
+            # XXX this is slow and stupid!, we need 2 checks, one that's fast
             # and another that we can be sure its not a name collision
             # from linked library data
             collection_objects = collection.objects
@@ -222,53 +222,59 @@ class OBJECT_PT_display(ObjectButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         obj = context.object
         obj_type = obj.type
         is_geometry = (obj_type in {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT'})
         is_wire = (obj_type in {'CAMERA', 'EMPTY'})
-        is_empty_image = (obj_type == 'EMPTY' and obj.empty_draw_type == 'IMAGE')
+        is_empty_image = (obj_type == 'EMPTY' and obj.empty_display_type == 'IMAGE')
         is_dupli = (obj.dupli_type != 'NONE')
 
-        col = flow.column(align=True)
+        col = flow.column()
         col.prop(obj, "show_name", text="Name")
+
+        col = flow.column()
         col.prop(obj, "show_axis", text="Axis")
 
         # Makes no sense for cameras, armatures, etc.!
         # but these settings do apply to dupli instances
-        col = flow.column(align=True)
         if is_geometry or is_dupli:
+            col = flow.column()
             col.prop(obj, "show_wire", text="Wireframe")
         if obj_type == 'MESH' or is_dupli:
-            col.prop(obj, "show_all_edges")
-
-        col = flow.column()
-        col.prop(obj, "show_bounds", text="Bounds")
-        sub = col.column()
-        sub.active = obj.show_bounds
-        sub.prop(obj, "draw_bounds_type")
+            col = flow.column()
+            col.prop(obj, "show_all_edges", text="All Edges")
 
         col = flow.column()
         if is_geometry:
             col.prop(obj, "show_texture_space", text="Texture Space")
+            col = flow.column()
             col.prop(obj.display, "show_shadows", text="Shadow")
 
-        col.prop(obj, "show_x_ray", text="X-Ray")
+        col = flow.column()
+        col.prop(obj, "show_in_front", text="In Front")
         # if obj_type == 'MESH' or is_empty_image:
         #    col.prop(obj, "show_transparent", text="Transparency")
 
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+
         col = flow.column()
         if is_wire:
-            # wire objects only use the max. draw type for duplis
+            # wire objects only use the max. display type for duplis
             col.active = is_dupli
-        col.prop(
-            obj, "draw_type",
-            text="Maximum Draw Type" if is_wire else "Maximum Draw Type",
-        )
+        col.prop(obj, "display_type", text="Display As")
+
+        split = flow.split(factor=0.6)
+        split.prop(obj, "show_bounds", text="Bounds")
+        row = split.row()
+        row.active = obj.show_bounds or (obj.display_type == 'BOUNDS')
+        row.prop(obj, "display_bounds_type", text="")
 
         if is_geometry or is_empty_image:
             # Only useful with object having faces/materials...
+            col = flow.column()
             col.prop(obj, "color")
 
 
@@ -322,6 +328,7 @@ class OBJECT_PT_duplication(ObjectButtonsPanel, Panel):
 
 from .properties_animviz import (
     MotionPathButtonsPanel,
+    MotionPathButtonsPanel_display,
     OnionSkinButtonsPanel,
 )
 
@@ -329,6 +336,26 @@ from .properties_animviz import (
 class OBJECT_PT_motion_paths(MotionPathButtonsPanel, Panel):
     #bl_label = "Object Motion Paths"
     bl_context = "object"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        return (context.object)
+
+    def draw(self, context):
+        # layout = self.layout
+
+        ob = context.object
+        avs = ob.animation_visualization
+        mpath = ob.motion_path
+
+        self.draw_settings(context, avs, mpath)
+
+
+class OBJECT_PT_motion_paths_display(MotionPathButtonsPanel_display, Panel):
+    #bl_label = "Object Motion Paths"
+    bl_context = "object"
+    bl_parent_id = "OBJECT_PT_motion_paths"
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
@@ -375,6 +402,7 @@ classes = (
     OBJECT_PT_duplication,
     OBJECT_PT_display,
     OBJECT_PT_motion_paths,
+    OBJECT_PT_motion_paths_display,
     OBJECT_PT_custom_props,
 )
 

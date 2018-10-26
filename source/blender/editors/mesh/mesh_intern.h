@@ -110,11 +110,17 @@ void MESH_OT_extrude_edges_indiv(struct wmOperatorType *ot);
 void MESH_OT_extrude_faces_indiv(struct wmOperatorType *ot);
 void MESH_OT_dupli_extrude_cursor(struct wmOperatorType *ot);
 
+/* *** editmesh_extrude_gizmo.c *** */
+void MESH_GGT_extrude(struct wmGizmoGroupType *gzgt);
+
 /* *** editmesh_extrude_screw.c *** */
 void MESH_OT_screw(struct wmOperatorType *ot);
 
 /* *** editmesh_extrude_spin.c *** */
 void MESH_OT_spin(struct wmOperatorType *ot);
+/* *** editmesh_extrude_spin_gizmo.c *** */
+void MESH_GGT_spin(struct wmGizmoGroupType *gzgt);
+void MESH_GGT_spin_redo(struct wmGizmoGroupType *gzgt);
 
 /* *** editmesh_polybuild.c *** */
 void MESH_OT_polybuild_face_at_cursor(struct wmOperatorType *ot);
@@ -267,7 +273,6 @@ void MESH_OT_customdata_skin_add(struct wmOperatorType *ot);
 void MESH_OT_customdata_skin_clear(struct wmOperatorType *ot);
 void MESH_OT_customdata_custom_splitnormals_add(struct wmOperatorType *ot);
 void MESH_OT_customdata_custom_splitnormals_clear(struct wmOperatorType *ot);
-void MESH_OT_drop_named_image(struct wmOperatorType *ot);
 
 
 #endif  /* __MESH_INTERN_H__ */

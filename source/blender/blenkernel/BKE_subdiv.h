@@ -23,25 +23,31 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-#ifndef __BKE_SUBDIV_H__
-#define __BKE_SUBDIV_H__
-
-#include "BLI_sys_types.h"
-
-struct Mesh;
-struct OpenSubdiv_Converter;
-struct OpenSubdiv_Evaluator;
-struct OpenSubdiv_TopologyRefiner;
-
 /** \file BKE_subdiv.h
  *  \ingroup bke
  *  \since July 2018
  *  \author Sergey Sharybin
  */
 
+#ifndef __BKE_SUBDIV_H__
+#define __BKE_SUBDIV_H__
+
+#include "BLI_sys_types.h"
+
+struct Mesh;
+struct MultiresModifierData;
+struct Object;
+struct OpenSubdiv_Converter;
+struct OpenSubdiv_Evaluator;
+struct OpenSubdiv_TopologyRefiner;
+struct Subdiv;
+struct SubdivToMeshSettings;
+
 typedef enum {
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_NONE,
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_ONLY,
+	SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_AND_JUNCTIONS,
+	SUBDIV_FVAR_LINEAR_INTERPOLATION_CORNERS_JUNCTIONS_AND_CONCAVE,
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_BOUNDARIES,
 	SUBDIV_FVAR_LINEAR_INTERPOLATION_ALL,
 } eSubdivFVarLinearInterpolation;
@@ -60,6 +66,8 @@ typedef enum eSubdivStatsValue {
 	SUBDIV_STATS_SUBDIV_TO_MESH_GEOMETRY,
 	SUBDIV_STATS_EVALUATOR_CREATE,
 	SUBDIV_STATS_EVALUATOR_REFINE,
+	SUBDIV_STATS_SUBDIV_TO_CCG,
+	SUBDIV_STATS_SUBDIV_TO_CCG_ELEMENTS,
 
 	NUM_SUBDIV_STATS_VALUES,
 } eSubdivStatsValue;
@@ -80,6 +88,10 @@ typedef struct SubdivStats {
 			double evaluator_creation_time;
 			/* Time spent on evaluator->refine(). */
 			double evaluator_refine_time;
+			/* Total time spent on whole CCG creation. */
+			double subdiv_to_ccg_time;
+			/* Time spent on CCG elements evaluation/initialization. */
+			double subdiv_to_ccg_elements_time;
 		};
 		double values_[NUM_SUBDIV_STATS_VALUES];
 	};
@@ -90,24 +102,69 @@ typedef struct SubdivStats {
 	double begin_timestamp_[NUM_SUBDIV_STATS_VALUES];
 } SubdivStats;
 
+/* Functor which evaluates dispalcement at a given (u, v) of given ptex face. */
+typedef struct SubdivDisplacement {
+	/* Return displacement which is to be added to the original coordinate.
+	 *
+	 * NOTE: This function is supposed to return "continuous" displacement for
+	 * each pf PTex faces created for special (non-quad) polygon. This means,
+	 * if displacement is stored on per-corner manner (like MDisps for multires)
+	 * this is up the displacement implementation to average boundaries of the
+	 * displacement grids if needed.
+	 *
+	 * Averaging of displacement for vertices created for over coarse vertices
+	 * and edges is done by subdiv code.
+	 */
+	void (*eval_displacement)(struct SubdivDisplacement *displacement,
+	                          const int ptex_face_index,
+	                          const float u, const float v,
+	                          const float dPdu[3], const float dPdv[3],
+	                          float r_D[3]);
+
+	/* Free the data, not the evaluator itself. */
+	void (*free)(struct SubdivDisplacement *displacement);
+
+	void *user_data;
+} SubdivDisplacement;
+
+/* This structure contains everything needed to construct subdivided surface.
+ * It does not specify storage, memory layout or anything else.
+ * It is possible to create different storages (like, grid based CPU side
+ * buffers, GPU subdivision mesh, CPU side fully qualified mesh) from the same
+ * Subdiv structure.
+ */
 typedef struct Subdiv {
 	/* Settings this subdivision surface is created for.
 	 *
 	 * It is read-only after assignment in BKE_subdiv_new_from_FOO().
 	 */
 	SubdivSettings settings;
-
 	/* Topology refiner includes all the glue logic to feed Blender side
 	 * topology to OpenSubdiv. It can be shared by both evaluator and GL mesh
 	 * drawer.
 	 */
 	struct OpenSubdiv_TopologyRefiner *topology_refiner;
-
 	/* CPU side evaluator. */
 	struct OpenSubdiv_Evaluator *evaluator;
-
+	/* Optional displacement evaluator. */
+	struct SubdivDisplacement *displacement_evaluator;
+	/* Statistics for debugging. */
 	SubdivStats stats;
+
+	/* Cached values, are not supposed to be accessed directly. */
+	struct {
+		/* Indexed by base face index, element indicates total number of ptex
+		 *faces created for preceding base faces.
+		 */
+		int *face_ptex_offset;
+	} cache_;
 } Subdiv;
+
+/* ================================ HELPERS ================================= */
+
+/* NOTE: uv_smooth is eSubsurfUVSmooth. */
+eSubdivFVarLinearInterpolation
+BKE_subdiv_fvar_interpolation_from_uv_smooth(int uv_smooth);
 
 /* =============================== STATISTICS =============================== */
 
@@ -128,87 +185,17 @@ Subdiv *BKE_subdiv_new_from_mesh(const SubdivSettings *settings,
 
 void BKE_subdiv_free(Subdiv *subdiv);
 
-/* ============================= EVALUATION API ============================= */
+/* ============================ DISPLACEMENT API ============================ */
 
-void BKE_subdiv_eval_begin(Subdiv *subdiv);
-void BKE_subdiv_eval_update_from_mesh(Subdiv *subdiv, const struct Mesh *mesh);
+void BKE_subdiv_displacement_attach_from_multires(
+        Subdiv *subdiv,
+        const struct Mesh *mesh,
+        const struct MultiresModifierData *mmd);
 
-/* Single point queries. */
+void BKE_subdiv_displacement_detach(Subdiv *subdiv);
 
-void BKE_subdiv_eval_limit_point(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const float u, const float v,
-        float P[3]);
-void BKE_subdiv_eval_limit_point_and_derivatives(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const float u, const float v,
-        float P[3], float dPdu[3], float dPdv[3]);
-void BKE_subdiv_eval_limit_point_and_normal(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const float u, const float v,
-        float P[3], float N[3]);
-void BKE_subdiv_eval_limit_point_and_short_normal(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const float u, const float v,
-        float P[3], short N[3]);
+/* ============================ TOPOLOGY HELPERS ============================ */
 
-void BKE_subdiv_eval_face_varying(
-        Subdiv *subdiv,
-        const int face_varying_channel,
-        const int ptex_face_index,
-        const float u, const float v,
-        float varying[2]);
-
-/* Patch queries at given resolution.
- *
- * Will evaluate patch at uniformly distributed (u, v) coordinates on a grid
- * of given resolution, producing resolution^2 evaluation points. The order
- * goes as u in rows, v in columns.
- */
-
-void BKE_subdiv_eval_limit_patch_resolution_point(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const int resolution,
-        void *buffer, const int offset, const int stride);
-void BKE_subdiv_eval_limit_patch_resolution_point_and_derivatives(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const int resolution,
-        void *point_buffer, const int point_offset, const int point_stride,
-        void *du_buffer, const int du_offset, const int du_stride,
-        void *dv_buffer, const int dv_offset, const int dv_stride);
-void BKE_subdiv_eval_limit_patch_resolution_point_and_normal(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const int resolution,
-        void *point_buffer, const int point_offset, const int point_stride,
-        void *normal_buffer, const int normal_offset, const int normal_stride);
-void BKE_subdiv_eval_limit_patch_resolution_point_and_short_normal(
-        Subdiv *subdiv,
-        const int ptex_face_index,
-        const int resolution,
-        void *point_buffer, const int point_offset, const int point_stride,
-        void *normal_buffer, const int normal_offset, const int normal_stride);
-
-/* =========================== SUBDIV TO MESH API =========================== */
-
-typedef struct SubdivToMeshSettings {
-	/* Resolution at which ptex are being evaluated.
-	 * This defines how many vertices final mesh will have: every ptex has
-	 * resolution^2 vertices.
-	 */
-	int resolution;
-} SubdivToMeshSettings;
-
-/* Create real hi-res mesh from subdivision, all geometry is "real". */
-struct Mesh *BKE_subdiv_to_mesh(
-        Subdiv *subdiv,
-        const SubdivToMeshSettings *settings,
-        const struct Mesh *coarse_mesh);
+int *BKE_subdiv_face_ptex_offset_get(Subdiv *subdiv);
 
 #endif  /* __BKE_SUBDIV_H__ */

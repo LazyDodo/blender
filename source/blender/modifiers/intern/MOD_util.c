@@ -69,7 +69,7 @@ void MOD_init_texture(const Depsgraph *depsgraph, Tex *tex)
 		return;
 
 	if (tex->ima && BKE_image_is_animated(tex->ima)) {
-		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(depsgraph), 0);
+		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(depsgraph));
 	}
 }
 
@@ -177,7 +177,7 @@ Mesh *MOD_get_mesh_eval(
 	}
 	else if (ob->type == OB_MESH) {
 		if (em) {
-			mesh = BKE_bmesh_to_mesh_nomain(em->bm, &(struct BMeshToMeshParams){0});
+			mesh = BKE_mesh_from_bmesh_for_eval_nomain(em->bm, 0);
 		}
 		else {
 			/* TODO(sybren): after modifier conversion of DM to Mesh is done, check whether

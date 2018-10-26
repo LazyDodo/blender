@@ -710,7 +710,7 @@ int ANIM_scene_get_keyingset_index(Scene *scene, KeyingSet *ks)
 }
 
 /* Get Keying Set to use for Auto-Keyframing some transforms */
-KeyingSet *ANIM_get_keyingset_for_autokeying(Scene *scene, const char *tranformKSName)
+KeyingSet *ANIM_get_keyingset_for_autokeying(Scene *scene, const char *transformKSName)
 {
 	/* get KeyingSet to use
 	 *	- use the active KeyingSet if defined (and user wants to use it for all autokeying),
@@ -721,7 +721,7 @@ KeyingSet *ANIM_get_keyingset_for_autokeying(Scene *scene, const char *tranformK
 	else if (IS_AUTOKEY_FLAG(scene, INSERTAVAIL))
 		return ANIM_builtin_keyingset_get_named(NULL, ANIM_KS_AVAILABLE_ID);
 	else
-		return ANIM_builtin_keyingset_get_named(NULL, tranformKSName);
+		return ANIM_builtin_keyingset_get_named(NULL, transformKSName);
 }
 
 /* Menu of All Keying Sets ----------------------------- */
@@ -1042,7 +1042,7 @@ int ANIM_apply_keyingset(bContext *C, ListBase *dsources, bAction *act, KeyingSe
 			if (mode == MODIFYKEY_MODE_INSERT)
 				success += insert_keyframe(bmain, depsgraph, reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, keytype, kflag2);
 			else if (mode == MODIFYKEY_MODE_DELETE)
-				success += delete_keyframe(reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, kflag2);
+				success += delete_keyframe(bmain, reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, kflag2);
 		}
 
 		/* set recalc-flags */

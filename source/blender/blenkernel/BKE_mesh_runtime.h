@@ -67,7 +67,9 @@ void BKE_mesh_runtime_verttri_from_looptri(
         const struct MLoop *mloop, const struct MLoopTri *looptri, int looptri_num);
 
 /* NOTE: the functions below are defined in DerivedMesh.c, and are intended to be moved
- * to a more suitable location when that file is removed. */
+ * to a more suitable location when that file is removed.
+ * They should also be renamed to use conventions from BKE, not old DerivedMesh.c.
+ * For now keep the names similar to avoid confusion. */
 #ifdef USE_DERIVEDMESH
 struct DerivedMesh *mesh_get_derived_final(
         struct Depsgraph *depsgraph, struct Scene *scene,
@@ -82,6 +84,10 @@ struct DerivedMesh *mesh_get_derived_deform(
         struct Object *ob, CustomDataMask dataMask);
 #endif
 struct Mesh *mesh_get_eval_deform(
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Object *ob, CustomDataMask dataMask);
+
+struct Mesh *mesh_create_eval_final_render(
         struct Depsgraph *depsgraph, struct Scene *scene,
         struct Object *ob, CustomDataMask dataMask);
 
@@ -104,9 +110,6 @@ struct Mesh *mesh_create_eval_final_view(
         struct Object *ob, CustomDataMask dataMask);
 
 void BKE_mesh_runtime_eval_to_meshkey(struct Mesh *me_deformed, struct Mesh *me, struct KeyBlock *kb);
-
-/* Temporary? A function to give a colorband to derivedmesh for vertexcolor ranges */
-void BKE_mesh_runtime_color_band_store(const struct ColorBand *coba, const char alert_color[4]);
 
 
 #ifndef NDEBUG

@@ -2360,7 +2360,7 @@ static int pyrna_prop_collection_subscript_str_lib_pair_ptr(
 		}
 		else {
 			PyErr_Format(PyExc_KeyError,
-			             "%s: lib must be a sting or None, not %.200s",
+			             "%s: lib must be a string or None, not %.200s",
 			             err_prefix, Py_TYPE(keylib)->tp_name);
 			return -1;
 		}
@@ -4162,7 +4162,7 @@ static PyObject *pyrna_struct_meta_idprop_getattro(PyObject *cls, PyObject *attr
 	 * <bpy_struct, BoolProperty("foo")>
 	 * ...rather than returning the deferred class register tuple as checked by pyrna_is_deferred_prop()
 	 *
-	 * Disable for now, this is faking internal behavior in a way thats too tricky to maintain well. */
+	 * Disable for now, this is faking internal behavior in a way that's too tricky to maintain well. */
 #if 0
 	if (ret == NULL) { // || pyrna_is_deferred_prop(ret)
 		StructRNA *srna = srna_from_self(cls, "StructRNA.__getattr__");
@@ -5654,6 +5654,17 @@ static PyObject *pyrna_func_call(BPy_FunctionRNA *self, PyObject *args, PyObject
 		item = NULL;
 
 		if (i < pyargs_len) {
+			/* New in 2.8x, optional arguments must be keywords.  */
+			if (UNLIKELY((flag_parameter & PARM_REQUIRED) == 0)) {
+				PyErr_Format(PyExc_TypeError,
+				             "%.200s.%.200s(): required parameter \"%.200s\" to be a keyword argument!",
+				             RNA_struct_identifier(self_ptr->type),
+				             RNA_function_identifier(self_func),
+				             RNA_property_identifier(parm));
+				err = -1;
+				break;
+			}
+
 			item = PyTuple_GET_ITEM(args, i);
 			kw_arg = false;
 		}
@@ -7426,15 +7437,17 @@ static int deferred_register_prop(StructRNA *srna, PyObject *key, PyObject *item
 
 static int pyrna_deferred_register_props(StructRNA *srna, PyObject *class_dict)
 {
-	PyObject *fields_dict;
+	PyObject *annotations_dict;
 	PyObject *item, *key;
 	Py_ssize_t pos = 0;
 	int ret = 0;
 
 	/* in both cases PyDict_CheckExact(class_dict) will be true even
 	 * though Operators have a metaclass dict namespace */
-	if ((fields_dict = PyDict_GetItem(class_dict, bpy_intern_str___annotations__)) && PyDict_CheckExact(fields_dict)) {
-		while (PyDict_Next(fields_dict, &pos, &key, &item)) {
+	if ((annotations_dict = PyDict_GetItem(class_dict, bpy_intern_str___annotations__)) &&
+	    PyDict_CheckExact(annotations_dict))
+	{
+		while (PyDict_Next(annotations_dict, &pos, &key, &item)) {
 			ret = deferred_register_prop(srna, key, item);
 
 			if (ret != 0) {
@@ -7444,18 +7457,18 @@ static int pyrna_deferred_register_props(StructRNA *srna, PyObject *class_dict)
 	}
 
 	{
-		/* This block can be removed once 2.8x is released and fields are in use. */
+		/* This block can be removed once 2.8x is released and annotations are in use. */
 		bool has_warning = false;
 		while (PyDict_Next(class_dict, &pos, &key, &item)) {
 			if (pyrna_is_deferred_prop(item)) {
 				if (!has_warning) {
 					printf("Warning: class %.200s "
-					       "contains a properties which should be a field!\n",
+					       "contains a properties which should be an annotation!\n",
 					       RNA_struct_identifier(srna));
 					PyC_LineSpit();
 					has_warning = true;
 				}
-				printf("    make field: %.200s.%.200s\n",
+				printf("    make annotation: %.200s.%.200s\n",
 				       RNA_struct_identifier(srna), _PyUnicode_AsString(key));
 			}
 			ret = deferred_register_prop(srna, key, item);

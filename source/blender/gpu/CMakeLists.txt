@@ -58,7 +58,6 @@ set(INC_SYS
 
 set(SRC
 	intern/gpu_attr_binding.c
-	intern/gpu_basic_shader.c
 	intern/gpu_batch.c
 	intern/gpu_batch_presets.c
 	intern/gpu_batch_utils.c
@@ -88,32 +87,13 @@ set(SRC
 	intern/gpu_vertex_format.c
 	intern/gpu_viewport.c
 
-	shaders/gpu_shader_fx_lib.glsl
-	shaders/gpu_shader_fx_ssao_frag.glsl
-	shaders/gpu_shader_fx_dof_frag.glsl
-	shaders/gpu_shader_fx_dof_vert.glsl
-	shaders/gpu_shader_fx_dof_hq_frag.glsl
-	shaders/gpu_shader_fx_dof_hq_vert.glsl
-	shaders/gpu_shader_fx_dof_hq_geo.glsl
-	shaders/gpu_shader_material.glsl
-	shaders/gpu_shader_sep_gaussian_blur_frag.glsl
-	shaders/gpu_shader_sep_gaussian_blur_vert.glsl
-	shaders/gpu_shader_basic_frag.glsl
-	shaders/gpu_shader_basic_vert.glsl
-	shaders/gpu_shader_basic_geom.glsl
-	shaders/gpu_shader_vertex.glsl
-	shaders/gpu_shader_vsm_store_frag.glsl
-	shaders/gpu_shader_vsm_store_vert.glsl
-	shaders/gpu_shader_fx_depth_resolve.glsl
-	shaders/gpu_shader_fire_frag.glsl
-	shaders/gpu_shader_smoke_frag.glsl
-	shaders/gpu_shader_smoke_vert.glsl
-
 	GPU_attr_binding.h
-	GPU_basic_shader.h
 	GPU_batch.h
+	GPU_batch_presets.h
+	GPU_batch_utils.h
 	GPU_buffers.h
 	GPU_common.h
+	GPU_context.h
 	GPU_debug.h
 	GPU_draw.h
 	GPU_element.h
@@ -159,6 +139,7 @@ data_to_c_simple(shaders/gpu_shader_flat_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_color_alpha_test_0_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_flat_id_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_vert.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_2D_area_borders_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_widget_base_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_widget_base_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_widget_shadow_vert.glsl SRC)
@@ -218,6 +199,7 @@ data_to_c_simple(shaders/gpu_shader_point_uniform_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_point_uniform_color_aa_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_point_uniform_color_outline_aa_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_point_varying_color_outline_aa_frag.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_point_varying_color_varying_outline_aa_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_point_varying_color_frag.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_3D_point_fixed_size_varying_color_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_3D_point_varying_size_vert.glsl SRC)
@@ -228,6 +210,12 @@ data_to_c_simple(shaders/gpu_shader_2D_point_varying_size_varying_color_vert.gls
 data_to_c_simple(shaders/gpu_shader_2D_point_uniform_size_aa_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_point_uniform_size_outline_aa_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_2D_point_uniform_size_varying_color_outline_aa_vert.glsl SRC)
+
+data_to_c_simple(shaders/gpu_shader_2D_edituvs_points_vert.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_2D_edituvs_facedots_vert.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_2D_edituvs_edges_vert.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_2D_edituvs_faces_vert.glsl SRC)
+data_to_c_simple(shaders/gpu_shader_2D_edituvs_stretch_vert.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_edges_front_back_persp_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_edges_front_back_persp_geom.glsl SRC)
@@ -246,19 +234,7 @@ data_to_c_simple(shaders/gpu_shader_keyframe_diamond_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_keyframe_diamond_frag.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_geometry.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_fire_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_smoke_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_smoke_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_material.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_sep_gaussian_blur_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_sep_gaussian_blur_vert.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_basic_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_basic_vert.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_basic_geom.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_vertex.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_vertex_world.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_vsm_store_frag.glsl SRC)
-data_to_c_simple(shaders/gpu_shader_vsm_store_vert.glsl SRC)
 
 data_to_c_simple(shaders/gpu_shader_gpencil_stroke_vert.glsl SRC)
 data_to_c_simple(shaders/gpu_shader_gpencil_stroke_frag.glsl SRC)
@@ -276,10 +252,6 @@ add_definitions(${GL_DEFINITIONS})
 
 if(WITH_IMAGE_DDS)
 	add_definitions(-DWITH_DDS)
-endif()
-
-if(WITH_OPENSUBDIV)
-	add_definitions(-DWITH_OPENSUBDIV)
 endif()
 
 blender_add_lib(bf_gpu "${SRC}" "${INC}" "${INC_SYS}")

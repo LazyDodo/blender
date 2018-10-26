@@ -73,7 +73,7 @@ static int node_shader_gpu_tex_brick(GPUMaterial *mat, bNode *node, bNodeExecDat
 {
 	if (!in[0].link) {
 		in[0].link = GPU_attribute(CD_ORCO, "");
-		GPU_link(mat, "generated_from_orco", in[0].link, &in[0].link);
+		GPU_link(mat, "generated_texco", GPU_builtin(GPU_VIEW_POSITION), in[0].link, &in[0].link);
 	}
 
 	node_shader_gpu_tex_mapping(mat, node, in, out);
@@ -82,8 +82,8 @@ static int node_shader_gpu_tex_brick(GPUMaterial *mat, bNode *node, bNodeExecDat
 	float squash_freq = tex->squash_freq;
 	return GPU_stack_link(mat, node, "node_tex_brick",
 	                      in, out,
-	                      GPU_uniform(&tex->offset), GPU_uniform(&offset_freq),
-	                      GPU_uniform(&tex->squash), GPU_uniform(&squash_freq));
+	                      GPU_constant(&tex->offset), GPU_constant(&offset_freq),
+	                      GPU_constant(&tex->squash), GPU_constant(&squash_freq));
 }
 
 /* node type definition */

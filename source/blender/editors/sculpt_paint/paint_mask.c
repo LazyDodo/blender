@@ -201,7 +201,7 @@ void PAINT_OT_mask_flood_fill(struct wmOperatorType *ot)
 	              "Mask level to use when mode is 'Value'; zero means no masking and one is fully masked", 0, 1);
 }
 
-/* Box select, operator is VIEW3D_OT_select_border, defined in view3d_select.c */
+/* Box select, operator is VIEW3D_OT_select_box, defined in view3d_select.c */
 
 static bool is_effected(float planes[4][4], const float co[3])
 {
@@ -258,7 +258,7 @@ static void mask_box_select_task_cb(
 	} BKE_pbvh_vertex_iter_end;
 }
 
-int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select, bool UNUSED(extend))
+int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select)
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Sculpt *sd = vc->scene->toolsettings->sculpt;

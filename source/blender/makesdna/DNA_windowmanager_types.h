@@ -118,8 +118,7 @@ typedef struct ReportList {
 #
 #
 typedef struct ReportTimerInfo {
-	float col[3];
-	float grayscale;
+	float col[4];
 	float widthfac;
 } ReportTimerInfo;
 
@@ -179,7 +178,7 @@ enum {
 #  endif
 #endif
 
-/* the savable part, rest of data is local in ghostwinlay */
+/* the saveable part, rest of data is local in ghostwinlay */
 typedef struct wmWindow {
 	struct wmWindow *next, *prev;
 

@@ -117,8 +117,9 @@ static struct WMInitStruct {
 	int windowstate;
 	WinOverrideFlag override_flag;
 
+	bool window_focus;
 	bool native_pixels;
-} wm_init_state = {0, 0, 0, 0, GHOST_kWindowStateNormal, 0, true};
+} wm_init_state = {0, 0, 0, 0, GHOST_kWindowStateNormal, 0, true, true};
 
 /* ******** win open & close ************ */
 
@@ -377,6 +378,7 @@ static uiBlock *block_create_confirm_quit(struct bContext *C, struct ARegion *ar
 	uiBlock *block = UI_block_begin(C, ar, "confirm_quit_popup", UI_EMBOSS);
 
 	UI_block_flag_enable(block, UI_BLOCK_KEEP_OPEN | UI_BLOCK_LOOP | UI_BLOCK_NO_WIN_CLIP | UI_BLOCK_NUMSELECT);
+	UI_block_theme_style_set(block, UI_BLOCK_THEME_STYLE_POPUP);
 	UI_block_emboss_set(block, UI_EMBOSS);
 
 	uiLayout *layout = UI_block_layout(
@@ -631,6 +633,10 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	wm_get_screensize(&scr_w, &scr_h);
 	posy = (scr_h - win->posy - win->sizey);
 
+	/* Clear drawable so we can set the new window. */
+	wmWindow *prev_windrawable = wm->windrawable;
+	wm_window_clear_drawable(wm);
+
 	ghostwin = GHOST_CreateWindow(g_system, title,
 	                              win->posx, posy, win->sizex, win->sizey,
 	                              (GHOST_TWindowState)win->windowstate,
@@ -640,9 +646,6 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 	if (ghostwin) {
 		GHOST_RectangleHandle bounds;
 
-		/* Clear drawable so we can set the new window. */
-		wm_window_clear_drawable(wm);
-
 		win->gpuctx = GPU_context_create();
 
 		/* needed so we can detect the graphics card below */
@@ -650,8 +653,7 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 		/* Set window as drawable upon creation. Note this has already been
 		 * it has already been activated by GHOST_CreateWindow. */
-		bool activate = false;
-		wm_window_set_drawable(wm, win, activate);
+		wm_window_set_drawable(wm, win, false);
 
 		win->ghostwin = ghostwin;
 		GHOST_SetWindowUserData(ghostwin, win); /* pointer back */
@@ -670,7 +672,9 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 #ifndef __APPLE__
 		/* set the state here, so minimized state comes up correct on windows */
-		GHOST_SetWindowState(ghostwin, (GHOST_TWindowState)win->windowstate);
+		if (wm_init_state.window_focus) {
+			GHOST_SetWindowState(ghostwin, (GHOST_TWindowState)win->windowstate);
+		}
 #endif
 		/* until screens get drawn, make it nice gray */
 		glClearColor(0.55, 0.55, 0.55, 0.0);
@@ -688,6 +692,9 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 		/* standard state vars for window */
 		GPU_state_init();
+	}
+	else {
+		wm_window_set_drawable(wm, prev_windrawable, false);
 	}
 }
 
@@ -725,7 +732,9 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		wm_init_state.start_y = 0;
 
 #ifdef WITH_X11 /* X11 */
-		/* X11, start maximized but use default sane size */
+		/* X11, don't start maximized because we can't figure out the dimensions
+		 * of a single display yet if there are multiple, due to lack of Xinerama
+		 * handling in GHOST. */
 		wm_init_state.size_x = min_ii(wm_init_state.size_x, WM_WIN_INIT_SIZE_X);
 		wm_init_state.size_y = min_ii(wm_init_state.size_y, WM_WIN_INIT_SIZE_Y);
 		/* pad */
@@ -764,13 +773,13 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		wm_window_ensure_eventstate(win);
 
 		/* add keymap handlers (1 handler for all keys in map!) */
-		keymap = WM_keymap_find(wm->defaultconf, "Window", 0, 0);
+		keymap = WM_keymap_ensure(wm->defaultconf, "Window", 0, 0);
 		WM_event_add_keymap_handler(&win->handlers, keymap);
 
-		keymap = WM_keymap_find(wm->defaultconf, "Screen", 0, 0);
+		keymap = WM_keymap_ensure(wm->defaultconf, "Screen", 0, 0);
 		WM_event_add_keymap_handler(&win->handlers, keymap);
 
-		keymap = WM_keymap_find(wm->defaultconf, "Screen Editing", 0, 0);
+		keymap = WM_keymap_ensure(wm->defaultconf, "Screen Editing", 0, 0);
 		WM_event_add_keymap_handler(&win->modalhandlers, keymap);
 
 		/* add drop boxes */
@@ -781,9 +790,7 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		wm_window_title(wm, win);
 
 		/* add topbar */
-		if (BLI_listbase_is_empty(&win->global_areas.areabase)) {
-			ED_screen_global_areas_create(win);
-		}
+		ED_screen_global_areas_refresh(win);
 	}
 }
 
@@ -858,7 +865,7 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	sizex /= native_pixel_size;
 	sizey /= native_pixel_size;
 
-	/* calculate postition */
+	/* calculate position */
 	rcti rect;
 	rect.xmin = x + win_prev->posx - sizex / 2;
 	rect.ymin = y + win_prev->posy - sizey / 2;
@@ -1593,7 +1600,7 @@ static int wm_window_timer(const bContext *C)
 				else if (wt->event_type == TIMERAUTOSAVE)
 					wm_autosave_timer(C, wm, wt);
 				else if (wt->event_type == TIMERNOTIFIER)
-					WM_main_add_notifier(GET_UINT_FROM_POINTER(wt->customdata), NULL);
+					WM_main_add_notifier(POINTER_AS_UINT(wt->customdata), NULL);
 				else if (win) {
 					wmEvent event;
 					wm_event_init_from_window(win, &event);
@@ -1680,6 +1687,8 @@ void wm_ghost_init(bContext *C)
 		if (wm_init_state.native_pixels) {
 			GHOST_UseNativePixels();
 		}
+
+		GHOST_UseWindowFocus(wm_init_state.window_focus);
 	}
 }
 
@@ -1732,7 +1741,7 @@ wmTimer *WM_event_add_timer_notifier(wmWindowManager *wm, wmWindow *win, unsigne
 	wt->stime = wt->ltime;
 	wt->timestep = timestep;
 	wt->win = win;
-	wt->customdata = SET_UINT_IN_POINTER(type);
+	wt->customdata = POINTER_FROM_UINT(type);
 	wt->flags |= WM_TIMER_NO_FREE_CUSTOM_DATA;
 
 	BLI_addtail(&wm->timers, wt);
@@ -1959,6 +1968,11 @@ void WM_init_state_normal_set(void)
 	wm_init_state.override_flag |= WIN_OVERRIDE_WINSTATE;
 }
 
+void WM_init_window_focus_set(bool do_it)
+{
+	wm_init_state.window_focus = do_it;
+}
+
 void WM_init_native_pixels(bool do_it)
 {
 	wm_init_state.native_pixels = do_it;
@@ -2041,7 +2055,7 @@ void WM_window_screen_rect_calc(const wmWindow *win, rcti *r_rect)
 	WM_window_rect_calc(win, &window_rect);
 	screen_rect = window_rect;
 
-	/* Substract global areas from screen rectangle. */
+	/* Subtract global areas from screen rectangle. */
 	for (ScrArea *global_area = win->global_areas.areabase.first; global_area; global_area = global_area->next) {
 		int height = ED_area_global_size_y(global_area) - 1;
 

@@ -96,7 +96,7 @@ void node_gpu_stack_from_data(struct GPUNodeStack *gs, int type, bNodeStack *ns)
 	memset(gs, 0, sizeof(*gs));
 
 	if (ns == NULL) {
-		/* node_get_stack() will generate NULL bNodeStack pointers for unknown/unsuported types of sockets... */
+		/* node_get_stack() will generate NULL bNodeStack pointers for unknown/unsupported types of sockets... */
 		zero_v4(gs->vec);
 		gs->link = NULL;
 		gs->type = GPU_NONE;
@@ -257,12 +257,12 @@ void node_shader_gpu_tex_mapping(GPUMaterial *mat, bNode *node, GPUNodeStack *in
 		static float min[3] = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
 		GPUNodeLink *tmin, *tmax, *tmat0, *tmat1, *tmat2, *tmat3;
 
-		tmin = GPU_uniform_buffer((domin) ? texmap->min : min, GPU_VEC3);
-		tmax = GPU_uniform_buffer((domax) ? texmap->max : max, GPU_VEC3);
-		tmat0 = GPU_uniform_buffer((float *)texmap->mat[0], GPU_VEC4);
-		tmat1 = GPU_uniform_buffer((float *)texmap->mat[1], GPU_VEC4);
-		tmat2 = GPU_uniform_buffer((float *)texmap->mat[2], GPU_VEC4);
-		tmat3 = GPU_uniform_buffer((float *)texmap->mat[3], GPU_VEC4);
+		tmin = GPU_uniform((domin) ? texmap->min : min);
+		tmax = GPU_uniform((domax) ? texmap->max : max);
+		tmat0 = GPU_uniform((float *)texmap->mat[0]);
+		tmat1 = GPU_uniform((float *)texmap->mat[1]);
+		tmat2 = GPU_uniform((float *)texmap->mat[2]);
+		tmat3 = GPU_uniform((float *)texmap->mat[3]);
 
 		GPU_link(mat, "mapping", in[0].link, tmat0, tmat1, tmat2, tmat3, tmin, tmax, &in[0].link);
 

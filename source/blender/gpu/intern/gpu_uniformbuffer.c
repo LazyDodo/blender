@@ -159,7 +159,7 @@ GPUUniformBuffer *GPU_uniformbuffer_dynamic_create(ListBase *inputs, char err_ou
 	float *offset = ubo->data;
 	for (LinkData *link = inputs->first; link; link = link->next) {
 		GPUInput *input = link->data;
-		memcpy(offset, input->dynamicvec, input->type * sizeof(float));
+		memcpy(offset, input->vec, input->type * sizeof(float));
 		offset += get_padded_gpu_type(link);
 	}
 
@@ -291,7 +291,7 @@ static void gpu_uniformbuffer_inputs_sort(ListBase *inputs)
 	while (link != NULL && ((GPUInput *)link->data)->type == GPU_VEC3) {
 		LinkData *link_next = link->next;
 
-		/* If GPU_VEC3 is followed by nothing or a GPU_FLOAT, no need for aligment. */
+		/* If GPU_VEC3 is followed by nothing or a GPU_FLOAT, no need for alignment. */
 		if ((link_next == NULL) ||
 		    ((GPUInput *)link_next->data)->type == GPU_FLOAT)
 		{

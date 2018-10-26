@@ -201,6 +201,8 @@ void BKE_main_lib_objects_recalc_all(struct Main *bmain);
 /* (MAX_ID_NAME - 2) + 3 */
 void BKE_id_ui_prefix(char name[66 + 1], const struct ID *id);
 
+char *BKE_id_to_unique_string_key(const struct ID *id);
+
 void BKE_library_free(struct Library *lib);
 
 void BKE_library_make_local(
@@ -211,6 +213,9 @@ void BKE_id_tag_set_atomic(struct ID *id, int tag);
 void BKE_id_tag_clear_atomic(struct ID *id, int tag);
 
 bool BKE_id_is_in_gobal_main(struct ID *id);
+
+void BKE_id_ordered_list(struct ListBase *ordered_lb, const struct ListBase *lb);
+void BKE_id_reorder(const struct ListBase *lb, struct ID *id, struct ID *relative, bool after);
 
 /* use when "" is given to new_id() */
 #define ID_FALLBACK_NAME N_("Untitled")

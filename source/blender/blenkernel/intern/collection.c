@@ -44,8 +44,8 @@
 #include "BKE_object.h"
 #include "BKE_scene.h"
 
-#include "DNA_group_types.h"
 #include "DNA_ID.h"
+#include "DNA_collection_types.h"
 #include "DNA_layer_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -97,7 +97,7 @@ static Collection *collection_add(Main *bmain, Collection *collection_parent, co
 }
 
 /**
- * Add a collection to a collection ListBase and syncronize all render layers
+ * Add a collection to a collection ListBase and synchronize all render layers
  * The ListBase is NULL when the collection is to be added to the master collection
  */
 Collection *BKE_collection_add(Main *bmain, Collection *collection_parent, const char *name_custom)
@@ -231,6 +231,7 @@ Collection *BKE_collection_copy(Main *bmain, Collection *parent, Collection *col
 
 	Collection *collection_new;
 	BKE_id_copy_ex(bmain, &collection->id, (ID **)&collection_new, 0, false);
+	id_us_min(&collection_new->id);  /* Copying add one user by default, need to get rid of that one. */
 
 	/* Optionally add to parent. */
 	if (parent) {
@@ -467,6 +468,11 @@ Collection *BKE_collection_object_find(Main *bmain, Collection *collection, Obje
 	return NULL;
 }
 
+bool BKE_collection_is_empty(Collection *collection)
+{
+	return BLI_listbase_is_empty(&collection->gobject) && BLI_listbase_is_empty(&collection->children);
+}
+
 /********************** Collection Objects *********************/
 
 static bool collection_object_add(Main *bmain, Collection *collection, Object *ob, int flag, const bool add_us)
@@ -611,29 +617,36 @@ bool BKE_scene_collections_object_remove(Main *bmain, Scene *scene, Object *ob, 
 }
 
 /*
- * Remove all NULL objects from non-scene collections.
+ * Remove all NULL objects from collections.
  * This is used for library remapping, where these pointers have been set to NULL.
  * Otherwise this should never happen.
  */
+static void collection_object_remove_nulls(Collection *collection)
+{
+	bool changed = false;
+
+	for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
+		cob_next = cob->next;
+
+		if (cob->ob == NULL) {
+			BLI_freelinkN(&collection->gobject, cob);
+			changed = true;
+		}
+	}
+
+	if (changed) {
+		BKE_collection_object_cache_free(collection);
+	}
+}
+
 void BKE_collections_object_remove_nulls(Main *bmain)
 {
+	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+		collection_object_remove_nulls(scene->master_collection);
+	}
+
 	for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-		if (!BKE_collection_is_in_scene(collection)) {
-			bool changed = false;
-
-			for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
-				cob_next = cob->next;
-
-				if (cob->ob == NULL) {
-					BLI_freelinkN(&collection->gobject, cob);
-					changed = true;
-				}
-			}
-
-			if (changed) {
-				BKE_collection_object_cache_free(collection);
-			}
-		}
+		collection_object_remove_nulls(collection);
 	}
 }
 
@@ -646,15 +659,9 @@ void BKE_collections_child_remove_nulls(Main *bmain, Collection *old_collection)
 {
 	bool changed = false;
 
-	for (CollectionChild *child = old_collection->children.first; child; child = child->next) {
-		CollectionParent *cparent = collection_find_parent(child->collection, old_collection);
-		if (cparent) {
-			BLI_freelinkN(&child->collection->parents, cparent);
-		}
-	}
-
-	for (CollectionParent *cparent = old_collection->parents.first; cparent; cparent = cparent->next) {
+	for (CollectionParent *cparent = old_collection->parents.first, *cnext; cparent; cparent = cnext) {
 		Collection *parent = cparent->collection;
+		cnext = cparent->next;
 
 		for (CollectionChild *child = parent->children.first, *child_next = NULL; child; child = child_next) {
 			child_next = child->next;
@@ -664,12 +671,15 @@ void BKE_collections_child_remove_nulls(Main *bmain, Collection *old_collection)
 				changed = true;
 			}
 		}
+
+		if (!collection_find_child(parent, old_collection)) {
+			BLI_freelinkN(&old_collection->parents, cparent);
+			changed = true;
+		}
 	}
 
-	BLI_freelistN(&old_collection->parents);
-
 	if (changed) {
-		BKE_main_collection_sync(bmain);
+		BKE_main_collection_sync_remap(bmain);
 	}
 }
 

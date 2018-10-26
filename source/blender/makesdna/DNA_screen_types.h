@@ -66,6 +66,7 @@ typedef struct bScreen {
 
 	struct Scene *scene DNA_DEPRECATED;
 
+	short flag;                         /* general flags */
 	short winid;						/* winid from WM, starts with 1 */
 	short redraws_flag;					/* user-setting for which editors get redrawn during anim playback (used to be time->redraws) */
 
@@ -78,7 +79,7 @@ typedef struct bScreen {
 	char do_draw_drag;					/* notifier for dragging draw. */
 	char skip_handling;					/* set to delay screen handling after switching back from maximized area */
 	char scrubbing;						/* set when scrubbing to avoid some costly updates */
-	char pad[3];
+	char pad[1];
 
 	struct ARegion *active_region;		/* active region that has mouse focus */
 
@@ -382,6 +383,12 @@ enum {
 #define AREAMINX	32
 #define HEADERY		26
 
+/* screen->flag */
+enum {
+	SCREEN_COLLAPSE_TOPBAR    = 1,
+	SCREEN_COLLAPSE_STATUSBAR = 2,
+};
+
 /* screen->state */
 enum {
 	SCREENNORMAL     = 0,
@@ -448,6 +455,7 @@ enum {
 /* uiList filter orderby type */
 enum {
 	UILST_FLT_SORT_ALPHA        = 1 << 0,
+	UILST_FLT_FORCED_REVERSE    = 1 << 1,   /* Special flag to indicate reverse was set by external parameter */
 	UILST_FLT_SORT_REVERSE      = 1u << 31  /* Special value, bitflag used to reverse order! */
 };
 

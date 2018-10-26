@@ -459,7 +459,7 @@ rcti* RE_engine_get_current_tiles(Render *re, int *r_total_tiles, bool *r_needs_
 		if (pa->status == PART_STATUS_IN_PROGRESS) {
 			if (total_tiles >= allocation_size) {
 				/* Just in case we're using crazy network rendering with more
-				 * slaves as BLENDER_MAX_THREADS.
+				 * workers than BLENDER_MAX_THREADS.
 				 */
 				allocation_size += allocation_step;
 				if (tiles == tiles_static) {
@@ -702,7 +702,6 @@ int RE_engine_render(Render *re, int do_all)
 	if (re->r.scemode & R_BUTS_PREVIEW)
 		engine->flag |= RE_ENGINE_PREVIEW;
 	engine->camera_override = re->camera_override;
-	engine->layer_override = re->layer_override;
 
 	engine->resolution_x = re->winx;
 	engine->resolution_y = re->winy;

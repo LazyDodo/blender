@@ -101,7 +101,7 @@ static const char *includefiles[] = {
 	"DNA_effect_types.h",
 	"DNA_outliner_types.h",
 	"DNA_sound_types.h",
-	"DNA_group_types.h",
+	"DNA_collection_types.h",
 	"DNA_armature_types.h",
 	"DNA_action_types.h",
 	"DNA_constraint_types.h",
@@ -998,7 +998,7 @@ static int make_structDNA(const char *baseDirectory, FILE *file, FILE *file_offs
 		printf("Running makesdna at debug level %d\n", debugSDNA);
 	}
 
-	/* the longest known struct is 50k, so we assume 100k is sufficent! */
+	/* the longest known struct is 50k, so we assume 100k is sufficient! */
 	namedata = MEM_callocN(maxdata, "namedata");
 	typedata = MEM_callocN(maxdata, "typedata");
 	structdata = MEM_callocN(maxdata, "structdata");
@@ -1272,7 +1272,7 @@ int main(int argc, char **argv)
 	return(return_status);
 }
 
-/* handy but fails on struct bounds which makesdna doesnt care about
+/* handy but fails on struct bounds which makesdna doesn't care about
  * with quite the same strictness as GCC does */
 #if 0
 /* include files for automatic dependencies */
@@ -1328,7 +1328,7 @@ int main(int argc, char **argv)
 #include "DNA_effect_types.h"
 #include "DNA_outliner_types.h"
 #include "DNA_sound_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_action_types.h"
 #include "DNA_constraint_types.h"

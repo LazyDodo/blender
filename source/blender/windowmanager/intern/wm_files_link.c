@@ -74,6 +74,7 @@
 
 #include "IMB_colormanagement.h"
 
+#include "ED_datafiles.h"
 #include "ED_screen.h"
 
 #include "RNA_access.h"
@@ -105,11 +106,7 @@ static bool wm_link_append_poll(bContext *C)
 
 static int wm_link_append_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
-	if (RNA_struct_property_is_set(op->ptr, "filepath")) {
-		return WM_operator_call_notest(C, op);
-	}
-	else {
-		/* XXX TODO solve where to get last linked library from */
+	if (!RNA_struct_property_is_set(op->ptr, "filepath")) {
 		if (G.lib[0] != '\0') {
 			RNA_string_set(op->ptr, "filepath", G.lib);
 		}
@@ -119,9 +116,10 @@ static int wm_link_append_invoke(bContext *C, wmOperator *op, const wmEvent *UNU
 			BLI_parent_dir(path);
 			RNA_string_set(op->ptr, "filepath", path);
 		}
-		WM_event_add_fileselect(C, op);
-		return OPERATOR_RUNNING_MODAL;
 	}
+
+	WM_event_add_fileselect(C, op);
+	return OPERATOR_RUNNING_MODAL;
 }
 
 static short wm_link_append_flag(wmOperator *op)
@@ -228,7 +226,12 @@ static void wm_link_do(
 	for (lib_idx = 0, liblink = lapp_data->libraries.list; liblink; lib_idx++, liblink = liblink->next) {
 		char *libname = liblink->link;
 
-		bh = BLO_blendhandle_from_file(libname, reports);
+		if (STREQ(libname, BLO_EMBEDDED_STARTUP_BLEND)) {
+			bh = BLO_blendhandle_from_memory(datatoc_startup_blend, datatoc_startup_blend_size);
+		}
+		else {
+			bh = BLO_blendhandle_from_file(libname, reports);
+		}
 
 		if (bh == NULL) {
 			/* Unlikely since we just browsed it, but possible
@@ -398,7 +401,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 				}
 
 				if (!BLI_ghash_haskey(libraries, libname)) {
-					BLI_ghash_insert(libraries, BLI_strdup(libname), SET_INT_IN_POINTER(lib_idx));
+					BLI_ghash_insert(libraries, BLI_strdup(libname), POINTER_FROM_INT(lib_idx));
 					lib_idx++;
 					wm_link_append_data_library_add(lapp_data, libname);
 				}
@@ -419,7 +422,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 					continue;
 				}
 
-				lib_idx = GET_INT_FROM_POINTER(BLI_ghash_lookup(libraries, libname));
+				lib_idx = POINTER_AS_INT(BLI_ghash_lookup(libraries, libname));
 
 				item = wm_link_append_data_item_add(lapp_data, name, BKE_idcode_from_name(group), NULL);
 				BLI_BITMAP_ENABLE(item->libraries, lib_idx);
@@ -643,7 +646,7 @@ static void lib_relocate_do(
 
 	BKE_main_id_tag_all(bmain, LIB_TAG_PRE_EXISTING, true);
 
-	/* We do not want any instanciation here! */
+	/* We do not want any instantiation here! */
 	wm_link_do(lapp_data, reports, bmain, NULL, NULL);
 
 	BKE_main_lock(bmain);

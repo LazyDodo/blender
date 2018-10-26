@@ -1495,7 +1495,15 @@ static void area_move_apply_do(
 		ED_screen_areas_iter(win, sc, sa) {
 			if (sa->v1->editflag || sa->v2->editflag || sa->v3->editflag || sa->v4->editflag) {
 				if (ED_area_is_global(sa)) {
-					sa->global->cur_fixed_height = round_fl_to_int(screen_geom_area_height(sa) / UI_DPI_FAC);
+					/* Snap to minimum or maximum for global areas. */
+					int height = round_fl_to_int(screen_geom_area_height(sa) / UI_DPI_FAC);
+					if (abs(height - sa->global->size_min) < abs(height - sa->global->size_max)) {
+						sa->global->cur_fixed_height = sa->global->size_min;
+					}
+					else {
+						sa->global->cur_fixed_height = sa->global->size_max;
+					}
+
 					sc->do_refresh = true;
 					redraw_all = true;
 				}
@@ -1507,6 +1515,8 @@ static void area_move_apply_do(
 				ED_area_tag_redraw(sa);
 			}
 		}
+
+		ED_screen_global_areas_sync(win);
 
 		WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL); /* redraw everything */
 		/* Update preview thumbnail */
@@ -2626,10 +2636,10 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 	}
 
 	/* populate tree with keyframe nodes */
-	scene_to_keylist(&ads, scene, &keys, NULL);
+	scene_to_keylist(&ads, scene, &keys);
 
 	if (ob) {
-		ob_to_keylist(&ads, ob, &keys, NULL);
+		ob_to_keylist(&ads, ob, &keys);
 
 		if (ob->type == OB_GPENCIL) {
 			const bool active = !(scene->flag & SCE_KEYS_NO_SELONLY);
@@ -2644,9 +2654,6 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 			mask_to_keylist(&ads, masklay, &keys);
 		}
 	}
-
-	/* build linked-list for searching */
-	BLI_dlrbTree_linkedlist_sync(&keys);
 
 	/* find matching keyframe in the right direction */
 	if (next)
@@ -4205,7 +4212,7 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Border Select Operator (Template)
+/** \name Box Select Operator (Template)
  * \{ */
 
 /* operator state vars used: (added by default WM callbacks)
@@ -4227,31 +4234,31 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
  * poll()	has to be filled in by user for context
  */
 #if 0
-static int border_select_exec(bContext *C, wmOperator *op)
+static int box_select_exec(bContext *C, wmOperator *op)
 {
 	int event_type = RNA_int_get(op->ptr, "event_type");
 
 	if (event_type == LEFTMOUSE)
-		printf("border select do select\n");
+		printf("box select do select\n");
 	else if (event_type == RIGHTMOUSE)
-		printf("border select deselect\n");
+		printf("box select deselect\n");
 	else
-		printf("border select do something\n");
+		printf("box select do something\n");
 
 	return 1;
 }
 
-static void SCREEN_OT_border_select(wmOperatorType *ot)
+static void SCREEN_OT_box_select(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
-	ot->idname = "SCREEN_OT_border_select";
+	ot->name = "Box Select";
+	ot->idname = "SCREEN_OT_box_select";
 
 	/* api callbacks */
-	ot->exec = border_select_exec;
-	ot->invoke = WM_gesture_border_invoke;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->exec = box_select_exec;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_areaactive;
 
@@ -4471,7 +4478,7 @@ static void SCREEN_OT_delete(wmOperatorType *ot)
 
 /* implementation note: a disappearing region needs at least 1 last draw with 100% backbuffer
  * texture over it- then triple buffer will clear it entirely.
- * This because flag RGN_HIDDEN is set in end - region doesnt draw at all then */
+ * This because flag RGN_HIDDEN is set in end - region doesn't draw at all then */
 
 typedef struct RegionAlphaInfo {
 	ScrArea *sa;
@@ -4711,15 +4718,37 @@ static int space_workspace_cycle_invoke(bContext *C, wmOperator *op, const wmEve
 	Main *bmain = CTX_data_main(C);
 	const int direction = RNA_enum_get(op->ptr, "direction");
 	WorkSpace *workspace_src = WM_window_get_active_workspace(win);
-	WorkSpace *workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? workspace_src->id.prev : workspace_src->id.next;
+	WorkSpace *workspace_dst = NULL;
+
+	ListBase ordered;
+	BKE_id_ordered_list(&ordered, &bmain->workspaces);
+
+	for (LinkData *link = ordered.first; link; link = link->next) {
+		if (link->data == workspace_src) {
+			if (direction == SPACE_CONTEXT_CYCLE_PREV) {
+				workspace_dst = (link->prev) ? link->prev->data : NULL;
+			}
+			else {
+				workspace_dst = (link->next) ? link->next->data : NULL;
+			}
+		}
+	}
+
 	if (workspace_dst == NULL) {
-		workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? bmain->workspaces.last : bmain->workspaces.first;
+		LinkData *link = (direction == SPACE_CONTEXT_CYCLE_PREV) ? ordered.last : ordered.first;
+		workspace_dst =  link->data;
 	}
-	if (workspace_src != workspace_dst) {
-		win->workspace_hook->temp_workspace_store = workspace_dst;
-		WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
-		win->workspace_hook->temp_workspace_store = NULL;
+
+	BLI_freelistN(&ordered);
+
+	if (workspace_src == workspace_dst) {
+		return OPERATOR_CANCELLED;
 	}
+
+	win->workspace_hook->temp_workspace_store = workspace_dst;
+	WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
+	win->workspace_hook->temp_workspace_store = NULL;
+
 	return OPERATOR_FINISHED;
 }
 
@@ -4732,7 +4761,7 @@ static void SCREEN_OT_workspace_cycle(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->invoke = space_workspace_cycle_invoke;
-	ot->poll = ED_operator_screenactive;;
+	ot->poll = ED_operator_screenactive;
 
 	ot->flag = 0;
 
@@ -4835,7 +4864,7 @@ static void keymap_modal_set(wmKeyConfig *keyconf)
 
 }
 
-static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
+static bool blend_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH) {
 		if (drag->icon == ICON_FILE_BLEND)
@@ -4844,11 +4873,10 @@ static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent
 	return 0;
 }
 
-static void open_file_drop_copy(wmDrag *drag, wmDropBox *drop)
+static void blend_file_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
 	/* copy drag path to properties */
 	RNA_string_set(drop->ptr, "filepath", drag->path);
-	drop->opcontext = WM_OP_EXEC_DEFAULT;
 }
 
 
@@ -4860,7 +4888,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* Screen Editing ------------------------------------------------ */
-	keymap = WM_keymap_find(keyconf, "Screen Editing", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Screen Editing", 0, 0);
 
 	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, 0, 0)->ptr, "modifier", 0);
 	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "modifier", 1);
@@ -4885,12 +4913,12 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 	/* Header Editing ------------------------------------------------ */
 	/* note: this is only used when the cursor is inside the header */
-	keymap = WM_keymap_find(keyconf, "Header", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Header", 0, 0);
 
 	WM_keymap_add_item(keymap, "SCREEN_OT_header_context_menu", RIGHTMOUSE, KM_PRESS, 0, 0);
 
 	/* Screen General ------------------------------------------------ */
-	keymap = WM_keymap_find(keyconf, "Screen", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Screen", 0, 0);
 
 	/* standard timers */
 	WM_keymap_add_item(keymap, "SCREEN_OT_animation_step", TIMER0, KM_ANY, KM_ANY, 0);
@@ -4969,7 +4997,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 
 	/* Anim Playback ------------------------------------------------ */
-	keymap = WM_keymap_find(keyconf, "Frames", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Frames", 0, 0);
 
 	/* frame offsets */
 #ifdef USE_WM_KEYMAP_27X
@@ -5022,7 +5050,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 	/* Alternative keys for animation and sequencer playing */
 #if 0 /* XXX: disabled for restoring later... bad implementation */
-	keymap = WM_keymap_find(keyconf, "Frames", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Frames", 0, 0);
 	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", RIGHTARROWKEY, KM_PRESS, KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "cycle_speed", true);
 
@@ -5035,7 +5063,7 @@ void ED_keymap_screen(wmKeyConfig *keyconf)
 
 	/* dropbox for entire window */
 	lb = WM_dropboxmap_find("Window", 0, 0);
-	WM_dropbox_add(lb, "WM_OT_open_mainfile", open_file_drop_poll, open_file_drop_copy);
+	WM_dropbox_add(lb, "WM_OT_drop_blend_file", blend_file_drop_poll, blend_file_drop_copy);
 	WM_dropbox_add(lb, "UI_OT_drop_color", UI_drop_color_poll, UI_drop_color_copy);
 
 	keymap_modal_set(keyconf);

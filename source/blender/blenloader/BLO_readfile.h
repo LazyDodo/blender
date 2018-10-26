@@ -115,6 +115,7 @@ void BLO_blendhandle_close(BlendHandle *bh);
 /***/
 
 #define BLO_GROUP_MAX 32
+#define BLO_EMBEDDED_STARTUP_BLEND "<startup.blend>"
 
 bool BLO_has_bfile_extension(const char *str);
 bool BLO_library_path_explode(const char *path, char *r_dir, char **r_group, char **r_name);
@@ -155,7 +156,10 @@ void BLO_expand_main(void *fdhandle, struct Main *mainvar);
 
 /* Update defaults in startup.blend & userprefs.blend, without having to save and embed it */
 void BLO_update_defaults_userpref_blend(void);
-void BLO_update_defaults_startup_blend(struct Main *mainvar);
+void BLO_update_defaults_startup_blend(struct Main *mainvar, const char *app_template);
+
+/* Version patch user preferences. */
+void BLO_version_defaults_userpref_blend(struct Main *mainvar, struct UserDef *userdef);
 
 struct BlendThumbnail *BLO_thumbnail_from_file(const char *filepath);
 

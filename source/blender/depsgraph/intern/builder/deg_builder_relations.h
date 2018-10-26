@@ -201,12 +201,12 @@ struct DepsgraphRelationBuilder
 	                                       const char *description,
 	                                       bool check_unique = false);
 
+	void add_customdata_mask(const ComponentKey &key, uint64_t mask);
+
 	void build_id(ID *id);
 	void build_layer_collections(ListBase *lb);
 	void build_view_layer(Scene *scene, ViewLayer *view_layer);
-	void build_collection(eDepsNode_CollectionOwner owner_type,
-	                      Object *object,
-	                      Collection *collection);
+	void build_collection(Object *object, Collection *collection);
 	void build_object(Base *base, Object *object);
 	void build_object_flags(Base *base, Object *object);
 	void build_object_data(Object *object);
@@ -316,7 +316,7 @@ protected:
 
 	/* TODO(sergey): All those is_same* functions are to be generalized. */
 
-	/* Check whether two keys correponds to the same bone from same armature.
+	/* Check whether two keys corresponds to the same bone from same armature.
 	 *
 	 * This is used by drivers relations builder to avoid possible fake
 	 * dependency cycle when one bone property drives another property of the

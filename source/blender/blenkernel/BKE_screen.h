@@ -238,7 +238,7 @@ typedef void (*uiListDrawItemFunc)(
 
 /* Draw the filtering part of an uiList */
 typedef void (*uiListDrawFilterFunc)(
-        struct uiList *ui_list, struct bContext *C, struct uiLayout *layout);
+        struct uiList *ui_list, struct bContext *C, struct uiLayout *layout, bool reverse);
 
 /* Filter items of an uiList */
 typedef void (*uiListFilterItemsFunc)(
@@ -325,6 +325,7 @@ void BKE_spacedata_id_unref(struct ScrArea *sa, struct SpaceLink *sl, struct ID 
 /* area/regions */
 struct ARegion *BKE_area_region_copy(struct SpaceType *st, struct ARegion *ar);
 void            BKE_area_region_free(struct SpaceType *st, struct ARegion *ar);
+void            BKE_area_region_panels_free(struct ListBase *panels);
 void            BKE_screen_area_free(struct ScrArea *sa);
 /* Gizmo-maps of a region need to be freed with the region. Uses callback to avoid low-level call. */
 void BKE_region_callback_free_gizmomap_set(void (*callback)(struct wmGizmoMap *));
@@ -337,13 +338,6 @@ struct ScrArea *BKE_screen_find_area_from_space(struct bScreen *sc, struct Space
 struct ScrArea *BKE_screen_find_big_area(struct bScreen *sc, const int spacetype, const short min);
 struct ScrArea *BKE_screen_area_map_find_area_xy(const struct ScrAreaMap *areamap, const int spacetype, int x, int y);
 struct ScrArea *BKE_screen_find_area_xy(struct bScreen *sc, const int spacetype, int x, int y);
-
-unsigned int BKE_screen_view3d_layer_active_ex(
-        const struct View3D *v3d, const struct Scene *scene, bool use_localvd) ATTR_NONNULL(2);
-unsigned int BKE_screen_view3d_layer_active(
-        const struct View3D *v3d, const struct Scene *scene) ATTR_NONNULL(2);
-
-unsigned int BKE_screen_view3d_layer_all(const struct bScreen *sc) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1);
 
 void BKE_screen_gizmo_tag_refresh(struct bScreen *sc);
 
@@ -361,7 +355,6 @@ void BKE_screen_view3d_shading_init(struct View3DShading *shading);
 /* screen */
 void BKE_screen_free(struct bScreen *sc);
 void BKE_screen_area_map_free(struct ScrAreaMap *area_map) ATTR_NONNULL();
-unsigned int BKE_screen_visible_layers(struct bScreen *screen, struct Scene *scene);
 
 struct ScrEdge *BKE_screen_find_edge(struct bScreen *sc, struct ScrVert *v1, struct ScrVert *v2);
 void BKE_screen_sort_scrvert(struct ScrVert **v1, struct ScrVert **v2);

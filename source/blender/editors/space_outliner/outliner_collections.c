@@ -29,7 +29,7 @@
 #include "BLI_utildefines.h"
 #include "BLI_listbase.h"
 
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_object_types.h"
 
 #include "BKE_context.h"
@@ -81,7 +81,7 @@ Collection *outliner_collection_from_tree_element(const TreeElement *te)
 	TreeStoreElem *tselem = TREESTORE(te);
 
 	if (!tselem) {
-		return false;
+		return NULL;
 	}
 
 	if (tselem->type == TSE_LAYER_COLLECTION) {
@@ -99,9 +99,26 @@ Collection *outliner_collection_from_tree_element(const TreeElement *te)
 	return NULL;
 }
 
+TreeTraversalAction outliner_find_selected_collections(TreeElement *te, void *customdata)
+{
+	struct IDsSelectedData *data = customdata;
+	TreeStoreElem *tselem = TREESTORE(te);
+
+	if (outliner_is_collection_tree_element(te)) {
+		BLI_addtail(&data->selected_array, BLI_genericNodeN(te));
+		return TRAVERSE_CONTINUE;
+	}
+
+	if (tselem->type || (tselem->id && GS(tselem->id->name) != ID_GR)) {
+		return TRAVERSE_SKIP_CHILDS;
+	}
+
+	return TRAVERSE_CONTINUE;
+}
+
 TreeTraversalAction outliner_find_selected_objects(TreeElement *te, void *customdata)
 {
-	struct ObjectsSelectedData *data = customdata;
+	struct IDsSelectedData *data = customdata;
 	TreeStoreElem *tselem = TREESTORE(te);
 
 	if (outliner_is_collection_tree_element(te)) {
@@ -112,7 +129,7 @@ TreeTraversalAction outliner_find_selected_objects(TreeElement *te, void *custom
 		return TRAVERSE_SKIP_CHILDS;
 	}
 
-	BLI_addtail(&data->objects_selected_array, BLI_genericNodeN(te));
+	BLI_addtail(&data->selected_array, BLI_genericNodeN(te));
 
 	return TRAVERSE_CONTINUE;
 }
@@ -209,7 +226,7 @@ void OUTLINER_OT_collection_new(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	PropertyRNA *prop = RNA_def_boolean(ot->srna, "nested", true, "Nested", "Add as child of selected collection");;
+	PropertyRNA *prop = RNA_def_boolean(ot->srna, "nested", true, "Nested", "Add as child of selected collection");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
@@ -231,7 +248,7 @@ static TreeTraversalAction collection_find_data_to_edit(TreeElement *te, void *c
 	}
 
 	if (collection == BKE_collection_master(data->scene)) {
-		/* skip - showing warning/error message might be missleading
+		/* skip - showing warning/error message might be misleading
 		 * when deleting multiple collections, so just do nothing */
 	}
 	else {
@@ -540,7 +557,7 @@ static int collection_instance_exec(bContext *C, wmOperator *UNUSED(op))
 	/* Effectively instance the collections. */
 	GSET_ITER(collections_to_edit_iter, data.collections_to_edit) {
 		Collection *collection = BLI_gsetIterator_getKey(&collections_to_edit_iter);
-		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false, scene->layact);
+		Object *ob = ED_object_add_type(C, OB_EMPTY, collection->id.name + 2, scene->cursor.location, NULL, false);
 		ob->dup_group = collection;
 		ob->transflag |= OB_DUPLICOLLECTION;
 		id_lib_extern(&collection->id);
@@ -584,7 +601,7 @@ static TreeTraversalAction layer_collection_find_data_to_edit(TreeElement *te, v
 	LayerCollection *lc = te->directdata;
 
 	if (lc->collection->flag & COLLECTION_IS_MASTER) {
-		/* skip - showing warning/error message might be missleading
+		/* skip - showing warning/error message might be misleading
 		 * when deleting multiple collections, so just do nothing */
 	}
 	else {
@@ -811,12 +828,12 @@ void OUTLINER_OT_collection_indirect_only_clear(wmOperatorType *ot)
 void ED_outliner_selected_objects_get(const bContext *C, ListBase *objects)
 {
 	SpaceOops *soops = CTX_wm_space_outliner(C);
-	struct ObjectsSelectedData data = {{NULL}};
+	struct IDsSelectedData data = {{NULL}};
 	outliner_tree_traverse(soops, &soops->tree, 0, TSE_SELECTED, outliner_find_selected_objects, &data);
-	LISTBASE_FOREACH (LinkData *, link, &data.objects_selected_array) {
+	LISTBASE_FOREACH (LinkData *, link, &data.selected_array) {
 		TreeElement *ten_selected = (TreeElement *)link->data;
 		Object *ob = (Object *)TREESTORE(ten_selected)->id;
 		BLI_addtail(objects, BLI_genericNodeN(ob));
 	}
-	BLI_freelistN(&data.objects_selected_array);
+	BLI_freelistN(&data.selected_array);
 }

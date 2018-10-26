@@ -135,8 +135,8 @@ int     ED_area_header_switchbutton(const struct bContext *C, struct uiBlock *bl
 void    ED_area_initialize(struct wmWindowManager *wm, struct wmWindow *win, struct ScrArea *sa);
 void    ED_area_exit(struct bContext *C, struct ScrArea *sa);
 int     ED_screen_area_active(const struct bContext *C);
-void    ED_screen_global_areas_create(
-            struct wmWindow *win);
+void    ED_screen_global_areas_refresh(struct wmWindow *win);
+void    ED_screen_global_areas_sync(struct wmWindow *win);
 void    ED_area_do_listen(struct wmWindow *win, ScrArea *sa, struct wmNotifier *note, Scene *scene);
 void    ED_area_tag_redraw(ScrArea *sa);
 void    ED_area_tag_redraw_no_rebuild(ScrArea *sa);
@@ -342,6 +342,14 @@ void ED_screen_user_menu_register(void);
 void ED_region_cache_draw_background(const struct ARegion *ar);
 void ED_region_cache_draw_curfra_label(const int framenr, const float x, const float y);
 void ED_region_cache_draw_cached_segments(const struct ARegion *ar, const int num_segments, const int *points, const int sfra, const int efra);
+
+/* area_utils.c */
+void ED_region_generic_tools_region_message_subscribe(
+        const struct bContext *C,
+        struct WorkSpace *workspace, struct Scene *scene,
+        struct bScreen *screen, struct ScrArea *sa, struct ARegion *ar,
+        struct wmMsgBus *mbus);
+int ED_region_generic_tools_region_snap_size(const struct ARegion *ar, int size, int axis);
 
 /* interface_region_hud.c */
 struct ARegionType *ED_area_type_hud(int space_type);

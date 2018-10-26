@@ -34,6 +34,7 @@
 #define __DEG_DEPSGRAPH_QUERY_H__
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 struct ID;
 
@@ -132,7 +133,7 @@ typedef struct DEGObjectIterData {
 	 */
 	struct Object temp_dupli_object;
 
-	/* **** Iteration ober ID nodes **** */
+	/* **** Iteration over ID nodes **** */
 	size_t id_node_index;
 	size_t num_id_nodes;
 } DEGObjectIterData;
@@ -197,12 +198,46 @@ typedef void (*DEGForeachIDCallback)(ID *id, void *user_data);
 /* NOTE: Modifies runtime flags in depsgraph nodes, so can not be used in
  * parallel. Keep an eye on that!
  */
+void DEG_foreach_ancestor_ID(const Depsgraph *depsgraph,
+                             const ID *id,
+                             DEGForeachIDCallback callback, void *user_data);
 void DEG_foreach_dependent_ID(const Depsgraph *depsgraph,
                               const ID *id,
                               DEGForeachIDCallback callback, void *user_data);
 
 void DEG_foreach_ID(const Depsgraph *depsgraph,
                     DEGForeachIDCallback callback, void *user_data);
+
+/* ********************* DEG graph filtering ****************** */
+
+/* ComponentKey for nodes we want to be able to evaluate in the filtered graph */
+typedef struct DEG_FilterTarget {
+	struct DEG_FilterTarget *next, *prev;
+
+	struct ID *id;
+	/* TODO: component identifiers - Component Type, Subdata/Component Name */
+} DEG_FilterTarget;
+
+typedef enum eDEG_FilterQuery_Granularity {
+	DEG_FILTER_NODES_ALL           = 0,
+	DEG_FILTER_NODES_NO_OPS        = 1,
+	DEG_FILTER_NODES_ID_ONLY       = 2,
+} eDEG_FilterQuery_Granularity;
+
+
+typedef struct DEG_FilterQuery {
+	/* List of DEG_FilterTarget's */
+	struct ListBase targets;
+
+	/* Level of detail in the resulting graph */
+	eDEG_FilterQuery_Granularity detail_level;
+} DEG_FilterQuery;
+
+/* Obtain a new graph instance that only contains the subset of desired nodes
+ * WARNING: Do NOT pass an already filtered depsgraph through this function again,
+ *          as we are currently unable to accurately recreate it.
+ */
+Depsgraph *DEG_graph_filter(const Depsgraph *depsgraph, struct Main *bmain, DEG_FilterQuery *query);
 
 
 #ifdef __cplusplus

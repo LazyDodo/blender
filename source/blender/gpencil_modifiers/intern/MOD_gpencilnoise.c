@@ -101,22 +101,18 @@ static void deformStroke(
 {
 	NoiseGpencilModifierData *mmd = (NoiseGpencilModifierData *)md;
 	bGPDspoint *pt0, *pt1;
-	MDeformVert *dvert;
+	MDeformVert *dvert = NULL;
 	float shift, vran, vdir;
 	float normal[3];
 	float vec1[3], vec2[3];
-#if 0
-	Scene *scene = DEG_get_evaluated_scene(depsgraph);
-#endif
 	int sc_frame = 0;
 	int sc_diff = 0;
-	int vindex = defgroup_name_index(ob, mmd->vgname);
-	float weight = 1.0f;
+	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
 	/* Random generator, only init once. */
 	if (mmd->rng == NULL) {
 		uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-		rng_seed ^= GET_UINT_FROM_POINTER(mmd);
+		rng_seed ^= POINTER_AS_UINT(mmd);
 		mmd->rng = BLI_rng_new(rng_seed);
 	}
 
@@ -142,20 +138,24 @@ static void deformStroke(
 
 		/* last point is special */
 		if (i == gps->totpoints) {
-			dvert = &gps->dvert[i - 2];
+			if (gps->dvert) {
+				dvert = &gps->dvert[i - 2];
+			}
 			pt0 = &gps->points[i - 2];
 			pt1 = &gps->points[i - 1];
 		}
 		else {
-			dvert = &gps->dvert[i - 1];
+			if (gps->dvert) {
+				dvert = &gps->dvert[i - 1];
+			}
 			pt0 = &gps->points[i - 1];
 			pt1 = &gps->points[i];
 
 		}
 
 		/* verify vertex group */
-		weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_NOISE_INVERT_VGROUP) != 0), vindex);
-		if (weight < 0) {
+		const float weight = get_modifier_point_weight(dvert, (mmd->flag & GP_NOISE_INVERT_VGROUP) != 0, def_nr);
+		if (weight < 0.0f) {
 			continue;
 		}
 
@@ -272,7 +272,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Noise = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          freeData,

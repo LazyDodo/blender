@@ -1596,8 +1596,8 @@ static void bevel_extend_edge_data(BevVert *bv)
 				start = bcur;			/* set start to first boundvert with seam_len > 0 */
 
 			/* Now for all the mesh_verts starting at current index and ending at idxlen
-			*  We go through outermost ring and through all its segments and add seams
-			*  for those edges */
+			 * We go through outermost ring and through all its segments and add seams
+			 * for those edges */
 			int idxlen = bcur->index + bcur->seam_len;
 			for (int i = bcur->index; i < idxlen; i++) {
 				BMVert *v1 = mesh_vert(vm, i % vm->count, 0, 0)->v, *v2;
@@ -1698,21 +1698,21 @@ static void bevel_harden_normals_mode(BevelParams *bp, BevVert *bv, BMOperator *
 				BMFace *f_a, *f_b;
 				BM_edge_face_pair(e, &f_a, &f_b);
 
-				if (f_a && !BLI_ghash_haskey(tempfaceHash, SET_UINT_IN_POINTER(BM_elem_index_get(f_a)))) {
+				if (f_a && !BLI_ghash_haskey(tempfaceHash, POINTER_FROM_UINT(BM_elem_index_get(f_a)))) {
 					int f_area = BM_face_calc_area(f_a);
 					float f_no[3];
 					copy_v3_v3(f_no, f_a->no);
 					mul_v3_fl(f_no, f_area);
 					add_v3_v3(n_final, f_no);
-					BLI_ghash_insert(tempfaceHash, SET_UINT_IN_POINTER(BM_elem_index_get(f_a)), NULL);
+					BLI_ghash_insert(tempfaceHash, POINTER_FROM_UINT(BM_elem_index_get(f_a)), NULL);
 				}
-				if (f_b && !BLI_ghash_haskey(tempfaceHash, SET_UINT_IN_POINTER(BM_elem_index_get(f_b)))) {
+				if (f_b && !BLI_ghash_haskey(tempfaceHash, POINTER_FROM_UINT(BM_elem_index_get(f_b)))) {
 					int f_area = BM_face_calc_area(f_b);
 					float f_no[3];
 					copy_v3_v3(f_no, f_b->no);
 					mul_v3_fl(f_no, f_area);
 					add_v3_v3(n_final, f_no);
-					BLI_ghash_insert(tempfaceHash, SET_UINT_IN_POINTER(BM_elem_index_get(f_b)), NULL);
+					BLI_ghash_insert(tempfaceHash, POINTER_FROM_UINT(BM_elem_index_get(f_b)), NULL);
 				}
 			}
 		}
@@ -2345,7 +2345,7 @@ static void adjust_the_cycle_or_chain(BoundVert *vstart, bool iscycle)
 
 			/* residue np + 2*i (if cycle) else np - 1 + 2*i:
 			 * right offset for parm i matches its spec; weighted */
-			row = iscycle ? np + 2 * i : np - 1 + 2 *  i;
+			row = iscycle ? np + 2 * i : np - 1 + 2 * i;
 			EIG_linear_solver_matrix_add(solver, row, i, weight);
 			EIG_linear_solver_right_hand_side_add(solver, 0, row, weight * eright->offset_r);
 #ifdef DEBUG_ADJUST
@@ -3158,6 +3158,8 @@ static int tri_corner_test(BevelParams *bp, BevVert *bv)
 	int i;
 	int in_plane_e = 0;
 
+	if (bp->vertex_only)
+		return -1;
 	totang = 0.0f;
 	for (i = 0; i < bv->edgecount; i++) {
 		e = &bv->edges[i];

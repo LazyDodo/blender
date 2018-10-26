@@ -635,7 +635,7 @@ static Mesh *bake_mesh_new_from_object(Depsgraph *depsgraph, Main *bmain, Scene 
 {
 	ED_object_editmode_load(bmain, ob);
 
-	Mesh *me = BKE_mesh_new_from_object(depsgraph, bmain, scene, ob, 1, 0, 0);
+	Mesh *me = BKE_mesh_new_from_object(depsgraph, bmain, scene, ob, 1, 0);
 	if (me->flag & ME_AUTOSMOOTH) {
 		BKE_mesh_split_faces(me, true);
 	}
@@ -792,7 +792,7 @@ static int bake(
 		mmd_low = (MultiresModifierData *) modifiers_findByType(ob_low, eModifierType_Multires);
 		if (mmd_low) {
 			mmd_flags_low = mmd_low->flags;
-			mmd_low->flags |= eMultiresModifierFlag_PlainUv;
+			mmd_low->uv_smooth = SUBSURF_UV_SMOOTH_NONE;
 		}
 	}
 

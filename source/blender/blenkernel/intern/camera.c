@@ -132,17 +132,6 @@ void BKE_camera_free(Camera *ca)
 
 /******************************** Camera Usage *******************************/
 
-void BKE_camera_object_mode(RenderData *rd, Object *cam_ob)
-{
-	rd->mode &= ~(R_ORTHO | R_PANORAMA);
-
-	if (cam_ob && cam_ob->type == OB_CAMERA) {
-		Camera *cam = cam_ob->data;
-		if (cam->type == CAM_ORTHO) rd->mode |= R_ORTHO;
-		if (cam->type == CAM_PANO) rd->mode |= R_PANORAMA;
-	}
-}
-
 /* get the camera's dof value, takes the dof object into account */
 float BKE_camera_object_dof_distance(Object *ob)
 {
@@ -150,15 +139,10 @@ float BKE_camera_object_dof_distance(Object *ob)
 	if (ob->type != OB_CAMERA)
 		return 0.0f;
 	if (cam->dof_ob) {
-#if 0
-		/* too simple, better to return the distance on the view axis only */
-		return len_v3v3(ob->obmat[3], cam->dof_ob->obmat[3]);
-#else
 		float view_dir[3], dof_dir[3];
 		normalize_v3_v3(view_dir, ob->obmat[2]);
 		sub_v3_v3v3(dof_dir, ob->obmat[3], cam->dof_ob->obmat[3]);
 		return fabsf(dot_v3v3(view_dir, dof_dir));
-#endif
 	}
 	return cam->YF_dofdist;
 }

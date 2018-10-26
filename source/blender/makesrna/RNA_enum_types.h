@@ -43,6 +43,7 @@ extern const EnumPropertyItem DummyRNA_DEFAULT_items[];
 extern const EnumPropertyItem rna_enum_id_type_items[];
 
 extern const EnumPropertyItem rna_enum_object_mode_items[];
+extern const EnumPropertyItem rna_enum_workspace_object_mode_items[];
 extern const EnumPropertyItem rna_enum_object_empty_drawtype_items[];
 extern const EnumPropertyItem rna_enum_object_gpencil_type_items[];
 extern const EnumPropertyItem rna_enum_metaelem_type_items[];
@@ -71,6 +72,7 @@ extern const EnumPropertyItem rna_enum_object_shaderfx_type_items[];
 
 extern const EnumPropertyItem rna_enum_modifier_triangulate_quad_method_items[];
 extern const EnumPropertyItem rna_enum_modifier_triangulate_ngon_method_items[];
+extern const EnumPropertyItem rna_enum_modifier_shrinkwrap_mode_items[];
 
 extern const EnumPropertyItem rna_enum_image_type_items[];
 extern const EnumPropertyItem rna_enum_image_color_mode_items[];
@@ -164,6 +166,7 @@ extern const EnumPropertyItem rna_enum_operator_context_items[];
 extern const EnumPropertyItem rna_enum_wm_report_items[];
 
 extern const EnumPropertyItem rna_enum_transform_pivot_items_full[];
+extern const EnumPropertyItem rna_enum_transform_orientation_items[];
 extern const EnumPropertyItem rna_enum_transform_mode_types[];
 
 extern const EnumPropertyItem rna_enum_posebone_rotmode_items[];
@@ -179,7 +182,6 @@ extern const EnumPropertyItem rna_enum_navigation_mode_items[];
 extern const EnumPropertyItem rna_enum_file_sort_items[];
 
 extern const EnumPropertyItem rna_enum_node_socket_in_out_items[];
-extern const EnumPropertyItem rna_enum_node_icon_items[];
 
 extern const EnumPropertyItem rna_enum_node_math_items[];
 extern const EnumPropertyItem rna_enum_node_vec_math_items[];

@@ -33,14 +33,6 @@ from .properties_physics_common import (
 )
 
 
-class SCENE_PT_units_length_presets(PresetMenu):
-    """Unit of measure for properties that use length values"""
-    bl_label = "Unit Presets"
-    preset_subdir = "units_length"
-    preset_operator = "script.execute_preset"
-    preset_add_operator = "scene.units_length_preset_add"
-
-
 class SCENE_UL_keying_set_paths(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.KeyingSetPath)
@@ -71,6 +63,7 @@ class SCENE_PT_scene(SceneButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         scene = context.scene
 
@@ -81,10 +74,8 @@ class SCENE_PT_scene(SceneButtonsPanel, Panel):
 
 class SCENE_PT_unit(SceneButtonsPanel, Panel):
     bl_label = "Units"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw_header_preset(self, context):
-        SCENE_PT_units_length_presets.draw_panel_header(self.layout)
 
     def draw(self, context):
         layout = self.layout
@@ -92,17 +83,22 @@ class SCENE_PT_unit(SceneButtonsPanel, Panel):
         unit = context.scene.unit_settings
 
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
+        layout.prop(unit, "system")
 
-        col = flow.column()
-        col.prop(unit, "system")
-        col.prop(unit, "system_rotation")
-
-        col = flow.column()
+        col = layout.column()
         col.enabled = unit.system != 'NONE'
         col.prop(unit, "scale_length")
         col.prop(unit, "use_separate")
+
+        col = layout.column()
+        col.prop(unit, "system_rotation", text="Rotation")
+        subcol = col.column()
+        subcol.enabled = unit.system != 'NONE'
+        subcol.prop(unit, "length_unit", text="Length")
+        subcol.prop(unit, "mass_unit", text="Mass")
+        subcol.prop(unit, "time_unit", text="Time")
 
 
 class SceneKeyingSetsPanel:
@@ -176,8 +172,8 @@ class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
         col.template_list("UI_UL_list", "keying_sets", scene, "keying_sets", scene.keying_sets, "active_index", rows=1)
 
         col = row.column(align=True)
-        col.operator("anim.keying_set_add", icon='ZOOMIN', text="")
-        col.operator("anim.keying_set_remove", icon='ZOOMOUT', text="")
+        col.operator("anim.keying_set_add", icon='ADD', text="")
+        col.operator("anim.keying_set_remove", icon='REMOVE', text="")
 
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
@@ -256,8 +252,8 @@ class SCENE_PT_keying_set_paths(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
         col.template_list("SCENE_UL_keying_set_paths", "", ks, "paths", ks.paths, "active_index", rows=1)
 
         col = row.column(align=True)
-        col.operator("anim.keying_set_path_add", icon='ZOOMIN', text="")
-        col.operator("anim.keying_set_path_remove", icon='ZOOMOUT', text="")
+        col.operator("anim.keying_set_path_add", icon='ADD', text="")
+        col.operator("anim.keying_set_path_remove", icon='REMOVE', text="")
 
         # TODO: 1) the template_any_ID needs to be fixed for the text alignment.
         #       2) use_property_decorate has to properly skip the non animatable properties.
@@ -521,7 +517,7 @@ class SCENE_PT_simplify(SceneButtonsPanel, Panel):
         self.layout.prop(rd, "use_simplify", text="")
 
     def draw(self, context):
-        layout = self.layout
+        pass
 
 
 class SCENE_PT_simplify_viewport(SceneButtonsPanel, Panel):
@@ -605,7 +601,6 @@ class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
 
 
 classes = (
-    SCENE_PT_units_length_presets,
     SCENE_UL_keying_set_paths,
     SCENE_PT_scene,
     SCENE_PT_unit,

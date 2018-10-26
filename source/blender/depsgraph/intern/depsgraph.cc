@@ -154,7 +154,7 @@ static bool pointer_to_component_node_criteria(
 	else if (ptr->type == &RNA_Bone) {
 		Bone *bone = (Bone *)ptr->data;
 		/* armature-level bone, but it ends up going to bone component anyway */
-		// NOTE: the ID in thise case will end up being bArmature.
+		// NOTE: the ID in this case will end up being bArmature.
 		*type = DEG_NODE_TYPE_BONE;
 		*subdata = bone->name;
 		return true;
@@ -380,20 +380,6 @@ DepsRelation *Depsgraph::add_new_relation(OperationDepsNode *from,
 	}
 	/* Create new relation, and add it to the graph. */
 	rel = OBJECT_GUARDED_NEW(DepsRelation, from, to, description);
-	/* TODO(sergey): Find a better place for this. */
-#ifdef WITH_OPENSUBDIV
-	ComponentDepsNode *comp_node = from->owner;
-	if (comp_node->type == DEG_NODE_TYPE_GEOMETRY) {
-		IDDepsNode *id_to = to->owner->owner;
-		IDDepsNode *id_from = from->owner->owner;
-		if (id_to != id_from && (id_to->id_orig->recalc & ID_RECALC_ALL)) {
-			if ((id_from->eval_flags & DAG_EVAL_NEED_CPU) == 0) {
-				id_from->tag_update(this);
-				id_from->eval_flags |= DAG_EVAL_NEED_CPU;
-			}
-		}
-	}
-#endif
 	return rel;
 }
 

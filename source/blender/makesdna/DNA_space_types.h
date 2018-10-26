@@ -197,8 +197,7 @@ typedef enum eSpaceButtons_Context {
 	BCONTEXT_BONE_CONSTRAINT = 12,
 	BCONTEXT_VIEW_LAYER = 13,
 	BCONTEXT_TOOL = 14,
-	BCONTEXT_WORKSPACE = 15,
-	BCONTEXT_SHADERFX = 16,
+	BCONTEXT_SHADERFX = 15,
 
 	/* always as last... */
 	BCONTEXT_TOT
@@ -454,7 +453,7 @@ typedef struct SpaceNla {
 
 /* SpaceNla.flag */
 typedef enum eSpaceNla_Flag {
-	/* flags (1<<0), (1<<1), and (1<<3) are deprecated flags from old verisons */
+	/* flags (1<<0), (1<<1), and (1<<3) are deprecated flags from old versions */
 
 	/* draw timing in seconds instead of frames */
 	SNLA_DRAWTIME          = (1 << 2),
@@ -918,8 +917,7 @@ typedef struct SpaceImage {
 	char dt_uvstretch;
 	char around;
 
-	/* Filter settings when editor shows other object's UVs. */
-	int other_uv_filter;
+	int pad2;
 
 	int flag;
 
@@ -945,7 +943,8 @@ typedef enum eSpaceImage_UVDT_Stretch {
 typedef enum eSpaceImage_Mode {
 	SI_MODE_VIEW  = 0,
 	SI_MODE_PAINT = 1,
-	SI_MODE_MASK  = 2   /* note: mesh edit mode overrides mask */
+	SI_MODE_MASK  = 2,
+	SI_MODE_UV    = 3,
 } eSpaceImage_Mode;
 
 /* SpaceImage.sticky
@@ -989,7 +988,7 @@ typedef enum eSpaceImage_Flag {
 	SI_SMOOTH_UV          = (1 << 20),
 	SI_DRAW_STRETCH       = (1 << 21),
 	SI_SHOW_GPENCIL       = (1 << 22),
-	SI_DRAW_OTHER         = (1 << 23),
+/*	SI_DEPRECATED6        = (1 << 23), */  /* deprecated */
 
 	SI_COLOR_CORRECTION   = (1 << 24),
 
@@ -999,6 +998,8 @@ typedef enum eSpaceImage_Flag {
 	SI_SHOW_R             = (1 << 27),
 	SI_SHOW_G             = (1 << 28),
 	SI_SHOW_B             = (1 << 29),
+
+	SI_NO_DRAWEDGES         = (1 << 30),
 } eSpaceImage_Flag;
 
 /* SpaceImage.other_uv_filter */

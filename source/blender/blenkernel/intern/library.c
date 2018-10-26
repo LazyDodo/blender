@@ -47,8 +47,8 @@
 #include "DNA_brush_types.h"
 #include "DNA_cachefile_types.h"
 #include "DNA_camera_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_ipo_types.h"
 #include "DNA_key_types.h"
@@ -291,7 +291,7 @@ static int id_expand_local_callback(
 		return IDWALK_RET_NOP;
 	}
 
-	/* Can hapen that we get unlinkable ID here, e.g. with shapekey referring to itself (through drivers)...
+	/* Can happen that we get unlinkable ID here, e.g. with shapekey referring to itself (through drivers)...
 	 * Just skip it, shape key can only be either indirectly linked, or fully local, period.
 	 * And let's curse one more time that stupid useless shapekey ID type! */
 	if (*id_pointer && *id_pointer != id_self && BKE_idcode_is_linkable(GS((*id_pointer)->name))) {
@@ -793,6 +793,14 @@ bool id_single_user(bContext *C, ID *id, PointerRNA *ptr, PropertyRNA *prop)
 				RNA_id_pointer_create(newid, &idptr);
 				RNA_property_pointer_set(ptr, prop, idptr);
 				RNA_property_update(C, ptr, prop);
+
+				/* tag grease pencil datablock and disable onion */
+				if (GS(id->name) == ID_GD) {
+					DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA);
+					DEG_id_tag_update(newid, OB_RECALC_OB | OB_RECALC_DATA);
+					bGPdata *gpd = (bGPdata *)newid;
+					gpd->flag &= ~GP_DATA_SHOW_ONIONSKINS;
+				}
 
 				return true;
 			}
@@ -1380,6 +1388,9 @@ void BKE_libblock_init_empty(ID *id)
 			/* Should not be needed - animation from lib pre-2.5 is broken anyway. */
 			BLI_assert(0);
 			break;
+		case ID_PAL:
+			BKE_palette_init((Palette *)id);
+			break;
 		default:
 			BLI_assert(0);  /* Should never reach this point... */
 	}
@@ -1444,7 +1455,7 @@ void BKE_libblock_copy_ex(Main *bmain, const ID *id, ID **r_newid, const int fla
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) != 0 || bmain != NULL);
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) != 0 || (flag & LIB_ID_CREATE_NO_ALLOCATE) == 0);
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) == 0 || (flag & LIB_ID_CREATE_NO_USER_REFCOUNT) != 0);
-	/* Never implicitely copy shapekeys when generating temp data outside of Main database. */
+	/* Never implicitly copy shapekeys when generating temp data outside of Main database. */
 	BLI_assert((flag & LIB_ID_CREATE_NO_MAIN) == 0 || (flag & LIB_ID_COPY_SHAPEKEY) == 0);
 
 	if ((flag & LIB_ID_CREATE_NO_ALLOCATE) != 0) {
@@ -2542,6 +2553,25 @@ void BKE_id_ui_prefix(char name[MAX_ID_NAME + 1], const ID *id)
 	strcpy(name + 3, id->name + 2);
 }
 
+/**
+ * Returns an allocated string concatenating ID name (including two-chars type code) and its lib name if any,
+ * which is expected to be unique in a given Main database..
+ */
+char *BKE_id_to_unique_string_key(const struct ID *id)
+{
+	const size_t key_len_base = strlen(id->name) + 1;
+	const size_t key_len_ext = ((id->lib != NULL) ? strlen(id->lib->name) : 0) + 1;
+	const size_t key_len = key_len_base + key_len_ext - 1;
+	char *key = MEM_mallocN(key_len, __func__);
+
+	BLI_strncpy(key, id->name, key_len_base);
+	if (id->lib != NULL) {
+		BLI_strncpy(key + key_len_base - 1, id->lib->name, key_len_ext);
+	}
+
+	return key;
+}
+
 void BKE_library_filepath_set(Main *bmain, Library *lib, const char *filepath)
 {
 	/* in some cases this is used to update the absolute path from the
@@ -2583,4 +2613,99 @@ bool BKE_id_is_in_gobal_main(ID *id)
 {
 	/* We do not want to fail when id is NULL here, even though this is a bit strange behavior... */
 	return (id == NULL || BLI_findindex(which_libbase(G_MAIN, GS(id->name)), id) != -1);
+}
+
+/************************* Datablock order in UI **************************/
+
+static int *id_order_get(ID *id)
+{
+	/* Only for workspace tabs currently. */
+	switch (GS(id->name)) {
+		case ID_WS:
+			return &((WorkSpace *)id)->order;
+		default:
+			return NULL;
+	}
+}
+
+static int id_order_compare(const void *a, const void *b)
+{
+	ID *id_a = ((LinkData *)a)->data;
+	ID *id_b = ((LinkData *)b)->data;
+
+	int *order_a = id_order_get(id_a);
+	int *order_b = id_order_get(id_b);
+
+	if (order_a && order_b) {
+		if (*order_a < *order_b) {
+			return -1;
+		}
+		else if (*order_a > *order_b) {
+			return 1;
+		}
+	}
+
+	return strcmp(id_a->name, id_b->name);
+}
+
+/**
+ * Returns ordered list of datablocks for display in the UI.
+ * Result is list of LinkData of IDs that must be freed.
+ */
+void BKE_id_ordered_list(ListBase *ordered_lb, const ListBase *lb)
+{
+	BLI_listbase_clear(ordered_lb);
+
+	for (ID *id = lb->first; id; id = id->next) {
+		BLI_addtail(ordered_lb, BLI_genericNodeN(id));
+	}
+
+	BLI_listbase_sort(ordered_lb, id_order_compare);
+
+	int num = 0;
+	for (LinkData *link = ordered_lb->first; link; link = link->next) {
+		int *order = id_order_get(link->data);
+		if (order) {
+			*order = num++;
+		}
+	}
+}
+
+/**
+ * Reorder ID in the list, before or after the "relative" ID.
+ */
+void BKE_id_reorder(const ListBase *lb, ID *id, ID *relative, bool after)
+{
+	int *id_order = id_order_get(id);
+	int relative_order;
+
+	if (relative) {
+		relative_order = *id_order_get(relative);
+	}
+	else {
+		relative_order = (after) ? BLI_listbase_count(lb) : 0;
+	}
+
+	if (after) {
+		/* Insert after. */
+		for (ID *other = lb->first; other; other = other->next) {
+			int *order = id_order_get(other);
+			if (*order > relative_order) {
+				(*order)++;
+			}
+		}
+
+		*id_order = relative_order + 1;
+	}
+	else {
+		/* Insert before. */
+		for (ID *other = lb->first; other; other = other->next) {
+			int *order = id_order_get(other);
+			if (*order < relative_order) {
+				(*order)--;
+			}
+		}
+
+		*id_order = relative_order - 1;
+	}
 }

@@ -422,13 +422,6 @@ if(WITH_OPENCOLORIO)
 	)
 endif()
 
-# Add default workspaces.blend to build (under [version]/datafiles
-install(
-	FILES ${CMAKE_SOURCE_DIR}/release/datafiles/workspaces.blend
-	DESTINATION ${TARGETDIR_VER}/datafiles
-)
-
-
 # helpful tip when using make
 if("${CMAKE_GENERATOR}" MATCHES ".*Makefiles.*")
 	# message after building.
@@ -718,7 +711,7 @@ elseif(WIN32)
 			)
 
 			if(WITH_PYTHON_INSTALL_NUMPY)
-				set(PYTHON_NUMPY_VERSION 1.13)
+				set(PYTHON_NUMPY_VERSION 1.15)
 				add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${BLENDER_VERSION}/python/lib/site-packages
 					COMMAND ${CMAKE_COMMAND} -E
 					        make_directory ${CMAKE_CURRENT_BINARY_DIR}/${BLENDER_VERSION}/python/lib/site-packages)
@@ -754,6 +747,19 @@ elseif(WIN32)
 				DESTINATION ${BLENDER_VERSION}/python/bin
 				CONFIGURATIONS Debug
 			)
+			if(WINDOWS_PYTHON_DEBUG)
+				install(
+					FILES ${LIBDIR}/python/lib/python${_PYTHON_VERSION_NO_DOTS}.pdb
+					DESTINATION "."
+					CONFIGURATIONS Release;RelWithDebInfo;MinSizeRel
+				)
+
+				install(
+					FILES ${LIBDIR}/python/lib/python${_PYTHON_VERSION_NO_DOTS}_d.pdb
+					DESTINATION "."
+					CONFIGURATIONS Debug
+				)
+			endif()
 		endif()
 
 		unset(_PYTHON_VERSION_NO_DOTS)
@@ -781,12 +787,12 @@ elseif(WIN32)
 	if(WITH_CODEC_FFMPEG)
 		install(
 			FILES
-				${LIBDIR}/ffmpeg/lib/avcodec-57.dll
-				${LIBDIR}/ffmpeg/lib/avformat-57.dll
-				${LIBDIR}/ffmpeg/lib/avdevice-57.dll
-				${LIBDIR}/ffmpeg/lib/avutil-55.dll
-				${LIBDIR}/ffmpeg/lib/swscale-4.dll
-				${LIBDIR}/ffmpeg/lib/swresample-2.dll
+				${LIBDIR}/ffmpeg/lib/avcodec-58.dll
+				${LIBDIR}/ffmpeg/lib/avformat-58.dll
+				${LIBDIR}/ffmpeg/lib/avdevice-58.dll
+				${LIBDIR}/ffmpeg/lib/avutil-56.dll
+				${LIBDIR}/ffmpeg/lib/swscale-5.dll
+				${LIBDIR}/ffmpeg/lib/swresample-3.dll
 			DESTINATION "."
 		)
 	endif()
@@ -834,15 +840,6 @@ elseif(WIN32)
 		FILES ${LIBDIR}/thumbhandler/lib/BlendThumb64.dll
 		DESTINATION "."
 	)
-
-	if(WITH_OPENCOLORIO)
-		set(OCIOBIN ${LIBDIR}/opencolorio/bin)
-			install(
-				FILES
-					${OCIOBIN}/OpenColorIO.dll
-				DESTINATION "."
-			)
-	endif()
 
 elseif(APPLE)
 
@@ -1021,5 +1018,10 @@ if(WIN32 AND NOT WITH_PYTHON_MODULE)
 		TARGETS blender
 		COMPONENT Blender
 		DESTINATION "."
+	)
+	set_target_properties(
+		blender
+		PROPERTIES
+			VS_USER_PROPS "blender.Cpp.user.props"
 	)
 endif()

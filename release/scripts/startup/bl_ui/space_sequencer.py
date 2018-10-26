@@ -21,7 +21,7 @@ import bpy
 from bpy.types import Header, Menu, Panel
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
-    GreasePencilDataPanel,
+    AnnotationDataPanel,
     GreasePencilToolsPanel,
 )
 from bpy.app.translations import pgettext_iface as iface_
@@ -36,7 +36,7 @@ def act_strip(context):
 
 def draw_color_balance(layout, color_balance):
     box = layout.box()
-    split = box.split(percentage=0.35)
+    split = box.split(factor=0.35)
     col = split.column(align=True)
     col.label(text="Lift:")
     col.separator()
@@ -46,7 +46,7 @@ def draw_color_balance(layout, color_balance):
     split.template_color_picker(color_balance, "lift", value_slider=True, cubic=True)
 
     box = layout.box()
-    split = box.split(percentage=0.35)
+    split = box.split(factor=0.35)
     col = split.column(align=True)
     col.label(text="Gamma:")
     col.separator()
@@ -56,7 +56,7 @@ def draw_color_balance(layout, color_balance):
     split.template_color_picker(color_balance, "gamma", value_slider=True, lock_luminosity=True, cubic=True)
 
     box = layout.box()
-    split = box.split(percentage=0.35)
+    split = box.split(factor=0.35)
     col = split.column(align=True)
     col.label(text="Gain:")
     col.separator()
@@ -98,10 +98,10 @@ class SEQUENCER_HT_header(Header):
             layout.operator("sequencer.refresh_all")
 
         if st.view_type in {'PREVIEW', 'SEQUENCER_PREVIEW'}:
-            layout.prop(st, "display_mode", expand=True, text="")
+            layout.prop(st, "display_mode", text="", icon_only=True)
 
         if st.view_type != 'SEQUENCER':
-            layout.prop(st, "preview_channels", expand=True, text="")
+            layout.prop(st, "preview_channels", text="", icon_only=True)
             layout.prop(st, "display_channel", text="Channel")
 
             ed = scene.sequence_editor
@@ -126,17 +126,7 @@ class SEQUENCER_HT_header(Header):
                 if toolsettings.proportional_edit != 'DISABLED':
                     row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
 
-        row = layout.row(align=True)
-        row.operator("render.opengl", text="", icon='RENDER_STILL').sequencer = True
-        props = row.operator("render.opengl", text="", icon='RENDER_ANIMATION')
-        props.animation = True
-        props.sequencer = True
 
-        if st.view_type == 'SEQUENCER':
-
-            row = layout.row(align=True)
-            row.operator("sequencer.copy", text="", icon='COPYDOWN')
-            row.operator("sequencer.paste", text="", icon='PASTEDOWN')
 
 
 class SEQUENCER_MT_editor_menus(Menu):
@@ -224,7 +214,7 @@ class SEQUENCER_MT_view(Menu):
             layout.prop(st, "show_frame_indicator")
             layout.prop(st, "show_strip_offset")
 
-            layout.prop_menu_enum(st, "waveform_draw_type")
+            layout.prop_menu_enum(st, "waveform_display_type")
 
         if is_preview:
             if st.display_mode == 'IMAGE':
@@ -238,6 +228,11 @@ class SEQUENCER_MT_view(Menu):
         if is_sequencer_view:
             layout.prop(st, "use_marker_sync")
             layout.separator()
+
+        layout.operator("render.opengl", text="OpenGL Render", icon='RENDER_STILL').sequencer = True
+        props = layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION')
+        props.animation = True
+        props.sequencer = True
 
         layout.menu("INFO_MT_area")
 
@@ -389,8 +384,8 @@ class SEQUENCER_MT_strip_transform(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("transform.transform", text="Grab/Move").mode = 'TRANSLATION'
-        layout.operator("transform.transform", text="Grab/Extend from Frame").mode = 'TIME_EXTEND'
+        layout.operator("transform.transform", text="Move").mode = 'TRANSLATION'
+        layout.operator("transform.transform", text="Move/Extend from Frame").mode = 'TIME_EXTEND'
         layout.operator("sequencer.slip", text="Slip Strip Contents")
 
         layout.separator()
@@ -451,6 +446,8 @@ class SEQUENCER_MT_strip(Menu):
         layout.operator("sequencer.offset_clear")
 
         layout.separator()
+        layout.operator("sequencer.copy", text="Copy")
+        layout.operator("sequencer.paste", text="Paste")
         layout.operator("sequencer.duplicate_move")
         layout.operator("sequencer.delete", text="Delete...")
 
@@ -537,16 +534,16 @@ class SEQUENCER_PT_edit(SequencerButtonsPanel, Panel):
         frame_current = scene.frame_current
         strip = act_strip(context)
 
-        split = layout.split(percentage=0.25)
+        split = layout.split(factor=0.25)
         split.label(text="Name:")
         split.prop(strip, "name", text="")
 
-        split = layout.split(percentage=0.25)
+        split = layout.split(factor=0.25)
         split.label(text="Type:")
         split.prop(strip, "type", text="")
 
         if strip.type != 'SOUND':
-            split = layout.split(percentage=0.25)
+            split = layout.split(factor=0.25)
             split.label(text="Blend:")
             split.prop(strip, "blend_type", text="")
 
@@ -656,7 +653,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
             row.prop(strip, "use_only_boost")
 
         elif strip.type == 'SPEED':
-            layout.prop(strip, "use_default_fade", "Stretch to input strip length")
+            layout.prop(strip, "use_default_fade", text="Stretch to input strip length")
             if not strip.use_default_fade:
                 layout.prop(strip, "use_as_speed")
                 if strip.use_as_speed:
@@ -707,7 +704,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
             if strip_channel > 2:
                 BT_ROW = 4
 
-                col.label("Cut To:")
+                col.label(text="Cut To:")
                 row = col.row()
 
                 for i in range(1, strip_channel):
@@ -726,7 +723,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
 
                 if strip.channel > BT_ROW and (strip_channel - 1) % BT_ROW:
                     for i in range(strip.channel, strip_channel + ((BT_ROW + 1 - strip_channel) % BT_ROW)):
-                        row.label("")
+                        row.label(text="")
             else:
                 col.separator()
                 col.label(text="Two or more channels are needed below this strip", icon='INFO')
@@ -746,7 +743,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
 
             col.prop(strip, "align_x")
             col.prop(strip, "align_y")
-            col.label("Location")
+            col.label(text="Location")
             row = col.row(align=True)
             row.prop(strip, "location", text="")
             col.prop(strip, "wrap_width")
@@ -756,7 +753,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
         if strip.type == 'SPEED':
             col.prop(strip, "multiply_speed")
         elif strip.type in {'CROSS', 'GAMMA_CROSS', 'WIPE', 'ALPHA_OVER', 'ALPHA_UNDER', 'OVER_DROP'}:
-            col.prop(strip, "use_default_fade", "Default fade")
+            col.prop(strip, "use_default_fade", text="Default fade")
             if not strip.use_default_fade:
                 col.prop(strip, "effect_fader", text="Effect Fader")
         elif strip.type == 'GAUSSIAN_BLUR':
@@ -764,7 +761,7 @@ class SEQUENCER_PT_effect(SequencerButtonsPanel, Panel):
             row.prop(strip, "size_x")
             row.prop(strip, "size_y")
         elif strip.type == 'COLORMIX':
-            split = layout.split(percentage=0.35)
+            split = layout.split(factor=0.35)
             split.label(text="Blend Mode:")
             split.prop(strip, "blend_effect", text="")
             row = layout.row(align=True)
@@ -802,7 +799,7 @@ class SEQUENCER_PT_input(SequencerButtonsPanel, Panel):
 
         # draw a filename if we have one
         if seq_type == 'IMAGE':
-            split = layout.split(percentage=0.2)
+            split = layout.split(factor=0.2)
             split.label(text="Path:")
             split.prop(strip, "directory", text="")
 
@@ -810,26 +807,26 @@ class SEQUENCER_PT_input(SequencerButtonsPanel, Panel):
 
             elem = strip.strip_elem_from_frame(scene.frame_current)
             if elem:
-                split = layout.split(percentage=0.2)
+                split = layout.split(factor=0.2)
                 split.label(text="File:")
                 split.prop(elem, "filename", text="")  # strip.elements[0] could be a fallback
 
-            split = layout.split(percentage=0.4)
+            split = layout.split(factor=0.4)
             split.label(text="Color Space:")
             split.prop(strip.colorspace_settings, "name", text="")
 
-            split = layout.split(percentage=0.4)
+            split = layout.split(factor=0.4)
             split.label(text="Alpha:")
             split.prop(strip, "alpha_mode", text="")
 
-            layout.operator("sequencer.change_path", icon='FILESEL').filter_image = True
+            layout.operator("sequencer.change_path", icon='FILEBROWSER').filter_image = True
 
         elif seq_type == 'MOVIE':
-            split = layout.split(percentage=0.2)
+            split = layout.split(factor=0.2)
             split.label(text="Path:")
             split.prop(strip, "filepath", text="")
 
-            split = layout.split(percentage=0.4)
+            split = layout.split(factor=0.4)
             split.label(text="Color Space:")
             split.prop(strip.colorspace_settings, "name", text="")
 
@@ -912,7 +909,7 @@ class SEQUENCER_PT_sound(SequencerButtonsPanel, Panel):
 
             layout.prop(sound, "use_mono")
 
-        if st.waveform_draw_type == 'DEFAULT_WAVEFORMS':
+        if st.waveform_display_type == 'DEFAULT_WAVEFORMS':
             layout.prop(strip, "show_waveform")
 
         col = layout.column(align=True)
@@ -971,7 +968,7 @@ class SEQUENCER_PT_scene(SequencerButtonsPanel, Panel):
             if scene:
                 # Warning, this is not a good convention to follow.
                 # Expose here because setting the alpha from the 'Render' menu is very inconvenient.
-                layout.label("Preview")
+                layout.label(text="Preview")
                 layout.prop(scene.render, "alpha_mode")
 
         if scene:
@@ -1049,7 +1046,7 @@ class SEQUENCER_PT_filter(SequencerButtonsPanel, Panel):
             col.label(text="Distortion:")
             col.prop(strip, "undistort")
 
-        split = layout.split(percentage=0.6)
+        split = layout.split(factor=0.6)
         col = split.column()
         col.prop(strip, "use_reverse_frames", text="Reverse")
         col.prop(strip, "use_deinterlace")
@@ -1058,7 +1055,7 @@ class SEQUENCER_PT_filter(SequencerButtonsPanel, Panel):
         col.prop(strip, "use_flip_x", text="X Flip")
         col.prop(strip, "use_flip_y", text="Y Flip")
 
-        layout.label("Color:")
+        layout.label(text="Color:")
         col = layout.column(align=True)
         col.prop(strip, "color_saturation", text="Saturation")
         col.prop(strip, "color_multiply", text="Multiply")
@@ -1160,7 +1157,7 @@ class SEQUENCER_PT_view(SequencerButtonsPanel_Output, Panel):
 
         col = layout.column()
         if st.display_mode == 'IMAGE':
-            col.prop(st, "draw_overexposed")
+            col.prop(st, "show_overexposed")
             col.separator()
 
         elif st.display_mode == 'WAVEFORM':
@@ -1248,7 +1245,7 @@ class SEQUENCER_PT_modifiers(SequencerButtonsPanel, Panel):
                     box.prop(mod, "color_multiply")
                     draw_color_balance(box, mod.color_balance)
                 elif mod.type == 'CURVES':
-                    box.template_curve_mapping(mod, "curve_mapping", type='COLOR')
+                    box.template_curve_mapping(mod, "curve_mapping", type='COLOR', show_tone=True)
                 elif mod.type == 'HUE_CORRECT':
                     box.template_curve_mapping(mod, "curve_mapping", type='HUE')
                 elif mod.type == 'BRIGHT_CONTRAST':
@@ -1272,7 +1269,7 @@ class SEQUENCER_PT_modifiers(SequencerButtonsPanel, Panel):
                         col.prop(mod, "gamma")
 
 
-class SEQUENCER_PT_grease_pencil(GreasePencilDataPanel, SequencerButtonsPanel_Output, Panel):
+class SEQUENCER_PT_grease_pencil(AnnotationDataPanel, SequencerButtonsPanel_Output, Panel):
     bl_space_type = 'SEQUENCE_EDITOR'
     bl_region_type = 'UI'
 

@@ -111,7 +111,7 @@ typedef struct bToolRef {
 typedef struct WorkSpaceLayout {
 	struct WorkSpaceLayout *next, *prev;
 
-	struct bScreen *screen DNA_PRIVATE_WORKSPACE;
+	struct bScreen *screen;
 	/* The name of this layout, we override the RNA name of the screen with this (but not ID name itself) */
 	char name[64] DNA_PRIVATE_WORKSPACE; /* MAX_NAME */
 } WorkSpaceLayout;
@@ -144,9 +144,14 @@ typedef struct WorkSpace {
 	char tools_space_type;
 	/** Type is different for each space-type. */
 	char tools_mode;
-
 	char _pad[2];
+
+	int object_mode;
+
 	int flags DNA_PRIVATE_WORKSPACE; /* enum eWorkSpaceFlags */
+
+	/* Number for workspace tab reordering in the UI. */
+	int order;
 
 	/* Info text from modal operators (runtime). */
 	char *status_text;
@@ -190,7 +195,7 @@ typedef struct WorkSpaceDataRelation {
 #endif /* DNA_PRIVATE_WORKSPACE_READ_WRITE */
 
 /**
- * Little wrapper to store data that is going to be per window, but comming from the workspace.
+ * Little wrapper to store data that is going to be per window, but coming from the workspace.
  * It allows us to keep workspace and window data completely separate.
  */
 typedef struct WorkSpaceInstanceHook {

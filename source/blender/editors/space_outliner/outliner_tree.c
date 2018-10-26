@@ -39,8 +39,8 @@
 #include "DNA_constraint_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cachefile_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -781,7 +781,7 @@ static TreeElement *outliner_add_element(SpaceOops *soops, ListBase *lb, void *i
 		tselem->flag |= TSE_CHILDSEARCH;
 
 	te->parent = parent;
-	te->index = index;   // for data arays
+	te->index = index;   // for data arrays
 	if (ELEM(type, TSE_SEQUENCE, TSE_SEQ_STRIP, TSE_SEQUENCE_DUP)) {
 		/* pass */
 	}
@@ -945,7 +945,7 @@ static TreeElement *outliner_add_element(SpaceOops *soops, ListBase *lb, void *i
 
 		int a, tot;
 
-		/* we do lazy build, for speed and to avoid infinite recusion */
+		/* we do lazy build, for speed and to avoid infinite recursion */
 
 		if (ptr->data == NULL) {
 			te->name = IFACE_("(empty)");
@@ -1468,7 +1468,7 @@ static int treesort_alpha(const void *v1, const void *v2)
 }
 
 
-/* this is nice option for later? doesnt look too useful... */
+/* this is nice option for later? doesn't look too useful... */
 #if 0
 static int treesort_obtype_alpha(const void *v1, const void *v2)
 {
@@ -1957,7 +1957,7 @@ void outliner_build_tree(Main *mainvar, Scene *scene, ViewLayer *view_layer, Spa
 	else
 		soops->search_flags &= ~SO_SEARCH_RECURSIVE;
 
-	if (soops->treehash && (soops->storeflag & SO_TREESTORE_REBUILD)) {
+	if (soops->treehash && (soops->storeflag & SO_TREESTORE_REBUILD) && soops->treestore) {
 		soops->storeflag &= ~SO_TREESTORE_REBUILD;
 		BKE_outliner_treehash_rebuild_from_treestore(soops->treehash, soops->treestore);
 	}

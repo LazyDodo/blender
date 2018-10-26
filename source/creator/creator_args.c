@@ -54,6 +54,7 @@
 
 #include "BKE_global.h"
 #include "BKE_library.h"
+#include "BKE_library_override.h"
 #include "BKE_main.h"
 #include "BKE_scene.h"
 #include "BKE_report.h"
@@ -504,6 +505,7 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 	BLI_argsPrintArgDoc(ba, "--window-geometry");
 	BLI_argsPrintArgDoc(ba, "--start-console");
 	BLI_argsPrintArgDoc(ba, "--no-native-pixels");
+	BLI_argsPrintArgDoc(ba, "--no-window-focus");
 
 	printf("\n");
 	printf("Python Options:\n");
@@ -565,7 +567,9 @@ static int arg_handle_print_help(int UNUSED(argc), const char **UNUSED(argv), vo
 
 	printf("\n");
 	printf("Misc Options:\n");
+	BLI_argsPrintArgDoc(ba, "--app-template");
 	BLI_argsPrintArgDoc(ba, "--factory-startup");
+	BLI_argsPrintArgDoc(ba, "--enable-static-override");
 	printf("\n");
 	BLI_argsPrintArgDoc(ba, "--env-system-datafiles");
 	BLI_argsPrintArgDoc(ba, "--env-system-scripts");
@@ -882,7 +886,7 @@ static const char arg_handle_debug_mode_generic_set_doc_gpumem[] =
 
 static int arg_handle_debug_mode_generic_set(int UNUSED(argc), const char **UNUSED(argv), void *data)
 {
-	G.debug |= GET_INT_FROM_POINTER(data);
+	G.debug |= POINTER_AS_INT(data);
 	return 0;
 }
 
@@ -974,12 +978,37 @@ static int arg_handle_debug_fpe_set(int UNUSED(argc), const char **UNUSED(argv),
 	return 0;
 }
 
+static const char arg_handle_app_template_doc[] =
+"\n\tSet the application template, use 'default' for none."
+;
+static int arg_handle_app_template(int argc, const char **argv, void *UNUSED(data))
+{
+	if (argc > 1) {
+		const char *app_template = STREQ(argv[1], "default") ? "" : argv[1];
+		WM_init_state_app_template_set(app_template);
+		return 1;
+	}
+	else {
+		printf("\nError: App template must follow '--app-template'.\n");
+		return 0;
+	}
+}
+
 static const char arg_handle_factory_startup_set_doc[] =
 "\n\tSkip reading the " STRINGIFY(BLENDER_STARTUP_FILE) " in the users home directory."
 ;
 static int arg_handle_factory_startup_set(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
 	G.factory_startup = 1;
+	return 0;
+}
+
+static const char arg_handle_enable_static_override_doc[] =
+"\n\tEnable Static Override features in the UI."
+;
+static int arg_handle_enable_static_override(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
+{
+	BKE_override_static_enable(true);
 	return 0;
 }
 
@@ -1095,6 +1124,15 @@ static const char arg_handle_without_borders_doc[] =
 static int arg_handle_without_borders(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
 {
 	WM_init_state_fullscreen_set();
+	return 0;
+}
+
+static const char arg_handle_no_window_focus_doc[] =
+"\n\tOpen behind other windows and without taking focus."
+;
+static int arg_handle_no_window_focus(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(data))
+{
+	WM_init_window_focus_set(false);
 	return 0;
 }
 
@@ -1392,7 +1430,7 @@ static int arg_handle_render_frame(int argc, const char **argv, void *data)
 				}
 
 				for (int frame = frame_range_arr[i][0]; frame <= frame_range_arr[i][1]; frame++) {
-					RE_BlenderAnim(re, bmain, scene, NULL, scene->lay, frame, frame, scene->r.frame_step);
+					RE_BlenderAnim(re, bmain, scene, NULL, NULL, frame, frame, scene->r.frame_step);
 				}
 			}
 			RE_SetReports(re, NULL);
@@ -1426,7 +1464,7 @@ static int arg_handle_render_animation(int UNUSED(argc), const char **UNUSED(arg
 		BLI_threaded_malloc_begin();
 		BKE_reports_init(&reports, RPT_STORE);
 		RE_SetReports(re, &reports);
-		RE_BlenderAnim(re, bmain, scene, NULL, scene->lay, scene->r.sfra, scene->r.efra, scene->r.frame_step);
+		RE_BlenderAnim(re, bmain, scene, NULL, NULL, scene->r.sfra, scene->r.efra, scene->r.frame_step);
 		RE_SetReports(re, NULL);
 		BKE_reports_clear(&reports);
 		BLI_threaded_malloc_end();
@@ -1898,7 +1936,9 @@ void main_args_setup(bContext *C, bArgs *ba)
 
 	BLI_argsAdd(ba, 1, NULL, "--verbose", CB(arg_handle_verbosity_set), NULL);
 
+	BLI_argsAdd(ba, 1, NULL, "--app-template", CB(arg_handle_app_template), NULL);
 	BLI_argsAdd(ba, 1, NULL, "--factory-startup", CB(arg_handle_factory_startup_set), NULL);
+	BLI_argsAdd(ba, 1, NULL, "--enable-static-override", CB(arg_handle_enable_static_override), NULL);
 
 	/* TODO, add user env vars? */
 	BLI_argsAdd(ba, 1, NULL, "--env-system-datafiles", CB_EX(arg_handle_env_system_set, datafiles), NULL);
@@ -1909,6 +1949,7 @@ void main_args_setup(bContext *C, bArgs *ba)
 	BLI_argsAdd(ba, 2, "-p", "--window-geometry", CB(arg_handle_window_geometry), NULL);
 	BLI_argsAdd(ba, 2, "-w", "--window-border", CB(arg_handle_with_borders), NULL);
 	BLI_argsAdd(ba, 2, "-W", "--window-fullscreen", CB(arg_handle_without_borders), NULL);
+	BLI_argsAdd(ba, 2, NULL, "--no-window-focus", CB(arg_handle_no_window_focus), NULL);
 	BLI_argsAdd(ba, 2, "-con", "--start-console", CB(arg_handle_start_with_console), NULL);
 	BLI_argsAdd(ba, 2, "-R", NULL, CB(arg_handle_register_extension), NULL);
 	BLI_argsAdd(ba, 2, "-r", NULL, CB_EX(arg_handle_register_extension, silent), ba);

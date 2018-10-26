@@ -92,10 +92,10 @@ static void deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	ThickGpencilModifierData *mmd = (ThickGpencilModifierData *)md;
-	int vindex = defgroup_name_index(ob, mmd->vgname);
+	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 3, gpl, gps,
+	        mmd->layername, mmd->pass_index, 1, gpl, gps,
 	        mmd->flag & GP_THICK_INVERT_LAYER, mmd->flag & GP_THICK_INVERT_PASS))
 	{
 		return;
@@ -108,11 +108,11 @@ static void deformStroke(
 
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert = gps->dvert != NULL ? &gps->dvert[i] : NULL;
 		float curvef = 1.0f;
 		/* verify vertex group */
-		float weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_THICK_INVERT_VGROUP) != 0), vindex);
-		if (weight < 0) {
+		const float weight = get_modifier_point_weight(dvert, (mmd->flag & GP_THICK_INVERT_VGROUP) != 0, def_nr);
+		if (weight < 0.0f) {
 			continue;
 		}
 
@@ -127,7 +127,7 @@ static void deformStroke(
 			}
 
 			pt->pressure += mmd->thickness * weight * curvef;
-			CLAMP(pt->strength, 0.0f, 1.0f);
+			CLAMP_MIN(pt->pressure, 0.1f);
 		}
 	}
 }
@@ -156,9 +156,10 @@ GpencilModifierTypeInfo modifierType_Gpencil_Thick = {
 
 	/* copyData */          copyData,
 
-	/* deformStroke */    deformStroke,
-	/* generateStrokes */ NULL,
-	/* bakeModifier */    bakeModifier,
+	/* deformStroke */      deformStroke,
+	/* generateStrokes */   NULL,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          freeData,

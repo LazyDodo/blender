@@ -318,7 +318,7 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 							 * NOTE: An alternative way would have been to instead hack the influence
 							 * to not get always get reset to full strength if NLASTRIP_FLAG_USR_INFLUENCE
 							 * is disabled but auto-blending isn't being used. However, that approach
-							 * is a bit hacky/hard to discover, and may cause backwards compatability issues,
+							 * is a bit hacky/hard to discover, and may cause backwards compatibility issues,
 							 * so it's better to just do it this way.
 							 */
 							strip->flag |= NLASTRIP_FLAG_USR_INFLUENCE;
@@ -944,6 +944,8 @@ static void recalcData_objects(TransInfo *t)
 
 	}
 	else if (t->flag & T_POSE) {
+		GSet *motionpath_updates = BLI_gset_ptr_new("motionpath updates");
+
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			Object *ob = tc->poseobj;
 			bArmature *arm = ob->data;
@@ -959,7 +961,11 @@ static void recalcData_objects(TransInfo *t)
 				int targetless_ik = (t->flag & T_AUTOIK); // XXX this currently doesn't work, since flags aren't set yet!
 
 				animrecord_check_state(t->scene, &ob->id, t->animtimer);
-				autokeyframe_pose_cb_func(t->context, t->scene, ob, t->mode, targetless_ik);
+				autokeyframe_pose(t->context, t->scene, ob, t->mode, targetless_ik);
+			}
+
+			if (motionpath_need_update_pose(t->scene, ob)) {
+				BLI_gset_insert(motionpath_updates, ob);
 			}
 
 			/* old optimize trick... this enforces to bypass the depgraph */
@@ -972,6 +978,14 @@ static void recalcData_objects(TransInfo *t)
 				BKE_pose_where_is(t->depsgraph, t->scene, ob);
 			}
 		}
+
+		/* Update motion paths once for all transformed bones in an object. */
+		GSetIterator gs_iter;
+		GSET_ITER (gs_iter, motionpath_updates) {
+			Object *ob = BLI_gsetIterator_getKey(&gs_iter);
+			ED_pose_recalculate_paths(t->context, t->scene, ob, true);
+		}
+		BLI_gset_free(motionpath_updates, NULL);
 	}
 	else if (base && (base->object->mode & OB_MODE_PARTICLE_EDIT) &&
 	         PE_get_current(t->scene, base->object))
@@ -982,7 +996,7 @@ static void recalcData_objects(TransInfo *t)
 		flushTransParticles(t);
 	}
 	else {
-		int i;
+		bool motionpath_update = false;
 
 		if (t->state != TRANS_CANCEL) {
 			applyProject(t);
@@ -991,7 +1005,7 @@ static void recalcData_objects(TransInfo *t)
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			TransData *td = tc->data;
 
-			for (i = 0; i < tc->data_len; i++, td++) {
+			for (int i = 0; i < tc->data_len; i++, td++) {
 				Object *ob = td->ob;
 
 				if (td->flag & TD_NOACTION)
@@ -1007,8 +1021,10 @@ static void recalcData_objects(TransInfo *t)
 				// TODO: autokeyframe calls need some setting to specify to add samples (FPoints) instead of keyframes?
 				if ((t->animtimer) && IS_AUTOKEY_ON(t->scene)) {
 					animrecord_check_state(t->scene, &ob->id, t->animtimer);
-					autokeyframe_ob_cb_func(t->context, t->scene, t->view_layer, ob, t->mode);
+					autokeyframe_object(t->context, t->scene, t->view_layer, ob, t->mode);
 				}
+
+				motionpath_update |= motionpath_need_update_object(t->scene, ob);
 
 				/* sets recalc flags fully, instead of flushing existing ones
 				 * otherwise proxies don't function correctly
@@ -1018,6 +1034,11 @@ static void recalcData_objects(TransInfo *t)
 				if (t->flag & T_TEXTURE)
 					DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			}
+		}
+
+		if (motionpath_update) {
+			/* Update motion paths once for all transformed objects. */
+			ED_objects_recalculate_paths(t->context, t->scene, true);
 		}
 	}
 }
@@ -1185,10 +1206,10 @@ static int initTransInfo_edit_pet_to_flag(const int proportional)
 	}
 }
 
-void initTransDataContainers_FromObjectData(TransInfo *t)
+void initTransDataContainers_FromObjectData(TransInfo *t, Object *obact, Object **objects, uint objects_len)
 {
-	const eObjectMode object_mode = OBACT(t->view_layer) ? OBACT(t->view_layer)->mode : OB_MODE_OBJECT;
-	const short object_type = OBACT(t->view_layer) ? OBACT(t->view_layer)->type : -1;
+	const eObjectMode object_mode = obact ? obact->mode : OB_MODE_OBJECT;
+	const short object_type = obact ? obact->type : -1;
 
 	if ((object_mode & OB_MODE_EDIT) ||
 	    ((object_mode & OB_MODE_POSE) && (object_type == OB_ARMATURE)))
@@ -1196,11 +1217,16 @@ void initTransDataContainers_FromObjectData(TransInfo *t)
 		if (t->data_container) {
 			MEM_freeN(t->data_container);
 		}
-		uint objects_len;
-		Object **objects = BKE_view_layer_array_from_objects_in_mode(
-		        t->view_layer, &objects_len, {
-		            .object_mode = object_mode,
-		            .no_dup_data = true});
+
+		bool free_objects = false;
+		if (objects == NULL) {
+			objects = BKE_view_layer_array_from_objects_in_mode(
+			        t->view_layer, &objects_len, {
+			            .object_mode = object_mode,
+			            .no_dup_data = true});
+			free_objects = true;
+		}
+
 		t->data_container = MEM_callocN(sizeof(*t->data_container) * objects_len, __func__);
 		t->data_container_len = objects_len;
 
@@ -1228,7 +1254,10 @@ void initTransDataContainers_FromObjectData(TransInfo *t)
 			}
 			/* Otherwise leave as zero. */
 		}
-		MEM_freeN(objects);
+
+		if (free_objects) {
+			MEM_freeN(objects);
+		}
 	}
 }
 
@@ -1321,7 +1350,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	}
 
 	/* GPencil editing context */
-	if (GPENCIL_ANY_MODE(gpd)) {
+	if (GPENCIL_EDIT_MODE(gpd)) {
 		t->options |= CTX_GPENCIL_STROKES;
 	}
 
@@ -1841,11 +1870,12 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 
 			td = tc->data;
 			Object *ob = td->ob;
-
-			sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
-			copy_m3_m4(mat, ob->obmat);
-			invert_m3_m3(imat, mat);
-			mul_m3_v3(imat, r_center);
+			if (ob) {
+				sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
+				copy_m3_m4(mat, ob->obmat);
+				invert_m3_m3(imat, mat);
+				mul_m3_v3(imat, r_center);
+			}
 		}
 	}
 }

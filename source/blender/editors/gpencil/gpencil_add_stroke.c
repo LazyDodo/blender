@@ -229,9 +229,12 @@ void ED_gpencil_create_stroke(bContext *C, float mat[4][4])
 	gp_stroke_material(bmain, ob, &gp_stroke_material_blue);
 	gp_stroke_material(bmain, ob, &gp_stroke_material_grey);
 
+	/* set first color as active */
+	ob->actcol = color_black + 1;
+
 	/* layers */
 	bGPDlayer *colors = BKE_gpencil_layer_addnew(gpd, "Colors", false);
-	bGPDlayer *lines = BKE_gpencil_layer_addnew(gpd, "Lines", false);
+	bGPDlayer *lines = BKE_gpencil_layer_addnew(gpd, "Lines", true);
 
 	/* frames */
 	bGPDframe *frame_color = BKE_gpencil_frame_addnew(colors, cfra_eval);

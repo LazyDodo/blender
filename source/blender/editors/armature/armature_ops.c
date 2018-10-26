@@ -35,6 +35,8 @@
 
 #include "ED_armature.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_transform.h"
 
 #include "armature_intern.h"
@@ -122,6 +124,7 @@ void ED_operatortypes_armature(void)
 	WM_operatortype_append(POSE_OT_paths_calculate);
 	WM_operatortype_append(POSE_OT_paths_update);
 	WM_operatortype_append(POSE_OT_paths_clear);
+	WM_operatortype_append(POSE_OT_paths_range_update);
 
 	WM_operatortype_append(POSE_OT_autoside_names);
 	WM_operatortype_append(POSE_OT_flip_names);
@@ -191,7 +194,7 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* Armature ------------------------ */
-	keymap = WM_keymap_find(keyconf, "Armature", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Armature", 0, 0);
 	keymap->poll = ED_operator_editarmature;
 
 	/* only set in editmode armature, by space_view3d listener */
@@ -216,12 +219,7 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "ARMATURE_OT_parent_set", PKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "ARMATURE_OT_parent_clear", PKEY, KM_PRESS, KM_ALT, 0);
 
-	kmi = WM_keymap_add_item(keymap, "ARMATURE_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "ARMATURE_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "ARMATURE_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "ARMATURE_OT_select_all");
 
 	kmi = WM_keymap_add_item(keymap, "ARMATURE_OT_select_mirror", MKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "extend", false);
@@ -292,13 +290,13 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 
 	/* Pose ------------------------ */
 	/* only set in posemode, by space_view3d listener */
-	keymap = WM_keymap_find(keyconf, "Pose", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Pose", 0, 0);
 	keymap->poll = ED_operator_posemode;
 
 	/* set parent and add object are object-based operators, but we make them
 	 * available here because it's useful to do in pose mode too */
 	WM_keymap_add_item(keymap, "OBJECT_OT_parent_set", PKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_menu(keymap, "INFO_MT_add", AKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_menu(keymap, "VIEW3D_MT_add", AKEY, KM_PRESS, KM_SHIFT, 0);
 
 	kmi = WM_keymap_add_item(keymap, "POSE_OT_hide", HKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "unselected", false);
@@ -332,12 +330,7 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "flipped", true);
 #endif
 
-	kmi = WM_keymap_add_item(keymap, "POSE_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "POSE_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "POSE_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "POSE_OT_select_all");
 
 	WM_keymap_add_item(keymap, "POSE_OT_select_parent", PKEY, KM_PRESS, KM_SHIFT, 0);
 

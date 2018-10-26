@@ -293,7 +293,7 @@ static void image_operatortypes(void)
 
 static void image_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Image Generic", SPACE_IMAGE, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Image Generic", SPACE_IMAGE, 0);
 	wmKeyMapItem *kmi;
 	int i;
 
@@ -311,7 +311,7 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "IMAGE_OT_cycle_render_slot", JKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(WM_keymap_add_item(keymap, "IMAGE_OT_cycle_render_slot", JKEY, KM_PRESS, KM_ALT, 0)->ptr, "reverse", true);
 
-	keymap = WM_keymap_find(keyconf, "Image", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(keyconf, "Image", SPACE_IMAGE, 0);
 
 	WM_keymap_add_item(keymap, "IMAGE_OT_view_all", HOMEKEY, KM_PRESS, 0, 0);
 
@@ -369,17 +369,7 @@ static void image_keymap(struct wmKeyConfig *keyconf)
 	}
 
 	/* pivot */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "CENTER");
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "MEDIAN");
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", PERIODKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "CURSOR");
+	WM_keymap_add_menu_pie(keymap, "IMAGE_MT_pivot_pie", PERIODKEY, KM_PRESS, 0, 0);
 
 	/* render border */
 	WM_keymap_add_item(keymap, "IMAGE_OT_render_border", BKEY, KM_PRESS, KM_CTRL, 0);
@@ -421,7 +411,7 @@ static void image_refresh(const bContext *C, ScrArea *sa)
 
 	ima = ED_space_image(sima);
 
-	BKE_image_user_check_frame_calc(&sima->iuser, scene->r.cfra, 0);
+	BKE_image_user_check_frame_calc(&sima->iuser, scene->r.cfra);
 
 	/* check if we have to set the image from the editmesh */
 	if (ima && (ima->source == IMA_SRC_VIEWER && sima->mode == SI_MODE_MASK)) {
@@ -586,7 +576,8 @@ static void IMAGE_GGT_gizmo2d(wmGizmoGroupType *gzgt)
 	gzgt->name = "UV Transform Gizmo";
 	gzgt->idname = "IMAGE_GGT_gizmo2d";
 
-	gzgt->flag |= WM_GIZMOGROUPTYPE_PERSISTENT;
+	gzgt->gzmap_params.spaceid = SPACE_IMAGE;
+	gzgt->gzmap_params.regionid = RGN_TYPE_WINDOW;
 
 	gzgt->poll = ED_widgetgroup_gizmo2d_poll;
 	gzgt->setup = ED_widgetgroup_gizmo2d_setup;
@@ -596,10 +587,7 @@ static void IMAGE_GGT_gizmo2d(wmGizmoGroupType *gzgt)
 
 static void image_widgets(void)
 {
-	wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(
-	        &(const struct wmGizmoMapType_Params){SPACE_IMAGE, RGN_TYPE_WINDOW});
-
-	WM_gizmogrouptype_append_and_link(gzmap_type, IMAGE_GGT_gizmo2d);
+	WM_gizmogrouptype_append(IMAGE_GGT_gizmo2d);
 }
 
 /************************** main region ***************************/
@@ -608,23 +596,25 @@ static void image_widgets(void)
 static void image_main_region_set_view2d(SpaceImage *sima, ARegion *ar)
 {
 	Image *ima = ED_space_image(sima);
-	float x1, y1, w, h;
-	int width, height, winx, winy;
 
-#if 0
-	if (image_preview_active(curarea, &width, &height)) {}
-	else
-#endif
+	int width, height;
 	ED_space_image_get_size(sima, &width, &height);
 
-	w = width;
-	h = height;
+	float w = width;
+	float h = height;
 
 	if (ima)
 		h *= ima->aspy / ima->aspx;
 
-	winx = BLI_rcti_size_x(&ar->winrct) + 1;
-	winy = BLI_rcti_size_y(&ar->winrct) + 1;
+	int winx = BLI_rcti_size_x(&ar->winrct) + 1;
+	int winy = BLI_rcti_size_y(&ar->winrct) + 1;
+
+	/* For region overlap, move center so image doesn't overlap header. */
+	rcti visible_rect;
+	ED_region_visible_rect(ar, &visible_rect);
+	const int visible_winy = BLI_rcti_size_y(&visible_rect) + 1;
+	int visible_centerx = 0;
+	int visible_centery = visible_rect.ymin + (visible_winy - winy) / 2;
 
 	ar->v2d.tot.xmin = 0;
 	ar->v2d.tot.ymin = 0;
@@ -636,8 +626,8 @@ static void image_main_region_set_view2d(SpaceImage *sima, ARegion *ar)
 	ar->v2d.mask.ymax = winy;
 
 	/* which part of the image space do we see? */
-	x1 = ar->winrct.xmin + (winx - sima->zoom * w) / 2.0f;
-	y1 = ar->winrct.ymin + (winy - sima->zoom * h) / 2.0f;
+	float x1 = ar->winrct.xmin + visible_centerx + (winx - sima->zoom * w) / 2.0f;
+	float y1 = ar->winrct.ymin + visible_centery + (winy - sima->zoom * h) / 2.0f;
 
 	x1 -= sima->zoom * sima->xof;
 	y1 -= sima->zoom * sima->yof;
@@ -676,29 +666,29 @@ static void image_main_region_init(wmWindowManager *wm, ARegion *ar)
 	WM_gizmomap_add_handlers(ar, ar->gizmo_map);
 
 	/* mask polls mode */
-	keymap = WM_keymap_find(wm->defaultconf, "Mask Editing", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Mask Editing", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
 	/* image paint polls for mode */
-	keymap = WM_keymap_find(wm->defaultconf, "Curve", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Curve", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Paint Curve", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Paint Curve", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Image Paint", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Paint", 0, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 
-	keymap = WM_keymap_find(wm->defaultconf, "UV Editor", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "UV Editor", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
-	keymap = WM_keymap_find(wm->defaultconf, "UV Sculpt", 0, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "UV Sculpt", 0, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 
 	/* own keymaps */
-	keymap = WM_keymap_find(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
-	keymap = WM_keymap_find(wm->defaultconf, "Image", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler_bb(&ar->handlers, keymap, &ar->v2d.mask, &ar->winrct);
 }
 
@@ -866,7 +856,7 @@ static void image_buttons_region_init(wmWindowManager *wm, ARegion *ar)
 	ar->v2d.scroll = V2D_SCROLL_RIGHT | V2D_SCROLL_VERTICAL_HIDE;
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -920,7 +910,7 @@ static void image_tools_region_init(wmWindowManager *wm, ARegion *ar)
 	ar->v2d.scroll = V2D_SCROLL_RIGHT | V2D_SCROLL_VERTICAL_HIDE;
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Image Generic", SPACE_IMAGE, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -984,21 +974,6 @@ static void image_tools_region_listener(
 
 	}
 }
-
-static void image_tools_region_message_subscribe(
-        const struct bContext *UNUSED(C),
-        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
-        struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
-        struct wmMsgBus *mbus)
-{
-	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
-		.owner = ar,
-		.user_data = ar,
-		.notify = ED_region_do_msg_notify_tag_redraw,
-	};
-	WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
-}
-
 
 /************************* header region **************************/
 
@@ -1117,10 +1092,12 @@ void ED_spacetype_image(void)
 	/* regions: statistics/scope buttons */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype image region");
 	art->regionid = RGN_TYPE_TOOLS;
-	art->prefsizex = 220; // XXX
+	art->prefsizex = 58; /* XXX */
+	art->prefsizey = 50; /* XXX */
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = image_tools_region_listener;
-	art->message_subscribe = image_tools_region_message_subscribe;
+	art->message_subscribe = ED_region_generic_tools_region_message_subscribe;
+	art->snap_size = ED_region_generic_tools_region_snap_size;
 	art->init = image_tools_region_init;
 	art->draw = image_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);

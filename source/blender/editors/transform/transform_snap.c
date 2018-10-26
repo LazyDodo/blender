@@ -53,6 +53,7 @@
 #include "GPU_state.h"
 
 #include "BKE_global.h"
+#include "BKE_layer.h"
 #include "BKE_object.h"
 #include "BKE_anim.h"  /* for duplis */
 #include "BKE_context.h"
@@ -593,7 +594,7 @@ static void initSnappingMode(TransInfo *t)
 			        (bool (*)(BMVert *, void *))BM_elem_cb_check_hflag_disabled,
 			        bm_edge_is_snap_target,
 			        bm_face_is_snap_target,
-			        SET_UINT_IN_POINTER((BM_ELEM_SELECT | BM_ELEM_HIDDEN)));
+			        POINTER_FROM_UINT((BM_ELEM_SELECT | BM_ELEM_HIDDEN)));
 		}
 	}
 }
@@ -991,7 +992,12 @@ static void CalcSnapGeometry(TransInfo *t, float *UNUSED(vec))
 
 			UI_view2d_region_to_view(&t->ar->v2d, t->mval[0], t->mval[1], &co[0], &co[1]);
 
-			if (ED_uvedit_nearest_uv(t->scene, TRANS_DATA_CONTAINER_FIRST_EVIL(t)->obedit, ima, co, t->tsnap.snapPoint)) {
+			uint objects_len = 0;
+			Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(
+			                       t->view_layer, &objects_len);
+
+			float dist_sq = FLT_MAX;
+			if (ED_uvedit_nearest_uv_multi(t->scene, ima, objects, objects_len, co, &dist_sq, t->tsnap.snapPoint)) {
 				t->tsnap.snapPoint[0] *= t->aspect[0];
 				t->tsnap.snapPoint[1] *= t->aspect[1];
 
@@ -1000,6 +1006,7 @@ static void CalcSnapGeometry(TransInfo *t, float *UNUSED(vec))
 			else {
 				t->tsnap.status &= ~POINT_INIT;
 			}
+			MEM_freeN(objects);
 		}
 	}
 	else if (t->spacetype == SPACE_NODE) {
@@ -1095,17 +1102,18 @@ static void TargetSnapMedian(TransInfo *t)
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			TransData *td = tc->data;
 			int i;
+			float v[3];
+			zero_v3(v);
+
 			for (i = 0; i < tc->data_len && td->flag & TD_SELECTED; i++, td++) {
-				/* TODO(campbell): perform the global transformation once per TransDataContainer */
-				if (tc->use_local_mat) {
-					float v[3];
-					mul_v3_m4v3(v, tc->mat, td->center);
-					add_v3_v3(t->tsnap.snapTarget, v);
-				}
-				else {
-					add_v3_v3(t->tsnap.snapTarget, td->center);
-				}
+				add_v3_v3(v, td->center);
 			}
+
+			if (tc->use_local_mat) {
+				mul_m4_v3(tc->mat, v);
+			}
+
+			add_v3_v3(t->tsnap.snapTarget, v);
 			i_accum += i;
 		}
 

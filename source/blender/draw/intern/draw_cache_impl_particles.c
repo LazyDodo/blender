@@ -141,7 +141,7 @@ static ParticleBatchCache *particle_batch_cache_get(ParticleSystem *psys)
 	return psys->batch_cache;
 }
 
-void DRW_particle_batch_cache_dirty(ParticleSystem *psys, int mode)
+void DRW_particle_batch_cache_dirty_tag(ParticleSystem *psys, int mode)
 {
 	ParticleBatchCache *cache = psys->batch_cache;
 	if (cache == NULL) {
@@ -763,8 +763,8 @@ static void particle_batch_cache_ensure_procedural_final_points(
 
 	cache->final[subdiv].proc_point_buf = GPU_vertbuf_create_with_format(&format);
 
-	/* Create a destination buffer for the tranform feedback. Sized appropriately */
-	/* Thoses are points! not line segments. */
+	/* Create a destination buffer for the transform feedback. Sized appropriately */
+	/* Those are points! not line segments. */
 	GPU_vertbuf_data_alloc(cache->final[subdiv].proc_point_buf, cache->final[subdiv].point_len);
 
 #ifdef USE_POSITION_HAIR_INDEX
@@ -779,7 +779,7 @@ static void particle_batch_cache_ensure_procedural_final_points(
 	}
 #endif
 
-	/* Create vbo immediatly to bind to texture buffer. */
+	/* Create vbo immediately to bind to texture buffer. */
 	GPU_vertbuf_use(cache->final[subdiv].proc_point_buf);
 
 	cache->final[subdiv].proc_tex = GPU_texture_create_from_vertbuf(cache->final[subdiv].proc_point_buf);
@@ -958,7 +958,7 @@ static void particle_batch_cache_ensure_procedural_strand_data(
 		MEM_freeN(parent_mcol);
 	}
 
-	/* Create vbo immediatly to bind to texture buffer. */
+	/* Create vbo immediately to bind to texture buffer. */
 	GPU_vertbuf_use(cache->proc_strand_buf);
 	cache->strand_tex = GPU_texture_create_from_vertbuf(cache->proc_strand_buf);
 
@@ -1069,7 +1069,7 @@ static void particle_batch_cache_ensure_procedural_pos(
 		}
 	}
 
-	/* Create vbo immediatly to bind to texture buffer. */
+	/* Create vbo immediately to bind to texture buffer. */
 	GPU_vertbuf_use(cache->proc_point_buf);
 
 	cache->point_tex = GPU_texture_create_from_vertbuf(cache->proc_point_buf);

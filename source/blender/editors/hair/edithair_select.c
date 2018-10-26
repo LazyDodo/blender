@@ -47,6 +47,7 @@
 
 #include "ED_hair.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_view3d.h"
 
 #include "RNA_access.h"

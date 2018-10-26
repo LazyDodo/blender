@@ -273,7 +273,7 @@ static void fcm_fn_generator_new_data(void *mdata)
 }
 
 /* Unary 'normalized sine' function
- *  y = sin(PI + x) / (PI * x),
+ * y = sin(PI + x) / (PI * x),
  * except for x = 0 when y = 1.
  */
 static double sinc(double x)
@@ -835,27 +835,6 @@ static FModifierTypeInfo FMI_NOISE = {
 	NULL /* evaluate with storage */
 };
 
-/* Filter F-Curve Modifier --------------------------- */
-
-#if 0 // XXX not yet implemented
-static FModifierTypeInfo FMI_FILTER = {
-	FMODIFIER_TYPE_FILTER, /* type */
-	sizeof(FMod_Filter), /* size */
-	FMI_TYPE_REPLACE_VALUES, /* action type */
-	0, /* requirements */
-	N_("Filter"), /* name */
-	"FMod_Filter", /* struct name */
-	NULL, /* free data */
-	NULL, /* copy data */
-	NULL, /* new data */
-	NULL /*fcm_filter_verify*/, /* verify */
-	NULL, /* evaluate time */
-	fcm_filter_evaluate, /* evaluate */
-	NULL, /* evaluate time with storage */
-	NULL /* evaluate with storage */
-};
-#endif // XXX not yet implemented
-
 
 /* Python F-Curve Modifier --------------------------- */
 
@@ -1284,7 +1263,7 @@ bool list_has_suitable_fmodifier(ListBase *modifiers, int mtype, short acttype)
 		const FModifierTypeInfo *fmi = fmodifier_get_typeinfo(fcm);
 		short mOk = 1, aOk = 1; /* by default 1, so that when only one test, won't fail */
 
-		/* check if applicable ones are fullfilled */
+		/* check if applicable ones are fulfilled */
 		if (mtype)
 			mOk = (fcm->type == mtype);
 		if (acttype > -1)

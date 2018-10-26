@@ -505,7 +505,7 @@ static Mesh *arrayModifier_doArray(
 	CustomData_copy_data(&mesh->ldata, &result->ldata, 0, 0, chunk_nloops);
 	CustomData_copy_data(&mesh->pdata, &result->pdata, 0, 0, chunk_npolys);
 
-	/* Subsurf for eg wont have mesh data in the custom data arrays.
+	/* Subsurf for eg won't have mesh data in the custom data arrays.
 	 * now add mvert/medge/mpoly layers. */
 	if (!CustomData_has_layer(&mesh->vdata, CD_MVERT)) {
 		memcpy(result->mvert, mesh->mvert, sizeof(*result->mvert) * mesh->totvert);
@@ -707,7 +707,7 @@ static Mesh *arrayModifier_doArray(
 			int new_i = full_doubles_map[i];
 			if (new_i != -1) {
 				/* We have to follow chains of doubles (merge start/end especially is likely to create some),
-				 * those are not supported at all by CDDM_merge_verts! */
+				 * those are not supported at all by BKE_mesh_merge_verts! */
 				while (!ELEM(full_doubles_map[new_i], -1, new_i)) {
 					new_i = full_doubles_map[new_i];
 				}

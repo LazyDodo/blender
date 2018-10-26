@@ -35,6 +35,7 @@
 extern "C" {
 #endif
 
+struct Base;
 struct ID;
 struct View3D;
 struct ARegion;
@@ -51,6 +52,7 @@ struct Mesh;
 struct UvVertMap;
 struct UvMapVert;
 struct BMEditMesh;
+struct BMElem;
 struct BMesh;
 struct BMVert;
 struct BMLoop;
@@ -84,7 +86,6 @@ void EDBM_selectmode_to_scene(struct bContext *C);
 void EDBM_mesh_make(struct Object *ob, const int select_mode, const bool add_key_index);
 void EDBM_mesh_free(struct BMEditMesh *em);
 void EDBM_mesh_load(struct Main *bmain, struct Object *ob);
-struct DerivedMesh *EDBM_mesh_deform_dm_get(struct BMEditMesh *em);
 
 /* flushes based on the current select mode.  if in vertex select mode,
  * verts select/deselect edges and faces, if in edge select mode,
@@ -169,6 +170,25 @@ struct BMFace *EDBM_face_find_nearest_ex(
 struct BMFace *EDBM_face_find_nearest(
         struct ViewContext *vc, float *r_dist);
 
+bool EDBM_unified_findnearest(
+        struct ViewContext *vc,
+        struct Base **bases,
+        const uint bases_len,
+        int *r_base_index,
+        struct BMVert **r_eve,
+        struct BMEdge **r_eed,
+        struct BMFace **r_efa);
+
+bool EDBM_unified_findnearest_from_raycast(
+        struct ViewContext *vc,
+        struct Base **bases,
+        const uint bases_len,
+        bool use_boundary,
+        int *r_base_index,
+        struct BMVert **r_eve,
+        struct BMEdge **r_eed,
+        struct BMFace **r_efa);
+
 bool EDBM_select_pick(struct bContext *C, const int mval[2], bool extend, bool deselect, bool toggle);
 
 void EDBM_selectmode_set(struct BMEditMesh *em);
@@ -192,19 +212,39 @@ void em_setup_viewcontext(struct bContext *C, struct ViewContext *vc);  /* renam
 
 extern unsigned int bm_vertoffs, bm_solidoffs, bm_wireoffs;
 
+/* editmesh_preselect_edgering.c */
+struct EditMesh_PreSelEdgeRing;
+struct EditMesh_PreSelEdgeRing *EDBM_preselect_edgering_create(void);
+void EDBM_preselect_edgering_destroy(struct EditMesh_PreSelEdgeRing *psel);
+void EDBM_preselect_edgering_clear(struct EditMesh_PreSelEdgeRing *psel);
+void EDBM_preselect_edgering_draw(struct EditMesh_PreSelEdgeRing *psel, const float matrix[4][4]);
+void EDBM_preselect_edgering_update_from_edge(
+        struct EditMesh_PreSelEdgeRing *psel,
+        struct BMesh *bm, struct BMEdge *eed_start, int previewlines, const float (*coords)[3]);
+
+/* editmesh_preselect_elem.c */
+struct EditMesh_PreSelElem;
+struct EditMesh_PreSelElem *EDBM_preselect_elem_create(void);
+void EDBM_preselect_elem_destroy(struct EditMesh_PreSelElem *psel);
+void EDBM_preselect_elem_clear(struct EditMesh_PreSelElem *psel);
+void EDBM_preselect_elem_draw(struct EditMesh_PreSelElem *psel, const float matrix[4][4]);
+void EDBM_preselect_elem_update_from_single(
+        struct EditMesh_PreSelElem *psel,
+        struct BMesh *bm, struct BMElem *ele, const float (*coords)[3]);
+
 /* mesh_ops.c */
 void        ED_operatortypes_mesh(void);
 void        ED_operatormacros_mesh(void);
 void        ED_keymap_mesh(struct wmKeyConfig *keyconf);
 
 /* editmesh_tools.c (could be moved) */
-void EMBM_project_snap_verts(struct bContext *C, struct ARegion *ar, struct BMEditMesh *em);
+void EDBM_project_snap_verts(struct bContext *C, struct ARegion *ar, struct BMEditMesh *em);
 
 
 /* editface.c */
 void paintface_flush_flags(struct Object *ob, short flag);
 bool paintface_mouse_select(struct bContext *C, struct Object *ob, const int mval[2], bool extend, bool deselect, bool toggle);
-int  do_paintface_box_select(struct ViewContext *vc, struct rcti *rect, bool select, bool extend);
+int  do_paintface_box_select(struct ViewContext *vc, struct rcti *rect, int sel_op);
 void paintface_deselect_all_visible(struct Object *ob, int action, bool flush_flags);
 void paintface_select_linked(struct bContext *C, struct Object *ob, const int mval[2], const bool select);
 bool paintface_minmax(struct Object *ob, float r_min[3], float r_max[3]);

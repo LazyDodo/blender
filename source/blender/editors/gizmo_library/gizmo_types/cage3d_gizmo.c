@@ -24,7 +24,7 @@
  */
 
 /** \file cage3d_gizmo.c
- *  \ingroup wm
+ *  \ingroup edgizmolib
  *
  * \name Cage Gizmo
  *
@@ -477,7 +477,10 @@ static int gizmo_cage3d_modal(
         bContext *C, wmGizmo *gz, const wmEvent *event,
         eWM_GizmoFlagTweak UNUSED(tweak_flag))
 {
-	/* For transform logic to be managable we operate in -0.5..0.5 2D space,
+	if (event->type != MOUSEMOVE) {
+		return OPERATOR_RUNNING_MODAL;
+	}
+	/* For transform logic to be manageable we operate in -0.5..0.5 2D space,
 	 * no matter the size of the rectangle, mouse coorts are scaled to unit space.
 	 * The mouse coords have been projected into the matrix so we don't need to worry about axis alignment.
 	 *
@@ -508,7 +511,7 @@ static int gizmo_cage3d_modal(
 
 	gz_prop = WM_gizmo_target_property_find(gz, "matrix");
 	if (gz_prop->type != NULL) {
-		WM_gizmo_target_property_value_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
+		WM_gizmo_target_property_float_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
 	}
 
 	if (gz->highlight_part == ED_GIZMO_CAGE3D_PART_TRANSLATE) {
@@ -591,7 +594,7 @@ static int gizmo_cage3d_modal(
 	}
 
 	if (gz_prop->type != NULL) {
-		WM_gizmo_target_property_value_set_array(C, gz, gz_prop, &gz->matrix_offset[0][0]);
+		WM_gizmo_target_property_float_set_array(C, gz, gz_prop, &gz->matrix_offset[0][0]);
 	}
 
 	/* tag the region for redraw */
@@ -605,7 +608,7 @@ static void gizmo_cage3d_property_update(wmGizmo *gz, wmGizmoProperty *gz_prop)
 {
 	if (STREQ(gz_prop->type->idname, "matrix")) {
 		if (WM_gizmo_target_property_array_length(gz, gz_prop) == 16) {
-			WM_gizmo_target_property_value_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
+			WM_gizmo_target_property_float_get_array(gz, gz_prop, &gz->matrix_offset[0][0]);
 		}
 		else {
 			BLI_assert(0);
@@ -628,7 +631,7 @@ static void gizmo_cage3d_exit(bContext *C, wmGizmo *gz, const bool cancel)
 	/* reset properties */
 	gz_prop = WM_gizmo_target_property_find(gz, "matrix");
 	if (gz_prop->type != NULL) {
-		WM_gizmo_target_property_value_set_array(C, gz, gz_prop, &data->orig_matrix_offset[0][0]);
+		WM_gizmo_target_property_float_set_array(C, gz, gz_prop, &data->orig_matrix_offset[0][0]);
 	}
 
 	copy_m4_m4(gz->matrix_offset, data->orig_matrix_offset);
@@ -664,7 +667,7 @@ static void GIZMO_GT_cage_3d(wmGizmoType *gzt)
 		{0, NULL, 0, NULL, NULL}
 	};
 	static EnumPropertyItem rna_enum_transform[] = {
-		{ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE, "TRANSLATE", 0, "Translate", ""},
+		{ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE, "TRANSLATE", 0, "Move", ""},
 		{ED_GIZMO_CAGE2D_XFORM_FLAG_SCALE, "SCALE", 0, "Scale", ""},
 		{ED_GIZMO_CAGE2D_XFORM_FLAG_SCALE_UNIFORM, "SCALE_UNIFORM", 0, "Scale Uniform", ""},
 		{0, NULL, 0, NULL, NULL}

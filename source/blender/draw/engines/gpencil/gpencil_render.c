@@ -40,9 +40,9 @@
 #include "gpencil_engine.h"
 
 /* Get pixel size for render
-* This function uses the same calculation used for viewport, because if use
-* camera pixelsize, the result is not correct.
-*/
+ * This function uses the same calculation used for viewport, because if use
+ * camera pixelsize, the result is not correct.
+ */
 static float get_render_pixelsize(float persmat[4][4], int winx, int winy)
 {
 	float v1[3], v2[3];
@@ -74,9 +74,9 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 	const int size[2] = { (int)viewport_size[0], (int)viewport_size[1] };
 
 	/* In render mode the default framebuffer is not generated
-	* because there is no viewport. So we need to manually create one
-	* NOTE : use 32 bit format for precision in render mode.
-	*/
+	 * because there is no viewport. So we need to manually create one
+	 * NOTE : use 32 bit format for precision in render mode.
+	 */
 	/* create multiframe framebuffer for AA */
 	if (U.gpencil_multisamples > 0) {
 		int rect_w = (int)viewport_size[0];
@@ -130,7 +130,7 @@ static void GPENCIL_render_cache(
 	void *vedata, struct Object *ob,
 	struct RenderEngine *UNUSED(engine), struct Depsgraph *UNUSED(depsgraph))
 {
-	if ((ob == NULL) || (DRW_check_object_visible_within_active_context(ob) == false)) {
+	if ((ob == NULL) || (DRW_object_is_visible_in_active_context(ob) == false)) {
 		return;
 	}
 
@@ -143,12 +143,12 @@ static void GPENCIL_render_cache(
 static void GPENCIL_render_update_viewvecs(float invproj[4][4], float winmat[4][4], float(*r_viewvecs)[4])
 {
 	/* view vectors for the corners of the view frustum.
-	* Can be used to recreate the world space position easily */
+	 * Can be used to recreate the world space position easily */
 	float view_vecs[4][4] = {
-		{ -1.0f, -1.0f, -1.0f, 1.0f },
-	{ 1.0f, -1.0f, -1.0f, 1.0f },
-	{ -1.0f,  1.0f, -1.0f, 1.0f },
-	{ -1.0f, -1.0f,  1.0f, 1.0f }
+		{-1.0f, -1.0f, -1.0f, 1.0f},
+		{1.0f, -1.0f, -1.0f, 1.0f},
+		{-1.0f,  1.0f, -1.0f, 1.0f},
+		{-1.0f, -1.0f,  1.0f, 1.0f}
 	};
 
 	/* convert the view vectors to view space */
@@ -156,7 +156,7 @@ static void GPENCIL_render_update_viewvecs(float invproj[4][4], float winmat[4][
 	for (int i = 0; i < 4; i++) {
 		mul_project_m4_v3(invproj, view_vecs[i]);
 		/* normalized trick see:
-		* http://www.derschmale.com/2014/01/26/reconstructing-positions-from-the-depth-buffer */
+		 * http://www.derschmale.com/2014/01/26/reconstructing-positions-from-the-depth-buffer */
 		if (is_persp) {
 			/* Divide XY by Z. */
 			mul_v2_fl(view_vecs[i], 1.0f / view_vecs[i][2]);
@@ -164,14 +164,14 @@ static void GPENCIL_render_update_viewvecs(float invproj[4][4], float winmat[4][
 	}
 
 	/**
-	* If ortho : view_vecs[0] is the near-bottom-left corner of the frustum and
-	*            view_vecs[1] is the vector going from the near-bottom-left corner to
-	*            the far-top-right corner.
-	* If Persp : view_vecs[0].xy and view_vecs[1].xy are respectively the bottom-left corner
-	*            when Z = 1, and top-left corner if Z = 1.
-	*            view_vecs[0].z the near clip distance and view_vecs[1].z is the (signed)
-	*            distance from the near plane to the far clip plane.
-	**/
+	 * If ortho : view_vecs[0] is the near-bottom-left corner of the frustum and
+	 *            view_vecs[1] is the vector going from the near-bottom-left corner to
+	 *            the far-top-right corner.
+	 * If Persp : view_vecs[0].xy and view_vecs[1].xy are respectively the bottom-left corner
+	 *            when Z = 1, and top-left corner if Z = 1.
+	 *            view_vecs[0].z the near clip distance and view_vecs[1].z is the (signed)
+	 *            distance from the near plane to the far clip plane.
+	 */
 	copy_v4_v4(r_viewvecs[0], view_vecs[0]);
 
 	/* we need to store the differences */

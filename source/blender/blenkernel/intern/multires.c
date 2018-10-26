@@ -49,6 +49,7 @@
 #include "BKE_pbvh.h"
 #include "BKE_ccg.h"
 #include "BKE_cdderivedmesh.h"
+#include "BKE_library.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_mesh_runtime.h"
@@ -56,12 +57,15 @@
 #include "BKE_multires.h"
 #include "BKE_paint.h"
 #include "BKE_scene.h"
+#include "BKE_subdiv_ccg.h"
 #include "BKE_subsurf.h"
 #include "BKE_editmesh.h"
 
 #include "BKE_object.h"
 
 #include "CCGSubSurf.h"
+
+#include "DEG_depsgraph_query.h"
 
 #include <math.h>
 #include <string.h>
@@ -293,6 +297,28 @@ DerivedMesh *get_multires_dm(struct Depsgraph *depsgraph, Scene *scene, Multires
 	return dm;
 }
 
+Mesh *get_multires_mesh(
+        struct Depsgraph *depsgraph,
+        Scene *scene,
+        MultiresModifierData *mmd,
+        Object *ob)
+{
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	Mesh *deformed_mesh = mesh_get_eval_deform(depsgraph, scene, ob_eval, CD_MASK_BAREMESH);
+	ModifierEvalContext modifier_ctx = {
+	        .depsgraph = depsgraph,
+	        .object = ob_eval,
+	        .flag = MOD_APPLY_USECACHE | MOD_APPLY_IGNORE_SIMPLIFY};
+
+	const ModifierTypeInfo *mti = modifierType_getInfo(mmd->modifier.type);
+	Mesh *result = mti->applyModifier(&mmd->modifier, &modifier_ctx, deformed_mesh);
+
+	if (result == deformed_mesh) {
+		result = BKE_mesh_copy_for_eval(deformed_mesh, true);
+	}
+	return result;
+}
+
 MultiresModifierData *find_multires_modifier_before(Scene *scene, ModifierData *lastmd)
 {
 	ModifierData *md;
@@ -337,8 +363,8 @@ MultiresModifierData *get_multires_modifier(Scene *scene, Object *ob, bool use_f
 	return mmd;
 }
 
-static int multires_get_level(Scene *scene, Object *ob, MultiresModifierData *mmd,
-                              bool render, bool ignore_simplify)
+int multires_get_level(const Scene *scene, const Object *ob, const MultiresModifierData *mmd,
+                       bool render, bool ignore_simplify)
 {
 	if (render)
 		return (scene != NULL) ? get_render_subsurf_level(&scene->r, mmd->renderlvl, true) : mmd->renderlvl;
@@ -367,21 +393,49 @@ static void multires_dm_mark_as_modified(DerivedMesh *dm, MultiresModifiedFlags 
 	ccgdm->multires.modified_flags |= flags;
 }
 
+static void multires_ccg_mark_as_modified(SubdivCCG *subdiv_ccg,
+                                          MultiresModifiedFlags flags)
+{
+	if (flags & MULTIRES_COORDS_MODIFIED) {
+		subdiv_ccg->dirty.coords = true;
+	}
+	if (flags & MULTIRES_HIDDEN_MODIFIED) {
+		subdiv_ccg->dirty.hidden = true;
+	}
+}
+
 void multires_mark_as_modified(Object *ob, MultiresModifiedFlags flags)
 {
-	if (ob && ob->derivedFinal)
-		multires_dm_mark_as_modified(ob->derivedFinal, flags);
+	if (ob == NULL) {
+		return;
+	}
+	Mesh *mesh = ob->data;
+	SubdivCCG *subdiv_ccg = mesh->runtime.subdiv_ccg;
+	if (subdiv_ccg == NULL) {
+		return;
+	}
+	multires_ccg_mark_as_modified(subdiv_ccg, flags);
 }
 
 void multires_force_update(Object *ob)
 {
-	if (ob) {
-		BKE_object_free_derived_caches(ob);
-
-		if (ob->sculpt && ob->sculpt->pbvh) {
-			BKE_pbvh_free(ob->sculpt->pbvh);
-			ob->sculpt->pbvh = NULL;
+	if (ob == NULL) {
+		return;
+	}
+	SculptSession *sculpt_session = ob->sculpt;
+	if (sculpt_session != NULL && sculpt_session->pbvh != NULL) {
+		PBVH *pbvh = sculpt_session->pbvh;
+		if (BKE_pbvh_type(pbvh) == PBVH_GRIDS) {
+			Mesh *mesh = ob->data;
+			multiresModifier_reshapeFromCCG(
+			        sculpt_session->multires->totlvl, mesh, sculpt_session->subdiv_ccg);
 		}
+		else {
+			/* NOTE: Disabled for until OpenSubdiv is enabled by default. */
+			// BLI_assert(!"multires_force_update is used on non-grids PBVH");
+		}
+		BKE_pbvh_free(pbvh);
+		ob->sculpt->pbvh = NULL;
 	}
 }
 
@@ -397,68 +451,6 @@ void multires_force_render_update(Object *ob)
 {
 	if (ob && (ob->mode & OB_MODE_SCULPT) && modifiers_findByType(ob, eModifierType_Multires))
 		multires_force_update(ob);
-}
-
-int multiresModifier_reshapeFromDM(struct Depsgraph *depsgraph, Scene *scene, MultiresModifierData *mmd,
-                                   Object *ob, DerivedMesh *srcdm)
-{
-	DerivedMesh *mrdm = get_multires_dm(depsgraph, scene, mmd, ob);
-
-	if (mrdm && srcdm && mrdm->getNumVerts(mrdm) == srcdm->getNumVerts(srcdm)) {
-		multires_mvert_to_ss(mrdm, srcdm->getVertArray(srcdm));
-
-		multires_dm_mark_as_modified(mrdm, MULTIRES_COORDS_MODIFIED);
-		multires_force_update(ob);
-
-		mrdm->release(mrdm);
-
-		return 1;
-	}
-
-	if (mrdm) mrdm->release(mrdm);
-
-	return 0;
-}
-
-/* Returns 1 on success, 0 if the src's totvert doesn't match */
-int multiresModifier_reshape(struct Depsgraph *depsgraph, Scene *scene, MultiresModifierData *mmd, Object *dst, Object *src)
-{
-	DerivedMesh *srcdm = mesh_get_derived_final(depsgraph, scene, src, CD_MASK_BAREMESH);
-	return multiresModifier_reshapeFromDM(depsgraph, scene, mmd, dst, srcdm);
-}
-
-int multiresModifier_reshapeFromDeformMod(struct Depsgraph *depsgraph, Scene *scene, MultiresModifierData *mmd,
-                                          Object *ob, ModifierData *md)
-{
-	DerivedMesh *dm, *ndm;
-	int numVerts, result;
-	float (*deformedVerts)[3];
-	const ModifierEvalContext mectx = {depsgraph, ob, 0};
-
-	if (multires_get_level(scene, ob, mmd, false, true) == 0)
-		return 0;
-
-	/* Create DerivedMesh for deformation modifier */
-	dm = get_multires_dm(depsgraph, scene, mmd, ob);
-	numVerts = dm->getNumVerts(dm);
-	deformedVerts = MEM_malloc_arrayN(numVerts, sizeof(float[3]), "multiresReshape_deformVerts");
-
-	dm->getVertCos(dm, deformedVerts);
-	modifier_deformVerts_DM_deprecated(md, &mectx, dm, deformedVerts, numVerts);
-
-	ndm = CDDM_copy(dm);
-	CDDM_apply_vert_coords(ndm, deformedVerts);
-
-	MEM_freeN(deformedVerts);
-	dm->release(dm);
-
-	/* Reshaping */
-	result = multiresModifier_reshapeFromDM(depsgraph, scene, mmd, ob, ndm);
-
-	/* Cleanup */
-	ndm->release(ndm);
-
-	return result;
 }
 
 /* reset the multires levels to match the number of mdisps */
@@ -579,7 +571,7 @@ static void multires_copy_dm_grid(CCGElem *gridA, CCGElem *gridB, CCGKey *keyA, 
 			for (x = 0; x < keyB->grid_size; x++, j++)
 				memcpy(CCG_elem_offset_co(keyA, gridA, y * skip * keyA->grid_size + x * skip),
 				       CCG_elem_offset_co(keyB, gridB, j),
-				       sizeof(float) * keyA->num_layers);
+				       keyA->elem_size);
 	}
 	else {
 		skip = (keyB->grid_size - 1) / (keyA->grid_size - 1);
@@ -588,7 +580,7 @@ static void multires_copy_dm_grid(CCGElem *gridA, CCGElem *gridB, CCGKey *keyA, 
 			for (x = 0; x < keyA->grid_size; x++, j++)
 				memcpy(CCG_elem_offset_co(keyA, gridA, j),
 				       CCG_elem_offset_co(keyB, gridB, y * skip * keyB->grid_size + x * skip),
-				       sizeof(float) * keyA->num_layers);
+				       keyA->elem_size);
 	}
 }
 
@@ -728,8 +720,12 @@ static DerivedMesh *subsurf_dm_create_local(
 	SubsurfFlags flags = 0;
 
 	smd.levels = smd.renderLevels = lvl;
+	smd.quality = 3;
 	if (!is_plain_uv) {
-		smd.flags |= eSubsurfModifierFlag_SubsurfUv;
+		smd.uv_smooth = SUBSURF_UV_SMOOTH_PRESERVE_CORNERS;
+	}
+	else {
+		smd.uv_smooth = SUBSURF_UV_SMOOTH_NONE;
 	}
 	if (is_simple) {
 		smd.subdivType = ME_SIMPLE_SUBSURF;
@@ -880,7 +876,7 @@ void multiresModifier_base_apply(MultiresModifierData *mmd, Scene *scene, Object
 	/* subdivide the mesh to highest level without displacements */
 	cddm = CDDM_from_mesh(me);
 	DM_set_only_copy(cddm, CD_MASK_BAREMESH);
-	origdm = subsurf_dm_create_local(scene, ob, cddm, totlvl, 0, 0, mmd->flags & eMultiresModifierFlag_PlainUv, 0, false);
+	origdm = subsurf_dm_create_local(scene, ob, cddm, totlvl, 0, 0, mmd->uv_smooth == SUBSURF_UV_SMOOTH_NONE, 0, false);
 	cddm->release(cddm);
 
 	/* calc disps */
@@ -921,7 +917,7 @@ static void multires_subdivide(
 		/* create subsurf DM from original mesh at high level */
 		cddm = CDDM_from_mesh(me);
 		DM_set_only_copy(cddm, CD_MASK_BAREMESH);
-		highdm = subsurf_dm_create_local(scene, ob, cddm, totlvl, simple, 0, mmd->flags & eMultiresModifierFlag_PlainUv, has_mask, false);
+		highdm = subsurf_dm_create_local(scene, ob, cddm, totlvl, simple, 0, mmd->uv_smooth == SUBSURF_UV_SMOOTH_NONE, has_mask, false);
 		ss = ((CCGDerivedMesh *)highdm)->ss;
 
 		/* create multires DM from original mesh at low level */
@@ -1242,7 +1238,7 @@ void multires_modifier_update_mdisps(struct DerivedMesh *dm, Scene *scene)
 			else cddm = CDDM_from_mesh(me);
 			DM_set_only_copy(cddm, CD_MASK_BAREMESH);
 
-			highdm = subsurf_dm_create_local(scene, ob, cddm, totlvl, mmd->simple, 0, mmd->flags & eMultiresModifierFlag_PlainUv, has_mask, false);
+			highdm = subsurf_dm_create_local(scene, ob, cddm, totlvl, mmd->simple, 0, mmd->uv_smooth == SUBSURF_UV_SMOOTH_NONE, has_mask, false);
 			ss = ((CCGDerivedMesh *)highdm)->ss;
 
 			/* create multires DM from original mesh and displacements */
@@ -1304,7 +1300,7 @@ void multires_modifier_update_mdisps(struct DerivedMesh *dm, Scene *scene)
 			else cddm = CDDM_from_mesh(me);
 			DM_set_only_copy(cddm, CD_MASK_BAREMESH);
 
-			subdm = subsurf_dm_create_local(scene, ob, cddm, mmd->totlvl, mmd->simple, 0, mmd->flags & eMultiresModifierFlag_PlainUv, has_mask, false);
+			subdm = subsurf_dm_create_local(scene, ob, cddm, mmd->totlvl, mmd->simple, 0, mmd->uv_smooth == SUBSURF_UV_SMOOTH_NONE, has_mask, false);
 			cddm->release(cddm);
 
 			multiresModifier_disp_run(dm, me, NULL, CALC_DISPLACEMENTS, subdm->getGridData(subdm), mmd->totlvl);
@@ -1348,20 +1344,28 @@ void multires_modifier_update_hidden(DerivedMesh *dm)
 
 void multires_stitch_grids(Object *ob)
 {
-	/* utility for smooth brush */
-	if (ob && ob->derivedFinal) {
-		CCGDerivedMesh *ccgdm = (CCGDerivedMesh *)ob->derivedFinal;
-		CCGFace **faces;
-		int totface;
-
-		if (ccgdm->pbvh) {
-			BKE_pbvh_get_grid_updates(ccgdm->pbvh, false, (void ***)&faces, &totface);
-
-			if (totface) {
-				ccgSubSurf_stitchFaces(ccgdm->ss, 0, faces, totface);
-				MEM_freeN(faces);
-			}
-		}
+	if (ob == NULL) {
+		return;
+	}
+	SculptSession *sculpt_session = ob->sculpt;
+	if (sculpt_session == NULL) {
+		return;
+	}
+	PBVH *pbvh = sculpt_session->pbvh;
+	SubdivCCG *subdiv_ccg = sculpt_session->subdiv_ccg;
+	if (pbvh == NULL || subdiv_ccg == NULL) {
+		return;
+	}
+	BLI_assert(BKE_pbvh_type(pbvh) == PBVH_GRIDS);
+	/* NOTE: Currently CCG does not keep track of faces, making it impossible
+	 * to use BKE_pbvh_get_grid_updates().
+	 */
+	CCGFace **faces;
+	int num_faces;
+	BKE_pbvh_get_grid_updates(pbvh, false, (void ***)&faces, &num_faces);
+	if (num_faces) {
+		BKE_subdiv_ccg_average_stitch_faces(subdiv_ccg, faces, num_faces);
+		MEM_freeN(faces);
 	}
 }
 
@@ -1386,7 +1390,7 @@ DerivedMesh *multires_make_derived_from_derived(DerivedMesh *dm,
 
 	result = subsurf_dm_create_local(scene, ob, dm, lvl,
 	                                 mmd->simple, mmd->flags & eMultiresModifierFlag_ControlEdges,
-	                                 mmd->flags & eMultiresModifierFlag_PlainUv,
+	                                 mmd->uv_smooth == SUBSURF_UV_SMOOTH_NONE,
 	                                 flags & MULTIRES_ALLOC_PAINT_MASK,
 	                                 render);
 
@@ -2210,7 +2214,7 @@ static void multires_apply_smat(struct Depsgraph *depsgraph, Scene *scene, Objec
 	MEM_freeN(vertCos);
 
 	/* scaled ccgDM for tangent space of object with applied scale */
-	dm = subsurf_dm_create_local(scene, ob, cddm, high_mmd.totlvl, high_mmd.simple, 0, mmd->flags & eMultiresModifierFlag_PlainUv, 0, false);
+	dm = subsurf_dm_create_local(scene, ob, cddm, high_mmd.totlvl, high_mmd.simple, 0, mmd->uv_smooth == SUBSURF_UV_SMOOTH_NONE, 0, false);
 	cddm->release(cddm);
 
 	gridSize = dm->getGridSize(dm);

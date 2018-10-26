@@ -42,8 +42,12 @@
 
 #include "gpencil_engine.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "ED_screen.h"
 #include "ED_gpencil.h"
+
+#include "WM_api.h"
 
 extern char datatoc_gpencil_fill_vert_glsl[];
 extern char datatoc_gpencil_fill_frag_glsl[];
@@ -137,17 +141,17 @@ static void GPENCIL_create_framebuffers(void *vedata)
 		            GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_b)
 		        });
 
-		/* used for rim FX effect */
-		e_data.temp_depth_tx_rim = DRW_texture_pool_query_2D(
+		/* used for rim and shadow FX effects */
+		e_data.temp_depth_tx_fx = DRW_texture_pool_query_2D(
 		        size[0], size[1], GPU_DEPTH24_STENCIL8,
 		        &draw_engine_gpencil_type);
-		e_data.temp_color_tx_rim = DRW_texture_pool_query_2D(
+		e_data.temp_color_tx_fx = DRW_texture_pool_query_2D(
 		        size[0], size[1], fb_format,
 		        &draw_engine_gpencil_type);
 		GPU_framebuffer_ensure_config(
-		        &fbl->temp_fb_rim, {
-		            GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_rim),
-		            GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_rim),
+		        &fbl->temp_fb_fx, {
+		            GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_fx),
+		            GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_fx),
 		        });
 
 		/* background framebuffer to speed up drawing process (always 16 bits) */
@@ -273,6 +277,9 @@ static void GPENCIL_engine_free(void)
 	GPU_BATCH_DISCARD_SAFE(e_data.batch_buffer_fill);
 	MEM_SAFE_FREE(e_data.batch_buffer_fill);
 
+	GPU_BATCH_DISCARD_SAFE(e_data.batch_grid);
+	MEM_SAFE_FREE(e_data.batch_grid);
+
 	/* effects */
 	GPENCIL_delete_fx_shaders(&e_data);
 }
@@ -333,9 +340,17 @@ void GPENCIL_cache_init(void *vedata)
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_BLEND);
 
 		/* detect if playing animation */
-		stl->storage->is_playing = false;
 		if (draw_ctx->evil_C) {
-			stl->storage->is_playing = ED_screen_animation_playing(CTX_wm_manager(draw_ctx->evil_C)) != NULL;
+
+			bool playing = ED_screen_animation_playing(CTX_wm_manager(draw_ctx->evil_C)) != NULL;
+			if (playing != stl->storage->is_playing) {
+				stl->storage->reset_cache = true;
+			}
+			stl->storage->is_playing = playing;
+		}
+		else {
+			stl->storage->is_playing = false;
+			stl->storage->reset_cache = false;
 		}
 		/* save render state */
 		stl->storage->is_render = DRW_state_is_image_render();
@@ -343,9 +358,9 @@ void GPENCIL_cache_init(void *vedata)
 
 		if (obact_gpd) {
 			/* for some reason, when press play there is a delay in the animation flag check
-			* and this produces errors. To be sure, we set cache as dirty because the frame
-			* is changing.
-			*/
+			 * and this produces errors. To be sure, we set cache as dirty because the frame
+			 * is changing.
+			 */
 			if (stl->storage->is_playing == true) {
 				obact_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
@@ -371,10 +386,13 @@ void GPENCIL_cache_init(void *vedata)
 		    (obact_gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
 		    (stl->storage->is_playing == false))
 		{
-			if (((obact_gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
-			    (obact_gpd->runtime.sbuffer_size > 1))
+			/* need the original to avoid cow overhead while drawing */
+			bGPdata *gpd_orig = (bGPdata *)DEG_get_original_id(&obact_gpd->id);
+			if (((gpd_orig->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
+			    (gpd_orig->runtime.sbuffer_size > 0) &&
+			    ((gpd_orig->flag & GP_DATA_STROKE_POLYGON) == 0))
 			{
-				stl->g_data->session_flag = GP_DRW_PAINT_PAINTING;
+				stl->g_data->session_flag |= GP_DRW_PAINT_PAINTING;
 			}
 			else {
 				stl->g_data->session_flag = GP_DRW_PAINT_IDLE;
@@ -400,7 +418,7 @@ void GPENCIL_cache_init(void *vedata)
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 		}
 
-		/* drawing buffer pass for drawing the stroke that is beeing drawing by the user. The data
+		/* drawing buffer pass for drawing the stroke that is being drawing by the user. The data
 		 * is stored in sbuffer
 		 */
 		psl->drawing_pass = DRW_pass_create(
@@ -477,10 +495,48 @@ void GPENCIL_cache_init(void *vedata)
 	}
 }
 
+static void gpencil_add_draw_data(void *vedata, Object *ob)
+{
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	Scene *scene = draw_ctx->scene;
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+
+	int i = stl->g_data->gp_cache_used - 1;
+	tGPencilObjectCache *cache_ob = &stl->g_data->gp_object_cache[i];
+
+	/* save init shading group */
+	cache_ob->init_grp = stl->storage->shgroup_id;
+
+	/* fill shading groups */
+	if ((!is_multiedit) || (cache_ob->is_dup_ob)) {
+		DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, cache_ob);
+	}
+	else {
+		DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, cache_ob);
+	}
+
+	/* save end shading group */
+	cache_ob->end_grp = stl->storage->shgroup_id - 1;
+
+	/* FX passses */
+	cache_ob->has_fx = false;
+	if ((!stl->storage->simplify_fx) &&
+	    (BKE_shaderfx_has_gpencil(ob)))
+	{
+		cache_ob->has_fx = true;
+		if ((!stl->storage->simplify_fx) && (!is_multiedit)) {
+			DRW_gpencil_fx_prepare(&e_data, vedata, cache_ob);
+		}
+	}
+
+}
+
 void GPENCIL_cache_populate(void *vedata, Object *ob)
 {
 	/* object must be visible */
-	if (!DRW_check_object_visible_within_active_context(ob)) {
+	if (!DRW_object_is_visible_in_active_context(ob)) {
 		return;
 	}
 
@@ -490,30 +546,47 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
 
-	/* object datablock (this is not draw now) */
 	if (ob->type == OB_GPENCIL && ob->data) {
 		bGPdata *gpd = (bGPdata *)ob->data;
+
+		/* if onion, set as dirty always
+		 * This reduces performance, but avoid any crash in the multiple
+		 * overlay and multiwindow options
+		 */
+		if (gpd->flag & GP_DATA_SHOW_ONIONSKINS) {
+			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+		}
+
+		/* when start/stop animation the cache must be set as dirty to reset all data */
+		if (stl->storage->reset_cache) {
+			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+			stl->storage->reset_cache = false;
+		}
+
+		/* is edit mode only current object, not instances */
+		if ((draw_ctx->obact != ob) && GPENCIL_ANY_EDIT_MODE(gpd)) {
+			return;
+		}
+
 		if ((stl->g_data->session_flag & GP_DRW_PAINT_READY) == 0) {
 
-			/* if render set as dirty */
-			if (stl->storage->is_render == true) {
-				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-			}
-
-			/* allocate memory for saving gp objects for drawing later */
+			/* save gp objects for drawing later */
 			stl->g_data->gp_object_cache = gpencil_object_cache_add(
-			        stl->g_data->gp_object_cache, ob, false,
-			        &stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
+				stl->g_data->gp_object_cache, ob,
+				&stl->g_data->gp_cache_size, &stl->g_data->gp_cache_used);
 
-			/* generate instances as separate cache objects for instance modifiers
-			 * with the "Make as Objects" option enabled
-			 */
-			if (!stl->storage->simplify_modif) {
-				gpencil_instance_modifiers(stl, ob);
-			}
+			/* load drawing data */
+			gpencil_add_draw_data(vedata, ob);
 		}
-		/* draw current painting strokes */
-		DRW_gpencil_populate_buffer_strokes(&e_data, vedata, ts, ob);
+
+		/* draw current painting strokes
+		* (only if region is equal to originated paint region)
+		*/
+		if ((draw_ctx->obact == ob) &&
+		    ((gpd->runtime.ar == NULL) || (gpd->runtime.ar == draw_ctx->ar)))
+		{
+			DRW_gpencil_populate_buffer_strokes(&e_data, vedata, ts, ob);
+		}
 
 		/* grid */
 		if ((v3d) &&
@@ -521,57 +594,22 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 		    (v3d->gp_flag & V3D_GP_SHOW_GRID) &&
 		    (ob->type == OB_GPENCIL) && (ob == draw_ctx->obact))
 		{
-			stl->g_data->batch_grid = DRW_gpencil_get_grid();
-			DRW_shgroup_call_add(stl->g_data->shgrps_grid,
-				stl->g_data->batch_grid,
-				ob->obmat);
+			GPU_BATCH_DISCARD_SAFE(e_data.batch_grid);
+			MEM_SAFE_FREE(e_data.batch_grid);
+
+			e_data.batch_grid = DRW_gpencil_get_grid(ob);
+			DRW_shgroup_call_add(
+			        stl->g_data->shgrps_grid,
+			        e_data.batch_grid,
+			        ob->obmat);
 		}
 	}
 }
 
-void GPENCIL_cache_finish(void *vedata)
+void GPENCIL_cache_finish(void *UNUSED(vedata))
 {
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	Scene *scene = draw_ctx->scene;
-	bool is_multiedit = false;
+	return;
 
-	/* if painting session, don't need to do more */
-	if (stl->g_data->session_flag & GP_DRW_PAINT_PAINTING) {
-		return;
-	}
-
-	/* Draw all pending objects */
-	if (stl->g_data->gp_cache_used > 0) {
-		for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
-			Object *ob = stl->g_data->gp_object_cache[i].ob;
-			bGPdata *gpd = ob->data;
-
-			/* save init shading group */
-			stl->g_data->gp_object_cache[i].init_grp = stl->storage->shgroup_id;
-
-			/* fill shading groups */
-			is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
-			if (!is_multiedit) {
-				DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, gpd);
-			}
-			else {
-				DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, gpd);
-			}
-
-			/* save end shading group */
-			stl->g_data->gp_object_cache[i].end_grp = stl->storage->shgroup_id - 1;
-			/* if render set to dirty to refresh viewport */
-			if (stl->storage->is_render == true) {
-				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-			}
-			/* FX passses */
-			tGPencilObjectCache *cache = &stl->g_data->gp_object_cache[i];
-			if ((!stl->storage->simplify_fx) && (!is_multiedit)) {
-				DRW_gpencil_fx_prepare(&e_data, vedata, cache);
-			}
-		}
-	}
 }
 
 /* helper function to sort inverse gpencil objects using qsort */
@@ -605,21 +643,8 @@ static void gpencil_prepare_fast_drawing(
 	}
 }
 
-static void gpencil_free_obj_list(GPENCIL_StorageList *stl)
+static void gpencil_free_obj_runtime(GPENCIL_StorageList *stl)
 {
-	/* Clear temp objects created for display instances only. These objects are created
-	 * while the draw manager draw the scene, but only to hold the strokes data.
-	 * see: gp_instance_modifier_make_instances()
-	 *
-	 * the normal objects are not freed because they are not tagged as temp objects
-	 */
-	for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
-		Object *ob = stl->g_data->gp_object_cache[i].ob;
-		if (stl->g_data->gp_object_cache[i].temp_ob) {
-			MEM_SAFE_FREE(ob);
-		}
-	}
-
 	/* free the cache itself */
 	MEM_SAFE_FREE(stl->g_data->gp_object_cache);
 }
@@ -636,7 +661,7 @@ void GPENCIL_draw_scene(void *ved)
 	GPENCIL_TextureList *txl = ((GPENCIL_Data *)vedata)->txl;
 
 	int init_grp, end_grp;
-	tGPencilObjectCache *cache;
+	tGPencilObjectCache *cache_ob;
 	const float clearcol[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -645,11 +670,10 @@ void GPENCIL_draw_scene(void *ved)
 	const bool playing = stl->storage->is_playing;
 	const bool is_render = stl->storage->is_render;
 
-	/* paper pass to display a confortable area to draw over complex scenes with geometry */
+	/* paper pass to display a comfortable area to draw over complex scenes with geometry */
 	if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-		    (v3d->gp_flag & V3D_GP_SHOW_PAPER) &&
-		    (stl->g_data->gp_cache_used > 0))
+		    (v3d->gp_flag & V3D_GP_SHOW_PAPER))
 		{
 			DRW_draw_pass(psl->paper_pass);
 		}
@@ -667,7 +691,7 @@ void GPENCIL_draw_scene(void *ved)
 		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, dfbl->default_fb, txl);
 
 		/* free memory */
-		gpencil_free_obj_list(stl);
+		gpencil_free_obj_runtime(stl);
 
 		/* grid pass */
 		if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
@@ -699,11 +723,11 @@ void GPENCIL_draw_scene(void *ved)
 			      sizeof(tGPencilObjectCache), gpencil_object_cache_compare_zdepth);
 
 			for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
-				cache = &stl->g_data->gp_object_cache[i];
-				Object *ob = cache->ob;
-				bGPdata *gpd = ob->data;
-				init_grp = cache->init_grp;
-				end_grp = cache->end_grp;
+				cache_ob = &stl->g_data->gp_object_cache[i];
+				bGPdata *gpd = cache_ob->gpd;
+				init_grp = cache_ob->init_grp;
+				end_grp = cache_ob->end_grp;
+
 				/* Render stroke in separated framebuffer */
 				GPU_framebuffer_bind(fbl->temp_fb_a);
 				GPU_framebuffer_clear_color_depth(fbl->temp_fb_a, clearcol, 1.0f);
@@ -712,7 +736,10 @@ void GPENCIL_draw_scene(void *ved)
 				 * draw only a subset that usually start with a fill and end with stroke because the
 				 * shading groups are created by pairs */
 				if (end_grp >= init_grp) {
-					MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
+					/* previews don't use AA */
+					if (!stl->storage->is_mat_preview) {
+						MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
+					}
 
 					DRW_draw_pass_subset(
 					        psl->stroke_pass,
@@ -720,19 +747,19 @@ void GPENCIL_draw_scene(void *ved)
 					        stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
 					        stl->shgroups[end_grp].shgrps_stroke);
 
-					MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
+					if (!stl->storage->is_mat_preview) {
+						MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
+					}
 				}
 
 				/* Current buffer drawing */
-				if ((!is_render) && (gpd->runtime.sbuffer_size > 0)) {
+				if ((!is_render) && (cache_ob->is_dup_ob == false)) {
 					DRW_draw_pass(psl->drawing_pass);
 				}
 				/* fx passes */
-				if ((!stl->storage->simplify_fx) &&
-				    (BKE_shaderfx_has_gpencil(ob)))
-				{
+				if (cache_ob->has_fx == true) {
 					stl->storage->tonemapping = 0;
-					DRW_gpencil_fx_draw(&e_data, vedata, cache);
+					DRW_gpencil_fx_draw(&e_data, vedata, cache_ob);
 				}
 
 				e_data.input_depth_tx = e_data.temp_depth_tx_a;
@@ -754,6 +781,10 @@ void GPENCIL_draw_scene(void *ved)
 				if (!is_render) {
 					gpencil_prepare_fast_drawing(stl, dfbl, fbl, psl->mix_pass_noblend, clearcol);
 				}
+				else {
+					/* if render, the cache must be dirty for next loop */
+					gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+				}
 			}
 			/* edit points */
 			if ((!is_render) && (!playing)) {
@@ -770,7 +801,7 @@ void GPENCIL_draw_scene(void *ved)
 		}
 	}
 	/* free memory */
-	gpencil_free_obj_list(stl);
+	gpencil_free_obj_runtime(stl);
 
 	/* detach temp textures */
 	if (DRW_state_is_fbo()) {

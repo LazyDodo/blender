@@ -272,7 +272,7 @@ static void EDIT_HAIR_draw_scene(void *vedata)
 
 	UNUSED_VARS(fbl, dtxl);
 
-	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl)
+	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 
 	/* Show / hide entire passes, swap framebuffers ... whatever you fancy */
 	/*

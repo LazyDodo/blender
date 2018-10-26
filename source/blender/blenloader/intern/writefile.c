@@ -113,10 +113,10 @@
 #include "DNA_cachefile_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cloth_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_dynamicpaint_types.h"
 #include "DNA_genfile.h"
-#include "DNA_group_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_gpencil_modifier_types.h"
 #include "DNA_shader_fx_types.h"
@@ -3031,15 +3031,18 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 
 static void write_screen(WriteData *wd, bScreen *sc)
 {
-	/* write LibData */
-	/* in 2.50+ files, the file identifier for screens is patched, forward compatibility */
-	writestruct(wd, ID_SCRN, bScreen, 1, sc);
-	write_iddata(wd, &sc->id);
+	/* Screens are reference counted, only saved if used by a workspace. */
+	if (sc->id.us > 0 || wd->use_memfile) {
+		/* write LibData */
+		/* in 2.50+ files, the file identifier for screens is patched, forward compatibility */
+		writestruct(wd, ID_SCRN, bScreen, 1, sc);
+		write_iddata(wd, &sc->id);
 
-	write_previews(wd, sc->preview);
+		write_previews(wd, sc->preview);
 
-	/* direct data */
-	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
+		/* direct data */
+		write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
+	}
 }
 
 static void write_bone(WriteData *wd, Bone *bone)

@@ -71,6 +71,7 @@ struct ViewLayer;
 typedef enum eEvaluationMode {
 	DAG_EVAL_VIEWPORT       = 0,    /* evaluate for OpenGL viewport */
 	DAG_EVAL_RENDER         = 1,    /* evaluate for render purposes */
+	DAG_EVAL_BACKGROUND     = 2,    /* evaluate in background for baking/caching */
 } eEvaluationMode;
 
 /* DagNode->eval_flags */
@@ -80,10 +81,6 @@ enum {
 	 * who're using curve deform, where_on_path and so.
 	 */
 	DAG_EVAL_NEED_CURVE_PATH = 1,
-	/* Scene evaluation would need to have object's data on CPU,
-	 * meaning no GPU shortcuts is allowed.
-	 */
-	DAG_EVAL_NEED_CPU        = 2,
 };
 
 #ifdef __cplusplus

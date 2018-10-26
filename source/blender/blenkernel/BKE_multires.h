@@ -33,6 +33,7 @@
  */
 
 enum MultiresModifiedFlags;
+
 struct Depsgraph;
 struct DerivedMesh;
 struct MDisps;
@@ -42,6 +43,7 @@ struct Multires;
 struct MultiresModifierData;
 struct Object;
 struct Scene;
+struct SubdivCCG;
 
 struct MLoop;
 struct MVert;
@@ -82,19 +84,18 @@ struct DerivedMesh *multires_make_derived_from_derived(struct DerivedMesh *dm,
 struct MultiresModifierData *find_multires_modifier_before(struct Scene *scene,
                                                            struct ModifierData *lastmd);
 struct MultiresModifierData *get_multires_modifier(struct Scene *scene, struct Object *ob, bool use_first);
+int multires_get_level(const struct Scene *scene, const struct Object *ob, const struct MultiresModifierData *mmd,
+                       bool render, bool ignore_simplify);
 struct DerivedMesh *get_multires_dm(struct Depsgraph *depsgraph, struct Scene *scene, struct MultiresModifierData *mmd,
                                     struct Object *ob);
+struct Mesh *get_multires_mesh(
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        struct MultiresModifierData *mmd, struct Object *ob);
 void multiresModifier_del_levels(struct MultiresModifierData *mmd, struct Scene *scene, struct Object *object, int direction);
 void multiresModifier_base_apply(struct MultiresModifierData *mmd, struct Scene *scene, struct Object *ob);
 void multiresModifier_subdivide(struct MultiresModifierData *mmd, struct Scene *scene, struct Object *ob, int updateblock, int simple);
 void multiresModifier_sync_levels_ex(
         struct Scene *scene, struct Object *ob_dst, struct MultiresModifierData *mmd_src, struct MultiresModifierData *mmd_dst);
-int multiresModifier_reshape(struct Depsgraph *depsgraph, struct Scene *scene, struct MultiresModifierData *mmd,
-                             struct Object *dst, struct Object *src);
-int multiresModifier_reshapeFromDM(struct Depsgraph *depsgraph, struct Scene *scene, struct MultiresModifierData *mmd,
-                                   struct Object *ob, struct DerivedMesh *srcdm);
-int multiresModifier_reshapeFromDeformMod(struct Depsgraph *depsgraph, struct Scene *scene, struct MultiresModifierData *mmd,
-                                          struct Object *ob, struct ModifierData *md);
 
 void multires_stitch_grids(struct Object *);
 
@@ -114,5 +115,40 @@ void multires_topology_changed(struct Mesh *me);
 /**** interpolation stuff ****/
 void old_mdisps_bilinear(float out[3], float (*disps)[3], const int st, float u, float v);
 int mdisp_rot_face_to_crn(struct MVert *mvert, struct MPoly *mpoly, struct MLoop *mloops, const struct MLoopTri *lt, const int face_side, const float u, const float v, float *x, float *y);
+
+/* Reshaping, define in multires_reshape.c */
+
+bool multiresModifier_reshapeFromObject(
+        struct Depsgraph *depsgraph,
+        struct MultiresModifierData *mmd,
+        struct Object *dst,
+        struct Object *src);
+bool multiresModifier_reshapeFromDeformModifier(
+        struct Depsgraph *depsgraph,
+        struct MultiresModifierData *mmd,
+        struct Object *ob,
+        struct ModifierData *md);
+bool multiresModifier_reshapeFromCCG(
+        const int tot_level,
+        struct Mesh *coarse_mesh,
+        struct SubdivCCG *subdiv_ccg);
+
+/* Subdivision integration, defined in multires_subdiv.c */
+
+struct SubdivSettings;
+struct SubdivToMeshSettings;
+
+void BKE_multires_subdiv_settings_init(
+        struct SubdivSettings *settings,
+        const struct MultiresModifierData *mmd);
+
+/* TODO(sergey): Replace this set of boolean flags with bitmask. */
+void BKE_multires_subdiv_mesh_settings_init(
+        struct SubdivToMeshSettings *mesh_settings,
+        const struct Scene *scene,
+        const struct Object *object,
+        const struct MultiresModifierData *mmd,
+        const bool use_render_params,
+        const bool ignore_simplify);
 
 #endif  /* __BKE_MULTIRES_H__ */

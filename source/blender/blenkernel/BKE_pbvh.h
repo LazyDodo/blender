@@ -75,7 +75,6 @@ void BKE_pbvh_build_grids(PBVH *bvh, struct CCGElem **grid_elems,
                           struct CCGKey *key, void **gridfaces, struct DMFlagMat *flagmats,
                           unsigned int **grid_hidden);
 void BKE_pbvh_build_bmesh(PBVH *bvh, struct BMesh *bm, bool smooth_shading, struct BMLog *log, const int cd_vert_node_offset, const int cd_face_node_offset);
-void BKE_pbvh_set_ccgdm(PBVH *bvh, struct CCGDerivedMesh *ccgdm);
 void BKE_pbvh_free(PBVH *bvh);
 void BKE_pbvh_free_layer_disp(PBVH *bvh);
 
@@ -130,7 +129,7 @@ bool BKE_pbvh_node_find_nearest_to_ray(
 /* Drawing */
 
 void BKE_pbvh_draw_cb(
-        PBVH *bvh, float (*planes)[4], float (*fnors)[3], bool fast,
+        PBVH *bvh, float (*planes)[4], float (*fnors)[3], bool fast, bool only_mask,
         void (*draw_fn)(void *user_data, struct GPUBatch *batch), void *user_data);
 
 /* PBVH Access */
@@ -155,7 +154,8 @@ int BKE_pbvh_count_grid_quads(BLI_bitmap **grid_hidden,
 
 /* multires level, only valid for type == PBVH_GRIDS */
 void BKE_pbvh_get_grid_key(const PBVH *pbvh, struct CCGKey *key);
-struct CCGDerivedMesh *BKE_pbvh_get_ccgdm(const PBVH *bvh);
+
+struct CCGElem **BKE_pbvh_get_grids(const PBVH *pbvh, int *num_grids);
 
 /* Only valid for type == PBVH_BMESH */
 struct BMesh *BKE_pbvh_get_bmesh(PBVH *pbvh);

@@ -659,7 +659,7 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 						}
 
 						if (em->bm->totedgesel >= 1) {
-							/* find an edge thats apart of v_tri (no need to search all edges) */
+							/* find an edge that's apart of v_tri (no need to search all edges) */
 							float e_length;
 							int j;
 
@@ -793,12 +793,7 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 						}
 					}
 
-					if (is_zero_v3(plane)) {
-						result = ORIENTATION_VERT;
-					}
-					else {
-						result = ORIENTATION_EDGE;
-					}
+					result = is_zero_v3(plane) ? ORIENTATION_VERT : ORIENTATION_EDGE;
 				}
 				else if (em->bm->totvertsel > 3) {
 					BMIter iter;
@@ -840,7 +835,8 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 				}
 			}
 			else {
-				const bool use_handle = (cu->drawflag & CU_HIDE_HANDLES) == 0;
+				View3D *v3d = CTX_wm_view3d(C);
+				const bool use_handle = (v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) != 0;
 
 				for (nu = nurbs->first; nu; nu = nu->next) {
 					/* only bezier has a normal */
@@ -1101,6 +1097,11 @@ void ED_getTransformOrientationMatrix(const bContext *C, float orientation_mat[3
 
 	type = getTransformOrientation_ex(C, normal, plane, around);
 
+	/* Fallback, when the plane can't be calculated. */
+	if (ORIENTATION_USE_PLANE(type) && is_zero_v3(plane)) {
+		type = ORIENTATION_VERT;
+	}
+
 	switch (type) {
 		case ORIENTATION_NORMAL:
 			if (createSpaceNormalTangent(orientation_mat, normal, plane) == 0) {
@@ -1121,6 +1122,9 @@ void ED_getTransformOrientationMatrix(const bContext *C, float orientation_mat[3
 			if (createSpaceNormalTangent(orientation_mat, normal, plane) == 0) {
 				type = ORIENTATION_NONE;
 			}
+			break;
+		default:
+			BLI_assert(type == ORIENTATION_NONE);
 			break;
 	}
 

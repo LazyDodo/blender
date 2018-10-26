@@ -39,7 +39,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_armature_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_material_types.h"
 #include "DNA_node_types.h"
@@ -59,7 +59,6 @@
 #include "BKE_screen.h"
 #include "BKE_texture.h"
 #include "BKE_linestyle.h"
-#include "BKE_workspace.h"
 
 #include "RNA_access.h"
 
@@ -119,6 +118,13 @@ static int buttons_context_path_scene(ButsContextPath *path)
 
 static int buttons_context_path_view_layer(ButsContextPath *path, wmWindow *win)
 {
+	PointerRNA *ptr = &path->ptr[path->len - 1];
+
+	/* View Layer may have already been resolved in a previous call (e.g. in buttons_context_path_linestyle). */
+	if (RNA_struct_is_a(ptr->type, &RNA_ViewLayer)) {
+		return 1;
+	}
+
 	if (buttons_context_path_scene(path)) {
 		Scene *scene = path->ptr[path->len - 1].data;
 		ViewLayer *view_layer = (win->scene == scene) ?
@@ -186,14 +192,6 @@ static int buttons_context_path_linestyle(ButsContextPath *path, wmWindow *windo
 
 	/* no path to a linestyle possible */
 	return 0;
-}
-
-static int buttons_context_path_workspace(ButsContextPath *path)
-{
-	PointerRNA *ptr = &path->ptr[path->len - 1];
-
-	/* This one just verifies. */
-	return RNA_struct_is_a(ptr->type, &RNA_WorkSpace);
 }
 
 static int buttons_context_path_object(ButsContextPath *path)
@@ -498,7 +496,6 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	wmWindow *window = CTX_wm_window(C);
-	WorkSpace *workspace = CTX_wm_workspace(C);
 	ID *id;
 	int found;
 	Object *ob = CTX_data_active_object(C);
@@ -514,19 +511,13 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 		path->len++;
 	}
 	/* No pinned root, use scene as initial root. */
-	else {
-		if (ELEM(mainb, BCONTEXT_WORKSPACE, BCONTEXT_TOOL)) {
-			RNA_id_pointer_create(&workspace->id, &path->ptr[0]);
-			path->len++;
-		}
-		else {
-			RNA_id_pointer_create(&scene->id, &path->ptr[0]);
-			path->len++;
+	else if (mainb != BCONTEXT_TOOL) {
+		RNA_id_pointer_create(&scene->id, &path->ptr[0]);
+		path->len++;
 
-			if (!ELEM(mainb, BCONTEXT_SCENE, BCONTEXT_RENDER, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD)) {
-				RNA_pointer_create(NULL, &RNA_ViewLayer, view_layer, &path->ptr[path->len]);
-				path->len++;
-			}
+		if (!ELEM(mainb, BCONTEXT_SCENE, BCONTEXT_RENDER, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD)) {
+			RNA_pointer_create(NULL, &RNA_ViewLayer, view_layer, &path->ptr[path->len]);
+			path->len++;
 		}
 	}
 
@@ -552,8 +543,7 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 			found = buttons_context_path_world(path);
 			break;
 		case BCONTEXT_TOOL:
-		case BCONTEXT_WORKSPACE:
-			found = buttons_context_path_workspace(path);
+			found = true;
 			break;
 		case BCONTEXT_OBJECT:
 		case BCONTEXT_PHYSICS:
@@ -1044,7 +1034,7 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 		ptr = &path->ptr[a];
 
 		if (a != 0)
-			uiItemL(row, "", VICO_SMALL_TRI_RIGHT_VEC);
+			uiItemL(row, "", ICON_SMALL_TRI_RIGHT_VEC);
 
 		if (ptr->data) {
 			icon = RNA_struct_ui_icon(ptr->type);
@@ -1070,7 +1060,13 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 	}
 }
 
-static void buttons_panel_context(const bContext *C, Panel *pa)
+static bool buttons_panel_context_poll(const bContext *C, PanelType *UNUSED(pt))
+{
+	SpaceButs *sbuts = CTX_wm_space_buts(C);
+	return (sbuts->mainb != BCONTEXT_TOOL);
+}
+
+static void buttons_panel_context_draw(const bContext *C, Panel *pa)
 {
 	buttons_context_draw(C, pa->layout);
 }
@@ -1083,7 +1079,8 @@ void buttons_context_register(ARegionType *art)
 	strcpy(pt->idname, "BUTTONS_PT_context");
 	strcpy(pt->label, N_("Context"));  /* XXX C panels are not available through RNA (bpy.types)! */
 	strcpy(pt->translation_context, BLT_I18NCONTEXT_DEFAULT_BPYRNA);
-	pt->draw = buttons_panel_context;
+	pt->poll = buttons_panel_context_poll;
+	pt->draw = buttons_panel_context_draw;
 	pt->flag = PNL_NO_HEADER;
 	BLI_addtail(&art->paneltypes, pt);
 }

@@ -38,9 +38,6 @@ struct MaterialGPencilStyle;
 struct RenderEngine;
 struct RenderLayer;
 
- /* TODO: these could be system parameter in userprefs screen */
-#define GPENCIL_MAX_GP_OBJ 256
-
 #define GPENCIL_CACHE_BLOCK_SIZE 8
 #define GPENCIL_MAX_SHGROUPS 65536
 #define GPENCIL_MIN_BATCH_SLOTS_CHUNK 16
@@ -59,24 +56,34 @@ struct RenderLayer;
 
  /* *********** OBJECTS CACHE *********** */
 
- /* used to save gpencil objects */
+ /* used to save gpencil object data for drawing */
 typedef struct tGPencilObjectCache {
 	struct Object *ob;
+	struct bGPdata *gpd;
 	int init_grp, end_grp;
 	int idx;  /*original index, can change after sort */
 
 	/* effects */
+	bool has_fx;
+	ListBase shader_fx;
+	float pixfactor;
 	DRWShadingGroup *fx_wave_sh;
 	DRWShadingGroup *fx_blur_sh;
 	DRWShadingGroup *fx_colorize_sh;
 	DRWShadingGroup *fx_pixel_sh;
 	DRWShadingGroup *fx_rim_sh;
+	DRWShadingGroup *fx_shadow_sh;
+	DRWShadingGroup *fx_glow_sh;
 	DRWShadingGroup *fx_swirl_sh;
 	DRWShadingGroup *fx_flip_sh;
 	DRWShadingGroup *fx_light_sh;
 
+	float loc[3];
+	float obmat[4][4];
 	float zdepth;  /* z-depth value to sort gp object */
-	bool temp_ob;  /* flag to tag temporary objects that must be removed after drawing loop */
+	bool is_dup_ob;  /* flag to tag duplicate objects */
+	bool is_dup_data; /* other object uses datablock already */
+	int  data_idx;    /* derived data index */
 } tGPencilObjectCache;
 
   /* *********** LISTS *********** */
@@ -108,6 +115,7 @@ typedef struct GPENCIL_Storage {
 	bool is_playing;
 	bool is_render;
 	bool is_mat_preview;
+	bool reset_cache;
 	bool buffer_stroke;
 	bool buffer_fill;
 	const float *pixsize;
@@ -155,7 +163,7 @@ typedef struct GPENCIL_FramebufferList {
 	struct GPUFrameBuffer *main;
 	struct GPUFrameBuffer *temp_fb_a;
 	struct GPUFrameBuffer *temp_fb_b;
-	struct GPUFrameBuffer *temp_fb_rim;
+	struct GPUFrameBuffer *temp_fb_fx;
 	struct GPUFrameBuffer *background_fb;
 
 	struct GPUFrameBuffer *multisample_fb;
@@ -191,9 +199,6 @@ typedef struct g_data {
 	struct DRWShadingGroup *shgrps_drawing_fill;
 	struct DRWShadingGroup *shgrps_grid;
 
-	/* grid geometry */
-	GPUBatch *batch_grid;
-
 	int gp_cache_used; /* total objects in cache */
 	int gp_cache_size; /* size of the cache */
 	struct tGPencilObjectCache *gp_object_cache;
@@ -228,10 +233,14 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_fx_blur_sh;
 	struct GPUShader *gpencil_fx_colorize_sh;
 	struct GPUShader *gpencil_fx_flip_sh;
+	struct GPUShader *gpencil_fx_glow_prepare_sh;
+	struct GPUShader *gpencil_fx_glow_resolve_sh;
 	struct GPUShader *gpencil_fx_light_sh;
 	struct GPUShader *gpencil_fx_pixel_sh;
 	struct GPUShader *gpencil_fx_rim_prepare_sh;
 	struct GPUShader *gpencil_fx_rim_resolve_sh;
+	struct GPUShader *gpencil_fx_shadow_prepare_sh;
+	struct GPUShader *gpencil_fx_shadow_resolve_sh;
 	struct GPUShader *gpencil_fx_swirl_sh;
 	struct GPUShader *gpencil_fx_wave_sh;
 
@@ -252,12 +261,15 @@ typedef struct GPENCIL_e_data {
 	struct GPUTexture *temp_color_tx_b;
 	struct GPUTexture *temp_depth_tx_b;
 
-	struct GPUTexture *temp_color_tx_rim;
-	struct GPUTexture *temp_depth_tx_rim;
+	struct GPUTexture *temp_color_tx_fx;
+	struct GPUTexture *temp_depth_tx_fx;
 
 	/* for buffer only one batch is nedeed because the drawing is only of one stroke */
 	GPUBatch *batch_buffer_stroke;
 	GPUBatch *batch_buffer_fill;
+
+	/* grid geometry */
+	GPUBatch *batch_grid;
 
 } GPENCIL_e_data; /* Engine data */
 
@@ -265,7 +277,7 @@ typedef struct GPENCIL_e_data {
 typedef struct GpencilBatchCache {
 	/* For normal strokes, a variable number of batch can be needed depending of number of strokes.
 	   It could use the stroke number as total size, but when activate the onion skining, the number
-	   can change, so the size is changed dinamically.
+	   can change, so the size is changed dynamically.
 	 */
 	GPUBatch **batch_stroke;
 	GPUBatch **batch_fill;
@@ -286,35 +298,38 @@ typedef struct GpencilBatchCache {
 struct DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
         struct GPENCIL_e_data *e_data, struct GPENCIL_Data *vedata, struct DRWPass *pass, struct GPUShader *shader,
         struct Object *ob, struct bGPdata *gpd, struct MaterialGPencilStyle *gp_style, int id, bool onion);
-void DRW_gpencil_populate_datablock(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct bGPdata *gpd);
-void DRW_gpencil_populate_buffer_strokes(struct GPENCIL_e_data *e_data, void *vedata, struct ToolSettings *ts, struct Object *ob);
-void DRW_gpencil_populate_multiedit(struct GPENCIL_e_data *e_data, void *vedata, struct Scene *scene, struct Object *ob, struct bGPdata *gpd);
-void DRW_gpencil_triangulate_stroke_fill(struct bGPDstroke *gps);
+void DRW_gpencil_populate_datablock(
+        struct GPENCIL_e_data *e_data, void *vedata,
+        struct Scene *scene,
+        struct Object *ob, struct tGPencilObjectCache *cache_ob);
+void DRW_gpencil_populate_buffer_strokes(
+        struct GPENCIL_e_data *e_data, void *vedata, struct ToolSettings *ts, struct Object *ob);
+void DRW_gpencil_populate_multiedit(
+        struct GPENCIL_e_data *e_data, void *vedata,
+        struct Scene *scene, struct Object *ob, struct tGPencilObjectCache *cache_ob);
+void DRW_gpencil_triangulate_stroke_fill(struct Object *ob, struct bGPDstroke *gps);
 
 void DRW_gpencil_multisample_ensure(struct GPENCIL_Data *vedata, int rect_w, int rect_h);
 
 /* create geometry functions */
 struct GPUBatch *DRW_gpencil_get_point_geom(struct bGPDstroke *gps, short thickness, const float ink[4]);
-struct GPUBatch *DRW_gpencil_get_stroke_geom(struct bGPDframe *gpf, struct bGPDstroke *gps, short thickness, const float ink[4]);
+struct GPUBatch *DRW_gpencil_get_stroke_geom(struct bGPDstroke *gps, short thickness, const float ink[4]);
 struct GPUBatch *DRW_gpencil_get_fill_geom(struct Object *ob, struct bGPDstroke *gps, const float color[4]);
 struct GPUBatch *DRW_gpencil_get_edit_geom(struct bGPDstroke *gps, float alpha, short dflag);
 struct GPUBatch *DRW_gpencil_get_edlin_geom(struct bGPDstroke *gps, float alpha, short dflag);
-struct GPUBatch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
+struct GPUBatch *DRW_gpencil_get_buffer_stroke_geom(struct bGPdata *gpd, short thickness);
 struct GPUBatch *DRW_gpencil_get_buffer_fill_geom(struct bGPdata *gpd);
-struct GPUBatch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, float matrix[4][4], short thickness);
-struct GPUBatch *DRW_gpencil_get_grid(void);
+struct GPUBatch *DRW_gpencil_get_buffer_point_geom(struct bGPdata *gpd, short thickness);
+struct GPUBatch *DRW_gpencil_get_grid(Object *ob);
 
 /* object cache functions */
 struct tGPencilObjectCache *gpencil_object_cache_add(
         struct tGPencilObjectCache *cache_array, struct Object *ob,
-        bool is_temp, int *gp_cache_size, int *gp_cache_used);
+        int *gp_cache_size, int *gp_cache_used);
 
 /* geometry batch cache functions */
 void gpencil_batch_cache_check_free_slots(struct Object *ob);
 struct GpencilBatchCache *gpencil_batch_cache_get(struct Object *ob, int cfra);
-
-/* modifier functions */
-void gpencil_instance_modifiers(struct GPENCIL_StorageList *stl, struct Object *ob);
 
 /* effects */
 void GPENCIL_create_fx_shaders(struct GPENCIL_e_data *e_data);

@@ -34,7 +34,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_anim_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_ID.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
@@ -71,6 +71,7 @@
 #include "ED_object.h"
 #include "ED_outliner.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_keyframing.h"
 #include "ED_armature.h"
 

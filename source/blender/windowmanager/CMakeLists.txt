@@ -67,6 +67,7 @@ set(SRC
 	intern/wm_init_exit.c
 	intern/wm_jobs.c
 	intern/wm_keymap.c
+	intern/wm_keymap_utils.c
 	intern/wm_menu_type.c
 	intern/wm_operator_props.c
 	intern/wm_operator_type.c
@@ -91,6 +92,7 @@ set(SRC
 
 	WM_api.h
 	WM_keymap.h
+	WM_message.h
 	WM_toolsystem.h
 	WM_types.h
 	wm.h

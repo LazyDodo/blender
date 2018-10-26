@@ -23,8 +23,8 @@ from bpy.types import Header, Menu, Panel
 from bpy.app.translations import pgettext_iface as iface_
 from bl_operators.presets import PresetMenu
 from .properties_grease_pencil_common import (
-    GreasePencilDrawingToolsPanel,
-    GreasePencilDataPanel,
+    AnnotationDrawingToolsPanel,
+    AnnotationDataPanel,
     GreasePencilToolsPanel,
 )
 
@@ -63,10 +63,12 @@ class NODE_HT_header(Header):
                 layout.separator_spacer()
 
                 row = layout.row()
+                types_that_support_material = {'MESH', 'CURVE', 'SURFACE', 'FONT', 'META', 'GPENCIL'}
                 # disable material slot buttons when pinned, cannot find correct slot within id_from (#36589)
-                row.enabled = not snode.pin
+                # disable also when the selected object does not support materials
+                row.enabled = not snode.pin and ob.type in types_that_support_material
                 # Show material.new when no active ID/slot exists
-                if not id_from and ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'METABALL'}:
+                if not id_from and ob.type in types_that_support_material:
                     row.template_ID(ob, "active_material", new="material.new")
                 # Material ID, but not for Lights
                 if id_from and ob.type != 'LIGHT':
@@ -139,11 +141,12 @@ class NODE_HT_header(Header):
 
             layout.template_ID(snode, "node_tree", new="node.new_node_tree")
 
+
+        layout.prop(snode, "pin", text="")
         layout.separator_spacer()
 
         layout.template_running_jobs()
 
-        layout.prop(snode, "pin", text="")
         layout.operator("node.tree_path_parent", text="", icon='FILE_PARENT')
 
         # Snap
@@ -152,10 +155,6 @@ class NODE_HT_header(Header):
         row.prop(toolsettings, "snap_node_element", icon_only=True)
         if toolsettings.snap_node_element != 'GRID':
             row.prop(toolsettings, "snap_target", text="")
-
-        row = layout.row(align=True)
-        row.operator("node.clipboard_copy", text="", icon='COPYDOWN')
-        row.operator("node.clipboard_paste", text="", icon='PASTEDOWN')
 
 
 class NODE_MT_editor_menus(Menu):
@@ -233,7 +232,7 @@ class NODE_MT_select(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("node.select_border").tweak = False
+        layout.operator("node.select_box").tweak = False
         layout.operator("node.select_circle")
 
         layout.separator()
@@ -264,7 +263,8 @@ class NODE_MT_node(Menu):
         layout.operator("transform.resize")
 
         layout.separator()
-
+        layout.operator("node.clipboard_copy", text="Copy")
+        layout.operator("node.clipboard_paste", text="Paste")
         layout.operator("node.duplicate_move")
         layout.operator("node.delete")
         layout.operator("node.delete_reconnect")
@@ -427,7 +427,7 @@ class NODE_PT_active_node_properties(Panel):
         value_inputs = [socket for socket in node.inputs if socket.enabled and not socket.is_linked]
         if value_inputs:
             layout.separator()
-            layout.label("Inputs:")
+            layout.label(text="Inputs:")
             for socket in value_inputs:
                 row = layout.row()
                 socket.draw(context, row, node, iface_(socket.name, socket.bl_rna.translation_context))
@@ -507,21 +507,21 @@ class NODE_UL_interface_sockets(bpy.types.UIList):
 
             # inputs get icon on the left
             if not socket.is_output:
-                row.template_node_socket(color)
+                row.template_node_socket(color=color)
 
             row.prop(socket, "name", text="", emboss=False, icon_value=icon)
 
             # outputs get icon on the right
             if socket.is_output:
-                row.template_node_socket(color)
+                row.template_node_socket(color=color)
 
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
-            layout.template_node_socket(color)
+            layout.template_node_socket(color=color)
 
 
 # Grease Pencil properties
-class NODE_PT_grease_pencil(GreasePencilDataPanel, Panel):
+class NODE_PT_grease_pencil(AnnotationDataPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
     bl_options = {'DEFAULT_CLOSED'}
@@ -548,7 +548,7 @@ class NODE_PT_grease_pencil_tools(GreasePencilToolsPanel, Panel):
 
 
 # Grease Pencil drawing tools
-class NODE_PT_tools_grease_pencil_draw(GreasePencilDrawingToolsPanel, Panel):
+class NODE_PT_tools_grease_pencil_draw(AnnotationDrawingToolsPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'TOOLS'
 

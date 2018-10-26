@@ -223,8 +223,8 @@ static void acf_generic_channel_color(bAnimContext *ac, bAnimListElem *ale, floa
 	}
 	else {
 		// FIXME: what happens when the indention is 1 greater than what it should be (due to grouping)?
-		int colOfs = 20 - 20 * indent;
-		UI_GetThemeColorShade3fv(TH_DOPESHEET_CHANNELSUBOB, colOfs, r_color);
+		int colOfs = 10 - 10 * indent;
+		UI_GetThemeColorShade3fv(TH_SHADE2, colOfs, r_color);
 	}
 }
 
@@ -817,9 +817,9 @@ static void acf_group_color(bAnimContext *ac, bAnimListElem *ale, float r_color[
 	else {
 		/* highlight only for active */
 		if (ale->flag & AGRP_ACTIVE)
-			UI_GetThemeColorShade3fv(TH_GROUP_ACTIVE, 10, r_color);
+			UI_GetThemeColor3fv(TH_GROUP_ACTIVE, r_color);
 		else
-			UI_GetThemeColorShade3fv(TH_GROUP, 20, r_color);
+			UI_GetThemeColor3fv(TH_GROUP, r_color);
 	}
 }
 
@@ -1111,7 +1111,7 @@ static bool acf_nla_controls_setting_valid(bAnimContext *UNUSED(ac), bAnimListEl
 		case ACHANNEL_SETTING_EXPAND:
 			return true;
 
-		// TOOD: selected?
+		// TODO: selected?
 
 		default: /* unsupported */
 			return false;
@@ -3035,7 +3035,7 @@ static int acf_gpl_setting_flag(bAnimContext *UNUSED(ac), eAnimChannel_Settings 
 		case ACHANNEL_SETTING_MUTE: /* animation muting - similar to frame lock... */
 			return GP_LAYER_FRAMELOCK;
 
-		case ACHANNEL_SETTING_VISIBLE: /* visiblity of the layers (NOT muting) */
+		case ACHANNEL_SETTING_VISIBLE: /* visibility of the layers (NOT muting) */
 			*neg = true;
 			return GP_LAYER_HIDE;
 
@@ -4040,7 +4040,7 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 	bAnimContext ac;
 	ListBase anim_data = {NULL, NULL};
 	int filter;
-	int setting = GET_INT_FROM_POINTER(setting_wrap);
+	int setting = POINTER_AS_INT(setting_wrap);
 	short on = 0;
 
 	/* send notifiers before doing anything else... */
@@ -4186,7 +4186,7 @@ static void achannel_setting_slider_shapekey_cb(bContext *C, void *key_poin, voi
 		/* find or create new F-Curve */
 		// XXX is the group name for this ok?
 		bAction *act = verify_adt_action(bmain, (ID *)key, 1);
-		FCurve *fcu = verify_fcurve(act, NULL, &ptr, rna_path, 0, 1);
+		FCurve *fcu = verify_fcurve(bmain, act, NULL, &ptr, rna_path, 0, 1);
 
 		/* set the special 'replace' flag if on a keyframe */
 		if (fcurve_frame_has_keyframe(fcu, cfra, 0))
@@ -4255,11 +4255,12 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 	void *ptr;
 	const char *tooltip;
 	uiBut *but = NULL;
+	bool enabled;
 
 	/* get the flag and the pointer to that flag */
 	flag = acf->setting_flag(ac, setting, &negflag);
 	ptr = acf->setting_ptr(ale, setting, &ptrsize);
-	/* enabled = ANIM_channel_setting_get(ac, ale, setting); */ /* UNUSED */
+	enabled = ANIM_channel_setting_get(ac, ale, setting);
 
 	/* get the base icon for the setting */
 	switch (setting) {
@@ -4312,8 +4313,8 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 			break;
 
 		case ACHANNEL_SETTING_MUTE: /* muted speaker */
-			//icon = ((enabled) ? ICON_MUTE_IPO_ON : ICON_MUTE_IPO_OFF);
-			icon = ICON_MUTE_IPO_OFF;
+			icon = ((enabled) ? ICON_CHECKBOX_DEHLT : ICON_CHECKBOX_HLT);
+			usetoggle = false;
 
 			if (ELEM(ale->type, ANIMTYPE_FCURVE, ANIMTYPE_NLACURVE)) {
 				tooltip = TIP_("Does F-Curve contribute to result");
@@ -4390,7 +4391,7 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 				case ACHANNEL_SETTING_PINNED: /* NLA Actions - 'map/nomap' */
 				case ACHANNEL_SETTING_MOD_OFF:
 				case ACHANNEL_SETTING_ALWAYS_VISIBLE:
-					UI_but_funcN_set(but, achannel_setting_flush_widget_cb, MEM_dupallocN(ale), SET_INT_IN_POINTER(setting));
+					UI_but_funcN_set(but, achannel_setting_flush_widget_cb, MEM_dupallocN(ale), POINTER_FROM_INT(setting));
 					break;
 
 				/* settings needing special attention */

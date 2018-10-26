@@ -130,7 +130,7 @@ static void buttons_main_region_init(wmWindowManager *wm, ARegion *ar)
 
 	ED_region_panels_init(wm, ar);
 
-	keymap = WM_keymap_find(wm->defaultconf, "Property Editor", SPACE_BUTS, 0);
+	keymap = WM_keymap_ensure(wm->defaultconf, "Property Editor", SPACE_BUTS, 0);
 	WM_event_add_keymap_handler(&ar->handlers, keymap);
 }
 
@@ -152,9 +152,6 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 			break;
 		case BCONTEXT_WORLD:
 			contexts[0] = "world";
-			break;
-		case BCONTEXT_WORKSPACE:
-			contexts[0] = "workspace";
 			break;
 		case BCONTEXT_OBJECT:
 			contexts[0] = "object";
@@ -200,10 +197,12 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 
 static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 {
-	const char *contexts[3] = {NULL};
-
 	const WorkSpace *workspace = CTX_wm_workspace(C);
 	const int mode = CTX_data_mode_enum(C);
+
+	const char *contexts_base[5] = {NULL};
+	contexts_base[0] = ".active_tool";
+	const char **contexts = &contexts_base[1];
 
 	if (workspace->tools_space_type == SPACE_VIEW3D) {
 		switch (mode) {
@@ -261,7 +260,10 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 		}
 	}
 	else if (workspace->tools_space_type == SPACE_IMAGE) {
-		/* TODO */
+		switch (mode) {
+			case CTX_MODE_EDIT_MESH:
+				ARRAY_SET_ITEMS(contexts, ".uv_sculpt");
+		}
 	}
 
 	/* for grease pencil we don't use tool system yet, so we need check outside
@@ -282,8 +284,15 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 			break;
 	}
 
+	int i = 0;
+	while (contexts_base[i]) {
+		i++;
+	}
+	BLI_assert(i < ARRAY_SIZE(contexts_base));
+	contexts_base[i] = ".workspace";
+
 	const bool vertical = true;
-	ED_region_panels_layout_ex(C, ar, contexts, -1, vertical);
+	ED_region_panels_layout_ex(C, ar, contexts_base, -1, vertical);
 }
 
 static void buttons_main_region_layout(const bContext *C, ARegion *ar)
@@ -324,7 +333,7 @@ static void buttons_operatortypes(void)
 
 static void buttons_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "Property Editor", SPACE_BUTS, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Property Editor", SPACE_BUTS, 0);
 
 	WM_keymap_add_item(keymap, "BUTTONS_OT_context_menu", RIGHTMOUSE, KM_PRESS, 0, 0);
 }
@@ -364,6 +373,10 @@ static void buttons_header_region_message_subscribe(
 
 	if (!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_SCENE, BCONTEXT_WORLD)) {
 		WM_msg_subscribe_rna_anon_prop(mbus, ViewLayer, name, &msg_sub_value_region_tag_redraw);
+	}
+
+	if (sbuts->mainb == BCONTEXT_TOOL) {
+		WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
 	}
 }
 
@@ -501,6 +514,7 @@ static void buttons_area_listener(
 			break;
 		case NC_BRUSH:
 			buttons_area_redraw(sa, BCONTEXT_TEXTURE);
+			buttons_area_redraw(sa, BCONTEXT_TOOL);
 			sbuts->preview = 1;
 			break;
 		case NC_TEXTURE:

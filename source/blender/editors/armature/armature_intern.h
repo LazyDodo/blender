@@ -128,6 +128,7 @@ void POSE_OT_group_deselect(struct wmOperatorType *ot);
 void POSE_OT_paths_calculate(struct wmOperatorType *ot);
 void POSE_OT_paths_update(struct wmOperatorType *ot);
 void POSE_OT_paths_clear(struct wmOperatorType *ot);
+void POSE_OT_paths_range_update(struct wmOperatorType *ot);
 
 void POSE_OT_autoside_names(struct wmOperatorType *ot);
 void POSE_OT_flip_names(struct wmOperatorType *ot);
@@ -145,6 +146,8 @@ void POSE_OT_bone_layers(struct wmOperatorType *ot);
 /* Temporary data linking PoseChannels with the F-Curves they affect */
 typedef struct tPChanFCurveLink {
 	struct tPChanFCurveLink *next, *prev;
+
+	struct Object *ob;              /* Object this Pose Channel belongs to. */
 
 	ListBase fcurves;               /* F-Curves for this PoseChannel (wrapped with LinkData) */
 	struct bPoseChannel *pchan;     /* Pose Channel which data is attached to */
@@ -169,12 +172,13 @@ typedef struct tPChanFCurveLink {
 
 /* ----------- */
 
-void poseAnim_mapping_get(struct bContext *C, ListBase *pfLinks, struct Object *ob, struct bAction *act);
+struct Object *poseAnim_object_get(struct Object *ob_);
+void poseAnim_mapping_get(struct bContext *C, ListBase *pfLinks);
 void poseAnim_mapping_free(ListBase *pfLinks);
 
 void poseAnim_mapping_refresh(struct bContext *C, struct Scene *scene, struct Object *ob);
 void poseAnim_mapping_reset(ListBase *pfLinks);
-void poseAnim_mapping_autoKeyframe(struct bContext *C, struct Scene *scene, struct Object *ob, ListBase *pfLinks, float cframe);
+void poseAnim_mapping_autoKeyframe(struct bContext *C, struct Scene *scene, ListBase *pfLinks, float cframe);
 
 LinkData *poseAnim_mapping_getNextFCurve(ListBase *fcuLinks, LinkData *prev, const char *path);
 
@@ -212,7 +216,7 @@ void POSE_OT_propagate(struct wmOperatorType *ot);
  * within each file, but some tools still have a bit of overlap which makes things messy -- Feb 2013
  */
 
-EditBone *make_boneList(struct ListBase *edbo, struct ListBase *bones, struct EditBone *parent, struct Bone *actBone);
+EditBone *make_boneList(struct ListBase *edbo, struct ListBase *bones, struct Bone *actBone);
 
 /* duplicate method */
 void preEditBoneDuplicate(struct ListBase *editbones);

@@ -107,13 +107,11 @@ NodeGroup *BlenderFileLoader::Load()
 
 		bool apply_modifiers = false;
 		bool calc_undeformed = false;
-		bool calc_tessface = false;
 		Mesh *mesh = BKE_mesh_new_from_object(depsgraph,
 		                                      _re->main,
 		                                      _re->scene,
 		                                      ob,
 		                                      apply_modifiers,
-		                                      calc_tessface,
 		                                      calc_undeformed);
 
 		if (mesh) {
@@ -164,24 +162,24 @@ int BlenderFileLoader::countClippedFaces(float v1[3], float v2[3], float v3[3], 
 		sum += clip[i];
 	}
 	switch (numClipped) {
-	case 0:
-		numTris = 1; // triangle
-		break;
-	case 1:
-		numTris = 2; // tetragon
-		break;
-	case 2:
-		if (sum == 0)
-			numTris = 3; // pentagon
-		else
+		case 0:
 			numTris = 1; // triangle
-		break;
-	case 3:
-		if (sum == 3 || sum == -3)
-			numTris = 0;
-		else
+			break;
+		case 1:
 			numTris = 2; // tetragon
-		break;
+			break;
+		case 2:
+			if (sum == 0)
+				numTris = 3; // pentagon
+			else
+				numTris = 1; // triangle
+			break;
+		case 3:
+			if (sum == 3 || sum == -3)
+				numTris = 0;
+			else
+				numTris = 2; // tetragon
+			break;
 	}
 	return numTris;
 }

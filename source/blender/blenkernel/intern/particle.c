@@ -36,8 +36,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_collection_types.h"
 #include "DNA_curve_types.h"
-#include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
@@ -232,23 +232,6 @@ void psys_set_current_num(Object *ob, int index)
 	}
 }
 
-#if 0 /* UNUSED */
-Object *psys_find_object(Scene *scene, ParticleSystem *psys)
-{
-	Base *base;
-	ParticleSystem *tpsys;
-
-	for (base = scene->base.first; base; base = base->next) {
-		for (tpsys = base->object->particlesystem.first; psys; psys = psys->next) {
-			if (tpsys == psys)
-				return base->object;
-		}
-	}
-
-	return NULL;
-}
-#endif
-
 struct LatticeDeformData *psys_create_lattice_deform_data(ParticleSimulationData *sim)
 {
 	struct LatticeDeformData *lattice_deform_data = NULL;
@@ -307,7 +290,7 @@ static PTCacheEdit *psys_orig_edit_get(ParticleSystem *psys)
 	return psys->orig_psys->edit;
 }
 
-bool psys_in_edit_mode(Depsgraph *depsgraph, ParticleSystem *psys)
+bool psys_in_edit_mode(Depsgraph *depsgraph, const ParticleSystem *psys)
 {
 	const ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
 	if (view_layer->basact == NULL) {
@@ -319,7 +302,7 @@ bool psys_in_edit_mode(Depsgraph *depsgraph, ParticleSystem *psys)
 	if (object->mode != OB_MODE_PARTICLE_EDIT) {
 		return false;
 	}
-	ParticleSystem *psys_orig = psys_orig_get(psys);
+	const ParticleSystem *psys_orig = psys_orig_get((ParticleSystem *)psys);
 	return (psys_orig->edit || psys->pointcache->edit) &&
 	       (use_render_params == false);
 }
@@ -1399,7 +1382,7 @@ int psys_particle_dm_face_lookup(
 		LinkNode *tessface_node = poly_nodes[pindex_orig];
 
 		for (; tessface_node; tessface_node = tessface_node->next) {
-			int findex_dst = GET_INT_FROM_POINTER(tessface_node->link);
+			int findex_dst = POINTER_AS_INT(tessface_node->link);
 			faceuv = osface_final[findex_dst].uv;
 
 			/* check that this intersects - Its possible this misses :/ -
@@ -2198,12 +2181,12 @@ static void psys_thread_create_path(ParticleTask *task, struct ChildParticle *cp
 
 		/*
 		 * NOTE: Should in theory be the same as:
-		 cpa_num = psys_particle_dm_face_lookup(
-		        ctx->sim.psmd->dm_final,
-		        ctx->sim.psmd->dm_deformed,
-		        pa->num, pa->fuv,
-		        NULL);
-		*/
+		 * cpa_num = psys_particle_dm_face_lookup(
+		 *        ctx->sim.psmd->dm_final,
+		 *        ctx->sim.psmd->dm_deformed,
+		 *        pa->num, pa->fuv,
+		 *        NULL);
+		 */
 		cpa_num = (ELEM(pa->num_dmcache, DMCACHE_ISCHILD, DMCACHE_NOTFOUND))
 		        ? pa->num
 		        : pa->num_dmcache;
@@ -2932,22 +2915,6 @@ void psys_get_from_key(ParticleKey *key, float loc[3], float vel[3], float rot[4
 	if (rot) copy_qt_qt(rot, key->rot);
 	if (time) *time = key->time;
 }
-/*-------changing particle keys from space to another-------*/
-#if 0
-static void key_from_object(Object *ob, ParticleKey *key)
-{
-	float q[4];
-
-	add_v3_v3(key->vel, key->co);
-
-	mul_m4_v3(ob->obmat, key->co);
-	mul_m4_v3(ob->obmat, key->vel);
-	mat4_to_quat(q, ob->obmat);
-
-	sub_v3_v3v3(key->vel, key->vel, key->co);
-	mul_qt_qtqt(key->rot, q, key->rot);
-}
-#endif
 
 static void triatomat(float *v1, float *v2, float *v3, float (*uv)[2], float mat[4][4])
 {
@@ -3855,14 +3822,6 @@ void psys_get_particle_on_path(ParticleSimulationData *sim, int p, ParticleKey *
 				}
 			}
 
-			/* correct child ipo timing */
-#if 0 // XXX old animation system
-			if ((part->flag & PART_ABS_TIME) == 0 && part->ipo) {
-				calc_ipo(part->ipo, 100.0f * t);
-				execute_ipo((ID *)part, part->ipo);
-			}
-#endif // XXX old animation system
-
 			/* get different child parameters from textures & vgroups */
 			memset(&ctx, 0, sizeof(ParticleThreadContext));
 			ctx.sim = *sim;
@@ -4354,13 +4313,13 @@ void psys_apply_hair_lattice(Depsgraph *depsgraph, Scene *scene, Object *ob, Par
 
 
 /* Draw Engine */
-void (*BKE_particle_batch_cache_dirty_cb)(ParticleSystem *psys, int mode) = NULL;
+void (*BKE_particle_batch_cache_dirty_tag_cb)(ParticleSystem *psys, int mode) = NULL;
 void (*BKE_particle_batch_cache_free_cb)(ParticleSystem *psys) = NULL;
 
-void BKE_particle_batch_cache_dirty(ParticleSystem *psys, int mode)
+void BKE_particle_batch_cache_dirty_tag(ParticleSystem *psys, int mode)
 {
 	if (psys->batch_cache) {
-		BKE_particle_batch_cache_dirty_cb(psys, mode);
+		BKE_particle_batch_cache_dirty_tag_cb(psys, mode);
 	}
 }
 void BKE_particle_batch_cache_free(ParticleSystem *psys)

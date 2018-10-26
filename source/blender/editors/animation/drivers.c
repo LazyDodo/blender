@@ -287,8 +287,8 @@ static int add_driver_with_target(
 }
 
 /* Main Driver Management API calls:
- *  Add a new driver for the specified property on the given ID block,
- *  and make it be driven by the specified target.
+ * Add a new driver for the specified property on the given ID block,
+ * and make it be driven by the specified target.
  *
  * This is intended to be used in conjunction with a modal "eyedropper"
  * for picking the variable that is going to be used to drive this one.
@@ -370,7 +370,7 @@ int ANIM_add_driver_with_target(
 /* --------------------------------- */
 
 /* Main Driver Management API calls:
- *  Add a new driver for the specified property on the given ID block
+ * Add a new driver for the specified property on the given ID block
  */
 int ANIM_add_driver(ReportList *reports, ID *id, const char rna_path[], int array_index, short flag, int type)
 {
@@ -477,7 +477,7 @@ int ANIM_add_driver(ReportList *reports, ID *id, const char rna_path[], int arra
 }
 
 /* Main Driver Management API calls:
- *  Remove the driver for the specified property on the given ID block (if available)
+ * Remove the driver for the specified property on the given ID block (if available)
  */
 bool ANIM_remove_driver(ReportList *UNUSED(reports), ID *id, const char rna_path[], int array_index, short UNUSED(flag))
 {
@@ -745,11 +745,8 @@ bool ANIM_driver_vars_paste(ReportList *reports, FCurve *fcu, bool replace)
 		driver->variables.last = tmp_list.last;
 	}
 
-#ifdef WITH_PYTHON
 	/* since driver variables are cached, the expression needs re-compiling too */
-	if (driver->type == DRIVER_TYPE_PYTHON)
-		driver->flag |= DRIVER_FLAG_RENAMEVAR;
-#endif
+	BKE_driver_invalidate_expression(driver, false, true);
 
 	return true;
 }

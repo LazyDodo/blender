@@ -77,7 +77,6 @@ static void initData(GpencilModifierData *md)
 	gpmd->rnd_rot = 0.5f;
 	gpmd->rnd_size = 0.5f;
 	gpmd->lock_axis |= GP_LOCKAXIS_X;
-	gpmd->flag |= GP_INSTANCE_MAKE_OBJECTS;
 
 	/* fill random values */
 	BLI_array_frand(gpmd->rnd, 20, 1);
@@ -169,15 +168,21 @@ static void generate_geometry(
 						/* Duplicate stroke */
 						bGPDstroke *gps_dst = MEM_dupallocN(gps);
 						gps_dst->points = MEM_dupallocN(gps->points);
-						gps_dst->dvert = MEM_dupallocN(gps->dvert);
-						BKE_gpencil_stroke_weights_duplicate(gps, gps_dst);
-
+						if (gps->dvert) {
+							gps_dst->dvert = MEM_dupallocN(gps->dvert);
+							BKE_gpencil_stroke_weights_duplicate(gps, gps_dst);
+						}
 						gps_dst->triangles = MEM_dupallocN(gps->triangles);
 
 						/* Move points */
 						for (int i = 0; i < gps->totpoints; i++) {
 							bGPDspoint *pt = &gps_dst->points[i];
 							mul_m4_v3(mat, &pt->x);
+						}
+
+						/* if replace material, use new one */
+						if ((mmd->mat_rpl > 0) && (mmd->mat_rpl <= ob->totcol)) {
+							gps_dst->mat_nr = mmd->mat_rpl - 1;
 						}
 
 						/* Add new stroke to cache, to be added to the frame once
@@ -191,17 +196,22 @@ static void generate_geometry(
 	}
 
 	/* merge newly created stroke instances back into the main stroke list */
-	BLI_movelisttolist(&gpf->strokes, &stroke_cache);
+	if (mmd->flag & GP_INSTANCE_KEEP_ONTOP) {
+		BLI_movelisttolist_reverse(&gpf->strokes, &stroke_cache);
+	}
+	else {
+		BLI_movelisttolist(&gpf->strokes, &stroke_cache);
+	}
 
 	/* free temp data */
 	MEM_SAFE_FREE(valid_strokes);
 }
 
-/* bakeModifier - "Bake to Data" Mode */
-static void bakeModifierGP_strokes(
-        Depsgraph *depsgraph,
+static void bakeModifier(
+        Main *UNUSED(bmain), Depsgraph *depsgraph,
         GpencilModifierData *md, Object *ob)
 {
+
 	bGPdata *gpd = ob->data;
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -213,127 +223,12 @@ static void bakeModifierGP_strokes(
 
 /* -------------------------------- */
 
-/* helper to create a new object */
-static Object *array_instance_add_ob_copy(Main *bmain, Scene *scene, Object *from_ob)
-{
-	Object *ob;
-
-	ob = BKE_object_copy(bmain, from_ob);
-	BKE_collection_object_add_from(bmain, scene, from_ob, ob);
-
-	zero_v3(ob->loc);
-	zero_v3(ob->rot);
-
-	DEG_id_type_tag(bmain, ID_OB);
-	DEG_relations_tag_update(bmain);
-	DEG_id_tag_update(&scene->id, 0);
-
-	return ob;
-}
-
-/* bakeModifier - "Make Objects" Mode */
-static void bakeModifierGP_objects(Main *bmain, Depsgraph *depsgraph, GpencilModifierData *md, Object *ob)
-{
-	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-	Scene *scene = DEG_get_evaluated_scene(depsgraph);
-	/* reset random */
-	mmd->rnd[0] = 1;
-
-	/* generate instances as objects */
-	for (int x = 0; x < mmd->count[0]; x++) {
-		for (int y = 0; y < mmd->count[1]; y++) {
-			for (int z = 0; z < mmd->count[2]; z++) {
-				Object *newob;
-				GpencilModifierData *fmd;
-
-				const int elem_idx[3] = {x, y, z};
-				float mat[4][4], finalmat[4][4];
-				int sh;
-
-				/* original strokes are at index = 0,0,0 */
-				if ((x == 0) && (y == 0) && (z == 0)) {
-					continue;
-				}
-
-				/* compute transform for instance */
-				BKE_gpencil_instance_modifier_instance_tfm(mmd, elem_idx, mat);
-				mul_m4_m4m4(finalmat, ob->obmat, mat);
-
-				/* moves to new origin */
-				sh = x;
-				if (mmd->lock_axis == GP_LOCKAXIS_Y) {
-					sh = y;
-				}
-				if (mmd->lock_axis == GP_LOCKAXIS_Z) {
-					sh = z;
-				}
-				madd_v3_v3fl(finalmat[3], mmd->shift, sh);
-
-				/* Create a new object
-				 *
-				 * NOTE: Copies share the same original GP datablock
-				 * Artists can later user make_single_user on these
-				 * to make them unique (if necessary), without too
-				 * much extra memory usage.
-				 */
-				newob = array_instance_add_ob_copy(bmain, scene, ob);
-
-				/* remove array on destination object */
-				fmd = (GpencilModifierData *)BLI_findstring(&newob->greasepencil_modifiers, md->name, offsetof(GpencilModifierData, name));
-				if (fmd) {
-					BLI_remlink(&newob->greasepencil_modifiers, fmd);
-					BKE_gpencil_modifier_free(fmd);
-				}
-
-				/* copy transforms to destination object */
-				copy_m4_m4(newob->obmat, finalmat);
-
-				copy_v3_v3(newob->loc, finalmat[3]);
-				mat4_to_eul(newob->rot, finalmat);
-				mat4_to_size(newob->size, finalmat);
-			}
-		}
-	}
-}
-
-/* -------------------------------- */
-
 /* Generic "generateStrokes" callback */
 static void generateStrokes(
         GpencilModifierData *md, Depsgraph *depsgraph,
         Object *ob, bGPDlayer *gpl, bGPDframe *gpf)
 {
-	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-
-	/* When the "make_objects" flag is set, this modifier is handled as part of the
-	 * draw engine instead. The main benefit is that the instances won't suffer from
-	 * z-ordering problems.
-	 *
-	 * FIXME: Ultimately, the draw-engine hack here shouldn't be necessary, but until
-	 *        we find a better fix to the z-ordering problems, it's better to have
-	 *        working functionality
-	 */
-	if ((mmd->flag & GP_INSTANCE_MAKE_OBJECTS) == 0) {
-		generate_geometry(md, depsgraph, ob, gpl, gpf);
-	}
-}
-
-/* Generic "bakeModifier" callback */
-static void bakeModifier(
-        Main *bmain, Depsgraph *depsgraph,
-        GpencilModifierData *md, Object *ob)
-{
-	InstanceGpencilModifierData *mmd = (InstanceGpencilModifierData *)md;
-
-	/* Create new objects or add all to current datablock.
-	 * Sometimes it's useful to have the option to do either of these...
-	 */
-	if (mmd->flag & GP_INSTANCE_MAKE_OBJECTS) {
-		bakeModifierGP_objects(bmain, depsgraph, md, ob);
-	}
-	else {
-		bakeModifierGP_strokes(depsgraph, md, ob);
-	}
+	generate_geometry(md, depsgraph, ob, gpl, gpf);
 }
 
 GpencilModifierTypeInfo modifierType_Gpencil_Instance = {
@@ -347,7 +242,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Instance = {
 
 	/* deformStroke */      NULL,
 	/* generateStrokes */   generateStrokes,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

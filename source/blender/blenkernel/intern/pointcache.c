@@ -37,8 +37,8 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_ID.h"
+#include "DNA_collection_types.h"
 #include "DNA_dynamicpaint_types.h"
-#include "DNA_group_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
 #include "DNA_object_force_types.h"
@@ -141,7 +141,7 @@ static int ptcache_extra_datasize[] = {
 	sizeof(ParticleSpring)
 };
 
-/* forward declerations */
+/* forward declarations */
 static int ptcache_file_compressed_read(PTCacheFile *pf, unsigned char *result, unsigned int len);
 static int ptcache_file_compressed_write(PTCacheFile *pf, unsigned char *in, unsigned int in_len, unsigned char *out, int mode);
 static int ptcache_file_write(PTCacheFile *pf, const void *f, unsigned int tot, unsigned int size);
@@ -2996,117 +2996,116 @@ void BKE_ptcache_id_clear(PTCacheID *pid, int mode, unsigned int cfra)
 
 	/* clear all files in the temp dir with the prefix of the ID and the ".bphys" suffix */
 	switch (mode) {
-	case PTCACHE_CLEAR_ALL:
-	case PTCACHE_CLEAR_BEFORE:
-	case PTCACHE_CLEAR_AFTER:
-		if (pid->cache->flag & PTCACHE_DISK_CACHE) {
-			ptcache_path(pid, path);
+		case PTCACHE_CLEAR_ALL:
+		case PTCACHE_CLEAR_BEFORE:
+		case PTCACHE_CLEAR_AFTER:
+			if (pid->cache->flag & PTCACHE_DISK_CACHE) {
+				ptcache_path(pid, path);
 
-			dir = opendir(path);
-			if (dir==NULL)
-				return;
+				dir = opendir(path);
+				if (dir==NULL)
+					return;
 
-			len = ptcache_filename(pid, filename, cfra, 0, 0); /* no path */
-			/* append underscore terminator to ensure we don't match similar names
-			 * from objects whose names start with the same prefix
-			 */
-			if (len < sizeof(filename) - 2) {
-				BLI_strncpy(filename + len, "_", sizeof(filename) - 2 - len);
-				len += 1;
-			}
+				len = ptcache_filename(pid, filename, cfra, 0, 0); /* no path */
+				/* append underscore terminator to ensure we don't match similar names
+				 * from objects whose names start with the same prefix
+				 */
+				if (len < sizeof(filename) - 2) {
+					BLI_strncpy(filename + len, "_", sizeof(filename) - 2 - len);
+					len += 1;
+				}
 
-			BLI_snprintf(ext, sizeof(ext), "_%02u%s", pid->stack_index, fext);
+				BLI_snprintf(ext, sizeof(ext), "_%02u%s", pid->stack_index, fext);
 
-			while ((de = readdir(dir)) != NULL) {
-				if (strstr(de->d_name, ext)) { /* do we have the right extension?*/
-					if (STREQLEN(filename, de->d_name, len)) { /* do we have the right prefix */
-						if (mode == PTCACHE_CLEAR_ALL) {
-							pid->cache->last_exact = MIN2(pid->cache->startframe, 0);
-							BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
-							BLI_delete(path_full, false, false);
-						}
-						else {
-							/* read the number of the file */
-							const int frame = ptcache_frame_from_filename(de->d_name, ext);
+				while ((de = readdir(dir)) != NULL) {
+					if (strstr(de->d_name, ext)) { /* do we have the right extension?*/
+						if (STREQLEN(filename, de->d_name, len)) { /* do we have the right prefix */
+							if (mode == PTCACHE_CLEAR_ALL) {
+								pid->cache->last_exact = MIN2(pid->cache->startframe, 0);
+								BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
+								BLI_delete(path_full, false, false);
+							}
+							else {
+								/* read the number of the file */
+								const int frame = ptcache_frame_from_filename(de->d_name, ext);
 
-							if (frame != -1) {
-								if ((mode == PTCACHE_CLEAR_BEFORE && frame < cfra) ||
-								    (mode == PTCACHE_CLEAR_AFTER && frame > cfra))
-								{
-
-									BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
-									BLI_delete(path_full, false, false);
-									if (pid->cache->cached_frames && frame >=sta && frame <= end)
-										pid->cache->cached_frames[frame-sta] = 0;
+								if (frame != -1) {
+									if ((mode == PTCACHE_CLEAR_BEFORE && frame < cfra) ||
+									    (mode == PTCACHE_CLEAR_AFTER && frame > cfra))
+									{
+										BLI_join_dirfile(path_full, sizeof(path_full), path, de->d_name);
+										BLI_delete(path_full, false, false);
+										if (pid->cache->cached_frames && frame >=sta && frame <= end)
+											pid->cache->cached_frames[frame-sta] = 0;
+									}
 								}
 							}
 						}
 					}
 				}
-			}
-			closedir(dir);
+				closedir(dir);
 
-			if (mode == PTCACHE_CLEAR_ALL && pid->cache->cached_frames)
-				memset(pid->cache->cached_frames, 0, MEM_allocN_len(pid->cache->cached_frames));
-		}
-		else {
-			PTCacheMem *pm= pid->cache->mem_cache.first;
-			PTCacheMem *link= NULL;
-
-			if (mode == PTCACHE_CLEAR_ALL) {
-				/*we want startframe if the cache starts before zero*/
-				pid->cache->last_exact = MIN2(pid->cache->startframe, 0);
-				for (; pm; pm=pm->next) {
-					ptcache_data_free(pm);
-					ptcache_extra_free(pm);
-				}
-				BLI_freelistN(&pid->cache->mem_cache);
-
-				if (pid->cache->cached_frames)
+				if (mode == PTCACHE_CLEAR_ALL && pid->cache->cached_frames)
 					memset(pid->cache->cached_frames, 0, MEM_allocN_len(pid->cache->cached_frames));
 			}
 			else {
-				while (pm) {
-					if ((mode == PTCACHE_CLEAR_BEFORE && pm->frame < cfra) ||
-					    (mode == PTCACHE_CLEAR_AFTER && pm->frame > cfra))
-					{
-						link = pm;
-						if (pid->cache->cached_frames && pm->frame >=sta && pm->frame <= end)
-							pid->cache->cached_frames[pm->frame-sta] = 0;
+				PTCacheMem *pm= pid->cache->mem_cache.first;
+				PTCacheMem *link= NULL;
+
+				if (mode == PTCACHE_CLEAR_ALL) {
+					/*we want startframe if the cache starts before zero*/
+					pid->cache->last_exact = MIN2(pid->cache->startframe, 0);
+					for (; pm; pm=pm->next) {
 						ptcache_data_free(pm);
 						ptcache_extra_free(pm);
-						pm = pm->next;
-						BLI_freelinkN(&pid->cache->mem_cache, link);
 					}
-					else
-						pm = pm->next;
+					BLI_freelistN(&pid->cache->mem_cache);
+
+					if (pid->cache->cached_frames)
+						memset(pid->cache->cached_frames, 0, MEM_allocN_len(pid->cache->cached_frames));
+				}
+				else {
+					while (pm) {
+						if ((mode == PTCACHE_CLEAR_BEFORE && pm->frame < cfra) ||
+						    (mode == PTCACHE_CLEAR_AFTER && pm->frame > cfra))
+						{
+							link = pm;
+							if (pid->cache->cached_frames && pm->frame >=sta && pm->frame <= end)
+								pid->cache->cached_frames[pm->frame-sta] = 0;
+							ptcache_data_free(pm);
+							ptcache_extra_free(pm);
+							pm = pm->next;
+							BLI_freelinkN(&pid->cache->mem_cache, link);
+						}
+						else
+							pm = pm->next;
+					}
 				}
 			}
-		}
-		break;
+			break;
 
-	case PTCACHE_CLEAR_FRAME:
-		if (pid->cache->flag & PTCACHE_DISK_CACHE) {
-			if (BKE_ptcache_id_exist(pid, cfra)) {
-				ptcache_filename(pid, filename, cfra, 1, 1); /* no path */
-				BLI_delete(filename, false, false);
-			}
-		}
-		else {
-			PTCacheMem *pm = pid->cache->mem_cache.first;
-
-			for (; pm; pm=pm->next) {
-				if (pm->frame == cfra) {
-					ptcache_data_free(pm);
-					ptcache_extra_free(pm);
-					BLI_freelinkN(&pid->cache->mem_cache, pm);
-					break;
+		case PTCACHE_CLEAR_FRAME:
+			if (pid->cache->flag & PTCACHE_DISK_CACHE) {
+				if (BKE_ptcache_id_exist(pid, cfra)) {
+					ptcache_filename(pid, filename, cfra, 1, 1); /* no path */
+					BLI_delete(filename, false, false);
 				}
 			}
-		}
-		if (pid->cache->cached_frames && cfra >= sta && cfra <= end)
-			pid->cache->cached_frames[cfra-sta] = 0;
-		break;
+			else {
+				PTCacheMem *pm = pid->cache->mem_cache.first;
+
+				for (; pm; pm=pm->next) {
+					if (pm->frame == cfra) {
+						ptcache_data_free(pm);
+						ptcache_extra_free(pm);
+						BLI_freelinkN(&pid->cache->mem_cache, pm);
+						break;
+					}
+				}
+			}
+			if (pid->cache->cached_frames && cfra >= sta && cfra <= end)
+				pid->cache->cached_frames[cfra-sta] = 0;
+			break;
 	}
 
 	BKE_ptcache_update_info(pid);
@@ -3171,19 +3170,6 @@ void BKE_ptcache_id_time(PTCacheID *pid, Scene *scene, float cfra, int *startfra
 	if (startframe && endframe) {
 		*startframe= cache->startframe;
 		*endframe= cache->endframe;
-
-		/* TODO: time handling with object offsets and simulated vs. cached
-		 * particles isn't particularly easy, so for now what you see is what
-		 * you get. In the future point cache could handle the whole particle
-		 * system timing. */
-#if 0
-		if ((ob->partype & PARSLOW)==0) {
-			offset= ob->sf;
-
-			*startframe += (int)(offset+0.5f);
-			*endframe += (int)(offset+0.5f);
-		}
-#endif
 	}
 
 	/* verify cached_frames array is up to date */
@@ -3289,12 +3275,6 @@ int  BKE_ptcache_id_reset(Scene *scene, PTCacheID *pid, int mode)
 			sbFreeSimulation(pid->calldata);
 		else if (pid->type == PTCACHE_TYPE_PARTICLES)
 			psys_reset(pid->calldata, PSYS_RESET_DEPSGRAPH);
-#if 0
-		else if (pid->type == PTCACHE_TYPE_SMOKE_DOMAIN)
-			smokeModifier_reset(pid->calldata);
-		else if (pid->type == PTCACHE_TYPE_SMOKE_HIGHRES)
-			smokeModifier_reset_turbulence(pid->calldata);
-#endif
 		else if (pid->type == PTCACHE_TYPE_DYNAMICPAINT)
 			dynamicPaint_clearSurface(scene, (DynamicPaintSurface*)pid->calldata);
 	}

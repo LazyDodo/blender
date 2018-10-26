@@ -108,11 +108,11 @@ static void deformVerts(
 	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
 	Mesh *mesh_src = mesh;
 
-	if (mesh_src == NULL) {
+	if (mesh_src == NULL && ctx->object->type == OB_MESH) {
 		mesh_src = ctx->object->data;
 	}
 
-	BLI_assert(mesh_src->totvert == numVerts);
+	BLI_assert(mesh_src == NULL || mesh_src->totvert == numVerts);
 
 	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, scene, ctx->object, mesh_src, vertexCos, numVerts);
 }
@@ -126,7 +126,7 @@ static void deformVertsEM(
 	Mesh *mesh_src = mesh;
 
 	if (mesh_src == NULL) {
-		mesh_src = BKE_bmesh_to_mesh_nomain(editData->bm, &(struct BMeshToMeshParams){0});
+		mesh_src = BKE_mesh_from_bmesh_for_eval_nomain(editData->bm, 0);
 	}
 
 	BLI_assert(mesh_src->totvert == numVerts);
@@ -141,14 +141,21 @@ static void deformVertsEM(
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
+	CustomDataMask mask = 0;
+
+	if (BKE_shrinkwrap_needs_normals(smd->shrinkType, smd->shrinkMode)) {
+		mask |= CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL;
+	}
+
 	if (smd->target != NULL) {
 		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
-		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, "Shrinkwrap Modifier");
+		DEG_add_object_customdata_relation(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, mask, "Shrinkwrap Modifier");
 	}
 	if (smd->auxTarget != NULL) {
 		DEG_add_object_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
-		DEG_add_object_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_GEOMETRY, "Shrinkwrap Modifier");
+		DEG_add_object_customdata_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_GEOMETRY, mask, "Shrinkwrap Modifier");
 	}
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
 }
 
 static bool dependsOnNormals(ModifierData *md)

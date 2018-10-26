@@ -68,6 +68,12 @@ const EnumPropertyItem rna_enum_region_type_items[] = {
 #  include "BPY_extern.h"
 #endif
 
+static void rna_Screen_bar_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+{
+	bScreen *screen = (bScreen *)ptr->data;
+	screen->do_draw = true;
+	screen->do_refresh = true;
+}
 
 static void rna_Screen_redraw_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
@@ -316,11 +322,23 @@ static void rna_def_area_spaces(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_property_ui_text(prop, "Active Space", "Space currently being displayed in this area");
 }
 
+static void rna_def_area_api(StructRNA *srna)
+{
+	FunctionRNA *func;
+	PropertyRNA *parm;
+
+	RNA_def_function(srna, "tag_redraw", "ED_area_tag_redraw");
+
+	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
+	RNA_def_function_ui_description(func, "Set the header status text");
+	parm = RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, no argument clears the text");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+}
+
 static void rna_def_area(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-	FunctionRNA *func;
 
 	srna = RNA_def_struct(brna, "Area", NULL);
 	RNA_def_struct_ui_text(srna, "Area", "Area in a subdivided screen, containing an editor");
@@ -383,11 +401,7 @@ static void rna_def_area(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Height", "Area height");
 
-	RNA_def_function(srna, "tag_redraw", "ED_area_tag_redraw");
-
-	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
-	RNA_def_function_ui_description(func, "Set the header status text");
-	RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, no argument clears the text");
+	rna_def_area_api(srna);
 }
 
 static void rna_def_view2d_api(StructRNA *srna)
@@ -505,7 +519,7 @@ static void rna_def_screen(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "Screen", "ID");
 	RNA_def_struct_sdna(srna, "Screen"); /* it is actually bScreen but for 2.5 the dna is patched! */
 	RNA_def_struct_ui_text(srna, "Screen", "Screen data-block, defining the layout of areas in a window");
-	RNA_def_struct_ui_icon(srna, ICON_SPLITSCREEN);
+	RNA_def_struct_ui_icon(srna, ICON_WORKSPACE);
 
 	prop = RNA_def_property(srna, "layout_name", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_funcs(prop, "rna_Screen_layout_name_get", "rna_Screen_layout_name_length",
@@ -529,6 +543,16 @@ static void rna_def_screen(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_boolean_funcs(prop, "rna_Screen_fullscreen_get", NULL);
 	RNA_def_property_ui_text(prop, "Maximize", "An area is maximized, filling this screen");
+
+	prop = RNA_def_property(srna, "show_topbar", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", SCREEN_COLLAPSE_TOPBAR);
+	RNA_def_property_ui_text(prop, "Show Top Bar", "Show top bar with tool settings");
+	RNA_def_property_update(prop, 0, "rna_Screen_bar_update");
+
+	prop = RNA_def_property(srna, "show_statusbar", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", SCREEN_COLLAPSE_STATUSBAR);
+	RNA_def_property_ui_text(prop, "Show Status Bar", "Show status bar");
+	RNA_def_property_update(prop, 0, "rna_Screen_bar_update");
 
 	/* Define Anim Playback Areas */
 	prop = RNA_def_property(srna, "use_play_top_left_3d_editor", PROP_BOOLEAN, PROP_NONE);

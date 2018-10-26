@@ -47,11 +47,11 @@ extern "C" {
 #include "DNA_armature_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cachefile_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -93,6 +93,7 @@ extern "C" {
 #include "BKE_particle.h"
 #include "BKE_rigidbody.h"
 #include "BKE_shader_fx.h"
+#include "BKE_shrinkwrap.h"
 #include "BKE_sound.h"
 #include "BKE_tracking.h"
 #include "BKE_world.h"
@@ -187,6 +188,23 @@ static bool check_id_has_anim_component(ID *id)
 	       (!BLI_listbase_is_empty(&adt->nla_tracks));
 }
 
+static eDepsOperation_Code bone_target_opcode(ID *target, const char *subtarget, ID *id, const char *component_subdata, RootPChanMap *root_map)
+{
+	/* same armature  */
+	if (target == id) {
+		/* Using "done" here breaks in-chain deps, while using
+		 * "ready" here breaks most production rigs instead.
+		 * So, we do a compromise here, and only do this when an
+		 * IK chain conflict may occur.
+		 */
+		if (root_map->has_common_root(component_subdata, subtarget)) {
+			return DEG_OPCODE_BONE_READY;
+		}
+	}
+
+	return DEG_OPCODE_BONE_DONE;
+}
+
 /* **** General purpose functions ****  */
 
 DepsgraphRelationBuilder::DepsgraphRelationBuilder(Main *bmain,
@@ -257,6 +275,17 @@ OperationDepsNode *DepsgraphRelationBuilder::find_node(
 bool DepsgraphRelationBuilder::has_node(const OperationKey &key) const
 {
 	return find_node(key) != NULL;
+}
+
+void DepsgraphRelationBuilder::add_customdata_mask(const ComponentKey &key, uint64_t mask)
+{
+	if (mask != 0) {
+		OperationDepsNode *node = find_operation_node(key);
+
+		if (node != NULL) {
+			node->customdata_mask |= mask;
+		}
+	}
 }
 
 DepsRelation *DepsgraphRelationBuilder::add_time_relation(
@@ -394,7 +423,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 			build_camera((Camera *)id);
 			break;
 		case ID_GR:
-			build_collection(DEG_COLLECTION_OWNER_UNKNOWN, NULL, (Collection *)id);
+			build_collection(NULL, (Collection *)id);
 			break;
 		case ID_OB:
 			build_object(NULL, (Object *)id);
@@ -435,6 +464,9 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 		case ID_SPK:
 			build_speaker((Speaker *)id);
 			break;
+		case ID_TXT:
+			/* Not a part of dependency graph. */
+			break;
 		default:
 			fprintf(stderr, "Unhandled ID %s\n", id->name);
 			BLI_assert(!"Should never happen");
@@ -443,44 +475,43 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 }
 
 void DepsgraphRelationBuilder::build_collection(
-        eDepsNode_CollectionOwner owner_type,
         Object *object,
         Collection *collection)
 {
-	const bool allow_restrict_flags = (owner_type == DEG_COLLECTION_OWNER_SCENE);
-	if (allow_restrict_flags) {
-		const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-		        ? COLLECTION_RESTRICT_VIEW
-		        : COLLECTION_RESTRICT_RENDER;
-		if (collection->flag & restrict_flag) {
-			return;
-		}
-	}
 	const bool group_done = built_map_.checkIsBuiltAndTag(collection);
 	OperationKey object_transform_final_key(object != NULL ? &object->id : NULL,
 	                                        DEG_NODE_TYPE_TRANSFORM,
 	                                        DEG_OPCODE_TRANSFORM_FINAL);
+	ComponentKey duplicator_key(object != NULL ? &object->id : NULL,
+	                            DEG_NODE_TYPE_DUPLI);
 	if (!group_done) {
 		LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
-			if (allow_restrict_flags) {
-				const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-				        ? OB_RESTRICT_VIEW
-				        : OB_RESTRICT_RENDER;
-				if (cob->ob->restrictflag & restrict_flag) {
-					continue;
-				}
-			}
 			build_object(NULL, cob->ob);
 		}
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-			build_collection(owner_type, NULL, child->collection);
+			build_collection(NULL, child->collection);
 		}
 	}
 	if (object != NULL) {
 		FOREACH_COLLECTION_VISIBLE_OBJECT_RECURSIVE_BEGIN(collection, ob, graph_->mode)
 		{
 			ComponentKey dupli_transform_key(&ob->id, DEG_NODE_TYPE_TRANSFORM);
-			add_relation(dupli_transform_key, object_transform_final_key, "Dupligroup");
+			add_relation(dupli_transform_key,
+			             object_transform_final_key,
+			             "Dupligroup");
+			/* Hook to special component, to ensure proper visibility/evaluation
+			 * optimizations.
+			 */
+			add_relation(dupli_transform_key, duplicator_key, "Dupligroup");
+			const eDepsNode_Type dupli_geometry_component_type =
+			        deg_geometry_tag_to_component(&ob->id);
+			if (dupli_geometry_component_type != DEG_NODE_TYPE_UNDEFINED) {
+				ComponentKey dupli_geometry_component_key(
+				        &ob->id, dupli_geometry_component_type);
+				add_relation(dupli_geometry_component_key,
+				             duplicator_key,
+				             "Dupligroup");
+			}
 		}
 		FOREACH_COLLECTION_VISIBLE_OBJECT_RECURSIVE_END;
 	}
@@ -602,7 +633,7 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, object, object->dup_group);
+		build_collection(object, object->dup_group);
 	}
 }
 
@@ -744,10 +775,7 @@ void DepsgraphRelationBuilder::build_object_parent(Object *object)
 			add_relation(parent_key, ob_key, "Vertex Parent");
 
 			/* XXX not sure what this is for or how you could be done properly - lukas */
-			OperationDepsNode *parent_node = find_operation_node(parent_key);
-			if (parent_node != NULL) {
-				parent_node->customdata_mask |= CD_MASK_ORIGINDEX;
-			}
+			add_customdata_mask(parent_key, CD_MASK_ORIGINDEX);
 
 			ComponentKey transform_key(&object->parent->id, DEG_NODE_TYPE_TRANSFORM);
 			add_relation(transform_key, ob_key, "Vertex Parent TFM");
@@ -910,38 +938,42 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					add_relation(target_transform_key, constraint_op_key, cti->name);
 				}
 				else if ((ct->tar->type == OB_ARMATURE) && (ct->subtarget[0])) {
-					/* bone */
-					if (&ct->tar->id == id) {
-						/* same armature  */
-						eDepsOperation_Code target_key_opcode;
-						/* Using "done" here breaks in-chain deps, while using
-						 * "ready" here breaks most production rigs instead.
-						 * So, we do a compromise here, and only do this when an
-						 * IK chain conflict may occur.
-						 */
-						if (root_map->has_common_root(component_subdata,
-						                              ct->subtarget))
-						{
-							target_key_opcode = DEG_OPCODE_BONE_READY;
+					eDepsOperation_Code opcode;
+					/* relation to bone */
+					opcode = bone_target_opcode(&ct->tar->id, ct->subtarget,
+					                            id, component_subdata, root_map);
+					OperationKey target_key(&ct->tar->id,
+					                        DEG_NODE_TYPE_BONE,
+					                        ct->subtarget,
+					                        opcode);
+					add_relation(target_key, constraint_op_key, cti->name);
+					/* if needs bbone shape, also reference handles */
+					if (con->flag & CONSTRAINT_BBONE_SHAPE) {
+						bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
+						/* actually a bbone */
+						if (pchan && pchan->bone && pchan->bone->segments > 1) {
+							bPoseChannel *prev, *next;
+							BKE_pchan_get_bbone_handles(pchan, &prev, &next);
+							/* add handle links */
+							if (prev) {
+								opcode = bone_target_opcode(&ct->tar->id, prev->name,
+								                            id, component_subdata, root_map);
+								OperationKey prev_key(&ct->tar->id,
+								                      DEG_NODE_TYPE_BONE,
+								                      prev->name,
+								                      opcode);
+								add_relation(prev_key, constraint_op_key, cti->name);
+							}
+							if (next) {
+								opcode = bone_target_opcode(&ct->tar->id, next->name,
+								                            id, component_subdata, root_map);
+								OperationKey next_key(&ct->tar->id,
+								                      DEG_NODE_TYPE_BONE,
+								                      next->name,
+								                      opcode);
+								add_relation(next_key, constraint_op_key, cti->name);
+							}
 						}
-						else {
-							target_key_opcode = DEG_OPCODE_BONE_DONE;
-						}
-						OperationKey target_key(&ct->tar->id,
-						                        DEG_NODE_TYPE_BONE,
-						                        ct->subtarget,
-						                        target_key_opcode);
-						add_relation(target_key, constraint_op_key, cti->name);
-					}
-					else {
-						/* Different armature - we can safely use the result
-						 * of that.
-						 */
-						OperationKey target_key(&ct->tar->id,
-						                        DEG_NODE_TYPE_BONE,
-						                        ct->subtarget,
-						                        DEG_OPCODE_BONE_DONE);
-						add_relation(target_key, constraint_op_key, cti->name);
 					}
 				}
 				else if (ELEM(ct->tar->type, OB_MESH, OB_LATTICE) &&
@@ -954,16 +986,24 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					ComponentKey target_key(&ct->tar->id, DEG_NODE_TYPE_GEOMETRY);
 					add_relation(target_key, constraint_op_key, cti->name);
 					if (ct->tar->type == OB_MESH) {
-						OperationDepsNode *node2 = find_operation_node(target_key);
-						if (node2 != NULL) {
-							node2->customdata_mask |= CD_MASK_MDEFORMVERT;
-						}
+						add_customdata_mask(target_key, CD_MASK_MDEFORMVERT);
 					}
 				}
 				else if (con->type == CONSTRAINT_TYPE_SHRINKWRAP) {
+					bShrinkwrapConstraint *scon = (bShrinkwrapConstraint *) con->data;
+
 					/* Constraints which requires the target object surface. */
 					ComponentKey target_key(&ct->tar->id, DEG_NODE_TYPE_GEOMETRY);
 					add_relation(target_key, constraint_op_key, cti->name);
+
+					/* Add dependency on normal layers if necessary. */
+					if (ct->tar->type == OB_MESH && scon->shrinkType != MOD_SHRINKWRAP_NEAREST_VERTEX) {
+						bool track = (scon->flag & CON_SHRINKWRAP_TRACK_NORMAL) != 0;
+						if (track || BKE_shrinkwrap_needs_normals(scon->shrinkType, scon->shrinkMode)) {
+							add_customdata_mask(target_key, CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL);
+						}
+					}
+
 					/* NOTE: obdata eval now doesn't necessarily depend on the
 					 * object's transform.
 					 */
@@ -975,11 +1015,11 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					/* Standard object relation. */
 					// TODO: loc vs rot vs scale?
 					if (&ct->tar->id == id) {
-						/* Constraint targetting own object:
+						/* Constraint targeting own object:
 						 * - This case is fine IFF we're dealing with a bone
 						 *   constraint pointing to its own armature. In that
 						 *   case, it's just transform -> bone.
-						 * - If however it is a real self targetting case, just
+						 * - If however it is a real self targeting case, just
 						 *   make it depend on the previous constraint (or the
 						 *   pre-constraint state).
 						 */
@@ -1477,7 +1517,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, rbw->group);
+		build_collection(NULL, rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
@@ -1659,7 +1699,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_collection(DEG_COLLECTION_OWNER_OBJECT, NULL, part->dup_group);
+					build_collection(NULL, part->dup_group);
 					LISTBASE_FOREACH (CollectionObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,
@@ -1745,7 +1785,7 @@ void DepsgraphRelationBuilder::build_shapekeys(Key *key)
  * ==========================
  *
  * The evaluation of geometry on objects is as follows:
- * - The actual evaluated of the derived geometry (e.g. DerivedMesh, DispList)
+ * - The actual evaluated of the derived geometry (e.g. Mesh, DispList)
  *   occurs in the Geometry component of the object which references this.
  *   This includes modifiers, and the temporary "ubereval" for geometry.
  *   Therefore, each user of a piece of shared geometry data ends up evaluating
@@ -1892,6 +1932,13 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 		add_relation(geom_init_key,
 		             obdata_ubereval_key,
 		             "Object Geometry UberEval");
+		if (object->totcol != 0 && object->type == OB_MESH) {
+			ComponentKey object_shading_key(&object->id, DEG_NODE_TYPE_SHADING);
+			DepsRelation *rel = add_relation(obdata_ubereval_key,
+			                                 object_shading_key,
+			                                 "Object Geometry batch Update");
+			rel->flag |= DEPSREL_FLAG_NO_FLUSH;
+		}
 	}
 	if (object->type == OB_MBALL) {
 		Object *mom = BKE_mball_basis_find(scene_, object);
@@ -2010,10 +2057,10 @@ void DepsgraphRelationBuilder::build_object_data_geometry_datablock(ID *obdata)
 			bGPdata *gpd = (bGPdata *)obdata;
 
 			/* Geometry cache needs to be recalculated on frame change
-			* (e.g. to fix crashes after scrubbing the timeline when
-			*  onion skinning is enabled, since the ghosts need to be
-			*  re-added to the cache once scrubbing ends)
-			*/
+			 * (e.g. to fix crashes after scrubbing the timeline when
+			 * onion skinning is enabled, since the ghosts need to be
+			 * re-added to the cache once scrubbing ends)
+			 */
 			TimeSourceKey time_key;
 			ComponentKey geometry_key(obdata, DEG_NODE_TYPE_GEOMETRY);
 			add_relation(time_key,
@@ -2117,6 +2164,9 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 		}
 		else if (id_type == ID_TXT) {
 			/* Ignore script nodes. */
+		}
+		else if (id_type == ID_MC) {
+			build_movieclip((MovieClip *)id);
 		}
 		else if (bnode->type == NODE_GROUP) {
 			bNodeTree *group_ntree = (bNodeTree *)id;

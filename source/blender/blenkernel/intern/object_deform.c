@@ -412,7 +412,7 @@ void BKE_object_defgroup_remove(Object *ob, bDeformGroup *defgroup)
 		else
 			object_defgroup_remove_object_mode(ob, defgroup);
 
-		BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+		BKE_mesh_batch_cache_dirty_tag(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
 	}
 }
 
@@ -633,7 +633,7 @@ bool *BKE_object_defgroup_validmap_get(Object *ob, const int defbase_tot)
 
 					val_p = BLI_ghash_lookup_p(gh, chan->name);
 					if (val_p) {
-						*val_p = SET_INT_IN_POINTER(1);
+						*val_p = POINTER_FROM_INT(1);
 					}
 				}
 			}

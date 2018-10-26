@@ -23,6 +23,7 @@
 /** \file BKE_appdir.h
  *  \ingroup bli
  */
+struct ListBase;
 
 /* note on naming: typical _get() suffix is omitted here,
  * since its the main purpose of the API. */
@@ -35,6 +36,7 @@ const char *BKE_appdir_folder_id_version(const int folder_id, const int ver, con
 
 bool BKE_appdir_app_template_any(void);
 bool BKE_appdir_app_template_id_search(const char *app_template, char *path, size_t path_len);
+void BKE_appdir_app_templates(struct ListBase *templates);
 
 /* Initialize path to program executable */
 void        BKE_appdir_program_path_init(const char *argv0);
@@ -82,7 +84,6 @@ enum {
 
 #define BLENDER_STARTUP_FILE    "startup.blend"
 #define BLENDER_USERPREF_FILE   "userpref.blend"
-#define BLENDER_WORKSPACES_FILE "workspaces.blend"
 #define BLENDER_QUIT_FILE       "quit.blend"
 #define BLENDER_BOOKMARK_FILE   "bookmarks.txt"
 #define BLENDER_HISTORY_FILE    "recent-files.txt"

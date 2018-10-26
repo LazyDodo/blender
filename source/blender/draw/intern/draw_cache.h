@@ -41,6 +41,7 @@ void DRW_shape_cache_reset(void);
 struct GPUBatch *DRW_cache_cursor_get(bool crosshair_lines);
 
 /* Common Shapes */
+struct GPUBatch *DRW_cache_grid_get(void);
 struct GPUBatch *DRW_cache_fullscreen_quad_get(void);
 struct GPUBatch *DRW_cache_quad_get(void);
 struct GPUBatch *DRW_cache_cube_get(void);
@@ -72,8 +73,6 @@ struct GPUBatch *DRW_cache_empty_cylinder_get(void);
 struct GPUBatch *DRW_cache_empty_cone_get(void);
 struct GPUBatch *DRW_cache_empty_capsule_cap_get(void);
 struct GPUBatch *DRW_cache_empty_capsule_body_get(void);
-struct GPUBatch *DRW_cache_arrows_get(void);
-struct GPUBatch *DRW_cache_axis_names_get(void);
 struct GPUBatch *DRW_cache_image_plane_get(void);
 struct GPUBatch *DRW_cache_image_plane_wire_get(void);
 
@@ -95,7 +94,9 @@ struct GPUBatch *DRW_cache_lamp_area_square_get(void);
 struct GPUBatch *DRW_cache_lamp_area_disk_get(void);
 struct GPUBatch *DRW_cache_lamp_hemi_get(void);
 struct GPUBatch *DRW_cache_lamp_spot_get(void);
+struct GPUBatch *DRW_cache_lamp_spot_volume_get(void);
 struct GPUBatch *DRW_cache_lamp_spot_square_get(void);
+struct GPUBatch *DRW_cache_lamp_spot_square_volume_get(void);
 
 /* Camera */
 struct GPUBatch *DRW_cache_camera_get(void);
@@ -122,21 +123,25 @@ struct GPUBatch *DRW_cache_bone_point_get(void);
 struct GPUBatch *DRW_cache_bone_point_wire_outline_get(void);
 struct GPUBatch *DRW_cache_bone_stick_get(void);
 struct GPUBatch *DRW_cache_bone_arrows_get(void);
+struct GPUBatch *DRW_cache_bone_dof_sphere_get(void);
+struct GPUBatch *DRW_cache_bone_dof_lines_get(void);
 
 /* Meshes */
 struct GPUBatch *DRW_cache_mesh_surface_overlay_get(struct Object *ob);
 void DRW_cache_mesh_wire_overlay_get(
         struct Object *ob,
-        struct GPUBatch **r_tris, struct GPUBatch **r_ledges, struct GPUBatch **r_lverts);
+        struct GPUBatch **r_tris, struct GPUBatch **r_ledges, struct GPUBatch **r_lverts,
+        struct GPUTexture **r_data_tex);
 void DRW_cache_mesh_normals_overlay_get(
         struct Object *ob,
-        struct GPUBatch **r_tris, struct GPUBatch **r_ledges, struct GPUBatch **r_lverts);
+        struct GPUBatch **r_tris, struct GPUBatch **r_tris_lnor,
+        struct GPUBatch **r_ledges, struct GPUBatch **r_lverts);
 struct GPUBatch *DRW_cache_face_centers_get(struct Object *ob);
 struct GPUBatch *DRW_cache_mesh_wire_outline_get(struct Object *ob);
 struct GPUBatch *DRW_cache_mesh_edge_detection_get(struct Object *ob, bool *r_is_manifold);
 struct GPUBatch *DRW_cache_mesh_surface_get(struct Object *ob);
 struct GPUBatch *DRW_cache_mesh_loose_edges_get(struct Object *ob);
-struct GPUBatch *DRW_cache_mesh_surface_weights_get(struct Object *ob);
+struct GPUBatch *DRW_cache_mesh_surface_weights_get(struct Object *ob, struct ToolSettings *ts, bool paint_mode);
 struct GPUBatch *DRW_cache_mesh_surface_vert_colors_get(struct Object *ob);
 struct GPUBatch *DRW_cache_mesh_surface_verts_get(struct Object *ob);
 struct GPUBatch *DRW_cache_mesh_edges_get(struct Object *ob);
@@ -161,7 +166,7 @@ struct GPUBatch *DRW_cache_curve_edge_wire_get(struct Object *ob);
 /* edit-mode */
 struct GPUBatch *DRW_cache_curve_edge_normal_get(struct Object *ob, float normal_size);
 struct GPUBatch *DRW_cache_curve_edge_overlay_get(struct Object *ob);
-struct GPUBatch *DRW_cache_curve_vert_overlay_get(struct Object *ob);
+struct GPUBatch *DRW_cache_curve_vert_overlay_get(struct Object *ob, bool handles);
 
 /* Font */
 struct GPUBatch *DRW_cache_text_edge_wire_get(struct Object *ob);

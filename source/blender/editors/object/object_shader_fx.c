@@ -301,7 +301,7 @@ static bool edit_shaderfx_poll_generic(bContext *C, StructRNA *rna_type, int obt
 	if (ptr.id.data && ID_IS_LINKED(ptr.id.data)) return 0;
 
 	if (ID_IS_STATIC_OVERRIDE(ob)) {
-		CTX_wm_operator_poll_msg_set(C, "Cannot edit shaderfxs comming from static override");
+		CTX_wm_operator_poll_msg_set(C, "Cannot edit shaderfxs coming from static override");
 		return (((ShaderFxData *)ptr.data)->flag & eShaderFxFlag_StaticOverride_Local) != 0;
 	}
 
@@ -315,7 +315,8 @@ static bool edit_shaderfx_poll(bContext *C)
 
 static void edit_shaderfx_properties(wmOperatorType *ot)
 {
-	RNA_def_string(ot->srna, "shaderfx", NULL, MAX_NAME, "Shader", "Name of the shaderfx to edit");
+	PropertyRNA *prop = RNA_def_string(ot->srna, "shaderfx", NULL, MAX_NAME, "Shader", "Name of the shaderfx to edit");
+	RNA_def_property_flag(prop, PROP_HIDDEN);
 }
 
 static int edit_shaderfx_invoke_properties(bContext *C, wmOperator *op)

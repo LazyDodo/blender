@@ -75,6 +75,15 @@ static void initData(ModifierData *md)
 	bmd->clnordata.faceHash = NULL;
 }
 
+static void copyData(const ModifierData *md_src, ModifierData *md_dst, const int UNUSED(flag))
+{
+	BevelModifierData *bmd_src = (BevelModifierData *)md_src;
+	BevelModifierData *bmd_dst = (BevelModifierData *)md_dst;
+
+	*bmd_dst = *bmd_src;
+	bmd_dst->clnordata.faceHash = NULL;
+}
+
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 {
 	BevelModifierData *bmd = (BevelModifierData *)md;
@@ -223,7 +232,7 @@ static void bevel_mod_harden_normals(
 						short *clnors = BM_ELEM_CD_GET_VOID_P(l, cd_clnors_offset);
 
 						/* If vertex is edge vert with 1 reconnected face */
-						if (recon_face_count == 1 || do_normal_to_recon) {
+						if (recon_face_count == 1 || (recon_face != NULL && do_normal_to_recon)) {
 							BKE_lnor_space_custom_normal_to_data(
 							        bm->lnor_spacearr->lspacearr[l_index], recon_face->no, clnors);
 						}
@@ -274,8 +283,8 @@ static void bevel_fix_normal_shading_continuity(BevelModifierData *bmd, BMesh *b
 		if (f_b)
 			has_f_b = BLI_ghash_haskey(faceHash, f_b);
 		if (has_f_a ^ has_f_b) {
-		/* If one of both faces is present in faceHash then we are at a border
-		*  between new vmesh created and reconstructed face */
+			/* If one of both faces is present in faceHash then we are at a border
+			 * between new vmesh created and reconstructed face */
 
 			for (int i = 0; i < 2; i++) {
 				BMVert *v = (i == 0) ? e->v1 : e->v2;
@@ -307,8 +316,8 @@ static void bevel_fix_normal_shading_continuity(BevelModifierData *bmd, BMesh *b
 			}
 		}
 		else if (has_f_a == true  && has_f_b == true) {
-		/* Else if both faces are present we assign clnor corresponding
-		*  to vert normal and face normal */
+			/* Else if both faces are present we assign clnor corresponding
+			 * to vert normal and face normal */
 			for (int i = 0; i < 2; i++) {
 				BMVert *v = (i == 0) ? e->v1 : e->v2;
 				BM_ITER_ELEM(l, &liter, v, BM_LOOPS_OF_VERT) {
@@ -368,6 +377,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	            .add_key_index = false,
 	            .use_shapekey = true,
 	            .active_shapekey = ctx->object->shapenr,
+	            .cd_mask_extra = CD_MASK_ORIGINDEX,
 	        });
 
 	if ((bmd->lim_flags & MOD_BEVEL_VGROUP) && bmd->defgrp_name[0])
@@ -439,7 +449,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	if (set_wn_strength)
 		bevel_set_weighted_normal_face_strength(bm, scene);
 
-	result = BKE_bmesh_to_mesh_nomain(bm, &(struct BMeshToMeshParams){0});
+	result = BKE_mesh_from_bmesh_for_eval_nomain(bm, 0);
 
 	BLI_assert(bm->vtoolflagpool == NULL &&
 	           bm->etoolflagpool == NULL &&
@@ -469,7 +479,7 @@ ModifierTypeInfo modifierType_Bevel = {
 	                        eModifierTypeFlag_EnableInEditmode |
 	                        eModifierTypeFlag_AcceptsCVs,
 
-	/* copyData */          modifier_copyData_generic,
+	/* copyData */          copyData,
 
 	/* deformVerts_DM */    NULL,
 	/* deformMatrices_DM */ NULL,

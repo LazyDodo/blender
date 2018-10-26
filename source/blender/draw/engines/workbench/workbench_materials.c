@@ -110,7 +110,7 @@ char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, bool use_text
 	return str;
 }
 
-uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template)
+uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template, bool is_ghost)
 {
 	uint input[4];
 	uint result;
@@ -127,6 +127,8 @@ uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template)
 	input[2] = (uint)(color[2] * 512);
 	input[3] = (uint)(material_template->roughness * 512);
 	result += BLI_ghashutil_uinthash_v4_murmur(input);
+
+	result += BLI_ghashutil_uinthash((uint)is_ghost);
 
 	/* add texture reference */
 	if (material_template->ima) {
@@ -172,19 +174,19 @@ void workbench_material_set_normal_world_matrix(
 	}
 }
 
-int workbench_material_determine_color_type(WORKBENCH_PrivateData *wpd, Image *ima)
+int workbench_material_determine_color_type(WORKBENCH_PrivateData *wpd, Image *ima, Object *ob)
 {
 	int color_type = wpd->shading.color_type;
-	if (color_type == V3D_SHADING_TEXTURE_COLOR && ima == NULL) {
+	if ((color_type == V3D_SHADING_TEXTURE_COLOR && ima == NULL) || (ob->dt < OB_TEXTURE)) {
 		color_type = V3D_SHADING_MATERIAL_COLOR;
 	}
 	return color_type;
 }
 
 void workbench_material_shgroup_uniform(
-        WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material)
+        WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material, Object *ob)
 {
-	if (workbench_material_determine_color_type(wpd, material->ima) == V3D_SHADING_TEXTURE_COLOR) {
+	if (workbench_material_determine_color_type(wpd, material->ima, ob) == V3D_SHADING_TEXTURE_COLOR) {
 		GPUTexture *tex = GPU_texture_from_blender(material->ima, NULL, GL_TEXTURE_2D, false, 0.0f);
 		DRW_shgroup_uniform_texture(grp, "image", tex);
 	}

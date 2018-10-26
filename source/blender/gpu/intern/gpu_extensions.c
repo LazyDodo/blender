@@ -37,9 +37,10 @@
 #include "BLI_math_vector.h"
 
 #include "BKE_global.h"
+#include "MEM_guardedalloc.h"
 
-#include "GPU_basic_shader.h"
 #include "GPU_extensions.h"
+#include "GPU_framebuffer.h"
 #include "GPU_glew.h"
 #include "GPU_texture.h"
 
@@ -69,6 +70,9 @@ static struct GPUGlobal {
 	GLint maxtexlayers;
 	GLint maxcubemapsize;
 	GLint maxtextures;
+	GLint maxtexturesfrag;
+	GLint maxtexturesgeom;
+	GLint maxtexturesvert;
 	GLint maxubosize;
 	GLint maxubobinds;
 	int colordepth;
@@ -81,7 +85,41 @@ static struct GPUGlobal {
 	 * number is factor on screen and second is off-screen */
 	float dfdyfactors[2];
 	float max_anisotropy;
+	/* Some Intel drivers have issues with using mips as framebuffer targets if
+	 * GL_TEXTURE_MAX_LEVEL is higher than the target mip.
+	 * We need a workaround in this cases. */
+	bool mip_render_workaround;
 } GG = {1, 0};
+
+
+static void gpu_detect_mip_render_workaround(void)
+{
+	int cube_size = 2;
+	float *source_pix = MEM_callocN(sizeof(float) * 4 * 6 * cube_size * cube_size, __func__);
+	float clear_color[4] = {1.0f, 0.5f, 0.0f, 0.0f};
+
+	GPUTexture *tex = GPU_texture_create_cube(cube_size, GPU_RGBA16F, source_pix, NULL);
+	MEM_freeN(source_pix);
+
+	GPU_texture_bind(tex, 0);
+	GPU_texture_generate_mipmap(tex);
+	glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_BASE_LEVEL, 0);
+	glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_MAX_LEVEL, 0);
+	GPU_texture_unbind(tex);
+
+	GPUFrameBuffer *fb = GPU_framebuffer_create();
+	GPU_framebuffer_texture_attach(fb, tex, 0, 1);
+	GPU_framebuffer_bind(fb);
+	GPU_framebuffer_clear_color(fb, clear_color);
+	GPU_framebuffer_restore();
+	GPU_framebuffer_free(fb);
+
+	float *data = GPU_texture_read(tex, GPU_DATA_FLOAT, 1);
+	GG.mip_render_workaround = !equals_v4v4(clear_color, data);
+
+	MEM_freeN(data);
+	GPU_texture_free(tex);
+}
 
 /* GPU Types */
 
@@ -105,6 +143,21 @@ int GPU_max_texture_layers(void)
 int GPU_max_textures(void)
 {
 	return GG.maxtextures;
+}
+
+int GPU_max_textures_frag(void)
+{
+	return GG.maxtexturesfrag;
+}
+
+int GPU_max_textures_geom(void)
+{
+	return GG.maxtexturesgeom;
+}
+
+int GPU_max_textures_vert(void)
+{
+	return GG.maxtexturesvert;
 }
 
 float GPU_max_texture_anisotropy(void)
@@ -137,6 +190,11 @@ void GPU_get_dfdy_factors(float fac[2])
 	copy_v2_v2(fac, GG.dfdyfactors);
 }
 
+bool GPU_mip_render_workaround(void)
+{
+	return GG.mip_render_workaround;
+}
+
 void gpu_extensions_init(void)
 {
 	/* during 2.8 development each platform has its own OpenGL minimum requirements
@@ -145,7 +203,10 @@ void gpu_extensions_init(void)
 	 */
 	BLI_assert(GLEW_VERSION_3_3);
 
-	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &GG.maxtextures);
+	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &GG.maxtexturesfrag);
+	glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &GG.maxtexturesvert);
+	glGetIntegerv(GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS, &GG.maxtexturesgeom);
+	glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &GG.maxtextures);
 
 	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &GG.maxtexsize);
 	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &GG.maxtexlayers);
@@ -173,9 +234,7 @@ void gpu_extensions_init(void)
 	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_FRONT_LEFT, GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE, &b);
 	GG.colordepth = r + g + b; /* Assumes same depth for RGB. */
 
-	if (GLEW_VERSION_3_2 || GLEW_ARB_texture_multisample) {
-		glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &GG.samples_color_texture_max);
-	}
+	glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &GG.samples_color_texture_max);
 
 	const char *vendor = (const char *)glGetString(GL_VENDOR);
 	const char *renderer = (const char *)glGetString(GL_RENDERER);
@@ -235,6 +294,7 @@ void gpu_extensions_init(void)
 	GG.os = GPU_OS_UNIX;
 #endif
 
+	gpu_detect_mip_render_workaround();
 
 	/* df/dy calculation factors, those are dependent on driver */
 	if ((strstr(vendor, "ATI") && strstr(version, "3.3.10750"))) {
@@ -259,25 +319,11 @@ void gpu_extensions_init(void)
 
 
 	GPU_invalid_tex_init();
-	GPU_basic_shaders_init();
 }
 
 void gpu_extensions_exit(void)
 {
-	GPU_basic_shaders_exit();
 	GPU_invalid_tex_free();
-}
-
-bool GPU_full_non_power_of_two_support(void)
-{
-	/* always supported on full GL but still relevant for OpenGL ES 2.0 where
-	 * NPOT textures can't use mipmaps or repeat wrap mode */
-	return true;
-}
-
-bool GPU_bicubic_bump_support(void)
-{
-	return GLEW_VERSION_4_0 || (GLEW_ARB_texture_query_lod && GLEW_VERSION_3_0);
 }
 
 int GPU_color_depth(void)

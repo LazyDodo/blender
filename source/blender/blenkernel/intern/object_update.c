@@ -28,8 +28,8 @@
  */
 
 #include "DNA_anim_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
-#include "DNA_group_types.h"
 #include "DNA_key_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
@@ -147,6 +147,7 @@ void BKE_object_eval_done(Depsgraph *depsgraph, Object *ob)
 	if (DEG_is_active(depsgraph)) {
 		Object *ob_orig = DEG_get_original_object(ob);
 		copy_m4_m4(ob_orig->obmat, ob->obmat);
+		copy_m4_m4(ob_orig->constinv, ob->constinv);
 		ob_orig->transflag = ob->transflag;
 		ob_orig->flag = ob->flag;
 	}
@@ -236,7 +237,7 @@ void BKE_object_handle_data_update(
 		case OB_EMPTY:
 			if (ob->empty_drawtype == OB_EMPTY_IMAGE && ob->data)
 				if (BKE_image_is_animated(ob->data))
-					BKE_image_user_check_frame_calc(ob->iuser, (int)ctime, 0);
+					BKE_image_user_check_frame_calc(ob->iuser, (int)ctime);
 			break;
 	}
 
@@ -303,6 +304,32 @@ void BKE_object_eval_uber_transform(Depsgraph *depsgraph, Object *object)
 	BKE_object_eval_proxy_copy(depsgraph, object);
 }
 
+void BKE_object_batch_cache_dirty_tag(Object *ob)
+{
+	switch (ob->type) {
+		case OB_MESH:
+			BKE_mesh_batch_cache_dirty_tag(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+			break;
+		case OB_LATTICE:
+			BKE_lattice_batch_cache_dirty_tag(ob->data, BKE_LATTICE_BATCH_DIRTY_ALL);
+			break;
+		case OB_CURVE:
+		case OB_FONT:
+		case OB_SURF:
+			BKE_curve_batch_cache_dirty_tag(ob->data, BKE_CURVE_BATCH_DIRTY_ALL);
+			break;
+		case OB_MBALL:
+			BKE_mball_batch_cache_dirty_tag(ob->data, BKE_MBALL_BATCH_DIRTY_ALL);
+			break;
+		case OB_GPENCIL:
+			BKE_gpencil_batch_cache_dirty_tag(ob->data);
+			break;
+		case OB_HAIR:
+			BKE_hair_batch_cache_dirty(ob->data, BKE_HAIR_BATCH_DIRTY_ALL);
+			break;
+	}
+}
+
 void BKE_object_eval_uber_data(Depsgraph *depsgraph,
                                Scene *scene,
                                Object *ob)
@@ -310,29 +337,7 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 	BLI_assert(ob->type != OB_ARMATURE);
 	BKE_object_handle_data_update(depsgraph, scene, ob);
-
-	switch (ob->type) {
-		case OB_MESH:
-			BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
-			break;
-		case OB_LATTICE:
-			BKE_lattice_batch_cache_dirty(ob->data, BKE_LATTICE_BATCH_DIRTY_ALL);
-			break;
-		case OB_CURVE:
-		case OB_FONT:
-		case OB_SURF:
-			BKE_curve_batch_cache_dirty(ob->data, BKE_CURVE_BATCH_DIRTY_ALL);
-			break;
-		case OB_MBALL:
-			BKE_mball_batch_cache_dirty(ob->data, BKE_MBALL_BATCH_DIRTY_ALL);
-			break;
-		case OB_GPENCIL:
-			BKE_gpencil_batch_cache_dirty(ob->data);
-			break;
-		case OB_HAIR:
-			BKE_hair_batch_cache_dirty(ob->data, BKE_HAIR_BATCH_DIRTY_ALL);
-			break;
-	}
+	BKE_object_batch_cache_dirty_tag(ob);
 }
 
 void BKE_object_eval_cloth(Depsgraph *depsgraph,
@@ -363,7 +368,7 @@ void BKE_object_eval_update_shading(Depsgraph *depsgraph, Object *object)
 {
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 	if (object->type == OB_MESH) {
-		BKE_mesh_batch_cache_dirty(object->data, BKE_MESH_BATCH_DIRTY_SHADING);
+		BKE_mesh_batch_cache_dirty_tag(object->data, BKE_MESH_BATCH_DIRTY_SHADING);
 	}
 }
 
@@ -372,16 +377,19 @@ void BKE_object_data_select_update(Depsgraph *depsgraph, ID *object_data)
 	DEG_debug_print_eval(depsgraph, __func__, object_data->name, object_data);
 	switch (GS(object_data->name)) {
 		case ID_ME:
-			BKE_mesh_batch_cache_dirty((Mesh *)object_data,
-			                           BKE_CURVE_BATCH_DIRTY_SELECT);
+			BKE_mesh_batch_cache_dirty_tag(
+			        (Mesh *)object_data,
+			        BKE_MESH_BATCH_DIRTY_SELECT);
 			break;
 		case ID_CU:
-			BKE_curve_batch_cache_dirty((Curve *)object_data,
-			                            BKE_CURVE_BATCH_DIRTY_SELECT);
+			BKE_curve_batch_cache_dirty_tag(
+			        (Curve *)object_data,
+			        BKE_CURVE_BATCH_DIRTY_SELECT);
 			break;
 		case ID_LT:
-			BKE_lattice_batch_cache_dirty((struct Lattice *)object_data,
-			                              BKE_CURVE_BATCH_DIRTY_SELECT);
+			BKE_lattice_batch_cache_dirty_tag(
+			        (struct Lattice *)object_data,
+			        BKE_LATTICE_BATCH_DIRTY_SELECT);
 			break;
 		case ID_HA:
 			BKE_hair_batch_cache_dirty((struct HairSystem *)object_data,
@@ -427,7 +435,7 @@ void BKE_object_eval_flush_base_flags(Depsgraph *depsgraph,
 		     psys != NULL;
 		     psys = psys->next)
 		{
-			BKE_particle_batch_cache_dirty(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
+			BKE_particle_batch_cache_dirty_tag(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
 		}
 	}
 }

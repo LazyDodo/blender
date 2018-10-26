@@ -64,7 +64,7 @@ typedef enum eUIFont_ID {
 	UIFONT_CUSTOM2	= 3
 } eUIFont_ID;
 
-/* default fonts to load/initalize */
+/* default fonts to load/initialize */
 /* first font is the default (index 0), others optional */
 typedef struct uiFont {
 	struct uiFont *next, *prev;
@@ -72,7 +72,7 @@ typedef struct uiFont {
 	short blf_id;		/* from blfont lib */
 	short uifont_id;	/* own id (eUIFont_ID) */
 	short r_to_l;		/* fonts that read from left to right */
-	short hinting;
+	short pad;
 } uiFont;
 
 /* this state defines appearance of text */
@@ -133,11 +133,10 @@ typedef struct uiWidgetColors {
 	char item[4];
 	char text[4];
 	char text_sel[4];
-	short shaded;
+	char shaded;
+	char _pad0[7];
 	short shadetop, shadedown;
-	short alpha_check;
 	float roundness;
-	float pad;
 } uiWidgetColors;
 
 typedef struct uiWidgetStateColors {
@@ -176,7 +175,7 @@ typedef struct ThemeUI {
 
 	uiWidgetStateColors wcol_state;
 
-	uiPanelColors panel; /* depricated, but we keep it for do_versions (2.66.1) */
+	uiPanelColors panel; /* deprecated, but we keep it for do_versions (2.66.1) */
 
 	char widget_emboss[4];
 
@@ -201,7 +200,13 @@ typedef struct ThemeUI {
 	char gizmo_secondary[4];
 	char gizmo_a[4];
 	char gizmo_b[4];
-	char pad2[4];
+
+	/* Icon Colors. */
+	char icon_collection[4];  /* Collection items */
+	char icon_object[4];      /* Object items */
+	char icon_object_data[4]; /* Object data items */
+	char icon_modifier[4];    /* Modifier and constraint items */
+	char icon_shading[4];     /* Shading related items */
 } ThemeUI;
 
 /* try to put them all in one, if needed a special struct can be created as well
@@ -282,8 +287,8 @@ typedef struct ThemeSpace {
 	char handle_sel_free[4], handle_sel_auto[4], handle_sel_vect[4], handle_sel_align[4], handle_sel_auto_clamped[4];
 
 	char ds_channel[4], ds_subchannel[4]; /* dopesheet */
-	char keytype_keyframe[4], keytype_extreme[4], keytype_breakdown[4], keytype_jitter[4]; /* keytypes */
-	char keytype_keyframe_select[4], keytype_extreme_select[4], keytype_breakdown_select[4], keytype_jitter_select[4]; /* keytypes */
+	char keytype_keyframe[4], keytype_extreme[4], keytype_breakdown[4], keytype_jitter[4], keytype_movehold[4]; /* keytypes */
+	char keytype_keyframe_select[4], keytype_extreme_select[4], keytype_breakdown_select[4], keytype_jitter_select[4], keytype_movehold_select[4]; /* keytypes */
 	char keyborder[4], keyborder_select[4];
 
 	char console_output[4], console_input[4], console_info[4], console_error[4];
@@ -345,6 +350,8 @@ typedef struct ThemeSpace {
 	/* NLA */
 	char anim_active[4];	 /* Active Action + Summary Channel */
 	char anim_non_active[4]; /* Active Action = NULL */
+	char anim_preview_range[4]; /* Preview range overlay */
+	char anim_pad[4];
 
 	char nla_tweaking[4];   /* NLA 'Tweaking' action/strip */
 	char nla_tweakdupli[4]; /* NLA - warning color for duplicate instances of tweaking strip */
@@ -584,7 +591,7 @@ typedef struct UserDef {
 	short rvisize;			/* rotating view icon size */
 	short rvibright;		/* rotating view icon brightness */
 	short recent_files;		/* maximum number of recently used files to remember  */
-	short smooth_viewtx;	/* miliseconds to spend spinning the view */
+	short smooth_viewtx;	/* milliseconds to spend spinning the view */
 	short glreslimit;
 	short curssize;
 	short color_picker_type;  /* eColorPicker_Types */
@@ -742,7 +749,7 @@ typedef enum eUserpref_UI_Flag {
 	USER_PLAINMENUS			= (1 << 5),
 	USER_LOCK_CURSOR_ADJUST	= (1 << 6),
 	/* Avoid accidentally adjusting the layout
-	 * (exact behavior may change based on whats considered reasonable to lock down). */
+	 * (exact behavior may change based on what's considered reasonable to lock down). */
 	USER_UIFLAG_DEPRECATED_7 = (1 << 7),
 	USER_ALLWINCODECS		= (1 << 8),
 	USER_MENUOPENAUTO		= (1 << 9),
@@ -865,7 +872,10 @@ typedef enum eOpenGL_AntiAliasMethod {
  * UserDef.text_render */
 typedef enum eText_Draw_Options {
 	USER_TEXT_DISABLE_AA	  = (1 << 0),
-	USER_TEXT_DISABLE_HINTING = (1 << 1),
+
+	USER_TEXT_HINTING_NONE    = (1 << 1),
+	USER_TEXT_HINTING_SLIGHT  = (1 << 2),
+	USER_TEXT_HINTING_FULL    = (1 << 3),
 } eText_Draw_Options;
 
 /* tw_flag (transform widget) */
@@ -873,8 +883,8 @@ typedef enum eText_Draw_Options {
 /* Grease Pencil Settings.
  * UserDef.gp_settings */
 typedef enum eGP_UserdefSettings {
-	GP_PAINT_DOSMOOTH		= (1 << 0),
-	GP_PAINT_DOSIMPLIFY		= (1 << 1),
+	GP_PAINT_DOSMOOTH		    = (1 << 0),
+	GP_PAINT_DOSIMPLIFY		    = (1 << 1),
 } eGP_UserdefSettings;
 
 enum {

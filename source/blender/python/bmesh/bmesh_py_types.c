@@ -35,7 +35,6 @@
 #include "DNA_material_types.h"
 
 #include "BKE_customdata.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_global.h"
 #include "BKE_library.h"
 
@@ -113,7 +112,7 @@ PyDoc_STRVAR(bpy_bm_elem_seam_doc,    "Seam for UV unwrapping.\n\n:type: boolean
 
 static PyObject *bpy_bm_elem_hflag_get(BPy_BMElem *self, void *flag)
 {
-	const char hflag = (char)GET_INT_FROM_POINTER(flag);
+	const char hflag = (char)POINTER_AS_INT(flag);
 
 	BPY_BM_CHECK_OBJ(self);
 
@@ -122,7 +121,7 @@ static PyObject *bpy_bm_elem_hflag_get(BPy_BMElem *self, void *flag)
 
 static int bpy_bm_elem_hflag_set(BPy_BMElem *self, PyObject *value, void *flag)
 {
-	const char hflag = (char)GET_INT_FROM_POINTER(flag);
+	const char hflag = (char)POINTER_AS_INT(flag);
 	int param;
 
 	BPY_BM_CHECK_INT(self);
@@ -266,7 +265,7 @@ PyDoc_STRVAR(bpy_bmloops_link_loops_doc,
 static PyObject *bpy_bmelemseq_elem_get(BPy_BMElem *self, void *itype)
 {
 	BPY_BM_CHECK_OBJ(self);
-	return BPy_BMElemSeq_CreatePyObject(self->bm, self, GET_INT_FROM_POINTER(itype));
+	return BPy_BMElemSeq_CreatePyObject(self->bm, self, POINTER_AS_INT(itype));
 }
 
 
@@ -614,7 +613,7 @@ static PyObject *bpy_bmelemseq_layers_get(BPy_BMElemSeq *self, void *htype)
 {
 	BPY_BM_CHECK_OBJ(self);
 
-	return BPy_BMLayerAccess_CreatePyObject(self->bm, GET_INT_FROM_POINTER(htype));
+	return BPy_BMLayerAccess_CreatePyObject(self->bm, POINTER_AS_INT(htype));
 }
 
 /* FaceSeq
@@ -1247,15 +1246,15 @@ static PyObject *bpy_bmesh_calc_volume(BPy_BMElem *self, PyObject *args, PyObjec
 	}
 }
 
-PyDoc_STRVAR(bpy_bmesh_calc_tessface_doc,
-".. method:: calc_tessface()\n"
+PyDoc_STRVAR(bpy_bmesh_calc_loop_triangles_doc,
+".. method:: calc_loop_triangles()\n"
 "\n"
 "   Calculate triangle tessellation from quads/ngons.\n"
 "\n"
 "   :return: The triangulated faces.\n"
 "   :rtype: list of :class:`BMLoop` tuples\n"
 );
-static PyObject *bpy_bmesh_calc_tessface(BPy_BMElem *self)
+static PyObject *bpy_bmesh_calc_loop_triangles(BPy_BMElem *self)
 {
 	BMesh *bm;
 
@@ -2457,7 +2456,7 @@ PyDoc_STRVAR(bpy_bmelemseq_index_update_doc,
 "   .. note::\n"
 "\n"
 "      Running this on sequences besides :class:`BMesh.verts`, :class:`BMesh.edges`, :class:`BMesh.faces`\n"
-"      works but wont result in each element having a valid index, insted its order in the sequence will be set.\n"
+"      works but wont result in each element having a valid index, instead its order in the sequence will be set.\n"
 );
 static PyObject *bpy_bmelemseq_index_update(BPy_BMElemSeq *self)
 {
@@ -2734,7 +2733,7 @@ static struct PyMethodDef bpy_bmesh_methods[] = {
 
 	/* calculations */
 	{"calc_volume", (PyCFunction)bpy_bmesh_calc_volume, METH_VARARGS | METH_KEYWORDS, bpy_bmesh_calc_volume_doc},
-	{"calc_tessface", (PyCFunction)bpy_bmesh_calc_tessface, METH_NOARGS, bpy_bmesh_calc_tessface_doc},
+	{"calc_loop_triangles", (PyCFunction)bpy_bmesh_calc_loop_triangles, METH_NOARGS, bpy_bmesh_calc_loop_triangles_doc},
 	{NULL, NULL, 0, NULL}
 };
 
@@ -4054,7 +4053,7 @@ int BPy_BMElem_CheckHType(PyTypeObject *type, const char htype)
 /**
  * Use for error strings only, not thread safe,
  *
- * \return a sting like '(BMVert/BMEdge/BMFace/BMLoop)'
+ * \return a string like '(BMVert/BMEdge/BMFace/BMLoop)'
  */
 char *BPy_BMElem_StringFromHType_ex(const char htype, char ret[32])
 {

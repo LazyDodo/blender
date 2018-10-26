@@ -48,6 +48,8 @@
 #include "ED_anim_api.h"
 #include "ED_markers.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_transform.h"
 #include "ED_object.h"
 
@@ -429,7 +431,7 @@ void graphedit_operatortypes(void)
 	/* selection */
 	WM_operatortype_append(GRAPH_OT_clickselect);
 	WM_operatortype_append(GRAPH_OT_select_all);
-	WM_operatortype_append(GRAPH_OT_select_border);
+	WM_operatortype_append(GRAPH_OT_select_box);
 	WM_operatortype_append(GRAPH_OT_select_lasso);
 	WM_operatortype_append(GRAPH_OT_select_circle);
 	WM_operatortype_append(GRAPH_OT_select_column);
@@ -551,25 +553,20 @@ static void graphedit_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	RNA_enum_set(kmi->ptr, "mode", GRAPHKEYS_LRSEL_RIGHT);
 
 	/* deselect all */
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "GRAPH_OT_select_all");
 
-	/* borderselect */
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	/* box_select */
+	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_box", BKEY, KM_PRESS, 0, 0);
 	RNA_boolean_set(kmi->ptr, "axis_range", false);
 	RNA_boolean_set(kmi->ptr, "include_handles", false);
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, KM_ALT, 0);
+	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_box", BKEY, KM_PRESS, KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "axis_range", true);
 	RNA_boolean_set(kmi->ptr, "include_handles", false);
 
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, KM_CTRL, 0);
+	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_box", BKEY, KM_PRESS, KM_CTRL, 0);
 	RNA_boolean_set(kmi->ptr, "axis_range", false);
 	RNA_boolean_set(kmi->ptr, "include_handles", true);
-	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_border", BKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
+	kmi = WM_keymap_add_item(keymap, "GRAPH_OT_select_box", BKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 	RNA_boolean_set(kmi->ptr, "axis_range", true);
 	RNA_boolean_set(kmi->ptr, "include_handles", true);
 
@@ -600,7 +597,7 @@ static void graphedit_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	WM_keymap_add_item(keymap, "GRAPH_OT_frame_jump", GKEY, KM_PRESS, KM_CTRL, 0);
 
 	/* menu + single-step transform */
-	WM_keymap_add_item(keymap, "GRAPH_OT_snap", SKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_menu_pie(keymap, "GRAPH_MT_snap_pie", SKEY, KM_PRESS, KM_SHIFT, 0);
 	WM_keymap_add_item(keymap, "GRAPH_OT_mirror", MKEY, KM_PRESS, KM_CTRL, 0);
 
 	WM_keymap_add_item(keymap, "GRAPH_OT_handle_type", VKEY, KM_PRESS, 0, 0);
@@ -668,17 +665,7 @@ static void graphedit_keymap_keyframes(wmKeyConfig *keyconf, wmKeyMap *keymap)
 	ED_keymap_proportional_cycle(keyconf, keymap);
 
 	/* pivot point settings */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "BOUNDING_BOX_CENTER");
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", PERIODKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "CURSOR");
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", PERIODKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "INDIVIDUAL_ORIGINS");
+	WM_keymap_add_menu_pie(keymap, "GRAPH_MT_pivot_pie", PERIODKEY, KM_PRESS, 0, 0);
 
 	/* special markers hotkeys for anim editors: see note in definition of this function */
 	ED_marker_keymap_animedit_conflictfree(keymap);
@@ -692,7 +679,7 @@ void graphedit_keymap(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* keymap for all regions */
-	keymap = WM_keymap_find(keyconf, "Graph Editor Generic", SPACE_IPO, 0);
+	keymap = WM_keymap_ensure(keyconf, "Graph Editor Generic", SPACE_IPO, 0);
 	WM_keymap_add_item(keymap, "GRAPH_OT_properties", NKEY, KM_PRESS, 0, 0);
 
 	/* extrapolation works on channels, not keys */
@@ -718,6 +705,6 @@ void graphedit_keymap(wmKeyConfig *keyconf)
 	 */
 
 	/* keyframes */
-	keymap = WM_keymap_find(keyconf, "Graph Editor", SPACE_IPO, 0);
+	keymap = WM_keymap_ensure(keyconf, "Graph Editor", SPACE_IPO, 0);
 	graphedit_keymap_keyframes(keyconf, keymap);
 }

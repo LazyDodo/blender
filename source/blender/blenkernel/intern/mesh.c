@@ -154,7 +154,7 @@ static int customdata_compare(CustomData *c1, CustomData *c2, Mesh *m1, Mesh *m2
 			for (j = 0; j < vtot; j++, v1++, v2++) {
 				if (len_squared_v3v3(v1->co, v2->co) > thresh_sq)
 					return MESHCMP_VERTCOMISMATCH;
-				/* I don't care about normals, let's just do coodinates */
+				/* I don't care about normals, let's just do coordinates */
 			}
 		}
 
@@ -326,7 +326,7 @@ static void mesh_ensure_tessellation_customdata(Mesh *me)
 				/* note: this warning may be un-called for if we are initializing the mesh for the
 				 * first time from bmesh, rather then giving a warning about this we could be smarter
 				 * and check if there was any data to begin with, for now just print the warning with
-				 * some info to help troubleshoot whats going on - campbell */
+				 * some info to help troubleshoot what's going on - campbell */
 				printf("%s: warning! Tessellation uvs or vcol data got out of sync, "
 				       "had to reset!\n    CD_MTFACE: %d != CD_MLOOPUV: %d || CD_MCOL: %d != CD_MLOOPCOL: %d\n",
 				       __func__, tottex_tessface, tottex_original, totcol_tessface, totcol_original);
@@ -503,12 +503,7 @@ void BKE_mesh_init(Mesh *me)
 	me->size[0] = me->size[1] = me->size[2] = 1.0;
 	me->smoothresh = DEG2RADF(30);
 	me->texflag = ME_AUTOSPACE;
-
-	/* disable because its slow on many GPU's, see [#37518] */
-#if 0
-	me->flag = ME_TWOSIDED;
-#endif
-	me->drawflag = ME_DRAWEDGES | ME_DRAWFACES | ME_DRAWCREASES;
+	me->drawflag = 0;
 
 	CustomData_reset(&me->vdata);
 	CustomData_reset(&me->edata);
@@ -576,6 +571,7 @@ void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int
 		/* This is a direct copy of a main mesh, so for now it has the same topology. */
 		me_dst->runtime.deformed_only = 1;
 	}
+	me_dst->runtime.is_original = false;
 
 	me_dst->mselect = MEM_dupallocN(me_dst->mselect);
 	me_dst->bb = MEM_dupallocN(me_dst->bb);
@@ -650,7 +646,9 @@ static Mesh *mesh_new_nomain_from_template_ex(
         int loops_len, int polys_len,
         CustomDataMask mask)
 {
-	const bool do_tessface = ((me_src->totface != 0) && (me_src->totpoly == 0)); /* only do tessface if we have no polys */
+	/* Only do tessface if we are creating tessfaces or copying from mesh with only tessfaces. */
+	const bool do_tessface = (tessface_len ||
+	                          ((me_src->totface != 0) && (me_src->totpoly == 0)));
 
 	Mesh *me_dst = BKE_id_new_nomain(ID_ME, NULL);
 
@@ -683,7 +681,7 @@ static Mesh *mesh_new_nomain_from_template_ex(
 	return me_dst;
 }
 
-Mesh * BKE_mesh_new_nomain_from_template(
+Mesh *BKE_mesh_new_nomain_from_template(
         const Mesh *me_src,
         int verts_len, int edges_len, int tessface_len,
         int loops_len, int polys_len)
@@ -693,6 +691,22 @@ Mesh * BKE_mesh_new_nomain_from_template(
 	        verts_len, edges_len, tessface_len,
 	        loops_len, polys_len,
 	        CD_MASK_EVERYTHING);
+}
+
+Mesh *BKE_mesh_copy_for_eval(struct Mesh *source, bool reference)
+{
+	int flags = (LIB_ID_CREATE_NO_MAIN |
+	             LIB_ID_CREATE_NO_USER_REFCOUNT |
+	             LIB_ID_CREATE_NO_DEG_TAG |
+	             LIB_ID_COPY_NO_PREVIEW);
+
+	if (reference) {
+		flags |= LIB_ID_COPY_CD_REFERENCE;
+	}
+
+	Mesh *result;
+	BKE_id_copy_ex(NULL, &source->id, (ID **)&result, flags, false);
+	return result;
 }
 
 Mesh *BKE_mesh_copy(Main *bmain, const Mesh *me)
@@ -730,12 +744,37 @@ BMesh *BKE_mesh_to_bmesh(
 	        });
 }
 
-Mesh *BKE_bmesh_to_mesh_nomain(BMesh *bm, const struct BMeshToMeshParams *params)
+Mesh *BKE_mesh_from_bmesh_nomain(BMesh *bm, const struct BMeshToMeshParams *params)
 {
 	BLI_assert(params->calc_object_remap == false);
 	Mesh *mesh = BKE_id_new_nomain(ID_ME, NULL);
 	BM_mesh_bm_to_me(NULL, bm, mesh, params);
 	return mesh;
+}
+
+Mesh *BKE_mesh_from_bmesh_for_eval_nomain(BMesh *bm, const int64_t cd_mask_extra)
+{
+	Mesh *mesh = BKE_id_new_nomain(ID_ME, NULL);
+	BM_mesh_bm_to_me_for_eval(bm, mesh, cd_mask_extra);
+	return mesh;
+}
+
+/**
+ * TODO(campbell): support mesh with only an edit-mesh which is lazy initialized.
+ */
+Mesh *BKE_mesh_from_editmesh_with_coords_thin_wrap(
+        BMEditMesh *em, CustomDataMask data_mask, float (*vertexCos)[3])
+{
+	Mesh *me = BKE_mesh_from_bmesh_for_eval_nomain(em->bm, data_mask);
+	/* Use editmesh directly where possible. */
+	me->runtime.is_original = true;
+	if (vertexCos) {
+		/* We will own this array in the future. */
+		BKE_mesh_apply_vert_coords(me, vertexCos);
+		MEM_freeN(vertexCos);
+		me->runtime.is_original = false;
+	}
+	return me;
 }
 
 void BKE_mesh_make_local(Main *bmain, Mesh *me, const bool lib_local)
@@ -1209,10 +1248,6 @@ int poly_get_adj_loops_from_vert(
 	        vert);
 
 	if (corner != -1) {
-#if 0	/* unused - this loop */
-		const MLoop *ml = &mloop[poly->loopstart + corner];
-#endif
-
 		/* vertex was found */
 		r_adj[0] = ME_POLY_LOOP_PREV(mloop, poly, corner)->v;
 		r_adj[1] = ME_POLY_LOOP_NEXT(mloop, poly, corner)->v;
@@ -1641,7 +1676,7 @@ static int split_faces_prepare_new_verts(
 
 			if ((*lnor_space)->flags & MLNOR_SPACE_IS_SINGLE) {
 				/* Single loop in this fan... */
-				BLI_assert(GET_INT_FROM_POINTER((*lnor_space)->loops) == loop_idx);
+				BLI_assert(POINTER_AS_INT((*lnor_space)->loops) == loop_idx);
 				BLI_BITMAP_ENABLE(done_loops, loop_idx);
 				if (vert_used) {
 					ml->v = new_vert_idx;
@@ -1649,7 +1684,7 @@ static int split_faces_prepare_new_verts(
 			}
 			else {
 				for (LinkNode *lnode = (*lnor_space)->loops; lnode; lnode = lnode->next) {
-					const int ml_fan_idx = GET_INT_FROM_POINTER(lnode->link);
+					const int ml_fan_idx = POINTER_AS_INT(lnode->link);
 					BLI_BITMAP_ENABLE(done_loops, ml_fan_idx);
 					if (vert_used) {
 						mloop[ml_fan_idx].v = new_vert_idx;
@@ -1710,7 +1745,7 @@ static int split_faces_prepare_new_edges(
 				if (BLI_BITMAP_TEST(edges_used, edge_idx)) {
 					/* Original edge has already been used, we need to define a new one. */
 					const int new_edge_idx = num_edges++;
-					*eval = SET_INT_IN_POINTER(new_edge_idx);
+					*eval = POINTER_FROM_INT(new_edge_idx);
 					ml_prev->e = new_edge_idx;
 
 					SplitFaceNewEdge *new_edge = BLI_memarena_alloc(memarena, sizeof(*new_edge));
@@ -1725,13 +1760,13 @@ static int split_faces_prepare_new_edges(
 					/* We can re-use original edge. */
 					medge[edge_idx].v1 = ml_prev->v;
 					medge[edge_idx].v2 = ml->v;
-					*eval = SET_INT_IN_POINTER(edge_idx);
+					*eval = POINTER_FROM_INT(edge_idx);
 					BLI_BITMAP_ENABLE(edges_used, edge_idx);
 				}
 			}
 			else {
 				/* Edge already known, just update loop's edge index. */
-				ml_prev->e = GET_INT_FROM_POINTER(*eval);
+				ml_prev->e = POINTER_AS_INT(*eval);
 			}
 
 			ml_prev = ml;

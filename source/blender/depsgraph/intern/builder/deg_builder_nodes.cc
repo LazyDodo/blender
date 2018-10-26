@@ -47,11 +47,11 @@ extern "C" {
 #include "DNA_armature_types.h"
 #include "DNA_cachefile_types.h"
 #include "DNA_camera_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_effect_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lamp_types.h"
@@ -124,11 +124,15 @@ namespace DEG {
 
 namespace {
 
-void free_copy_on_write_datablock(void *id_v)
+void free_copy_on_write_datablock(void *id_info_v)
 {
-	ID *id = (ID *)id_v;
-	deg_free_copy_on_write_datablock(id);
-	MEM_freeN(id);
+	DepsgraphNodeBuilder::IDInfo *id_info =
+	    (DepsgraphNodeBuilder::IDInfo *)id_info_v;
+	if (id_info->id_cow != NULL) {
+		deg_free_copy_on_write_datablock(id_info->id_cow);
+		MEM_freeN(id_info->id_cow);
+	}
+	MEM_freeN(id_info);
 }
 
 }  /* namespace */
@@ -143,28 +147,36 @@ DepsgraphNodeBuilder::DepsgraphNodeBuilder(Main *bmain, Depsgraph *graph)
       graph_(graph),
       scene_(NULL),
       view_layer_(NULL),
-      cow_id_hash_(NULL)
+      view_layer_index_(-1),
+      collection_(NULL),
+      is_parent_collection_visible_(true),
+      id_info_hash_(NULL)
 {
 }
 
 DepsgraphNodeBuilder::~DepsgraphNodeBuilder()
 {
-	if (cow_id_hash_ != NULL) {
-		BLI_ghash_free(cow_id_hash_, NULL, free_copy_on_write_datablock);
+	if (id_info_hash_ != NULL) {
+		BLI_ghash_free(id_info_hash_, NULL, free_copy_on_write_datablock);
 	}
 }
 
 IDDepsNode *DepsgraphNodeBuilder::add_id_node(ID *id)
 {
 	IDDepsNode *id_node = NULL;
-	ID *id_cow = (ID *)BLI_ghash_lookup(cow_id_hash_, id);
-	if (id_cow != NULL) {
-		/* TODO(sergey): Is it possible to lookup and pop element from GHash
-		 * at the same time?
-		 */
-		BLI_ghash_remove(cow_id_hash_, id, NULL, NULL);
+	ID *id_cow = NULL;
+	IDComponentsMask previously_visible_components_mask = 0;
+	IDInfo *id_info = (IDInfo *)BLI_ghash_lookup(id_info_hash_, id);
+	if (id_info != NULL) {
+		id_cow = id_info->id_cow;
+		previously_visible_components_mask =
+		        id_info->previously_visible_components_mask;
+		/* Tag ID info to not free the CoW ID pointer. */
+		id_info->id_cow = NULL;
 	}
 	id_node = graph_->add_id_node(id, id_cow);
+	id_node->previously_visible_components_mask =
+	        previously_visible_components_mask;
 	/* Currently all ID nodes are supposed to have copy-on-write logic.
 	 *
 	 * NOTE: Zero number of components indicates that ID node was just created.
@@ -332,17 +344,22 @@ void DepsgraphNodeBuilder::begin_build()
 	/* Store existing copy-on-write versions of datablock, so we can re-use
 	 * them for new ID nodes.
 	 */
-	cow_id_hash_ = BLI_ghash_ptr_new("Depsgraph id hash");
+	id_info_hash_ = BLI_ghash_ptr_new("Depsgraph id hash");
 	foreach (IDDepsNode *id_node, graph_->id_nodes) {
-		if (deg_copy_on_write_is_expanded(id_node->id_cow)) {
-			if (id_node->id_orig == id_node->id_cow) {
-				continue;
-			}
-			BLI_ghash_insert(cow_id_hash_,
-			                 id_node->id_orig,
-			                 id_node->id_cow);
-			id_node->id_cow = NULL;
+		IDInfo *id_info = (IDInfo *)MEM_mallocN(
+		        sizeof(IDInfo), "depsgraph id info");
+		if (deg_copy_on_write_is_expanded(id_node->id_cow) &&
+		    id_node->id_orig != id_node->id_cow)
+		{
+			id_info->id_cow = id_node->id_cow;
 		}
+		else {
+			id_info->id_cow = NULL;
+		}
+		id_info->previously_visible_components_mask =
+		        id_node->visible_components_mask;
+		BLI_ghash_insert(id_info_hash_, id_node->id_orig, id_info);
+		id_node->id_cow = NULL;
 	}
 
 	GSET_FOREACH_BEGIN(OperationDepsNode *, op_node, graph_->entry_tags)
@@ -351,7 +368,7 @@ void DepsgraphNodeBuilder::begin_build()
 		IDDepsNode *id_node = comp_node->owner;
 
 		SavedEntryTag entry_tag;
-		entry_tag.id = id_node->id_orig;
+		entry_tag.id_orig = id_node->id_orig;
 		entry_tag.component_type = comp_node->type;
 		entry_tag.opcode = op_node->opcode;
 		saved_entry_tags_.push_back(entry_tag);
@@ -367,7 +384,7 @@ void DepsgraphNodeBuilder::begin_build()
 void DepsgraphNodeBuilder::end_build()
 {
 	foreach (const SavedEntryTag& entry_tag, saved_entry_tags_) {
-		IDDepsNode *id_node = find_id_node(entry_tag.id);
+		IDDepsNode *id_node = find_id_node(entry_tag.id_orig);
 		if (id_node == NULL) {
 			continue;
 		}
@@ -384,7 +401,8 @@ void DepsgraphNodeBuilder::end_build()
 	}
 }
 
-void DepsgraphNodeBuilder::build_id(ID *id) {
+void DepsgraphNodeBuilder::build_id(ID *id)
+{
 	if (id == NULL) {
 		return;
 	}
@@ -396,10 +414,21 @@ void DepsgraphNodeBuilder::build_id(ID *id) {
 			build_camera((Camera *)id);
 			break;
 		case ID_GR:
-			build_collection(DEG_COLLECTION_OWNER_UNKNOWN, (Collection *)id);
+			build_collection((Collection *)id);
 			break;
 		case ID_OB:
-			build_object(-1, (Object *)id, DEG_ID_LINKED_INDIRECTLY);
+			/* TODO(sergey): Get visibility from a "parent" somehow.
+			 *
+			 * NOTE: Using `false` visibility here should be fine, since if this
+			 * driver affects on something invisible we don't really care if the
+			 * driver gets evaluated (and even don't want this to force object
+			 * to become visible).
+			 *
+			 * If this happened to be affecting visible object, then it is up to
+			 * deg_graph_build_flush_visibility() to ensure visibility of the
+			 * object is true.
+			 */
+			build_object(-1, (Object *)id, DEG_ID_LINKED_INDIRECTLY, false);
 			break;
 		case ID_KE:
 			build_shapekeys((Key *)id);
@@ -435,10 +464,18 @@ void DepsgraphNodeBuilder::build_id(ID *id) {
 		case ID_CU:
 		case ID_MB:
 		case ID_LT:
-			build_object_data_geometry_datablock(id);
+			/* TODO(sergey): Get visibility from a "parent" somehow.
+			 *
+			 * NOTE: Similarly to above, we don't want false-positives on
+			 * visibility.
+			 */
+			build_object_data_geometry_datablock(id, false);
 			break;
 		case ID_SPK:
 			build_speaker((Speaker *)id);
+			break;
+		case ID_TXT:
+			/* Not a part of dependency graph. */
 			break;
 		default:
 			fprintf(stderr, "Unhandled ID %s\n", id->name);
@@ -447,46 +484,56 @@ void DepsgraphNodeBuilder::build_id(ID *id) {
 	}
 }
 
-void DepsgraphNodeBuilder::build_collection(
-        eDepsNode_CollectionOwner owner_type,
-        Collection *collection)
+void DepsgraphNodeBuilder::build_collection(Collection *collection)
 {
+	const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
+	        ? COLLECTION_RESTRICT_VIEW
+	        : COLLECTION_RESTRICT_RENDER;
+	const bool is_collection_restricted = (collection->flag & restrict_flag);
+	const bool is_collection_visible =
+	        !is_collection_restricted && is_parent_collection_visible_;
 	if (built_map_.checkIsBuiltAndTag(collection)) {
-		return;
-	}
-	const bool allow_restrict_flags = (owner_type == DEG_COLLECTION_OWNER_SCENE);
-	if (allow_restrict_flags) {
-		const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT)
-		        ? COLLECTION_RESTRICT_VIEW
-		        : COLLECTION_RESTRICT_RENDER;
-		if (collection->flag & restrict_flag) {
+		IDDepsNode *id_node = find_id_node(&collection->id);
+		if (is_collection_visible && !id_node->is_directly_visible) {
+			/* Collection became visible, make sure nested collections and
+			 * objects are poked with the new visibility flag, since they
+			 * might become visible too.
+			 */
+		}
+		else {
 			return;
 		}
 	}
-	/* Collection itself. */
-	add_id_node(&collection->id);
+	else {
+		/* Collection itself. */
+		IDDepsNode *id_node = add_id_node(&collection->id);
+		id_node->is_directly_visible = is_collection_visible;
+	}
+	/* Backup state. */
+	Collection *current_state_collection = collection_;
+	const bool is_current_parent_collection_visible =
+	        is_parent_collection_visible_;
+	/* Modify state as we've entered new collection/ */
+	collection_ = collection;
+	is_parent_collection_visible_ = is_collection_visible;
 	/* Build collection objects. */
 	LISTBASE_FOREACH (CollectionObject *, cob, &collection->gobject) {
-		if (allow_restrict_flags) {
-			const int restrict_flag = (
-			        (graph_->mode == DAG_EVAL_VIEWPORT) ?
-			        OB_RESTRICT_VIEW :
-			        OB_RESTRICT_RENDER);
-			if (cob->ob->restrictflag & restrict_flag) {
-				continue;
-			}
-		}
-		build_object(-1, cob->ob, DEG_ID_LINKED_INDIRECTLY);
+		build_object(
+		        -1, cob->ob, DEG_ID_LINKED_INDIRECTLY, is_collection_visible);
 	}
 	/* Build child collections. */
 	LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-		build_collection(owner_type, child->collection);
+		build_collection(child->collection);
 	}
+	/* Restore state. */
+	collection_ = current_state_collection;
+	is_parent_collection_visible_ = is_current_parent_collection_visible;
 }
 
 void DepsgraphNodeBuilder::build_object(int base_index,
                                         Object *object,
-                                        eDepsNode_LinkedState_Type linked_state)
+                                        eDepsNode_LinkedState_Type linked_state,
+                                        bool is_visible)
 {
 	const bool has_object = built_map_.checkIsBuiltAndTag(object);
 	/* Skip rest of components if the ID node was already there. */
@@ -499,11 +546,20 @@ void DepsgraphNodeBuilder::build_object(int base_index,
 			build_object_flags(base_index, object, linked_state);
 		}
 		id_node->linked_state = max(id_node->linked_state, linked_state);
+		if (id_node->linked_state == DEG_ID_LINKED_DIRECTLY) {
+			id_node->is_directly_visible |= is_visible;
+		}
 		return;
 	}
 	/* Create ID node for object and begin init. */
 	IDDepsNode *id_node = add_id_node(&object->id);
 	id_node->linked_state = linked_state;
+	if (object == scene_->camera) {
+		id_node->is_directly_visible = true;
+	}
+	else {
+		id_node->is_directly_visible = is_visible;
+	}
 	object->customdata_mask = 0;
 	/* Various flags, flushing from bases/collections. */
 	build_object_flags(base_index, object, linked_state);
@@ -511,34 +567,39 @@ void DepsgraphNodeBuilder::build_object(int base_index,
 	build_object_transform(object);
 	/* Parent. */
 	if (object->parent != NULL) {
-		build_object(-1, object->parent, DEG_ID_LINKED_INDIRECTLY);
+		build_object(
+		        -1, object->parent, DEG_ID_LINKED_INDIRECTLY, is_visible);
 	}
 	/* Modifiers. */
 	if (object->modifiers.first != NULL) {
 		BuilderWalkUserData data;
 		data.builder = this;
+		data.is_parent_visible = is_visible;
 		modifiers_foreachIDLink(object, modifier_walk, &data);
 	}
 	/* Grease Pencil Modifiers. */
 	if (object->greasepencil_modifiers.first != NULL) {
 		BuilderWalkUserData data;
 		data.builder = this;
+		data.is_parent_visible = is_visible;
 		BKE_gpencil_modifiers_foreachIDLink(object, modifier_walk, &data);
 	}
-	/* Shadr FX. */
+	/* Shader FX. */
 	if (object->shader_fx.first != NULL) {
 		BuilderWalkUserData data;
 		data.builder = this;
+		data.is_parent_visible = is_visible;
 		BKE_shaderfx_foreachIDLink(object, modifier_walk, &data);
 	}
 	/* Constraints. */
 	if (object->constraints.first != NULL) {
 		BuilderWalkUserData data;
 		data.builder = this;
+		data.is_parent_visible = is_visible;
 		BKE_constraints_id_loop(&object->constraints, constraint_walk, &data);
 	}
 	/* Object data. */
-	build_object_data(object);
+	build_object_data(object, is_visible);
 	/* Build animation data,
 	 *
 	 * Do it now because it's possible object data will affect
@@ -553,18 +614,29 @@ void DepsgraphNodeBuilder::build_object(int base_index,
 	build_animdata(&object->id);
 	/* Particle systems. */
 	if (object->particlesystem.first != NULL) {
-		build_particles(object);
+		build_particles(object, is_visible);
 	}
 	/* Proxy object to copy from. */
 	if (object->proxy_from != NULL) {
-		build_object(-1, object->proxy_from, DEG_ID_LINKED_INDIRECTLY);
+		build_object(
+		        -1, object->proxy_from, DEG_ID_LINKED_INDIRECTLY, is_visible);
 	}
 	if (object->proxy_group != NULL) {
-		build_object(-1, object->proxy_group, DEG_ID_LINKED_INDIRECTLY);
+		build_object(
+		        -1, object->proxy_group, DEG_ID_LINKED_INDIRECTLY, is_visible);
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, object->dup_group);
+		const bool is_current_parent_collection_visible =
+		        is_parent_collection_visible_;
+		is_parent_collection_visible_ = is_visible;
+		build_collection(object->dup_group);
+		is_parent_collection_visible_ = is_current_parent_collection_visible;
+		add_operation_node(&object->id,
+		                   DEG_NODE_TYPE_DUPLI,
+		                   NULL,
+		                   DEG_OPCODE_PLACEHOLDER,
+		                   "Dupli");
 	}
 }
 
@@ -591,7 +663,8 @@ void DepsgraphNodeBuilder::build_object_flags(
 	                   DEG_OPCODE_OBJECT_BASE_FLAGS);
 }
 
-void DepsgraphNodeBuilder::build_object_data(Object *object)
+void DepsgraphNodeBuilder::build_object_data(
+        Object *object, bool is_object_visible)
 {
 	if (object->data == NULL) {
 		return;
@@ -607,7 +680,7 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 		case OB_LATTICE:
 		case OB_GPENCIL:
 		case OB_HAIR:
-			build_object_data_geometry(object);
+			build_object_data_geometry(object, is_object_visible);
 			/* TODO(sergey): Only for until we support granular
 			 * update of curves.
 			 */
@@ -623,7 +696,7 @@ void DepsgraphNodeBuilder::build_object_data(Object *object)
 				build_proxy_rig(object);
 			}
 			else {
-				build_rig(object);
+				build_rig(object, is_object_visible);
 			}
 			break;
 		case OB_LAMP:
@@ -956,7 +1029,7 @@ void DepsgraphNodeBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
-		build_collection(DEG_COLLECTION_OWNER_OBJECT, rbw->group);
+		build_collection(rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
@@ -978,7 +1051,8 @@ void DepsgraphNodeBuilder::build_rigidbody(Scene *scene)
 	}
 }
 
-void DepsgraphNodeBuilder::build_particles(Object *object)
+void DepsgraphNodeBuilder::build_particles(Object *object,
+                                           bool is_object_visible)
 {
 	/**
 	 * Particle Systems Nodes
@@ -1027,12 +1101,13 @@ void DepsgraphNodeBuilder::build_particles(Object *object)
 				if (part->dup_ob != NULL) {
 					build_object(-1,
 					             part->dup_ob,
-					             DEG_ID_LINKED_INDIRECTLY);
+					             DEG_ID_LINKED_INDIRECTLY,
+					             is_object_visible);
 				}
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_collection(DEG_COLLECTION_OWNER_OBJECT, part->dup_group);
+					build_collection(part->dup_group);
 				}
 				break;
 		}
@@ -1089,7 +1164,9 @@ void DepsgraphNodeBuilder::build_shapekeys(Key *key)
 
 /* ObData Geometry Evaluation */
 // XXX: what happens if the datablock is shared!
-void DepsgraphNodeBuilder::build_object_data_geometry(Object *object)
+void DepsgraphNodeBuilder::build_object_data_geometry(
+        Object *object,
+        bool is_object_visible)
 {
 	OperationDepsNode *op_node;
 	Scene *scene_cow = get_cow_datablock(scene_);
@@ -1145,10 +1222,12 @@ void DepsgraphNodeBuilder::build_object_data_geometry(Object *object)
 	if (ELEM(object->type, OB_MESH, OB_CURVE, OB_LATTICE)) {
 		// add geometry collider relations
 	}
-	build_object_data_geometry_datablock((ID *)object->data);
+	build_object_data_geometry_datablock((ID *)object->data, is_object_visible);
 }
 
-void DepsgraphNodeBuilder::build_object_data_geometry_datablock(ID *obdata)
+void DepsgraphNodeBuilder::build_object_data_geometry_datablock(
+        ID *obdata,
+        bool is_object_visible)
 {
 	if (built_map_.checkIsBuiltAndTag(obdata)) {
 		return;
@@ -1206,13 +1285,22 @@ void DepsgraphNodeBuilder::build_object_data_geometry_datablock(ID *obdata)
 			 */
 			Curve *cu = (Curve *)obdata;
 			if (cu->bevobj != NULL) {
-				build_object(-1, cu->bevobj, DEG_ID_LINKED_INDIRECTLY);
+				build_object(-1,
+				             cu->bevobj,
+				             DEG_ID_LINKED_INDIRECTLY,
+				             is_object_visible);
 			}
 			if (cu->taperobj != NULL) {
-				build_object(-1, cu->taperobj, DEG_ID_LINKED_INDIRECTLY);
+				build_object(-1,
+				             cu->taperobj,
+				             DEG_ID_LINKED_INDIRECTLY,
+				             is_object_visible);
 			}
 			if (cu->textoncurve != NULL) {
-				build_object(-1, cu->textoncurve, DEG_ID_LINKED_INDIRECTLY);
+				build_object(-1,
+				             cu->textoncurve,
+				             DEG_ID_LINKED_INDIRECTLY,
+				             is_object_visible);
 			}
 			break;
 		}
@@ -1364,7 +1452,8 @@ void DepsgraphNodeBuilder::build_nodetree(bNodeTree *ntree)
 			build_image((Image *)id);
 		}
 		else if (id_type == ID_OB) {
-			build_object(-1, (Object *)id, DEG_ID_LINKED_INDIRECTLY);
+			/* TODO(sergey): Use visibility of owner of the node tree. */
+			build_object(-1, (Object *)id, DEG_ID_LINKED_INDIRECTLY, true);
 		}
 		else if (id_type == ID_SCE) {
 			/* Scenes are used by compositor trees, and handled by render
@@ -1373,6 +1462,9 @@ void DepsgraphNodeBuilder::build_nodetree(bNodeTree *ntree)
 		}
 		else if (id_type == ID_TXT) {
 			/* Ignore script nodes. */
+		}
+		else if (id_type == ID_MC) {
+			build_movieclip((MovieClip *)id);
 		}
 		else if (bnode->type == NODE_GROUP) {
 			bNodeTree *group_ntree = (bNodeTree *)id;
@@ -1514,7 +1606,7 @@ void DepsgraphNodeBuilder::build_movieclip(MovieClip *clip)
 		return;
 	}
 	ID *clip_id = &clip->id;
-	MovieClip *clip_cow = get_cow_datablock(clip);
+	MovieClip *clip_cow = (MovieClip *)ensure_cow_id(clip_id);
 	/* Animation. */
 	build_animdata(clip_id);
 	/* Movie clip evaluation. */
@@ -1522,6 +1614,11 @@ void DepsgraphNodeBuilder::build_movieclip(MovieClip *clip)
 	                   DEG_NODE_TYPE_PARAMETERS,
 	                   function_bind(BKE_movieclip_eval_update, _1, clip_cow),
 	                   DEG_OPCODE_MOVIECLIP_EVAL);
+
+	add_operation_node(clip_id,
+	                   DEG_NODE_TYPE_BATCH_CACHE,
+	                   function_bind(BKE_movieclip_eval_selection_update, _1, clip_cow),
+	                   DEG_OPCODE_MOVIECLIP_SELECT_UPDATE);
 }
 
 void DepsgraphNodeBuilder::build_lightprobe(LightProbe *probe)
@@ -1565,9 +1662,11 @@ void DepsgraphNodeBuilder::modifier_walk(void *user_data,
 	}
 	switch (GS(id->name)) {
 		case ID_OB:
+			/* TODO(sergey): Use visibility of owner of modifier stack. */
 			data->builder->build_object(-1,
 			                            (Object *)id,
-			                            DEG_ID_LINKED_INDIRECTLY);
+			                            DEG_ID_LINKED_INDIRECTLY,
+			                            data->is_parent_visible);
 			break;
 		case ID_TE:
 			data->builder->build_texture((Tex *)id);
@@ -1590,9 +1689,11 @@ void DepsgraphNodeBuilder::constraint_walk(bConstraint * /*con*/,
 	}
 	switch (GS(id->name)) {
 		case ID_OB:
+			/* TODO(sergey): Use visibility of owner of modifier stack. */
 			data->builder->build_object(-1,
 			                            (Object *)id,
-			                            DEG_ID_LINKED_INDIRECTLY);
+			                            DEG_ID_LINKED_INDIRECTLY,
+			                            data->is_parent_visible);
 			break;
 		default:
 			/* pass */

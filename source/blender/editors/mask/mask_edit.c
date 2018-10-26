@@ -42,6 +42,8 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_mask.h"  /* own include */
 #include "ED_image.h"
 #include "ED_object.h" /* ED_keymap_proportional_maskmode only */
@@ -478,7 +480,7 @@ void ED_operatortypes_mask(void)
 	/* select */
 	WM_operatortype_append(MASK_OT_select);
 	WM_operatortype_append(MASK_OT_select_all);
-	WM_operatortype_append(MASK_OT_select_border);
+	WM_operatortype_append(MASK_OT_select_box);
 	WM_operatortype_append(MASK_OT_select_lasso);
 	WM_operatortype_append(MASK_OT_select_circle);
 	WM_operatortype_append(MASK_OT_select_linked_pick);
@@ -525,7 +527,7 @@ void ED_keymap_mask(wmKeyConfig *keyconf)
 	wmKeyMap *keymap;
 	wmKeyMapItem *kmi;
 
-	keymap = WM_keymap_find(keyconf, "Mask Editing", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Mask Editing", 0, 0);
 	keymap->poll = ED_maskedit_poll;
 
 	WM_keymap_add_item(keymap, "MASK_OT_new", NKEY, KM_PRESS, KM_ALT, 0);
@@ -554,12 +556,7 @@ void ED_keymap_mask(wmKeyConfig *keyconf)
 	RNA_boolean_set(kmi->ptr, "deselect", false);
 	RNA_boolean_set(kmi->ptr, "toggle", true);
 
-	kmi = WM_keymap_add_item(keymap, "MASK_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "MASK_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "MASK_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "MASK_OT_select_all");
 
 	WM_keymap_add_item(keymap, "MASK_OT_select_linked", LKEY, KM_PRESS, KM_CTRL, 0);
 	kmi = WM_keymap_add_item(keymap, "MASK_OT_select_linked_pick", LKEY, KM_PRESS, 0, 0);
@@ -567,7 +564,7 @@ void ED_keymap_mask(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "MASK_OT_select_linked_pick", LKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "deselect", true);
 
-	WM_keymap_add_item(keymap, "MASK_OT_select_border", BKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "MASK_OT_select_box", BKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "MASK_OT_select_circle", CKEY, KM_PRESS, 0, 0);
 
 	kmi = WM_keymap_add_item(keymap, "MASK_OT_select_lasso", EVT_TWEAK_A, KM_ANY, KM_CTRL | KM_ALT, 0);
@@ -618,7 +615,7 @@ void ED_keymap_mask(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "MASK_OT_paste_splines", VKEY, KM_PRESS, KM_CTRL, 0);
 
 	/* for image editor only */
-	WM_keymap_add_item(keymap, "UV_OT_cursor_set", ACTIONMOUSE, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "UV_OT_cursor_set", ACTIONMOUSE, KM_CLICK, 0, 0);
 
 	/* Transform (don't use transform_keymap_for_space() since this maps to different spaces) */
 	WM_keymap_add_item(keymap, "TRANSFORM_OT_translate", GKEY, KM_PRESS, 0, 0);

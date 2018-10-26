@@ -48,7 +48,7 @@ if 'cmake' in builder:
     # cmake
 
     # Some fine-tuning configuration
-    blender_dir = os.path.join('..', blender_dir)
+    blender_dir = os.path.abspath(blender_dir)
     build_dir = os.path.abspath(os.path.join('..', 'build', builder))
     install_dir = os.path.abspath(os.path.join('..', 'install', builder))
     targets = ['blender']
@@ -59,7 +59,7 @@ if 'cmake' in builder:
     bits = 64
 
     # Config file to be used (relative to blender's sources root)
-    cmake_config_file = "build_files/cmake/config/blender_full.cmake"
+    cmake_config_file = "build_files/cmake/config/blender_release.cmake"
     cmake_cuda_config_file = None
 
     # Set build options.
@@ -101,7 +101,9 @@ if 'cmake' in builder:
     elif builder.startswith('linux'):
         tokens = builder.split("_")
         glibc = tokens[1]
-        if glibc == 'glibc219':
+        if glibc == 'glibc224':
+            deb_name = "stretch"
+        elif glibc == 'glibc219':
             deb_name = "jessie"
         elif glibc == 'glibc211':
             deb_name = "squeeze"
@@ -113,8 +115,9 @@ if 'cmake' in builder:
             bits = 32
             chroot_name = 'buildbot_' + deb_name + '_i686'
             targets = ['blender']
-        cmake_extra_options.extend(["-DCMAKE_C_COMPILER=/usr/bin/gcc-7",
-                                    "-DCMAKE_CXX_COMPILER=/usr/bin/g++-7"])
+        if deb_name != "stretch":
+            cmake_extra_options.extend(["-DCMAKE_C_COMPILER=/usr/bin/gcc-7",
+                                        "-DCMAKE_CXX_COMPILER=/usr/bin/g++-7"])
 
     cmake_options.append("-C" + os.path.join(blender_dir, cmake_config_file))
 
@@ -157,10 +160,6 @@ if 'cmake' in builder:
         if target != 'blender':
             target_build_dir += '_' + target
         target_name = 'install'
-        # Make sure build directory exists and enter it
-        if not os.path.isdir(target_build_dir):
-            os.mkdir(target_build_dir)
-        os.chdir(target_build_dir)
         # Tweaking CMake options to respect the target
         target_cmake_options = cmake_options[:]
         if target == 'cuda':
@@ -171,6 +170,19 @@ if 'cmake' in builder:
         # other targets don't compile cuda binaries.
         if 'cuda' in targets and target != 'cuda':
             target_cmake_options.append("-DWITH_CYCLES_CUDA_BINARIES=OFF")
+        # Do extra git fetch because not all platform/git/buildbot combinations
+        # update the origin remote, causing buildinfo to detect local changes.
+        os.chdir(blender_dir)
+        print("Fetching remotes")
+        command = ['git', 'fetch', '--all']
+        print(command)
+        retcode = subprocess.call(target_chroot_prefix + command)
+        if retcode != 0:
+            sys.exit(retcode)
+        # Make sure build directory exists and enter it
+        if not os.path.isdir(target_build_dir):
+            os.mkdir(target_build_dir)
+        os.chdir(target_build_dir)
         # Configure the build
         print("CMake options:")
         print(target_cmake_options)
@@ -185,11 +197,11 @@ if 'cmake' in builder:
         if 'win32' in builder or 'win64' in builder:
             command = ['cmake', '--build', '.', '--target', target_name, '--config', 'Release']
         else:
-            command = target_chroot_prefix + ['make', '-s', '-j2', target_name]
+            command = ['make', '-s', '-j2', target_name]
 
         print("Executing command:")
         print(command)
-        retcode = subprocess.call(command)
+        retcode = subprocess.call(target_chroot_prefix + command)
 
         if retcode != 0:
             sys.exit(retcode)

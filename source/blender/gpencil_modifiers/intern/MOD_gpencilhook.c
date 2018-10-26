@@ -151,7 +151,6 @@ static float gp_hook_falloff(const struct GPHookData_cb *tData,	const float len_
 				fac = sqrtf(2 * fac - fac * fac);
 				break;
 			default:
-				fac = fac;
 				break;
 		}
 
@@ -203,8 +202,7 @@ static void deformStroke(
 		return;
 	}
 
-	int vindex = defgroup_name_index(ob, mmd->vgname);
-	float weight = 1.0f;
+	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
 	bPoseChannel *pchan = BKE_pose_channel_find_name(mmd->object->pose, mmd->subtarget);
 	float dmat[4][4];
@@ -250,11 +248,11 @@ static void deformStroke(
 	/* loop points and apply deform */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert = gps->dvert != NULL ? &gps->dvert[i] : NULL;
 
 		/* verify vertex group */
-		weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_HOOK_INVERT_VGROUP) != 0), vindex);
-		if (weight < 0) {
+		const float weight = get_modifier_point_weight(dvert, (mmd->flag & GP_HOOK_INVERT_VGROUP) != 0, def_nr);
+		if (weight < 0.0f) {
 			continue;
 		}
 		gp_hook_co_apply(&tData, weight, pt);
@@ -342,7 +340,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Hook = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          freeData,

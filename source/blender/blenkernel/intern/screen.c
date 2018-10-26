@@ -361,7 +361,7 @@ void BKE_region_callback_free_gizmomap_set(void (*callback)(struct wmGizmoMap *)
 	region_free_gizmomap_callback = callback;
 }
 
-static void panel_list_free(ListBase *lb)
+void BKE_area_region_panels_free(ListBase *lb)
 {
 	Panel *pa, *pa_next;
 	for (pa = lb->first; pa; pa = pa_next) {
@@ -369,9 +369,10 @@ static void panel_list_free(ListBase *lb)
 		if (pa->activedata) {
 			MEM_freeN(pa->activedata);
 		}
-		panel_list_free(&pa->children);
-		MEM_freeN(pa);
+		BKE_area_region_panels_free(&pa->children);
 	}
+
+	BLI_freelistN(lb);
 }
 
 /* not region itself */
@@ -396,7 +397,7 @@ void BKE_area_region_free(SpaceType *st, ARegion *ar)
 		ar->v2d.tab_offset = NULL;
 	}
 
-	panel_list_free(&ar->panels);
+	BKE_area_region_panels_free(&ar->panels);
 
 	for (uilst = ar->ui_lists.first; uilst; uilst = uilst->next) {
 		if (uilst->dyn_data) {
@@ -473,26 +474,6 @@ void BKE_screen_free(bScreen *sc)
 	/* Region and timer are freed by the window manager. */
 	MEM_SAFE_FREE(sc->tool_tip);
 }
-
-/* for depsgraph */
-unsigned int BKE_screen_visible_layers(bScreen *screen, Scene *scene)
-{
-	ScrArea *sa;
-	unsigned int layer = 0;
-
-	if (screen) {
-		/* get all used view3d layers */
-		for (sa = screen->areabase.first; sa; sa = sa->next)
-			if (sa->spacetype == SPACE_VIEW3D)
-				layer |= ((View3D *)sa->spacedata.first)->lay;
-	}
-
-	if (!layer)
-		return scene->lay;
-
-	return layer;
-}
-
 
 /* ***************** Screen edges & verts ***************** */
 
@@ -766,56 +747,9 @@ ScrArea *BKE_screen_find_area_xy(bScreen *sc, const int spacetype, int x, int y)
 	return BKE_screen_area_map_find_area_xy(AREAMAP_FROM_SCREEN(sc), spacetype, x, y);
 }
 
-
-/**
- * Utility function to get the active layer to use when adding new objects.
- */
-unsigned int BKE_screen_view3d_layer_active_ex(const View3D *v3d, const Scene *scene, bool use_localvd)
-{
-	unsigned int lay;
-	if ((v3d == NULL) || (v3d->scenelock && !v3d->localvd)) {
-		lay = scene->layact;
-	}
-	else {
-		lay = v3d->layact;
-	}
-
-	if (use_localvd) {
-		if (v3d && v3d->localvd) {
-			lay |= v3d->lay;
-		}
-	}
-
-	return lay;
-}
-unsigned int BKE_screen_view3d_layer_active(const struct View3D *v3d, const struct Scene *scene)
-{
-	return BKE_screen_view3d_layer_active_ex(v3d, scene, true);
-}
-
-/**
- * Accumulate all visible layers on this screen.
- */
-unsigned int BKE_screen_view3d_layer_all(const bScreen *sc)
-{
-	const ScrArea *sa;
-	unsigned int lay = 0;
-	for (sa = sc->areabase.first; sa; sa = sa->next) {
-		if (sa->spacetype == SPACE_VIEW3D) {
-			View3D *v3d = sa->spacedata.first;
-			lay |= v3d->lay;
-		}
-	}
-
-	return lay;
-}
-
 void BKE_screen_view3d_sync(View3D *v3d, struct Scene *scene)
 {
-	int bit;
-
 	if (v3d->scenelock && v3d->localvd == NULL) {
-		v3d->lay = scene->lay;
 		v3d->camera = scene->camera;
 
 		if (v3d->camera == NULL) {
@@ -826,15 +760,6 @@ void BKE_screen_view3d_sync(View3D *v3d, struct Scene *scene)
 					RegionView3D *rv3d = ar->regiondata;
 					if (rv3d->persp == RV3D_CAMOB)
 						rv3d->persp = RV3D_PERSP;
-				}
-			}
-		}
-
-		if ((v3d->lay & v3d->layact) == 0) {
-			for (bit = 0; bit < 32; bit++) {
-				if (v3d->lay & (1u << bit)) {
-					v3d->layact = (1u << bit);
-					break;
 				}
 			}
 		}
@@ -862,10 +787,11 @@ void BKE_screen_view3d_shading_init(View3DShading *shading)
 
 	shading->type = OB_SOLID;
 	shading->prev_type = OB_SOLID;
-	shading->flag = V3D_SHADING_SPECULAR_HIGHLIGHT;
+	shading->flag = V3D_SHADING_SPECULAR_HIGHLIGHT | V3D_SHADING_XRAY_WIREFRAME;
 	shading->light = V3D_LIGHTING_STUDIO;
 	shading->shadow_intensity = 0.5f;
 	shading->xray_alpha = 0.5f;
+	shading->xray_alpha_wire = 0.5f;
 	shading->cavity_valley_factor = 1.0f;
 	shading->cavity_ridge_factor = 1.0f;
 	copy_v3_fl(shading->single_color, 0.8f);

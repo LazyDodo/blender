@@ -938,8 +938,9 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 	colsub = uiLayoutColumn(split, true);
 	uiItemR(colsub, ptr, "location", 0, NULL, ICON_NONE);
 	colsub = uiLayoutColumn(split, true);
+	uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 	uiItemL(colsub, "", ICON_NONE);
-	uiItemR(colsub, ptr, "lock_location", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+	uiItemR(colsub, ptr, "lock_location", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 
 	split = uiLayoutSplit(layout, 0.8f, false);
 
@@ -948,30 +949,33 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 			colsub = uiLayoutColumn(split, true);
 			uiItemR(colsub, ptr, "rotation_quaternion", 0, IFACE_("Rotation"), ICON_NONE);
 			colsub = uiLayoutColumn(split, true);
+			uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 			uiItemR(colsub, ptr, "lock_rotations_4d", UI_ITEM_R_TOGGLE, IFACE_("4L"), ICON_NONE);
 			if (RNA_boolean_get(ptr, "lock_rotations_4d"))
-				uiItemR(colsub, ptr, "lock_rotation_w", UI_ITEM_R_TOGGLE + UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+				uiItemR(colsub, ptr, "lock_rotation_w", UI_ITEM_R_TOGGLE + UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 			else
 				uiItemL(colsub, "", ICON_NONE);
-			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 			break;
 		case ROT_MODE_AXISANGLE: /* axis angle */
 			colsub = uiLayoutColumn(split, true);
 			uiItemR(colsub, ptr, "rotation_axis_angle", 0, IFACE_("Rotation"), ICON_NONE);
 			colsub = uiLayoutColumn(split, true);
+			uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 			uiItemR(colsub, ptr, "lock_rotations_4d", UI_ITEM_R_TOGGLE, IFACE_("4L"), ICON_NONE);
 			if (RNA_boolean_get(ptr, "lock_rotations_4d"))
-				uiItemR(colsub, ptr, "lock_rotation_w", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+				uiItemR(colsub, ptr, "lock_rotation_w", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 			else
 				uiItemL(colsub, "", ICON_NONE);
-			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 			break;
 		default: /* euler rotations */
 			colsub = uiLayoutColumn(split, true);
 			uiItemR(colsub, ptr, "rotation_euler", 0, IFACE_("Rotation"), ICON_NONE);
 			colsub = uiLayoutColumn(split, true);
+			uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 			uiItemL(colsub, "", ICON_NONE);
-			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+			uiItemR(colsub, ptr, "lock_rotation", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 			break;
 	}
 	uiItemR(layout, ptr, "rotation_mode", 0, "", ICON_NONE);
@@ -980,8 +984,9 @@ static void v3d_transform_butsR(uiLayout *layout, PointerRNA *ptr)
 	colsub = uiLayoutColumn(split, true);
 	uiItemR(colsub, ptr, "scale", 0, NULL, ICON_NONE);
 	colsub = uiLayoutColumn(split, true);
+	uiLayoutSetEmboss(colsub, UI_EMBOSS_NONE);
 	uiItemL(colsub, "", ICON_NONE);
-	uiItemR(colsub, ptr, "lock_scale", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
+	uiItemR(colsub, ptr, "lock_scale", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_DECORATE_UNLOCKED);
 
 	if (ptr->type == &RNA_Object) {
 		Object *ob = ptr->data;
@@ -1177,6 +1182,7 @@ void view3d_buttons_register(ARegionType *art)
 	pt = MEM_callocN(sizeof(PanelType), "spacetype view3d panel object");
 	strcpy(pt->idname, "VIEW3D_PT_transform");
 	strcpy(pt->label, N_("Transform"));  /* XXX C panels not  available through RNA (bpy.types)! */
+	strcpy(pt->category, "View");
 	strcpy(pt->translation_context, BLT_I18NCONTEXT_DEFAULT_BPYRNA);
 	pt->draw = view3d_panel_transform;
 	pt->poll = view3d_panel_transform_poll;
@@ -1185,6 +1191,7 @@ void view3d_buttons_register(ARegionType *art)
 	pt = MEM_callocN(sizeof(PanelType), "spacetype view3d panel vgroup");
 	strcpy(pt->idname, "VIEW3D_PT_vgroup");
 	strcpy(pt->label, N_("Vertex Weights"));  /* XXX C panels are not available through RNA (bpy.types)! */
+	strcpy(pt->category, "View");
 	strcpy(pt->translation_context, BLT_I18NCONTEXT_DEFAULT_BPYRNA);
 	pt->draw = view3d_panel_vgroup;
 	pt->poll = view3d_panel_vgroup_poll;

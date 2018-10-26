@@ -55,6 +55,7 @@
 
 #include "BKE_animsys.h"
 #include "BKE_brush.h"
+#include "BKE_ccg.h"
 #include "BKE_colortools.h"
 #include "BKE_deform.h"
 #include "BKE_main.h"
@@ -72,6 +73,7 @@
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_pbvh.h"
+#include "BKE_subdiv_ccg.h"
 #include "BKE_subsurf.h"
 
 #include "DEG_depsgraph.h"
@@ -396,10 +398,6 @@ void BKE_palette_clear(Palette *palette)
 Palette *BKE_palette_add(Main *bmain, const char *name)
 {
 	Palette *palette = BKE_id_new(bmain, ID_PAL, name);
-
-	/* enable fake user by default */
-	id_fake_user_set(&palette->id);
-
 	return palette;
 }
 
@@ -428,6 +426,12 @@ void BKE_palette_make_local(Main *bmain, Palette *palette, const bool lib_local)
 	BKE_id_make_local_generic(bmain, &palette->id, true, lib_local);
 }
 
+void BKE_palette_init(Palette *palette)
+{
+	/* Enable fake user by default. */
+	id_fake_user_set(&palette->id);
+}
+
 /** Free (or release) any data used by this palette (does not free the palette itself). */
 void BKE_palette_free(Palette *palette)
 {
@@ -446,7 +450,7 @@ bool BKE_palette_is_empty(const struct Palette *palette)
 	return BLI_listbase_is_empty(&palette->colors);
 }
 
-/* are we in vertex paint or weight pain face select mode? */
+/* are we in vertex paint or weight paint face select mode? */
 bool BKE_paint_select_face_test(Object *ob)
 {
 	return ( (ob != NULL) &&
@@ -873,6 +877,17 @@ void BKE_sculpt_update_mesh_elements(
         Depsgraph *depsgraph, Scene *scene, Sculpt *sd, Object *ob,
         bool need_pmap, bool need_mask)
 {
+	/* TODO(sergey): Make sure ob points to an original object. This is what it
+	 * is supposed to be pointing to. The issue is, currently draw code takes
+	 * care of PBVH creation, even though this is something up to dependency
+	 * graph.
+	 * Probably, we need to being back logic which was checking for sculpt mode
+	 * and (re)create PBVH if needed in that case, similar to how DerivedMesh
+	 * was handling this.
+	 */
+	ob = DEG_get_original_object(ob);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
 	SculptSession *ss = ob->sculpt;
 	Mesh *me = BKE_object_get_original_mesh(ob);
 	MultiresModifierData *mmd = BKE_sculpt_multires_active(scene, ob);
@@ -909,8 +924,7 @@ void BKE_sculpt_update_mesh_elements(
 
 	ss->kb = (mmd == NULL) ? BKE_keyblock_from_object(ob) : NULL;
 
-	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH);
-	Mesh *me_eval_deform = mesh_get_eval_deform(depsgraph, scene, ob, CD_MASK_BAREMESH);
+	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob_eval, CD_MASK_BAREMESH);
 
 	/* VWPaint require mesh info for loop lookup, so require sculpt mode here */
 	if (mmd && ob->mode & OB_MODE_SCULPT) {
@@ -931,7 +945,9 @@ void BKE_sculpt_update_mesh_elements(
 		ss->vmask = CustomData_get_layer(&me->vdata, CD_PAINT_MASK);
 	}
 
-	PBVH *pbvh = BKE_sculpt_object_pbvh_ensure(ob, me_eval_deform);
+	ss->subdiv_ccg = me_eval->runtime.subdiv_ccg;
+
+	PBVH *pbvh = BKE_sculpt_object_pbvh_ensure(depsgraph, ob);
 	BLI_assert(pbvh == ss->pbvh);
 	UNUSED_VARS_NDEBUG(pbvh);
 	MEM_SAFE_FREE(ss->pmap);
@@ -993,7 +1009,7 @@ void BKE_sculpt_update_mesh_elements(
 	}
 
 	/* 2.8x - avoid full mesh update! */
-	BKE_mesh_batch_cache_dirty(me, BKE_MESH_BATCH_DIRTY_SCULPT_COORDS);
+	BKE_mesh_batch_cache_dirty_tag(me, BKE_MESH_BATCH_DIRTY_SCULPT_COORDS);
 }
 
 int BKE_sculpt_mask_layers_ensure(Object *ob, MultiresModifierData *mmd)
@@ -1127,68 +1143,95 @@ static bool check_sculpt_object_deformed(Object *object, const bool for_construc
 	return deformed;
 }
 
-PBVH *BKE_sculpt_object_pbvh_ensure(Object *ob, Mesh *me_eval_deform)
+static PBVH *build_pbvh_for_dynamic_topology(Object *ob)
 {
-	if (!ob) {
-		return NULL;
+	PBVH *pbvh = BKE_pbvh_new();
+	BKE_pbvh_build_bmesh(pbvh, ob->sculpt->bm,
+	                     ob->sculpt->bm_smooth_shading,
+	                     ob->sculpt->bm_log, ob->sculpt->cd_vert_node_offset,
+	                     ob->sculpt->cd_face_node_offset);
+	pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
+	pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+	return pbvh;
+}
+
+static PBVH *build_pbvh_from_regular_mesh(Object *ob, Mesh *me_eval_deform)
+{
+	Mesh *me = BKE_object_get_original_mesh(ob);
+	const int looptris_num = poly_to_tri_count(me->totpoly, me->totloop);
+	PBVH *pbvh = BKE_pbvh_new();
+
+	MLoopTri *looptri = MEM_malloc_arrayN(
+	        looptris_num, sizeof(*looptri), __func__);
+
+	BKE_mesh_recalc_looptri(
+	        me->mloop, me->mpoly,
+	        me->mvert,
+	        me->totloop, me->totpoly,
+	        looptri);
+
+	BKE_pbvh_build_mesh(
+	        pbvh,
+	        me->mpoly, me->mloop,
+	        me->mvert, me->totvert, &me->vdata,
+	        looptri, looptris_num);
+
+	pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
+	pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+
+	const bool is_deformed = check_sculpt_object_deformed(ob, true);
+	if (is_deformed && me_eval_deform != NULL) {
+		int totvert;
+		float (*v_cos)[3] = BKE_mesh_vertexCos_get(me_eval_deform, &totvert);
+		BKE_pbvh_apply_vertCos(pbvh, v_cos, totvert);
+		MEM_freeN(v_cos);
 	}
 
-	if (!ob->sculpt) {
+	return pbvh;
+}
+
+static PBVH *build_pbvh_from_ccg(Object *ob, SubdivCCG *subdiv_ccg)
+{
+	CCGKey key;
+	BKE_subdiv_ccg_key_top_level(&key, subdiv_ccg);
+	PBVH *pbvh = BKE_pbvh_new();
+	BKE_pbvh_build_grids(
+	        pbvh,
+	        subdiv_ccg->grids, subdiv_ccg->num_grids,
+	        &key,
+	        (void **)subdiv_ccg->grid_faces,
+	        subdiv_ccg->grid_flag_mats,
+	        subdiv_ccg->grid_hidden);
+	pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
+	pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+	return pbvh;
+}
+
+PBVH *BKE_sculpt_object_pbvh_ensure(Depsgraph *depsgraph, Object *ob)
+{
+	if (ob == NULL || ob->sculpt == NULL) {
 		return NULL;
 	}
-
 	PBVH *pbvh = ob->sculpt->pbvh;
-
-	/* Sculpting on a BMesh (dynamic-topology) gets a special PBVH */
-	if (!pbvh && ob->sculpt->bm) {
-		pbvh = BKE_pbvh_new();
-
-		BKE_pbvh_build_bmesh(pbvh, ob->sculpt->bm,
-		                     ob->sculpt->bm_smooth_shading,
-		                     ob->sculpt->bm_log, ob->sculpt->cd_vert_node_offset,
-		                     ob->sculpt->cd_face_node_offset);
-
-		pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
-		pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+	if (pbvh != NULL) {
+		/* Nothing to do, PBVH is already up to date. */
+		return pbvh;
 	}
 
-	/* always build pbvh from original mesh, and only use it for drawing if
-	 * this evaluated mesh is just original mesh. it's the multires subsurf dm
-	 * that this is actually for, to support a pbvh on a modified mesh */
-	if (!pbvh && ob->type == OB_MESH) {
-		Mesh *me = BKE_object_get_original_mesh(ob);
-		const int looptris_num = poly_to_tri_count(me->totpoly, me->totloop);
-		MLoopTri *looptri;
-		bool deformed;
-
-		pbvh = BKE_pbvh_new();
-
-		looptri = MEM_malloc_arrayN(looptris_num, sizeof(*looptri), __func__);
-
-		BKE_mesh_recalc_looptri(
-		        me->mloop, me->mpoly,
-		        me->mvert,
-		        me->totloop, me->totpoly,
-		        looptri);
-
-		BKE_pbvh_build_mesh(
-		        pbvh,
-		        me->mpoly, me->mloop,
-		        me->mvert, me->totvert, &me->vdata,
-		        looptri, looptris_num);
-
-		pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
-		pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
-
-		deformed = check_sculpt_object_deformed(ob, true);
-
-		if (deformed && me_eval_deform) {
-			int totvert;
-			float (*v_cos)[3];
-
-			v_cos = BKE_mesh_vertexCos_get(me_eval_deform, &totvert);
-			BKE_pbvh_apply_vertCos(pbvh, v_cos, totvert);
-			MEM_freeN(v_cos);
+	if (ob->sculpt->bm != NULL) {
+		/* Sculpting on a BMesh (dynamic-topology) gets a special PBVH. */
+		pbvh = build_pbvh_for_dynamic_topology(ob);
+	}
+	else {
+		Object *object_eval = DEG_get_evaluated_object(depsgraph, ob);
+		Mesh *mesh_eval = object_eval->data;
+		if (mesh_eval->runtime.subdiv_ccg != NULL) {
+			pbvh = build_pbvh_from_ccg(ob, mesh_eval->runtime.subdiv_ccg);
+		}
+		else if (ob->type == OB_MESH) {
+			Mesh *me_eval_deform = mesh_get_eval_deform(
+			        depsgraph, DEG_get_evaluated_scene(depsgraph), ob, CD_MASK_BAREMESH);
+			pbvh = build_pbvh_from_regular_mesh(ob, me_eval_deform);
 		}
 	}
 

@@ -40,14 +40,16 @@
 
 #include "DNA_object_types.h"
 #include "DNA_camera_types.h"
+#include "DNA_cloth_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_gpu_types.h"
-#include "DNA_group_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_layer_types.h"
 #include "DNA_lightprobe_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_modifier_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
@@ -56,7 +58,11 @@
 #include "DNA_genfile.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_workspace_types.h"
+#include "DNA_key_types.h"
+#include "DNA_curve_types.h"
+#include "DNA_armature_types.h"
 
+#include "BKE_action.h"
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
 #include "BKE_customdata.h"
@@ -79,6 +85,13 @@
 #include "BKE_gpencil.h"
 #include "BKE_paint.h"
 #include "BKE_object.h"
+#include "BKE_cloth.h"
+#include "BKE_key.h"
+#include "BKE_unit.h"
+
+#include "DEG_depsgraph.h"
+
+#include "BLT_translation.h"
 
 #include "BLO_readfile.h"
 #include "readfile.h"
@@ -407,7 +420,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 
 					BLI_snprintf(name,
 					             sizeof(collection_master->id.name),
-					             "Collection %d",
+					             DATA_("Collection %d"),
 					             layer + 1);
 
 					Collection *collection = BKE_collection_add(bmain, collection_master, name);
@@ -563,6 +576,21 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 	scene->basact = NULL;
 }
 
+static void do_version_collection_propagate_lib_to_children(Collection *collection)
+{
+	if (collection->id.lib != NULL) {
+		for (CollectionChild *collection_child = collection->children.first;
+		     collection_child != NULL;
+		     collection_child = collection_child->next)
+		{
+			if (collection_child->collection->id.lib == NULL) {
+				collection_child->collection->id.lib = collection->id.lib;
+			}
+			do_version_collection_propagate_lib_to_children(collection_child->collection);
+		}
+	}
+}
+
 void do_versions_after_linking_280(Main *bmain)
 {
 	bool use_collection_compat_28 = true;
@@ -579,22 +607,41 @@ void do_versions_after_linking_280(Main *bmain)
 				continue;
 			}
 
-			Collection *collection_hidden = NULL;
+			Collection *hidden_collection_array[20] = {NULL};
 			for (CollectionObject *cob = collection->gobject.first, *cob_next = NULL; cob; cob = cob_next) {
 				cob_next = cob->next;
 				Object *ob = cob->ob;
 
 				if (!(ob->lay & collection->layer)) {
-					if (collection_hidden == NULL) {
-						collection_hidden = BKE_collection_add(bmain, collection, "Hidden");
-						collection_hidden->id.lib = collection->id.lib;
-						collection_hidden->flag |= COLLECTION_RESTRICT_VIEW | COLLECTION_RESTRICT_RENDER;
+					/* Find or create hidden collection matching object's first layer. */
+					Collection **collection_hidden = NULL;
+					int coll_idx = 0;
+					for (; coll_idx < 20; coll_idx++) {
+						if (ob->lay & (1 << coll_idx)) {
+							collection_hidden = &hidden_collection_array[coll_idx];
+							break;
+						}
+					}
+					BLI_assert(collection_hidden != NULL);
+
+					if (*collection_hidden == NULL) {
+						char name[MAX_ID_NAME];
+						BLI_snprintf(name, sizeof(name), DATA_("Hidden %d"), coll_idx + 1);
+						*collection_hidden = BKE_collection_add(bmain, collection, name);
+						(*collection_hidden)->flag |= COLLECTION_RESTRICT_VIEW | COLLECTION_RESTRICT_RENDER;
 					}
 
-					BKE_collection_object_add(bmain, collection_hidden, ob);
+					BKE_collection_object_add(bmain, *collection_hidden, ob);
 					BKE_collection_object_remove(bmain, collection, ob, true);
 				}
 			}
+		}
+
+		/* We need to assign lib pointer to generated hidden collections *after* all have been created, otherwise we'll
+		 * end up with several datablocks sharing same name/library, which is FORBIDDEN!
+		 * Note: we need this to be recursive, since a child collection may be sorted before its parent in bmain... */
+		for (Collection *collection = bmain->collection.first; collection != NULL; collection = collection->id.next) {
+			do_version_collection_propagate_lib_to_children(collection);
 		}
 
 		/* Convert layers to collections. */
@@ -750,6 +797,118 @@ void do_versions_after_linking_280(Main *bmain)
 	}
 #endif
 
+	/* Update Curve object Shape Key data layout to include the Radius property */
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 23)) {
+		for (Curve *cu = bmain->curve.first; cu; cu = cu->id.next) {
+			if (!cu->key || cu->key->elemsize != sizeof(float[4]))
+				continue;
+
+			cu->key->elemstr[0] = 3; /*KEYELEM_ELEM_SIZE_CURVE*/
+			cu->key->elemsize = sizeof(float[3]);
+
+			int new_count = BKE_keyblock_curve_element_count(&cu->nurb);
+
+			for (KeyBlock *block = cu->key->block.first; block; block = block->next) {
+				int old_count = block->totelem;
+				void *old_data = block->data;
+
+				if (!old_data || old_count <= 0)
+					continue;
+
+				block->totelem = new_count;
+				block->data = MEM_callocN(sizeof(float[3]) * new_count, __func__);
+
+				float *oldptr = old_data;
+				float (*newptr)[3] = block->data;
+
+				for (Nurb *nu = cu->nurb.first; nu; nu = nu->next) {
+					if (nu->bezt) {
+						BezTriple *bezt = nu->bezt;
+
+						for (int a = 0; a < nu->pntsu; a++, bezt++) {
+							if ((old_count -= 3) < 0) {
+								memcpy(newptr, bezt->vec, sizeof(float[3][3]));
+								newptr[3][0] = bezt->alfa;
+							}
+							else {
+								memcpy(newptr, oldptr, sizeof(float[3][4]));
+							}
+
+							newptr[3][1] = bezt->radius;
+
+							oldptr += 3 * 4;
+							newptr += 4; /*KEYELEM_ELEM_LEN_BEZTRIPLE*/
+						}
+					}
+					else if (nu->bp) {
+						BPoint *bp = nu->bp;
+
+						for (int a = 0; a < nu->pntsu * nu->pntsv; a++, bp++) {
+							if (--old_count < 0) {
+								copy_v3_v3(newptr[0], bp->vec);
+								newptr[1][0] = bp->alfa;
+							}
+							else {
+								memcpy(newptr, oldptr, sizeof(float[4]));
+							}
+
+							newptr[1][1] = bp->radius;
+
+							oldptr += 4;
+							newptr += 2; /*KEYELEM_ELEM_LEN_BPOINT*/
+						}
+					}
+				}
+
+				MEM_freeN(old_data);
+			}
+		}
+	}
+
+	/* Move B-Bone custom handle settings from bPoseChannel to Bone. */
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 25)) {
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			bArmature *arm = ob->data;
+
+			/* If it is an armature from the same file. */
+			if (ob->pose && arm && arm->id.lib == ob->id.lib) {
+				bool rebuild = false;
+
+				for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+					/* If the 2.7 flag is enabled, processing is needed. */
+					if (pchan->bone && (pchan->bboneflag & PCHAN_BBONE_CUSTOM_HANDLES)) {
+						/* If the settings in the Bone are not set, copy. */
+						if (pchan->bone->bbone_prev_type == BBONE_HANDLE_AUTO &&
+						    pchan->bone->bbone_next_type == BBONE_HANDLE_AUTO &&
+						    pchan->bone->bbone_prev == NULL && pchan->bone->bbone_next == NULL)
+						{
+							pchan->bone->bbone_prev_type = (pchan->bboneflag & PCHAN_BBONE_CUSTOM_START_REL) ? BBONE_HANDLE_RELATIVE : BBONE_HANDLE_ABSOLUTE;
+							pchan->bone->bbone_next_type = (pchan->bboneflag & PCHAN_BBONE_CUSTOM_END_REL) ? BBONE_HANDLE_RELATIVE : BBONE_HANDLE_ABSOLUTE;
+
+							if (pchan->bbone_prev) {
+								pchan->bone->bbone_prev = pchan->bbone_prev->bone;
+							}
+							if (pchan->bbone_next) {
+								pchan->bone->bbone_next = pchan->bbone_next->bone;
+							}
+						}
+
+						rebuild = true;
+						pchan->bboneflag = 0;
+					}
+				}
+
+				/* Tag pose rebuild for all objects that use this armature. */
+				if (rebuild) {
+					for (Object *ob2 = bmain->object.first; ob2; ob2 = ob2->id.next) {
+						if (ob2->pose && ob2->data == arm) {
+							ob2->pose->flag |= POSE_RECALC;
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 /* NOTE: this version patch is intended for versions < 2.52.2, but was initially introduced in 2.27 already.
@@ -992,10 +1151,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					for (SpaceLink *sl = area->spacedata.first; sl; sl = sl->next) {
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_scale = 1.0f; // Scale
-							v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES; // NUmber of lines
 							v3d->overlay.gpencil_paper_opacity = 0.5f;
-							v3d->overlay.gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
 							v3d->overlay.gpencil_grid_opacity = 0.9f;
 						}
 					}
@@ -1661,7 +1817,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			if (scene->toolsettings->gizmo_flag == 0) {
-				scene->toolsettings->gizmo_flag = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
+				scene->toolsettings->gizmo_flag = SCE_GIZMO_SHOW_TRANSLATE | SCE_GIZMO_SHOW_ROTATE | SCE_GIZMO_SHOW_SCALE;
 			}
 		}
 
@@ -1766,18 +1922,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "gpencil_grid_scale")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_scale = 1.0f;
-						}
-					}
-				}
-			}
-		}
 		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "gpencil_paper_opacity")) {
 			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
@@ -1802,30 +1946,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "int", "gpencil_grid_axis")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
-						}
-					}
-				}
-			}
-		}
-		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "int", "gpencil_grid_lines")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
-						}
-					}
-				}
-			}
-		}
+
 		/* default loc axis */
 		if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "lock_axis")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
@@ -1836,6 +1957,212 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+
+		/* Versioning code for Subsurf modifier. */
+		if (!DNA_struct_elem_find(fd->filesdna, "SubsurfModifier", "short", "uv_smooth")) {
+			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
+				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Subsurf) {
+						SubsurfModifierData *smd = (SubsurfModifierData *)md;
+						if (smd->flags & eSubsurfModifierFlag_SubsurfUv_DEPRECATED) {
+							smd->uv_smooth = SUBSURF_UV_SMOOTH_PRESERVE_CORNERS;
+						}
+						else {
+							smd->uv_smooth = SUBSURF_UV_SMOOTH_NONE;
+						}
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "SubsurfModifier", "short", "quality")) {
+			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
+				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Subsurf) {
+						SubsurfModifierData *smd = (SubsurfModifierData *)md;
+						smd->quality = min_ii(smd->renderLevels, 3);
+					}
+				}
+			}
+		}
+		/* Versioning code for Multires modifier. */
+		if (!DNA_struct_elem_find(fd->filesdna, "MultiresModifier", "short", "quality")) {
+			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
+				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Multires) {
+						MultiresModifierData *mmd = (MultiresModifierData *)md;
+						mmd->quality = 3;
+						if (mmd->flags & eMultiresModifierFlag_PlainUv_DEPRECATED) {
+							mmd->uv_smooth = SUBSURF_UV_SMOOTH_NONE;
+						}
+						else {
+							mmd->uv_smooth = SUBSURF_UV_SMOOTH_PRESERVE_CORNERS;
+						}
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "ClothSimSettings", "short", "bending_model")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Cloth) {
+						ClothModifierData *clmd = (ClothModifierData *)md;
+
+						clmd->sim_parms->bending_model = CLOTH_BENDING_LINEAR;
+						clmd->sim_parms->tension = clmd->sim_parms->structural;
+						clmd->sim_parms->compression = clmd->sim_parms->structural;
+						clmd->sim_parms->shear = clmd->sim_parms->structural;
+						clmd->sim_parms->max_tension = clmd->sim_parms->max_struct;
+						clmd->sim_parms->max_compression = clmd->sim_parms->max_struct;
+						clmd->sim_parms->max_shear = clmd->sim_parms->max_struct;
+						clmd->sim_parms->vgroup_shear = clmd->sim_parms->vgroup_struct;
+						clmd->sim_parms->tension_damp = clmd->sim_parms->Cdis;
+						clmd->sim_parms->compression_damp = clmd->sim_parms->Cdis;
+						clmd->sim_parms->shear_damp = clmd->sim_parms->Cdis;
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "BrushGpencilSettings", "float", "era_strength_f")) {
+			for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+				if (brush->gpencil_settings != NULL) {
+					BrushGpencilSettings *gp = brush->gpencil_settings;
+					if (gp->brush_type == GP_BRUSH_TYPE_ERASE) {
+						gp->era_strength_f = 100.0f;
+						gp->era_thickness_f = 10.0f;
+					}
+				}
+			}
+		}
+
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+				if (md->type == eModifierType_Cloth) {
+					ClothModifierData *clmd = (ClothModifierData *)md;
+
+					if (!(clmd->sim_parms->flags & CLOTH_SIMSETTINGS_FLAG_GOAL)) {
+						clmd->sim_parms->vgroup_mass = 0;
+					}
+
+					if (!(clmd->sim_parms->flags & CLOTH_SIMSETTINGS_FLAG_SCALING)) {
+						clmd->sim_parms->vgroup_struct = 0;
+						clmd->sim_parms->vgroup_shear = 0;
+						clmd->sim_parms->vgroup_bend = 0;
+					}
+
+					if (!(clmd->sim_parms->flags & CLOTH_SIMSETTINGS_FLAG_SEW)) {
+						clmd->sim_parms->shrink_min = 0.0f;
+						clmd->sim_parms->vgroup_shrink = 0;
+					}
+
+					if (!(clmd->coll_parms->flags & CLOTH_COLLSETTINGS_FLAG_ENABLED)) {
+						clmd->coll_parms->flags &= ~CLOTH_COLLSETTINGS_FLAG_SELF;
+					}
+				}
+			}
+		}
 	}
 
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 24)) {
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_VIEW3D) {
+						View3D *v3d = (View3D *)sl;
+						v3d->overlay.edit_flag |= V3D_OVERLAY_EDIT_FACES |
+						                          V3D_OVERLAY_EDIT_SEAMS |
+						                          V3D_OVERLAY_EDIT_SHARP |
+						                          V3D_OVERLAY_EDIT_FREESTYLE_EDGE |
+						                          V3D_OVERLAY_EDIT_FREESTYLE_FACE |
+						                          V3D_OVERLAY_EDIT_EDGES |
+						                          V3D_OVERLAY_EDIT_CREASES |
+						                          V3D_OVERLAY_EDIT_BWEIGHTS |
+						                          V3D_OVERLAY_EDIT_CU_HANDLES |
+						                          V3D_OVERLAY_EDIT_CU_NORMALS;
+					}
+				}
+			}
+		}
+	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "ShrinkwrapModifierData", "char", "shrinkMode")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Shrinkwrap) {
+						ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
+						if (smd->shrinkOpts & MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE) {
+							smd->shrinkMode = MOD_SHRINKWRAP_ABOVE_SURFACE;
+							smd->shrinkOpts &= ~MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 24)) {
+		if (!DNA_struct_elem_find(fd->filesdna, "PartDeflect", "float", "pdef_cfrict")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				if (ob->pd) {
+					ob->pd->pdef_cfrict = 5.0f;
+				}
+
+				for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Cloth) {
+						ClothModifierData *clmd = (ClothModifierData *)md;
+
+						clmd->coll_parms->selfepsilon = 0.015f;
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "xray_alpha_wire")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.xray_alpha_wire = 0.5f;
+						}
+					}
+				}
+			}
+
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.flag |= V3D_SHADING_XRAY_WIREFRAME;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 25)) {
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			UnitSettings *unit = &scene->unit;
+			if (unit->system != USER_UNIT_NONE) {
+				unit->length_unit = bUnit_GetBaseUnitOfType(scene->unit.system, B_UNIT_LENGTH);
+				unit->mass_unit = bUnit_GetBaseUnitOfType(scene->unit.system, B_UNIT_MASS);
+			}
+			unit->time_unit = bUnit_GetBaseUnitOfType(USER_UNIT_NONE, B_UNIT_TIME);
+		}
+
+		/* gpencil grid settings */
+		for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
+			ARRAY_SET_ITEMS(gpd->grid.color, 0.5f, 0.5f, 0.5f); // Color
+			ARRAY_SET_ITEMS(gpd->grid.scale, 1.0f, 1.0f); // Scale
+			gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
+			gpd->grid.axis = GP_GRID_AXIS_Y;
+		}
+
+
+	}
 }

@@ -224,18 +224,27 @@ void BKE_mball_texspace_calc(Object *ob)
 		min[0] = min[1] = min[2] = -1.0f;
 		max[0] = max[1] = max[2] = 1.0f;
 	}
-#if 0
-	loc[0] = (min[0] + max[0]) / 2.0f;
-	loc[1] = (min[1] + max[1]) / 2.0f;
-	loc[2] = (min[2] + max[2]) / 2.0f;
 
-	size[0] = (max[0] - min[0]) / 2.0f;
-	size[1] = (max[1] - min[1]) / 2.0f;
-	size[2] = (max[2] - min[2]) / 2.0f;
-#endif
 	BKE_boundbox_init_from_minmax(bb, min, max);
 
 	bb->flag &= ~BOUNDBOX_DIRTY;
+}
+
+/** Return or compute bbox for given metaball object. */
+BoundBox *BKE_mball_boundbox_get(Object *ob)
+{
+	BLI_assert(ob->type == OB_MBALL);
+
+	if (ob->bb != NULL && (ob->bb->flag & BOUNDBOX_DIRTY) == 0) {
+		return ob->bb;
+	}
+
+	/* This should always only be called with evaluated objects, but currently RNA is a problem here... */
+	if (ob->runtime.curve_cache != NULL) {
+		BKE_mball_texspace_calc(ob);
+	}
+
+	return ob->bb;
 }
 
 float *BKE_mball_make_orco(Object *ob, ListBase *dispbase)
@@ -302,6 +311,11 @@ bool BKE_mball_is_basis_for(Object *ob1, Object *ob2)
 {
 	int basis1nr, basis2nr;
 	char basis1name[MAX_ID_NAME], basis2name[MAX_ID_NAME];
+
+	if (ob1->id.name[2] != ob2->id.name[2]) {
+		/* Quick return in case first char of both ID's names is not the same... */
+		return false;
+	}
 
 	BLI_split_name_num(basis1name, &basis1nr, ob1->id.name + 2, '.');
 	BLI_split_name_num(basis2name, &basis2nr, ob2->id.name + 2, '.');
@@ -565,13 +579,13 @@ void BKE_mball_select_swap(struct MetaBall *mb)
 
 /* Draw Engine */
 
-void (*BKE_mball_batch_cache_dirty_cb)(MetaBall *mb, int mode) = NULL;
+void (*BKE_mball_batch_cache_dirty_tag_cb)(MetaBall *mb, int mode) = NULL;
 void (*BKE_mball_batch_cache_free_cb)(MetaBall *mb) = NULL;
 
-void BKE_mball_batch_cache_dirty(MetaBall *mb, int mode)
+void BKE_mball_batch_cache_dirty_tag(MetaBall *mb, int mode)
 {
 	if (mb->batch_cache) {
-		BKE_mball_batch_cache_dirty_cb(mb, mode);
+		BKE_mball_batch_cache_dirty_tag_cb(mb, mode);
 	}
 }
 void BKE_mball_batch_cache_free(MetaBall *mb)

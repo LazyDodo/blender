@@ -90,11 +90,18 @@ typedef struct EditBone {
 
 	short segments;
 
+	char bbone_prev_type;	/* Type of next/prev bone handles */
+	char bbone_next_type;
+	struct EditBone *bbone_prev;	/* Next/prev bones to use as handle references when calculating bbones (optional) */
+	struct EditBone *bbone_next;
+
 	/* Used for display */
 	float disp_mat[4][4];  /*  in Armature space, rest pos matrix */
 	float disp_tail_mat[4][4];  /*  in Armature space, rest pos matrix */
 	/* 32 == MAX_BBONE_SUBDIV */
 	float disp_bbone_mat[32][4][4]; /*  in Armature space, rest pos matrix */
+
+	struct EditBone *bbone_child;	/* connected child temporary during drawing */
 
 	/* Used to store temporary data */
 	union {
@@ -221,10 +228,11 @@ bool ED_object_posemode_exit_ex(struct Main *bmain, struct Object *ob);
 bool ED_object_posemode_exit(struct bContext *C, struct Object *ob);
 bool ED_object_posemode_enter_ex(struct Main *bmain, struct Object *ob);
 bool ED_object_posemode_enter(struct bContext *C, struct Object *ob);
-void ED_pose_deselect_all(struct Object *ob, int select_mode, const bool ignore_visibility);
+bool ED_pose_deselect_all(struct Object *ob, int select_mode, const bool ignore_visibility);
 void ED_pose_deselect_all_multi(struct Object **objects, uint objects_len, int select_mode, const bool ignore_visibility);
+void ED_pose_bone_select_tag_update(struct Object *ob);
 void ED_pose_bone_select(struct Object *ob, struct bPoseChannel *pchan, bool select);
-void ED_pose_recalculate_paths(struct bContext *C, struct Scene *scene, struct Object *ob);
+void ED_pose_recalculate_paths(struct bContext *C, struct Scene *scene, struct Object *ob, bool current_frame_only);
 struct Object *ED_pose_object_from_context(struct bContext *C);
 
 /* meshlaplacian.c */

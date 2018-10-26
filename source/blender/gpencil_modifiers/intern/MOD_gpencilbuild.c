@@ -118,7 +118,10 @@ static void gpf_clear_all_strokes(bGPDframe *gpf)
 static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eBuildGpencil_Transition transition)
 {
 	bGPDspoint *new_points = MEM_callocN(sizeof(bGPDspoint) * num_points, __func__);
-	MDeformVert *new_dvert = MEM_callocN(sizeof(MDeformVert) * num_points, __func__);
+	MDeformVert *new_dvert = NULL;
+	if (gps->dvert != NULL) {
+		new_dvert = MEM_callocN(sizeof(MDeformVert) * num_points, __func__);
+	}
 
 	/* Which end should points be removed from */
 	// TODO: free stroke weights
@@ -128,14 +131,15 @@ static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eB
 		{
 			/* copy over point data */
 			memcpy(new_points, gps->points, sizeof(bGPDspoint) * num_points);
-			memcpy(new_dvert, gps->dvert, sizeof(MDeformVert) * num_points);
+			if (gps->dvert != NULL) {
+				memcpy(new_dvert, gps->dvert, sizeof(MDeformVert) * num_points);
 
-			/* free unused point weights */
-			for (int i = num_points; i < gps->totpoints; i++) {
-				MDeformVert *dvert = &gps->dvert[i];
-				BKE_gpencil_free_point_weights(dvert);
+				/* free unused point weights */
+				for (int i = num_points; i < gps->totpoints; i++) {
+					MDeformVert *dvert = &gps->dvert[i];
+					BKE_gpencil_free_point_weights(dvert);
+				}
 			}
-
 			break;
 		}
 
@@ -149,14 +153,15 @@ static void reduce_stroke_points(bGPDstroke *gps, const int num_points, const eB
 
 			/* copy over point data */
 			memcpy(new_points, gps->points + offset, sizeof(bGPDspoint) * num_points);
-			memcpy(new_dvert, gps->dvert + offset, sizeof(MDeformVert) * num_points);
+			if (gps->dvert != NULL) {
+				memcpy(new_dvert, gps->dvert + offset, sizeof(MDeformVert) * num_points);
 
-			/* free unused weights */
-			for (int i = 0; i < offset; i++) {
-				MDeformVert *dvert = &gps->dvert[i];
-				BKE_gpencil_free_point_weights(dvert);
+				/* free unused weights */
+				for (int i = 0; i < offset; i++) {
+					MDeformVert *dvert = &gps->dvert[i];
+					BKE_gpencil_free_point_weights(dvert);
+				}
 			}
-
 			break;
 		}
 
@@ -510,27 +515,6 @@ static void generateStrokes(
 	}
 }
 
-/* ******************************************** */
-
-/* FIXME: Baking the Build Modifier is currently unsupported.
- * Adding support for this is more complicated than for other
- * modifiers, as to implement this, we'd have to add more frames,
- * which would in turn break how the modifier functions.
- */
-#if 0
-static void bakeModifier(
-        Main *bmain, const Depsgraph *UNUSED(depsgraph),
-        GpencilModifierData *md, Object *ob)
-{
-	bGPdata *gpd = ob->data;
-
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
-
-		}
-	}
-}
-#endif
 
 /* ******************************************** */
 
@@ -539,13 +523,14 @@ GpencilModifierTypeInfo modifierType_Gpencil_Build = {
 	/* structName */        "BuildGpencilModifierData",
 	/* structSize */        sizeof(BuildGpencilModifierData),
 	/* type */              eGpencilModifierTypeType_Gpencil,
-	/* flags */             0,
+	/* flags */             eGpencilModifierTypeFlag_NoApply,
 
 	/* copyData */          copyData,
 
 	/* deformStroke */      NULL,
 	/* generateStrokes */   generateStrokes,
 	/* bakeModifier */      NULL,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

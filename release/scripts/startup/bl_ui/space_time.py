@@ -87,12 +87,16 @@ class TIME_MT_editor_menus(Menu):
     bl_label = ""
 
     def draw(self, context):
-        self.draw_menus(self.layout, context)
+        self.draw_menus(self.layout, context, horizontal=False)
 
     @staticmethod
-    def draw_menus(layout, context):
-        row = layout.row()
-        sub = row.row(align=True)
+    def draw_menus(layout, context, horizontal=True):
+        if horizontal:
+            row = layout.row()
+            sub = row.row(align=True)
+        else:
+            sub = layout
+
         sub.popover(
             panel="TIME_PT_playback",
             text="Playback",
@@ -102,7 +106,9 @@ class TIME_MT_editor_menus(Menu):
             text="Keying",
         )
 
-        sub = row.row(align=True)
+        if horizontal:
+            sub = row.row(align=True)
+
         sub.menu("TIME_MT_view")
         sub.menu("TIME_MT_marker")
 
@@ -176,7 +182,7 @@ def marker_menu_generic(layout):
     # layout.operator_context = 'EXEC_REGION_WIN'
 
     layout.column()
-    layout.operator("marker.add", "Add Marker")
+    layout.operator("marker.add", text="Add Marker")
     layout.operator("marker.duplicate", text="Duplicate Marker")
 
     if len(bpy.data.scenes) > 10:
@@ -190,7 +196,7 @@ def marker_menu_generic(layout):
     layout.separator()
 
     layout.operator("marker.rename", text="Rename Marker")
-    layout.operator("marker.move", text="Grab/Move Marker")
+    layout.operator("marker.move", text="Move Marker")
 
     layout.separator()
 
@@ -239,7 +245,7 @@ class TIME_PT_playback(TimelinePanelButtons, Panel):
         layout.separator()
 
         col = layout.column()
-        col.label("Play Animation In:")
+        col.label(text="Play Animation In:")
         layout.prop(screen, "use_play_top_left_3d_editor", text="Active Editor Only")
         layout.prop(screen, "use_play_3d_editors")
         layout.prop(screen, "use_play_animation_editors")
@@ -274,18 +280,18 @@ class TIME_PT_keyframing_settings(TimelinePanelButtons, Panel):
         userprefs = context.user_preferences
 
         col = layout.column(align=True)
-        col.label("Active Keying Set:")
+        col.label(text="Active Keying Set:")
         row = col.row(align=True)
         row.prop_search(scene.keying_sets_all, "active", scene, "keying_sets_all", text="")
         row.operator("anim.keyframe_insert", text="", icon='KEY_HLT')
         row.operator("anim.keyframe_delete", text="", icon='KEY_DEHLT')
 
         col = layout.column(align=True)
-        col.label("New Keyframe Type:")
+        col.label(text="New Keyframe Type:")
         col.prop(toolsettings, "keyframe_type", text="")
 
         col = layout.column(align=True)
-        col.label("Auto Keyframing:")
+        col.label(text="Auto Keyframing:")
         row = col.row()
         row.prop(toolsettings, "auto_keying_mode", text="")
         row.prop(toolsettings, "use_keyframe_insert_keyingset", text="")

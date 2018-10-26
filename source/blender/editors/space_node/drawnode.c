@@ -144,7 +144,7 @@ static void node_buts_time(uiLayout *layout, bContext *UNUSED(C), PointerRNA *pt
 	}
 #endif
 
-	uiTemplateCurveMapping(layout, ptr, "curve", 's', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "curve", 's', false, false, false, false);
 
 	row = uiLayoutRow(layout, true);
 	uiItemR(row, ptr, "frame_start", 0, IFACE_("Sta"), ICON_NONE);
@@ -158,7 +158,7 @@ static void node_buts_colorramp(uiLayout *layout, bContext *UNUSED(C), PointerRN
 
 static void node_buts_curvevec(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
-	uiTemplateCurveMapping(layout, ptr, "mapping", 'v', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "mapping", 'v', false, false, false, false);
 }
 
 #define SAMPLE_FLT_ISNONE FLT_MAX
@@ -186,7 +186,7 @@ static void node_buts_curvecol(uiLayout *layout, bContext *UNUSED(C), PointerRNA
 		cumap->flag &= ~CUMA_DRAW_SAMPLE;
 	}
 
-	uiTemplateCurveMapping(layout, ptr, "mapping", 'c', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "mapping", 'c', false, false, false, true);
 }
 
 static void node_buts_normal(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -658,7 +658,7 @@ static void node_buts_image_user(uiLayout *layout, bContext *C, PointerRNA *ptr,
 		/* Image *ima = imaptr->data; */  /* UNUSED */
 
 		char numstr[32];
-		const int framenr = BKE_image_user_frame_get(iuser, CFRA, 0, NULL);
+		const int framenr = BKE_image_user_frame_get(iuser, CFRA, NULL);
 		BLI_snprintf(numstr, sizeof(numstr), IFACE_("Frame: %d"), framenr);
 		uiItemL(layout, numstr, ICON_NONE);
 	}
@@ -1786,7 +1786,7 @@ static void node_composit_buts_file_output_ex(uiLayout *layout, bContext *C, Poi
 
 	uiItemS(layout);
 
-	uiItemO(layout, IFACE_("Add Input"), ICON_ZOOMIN, "NODE_OT_output_file_add_socket");
+	uiItemO(layout, IFACE_("Add Input"), ICON_ADD, "NODE_OT_output_file_add_socket");
 
 	row = uiLayoutRow(layout, false);
 	col = uiLayoutColumn(row, true);
@@ -1795,13 +1795,13 @@ static void node_composit_buts_file_output_ex(uiLayout *layout, bContext *C, Poi
 	/* using different collection properties if multilayer format is enabled */
 	if (multilayer) {
 		uiTemplateList(col, C, "UI_UL_list", "file_output_node", ptr, "layer_slots", ptr, "active_input_index",
-		               NULL, 0, 0, 0, 0);
+		               NULL, 0, 0, 0, 0, false);
 		RNA_property_collection_lookup_int(ptr, RNA_struct_find_property(ptr, "layer_slots"),
 		                                   active_index, &active_input_ptr);
 	}
 	else {
 		uiTemplateList(col, C, "UI_UL_list", "file_output_node", ptr, "file_slots", ptr, "active_input_index",
-		               NULL, 0, 0, 0, 0);
+		               NULL, 0, 0, 0, 0, false);
 		RNA_property_collection_lookup_int(ptr, RNA_struct_find_property(ptr, "file_slots"),
 		                                   active_index, &active_input_ptr);
 	}
@@ -1975,7 +1975,7 @@ static void node_composit_buts_huecorrect(uiLayout *layout, bContext *UNUSED(C),
 		cumap->flag &= ~CUMA_DRAW_SAMPLE;
 	}
 
-	uiTemplateCurveMapping(layout, ptr, "mapping", 'h', false, false, false);
+	uiTemplateCurveMapping(layout, ptr, "mapping", 'h', false, false, false, false);
 }
 
 static void node_composit_buts_ycc(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -2340,7 +2340,6 @@ static void node_composit_buts_mask(uiLayout *layout, bContext *C, PointerRNA *p
 	bNode *node = ptr->data;
 
 	uiTemplateID(layout, C, ptr, "mask", NULL, NULL, NULL, UI_TEMPLATE_ID_FILTER_ALL, false);
-	uiItemR(layout, ptr, "use_antialiasing", 0, NULL, ICON_NONE);
 	uiItemR(layout, ptr, "use_feather", 0, NULL, ICON_NONE);
 
 	uiItemR(layout, ptr, "size_source", 0, "", ICON_NONE);
@@ -2496,8 +2495,8 @@ static void node_composit_buts_cryptomatte(uiLayout *layout, bContext *UNUSED(C)
 
 static void node_composit_buts_cryptomatte_ex(uiLayout *layout, bContext *UNUSED(C), PointerRNA *UNUSED(ptr))
 {
-	uiItemO(layout, IFACE_("Add Crypto Layer"), ICON_ZOOMIN, "NODE_OT_cryptomatte_layer_add");
-	uiItemO(layout, IFACE_("Remove Crypto Layer"), ICON_ZOOMOUT, "NODE_OT_cryptomatte_layer_remove");
+	uiItemO(layout, IFACE_("Add Crypto Layer"), ICON_ADD, "NODE_OT_cryptomatte_layer_add");
+	uiItemO(layout, IFACE_("Remove Crypto Layer"), ICON_REMOVE, "NODE_OT_cryptomatte_layer_remove");
 }
 
 static void node_composit_buts_brightcontrast(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -3008,9 +3007,9 @@ void ED_node_init_butfuncs(void)
 	NODE_TYPES_END
 
 	/* tree type icons */
-	ntreeType_Composite->ui_icon = ICON_RENDERLAYERS;
-	ntreeType_Shader->ui_icon = ICON_MATERIAL;
-	ntreeType_Texture->ui_icon = ICON_TEXTURE;
+	ntreeType_Composite->ui_icon = ICON_NODE_COMPOSITING;
+	ntreeType_Shader->ui_icon = ICON_NODE_MATERIAL;
+	ntreeType_Texture->ui_icon = ICON_NODE_TEXTURE;
 }
 
 void ED_init_custom_node_type(bNodeType *ntype)

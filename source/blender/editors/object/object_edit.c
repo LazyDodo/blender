@@ -46,9 +46,9 @@
 #include "BLT_translation.h"
 
 #include "DNA_armature_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_curve_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_material_types.h"
 #include "DNA_meta_types.h"
@@ -1239,9 +1239,14 @@ void OBJECT_OT_forcefield_toggle(wmOperatorType *ot)
  *
  * To be called from various tools that do incremental updates
  */
-void ED_objects_recalculate_paths(bContext *C, Scene *scene)
+void ED_objects_recalculate_paths(bContext *C, Scene *scene, bool current_frame_only)
 {
-	struct Main *bmain = CTX_data_main(C);
+	/* Transform doesn't always have context available to do update. */
+	if (C == NULL) {
+		return;
+	}
+
+	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ListBase targets = {NULL, NULL};
 
@@ -1255,17 +1260,20 @@ void ED_objects_recalculate_paths(bContext *C, Scene *scene)
 	CTX_DATA_END;
 
 	/* recalculate paths, then free */
-	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets);
+	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets, true, current_frame_only);
 	BLI_freelistN(&targets);
 
-	/* tag objects for copy on write - so paths will draw/redraw */
-	CTX_DATA_BEGIN(C, Object *, ob, selected_editable_objects)
-	{
-		if (ob->mpath) {
-			DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	if (!current_frame_only) {
+		/* Tag objects for copy on write - so paths will draw/redraw
+		 * For currently frame only we update evaluated object directly. */
+		CTX_DATA_BEGIN(C, Object *, ob, selected_editable_objects)
+		{
+			if (ob->mpath) {
+				DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+			}
 		}
+		CTX_DATA_END;
 	}
-	CTX_DATA_END;
 }
 
 
@@ -1312,7 +1320,7 @@ static int object_calculate_paths_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* calculate the paths for objects that have them (and are tagged to get refreshed) */
-	ED_objects_recalculate_paths(C, scene);
+	ED_objects_recalculate_paths(C, scene, false);
 
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
@@ -1362,7 +1370,7 @@ static int object_update_paths_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* calculate the paths for objects that have them (and are tagged to get refreshed) */
-	ED_objects_recalculate_paths(C, scene);
+	ED_objects_recalculate_paths(C, scene, false);
 
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
@@ -1465,6 +1473,43 @@ void OBJECT_OT_paths_clear(wmOperatorType *ot)
 	RNA_def_property_flag(ot->prop, PROP_SKIP_SAVE);
 }
 
+/* --------- */
+
+static int object_update_paths_range_exec(bContext *C, wmOperator *UNUSED(op))
+{
+	Scene *scene = CTX_data_scene(C);
+
+	/* loop over all edtiable objects in scene */
+	CTX_DATA_BEGIN(C, Object *, ob, editable_objects)
+	{
+		/* use Preview Range or Full Frame Range - whichever is in use */
+		ob->avs.path_sf = PSFRA;
+		ob->avs.path_ef = PEFRA;
+
+		/* tag for updates */
+		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+	}
+	CTX_DATA_END;
+
+	return OPERATOR_FINISHED;
+}
+
+void OBJECT_OT_paths_range_update(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Update Range from Scene";
+	ot->idname = "OBJECT_OT_paths_range_update";
+	ot->description = "Update frame range for motion paths from the Scene's current frame range";
+
+	/* callbacks */
+	ot->exec = object_update_paths_range_exec;
+	ot->poll = ED_operator_object_active_editable;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
 
 /********************** Smooth/Flat *********************/
 
@@ -1488,7 +1533,7 @@ static int shade_smooth_exec(bContext *C, wmOperator *op)
 		if (ob->type == OB_MESH) {
 			BKE_mesh_smooth_flag_set(ob, !clear);
 
-			BKE_mesh_batch_cache_dirty(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
+			BKE_mesh_batch_cache_dirty_tag(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
 			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 
@@ -1964,7 +2009,7 @@ static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout
 	uiItemFullO_ptr(layout,
 	                menu->ot,
 	                "New Collection",
-	                ICON_ZOOMIN,
+	                ICON_ADD,
 	                menu->ptr.data,
 	                WM_OP_INVOKE_DEFAULT,
 	                0,

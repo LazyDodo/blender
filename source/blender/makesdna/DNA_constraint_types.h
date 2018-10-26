@@ -121,7 +121,7 @@ typedef struct bPythonConstraint {
 	ListBase targets;		/* a list of targets that this constraint has (bConstraintTarget-s) */
 
 	struct Object *tar;		/* target from previous implementation (version-patch sets this to NULL on file-load) */
-	char subtarget[64];		/* subtarger from previous implentation (version-patch sets this to "" on file-load), MAX_ID_NAME-2 */
+	char subtarget[64];		/* subtarger from previous implementation (version-patch sets this to "" on file-load), MAX_ID_NAME-2 */
 } bPythonConstraint;
 
 
@@ -428,7 +428,10 @@ typedef struct bShrinkwrapConstraint {
 	char		projAxis;		/* axis to project/constrain */
 	char		projAxisSpace;	/* space to project axis in */
 	float		projLimit;		/* distance to search */
-	char 		pad[4];
+	char		shrinkMode;		/* inside/outside/on surface (see MOD shrinkwrap) */
+	char		flag;			/* options */
+	char		trackAxis;		/* axis to align to normal */
+	char 		pad;
 } bShrinkwrapConstraint;
 
 /* Follow Track constraints */
@@ -524,10 +527,12 @@ typedef enum eBConstraint_Flags {
 	CONSTRAINT_PROXY_LOCAL = (1<<8),
 		/* indicates that constraint is temporarily disabled (only used in GE) */
 	CONSTRAINT_OFF = (1<<9),
-		/* use bbone curve shape when calculating headtail values */
+		/* use bbone curve shape when calculating headtail values (also used by dependency graph!) */
 	CONSTRAINT_BBONE_SHAPE = (1<<10),
 		/* That constraint has been inserted in local override (i.e. it can be fully edited!). */
 	CONSTRAINT_STATICOVERRIDE_LOCAL = (1 << 11),
+		/* use full transformation (not just segment locations) - only set at runtime  */
+	CONSTRAINT_BBONE_SHAPE_FULL = (1 << 12),
 } eBConstraint_Flags;
 
 /* bConstraint->ownspace/tarspace */
@@ -584,7 +589,8 @@ typedef enum eCopyScale_Flags {
 	SIZELIKE_X		= (1<<0),
 	SIZELIKE_Y		= (1<<1),
 	SIZELIKE_Z		= (1<<2),
-	SIZELIKE_OFFSET = (1<<3)
+	SIZELIKE_OFFSET = (1<<3),
+	SIZELIKE_MULTIPLY = (1<<4),
 } eCopyScale_Flags;
 
 /* bTransformConstraint.to/from */
@@ -631,6 +637,23 @@ typedef enum eTrackToAxis_Modes {
 	TRACK_nZ	= 5
 } eTrackToAxis_Modes;
 
+/* Shrinkwrap flags */
+typedef enum eShrinkwrap_Flags {
+	/* Also raycast in the opposite direction. */
+	CON_SHRINKWRAP_PROJECT_OPPOSITE     	= (1 << 0),
+	/* Invert the cull mode when projecting opposite. */
+	CON_SHRINKWRAP_PROJECT_INVERT_CULL  	= (1 << 1),
+	/* Align the specified axis to the target normal. */
+	CON_SHRINKWRAP_TRACK_NORMAL            	= (1 << 2),
+
+	/* Ignore front faces in project; same value as MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE */
+	CON_SHRINKWRAP_PROJECT_CULL_FRONTFACE	= (1 << 3),
+	/* Ignore back faces in project; same value as MOD_SHRINKWRAP_CULL_TARGET_BACKFACE */
+	CON_SHRINKWRAP_PROJECT_CULL_BACKFACE	= (1 << 4),
+} eShrinkwrap_Flags;
+
+#define CON_SHRINKWRAP_PROJECT_CULL_MASK (CON_SHRINKWRAP_PROJECT_CULL_FRONTFACE | CON_SHRINKWRAP_PROJECT_CULL_BACKFACE)
+
 /* FollowPath flags */
 typedef enum eFollowPath_Flags {
 	FOLLOWPATH_FOLLOW	= (1<<0),
@@ -643,7 +666,7 @@ typedef enum eTrackTo_Flags {
 	TARGET_Z_UP 	= (1<<0)
 } eTrackTo_Flags;
 
-/* Strech To Constraint -> volmode */
+/* Stretch To Constraint -> volmode */
 typedef enum eStretchTo_VolMode {
 	VOLUME_XZ	= 0,
 	VOLUME_X	= 1,

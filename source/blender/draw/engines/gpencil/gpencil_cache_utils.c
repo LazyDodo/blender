@@ -23,6 +23,7 @@
  *  \ingroup draw
  */
 
+#include "DRW_engine.h"
 #include "DRW_render.h"
 
 #include "BKE_global.h"
@@ -37,9 +38,69 @@
 
 #include "draw_cache_impl.h"
 
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
+
+static bool gpencil_check_ob_duplicated(tGPencilObjectCache *cache_array,
+	int gp_cache_used, Object *ob, int *r_index)
+{
+	if (gp_cache_used == 0) {
+		return false;
+	}
+
+	for (int i = 0; i < gp_cache_used; i++) {
+		tGPencilObjectCache *cache_elem = &cache_array[i];
+		if (cache_elem->ob == ob) {
+			*r_index = cache_elem->data_idx;
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool gpencil_check_datablock_duplicated(
+        tGPencilObjectCache *cache_array, int gp_cache_used,
+        Object *ob, bGPdata *gpd)
+{
+	if (gp_cache_used == 0) {
+		return false;
+	}
+
+	for (int i = 0; i < gp_cache_used; i++) {
+		tGPencilObjectCache *cache_elem = &cache_array[i];
+		if ((cache_elem->ob != ob) &&
+		    (cache_elem->gpd == gpd))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+static int gpencil_len_datablock_duplicated(
+	tGPencilObjectCache *cache_array, int gp_cache_used,
+	Object *ob, bGPdata *gpd)
+{
+	int tot = 0;
+	if (gp_cache_used == 0) {
+		return 0;
+	}
+
+	for (int i = 0; i < gp_cache_used; i++) {
+		tGPencilObjectCache *cache_elem = &cache_array[i];
+		if ((cache_elem->ob != ob) &&
+		    (cache_elem->gpd == gpd) &&
+		    (!cache_elem->is_dup_ob))
+		{
+			tot++;
+		}
+	}
+	return tot;
+}
+
  /* add a gpencil object to cache to defer drawing */
 tGPencilObjectCache *gpencil_object_cache_add(
-        tGPencilObjectCache *cache_array, Object *ob, bool is_temp,
+        tGPencilObjectCache *cache_array, Object *ob,
         int *gp_cache_size, int *gp_cache_used)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
@@ -61,15 +122,46 @@ tGPencilObjectCache *gpencil_object_cache_add(
 		}
 		cache_array = p;
 	}
-
 	/* zero out all pointers */
 	cache_elem = &cache_array[*gp_cache_used];
 	memset(cache_elem, 0, sizeof(*cache_elem));
 
-	/* save object */
-	cache_elem->ob = ob;
-	cache_elem->temp_ob = is_temp;
+	Object *ob_orig = (Object *)DEG_get_original_id(&ob->id);
+	cache_elem->ob = ob_orig;
+	cache_elem->gpd = (bGPdata *)ob_orig->data;
+	copy_v3_v3(cache_elem->loc, ob->loc);
+	copy_m4_m4(cache_elem->obmat, ob->obmat);
 	cache_elem->idx = *gp_cache_used;
+
+	/* check if object is duplicated */
+	cache_elem->is_dup_ob = gpencil_check_ob_duplicated(
+	        cache_array,
+	        *gp_cache_used, ob_orig,
+	        &cache_elem->data_idx);
+
+	if (!cache_elem->is_dup_ob) {
+		/* check if object reuse datablock */
+		cache_elem->is_dup_data = gpencil_check_datablock_duplicated(
+			cache_array, *gp_cache_used,
+			ob_orig, cache_elem->gpd);
+		if (cache_elem->is_dup_data) {
+			cache_elem->data_idx = gpencil_len_datablock_duplicated(
+				cache_array, *gp_cache_used,
+				ob_orig, cache_elem->gpd);
+
+			cache_elem->gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+		}
+		else {
+			cache_elem->data_idx = 0;
+		}
+	}
+	else {
+		cache_elem->is_dup_data = false;
+	}
+
+	/* save FXs */
+	cache_elem->pixfactor = cache_elem->gpd->pixfactor;
+	cache_elem->shader_fx = ob_orig->shader_fx;
 
 	cache_elem->init_grp = 0;
 	cache_elem->end_grp = -1;
@@ -109,20 +201,13 @@ tGPencilObjectCache *gpencil_object_cache_add(
 /* get current cache data */
 static GpencilBatchCache *gpencil_batch_get_element(Object *ob)
 {
-	bGPdata *gpd = ob->data;
-	if (gpd->runtime.batch_cache_data == NULL) {
-		gpd->runtime.batch_cache_data = BLI_ghash_str_new("GP batch cache data");
-		return NULL;
-	}
-
-	return (GpencilBatchCache *) BLI_ghash_lookup(gpd->runtime.batch_cache_data, ob->id.name);
+	Object *ob_orig = (Object *)DEG_get_original_id(&ob->id);
+	return ob_orig->runtime.gpencil_cache;
 }
 
 /* verify if cache is valid */
-static bool gpencil_batch_cache_valid(Object *ob, bGPdata *gpd, int cfra)
+static bool gpencil_batch_cache_valid(GpencilBatchCache *cache, bGPdata *gpd, int cfra)
 {
-	GpencilBatchCache *cache = gpencil_batch_get_element(ob);
-
 	if (cache == NULL) {
 		return false;
 	}
@@ -171,10 +256,12 @@ void gpencil_batch_cache_check_free_slots(Object *ob)
 }
 
 /* cache init */
-static void gpencil_batch_cache_init(Object *ob, int cfra)
+static GpencilBatchCache *gpencil_batch_cache_init(Object *ob, int cfra)
 {
+	Object *ob_orig = (Object *)DEG_get_original_id(&ob->id);
+	bGPdata *gpd = (bGPdata *)ob_orig->data;
+
 	GpencilBatchCache *cache = gpencil_batch_get_element(ob);
-	bGPdata *gpd = ob->data;
 
 	if (G.debug_value >= 664) {
 		printf("gpencil_batch_cache_init: %s\n", ob->id.name);
@@ -182,7 +269,7 @@ static void gpencil_batch_cache_init(Object *ob, int cfra)
 
 	if (!cache) {
 		cache = MEM_callocN(sizeof(*cache), __func__);
-		BLI_ghash_insert(gpd->runtime.batch_cache_data, ob->id.name, cache);
+		ob_orig->runtime.gpencil_cache = cache;
 	}
 	else {
 		memset(cache, 0, sizeof(*cache));
@@ -200,10 +287,12 @@ static void gpencil_batch_cache_init(Object *ob, int cfra)
 	cache->cache_idx = 0;
 	cache->is_dirty = true;
 	cache->cache_frame = cfra;
+
+	return cache;
 }
 
 /* clear cache */
-static void gpencil_batch_cache_clear(GpencilBatchCache *cache, bGPdata *gpd)
+static void gpencil_batch_cache_clear(GpencilBatchCache *cache)
 {
 	if (!cache) {
 		return;
@@ -211,10 +300,6 @@ static void gpencil_batch_cache_clear(GpencilBatchCache *cache, bGPdata *gpd)
 
 	if (cache->cache_size == 0) {
 		return;
-	}
-
-	if (G.debug_value >= 664) {
-		printf("gpencil_batch_cache_clear: %s\n", gpd->id.name);
 	}
 
 	if (cache->cache_size > 0) {
@@ -230,68 +315,53 @@ static void gpencil_batch_cache_clear(GpencilBatchCache *cache, bGPdata *gpd)
 		MEM_SAFE_FREE(cache->batch_edlin);
 	}
 
-	MEM_SAFE_FREE(cache);
+	cache->cache_size = 0;
 }
 
 /* get cache */
 GpencilBatchCache *gpencil_batch_cache_get(Object *ob, int cfra)
 {
-	bGPdata *gpd = ob->data;
+	Object *ob_orig = (Object *)DEG_get_original_id(&ob->id);
+	bGPdata *gpd = (bGPdata *)ob_orig->data;
 
-	if (!gpencil_batch_cache_valid(ob, gpd, cfra)) {
+	GpencilBatchCache *cache = gpencil_batch_get_element(ob);
+	if (!gpencil_batch_cache_valid(cache, gpd, cfra)) {
 		if (G.debug_value >= 664) {
 			printf("gpencil_batch_cache: %s\n", gpd->id.name);
 		}
 
-		GpencilBatchCache *cache = gpencil_batch_get_element(ob);
 		if (cache) {
-			gpencil_batch_cache_clear(cache, gpd);
-			BLI_ghash_remove(gpd->runtime.batch_cache_data, ob->id.name, NULL, NULL);
+			gpencil_batch_cache_clear(cache);
 		}
-		gpencil_batch_cache_init(ob, cfra);
+		return gpencil_batch_cache_init(ob, cfra);
 	}
-
-	return gpencil_batch_get_element(ob);
+	else {
+		return cache;
+	}
 }
 
 /* set cache as dirty */
-void DRW_gpencil_batch_cache_dirty(bGPdata *gpd)
+void DRW_gpencil_batch_cache_dirty_tag(bGPdata *gpd)
 {
-	if (gpd->runtime.batch_cache_data == NULL) {
-		return;
-	}
-
-	GHashIterator *ihash = BLI_ghashIterator_new(gpd->runtime.batch_cache_data);
-	while (!BLI_ghashIterator_done(ihash)) {
-		GpencilBatchCache *cache = (GpencilBatchCache *)BLI_ghashIterator_getValue(ihash);
-		if (cache) {
-			cache->is_dirty = true;
-		}
-		BLI_ghashIterator_step(ihash);
-	}
-	BLI_ghashIterator_free(ihash);
+	bGPdata *gpd_orig = (bGPdata *)DEG_get_original_id(&gpd->id);
+	gpd_orig->flag |= GP_DATA_CACHE_IS_DIRTY;
 }
 
 /* free batch cache */
-void DRW_gpencil_batch_cache_free(bGPdata *gpd)
+void DRW_gpencil_batch_cache_free(bGPdata *UNUSED(gpd))
 {
-	if (gpd->runtime.batch_cache_data == NULL) {
-		return;
-	}
+	return;
+}
 
-	GHashIterator *ihash = BLI_ghashIterator_new(gpd->runtime.batch_cache_data);
-	while (!BLI_ghashIterator_done(ihash)) {
-		GpencilBatchCache *cache = (GpencilBatchCache *)BLI_ghashIterator_getValue(ihash);
-		if (cache) {
-			gpencil_batch_cache_clear(cache, gpd);
+/* wrapper to clear cache */
+void DRW_gpencil_freecache(struct Object *ob)
+{
+	if ((ob) && (ob->type == OB_GPENCIL)) {
+		gpencil_batch_cache_clear(ob->runtime.gpencil_cache);
+		MEM_SAFE_FREE(ob->runtime.gpencil_cache);
+		bGPdata *gpd = (bGPdata *)ob->data;
+		if (gpd) {
+			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 		}
-		BLI_ghashIterator_step(ihash);
-	}
-	BLI_ghashIterator_free(ihash);
-
-	/* free hash */
-	if (gpd->runtime.batch_cache_data) {
-		BLI_ghash_free(gpd->runtime.batch_cache_data, NULL, NULL);
-		gpd->runtime.batch_cache_data = NULL;
 	}
 }

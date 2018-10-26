@@ -36,6 +36,7 @@
 #include "DNA_mesh_types.h"
 #include "DNA_meta_types.h"
 
+#include "BLI_hash.h"
 #include "BLI_link_utils.h"
 #include "BLI_mempool.h"
 
@@ -145,7 +146,7 @@ void DRW_shgroup_uniform_texture(DRWShadingGroup *shgroup, const char *name, con
 	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_TEXTURE, tex, 0, 1);
 }
 
-/* Same as DRW_shgroup_uniform_texture but is garanteed to be bound if shader does not change between shgrp. */
+/* Same as DRW_shgroup_uniform_texture but is guaranteed to be bound if shader does not change between shgrp. */
 void DRW_shgroup_uniform_texture_persistent(DRWShadingGroup *shgroup, const char *name, const GPUTexture *tex)
 {
 	BLI_assert(tex != NULL);
@@ -158,7 +159,7 @@ void DRW_shgroup_uniform_block(DRWShadingGroup *shgroup, const char *name, const
 	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_BLOCK, ubo, 0, 1);
 }
 
-/* Same as DRW_shgroup_uniform_block but is garanteed to be bound if shader does not change between shgrp. */
+/* Same as DRW_shgroup_uniform_block but is guaranteed to be bound if shader does not change between shgrp. */
 void DRW_shgroup_uniform_block_persistent(DRWShadingGroup *shgroup, const char *name, const GPUUniformBuffer *ubo)
 {
 	BLI_assert(ubo != NULL);
@@ -218,6 +219,11 @@ void DRW_shgroup_uniform_ivec2(DRWShadingGroup *shgroup, const char *name, const
 void DRW_shgroup_uniform_ivec3(DRWShadingGroup *shgroup, const char *name, const int *value, int arraysize)
 {
 	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_INT, value, 3, arraysize);
+}
+
+void DRW_shgroup_uniform_ivec4(DRWShadingGroup *shgroup, const char *name, const int *value, int arraysize)
+{
+	drw_shgroup_uniform(shgroup, name, DRW_UNIFORM_INT, value, 4, arraysize);
 }
 
 void DRW_shgroup_uniform_mat3(DRWShadingGroup *shgroup, const char *name, const float (*value)[3])
@@ -339,6 +345,22 @@ static DRWCallState *drw_call_state_create(DRWShadingGroup *shgroup, float (*obm
 		state->matflag &= ~DRW_CALL_ORCOTEXFAC;
 	}
 
+	if ((state->matflag & DRW_CALL_OBJECTINFO) != 0) {
+		state->objectinfo[0] = ob ? ob->index : 0;
+		unsigned int random;
+#if 0 /* TODO(fclem) handle dupli objects */
+		if (GMS.dob) {
+			random = GMS.dob->random_id;
+		}
+		else
+#endif
+		{
+			random = BLI_hash_int_2d(BLI_hash_string(ob->id.name + 2), 0);
+		}
+		state->objectinfo[1] = random * (1.0f / (float)0xFFFFFFFF);
+		state->matflag &= ~DRW_CALL_OBJECTINFO;
+	}
+
 	return state;
 }
 
@@ -435,7 +457,7 @@ void DRW_shgroup_call_object_procedural_triangles_culled_add(DRWShadingGroup *sh
 }
 
 /* These calls can be culled and are optimized for redraw */
-void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, GPUBatch *geom, Object *ob, bool bypass_culling)
+void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, GPUBatch *geom, Object *ob, Material *ma, bool bypass_culling)
 {
 	BLI_assert(geom != NULL);
 	BLI_assert(ELEM(shgroup->type, DRW_SHG_NORMAL, DRW_SHG_FEEDBACK_TRANSFORM));
@@ -444,6 +466,7 @@ void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, GPUBatch *geom, Ob
 	call->state = drw_call_state_object(shgroup, ob->obmat, ob);
 	call->type = DRW_CALL_SINGLE;
 	call->single.geometry = geom;
+	call->single.ma_index = ma ? ma->index : 0;
 #ifdef USE_GPU_SELECT
 	call->select_id = DST.select_id;
 #endif
@@ -455,7 +478,7 @@ void DRW_shgroup_call_object_add_ex(DRWShadingGroup *shgroup, GPUBatch *geom, Ob
 }
 
 void DRW_shgroup_call_object_add_with_callback(
-        DRWShadingGroup *shgroup, GPUBatch *geom, Object *ob,
+        DRWShadingGroup *shgroup, GPUBatch *geom, Object *ob, Material *ma,
         DRWCallVisibilityFn *callback, void *user_data)
 {
 	BLI_assert(geom != NULL);
@@ -467,6 +490,7 @@ void DRW_shgroup_call_object_add_with_callback(
 	call->state->user_data = user_data;
 	call->type = DRW_CALL_SINGLE;
 	call->single.geometry = geom;
+	call->single.ma_index = ma ? ma->index : 0;
 #ifdef USE_GPU_SELECT
 	call->select_id = DST.select_id;
 #endif
@@ -535,11 +559,23 @@ static void sculpt_draw_cb(
         void *user_data)
 {
 	Object *ob = user_data;
-	PBVH *pbvh = ob->sculpt->pbvh;
+
+	/* XXX should be ensured before but sometime it's not... go figure (see T57040). */
+	PBVH *pbvh = BKE_sculpt_object_pbvh_ensure(DST.draw_ctx.depsgraph, ob);
+
+	const DRWContextState *drwctx = DRW_context_state_get();
+	int fast_mode = 0;
+
+	if (drwctx->evil_C != NULL) {
+		Paint *p = BKE_paint_get_active_from_context(drwctx->evil_C);
+		if (p && (p->flags & PAINT_FAST_NAVIGATE)) {
+			fast_mode = drwctx->rv3d->rflag & RV3D_NAVIGATING;
+		}
+	}
 
 	if (pbvh) {
 		BKE_pbvh_draw_cb(
-		        pbvh, NULL, NULL, false,
+		        pbvh, NULL, NULL, fast_mode, false,
 		        (void (*)(void *, GPUBatch *))draw_fn, shgroup);
 	}
 }
@@ -618,6 +654,7 @@ static void drw_shgroup_init(DRWShadingGroup *shgroup, GPUShader *shader)
 	shgroup->normalview = GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_NORMAL);
 	shgroup->normalworld = GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_WORLDNORMAL);
 	shgroup->orcotexfac = GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_ORCO);
+	shgroup->objectinfo = GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_OBJECT_INFO);
 	shgroup->eye = GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_EYE);
 	shgroup->callid = GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_CALLID);
 
@@ -636,6 +673,8 @@ static void drw_shgroup_init(DRWShadingGroup *shgroup, GPUShader *shader)
 		shgroup->matflag |= DRW_CALL_NORMALWORLD;
 	if (shgroup->orcotexfac > -1)
 		shgroup->matflag |= DRW_CALL_ORCOTEXFAC;
+	if (shgroup->objectinfo > -1)
+		shgroup->matflag |= DRW_CALL_OBJECTINFO;
 	if (shgroup->eye > -1)
 		shgroup->matflag |= DRW_CALL_EYEVEC;
 }
@@ -729,10 +768,7 @@ static DRWShadingGroup *drw_shgroup_create_ex(struct GPUShader *shader, DRWPass 
 	shgroup->instance_geom = NULL;
 	shgroup->instance_vbo = NULL;
 #endif
-
-#if !defined(NDEBUG) || defined(USE_GPU_SELECT)
 	shgroup->pass_parent = pass;
-#endif
 
 	return shgroup;
 }
@@ -757,46 +793,25 @@ static DRWShadingGroup *drw_shgroup_material_create_ex(GPUPass *gpupass, DRWPass
 
 static DRWShadingGroup *drw_shgroup_material_inputs(DRWShadingGroup *grp, struct GPUMaterial *material)
 {
-	/* TODO : Ideally we should not convert. But since the whole codegen
-	 * is relying on GPUPass we keep it as is for now. */
-
 	ListBase *inputs = GPU_material_get_inputs(material);
 
 	/* Converting dynamic GPUInput to DRWUniform */
 	for (GPUInput *input = inputs->first; input; input = input->next) {
 		/* Textures */
-		if (input->ima) {
-			double time = 0.0; /* TODO make time variable */
-			GPUTexture *tex = GPU_texture_from_blender(
-			        input->ima, input->iuser, input->textarget, input->image_isdata, time);
+		if (input->source == GPU_SOURCE_TEX) {
+			GPUTexture *tex = NULL;
+
+			if (input->ima) {
+				double time = 0.0; /* TODO make time variable */
+				tex = GPU_texture_from_blender(input->ima, input->iuser, GL_TEXTURE_2D, input->image_isdata, time);
+			}
+			else {
+				/* Color Ramps */
+				tex = *input->coba;
+			}
 
 			if (input->bindtex) {
-				DRW_shgroup_uniform_texture(grp, input->shadername, tex);
-			}
-		}
-		/* Color Ramps */
-		else if (input->tex) {
-			/* HACK : input->tex is a (GPUTexture **) in this case. */
-			GPUTexture *tex = *((GPUTexture **)input->tex);
-			DRW_shgroup_uniform_texture(grp, input->shadername, tex);
-		}
-		/* Floats */
-		else {
-			switch (input->type) {
-				case GPU_FLOAT:
-				case GPU_VEC2:
-				case GPU_VEC3:
-				case GPU_VEC4:
-					/* Should already be in the material ubo. */
-					break;
-				case GPU_MAT3:
-					DRW_shgroup_uniform_mat3(grp, input->shadername, (float (*)[3])input->dynamicvec);
-					break;
-				case GPU_MAT4:
-					DRW_shgroup_uniform_mat4(grp, input->shadername, (float (*)[4])input->dynamicvec);
-					break;
-				default:
-					break;
+				drw_shgroup_uniform_create_ex(grp, input->shaderloc, DRW_UNIFORM_TEXTURE, tex, 0, 1);
 			}
 		}
 	}
@@ -966,7 +981,7 @@ void DRW_shgroup_instance_batch(DRWShadingGroup *shgroup, struct GPUBatch *batch
 	drw_call_calc_orco(NULL, shgroup->instance_orcofac);
 	/* PERF : This destroys the vaos cache so better check if it's necessary. */
 	/* Note: This WILL break if batch->verts[0] is destroyed and reallocated
-	 * at the same adress. Bindings/VAOs would remain obsolete. */
+	 * at the same address. Bindings/VAOs would remain obsolete. */
 	//if (shgroup->instancing_geom->inst != batch->verts[0])
 	GPU_batch_instbuf_set(shgroup->instance_geom, batch->verts[0], false);
 
@@ -1017,6 +1032,23 @@ bool DRW_shgroup_is_empty(DRWShadingGroup *shgroup)
 	return true;
 }
 
+DRWShadingGroup *DRW_shgroup_create_sub(DRWShadingGroup *shgroup)
+{
+	/* Remove this assertion if needed but implement the other cases first! */
+	BLI_assert(shgroup->type == DRW_SHG_NORMAL);
+
+	DRWShadingGroup *shgroup_new = BLI_mempool_alloc(DST.vmempool->shgroups);
+
+	*shgroup_new = *shgroup;
+	shgroup_new->uniforms = NULL; /* Not sure about that.. Should we copy them instead? */
+	shgroup_new->calls.first = NULL;
+	shgroup_new->calls.last = NULL;
+
+	BLI_LINKS_INSERT_AFTER(&shgroup->pass_parent->shgroups, shgroup, shgroup_new);
+
+	return shgroup_new;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -1028,7 +1060,9 @@ DRWPass *DRW_pass_create(const char *name, DRWState state)
 {
 	DRWPass *pass = BLI_mempool_alloc(DST.vmempool->passes);
 	pass->state = state;
-	if ((G.debug_value > 20) || (G.debug & G_DEBUG)) {
+	if (((G.debug_value > 20) && (G.debug_value < 30)) ||
+	     (G.debug & G_DEBUG))
+	{
 		BLI_strncpy(pass->name, name, MAX_PASS_NAME);
 	}
 
@@ -1127,7 +1161,7 @@ static int pass_shgroup_dist_sort(void *thunk, const void *a, const void *b)
 
 /**
  * Sort Shading groups by decreasing Z of their first draw call.
- * This is usefull for order dependant effect such as transparency.
+ * This is useful for order dependent effect such as transparency.
  **/
 void DRW_pass_sort_shgroup_z(DRWPass *pass)
 {

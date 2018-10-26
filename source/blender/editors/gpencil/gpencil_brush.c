@@ -57,6 +57,7 @@
 #include "DNA_object_types.h"
 
 #include "BKE_context.h"
+#include "BKE_deform.h"
 #include "BKE_gpencil.h"
 #include "BKE_library.h"
 #include "BKE_report.h"
@@ -167,8 +168,9 @@ typedef struct tGP_BrushEditData {
 
 
 /* Callback for performing some brush operation on a single point */
-typedef bool (*GP_BrushApplyCb)(tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
-                                const int radius, const int co[2]);
+typedef bool (*GP_BrushApplyCb)(
+        tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
+        const int radius, const int co[2]);
 
 /* ************************************************ */
 /* Utility Functions */
@@ -312,6 +314,8 @@ static bool gp_brush_smooth_apply(
 	if (gso->settings->flag & GP_BRUSHEDIT_FLAG_APPLY_UV) {
 		BKE_gpencil_smooth_stroke_uv(gps, pt_index, inf);
 	}
+
+	gps->flag |= GP_STROKE_RECALC_CACHES;
 
 	return true;
 }
@@ -528,6 +532,7 @@ static void gp_brush_grab_apply_cached(
 		/* compute lock axis */
 		gpsculpt_compute_lock_axis(gso, pt, save_pt);
 	}
+	gps->flag |= GP_STROKE_RECALC_CACHES;
 }
 
 /* free customdata used for handling this stroke */
@@ -566,6 +571,8 @@ static bool gp_brush_push_apply(
 
 	/* compute lock axis */
 	gpsculpt_compute_lock_axis(gso, pt, save_pt);
+
+	gps->flag |= GP_STROKE_RECALC_CACHES;
 
 	/* done */
 	return true;
@@ -652,6 +659,8 @@ static bool gp_brush_pinch_apply(
 	/* compute lock axis */
 	gpsculpt_compute_lock_axis(gso, pt, save_pt);
 
+	gps->flag |= GP_STROKE_RECALC_CACHES;
+
 	/* done */
 	return true;
 }
@@ -731,6 +740,8 @@ static bool gp_brush_twist_apply(
 			copy_v2_v2(&pt->x, vec);
 		}
 	}
+
+	gps->flag |= GP_STROKE_RECALC_CACHES;
 
 	/* done */
 	return true;
@@ -854,6 +865,8 @@ static bool gp_brush_randomize_apply(
 		CLAMP(pt->uv_rot, -M_PI_2, M_PI_2);
 	}
 
+	gps->flag |= GP_STROKE_RECALC_CACHES;
+
 	/* done */
 	return true;
 }
@@ -865,14 +878,17 @@ static bool gp_brush_weight_apply(
         tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
         const int radius, const int co[2])
 {
+	/* create dvert */
+	BKE_gpencil_dvert_ensure(gps);
+
 	bGPDspoint *pt = gps->points + pt_index;
 	MDeformVert *dvert = gps->dvert + pt_index;
 	float inf;
 
 	/* Compute strength of effect
-	* - We divide the strength by 10, so that users can set "sane" values.
-	*   Otherwise, good default values are in the range of 0.093
-	*/
+	 * - We divide the strength by 10, so that users can set "sane" values.
+	 *   Otherwise, good default values are in the range of 0.093
+	 */
 	inf = gp_brush_influence_calc(gso, radius, co) / 10.0f;
 
 	/* need a vertex group */
@@ -883,14 +899,8 @@ static bool gp_brush_weight_apply(
 		}
 	}
 	/* get current weight */
-	float curweight = 0.0f;
-	for (int i = 0; i < dvert->totweight; i++) {
-		MDeformWeight *gpw = &dvert->dw[i];
-		if (gpw->def_nr == gso->vrgroup) {
-			curweight = gpw->weight;
-			break;
-		}
-	}
+	MDeformWeight *dw = defvert_verify_index(dvert, gso->vrgroup);
+	float curweight = dw ? dw->weight : 0.0f;
 
 	if (gp_brush_invert_check(gso)) {
 		/* reduce weight */
@@ -902,7 +912,9 @@ static bool gp_brush_weight_apply(
 	}
 
 	CLAMP(curweight, 0.0f, 1.0f);
-	BKE_gpencil_vgroup_add_point_weight(dvert, gso->vrgroup, curweight);
+	if (dw) {
+		dw->weight = curweight;
+	}
 
 	/* weight should stay within [0.0, 1.0]	*/
 	if (pt->pressure < 0.0f)
@@ -1021,7 +1033,7 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 
-	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, true);
+	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_ADD_NEW);
 	bGPDstroke *gps;
 
 	float delta[3];
@@ -1044,8 +1056,10 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 			new_stroke = MEM_dupallocN(gps);
 
 			new_stroke->points = MEM_dupallocN(gps->points);
-			new_stroke->dvert = MEM_dupallocN(gps->dvert);
-			BKE_gpencil_stroke_weights_duplicate(gps, new_stroke);
+			if (gps->dvert != NULL) {
+				new_stroke->dvert = MEM_dupallocN(gps->dvert);
+				BKE_gpencil_stroke_weights_duplicate(gps, new_stroke);
+			}
 			new_stroke->triangles = MEM_dupallocN(gps->triangles);
 
 			new_stroke->next = new_stroke->prev = NULL;
@@ -1128,7 +1142,7 @@ static bool gpsculpt_brush_apply_clone(bContext *C, tGP_BrushEditData *gso)
 		gp_brush_clone_add(C, gso);
 	}
 	else {
-		/* Stamp or Continous Mode */
+		/* Stamp or Continuous Mode */
 		if (1 /*gso->brush->mode == GP_EDITBRUSH_CLONE_MODE_STAMP*/) {
 			/* Stamp - Proceed to translate the newly added strokes */
 			gp_brush_clone_adjust(gso);
@@ -1207,7 +1221,7 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 
 	/* Random generator, only init once. */
 	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= GET_UINT_FROM_POINTER(gso);
+	rng_seed ^= POINTER_AS_UINT(gso);
 	gso->rng = BLI_rng_new(rng_seed);
 
 	gso->is_painting = false;
@@ -1215,6 +1229,11 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 
 	gso->gpd = ED_gpencil_data_get_active(C);
 	gso->cfra = INT_MAX; /* NOTE: So that first stroke will get handled in init_stroke() */
+
+	/* some brushes cannot use pressure for radius */
+	if (ELEM(gso->brush_type, GP_EDITBRUSH_TYPE_GRAB, GP_EDITBRUSH_TYPE_CLONE)) {
+		gso->brush->flag &= ~GP_EDITBRUSH_FLAG_PRESSURE_RADIUS;
+	}
 
 	gso->scene = scene;
 	gso->object = ob;
@@ -1402,7 +1421,8 @@ static bool gpsculpt_brush_do_stroke(
 {
 	GP_SpaceConversion *gsc = &gso->gsc;
 	rcti *rect = &gso->brush_rect;
-	const int radius = gso->brush->size;
+	GP_EditBrush_Data *brush = gso->brush;
+	const int radius = (brush->flag & GP_EDITBRUSH_FLAG_PRESSURE_RADIUS) ? gso->brush->size * gso->pressure : gso->brush->size;
 
 	bGPDspoint *pt1, *pt2;
 	int pc1[2] = {0};
@@ -1601,7 +1621,7 @@ static bool gpsculpt_brush_do_frame(
 static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obact = gso->object;
 	bGPdata *gpd = gso->gpd;
 	bool changed = false;
@@ -1665,9 +1685,9 @@ static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 					if (gso->use_multiframe_falloff) {
 						/* Faloff depends on distance to active frame (relative to the overall frame range) */
 						gso->mf_falloff = BKE_gpencil_multiframe_falloff_calc(
-						                    gpf, gpl->actframe->framenum,
-						                    f_init, f_end,
-						                    ts->gp_sculpt.cur_falloff);
+						        gpf, gpl->actframe->framenum,
+						        f_init, f_end,
+						        ts->gp_sculpt.cur_falloff);
 					}
 					else {
 						/* No falloff */
@@ -1694,7 +1714,8 @@ static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 static void gpsculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 {
 	tGP_BrushEditData *gso = op->customdata;
-	const int radius = gso->brush->size;
+	GP_EditBrush_Data *brush = gso->brush;
+	const int radius = (brush->flag & GP_EDITBRUSH_FLAG_PRESSURE_RADIUS) ? gso->brush->size * gso->pressure : gso->brush->size;
 	float mousef[2];
 	int mouse[2];
 	bool changed = false;

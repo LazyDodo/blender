@@ -55,6 +55,7 @@
 
 #include "ED_mball.h"
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_view3d.h"
 
 #include "WM_api.h"
@@ -507,6 +508,7 @@ void MBALL_OT_delete_metaelems(wmOperatorType *ot)
 	ot->idname = "MBALL_OT_delete_metaelems";
 
 	/* callback functions */
+	ot->invoke = WM_operator_confirm;
 	ot->exec = delete_metaelems_exec;
 	ot->poll = ED_operator_editmball;
 

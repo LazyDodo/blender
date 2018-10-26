@@ -310,6 +310,7 @@ void RNA_api_armature_edit_bone(StructRNA *srna);
 void RNA_api_bone(StructRNA *srna);
 void RNA_api_camera(StructRNA *srna);
 void RNA_api_curve(StructRNA *srna);
+void RNA_api_curve_nurb(StructRNA *srna);
 void RNA_api_fcurves(StructRNA *srna);
 void RNA_api_drivers(StructRNA *srna);
 void RNA_api_image_packed_file(struct StructRNA *srna);
@@ -491,7 +492,7 @@ int rna_parameter_size(struct PropertyRNA *parm);
 
 struct Mesh *rna_Main_meshes_new_from_object(
         struct Main *bmain, struct ReportList *reports, struct Depsgraph *depsgraph,
-        struct Object *ob, bool apply_modifiers, bool calc_tessface, bool calc_undeformed);
+        struct Object *ob, bool apply_modifiers, bool calc_undeformed);
 
 /* XXX, these should not need to be defined here~! */
 struct MTex *rna_mtex_texture_slots_add(struct ID *self, struct bContext *C, struct ReportList *reports);

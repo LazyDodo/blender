@@ -24,6 +24,10 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
+/** \file blender/editors/object/object_facemap_ops.c
+ *  \ingroup edobj
+ */
+
 #include <string.h>
 
 #include "MEM_guardedalloc.h"
@@ -93,7 +97,6 @@ void ED_object_facemap_face_remove(Object *ob, bFaceMap *fmap, int facenum)
 		int *facemap;
 		Mesh *me = ob->data;
 
-		/* if there's is no facemap layer then create one */
 		if ((facemap = CustomData_get_layer(&me->pdata, CD_FACEMAP)) == NULL)
 			return;
 

@@ -67,9 +67,7 @@ static void deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	SmoothGpencilModifierData *mmd = (SmoothGpencilModifierData *)md;
-	int vindex = defgroup_name_index(ob, mmd->vgname);
-	float weight = 1.0f;
-	float val;
+	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
@@ -82,16 +80,16 @@ static void deformStroke(
 	if (mmd->factor > 0.0f) {
 		for (int r = 0; r < mmd->step; r++) {
 			for (int i = 0; i < gps->totpoints; i++) {
-				// bGPDspoint *pt = &gps->points[i];
-				MDeformVert *dvert = &gps->dvert[i];
+				MDeformVert *dvert = gps->dvert != NULL ? &gps->dvert[i] : NULL;
 
 				/* verify vertex group */
-				weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_SMOOTH_INVERT_VGROUP) != 0), vindex);
-				if (weight < 0) {
+				const float weight = get_modifier_point_weight(
+				        dvert, (mmd->flag & GP_SMOOTH_INVERT_VGROUP) != 0, def_nr);
+				if (weight < 0.0f) {
 					continue;
 				}
 
-				val = mmd->factor * weight;
+				const float val = mmd->factor * weight;
 				/* perform smoothing */
 				if (mmd->flag & GP_SMOOTH_MOD_LOCATION) {
 					BKE_gpencil_smooth_stroke(gps, i, val);
@@ -99,7 +97,7 @@ static void deformStroke(
 				if (mmd->flag & GP_SMOOTH_MOD_STRENGTH) {
 					BKE_gpencil_smooth_stroke_strength(gps, i, val);
 				}
-				if ((mmd->flag & GP_SMOOTH_MOD_THICKNESS)  && (val > 0)) {
+				if ((mmd->flag & GP_SMOOTH_MOD_THICKNESS)  && (val > 0.0f)) {
 					/* thickness need to repeat process several times */
 					for (int r2 = 0; r2 < r * 10; r2++) {
 						BKE_gpencil_smooth_stroke_thickness(gps, i, val);
@@ -139,7 +137,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Smooth = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

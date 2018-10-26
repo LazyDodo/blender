@@ -79,8 +79,7 @@ static void deformStroke(
         Object *ob, bGPDlayer *gpl, bGPDstroke *gps)
 {
 	LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
-	int vindex = defgroup_name_index(ob, mmd->vgname);
-	float weight = 1.0f;
+	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
 	if (!is_stroke_affected_by_modifier(ob,
 	        mmd->layername, mmd->pass_index, 3, gpl, gps,
@@ -95,14 +94,13 @@ static void deformStroke(
 
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert = gps->dvert != NULL ? &gps->dvert[i] : NULL;
 
 		/* verify vertex group */
-		weight = get_modifier_point_weight(dvert, (int)((mmd->flag & GP_LATTICE_INVERT_VGROUP) != 0), vindex);
-		if (weight < 0) {
+		const float weight = get_modifier_point_weight(dvert, (mmd->flag & GP_LATTICE_INVERT_VGROUP) != 0, def_nr);
+		if (weight < 0.0f) {
 			continue;
 		}
-
 		calc_latt_deform((struct LatticeDeformData *)mmd->cache_data, &pt->x, mmd->strength * weight);
 	}
 }
@@ -200,7 +198,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Lattice = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          freeData,

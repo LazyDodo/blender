@@ -273,11 +273,6 @@ static void lattice_render_data_weight_col_get(const LatticeRenderData *rdata, c
 	}
 }
 
-enum {
-	VFLAG_VERTEX_SELECTED = 1 << 0,
-	VFLAG_VERTEX_ACTIVE   = 1 << 1,
-};
-
 /* ---------------------------------------------------------------------- */
 /* Lattice GPUBatch Cache */
 
@@ -361,7 +356,7 @@ static LatticeBatchCache *lattice_batch_cache_get(Lattice *lt)
 	return lt->batch_cache;
 }
 
-void DRW_lattice_batch_cache_dirty(Lattice *lt, int mode)
+void DRW_lattice_batch_cache_dirty_tag(Lattice *lt, int mode)
 {
 	LatticeBatchCache *cache = lt->batch_cache;
 	if (cache == NULL) {

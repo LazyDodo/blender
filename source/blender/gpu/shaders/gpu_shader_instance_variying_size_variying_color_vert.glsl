@@ -1,7 +1,8 @@
 
 uniform mat4 ViewProjectionMatrix;
+uniform float alpha;
 
-/* ---- Instanciated Attribs ---- */
+/* ---- Instantiated Attribs ---- */
 in vec3 pos;
 
 /* ---- Per instance Attribs ---- */
@@ -18,5 +19,5 @@ flat out vec4 finalColor;
 void main()
 {
 	gl_Position = ViewProjectionMatrix * InstanceModelMatrix * vec4(pos * size, 1.0);
-	finalColor = vec4(color, 1.0);
+	finalColor = vec4(color, alpha);
 }

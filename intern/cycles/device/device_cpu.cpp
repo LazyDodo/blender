@@ -184,11 +184,11 @@ public:
 	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int)>                               filter_detect_outliers_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int)>                               filter_combine_halves_kernel;
 
-	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, int, int, float, float)> filter_nlm_calc_difference_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                 filter_nlm_blur_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                 filter_nlm_calc_weight_kernel;
-	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int, int)>       filter_nlm_update_output_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int)>                                      filter_nlm_normalize_kernel;
+	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, int, int, float, float)>   filter_nlm_calc_difference_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                   filter_nlm_blur_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                   filter_nlm_calc_weight_kernel;
+	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, float*, int*, int, int)> filter_nlm_update_output_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int)>                                        filter_nlm_normalize_kernel;
 
 	KernelFunctions<void(*)(float*, int, int, int, float*, int*, int*, int, int, float)>                         filter_construct_transform_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, float*, float3*, int*, int*, int, int, int)> filter_nlm_construct_gramian_kernel;
@@ -471,9 +471,10 @@ public:
 		int w = align_up(rect.z-rect.x, 4);
 		int h = rect.w-rect.y;
 
-		float *blurDifference = (float*) task->nlm_state.temporary_1_ptr;
-		float *difference     = (float*) task->nlm_state.temporary_2_ptr;
-		float *weightAccum    = (float*) task->nlm_state.temporary_3_ptr;
+		float *temporary_mem = (float*) task->buffer.temporary_mem.device_pointer;
+		float *blurDifference = temporary_mem;
+		float *difference     = temporary_mem + task->buffer.pass_stride;
+		float *weightAccum    = temporary_mem + 2*task->buffer.pass_stride;
 
 		memset(weightAccum, 0, sizeof(float)*w*h);
 		memset((float*) out_ptr, 0, sizeof(float)*w*h);
@@ -498,6 +499,7 @@ public:
 			filter_nlm_update_output_kernel()(dx, dy,
 			                                  blurDifference,
 			                                  (float*) image_ptr,
+			                                  difference,
 			                                  (float*) out_ptr,
 			                                  weightAccum,
 			                                  local_rect,
@@ -537,8 +539,9 @@ public:
 		mem_zero(task->storage.XtWX);
 		mem_zero(task->storage.XtWY);
 
-		float *difference     = (float*) task->reconstruction_state.temporary_1_ptr;
-		float *blurDifference = (float*) task->reconstruction_state.temporary_2_ptr;
+		float *temporary_mem = (float*) task->buffer.temporary_mem.device_pointer;
+		float *difference     = temporary_mem;
+		float *blurDifference = temporary_mem + task->buffer.pass_stride;
 
 		int r = task->radius;
 		for(int i = 0; i < (2*r+1)*(2*r+1); i++) {
@@ -713,6 +716,7 @@ public:
 
 		denoising.filter_area = make_int4(tile.x, tile.y, tile.w, tile.h);
 		denoising.render_buffer.samples = tile.sample;
+		denoising.buffer.gpu_temporary_mem = false;
 
 		denoising.run_denoising(&tile);
 	}
@@ -1025,8 +1029,11 @@ void device_cpu_info(vector<DeviceInfo>& devices)
 	info.num = 0;
 	info.advanced_shading = true;
 	info.bvh_layout_mask = BVH_LAYOUT_BVH2;
-	if (system_cpu_support_sse2()) {
+	if(system_cpu_support_sse2()) {
 		info.bvh_layout_mask |= BVH_LAYOUT_BVH4;
+	}
+	if(system_cpu_support_avx2()) {
+		info.bvh_layout_mask |= BVH_LAYOUT_BVH8;
 	}
 	info.has_volume_decoupled = true;
 	info.has_osl = true;

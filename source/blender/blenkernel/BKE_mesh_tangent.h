@@ -20,6 +20,10 @@
 #ifndef __BKE_MESH_TANGENT_H__
 #define __BKE_MESH_TANGENT_H__
 
+/** \file BKE_mesh_tangent.h
+ *  \ingroup bke
+ */
+
 void BKE_mesh_calc_loop_tangent_single_ex(
         const struct MVert *mverts, const int numVerts, const struct MLoop *mloops,
         float (*r_looptangent)[4], float (*loopnors)[3], const struct MLoopUV *loopuv,
@@ -44,6 +48,10 @@ void BKE_mesh_calc_loop_tangent_ex(
         struct CustomData *loopdata_out,
         const uint  loopdata_out_len,
         short *tangent_mask_curr_p);
+
+void BKE_mesh_calc_loop_tangents(
+        struct Mesh *me_eval, bool calc_active_tangent,
+        const char (*tangent_names)[MAX_NAME], int tangent_names_len);
 
 /* Helpers */
 void BKE_mesh_add_loop_tangent_named_layer_for_uv(

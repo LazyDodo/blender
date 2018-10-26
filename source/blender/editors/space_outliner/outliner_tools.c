@@ -33,8 +33,8 @@
 
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_gpencil_types.h"
-#include "DNA_group_types.h"
 #include "DNA_hair_types.h"
 #include "DNA_lamp_types.h"
 #include "DNA_linestyle_types.h"
@@ -1082,8 +1082,8 @@ typedef enum eOutlinerIdOpTypes {
 static const EnumPropertyItem prop_id_op_types[] = {
 	{OUTLINER_IDOP_UNLINK, "UNLINK", 0, "Unlink", ""},
 	{OUTLINER_IDOP_LOCAL, "LOCAL", 0, "Make Local", ""},
-	{OUTLINER_IDOP_STATIC_OVERRIDE, "STATIC_OVERRIDE",
-	 0, "Add Static Override", "Add a local static override of this data-block"},
+	{OUTLINER_IDOP_STATIC_OVERRIDE, "STATIC_OVERRIDE", 0, "Add Static Override",
+	 "Add a local static override of this data-block"},
 	{OUTLINER_IDOP_SINGLE, "SINGLE", 0, "Make Single User", ""},
 	{OUTLINER_IDOP_DELETE, "DELETE", 0, "Delete", "WARNING: no undo"},
 	{OUTLINER_IDOP_REMAP, "REMAP", 0, "Remap Users",
@@ -1095,6 +1095,29 @@ static const EnumPropertyItem prop_id_op_types[] = {
 	{OUTLINER_IDOP_SELECT_LINKED, "SELECT_LINKED", 0, "Select Linked", ""},
 	{0, NULL, 0, NULL, NULL}
 };
+
+static const EnumPropertyItem *outliner_id_operation_itemf(
+        bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	if (BKE_override_static_is_enabled()) {
+		*r_free = false;
+		return prop_id_op_types;
+	}
+
+	EnumPropertyItem *items = NULL;
+	int totitem = 0;
+
+	for (const EnumPropertyItem *it = prop_id_op_types; it->identifier != NULL; it++) {
+		if (it->value == OUTLINER_IDOP_STATIC_OVERRIDE) {
+			continue;
+		}
+		RNA_enum_item_add(&items, &totitem, it);
+	}
+	RNA_enum_item_end(&items, &totitem);
+	*r_free = true;
+
+	return items;
+}
 
 static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 {
@@ -1169,9 +1192,11 @@ static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 		}
 		case OUTLINER_IDOP_STATIC_OVERRIDE:
 		{
-			/* make local */
-			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_static_override_cb, NULL);
-			ED_undo_push(C, "Overrided Data");
+			if (BKE_override_static_is_enabled()) {
+				/* make local */
+				outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_static_override_cb, NULL);
+				ED_undo_push(C, "Overridden Data");
+			}
 			break;
 		}
 		case OUTLINER_IDOP_SINGLE:
@@ -1276,6 +1301,7 @@ void OUTLINER_OT_id_operation(wmOperatorType *ot)
 	ot->flag = 0;
 
 	ot->prop = RNA_def_enum(ot->srna, "type", prop_id_op_types, 0, "ID data Operation", "");
+	RNA_def_enum_funcs(ot->prop, outliner_id_operation_itemf);
 }
 
 /* **************************************** */

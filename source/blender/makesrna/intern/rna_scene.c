@@ -27,7 +27,7 @@
 #include <stdlib.h>
 
 #include "DNA_brush_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_rigidbody_types.h"
@@ -185,9 +185,9 @@ const EnumPropertyItem rna_enum_snap_element_items[] = {
 
 const EnumPropertyItem rna_enum_snap_node_element_items[] = {
 	{SCE_SNAP_MODE_GRID,   "GRID",    ICON_SNAP_GRID, "Grid", "Snap to grid"},
-	{SCE_SNAP_MODE_NODE_X, "NODE_X",  ICON_SNAP_EDGE, "Node X", "Snap to left/right node border"},
-	{SCE_SNAP_MODE_NODE_Y, "NODE_Y",  ICON_SNAP_EDGE, "Node Y", "Snap to top/bottom node border"},
-	{SCE_SNAP_MODE_NODE_X | SCE_SNAP_MODE_NODE_Y, "NODE_XY", ICON_SNAP_EDGE, "Node X / Y", "Snap to any node border"},
+	{SCE_SNAP_MODE_NODE_X, "NODE_X",  ICON_NODE_SIDE, "Node X", "Snap to left/right node border"},
+	{SCE_SNAP_MODE_NODE_Y, "NODE_Y",  ICON_NODE_TOP, "Node Y", "Snap to top/bottom node border"},
+	{SCE_SNAP_MODE_NODE_X | SCE_SNAP_MODE_NODE_Y, "NODE_XY", ICON_NODE_CORNER, "Node X / Y", "Snap to any node border"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -423,9 +423,9 @@ const EnumPropertyItem rna_enum_bake_pass_filter_type_items[] = {
 };
 
 static const EnumPropertyItem rna_enum_gizmo_items[] = {
-	{SCE_MANIP_TRANSLATE, "TRANSLATE", 0, "Translate", ""},
-	{SCE_MANIP_ROTATE, "ROTATE", 0, "Rotate", ""},
-	{SCE_MANIP_SCALE, "SCALE", 0, "Scale", ""},
+	{SCE_GIZMO_SHOW_TRANSLATE, "TRANSLATE", 0, "Move", ""},
+	{SCE_GIZMO_SHOW_ROTATE, "ROTATE", 0, "Rotate", ""},
+	{SCE_GIZMO_SHOW_SCALE, "SCALE", 0, "Scale", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -457,27 +457,27 @@ static const EnumPropertyItem rna_enum_gpencil_interpolation_mode_items[] = {
 #endif
 
 const EnumPropertyItem rna_enum_transform_pivot_items_full[] = {
-	{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_ROTATE, "Bounding Box Center",
+	{V3D_AROUND_CENTER_BOUNDS, "BOUNDING_BOX_CENTER", ICON_PIVOT_BOUNDBOX, "Bounding Box Center",
 	             "Pivot around bounding box center of selected object(s)"},
-	{V3D_AROUND_CURSOR, "CURSOR", ICON_CURSOR, "3D Cursor", "Pivot around the 3D cursor"},
-	{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_ROTATECOLLECTION,
+	{V3D_AROUND_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "3D Cursor", "Pivot around the 3D cursor"},
+	{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_PIVOT_INDIVIDUAL,
 	            "Individual Origins", "Pivot around each object's own origin"},
-	{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", ICON_ROTATECENTER, "Median Point",
+	{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", ICON_PIVOT_MEDIAN, "Median Point",
 	               "Pivot around the median point of selected objects"},
-	{V3D_AROUND_ACTIVE, "ACTIVE_ELEMENT", ICON_ROTACTIVE, "Active Element", "Pivot around active object"},
+	{V3D_AROUND_ACTIVE, "ACTIVE_ELEMENT", ICON_PIVOT_ACTIVE, "Active Element", "Pivot around active object"},
 	{0, NULL, 0, NULL, NULL}
 };
 
 /* Icons could be made a consistent set of images. */
-static const EnumPropertyItem transform_orientation_items[] = {
-	{V3D_MANIP_GLOBAL, "GLOBAL", ICON_SCENE_DATA, "Global", "Align the transformation axes to world space"},
-	{V3D_MANIP_LOCAL, "LOCAL", ICON_MANIPUL, "Local", "Align the transformation axes to the selected objects' local space"},
-	{V3D_MANIP_NORMAL, "NORMAL", ICON_SNAP_NORMAL, "Normal",
+const EnumPropertyItem rna_enum_transform_orientation_items[] = {
+	{V3D_MANIP_GLOBAL, "GLOBAL", ICON_ORIENTATION_GLOBAL, "Global", "Align the transformation axes to world space"},
+	{V3D_MANIP_LOCAL, "LOCAL", ICON_ORIENTATION_LOCAL, "Local", "Align the transformation axes to the selected objects' local space"},
+	{V3D_MANIP_NORMAL, "NORMAL", ICON_ORIENTATION_NORMAL, "Normal",
 	                   "Align the transformation axes to average normal of selected elements "
 	                   "(bone Y axis for pose mode)"},
-	{V3D_MANIP_GIMBAL, "GIMBAL", ICON_NDOF_DOM, "Gimbal", "Align each axis to the Euler rotation axis as used for input"},
-	{V3D_MANIP_VIEW, "VIEW", ICON_VISIBLE_IPO_ON, "View", "Align the transformation axes to the window"},
-	{V3D_MANIP_CURSOR, "CURSOR", ICON_CURSOR, "Cursor", "Align the transformation axes to the 3D cursor"},
+	{V3D_MANIP_GIMBAL, "GIMBAL", ICON_ORIENTATION_GIMBAL, "Gimbal", "Align each axis to the Euler rotation axis as used for input"},
+	{V3D_MANIP_VIEW, "VIEW", ICON_ORIENTATION_VIEW, "View", "Align the transformation axes to the window"},
+	{V3D_MANIP_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "Cursor", "Align the transformation axes to the 3D cursor"},
 	// {V3D_MANIP_CUSTOM, "CUSTOM", 0, "Custom", "Use a custom transform orientation"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -515,6 +515,7 @@ static const EnumPropertyItem transform_orientation_items[] = {
 #include "BKE_animsys.h"
 #include "BKE_freestyle.h"
 #include "BKE_gpencil.h"
+#include "BKE_unit.h"
 
 #include "ED_info.h"
 #include "ED_node.h"
@@ -530,6 +531,14 @@ static const EnumPropertyItem transform_orientation_items[] = {
 #ifdef WITH_FREESTYLE
 #include "FRS_freestyle.h"
 #endif
+
+static void rna_ToolSettings_snap_mode_set(struct PointerRNA *ptr, int value)
+{
+	ToolSettings *ts = (ToolSettings *)ptr->data;
+	if (value != 0) {
+		ts->snap_mode = value;
+	}
+}
 
 /* Grease Pencil update cache */
 static void rna_GPencil_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
@@ -578,8 +587,8 @@ static void rna_GPencilInterpolateSettings_type_set(PointerRNA *ptr, int value)
 static void rna_ToolSettings_gizmo_flag_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
 	ToolSettings *ts = scene->toolsettings;
-	if ((ts->gizmo_flag & (SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE)) == 0) {
-		ts->gizmo_flag |= SCE_MANIP_TRANSLATE;
+	if ((ts->gizmo_flag & (SCE_GIZMO_SHOW_TRANSLATE | SCE_GIZMO_SHOW_ROTATE | SCE_GIZMO_SHOW_SCALE)) == 0) {
+		ts->gizmo_flag |= SCE_GIZMO_SHOW_TRANSLATE;
 	}
 }
 
@@ -653,37 +662,12 @@ void rna_Scene_set_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 	}
 }
 
-static void rna_Scene_layer_set(PointerRNA *ptr, const bool *values)
-{
-	Scene *scene = (Scene *)ptr->data;
-
-	scene->lay = ED_view3d_view_layer_set(scene->lay, values, &scene->layact);
-}
-
-static int rna_Scene_active_layer_get(PointerRNA *ptr)
-{
-	Scene *scene = (Scene *)ptr->data;
-
-	return (int)(log(scene->layact) / M_LN2);
-}
-
 static void rna_Scene_view3d_update(Main *bmain, Scene *UNUSED(scene_unused), PointerRNA *ptr)
 {
 	wmWindowManager *wm = bmain->wm.first;
 	Scene *scene = (Scene *)ptr->data;
 
 	WM_windows_scene_data_sync(&wm->windows, scene);
-}
-
-static void rna_Scene_layer_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
-{
-	/* XXX We would need do_time=true here, else we can have update issues like [#36289]...
-	 *     However, this has too much drawbacks (like slower layer switch, undesired updates...).
-	 *     That's TODO for future DAG updates.
-	 */
-	DEG_on_visible_update(bmain, false);
-
-	/* No need to sync scene data here (WM_windows_scene_data_sync), handled through notifier. */
 }
 
 static void rna_Scene_fps_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
@@ -1459,9 +1443,10 @@ static char *rna_SceneRenderView_path(PointerRNA *ptr)
 static void rna_Scene_use_nodes_update(bContext *C, PointerRNA *ptr)
 {
 	Scene *scene = (Scene *)ptr->data;
-
-	if (scene->use_nodes && scene->nodetree == NULL)
+	if (scene->use_nodes && scene->nodetree == NULL) {
 		ED_node_composit_default(C, scene);
+	}
+	DEG_relations_tag_update(CTX_data_main(C));
 }
 
 static void rna_Physics_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -2012,7 +1997,7 @@ const EnumPropertyItem *rna_TransformOrientation_itemf(
 	EnumPropertyItem *item = NULL;
 	int i = V3D_MANIP_CUSTOM, totitem = 0;
 
-	RNA_enum_items_add(&item, &totitem, transform_orientation_items);
+	RNA_enum_items_add(&item, &totitem, rna_enum_transform_orientation_items);
 
 	Scene *scene;
 	if (ptr->type == &RNA_Scene) {
@@ -2040,6 +2025,68 @@ const EnumPropertyItem *rna_TransformOrientation_itemf(
 	return item;
 }
 
+static const EnumPropertyItem *get_unit_enum_items(int system, int type, bool *r_free)
+{
+	const void *usys;
+	int len;
+	bUnit_GetSystem(system, type, &usys, &len);
+
+	EnumPropertyItem *items = NULL;
+	int totitem = 0;
+
+	EnumPropertyItem adaptive = { 0 };
+	adaptive.identifier = "ADAPTIVE";
+	adaptive.name = "Adaptive";
+	adaptive.value = USER_UNIT_ADAPTIVE;
+	RNA_enum_item_add(&items, &totitem, &adaptive);
+
+	for (int i = 0; i < len; i++) {
+		if (!bUnit_IsSuppressed(usys, i)) {
+			EnumPropertyItem tmp = { 0 };
+			tmp.identifier = bUnit_GetName(usys, i);
+			tmp.name = bUnit_GetNameDisplay(usys, i);
+			tmp.value = i;
+			RNA_enum_item_add(&items, &totitem, &tmp);
+		}
+	}
+
+	*r_free = true;
+	return items;
+}
+
+const EnumPropertyItem *rna_get_length_unit_items(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	UnitSettings *units = ptr->data;
+	return get_unit_enum_items(units->system, B_UNIT_LENGTH, r_free);
+}
+
+const EnumPropertyItem *rna_get_mass_unit_items(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	UnitSettings *units = ptr->data;
+	return get_unit_enum_items(units->system, B_UNIT_MASS, r_free);
+}
+
+const EnumPropertyItem *rna_get_time_unit_items(
+        bContext *UNUSED(C), PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	UnitSettings *units = ptr->data;
+	return get_unit_enum_items(units->system, B_UNIT_TIME, r_free);
+}
+
+static void rna_unit_system_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
+{
+	UnitSettings *unit = &scene->unit;
+	if (unit->system == USER_UNIT_NONE) {
+		unit->length_unit = USER_UNIT_ADAPTIVE;
+		unit->mass_unit = USER_UNIT_ADAPTIVE;
+	}
+	else {
+		unit->length_unit = bUnit_GetBaseUnitOfType(unit->system, B_UNIT_LENGTH);
+		unit->mass_unit = bUnit_GetBaseUnitOfType(unit->system, B_UNIT_MASS);
+	}
+}
 
 #else
 
@@ -2176,18 +2223,24 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 
 	static const EnumPropertyItem gpencil_stroke_placement_items[] = {
 		{GP_PROJECT_VIEWSPACE, "ORIGIN", ICON_OBJECT_ORIGIN, "Origin", "Draw stroke at Object origin"},
-		{GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR, "CURSOR", ICON_CURSOR, "3D Cursor", "Draw stroke at 3D cursor location" },
-		// {0, "VIEW", ICON_VISIBLE_IPO_ON, "View", "Stick stroke to the view "}, /* weird, GP_PROJECT_VIEWALIGN is inverted */
+		{GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "3D Cursor", "Draw stroke at 3D cursor location" },
 		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_VIEW, "SURFACE", ICON_FACESEL, "Surface", "Stick stroke to surfaces"},
-		//{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_STROKE, "STROKE", ICON_GREASEPENCIL, "Stroke", "Stick stroke to other strokes"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	static const EnumPropertyItem gpencil_selectmode_items[] = {
+		{GP_SELECTMODE_POINT, "POINT", ICON_GP_SELECT_POINTS, "Point", "Select only points"},
+		{GP_SELECTMODE_STROKE, "STROKE", ICON_GP_SELECT_STROKES, "Stroke", "Select all stroke points" },
 		{0, NULL, 0, NULL, NULL}
 	};
 
 	static const EnumPropertyItem annotation_stroke_placement_items[] = {
-		{GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR, "CURSOR", ICON_CURSOR, "3D Cursor", "Draw stroke at 3D cursor location" },
+		{GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "3D Cursor", "Draw stroke at 3D cursor location" },
 		{0, "VIEW", ICON_VISIBLE_IPO_ON, "View", "Stick stroke to the view "}, /* weird, GP_PROJECT_VIEWALIGN is inverted */
 		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_VIEW, "SURFACE", ICON_FACESEL, "Surface", "Stick stroke to surfaces"},
-		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_STROKE, "STROKE", ICON_GREASEPENCIL, "Stroke", "Stick stroke to other strokes"},
+		/* Stroke option is disabled because is not working as expected and maybe is not
+		 * required. If we confirm this is not used, we can remove it. */
+		//{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_STROKE, "STROKE", ICON_GREASEPENCIL, "Stroke", "Stick stroke to other strokes"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -2345,12 +2398,12 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "transform_pivot_point");
 	RNA_def_property_enum_items(prop, rna_enum_transform_pivot_items_full);
 	RNA_def_property_ui_text(prop, "Pivot Point", "Pivot center for rotation/scaling");
-	RNA_def_property_update(prop, NC_SCENE, NULL);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
 	prop = RNA_def_property(srna, "use_transform_pivot_point_align", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transform_flag", SCE_XFORM_AXIS_ALIGN);
 	RNA_def_property_ui_text(prop, "Align", "Manipulate center points (object, pose and weight paint mode only)");
-	RNA_def_property_ui_icon(prop, ICON_ALIGN, 0);
+	RNA_def_property_ui_icon(prop, ICON_CENTER_ONLY, 0);
 	RNA_def_property_update(prop, NC_SCENE, NULL);
 
 	prop = RNA_def_property(srna, "use_mesh_automerge", PROP_BOOLEAN, PROP_NONE);
@@ -2380,6 +2433,7 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "snap_elements", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "snap_mode");
 	RNA_def_property_enum_items(prop, rna_enum_snap_element_items);
+	RNA_def_property_enum_funcs(prop, NULL, "rna_ToolSettings_snap_mode_set", NULL);
 	RNA_def_property_flag(prop, PROP_ENUM_FLAG);
 	RNA_def_property_ui_text(prop, "Snap Element", "Type of element to snap to");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
@@ -2420,7 +2474,7 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_snap_self", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "snap_flag", SCE_SNAP_NO_SELF);
 	RNA_def_property_ui_text(prop, "Project to Self", "Snap onto itself (editmode)");
-	RNA_def_property_ui_icon(prop, ICON_ORTHO, 0);
+	RNA_def_property_ui_icon(prop, ICON_XRAY, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "use_gizmo_mode", PROP_ENUM, PROP_NONE);
@@ -2429,11 +2483,6 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_flag(prop, PROP_ENUM_FLAG);
 	RNA_def_property_ui_text(prop, "Gizmo Mode",  "");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_ToolSettings_gizmo_flag_update");
-
-	prop = RNA_def_property(srna, "use_gizmo_apron", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "gizmo_flag", SCE_MANIP_DISABLE_APRON);
-	RNA_def_property_ui_text(prop, "Apron", "Handle input not directly over the gizmo");
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
 	/* Grease Pencil */
 	prop = RNA_def_property(srna, "use_gpencil_additive_drawing", PROP_BOOLEAN, PROP_NONE);
@@ -2453,6 +2502,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_THUMBNAIL_LIST);
 	RNA_def_property_ui_text(prop, "Compact List",
 		"Show compact list of color instead of thumbnails");
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "use_gpencil_weight_data_add", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_flags", GP_TOOL_FLAG_CREATE_WEIGHTS);
+	RNA_def_property_ui_text(prop, "Add weight data for new strokes",
+		"When creating new strokes, the weight data is added according to the current vertex group and weight, "
+		"if no vertex group selected, weight is not added");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
 	prop = RNA_def_property(srna, "gpencil_sculpt", PROP_POINTER, PROP_NONE);
@@ -2478,6 +2534,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "gpencil_v3d_align", GP_PROJECT_DEPTH_STROKE_ENDPOINTS);
 	RNA_def_property_ui_text(prop, "Only Endpoints", "Only use the first and last parts of the stroke for snapping");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+
+	/* Grease Pencil - Select mode */
+	prop = RNA_def_property(srna, "gpencil_selectmode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "gpencil_selectmode");
+	RNA_def_property_enum_items(prop, gpencil_selectmode_items);
+	RNA_def_property_ui_text(prop, "Select Mode", "");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
 	/* Annotations - 2D Views Stroke Placement */
 	prop = RNA_def_property(srna, "annotation_stroke_placement_view2d", PROP_ENUM, PROP_NONE);
@@ -2554,12 +2617,12 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_uv_select_sync", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uv_flag", UV_SYNC_SELECTION);
 	RNA_def_property_ui_text(prop, "UV Sync Selection", "Keep UV and edit mode mesh selection in sync");
-	RNA_def_property_ui_icon(prop, ICON_EDIT, 0);
+	RNA_def_property_ui_icon(prop, ICON_UV_SYNC_SELECT, 0);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 
 	prop = RNA_def_property(srna, "show_uv_local_view", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uv_flag", UV_SHOW_SAME_IMAGE);
-	RNA_def_property_ui_text(prop, "UV Local View", "Draw only faces with the currently displayed image assigned");
+	RNA_def_property_ui_text(prop, "UV Local View", "Display only faces with the currently displayed image assigned");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, NULL);
 
 	/* Mesh */
@@ -2797,9 +2860,9 @@ static void rna_def_curve_paint_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Depth", "Method of projecting depth");
 
 	static const EnumPropertyItem surface_plane_items[] = {
-		{CURVE_PAINT_SURFACE_PLANE_NORMAL_VIEW,  "NORMAL_VIEW", 0, "Normal/View", "Draw perpendicular to the surface"},
-		{CURVE_PAINT_SURFACE_PLANE_NORMAL_SURFACE, "NORMAL_SURFACE", 0, "Normal/Surface", "Draw aligned to the surface"},
-		{CURVE_PAINT_SURFACE_PLANE_VIEW, "VIEW", 0, "View", "Draw aligned to the viewport"},
+		{CURVE_PAINT_SURFACE_PLANE_NORMAL_VIEW,  "NORMAL_VIEW", 0, "Normal/View", "Display perpendicular to the surface"},
+		{CURVE_PAINT_SURFACE_PLANE_NORMAL_SURFACE, "NORMAL_SURFACE", 0, "Normal/Surface", "Display aligned to the surface"},
+		{CURVE_PAINT_SURFACE_PLANE_VIEW, "VIEW", 0, "View", "Display aligned to the viewport"},
 		{0, NULL, 0, NULL, NULL}};
 
 	prop = RNA_def_property(srna, "surface_plane", PROP_ENUM, PROP_NONE);
@@ -2924,7 +2987,7 @@ static void rna_def_statvis(BlenderRNA  *brna)
 	RNA_def_property_update(prop, 0, "rna_EditMesh_update");
 }
 
-static void rna_def_unit_settings(BlenderRNA  *brna)
+static void rna_def_unit_settings(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
@@ -2949,7 +3012,7 @@ static void rna_def_unit_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "system", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, unit_systems);
 	RNA_def_property_ui_text(prop, "Unit System", "The unit system to use for button display");
-	RNA_def_property_update(prop, NC_WINDOW, NULL);
+	RNA_def_property_update(prop, NC_WINDOW, "rna_unit_system_update");
 
 	prop = RNA_def_property(srna, "system_rotation", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rotation_units);
@@ -2957,7 +3020,9 @@ static void rna_def_unit_settings(BlenderRNA  *brna)
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
 
 	prop = RNA_def_property(srna, "scale_length", PROP_FLOAT, PROP_UNSIGNED);
-	RNA_def_property_ui_text(prop, "Unit Scale", "Scale to use when converting between blender units and dimensions");
+	RNA_def_property_ui_text(prop, "Unit Scale", "Scale to use when converting between blender units and dimensions."
+	                         " When working at microscopic or astronomical scale, a small or large unit scale"
+	                         " respectively can be used to avoid numerical precision problems");
 	RNA_def_property_range(prop, 0.00001, 100000.0);
 	RNA_def_property_ui_range(prop, 0.001, 100.0, 0.1, 6);
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
@@ -2965,6 +3030,24 @@ static void rna_def_unit_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_separate", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", USER_UNIT_OPT_SPLIT);
 	RNA_def_property_ui_text(prop, "Separate Units", "Display units in pairs (e.g. 1m 0cm)");
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "length_unit", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_get_length_unit_items");
+	RNA_def_property_ui_text(prop, "Length Unit", "Unit that will be used to display length values");
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "mass_unit", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_get_mass_unit_items");
+	RNA_def_property_ui_text(prop, "Mass Unit", "Unit that will be used to display mass values");
+	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "time_unit", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_get_time_unit_items");
+	RNA_def_property_ui_text(prop, "Time Unit", "Unit that will be used to display time values");
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
 }
 
@@ -3431,7 +3514,7 @@ void rna_def_freestyle_settings(BlenderRNA *brna)
 	                         "Select silhouettes (edges at the boundary of visible and hidden faces)");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
 
-	prop = RNA_def_property(srna, "select_border", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "select_box", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "edge_types", FREESTYLE_FE_BORDER);
 	RNA_def_property_ui_text(prop, "Border", "Select border edges (open mesh edges)");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
@@ -3849,7 +3932,7 @@ static void rna_def_gpu_dof_fx(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPUDOFSettings_update");
 
 	prop = RNA_def_property(srna, "rotation", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_ui_text(prop, "Rotation", "Rotation of blades in apperture");
+	RNA_def_property_ui_text(prop, "Rotation", "Rotation of blades in aperture");
 	RNA_def_property_range(prop, -M_PI, M_PI);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
@@ -4354,11 +4437,11 @@ static void rna_def_scene_ffmpeg_settings(BlenderRNA *brna)
 #endif
 
 	static const EnumPropertyItem audio_channel_items[] = {
-		{1, "MONO", 0, "Mono", "Set audio channels to mono"},
-		{2, "STEREO", 0, "Stereo", "Set audio channels to stereo"},
-		{4, "SURROUND4", 0, "4 Channels", "Set audio channels to 4 channels"},
-		{6, "SURROUND51", 0, "5.1 Surround", "Set audio channels to 5.1 surround sound"},
-		{8, "SURROUND71", 0, "7.1 Surround", "Set audio channels to 7.1 surround sound"},
+		{FFM_CHANNELS_MONO, "MONO", 0, "Mono", "Set audio channels to mono"},
+		{FFM_CHANNELS_STEREO, "STEREO", 0, "Stereo", "Set audio channels to stereo"},
+		{FFM_CHANNELS_SURROUND4, "SURROUND4", 0, "4 Channels", "Set audio channels to 4 channels"},
+		{FFM_CHANNELS_SURROUND51, "SURROUND51", 0, "5.1 Surround", "Set audio channels to 5.1 surround sound"},
+		{FFM_CHANNELS_SURROUND71, "SURROUND71", 0, "7.1 Surround", "Set audio channels to 7.1 surround sound"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -5079,7 +5162,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_stamp_labels", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "stamp", R_STAMP_HIDE_LABELS);
-	RNA_def_property_ui_text(prop, "Stamp Labels", "Draw stamp labels (\"Camera\" in front of camera name, etc.)");
+	RNA_def_property_ui_text(prop, "Stamp Labels", "Display stamp labels (\"Camera\" in front of camera name, etc.)");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 
 	prop = RNA_def_property(srna, "use_stamp_strip_meta", PROP_BOOLEAN, PROP_NONE);
@@ -5136,7 +5219,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_sequencer_gl_textured_solid", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "seq_flag", R_SEQ_SOLID_TEX);
-	RNA_def_property_ui_text(prop, "Textured Solid", "Draw face-assigned textures in solid draw method");
+	RNA_def_property_ui_text(prop, "Textured Solid", "Display face-assigned textures in solid draw method");
 	RNA_def_property_update(prop, NC_SCENE | ND_SEQUENCER, "rna_SceneSequencer_update");
 
 	prop = RNA_def_property(srna, "use_sequencer_gl_dof", PROP_BOOLEAN, PROP_NONE);
@@ -5603,15 +5686,17 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Cubemap Cache", "Display captured cubemaps in the viewport");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
-	prop = RNA_def_property(srna, "gi_irradiance_draw_size", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "gi_irradiance_display_size", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "gi_irradiance_draw_size");
 	RNA_def_property_range(prop, 0.05f, 10.0f);
 	RNA_def_property_float_default(prop, 0.1f);
-	RNA_def_property_ui_text(prop, "Irradiance Draw Size", "Size of the irradiance sample spheres to debug captured light");
+	RNA_def_property_ui_text(prop, "Irradiance Display Size", "Size of the irradiance sample spheres to debug captured light");
 
-	prop = RNA_def_property(srna, "gi_cubemap_draw_size", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "gi_cubemap_display_size", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "gi_cubemap_draw_size");
 	RNA_def_property_range(prop, 0.05f, 10.0f);
 	RNA_def_property_float_default(prop, 0.3f);
-	RNA_def_property_ui_text(prop, "Cubemap Draw Size", "Size of the cubemap spheres to debug captured light");
+	RNA_def_property_ui_text(prop, "Cubemap Display Size", "Size of the cubemap spheres to debug captured light");
 
 	prop = RNA_def_property(srna, "gi_auto_bake", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_GI_AUTOBAKE);
@@ -5665,7 +5750,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_sss_separate_albedo", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_SSS_SEPARATE_ALBEDO);
 	RNA_def_property_boolean_default(prop, 0);
-	RNA_def_property_ui_text(prop, "Separate Albedo", "Avoid albedo being blured by the subsurface scattering "
+	RNA_def_property_ui_text(prop, "Separate Albedo", "Avoid albedo being blurred by the subsurface scattering "
 	                                                  "but uses more video memory");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
@@ -5690,7 +5775,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "ssr_quality", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_default(prop, 0.25f);
-	RNA_def_property_ui_text(prop, "Trace Quality", "Quality of the screen space raytracing");
+	RNA_def_property_ui_text(prop, "Trace Precision", "Precision of the screen space raytracing");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
@@ -5811,7 +5896,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "gtao_quality", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_default(prop, 0.25f);
-	RNA_def_property_ui_text(prop, "Trace Quality", "Quality of the horizon search");
+	RNA_def_property_ui_text(prop, "Trace Precision", "Precision of the horizon search");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
@@ -5847,7 +5932,7 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_bloom", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_BLOOM_ENABLED);
 	RNA_def_property_boolean_default(prop, 0);
-	RNA_def_property_ui_text(prop, "Bloom", "High brighness pixels generate a glowing effect");
+	RNA_def_property_ui_text(prop, "Bloom", "High brightness pixels generate a glowing effect");
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 
 	prop = RNA_def_property(srna, "bloom_threshold", PROP_FLOAT, PROP_FACTOR);
@@ -6009,22 +6094,6 @@ void RNA_def_scene(BlenderRNA *brna)
 	                                  "rna_Scene_objects_get",
 	                                  NULL, NULL, NULL, NULL);
 	rna_def_scene_objects(brna, prop);
-
-	/* Layers */
-	prop = RNA_def_property(srna, "layers", PROP_BOOLEAN, PROP_LAYER_MEMBER);
-	/* this seems to be too much trouble with depsgraph updates/etc. currently (20110420) */
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_boolean_sdna(prop, NULL, "lay", 1);
-	RNA_def_property_array(prop, 20);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_Scene_layer_set");
-	RNA_def_property_ui_text(prop, "Layers", "Visible layers - Shift-Click/Drag to select multiple layers");
-	RNA_def_property_update(prop, NC_SCENE | ND_LAYER, "rna_Scene_layer_update");
-
-	/* active layer */
-	prop = RNA_def_property(srna, "active_layer", PROP_INT, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE | PROP_EDITABLE);
-	RNA_def_property_int_funcs(prop, "rna_Scene_active_layer_get", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Active Layer", "Active scene layer index");
 
 	/* Frame Range Stuff */
 	prop = RNA_def_property(srna, "frame_current", PROP_INT, PROP_TIME);
@@ -6260,7 +6329,7 @@ void RNA_def_scene(BlenderRNA *brna)
 	/* Orientations */
 	prop = RNA_def_property(srna, "transform_orientation", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "orientation_type");
-	RNA_def_property_enum_items(prop, transform_orientation_items);
+	RNA_def_property_enum_items(prop, rna_enum_transform_orientation_items);
 	RNA_def_property_enum_funcs(prop, "rna_Scene_transform_orientation_get", "rna_Scene_transform_orientation_set",
 	                            "rna_TransformOrientation_itemf");
 	RNA_def_property_ui_text(prop, "Transform Orientation", "Transformation orientation");

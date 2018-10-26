@@ -47,7 +47,7 @@
 #endif
 
 #include "DNA_ID.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
@@ -567,12 +567,6 @@ void BKE_rigidbody_calc_volume(Object *ob, float *r_vol)
 			}
 			break;
 		}
-
-#if 0 // XXX: not defined yet
-		case RB_SHAPE_COMPOUND:
-			volume = 0.0f;
-			break;
-#endif
 	}
 
 	/* return the volume calculated */
@@ -640,12 +634,6 @@ void BKE_rigidbody_calc_center_of_mass(Object *ob, float r_center[3])
 			}
 			break;
 		}
-
-#if 0 // XXX: not defined yet
-		case RB_SHAPE_COMPOUND:
-			volume = 0.0f;
-			break;
-#endif
 	}
 }
 

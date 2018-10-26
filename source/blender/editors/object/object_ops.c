@@ -46,6 +46,8 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
+#include "ED_keymap_templates.h"
 #include "ED_object.h"
 
 #include "DEG_depsgraph.h"
@@ -77,6 +79,7 @@ void ED_operatortypes_object(void)
 	WM_operatortype_append(OBJECT_OT_paths_calculate);
 	WM_operatortype_append(OBJECT_OT_paths_update);
 	WM_operatortype_append(OBJECT_OT_paths_clear);
+	WM_operatortype_append(OBJECT_OT_paths_range_update);
 	WM_operatortype_append(OBJECT_OT_forcefield_toggle);
 
 	WM_operatortype_append(OBJECT_OT_parent_set);
@@ -307,7 +310,7 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	wmKeyMapItem *kmi;
 
 	/* Objects, Regardless of Mode -------------------------------------------------- */
-	keymap = WM_keymap_find(keyconf, "Object Non-modal", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Object Non-modal", 0, 0);
 
 	/* modes */
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_mode_set", TABKEY, KM_PRESS, 0, 0);
@@ -326,19 +329,14 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 
 	/* Object Mode ---------------------------------------------------------------- */
 	/* Note: this keymap gets disabled in non-objectmode,  */
-	keymap = WM_keymap_find(keyconf, "Object Mode", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "Object Mode", 0, 0);
 	keymap->poll = object_mode_poll;
 
 	/* object mode supports PET now */
 	ED_keymap_proportional_cycle(keyconf, keymap);
 	ED_keymap_proportional_obmode(keyconf, keymap);
 
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_select_all", AKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_SELECT);
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_select_all", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_DESELECT);
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_select_all", IKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "action", SEL_INVERT);
+	ED_keymap_template_select_all(keymap, "OBJECT_OT_select_all");
 
 	WM_keymap_add_item(keymap, "OBJECT_OT_select_more", PADPLUSKEY, KM_PRESS, KM_CTRL, 0);
 	WM_keymap_add_item(keymap, "OBJECT_OT_select_less", PADMINUS, KM_PRESS, KM_CTRL, 0);
@@ -401,7 +399,7 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_delete", DELKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_boolean_set(kmi->ptr, "use_global", true);
 
-	WM_keymap_add_menu(keymap, "INFO_MT_add", AKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_menu(keymap, "VIEW3D_MT_add", AKEY, KM_PRESS, KM_SHIFT, 0);
 
 #ifdef USE_WM_KEYMAP_27X
 	WM_keymap_add_item(keymap, "OBJECT_OT_duplicates_make_real", AKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
@@ -466,11 +464,7 @@ void ED_keymap_object(wmKeyConfig *keyconf)
 
 void ED_keymap_proportional_cycle(struct wmKeyConfig *UNUSED(keyconf), struct wmKeyMap *keymap)
 {
-	wmKeyMapItem *kmi;
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_cycle_enum", OKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_string_set(kmi->ptr, "data_path", "tool_settings.proportional_edit_falloff");
-	RNA_boolean_set(kmi->ptr, "wrap", true);
+	WM_keymap_add_menu_pie(keymap, "VIEW3D_MT_proportional_editing_falloff_pie", OKEY, KM_PRESS, KM_SHIFT, 0);
 }
 
 void ED_keymap_proportional_obmode(struct wmKeyConfig *UNUSED(keyconf), struct wmKeyMap *keymap)

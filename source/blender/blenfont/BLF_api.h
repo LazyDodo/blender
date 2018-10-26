@@ -102,6 +102,9 @@ void BLF_batch_draw_end(void);
 void BLF_draw_default(float x, float y, float z, const char *str, size_t len) ATTR_NONNULL();
 void BLF_draw_default_ascii(float x, float y, float z, const char *str, size_t len) ATTR_NONNULL();
 
+/* Set size and DPI, and return default font ID. */
+int BLF_set_default(void);
+
 /* Draw the string using the current font. */
 void BLF_draw_ex(int fontid, const char *str, size_t len, struct ResultBLF *r_info) ATTR_NONNULL(2);
 void BLF_draw(int fontid, const char *str, size_t len) ATTR_NONNULL(2);
@@ -227,9 +230,11 @@ void BLF_state_print(int fontid);
 #define BLF_KERNING_DEFAULT  (1 << 3)
 #define BLF_MATRIX           (1 << 4)
 #define BLF_ASPECT           (1 << 5)
-#define BLF_HINTING          (1 << 6)
-#define BLF_WORD_WRAP        (1 << 7)
-#define BLF_MONOCHROME       (1 << 8)  /* no-AA */
+#define BLF_WORD_WRAP        (1 << 6)
+#define BLF_MONOCHROME       (1 << 7)  /* no-AA */
+#define BLF_HINTING_NONE     (1 << 8)
+#define BLF_HINTING_SLIGHT   (1 << 9)
+#define BLF_HINTING_FULL     (1 << 10)
 
 #define BLF_DRAW_STR_DUMMY_MAX 1024
 

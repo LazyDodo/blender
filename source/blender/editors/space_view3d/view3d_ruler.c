@@ -159,7 +159,6 @@ static void ruler_item_active_set(RulerInfo *ruler_info, RulerItem *ruler_item)
 static void ruler_item_as_string(RulerItem *ruler_item, UnitSettings *unit,
                                  char *numstr, size_t numstr_size, int prec)
 {
-	const bool do_split = (unit->flag & USER_UNIT_OPT_SPLIT) != 0;
 
 	if (ruler_item->flag & RULERITEM_USE_ANGLE) {
 		const float ruler_angle = angle_v3v3v3(ruler_item->co[0],
@@ -170,9 +169,9 @@ static void ruler_item_as_string(RulerItem *ruler_item, UnitSettings *unit,
 			BLI_snprintf(numstr, numstr_size, "%.*f°", prec, RAD2DEGF(ruler_angle));
 		}
 		else {
-			bUnit_AsString(numstr, numstr_size,
-			               (double)ruler_angle,
-			               prec, unit->system, B_UNIT_ROTATION, do_split, false);
+			bUnit_AsString2(
+			        numstr, numstr_size, (double)ruler_angle,
+			        prec, B_UNIT_ROTATION, unit, false);
 		}
 	}
 	else {
@@ -183,9 +182,9 @@ static void ruler_item_as_string(RulerItem *ruler_item, UnitSettings *unit,
 			BLI_snprintf(numstr, numstr_size, "%.*f", prec, ruler_len);
 		}
 		else {
-			bUnit_AsString(numstr, numstr_size,
-			               (double)(ruler_len * unit->scale_length),
-			               prec, unit->system, B_UNIT_LENGTH, do_split, false);
+			bUnit_AsString2(
+			        numstr, numstr_size, (double)(ruler_len * unit->scale_length),
+			        prec, B_UNIT_LENGTH, unit, false);
 		}
 	}
 
@@ -326,7 +325,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		gpl->flag |= GP_LAYER_HIDE;
 	}
 
-	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
+	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_ADD_NEW);
 	BKE_gpencil_free_strokes(gpf);
 
 	for (ruler_item = ruler_info->items.first; ruler_item; ruler_item = ruler_item->next) {
@@ -338,7 +337,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		if (ruler_item->flag & RULERITEM_USE_ANGLE) {
 			gps->totpoints = 3;
 			pt = gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
-			gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
 			for (j = 0; j < 3; j++) {
 				copy_v3_v3(&pt->x, ruler_item->co[j]);
 				pt->pressure = 1.0f;
@@ -349,7 +347,6 @@ static bool view3d_ruler_to_gpencil(bContext *C, RulerInfo *ruler_info)
 		else {
 			gps->totpoints = 2;
 			pt = gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
-			gps->dvert = MEM_callocN(sizeof(MDeformVert) * gps->totpoints, "gp_stroke_weights");
 			for (j = 0; j < 3; j += 2) {
 				copy_v3_v3(&pt->x, ruler_item->co[j]);
 				pt->pressure = 1.0f;
@@ -378,7 +375,7 @@ static bool view3d_ruler_from_gpencil(bContext *C, RulerInfo *ruler_info)
 		gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 		if (gpl) {
 			bGPDframe *gpf;
-			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, false);
+			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_USE_PREV);
 			if (gpf) {
 				bGPDstroke *gps;
 				for (gps = gpf->strokes.first; gps; gps = gps->next) {
@@ -435,6 +432,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 
 	/* anti-aliased lines for more consistent appearance */
 	GPU_line_smooth(true);
+	GPU_line_width(1.0f * U.pixelsize);
 
 	BLF_enable(blf_mono_font, BLF_ROTATION);
 	BLF_size(blf_mono_font, 14 * U.pixelsize, U.dpi);
@@ -493,7 +491,7 @@ static void ruler_info_draw_pixel(const struct bContext *C, ARegion *ar, void *a
 				float quat[4];
 				float axis[3];
 				float angle;
-				const float px_scale = (ED_view3d_pixel_size(rv3d, ruler_item->co[1]) *
+				const float px_scale = (ED_view3d_pixel_size_no_ui_scale(rv3d, ruler_item->co[1]) *
 				                        min_fff(arc_size,
 				                                len_v2v2(co_ss[0], co_ss[1]) / 2.0f,
 				                                len_v2v2(co_ss[2], co_ss[1]) / 2.0f));

@@ -172,8 +172,9 @@ void psys_reset(ParticleSystem *psys, int mode)
 	}
 	else if (mode == PSYS_RESET_CACHE_MISS) {
 		/* set all particles to be skipped */
-		LOOP_PARTICLES
+		LOOP_PARTICLES {
 			pa->flag |= PARS_NO_DISP;
+		}
 	}
 
 	/* reset children */
@@ -276,8 +277,9 @@ static void realloc_particles(ParticleSimulationData *sim, int new_totpart)
 		psys->totpart=totpart;
 
 		if (newboids) {
-			LOOP_PARTICLES
+			LOOP_PARTICLES {
 				pa->boid = newboids++;
+			}
 		}
 	}
 
@@ -367,7 +369,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, Partic
 
 		for (i=0, node=nodedmelem; i<totdmelem; i++, node++) {
 			int origindex_final;
-			node->link = SET_INT_IN_POINTER(i);
+			node->link = POINTER_FROM_INT(i);
 
 			/* may be vertex or face origindex */
 			if (use_modifier_stack) {
@@ -410,7 +412,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, Partic
 			else {
 				if (psys->part->from == PART_FROM_VERT) {
 					if (pa->num < totelem && nodearray[pa->num])
-						pa->num_dmcache= GET_INT_FROM_POINTER(nodearray[pa->num]->link);
+						pa->num_dmcache= POINTER_AS_INT(nodearray[pa->num]->link);
 					else
 						pa->num_dmcache = DMCACHE_NOTFOUND;
 				}
@@ -1548,7 +1550,7 @@ static EdgeHash *sph_springhash_build(ParticleSystem *psys)
 	springhash = BLI_edgehash_new_ex(__func__, psys->tot_fluidsprings);
 
 	for (i=0, spring=psys->fluid_springs; i<psys->tot_fluidsprings; i++, spring++)
-		BLI_edgehash_insert(springhash, spring->particle_index[0], spring->particle_index[1], SET_INT_IN_POINTER(i+1));
+		BLI_edgehash_insert(springhash, spring->particle_index[0], spring->particle_index[1], POINTER_FROM_INT(i+1));
 
 	return springhash;
 }
@@ -1612,7 +1614,7 @@ static void sph_density_accum_cb(void *userdata, int index, const float co[3], f
 
 	/* Ugh! One particle has too many neighbors! If some aren't taken into
 	 * account, the forces will be biased by the tree search order. This
-	 * effectively adds enery to the system, and results in a churning motion.
+	 * effectively adds energy to the system, and results in a churning motion.
 	 * But, we have to stop somewhere, and it's not the end of the world.
 	 *  - jahka and z0r
 	 */
@@ -1750,7 +1752,7 @@ static void sph_force_cb(void *sphdata_v, ParticleKey *state, float *force, floa
 			/* Viscoelastic spring force */
 			if (pfn->psys == psys[0] && fluid->flag & SPH_VISCOELASTIC_SPRINGS && springhash) {
 				/* BLI_edgehash_lookup appears to be thread-safe. - z0r */
-				spring_index = GET_INT_FROM_POINTER(BLI_edgehash_lookup(springhash, index, pfn->index));
+				spring_index = POINTER_AS_INT(BLI_edgehash_lookup(springhash, index, pfn->index));
 
 				if (spring_index) {
 					spring = psys[0]->fluid_springs + spring_index - 1;
@@ -3168,8 +3170,7 @@ static void do_hair_dynamics(ParticleSimulationData *sim)
 	if (!psys->clmd) {
 		psys->clmd = (ClothModifierData*)modifier_new(eModifierType_Cloth);
 		psys->clmd->sim_parms->goalspring = 0.0f;
-		psys->clmd->sim_parms->vel_damping = 1.0f;
-		psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_GOAL|CLOTH_SIMSETTINGS_FLAG_NO_SPRING_COMPRESS;
+		psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_RESIST_SPRING_COMPRESS;
 		psys->clmd->coll_parms->flags &= ~CLOTH_COLLSETTINGS_FLAG_SELF;
 	}
 
@@ -4067,9 +4068,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 				sim->courant_num = 0.0f;
 				dynamics_step(sim, cfra+dframe+t_frac - 1.f);
 				psys->cfra = cfra+dframe+t_frac - 1.f;
-#if 0
-				printf("%f,%f,%f,%f\n", cfra+dframe+t_frac - 1.f, t_frac, dt_frac, sim->courant_num);
-#endif
+
 				if (part->time_flag & PART_TIME_AUTOSF)
 					update_timestep(psys, sim);
 				/* Even without AUTOSF dt_frac may not add up to 1.0 due to float precision. */
@@ -4143,14 +4142,16 @@ void psys_check_boid_data(ParticleSystem *psys)
 			if (!pa->boid) {
 				bpa = MEM_callocN(psys->totpart * sizeof(BoidParticle), "Boid Data");
 
-				LOOP_PARTICLES
+				LOOP_PARTICLES {
 					pa->boid = bpa++;
+				}
 			}
 		}
 		else if (pa->boid) {
 			MEM_freeN(pa->boid);
-			LOOP_PARTICLES
+			LOOP_PARTICLES {
 				pa->boid = NULL;
+			}
 		}
 }
 
@@ -4345,7 +4346,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 							pa->flag &= ~PARS_NO_DISP;
 					}
 
-					/* free unexisting after reseting particles */
+					/* free unexisting after resetting particles */
 					if (free_unexisting)
 						free_unexisting_particles(&sim);
 
@@ -4395,7 +4396,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	/* save matrix for duplicators, at rendertime the actual dupliobject's matrix is used so don't update! */
 	invert_m4_m4(psys->imat, ob->obmat);
 
-	BKE_particle_batch_cache_dirty(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
+	BKE_particle_batch_cache_dirty_tag(psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
 }
 
 /* ID looper */

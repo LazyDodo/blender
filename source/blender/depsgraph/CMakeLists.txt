@@ -70,6 +70,7 @@ set(SRC
 	intern/depsgraph_eval.cc
 	intern/depsgraph_physics.cc
 	intern/depsgraph_query.cc
+	intern/depsgraph_query_filter.cc
 	intern/depsgraph_query_foreach.cc
 	intern/depsgraph_query_iter.cc
 	intern/depsgraph_tag.cc
@@ -111,10 +112,6 @@ if(WITH_BOOST)
 		${BOOST_INCLUDE_DIR}
 	)
 	add_definitions(-DHAVE_BOOST_FUNCTION_BINDINGS)
-endif()
-
-if(WITH_OPENSUBDIV)
-	add_definitions(-DWITH_OPENSUBDIV)
 endif()
 
 blender_add_lib(bf_depsgraph "${SRC}" "${INC}" "${INC_SYS}")

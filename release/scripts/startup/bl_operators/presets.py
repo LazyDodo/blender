@@ -238,6 +238,13 @@ class ExecutePreset(Operator):
 
         ext = splitext(filepath)[1].lower()
 
+        if ext not in {".py", ".xml"}:
+            self.report({'ERROR'}, "unknown filetype: %r" % ext)
+            return {'CANCELLED'}
+
+        if hasattr(preset_class, "reset_cb"):
+            preset_class.reset_cb(context)
+
         # execute the preset using script.python_file_run
         if ext == ".py":
             bpy.ops.script.python_file_run(filepath=filepath)
@@ -246,9 +253,9 @@ class ExecutePreset(Operator):
             rna_xml.xml_file_run(context,
                                  filepath,
                                  preset_class.preset_xml_map)
-        else:
-            self.report({'ERROR'}, "unknown filetype: %r" % ext)
-            return {'CANCELLED'}
+
+        if hasattr(preset_class, "post_cb"):
+            preset_class.post_cb(context)
 
         return {'FINISHED'}
 
@@ -614,7 +621,7 @@ class AddPresetOperator(AddPresetBase, Operator):
 
         prefix, suffix = self.operator.split("_OT_", 1)
         op = getattr(getattr(bpy.ops, prefix.lower()), suffix)
-        operator_rna = op.get_rna().bl_rna
+        operator_rna = op.get_rna_type()
         del op
 
         ret = []
@@ -650,24 +657,6 @@ class WM_MT_operator_presets(Menu):
         return AddPresetOperator.operator_path(self.operator)
 
     preset_operator = "script.execute_preset"
-
-
-class AddPresetUnitsLength(AddPresetBase, Operator):
-    """Add or remove length units preset"""
-    bl_idname = "scene.units_length_preset_add"
-    bl_label = "Add Length Units Preset"
-    preset_menu = "SCENE_PT_units_length_presets"
-
-    preset_defines = [
-        "scene = bpy.context.scene"
-    ]
-
-    preset_values = [
-        "scene.unit_settings.system",
-        "scene.unit_settings.scale_length",
-    ]
-
-    preset_subdir = "units_length"
 
 
 class AddPresetGpencilBrush(AddPresetBase, Operator):
@@ -706,6 +695,49 @@ class AddPresetGpencilBrush(AddPresetBase, Operator):
     preset_subdir = "gpencil_brush"
 
 
+class AddPresetGpencilMaterial(AddPresetBase, Operator):
+    """Add or remove grease pencil material preset"""
+    bl_idname = "scene.gpencil_material_preset_add"
+    bl_label = "Add Grease Pencil Material Preset"
+    preset_menu = "MATERIAL_PT_gpencil_material_presets"
+
+    preset_defines = [
+        "material = bpy.context.object.active_material",
+        "gpcolor = material.grease_pencil"
+    ]
+
+    preset_values = [
+        "gpcolor.mode",
+        "gpcolor.stroke_style",
+        "gpcolor.color",
+        "gpcolor.stroke_image",
+        "gpcolor.pixel_size",
+        "gpcolor.use_stroke_pattern",
+        "gpcolor.fill_style",
+        "gpcolor.fill_color",
+        "gpcolor.fill_image",
+        "gpcolor.gradient_type",
+        "gpcolor.mix_color",
+        "gpcolor.mix_factor",
+        "gpcolor.flip",
+        "gpcolor.pattern_shift",
+        "gpcolor.pattern_scale",
+        "gpcolor.pattern_radius",
+        "gpcolor.pattern_angle",
+        "gpcolor.pattern_gridsize",
+        "gpcolor.use_fill_pattern",
+        "gpcolor.texture_offset",
+        "gpcolor.texture_scale",
+        "gpcolor.texture_angle",
+        "gpcolor.texture_opacity",
+        "gpcolor.texture_clamp",
+        "gpcolor.texture_mix",
+        "gpcolor.mix_factor",
+    ]
+
+    preset_subdir = "gpencil_material"
+
+
 classes = (
     AddPresetCamera,
     AddPresetCloth,
@@ -721,8 +753,8 @@ classes = (
     AddPresetTrackingCamera,
     AddPresetTrackingSettings,
     AddPresetTrackingTrackColor,
-    AddPresetUnitsLength,
     AddPresetGpencilBrush,
+    AddPresetGpencilMaterial,
     ExecutePreset,
     WM_MT_operator_presets,
 )

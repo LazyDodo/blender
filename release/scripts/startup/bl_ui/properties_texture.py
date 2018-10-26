@@ -145,7 +145,7 @@ class TEXTURE_PT_context(TextureButtonsPanel, Panel):
             if tex:
                 col.separator()
 
-                split = col.split(percentage=0.2)
+                split = col.split(factor=0.2)
                 split.label(text="Type")
                 split.prop(tex, "type", text="")
 
@@ -738,10 +738,7 @@ class TEXTURE_PT_mapping(TextureSlotPanel, Panel):
                 ob = context.object
 
                 if ob and ob.type == 'MESH':
-                    # Note: TODO prop_search doesn't align on the right.
-                    row = col.row(align=True)
-                    row.prop_search(tex, "uv_layer", ob.data, "uv_layers", text="Map")
-                    row.label(text="", icon='BLANK1')
+                    col.prop_search(tex, "uv_layer", ob.data, "uv_layers", text="Map")
                 else:
                     col.prop(tex, "uv_layer", text="Map")
 
@@ -910,7 +907,7 @@ class TEXTURE_PT_colors_ramp(TextureButtonsPanel, TextureColorsPoll, Panel):
             layout.template_color_ramp(tex, "color_ramp", expand=True)
         else:
             layout.alignment = 'RIGHT'
-            layout.label("Please enable the Color Ramp first")
+            layout.label(text="Enable the Color Ramp first")
 
 
 class TEXTURE_PT_custom_props(TextureButtonsPanel, PropertyPanel, Panel):

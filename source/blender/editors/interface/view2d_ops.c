@@ -1222,7 +1222,7 @@ static void VIEW2D_OT_zoom(wmOperatorType *ot)
 /* BORDER-ZOOM */
 
 /**
- * The user defines a rect using standard borderselect tools, and we use this rect to
+ * The user defines a rect using standard box select tools, and we use this rect to
  * define the new zoom-level of the view in the following ways:
  *
  * -# LEFTMOUSE - zoom in to view
@@ -1302,15 +1302,15 @@ static void VIEW2D_OT_zoom_border(wmOperatorType *ot)
 	ot->idname = "VIEW2D_OT_zoom_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = view_borderzoom_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = view_zoom_poll;
 
 	/* rna */
-	WM_operator_properties_gesture_border_zoom(ot);
+	WM_operator_properties_gesture_box_zoom(ot);
 }
 
 #ifdef WITH_INPUT_NDOF
@@ -1566,7 +1566,7 @@ static void VIEW2D_OT_smoothview(wmOperatorType *ot)
 	ot->flag = OPTYPE_INTERNAL;
 
 	/* rna */
-	WM_operator_properties_gesture_border(ot);
+	WM_operator_properties_gesture_box(ot);
 }
 
 /* ********************************************************* */
@@ -1718,7 +1718,7 @@ static void scroller_activate_init(bContext *C, wmOperator *op, const wmEvent *e
 	/* 'zone' depends on where mouse is relative to bubble
 	 *	- zooming must be allowed on this axis, otherwise, default to pan
 	 */
-	scrollers = UI_view2d_scrollers_calc(C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
+	scrollers = UI_view2d_scrollers_calc(C, v2d, NULL, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
 
 	/* use a union of 'cur' & 'tot' incase the current view is far outside 'tot'.
 	 * In this cases moving the scroll bars has far too little effect and the view can get stuck [#31476] */
@@ -2130,7 +2130,7 @@ void ED_operatortypes_view2d(void)
 
 void ED_keymap_view2d(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_find(keyconf, "View2D", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "View2D", 0, 0);
 	wmKeyMapItem *kmi;
 
 	/* scrollers */
@@ -2190,7 +2190,7 @@ void ED_keymap_view2d(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "VIEW2D_OT_zoom_border", BKEY, KM_PRESS, KM_SHIFT, 0);
 
 	/* Alternative keymap for buttons listview */
-	keymap = WM_keymap_find(keyconf, "View2D Buttons List", 0, 0);
+	keymap = WM_keymap_ensure(keyconf, "View2D Buttons List", 0, 0);
 
 	WM_keymap_add_item(keymap, "VIEW2D_OT_scroller_activate", LEFTMOUSE, KM_PRESS, 0, 0);
 	WM_keymap_add_item(keymap, "VIEW2D_OT_scroller_activate", MIDDLEMOUSE, KM_PRESS, 0, 0);

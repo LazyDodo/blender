@@ -467,8 +467,8 @@ void update_mesh_edit_mode_pointers(const Depsgraph *depsgraph,
 	mesh_cow->edit_btmesh = (BMEditMesh *)MEM_dupallocN(mesh_orig->edit_btmesh);
 	mesh_cow->edit_btmesh->ob =
 	    (Object *)depsgraph->get_cow_id(&mesh_orig->edit_btmesh->ob->id);
-	mesh_cow->edit_btmesh->derivedFinal = NULL;
-	mesh_cow->edit_btmesh->derivedCage = NULL;
+	mesh_cow->edit_btmesh->mesh_eval_cage = NULL;
+	mesh_cow->edit_btmesh->mesh_eval_final = NULL;
 }
 
 void update_hair_edit_mode_pointers(const Depsgraph *UNUSED(depsgraph),
@@ -789,7 +789,7 @@ static void deg_restore_object_runtime(
 			/* Evaluated mesh simply copied edit_btmesh pointer from
 			 * original mesh during update, need to make sure no dead
 			 * pointers are left behind.
-			*/
+			 */
 			mesh_eval->edit_btmesh = mesh_orig->edit_btmesh;
 		}
 	}
@@ -824,7 +824,7 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 	ListBase *gpumaterial_ptr = NULL;
 	DrawDataList drawdata_backup;
 	DrawDataList *drawdata_ptr = NULL;
-	ObjectRuntimeBackup object_runtime_backup = {NULL};
+	ObjectRuntimeBackup object_runtime_backup = {{NULL}};
 	if (check_datablock_expanded(id_cow)) {
 		switch (id_type) {
 			case ID_MA:

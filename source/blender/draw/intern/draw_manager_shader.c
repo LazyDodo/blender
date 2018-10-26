@@ -37,6 +37,8 @@
 #include "BKE_global.h"
 #include "BKE_main.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "GPU_shader.h"
 #include "GPU_material.h"
 
@@ -173,7 +175,9 @@ static void drw_deferred_shader_add(GPUMaterial *mat, bool deferred)
 	BLI_assert(DST.draw_ctx.evil_C);
 	wmWindowManager *wm = CTX_wm_manager(DST.draw_ctx.evil_C);
 	wmWindow *win = CTX_wm_window(DST.draw_ctx.evil_C);
-	Scene *scene = DST.draw_ctx.scene;
+
+	/* Use original scene ID since this is what the jobs template tests for. */
+	Scene *scene = (Scene *)DEG_get_original_id(&DST.draw_ctx.scene->id);
 
 	/* Get the running job or a new one if none is running. Can only have one job per type & owner.  */
 	wmJob *wm_job = WM_jobs_get(wm, win, scene, "Shaders Compilation",
@@ -289,7 +293,7 @@ GPUShader *DRW_shader_create_with_transform_feedback(
         const char *vert, const char *geom, const char *defines,
         const GPUShaderTFBType prim_type, const char **varying_names, const int varying_count)
 {
-	return GPU_shader_create_ex(vert, NULL, geom, NULL, defines, GPU_SHADER_FLAGS_NONE,
+	return GPU_shader_create_ex(vert, NULL, geom, NULL, defines,
 	                            prim_type, varying_names, varying_count, __func__);
 }
 
@@ -349,6 +353,7 @@ GPUMaterial *DRW_shader_create_from_world(
 	}
 
 	if (mat == NULL) {
+		scene = (Scene *)DEG_get_original_id(&DST.draw_ctx.scene->id);
 		mat = GPU_material_from_nodetree(
 		        scene, wo->nodetree, &wo->gpumaterial, engine_type, options,
 		        vert, geom, frag_lib, defines, wo->id.name);
@@ -371,6 +376,7 @@ GPUMaterial *DRW_shader_create_from_material(
 	}
 
 	if (mat == NULL) {
+		scene = (Scene *)DEG_get_original_id(&DST.draw_ctx.scene->id);
 		mat = GPU_material_from_nodetree(
 		        scene, ma->nodetree, &ma->gpumaterial, engine_type, options,
 		        vert, geom, frag_lib, defines, ma->id.name);

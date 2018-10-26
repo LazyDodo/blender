@@ -46,6 +46,7 @@
 #include "eevee_private.h"
 #include "GPU_draw.h"
 #include "GPU_texture.h"
+#include "GPU_material.h"
 
 static struct {
 	char *volumetric_common_lib;
@@ -370,16 +371,16 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		 *
 		 * - Light Scattering : the volume properties then are sampled
 		 *   and light scattering is evaluated for each cell of the
-		 *   volume texture. Temporal supersampling (if enabled) occurs here.
+		 *   volume texture. Temporal super-sampling (if enabled) occurs here.
 		 *
 		 * - Volume Integration : the scattered light and extinction is
-		 *   integrated (accumulated) along the viewrays. The result is stored
+		 *   integrated (accumulated) along the view-rays. The result is stored
 		 *   for every cell in another texture.
 		 *
-		 * - Fullscreen Resolve : From the previous stage, we get two
-		 *   3D textures that contains integrated scatered light and extinction
+		 * - Full-screen Resolve : From the previous stage, we get two
+		 *   3D textures that contains integrated scattered light and extinction
 		 *   for "every" positions in the frustum. We only need to sample
-		 *   them and blend the scene color with thoses factors. This also
+		 *   them and blend the scene color with those factors. This also
 		 *   work for alpha blended materials.
 		 **/
 
@@ -397,7 +398,7 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 			if (grp) {
 				DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
-				/* TODO (fclem): remove thoses (need to clean the GLSL files). */
+				/* TODO (fclem): remove those (need to clean the GLSL files). */
 				DRW_shgroup_uniform_block(grp, "grid_block", sldata->grid_ubo);
 				DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
 				DRW_shgroup_uniform_block(grp, "planar_block", sldata->planar_ubo);
@@ -458,6 +459,8 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Scene *scene, Object *ob)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
 	float *texcoloc = NULL;
 	float *texcosize = NULL;
 	struct ModifierData *md = NULL;
@@ -469,19 +472,19 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 
 	struct GPUMaterial *mat = EEVEE_material_mesh_volume_get(scene, ma);
 
-	DRWShadingGroup *grp = DRW_shgroup_material_empty_tri_batch_create(mat, vedata->psl->volumetric_objects_ps, sldata->common_data.vol_tex_size[2]);
-
 	/* If shader failed to compile or is currently compiling. */
-	if (grp == NULL) {
+	if (GPU_material_status(mat) != GPU_MAT_SUCCESS) {
 		return;
 	}
+
+	DRWShadingGroup *grp = DRW_shgroup_material_empty_tri_batch_create(mat, vedata->psl->volumetric_objects_ps, sldata->common_data.vol_tex_size[2]);
 
 	/* Making sure it's updated. */
 	invert_m4_m4(ob->imat, ob->obmat);
 
 	BKE_mesh_texspace_get_reference((struct Mesh *)ob->data, NULL, &texcoloc, NULL, &texcosize);
 
-	/* TODO(fclem) remove thoses "unecessary" UBOs */
+	/* TODO(fclem) remove those "unnecessary" UBOs */
 	DRW_shgroup_uniform_block(grp, "planar_block", sldata->planar_ubo);
 	DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
 	DRW_shgroup_uniform_block(grp, "shadow_block", sldata->shadow_ubo);
@@ -500,8 +503,13 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	{
 		SmokeModifierData *smd = (SmokeModifierData *)md;
 		SmokeDomainSettings *sds = smd->domain;
+
+		if (sds == NULL) {
+			return;
+		}
+
 		/* Don't show smoke before simulation starts, this could be made an option in the future. */
-		const bool show_smoke = (CFRA >= sds->point_cache[0]->startframe);
+		const bool show_smoke = ((int)DEG_get_ctime(draw_ctx->depsgraph) >= sds->point_cache[0]->startframe);
 
 		if (sds->fluid && show_smoke) {
 			if (!sds->wt || !(sds->viewsettings & MOD_SMOKE_VIEW_SHOWBIG)) {

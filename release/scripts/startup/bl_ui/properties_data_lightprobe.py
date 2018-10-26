@@ -58,14 +58,13 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
         layout = self.layout
         layout.use_property_split = True
 
-        ob = context.object
         probe = context.lightprobe
 
 #        layout.prop(probe, "type")
 
         if probe.type == 'GRID':
             col = layout.column()
-            col.prop(probe, "influence_distance", "Distance")
+            col.prop(probe, "influence_distance", text="Distance")
             col.prop(probe, "falloff")
             col.prop(probe, "intensity")
 
@@ -77,16 +76,15 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
 
         elif probe.type == 'PLANAR':
             col = layout.column()
-            col.prop(probe, "influence_distance", "Distance")
-            col.prop(probe, "falloff")
+            col.prop(probe, "influence_distance", text="Distance")
         else:
             col = layout.column()
             col.prop(probe, "influence_type")
 
             if probe.influence_type == 'ELIPSOID':
-                col.prop(probe, "influence_distance", "Radius")
+                col.prop(probe, "influence_distance", text="Radius")
             else:
-                col.prop(probe, "influence_distance", "Size")
+                col.prop(probe, "influence_distance", text="Size")
 
             col.prop(probe, "falloff")
             col.prop(probe, "intensity")
@@ -95,15 +93,15 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
         sub = col.column()
         sub.prop(probe, "clip_start", text="Clipping Start")
 
-        if probe.type != "PLANAR":
+        if probe.type != 'PLANAR':
             sub.prop(probe, "clip_end", text="End")
 
         if probe.type == 'GRID':
             col.separator()
-            col.label("Visibility")
-            col.prop(probe, "visibility_buffer_bias", "Bias")
-            col.prop(probe, "visibility_bleed_bias", "Bleed Bias")
-            col.prop(probe, "visibility_blur", "Blur")
+            col.label(text="Visibility")
+            col.prop(probe, "visibility_buffer_bias", text="Bias")
+            col.prop(probe, "visibility_bleed_bias", text="Bleed Bias")
+            col.prop(probe, "visibility_blur", text="Blur")
 
         col.separator()
 
@@ -114,6 +112,7 @@ class DATA_PT_lightprobe(DataButtonsPanel, Panel):
 
 class DATA_PT_lightprobe_parallax(DataButtonsPanel, Panel):
     bl_label = "Custom Parallax"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     @classmethod
@@ -137,13 +136,14 @@ class DATA_PT_lightprobe_parallax(DataButtonsPanel, Panel):
         col.prop(probe, "parallax_type")
 
         if probe.parallax_type == 'ELIPSOID':
-            col.prop(probe, "parallax_distance", "Radius")
+            col.prop(probe, "parallax_distance", text="Radius")
         else:
-            col.prop(probe, "parallax_distance", "Size")
+            col.prop(probe, "parallax_distance", text="Size")
 
 
 class DATA_PT_lightprobe_display(DataButtonsPanel, Panel):
-    bl_label = "Display"
+    bl_label = "Viewport Display"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     def draw(self, context):
@@ -156,7 +156,7 @@ class DATA_PT_lightprobe_display(DataButtonsPanel, Panel):
         col = layout.column()
 
         if probe.type == 'PLANAR':
-            col.prop(ob, "empty_draw_size", text="Arrow Size")
+            col.prop(ob, "empty_display_size", text="Arrow Size")
             col.prop(probe, "show_data")
 
         if probe.type in {'GRID', 'CUBEMAP'}:

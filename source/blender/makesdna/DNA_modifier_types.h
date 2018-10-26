@@ -139,7 +139,8 @@ typedef enum {
 	eSubsurfModifierFlag_Incremental  = (1 << 0),
 	eSubsurfModifierFlag_DebugIncr    = (1 << 1),
 	eSubsurfModifierFlag_ControlEdges = (1 << 2),
-	eSubsurfModifierFlag_SubsurfUv    = (1 << 3),
+	/* DEPRECATED, ONLY USED FOR DO-VERSIONS */
+	eSubsurfModifierFlag_SubsurfUv_DEPRECATED    = (1 << 3),
 } SubsurfModifierFlag;
 
 typedef enum {
@@ -147,11 +148,22 @@ typedef enum {
 	SUBSURF_TYPE_SIMPLE = 1,
 } eSubsurfModifierType;
 
+typedef enum {
+	SUBSURF_UV_SMOOTH_NONE = 0,
+	SUBSURF_UV_SMOOTH_PRESERVE_CORNERS = 1,
+	SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_AND_JUNCTIONS = 2,
+	SUBSURF_UV_SMOOTH_PRESERVE_CORNERS_JUNCTIONS_AND_CONCAVE = 3,
+	SUBSURF_UV_SMOOTH_PRESERVE_BOUNDARIES = 4,
+	SUBSURF_UV_SMOOTH_ALL = 5,
+} eSubsurfUVSmooth;
+
 typedef struct SubsurfModifierData {
 	ModifierData modifier;
 
 	short subdivType, levels, renderLevels, flags;
-	short use_opensubdiv, pad[3];
+	short uv_smooth;
+	short quality;
+	short pad[2];
 
 	void *emCache, *mCache;
 } SubsurfModifierData;
@@ -832,11 +844,15 @@ typedef struct MultiresModifierData {
 
 	char lvl, sculptlvl, renderlvl, totlvl;
 	char simple, flags, pad[2];
+	short quality;
+	short uv_smooth;
+	short pad2[2];
 } MultiresModifierData;
 
 typedef enum {
 	eMultiresModifierFlag_ControlEdges = (1 << 0),
-	eMultiresModifierFlag_PlainUv      = (1 << 1),
+	/* DEPRECATED, only used for versioning. */
+	eMultiresModifierFlag_PlainUv_DEPRECATED      = (1 << 1),
 } MultiresModifierFlag;
 
 typedef struct FluidsimModifierData {
@@ -854,7 +870,7 @@ typedef struct ShrinkwrapModifierData {
 	float keepDist;           /* distance offset to keep from mesh/projection point */
 	short shrinkType;         /* shrink type projection */
 	char  shrinkOpts;         /* shrink options */
-	char  pad1;
+	char  shrinkMode;         /* shrink to surface mode */
 	float projLimit;          /* limit the projection ray cast */
 	char  projAxis;           /* axis to project over */
 
@@ -873,6 +889,20 @@ enum {
 	MOD_SHRINKWRAP_NEAREST_VERTEX  = 2,
 };
 
+/* Shrinkwrap->shrinkMode */
+enum {
+	/* Move vertex to the surface of the target object (keepDist towards original position) */
+	MOD_SHRINKWRAP_ON_SURFACE      = 0,
+	/* Move the vertex inside the target object; don't change if already inside */
+	MOD_SHRINKWRAP_INSIDE          = 1,
+	/* Move the vertex outside the target object; don't change if already outside */
+	MOD_SHRINKWRAP_OUTSIDE         = 2,
+	/* Move vertex to the surface of the target object, with keepDist towards the outside */
+	MOD_SHRINKWRAP_OUTSIDE_SURFACE = 3,
+	/* Move vertex to the surface of the target object, with keepDist along the normal */
+	MOD_SHRINKWRAP_ABOVE_SURFACE   = 4,
+};
+
 /* Shrinkwrap->shrinkOpts */
 enum {
 	/* allow shrinkwrap to move the vertex in the positive direction of axis */
@@ -885,10 +915,15 @@ enum {
 	/* ignore vertex moves if a vertex ends projected on a back face of the target */
 	MOD_SHRINKWRAP_CULL_TARGET_BACKFACE  = (1 << 4),
 
+#ifdef DNA_DEPRECATED_ALLOW
 	MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE    = (1 << 5),  /* distance is measure to the front face of the target */
+#endif
 
 	MOD_SHRINKWRAP_INVERT_VGROUP         = (1 << 6),
+	MOD_SHRINKWRAP_INVERT_CULL_TARGET    = (1 << 7),
 };
+
+#define MOD_SHRINKWRAP_CULL_TARGET_MASK (MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE)
 
 /* Shrinkwrap->projAxis */
 enum {
@@ -908,7 +943,7 @@ typedef struct SimpleDeformModifierData {
 	float limit[2];         /* lower and upper limit */
 
 	char mode;              /* deform function */
-	char axis;              /* lock axis (for taper and strech) */
+	char axis;              /* lock axis (for taper and stretch) */
 	char deform_axis;       /* axis to perform the deform on (default is X, but can be overridden by origin */
 	char flag;
 

@@ -137,7 +137,7 @@ class WindowManager(bpy_types.ID):
 
     def popup_menu(self, draw_func, title="", icon='NONE'):
         import bpy
-        popup = self.popmenu_begin__internal(title, icon)
+        popup = self.popmenu_begin__internal(title, icon=icon)
 
         try:
             draw_func(popup, bpy.context)
@@ -157,11 +157,11 @@ class WindowManager(bpy_types.ID):
         try:
             draw_func(popup, bpy.context)
         finally:
-            self.popover_end__internal(popup, keymap)
+            self.popover_end__internal(popup, keymap=keymap)
 
     def popup_menu_pie(self, event, draw_func, title="", icon='NONE'):
         import bpy
-        pie = self.piemenu_begin__internal(title, icon, event)
+        pie = self.piemenu_begin__internal(title, icon=icon, event=event)
 
         if pie:
             try:
@@ -468,7 +468,7 @@ class MeshEdge(StructRNA):
         return ord_ind(*tuple(self.vertices))
 
 
-class MeshTessFace(StructRNA):
+class MeshLoopTriangle(StructRNA):
     __slots__ = ()
 
     @property
@@ -476,32 +476,18 @@ class MeshTessFace(StructRNA):
         """The midpoint of the face."""
         face_verts = self.vertices[:]
         mesh_verts = self.id_data.vertices
-        if len(face_verts) == 3:
-            return (mesh_verts[face_verts[0]].co +
-                    mesh_verts[face_verts[1]].co +
-                    mesh_verts[face_verts[2]].co
-                    ) / 3.0
-        else:
-            return (mesh_verts[face_verts[0]].co +
-                    mesh_verts[face_verts[1]].co +
-                    mesh_verts[face_verts[2]].co +
-                    mesh_verts[face_verts[3]].co
-                    ) / 4.0
+        return (mesh_verts[face_verts[0]].co +
+                mesh_verts[face_verts[1]].co +
+                mesh_verts[face_verts[2]].co
+                ) / 3.0
 
     @property
     def edge_keys(self):
         verts = self.vertices[:]
-        if len(verts) == 3:
-            return (ord_ind(verts[0], verts[1]),
-                    ord_ind(verts[1], verts[2]),
-                    ord_ind(verts[2], verts[0]),
-                    )
-        else:
-            return (ord_ind(verts[0], verts[1]),
-                    ord_ind(verts[1], verts[2]),
-                    ord_ind(verts[2], verts[3]),
-                    ord_ind(verts[3], verts[0]),
-                    )
+        return (ord_ind(verts[0], verts[1]),
+                ord_ind(verts[1], verts[2]),
+                ord_ind(verts[2], verts[0]),
+                )
 
 
 class MeshPolygon(StructRNA):
@@ -638,7 +624,7 @@ class Gizmo(StructRNA):
         :return: The newly created shape.
         :rtype: Undefined (it may change).
         """
-        from _gpu.types import (
+        from gpu.types import (
             GPUBatch,
             GPUVertBuf,
             GPUVertFormat,
@@ -848,7 +834,7 @@ class Menu(StructRNA, _GenericUI, metaclass=RNAMeta):
         layout = self.layout
 
         if not searchpaths:
-            layout.label("* Missing Paths *")
+            layout.label(text="* Missing Paths *")
 
         # collect paths
         files = []
@@ -887,7 +873,7 @@ class Menu(StructRNA, _GenericUI, metaclass=RNAMeta):
                 props.menu_idname = self.bl_idname
 
             if add_operator:
-                props = row.operator(add_operator, text="", icon='ZOOMOUT')
+                props = row.operator(add_operator, text="", icon='REMOVE')
                 props.name = name
                 props.remove_name = True
 
@@ -901,7 +887,7 @@ class Menu(StructRNA, _GenericUI, metaclass=RNAMeta):
             sub.emboss = 'NORMAL'
             sub.prop(wm, "preset_name", text="")
 
-            props = row.operator(add_operator, text="", icon='ZOOMIN')
+            props = row.operator(add_operator, text="", icon='ADD')
             props.name = wm.preset_name
 
     def draw_preset(self, context):
