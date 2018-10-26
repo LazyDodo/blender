@@ -231,6 +231,8 @@ struct DepsgraphNodeBuilder {
 		 * dependency graph.
 		 */
 		IDComponentsMask previously_visible_components_mask;
+		/* Special evaluation flag mask from the previous depsgraph. */
+		uint32_t previous_eval_flags;
 	};
 
 protected:
@@ -242,6 +244,7 @@ protected:
 		ID *id_orig;
 		eDepsNode_Type component_type;
 		eDepsOperation_Code opcode;
+		const char *name;
 	};
 	vector<SavedEntryTag> saved_entry_tags_;
 
