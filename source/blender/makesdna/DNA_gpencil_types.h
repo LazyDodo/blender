@@ -260,7 +260,7 @@ typedef struct bGPDlayer {
 							 * needs to be kept unique, as it's used as the layer identifier */
 
 	short thickness;		/* thickness to apply to strokes (Annotations) */
-	char pad_1[2];
+	short pass_index;       /* used to filter groups of layers in modifiers */
 
 	struct Object *parent;  /* parent object */
 	float inverse[4][4];    /* inverse matrix (only used if parented) */
@@ -270,6 +270,7 @@ typedef struct bGPDlayer {
 	short line_change;      /* Thickness adjustment */
 	float tintcolor[4];     /* Color used to tint layer, alpha value is used as factor */
 	float opacity;          /* Opacity of the layer */
+	char viewlayername[64]; /* Name of the layer used to filter render output */
 
 	bGPDlayer_Runtime runtime;
 } bGPDlayer;

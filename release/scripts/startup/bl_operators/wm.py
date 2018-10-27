@@ -1521,7 +1521,6 @@ class WM_OT_copy_prev_settings(Operator):
         return os.path.isfile(old_userpref) and not os.path.isfile(new_userpref)
 
     def execute(self, context):
-        import os
         import shutil
 
         shutil.copytree(self._old_path(), self._new_path(), symlinks=True)
@@ -2204,7 +2203,7 @@ class WM_OT_addon_remove(Operator):
     # lame confirmation check
     def draw(self, context):
         self.layout.label(text="Remove Add-on: %r?" % self.module)
-        path, isdir = WM_OT_addon_remove.path_from_addon(self.module)
+        path, _isdir = WM_OT_addon_remove.path_from_addon(self.module)
         self.layout.label(text="Path: %r" % path)
 
     def invoke(self, context, event):
@@ -2399,7 +2398,7 @@ class WM_OT_tool_set_by_name(Operator):
         if fn(context, space_type, self.name):
             return {'FINISHED'}
         else:
-            self.report({'WARNING'}, f"Tool {self.name!r} not found.")
+            self.report({'WARNING'}, f"Tool {self.name!r:s} not found for space {space_type!r:s}.")
             return {'CANCELLED'}
 
 

@@ -166,17 +166,20 @@ IDDepsNode *DepsgraphNodeBuilder::add_id_node(ID *id)
 	IDDepsNode *id_node = NULL;
 	ID *id_cow = NULL;
 	IDComponentsMask previously_visible_components_mask = 0;
+	uint32_t previous_eval_flags = 0;
 	IDInfo *id_info = (IDInfo *)BLI_ghash_lookup(id_info_hash_, id);
 	if (id_info != NULL) {
 		id_cow = id_info->id_cow;
 		previously_visible_components_mask =
 		        id_info->previously_visible_components_mask;
+		previous_eval_flags = id_info->previous_eval_flags;
 		/* Tag ID info to not free the CoW ID pointer. */
 		id_info->id_cow = NULL;
 	}
 	id_node = graph_->add_id_node(id, id_cow);
 	id_node->previously_visible_components_mask =
 	        previously_visible_components_mask;
+	id_node->previous_eval_flags = previous_eval_flags;
 	/* Currently all ID nodes are supposed to have copy-on-write logic.
 	 *
 	 * NOTE: Zero number of components indicates that ID node was just created.
@@ -358,6 +361,7 @@ void DepsgraphNodeBuilder::begin_build()
 		}
 		id_info->previously_visible_components_mask =
 		        id_node->visible_components_mask;
+		id_info->previous_eval_flags = id_node->eval_flags;
 		BLI_ghash_insert(id_info_hash_, id_node->id_orig, id_info);
 		id_node->id_cow = NULL;
 	}
@@ -371,6 +375,7 @@ void DepsgraphNodeBuilder::begin_build()
 		entry_tag.id_orig = id_node->id_orig;
 		entry_tag.component_type = comp_node->type;
 		entry_tag.opcode = op_node->opcode;
+		entry_tag.name = op_node->name;
 		saved_entry_tags_.push_back(entry_tag);
 	};
 	GSET_FOREACH_END();
@@ -393,7 +398,7 @@ void DepsgraphNodeBuilder::end_build()
 		if (comp_node == NULL) {
 			continue;
 		}
-		OperationDepsNode *op_node = comp_node->find_operation(entry_tag.opcode);
+		OperationDepsNode *op_node = comp_node->find_operation(entry_tag.opcode, entry_tag.name, -1);
 		if (op_node == NULL) {
 			continue;
 		}
@@ -669,7 +674,6 @@ void DepsgraphNodeBuilder::build_object_data(
 	if (object->data == NULL) {
 		return;
 	}
-	IDDepsNode *id_node = graph_->find_id_node(&object->id);
 	/* type-specific data. */
 	switch (object->type) {
 		case OB_MESH:
@@ -681,15 +685,6 @@ void DepsgraphNodeBuilder::build_object_data(
 		case OB_GPENCIL:
 		case OB_HAIR:
 			build_object_data_geometry(object, is_object_visible);
-			/* TODO(sergey): Only for until we support granular
-			 * update of curves.
-			 */
-			if (object->type == OB_FONT) {
-				Curve *curve = (Curve *)object->data;
-				if (curve->textoncurve) {
-					id_node->eval_flags |= DAG_EVAL_NEED_CURVE_PATH;
-				}
-			}
 			break;
 		case OB_ARMATURE:
 			if (ID_IS_LINKED(object) && object->proxy_from != NULL) {
