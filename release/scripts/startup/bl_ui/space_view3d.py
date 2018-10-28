@@ -1435,18 +1435,6 @@ class VIEW3D_MT_metaball_add(Menu):
 
 class TOPBAR_MT_edit_curve_add(Menu):
     bl_idname = "TOPBAR_MT_edit_curve_add"
-
-class VIEW3D_MT_hair_add(Menu):
-    bl_idname = "VIEW3D_MT_hair_add"
-    bl_label = "Hair"
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.operator_context = 'INVOKE_REGION_WIN'
-        layout.operator("object.hair_add")
-
-
     bl_label = "Add"
 
     def draw(self, context):
@@ -1459,6 +1447,17 @@ class VIEW3D_MT_hair_add(Menu):
             VIEW3D_MT_surface_add.draw(self, context)
         else:
             VIEW3D_MT_curve_add.draw(self, context)
+
+
+class VIEW3D_MT_hair_add(Menu):
+    bl_idname = "VIEW3D_MT_hair_add"
+    bl_label = "Hair"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator_context = 'INVOKE_REGION_WIN'
+        layout.operator("object.hair_add")
 
 
 class TOPBAR_MT_edit_armature_add(Menu):
