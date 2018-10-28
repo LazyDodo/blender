@@ -316,7 +316,7 @@ class VIEW3D_MT_editor_menus(Menu):
         elif mode_string == 'EDIT_METABALL':
             layout.menu("VIEW3D_MT_metaball_add", text="Add")
         elif mode_string == 'EDIT_HAIR':
-            layout.menu("INFO_MT_hair_add", text="Add")
+            layout.menu("VIEW3D_MT_hair_add", text="Add")
         elif mode_string == 'EDIT_ARMATURE':
             layout.menu("TOPBAR_MT_edit_armature_add", text="Add")
 
@@ -1436,8 +1436,8 @@ class VIEW3D_MT_metaball_add(Menu):
 class TOPBAR_MT_edit_curve_add(Menu):
     bl_idname = "TOPBAR_MT_edit_curve_add"
 
-class INFO_MT_hair_add(Menu):
-    bl_idname = "INFO_MT_hair_add"
+class VIEW3D_MT_hair_add(Menu):
+    bl_idname = "VIEW3D_MT_hair_add"
     bl_label = "Hair"
 
     def draw(self, context):
@@ -1535,7 +1535,7 @@ class VIEW3D_MT_add(Menu):
         # layout.operator_menu_enum("object.surface_add", "type", text="Surface", icon='OUTLINER_OB_SURFACE')
         layout.menu("VIEW3D_MT_surface_add", icon='OUTLINER_OB_SURFACE')
         layout.menu("VIEW3D_MT_metaball_add", text="Metaball", icon='OUTLINER_OB_META')
-        layout.menu("INFO_MT_hair_add", text="Hair", icon='OUTLINER_OB_HAIR')
+        layout.menu("VIEW3D_MT_hair_add", text="Hair", icon='OUTLINER_OB_HAIR')
         layout.operator("object.text_add", text="Text", icon='OUTLINER_OB_FONT')
         layout.operator_menu_enum("object.gpencil_add", "type", text="Grease Pencil", icon='OUTLINER_OB_GREASEPENCIL')
         layout.separator()
@@ -5241,7 +5241,7 @@ classes = (
     VIEW3D_MT_curve_add,
     VIEW3D_MT_surface_add,
     VIEW3D_MT_metaball_add,
-    INFO_MT_hair_add,
+    VIEW3D_MT_hair_add,
     TOPBAR_MT_edit_curve_add,
     TOPBAR_MT_edit_armature_add,
     VIEW3D_MT_armature_add,
