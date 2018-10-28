@@ -117,6 +117,10 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	HairSystem *hsys = obedit->data;
 	EditHair *edit = hsys->edithair;
 	struct Mesh *scalp = BKE_hair_get_scalp(depsgraph, obedit, hsys);
+	if (!scalp)
+	{
+		return OPERATOR_CANCELLED;
+	}
 
 	const int seed = RNA_int_get(op->ptr, "seed");
 	const int count = RNA_int_get(op->ptr, "count");
