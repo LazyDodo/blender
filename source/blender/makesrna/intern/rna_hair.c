@@ -148,7 +148,7 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	FunctionRNA *func;
 	PropertyRNA *prop, *parm;
 	
-	srna = RNA_def_struct(brna, "HairSystem", NULL);
+	srna = RNA_def_struct(brna, "HairSystem", "ID");
 	RNA_def_struct_ui_text(srna, "Hair System", "Hair rendering and deformation data");
 	RNA_def_struct_sdna(srna, "HairSystem");
 	RNA_def_struct_ui_icon(srna, ICON_STRANDS);
