@@ -41,8 +41,14 @@ struct PointerRNA;
 struct ScrArea;
 struct Main;
 struct StructRNA;
+struct WorkSpace;
 
 /* wm_toolsystem.c  */
+
+#define WM_TOOLSYSTEM_SPACE_MASK ( \
+	(1 << SPACE_VIEW3D) | \
+	(1 << SPACE_IMAGE) \
+)
 
 /* Values that define a categoey of active tool. */
 typedef struct bToolKey { int space_type; int mode; } bToolKey;
@@ -53,7 +59,7 @@ bool WM_toolsystem_ref_ensure(
         struct WorkSpace *workspace, const bToolKey *tkey,
         struct bToolRef **r_tref);
 struct bToolRef *WM_toolsystem_ref_set_by_name(
-        bContext *C, struct WorkSpace *workspace, const bToolKey *tkey,
+        struct bContext *C, struct WorkSpace *workspace, const bToolKey *tkey,
         const char *name, bool cycle);
 
 struct bToolRef_Runtime *WM_toolsystem_runtime_from_context(struct bContext *C);

@@ -518,7 +518,13 @@ static PyObject *bpygpu_shader_uniform_int(
 	int values[4];
 	int length;
 	int ret;
-	{
+
+	if (PyLong_Check(params.seq)) {
+		values[0] = PyC_Long_AsI32(params.seq);
+		length = 1;
+		ret = 0;
+	}
+	else {
 		PyObject *seq_fast = PySequence_Fast(params.seq, error_prefix);
 		if (seq_fast == NULL) {
 			PyErr_Format(PyExc_TypeError,
@@ -650,7 +656,7 @@ static PyObject *bpygpu_shader_program_get(BPyGPUShader *self, void *UNUSED(clos
 }
 
 static PyGetSetDef bpygpu_shader_getseters[] = {
-	{"program",
+	{(char *)"program",
 	 (getter)bpygpu_shader_program_get, (setter)NULL,
 	 bpygpu_shader_program_doc, NULL},
 	{NULL, NULL, NULL, NULL, NULL} /* Sentinel */
