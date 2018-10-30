@@ -102,7 +102,9 @@ BVH *BVH::create(const BVHParams& params, const vector<Object*>& objects)
 		case BVH_LAYOUT_BVH8:
 			return new BVH8(params, objects);
 		case BVH_LAYOUT_EMBREE:
+#ifdef WITH_EMBREE
 			return new BVHEmbree(params, objects);
+#endif
 		case BVH_LAYOUT_NONE:
 		case BVH_LAYOUT_ALL:
 			break;
