@@ -363,7 +363,6 @@ void EEVEE_lights_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 
 		if (la->mode & LA_SHADOW) {
 			if (la->type == LA_SUN) {
-				int sh_nbr = 1; /* TODO : MSM */
 				int cascade_nbr = la->cascade_count;
 
 				if ((linfo->gpu_cascade_len + sh_nbr) <= MAX_SHADOW_CASCADE) {
@@ -378,16 +377,14 @@ void EEVEE_lights_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 
 					/* Increment indices. */
 					linfo->gpu_shadow_len += 1;
-					linfo->gpu_cascade_len += sh_nbr;
-					linfo->num_cascade_layer += sh_nbr * cascade_nbr;
+					linfo->gpu_cascade_len += 1;
+					linfo->num_cascade_layer += cascade_nbr;
 
 					linfo->cpu_cascade_len += 1;
 				}
 			}
 			else if (la->type == LA_SPOT || la->type == LA_LOCAL || la->type == LA_AREA) {
-				int sh_nbr = 1; /* TODO : MSM */
-
-				if ((linfo->gpu_cube_len + sh_nbr) <= MAX_SHADOW_CUBE) {
+				if ((linfo->gpu_cube_len + 1) <= MAX_SHADOW_CUBE) {
 					/* Save Light object. */
 					linfo->shadow_cube_ref[linfo->cpu_cube_len] = ob;
 
@@ -412,8 +409,8 @@ void EEVEE_lights_cache_add(EEVEE_ViewLayerData *sldata, Object *ob)
 
 					/* Increment indices. */
 					linfo->gpu_shadow_len += 1;
-					linfo->gpu_cube_len += sh_nbr;
-					linfo->num_cube_layer += sh_nbr;
+					linfo->gpu_cube_len += 1;
+					linfo->num_cube_layer += 1;
 
 					linfo->cpu_cube_len += 1;
 				}
@@ -751,7 +748,7 @@ static void shadow_cube_random_position_set(
 #ifndef DEBUG_SHADOW_DISTRIBUTION
 	int i = sample_ofs;
 #else
-	for (int i = 1; i <= sample_ofs; ++i) {
+	for (int i = 0; i <= sample_ofs; ++i) {
 #endif
 		switch (la->type) {
 			case LA_AREA:
@@ -811,7 +808,7 @@ static void shadow_cascade_random_matrix_set(float mat[4][4], float radius, int 
 #ifndef DEBUG_SHADOW_DISTRIBUTION
 	int i = sample_ofs;
 #else
-	for (int i = 1; i <= sample_ofs; ++i) {
+	for (int i = 0; i <= sample_ofs; ++i) {
 #endif
 		sample_ellipse(i, mat[0], mat[1], radius, radius, jitter);
 #ifdef DEBUG_SHADOW_DISTRIBUTION
@@ -1340,7 +1337,7 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		float (*viewmat)[4] = render_mats.mat[DRW_MAT_VIEW];
 		float (*persmat)[4] = render_mats.mat[DRW_MAT_PERS];
 
-		eevee_shadow_cascade_setup(ob, linfo, led, &saved_mats, near, far, effects->taa_current_sample);
+		eevee_shadow_cascade_setup(ob, linfo, led, &saved_mats, near, far, effects->taa_current_sample - 1);
 
 		srd->clip_near = la->clipsta;
 		srd->clip_far = la->clipend;

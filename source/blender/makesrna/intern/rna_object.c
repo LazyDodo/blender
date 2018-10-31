@@ -110,11 +110,18 @@ const EnumPropertyItem rna_enum_object_empty_drawtype_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
+const EnumPropertyItem rna_enum_object_empty_image_depth_items[] = {
+	{OB_EMPTY_IMAGE_DEPTH_DEFAULT, "DEFAULT", 0, "Default", ""},
+	{OB_EMPTY_IMAGE_DEPTH_FRONT, "FRONT", 0, "Front", ""},
+	{OB_EMPTY_IMAGE_DEPTH_BACK, "BACK", 0, "Back", ""},
+	{0, NULL, 0, NULL, NULL}
+};
+
 const EnumPropertyItem rna_enum_object_gpencil_type_items[] = {
-	{ GP_EMPTY, "EMPTY", ICON_OUTLINER_OB_GREASEPENCIL, "Blank", "Create an empty grease pencil object" },
-	{ GP_STROKE, "STROKE", ICON_OUTLINER_OB_CURVE, "Stroke", "Create a simple stroke with basic colors" },
-	{ GP_MONKEY, "MONKEY", ICON_MONKEY, "Monkey", "Construct a Suzanne grease pencil object" },
-	{ 0, NULL, 0, NULL, NULL }
+	{GP_EMPTY, "EMPTY", ICON_GP_EMPTY, "Blank", "Create an empty grease pencil object"},
+	{GP_STROKE, "STROKE", ICON_GP_STROKE, "Stroke", "Create a simple stroke with basic colors"},
+	{GP_MONKEY, "MONKEY", ICON_MONKEY, "Monkey", "Construct a Suzanne grease pencil object"},
+	{0, NULL, 0, NULL, NULL }
 };
 
 static const EnumPropertyItem parent_type_items[] = {
@@ -2488,6 +2495,21 @@ static void rna_def_object(BlenderRNA *brna)
 	                         "Parameters defining which layer, pass and frame of the image is displayed");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
+	prop = RNA_def_property(srna, "empty_image_depth", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_object_empty_image_depth_items);
+	RNA_def_property_ui_text(prop, "Empty Image Depth", "Determine which other objects will occlude the image");
+	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
+
+	prop = RNA_def_property(srna, "show_empty_image_perspective", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE);
+	RNA_def_property_ui_text(prop, "Display in Perspective Mode", "Display image in perspective mode");
+	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
+
+	prop = RNA_def_property(srna, "show_empty_image_orthographic", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+	RNA_def_property_ui_text(prop, "Display in Orthographic Mode", "Display image in orthographic mode");
+	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
+
 	/* render */
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "index");
@@ -2540,21 +2562,21 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "restrictflag", OB_RESTRICT_VIEW);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Disable View", "Disable object in the viewport");
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_ON, -1);
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_hide_update");
 
 	prop = RNA_def_property(srna, "hide_select", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "restrictflag", OB_RESTRICT_SELECT);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Disable Select", "Disable object selection in the viewport");
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_SELECT_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_SELECT_ON, -1);
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_hide_update");
 
 	prop = RNA_def_property(srna, "hide_render", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "restrictflag", OB_RESTRICT_RENDER);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Disable Render", "Disable object in renders");
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_ON, -1);
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_hide_update");
 
 	prop = RNA_def_property(srna, "show_duplicator_for_render", PROP_BOOLEAN, PROP_NONE);

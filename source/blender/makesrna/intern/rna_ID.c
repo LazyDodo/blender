@@ -36,6 +36,7 @@
 #include "BLI_math_base.h"
 
 #include "BKE_icons.h"
+#include "BKE_library.h"
 #include "BKE_object.h"
 
 #include "RNA_access.h"
@@ -81,7 +82,7 @@ const EnumPropertyItem rna_enum_id_type_items[] = {
 	{ID_SPK, "SPEAKER", ICON_SPEAKER, "Speaker", ""},
 	{ID_TXT, "TEXT", ICON_TEXT, "Text", ""},
 	{ID_TE, "TEXTURE", ICON_TEXTURE_DATA, "Texture", ""},
-	{ID_WM, "WINDOWMANAGER", ICON_FULLSCREEN, "Window Manager", ""},
+	{ID_WM, "WINDOWMANAGER", ICON_WINDOW, "Window Manager", ""},
 	{ID_WO, "WORLD", ICON_WORLD_DATA, "World", ""},
 	{ID_WS, "WORKSPACE", ICON_WORKSPACE, "Workspace", ""},
 	{0, NULL, 0, NULL, NULL}
@@ -95,7 +96,6 @@ const EnumPropertyItem rna_enum_id_type_items[] = {
 
 #include "BKE_font.h"
 #include "BKE_idprop.h"
-#include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_library_override.h"
 #include "BKE_library_remap.h"
@@ -166,6 +166,20 @@ static int rna_ID_name_editable(PointerRNA *ptr, const char **UNUSED(r_info))
 	}
 
 	return PROP_EDITABLE;
+}
+
+void rna_ID_name_full_get(PointerRNA *ptr, char *value)
+{
+	ID *id = (ID *)ptr->data;
+	BKE_id_full_name_get(value, id);
+}
+
+int rna_ID_name_full_length(PointerRNA *ptr)
+{
+	ID *id = (ID *)ptr->data;
+	char name[MAX_ID_FULL_NAME];
+	BKE_id_full_name_get(name, id);
+	return strlen(name);
 }
 
 static int rna_ID_is_evaluated_get(PointerRNA *ptr)
@@ -840,52 +854,52 @@ static void rna_def_ID_properties(BlenderRNA *brna)
 
 	/* IDP_STRING */
 	prop = RNA_def_property(srna, "string", PROP_STRING, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 
 	/* IDP_INT */
 	prop = RNA_def_property(srna, "int", PROP_INT, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 
 	prop = RNA_def_property(srna, "int_array", PROP_INT, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	RNA_def_property_array(prop, 1);
 
 	/* IDP_FLOAT */
 	prop = RNA_def_property(srna, "float", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 
 	prop = RNA_def_property(srna, "float_array", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	RNA_def_property_array(prop, 1);
 
 	/* IDP_DOUBLE */
 	prop = RNA_def_property(srna, "double", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 
 	prop = RNA_def_property(srna, "double_array", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	RNA_def_property_array(prop, 1);
 
 	/* IDP_GROUP */
 	prop = RNA_def_property(srna, "group", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_struct_type(prop, "PropertyGroup");
 
 	prop = RNA_def_property(srna, "collection", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	RNA_def_property_struct_type(prop, "PropertyGroup");
 
 	prop = RNA_def_property(srna, "idp_array", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_struct_type(prop, "PropertyGroup");
 	RNA_def_property_collection_funcs(prop, "rna_IDPArray_begin", "rna_iterator_array_next", "rna_iterator_array_end",
 	                                  "rna_iterator_array_get", "rna_IDPArray_length", NULL, NULL, NULL);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 
 	/* never tested, maybe its useful to have this? */
 #if 0
 	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Name", "Unique name used in the code and scripting");
 	RNA_def_struct_name_property(srna, prop);
@@ -893,7 +907,7 @@ static void rna_def_ID_properties(BlenderRNA *brna)
 
 	/* IDP_ID */
 	prop = RNA_def_property(srna, "id", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY | PROP_NEVER_UNLINK);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY | PROP_NEVER_UNLINK);
 	RNA_def_property_struct_type(prop, "ID");
 
 
@@ -911,7 +925,7 @@ static void rna_def_ID_properties(BlenderRNA *brna)
 	 * however this isn't prefect because it overrides how python would set the name
 	 * when we only really want this so RNA_def_struct_name_property() is set to something useful */
 	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_EXPORT | PROP_IDPROPERTY);
+	RNA_def_property_flag(prop, PROP_IDPROPERTY);
 	/*RNA_def_property_clear_flag(prop, PROP_EDITABLE); */
 	RNA_def_property_ui_text(prop, "Name", "Unique name used in the code and scripting");
 	RNA_def_struct_name_property(srna, prop);
@@ -1152,6 +1166,12 @@ static void rna_def_ID(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_ID | NA_RENAME, NULL);
 	RNA_def_struct_name_property(srna, prop);
 
+	prop = RNA_def_property(srna, "name_full", PROP_STRING, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Full Name", "Unique data-block ID name, including library one is any");
+	RNA_def_property_string_funcs(prop, "rna_ID_name_full_get", "rna_ID_name_full_length", NULL);
+	RNA_def_property_string_maxlength(prop, MAX_ID_FULL_NAME);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+
 	prop = RNA_def_property(srna, "is_evaluated", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Is Evaluated",
 	                         "Whether this ID is runtime-only, evaluated data-block, or actual data from .blend file");
@@ -1173,6 +1193,7 @@ static void rna_def_ID(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_fake_user", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", LIB_FAKEUSER);
 	RNA_def_property_ui_text(prop, "Fake User", "Save this data-block even if it has no users");
+	RNA_def_property_ui_icon(prop, ICON_FAKE_USER_OFF, true);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_ID_fake_user_set");
 
 	prop = RNA_def_property(srna, "tag", PROP_BOOLEAN, PROP_NONE);

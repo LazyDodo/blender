@@ -2626,11 +2626,6 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Overlays", "Display overlays like gizmos and outlines");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
-	prop = RNA_def_property(srna, "show_occlude_wire", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag2", V3D_OCCLUDE_WIRE);
-	RNA_def_property_ui_text(prop, "Hidden Wire", "Use hidden wireframe display");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
 	prop = RNA_def_property(srna, "show_floor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gridflag", V3D_SHOW_FLOOR);
 	RNA_def_property_ui_text(prop, "Display Grid Floor", "Show the ground plane grid in perspective view");
@@ -2794,6 +2789,11 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Weights", "Display weights in editmode");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	prop = RNA_def_property(srna, "show_occlude_wire", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "overlay.edit_flag", V3D_OVERLAY_EDIT_OCCLUDE_WIRE);
+	RNA_def_property_ui_text(prop, "Hidden Wire", "Use hidden wireframe display");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
 	prop = RNA_def_property(srna, "show_face_normals", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "overlay.edit_flag", V3D_OVERLAY_EDIT_FACE_NORMALS);
 	RNA_def_property_ui_text(prop, "Display Normals", "Display face normals as lines");
@@ -2935,7 +2935,7 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "weight_paint_mode_opacity", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "overlay.weight_paint_mode_opacity");
-	RNA_def_property_float_default(prop, 0.8f);
+	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Weight Paint Opacity", "Opacity of the weight paint mode overlay");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
@@ -2959,11 +2959,17 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 		"Display a grid over grease pencil paper");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	prop = RNA_def_property(srna, "use_gpencil_fade_layers", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", V3D_GP_FADE_NOACTIVE_LAYERS);
+	RNA_def_property_ui_text(prop, "Fade Layers",
+		"Toggle fading of Grease Pencil layers except the active one");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
+
 	prop = RNA_def_property(srna, "gpencil_grid_opacity", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "overlay.gpencil_grid_opacity");
 	RNA_def_property_range(prop, 0.1f, 1.0f);
 	RNA_def_property_float_default(prop, 0.9f);
-	RNA_def_property_ui_text(prop, "Opacity", "Grid opacity");
+	RNA_def_property_ui_text(prop, "Opacity", "Canvas grid opacity");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* Paper opacity factor */
@@ -2974,21 +2980,30 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Opacity", "Paper opacity");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	/* Paper opacity factor */
+	prop = RNA_def_property(srna, "gpencil_fade_layer", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "overlay.gpencil_fade_layer");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_float_default(prop, 0.5f);
+	RNA_def_property_ui_text(prop, "Opacity",
+		"Fade layer opacity for Grease Pencil layers except the active one");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
+
 	/* show edit lines */
 	prop = RNA_def_property(srna, "use_gpencil_edit_lines", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", V3D_GP_SHOW_EDIT_LINES);
-	RNA_def_property_ui_text(prop, "Edit Lines", "Show edit lines when edit strokes");
+	RNA_def_property_ui_text(prop, "Show Edit Lines", "Show edit lines when editing strokes");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "use_gpencil_multiedit_line_only", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", V3D_GP_SHOW_MULTIEDIT_LINES);
-	RNA_def_property_ui_text(prop, "Lines Only", "Show only edit lines for additional frames");
+	RNA_def_property_ui_text(prop, "Lines Only", "Only show edit lines for additional frames");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
 	/* main grease pencil onion switch */
 	prop = RNA_def_property(srna, "use_gpencil_onion_skin", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "gp_flag", V3D_GP_SHOW_ONION_SKIN);
-	RNA_def_property_ui_text(prop, "Onion Skins", "Show ghosts of the frames before and after the current frame");
+	RNA_def_property_ui_text(prop, "Onion Skins", "Show ghosts of the keyframes before and after the current frame");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
 	/* vertex opacity */
@@ -3802,19 +3817,19 @@ static void rna_def_space_text(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "wordwrap", 0);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_SpaceTextEditor_word_wrap_set");
 	RNA_def_property_ui_text(prop, "Word Wrap", "Wrap words if there is not enough horizontal space");
-	RNA_def_property_ui_icon(prop, ICON_WORDWRAP_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_WORDWRAP_ON, 0);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TEXT, NULL);
 
 	prop = RNA_def_property(srna, "show_line_numbers", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "showlinenrs", 0);
 	RNA_def_property_ui_text(prop, "Line Numbers", "Show line numbers next to the text");
-	RNA_def_property_ui_icon(prop, ICON_LINENUMBERS_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_LINENUMBERS_ON, 0);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TEXT, NULL);
 
 	prop = RNA_def_property(srna, "show_syntax_highlight", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "showsyntax", 0);
 	RNA_def_property_ui_text(prop, "Syntax Highlight", "Syntax highlight for scripting");
-	RNA_def_property_ui_icon(prop, ICON_SYNTAX_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_SYNTAX_ON, 0);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_TEXT, NULL);
 
 	prop = RNA_def_property(srna, "show_line_highlight", PROP_BOOLEAN, PROP_NONE);
@@ -3958,6 +3973,18 @@ static void rna_def_space_dopesheet(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Show Group Colors",
 	                         "Display groups and channels with colors matching their corresponding groups "
 	                         "(pose bones only currently)");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_DOPESHEET, NULL);
+
+	prop = RNA_def_property(srna, "show_interpolation", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", SACTION_SHOW_INTERPOLATION);
+	RNA_def_property_ui_text(prop, "Show Handles And Interpolation",
+	                         "Display keyframe handle types and non-bezier interpolation modes");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_DOPESHEET, NULL);
+
+	prop = RNA_def_property(srna, "show_extremes", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", SACTION_SHOW_EXTREMES);
+	RNA_def_property_ui_text(prop, "Show Curve Extremes",
+	                         "Mark keyframes where the key value flow changes direction, based on comparison with adjacent keys");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_DOPESHEET, NULL);
 
 	/* editing */

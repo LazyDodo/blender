@@ -2224,7 +2224,8 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	static const EnumPropertyItem gpencil_stroke_placement_items[] = {
 		{GP_PROJECT_VIEWSPACE, "ORIGIN", ICON_OBJECT_ORIGIN, "Origin", "Draw stroke at Object origin"},
 		{GP_PROJECT_VIEWSPACE | GP_PROJECT_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "3D Cursor", "Draw stroke at 3D cursor location" },
-		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_VIEW, "SURFACE", ICON_FACESEL, "Surface", "Stick stroke to surfaces"},
+		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_VIEW, "SURFACE", ICON_SNAP_FACE, "Surface", "Stick stroke to surfaces"},
+		{GP_PROJECT_VIEWSPACE | GP_PROJECT_DEPTH_STROKE, "STROKE", ICON_GP_STROKE, "Stroke", "Stick stroke to other strokes"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -2415,15 +2416,13 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 
 	prop = RNA_def_property(srna, "use_snap_align_rotation", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "snap_flag", SCE_SNAP_ROTATE);
-	RNA_def_property_ui_text(prop, "Snap Align Rotation", "Align rotation with the snapping target");
-	RNA_def_property_ui_icon(prop, ICON_SNAP_NORMAL, 0);
+	RNA_def_property_ui_text(prop, "Align Rotation to Target", "Align rotation with the snapping target");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "use_snap_grid_absolute", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "snap_flag", SCE_SNAP_ABS_GRID);
 	RNA_def_property_ui_text(prop, "Absolute Grid Snap",
 	                         "Absolute grid alignment while translating (based on the pivot center)");
-	RNA_def_property_ui_icon(prop, ICON_SNAP_GRID, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "snap_elements", PROP_ENUM, PROP_NONE);
@@ -2457,20 +2456,17 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_snap_peel_object", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "snap_flag", SCE_SNAP_PEEL_OBJECT);
 	RNA_def_property_ui_text(prop, "Snap Peel Object", "Consider objects as whole when finding volume center");
-	RNA_def_property_ui_icon(prop, ICON_SNAP_PEEL_OBJECT, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "use_snap_project", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "snap_flag", SCE_SNAP_PROJECT);
 	RNA_def_property_ui_text(prop, "Project Individual Elements",
 	                         "Project individual elements on the surface of other objects");
-	RNA_def_property_ui_icon(prop, ICON_RETOPO, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "use_snap_self", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "snap_flag", SCE_SNAP_NO_SELF);
-	RNA_def_property_ui_text(prop, "Project to Self", "Snap onto itself (editmode)");
-	RNA_def_property_ui_icon(prop, ICON_XRAY, 0);
+	RNA_def_property_ui_text(prop, "Project onto Self", "Snap onto itself (Edit Mode Only)");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "use_gizmo_mode", PROP_ENUM, PROP_NONE);
@@ -2596,6 +2592,12 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_ui_text(prop, "Auto Keyframe Insert Keying Set",
 	                         "Automatic keyframe insertion using active Keying Set only");
 	RNA_def_property_ui_icon(prop, ICON_KEYINGSET, 0);
+
+	prop = RNA_def_property(srna, "use_keyframe_cycle_aware", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "autokey_flag", AUTOKEY_FLAG_CYCLEAWARE);
+	RNA_def_property_ui_text(prop, "Cycle-Aware Keying",
+	                         "For channels with cyclic extrapolation, keyframe insertion is automatically "
+	                         "remapped inside the cycle time range, and keeps ends in sync");
 
 	/* Keyframing */
 	prop = RNA_def_property(srna, "keyframe_type", PROP_ENUM, PROP_NONE);
@@ -6019,6 +6021,23 @@ static void rna_def_scene_eevee(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_SHADOW_SOFT);
 	RNA_def_property_boolean_default(prop, 0);
 	RNA_def_property_ui_text(prop, "Soft Shadows", "Randomize shadowmaps origin to create soft shadows");
+	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
+
+	/* Overscan */
+	prop = RNA_def_property(srna, "use_overscan", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", SCE_EEVEE_OVERSCAN);
+	RNA_def_property_boolean_default(prop, 0);
+	RNA_def_property_ui_text(prop, "Overscan", "Internally render past the image border to avoid "
+	                                           "screen-space effects disapearing");
+	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
+
+	prop = RNA_def_property(srna, "overscan_size", PROP_FLOAT, PROP_PERCENTAGE);
+	RNA_def_property_float_sdna(prop, NULL, "overscan");
+	RNA_def_property_float_default(prop, 3.0f);
+	RNA_def_property_ui_text(prop, "Overscan Size", "Percentage of render size to add as overscan to the "
+	                                                "internal render buffers");
+	RNA_def_property_range(prop, 0.0f, 50.0f);
+	RNA_def_property_ui_range(prop, 0.0f, 10.0f, 1, 2);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 }
 
