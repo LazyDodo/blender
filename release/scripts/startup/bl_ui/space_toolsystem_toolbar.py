@@ -417,6 +417,13 @@ class _defs_view3d_select:
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("view3d.select_circle")
             layout.prop(props, "radius")
+
+        def draw_cursor(context, tool, xy):
+            from gpu_extras.presets import draw_circle_2d
+            props = tool.operator_properties("view3d.select_circle")
+            radius = props.radius
+            draw_circle_2d(xy, (1.0,) * 4, radius, 32)
+
         return dict(
             text="Select Circle",
             icon="ops.generic.select_circle",
@@ -430,6 +437,7 @@ class _defs_view3d_select:
                  dict(type='ACTIONMOUSE', value='PRESS', ctrl=True)),
             ),
             draw_settings=draw_settings,
+            draw_cursor=draw_cursor,
         )
 
     @ToolDef.from_fn
@@ -1353,7 +1361,7 @@ class _defs_gpencil_paint:
             icon_value=icon_id,
         )
 
-        row.prop(gp_settings, "pin_material", text="")
+        row.prop(gp_settings, "use_material_pin", text="")
 
     @staticmethod
     def draw_settings_common(context, layout, tool):
@@ -1362,7 +1370,7 @@ class _defs_gpencil_paint:
             brush = context.active_gpencil_brush
             gp_settings = brush.gpencil_settings
 
-            if gp_settings.gpencil_brush_type == 'ERASE':
+            if gp_settings.tool == 'ERASE':
                 row = layout.row(align=True)
                 row.prop(brush, "size", text="Radius")
                 row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
@@ -1370,19 +1378,19 @@ class _defs_gpencil_paint:
                     row = layout.row(align=True)
                     row.prop(gp_settings, "pen_strength", slider=True)
                     row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
-            elif gp_settings.gpencil_brush_type == 'FILL':
+            elif gp_settings.tool == 'FILL':
                 row = layout.row()
-                row.prop(gp_settings, "gpencil_fill_leak", text="Leak Size")
+                row.prop(gp_settings, "fill_leak", text="Leak Size")
                 row.prop(brush, "size", text="Thickness")
-                row.prop(gp_settings, "gpencil_fill_simplyfy_level", text="Simplify")
+                row.prop(gp_settings, "fill_simplify_level", text="Simplify")
 
                 _defs_gpencil_paint.draw_color_selector(context, layout)
 
                 row = layout.row(align=True)
-                row.prop(gp_settings, "gpencil_fill_draw_mode", text="")
-                row.prop(gp_settings, "gpencil_fill_show_boundary", text="", icon='GRID')
+                row.prop(gp_settings, "fill_draw_mode", text="")
+                row.prop(gp_settings, "show_fill_boundary", text="", icon='GRID')
 
-            else:  # bgpsettings.gpencil_brush_type == 'DRAW':
+            else:  # bgpsettings.tool == 'DRAW':
                 row = layout.row(align=True)
                 row.prop(brush, "size", text="Radius")
                 row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
@@ -1745,7 +1753,6 @@ class TOPBAR_PT_gpencil_materials(Panel):
 class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'TOOLS'
-    bl_category = "Tools"
     bl_label = "Tools"  # not visible
     bl_options = {'HIDE_HEADER'}
 
@@ -1824,7 +1831,6 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
 class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    bl_category = "Tools"
     bl_label = "Tools"  # not visible
     bl_options = {'HIDE_HEADER'}
 

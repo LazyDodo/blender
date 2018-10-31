@@ -837,12 +837,12 @@ class WM_OT_context_modal_mouse(Operator):
         elif 'LEFTMOUSE' == event_type:
             item = next(iter(self._values.keys()))
             self._values_clear()
-            context.area.header_text_set("")
+            context.area.header_text_set(None)
             return operator_value_undo_return(item)
 
         elif event_type in {'RIGHTMOUSE', 'ESC'}:
             self._values_restore()
-            context.area.header_text_set("")
+            context.area.header_text_set(None)
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
@@ -2398,7 +2398,7 @@ class WM_OT_tool_set_by_name(Operator):
         if fn(context, space_type, self.name):
             return {'FINISHED'}
         else:
-            self.report({'WARNING'}, f"Tool {self.name!r} not found.")
+            self.report({'WARNING'}, f"Tool {self.name!r:s} not found for space {space_type!r:s}.")
             return {'CANCELLED'}
 
 

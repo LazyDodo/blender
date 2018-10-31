@@ -518,7 +518,13 @@ static PyObject *bpygpu_shader_uniform_int(
 	int values[4];
 	int length;
 	int ret;
-	{
+
+	if (PyLong_Check(params.seq)) {
+		values[0] = PyC_Long_AsI32(params.seq);
+		length = 1;
+		ret = 0;
+	}
+	else {
 		PyObject *seq_fast = PySequence_Fast(params.seq, error_prefix);
 		if (seq_fast == NULL) {
 			PyErr_Format(PyExc_TypeError,
@@ -650,7 +656,7 @@ static PyObject *bpygpu_shader_program_get(BPyGPUShader *self, void *UNUSED(clos
 }
 
 static PyGetSetDef bpygpu_shader_getseters[] = {
-	{"program",
+	{(char *)"program",
 	 (getter)bpygpu_shader_program_get, (setter)NULL,
 	 bpygpu_shader_program_doc, NULL},
 	{NULL, NULL, NULL, NULL, NULL} /* Sentinel */
@@ -735,6 +741,24 @@ static PyObject *bpygpu_shader_unbind(BPyGPUShader *UNUSED(self))
 PyDoc_STRVAR(bpygpu_shader_from_builtin_doc,
 ".. function:: from_builtin(shader_name)\n"
 "\n"
+"Shaders that are embedded in the blender internal code.\n"
+"They all read the uniform 'mat4 ModelViewProjectionMatrix', which can be edited by the 'gpu.matrix' module.\n"
+"       '2D_UNIFORM_COLOR' (attribute: 'vec3 pos'; uniform: 'vec4 color');\n"
+"\n"
+"       '2D_FLAT_COLOR'    (attribute: 'vec4 color', 'vec3 pos');\n"
+"\n"
+"       '2D_SMOOTH_COLOR'  (attribute: 'vec4 color', 'vec3 pos');\n"
+"\n"
+"       '2D_IMAGE'         (attribute: 'vec2 texCoord', 'vec2 pos');\n"
+"\n"
+"       '3D_UNIFORM_COLOR' (attribute: 'vec3 pos'; uniform: 'vec4 color');\n"
+"\n"
+"       '3D_FLAT_COLOR'    (attribute: 'vec4 color', 'vec3 pos');\n"
+"\n"
+"       '3D_SMOOTH_COLOR   (attribute: 'vec4 color', 'vec3 pos');\n"
+"\n"
+"For more details, you can check the shader code with the function 'gpu.shader.code_from_builtin';\n"
+"\n"
 "   :param shader_name: One of these builtin shader names: {\n"
 "       '2D_UNIFORM_COLOR',\n"
 "       '2D_FLAT_COLOR',\n"
@@ -762,6 +786,8 @@ static PyObject *bpygpu_shader_from_builtin(PyObject *UNUSED(self), PyObject *ar
 
 PyDoc_STRVAR(bpygpu_shader_code_from_builtin_doc,
 ".. function:: code_from_builtin(shader_name)\n"
+"\n"
+"Exposes the internal shader code for query.\n"
 "\n"
 "   :param shader_name: One of these builtin shader names: {\n"
 "       '2D_UNIFORM_COLOR',\n"

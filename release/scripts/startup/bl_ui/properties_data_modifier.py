@@ -537,6 +537,9 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             sub.active = bool(md.vertex_group)
             sub.prop(md, "invert_vertex_group", text="", icon='ARROW_LEFTRIGHT')
 
+        col = layout.column()
+        col.prop(md, "threshold")
+
     def MESH_DEFORM(self, layout, ob, md):
         split = layout.split()
 
@@ -1627,6 +1630,13 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
 class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
     bl_label = "Modifiers"
 
+    def check_conflicts(self, layout, ob):
+        for md in ob.grease_pencil_modifiers:
+            if md.type == 'GP_TIME':
+                row = layout.row()
+                row.label(text="Build and Time Offset modifier not compatible", icon='ERROR')
+                break
+
     @classmethod
     def poll(cls, context):
         ob = context.object
@@ -1937,7 +1947,7 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "layer_pass", text="Pass")
         row.prop(md, "invert_layer_pass", text="", icon='ARROW_LEFTRIGHT')
 
-    def GP_INSTANCE(self, layout, ob, md):
+    def GP_ARRAY(self, layout, ob, md):
         gpd = ob.data
 
         col = layout.column()
@@ -1947,12 +1957,11 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         col = split.column()
         col.label(text="Offset:")
         col.prop(md, "offset", text="")
+        col.prop(md, "offset_object", text="Object")
 
         col = split.column()
         col.label(text="Shift:")
         col.prop(md, "shift", text="")
-        row = col.row(align=True)
-        row.prop(md, "lock_axis", expand=True)
 
         split = layout.split()
         col = split.column()
@@ -1996,6 +2005,8 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         split = layout.split()
 
         col = split.column()
+        self.check_conflicts(col, ob)
+
         col.prop(md, "mode")
         if md.mode == 'CONCURRENT':
             col.prop(md, "concurrent_time_alignment")

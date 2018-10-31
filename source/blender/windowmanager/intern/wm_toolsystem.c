@@ -72,6 +72,9 @@ struct bToolRef *WM_toolsystem_ref_from_context(struct bContext *C)
 	WorkSpace *workspace = CTX_wm_workspace(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	ScrArea *sa = CTX_wm_area(C);
+	if (((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) == 0) {
+		return NULL;
+	}
 	const bToolKey tkey = {
 		.space_type = sa->spacetype,
 		.mode = WM_toolsystem_mode_from_spacetype(view_layer, sa, sa->spacetype),
@@ -92,6 +95,7 @@ struct bToolRef_Runtime *WM_toolsystem_runtime_from_context(struct bContext *C)
 
 bToolRef *WM_toolsystem_ref_find(WorkSpace *workspace, const bToolKey *tkey)
 {
+	BLI_assert((1 << tkey->space_type) & WM_TOOLSYSTEM_SPACE_MASK);
 	LISTBASE_FOREACH (bToolRef *, tref, &workspace->tools) {
 		if ((tref->space_type == tkey->space_type) &&
 		    (tref->mode == tkey->mode))
@@ -334,6 +338,10 @@ void WM_toolsystem_reinit_all(struct bContext *C, wmWindow *win)
 	bScreen *screen = WM_window_get_active_screen(win);
 	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+		if (((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) == 0) {
+			continue;
+		}
+
 		WorkSpace *workspace = WM_window_get_active_workspace(win);
 		const bToolKey tkey = {
 			.space_type = sa->spacetype,
@@ -404,6 +412,9 @@ void WM_toolsystem_init(bContext *C)
 			bScreen *screen = WM_window_get_active_screen(win);
 			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				if (((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) == 0) {
+					continue;
+				}
 				const bToolKey tkey = {
 					.space_type = sa->spacetype,
 					.mode = WM_toolsystem_mode_from_spacetype(view_layer, sa, sa->spacetype),
@@ -471,6 +482,50 @@ bool WM_toolsystem_key_from_context(
 		return true;
 	}
 	return false;
+}
+
+/**
+ * Use to update the active tool (shown in the top bar) in the least disruptive way.
+ *
+ * This is a little involved since there may be multiple valid active tools depending on the mode and space type.
+ *
+ * Used when undoing since the active mode may have changed.
+ */
+void WM_toolsystem_refresh_active(bContext *C)
+{
+	Main *bmain = CTX_data_main(C);
+	for (wmWindowManager *wm = bmain->wm.first; wm; wm = wm->id.next) {
+		for (wmWindow *win = wm->windows.first; win; win = win->next) {
+			WorkSpace *workspace = WM_window_get_active_workspace(win);
+			bScreen *screen = WM_window_get_active_screen(win);
+			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+			int mode_other = 0;
+			enum { UNSET = -1, CHANGE = 0, MATCH = 1 } mode_match = UNSET;
+			/* Could skip loop for modes that don't depend on space type. */
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				/* Don't change the space type of the active tool, only update it's mode. */
+				if (sa->spacetype == workspace->tools_space_type) {
+					const int mode = WM_toolsystem_mode_from_spacetype(view_layer, sa, sa->spacetype);
+					if (workspace->tools_mode == mode) {
+						mode_match = MATCH;
+						break;
+					}
+					else if (mode_match == -1) {
+						mode_match = CHANGE;
+						mode_other = mode;
+					}
+				}
+			}
+
+			if (mode_match == CHANGE) {
+				const bToolKey tkey = {
+					.space_type = workspace->tools_space_type,
+					.mode = mode_other,
+				};
+				toolsystem_reinit_ensure_toolref(C, workspace, &tkey, NULL);
+			}
+		}
+	}
 }
 
 void WM_toolsystem_refresh_screen_area(WorkSpace *workspace, ViewLayer *view_layer, ScrArea *sa)
@@ -555,6 +610,8 @@ bToolRef *WM_toolsystem_ref_set_by_name(
 		WM_toolsystem_key_from_context(view_layer, sa, &tkey_from_context);
 		tkey = &tkey_from_context;
 	}
+
+	BLI_assert((1 << tkey->space_type) & WM_TOOLSYSTEM_SPACE_MASK);
 
 	RNA_enum_set(&op_props, "space_type", tkey->space_type);
 	RNA_boolean_set(&op_props, "cycle", cycle);
