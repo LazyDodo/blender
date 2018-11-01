@@ -44,7 +44,6 @@ class DocumentExporter
 	void exportScenes(const char *filename);
 private:
 	Depsgraph *depsgraph;
-	bContext *mContext;
 	const ExportSettings *export_settings;
 };
 
