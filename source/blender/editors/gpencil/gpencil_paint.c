@@ -1040,7 +1040,9 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 					depth_arr[i] = 0.9999f;
 			}
 			else {
-				if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_ENDPOINTS) {
+				if ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_ENDPOINTS) ||
+				    (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST))
+				{
 					int first_valid = 0;
 					int last_valid = 0;
 
@@ -1052,12 +1054,16 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 					first_valid = i;
 
 					/* find last valid contact point */
-					for (i = gpd->runtime.sbuffer_size - 1; i >= 0; i--) {
-						if (depth_arr[i] != FLT_MAX)
-							break;
+					if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST) {
+						last_valid = first_valid;
 					}
-					last_valid = i;
-
+					else {
+						for (i = gpd->runtime.sbuffer_size - 1; i >= 0; i--) {
+							if (depth_arr[i] != FLT_MAX)
+								break;
+						}
+						last_valid = i;
+					}
 					/* invalidate any point other point, to interpolate between
 					 * first and last contact in an imaginary line between them */
 					for (i = 0; i < gpd->runtime.sbuffer_size; i++) {
@@ -1540,10 +1546,10 @@ static void gp_stroke_doeraser(tGPsdata *p)
 	float press = 1.0f;
 
 	/* detect if use pressure in eraser */
-	if (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE) {
+	if (brush->gpencil_tool == GPAINT_TOOL_ERASE) {
 		use_pressure = (bool)(brush->gpencil_settings->flag & GP_BRUSH_USE_PRESSURE);
 	}
-	else if ((eraser != NULL) & (eraser->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE)) {
+	else if ((eraser != NULL) & (eraser->gpencil_tool == GPAINT_TOOL_ERASE)) {
 		use_pressure = (bool)(eraser->gpencil_settings->flag & GP_BRUSH_USE_PRESSURE);
 	}
 	if (use_pressure) {
@@ -1639,7 +1645,7 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 	Brush *brush_old = paint->brush;
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 		if ((brush->ob_mode == OB_MODE_GPENCIL_PAINT) &&
-		    (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
+		    (brush->gpencil_tool == GPAINT_TOOL_ERASE))
 		{
 			/* save first eraser to use later if no default */
 			if (brush_dft == NULL) {
@@ -1662,7 +1668,7 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 		brush_dft->size = 30.0f;
 		brush_dft->gpencil_settings->flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 		brush_dft->gpencil_settings->icon_id = GP_BRUSH_ICON_ERASE_SOFT;
-		brush_dft->gpencil_settings->brush_type = GP_BRUSH_TYPE_ERASE;
+		brush_dft->gpencil_tool = GPAINT_TOOL_ERASE;
 		brush_dft->gpencil_settings->eraser_mode = GP_BRUSH_ERASER_SOFT;
 
 		/* reset current brush */
@@ -1698,7 +1704,7 @@ static void gp_init_drawing_brush(bContext *C, tGPsdata *p)
 
 	/* assign to temp tGPsdata */
 	p->brush = brush;
-	if (brush->gpencil_settings->brush_type != GP_BRUSH_TYPE_ERASE) {
+	if (brush->gpencil_tool != GPAINT_TOOL_ERASE) {
 		p->eraser = gp_get_default_eraser(p->bmain, ts);
 	}
 	else {
@@ -2311,7 +2317,7 @@ static int gpencil_draw_init(bContext *C, wmOperator *op, const wmEvent *event)
 
 	/* if mode is draw and the brush is eraser, cancel */
 	if (paintmode != GP_PAINTMODE_ERASER) {
-		if ((brush) && (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE)) {
+		if ((brush) && (brush->gpencil_tool == GPAINT_TOOL_ERASE)) {
 			return 0;
 		}
 	}
@@ -2352,7 +2358,7 @@ static void gpencil_draw_cursor_set(tGPsdata *p)
 {
 	Brush *brush = p->brush;
 	if ((p->paintmode == GP_PAINTMODE_ERASER) ||
-	    (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
+	    (brush->gpencil_tool == GPAINT_TOOL_ERASE))
 	{
 		WM_cursor_modal_set(p->win, BC_CROSSCURSOR);  /* XXX need a better cursor */
 	}
