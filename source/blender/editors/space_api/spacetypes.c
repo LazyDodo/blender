@@ -141,6 +141,7 @@ void ED_spacetypes_init(void)
 	ED_gizmotypes_cage_2d();
 	ED_gizmotypes_cage_3d();
 	ED_gizmotypes_value_2d();
+	ED_gizmotypes_snap_3d();
 
 	/* gizmo group types */
 	ED_gizmogrouptypes_value_2d();

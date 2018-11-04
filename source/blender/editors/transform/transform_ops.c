@@ -601,6 +601,8 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 			RNA_def_property_flag(prop, PROP_HIDDEN);
 			prop = RNA_def_float_vector(ot->srna, "snap_point", 3, NULL, -FLT_MAX, FLT_MAX, "Point", "", -FLT_MAX, FLT_MAX);
 			RNA_def_property_flag(prop, PROP_HIDDEN);
+			prop = RNA_def_boolean(ot->srna, "use_snap_self", 0, "Snap onto itself", "");
+			RNA_def_property_flag(prop, PROP_HIDDEN);
 
 			if (flags & P_ALIGN_SNAP) {
 				prop = RNA_def_boolean(ot->srna, "snap_align", 0, "Align with Point Normal", "");
