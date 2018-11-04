@@ -65,7 +65,6 @@
  * Test operator for quickly adding hair
  * \{ */
 
-
 /* Distribute hair follicles on a scalp mesh.
  * Optional per-loop weights control follicle density on the scalp.
  */
@@ -110,6 +109,130 @@ static void hair_generate_follicles_ex(
 	}
 }
 
+typedef struct HairCurveBuilder
+{
+	/* Maximum number of curves in the buffer */
+	int maxcurves;
+	/* Maximum number of vertices in the buffer */
+	int maxverts;
+
+	/* Curves for shaping hair fibers */
+	struct HairFiberCurve *curves;
+	/* Control vertices on curves */
+	struct HairFiberVertex *verts;
+	/* Number of curves */
+	int totcurves;
+	/* Number of curve vertices */
+	int totverts;
+} HairCurveBuilder;
+
+static void BKE_hair_curve_builder_init(HairCurveBuilder *hcb, int maxcurves, int maxverts)
+{
+	BLI_assert(maxcurves >= 0);
+	BLI_assert(maxverts >= 0);
+	hcb->maxcurves = maxcurves;
+	hcb->maxverts = maxverts;
+
+	hcb->curves = MEM_mallocN(sizeof(*hcb->curves) * maxcurves, "hair curves");
+	hcb->verts = MEM_mallocN(sizeof(*hcb->verts) * maxverts, "hair vertices");
+	hcb->totcurves = 0;
+	hcb->totverts = 0;
+}
+
+static void BKE_hair_curve_builder_add_curve(HairCurveBuilder *hcb, float taper_length, float taper_thickness)
+{
+	BLI_assert(hcb->totcurves < hcb->maxcurves);
+
+	++hcb->totcurves;
+
+	HairFiberCurve *curve = &hcb->curves[hcb->totcurves - 1];
+	curve->numverts = 0;
+	curve->vertstart = -1;
+	curve->taper_length = taper_length;
+	curve->taper_thickness = taper_thickness;
+}
+
+static void BKE_hair_curve_builder_add_vertex(HairCurveBuilder *hcb, const float co[3], int flag)
+{
+	BLI_assert(hcb->totverts < hcb->maxverts);
+
+	++hcb->totverts;
+
+	HairFiberCurve *curve = &hcb->curves[hcb->totcurves - 1];
+	HairFiberVertex *vert = &hcb->verts[hcb->totverts - 1];
+	++curve->numverts;
+	copy_v3_v3(vert->co, co);
+	vert->flag = flag;
+}
+
+static void BKE_hair_curve_builder_apply(HairCurveBuilder *hcb, HairCurveData *curve_data)
+{
+	curve_data->totcurves = hcb->totcurves;
+	curve_data->totverts = hcb->totverts;
+	curve_data->curves = MEM_reallocN(hcb->curves, sizeof(*hcb->curves) * hcb->totcurves);
+	curve_data->verts = MEM_reallocN(hcb->verts, sizeof(*hcb->verts) * hcb->totverts);
+
+	int vertstart = 0;
+	HairFiberCurve *curve = curve_data->curves;
+	for (int i = 0; i < hcb->totcurves; ++i, ++curve) {
+		curve->vertstart = vertstart;
+		vertstart += curve->numverts;
+	}
+
+	hcb->maxcurves = 0;
+	hcb->maxverts = 0;
+	hcb->curves = NULL;
+	hcb->verts = NULL;
+	hcb->totcurves = 0;
+	hcb->totverts = 0;
+}
+
+static void BKE_hair_curve_builder_discard(HairCurveBuilder *hcb)
+{
+	hcb->maxcurves = 0;
+	hcb->maxverts = 0;
+	MEM_SAFE_FREE(hcb->curves);
+	MEM_SAFE_FREE(hcb->verts);
+	hcb->totcurves = 0;
+	hcb->totverts = 0;
+}
+
+/* Generate a simple hair curve for each follicle */
+static void hair_generate_curves(
+	HairPattern *pattern,
+	HairCurveData *curve_data,
+	struct Mesh *UNUSED(scalp))
+{
+	const int numverts_per_curve = 5;
+	const float taper_thickness = 1.0;
+	const float taper_length = 1.0;
+	const int totcurves = pattern->num_follicles;
+	const int totverts = pattern->num_follicles * numverts_per_curve;
+
+	HairCurveBuilder hcb;
+	BKE_hair_curve_builder_init(&hcb, totcurves, totverts);
+
+	for (int i = 0; i < pattern->num_follicles; ++i) {
+		HairFollicle *follicle = &pattern->follicles[i];
+
+		BKE_hair_curve_builder_add_curve(&hcb, taper_length, taper_thickness);
+		for (int j = 0; j < numverts_per_curve; ++j)
+		{
+			float co[3];
+			co[0] = 0.0f;
+			co[1] = 0.0f;
+			co[2] = j * 0.01f;
+
+			BKE_hair_curve_builder_add_vertex(&hcb, co, 0);
+		}
+
+		// follicle->curve = i;
+	}
+
+	BKE_hair_curve_data_free(curve_data);
+	BKE_hair_curve_builder_apply(&hcb, curve_data);
+}
+
 static int add_test_hair_exec(bContext *C, wmOperator *op)
 {
 	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
@@ -126,6 +249,7 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	const int count = RNA_int_get(op->ptr, "count");
 
 	hair_generate_follicles_ex(edit->pattern, scalp, seed, count, NULL);
+	hair_generate_curves(edit->pattern, &edit->curve_data, scalp);
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
