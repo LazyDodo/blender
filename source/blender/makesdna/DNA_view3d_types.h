@@ -196,7 +196,7 @@ typedef struct View3DOverlay {
 	/* grease pencil settings */
 	float gpencil_paper_opacity;
 	float gpencil_grid_opacity;
-	char _pad1[4];
+	float gpencil_fade_layer;
 
 } View3DOverlay;
 
@@ -361,7 +361,7 @@ typedef struct View3D {
 #define V3D_RENDER_BORDER		(1 << 11)
 #define V3D_SOLID_MATCAP		(1 << 12)	/* user flag */
 #define V3D_SHOW_SOLID_MATCAP	(1 << 13)	/* runtime flag */
-#define V3D_OCCLUDE_WIRE		(1 << 14)
+#define V3D_OCCLUDE_WIRE		(1 << 14)   /* XXX: DNA deprecated */
 #define V3D_SHOW_MODE_SHADE_OVERRIDE (1 << 15) /* XXX: DNA deprecated */
 
 /* View3d->gp_flag (short) */
@@ -370,6 +370,7 @@ typedef struct View3D {
 #define V3D_GP_SHOW_EDIT_LINES       (1 << 2)
 #define V3D_GP_SHOW_MULTIEDIT_LINES  (1 << 3)
 #define V3D_GP_SHOW_ONION_SKIN       (1 << 4) /* main switch at view level */
+#define V3D_GP_FADE_NOACTIVE_LAYERS  (1 << 5) /* fade layers not active */
 
 /* View3DShading->light */
 enum {
@@ -506,6 +507,7 @@ enum {
 #define V3D_MANIP_VIEW			3
 #define V3D_MANIP_GIMBAL		4
 #define V3D_MANIP_CURSOR		5
+#define V3D_MANIP_CUSTOM_MATRIX	(V3D_MANIP_CUSTOM - 1)  /* Runtime only, never saved to DNA. */
 #define V3D_MANIP_CUSTOM		1024
 
 /* View3d.mpr_flag (also) */

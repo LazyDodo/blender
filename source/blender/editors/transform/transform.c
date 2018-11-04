@@ -2218,7 +2218,13 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 			orientation = V3D_MANIP_CUSTOM + orientation_index_custom;
 			BLI_assert(orientation >= V3D_MANIP_CUSTOM);
 		}
-		RNA_enum_set(op->ptr, "constraint_orientation", orientation);
+
+		RNA_float_set_array(op->ptr, "constraint_matrix", &t->spacemtx[0][0]);
+
+		/* Use 'constraint_matrix' instead. */
+		if (orientation != V3D_MANIP_CUSTOM_MATRIX) {
+			RNA_enum_set(op->ptr, "constraint_orientation", orientation);
+		}
 
 		if (t->con.mode & CON_APPLY) {
 			if (t->con.mode & CON_AXIS0) {
@@ -3677,7 +3683,8 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 		copy_v3_v3(center, tc->center_local);
 	}
 
-	if (td->ext) {
+	/* Size checked needed since the 3D cursor only uses rotation fields. */
+	if (td->ext && td->ext->size) {
 		float fsize[3];
 
 		if (t->flag & (T_OBJECT | T_TEXTURE | T_POSE)) {
@@ -4669,7 +4676,7 @@ static void initSnapSpatial(TransInfo *t, float r_snap[3])
 		if (rv3d) {
 			View3D *v3d = t->sa->spacedata.first;
 			r_snap[0] = 0.0f;
-			r_snap[1] = ED_view3d_grid_scale(t->scene, v3d, NULL) * 1.0f;
+			r_snap[1] = ED_view3d_grid_view_scale(t->scene, v3d, rv3d, NULL) * 1.0f;
 			r_snap[2] = r_snap[1] * 0.1f;
 		}
 	}

@@ -70,7 +70,14 @@ class VIEW3D_HT_header(Header):
             gpd = context.gpencil_data
 
             if gpd.is_stroke_paint_mode:
-                row = layout.row(align=True)
+                row = layout.row()
+                sub = row.row(align=True)
+                sub.prop(tool_settings, "use_gpencil_draw_onback", text="", icon='MOD_OPACITY')
+                sub.separator(factor=0.4)
+                sub.prop(tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
+                sub.separator(factor=0.4)
+                sub.prop(tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
+
                 row.popover(
                     panel="VIEW3D_PT_tools_grease_pencil_shapes",
                     text="Shapes"
@@ -238,7 +245,9 @@ class VIEW3D_HT_header(Header):
 
             lk_icon = getattr(gp_lock, "icon", "BLANK1")
             lk_name = getattr(gp_lock, "name", "None")
-            layout.popover(
+            row = layout.row()
+            row.enabled = tool_settings.gpencil_stroke_placement_view3d in {'ORIGIN', 'CURSOR'}
+            row.popover(
                 panel="VIEW3D_PT_gpencil_lock",
                 text=lk_name,
                 icon=lk_icon,
@@ -529,7 +538,7 @@ class VIEW3D_MT_snap(Menu):
         layout.separator()
 
         layout.operator("view3d.snap_cursor_to_selected", text="Cursor to Selected")
-        layout.operator("view3d.snap_cursor_to_center", text="Cursor to Center")
+        layout.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin")
         layout.operator("view3d.snap_cursor_to_grid", text="Cursor to Grid")
         layout.operator("view3d.snap_cursor_to_active", text="Cursor to Active")
 
@@ -627,7 +636,7 @@ class VIEW3D_MT_view(Menu):
         layout.separator()
 
         layout.operator("render.opengl", icon='RENDER_STILL')
-        layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION').animation = True
+        layout.operator("render.opengl", text="Viewport Render Animation", icon='RENDER_ANIMATION').animation = True
 
         layout.separator()
 
@@ -3905,7 +3914,7 @@ class VIEW3D_MT_snap_pie(Menu):
         pie.operator("view3d.snap_selected_to_cursor", text="Selection to Cursor", icon='RESTRICT_SELECT_OFF').use_offset = False
         pie.operator("view3d.snap_selected_to_cursor", text="Selection to Cursor (Keep Offset)", icon='RESTRICT_SELECT_OFF').use_offset = True
         pie.operator("view3d.snap_selected_to_active", text="Selection to Active", icon='RESTRICT_SELECT_OFF')
-        pie.operator("view3d.snap_cursor_to_center", text="Cursor to Center", icon='PIVOT_CURSOR')
+        pie.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin", icon='PIVOT_CURSOR')
         pie.operator("view3d.snap_cursor_to_active", text="Cursor to Active", icon='PIVOT_CURSOR')
 
 
@@ -4052,7 +4061,7 @@ class VIEW3D_PT_object_type_visibility(Panel):
             attr_v = "show_object_viewport_" f"{attr:s}"
             attr_s = "show_object_select_" f"{attr:s}"
 
-            icon_s = 'RESTRICT_SELECT_OFF' if getattr(view, attr_s) else 'RESTRICT_SELECT_ON'
+            icon_s = 'RESTRICT_SELECT_ON' if getattr(view, attr_s) else 'RESTRICT_SELECT_OFF'
 
             row = col.row(align=True)
             row.prop(view, attr_v)
@@ -4887,10 +4896,10 @@ class VIEW3D_PT_snapping(Panel):
                 if object_mode == 'EDIT':
                     col.prop(toolsettings, "use_snap_self")
                 if object_mode in {'OBJECT', 'POSE', 'EDIT'}:
-                    col.prop(toolsettings, "use_snap_align_rotation", text="Align Rotation")
+                    col.prop(toolsettings, "use_snap_align_rotation")
 
             if 'FACE' in snap_elements:
-                col.prop(toolsettings, "use_snap_project", text="Project Elements")
+                col.prop(toolsettings, "use_snap_project")
 
             if 'VOLUME' in snap_elements:
                 col.prop(toolsettings, "use_snap_peel_object")
@@ -4927,11 +4936,26 @@ class VIEW3D_PT_gpencil_origin(Panel):
 
     def draw(self, context):
         layout = self.layout
+        ts = context.tool_settings
+        gpd = context.gpencil_data
+
         layout.label(text="Stroke Placement")
 
         row = layout.row()
         col = row.column()
-        col.prop(context.tool_settings, "gpencil_stroke_placement_view3d", expand=True)
+        col.prop(ts, "gpencil_stroke_placement_view3d", expand=True)
+
+        if ts.gpencil_stroke_placement_view3d == 'SURFACE':
+            row = layout.row()
+            row.label(text="Offset")
+            row = layout.row()
+            row.prop(gpd, "zdepth_offset", text="")
+
+        if ts.gpencil_stroke_placement_view3d == 'STROKE':
+            row = layout.row()
+            row.label(text="Target")
+            row = layout.row()
+            row.prop(ts, "gpencil_stroke_snap_mode", expand=True)
 
 
 class VIEW3D_PT_gpencil_lock(Panel):
@@ -4977,17 +5001,23 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
         col = layout.column()
         row = col.row()
+        row.prop(overlay, "use_gpencil_grid", text="")
+        sub = row.row()
+        sub.active = overlay.use_gpencil_grid
+        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas", slider=True)
+
+        row = col.row()
         row.prop(overlay, "use_gpencil_paper", text="")
         sub = row.row()
         sub.active = overlay.use_gpencil_paper
         sub.prop(overlay, "gpencil_paper_opacity", text="Fade 3D Objects", slider=True)
 
-        col = layout.column()
-        row = col.row()
-        row.prop(overlay, "use_gpencil_grid", text="")
-        sub = row.row()
-        sub.active = overlay.use_gpencil_grid
-        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas", slider=True)
+        if context.object.mode == 'GPENCIL_PAINT':
+            row = col.row()
+            row.prop(overlay, "use_gpencil_fade_layers", text="")
+            sub = row.row()
+            sub.active = overlay.use_gpencil_fade_layers
+            sub.prop(overlay, "gpencil_fade_layer", text="Fade Layers", slider=True)
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(overlay, "use_gpencil_edit_lines", text="Edit Lines")
@@ -5034,6 +5064,7 @@ class VIEW3D_PT_grease_pencil(AnnotationDataPanel, Panel):
 class VIEW3D_PT_view3d_stereo(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = "View"
     bl_label = "Stereoscopy"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -5074,6 +5105,7 @@ class VIEW3D_PT_view3d_stereo(Panel):
 class VIEW3D_PT_context_properties(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = "View"
     bl_label = "Properties"
     bl_options = {'DEFAULT_CLOSED'}
 

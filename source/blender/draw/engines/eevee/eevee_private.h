@@ -413,7 +413,7 @@ typedef struct EEVEE_LampsInfo {
 	int cpu_cube_len, cpu_cascade_len;
 	int update_flag;
 	int shadow_cube_size, shadow_cascade_size, shadow_method;
-	bool shadow_high_bitdepth;
+	bool shadow_high_bitdepth, soft_shadows;
 	int shadow_cube_store_size;
 	int current_shadow_cascade;
 	int current_shadow_face;
@@ -797,6 +797,8 @@ typedef struct EEVEE_PrivateData {
 	float viewmat[4][4], viewinv[4][4];
 	float winmat[4][4], wininv[4][4];
 	float studiolight_matrix[3][3];
+	float overscan, overscan_pixels;
+	float size_orig[2];
 
 	/* Mist Settings */
 	float mist_start, mist_inv_dist, mist_falloff;
@@ -852,9 +854,9 @@ void EEVEE_lights_cache_shcaster_material_add(
         struct GPUMaterial *gpumat, struct GPUBatch *geom, struct Object *ob,
         float *alpha_threshold);
 void EEVEE_lights_cache_shcaster_object_add(EEVEE_ViewLayerData *sldata, struct Object *ob);
-void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata);
-void EEVEE_lights_update(EEVEE_ViewLayerData *sldata);
-void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl);
+void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
+void EEVEE_lights_update(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
+void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lights_free(void);
 
 

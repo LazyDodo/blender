@@ -290,23 +290,83 @@ static void rna_HairEditSettings_update(bContext *C, PointerRNA *UNUSED(ptr))
 static bool rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 {
 	Scene *scene = (Scene *)ptr->id.data;
-	ToolSettings *ts = scene->toolsettings;
+	const Paint *paint = ptr->data;
 	Brush *brush = value.id.data;
-	int mode = 0;
+	eObjectMode ob_mode = 0;
+	uint brush_tool_offset = 0;
 
 	/* check the origin of the Paint struct to see which paint
 	 * mode to select from */
 
-	if (ptr->data == &ts->imapaint)
+	bool ok = BKE_paint_brush_tool_info(scene, paint, &brush_tool_offset, &ob_mode);
+	BLI_assert(ok);
+
+	if (brush->ob_mode & ob_mode) {
+		if (paint->brush) {
+			const char *tool_a = (const char *)POINTER_OFFSET(paint->brush, brush_tool_offset);
+			const char *tool_b = (const char *)POINTER_OFFSET(brush,        brush_tool_offset);
+			if (*tool_a == *tool_b) {
+				return true;
+			}
+		}
+		else {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool paint_contains_brush_slot(const Paint *paint, const PaintToolSlot *tslot, int *r_index)
+{
+	if ((tslot >= paint->tool_slots) &&
+	    (tslot < (paint->tool_slots + paint->tool_slots_len)))
+	{
+		*r_index = (int)(tslot - paint->tool_slots);
+		return true;
+	}
+	return false;
+}
+
+static bool rna_Brush_mode_with_tool_poll(PointerRNA *ptr, PointerRNA value)
+{
+	Scene *scene = (Scene *)ptr->id.data;
+	const PaintToolSlot *tslot = ptr->data;
+	ToolSettings *ts = scene->toolsettings;
+	Brush *brush = value.id.data;
+	int mode = 0;
+	int slot_index = 0;
+
+	if (paint_contains_brush_slot(&ts->imapaint.paint, tslot, &slot_index)) {
+		if (slot_index != brush->imagepaint_tool) {
+			return false;
+		}
 		mode = OB_MODE_TEXTURE_PAINT;
-	else if (ptr->data == ts->sculpt)
+	}
+	else if (paint_contains_brush_slot(&ts->sculpt->paint, tslot, &slot_index)) {
+		if (slot_index != brush->sculpt_tool) {
+			return false;
+		}
 		mode = OB_MODE_SCULPT;
-	else if (ptr->data == ts->vpaint)
+	}
+	else if (paint_contains_brush_slot(&ts->vpaint->paint, tslot, &slot_index)) {
+		if (slot_index != brush->vertexpaint_tool) {
+			return false;
+		}
 		mode = OB_MODE_VERTEX_PAINT;
-	else if (ptr->data == ts->wpaint)
+	}
+	else if (paint_contains_brush_slot(&ts->wpaint->paint, tslot, &slot_index)) {
+		if (slot_index != brush->vertexpaint_tool) {
+			return false;
+		}
 		mode = OB_MODE_WEIGHT_PAINT;
-	else if (ptr->data == ts->gp_paint)
+	}
+	else if (paint_contains_brush_slot(&ts->gp_paint->paint, tslot, &slot_index)) {
+		if (slot_index != brush->gpencil_tool) {
+			return false;
+		}
 		mode = OB_MODE_GPENCIL_PAINT;
+	}
 
 	return brush->ob_mode & mode;
 }
@@ -390,7 +450,7 @@ static char *rna_UvSculpt_path(PointerRNA *UNUSED(ptr))
 
 static char *rna_GpPaint_path(PointerRNA *UNUSED(ptr))
 {
-	return BLI_strdup("tool_settings.gp_paint");
+	return BLI_strdup("tool_settings.gpencil_paint");
 }
 
 static char *rna_ParticleBrush_path(PointerRNA *UNUSED(ptr))
@@ -400,9 +460,11 @@ static char *rna_ParticleBrush_path(PointerRNA *UNUSED(ptr))
 
 static void rna_Paint_brush_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
+	Scene *scene = (Scene *)ptr->id.data;
 	Paint *paint = ptr->data;
 	Brush *br = paint->brush;
 	BKE_paint_invalidate_overlay_all();
+	BKE_paint_toolslots_brush_update(scene, paint);
 	WM_main_add_notifier(NC_BRUSH | NA_SELECTED, br);
 }
 
@@ -515,6 +577,19 @@ static void rna_def_paint_curve(BlenderRNA *brna)
 	RNA_def_struct_ui_icon(srna, ICON_CURVE_BEZCURVE);
 }
 
+static void rna_def_paint_tool_slot(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "PaintToolSlot", NULL);
+	RNA_def_struct_ui_text(srna, "Paint Tool Slot", "");
+
+	prop = RNA_def_property(srna, "brush", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_Brush_mode_with_tool_poll");
+	RNA_def_property_ui_text(prop, "Brush", "");
+}
 
 static void rna_def_paint(BlenderRNA *brna)
 {
@@ -530,6 +605,14 @@ static void rna_def_paint(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_Brush_mode_poll");
 	RNA_def_property_ui_text(prop, "Brush", "Active Brush");
 	RNA_def_property_update(prop, 0, "rna_Paint_brush_update");
+
+	/* paint_tool_slots */
+	prop = RNA_def_property(srna, "tool_slots", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "tool_slots", "tool_slots_len");
+	RNA_def_property_struct_type(prop, "PaintToolSlot");
+	/* don't dereference pointer! */
+	RNA_def_property_collection_funcs(prop, NULL, NULL, NULL, "rna_iterator_array_get", NULL, NULL, NULL, NULL);
+	RNA_def_property_ui_text(prop, "Paint Tool Slots", "");
 
 	prop = RNA_def_property(srna, "palette", PROP_POINTER, PROP_NONE);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
@@ -1246,7 +1329,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_lock_axis_items);
 	RNA_def_property_ui_text(prop, "Lock Axis", "");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* brush */
 	srna = RNA_def_struct(brna, "GPencilSculptBrush", NULL);
@@ -1334,6 +1417,7 @@ void RNA_def_sculpt_paint(BlenderRNA *brna)
 	/* *** Non-Animated *** */
 	RNA_define_animate_sdna(false);
 	rna_def_paint_curve(brna);
+	rna_def_paint_tool_slot(brna);
 	rna_def_paint(brna);
 	rna_def_sculpt(brna);
 	rna_def_uv_sculpt(brna);

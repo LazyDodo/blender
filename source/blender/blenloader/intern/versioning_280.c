@@ -909,6 +909,15 @@ void do_versions_after_linking_280(Main *bmain)
 			}
 		}
 	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 30)) {
+		for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+			if (brush->gpencil_settings != NULL) {
+				brush->gpencil_tool = brush->gpencil_settings->brush_type;
+			}
+		}
+		BKE_paint_toolslots_init_from_main(bmain);
+	}
 }
 
 /* NOTE: this version patch is intended for versions < 2.52.2, but was initially introduced in 2.27 already.
@@ -1786,9 +1795,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
 							float alpha = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 0.8f;
+							float alpha_full = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 1.0f;
 							v3d->overlay.texture_paint_mode_opacity = alpha;
 							v3d->overlay.vertex_paint_mode_opacity = alpha;
-							v3d->overlay.weight_paint_mode_opacity = alpha;
+							v3d->overlay.weight_paint_mode_opacity = alpha_full;
 						}
 					}
 				}
@@ -2029,7 +2039,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 				if (brush->gpencil_settings != NULL) {
 					BrushGpencilSettings *gp = brush->gpencil_settings;
-					if (gp->brush_type == GP_BRUSH_TYPE_ERASE) {
+					if (gp->brush_type == GPAINT_TOOL_ERASE) {
 						gp->era_strength_f = 100.0f;
 						gp->era_thickness_f = 10.0f;
 					}
@@ -2162,7 +2172,93 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
 			gpd->grid.axis = GP_GRID_AXIS_Y;
 		}
+	}
+
+	{
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_VIEW3D) {
+						View3D *v3d = (View3D *)sl;
+						if (v3d->flag2 & V3D_OCCLUDE_WIRE) {
+							v3d->overlay.edit_flag |= V3D_OVERLAY_EDIT_OCCLUDE_WIRE;
+							v3d->flag2 &= ~V3D_OCCLUDE_WIRE;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 29)) {
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_BUTS) {
+						ListBase *regionbase = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
+						ARegion *ar = MEM_callocN(sizeof(ARegion), "navigation bar for properties");
+						ARegion *ar_header = NULL;
+
+						for (ar_header = regionbase->first; ar_header; ar_header = ar_header->next) {
+							if (ar_header->regiontype == RGN_TYPE_HEADER) {
+								break;
+							}
+						}
+						BLI_assert(ar_header);
+
+						BLI_insertlinkafter(regionbase, ar_header, ar);
+
+						ar->regiontype = RGN_TYPE_NAV_BAR;
+						ar->alignment = RGN_ALIGN_LEFT;
+					}
+				}
+			}
+		}
+
+		/* grease pencil fade layer opacity */
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "gpencil_fade_layer")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->overlay.gpencil_fade_layer = 0.5f;
+						}
+					}
+				}
+			}
+		}
+
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			ob->empty_image_visibility_flag = (
+			        OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE |
+			        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+		}
 
 
 	}
+
+	/* TODO: add to next version bump */
+	{
+		/* grease pencil main material show switches */
+		for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
+			if (mat->gp_style) {
+				if (((mat->gp_style->flag & GP_STYLE_STROKE_SHOW) == 0) &&
+				    ((mat->gp_style->flag & GP_STYLE_FILL_SHOW) == 0))
+				{
+					mat->gp_style->flag |= GP_STYLE_STROKE_SHOW;
+					mat->gp_style->flag |= GP_STYLE_FILL_SHOW;
+				}
+			}
+		}
+	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "SceneEEVEE", "float", "overscan")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				scene->eevee.overscan = 3.0f;
+			}
+		}
+	}
+
 }

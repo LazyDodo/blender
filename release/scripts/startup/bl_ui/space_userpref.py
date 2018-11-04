@@ -39,25 +39,25 @@ class USERPREF_HT_header(Header):
 
         userpref = context.user_preferences
 
-        layout.operator_context = 'EXEC_AREA'
-        layout.operator("wm.save_userpref")
-
-        layout.operator_context = 'INVOKE_DEFAULT'
-
         if userpref.active_section == 'INPUT':
-            layout.operator("wm.keyconfig_import")
-            layout.operator("wm.keyconfig_export")
+            layout.operator("wm.keyconfig_import", icon='IMPORT')
+            layout.operator("wm.keyconfig_export", icon='EXPORT')
         elif userpref.active_section == 'ADDONS':
             layout.operator("wm.addon_install", icon='FILEBROWSER')
             layout.operator("wm.addon_refresh", icon='FILE_REFRESH')
             layout.menu("USERPREF_MT_addons_online_resources")
         elif userpref.active_section == 'LIGHTS':
-            layout.operator('wm.studiolight_install', text="Install MatCap").orientation = 'MATCAP'
-            layout.operator('wm.studiolight_install', text="Install World HDRI").orientation = 'WORLD'
-            layout.operator('wm.studiolight_install', text="Install Camera HDRI").orientation = 'CAMERA'
+            layout.operator('wm.studiolight_install', text="Add MatCap").orientation = 'MATCAP'
+            layout.operator('wm.studiolight_install', text="Add World HDRI").orientation = 'WORLD'
+            layout.operator('wm.studiolight_install', text="Add Camera HDRI").orientation = 'CAMERA'
         elif userpref.active_section == 'THEMES':
-            layout.operator("ui.reset_default_theme")
-            layout.operator("wm.theme_install")
+            layout.operator("wm.theme_install", icon='FILEBROWSER')
+            layout.operator("ui.reset_default_theme", icon='LOOP_BACK')
+
+        layout.separator_spacer()
+
+        layout.operator_context = 'EXEC_AREA'
+        layout.operator("wm.save_userpref")
 
 
 class USERPREF_PT_tabs(Panel):
@@ -1506,7 +1506,7 @@ class StudioLightPanelMixin():
         userpref = context.user_preferences
         lights = self._get_lights(userpref)
         if lights:
-            flow = layout.column_flow(4)
+            flow = layout.column_flow(columns=4)
             for studio_light in lights:
                 self.draw_studio_light(flow, studio_light)
         else:
@@ -1517,7 +1517,7 @@ class StudioLightPanelMixin():
         row = box.row()
 
         row.template_icon(layout.icon(studio_light), scale=6.0)
-        op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
+        op = row.operator('wm.studiolight_uninstall', text="", icon='REMOVE')
         op.index = studio_light.index
 
         box.label(text=studio_light.name)

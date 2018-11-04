@@ -2636,10 +2636,10 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 	}
 
 	/* populate tree with keyframe nodes */
-	scene_to_keylist(&ads, scene, &keys);
+	scene_to_keylist(&ads, scene, &keys, 0);
 
 	if (ob) {
-		ob_to_keylist(&ads, ob, &keys);
+		ob_to_keylist(&ads, ob, &keys, 0);
 
 		if (ob->type == OB_GPENCIL) {
 			const bool active = !(scene->flag & SCE_KEYS_NO_SELONLY);
@@ -3594,6 +3594,7 @@ static int region_flip_exec(bContext *C, wmOperator *UNUSED(op))
 		ar->alignment = RGN_ALIGN_LEFT;
 
 	ED_area_tag_redraw(CTX_wm_area(C));
+	WM_event_add_mousemove(C);
 	WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -3604,7 +3605,7 @@ static bool region_flip_poll(bContext *C)
 	ScrArea *area = CTX_wm_area(C);
 
 	/* don't flip anything around in topbar */
-	if (area->spacetype == SPACE_TOPBAR) {
+	if (area && area->spacetype == SPACE_TOPBAR) {
 		CTX_wm_operator_poll_msg_set(C, "Flipping regions in the Top-bar is not allowed");
 		return 0;
 	}
@@ -3760,6 +3761,23 @@ static void SCREEN_OT_header_context_menu(wmOperatorType *ot)
 	/* api callbacks */
 	ot->poll = header_context_menu_poll;
 	ot->invoke = header_context_menu_invoke;
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Navigation Bar Tools Menu
+ * \{ */
+
+void ED_screens_navigation_bar_tools_menu_create(bContext *C, uiLayout *layout, void *UNUSED(arg))
+{
+	const ARegion *ar = CTX_wm_region(C);
+	const char *but_flip_str = (ar->alignment == RGN_ALIGN_LEFT) ? IFACE_("Flip to Right") : IFACE_("Flip to Left");
+
+	/* default is WM_OP_INVOKE_REGION_WIN, which we don't want here. */
+	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
+
+	uiItemO(layout, but_flip_str, ICON_NONE, "SCREEN_OT_region_flip");
 }
 
 /** \} */
@@ -4621,12 +4639,6 @@ static void SCREEN_OT_region_blend(wmOperatorType *ot)
 /* -------------------------------------------------------------------- */
 /** \name Space Context Cycle Operator
  * \{ */
-
-/* SCREEN_OT_space_context_cycle direction */
-enum {
-	SPACE_CONTEXT_CYCLE_PREV,
-	SPACE_CONTEXT_CYCLE_NEXT,
-};
 
 static const EnumPropertyItem space_context_cycle_direction[] = {
 	{SPACE_CONTEXT_CYCLE_PREV, "PREV", 0, "Previous", ""},

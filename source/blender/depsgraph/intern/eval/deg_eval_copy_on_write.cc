@@ -737,6 +737,7 @@ static void deg_update_copy_on_write_animation(const Depsgraph *depsgraph,
 typedef struct ObjectRuntimeBackup {
 	Object_Runtime runtime;
 	short base_flag;
+	CustomDataMask lastDataMask;
 } ObjectRuntimeBackup;
 
 /* Make a backup of object's evaluation runtime data, additionally
@@ -760,6 +761,7 @@ static void deg_backup_object_runtime(
 	}
 	/* Make a backup of base flags. */
 	object_runtime_backup->base_flag = object->base_flag;
+	object_runtime_backup->lastDataMask = object->lastDataMask;
 }
 
 static void deg_restore_object_runtime(
@@ -794,6 +796,7 @@ static void deg_restore_object_runtime(
 		}
 	}
 	object->base_flag = object_runtime_backup->base_flag;
+	object->lastDataMask = object_runtime_backup->lastDataMask;
 }
 
 ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,

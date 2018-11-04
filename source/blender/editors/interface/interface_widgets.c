@@ -2016,6 +2016,21 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 	}
 }
 
+static BIFIconID widget_icon_id(uiBut *but)
+{
+	if (!(but->flag & UI_HAS_ICON)) {
+		return ICON_NONE;
+	}
+
+	/* Consecutive icons can be toggle between. */
+	if (but->drawflag & UI_BUT_ICON_REVERSE) {
+		return but->icon - but->iconadd;
+	}
+	else {
+		return but->icon + but->iconadd;
+	}
+}
+
 /* draws text and icons for buttons */
 static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *but, rcti *rect)
 {
@@ -2039,7 +2054,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 
 	/* Big previews with optional text label below */
 	if (but->flag & UI_BUT_ICON_PREVIEW && ui_block_is_menu(but->block)) {
-		const BIFIconID icon = (but->flag & UI_HAS_ICON) ? but->icon + but->iconadd : ICON_NONE;
+		const BIFIconID icon = widget_icon_id(but);
 		int icon_size = BLI_rcti_size_y(rect);
 		int text_size = 0;
 
@@ -2076,7 +2091,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		}
 #endif
 
-		const BIFIconID icon = (but->flag & UI_HAS_ICON) ? but->icon + but->iconadd : ICON_NONE;
+		const BIFIconID icon = widget_icon_id(but);
 		int icon_size_init = is_tool ? ICON_DEFAULT_HEIGHT_TOOLBAR : ICON_DEFAULT_HEIGHT;
 		const float icon_size = icon_size_init / (but->block->aspect / UI_DPI_FAC);
 		const float icon_padding = 2 * UI_DPI_FAC;
@@ -2266,7 +2281,12 @@ static void widget_state(uiWidgetType *wt, int state)
 
 	if (state & UI_BUT_REDALERT) {
 		char red[4] = {255, 0, 0};
-		widget_state_blend(wt->wcol.inner, red, 0.4f);
+		if (wt->draw) {
+			widget_state_blend(wt->wcol.inner, red, 0.4f);
+		}
+		else {
+			widget_state_blend(wt->wcol.text, red, 0.4f);
+		}
 	}
 
 	if (state & UI_BUT_DRAG_MULTI) {
@@ -3638,6 +3658,11 @@ static void widget_state_label(uiWidgetType *wt, int state)
 			UI_GetThemeColor3ubv(TH_TEXT_HI, (unsigned char *)wt->wcol.text);
 		else
 			UI_GetThemeColor3ubv(TH_TEXT, (unsigned char *)wt->wcol.text);
+	}
+
+	if (state & UI_BUT_REDALERT) {
+		char red[4] = {255, 0, 0};
+		widget_state_blend(wt->wcol.text, red, 0.4f);
 	}
 }
 

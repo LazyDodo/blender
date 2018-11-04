@@ -881,7 +881,7 @@ typedef struct MSurfaceSampleGenerator_PoissonDisk_ThreadContext {
 
 BLI_INLINE void poissondisk_loc_from_grid(const MSurfaceSampleGenerator_PoissonDisk *gen, float loc[3], const int grid[3])
 {
-	copy_v3_fl3(loc, grid[0] + gen->grid_offset[0], grid[1] + gen->grid_offset[1], grid[2] + gen->grid_offset[2]);
+	copy_v3_fl3(loc, (float)(grid[0] + gen->grid_offset[0]), (float)(grid[1] + gen->grid_offset[1]), (float)(grid[2] + gen->grid_offset[2]));
 	mul_v3_fl(loc, gen->cellsize);
 }
 
@@ -973,7 +973,7 @@ static unsigned int cell_hash_key(const void *key)
 	unsigned int hash0 = BLI_ghashutil_inthash(cell_index[0]);
 	unsigned int hash1 = BLI_ghashutil_inthash(cell_index[1]);
 	unsigned int hash2 = BLI_ghashutil_inthash(cell_index[2]);
-	return BLI_ghashutil_combine_hash(hash0, BLI_ghashutil_combine_hash(hash1, hash2));
+	return (unsigned int)BLI_ghashutil_combine_hash(hash0, BLI_ghashutil_combine_hash(hash1, hash2));
 }
 
 /* hash function: return false when equal */
@@ -1222,8 +1222,8 @@ MeshSampleGenerator *BKE_mesh_sample_gen_surface_poissondisk(unsigned int seed, 
 	gen->uniform_gen = BKE_mesh_sample_gen_surface_random(seed, true, loop_weights);
 	gen->max_samples = max_samples;
 	gen->mindist_squared = mindist * mindist;
-	gen->cellsize = mindist / SQRT_3;
-	gen->grid_scale = SQRT_3 / mindist;
+	gen->cellsize = (float)(mindist / SQRT_3);
+	gen->grid_scale = (float)(SQRT_3 / mindist);
 	
 	return &gen->base;
 }

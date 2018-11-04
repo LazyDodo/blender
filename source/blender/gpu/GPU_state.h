@@ -47,6 +47,7 @@ void GPU_blend_set_func(GPUBlendFunction sfactor, GPUBlendFunction dfactor);
 void GPU_blend_set_func_separate(
         GPUBlendFunction src_rgb, GPUBlendFunction dst_rgb,
         GPUBlendFunction src_alpha, GPUBlendFunction dst_alpha);
+void GPU_depth_range(float near, float far);
 void GPU_depth_test(bool enable);
 bool GPU_depth_test_enabled(void);
 void GPU_line_smooth(bool enable);
@@ -59,5 +60,8 @@ void GPU_scissor_get_f(float coords[4]);
 void GPU_scissor_get_i(int coords[4]);
 void GPU_viewport_size_get_f(float coords[4]);
 void GPU_viewport_size_get_i(int coords[4]);
+
+void GPU_flush(void);
+void GPU_finish(void);
 
 #endif  /* __GPU_STATE_H__ */

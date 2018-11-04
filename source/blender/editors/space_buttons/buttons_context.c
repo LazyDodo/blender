@@ -515,7 +515,7 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 		RNA_id_pointer_create(&scene->id, &path->ptr[0]);
 		path->len++;
 
-		if (!ELEM(mainb, BCONTEXT_SCENE, BCONTEXT_RENDER, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD)) {
+		if (!ELEM(mainb, BCONTEXT_SCENE, BCONTEXT_RENDER, BCONTEXT_OUTPUT, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD)) {
 			RNA_pointer_create(NULL, &RNA_ViewLayer, view_layer, &path->ptr[path->len]);
 			path->len++;
 		}
@@ -526,6 +526,7 @@ static int buttons_context_path(const bContext *C, ButsContextPath *path, int ma
 	switch (mainb) {
 		case BCONTEXT_SCENE:
 		case BCONTEXT_RENDER:
+		case BCONTEXT_OUTPUT:
 			found = buttons_context_path_scene(path);
 			break;
 		case BCONTEXT_VIEW_LAYER:
@@ -647,13 +648,7 @@ void buttons_context_compute(const bContext *C, SpaceButs *sbuts)
 					sbuts->dataicon = RNA_struct_ui_icon(ptr->type);
 				}
 				else {
-					Object *ob = CTX_data_active_object(C);
-					if (ob->type == OB_GPENCIL) {
-						sbuts->dataicon = ICON_GREASEPENCIL;
-					}
-					else {
-						sbuts->dataicon = ICON_EMPTY_DATA;
-					}
+					sbuts->dataicon = ICON_EMPTY_DATA;
 				}
 			}
 		}
@@ -1041,10 +1036,10 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 			name = RNA_struct_name_get_alloc(ptr, namebuf, sizeof(namebuf), NULL);
 
 			if (name) {
-				if ((!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_SCENE, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD) && ptr->type == &RNA_Scene)) {
+				if ((!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_OUTPUT, BCONTEXT_SCENE, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD) && ptr->type == &RNA_Scene)) {
 					uiItemLDrag(row, ptr, "", icon);  /* save some space */
 				}
-				else if ((!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_SCENE, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD) && ptr->type == &RNA_ViewLayer)) {
+				else if ((!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_OUTPUT, BCONTEXT_SCENE, BCONTEXT_VIEW_LAYER, BCONTEXT_WORLD) && ptr->type == &RNA_ViewLayer)) {
 					uiItemLDrag(row, ptr, "", icon);  /* save some space */
 				}
 				else {
@@ -1060,19 +1055,38 @@ void buttons_context_draw(const bContext *C, uiLayout *layout)
 	}
 }
 
+#ifdef USE_HEADER_CONTEXT_PATH
+static bool buttons_header_context_poll(const bContext *C, HeaderType *UNUSED(ht))
+#else
 static bool buttons_panel_context_poll(const bContext *C, PanelType *UNUSED(pt))
+#endif
 {
 	SpaceButs *sbuts = CTX_wm_space_buts(C);
 	return (sbuts->mainb != BCONTEXT_TOOL);
 }
 
-static void buttons_panel_context_draw(const bContext *C, Panel *pa)
+#ifdef USE_HEADER_CONTEXT_PATH
+static void buttons_header_context_draw(const bContext *C, Header *ptr)
+#else
+static void buttons_panel_context_draw(const bContext *C, Panel *ptr)
+#endif
 {
-	buttons_context_draw(C, pa->layout);
+	buttons_context_draw(C, ptr->layout);
 }
 
 void buttons_context_register(ARegionType *art)
 {
+#ifdef USE_HEADER_CONTEXT_PATH
+	HeaderType *ht;
+
+	ht = MEM_callocN(sizeof(HeaderType), "spacetype buttons context header");
+	strcpy(ht->idname, "BUTTONS_HT_context");
+	ht->space_type = SPACE_BUTS;
+	ht->region_type = art->regionid;
+	ht->poll = buttons_header_context_poll;
+	ht->draw = buttons_header_context_draw;
+	BLI_addtail(&art->headertypes, ht);
+#else
 	PanelType *pt;
 
 	pt = MEM_callocN(sizeof(PanelType), "spacetype buttons panel context");
@@ -1083,6 +1097,7 @@ void buttons_context_register(ARegionType *art)
 	pt->draw = buttons_panel_context_draw;
 	pt->flag = PNL_NO_HEADER;
 	BLI_addtail(&art->paneltypes, pt);
+#endif
 }
 
 ID *buttons_context_id_path(const bContext *C)

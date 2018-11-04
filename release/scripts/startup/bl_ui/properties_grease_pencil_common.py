@@ -341,10 +341,10 @@ class GreasePencilAppearancePanel:
 
             layout.prop(gp_settings, "use_cursor", text="Show Brush")
 
-            if gp_settings.gpencil_brush_type == 'DRAW':
-                layout.prop(gp_settings, "disable_lasso", text="Hide fill color while drawing")
+            if brush.gpencil_tool == 'DRAW':
+                layout.prop(gp_settings, "show_lasso", text="Show fill color while drawing")
 
-            if gp_settings.gpencil_brush_type == 'FILL':
+            if brush.gpencil_tool == 'FILL':
                 layout.prop(brush, "cursor_color_add", text="Color")
 
         elif ob.mode in {'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
@@ -615,7 +615,7 @@ class GPENCIL_MT_snap(Menu):
         layout.separator()
 
         layout.operator("gpencil.snap_cursor_to_selected", text="Cursor to Selected")
-        layout.operator("view3d.snap_cursor_to_center", text="Cursor to Center")
+        layout.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin")
         layout.operator("view3d.snap_cursor_to_grid", text="Cursor to Grid")
 
 

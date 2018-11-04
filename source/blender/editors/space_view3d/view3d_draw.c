@@ -774,6 +774,36 @@ float ED_view3d_grid_scale(Scene *scene, View3D *v3d, const char **grid_unit)
 	return v3d->grid * ED_scene_grid_scale(scene, grid_unit);
 }
 
+/* Simulates the grid scale that is visualized by the shaders drawing functions.
+ * The actual code is seen in `object_grid_frag.glsl` when you get the `grid_res` value.
+ * Currently the simulation is done only when RV3D_VIEW_IS_AXIS. */
+float ED_view3d_grid_view_scale(
+        Scene *scene, View3D *v3d, RegionView3D *rv3d, const char **grid_unit)
+{
+	float grid_scale = ED_view3d_grid_scale(scene, v3d, grid_unit);
+	if (!rv3d->is_persp && RV3D_VIEW_IS_AXIS(rv3d->view)) {
+		/* Decrease the distance between grid snap points depending on zoom. */
+		float grid_subdiv = v3d->gridsubdiv;
+		if (grid_subdiv > 1) {
+			float grid_distance = rv3d->dist;
+			float lvl = (logf(grid_distance / grid_scale) / logf(grid_subdiv));
+			if (lvl < 0.0f) {
+				/* Negative values need an offset for correct casting.
+				 * By convention, the minimum lvl is limited to -2 (see `objec_mode.c`) */
+				if (lvl > -2.0f) {
+					lvl -= 1.0f;
+				}
+				else {
+					lvl = -2.0f;
+				}
+			}
+			grid_scale *= pow(grid_subdiv, (int)lvl - 1);
+		}
+	}
+
+	return v3d->grid * grid_scale;
+}
+
 static void draw_view_axis(RegionView3D *rv3d, const rcti *rect)
 {
 	const float k = U.rvisize * U.pixelsize;  /* axis size */
@@ -995,28 +1025,28 @@ static const char *view3d_get_name(View3D *v3d, RegionView3D *rv3d)
 
 	switch (rv3d->view) {
 		case RV3D_VIEW_FRONT:
-			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Front Ortho");
-			else name = IFACE_("Front Persp");
+			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Front Orthographic");
+			else name = IFACE_("Front Perspective");
 			break;
 		case RV3D_VIEW_BACK:
-			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Back Ortho");
-			else name = IFACE_("Back Persp");
+			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Back Orthographic");
+			else name = IFACE_("Back Perspective");
 			break;
 		case RV3D_VIEW_TOP:
-			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Top Ortho");
-			else name = IFACE_("Top Persp");
+			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Top Orthographic");
+			else name = IFACE_("Top Perspective");
 			break;
 		case RV3D_VIEW_BOTTOM:
-			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Bottom Ortho");
-			else name = IFACE_("Bottom Persp");
+			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Bottom Orthographic");
+			else name = IFACE_("Bottom Perspective");
 			break;
 		case RV3D_VIEW_RIGHT:
-			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Right Ortho");
-			else name = IFACE_("Right Persp");
+			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Right Orthographic");
+			else name = IFACE_("Right Perspective");
 			break;
 		case RV3D_VIEW_LEFT:
-			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Left Ortho");
-			else name = IFACE_("Left Persp");
+			if (rv3d->persp == RV3D_ORTHO) name = IFACE_("Left Orthographic");
+			else name = IFACE_("Left Perspective");
 			break;
 
 		default:
@@ -1025,14 +1055,14 @@ static const char *view3d_get_name(View3D *v3d, RegionView3D *rv3d)
 					Camera *cam;
 					cam = v3d->camera->data;
 					if (cam->type == CAM_PERSP) {
-						name = IFACE_("Camera Persp");
+						name = IFACE_("Camera Perspective");
 					}
 					else if (cam->type == CAM_ORTHO) {
-						name = IFACE_("Camera Ortho");
+						name = IFACE_("Camera Orthographic");
 					}
 					else {
 						BLI_assert(cam->type == CAM_PANO);
-						name = IFACE_("Camera Pano");
+						name = IFACE_("Camera Panoramic");
 					}
 				}
 				else {
@@ -1040,7 +1070,7 @@ static const char *view3d_get_name(View3D *v3d, RegionView3D *rv3d)
 				}
 			}
 			else {
-				name = (rv3d->persp == RV3D_ORTHO) ? IFACE_("User Ortho") : IFACE_("User Persp");
+				name = (rv3d->persp == RV3D_ORTHO) ? IFACE_("User Orthographic") : IFACE_("User Perspective");
 			}
 	}
 
@@ -1051,12 +1081,18 @@ static void draw_viewport_name(ARegion *ar, View3D *v3d, const rcti *rect)
 {
 	RegionView3D *rv3d = ar->regiondata;
 	const char *name = view3d_get_name(v3d, rv3d);
+	const int font_id = BLF_default();
+
 	/* increase size for unicode languages (Chinese in utf-8...) */
 #ifdef WITH_INTERNATIONAL
 	char tmpstr[96];
 #else
 	char tmpstr[32];
 #endif
+
+	BLF_enable(font_id, BLF_SHADOW);
+	BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
+	BLF_shadow_offset(font_id, 1, -1);
 
 	if (v3d->localvd) {
 		BLI_snprintf(tmpstr, sizeof(tmpstr), IFACE_("%s (Local)"), name);
@@ -1069,6 +1105,8 @@ static void draw_viewport_name(ARegion *ar, View3D *v3d, const rcti *rect)
 #else
 	BLF_draw_default_ascii(U.widget_unit + rect->xmin,  rect->ymax - U.widget_unit, 0.0f, name, sizeof(tmpstr));
 #endif
+
+	BLF_disable(font_id, BLF_SHADOW);
 }
 
 /**
@@ -1176,7 +1214,13 @@ static void draw_selected_name(Scene *scene, Object *ob, rcti *rect)
 		s += sprintf(s, " <%s>", markern);
 	}
 
+	BLF_enable(font_id, BLF_SHADOW);
+	BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
+	BLF_shadow_offset(font_id, 1, -1);
+
 	BLF_draw_default(rect->xmin + UI_UNIT_X, rect->ymax - (2 * U.widget_unit), 0.0f, info, sizeof(info));
+
+	BLF_disable(font_id, BLF_SHADOW);
 }
 
 /* ******************** view loop ***************** */
