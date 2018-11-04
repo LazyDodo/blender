@@ -125,11 +125,9 @@ typedef struct HairSystem {
 	void *draw_batch_cache;
 } HairSystem;
 
-typedef enum eHairSystemFlag
-{
-	/* Curve positions have changed, rebind hair follicles */
-	HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING = (1 << 8),
-} eHairSystemFlag;
+// typedef enum eHairSystemFlag
+// {
+// } eHairSystemFlag;
 
 typedef struct HairDrawSettings
 {

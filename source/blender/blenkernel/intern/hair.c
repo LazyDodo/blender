@@ -354,7 +354,6 @@ void BKE_hair_generate_follicles_ex(
 		BKE_mesh_sample_free_generator(gen);
 	}
 	
-	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
@@ -367,7 +366,6 @@ void BKE_hair_fiber_curves_begin(HairSystem *hsys, int totcurves)
 		hsys->curve_data.curves = MEM_reallocN(hsys->curve_data.curves, sizeof(HairFiberCurve) * totcurves);
 		hsys->curve_data.totcurves = totcurves;
 
-		hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 		BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	}
 }
@@ -382,7 +380,6 @@ void BKE_hair_set_fiber_curve(HairSystem *hsys, int index, int numverts,
 	curve->taper_length = taper_length;
 	curve->taper_thickness = taper_thickness;
 	
-	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
@@ -447,7 +444,6 @@ void BKE_hair_set_fiber_curves(HairSystem *hsys, HairCurveData *curves)
 	BLI_assert(vertcount <= hsys->curve_data.totverts);
 #endif
 
-	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
 
@@ -467,65 +463,8 @@ void BKE_hair_clear_fiber_curves(HairSystem *hsys)
 	}
 	hsys->curve_data.totverts = 0;
 
-	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
-
-/* ================================= */
-
-bool BKE_hair_bind_follicles(HairSystem *hsys, const Mesh *scalp)
-{
-	if (!(hsys->flag & HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING))
-	{
-		return true;
-	}
-	hsys->flag &= ~HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
-	
-	HairPattern *pattern = hsys->pattern;
-	if (!pattern)
-	{
-		return true;
-	}
-	
-	const int num_strands = hsys->curve_data.totcurves;
-	/* Need at least one curve for binding */
-	if (num_strands == 0)
-	{
-		HairIterator iter;
-		HairFollicle *follicle;
-		BKE_HAIR_ITER_FOLLICLES(follicle, &iter, pattern) {
-			for (int k = 0; k < 4; ++k) {
-				follicle->curve = HAIR_CURVE_INDEX_NONE;
-			}
-		}
-		return false;
-	}
-	
-	KDTree *tree = BLI_kdtree_new(num_strands);
-	for (int c = 0; c < num_strands; ++c)
-	{
-		const int vertstart = hsys->curve_data.curves[c].vertstart;
-		const float *rootco = hsys->curve_data.verts[vertstart].co;
-		BLI_kdtree_insert(tree, c, rootco);
-	}
-	BLI_kdtree_balance(tree);
-	
-	{
-		HairIterator iter;
-		HairFollicle *follicle;
-		BKE_HAIR_ITER_FOLLICLES(follicle, &iter, pattern) {
-			float loc[3], nor[3], tang[3];
-			if (BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang)) {
-				follicle->curve = BLI_kdtree_find_nearest(tree, loc, NULL);
-			}
-		}
-	}
-	
-	BLI_kdtree_free(tree);
-	
-	return true;
-}
-
 
 /* === Depsgraph evaluation === */
 

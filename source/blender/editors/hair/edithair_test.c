@@ -126,7 +126,6 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	const int count = RNA_int_get(op->ptr, "count");
 
 	hair_generate_follicles_ex(edit->pattern, scalp, seed, count, NULL);
-	//	hsys->flag |= HAIR_SYSTEM_UPDATE_FOLLICLE_BINDING;
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
