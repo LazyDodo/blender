@@ -113,6 +113,8 @@ void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_
 	{
 		dst_data->verts = MEM_dupallocN(src_data->verts);
 	}
+	dst_data->totcurves = src_data->totcurves;
+	dst_data->totverts = src_data->totverts;
 }
 
 /** Free (or release) any data used by this hair system (does not free the hair system itself). */
