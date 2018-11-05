@@ -470,7 +470,7 @@ static int hair_batch_cache_fill_segments_indices(
 			continue;
 		}
 
-		const int res = (((curve->numverts - 1) << subdiv) + 1) * thickness_res;
+		const int res = ((curve->numverts - 1) << subdiv) * thickness_res;
 		for (int k = 0; k < res; k++) {
 			GPU_indexbuf_add_generic_vert(elb, curr_point++);
 		}
