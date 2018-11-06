@@ -422,7 +422,7 @@ if(WITH_OPENCOLORIO)
 endif()
 
 if(WITH_CYCLES_EMBREE)
-	find_package(embree 3.2 REQUIRED)
+	find_package(embree 3.2.4 REQUIRED)
 endif()
 
 if(WITH_OPENVDB)
