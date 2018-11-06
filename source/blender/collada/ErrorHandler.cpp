@@ -69,7 +69,7 @@ bool ErrorHandler::handleError(const COLLADASaxFWL::IError *error)
 			}
 		}
 
-		if (parserError.getErrorType() == GeneratedSaxParser::ParserError::ERROR_VALIDATION_SEQUENCE_PREVIOUS_SIBLING_NOT_PRESENT) {
+		else if (parserError.getErrorType() == GeneratedSaxParser::ParserError::ERROR_VALIDATION_SEQUENCE_PREVIOUS_SIBLING_NOT_PRESENT) {
 			if (!(STREQ(parserError.getElement(), "extra") &&
 			      STREQ(parserError.getAdditionalText().c_str(), "sibling: fx_profile_abstract")))
 			{
@@ -77,10 +77,12 @@ bool ErrorHandler::handleError(const COLLADASaxFWL::IError *error)
 			}
 		}
 
-		if (parserError.getErrorType() == GeneratedSaxParser::ParserError::ERROR_COULD_NOT_OPEN_FILE) {
+		else if (parserError.getErrorType() == GeneratedSaxParser::ParserError::ERROR_COULD_NOT_OPEN_FILE) {
 			isError = true;
 			error_context = "File access";
 		}
+
+		else isError = (parserError.getSeverity() != COLLADASaxFWL::IError::SEVERITY_ERROR_NONCRITICAL);
 	}
 	else if (error->getErrorClass() == COLLADASaxFWL::IError::ERROR_SAXFWL) {
 		error_context = "Sax FWL";

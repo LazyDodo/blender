@@ -92,7 +92,7 @@ extern "C" {
 
 #include "collada_internal.h"
 #include "collada_utils.h"
-
+#include "materials.h"
 
 /*
  * COLLADA Importer limitations:
@@ -767,31 +767,14 @@ bool DocumentImporter::writeMaterial(const COLLADAFW::Material *cmat)
 
 void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Material *ma)
 {
-	add_material_shader(ef, ma);
+	MaterialNode matNode = MaterialNode(mContext, ef, ma, uid_image_map);
 
-	// reflectivity
-	ma->metallic = ef->getReflectivity().getFloatValue();
-	// index of refraction
-#if 0
-	ma->ang = ef->getIndexOfRefraction().getFloatValue();
-#endif
+	matNode.set_reflectivity(ef->getReflectivity().getFloatValue());
+	matNode.set_ior(ef->getIndexOfRefraction().getFloatValue());
+	matNode.set_diffuse(ef->getDiffuse());
 
 	COLLADAFW::Color col;
 
-	// DIFFUSE
-	// color
-	if (ef->getDiffuse().isColor()) {
-		col = ef->getDiffuse().getColor();
-		ma->r = col.getRed();
-		ma->g = col.getGreen();
-		ma->b = col.getBlue();
-	}
-	// texture
-	else if (ef->getDiffuse().isTexture()) {
-#if 0
-		COLLADAFW::Texture ctex = ef->getDiffuse().getTexture();
-#endif
-	}
 	// AMBIENT
 	// color
 	if (ef->getAmbient().isColor()) {
@@ -805,6 +788,7 @@ void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Materia
 		COLLADAFW::Texture ctex = ef->getAmbient().getTexture();
 #endif
 	}
+
 	// SPECULAR
 	// color
 	if (ef->getSpecular().isColor()) {
@@ -819,6 +803,7 @@ void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Materia
 		COLLADAFW::Texture ctex = ef->getSpecular().getTexture();
 #endif
 	}
+
 	// REFLECTIVE
 	// color
 	if (ef->getReflective().isColor()) {
@@ -866,38 +851,6 @@ void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Materia
 		COLLADAFW::Texture ctex = ef->getOpacity().getTexture();
 #endif
 	}
-}
-
-void DocumentImporter::add_material_shader(COLLADAFW::EffectCommon *ef, Material *ma)
-{
-	bc_add_default_shader(mContext, ma);
-
-#if 0
-	COLLADAFW::EffectCommon::ShaderType shader = ef->getShaderType();
-	// Currently we only support PBR based shaders
-	// TODO: simulate the effects with PBR
-
-	// blinn
-	if (shader == COLLADAFW::EffectCommon::SHADER_BLINN) {
-		ma->spec_shader = MA_SPEC_BLINN;
-		ma->spec = ef->getShininess().getFloatValue();
-	}
-	// phong
-	else if (shader == COLLADAFW::EffectCommon::SHADER_PHONG) {
-		ma->spec_shader = MA_SPEC_PHONG;
-		ma->har = ef->getShininess().getFloatValue();
-	}
-	// lambert
-	else if (shader == COLLADAFW::EffectCommon::SHADER_LAMBERT) {
-		ma->diff_shader = MA_DIFF_LAMBERT;
-	}
-	// default - lambert
-	else {
-		ma->diff_shader = MA_DIFF_LAMBERT;
-		fprintf(stderr, "Current shader type is not supported, default to lambert.\n");
-	}
-#endif
-
 }
 
 /** When this method is called, the writer must write the effect.
