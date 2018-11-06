@@ -22,6 +22,8 @@
  *  \ingroup bke
  */
 
+#include <limits.h>
+
 #include "MEM_guardedalloc.h"
 
 #include "DNA_modifier_types.h"
@@ -36,23 +38,25 @@
 
 void BKE_paint_toolslots_len_ensure(Paint *paint, int len)
 {
+	/* Tool slots are 'uchar'. */
+	BLI_assert(len <= UCHAR_MAX);
 	if (paint->tool_slots_len < len) {
 		paint->tool_slots = MEM_recallocN(paint->tool_slots, sizeof(*paint->tool_slots) * len);
 		paint->tool_slots_len = len;
 	}
 }
 
-typedef bool (*BrushCompatFn)(const Brush *brush);
-typedef char (*BrushToolFn)(const Brush *brush);
-
-static void paint_toolslots_init_paint(
-        Main *bmain,
-        Paint *paint,
-        BrushCompatFn brush_compat_fn, BrushToolFn brush_tool_fn)
+static void paint_toolslots_init(Main *bmain, Paint *paint)
 {
+	if (paint == NULL) {
+		return;
+	}
+	const uint tool_offset = paint->runtime.tool_offset;
+	const eObjectMode ob_mode = paint->runtime.ob_mode;
+	BLI_assert(tool_offset && ob_mode);
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
-		if (brush_compat_fn(brush)) {
-			uint slot_index = brush_tool_fn(brush);
+		if (brush->ob_mode & ob_mode) {
+			const int slot_index = *(char *)POINTER_OFFSET(brush, tool_offset);
 			BKE_paint_toolslots_len_ensure(paint, slot_index + 1);
 			if (paint->tool_slots[slot_index].brush == NULL) {
 				paint->tool_slots[slot_index].brush = brush;
@@ -62,54 +66,24 @@ static void paint_toolslots_init_paint(
 	}
 }
 
-/* Image paint. */
-static bool brush_compat_from_imagepaint(const Brush *brush) { return brush->ob_mode & OB_MODE_TEXTURE_PAINT; }
-static char brush_tool_from_imagepaint(const Brush *brush) { return brush->imagepaint_tool; }
-/* Sculpt. */
-static bool brush_compat_from_sculpt(const Brush *brush) { return brush->ob_mode & OB_MODE_SCULPT; }
-static char brush_tool_from_sculpt(const Brush *brush) { return brush->sculpt_tool; }
-/* Vertex Paint. */
-static bool brush_compat_from_vertexpaint(const Brush *brush) { return brush->ob_mode & OB_MODE_VERTEX_PAINT; }
-static char brush_tool_from_vertexpaint(const Brush *brush) { return brush->vertexpaint_tool; }
-/* Weight Paint. */
-static bool brush_compat_from_weightpaint(const Brush *brush) { return brush->ob_mode & OB_MODE_WEIGHT_PAINT; }
-static char brush_tool_from_weightpaint(const Brush *brush) { return brush->vertexpaint_tool; }
-/* Grease Pencil. */
-static bool brush_compat_from_gpencil(const Brush *brush) { return brush->ob_mode & OB_MODE_GPENCIL_PAINT; }
-static char brush_tool_from_gpencil(const Brush *brush) { return brush->gpencil_tool; }
-
 void BKE_paint_toolslots_init_from_main(struct Main *bmain)
 {
 	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 		ToolSettings *ts = scene->toolsettings;
-		paint_toolslots_init_paint(bmain, &ts->imapaint.paint, brush_compat_from_imagepaint, brush_tool_from_imagepaint);
-		paint_toolslots_init_paint(bmain, &ts->sculpt->paint, brush_compat_from_sculpt, brush_tool_from_sculpt);
-		paint_toolslots_init_paint(bmain, &ts->vpaint->paint, brush_compat_from_vertexpaint, brush_tool_from_vertexpaint);
-		paint_toolslots_init_paint(bmain, &ts->wpaint->paint, brush_compat_from_weightpaint, brush_tool_from_weightpaint);
-		paint_toolslots_init_paint(bmain, &ts->gp_paint->paint, brush_compat_from_gpencil, brush_tool_from_gpencil);
+		paint_toolslots_init(bmain, &ts->imapaint.paint);
+		paint_toolslots_init(bmain, &ts->sculpt->paint);
+		paint_toolslots_init(bmain, &ts->vpaint->paint);
+		paint_toolslots_init(bmain, &ts->wpaint->paint);
+		paint_toolslots_init(bmain, &ts->gp_paint->paint);
 	}
 }
 
 
-void BKE_paint_toolslots_brush_update_ex(Scene *scene, Paint *paint, Brush *brush)
+void BKE_paint_toolslots_brush_update_ex(Paint *paint, Brush *brush)
 {
-	ToolSettings *ts = scene->toolsettings;
-	int slot_index;
-	if (paint == &ts->imapaint.paint) {
-		slot_index = brush->imagepaint_tool;
-	}
-	else if (paint == &ts->sculpt->paint) {
-		slot_index = brush->sculpt_tool;
-	}
-	else if (paint == &ts->vpaint->paint) {
-		slot_index = brush->vertexpaint_tool;
-	}
-	else if (paint == &ts->wpaint->paint) {
-		slot_index = brush->vertexpaint_tool;
-	}
-	else if (paint == &ts->gp_paint->paint) {
-		slot_index = brush->gpencil_tool;
-	}
+	const uint tool_offset = paint->runtime.tool_offset;
+	BLI_assert(tool_offset != 0);
+	int slot_index = *(char *)POINTER_OFFSET(brush, tool_offset);
 	BKE_paint_toolslots_len_ensure(paint, slot_index + 1);
 	PaintToolSlot *tslot = &paint->tool_slots[slot_index];
 	id_us_plus(&brush->id);
@@ -117,10 +91,47 @@ void BKE_paint_toolslots_brush_update_ex(Scene *scene, Paint *paint, Brush *brus
 	tslot->brush = brush;
 }
 
-void BKE_paint_toolslots_brush_update(Scene *scene, Paint *paint)
+void BKE_paint_toolslots_brush_update(Paint *paint)
 {
 	if (paint->brush == NULL) {
 		return;
 	}
-	BKE_paint_toolslots_brush_update_ex(scene, paint, paint->brush);
+	BKE_paint_toolslots_brush_update_ex(paint, paint->brush);
+}
+
+/**
+ * Run this to ensure brush types are set for each slot on entering modes
+ * (for new scenes for example).
+ */
+void BKE_paint_toolslots_brush_validate(Main *bmain, Paint *paint)
+{
+	/* Clear slots with invalid slots or mode (unlikely but possible). */
+	const uint tool_offset = paint->runtime.tool_offset;
+	const eObjectMode ob_mode = paint->runtime.ob_mode;
+	BLI_assert(tool_offset && ob_mode);
+	for (int i = 0; i < paint->tool_slots_len; i++) {
+		PaintToolSlot *tslot = &paint->tool_slots[i];
+		if (tslot->brush) {
+			int slot_index = *(char *)POINTER_OFFSET(tslot->brush, tool_offset);
+			if ((slot_index != i) || (tslot->brush->ob_mode & ob_mode) == 0) {
+				id_us_min(&tslot->brush->id);
+				tslot->brush = NULL;
+			}
+		}
+	}
+
+	/* Unlikely but possible the active brush is not currently using a slot. */
+	BKE_paint_toolslots_brush_update(paint);
+
+	/* Fill slots from brushes. */
+	paint_toolslots_init(bmain, paint);
+}
+
+Brush *BKE_paint_toolslots_brush_get(Paint *paint, int slot_index)
+{
+	if (slot_index < paint->tool_slots_len) {
+		PaintToolSlot *tslot = &paint->tool_slots[slot_index];
+		return tslot->brush;
+	}
+	return NULL;
 }

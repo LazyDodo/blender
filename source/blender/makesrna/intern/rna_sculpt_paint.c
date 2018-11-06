@@ -84,10 +84,10 @@ static EnumPropertyItem rna_enum_gpencil_weight_brush_items[] = {
 };
 
 static const EnumPropertyItem rna_enum_gpencil_lock_axis_items[] = {
-	{ GP_LOCKAXIS_NONE, "GP_LOCKAXIS_NONE", ICON_UNLOCKED, "None", "" },
-	{ GP_LOCKAXIS_X, "GP_LOCKAXIS_X", ICON_AXIS_SIDE, "Y-Z Plane", "Project strokes to plane locked to X" },
-	{ GP_LOCKAXIS_Y, "GP_LOCKAXIS_Y", ICON_AXIS_FRONT, "X-Z Plane", "Project strokes to plane locked to Y" },
-	{ GP_LOCKAXIS_Z, "GP_LOCKAXIS_Z", ICON_AXIS_TOP, "X-Y Plane", "Project strokes to plane locked to Z" },
+	{ GP_LOCKAXIS_VIEW, "VIEW", ICON_RESTRICT_VIEW_ON, "View", "Align strokes to current view plane" },
+	{ GP_LOCKAXIS_X, "AXIS_X", ICON_AXIS_SIDE, "Y-Z Plane", "Project strokes to plane locked to X" },
+	{ GP_LOCKAXIS_Y, "AXIS_Y", ICON_AXIS_FRONT, "X-Z Plane", "Project strokes to plane locked to Y" },
+	{ GP_LOCKAXIS_Z, "AXIS_Z", ICON_AXIS_TOP, "X-Y Plane", "Project strokes to plane locked to Z" },
 	{ 0, NULL, 0, NULL, NULL }
 };
 #endif
@@ -272,41 +272,16 @@ static char *rna_ParticleEdit_path(PointerRNA *UNUSED(ptr))
 
 static bool rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 {
-	Scene *scene = (Scene *)ptr->id.data;
 	const Paint *paint = ptr->data;
-	ToolSettings *ts = scene->toolsettings;
 	Brush *brush = value.id.data;
-	int mode = 0;
-	uint brush_tool_offset = 0;
+	const uint tool_offset = paint->runtime.tool_offset;
+	const eObjectMode ob_mode = paint->runtime.ob_mode;
+	BLI_assert(tool_offset && ob_mode);
 
-	/* check the origin of the Paint struct to see which paint
-	 * mode to select from */
-
-	if (paint == &ts->imapaint.paint) {
-		mode = OB_MODE_TEXTURE_PAINT;
-		brush_tool_offset = offsetof(Brush, imagepaint_tool);
-	}
-	else if (paint == &ts->sculpt->paint) {
-		mode = OB_MODE_SCULPT;
-		brush_tool_offset = offsetof(Brush, sculpt_tool);
-	}
-	else if (paint == &ts->vpaint->paint) {
-		mode = OB_MODE_VERTEX_PAINT;
-		brush_tool_offset = offsetof(Brush, vertexpaint_tool);
-	}
-	else if (paint == &ts->wpaint->paint) {
-		mode = OB_MODE_WEIGHT_PAINT;
-		brush_tool_offset = offsetof(Brush, vertexpaint_tool);
-	}
-	else if (paint == &ts->gp_paint->paint) {
-		mode = OB_MODE_GPENCIL_PAINT;
-		brush_tool_offset = offsetof(Brush, gpencil_tool);
-	}
-
-	if (brush->ob_mode & mode) {
+	if (brush->ob_mode & ob_mode) {
 		if (paint->brush) {
-			const char *tool_a = (const char *)POINTER_OFFSET(paint->brush, brush_tool_offset);
-			const char *tool_b = (const char *)POINTER_OFFSET(brush,        brush_tool_offset);
+			const char *tool_a = (const char *)POINTER_OFFSET(paint->brush, tool_offset);
+			const char *tool_b = (const char *)POINTER_OFFSET(brush,        tool_offset);
 			if (*tool_a == *tool_b) {
 				return true;
 			}
@@ -358,7 +333,7 @@ static bool rna_Brush_mode_with_tool_poll(PointerRNA *ptr, PointerRNA value)
 		mode = OB_MODE_VERTEX_PAINT;
 	}
 	else if (paint_contains_brush_slot(&ts->wpaint->paint, tslot, &slot_index)) {
-		if (slot_index != brush->vertexpaint_tool) {
+		if (slot_index != brush->weightpaint_tool) {
 			return false;
 		}
 		mode = OB_MODE_WEIGHT_PAINT;
@@ -462,11 +437,11 @@ static char *rna_ParticleBrush_path(PointerRNA *UNUSED(ptr))
 
 static void rna_Paint_brush_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	Scene *scene = (Scene *)ptr->id.data;
 	Paint *paint = ptr->data;
 	Brush *br = paint->brush;
 	BKE_paint_invalidate_overlay_all();
-	BKE_paint_toolslots_brush_update(scene, paint);
+	/* Needed because we're not calling 'BKE_paint_brush_set' which handles this. */
+	BKE_paint_toolslots_brush_update(paint);
 	WM_main_add_notifier(NC_BRUSH | NA_SELECTED, br);
 }
 
@@ -478,7 +453,7 @@ static void rna_ImaPaint_viewport_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 
 static void rna_ImaPaint_mode_update(bContext *C, PointerRNA *UNUSED(ptr))
 {
-	Scene *scene = CTX_data_scene(C);\
+	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *ob = OBACT(view_layer);
 
@@ -1290,7 +1265,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_lock_axis_items);
 	RNA_def_property_ui_text(prop, "Lock Axis", "");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* brush */
 	srna = RNA_def_struct(brna, "GPencilSculptBrush", NULL);

@@ -797,6 +797,13 @@ typedef struct TimeMarker {
 
 #define PAINT_MAX_INPUT_SAMPLES 64
 
+typedef struct Paint_Runtime {
+	/* Avoid having to compare with scene pointer everywhere. */
+	unsigned int tool_offset;
+	unsigned short ob_mode;
+	char _pad[2];
+} Paint_Runtime;
+
 /* We might want to store other things here. */
 typedef struct PaintToolSlot {
 	struct Brush *brush;
@@ -831,6 +838,8 @@ typedef struct Paint {
 
 	float tile_offset[3];
 	int pad2;
+
+	struct Paint_Runtime runtime;
 } Paint;
 
 /* ------------------------------------------- */
@@ -973,7 +982,7 @@ typedef enum eGP_EditBrush_Types {
 
 /* GP_BrushEdit_Settings.lock_axis */
 typedef enum eGP_Lockaxis_Types {
-	GP_LOCKAXIS_NONE = 0,
+	GP_LOCKAXIS_VIEW = 0,
 	GP_LOCKAXIS_X = 1,
 	GP_LOCKAXIS_Y = 2,
 	GP_LOCKAXIS_Z = 3

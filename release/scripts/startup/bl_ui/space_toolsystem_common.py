@@ -143,10 +143,16 @@ def from_fn(fn):
     return ToolDef.from_dict(fn())
 
 
+def with_args(**kw):
+    def from_fn(fn):
+        return ToolDef.from_dict(fn(**kw))
+    return from_fn
+
+
+from_fn.with_args = with_args
 ToolDef.from_dict = from_dict
 ToolDef.from_fn = from_fn
-del from_dict
-del from_fn
+del from_dict, from_fn, with_args
 
 
 class ToolSelectPanelHelper:
@@ -810,7 +816,7 @@ def keymap_from_context(context, space_type):
                             mode = context.active_object.mode
                             attr_op, attr_brush = {
                                 'SCULPT': ("sculpt_tool", "sculpt_tool"),
-                                'WEIGHT_PAINT': ("weight_paint_tool", "vertex_tool"),
+                                'WEIGHT_PAINT': ("weight_paint_tool", "weight_tool"),
                                 'VERTEX_PAINT': ("vertex_paint_tool", "vertex_tool"),
                                 'TEXTURE_PAINT': ("texture_paint_tool", "image_tool"),
                             }.get(mode, (None, None))

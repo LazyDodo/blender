@@ -127,6 +127,9 @@ void BKE_material_init_gpencil_settings(Material *ma)
 		ARRAY_SET_ITEMS(gp_style->texture_scale, 1.0f, 1.0f);
 		gp_style->texture_opacity = 1.0f;
 		gp_style->texture_pixsize = 100.0f;
+
+		gp_style->flag |= GP_STYLE_STROKE_SHOW;
+		gp_style->flag |= GP_STYLE_FILL_SHOW;
 	}
 }
 
@@ -795,7 +798,7 @@ void BKE_material_remap_object(Object *ob, const unsigned int *remap)
 	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
 		BKE_curve_material_remap(ob->data, remap, ob->totcol);
 	}
-	if (ob->type == OB_GPENCIL) {
+	else if (ob->type == OB_GPENCIL) {
 		BKE_gpencil_material_remap(ob->data, remap, ob->totcol);
 	}
 	else {

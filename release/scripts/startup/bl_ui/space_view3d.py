@@ -66,9 +66,12 @@ class VIEW3D_HT_header(Header):
 
             if gpd.is_stroke_paint_mode:
                 row = layout.row()
-                row.prop(tool_settings, "use_gpencil_draw_onback", text="", icon='MOD_OPACITY')
-                row.prop(tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
-                row.prop(tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
+                sub = row.row(align=True)
+                sub.prop(tool_settings, "use_gpencil_draw_onback", text="", icon='MOD_OPACITY')
+                sub.separator(factor=0.4)
+                sub.prop(tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
+                sub.separator(factor=0.4)
+                sub.prop(tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
 
                 row.popover(
                     panel="VIEW3D_PT_tools_grease_pencil_shapes",
@@ -2104,8 +2107,10 @@ class VIEW3D_MT_brush(Menu):
             layout.prop_menu_enum(brush, "sculpt_tool")
         elif context.image_paint_object:
             layout.prop_menu_enum(brush, "image_tool")
-        elif context.vertex_paint_object or context.weight_paint_object:
+        elif context.vertex_paint_object:
             layout.prop_menu_enum(brush, "vertex_tool")
+        elif context.weight_paint_object:
+            layout.prop_menu_enum(brush, "weight_tool")
 
         # TODO: still missing a lot of brush options here
 
@@ -4917,11 +4922,11 @@ class VIEW3D_PT_gpencil_origin(Panel):
 class VIEW3D_PT_gpencil_lock(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
-    bl_label = "Lock Axis"
+    bl_label = "Drawing Plane"
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Drawing Plane Lock")
+        layout.label(text="Drawing Plane")
 
         row = layout.row()
         col = row.column()

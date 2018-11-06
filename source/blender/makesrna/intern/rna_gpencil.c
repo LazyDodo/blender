@@ -72,13 +72,12 @@ static EnumPropertyItem rna_enum_gpencil_onion_modes_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-static const EnumPropertyItem rna_enum_gpencil_grid_axis_items[] = {
-	{GP_GRID_AXIS_LOCK, "LOCK", 0, "Drawing Plane", "Use current drawing locked axis" },
-	{GP_GRID_AXIS_X, "X", 0, "Y-Z", ""},
-	{GP_GRID_AXIS_Y, "Y", 0, "X-Z", ""},
-	{GP_GRID_AXIS_Z, "Z", 0, "X-Y", ""},
-	{0, NULL, 0, NULL, NULL}
+const EnumPropertyItem rna_enum_gplayer_move_type_items[] = {
+   { -1, "UP", 0, "Up", ""},
+   {  1, "DOWN", 0, "Down", ""},
+   {  0, NULL, 0, NULL, NULL}
 };
+
 #endif
 
 #ifdef RNA_RUNTIME
@@ -677,6 +676,25 @@ static void rna_GPencil_layer_remove(bGPdata *gpd, ReportList *reports, PointerR
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 }
 
+static void rna_GPencil_layer_move(bGPdata *gpd, ReportList *reports, PointerRNA *layer_ptr, int type)
+{
+	bGPDlayer *gpl = layer_ptr->data;
+	if (BLI_findindex(&gpd->layers, gpl) == -1) {
+		BKE_report(reports, RPT_ERROR, "Layer not found in grease pencil data");
+		return;
+	}
+
+	BLI_assert(ELEM(type, -1, 0, 1)); /* we use value below */
+
+	const int direction = type * -1;
+
+	if (BLI_listbase_link_move(&gpd->layers, gpl, direction)) {
+		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	}
+
+	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+}
+
 static void rna_GPencil_frame_clear(bGPDframe *frame)
 {
 	BKE_gpencil_free_strokes(frame);
@@ -1144,7 +1162,7 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	/* Flags */
 	prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_HIDE);
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_ON, -1);
+	RNA_def_property_ui_icon(prop, ICON_HIDE_OFF, -1);
 	RNA_def_property_ui_text(prop, "Hide", "Set layer Visibility");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
@@ -1261,6 +1279,15 @@ static void rna_def_gpencil_layers_api(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 
+	func = RNA_def_function(srna, "move", "rna_GPencil_layer_move");
+	RNA_def_function_ui_description(func, "Move a grease pencil layer in the layer stack");
+	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	parm = RNA_def_pointer(func, "layer", "GPencilLayer", "", "The layer to move");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
+	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
+	parm = RNA_def_enum(func, "type", rna_enum_gplayer_move_type_items, 1, "", "Direction of movement");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+
 	prop = RNA_def_property(srna, "active", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "GPencilLayer");
 	RNA_def_property_pointer_funcs(prop, "rna_GPencil_active_layer_get", "rna_GPencil_active_layer_set", NULL, NULL);
@@ -1309,7 +1336,7 @@ static void rna_def_gpencil_grid(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.01f, FLT_MAX);
 	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Grid Scale", "Grid scale");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_float_sdna(prop, NULL, "color");
@@ -1317,27 +1344,21 @@ static void rna_def_gpencil_grid(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_float_array_default(prop, default_grid_color);
 	RNA_def_property_ui_text(prop, "Grid Color", "Color for grid lines");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "lines", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "lines");
 	RNA_def_property_range(prop, 0, INT_MAX);
 	RNA_def_property_int_default(prop, GP_DEFAULT_GRID_LINES);
 	RNA_def_property_ui_text(prop, "Grid Subdivisions", "Number of subdivisions in each side of symmetry line");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "offset", PROP_FLOAT, PROP_XYZ);
 	RNA_def_property_float_sdna(prop, NULL, "offset");
 	RNA_def_property_range(prop, -FLT_MAX, FLT_MAX);
 	RNA_def_property_array(prop, 2);
 	RNA_def_property_ui_text(prop, "Offset", "Offset of the canvas");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "axis", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "axis");
-	RNA_def_property_enum_items(prop, rna_enum_gpencil_grid_axis_items);
-	RNA_def_property_ui_text(prop, "Canvas Plane", "Axis to display grid");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 }
 
 static void rna_def_gpencil_data(BlenderRNA *brna)

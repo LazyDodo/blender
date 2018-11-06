@@ -58,6 +58,7 @@
 
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_paint.h"
 #include "BKE_icons.h"
 #include "BKE_appdir.h"
 #include "BKE_studiolight.h"
@@ -485,24 +486,20 @@ static void init_brush_icons(void)
 
 	const int w = 96; /* warning, brush size hardcoded in C, but it gets scaled */
 
-	INIT_BRUSH_ICON(ICON_BRUSH_ADD, add);
 	INIT_BRUSH_ICON(ICON_BRUSH_BLOB, blob);
 	INIT_BRUSH_ICON(ICON_BRUSH_BLUR, blur);
 	INIT_BRUSH_ICON(ICON_BRUSH_CLAY, clay);
 	INIT_BRUSH_ICON(ICON_BRUSH_CLAY_STRIPS, claystrips);
 	INIT_BRUSH_ICON(ICON_BRUSH_CLONE, clone);
 	INIT_BRUSH_ICON(ICON_BRUSH_CREASE, crease);
-	INIT_BRUSH_ICON(ICON_BRUSH_DARKEN, darken);
 	INIT_BRUSH_ICON(ICON_BRUSH_SCULPT_DRAW, draw);
 	INIT_BRUSH_ICON(ICON_BRUSH_FILL, fill);
 	INIT_BRUSH_ICON(ICON_BRUSH_FLATTEN, flatten);
 	INIT_BRUSH_ICON(ICON_BRUSH_GRAB, grab);
 	INIT_BRUSH_ICON(ICON_BRUSH_INFLATE, inflate);
 	INIT_BRUSH_ICON(ICON_BRUSH_LAYER, layer);
-	INIT_BRUSH_ICON(ICON_BRUSH_LIGHTEN, lighten);
 	INIT_BRUSH_ICON(ICON_BRUSH_MASK, mask);
 	INIT_BRUSH_ICON(ICON_BRUSH_MIX, mix);
-	INIT_BRUSH_ICON(ICON_BRUSH_MULTIPLY, multiply);
 	INIT_BRUSH_ICON(ICON_BRUSH_NUDGE, nudge);
 	INIT_BRUSH_ICON(ICON_BRUSH_PINCH, pinch);
 	INIT_BRUSH_ICON(ICON_BRUSH_SCRAPE, scrape);
@@ -510,13 +507,11 @@ static void init_brush_icons(void)
 	INIT_BRUSH_ICON(ICON_BRUSH_SMOOTH, smooth);
 	INIT_BRUSH_ICON(ICON_BRUSH_SNAKE_HOOK, snake_hook);
 	INIT_BRUSH_ICON(ICON_BRUSH_SOFTEN, soften);
-	INIT_BRUSH_ICON(ICON_BRUSH_SUBTRACT, subtract);
 	INIT_BRUSH_ICON(ICON_BRUSH_TEXDRAW, texdraw);
 	INIT_BRUSH_ICON(ICON_BRUSH_TEXFILL, texfill);
 	INIT_BRUSH_ICON(ICON_BRUSH_TEXMASK, texmask);
 	INIT_BRUSH_ICON(ICON_BRUSH_THUMB, thumb);
 	INIT_BRUSH_ICON(ICON_BRUSH_ROTATE, twist);
-	INIT_BRUSH_ICON(ICON_BRUSH_VERTEXDRAW, vertexdraw);
 
 	/* grease pencil sculpt */
 	INIT_BRUSH_ICON(ICON_GPBRUSH_SMOOTH, gp_brush_smooth);
@@ -1679,7 +1674,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		WorkSpace *workspace = CTX_wm_workspace(C);
 		Object *ob = CTX_data_active_object(C);
 		const EnumPropertyItem *items = NULL;
-		int tool = PAINT_TOOL_DRAW, mode = 0;
+		ePaintMode paint_mode = ePaintInvalid;
 		ScrArea *sa = CTX_wm_area(C);
 		char space_type = sa->spacetype;
 		/* When in an unsupported space. */
@@ -1692,12 +1687,18 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		 * checking various context stuff here */
 
 		if ((space_type == SPACE_VIEW3D) && ob) {
-			if (ob->mode & OB_MODE_SCULPT)
-				mode = OB_MODE_SCULPT;
-			else if (ob->mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT))
-				mode = OB_MODE_VERTEX_PAINT;
-			else if (ob->mode & OB_MODE_TEXTURE_PAINT)
-				mode = OB_MODE_TEXTURE_PAINT;
+			if (ob->mode & OB_MODE_SCULPT) {
+				paint_mode = ePaintSculpt;
+			}
+			else if (ob->mode & OB_MODE_VERTEX_PAINT) {
+				paint_mode = ePaintVertex;
+			}
+			else if (ob->mode & OB_MODE_WEIGHT_PAINT) {
+				paint_mode = ePaintWeight;
+			}
+			else if (ob->mode & OB_MODE_TEXTURE_PAINT) {
+				paint_mode = ePaintTextureProjective;
+			}
 		}
 		else if (space_type == SPACE_IMAGE) {
 			int sima_mode;
@@ -1710,7 +1711,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 			}
 
 			if (sima_mode == SI_MODE_PAINT) {
-				mode = OB_MODE_TEXTURE_PAINT;
+				paint_mode = ePaintTexture2D;
 			}
 		}
 
@@ -1756,21 +1757,17 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 			}
 			return id->icon_id;
 		}
-		else if (mode == OB_MODE_SCULPT) {
-			items = rna_enum_brush_sculpt_tool_items;
-			tool = br->sculpt_tool;
+		else if (paint_mode != ePaintInvalid) {
+			items = BKE_paint_get_tool_enum_from_paintmode(paint_mode);
+			const uint tool_offset = BKE_paint_get_brush_tool_offset_from_paint_mode(paint_mode);
+			const int tool_type = *(char *)POINTER_OFFSET(br, tool_offset);
+			if (!items || !RNA_enum_icon_from_value(items, tool_type, &id->icon_id)) {
+				id->icon_id = 0;
+			}
 		}
-		else if (mode == OB_MODE_VERTEX_PAINT) {
-			items = rna_enum_brush_vertex_tool_items;
-			tool = br->vertexpaint_tool;
-		}
-		else if (mode == OB_MODE_TEXTURE_PAINT) {
-			items = rna_enum_brush_image_tool_items;
-			tool = br->imagepaint_tool;
-		}
-
-		if (!items || !RNA_enum_icon_from_value(items, tool, &id->icon_id))
+		else {
 			id->icon_id = 0;
+		}
 	}
 
 	return id->icon_id;
