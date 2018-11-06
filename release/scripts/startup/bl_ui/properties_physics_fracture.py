@@ -76,7 +76,7 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
         col.context_pointer_set("modifier", md)
         col.prop(md, "point_source")
         if 'GRID' in md.point_source:
-            sub = col.split(0.33)
+            sub = col.split(factor=0.33)
             sub.prop(md, "grid_resolution")
             sub.prop(md, "grid_offset")
             sub.prop(md, "grid_spacing")
