@@ -33,6 +33,7 @@
 #include "COLLADAFWMeshVertexData.h"
 
 #include <set>
+#include <string>
 extern "C" {
 #include "DNA_modifier_types.h"
 #include "DNA_customdata_types.h"
@@ -45,6 +46,7 @@ extern "C" {
 
 #include "BLI_math.h"
 #include "BLI_linklist.h"
+#include "BLI_listbase.h"
 
 #include "BKE_action.h"
 #include "BKE_context.h"
@@ -52,6 +54,7 @@ extern "C" {
 #include "BKE_constraint.h"
 #include "BKE_key.h"
 #include "BKE_material.h"
+#include "BKE_node.h"
 #include "BKE_object.h"
 #include "BKE_global.h"
 #include "BKE_layer.h"
@@ -62,6 +65,7 @@ extern "C" {
 
 #include "ED_armature.h"
 #include "ED_screen.h"
+#include "ED_node.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -73,6 +77,9 @@ extern "C" {
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
+#if 0
+#include "NOD_common.h"
+#endif
 }
 
 #include "collada_utils.h"
@@ -1211,4 +1218,193 @@ std::string bc_find_bonename_in_path(std::string path, std::string probe)
 		MEM_freeN(boneName);
 	}
 	return result;
+}
+
+static bNodeTree *prepare_material_nodetree(Material *ma)
+{
+	if (ma->nodetree == NULL) {
+		ma->nodetree = ntreeAddTree(NULL, "Shader Nodetree", "ShaderNodeTree");
+		ma->use_nodes = true;
+	}
+	return ma->nodetree;
+}
+
+bNode *bc_add_node(bContext *C, bNodeTree *ntree, int node_type, int locx, int locy, std::string label)
+{
+	bNode *node = nodeAddStaticNode(C, ntree, node_type);
+	if (node) {
+		if (label.length() > 0) {
+			strcpy(node->label, label.c_str());
+		}
+		node->locx = locx;
+		node->locy = locy;
+		node->flag |= NODE_SELECT;
+	}
+	return node;
+}
+
+
+bNode *bc_add_node(bContext *C, bNodeTree *ntree, int node_type, int locx, int locy)
+{
+	return bc_add_node(C, ntree, node_type, locx, locy, "");
+}
+
+#if 0
+// experimental, probably not used
+static bNodeSocket *bc_group_add_input_socket(bNodeTree *ntree, bNode *to_node, int to_index, std::string label)
+{
+	bNodeSocket *to_socket = (bNodeSocket *)BLI_findlink(&to_node->inputs, to_index);
+	
+	//bNodeSocket *socket = ntreeAddSocketInterfaceFromSocket(ntree, to_node, to_socket);
+	//return socket;
+
+	bNodeSocket *gsock = ntreeAddSocketInterfaceFromSocket(ntree, to_node, to_socket);
+	bNode *inputGroup = ntreeFindType(ntree, NODE_GROUP_INPUT);
+	node_group_input_verify(ntree, inputGroup, (ID *)ntree);
+	bNodeSocket *newsock = node_group_input_find_socket(inputGroup, gsock->identifier);
+	nodeAddLink(ntree, inputGroup, newsock, to_node, to_socket);
+	strcpy(newsock->name, label.c_str());
+	return newsock;
+}
+
+static bNodeSocket *bc_group_add_output_socket(bNodeTree *ntree, bNode *from_node, int from_index, std::string label)
+{
+	bNodeSocket *from_socket = (bNodeSocket *)BLI_findlink(&from_node->outputs, from_index);
+
+	//bNodeSocket *socket = ntreeAddSocketInterfaceFromSocket(ntree, to_node, to_socket);
+	//return socket;
+
+	bNodeSocket *gsock = ntreeAddSocketInterfaceFromSocket(ntree, from_node, from_socket);
+	bNode *outputGroup = ntreeFindType(ntree, NODE_GROUP_OUTPUT);
+	node_group_output_verify(ntree, outputGroup, (ID *)ntree);
+	bNodeSocket *newsock = node_group_output_find_socket(outputGroup, gsock->identifier);
+	nodeAddLink(ntree, from_node, from_socket, outputGroup, newsock);
+	strcpy(newsock->name, label.c_str());
+	return newsock;
+}
+
+
+void bc_make_group(bContext *C, bNodeTree *ntree, std::map<std::string, bNode *> nmap)
+{
+	bNode * gnode = node_group_make_from_selected(C, ntree, "ShaderNodeGroup", "ShaderNodeTree");
+	bNodeTree *gtree = (bNodeTree *)gnode->id;
+
+	bc_group_add_input_socket(gtree, nmap["main"], 0, "Diffuse");
+	bc_group_add_input_socket(gtree, nmap["emission"], 0, "Emission");
+	bc_group_add_input_socket(gtree, nmap["mix"], 0, "Transparency");
+	bc_group_add_input_socket(gtree, nmap["emission"], 1, "Emission");
+	bc_group_add_input_socket(gtree, nmap["main"], 4, "Metallic");
+	bc_group_add_input_socket(gtree, nmap["main"], 5, "Specular");
+
+	bc_group_add_output_socket(gtree, nmap["mix"], 0, "Shader");
+}
+#endif
+
+static void bc_node_add_link(bNodeTree *ntree, bNode *from_node, int from_index, bNode *to_node, int to_index)
+{
+	bNodeSocket *from_socket = (bNodeSocket *)BLI_findlink(&from_node->outputs, from_index);
+	bNodeSocket *to_socket = (bNodeSocket *)BLI_findlink(&to_node->inputs, to_index);
+
+	nodeAddLink(ntree, from_node, from_socket, to_node, to_socket);
+}
+
+void bc_add_default_shader(bContext *C, Material *ma)
+{
+	bNodeTree *ntree = prepare_material_nodetree(ma);
+	std::map<std::string, bNode *> nmap;
+#if 0
+	nmap["main"] = bc_add_node(C, ntree, SH_NODE_BSDF_PRINCIPLED, -300, 300);
+	nmap["emission"] = bc_add_node(C, ntree, SH_NODE_EMISSION, -300, 500, "emission");
+	nmap["add"] = bc_add_node(C, ntree, SH_NODE_ADD_SHADER, 100, 400);
+	nmap["transparent"] = bc_add_node(C, ntree, SH_NODE_BSDF_TRANSPARENT, 100, 200);
+	nmap["mix"] = bc_add_node(C, ntree, SH_NODE_MIX_SHADER, 400, 300, "transparency");
+	nmap["out"] = bc_add_node(C, ntree, SH_NODE_OUTPUT_MATERIAL, 600, 300);
+	nmap["out"]->flag &= ~NODE_SELECT;
+
+	bc_node_add_link(ntree, nmap["emission"], 0, nmap["add"], 0);
+	bc_node_add_link(ntree, nmap["main"], 0, nmap["add"], 1);
+	bc_node_add_link(ntree, nmap["add"], 0, nmap["mix"], 1);
+	bc_node_add_link(ntree, nmap["transparent"], 0, nmap["mix"], 2);
+
+	bc_node_add_link(ntree, nmap["mix"], 0, nmap["out"], 0);
+	// experimental, probably not used.
+	bc_make_group(C, ntree, nmap);
+#else
+nmap["main"] = bc_add_node(C, ntree, SH_NODE_BSDF_PRINCIPLED,  0, 300);
+nmap["out"] = bc_add_node(C, ntree, SH_NODE_OUTPUT_MATERIAL, 300, 300);
+bc_node_add_link(ntree, nmap["main"], 0, nmap["out"], 0);
+#endif
+}
+
+COLLADASW::ColorOrTexture bc_get_base_color(Material *ma)
+{
+	bNode *master_shader = bc_get_master_shader(ma);
+	if (master_shader) {
+		return bc_get_base_color(master_shader);
+	}
+	else {
+		return bc_get_cot(ma->r, ma->g, ma->b, ma->alpha);
+	}
+}
+
+COLLADASW::ColorOrTexture bc_get_specular_color(Material *ma, bool use_fallback)
+{
+	bNode *master_shader = bc_get_master_shader(ma);
+	if (master_shader) {
+		return bc_get_specular_color(master_shader);
+	}
+	else if (use_fallback) {
+		return bc_get_cot(ma->specr * ma->spec, ma->specg * ma->spec, ma->specb * ma->spec, 1.0f);
+	}
+	else {
+		return bc_get_cot(0.0, 0.0, 0.0, 1.0); // no specular
+	}
+}
+
+COLLADASW::ColorOrTexture bc_get_base_color(bNode *shader)
+{
+	bNodeSocket *socket = nodeFindSocket(shader, SOCK_IN, "Base Color");
+	if (socket)
+	{
+		bNodeSocketValueRGBA *dcol = (bNodeSocketValueRGBA *)socket->default_value;
+		float* col = dcol->value;
+		return bc_get_cot(col[0], col[1], col[2], col[3]);
+	}
+	else {
+		return bc_get_cot(0.8, 0.8, 0.8, 1.0); //default white
+	}
+}
+
+COLLADASW::ColorOrTexture bc_get_specular_color(bNode *shader)
+{
+	bNodeSocket *socket = nodeFindSocket(shader, SOCK_IN, "Specular");
+	if (socket)
+	{
+		bNodeSocketValueRGBA *dcol = (bNodeSocketValueRGBA *)socket->default_value;
+		float* col = dcol->value;
+		return bc_get_cot(col[0], col[1], col[2], col[3]);
+	}
+	else {
+		return bc_get_cot(0.8, 0.8, 0.8, 1.0); //default white
+	}
+}
+
+bNode *bc_get_master_shader(Material *ma)
+{
+	bNodeTree *nodetree = ma->nodetree;
+	if (nodetree) {
+		for (bNode *node = (bNode *)nodetree->nodes.first; node; node = node->next) {
+			if (node->typeinfo->type == SH_NODE_BSDF_PRINCIPLED) {
+				return node;
+			}
+		}
+	}
+	return NULL;
+}
+
+COLLADASW::ColorOrTexture bc_get_cot(float r, float g, float b, float a)
+{
+	COLLADASW::Color color(r, g, b, a);
+	COLLADASW::ColorOrTexture cot(color);
+	return cot;
 }

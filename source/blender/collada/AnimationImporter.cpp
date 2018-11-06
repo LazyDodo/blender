@@ -1303,7 +1303,7 @@ AnimationImporter::AnimMix *AnimationImporter::get_animation_type(const COLLADAF
 			continue;
 		}
 		else {
-			types->transform = types->transform | NODE_TRANSFORM;
+			types->transform = types->transform | BC_NODE_TRANSFORM;
 			break;
 		}
 	}

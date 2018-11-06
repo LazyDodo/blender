@@ -764,39 +764,11 @@ bool DocumentImporter::writeMaterial(const COLLADAFW::Material *cmat)
 	return true;
 }
 
+
 void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Material *ma)
 {
-	COLLADAFW::EffectCommon::ShaderType shader = ef->getShaderType();
+	add_material_shader(ef, ma);
 
-	// TODO: add back texture and extended material parameter support
-
-	// blinn
-	if (shader == COLLADAFW::EffectCommon::SHADER_BLINN) {
-#if 0
-		ma->spec_shader = MA_SPEC_BLINN;
-		ma->spec = ef->getShininess().getFloatValue();
-#endif
-	}
-	// phong
-	else if (shader == COLLADAFW::EffectCommon::SHADER_PHONG) {
-#if 0
-		ma->spec_shader = MA_SPEC_PHONG;
-		ma->har = ef->getShininess().getFloatValue();
-#endif
-	}
-	// lambert
-	else if (shader == COLLADAFW::EffectCommon::SHADER_LAMBERT) {
-#if 0
-		ma->diff_shader = MA_DIFF_LAMBERT;
-#endif
-	}
-	// default - lambert
-	else {
-#if 0
-		ma->diff_shader = MA_DIFF_LAMBERT;
-		fprintf(stderr, "Current shader type is not supported, default to lambert.\n");
-#endif
-	}
 	// reflectivity
 	ma->metallic = ef->getReflectivity().getFloatValue();
 	// index of refraction
@@ -894,6 +866,38 @@ void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Materia
 		COLLADAFW::Texture ctex = ef->getOpacity().getTexture();
 #endif
 	}
+}
+
+void DocumentImporter::add_material_shader(COLLADAFW::EffectCommon *ef, Material *ma)
+{
+	bc_add_default_shader(mContext, ma);
+
+#if 0
+	COLLADAFW::EffectCommon::ShaderType shader = ef->getShaderType();
+	// Currently we only support PBR based shaders
+	// TODO: simulate the effects with PBR
+
+	// blinn
+	if (shader == COLLADAFW::EffectCommon::SHADER_BLINN) {
+		ma->spec_shader = MA_SPEC_BLINN;
+		ma->spec = ef->getShininess().getFloatValue();
+	}
+	// phong
+	else if (shader == COLLADAFW::EffectCommon::SHADER_PHONG) {
+		ma->spec_shader = MA_SPEC_PHONG;
+		ma->har = ef->getShininess().getFloatValue();
+	}
+	// lambert
+	else if (shader == COLLADAFW::EffectCommon::SHADER_LAMBERT) {
+		ma->diff_shader = MA_DIFF_LAMBERT;
+	}
+	// default - lambert
+	else {
+		ma->diff_shader = MA_DIFF_LAMBERT;
+		fprintf(stderr, "Current shader type is not supported, default to lambert.\n");
+	}
+#endif
+
 }
 
 /** When this method is called, the writer must write the effect.

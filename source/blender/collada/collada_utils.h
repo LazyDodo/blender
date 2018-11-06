@@ -31,6 +31,9 @@
 #include "COLLADAFWGeometry.h"
 #include "COLLADAFWFloatOrDoubleArray.h"
 #include "COLLADAFWTypes.h"
+#include "COLLADASWEffectProfile.h"
+#include "COLLADAFWColorOrTexture.h"
+
 
 #include <vector>
 #include <map>
@@ -59,6 +62,7 @@ extern "C" {
 #include "BKE_object.h"
 #include "BKE_scene.h"
 #include "BKE_idprop.h"
+#include "BKE_node.h"
 }
 
 #include "ImportSettings.h"
@@ -295,5 +299,13 @@ public:
 	BoneExtensionMap &getExtensionMap(bArmature *armature);
 	~BoneExtensionManager();
 };
+
+void bc_add_default_shader(bContext *C, Material *ma);
+bNode *bc_get_master_shader(Material *ma);
+COLLADASW::ColorOrTexture bc_get_cot(float r, float g, float b, float a);
+COLLADASW::ColorOrTexture bc_get_base_color(bNode *shader);
+COLLADASW::ColorOrTexture bc_get_base_color(Material *ma);
+COLLADASW::ColorOrTexture bc_get_specular_color(bNode *shader);
+COLLADASW::ColorOrTexture bc_get_specular_color(Material *ma, bool use_fallback);
 
 #endif

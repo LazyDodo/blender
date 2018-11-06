@@ -58,7 +58,11 @@ public:
 
 	COLLADASW::ColorOrTexture getcol(float r, float g, float b, float a);
 private:
-	void writeLambert(COLLADASW::EffectProfile &ep, Material *ma);
+	void set_shader_type(COLLADASW::EffectProfile &ep, Material *ma);
+	void set_transparency(COLLADASW::EffectProfile &ep, Material *ma);
+	void set_diffuse_color(COLLADASW::EffectProfile &ep, Material *ma);
+	void set_specular_color(COLLADASW::EffectProfile &ep, Material *ma);
+
 	void writeTextures(COLLADASW::EffectProfile &ep,
 			std::string &key,
 			COLLADASW::Sampler *sampler,

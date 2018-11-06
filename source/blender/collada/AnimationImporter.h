@@ -125,8 +125,8 @@ private:
 
 	enum AnimationType
 		{
-			INANIMATE = 0,
-			NODE_TRANSFORM = 1,
+			BC_INANIMATE = 0,
+			BC_NODE_TRANSFORM = 1
 		};
 
 	struct AnimMix

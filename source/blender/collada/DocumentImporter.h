@@ -172,6 +172,8 @@ private:
 	std::string import_from_version;
 
 	void report_unknown_reference(const COLLADAFW::Node &node, const std::string object_type);
+
+	void add_material_shader(COLLADAFW::EffectCommon *ef, Material *ma);
 };
 
 #endif

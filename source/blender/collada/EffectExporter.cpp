@@ -96,10 +96,34 @@ void EffectsExporter::exportEffects(Scene *sce)
 	}
 }
 
-void EffectsExporter::writeLambert(COLLADASW::EffectProfile &ep, Material *ma)
+void EffectsExporter::set_shader_type(COLLADASW::EffectProfile &ep, Material *ma)
 {
-	COLLADASW::ColorOrTexture cot;
-	ep.setShaderType(COLLADASW::EffectProfile::LAMBERT);
+	ep.setShaderType(COLLADASW::EffectProfile::LAMBERT); //XXX check if BLINN and PHONG can be supported as well
+}
+
+void EffectsExporter::set_transparency(COLLADASW::EffectProfile &ep, Material *ma)
+{
+	if (ma->alpha == 1.0f) {
+		return; // have no transparency
+	}
+
+	// Tod: because we are in A_ONE mode transparency is calculated like this:
+	COLLADASW::ColorOrTexture cot = getcol(1.0f, 1.0f, 1.0f, ma->alpha);
+	ep.setTransparent(cot);
+	ep.setOpaque(COLLADASW::EffectProfile::A_ONE);
+}
+void EffectsExporter::set_diffuse_color(COLLADASW::EffectProfile &ep, Material *ma)
+{
+	// get diffuse color
+	COLLADASW::ColorOrTexture cot = bc_get_base_color(ma);
+	ep.setDiffuse(cot, false, "diffuse");
+}
+
+void EffectsExporter::set_specular_color(COLLADASW::EffectProfile &ep, Material *ma)
+{
+	bool use_fallback = ep.getShaderType() != COLLADASW::EffectProfile::LAMBERT;
+	COLLADASW::ColorOrTexture cot = bc_get_specular_color(ma, use_fallback);
+	ep.setSpecular(cot, false, "specular");
 }
 
 void EffectsExporter::operator()(Material *ma, Object *ob)
@@ -111,32 +135,18 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 	COLLADASW::EffectProfile ep(mSW);
 	ep.setProfileType(COLLADASW::EffectProfile::COMMON);
 	ep.openProfile();
-	writeLambert(ep, ma);
+	set_shader_type(ep, ma);
 
 	COLLADASW::ColorOrTexture cot;
 
-	// transparency
-	if (ma->alpha != 1.0f) {
-		// Tod: because we are in A_ONE mode transparency is calculated like this:
-		cot = getcol(1.0f, 1.0f, 1.0f, ma->alpha);
-		ep.setTransparent(cot);
-		ep.setOpaque(COLLADASW::EffectProfile::A_ONE);
-	}
+	set_transparency(ep, ma);
+	set_diffuse_color(ep, ma);
+	set_specular_color(ep, ma);
 
 	// emission
 #if 0
 	cot = getcol(ma->emit, ma->emit, ma->emit, 1.0f);
 #endif
-
-	// diffuse
-	cot = getcol(ma->r, ma->g, ma->b, 1.0f);
-	ep.setDiffuse(cot, false, "diffuse");
-
-	// specular
-	if (ep.getShaderType() != COLLADASW::EffectProfile::LAMBERT) {
-		cot = getcol(ma->specr * ma->spec, ma->specg * ma->spec, ma->specb * ma->spec, 1.0f);
-		ep.setSpecular(cot, false, "specular");
-	}
 
 	// XXX make this more readable if possible
 
