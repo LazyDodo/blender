@@ -655,16 +655,16 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                 col = split.column()
                 col.label(text="Layer Composition:")
                 col = split.column()
-                col.operator("scene.lanpr_auto_create_line_layer", text = "Default", icon = "ZOOMIN")
+                col.operator("scene.lanpr_auto_create_line_layer", text = "Default")#, icon = "ZOOMIN")
                 layout.template_list("LANPR_linesets", "", lanpr, "layers", lanpr.layers, "active_layer_index", rows=4)
                 if active_layer:
                     split = layout.split()
                     col = split.column()
-                    col.operator("scene.lanpr_add_line_layer", icon="ZOOMIN")
-                    col.operator("scene.lanpr_delete_line_layer", icon="ZOOMOUT")
+                    col.operator("scene.lanpr_add_line_layer")#icon="ZOOMIN")
+                    col.operator("scene.lanpr_delete_line_layer")#, icon="ZOOMOUT")
                     col = split.column()
-                    col.operator("scene.lanpr_move_line_layer", icon="TRIA_UP").direction = "UP"
-                    col.operator("scene.lanpr_move_line_layer", icon="TRIA_DOWN").direction = "DOWN"
+                    col.operator("scene.lanpr_move_line_layer").direction = "UP"
+                    col.operator("scene.lanpr_move_line_layer").direction = "DOWN"
                     layout.operator("scene.lanpr_rebuild_all_commands")
                 else:
                     layout.operator("scene.lanpr_add_line_layer")
@@ -770,7 +770,7 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
         lanpr = scene.lanpr
         active_layer = lanpr.layers.active_layer
 
-        layout.operator("scene.lanpr_add_line_component", icon = "ZOOMIN")
+        layout.operator("scene.lanpr_add_line_component")#, icon = "ZOOMIN")
         
         i=0
         for c in active_layer.components:
@@ -787,7 +787,7 @@ class SCENE_PT_lanpr_line_components(SceneButtonsPanel, Panel):
             elif c.component_mode == "COLLECTION":
                 cl.prop(c,"collection_select", text = "")
             col = split.column()
-            col.operator("scene.lanpr_delete_line_component", text="", icon = "ZOOMOUT").index=i
+            col.operator("scene.lanpr_delete_line_component", text="").index=i
             i=i+1
 
 
