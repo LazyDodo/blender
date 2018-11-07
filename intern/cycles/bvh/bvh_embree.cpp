@@ -248,7 +248,7 @@ static bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bo
 
 static void rtc_error_func(void*, enum RTCError, const char* str)
 {
-	VLOG(0) << str;
+	VLOG(1) << str;
 }
 
 static double progress_start_time = 0.0f;
@@ -285,6 +285,37 @@ BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 	thread_scoped_lock lock(rtc_shared_mutex);
 	if(rtc_shared_users == 0) {
 		rtc_shared_device = rtcNewDevice("verbose=0");
+		/* Check here if Embree was built with the correct flags. */
+		ssize_t ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED);
+		if(ret != 1) {
+			assert(0);
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag."\
+			           "Ray visiblity will not work.";
+		}
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED);
+		if(ret != 1) {
+			assert(0);
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag."\
+			           "Renders may not look as expected.";
+		}
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED);
+		if(ret != 1) {
+			assert(0);
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. "\
+			           "Line primitives will not be rendered.";
+		}
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED);
+		if(ret != 1) {
+			assert(0);
+			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. "\
+			           "Triangle primitives will not be rendered.";
+		}
+		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED);
+		if(ret != 0) {
+			assert(0);
+			VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. "\
+			           "Renders may not look as expected.";
+		}
 	}
 	++rtc_shared_users;
 
@@ -481,7 +512,7 @@ void BVHEmbree::add_triangles(Object *ob, int i)
 	                                                           RTC_FORMAT_UINT3, sizeof (int) * 3, num_triangles);
 	assert(rtc_indices);
 	if(!rtc_indices) {
-		VLOG(0) << "Embree could not create new geometry buffer for mesh " << mesh->name.c_str() << ".\n";
+		VLOG(1) << "Embree could not create new geometry buffer for mesh " << mesh->name.c_str() << ".\n";
 		return;
 	}
 	for(size_t j = 0; j < num_triangles; ++j) {
