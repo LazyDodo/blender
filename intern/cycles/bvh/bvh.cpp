@@ -45,8 +45,8 @@ const char *bvh_layout_name(BVHLayout layout)
 		case BVH_LAYOUT_BVH4: return "BVH4";
 		case BVH_LAYOUT_BVH8: return "BVH8";
 		case BVH_LAYOUT_NONE: return "NONE";
-		case BVH_LAYOUT_ALL:  return "ALL";
 		case BVH_LAYOUT_EMBREE: return "EMBREE";
+		case BVH_LAYOUT_ALL:  return "ALL";
 	}
 	LOG(DFATAL) << "Unsupported BVH layout was passed.";
 	return "";
