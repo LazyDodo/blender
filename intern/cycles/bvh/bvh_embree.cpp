@@ -55,14 +55,14 @@
 
 CCL_NAMESPACE_BEGIN
 
+#define IS_HAIR(x) (x & 1)
+
 /* This gets called by Embree at every valid ray/object intersection.
  * Things like recording subsurface or shadow hits for later evaluation
  * as well as filtering for volume objects happen here.
  * Cycles' own BVH does that directly inside the traversal calls.
  */
-
-void rtc_filter_func(const RTCFilterFunctionNArguments *args);
-void rtc_filter_func(const RTCFilterFunctionNArguments *args)
+static void rtc_filter_func(const RTCFilterFunctionNArguments *args)
 {
 	/* Current implementation in Cycles assumes only single-ray intersection queries. */
 	assert(args->N == 1);
@@ -72,9 +72,10 @@ void rtc_filter_func(const RTCFilterFunctionNArguments *args)
 	CCLIntersectContext *ctx = ((IntersectContext*)args->context)->userRayExt;
 	KernelGlobals *kg = ctx->kg;
 
-	if((kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
+	/* Check if there is backfacing hair to ignore. */
+	if(IS_HAIR(hit->geomID) && (kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
-	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
+	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS)) {
 		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
 			*args->valid = 0;
 			return;
@@ -82,8 +83,7 @@ void rtc_filter_func(const RTCFilterFunctionNArguments *args)
 	}
 }
 
-void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args);
-void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
+static void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 {
 	assert(args->N == 1);
 
@@ -92,10 +92,10 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 	CCLIntersectContext *ctx = ((IntersectContext*)args->context)->userRayExt;
 	KernelGlobals *kg = ctx->kg;
 
-	/* For all ray types: check if there is backfacing hair to ignore */
-	if((kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
+	/* For all ray types: Check if there is backfacing hair to ignore */
+	if(IS_HAIR(hit->geomID) && (kernel_data.curve.curveflags & CURVE_KN_INTERPOLATE)
 	   && !(kernel_data.curve.curveflags & CURVE_KN_BACKFACING)
-	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS) && hit->geomID & 1) {
+	   && !(kernel_data.curve.curveflags & CURVE_KN_RIBBONS)) {
 		if(dot(make_float3(ray->dir_x, ray->dir_y, ray->dir_z), make_float3(hit->Ng_x, hit->Ng_y, hit->Ng_z)) > 0.0f) {
 			*args->valid = 0;
 			return;
@@ -118,7 +118,7 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 					}
 				}
 				Intersection *isect = &ctx->isect_s[ctx->num_hits];
-				ctx->num_hits++;
+				++ctx->num_hits;
 				*isect = current_isect;
 				int prim = kernel_tex_fetch(__prim_index, isect->prim);
 				int shader = 0;
@@ -139,7 +139,7 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 			else {
 				/* Increase the number of hits beyond ray.max_hits
 				 * so that the caller can detect this as opaque. */
-				ctx->num_hits++;
+				++ctx->num_hits;
 			}
 			break;
 		}
@@ -158,7 +158,7 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 				}
 			}
 
-			ctx->ss_isect->num_hits++;
+			++ctx->ss_isect->num_hits;
 			int hit_idx;
 
 			if(ctx->ss_isect->num_hits <= ctx->max_hits) {
@@ -181,7 +181,7 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 			ctx->ss_isect->Ng[hit_idx].y = hit->Ng_y;
 			ctx->ss_isect->Ng[hit_idx].z = hit->Ng_z;
 			ctx->ss_isect->Ng[hit_idx] = normalize(ctx->ss_isect->Ng[hit_idx]);
-			/* this tells Embree to continue tracing */
+			/* This tells Embree to continue tracing .*/
 			*args->valid = 0;
 			break;
 		}
@@ -200,14 +200,14 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 					}
 				}
 				Intersection *isect = &ctx->isect_s[ctx->num_hits];
-				ctx->num_hits++;
+				++ctx->num_hits;
 				*isect = current_isect;
 				/* Only primitives from volume object. */
 				uint tri_object = (isect->object == OBJECT_NONE) ?
 								   kernel_tex_fetch(__prim_object, isect->prim) : isect->object;
 				int object_flag = kernel_tex_fetch(__object_flag, tri_object);
 				if((object_flag & SD_OBJECT_HAS_VOLUME) == 0) {
-					ctx->num_hits--;
+					--ctx->num_hits;
 				}
 				/* This tells Embree to continue tracing. */
 				*args->valid = 0;
@@ -215,15 +215,15 @@ void rtc_filter_occluded_func(const RTCFilterFunctionNArguments* args)
 			}
 		}
 		case CCLIntersectContext::RAY_REGULAR:
-			/* nothing to do here. */
+		default:
+			/* Nothing to do here. */
 			break;
 	}
 }
 
 static size_t unaccounted_mem = 0;
 
-bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool post);
-bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
+static bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
 {
 	Stats *stats = (Stats*)userPtr;
 	if(stats) {
@@ -246,24 +246,22 @@ bool rtc_memory_monitor_func(void* userPtr, const ssize_t bytes, const bool)
 	return true;
 }
 
-void rtc_error_func(void*, enum RTCError code, const char* str);
-void rtc_error_func(void*, enum RTCError, const char* str)
+static void rtc_error_func(void*, enum RTCError, const char* str)
 {
 	VLOG(0) << str;
 }
 
 static double progress_start_time = 0.0f;
 
-bool rtc_progress_func(void* user_ptr, const double n);
-bool rtc_progress_func(void* user_ptr, const double n)
+static bool rtc_progress_func(void* user_ptr, const double n)
 {
 	Progress *progress = (Progress*)user_ptr;
 
-	if(time_dt() - progress_start_time < 0.25)
+	if(time_dt() - progress_start_time < 0.25) {
 		return true;
+	}
 
 	string msg = string_printf("Building BVH %.0f%%", n * 100.0);
-
 	progress->set_substatus(msg);
 	progress_start_time = time_dt();
 
@@ -278,7 +276,7 @@ thread_mutex BVHEmbree::rtc_shared_mutex;
 
 BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 : BVH(params_, objects_), scene(NULL), mem_used(0), top_level(NULL), stats(NULL),
-  curve_subdivisions(params.curve_subdivisions), build_quality(RTC_BUILD_QUALITY_LOW),
+  curve_subdivisions(params.curve_subdivisions), build_quality(RTC_BUILD_QUALITY_REFIT),
   use_curves(params_.curve_flags & CURVE_KN_INTERPOLATE),
   use_ribbons(params.curve_flags & CURVE_KN_RIBBONS), dynamic_scene(true)
 {
@@ -286,41 +284,9 @@ BVHEmbree::BVHEmbree(const BVHParams& params_, const vector<Object*>& objects_)
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 	thread_scoped_lock lock(rtc_shared_mutex);
 	if(rtc_shared_users == 0) {
-		rtc_shared_device = rtcNewDevice(NULL);
-
-		/* Check here if Embree was built with the correct flags. */
-		ssize_t ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED);
-		if(ret != 1) {
-			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_RAY_MASK_SUPPORTED flag."\
-			           "Ray visiblity will not work.";
-		}
-		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED);
-		if(ret != 1) {
-			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_FILTER_FUNCTION_SUPPORTED flag."\
-			           "Renders may not look as expected.";
-		}
-		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED);
-		if(ret != 1) {
-			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_CURVE_GEOMETRY_SUPPORTED flag. "\
-			           "Line primitives will not be rendered.";
-		}
-		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED);
-		if(ret != 1) {
-			assert(0);
-			VLOG(1) << "Embree is compiled without the RTC_DEVICE_PROPERTY_TRIANGLE_GEOMETRY_SUPPORTED flag. "\
-			           "Triangle primitives will not be rendered.";
-		}
-		ret = rtcGetDeviceProperty (rtc_shared_device,RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED);
-		if(ret != 0) {
-			assert(0);
-			VLOG(1) << "Embree is compiled with the RTC_DEVICE_PROPERTY_BACKFACE_CULLING_ENABLED flag. "\
-			           "Renders may not look as expected.";
-		}
+		rtc_shared_device = rtcNewDevice("verbose=0");
 	}
-	rtc_shared_users++;
+	++rtc_shared_users;
 
 	rtcSetDeviceErrorFunction(rtc_shared_device, rtc_error_func, NULL);
 
@@ -341,7 +307,7 @@ void BVHEmbree::destroy(RTCScene scene)
 		scene = NULL;
 	}
 	thread_scoped_lock lock(rtc_shared_mutex);
-	rtc_shared_users--;
+	--rtc_shared_users;
 	if(rtc_shared_users == 0) {
 		rtcReleaseDevice (rtc_shared_device);
 		rtc_shared_device = NULL;
@@ -371,12 +337,13 @@ void BVHEmbree::delete_rtcScene()
 
 void BVHEmbree::build(Progress& progress, Stats *stats_)
 {
+	assert(rtc_shared_device);
 	stats = stats_;
 	rtcSetDeviceMemoryMonitorFunction(rtc_shared_device, rtc_memory_monitor_func, stats);
 
 	progress.set_substatus("Building BVH");
 
-	if (scene) {
+	if(scene) {
 		rtcReleaseScene(scene);
 		scene = NULL;
 	}
@@ -517,7 +484,7 @@ void BVHEmbree::add_triangles(Object *ob, int i)
 		VLOG(0) << "Embree could not create new geometry buffer for mesh " << mesh->name.c_str() << ".\n";
 		return;
 	}
-	for(size_t j = 0; j < num_triangles; j++) {
+	for(size_t j = 0; j < num_triangles; ++j) {
 		Mesh::Triangle t = mesh->get_triangle(j);
 		rtc_indices[j*3] = t.v[0];
 		rtc_indices[j*3+1] = t.v[1];
@@ -530,7 +497,7 @@ void BVHEmbree::add_triangles(Object *ob, int i)
 	pack.prim_type.reserve(pack.prim_type.size() + num_triangles);
 	pack.prim_index.reserve(pack.prim_index.size() + num_triangles);
 	pack.prim_tri_index.reserve(pack.prim_index.size() + num_triangles);
-	for(size_t j = 0; j < num_triangles; j++) {
+	for(size_t j = 0; j < num_triangles; ++j) {
 		pack.prim_object.push_back_reserved(i);
 		pack.prim_type.push_back_reserved(num_motion_steps > 1 ? PRIMITIVE_MOTION_TRIANGLE : PRIMITIVE_TRIANGLE);
 		pack.prim_index.push_back_reserved(j);
@@ -565,7 +532,7 @@ void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 	}
 	const size_t num_verts = mesh->verts.size();
 
-	for(int t = 0; t < num_motion_steps; t++) {
+	for(int t = 0; t < num_motion_steps; ++t) {
 		const float3 *verts;
 		if(t == t_mid) {
 			verts = &mesh->verts[0];
@@ -579,7 +546,7 @@ void BVHEmbree::update_tri_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh)
 		                                                    RTC_FORMAT_FLOAT3, sizeof(float) * 3, num_verts + 1);
 		assert(rtc_verts);
 		if(rtc_verts) {
-			for(size_t j = 0; j < num_verts; j++) {
+			for(size_t j = 0; j < num_verts; ++j) {
 				rtc_verts[0] = verts[j].x;
 				rtc_verts[1] = verts[j].y;
 				rtc_verts[2] = verts[j].z;
@@ -602,7 +569,7 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 	
 	const size_t num_curves = mesh->num_curves();
 	size_t num_keys = 0;
-	for (size_t j = 0; j < num_curves; j++) {
+	for(size_t j = 0; j < num_curves; ++j) {
 		const Mesh::Curve c = mesh->get_curve(j);
 		num_keys += c.num_keys;
 	}
@@ -610,7 +577,7 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 	/* Copy the CV data to Embree */
 	const int t_mid = (num_motion_steps - 1) / 2;
 	const float *curve_radius = &mesh->curve_radius[0];
-	for(int t = 0; t < num_motion_steps; t++) {
+	for(int t = 0; t < num_motion_steps; ++t) {
 		const float3 *verts;
 		if(t == t_mid || attr_mP == NULL) {
 			verts = &mesh->curve_keys[0];
@@ -632,16 +599,16 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 		if(rtc_verts) {
 			if(use_curves && rtc_tangents) {
 				const size_t num_curves = mesh->num_curves();
-				for(size_t j = 0; j < num_curves; j++) {
+				for(size_t j = 0; j < num_curves; ++j) {
 					Mesh::Curve c = mesh->get_curve(j);
 					int fk = c.first_key;
 					rtc_verts[0] = float3_to_float4(verts[fk]);
 					rtc_verts[0].w = curve_radius[fk];
 					rtc_tangents[0] = float3_to_float4(verts[fk + 1] - verts[fk]);
 					rtc_tangents[0].w = curve_radius[fk + 1] - curve_radius[fk];
-					fk++;
+					++fk;
 					int k = 1;
-					for(;k < c.num_segments(); k++, fk++) {
+					for(;k < c.num_segments(); ++k, ++fk) {
 						rtc_verts[k] = float3_to_float4(verts[fk]);
 						rtc_verts[k].w = curve_radius[fk];
 						rtc_tangents[k] = float3_to_float4((verts[fk + 1] - verts[fk - 1]) * 0.5f);
@@ -656,7 +623,7 @@ void BVHEmbree::update_curve_vertex_buffer(RTCGeometry geom_id, const Mesh* mesh
 				}
 			}
 			else {
-				for(size_t j = 0; j < num_keys; j++) {
+				for(size_t j = 0; j < num_keys; ++j) {
 					rtc_verts[j] = float3_to_float4(verts[j]);
 					rtc_verts[j].w = curve_radius[j];
 				}
@@ -680,13 +647,13 @@ void BVHEmbree::add_curves(Object *ob, int i)
 
 	const size_t num_curves = mesh->num_curves();
 	size_t num_segments = 0;
-	for(size_t j = 0; j < num_curves; j++) {
+	for(size_t j = 0; j < num_curves; ++j) {
 		Mesh::Curve c = mesh->get_curve(j);
 		assert(c.num_segments() > 0);
 		num_segments += c.num_segments();
 	}
 
-	/* Make room for Cycles specific data */
+	/* Make room for Cycles specific data. */
 	pack.prim_object.reserve(pack.prim_object.size() + num_segments);
 	pack.prim_type.reserve(pack.prim_type.size() + num_segments);
 	pack.prim_index.reserve(pack.prim_index.size() + num_segments);
@@ -701,18 +668,18 @@ void BVHEmbree::add_curves(Object *ob, int i)
 	unsigned *rtc_indices = (unsigned*) rtcSetNewGeometryBuffer(geom_id, RTC_BUFFER_TYPE_INDEX, 0,
 																RTC_FORMAT_UINT, sizeof (int), num_segments);
 	size_t rtc_index = 0;
-	for(size_t j = 0; j < num_curves; j++) {
+	for(size_t j = 0; j < num_curves; ++j) {
 		Mesh::Curve c = mesh->get_curve(j);
-		for(size_t k = 0; k < c.num_segments(); k++) {
+		for(size_t k = 0; k < c.num_segments(); ++k) {
 			rtc_indices[rtc_index] = c.first_key + k;
-			/* Cycles specific data */
+			/* Cycles specific data. */
 			pack.prim_object.push_back_reserved(i);
 			pack.prim_type.push_back_reserved(PRIMITIVE_PACK_SEGMENT(num_motion_steps > 1 ?
 																	 PRIMITIVE_MOTION_CURVE : PRIMITIVE_CURVE, k));
 			pack.prim_index.push_back_reserved(j);
 			pack.prim_tri_index.push_back_reserved(rtc_index);
 
-			rtc_index++;
+			++rtc_index;
 		}
 	}
 
@@ -733,11 +700,12 @@ void BVHEmbree::add_curves(Object *ob, int i)
 
 void BVHEmbree::pack_nodes(const BVHNode *)
 {
+	/* Quite a bit of this code is for compatibility with Cycles' native BVH. */
 	if(!params.top_level) {
 		return;
 	}
 
-	for(size_t i = 0; i < pack.prim_index.size(); i++) {
+	for(size_t i = 0; i < pack.prim_index.size(); ++i) {
 		if(pack.prim_index[i] != -1) {
 			if(pack.prim_type[i] & PRIMITIVE_ALL_CURVE)
 				pack.prim_index[i] += objects[pack.prim_object[i]]->mesh->curve_offset;
@@ -829,7 +797,7 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 			int *bvh_prim_type = &bvh->pack.prim_type[0];
 			uint *bvh_prim_tri_index = &bvh->pack.prim_tri_index[0];
 
-			for(size_t i = 0; i < bvh_prim_index_size; i++) {
+			for(size_t i = 0; i < bvh_prim_index_size; ++i) {
 				if(bvh->pack.prim_type[i] & PRIMITIVE_ALL_CURVE) {
 					pack_prim_index[pack_prim_index_offset] = bvh_prim_index[i] + mesh_curve_offset;
 					pack_prim_tri_index[pack_prim_index_offset] = -1;
@@ -841,9 +809,9 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 				}
 
 				pack_prim_type[pack_prim_index_offset] = bvh_prim_type[i];
-				pack_prim_object[pack_prim_index_offset] = 0;  // unused for instances
+				pack_prim_object[pack_prim_index_offset] = 0;
 
-				pack_prim_index_offset++;
+				++pack_prim_index_offset;
 			}
 		}
 
@@ -862,8 +830,8 @@ void BVHEmbree::pack_nodes(const BVHNode *)
 
 void BVHEmbree::refit_nodes()
 {
+	/* Update all vertex buffers, then tell Embree to rebuild/-fit the BVHs. */
 	unsigned geom_id = 0;
-
 	foreach(Object *ob, objects) {
 		if(!params.top_level || (ob->is_traceable() && !ob->mesh->is_instanced())) {
 			if(params.primitive_mask & PRIMITIVE_ALL_TRIANGLE && ob->mesh->num_triangles() > 0) {

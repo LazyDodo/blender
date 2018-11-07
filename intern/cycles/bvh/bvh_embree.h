@@ -1,5 +1,5 @@
 /*
- * Modifications Copyright 2017, Blender Foundation.
+ * Copyright 2018, Blender Foundation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@
 CCL_NAMESPACE_BEGIN
 
 class Mesh;
-struct EmbreeInstance;
 
 class BVHEmbree : public BVH
 {
