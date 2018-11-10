@@ -103,10 +103,9 @@ typedef struct EditHair {
 
 /* not saved in file! */
 typedef struct HairSystem_Runtime {
-	// struct EditHair *edithair;
-	void *draw_batch_cache;     /* Data buffers for drawing */
+	int64_t cd_dirty_follicles;
 
-	// int64_t cd_dirty_follicles;
+	void *draw_batch_cache;     /* Data buffers for drawing */
 } HairSystem_Runtime;
 
 typedef struct HairSystem {
