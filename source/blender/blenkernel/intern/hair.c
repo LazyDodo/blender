@@ -52,6 +52,7 @@
 #include "BKE_global.h"
 #include "BKE_hair.h"
 #include "BKE_hair_iterators.h"
+#include "BKE_hair_runtime.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
@@ -181,7 +182,7 @@ void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSys
 		hsys_dst->draw_settings = BKE_hair_draw_settings_copy(hsys_src->draw_settings);
 	}
 
-	hsys_dst->draw_batch_cache = NULL;
+	BKE_hair_runtime_reset(hsys_dst);
 }
 
 HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)

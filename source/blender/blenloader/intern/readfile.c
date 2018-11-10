@@ -135,6 +135,7 @@
 #include "BKE_global.h" // for G
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
+#include "BKE_hair_runtime.h"
 #include "BKE_layer.h"
 #include "BKE_library.h" // for which_libbase
 #include "BKE_library_idmap.h"
@@ -8430,7 +8431,7 @@ static void direct_link_hair(FileData *fd, HairSystem* hsys)
 
 	hsys->bb = NULL;
 	hsys->edithair = NULL;
-	hsys->draw_batch_cache = NULL;
+	BKE_hair_runtime_reset(hsys);
 }
 
 /* ************** GENERAL & MAIN ******************** */

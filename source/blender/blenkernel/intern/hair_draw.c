@@ -77,14 +77,14 @@ void (*BKE_hair_batch_cache_free_cb)(HairSystem* hsys) = NULL;
 
 void BKE_hair_batch_cache_dirty(HairSystem* hsys, int mode)
 {
-	if (hsys->draw_batch_cache) {
+	if (hsys->runtime.draw_batch_cache) {
 		BKE_hair_batch_cache_dirty_cb(hsys, mode);
 	}
 }
 
 void BKE_hair_batch_cache_free(HairSystem* hsys)
 {
-	if (hsys->draw_batch_cache) {
+	if (hsys->runtime.draw_batch_cache) {
 		BKE_hair_batch_cache_free_cb(hsys);
 	}
 }

@@ -79,7 +79,7 @@ static void hair_batch_cache_clear(HairSystem *hsys);
 
 static bool hair_batch_cache_valid(HairSystem *hsys)
 {
-	HairBatchCache *cache = hsys->draw_batch_cache;
+	HairBatchCache *cache = hsys->runtime.draw_batch_cache;
 
 	if (cache == NULL) {
 		return false;
@@ -98,10 +98,10 @@ static bool hair_batch_cache_valid(HairSystem *hsys)
 
 static void hair_batch_cache_init(HairSystem *hsys)
 {
-	HairBatchCache *cache = hsys->draw_batch_cache;
+	HairBatchCache *cache = hsys->runtime.draw_batch_cache;
 	
 	if (!cache) {
-		cache = hsys->draw_batch_cache = MEM_callocN(sizeof(*cache), __func__);
+		cache = hsys->runtime.draw_batch_cache = MEM_callocN(sizeof(*cache), __func__);
 	}
 	else {
 		memset(cache, 0, sizeof(*cache));
@@ -117,12 +117,12 @@ static HairBatchCache *hair_batch_cache_get(HairSystem *hsys)
 		hair_batch_cache_clear(hsys);
 		hair_batch_cache_init(hsys);
 	}
-	return hsys->draw_batch_cache;
+	return hsys->runtime.draw_batch_cache;
 }
 
 void DRW_hair_batch_cache_dirty(HairSystem *hsys, int mode)
 {
-	HairBatchCache *cache = hsys->draw_batch_cache;
+	HairBatchCache *cache = hsys->runtime.draw_batch_cache;
 	if (cache == NULL) {
 		return;
 	}
@@ -140,7 +140,7 @@ void DRW_hair_batch_cache_dirty(HairSystem *hsys, int mode)
 
 static void hair_batch_cache_clear(HairSystem *hsys)
 {
-	HairBatchCache *cache = hsys->draw_batch_cache;
+	HairBatchCache *cache = hsys->runtime.draw_batch_cache;
 	if (cache) {
 		particle_batch_cache_clear_hair(&cache->hair);
 		particle_batch_cache_clear_hair(&cache->edit_hair);
@@ -153,7 +153,7 @@ static void hair_batch_cache_clear(HairSystem *hsys)
 void DRW_hair_batch_cache_free(HairSystem *hsys)
 {
 	hair_batch_cache_clear(hsys);
-	MEM_SAFE_FREE(hsys->draw_batch_cache);
+	MEM_SAFE_FREE(hsys->runtime.draw_batch_cache);
 }
 
 static void hair_batch_cache_ensure_count(

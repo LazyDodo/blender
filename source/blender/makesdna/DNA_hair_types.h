@@ -101,6 +101,14 @@ typedef struct EditHair {
 	HairCurveData curve_data;
 } EditHair;
 
+/* not saved in file! */
+typedef struct HairSystem_Runtime {
+	// struct EditHair *edithair;
+	void *draw_batch_cache;     /* Data buffers for drawing */
+
+	// int64_t cd_dirty_follicles;
+} HairSystem_Runtime;
+
 typedef struct HairSystem {
 	ID id;                      /* Hair data is a datablock */
 	struct AnimData *adt;       /* Animation data - for animating settings */
@@ -125,8 +133,7 @@ typedef struct HairSystem {
 
 	struct HairDrawSettings *draw_settings;
 
-	/* Data buffers for drawing */
-	void *draw_batch_cache;
+	HairSystem_Runtime runtime;
 } HairSystem;
 
 // typedef enum eHairSystemFlag

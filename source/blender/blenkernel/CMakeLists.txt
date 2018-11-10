@@ -121,6 +121,7 @@ set(SRC
 	intern/gpencil_modifier.c
 	intern/hair.c
 	intern/hair_draw.c
+	intern/hair_runtime.c
 	intern/icons.c
 	intern/icons_rasterize.c
 	intern/idcode.c
@@ -278,6 +279,7 @@ set(SRC
 	BKE_gpencil_modifier.h
 	BKE_hair.h
 	BKE_hair_iterators.h
+	BKE_hair_runtime.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
