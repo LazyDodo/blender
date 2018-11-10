@@ -32,6 +32,7 @@
 #include "DNA_listBase.h"
 #include "DNA_ID.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_customdata_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +55,9 @@ typedef struct HairPattern {
 	struct HairFollicle *follicles;
 	int num_follicles;
 	int pad;
+
+	/* Per follicle custom data */
+	struct CustomData fdata;
 } HairPattern;
 
 typedef struct HairFiberCurve {

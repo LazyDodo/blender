@@ -42,13 +42,13 @@
 #include "BLI_string_utf8.h"
 #include "BLI_string_utils.h"
 
-#include "DNA_hair_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
 #include "BKE_animsys.h"
-#include "DEG_depsgraph_query.h"
+#include "BKE_customdata.h"
 #include "BKE_global.h"
 #include "BKE_hair.h"
 #include "BKE_hair_iterators.h"
@@ -58,6 +58,8 @@
 #include "BKE_mesh_sample.h"
 #include "BKE_object.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "BLT_translation.h"
 
 void BKE_hair_init(HairSystem *hsys)
@@ -66,7 +68,7 @@ void BKE_hair_init(HairSystem *hsys)
 
 	hsys->bb = BKE_boundbox_alloc_unit();
 
-	hsys->pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
+	hsys->pattern = BKE_hair_pattern_new();
 	hsys->draw_settings = BKE_hair_draw_settings_new();
 }
 
@@ -79,19 +81,31 @@ void *BKE_hair_add(Main *bmain, const char *name)
 	return hsys;
 }
 
+HairPattern *BKE_hair_pattern_new(void)
+{
+	HairPattern *pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
+	CustomData_reset(&pattern->fdata);
+	return pattern;
+}
+
 void BKE_hair_pattern_free(HairPattern *pattern)
 {
 	if (pattern) {
 		MEM_SAFE_FREE(pattern->follicles);
+		CustomData_free(&pattern->fdata, pattern->num_follicles);
 		MEM_freeN(pattern);
 	}
 }
 
-HairPattern *BKE_hair_pattern_copy(const HairPattern *src_pattern)
+HairPattern *BKE_hair_pattern_copy(const HairPattern *src_pattern, int flag)
 {
 	HairPattern *dst_pattern = MEM_dupallocN(src_pattern);
 	if (src_pattern) {
 		dst_pattern->follicles = MEM_dupallocN(src_pattern->follicles);
+
+		CustomDataMask mask = CD_MASK_EVERYTHING;
+		const eCDAllocType alloc_type = (flag & LIB_ID_COPY_CD_REFERENCE) ? CD_REFERENCE : CD_DUPLICATE;
+		CustomData_copy(&src_pattern->fdata, &dst_pattern->fdata, mask, alloc_type, dst_pattern->num_follicles);
 	}
 	return dst_pattern;
 }
@@ -151,13 +165,13 @@ void BKE_hair_free(HairSystem *hsys)
  *
  * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
-void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSystem *hsys_src, const int UNUSED(flag))
+void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSystem *hsys_src, const int flag)
 {
 	hsys_dst->bb = MEM_dupallocN(hsys_src->bb);
 
 	hsys_dst->edithair = NULL;
 
-	hsys_dst->pattern = BKE_hair_pattern_copy(hsys_src->pattern);
+	hsys_dst->pattern = BKE_hair_pattern_copy(hsys_src->pattern, flag);
 	BKE_hair_curve_data_copy(&hsys_dst->curve_data, &hsys_src->curve_data);
 
 	hsys_dst->mat = MEM_dupallocN(hsys_src->mat);

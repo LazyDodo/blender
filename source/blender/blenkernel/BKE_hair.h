@@ -64,8 +64,9 @@ bool BKE_hair_minmax(struct HairSystem *hsys, float min[3], float max[3]);
 void BKE_hair_boundbox_calc(struct HairSystem *hsys);
 struct BoundBox *BKE_hair_boundbox_get(struct Object *ob);
 
+struct HairPattern *BKE_hair_pattern_new(void);
 void BKE_hair_pattern_free(struct HairPattern *pattern);
-struct HairPattern *BKE_hair_pattern_copy(const struct HairPattern *src_pattern);
+struct HairPattern *BKE_hair_pattern_copy(const struct HairPattern *src_pattern, int flag);
 
 /* Does not free the data pointer itself! */
 void BKE_hair_curve_data_free(struct HairCurveData *data);

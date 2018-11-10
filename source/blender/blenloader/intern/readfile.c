@@ -8418,6 +8418,7 @@ static void direct_link_hair(FileData *fd, HairSystem* hsys)
 	if ( hsys->pattern )
 	{
 		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
+		direct_link_customdata(fd, &hsys->pattern->fdata, hsys->pattern->num_follicles);
 	}
 
 	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);

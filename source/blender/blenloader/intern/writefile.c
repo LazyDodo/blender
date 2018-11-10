@@ -1618,31 +1618,6 @@ static void write_fmaps(WriteData *wd, ListBase *fbase)
 	}
 }
 
-static void write_hair(WriteData *wd, HairSystem *hsys)
-{
-	writestruct(wd, ID_HA, HairSystem, 1, hsys);
-	write_iddata(wd, &hsys->id);
-	if (hsys->adt) {
-		write_animdata(wd, hsys->adt);
-	}
-
-	if ( hsys->pattern )
-	{
-		writestruct(wd, DATA, HairPattern, 1, hsys->pattern);
-		writestruct(wd, DATA, HairFollicle, hsys->pattern->num_follicles, hsys->pattern->follicles);
-	}
-	
-	writestruct(wd, DATA, HairFiberCurve, hsys->curve_data.totcurves, hsys->curve_data.curves);
-	writestruct(wd, DATA, HairFiberVertex, hsys->curve_data.totverts, hsys->curve_data.verts);
-
-	if (hsys->draw_settings)
-	{
-		writestruct(wd, DATA, HairDrawSettings, 1, hsys->draw_settings);
-	}
-
-	writedata(wd, DATA, sizeof(void *) * hsys->totcol, hsys->mat);
-}
-
 static void write_modifiers(WriteData *wd, ListBase *modbase)
 {
 	ModifierData *md;
@@ -2239,6 +2214,48 @@ static void write_mesh(WriteData *wd, Mesh *mesh)
 	if (players && players != players_buff) {
 		MEM_freeN(players);
 	}
+}
+
+static void write_hair(WriteData *wd, HairSystem *hsys)
+{
+	writestruct(wd, ID_HA, HairSystem, 1, hsys);
+	write_iddata(wd, &hsys->id);
+	if (hsys->adt) {
+		write_animdata(wd, hsys->adt);
+	}
+
+	if ( hsys->pattern )
+	{
+		CustomDataLayer *flayers = NULL, flayers_buff[CD_TEMP_CHUNK_SIZE];
+
+		/* write a copy of the hair pattern, don't modify in place because it is
+		 * not thread safe for threaded renders that are reading this */
+		HairPattern cpattern = *hsys->pattern;
+
+		/**
+		 * Those calls:
+		 *   - Reduce pattern->xdata.totlayer to number of layers to write.
+		 *   - Fill xlayers with those layers to be written.
+		 * Note that pattern->xdata is from now on invalid for Blender, but this is why the whole mesh is
+		 * a temp local copy!
+		 */
+		CustomData_file_write_prepare(&cpattern.fdata, &flayers, flayers_buff, ARRAY_SIZE(flayers_buff));
+
+		writestruct_at_address(wd, DATA, HairPattern, 1, hsys->pattern, &cpattern);
+		writestruct(wd, DATA, HairFollicle, cpattern.num_follicles, cpattern.follicles);
+
+		write_customdata(wd, &hsys->id, cpattern.num_follicles, &cpattern.fdata, flayers, -1, 0);
+	}
+
+	writestruct(wd, DATA, HairFiberCurve, hsys->curve_data.totcurves, hsys->curve_data.curves);
+	writestruct(wd, DATA, HairFiberVertex, hsys->curve_data.totverts, hsys->curve_data.verts);
+
+	if (hsys->draw_settings)
+	{
+		writestruct(wd, DATA, HairDrawSettings, 1, hsys->draw_settings);
+	}
+
+	writedata(wd, DATA, sizeof(void *) * hsys->totcol, hsys->mat);
 }
 
 static void write_lattice(WriteData *wd, Lattice *lt)
