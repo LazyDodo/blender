@@ -47,6 +47,7 @@ struct Mesh;
 struct MeshSample;
 struct MLoop;
 struct Object;
+struct Scene;
 
 /* === HairSystem Datablock === */
 
@@ -166,6 +167,8 @@ void BKE_hair_draw_settings_free(struct HairDrawSettings *draw_settings);
 /* === Depsgraph evaluation === */
 
 void BKE_hair_eval_geometry(const struct Depsgraph *depsgraph, struct HairSystem *hsys);
+
+void BKE_hair_modifiers_calc(const struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob);
 
 
 /* === Export === */

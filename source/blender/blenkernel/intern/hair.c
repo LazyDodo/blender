@@ -46,6 +46,7 @@
 #include "DNA_hair_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
+#include "DNA_scene_types.h"
 
 #include "BKE_animsys.h"
 #include "BKE_customdata.h"
@@ -466,15 +467,13 @@ void BKE_hair_set_fiber_curves(HairSystem *hsys, HairCurveData *curves)
 
 void BKE_hair_clear_fiber_curves(HairSystem *hsys)
 {
-	if (hsys->curve_data.curves)
-	{
+	if (hsys->curve_data.curves) {
 		MEM_freeN(hsys->curve_data.curves);
 		hsys->curve_data.curves = NULL;
 	}
 	hsys->curve_data.totcurves = 0;
 
-	if (hsys->curve_data.verts)
-	{
+	if (hsys->curve_data.verts) {
 		MEM_freeN(hsys->curve_data.verts);
 		hsys->curve_data.verts = NULL;
 	}
@@ -491,10 +490,74 @@ void BKE_hair_eval_geometry(const Depsgraph *depsgraph, HairSystem *hsys)
 		printf("%s on %s\n", __func__, hsys->id.name);
 	}
 
-	// TODO
-
 	if (hsys->bb == NULL || (hsys->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_hair_boundbox_calc(hsys);
+	}
+}
+
+void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairPattern *pattern)
+{
+	const int num_follicles = pattern->num_follicles;
+	float (*orco)[3] = NULL;
+	float (*normals)[3] = NULL;
+	float (*tangents)[3] = NULL;
+	CustomData *fdata = &pattern->fdata;
+	
+	if (CustomData_has_layer(fdata, CD_ORCO)) {
+		orco = CustomData_get_layer(fdata, CD_ORCO);
+	}
+	else {
+		orco = CustomData_add_layer(fdata, CD_ORCO, CD_CALLOC, NULL, num_follicles);
+	}
+
+	if (CustomData_has_layer(fdata, CD_NORMAL)) {
+		normals = CustomData_get_layer(fdata, CD_NORMAL);
+	}
+	else {
+		normals = CustomData_add_layer(fdata, CD_NORMAL, CD_CALLOC, NULL, num_follicles);
+	}
+	
+	if (CustomData_has_layer(fdata, CD_TANGENT)) {
+		tangents = CustomData_get_layer(fdata, CD_TANGENT);
+	}
+	else {
+		tangents = CustomData_add_layer(fdata, CD_TANGENT, CD_CALLOC, NULL, num_follicles);
+	}
+
+	float (*co)[3] = orco;
+	float (*nor)[3] = normals;
+	float (*tang)[3] = tangents;
+	HairFollicle *follicle = pattern->follicles;
+	for (int i = 0; i < num_follicles; ++i) {
+		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, co, nor, tang);
+
+		++co;
+		++nor;
+		++tang;
+		++follicle;
+	}
+}
+
+static void hair_build_data(const Mesh *scalp, HairPattern *pattern, HairCurveData *curve_data, CustomDataMask datamask)
+{
+	if (datamask & (CD_MASK_ORCO | CD_MASK_NORMAL | CD_MASK_TANGENT)) {
+		BKE_hair_ensure_follicle_space(scalp, pattern);
+	}
+}
+
+void BKE_hair_modifiers_calc(const Depsgraph *depsgraph, Scene *scene, Object *ob)
+{
+	HairSystem *hsys = ob->data;
+	const Mesh *scalp = BKE_hair_get_scalp(depsgraph, ob, hsys);
+	EditHair *edit = hsys->edithair;
+
+	CustomDataMask datamask = CD_MASK_ORCO | CD_MASK_NORMAL | CD_MASK_TANGENT;
+
+	if (edit) {
+		hair_build_data(scalp, edit->pattern, &edit->curve_data, datamask);
+	}
+	else {
+		hair_build_data(scalp, hsys->pattern, &hsys->curve_data, datamask);
 	}
 }
 

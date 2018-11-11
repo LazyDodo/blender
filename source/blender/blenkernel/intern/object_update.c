@@ -241,6 +241,10 @@ void BKE_object_handle_data_update(
 			BKE_lattice_modifiers_calc(depsgraph, scene, ob);
 			break;
 
+		case OB_HAIR:
+			BKE_hair_modifiers_calc(depsgraph, scene, ob);
+			break;
+
 		case OB_EMPTY:
 			if (ob->empty_drawtype == OB_EMPTY_IMAGE && ob->data)
 				if (BKE_image_is_animated(ob->data))
