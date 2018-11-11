@@ -733,8 +733,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 			int i;
 			BKE_HAIR_ITER_FOLLICLES_INDEX(follicle, &iter, hsys->pattern, i) {
 				/* Cache fiber root position */
-				float nor[3], tang[3];
-				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->follicle_root_position[i], nor, tang);
+				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->follicle_root_position[i], NULL, NULL);
 			}
 		}
 	}

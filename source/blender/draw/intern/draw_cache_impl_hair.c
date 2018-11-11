@@ -775,8 +775,8 @@ static void hair_batch_cache_ensure_edit_follicle_pos(
 	HairIterator iter;
 	int point_index;
 	BKE_HAIR_ITER_FOLLICLES_INDEX(follicle, &iter, pattern, point_index) {
-		float loc[3], nor[3], tang[3];
-		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, nor, tang);
+		float loc[3];
+		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, loc, NULL, NULL);
 
 		GPU_vertbuf_attr_set(cache->edit_follicle_pos, pos_id, point_index, loc);
 

@@ -197,11 +197,17 @@ bool BKE_mesh_sample_is_volume_sample(const MeshSample *sample)
 
 /* Evaluate position and normal on the given mesh */
 
-bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[3], float nor[3], float tang[3])
+bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float r_loc[3], float r_nor[3], float r_tang[3])
 {
-	zero_v3(loc);
-	zero_v3(nor);
-	zero_v3(tang);
+	if (r_loc) {
+		zero_v3(r_loc);
+	}
+	if (r_nor) {
+		zero_v3(r_nor);
+	}
+	if (r_tang) {
+		zero_v3(r_tang);
+	}
 	
 	if (BKE_mesh_sample_is_volume_sample(sample)) {
 		/* VOLUME SAMPLE */
@@ -209,7 +215,9 @@ bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[
 		if (is_zero_v3(sample->orig_weights))
 			return false;
 		
-		copy_v3_v3(loc, sample->orig_weights);
+		if (r_loc) {
+			copy_v3_v3(r_loc, sample->orig_weights);
+		}
 		return true;
 	}
 	else {
@@ -228,38 +236,47 @@ bool BKE_mesh_sample_eval(const Mesh *mesh, const MeshSample *sample, float loc[
 		v2 = &mverts[sample->orig_verts[1]];
 		v3 = &mverts[sample->orig_verts[2]];
 		
-		{ /* location */
-			madd_v3_v3fl(loc, v1->co, sample->orig_weights[0]);
-			madd_v3_v3fl(loc, v2->co, sample->orig_weights[1]);
-			madd_v3_v3fl(loc, v3->co, sample->orig_weights[2]);
+		/* location */
+		if (r_loc) {
+			madd_v3_v3fl(r_loc, v1->co, sample->orig_weights[0]);
+			madd_v3_v3fl(r_loc, v2->co, sample->orig_weights[1]);
+			madd_v3_v3fl(r_loc, v3->co, sample->orig_weights[2]);
 		}
 		
-		{ /* normal */
-			float vnor[3];
-			
-			normal_short_to_float_v3(vnor, v1->no);
-			madd_v3_v3fl(nor, vnor, sample->orig_weights[0]);
-			normal_short_to_float_v3(vnor, v2->no);
-			madd_v3_v3fl(nor, vnor, sample->orig_weights[1]);
-			normal_short_to_float_v3(vnor, v3->no);
-			madd_v3_v3fl(nor, vnor, sample->orig_weights[2]);
-			
-			normalize_v3(nor);
-		}
-		
-		{ /* tangent */
-			float edge[3];
-			
-			/* XXX simply using the v1-v2 edge as a tangent vector for now ...
-			 * Eventually mikktspace generated tangents (CD_TANGENT tessface layer)
-			 * should be used for consistency, but requires well-defined tessface
-			 * indices for the mesh surface samples.
-			 */
-			
-			sub_v3_v3v3(edge, v2->co, v1->co);
-			/* make edge orthogonal to nor */
-			madd_v3_v3fl(edge, nor, -dot_v3v3(edge, nor));
-			normalize_v3_v3(tang, edge);
+		if (r_nor || r_tang) {
+			/* normal */
+			float nor[3] = {0.0f, 0.0f, 0.0f};
+			{
+				float vnor[3];
+				
+				normal_short_to_float_v3(vnor, v1->no);
+				madd_v3_v3fl(nor, vnor, sample->orig_weights[0]);
+				normal_short_to_float_v3(vnor, v2->no);
+				madd_v3_v3fl(nor, vnor, sample->orig_weights[1]);
+				normal_short_to_float_v3(vnor, v3->no);
+				madd_v3_v3fl(nor, vnor, sample->orig_weights[2]);
+				
+				normalize_v3(nor);
+			}
+			if (r_nor) {
+				copy_v3_v3(r_nor, nor);
+			}
+
+			/* tangent */
+			if (r_tang) {
+				float edge[3];
+				
+				/* XXX simply using the v1-v2 edge as a tangent vector for now ...
+				* Eventually mikktspace generated tangents (CD_TANGENT tessface layer)
+				* should be used for consistency, but requires well-defined tessface
+				* indices for the mesh surface samples.
+				*/
+				
+				sub_v3_v3v3(edge, v2->co, v1->co);
+				/* make edge orthogonal to nor */
+				madd_v3_v3fl(edge, nor, -dot_v3v3(edge, nor));
+				normalize_v3_v3(r_tang, edge);
+			}
 		}
 		
 		return true;
@@ -914,8 +931,7 @@ static void generator_poissondisk_uniform_sample_eval(
 	const MeshSample *sample = &samples[iter];
 	
 	memcpy(&isample->base, sample, sizeof(MeshSample));
-	float nor[3], tang[3];
-	BKE_mesh_sample_eval(mesh, sample, isample->co, nor, tang);
+	BKE_mesh_sample_eval(mesh, sample, isample->co, NULL, NULL);
 	
 	poissondisk_grid_from_loc(gen, isample->cell_index, isample->co);
 }
@@ -1717,9 +1733,9 @@ bool BKE_mesh_sample_from_particle(MeshSample *sample, ParticleSystem *psys, Mes
 bool BKE_mesh_sample_to_particle(MeshSample *sample, ParticleSystem *UNUSED(psys), Mesh *mesh, BVHTreeFromMesh *bvhtree, ParticleData *pa)
 {
 	BVHTreeNearest nearest;
-	float vec[3], nor[3], tang[3];
+	float vec[3];
 	
-	BKE_mesh_sample_eval(mesh, sample, vec, nor, tang);
+	BKE_mesh_sample_eval(mesh, sample, vec, NULL, NULL);
 	
 	nearest.index = -1;
 	nearest.dist_sq = FLT_MAX;
