@@ -157,21 +157,33 @@ void DRW_hair_batch_cache_free(HairSystem *hsys)
 }
 
 static void hair_batch_cache_ensure_count(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         ParticleHairCache *cache)
 {
-    cache->strands_len = hair_export->totfollicles;
-    cache->elems_len = hair_export->totverts - hair_export->totcurves;
-    cache->point_len = hair_export->totverts;
+	cache->strands_len = pattern->num_follicles;
+	cache->elems_len = 0;
+	cache->point_len = 0;
+
+	HairIterator iter;
+	HairFollicle *follicle;
+	HairFiberCurve *curve;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, pattern, curve_data) {
+		cache->elems_len += curve->numverts - 1;
+		cache->point_len += curve->numverts;
+	}
 }
 
 static void hair_batch_cache_fill_segments_proc_pos(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         GPUVertBufRaw *attr_step)
 {
-	for (int i = 0; i < hair_export->totcurves; i++) {
-		const HairFiberCurve *curve = &hair_export->fiber_curves[i];
-		const HairFiberVertex *verts = &hair_export->fiber_verts[curve->vertstart];
+	HairIterator iter;
+	HairFollicle *follicle;
+	HairFiberCurve *curve;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, pattern, curve_data) {
+		const HairFiberVertex *verts = &curve_data->verts[curve->vertstart];
 		if (curve->numverts < 2) {
 			continue;
 		}
@@ -200,7 +212,8 @@ static void hair_batch_cache_fill_segments_proc_pos(
 }
 
 static void hair_batch_cache_ensure_procedural_pos(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         ParticleHairCache *cache)
 {
 	if (cache->proc_point_buf != NULL) {
@@ -217,7 +230,7 @@ static void hair_batch_cache_ensure_procedural_pos(
 	GPUVertBufRaw pos_step;
 	GPU_vertbuf_attr_get_raw_data(cache->proc_point_buf, pos_id, &pos_step);
 
-	hair_batch_cache_fill_segments_proc_pos(hair_export, &pos_step);
+	hair_batch_cache_fill_segments_proc_pos(pattern, curve_data, &pos_step);
 
 	/* Create vbo immediatly to bind to texture buffer. */
 	GPU_vertbuf_use(cache->proc_point_buf);
@@ -234,14 +247,17 @@ static void hair_pack_mcol(MLoopCol *mcol, ushort r_scol[4])
 }
 
 static int hair_batch_cache_fill_strands_data(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         GPUVertBufRaw *data_step,
         GPUVertBufRaw *uv_step, int num_uv_layers,
         GPUVertBufRaw *col_step, int num_col_layers)
 {
 	int curr_point = 0;
-	for (int i = 0; i < hair_export->totcurves; i++) {
-		const HairFiberCurve *curve = &hair_export->fiber_curves[i];
+	HairIterator iter;
+	HairFollicle *follicle;
+	HairFiberCurve *curve;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, pattern, curve_data) {
 		if (curve->numverts < 2) {
 			continue;
 		}
@@ -305,7 +321,8 @@ static int hair_batch_cache_fill_strands_data(
 }
 
 static void hair_batch_cache_ensure_procedural_strand_data(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         ParticleHairCache *cache)
 {
 	int active_uv = 0;
@@ -404,7 +421,8 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 #endif
 
 	hair_batch_cache_fill_strands_data(
-	            hair_export,
+	            pattern,
+	            curve_data,
 	            &data_step,
 	            uv_step, cache->num_uv_layers,
 	            col_step, cache->num_col_layers);
@@ -424,17 +442,24 @@ static void hair_batch_cache_ensure_procedural_strand_data(
 }
 
 static void hair_batch_cache_ensure_final_count(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         ParticleHairFinalCache *cache,
         int subdiv,
         int thickness_res)
 {
-	const int totverts = hair_export->totverts;
-	const int totcurves = hair_export->totcurves;
-	cache->strands_len = hair_export->totfollicles;
-	/* +1 for primitive restart */
-	cache->elems_len = (((totverts - totcurves) << subdiv) + totcurves) * thickness_res;
-	cache->point_len = ((totverts - totcurves) << subdiv) + totcurves;
+	cache->strands_len = pattern->num_follicles;
+	cache->elems_len = 0;
+	cache->point_len = 0;
+
+	HairIterator iter;
+	HairFollicle *follicle;
+	HairFiberCurve *curve;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, pattern, curve_data) {
+		/* +1 for primitive restart */
+		cache->elems_len += ((curve->numverts - 1) << subdiv + 1) * thickness_res;
+		cache->point_len += (curve->numverts - 1) << subdiv + 1;
+	}
 }
 
 static void hair_batch_cache_ensure_procedural_final_points(
@@ -458,14 +483,17 @@ static void hair_batch_cache_ensure_procedural_final_points(
 }
 
 static int hair_batch_cache_fill_segments_indices(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         const int subdiv,
         const int thickness_res,
         GPUIndexBufBuilder *elb)
 {
 	int curr_point = 0;
-	for (int i = 0; i < hair_export->totcurves; i++) {
-		const HairFiberCurve *curve = &hair_export->fiber_curves[i];
+	HairIterator iter;
+	HairFollicle *follicle;
+	HairFiberCurve *curve;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, pattern, curve_data) {
 		if (curve->numverts < 2) {
 			continue;
 		}
@@ -480,7 +508,8 @@ static int hair_batch_cache_fill_segments_indices(
 }
 
 static void hair_batch_cache_ensure_procedural_indices(
-        const HairExportCache *hair_export,
+        const HairPattern *pattern,
+        const HairCurveData *curve_data,
         ParticleHairCache *cache,
         int thickness_res,
         int subdiv)
@@ -506,7 +535,7 @@ static void hair_batch_cache_ensure_procedural_indices(
 	GPUIndexBufBuilder elb;
 	GPU_indexbuf_init_ex(&elb, prim_type, element_count, element_count, true);
 
-	hair_batch_cache_fill_segments_indices(hair_export, subdiv, thickness_res, &elb);
+	hair_batch_cache_fill_segments_indices(pattern, curve_data, subdiv, thickness_res, &elb);
 
 	cache->final[subdiv].proc_hairs[thickness_res - 1] = GPU_batch_create_ex(
 	        prim_type,
@@ -527,37 +556,43 @@ bool hair_ensure_procedural_data(
 	struct Mesh *scalp = BKE_hair_get_scalp(draw_ctx->depsgraph, object, hsys);
 	bool need_ft_update = false;
 
-	HairExportCache *hair_export = BKE_hair_export_cache_new();
-	BKE_hair_export_cache_update(hair_export, hsys, subdiv, scalp, HAIR_EXPORT_ALL);
+	HairPattern *pattern;
+	HairCurveData *curve_data;
+	if (hsys->edithair) {
+		pattern = hsys->edithair->pattern;
+		curve_data = &hsys->edithair->curve_data;
+	}
+	else {
+		pattern = hsys->pattern;
+		curve_data = &hsys->curve_data;
+	}
 
 	HairBatchCache *cache = hair_batch_cache_get(hsys);
 	*r_hair_cache = &cache->hair;
 
 	/* Refreshed on combing and simulation. */
 	if (cache->hair.proc_point_buf == NULL) {
-		hair_batch_cache_ensure_count(hair_export, &cache->hair);
+		hair_batch_cache_ensure_count(pattern, curve_data, &cache->hair);
 		
-		hair_batch_cache_ensure_procedural_pos(hair_export, &cache->hair);
+		hair_batch_cache_ensure_procedural_pos(pattern, curve_data, &cache->hair);
 		need_ft_update = true;
 	}
 
 	/* Refreshed if active layer or custom data changes. */
 	if (cache->hair.strand_tex == NULL) {
-		hair_batch_cache_ensure_procedural_strand_data(hair_export, &cache->hair);
+		hair_batch_cache_ensure_procedural_strand_data(pattern, curve_data, &cache->hair);
 	}
 
 	/* Refreshed only on subdiv count change. */
 	if (cache->hair.final[subdiv].proc_point_buf == NULL) {
-		hair_batch_cache_ensure_final_count(hair_export, &cache->hair.final[subdiv], subdiv, thickness_res);
+		hair_batch_cache_ensure_final_count(pattern, curve_data, &cache->hair.final[subdiv], subdiv, thickness_res);
 		
 		hair_batch_cache_ensure_procedural_final_points(&cache->hair, subdiv);
 		need_ft_update = true;
 	}
 	if (cache->hair.final[subdiv].proc_hairs[thickness_res - 1] == NULL) {
-		hair_batch_cache_ensure_procedural_indices(hair_export, &cache->hair, thickness_res, subdiv);
+		hair_batch_cache_ensure_procedural_indices(pattern, curve_data, &cache->hair, thickness_res, subdiv);
 	}
-
-	BKE_hair_export_cache_free(hair_export);
 
 	return need_ft_update;
 }
