@@ -95,14 +95,14 @@ class SceneExporter: COLLADASW::LibraryVisualScenes, protected TransformWriter, 
 {
 public:
 	SceneExporter(bContext *C, COLLADASW::StreamWriter *sw, ArmatureExporter *arm, const ExportSettings *export_settings);
-	void exportScene(bContext *C, Depsgraph *depsgraph, Scene *sce);
+	void exportScene(bContext *C, Depsgraph *depsgraph);
 	bContext *mContext;
 
 private:
 	friend class ArmatureExporter;
-	void exportHierarchy(bContext *C, Depsgraph *depsgraph, Scene *sce);
-	void writeNodeList(bContext *C, Depsgraph *depsgraph, std::vector<Object *> &child_objects, Object *parent, Scene *sce);
-	void writeNodes(bContext *C, Depsgraph *depsgraph, Object *ob, Scene *sce);
+	void exportHierarchy(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer);
+	void writeNodeList(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer, std::vector<Object *> &child_objects, Object *parent);
+	void writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer, Object *ob);
 
 	ArmatureExporter *arm_exporter;
 	const ExportSettings *export_settings;

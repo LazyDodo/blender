@@ -65,6 +65,8 @@ extern "C" {
 #include "BKE_node.h"
 }
 
+#include "DEG_depsgraph_query.h"
+
 #include "ImportSettings.h"
 #include "ExportSettings.h"
 #include "collada_internal.h"
@@ -72,6 +74,8 @@ extern "C" {
 
 struct Depsgraph;
 
+typedef std::map<COLLADAFW::UniqueId, Image*> UidImageMap;
+typedef std::map<std::string, Image*> KeyImageMap;
 typedef std::map<COLLADAFW::TextureMapId, std::vector<MTex *> > TexIndexTextureArrayMap;
 typedef std::set<Object *> BCObjectSet;
 
@@ -129,7 +133,7 @@ std::string bc_get_action_id(std::string action_name, std::string ob_name, std::
 extern float bc_get_float_value(const COLLADAFW::FloatOrDoubleArray& array, unsigned int index);
 extern int bc_test_parent_loop(Object *par, Object *ob);
 
-extern void bc_get_children(std::vector<Object *> &child_set, Object *ob, Scene *scene);
+extern void bc_get_children(std::vector<Object *> &child_set, Object *ob, ViewLayer *view_layer);
 extern bool bc_validateConstraints(bConstraint *con);
 
 extern int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space = true);
@@ -140,7 +144,7 @@ extern Mesh *bc_get_mesh_copy(
 extern Object *bc_get_assigned_armature(Object *ob);
 extern Object *bc_get_highest_selected_ancestor_or_self(LinkNode *export_set, Object *ob);
 extern bool bc_is_base_node(LinkNode *export_set, Object *ob);
-extern bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, Scene *sce);
+extern bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, ViewLayer *view_layer);
 extern bool bc_has_object_type(LinkNode *export_set, short obtype);
 
 extern int bc_is_marked(Object *ob);

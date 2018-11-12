@@ -768,89 +768,14 @@ bool DocumentImporter::writeMaterial(const COLLADAFW::Material *cmat)
 void DocumentImporter::write_profile_COMMON(COLLADAFW::EffectCommon *ef, Material *ma)
 {
 	MaterialNode matNode = MaterialNode(mContext, ef, ma, uid_image_map);
-
 	matNode.set_reflectivity(ef->getReflectivity().getFloatValue());
 	matNode.set_ior(ef->getIndexOfRefraction().getFloatValue());
-	matNode.set_diffuse(ef->getDiffuse());
-
-	COLLADAFW::Color col;
-
-	// AMBIENT
-	// color
-	if (ef->getAmbient().isColor()) {
-#if 0
-		col = ef->getAmbient().getColor();
-#endif
-	}
-	// texture
-	else if (ef->getAmbient().isTexture()) {
-#if 0
-		COLLADAFW::Texture ctex = ef->getAmbient().getTexture();
-#endif
-	}
-
-	// SPECULAR
-	// color
-	if (ef->getSpecular().isColor()) {
-		col = ef->getSpecular().getColor();
-		ma->specr = col.getRed();
-		ma->specg = col.getGreen();
-		ma->specb = col.getBlue();
-	}
-	// texture
-	else if (ef->getSpecular().isTexture()) {
-#if 0
-		COLLADAFW::Texture ctex = ef->getSpecular().getTexture();
-#endif
-	}
-
-	// REFLECTIVE
-	// color
-	if (ef->getReflective().isColor()) {
-#if 0
-		col = ef->getReflective().getColor();
-#endif
-	}
-	// texture
-	else if (ef->getReflective().isTexture()) {
-#if 0
-		COLLADAFW::Texture ctex = ef->getReflective().getTexture();
-#endif
-	}
-
-	// EMISSION
-	// color
-	if (ef->getEmission().isColor()) {
-		// XXX there is no emission color in blender
-		// but I am not sure
-	}
-	// texture
-	else if (ef->getEmission().isTexture()) {
-#if 0
-		COLLADAFW::Texture ctex = ef->getEmission().getTexture();
-#endif
-	}
-
-	// TRANSPARENT
-	// color
-	if (ef->getOpacity().isColor()) {
-#if 0
-		col = ef->getTransparent().getColor();
-		float alpha = ef->getTransparency().getFloatValue();
-		if (col.isValid()) {
-			alpha *= col.getAlpha(); // Assuming A_ONE opaque mode
-		}
-		if (col.isValid() || alpha < 1.0) {
-			...
-		}
-#endif
-	}
-	// texture
-	else if (ef->getOpacity().isTexture()) {
-#if 0
-		COLLADAFW::Texture ctex = ef->getOpacity().getTexture();
-#endif
-	}
+	matNode.set_diffuse(ef->getDiffuse(), "Diffuse");
+	matNode.set_ambient(ef->getAmbient(), "Ambient");
+	matNode.set_specular(ef->getSpecular(), "Specular");
+	matNode.set_reflective(ef->getReflective(), "Reflective");
+	matNode.set_emission(ef->getEmission(), "Emission");
+	matNode.set_opacity(ef->getOpacity(), "Opacity");
 }
 
 /** When this method is called, the writer must write the effect.

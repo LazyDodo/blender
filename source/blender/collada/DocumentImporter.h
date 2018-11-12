@@ -155,7 +155,7 @@ private:
 	/** Tags map of unique id as a string and ExtraTags instance. */
 	TagsMap uid_tags_map;
 
-	std::map<COLLADAFW::UniqueId, Image*> uid_image_map;
+	UidImageMap uid_image_map;
 	std::map<COLLADAFW::UniqueId, Material*> uid_material_map;
 	std::map<COLLADAFW::UniqueId, Material*> uid_effect_map;
 	std::map<COLLADAFW::UniqueId, Camera*> uid_camera_map;

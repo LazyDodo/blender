@@ -52,10 +52,11 @@ int collada_import(bContext *C, ImportSettings *import_settings)
 }
 
 int collada_export(bContext *C,
-                   Depsgraph *depsgraph,
-                   Scene *sce,
                    ExportSettings *export_settings)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	Scene *scene = CTX_data_scene(C);
+
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 
 	int includeFilter = OB_REL_NONE;
@@ -84,7 +85,7 @@ int collada_export(bContext *C,
 	}
 
 	DocumentExporter exporter(depsgraph, export_settings);
-	int status = exporter.exportCurrentScene(C, sce);
+	int status = exporter.exportCurrentScene(C, scene);
 
 	BLI_linklist_free(export_settings->export_set, NULL);
 

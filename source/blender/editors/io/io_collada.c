@@ -180,7 +180,7 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 	/* get editmode results */
 	ED_object_editmode_load(bmain, CTX_data_edit_object(C));
 
-	Scene *scene = CTX_data_scene(C);
+	//Scene *scene = CTX_data_scene(C);
 
 	ExportSettings export_settings;
 
@@ -233,8 +233,6 @@ static int wm_collada_export_exec(bContext *C, wmOperator *op)
 
 	export_count = collada_export(
 	                   C,
-	                   CTX_data_depsgraph(C),
-	                   scene,
 	                   &export_settings
 	);
 

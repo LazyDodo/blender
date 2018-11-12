@@ -40,17 +40,18 @@ SceneExporter::SceneExporter(bContext *C, COLLADASW::StreamWriter *sw, ArmatureE
 {
 }
 
-void SceneExporter::exportScene(bContext *C, Depsgraph *depsgraph, Scene *sce)
+void SceneExporter::exportScene(bContext *C, Depsgraph *depsgraph)
 {
+	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	// <library_visual_scenes> <visual_scene>
-	std::string id_naming = id_name(sce);
+	std::string id_naming = id_name(view_layer);
 	openVisualScene(translate_id(id_naming), id_naming);
-	exportHierarchy(C, depsgraph, sce);
+	exportHierarchy(C, depsgraph, view_layer);
 	closeVisualScene();
 	closeLibrary();
 }
 
-void SceneExporter::exportHierarchy(bContext *C, Depsgraph *depsgraph, Scene *sce)
+void SceneExporter::exportHierarchy(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer)
 {
 	LinkNode *node;
 	std::vector<Object *> base_objects;
@@ -83,12 +84,12 @@ void SceneExporter::exportHierarchy(bContext *C, Depsgraph *depsgraph, Scene *sc
 		Object *ob = base_objects[index];
 		if (bc_is_marked(ob)) {
 			bc_remove_mark(ob);
-			writeNodes(C, depsgraph, ob, sce);
+			writeNodes(C, depsgraph, view_layer, ob);
 		}
 	}
 }
 
-void SceneExporter::writeNodeList(bContext *C, Depsgraph *depsgraph, std::vector<Object *> &child_objects, Object *parent, Scene *sce)
+void SceneExporter::writeNodeList(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer, std::vector<Object *> &child_objects, Object *parent)
 {
 	/* TODO: Handle the case where a parent is not exported
 	   Actually i am not even sure if this can be done at all
@@ -101,26 +102,26 @@ void SceneExporter::writeNodeList(bContext *C, Depsgraph *depsgraph, std::vector
 		Object *child = child_objects[i];
 		if (bc_is_marked(child)) {
 			bc_remove_mark(child);
-			writeNodes(C, depsgraph, child, sce);
+			writeNodes(C, depsgraph, view_layer, child);
 		}
 	}
 }
 
-void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, Object *ob, Scene *sce)
+void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer, Object *ob)
 {
 	std::vector<Object *> child_objects;
-	bc_get_children(child_objects, ob, sce);
-	bool can_export = bc_is_in_Export_set(this->export_settings->export_set, ob, sce);
+	bc_get_children(child_objects, ob, view_layer);
+	bool can_export = bc_is_in_Export_set(this->export_settings->export_set, ob, view_layer);
 
 	// Add associated armature first if available
 	bool armature_exported = false;
 	Object *ob_arm = bc_get_assigned_armature(ob);
 
 	if (ob_arm != NULL) {
-		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm, sce);
+		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm, view_layer);
 		if (armature_exported && bc_is_marked(ob_arm)) {
 			bc_remove_mark(ob_arm);
-			writeNodes(C, depsgraph, ob_arm, sce);
+			writeNodes(C, depsgraph, view_layer, ob_arm);
 			armature_exported = true;
 		}
 	}
@@ -160,7 +161,8 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, Object *ob, Sc
 
 		// <instance_controller>
 		else if (ob->type == OB_ARMATURE) {
-			arm_exporter->add_armature_bones(C, depsgraph, ob, sce, this, child_objects);
+			arm_exporter->add_armature_bones(ob, view_layer, this, child_objects);
+			writeNodeList(C, depsgraph, view_layer, child_objects, ob);
 		}
 
 		// <instance_camera>
@@ -230,11 +232,11 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, Object *ob, Sc
 					con = con->next;
 				}
 			}
-			writeNodeList(C, depsgraph, child_objects, ob, sce);
-			colladaNode.end();
+			writeNodeList(C, depsgraph, view_layer, child_objects, ob);
 		}
 		else {
-			writeNodeList(C, depsgraph, child_objects, ob, sce);
+			writeNodeList(C, depsgraph, view_layer, child_objects, ob);
 		}
+		colladaNode.end();
 	}
 }

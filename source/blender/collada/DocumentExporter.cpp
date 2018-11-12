@@ -272,13 +272,13 @@ int DocumentExporter::exportCurrentScene(bContext *C, Scene *sce)
 		le.exportLights(sce);
 	}
 
-	// <library_images>
-	ImagesExporter ie(writer, this->export_settings);
-	ie.exportImages(sce);
-
 	// <library_effects>
-	EffectsExporter ee(writer, this->export_settings);
-	ee.exportEffects(sce);
+	EffectsExporter ee(writer, this->export_settings, key_image_map);
+	ee.exportEffects(C, sce);
+
+	// <library_images>
+	ImagesExporter ie(writer, this->export_settings, key_image_map);
+	ie.exportImages(sce);
 
 	// <library_materials>
 	MaterialsExporter me(writer, this->export_settings);
@@ -291,7 +291,7 @@ int DocumentExporter::exportCurrentScene(bContext *C, Scene *sce)
 	}
 
 	// <library_controllers>
-	ArmatureExporter arm_exporter(C, writer, this->export_settings);
+	ArmatureExporter arm_exporter(C, depsgraph, writer, this->export_settings);
 	ControllerExporter controller_exporter(writer, this->export_settings);
 	if (bc_has_object_type(export_set, OB_ARMATURE) || this->export_settings->include_shapekeys)
 	{
@@ -307,8 +307,8 @@ int DocumentExporter::exportCurrentScene(bContext *C, Scene *sce)
 		AnimationExporter ae(depsgraph, writer, this->export_settings);
 		ae.exportAnimations(bmain, sce);
 	}
-	se.exportScene(C, depsgraph, sce);
 
+	se.exportScene(C, depsgraph);
 
 	// <scene>
 	std::string scene_name(translate_id(id_name(sce)));

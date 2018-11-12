@@ -22,37 +22,47 @@
 
 #include "Materials.h"
 
-MaterialNode::MaterialNode(bContext *C, COLLADAFW::EffectCommon *ef, Material *ma, Image_map &uid_image_map) :
+MaterialNode::MaterialNode(bContext *C, Material *ma, KeyImageMap &key_image_map) :
+	mContext(C),
+	effect(nullptr),
+	material(ma),
+	key_image_map(&key_image_map)
+{
+	ntree = prepare_material_nodetree();
+	setShaderType();
+}
+
+MaterialNode::MaterialNode(bContext *C, COLLADAFW::EffectCommon *ef, Material *ma, UidImageMap &uid_image_map) :
 	mContext(C),
 	effect(ef),
 	material(ma),
-	uid_image_map(uid_image_map)
+	uid_image_map(&uid_image_map)
 {
 	ntree = prepare_material_nodetree();
 	setShaderType();
 
 	std::map<std::string, bNode *> nmap;
 #if 0
-	nmap["main"] = bc_add_node(C, ntree, SH_NODE_BSDF_PRINCIPLED, -300, 300);
-	nmap["emission"] = bc_add_node(C, ntree, SH_NODE_EMISSION, -300, 500, "emission");
-	nmap["add"] = bc_add_node(C, ntree, SH_NODE_ADD_SHADER, 100, 400);
-	nmap["transparent"] = bc_add_node(C, ntree, SH_NODE_BSDF_TRANSPARENT, 100, 200);
-	nmap["mix"] = bc_add_node(C, ntree, SH_NODE_MIX_SHADER, 400, 300, "transparency");
-	nmap["out"] = bc_add_node(C, ntree, SH_NODE_OUTPUT_MATERIAL, 600, 300);
+	nmap["main"] = add_node(C, ntree, SH_NODE_BSDF_PRINCIPLED, -300, 300);
+	nmap["emission"] = add_node(C, ntree, SH_NODE_EMISSION, -300, 500, "emission");
+	nmap["add"] = add_node(C, ntree, SH_NODE_ADD_SHADER, 100, 400);
+	nmap["transparent"] = add_node(C, ntree, SH_NODE_BSDF_TRANSPARENT, 100, 200);
+	nmap["mix"] = add_node(C, ntree, SH_NODE_MIX_SHADER, 400, 300, "transparency");
+	nmap["out"] = add_node(C, ntree, SH_NODE_OUTPUT_MATERIAL, 600, 300);
 	nmap["out"]->flag &= ~NODE_SELECT;
 
-	bc_node_add_link(ntree, nmap["emission"], 0, nmap["add"], 0);
-	bc_node_add_link(ntree, nmap["main"], 0, nmap["add"], 1);
-	bc_node_add_link(ntree, nmap["add"], 0, nmap["mix"], 1);
-	bc_node_add_link(ntree, nmap["transparent"], 0, nmap["mix"], 2);
+	add_link(ntree, nmap["emission"], 0, nmap["add"], 0);
+	add_link(ntree, nmap["main"], 0, nmap["add"], 1);
+	add_link(ntree, nmap["add"], 0, nmap["mix"], 1);
+	add_link(ntree, nmap["transparent"], 0, nmap["mix"], 2);
 
-	bc_node_add_link(ntree, nmap["mix"], 0, nmap["out"], 0);
+	add_link(ntree, nmap["mix"], 0, nmap["out"], 0);
 	// experimental, probably not used.
-	bc_make_group(C, ntree, nmap);
+	make_group(C, ntree, nmap);
 #else
-	shader_node = bc_add_node(SH_NODE_BSDF_PRINCIPLED, 0, 300, "");
-	output_node = bc_add_node(SH_NODE_OUTPUT_MATERIAL, 300, 300, "");
-	bc_node_add_link(shader_node, 0, output_node, 0);
+	shader_node = add_node(SH_NODE_BSDF_PRINCIPLED, 0, 300, "");
+	output_node = add_node(SH_NODE_OUTPUT_MATERIAL, 300, 300, "");
+	add_link(shader_node, 0, output_node, 0);
 #endif
 }
 
@@ -94,7 +104,7 @@ bNodeTree *MaterialNode::prepare_material_nodetree()
 	return material->nodetree;
 }
 
-bNode *MaterialNode::bc_add_node(int node_type, int locx, int locy, std::string label)
+bNode *MaterialNode::add_node(int node_type, int locx, int locy, std::string label)
 {
 	bNode *node = nodeAddStaticNode(mContext, ntree, node_type);
 	if (node) {
@@ -105,10 +115,11 @@ bNode *MaterialNode::bc_add_node(int node_type, int locx, int locy, std::string 
 		node->locy = locy;
 		node->flag |= NODE_SELECT;
 	}
+	node_map[label] = node;
 	return node;
 }
 
-void MaterialNode::bc_node_add_link(bNode *from_node, int from_index, bNode *to_node, int to_index)
+void MaterialNode::add_link(bNode *from_node, int from_index, bNode *to_node, int to_index)
 {
 	bNodeSocket *from_socket = (bNodeSocket *)BLI_findlink(&from_node->outputs, from_index);
 	bNodeSocket *to_socket = (bNodeSocket *)BLI_findlink(&to_node->inputs, to_index);
@@ -129,8 +140,9 @@ void MaterialNode::set_ior(float val)
 	*(float *)socket->default_value = val;
 }
 
-void MaterialNode::set_diffuse(COLLADAFW::ColorOrTexture &cot)
+void MaterialNode::set_diffuse(COLLADAFW::ColorOrTexture &cot, std::string label)
 {
+	int locy = -300 * (node_map.size()-2);
 	if (cot.isColor()) {
 		COLLADAFW::Color col = cot.getColor();
 		material->r = col.getRed();
@@ -143,25 +155,175 @@ void MaterialNode::set_diffuse(COLLADAFW::ColorOrTexture &cot)
 		fcol[1] = col.getGreen();
 		fcol[2] = col.getBlue();
 	}
+	else if (cot.isTexture()) {
+		bNode *texture_node = add_texture_node(cot, -300, locy, label);
+		if (texture_node != NULL) {
+			add_link(texture_node, 0, shader_node, 0);
+		}
+	}
+}
+
+Image *MaterialNode::get_diffuse_image()
+{
+	bNode *shader = ntreeFindType(ntree, SH_NODE_BSDF_PRINCIPLED);
+	if (shader == nullptr) {
+		return nullptr;
+	}
+
+	bNodeSocket *in_socket = (bNodeSocket *)BLI_findlink(&shader->inputs, BC_PBR_DIFFUSE);
+	if (in_socket == nullptr) {
+		return nullptr;
+	}
+
+	bNodeLink *link = in_socket->link;
+	if (link == nullptr) {
+		return nullptr;
+	}
+
+	bNode *texture = link->fromnode;
+	if (texture == nullptr) {
+		return nullptr;
+	}
+
+	if (texture->type != SH_NODE_TEX_IMAGE) {
+		return nullptr;
+	}
+
+	Image *image = (Image *)texture->id;
+	return image;
+
+}
+
+static bNodeSocket *set_color(bNode *node, COLLADAFW::Color col)
+{
+		bNodeSocket *socket = (bNodeSocket *)BLI_findlink(&node->outputs, 0);
+		float *fcol = (float *)socket->default_value;
+		fcol[0] = col.getRed();
+		fcol[1] = col.getGreen();
+		fcol[2] = col.getBlue();
+
+		return socket;
+}
+
+void MaterialNode::set_ambient(COLLADAFW::ColorOrTexture &cot, std::string label)
+{
+	int locy = -300 * (node_map.size() - 2);
+	if (cot.isColor()) {
+		COLLADAFW::Color col = cot.getColor();
+		bNode *node = add_node(SH_NODE_RGB, -300, locy, label);
+		set_color(node, col);
+		// TODO: Connect node
+	}
 	// texture
 	else if (cot.isTexture()) {
-		COLLADAFW::Texture ctex = cot.getTexture();
+		add_texture_node(cot, -300, locy, label);
+		// TODO: Connect node
+	}
+}
+void MaterialNode::set_reflective(COLLADAFW::ColorOrTexture &cot, std::string label)
+{
+	int locy = -300 * (node_map.size() - 2);
+	if (cot.isColor()) {
+		COLLADAFW::Color col = cot.getColor();
+		bNode *node = add_node(SH_NODE_RGB, -300, locy, label);
+		set_color(node, col);
+		// TODO: Connect node
+	}
+	// texture
+	else if (cot.isTexture()) {
+		add_texture_node(cot, -300, locy, label);
+		// TODO: Connect node
+	}
+}
 
-		COLLADAFW::SamplerPointerArray& samp_array = effect->getSamplerPointerArray();
-		COLLADAFW::Sampler *sampler = samp_array[ctex.getSamplerId()];
+void MaterialNode::set_emission(COLLADAFW::ColorOrTexture &cot, std::string label)
+{
+	int locy = -300 * (node_map.size() - 2);
+	if (cot.isColor()) {
+		COLLADAFW::Color col = cot.getColor();
+		bNode *node = add_node(SH_NODE_RGB, -300, locy, label);
+		set_color(node, col);
+		// TODO: Connect node
+	}
+	// texture
+	else if (cot.isTexture()) {
+		add_texture_node(cot, -300, locy, label);
+		// TODO: Connect node
+	}
+}
 
-		const COLLADAFW::UniqueId& ima_uid = sampler->getSourceImage();
+void MaterialNode::set_opacity(COLLADAFW::ColorOrTexture &cot, std::string label)
+{
+	if (effect == nullptr) {
+		return;
+	}
 
-		if (uid_image_map.find(ima_uid) == uid_image_map.end()) {
-			fprintf(stderr, "Couldn't find an image by UID.\n");
-			return;
+	int locy = -300 * (node_map.size() - 2);
+	if (cot.isColor()) {
+		COLLADAFW::Color col = effect->getTransparent().getColor();
+		float alpha = effect->getTransparency().getFloatValue();
+
+		if (col.isValid()) {
+			alpha *= col.getAlpha(); // Assuming A_ONE opaque mode
+		}
+		if (col.isValid() || alpha < 1.0) {
+			// not sure what to do here
 		}
 
-		Image *ima = uid_image_map[ima_uid];
-		bNode *texture_node = bc_add_node(SH_NODE_TEX_IMAGE, -300, 300, "");
-		texture_node->id = &ima->id;
-		bc_node_add_link(texture_node, 0, shader_node, 0);
-		// add texture node
+		bNode *node = add_node(SH_NODE_RGB, -300, locy, label);
+		set_color(node, col);
+		// TODO: Connect node
 	}
+	// texture
+	else if (cot.isTexture()) {
+		add_texture_node(cot, -300, locy, label);
+		// TODO: Connect node
+	}
+}
+
+void MaterialNode::set_specular(COLLADAFW::ColorOrTexture &cot, std::string label)
+{
+	int locy = -300 * (node_map.size() - 2);
+	if (cot.isColor()) {
+		COLLADAFW::Color col = cot.getColor();
+		material->specr = col.getRed();
+		material->specg = col.getGreen();
+		material->specb = col.getBlue();
+
+		bNode *node = add_node(SH_NODE_RGB, -300, locy, label);
+		set_color(node, col);
+		// TODO: Connect node
+	}
+	// texture
+	else if (cot.isTexture()) {
+		add_texture_node(cot, -300, locy, label);
+		// TODO: Connect node
+	}
+}
+
+bNode *MaterialNode::add_texture_node(COLLADAFW::ColorOrTexture &cot, int locx, int locy, std::string label)
+{
+	if (effect == nullptr) {
+		return nullptr;
+	}
+
+	UidImageMap &image_map = *uid_image_map;
+
+	COLLADAFW::Texture ctex = cot.getTexture();
+
+	COLLADAFW::SamplerPointerArray& samp_array = effect->getSamplerPointerArray();
+	COLLADAFW::Sampler *sampler = samp_array[ctex.getSamplerId()];
+
+	const COLLADAFW::UniqueId& ima_uid = sampler->getSourceImage();
+
+	if (image_map.find(ima_uid) == image_map.end()) {
+		fprintf(stderr, "Couldn't find an image by UID.\n");
+		return NULL;
+	}
+
+	Image *ima = image_map[ima_uid];
+	bNode *texture_node = add_node(SH_NODE_TEX_IMAGE, locx, locy, label);
+	texture_node->id = &ima->id;
+	return texture_node;
 
 }

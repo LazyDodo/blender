@@ -28,6 +28,7 @@
 #define __DOCUMENTEXPORTER_H__
 
 #include "collada.h"
+#include "collada_utils.h"
 
 extern "C" {
 #include "DNA_customdata_types.h"
@@ -45,6 +46,7 @@ class DocumentExporter
 private:
 	Depsgraph *depsgraph;
 	const ExportSettings *export_settings;
+	KeyImageMap key_image_map;
 };
 
 #endif

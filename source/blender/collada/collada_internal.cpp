@@ -30,6 +30,7 @@
 #include "collada_utils.h"
 
 #include "BLI_linklist.h"
+#include "ED_armature.h"
 
 UnitConverter::UnitConverter() : unit(), up_axis(COLLADAFW::FileInfo::Z_UP)
 {
@@ -328,6 +329,10 @@ std::string get_light_id(Object *ob)
 }
 
 std::string get_joint_sid(Bone *bone)
+{
+	return translate_id(bone->name);
+}
+std::string get_joint_sid(EditBone *bone)
 {
 	return translate_id(bone->name);
 }

@@ -107,9 +107,10 @@ int bc_test_parent_loop(Object *par, Object *ob)
 	return bc_test_parent_loop(par->parent, ob);
 }
 
-void bc_get_children(std::vector<Object *> &child_set, Object *ob, Scene *scene)
+void bc_get_children(std::vector<Object *> &child_set, Object *ob, ViewLayer *view_layer)
 {
-	for (Base *base = (Base*)(scene->base.first); base; base = base->next) {
+	Base *base;
+	for (base = (Base *)view_layer->object_bases.first; base; base = base->next) {
 		Object *cob = base->object;
 		if (cob->parent == ob) {
 			switch (ob->type) {
@@ -333,7 +334,7 @@ bool bc_is_base_node(LinkNode *export_set, Object *ob)
 	return (root == ob);
 }
 
-bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, Scene *sce)
+bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, ViewLayer *view_layer)
 {
 	bool to_export = (BLI_linklist_index(export_set, ob) != -1);
 
@@ -343,9 +344,9 @@ bool bc_is_in_Export_set(LinkNode *export_set, Object *ob, Scene *sce)
 		export list, but it contains children to export */
 
 		std::vector<Object *> children;
-		bc_get_children(children, ob, sce);
+		bc_get_children(children, ob, view_layer);
 		for (int i = 0; i < children.size(); i++) {
-			if (bc_is_in_Export_set(export_set, children[i], sce)) {
+			if (bc_is_in_Export_set(export_set, children[i], view_layer)) {
 				to_export = true;
 				break;
 			}
