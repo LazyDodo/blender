@@ -56,7 +56,7 @@ const EnumPropertyItem rna_enum_render_pass_type_items[] = {
 	{SCE_PASS_DIFFUSE, "DIFFUSE", 0, "Diffuse", ""},
 	{SCE_PASS_SPEC, "SPECULAR", 0, "Specular", ""},
 	{SCE_PASS_SHADOW, "SHADOW", 0, "Shadow", ""},
-	{SCE_PASS_AO, "AO", 0, "AO", ""},
+	{SCE_PASS_AO, "AO", 0, "Ambient Occlusion", ""},
 	{SCE_PASS_REFLECT, "REFLECTION", 0, "Reflection", ""},
 	{SCE_PASS_NORMAL, "NORMAL", 0, "Normal", ""},
 	{SCE_PASS_VECTOR, "VECTOR", 0, "Vector", ""},
@@ -87,7 +87,7 @@ const EnumPropertyItem rna_enum_render_pass_type_items[] = {
 
 const EnumPropertyItem rna_enum_bake_pass_type_items[] = {
 	{SCE_PASS_COMBINED, "COMBINED", 0, "Combined", ""},
-	{SCE_PASS_AO, "AO", 0, "AO", ""},
+	{SCE_PASS_AO, "AO", 0, "Ambient Occlusion", ""},
 	{SCE_PASS_SHADOW, "SHADOW", 0, "Shadow", ""},
 	{SCE_PASS_NORMAL, "NORMAL", 0, "Normal", ""},
 	{SCE_PASS_UV, "UV", 0, "UV", ""},
@@ -685,6 +685,9 @@ static void rna_def_render_engine(BlenderRNA *brna)
 	parm = RNA_def_int(func, "pixel_size", 0, 1, 8, "Pixel Size", "", 1, 8);
 	RNA_def_function_return(func, parm);
 
+	RNA_def_function(srna, "free_blender_memory", "RE_engine_free_blender_memory");
+	RNA_def_function_ui_description(func, "Free Blender side memory of render engine");
+
 	RNA_define_verify_sdna(0);
 
 	prop = RNA_def_property(srna, "is_animation", PROP_BOOLEAN, PROP_NONE);
@@ -725,17 +728,17 @@ static void rna_def_render_engine(BlenderRNA *brna)
 
 	func = RNA_def_function(srna, "register_pass", "RE_engine_register_pass");
 	RNA_def_function_ui_description(func, "Register a render pass that will be part of the render with the current settings");
-	prop = RNA_def_pointer(func, "scene", "Scene", "", "");
+	parm = RNA_def_pointer(func, "scene", "Scene", "", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	prop = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "");
+	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	prop = RNA_def_string(func, "name", NULL, MAX_NAME, "Name", "");
+	parm = RNA_def_string(func, "name", NULL, MAX_NAME, "Name", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	prop = RNA_def_int(func, "channels", 1, 1, 8, "Channels", "", 1, 4);
+	parm = RNA_def_int(func, "channels", 1, 1, 8, "Channels", "", 1, 4);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	prop = RNA_def_string(func, "chanid", NULL, 8, "Channel IDs", "");
+	parm = RNA_def_string(func, "chanid", NULL, 8, "Channel IDs", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	prop = RNA_def_enum(func, "type", render_pass_type_items, SOCK_FLOAT, "Type", "");
+	parm = RNA_def_enum(func, "type", render_pass_type_items, SOCK_FLOAT, "Type", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	/* registration */
@@ -807,7 +810,7 @@ static void rna_def_render_result(BlenderRNA *brna)
 	RNA_def_function_ui_description(func, "Add engine-specific stamp data to the result");
 	parm = RNA_def_string(func, "field", NULL, 1024, "Field", "Name of the stamp field to add");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_string(func, "value", NULL, 1024, "Value", "Value of the stamp data");
+	parm = RNA_def_string(func, "value", NULL, 0, "Value", "Value of the stamp data");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	RNA_define_verify_sdna(0);

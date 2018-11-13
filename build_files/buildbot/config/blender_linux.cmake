@@ -1,6 +1,6 @@
 # ######## Global feature set settings ########
 
-include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_full.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/config/blender_release.cmake")
 
 # Detect which libc we'll be linking against.
 # Some of the paths will depend on this
@@ -171,10 +171,6 @@ set(PYTHON_VERSION    3.7 CACHE BOOL "" FORCE)
 
 set(Boost_USE_STATIC_LIBS    ON CACHE BOOL "" FORCE)
 
-# TODO(sergey): Move up to the rest of WITH_SYSTEM and DYNLOAD configuration,
-# once old chroot is officially retired.
-set(WITH_SYSTEM_OPENJPEG     ON CACHE BOOL "" FORCE)
-
 # We need to link OpenCOLLADA against PCRE library. Even though it is not installed
 # on /usr, we do not really care -- all we care is PCRE_FOUND be TRUE and its
 # library pointing to a valid one.
@@ -184,4 +180,4 @@ set(PCRE_LIBRARY              "${LIBDIR}/opencollada/lib/libpcre.a" CACHE STRING
 endif()
 
 # Additional linking libraries
-set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++"  CACHE STRING "" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS   "-lrt -static-libstdc++ -no-pie"  CACHE STRING "" FORCE)

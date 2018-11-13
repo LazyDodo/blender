@@ -940,7 +940,7 @@ static void widget_draw_vertex_buffer(unsigned int pos, unsigned int col, int mo
 	immBegin(mode, totvert);
 	for (int i = 0; i < totvert; ++i) {
 		if (quads_col)
-			immAttrib4ubv(col, quads_col[i]);
+			immAttr4ubv(col, quads_col[i]);
 		immVertex2fv(pos, quads_pos[i]);
 	}
 	immEnd();
@@ -1171,13 +1171,15 @@ static void draw_widgetbase_batch(GPUBatch *batch, uiWidgetBase *wtb)
 		float checker_params[3] = {UI_ALPHA_CHECKER_DARK / 255.0f, UI_ALPHA_CHECKER_LIGHT / 255.0f, 8.0f};
 		/* draw single */
 		GPU_batch_program_set_builtin(batch, GPU_SHADER_2D_WIDGET_BASE);
-		GPU_batch_uniform_4fv_array(batch, "parameters", 11, (float *)&wtb->uniform_params);
+		GPU_batch_uniform_4fv_array(batch, "parameters", MAX_WIDGET_PARAMETERS, (float *)&wtb->uniform_params);
 		GPU_batch_uniform_3fv(batch, "checkerColorAndSize", checker_params);
 		GPU_batch_draw(batch);
 	}
 }
 
-static void widgetbase_draw(uiWidgetBase *wtb, const uiWidgetColors *wcol)
+static void widgetbase_draw_ex(
+        uiWidgetBase *wtb, const uiWidgetColors *wcol,
+        bool show_alpha_checkers)
 {
 	unsigned char inner_col1[4] = {0};
 	unsigned char inner_col2[4] = {0};
@@ -1185,7 +1187,9 @@ static void widgetbase_draw(uiWidgetBase *wtb, const uiWidgetColors *wcol)
 	unsigned char outline_col[4] = {0};
 	unsigned char tria_col[4] = {0};
 	/* For color widget. */
-	bool alpha_check = (wcol->alpha_check && (wcol->shaded == 0));
+	if (wcol->shaded != 0) {
+		show_alpha_checkers = false;
+	}
 
 	GPU_blend(true);
 
@@ -1224,14 +1228,19 @@ static void widgetbase_draw(uiWidgetBase *wtb, const uiWidgetColors *wcol)
 	}
 
 	/* Draw everything in one drawcall */
-	if (inner_col1[3] || inner_col2[3] || outline_col[3] || emboss_col[3] || tria_col[3] || alpha_check) {
-		widgetbase_set_uniform_colors_ubv(wtb, inner_col1, inner_col2, outline_col, emboss_col, tria_col, alpha_check);
+	if (inner_col1[3] || inner_col2[3] || outline_col[3] || emboss_col[3] || tria_col[3] || show_alpha_checkers) {
+		widgetbase_set_uniform_colors_ubv(wtb, inner_col1, inner_col2, outline_col, emboss_col, tria_col, show_alpha_checkers);
 
 		GPUBatch *roundbox_batch = ui_batch_roundbox_widget_get(wtb->tria1.type);
 		draw_widgetbase_batch(roundbox_batch, wtb);
 	}
 
 	GPU_blend(false);
+}
+
+static void widgetbase_draw(uiWidgetBase *wtb, const uiWidgetColors *wcol)
+{
+	widgetbase_draw_ex(wtb, wcol, false);
 }
 
 /* *********************** text/icon ************************************** */
@@ -1268,9 +1277,9 @@ static int ui_but_draw_menu_icon(const uiBut *but)
 
 /* icons have been standardized... and this call draws in untransformed coordinates */
 
-static void widget_draw_icon_ex(
+static void widget_draw_icon(
         const uiBut *but, BIFIconID icon, float alpha,
-        const rcti *rect, const int icon_size)
+        const rcti *rect, const char mono_color[4])
 {
 	float xs = 0.0f, ys = 0.0f;
 	float aspect, height;
@@ -1286,13 +1295,13 @@ static void widget_draw_icon_ex(
 	if (icon == ICON_BLANK1 && (but->flag & UI_BUT_ICON_SUBMENU) == 0) return;
 
 	aspect = but->block->aspect / UI_DPI_FAC;
-	height = icon_size / aspect;
+	height = ICON_DEFAULT_HEIGHT / aspect;
 
 	/* calculate blend color */
 	if (ELEM(but->type, UI_BTYPE_TOGGLE, UI_BTYPE_ROW, UI_BTYPE_TOGGLE_N, UI_BTYPE_LISTROW)) {
 		if (but->flag & UI_SELECT) {}
 		else if (but->flag & UI_ACTIVE) {}
-		else alpha = 0.5f;
+		else alpha = 0.75f;
 	}
 	else if ((but->type == UI_BTYPE_LABEL)) {
 		/* extra feature allows more alpha blending */
@@ -1334,24 +1343,18 @@ static void widget_draw_icon_ex(
 		/* to indicate draggable */
 		if (but->dragpoin && (but->flag & UI_ACTIVE)) {
 			float rgb[3] = {1.25f, 1.25f, 1.25f};
-			UI_icon_draw_aspect_color(xs, ys, icon, aspect, rgb);
+			UI_icon_draw_aspect_color(xs, ys, icon, aspect, rgb, mono_color);
 		}
 		else if ((but->flag & (UI_ACTIVE | UI_SELECT | UI_SELECT_DRAW)) || !UI_but_is_tool(but)) {
-			UI_icon_draw_aspect(xs, ys, icon, aspect, alpha);
+			UI_icon_draw_aspect(xs, ys, icon, aspect, alpha, mono_color);
 		}
 		else {
 			const bTheme *btheme = UI_GetTheme();
-			UI_icon_draw_desaturate(xs, ys, icon, aspect, alpha, 1.0 - btheme->tui.icon_saturation);
+			UI_icon_draw_desaturate(xs, ys, icon, aspect, alpha, 1.0 - btheme->tui.icon_saturation, mono_color);
 		}
 	}
 
 	GPU_blend(false);
-}
-
-static void widget_draw_icon(
-        const uiBut *but, BIFIconID icon, float alpha, const rcti *rect)
-{
-	widget_draw_icon_ex(but, icon, alpha, rect, ICON_DEFAULT_HEIGHT);
 }
 
 static void widget_draw_submenu_tria(const uiBut *but, const rcti *rect, const uiWidgetColors *wcol)
@@ -1453,7 +1456,7 @@ float UI_text_clip_middle_ex(
 	strwidth = BLF_width(fstyle->uifont_id, str, max_len);
 
 	if ((okwidth > 0.0f) && (strwidth > okwidth)) {
-		/* utf8 ellipsis '..', some compilers complain */
+		/* utf8 two-dots leader '..' (shorter than ellipsis '...'), some compilers complain with real litteral string. */
 		const char sep[] = {0xe2, 0x80, 0xA5, 0x0};
 		const int sep_len = sizeof(sep) - 1;
 		const float sep_strwidth = BLF_width(fstyle->uifont_id, sep, sep_len + 1);
@@ -1518,6 +1521,16 @@ float UI_text_clip_middle_ex(
 				memmove(str + l_end + sep_len, str + r_offset, r_len);
 				memcpy(str + l_end, sep, sep_len);
 				final_lpart_len = (size_t)(l_end + sep_len + r_len - 1);  /* -1 to remove trailing '\0'! */
+
+				while (BLF_width(fstyle->uifont_id, str, max_len) > okwidth) {
+					/* This will happen because a lot of string width processing is done in integer pixels,
+					 * which can introduce a rather high error in the end (about 2 pixels or so).
+					 * Only one char removal shall ever be needed in real-life situation... */
+					r_len--;
+					final_lpart_len--;
+					char *c = str + l_end + sep_len;
+					memmove(c, c + 1, r_len);
+				}
 			}
 		}
 
@@ -1975,7 +1988,7 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 					}
 
 					fixedbuf[ul_index] = '\0';
-					ul_advance = BLF_width(fstyle->uifont_id, fixedbuf, ul_index);
+					ul_advance = BLF_width(fstyle->uifont_id, fixedbuf, ul_index) + (1.0f * UI_DPI_FAC);
 
 					BLF_position(fstyle->uifont_id, rect->xmin + font_xofs + ul_advance, rect->ymin + font_yofs, 0.0f);
 					BLF_color4ubv(fstyle->uifont_id, (unsigned char *)wcol->text);
@@ -2003,6 +2016,21 @@ static void widget_draw_text(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *b
 	}
 }
 
+static BIFIconID widget_icon_id(uiBut *but)
+{
+	if (!(but->flag & UI_HAS_ICON)) {
+		return ICON_NONE;
+	}
+
+	/* Consecutive icons can be toggle between. */
+	if (but->drawflag & UI_BUT_ICON_REVERSE) {
+		return but->icon - but->iconadd;
+	}
+	else {
+		return but->icon + but->iconadd;
+	}
+}
+
 /* draws text and icons for buttons */
 static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiBut *but, rcti *rect)
 {
@@ -2017,7 +2045,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 	if (ELEM(but->type, UI_BTYPE_MENU, UI_BTYPE_POPOVER) && (but->flag & UI_BUT_NODE_LINK)) {
 		rcti temp = *rect;
 		temp.xmin = rect->xmax - BLI_rcti_size_y(rect) - 1;
-		widget_draw_icon(but, ICON_LAYER_USED, alpha, &temp);
+		widget_draw_icon(but, ICON_LAYER_USED, alpha, &temp, wcol->text);
 		rect->xmax = temp.xmin;
 	}
 
@@ -2026,7 +2054,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 
 	/* Big previews with optional text label below */
 	if (but->flag & UI_BUT_ICON_PREVIEW && ui_block_is_menu(but->block)) {
-		const BIFIconID icon = (but->flag & UI_HAS_ICON) ? but->icon + but->iconadd : ICON_NONE;
+		const BIFIconID icon = widget_icon_id(but);
 		int icon_size = BLI_rcti_size_y(rect);
 		int text_size = 0;
 
@@ -2063,9 +2091,10 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		}
 #endif
 
-		const BIFIconID icon = (but->flag & UI_HAS_ICON) ? but->icon + but->iconadd : ICON_NONE;
+		const BIFIconID icon = widget_icon_id(but);
 		int icon_size_init = is_tool ? ICON_DEFAULT_HEIGHT_TOOLBAR : ICON_DEFAULT_HEIGHT;
 		const float icon_size = icon_size_init / (but->block->aspect / UI_DPI_FAC);
+		const float icon_padding = 2 * UI_DPI_FAC;
 
 #ifdef USE_UI_TOOLBAR_HACK
 		if (is_tool) {
@@ -2085,11 +2114,11 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 				rect->xmin += 0.3f * U.widget_unit;
 		}
 		else if (ui_block_is_menu(but->block))
-			rect->xmin += 0.3f * U.widget_unit;
+			rect->xmin += 0.2f * U.widget_unit;
 
-		widget_draw_icon(but, icon, alpha, rect);
+		widget_draw_icon(but, icon, alpha, rect, wcol->text);
 		if (show_menu_icon) {
-			BLI_assert(but->block->content_hints & BLOCK_CONTAINS_SUBMENU_BUT);
+			BLI_assert(but->block->content_hints & UI_BLOCK_CONTAINS_SUBMENU_BUT);
 			widget_draw_submenu_tria(but, rect, wcol);
 		}
 
@@ -2097,7 +2126,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		but->block->aspect = aspect_orig;
 #endif
 
-		rect->xmin += icon_size;
+		rect->xmin += icon_size + icon_padding;
 	}
 
 	if (but->editstr || (but->drawflag & UI_BUT_TEXT_LEFT)) {
@@ -2109,7 +2138,7 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 
 	/* Menu contains sub-menu items with triangle icon on their right. Shortcut
 	 * strings should be drawn with some padding to the right then. */
-	if (ui_block_is_menu(but->block) && (but->block->content_hints & BLOCK_CONTAINS_SUBMENU_BUT)) {
+	if (ui_block_is_menu(but->block) && (but->block->content_hints & UI_BLOCK_CONTAINS_SUBMENU_BUT)) {
 		rect->xmax -= UI_MENU_SUBMENU_PADDING;
 	}
 
@@ -2120,10 +2149,10 @@ static void widget_draw_text_icon(uiFontStyle *fstyle, uiWidgetColors *wcol, uiB
 		temp.xmin = temp.xmax - (BLI_rcti_size_y(rect) * 1.08f);
 
 		if (extra_icon_type == UI_BUT_ICONEXTRA_CLEAR) {
-			widget_draw_icon(but, ICON_PANEL_CLOSE, alpha, &temp);
+			widget_draw_icon(but, ICON_PANEL_CLOSE, alpha, &temp, wcol->text);
 		}
 		else if (extra_icon_type == UI_BUT_ICONEXTRA_EYEDROPPER) {
-			widget_draw_icon(but, ICON_EYEDROPPER, alpha, &temp);
+			widget_draw_icon(but, ICON_EYEDROPPER, alpha, &temp, wcol->text);
 		}
 		else {
 			BLI_assert(0);
@@ -2252,7 +2281,12 @@ static void widget_state(uiWidgetType *wt, int state)
 
 	if (state & UI_BUT_REDALERT) {
 		char red[4] = {255, 0, 0};
-		widget_state_blend(wt->wcol.inner, red, 0.4f);
+		if (wt->draw) {
+			widget_state_blend(wt->wcol.inner, red, 0.4f);
+		}
+		else {
+			widget_state_blend(wt->wcol.text, red, 0.4f);
+		}
 	}
 
 	if (state & UI_BUT_DRAG_MULTI) {
@@ -2356,7 +2390,7 @@ static void widget_state_pie_menu_item(uiWidgetType *wt, int state)
 		}
 
 		if (state & UI_SELECT) {
-			copy_v4_v4_char(wt->wcol.outline, wt->wcol.inner_sel);
+			copy_v4_v4_char(wt->wcol.inner, wt->wcol.inner_sel);
 		}
 		else if (state & UI_ACTIVE) {
 			copy_v4_v4_char(wt->wcol.inner, wt->wcol.item);
@@ -2463,6 +2497,7 @@ static void widget_menu_back(uiWidgetColors *wcol, rcti *rect, int flag, int dir
 		rect->ymax += 0.1f * U.widget_unit;
 	}
 
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	GPU_blend(true);
 	widget_softshadow(rect, roundboxalign, wcol->roundness * U.widget_unit);
 
@@ -2578,7 +2613,7 @@ static void ui_draw_but_HSVCIRCLE(uiBut *but, uiWidgetColors *wcol, const rcti *
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 
 	immBegin(GPU_PRIM_TRI_FAN, tot + 2);
-	immAttrib3fv(color, colcent);
+	immAttr3fv(color, colcent);
 	immVertex2f(pos, centx, centy);
 
 	float ang = 0.0f;
@@ -2590,7 +2625,7 @@ static void ui_draw_but_HSVCIRCLE(uiBut *but, uiWidgetColors *wcol, const rcti *
 
 		ui_color_picker_to_rgb_v(hsv, col);
 
-		immAttrib3fv(color, col);
+		immAttr3fv(color, col);
 		immVertex2f(pos, centx + co * radius, centy + si * radius);
 	}
 	immEnd();
@@ -2746,22 +2781,22 @@ void ui_draw_gradient(const rcti *rect, const float hsv[3], const int type, cons
 		dy = (float)BLI_rcti_size_y(rect) / 3.0f;
 
 		for (a = 0; a < 3; a++, sy += dy) {
-			immAttrib4f(col, col0[a][0], col0[a][1], col0[a][2], alpha);
+			immAttr4f(col, col0[a][0], col0[a][1], col0[a][2], alpha);
 			immVertex2f(pos, sx1, sy);
 
-			immAttrib4f(col, col1[a][0], col1[a][1], col1[a][2], alpha);
+			immAttr4f(col, col1[a][0], col1[a][1], col1[a][2], alpha);
 			immVertex2f(pos, sx2, sy);
 
-			immAttrib4f(col, col1[a + 1][0], col1[a + 1][1], col1[a + 1][2], alpha);
+			immAttr4f(col, col1[a + 1][0], col1[a + 1][1], col1[a + 1][2], alpha);
 			immVertex2f(pos, sx2, sy + dy);
 
-			immAttrib4f(col, col0[a][0], col0[a][1], col0[a][2], alpha);
+			immAttr4f(col, col0[a][0], col0[a][1], col0[a][2], alpha);
 			immVertex2f(pos, sx1, sy);
 
-			immAttrib4f(col, col1[a + 1][0], col1[a + 1][1], col1[a + 1][2], alpha);
+			immAttr4f(col, col1[a + 1][0], col1[a + 1][1], col1[a + 1][2], alpha);
 			immVertex2f(pos, sx2, sy + dy);
 
-			immAttrib4f(col, col0[a + 1][0], col0[a + 1][1], col0[a + 1][2], alpha);
+			immAttr4f(col, col0[a + 1][0], col0[a + 1][1], col0[a + 1][2], alpha);
 			immVertex2f(pos, sx1, sy + dy);
 		}
 	}
@@ -3375,9 +3410,9 @@ static void widget_swatch(uiBut *but, uiWidgetColors *wcol, rcti *rect, int stat
 		ui_block_cm_to_display_space_v3(but->block, col);
 
 	rgba_float_to_uchar((unsigned char *)wcol->inner, col);
+	const bool show_alpha_checkers = (wcol->inner[3] < 255);
 
 	wcol->shaded = 0;
-	wcol->alpha_check = (wcol->inner[3] < 255);
 
 	if (state & (UI_BUT_DISABLED | UI_BUT_INACTIVE)) {
 		/* Now we reduce alpha of the inner color (i.e. the color shown)
@@ -3388,7 +3423,7 @@ static void widget_swatch(uiBut *but, uiWidgetColors *wcol, rcti *rect, int stat
 		wcol->inner[3] /= 2;
 	}
 
-	widgetbase_draw(&wtb, wcol);
+	widgetbase_draw_ex(&wtb, wcol, show_alpha_checkers);
 	if (but->a1 == UI_PALETTE_COLOR && ((Palette *)but->rnapoin.id.data)->active_color == (int)but->a2) {
 		float width = rect->xmax - rect->xmin;
 		float height = rect->ymax - rect->ymin;
@@ -3624,6 +3659,11 @@ static void widget_state_label(uiWidgetType *wt, int state)
 		else
 			UI_GetThemeColor3ubv(TH_TEXT, (unsigned char *)wt->wcol.text);
 	}
+
+	if (state & UI_BUT_REDALERT) {
+		char red[4] = {255, 0, 0};
+		widget_state_blend(wt->wcol.text, red, 0.4f);
+	}
 }
 
 static void widget_radiobut(uiWidgetColors *wcol, rcti *rect, int UNUSED(state), int roundboxalign)
@@ -3654,6 +3694,7 @@ static void widget_box(uiBut *but, uiWidgetColors *wcol, rcti *rect, int UNUSED(
 		wcol->inner[0] = but->col[0];
 		wcol->inner[1] = but->col[1];
 		wcol->inner[2] = but->col[2];
+		wcol->inner[3] = but->col[3];
 	}
 
 	rad = wcol->roundness * U.widget_unit;
@@ -4088,7 +4129,7 @@ void ui_draw_but(const bContext *C, ARegion *ar, uiStyle *style, uiBut *but, rct
 					wt->wcol_theme = &tui->wcol_box;
 					wt->state = widget_state;
 				}
-				else if (but->block->flag & UI_BLOCK_LOOP) {
+				else if (but->block->theme_style == UI_BLOCK_THEME_STYLE_POPUP) {
 					wt->wcol_theme = &tui->wcol_menu_back;
 					wt->state = widget_state;
 				}
@@ -4134,8 +4175,9 @@ void ui_draw_but(const bContext *C, ARegion *ar, uiStyle *style, uiBut *but, rct
 
 			case UI_BTYPE_SEARCH_MENU:
 				wt = widget_type(UI_WTYPE_NAME);
-				if (but->block->flag & UI_BLOCK_LOOP)
+				if (but->block->theme_style == UI_BLOCK_THEME_STYLE_POPUP) {
 					wt->wcol_theme = &btheme->tui.wcol_menu_back;
+				}
 				break;
 
 			case UI_BTYPE_TAB:
@@ -4158,9 +4200,9 @@ void ui_draw_but(const bContext *C, ARegion *ar, uiStyle *style, uiBut *but, rct
 					wt = widget_type(UI_WTYPE_TOGGLE);
 
 				/* option buttons have strings outside, on menus use different colors */
-				if (but->block->flag & UI_BLOCK_LOOP)
+				if (but->block->theme_style == UI_BLOCK_THEME_STYLE_POPUP) {
 					wt->state = widget_state_option_menu;
-
+				}
 				break;
 
 			case UI_BTYPE_MENU:
@@ -4500,14 +4542,14 @@ static void draw_disk_shaded(
 		if (shaded) {
 			fac = (y1 + radius_ext) * radius_ext_scale;
 			round_box_shade_col4_r(r_col, col1, col2, fac);
-			immAttrib4ubv(col, r_col);
+			immAttr4ubv(col, r_col);
 		}
 		immVertex2f(pos, c * radius_int, s * radius_int);
 
 		if (shaded) {
 			fac = (y2 + radius_ext) * radius_ext_scale;
 			round_box_shade_col4_r(r_col, col1, col2, fac);
-			immAttrib4ubv(col, r_col);
+			immAttr4ubv(col, r_col);
 		}
 		immVertex2f(pos, c * radius_ext, s * radius_ext);
 	}
@@ -4700,7 +4742,7 @@ void ui_draw_menu_item(uiFontStyle *fstyle, rcti *rect, const char *name, int ic
 		aspect = ICON_DEFAULT_HEIGHT / height;
 
 		GPU_blend(true);
-		UI_icon_draw_aspect(xs, ys, iconid, aspect, 1.0f); /* XXX scale weak get from fstyle? */
+		UI_icon_draw_aspect(xs, ys, iconid, aspect, 1.0f, wt->wcol.text); /* XXX scale weak get from fstyle? */
 		GPU_blend(false);
 	}
 }

@@ -430,6 +430,11 @@ static void test_constraint(Main *bmain, Object *owner, bPoseChannel *pchan, bCo
 	if (check_targets && cti && cti->get_constraint_targets) {
 		cti->get_constraint_targets(con, &targets);
 
+		/* constraints with empty target list that actually require targets */
+		if (!targets.first && ELEM(con->type, CONSTRAINT_TYPE_ARMATURE)) {
+			con->flag |= CONSTRAINT_DISABLE;
+		}
+
 		/* disable and clear constraints targets that are incorrect */
 		for (ct = targets.first; ct; ct = ct->next) {
 			/* general validity checks (for those constraints that need this) */
@@ -473,6 +478,18 @@ static void test_constraint(Main *bmain, Object *owner, bPoseChannel *pchan, bCo
 					}
 				}
 			}
+			else if (con->type == CONSTRAINT_TYPE_ARMATURE) {
+				if (ct->tar) {
+					if (ct->tar->type != OB_ARMATURE) {
+						ct->tar = NULL;
+						con->flag |= CONSTRAINT_DISABLE;
+					}
+					else if (!BKE_armature_find_bone_name(BKE_armature_from_object(ct->tar), ct->subtarget)) {
+						/* bone must exist in armature... */
+						con->flag |= CONSTRAINT_DISABLE;
+					}
+				}
+			}
 		}
 
 		/* free any temporary targets */
@@ -501,7 +518,7 @@ static int constraint_type_get(Object *owner, bPoseChannel *pchan)
 }
 
 /* checks validity of object pointers, and NULLs,
- * if Bone doesnt exist it sets the CONSTRAINT_DISABLE flag.
+ * if Bone doesn't exist it sets the CONSTRAINT_DISABLE flag.
  */
 static void test_constraints(Main *bmain, Object *owner, bPoseChannel *pchan)
 {
@@ -599,7 +616,7 @@ static bool edit_constraint_poll_generic(bContext *C, StructRNA *rna_type)
 	}
 
 	if (ID_IS_STATIC_OVERRIDE(ob)) {
-		CTX_wm_operator_poll_msg_set(C, "Cannot edit constraints comming from static override");
+		CTX_wm_operator_poll_msg_set(C, "Cannot edit constraints coming from static override");
 		return (((bConstraint *)ptr.data)->flag & CONSTRAINT_STATICOVERRIDE_LOCAL) != 0;
 	}
 
@@ -799,10 +816,10 @@ static void child_get_inverse_matrix(const bContext *C, Scene *scene, Object *ob
 		if (ob && ob->pose && (pchan = BKE_pose_channel_active(ob))) {
 			bConstraint *con_last;
 			/* calculate/set inverse matrix:
-			 *  We just calculate all transform-stack eval up to but not including this constraint.
-			 *  This is because inverse should just inverse correct for just the constraint's influence
-			 *  when it gets applied; that is, at the time of application, we don't know anything about
-			 *  what follows.
+			 * We just calculate all transform-stack eval up to but not including this constraint.
+			 * This is because inverse should just inverse correct for just the constraint's influence
+			 * when it gets applied; that is, at the time of application, we don't know anything about
+			 * what follows.
 			 */
 			float imat[4][4], tmat[4][4];
 			float pmat[4][4];
@@ -998,7 +1015,7 @@ static int followpath_path_animate_exec(bContext *C, wmOperator *op)
 		{
 			/* create F-Curve for path animation */
 			act = verify_adt_action(bmain, &cu->id, 1);
-			fcu = verify_fcurve(act, NULL, NULL, "eval_time", 0, 1);
+			fcu = verify_fcurve(bmain, act, NULL, NULL, "eval_time", 0, 1);
 
 			/* standard vertical range - 1:1 = 100 frames */
 			standardRange = 100.0f;
@@ -1023,7 +1040,7 @@ static int followpath_path_animate_exec(bContext *C, wmOperator *op)
 
 		/* create F-Curve for constraint */
 		act = verify_adt_action(bmain, &ob->id, 1);
-		fcu = verify_fcurve(act, NULL, NULL, path, 0, 1);
+		fcu = verify_fcurve(bmain, act, NULL, NULL, path, 0, 1);
 
 		/* standard vertical range - 0.0 to 1.0 */
 		standardRange = 1.0f;
@@ -1245,7 +1262,9 @@ void ED_object_constraint_tag_update(Main *bmain, Object *ob, bConstraint *con)
 		BKE_pose_tag_update_constraint_flags(ob->pose);
 	}
 
-	object_test_constraint(bmain, ob, con);
+	if (con) {
+		object_test_constraint(bmain, ob, con);
+	}
 
 	if (ob->type == OB_ARMATURE)
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA | OB_RECALC_OB);
@@ -1421,13 +1440,19 @@ void CONSTRAINT_OT_move_up(wmOperatorType *ot)
 static int pose_constraints_clear_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Main *bmain = CTX_data_main(C);
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
+	Object *prev_ob = NULL;
 
 	/* free constraints for all selected bones */
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+	CTX_DATA_BEGIN_WITH_ID (C, bPoseChannel *, pchan, selected_pose_bones, Object *, ob)
 	{
 		BKE_constraints_free(&pchan->constraints);
 		pchan->constflag &= ~(PCHAN_HAS_IK | PCHAN_HAS_SPLINEIK | PCHAN_HAS_CONST);
+
+		if (prev_ob != ob) {
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT | NA_REMOVED, ob);
+			prev_ob = ob;
+		}
 	}
 	CTX_DATA_END;
 
@@ -1435,10 +1460,6 @@ static int pose_constraints_clear_exec(bContext *C, wmOperator *UNUSED(op))
 	DEG_relations_tag_update(bmain);
 
 	/* note, calling BIK_clear_data() isn't needed here */
-
-	/* do updates */
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-	WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT | NA_REMOVED, ob);
 
 	return OPERATOR_FINISHED;
 }
@@ -1495,8 +1516,6 @@ static int pose_constraint_copy_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	bPoseChannel *pchan = CTX_data_active_pose_bone(C);
-	ListBase lb;
-	CollectionPointerLink *link;
 
 	/* don't do anything if bone doesn't exist or doesn't have any constraints */
 	if (ELEM(NULL, pchan, pchan->constraints.first)) {
@@ -1504,23 +1523,25 @@ static int pose_constraint_copy_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	/* copy all constraints from active posebone to all selected posebones */
-	CTX_data_selected_pose_bones(C, &lb);
-	for (link = lb.first; link; link = link->next) {
-		Object *ob = link->ptr.id.data;
-		bPoseChannel *chan = link->ptr.data;
+	Object *prev_ob = NULL;
 
+	/* copy all constraints from active posebone to all selected posebones */
+	CTX_DATA_BEGIN_WITH_ID(C, bPoseChannel *, chan, selected_pose_bones, Object *, ob)
+	{
 		/* if we're not handling the object we're copying from, copy all constraints over */
 		if (pchan != chan) {
 			BKE_constraints_copy(&chan->constraints, &pchan->constraints, true);
 			/* update flags (need to add here, not just copy) */
 			chan->constflag |= pchan->constflag;
 
-			BKE_pose_tag_recalc(bmain, ob->pose);
-			DEG_id_tag_update((ID *)ob, OB_RECALC_DATA);
+			if (prev_ob != ob) {
+				BKE_pose_tag_recalc(bmain, ob->pose);
+				DEG_id_tag_update((ID *)ob, OB_RECALC_DATA);
+				prev_ob = ob;
+			}
 		}
 	}
-	BLI_freelistN(&lb);
+	CTX_DATA_END;
 
 	/* force depsgraph to get recalculated since new relationships added */
 	DEG_relations_tag_update(bmain);
@@ -1637,7 +1658,7 @@ static bool get_new_constraint_target(bContext *C, int con_type, Object **tar_ob
 	/* if the active Object is Armature, and we can search for bones, do so... */
 	if ((obact->type == OB_ARMATURE) && (only_ob == false)) {
 		/* search in list of selected Pose-Channels for target */
-		CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+		CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones_from_active_object)
 		{
 			/* just use the first one that we encounter, as long as it is not the active one */
 			if (pchan != pchanact) {
@@ -1699,16 +1720,11 @@ static bool get_new_constraint_target(bContext *C, int con_type, Object **tar_ob
 		Main *bmain = CTX_data_main(C);
 		Scene *scene = CTX_data_scene(C);
 		ViewLayer *view_layer = CTX_data_view_layer(C);
-		Base *base = BASACT(view_layer), *newbase = NULL;
+		Base *base = BASACT(view_layer);
 		Object *obt;
 
 		/* add new target object */
 		obt = BKE_object_add(bmain, scene, view_layer, OB_EMPTY, NULL);
-
-		/* set layers OK */
-		newbase = BASACT(view_layer);
-		newbase->lay = base->lay;
-		obt->lay = newbase->lay;
 
 		/* transform cent to global coords for loc */
 		if (pchanact) {
@@ -1769,7 +1785,7 @@ static int constraint_add_exec(bContext *C, wmOperator *op, Object *ob, ListBase
 		return OPERATOR_CANCELLED;
 	}
 
-	/* create a new constraint of the type requried, and add it to the active/given constraints list */
+	/* create a new constraint of the type required, and add it to the active/given constraints list */
 	if (pchan)
 		con = BKE_constraint_add_for_pose(ob, pchan, NULL, type);
 	else
@@ -2004,7 +2020,7 @@ static int pose_ik_add_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED
 		return OPERATOR_CANCELLED;
 	}
 
-	/* prepare popup menu to choose targetting options */
+	/* prepare popup menu to choose targeting options */
 	pup = UI_popup_menu_begin(C, IFACE_("Add IK"), ICON_NONE);
 	layout = UI_popup_menu_layout(pup);
 
@@ -2064,14 +2080,14 @@ void POSE_OT_ik_add(wmOperatorType *ot)
 /* remove IK constraints from selected bones */
 static int pose_ik_clear_exec(bContext *C, wmOperator *UNUSED(op))
 {
-	Object *ob = BKE_object_pose_armature_get(CTX_data_active_object(C));
+	Object *prev_ob = NULL;
 
 	/* only remove IK Constraints */
-	CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones)
+	CTX_DATA_BEGIN_WITH_ID (C, bPoseChannel *, pchan, selected_pose_bones, Object *, ob)
 	{
 		bConstraint *con, *next;
 
-		/* TODO: should we be checking if these contraints were local before we try and remove them? */
+		/* TODO: should we be checking if these constraints were local before we try and remove them? */
 		for (con = pchan->constraints.first; con; con = next) {
 			next = con->next;
 			if (con->type == CONSTRAINT_TYPE_KINEMATIC) {
@@ -2079,14 +2095,18 @@ static int pose_ik_clear_exec(bContext *C, wmOperator *UNUSED(op))
 			}
 		}
 		pchan->constflag &= ~(PCHAN_HAS_IK | PCHAN_HAS_TARGET);
+
+		if (prev_ob != ob) {
+			prev_ob = ob;
+
+			/* Refresh depsgraph. */
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+
+			/* Note, notifier might evolve. */
+			WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT | NA_REMOVED, ob);
+		}
 	}
 	CTX_DATA_END;
-
-	/* refresh depsgraph */
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
-
-	/* note, notifier might evolve */
-	WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT | NA_REMOVED, ob);
 
 	return OPERATOR_FINISHED;
 }

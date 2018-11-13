@@ -76,7 +76,7 @@ struct GPUViewport {
 	int flag;
 
 	ListBase data;  /* ViewportEngineData wrapped in LinkData */
-	unsigned int data_hash;  /* If hash mismatch we free all ViewportEngineData in this viewport */
+	uint data_hash;  /* If hash mismatch we free all ViewportEngineData in this viewport */
 
 	DefaultFramebufferList *fbl;
 	DefaultTextureList *txl;
@@ -288,7 +288,7 @@ double *GPU_viewport_cache_time_get(GPUViewport *viewport)
 }
 
 /**
- * Try to find a texture coresponding to params into the texture pool.
+ * Try to find a texture corresponding to params into the texture pool.
  * If no texture was found, create one and add it to the pool.
  */
 GPUTexture *GPU_viewport_texture_pool_query(GPUViewport *viewport, void *engine, int width, int height, int format)
@@ -360,7 +360,7 @@ static void gpu_viewport_texture_pool_free(GPUViewport *viewport)
 	BLI_freelistN(&viewport->tex_pool);
 }
 
-bool GPU_viewport_engines_data_validate(GPUViewport *viewport, unsigned int hash)
+bool GPU_viewport_engines_data_validate(GPUViewport *viewport, uint hash)
 {
 	bool dirty = false;
 

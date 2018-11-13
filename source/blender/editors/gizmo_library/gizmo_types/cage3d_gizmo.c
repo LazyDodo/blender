@@ -24,7 +24,7 @@
  */
 
 /** \file cage3d_gizmo.c
- *  \ingroup wm
+ *  \ingroup edgizmolib
  *
  * \name Cage Gizmo
  *
@@ -477,7 +477,10 @@ static int gizmo_cage3d_modal(
         bContext *C, wmGizmo *gz, const wmEvent *event,
         eWM_GizmoFlagTweak UNUSED(tweak_flag))
 {
-	/* For transform logic to be managable we operate in -0.5..0.5 2D space,
+	if (event->type != MOUSEMOVE) {
+		return OPERATOR_RUNNING_MODAL;
+	}
+	/* For transform logic to be manageable we operate in -0.5..0.5 2D space,
 	 * no matter the size of the rectangle, mouse coorts are scaled to unit space.
 	 * The mouse coords have been projected into the matrix so we don't need to worry about axis alignment.
 	 *
@@ -664,7 +667,7 @@ static void GIZMO_GT_cage_3d(wmGizmoType *gzt)
 		{0, NULL, 0, NULL, NULL}
 	};
 	static EnumPropertyItem rna_enum_transform[] = {
-		{ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE, "TRANSLATE", 0, "Translate", ""},
+		{ED_GIZMO_CAGE2D_XFORM_FLAG_TRANSLATE, "TRANSLATE", 0, "Move", ""},
 		{ED_GIZMO_CAGE2D_XFORM_FLAG_SCALE, "SCALE", 0, "Scale", ""},
 		{ED_GIZMO_CAGE2D_XFORM_FLAG_SCALE_UNIFORM, "SCALE_UNIFORM", 0, "Scale Uniform", ""},
 		{0, NULL, 0, NULL, NULL}

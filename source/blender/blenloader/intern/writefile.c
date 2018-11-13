@@ -164,25 +164,24 @@
 #include "BKE_action.h"
 #include "BKE_blender_version.h"
 #include "BKE_bpath.h"
-#include "BKE_curve.h"
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
+#include "BKE_curve.h"
+#include "BKE_fcurve.h"
 #include "BKE_global.h" // for G
 #include "BKE_gpencil_modifier.h"
 #include "BKE_idcode.h"
 #include "BKE_layer.h"
-#include "BKE_library.h" // for  set_listbasepointers
 #include "BKE_library_override.h"
 #include "BKE_main.h"
+#include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_node.h"
+#include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_sequencer.h"
 #include "BKE_shader_fx.h"
 #include "BKE_subsurf.h"
-#include "BKE_modifier.h"
-#include "BKE_fcurve.h"
-#include "BKE_pointcache.h"
-#include "BKE_mesh.h"
 #include "BKE_workspace.h"
 
 #ifdef USE_NODE_COMPAT_CUSTOMNODES
@@ -1537,6 +1536,18 @@ static void write_constraints(WriteData *wd, ListBase *conlist)
 
 					break;
 				}
+				case CONSTRAINT_TYPE_ARMATURE:
+				{
+					bArmatureConstraint *data = con->data;
+					bConstraintTarget *ct;
+
+					/* write targets */
+					for (ct = data->targets.first; ct; ct = ct->next) {
+						writestruct(wd, DATA, bConstraintTarget, 1, ct);
+					}
+
+					break;
+				}
 				case CONSTRAINT_TYPE_SPLINEIK:
 				{
 					bSplineIKConstraint *data = con->data;
@@ -2435,6 +2446,7 @@ static void write_paint(WriteData *wd, Paint *p)
 	if (p->cavity_curve) {
 		write_curvemapping(wd, p->cavity_curve);
 	}
+	writedata(wd, DATA, sizeof(PaintToolSlot) * p->tool_slots_len, p->tool_slots);
 }
 
 static void write_layer_collections(WriteData *wd, ListBase *lb)
@@ -3006,15 +3018,18 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 
 static void write_screen(WriteData *wd, bScreen *sc)
 {
-	/* write LibData */
-	/* in 2.50+ files, the file identifier for screens is patched, forward compatibility */
-	writestruct(wd, ID_SCRN, bScreen, 1, sc);
-	write_iddata(wd, &sc->id);
+	/* Screens are reference counted, only saved if used by a workspace. */
+	if (sc->id.us > 0 || wd->use_memfile) {
+		/* write LibData */
+		/* in 2.50+ files, the file identifier for screens is patched, forward compatibility */
+		writestruct(wd, ID_SCRN, bScreen, 1, sc);
+		write_iddata(wd, &sc->id);
 
-	write_previews(wd, sc->preview);
+		write_previews(wd, sc->preview);
 
-	/* direct data */
-	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
+		/* direct data */
+		write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
+	}
 }
 
 static void write_bone(WriteData *wd, Bone *bone)

@@ -70,9 +70,11 @@ static void deformStroke(
 {
 	SubdivGpencilModifierData *mmd = (SubdivGpencilModifierData *)md;
 
-	if (!is_stroke_affected_by_modifier(ob,
-		mmd->layername, mmd->pass_index, 3, gpl, gps,
-		mmd->flag & GP_SUBDIV_INVERT_LAYER, mmd->flag & GP_SUBDIV_INVERT_PASS))
+	if (!is_stroke_affected_by_modifier(
+	            ob,
+	            mmd->layername, mmd->pass_index, mmd->layer_pass, 3, gpl, gps,
+	            mmd->flag & GP_SUBDIV_INVERT_LAYER, mmd->flag & GP_SUBDIV_INVERT_PASS,
+	            mmd->flag & GP_SUBDIV_INVERT_LAYERPASS))
 	{
 		return;
 	}
@@ -106,7 +108,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Subdiv = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

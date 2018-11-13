@@ -49,7 +49,7 @@ struct ListBase;
 typedef struct PoseTarget {
 	struct PoseTarget *next, *prev;
 
-	struct bConstraint *con;        /* the constrait of this target */
+	struct bConstraint *con;        /* the constraint of this target */
 	int tip;                        /* index of tip pchan in PoseTree */
 } PoseTarget;
 
@@ -100,6 +100,7 @@ void BKE_armature_where_is(struct bArmature *arm);
 void BKE_armature_where_is_bone(struct Bone *bone, struct Bone *prevbone, const bool use_recursion);
 void BKE_pose_clear_pointers(struct bPose *pose);
 void BKE_pose_remap_bone_pointers(struct bArmature *armature, struct bPose *pose);
+void BKE_pchan_rebuild_bbone_handles(struct bPose *pose, struct bPoseChannel *pchan);
 void BKE_pose_rebuild(struct Main *bmain, struct Object *ob, struct bArmature *arm, const bool do_id_user);
 void BKE_pose_where_is(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob);
 void BKE_pose_where_is_bone(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct bPoseChannel *pchan, float ctime, bool do_extra);
@@ -109,7 +110,8 @@ void BKE_pose_where_is_bone_tail(struct bPoseChannel *pchan);
 void get_objectspace_bone_matrix(struct Bone *bone, float M_accumulatedMatrix[4][4], int root, int posed);
 void vec_roll_to_mat3(const float vec[3], const float roll, float mat[3][3]);
 void vec_roll_to_mat3_normalized(const float nor[3], const float roll, float mat[3][3]);
-void mat3_to_vec_roll(float mat[3][3], float r_vec[3], float *r_roll);
+void mat3_to_vec_roll(const float mat[3][3], float r_vec[3], float *r_roll);
+void mat3_vec_to_roll(const float mat[3][3], const float vec[3], float *r_roll);
 
 /* Common Conversions Between Co-ordinate Spaces */
 void BKE_armature_mat_world_to_pose(struct Object *ob, float inmat[4][4], float outmat[4][4]);
@@ -140,10 +142,33 @@ typedef struct Mat4 {
 	float mat[4][4];
 } Mat4;
 
+typedef struct BBoneSplineParameters {
+	int segments;
+	float length;
+
+	/* Non-uniform scale correction. */
+	bool do_scale;
+	float scale[3];
+
+	/* Handle control bone data. */
+	bool use_prev, prev_bbone;
+	bool use_next, next_bbone;
+
+	float prev_h[3], next_h[3];
+	float prev_mat[4][4], next_mat[4][4];
+
+	/* Control values. */
+	float ease1, ease2;
+	float roll1, roll2;
+	float scaleIn, scaleOut;
+	float curveInX, curveInY, curveOutX, curveOutY;
+} BBoneSplineParameters;
+
 void BKE_pchan_get_bbone_handles(struct bPoseChannel *pchan, struct bPoseChannel **r_prev, struct bPoseChannel **r_next);
 
-void equalize_bbone_bezier(float *data, int desired);
-void b_bone_spline_setup(struct bPoseChannel *pchan, int rest, Mat4 result_array[MAX_BBONE_SUBDIV]);
+void b_bone_spline_setup(struct bPoseChannel *pchan, const bool rest, Mat4 result_array[MAX_BBONE_SUBDIV]);
+
+int BKE_compute_b_bone_spline(struct BBoneSplineParameters *param, Mat4 result_array[MAX_BBONE_SUBDIV]);
 
 /* like EBONE_VISIBLE */
 #define PBONE_VISIBLE(arm, bone) ( \
@@ -228,16 +253,15 @@ void BKE_pose_splineik_evaluate(
         struct Object *ob,
         int rootchan_index);
 
-void BKE_pose_eval_flush(
+void BKE_pose_eval_cleanup(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
         struct Object *ob);
 
-void BKE_pose_eval_proxy_pose_init(struct Depsgraph *depsgraph,
-                                   struct Object *object);
-
-void BKE_pose_eval_proxy_pose_done(struct Depsgraph *depsgraph,
-                                   struct Object *object);
+void BKE_pose_eval_proxy_init(struct Depsgraph *depsgraph,
+                              struct Object *object);
+void BKE_pose_eval_proxy_cleanup(struct Depsgraph *depsgraph,
+                                 struct Object *object);
 
 void BKE_pose_eval_proxy_copy_bone(
         struct Depsgraph *depsgraph,

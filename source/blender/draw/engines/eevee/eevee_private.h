@@ -95,6 +95,23 @@ extern struct DrawEngineType draw_engine_eevee_type;
 	}                                              \
 } ((void)0)
 
+#define SWAP_BUFFERS_TAA() {                           \
+	if (effects->target_buffer == fbl->effect_color_fb) { \
+		SWAP(struct GPUFrameBuffer *, fbl->effect_fb, fbl->taa_history_fb); \
+		SWAP(struct GPUFrameBuffer *, fbl->effect_color_fb, fbl->taa_history_color_fb); \
+		SWAP(GPUTexture *, txl->color_post, txl->taa_history);     \
+		effects->source_buffer = txl->taa_history;  \
+		effects->target_buffer = fbl->effect_color_fb;  \
+	}                                              \
+	else {                                         \
+		SWAP(struct GPUFrameBuffer *, fbl->main_fb, fbl->taa_history_fb); \
+		SWAP(struct GPUFrameBuffer *, fbl->main_color_fb, fbl->taa_history_color_fb); \
+		SWAP(GPUTexture *, txl->color, txl->taa_history);     \
+		effects->source_buffer = txl->taa_history;  \
+		effects->target_buffer = fbl->main_color_fb;  \
+	}                                              \
+} ((void)0)
+
 #define OVERLAY_ENABLED(v3d) ((v3d) && (v3d->flag2 & V3D_RENDER_OVERRIDE) == 0)
 #define LOOK_DEV_MODE_ENABLED(v3d) ((v3d) && (v3d->shading.type == OB_MATERIAL))
 #define LOOK_DEV_OVERLAY_ENABLED(v3d) (LOOK_DEV_MODE_ENABLED(v3d) && OVERLAY_ENABLED(v3d) && (v3d->overlay.flag & V3D_OVERLAY_LOOK_DEV))
@@ -226,6 +243,7 @@ typedef struct EEVEE_PassList {
 	struct DRWPass *maxz_downdepth_layer_ps;
 	struct DRWPass *minz_copydepth_ps;
 	struct DRWPass *maxz_copydepth_ps;
+	struct DRWPass *maxz_copydepth_layer_ps;
 
 	struct DRWPass *depth_pass;
 	struct DRWPass *depth_pass_cull;
@@ -254,6 +272,7 @@ typedef struct EEVEE_FramebufferList {
 	struct GPUFrameBuffer *bloom_down_fb[MAX_BLOOM_STEP];
 	struct GPUFrameBuffer *bloom_accum_fb[MAX_BLOOM_STEP - 1];
 	struct GPUFrameBuffer *sss_blur_fb;
+	struct GPUFrameBuffer *sss_blit_fb;
 	struct GPUFrameBuffer *sss_resolve_fb;
 	struct GPUFrameBuffer *sss_clear_fb;
 	struct GPUFrameBuffer *sss_accum_fb;
@@ -280,6 +299,8 @@ typedef struct EEVEE_FramebufferList {
 	struct GPUFrameBuffer *double_buffer_fb;
 	struct GPUFrameBuffer *double_buffer_color_fb;
 	struct GPUFrameBuffer *double_buffer_depth_fb;
+	struct GPUFrameBuffer *taa_history_fb;
+	struct GPUFrameBuffer *taa_history_color_fb;
 } EEVEE_FramebufferList;
 
 typedef struct EEVEE_TextureList {
@@ -290,6 +311,7 @@ typedef struct EEVEE_TextureList {
 	struct GPUTexture *sss_dir_accum;
 	struct GPUTexture *sss_col_accum;
 	struct GPUTexture *refract_color;
+	struct GPUTexture *taa_history;
 
 	struct GPUTexture *volume_prop_scattering;
 	struct GPUTexture *volume_prop_extinction;
@@ -362,6 +384,7 @@ typedef struct EEVEE_ShadowRender {
 	float clip_far;
 	int shadow_samples_len;
 	float shadow_samples_len_inv;
+	float exponent;
 } EEVEE_ShadowRender;
 
 /* This is just a really long bitflag with special function to access it. */
@@ -391,7 +414,7 @@ typedef struct EEVEE_LampsInfo {
 	int cpu_cube_len, cpu_cascade_len;
 	int update_flag;
 	int shadow_cube_size, shadow_cascade_size, shadow_method;
-	bool shadow_high_bitdepth;
+	bool shadow_high_bitdepth, soft_shadows;
 	int shadow_cube_store_size;
 	int current_shadow_cascade;
 	int current_shadow_face;
@@ -410,7 +433,7 @@ typedef struct EEVEE_LampsInfo {
 	struct EEVEE_ShadowCascade shadow_cascade_data[MAX_SHADOW_CASCADE];
 	/* Lights tracking */
 	int new_shadow_id[MAX_LIGHT]; /* To be able to convert old bitfield to new bitfield */
-	struct EEVEE_BoundSphere shadow_bounds[MAX_LIGHT]; /* Tighly packed light bounds  */
+	struct EEVEE_BoundSphere shadow_bounds[MAX_LIGHT]; /* Tightly packed light bounds  */
 	/* Pointers only. */
 	struct EEVEE_ShadowCasterBuffer *shcaster_frontbuffer;
 	struct EEVEE_ShadowCasterBuffer *shcaster_backbuffer;
@@ -557,6 +580,7 @@ typedef struct EEVEE_EffectsInfo {
 	struct GPUTexture *dof_down_far;
 	struct GPUTexture *dof_coc;
 	struct GPUTexture *dof_blur;
+	struct GPUTexture *dof_blur_alpha;
 	/* Other */
 	float prev_persmat[4][4];
 	/* Bloom */
@@ -631,7 +655,17 @@ typedef struct EEVEE_CommonUniformBuffer {
 	int prb_irradiance_vis_size; /* int */
 	float prb_lod_cube_max; /* float */
 	float prb_lod_planar_max; /* float */
+	/* Misc */
+	int hiz_mip_offset; /* int */
+	int ray_type; /* int */
+	float ray_depth; /* float */
 } EEVEE_CommonUniformBuffer;
+
+/* ray_type (keep in sync with rayType) */
+#define EEVEE_RAY_CAMERA    0
+#define EEVEE_RAY_SHADOW    1
+#define EEVEE_RAY_DIFFUSE   2
+#define EEVEE_RAY_GLOSSY    3
 
 /* ***************** CLIP PLANES DATA **************** */
 
@@ -766,11 +800,14 @@ typedef struct EEVEE_PrivateData {
 	/* For double buffering */
 	bool view_updated;
 	bool valid_double_buffer;
+	bool valid_taa_history;
 	/* Render Matrices */
 	float persmat[4][4], persinv[4][4];
 	float viewmat[4][4], viewinv[4][4];
 	float winmat[4][4], wininv[4][4];
 	float studiolight_matrix[3][3];
+	float overscan, overscan_pixels;
+	float size_orig[2];
 
 	/* Mist Settings */
 	float mist_start, mist_inv_dist, mist_falloff;
@@ -826,9 +863,9 @@ void EEVEE_lights_cache_shcaster_material_add(
         struct GPUMaterial *gpumat, struct GPUBatch *geom, struct Object *ob,
         float *alpha_threshold);
 void EEVEE_lights_cache_shcaster_object_add(EEVEE_ViewLayerData *sldata, struct Object *ob);
-void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata);
-void EEVEE_lights_update(EEVEE_ViewLayerData *sldata);
-void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_PassList *psl);
+void EEVEE_lights_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
+void EEVEE_lights_update(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
+void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_lights_free(void);
 
 
@@ -909,7 +946,7 @@ void EEVEE_motion_blur_free(void);
 
 /* eevee_mist.c */
 void EEVEE_mist_output_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
-void EEVEE_mist_output_accumulate(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);;
+void EEVEE_mist_output_accumulate(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_mist_free(void);
 
 /* eevee_temporal_sampling.c */
@@ -932,7 +969,7 @@ void EEVEE_volumes_free_smoke_textures(void);
 void EEVEE_volumes_free(void);
 
 /* eevee_effects.c */
-void EEVEE_effects_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object *camera);
+void EEVEE_effects_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Object *camera, const bool minimal);
 void EEVEE_effects_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata);
 void EEVEE_create_minmax_buffer(EEVEE_Data *vedata, struct GPUTexture *depth_src, int layer);
 void EEVEE_downsample_buffer(EEVEE_Data *vedata, struct GPUTexture *texture_src, int level);

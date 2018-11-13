@@ -56,15 +56,14 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_object_types.h"
 
+#include "BKE_colortools.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
-#include "BKE_library.h"
+#include "BKE_material.h"
+#include "BKE_object_deform.h"
 #include "BKE_report.h"
 #include "BKE_screen.h"
-#include "BKE_object_deform.h"
-#include "BKE_colortools.h"
-#include "BKE_material.h"
 
 #include "UI_interface.h"
 
@@ -109,7 +108,7 @@ typedef struct tGP_BrushEditData {
 
 	/* Brush Settings */
 	GP_BrushEdit_Settings *settings;
-	GP_EditBrush_Data *brush;
+	GP_EditBrush_Data *gp_brush;
 
 	eGP_EditBrush_Types brush_type;
 	eGP_EditBrush_Flag  flag;
@@ -168,8 +167,9 @@ typedef struct tGP_BrushEditData {
 
 
 /* Callback for performing some brush operation on a single point */
-typedef bool (*GP_BrushApplyCb)(tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
-                                const int radius, const int co[2]);
+typedef bool (*GP_BrushApplyCb)(
+        tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
+        const int radius, const int co[2]);
 
 /* ************************************************ */
 /* Utility Functions */
@@ -208,15 +208,15 @@ static GP_BrushEdit_Settings *gpsculpt_get_settings(Scene *scene)
 static GP_EditBrush_Data *gpsculpt_get_brush(Scene *scene, bool is_weight_mode)
 {
 	GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
-	GP_EditBrush_Data *brush = NULL;
+	GP_EditBrush_Data *gp_brush = NULL;
 	if (is_weight_mode) {
-		brush = &gset->brush[gset->weighttype];
+		gp_brush = &gset->brush[gset->weighttype];
 	}
 	else {
-		brush = &gset->brush[gset->brushtype];
+		gp_brush = &gset->brush[gset->brushtype];
 	}
 
-	return brush;
+	return gp_brush;
 }
 
 /* Brush Operations ------------------------------- */
@@ -225,7 +225,7 @@ static GP_EditBrush_Data *gpsculpt_get_brush(Scene *scene, bool is_weight_mode)
 static bool gp_brush_invert_check(tGP_BrushEditData *gso)
 {
 	/* The basic setting is the brush's setting (from the panel) */
-	bool invert = ((gso->brush->flag & GP_EDITBRUSH_FLAG_INVERT) != 0);
+	bool invert = ((gso->gp_brush->flag & GP_EDITBRUSH_FLAG_INVERT) != 0);
 
 	/* During runtime, the user can hold down the Ctrl key to invert the basic behaviour */
 	if (gso->flag & GP_EDITBRUSH_FLAG_INVERT) {
@@ -234,10 +234,10 @@ static bool gp_brush_invert_check(tGP_BrushEditData *gso)
 
 	/* set temporary status */
 	if (invert) {
-		gso->brush->flag |= GP_EDITBRUSH_FLAG_TMP_INVERT;
+		gso->gp_brush->flag |= GP_EDITBRUSH_FLAG_TMP_INVERT;
 	}
 	else {
-		gso->brush->flag &= ~GP_EDITBRUSH_FLAG_TMP_INVERT;
+		gso->gp_brush->flag &= ~GP_EDITBRUSH_FLAG_TMP_INVERT;
 	}
 
 	return invert;
@@ -246,18 +246,18 @@ static bool gp_brush_invert_check(tGP_BrushEditData *gso)
 /* Compute strength of effect */
 static float gp_brush_influence_calc(tGP_BrushEditData *gso, const int radius, const int co[2])
 {
-	GP_EditBrush_Data *brush = gso->brush;
+	GP_EditBrush_Data *gp_brush = gso->gp_brush;
 
 	/* basic strength factor from brush settings */
-	float influence = brush->strength;
+	float influence = gp_brush->strength;
 
 	/* use pressure? */
-	if (brush->flag & GP_EDITBRUSH_FLAG_USE_PRESSURE) {
+	if (gp_brush->flag & GP_EDITBRUSH_FLAG_USE_PRESSURE) {
 		influence *= gso->pressure;
 	}
 
 	/* distance fading */
-	if (brush->flag & GP_EDITBRUSH_FLAG_USE_FALLOFF) {
+	if (gp_brush->flag & GP_EDITBRUSH_FLAG_USE_FALLOFF) {
 		float distance = (float)len_v2v2_int(gso->mval, co);
 		float fac;
 
@@ -288,7 +288,7 @@ static bool gp_brush_smooth_apply(
         tGP_BrushEditData *gso, bGPDstroke *gps, int pt_index,
         const int radius, const int co[2])
 {
-	// GP_EditBrush_Data *brush = gso->brush;
+	// GP_EditBrush_Data *gp_brush = gso->brush;
 	float inf = gp_brush_influence_calc(gso, radius, co);
 	/* need one flag enabled by default */
 	if ((gso->settings->flag &
@@ -885,9 +885,9 @@ static bool gp_brush_weight_apply(
 	float inf;
 
 	/* Compute strength of effect
-	* - We divide the strength by 10, so that users can set "sane" values.
-	*   Otherwise, good default values are in the range of 0.093
-	*/
+	 * - We divide the strength by 10, so that users can set "sane" values.
+	 *   Otherwise, good default values are in the range of 0.093
+	 */
 	inf = gp_brush_influence_calc(gso, radius, co) / 10.0f;
 
 	/* need a vertex group */
@@ -1032,7 +1032,7 @@ static void gp_brush_clone_add(bContext *C, tGP_BrushEditData *gso)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int cfra_eval = (int)DEG_get_ctime(depsgraph);
 
-	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, true);
+	bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_ADD_NEW);
 	bGPDstroke *gps;
 
 	float delta[3];
@@ -1108,7 +1108,7 @@ static void gp_brush_clone_adjust(tGP_BrushEditData *gso)
 		int i;
 
 		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-			if (gso->brush->flag & GP_EDITBRUSH_FLAG_USE_FALLOFF) {
+			if (gso->gp_brush->flag & GP_EDITBRUSH_FLAG_USE_FALLOFF) {
 				/* "Smudge" Effect when falloff is enabled */
 				float delta[3] = {0.0f};
 				int sco[2] = {0};
@@ -1116,7 +1116,7 @@ static void gp_brush_clone_adjust(tGP_BrushEditData *gso)
 
 				/* compute influence on point */
 				gp_point_to_xy(&gso->gsc, gps, pt, &sco[0], &sco[1]);
-				influence = gp_brush_influence_calc(gso, gso->brush->size, sco);
+				influence = gp_brush_influence_calc(gso, gso->gp_brush->size, sco);
 
 				/* adjust the amount of displacement to apply */
 				mul_v3_v3fl(delta, gso->dvec, influence);
@@ -1141,7 +1141,7 @@ static bool gpsculpt_brush_apply_clone(bContext *C, tGP_BrushEditData *gso)
 		gp_brush_clone_add(C, gso);
 	}
 	else {
-		/* Stamp or Continous Mode */
+		/* Stamp or Continuous Mode */
 		if (1 /*gso->brush->mode == GP_EDITBRUSH_CLONE_MODE_STAMP*/) {
 			/* Stamp - Proceed to translate the newly added strokes */
 			gp_brush_clone_adjust(gso);
@@ -1209,7 +1209,7 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 	gso->depsgraph = CTX_data_depsgraph(C);
 	/* store state */
 	gso->settings = gpsculpt_get_settings(scene);
-	gso->brush = gpsculpt_get_brush(scene, is_weight_mode);
+	gso->gp_brush = gpsculpt_get_brush(scene, is_weight_mode);
 
 	if (is_weight_mode) {
 		gso->brush_type = gso->settings->weighttype;
@@ -1220,7 +1220,7 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 
 	/* Random generator, only init once. */
 	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= GET_UINT_FROM_POINTER(gso);
+	rng_seed ^= POINTER_AS_UINT(gso);
 	gso->rng = BLI_rng_new(rng_seed);
 
 	gso->is_painting = false;
@@ -1228,6 +1228,11 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 
 	gso->gpd = ED_gpencil_data_get_active(C);
 	gso->cfra = INT_MAX; /* NOTE: So that first stroke will get handled in init_stroke() */
+
+	/* some brushes cannot use pressure for radius */
+	if (ELEM(gso->brush_type, GP_EDITBRUSH_TYPE_GRAB, GP_EDITBRUSH_TYPE_CLONE)) {
+		gso->gp_brush->flag &= ~GP_EDITBRUSH_FLAG_PRESSURE_RADIUS;
+	}
 
 	gso->scene = scene;
 	gso->object = ob;
@@ -1358,7 +1363,7 @@ static void gpsculpt_brush_exit(bContext *C, wmOperator *op)
 	}
 
 	/* disable temp invert flag */
-	gso->brush->flag &= ~GP_EDITBRUSH_FLAG_TMP_INVERT;
+	gso->gp_brush->flag &= ~GP_EDITBRUSH_FLAG_TMP_INVERT;
 
 	/* free operator data */
 	MEM_freeN(gso);
@@ -1415,7 +1420,8 @@ static bool gpsculpt_brush_do_stroke(
 {
 	GP_SpaceConversion *gsc = &gso->gsc;
 	rcti *rect = &gso->brush_rect;
-	const int radius = gso->brush->size;
+	GP_EditBrush_Data *gp_brush = gso->gp_brush;
+	const int radius = (gp_brush->flag & GP_EDITBRUSH_FLAG_PRESSURE_RADIUS) ? gso->gp_brush->size * gso->pressure : gso->gp_brush->size;
 
 	bGPDspoint *pt1, *pt2;
 	int pc1[2] = {0};
@@ -1614,7 +1620,7 @@ static bool gpsculpt_brush_do_frame(
 static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obact = gso->object;
 	bGPdata *gpd = gso->gpd;
 	bool changed = false;
@@ -1678,9 +1684,9 @@ static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 					if (gso->use_multiframe_falloff) {
 						/* Faloff depends on distance to active frame (relative to the overall frame range) */
 						gso->mf_falloff = BKE_gpencil_multiframe_falloff_calc(
-						                    gpf, gpl->actframe->framenum,
-						                    f_init, f_end,
-						                    ts->gp_sculpt.cur_falloff);
+						        gpf, gpl->actframe->framenum,
+						        f_init, f_end,
+						        ts->gp_sculpt.cur_falloff);
 					}
 					else {
 						/* No falloff */
@@ -1707,7 +1713,10 @@ static bool gpsculpt_brush_apply_standard(bContext *C, tGP_BrushEditData *gso)
 static void gpsculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 {
 	tGP_BrushEditData *gso = op->customdata;
-	const int radius = gso->brush->size;
+	GP_EditBrush_Data *gp_brush = gso->gp_brush;
+	const int radius = (
+	        (gp_brush->flag & GP_EDITBRUSH_FLAG_PRESSURE_RADIUS) ?
+	        gso->gp_brush->size * gso->pressure : gso->gp_brush->size);
 	float mousef[2];
 	int mouse[2];
 	bool changed = false;
@@ -1935,13 +1944,13 @@ static int gpsculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *even
 			case PADPLUSKEY:
 				if (event->shift) {
 					/* increase strength */
-					gso->brush->strength += 0.05f;
-					CLAMP_MAX(gso->brush->strength, 1.0f);
+					gso->gp_brush->strength += 0.05f;
+					CLAMP_MAX(gso->gp_brush->strength, 1.0f);
 				}
 				else {
 					/* increase brush size */
-					gso->brush->size += 3;
-					CLAMP_MAX(gso->brush->size, 300);
+					gso->gp_brush->size += 3;
+					CLAMP_MAX(gso->gp_brush->size, 300);
 				}
 
 				redraw_region = true;
@@ -1952,13 +1961,13 @@ static int gpsculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *even
 			case PADMINUS:
 				if (event->shift) {
 					/* decrease strength */
-					gso->brush->strength -= 0.05f;
-					CLAMP_MIN(gso->brush->strength, 0.0f);
+					gso->gp_brush->strength -= 0.05f;
+					CLAMP_MIN(gso->gp_brush->strength, 0.0f);
 				}
 				else {
 					/* decrease brush size */
-					gso->brush->size -= 3;
-					CLAMP_MIN(gso->brush->size, 1);
+					gso->gp_brush->size -= 3;
+					CLAMP_MIN(gso->gp_brush->size, 1);
 				}
 
 				redraw_region = true;
@@ -2026,13 +2035,13 @@ static int gpsculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *even
 			case PADPLUSKEY:
 				if (event->shift) {
 					/* increase strength */
-					gso->brush->strength += 0.05f;
-					CLAMP_MAX(gso->brush->strength, 1.0f);
+					gso->gp_brush->strength += 0.05f;
+					CLAMP_MAX(gso->gp_brush->strength, 1.0f);
 				}
 				else {
 					/* increase brush size */
-					gso->brush->size += 3;
-					CLAMP_MAX(gso->brush->size, 300);
+					gso->gp_brush->size += 3;
+					CLAMP_MAX(gso->gp_brush->size, 300);
 				}
 
 				redraw_region = true;
@@ -2043,13 +2052,13 @@ static int gpsculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *even
 			case PADMINUS:
 				if (event->shift) {
 					/* decrease strength */
-					gso->brush->strength -= 0.05f;
-					CLAMP_MIN(gso->brush->strength, 0.0f);
+					gso->gp_brush->strength -= 0.05f;
+					CLAMP_MIN(gso->gp_brush->strength, 0.0f);
 				}
 				else {
 					/* decrease brush size */
-					gso->brush->size -= 3;
-					CLAMP_MIN(gso->brush->size, 1);
+					gso->gp_brush->size -= 3;
+					CLAMP_MIN(gso->gp_brush->size, 1);
 				}
 
 				redraw_region = true;

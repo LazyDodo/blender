@@ -51,7 +51,6 @@ extern "C" {
 #include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
@@ -301,7 +300,7 @@ static void export_endjob(void *customdata)
 
 	if (!data->settings.logger.empty()) {
 		std::cerr << data->settings.logger;
-		WM_report(RPT_ERROR, "Errors occured during the export, look in the console to know more...");
+		WM_report(RPT_ERROR, "Errors occurred during the export, look in the console to know more...");
 	}
 
 	G.is_rendering = false;
@@ -327,7 +326,7 @@ bool ABC_export(
 	 * ExportJobData contains an ExportSettings containing a SimpleLogger.
 	 *
 	 * Since ExportJobData is a C-style struct dynamically allocated with
-	 * MEM_mallocN (see above), its construtor is never called, therefore the
+	 * MEM_mallocN (see above), its constructor is never called, therefore the
 	 * ExportSettings constructor is not called which implies that the
 	 * SimpleLogger one is not called either. SimpleLogger in turn does not call
 	 * the constructor of its data members which ultimately means that its
@@ -648,39 +647,6 @@ struct ImportJobData {
 	bool import_ok;
 };
 
-#if 0
-ABC_INLINE bool is_mesh_and_strands(const IObject &object)
-{
-	bool has_mesh = false;
-	bool has_curve = false;
-
-	for (int i = 0; i < object.getNumChildren(); ++i) {
-		const IObject &child = object.getChild(i);
-
-		if (!child.valid()) {
-			continue;
-		}
-
-		const MetaData &md = child.getMetaData();
-
-		if (IPolyMesh::matches(md)) {
-			has_mesh = true;
-		}
-		else if (ISubD::matches(md)) {
-			has_mesh = true;
-		}
-		else if (ICurves::matches(md)) {
-			has_curve = true;
-		}
-		else if (IPoints::matches(md)) {
-			has_curve = true;
-		}
-	}
-
-	return has_mesh && has_curve;
-}
-#endif
-
 static void import_startjob(void *user_data, short *stop, short *do_update, float *progress)
 {
 	SCOPE_TIMER("Alembic import, objects reading and creation");
@@ -826,7 +792,7 @@ static void import_endjob(void *user_data)
 		for (iter = data->readers.begin(); iter != data->readers.end(); ++iter) {
 			Object *ob = (*iter)->object();
 
-			/* It's possible that cancellation occured between the creation of
+			/* It's possible that cancellation occurred between the creation of
 			 * the reader and the creation of the Blender object. */
 			if (ob == NULL) continue;
 
@@ -845,12 +811,12 @@ static void import_endjob(void *user_data)
 
 		for (iter = data->readers.begin(); iter != data->readers.end(); ++iter) {
 			Object *ob = (*iter)->object();
-			ob->lay = data->scene->lay;
 
 			BKE_collection_object_add(data->bmain, lc->collection, ob);
 
 			base = BKE_view_layer_base_find(view_layer, ob);
-			BKE_view_layer_base_select(view_layer, base);
+			/* TODO: is setting active needed? */
+			BKE_view_layer_base_select_and_set_active(view_layer, base);
 
 			DEG_id_tag_update(&lc->collection->id, DEG_TAG_COPY_ON_WRITE);
 			DEG_id_tag_update_ex(data->bmain, &ob->id,

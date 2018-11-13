@@ -108,6 +108,9 @@ bool  driver_get_variable_property(
         struct ChannelDriver *driver, struct DriverTarget *dtar,
         struct PointerRNA *r_ptr, struct PropertyRNA **r_prop, int *r_index);
 
+bool BKE_driver_has_simple_expression(struct ChannelDriver *driver);
+void BKE_driver_invalidate_expression(struct ChannelDriver *driver, bool expr_changed, bool varname_changed);
+
 float evaluate_driver(struct PathResolvedRNA *anim_rna, struct ChannelDriver *driver,
                       struct ChannelDriver *driver_orig, const float evaltime);
 
@@ -269,6 +272,17 @@ bool BKE_fcurve_is_protected(struct FCurve *fcu);
 
 /* The curve is an infinite cycle via Cycles modifier */
 bool BKE_fcurve_is_cyclic(struct FCurve *fcu);
+
+/* Type of infinite cycle for a curve. */
+typedef enum eFCU_Cycle_Type {
+	FCU_CYCLE_NONE = 0,
+	/* The cycle repeats identically to the base range. */
+	FCU_CYCLE_PERFECT,
+	/* The cycle accumulates the change between start and end keys. */
+	FCU_CYCLE_OFFSET
+} eFCU_Cycle_Type;
+
+eFCU_Cycle_Type BKE_fcurve_get_cycle_type(struct FCurve *fcu);
 
 /* -------- Curve Sanity --------  */
 

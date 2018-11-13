@@ -43,7 +43,6 @@
 #include "DNA_texture_types.h"
 
 #include "BKE_animsys.h"
-#include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_image.h"
 #include "BKE_texture.h"
@@ -113,41 +112,35 @@ static const EnumPropertyItem node_chunksize_items[] = {
 };
 #endif
 
-#define DEF_ICON_BLANK_SKIP
-#define DEF_ICON(name) {ICON_##name, (#name), 0, (#name), ""},
-#define DEF_VICO(name)
-const EnumPropertyItem rna_enum_node_icon_items[] = {
-#include "UI_icons.h"
-	{0, NULL, 0, NULL, NULL}};
-#undef DEF_ICON_BLANK_SKIP
-#undef DEF_ICON
-#undef DEF_VICO
-
 const EnumPropertyItem rna_enum_node_math_items[] = {
 	{NODE_MATH_ADD,     "ADD",          0, "Add",          ""},
 	{NODE_MATH_SUB,     "SUBTRACT",     0, "Subtract",     ""},
 	{NODE_MATH_MUL,     "MULTIPLY",     0, "Multiply",     ""},
 	{NODE_MATH_DIVIDE,  "DIVIDE",       0, "Divide",       ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{NODE_MATH_POW,     "POWER",        0, "Power",        ""},
+	{NODE_MATH_LOG,     "LOGARITHM",    0, "Logarithm",    ""},
+	{NODE_MATH_SQRT,    "SQRT",         0, "Square Root",  ""},
+	{NODE_MATH_ABS,     "ABSOLUTE",     0, "Absolute",     ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{NODE_MATH_MIN,     "MINIMUM",      0, "Minimum",      ""},
+	{NODE_MATH_MAX,     "MAXIMUM",      0, "Maximum",      ""},
+	{NODE_MATH_LESS,    "LESS_THAN",    0, "Less Than",    ""},
+	{NODE_MATH_GREATER, "GREATER_THAN", 0, "Greater Than", ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{NODE_MATH_ROUND,   "ROUND",        0, "Round",        ""},
+	{NODE_MATH_FLOOR,   "FLOOR",        0, "Floor",        ""},
+	{NODE_MATH_CEIL,    "CEIL",         0, "Ceil",         ""},
+	{NODE_MATH_FRACT,   "FRACT",        0, "Fract",        ""},
+	{NODE_MATH_MOD,     "MODULO",       0, "Modulo",       ""},
+	{0, "", ICON_NONE, NULL, NULL},
 	{NODE_MATH_SIN,     "SINE",         0, "Sine",         ""},
 	{NODE_MATH_COS,     "COSINE",       0, "Cosine",       ""},
 	{NODE_MATH_TAN,     "TANGENT",      0, "Tangent",      ""},
 	{NODE_MATH_ASIN,    "ARCSINE",      0, "Arcsine",      ""},
 	{NODE_MATH_ACOS,    "ARCCOSINE",    0, "Arccosine",    ""},
 	{NODE_MATH_ATAN,    "ARCTANGENT",   0, "Arctangent",   ""},
-	{NODE_MATH_POW,     "POWER",        0, "Power",        ""},
-	{NODE_MATH_LOG,     "LOGARITHM",    0, "Logarithm",    ""},
-	{NODE_MATH_MIN,     "MINIMUM",      0, "Minimum",      ""},
-	{NODE_MATH_MAX,     "MAXIMUM",      0, "Maximum",      ""},
-	{NODE_MATH_ROUND,   "ROUND",        0, "Round",        ""},
-	{NODE_MATH_LESS,    "LESS_THAN",    0, "Less Than",    ""},
-	{NODE_MATH_GREATER, "GREATER_THAN", 0, "Greater Than", ""},
-	{NODE_MATH_MOD,     "MODULO",       0, "Modulo",       ""},
-	{NODE_MATH_ABS,     "ABSOLUTE",     0, "Absolute",     ""},
 	{NODE_MATH_ATAN2,   "ARCTAN2",      0, "Arctan2",      ""},
-	{NODE_MATH_FLOOR,   "FLOOR",        0, "Floor",        ""},
-	{NODE_MATH_CEIL,    "CEIL",         0, "Ceil",         ""},
-	{NODE_MATH_FRACT,   "FRACT",        0, "Fract",        ""},
-	{NODE_MATH_SQRT,    "SQRT",         0, "Square Root",  ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -196,7 +189,6 @@ static const EnumPropertyItem prop_shader_output_target_items[] = {
 
 #include "BKE_context.h"
 #include "BKE_idprop.h"
-#include "BKE_library.h"
 
 #include "BKE_global.h"
 
@@ -552,7 +544,7 @@ static bool rna_NodeTree_poll(const bContext *C, bNodeTreeType *ntreetype)
 	ParameterList list;
 	FunctionRNA *func;
 	void *ret;
-	int visible;
+	bool visible;
 
 	RNA_pointer_create(NULL, ntreetype->ext.srna, NULL, &ptr); /* dummy */
 	func = &rna_NodeTree_poll_func; /* RNA_struct_find_function(&ptr, "poll"); */
@@ -6255,11 +6247,6 @@ static void def_cmp_mask(StructRNA *srna)
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Mask", "");
 
-	prop = RNA_def_property(srna, "use_antialiasing", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "custom1", CMP_NODEFLAG_MASK_AA);
-	RNA_def_property_ui_text(prop, "Anti-Alias", "Apply an anti-aliasing filter to the mask");
-	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
-
 	prop = RNA_def_property(srna, "use_feather", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "custom1", CMP_NODEFLAG_MASK_NO_FEATHER);
 	RNA_def_property_ui_text(prop, "Feather", "Use feather information from the mask");
@@ -7109,7 +7096,7 @@ static void rna_def_node_socket(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Node Socket", "Input or output socket of a node");
 	RNA_def_struct_sdna(srna, "bNodeSocket");
 	RNA_def_struct_refine_func(srna, "rna_NodeSocket_refine");
-	RNA_def_struct_ui_icon(srna, ICON_PLUG);
+	RNA_def_struct_ui_icon(srna, ICON_PLUGIN);
 	RNA_def_struct_path_func(srna, "rna_NodeSocket_path");
 	RNA_def_struct_register_funcs(srna, "rna_NodeSocket_register", "rna_NodeSocket_unregister", NULL);
 	RNA_def_struct_idprops_func(srna, "rna_NodeSocket_idprops");
@@ -8026,7 +8013,7 @@ static void rna_def_node(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "bl_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->ui_icon");
-	RNA_def_property_enum_items(prop, rna_enum_node_icon_items);
+	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 	RNA_def_property_enum_default(prop, ICON_NODE);
 	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL);
 	RNA_def_property_ui_text(prop, "Icon", "The node icon");
@@ -8414,7 +8401,7 @@ static void rna_def_nodetree(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "bl_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->ui_icon");
-	RNA_def_property_enum_items(prop, rna_enum_node_icon_items);
+	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 	RNA_def_property_enum_default(prop, ICON_NODETREE);
 	RNA_def_property_flag(prop, PROP_REGISTER);
 	RNA_def_property_ui_text(prop, "Icon", "The node tree icon");

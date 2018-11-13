@@ -403,6 +403,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 			for (ViewLayer *view_layer_dst = sce_copy->view_layers.first; view_layer_dst; view_layer_dst = view_layer_dst->next) {
 				for (FreestyleLineSet *lineset = view_layer_dst->freestyle_config.linesets.first; lineset; lineset = lineset->next) {
 					if (lineset->linestyle) {
+						id_us_min(&lineset->linestyle->id);
 						/* XXX Not copying anim/actions here? */
 						BKE_id_copy_ex(bmain, (ID *)lineset->linestyle, (ID **)&lineset->linestyle, 0, false);
 					}
@@ -411,6 +412,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 
 			/* Full copy of world (included animations) */
 			if (sce_copy->world) {
+				id_us_min(&sce_copy->world->id);
 				BKE_id_copy_ex(bmain, (ID *)sce_copy->world, (ID **)&sce_copy->world, LIB_ID_COPY_ACTIONS, false);
 			}
 
@@ -420,6 +422,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 			/* Full copy of GreasePencil. */
 			/* XXX Not copying anim/actions here? */
 			if (sce_copy->gpd) {
+				id_us_min(&sce_copy->gpd->id);
 				BKE_id_copy_ex(bmain, (ID *)sce_copy->gpd, (ID **)&sce_copy->gpd, 0, false);
 			}
 		}
@@ -433,7 +436,8 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 		/* NOTE: part of SCE_COPY_LINK_DATA and SCE_COPY_FULL operations
 		 * are done outside of blenkernel with ED_object_single_users! */
 
-		/*  camera   */
+		/*  camera */
+		/* XXX This is most certainly useless? Object have not yet been duplicated... */
 		if (ELEM(type, SCE_COPY_LINK_DATA, SCE_COPY_FULL)) {
 			ID_NEW_REMAP(sce_copy->camera);
 		}
@@ -546,8 +550,6 @@ void BKE_scene_init(Scene *sce)
 
 	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(sce, id));
 
-	sce->lay = sce->layact = 1;
-
 	sce->r.mode = R_OSA;
 	sce->r.cfra = 1;
 	sce->r.sfra = 1;
@@ -651,7 +653,7 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->uvcalc_flag = UVCALC_TRANSFORM_CORRECT;
 	sce->toolsettings->unwrapper = 1;
 	sce->toolsettings->select_thresh = 0.01f;
-	sce->toolsettings->gizmo_flag = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
+	sce->toolsettings->gizmo_flag = SCE_GIZMO_SHOW_TRANSLATE | SCE_GIZMO_SHOW_ROTATE | SCE_GIZMO_SHOW_SCALE;
 
 	sce->toolsettings->selectmode = SCE_SELECT_VERTEX;
 	sce->toolsettings->uv_selectmode = UV_SELECT_VERTEX;
@@ -686,13 +688,9 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->imapaint.normal_angle = 80;
 	sce->toolsettings->imapaint.seam_bleed = 2;
 
-	/* alloc grease pencil drawing brushes */
-	sce->toolsettings->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-
 	/* grease pencil multiframe falloff curve */
 	sce->toolsettings->gp_sculpt.cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 	CurveMapping *gp_falloff_curve = sce->toolsettings->gp_sculpt.cur_falloff;
-	curvemapping_set_defaults(gp_falloff_curve, 1, 0.0f, 0.0f, 1.0f, 1.0f);
 	curvemapping_initialize(gp_falloff_curve);
 	curvemap_reset(gp_falloff_curve->cm,
 		&gp_falloff_curve->clipr,
@@ -706,6 +704,9 @@ void BKE_scene_init(Scene *sce)
 
 	sce->unit.system = USER_UNIT_METRIC;
 	sce->unit.scale_length = 1.0f;
+	sce->unit.length_unit = bUnit_GetBaseUnitOfType(USER_UNIT_METRIC, B_UNIT_LENGTH);
+	sce->unit.mass_unit = bUnit_GetBaseUnitOfType(USER_UNIT_METRIC, B_UNIT_MASS);
+	sce->unit.time_unit = bUnit_GetBaseUnitOfType(USER_UNIT_METRIC, B_UNIT_TIME);
 
 	pset = &sce->toolsettings->particle;
 	pset->flag = PE_KEEP_LENGTHS | PE_LOCK_FIRST | PE_DEFLECT_EMITTER | PE_AUTO_VELOCITY;
@@ -915,6 +916,8 @@ void BKE_scene_init(Scene *sce)
 
 	sce->eevee.light_cache = NULL;
 
+	sce->eevee.overscan = 3.0f;
+
 	sce->eevee.flag =
 	        SCE_EEVEE_VOLUMETRIC_LIGHTS |
 	        SCE_EEVEE_GTAO_BENT_NORMALS |
@@ -937,7 +940,7 @@ Scene *BKE_scene_add(Main *bmain, const char *name)
 }
 
 /**
- * Check if there is any intance of the object in the scene
+ * Check if there is any instance of the object in the scene
  */
 bool BKE_scene_object_find(Scene *scene, Object *ob)
 {
@@ -1125,12 +1128,6 @@ int BKE_scene_base_iter_next(Depsgraph *depsgraph, SceneBaseIter *iter,
 			}
 		}
 	}
-
-#if 0
-	if (ob && *ob) {
-		printf("Scene: '%s', '%s'\n", (*scene)->id.name + 2, (*ob)->id.name + 2);
-	}
-#endif
 
 	return iter->phase;
 }

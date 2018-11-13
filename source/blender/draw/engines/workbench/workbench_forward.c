@@ -155,7 +155,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 	material_template.ima = ima;
 	uint hash = workbench_material_get_hash(&material_template, false);
 
-	material = BLI_ghash_lookup(wpd->material_hash, SET_UINT_IN_POINTER(hash));
+	material = BLI_ghash_lookup(wpd->material_hash, POINTER_FROM_UINT(hash));
 	if (material == NULL) {
 		material = MEM_mallocN(sizeof(WORKBENCH_MaterialData), __func__);
 
@@ -192,7 +192,7 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 		}
 		material->object_id = engine_object_data->object_id;
 		DRW_shgroup_uniform_int(material->shgrp_object_outline, "object_id", &material->object_id, 1);
-		BLI_ghash_insert(wpd->material_hash, SET_UINT_IN_POINTER(hash), material);
+		BLI_ghash_insert(wpd->material_hash, POINTER_FROM_UINT(hash), material);
 	}
 	return material;
 }
@@ -363,11 +363,29 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 
 	/* Checker Depth */
 	{
+		static float noise_offset = 0.0f;
+		float blend_threshold = 0.0f;
+
+		if (DRW_state_is_image_render()) {
+			/* TODO: Should be based on the number of samples used for render. */
+			noise_offset = fmodf(noise_offset + 1.0f / 8.0f, 1.0f);
+		}
+
+		if (wpd->shading.flag & XRAY_FLAG(wpd)) {
+			blend_threshold = 1.0f - XRAY_ALPHA(wpd) * 0.9f;
+		}
+
+		if (wpd->shading.type == OB_WIRE) {
+			wpd->shading.xray_alpha = 0.0f;
+			wpd->shading.xray_alpha_wire = 0.0f;
+		}
+
 		int state = DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS;
 		psl->checker_depth_pass = DRW_pass_create("Checker Depth", state);
 		grp = DRW_shgroup_create(e_data.checker_depth_sh, psl->checker_depth_pass);
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
-		DRW_shgroup_uniform_float_copy(grp, "threshold", 0.75f - wpd->shading.xray_alpha * 0.5f);
+		DRW_shgroup_uniform_float_copy(grp, "threshold", blend_threshold);
+		DRW_shgroup_uniform_float_copy(grp, "offset", noise_offset);
 	}
 }
 
@@ -409,7 +427,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 		if (!psys_check_enabled(ob, psys, false)) {
 			continue;
 		}
-		if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
+		if (!DRW_object_is_visible_psys_in_active_context(ob, psys)) {
 			continue;
 		}
 		ParticleSettings *part = psys->part;
@@ -435,7 +453,7 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			DRW_shgroup_uniform_vec4(shgrp, "viewvecs[0]", (float *)wpd->viewvecs, 3);
 			/* Hairs have lots of layer and can rapidly become the most prominent surface.
 			 * So lower their alpha artificially. */
-			float hair_alpha = wpd->shading.xray_alpha * 0.33f;
+			float hair_alpha = XRAY_ALPHA(wpd) * 0.33f;
 			DRW_shgroup_uniform_float_copy(shgrp, "alpha", hair_alpha);
 			if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
 				BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
@@ -458,6 +476,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 	WORKBENCH_PrivateData *wpd = stl->g_data;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
+	const bool is_wire = (ob->dt == OB_WIRE);
 
 	if (!DRW_object_is_renderable(ob))
 		return;
@@ -476,7 +495,7 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 		return; /* Do not draw solid in this case. */
 	}
 
-	if (!DRW_check_object_visible_within_active_context(ob)) {
+	if (!DRW_object_is_visible_in_active_context(ob) || (ob->dt < OB_WIRE)) {
 		return;
 	}
 
@@ -529,11 +548,15 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 					material = get_or_create_material_data(vedata, ob, NULL, NULL, wpd->shading.color_type);
 					if (is_sculpt_mode) {
 						DRW_shgroup_call_sculpt_add(material->shgrp_object_outline, ob, ob->obmat);
-						DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
+						if (!is_wire) {
+							DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
+						}
 					}
 					else {
 						DRW_shgroup_call_object_add(material->shgrp_object_outline, geom, ob);
-						DRW_shgroup_call_object_add(material->shgrp, geom, ob);
+						if (!is_wire) {
+							DRW_shgroup_call_object_add(material->shgrp, geom, ob);
+						}
 					}
 				}
 			}
@@ -556,11 +579,15 @@ void workbench_forward_cache_populate(WORKBENCH_Data *vedata, Object *ob)
 						material = get_or_create_material_data(vedata, ob, mat, NULL, V3D_SHADING_MATERIAL_COLOR);
 						if (is_sculpt_mode) {
 							DRW_shgroup_call_sculpt_add(material->shgrp_object_outline, ob, ob->obmat);
-							DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
+							if (!is_wire) {
+								DRW_shgroup_call_sculpt_add(material->shgrp, ob, ob->obmat);
+							}
 						}
 						else {
 							DRW_shgroup_call_object_add(material->shgrp_object_outline, mat_geom[i], ob);
-							DRW_shgroup_call_object_add(material->shgrp, mat_geom[i], ob);
+							if (!is_wire) {
+								DRW_shgroup_call_object_add(material->shgrp, mat_geom[i], ob);
+							}
 						}
 					}
 				}
@@ -601,14 +628,14 @@ void workbench_forward_draw_scene(WORKBENCH_Data *vedata)
 	GPU_framebuffer_clear_color(fbl->object_outline_fb, clear_outline);
 	DRW_draw_pass(psl->object_outline_pass);
 
-	if (wpd->shading.xray_alpha > 0.0) {
+	if (XRAY_ALPHA(wpd) > 0.0) {
 		const float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 		GPU_framebuffer_bind(fbl->transparent_accum_fb);
 		GPU_framebuffer_clear_color(fbl->transparent_accum_fb, clear_color);
 		DRW_draw_pass(psl->transparent_accum_pass);
 	}
 	else {
-		/* TODO(fclem): this is unecessary and takes up perf.
+		/* TODO(fclem): this is unnecessary and takes up perf.
 		 * Better change the composite frag shader to not use the tx. */
 		const float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 		GPU_framebuffer_bind(fbl->transparent_accum_fb);

@@ -31,6 +31,8 @@
 #include "BKE_object.h"
 #include "BKE_image.h"
 
+#include "DEG_depsgraph.h"
+
 #include "DNA_object_types.h"
 #include "DNA_lamp_types.h"
 
@@ -94,6 +96,7 @@ static void gizmo_empty_image_prop_matrix_set(
 	Object *ob = igzgroup->state.ob;
 
 	ob->empty_drawsize = matrix[0][0];
+	DEG_id_tag_update(&ob->id, DEG_TAG_TRANSFORM);
 
 	float dims[2];
 	RNA_float_get_array(gz->ptr, "dimensions", dims);
@@ -104,9 +107,21 @@ static void gizmo_empty_image_prop_matrix_set(
 	ob->ima_ofs[1] = (matrix[3][1] - (0.5f * dims[1])) / dims[1];
 }
 
+static bool is_image_empty_visible(Object *ob, RegionView3D *rv3d)
+{
+	int visibility_flag = ob->empty_image_visibility_flag;
+	if (rv3d->is_persp) {
+		return visibility_flag & OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE;
+	}
+	else {
+		return visibility_flag & OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC;
+	}
+}
+
 static bool WIDGETGROUP_empty_image_poll(const bContext *C, wmGizmoGroupType *UNUSED(gzgt))
 {
 	View3D *v3d = CTX_wm_view3d(C);
+	RegionView3D *rv3d = CTX_wm_region_view3d(C);
 
 	if ((v3d->flag2 & V3D_RENDER_OVERRIDE) ||
 	    (v3d->gizmo_flag & (V3D_GIZMO_HIDE | V3D_GIZMO_HIDE_CONTEXT)))
@@ -117,7 +132,9 @@ static bool WIDGETGROUP_empty_image_poll(const bContext *C, wmGizmoGroupType *UN
 	Object *ob = CTX_data_active_object(C);
 
 	if (ob && ob->type == OB_EMPTY) {
-		return (ob->empty_drawtype == OB_EMPTY_IMAGE);
+		if (ob->empty_drawtype == OB_EMPTY_IMAGE) {
+			return is_image_empty_visible(ob, rv3d);
+		}
 	}
 	return false;
 }

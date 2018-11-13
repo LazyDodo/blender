@@ -598,7 +598,7 @@ float G1_Smith_GGX(float NX, float a2)
 	/* Using Brian Karis approach and refactoring by NX/NX
 	 * this way the (2*NL)*(2*NV) in G = G1(V) * G1(L) gets canceled by the brdf denominator 4*NL*NV
 	 * Rcp is done on the whole G later
-	 * Note that this is not convenient for the transmition formula */
+	 * Note that this is not convenient for the transmission formula */
 	return NX + sqrt(NX * (NX - NX * a2) + a2);
 	/* return 2 / (1 + sqrt(1 + a2 * (1 - NX*NX) / (NX*NX) ) ); /* Reference function */
 }
@@ -626,7 +626,7 @@ void accumulate_light(vec3 light, float fac, inout vec4 accum)
 	accum += vec4(light, 1.0) * min(fac, (1.0 - accum.a));
 }
 
-/* ----------- Cone Apperture Approximation --------- */
+/* ----------- Cone Aperture Approximation --------- */
 
 /* Return a fitted cone angle given the input roughness */
 float cone_cosine(float r)
@@ -719,7 +719,6 @@ Closure closure_mix(Closure cl1, Closure cl2, float fac)
 	Closure cl;
 
 	if (cl1.ssr_id == TRANSPARENT_CLOSURE_FLAG) {
-		cl1.radiance = cl2.radiance;
 		cl1.ssr_normal = cl2.ssr_normal;
 		cl1.ssr_data = cl2.ssr_data;
 		cl1.ssr_id = cl2.ssr_id;
@@ -731,7 +730,6 @@ Closure closure_mix(Closure cl1, Closure cl2, float fac)
 #  endif
 	}
 	if (cl2.ssr_id == TRANSPARENT_CLOSURE_FLAG) {
-		cl2.radiance = cl1.radiance;
 		cl2.ssr_normal = cl1.ssr_normal;
 		cl2.ssr_data = cl1.ssr_data;
 		cl2.ssr_id = cl1.ssr_id;
@@ -752,8 +750,9 @@ Closure closure_mix(Closure cl1, Closure cl2, float fac)
 		cl.ssr_normal = cl2.ssr_normal;
 		cl.ssr_id = cl2.ssr_id;
 	}
-	cl.radiance = mix(cl1.radiance, cl2.radiance, fac);
 	cl.opacity = mix(cl1.opacity, cl2.opacity, fac);
+	cl.radiance = mix(cl1.radiance * cl1.opacity, cl2.radiance * cl2.opacity, fac);
+	cl.radiance /= max(1e-8, cl.opacity);
 
 #  ifdef USE_SSS
 	cl.sss_data.rgb = mix(cl1.sss_data.rgb, cl2.sss_data.rgb, fac);

@@ -94,11 +94,11 @@ static uiStyle *ui_style_new(ListBase *styles, const char *name, short uifont_id
 	style->paneltitle.uifont_id = uifont_id;
 	style->paneltitle.points = 12;
 	style->paneltitle.kerning = 1;
-	style->paneltitle.shadow = 1;
+	style->paneltitle.shadow = 3;
 	style->paneltitle.shadx = 0;
 	style->paneltitle.shady = -1;
-	style->paneltitle.shadowalpha = 0.15f;
-	style->paneltitle.shadowcolor = 1.0f;
+	style->paneltitle.shadowalpha = 0.5f;
+	style->paneltitle.shadowcolor = 0.0f;
 
 	style->grouplabel.uifont_id = uifont_id;
 	style->grouplabel.points = 12;
@@ -106,7 +106,8 @@ static uiStyle *ui_style_new(ListBase *styles, const char *name, short uifont_id
 	style->grouplabel.shadow = 3;
 	style->grouplabel.shadx = 0;
 	style->grouplabel.shady = -1;
-	style->grouplabel.shadowalpha = 0.25f;
+	style->grouplabel.shadowalpha = 0.5f;
+	style->grouplabel.shadowcolor = 0.0f;
 
 	style->widgetlabel.uifont_id = uifont_id;
 	style->widgetlabel.points = 11;
@@ -114,13 +115,16 @@ static uiStyle *ui_style_new(ListBase *styles, const char *name, short uifont_id
 	style->widgetlabel.shadow = 3;
 	style->widgetlabel.shadx = 0;
 	style->widgetlabel.shady = -1;
-	style->widgetlabel.shadowalpha = 0.15f;
-	style->widgetlabel.shadowcolor = 1.0f;
+	style->widgetlabel.shadowalpha = 0.5f;
+	style->widgetlabel.shadowcolor = 0.0f;
 
 	style->widget.uifont_id = uifont_id;
 	style->widget.points = 11;
 	style->widget.kerning = 1;
-	style->widget.shadowalpha = 0.25f;
+	style->widget.shadow = 1;
+	style->widget.shady = -1;
+	style->widget.shadowalpha = 0.5f;
+	style->widget.shadowcolor = 0.0f;
 
 	style->columnspace = 8;
 	style->templatespace = 5;
@@ -179,7 +183,8 @@ void UI_fontstyle_draw_ex(
 	}
 	else {
 		/* draw from boundbox center */
-		yofs = ceil(0.5f * (BLI_rcti_size_y(rect) - BLF_ascender(fs->uifont_id)));
+		float height = BLF_ascender(fs->uifont_id) + BLF_descender(fs->uifont_id);
+		yofs = ceil(0.5f * (BLI_rcti_size_y(rect) - height));
 	}
 
 	if (fs->align == UI_STYLE_TEXT_CENTER) {
@@ -225,7 +230,7 @@ void UI_fontstyle_draw_rotated(const uiFontStyle *fs, const rcti *rect, const ch
 
 	UI_fontstyle_set(fs);
 
-	height = BLF_ascender(fs->uifont_id);
+	height = BLF_ascender(fs->uifont_id) + BLF_descender(fs->uifont_id);
 	/* becomes x-offset when rotated */
 	xofs = ceil(0.5f * (BLI_rcti_size_y(rect) - height));
 

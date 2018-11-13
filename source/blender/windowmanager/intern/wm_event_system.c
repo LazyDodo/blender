@@ -299,42 +299,39 @@ static void wm_notifier_clear(wmNotifier *note)
 void wm_event_do_depsgraph(bContext *C)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
+	/* The whole idea of locked interface is to prevent viewport and whatever
+	 * thread to modify the same data. Because of this, we can not perform
+	 * dependency graph update.
+	 */
+	if (wm->is_interface_locked) {
+		return;
+	}
+	/* Combine datamasks so 1 win doesn't disable UV's in another [#26448]. */
 	uint64_t win_combine_v3d_datamask = 0;
-
-	/* combine datamasks so 1 win doesn't disable UV's in another [#26448] */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
 		const Scene *scene = WM_window_get_active_scene(win);
 		const bScreen *screen = WM_window_get_active_screen(win);
 
 		win_combine_v3d_datamask |= ED_view3d_screen_datamask(scene, screen);
 	}
-
-	/* cached: editor refresh callbacks now, they get context */
+	/* Update all the dependency graphs of visible vew layers. */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
 		Scene *scene = WM_window_get_active_scene(win);
 		ViewLayer *view_layer = WM_window_get_active_view_layer(win);
-
-		/* XXX make lock in future, or separated derivedmesh users in scene */
-		if (G.is_rendering == false) {
-			/* depsgraph & animation: update tagged datablocks */
-			Main *bmain = CTX_data_main(C);
-
-			/* copied to set's in scene_update_tagged_recursive() */
-			scene->customdata_mask = win_combine_v3d_datamask;
-
-			/* XXX, hack so operators can enforce datamasks [#26482], gl render */
-			scene->customdata_mask |= scene->customdata_mask_modal;
-
-			/* TODO(sergey): For now all dependency graphs which are evaluated from
-			 * workspace are considered active. This will work all fine with "locked"
-			 * view layer and time across windows. This is to be granted separately,
-			 * and for until then we have to accept ambiguities when object is shared
-			 * across visible view layers and has overrides on it.
-			 */
-			Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-			DEG_make_active(depsgraph);
-			BKE_scene_graph_update_tagged(depsgraph, bmain);
-		}
+		Main *bmain = CTX_data_main(C);
+		/* Copied to set's in scene_update_tagged_recursive() */
+		scene->customdata_mask = win_combine_v3d_datamask;
+		/* XXX, hack so operators can enforce datamasks [#26482], gl render */
+		scene->customdata_mask |= scene->customdata_mask_modal;
+		/* TODO(sergey): For now all dependency graphs which are evaluated from
+		 * workspace are considered active. This will work all fine with "locked"
+		 * view layer and time across windows. This is to be granted separately,
+		 * and for until then we have to accept ambiguities when object is shared
+		 * across visible view layers and has overrides on it.
+		 */
+		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
+		DEG_make_active(depsgraph);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 	}
 }
 
@@ -524,6 +521,9 @@ void wm_event_do_notifiers(bContext *C)
 		WM_window_cursor_keymap_status_refresh(C, win);
 		CTX_wm_window_set(C, NULL);
 	}
+
+	/* Autorun warning */
+	wm_test_autorun_warning(C);
 }
 
 static int wm_event_always_pass(const wmEvent *event)
@@ -909,8 +909,10 @@ static void wm_operator_finished(bContext *C, wmOperator *op, const bool repeat,
 			wm_operator_register(C, op);
 			WM_operator_region_active_win_set(C);
 
-			/* Show the redo panel. */
-			hud_status = SET;
+			if (WM_operator_last_redo(C) == op) {
+				/* Show the redo panel. */
+				hud_status = SET;
+			}
 		}
 		else {
 			WM_operator_free(op);
@@ -1465,9 +1467,21 @@ static int wm_operator_call_internal(
 					break;
 			}
 		}
+		else {
+			switch (context) {
+				case WM_OP_EXEC_DEFAULT:
+				case WM_OP_EXEC_REGION_WIN:
+				case WM_OP_EXEC_REGION_PREVIEW:
+				case WM_OP_EXEC_REGION_CHANNELS:
+				case WM_OP_EXEC_AREA:
+				case WM_OP_EXEC_SCREEN:
+					event = NULL;
+				default:
+					break;
+			}
+		}
 
 		switch (context) {
-
 			case WM_OP_EXEC_REGION_WIN:
 			case WM_OP_INVOKE_REGION_WIN:
 			case WM_OP_EXEC_REGION_CHANNELS:
@@ -2031,7 +2045,8 @@ static int wm_handler_operator_call(bContext *C, ListBase *handlers, wmEventHand
 		if (ot && wm_operator_check_locked_interface(C, ot)) {
 			bool use_last_properties = true;
 			PointerRNA tool_properties = {{0}};
-			bool use_tool_properties = (handler->keymap_tool != NULL);
+			const bool is_tool = (handler->keymap_tool != NULL);
+			const bool use_tool_properties = is_tool;
 
 			if (use_tool_properties) {
 				WM_toolsystem_ref_properties_init_for_keymap(handler->keymap_tool, &tool_properties, properties, ot);
@@ -2044,6 +2059,23 @@ static int wm_handler_operator_call(bContext *C, ListBase *handlers, wmEventHand
 			if (use_tool_properties) {
 				WM_operator_properties_free(&tool_properties);
 			}
+
+			/* Link gizmo if 'WM_GIZMOGROUPTYPE_TOOL_INIT' is set. */
+			if (retval & OPERATOR_FINISHED) {
+				if (is_tool) {
+					bToolRef_Runtime *tref_rt = handler->keymap_tool->runtime;
+					if (tref_rt->gizmo_group[0]) {
+						const char *idname = tref_rt->gizmo_group;
+						wmGizmoGroupType *gzgt = WM_gizmogrouptype_find(idname, false);
+						if (gzgt != NULL) {
+							if ((gzgt->flag & WM_GIZMOGROUPTYPE_TOOL_INIT) != 0) {
+								WM_gizmo_group_type_ensure_ptr(gzgt);
+							}
+						}
+					}
+				}
+			}
+			/* Done linking gizmo. */
 		}
 	}
 	/* Finished and pass through flag as handled */
@@ -2286,7 +2318,7 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 	/* modal handlers can get removed in this loop, we keep the loop this way
 	 *
 	 * note: check 'handlers->first' because in rare cases the handlers can be cleared
-	 * by the event thats called, for eg:
+	 * by the event that's called, for eg:
 	 *
 	 * Calling a python script which changes the area.type, see [#32232] */
 	for (handler = handlers->first; handler && handlers->first; handler = nexthandler) {
@@ -2422,7 +2454,9 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
 					int part;
 					gz = wm_gizmomap_highlight_find(gzmap, C, event, &part);
 					if (wm_gizmomap_highlight_set(gzmap, C, gz, part) && gz != NULL) {
-						WM_tooltip_timer_init(C, CTX_wm_window(C), region, WM_gizmomap_tooltip_init);
+						if (U.flag & USER_TOOLTIPS) {
+							WM_tooltip_timer_init(C, CTX_wm_window(C), region, WM_gizmomap_tooltip_init);
+						}
 					}
 				}
 				else {
@@ -2864,7 +2898,7 @@ void wm_event_do_handlers(bContext *C)
 		bScreen *screen = WM_window_get_active_screen(win);
 		wmEvent *event;
 
-		/* some safty checks - these should always be set! */
+		/* some safety checks - these should always be set! */
 		BLI_assert(WM_window_get_active_scene(win));
 		BLI_assert(WM_window_get_active_screen(win));
 		BLI_assert(WM_window_get_active_workspace(win));
@@ -3141,6 +3175,9 @@ void WM_event_add_fileselect(bContext *C, wmOperator *op)
 	wmEventHandler *handler, *handlernext;
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
+
+	/* Close any popups, like when opening a file browser from the splash. */
+	UI_popup_handlers_remove_all(C, &win->modalhandlers);
 
 	/* only allow 1 file selector open per window */
 	for (handler = win->modalhandlers.first; handler; handler = handlernext) {
@@ -4437,7 +4474,9 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
 	/* Detect changes to the state. */
 	{
 		bToolRef *tref = NULL;
-		if (ar->regiontype == RGN_TYPE_WINDOW) {
+		if ((ar->regiontype == RGN_TYPE_WINDOW) &&
+		    ((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK))
+		{
 			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 			WorkSpace *workspace = WM_window_get_active_workspace(win);
 			const bToolKey tkey = {

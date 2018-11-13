@@ -710,7 +710,7 @@ int ANIM_scene_get_keyingset_index(Scene *scene, KeyingSet *ks)
 }
 
 /* Get Keying Set to use for Auto-Keyframing some transforms */
-KeyingSet *ANIM_get_keyingset_for_autokeying(Scene *scene, const char *tranformKSName)
+KeyingSet *ANIM_get_keyingset_for_autokeying(Scene *scene, const char *transformKSName)
 {
 	/* get KeyingSet to use
 	 *	- use the active KeyingSet if defined (and user wants to use it for all autokeying),
@@ -721,7 +721,7 @@ KeyingSet *ANIM_get_keyingset_for_autokeying(Scene *scene, const char *tranformK
 	else if (IS_AUTOKEY_FLAG(scene, INSERTAVAIL))
 		return ANIM_builtin_keyingset_get_named(NULL, ANIM_KS_AVAILABLE_ID);
 	else
-		return ANIM_builtin_keyingset_get_named(NULL, tranformKSName);
+		return ANIM_builtin_keyingset_get_named(NULL, transformKSName);
 }
 
 /* Menu of All Keying Sets ----------------------------- */
@@ -924,7 +924,8 @@ short ANIM_validate_keyingset(bContext *C, ListBase *dsources, KeyingSet *ks)
 /* Determine which keying flags apply based on the override flags */
 static short keyingset_apply_keying_flags(const short base_flags, const short overrides, const short own_flags)
 {
-	short result = 0;
+	/* Pass through all flags by default (i.e. even not explicitly listed ones). */
+	short result = base_flags;
 
 	/* The logic for whether a keying flag applies is as follows:
 	 *  - If the flag in question is set in "overrides", that means that the
@@ -934,10 +935,8 @@ static short keyingset_apply_keying_flags(const short base_flags, const short ov
 	 */
 #define APPLY_KEYINGFLAG_OVERRIDE(kflag) \
 	if (overrides & kflag) {             \
+		result &= ~kflag;                \
 		result |= (own_flags & kflag);   \
-	}                                    \
-	else {                               \
-		result |= (base_flags & kflag);  \
 	}
 
 	/* Apply the flags one by one...
@@ -1042,7 +1041,7 @@ int ANIM_apply_keyingset(bContext *C, ListBase *dsources, bAction *act, KeyingSe
 			if (mode == MODIFYKEY_MODE_INSERT)
 				success += insert_keyframe(bmain, depsgraph, reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, keytype, kflag2);
 			else if (mode == MODIFYKEY_MODE_DELETE)
-				success += delete_keyframe(reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, kflag2);
+				success += delete_keyframe(bmain, reports, ksp->id, act, groupname, ksp->rna_path, i, cfra, kflag2);
 		}
 
 		/* set recalc-flags */

@@ -424,6 +424,23 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 		object_updated = true;
 	}
 
+	/* sync the asset name for Cryptomatte */
+	BL::Object parent = b_ob.parent();
+	ustring parent_name;
+	if(parent) {
+		while(parent.parent()) {
+			parent = parent.parent();
+		}
+		parent_name = parent.name();
+	}
+	else {
+		parent_name = b_ob.name();
+	}
+	if(object->asset_name != parent_name) {
+		object->asset_name = parent_name;
+		object_updated = true;
+	}
+
 	/* object sync
 	 * transform comparison should not be needed, but duplis don't work perfect
 	 * in the depsgraph and may not signal changes, so this is a workaround */
@@ -444,8 +461,8 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 
 			if(scene->need_motion() == Scene::MOTION_BLUR) {
 				motion_steps = object_motion_steps(b_parent, b_ob);
+				mesh->motion_steps = motion_steps;
 				if(motion_steps && object_use_deform_motion(b_parent, b_ob)) {
-					mesh->motion_steps = motion_steps;
 					mesh->use_motion_blur = true;
 				}
 			}

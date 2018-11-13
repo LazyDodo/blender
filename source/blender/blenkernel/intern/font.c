@@ -360,7 +360,7 @@ VFont *BKE_vfont_builtin_get(void)
 
 static VChar *find_vfont_char(VFontData *vfd, unsigned int character)
 {
-	return BLI_ghash_lookup(vfd->characters, SET_UINT_IN_POINTER(character));
+	return BLI_ghash_lookup(vfd->characters, POINTER_FROM_UINT(character));
 }
 
 static void build_underline(Curve *cu, ListBase *nubase, const rctf *rect,
@@ -605,7 +605,7 @@ void BKE_vfont_select_clamp(Object *ob)
 
 static float char_width(Curve *cu, VChar *che, CharInfo *info)
 {
-	/* The character wasn't found, propably ascii = 0, then the width shall be 0 as well */
+	/* The character wasn't found, probably ascii = 0, then the width shall be 0 as well */
 	if (che == NULL) {
 		return 0.0f;
 	}
@@ -635,6 +635,22 @@ struct TempLineInfo {
 	int   wspace_nr;  /* number of whitespaces of line */
 };
 
+/**
+ * Font metric values explained:
+ *
+ * Baseline: Line where the text "rests", used as the origin vertical position for the glyphs.
+ * Em height: Space most glyphs should fit within.
+ * Ascent: the recommended distance above the baseline to fit most characters.
+ * Descent: the recommended distance below the baseline to fit most characters.
+ *
+ * We obtain ascent and descent from the font itself (FT_Face->ascender / face->height).
+ * And in some cases it is even the same value as FT_Face->bbox.yMax/yMin (font top and bottom respectively).
+ *
+ * The em_height here is relative to FT_Face->bbox.
+*/
+#define ASCENT(vfd) ((vfd)->ascender * (vfd)->em_height)
+#define DESCENT(vfd) ((vfd)->em_height - ASCENT(vfd))
+
 bool BKE_vfont_to_curve_ex(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
                            const wchar_t **r_text, int *r_text_len, bool *r_text_free,
                            struct CharTrans **r_chartransdata)
@@ -648,8 +664,6 @@ bool BKE_vfont_to_curve_ex(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
 	bool use_textbox;
 	VChar *che;
 	struct CharTrans *chartransdata = NULL, *ct;
-	/* Text at the beginning of the last used text-box (use for y-axis alignment). */
-	int i_textbox = 0;
 	struct TempLineInfo *lineinfo;
 	float *f, xof, yof, xtrax, linedist;
 	float twidth, maxlen = 0;
@@ -662,6 +676,10 @@ bool BKE_vfont_to_curve_ex(Object *ob, Curve *cu, int mode, ListBase *r_nubase,
 	bool ok = false;
 	const float xof_scale = cu->xof / cu->fsize;
 	const float yof_scale = cu->yof / cu->fsize;
+
+	/* Text at the beginning of the last used text-box (use for y-axis alignment).
+	 * We overallocate by one to simplify logic of getting last char. */
+	int *i_textbox_array = MEM_callocN(sizeof(*i_textbox_array) * (cu->totbox + 1), "TextBox initial char index");
 
 #define MARGIN_X_MIN (xof_scale + tb_scale.x)
 #define MARGIN_Y_MIN (yof_scale + tb_scale.y)
@@ -862,9 +880,9 @@ makebreak:
 			    (cu->totbox > (curbox + 1)) &&
 			    ((-(yof - tb_scale.y)) > (tb_scale.h - linedist) - yof_scale))
 			{
-				i_textbox = i + 1;
 				maxlen = 0;
 				curbox++;
+				i_textbox_array[curbox] = i + 1;
 
 				textbox_scale(&tb_scale, &cu->tb[curbox], 1.0f / cu->fsize);
 
@@ -1019,50 +1037,73 @@ makebreak:
 	/* top-baseline is default, in this case, do nothing */
 	if (cu->align_y != CU_ALIGN_Y_TOP_BASELINE) {
 		if (tb_scale.h != 0.0f) {
-			/* top and top-baseline are the same when text-boxes are used */
-			if (cu->align_y != CU_ALIGN_Y_TOP && i_textbox < slen) {
-				/* all previous textboxes are 'full', only align the last used text-box */
-				float yoff = 0.0f;
+			/* We need to loop all the text-boxes even the "full" ones.
+			 * This way they all get the same vertical padding. */
+			for (int tb_index = 0; tb_index < cu->totbox; tb_index++) {
+				struct CharTrans *ct_first, *ct_last;
+				const int i_textbox = i_textbox_array[tb_index];
+				const int i_textbox_next = i_textbox_array[tb_index + 1];
+				const bool is_last_filled_textbox = ELEM(i_textbox_next, 0, slen + 1);
 				int lines;
-				struct CharTrans *ct_last, *ct_textbox;
 
-				ct_last = chartransdata + slen - 1;
-				ct_textbox = chartransdata + i_textbox;
+				ct_first = chartransdata + i_textbox;
+				ct_last = chartransdata + (is_last_filled_textbox ? slen: i_textbox_next - 1);
+				lines = ct_last->linenr - ct_first->linenr + 1;
 
-				lines = ct_last->linenr - ct_textbox->linenr + 1;
-				if (mem[slen - 1] == '\n') {
-					lines++;
+				textbox_scale(&tb_scale, &cu->tb[tb_index], 1.0f / cu->fsize);
+				/* The initial Y origin of the textbox is hardcoded to 1.0f * text scale. */
+				const float textbox_y_origin = 1.0f;
+				float yoff = 0.0f;
+
+				switch (cu->align_y) {
+					case CU_ALIGN_Y_TOP_BASELINE:
+						break;
+					case CU_ALIGN_Y_TOP:
+						yoff = textbox_y_origin - ASCENT(vfd);
+						break;
+					case CU_ALIGN_Y_CENTER:
+						yoff = ((((vfd->em_height + (lines - 1) * linedist) * 0.5f) - ASCENT(vfd)) -
+						        (tb_scale.h  * 0.5f) + textbox_y_origin);
+						break;
+					case CU_ALIGN_Y_BOTTOM_BASELINE:
+						yoff = textbox_y_origin + ((lines - 1) * linedist) - tb_scale.h;
+						break;
+					case CU_ALIGN_Y_BOTTOM:
+						yoff = textbox_y_origin + ((lines - 1) * linedist) - tb_scale.h + DESCENT(vfd);
+						break;
 				}
 
-				if (cu->align_y == CU_ALIGN_Y_BOTTOM) {
-					yoff = (lines * linedist) - tb_scale.h;
-				}
-				else if (cu->align_y == CU_ALIGN_Y_CENTER) {
-					yoff = 0.5f * ((lines * linedist) - tb_scale.h);
-				}
-
-				ct = ct_textbox;
-				for (i = i_textbox - 1; i < slen; i++) {
+				for (ct = ct_first; ct <= ct_last; ct++) {
 					ct->yof += yoff;
-					ct++;
+				}
+
+				if (is_last_filled_textbox) {
+					break;
 				}
 			}
 		}
 		else {
-			/* non text-box case handled separately */
-			ct = chartransdata;
+			/* Non text-box case handled separately. */
 			float yoff = 0.0f;
 
-			if (cu->align_y == CU_ALIGN_Y_TOP) {
-				yoff = -linedist;
-			}
-			else if (cu->align_y == CU_ALIGN_Y_BOTTOM) {
-				yoff = (lnr - 1.0f) * linedist;
-			}
-			else if (cu->align_y == CU_ALIGN_Y_CENTER) {
-				yoff = (lnr - 2.0f) * linedist * 0.5f;
+			switch (cu->align_y) {
+				case CU_ALIGN_Y_TOP_BASELINE:
+					break;
+				case CU_ALIGN_Y_TOP:
+					yoff = -ASCENT(vfd);
+					break;
+				case CU_ALIGN_Y_CENTER:
+					yoff = ((vfd->em_height + (lnr - 1) * linedist) * 0.5f) - ASCENT(vfd);
+					break;
+				case CU_ALIGN_Y_BOTTOM_BASELINE:
+					yoff = (lnr - 1) * linedist;
+					break;
+				case CU_ALIGN_Y_BOTTOM:
+					yoff = (lnr - 1) * linedist + DESCENT(vfd);
+					break;
 			}
 
+			ct = chartransdata;
 			for (i = 0; i <= slen; i++) {
 				ct->yof += yoff;
 				ct++;
@@ -1071,12 +1112,13 @@ makebreak:
 	}
 
 	MEM_freeN(lineinfo);
+	MEM_freeN(i_textbox_array);
 
 	/* TEXT ON CURVE */
 	/* Note: Only OB_CURVE objects could have a path  */
 	if (cu->textoncurve && cu->textoncurve->type == OB_CURVE) {
 		BLI_assert(cu->textoncurve->runtime.curve_cache != NULL);
-		if (cu->textoncurve->runtime.curve_cache->path) {
+		if (cu->textoncurve->runtime.curve_cache != NULL && cu->textoncurve->runtime.curve_cache->path != NULL) {
 			float distfac, imat[4][4], imat3[3][3], cmat[3][3];
 			float minx, maxx, miny, maxy;
 			float timeofs, sizefac;
@@ -1190,13 +1232,13 @@ makebreak:
 		}
 	}
 
-	if (mode == FO_CURSUP || mode == FO_CURSDOWN || mode == FO_PAGEUP || mode == FO_PAGEDOWN) {
+	if (ELEM(mode, FO_CURSUP, FO_CURSDOWN, FO_PAGEUP, FO_PAGEDOWN)) {
 		ct = &chartransdata[ef->pos];
 
-		if ((mode == FO_CURSUP || mode == FO_PAGEUP) && ct->linenr == 0) {
+		if (ELEM(mode, FO_CURSUP, FO_PAGEUP) && ct->linenr == 0) {
 			/* pass */
 		}
-		else if ((mode == FO_CURSDOWN || mode == FO_PAGEDOWN) && ct->linenr == lnr) {
+		else if (ELEM(mode, FO_CURSDOWN, FO_PAGEDOWN) && ct->linenr == lnr) {
 			/* pass */
 		}
 		else {
@@ -1339,6 +1381,8 @@ finally:
 #undef MARGIN_Y_MIN
 }
 
+#undef DESCENT
+#undef ASCENT
 
 bool BKE_vfont_to_curve_nubase(Object *ob, int mode, ListBase *r_nubase)
 {
@@ -1348,6 +1392,7 @@ bool BKE_vfont_to_curve_nubase(Object *ob, int mode, ListBase *r_nubase)
 	                             NULL, NULL, NULL, NULL);
 }
 
+/** Warning: expects to have access to evaluated data (i.e. passed object should be evaluated one...). */
 bool BKE_vfont_to_curve(Object *ob, int mode)
 {
 	Curve *cu = ob->data;

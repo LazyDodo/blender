@@ -39,10 +39,8 @@
 #include "BKE_armature.h"
 
 extern "C" {
-#include "BKE_main.h"
-#include "BKE_mesh.h"
 #include "BKE_global.h"
-#include "BKE_library.h"
+#include "BKE_mesh.h"
 }
 
 #include "ED_armature.h"
@@ -69,7 +67,7 @@ void ArmatureExporter::add_armature_bones(bContext *C, Depsgraph *depsgraph, Obj
 	Main *bmain = CTX_data_main(C);
 	// write bone nodes
 
-	bArmature * armature = (bArmature *)ob_arm->data;
+	bArmature *armature = (bArmature *)ob_arm->data;
 	bool is_edited = armature->edbo != NULL;
 
 	if (!is_edited)

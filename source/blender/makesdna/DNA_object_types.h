@@ -58,7 +58,7 @@ struct DerivedMesh;
 struct SculptSession;
 struct bGPdata;
 struct RigidBodyOb;
-
+struct GpencilBatchCache;
 
 /* Vertex Groups - Name Info */
 typedef struct bDeformGroup {
@@ -146,6 +146,9 @@ typedef struct Object_Runtime {
 
 	/* Runtime evaluated curve-specific data, not stored in the file. */
 	struct CurveCache *curve_cache;
+
+	/* Runtime grease pencil drawing data */
+	struct GpencilBatchCache *gpencil_cache;
 } Object_Runtime;
 
 typedef struct Object {
@@ -216,7 +219,7 @@ typedef struct Object {
 	 */
 	float imat_ren[4][4];
 
-	unsigned int lay;	/* copy of Base's layer in the scene */
+	unsigned int lay DNA_DEPRECATED;	/* copy of Base's layer in the scene */
 
 	short flag;			/* copy of Base */
 	short colbits DNA_DEPRECATED;		/* deprecated, use 'matbits' */
@@ -292,7 +295,10 @@ typedef struct Object {
 	struct RigidBodyCon *rigidbody_constraint;	/* settings for Bullet constraint */
 
 	float ima_ofs[2];		/* offset for image empties */
-	ImageUser *iuser;		/* must be non-null when oject is an empty image */
+	ImageUser *iuser;		/* must be non-null when object is an empty image */
+	char empty_image_visibility_flag;
+	char empty_image_depth;
+	char pad11[6];
 
 	ListBase lodlevels;		/* contains data for levels of detail */
 	LodLevel *currentlod;
@@ -591,6 +597,17 @@ enum {
 enum {
 	OB_DUPLI_FLAG_VIEWPORT = 1 << 0,
 	OB_DUPLI_FLAG_RENDER   = 1 << 1,
+};
+
+/* ob->empty_image_depth */
+#define OB_EMPTY_IMAGE_DEPTH_DEFAULT 0
+#define OB_EMPTY_IMAGE_DEPTH_FRONT 1
+#define OB_EMPTY_IMAGE_DEPTH_BACK 2
+
+/* ob->empty_image_visibility_flag */
+enum {
+	OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE  = 1 << 0,
+	OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC = 1 << 1,
 };
 
 #define MAX_DUPLI_RECUR 8

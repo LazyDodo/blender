@@ -68,16 +68,18 @@ typedef void (*ConstraintIDFunc)(struct bConstraint *con, struct ID **idpoin, bo
 
 /* ....... */
 
-/* Constraint Type-Info (shorthand in code = cti):
- *  This struct provides function pointers for runtime, so that functions can be
- *  written more generally (with fewer/no special exceptions for various constraints).
+/**
+ * Constraint Type-Info (shorthand in code = cti):
+ * This struct provides function pointers for runtime, so that functions can be
+ * written more generally (with fewer/no special exceptions for various constraints).
  *
- *  Callers of these functions must check that they actually point to something useful,
- *  as some constraints don't define some of these.
+ * Callers of these functions must check that they actually point to something useful,
+ * as some constraints don't define some of these.
  *
- *  Warning: it is not too advisable to reorder order of members of this struct,
- *			as you'll have to edit quite a few ($NUM_CONSTRAINT_TYPES) of these
- *			structs.
+ * Warning:
+ * it is not too advisable to reorder order of members of this struct,
+ * as you'll have to edit quite a few #NUM_CONSTRAINT_TYPES of these
+ * structs.
  */
 typedef struct bConstraintTypeInfo {
 	/* admin/ident */
@@ -129,10 +131,14 @@ void BKE_constraints_id_loop(struct ListBase *list, ConstraintIDFunc func, void 
 void BKE_constraint_free_data(struct bConstraint *con);
 void BKE_constraint_free_data_ex(struct bConstraint *con, bool do_id_user);
 
+bool BKE_constraint_target_uses_bbone(struct bConstraint *con, struct bConstraintTarget *ct);
+
 /* Constraint API function prototypes */
 struct bConstraint *BKE_constraints_active_get(struct ListBase *list);
 void                BKE_constraints_active_set(ListBase *list, struct bConstraint *con);
 struct bConstraint *BKE_constraints_find_name(struct ListBase *list, const char *name);
+
+struct bConstraint *BKE_constraint_find_from_target(struct Object *ob, struct bConstraintTarget *tgt);
 
 struct bConstraint *BKE_constraint_add_for_object(struct Object *ob, const char *name, short type);
 struct bConstraint *BKE_constraint_add_for_pose(struct Object *ob, struct bPoseChannel *pchan, const char *name, short type);

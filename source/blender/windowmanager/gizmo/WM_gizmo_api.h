@@ -212,7 +212,7 @@ void WM_gizmo_target_property_float_set_array(
         struct bContext *C, const struct wmGizmo *gz, struct wmGizmoProperty *gz_prop,
         const float *value);
 
-bool WM_gizmo_target_property_range_get(
+bool WM_gizmo_target_property_float_range_get(
         const struct wmGizmo *gz, struct wmGizmoProperty *gz_prop,
         float range[2]);
 
@@ -240,6 +240,9 @@ struct wmKeyMap *WM_gizmogroup_keymap_common(
 struct wmKeyMap *WM_gizmogroup_keymap_common_select(
         const struct wmGizmoGroupType *gzgt, struct wmKeyConfig *config);
 
+/* Sort utilities for use with 'BLI_listbase_sort'. */
+int WM_gizmo_cmp_temp_fl(const void *gz_a_ptr, const void *gz_b_ptr);
+int WM_gizmo_cmp_temp_fl_reverse(const void *gz_a_ptr, const void *gz_b_ptr);
 
 /* -------------------------------------------------------------------- */
 /* wmGizmoMap */
@@ -267,7 +270,7 @@ bool WM_gizmomap_minmax(
         float r_min[3], float r_max[3]);
 
 struct ARegion *WM_gizmomap_tooltip_init(
-        struct bContext *C, struct ARegion *ar, bool *r_exit_on_event);
+        struct bContext *C, struct ARegion *ar, int *pass, double *pass_delay, bool *r_exit_on_event);
 
 /* -------------------------------------------------------------------- */
 /* wmGizmoMapType */
@@ -314,12 +317,12 @@ void WM_gizmo_group_type_add_ptr(
         struct wmGizmoGroupType *gzgt);
 void WM_gizmo_group_type_add(const char *idname);
 
-void WM_gizmo_group_type_ensure_ptr_ex(
+bool WM_gizmo_group_type_ensure_ptr_ex(
         struct wmGizmoGroupType *gzgt,
         struct wmGizmoMapType *gzmap_type);
-void WM_gizmo_group_type_ensure_ptr(
+bool WM_gizmo_group_type_ensure_ptr(
         struct wmGizmoGroupType *gzgt);
-void WM_gizmo_group_type_ensure(const char *idname);
+bool WM_gizmo_group_type_ensure(const char *idname);
 
 void WM_gizmo_group_type_remove_ptr_ex(
         struct Main *bmain, struct wmGizmoGroupType *gzgt,
@@ -334,6 +337,14 @@ void WM_gizmo_group_type_unlink_delayed_ptr_ex(
 void WM_gizmo_group_type_unlink_delayed_ptr(
         struct wmGizmoGroupType *gzgt);
 void WM_gizmo_group_type_unlink_delayed(const char *idname);
+
+/* Has the result of unlinking and linking (re-initializes gizmo's). */
+void WM_gizmo_group_type_reinit_ptr_ex(
+        struct Main *bmain, struct wmGizmoGroupType *gzgt,
+        struct wmGizmoMapType *gzmap_type);
+void WM_gizmo_group_type_reinit_ptr(
+        struct Main *bmain, struct wmGizmoGroupType *gzgt);
+void WM_gizmo_group_type_reinit(struct Main *bmain, const char *idname);
 
 /* Utilities */
 bool WM_gizmo_context_check_drawstep(const struct bContext *C, eWM_GizmoFlagMapDrawStep step);

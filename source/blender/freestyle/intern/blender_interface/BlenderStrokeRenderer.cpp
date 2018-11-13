@@ -100,7 +100,8 @@ BlenderStrokeRenderer::BlenderStrokeRenderer(Render *re, int render_count) : Str
 	freestyle_scene->r.tiley = old_scene->r.tiley;
 	freestyle_scene->r.size = 100; // old_scene->r.size
 	freestyle_scene->r.color_mgt_flag = 0; // old_scene->r.color_mgt_flag;
-	freestyle_scene->r.scemode = old_scene->r.scemode & ~(R_SINGLE_LAYER | R_NO_FRAME_UPDATE | R_MULTIVIEW);
+	freestyle_scene->r.scemode = (old_scene->r.scemode & ~(R_SINGLE_LAYER | R_NO_FRAME_UPDATE | R_MULTIVIEW)) &
+	                             (re->r.scemode | ~R_FULL_SAMPLE);
 	freestyle_scene->r.flag = old_scene->r.flag;
 	freestyle_scene->r.threads = old_scene->r.threads;
 	freestyle_scene->r.border.xmin = old_scene->r.border.xmin;
@@ -860,7 +861,6 @@ Object *BlenderStrokeRenderer::NewMesh() const
 	ob = BKE_object_add_only_object(freestyle_bmain, OB_MESH, name);
 	BLI_snprintf(name, MAX_ID_NAME, "0%08xME", mesh_id);
 	ob->data = BKE_mesh_add(freestyle_bmain, name);
-	ob->lay = 1;
 
 	Collection *collection_master = BKE_collection_master(freestyle_scene);
 	BKE_collection_object_add(freestyle_bmain, collection_master, ob);

@@ -47,6 +47,7 @@ set(SRC
 	intern/BLI_ghash.c
 	intern/BLI_ghash_utils.c
 	intern/BLI_heap.c
+	intern/BLI_heap_simple.c
 	intern/BLI_kdopbvh.c
 	intern/BLI_kdtree.c
 	intern/BLI_linklist.c
@@ -68,6 +69,7 @@ set(SRC
 	intern/easing.c
 	intern/edgehash.c
 	intern/endian_switch.c
+	intern/expr_pylike_eval.c
 	intern/fileops.c
 	intern/fnmatch.c
 	intern/freetypefont.c
@@ -151,6 +153,7 @@ set(SRC
 	BLI_edgehash.h
 	BLI_endian_switch.h
 	BLI_endian_switch_inline.h
+	BLI_expr_pylike_eval.h
 	BLI_fileops.h
 	BLI_fileops_types.h
 	BLI_fnmatch.h
@@ -161,6 +164,7 @@ set(SRC
 	BLI_hash_mm2a.h
 	BLI_hash_mm3.h
 	BLI_heap.h
+	BLI_heap_simple.h
 	BLI_iterator.h
 	BLI_jitter_2d.h
 	BLI_kdopbvh.h

@@ -259,7 +259,7 @@ static void round_box_shade_col(unsigned attrib, const float col1[3], float cons
 		fac * col1[2] + (1.0f - fac) * col2[2],
 		1.0f
 	};
-	immAttrib4fv(attrib, col);
+	immAttr4fv(attrib, col);
 }
 #endif
 
@@ -573,7 +573,7 @@ void ui_draw_but_TAB_outline(const rcti *rect, float rad, unsigned char highligh
 	immBindBuiltinProgram(GPU_SHADER_2D_SMOOTH_COLOR);
 	immBeginAtMost(GPU_PRIM_LINE_STRIP, 25);
 
-	immAttrib3ubv(col, highlight);
+	immAttr3ubv(col, highlight);
 
 	/* start with corner left-top */
 	if (roundboxtype & UI_CNR_TOP_LEFT) {
@@ -599,7 +599,7 @@ void ui_draw_but_TAB_outline(const rcti *rect, float rad, unsigned char highligh
 		immVertex2f(pos, maxx, maxy);
 	}
 
-	immAttrib3ubv(col, highlight_fade);
+	immAttr3ubv(col, highlight_fade);
 
 	/* corner right-bottom */
 	if (roundboxtype & UI_CNR_BOTTOM_RIGHT) {
@@ -625,7 +625,7 @@ void ui_draw_but_TAB_outline(const rcti *rect, float rad, unsigned char highligh
 		immVertex2f(pos, minx, miny);
 	}
 
-	immAttrib3ubv(col, highlight);
+	immAttr3ubv(col, highlight);
 
 	/* back to corner left-top */
 	immVertex2f(pos, minx, roundboxtype & UI_CNR_TOP_LEFT ? maxy - rad : maxy);
@@ -1456,7 +1456,7 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 
 		v1[0] = v2[0] = x1 + a;
 
-		immAttrib4fv(col_id, colf);
+		immAttr4fv(col_id, colf);
 		immVertex2fv(pos_id, v1);
 		immVertex2fv(pos_id, v2);
 	}
@@ -1475,7 +1475,7 @@ void ui_draw_but_COLORBAND(uiBut *but, uiWidgetColors *UNUSED(wcol), const rcti 
 
 		v1[0] = v2[0] = x1 + a;
 
-		immAttrib4f(col_id, colf[0], colf[1], colf[2], 1.0f);
+		immAttr4f(col_id, colf[0], colf[1], colf[2], 1.0f);
 		immVertex2fv(pos_id, v1);
 		immVertex2fv(pos_id, v2);
 	}
@@ -1765,54 +1765,82 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 		}
 		immEnd();
 	}
+	immUnbindProgram();
 
-	/* the curve */
-	immUniformColor3ubv((unsigned char *)wcol->item);
-	GPU_line_smooth(true);
-	GPU_blend(true);
-	immBegin(GPU_PRIM_LINE_STRIP, (CM_TABLE + 1) + 2);
+
 
 	if (cuma->table == NULL)
 		curvemapping_changed(cumap, false);
 
 	CurveMapPoint *cmp = cuma->table;
+	rctf line_range;
 
-	/* first point */
+	/* First curve point. */
 	if ((cuma->flag & CUMA_EXTEND_EXTRAPOLATE) == 0) {
-		immVertex2f(pos, rect->xmin, rect->ymin + zoomy * (cmp[0].y - offsy));
+		line_range.xmin = rect->xmin;
+		line_range.ymin = rect->ymin + zoomy * (cmp[0].y - offsy);
 	}
 	else {
-		float fx = rect->xmin + zoomx * (cmp[0].x - offsx + cuma->ext_in[0]);
-		float fy = rect->ymin + zoomy * (cmp[0].y - offsy + cuma->ext_in[1]);
+		line_range.xmin = rect->xmin + zoomx * (cmp[0].x - offsx + cuma->ext_in[0]);
+		line_range.ymin = rect->ymin + zoomy * (cmp[0].y - offsy + cuma->ext_in[1]);
+	}
+	/* Last curve point. */
+	if ((cuma->flag & CUMA_EXTEND_EXTRAPOLATE) == 0) {
+		line_range.xmax = rect->xmax;
+		line_range.ymax = rect->ymin + zoomy * (cmp[CM_TABLE].y - offsy);
+	}
+	else {
+		line_range.xmax = rect->xmin + zoomx * (cmp[CM_TABLE].x - offsx - cuma->ext_out[0]);
+		line_range.ymax = rect->ymin + zoomy * (cmp[CM_TABLE].y - offsy - cuma->ext_out[1]);
+	}
+
+	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+	GPU_blend(true);
+
+	/* Curve filled. */
+	immUniformColor3ubvAlpha((unsigned char *)wcol->item, 128);
+	GPU_polygon_smooth(true);
+	immBegin(GPU_PRIM_TRI_STRIP, (CM_TABLE * 2 + 2) + 4);
+	immVertex2f(pos, line_range.xmin, rect->ymin);
+	immVertex2f(pos, line_range.xmin, line_range.ymin);
+	for (int a = 0; a <= CM_TABLE; a++) {
+		float fx = rect->xmin + zoomx * (cmp[a].x - offsx);
+		float fy = rect->ymin + zoomy * (cmp[a].y - offsy);
+		immVertex2f(pos, fx, rect->ymin);
 		immVertex2f(pos, fx, fy);
 	}
+	immVertex2f(pos, line_range.xmax, rect->ymin);
+	immVertex2f(pos, line_range.xmax, rect->ymax);
+	immEnd();
+	GPU_polygon_smooth(false);
+
+	/* Curve line. */
+	GPU_line_width(1.0f);
+	immUniformColor3ubvAlpha((unsigned char *)wcol->item, 255);
+	GPU_line_smooth(true);
+	immBegin(GPU_PRIM_LINE_STRIP, (CM_TABLE + 1) + 2);
+	immVertex2f(pos, line_range.xmin, line_range.ymin);
 	for (int a = 0; a <= CM_TABLE; a++) {
 		float fx = rect->xmin + zoomx * (cmp[a].x - offsx);
 		float fy = rect->ymin + zoomy * (cmp[a].y - offsy);
 		immVertex2f(pos, fx, fy);
 	}
-	/* last point */
-	if ((cuma->flag & CUMA_EXTEND_EXTRAPOLATE) == 0) {
-		immVertex2f(pos, rect->xmax, rect->ymin + zoomy * (cmp[CM_TABLE].y - offsy));
-	}
-	else {
-		float fx = rect->xmin + zoomx * (cmp[CM_TABLE].x - offsx - cuma->ext_out[0]);
-		float fy = rect->ymin + zoomy * (cmp[CM_TABLE].y - offsy - cuma->ext_out[1]);
-		immVertex2f(pos, fx, fy);
-	}
+	immVertex2f(pos, line_range.xmax, line_range.ymax);
 	immEnd();
+
+	/* Reset state for fill & line. */
 	GPU_line_smooth(false);
 	GPU_blend(false);
 	immUnbindProgram();
 
-	/* the points, use aspect to make them visible on edges */
+	/* The points, use aspect to make them visible on edges. */
 	format = immVertexFormat();
 	pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	uint col = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
 
 	cmp = cuma->curve;
-	GPU_point_size(3.0f);
+	GPU_point_size(max_ff(1.0f, min_ff(UI_DPI_FAC / but->block->aspect * 4.0f, 4.0f)));
 	immBegin(GPU_PRIM_POINTS, cuma->totpoint);
 	for (int a = 0; a < cuma->totpoint; a++) {
 		float color[4];
@@ -1822,7 +1850,7 @@ void ui_draw_but_CURVE(ARegion *ar, uiBut *but, uiWidgetColors *wcol, const rcti
 			UI_GetThemeColor4fv(TH_TEXT, color);
 		float fx = rect->xmin + zoomx * (cmp[a].x - offsx);
 		float fy = rect->ymin + zoomy * (cmp[a].y - offsy);
-		immAttrib4fv(col, color);
+		immAttr4fv(col, color);
 		immVertex2f(pos, fx, fy);
 	}
 	immEnd();
@@ -1945,9 +1973,9 @@ void ui_draw_but_TRACKPREVIEW(ARegion *UNUSED(ar), uiBut *but, uiWidgetColors *U
 					float y2 = pos_sel[i + 1] * axe;
 
 					if (i % 2 == 1)
-						immAttrib4fv(col, col_sel);
+						immAttr4fv(col, col_sel);
 					else
-						immAttrib4fv(col, col_outline);
+						immAttr4fv(col, col_outline);
 
 					immVertex2f(pos, x1, y1);
 					immVertex2f(pos, x2, y2);
@@ -2053,7 +2081,9 @@ void ui_draw_but_NODESOCKET(ARegion *ar, uiBut *but, uiWidgetColors *UNUSED(wcol
 
 static void ui_shadowbox(unsigned pos, unsigned color, float minx, float miny, float maxx, float maxy, float shadsize, unsigned char alpha)
 {
-	/*          v1-_
+	/**
+	 * <pre>
+	 *          v1-_
 	 *          |   -_v2
 	 *          |     |
 	 *          |     |
@@ -2062,6 +2092,7 @@ static void ui_shadowbox(unsigned pos, unsigned color, float minx, float miny, f
 	 * \        |     /
 	 *  \       |   _v5
 	 *  v8______v6_-
+	 * </pre>
 	 */
 	const float v1[2] = {maxx,                   maxy - 0.3f * shadsize};
 	const float v2[2] = {maxx + shadsize,        maxy - 0.75f * shadsize};
@@ -2075,38 +2106,38 @@ static void ui_shadowbox(unsigned pos, unsigned color, float minx, float miny, f
 	const float v8[2] = {minx + 0.5f * shadsize, miny - shadsize};
 
 	/* right quad */
-	immAttrib4ub(color, 0, 0, 0, alpha);
+	immAttr4ub(color, 0, 0, 0, alpha);
 	immVertex2fv(pos, v3);
 	immVertex2fv(pos, v1);
-	immAttrib4ub(color, 0, 0, 0, 0);
+	immAttr4ub(color, 0, 0, 0, 0);
 	immVertex2fv(pos, v2);
 
 	immVertex2fv(pos, v2);
 	immVertex2fv(pos, v4);
-	immAttrib4ub(color, 0, 0, 0, alpha);
+	immAttr4ub(color, 0, 0, 0, alpha);
 	immVertex2fv(pos, v3);
 
 	/* corner shape */
-	/* immAttrib4ub(color, 0, 0, 0, alpha); */  /* Not needed, done above in previous tri */
+	/* immAttr4ub(color, 0, 0, 0, alpha); */  /* Not needed, done above in previous tri */
 	immVertex2fv(pos, v3);
-	immAttrib4ub(color, 0, 0, 0, 0);
+	immAttr4ub(color, 0, 0, 0, 0);
 	immVertex2fv(pos, v4);
 	immVertex2fv(pos, v5);
 
 	immVertex2fv(pos, v5);
 	immVertex2fv(pos, v6);
-	immAttrib4ub(color, 0, 0, 0, alpha);
+	immAttr4ub(color, 0, 0, 0, alpha);
 	immVertex2fv(pos, v3);
 
 	/* bottom quad */
-	/* immAttrib4ub(color, 0, 0, 0, alpha); */  /* Not needed, done above in previous tri */
+	/* immAttr4ub(color, 0, 0, 0, alpha); */  /* Not needed, done above in previous tri */
 	immVertex2fv(pos, v3);
-	immAttrib4ub(color, 0, 0, 0, 0);
+	immAttr4ub(color, 0, 0, 0, 0);
 	immVertex2fv(pos, v6);
 	immVertex2fv(pos, v8);
 
 	immVertex2fv(pos, v8);
-	immAttrib4ub(color, 0, 0, 0, alpha);
+	immAttr4ub(color, 0, 0, 0, alpha);
 	immVertex2fv(pos, v7);
 	immVertex2fv(pos, v3);
 }

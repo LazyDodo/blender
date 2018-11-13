@@ -73,7 +73,9 @@ struct Object *BKE_view_layer_camera_find(struct ViewLayer *view_layer);
 struct ViewLayer *BKE_view_layer_find_from_collection(const struct Scene *scene, struct LayerCollection *lc);
 struct Base *BKE_view_layer_base_find(struct ViewLayer *view_layer, struct Object *ob);
 void BKE_view_layer_base_deselect_all(struct ViewLayer *view_layer);
-void BKE_view_layer_base_select(struct ViewLayer *view_layer, struct Base *selbase);
+
+void BKE_view_layer_base_select(struct Base *selbase);
+void BKE_view_layer_base_select_and_set_active(struct ViewLayer *view_layer, struct Base *selbase);
 
 void BKE_view_layer_copy_data(
         struct Scene *scene_dst, const struct Scene *scene_src,
@@ -381,6 +383,11 @@ bool BKE_view_layer_filter_edit_mesh_has_edges(struct Object *ob, void *user_dat
 		.no_dup_data = true, \
 		.filter_fn = BKE_view_layer_filter_edit_mesh_has_uvs});
 
+#define BKE_view_layer_array_from_objects_in_mode_unique_data(view_layer, r_len, mode) \
+	BKE_view_layer_array_from_objects_in_mode( \
+	view_layer, r_len, { \
+		.object_mode = mode, \
+		.no_dup_data = true});
 
 #ifdef __cplusplus
 }

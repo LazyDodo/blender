@@ -33,10 +33,12 @@
  */
 
 struct bContext;
+struct bToolRef;
 struct BMesh;
 struct BMFace;
 struct Brush;
 struct CurveMapping;
+struct EnumPropertyItem;
 struct MeshElemMap;
 struct GridPaintMask;
 struct Main;
@@ -56,10 +58,12 @@ struct Scene;
 struct ViewLayer;
 struct Sculpt;
 struct StrokeCache;
+struct SubdivCCG;
 struct Tex;
 struct ImagePool;
 struct UnifiedPaintSettings;
 struct Depsgraph;
+struct ToolSettings;
 
 enum eOverlayFlags;
 
@@ -72,13 +76,17 @@ extern const char PAINT_CURSOR_TEXTURE_PAINT[3];
 
 typedef enum ePaintMode {
 	ePaintSculpt = 0,
+	/** Vertex color. */
 	ePaintVertex = 1,
 	ePaintWeight = 2,
-	ePaintTextureProjective = 3,
+	/** 3D view (projection painting). */
+	ePaintTexture3D = 3,
+	/** Image space (2D painting). */
 	ePaintTexture2D = 4,
 	ePaintSculptUV = 5,
-	ePaintInvalid = 6,
-	ePaintGpencil = 7
+	ePaintGpencil = 6,
+
+	ePaintInvalid = 7,
 } ePaintMode;
 
 /* overlay invalidation */
@@ -103,6 +111,7 @@ void BKE_paint_reset_overlay_invalid(eOverlayControlFlags flag);
 void BKE_paint_set_overlay_override(enum eOverlayFlags flag);
 
 /* palettes */
+void                 BKE_palette_init(struct Palette *palette);
 void                 BKE_palette_free(struct Palette *palette);
 struct Palette      *BKE_palette_add(struct Main *bmain, const char *name);
 void BKE_palette_copy_data(
@@ -122,17 +131,24 @@ void BKE_paint_curve_copy_data(
 struct PaintCurve *BKE_paint_curve_copy(struct Main *bmain, const struct PaintCurve *pc);
 void               BKE_paint_curve_make_local(struct Main *bmain, struct PaintCurve *pc, const bool lib_local);
 
+bool BKE_paint_ensure(const struct ToolSettings *ts, struct Paint **r_paint);
 void BKE_paint_init(struct Main *bmain, struct Scene *sce, ePaintMode mode, const char col[3]);
 void BKE_paint_free(struct Paint *p);
 void BKE_paint_copy(struct Paint *src, struct Paint *tar, const int flag);
 
+void BKE_paint_runtime_init(const struct ToolSettings *ts, struct Paint *paint);
+
 void BKE_paint_cavity_curve_preset(struct Paint *p, int preset);
 
-eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode);
+eObjectMode BKE_paint_object_mode_from_paintmode(ePaintMode mode);
 struct Paint *BKE_paint_get_active_from_paintmode(struct Scene *sce, ePaintMode mode);
+const struct EnumPropertyItem *BKE_paint_get_tool_enum_from_paintmode(ePaintMode mode);
+const char *BKE_paint_get_tool_prop_id_from_paintmode(ePaintMode mode);
+uint BKE_paint_get_brush_tool_offset_from_paintmode(const ePaintMode mode);
 struct Paint *BKE_paint_get_active(struct Scene *sce, struct ViewLayer *view_layer);
 struct Paint *BKE_paint_get_active_from_context(const struct bContext *C);
 ePaintMode BKE_paintmode_get_active_from_context(const struct bContext *C);
+ePaintMode BKE_paintmode_get_from_tool(const struct bToolRef *tref);
 struct Brush *BKE_paint_brush(struct Paint *paint);
 void BKE_paint_brush_set(struct Paint *paint, struct Brush *br);
 struct Palette *BKE_paint_palette(struct Paint *paint);
@@ -166,6 +182,15 @@ void paint_update_brush_rake_rotation(struct UnifiedPaintSettings *ups, struct B
 
 void BKE_paint_stroke_get_average(struct Scene *scene, struct Object *ob, float stroke[3]);
 
+
+/* Tool slot API. */
+void BKE_paint_toolslots_init_from_main(struct Main *bmain);
+void BKE_paint_toolslots_len_ensure(struct Paint *paint, int len);
+void BKE_paint_toolslots_brush_update_ex(struct Paint *paint, struct Brush *brush);
+void BKE_paint_toolslots_brush_update(struct Paint *paint);
+void BKE_paint_toolslots_brush_validate(struct Main *bmain, struct Paint *paint);
+struct Brush *BKE_paint_toolslots_brush_get(struct Paint *paint, int slot_index);
+
 /* Used for both vertex color and weight paint */
 struct SculptVertexPaintGeomMap {
 	int *vert_map_mem;
@@ -197,6 +222,9 @@ typedef struct SculptSession {
 	bool bm_smooth_shading;
 	/* Undo/redo log for dynamic topology sculpting */
 	struct BMLog *bm_log;
+
+	/* Limit surface/grids. */
+	struct SubdivCCG *subdiv_ccg;
 
 	/* PBVH acceleration structure */
 	struct PBVH *pbvh;
@@ -261,7 +289,7 @@ int BKE_sculpt_mask_layers_ensure(struct Object *ob,
                                   struct MultiresModifierData *mmd);
 void BKE_sculpt_toolsettings_data_ensure(struct Scene *scene);
 
-struct PBVH *BKE_sculpt_object_pbvh_ensure(struct Object *ob, struct Mesh *me_eval_deform);
+struct PBVH *BKE_sculpt_object_pbvh_ensure(struct Depsgraph *depsgraph, struct Object *ob);
 
 enum {
 	SCULPT_MASK_LAYER_CALC_VERT = (1 << 0),

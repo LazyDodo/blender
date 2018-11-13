@@ -38,11 +38,10 @@
 #include "BKE_armature.h"
 
 extern "C" {
-#include "BKE_main.h"
-#include "BKE_mesh.h"
 #include "BKE_global.h"
-#include "BKE_library.h"
 #include "BKE_idprop.h"
+#include "BKE_library.h"
+#include "BKE_mesh.h"
 }
 
 #include "ED_armature.h"
@@ -397,13 +396,13 @@ std::string ControllerExporter::add_morph_weights(Key *key, Object *ob)
 	return source_id;
 }
 
-//Added to implemente support for animations.
+//Added to implement support for animations.
 void ControllerExporter::add_weight_extras(Key *key)
 {
 	// can also try the base element and param alternative
 	COLLADASW::BaseExtraTechnique extra;
 
-	KeyBlock * kb = (KeyBlock *)key->block.first;
+	KeyBlock *kb = (KeyBlock *)key->block.first;
 	//skip the basis
 	kb = kb->next;
 	for (; kb; kb = kb->next) {
@@ -546,7 +545,7 @@ std::string ControllerExporter::add_inv_bind_mats_source(Object *ob_arm, ListBas
 		}
 	}
 
-	// back from rest positon
+	// back from rest position
 	if (!(flag & ARM_RESTPOS)) {
 		arm->flag = flag;
 		BKE_pose_where_is(depsgraph, scene, ob_arm);

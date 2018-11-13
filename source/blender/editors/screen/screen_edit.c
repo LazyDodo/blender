@@ -43,9 +43,9 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_icons.h"
 #include "BKE_image.h"
-#include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_remap.h"
@@ -325,7 +325,7 @@ int area_getorientation(ScrArea *sa, ScrArea *sb)
 }
 
 /* Helper function to join 2 areas, it has a return value, 0=failed 1=success
- *  used by the split, join operators
+ * used by the split, join operators
  */
 int screen_area_join(bContext *C, bScreen *scr, ScrArea *sa1, ScrArea *sa2)
 {
@@ -680,7 +680,7 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 			}
 		}
 
-		/* cursors, for time being set always on edges, otherwise aregion doesnt switch */
+		/* cursors, for time being set always on edges, otherwise aregion doesn't switch */
 		if (scr->active_region == NULL) {
 			screen_cursor_set(win, xy);
 		}
@@ -1251,7 +1251,7 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 			for (ar = newa->regionbase.first; ar; ar = ar->next) {
 				ar->flagfullscreen = ar->flag;
 
-				if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_HEADER, RGN_TYPE_TOOLS)) {
+				if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_HEADER, RGN_TYPE_TOOLS, RGN_TYPE_NAV_BAR)) {
 					ar->flag |= RGN_FLAG_HIDDEN;
 				}
 			}

@@ -106,9 +106,9 @@ void flush_init_id_node_func(
 {
 	Depsgraph *graph = (Depsgraph *)data_v;
 	IDDepsNode *id_node = graph->id_nodes[i];
-	id_node->done = ID_STATE_NONE;
+	id_node->custom_flags = ID_STATE_NONE;
 	GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
-		comp_node->done = COMPONENT_STATE_NONE;
+		comp_node->custom_flags = COMPONENT_STATE_NONE;
 	GHASH_FOREACH_END();
 }
 
@@ -151,7 +151,7 @@ BLI_INLINE void flush_schedule_entrypoints(Depsgraph *graph, FlushQueue *queue)
 
 BLI_INLINE void flush_handle_id_node(IDDepsNode *id_node)
 {
-	id_node->done = ID_STATE_MODIFIED;
+	id_node->custom_flags = ID_STATE_MODIFIED;
 }
 
 /* TODO(sergey): We can reduce number of arguments here. */
@@ -160,10 +160,10 @@ BLI_INLINE void flush_handle_component_node(IDDepsNode *id_node,
                                             FlushQueue *queue)
 {
 	/* We only handle component once. */
-	if (comp_node->done == COMPONENT_STATE_DONE) {
+	if (comp_node->custom_flags == COMPONENT_STATE_DONE) {
 		return;
 	}
-	comp_node->done = COMPONENT_STATE_DONE;
+	comp_node->custom_flags = COMPONENT_STATE_DONE;
 	/* Tag all required operations in component for update.  */
 	foreach (OperationDepsNode *op, comp_node->operations) {
 		/* We don't want to flush tags in "upstream" direction for
@@ -183,9 +183,9 @@ BLI_INLINE void flush_handle_component_node(IDDepsNode *id_node,
 		ComponentDepsNode *pose_comp =
 		        id_node->find_component(DEG_NODE_TYPE_EVAL_POSE);
 		BLI_assert(pose_comp != NULL);
-		if (pose_comp->done == COMPONENT_STATE_NONE) {
+		if (pose_comp->custom_flags == COMPONENT_STATE_NONE) {
 			queue->push_front(pose_comp->get_entry_operation());
-			pose_comp->done = COMPONENT_STATE_SCHEDULED;
+			pose_comp->custom_flags = COMPONENT_STATE_SCHEDULED;
 		}
 	}
 }
@@ -221,12 +221,12 @@ BLI_INLINE OperationDepsNode *flush_schedule_children(
 
 void flush_engine_data_update(ID *id)
 {
-	DrawDataList *drawdata = DRW_drawdatalist_from_id(id);
-	if (drawdata == NULL) {
+	DrawDataList *draw_data_list = DRW_drawdatalist_from_id(id);
+	if (draw_data_list == NULL) {
 		return;
 	}
-	LISTBASE_FOREACH(DrawData *, dd, drawdata) {
-		dd->recalc |= id->recalc;
+	LISTBASE_FOREACH(DrawData *, draw_data, draw_data_list) {
+		draw_data->recalc |= id->recalc;
 	}
 }
 
@@ -236,7 +236,7 @@ void flush_editors_id_update(Main *bmain,
                              const DEGEditorUpdateContext *update_ctx)
 {
 	foreach (IDDepsNode *id_node, graph->id_nodes) {
-		if (id_node->done != ID_STATE_MODIFIED) {
+		if (id_node->custom_flags != ID_STATE_MODIFIED) {
 			continue;
 		}
 		DEG_id_type_tag(bmain, GS(id_node->id_orig->name));
@@ -251,7 +251,7 @@ void flush_editors_id_update(Main *bmain,
 		/* Gather recalc flags from all changed components. */
 		GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
 		{
-			if (comp_node->done != COMPONENT_STATE_DONE) {
+			if (comp_node->custom_flags != COMPONENT_STATE_DONE) {
 				continue;
 			}
 			DepsNodeFactory *factory = deg_type_get_factory(comp_node->type);
@@ -262,9 +262,17 @@ void flush_editors_id_update(Main *bmain,
 		DEG_DEBUG_PRINTF((::Depsgraph *)graph,
 		                 EVAL, "Accumulated recalc bits for %s: %u\n",
 		                 id_orig->name, (unsigned int)id_cow->recalc);
-		/* Inform editors. */
+
+		/* Inform editors. Only if the datablock is being evaluated a second
+		 * time, to distinguish between user edits and initial evaluation when
+		 * the datablock becomes visible.
+		 *
+		 * TODO: image datablocks do not use COW, so might not be detected
+		 * correctly. */
 		if (deg_copy_on_write_is_expanded(id_cow)) {
-			deg_editors_id_update(update_ctx, id_cow);
+			if (graph->is_active) {
+				deg_editors_id_update(update_ctx, id_orig);
+			}
 			/* ID may need to get its auto-override operations refreshed. */
 			if (ID_IS_STATIC_OVERRIDE_AUTO(id_orig)) {
 				id_orig->tag |= LIB_TAG_OVERRIDESTATIC_AUTOREFRESH;
@@ -311,7 +319,7 @@ void invalidate_tagged_evaluated_data(Depsgraph *graph)
 {
 #ifdef INVALIDATE_ON_FLUSH
 	foreach (IDDepsNode *id_node, graph->id_nodes) {
-		if (id_node->done != ID_STATE_MODIFIED) {
+		if (id_node->custom_flags != ID_STATE_MODIFIED) {
 			continue;
 		}
 		ID *id_cow = id_node->id_cow;
@@ -320,7 +328,7 @@ void invalidate_tagged_evaluated_data(Depsgraph *graph)
 		}
 		GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
 		{
-			if (comp_node->done != COMPONENT_STATE_DONE) {
+			if (comp_node->custom_flags != COMPONENT_STATE_DONE) {
 				continue;
 			}
 			switch (comp_node->type) {

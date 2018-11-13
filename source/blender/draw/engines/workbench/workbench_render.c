@@ -137,7 +137,7 @@ void workbench_render(WORKBENCH_Data *data, RenderEngine *engine, RenderLayer *r
 		return;
 	}
 
-	const bool deferred = (scene->display.shading.flag & V3D_SHADING_XRAY) == 0;
+	const bool deferred = (scene->display.shading.flag & XRAY_FLAG(&scene->display)) == 0;
 
 	if (deferred) {
 		/* Init engine. */
@@ -155,6 +155,8 @@ void workbench_render(WORKBENCH_Data *data, RenderEngine *engine, RenderLayer *r
 			if (RE_engine_test_break(engine)) {
 				break;
 			}
+			/* TODO: Save matrices instead of recomputing them for each samples. */
+			workbench_render_matrices_init(engine, depsgraph);
 
 			workbench_deferred_draw_background(data);
 			workbench_deferred_draw_scene(data);

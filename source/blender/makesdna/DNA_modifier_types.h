@@ -220,8 +220,9 @@ typedef struct MaskModifierData {
 	struct Object *ob_arm;  /* armature to use to in place of hardcoded vgroup */
 	char vgroup[64];        /* name of vertex group to use to mask, MAX_VGROUP_NAME */
 
-	int mode;               /* using armature or hardcoded vgroup */
-	int flag;               /* flags for various things */
+	short mode;               /* using armature or hardcoded vgroup */
+	short flag;               /* flags for various things */
+	float threshold;
 } MaskModifierData;
 
 /* Mask Modifier -> mode */
@@ -871,7 +872,7 @@ typedef struct ShrinkwrapModifierData {
 	float keepDist;           /* distance offset to keep from mesh/projection point */
 	short shrinkType;         /* shrink type projection */
 	char  shrinkOpts;         /* shrink options */
-	char  pad1;
+	char  shrinkMode;         /* shrink to surface mode */
 	float projLimit;          /* limit the projection ray cast */
 	char  projAxis;           /* axis to project over */
 
@@ -888,6 +889,21 @@ enum {
 	MOD_SHRINKWRAP_NEAREST_SURFACE = 0,
 	MOD_SHRINKWRAP_PROJECT         = 1,
 	MOD_SHRINKWRAP_NEAREST_VERTEX  = 2,
+	MOD_SHRINKWRAP_TARGET_PROJECT  = 3,
+};
+
+/* Shrinkwrap->shrinkMode */
+enum {
+	/* Move vertex to the surface of the target object (keepDist towards original position) */
+	MOD_SHRINKWRAP_ON_SURFACE      = 0,
+	/* Move the vertex inside the target object; don't change if already inside */
+	MOD_SHRINKWRAP_INSIDE          = 1,
+	/* Move the vertex outside the target object; don't change if already outside */
+	MOD_SHRINKWRAP_OUTSIDE         = 2,
+	/* Move vertex to the surface of the target object, with keepDist towards the outside */
+	MOD_SHRINKWRAP_OUTSIDE_SURFACE = 3,
+	/* Move vertex to the surface of the target object, with keepDist along the normal */
+	MOD_SHRINKWRAP_ABOVE_SURFACE   = 4,
 };
 
 /* Shrinkwrap->shrinkOpts */
@@ -902,10 +918,15 @@ enum {
 	/* ignore vertex moves if a vertex ends projected on a back face of the target */
 	MOD_SHRINKWRAP_CULL_TARGET_BACKFACE  = (1 << 4),
 
+#ifdef DNA_DEPRECATED_ALLOW
 	MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE    = (1 << 5),  /* distance is measure to the front face of the target */
+#endif
 
 	MOD_SHRINKWRAP_INVERT_VGROUP         = (1 << 6),
+	MOD_SHRINKWRAP_INVERT_CULL_TARGET    = (1 << 7),
 };
+
+#define MOD_SHRINKWRAP_CULL_TARGET_MASK (MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE)
 
 /* Shrinkwrap->projAxis */
 enum {
@@ -925,7 +946,7 @@ typedef struct SimpleDeformModifierData {
 	float limit[2];         /* lower and upper limit */
 
 	char mode;              /* deform function */
-	char axis;              /* lock axis (for taper and strech) */
+	char axis;              /* lock axis (for taper and stretch) */
 	char deform_axis;       /* axis to perform the deform on (default is X, but can be overridden by origin */
 	char flag;
 

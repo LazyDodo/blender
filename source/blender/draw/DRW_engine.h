@@ -98,6 +98,7 @@ typedef bool (*DRW_ObjectFilterFn)(
         struct Object *ob, void *user_data);
 
 void DRW_draw_view(const struct bContext *C);
+void DRW_draw_region_engine_info(int xoffset, int yoffset);
 
 void DRW_draw_render_loop_ex(
         struct Depsgraph *depsgraph,
@@ -119,7 +120,7 @@ void DRW_draw_render_loop_offscreen(
 void DRW_draw_select_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d,
-        bool use_obedit_skip, bool use_nearest, const struct rcti *rect,
+        bool use_obedit_skip, bool draw_surface, bool use_nearest, const struct rcti *rect,
         DRW_SelectPassFn select_pass_fn, void *select_pass_user_data,
         DRW_ObjectFilterFn object_filter_fn, void *object_filter_user_data);
 void DRW_draw_depth_loop(
@@ -127,7 +128,9 @@ void DRW_draw_depth_loop(
         struct ARegion *ar, struct View3D *v3d);
 
 /* grease pencil render */
+bool DRW_render_check_grease_pencil(struct Depsgraph *depsgraph);
 void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph);
+void DRW_gpencil_freecache(struct Object *ob);
 
 /* This is here because GPUViewport needs it */
 void DRW_pass_free(struct DRWPass *pass);

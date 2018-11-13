@@ -64,6 +64,7 @@
 #include "BKE_collection.h"
 #include "BKE_dynamicpaint.h"
 #include "BKE_global.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -144,7 +145,7 @@ static int ptcache_extra_datasize[] = {
 	sizeof(ParticleSpring)
 };
 
-/* forward declerations */
+/* forward declarations */
 static int ptcache_file_compressed_read(PTCacheFile *pf, unsigned char *result, unsigned int len);
 static int ptcache_file_compressed_write(PTCacheFile *pf, unsigned char *in, unsigned int in_len, unsigned char *out, int mode);
 static int ptcache_file_write(PTCacheFile *pf, const void *f, unsigned int tot, unsigned int size);
@@ -3337,19 +3338,6 @@ void BKE_ptcache_id_time(PTCacheID *pid, Scene *scene, float cfra, int *startfra
 	if (startframe && endframe) {
 		*startframe= cache->startframe;
 		*endframe= cache->endframe;
-
-		/* TODO: time handling with object offsets and simulated vs. cached
-		 * particles isn't particularly easy, so for now what you see is what
-		 * you get. In the future point cache could handle the whole particle
-		 * system timing. */
-#if 0
-		if ((ob->partype & PARSLOW)==0) {
-			offset= ob->sf;
-
-			*startframe += (int)(offset+0.5f);
-			*endframe += (int)(offset+0.5f);
-		}
-#endif
 	}
 
 	/* verify cached_frames array is up to date */
@@ -3455,12 +3443,6 @@ int  BKE_ptcache_id_reset(Scene *scene, PTCacheID *pid, int mode)
 			sbFreeSimulation(pid->calldata);
 		else if (pid->type == PTCACHE_TYPE_PARTICLES)
 			psys_reset(pid->calldata, PSYS_RESET_DEPSGRAPH);
-#if 0
-		else if (pid->type == PTCACHE_TYPE_SMOKE_DOMAIN)
-			smokeModifier_reset(pid->calldata);
-		else if (pid->type == PTCACHE_TYPE_SMOKE_HIGHRES)
-			smokeModifier_reset_turbulence(pid->calldata);
-#endif
 		else if (pid->type == PTCACHE_TYPE_DYNAMICPAINT)
 			dynamicPaint_clearSurface(scene, (DynamicPaintSurface*)pid->calldata);
 	}

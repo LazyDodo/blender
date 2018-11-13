@@ -38,8 +38,8 @@
 #include "BLI_math.h"
 #include "BLI_string_utils.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_appdir.h"
 #include "BKE_armature.h"
 #include "BKE_blender_copybuffer.h"
@@ -47,9 +47,9 @@
 #include "BKE_deform.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
-#include "BKE_layer.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -584,7 +584,7 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 
 	/* Recalculate paths if any of the bones have paths... */
 	if ((ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-		ED_pose_recalculate_paths(C, scene, ob);
+		ED_pose_recalculate_paths(C, scene, ob, false);
 	}
 
 	/* Notifiers for updates, */
@@ -827,7 +827,7 @@ static int pose_clear_transform_generic_exec(bContext *C, wmOperator *op,
 
 				/* now recalculate paths */
 				if ((ob_iter->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-					ED_pose_recalculate_paths(C, scene, ob_iter);
+					ED_pose_recalculate_paths(C, scene, ob_iter, false);
 				}
 
 				BLI_freelistN(&dsources);

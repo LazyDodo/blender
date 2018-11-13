@@ -22,7 +22,6 @@ from bpy.types import (
     Header,
     Menu,
     Panel,
-    Operator,
 )
 from bpy.app.translations import pgettext_iface as iface_
 from bpy.app.translations import contexts as i18n_contexts
@@ -39,25 +38,25 @@ class USERPREF_HT_header(Header):
 
         userpref = context.user_preferences
 
-        layout.operator_context = 'EXEC_AREA'
-        layout.operator("wm.save_userpref")
-
-        layout.operator_context = 'INVOKE_DEFAULT'
-
         if userpref.active_section == 'INPUT':
-            layout.operator("wm.keyconfig_import")
-            layout.operator("wm.keyconfig_export")
+            layout.operator("wm.keyconfig_import", icon='IMPORT')
+            layout.operator("wm.keyconfig_export", icon='EXPORT')
         elif userpref.active_section == 'ADDONS':
-            layout.operator("wm.addon_install", icon='FILESEL')
+            layout.operator("wm.addon_install", icon='FILEBROWSER')
             layout.operator("wm.addon_refresh", icon='FILE_REFRESH')
             layout.menu("USERPREF_MT_addons_online_resources")
         elif userpref.active_section == 'LIGHTS':
-            layout.operator('wm.studiolight_install', text="Install MatCap").orientation = 'MATCAP'
-            layout.operator('wm.studiolight_install', text="Install World HDRI").orientation = 'WORLD'
-            layout.operator('wm.studiolight_install', text="Install Camera HDRI").orientation = 'CAMERA'
+            layout.operator('wm.studiolight_install', text="Add MatCap").orientation = 'MATCAP'
+            layout.operator('wm.studiolight_install', text="Add World HDRI").orientation = 'WORLD'
+            layout.operator('wm.studiolight_install', text="Add Camera HDRI").orientation = 'CAMERA'
         elif userpref.active_section == 'THEMES':
-            layout.operator("ui.reset_default_theme")
-            layout.operator("wm.theme_install")
+            layout.operator("wm.theme_install", icon='FILEBROWSER')
+            layout.operator("ui.reset_default_theme", icon='LOOP_BACK')
+
+        layout.separator_spacer()
+
+        layout.operator_context = 'EXEC_AREA'
+        layout.operator("wm.save_userpref")
 
 
 class USERPREF_PT_tabs(Panel):
@@ -81,62 +80,6 @@ class USERPREF_MT_interaction_presets(Menu):
     draw = Menu.draw_preset
 
 
-class USERPREF_MT_app_templates(Menu):
-    bl_label = "Application Templates"
-    preset_subdir = "app_templates"
-
-    def draw_ex(self, context, *, use_splash=False, use_default=False, use_install=False):
-        import os
-
-        layout = self.layout
-
-        # now draw the presets
-        layout.operator_context = 'EXEC_DEFAULT'
-
-        if use_default:
-            props = layout.operator("wm.read_homefile", text="Default")
-            props.use_splash = True
-            props.app_template = ""
-            layout.separator()
-
-        template_paths = bpy.utils.app_template_paths()
-
-        # expand template paths
-        app_templates = []
-        for path in template_paths:
-            for d in os.listdir(path):
-                if d.startswith(("__", ".")):
-                    continue
-                template = os.path.join(path, d)
-                if os.path.isdir(template):
-                    # template_paths_expand.append(template)
-                    app_templates.append(d)
-
-        for d in sorted(app_templates):
-            props = layout.operator(
-                "wm.read_homefile",
-                text=bpy.path.display_name(d),
-            )
-            props.use_splash = True
-            props.app_template = d
-
-        if use_install:
-            layout.separator()
-            layout.operator_context = 'INVOKE_DEFAULT'
-            props = layout.operator("wm.app_template_install")
-
-    def draw(self, context):
-        self.draw_ex(context, use_splash=False, use_default=True, use_install=True)
-
-
-class USERPREF_MT_templates_splash(Menu):
-    bl_label = "Startup Templates"
-    preset_subdir = "templates"
-
-    def draw(self, context):
-        USERPREF_MT_app_templates.draw_ex(self, context, use_splash=True, use_default=True)
-
-
 class USERPREF_MT_appconfigs(Menu):
     bl_label = "AppPresets"
     preset_subdir = "keyconfig"
@@ -147,42 +90,6 @@ class USERPREF_MT_appconfigs(Menu):
 
         # now draw the presets
         Menu.draw_preset(self, context)
-
-
-class USERPREF_MT_splash(Menu):
-    bl_label = "Splash"
-
-    def draw(self, context):
-        layout = self.layout
-
-        split = layout.split()
-        row = split.row()
-
-        if any(bpy.utils.app_template_paths()):
-            row.label(text="Template:")
-            template = context.user_preferences.app_template
-            row.menu(
-                "USERPREF_MT_templates_splash",
-                text=bpy.path.display_name(template) if template else "Default",
-            )
-        else:
-            row.label(text="")
-
-        row = split.row()
-        row.label(text="Interaction:")
-
-        text = bpy.path.display_name(context.window_manager.keyconfigs.active.name)
-        if not text:
-            text = "Blender (default)"
-        row.menu("USERPREF_MT_appconfigs", text=text)
-
-
-# only for addons
-class USERPREF_MT_splash_footer(Menu):
-    bl_label = ""
-
-    def draw(self, context):
-        pass
 
 
 class USERPREF_PT_interface(Panel):
@@ -360,25 +267,25 @@ class USERPREF_PT_edit(Panel):
         row.separator()
         col = row.column()
 
-        col.label(text="Annotations:")
-        sub = col.row()
-        sub.prop(edit, "grease_pencil_default_color", text="Default Color")
-        col.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
-        col.separator()
         col.label(text="Grease Pencil/Annotations:")
         col.separator()
         col.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
         col.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
         col.separator()
+
+        col.label(text="Annotations:")
+        sub = col.row()
+        sub.prop(edit, "grease_pencil_default_color", text="Default Color")
+        col.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
+        col.separator()
         col.prop(edit, "use_grease_pencil_simplify_stroke", text="Simplify Stroke")
         col.separator()
+
         col.separator()
         col.separator()
         col.separator()
         col.label(text="Playback:")
         col.prop(edit, "use_negative_frames")
-        col.separator()
-        col.separator()
         col.separator()
         col.label(text="Node Editor:")
         col.prop(edit, "node_margin")
@@ -597,6 +504,9 @@ class USERPREF_MT_interface_theme_presets(Menu):
     )
     draw = Menu.draw_preset
 
+    def reset_cb(context):
+        bpy.ops.ui.reset_default_theme()
+
 
 class USERPREF_PT_theme(Panel):
     bl_space_type = 'USER_PREFERENCES'
@@ -755,8 +665,8 @@ class USERPREF_PT_theme(Panel):
         subrow = sub.row(align=True)
 
         subrow.menu("USERPREF_MT_interface_theme_presets", text=USERPREF_MT_interface_theme_presets.bl_label)
-        subrow.operator("wm.interface_theme_preset_add", text="", icon='ZOOMIN')
-        subrow.operator("wm.interface_theme_preset_add", text="", icon='ZOOMOUT').remove_active = True
+        subrow.operator("wm.interface_theme_preset_add", text="", icon='ADD')
+        subrow.operator("wm.interface_theme_preset_add", text="", icon='REMOVE').remove_active = True
         sub.separator()
 
         sub.prop(theme, "theme_area", expand=True)
@@ -911,6 +821,30 @@ class USERPREF_PT_theme(Panel):
 
             col.separator()
             col.separator()
+
+            col.label(text="Icon Colors:")
+
+            row = col.row()
+
+            subsplit = row.split(factor=0.95)
+
+            padding = subsplit.split(factor=0.15)
+            colsub = padding.column()
+            colsub = padding.column()
+            colsub.row().prop(ui, "icon_collection")
+            colsub.row().prop(ui, "icon_object")
+            colsub.row().prop(ui, "icon_object_data")
+
+            subsplit = row.split(factor=0.85)
+
+            padding = subsplit.split(factor=0.15)
+            colsub = padding.column()
+            colsub = padding.column()
+            colsub.row().prop(ui, "icon_modifier")
+            colsub.row().prop(ui, "icon_shading")
+
+            col.separator()
+            col.separator()
         elif theme.theme_area == 'BONE_COLOR_SETS':
             col = split.column()
 
@@ -1021,7 +955,7 @@ class USERPREF_PT_file(Panel):
             box = sub.box()
             row = box.row()
             row.label(text="Excluded Paths:")
-            row.operator("wm.userpref_autoexec_path_add", text="", icon='ZOOMIN', emboss=False)
+            row.operator("wm.userpref_autoexec_path_add", text="", icon='ADD', emboss=False)
             for i, path_cmp in enumerate(userpref.autoexec_paths):
                 row = box.row()
                 row.prop(path_cmp, "path", text="")
@@ -1121,11 +1055,6 @@ class USERPREF_MT_keyconfigs(Menu):
     preset_operator = "wm.keyconfig_activate"
 
     def draw(self, context):
-        props = self.layout.operator("wm.context_set_value", text="Blender (default)")
-        props.data_path = "window_manager.keyconfigs.active"
-        props.value = "context.window_manager.keyconfigs.default"
-
-        # now draw the presets
         Menu.draw_preset(self, context)
 
 
@@ -1153,8 +1082,8 @@ class USERPREF_PT_input(Panel):
         subrow = sub.row(align=True)
 
         subrow.menu("USERPREF_MT_interaction_presets", text=bpy.types.USERPREF_MT_interaction_presets.bl_label)
-        subrow.operator("wm.interaction_preset_add", text="", icon='ZOOMIN')
-        subrow.operator("wm.interaction_preset_add", text="", icon='ZOOMOUT').remove_active = True
+        subrow.operator("wm.interaction_preset_add", text="", icon='ADD')
+        subrow.operator("wm.interaction_preset_add", text="", icon='REMOVE').remove_active = True
         sub.separator()
 
         sub.label(text="Mouse:")
@@ -1349,8 +1278,18 @@ class USERPREF_PT_addons(Panel):
         userpref = context.user_preferences
         used_ext = {ext.module for ext in userpref.addons}
 
-        userpref_addons_folder = os.path.join(userpref.filepaths.script_directory, "addons")
-        scripts_addons_folder = bpy.utils.user_resource('SCRIPTS', "addons")
+        addon_user_dirs = tuple(
+            p for p in (
+                os.path.join(userpref.filepaths.script_directory, "addons"),
+                bpy.utils.user_resource('SCRIPTS', "addons"),
+            )
+            if p
+        )
+
+        # Development option for 2.8x, don't show users bundled addons
+        # unless they have been updated for 2.8x.
+        # Developers can turn them on with '--debug'
+        show_official_27x_addons = bpy.app.debug
 
         # collect the categories that can be filtered on
         addons = [
@@ -1376,7 +1315,7 @@ class USERPREF_PT_addons(Panel):
             row = box.row()
             row.label(text="Multiple add-ons with the same name found!")
             row.label(icon='ERROR')
-            box.label(text="Please delete one of each pair:")
+            box.label(text="Delete one of each pair to resolve:")
             for (addon_name, addon_file, addon_path) in addon_utils.error_duplicates:
                 box.separator()
                 sub_col = box.column(align=True)
@@ -1412,7 +1351,7 @@ class USERPREF_PT_addons(Panel):
                     (filter == info["category"]) or
                     (filter == "Enabled" and is_enabled) or
                     (filter == "Disabled" and not is_enabled) or
-                    (filter == "User" and (mod.__file__.startswith((scripts_addons_folder, userpref_addons_folder))))
+                    (filter == "User" and (mod.__file__.startswith(addon_user_dirs)))
             ):
                 if search and search not in info["name"].lower():
                     if info["author"]:
@@ -1420,6 +1359,15 @@ class USERPREF_PT_addons(Panel):
                             continue
                     else:
                         continue
+
+                # Skip 2.7x add-ons included with Blender, unless in debug mode.
+                is_addon_27x = info.get("blender", (0,)) < (2, 80)
+                if (
+                        is_addon_27x and
+                        (not show_official_27x_addons) and
+                        (not mod.__file__.startswith(addon_user_dirs))
+                ):
+                    continue
 
                 # Addon UI Code
                 col_box = col.column()
@@ -1445,7 +1393,7 @@ class USERPREF_PT_addons(Panel):
 
                 # WARNING: 2.8x exception, may be removed
                 # use disabled state for old add-ons, chances are they are broken.
-                if info.get("blender", (0,)) < (2, 80):
+                if is_addon_27x:
                     sub.label(text="upgrade to 2.8x required")
                     sub.label(icon='ERROR')
                 # Remove code above after 2.8x migration is complete.
@@ -1506,7 +1454,7 @@ class USERPREF_PT_addons(Panel):
                                 "wm.addon_remove", text="Remove", icon='CANCEL',
                             ).module = mod.__name__
 
-                        for i in range(4 - tot_row):
+                        for _ in range(4 - tot_row):
                             split.separator()
 
                     # Show addon user preferences
@@ -1571,7 +1519,7 @@ class StudioLightPanelMixin():
         userpref = context.user_preferences
         lights = self._get_lights(userpref)
         if lights:
-            flow = layout.column_flow(4)
+            flow = layout.column_flow(columns=4)
             for studio_light in lights:
                 self.draw_studio_light(flow, studio_light)
         else:
@@ -1582,7 +1530,7 @@ class StudioLightPanelMixin():
         row = box.row()
 
         row.template_icon(layout.icon(studio_light), scale=6.0)
-        op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
+        op = row.operator('wm.studiolight_uninstall', text="", icon='REMOVE')
         op.index = studio_light.index
 
         box.label(text=studio_light.name)
@@ -1649,11 +1597,7 @@ classes = (
     USERPREF_HT_header,
     USERPREF_PT_tabs,
     USERPREF_MT_interaction_presets,
-    USERPREF_MT_templates_splash,
-    USERPREF_MT_app_templates,
     USERPREF_MT_appconfigs,
-    USERPREF_MT_splash,
-    USERPREF_MT_splash_footer,
     USERPREF_PT_interface,
     USERPREF_PT_edit,
     USERPREF_PT_system,

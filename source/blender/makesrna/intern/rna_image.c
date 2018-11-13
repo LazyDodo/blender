@@ -93,7 +93,7 @@ static void rna_Image_source_set(PointerRNA *ptr, int value)
 
 	if (value != ima->source) {
 		ima->source = value;
-		BLI_assert(BKE_id_is_in_gobal_main(&ima->id));
+		BLI_assert(BKE_id_is_in_global_main(&ima->id));
 		BKE_image_signal(G_MAIN, ima, NULL, IMA_SIGNAL_SRC_CHANGE);
 		DEG_id_tag_update(&ima->id, 0);
 	}
@@ -143,7 +143,7 @@ static void rna_ImageUser_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *
 {
 	ImageUser *iuser = ptr->data;
 
-	BKE_image_user_frame_calc(iuser, scene->r.cfra, 0);
+	BKE_image_user_frame_calc(iuser, scene->r.cfra);
 
 	if (ptr->id.data) {
 		/* Update material or texture for render preview. */

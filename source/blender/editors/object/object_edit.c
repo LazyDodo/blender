@@ -67,25 +67,25 @@
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_editlattice.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_lattice.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_softbody.h"
-#include "BKE_modifier.h"
-#include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
 #include "BKE_workspace.h"
-#include "BKE_layer.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -1223,9 +1223,14 @@ void OBJECT_OT_forcefield_toggle(wmOperatorType *ot)
  *
  * To be called from various tools that do incremental updates
  */
-void ED_objects_recalculate_paths(bContext *C, Scene *scene)
+void ED_objects_recalculate_paths(bContext *C, Scene *scene, bool current_frame_only)
 {
-	struct Main *bmain = CTX_data_main(C);
+	/* Transform doesn't always have context available to do update. */
+	if (C == NULL) {
+		return;
+	}
+
+	Main *bmain = CTX_data_main(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ListBase targets = {NULL, NULL};
 
@@ -1239,17 +1244,20 @@ void ED_objects_recalculate_paths(bContext *C, Scene *scene)
 	CTX_DATA_END;
 
 	/* recalculate paths, then free */
-	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets);
+	animviz_calc_motionpaths(depsgraph, bmain, scene, &targets, true, current_frame_only);
 	BLI_freelistN(&targets);
 
-	/* tag objects for copy on write - so paths will draw/redraw */
-	CTX_DATA_BEGIN(C, Object *, ob, selected_editable_objects)
-	{
-		if (ob->mpath) {
-			DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	if (!current_frame_only) {
+		/* Tag objects for copy on write - so paths will draw/redraw
+		 * For currently frame only we update evaluated object directly. */
+		CTX_DATA_BEGIN(C, Object *, ob, selected_editable_objects)
+		{
+			if (ob->mpath) {
+				DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+			}
 		}
+		CTX_DATA_END;
 	}
-	CTX_DATA_END;
 }
 
 
@@ -1271,7 +1279,7 @@ static int object_calculate_paths_invoke(bContext *C, wmOperator *op, const wmEv
 
 	/* show popup dialog to allow editing of range... */
 	/* FIXME: hardcoded dimensions here are just arbitrary */
-	return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 10 * UI_UNIT_Y);
+	return WM_operator_props_dialog_popup(C, op, 200, 200);
 }
 
 /* Calculate/recalculate whole paths (avs.path_sf to avs.path_ef) */
@@ -1296,7 +1304,7 @@ static int object_calculate_paths_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* calculate the paths for objects that have them (and are tagged to get refreshed) */
-	ED_objects_recalculate_paths(C, scene);
+	ED_objects_recalculate_paths(C, scene, false);
 
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
@@ -1346,7 +1354,7 @@ static int object_update_paths_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	/* calculate the paths for objects that have them (and are tagged to get refreshed) */
-	ED_objects_recalculate_paths(C, scene);
+	ED_objects_recalculate_paths(C, scene, false);
 
 	/* notifiers for updates */
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
@@ -1985,7 +1993,7 @@ static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout
 	uiItemFullO_ptr(layout,
 	                menu->ot,
 	                "New Collection",
-	                ICON_ZOOMIN,
+	                ICON_ADD,
 	                menu->ptr.data,
 	                WM_OP_INVOKE_DEFAULT,
 	                0,
@@ -2036,7 +2044,7 @@ static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent 
 				BKE_collection_new_name_get(collection, name);
 
 				RNA_property_string_set(op->ptr, prop, name);
-				return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 5 * UI_UNIT_Y);
+				return WM_operator_props_dialog_popup(C, op, 200, 100);
 			}
 		}
 		return move_to_collection_exec(C, op);

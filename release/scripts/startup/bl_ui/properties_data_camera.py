@@ -18,7 +18,7 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Panel, Menu
+from bpy.types import Panel
 from rna_prop_ui import PropertyPanel
 from bl_operators.presets import PresetMenu
 
@@ -181,6 +181,7 @@ class DATA_PT_camera_stereoscopy(CameraButtonsPanel, Panel):
 
 class DATA_PT_camera(CameraButtonsPanel, Panel):
     bl_label = "Camera"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     def draw_header_preset(self, context):
@@ -218,7 +219,6 @@ class DATA_PT_camera_dof(CameraButtonsPanel, Panel):
         layout.use_property_split = True
 
         cam = context.camera
-        dof_options = cam.gpu_dof
 
         col = layout.column()
         col.prop(cam, "dof_object", text="Focus on Object")
@@ -268,6 +268,8 @@ class DATA_PT_camera_background_image(CameraButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
 
         cam = context.camera
         use_multiview = context.scene.render.use_multiview
@@ -339,27 +341,25 @@ class DATA_PT_camera_background_image(CameraButtonsPanel, Panel):
 
                     column = box.column()
                     column.active = has_bg
-                    column.prop(bg.clip_user, "proxy_render_size", text="")
                     column.prop(bg.clip_user, "use_render_undistorted")
+                    column.prop(bg.clip_user, "proxy_render_size")
 
                 if has_bg:
                     col = box.column()
                     col.prop(bg, "alpha", slider=True)
-                    col.row().prop(bg, "draw_depth", expand=True)
+                    col.row().prop(bg, "display_depth", expand=True)
 
                     col.row().prop(bg, "frame_method", expand=True)
 
-                    box = col.box()
                     row = box.row()
                     row.prop(bg, "offset")
 
-                    row = box.row()
-                    row.prop(bg, "use_flip_x")
-                    row.prop(bg, "use_flip_y")
+                    col = box.column()
+                    col.prop(bg, "rotation")
+                    col.prop(bg, "scale")
 
-                    row = box.row()
-                    row.prop(bg, "rotation")
-                    row.prop(bg, "scale")
+                    col.prop(bg, "use_flip_x")
+                    col.prop(bg, "use_flip_y")
 
 
 class DATA_PT_camera_display(CameraButtonsPanel, Panel):
@@ -380,7 +380,7 @@ class DATA_PT_camera_display(CameraButtonsPanel, Panel):
         col = layout.column(align=True)
 
         col.separator()
-        col.prop(cam, "draw_size", text="Size")
+        col.prop(cam, "display_size", text="Size")
         col.separator()
         col.prop(cam, "show_passepartout", text="Passepartout")
         sub = col.column()
@@ -450,13 +450,13 @@ classes = (
     SAFE_AREAS_PT_presets,
     DATA_PT_context_camera,
     DATA_PT_lens,
-    DATA_PT_camera,
-    DATA_PT_camera_stereoscopy,
     DATA_PT_camera_dof,
     DATA_PT_camera_dof_aperture,
-    DATA_PT_camera_display,
+    DATA_PT_camera,
+    DATA_PT_camera_stereoscopy,
     DATA_PT_camera_safe_areas,
     DATA_PT_camera_background_image,
+    DATA_PT_camera_display,
     DATA_PT_custom_props_camera,
 )
 

@@ -80,7 +80,7 @@ static LayerCollection *layer_collection_add(ListBase *lb_parent, Collection *co
 static void layer_collection_free(ViewLayer *view_layer, LayerCollection *lc)
 {
 	if (lc == view_layer->active_collection) {
-		view_layer->active_collection = view_layer->layer_collections.first;
+		view_layer->active_collection = NULL;
 	}
 
 	for (LayerCollection *nlc = lc->layer_collections.first; nlc; nlc = nlc->next) {
@@ -305,13 +305,17 @@ static void view_layer_bases_hash_create(ViewLayer *view_layer)
 {
 	static ThreadMutex hash_lock = BLI_MUTEX_INITIALIZER;
 
-	if (!view_layer->object_bases_hash) {
+	if (view_layer->object_bases_hash == NULL) {
 		BLI_mutex_lock(&hash_lock);
 
-		view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
+		if (view_layer->object_bases_hash == NULL) {
+			view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
 
-		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+			for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+				if (base->object) {
+					BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+				}
+			}
 		}
 
 		BLI_mutex_unlock(&hash_lock);
@@ -336,12 +340,17 @@ void BKE_view_layer_base_deselect_all(ViewLayer *view_layer)
 	}
 }
 
-void BKE_view_layer_base_select(struct ViewLayer *view_layer, Base *selbase)
+void BKE_view_layer_base_select(Base *selbase)
 {
-	view_layer->basact = selbase;
 	if ((selbase->flag & BASE_SELECTABLE) != 0) {
 		selbase->flag |= BASE_SELECTED;
 	}
+}
+
+void BKE_view_layer_base_select_and_set_active(struct ViewLayer *view_layer, Base *selbase)
+{
+	view_layer->basact = selbase;
+	BKE_view_layer_base_select(selbase);
 }
 
 /**************************** Copy View Layer and Layer Collections ***********************/
@@ -436,13 +445,16 @@ void BKE_view_layer_rename(Main *bmain, Scene *scene, ViewLayer *view_layer, con
 		}
 	}
 
-	/* fix all the animation data and windows which may link to this */
+	/* Fix all the animation data and windows which may link to this. */
 	BKE_animdata_fix_paths_rename_all(NULL, "view_layers", oldname, view_layer->name);
 
+	/* WM can be missing on startup. */
 	wmWindowManager *wm = bmain->wm.first;
-	for (wmWindow *win = wm->windows.first; win; win = win->next) {
-		if (win->scene == scene && STREQ(win->view_layer_name, oldname)) {
-			STRNCPY(win->view_layer_name, view_layer->name);
+	if (wm) {
+		for (wmWindow *win = wm->windows.first; win; win = win->next) {
+			if (win->scene == scene && STREQ(win->view_layer_name, oldname)) {
+				STRNCPY(win->view_layer_name, view_layer->name);
+			}
 		}
 	}
 
@@ -595,10 +607,10 @@ int BKE_layer_collection_findindex(ViewLayer *view_layer, const LayerCollection 
  * in at least one layer collection. That list is also synchronized here, and
  * stores state like selection. */
 
-static int layer_collection_sync(
+static short layer_collection_sync(
         ViewLayer *view_layer, const ListBase *lb_scene,
         ListBase *lb_layer, ListBase *new_object_bases,
-        int parent_exclude, int parent_restrict)
+        short parent_exclude, short parent_restrict)
 {
 	/* TODO: support recovery after removal of intermediate collections, reordering, ..
 	 * For local edits we can make editing operating do the appropriate thing, but for
@@ -626,7 +638,7 @@ static int layer_collection_sync(
 
 	/* Add layer collections for any new scene collections, and ensure order is the same. */
 	ListBase new_lb_layer = {NULL, NULL};
-	int runtime_flag = 0;
+	short runtime_flag = 0;
 
 	for (const CollectionChild *child = lb_scene->first; child; child = child->next) {
 		Collection *collection = child->collection;
@@ -642,13 +654,13 @@ static int layer_collection_sync(
 		}
 
 		/* Collection restrict is inherited. */
-		int child_restrict = parent_restrict;
+		short child_restrict = parent_restrict;
 		if (!(collection->flag & COLLECTION_IS_MASTER)) {
 			child_restrict |= collection->flag;
 		}
 
 		/* Sync child collections. */
-		int child_runtime_flag = layer_collection_sync(
+		short child_runtime_flag = layer_collection_sync(
 		        view_layer, &collection->children,
 		        &lc->layer_collections, new_object_bases,
 		        lc->flag, child_restrict);
@@ -664,6 +676,10 @@ static int layer_collection_sync(
 
 		/* Sync objects, except if collection was excluded. */
 		for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+			if (cob->ob == NULL) {
+				continue;
+			}
+
 			Base *base = BLI_ghash_lookup(view_layer->object_bases_hash, cob->ob);
 
 			if (base) {
@@ -774,7 +790,7 @@ void BKE_layer_collection_sync(const Scene *scene, ViewLayer *view_layer)
 	const ListBase collections = {&child, &child};
 	ListBase new_object_bases = {NULL, NULL};
 
-	const int parent_exclude = 0, parent_restrict = 0;
+	const short parent_exclude = 0, parent_restrict = 0;
 	layer_collection_sync(
 	        view_layer, &collections,
 	        &view_layer->layer_collections, &new_object_bases,
@@ -786,7 +802,9 @@ void BKE_layer_collection_sync(const Scene *scene, ViewLayer *view_layer)
 			view_layer->basact = NULL;
 		}
 
-		BLI_ghash_remove(view_layer->object_bases_hash, base->object, NULL, NULL);
+		if (base->object) {
+			BLI_ghash_remove(view_layer->object_bases_hash, base->object, NULL, NULL);
+		}
 	}
 
 	BLI_freelistN(&view_layer->object_bases);

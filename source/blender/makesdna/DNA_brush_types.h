@@ -55,7 +55,7 @@ typedef struct BrushClone {
 
 typedef struct BrushGpencilSettings {
 	float draw_smoothfac;     /* amount of smoothing to apply to newly created strokes */
-	float draw_sensitivity;   /* amount of sensivity to apply to newly created strokes */
+	float draw_sensitivity;   /* amount of sensitivity to apply to newly created strokes */
 	float draw_strength;      /* amount of alpha strength to apply to newly created strokes */
 	float draw_jitter;        /* amount of jitter to apply to newly created strokes */
 	float draw_angle;         /* angle when the brush has full thickness */
@@ -80,10 +80,11 @@ typedef struct BrushGpencilSettings {
 
 	int   input_samples;   /* maximum distance before generate new point for very fast mouse movements */
 	float uv_random;       /* random factor for UV rotation */
-
-	int   brush_type;      /* type of brush (draw, fill, erase, etc..) */
+	int   brush_type DNA_DEPRECATED;  /* moved to 'Brush.gpencil_tool' */
 	int   eraser_mode;     /* soft, hard or stroke */
 	float active_smooth;   /* smooth while drawing factor */
+	float era_strength_f;  /* factor to apply to strength for soft eraser */
+	float era_thickness_f; /* factor to apply to thickness for soft eraser */
 	char pad_2[4];
 
 	struct CurveMapping *curve_sensitivity;
@@ -119,7 +120,9 @@ typedef enum eGPDbrush_Flag {
 	/* Random settings group */
 	GP_BRUSH_GROUP_RANDOM = (1 << 12),
 	/* Keep material assigned to brush */
-	GP_BRUSH_MATERIAL_PINNED = (1 << 13)
+	GP_BRUSH_MATERIAL_PINNED = (1 << 13),
+	/* Do not show fill color while drawing (no lasso mode) */
+	GP_BRUSH_DISSABLE_LASSO = (1 << 14),
 } eGPDbrush_Flag;
 
 /* BrushGpencilSettings->gp_fill_draw_mode */
@@ -128,13 +131,6 @@ typedef enum eGP_FillDrawModes {
 	GP_FILL_DMODE_STROKE = 1,
 	GP_FILL_DMODE_CONTROL = 2,
 } eGP_FillDrawModes;
-
-/* BrushGpencilSettings->brush type */
-typedef enum eGP_BrushType {
-	GP_BRUSH_TYPE_DRAW = 0,
-	GP_BRUSH_TYPE_FILL = 1,
-	GP_BRUSH_TYPE_ERASE = 2,
-} eGP_BrushType;
 
 /* BrushGpencilSettings->gp_eraser_mode */
 typedef enum eGP_BrushEraserMode {
@@ -209,9 +205,12 @@ typedef struct Brush {
 	float falloff_angle;
 
 	char sculpt_tool;       /* active sculpt tool */
-	char vertexpaint_tool;  /* active vertex/weight paint blend mode (poorly named) */
+	char vertexpaint_tool;  /* active vertex paint */
+	char weightpaint_tool;  /* active weight paint */
 	char imagepaint_tool;   /* active image paint tool */
 	char mask_tool;         /* enum eBrushMaskTool, only used if sculpt_tool is SCULPT_TOOL_MASK */
+	char gpencil_tool;      /* Active grease pencil tool. */
+	char _pad0[6];
 
 	float autosmooth_factor;
 
@@ -412,6 +411,28 @@ typedef enum eBrushImagePaintTool {
 	PAINT_TOOL_MASK = 5
 } eBrushImagePaintTool;
 
+typedef enum eBrushVertexPaintTool {
+	VPAINT_TOOL_DRAW = 0,
+	VPAINT_TOOL_BLUR = 1,
+	VPAINT_TOOL_AVERAGE = 2,
+	VPAINT_TOOL_SMEAR = 3,
+} eBrushVertexPaintTool;
+
+typedef enum eBrushWeightPaintTool {
+	WPAINT_TOOL_DRAW = 0,
+	WPAINT_TOOL_BLUR = 1,
+	WPAINT_TOOL_AVERAGE = 2,
+	WPAINT_TOOL_SMEAR = 3,
+} eBrushWeightPaintTool;
+
+/* BrushGpencilSettings->brush type */
+typedef enum eBrushGPaintTool {
+	GPAINT_TOOL_DRAW = 0,
+	GPAINT_TOOL_FILL = 1,
+	GPAINT_TOOL_ERASE = 2,
+} eBrushGPaintTool;
+
+
 /* direction that the brush displaces along */
 enum {
 	SCULPT_DISP_DIR_AREA = 0,
@@ -419,30 +440,6 @@ enum {
 	SCULPT_DISP_DIR_X = 2,
 	SCULPT_DISP_DIR_Y = 3,
 	SCULPT_DISP_DIR_Z = 4
-};
-
-enum {
-	PAINT_BLEND_MIX = 0,
-	PAINT_BLEND_ADD = 1,
-	PAINT_BLEND_SUB = 2,
-	PAINT_BLEND_MUL = 3,
-	PAINT_BLEND_BLUR = 4,
-	PAINT_BLEND_LIGHTEN = 5,
-	PAINT_BLEND_DARKEN = 6,
-	PAINT_BLEND_AVERAGE = 7,
-	PAINT_BLEND_SMEAR = 8,
-	PAINT_BLEND_COLORDODGE = 9,
-	PAINT_BLEND_DIFFERENCE = 10,
-	PAINT_BLEND_SCREEN = 11,
-	PAINT_BLEND_HARDLIGHT = 12,
-	PAINT_BLEND_OVERLAY = 13,
-	PAINT_BLEND_SOFTLIGHT = 14,
-	PAINT_BLEND_EXCLUSION = 15,
-	PAINT_BLEND_LUMINOCITY = 16,
-	PAINT_BLEND_SATURATION = 17,
-	PAINT_BLEND_HUE = 18,
-	PAINT_BLEND_ALPHA_SUB = 19,
-	PAINT_BLEND_ALPHA_ADD = 20,
 };
 
 typedef enum {

@@ -158,6 +158,8 @@ void UI_view2d_sync(struct bScreen *screen, struct ScrArea *sa, struct View2D *v
 void UI_view2d_totRect_set(struct View2D *v2d, int width, int height);
 void UI_view2d_totRect_set_resize(struct View2D *v2d, int width, int height, bool resize);
 
+void UI_view2d_mask_from_win(const struct View2D *v2d, struct rcti *r_mask);
+
 /* per tab offsets, returns 1 if tab changed */
 bool UI_view2d_tab_set(struct View2D *v2d, int tab);
 
@@ -178,8 +180,9 @@ void UI_view2d_grid_size(View2DGrid *grid, float *r_dx, float *r_dy);
 void UI_view2d_grid_free(View2DGrid *grid);
 
 /* scrollbar drawing */
-View2DScrollers *UI_view2d_scrollers_calc(const struct bContext *C, struct View2D *v2d,
-                                          short xunits, short xclamp, short yunits, short yclamp);
+View2DScrollers *UI_view2d_scrollers_calc(
+        const struct bContext *C, struct View2D *v2d, const struct rcti *mask_custom,
+        short xunits, short xclamp, short yunits, short yclamp);
 void UI_view2d_scrollers_draw(const struct bContext *C, struct View2D *v2d, View2DScrollers *scrollers);
 void UI_view2d_scrollers_free(View2DScrollers *scrollers);
 
@@ -222,7 +225,11 @@ void UI_view2d_center_set(struct View2D *v2d, float x, float y);
 
 void UI_view2d_offset(struct View2D *v2d, float xfac, float yfac);
 
-short UI_view2d_mouse_in_scrollers(const struct ARegion *ar, struct View2D *v2d, int x, int y);
+char UI_view2d_mouse_in_scrollers_ex(
+        const struct ARegion *ar, struct View2D *v2d, int x, int y,
+        int *r_scroll);
+char UI_view2d_mouse_in_scrollers(
+        const struct ARegion *ar, struct View2D *v2d, int x, int y);
 
 /* cached text drawing in v2d, to allow pixel-aligned draw as post process */
 void UI_view2d_text_cache_add(struct View2D *v2d, float x, float y,

@@ -48,6 +48,7 @@
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
 
+#include "ED_object.h"
 #include "ED_mesh.h"
 #include "ED_screen.h"
 #include "ED_uvedit.h"
@@ -318,7 +319,7 @@ static void edgetag_ensure_cd_flag(Mesh *me, const char edge_mode)
 
 /* since you want to create paths with multiple selects, it doesn't have extend option */
 static void mouse_mesh_shortest_path_edge(
-        Scene *scene, Object *obedit, const struct PathSelectParams *op_params,
+        Scene *UNUSED(scene), Object *obedit, const struct PathSelectParams *op_params,
         BMEdge *e_act, BMEdge *e_dst)
 {
 	BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -326,7 +327,6 @@ static void mouse_mesh_shortest_path_edge(
 
 	struct UserData user_data = {bm, obedit->data, op_params};
 	LinkNode *path = NULL;
-	Mesh *me = obedit->data;
 	bool is_path_ordered = false;
 
 	edgetag_ensure_cd_flag(obedit->data, op_params->edge_mode);
@@ -412,29 +412,6 @@ static void mouse_mesh_shortest_path_edge(
 			else
 				BM_select_history_store(bm, e_dst_last);
 		}
-	}
-
-	/* force drawmode for mesh */
-	switch (op_params->edge_mode) {
-
-		case EDGE_MODE_TAG_SEAM:
-			me->drawflag |= ME_DRAWSEAMS;
-			ED_uvedit_live_unwrap(scene, obedit);
-			break;
-		case EDGE_MODE_TAG_SHARP:
-			me->drawflag |= ME_DRAWSHARP;
-			break;
-		case EDGE_MODE_TAG_CREASE:
-			me->drawflag |= ME_DRAWCREASES;
-			break;
-		case EDGE_MODE_TAG_BEVEL:
-			me->drawflag |= ME_DRAWBWEIGHTS;
-			break;
-#ifdef WITH_FREESTYLE
-		case EDGE_MODE_TAG_FREESTYLE:
-			me->drawflag |= ME_DRAW_FREESTYLE_EDGE;
-			break;
-#endif
 	}
 
 	EDBM_update_generic(em, false, false);
@@ -634,9 +611,16 @@ static int edbm_shortest_path_pick_invoke(bContext *C, wmOperator *op, const wmE
 
 	view3d_operator_needs_opengl(C);
 
-	if (EDBM_unified_findnearest(&vc, &basact, &eve, &eed, &efa)) {
-		ED_view3d_viewcontext_init_object(&vc, basact->object);
-		em = vc.em;
+	{
+		int base_index = -1;
+		uint bases_len = 0;
+		Base **bases = BKE_view_layer_array_from_bases_in_edit_mode(vc.view_layer, &bases_len);
+		if (EDBM_unified_findnearest(&vc, bases, bases_len, &base_index, &eve, &eed, &efa)) {
+			basact = bases[base_index];
+			ED_view3d_viewcontext_init_object(&vc, basact->object);
+			em = vc.em;
+		}
+		MEM_freeN(bases);
 	}
 
 	/* If nothing is selected, let's select the picked vertex/edge/face. */
@@ -679,9 +663,7 @@ static int edbm_shortest_path_pick_invoke(bContext *C, wmOperator *op, const wmE
 	}
 
 	if (vc.view_layer->basact != basact) {
-		vc.view_layer->basact = basact;
-		DEG_id_tag_update(&vc.scene->id, DEG_TAG_SELECT_UPDATE);
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, vc.scene);
+		ED_object_base_activate(C, basact);
 	}
 
 	/* to support redo */

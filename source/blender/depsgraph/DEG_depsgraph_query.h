@@ -71,7 +71,7 @@ bool DEG_id_type_updated(const struct Depsgraph *depsgraph, short id_type);
 bool DEG_id_type_any_updated(const struct Depsgraph *depsgraph);
 
 /* Get additional evaluation flags for the given ID. */
-short DEG_get_eval_flags_for_id(const struct Depsgraph *graph, struct ID *id);
+uint32_t DEG_get_eval_flags_for_id(const struct Depsgraph *graph, struct ID *id);
 
 /* Get scene the despgraph is created for. */
 struct Scene *DEG_get_evaluated_scene(const struct Depsgraph *graph);
@@ -133,7 +133,7 @@ typedef struct DEGObjectIterData {
 	 */
     struct Object temp_dupli_object;
 
-	/* **** Iteration ober ID nodes **** */
+	/* **** Iteration over ID nodes **** */
 	size_t id_node_index;
 	size_t num_id_nodes;
 } DEGObjectIterData;

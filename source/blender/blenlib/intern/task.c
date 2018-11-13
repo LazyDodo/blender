@@ -116,7 +116,7 @@ typedef struct Task {
  *   At this moment task queue owns the memory.
  *
  * - When task is done and task_free() is called the memory will be put to the
- *  pool which corresponds to a thread which handled the task.
+ *   pool which corresponds to a thread which handled the task.
  */
 typedef struct TaskMemPool {
 	/* Number of pre-allocated tasks in the pool. */
@@ -816,7 +816,7 @@ static void task_pool_push(
 			return;
 		}
 	}
-	/* Do push to a global execution ppol, slowest possible method,
+	/* Do push to a global execution pool, slowest possible method,
 	 * causes quite reasonable amount of threading overhead.
 	 */
 	task_scheduler_push(pool->scheduler, task, priority);

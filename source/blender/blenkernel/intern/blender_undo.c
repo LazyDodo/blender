@@ -46,11 +46,12 @@
 #include "BLI_string.h"
 #include "BLI_utildefines.h"
 
+#include "BKE_appdir.h"
 #include "BKE_blender_undo.h"  /* own include */
 #include "BKE_blendfile.h"
-#include "BKE_appdir.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 
 #include "BLO_undofile.h"
@@ -89,7 +90,7 @@ bool BKE_memfile_undo_decode(MemFileUndoData *mfu, bContext *C)
 	G.fileflags = fileflags;
 
 	if (success) {
-		/* important not to update time here, else non keyed tranforms are lost */
+		/* important not to update time here, else non keyed transforms are lost */
 		DEG_on_visible_update(bmain, false);
 	}
 

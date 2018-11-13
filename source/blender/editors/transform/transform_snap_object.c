@@ -100,6 +100,7 @@ typedef struct SnapObjectData {
 typedef struct SnapObjectData_Mesh {
 	SnapObjectData sd;
 	BVHTreeFromMesh treedata;
+	const struct MPoly *poly;
 	BVHTree *bvhtree[2]; /* from loose verts and from loose edges */
 	uint has_looptris   : 1;
 	uint has_loose_edge : 1;
@@ -172,29 +173,43 @@ static void min_max_from_bmesh(
 	}
 }
 
-static SnapObjectData_Mesh *snap_object_data_mesh_create(SnapObjectContext *sctx)
+static SnapObjectData_Mesh *snap_object_data_mesh_get(SnapObjectContext *sctx, Object *ob)
 {
-	SnapObjectData_Mesh *sod = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(*sod));
-	sod->sd.type = SNAP_MESH;
-	/* start assuming that it has each of these element types */
-	sod->has_looptris = true;
-	sod->has_loose_edge = true;
-	sod->has_loose_vert = true;
+	void **sod_p;
+	if (BLI_ghash_ensure_p(sctx->cache.object_map, ob, &sod_p)) {
+		BLI_assert(((SnapObjectData *)*sod_p)->type == SNAP_MESH);
+	}
+	else {
+		SnapObjectData_Mesh *sod = *sod_p = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(*sod));
+		sod->sd.type = SNAP_MESH;
+		/* start assuming that it has each of these element types */
+		sod->has_looptris = true;
+		sod->has_loose_edge = true;
+		sod->has_loose_vert = true;
+	}
 
-	return sod;
+	return *sod_p;
 }
 
-static SnapObjectData_EditMesh *snap_object_data_editmesh_create(SnapObjectContext *sctx, BMesh *bm)
+/* Use `em->ob` as the key in ghash since the editmesh is used
+ * to create bvhtree and is the same for each linked object. */
+static SnapObjectData_EditMesh *snap_object_data_editmesh_get(SnapObjectContext *sctx, BMEditMesh *em)
 {
-	SnapObjectData_EditMesh *sod = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(*sod));
-	sod->sd.type = SNAP_EDIT_MESH;
-	min_max_from_bmesh(bm, sod->min, sod->max);
+	void **sod_p;
+	if (BLI_ghash_ensure_p(sctx->cache.object_map, em->ob, &sod_p)) {
+		BLI_assert(((SnapObjectData *)*sod_p)->type == SNAP_EDIT_MESH);
+	}
+	else {
+		SnapObjectData_EditMesh *sod = *sod_p = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(*sod));
+		sod->sd.type = SNAP_EDIT_MESH;
+		min_max_from_bmesh(em->bm, sod->min, sod->max);
+	}
 
-	return sod;
+	return *sod_p;
 }
 
 /**
- * Walks through all objects in the scene to create the list of objets to snap.
+ * Walks through all objects in the scene to create the list of objects to snap.
  *
  * \param sctx: Snap context to store data.
  * \param snap_select : from enum eSnapSelect.
@@ -399,15 +414,7 @@ static bool raycastMesh(
 		}
 	}
 
-	SnapObjectData_Mesh *sod = NULL;
-
-	void **sod_p;
-	if (BLI_ghash_ensure_p(sctx->cache.object_map, ob, &sod_p)) {
-		sod = *sod_p;
-	}
-	else {
-		sod = *sod_p = snap_object_data_mesh_create(sctx);
-	}
+	SnapObjectData_Mesh *sod = snap_object_data_mesh_get(sctx, ob);
 
 	BVHTreeFromMesh *treedata = &sod->treedata;
 
@@ -428,11 +435,18 @@ static bool raycastMesh(
 			if (treedata->looptri && treedata->looptri_allocated == false) {
 				treedata->looptri = BKE_mesh_runtime_looptri_ensure(me);
 			}
+			/* required for snapping with occlusion. */
+			treedata->edge = me->medge;
+			sod->poly = me->mpoly;
 		}
 	}
 
 	if (treedata->tree == NULL) {
 		BKE_bvhtree_from_mesh_get(treedata, me, BVHTREE_FROM_LOOPTRI, 4);
+
+		/* required for snapping with occlusion. */
+		treedata->edge = me->medge;
+		sod->poly = me->mpoly;
 
 		if (treedata->tree == NULL) {
 			return retval;
@@ -533,22 +547,9 @@ static bool raycastEditMesh(
 		return retval;
 	}
 
-	SnapObjectData_EditMesh *sod = NULL;
-	BVHTreeFromEditMesh *treedata = NULL;
-	Object *em_ob = em->ob;
+	BLI_assert(em->ob->data == BKE_object_get_pre_modified_mesh(ob));
 
-	BLI_assert(em_ob->data == BKE_object_get_pre_modified_mesh(ob));
-
-	void **sod_p;
-	/* Use `em->ob` as the key in ghash since the editmesh is used
-	 * to create bvhtree and is the same for each linked object. */
-	if (BLI_ghash_ensure_p(sctx->cache.object_map, em_ob, &sod_p)) {
-		sod = *sod_p;
-	}
-	else {
-		sod = *sod_p = snap_object_data_editmesh_create(sctx, em->bm);
-	}
-
+	SnapObjectData_EditMesh *sod = snap_object_data_editmesh_get(sctx, em);
 	{
 		float min[3], max[3];
 		mul_v3_m4v3(min, obmat, sod->min);
@@ -562,11 +563,12 @@ static bool raycastEditMesh(
 	}
 
 	if (sod->bvh_trees[2] == NULL) {
-		sod->bvh_trees[2] = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(*treedata));
+		sod->bvh_trees[2] = BLI_memarena_calloc(sctx->cache.mem_arena, sizeof(BVHTreeFromEditMesh));
 	}
-	treedata = sod->bvh_trees[2];
 
-	BVHCache *em_bvh_cache = ((Mesh *)em_ob->data)->runtime.bvh_cache;
+	BVHTreeFromEditMesh *treedata = sod->bvh_trees[2];
+
+	BVHCache *em_bvh_cache = ((Mesh *)em->ob->data)->runtime.bvh_cache;
 
 	if (sctx->callbacks.edit_mesh.test_face_fn == NULL) {
 		/* The tree is owned by the Mesh and may have been freed since we last used! */
@@ -727,7 +729,7 @@ static bool raycastObj(
 
 	if (use_occlusion_test) {
 		if (use_obedit && sctx->use_v3d &&
-		    !(sctx->v3d_data.v3d->flag & V3D_ZBUF_SELECT))
+		    !V3D_IS_ZBUF(sctx->v3d_data.v3d))
 		{
 			/* Use of occlude geometry in editing mode disabled. */
 			return false;
@@ -736,22 +738,29 @@ static bool raycastObj(
 
 	switch (ob->type) {
 		case OB_MESH:
-			if (use_obedit && BKE_object_is_in_editmode(ob)) {
+		{
+			Mesh *me = ob->data;
+			if (BKE_object_is_in_editmode(ob)) {
 				BMEditMesh *em = BKE_editmesh_from_object(ob);
-				retval = raycastEditMesh(
-				        sctx,
-				        ray_start, ray_dir,
-				        ob, em, obmat, ob_index,
-				        ray_depth, r_loc, r_no, r_index, r_hit_list);
+				if (use_obedit) {
+					retval = raycastEditMesh(
+					        sctx,
+					        ray_start, ray_dir,
+					        ob, em, obmat, ob_index,
+					        ray_depth, r_loc, r_no, r_index, r_hit_list);
+					break;
+				}
+				else if (em->mesh_eval_final) {
+					me = em->mesh_eval_final;
+				}
 			}
-			else {
-				retval = raycastMesh(
-				        sctx,
-				        ray_start, ray_dir,
-				        ob, ob->data, obmat, ob_index,
-				        ray_depth, r_loc, r_no, r_index, r_hit_list);
-			}
+			retval = raycastMesh(
+			        sctx,
+			        ray_start, ray_dir,
+			        ob, me, obmat, ob_index,
+			        ray_depth, r_loc, r_no, r_index, r_hit_list);
 			break;
+		}
 	}
 
 	if (retval) {
@@ -1202,12 +1211,11 @@ static short snap_mesh_polygon(
 		nearest2d.get_edge_verts_index = (Nearest2DGetEdgeVertsCallback)cb_medge_verts_get;
 		nearest2d.copy_vert_no         = (Nearest2DCopyVertNoCallback)cb_mvert_no_copy;
 
-		MPoly *mp = &((Mesh *)ob->data)->mpoly[*r_index];
-		const MLoop *ml;
+		const MPoly *mp = &((SnapObjectData_Mesh *)sod)->poly[*r_index];
+		const MLoop *ml = &treedata->loop[mp->loopstart];
 		if (snapdata->snap_to_flag & SCE_SNAP_MODE_EDGE) {
 			elem = SCE_SNAP_MODE_EDGE;
-			treedata->edge = ((Mesh *)ob->data)->medge;
-			ml = &treedata->loop[mp->loopstart];
+			BLI_assert(treedata->edge != NULL);
 			for (int i = mp->totloop; i--; ml++) {
 				cb_snap_edge(
 				        &nearest2d, ml->e, &neasrest_precalc,
@@ -1217,7 +1225,6 @@ static short snap_mesh_polygon(
 		}
 		else {
 			elem = SCE_SNAP_MODE_VERTEX;
-			ml = &treedata->loop[mp->loopstart];
 			for (int i = mp->totloop; i--; ml++) {
 				cb_snap_vert(
 				        &nearest2d, ml->v, &neasrest_precalc,
@@ -1850,15 +1857,7 @@ static short snapMesh(
 		}
 	}
 
-	SnapObjectData_Mesh *sod = NULL;
-
-	void **sod_p;
-	if (BLI_ghash_ensure_p(sctx->cache.object_map, ob, &sod_p)) {
-		sod = *sod_p;
-	}
-	else {
-		sod = *sod_p = snap_object_data_mesh_create(sctx);
-	}
+	SnapObjectData_Mesh *sod = snap_object_data_mesh_get(sctx, ob);
 
 	BVHTreeFromMesh *treedata, dummy_treedata;
 	BVHTree **bvhtree;
@@ -2053,22 +2052,12 @@ static short snapEditMesh(
 		}
 	}
 
-	SnapObjectData_EditMesh *sod = NULL;
 	BVHTreeFromEditMesh *treedata_vert = NULL, *treedata_edge = NULL;
-	Object *em_ob = em->ob;
 
-	BLI_assert(em_ob->data == BKE_object_get_pre_modified_mesh(ob));
+	BLI_assert(em->ob->data == BKE_object_get_pre_modified_mesh(ob));
 	UNUSED_VARS_NDEBUG(ob);
 
-	void **sod_p;
-	/* Use `em->ob` as the key in ghash since the editmesh is used
-	 * to create bvhtree and is the same for each linked object. */
-	if (BLI_ghash_ensure_p(sctx->cache.object_map, em_ob, &sod_p)) {
-		sod = *sod_p;
-	}
-	else {
-		sod = *sod_p = snap_object_data_editmesh_create(sctx, em->bm);
-	}
+	SnapObjectData_EditMesh *sod = snap_object_data_editmesh_get(sctx, em);
 
 	float dist_px_sq = SQUARE(*dist_px);
 
@@ -2091,7 +2080,7 @@ static short snapEditMesh(
 		}
 	}
 
-	BVHCache *em_bvh_cache = ((Mesh *)em_ob->data)->runtime.bvh_cache;
+	BVHCache *em_bvh_cache = ((Mesh *)em->ob->data)->runtime.bvh_cache;
 
 	if (snapdata->snap_to_flag & SCE_SNAP_MODE_VERTEX) {
 		if (sod->bvh_trees[0] == NULL) {
@@ -2243,21 +2232,27 @@ static short snapObject(
 
 	switch (ob->type) {
 		case OB_MESH:
-			if (use_obedit && BKE_object_is_in_editmode(ob)) {
+		{
+			Mesh *me = ob->data;
+			if (BKE_object_is_in_editmode(ob)) {
 				BMEditMesh *em = BKE_editmesh_from_object(ob);
-				retval = snapEditMesh(
-				        sctx, snapdata, ob, em, obmat,
-				        dist_px,
-				        r_loc, r_no, r_index);
+				if (use_obedit) {
+					retval = snapEditMesh(
+					        sctx, snapdata, ob, em, obmat,
+					        dist_px,
+					        r_loc, r_no, r_index);
+					break;
+				}
+				else if (em->mesh_eval_final) {
+					me = em->mesh_eval_final;
+				}
 			}
-			else {
-				retval = snapMesh(
-				        sctx, snapdata, ob, ob->data, obmat,
-				        dist_px,
-				        r_loc, r_no, r_index);
-			}
+			retval = snapMesh(
+			        sctx, snapdata, ob, me, obmat,
+			        dist_px,
+			        r_loc, r_no, r_index);
 			break;
-
+		}
 		case OB_ARMATURE:
 			retval = snapArmature(
 			        snapdata,
@@ -2601,12 +2596,12 @@ static short transform_snap_context_project_view3d_mixed_impl(
 
 	bool use_occlusion_test =
 	        params->use_occlusion_test &&
-	        !(sctx->v3d_data.v3d->shading.flag & V3D_SHADING_XRAY);
+	        !(sctx->v3d_data.v3d->shading.flag & V3D_XRAY_FLAG(sctx->v3d_data.v3d));
 
 	if (snap_to_flag & SCE_SNAP_MODE_FACE || use_occlusion_test) {
 		float ray_start[3], ray_normal[3];
 
-		if (!ED_view3d_win_to_ray_ex(
+		if (!ED_view3d_win_to_ray_clipped_ex(
 		        sctx->depsgraph,
 		        sctx->v3d_data.ar, sctx->v3d_data.v3d,
 		        mval, NULL, ray_normal, ray_start, true))
@@ -2770,7 +2765,7 @@ bool ED_transform_snap_object_project_all_view3d_ex(
 {
 	float ray_start[3], ray_normal[3];
 
-	if (!ED_view3d_win_to_ray_ex(
+	if (!ED_view3d_win_to_ray_clipped_ex(
 	        sctx->depsgraph,
 	        sctx->v3d_data.ar, sctx->v3d_data.v3d,
 	        mval, NULL, ray_normal, ray_start, true))

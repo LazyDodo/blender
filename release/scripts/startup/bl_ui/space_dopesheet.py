@@ -19,15 +19,19 @@
 # <pep8 compliant>
 
 import bpy
-from bpy.types import Header, Menu, Panel
-from .space_time import *
-
+from bpy.types import (
+    Header,
+    Menu,
+    Panel,
+)
 
 #######################################
 # DopeSheet Filtering - Header Buttons
 
 # used for DopeSheet, NLA, and Graph Editors
-def dopesheet_filter(layout, context, genericFiltersOnly=False):
+
+
+def dopesheet_filter(layout, context, generic_filters_only=False):
     dopesheet = context.space_data.dopesheet
     is_nla = context.area.type == 'NLA_EDITOR'
 
@@ -40,7 +44,7 @@ def dopesheet_filter(layout, context, genericFiltersOnly=False):
     else:  # graph and dopesheet editors - F-Curves and drivers only
         row.prop(dopesheet, "show_only_errors", text="")
 
-    if not genericFiltersOnly:
+    if not generic_filters_only:
         if bpy.data.collections:
             row = layout.row(align=True)
             row.prop(dopesheet, "filter_collection", text="")
@@ -105,27 +109,14 @@ class DopesheetFilterPopoverBase:
     def draw_standard_filters(cls, context, layout):
         dopesheet = context.space_data.dopesheet
 
-        # Object Data Filters
-        layout.label(text="Include Sub-Object Data:")
-        split = layout.split()
-
-        # TODO: Add per-channel/axis convenience toggles?
-        col = split.column()
-        col.prop(dopesheet, "show_transforms", text="Transforms")
-
-        col = split.column()
-        col.prop(dopesheet, "show_modifiers", text="Modifiers")
-
-        layout.separator()
-
         # datablock filters
-        layout.label(text="Include From Types:")
+        layout.label(text="Filter by Type:")
         flow = layout.grid_flow(row_major=True, columns=2, even_rows=False, align=False)
 
         flow.prop(dopesheet, "show_scenes", text="Scenes")
-        flow.prop(dopesheet, "show_worlds", text="Worlds")
         flow.prop(dopesheet, "show_nodes", text="Node Trees")
 
+        # object types
         if bpy.data.armatures:
             flow.prop(dopesheet, "show_armatures", text="Armatures")
         if bpy.data.cameras:
@@ -134,26 +125,42 @@ class DopesheetFilterPopoverBase:
             flow.prop(dopesheet, "show_gpencil", text="Grease Pencil Objects")
         if bpy.data.lights:
             flow.prop(dopesheet, "show_lights", text="Lights")
+        if bpy.data.meshes:
+            flow.prop(dopesheet, "show_meshes", text="Meshes")
+        if bpy.data.curves:
+            flow.prop(dopesheet, "show_curves", text="Curves")
+        if bpy.data.lattices:
+            flow.prop(dopesheet, "show_lattices", text="Lattices")
+        if bpy.data.metaballs:
+            flow.prop(dopesheet, "show_metaballs", text="Metaballs")
+
+        # data types
+        flow.prop(dopesheet, "show_worlds", text="Worlds")
+        if bpy.data.particles:
+            flow.prop(dopesheet, "show_particles", text="Particles")
+        if bpy.data.linestyles:
+            flow.prop(dopesheet, "show_linestyles", text="Line Styles")
+        if bpy.data.speakers:
+            flow.prop(dopesheet, "show_speakers", text="Speakers")
         if bpy.data.materials:
             flow.prop(dopesheet, "show_materials", text="Materials")
         if bpy.data.textures:
             flow.prop(dopesheet, "show_textures", text="Textures")
-        if bpy.data.meshes:
-            flow.prop(dopesheet, "show_meshes", text="Meshes")
         if bpy.data.shape_keys:
             flow.prop(dopesheet, "show_shapekeys", text="Shape Keys")
-        if bpy.data.curves:
-            flow.prop(dopesheet, "show_curves", text="Curves")
-        if bpy.data.particles:
-            flow.prop(dopesheet, "show_particles", text="Particles")
-        if bpy.data.lattices:
-            flow.prop(dopesheet, "show_lattices", text="Lattices")
-        if bpy.data.linestyles:
-            flow.prop(dopesheet, "show_linestyles", text="Line Styles")
-        if bpy.data.metaballs:
-            flow.prop(dopesheet, "show_metaballs", text="Metas")
-        if bpy.data.speakers:
-            flow.prop(dopesheet, "show_speakers", text="Speakers")
+
+        layout.separator()
+
+        # Object Data Filters
+
+        # TODO: Add per-channel/axis convenience toggles?
+        split = layout.split()
+
+        col = split.column()
+        col.prop(dopesheet, "show_transforms", text="Transforms")
+
+        col = split.column()
+        col.prop(dopesheet, "show_modifiers", text="Modifiers")
 
         layout.separator()
 
@@ -205,6 +212,10 @@ class DOPESHEET_HT_header(Header):
         row.template_header()
 
         if st.mode == 'TIMELINE':
+            from .space_time import (
+                TIME_MT_editor_menus,
+                TIME_HT_editor_buttons,
+            )
             TIME_MT_editor_menus.draw_collapsible(context, layout)
             TIME_HT_editor_buttons.draw_header(context, layout)
         else:
@@ -247,9 +258,9 @@ class DOPESHEET_HT_editor_buttons(Header):
         if st.mode == 'DOPESHEET':
             dopesheet_filter(layout, context)
         elif st.mode == 'ACTION':
-            # 'genericFiltersOnly' limits the options to only the relevant 'generic' subset of
+            # 'generic_filters_only' limits the options to only the relevant 'generic' subset of
             # filters which will work here and are useful (especially for character animation)
-            dopesheet_filter(layout, context, genericFiltersOnly=True)
+            dopesheet_filter(layout, context, generic_filters_only=True)
         elif st.mode == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(st.dopesheet, "show_gpencil_3d_only", text="Active Only")
@@ -277,12 +288,6 @@ class DOPESHEET_HT_editor_buttons(Header):
         sub = row.row(align=True)
         sub.active = toolsettings.use_proportional_action
         sub.prop(toolsettings, "proportional_edit_falloff", text="", icon_only=True)
-
-        row = layout.row(align=True)
-        row.operator("action.copy", text="", icon='COPYDOWN')
-        row.operator("action.paste", text="", icon='PASTEDOWN')
-        if st.mode not in {'GPENCIL', 'MASK'}:
-            row.operator("action.paste", text="", icon='PASTEFLIPDOWN').flipped = True
 
 
 class DOPESHEET_MT_editor_menus(Menu):
@@ -330,8 +335,9 @@ class DOPESHEET_MT_view(Menu):
         layout.prop(st, "show_frame_indicator")
         layout.prop(st, "show_sliders")
         layout.prop(st, "show_group_colors")
+        layout.prop(st, "show_interpolation")
+        layout.prop(st, "show_extremes")
         layout.prop(st, "use_auto_merge_keyframes")
-        layout.prop(st, "use_marker_sync")
 
         layout.prop(st, "show_seconds")
         layout.prop(st, "show_locked_time")
@@ -361,8 +367,8 @@ class DOPESHEET_MT_select(Menu):
         layout.operator("action.select_all", text="Invert").action = 'INVERT'
 
         layout.separator()
-        layout.operator("action.select_border").axis_range = False
-        layout.operator("action.select_border", text="Border Axis Range").axis_range = True
+        layout.operator("action.select_box").axis_range = False
+        layout.operator("action.select_box", text="Border Axis Range").axis_range = True
 
         layout.operator("action.select_circle")
 
@@ -409,6 +415,7 @@ class DOPESHEET_MT_marker(Menu):
             if st.show_pose_markers is False:
                 layout.operator("action.markers_make_local")
 
+        layout.prop(st, "use_marker_sync")
 
 #######################################
 # Keyframe Editing
@@ -465,6 +472,9 @@ class DOPESHEET_MT_key(Menu):
         layout.operator("action.frame_jump")
 
         layout.separator()
+        layout.operator("action.copy")
+        layout.operator("action.paste")
+        layout.operator("action.paste", text="Paste Flipped").flipped = True
         layout.operator("action.duplicate_move")
         layout.operator("action.delete")
 
@@ -478,10 +488,6 @@ class DOPESHEET_MT_key(Menu):
         layout.operator("action.clean", text="Clean Channels").channels = True
         layout.operator("action.sample")
 
-        layout.separator()
-        layout.operator("action.copy")
-        layout.operator("action.paste")
-
 
 class DOPESHEET_MT_key_transform(Menu):
     bl_label = "Transform"
@@ -489,7 +495,7 @@ class DOPESHEET_MT_key_transform(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("transform.transform", text="Grab/Move").mode = 'TIME_TRANSLATE'
+        layout.operator("transform.transform", text="Move").mode = 'TIME_TRANSLATE'
         layout.operator("transform.transform", text="Extend").mode = 'TIME_EXTEND'
         layout.operator("transform.transform", text="Slide").mode = 'TIME_SLIDE'
         layout.operator("transform.transform", text="Scale").mode = 'TIME_SCALE'
@@ -621,6 +627,19 @@ class DOPESHEET_MT_channel_specials(Menu):
         layout.operator("anim.channels_delete")
 
 
+class DOPESHEET_MT_snap_pie(Menu):
+    bl_label = "Snap"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        pie.operator("action.snap", text="Current Frame").type = 'CFRA'
+        pie.operator("action.snap", text="Nearest Frame").type = 'NEAREST_FRAME'
+        pie.operator("action.snap", text="Nearest Second").type = 'NEAREST_SECOND'
+        pie.operator("action.snap", text="Nearest Marker").type = 'NEAREST_MARKER'
+
+
 classes = (
     DOPESHEET_HT_header,
     DOPESHEET_HT_editor_buttons,
@@ -636,6 +655,7 @@ classes = (
     DOPESHEET_MT_delete,
     DOPESHEET_MT_specials,
     DOPESHEET_MT_channel_specials,
+    DOPESHEET_MT_snap_pie,
     DOPESHEET_PT_filters,
 )
 

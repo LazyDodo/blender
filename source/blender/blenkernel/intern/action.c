@@ -199,7 +199,7 @@ void set_active_action_group(bAction *act, bActionGroup *agrp, short select)
 	if (act == NULL)
 		return;
 
-	/* Deactive all others */
+	/* Deactivate all others */
 	for (grp = act->groups.first; grp; grp = grp->next) {
 		if ((grp == agrp) && (select))
 			grp->flag |= AGRP_ACTIVE;
@@ -887,7 +887,6 @@ void BKE_pose_channel_copy_data(bPoseChannel *pchan, const bPoseChannel *pchan_f
 	pchan->iklinweight = pchan_from->iklinweight;
 
 	/* bbone settings (typically not animated) */
-	pchan->bboneflag = pchan_from->bboneflag;
 	pchan->bbone_next = pchan_from->bbone_next;
 	pchan->bbone_prev = pchan_from->bbone_prev;
 
@@ -1356,7 +1355,6 @@ void BKE_pose_copyesult_pchan_result(bPoseChannel *pchanto, const bPoseChannel *
 	pchanto->rotmode = pchanfrom->rotmode;
 	pchanto->flag = pchanfrom->flag;
 	pchanto->protectflag = pchanfrom->protectflag;
-	pchanto->bboneflag = pchanfrom->bboneflag;
 }
 
 /* both poses should be in sync */
@@ -1449,7 +1447,7 @@ void what_does_obaction(Object *ob, Object *workob, bPose *pose, bAction *act, c
 		RNA_id_pointer_create(&workob->id, &id_ptr);
 
 		/* execute action for this group only */
-		animsys_evaluate_action_group(&id_ptr, act, agrp, NULL, cframe);
+		animsys_evaluate_action_group(&id_ptr, act, agrp, cframe);
 	}
 	else {
 		AnimData adt = {NULL};

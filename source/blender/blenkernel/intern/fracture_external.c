@@ -74,8 +74,8 @@ int fracture_collect_defgrp(Object* o, Object* ob, int defstart, GHash** def_ind
 			index = BLI_listbase_count(&ob->defbase)-1;
 		}
 
-		if (!BLI_ghash_haskey(*def_index_map, SET_INT_IN_POINTER(key)))
-			BLI_ghash_insert(*def_index_map, SET_INT_IN_POINTER(key), SET_INT_IN_POINTER(index));
+		if (!BLI_ghash_haskey(*def_index_map, POINTER_FROM_INT(key)))
+			BLI_ghash_insert(*def_index_map, POINTER_FROM_INT(key), POINTER_FROM_INT(index));
 
 		k++;
 	}
@@ -106,9 +106,9 @@ short BKE_fracture_collect_materials(Main* bmain, Object* o, Object* ob, int mat
 			assign_material(bmain, ob, (*matarar)[j], index, BKE_MAT_ASSIGN_USERPREF);
 		}
 
-		key = SET_INT_IN_POINTER(matstart+j);
+		key = POINTER_FROM_INT(matstart+j);
 		if (!BLI_ghash_haskey(*mat_index_map, key))
-			BLI_ghash_insert(*mat_index_map, key, SET_INT_IN_POINTER(index));
+			BLI_ghash_insert(*mat_index_map, key, POINTER_FROM_INT(index));
 	}
 
 	return (*totcolp);

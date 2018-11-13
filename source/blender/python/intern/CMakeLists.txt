@@ -82,10 +82,6 @@ set(SRC
 	bpy_traceback.c
 	bpy_utils_previews.c
 	bpy_utils_units.c
-	gpu.c
-	gpu_offscreen.c
-	gpu_py_matrix.c
-	gpu_py_select.c
 	stubs.c
 
 	bpy.h
@@ -120,7 +116,6 @@ set(SRC
 	bpy_traceback.h
 	bpy_utils_previews.h
 	bpy_utils_units.h
-	gpu.h
 	../BPY_extern.h
 	../BPY_extern_clog.h
 )
@@ -173,6 +168,10 @@ endif()
 
 if(WITH_CYCLES_OSL)
 	add_definitions(-DWITH_CYCLES_OSL)
+endif()
+
+if(WITH_CYCLES_EMBREE)
+	add_definitions(-DWITH_CYCLES_EMBREE)
 endif()
 
 if(WITH_FREESTYLE)

@@ -61,7 +61,7 @@ BKE_subdiv_fvar_interpolation_from_uv_smooth(int uv_smooth)
 			return SUBDIV_FVAR_LINEAR_INTERPOLATION_NONE;
 	}
 	BLI_assert(!"Unknown uv smooth flag");
-	return SUBSURF_UV_SMOOTH_NONE;
+	return SUBDIV_FVAR_LINEAR_INTERPOLATION_ALL;
 }
 
 Subdiv *BKE_subdiv_new_from_converter(const SubdivSettings *settings,
@@ -118,5 +118,32 @@ void BKE_subdiv_free(Subdiv *subdiv)
 		openSubdiv_deleteTopologyRefiner(subdiv->topology_refiner);
 	}
 	BKE_subdiv_displacement_detach(subdiv);
+	if (subdiv->cache_.face_ptex_offset != NULL) {
+		MEM_freeN(subdiv->cache_.face_ptex_offset);
+	}
 	MEM_freeN(subdiv);
+}
+
+int *BKE_subdiv_face_ptex_offset_get(Subdiv *subdiv)
+{
+	if (subdiv->cache_.face_ptex_offset != NULL) {
+		return subdiv->cache_.face_ptex_offset;
+	}
+	OpenSubdiv_TopologyRefiner *topology_refiner = subdiv->topology_refiner;
+	if (topology_refiner == NULL) {
+		return NULL;
+	}
+	const int num_coarse_faces =
+	        topology_refiner->getNumFaces(topology_refiner);
+	subdiv->cache_.face_ptex_offset = MEM_malloc_arrayN(
+	        num_coarse_faces, sizeof(int), "subdiv face_ptex_offset");
+	int ptex_offset = 0;
+	for (int face_index = 0; face_index < num_coarse_faces; face_index++) {
+		const int num_ptex_faces =
+		        topology_refiner->getNumFacePtexFaces(
+		                topology_refiner, face_index);
+		subdiv->cache_.face_ptex_offset[face_index] = ptex_offset;
+		ptex_offset += num_ptex_faces;
+	}
+	return subdiv->cache_.face_ptex_offset;
 }

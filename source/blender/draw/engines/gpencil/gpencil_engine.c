@@ -42,8 +42,12 @@
 
 #include "gpencil_engine.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "ED_screen.h"
 #include "ED_gpencil.h"
+
+#include "WM_api.h"
 
 extern char datatoc_gpencil_fill_vert_glsl[];
 extern char datatoc_gpencil_fill_frag_glsl[];
@@ -137,17 +141,17 @@ static void GPENCIL_create_framebuffers(void *vedata)
 		            GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_b)
 		        });
 
-		/* used for rim FX effect */
-		e_data.temp_depth_tx_rim = DRW_texture_pool_query_2D(
+		/* used for rim and shadow FX effects */
+		e_data.temp_depth_tx_fx = DRW_texture_pool_query_2D(
 		        size[0], size[1], GPU_DEPTH24_STENCIL8,
 		        &draw_engine_gpencil_type);
-		e_data.temp_color_tx_rim = DRW_texture_pool_query_2D(
+		e_data.temp_color_tx_fx = DRW_texture_pool_query_2D(
 		        size[0], size[1], fb_format,
 		        &draw_engine_gpencil_type);
 		GPU_framebuffer_ensure_config(
-		        &fbl->temp_fb_rim, {
-		            GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_rim),
-		            GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_rim),
+		        &fbl->temp_fb_fx, {
+		            GPU_ATTACHMENT_TEXTURE(e_data.temp_depth_tx_fx),
+		            GPU_ATTACHMENT_TEXTURE(e_data.temp_color_tx_fx),
 		        });
 
 		/* background framebuffer to speed up drawing process (always 16 bits) */
@@ -337,6 +341,7 @@ void GPENCIL_cache_init(void *vedata)
 
 		/* detect if playing animation */
 		if (draw_ctx->evil_C) {
+
 			bool playing = ED_screen_animation_playing(CTX_wm_manager(draw_ctx->evil_C)) != NULL;
 			if (playing != stl->storage->is_playing) {
 				stl->storage->reset_cache = true;
@@ -353,9 +358,9 @@ void GPENCIL_cache_init(void *vedata)
 
 		if (obact_gpd) {
 			/* for some reason, when press play there is a delay in the animation flag check
-			* and this produces errors. To be sure, we set cache as dirty because the frame
-			* is changing.
-			*/
+			 * and this produces errors. To be sure, we set cache as dirty because the frame
+			 * is changing.
+			 */
 			if (stl->storage->is_playing == true) {
 				obact_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			}
@@ -381,9 +386,11 @@ void GPENCIL_cache_init(void *vedata)
 		    (obact_gpd->flag & GP_DATA_STROKE_PAINTMODE) &&
 		    (stl->storage->is_playing == false))
 		{
-			if (((obact_gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
-			    (obact_gpd->runtime.sbuffer_size > 0) &&
-			    ((obact_gpd->flag & GP_DATA_STROKE_POLYGON) == 0))
+			/* need the original to avoid cow overhead while drawing */
+			bGPdata *gpd_orig = (bGPdata *)DEG_get_original_id(&obact_gpd->id);
+			if (((gpd_orig->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
+			    (gpd_orig->runtime.sbuffer_size > 0) &&
+			    ((gpd_orig->flag & GP_DATA_STROKE_POLYGON) == 0))
 			{
 				stl->g_data->session_flag |= GP_DRW_PAINT_PAINTING;
 			}
@@ -411,7 +418,7 @@ void GPENCIL_cache_init(void *vedata)
 			stl->storage->color_type = GPENCIL_COLOR_SOLID;
 		}
 
-		/* drawing buffer pass for drawing the stroke that is beeing drawing by the user. The data
+		/* drawing buffer pass for drawing the stroke that is being drawing by the user. The data
 		 * is stored in sbuffer
 		 */
 		psl->drawing_pass = DRW_pass_create(
@@ -494,37 +501,24 @@ static void gpencil_add_draw_data(void *vedata, Object *ob)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	bGPdata *gpd = (bGPdata *)ob->data;
-	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+	const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
 	int i = stl->g_data->gp_cache_used - 1;
 	tGPencilObjectCache *cache_ob = &stl->g_data->gp_object_cache[i];
 
-	if (cache_ob->is_dup_ob == false) {
-		/* save init shading group */
-		cache_ob->init_grp = stl->storage->shgroup_id;
+	/* save init shading group */
+	cache_ob->init_grp = stl->storage->shgroup_id;
 
-		/* fill shading groups */
-		if (!is_multiedit) {
-			DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, cache_ob);
-		}
-		else {
-			DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, cache_ob);
-		}
-
-		/* save end shading group */
-		cache_ob->end_grp = stl->storage->shgroup_id - 1;
+	/* fill shading groups */
+	if ((!is_multiedit) || (cache_ob->is_dup_ob)) {
+		DRW_gpencil_populate_datablock(&e_data, vedata, scene, ob, cache_ob);
 	}
 	else {
-		/* save init shading group */
-		cache_ob->init_grp = stl->storage->shgroup_id;
-
-		DRW_gpencil_populate_datablock(
-		        &e_data, vedata, scene, ob,
-		        cache_ob);
-
-		/* save end shading group */
-		cache_ob->end_grp = stl->storage->shgroup_id - 1;
+		DRW_gpencil_populate_multiedit(&e_data, vedata, scene, ob, cache_ob);
 	}
+
+	/* save end shading group */
+	cache_ob->end_grp = stl->storage->shgroup_id - 1;
 
 	/* FX passses */
 	cache_ob->has_fx = false;
@@ -542,7 +536,7 @@ static void gpencil_add_draw_data(void *vedata, Object *ob)
 void GPENCIL_cache_populate(void *vedata, Object *ob)
 {
 	/* object must be visible */
-	if (!DRW_check_object_visible_within_active_context(ob)) {
+	if (!DRW_object_is_visible_in_active_context(ob)) {
 		return;
 	}
 
@@ -555,14 +549,22 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 	if (ob->type == OB_GPENCIL && ob->data) {
 		bGPdata *gpd = (bGPdata *)ob->data;
 
+		/* if onion, set as dirty always
+		 * This reduces performance, but avoid any crash in the multiple
+		 * overlay and multiwindow options
+		 */
+		if (gpd->flag & GP_DATA_SHOW_ONIONSKINS) {
+			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
+		}
+
 		/* when start/stop animation the cache must be set as dirty to reset all data */
 		if (stl->storage->reset_cache) {
 			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 			stl->storage->reset_cache = false;
 		}
 
-		/* is edit mode only current object, not instances */
-		if ((draw_ctx->obact != ob) && GPENCIL_ANY_EDIT_MODE(gpd)) {
+		/* is edit mode only current object, not particle instances */
+		if ((ob->base_flag & BASE_FROMDUPLI) && GPENCIL_ANY_EDIT_MODE(gpd)) {
 			return;
 		}
 
@@ -577,8 +579,12 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 			gpencil_add_draw_data(vedata, ob);
 		}
 
-		/* draw current painting strokes */
-		if (draw_ctx->obact == ob) {
+		/* draw current painting strokes
+		* (only if region is equal to originated paint region)
+		*/
+		if ((draw_ctx->obact == ob) &&
+		    ((gpd->runtime.ar == NULL) || (gpd->runtime.ar == draw_ctx->ar)))
+		{
 			DRW_gpencil_populate_buffer_strokes(&e_data, vedata, ts, ob);
 		}
 
@@ -591,11 +597,23 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 			GPU_BATCH_DISCARD_SAFE(e_data.batch_grid);
 			MEM_SAFE_FREE(e_data.batch_grid);
 
-			e_data.batch_grid = DRW_gpencil_get_grid();
+			e_data.batch_grid = DRW_gpencil_get_grid(ob);
+
+			/* define grid orientation */
+			if (ts->gp_sculpt.lock_axis != GP_LOCKAXIS_VIEW) {
+				copy_m4_m4(stl->storage->grid_matrix, ob->obmat);
+			}
+			else {
+				/* align always to view */
+				invert_m4_m4(stl->storage->grid_matrix, draw_ctx->rv3d->viewmat);
+				/* copy ob location */
+				copy_v3_v3(stl->storage->grid_matrix[3], ob->obmat[3]);
+			}
+
 			DRW_shgroup_call_add(
-			        stl->g_data->shgrps_grid,
-			        e_data.batch_grid,
-			        ob->obmat);
+				stl->g_data->shgrps_grid,
+				e_data.batch_grid,
+				stl->storage->grid_matrix);
 		}
 	}
 }
@@ -664,7 +682,7 @@ void GPENCIL_draw_scene(void *ved)
 	const bool playing = stl->storage->is_playing;
 	const bool is_render = stl->storage->is_render;
 
-	/* paper pass to display a confortable area to draw over complex scenes with geometry */
+	/* paper pass to display a comfortable area to draw over complex scenes with geometry */
 	if ((!is_render) && (obact) && (obact->type == OB_GPENCIL)) {
 		if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
 		    (v3d->gp_flag & V3D_GP_SHOW_PAPER))
@@ -730,7 +748,10 @@ void GPENCIL_draw_scene(void *ved)
 				 * draw only a subset that usually start with a fill and end with stroke because the
 				 * shading groups are created by pairs */
 				if (end_grp >= init_grp) {
-					MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
+					/* previews don't use AA */
+					if (!stl->storage->is_mat_preview) {
+						MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
+					}
 
 					DRW_draw_pass_subset(
 					        psl->stroke_pass,
@@ -738,7 +759,9 @@ void GPENCIL_draw_scene(void *ved)
 					        stl->shgroups[init_grp].shgrps_fill : stl->shgroups[init_grp].shgrps_stroke,
 					        stl->shgroups[end_grp].shgrps_stroke);
 
-					MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
+					if (!stl->storage->is_mat_preview) {
+						MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
+					}
 				}
 
 				/* Current buffer drawing */

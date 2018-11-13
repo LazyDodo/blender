@@ -22,6 +22,7 @@ from bpy.types import Menu, Panel, UIList
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
     GreasePencilOnionPanel,
+    GPENCIL_UL_layer,
 )
 
 ###############################
@@ -62,44 +63,8 @@ class DATA_PT_gpencil(DataButtonsPanel, Panel):
 
         # Grease Pencil data selector
         gpd_owner = context.gpencil_data_owner
-        gpd = context.gpencil_data
 
         layout.template_ID(gpd_owner, "data")
-
-
-class GPENCIL_UL_layer(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        # assert(isinstance(item, bpy.types.GPencilLayer)
-        gpl = item
-        gpd = context.gpencil_data
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            if gpl.lock:
-                layout.active = False
-
-            row = layout.row(align=True)
-            if gpl.is_parented:
-                icon = 'BONE_DATA'
-            else:
-                icon = 'BLANK1'
-
-            row.label(text="", icon=icon)
-            row.prop(gpl, "info", text="", emboss=False)
-
-            row = layout.row(align=True)
-            row.prop(gpl, "lock", text="", emboss=False)
-            row.prop(gpl, "hide", text="", emboss=False)
-            row.prop(gpl, "unlock_color", text="", emboss=False)
-            if gpl.use_onion_skinning is False:
-                icon = 'GHOST_DISABLED'
-            else:
-                icon = 'GHOST_ENABLED'
-            subrow = row.row(align=True)
-            subrow.prop(gpl, "use_onion_skinning", text="", icon=icon, emboss=False)
-            subrow.active = gpd.use_onion_skinning
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon_value=icon)
 
 
 class GPENCIL_MT_layer_specials(Menu):
@@ -107,8 +72,9 @@ class GPENCIL_MT_layer_specials(Menu):
 
     def draw(self, context):
         layout = self.layout
+        gpd = context.gpencil_data
 
-        layout.operator("gpencil.layer_duplicate", icon='COPY_ID')  # XXX: needs a dedicated icon
+        layout.operator("gpencil.layer_duplicate", icon='ADD')  # XXX: needs a dedicated icon
 
         layout.separator()
 
@@ -119,10 +85,11 @@ class GPENCIL_MT_layer_specials(Menu):
 
         layout.operator("gpencil.lock_all", icon='LOCKED', text="Lock All")
         layout.operator("gpencil.unlock_all", icon='UNLOCKED', text="UnLock All")
+        layout.prop(gpd, "use_autolock_layers", text="Autolock Inactive Layers")
 
         layout.separator()
 
-        layout.operator("gpencil.layer_merge", icon='NLA', text="Merge Down")
+        layout.operator("gpencil.layer_merge", icon='SORT_ASC', text="Merge Down")
 
         layout.separator()
         layout.menu("VIEW3D_MT_gpencil_copy_layer")
@@ -160,20 +127,19 @@ class DATA_PT_gpencil_datapanel(Panel):
             self.draw_layers(context, layout, gpd)
 
     def draw_layers(self, context, layout, gpd):
+
         row = layout.row()
 
         col = row.column()
-        if len(gpd.layers) >= 2:
-            layer_rows = 5
-        else:
-            layer_rows = 2
-        col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index", rows=layer_rows)
+        layer_rows = 7
+        col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index",
+                          rows=layer_rows, reverse=True)
 
         col = row.column()
 
         sub = col.column(align=True)
-        sub.operator("gpencil.layer_add", icon='ZOOMIN', text="")
-        sub.operator("gpencil.layer_remove", icon='ZOOMOUT', text="")
+        sub.operator("gpencil.layer_add", icon='ADD', text="")
+        sub.operator("gpencil.layer_remove", icon='REMOVE', text="")
 
         gpl = context.active_gpencil_layer
         if gpl:
@@ -190,7 +156,7 @@ class DATA_PT_gpencil_datapanel(Panel):
 
                 sub = col.column(align=True)
                 sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
-                sub.operator("gpencil.layer_isolate", icon='RESTRICT_VIEW_OFF', text="").affect_visibility = True
+                sub.operator("gpencil.layer_isolate", icon='RESTRICT_VIEW_ON', text="").affect_visibility = True
 
         row = layout.row(align=True)
         if gpl:
@@ -208,6 +174,7 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        scene = context.scene
 
         gpl = context.active_gpencil_layer
         layout.active = not gpl.lock
@@ -222,6 +189,15 @@ class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):
         # Offsets - Thickness
         col = layout.row(align=True)
         col.prop(gpl, "line_change", text="Stroke Thickness")
+
+        col = layout.row(align=True)
+        col.prop(gpl, "pass_index")
+
+        col = layout.row(align=True)
+        col.prop_search(gpl, "viewlayer_render", scene, "view_layers", text="View Layer")
+
+        col = layout.row(align=True)
+        col.prop(gpl, "lock_material")
 
 
 class DATA_PT_gpencil_parentpanel(LayerDataButtonsPanel, Panel):
@@ -335,8 +311,8 @@ class DATA_PT_gpencil_vertexpanel(DataButtonsPanel, Panel):
         row.template_list("GPENCIL_UL_vgroups", "", ob, "vertex_groups", ob.vertex_groups, "active_index", rows=rows)
 
         col = row.column(align=True)
-        col.operator("object.vertex_group_add", icon='ZOOMIN', text="")
-        col.operator("object.vertex_group_remove", icon='ZOOMOUT', text="").all = False
+        col.operator("object.vertex_group_add", icon='ADD', text="")
+        col.operator("object.vertex_group_remove", icon='REMOVE', text="").all = False
 
         if ob.vertex_groups:
             row = layout.row()
@@ -359,6 +335,7 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.use_property_decorate = False
 
         ob = context.object
 
@@ -366,10 +343,7 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         gpl = context.active_gpencil_layer
 
         layout.prop(gpd, "xray_mode", text="Depth Ordering")
-        layout.prop(gpd, "edit_line_color", text="Edit Line Color")
-        layout.prop(ob, "empty_draw_size", text="Marker Size")
-
-        layout.prop(gpd, "use_force_fill_recalc", text="Force Fill Update")
+        layout.prop(ob, "empty_display_size", text="Marker Size")
 
         col = layout.column(align=True)
         col.prop(gpd, "show_constant_thickness")
@@ -377,8 +351,34 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
         sub.active = not gpd.show_constant_thickness
         sub.prop(gpd, "pixel_factor", text="Thickness Scale")
 
+        layout.prop(gpd, "edit_line_color", text="Edit Line Color")
         if gpl:
             layout.prop(gpd, "show_stroke_direction", text="Show Stroke Directions")
+
+        layout.prop(gpd, "use_force_fill_recalc", text="Force Fill Update")
+        layout.prop(gpd, "use_adaptative_uv", text="Adaptative UVs")
+
+
+class DATA_PT_gpencil_canvas(DataButtonsPanel, Panel):
+    bl_label = "Canvas"
+    bl_parent_id = 'DATA_PT_gpencil_display'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        gpd = context.gpencil_data
+        grid = gpd.grid
+
+        row = layout.row(align=True)
+        col = row.column()
+        col.prop(grid, "color", text="Color")
+        col.prop(grid, "scale", text="Scale")
+        col.prop(grid, "offset")
+        row = layout.row(align=True)
+        col = row.column()
+        col.prop(grid, "lines", text="Subdivisions")
 
 
 class DATA_PT_custom_props_gpencil(DataButtonsPanel, PropertyPanel, Panel):
@@ -396,9 +396,9 @@ classes = (
     DATA_PT_gpencil_parentpanel,
     DATA_PT_gpencil_vertexpanel,
     DATA_PT_gpencil_display,
+    DATA_PT_gpencil_canvas,
     DATA_PT_custom_props_gpencil,
 
-    GPENCIL_UL_layer,
     GPENCIL_UL_vgroups,
 
     GPENCIL_MT_layer_specials,

@@ -55,6 +55,7 @@
 
 #include "BKE_animsys.h"
 #include "BKE_brush.h"
+#include "BKE_ccg.h"
 #include "BKE_colortools.h"
 #include "BKE_deform.h"
 #include "BKE_main.h"
@@ -72,10 +73,13 @@
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_pbvh.h"
+#include "BKE_subdiv_ccg.h"
 #include "BKE_subsurf.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
+
+#include "RNA_enum_types.h"
 
 #include "bmesh.h"
 
@@ -154,7 +158,7 @@ Paint *BKE_paint_get_active_from_paintmode(Scene *sce, ePaintMode mode)
 			case ePaintWeight:
 				return &ts->wpaint->paint;
 			case ePaintTexture2D:
-			case ePaintTextureProjective:
+			case ePaintTexture3D:
 				return &ts->imapaint.paint;
 			case ePaintSculptUV:
 				return &ts->uvsculpt->paint;
@@ -168,6 +172,43 @@ Paint *BKE_paint_get_active_from_paintmode(Scene *sce, ePaintMode mode)
 	}
 
 	return NULL;
+}
+
+const EnumPropertyItem *BKE_paint_get_tool_enum_from_paintmode(ePaintMode mode)
+{
+	switch (mode) {
+		case ePaintSculpt:
+			return rna_enum_brush_sculpt_tool_items;
+		case ePaintVertex:
+			return rna_enum_brush_vertex_tool_items;
+		case ePaintWeight:
+			return rna_enum_brush_weight_tool_items;
+		case ePaintTexture2D:
+		case ePaintTexture3D:
+			return rna_enum_brush_image_tool_items;
+		case ePaintSculptUV:
+			return NULL;
+		case ePaintGpencil:
+			return rna_enum_brush_gpencil_types_items;
+		case ePaintInvalid:
+			break;
+	}
+	return NULL;
+}
+
+const char *BKE_paint_get_tool_prop_id_from_paintmode(ePaintMode mode)
+{
+	switch (mode) {
+		case ePaintSculpt: return "sculpt_tool";
+		case ePaintVertex: return "vertex_tool";
+		case ePaintWeight: return "weight_tool";
+		case ePaintTexture2D:
+		case ePaintTexture3D: return "image_tool";
+		case ePaintGpencil: return "gpencil_tool";
+		default:
+			/* invalid paint mode */
+			return NULL;
+	}
 }
 
 Paint *BKE_paint_get_active(Scene *sce, ViewLayer *view_layer)
@@ -268,7 +309,7 @@ ePaintMode BKE_paintmode_get_active_from_context(const bContext *C)
 				case OB_MODE_WEIGHT_PAINT:
 					return ePaintWeight;
 				case OB_MODE_TEXTURE_PAINT:
-					return ePaintTextureProjective;
+					return ePaintTexture3D;
 				case OB_MODE_EDIT:
 					if (ts->use_uv_sculpt)
 						return ePaintSculptUV;
@@ -286,6 +327,32 @@ ePaintMode BKE_paintmode_get_active_from_context(const bContext *C)
 	return ePaintInvalid;
 }
 
+ePaintMode BKE_paintmode_get_from_tool(const struct bToolRef *tref)
+{
+	if (tref->space_type == SPACE_VIEW3D) {
+		switch (tref->mode) {
+			case CTX_MODE_SCULPT:
+				return ePaintSculpt;
+			case CTX_MODE_PAINT_VERTEX:
+				return ePaintVertex;
+			case CTX_MODE_PAINT_WEIGHT:
+				return ePaintWeight;
+			case CTX_MODE_GPENCIL_PAINT:
+				return ePaintGpencil;
+			case CTX_MODE_PAINT_TEXTURE:
+				return ePaintTexture3D;
+		}
+	}
+	else if (tref->space_type == SPACE_IMAGE) {
+		switch (tref->mode) {
+			case SI_MODE_PAINT:
+				return ePaintTexture2D;
+		}
+	}
+
+	return ePaintInvalid;
+}
+
 Brush *BKE_paint_brush(Paint *p)
 {
 	return p ? p->brush : NULL;
@@ -297,7 +364,62 @@ void BKE_paint_brush_set(Paint *p, Brush *br)
 		id_us_min((ID *)p->brush);
 		id_us_plus((ID *)br);
 		p->brush = br;
+
+		BKE_paint_toolslots_brush_update(p);
 	}
+}
+
+void BKE_paint_runtime_init(const ToolSettings *ts, Paint *paint)
+{
+	if (paint == &ts->imapaint.paint) {
+		paint->runtime.tool_offset = offsetof(Brush, imagepaint_tool);
+		paint->runtime.ob_mode = OB_MODE_TEXTURE_PAINT;
+	}
+	else if (paint == &ts->sculpt->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, sculpt_tool);
+		paint->runtime.ob_mode = OB_MODE_SCULPT;
+	}
+	else if (paint == &ts->vpaint->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, vertexpaint_tool);
+		paint->runtime.ob_mode = OB_MODE_VERTEX_PAINT;
+	}
+	else if (paint == &ts->wpaint->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, weightpaint_tool);
+		paint->runtime.ob_mode = OB_MODE_WEIGHT_PAINT;
+	}
+	else if (paint == &ts->gp_paint->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, gpencil_tool);
+		paint->runtime.ob_mode = OB_MODE_GPENCIL_PAINT;
+	}
+	else if (paint == &ts->uvsculpt->paint) {
+		/* We don't use these yet. */
+		paint->runtime.tool_offset = 0;
+		paint->runtime.ob_mode = 0;
+	}
+	else {
+		BLI_assert(0);
+	}
+}
+
+uint BKE_paint_get_brush_tool_offset_from_paintmode(const ePaintMode mode)
+{
+	switch (mode) {
+		case ePaintTexture2D:
+		case ePaintTexture3D:
+			return offsetof(Brush, imagepaint_tool);
+		case ePaintSculpt:
+			return offsetof(Brush, sculpt_tool);
+		case ePaintVertex:
+			return offsetof(Brush, vertexpaint_tool);
+		case ePaintWeight:
+			return offsetof(Brush, weightpaint_tool);
+		case ePaintGpencil:
+			return offsetof(Brush, gpencil_tool);
+		case ePaintSculptUV:
+		case ePaintInvalid:
+			break; /* We don't use these yet. */
+	}
+	return 0;
 }
 
 /** Free (or release) any data used by this paint curve (does not free the pcurve itself). */
@@ -396,10 +518,6 @@ void BKE_palette_clear(Palette *palette)
 Palette *BKE_palette_add(Main *bmain, const char *name)
 {
 	Palette *palette = BKE_id_new(bmain, ID_PAL, name);
-
-	/* enable fake user by default */
-	id_fake_user_set(&palette->id);
-
 	return palette;
 }
 
@@ -428,6 +546,12 @@ void BKE_palette_make_local(Main *bmain, Palette *palette, const bool lib_local)
 	BKE_id_make_local_generic(bmain, &palette->id, true, lib_local);
 }
 
+void BKE_palette_init(Palette *palette)
+{
+	/* Enable fake user by default. */
+	id_fake_user_set(&palette->id);
+}
+
 /** Free (or release) any data used by this palette (does not free the palette itself). */
 void BKE_palette_free(Palette *palette)
 {
@@ -446,7 +570,7 @@ bool BKE_palette_is_empty(const struct Palette *palette)
 	return BLI_listbase_is_empty(&palette->colors);
 }
 
-/* are we in vertex paint or weight pain face select mode? */
+/* are we in vertex paint or weight paint face select mode? */
 bool BKE_paint_select_face_test(Object *ob)
 {
 	return ( (ob != NULL) &&
@@ -493,7 +617,7 @@ void BKE_paint_cavity_curve_preset(Paint *p, int preset)
 	curvemapping_changed(p->cavity_curve, false);
 }
 
-eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode)
+eObjectMode BKE_paint_object_mode_from_paintmode(ePaintMode mode)
 {
 	switch (mode) {
 		case ePaintSculpt:
@@ -502,9 +626,8 @@ eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode)
 			return OB_MODE_VERTEX_PAINT;
 		case ePaintWeight:
 			return OB_MODE_WEIGHT_PAINT;
-		case ePaintTextureProjective:
-			return OB_MODE_TEXTURE_PAINT;
 		case ePaintTexture2D:
+		case ePaintTexture3D:
 			return OB_MODE_TEXTURE_PAINT;
 		case ePaintSculptUV:
 			return OB_MODE_EDIT;
@@ -512,6 +635,64 @@ eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode)
 		default:
 			return 0;
 	}
+}
+
+/**
+ * Call when entering each respective paint mode.
+ */
+bool BKE_paint_ensure(const ToolSettings *ts, struct Paint **r_paint)
+{
+	Paint *paint = NULL;
+	if (*r_paint) {
+		/* Note: 'ts->imapaint' is ignored, it's not allocated. */
+		BLI_assert(
+		        ELEM(*r_paint,
+		             &ts->gp_paint->paint,
+		             &ts->sculpt->paint,
+		             &ts->vpaint->paint,
+		             &ts->wpaint->paint,
+		             &ts->uvsculpt->paint));
+
+#ifdef DEBUG
+		struct Paint paint_test = **r_paint;
+		BKE_paint_runtime_init(ts, *r_paint);
+		/* Swap so debug doesn't hide errors when release fails. */
+		SWAP(Paint, **r_paint, paint_test);
+		BLI_assert(paint_test.runtime.ob_mode == (*r_paint)->runtime.ob_mode);
+		BLI_assert(paint_test.runtime.tool_offset == (*r_paint)->runtime.tool_offset);
+#endif
+		return true;
+	}
+
+	if (ELEM(*r_paint, &ts->vpaint->paint, &ts->wpaint->paint)) {
+		VPaint *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+	}
+	else if (*r_paint == &ts->sculpt->paint) {
+		Sculpt *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+
+		/* Turn on X plane mirror symmetry by default */
+		paint->symmetry_flags |= PAINT_SYMM_X;
+
+		/* Make sure at least dyntopo subdivision is enabled */
+		data->flags |= SCULPT_DYNTOPO_SUBDIVIDE | SCULPT_DYNTOPO_COLLAPSE;
+	}
+	else if (*r_paint == &ts->gp_paint->paint) {
+		GpPaint *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+	}
+	else if (*r_paint == &ts->uvsculpt->paint) {
+		UvSculpt *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+	}
+
+	paint->flags |= PAINT_SHOW_BRUSH;
+
+	BKE_paint_runtime_init(ts, paint);
+
+	*r_paint = paint;
+	return false;
 }
 
 void BKE_paint_init(Main *bmain, Scene *sce, ePaintMode mode, const char col[3])
@@ -523,7 +704,7 @@ void BKE_paint_init(Main *bmain, Scene *sce, ePaintMode mode, const char col[3])
 	/* If there's no brush, create one */
 	brush = BKE_paint_brush(paint);
 	if (brush == NULL) {
-		eObjectMode ob_mode = BKE_paint_object_mode_from_paint_mode(mode);
+		eObjectMode ob_mode = BKE_paint_object_mode_from_paintmode(mode);
 		brush = BKE_brush_first_search(bmain, ob_mode);
 
 		if (!brush) {
@@ -545,6 +726,7 @@ void BKE_paint_init(Main *bmain, Scene *sce, ePaintMode mode, const char col[3])
 void BKE_paint_free(Paint *paint)
 {
 	curvemapping_free(paint->cavity_curve);
+	MEM_SAFE_FREE(paint->tool_slots);
 }
 
 /* called when copying scene settings, so even if 'src' and 'tar' are the same
@@ -555,10 +737,16 @@ void BKE_paint_copy(Paint *src, Paint *tar, const int flag)
 {
 	tar->brush = src->brush;
 	tar->cavity_curve = curvemapping_copy(src->cavity_curve);
+	tar->tool_slots = MEM_dupallocN(src->tool_slots);
 
 	if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
 		id_us_plus((ID *)tar->brush);
 		id_us_plus((ID *)tar->palette);
+		if (src->tool_slots != NULL) {
+			for (int i = 0; i < tar->tool_slots_len; i++) {
+				id_us_plus((ID *)tar->tool_slots[i].brush);
+			}
+		}
 	}
 }
 
@@ -873,6 +1061,17 @@ void BKE_sculpt_update_mesh_elements(
         Depsgraph *depsgraph, Scene *scene, Sculpt *sd, Object *ob,
         bool need_pmap, bool need_mask)
 {
+	/* TODO(sergey): Make sure ob points to an original object. This is what it
+	 * is supposed to be pointing to. The issue is, currently draw code takes
+	 * care of PBVH creation, even though this is something up to dependency
+	 * graph.
+	 * Probably, we need to being back logic which was checking for sculpt mode
+	 * and (re)create PBVH if needed in that case, similar to how DerivedMesh
+	 * was handling this.
+	 */
+	ob = DEG_get_original_object(ob);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
 	SculptSession *ss = ob->sculpt;
 	Mesh *me = BKE_object_get_original_mesh(ob);
 	MultiresModifierData *mmd = BKE_sculpt_multires_active(scene, ob);
@@ -909,8 +1108,7 @@ void BKE_sculpt_update_mesh_elements(
 
 	ss->kb = (mmd == NULL) ? BKE_keyblock_from_object(ob) : NULL;
 
-	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH);
-	Mesh *me_eval_deform = mesh_get_eval_deform(depsgraph, scene, ob, CD_MASK_BAREMESH);
+	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob_eval, CD_MASK_BAREMESH);
 
 	/* VWPaint require mesh info for loop lookup, so require sculpt mode here */
 	if (mmd && ob->mode & OB_MODE_SCULPT) {
@@ -931,7 +1129,9 @@ void BKE_sculpt_update_mesh_elements(
 		ss->vmask = CustomData_get_layer(&me->vdata, CD_PAINT_MASK);
 	}
 
-	PBVH *pbvh = BKE_sculpt_object_pbvh_ensure(ob, me_eval_deform);
+	ss->subdiv_ccg = me_eval->runtime.subdiv_ccg;
+
+	PBVH *pbvh = BKE_sculpt_object_pbvh_ensure(depsgraph, ob);
 	BLI_assert(pbvh == ss->pbvh);
 	UNUSED_VARS_NDEBUG(pbvh);
 	MEM_SAFE_FREE(ss->pmap);
@@ -1069,18 +1269,9 @@ int BKE_sculpt_mask_layers_ensure(Object *ob, MultiresModifierData *mmd)
 
 void BKE_sculpt_toolsettings_data_ensure(struct Scene *scene)
 {
+	BKE_paint_ensure(scene->toolsettings, (Paint **)&scene->toolsettings->sculpt);
+
 	Sculpt *sd = scene->toolsettings->sculpt;
-	if (sd == NULL) {
-		sd = scene->toolsettings->sculpt = MEM_callocN(sizeof(Sculpt), __func__);
-
-		/* Turn on X plane mirror symmetry by default */
-		sd->paint.symmetry_flags |= PAINT_SYMM_X;
-		sd->paint.flags |= PAINT_SHOW_BRUSH;
-
-		/* Make sure at least dyntopo subdivision is enabled */
-		sd->flags |= SCULPT_DYNTOPO_SUBDIVIDE | SCULPT_DYNTOPO_COLLAPSE;
-	}
-
 	if (!sd->detail_size) {
 		sd->detail_size = 12;
 	}
@@ -1127,68 +1318,95 @@ static bool check_sculpt_object_deformed(Object *object, const bool for_construc
 	return deformed;
 }
 
-PBVH *BKE_sculpt_object_pbvh_ensure(Object *ob, Mesh *me_eval_deform)
+static PBVH *build_pbvh_for_dynamic_topology(Object *ob)
 {
-	if (!ob) {
-		return NULL;
+	PBVH *pbvh = BKE_pbvh_new();
+	BKE_pbvh_build_bmesh(pbvh, ob->sculpt->bm,
+	                     ob->sculpt->bm_smooth_shading,
+	                     ob->sculpt->bm_log, ob->sculpt->cd_vert_node_offset,
+	                     ob->sculpt->cd_face_node_offset);
+	pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
+	pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+	return pbvh;
+}
+
+static PBVH *build_pbvh_from_regular_mesh(Object *ob, Mesh *me_eval_deform)
+{
+	Mesh *me = BKE_object_get_original_mesh(ob);
+	const int looptris_num = poly_to_tri_count(me->totpoly, me->totloop);
+	PBVH *pbvh = BKE_pbvh_new();
+
+	MLoopTri *looptri = MEM_malloc_arrayN(
+	        looptris_num, sizeof(*looptri), __func__);
+
+	BKE_mesh_recalc_looptri(
+	        me->mloop, me->mpoly,
+	        me->mvert,
+	        me->totloop, me->totpoly,
+	        looptri);
+
+	BKE_pbvh_build_mesh(
+	        pbvh,
+	        me->mpoly, me->mloop,
+	        me->mvert, me->totvert, &me->vdata,
+	        looptri, looptris_num);
+
+	pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
+	pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+
+	const bool is_deformed = check_sculpt_object_deformed(ob, true);
+	if (is_deformed && me_eval_deform != NULL) {
+		int totvert;
+		float (*v_cos)[3] = BKE_mesh_vertexCos_get(me_eval_deform, &totvert);
+		BKE_pbvh_apply_vertCos(pbvh, v_cos, totvert);
+		MEM_freeN(v_cos);
 	}
 
-	if (!ob->sculpt) {
+	return pbvh;
+}
+
+static PBVH *build_pbvh_from_ccg(Object *ob, SubdivCCG *subdiv_ccg)
+{
+	CCGKey key;
+	BKE_subdiv_ccg_key_top_level(&key, subdiv_ccg);
+	PBVH *pbvh = BKE_pbvh_new();
+	BKE_pbvh_build_grids(
+	        pbvh,
+	        subdiv_ccg->grids, subdiv_ccg->num_grids,
+	        &key,
+	        (void **)subdiv_ccg->grid_faces,
+	        subdiv_ccg->grid_flag_mats,
+	        subdiv_ccg->grid_hidden);
+	pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
+	pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+	return pbvh;
+}
+
+PBVH *BKE_sculpt_object_pbvh_ensure(Depsgraph *depsgraph, Object *ob)
+{
+	if (ob == NULL || ob->sculpt == NULL) {
 		return NULL;
 	}
-
 	PBVH *pbvh = ob->sculpt->pbvh;
-
-	/* Sculpting on a BMesh (dynamic-topology) gets a special PBVH */
-	if (!pbvh && ob->sculpt->bm) {
-		pbvh = BKE_pbvh_new();
-
-		BKE_pbvh_build_bmesh(pbvh, ob->sculpt->bm,
-		                     ob->sculpt->bm_smooth_shading,
-		                     ob->sculpt->bm_log, ob->sculpt->cd_vert_node_offset,
-		                     ob->sculpt->cd_face_node_offset);
-
-		pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
-		pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
+	if (pbvh != NULL) {
+		/* Nothing to do, PBVH is already up to date. */
+		return pbvh;
 	}
 
-	/* always build pbvh from original mesh, and only use it for drawing if
-	 * this evaluated mesh is just original mesh. it's the multires subsurf dm
-	 * that this is actually for, to support a pbvh on a modified mesh */
-	if (!pbvh && ob->type == OB_MESH) {
-		Mesh *me = BKE_object_get_original_mesh(ob);
-		const int looptris_num = poly_to_tri_count(me->totpoly, me->totloop);
-		MLoopTri *looptri;
-		bool deformed;
-
-		pbvh = BKE_pbvh_new();
-
-		looptri = MEM_malloc_arrayN(looptris_num, sizeof(*looptri), __func__);
-
-		BKE_mesh_recalc_looptri(
-		        me->mloop, me->mpoly,
-		        me->mvert,
-		        me->totloop, me->totpoly,
-		        looptri);
-
-		BKE_pbvh_build_mesh(
-		        pbvh,
-		        me->mpoly, me->mloop,
-		        me->mvert, me->totvert, &me->vdata,
-		        looptri, looptris_num);
-
-		pbvh_show_diffuse_color_set(pbvh, ob->sculpt->show_diffuse_color);
-		pbvh_show_mask_set(pbvh, ob->sculpt->show_mask);
-
-		deformed = check_sculpt_object_deformed(ob, true);
-
-		if (deformed && me_eval_deform) {
-			int totvert;
-			float (*v_cos)[3];
-
-			v_cos = BKE_mesh_vertexCos_get(me_eval_deform, &totvert);
-			BKE_pbvh_apply_vertCos(pbvh, v_cos, totvert);
-			MEM_freeN(v_cos);
+	if (ob->sculpt->bm != NULL) {
+		/* Sculpting on a BMesh (dynamic-topology) gets a special PBVH. */
+		pbvh = build_pbvh_for_dynamic_topology(ob);
+	}
+	else {
+		Object *object_eval = DEG_get_evaluated_object(depsgraph, ob);
+		Mesh *mesh_eval = object_eval->data;
+		if (mesh_eval->runtime.subdiv_ccg != NULL) {
+			pbvh = build_pbvh_from_ccg(ob, mesh_eval->runtime.subdiv_ccg);
+		}
+		else if (ob->type == OB_MESH) {
+			Mesh *me_eval_deform = mesh_get_eval_deform(
+			        depsgraph, DEG_get_evaluated_scene(depsgraph), ob, CD_MASK_BAREMESH);
+			pbvh = build_pbvh_from_regular_mesh(ob, me_eval_deform);
 		}
 	}
 

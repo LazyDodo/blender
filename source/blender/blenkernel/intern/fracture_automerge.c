@@ -136,8 +136,8 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 				//printf("I, INDEX %d %d %f\n", i, index, n[j].dist);
 				v1 = mloop[mp->loopstart].v;
 				v2 = mloop[(mpoly+index)->loopstart].v;
-				mi1 = BLI_ghash_lookup(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(v1));
-				mi2 = BLI_ghash_lookup(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(v2));
+				mi1 = BLI_ghash_lookup(fmd->shared->vertex_island_map, POINTER_FROM_INT(v1));
+				mi2 = BLI_ghash_lookup(fmd->shared->vertex_island_map, POINTER_FROM_INT(v2));
 
 				if (mi1 != mi2) {
 					/*dont delete faces on own meshisland if they are closer than faces on adjacent island
@@ -148,9 +148,9 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 				j++;
 			}
 
-			val = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->face_pairs, SET_INT_IN_POINTER(index)));
+			val = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->face_pairs, POINTER_FROM_INT(index)));
 			if (val != i && index != i) {
-				BLI_ghash_insert(fmd->shared->face_pairs, SET_INT_IN_POINTER(index), SET_INT_IN_POINTER(i));
+				BLI_ghash_insert(fmd->shared->face_pairs, POINTER_FROM_INT(index), POINTER_FROM_INT(i));
 				pairs++;
 				/*match normals...*/
 				if (fmd->fix_normals) {
@@ -177,7 +177,7 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 {
 	float f_centr[3], f_centr_other[3];
 	BMFace *f1, *f2;
-	int other = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->face_pairs, SET_INT_IN_POINTER(i)));
+	int other = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->face_pairs, POINTER_FROM_INT(i)));
 	int inner_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
 
 	if ((other == i))
@@ -734,9 +734,9 @@ void BKE_fracture_shared_vert_groups(FractureModifierData* fmd, Mesh* dm, ListBa
 			for (j = 0; j < r; j++)
 			{
 				index = n[j].index;
-				if (!BLI_ghash_haskey(visit, SET_INT_IN_POINTER(index)))
+				if (!BLI_ghash_haskey(visit, POINTER_FROM_INT(index)))
 				{
-					BLI_ghash_insert(visit, SET_INT_IN_POINTER(index), SET_INT_IN_POINTER(index));
+					BLI_ghash_insert(visit, POINTER_FROM_INT(index), POINTER_FROM_INT(index));
 
 					if (i != index)
 					{

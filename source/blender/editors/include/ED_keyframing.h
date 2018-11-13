@@ -76,7 +76,7 @@ struct bAction *verify_adt_action(struct Main *bmain, struct ID *id, short add);
 /* Get (or add relevant data to be able to do so) F-Curve from the given Action.
  * This assumes that all the destinations are valid.
  */
-struct FCurve *verify_fcurve(struct bAction *act, const char group[], struct PointerRNA *ptr,
+struct FCurve *verify_fcurve(struct Main *bmain, struct bAction *act, const char group[], struct PointerRNA *ptr,
                              const char rna_path[], const int array_index, short add);
 
 /* -------- */
@@ -124,7 +124,9 @@ short insert_keyframe(
 /* Main Keyframing API call:
  *  Use this to delete keyframe on current frame for relevant channel. Will perform checks just in case.
  */
-short delete_keyframe(struct ReportList *reports, struct ID *id, struct bAction *act, const char group[], const char rna_path[], int array_index, float cfra, eInsertKeyFlags flag);
+short delete_keyframe(
+        struct Main *bmain, struct ReportList *reports, struct ID *id, struct bAction *act,
+        const char group[], const char rna_path[], int array_index, float cfra, eInsertKeyFlags flag);
 
 /* ************ Keying Sets ********************** */
 
@@ -329,11 +331,11 @@ bool ANIM_driver_vars_paste(struct ReportList *reports, struct FCurve *fcu, bool
 /* ************ Auto-Keyframing ********************** */
 /* Notes:
  * - All the defines for this (User-Pref settings and Per-Scene settings)
- *  are defined in DNA_userdef_types.h
+ *   are defined in DNA_userdef_types.h
  * - Scene settings take precedence over those for userprefs, with old files
- *  inheriting userpref settings for the scene settings
+ *   inheriting userpref settings for the scene settings
  * - "On/Off + Mode" are stored per Scene, but "settings" are currently stored
- *  as userprefs
+ *   as userprefs
  */
 
 /* Auto-Keying macros for use by various tools */

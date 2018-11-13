@@ -36,7 +36,17 @@ layout(std140) uniform common_block {
 	int prbIrradianceVisSize;
 	float prbLodCubeMax;
 	float prbLodPlanarMax;
+	/* Misc*/
+	int hizMipOffset;
+	int rayType;
+	float rayDepth;
 };
+
+/* rayType (keep in sync with ray_type) */
+#define EEVEE_RAY_CAMERA    0
+#define EEVEE_RAY_SHADOW    1
+#define EEVEE_RAY_DIFFUSE   2
+#define EEVEE_RAY_GLOSSY    3
 
 /* aoParameters */
 #define aoDistance   aoParameters[0].x

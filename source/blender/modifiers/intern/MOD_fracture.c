@@ -183,7 +183,7 @@ static void freeData(ModifierData *md)
 
 
 //XXX todo, simplify to copy generic stuff, maybe take shards over even, but re-init the meshisland verts as in packing system
-static void copyData(ModifierData *md_src, ModifierData *md_dst, const int flag)
+static void copyData(const ModifierData *md_src, ModifierData *md_dst, const int flag)
 {
 	FractureModifierData *fmd_dst = (FractureModifierData *)md_dst;
 
@@ -370,14 +370,12 @@ ModifierTypeInfo modifierType_Fracture = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

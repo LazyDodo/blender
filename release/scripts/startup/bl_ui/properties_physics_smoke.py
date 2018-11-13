@@ -596,9 +596,11 @@ class PHYSICS_PT_smoke_viewport_display(PhysicButtonsPanel, Panel):
         sub.prop(domain, "slice_axis")
         sub.prop(domain, "slice_depth")
 
-        col = col.row()
-        col.enabled = do_full_slicing or not do_axis_slicing
-        col.prop(domain, "slice_per_voxel")
+        row = col.row()
+        row.enabled = do_full_slicing or not do_axis_slicing
+        row.prop(domain, "slice_per_voxel")
+
+        col.prop(domain, "display_interpolation")
 
 
 class PHYSICS_PT_smoke_viewport_display_color(PhysicButtonsPanel, Panel):
@@ -643,7 +645,7 @@ class PHYSICS_PT_smoke_viewport_display_debug(PhysicButtonsPanel, Panel):
     def draw_header(self, context):
         md = context.smoke.domain_settings
 
-        self.layout.prop(md, "draw_velocity", text="")
+        self.layout.prop(md, "display_velocity", text="")
 
     def draw(self, context):
         layout = self.layout
@@ -653,8 +655,8 @@ class PHYSICS_PT_smoke_viewport_display_debug(PhysicButtonsPanel, Panel):
         domain = context.smoke.domain_settings
 
         col = flow.column()
-        col.enabled = domain.draw_velocity
-        col.prop(domain, "vector_draw_type", text="Display As")
+        col.enabled = domain.display_velocity
+        col.prop(domain, "vector_display_type", text="Display As")
         col.prop(domain, "vector_scale")
 
 

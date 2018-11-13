@@ -82,7 +82,6 @@ set(SRC
 	intern/blender_undo.c
 	intern/blender_user_menu.c
 	intern/blendfile.c
-	intern/bmfont.c
 	intern/boids.c
 	intern/boolean.c
 	intern/bpath.c
@@ -111,6 +110,7 @@ set(SRC
 	intern/editlattice.c
 	intern/editmesh.c
 	intern/editmesh_bvh.c
+	intern/editmesh_cache.c
 	intern/editmesh_tangent.c
 	intern/effect.c
 	intern/fcurve.c
@@ -145,6 +145,7 @@ set(SRC
 	intern/library_query.c
 	intern/library_remap.c
 	intern/linestyle.c
+	intern/main.c
 	intern/mask.c
 	intern/mask_evaluate.c
 	intern/mask_rasterize.c
@@ -177,6 +178,7 @@ set(SRC
 	intern/outliner_treehash.c
 	intern/packedFile.c
 	intern/paint.c
+	intern/paint_toolslots.c
 	intern/particle.c
 	intern/particle_child.c
 	intern/particle_distribute.c
@@ -203,6 +205,8 @@ set(SRC
 	intern/speaker.c
 	intern/studiolight.c
 	intern/subdiv.c
+	intern/subdiv_ccg.c
+	intern/subdiv_ccg_mask.c
 	intern/subdiv_converter.c
 	intern/subdiv_converter_mesh.c
 	intern/subdiv_displacement.c
@@ -240,10 +244,9 @@ set(SRC
 	BKE_blender.h
 	BKE_blender_copybuffer.h
 	BKE_blender_undo.h
+	BKE_blender_user_menu.h
 	BKE_blender_version.h
 	BKE_blendfile.h
-	BKE_bmfont.h
-	BKE_bmfont_types.h
 	BKE_boids.h
         BKE_boolean.h
 	BKE_bpath.h
@@ -271,6 +274,7 @@ set(SRC
 	BKE_editlattice.h
 	BKE_editmesh.h
 	BKE_editmesh_bvh.h
+	BKE_editmesh_cache.h
 	BKE_editmesh_tangent.h
 	BKE_effect.h
 	BKE_fcurve.h
@@ -337,6 +341,10 @@ set(SRC
 	BKE_speaker.h
 	BKE_studiolight.h
 	BKE_subdiv.h
+	BKE_subdiv_ccg.h
+	BKE_subdiv_eval.h
+	BKE_subdiv_foreach.h
+	BKE_subdiv_mesh.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
@@ -557,6 +565,9 @@ if(WITH_OPENSUBDIV)
 	list(APPEND INC_SYS
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
+	if(WITH_OPENSUBDIV_MODIFIER)
+		add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
+	endif()
 endif()
 
 if(WITH_OPENVDB)

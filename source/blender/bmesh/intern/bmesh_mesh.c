@@ -29,7 +29,6 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_listBase.h"
-#include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
 #include "BLI_linklist_stack.h"
@@ -1096,24 +1095,24 @@ void BM_lnorspace_invalidate(BMesh *bm, const bool do_invalidate_all)
 	BMLoop *l;
 	BMIter viter, liter;
 	/* Note: we could use temp tag of BMItem for that, but probably better not use it in such a low-level func?
-	* --mont29 */
+	 * --mont29 */
 	BLI_bitmap *done_verts = BLI_BITMAP_NEW(bm->totvert, __func__);
 
 	BM_mesh_elem_index_ensure(bm, BM_VERT);
 
 	/* When we affect a given vertex, we may affect following smooth fans:
-	*     - all smooth fans of said vertex;
-	*     - all smooth fans of all immediate loop-neighbors vertices;
-	* This can be simplified as 'all loops of selected vertices and their immediate neighbors'
-	* need to be tagged for update.
-	*/
+	 *     - all smooth fans of said vertex;
+	 *     - all smooth fans of all immediate loop-neighbors vertices;
+	 * This can be simplified as 'all loops of selected vertices and their immediate neighbors'
+	 * need to be tagged for update.
+	 */
 	BM_ITER_MESH(v, &viter, bm, BM_VERTS_OF_MESH) {
 		if (BM_elem_flag_test(v, BM_ELEM_SELECT)) {
 			BM_ITER_ELEM(l, &liter, v, BM_LOOPS_OF_VERT) {
 				BM_ELEM_API_FLAG_ENABLE(l, BM_LNORSPACE_UPDATE);
 
 				/* Note that we only handle unselected neighbor vertices here, main loop will take care of
-				* selected ones. */
+				 * selected ones. */
 				if ((!BM_elem_flag_test(l->prev->v, BM_ELEM_SELECT)) &&
 				    !BLI_BITMAP_TEST(done_verts, BM_elem_index_get(l->prev->v)))
 				{
@@ -1265,10 +1264,10 @@ void BM_normals_loops_edges_tag(BMesh *bm, const bool do_edges)
 }
 
 /**
-* Auxillary function only used by rebuild to detect if any spaces were not marked as invalid.
-* Reports error if any of the lnor spaces change after rebuilding, meaning that all the possible
-* lnor spaces to be rebuilt were not correctly marked.
-*/
+ * Auxillary function only used by rebuild to detect if any spaces were not marked as invalid.
+ * Reports error if any of the lnor spaces change after rebuilding, meaning that all the possible
+ * lnor spaces to be rebuilt were not correctly marked.
+ */
 #ifndef NDEBUG
 void BM_lnorspace_err(BMesh *bm)
 {
@@ -1876,28 +1875,6 @@ void BM_mesh_elem_table_free(BMesh *bm, const char htype)
 		MEM_SAFE_FREE(bm->ftable);
 	}
 }
-
-BMVert *BM_vert_at_index(BMesh *bm, const int index)
-{
-	BLI_assert((index >= 0) && (index < bm->totvert));
-	BLI_assert((bm->elem_table_dirty & BM_VERT) == 0);
-	return bm->vtable[index];
-}
-
-BMEdge *BM_edge_at_index(BMesh *bm, const int index)
-{
-	BLI_assert((index >= 0) && (index < bm->totedge));
-	BLI_assert((bm->elem_table_dirty & BM_EDGE) == 0);
-	return bm->etable[index];
-}
-
-BMFace *BM_face_at_index(BMesh *bm, const int index)
-{
-	BLI_assert((index >= 0) && (index < bm->totface));
-	BLI_assert((bm->elem_table_dirty & BM_FACE) == 0);
-	return bm->ftable[index];
-}
-
 
 BMVert *BM_vert_at_index_find(BMesh *bm, const int index)
 {

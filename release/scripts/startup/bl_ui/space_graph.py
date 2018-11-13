@@ -75,11 +75,6 @@ class GRAPH_HT_header(Header):
 
         layout.prop(st, "pivot_point", icon_only=True)
 
-        row = layout.row(align=True)
-        row.operator("graph.copy", text="", icon='COPYDOWN')
-        row.operator("graph.paste", text="", icon='PASTEDOWN')
-        row.operator("graph.paste", text="", icon='PASTEFLIPDOWN').flipped = True
-
 
 class GRAPH_PT_filters(DopesheetFilterPopoverBase, Panel):
     bl_space_type = 'GRAPH_EDITOR'
@@ -169,13 +164,13 @@ class GRAPH_MT_select(Menu):
 
         layout.separator()
 
-        props = layout.operator("graph.select_border")
+        props = layout.operator("graph.select_box")
         props.axis_range = False
         props.include_handles = False
-        props = layout.operator("graph.select_border", text="Border Axis Range")
+        props = layout.operator("graph.select_box", text="Border Axis Range")
         props.axis_range = True
         props.include_handles = False
-        props = layout.operator("graph.select_border", text="Border (Include Handles)")
+        props = layout.operator("graph.select_box", text="Border (Include Handles)")
         props.axis_range = False
         props.include_handles = True
 
@@ -277,6 +272,9 @@ class GRAPH_MT_key(Menu):
         layout.operator("graph.frame_jump")
 
         layout.separator()
+        layout.operator("graph.copy")
+        layout.operator("graph.paste")
+        layout.operator("graph.paste", text="Paste Flipped").flipped = True
         layout.operator("graph.duplicate_move")
         layout.operator("graph.delete")
 
@@ -293,10 +291,6 @@ class GRAPH_MT_key(Menu):
         layout.operator("graph.bake")
 
         layout.separator()
-        layout.operator("graph.copy")
-        layout.operator("graph.paste")
-
-        layout.separator()
         layout.operator("graph.euler_filter", text="Discontinuity (Euler) Filter")
 
 
@@ -306,7 +300,7 @@ class GRAPH_MT_key_transform(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("transform.translate", text="Grab/Move")
+        layout.operator("transform.translate", text="Move")
         layout.operator("transform.transform", text="Extend").mode = 'TIME_EXTEND'
         layout.operator("transform.rotate", text="Rotate")
         layout.operator("transform.resize", text="Scale")
@@ -352,6 +346,33 @@ class GRAPH_MT_specials(Menu):
 
         layout.operator_menu_enum("graph.mirror", "type", text="Mirror")
         layout.operator_menu_enum("graph.snap", "type", text="Snap")
+
+
+class GRAPH_MT_pivot_pie(Menu):
+    bl_label = "Pivot Point"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        pie.prop_enum(context.space_data, "pivot_point", value='BOUNDING_BOX_CENTER')
+        pie.prop_enum(context.space_data, "pivot_point", value='CURSOR')
+        pie.prop_enum(context.space_data, "pivot_point", value='INDIVIDUAL_ORIGINS')
+
+
+class GRAPH_MT_snap_pie(Menu):
+    bl_label = "Snap"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+
+        pie.operator("graph.snap", text="Current Frame").type = 'CFRA'
+        pie.operator("graph.snap", text="Cursor Value").type = 'VALUE'
+        pie.operator("graph.snap", text="Nearest Frame").type = 'NEAREST_FRAME'
+        pie.operator("graph.snap", text="Nearest Second").type = 'NEAREST_SECOND'
+        pie.operator("graph.snap", text="Nearest Marker").type = 'NEAREST_MARKER'
+        pie.operator("graph.snap", text="Flatten Handles").type = 'HORIZONTAL'
 
 
 class GRAPH_MT_channel_specials(Menu):
@@ -407,6 +428,8 @@ classes = (
     GRAPH_MT_delete,
     GRAPH_MT_specials,
     GRAPH_MT_channel_specials,
+    GRAPH_MT_pivot_pie,
+    GRAPH_MT_snap_pie,
     GRAPH_PT_filters,
 )
 

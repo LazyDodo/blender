@@ -53,7 +53,7 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 
 	WORKBENCH_UBO_World *wd = &wpd->world_data;
 	wd->matcap_orientation = (wpd->shading.flag & V3D_SHADING_MATCAP_FLIP_X) != 0;
-	wd->background_alpha = (v3d || scene->r.alphamode == R_ADDSKY) ? 1.0f : 0.0f;
+	wd->background_alpha = (DRW_state_is_image_render() && scene->r.alphamode == R_ALPHAPREMUL) ? 0.0f : 1.0f;
 
 	if (!v3d || ((v3d->shading.background_type & V3D_SHADING_BACKGROUND_WORLD) &&
 	    (scene->world != NULL)))
@@ -70,7 +70,7 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 		UI_GetThemeColor3fv(TH_HIGH_GRAD, wd->background_color_high);
 
 		/* XXX: Really quick conversion to avoid washed out background.
-		 * Needs to be adressed properly (color managed using ocio). */
+		 * Needs to be addressed properly (color managed using ocio). */
 		srgb_to_linearrgb_v3_v3(wd->background_color_high, wd->background_color_high);
 		srgb_to_linearrgb_v3_v3(wd->background_color_low, wd->background_color_low);
 	}

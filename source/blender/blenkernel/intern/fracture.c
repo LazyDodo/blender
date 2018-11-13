@@ -1236,6 +1236,7 @@ static void do_marking(FractureModifierData *fmd, Mesh *result)
 void BKE_fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask mask, int src_ofs, int dst_ofs,
                               int copyelem, int totelem)
 {
+	//CustomData_copy_data(src, dst, src_ofs, dst_ofs, copyelem);
 	CustomDataLayer *layer;
 	int i;
 	for (i = 0; i < src->totlayer; i++)
@@ -1395,7 +1396,7 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *
 				mul_m4_v3(imat, mv->co);
 			}
 
-			BLI_ghash_insert(fmd->shared->vert_index_map, SET_INT_IN_POINTER(vertstart + v), SET_INT_IN_POINTER(mi->id));
+			BLI_ghash_insert(fmd->shared->vert_index_map, POINTER_FROM_INT(vertstart + v), POINTER_FROM_INT(mi->id));
 		}
 
 		memcpy(mesh->mpoly + polystart, mi->mesh->mpoly, mi->mesh->totpoly * sizeof(MPoly));
@@ -1405,7 +1406,7 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *
 			mp->loopstart += loopstart;
 
 			/* material index lookup and correction, avoid having the same material in different slots */
-			//index = GET_INT_FROM_POINTER(BLI_ghash_lookup(mat_index_map, SET_INT_IN_POINTER(mp->mat_nr + fmd->shared->matstart)));
+			//index = POINTER_AS_INT(BLI_ghash_lookup(mat_index_map, POINTER_FROM_INT(mp->mat_nr + fmd->shared->matstart)));
 			//mp->mat_nr = index-1;
 		}
 
@@ -1513,7 +1514,7 @@ void BKE_update_velocity_layer(FractureModifierData *fmd, Mesh *dm)
 
 	for (i = 0; i < totvert; i++)
 	{
-		mi = BLI_ghash_lookup(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i));
+		mi = BLI_ghash_lookup(fmd->shared->vertex_island_map, POINTER_FROM_INT(i));
 		if (!mi)
 			continue;
 
@@ -2699,8 +2700,8 @@ static short do_vert_index_map(FractureModifierData *fmd, MeshIsland *mi, MeshIs
 	{
 		CollectionObject* go = NULL;
 		/* autocreate clusters out of former objects, if we dont override */
-		mi->particle_index = GET_INT_FROM_POINTER(BLI_ghash_lookup(fmd->shared->vert_index_map,
-		                                          SET_INT_IN_POINTER(mi->vertex_indices[0])));
+		mi->particle_index = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->vert_index_map,
+		                                          POINTER_FROM_INT(mi->vertex_indices[0])));
 
 		/*look up whether original object is active or passive */
 		go = BLI_findlink(&fmd->dm_group->gobject, mi->particle_index);
@@ -3194,9 +3195,9 @@ static void do_island_index_map(FractureModifierData *fmd, Object* obj)
 					for (mi = fmdi->shared->mesh_islands.first; mi; mi = mi->next){
 						for (i = 0; i < mi->mesh->totvert; i++)
 						{
-							if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i + j)))
+							if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, POINTER_FROM_INT(i + j)))
 							{
-								BLI_ghash_insert(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i + j), mi);
+								BLI_ghash_insert(fmd->shared->vertex_island_map, POINTER_FROM_INT(i + j), mi);
 							}
 						}
 						j += mi->mesh->totvert;
@@ -3211,9 +3212,9 @@ static void do_island_index_map(FractureModifierData *fmd, Object* obj)
 		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next){
 			for (i = 0; i < mi->mesh->totvert; i++)
 			{
-				if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i+j)))
+				if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, POINTER_FROM_INT(i+j)))
 				{
-					BLI_ghash_insert(fmd->shared->vertex_island_map, SET_INT_IN_POINTER(i+j), mi);
+					BLI_ghash_insert(fmd->shared->vertex_island_map, POINTER_FROM_INT(i+j), mi);
 				}
 			}
 			j += mi->mesh->totvert;

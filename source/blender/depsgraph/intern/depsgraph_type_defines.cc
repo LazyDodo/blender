@@ -101,6 +101,8 @@ const char *nodeTypeAsString(eDepsNode_Type type)
 		STRINGIFY_TYPE(SHADING_PARAMETERS);
 		STRINGIFY_TYPE(CACHE);
 		STRINGIFY_TYPE(BATCH_CACHE);
+		/* Duplication. */
+		STRINGIFY_TYPE(DUPLI);
 
 		/* Total number of meaningful node types. */
 		case NUM_DEG_NODE_TYPES: return "SpecialCase";
@@ -145,6 +147,7 @@ const char *operationCodeAsString(eDepsOperation_Code opcode)
 		/* Pose. */
 		STRINGIFY_OPCODE(POSE_INIT);
 		STRINGIFY_OPCODE(POSE_INIT_IK);
+		STRINGIFY_OPCODE(POSE_CLEANUP);
 		STRINGIFY_OPCODE(POSE_DONE);
 		STRINGIFY_OPCODE(POSE_IK_SOLVER);
 		STRINGIFY_OPCODE(POSE_SPLINE_IK_SOLVER);

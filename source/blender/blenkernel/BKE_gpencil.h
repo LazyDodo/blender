@@ -50,7 +50,7 @@ struct Brush;
 struct Object;
 struct bDeformGroup;
 struct SimplifyGpencilModifierData;
-struct InstanceGpencilModifierData;
+struct ArrayGpencilModifierData;
 struct LatticeGpencilModifierData;
 
 struct MDeformVert;
@@ -122,7 +122,7 @@ bool gpencil_layer_is_editable(const struct bGPDlayer *gpl);
  * is no existing GP-Frame on the frame requested.
  */
 typedef enum eGP_GetFrame_Mode {
-	/* Use the preceeding gp-frame (i.e. don't add anything) */
+	/* Use the preceding gp-frame (i.e. don't add anything) */
 	GP_GETFRAME_USE_PREV  = 0,
 
 	/* Add a new empty/blank frame */
@@ -143,6 +143,9 @@ struct Material *BKE_gpencil_get_material_from_brush(struct Brush *brush);
 struct Material *BKE_gpencil_material_ensure(struct Main *bmain, struct Object *ob);
 
 /* object boundbox */
+bool BKE_gpencil_data_minmax(
+	struct Object *ob, const struct bGPdata *gpd,
+	float r_min[3], float r_max[3]);
 bool BKE_gpencil_stroke_minmax(
 	const struct bGPDstroke *gps, const bool use_select,
 	float r_min[3], float r_max[3]);

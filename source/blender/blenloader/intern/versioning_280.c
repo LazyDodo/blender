@@ -40,6 +40,7 @@
 
 #include "DNA_object_types.h"
 #include "DNA_camera_types.h"
+#include "DNA_cloth_types.h"
 #include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_gpu_types.h"
@@ -57,29 +58,42 @@
 #include "DNA_genfile.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_workspace_types.h"
+#include "DNA_key_types.h"
+#include "DNA_curve_types.h"
+#include "DNA_armature_types.h"
 
+#include "BKE_action.h"
+#include "BKE_cloth.h"
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
-#include "BKE_customdata.h"
 #include "BKE_colortools.h"
+#include "BKE_customdata.h"
 #include "BKE_freestyle.h"
+#include "BKE_gpencil.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
+#include "BKE_key.h"
+#include "BKE_library.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mesh.h"
 #include "BKE_node.h"
+#include "BKE_object.h"
+#include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
 #include "BKE_studiolight.h"
+#include "BKE_unit.h"
 #include "BKE_workspace.h"
-#include "BKE_gpencil.h"
-#include "BKE_paint.h"
-#include "BKE_object.h"
+
+/* Only for IMB_BlendMode */
+#include "IMB_imbuf.h"
+
+#include "DEG_depsgraph.h"
 
 #include "BLT_translation.h"
 
@@ -787,6 +801,127 @@ void do_versions_after_linking_280(Main *bmain)
 	}
 #endif
 
+	/* Update Curve object Shape Key data layout to include the Radius property */
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 23)) {
+		for (Curve *cu = bmain->curve.first; cu; cu = cu->id.next) {
+			if (!cu->key || cu->key->elemsize != sizeof(float[4]))
+				continue;
+
+			cu->key->elemstr[0] = 3; /*KEYELEM_ELEM_SIZE_CURVE*/
+			cu->key->elemsize = sizeof(float[3]);
+
+			int new_count = BKE_keyblock_curve_element_count(&cu->nurb);
+
+			for (KeyBlock *block = cu->key->block.first; block; block = block->next) {
+				int old_count = block->totelem;
+				void *old_data = block->data;
+
+				if (!old_data || old_count <= 0)
+					continue;
+
+				block->totelem = new_count;
+				block->data = MEM_callocN(sizeof(float[3]) * new_count, __func__);
+
+				float *oldptr = old_data;
+				float (*newptr)[3] = block->data;
+
+				for (Nurb *nu = cu->nurb.first; nu; nu = nu->next) {
+					if (nu->bezt) {
+						BezTriple *bezt = nu->bezt;
+
+						for (int a = 0; a < nu->pntsu; a++, bezt++) {
+							if ((old_count -= 3) < 0) {
+								memcpy(newptr, bezt->vec, sizeof(float[3][3]));
+								newptr[3][0] = bezt->alfa;
+							}
+							else {
+								memcpy(newptr, oldptr, sizeof(float[3][4]));
+							}
+
+							newptr[3][1] = bezt->radius;
+
+							oldptr += 3 * 4;
+							newptr += 4; /*KEYELEM_ELEM_LEN_BEZTRIPLE*/
+						}
+					}
+					else if (nu->bp) {
+						BPoint *bp = nu->bp;
+
+						for (int a = 0; a < nu->pntsu * nu->pntsv; a++, bp++) {
+							if (--old_count < 0) {
+								copy_v3_v3(newptr[0], bp->vec);
+								newptr[1][0] = bp->alfa;
+							}
+							else {
+								memcpy(newptr, oldptr, sizeof(float[4]));
+							}
+
+							newptr[1][1] = bp->radius;
+
+							oldptr += 4;
+							newptr += 2; /*KEYELEM_ELEM_LEN_BPOINT*/
+						}
+					}
+				}
+
+				MEM_freeN(old_data);
+			}
+		}
+	}
+
+	/* Move B-Bone custom handle settings from bPoseChannel to Bone. */
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 25)) {
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			bArmature *arm = ob->data;
+
+			/* If it is an armature from the same file. */
+			if (ob->pose && arm && arm->id.lib == ob->id.lib) {
+				bool rebuild = false;
+
+				for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+					/* If the 2.7 flag is enabled, processing is needed. */
+					if (pchan->bone && (pchan->bboneflag & PCHAN_BBONE_CUSTOM_HANDLES)) {
+						/* If the settings in the Bone are not set, copy. */
+						if (pchan->bone->bbone_prev_type == BBONE_HANDLE_AUTO &&
+						    pchan->bone->bbone_next_type == BBONE_HANDLE_AUTO &&
+						    pchan->bone->bbone_prev == NULL && pchan->bone->bbone_next == NULL)
+						{
+							pchan->bone->bbone_prev_type = (pchan->bboneflag & PCHAN_BBONE_CUSTOM_START_REL) ? BBONE_HANDLE_RELATIVE : BBONE_HANDLE_ABSOLUTE;
+							pchan->bone->bbone_next_type = (pchan->bboneflag & PCHAN_BBONE_CUSTOM_END_REL) ? BBONE_HANDLE_RELATIVE : BBONE_HANDLE_ABSOLUTE;
+
+							if (pchan->bbone_prev) {
+								pchan->bone->bbone_prev = pchan->bbone_prev->bone;
+							}
+							if (pchan->bbone_next) {
+								pchan->bone->bbone_next = pchan->bbone_next->bone;
+							}
+						}
+
+						rebuild = true;
+						pchan->bboneflag = 0;
+					}
+				}
+
+				/* Tag pose rebuild for all objects that use this armature. */
+				if (rebuild) {
+					for (Object *ob2 = bmain->object.first; ob2; ob2 = ob2->id.next) {
+						if (ob2->pose && ob2->data == arm) {
+							ob2->pose->flag |= POSE_RECALC;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 30)) {
+		for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+			if (brush->gpencil_settings != NULL) {
+				brush->gpencil_tool = brush->gpencil_settings->brush_type;
+			}
+		}
+		BKE_paint_toolslots_init_from_main(bmain);
+	}
 }
 
 /* NOTE: this version patch is intended for versions < 2.52.2, but was initially introduced in 2.27 already.
@@ -963,7 +1098,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					ToolSettings *ts = scene->toolsettings;
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
-					for (int i = 0; i < TOT_GP_EDITBRUSH_TYPES; ++i) {
+					for (int i = 0; i < GP_EDITBRUSH_TYPE_MAX; ++i) {
 						gp_brush = &gset->brush[i];
 						gp_brush->flag |= GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
 						copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
@@ -1029,10 +1164,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					for (SpaceLink *sl = area->spacedata.first; sl; sl = sl->next) {
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_scale = 1.0f; // Scale
-							v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES; // NUmber of lines
 							v3d->overlay.gpencil_paper_opacity = 0.5f;
-							v3d->overlay.gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
 							v3d->overlay.gpencil_grid_opacity = 0.9f;
 						}
 					}
@@ -1667,9 +1799,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						if (sl->spacetype == SPACE_VIEW3D) {
 							View3D *v3d = (View3D *)sl;
 							float alpha = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 0.8f;
+							float alpha_full = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 1.0f;
 							v3d->overlay.texture_paint_mode_opacity = alpha;
 							v3d->overlay.vertex_paint_mode_opacity = alpha;
-							v3d->overlay.weight_paint_mode_opacity = alpha;
+							v3d->overlay.weight_paint_mode_opacity = alpha_full;
 						}
 					}
 				}
@@ -1698,7 +1831,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			if (scene->toolsettings->gizmo_flag == 0) {
-				scene->toolsettings->gizmo_flag = SCE_MANIP_TRANSLATE | SCE_MANIP_ROTATE | SCE_MANIP_SCALE;
+				scene->toolsettings->gizmo_flag = SCE_GIZMO_SHOW_TRANSLATE | SCE_GIZMO_SHOW_ROTATE | SCE_GIZMO_SHOW_SCALE;
 			}
 		}
 
@@ -1803,18 +1936,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "gpencil_grid_scale")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_scale = 1.0f;
-						}
-					}
-				}
-			}
-		}
 		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "gpencil_paper_opacity")) {
 			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
@@ -1839,30 +1960,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "int", "gpencil_grid_axis")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_axis = V3D_GP_GRID_AXIS_Y;
-						}
-					}
-				}
-			}
-		}
-		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "int", "gpencil_grid_lines")) {
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
-						}
-					}
-				}
-			}
-		}
+
 		/* default loc axis */
 		if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "lock_axis")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
@@ -1873,9 +1971,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-	}
 
-	{
 		/* Versioning code for Subsurf modifier. */
 		if (!DNA_struct_elem_find(fd->filesdna, "SubsurfModifier", "short", "uv_smooth")) {
 			for (Object *object = bmain->object.first; object != NULL; object = object->id.next) {
@@ -1898,7 +1994,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				for (ModifierData *md = object->modifiers.first; md; md = md->next) {
 					if (md->type == eModifierType_Subsurf) {
 						SubsurfModifierData *smd = (SubsurfModifierData *)md;
-						smd->quality = 3;
+						smd->quality = min_ii(smd->renderLevels, 3);
 					}
 				}
 			}
@@ -1920,5 +2016,347 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "ClothSimSettings", "short", "bending_model")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Cloth) {
+						ClothModifierData *clmd = (ClothModifierData *)md;
+
+						clmd->sim_parms->bending_model = CLOTH_BENDING_LINEAR;
+						clmd->sim_parms->tension = clmd->sim_parms->structural;
+						clmd->sim_parms->compression = clmd->sim_parms->structural;
+						clmd->sim_parms->shear = clmd->sim_parms->structural;
+						clmd->sim_parms->max_tension = clmd->sim_parms->max_struct;
+						clmd->sim_parms->max_compression = clmd->sim_parms->max_struct;
+						clmd->sim_parms->max_shear = clmd->sim_parms->max_struct;
+						clmd->sim_parms->vgroup_shear = clmd->sim_parms->vgroup_struct;
+						clmd->sim_parms->tension_damp = clmd->sim_parms->Cdis;
+						clmd->sim_parms->compression_damp = clmd->sim_parms->Cdis;
+						clmd->sim_parms->shear_damp = clmd->sim_parms->Cdis;
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "BrushGpencilSettings", "float", "era_strength_f")) {
+			for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+				if (brush->gpencil_settings != NULL) {
+					BrushGpencilSettings *gp = brush->gpencil_settings;
+					if (gp->brush_type == GPAINT_TOOL_ERASE) {
+						gp->era_strength_f = 100.0f;
+						gp->era_thickness_f = 10.0f;
+					}
+				}
+			}
+		}
+
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+				if (md->type == eModifierType_Cloth) {
+					ClothModifierData *clmd = (ClothModifierData *)md;
+
+					if (!(clmd->sim_parms->flags & CLOTH_SIMSETTINGS_FLAG_GOAL)) {
+						clmd->sim_parms->vgroup_mass = 0;
+					}
+
+					if (!(clmd->sim_parms->flags & CLOTH_SIMSETTINGS_FLAG_SCALING)) {
+						clmd->sim_parms->vgroup_struct = 0;
+						clmd->sim_parms->vgroup_shear = 0;
+						clmd->sim_parms->vgroup_bend = 0;
+					}
+
+					if (!(clmd->sim_parms->flags & CLOTH_SIMSETTINGS_FLAG_SEW)) {
+						clmd->sim_parms->shrink_min = 0.0f;
+						clmd->sim_parms->vgroup_shrink = 0;
+					}
+
+					if (!(clmd->coll_parms->flags & CLOTH_COLLSETTINGS_FLAG_ENABLED)) {
+						clmd->coll_parms->flags &= ~CLOTH_COLLSETTINGS_FLAG_SELF;
+					}
+				}
+			}
+		}
 	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 24)) {
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_VIEW3D) {
+						View3D *v3d = (View3D *)sl;
+						v3d->overlay.edit_flag |= V3D_OVERLAY_EDIT_FACES |
+						                          V3D_OVERLAY_EDIT_SEAMS |
+						                          V3D_OVERLAY_EDIT_SHARP |
+						                          V3D_OVERLAY_EDIT_FREESTYLE_EDGE |
+						                          V3D_OVERLAY_EDIT_FREESTYLE_FACE |
+						                          V3D_OVERLAY_EDIT_EDGES |
+						                          V3D_OVERLAY_EDIT_CREASES |
+						                          V3D_OVERLAY_EDIT_BWEIGHTS |
+						                          V3D_OVERLAY_EDIT_CU_HANDLES |
+						                          V3D_OVERLAY_EDIT_CU_NORMALS;
+					}
+				}
+			}
+		}
+	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "ShrinkwrapModifierData", "char", "shrinkMode")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Shrinkwrap) {
+						ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
+						if (smd->shrinkOpts & MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE) {
+							smd->shrinkMode = MOD_SHRINKWRAP_ABOVE_SURFACE;
+							smd->shrinkOpts &= ~MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 24)) {
+		if (!DNA_struct_elem_find(fd->filesdna, "PartDeflect", "float", "pdef_cfrict")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				if (ob->pd) {
+					ob->pd->pdef_cfrict = 5.0f;
+				}
+
+				for (ModifierData *md = ob->modifiers.first; md; md = md->next) {
+					if (md->type == eModifierType_Cloth) {
+						ClothModifierData *clmd = (ClothModifierData *)md;
+
+						clmd->coll_parms->selfepsilon = 0.015f;
+					}
+				}
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "xray_alpha_wire")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.xray_alpha_wire = 0.5f;
+						}
+					}
+				}
+			}
+
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.flag |= V3D_SHADING_XRAY_WIREFRAME;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 25)) {
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			UnitSettings *unit = &scene->unit;
+			if (unit->system != USER_UNIT_NONE) {
+				unit->length_unit = bUnit_GetBaseUnitOfType(scene->unit.system, B_UNIT_LENGTH);
+				unit->mass_unit = bUnit_GetBaseUnitOfType(scene->unit.system, B_UNIT_MASS);
+			}
+			unit->time_unit = bUnit_GetBaseUnitOfType(USER_UNIT_NONE, B_UNIT_TIME);
+		}
+
+		/* gpencil grid settings */
+		for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
+			ARRAY_SET_ITEMS(gpd->grid.color, 0.5f, 0.5f, 0.5f); // Color
+			ARRAY_SET_ITEMS(gpd->grid.scale, 1.0f, 1.0f); // Scale
+			gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
+		}
+	}
+
+	{
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_VIEW3D) {
+						View3D *v3d = (View3D *)sl;
+						if (v3d->flag2 & V3D_OCCLUDE_WIRE) {
+							v3d->overlay.edit_flag |= V3D_OVERLAY_EDIT_OCCLUDE_WIRE;
+							v3d->flag2 &= ~V3D_OCCLUDE_WIRE;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 29)) {
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_BUTS) {
+						ListBase *regionbase = (sl == sa->spacedata.first) ? &sa->regionbase : &sl->regionbase;
+						ARegion *ar = MEM_callocN(sizeof(ARegion), "navigation bar for properties");
+						ARegion *ar_header = NULL;
+
+						for (ar_header = regionbase->first; ar_header; ar_header = ar_header->next) {
+							if (ar_header->regiontype == RGN_TYPE_HEADER) {
+								break;
+							}
+						}
+						BLI_assert(ar_header);
+
+						BLI_insertlinkafter(regionbase, ar_header, ar);
+
+						ar->regiontype = RGN_TYPE_NAV_BAR;
+						ar->alignment = RGN_ALIGN_LEFT;
+					}
+				}
+			}
+		}
+
+		/* grease pencil fade layer opacity */
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DOverlay", "float", "gpencil_fade_layer")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->overlay.gpencil_fade_layer = 0.5f;
+						}
+					}
+				}
+			}
+		}
+
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			ob->empty_image_visibility_flag = (
+			        OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE |
+			        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+		}
+
+
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 30)) {
+		/* grease pencil main material show switches */
+		for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
+			if (mat->gp_style) {
+				mat->gp_style->flag |= GP_STYLE_STROKE_SHOW;
+				mat->gp_style->flag |= GP_STYLE_FILL_SHOW;
+			}
+		}
+	}
+
+	{
+		if (!DNA_struct_elem_find(fd->filesdna, "SceneEEVEE", "float", "overscan")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				scene->eevee.overscan = 3.0f;
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "Brush", "char", "weightpaint_tool")) {
+			/* Magic defines from old files (2.7x) */
+
+#define PAINT_BLEND_MIX 0
+#define PAINT_BLEND_ADD 1
+#define PAINT_BLEND_SUB 2
+#define PAINT_BLEND_MUL 3
+#define PAINT_BLEND_BLUR 4
+#define PAINT_BLEND_LIGHTEN 5
+#define PAINT_BLEND_DARKEN 6
+#define PAINT_BLEND_AVERAGE 7
+#define PAINT_BLEND_SMEAR 8
+#define PAINT_BLEND_COLORDODGE 9
+#define PAINT_BLEND_DIFFERENCE 10
+#define PAINT_BLEND_SCREEN 11
+#define PAINT_BLEND_HARDLIGHT 12
+#define PAINT_BLEND_OVERLAY 13
+#define PAINT_BLEND_SOFTLIGHT 14
+#define PAINT_BLEND_EXCLUSION 15
+#define PAINT_BLEND_LUMINOSITY 16
+#define PAINT_BLEND_SATURATION 17
+#define PAINT_BLEND_HUE 18
+#define PAINT_BLEND_ALPHA_SUB 19
+#define PAINT_BLEND_ALPHA_ADD 20
+
+			for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
+				if (brush->ob_mode & (OB_MODE_VERTEX_PAINT | OB_MODE_WEIGHT_PAINT)) {
+					const char tool_init = brush->vertexpaint_tool;
+					bool is_blend = false;
+
+					{
+						char tool = tool_init;
+						switch (tool_init) {
+							case PAINT_BLEND_MIX: tool = VPAINT_TOOL_DRAW; break;
+							case PAINT_BLEND_BLUR: tool = VPAINT_TOOL_BLUR; break;
+							case PAINT_BLEND_AVERAGE: tool = VPAINT_TOOL_AVERAGE; break;
+							case PAINT_BLEND_SMEAR: tool = VPAINT_TOOL_SMEAR; break;
+							default:
+								tool = VPAINT_TOOL_DRAW;
+								is_blend = true;
+								break;
+						}
+						brush->vertexpaint_tool = tool;
+					}
+
+					if (is_blend == false) {
+						brush->blend = IMB_BLEND_MIX;
+					}
+					else {
+						short blend = IMB_BLEND_MIX;
+						switch (tool_init) {
+							case PAINT_BLEND_ADD: blend = IMB_BLEND_ADD; break;
+							case PAINT_BLEND_SUB: blend = IMB_BLEND_SUB; break;
+							case PAINT_BLEND_MUL: blend = IMB_BLEND_MUL; break;
+							case PAINT_BLEND_LIGHTEN: blend = IMB_BLEND_LIGHTEN; break;
+							case PAINT_BLEND_DARKEN: blend = IMB_BLEND_DARKEN; break;
+							case PAINT_BLEND_COLORDODGE: blend = IMB_BLEND_COLORDODGE; break;
+							case PAINT_BLEND_DIFFERENCE: blend = IMB_BLEND_DIFFERENCE; break;
+							case PAINT_BLEND_SCREEN: blend = IMB_BLEND_SCREEN; break;
+							case PAINT_BLEND_HARDLIGHT: blend = IMB_BLEND_HARDLIGHT; break;
+							case PAINT_BLEND_OVERLAY: blend = IMB_BLEND_OVERLAY; break;
+							case PAINT_BLEND_SOFTLIGHT: blend = IMB_BLEND_SOFTLIGHT; break;
+							case PAINT_BLEND_EXCLUSION: blend = IMB_BLEND_EXCLUSION; break;
+							case PAINT_BLEND_LUMINOSITY: blend = IMB_BLEND_LUMINOSITY; break;
+							case PAINT_BLEND_SATURATION: blend = IMB_BLEND_SATURATION; break;
+							case PAINT_BLEND_HUE: blend = IMB_BLEND_HUE; break;
+							case PAINT_BLEND_ALPHA_SUB: blend = IMB_BLEND_ERASE_ALPHA; break;
+							case PAINT_BLEND_ALPHA_ADD: blend = IMB_BLEND_ADD_ALPHA; break;
+						}
+						brush->blend = blend;
+					}
+				}
+				/* For now these match, in the future new items may not. */
+				brush->weightpaint_tool = brush->vertexpaint_tool;
+			}
+
+#undef PAINT_BLEND_MIX
+#undef PAINT_BLEND_ADD
+#undef PAINT_BLEND_SUB
+#undef PAINT_BLEND_MUL
+#undef PAINT_BLEND_BLUR
+#undef PAINT_BLEND_LIGHTEN
+#undef PAINT_BLEND_DARKEN
+#undef PAINT_BLEND_AVERAGE
+#undef PAINT_BLEND_SMEAR
+#undef PAINT_BLEND_COLORDODGE
+#undef PAINT_BLEND_DIFFERENCE
+#undef PAINT_BLEND_SCREEN
+#undef PAINT_BLEND_HARDLIGHT
+#undef PAINT_BLEND_OVERLAY
+#undef PAINT_BLEND_SOFTLIGHT
+#undef PAINT_BLEND_EXCLUSION
+#undef PAINT_BLEND_LUMINOSITY
+#undef PAINT_BLEND_SATURATION
+#undef PAINT_BLEND_HUE
+#undef PAINT_BLEND_ALPHA_SUB
+#undef PAINT_BLEND_ALPHA_ADD
+
+		}
+	}
+
 }

@@ -53,10 +53,10 @@
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
+#include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
-#include "BKE_modifier.h"
-#include "BKE_mesh.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 
@@ -635,7 +635,7 @@ static Mesh *bake_mesh_new_from_object(Depsgraph *depsgraph, Main *bmain, Scene 
 {
 	ED_object_editmode_load(bmain, ob);
 
-	Mesh *me = BKE_mesh_new_from_object(depsgraph, bmain, scene, ob, 1, 0, 0);
+	Mesh *me = BKE_mesh_new_from_object(depsgraph, bmain, scene, ob, 1, 0);
 	if (me->flag & ME_AUTOSMOOTH) {
 		BKE_mesh_split_faces(me, true);
 	}

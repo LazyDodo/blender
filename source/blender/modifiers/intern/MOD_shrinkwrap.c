@@ -126,7 +126,7 @@ static void deformVertsEM(
 	Mesh *mesh_src = mesh;
 
 	if (mesh_src == NULL) {
-		mesh_src = BKE_bmesh_to_mesh_nomain(editData->bm, &(struct BMeshToMeshParams){0});
+		mesh_src = BKE_mesh_from_bmesh_for_eval_nomain(editData->bm, 0);
 	}
 
 	BLI_assert(mesh_src->totvert == numVerts);
@@ -141,14 +141,27 @@ static void deformVertsEM(
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
+	CustomDataMask mask = 0;
+
+	if (BKE_shrinkwrap_needs_normals(smd->shrinkType, smd->shrinkMode)) {
+		mask |= CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL;
+	}
+
 	if (smd->target != NULL) {
 		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
-		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, "Shrinkwrap Modifier");
+		DEG_add_object_relation_with_customdata(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, mask, "Shrinkwrap Modifier");
+		if (smd->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+			DEG_add_special_eval_flag(ctx->node, &smd->target->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
+		}
 	}
 	if (smd->auxTarget != NULL) {
 		DEG_add_object_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
-		DEG_add_object_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_GEOMETRY, "Shrinkwrap Modifier");
+		DEG_add_object_relation_with_customdata(ctx->node, smd->auxTarget, DEG_OB_COMP_GEOMETRY, mask, "Shrinkwrap Modifier");
+		if (smd->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+			DEG_add_special_eval_flag(ctx->node, &smd->auxTarget->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
+		}
 	}
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
 }
 
 static bool dependsOnNormals(ModifierData *md)
@@ -179,14 +192,12 @@ ModifierTypeInfo modifierType_Shrinkwrap = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

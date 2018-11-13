@@ -94,6 +94,8 @@ typedef struct bConstraintTarget {
 	short flag;				/* runtime settings (for editor, etc.) */
 	short type;				/* type of target (eConstraintObType) */
 	short rotOrder;			/* rotation order for target (as defined in BLI_math.h) */
+	float weight;   		/* weight for armature deform */
+	char pad[4];
 } bConstraintTarget;
 
 /* bConstraintTarget -> flag */
@@ -121,7 +123,7 @@ typedef struct bPythonConstraint {
 	ListBase targets;		/* a list of targets that this constraint has (bConstraintTarget-s) */
 
 	struct Object *tar;		/* target from previous implementation (version-patch sets this to NULL on file-load) */
-	char subtarget[64];		/* subtarger from previous implentation (version-patch sets this to "" on file-load), MAX_ID_NAME-2 */
+	char subtarget[64];		/* subtarger from previous implementation (version-patch sets this to "" on file-load), MAX_ID_NAME-2 */
 } bPythonConstraint;
 
 
@@ -180,6 +182,13 @@ typedef struct bSplineIKConstraint {
 	float		bulge_smooth;
 } bSplineIKConstraint;
 
+/* Armature Constraint */
+typedef struct bArmatureConstraint {
+	int flag;       		/* general settings/state indicators accessed by bitmapping */
+	char pad[4];
+
+	ListBase targets;		/* a list of targets that this constraint has (bConstraintTarget-s) */
+} bArmatureConstraint;
 
 /* Single-target subobject constraints ---------------------  */
 
@@ -428,7 +437,10 @@ typedef struct bShrinkwrapConstraint {
 	char		projAxis;		/* axis to project/constrain */
 	char		projAxisSpace;	/* space to project axis in */
 	float		projLimit;		/* distance to search */
-	char 		pad[4];
+	char		shrinkMode;		/* inside/outside/on surface (see MOD shrinkwrap) */
+	char		flag;			/* options */
+	char		trackAxis;		/* axis to align to normal */
+	char 		pad;
 } bShrinkwrapConstraint;
 
 /* Follow Track constraints */
@@ -501,6 +513,7 @@ typedef enum eBConstraint_Types {
 	CONSTRAINT_TYPE_CAMERASOLVER = 27,		/* Camera Solver Constraint */
 	CONSTRAINT_TYPE_OBJECTSOLVER = 28,		/* Object Solver Constraint */
 	CONSTRAINT_TYPE_TRANSFORM_CACHE = 29,	/* Transform Cache Constraint */
+	CONSTRAINT_TYPE_ARMATURE = 30,			/* Armature Deform Constraint */
 
 	/* NOTE: no constraints are allowed to be added after this */
 	NUM_CONSTRAINT_TYPES
@@ -634,6 +647,23 @@ typedef enum eTrackToAxis_Modes {
 	TRACK_nZ	= 5
 } eTrackToAxis_Modes;
 
+/* Shrinkwrap flags */
+typedef enum eShrinkwrap_Flags {
+	/* Also raycast in the opposite direction. */
+	CON_SHRINKWRAP_PROJECT_OPPOSITE     	= (1 << 0),
+	/* Invert the cull mode when projecting opposite. */
+	CON_SHRINKWRAP_PROJECT_INVERT_CULL  	= (1 << 1),
+	/* Align the specified axis to the target normal. */
+	CON_SHRINKWRAP_TRACK_NORMAL            	= (1 << 2),
+
+	/* Ignore front faces in project; same value as MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE */
+	CON_SHRINKWRAP_PROJECT_CULL_FRONTFACE	= (1 << 3),
+	/* Ignore back faces in project; same value as MOD_SHRINKWRAP_CULL_TARGET_BACKFACE */
+	CON_SHRINKWRAP_PROJECT_CULL_BACKFACE	= (1 << 4),
+} eShrinkwrap_Flags;
+
+#define CON_SHRINKWRAP_PROJECT_CULL_MASK (CON_SHRINKWRAP_PROJECT_CULL_FRONTFACE | CON_SHRINKWRAP_PROJECT_CULL_BACKFACE)
+
 /* FollowPath flags */
 typedef enum eFollowPath_Flags {
 	FOLLOWPATH_FOLLOW	= (1<<0),
@@ -646,7 +676,7 @@ typedef enum eTrackTo_Flags {
 	TARGET_Z_UP 	= (1<<0)
 } eTrackTo_Flags;
 
-/* Strech To Constraint -> volmode */
+/* Stretch To Constraint -> volmode */
 typedef enum eStretchTo_VolMode {
 	VOLUME_XZ	= 0,
 	VOLUME_X	= 1,
@@ -726,6 +756,13 @@ typedef enum eSplineIK_XZScaleModes {
 	/* x/z scales are computed using a volume preserving technique (from Stretch To constraint) */
 	CONSTRAINT_SPLINEIK_XZS_VOLUMETRIC		= 3
 } eSplineIK_XZScaleModes;
+
+/* bArmatureConstraint -> flag */
+typedef enum eArmature_Flags {
+	CONSTRAINT_ARMATURE_QUATERNION  	= (1<<0),	/* use dual quaternion blending */
+	CONSTRAINT_ARMATURE_ENVELOPE    	= (1<<1),	/* use envelopes */
+	CONSTRAINT_ARMATURE_CUR_LOCATION	= (1<<2),	/* use current bone location */
+} eArmature_Flags;
 
 /* MinMax (floor) flags */
 typedef enum eFloor_Flags {

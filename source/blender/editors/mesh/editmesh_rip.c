@@ -1016,7 +1016,7 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 	bool no_vertex_selected = true;
 	bool error_face_selected = true;
-	bool error_disconected_vertices = true;
+	bool error_disconnected_vertices = true;
 	bool error_rip_failed = true;
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
@@ -1037,7 +1037,7 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		/* running in face mode hardly makes sense, so convert to region loop and rip */
 		if (bm->totfacesel) {
 			/* highly nifty but hard to support since the operator can fail and we're left
-			* with modified selection */
+			 * with modified selection */
 			// WM_operator_name_call(C, "MESH_OT_region_to_loop", WM_OP_INVOKE_DEFAULT, NULL);
 			continue;
 		}
@@ -1047,17 +1047,17 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		if ((bm->totvertsel > 1) && (bm->totedgesel == 0)) {
 			continue;
 		}
-		error_disconected_vertices = false;
+		error_disconnected_vertices = false;
 
 		/* note on selection:
-		* When calling edge split we operate on tagged edges rather then selected
-		* this is important because the edges to operate on are extended by one,
-		* but the selection is left alone.
-		*
-		* After calling edge split - the duplicated edges have the same selection state as the
-		* original, so all we do is de-select the far side from the mouse and we have a
-		* useful selection for grabbing.
-		*/
+		 * When calling edge split we operate on tagged edges rather then selected
+		 * this is important because the edges to operate on are extended by one,
+		 * but the selection is left alone.
+		 *
+		 * After calling edge split - the duplicated edges have the same selection state as the
+		 * original, so all we do is de-select the far side from the mouse and we have a
+		 * useful selection for grabbing.
+		 */
 
 		/* BM_ELEM_SELECT --> BM_ELEM_TAG */
 		BM_ITER_MESH(e, &iter, bm, BM_EDGES_OF_MESH) {
@@ -1096,7 +1096,7 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		BKE_report(op->reports, RPT_ERROR, "Cannot rip selected faces");
 		return OPERATOR_CANCELLED;
 	}
-	else if (error_disconected_vertices) {
+	else if (error_disconnected_vertices) {
 		BKE_report(op->reports, RPT_ERROR, "Cannot rip multiple disconnected vertices");
 		return OPERATOR_CANCELLED;
 	}

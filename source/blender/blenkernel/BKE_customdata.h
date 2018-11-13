@@ -224,18 +224,24 @@ void CustomData_copy_data(const struct CustomData *source,
                           struct CustomData *dest, int source_index,
                           int dest_index, int count);
 void CustomData_copy_data_named(const struct CustomData *source,
-                          struct CustomData *dest, int source_index,
-                          int dest_index, int count);
+                                struct CustomData *dest, int source_index,
+                                int dest_index, int count);
 void CustomData_copy_elements(int type, void *src_data_ofs, void *dst_data_ofs, int count);
 void CustomData_bmesh_copy_data(const struct CustomData *source,
                                 struct CustomData *dest, void *src_block,
                                 void **dest_block);
 
-/* need this function exposed to deal with customdata in Fracture Modifier properly */
-void CustomData_copy_data_layer(
-        const CustomData *source, CustomData *dest,
-        int src_i, int dst_i,
-        int src_index, int dst_index, int count);
+/* Copies data of a single layer of a given type. */
+void CustomData_copy_layer_type_data(const struct CustomData *source,
+                                     struct CustomData *destination,
+                                     int type,
+                                     int source_index, int destination_index,
+                                     int count);
+
+/* put here so fracture code can access it */
+void CustomData_copy_data_layer(const CustomData *source, CustomData *dest,
+                                int src_i, int dst_i,
+                                int src_index, int dst_index, int count);
 
 /* frees data in a CustomData object
  * return 1 on success, 0 on failure
@@ -295,8 +301,7 @@ const char *CustomData_get_layer_name(const struct CustomData *data, int type, i
  */
 void *CustomData_get_layer(const struct CustomData *data, int type);
 void *CustomData_get_layer_n(const struct CustomData *data, int type, int n);
-void *CustomData_get_layer_named(const struct CustomData *data, int type,
-                                 const char *name);
+void *CustomData_get_layer_named(const struct CustomData *data, int type, const char *name);
 int CustomData_get_offset(const struct CustomData *data, int type);
 int CustomData_get_n_offset(const struct CustomData *data, int type, int n);
 
@@ -485,7 +490,7 @@ typedef struct CustomDataTransferLayerMap {
 
 	size_t data_size;    /* Size of actual data we transfer. */
 	size_t data_offset;  /* Offset of actual data we transfer (in element contained in data_src/dst). */
-	uint64_t data_flag;  /* For bitflag transfer, flag(s) to affect in transfered data. */
+	uint64_t data_flag;  /* For bitflag transfer, flag(s) to affect in transferred data. */
 
 	void *interp_data;   /* Opaque pointer, to be used by specific interp callback (e.g. transformspace for normals). */
 

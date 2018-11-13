@@ -196,7 +196,7 @@ def marker_menu_generic(layout):
     layout.separator()
 
     layout.operator("marker.rename", text="Rename Marker")
-    layout.operator("marker.move", text="Grab/Move Marker")
+    layout.operator("marker.move", text="Move Marker")
 
     layout.separator()
 
@@ -297,6 +297,8 @@ class TIME_PT_keyframing_settings(TimelinePanelButtons, Panel):
         row.prop(toolsettings, "use_keyframe_insert_keyingset", text="")
         if not userprefs.edit.use_keyframe_insert_available:
             col.prop(toolsettings, "use_record_with_nla", text="Layered Recording")
+
+        layout.prop(toolsettings, "use_keyframe_cycle_aware")
 
 
 ###################################

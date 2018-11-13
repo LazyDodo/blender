@@ -33,14 +33,6 @@ from .properties_physics_common import (
 )
 
 
-class SCENE_PT_units_length_presets(PresetMenu):
-    """Unit of measure for properties that use length values"""
-    bl_label = "Unit Presets"
-    preset_subdir = "units_length"
-    preset_operator = "script.execute_preset"
-    preset_add_operator = "scene.units_length_preset_add"
-
-
 class SCENE_UL_keying_set_paths(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.KeyingSetPath)
@@ -82,10 +74,8 @@ class SCENE_PT_scene(SceneButtonsPanel, Panel):
 
 class SCENE_PT_unit(SceneButtonsPanel, Panel):
     bl_label = "Units"
+    bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw_header_preset(self, context):
-        SCENE_PT_units_length_presets.draw_panel_header(self.layout)
 
     def draw(self, context):
         layout = self.layout
@@ -95,16 +85,20 @@ class SCENE_PT_unit(SceneButtonsPanel, Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
+        layout.prop(unit, "system")
 
-        col = flow.column()
-        col.prop(unit, "system")
-        col.prop(unit, "system_rotation")
-
-        col = flow.column()
+        col = layout.column()
         col.enabled = unit.system != 'NONE'
         col.prop(unit, "scale_length")
         col.prop(unit, "use_separate")
+
+        col = layout.column()
+        col.prop(unit, "system_rotation", text="Rotation")
+        subcol = col.column()
+        subcol.enabled = unit.system != 'NONE'
+        subcol.prop(unit, "length_unit", text="Length")
+        subcol.prop(unit, "mass_unit", text="Mass")
+        subcol.prop(unit, "time_unit", text="Time")
 
 
 class SceneKeyingSetsPanel:
@@ -178,8 +172,8 @@ class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
         col.template_list("UI_UL_list", "keying_sets", scene, "keying_sets", scene.keying_sets, "active_index", rows=1)
 
         col = row.column(align=True)
-        col.operator("anim.keying_set_add", icon='ZOOMIN', text="")
-        col.operator("anim.keying_set_remove", icon='ZOOMOUT', text="")
+        col.operator("anim.keying_set_add", icon='ADD', text="")
+        col.operator("anim.keying_set_remove", icon='REMOVE', text="")
 
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
@@ -258,8 +252,8 @@ class SCENE_PT_keying_set_paths(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
         col.template_list("SCENE_UL_keying_set_paths", "", ks, "paths", ks.paths, "active_index", rows=1)
 
         col = row.column(align=True)
-        col.operator("anim.keying_set_path_add", icon='ZOOMIN', text="")
-        col.operator("anim.keying_set_path_remove", icon='ZOOMOUT', text="")
+        col.operator("anim.keying_set_path_add", icon='ADD', text="")
+        col.operator("anim.keying_set_path_remove", icon='REMOVE', text="")
 
         # TODO: 1) the template_any_ID needs to be fixed for the text alignment.
         #       2) use_property_decorate has to properly skip the non animatable properties.
@@ -294,62 +288,6 @@ class SCENE_PT_keying_set_paths(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
             col.prop(ksp, "group_method", text="F-Curve Grouping")
             if ksp.group_method == 'NAMED':
                 col.prop(ksp, "group")
-
-
-class SCENE_PT_color_management(SceneButtonsPanel, Panel):
-    bl_label = "Color Management"
-    bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        scene = context.scene
-        view = scene.view_settings
-
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
-
-        col = flow.column()
-        col.prop(scene.display_settings, "display_device")
-
-        col.separator()
-
-        col.prop(view, "view_transform")
-        col.prop(view, "look")
-
-        col = flow.column()
-        col.prop(view, "exposure")
-        col.prop(view, "gamma")
-
-        col.separator()
-
-        col.prop(scene.sequencer_colorspace_settings, "name", text="Sequencer")
-
-
-class SCENE_PT_color_management_curves(SceneButtonsPanel, Panel):
-    bl_label = "Use Curves"
-    bl_parent_id = "SCENE_PT_color_management"
-    bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw_header(self, context):
-
-        scene = context.scene
-        view = scene.view_settings
-
-        self.layout.prop(view, "use_curve_mapping", text="")
-
-    def draw(self, context):
-        layout = self.layout
-
-        scene = context.scene
-        view = scene.view_settings
-
-        layout.use_property_split = False
-        layout.enabled = view.use_curve_mapping
-
-        layout.template_curve_mapping(view, "curve_mapping", levels=True)
 
 
 class SCENE_PT_audio(SceneButtonsPanel, Panel):
@@ -515,93 +453,6 @@ class SCENE_PT_rigid_body_field_weights(SceneButtonsPanel, Panel):
         effector_weights_ui(self, context, rbw.effector_weights, 'RIGID_BODY')
 
 
-class SCENE_PT_simplify(SceneButtonsPanel, Panel):
-    bl_label = "Simplify"
-    bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw_header(self, context):
-        rd = context.scene.render
-        self.layout.prop(rd, "use_simplify", text="")
-
-    def draw(self, context):
-        layout = self.layout
-
-
-class SCENE_PT_simplify_viewport(SceneButtonsPanel, Panel):
-    bl_label = "Viewport"
-    bl_parent_id = "SCENE_PT_simplify"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        rd = context.scene.render
-
-        layout.active = rd.use_simplify
-
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
-
-        col = flow.column()
-        col.prop(rd, "simplify_subdivision", text="Max Subdivision")
-
-        col = flow.column()
-        col.prop(rd, "simplify_child_particles", text="Max Child Particles")
-
-
-class SCENE_PT_simplify_render(SceneButtonsPanel, Panel):
-    bl_label = "Render"
-    bl_parent_id = "SCENE_PT_simplify"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        rd = context.scene.render
-
-        layout.active = rd.use_simplify
-
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
-
-        col = flow.column()
-        col.prop(rd, "simplify_subdivision_render", text="Max Subdivision")
-
-        col = flow.column()
-        col.prop(rd, "simplify_child_particles_render", text="Max Child Particles")
-
-
-class SCENE_PT_simplify_greasepencil(SceneButtonsPanel, Panel):
-    bl_label = "Grease Pencil"
-    bl_parent_id = "SCENE_PT_simplify"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_GAME', 'BLENDER_CLAY', 'BLENDER_EEVEE'}
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw_header(self, context):
-        rd = context.scene.render
-        self.layout.prop(rd, "simplify_gpencil", text="")
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-
-        rd = context.scene.render
-
-        layout.active = rd.simplify_gpencil
-
-        col = layout.column()
-        col.prop(rd, "simplify_gpencil_onplay", text="Playback Only")
-        col.prop(rd, "simplify_gpencil_view_modifier", text="Modifiers")
-        col.prop(rd, "simplify_gpencil_shader_fx", text="ShaderFX")
-
-        col = layout.column(align=True)
-        col.prop(rd, "simplify_gpencil_view_fill")
-        sub = col.column()
-        sub.active = rd.simplify_gpencil_view_fill
-        sub.prop(rd, "simplify_gpencil_remove_lines", text="Lines")
-
-
 class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
     _context_path = "scene"
@@ -609,25 +460,18 @@ class SCENE_PT_custom_props(SceneButtonsPanel, PropertyPanel, Panel):
 
 
 classes = (
-    SCENE_PT_units_length_presets,
     SCENE_UL_keying_set_paths,
     SCENE_PT_scene,
     SCENE_PT_unit,
+    SCENE_PT_physics,
     SCENE_PT_keying_sets,
     SCENE_PT_keying_set_paths,
     SCENE_PT_keyframing_settings,
-    SCENE_PT_color_management,
-    SCENE_PT_color_management_curves,
     SCENE_PT_audio,
-    SCENE_PT_physics,
     SCENE_PT_rigid_body_world,
     SCENE_PT_rigid_body_world_settings,
     SCENE_PT_rigid_body_cache,
     SCENE_PT_rigid_body_field_weights,
-    SCENE_PT_simplify,
-    SCENE_PT_simplify_viewport,
-    SCENE_PT_simplify_render,
-    SCENE_PT_simplify_greasepencil,
     SCENE_PT_custom_props,
 )
 

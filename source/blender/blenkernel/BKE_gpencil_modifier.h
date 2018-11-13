@@ -66,16 +66,16 @@ typedef enum {
 	eGpencilModifierTypeFlag_SupportsEditmode = (1 << 1),
 
 	/* For modifiers that support editmode this determines if the
-	* modifier should be enabled by default in editmode. This should
-	* only be used by modifiers that are relatively speedy and
-	* also generally used in editmode, otherwise let the user enable
-	* it by hand.
-	*/
+	 * modifier should be enabled by default in editmode. This should
+	 * only be used by modifiers that are relatively speedy and
+	 * also generally used in editmode, otherwise let the user enable
+	 * it by hand.
+	 */
 	eGpencilModifierTypeFlag_EnableInEditmode = (1 << 2),
 
 	/* For modifiers that require original data and so cannot
-	* be placed after any non-deformative modifier.
-	*/
+	 * be placed after any non-deformative modifier.
+	 */
 	eGpencilModifierTypeFlag_RequiresOriginalData = (1 << 3),
 
 	/* max one per type */
@@ -83,6 +83,8 @@ typedef enum {
 
 	/* can't be added manually by user */
 	eGpencilModifierTypeFlag_NoUserAdd = (1 << 5),
+	/* can't be applied */
+	eGpencilModifierTypeFlag_NoApply = (1 << 6),
 } GpencilModifierTypeFlag;
 
 /* IMPORTANT! Keep ObjectWalkFunc and IDWalkFunc signatures compatible. */
@@ -102,7 +104,7 @@ typedef struct GpencilModifierTypeInfo {
 	/* The size of the modifier data type, used by allocation. */
 	int struct_size;
 
-	GpencilModifierType type;
+	GpencilModifierTypeType type;
 	GpencilModifierTypeFlag flags;
 
 
@@ -150,7 +152,17 @@ typedef struct GpencilModifierTypeInfo {
 	void (*bakeModifier)(struct Main *bmain, struct Depsgraph *depsgraph,
                            struct GpencilModifierData *md, struct Object *ob);
 
+
 	/********************* Optional functions *********************/
+
+	/* Callback for GP "time" modifiers that offset keyframe time
+	 * Returns the frame number to be used after apply the modifier. This is
+	 * usually an offset of the animation for duplicated datablocks.
+	 *
+	 * This function is optional.
+	 */
+	int (*remapTime)(struct GpencilModifierData *md, struct Depsgraph *depsgraph,
+		struct Scene *scene, struct Object *ob, struct bGPDlayer *gpl, int cfra);
 
 	/* Initialize new instance data for this modifier type, this function
 	 * should set modifier variables to their default values.
@@ -222,8 +234,6 @@ typedef struct GpencilModifierTypeInfo {
 	                       GreasePencilTexWalkFunc walk, void *userData);
 } GpencilModifierTypeInfo;
 
-void BKE_gpencil_instance_modifier_instance_tfm(struct InstanceGpencilModifierData *mmd, const int elem_idx[3], float r_mat[4][4]);
-
 /* Initialize modifier's global data (type info and some common global storages). */
 void BKE_gpencil_modifier_init(void);
 
@@ -242,6 +252,7 @@ void BKE_gpencil_modifiers_foreachIDLink(struct Object *ob, GreasePencilIDWalkFu
 void BKE_gpencil_modifiers_foreachTexLink(struct Object *ob, GreasePencilTexWalkFunc walk, void *userData);
 
 bool BKE_gpencil_has_geometry_modifiers(struct Object *ob);
+bool BKE_gpencil_has_time_modifiers(struct Object *ob);
 
 void BKE_gpencil_stroke_modifiers(
 	struct Depsgraph *depsgraph, struct Object *ob,
@@ -249,6 +260,9 @@ void BKE_gpencil_stroke_modifiers(
 void BKE_gpencil_geometry_modifiers(
 	struct Depsgraph *depsgraph, struct Object *ob,
 	struct bGPDlayer *gpl, struct bGPDframe *gpf, bool is_render);
+int BKE_gpencil_time_modifier(
+	struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
+	struct bGPDlayer *gpl, int cfra, bool is_render);
 
 void BKE_gpencil_lattice_init(struct Object *ob);
 void BKE_gpencil_lattice_clear(struct Object *ob);

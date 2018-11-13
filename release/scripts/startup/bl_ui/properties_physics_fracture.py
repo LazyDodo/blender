@@ -20,14 +20,14 @@
 import bpy
 from bpy.types import Panel, Menu, UIList
 from bpy.app.translations import pgettext_iface as iface_
+from bl_operators.presets import PresetMenu
 
 
-class FRACTURE_MT_presets(Menu):
+class FRACTURE_PT_presets(PresetMenu):
     bl_label = "Fracture Presets"
     preset_subdir = "fracture"
     preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
-
+    preset_add_operator = "fracture.preset_add"
 
 class PhysicButtonsPanel():
     bl_space_type = 'PROPERTIES'
@@ -134,14 +134,12 @@ class PHYSICS_PT_fracture_dynamic(PhysicButtonsPanel, Panel):
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     bl_label = "Fracture"
 
+    def draw_header_preset(self, context):
+        FRACTURE_PT_presets.draw_panel_header(self.layout)
+
     def draw(self, context):
         md = context.fracture
         layout = self.layout
-        layout.label(text="Presets")
-        sub = layout.row(align=True)
-        sub.menu("FRACTURE_MT_presets", text=bpy.types.FRACTURE_MT_presets.bl_label)
-        sub.operator("fracture.preset_add", text="", icon='ZOOMIN')
-        sub.operator("fracture.preset_add", text="", icon='ZOOMOUT').remove_active = True
 
         layout.context_pointer_set("modifier", md)
         row = layout.row()
@@ -175,7 +173,7 @@ class PHYSICS_PT_fracture_basic(PhysicButtonsPanel, Panel):
         if md.frac_algorithm in {'BOOLEAN', 'BISECT_FILL', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}:
             col = layout.column()
             col.prop(md, "inner_material")
-            col.prop_search(md, "uv_layer", ob.data, "uv_layers")
+            col.prop_search(md, "uv_layer", ob.data, "uv_layers", icon="GROUP_UVS")
         if md.frac_algorithm == 'BOOLEAN_FRACTAL':
             col = layout.column(align=True)
             row = col.row(align=True)
@@ -329,7 +327,7 @@ class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
         col.operator("object.rigidbody_convert_to_keyframes", text = "Convert To Keyframed Objects", icon="KEY_HLT")
 
 classes = (
-    FRACTURE_MT_presets,
+    FRACTURE_PT_presets,
     PHYSICS_PT_fracture,
     PHYSICS_PT_fracture_basic,
     PHYSICS_PT_fracture_advanced,

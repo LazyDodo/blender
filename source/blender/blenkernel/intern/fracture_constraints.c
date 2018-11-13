@@ -223,7 +223,7 @@ static void create_constraints(FractureModifierData *rmd, Object *ob, Scene *sce
 		}
 		else if (rmd->constraint_target == MOD_FRACTURE_VERTEX) {
 			MeshIsland *mii = NULL;
-			mii = BLI_ghash_lookup(rmd->shared->vertex_island_map, SET_INT_IN_POINTER(i));
+			mii = BLI_ghash_lookup(rmd->shared->vertex_island_map, POINTER_FROM_INT(i));
 			search_tree_based(rmd, mii, mesh_islands, &coord_tree, mvert[i].co, ob, scene);
 		}
 	}
@@ -286,7 +286,7 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 		}
 		else if(rmd->constraint_target == MOD_FRACTURE_VERTEX) {
 			int index = (n3 + i)->index;
-			mi2 = BLI_ghash_lookup(rmd->shared->vertex_island_map, SET_INT_IN_POINTER(index));
+			mi2 = BLI_ghash_lookup(rmd->shared->vertex_island_map, POINTER_FROM_INT(index));
 		}
 		if ((mi != mi2) && (mi2 != NULL)) {
 			float thresh = rmd->breaking_threshold;

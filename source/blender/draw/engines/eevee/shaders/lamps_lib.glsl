@@ -122,10 +122,14 @@ float evaluate_cascade(ShadowData sd, mat4 shadowmat, vec3 W, float range, float
 	}
 }
 
-float shadow_cascade(ShadowData sd, ShadowCascadeData scd, float texid, vec3 W)
+float shadow_cascade(ShadowData sd, int scd_id, float texid, vec3 W)
 {
 	vec4 view_z = vec4(dot(W - cameraPos, cameraForward));
-	vec4 weights = smoothstep(scd.split_end_distances, scd.split_start_distances.yzwx, view_z);
+	vec4 weights = smoothstep(
+	        shadows_cascade_data[scd_id].split_end_distances,
+	        shadows_cascade_data[scd_id].split_start_distances.yzwx,
+	        view_z);
+
 	weights.yzw -= weights.xyz;
 
 	vec4 vis = vec4(1.0);
@@ -133,10 +137,10 @@ float shadow_cascade(ShadowData sd, ShadowCascadeData scd, float texid, vec3 W)
 
 	/* Branching using (weights > 0.0) is reaally slooow on intel so avoid it for now. */
 	/* TODO OPTI: Only do 2 samples and blend. */
-	vis.x = evaluate_cascade(sd, scd.shadowmat[0], W, range, texid + 0);
-	vis.y = evaluate_cascade(sd, scd.shadowmat[1], W, range, texid + 1);
-	vis.z = evaluate_cascade(sd, scd.shadowmat[2], W, range, texid + 2);
-	vis.w = evaluate_cascade(sd, scd.shadowmat[3], W, range, texid + 3);
+	vis.x = evaluate_cascade(sd, shadows_cascade_data[scd_id].shadowmat[0], W, range, texid + 0);
+	vis.y = evaluate_cascade(sd, shadows_cascade_data[scd_id].shadowmat[1], W, range, texid + 1);
+	vis.z = evaluate_cascade(sd, shadows_cascade_data[scd_id].shadowmat[2], W, range, texid + 2);
+	vis.w = evaluate_cascade(sd, shadows_cascade_data[scd_id].shadowmat[3], W, range, texid + 3);
 
 	float weight_sum = dot(vec4(1.0), weights);
 	if (weight_sum > 0.9999) {
@@ -186,20 +190,14 @@ float light_visibility(LightData ld, vec3 W,
 		ShadowData data = shadows_data[int(ld.l_shadowid)];
 
 		if (ld.l_type == SUN) {
-			/* TODO : MSM */
-			// for (int i = 0; i < MAX_MULTI_SHADOW; ++i) {
-				vis *= shadow_cascade(
-					data, shadows_cascade_data[int(data.sh_data_start)],
-					data.sh_tex_start, W);
-			// }
+			vis *= shadow_cascade(
+				data, int(data.sh_data_start),
+				data.sh_tex_start, W);
 		}
 		else {
-			/* TODO : MSM */
-			// for (int i = 0; i < MAX_MULTI_SHADOW; ++i) {
-				vis *= shadow_cubemap(
-					data, shadows_cube_data[int(data.sh_data_start)],
-					data.sh_tex_start, W);
-			// }
+			vis *= shadow_cubemap(
+				data, shadows_cube_data[int(data.sh_data_start)],
+				data.sh_tex_start, W);
 		}
 
 #ifndef VOLUMETRICS
@@ -222,8 +220,12 @@ float light_visibility(LightData ld, vec3 W,
 
 			vec3 ray_ori = viewPosition;
 
+			if (dot(viewNormal, ray_dir) <= 0.0) {
+				return vis;
+			}
+
 			float bias = 0.5; /* Constant Bias */
-			bias += 1.0 - abs(dot(viewNormal, ray_dir)); /* Angle dependant bias */
+			bias += 1.0 - abs(dot(viewNormal, ray_dir)); /* Angle dependent bias */
 			bias *= gl_FrontFacing ? data.sh_contact_offset : -data.sh_contact_offset;
 
 			vec3 nor_bias = viewNormal * bias;
@@ -359,10 +361,10 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 		W = W + T * rand.z + B * rand.w;
 
 		if (ld.l_type == SUN) {
-			ShadowCascadeData scd = shadows_cascade_data[int(data.sh_data_start)];
+			int scd_id = int(data.sh_data_start);
 			vec4 view_z = vec4(dot(W - cameraPos, cameraForward));
 
-			vec4 weights = step(scd.split_end_distances, view_z);
+			vec4 weights = step(shadows_cascade_data[scd_id].split_end_distances, view_z);
 			float id = abs(4.0 - dot(weights, weights));
 
 			if (id > 3.0) {
@@ -371,7 +373,7 @@ vec3 light_translucent(LightData ld, vec3 W, vec3 N, vec4 l_vector, float scale)
 
 			float range = abs(data.sh_far - data.sh_near); /* Same factor as in get_cascade_world_distance(). */
 
-			vec4 shpos = scd.shadowmat[int(id)] * vec4(W, 1.0);
+			vec4 shpos = shadows_cascade_data[scd_id].shadowmat[int(id)] * vec4(W, 1.0);
 			float dist = shpos.z * range;
 
 			if (shpos.z > 1.0 || shpos.z < 0.0) {

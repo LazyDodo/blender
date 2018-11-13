@@ -238,7 +238,7 @@ typedef void (*uiListDrawItemFunc)(
 
 /* Draw the filtering part of an uiList */
 typedef void (*uiListDrawFilterFunc)(
-        struct uiList *ui_list, struct bContext *C, struct uiLayout *layout);
+        struct uiList *ui_list, struct bContext *C, struct uiLayout *layout, bool reverse);
 
 /* Filter items of an uiList */
 typedef void (*uiListFilterItemsFunc)(
@@ -266,6 +266,7 @@ typedef struct HeaderType {
 	int space_type;
 	int region_type;
 
+	bool (*poll)(const struct bContext *C, struct HeaderType *ht);
 	/* draw entirely, view changes should be handled here */
 	void (*draw)(const struct bContext *C, struct Header *header);
 
@@ -339,13 +340,6 @@ struct ScrArea *BKE_screen_find_big_area(struct bScreen *sc, const int spacetype
 struct ScrArea *BKE_screen_area_map_find_area_xy(const struct ScrAreaMap *areamap, const int spacetype, int x, int y);
 struct ScrArea *BKE_screen_find_area_xy(struct bScreen *sc, const int spacetype, int x, int y);
 
-unsigned int BKE_screen_view3d_layer_active_ex(
-        const struct View3D *v3d, const struct Scene *scene, bool use_localvd) ATTR_NONNULL(2);
-unsigned int BKE_screen_view3d_layer_active(
-        const struct View3D *v3d, const struct Scene *scene) ATTR_NONNULL(2);
-
-unsigned int BKE_screen_view3d_layer_all(const struct bScreen *sc) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(1);
-
 void BKE_screen_gizmo_tag_refresh(struct bScreen *sc);
 
 void BKE_screen_view3d_sync(struct View3D *v3d, struct Scene *scene);
@@ -362,7 +356,6 @@ void BKE_screen_view3d_shading_init(struct View3DShading *shading);
 /* screen */
 void BKE_screen_free(struct bScreen *sc);
 void BKE_screen_area_map_free(struct ScrAreaMap *area_map) ATTR_NONNULL();
-unsigned int BKE_screen_visible_layers(struct bScreen *screen, struct Scene *scene);
 
 struct ScrEdge *BKE_screen_find_edge(struct bScreen *sc, struct ScrVert *v1, struct ScrVert *v2);
 void BKE_screen_sort_scrvert(struct ScrVert **v1, struct ScrVert **v2);

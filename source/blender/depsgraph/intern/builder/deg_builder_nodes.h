@@ -35,6 +35,8 @@
 
 #include "DEG_depsgraph.h"
 
+#include "intern/nodes/deg_node_id.h"
+
 struct Base;
 struct bArmature;
 struct bAction;
@@ -167,25 +169,30 @@ struct DepsgraphNodeBuilder {
 	void build_object(int base_index,
 	                  Object *object,
 	                  eDepsNode_LinkedState_Type linked_state,
-	                  bool is_visible = true);
+	                  bool is_visible);
 	void build_object_flags(int base_index,
 	                        Object *object,
 	                        eDepsNode_LinkedState_Type linked_state);
-	void build_object_data(Object *object);
+	void build_object_data(Object *object, bool is_object_visible);
 	void build_object_data_camera(Object *object);
-	void build_object_data_geometry(Object *object);
-	void build_object_data_geometry_datablock(ID *obdata);
+	void build_object_data_geometry(Object *object, bool is_object_visible);
+	void build_object_data_geometry_datablock(ID *obdata,
+	                                          bool is_object_visible);
 	void build_object_data_lamp(Object *object);
 	void build_object_data_lightprobe(Object *object);
 	void build_object_data_speaker(Object *object);
 	void build_object_transform(Object *object);
 	void build_object_constraints(Object *object);
-	void build_pose_constraints(Object *object, bPoseChannel *pchan, int pchan_index);
+	void build_pose_constraints(Object *object,
+	                            bPoseChannel *pchan,
+	                            int pchan_index,
+	                            bool is_object_visible);
 	void build_rigidbody(Scene *scene);
-	void build_particles(Object *object);
+	void build_particles(Object *object, bool is_object_visible);
 	void build_particle_settings(ParticleSettings *part);
 	void build_cloth(Object *object);
 	void build_animdata(ID *id);
+	void build_animdata_nlastrip_targets(ListBase *strips);
 	void build_action(bAction *action);
 	void build_driver(ID *id, FCurve *fcurve, int driver_index);
 	void build_driver_variables(ID *id, FCurve *fcurve);
@@ -196,7 +203,7 @@ struct DepsgraphNodeBuilder {
 	void build_splineik_pose(Object *object,
 	                         bPoseChannel *pchan,
 	                         bConstraint *con);
-	void build_rig(Object *object);
+	void build_rig(Object *object, bool is_object_visible);
 	void build_proxy_rig(Object *object);
 	void build_armature(bArmature *armature);
 	void build_shapekeys(Key *key);
@@ -215,23 +222,43 @@ struct DepsgraphNodeBuilder {
 	void build_lightprobe(LightProbe *probe);
 	void build_speaker(Speaker *speaker);
 
+	/* Per-ID information about what was already in the dependency graph.
+	 * Allows to re-use certain values, to speed up following evaluation.
+	 */
+	struct IDInfo {
+		/* Copy-on-written pointer of the corresponding ID. */
+		ID *id_cow;
+		/* Mask of visible components from previous state of the
+		 * dependency graph.
+		 */
+		IDComponentsMask previously_visible_components_mask;
+		/* Special evaluation flag mask from the previous depsgraph. */
+		uint32_t previous_eval_flags;
+	};
+
 protected:
+	/* Allows to identify an operation which was tagged for update at the time
+	 * relations are being updated. We can not reuse operation node pointer
+	 * since it will change during dependency graph construction.
+	 */
 	struct SavedEntryTag {
-		ID *id;
+		ID *id_orig;
 		eDepsNode_Type component_type;
 		eDepsOperation_Code opcode;
+		const char *name;
+		int name_tag;
 	};
 	vector<SavedEntryTag> saved_entry_tags_;
 
 	struct BuilderWalkUserData {
 		DepsgraphNodeBuilder *builder;
+		/* Denotes whether object the walk is invoked from is visible. */
+		bool is_parent_visible;
 	};
-
 	static void modifier_walk(void *user_data,
 	                          struct Object *object,
 	                          struct ID **idpoin,
 	                          int cb_flag);
-
 	static void constraint_walk(bConstraint *constraint,
 	                            ID **idpoin,
 	                            bool is_reference,
@@ -255,7 +282,12 @@ protected:
 	 */
 	bool is_parent_collection_visible_;
 
-	GHash *cow_id_hash_;
+	/* Indexed by original ID, values are IDInfo. */
+	GHash *id_info_hash_;
+
+	/* Set of IDs which were already build. Makes it easier to keep track of
+	 * what was already built and what was not.
+	 */
 	BuilderMap built_map_;
 };
 

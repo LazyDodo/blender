@@ -269,40 +269,7 @@ static bool gp_stroke_filtermval(tGPsdata *p, const int mval[2], int pmval[2])
 		return false;
 }
 
-/* reproject the points of the stroke to a plane locked to axis to avoid stroke offset */
-static void UNUSED_FUNCTION(gp_project_points_to_plane)(
-        RegionView3D *rv3d, bGPDstroke *gps, const float origin[3], const int axis)
-{
-	float plane_normal[3];
-	float vn[3];
-
-	float ray[3];
-	float rpoint[3];
-
-	/* normal vector for a plane locked to axis */
-	zero_v3(plane_normal);
-	plane_normal[axis] = 1.0f;
-
-	/* Reproject the points in the plane */
-	for (int i = 0; i < gps->totpoints; i++) {
-		bGPDspoint *pt = &gps->points[i];
-
-		/* get a vector from the point with the current view direction of the viewport */
-		ED_view3d_global_to_vector(rv3d, &pt->x, vn);
-
-		/* calculate line extrem point to create a ray that cross the plane */
-		mul_v3_fl(vn, -50.0f);
-		add_v3_v3v3(ray, &pt->x, vn);
-
-		/* if the line never intersect, the point is not changed */
-		if (isect_line_plane_v3(rpoint, &pt->x, ray, origin, plane_normal)) {
-			copy_v3_v3(&pt->x, rpoint);
-		}
-	}
-}
-
 /* convert screen-coordinates to buffer-coordinates */
-/* XXX this method needs a total overhaul! */
 static void gp_stroke_convertcoords(tGPsdata *p, const int mval[2], float out[3], float *depth)
 {
 	bGPdata *gpd = p->gpd;
@@ -560,8 +527,9 @@ static void gp_stroke_simplify(tGPsdata *p)
 			j += 2;
 		}
 	}
-	gp_stroke_addpoint(p, &old_points[num_points - 1].x, old_points[num_points - 1].pressure,
-	                   p->inittime + (double)old_points[num_points - 1].time);
+	gp_stroke_addpoint(
+	        p, &old_points[num_points - 1].x, old_points[num_points - 1].pressure,
+	        p->inittime + (double)old_points[num_points - 1].time);
 
 	/* free old buffer */
 	MEM_freeN(old_points);
@@ -761,7 +729,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 /* helper to free a stroke
  * NOTE: gps->dvert and gps->triangles should be NULL, but check anyway for good measure
  */
-static void gp_free_stroke(bGPdata *UNUSED(gpd), bGPDframe *gpf, bGPDstroke *gps)
+static void gp_free_stroke(bGPDframe *gpf, bGPDstroke *gps)
 {
 	if (gps->points) {
 		MEM_freeN(gps->points);
@@ -815,10 +783,11 @@ static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, cons
 
 /* eraser tool - evaluation per stroke */
 /* TODO: this could really do with some optimization (KD-Tree/BVH?) */
-static void gp_stroke_eraser_dostroke(tGPsdata *p,
-                                      bGPDframe *gpf, bGPDstroke *gps,
-                                      const int mval[2], const int mvalo[2],
-                                      const int radius, const rcti *rect)
+static void gp_stroke_eraser_dostroke(
+        tGPsdata *p,
+        bGPDframe *gpf, bGPDstroke *gps,
+        const int mval[2], const int mvalo[2],
+        const int radius, const rcti *rect)
 {
 	bGPDspoint *pt1, *pt2;
 	int pc1[2] = {0};
@@ -827,7 +796,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 
 	if (gps->totpoints == 0) {
 		/* just free stroke */
-		gp_free_stroke(p->gpd, gpf, gps);
+		gp_free_stroke(gpf, gps);
 	}
 	else if (gps->totpoints == 1) {
 		/* only process if it hasn't been masked out... */
@@ -839,7 +808,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 				/* only check if point is inside */
 				if (len_v2v2_int(mval, pc1) <= radius) {
 					/* free stroke */
-					gp_free_stroke(p->gpd, gpf, gps);
+					gp_free_stroke(gpf, gps);
 				}
 			}
 		}
@@ -1464,10 +1433,11 @@ static void gpencil_draw_eraser(bContext *UNUSED(C), int x, int y, void *p_ptr)
 		immUniform1f("dash_width", 12.0f);
 		immUniform1f("dash_factor", 0.5f);
 
-		imm_draw_circle_wire_2d(shdr_pos, x, y, p->radius,
-		                     /* XXX Dashed shader gives bad results with sets of small segments currently,
-		                      *     temp hack around the issue. :( */
-		                     max_ii(8, p->radius / 2));  /* was fixed 40 */
+		imm_draw_circle_wire_2d(
+		        shdr_pos, x, y, p->radius,
+		        /* XXX Dashed shader gives bad results with sets of small segments currently,
+		         *     temp hack around the issue. :( */
+		        max_ii(8, p->radius / 2));  /* was fixed 40 */
 
 		immUnbindProgram();
 
@@ -1486,9 +1456,11 @@ static void gpencil_draw_toggle_eraser_cursor(bContext *C, tGPsdata *p, short en
 	}
 	else if (enable && !p->erasercursor) {
 		/* enable cursor */
-		p->erasercursor = WM_paint_cursor_activate(CTX_wm_manager(C),
-		                                           NULL, /* XXX */
-		                                           gpencil_draw_eraser, p);
+		p->erasercursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        NULL, /* XXX */
+		        gpencil_draw_eraser, p);
 	}
 }
 
@@ -1750,10 +1722,10 @@ static void gpencil_draw_apply_event(wmOperator *op, const wmEvent *event, Depsg
 		p->pressure = wmtab->Pressure;
 
 		/* Hack for pressure sensitive eraser on D+RMB when using a tablet:
-		 *  The pen has to float over the tablet surface, resulting in
-		 *  zero pressure (T47101). Ignore pressure values if floating
-		 *  (i.e. "effectively zero" pressure), and only when the "active"
-		 *  end is the stylus (i.e. the default when not eraser)
+		 * The pen has to float over the tablet surface, resulting in
+		 * zero pressure (T47101). Ignore pressure values if floating
+		 * (i.e. "effectively zero" pressure), and only when the "active"
+		 * end is the stylus (i.e. the default when not eraser)
 		 */
 		if (p->paintmode == GP_PAINTMODE_ERASER) {
 			if ((wmtab->Active != EVT_TABLET_ERASER) && (p->pressure < 0.001f)) {
@@ -1778,7 +1750,7 @@ static void gpencil_draw_apply_event(wmOperator *op, const wmEvent *event, Depsg
 		p->straight[1] = 0;
 
 		/* special exception here for too high pressure values on first touch in
-		 *  windows for some tablets, then we just skip first touch...
+		 * windows for some tablets, then we just skip first touch...
 		 */
 		if (tablet && (p->pressure >= 0.99f))
 			return;
@@ -1895,14 +1867,16 @@ static int gpencil_draw_exec(bContext *C, wmOperator *op)
 static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	Object *ob = CTX_data_active_object(C);
+	ScrArea *sa = CTX_wm_area(C);
 	tGPsdata *p = NULL;
 
 	/* GPXX Need a better solution */
-	if ((ob != NULL) && (ob->type == OB_GPENCIL)) {
-		BKE_report(op->reports, RPT_ERROR, "Cannot draw annotation with a Grease Pencil object active");
-		return OPERATOR_CANCELLED;
+	if (sa && sa->spacetype == SPACE_VIEW3D) {
+		if ((ob != NULL) && (ob->type == OB_GPENCIL)) {
+			BKE_report(op->reports, RPT_ERROR, "Cannot draw annotation with a Grease Pencil object active");
+			return OPERATOR_CANCELLED;
+		}
 	}
-
 	if (G.debug & G_DEBUG)
 		printf("GPencil - Starting Drawing\n");
 

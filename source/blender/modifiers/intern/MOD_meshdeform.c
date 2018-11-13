@@ -299,7 +299,7 @@ static void meshdeformModifier_do(
 	 *
 	 * Only do this is the target object is in edit mode by itself, meaning
 	 * we don't allow linked edit meshes here.
-	 * This is because editbmesh_get_derived_cage_and_final() might easily
+	 * This is because editbmesh_get_mesh_cage_and_final() might easily
 	 * conflict with the thread which evaluates object which is in the edit
 	 * mode for this mesh.
 	 *
@@ -325,11 +325,18 @@ static void meshdeformModifier_do(
 
 		/* progress bar redraw can make this recursive .. */
 		if (!recursive) {
+			/* Write binding data to original modifier. */
 			Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+			Object *ob_orig = DEG_get_original_object(ob);
+			MeshDeformModifierData *mmd_orig = (MeshDeformModifierData *)modifiers_findByName(
+			        ob_orig, mmd->modifier.name);
+
 			recursive = 1;
-			mmd->bindfunc(scene, mmd, cagemesh, (float *)vertexCos, numVerts, cagemat);
+			mmd->bindfunc(scene, mmd_orig, cagemesh, (float *)vertexCos, numVerts, cagemat);
 			recursive = 0;
 		}
+
+		return;
 	}
 
 	/* verify we have compatible weights */
@@ -514,14 +521,12 @@ ModifierTypeInfo modifierType_MeshDeform = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

@@ -56,7 +56,6 @@
 #include "BKE_idcode.h"
 #include "BKE_idprop.h"
 #include "BKE_fcurve.h"
-#include "BKE_library.h"
 #include "BKE_library_override.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
@@ -1665,6 +1664,21 @@ int RNA_enum_from_identifier(const EnumPropertyItem *item, const char *identifie
 	return -1;
 }
 
+/**
+ * Take care using this with translated enums,
+ * prefer #RNA_enum_from_identifier where possible.
+ */
+int RNA_enum_from_name(const EnumPropertyItem *item, const char *name)
+{
+	int i = 0;
+	for (; item->identifier; item++, i++) {
+		if (item->identifier[0] && STREQ(item->name, name)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 int RNA_enum_from_value(const EnumPropertyItem *item, const int value)
 {
 	int i = 0;
@@ -2070,7 +2084,7 @@ static void rna_property_update(bContext *C, Main *bmain, Scene *scene, PointerR
 				prop->update(bmain, scene, ptr);
 		}
 
-#if 1
+#if 0
 		/* TODO(campbell): Should eventually be replaced entirely by message bus (below)
 		 * for now keep since COW, bugs are hard to track when we have other missing updates. */
 		if (prop->noteflag) {
@@ -2097,7 +2111,7 @@ static void rna_property_update(bContext *C, Main *bmain, Scene *scene, PointerR
 	if (!is_rna || (prop->flag & PROP_IDPROPERTY)) {
 		/* WARNING! This is so property drivers update the display!
 		 * not especially nice  */
-		DEG_id_tag_update(ptr->id.data, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+		DEG_id_tag_update(ptr->id.data, OB_RECALC_OB | OB_RECALC_DATA);
 		WM_main_add_notifier(NC_WINDOW, NULL);
 		/* Not nice as well, but the only way to make sure material preview
 		 * is updated with custom nodes.
@@ -7075,7 +7089,7 @@ int RNA_function_call_direct_va(bContext *C, ReportList *reports, PointerRNA *pt
 				case PROP_COLLECTION:
 				{
 					StructRNA *srna = va_arg(args, StructRNA *);
-					ListBase **arg = va_arg(args, ListBase * *);
+					ListBase **arg = va_arg(args, ListBase **);
 					err = rna_function_parameter_parse(&funcptr, parm, type, ftype, len, arg, retdata,
 					                                   srna, tid, fid, pid);
 					break;
@@ -7516,13 +7530,13 @@ static bool rna_property_override_operation_apply(
 	}
 
 	if (ELEM(override_op, IDOVERRIDESTATIC_OP_ADD, IDOVERRIDESTATIC_OP_SUBTRACT, IDOVERRIDESTATIC_OP_MULTIPLY) && !ptr_storage) {
-		/* We cannot apply 'diff' override operations without some refference storage.
+		/* We cannot apply 'diff' override operations without some reference storage.
 		 * This should typically only happen at read time of .blend file... */
 		return false;
 	}
 
 	if (ELEM(override_op, IDOVERRIDESTATIC_OP_ADD, IDOVERRIDESTATIC_OP_SUBTRACT, IDOVERRIDESTATIC_OP_MULTIPLY) && !prop_storage) {
-		/* We cannot apply 'diff' override operations without some refference storage.
+		/* We cannot apply 'diff' override operations without some reference storage.
 		 * This should typically only happen at read time of .blend file... */
 		return false;
 	}
@@ -7582,7 +7596,7 @@ static bool rna_property_override_operation_apply(
 }
 
 /**
- * Check whether reference and local overriden data match (are the same),
+ * Check whether reference and local overridden data match (are the same),
  * with respect to given restrictive sets of properties.
  * If requested, will generate needed new property overrides, and/or restore values from reference.
  *
@@ -7975,6 +7989,10 @@ IDOverrideStaticPropertyOperation *RNA_property_override_property_operation_get(
 eRNAOverrideStatus RNA_property_static_override_status(PointerRNA *ptr, PropertyRNA *prop, const int index)
 {
 	int override_status = 0;
+
+	if (!BKE_override_static_is_enabled()) {
+		return override_status;
+	}
 
 	if (!ptr || !prop || !ptr->id.data || !((ID *)ptr->id.data)->override_static) {
 		return override_status;

@@ -167,7 +167,7 @@ Brush *BKE_brush_add(Main *bmain, const char *name, const eObjectMode ob_mode)
 	return brush;
 }
 
-/* add grese pencil settings */
+/* add grease pencil settings */
 void BKE_brush_init_gpencil_settings(Brush *brush)
 {
 	if (brush->gpencil_settings == NULL) {
@@ -193,7 +193,7 @@ void BKE_brush_init_gpencil_settings(Brush *brush)
 Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
 {
 	Brush *brush;
-	Paint *paint = BKE_brush_get_gpencil_paint(ts);
+	Paint *paint = &ts->gp_paint->paint;
 	brush = BKE_brush_add(bmain, name, OB_MODE_GPENCIL_PAINT);
 
 	BKE_paint_brush_set(paint, brush);
@@ -206,16 +206,6 @@ Brush *BKE_brush_add_gpencil(Main *bmain, ToolSettings *ts, const char *name)
 
 	/* return brush */
 	return brush;
-}
-
-Paint *BKE_brush_get_gpencil_paint(ToolSettings *ts)
-{
-	/* alloc paint session */
-	if (ts->gp_paint == NULL) {
-		ts->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-	}
-
-	return &ts->gp_paint->paint;
 }
 
 /* grease pencil cumapping->preset */
@@ -273,7 +263,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 #define SMOOTH_STROKE_FACTOR 0.9f
 
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	Paint *paint = BKE_brush_get_gpencil_paint(ts);
+	Paint *paint = &ts->gp_paint->paint;
 	Main *bmain = CTX_data_main(C);
 
 	Brush *brush, *deft;
@@ -304,7 +294,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->draw_subdivide = 1;
 	brush->gpencil_settings->draw_random_sub = 0.0f;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_PENCIL;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_DRAW;
+	brush->gpencil_tool = GPAINT_TOOL_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
 	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
@@ -336,7 +326,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->thick_smoothlvl = 3;
 	brush->gpencil_settings->draw_random_sub = 0.0f;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_PEN;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_DRAW;
+	brush->gpencil_tool = GPAINT_TOOL_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
 	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
@@ -365,7 +355,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->draw_subdivide = 1;
 	brush->gpencil_settings->draw_random_sub = 0.0f;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_INK;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_DRAW;
+	brush->gpencil_tool = GPAINT_TOOL_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
 	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
@@ -402,7 +392,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->draw_subdivide = 1;
 	brush->gpencil_settings->draw_random_sub = 0.0f;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_INKNOISE;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_DRAW;
+	brush->gpencil_tool = GPAINT_TOOL_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
 	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
@@ -438,7 +428,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->draw_subdivide = 0;
 	brush->gpencil_settings->draw_random_sub = 0;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_BLOCK;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_DRAW;
+	brush->gpencil_tool = GPAINT_TOOL_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
 	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
@@ -469,7 +459,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->draw_subdivide = 1;
 	brush->gpencil_settings->draw_random_sub = 0.0f;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_MARKER;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_DRAW;
+	brush->gpencil_tool = GPAINT_TOOL_DRAW;
 
 	brush->smooth_stroke_radius = SMOOTH_STROKE_RADIUS;
 	brush->smooth_stroke_factor = SMOOTH_STROKE_FACTOR;
@@ -483,7 +473,7 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->fill_threshold = 0.1f;
 	brush->gpencil_settings->fill_simplylvl = 1;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_FILL;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_FILL;
+	brush->gpencil_tool = GPAINT_TOOL_FILL;
 
 	brush->gpencil_settings->draw_smoothfac = 0.1f;
 	brush->gpencil_settings->draw_smoothlvl = 1;
@@ -497,19 +487,21 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->gpencil_settings->draw_strength = 1.0f;
 
 	/* Soft Eraser brush */
-	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Soft");
+	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser");
 	brush->size = 30.0f;
 	brush->gpencil_settings->flag |= (GP_BRUSH_ENABLE_CURSOR | GP_BRUSH_DEFAULT_ERASER);
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_ERASE_SOFT;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_ERASE;
+	brush->gpencil_tool = GPAINT_TOOL_ERASE;
 	brush->gpencil_settings->eraser_mode = GP_BRUSH_ERASER_SOFT;
+	brush->gpencil_settings->era_strength_f = 100.0f;
+	brush->gpencil_settings->era_thickness_f = 0.10f;
 
 	/* Hard Eraser brush */
-	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Hard");
+	brush = BKE_brush_add_gpencil(bmain, ts, "Eraser Vertex");
 	brush->size = 30.0f;
 	brush->gpencil_settings->flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_ERASE_HARD;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_ERASE;
+	brush->gpencil_tool = GPAINT_TOOL_ERASE;
 	brush->gpencil_settings->eraser_mode = GP_BRUSH_ERASER_HARD;
 
 	/* Stroke Eraser brush */
@@ -517,10 +509,10 @@ void BKE_brush_gpencil_presets(bContext *C)
 	brush->size = 30.0f;
 	brush->gpencil_settings->flag |= GP_BRUSH_ENABLE_CURSOR;
 	brush->gpencil_settings->icon_id = GP_BRUSH_ICON_ERASE_STROKE;
-	brush->gpencil_settings->brush_type = GP_BRUSH_TYPE_ERASE;
+	brush->gpencil_tool = GPAINT_TOOL_ERASE;
 	brush->gpencil_settings->eraser_mode = GP_BRUSH_ERASER_STROKE;
 
-	/* set defaut brush */
+	/* set default brush */
 	BKE_paint_brush_set(paint, deft);
 
 }
@@ -541,18 +533,6 @@ void BKE_brush_update_material(Main *bmain, Material *ma, Brush *exclude_brush)
 			}
 		}
 	}
-}
-
-/* get the active gp-brush for editing */
-Brush *BKE_brush_getactive_gpencil(ToolSettings *ts)
-{
-	/* error checking */
-	if (ELEM(NULL, ts, ts->gp_paint)) {
-		return NULL;
-	}
-	Paint *paint = &ts->gp_paint->paint;
-
-	return paint->brush;
 }
 
 struct Brush *BKE_brush_first_search(struct Main *bmain, const eObjectMode ob_mode)
@@ -1358,7 +1338,7 @@ unsigned int *BKE_brush_gen_texture_cache(Brush *br, int half_side, bool use_sec
 
 		texcache = MEM_callocN(sizeof(int) * side * side, "Brush texture cache");
 
-		/* do normalized cannonical view coords for texture */
+		/* do normalized canonical view coords for texture */
 		for (y = -1.0, iy = 0; iy < side; iy++, y += step) {
 			for (x = -1.0, ix = 0; ix < side; ix++, x += step) {
 				co[0] = x;
@@ -1366,7 +1346,7 @@ unsigned int *BKE_brush_gen_texture_cache(Brush *br, int half_side, bool use_sec
 				co[2] = 0.0f;
 
 				/* This is copied from displace modifier code */
-				/* TODO(sergey): brush are always cacheing with CM enabled for now. */
+				/* TODO(sergey): brush are always caching with CM enabled for now. */
 				externtex(mtex, co, &intensity,
 				          rgba, rgba + 1, rgba + 2, rgba + 3, 0, NULL, false, false);
 

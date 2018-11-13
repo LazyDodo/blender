@@ -235,7 +235,9 @@ else:
         "bpy.utils.previews",
         "bpy_extras",
         "gpu",
-        "gpu.offscreen",
+        "gpu.types",
+        "gpu.matrix",
+        "gpu.select",
         "idprop.types",
         "mathutils",
         "mathutils.bvhtree",
@@ -461,7 +463,7 @@ if ARGS.sphinx_build_pdf:
 
 # --------------------------------API DUMP--------------------------------------
 
-# lame, python wont give some access
+# lame, python won't give some access
 ClassMethodDescriptorType = type(dict.__dict__['fromkeys'])
 MethodDescriptorType = type(dict.get)
 GetSetDescriptorType = type(int.real)
@@ -640,12 +642,12 @@ def pyfunc2sphinx(ident, fw, module_name, type_name, identifier, py_func, is_cla
     if type(py_func) == MethodType:
         return
 
-    arg_str = inspect.formatargspec(*inspect.getfullargspec(py_func))
+    arg_str = str(inspect.signature(py_func))
 
     if not is_class:
         func_type = "function"
 
-        # ther rest are class methods
+        # the rest are class methods
     elif arg_str.startswith("(self, ") or arg_str == "(self)":
         arg_str = "()" if (arg_str == "(self)") else ("(" + arg_str[7:])
         func_type = "method"
@@ -779,7 +781,7 @@ def pymodule2sphinx(basepath, module_name, module, title):
     fw(".. module:: %s\n\n" % module_name)
 
     if module.__doc__:
-        # Note, may contain sphinx syntax, dont mangle!
+        # Note, may contain sphinx syntax, don't mangle!
         fw(module.__doc__.strip())
         fw("\n\n")
 
@@ -977,6 +979,7 @@ def pymodule2sphinx(basepath, module_name, module, title):
 
 # Changes in Blender will force errors here
 context_type_map = {
+    # context_member: (RNA type, is_collection)
     "active_base": ("ObjectBase", False),
     "active_bone": ("EditBone", False),
     "active_gpencil_brush": ("GPencilSculptBrush", False),
@@ -1038,6 +1041,7 @@ context_type_map = {
     "selected_nodes": ("Node", True),
     "selected_objects": ("Object", True),
     "selected_pose_bones": ("PoseBone", True),
+    "selected_pose_bones_from_active_object": ("PoseBone", True),
     "selected_sequences": ("Sequence", True),
     "sequences": ("Sequence", True),
     "smoke": ("SmokeModifier", False),
@@ -1047,6 +1051,7 @@ context_type_map = {
     "texture_slot": ("MaterialTextureSlot", False),
     "texture_user": ("ID", False),
     "texture_user_property": ("Property", False),
+    "uv_sculpt_object": ("Object", False),
     "vertex_paint_object": ("Object", False),
     "visible_bases": ("ObjectBase", True),
     "visible_bones": ("EditBone", True),
@@ -1076,7 +1081,7 @@ def pycontext2sphinx(basepath):
     def write_contex_cls():
 
         fw(title_string("Global Context", "-"))
-        fw("These properties are avilable in any contexts.\n\n")
+        fw("These properties are available in any contexts.\n\n")
 
         # very silly. could make these global and only access once.
         # structs, funcs, ops, props = rna_info.BuildRNAInfo()
@@ -1100,7 +1105,7 @@ def pycontext2sphinx(basepath):
             if prop.description:
                 fw("   %s\n\n" % prop.description)
 
-            # special exception, cant use genric code here for enums
+            # special exception, can't use generic code here for enums
             if prop.type == "enum":
                 enum_text = pyrna_enum2sphinx(prop)
                 if enum_text:
@@ -1222,7 +1227,7 @@ def pyrna2sphinx(basepath):
             if prop.name or prop.description:
                 fw(ident + "   " + ", ".join(val for val in (prop.name, prop.description) if val) + "\n\n")
 
-            # special exception, cant use genric code here for enums
+            # special exception, can't use generic code here for enums
             if enum_text:
                 write_indented_lines(ident + "   ", fw, enum_text)
                 fw("\n")
@@ -1321,7 +1326,7 @@ def pyrna2sphinx(basepath):
             if prop.description:
                 fw("      %s\n\n" % prop.description)
 
-            # special exception, cant use genric code here for enums
+            # special exception, can't use generic code here for enums
             if prop.type == "enum":
                 enum_text = pyrna_enum2sphinx(prop)
                 if enum_text:
@@ -1354,7 +1359,7 @@ def pyrna2sphinx(basepath):
             elif func.return_values:  # multiple return values
                 fw("      :return (%s):\n" % ", ".join(prop.identifier for prop in func.return_values))
                 for prop in func.return_values:
-                    # TODO, pyrna_enum2sphinx for multiple return values... actually dont
+                    # TODO, pyrna_enum2sphinx for multiple return values... actually don't
                     # think we even use this but still!!!
                     type_descr = prop.get_type_description(
                         as_ret=True, class_fmt=":class:`%s`", collection_id=_BPY_PROP_COLLECTION_ID)
@@ -1716,7 +1721,7 @@ def write_rst_contents(basepath):
 
     standalone_modules = (
         # submodules are added in parent page
-        "mathutils", "freestyle", "bgl", "blf", "gpu",
+        "mathutils", "freestyle", "bgl", "blf", "gpu", "gpu_extras",
         "aud", "bpy_extras", "idprop.types", "bmesh",
     )
 
@@ -1818,11 +1823,16 @@ def write_rst_importable_modules(basepath):
         "bpy.path": "Path Utilities",
         "bpy.utils": "Utilities",
         "bpy_extras": "Extra Utilities",
+        "gpu_extras": "GPU Utilities",
 
         # C_modules
         "aud": "Audio System",
         "blf": "Font Drawing",
-        "gpu.offscreen": "GPU Off-Screen Buffer",
+        "gpu": "GPU Shader Module",
+        "gpu.types": "GPU Types",
+        "gpu.matrix": "GPU Matrix",
+        "gpu.select": "GPU Select",
+        "gpu.shader": "GPU Shader",
         "bmesh": "BMesh Module",
         "bmesh.types": "BMesh Types",
         "bmesh.utils": "BMesh Utilities",
@@ -1830,8 +1840,7 @@ def write_rst_importable_modules(basepath):
         "bpy.app": "Application Data",
         "bpy.app.handlers": "Application Handlers",
         "bpy.app.translations": "Application Translations",
-        # TODO(campbell)
-        # "bpy.app.icons": "Application Icons",
+        "bpy.app.icons": "Application Icons",
         "bpy.props": "Property Definitions",
         "idprop.types": "ID Property Access",
         "mathutils": "Math Types & Utilities",
@@ -1865,7 +1874,6 @@ def copy_handwritten_rsts(basepath):
     # TODO put this docs in Blender's code and use import as per modules above
     handwritten_modules = [
         "bgl",  # "Blender OpenGl wrapper"
-        "gpu",  # "GPU Shader Module"
         "bmesh.ops",  # generated by rst_from_bmesh_opdefines.py
 
         # includes...

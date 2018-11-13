@@ -263,81 +263,9 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 	return IDWALK_RET_NOP;
 }
 
-/* Some remapping unfortunately require extra and/or specific handling, tackle those here. */
-static void libblock_remap_data_preprocess_scene_object_unlink(
-        IDRemap *r_id_remap_data, Scene *sce, Object *ob, const bool skip_indirect, const bool is_indirect)
-{
-	if (skip_indirect && is_indirect) {
-		r_id_remap_data->skipped_indirect++;
-		r_id_remap_data->skipped_refcounted++;
-	}
-	else {
-		/* Remove object from all collections in the scene. free_use is false
-		 * to avoid recursively calling object free again. */
-		BKE_scene_collections_object_remove(r_id_remap_data->bmain, sce, ob, false);
-		if (!is_indirect) {
-			r_id_remap_data->status |= ID_REMAP_IS_LINKED_DIRECT;
-		}
-	}
-}
-
-static void libblock_remap_data_preprocess_collection_unlink(
-        IDRemap *r_id_remap_data, Object *ob, const bool skip_indirect, const bool is_indirect)
-{
-	Main *bmain = r_id_remap_data->bmain;
-	for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-		if (!BKE_collection_is_in_scene(collection) && BKE_collection_has_object(collection, ob)) {
-			if (skip_indirect && is_indirect) {
-				r_id_remap_data->skipped_indirect++;
-				r_id_remap_data->skipped_refcounted++;
-			}
-			else {
-				BKE_collection_object_remove(bmain, collection, ob, false);
-				if (!is_indirect) {
-					r_id_remap_data->status |= ID_REMAP_IS_LINKED_DIRECT;
-				}
-			}
-		}
-	}
-}
-
 static void libblock_remap_data_preprocess(IDRemap *r_id_remap_data)
 {
 	switch (GS(r_id_remap_data->id->name)) {
-		case ID_SCE:
-		{
-			Scene *sce = (Scene *)r_id_remap_data->id;
-
-			if (!r_id_remap_data->new_id) {
-				const bool is_indirect = (sce->id.lib != NULL);
-				const bool skip_indirect = (r_id_remap_data->flag & ID_REMAP_SKIP_INDIRECT_USAGE) != 0;
-
-				/* In case we are unlinking... */
-				if (!r_id_remap_data->old_id) {
-					/* TODO: how is it valid to iterator over a scene while
-					 * removing objects from it? can't this crash? */
-					/* ... everything from scene. */
-					FOREACH_SCENE_OBJECT_BEGIN(sce, ob_iter)
-					{
-						libblock_remap_data_preprocess_scene_object_unlink(
-						            r_id_remap_data, sce, ob_iter, skip_indirect, is_indirect);
-						libblock_remap_data_preprocess_collection_unlink(
-						            r_id_remap_data, ob_iter, skip_indirect, is_indirect);
-					}
-					FOREACH_SCENE_OBJECT_END;
-				}
-				else if (GS(r_id_remap_data->old_id->name) == ID_OB) {
-					/* ... a specific object from scene. */
-					Object *old_ob = (Object *)r_id_remap_data->old_id;
-					libblock_remap_data_preprocess_scene_object_unlink(
-					            r_id_remap_data, sce, old_ob, skip_indirect, is_indirect);
-					libblock_remap_data_preprocess_collection_unlink(
-					            r_id_remap_data, old_ob, skip_indirect, is_indirect);
-				}
-
-			}
-			break;
-		}
 		case ID_OB:
 		{
 			ID *old_id = r_id_remap_data->old_id;
@@ -363,38 +291,49 @@ static void libblock_remap_data_preprocess(IDRemap *r_id_remap_data)
 	}
 }
 
+/* Can be called with both old_ob and new_ob being NULL, this means we have to check whole Main database then. */
 static void libblock_remap_data_postprocess_object_update(Main *bmain, Object *old_ob, Object *new_ob)
 {
 	if (new_ob == NULL) {
-		 /* In case we unlinked old_ob (new_ob is NULL), the object has already
-		  * been removed from the scenes and their collections. We still have
-		  * to remove the NULL children from collections not used in any scene. */
+		/* In case we unlinked old_ob (new_ob is NULL), the object has already
+		 * been removed from the scenes and their collections. We still have
+		 * to remove the NULL children from collections not used in any scene. */
 		BKE_collections_object_remove_nulls(bmain);
 	}
-	else {
-		BKE_main_collection_sync_remap(bmain);
-	}
 
-	if (old_ob->type == OB_MBALL) {
-		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+	BKE_main_collection_sync_remap(bmain);
+
+	if (old_ob == NULL) {
+		for (Object *ob = bmain->object.first; ob != NULL; ob = ob->id.next) {
+			if (ob->type == OB_MBALL && BKE_mball_is_basis(ob)) {
+				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			}
+		}
+	}
+	else {
+		for (Object *ob = bmain->object.first; ob != NULL; ob = ob->id.next) {
 			if (ob->type == OB_MBALL && BKE_mball_is_basis_for(ob, old_ob)) {
 				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				break;  /* There is only one basis... */
 			}
 		}
 	}
 }
 
-static void libblock_remap_data_postprocess_collection_update(Main *bmain, Collection *old_collection, Collection *new_collection)
+/* Can be called with both old_collection and new_collection being NULL,
+ * this means we have to check whole Main database then. */
+static void libblock_remap_data_postprocess_collection_update(
+        Main *bmain, Collection *UNUSED(old_collection), Collection *new_collection)
 {
 	if (new_collection == NULL) {
-		 /* In case we unlinked old_collection (new_collection is NULL), we need
-		  * to remove any collection children that have been set to NULL in the
-		  * because of pointer replacement. */
-		BKE_collections_child_remove_nulls(bmain, old_collection);
+		/* XXX Complex cases can lead to NULL pointers in other collections than old_collection,
+		 * and BKE_main_collection_sync_remap() does not tolerate any of those, so for now always check whole
+		 * existing collections for NULL pointers.
+		 * I'd consider optimizing that whole collection remapping process a TODO for later. */
+		BKE_collections_child_remove_nulls(bmain, NULL /*old_collection*/);
 	}
-	else {
-		BKE_main_collection_sync_remap(bmain);
-	}
+
+	BKE_main_collection_sync_remap(bmain);
 }
 
 static void libblock_remap_data_postprocess_obdata_relink(Main *bmain, Object *ob, ID *new_id)
@@ -510,7 +449,7 @@ ATTR_NONNULL(1) static void libblock_remap_data(
 	}
 
 #ifdef DEBUG_PRINT
-	printf("%s: %d occurences skipped (%d direct and %d indirect ones)\n", __func__,
+	printf("%s: %d occurrences skipped (%d direct and %d indirect ones)\n", __func__,
 	       r_id_remap_data->skipped_direct + r_id_remap_data->skipped_indirect,
 	       r_id_remap_data->skipped_direct, r_id_remap_data->skipped_indirect);
 #endif
@@ -678,10 +617,8 @@ void BKE_libblock_relink_ex(
 			if (old_id) {
 				switch (GS(old_id->name)) {
 					case ID_OB:
-					{
 						libblock_remap_data_postprocess_object_update(bmain, (Object *)old_id, (Object *)new_id);
 						break;
-					}
 					case ID_GR:
 						libblock_remap_data_postprocess_collection_update(bmain, (Collection *)old_id, (Collection *)new_id);
 						break;
@@ -691,12 +628,8 @@ void BKE_libblock_relink_ex(
 			}
 			else {
 				/* No choice but to check whole objects/collections. */
-				for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
-					libblock_remap_data_postprocess_object_update(bmain, ob, NULL);
-				}
-				for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-					libblock_remap_data_postprocess_collection_update(bmain, collection, NULL);
-				}
+				libblock_remap_data_postprocess_collection_update(bmain, NULL, NULL);
+				libblock_remap_data_postprocess_object_update(bmain, NULL, NULL);
 			}
 			break;
 		}

@@ -36,6 +36,7 @@
 #include "BKE_fcurve.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
+#include "BKE_layer.h"
 
 #include "DEG_depsgraph.h"
 
@@ -107,7 +108,7 @@ struct CurveDrawData {
 		bool use_plane;
 		float    plane[4];
 
-		/* use 'rv3d->depths', note that this will become 'damaged' while drawing, but thats OK. */
+		/* use 'rv3d->depths', note that this will become 'damaged' while drawing, but that's OK. */
 		bool use_depth;
 
 		/* offset projection by this value */
@@ -194,7 +195,6 @@ static bool stroke_elem_project(
         float surface_offset, const float radius,
         float r_location_world[3], float r_normal_world[3])
 {
-	View3D *v3d = cdd->vc.v3d;
 	ARegion *ar = cdd->vc.ar;
 	RegionView3D *rv3d = cdd->vc.rv3d;
 
@@ -203,12 +203,7 @@ static bool stroke_elem_project(
 	/* project to 'location_world' */
 	if (cdd->project.use_plane) {
 		/* get the view vector to 'location' */
-		float ray_origin[3], ray_direction[3];
-		ED_view3d_win_to_ray(cdd->depsgraph, cdd->vc.ar, v3d, mval_fl, ray_origin, ray_direction, false);
-
-		float lambda;
-		if (isect_ray_plane_v3(ray_origin, ray_direction, cdd->project.plane, &lambda, true)) {
-			madd_v3_v3v3fl(r_location_world, ray_origin, ray_direction, lambda);
+		if (ED_view3d_win_to_3d_on_plane(ar, cdd->project.plane, mval_fl, true, r_location_world)) {
 			if (r_normal_world) {
 				zero_v3(r_normal_world);
 			}
@@ -797,7 +792,14 @@ static int curve_draw_exec(bContext *C, wmOperator *op)
 		stroke_len = BLI_mempool_len(cdd->stroke_elem_pool);
 	}
 
-	ED_curve_deselect_all(cu->editnurb);
+	/* Deselect all existing curves. */
+	{
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+		uint objects_len;
+		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+		ED_curve_deselect_all_multi(objects, objects_len);
+		MEM_freeN(objects);
+	}
 
 	const float radius_min = cps->radius_min;
 	const float radius_max = cps->radius_max;

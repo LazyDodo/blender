@@ -238,6 +238,13 @@ class ExecutePreset(Operator):
 
         ext = splitext(filepath)[1].lower()
 
+        if ext not in {".py", ".xml"}:
+            self.report({'ERROR'}, "unknown filetype: %r" % ext)
+            return {'CANCELLED'}
+
+        if hasattr(preset_class, "reset_cb"):
+            preset_class.reset_cb(context)
+
         # execute the preset using script.python_file_run
         if ext == ".py":
             #FRACTURE MODIFIER HACK, cant get bpy.context.fracture to be run via py script else...
@@ -259,9 +266,9 @@ class ExecutePreset(Operator):
             rna_xml.xml_file_run(context,
                                  filepath,
                                  preset_class.preset_xml_map)
-        else:
-            self.report({'ERROR'}, "unknown filetype: %r" % ext)
-            return {'CANCELLED'}
+
+        if hasattr(preset_class, "post_cb"):
+            preset_class.post_cb(context)
 
         return {'FINISHED'}
 
@@ -615,7 +622,7 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.shard_count",
         "fracture.cluster_count",
         "fracture.point_seed",
-        "fracture.shards_to_islands",
+        "fracture.split_to_islands",
         "fracture.auto_execute",
         "fracture.use_constraints",
         "fracture.constraint_limit",
@@ -667,7 +674,7 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.autohide_filter_group",
         "fracture.uv_layer",
         "fracture.inner_material",
-        "fracture.boolean_solver",
+        #"fracture.boolean_solver",
         "fracture.boolean_double_threshold",
         "fracture.dynamic_percentage",
         "fracture.dynamic_new_constraints",
@@ -692,9 +699,9 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.use_vertices",
         "fracture.use_self_collision",
         "fracture.grid_resolution",
-        "fracture.min_acceleration",
-        "fracture.max_acceleration",
-        "fracture.acceleration_fade",
+        #"fracture.min_acceleration",
+        #"fracture.max_acceleration",
+        #"fracture.acceleration_fade",
         "fracture.use_animated_mesh",
         "fracture.animated_mesh_input",
         "fracture.use_animated_mesh_rotation",
@@ -732,7 +739,7 @@ class AddPresetOperator(AddPresetBase, Operator):
 
         prefix, suffix = self.operator.split("_OT_", 1)
         op = getattr(getattr(bpy.ops, prefix.lower()), suffix)
-        operator_rna = op.get_rna().bl_rna
+        operator_rna = op.get_rna_type()
         del op
 
         ret = []
@@ -770,24 +777,6 @@ class WM_MT_operator_presets(Menu):
     preset_operator = "script.execute_preset"
 
 
-class AddPresetUnitsLength(AddPresetBase, Operator):
-    """Add or remove length units preset"""
-    bl_idname = "scene.units_length_preset_add"
-    bl_label = "Add Length Units Preset"
-    preset_menu = "SCENE_PT_units_length_presets"
-
-    preset_defines = [
-        "scene = bpy.context.scene"
-    ]
-
-    preset_values = [
-        "scene.unit_settings.system",
-        "scene.unit_settings.scale_length",
-    ]
-
-    preset_subdir = "units_length"
-
-
 class AddPresetGpencilBrush(AddPresetBase, Operator):
     """Add or remove grease pencil brush preset"""
     bl_idname = "scene.gpencil_brush_preset_add"
@@ -804,7 +793,7 @@ class AddPresetGpencilBrush(AddPresetBase, Operator):
         "settings.active_smooth_factor",
         "settings.angle",
         "settings.angle_factor",
-        "settings.use_stabilizer",
+        "settings.use_settings_stabilizer",
         "brush.smooth_stroke_radius",
         "brush.smooth_stroke_factor",
         "settings.pen_smooth_factor",
@@ -813,7 +802,7 @@ class AddPresetGpencilBrush(AddPresetBase, Operator):
         "settings.pen_thick_smooth_steps",
         "settings.pen_subdivision_steps",
         "settings.random_subdiv",
-        "settings.enable_random",
+        "settings.use_settings_random",
         "settings.random_pressure",
         "settings.random_strength",
         "settings.uv_random",
@@ -862,6 +851,8 @@ class AddPresetGpencilMaterial(AddPresetBase, Operator):
         "gpcolor.texture_clamp",
         "gpcolor.texture_mix",
         "gpcolor.mix_factor",
+        "gpcolor.show_stroke",
+        "gpcolor.show_fill",
     ]
 
     preset_subdir = "gpencil_material"
@@ -883,7 +874,6 @@ classes = (
     AddPresetTrackingCamera,
     AddPresetTrackingSettings,
     AddPresetTrackingTrackColor,
-    AddPresetUnitsLength,
     AddPresetGpencilBrush,
     AddPresetGpencilMaterial,
     ExecutePreset,

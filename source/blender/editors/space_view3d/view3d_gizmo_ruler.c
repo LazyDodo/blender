@@ -45,6 +45,7 @@
 
 #include "BIF_gl.h"
 
+#include "ED_gizmo_utils.h"
 #include "ED_gpencil.h"
 #include "ED_screen.h"
 #include "ED_transform_snap_object_context.h"
@@ -163,8 +164,6 @@ static void ruler_item_remove(bContext *C, wmGizmoGroup *gzgroup, RulerItem *rul
 static void ruler_item_as_string(RulerItem *ruler_item, UnitSettings *unit,
                                  char *numstr, size_t numstr_size, int prec)
 {
-	const bool do_split = (unit->flag & USER_UNIT_OPT_SPLIT) != 0;
-
 	if (ruler_item->flag & RULERITEM_USE_ANGLE) {
 		const float ruler_angle = angle_v3v3v3(ruler_item->co[0],
 		                                       ruler_item->co[1],
@@ -174,9 +173,9 @@ static void ruler_item_as_string(RulerItem *ruler_item, UnitSettings *unit,
 			BLI_snprintf(numstr, numstr_size, "%.*f°", prec, RAD2DEGF(ruler_angle));
 		}
 		else {
-			bUnit_AsString(numstr, numstr_size,
-			               (double)ruler_angle,
-			               prec, unit->system, B_UNIT_ROTATION, do_split, false);
+			bUnit_AsString2(
+			        numstr, numstr_size, (double)ruler_angle,
+			        prec, B_UNIT_ROTATION, unit, false);
 		}
 	}
 	else {
@@ -187,9 +186,9 @@ static void ruler_item_as_string(RulerItem *ruler_item, UnitSettings *unit,
 			BLI_snprintf(numstr, numstr_size, "%.*f", prec, ruler_len);
 		}
 		else {
-			bUnit_AsString(numstr, numstr_size,
-			               (double)(ruler_len * unit->scale_length),
-			               prec, unit->system, B_UNIT_LENGTH, do_split, false);
+			bUnit_AsString2(
+			        numstr, numstr_size, (double)(ruler_len * unit->scale_length),
+			        prec, B_UNIT_LENGTH, unit, false);
 		}
 	}
 }
@@ -410,7 +409,7 @@ static bool view3d_ruler_to_gpencil(bContext *C, wmGizmoGroup *gzgroup)
 		gpl->flag |= GP_LAYER_HIDE;
 	}
 
-	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, true);
+	gpf = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_ADD_NEW);
 	BKE_gpencil_free_strokes(gpf);
 
 	for (ruler_item = gzgroup->gizmos.first; ruler_item; ruler_item = (RulerItem *)ruler_item->gz.next) {
@@ -460,7 +459,7 @@ static bool view3d_ruler_from_gpencil(const bContext *C, wmGizmoGroup *gzgroup)
 		gpl = BLI_findstring(&scene->gpd->layers, ruler_name, offsetof(bGPDlayer, info));
 		if (gpl) {
 			bGPDframe *gpf;
-			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, false);
+			gpf = BKE_gpencil_layer_getframe(gpl, CFRA, GP_GETFRAME_USE_PREV);
 			if (gpf) {
 				bGPDstroke *gps;
 				for (gps = gpf->strokes.first; gps; gps = gps->next) {
@@ -508,7 +507,6 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 	RegionView3D *rv3d = ar->regiondata;
 	const float cap_size = 4.0f;
 	const float bg_margin = 4.0f * U.pixelsize;
-	const float bg_radius = 4.0f * U.pixelsize;
 	const float arc_size = 64.0f * U.pixelsize;
 #define ARC_STEPS 24
 	const int arc_steps = ARC_STEPS;
@@ -520,6 +518,7 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 
 	/* anti-aliased lines for more consistent appearance */
 	GPU_line_smooth(true);
+	GPU_line_width(1.0f);
 
 	BLF_enable(blf_mono_font, BLF_ROTATION);
 	BLF_size(blf_mono_font, 14 * U.pixelsize, U.dpi);
@@ -527,6 +526,11 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 
 	UI_GetThemeColor3ubv(TH_TEXT, color_text);
 	UI_GetThemeColor3ubv(TH_WIRE, color_wire);
+
+	/* Avoid white on white text. (TODO Fix by using theme) */
+	if ((int)color_text[0] + (int)color_text[1] + (int)color_text[2] > 127 * 3 * 0.6f) {
+		copy_v3_fl(color_back, 0.0f);
+	}
 
 	const bool is_act = (gz->flag & WM_GIZMO_DRAW_HOVER);
 	float dir_ruler[2];
@@ -577,7 +581,7 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 			float quat[4];
 			float axis[3];
 			float angle;
-			const float px_scale = (ED_view3d_pixel_size(rv3d, ruler_item->co[1]) *
+			const float px_scale = (ED_view3d_pixel_size_no_ui_scale(rv3d, ruler_item->co[1]) *
 			                        min_fff(arc_size,
 			                                len_v2v2(co_ss[0], co_ss[1]) / 2.0f,
 			                                len_v2v2(co_ss[2], co_ss[1]) / 2.0f));
@@ -652,30 +656,33 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 			GPU_blend(false);
 		}
 
+		/* text */
+		char numstr[256];
+		float numstr_size[2];
+		float posit[2];
+		const int prec = 2;  /* XXX, todo, make optional */
+
+		ruler_item_as_string(ruler_item, unit, numstr, sizeof(numstr), prec);
+
+		BLF_width_and_height(blf_mono_font, numstr, sizeof(numstr), &numstr_size[0], &numstr_size[1]);
+
+		posit[0] = co_ss[1][0] + (cap_size * 2.0f);
+		posit[1] = co_ss[1][1] - (numstr_size[1] / 2.0f);
+
+		/* draw text (bg) */
+		{
+			immUniformColor4fv(color_back);
+			GPU_blend(true);
+			immRectf(shdr_pos,
+			         posit[0] - bg_margin,                  posit[1] - bg_margin,
+			         posit[0] + bg_margin + numstr_size[0], posit[1] + bg_margin + numstr_size[1]);
+			GPU_blend(false);
+		}
+
 		immUnbindProgram();
 
-		/* text */
+		/* draw text */
 		{
-			char numstr[256];
-			float numstr_size[2];
-			float posit[2];
-			const int prec = 2;  /* XXX, todo, make optional */
-
-			ruler_item_as_string(ruler_item, unit, numstr, sizeof(numstr), prec);
-
-			BLF_width_and_height(blf_mono_font, numstr, sizeof(numstr), &numstr_size[0], &numstr_size[1]);
-
-			posit[0] = co_ss[1][0] + (cap_size * 2.0f);
-			posit[1] = co_ss[1][1] - (numstr_size[1] / 2.0f);
-
-			/* draw text (bg) */
-			UI_draw_roundbox_corner_set(UI_CNR_ALL);
-			UI_draw_roundbox_aa(
-			        true,
-			        posit[0] - bg_margin,                  posit[1] - bg_margin,
-			        posit[0] + bg_margin + numstr_size[0], posit[1] + bg_margin + numstr_size[1],
-			        bg_radius, color_back);
-			/* draw text */
 			BLF_color3ubv(blf_mono_font, color_text);
 			BLF_position(blf_mono_font, posit[0], posit[1], 0.0f);
 			BLF_rotation(blf_mono_font, 0.0f);
@@ -735,33 +742,36 @@ static void gizmo_ruler_draw(const bContext *C, wmGizmo *gz)
 			GPU_blend(false);
 		}
 
+		/* text */
+		char numstr[256];
+		float numstr_size[2];
+		const int prec = 6;  /* XXX, todo, make optional */
+		float posit[2];
+
+		ruler_item_as_string(ruler_item, unit, numstr, sizeof(numstr), prec);
+
+		BLF_width_and_height(blf_mono_font, numstr, sizeof(numstr), &numstr_size[0], &numstr_size[1]);
+
+		mid_v2_v2v2(posit, co_ss[0], co_ss[2]);
+
+		/* center text */
+		posit[0] -= numstr_size[0] / 2.0f;
+		posit[1] -= numstr_size[1] / 2.0f;
+
+		/* draw text (bg) */
+		{
+			immUniformColor4fv(color_back);
+			GPU_blend(true);
+			immRectf(shdr_pos,
+			         posit[0] - bg_margin,                  posit[1] - bg_margin,
+			         posit[0] + bg_margin + numstr_size[0], posit[1] + bg_margin + numstr_size[1]);
+			GPU_blend(false);
+		}
+
 		immUnbindProgram();
 
-		/* text */
+		/* draw text */
 		{
-			char numstr[256];
-			float numstr_size[2];
-			const int prec = 6;  /* XXX, todo, make optional */
-			float posit[2];
-
-			ruler_item_as_string(ruler_item, unit, numstr, sizeof(numstr), prec);
-
-			BLF_width_and_height(blf_mono_font, numstr, sizeof(numstr), &numstr_size[0], &numstr_size[1]);
-
-			mid_v2_v2v2(posit, co_ss[0], co_ss[2]);
-
-			/* center text */
-			posit[0] -= numstr_size[0] / 2.0f;
-			posit[1] -= numstr_size[1] / 2.0f;
-
-			/* draw text (bg) */
-			UI_draw_roundbox_corner_set(UI_CNR_ALL);
-			UI_draw_roundbox_aa(
-			        true,
-			        posit[0] - bg_margin,                  posit[1] - bg_margin,
-			        posit[0] + bg_margin + numstr_size[0], posit[1] + bg_margin + numstr_size[1],
-			        bg_radius, color_back);
-			/* draw text */
 			BLF_color3ubv(blf_mono_font, color_text);
 			BLF_position(blf_mono_font, posit[0], posit[1], 0.0f);
 			BLF_draw(blf_mono_font, numstr, sizeof(numstr));
@@ -974,18 +984,6 @@ void VIEW3D_GT_ruler_item(wmGizmoType *gzt)
 /** \name Ruler Gizmo Group
  * \{ */
 
-static bool WIDGETGROUP_ruler_poll(const bContext *C, wmGizmoGroupType *gzgt)
-{
-	bToolRef_Runtime *tref_rt = WM_toolsystem_runtime_from_context((bContext *)C);
-	if ((tref_rt == NULL) ||
-	    !STREQ(gzgt->idname, tref_rt->gizmo_group))
-	{
-		WM_gizmo_group_type_unlink_delayed_ptr(gzgt);
-		return false;
-	}
-	return true;
-}
-
 static void WIDGETGROUP_ruler_setup(const bContext *C, wmGizmoGroup *gzgroup)
 {
 	RulerInfo *ruler_info = MEM_callocN(sizeof(RulerInfo), __func__);
@@ -1014,7 +1012,7 @@ void VIEW3D_GGT_ruler(wmGizmoGroupType *gzgt)
 	gzgt->gzmap_params.spaceid = SPACE_VIEW3D;
 	gzgt->gzmap_params.regionid = RGN_TYPE_WINDOW;
 
-	gzgt->poll = WIDGETGROUP_ruler_poll;
+	gzgt->poll = ED_gizmo_poll_or_unlink_delayed_from_tool;
 	gzgt->setup = WIDGETGROUP_ruler_setup;
 }
 

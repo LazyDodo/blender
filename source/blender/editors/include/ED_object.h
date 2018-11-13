@@ -108,13 +108,6 @@ bool ED_object_parent_set(struct ReportList *reports, const struct bContext *C, 
                           const int vert_par[3]);
 void ED_object_parent_clear(struct Object *ob, const int type);
 
-void ED_keymap_proportional_cycle(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-void ED_keymap_proportional_obmode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-void ED_keymap_proportional_maskmode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-void ED_keymap_proportional_editmode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap,
-                                     const bool do_connected);
-void ED_keymap_editmesh_elem_mode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-
 void ED_object_base_select(struct Base *base, eObjectSelect_Mode mode);
 void ED_object_base_activate(struct bContext *C, struct Base *base);
 void ED_object_base_free_and_unlink(struct Main *bmain, struct Scene *scene, struct Object *ob);
@@ -183,12 +176,12 @@ void ED_object_add_generic_props(struct wmOperatorType *ot, bool do_editmode);
 void ED_object_add_mesh_props(struct wmOperatorType *ot);
 bool ED_object_add_generic_get_opts(struct bContext *C, struct wmOperator *op, const char view_align_axis,
                                     float loc[3], float rot[3],
-                                    bool *enter_editmode, unsigned int *layer, bool *is_view_aligned);
+                                    bool *enter_editmode, bool *is_view_aligned);
 
 struct Object *ED_object_add_type(
         struct bContext *C,
         int type, const char *name, const float loc[3], const float rot[3],
-        bool enter_editmode, unsigned int layer)
+        bool enter_editmode)
         ATTR_NONNULL(1) ATTR_RETURNS_NONNULL;
 
 void ED_object_single_users(struct Main *bmain, struct Scene *scene, const bool full, const bool copy_groups);
@@ -196,7 +189,7 @@ void ED_object_single_user(struct Main *bmain, struct Scene *scene, struct Objec
 
 /* object motion paths */
 void ED_objects_clear_paths(struct bContext *C, bool only_selected);
-void ED_objects_recalculate_paths(struct bContext *C, struct Scene *scene);
+void ED_objects_recalculate_paths(struct bContext *C, struct Scene *scene, bool current_frame_only);
 
 /* constraints */
 struct ListBase *get_active_constraints(struct Object *ob);
@@ -217,6 +210,7 @@ bool ED_object_mode_compat_test(const struct Object *ob, eObjectMode mode);
 bool ED_object_mode_compat_set(struct bContext *C, struct Object *ob, eObjectMode mode, struct ReportList *reports);
 void ED_object_mode_toggle(struct bContext *C, eObjectMode mode);
 void ED_object_mode_set(struct bContext *C, eObjectMode mode);
+void ED_object_mode_exit(struct bContext *C);
 
 bool ED_object_mode_generic_enter(
         struct bContext *C,
@@ -228,10 +222,6 @@ void ED_object_mode_generic_exit(
 bool ED_object_mode_generic_has_data(
         struct Depsgraph *depsgraph,
         struct Object *ob);
-
-bool ED_object_mode_generic_exists(
-        struct wmWindowManager *wm, struct Object *ob,
-        eObjectMode object_mode);
 
 /* object_modifier.c */
 enum {

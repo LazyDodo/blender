@@ -107,6 +107,8 @@
  * type-info structs.
  */
 
+static void damptrack_do_transform(float matrix[4][4], const float tarvec[3], int track_axis);
+
 /* -------------- Naming -------------- */
 
 /* Find the first available, non-duplicate name for a given constraint */
@@ -593,7 +595,7 @@ static void constraint_target_to_mat4(Object *ob, const char *substring, float m
 				float loc[3], fac;
 
 				/* get bbone segments */
-				b_bone_spline_setup(pchan, 0, bbone);
+				b_bone_spline_setup(pchan, false, bbone);
 
 				/* figure out which segment(s) the headtail value falls in */
 				fac = (float)pchan->bone->segments * headtail;
@@ -1326,21 +1328,7 @@ static void followpath_get_tarmat(struct Depsgraph *UNUSED(depsgraph),
 				unit_m4(totmat);
 
 				if (data->followflag & FOLLOWPATH_FOLLOW) {
-#if 0
-					float x1, q[4];
-					vec_to_quat(quat, dir, (short)data->trackflag, (short)data->upflag);
-
-					normalize_v3(dir);
-					q[0] = cosf(0.5 * vec[3]);
-					x1 = sinf(0.5 * vec[3]);
-					q[1] = -x1 * dir[0];
-					q[2] = -x1 * dir[1];
-					q[3] = -x1 * dir[2];
-					mul_qt_qtqt(quat, q, quat);
-#else
 					quat_apply_track(quat, data->trackflag, data->upflag);
-#endif
-
 					quat_to_mat4(totmat, quat);
 				}
 
@@ -2090,15 +2078,6 @@ static void pycon_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *targe
 	/* only evaluate in python if we're allowed to do so */
 	if ((G.f & G_SCRIPT_AUTOEXEC) == 0) return;
 
-/* currently removed, until I this can be re-implemented for multiple targets */
-#if 0
-	/* Firstly, run the 'driver' function which has direct access to the objects involved
-	 * Technically, this is potentially dangerous as users may abuse this and cause dependency-problems,
-	 * but it also allows certain 'clever' rigging hacks to work.
-	 */
-	BPY_pyconstraint_driver(data, cob, targets);
-#endif
-
 	/* Now, run the actual 'constraint' function, which should only access the matrices */
 	BPY_pyconstraint_exec(data, cob, targets);
 #endif /* WITH_PYTHON */
@@ -2117,6 +2096,206 @@ static bConstraintTypeInfo CTI_PYTHON = {
 	NULL, /* flush constraint targets */
 	pycon_get_tarmat, /* get target matrix */
 	pycon_evaluate /* evaluate */
+};
+
+/* ----------- Armature Constraint -------------- */
+
+static void armdef_free(bConstraint *con)
+{
+	bArmatureConstraint *data = con->data;
+
+	/* Target list. */
+	BLI_freelistN(&data->targets);
+}
+
+static void armdef_copy(bConstraint *con, bConstraint *srccon)
+{
+	bArmatureConstraint *pcon = (bArmatureConstraint *)con->data;
+	bArmatureConstraint *opcon = (bArmatureConstraint *)srccon->data;
+
+	BLI_duplicatelist(&pcon->targets, &opcon->targets);
+}
+
+static int armdef_get_tars(bConstraint *con, ListBase *list)
+{
+	if (con && list) {
+		bArmatureConstraint *data = con->data;
+
+		*list = data->targets;
+
+		return BLI_listbase_count(&data->targets);
+	}
+
+	return 0;
+}
+
+static void armdef_id_looper(bConstraint *con, ConstraintIDFunc func, void *userdata)
+{
+	bArmatureConstraint *data = con->data;
+	bConstraintTarget *ct;
+
+	/* Target list. */
+	for (ct = data->targets.first; ct; ct = ct->next) {
+		func(con, (ID **)&ct->tar, false, userdata);
+	}
+}
+
+/* Compute the world space pose matrix of the target bone. */
+static void armdef_get_tarmat(struct Depsgraph *UNUSED(depsgraph),
+                              bConstraint *UNUSED(con), bConstraintOb *UNUSED(cob),
+                              bConstraintTarget *ct, float UNUSED(ctime))
+{
+	if (ct != NULL) {
+		if (ct->tar && ct->tar->type == OB_ARMATURE) {
+			bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
+
+			if (pchan != NULL) {
+				mul_m4_m4m4(ct->matrix, ct->tar->obmat, pchan->pose_mat);
+				return;
+			}
+		}
+
+		unit_m4(ct->matrix);
+	}
+}
+
+/* Compute and accumulate transformation for a single target bone. */
+static void armdef_accumulate_bone(bConstraintTarget *ct, bPoseChannel *pchan, const float wco[3], bool force_envelope, float *r_totweight, float r_sum_mat[4][4], DualQuat *r_sum_dq)
+{
+	float mat[4][4], iobmat[4][4], iamat[4][4], basemat[4][4], co[3];
+	Bone *bone = pchan->bone;
+	float weight = ct->weight;
+
+	/* Our object's location in target pose space. */
+	invert_m4_m4(iobmat, ct->tar->obmat);
+	mul_v3_m4v3(co, iobmat, wco);
+
+	/* Inverted rest pose matrix: bone->chan_mat may not be final yet. */
+	invert_m4_m4(iamat, bone->arm_mat);
+
+	/* Multiply by the envelope weight when appropriate. */
+	if (force_envelope || (bone->flag & BONE_MULT_VG_ENV)) {
+		weight *= distfactor_to_bone(co, bone->arm_head, bone->arm_tail,
+		                             bone->rad_head, bone->rad_tail, bone->dist);
+	}
+
+	/* Find the correct bone transform matrix in world space. */
+	if (bone->segments > 1) {
+		/* The target is a B-Bone:
+		 * FIRST: find the segment (see b_bone_deform in armature.c)
+		 * Need to transform co back to bonespace, only need y. */
+		float y = iamat[0][1] * co[0] + iamat[1][1] * co[1] + iamat[2][1] * co[2] + iamat[3][1];
+
+		float segment = bone->length / ((float)bone->segments);
+		int a = (int)(y / segment);
+
+		CLAMP(a, 0, bone->segments - 1);
+
+		/* SECOND: compute the matrix (see pchan_b_bone_defmats in armature.c) */
+		Mat4 b_bone[MAX_BBONE_SUBDIV], b_bone_rest[MAX_BBONE_SUBDIV];
+		float irmat[4][4];
+
+		b_bone_spline_setup(pchan, false, b_bone);
+		b_bone_spline_setup(pchan, true, b_bone_rest);
+
+		invert_m4_m4(irmat, b_bone_rest[a].mat);
+		mul_m4_series(mat, ct->matrix, b_bone[a].mat, irmat, iamat, iobmat);
+	}
+	else {
+		/* Simple bone. */
+		mul_m4_series(mat, ct->matrix, iamat, iobmat);
+	}
+
+	/* Accumulate the transformation. */
+	*r_totweight += weight;
+
+	if (r_sum_dq != NULL) {
+		DualQuat tmpdq;
+
+		mul_m4_series(basemat, ct->tar->obmat, bone->arm_mat, iobmat);
+
+		mat4_to_dquat(&tmpdq, basemat, mat);
+		add_weighted_dq_dq(r_sum_dq, &tmpdq, weight);
+	}
+	else {
+		mul_m4_fl(mat, weight);
+		add_m4_m4m4(r_sum_mat, r_sum_mat, mat);
+	}
+}
+
+static void armdef_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *targets)
+{
+	bArmatureConstraint *data = con->data;
+
+	float sum_mat[4][4], input_co[3];
+	DualQuat sum_dq;
+	float weight = 0.0f;
+
+	/* Prepare for blending. */
+	zero_m4(sum_mat);
+	memset(&sum_dq, 0, sizeof(sum_dq));
+
+	DualQuat *pdq = (data->flag & CONSTRAINT_ARMATURE_QUATERNION) ? &sum_dq : NULL;
+	bool use_envelopes = (data->flag & CONSTRAINT_ARMATURE_ENVELOPE) != 0;
+
+	if (cob->pchan && cob->pchan->bone && !(data->flag & CONSTRAINT_ARMATURE_CUR_LOCATION)) {
+		/* For constraints on bones, use the rest position to bind b-bone segments
+		 * and envelopes, to allow safely changing the bone location as if parented. */
+		copy_v3_v3(input_co, cob->pchan->bone->arm_head);
+		mul_m4_v3(cob->ob->obmat, input_co);
+	}
+	else {
+		copy_v3_v3(input_co, cob->matrix[3]);
+	}
+
+	/* Process all targets. */
+	for (bConstraintTarget *ct = targets->first; ct; ct = ct->next) {
+		if (ct->weight <= 0.0f) {
+			continue;
+		}
+
+		/* Lookup the bone and abort if failed. */
+		if (!VALID_CONS_TARGET(ct) || ct->tar->type != OB_ARMATURE) {
+			return;
+		}
+
+		bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
+
+		if (pchan == NULL || pchan->bone == NULL) {
+			return;
+		}
+
+		armdef_accumulate_bone(ct, pchan, input_co, use_envelopes, &weight, sum_mat, pdq);
+	}
+
+	/* Compute the final transform. */
+	if (weight > 0.0f) {
+		if (pdq != NULL) {
+			normalize_dq(pdq, weight);
+			dquat_to_mat4(sum_mat, pdq);
+		}
+		else {
+			mul_m4_fl(sum_mat, 1.0f / weight);
+		}
+
+		/* Apply the transform to the result matrix. */
+		mul_m4_m4m4(cob->matrix, sum_mat, cob->matrix);
+	}
+}
+
+static bConstraintTypeInfo CTI_ARMATURE = {
+	CONSTRAINT_TYPE_ARMATURE, /* type */
+	sizeof(bArmatureConstraint), /* size */
+	"Armature", /* name */
+	"bArmatureConstraint", /* struct name */
+	armdef_free, /* free data */
+	armdef_id_looper, /* id looper */
+	armdef_copy, /* copy data */
+	NULL, /* new data */
+	armdef_get_tars, /* get constraint targets */
+	NULL, /* flush constraint targets */
+	armdef_get_tarmat, /* get target matrix */
+	armdef_evaluate /* evaluate */
 };
 
 /* -------- Action Constraint ----------- */
@@ -2571,7 +2750,7 @@ static void locktrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 			unit_m3(totmat);
 		}
 
-		/* apply out transformaton to the object */
+		/* apply out transformation to the object */
 		mul_m4_m3m4(cob->matrix, totmat, cob->matrix);
 	}
 }
@@ -3432,7 +3611,7 @@ static void shrinkwrap_flush_tars(bConstraint *con, ListBase *list, bool no_copy
 }
 
 
-static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con, bConstraintOb *cob, bConstraintTarget *ct, float UNUSED(ctime))
+static void shrinkwrap_get_tarmat(struct Depsgraph *UNUSED(depsgraph), bConstraint *con, bConstraintOb *cob, bConstraintTarget *ct, float UNUSED(ctime))
 {
 	bShrinkwrapConstraint *scon = (bShrinkwrapConstraint *) con->data;
 
@@ -3440,45 +3619,56 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 
 		bool fail = false;
 		float co[3] = {0.0f, 0.0f, 0.0f};
+		bool track_normal = false;
+		float track_no[3] = {0.0f, 0.0f, 0.0f};
 
 		SpaceTransform transform;
-		Mesh *target_eval = mesh_get_eval_final(depsgraph, DEG_get_input_scene(depsgraph), ct->tar, CD_MASK_BAREMESH);
+		Mesh *target_eval = ct->tar->runtime.mesh_eval;
 
-		BVHTreeFromMesh treeData = {NULL};
+		copy_m4_m4(ct->matrix, cob->matrix);
 
-		unit_m4(ct->matrix);
+		bool do_track_normal = (scon->flag & CON_SHRINKWRAP_TRACK_NORMAL) != 0;
+		ShrinkwrapTreeData tree;
 
-		if (target_eval != NULL) {
+		if (BKE_shrinkwrap_init_tree(&tree, target_eval, scon->shrinkType, scon->shrinkMode, do_track_normal)) {
 			BLI_space_transform_from_matrices(&transform, cob->matrix, ct->tar->obmat);
 
 			switch (scon->shrinkType) {
 				case MOD_SHRINKWRAP_NEAREST_SURFACE:
 				case MOD_SHRINKWRAP_NEAREST_VERTEX:
+				case MOD_SHRINKWRAP_TARGET_PROJECT:
 				{
 					BVHTreeNearest nearest;
-					float dist;
 
 					nearest.index = -1;
 					nearest.dist_sq = FLT_MAX;
 
-					if (scon->shrinkType == MOD_SHRINKWRAP_NEAREST_VERTEX)
-						BKE_bvhtree_from_mesh_get(&treeData, target_eval, BVHTREE_FROM_VERTS, 2);
-					else
-						BKE_bvhtree_from_mesh_get(&treeData, target_eval, BVHTREE_FROM_LOOPTRI, 2);
+					BLI_space_transform_apply(&transform, co);
 
-					if (treeData.tree == NULL) {
+					BKE_shrinkwrap_find_nearest_surface(&tree, &nearest, co, scon->shrinkType);
+
+					if (nearest.index < 0) {
 						fail = true;
 						break;
 					}
 
-					BLI_space_transform_apply(&transform, co);
+					if (scon->shrinkType != MOD_SHRINKWRAP_NEAREST_VERTEX) {
+						if (do_track_normal) {
+							track_normal = true;
+							BKE_shrinkwrap_compute_smooth_normal(&tree, NULL, nearest.index, nearest.co, nearest.no, track_no);
+							BLI_space_transform_invert_normal(&transform, track_no);
+						}
 
-					BLI_bvhtree_find_nearest(treeData.tree, co, &nearest, treeData.nearest_callback, &treeData);
-
-					dist = len_v3v3(co, nearest.co);
-					if (dist != 0.0f) {
-						interp_v3_v3v3(co, co, nearest.co, (dist - scon->dist) / dist);   /* linear interpolation */
+						BKE_shrinkwrap_snap_point_to_surface(&tree, NULL, scon->shrinkMode, nearest.index, nearest.co, nearest.no, scon->dist, co, co);
 					}
+					else {
+						const float dist = len_v3v3(co, nearest.co);
+
+						if (dist != 0.0f) {
+							interp_v3_v3v3(co, co, nearest.co, (dist - scon->dist) / dist);   /* linear interpolation */
+						}
+					}
+
 					BLI_space_transform_invert(&transform, co);
 					break;
 				}
@@ -3516,24 +3706,37 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 						break;
 					}
 
-					BKE_bvhtree_from_mesh_get(&treeData, target_eval, BVHTREE_FROM_LOOPTRI, 4);
-					if (treeData.tree == NULL) {
+					char cull_mode = scon->flag & CON_SHRINKWRAP_PROJECT_CULL_MASK;
+
+					BKE_shrinkwrap_project_normal(cull_mode, co, no, 0.0f, &transform, &tree, &hit);
+
+					if (scon->flag & CON_SHRINKWRAP_PROJECT_OPPOSITE) {
+						float inv_no[3];
+						negate_v3_v3(inv_no, no);
+
+						if ((scon->flag & CON_SHRINKWRAP_PROJECT_INVERT_CULL) && (cull_mode != 0)) {
+							cull_mode ^= CON_SHRINKWRAP_PROJECT_CULL_MASK;
+						}
+
+						BKE_shrinkwrap_project_normal(cull_mode, co, inv_no, 0.0f, &transform, &tree, &hit);
+					}
+
+					if (hit.index < 0) {
 						fail = true;
 						break;
 					}
 
-					if (BKE_shrinkwrap_project_normal(0, co, no, scon->dist, &transform, treeData.tree,
-					                                  &hit, treeData.raycast_callback, &treeData) == false)
-					{
-						fail = true;
-						break;
+					if (do_track_normal) {
+						track_normal = true;
+						BKE_shrinkwrap_compute_smooth_normal(&tree, &transform, hit.index, hit.co, hit.no, track_no);
 					}
-					copy_v3_v3(co, hit.co);
+
+					BKE_shrinkwrap_snap_point_to_surface(&tree, &transform, scon->shrinkMode, hit.index, hit.co, hit.no, scon->dist, co, co);
 					break;
 				}
 			}
 
-			free_bvhtree_from_mesh(&treeData);
+			BKE_shrinkwrap_free_tree(&tree);
 
 			if (fail == true) {
 				/* Don't move the point */
@@ -3543,6 +3746,11 @@ static void shrinkwrap_get_tarmat(struct Depsgraph *depsgraph, bConstraint *con,
 			/* co is in local object coordinates, change it to global and update target position */
 			mul_m4_v3(cob->matrix, co);
 			copy_v3_v3(ct->matrix[3], co);
+
+			if (track_normal) {
+				mul_mat3_m4_v3(cob->matrix, track_no);
+				damptrack_do_transform(ct->matrix, track_no, scon->trackAxis);
+			}
 		}
 	}
 }
@@ -3553,7 +3761,7 @@ static void shrinkwrap_evaluate(bConstraint *UNUSED(con), bConstraintOb *cob, Li
 
 	/* only evaluate if there is a target */
 	if (VALID_CONS_TARGET(ct)) {
-		copy_v3_v3(cob->matrix[3], ct->matrix[3]);
+		copy_m4_m4(cob->matrix, ct->matrix);
 	}
 }
 
@@ -3627,7 +3835,22 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 	bConstraintTarget *ct = targets->first;
 
 	if (VALID_CONS_TARGET(ct)) {
-		float obvec[3], tarvec[3], obloc[3];
+		float tarvec[3];
+
+		/* find the (unit) direction vector going from the owner to the target */
+		sub_v3_v3v3(tarvec, ct->matrix[3], cob->matrix[3]);
+
+		damptrack_do_transform(cob->matrix, tarvec, data->trackflag);
+	}
+}
+
+static void damptrack_do_transform(float matrix[4][4], const float tarvec_in[3], int track_axis)
+{
+	/* find the (unit) direction vector going from the owner to the target */
+	float tarvec[3];
+
+	if (normalize_v3_v3(tarvec, tarvec_in) != 0.0f) {
+		float obvec[3], obloc[3];
 		float raxis[3], rangle;
 		float rmat[3][3], tmat[4][4];
 
@@ -3636,24 +3859,15 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 		 *	- the normalization step at the end should take care of any unwanted scaling
 		 *	  left over in the 3x3 matrix we used
 		 */
-		copy_v3_v3(obvec, track_dir_vecs[data->trackflag]);
-		mul_mat3_m4_v3(cob->matrix, obvec);
+		copy_v3_v3(obvec, track_dir_vecs[track_axis]);
+		mul_mat3_m4_v3(matrix, obvec);
 
 		if (normalize_v3(obvec) == 0.0f) {
 			/* exceptional case - just use the track vector as appropriate */
-			copy_v3_v3(obvec, track_dir_vecs[data->trackflag]);
+			copy_v3_v3(obvec, track_dir_vecs[track_axis]);
 		}
 
-		/* find the (unit) direction vector going from the owner to the target */
-		copy_v3_v3(obloc, cob->matrix[3]);
-		sub_v3_v3v3(tarvec, ct->matrix[3], obloc);
-
-		if (normalize_v3(tarvec) == 0.0f) {
-			/* the target is sitting on the owner, so just make them use the same direction vectors */
-			/* FIXME: or would it be better to use the pure direction vector? */
-			copy_v3_v3(tarvec, obvec);
-			//copy_v3_v3(tarvec, track_dir_vecs[data->trackflag]);
-		}
+		copy_v3_v3(obloc, matrix[3]);
 
 		/* determine the axis-angle rotation, which represents the smallest possible rotation
 		 * between the two rotation vectors (i.e. the 'damping' referred to in the name)
@@ -3686,8 +3900,8 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 			}
 
 			rangle = M_PI;
-			copy_v3_v3(tmpvec, track_dir_vecs[(data->trackflag + 1) % 6]);
-			mul_mat3_m4_v3(cob->matrix, tmpvec);
+			copy_v3_v3(tmpvec, track_dir_vecs[(track_axis + 1) % 6]);
+			mul_mat3_m4_v3(matrix, tmpvec);
 			cross_v3_v3v3(raxis, obvec, tmpvec);
 
 			if (normalize_v3(raxis) == 0.0f) {
@@ -3705,10 +3919,10 @@ static void damptrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 		 * we may have destroyed that in the process of multiplying the matrix
 		 */
 		unit_m4(tmat);
-		mul_m4_m3m4(tmat, rmat, cob->matrix); // m1, m3, m2
+		mul_m4_m3m4(tmat, rmat, matrix); // m1, m3, m2
 
-		copy_m4_m4(cob->matrix, tmat);
-		copy_v3_v3(cob->matrix[3], obloc);
+		copy_m4_m4(matrix, tmat);
+		copy_v3_v3(matrix[3], obloc);
 	}
 }
 
@@ -3974,7 +4188,7 @@ static void followtrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase 
 	                         depsgraph,
 	                         data->camera ? data->camera : scene->camera);
 
-	float ctime = DEG_get_ctime(depsgraph);;
+	float ctime = DEG_get_ctime(depsgraph);
 	float framenr;
 
 	if (data->flag & FOLLOWTRACK_ACTIVECLIP)
@@ -4142,8 +4356,7 @@ static void followtrack_evaluate(bConstraint *con, bConstraintOb *cob, ListBase 
 
 			if (data->depth_ob) {
 				Object *depth_ob = data->depth_ob;
-				Mesh *target_eval = mesh_get_eval_final(
-				                        depsgraph, DEG_get_input_scene(depsgraph), depth_ob, CD_MASK_BAREMESH);
+				Mesh *target_eval = depth_ob->runtime.mesh_eval;
 				if (target_eval) {
 					BVHTreeFromMesh treeData = NULL_BVHTreeFromMesh;
 					BVHTreeRayHit hit;
@@ -4456,6 +4669,7 @@ static void constraints_init_typeinfo(void)
 	constraintsTypeInfo[27] = &CTI_CAMERASOLVER;     /* Camera Solver Constraint */
 	constraintsTypeInfo[28] = &CTI_OBJECTSOLVER;     /* Object Solver Constraint */
 	constraintsTypeInfo[29] = &CTI_TRANSFORM_CACHE;  /* Transform Cache Constraint */
+	constraintsTypeInfo[30] = &CTI_ARMATURE;         /* Armature Constraint */
 }
 
 /* This function should be used for getting the appropriate type-info when only
@@ -4671,6 +4885,11 @@ static bConstraint *add_new_constraint(Object *ob, bPoseChannel *pchan, const ch
 	return con;
 }
 
+bool BKE_constraint_target_uses_bbone(struct bConstraint *con, struct bConstraintTarget *UNUSED(ct))
+{
+	return (con->flag & CONSTRAINT_BBONE_SHAPE) || (con->type == CONSTRAINT_TYPE_ARMATURE);
+}
+
 /* ......... */
 
 /* Add new constraint for the given bone */
@@ -4814,6 +5033,48 @@ void BKE_constraints_active_set(ListBase *list, bConstraint *con)
 				c->flag &= ~CONSTRAINT_ACTIVE;
 		}
 	}
+}
+
+static bConstraint *constraint_list_find_from_target(ListBase *constraints, bConstraintTarget *tgt)
+{
+	for (bConstraint *con = constraints->first; con; con = con->next) {
+		ListBase *targets = NULL;
+
+		if (con->type == CONSTRAINT_TYPE_PYTHON) {
+			targets = &((bPythonConstraint *)con->data)->targets;
+		}
+		else if (con->type == CONSTRAINT_TYPE_ARMATURE) {
+			targets = &((bArmatureConstraint *)con->data)->targets;
+		}
+
+		if (targets && BLI_findindex(targets, tgt) != -1) {
+			return con;
+		}
+	}
+
+	return NULL;
+}
+
+/* Finds the constraint that owns the given target within the object. */
+bConstraint *BKE_constraint_find_from_target(Object *ob, bConstraintTarget *tgt)
+{
+	bConstraint *result = constraint_list_find_from_target(&ob->constraints, tgt);
+
+	if (result != NULL) {
+		return result;
+	}
+
+	if (ob->pose != NULL) {
+		for (bPoseChannel *pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+			result = constraint_list_find_from_target(&pchan->constraints, tgt);
+
+			if (result != NULL) {
+				return result;
+			}
+		}
+	}
+
+	return NULL;
 }
 
 /* -------- Constraints and Proxies ------- */

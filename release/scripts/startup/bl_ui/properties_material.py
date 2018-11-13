@@ -30,8 +30,8 @@ class MATERIAL_MT_specials(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("object.material_slot_copy", icon='COPY_ID')
         layout.operator("material.copy", icon='COPYDOWN')
+        layout.operator("object.material_slot_copy")
         layout.operator("material.paste", icon='PASTEDOWN')
 
 
@@ -102,17 +102,19 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
 
         if ob:
             is_sortable = len(ob.material_slots) > 1
-            rows = 2
+            rows = 3
             if (is_sortable):
-                rows = 4
+                rows = 5
 
             row = layout.row()
 
             row.template_list("MATERIAL_UL_matslots", "", ob, "material_slots", ob, "active_material_index", rows=rows)
 
             col = row.column(align=True)
-            col.operator("object.material_slot_add", icon='ZOOMIN', text="")
-            col.operator("object.material_slot_remove", icon='ZOOMOUT', text="")
+            col.operator("object.material_slot_add", icon='ADD', text="")
+            col.operator("object.material_slot_remove", icon='REMOVE', text="")
+
+            col.separator()
 
             col.menu("MATERIAL_MT_specials", icon='DOWNARROW_HLT', text="")
 
@@ -141,11 +143,11 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
             row.template_ID(space, "pin_id")
 
 
-def panel_node_draw(layout, ntree, output_type):
+def panel_node_draw(layout, ntree, output_type, input_name):
     node = ntree.get_output_node('EEVEE')
 
     if node:
-        input = find_node_input(node, 'Surface')
+        input = find_node_input(node, input_name)
         if input:
             layout.template_node_view(ntree, node, input)
         else:
@@ -173,13 +175,33 @@ class EEVEE_MATERIAL_PT_surface(MaterialButtonsPanel, Panel):
         layout.separator()
 
         if mat.use_nodes:
-            panel_node_draw(layout, mat.node_tree, 'OUTPUT_MATERIAL')
+            panel_node_draw(layout, mat.node_tree, 'OUTPUT_MATERIAL', "Surface")
         else:
             layout.use_property_split = True
             layout.prop(mat, "diffuse_color", text="Base Color")
             layout.prop(mat, "metallic")
             layout.prop(mat, "specular_intensity", text="Specular")
             layout.prop(mat, "roughness")
+
+
+class EEVEE_MATERIAL_PT_volume(MaterialButtonsPanel, Panel):
+    bl_label = "Volume"
+    bl_context = "material"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+
+    @classmethod
+    def poll(cls, context):
+        engine = context.engine
+        mat = context.material
+        return mat and mat.use_nodes and (engine in cls.COMPAT_ENGINES)
+
+    def draw(self, context):
+        layout = self.layout
+
+        mat = context.material
+
+        panel_node_draw(layout, mat.node_tree, 'OUTPUT_MATERIAL', "Volume")
 
 
 class EEVEE_MATERIAL_PT_options(MaterialButtonsPanel, Panel):
@@ -242,6 +264,7 @@ classes = (
     MATERIAL_PT_preview,
     EEVEE_MATERIAL_PT_context_material,
     EEVEE_MATERIAL_PT_surface,
+    EEVEE_MATERIAL_PT_volume,
     EEVEE_MATERIAL_PT_options,
     MATERIAL_PT_viewport,
     MATERIAL_PT_custom_props,

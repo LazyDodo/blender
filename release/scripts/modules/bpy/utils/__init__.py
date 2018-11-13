@@ -146,6 +146,7 @@ def load_scripts(reload_scripts=False, refresh_scripts=False):
     """
     use_time = use_class_register_check = _bpy.app.debug_python
     use_user = not _is_factory_startup
+    is_background = _bpy.app.background
 
     if use_time:
         import time
@@ -261,12 +262,20 @@ def load_scripts(reload_scripts=False, refresh_scripts=False):
         _addon_utils.reset_all(reload_scripts=reload_scripts)
     del _initialize
 
-    # run the active integration preset
-    filepath = preset_find(_user_preferences.inputs.active_keyconfig,
-                           "keyconfig")
+    if not is_background:
+        # Load the default key configuration.
+        filepath = preset_find("blender", "keyconfig")
+        if filepath:
+            keyconfig_set(filepath)
 
-    if filepath:
-        keyconfig_set(filepath)
+        # run the active integration preset
+        filepath = preset_find(
+            _user_preferences.inputs.active_keyconfig,
+            "keyconfig",
+        )
+
+        if filepath:
+            keyconfig_set(filepath)
 
     if reload_scripts:
         import gc
@@ -706,6 +715,48 @@ def register_submodule_factory(module_name, submodule_names):
         submodules.clear()
 
     return register, unregister
+
+
+# -----------------------------------------------------------------------------
+# Tool Registraion
+
+def register_tool(space_type, context_mode, tool_def):
+    from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
+    cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
+    if cls is None:
+        raise Exception(f"Space type {space_type!r} has no toolbar")
+    tools = cls._tools[context_mode]
+
+    keymap_data = tool_def.keymap
+    if keymap_data is not None:
+        if context_mode is None:
+            context_descr = "All"
+        else:
+            context_descr = context_mode.replace("_", " ").title()
+        from bpy import context
+        wm = context.window_manager
+        kc = wm.keyconfigs.default
+        if callable(keymap_data[0]):
+            cls._km_action_simple(kc, context_descr, tool_def.text, keymap_data)
+
+    tools.append(tool_def)
+
+
+def unregister_tool(space_type, context_mode, tool_def):
+    from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
+    cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
+    if cls is None:
+        raise Exception(f"Space type {space_type!r} has no toolbar")
+    tools = cls._tools[context_mode]
+    tools.remove(tool_def)
+
+    keymap_data = tool_def.keymap
+    if keymap_data is not None:
+        from bpy import context
+        wm = context.window_manager
+        kc = wm.keyconfigs.default
+        km = keymap_data[0]
+        kc.keymaps.remove(km)
 
 
 # -----------------------------------------------------------------------------

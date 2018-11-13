@@ -101,9 +101,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		DEG_add_object_relation(ctx->node, amd->end_cap, DEG_OB_COMP_GEOMETRY, "Array Modifier End Cap");
 	}
 	if (amd->curve_ob) {
-		struct Depsgraph *depsgraph = DEG_get_graph_from_handle(ctx->node);
 		DEG_add_object_relation(ctx->node, amd->curve_ob, DEG_OB_COMP_GEOMETRY, "Array Modifier Curve");
-		DEG_add_special_eval_flag(depsgraph, &amd->curve_ob->id, DAG_EVAL_NEED_CURVE_PATH);
+		DEG_add_special_eval_flag(ctx->node, &amd->curve_ob->id, DAG_EVAL_NEED_CURVE_PATH);
 	}
 	if (amd->offset_ob != NULL) {
 		DEG_add_object_relation(ctx->node, amd->offset_ob, DEG_OB_COMP_TRANSFORM, "Array Modifier Offset");
@@ -505,7 +504,7 @@ static Mesh *arrayModifier_doArray(
 	CustomData_copy_data(&mesh->ldata, &result->ldata, 0, 0, chunk_nloops);
 	CustomData_copy_data(&mesh->pdata, &result->pdata, 0, 0, chunk_npolys);
 
-	/* Subsurf for eg wont have mesh data in the custom data arrays.
+	/* Subsurf for eg won't have mesh data in the custom data arrays.
 	 * now add mvert/medge/mpoly layers. */
 	if (!CustomData_has_layer(&mesh->vdata, CD_MVERT)) {
 		memcpy(result->mvert, mesh->mvert, sizeof(*result->mvert) * mesh->totvert);
@@ -707,7 +706,7 @@ static Mesh *arrayModifier_doArray(
 			int new_i = full_doubles_map[i];
 			if (new_i != -1) {
 				/* We have to follow chains of doubles (merge start/end especially is likely to create some),
-				 * those are not supported at all by CDDM_merge_verts! */
+				 * those are not supported at all by BKE_mesh_merge_verts! */
 				while (!ELEM(full_doubles_map[new_i], -1, new_i)) {
 					new_i = full_doubles_map[new_i];
 				}
@@ -777,14 +776,12 @@ ModifierTypeInfo modifierType_Array = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

@@ -47,6 +47,7 @@
 #include "WM_api.h"
 #include "WM_message.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -552,11 +553,25 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 		RNA_def_property_ui_text(prop, "Axis", "The axis around which the transformation occurs");
 	}
 
+	if (flags & P_AXIS_ORTHO) {
+		prop = RNA_def_property(ot->srna, "axis_ortho", PROP_FLOAT, PROP_DIRECTION);
+		RNA_def_property_array(prop, 3);
+		/* Make this not hidden when there's a nice axis selection widget */
+		RNA_def_property_flag(prop, PROP_HIDDEN);
+		RNA_def_property_ui_text(prop, "Axis", "The orthogonal axis around which the transformation occurs");
+	}
+
 	if (flags & P_CONSTRAINT) {
 		RNA_def_boolean_vector(ot->srna, "constraint_axis", 3, NULL, "Constraint Axis", "");
+
+		/* Set by 'constraint_orientation' or gizmo which acts on non-standard orientation. */
+		prop = RNA_def_float_matrix(ot->srna, "constraint_matrix", 3, 3, NULL, 0.0f, 0.0f, "Matrix", "", 0.0f, 0.0f);
+		RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
+
 		prop = RNA_def_property(ot->srna, "constraint_orientation", PROP_ENUM, PROP_NONE);
 		RNA_def_property_ui_text(prop, "Orientation", "Transformation orientation");
 		RNA_def_enum_funcs(prop, rna_TransformOrientation_itemf);
+
 	}
 
 	if (flags & P_MIRROR) {
@@ -637,8 +652,8 @@ void Transform_Properties(struct wmOperatorType *ot, int flags)
 static void TRANSFORM_OT_translate(struct wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name   = "Translate";
-	ot->description = "Translate (move) selected items";
+	ot->name   = "Move";
+	ot->description = "Move selected items";
 	ot->idname = OP_TRANSLATION;
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_BLOCKING;
 
@@ -831,11 +846,11 @@ static void TRANSFORM_OT_shear(struct wmOperatorType *ot)
 	ot->poll_property = transform_poll_property;
 
 	RNA_def_float(ot->srna, "value", 0, -FLT_MAX, FLT_MAX, "Offset", "", -FLT_MAX, FLT_MAX);
+	RNA_def_enum(ot->srna, "shear_axis", rna_enum_axis_xy_items, 0, "Shear Axis", "");
 
 	WM_operatortype_props_advanced_begin(ot);
 
-	Transform_Properties(ot, P_PROPORTIONAL | P_MIRROR | P_SNAP | P_GPENCIL_EDIT);
-	// XXX Shear axis?
+	Transform_Properties(ot, P_PROPORTIONAL | P_MIRROR | P_SNAP | P_GPENCIL_EDIT | P_AXIS | P_AXIS_ORTHO);
 }
 
 static void TRANSFORM_OT_push_pull(struct wmOperatorType *ot)
@@ -1017,27 +1032,6 @@ static void TRANSFORM_OT_edge_crease(struct wmOperatorType *ot)
 	Transform_Properties(ot, P_SNAP);
 }
 
-static int edge_bevelweight_exec(bContext *C, wmOperator *op)
-{
-	Mesh *me = (Mesh *)CTX_data_edit_object(C)->data;
-
-	/* auto-enable bevel edge weight drawing, then chain to common transform code */
-	me->drawflag |= ME_DRAWBWEIGHTS;
-
-	return transform_exec(C, op);
-}
-
-static int edge_bevelweight_invoke(bContext *C, wmOperator *op, const wmEvent *event)
-{
-	Mesh *me = (Mesh *)CTX_data_edit_object(C)->data;
-
-	/* auto-enable bevel edge weight drawing, then chain to common transform code */
-	me->drawflag |= ME_DRAWBWEIGHTS;
-
-	return transform_invoke(C, op, event);
-}
-
-
 static void TRANSFORM_OT_edge_bevelweight(struct wmOperatorType *ot)
 {
 	/* identifiers */
@@ -1047,8 +1041,8 @@ static void TRANSFORM_OT_edge_bevelweight(struct wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_BLOCKING;
 
 	/* api callbacks */
-	ot->invoke = edge_bevelweight_invoke;
-	ot->exec   = edge_bevelweight_exec;
+	ot->invoke = transform_invoke;
+	ot->exec   = transform_exec;
 	ot->modal  = transform_modal;
 	ot->cancel = transform_cancel;
 	ot->poll   = ED_operator_editmesh;
@@ -1132,6 +1126,58 @@ static void TRANSFORM_OT_transform(struct wmOperatorType *ot)
 	        ot, P_AXIS | P_CONSTRAINT | P_PROPORTIONAL | P_MIRROR | P_ALIGN_SNAP | P_GPENCIL_EDIT | P_CENTER);
 }
 
+static int transform_from_gizmo_invoke(bContext *C, wmOperator *UNUSED(op), const wmEvent *UNUSED(event))
+{
+	bToolRef *tref = WM_toolsystem_ref_from_context(C);
+	if (tref) {
+		ARegion *ar = CTX_wm_region(C);
+		wmGizmoMap *gzmap = ar->gizmo_map;
+		wmGizmoGroup *gzgroup = gzmap ? WM_gizmomap_group_find(gzmap, "TRANSFORM_GGT_gizmo") : NULL;
+		if (gzgroup != NULL) {
+			PointerRNA gzg_ptr;
+			WM_toolsystem_ref_properties_ensure_from_gizmo_group(tref, gzgroup->type, &gzg_ptr);
+			const int drag_action = RNA_enum_get(&gzg_ptr, "drag_action");
+			const char *op_id = NULL;
+			switch (drag_action) {
+				case SCE_GIZMO_SHOW_TRANSLATE:
+					op_id = "TRANSFORM_OT_translate";
+					break;
+				case SCE_GIZMO_SHOW_ROTATE:
+					op_id = "TRANSFORM_OT_rotate";
+					break;
+				case SCE_GIZMO_SHOW_SCALE:
+					op_id = "TRANSFORM_OT_resize";
+					break;
+				default:
+					break;
+			}
+			if (op_id) {
+				wmOperatorType *ot = WM_operatortype_find(op_id, true);
+				PointerRNA op_ptr;
+				WM_operator_properties_create_ptr(&op_ptr, ot);
+				RNA_boolean_set(&op_ptr, "release_confirm", true);
+				WM_operator_name_call_ptr(C, ot, WM_OP_INVOKE_DEFAULT, &op_ptr);
+				WM_operator_properties_free(&op_ptr);
+				return OPERATOR_FINISHED;
+			}
+		}
+	}
+	return OPERATOR_PASS_THROUGH;
+}
+
+/* Use with 'TRANSFORM_GGT_gizmo'. */
+static void TRANSFORM_OT_from_gizmo(struct wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name   = "Transform From Gizmo";
+	ot->description = "Transform selected items by mode type";
+	ot->idname = "TRANSFORM_OT_from_gizmo";
+	ot->flag = 0;
+
+	/* api callbacks */
+	ot->invoke = transform_from_gizmo_invoke;
+}
+
 void transform_operatortypes(void)
 {
 	TransformModeItem *tmode;
@@ -1145,174 +1191,18 @@ void transform_operatortypes(void)
 	WM_operatortype_append(TRANSFORM_OT_select_orientation);
 	WM_operatortype_append(TRANSFORM_OT_create_orientation);
 	WM_operatortype_append(TRANSFORM_OT_delete_orientation);
+
+	WM_operatortype_append(TRANSFORM_OT_from_gizmo);
 }
 
-void transform_keymap_for_space(wmKeyConfig *keyconf, wmKeyMap *keymap, int spaceid)
+void ED_keymap_transform(wmKeyConfig *keyconf)
 {
-	wmKeyMapItem *kmi;
-	wmKeyMap *modalmap;
+	wmKeyMap *modalmap = transform_modal_keymap(keyconf);
 
-	/* transform.c, only adds modal map once, checks if it's there */
-	modalmap = transform_modal_keymap(keyconf);
+	TransformModeItem *tmode;
 
-	/* assign map to operators only the first time */
-	if (modalmap) {
-		TransformModeItem *tmode;
-
-		for (tmode = transform_modes; tmode->idname; tmode++) {
-			WM_modalkeymap_assign(modalmap, tmode->idname);
-		}
-		WM_modalkeymap_assign(modalmap, "TRANSFORM_OT_transform");
+	for (tmode = transform_modes; tmode->idname; tmode++) {
+		WM_modalkeymap_assign(modalmap, tmode->idname);
 	}
-
-	switch (spaceid) {
-		case SPACE_VIEW3D:
-			WM_keymap_add_item(keymap, OP_TRANSLATION, GKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_TRANSLATION, EVT_TWEAK_S, KM_ANY, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_ROTATION, RKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_RESIZE, SKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_BEND, WKEY, KM_PRESS, KM_SHIFT, 0);
-
-			WM_keymap_add_item(keymap, OP_TOSPHERE, SKEY, KM_PRESS, KM_ALT | KM_SHIFT, 0);
-
-			WM_keymap_add_item(keymap, OP_SHEAR, SKEY, KM_PRESS, KM_ALT | KM_CTRL | KM_SHIFT, 0);
-
-			WM_keymap_add_item(keymap, "TRANSFORM_OT_select_orientation", SPACEKEY, KM_PRESS, KM_ALT, 0);
-
-#ifdef USE_WM_KEYMAP_27X
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_create_orientation", SPACEKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-			RNA_boolean_set(kmi->ptr, "use", true);
-#endif
-
-			WM_keymap_add_item(keymap, OP_MIRROR, MKEY, KM_PRESS, KM_CTRL, 0);
-
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_snap");
-
-			WM_keymap_add_panel(keymap, "VIEW3D_PT_snapping", TABKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-
-			/* Will fall-through to texture-space transform. */
-			kmi = WM_keymap_add_item(keymap, "OBJECT_OT_transform_axis_target", TKEY, KM_PRESS, KM_SHIFT, 0);
-
-#ifdef USE_WM_KEYMAP_27X
-			kmi = WM_keymap_add_item(keymap, OP_TRANSLATION, TKEY, KM_PRESS, KM_SHIFT, 0);
-			RNA_boolean_set(kmi->ptr, "texture_space", true);
-
-			kmi = WM_keymap_add_item(keymap, OP_RESIZE, TKEY, KM_PRESS, KM_SHIFT | KM_ALT, 0);
-			RNA_boolean_set(kmi->ptr, "texture_space", true);
-#endif
-
-			WM_keymap_add_item(keymap, OP_SKIN_RESIZE, AKEY, KM_PRESS, KM_CTRL, 0);
-
-			break;
-		case SPACE_ACTION:
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", GKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_TRANSLATE);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", EVT_TWEAK_S, KM_ANY, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_TRANSLATE);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", EKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_EXTEND);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", SKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_SCALE);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", TKEY, KM_PRESS, KM_SHIFT, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_SLIDE);
-			break;
-		case SPACE_IPO:
-			WM_keymap_add_item(keymap, OP_TRANSLATION, GKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_TRANSLATION, EVT_TWEAK_S, KM_ANY, 0, 0);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", EKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_EXTEND);
-
-			WM_keymap_add_item(keymap, OP_ROTATION, RKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_RESIZE, SKEY, KM_PRESS, 0, 0);
-			break;
-		case SPACE_NLA:
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", GKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TRANSLATION);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", EVT_TWEAK_S, KM_ANY, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TRANSLATION);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", EKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_EXTEND);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", SKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_SCALE);
-			break;
-		case SPACE_NODE:
-			WM_keymap_add_item(keymap, "NODE_OT_translate_attach", GKEY, KM_PRESS, 0, 0);
-			WM_keymap_add_item(keymap, "NODE_OT_translate_attach", EVT_TWEAK_A, KM_ANY, 0, 0);
-			WM_keymap_add_item(keymap, "NODE_OT_translate_attach", EVT_TWEAK_S, KM_ANY, 0, 0);
-			/* NB: small trick: macro operator poll may fail due to library data edit,
-			 * in that case the secondary regular operators are called with same keymap.
-			 */
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_translate", GKEY, KM_PRESS, 0, 0);
-			RNA_boolean_set(kmi->ptr, "release_confirm", true);
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_translate", EVT_TWEAK_A, KM_ANY, 0, 0);
-			RNA_boolean_set(kmi->ptr, "release_confirm", true);
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_translate", EVT_TWEAK_S, KM_ANY, 0, 0);
-			RNA_boolean_set(kmi->ptr, "release_confirm", true);
-
-			WM_keymap_add_item(keymap, OP_ROTATION, RKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_RESIZE, SKEY, KM_PRESS, 0, 0);
-
-			/* detach and translate */
-			WM_keymap_add_item(keymap, "NODE_OT_move_detach_links", DKEY, KM_PRESS, KM_ALT, 0);
-			/* XXX release_confirm is set in the macro operator definition */
-			WM_keymap_add_item(keymap, "NODE_OT_move_detach_links_release", EVT_TWEAK_A, KM_ANY, KM_ALT, 0);
-			WM_keymap_add_item(keymap, "NODE_OT_move_detach_links", EVT_TWEAK_S, KM_ANY, KM_ALT, 0);
-
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_snap");
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", TABKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.snap_node_element");
-			break;
-		case SPACE_SEQ:
-			WM_keymap_add_item(keymap, OP_SEQ_SLIDE, GKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_SEQ_SLIDE, EVT_TWEAK_S, KM_ANY, 0, 0);
-
-			kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", EKEY, KM_PRESS, 0, 0);
-			RNA_enum_set(kmi->ptr, "mode", TFM_TIME_EXTEND);
-			break;
-		case SPACE_IMAGE:
-			WM_keymap_add_item(keymap, OP_TRANSLATION, GKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_TRANSLATION, EVT_TWEAK_S, KM_ANY, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_ROTATION, RKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_RESIZE, SKEY, KM_PRESS, 0, 0);
-
-			WM_keymap_add_item(keymap, OP_SHEAR, SKEY, KM_PRESS, KM_ALT | KM_CTRL | KM_SHIFT, 0);
-
-			WM_keymap_add_item(keymap, "TRANSFORM_OT_mirror", MKEY, KM_PRESS, KM_CTRL, 0);
-
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_toggle", TABKEY, KM_PRESS, KM_SHIFT, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.use_snap");
-
-			kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", TABKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-			RNA_string_set(kmi->ptr, "data_path", "tool_settings.snap_uv_element");
-			break;
-		case SPACE_CLIP:
-			WM_keymap_add_item(keymap, OP_TRANSLATION, GKEY, KM_PRESS, 0, 0);
-			WM_keymap_add_item(keymap, OP_TRANSLATION, EVT_TWEAK_S, KM_ANY, 0, 0);
-			WM_keymap_add_item(keymap, OP_RESIZE, SKEY, KM_PRESS, 0, 0);
-			WM_keymap_add_item(keymap, OP_ROTATION, RKEY, KM_PRESS, 0, 0);
-			break;
-		default:
-			break;
-	}
+	WM_modalkeymap_assign(modalmap, "TRANSFORM_OT_transform");
 }

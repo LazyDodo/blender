@@ -46,6 +46,7 @@ const EnumPropertyItem rna_enum_region_type_items[] = {
 	{RGN_TYPE_TOOLS, "TOOLS", 0, "Tools", ""},
 	{RGN_TYPE_TOOL_PROPS, "TOOL_PROPS", 0, "Tool Properties", ""},
 	{RGN_TYPE_PREVIEW, "PREVIEW", 0, "Preview", ""},
+	{RGN_TYPE_NAV_BAR, "NAVIGATION_BAR", 0, "Navigation Bar", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -322,11 +323,24 @@ static void rna_def_area_spaces(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_property_ui_text(prop, "Active Space", "Space currently being displayed in this area");
 }
 
+static void rna_def_area_api(StructRNA *srna)
+{
+	FunctionRNA *func;
+	PropertyRNA *parm;
+
+	RNA_def_function(srna, "tag_redraw", "ED_area_tag_redraw");
+
+	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
+	RNA_def_function_ui_description(func, "Set the header status text");
+	parm = RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, None clears the text");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	RNA_def_property_clear_flag(parm, PROP_NEVER_NULL);
+}
+
 static void rna_def_area(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-	FunctionRNA *func;
 
 	srna = RNA_def_struct(brna, "Area", NULL);
 	RNA_def_struct_ui_text(srna, "Area", "Area in a subdivided screen, containing an editor");
@@ -389,11 +403,7 @@ static void rna_def_area(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Height", "Area height");
 
-	RNA_def_function(srna, "tag_redraw", "ED_area_tag_redraw");
-
-	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
-	RNA_def_function_ui_description(func, "Set the header status text");
-	RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, no argument clears the text");
+	rna_def_area_api(srna);
 }
 
 static void rna_def_view2d_api(StructRNA *srna)
@@ -511,7 +521,7 @@ static void rna_def_screen(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "Screen", "ID");
 	RNA_def_struct_sdna(srna, "Screen"); /* it is actually bScreen but for 2.5 the dna is patched! */
 	RNA_def_struct_ui_text(srna, "Screen", "Screen data-block, defining the layout of areas in a window");
-	RNA_def_struct_ui_icon(srna, ICON_SPLITSCREEN);
+	RNA_def_struct_ui_icon(srna, ICON_WORKSPACE);
 
 	prop = RNA_def_property(srna, "layout_name", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_funcs(prop, "rna_Screen_layout_name_get", "rna_Screen_layout_name_length",

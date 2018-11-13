@@ -40,10 +40,9 @@
 extern "C" {
 	#include "BLI_utildefines.h"
 
-	#include "BKE_main.h"
+	#include "BKE_customdata.h"
 	#include "BKE_global.h"
 	#include "BKE_library.h"
-	#include "BKE_customdata.h"
 	#include "BKE_material.h"
 	#include "BKE_mesh.h"
 }
@@ -151,9 +150,9 @@ void GeometryExporter::operator()(Object *ob)
 	closeGeometry();
 
 	if (this->export_settings->include_shapekeys) {
-		Key * key = BKE_key_from_object(ob);
+		Key *key = BKE_key_from_object(ob);
 		if (key) {
-			KeyBlock * kb = (KeyBlock *)key->block.first;
+			KeyBlock *kb = (KeyBlock *)key->block.first;
 			//skip the basis
 			kb = kb->next;
 			for (; kb; kb = kb->next) {

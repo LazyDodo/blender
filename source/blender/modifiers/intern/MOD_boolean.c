@@ -48,10 +48,11 @@
 
 #include "BLI_alloca.h"
 #include "BLI_math_geom.h"
-#include "BKE_material.h"
+
 #include "BKE_global.h"  /* only to check G.debug */
-#include "BKE_mesh.h"
 #include "BKE_library.h"
+#include "BKE_material.h"
+#include "BKE_mesh.h"
 
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -105,17 +106,17 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 
-
 static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh)
 {
 	BooleanModifierData *bmd = (BooleanModifierData *) md;
-    Mesh* mesh_other;
-    Mesh* result;
-    bool mesh_other_free;
+	Mesh *result = mesh;
 
-    if (!bmd->object) {
-        return mesh;
-    }
+	Mesh *mesh_other;
+	bool mesh_other_free;
+
+	if (!bmd->object) {
+		return result;
+	}
 
     Object *ob_eval = DEG_get_evaluated_object(ctx->depsgraph, bmd->object);
     mesh_other = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_eval, &mesh_other_free);
@@ -123,16 +124,16 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
     result = BKE_boolean_operation(mesh, ctx->object, mesh_other, bmd->object, bmd->operation,
                                       bmd->double_threshold, bmd);
 
-    if (mesh_other != NULL && mesh_other_free) {
-        BKE_id_free(NULL, mesh_other);
-    }
-
     /* if new mesh returned, return it; otherwise there was
      * an error, so delete the modifier object */
     if (result == NULL)
         modifier_setError(md, "Cannot execute boolean operation");
 
-    return result;
+	if (mesh_other != NULL && mesh_other_free) {
+		BKE_id_free(NULL, mesh_other);
+	}
+
+	return result;
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(md))
@@ -159,14 +160,12 @@ ModifierTypeInfo modifierType_Boolean = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

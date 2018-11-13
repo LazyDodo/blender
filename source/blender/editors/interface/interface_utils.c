@@ -43,6 +43,7 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_library.h"
 #include "BKE_report.h"
 
 #include "MEM_guardedalloc.h"
@@ -120,7 +121,7 @@ uiBut *uiDefAutoButR(uiBlock *block, PointerRNA *ptr, PropertyRNA *prop, int ind
 				but = uiDefButR_prop(block, UI_BTYPE_TEXT, 0, name, x1, y1, x2, y2, ptr, prop, index, 0, 0, -1, -1, NULL);
 
 			if (RNA_property_flag(prop) & PROP_TEXTEDIT_UPDATE) {
-				/* TEXTEDIT_UPDATE is usally used for search buttons. For these we also want
+				/* TEXTEDIT_UPDATE is usually used for search buttons. For these we also want
 				 * the 'x' icon to clear search string, so setting VALUE_CLEAR flag, too. */
 				UI_but_flag_enable(but, UI_BUT_TEXTEDIT_UPDATE | UI_BUT_VALUE_CLEAR);
 			}
@@ -270,22 +271,28 @@ void ui_rna_collection_search_cb(const struct bContext *C, void *arg, const char
 				continue;
 		}
 
-		name = RNA_struct_name_get_alloc(&itemptr, NULL, 0, NULL); /* could use the string length here */
 		iconid = 0;
 		if (itemptr.type && RNA_struct_is_ID(itemptr.type)) {
+			name = MEM_malloc_arrayN(MAX_ID_FULL_NAME, sizeof(*name), __func__);
+			BKE_id_full_name_ui_prefix_get(name, itemptr.data);
 			iconid = ui_id_icon_get(C, itemptr.data, false);
+		}
+		else {
+			name = RNA_struct_name_get_alloc(&itemptr, NULL, 0, NULL); /* could use the string length here */
 		}
 
 		if (name) {
 			if (skip_filter || BLI_strcasestr(name, str)) {
 				cis = MEM_callocN(sizeof(CollItemSearch), "CollectionItemSearch");
 				cis->data = itemptr.data;
-				cis->name = MEM_dupallocN(name);
+				cis->name = name;  /* Still ownership of that memory. */
 				cis->index = i;
 				cis->iconid = iconid;
 				BLI_addtail(items_list, cis);
 			}
-			MEM_freeN(name);
+			else {
+				MEM_freeN(name);
+			}
 		}
 
 		i++;

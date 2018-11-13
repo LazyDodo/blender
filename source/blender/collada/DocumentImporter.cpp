@@ -58,15 +58,14 @@ extern "C" {
 
 #include "BKE_camera.h"
 #include "BKE_collection.h"
-#include "BKE_main.h"
+#include "BKE_fcurve.h"
+#include "BKE_global.h"
+#include "BKE_image.h"
 #include "BKE_layer.h"
 #include "BKE_lamp.h"
 #include "BKE_library.h"
-#include "BKE_fcurve.h"
-#include "BKE_scene.h"
-#include "BKE_global.h"
 #include "BKE_material.h"
-#include "BKE_image.h"
+#include "BKE_scene.h"
 
 #include "BLI_path_util.h"
 
@@ -695,8 +694,10 @@ finally:
 	return root_objects;
 }
 
-/** When this method is called, the writer must write the entire visual scene.
- *  Return The writer should return true, if writing succeeded, false otherwise. */
+/**
+ * When this method is called, the writer must write the entire visual scene.
+ * Return The writer should return true, if writing succeeded, false otherwise.
+ */
 bool DocumentImporter::writeVisualScene(const COLLADAFW::VisualScene *visualScene)
 {
 	if (mImportStage != General)

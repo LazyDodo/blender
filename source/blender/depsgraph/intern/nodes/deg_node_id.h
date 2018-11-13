@@ -31,10 +31,13 @@
 #pragma once
 
 #include "intern/nodes/deg_node.h"
+#include "BLI_sys_types.h"
 
 namespace DEG {
 
 struct ComponentDepsNode;
+
+typedef uint64_t IDComponentsMask;
 
 /* ID-Block Reference */
 struct IDDepsNode : public DepsNode {
@@ -62,6 +65,8 @@ struct IDDepsNode : public DepsNode {
 
 	void finalize_build(Depsgraph *graph);
 
+	IDComponentsMask get_visible_components_mask() const;
+
 	/* ID Block referenced. */
 	ID *id_orig;
 	ID *id_cow;
@@ -73,14 +78,16 @@ struct IDDepsNode : public DepsNode {
 	 * TODO(sergey): Only needed for until really granular updates
 	 * of all the entities.
 	 */
-	int eval_flags;
+	uint32_t eval_flags;
+	uint32_t previous_eval_flags;
 
 	eDepsNode_LinkedState_Type linked_state;
 
-	/* Indicates the datablock is visible, meaning, it is to be evaluated by
-	 * the dependency graph.
-	 */
-	bool is_visible;
+	/* Indicates the datablock is visible in the evaluated scene. */
+	bool is_directly_visible;
+
+	IDComponentsMask visible_components_mask;
+	IDComponentsMask previously_visible_components_mask;
 
 	DEG_DEPSNODE_DECLARE;
 };

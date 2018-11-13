@@ -346,7 +346,40 @@ static void createTransTexspace(TransInfo *t)
 	copy_v3_v3(td->ext->isize, td->ext->size);
 }
 
-static void createTransCursor3D(TransInfo *t)
+/* -------------------------------------------------------------------- */
+/** \name Cursor Transform Creation
+ *
+ * Instead of transforming the selection, move the 2D/3D cursor.
+ *
+ * \{ */
+
+static void createTransCursor_image(TransInfo *t)
+{
+	TransData *td;
+	SpaceImage *sima = t->sa->spacedata.first;
+	float *cursor_location = sima->cursor;
+
+	{
+		BLI_assert(t->data_container_len == 1);
+		TransDataContainer *tc = t->data_container;
+		tc->data_len = 1;
+		td = tc->data = MEM_callocN(sizeof(TransData), "TransTexspace");
+		td->ext = tc->data_ext = MEM_callocN(sizeof(TransDataExtension), "TransTexspace");
+	}
+
+	td->flag = TD_SELECTED;
+	copy_v3_v3(td->center, cursor_location);
+	td->ob = NULL;
+
+	unit_m3(td->mtx);
+	unit_m3(td->axismtx);
+	pseudoinverse_m3_m3(td->smtx, td->mtx, PSEUDOINVERSE_EPSILON);
+
+	td->loc = cursor_location;
+	copy_v3_v3(td->iloc, cursor_location);
+}
+
+static void createTransCursor_view3d(TransInfo *t)
 {
 	TransData *td;
 
@@ -382,6 +415,8 @@ static void createTransCursor3D(TransInfo *t)
 	td->ext->quat = cursor->rotation;
 	copy_qt_qt(td->ext->iquat, cursor->rotation);
 }
+
+/** \} */
 
 /* ********************* edge (for crease) ***** */
 
@@ -803,7 +838,7 @@ int count_set_pose_transflags(Object *ob, const int mode, const short around, bo
 					}
 				}
 				else {
-					has_translate_rotate[1] = true;
+					has_translate_rotate[0] = true;
 				}
 			}
 		}
@@ -1098,19 +1133,8 @@ static short pose_grab_with_ik(Main *bmain, Object *ob)
 /**
  * When objects array is NULL, use 't->data_container' as is.
  */
-static void createTransPose(TransInfo *t, Object **objects, uint objects_len)
+static void createTransPose(TransInfo *t)
 {
-	if (objects != NULL) {
-		if (t->data_container) {
-			MEM_freeN(t->data_container);
-		}
-		t->data_container = MEM_callocN(sizeof(*t->data_container) * objects_len, __func__);
-		t->data_container_len = objects_len;
-		int th_index;
-		FOREACH_TRANS_DATA_CONTAINER_INDEX (t, tc, th_index) {
-			tc->poseobj = objects[th_index];
-		}
-	}
 	Main *bmain = CTX_data_main(t->context);
 
 	t->data_len_all = 0;
@@ -1672,7 +1696,8 @@ static void createTransCurveVerts(TransInfo *t)
 		int a;
 		int count = 0, countsel = 0;
 		const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
-		short hide_handles = (cu->drawflag & CU_HIDE_HANDLES);
+		View3D *v3d = t->view;
+		short hide_handles = (v3d != NULL) ? ((v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) : false;
 		ListBase *nurbs;
 
 		/* to be sure */
@@ -2388,7 +2413,7 @@ static struct TransIslandData *editmesh_islands_info_calc(
 
 	vert_map = MEM_mallocN(sizeof(*vert_map) * bm->totvert, __func__);
 	/* we shouldn't need this, but with incorrect selection flushing
-	 * its possible we have a selected vertex thats not in a face, for now best not crash in that case. */
+	 * its possible we have a selected vertex that's not in a face, for now best not crash in that case. */
 	copy_vn_i(vert_map, bm->totvert, -1);
 
 	BM_mesh_elem_table_ensure(bm, htype);
@@ -3001,7 +3026,7 @@ void flushTransSeq(TransInfo *t)
 
 		if (seq != seq_prev) {
 			if (seq->depth == 0) {
-				/* test overlap, displayes red outline */
+				/* test overlap, displays red outline */
 				seq->flag &= ~SEQ_OVERLAP;
 				if (BKE_sequence_test_overlap(seqbasep, seq)) {
 					seq->flag |= SEQ_OVERLAP;
@@ -3198,11 +3223,7 @@ static void createTransUVs(bContext *C, TransInfo *t)
 		}
 
 		if (sima->flag & SI_LIVE_UNWRAP) {
-			/* TODO(campbell): xform: Only active object currently!
-			 * it uses a static variable. */
-			if (tc->is_active) {
-				ED_uvedit_live_unwrap_begin(t->scene, tc->obedit);
-			}
+			ED_uvedit_live_unwrap_begin(t->scene, tc->obedit);
 		}
 
 finally:
@@ -4196,7 +4217,7 @@ static void createTransActionData(bContext *C, TransInfo *t)
 					else {
 						bGPDframe *gpf_iter;
 						int min = INT_MAX;
-						for (gpf_iter = gpl->frames.first; gpf_iter; gpf_iter = gpf->next) {
+						for (gpf_iter = gpl->frames.first; gpf_iter; gpf_iter = gpf_iter->next) {
 							if (gpf_iter->flag & GP_FRAME_SELECT) {
 								if (FrameOnMouseSide(t->frame_side, (float)gpf_iter->framenum, cfra)) {
 									int val = abs(gpf->framenum - gpf_iter->framenum);
@@ -5579,6 +5600,7 @@ static bool constraints_list_needinv(TransInfo *t, ListBase *list)
 				if (ELEM(con->type,
 				         CONSTRAINT_TYPE_FOLLOWPATH,
 				         CONSTRAINT_TYPE_CLAMPTO,
+				         CONSTRAINT_TYPE_ARMATURE,
 				         CONSTRAINT_TYPE_OBJECTSOLVER,
 				         CONSTRAINT_TYPE_FOLLOWTRACK))
 				{
@@ -5918,10 +5940,10 @@ static void clear_trans_object_base_flags(TransInfo *t)
 }
 
 /* auto-keyframing feature - for objects
- *  tmode: should be a transform mode
+ * tmode: should be a transform mode
  */
 // NOTE: context may not always be available, so must check before using it as it's a luxury for a few cases
-void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, Object *ob, int tmode)
+void autokeyframe_object(bContext *C, Scene *scene, ViewLayer *view_layer, Object *ob, int tmode)
 {
 	Main *bmain = CTX_data_main(C);
 	ID *id = &ob->id;
@@ -6017,33 +6039,33 @@ void autokeyframe_ob_cb_func(bContext *C, Scene *scene, ViewLayer *view_layer, O
 			ANIM_apply_keyingset(C, &dsources, NULL, ks, MODIFYKEY_MODE_INSERT, cfra);
 		}
 
-		/* only calculate paths if there are paths to be recalculated,
-		 * assuming that since we've autokeyed the transforms this is
-		 * now safe to apply...
-		 *
-		 * NOTE: only do this when there's context info
-		 */
-		if (C && (ob->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-			//ED_objects_clear_paths(C); // XXX for now, don't need to clear
-			ED_objects_recalculate_paths(C, scene);
-
-			/* XXX: there's potential here for problems with unkeyed rotations/scale,
-			 *      but for now (until proper data-locality for baking operations),
-			 *      this should be a better fix for T24451 and T37755
-			 */
-		}
-
 		/* free temp info */
 		BLI_freelistN(&dsources);
 	}
 }
 
+/* Return if we need to update motion paths, only if they already exist,
+ * and we will insert a keyframe at the end of transform. */
+bool motionpath_need_update_object(Scene *scene, Object *ob)
+{
+	/* XXX: there's potential here for problems with unkeyed rotations/scale,
+	 *      but for now (until proper data-locality for baking operations),
+	 *      this should be a better fix for T24451 and T37755
+	 */
+
+	if (autokeyframe_cfra_can_key(scene, &ob->id)) {
+		return (ob->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS) != 0;
+	}
+
+	return false;
+}
+
 /* auto-keyframing feature - for poses/pose-channels
- *  tmode: should be a transform mode
- *	targetless_ik: has targetless ik been done on any channels?
+ * tmode: should be a transform mode
+ * targetless_ik: has targetless ik been done on any channels?
  */
 // NOTE: context may not always be available, so must check before using it as it's a luxury for a few cases
-void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode, short targetless_ik)
+void autokeyframe_pose(bContext *C, Scene *scene, Object *ob, int tmode, short targetless_ik)
 {
 	Main *bmain = CTX_data_main(C);
 	ID *id = &ob->id;
@@ -6163,16 +6185,6 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode,
 				BLI_freelistN(&dsources);
 			}
 		}
-
-		/* do the bone paths
-		 *  - only do this when there is context info, since we need that to resolve
-		 *	  how to do the updates and so on...
-		 *	- do not calculate unless there are paths already to update...
-		 */
-		if (C && (ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-			//ED_pose_clear_paths(C, ob); // XXX for now, don't need to clear
-			ED_pose_recalculate_paths(C, scene, ob);
-		}
 	}
 	else {
 		/* tag channels that should have unkeyed data */
@@ -6183,6 +6195,17 @@ void autokeyframe_pose_cb_func(bContext *C, Scene *scene, Object *ob, int tmode,
 			}
 		}
 	}
+}
+
+/* Return if we need to update motion paths, only if they already exist,
+ * and we will insert a keyframe at the end of transform. */
+bool motionpath_need_update_pose(Scene *scene, Object *ob)
+{
+	if (autokeyframe_cfra_can_key(scene, &ob->id)) {
+		return (ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS) != 0;
+	}
+
+	return false;
 }
 
 static void special_aftertrans_update__movieclip(bContext *C, TransInfo *t)
@@ -6672,7 +6695,16 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			}
 		}
 	}
+	else if (t->flag & T_POSE && (t->mode == TFM_BONESIZE)) {
+		/* Handle the exception where for TFM_BONESIZE in edit mode we pretend to be
+		 * in pose mode (to use bone orientation matrix), in that case we don't do operations like autokeyframing. */
+		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+			ob = tc->poseobj;
+			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		}
+	}
 	else if (t->flag & T_POSE) {
+		GSet *motionpath_updates = BLI_gset_ptr_new("motionpath updates");
 
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 
@@ -6712,7 +6744,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 
 			/* automatic inserting of keys and unkeyed tagging - only if transform wasn't canceled (or TFM_DUMMY) */
 			if (!canceled && (t->mode != TFM_DUMMY)) {
-				autokeyframe_pose_cb_func(C, t->scene, ob, t->mode, targetless_ik);
+				autokeyframe_pose(C, t->scene, ob, t->mode, targetless_ik);
 				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			}
 			else if (arm->flag & ARM_DELAYDEFORM) {
@@ -6726,7 +6758,20 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 			else {
 				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 			}
+
+			if (t->mode != TFM_DUMMY && motionpath_need_update_pose(t->scene, ob)) {
+				BLI_gset_insert(motionpath_updates, ob);
+			}
 		}
+
+		/* Update motion paths once for all transformed bones in an object. */
+		GSetIterator gs_iter;
+		GSET_ITER (gs_iter, motionpath_updates) {
+			bool current_frame_only = canceled;
+			ob = BLI_gsetIterator_getKey(&gs_iter);
+			ED_pose_recalculate_paths(C, t->scene, ob, current_frame_only);
+		}
+		BLI_gset_free(motionpath_updates, NULL);
 	}
 	else if (t->options & CTX_PAINT_CURVE) {
 		/* pass */
@@ -6742,13 +6787,12 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 		/* do nothing */
 	}
 	else { /* Objects */
-		int i;
-
 		BLI_assert(t->flag & (T_OBJECT | T_TEXTURE));
 
 		TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_SINGLE(t);
+		bool motionpath_update = false;
 
-		for (i = 0; i < tc->data_len; i++) {
+		for (int i = 0; i < tc->data_len; i++) {
 			TransData *td = tc->data + i;
 			ListBase pidlist;
 			PTCacheID *pid;
@@ -6780,8 +6824,10 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 
 			/* Set autokey if necessary */
 			if (!canceled) {
-				autokeyframe_ob_cb_func(C, t->scene, t->view_layer, ob, t->mode);
+				autokeyframe_object(C, t->scene, t->view_layer, ob, t->mode);
 			}
+
+			motionpath_update |= motionpath_need_update_object(t->scene, ob);
 
 			/* restore rigid body transform */
 			if (ob->rigidbody_object && canceled) {
@@ -6800,6 +6846,12 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 				}
 #endif
 			}
+		}
+
+		if (motionpath_update) {
+			/* Update motion paths once for all transformed objects. */
+			bool current_frame_only = canceled;
+			ED_objects_recalculate_paths(C, t->scene, current_frame_only);
 		}
 	}
 
@@ -8425,7 +8477,12 @@ void createTransData(bContext *C, TransInfo *t)
 		t->flag |= T_CURSOR;
 		t->obedit_type = -1;
 
-		createTransCursor3D(t);
+		if (t->spacetype == SPACE_IMAGE) {
+			createTransCursor_image(t);
+		}
+		else {
+			createTransCursor_view3d(t);
+		}
 		countAndCleanTransDataContainer(t);
 	}
 	else if (t->options & CTX_TEXTURE) {
@@ -8437,7 +8494,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->options & CTX_EDGE) {
 		/* Multi object editing. */
-		initTransDataContainers_FromObjectData(t);
+		initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			tc->data_ext = NULL;
 		}
@@ -8487,7 +8544,7 @@ void createTransData(bContext *C, TransInfo *t)
 		}
 		else if (t->obedit_type == OB_MESH) {
 
-			initTransDataContainers_FromObjectData(t);
+			initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 			createTransUVs(C, t);
 			countAndCleanTransDataContainer(t);
 
@@ -8576,7 +8633,7 @@ void createTransData(bContext *C, TransInfo *t)
 	}
 	else if (t->obedit_type != -1) {
 		/* Multi object editing. */
-		initTransDataContainers_FromObjectData(t);
+		initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			tc->data_ext = NULL;
@@ -8640,8 +8697,8 @@ void createTransData(bContext *C, TransInfo *t)
 		// XXX active-layer checking isn't done as that should probably be checked through context instead
 
 		/* Multi object editing. */
-		initTransDataContainers_FromObjectData(t);
-		createTransPose(t, NULL, 0);
+		initTransDataContainers_FromObjectData(t, ob, NULL, 0);
+		createTransPose(t);
 		countAndCleanTransDataContainer(t);
 	}
 	else if (ob && (ob->mode & OB_MODE_WEIGHT_PAINT) && !(t->options & CTX_PAINT_CURVE)) {
@@ -8655,7 +8712,8 @@ void createTransData(bContext *C, TransInfo *t)
 					Object *objects[1];
 					objects[0] = ob_armature;
 					uint objects_len = 1;
-					createTransPose(t, objects, objects_len);
+					initTransDataContainers_FromObjectData(t, ob_armature, objects, objects_len);
+					createTransPose(t);
 					countAndCleanTransDataContainer(t);
 				}
 			}

@@ -43,6 +43,8 @@
 #include "BKE_bvhutils.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_runtime.h"
+#include "BKE_subdiv_ccg.h"
+#include "BKE_shrinkwrap.h"
 
 /* -------------------------------------------------------------------- */
 /** \name Mesh Runtime Struct Utils
@@ -196,6 +198,12 @@ void BKE_mesh_runtime_clear_geometry(Mesh *mesh)
 {
 	bvhcache_free(&mesh->runtime.bvh_cache);
 	MEM_SAFE_FREE(mesh->runtime.looptris.array);
+	/* TODO(sergey): Does this really belong here? */
+	if (mesh->runtime.subdiv_ccg != NULL) {
+		BKE_subdiv_ccg_destroy(mesh->runtime.subdiv_ccg);
+		mesh->runtime.subdiv_ccg = NULL;
+	}
+	BKE_shrinkwrap_discard_boundary_data(mesh);
 }
 
 /** \} */
@@ -238,7 +246,7 @@ static void mesh_runtime_debug_info_layers(
 
 	for (type = 0; type < CD_NUMTYPES; type++) {
 		if (CustomData_has_layer(cd, type)) {
-			/* note: doesnt account for multiple layers */
+			/* note: doesn't account for multiple layers */
 			const char *name = CustomData_layertype_name(type);
 			const int size = CustomData_sizeof(type);
 			const void *pt = CustomData_get_layer(cd, type);
@@ -265,7 +273,6 @@ char *BKE_mesh_runtime_debug_info(Mesh *me_eval)
 	const char *tstr;
 	switch (me_eval->type) {
 		case DM_TYPE_CDDM:     tstr = "DM_TYPE_CDDM";     break;
-		case DM_TYPE_EDITBMESH: tstr = "DM_TYPE_EDITMESH";  break;
 		case DM_TYPE_CCGDM:    tstr = "DM_TYPE_CCGDM";     break;
 		default:               tstr = "UNKNOWN";           break;
 	}
