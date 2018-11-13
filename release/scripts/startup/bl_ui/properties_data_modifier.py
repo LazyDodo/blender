@@ -828,7 +828,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label(text="Mode:")
         col.prop(md, "wrap_method", text="")
 
-        if md.wrap_method in {'PROJECT', 'NEAREST_SURFACEPOINT'}:
+        if md.wrap_method in {'PROJECT', 'NEAREST_SURFACEPOINT', 'TARGET_PROJECT'}:
             col.prop(md, "wrap_mode", text="")
 
         if md.wrap_method == 'PROJECT':
@@ -1771,7 +1771,7 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
 
         col = split.column()
         row = col.row(align=True)
-        row.prop(md, "thickness")
+        row.prop(md, "thickness", text="Thickness Factor")
 
         col.prop(md, "normalize_thickness")
 

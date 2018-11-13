@@ -39,6 +39,17 @@ from .properties_grease_pencil_common import (
 )
 
 
+class _km_template:
+    def select_actions(operator, *, type, value):
+        kw = {"type": type, "value": value}
+        return (
+            (operator, dict(mode='SET'), dict(**kw)),
+            (operator, dict(mode='ADD'), dict(**kw, shift=True)),
+            (operator, dict(mode='SUB'), dict(**kw, ctrl=True)),
+            (operator, dict(mode='AND'), dict(**kw, shift=True, ctrl=True)),
+        )
+
+
 def generate_from_enum_ex(
         context, *,
         icon_prefix,
@@ -313,14 +324,20 @@ class _defs_view3d_select:
             text="Select Box",
             icon="ops.generic.select_box",
             widget=None,
-            keymap=(
-                ("view3d.select_box",
-                 dict(mode='ADD'),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-                ("view3d.select_box",
-                 dict(mode='SUB'),
-                 dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
-            ),
+            keymap=_km_template.select_actions("view3d.select_box", type='EVT_TWEAK_A', value='ANY'),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def lasso():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("view3d.select_lasso")
+            layout.prop(props, "mode", expand=True)
+        return dict(
+            text="Select Lasso",
+            icon="ops.generic.select_lasso",
+            widget=None,
+            keymap=_km_template.select_actions("view3d.select_lasso", type='EVT_TWEAK_A', value='ANY'),
             draw_settings=draw_settings,
         )
 
@@ -352,25 +369,7 @@ class _defs_view3d_select:
             draw_cursor=draw_cursor,
         )
 
-    @ToolDef.from_fn
-    def lasso():
-        def draw_settings(context, layout, tool):
-            props = tool.operator_properties("view3d.select_lasso")
-            layout.prop(props, "mode", expand=True)
-        return dict(
-            text="Select Lasso",
-            icon="ops.generic.select_lasso",
-            widget=None,
-            keymap=(
-                ("view3d.select_lasso",
-                 dict(mode='ADD'),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-                ("view3d.select_lasso",
-                 dict(mode='SUB'),
-                 dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
-            ),
-            draw_settings=draw_settings,
-        )
+
 # -----------------------------------------------------------------------------
 # Object Modes (named based on context.mode)
 
@@ -1153,6 +1152,22 @@ class _defs_image_uv_select:
         )
 
     @ToolDef.from_fn
+    def lasso():
+        return dict(
+            text="Select Lasso",
+            icon="ops.generic.select_lasso",
+            widget=None,
+            keymap=(
+                ("uv.select_lasso",
+                 dict(deselect=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+                # ("uv.select_lasso",
+                #  dict(deselect=True),
+                #  dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
+            ),
+        )
+
+    @ToolDef.from_fn
     def circle():
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("uv.select_circle")
@@ -1170,22 +1185,6 @@ class _defs_image_uv_select:
                  dict(type='ACTIONMOUSE', value='PRESS', ctrl=True)),
             ),
             draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn
-    def lasso():
-        return dict(
-            text="Select Lasso",
-            icon="ops.generic.select_lasso",
-            widget=None,
-            keymap=(
-                ("uv.select_lasso",
-                 dict(deselect=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-                # ("uv.select_lasso",
-                #  dict(deselect=True),
-                #  dict(type='EVT_TWEAK_A', value='ANY', ctrl=True)),
-            ),
         )
 
 
@@ -1215,6 +1214,90 @@ class _defs_gpencil_paint:
             ),
         )
 
+    @staticmethod
+    def draw_color_selector(context, layout, gp_settings):
+        ma = gp_settings.material
+        row = layout.row(align=True)
+
+        icon_id = 0
+        if ma:
+            icon_id = ma.id_data.preview.icon_id
+            txt_ma = ma.name
+            maxw = 25
+            if len(txt_ma) > maxw:
+                txt_ma = txt_ma[:maxw - 5] + '..' + txt_ma[-3:]
+        else:
+            txt_ma = ""
+
+        row.label(text="Material:")
+        sub = row.row()
+        sub.ui_units_x = 8
+        sub.popover(
+            panel="TOPBAR_PT_gpencil_materials",
+            text=txt_ma,
+            icon_value=icon_id,
+        )
+
+        row.prop(gp_settings, "use_material_pin", text="")
+
+    def draw_settings_common(context, layout, tool):
+        row = layout.row(align=True)
+        ts = context.scene.tool_settings
+        gp_settings = ts.gpencil_paint
+        brush = gp_settings.brush
+        gp_brush = brush.gpencil_settings
+        row.template_ID_preview(gp_settings, "brush", rows=3, cols=8, hide_buttons=True)
+
+        if brush and brush.gpencil_tool == 'DRAW':
+            row = layout.row(align=True)
+            row.prop(brush, "size", text="Radius")
+            row = layout.row(align=True)
+            row.prop(gp_brush, "pen_strength", slider=True)
+
+            _defs_gpencil_paint.draw_color_selector(context, layout, gp_brush)
+
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def line(*, draw_settings):
+        return dict(
+            text="Line",
+            icon="ops.gpencil.primitive_line",
+            widget=None,
+            keymap=(
+                ("gpencil.primitive",
+                 dict(type='LINE', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def box(*, draw_settings):
+        return dict(
+            text="Box",
+            icon="ops.gpencil.primitive_box",
+            widget=None,
+            keymap=(
+                ("gpencil.primitive",
+                 dict(type='BOX', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def circle(*, draw_settings):
+        return dict(
+            text="Circle",
+            icon="ops.gpencil.primitive_circle",
+            widget=None,
+            keymap=(
+                ("gpencil.primitive",
+                 dict(type='CIRCLE', wait_for_input=False),
+                 dict(type='EVT_TWEAK_A', value='ANY')),
+            ),
+            draw_settings=draw_settings,
+        )
+
 
 class _defs_gpencil_edit:
     @ToolDef.from_fn
@@ -1232,15 +1315,28 @@ class _defs_gpencil_edit:
 
     @ToolDef.from_fn
     def box_select():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("gpencil.select_box")
+            layout.prop(props, "mode", expand=True)
         return dict(
             text="Select Box",
             icon="ops.generic.select_box",
             widget=None,
-            keymap=(
-                ("gpencil.select_box",
-                 dict(),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
+            keymap=_km_template.select_actions("gpencil.select_box", type='EVT_TWEAK_A', value='ANY'),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def lasso_select():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("gpencil.select_lasso")
+            layout.prop(props, "mode", expand=True)
+        return dict(
+            text="Select Lasso",
+            icon="ops.generic.select_lasso",
+            widget=None,
+            keymap=_km_template.select_actions("gpencil.select_lasso", type='EVT_TWEAK_A', value='ANY'),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -1253,19 +1349,9 @@ class _defs_gpencil_edit:
                 ("gpencil.select_circle",
                  dict(),
                  dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-        )
-
-    @ToolDef.from_fn
-    def lasso_select():
-        return dict(
-            text="Select Lasso",
-            icon="ops.generic.select_lasso",
-            widget=None,
-            keymap=(
-                ("gpencil.select_lasso",
-                 dict(),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
+                ("gpencil.select_circle",
+                 dict(deselect=True),
+                 dict(type='ACTIONMOUSE', value='PRESS', ctrl=True)),
             ),
         )
 
@@ -1298,177 +1384,25 @@ class _defs_gpencil_edit:
 
 class _defs_gpencil_sculpt:
 
-    def draw_settings_common(context, layout, tool):
-        ob = context.active_object
-        if ob and ob.mode == 'GPENCIL_SCULPT':
-            tool_settings = context.tool_settings
-            settings = tool_settings.gpencil_sculpt
-            tool = settings.tool
-            brush = settings.brush
-
-            layout.prop(brush, "size", slider=True)
-
-            row = layout.row(align=True)
-            row.prop(brush, "strength", slider=True)
-            row.prop(brush, "use_pressure_strength", text="")
-
-            if tool in {'THICKNESS', 'STRENGTH', 'PINCH', 'TWIST'}:
-                row.separator()
-                row.prop(brush, "direction", expand=True, text="")
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def smooth(*, draw_settings):
-        return dict(
-            text="Smooth",
-            icon="ops.gpencil.sculpt_smooth",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='SMOOTH', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def thickness(*, draw_settings):
-        return dict(
-            text="Thickness",
-            icon="ops.gpencil.sculpt_thickness",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='THICKNESS', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def strength(*, draw_settings):
-        return dict(
-            text="Strength",
-            icon="ops.gpencil.sculpt_strength",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='STRENGTH', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def grab(*, draw_settings):
-        return dict(
-            text="Grab",
-            icon="ops.gpencil.sculpt_grab",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='GRAB', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def push(*, draw_settings):
-        return dict(
-            text="Push",
-            icon="ops.gpencil.sculpt_push",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='PUSH', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def twist(*, draw_settings):
-        return dict(
-            text="Twist",
-            icon="ops.gpencil.sculpt_twist",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='TWIST', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def pinch(*, draw_settings):
-        return dict(
-            text="Pinch",
-            icon="ops.gpencil.sculpt_pinch",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='PINCH', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def randomize(*, draw_settings):
-        return dict(
-            text="Randomize",
-            icon="ops.gpencil.sculpt_randomize",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='RANDOMIZE', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
-        )
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def clone(*, draw_settings):
-        return dict(
-            text="Clone",
-            icon="ops.gpencil.sculpt_clone",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='CLONE', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
+    @staticmethod
+    def generate_from_brushes(context):
+        return generate_from_enum_ex(
+            context,
+            icon_prefix="ops.gpencil.sculpt_",
+            type=bpy.types.GPencilSculptSettings,
+            attr="sculpt_tool",
         )
 
 
 class _defs_gpencil_weight:
 
-    def draw_settings_common(context, layout, tool):
-        ob = context.active_object
-        if ob and ob.mode == 'GPENCIL_WEIGHT':
-            settings = context.tool_settings.gpencil_sculpt
-            brush = settings.brush
-
-            layout.prop(brush, "size", slider=True)
-
-            row = layout.row(align=True)
-            row.prop(brush, "strength", slider=True)
-            row.prop(brush, "use_pressure_strength", text="")
-
-    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-    def paint(*, draw_settings):
-        return dict(
-            text="Draw",
-            icon="ops.gpencil.sculpt_weight",
-            widget=None,
-            keymap=(
-                ("gpencil.brush_paint",
-                 dict(mode='WEIGHT', wait_for_input=False),
-                 dict(type='EVT_TWEAK_A', value='ANY')),
-            ),
-            draw_settings=draw_settings,
+    @staticmethod
+    def generate_from_brushes(context):
+        return generate_from_enum_ex(
+            context,
+            icon_prefix="ops.gpencil.sculpt_",
+            type=bpy.types.GPencilSculptSettings,
+            attr="weight_tool",
         )
 
 
@@ -1804,13 +1738,17 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_weight_paint.gradient,
         ],
         'GPENCIL_PAINT': [
+            _defs_view3d_generic.cursor,
+            None,
             _defs_gpencil_paint.generate_from_brushes,
+            None,
+            _defs_gpencil_paint.line,
+            _defs_gpencil_paint.box,
+            _defs_gpencil_paint.circle,
         ],
         'GPENCIL_EDIT': [
             _defs_view3d_generic.cursor,
-            _defs_gpencil_edit.box_select,
-            _defs_gpencil_edit.circle_select,
-            _defs_gpencil_edit.lasso_select,
+            *_tools_gpencil_select,
             None,
             *_tools_transform,
             None,
@@ -1819,20 +1757,12 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_edit.tosphere,
         ],
         'GPENCIL_SCULPT': [
-            _defs_gpencil_sculpt.smooth,
-            _defs_gpencil_sculpt.thickness,
-            _defs_gpencil_sculpt.strength,
-            _defs_gpencil_sculpt.grab,
-            _defs_gpencil_sculpt.push,
-            _defs_gpencil_sculpt.twist,
-            _defs_gpencil_sculpt.pinch,
-            _defs_gpencil_sculpt.randomize,
-            _defs_gpencil_sculpt.clone,
-            None,
             *_tools_gpencil_select,
+            None,
+            _defs_gpencil_sculpt.generate_from_brushes,
         ],
         'GPENCIL_WEIGHT': [
-            _defs_gpencil_weight.paint,
+            _defs_gpencil_weight.generate_from_brushes,
         ],
     }
 

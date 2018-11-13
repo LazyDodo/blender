@@ -80,8 +80,6 @@ extern "C" {
 #include "BKE_collision.h"
 #include "BKE_fcurve.h"
 #include "BKE_key.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_modifier.h"
@@ -1019,6 +1017,9 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 						if (track || BKE_shrinkwrap_needs_normals(scon->shrinkType, scon->shrinkMode)) {
 							add_customdata_mask(target_key, CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL);
 						}
+						if (scon->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+							add_special_eval_flag(&ct->tar->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
+						}
 					}
 
 					/* NOTE: obdata eval now doesn't necessarily depend on the
@@ -1189,6 +1190,11 @@ void DepsgraphRelationBuilder::build_animdata_nlastrip_targets(
 {
 	LISTBASE_FOREACH(NlaStrip *, strip, strips) {
 		if (strip->act != NULL) {
+			build_action(strip->act);
+
+			ComponentKey action_key(&strip->act->id, DEG_NODE_TYPE_ANIMATION);
+			add_relation(action_key, adt_key, "Action -> Animation");
+
 			build_animdata_curves_targets(id, adt_key,
 			                              operation_from,
 			                              &strip->act->curves);
@@ -1504,14 +1510,18 @@ void DepsgraphRelationBuilder::build_world(World *world)
 	if (built_map_.checkIsBuiltAndTag(world)) {
 		return;
 	}
+	/* animation */
 	build_animdata(&world->id);
-	/* TODO: other settings? */
 	/* world's nodetree */
 	if (world->nodetree != NULL) {
 		build_nodetree(world->nodetree);
-		ComponentKey ntree_key(&world->nodetree->id, DEG_NODE_TYPE_SHADING);
-		ComponentKey world_key(&world->id, DEG_NODE_TYPE_SHADING);
-		add_relation(ntree_key, world_key, "NTree->World Shading Update");
+		OperationKey ntree_key(&world->nodetree->id,
+		                       DEG_NODE_TYPE_SHADING,
+		                       DEG_OPCODE_MATERIAL_UPDATE);
+		OperationKey world_key(&world->id,
+		                          DEG_NODE_TYPE_SHADING,
+		                          DEG_OPCODE_WORLD_UPDATE);
+		add_relation(ntree_key, world_key, "World's NTree");
 		build_nested_nodetree(&world->id, world->nodetree);
 	}
 }

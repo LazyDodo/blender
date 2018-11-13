@@ -43,13 +43,13 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_armature.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
-#include "BKE_main.h"
 #include "BKE_library.h"
+#include "BKE_main.h"
 #include "BKE_object.h"
 
 #include "BKE_context.h"
@@ -1026,7 +1026,7 @@ static void poselib_apply_pose(tPoseLib_PreviewData *pld)
 				}
 
 				if (ok)
-					animsys_evaluate_action_group(ptr, act, agrp, NULL, (float)frame);
+					animsys_evaluate_action_group(ptr, act, agrp, (float)frame);
 			}
 		}
 	}

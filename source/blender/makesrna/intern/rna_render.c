@@ -685,6 +685,9 @@ static void rna_def_render_engine(BlenderRNA *brna)
 	parm = RNA_def_int(func, "pixel_size", 0, 1, 8, "Pixel Size", "", 1, 8);
 	RNA_def_function_return(func, parm);
 
+	RNA_def_function(srna, "free_blender_memory", "RE_engine_free_blender_memory");
+	RNA_def_function_ui_description(func, "Free Blender side memory of render engine");
+
 	RNA_define_verify_sdna(0);
 
 	prop = RNA_def_property(srna, "is_animation", PROP_BOOLEAN, PROP_NONE);
@@ -807,7 +810,7 @@ static void rna_def_render_result(BlenderRNA *brna)
 	RNA_def_function_ui_description(func, "Add engine-specific stamp data to the result");
 	parm = RNA_def_string(func, "field", NULL, 1024, "Field", "Name of the stamp field to add");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_string(func, "value", NULL, 1024, "Value", "Value of the stamp data");
+	parm = RNA_def_string(func, "value", NULL, 0, "Value", "Value of the stamp data");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	RNA_define_verify_sdna(0);

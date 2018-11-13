@@ -83,6 +83,14 @@ static bool last_redo_poll(const bContext *C)
 	return success;
 }
 
+static void hud_region_hide(ARegion *ar)
+{
+	ar->flag |= RGN_FLAG_HIDDEN;
+	/* Avoids setting 'AREA_FLAG_REGION_SIZE_UPDATE'
+	 * since other regions don't depend on this. */
+	BLI_rcti_init(&ar->winrct, 0, 0, 0, 0);
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -169,7 +177,7 @@ static void hud_region_layout(const bContext *C, ARegion *ar)
 
 	if (!ok) {
 		ED_region_tag_redraw(ar);
-		ar->flag |= RGN_FLAG_HIDDEN;
+		hud_region_hide(ar);
 		return;
 	}
 
@@ -265,7 +273,7 @@ void ED_area_type_hud_clear(wmWindowManager *wm, ScrArea *sa_keep)
 				for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
 					if (ar->regiontype == RGN_TYPE_HUD) {
 						if ((ar->flag & RGN_FLAG_HIDDEN) == 0) {
-							ar->flag |= RGN_FLAG_HIDDEN;
+							hud_region_hide(ar);
 							ED_region_tag_redraw(ar);
 							ED_area_tag_redraw(sa);
 						}
@@ -291,7 +299,7 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 	if (!last_redo_poll(C)) {
 		if (ar) {
 			ED_region_tag_redraw(ar);
-			ar->flag |= RGN_FLAG_HIDDEN;
+			hud_region_hide(ar);
 		}
 		return;
 	}
@@ -301,14 +309,6 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 		ar = hud_region_add(sa);
 		ar->type = art;
 	}
-
-	ED_region_init(ar);
-	ED_region_tag_redraw(ar);
-
-	/* Reset zoom level (not well supported). */
-	ar->v2d.cur = ar->v2d.tot = (rctf){.xmax = ar->winx, .ymax = ar->winy};
-	ar->v2d.minzoom = 1.0f;
-	ar->v2d.maxzoom = 1.0f;
 
 	/* Let 'ED_area_update_region_sizes' do the work of placing the region.
 	 * Otherwise we could set the 'ar->winrct' & 'ar->winx/winy' here. */
@@ -338,6 +338,20 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 		}
 	}
 
+	if (init) {
+		/* This is needed or 'winrct' will be invalid. */
+		wmWindow *win = CTX_wm_window(C);
+		ED_area_update_region_sizes(wm, win, sa);
+	}
+
+	ED_region_init(ar);
+	ED_region_tag_redraw(ar);
+
+	/* Reset zoom level (not well supported). */
+	ar->v2d.cur = ar->v2d.tot = (rctf){.xmax = ar->winx, .ymax = ar->winy};
+	ar->v2d.minzoom = 1.0f;
+	ar->v2d.maxzoom = 1.0f;
+
 	/* XXX, should be handled in more general way. */
 	ar->visible = !((ar->flag & RGN_FLAG_HIDDEN) || (ar->flag & RGN_FLAG_TOO_SMALL));
 
@@ -347,6 +361,7 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 	CTX_wm_region_set((bContext *)C, ar);
 	hud_region_layout(C, ar);
 	CTX_wm_region_set((bContext *)C, ar_prev);
+
 }
 
 /** \} */

@@ -535,18 +535,6 @@ void BKE_brush_update_material(Main *bmain, Material *ma, Brush *exclude_brush)
 	}
 }
 
-/* get the active gp-brush for editing */
-Brush *BKE_brush_getactive_gpencil(ToolSettings *ts)
-{
-	/* error checking */
-	if (ELEM(NULL, ts, ts->gp_paint)) {
-		return NULL;
-	}
-	Paint *paint = &ts->gp_paint->paint;
-
-	return paint->brush;
-}
-
 struct Brush *BKE_brush_first_search(struct Main *bmain, const eObjectMode ob_mode)
 {
 	Brush *brush;
@@ -857,7 +845,7 @@ void BKE_brush_curve_preset(Brush *b, eCurveMappingPreset preset)
  * region space mouse coordinates, or 3d world coordinates for 3D mapping.
  *
  * rgba outputs straight alpha. */
-float BKE_brush_sample_tex_3D(const Scene *scene, const Brush *br,
+float BKE_brush_sample_tex_3d(const Scene *scene, const Brush *br,
                               const float point[3],
                               float rgba[4], const int thread,
                               struct ImagePool *pool)

@@ -73,6 +73,7 @@
 #include "BKE_deform.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_runtime.h"
@@ -670,6 +671,7 @@ void smokeModifier_copy(const struct SmokeModifierData *smd, struct SmokeModifie
 		tsds->slice_per_voxel = sds->slice_per_voxel;
 		tsds->slice_depth = sds->slice_depth;
 		tsds->slice_axis = sds->slice_axis;
+		tsds->interp_method = sds->interp_method;
 		tsds->draw_velocity = sds->draw_velocity;
 		tsds->vector_draw_type = sds->vector_draw_type;
 		tsds->vector_scale = sds->vector_scale;

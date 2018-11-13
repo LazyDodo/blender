@@ -71,6 +71,7 @@ static struct {
 	uint sss_count;
 
 	float alpha_hash_offset;
+	float alpha_hash_scale;
 	float noise_offsets[3];
 } e_data = {NULL}; /* Engine data */
 
@@ -406,10 +407,11 @@ static void add_standard_uniforms(
 		DRW_shgroup_uniform_texture_ref(shgrp, "probePlanars", &vedata->txl->planar_pool);
 		DRW_shgroup_uniform_int(shgrp, "outputSsrId", ssr_id, 1);
 	}
-	if (use_refract && use_ssrefraction) {
-		BLI_assert(refract_depth != NULL);
-		DRW_shgroup_uniform_float(shgrp, "refractionDepth", refract_depth, 1);
-		DRW_shgroup_uniform_texture_ref(shgrp, "colorBuffer", &vedata->txl->refract_color);
+	if (use_refract) {
+		DRW_shgroup_uniform_float_copy(shgrp, "refractionDepth", (refract_depth) ? *refract_depth : 0.0 );
+		if (use_ssrefraction) {
+			DRW_shgroup_uniform_texture_ref(shgrp, "colorBuffer", &vedata->txl->refract_color);
+		}
 	}
 
 	if ((vedata->stl->effects->enabled_effects & EFFECT_VOLUMETRIC) != 0 &&
@@ -635,11 +637,13 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 	    ((stl->effects->enabled_effects & EFFECT_TAA) == 0))
 	{
 		e_data.alpha_hash_offset = 0.0f;
+		e_data.alpha_hash_scale = 1.0f;
 	}
 	else {
 		double r;
 		BLI_halton_1D(5, 0.0, stl->effects->taa_current_sample - 1, &r);
 		e_data.alpha_hash_offset = (float)r;
+		e_data.alpha_hash_scale = 0.01f;
 	}
 
 	{
@@ -1206,6 +1210,8 @@ static void material_opaque(
 				else if (ma->blend_method == MA_BM_HASHED) {
 					DRW_shgroup_uniform_float(*shgrp_depth, "hashAlphaOffset", &e_data.alpha_hash_offset, 1);
 					DRW_shgroup_uniform_float(*shgrp_depth_clip, "hashAlphaOffset", &e_data.alpha_hash_offset, 1);
+					DRW_shgroup_uniform_float_copy(*shgrp_depth, "hashAlphaScale", e_data.alpha_hash_scale);
+					DRW_shgroup_uniform_float_copy(*shgrp_depth_clip, "hashAlphaScale", e_data.alpha_hash_scale);
 				}
 			}
 		}

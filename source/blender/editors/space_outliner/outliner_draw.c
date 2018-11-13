@@ -51,16 +51,16 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_fcurve.h"
-#include "BKE_gpencil.h"
 #include "BKE_global.h"
+#include "BKE_gpencil.h"
 #include "BKE_idcode.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
+#include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
-#include "BKE_object.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -335,6 +335,14 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					WM_event_add_notifier(C, NC_IMAGE, NULL); break;
 				case ID_SCE:
 					WM_event_add_notifier(C, NC_SCENE, NULL); break;
+				case ID_OB:
+				{
+					Object *ob = (Object *)tselem->id;
+					if (ob->type == OB_MBALL) {
+						DEG_id_tag_update(&ob->id, DEG_TAG_GEOMETRY);
+					}
+					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
+				}
 				default:
 					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
 			}

@@ -58,6 +58,7 @@ extern "C" {
 #include "BLI_utildefines.h"
 #include "BLI_string.h"
 
+#include "BKE_main.h"
 #include "BKE_context.h"
 #include "BKE_object.h"
 #include "BKE_scene.h"

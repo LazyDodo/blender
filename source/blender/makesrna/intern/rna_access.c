@@ -56,7 +56,6 @@
 #include "BKE_idcode.h"
 #include "BKE_idprop.h"
 #include "BKE_fcurve.h"
-#include "BKE_library.h"
 #include "BKE_library_override.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
@@ -1659,6 +1658,21 @@ int RNA_enum_from_identifier(const EnumPropertyItem *item, const char *identifie
 	int i = 0;
 	for (; item->identifier; item++, i++) {
 		if (item->identifier[0] && STREQ(item->identifier, identifier)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+/**
+ * Take care using this with translated enums,
+ * prefer #RNA_enum_from_identifier where possible.
+ */
+int RNA_enum_from_name(const EnumPropertyItem *item, const char *name)
+{
+	int i = 0;
+	for (; item->identifier; item++, i++) {
+		if (item->identifier[0] && STREQ(item->name, name)) {
 			return i;
 		}
 	}

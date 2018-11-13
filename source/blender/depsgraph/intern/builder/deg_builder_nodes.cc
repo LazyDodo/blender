@@ -82,8 +82,6 @@ extern "C" {
 #include "BKE_idcode.h"
 #include "BKE_key.h"
 #include "BKE_lattice.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_mask.h"
 #include "BKE_material.h"
 #include "BKE_mesh.h"
@@ -859,11 +857,28 @@ void DepsgraphNodeBuilder::build_animdata(ID *id)
 			 */
 		}
 
+		/* NLA strips contain actions */
+		LISTBASE_FOREACH (NlaTrack *, nlt, &adt->nla_tracks) {
+			build_animdata_nlastrip_targets(&nlt->strips);
+		}
+
 		/* drivers */
 		int driver_index = 0;
 		LISTBASE_FOREACH (FCurve *, fcu, &adt->drivers) {
 			/* create driver */
 			build_driver(id, fcu, driver_index++);
+		}
+	}
+}
+
+void DepsgraphNodeBuilder::build_animdata_nlastrip_targets(ListBase *strips)
+{
+	LISTBASE_FOREACH (NlaStrip *, strip, strips) {
+		if (strip->act != NULL) {
+			build_action(strip->act);
+		}
+		else if (strip->strips.first != NULL) {
+			build_animdata_nlastrip_targets(&strip->strips);
 		}
 	}
 }
@@ -960,17 +975,20 @@ void DepsgraphNodeBuilder::build_world(World *world)
 	if (built_map_.checkIsBuiltAndTag(world)) {
 		return;
 	}
-	/* Animation. */
-	build_animdata(&world->id);
-	/* world itself */
+	/* World itself. */
+	add_id_node(&world->id);
+	World *world_cow = get_cow_datablock(world);
+	/* Shading update. */
 	add_operation_node(&world->id,
 	                   DEG_NODE_TYPE_SHADING,
-	                   NULL,
+	                   function_bind(BKE_world_eval,
+	                                 _1,
+	                                 world_cow),
 	                   DEG_OPCODE_WORLD_UPDATE);
-	/* world's nodetree */
-	if (world->nodetree != NULL) {
-		build_nodetree(world->nodetree);
-	}
+	/* Animation. */
+	build_animdata(&world->id);
+	/* World's nodetree. */
+	build_nodetree(world->nodetree);
 }
 
 /* Rigidbody Simulation - Scene Level */

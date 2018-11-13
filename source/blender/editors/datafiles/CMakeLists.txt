@@ -613,19 +613,20 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	brush.paint_texture.draw
 	brush.paint_texture.fill
 	brush.paint_texture.mask
+	brush.paint_texture.masklort
 	brush.paint_texture.multiply
 	brush.paint_texture.smear
 	brush.paint_texture.soften
 	brush.paint_vertex.alpha
+	brush.paint_vertex.average
 	brush.paint_vertex.blur
-	brush.paint_vertex.mix
+	brush.paint_vertex.draw
 	brush.paint_vertex.smear
+	brush.paint_weight.average
 	brush.paint_weight.blur
-	brush.paint_weight.darken
 	brush.paint_weight.draw
-	brush.paint_weight.lighten
 	brush.paint_weight.mix
-	brush.paint_weight.multiply
+	brush.paint_weight.smear
 	brush.particle.add
 	brush.particle.comb
 	brush.particle.cut
@@ -648,12 +649,10 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	brush.sculpt.pinch
 	brush.sculpt.rotate
 	brush.sculpt.scrape
+	brush.sculpt.simplify
 	brush.sculpt.smooth
 	brush.sculpt.snake_hook
 	brush.sculpt.thumb
-	brush.vertex.average
-	brush.weight.add
-	brush.weight.subtract
 	none
 	ops.armature.bone.roll
 	ops.armature.extrude_cursor
@@ -673,6 +672,9 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.gpencil.edit_mirror
 	ops.gpencil.edit_shear
 	ops.gpencil.edit_to_sphere
+	ops.gpencil.primitive_box
+	ops.gpencil.primitive_circle
+	ops.gpencil.primitive_line
 	ops.gpencil.sculpt_clone
 	ops.gpencil.sculpt_grab
 	ops.gpencil.sculpt_pinch
@@ -708,6 +710,8 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.paint.vertex_color_fill
 	ops.paint.weight_fill
 	ops.paint.weight_gradient
+	ops.paint.weight_sample
+	ops.paint.weight_sample_group
 	ops.pose.breakdowner
 	ops.pose.push
 	ops.pose.relax

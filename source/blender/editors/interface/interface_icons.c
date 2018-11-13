@@ -162,6 +162,8 @@ typedef struct IconType {
 static struct ListBase iconfilelist = {NULL, NULL};
 static IconTexture icongltex = {0, 0, 0, 0.0f, 0.0f};
 
+#ifndef WITH_HEADLESS
+
 static const IconType icontypes[] = {
 #define DEF_ICON(name) {ICON_TYPE_MONO_TEXTURE, 0},
 #define DEF_ICON_COLLECTION(name) {ICON_TYPE_MONO_TEXTURE, TH_ICON_COLLECTION},
@@ -176,8 +178,6 @@ static const IconType icontypes[] = {
 };
 
 /* **************************************************** */
-
-#ifndef WITH_HEADLESS
 
 static DrawInfo *def_internal_icon(ImBuf *bbuf, int icon_id, int xofs, int yofs, int size, int type, int theme_color)
 {
@@ -1616,7 +1616,9 @@ static void icon_draw_size(
 		UI_widgetbase_draw_cache_flush();
 
 		/* Just draw a colored rect - Like for vicon_colorset_draw() */
+#ifndef WITH_HEADLESS
 		vicon_gplayer_color_draw(icon, (int)x, (int)y,  w, h);
+#endif
 	}
 }
 
@@ -1697,7 +1699,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 				paint_mode = ePaintWeight;
 			}
 			else if (ob->mode & OB_MODE_TEXTURE_PAINT) {
-				paint_mode = ePaintTextureProjective;
+				paint_mode = ePaintTexture3D;
 			}
 		}
 		else if (space_type == SPACE_IMAGE) {
@@ -1759,7 +1761,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		}
 		else if (paint_mode != ePaintInvalid) {
 			items = BKE_paint_get_tool_enum_from_paintmode(paint_mode);
-			const uint tool_offset = BKE_paint_get_brush_tool_offset_from_paint_mode(paint_mode);
+			const uint tool_offset = BKE_paint_get_brush_tool_offset_from_paintmode(paint_mode);
 			const int tool_type = *(char *)POINTER_OFFSET(br, tool_offset);
 			if (!items || !RNA_enum_icon_from_value(items, tool_type, &id->icon_id)) {
 				id->icon_id = 0;

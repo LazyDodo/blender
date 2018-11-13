@@ -35,6 +35,7 @@
 #include "util/util_function.h"
 #include "util/util_hash.h"
 #include "util/util_logging.h"
+#include "util/util_murmurhash.h"
 #include "util/util_progress.h"
 #include "util/util_time.h"
 
@@ -139,6 +140,7 @@ void BlenderSession::create_session()
 
 	/* create scene */
 	scene = new Scene(scene_params, session->device);
+	scene->name = b_scene.name();
 
 	/* setup callbacks for builtin image support */
 	scene->image_manager->builtin_image_info_cb = function_bind(&BlenderSession::builtin_image_info, this, _1, _2, _3);
@@ -382,6 +384,17 @@ void BlenderSession::update_render_tile(RenderTile& rtile, bool highlight)
 		do_write_update_render_tile(rtile, false, false);
 }
 
+static void add_cryptomatte_layer(BL::RenderResult& b_rr, string name, string manifest)
+{
+	string identifier = string_printf("%08x", util_murmur_hash3(name.c_str(), name.length(), 0));
+	string prefix = "cryptomatte/" + identifier.substr(0, 7) + "/";
+
+	render_add_metadata(b_rr, prefix+"name", name);
+	render_add_metadata(b_rr, prefix+"hash", "MurmurHash3_32");
+	render_add_metadata(b_rr, prefix+"conversion", "uint32_to_float32");
+	render_add_metadata(b_rr, prefix+"manifest", manifest);
+}
+
 void BlenderSession::render(BL::Depsgraph& b_depsgraph_)
 {
 	b_depsgraph = b_depsgraph_;
@@ -405,6 +418,7 @@ void BlenderSession::render(BL::Depsgraph& b_depsgraph_)
 	BL::RenderResult::layers_iterator b_single_rlay;
 	b_rr.layers.begin(b_single_rlay);
 	BL::RenderLayer b_rlay = *b_single_rlay;
+	b_rlay_name = b_view_layer.name();
 
 	/* add passes */
 	vector<Pass> passes = sync->sync_render_passes(b_rlay, b_view_layer, session_params);
@@ -440,7 +454,6 @@ void BlenderSession::render(BL::Depsgraph& b_depsgraph_)
 	BL::RenderResult::views_iterator b_view_iter;
 	int view_index = 0;
 	for(b_rr.views.begin(b_view_iter); b_view_iter != b_rr.views.end(); ++b_view_iter, ++view_index) {
-		b_rlay_name = b_view_layer.name();
 		b_rview_name = b_view_iter->name();
 
 		/* set the current view */
@@ -456,6 +469,11 @@ void BlenderSession::render(BL::Depsgraph& b_depsgraph_)
 		                width, height,
 		                &python_thread_state);
 		builtin_images_load();
+
+		/* Attempt to free all data which is held by Blender side, since at this
+		 * point we knwo that we've got everything to render current view layer.
+		 */
+		free_blender_memory_if_possible();
 
 		/* Make sure all views have different noise patterns. - hardcoded value just to make it random */
 		if(view_index != 0) {
@@ -498,6 +516,20 @@ void BlenderSession::render(BL::Depsgraph& b_depsgraph_)
 		/* TODO(sergey): Report whether we're doing resumable render
 		 * and also start/end sample if so.
 		 */
+	}
+
+	/* Write cryptomatte metadata. */
+	if(scene->film->cryptomatte_passes & CRYPT_OBJECT) {
+		add_cryptomatte_layer(b_rr, b_rlay_name+".CryptoObject",
+							  scene->object_manager->get_cryptomatte_objects(scene));
+	}
+	if(scene->film->cryptomatte_passes & CRYPT_MATERIAL) {
+		add_cryptomatte_layer(b_rr, b_rlay_name+".CryptoMaterial",
+							  scene->shader_manager->get_cryptomatte_materials(scene));
+	}
+	if(scene->film->cryptomatte_passes & CRYPT_ASSET) {
+		add_cryptomatte_layer(b_rr, b_rlay_name+".CryptoAsset",
+							  scene->object_manager->get_cryptomatte_assets(scene));
 	}
 
 	/* free result without merging */
@@ -924,7 +956,7 @@ void BlenderSession::update_bake_progress()
 void BlenderSession::update_status_progress()
 {
 	string timestatus, status, substatus;
-	string scene = "";
+	string scene_status = "";
 	float progress;
 	double total_time, remaining_time = 0, render_time;
 	char time_str[128];
@@ -938,35 +970,31 @@ void BlenderSession::update_status_progress()
 		remaining_time = (1.0 - (double)progress) * (render_time / (double)progress);
 
 	if(background) {
-		scene += " | " + b_scene.name();
+		scene_status += " | " + scene->name;
 		if(b_rlay_name != "")
-			scene += ", "  + b_rlay_name;
+			scene_status += ", "  + b_rlay_name;
 
 		if(b_rview_name != "")
-			scene += ", " + b_rview_name;
-	}
-	else {
-		BLI_timecode_string_from_time_simple(time_str, sizeof(time_str), total_time);
-		timestatus = "Time:" + string(time_str) + " | ";
-	}
+			scene_status += ", " + b_rview_name;
 
-	if(remaining_time > 0) {
-		BLI_timecode_string_from_time_simple(time_str, sizeof(time_str), remaining_time);
-		timestatus += "Remaining:" + string(time_str) + " | ";
+		if(remaining_time > 0) {
+			BLI_timecode_string_from_time_simple(time_str, sizeof(time_str), remaining_time);
+			timestatus += "Remaining:" + string(time_str) + " | ";
+		}
+
+		timestatus += string_printf("Mem:%.2fM, Peak:%.2fM", (double)mem_used, (double)mem_peak);
+
+		if(status.size() > 0)
+			status = " | " + status;
+		if(substatus.size() > 0)
+			status += " | " + substatus;
 	}
-
-	timestatus += string_printf("Mem:%.2fM, Peak:%.2fM", (double)mem_used, (double)mem_peak);
-
-	if(status.size() > 0)
-		status = " | " + status;
-	if(substatus.size() > 0)
-		status += " | " + substatus;
 
 	double current_time = time_dt();
 	/* When rendering in a window, redraw the status at least once per second to keep the elapsed and remaining time up-to-date.
 	 * For headless rendering, only report when something significant changes to keep the console output readable. */
 	if(status != last_status || (!headless && (current_time - last_status_time) > 1.0)) {
-		b_engine.update_stats("", (timestatus + scene + status).c_str());
+		b_engine.update_stats("", (timestatus + scene_status + status).c_str());
 		b_engine.update_memory_stats(mem_used, mem_peak);
 		last_status = status;
 		last_status_time = current_time;
@@ -1381,6 +1409,18 @@ void BlenderSession::update_resumable_tile_manager(int num_samples)
 
 	session->tile_manager.range_start_sample = range_start_sample;
 	session->tile_manager.range_num_samples = range_num_samples;
+}
+
+void BlenderSession::free_blender_memory_if_possible()
+{
+	if (!background) {
+		/* During interactive render we can not free anything: attempts to save
+		 * memory would cause things to be allocated and evaluated for every
+		 * updated sample.
+		 */
+		return;
+	}
+	b_engine.free_blender_memory();
 }
 
 CCL_NAMESPACE_END

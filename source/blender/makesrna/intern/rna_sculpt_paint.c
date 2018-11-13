@@ -44,6 +44,7 @@
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_paint.h"
+#include "BKE_brush.h"
 
 #include "ED_image.h"
 
@@ -77,18 +78,18 @@ const EnumPropertyItem rna_enum_gpencil_sculpt_brush_items[] = {
 	{ 0, NULL, 0, NULL, NULL }
 };
 
-#ifndef RNA_RUNTIME
-static EnumPropertyItem rna_enum_gpencil_weight_brush_items[] = {
-	{ GP_EDITBRUSH_TYPE_WEIGHT, "WEIGHT", ICON_GPBRUSH_WEIGHT, "Weight", "Weight Paint for Vertex Groups" },
-	{ 0, NULL, 0, NULL, NULL }
+const EnumPropertyItem rna_enum_gpencil_weight_brush_items[] = {
+	{GP_EDITBRUSH_TYPE_WEIGHT, "WEIGHT", ICON_GPBRUSH_WEIGHT, "Weight", "Weight Paint for Vertex Groups"},
+	{0, NULL, 0, NULL, NULL}
 };
 
+#ifndef RNA_RUNTIME
 static const EnumPropertyItem rna_enum_gpencil_lock_axis_items[] = {
-	{ GP_LOCKAXIS_VIEW, "VIEW", ICON_RESTRICT_VIEW_ON, "View", "Align strokes to current view plane" },
-	{ GP_LOCKAXIS_X, "AXIS_X", ICON_AXIS_SIDE, "Y-Z Plane", "Project strokes to plane locked to X" },
-	{ GP_LOCKAXIS_Y, "AXIS_Y", ICON_AXIS_FRONT, "X-Z Plane", "Project strokes to plane locked to Y" },
-	{ GP_LOCKAXIS_Z, "AXIS_Z", ICON_AXIS_TOP, "X-Y Plane", "Project strokes to plane locked to Z" },
-	{ 0, NULL, 0, NULL, NULL }
+	{GP_LOCKAXIS_VIEW, "VIEW", ICON_RESTRICT_VIEW_ON, "View", "Align strokes to current view plane"},
+	{GP_LOCKAXIS_Y, "AXIS_Y", ICON_AXIS_FRONT, "Front (X-Z)", "Project strokes to plane locked to Y"},
+	{GP_LOCKAXIS_X, "AXIS_X", ICON_AXIS_SIDE, "Side (Y-Z)", "Project strokes to plane locked to X"},
+	{GP_LOCKAXIS_Z, "AXIS_Z", ICON_AXIS_TOP, "Top (X-Y)", "Project strokes to plane locked to Z"},
+	{0, NULL, 0, NULL, NULL}
 };
 #endif
 
@@ -276,13 +277,12 @@ static bool rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 	Brush *brush = value.id.data;
 	const uint tool_offset = paint->runtime.tool_offset;
 	const eObjectMode ob_mode = paint->runtime.ob_mode;
+	UNUSED_VARS_NDEBUG(tool_offset);
 	BLI_assert(tool_offset && ob_mode);
 
 	if (brush->ob_mode & ob_mode) {
 		if (paint->brush) {
-			const char *tool_a = (const char *)POINTER_OFFSET(paint->brush, tool_offset);
-			const char *tool_b = (const char *)POINTER_OFFSET(brush,        tool_offset);
-			if (*tool_a == *tool_b) {
+			if (BKE_brush_tool_get(paint->brush, paint) == BKE_brush_tool_get(brush, paint)) {
 				return true;
 			}
 		}
@@ -522,7 +522,7 @@ static PointerRNA rna_GPencilSculptSettings_brush_get(PointerRNA *ptr)
 	GP_EditBrush_Data *brush = NULL;
 
 	if ((gset) && (gset->flag & GP_BRUSHEDIT_FLAG_WEIGHT_MODE)) {
-		if ((gset->weighttype >= GP_EDITBRUSH_TYPE_WEIGHT) && (gset->weighttype < TOT_GP_EDITBRUSH_TYPES))
+		if ((gset->weighttype >= GP_EDITBRUSH_TYPE_WEIGHT) && (gset->weighttype < GP_EDITBRUSH_TYPE_MAX))
 			brush = &gset->brush[gset->weighttype];
 	}
 	else {
@@ -1193,7 +1193,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_struct_path_func(srna, "rna_GPencilSculptSettings_path");
 	RNA_def_struct_ui_text(srna, "GPencil Sculpt Settings", "Properties for Grease Pencil stroke sculpting tool");
 
-	prop = RNA_def_property(srna, "tool", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "sculpt_tool", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "brushtype");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_sculpt_brush_items);
 	RNA_def_property_ui_text(prop, "Tool", "");
