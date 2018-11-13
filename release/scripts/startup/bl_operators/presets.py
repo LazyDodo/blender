@@ -611,7 +611,7 @@ class AddPresetFracture(AddPresetBase, Operator):
     """Add or remove a Fracture Preset"""
     bl_idname = "fracture.preset_add"
     bl_label = "Add Fracture Preset"
-    preset_menu = "FRACTURE_MT_presets"
+    preset_menu = "FRACTURE_PT_presets"
 
     preset_defines = [
         "fracture = bpy.context.fracture"
@@ -622,7 +622,7 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.shard_count",
         "fracture.cluster_count",
         "fracture.point_seed",
-        "fracture.split_to_islands",
+        "fracture.split_islands",
         "fracture.auto_execute",
         "fracture.use_constraints",
         "fracture.constraint_limit",
@@ -648,7 +648,7 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.solver_iterations_override",
         "fracture.use_mass_dependent_thresholds",
         "fracture.thresh_vertex_group",
-        "fracture.ground_vertex_group",
+        "fracture.passive_vertex_group",
         "fracture.inner_vertex_group",
         "fracture.autohide_dist",
         "fracture.fix_normals",
@@ -663,7 +663,7 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.cutter_axis",
         "fracture.cluster_constraint_type",
         "fracture.constraint_target",
-        "fracture.fracture_mode",
+       # "fracture.fracture_mode",
         "fracture.dynamic_force",
         "fracture.limit_impact",
         "fracture.use_compounds",
@@ -708,6 +708,7 @@ class AddPresetFracture(AddPresetBase, Operator):
         "fracture.grid_offset",
         "fracture.grid_spacing",
         "fracture.use_constraint_group",
+        "fracture.use_dynamic",
     ]
 
     preset_subdir = "fracture"
