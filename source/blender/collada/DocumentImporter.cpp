@@ -1075,11 +1075,10 @@ bool DocumentImporter::writeLight(const COLLADAFW::Light *light)
 		lamp->energy = e;
 		lamp->dist = d;
 
-		COLLADAFW::Light::LightType type = light->getLightType();
-		switch (type) {
+		switch (light->getLightType()) {
 			case COLLADAFW::Light::AMBIENT_LIGHT:
 			{
-				lamp->type = LA_HEMI;
+				lamp->type = LA_SUN; //TODO needs more thoughts
 			}
 			break;
 			case COLLADAFW::Light::SPOT_LIGHT:
