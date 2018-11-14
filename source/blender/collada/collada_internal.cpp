@@ -311,6 +311,33 @@ std::string id_name(void *id)
 	return ((ID *)id)->name + 2;
 }
 
+std::string encode_xml(std::string xml)
+{
+	const std::map<char, std::string> escape {
+		{'<' , "&lt;"  },
+		{'>' , "&gt;"  },
+		{'"' , "&quot;"},
+		{'\'', "&apos;"},
+		{'&' , "&amp;" }
+	};
+
+	std::map<char, std::string>::const_iterator it;
+	std::string encoded_xml = "";
+
+	for (unsigned int i = 0; i < xml.size(); i++) {
+		char c = xml.at(i);
+		it = escape.find(c);
+
+		if (it == escape.end()) {
+			encoded_xml += c;
+		}
+		else {
+			encoded_xml += it->second;
+		}
+	}
+	return encoded_xml;
+}
+
 std::string get_geometry_id(Object *ob)
 {
 	return translate_id(id_name(ob->data)) + "-mesh";
@@ -340,6 +367,11 @@ std::string get_joint_sid(EditBone *bone)
 std::string get_camera_id(Object *ob)
 {
 	return translate_id(id_name(ob)) + "-camera";
+}
+
+std::string get_effect_id(Material *mat)
+{
+	return translate_id(id_name(mat)) + "-effect";
 }
 
 std::string get_material_id(Material *mat)
