@@ -44,8 +44,8 @@ void SceneExporter::exportScene(bContext *C, Depsgraph *depsgraph)
 {
 	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
 	// <library_visual_scenes> <visual_scene>
-	std::string id_naming = id_name(view_layer);
-	openVisualScene(translate_id(id_naming), id_naming);
+	std::string name = id_name(view_layer);
+	openVisualScene(translate_id(name), encode_xml(name));
 	exportHierarchy(C, depsgraph, view_layer);
 	closeVisualScene();
 	closeLibrary();
@@ -129,7 +129,7 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 	if (can_export) {
 		COLLADASW::Node colladaNode(mSW);
 		colladaNode.setNodeId(translate_id(id_name(ob)));
-		colladaNode.setNodeName(translate_id(id_name(ob)));
+		colladaNode.setNodeName(encode_xml(id_name(ob)));
 		colladaNode.setType(COLLADASW::Node::NODE);
 
 		colladaNode.start();
@@ -151,7 +151,7 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 			if (!instance_controller_created) {
 				COLLADASW::InstanceGeometry instGeom(mSW);
 				instGeom.setUrl(COLLADASW::URI(COLLADABU::Utils::EMPTY_STRING, get_geometry_id(ob, this->export_settings->use_object_instantiation)));
-				instGeom.setName(translate_id(id_name(ob)));
+				instGeom.setName(encode_xml(id_name(ob)));
 				InstanceWriter::add_material_bindings(instGeom.getBindMaterial(),
 					ob,
 					this->export_settings->active_uv_only);
@@ -191,7 +191,7 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 			if (BLI_listbase_is_empty(&ob->constraints) == false) {
 				bConstraint *con = (bConstraint *)ob->constraints.first;
 				while (con) {
-					std::string con_name(translate_id(con->name));
+					std::string con_name(encode_xml(con->name));
 					std::string con_tag = con_name + "_constraint";
 					printf("%s\n", con_name.c_str());
 					printf("%s\n\n", con_tag.c_str());

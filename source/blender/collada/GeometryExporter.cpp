@@ -91,6 +91,7 @@ void GeometryExporter::operator()(Object *ob)
 	}
 
 	std::string geom_name = (use_instantiation) ? id_name(ob->data) : id_name(ob);
+	geom_name = encode_xml(geom_name);
 
 	exportedGeometry.insert(geom_id);
 

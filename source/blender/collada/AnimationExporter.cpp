@@ -61,7 +61,7 @@ bool AnimationExporter::open_animation_container(bool has_container, Object *ob)
 	if (!has_container) {
 		char anim_id[200];
 		sprintf(anim_id, "action_container-%s", translate_id(id_name(ob)).c_str());
-		openAnimation(anim_id, id_name(ob));
+		openAnimation(anim_id, encode_xml(id_name(ob)));
 	}
 	return true;
 }
@@ -229,7 +229,7 @@ void AnimationExporter::export_matrix_animation(Object *ob, BCAnimationSampler &
 		bool is_animated = sampler.get_object_samples(samples, ob);
 		if (is_animated) {
 			bAction *action = bc_getSceneObjectAction(ob);
-			std::string name = id_name(ob);
+			std::string name = encode_xml(id_name(ob));
 			std::string action_name = (action == NULL) ? name + "-action" : id_name(action);
 			std::string channel_type = "transform";
 			std::string axis = "";
@@ -329,7 +329,7 @@ void AnimationExporter::export_curve_animation(
 	bAction *action = bc_getSceneObjectAction(ob);
 	action_name = (action) ? id_name(action) : "constraint_anim";
 
-	const std::string curve_name = curve.get_animation_name(ob);
+	const std::string curve_name = encode_xml(curve.get_animation_name(ob));
 	std::string id = bc_get_action_id(action_name, curve_name, channel_target, axis, ".");
 
 	std::string collada_target = translate_id(curve_name);
@@ -353,7 +353,7 @@ void AnimationExporter::export_bone_animation(Object *ob, Bone *bone, BCFrames &
 {
 	bAction* action = bc_getSceneObjectAction(ob);
 	std::string bone_name(bone->name);
-	std::string name = id_name(ob);
+	std::string name = encode_xml(id_name(ob));
 	std::string id = bc_get_action_id(id_name(action), name, bone_name, "pose_matrix");
 	std::string target = translate_id(id_name(ob) + "_" + bone_name) + "/transform";
 
