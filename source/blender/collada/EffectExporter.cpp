@@ -178,7 +178,7 @@ void EffectsExporter::operator()(Material *ma, Object *ob)
 {
 	KeyImageMap material_image_map;
 
-	openEffect(translate_id(id_name(ma)) + "-effect");
+	openEffect(get_effect_id(ma));
 
 	COLLADASW::EffectProfile ep(mSW);
 	ep.setProfileType(COLLADASW::EffectProfile::COMMON);
