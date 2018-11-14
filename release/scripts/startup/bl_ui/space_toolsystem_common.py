@@ -315,7 +315,7 @@ class ToolSelectPanelHelper:
         km_idname = f"{cls.keymap_prefix:s} {context_descr:s}, {text:s}"
         km = kc.keymaps.get(km_idname)
         if km is None:
-            km = kc.keymaps.new(km_idname, space_type=cls.bl_space_type, region_type='WINDOW')
+            km = kc.keymaps.new(km_idname, space_type=cls.bl_space_type, region_type='WINDOW', tool=True)
             keymap_fn[0](km)
         keymap_fn[0] = km
 
@@ -770,7 +770,7 @@ def keymap_from_context(context, space_type):
     keyconf = wm.keyconfigs.active
     keymap = keyconf.keymaps.get(km_name)
     if keymap is None:
-        keymap = keyconf.keymaps.new(km_name, space_type='EMPTY', region_type='TEMPORARY')
+        keymap = keyconf.keymaps.new(km_name, space_type='EMPTY', region_type='TEMPORARY', tool=True)
     for kmi in keymap.keymap_items:
         keymap.keymap_items.remove(kmi)
 
@@ -865,9 +865,8 @@ def keymap_from_context(context, space_type):
                             'WEIGHT_PAINT': "weight_tool",
                             'TEXTURE_PAINT': "image_tool",
                             'GPENCIL_PAINT': "gpencil_tool",
-                        }.get(mode, (None, None))
+                        }.get(mode, None)
                         if attr is not None:
-                            kmi_hack_brush_select_properties.paint_mode = mode
                             setattr(kmi_hack_brush_select_properties, attr, item.data_block)
                             kmi_found = wm.keyconfigs.find_item_from_operator(
                                 idname="paint.brush_select",
