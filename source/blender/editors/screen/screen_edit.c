@@ -43,9 +43,9 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_icons.h"
 #include "BKE_image.h"
-#include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_remap.h"
@@ -649,9 +649,6 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 		if (sa) {
 			/* make overlap active when mouse over */
 			for (ar = sa->regionbase.first; ar; ar = ar->next) {
-				if (ar->flag & (RGN_FLAG_HIDDEN | RGN_FLAG_TOO_SMALL)) {
-					continue;
-				}
 				if (BLI_rcti_isect_pt_v(&ar->winrct, xy)) {
 					scr->active_region = ar;
 					break;

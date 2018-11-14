@@ -130,7 +130,7 @@ bool BKE_collection_delete(Main *bmain, Collection *collection, bool hierarchy)
 {
 	/* Master collection is not real datablock, can't be removed. */
 	if (collection->flag & COLLECTION_IS_MASTER) {
-		BLI_assert("!Scene master collection can't be deleted");
+		BLI_assert(!"Scene master collection can't be deleted");
 		return false;
 	}
 
@@ -296,6 +296,19 @@ void BKE_collection_new_name_get(Collection *collection_parent, char *rname)
 
 	BLI_strncpy(rname, name, MAX_NAME);
 	MEM_freeN(name);
+}
+
+/**
+ * The name to show in the interface.
+ */
+const char *BKE_collection_ui_name_get(struct Collection *collection)
+{
+	if (collection->flag & COLLECTION_IS_MASTER) {
+		return IFACE_("Scene Collection");
+	}
+	else {
+		return collection->id.name + 2;
+	}
 }
 
 /* **************** Object List Cache *******************/

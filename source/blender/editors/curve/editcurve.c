@@ -43,6 +43,8 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_displist.h"
@@ -52,10 +54,8 @@
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
-#include "BKE_report.h"
-#include "BKE_animsys.h"
-#include "BKE_action.h"
 #include "BKE_modifier.h"
+#include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -1261,7 +1261,7 @@ void ED_curve_editnurb_make(Object *obedit)
 		nu = cu->nurb.first;
 		while (nu) {
 			newnu = BKE_nurb_duplicate(nu);
-			BKE_nurb_test2D(newnu); // after join, or any other creation of curve
+			BKE_nurb_test_2d(newnu); // after join, or any other creation of curve
 			BLI_addtail(&editnurb->nurbs, newnu);
 			nu = nu->next;
 		}
@@ -1640,7 +1640,7 @@ void ed_editnurb_translate_flag(ListBase *editnurb, short flag, const float vec[
 			}
 		}
 
-		BKE_nurb_test2D(nu);
+		BKE_nurb_test_2d(nu);
 	}
 }
 

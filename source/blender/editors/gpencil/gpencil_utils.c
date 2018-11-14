@@ -399,12 +399,12 @@ const EnumPropertyItem *ED_gpencil_layers_with_new_enum_itemf(
 		/* separator */
 		RNA_enum_item_add_separator(&item, &totitem);
 	}
-
+	const int tot = BLI_listbase_count(&gpd->layers);
 	/* Existing layers */
-	for (gpl = gpd->layers.first, i = 0; gpl; gpl = gpl->next, i++) {
+	for (gpl = gpd->layers.last, i = 0; gpl; gpl = gpl->prev, i++) {
 		item_tmp.identifier = gpl->info;
 		item_tmp.name = gpl->info;
-		item_tmp.value = i;
+		item_tmp.value = tot - i - 1;
 
 		if (gpl->flag & GP_LAYER_ACTIVE)
 			item_tmp.icon = ICON_GREASEPENCIL;
@@ -555,7 +555,7 @@ void gp_point_conversion_init(bContext *C, GP_SpaceConversion *r_gsc)
  * \param diff_mat: Matrix with the difference between original parent matrix
  * \param[out] r_pt: Pointer to new point after apply matrix
  */
-void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *r_pt)
+void gp_point_to_parent_space(const bGPDspoint *pt, const float diff_mat[4][4], bGPDspoint *r_pt)
 {
 	float fpt[3];
 
@@ -612,12 +612,12 @@ void gp_apply_parent_point(Depsgraph *depsgraph, Object *obact, bGPdata *gpd, bG
  * \warning This assumes that the caller has already checked whether the stroke in question can be drawn.
  */
 void gp_point_to_xy(
-        GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
+        const GP_SpaceConversion *gsc, const bGPDstroke *gps, const bGPDspoint *pt,
         int *r_x, int *r_y)
 {
-	ARegion *ar = gsc->ar;
-	View2D *v2d = gsc->v2d;
-	rctf *subrect = gsc->subrect;
+	const ARegion *ar = gsc->ar;
+	const View2D *v2d = gsc->v2d;
+	const rctf *subrect = gsc->subrect;
 	int xyval[2];
 
 	/* sanity checks */
@@ -666,12 +666,12 @@ void gp_point_to_xy(
  * \warning This assumes that the caller has already checked whether the stroke in question can be drawn
  */
 void gp_point_to_xy_fl(
-        GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
+        const GP_SpaceConversion *gsc, const bGPDstroke *gps, const bGPDspoint *pt,
         float *r_x, float *r_y)
 {
-	ARegion *ar = gsc->ar;
-	View2D *v2d = gsc->v2d;
-	rctf *subrect = gsc->subrect;
+	const ARegion *ar = gsc->ar;
+	const View2D *v2d = gsc->v2d;
+	const rctf *subrect = gsc->subrect;
 	float xyval[2];
 
 	/* sanity checks */
@@ -1444,6 +1444,14 @@ static bool gp_check_cursor_region(bContext *C, int mval[2])
 {
 	ARegion *ar = CTX_wm_region(C);
 	ScrArea *sa = CTX_wm_area(C);
+	Object *ob = CTX_data_active_object(C);
+
+	if ((ob == NULL) ||
+		(!ELEM(ob->mode, OB_MODE_GPENCIL_PAINT, OB_MODE_GPENCIL_SCULPT, OB_MODE_GPENCIL_WEIGHT)))
+	{
+		return false;
+	}
+
 	/* TODO: add more spacetypes */
 	if (!ELEM(sa->spacetype, SPACE_VIEW3D)) {
 		return false;
@@ -1452,11 +1460,7 @@ static bool gp_check_cursor_region(bContext *C, int mval[2])
 		return false;
 	}
 	else if (ar) {
-		rcti region_rect;
-
-		/* Perform bounds check using  */
-		ED_region_visible_rect(ar, &region_rect);
-		return BLI_rcti_isect_pt_v(&region_rect, mval);
+		return BLI_rcti_isect_pt_v(&ar->winrct, mval);
 	}
 	else {
 		return false;
@@ -1514,17 +1518,17 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
-	GP_EditBrush_Data *brush = NULL;
-	Brush *paintbrush = NULL;
+	GP_EditBrush_Data *gp_brush = NULL;
+	Brush *brush = NULL;
 	Material *ma = NULL;
 	MaterialGPencilStyle *gp_style = NULL;
 	int *last_mouse_position = customdata;
 
 	if ((gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE)) {
-		brush = &gset->brush[gset->weighttype];
+		gp_brush = &gset->brush[gset->weighttype];
 	}
 	else {
-		brush = &gset->brush[gset->brushtype];
+		gp_brush = &gset->brush[gset->brushtype];
 	}
 
 	/* default radius and color */
@@ -1540,51 +1544,51 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	/* for paint use paint brush size and color */
 	if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
-		paintbrush = BKE_brush_getactive_gpencil(scene->toolsettings);
+		brush = scene->toolsettings->gp_paint->paint.brush;
 		/* while drawing hide */
 		if ((gpd->runtime.sbuffer_size > 0) &&
-		    (paintbrush) && ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-		    ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
+		    (brush) && ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+		    ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0))
 		{
 			return;
 		}
 
-		if (paintbrush) {
-			if ((paintbrush->gpencil_settings->flag & GP_BRUSH_ENABLE_CURSOR) == 0) {
+		if (brush) {
+			if ((brush->gpencil_settings->flag & GP_BRUSH_ENABLE_CURSOR) == 0) {
 				return;
 			}
 
 			/* eraser has special shape and use a different shader program */
-			if (paintbrush->gpencil_tool == GPAINT_TOOL_ERASE) {
-				ED_gpencil_brush_draw_eraser(paintbrush, x, y);
+			if (brush->gpencil_tool == GPAINT_TOOL_ERASE) {
+				ED_gpencil_brush_draw_eraser(brush, x, y);
 				return;
 			}
 
 			/* get current drawing color */
-			ma = BKE_gpencil_get_material_from_brush(paintbrush);
+			ma = BKE_gpencil_get_material_from_brush(brush);
 			if (ma == NULL) {
 				BKE_gpencil_material_ensure(bmain, ob);
 				/* assign the first material to the brush */
 				ma = give_current_material(ob, 1);
-				paintbrush->gpencil_settings->material = ma;
+				brush->gpencil_settings->material = ma;
 			}
 			gp_style = ma->gp_style;
 
 			/* after some testing, display the size of the brush is not practical because
 			 * is too disruptive and the size of cursor does not change with zoom factor.
-			 * The decision was to use a fix size, instead of paintbrush->thickness value.
+			 * The decision was to use a fix size, instead of brush->thickness value.
 			 */
 			if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) &&
-			    ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-			    ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-			    (paintbrush->gpencil_tool == GPAINT_TOOL_DRAW))
+			    ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+			    ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
+			    (brush->gpencil_tool == GPAINT_TOOL_DRAW))
 			{
 				radius = 2.0f;
 				copy_v3_v3(color, gp_style->stroke_rgba);
 			}
 			else {
 				radius = 5.0f;
-				copy_v3_v3(color, paintbrush->add_col);
+				copy_v3_v3(color, brush->add_col);
 			}
 		}
 		else {
@@ -1594,17 +1598,17 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	/* for sculpt use sculpt brush size */
 	if (GPENCIL_SCULPT_OR_WEIGHT_MODE(gpd)) {
-		if (brush) {
-			if ((brush->flag & GP_EDITBRUSH_FLAG_ENABLE_CURSOR) == 0) {
+		if (gp_brush) {
+			if ((gp_brush->flag & GP_EDITBRUSH_FLAG_ENABLE_CURSOR) == 0) {
 				return;
 			}
 
-			radius = brush->size;
-			if (brush->flag & (GP_EDITBRUSH_FLAG_INVERT | GP_EDITBRUSH_FLAG_TMP_INVERT)) {
-				copy_v3_v3(color, brush->curcolor_sub);
+			radius = gp_brush->size;
+			if (gp_brush->flag & (GP_EDITBRUSH_FLAG_INVERT | GP_EDITBRUSH_FLAG_TMP_INVERT)) {
+				copy_v3_v3(color, gp_brush->curcolor_sub);
 			}
 			else {
-				copy_v3_v3(color, brush->curcolor_add);
+				copy_v3_v3(color, gp_brush->curcolor_add);
 			}
 		}
 	}
@@ -1620,9 +1624,9 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 	/* Inner Ring: Color from UI panel */
 	immUniformColor4f(color[0], color[1], color[2], 0.8f);
 	if ((gp_style) && (GPENCIL_PAINT_MODE(gpd)) &&
-	    ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
-	    ((paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
-	    (paintbrush->gpencil_tool == GPAINT_TOOL_DRAW))
+	    ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE) == 0) &&
+	    ((brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP) == 0) &&
+	    (brush->gpencil_tool == GPAINT_TOOL_DRAW))
 	{
 		imm_draw_circle_fill_2d(pos, x, y, radius, 40);
 	}
@@ -1640,12 +1644,12 @@ static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
 
 	/* Draw line for lazy mouse */
 	if ((last_mouse_position) &&
-	    (paintbrush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP))
+	    (brush->gpencil_settings->flag & GP_BRUSH_STABILIZE_MOUSE_TEMP))
 	{
 		glEnable(GL_LINE_SMOOTH);
 		glEnable(GL_BLEND);
 
-		copy_v3_v3(color, paintbrush->add_col);
+		copy_v3_v3(color, brush->add_col);
 		immUniformColor4f(color[0], color[1], color[2], 0.8f);
 
 		immBegin(GPU_PRIM_LINES, 2);
@@ -1707,7 +1711,7 @@ static void gpencil_verify_brush_type(bContext *C, int newmode)
 			break;
 		case OB_MODE_GPENCIL_WEIGHT:
 			gset->flag |= GP_BRUSHEDIT_FLAG_WEIGHT_MODE;
-			if ((gset->weighttype < GP_EDITBRUSH_TYPE_WEIGHT) || (gset->weighttype >= TOT_GP_EDITBRUSH_TYPES)) {
+			if ((gset->weighttype < GP_EDITBRUSH_TYPE_WEIGHT) || (gset->weighttype >= GP_EDITBRUSH_TYPE_MAX)) {
 				gset->weighttype = GP_EDITBRUSH_TYPE_WEIGHT;
 			}
 			break;
@@ -1813,14 +1817,14 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 	}
 	else {
 		/* use this value by default */
-		pixsize = 0.000100f;
+		pixsize = 0.0001f;
 	}
 	pixsize = MAX2(pixsize, 0.0000001f);
 
 	bGPDspoint *pt = NULL;
 	bGPDspoint *ptb = NULL;
 	int i;
-	float totlen = 0;
+	float totlen = 0.0f;
 
 	/* first read all points and calc distance */
 	for (i = 0; i < gps->totpoints; i++) {
@@ -1835,15 +1839,21 @@ void ED_gpencil_calc_stroke_uv(Object *ob, bGPDstroke *gps)
 		totlen += len_v3v3(&pt->x, &ptb->x) / pixsize;
 		pt->uv_fac = totlen;
 	}
+
 	/* normalize the distance using a factor */
 	float factor;
+
 	/* if image, use texture width */
 	if ((gp_style) && (gp_style->sima)) {
 		factor = gp_style->sima->gen_x;
 	}
+	else if (totlen == 0) {
+		return;
+	}
 	else {
 		factor = totlen;
 	}
+
 	for (i = 0; i < gps->totpoints; i++) {
 		pt = &gps->points[i];
 		pt->uv_fac /= factor;

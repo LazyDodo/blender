@@ -146,7 +146,8 @@ class TOPBAR_HT_lower_bar(Header):
                 #     layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
                 pass
             elif tool_mode == 'GPENCIL_PAINT':
-                layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
+                if (tool is not None) and tool.has_datablock:
+                    layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
             elif tool_mode == 'GPENCIL_SCULPT':
                 layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_sculpt", category="")
             elif tool_mode == 'GPENCIL_WEIGHT':
@@ -366,6 +367,39 @@ class _draw_left_context_mode:
                 row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
 
                 draw_color_selector()
+
+        @staticmethod
+        def GPENCIL_SCULPT(context, layout, tool):
+            if (tool is None) or (not tool.has_datablock):
+                return
+            tool_settings = context.tool_settings
+            settings = tool_settings.gpencil_sculpt
+            tool = settings.sculpt_tool
+            brush = settings.brush
+
+            layout.prop(brush, "size", slider=True)
+
+            row = layout.row(align=True)
+            row.prop(brush, "strength", slider=True)
+            row.prop(brush, "use_pressure_strength", text="")
+
+            if tool in {'THICKNESS', 'STRENGTH', 'PINCH', 'TWIST'}:
+                row.separator()
+                row.prop(brush, "direction", expand=True, text="")
+
+        @staticmethod
+        def GPENCIL_WEIGHT(context, layout, tool):
+            if (tool is None) or (not tool.has_datablock):
+                return
+            tool_settings = context.tool_settings
+            settings = tool_settings.gpencil_sculpt
+            brush = settings.brush
+
+            layout.prop(brush, "size", slider=True)
+
+            row = layout.row(align=True)
+            row.prop(brush, "strength", slider=True)
+            row.prop(brush, "use_pressure_strength", text="")
 
         @staticmethod
         def PARTICLE(context, layout, tool):
@@ -625,7 +659,7 @@ class TOPBAR_MT_file_new(Menu):
             if show_more:
                 paths = paths[:splash_limit - 2]
         elif use_more:
-            icon = 'FILE'
+            icon = 'FILE_NEW'
             paths = paths[splash_limit - 2:]
             show_more = False
         else:

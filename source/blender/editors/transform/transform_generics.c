@@ -69,25 +69,24 @@
 
 #include "BIK_api.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_armature.h"
+#include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_editmesh.h"
 #include "BKE_fcurve.h"
 #include "BKE_gpencil.h"
 #include "BKE_lattice.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
-#include "BKE_nla.h"
-#include "BKE_context.h"
-#include "BKE_paint.h"
-#include "BKE_sequencer.h"
-#include "BKE_editmesh.h"
-#include "BKE_tracking.h"
-#include "BKE_mask.h"
-#include "BKE_workspace.h"
 #include "BKE_layer.h"
+#include "BKE_library.h"
+#include "BKE_mask.h"
+#include "BKE_nla.h"
+#include "BKE_paint.h"
 #include "BKE_scene.h"
+#include "BKE_sequencer.h"
+#include "BKE_tracking.h"
+#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 
@@ -492,7 +491,7 @@ static void recalcData_nla(TransInfo *t)
 		 * BUT only if realtime updates are enabled
 		 */
 		if ((snla->flag & SNLA_NOREALTIMEUPDATES) == 0)
-			ANIM_id_update(t->scene, tdn->id);
+			ANIM_id_update(CTX_data_main(t->context), tdn->id);
 
 		/* if canceling transform, just write the values without validating, then move on */
 		if (t->state == TRANS_CANCEL) {
@@ -785,7 +784,7 @@ static void recalcData_objects(TransInfo *t)
 				else {
 					/* Normal updating */
 					while (nu) {
-						BKE_nurb_test2D(nu);
+						BKE_nurb_test_2d(nu);
 						BKE_nurb_handles_calc(nu);
 						nu = nu->next;
 					}

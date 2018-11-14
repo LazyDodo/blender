@@ -54,9 +54,8 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
-#include "BKE_screen.h"
-#include "BKE_library.h"
 #include "BKE_paint.h"
+#include "BKE_screen.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -331,7 +330,7 @@ static bool ui_tooltip_data_append_from_keymap(
 				            .color_id = UI_TIP_LC_MAIN,
 				            .is_pad = true,
 				        });
-				field->text = BLI_strdup(ot->description[0] ? ot->description : ot->name);
+				field->text = BLI_strdup(ot->description ? ot->description : ot->name);
 			}
 			/* Shortcut */
 			{
@@ -450,7 +449,7 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but, bool is
 	}
 
 	/* Shortcut. */
-	if (is_label == false) {
+	if (is_label == false && ((but->block->flag & UI_BLOCK_SHOW_SHORTCUT_ALWAYS) == 0)) {
 		/* There are different kinds of shortcuts:
 		 *
 		 * - Direct access to the tool (as if the toolbar button is pressed).
@@ -477,7 +476,6 @@ static uiTooltipData *ui_tooltip_data_from_tool(bContext *C, uiBut *but, bool is
 					wmOperatorType *ot = WM_operatortype_find("paint.brush_select", true);
 					PointerRNA op_props;
 					WM_operator_properties_create_ptr(&op_props, ot);
-					RNA_enum_set(&op_props, "paint_mode", paint_mode);
 					RNA_enum_set(&op_props, tool_attr, items[i].value);
 
 					/* Check for direct access to the tool. */

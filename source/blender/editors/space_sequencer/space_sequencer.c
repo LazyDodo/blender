@@ -42,10 +42,10 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_library.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
-#include "BKE_global.h"
 
 #include "ED_space_api.h"
 #include "ED_screen.h"
@@ -653,7 +653,9 @@ static void sequencer_preview_region_draw(const bContext *C, ARegion *ar)
 	if ((U.uiflag & USER_SHOW_FPS) && ED_screen_animation_no_scrub(wm)) {
 		rcti rect;
 		ED_region_visible_rect(ar, &rect);
-		ED_scene_draw_fps(scene, &rect);
+		int xoffset = rect.xmin + U.widget_unit;
+		int yoffset = rect.xmax;
+		ED_scene_draw_fps(scene, xoffset, &yoffset);
 	}
 }
 

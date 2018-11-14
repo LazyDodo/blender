@@ -1182,6 +1182,11 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	int i;
 
 	DRWMatrixState saved_mats;
+	int saved_ray_type = sldata->common_data.ray_type;
+
+	/* TODO: make it optionnal if we don't draw shadows. */
+	sldata->common_data.ray_type = EEVEE_RAY_SHADOW;
+	DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 
 	/* Precompute all shadow/view test before rendering and trashing the culling cache. */
 	bool cube_visible[MAX_SHADOW_CUBE];
@@ -1189,7 +1194,7 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		Lamp *la = (Lamp *)ob->data;
 		BoundSphere bsphere = {
 			.center = {ob->obmat[3][0], ob->obmat[3][1], ob->obmat[3][2]},
-			.radius = la->dist
+			.radius = la->clipend
 		};
 		cube_visible[i] = DRW_culling_sphere_test(&bsphere);
 	}
@@ -1236,6 +1241,7 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		copy_v3_v3(srd->position, cube_data->position);
 
 		srd->stored_texel_size = 1.0 / (float)linfo->shadow_cube_store_size;
+		srd->exponent = la->bleedexp;
 
 		DRW_uniformbuffer_update(sldata->shadow_render_ubo, srd);
 
@@ -1420,6 +1426,9 @@ void EEVEE_draw_shadows(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 	DRW_uniformbuffer_update(sldata->light_ubo, &linfo->light_data);
 	DRW_uniformbuffer_update(sldata->shadow_ubo, &linfo->shadow_data); /* Update all data at once */
+
+	sldata->common_data.ray_type = saved_ray_type;
+	DRW_uniformbuffer_update(sldata->common_ubo, &sldata->common_data);
 }
 
 void EEVEE_lights_free(void)

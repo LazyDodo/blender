@@ -52,9 +52,9 @@
 #include "DNA_scene_types.h"
 #include "DNA_brush_types.h"
 
-#include "BKE_pbvh.h"
 #include "BKE_brush.h"
 #include "BKE_ccg.h"
+#include "BKE_colortools.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
@@ -65,13 +65,13 @@
 #include "BKE_mesh_mapping.h"
 #include "BKE_modifier.h"
 #include "BKE_multires.h"
-#include "BKE_paint.h"
-#include "BKE_report.h"
-#include "BKE_screen.h"
 #include "BKE_node.h"
 #include "BKE_object.h"
+#include "BKE_paint.h"
+#include "BKE_pbvh.h"
+#include "BKE_report.h"
+#include "BKE_screen.h"
 #include "BKE_subsurf.h"
-#include "BKE_colortools.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -1213,7 +1213,7 @@ float tex_strength(SculptSession *ss, const Brush *br,
 	else if (mtex->brush_map_mode == MTEX_MAP_MODE_3D) {
 		/* Get strength by feeding the vertex
 		 * location directly into a texture */
-		avg = BKE_brush_sample_tex_3D(scene, br, point, rgba, 0, ss->tex_pool);
+		avg = BKE_brush_sample_tex_3d(scene, br, point, rgba, 0, ss->tex_pool);
 	}
 	else if (ss->texcache) {
 		float symm_point[3], point_2d[2];
@@ -1254,7 +1254,7 @@ float tex_strength(SculptSession *ss, const Brush *br,
 		}
 		else {
 			const float point_3d[3] = {point_2d[0], point_2d[1], 0.0f};
-			avg = BKE_brush_sample_tex_3D(scene, br, point_3d, rgba, 0, ss->tex_pool);
+			avg = BKE_brush_sample_tex_3d(scene, br, point_3d, rgba, 0, ss->tex_pool);
 		}
 	}
 
@@ -4534,7 +4534,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, Object *ob,
 	 *      brush coord/pressure/etc.
 	 *      It's more an events design issue, which doesn't split coordinate/pressure/angle
 	 *      changing events. We should avoid this after events system re-design */
-	if (paint_supports_dynamic_size(brush, ePaintSculpt) || cache->first_time) {
+	if (paint_supports_dynamic_size(brush, PAINT_MODE_SCULPT) || cache->first_time) {
 		cache->pressure = RNA_float_get(ptr, "pressure");
 	}
 
@@ -4551,7 +4551,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, Object *ob,
 		}
 	}
 
-	if (BKE_brush_use_size_pressure(scene, brush) && paint_supports_dynamic_size(brush, ePaintSculpt)) {
+	if (BKE_brush_use_size_pressure(scene, brush) && paint_supports_dynamic_size(brush, PAINT_MODE_SCULPT)) {
 		cache->radius = cache->initial_radius * cache->pressure;
 	}
 	else {
@@ -5693,8 +5693,8 @@ void ED_object_sculptmode_enter_ex(
 		           "Object has negative scale, sculpting may be unpredictable");
 	}
 
-	Paint *paint = BKE_paint_get_active_from_paintmode(scene, ePaintSculpt);
-	BKE_paint_init(bmain, scene, ePaintSculpt, PAINT_CURSOR_SCULPT);
+	Paint *paint = BKE_paint_get_active_from_paintmode(scene, PAINT_MODE_SCULPT);
+	BKE_paint_init(bmain, scene, PAINT_MODE_SCULPT, PAINT_CURSOR_SCULPT);
 
 	paint_cursor_start_explicit(paint, bmain->wm.first, sculpt_poll_view3d);
 
@@ -6052,6 +6052,17 @@ static void SCULPT_OT_sample_detail_size(wmOperatorType *ot)
 }
 
 
+/* Dynamic-topology detail size
+ *
+ * This should be improved further, perhaps by showing a triangle
+ * grid rather than brush alpha */
+static void set_brush_rc_props(PointerRNA *ptr, const char *prop)
+{
+	char *path = BLI_sprintfN("tool_settings.sculpt.brush.%s", prop);
+	RNA_string_set(ptr, "data_path_primary", path);
+	MEM_freeN(path);
+}
+
 static int sculpt_set_detail_size_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Sculpt *sd = CTX_data_tool_settings(C)->sculpt;
@@ -6062,15 +6073,15 @@ static int sculpt_set_detail_size_exec(bContext *C, wmOperator *UNUSED(op))
 	WM_operator_properties_create_ptr(&props_ptr, ot);
 
 	if (sd->flags & (SCULPT_DYNTOPO_DETAIL_CONSTANT | SCULPT_DYNTOPO_DETAIL_MANUAL)) {
-		set_brush_rc_props(&props_ptr, "sculpt", "constant_detail_resolution", NULL, 0);
+		set_brush_rc_props(&props_ptr, "constant_detail_resolution");
 		RNA_string_set(&props_ptr, "data_path_primary", "tool_settings.sculpt.constant_detail_resolution");
 	}
 	else if (sd->flags & SCULPT_DYNTOPO_DETAIL_BRUSH) {
-		set_brush_rc_props(&props_ptr, "sculpt", "constant_detail_resolution", NULL, 0);
+		set_brush_rc_props(&props_ptr, "constant_detail_resolution");
 		RNA_string_set(&props_ptr, "data_path_primary", "tool_settings.sculpt.detail_percent");
 	}
 	else {
-		set_brush_rc_props(&props_ptr, "sculpt", "detail_size", NULL, 0);
+		set_brush_rc_props(&props_ptr, "detail_size");
 		RNA_string_set(&props_ptr, "data_path_primary", "tool_settings.sculpt.detail_size");
 	}
 

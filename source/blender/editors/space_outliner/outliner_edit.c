@@ -58,10 +58,10 @@
 #include "BKE_library_query.h"
 #include "BKE_library_remap.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_outliner_treehash.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
-#include "BKE_material.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -561,7 +561,6 @@ void OUTLINER_OT_id_remap(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner ID data Remap";
 	ot->idname = "OUTLINER_OT_id_remap";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = outliner_id_remap_invoke;

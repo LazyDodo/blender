@@ -26,6 +26,7 @@ not associated with blenders internal data.
 __all__ = (
     "blend_paths",
     "escape_identifier",
+    "keyconfig_init",
     "keyconfig_set",
     "load_scripts",
     "modules_from_path",
@@ -146,6 +147,7 @@ def load_scripts(reload_scripts=False, refresh_scripts=False):
     """
     use_time = use_class_register_check = _bpy.app.debug_python
     use_user = not _is_factory_startup
+    is_background = _bpy.app.background
 
     if use_time:
         import time
@@ -260,13 +262,6 @@ def load_scripts(reload_scripts=False, refresh_scripts=False):
     else:
         _addon_utils.reset_all(reload_scripts=reload_scripts)
     del _initialize
-
-    # run the active integration preset
-    filepath = preset_find(_user_preferences.inputs.active_keyconfig,
-                           "keyconfig")
-
-    if filepath:
-        keyconfig_set(filepath)
 
     if reload_scripts:
         import gc
@@ -561,6 +556,22 @@ def preset_find(name, preset_path, display_name=False, ext=".py"):
                 return filepath
 
 
+def keyconfig_init():
+    # Key configuration initialization and refresh, called from the Blender
+    # window manager on startup and refresh.
+    active_config = _user_preferences.inputs.active_keyconfig
+
+    # Load the default key configuration.
+    default_filepath = preset_find("blender", "keyconfig")
+    keyconfig_set(default_filepath)
+
+    # Set the active key configuration if different
+    filepath = preset_find(active_config, "keyconfig")
+
+    if filepath and filepath != default_filepath:
+        keyconfig_set(filepath)
+
+
 def keyconfig_set(filepath, report=None):
     from os.path import basename, splitext
     from itertools import chain
@@ -593,23 +604,18 @@ def keyconfig_set(filepath, report=None):
 
     kc_new = next(chain(iter(kc for kc in keyconfigs
                              if kc not in keyconfigs_old), (None,)))
+
+    # Get name, exception for default keymap to keep backwards compatibility.
+    name = splitext(basename(filepath))[0]
+    if name == 'blender':
+        name = 'Blender'
+
+    kc_new = keyconfigs.get(name)
     if kc_new is None:
         if report is not None:
             report({'ERROR'}, "Failed to load keymap %r" % filepath)
         return False
     else:
-        kc_new.name = ""
-
-        # remove duplicates
-        name = splitext(basename(filepath))[0]
-        while True:
-            kc_dupe = keyconfigs.get(name)
-            if kc_dupe:
-                keyconfigs.remove(kc_dupe)
-            else:
-                break
-
-        kc_new.name = name
         keyconfigs.active = kc_new
         return True
 

@@ -162,6 +162,8 @@ typedef struct IconType {
 static struct ListBase iconfilelist = {NULL, NULL};
 static IconTexture icongltex = {0, 0, 0, 0.0f, 0.0f};
 
+#ifndef WITH_HEADLESS
+
 static const IconType icontypes[] = {
 #define DEF_ICON(name) {ICON_TYPE_MONO_TEXTURE, 0},
 #define DEF_ICON_COLLECTION(name) {ICON_TYPE_MONO_TEXTURE, TH_ICON_COLLECTION},
@@ -176,8 +178,6 @@ static const IconType icontypes[] = {
 };
 
 /* **************************************************** */
-
-#ifndef WITH_HEADLESS
 
 static DrawInfo *def_internal_icon(ImBuf *bbuf, int icon_id, int xofs, int yofs, int size, int type, int theme_color)
 {
@@ -1616,7 +1616,9 @@ static void icon_draw_size(
 		UI_widgetbase_draw_cache_flush();
 
 		/* Just draw a colored rect - Like for vicon_colorset_draw() */
+#ifndef WITH_HEADLESS
 		vicon_gplayer_color_draw(icon, (int)x, (int)y,  w, h);
+#endif
 	}
 }
 
@@ -1674,7 +1676,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 		WorkSpace *workspace = CTX_wm_workspace(C);
 		Object *ob = CTX_data_active_object(C);
 		const EnumPropertyItem *items = NULL;
-		ePaintMode paint_mode = ePaintInvalid;
+		ePaintMode paint_mode = PAINT_MODE_INVALID;
 		ScrArea *sa = CTX_wm_area(C);
 		char space_type = sa->spacetype;
 		/* When in an unsupported space. */
@@ -1688,16 +1690,16 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 
 		if ((space_type == SPACE_VIEW3D) && ob) {
 			if (ob->mode & OB_MODE_SCULPT) {
-				paint_mode = ePaintSculpt;
+				paint_mode = PAINT_MODE_SCULPT;
 			}
 			else if (ob->mode & OB_MODE_VERTEX_PAINT) {
-				paint_mode = ePaintVertex;
+				paint_mode = PAINT_MODE_VERTEX;
 			}
 			else if (ob->mode & OB_MODE_WEIGHT_PAINT) {
-				paint_mode = ePaintWeight;
+				paint_mode = PAINT_MODE_WEIGHT;
 			}
 			else if (ob->mode & OB_MODE_TEXTURE_PAINT) {
-				paint_mode = ePaintTexture3D;
+				paint_mode = PAINT_MODE_TEXTURE_3D;
 			}
 		}
 		else if (space_type == SPACE_IMAGE) {
@@ -1711,7 +1713,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 			}
 
 			if (sima_mode == SI_MODE_PAINT) {
-				paint_mode = ePaintTexture2D;
+				paint_mode = PAINT_MODE_TEXTURE_2D;
 			}
 		}
 
@@ -1757,7 +1759,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 			}
 			return id->icon_id;
 		}
-		else if (paint_mode != ePaintInvalid) {
+		else if (paint_mode != PAINT_MODE_INVALID) {
 			items = BKE_paint_get_tool_enum_from_paintmode(paint_mode);
 			const uint tool_offset = BKE_paint_get_brush_tool_offset_from_paintmode(paint_mode);
 			const int tool_type = *(char *)POINTER_OFFSET(br, tool_offset);

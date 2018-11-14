@@ -61,7 +61,6 @@ void BKE_brush_free(struct Brush *brush);
 void BKE_brush_sculpt_reset(struct Brush *brush);
 void BKE_brush_gpencil_presets(struct bContext *C);
 void BKE_brush_update_material(struct Main *bmain, struct Material *ma, struct Brush *exclude_brush);
-struct Brush *BKE_brush_getactive_gpencil(struct ToolSettings *ts);
 
 /* image icon function */
 struct ImBuf *get_brush_icon(struct Brush *brush);
@@ -78,7 +77,7 @@ float BKE_brush_curve_strength_clamped(struct Brush *br, float p, const float le
 float BKE_brush_curve_strength(const struct Brush *br, float p, const float len);
 
 /* sampling */
-float BKE_brush_sample_tex_3D(
+float BKE_brush_sample_tex_3d(
         const struct Scene *scene, const struct Brush *br, const float point[3],
         float rgba[4], const int thread, struct ImagePool *pool);
 float BKE_brush_sample_masktex(

@@ -79,7 +79,6 @@
 #include "BKE_blender_undo.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
-#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_packedFile.h"
 #include "BKE_report.h"
@@ -501,10 +500,14 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 			if (reset_app_template) {
 				/* Only run when we have a template path found. */
 				if (BKE_appdir_app_template_any()) {
-					BPY_execute_string(C, "__import__('bl_app_template_utils').reset()");
+					BPY_execute_string(
+					        C, (const char *[]){"bl_app_template_utils", NULL},
+					        "bl_app_template_utils.reset()");
 				}
 				/* sync addons, these may have changed from the defaults */
-				BPY_execute_string(C, "__import__('addon_utils').reset_all()");
+				BPY_execute_string(
+				        C, (const char *[]){"addon_utils", NULL},
+				        "addon_utils.reset_all()");
 			}
 			BPY_python_reset(C);
 			addons_loaded = true;

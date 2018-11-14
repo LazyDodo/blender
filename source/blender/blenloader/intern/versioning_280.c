@@ -63,31 +63,32 @@
 #include "DNA_armature_types.h"
 
 #include "BKE_action.h"
+#include "BKE_cloth.h"
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
-#include "BKE_customdata.h"
 #include "BKE_colortools.h"
+#include "BKE_customdata.h"
 #include "BKE_freestyle.h"
+#include "BKE_gpencil.h"
 #include "BKE_idprop.h"
 #include "BKE_image.h"
+#include "BKE_key.h"
+#include "BKE_library.h"
 #include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mesh.h"
 #include "BKE_node.h"
+#include "BKE_object.h"
+#include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
 #include "BKE_studiolight.h"
-#include "BKE_workspace.h"
-#include "BKE_gpencil.h"
-#include "BKE_paint.h"
-#include "BKE_object.h"
-#include "BKE_cloth.h"
-#include "BKE_key.h"
 #include "BKE_unit.h"
+#include "BKE_workspace.h"
 
 /* Only for IMB_BlendMode */
 #include "IMB_imbuf.h"
@@ -1097,7 +1098,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					ToolSettings *ts = scene->toolsettings;
 					/* sculpt brushes */
 					GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
-					for (int i = 0; i < TOT_GP_EDITBRUSH_TYPES; ++i) {
+					for (int i = 0; i < GP_EDITBRUSH_TYPE_MAX; ++i) {
 						gp_brush = &gset->brush[i];
 						gp_brush->flag |= GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
 						copy_v3_v3(gp_brush->curcolor_add, curcolor_add);

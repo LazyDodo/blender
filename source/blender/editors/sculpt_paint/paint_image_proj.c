@@ -62,12 +62,12 @@
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 
+#include "BKE_brush.h"
 #include "BKE_camera.h"
 #include "BKE_colorband.h"
 #include "BKE_context.h"
 #include "BKE_colortools.h"
 #include "BKE_idprop.h"
-#include "BKE_brush.h"
 #include "BKE_image.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -4730,7 +4730,7 @@ static void *do_projectpaint_thread(void *ph_v)
 							}
 
 							/* note, for clone and smear, we only use the alpha, could be a special function */
-							BKE_brush_sample_tex_3D(ps->scene, brush, samplecos, texrgba, thread_index, pool);
+							BKE_brush_sample_tex_3d(ps->scene, brush, samplecos, texrgba, thread_index, pool);
 
 							copy_v3_v3(texrgb, texrgba);
 							mask *= texrgba[3];

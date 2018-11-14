@@ -67,25 +67,25 @@
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_editlattice.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_lattice.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_softbody.h"
-#include "BKE_modifier.h"
-#include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
 #include "BKE_workspace.h"
-#include "BKE_layer.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -1960,14 +1960,7 @@ static void move_to_collection_menus_free(MoveToCollectionData **menu)
 static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout, void *menu_v)
 {
 	MoveToCollectionData *menu = menu_v;
-	const char *name;
-
-	if (menu->collection->flag & COLLECTION_IS_MASTER) {
-		name = IFACE_("Scene Collection");
-	}
-	else {
-		name = menu->collection->id.name + 2;
-	}
+	const char *name = BKE_collection_ui_name_get(menu->collection);
 
 	uiItemIntO(layout,
 	           name,

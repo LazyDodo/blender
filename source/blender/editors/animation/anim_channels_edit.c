@@ -65,7 +65,6 @@
 #include "ED_anim_api.h"
 #include "ED_armature.h"
 #include "ED_keyframes_edit.h" // XXX move the select modes out of there!
-#include "ED_keymap_templates.h"
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_select_utils.h"
@@ -2920,6 +2919,7 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 		}
 		case ANIMTYPE_GPLAYER:
 		{
+			bGPdata *gpd = (bGPdata *)ale->id;
 			bGPDlayer *gpl = (bGPDlayer *)ale->data;
 
 			/* select/deselect */
@@ -2936,10 +2936,12 @@ static int mouse_anim_channels(bContext *C, bAnimContext *ac, int channel_index,
 			/* change active layer, if this is selected (since we must always have an active layer) */
 			if (gpl->flag & GP_LAYER_SELECT) {
 				ANIM_set_active_channel(ac, ac->data, ac->datatype, filter, gpl, ANIMTYPE_GPLAYER);
+				/* update other layer status */
+				BKE_gpencil_layer_setactive(gpd, gpl);
 			}
 
-			WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL); /* Grease Pencil updates */
-			notifierFlags |= (ND_ANIMCHAN | NA_EDITED); /* Animation Ediotrs updates */
+			WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL); /* Grease Pencil updates */
+			notifierFlags |= (ND_ANIMCHAN | NA_EDITED); /* Animation Editors updates */
 			break;
 		}
 		case ANIMTYPE_MASKDATABLOCK:
@@ -3195,61 +3197,7 @@ void ED_operatortypes_animchannels(void)
 // TODO: check on a poll callback for this, to get hotkeys into menus
 void ED_keymap_animchannels(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Animation Channels", 0, 0);
-	wmKeyMapItem *kmi;
-
-	/* click-select */
-	/* XXX for now, only leftmouse.... */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_click", LEFTMOUSE, KM_PRESS, 0, 0);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_click", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "extend", true);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_click", LEFTMOUSE, KM_PRESS, KM_CTRL | KM_SHIFT, 0)->ptr, "children_only", true);
-
-	/* rename */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_rename", LEFTMOUSE, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_rename", LEFTMOUSE, KM_DBL_CLICK, 0, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channel_select_keys", LEFTMOUSE, KM_DBL_CLICK, 0, 0);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "ANIM_OT_channel_select_keys", LEFTMOUSE, KM_DBL_CLICK, KM_SHIFT, 0)->ptr, "extend", true);
-
-	/* find (i.e. a shortcut for setting the name filter) */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_find", FKEY, KM_PRESS, KM_CTRL, 0);
-
-	/* deselect all */
-	ED_keymap_template_select_all(keymap, "ANIM_OT_channels_select_all");
-
-	/* box select */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_select_box", BKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_select_box", EVT_TWEAK_L, KM_ANY, 0, 0);
-
-	/* delete */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_delete", XKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_delete", DELKEY, KM_PRESS, 0, 0);
-
-	/* settings */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_setting_toggle", WKEY, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_setting_enable", WKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_setting_disable", WKEY, KM_PRESS, KM_ALT, 0);
-
-	/* settings - specialized hotkeys */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_editable_toggle", TABKEY, KM_PRESS, 0, 0);
-
-	/* expand/collapse */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_expand", PADPLUSKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_collapse", PADMINUS, KM_PRESS, 0, 0);
-
-	kmi = WM_keymap_add_item(keymap, "ANIM_OT_channels_expand", PADPLUSKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "all", false);
-	kmi = WM_keymap_add_item(keymap, "ANIM_OT_channels_collapse", PADMINUS, KM_PRESS, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "all", false);
-
-	/* rearranging */
-	RNA_enum_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_move", PAGEUPKEY, KM_PRESS, 0, 0)->ptr, "direction", REARRANGE_ANIMCHAN_UP);
-	RNA_enum_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_move", PAGEDOWNKEY, KM_PRESS, 0, 0)->ptr, "direction", REARRANGE_ANIMCHAN_DOWN);
-	RNA_enum_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_move", PAGEUPKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "direction", REARRANGE_ANIMCHAN_TOP);
-	RNA_enum_set(WM_keymap_add_item(keymap, "ANIM_OT_channels_move", PAGEDOWNKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "direction", REARRANGE_ANIMCHAN_BOTTOM);
-
-	/* grouping */
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_group", GKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_channels_ungroup", GKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
+	WM_keymap_ensure(keyconf, "Animation Channels", 0, 0);
 }
 
 /* ************************************************************************** */
