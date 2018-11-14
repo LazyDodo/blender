@@ -1537,6 +1537,18 @@ static void write_constraints(WriteData *wd, ListBase *conlist)
 
 					break;
 				}
+				case CONSTRAINT_TYPE_ARMATURE:
+				{
+					bArmatureConstraint *data = con->data;
+					bConstraintTarget *ct;
+
+					/* write targets */
+					for (ct = data->targets.first; ct; ct = ct->next) {
+						writestruct(wd, DATA, bConstraintTarget, 1, ct);
+					}
+
+					break;
+				}
 				case CONSTRAINT_TYPE_SPLINEIK:
 				{
 					bSplineIKConstraint *data = con->data;
@@ -2435,6 +2447,7 @@ static void write_paint(WriteData *wd, Paint *p)
 	if (p->cavity_curve) {
 		write_curvemapping(wd, p->cavity_curve);
 	}
+	writedata(wd, DATA, sizeof(PaintToolSlot) * p->tool_slots_len, p->tool_slots);
 }
 
 static void write_layer_collections(WriteData *wd, ListBase *lb)

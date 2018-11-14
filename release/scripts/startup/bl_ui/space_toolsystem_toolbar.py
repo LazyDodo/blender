@@ -38,100 +38,16 @@ from .properties_grease_pencil_common import (
     AnnotationDataPanel,
 )
 
-def generate_from_brushes_ex(
-        context, *,
-        icon_prefix,
-        brush_test_attr,
-        brush_category_attr,
-        brush_category_layout,
-):
-    # Categories
-    brush_categories = {}
-    if context.mode != 'GPENCIL_PAINT':
-        for brush in context.blend_data.brushes:
-            if getattr(brush, brush_test_attr) and brush.gpencil_settings is None:
-                category = getattr(brush, brush_category_attr)
-                name = brush.name
-                brush_categories.setdefault(category, []).append(
-                    ToolDef.from_dict(
-                        dict(
-                            text=name,
-                            icon=icon_prefix + category.lower(),
-                            data_block=name,
-                        )
-                    )
-                )
-    else:
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_paint.draw_settings_common(context, layout, tool)
-
-        for brush_type in brush_category_layout:
-            for brush in context.blend_data.brushes:
-                if brush.gpencil_settings and getattr(brush, brush_test_attr) and brush.gpencil_settings.gp_icon == brush_type[0]:
-                    category = brush_type[0]
-                    name = brush.name
-                    text = name
-
-                    # Define icon.
-                    icon_name = {
-                        'PENCIL': 'draw_pencil',
-                        'PEN': 'draw_pen',
-                        'INK': 'draw_ink',
-                        'INKNOISE': 'draw_noise',
-                        'BLOCK': 'draw_block',
-                        'MARKER': 'draw_marker',
-                        'FILL': 'draw_fill',
-                        'SOFT': 'draw.eraser_soft',
-                        'HARD': 'draw.eraser_hard',
-                        'STROKE': 'draw.eraser_stroke',
-                    }[category]
-                    brush_categories.setdefault(category, []).append(
-                        ToolDef.from_dict(
-                            dict(
-                                text=text,
-                                icon=icon_prefix + icon_name,
-                                data_block=name,
-                                widget=None,
-                                operator="gpencil.draw",
-                                draw_settings=draw_settings,
-                            )
-                        )
-                    )
-
-    def tools_from_brush_group(groups):
-        assert(type(groups) is tuple)
-        if len(groups) == 1:
-            tool_defs = tuple(brush_categories.pop(groups[0], ()))
-        else:
-            tool_defs = tuple(item for g in groups for item in brush_categories.pop(g, ()))
-
-        if len(tool_defs) > 1:
-            return (tool_defs,)
-        else:
-            return tool_defs
-
-    # Each item below is a single toolbar entry:
-    # Grouped for multiple or none if no brushes are found.
-    tool_defs = tuple(
-        tool_def
-        for category in brush_category_layout
-        for tool_def in tools_from_brush_group(category)
-    )
-    # Ensure we use all types.
-    if brush_categories:
-        print(brush_categories)
-    assert(len(brush_categories) == 0)
-    return tool_defs
-
 
 def generate_from_enum_ex(
         context, *,
         icon_prefix,
-        data,
+        type,
         attr,
+        tooldef_keywords={},
 ):
     tool_defs = []
-    for enum in data.rna_type.properties[attr].enum_items_static:
+    for enum in type.bl_rna.properties[attr].enum_items_static:
         name = enum.name
         identifier = enum.identifier
         tool_defs.append(
@@ -140,6 +56,7 @@ def generate_from_enum_ex(
                     text=name,
                     icon=icon_prefix + identifier.lower(),
                     data_block=identifier,
+                    **tooldef_keywords,
                 )
             )
         )
@@ -203,7 +120,7 @@ class _defs_view3d_generic:
 def _defs_annotate_factory():
 
     class _defs_annotate:
-        @staticmethod
+
         def draw_settings_common(context, layout, tool):
             if type(context.gpencil_data_owner) is bpy.types.Object:
                 gpd = context.scene.grease_pencil
@@ -243,10 +160,8 @@ def _defs_annotate_factory():
                 elif tool_settings.gpencil_stroke_placement_view3d in {'SURFACE', 'STROKE'}:
                     row.prop(tool_settings, "use_gpencil_stroke_endpoints")
 
-        @ToolDef.from_fn
-        def scribble():
-            def draw_settings(context, layout, tool):
-                _defs_annotate.draw_settings_common(context, layout, tool)
+        @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+        def scribble(*, draw_settings):
             return dict(
                 text="Annotate",
                 icon="ops.gpencil.draw",
@@ -259,10 +174,8 @@ def _defs_annotate_factory():
                 draw_settings=draw_settings,
             )
 
-        @ToolDef.from_fn
-        def line():
-            def draw_settings(context, layout, tool):
-                _defs_annotate.draw_settings_common(context, layout, tool)
+        @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+        def line(*, draw_settings):
             return dict(
                 text="Annotate Line",
                 icon="ops.gpencil.draw.line",
@@ -275,10 +188,8 @@ def _defs_annotate_factory():
                 draw_settings=draw_settings,
             )
 
-        @ToolDef.from_fn
-        def poly():
-            def draw_settings(context, layout, tool):
-                _defs_annotate.draw_settings_common(context, layout, tool)
+        @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+        def poly(*, draw_settings):
             return dict(
                 text="Annotate Polygon",
                 icon="ops.gpencil.draw.poly",
@@ -308,6 +219,7 @@ def _defs_annotate_factory():
                 ),
                 draw_settings=draw_settings,
             )
+
     return _defs_annotate
 
 
@@ -1043,7 +955,7 @@ class _defs_particle:
         return generate_from_enum_ex(
             context,
             icon_prefix="brush.particle.",
-            data=context.tool_settings.particle_edit,
+            type=bpy.types.ParticleEdit,
             attr="tool",
         )
 
@@ -1052,25 +964,11 @@ class _defs_sculpt:
 
     @staticmethod
     def generate_from_brushes(context):
-        return generate_from_brushes_ex(
+        return generate_from_enum_ex(
             context,
             icon_prefix="brush.sculpt.",
-            brush_test_attr="use_paint_sculpt",
-            brush_category_attr="sculpt_tool",
-            brush_category_layout=(
-                ('DRAW',),
-                ('GRAB', 'THUMB'),
-                ('SNAKE_HOOK',),
-                ('BLOB', 'INFLATE'),
-                ('SMOOTH', 'SCRAPE', 'FLATTEN'),
-                ('CREASE', 'PINCH'),
-                ('CLAY', 'CLAY_STRIPS'),
-                ('LAYER',),
-                ('NUDGE', 'ROTATE'),
-                ('FILL',),
-                ('SIMPLIFY',),
-                ('MASK',),
-            )
+            type=bpy.types.Brush,
+            attr="sculpt_tool",
         )
 
     @ToolDef.from_fn
@@ -1108,42 +1006,22 @@ class _defs_vertex_paint:
 
     @staticmethod
     def generate_from_brushes(context):
-        return generate_from_brushes_ex(
+        return generate_from_enum_ex(
             context,
             icon_prefix="brush.paint_vertex.",
-            brush_test_attr="use_paint_vertex",
-            brush_category_attr="vertex_tool",
-            brush_category_layout=(
-                ('MIX',),
-                ('BLUR', 'AVERAGE'),
-                ('SMEAR',),
-                (
-                    'ADD', 'SUB', 'MUL', 'LIGHTEN', 'DARKEN',
-                    'COLORDODGE', 'DIFFERENCE', 'SCREEN', 'HARDLIGHT',
-                    'OVERLAY', 'SOFTLIGHT', 'EXCLUSION', 'LUMINOCITY',
-                    'SATURATION', 'HUE', 'ERASE_ALPHA', 'ADD_ALPHA',
-                ),
-            )
+            type=bpy.types.Brush,
+            attr="vertex_tool",
         )
-
 
 class _defs_texture_paint:
 
     @staticmethod
     def generate_from_brushes(context):
-        return generate_from_brushes_ex(
+        return generate_from_enum_ex(
             context,
             icon_prefix="brush.paint_texture.",
-            brush_test_attr="use_paint_image",
-            brush_category_attr="image_tool",
-            brush_category_layout=(
-                ('DRAW',),
-                ('SOFTEN',),
-                ('SMEAR',),
-                ('CLONE',),
-                ('FILL',),
-                ('MASK',),
-            )
+            type=bpy.types.Brush,
+            attr="image_tool",
         )
 
 
@@ -1158,22 +1036,11 @@ class _defs_weight_paint:
 
     @staticmethod
     def generate_from_brushes(context):
-        return generate_from_brushes_ex(
+        return generate_from_enum_ex(
             context,
             icon_prefix="brush.paint_weight.",
-            brush_test_attr="use_paint_weight",
-            brush_category_attr="vertex_tool",
-            brush_category_layout=(
-                ('MIX',),
-                ('BLUR', 'AVERAGE'),
-                ('SMEAR',),
-                (
-                    'ADD', 'SUB', 'MUL', 'LIGHTEN', 'DARKEN',
-                    'COLORDODGE', 'DIFFERENCE', 'SCREEN', 'HARDLIGHT',
-                    'OVERLAY', 'SOFTLIGHT', 'EXCLUSION', 'LUMINOCITY',
-                    'SATURATION', 'HUE',
-                ),
-            )
+            type=bpy.types.Brush,
+            attr="weight_tool",
         )
 
     @ToolDef.from_fn
@@ -1335,90 +1202,17 @@ class _defs_image_uv_sculpt:
 
 
 class _defs_gpencil_paint:
-    @staticmethod
-    def draw_color_selector(context, layout):
-        brush = context.active_gpencil_brush
-        gp_settings = brush.gpencil_settings
-        ma = gp_settings.material
-        row = layout.row(align=True)
-
-        icon_id = 0
-        if ma:
-            icon_id = ma.id_data.preview.icon_id
-            txt_ma = ma.name
-            maxw = 25
-            if len(txt_ma) > maxw:
-                txt_ma = txt_ma[:maxw - 5] + '..' + txt_ma[-3:]
-        else:
-            txt_ma = ""
-
-        row.label(text="Material:")
-        sub = row.row()
-        sub.ui_units_x = 8
-        sub.popover(
-            panel="TOPBAR_PT_gpencil_materials",
-            text=txt_ma,
-            icon_value=icon_id,
-        )
-
-        row.prop(gp_settings, "use_material_pin", text="")
-
-    @staticmethod
-    def draw_settings_common(context, layout, tool):
-        ob = context.active_object
-        if ob and ob.mode == 'GPENCIL_PAINT':
-            brush = context.active_gpencil_brush
-            gp_settings = brush.gpencil_settings
-
-            if gp_settings.tool == 'ERASE':
-                row = layout.row(align=True)
-                row.prop(brush, "size", text="Radius")
-                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
-                if gp_settings.eraser_mode == 'SOFT':
-                    row = layout.row(align=True)
-                    row.prop(gp_settings, "pen_strength", slider=True)
-                    row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
-            elif gp_settings.tool == 'FILL':
-                row = layout.row()
-                row.prop(gp_settings, "fill_leak", text="Leak Size")
-                row.prop(brush, "size", text="Thickness")
-                row.prop(gp_settings, "fill_simplify_level", text="Simplify")
-
-                _defs_gpencil_paint.draw_color_selector(context, layout)
-
-                row = layout.row(align=True)
-                row.prop(gp_settings, "fill_draw_mode", text="")
-                row.prop(gp_settings, "show_fill_boundary", text="", icon='GRID')
-
-            else:  # bgpsettings.tool == 'DRAW':
-                row = layout.row(align=True)
-                row.prop(brush, "size", text="Radius")
-                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
-                row = layout.row(align=True)
-                row.prop(gp_settings, "pen_strength", slider=True)
-                row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
-
-                _defs_gpencil_paint.draw_color_selector(context, layout)
 
     @staticmethod
     def generate_from_brushes(context):
-        return generate_from_brushes_ex(
+        return generate_from_enum_ex(
             context,
-            icon_prefix="brush.gpencil.",
-            brush_test_attr="use_paint_grease_pencil",
-            brush_category_attr="grease_pencil_tool",
-            brush_category_layout=(
-                ('PENCIL',),
-                ('PEN',),
-                ('INK',),
-                ('INKNOISE',),
-                ('BLOCK',),
-                ('MARKER',),
-                ('FILL',),
-                ('SOFT',),
-                ('HARD',),
-                ('STROKE',),
-            )
+            icon_prefix="brush.gpencil_draw.",
+            type=bpy.types.Brush,
+            attr="gpencil_tool",
+            tooldef_keywords=dict(
+                operator="gpencil.draw",
+            ),
         )
 
 
@@ -1503,7 +1297,7 @@ class _defs_gpencil_edit:
 
 
 class _defs_gpencil_sculpt:
-    @staticmethod
+
     def draw_settings_common(context, layout, tool):
         ob = context.active_object
         if ob and ob.mode == 'GPENCIL_SCULPT':
@@ -1522,11 +1316,8 @@ class _defs_gpencil_sculpt:
                 row.separator()
                 row.prop(brush, "direction", expand=True, text="")
 
-    @ToolDef.from_fn
-    def smooth():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def smooth(*, draw_settings):
         return dict(
             text="Smooth",
             icon="ops.gpencil.sculpt_smooth",
@@ -1539,11 +1330,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def thickness():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def thickness(*, draw_settings):
         return dict(
             text="Thickness",
             icon="ops.gpencil.sculpt_thickness",
@@ -1556,11 +1344,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def strength():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def strength(*, draw_settings):
         return dict(
             text="Strength",
             icon="ops.gpencil.sculpt_strength",
@@ -1573,11 +1358,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def grab():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def grab(*, draw_settings):
         return dict(
             text="Grab",
             icon="ops.gpencil.sculpt_grab",
@@ -1590,11 +1372,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def push():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def push(*, draw_settings):
         return dict(
             text="Push",
             icon="ops.gpencil.sculpt_push",
@@ -1607,11 +1386,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def twist():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def twist(*, draw_settings):
         return dict(
             text="Twist",
             icon="ops.gpencil.sculpt_twist",
@@ -1624,11 +1400,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def pinch():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def pinch(*, draw_settings):
         return dict(
             text="Pinch",
             icon="ops.gpencil.sculpt_pinch",
@@ -1641,11 +1414,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def randomize():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def randomize(*, draw_settings):
         return dict(
             text="Randomize",
             icon="ops.gpencil.sculpt_randomize",
@@ -1658,11 +1428,8 @@ class _defs_gpencil_sculpt:
             draw_settings=draw_settings,
         )
 
-    @ToolDef.from_fn
-    def clone():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_sculpt.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def clone(*, draw_settings):
         return dict(
             text="Clone",
             icon="ops.gpencil.sculpt_clone",
@@ -1677,7 +1444,7 @@ class _defs_gpencil_sculpt:
 
 
 class _defs_gpencil_weight:
-    @staticmethod
+
     def draw_settings_common(context, layout, tool):
         ob = context.active_object
         if ob and ob.mode == 'GPENCIL_WEIGHT':
@@ -1690,11 +1457,8 @@ class _defs_gpencil_weight:
             row.prop(brush, "strength", slider=True)
             row.prop(brush, "use_pressure_strength", text="")
 
-    @ToolDef.from_fn
-    def paint():
-        def draw_settings(context, layout, tool):
-            _defs_gpencil_weight.draw_settings_common(context, layout, tool)
-
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def paint(*, draw_settings):
         return dict(
             text="Draw",
             icon="ops.gpencil.sculpt_weight",
@@ -2071,6 +1835,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_weight.paint,
         ],
     }
+
 
 class TOPBAR_PT_annotation_layers(Panel, AnnotationDataPanel):
     bl_space_type = 'VIEW_3D'

@@ -76,7 +76,7 @@ const EnumPropertyItem rna_enum_object_greasepencil_modifier_type_items[] = {
 	{eGpencilModifierType_Thick, "GP_THICK", ICON_MOD_THICKNESS, "Thickness", "Change stroke thickness"},
 	{eGpencilModifierType_Time, "GP_TIME", ICON_MOD_TIME, "Time Offset", "Offset keyframes"},
 	{0, "", 0, N_("Color"), "" },
-	{eGpencilModifierType_Color, "GP_COLOR", ICON_MOD_TINT, "Hue/Saturation", "Apply changes to stroke colors"},
+	{eGpencilModifierType_Color, "GP_COLOR", ICON_MOD_HUE_SATURATION, "Hue/Saturation", "Apply changes to stroke colors"},
 	{eGpencilModifierType_Opacity, "GP_OPACITY", ICON_MOD_OPACITY, "Opacity", "Opacity of the strokes"},
 	{eGpencilModifierType_Tint, "GP_TINT", ICON_MOD_TINT, "Tint", "Tint strokes with new color"},
 	{0, NULL, 0, NULL, NULL}
@@ -271,6 +271,28 @@ static void rna_HookGpencilModifier_object_set(PointerRNA *ptr, PointerRNA value
 	hmd->object = ob;
 	id_lib_extern((ID *)ob);
 	BKE_object_modifier_gpencil_hook_reset(ob, hmd);
+}
+
+static void rna_TimeModifier_start_frame_set(PointerRNA *ptr, int value)
+{
+	TimeGpencilModifierData *tmd = ptr->data;
+	CLAMP(value, MINFRAME, MAXFRAME);
+	tmd->sfra = value;
+
+	if (tmd->sfra >= tmd->efra) {
+		tmd->efra = MIN2(tmd->sfra, MAXFRAME);
+	}
+}
+
+static void rna_TimeModifier_end_frame_set(PointerRNA *ptr, int value)
+{
+	TimeGpencilModifierData *tmd = ptr->data;
+	CLAMP(value, MINFRAME, MAXFRAME);
+	tmd->efra = value;
+
+	if (tmd->sfra >= tmd->efra) {
+		tmd->sfra = MAX2(tmd->efra, MINFRAME);
+	}
 }
 
 #else
@@ -849,10 +871,34 @@ static void rna_def_modifier_gpenciltime(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Frame Scale", "Evaluation time in seconds");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
+	prop = RNA_def_property(srna, "frame_start", PROP_INT, PROP_TIME);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_int_sdna(prop, NULL, "sfra");
+	RNA_def_property_int_funcs(prop, NULL, "rna_TimeModifier_start_frame_set", NULL);
+	RNA_def_property_range(prop, MINFRAME, MAXFRAME);
+	RNA_def_property_int_default(prop, 1);
+	RNA_def_property_ui_text(prop, "Start Frame", "First frame of the range");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "frame_end", PROP_INT, PROP_TIME);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_int_sdna(prop, NULL, "efra");
+	RNA_def_property_int_funcs(prop, NULL, "rna_TimeModifier_end_frame_set", NULL);
+	RNA_def_property_range(prop, MINFRAME, MAXFRAME);
+	RNA_def_property_int_default(prop, 250);
+	RNA_def_property_ui_text(prop, "End Frame", "Final frame of the range");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
 	prop = RNA_def_property(srna, "use_keep_loop", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TIME_KEEP_LOOP);
 	RNA_def_property_ui_text(prop, "Keep Loop",
 	                         "Retiming end frames and move to start of animation to keep loop");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "use_custom_frame_range", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TIME_CUSTOM_RANGE);
+	RNA_def_property_ui_text(prop, "Custom Range",
+		"Define a custom range of frames to use in modifier");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
@@ -1564,13 +1610,13 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_ON, 1);
 
 	prop = RNA_def_property(srna, "show_render", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eGpencilModifierMode_Render);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Render", "Use modifier during render");
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_OFF, 1);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_ON, 1);
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, NULL);
 
 	prop = RNA_def_property(srna, "show_in_editmode", PROP_BOOLEAN, PROP_NONE);

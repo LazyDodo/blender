@@ -75,60 +75,7 @@ static void rna_WorkspaceTool_refresh_from_context(
         bToolRef *tref,
         Main *bmain)
 {
-	bToolRef_Runtime *tref_rt = tref->runtime;
-	if ((tref_rt == NULL) || (tref_rt->data_block[0] == '\0')) {
-		return;
-	}
-	wmWindowManager *wm = bmain->wm.first;
-	for (wmWindow *win = wm->windows.first; win; win = win->next) {
-		WorkSpace *workspace = WM_window_get_active_workspace(win);
-		if (&workspace->id == id) {
-			Scene *scene = WM_window_get_active_scene(win);
-			ToolSettings *ts = scene->toolsettings;
-			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
-			Object *ob = OBACT(view_layer);
-			if (ob == NULL) {
-				/* pass */
-			}
-			else if ((tref->space_type == SPACE_VIEW3D) &&
-			         (tref->mode == CTX_MODE_PARTICLE) &&
-			         (ob->mode & OB_MODE_PARTICLE_EDIT))
-			{
-				const EnumPropertyItem *items = rna_enum_particle_edit_hair_brush_items;
-				const int i = RNA_enum_from_value(items, ts->particle.brushtype);
-				const EnumPropertyItem *item = &items[i];
-				if (!STREQ(tref_rt->data_block, item->identifier)) {
-					STRNCPY(tref_rt->data_block, item->identifier);
-					STRNCPY(tref->idname, item->name);
-				}
-			}
-			else if ((tref->space_type == SPACE_IMAGE) &&
-			         (tref->mode == SI_MODE_UV) &&
-			         (ob->mode &
-			          OB_MODE_EDIT))
-			{
-				const EnumPropertyItem *items = rna_enum_uv_sculpt_tool_items;
-				const int i = RNA_enum_from_value(items, ts->uv_sculpt_tool);
-				const EnumPropertyItem *item = &items[i];
-				if (!STREQ(tref_rt->data_block, item->identifier)) {
-					STRNCPY(tref_rt->data_block, item->identifier);
-					STRNCPY(tref->idname, item->name);
-				}
-			}
-			else {
-				Paint *paint = BKE_paint_get_active(scene, view_layer);
-				if (paint) {
-					const ID *brush = (ID *)paint->brush;
-					if (brush) {
-						if (!STREQ(tref_rt->data_block, brush->name + 2)) {
-							STRNCPY(tref_rt->data_block, brush->name + 2);
-							STRNCPY(tref->idname, brush->name + 2);
-						}
-					}
-				}
-			}
-		}
-	}
+	WM_toolsystem_ref_sync_from_context(bmain, (WorkSpace *)id, tref);
 }
 
 static PointerRNA rna_WorkspaceTool_operator_properties(

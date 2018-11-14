@@ -338,6 +338,19 @@ bool BKE_mball_is_any_selected(const MetaBall *mb)
 	return false;
 }
 
+
+bool BKE_mball_is_any_selected_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+		if (BKE_mball_is_any_selected(mb)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 bool BKE_mball_is_any_unselected(const MetaBall *mb)
 {
 	for (const MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
@@ -411,7 +424,7 @@ Object *BKE_mball_basis_find(Scene *scene, Object *basis)
 	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 			Object *ob = base->object;
-			if ((ob->type == OB_MBALL) && !(base->flag & OB_FROMDUPLI)) {
+			if ((ob->type == OB_MBALL) && !(base->flag & BASE_FROMDUPLI)) {
 				if (ob != bob) {
 					BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
 
@@ -548,12 +561,44 @@ void BKE_mball_translate(MetaBall *mb, const float offset[3])
 }
 
 /* *** select funcs *** */
+int BKE_mball_select_count(struct MetaBall *mb) {
+	int sel = 0;
+	MetaElem *ml;
+
+	for (ml = mb->editelems->first; ml; ml = ml->next) {
+		if (ml->flag & SELECT) {
+			sel++;
+		}
+	}
+	return sel;
+}
+
+int BKE_mball_select_count_multi(Object **objects, int objects_len) {
+
+	int sel = 0;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+		sel += BKE_mball_select_count(mb);
+	}
+	return sel;
+}
+
 void BKE_mball_select_all(struct MetaBall *mb)
 {
 	MetaElem *ml;
 
 	for (ml = mb->editelems->first; ml; ml = ml->next) {
 		ml->flag |= SELECT;
+	}
+}
+
+void BKE_mball_select_all_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+		BKE_mball_select_all(mb);
 	}
 }
 
@@ -566,12 +611,31 @@ void BKE_mball_deselect_all(MetaBall *mb)
 	}
 }
 
+void BKE_mball_deselect_all_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+
+		BKE_mball_deselect_all(mb);
+	}
+}
+
 void BKE_mball_select_swap(struct MetaBall *mb)
 {
 	MetaElem *ml;
 
 	for (ml = mb->editelems->first; ml; ml = ml->next) {
 		ml->flag ^= SELECT;
+	}
+}
+
+void BKE_mball_select_swap_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+		BKE_mball_select_swap(mb);
 	}
 }
 

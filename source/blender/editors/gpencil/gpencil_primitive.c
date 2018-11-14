@@ -144,7 +144,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	Brush *brush;
 
 	/* if brush doesn't exist, create a new one */
-	Paint *paint = BKE_brush_get_gpencil_paint(ts);
+	Paint *paint = &ts->gp_paint->paint;
 	/* if not exist, create a new one */
 	if (paint->brush == NULL) {
 		/* create new brushes */
@@ -369,7 +369,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	}
 
 	/* if axis locked, reproject to plane locked */
-	if (tgpi->lock_axis > GP_LOCKAXIS_NONE) {
+	if (tgpi->lock_axis > GP_LOCKAXIS_VIEW) {
 		bGPDspoint *tpt = gps->points;
 		float origin[3];
 		ED_gp_get_drawing_reference(tgpi->v3d, tgpi->scene, tgpi->ob, tgpi->gpl,

@@ -386,7 +386,8 @@ bGPDframe *BKE_gpencil_frame_addcopy(bGPDlayer *gpl, int cframe)
 /* add a new gp-layer and make it the active layer */
 bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setactive)
 {
-	bGPDlayer *gpl;
+	bGPDlayer *gpl = NULL;
+	bGPDlayer *gpl_active = NULL;
 
 	/* check that list is ok */
 	if (gpd == NULL)
@@ -395,8 +396,16 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 	/* allocate memory for frame and add to end of list */
 	gpl = MEM_callocN(sizeof(bGPDlayer), "bGPDlayer");
 
+	gpl_active = BKE_gpencil_layer_getactive(gpd);
+
 	/* add to datablock */
-	BLI_addtail(&gpd->layers, gpl);
+	if (gpl_active == NULL) {
+		BLI_addtail(&gpd->layers, gpl);
+	}
+	else {
+		/* if active layer, add after that layer */
+		BLI_insertlinkafter(&gpd->layers, gpl_active, gpl);
+	}
 
 	/* annotation vs GP Object behaviour is slightly different */
 	if (gpd->flag & GP_DATA_ANNOTATIONS) {
@@ -457,7 +466,6 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 	ARRAY_SET_ITEMS(gpd->grid.color, 0.5f, 0.5f, 0.5f); // Color
 	ARRAY_SET_ITEMS(gpd->grid.scale, 1.0f, 1.0f); // Scale
 	gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
-	gpd->grid.axis = GP_GRID_AXIS_Y;
 
 	/* onion-skinning settings (datablock level) */
 	gpd->onion_flag |= (GP_ONION_GHOST_PREVCOL | GP_ONION_GHOST_NEXTCOL);
@@ -996,11 +1004,18 @@ void BKE_gpencil_layer_setactive(bGPdata *gpd, bGPDlayer *active)
 		return;
 
 	/* loop over layers deactivating all */
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next)
+	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		gpl->flag &= ~GP_LAYER_ACTIVE;
+		if (gpd->flag & GP_DATA_AUTOLOCK_LAYERS) {
+			gpl->flag |= GP_LAYER_LOCKED;
+		}
+	}
 
 	/* set as active one */
 	active->flag |= GP_LAYER_ACTIVE;
+	if (gpd->flag & GP_DATA_AUTOLOCK_LAYERS) {
+		active->flag &= ~GP_LAYER_LOCKED;
+	}
 }
 
 /* delete the active gp-layer */

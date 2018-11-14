@@ -87,30 +87,19 @@ const EnumPropertyItem rna_enum_brush_sculpt_tool_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-
 const EnumPropertyItem rna_enum_brush_vertex_tool_items[] = {
-	{PAINT_BLEND_MIX, "MIX", ICON_BRUSH_MIX, "Mix", "Use mix blending mode while painting"},
-	{PAINT_BLEND_ADD, "ADD", ICON_BRUSH_ADD, "Add", "Use add blending mode while painting"},
-	{PAINT_BLEND_SUB, "SUB", ICON_BRUSH_SUBTRACT, "Subtract", "Use subtract blending mode while painting"},
-	{PAINT_BLEND_MUL, "MUL", ICON_BRUSH_MULTIPLY, "Multiply", "Use multiply blending mode while painting"},
-	{PAINT_BLEND_BLUR, "BLUR", ICON_BRUSH_BLUR, "Blur", "Blur the color with surrounding values"},
-	{PAINT_BLEND_LIGHTEN, "LIGHTEN", ICON_BRUSH_LIGHTEN, "Lighten", "Use lighten blending mode while painting"},
-	{PAINT_BLEND_DARKEN, "DARKEN", ICON_BRUSH_DARKEN, "Darken", "Use darken blending mode while painting"},
-	{PAINT_BLEND_AVERAGE, "AVERAGE", ICON_BRUSH_BLUR, "Average", "Use average blending mode while painting"},
-	{PAINT_BLEND_SMEAR, "SMEAR", ICON_BRUSH_BLUR, "Smear", "Use smear blending mode while painting"},
-	{PAINT_BLEND_COLORDODGE, "COLORDODGE", ICON_BRUSH_BLUR, "Color Dodge", "Use color dodge blending mode while painting" },
-	{PAINT_BLEND_DIFFERENCE, "DIFFERENCE", ICON_BRUSH_BLUR, "Difference", "Use difference blending mode while painting"},
-	{PAINT_BLEND_SCREEN, "SCREEN", ICON_BRUSH_BLUR, "Screen", "Use screen blending mode while painting"},
-	{PAINT_BLEND_HARDLIGHT, "HARDLIGHT", ICON_BRUSH_BLUR, "Hardlight", "Use hardlight blending mode while painting"},
-	{PAINT_BLEND_OVERLAY, "OVERLAY", ICON_BRUSH_BLUR, "Overlay", "Use overlay blending mode while painting"},
-	{PAINT_BLEND_SOFTLIGHT, "SOFTLIGHT", ICON_BRUSH_BLUR, "Softlight", "Use softlight blending mode while painting"},
-	{PAINT_BLEND_EXCLUSION, "EXCLUSION", ICON_BRUSH_BLUR, "Exclusion", "Use exclusion blending mode while painting"},
-	{PAINT_BLEND_LUMINOCITY, "LUMINOCITY", ICON_BRUSH_BLUR, "Luminocity", "Use luminocity blending mode while painting"},
-	{PAINT_BLEND_SATURATION, "SATURATION", ICON_BRUSH_BLUR, "Saturation", "Use saturation blending mode while painting"},
-	{PAINT_BLEND_HUE, "HUE", ICON_BRUSH_BLUR, "Hue", "Use hue blending mode while painting"},
-	{PAINT_BLEND_ALPHA_SUB, "ERASE_ALPHA", 0, "Erase Alpha", "Erase alpha while painting"},
-	{PAINT_BLEND_ALPHA_ADD, "ADD_ALPHA", 0, "Add Alpha", "Add alpha while painting"},
+	{VPAINT_TOOL_DRAW, "DRAW", ICON_BRUSH_MIX, "Draw", ""},
+	{VPAINT_TOOL_BLUR, "BLUR", ICON_BRUSH_BLUR, "Blur", ""},
+	{VPAINT_TOOL_AVERAGE, "AVERAGE", ICON_BRUSH_BLUR, "Average", ""},
+	{VPAINT_TOOL_SMEAR, "SMEAR", ICON_BRUSH_BLUR, "Smear", ""},
+	{0, NULL, 0, NULL, NULL}
+};
 
+const EnumPropertyItem rna_enum_brush_weight_tool_items[] = {
+	{WPAINT_TOOL_DRAW, "DRAW", ICON_BRUSH_MIX, "Draw", ""},
+	{WPAINT_TOOL_BLUR, "BLUR", ICON_BRUSH_BLUR, "Blur", ""},
+	{WPAINT_TOOL_AVERAGE, "AVERAGE", ICON_BRUSH_BLUR, "Average", ""},
+	{WPAINT_TOOL_SMEAR, "SMEAR", ICON_BRUSH_BLUR, "Smear", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -124,14 +113,14 @@ const EnumPropertyItem rna_enum_brush_image_tool_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-#ifndef RNA_RUNTIME
-static EnumPropertyItem rna_enum_gpencil_brush_types_items[] = {
-	{ GP_BRUSH_TYPE_DRAW, "DRAW", ICON_GP_STROKE, "Draw", "The brush is of type used for drawing strokes" },
-	{ GP_BRUSH_TYPE_FILL, "FILL", ICON_COLOR, "Fill", "The brush is of type used for filling areas" },
-	{ GP_BRUSH_TYPE_ERASE, "ERASE", ICON_PANEL_CLOSE, "Erase", "The brush is used for erasing strokes" },
-	{ 0, NULL, 0, NULL, NULL }
+const EnumPropertyItem rna_enum_brush_gpencil_types_items[] = {
+	{GPAINT_TOOL_DRAW, "DRAW", ICON_GP_STROKE, "Draw", "The brush is of type used for drawing strokes"},
+	{GPAINT_TOOL_FILL, "FILL", ICON_COLOR, "Fill", "The brush is of type used for filling areas"},
+	{GPAINT_TOOL_ERASE, "ERASE", ICON_PANEL_CLOSE, "Erase", "The brush is used for erasing strokes"},
+	{0, NULL, 0, NULL, NULL}
 };
 
+#ifndef RNA_RUNTIME
 static EnumPropertyItem rna_enum_gpencil_brush_eraser_modes_items[] = {
 	{ GP_BRUSH_ERASER_SOFT, "SOFT", 0, "Soft", "Use soft eraser" },
 	{ GP_BRUSH_ERASER_HARD, "HARD", 0, "Hard", "Use hard eraser" },
@@ -390,7 +379,7 @@ static PointerRNA rna_Brush_capabilities_get(PointerRNA *ptr)
 	return rna_pointer_inherit_refine(ptr, &RNA_BrushCapabilities, ptr->id.data);
 }
 
-static void rna_Brush_reset_icon(Brush *br, const char *UNUSED(type))
+static void rna_Brush_reset_icon(Brush *br)
 {
 	ID *id = &br->id;
 
@@ -463,24 +452,10 @@ static void rna_Brush_size_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 	rna_Brush_update(bmain, scene, ptr);
 }
 
-static void rna_Brush_sculpt_tool_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_Brush_update_and_reset_icon(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	Brush *br = (Brush *)ptr->data;
-	rna_Brush_reset_icon(br, "sculpt");
-	rna_Brush_update(bmain, scene, ptr);
-}
-
-static void rna_Brush_vertex_tool_update(Main *bmain, Scene *scene, PointerRNA *ptr)
-{
-	Brush *br = (Brush *)ptr->data;
-	rna_Brush_reset_icon(br, "vertex_paint");
-	rna_Brush_update(bmain, scene, ptr);
-}
-
-static void rna_Brush_imagepaint_tool_update(Main *bmain, Scene *scene, PointerRNA *ptr)
-{
-	Brush *br = (Brush *)ptr->data;
-	rna_Brush_reset_icon(br, "image_paint");
+	Brush *br = ptr->data;
+	rna_Brush_reset_icon(br);
 	rna_Brush_update(bmain, scene, ptr);
 }
 
@@ -506,33 +481,6 @@ static void rna_Brush_icon_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Poi
 	}
 
 	WM_main_add_notifier(NC_BRUSH | NA_EDITED, br);
-}
-
-static const EnumPropertyItem *rna_DynamicGpencil_type_itemf(
-	bContext *C, PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
-{
-	Main *bmain = CTX_data_main(C);
-	EnumPropertyItem *item = NULL, item_tmp = { 0 };
-	int totitem = 0;
-	int i = 0;
-
-	Brush *brush;
-	for (brush = bmain->brush.first; brush; brush = brush->id.next, i++) {
-		if (brush->gpencil_settings == NULL)
-			continue;
-
-		item_tmp.identifier = brush->id.name + 2;
-		item_tmp.name = brush->id.name + 2;
-		item_tmp.value = i;
-		item_tmp.icon = brush->gpencil_settings->icon_id;
-
-		RNA_enum_item_add(&item, &totitem, &item_tmp);
-	}
-
-	RNA_enum_item_end(&item, &totitem);
-	*r_free = true;
-
-	return item;
 }
 
 static void rna_TextureSlot_brush_angle_update(bContext *C, PointerRNA *ptr)
@@ -670,7 +618,7 @@ static const EnumPropertyItem *rna_Brush_direction_itemf(bContext *C, PointerRNA
 			}
 
 		case ePaintTexture2D:
-		case ePaintTextureProjective:
+		case ePaintTexture3D:
 			switch (me->imagepaint_tool) {
 				case PAINT_TOOL_SOFTEN:
 					return prop_soften_sharpen_items;
@@ -701,7 +649,7 @@ static const EnumPropertyItem *rna_Brush_stroke_itemf(bContext *C, PointerRNA *U
 	switch (mode) {
 		case ePaintSculpt:
 		case ePaintTexture2D:
-		case ePaintTextureProjective:
+		case ePaintTexture3D:
 			return sculpt_stroke_method_items;
 
 		default:
@@ -725,7 +673,7 @@ static void rna_BrushGpencilSettings_default_eraser_update(Main *bmain, Scene *s
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
 		if ((brush != brush_cur) &&
 		    (brush->ob_mode == OB_MODE_GPENCIL_PAINT) &&
-		    (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE))
+		    (brush->gpencil_tool == GPAINT_TOOL_ERASE))
 		{
 			brush->gpencil_settings->flag &= ~GP_BRUSH_DEFAULT_ERASER;
 		}
@@ -739,7 +687,7 @@ static void rna_BrushGpencilSettings_eraser_mode_update(Main *UNUSED(bmain), Sce
 	Brush *brush = paint->brush;
 
 	/* set eraser icon */
-	if ((brush) && (brush->gpencil_settings->brush_type == GP_BRUSH_TYPE_ERASE)) {
+	if ((brush) && (brush->gpencil_tool == GPAINT_TOOL_ERASE)) {
 		switch (brush->gpencil_settings->eraser_mode) {
 			case GP_BRUSH_ERASER_SOFT:
 				brush->gpencil_settings->icon_id = GP_BRUSH_ICON_ERASE_SOFT;
@@ -964,26 +912,10 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	/*  Grease Pencil Drawing - generated dynamically */
-	static const EnumPropertyItem prop_dynamic_gpencil_type[] = {
-		{1, "DRAW", 0, "Draw", ""},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	srna = RNA_def_struct(brna, "BrushGpencilSettings", NULL);
 	RNA_def_struct_sdna(srna, "BrushGpencilSettings");
 	RNA_def_struct_path_func(srna, "rna_BrushGpencilSettings_path");
 	RNA_def_struct_ui_text(srna, "Grease Pencil Brush Settings", "Settings for grease pencil brush");
-
-	/* grease pencil drawing brushes */
-	prop = RNA_def_property(srna, "grease_pencil_tool", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "brush_type");
-	RNA_def_property_enum_items(prop, prop_dynamic_gpencil_type);
-	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_DynamicGpencil_type_itemf");
-	RNA_def_property_ui_text(prop, "Grease Pencil Tool", "");
-	/* TODO: GPXX review update */
-	RNA_def_property_update(prop, 0, NULL);
-	//RNA_def_property_update(prop, 0, "rna_Brush_gpencil_tool_update");
 
 	/* Sensitivity factor for new strokes */
 	prop = RNA_def_property(srna, "pen_sensitivity_factor", PROP_FLOAT, PROP_NONE);
@@ -1230,12 +1162,6 @@ static void rna_def_gpencil_options(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Enable Cursor", "Enable cursor on screen");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
-	prop = RNA_def_property(srna, "tool", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "brush_type");
-	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_types_items);
-	RNA_def_property_ui_text(prop, "Type", "Category of the brush");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-
 	prop = RNA_def_property(srna, "eraser_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "eraser_mode");
 	RNA_def_property_enum_items(prop, rna_enum_gpencil_brush_eraser_modes_items);
@@ -1390,22 +1316,42 @@ static void rna_def_brush(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Blending mode", "Brush blending mode");
 	RNA_def_property_update(prop, 0, "rna_Brush_update");
 
+
+	/**
+	 * Begin per-mode tool properties.
+	 *
+	 * keep in sync with #BKE_paint_get_tool_prop_id_from_paintmode
+	 */
 	prop = RNA_def_property(srna, "sculpt_tool", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_brush_sculpt_tool_items);
 	RNA_def_property_ui_text(prop, "Sculpt Tool", "");
-	RNA_def_property_update(prop, 0, "rna_Brush_sculpt_tool_update");
+	RNA_def_property_update(prop, 0, "rna_Brush_update_and_reset_icon");
 
 	prop = RNA_def_property(srna, "vertex_tool", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "vertexpaint_tool");
 	RNA_def_property_enum_items(prop, rna_enum_brush_vertex_tool_items);
-	RNA_def_property_ui_text(prop, "Blending mode", "Brush blending mode");
-	RNA_def_property_update(prop, 0, "rna_Brush_vertex_tool_update");
+	RNA_def_property_ui_text(prop, "Vertex Paint Tool", "");
+	RNA_def_property_update(prop, 0, "rna_Brush_update_and_reset_icon");
+
+	prop = RNA_def_property(srna, "weight_tool", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "weightpaint_tool");
+	RNA_def_property_enum_items(prop, rna_enum_brush_weight_tool_items);
+	RNA_def_property_ui_text(prop, "Weight Paint Tool", "");
+	RNA_def_property_update(prop, 0, "rna_Brush_update_and_reset_icon");
 
 	prop = RNA_def_property(srna, "image_tool", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "imagepaint_tool");
 	RNA_def_property_enum_items(prop, rna_enum_brush_image_tool_items);
 	RNA_def_property_ui_text(prop, "Image Paint Tool", "");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, "rna_Brush_imagepaint_tool_update");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, "rna_Brush_update_and_reset_icon");
+
+	prop = RNA_def_property(srna, "gpencil_tool", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "gpencil_tool");
+	RNA_def_property_enum_items(prop, rna_enum_brush_gpencil_types_items);
+	RNA_def_property_ui_text(prop, "Type", "Category of the brush");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	/** End per mode tool properties. */
+
 
 	prop = RNA_def_property(srna, "direction", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");

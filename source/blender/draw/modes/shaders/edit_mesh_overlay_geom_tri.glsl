@@ -13,6 +13,7 @@ layout(triangle_strip, max_vertices=12) out;
 
 uniform mat4 ProjectionMatrix;
 uniform vec2 viewportSize;
+uniform bool isXray = false;
 
 in vec4 pPos[];
 in ivec4 vData[];
@@ -36,7 +37,7 @@ out float facing;
 #endif
 
 #ifdef ANTI_ALIASING
-#define Z_OFFSET 0.008
+#define Z_OFFSET -0.0013
 #else
 #define Z_OFFSET 0.0
 #endif
@@ -175,12 +176,13 @@ void main()
 		doVertexOfs(0, fixvec);
 		doVertexOfs(1, fixvec);
 	}
+
 	doVertex(0);
 	doVertex(1);
 
 	/* Do face triangle */
 	faceColor = fcol;
-	flag = eflag;
+	flag = (isXray) ? ivec3(0) : eflag;
 	doVertex(2);
 	faceColor.a = 0.0; /* to not let face color bleed */
 

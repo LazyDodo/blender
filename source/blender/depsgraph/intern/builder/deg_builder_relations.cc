@@ -965,7 +965,7 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					                        opcode);
 					add_relation(target_key, constraint_op_key, cti->name);
 					/* if needs bbone shape, also reference handles */
-					if (con->flag & CONSTRAINT_BBONE_SHAPE) {
+					if (BKE_constraint_target_uses_bbone(con, ct)) {
 						bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
 						/* actually a bbone */
 						if (pchan && pchan->bone && pchan->bone->segments > 1) {
@@ -1018,6 +1018,9 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 						bool track = (scon->flag & CON_SHRINKWRAP_TRACK_NORMAL) != 0;
 						if (track || BKE_shrinkwrap_needs_normals(scon->shrinkType, scon->shrinkMode)) {
 							add_customdata_mask(target_key, CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL);
+						}
+						if (scon->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+							add_special_eval_flag(&ct->tar->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
 						}
 					}
 

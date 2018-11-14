@@ -836,7 +836,8 @@ static void gpencil_draw_strokes(
 			if (gps->totpoints > 0) {
 				if ((gps->totpoints > 2) && (!stl->storage->simplify_fill) &&
 				    ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)) &&
-				    ((gps->flag & GP_STROKE_NOFILL) == 0))
+				    ((gps->flag & GP_STROKE_NOFILL) == 0) &&
+				    (gp_style->flag & GP_STYLE_FILL_SHOW))
 				{
 					stl->shgroups[id].shgrps_fill = DRW_gpencil_shgroup_fill_create(
 					        e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh, gpd, gp_style, id);
@@ -881,27 +882,32 @@ static void gpencil_draw_strokes(
 			}
 			/* stroke */
 			if (strokegrp) {
+				const float nop = ((gp_style->flag & GP_STYLE_STROKE_SHOW) == 0) || (gp_style->stroke_rgba[3] < GPENCIL_ALPHA_OPACITY_THRESH) ? 0.0f : opacity;
 				gpencil_add_stroke_shgroup(
 				        cache, strokegrp, ob, gpl, derived_gpf, gps,
-				        opacity, tintcolor, false, custonion);
+				        nop, tintcolor, false, custonion);
 			}
 		}
 
 		/* edit points (only in edit mode and not play animation not render) */
 		if ((draw_ctx->obact == ob) && (src_gps) &&
-		    (!playing) && (!is_render) && (!cache_ob->is_dup_ob) &&
-		    ((gpl->flag & GP_LAYER_LOCKED) == 0))
+		    (!playing) && (!is_render) && (!cache_ob->is_dup_ob))
 		{
-			if (!stl->g_data->shgrps_edit_line) {
-				stl->g_data->shgrps_edit_line = DRW_shgroup_create(e_data->gpencil_line_sh, psl->edit_pass);
-			}
-			if (!stl->g_data->shgrps_edit_point) {
-				stl->g_data->shgrps_edit_point = DRW_shgroup_create(e_data->gpencil_edit_point_sh, psl->edit_pass);
-				const float *viewport_size = DRW_viewport_size_get();
-				DRW_shgroup_uniform_vec2(stl->g_data->shgrps_edit_point, "Viewport", viewport_size, 1);
-			}
+			if ((gpl->flag & GP_LAYER_LOCKED) == 0) {
+				if (!stl->g_data->shgrps_edit_line) {
+					stl->g_data->shgrps_edit_line = DRW_shgroup_create(e_data->gpencil_line_sh, psl->edit_pass);
+				}
+				if (!stl->g_data->shgrps_edit_point) {
+					stl->g_data->shgrps_edit_point = DRW_shgroup_create(e_data->gpencil_edit_point_sh, psl->edit_pass);
+					const float *viewport_size = DRW_viewport_size_get();
+					DRW_shgroup_uniform_vec2(stl->g_data->shgrps_edit_point, "Viewport", viewport_size, 1);
+				}
 
-			gpencil_add_editpoints_shgroup(stl, cache, ts, ob, gpd, gpl, derived_gpf, src_gps);
+				gpencil_add_editpoints_shgroup(stl, cache, ts, ob, gpd, gpl, derived_gpf, src_gps);
+			}
+			else {
+				gpencil_batch_cache_check_free_slots(ob);
+			}
 		}
 
 		GP_SET_SRC_GPS(src_gps);
@@ -972,15 +978,18 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 					        gpd, lthick);
 				}
 
-				DRW_shgroup_call_add(
-				        stl->g_data->shgrps_drawing_stroke,
-				        e_data->batch_buffer_stroke,
-				        stl->storage->unit_matrix);
+				if (gp_style->flag & GP_STYLE_STROKE_SHOW) {
+					DRW_shgroup_call_add(
+						stl->g_data->shgrps_drawing_stroke,
+						e_data->batch_buffer_stroke,
+						stl->storage->unit_matrix);
+				}
 
 				if ((gpd->runtime.sbuffer_size >= 3) &&
 				    (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
 				    ((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0) &&
-				    ((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0))
+				    ((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0) &&
+				    (gp_style->flag & GP_STYLE_FILL_SHOW))
 				{
 					/* if not solid, fill is simulated with solid color */
 					if (gpd->runtime.bfill_style > 0) {

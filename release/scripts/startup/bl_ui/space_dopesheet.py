@@ -150,7 +150,7 @@ class DopesheetFilterPopoverBase:
             flow.prop(dopesheet, "show_shapekeys", text="Shape Keys")
 
         layout.separator()
-        
+
         # Object Data Filters
 
         # TODO: Add per-channel/axis convenience toggles?
@@ -158,10 +158,10 @@ class DopesheetFilterPopoverBase:
 
         col = split.column()
         col.prop(dopesheet, "show_transforms", text="Transforms")
-        
+
         col = split.column()
         col.prop(dopesheet, "show_modifiers", text="Modifiers")
-        
+
         layout.separator()
 
         # performance-related options (users will mostly have these enabled)
@@ -338,7 +338,6 @@ class DOPESHEET_MT_view(Menu):
         layout.prop(st, "show_interpolation")
         layout.prop(st, "show_extremes")
         layout.prop(st, "use_auto_merge_keyframes")
-        layout.prop(st, "use_marker_sync")
 
         layout.prop(st, "show_seconds")
         layout.prop(st, "show_locked_time")
@@ -416,6 +415,7 @@ class DOPESHEET_MT_marker(Menu):
             if st.show_pose_markers is False:
                 layout.operator("action.markers_make_local")
 
+        layout.prop(st, "use_marker_sync")
 
 #######################################
 # Keyframe Editing

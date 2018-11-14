@@ -42,7 +42,7 @@
 #include "DNA_scene_types.h"
 
 #include "BLI_bitmap.h"
-#include "BLI_heap.h"
+#include "BLI_heap_simple.h"
 #include "BLI_listbase.h"
 #include "BLI_linklist.h"
 #include "BLI_linklist_stack.h"
@@ -7381,6 +7381,7 @@ static int edbm_point_normals_modal(bContext *C, wmOperator *op, const wmEvent *
 				new_mode = EDBM_CLNOR_POINTTO_MODE_COORDINATES;
 				ED_view3d_cursor3d_update(C, event->mval, false, V3D_CURSOR_ORIENT_NONE);
 				copy_v3_v3(target, ED_view3d_cursor3d_get(scene, v3d)->location);
+				ret = OPERATOR_RUNNING_MODAL;
 				break;
 
 			case EDBM_CLNOR_MODAL_POINTTO_SET_USE_SELECTED:
@@ -7819,7 +7820,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 
 	BM_normals_loops_edges_tag(bm, true);
 
-	Heap *loop_weight = BLI_heap_new();
+	HeapSimple *loop_weight = BLI_heapsimple_new();
 
 	BM_ITER_MESH(f, &fiter, bm, BM_FACES_OF_MESH) {
 		l_curr = l_first = BM_FACE_FIRST_LOOP(f);
@@ -7859,7 +7860,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 							val = 1.0f / BM_loop_calc_face_angle(lfan_pivot);
 						}
 
-						BLI_heap_insert(loop_weight, val, lfan_pivot);
+						BLI_heapsimple_insert(loop_weight, val, lfan_pivot);
 
 						if (!BM_elem_flag_test(e_next, BM_ELEM_TAG) || (e_next == e_org)) {
 							break;
@@ -7869,15 +7870,15 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 
 					BLI_SMALLSTACK_DECLARE(loops, BMLoop *);
 					float wnor[3], avg_normal[3] = { 0.0f }, count = 0;
-					float val = BLI_heap_node_value(BLI_heap_top(loop_weight));
+					float val = BLI_heapsimple_top_value(loop_weight);
 
-					while (!BLI_heap_is_empty(loop_weight)) {
-						const float cur_val = BLI_heap_node_value(BLI_heap_top(loop_weight));
+					while (!BLI_heapsimple_is_empty(loop_weight)) {
+						const float cur_val = BLI_heapsimple_top_value(loop_weight);
 						if (!compare_ff(val, cur_val, threshold)) {
 							count++;
 							val = cur_val;
 						}
-						l = BLI_heap_pop_min(loop_weight);
+						l = BLI_heapsimple_pop_min(loop_weight);
 						BLI_SMALLSTACK_PUSH(loops, l);
 
 						const float n_weight = pow(weight, count);
@@ -7908,7 +7909,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 		} while ((l_curr = l_curr->next) != l_first);
 	}
 
-	BLI_heap_free(loop_weight, NULL);
+	BLI_heapsimple_free(loop_weight, NULL);
 	EDBM_update_generic(em, true, false);
 
 	return OPERATOR_FINISHED;

@@ -235,7 +235,8 @@ enum {
 	UI_BUT_ACTIVE_LEFT       = (1 << 21), /* Active left part of number button */
 	UI_BUT_ACTIVE_RIGHT      = (1 << 22), /* Active right part of number button */
 
-	UI_BUT_HAS_SHORTCUT      = (1 << 23), /* Button has shortcut text */
+	/* (also used by search buttons to enforce shortcut display for their items). */
+	UI_BUT_HAS_SHORTCUT      = (1 << 23), /* Button has shortcut text. */
 
 	UI_BUT_ICON_REVERSE      = (1 << 24), /* Reverse order of consecutive off/on icons */
 };
@@ -1042,7 +1043,8 @@ void uiTemplateIDBrowse(
         const char *newop, const char *openop, const char *unlinkop, int filter);
 void uiTemplateIDPreview(
         uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
-        const char *newop, const char *openop, const char *unlinkop, int rows, int cols, int filter);
+        const char *newop, const char *openop, const char *unlinkop, int rows, int cols,
+        int filter, const bool hide_buttons);
 void uiTemplateIDTabs(
         uiLayout *layout, struct bContext *C,
         PointerRNA *ptr, const char *propname,
@@ -1068,8 +1070,8 @@ void uiTemplatePathBuilder(
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 uiLayout *uiTemplateGpencilModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 void uiTemplateGpencilColorPreview(
-	uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
-	int rows, int cols, float scale, int filter);
+        uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
+        int rows, int cols, float scale, int filter);
 
 uiLayout *uiTemplateShaderFx(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
@@ -1187,6 +1189,7 @@ void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int
 void uiItemM(uiLayout *layout, const char *menuname, const char *name, int icon); /* menu */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
+void uiItemS_ex(uiLayout *layout, float factor);
 void uiItemSpacer(uiLayout *layout); /* Special separator. */
 
 void uiItemPopoverPanel_ptr(

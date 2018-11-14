@@ -62,7 +62,6 @@ void BKE_brush_sculpt_reset(struct Brush *brush);
 void BKE_brush_gpencil_presets(struct bContext *C);
 void BKE_brush_update_material(struct Main *bmain, struct Material *ma, struct Brush *exclude_brush);
 struct Brush *BKE_brush_getactive_gpencil(struct ToolSettings *ts);
-struct Paint *BKE_brush_get_gpencil_paint(struct ToolSettings *ts);
 
 /* image icon function */
 struct ImBuf *get_brush_icon(struct Brush *brush);
@@ -126,6 +125,14 @@ void BKE_brush_scale_size(
         int *r_brush_size,
         float new_unprojected_radius,
         float old_unprojected_radius);
+
+/* Accessors */
+#define BKE_brush_tool_get(brush, p) \
+	(CHECK_TYPE_ANY(brush, struct Brush *, const struct Brush *), \
+	 *(const char *)POINTER_OFFSET(brush, (p)->runtime.tool_offset))
+#define BKE_brush_tool_set(brush, p, tool) { \
+	CHECK_TYPE_ANY(brush, struct Brush *); \
+	*(char *)POINTER_OFFSET(brush, (p)->runtime.tool_offset) = tool; } ((void)0)
 
 /* debugging only */
 void BKE_brush_debug_print_state(struct Brush *br);

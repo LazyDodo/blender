@@ -853,7 +853,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.label(text="Mode:")
         col.prop(md, "wrap_method", text="")
 
-        if md.wrap_method in {'PROJECT', 'NEAREST_SURFACEPOINT'}:
+        if md.wrap_method in {'PROJECT', 'NEAREST_SURFACEPOINT', 'TARGET_PROJECT'}:
             col.prop(md, "wrap_mode", text="")
 
         if md.wrap_method == 'PROJECT':
@@ -1871,6 +1871,18 @@ class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
         row = layout.row()
         row.enabled = md.mode != 'FIX'
         row.prop(md, "frame_scale")
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.enabled = md.mode != 'FIX'
+        row.prop(md, "use_custom_frame_range")
+
+        row = layout.row(align=True)
+        row.enabled = md.mode != 'FIX' and md.use_custom_frame_range is True
+        row.prop(md, "frame_start")
+        row.prop(md, "frame_end")
 
         row = layout.row()
         row.enabled = md.mode != 'FIX'

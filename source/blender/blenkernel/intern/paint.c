@@ -79,6 +79,8 @@
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
 
+#include "RNA_enum_types.h"
+
 #include "bmesh.h"
 
 const char PAINT_CURSOR_SCULPT[3] = {255, 100, 100};
@@ -156,7 +158,7 @@ Paint *BKE_paint_get_active_from_paintmode(Scene *sce, ePaintMode mode)
 			case ePaintWeight:
 				return &ts->wpaint->paint;
 			case ePaintTexture2D:
-			case ePaintTextureProjective:
+			case ePaintTexture3D:
 				return &ts->imapaint.paint;
 			case ePaintSculptUV:
 				return &ts->uvsculpt->paint;
@@ -170,6 +172,43 @@ Paint *BKE_paint_get_active_from_paintmode(Scene *sce, ePaintMode mode)
 	}
 
 	return NULL;
+}
+
+const EnumPropertyItem *BKE_paint_get_tool_enum_from_paintmode(ePaintMode mode)
+{
+	switch (mode) {
+		case ePaintSculpt:
+			return rna_enum_brush_sculpt_tool_items;
+		case ePaintVertex:
+			return rna_enum_brush_vertex_tool_items;
+		case ePaintWeight:
+			return rna_enum_brush_weight_tool_items;
+		case ePaintTexture2D:
+		case ePaintTexture3D:
+			return rna_enum_brush_image_tool_items;
+		case ePaintSculptUV:
+			return NULL;
+		case ePaintGpencil:
+			return rna_enum_brush_gpencil_types_items;
+		case ePaintInvalid:
+			break;
+	}
+	return NULL;
+}
+
+const char *BKE_paint_get_tool_prop_id_from_paintmode(ePaintMode mode)
+{
+	switch (mode) {
+		case ePaintSculpt: return "sculpt_tool";
+		case ePaintVertex: return "vertex_tool";
+		case ePaintWeight: return "weight_tool";
+		case ePaintTexture2D:
+		case ePaintTexture3D: return "image_tool";
+		case ePaintGpencil: return "gpencil_tool";
+		default:
+			/* invalid paint mode */
+			return NULL;
+	}
 }
 
 Paint *BKE_paint_get_active(Scene *sce, ViewLayer *view_layer)
@@ -270,7 +309,7 @@ ePaintMode BKE_paintmode_get_active_from_context(const bContext *C)
 				case OB_MODE_WEIGHT_PAINT:
 					return ePaintWeight;
 				case OB_MODE_TEXTURE_PAINT:
-					return ePaintTextureProjective;
+					return ePaintTexture3D;
 				case OB_MODE_EDIT:
 					if (ts->use_uv_sculpt)
 						return ePaintSculptUV;
@@ -288,6 +327,32 @@ ePaintMode BKE_paintmode_get_active_from_context(const bContext *C)
 	return ePaintInvalid;
 }
 
+ePaintMode BKE_paintmode_get_from_tool(const struct bToolRef *tref)
+{
+	if (tref->space_type == SPACE_VIEW3D) {
+		switch (tref->mode) {
+			case CTX_MODE_SCULPT:
+				return ePaintSculpt;
+			case CTX_MODE_PAINT_VERTEX:
+				return ePaintVertex;
+			case CTX_MODE_PAINT_WEIGHT:
+				return ePaintWeight;
+			case CTX_MODE_GPENCIL_PAINT:
+				return ePaintGpencil;
+			case CTX_MODE_PAINT_TEXTURE:
+				return ePaintTexture3D;
+		}
+	}
+	else if (tref->space_type == SPACE_IMAGE) {
+		switch (tref->mode) {
+			case SI_MODE_PAINT:
+				return ePaintTexture2D;
+		}
+	}
+
+	return ePaintInvalid;
+}
+
 Brush *BKE_paint_brush(Paint *p)
 {
 	return p ? p->brush : NULL;
@@ -299,7 +364,62 @@ void BKE_paint_brush_set(Paint *p, Brush *br)
 		id_us_min((ID *)p->brush);
 		id_us_plus((ID *)br);
 		p->brush = br;
+
+		BKE_paint_toolslots_brush_update(p);
 	}
+}
+
+void BKE_paint_runtime_init(const ToolSettings *ts, Paint *paint)
+{
+	if (paint == &ts->imapaint.paint) {
+		paint->runtime.tool_offset = offsetof(Brush, imagepaint_tool);
+		paint->runtime.ob_mode = OB_MODE_TEXTURE_PAINT;
+	}
+	else if (paint == &ts->sculpt->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, sculpt_tool);
+		paint->runtime.ob_mode = OB_MODE_SCULPT;
+	}
+	else if (paint == &ts->vpaint->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, vertexpaint_tool);
+		paint->runtime.ob_mode = OB_MODE_VERTEX_PAINT;
+	}
+	else if (paint == &ts->wpaint->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, weightpaint_tool);
+		paint->runtime.ob_mode = OB_MODE_WEIGHT_PAINT;
+	}
+	else if (paint == &ts->gp_paint->paint) {
+		paint->runtime.tool_offset = offsetof(Brush, gpencil_tool);
+		paint->runtime.ob_mode = OB_MODE_GPENCIL_PAINT;
+	}
+	else if (paint == &ts->uvsculpt->paint) {
+		/* We don't use these yet. */
+		paint->runtime.tool_offset = 0;
+		paint->runtime.ob_mode = 0;
+	}
+	else {
+		BLI_assert(0);
+	}
+}
+
+uint BKE_paint_get_brush_tool_offset_from_paintmode(const ePaintMode mode)
+{
+	switch (mode) {
+		case ePaintTexture2D:
+		case ePaintTexture3D:
+			return offsetof(Brush, imagepaint_tool);
+		case ePaintSculpt:
+			return offsetof(Brush, sculpt_tool);
+		case ePaintVertex:
+			return offsetof(Brush, vertexpaint_tool);
+		case ePaintWeight:
+			return offsetof(Brush, weightpaint_tool);
+		case ePaintGpencil:
+			return offsetof(Brush, gpencil_tool);
+		case ePaintSculptUV:
+		case ePaintInvalid:
+			break; /* We don't use these yet. */
+	}
+	return 0;
 }
 
 /** Free (or release) any data used by this paint curve (does not free the pcurve itself). */
@@ -497,7 +617,7 @@ void BKE_paint_cavity_curve_preset(Paint *p, int preset)
 	curvemapping_changed(p->cavity_curve, false);
 }
 
-eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode)
+eObjectMode BKE_paint_object_mode_from_paintmode(ePaintMode mode)
 {
 	switch (mode) {
 		case ePaintSculpt:
@@ -506,9 +626,8 @@ eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode)
 			return OB_MODE_VERTEX_PAINT;
 		case ePaintWeight:
 			return OB_MODE_WEIGHT_PAINT;
-		case ePaintTextureProjective:
-			return OB_MODE_TEXTURE_PAINT;
 		case ePaintTexture2D:
+		case ePaintTexture3D:
 			return OB_MODE_TEXTURE_PAINT;
 		case ePaintSculptUV:
 			return OB_MODE_EDIT;
@@ -516,6 +635,64 @@ eObjectMode BKE_paint_object_mode_from_paint_mode(ePaintMode mode)
 		default:
 			return 0;
 	}
+}
+
+/**
+ * Call when entering each respective paint mode.
+ */
+bool BKE_paint_ensure(const ToolSettings *ts, struct Paint **r_paint)
+{
+	Paint *paint = NULL;
+	if (*r_paint) {
+		/* Note: 'ts->imapaint' is ignored, it's not allocated. */
+		BLI_assert(
+		        ELEM(*r_paint,
+		             &ts->gp_paint->paint,
+		             &ts->sculpt->paint,
+		             &ts->vpaint->paint,
+		             &ts->wpaint->paint,
+		             &ts->uvsculpt->paint));
+
+#ifdef DEBUG
+		struct Paint paint_test = **r_paint;
+		BKE_paint_runtime_init(ts, *r_paint);
+		/* Swap so debug doesn't hide errors when release fails. */
+		SWAP(Paint, **r_paint, paint_test);
+		BLI_assert(paint_test.runtime.ob_mode == (*r_paint)->runtime.ob_mode);
+		BLI_assert(paint_test.runtime.tool_offset == (*r_paint)->runtime.tool_offset);
+#endif
+		return true;
+	}
+
+	if (ELEM(*r_paint, &ts->vpaint->paint, &ts->wpaint->paint)) {
+		VPaint *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+	}
+	else if (*r_paint == &ts->sculpt->paint) {
+		Sculpt *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+
+		/* Turn on X plane mirror symmetry by default */
+		paint->symmetry_flags |= PAINT_SYMM_X;
+
+		/* Make sure at least dyntopo subdivision is enabled */
+		data->flags |= SCULPT_DYNTOPO_SUBDIVIDE | SCULPT_DYNTOPO_COLLAPSE;
+	}
+	else if (*r_paint == &ts->gp_paint->paint) {
+		GpPaint *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+	}
+	else if (*r_paint == &ts->uvsculpt->paint) {
+		UvSculpt *data = MEM_callocN(sizeof(*data), __func__);
+		paint = &data->paint;
+	}
+
+	paint->flags |= PAINT_SHOW_BRUSH;
+
+	BKE_paint_runtime_init(ts, paint);
+
+	*r_paint = paint;
+	return false;
 }
 
 void BKE_paint_init(Main *bmain, Scene *sce, ePaintMode mode, const char col[3])
@@ -527,7 +704,7 @@ void BKE_paint_init(Main *bmain, Scene *sce, ePaintMode mode, const char col[3])
 	/* If there's no brush, create one */
 	brush = BKE_paint_brush(paint);
 	if (brush == NULL) {
-		eObjectMode ob_mode = BKE_paint_object_mode_from_paint_mode(mode);
+		eObjectMode ob_mode = BKE_paint_object_mode_from_paintmode(mode);
 		brush = BKE_brush_first_search(bmain, ob_mode);
 
 		if (!brush) {
@@ -549,6 +726,7 @@ void BKE_paint_init(Main *bmain, Scene *sce, ePaintMode mode, const char col[3])
 void BKE_paint_free(Paint *paint)
 {
 	curvemapping_free(paint->cavity_curve);
+	MEM_SAFE_FREE(paint->tool_slots);
 }
 
 /* called when copying scene settings, so even if 'src' and 'tar' are the same
@@ -559,10 +737,16 @@ void BKE_paint_copy(Paint *src, Paint *tar, const int flag)
 {
 	tar->brush = src->brush;
 	tar->cavity_curve = curvemapping_copy(src->cavity_curve);
+	tar->tool_slots = MEM_dupallocN(src->tool_slots);
 
 	if ((flag & LIB_ID_CREATE_NO_USER_REFCOUNT) == 0) {
 		id_us_plus((ID *)tar->brush);
 		id_us_plus((ID *)tar->palette);
+		if (src->tool_slots != NULL) {
+			for (int i = 0; i < tar->tool_slots_len; i++) {
+				id_us_plus((ID *)tar->tool_slots[i].brush);
+			}
+		}
 	}
 }
 
@@ -1085,18 +1269,9 @@ int BKE_sculpt_mask_layers_ensure(Object *ob, MultiresModifierData *mmd)
 
 void BKE_sculpt_toolsettings_data_ensure(struct Scene *scene)
 {
+	BKE_paint_ensure(scene->toolsettings, (Paint **)&scene->toolsettings->sculpt);
+
 	Sculpt *sd = scene->toolsettings->sculpt;
-	if (sd == NULL) {
-		sd = scene->toolsettings->sculpt = MEM_callocN(sizeof(Sculpt), __func__);
-
-		/* Turn on X plane mirror symmetry by default */
-		sd->paint.symmetry_flags |= PAINT_SYMM_X;
-		sd->paint.flags |= PAINT_SHOW_BRUSH;
-
-		/* Make sure at least dyntopo subdivision is enabled */
-		sd->flags |= SCULPT_DYNTOPO_SUBDIVIDE | SCULPT_DYNTOPO_COLLAPSE;
-	}
-
 	if (!sd->detail_size) {
 		sd->detail_size = 12;
 	}

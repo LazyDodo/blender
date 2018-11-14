@@ -29,6 +29,7 @@
 
 #include "GPU_glew.h"
 #include "GPU_state.h"
+#include "GPU_extensions.h"
 
 static GLenum gpu_get_gl_blendfunction(GPUBlendFunction blend)
 {
@@ -118,7 +119,13 @@ void GPU_line_stipple(bool enable)
 
 void GPU_line_width(float width)
 {
-	glLineWidth(width * U.pixelsize);
+	float max_size = GPU_max_line_width();
+	float final_size = width * U.pixelsize;
+	/* Fix opengl errors on certain platform / drivers. */
+	if (max_size < final_size) {
+		final_size = max_size;
+	}
+	glLineWidth(final_size);
 }
 
 void GPU_point_size(float size)
@@ -159,4 +166,14 @@ void GPU_viewport_size_get_f(float coords[4])
 void GPU_viewport_size_get_i(int coords[4])
 {
 	glGetIntegerv(GL_VIEWPORT, coords);
+}
+
+void GPU_flush(void)
+{
+	glFlush();
+}
+
+void GPU_finish(void)
+{
+	glFinish();
 }

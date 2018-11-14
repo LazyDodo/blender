@@ -281,6 +281,7 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 	const bool back = RNA_boolean_get(op->ptr, "back");
 
 	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
+	Main *bmain = CTX_data_main(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
@@ -315,11 +316,15 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 		ob->mode = mode;
 	}
 
-	/* be sure we have brushes */
-	Paint *paint = BKE_brush_get_gpencil_paint(ts);
-	/* if not exist, create a new one */
-	if (paint->brush == NULL) {
-		BKE_brush_gpencil_presets(C);
+	if (mode == OB_MODE_GPENCIL_PAINT) {
+		/* be sure we have brushes */
+		BKE_paint_ensure(ts, (Paint **)&ts->gp_paint);
+		Paint *paint = &ts->gp_paint->paint;
+		/* if not exist, create a new one */
+		if (paint->brush == NULL) {
+			BKE_brush_gpencil_presets(C);
+		}
+		BKE_paint_toolslots_brush_validate(bmain, &ts->gp_paint->paint);
 	}
 
 	/* setup other modes */
@@ -2861,7 +2866,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	int lock_axis = ts->gp_sculpt.lock_axis;
 	float origin[3];
 
-	if ((mode == GP_REPROJECT_AXIS) && (lock_axis == GP_LOCKAXIS_NONE)) {
+	if ((mode == GP_REPROJECT_AXIS) && (lock_axis == GP_LOCKAXIS_VIEW)) {
 		BKE_report(op->reports, RPT_ERROR, "To reproject by axis, a lock axis must be set before");
 		return OPERATOR_CANCELLED;
 	}
@@ -2904,7 +2909,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 
 				/* Project stroke in the axis locked */
 				if (mode == GP_REPROJECT_AXIS) {
-					if (lock_axis > GP_LOCKAXIS_NONE) {
+					if (lock_axis > GP_LOCKAXIS_VIEW) {
 						ED_gp_get_drawing_reference(v3d, scene, ob, gpl,
 							ts->gpencil_v3d_align, origin);
 						ED_gp_project_point_to_plane(ob, rv3d, origin,

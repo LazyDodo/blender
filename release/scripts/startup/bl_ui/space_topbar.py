@@ -64,7 +64,13 @@ class TOPBAR_HT_upper_bar(Header):
         layout = self.layout
 
         window = context.window
+        screen = context.screen
         scene = window.scene
+
+        # If statusbar is hidden, still show messages at the top
+        if not screen.show_statusbar:
+            layout.template_reports_banner()
+            layout.template_running_jobs()
 
         # Active workspace view-layer is retrieved through window, not through workspace.
         layout.template_ID(window, "scene", new="scene.new", unlink="scene.delete")
@@ -210,13 +216,6 @@ class TOPBAR_HT_lower_bar(Header):
                     panel="TOPBAR_PT_gpencil_layers",
                     text=text,
                 )
-                if tool_mode == 'GPENCIL_PAINT':
-                    tool_settings = context.tool_settings
-                    layout.prop(tool_settings, "use_gpencil_draw_onback", text="", icon='XRAY')
-                    layout.prop(tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
-                    layout.prop(tool_settings, "use_gpencil_additive_drawing", text="", icon='FREEZE')
-                    if tool_settings.gpencil_stroke_placement_view3d == 'STROKE':
-                        layout.prop(tool_settings, "use_gpencil_stroke_endpoints", text="", icon='CURVE_DATA')
         elif tool_space_type == 'IMAGE_EDITOR':
             if tool_mode == 'PAINT':
                 layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".imagepaint_2d", category="")
@@ -228,7 +227,11 @@ class _draw_left_context_mode:
         def SCULPT(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
-            brush = context.tool_settings.sculpt.brush
+
+            paint = context.tool_settings.sculpt
+            layout.template_ID_preview(paint, "brush", rows=3, cols=8, hide_buttons=True)
+
+            brush = paint.brush
             if brush is None:
                 return
 
@@ -238,10 +241,15 @@ class _draw_left_context_mode:
             UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
             layout.prop(brush, "direction", text="", expand=True)
 
+        @staticmethod
         def PAINT_TEXTURE(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
-            brush = context.tool_settings.image_paint.brush
+
+            paint = context.tool_settings.image_paint
+            layout.template_ID_preview(paint, "brush", rows=3, cols=8, hide_buttons=True)
+
+            brush = paint.brush
             if brush is None:
                 return
 
@@ -251,10 +259,15 @@ class _draw_left_context_mode:
             UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
             UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
+        @staticmethod
         def PAINT_VERTEX(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
-            brush = context.tool_settings.vertex_paint.brush
+
+            paint = context.tool_settings.vertex_paint
+            layout.template_ID_preview(paint, "brush", rows=3, cols=8, hide_buttons=True)
+
+            brush = paint.brush
             if brush is None:
                 return
 
@@ -264,10 +277,14 @@ class _draw_left_context_mode:
             UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
             UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
+        @staticmethod
         def PAINT_WEIGHT(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
-            brush = context.tool_settings.weight_paint.brush
+
+            paint = context.tool_settings.weight_paint
+            layout.template_ID_preview(paint, "brush", rows=3, cols=8, hide_buttons=True)
+            brush = paint.brush
             if brush is None:
                 return
 
@@ -277,6 +294,80 @@ class _draw_left_context_mode:
             UnifiedPaintPanel.prop_unified_size(layout, context, brush, "size", slider=True, text="Radius")
             UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
+        @staticmethod
+        def GPENCIL_PAINT(context, layout, tool):
+
+            if (tool is None) or (not tool.has_datablock):
+                return
+
+            paint = context.tool_settings.gpencil_paint
+            brush = paint.brush
+            if brush is None:
+                return
+
+            gp_settings = brush.gpencil_settings
+
+            def draw_color_selector():
+                ma = gp_settings.material
+                row = layout.row(align=True)
+
+                icon_id = 0
+                if ma:
+                    icon_id = ma.id_data.preview.icon_id
+                    txt_ma = ma.name
+                    maxw = 25
+                    if len(txt_ma) > maxw:
+                        txt_ma = txt_ma[:maxw - 5] + '..' + txt_ma[-3:]
+                else:
+                    txt_ma = ""
+
+                row.label(text="Material:")
+                sub = row.row()
+                sub.ui_units_x = 8
+                sub.popover(
+                    panel="TOPBAR_PT_gpencil_materials",
+                    text=txt_ma,
+                    icon_value=icon_id,
+                )
+
+                row.prop(gp_settings, "use_material_pin", text="")
+
+            row = layout.row(align=True)
+            ts = context.scene.tool_settings
+            settings = ts.gpencil_paint
+            row.template_ID_preview(settings, "brush", rows=3, cols=8, hide_buttons=True)
+
+            if brush.gpencil_tool == 'ERASE':
+                row = layout.row(align=True)
+                row.prop(brush, "size", text="Radius")
+                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                if gp_settings.eraser_mode == 'SOFT':
+                    row = layout.row(align=True)
+                    row.prop(gp_settings, "pen_strength", slider=True)
+                    row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+            elif brush.gpencil_tool == 'FILL':
+                row = layout.row()
+                row.prop(gp_settings, "fill_leak", text="Leak Size")
+                row.prop(brush, "size", text="Thickness")
+                row.prop(gp_settings, "fill_simplify_level", text="Simplify")
+
+                draw_color_selector()
+
+                row = layout.row(align=True)
+                row.prop(gp_settings, "fill_draw_mode", text="")
+                row.prop(gp_settings, "show_fill_boundary", text="", icon='GRID')
+
+            else:  # bgpsettings.tool == 'DRAW':
+                row = layout.row(align=True)
+                row.prop(brush, "size", text="Radius")
+                row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                row = layout.row(align=True)
+                row.prop(gp_settings, "pen_strength", slider=True)
+                row.prop(gp_settings, "use_strength_pressure", text="", icon='STYLUS_PRESSURE')
+
+                draw_color_selector()
+
+        @staticmethod
         def PARTICLE(context, layout, tool):
             # See: 'VIEW3D_PT_tools_brush', basically a duplicate
             settings = context.tool_settings.particle_edit
@@ -309,6 +400,7 @@ class _draw_left_context_mode:
                         sub.prop(settings, "emitter_distance", text="Distance")
 
     class IMAGE_EDITOR:
+        @staticmethod
         def VIEW(context, layout, tool):
             tool_settings = context.tool_settings
             if tool_settings.use_uv_sculpt:
@@ -326,10 +418,15 @@ class _draw_left_context_mode:
                         UnifiedPaintPanel.prop_unified_strength(row, context, brush, "strength", slider=True, text="Strength")
                         UnifiedPaintPanel.prop_unified_strength(row, context, brush, "use_pressure_strength")
 
+        @staticmethod
         def PAINT(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
-            brush = context.tool_settings.image_paint.brush
+
+            paint = context.tool_settings.image_paint
+            layout.template_ID_preview(paint, "brush", rows=3, cols=8, hide_buttons=True)
+
+            brush = paint.brush
             if brush is None:
                 return
 
@@ -678,7 +775,7 @@ class TOPBAR_MT_edit(Menu):
 
         layout.separator()
 
-        layout.operator("wm.search_menu", text="Operator Search...")
+        layout.operator("wm.search_menu", text="Operator Search...", icon='VIEWZOOM')
 
         layout.separator()
 
@@ -828,14 +925,16 @@ class TOPBAR_MT_window_specials(Menu):
 
         layout.operator_context = 'INVOKE_AREA'
 
-        layout.operator("screen.area_dupli")
-
-        layout.operator("wm.window_fullscreen_toggle", icon='FULLSCREEN_ENTER')
+        layout.operator("screen.area_dupli", icon='DUPLICATE')
 
         layout.separator()
 
         layout.operator("screen.area_split", text="Horizontal Split").direction = 'HORIZONTAL'
         layout.operator("screen.area_split", text="Vertical Split").direction = 'VERTICAL'
+
+        layout.separator()
+
+        layout.operator("wm.window_fullscreen_toggle", icon='FULLSCREEN_ENTER')
 
         layout.separator()
 
@@ -848,14 +947,14 @@ class TOPBAR_MT_workspace_menu(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("workspace.duplicate", text="Duplicate")
+        layout.operator("workspace.duplicate", text="Duplicate", icon='DUPLICATE')
         if len(bpy.data.workspaces) > 1:
-            layout.operator("workspace.delete", text="Delete")
+            layout.operator("workspace.delete", text="Delete", icon='REMOVE')
 
         layout.separator()
 
-        layout.operator("workspace.reorder_to_front", text="Reorder to Front")
-        layout.operator("workspace.reorder_to_back", text="Reorder to Back")
+        layout.operator("workspace.reorder_to_front", text="Reorder to Front", icon='TRIA_LEFT_BAR')
+        layout.operator("workspace.reorder_to_back", text="Reorder to Back", icon='TRIA_RIGHT_BAR')
 
 
 class TOPBAR_PT_active_tool(Panel):

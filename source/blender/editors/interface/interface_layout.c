@@ -2371,6 +2371,10 @@ static uiBut *uiItemL_(uiLayout *layout, const char *name, int icon)
 		but->flag |= UI_BUT_LIST_ITEM;
 	}
 
+	if (layout->redalert) {
+		UI_but_flag_enable(but, UI_BUT_REDALERT);
+	}
+
 	return but;
 }
 
@@ -2415,14 +2419,21 @@ void uiItemV(uiLayout *layout, const char *name, int icon, int argval)
 }
 
 /* separator item */
-void uiItemS(uiLayout *layout)
+void uiItemS_ex(uiLayout *layout, float factor)
 {
 	uiBlock *block = layout->root->block;
 	bool is_menu = ui_block_is_menu(block);
 	int space = (is_menu) ? 0.45f * UI_UNIT_X : 0.3f * UI_UNIT_X;
+	space *= factor;
 
 	UI_block_layout_set_current(block, layout);
 	uiDefBut(block, (is_menu) ? UI_BTYPE_SEPR_LINE : UI_BTYPE_SEPR, 0, "", 0, 0, space, space, NULL, 0.0, 0.0, 0, 0, "");
+}
+
+/* separator item */
+void uiItemS(uiLayout *layout)
+{
+	uiItemS_ex(layout, 1.0f);
 }
 
 /* Flexible spacing. */
