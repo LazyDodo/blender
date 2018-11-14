@@ -162,7 +162,6 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 		// <instance_controller>
 		else if (ob->type == OB_ARMATURE) {
 			arm_exporter->add_armature_bones(ob, view_layer, this, child_objects);
-			writeNodeList(C, depsgraph, view_layer, child_objects, ob);
 		}
 
 		// <instance_camera>
@@ -232,11 +231,8 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 					con = con->next;
 				}
 			}
-			writeNodeList(C, depsgraph, view_layer, child_objects, ob);
 		}
-		else {
-			writeNodeList(C, depsgraph, view_layer, child_objects, ob);
-		}
+		writeNodeList(C, depsgraph, view_layer, child_objects, ob);
 		colladaNode.end();
 	}
 }
