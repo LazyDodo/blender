@@ -427,6 +427,9 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 		return;
 	}
 	switch (GS(id->name)) {
+		case ID_AC:
+			build_action((bAction *)id);
+			break;
 		case ID_AR:
 			build_armature((bArmature *)id);
 			break;
@@ -434,7 +437,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 			build_camera((Camera *)id);
 			break;
 		case ID_GR:
-			build_collection(NULL, (Collection *)id);
+			build_collection(NULL, NULL, (Collection *)id);
 			break;
 		case ID_OB:
 			build_object(NULL, (Object *)id);
@@ -486,9 +489,19 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 }
 
 void DepsgraphRelationBuilder::build_collection(
+        LayerCollection *from_layer_collection,
         Object *object,
         Collection *collection)
 {
+	if (from_layer_collection != NULL) {
+		/* If we came from layer collection we don't go deeper, view layer
+		 * builder takes care of going deeper.
+		 *
+		 * NOTE: Do early output before tagging build as done, so possbile
+		 * subsequent builds from outside of the layer collection properly
+		 * recurses into all the nested objects and collections. */
+		return;
+	}
 	const bool group_done = built_map_.checkIsBuiltAndTag(collection);
 	OperationKey object_transform_final_key(object != NULL ? &object->id : NULL,
 	                                        DEG_NODE_TYPE_TRANSFORM,
@@ -500,7 +513,7 @@ void DepsgraphRelationBuilder::build_collection(
 			build_object(NULL, cob->ob);
 		}
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-			build_collection(NULL, child->collection);
+			build_collection(NULL, NULL, child->collection);
 		}
 	}
 	if (object != NULL) {
@@ -644,7 +657,7 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_collection(object, object->dup_group);
+		build_collection(NULL, object, object->dup_group);
 	}
 	/* Point caches. */
 	build_object_pointcache(object);
@@ -1402,8 +1415,16 @@ void DepsgraphRelationBuilder::build_driver_data(ID *id, FCurve *fcu)
 			        rna_path);
 		}
 	}
-	else {
+	else if (rna_path != NULL && rna_path[0] != '\0') {
 		RNAPathKey target_key(id, rna_path);
+		if (RNA_pointer_is_null(&target_key.ptr)) {
+			/* TODO(sergey): This would only mean that driver is broken.
+			 * so we can't create relation anyway. However, we need to avoid
+			 * adding drivers which are known to be buggy to a dependency
+			 * graph, in order to save computational power.
+			 */
+			return;
+		}
 		add_relation(driver_key, target_key, "Driver -> Target");
 		/* Similar to the case with f-curves, driver might drive a nested
 		 * datablock, which means driver execution should wait for that
@@ -1424,24 +1445,15 @@ void DepsgraphRelationBuilder::build_driver_data(ID *id, FCurve *fcu)
 				}
 			}
 		}
-		if (RNA_pointer_is_null(&target_key.ptr)) {
-			/* TODO(sergey): This would only mean that driver is broken.
-			 * so we can't create relation anyway. However, we need to avoid
-			 * adding drivers which are known to be buggy to a dependency
-			 * graph, in order to save computational power.
-			 */
-		}
-		else {
-			if (target_key.prop != NULL &&
-			    RNA_property_is_idprop(target_key.prop))
-			{
-				OperationKey parameters_key(id,
-				                            DEG_NODE_TYPE_PARAMETERS,
-				                            DEG_OPCODE_PARAMETERS_EVAL);
-				add_relation(target_key,
-				             parameters_key,
-				             "Driver Target -> Properties");
-			}
+		if (target_key.prop != NULL &&
+		    RNA_property_is_idprop(target_key.prop))
+		{
+			OperationKey parameters_key(id,
+			                            DEG_NODE_TYPE_PARAMETERS,
+			                            DEG_OPCODE_PARAMETERS_EVAL);
+			add_relation(target_key,
+			             parameters_key,
+			             "Driver Target -> Properties");
 		}
 	}
 }
@@ -1508,7 +1520,7 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 				                        DEG_OPCODE_TRANSFORM_FINAL);
 				add_relation(target_key, driver_key, "Target -> Driver");
 			}
-			else if (dtar->rna_path) {
+			else if (dtar->rna_path != NULL && dtar->rna_path[0] != '\0') {
 				RNAPathKey variable_key(dtar->id, dtar->rna_path);
 				if (RNA_pointer_is_null(&variable_key.ptr)) {
 					continue;
@@ -1576,7 +1588,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
-		build_collection(NULL, rbw->group);
+		build_collection(NULL, NULL, rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
@@ -1758,7 +1770,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_collection(NULL, part->dup_group);
+					build_collection(NULL, NULL, part->dup_group);
 					LISTBASE_FOREACH (CollectionObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,
@@ -2501,17 +2513,7 @@ void DepsgraphRelationBuilder::modifier_walk(void *user_data,
 	if (id == NULL) {
 		return;
 	}
-	switch (GS(id->name)) {
-		case ID_OB:
-			data->builder->build_object(NULL, (Object *)id);
-			break;
-		case ID_TE:
-			data->builder->build_texture((Tex *)id);
-			break;
-		default:
-			/* pass */
-			break;
-	}
+	data->builder->build_id(id);
 }
 
 void DepsgraphRelationBuilder::constraint_walk(bConstraint * /*con*/,
@@ -2520,12 +2522,11 @@ void DepsgraphRelationBuilder::constraint_walk(bConstraint * /*con*/,
                                                void *user_data)
 {
 	BuilderWalkUserData *data = (BuilderWalkUserData *)user_data;
-	if (*idpoin) {
-		ID *id = *idpoin;
-		if (GS(id->name) == ID_OB) {
-			data->builder->build_object(NULL, (Object *)id);
-		}
+	ID *id = *idpoin;
+	if (id == NULL) {
+		return;
 	}
+	data->builder->build_id(id);
 }
 
 }  // namespace DEG
