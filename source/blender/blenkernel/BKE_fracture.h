@@ -100,7 +100,7 @@ void BKE_fracture_meshislands_free(struct FractureModifierData* fmd, struct Scen
 void BKE_fracture_free(struct FractureModifierData *fmd, struct Scene *scene);
 
 void BKE_fracture_do(struct FractureModifierData *fmd, struct MeshIsland *mi, struct Object *obj,
-                     struct Depsgraph *depsgraph, struct Main *bmain, struct Scene *scene);
+                     struct Depsgraph *depsgraph, struct Main *bmain, struct Scene *scene, bool is_init);
 
 
 void BKE_fracture_animated_loc_rot(struct FractureModifierData *fmd, struct Object *ob, bool do_bind, struct Depsgraph *depsgraph);

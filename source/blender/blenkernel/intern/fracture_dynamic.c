@@ -68,7 +68,7 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 	fid = (FractureID*)fmd->shared->fracture_ids.first;
 	while(fid){
 		if (!fid->mi->fractured) {
-			BKE_fracture_do(fmd, fid->mi, ob, depsgraph, bmain, scene);
+			BKE_fracture_do(fmd, fid->mi, ob, depsgraph, bmain, scene, false);
 		}
 		fid->mi->fractured = true;
 		count++;

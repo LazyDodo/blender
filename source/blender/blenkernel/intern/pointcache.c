@@ -1488,8 +1488,9 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 		MeshIsland *mi;
 		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 		{
-			int frame = (int)cfra;
-			int frame2 = (int)cfra2;
+			int frame = (int)cfra; //currentframe
+			int frame1 = (int)cfra1; //old frame(-step?)
+			int frame2 = (int)cfra2; //new frame(+step?)
 
 			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
 				continue;
@@ -1508,11 +1509,12 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 			}
 
 			frame = calc_frame(rbw, mi, frame);
+			frame1 = calc_frame(rbw, mi, frame1);
 			frame2 = calc_frame(rbw, mi, frame2);
 
 			rbo = mi->rigidbody;
-			if (rbo->type == RBO_TYPE_ACTIVE) {
-
+			if (rbo->type == RBO_TYPE_ACTIVE /* && frame1 > 0*/) {
+				/* do not interpolate right after fracture event, might cause jitter movement */
 				copy_v3_v3(keys[1].co, rbo->pos);
 				copy_qt_qt(keys[1].rot, rbo->orn);
 				copy_v3_v3(keys[1].vel, rbo->lin_vel);

@@ -1491,8 +1491,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_dynamic", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_dynamic", false);
 	RNA_def_property_ui_text(prop, "Dynamic", "Dynamically fracture shards during the sim");
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
+	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update"); //keep cache
 
 	RNA_api_fracture(brna, subrna);
 }

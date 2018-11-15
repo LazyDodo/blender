@@ -1264,7 +1264,8 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 
 	mi = fmd->shared->mesh_islands.first;
 	while (mi) {
-		if (mi->startframe > startframe || (!fmd->use_dynamic && mi->id == 0)) {
+		if (mi->startframe > startframe ||
+		   (fmd->use_dynamic && mi->id > 0)) {
 			next = mi->next;
 			BLI_remlink(&fmd->shared->mesh_islands, mi);
 			BKE_fracture_mesh_island_free(mi, scene);
@@ -2586,12 +2587,24 @@ static void cleanup_splinters(FractureModifierData *fmd, float mat[4][4], MeshIs
 
 
 void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi, Depsgraph* depsgraph, Main *bmain,
-                         Scene *scene)
+                         Scene *scene, bool is_initial)
 {
 	/* dummy point cloud, random */
 	FracPointCloud points;
 
-	points = BKE_fracture_points_get(depsgraph, fmd, obj, mi);
+	if (fmd->use_dynamic && is_initial)
+	{
+		//skip initial refracture on dynamic (pressing execute fracture)
+		//because we need just the original shard then
+		points.totpoints = 1;
+		points.points = MEM_callocN(sizeof(FracPoint), "frac point");
+		//points.points[0] = MEM_callocN(sizeof(FracPoint), "frac point");
+		copy_v3_v3(points.points[0].co, mi->centroid);
+		zero_v3(points.points[0].offset);
+	}
+	else {
+		points = BKE_fracture_points_get(depsgraph, fmd, obj, mi);
+	}
 
 	if (points.totpoints > 0 || fmd->use_greasepencil_edges) {
 	//	short mat_index = 0;
@@ -2622,13 +2635,14 @@ void BKE_fracture_points(FractureModifierData *fmd, Object* obj, MeshIsland *mi,
 }
 
 //this is the main fracture function, outsource to BKE, so op or rb system can call it
-void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Depsgraph *depsgraph, Main* bmain, Scene *scene)
+void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Depsgraph *depsgraph, Main* bmain,
+                     Scene *scene, bool is_init)
 {
 	MeshIsland *mii = NULL;
 	int frame = (int)(BKE_scene_frame_get(scene)); //TODO ensure original scene !!!
 
 	/* no pointsource means re-use existing mesh islands*/
-	if (fmd->point_source == 0 && !fmd->use_dynamic) {
+	if (fmd->point_source == 0 && is_init) {
 		int count = 1, i, j = 1;
 
 		Mesh** temp_meshs = MEM_callocN(sizeof(Mesh*) * count, "temp_islands no pointsource");
@@ -2679,7 +2693,7 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 			/*decouple from listbase because it will continue growing ... */
 			for (i = 0; i < count; i++)
 			{
-				BKE_fracture_points(fmd, obj, mi_tmp[i], depsgraph, bmain, scene);
+				BKE_fracture_points(fmd, obj, mi_tmp[i], depsgraph, bmain, scene, is_init);
 				mi_tmp[i]->endframe = frame;
 			}
 
@@ -2687,7 +2701,7 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 		}
 	}
 	else {
-		BKE_fracture_points(fmd, obj, mi, depsgraph, bmain, scene);
+		BKE_fracture_points(fmd, obj, mi, depsgraph, bmain, scene, is_init);
 	}
 }
 

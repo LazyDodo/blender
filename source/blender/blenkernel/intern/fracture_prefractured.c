@@ -139,7 +139,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
 
-		if (!fmd->use_dynamic && fmd->dm_group && !BLI_listbase_is_empty(&fmd->shared->mesh_islands))
+		if (/*!fmd->use_dynamic && */fmd->dm_group && !BLI_listbase_is_empty(&fmd->shared->mesh_islands))
 		{
 			int i = 0;
 			int count = BLI_listbase_count(&fmd->shared->mesh_islands);
@@ -153,7 +153,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			/*decouple from listbase because it will continue growing ... */
 			for (mi = mi_tmp, i = 0; i < count; i++)
 			{
-				BKE_fracture_do(fmd, mi_tmp[i], ob, depsgraph, bmain, scene);
+				BKE_fracture_do(fmd, mi_tmp[i], ob, depsgraph, bmain, scene, true);
 				mi_tmp[i]->endframe = frame;
 			}
 
@@ -161,16 +161,14 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		}
 		else
 		{
-			BKE_fracture_meshislands_free(fmd, fmd->use_dynamic ? NULL : scene);
+			BKE_fracture_meshislands_free(fmd, /*fmd->use_dynamic ? NULL :*/ scene);
 			me_tmp = BKE_fracture_mesh_copy(me, ob);
 
 			mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob, frame);
 			mi->id = 0;
 			BLI_addtail(&fmd->shared->mesh_islands, mi);
 
-			if (!fmd->use_dynamic)
-				/*if refresh, perform fracture */
-				BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene);
+			BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene, true);
 
 			if ((fmd->point_source & MOD_FRACTURE_CUSTOM) == 0)
 				mi->endframe = frame;

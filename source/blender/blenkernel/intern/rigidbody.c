@@ -2140,12 +2140,11 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 			BKE_rigidbody_cache_reset(scene);
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
 		}
-
 	}
 
 	/* try to read from cache */
 	// RB_TODO deal with interpolated, old and baked results
-	bool can_simulate = (ctime == rbw->ltime + 1) && !(cache->flag & PTCACHE_BAKED);
+	bool can_simulate = /*(ctime == rbw->ltime + 1) &&*/ !(cache->flag & PTCACHE_BAKED);
 
 	if (BKE_ptcache_read(&pid, ctime, can_simulate) == PTCACHE_READ_EXACT) {
 		BKE_ptcache_validate(cache, (int)ctime);
@@ -2168,8 +2167,8 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	}
 
 	/* advance simulation, we can only step one frame forward */
-	if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64) && !(cache->flag & PTCACHE_BAKED))
-	//if (can_simulate)
+	//if (compare_ff_relative(ctime, rbw->ltime + 1, FLT_EPSILON, 64) && !(cache->flag & PTCACHE_BAKED))
+	if (can_simulate)
 	{
 		/* write cache for first frame when on second frame */
 		if (rbw->ltime == startframe && (cache->flag & PTCACHE_OUTDATED || cache->last_exact == 0)) {
@@ -2188,7 +2187,6 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 		/* step simulation by the requested timestep, steps per second are adjusted to take time scale into account */
 		RB_dworld_step_simulation(rbw->shared->physics_world, timestep, INT_MAX,
 								  1.0f / (float)rbw->steps_per_second * min_ff(rbw->time_scale, 1.0f));
-
 		rigidbody_update_simulation_post_step(depsgraph, rbw);
 
 		/* write cache for current frame */
@@ -2225,7 +2223,7 @@ void BKE_rigidbody_remove_constraint(Scene *scene, Object *ob) {}
 void BKE_rigidbody_sync_transforms(RigidBodyWorld *rbw, Object *ob, float ctime) {}
 void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], float quat[4], float rotAxis[3], float rotAngle) {}
 bool BKE_rigidbody_check_sim_running(RigidBodyWorld *rbw, float ctime) { return false; }
-void BKE_rigidbody_cache_reset(RigidBodyWorld *rbw) {}
+void BKE_rigidbody_cache_reset(Scene *scene) {}
 void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime) {}
 void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime) {}
 

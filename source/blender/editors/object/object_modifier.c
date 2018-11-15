@@ -2478,7 +2478,7 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	}
 
 	rmd->shared->refresh = true;
-	rmd->last_frame = INT_MAX; // delete dynamic data as well
+	rmd->last_frame = 0;
 
 	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
 	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
