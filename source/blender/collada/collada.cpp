@@ -45,10 +45,36 @@ extern "C"
 #include "BLI_fileops.h"
 #include "BLI_linklist.h"
 
+
+static void print_import_header(ImportSettings &import_settings)
+{
+	fprintf(stderr, "+-- Collada Import parameters------\n");
+	fprintf(stderr, "| input file      : %s\n", import_settings.filepath);
+	fprintf(stderr, "| use units       : %s\n", (import_settings.import_units)?"yes":"no");
+	fprintf(stderr, "| autoconnect     : %s\n", (import_settings.auto_connect) ? "yes" : "no");
+	fprintf(stderr, "+-- Armature Import parameters ----\n");
+	fprintf(stderr, "| find bone chains: %s\n", (import_settings.find_chains) ? "yes" : "no");
+	fprintf(stderr, "| min chain len   : %d\n", import_settings.min_chain_length);
+	fprintf(stderr, "| fix orientation : %s\n", (import_settings.fix_orientation) ? "yes" : "no");
+	fprintf(stderr, "| keep bind info  : %s\n", (import_settings.keep_bind_info) ? "yes" : "no");
+
+}
+
+static void print_import_footer(int status)
+{
+	fprintf(stderr, "+----------------------------------\n");
+	fprintf(stderr, "| Collada Import : %s\n", (status)? "OK":"FAIL");
+	fprintf(stderr, "+----------------------------------\n");
+}
+
 int collada_import(bContext *C, ImportSettings *import_settings)
 {
+	print_import_header(*import_settings);
 	DocumentImporter imp(C, import_settings);
-	return (imp.import())? 1:0;
+	int status = imp.import()? 1:0;
+	print_import_footer(status);
+
+	return status;
 }
 
 int collada_export(bContext *C,

@@ -223,12 +223,14 @@ void DocumentImporter::finish()
 		}
 
 		// Write nodes to scene
+		fprintf(stderr, "+-- Import Scene --------\n");
 		const COLLADAFW::NodePointerArray& roots = (*sit)->getRootNodes();
 		for (unsigned int i = 0; i < roots.getCount(); i++) {
 			std::vector<Object *> *objects_done = write_node(roots[i], NULL, sce, NULL, false);
 			objects_to_scale->insert(objects_to_scale->end(), objects_done->begin(), objects_done->end());
 			delete objects_done;
 		}
+
 	}
 
 
@@ -252,7 +254,7 @@ void DocumentImporter::finish()
 
 	if (libnode_ob.size()) {
 
-		fprintf(stderr, "got %d library nodes to free\n", (int)libnode_ob.size());
+		fprintf(stderr, "| Cleanup: free %d library nodes\n", (int)libnode_ob.size());
 		// free all library_nodes
 		std::vector<Object *>::iterator it;
 		for (it = libnode_ob.begin(); it != libnode_ob.end(); it++) {
@@ -400,7 +402,7 @@ Object *DocumentImporter::create_lamp_object(COLLADAFW::InstanceLight *lamp, Sce
 
 Object *DocumentImporter::create_instance_node(Object *source_ob, COLLADAFW::Node *source_node, COLLADAFW::Node *instance_node, Scene *sce, bool is_library_node)
 {
-	fprintf(stderr, "create <instance_node> under node id=%s from node id=%s\n", instance_node ? instance_node->getOriginalId().c_str() : NULL, source_node ? source_node->getOriginalId().c_str() : NULL);
+	//fprintf(stderr, "create <instance_node> under node id=%s from node id=%s\n", instance_node ? instance_node->getOriginalId().c_str() : NULL, source_node ? source_node->getOriginalId().c_str() : NULL);
 
 	Main *bmain = CTX_data_main(mContext);
 	Object *obn = BKE_object_copy(bmain, source_ob);
@@ -500,9 +502,10 @@ std::vector<Object *> *DocumentImporter::write_node(COLLADAFW::Node *node, COLLA
 	std::vector<Object *> *root_objects = new std::vector<Object *>();
 
 	fprintf(stderr,
-	        "Writing node id='%s', name='%s'\n",
-	        id.c_str(),
-	        name.c_str());
+		"| %s id='%s', name='%s'\n",
+		is_joint ? "JOINT" : "NODE ",
+		id.c_str(),
+        name.c_str() );
 
 	if (is_joint) {
 		if (parent_node == NULL && !is_library_node) {
@@ -727,12 +730,12 @@ bool DocumentImporter::writeLibraryNodes(const COLLADAFW::LibraryNodes *libraryN
 
 	const COLLADAFW::NodePointerArray& nodes = libraryNodes->getNodes();
 
+	fprintf(stderr, "+-- Read Library nodes ----------\n");
 	for (unsigned int i = 0; i < nodes.getCount(); i++) {
 		std::vector<Object *> *child_objects;
 		child_objects = write_node(nodes[i], NULL, sce, NULL, true);
 		delete child_objects;
 	}
-
 	return true;
 }
 
@@ -962,7 +965,7 @@ bool DocumentImporter::writeImage(const COLLADAFW::Image *image)
 	else {
 		// Maybe imagepath was already absolute ?
 		if (!BLI_exists(imagepath.c_str())) {
-			fprintf(stderr, "Image not found: %s.\n", imagepath.c_str() );
+			fprintf(stderr, "|! Image not found: %s\n", imagepath.c_str() );
 			return true;
 		}
 		workpath = imagepath.c_str();
@@ -970,11 +973,11 @@ bool DocumentImporter::writeImage(const COLLADAFW::Image *image)
 
 	Image *ima = BKE_image_load_exists(CTX_data_main(mContext), workpath);
 	if (!ima) {
-		fprintf(stderr, "Cannot create image: %s\n", workpath);
+		fprintf(stderr, "|! Cannot create image: %s\n", workpath);
 		return true;
 	}
 	this->uid_image_map[image->getUniqueId()] = ima;
-
+	fprintf(stderr, "| import Image: %s\n", workpath);
 	return true;
 }
 
