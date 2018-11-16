@@ -231,9 +231,7 @@ static int change_frame_modal(bContext *C, wmOperator *op, const wmEvent *event)
 		case LEFTMOUSE:
 		case RIGHTMOUSE:
 		case MIDDLEMOUSE:
-			/* we check for either mouse-button to end, as checking for ACTIONMOUSE (which is used to init
-			 * the modal op) doesn't work for some reason
-			 */
+			/* We check for either mouse-button to end, to work with all user keymaps. */
 			if (event->val == KM_RELEASE)
 				ret = OPERATOR_FINISHED;
 			break;
@@ -409,8 +407,8 @@ static int previewrange_define_exec(bContext *C, wmOperator *op)
 	efra = UI_view2d_region_to_view_x(&ar->v2d, rect.xmax);
 
 	/* set start/end frames for preview-range
-	 *	- must clamp within allowable limits
-	 *	- end must not be before start (though this won't occur most of the time)
+	 * - must clamp within allowable limits
+	 * - end must not be before start (though this won't occur most of the time)
 	 */
 	FRAMENUMBER_MIN_CLAMP(sfra);
 	FRAMENUMBER_MIN_CLAMP(efra);

@@ -376,6 +376,7 @@ void EEVEE_lightbake_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
 		DRW_shgroup_uniform_float(grp, "lodMax", &pinfo->lod_rt_max, 1);
 		DRW_shgroup_uniform_float(grp, "texelSize", &pinfo->texel_size, 1);
 		DRW_shgroup_uniform_float(grp, "paddingSize", &pinfo->padding_size, 1);
+		DRW_shgroup_uniform_float(grp, "fireflyFactor", &pinfo->firefly_fac, 1);
 		DRW_shgroup_uniform_int(grp, "Layer", &pinfo->layer, 1);
 		DRW_shgroup_uniform_texture(grp, "texHammersley", e_data.hammersley);
 		// DRW_shgroup_uniform_texture(grp, "texJitter", e_data.jitter);
@@ -833,6 +834,8 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	EEVEE_StorageList *stl = vedata->stl;
 	LightCache *light_cache = stl->g_data->light_cache;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
 	eevee_lightprobes_extract_from_cache(sldata->probes, light_cache);
 
@@ -843,6 +846,7 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	sldata->common_data.prb_lod_cube_max = (float)light_cache->mips_len - 1.0f;
 	sldata->common_data.prb_lod_planar_max = (float)MAX_PLANAR_LOD_LEVEL;
 	sldata->common_data.prb_irradiance_vis_size = light_cache->vis_res;
+	sldata->common_data.prb_irradiance_smooth = SQUARE(scene_eval->eevee.gi_irradiance_smoothing);
 	sldata->common_data.prb_num_render_cube = max_ii(1, light_cache->cube_len);
 	sldata->common_data.prb_num_render_grid = max_ii(1, light_cache->grid_len);
 	sldata->common_data.prb_num_planar = pinfo->num_planar;
@@ -859,7 +863,6 @@ void EEVEE_lightprobes_cache_finish(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	if (!DRW_state_is_image_render() && !DRW_state_is_opengl_render() &&
 	    (pinfo->do_grid_update || pinfo->do_cube_update))
 	{
-		const DRWContextState *draw_ctx = DRW_context_state_get();
 		BLI_assert(draw_ctx->evil_C);
 
 		if (draw_ctx->scene->eevee.flag & SCE_EEVEE_GI_AUTOBAKE) {
@@ -1100,7 +1103,7 @@ static void eevee_lightbake_render_scene_to_planars(
 void EEVEE_lightbake_filter_glossy(
         EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
         struct GPUTexture *rt_color, struct GPUFrameBuffer *fb,
-        int probe_idx, float intensity, int maxlevel)
+        int probe_idx, float intensity, int maxlevel, float filter_quality, float firefly_fac)
 {
 	EEVEE_PassList *psl = vedata->psl;
 	EEVEE_LightProbesInfo *pinfo = sldata->probes;
@@ -1146,9 +1149,13 @@ void EEVEE_lightbake_filter_glossy(
 #else /* Constant Sample count (slow) */
 		pinfo->samples_len = 1024.0f;
 #endif
+		/* Cannot go higher than HAMMERSLEY_SIZE */
+		CLAMP(filter_quality, 1.0f, 8.0f);
+		pinfo->samples_len *= filter_quality;
 
 		pinfo->samples_len_inv = 1.0f / pinfo->samples_len;
 		pinfo->lodfactor = bias + 0.5f * log((float)(target_size * target_size) * pinfo->samples_len_inv) / log(2);
+		pinfo->firefly_fac = (firefly_fac > 0.0) ? firefly_fac : 1e16;
 
 		GPU_framebuffer_ensure_config(&fb, {
 			GPU_ATTACHMENT_NONE,

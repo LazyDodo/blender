@@ -826,8 +826,8 @@ bGPDframe *BKE_gpencil_layer_find_frame(bGPDlayer *gpl, int cframe)
 }
 
 /* get the appropriate gp-frame from a given layer
- *	- this sets the layer's actframe var (if allowed to)
- *	- extension beyond range (if first gp-frame is after all frame in interest and cannot add)
+ * - this sets the layer's actframe var (if allowed to)
+ * - extension beyond range (if first gp-frame is after all frame in interest and cannot add)
  */
 bGPDframe *BKE_gpencil_layer_getframe(bGPDlayer *gpl, int cframe, eGP_GetFrame_Mode addnew)
 {
@@ -1133,8 +1133,21 @@ bool BKE_gpencil_data_minmax(Object *ob, const bGPdata *gpd, float r_min[3], flo
 	return changed;
 }
 
+bool BKE_gpencil_stroke_select_check(
+        const bGPDstroke *gps)
+{
+	const bGPDspoint *pt;
+	int i;
+	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+		if (pt->flag & GP_SPOINT_SELECT) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* compute center of bounding box */
-void BKE_gpencil_centroid_3D(bGPdata *gpd, float r_centroid[3])
+void BKE_gpencil_centroid_3d(bGPdata *gpd, float r_centroid[3])
 {
 	float min[3], max[3], tot[3];
 

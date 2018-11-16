@@ -46,8 +46,8 @@
 
 /* Common View2D view types
  * NOTE: only define a type here if it completely sets all (+/- a few) of the relevant flags
- *	    and settings for a View2D region, and that set of settings is used in more
- *	    than one specific place
+ *       and settings for a View2D region, and that set of settings is used in more
+ *       than one specific place
  */
 enum eView2D_CommonViewTypes {
 	/* custom view type (region has defined all necessary flags already) */
@@ -121,7 +121,7 @@ enum eView2D_Gridlines {
 
 
 /* ------------------------------------------ */
-/* Macros:								*/
+/* Macros:                                    */
 
 /* test if mouse in a scrollbar (assume that scroller availability has been tested) */
 #define IN_2D_VERT_SCROLL(v2d, co)   (BLI_rcti_isect_pt_v(&v2d->vert, co))
@@ -198,14 +198,14 @@ void UI_view2d_listview_visible_cells(struct View2D *v2d, float columnwidth, flo
                                       int *row_min, int *row_max);
 
 /* coordinate conversion */
-float UI_view2d_region_to_view_x(struct View2D *v2d, float x);
-float UI_view2d_region_to_view_y(struct View2D *v2d, float y);
-void  UI_view2d_region_to_view(struct View2D *v2d, float x, float y, float *r_view_x, float *r_view_y) ATTR_NONNULL();
-void  UI_view2d_region_to_view_rctf(struct View2D *v2d, const struct rctf *rect_src, struct rctf *rect_dst) ATTR_NONNULL();
+float UI_view2d_region_to_view_x(const struct View2D *v2d, float x);
+float UI_view2d_region_to_view_y(const struct View2D *v2d, float y);
+void  UI_view2d_region_to_view(const struct View2D *v2d, float x, float y, float *r_view_x, float *r_view_y) ATTR_NONNULL();
+void  UI_view2d_region_to_view_rctf(const struct View2D *v2d, const struct rctf *rect_src, struct rctf *rect_dst) ATTR_NONNULL();
 
-float UI_view2d_view_to_region_x(struct View2D *v2d, float x);
-float UI_view2d_view_to_region_y(struct View2D *v2d, float y);
-bool  UI_view2d_view_to_region_clip(struct View2D *v2d, float x, float y, int *r_region_x, int *r_region_y) ATTR_NONNULL();
+float UI_view2d_view_to_region_x(const struct View2D *v2d, float x);
+float UI_view2d_view_to_region_y(const struct View2D *v2d, float y);
+bool  UI_view2d_view_to_region_clip(const struct View2D *v2d, float x, float y, int *r_region_x, int *r_region_y) ATTR_NONNULL();
 
 void  UI_view2d_view_to_region(struct View2D *v2d, float x, float y, int *r_region_x, int *r_region_y) ATTR_NONNULL();
 void  UI_view2d_view_to_region_fl(struct View2D *v2d, float x, float y, float *r_region_x, float *r_region_y) ATTR_NONNULL();

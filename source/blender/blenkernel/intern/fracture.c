@@ -1265,7 +1265,8 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 	mi = fmd->shared->mesh_islands.first;
 	while (mi) {
 		if (mi->startframe > startframe ||
-		   (fmd->use_dynamic && mi->id > 0)) {
+			(!fmd->use_dynamic && mi->id == 0) ||
+			(fmd->use_dynamic && mi->id > 0)) {
 			next = mi->next;
 			BLI_remlink(&fmd->shared->mesh_islands, mi);
 			BKE_fracture_mesh_island_free(mi, scene);

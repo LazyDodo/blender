@@ -628,9 +628,9 @@ static bool gp_brush_pinch_apply(
 	copy_v3_v3(save_pt, &pt->x);
 
 	/* Scale down standard influence value to get it more manageable...
-	 *  - No damping = Unmanageable at > 0.5 strength
-	 *  - Div 10     = Not enough effect
-	 *  - Div 5      = Happy medium... (by trial and error)
+	 * - No damping = Unmanageable at > 0.5 strength
+	 * - Div 10     = Not enough effect
+	 * - Div 5      = Happy medium... (by trial and error)
 	 */
 	inf = gp_brush_influence_calc(gso, radius, co) / 5.0f;
 
@@ -1188,18 +1188,10 @@ static bool gpsculpt_brush_init(bContext *C, wmOperator *op)
 
 	const bool is_weight_mode = ob->mode == OB_MODE_GPENCIL_WEIGHT;
 	/* set the brush using the tool */
+#if 0
 	GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
-	eGP_EditBrush_Types mode = RNA_enum_get(op->ptr, "mode");
-	const bool keep_brush = RNA_boolean_get(op->ptr, "keep_brush");
-
-	if (!keep_brush) {
-		if (is_weight_mode) {
-			gset->weighttype = mode;
-		}
-		else {
-			gset->brushtype = mode;
-		}
-	}
+	eGP_EditBrush_Types mode = is_weight_mode ? gset->weighttype : gset->brushtype;
+#endif
 	tGP_BrushEditData *gso;
 
 	/* setup operator data */
@@ -1446,7 +1438,7 @@ static bool gpsculpt_brush_do_stroke(
 	}
 	else {
 		/* Loop over the points in the stroke, checking for intersections
-		 *  - an intersection means that we touched the stroke
+		 * - an intersection means that we touched the stroke
 		 */
 		for (i = 0; (i + 1) < gps->totpoints; i++) {
 			/* Get points to work with */
@@ -1473,7 +1465,7 @@ static bool gpsculpt_brush_do_stroke(
 			{
 				/* Check if point segment of stroke had anything to do with
 				 * brush region  (either within stroke painted, or on its lines)
-				 *  - this assumes that linewidth is irrelevant
+				 * - this assumes that linewidth is irrelevant
 				 */
 				if (gp_stroke_inside_circle(gso->mval, gso->mval_prev, radius, pc1[0], pc1[1], pc2[0], pc2[1])) {
 					/* Apply operation to these points */
@@ -2099,22 +2091,6 @@ static int gpsculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *even
 	return OPERATOR_RUNNING_MODAL;
 }
 
-
-/* Operator --------------------------------------------- */
-static const EnumPropertyItem prop_gpencil_sculpt_brush_items[] = {
-	{GP_EDITBRUSH_TYPE_SMOOTH, "SMOOTH", 0, "Smooth", "Smooth stroke points" },
-	{GP_EDITBRUSH_TYPE_THICKNESS, "THICKNESS", 0, "Thickness", "Adjust thickness of strokes" },
-	{GP_EDITBRUSH_TYPE_STRENGTH, "STRENGTH", 0, "Strength", "Adjust color strength of strokes" },
-	{GP_EDITBRUSH_TYPE_GRAB, "GRAB", 0, "Grab", "Translate the set of points initially within the brush circle" },
-	{GP_EDITBRUSH_TYPE_PUSH, "PUSH", 0, "Push", "Move points out of the way, as if combing them" },
-	{GP_EDITBRUSH_TYPE_TWIST, "TWIST", 0, "Twist", "Rotate points around the midpoint of the brush" },
-	{GP_EDITBRUSH_TYPE_PINCH, "PINCH", 0, "Pinch", "Pull points towards the midpoint of the brush" },
-	{GP_EDITBRUSH_TYPE_RANDOMIZE, "RANDOMIZE", 0, "Randomize", "Introduce jitter/randomness into strokes" },
-	{GP_EDITBRUSH_TYPE_CLONE, "CLONE", 0, "Clone", "Paste copies of the strokes stored on the clipboard" },
-	{GP_EDITBRUSH_TYPE_WEIGHT, "WEIGHT", 0, "Weight", "Weight Paint" },
-	{0, NULL, 0, NULL, NULL }
-};
-
 void GPENCIL_OT_brush_paint(wmOperatorType *ot)
 {
 	/* identifiers */
@@ -2133,9 +2109,6 @@ void GPENCIL_OT_brush_paint(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_BLOCKING;
 
 	/* properties */
-	ot->prop = RNA_def_enum(ot->srna, "mode", prop_gpencil_sculpt_brush_items, 0, "Mode", "Brush mode");
-	RNA_def_property_flag(ot->prop, PROP_HIDDEN | PROP_SKIP_SAVE);
-
 	PropertyRNA *prop;
 	prop = RNA_def_collection_runtime(ot->srna, "stroke", &RNA_OperatorStrokeElement, "Stroke", "");
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
@@ -2143,10 +2116,4 @@ void GPENCIL_OT_brush_paint(wmOperatorType *ot)
 	prop = RNA_def_boolean(ot->srna, "wait_for_input", true, "Wait for Input",
 	                       "Enter a mini 'sculpt-mode' if enabled, otherwise, exit after drawing a single stroke");
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
-
-	prop = RNA_def_boolean(ot->srna, "keep_brush", false, "Keep Brush",
-		"Keep current brush activated");
-	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
-
-/* ************************************************ */
