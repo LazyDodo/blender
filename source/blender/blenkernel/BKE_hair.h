@@ -59,6 +59,15 @@ void BKE_hair_free(struct HairSystem *hsys);
 void BKE_hair_copy_data(struct Main *bmain, struct HairSystem *hsys_dst, const struct HairSystem *hsys_src, const int flag);
 struct HairSystem *BKE_hair_copy(struct Main *bmain, const struct HairSystem *hsys);
 
+struct HairSystem *BKE_hair_new_nomain(
+        int verts_len, int curves_len, int follicles_len);
+struct HairSystem *BKE_hair_new_nomain_from_template(
+        const struct HairSystem *hsys_src,
+        int verts_len, int curves_len, int follicles_len);
+
+/* Performs copy for use during evaluation, optional referencing original arrays to reduce memory. */
+struct HairSystem *BKE_hair_copy_for_eval(struct HairSystem *source, bool reference);
+
 void BKE_hair_make_local(struct Main *bmain, struct HairSystem *hsys, const bool lib_local);
 
 bool BKE_hair_minmax(struct HairSystem *hsys, float min[3], float max[3]);

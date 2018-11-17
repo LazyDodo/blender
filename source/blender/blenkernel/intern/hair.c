@@ -54,6 +54,7 @@
 #include "BKE_hair.h"
 #include "BKE_hair_iterators.h"
 #include "BKE_hair_runtime.h"
+#include "BKE_idcode.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
@@ -191,6 +192,91 @@ HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)
 	HairSystem *hsys_copy;
 	BKE_id_copy_ex(bmain, &hsys->id, (ID **)&hsys_copy, 0, false);
 	return hsys_copy;
+}
+
+/* Custom data layer functions; those assume that totXXX are set correctly. */
+static void hair_ensure_cdlayers_primary(HairSystem *hsys)
+{
+	// if (!CustomData_get_layer(&hsys->pattern->fdata, CD_MVERT))
+	// 	CustomData_add_layer(&mesh->vdata, CD_MVERT, CD_CALLOC, NULL, mesh->totvert);
+}
+
+static void hair_ensure_cdlayers_origindex(HairSystem *hsys)
+{
+	// if (!CustomData_get_layer(&mesh->vdata, CD_ORIGINDEX))
+	// 	CustomData_add_layer(&mesh->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, mesh->totvert);
+}
+
+HairSystem *BKE_hair_new_nomain(int verts_len, int curves_len, int follicles_len)
+{
+	HairSystem *hsys = BKE_libblock_alloc(
+	        NULL, ID_HA,
+	        BKE_idcode_to_name(ID_HA),
+	        LIB_ID_CREATE_NO_MAIN |
+	        LIB_ID_CREATE_NO_USER_REFCOUNT |
+	        LIB_ID_CREATE_NO_DEG_TAG);
+	BKE_libblock_init_empty(&hsys->id);
+
+	/* don't use CustomData_reset(...); because we dont want to touch customdata */
+	copy_vn_i(hsys->pattern->fdata.typemap, CD_NUMTYPES, -1);
+
+	hsys->curve_data.totverts = verts_len;
+	hsys->curve_data.totcurves = curves_len;
+	hsys->pattern->num_follicles = follicles_len;
+
+	hair_ensure_cdlayers_primary(hsys);
+	hair_ensure_cdlayers_origindex(hsys);
+
+	return hsys;
+}
+
+static HairSystem *hair_new_nomain_from_template_ex(
+        const HairSystem *hsys_src,
+        int verts_len, int curves_len, int follicles_len,
+        CustomDataMask mask)
+{
+	HairSystem *hsys_dst = BKE_id_new_nomain(ID_HA, NULL);
+
+	hsys_dst->mat = MEM_dupallocN(hsys_src->mat);
+
+	hsys_dst->curve_data.totverts = verts_len;
+	hsys_dst->curve_data.totcurves = curves_len;
+	hsys_dst->pattern->num_follicles = follicles_len;
+
+	CustomData_copy(&hsys_src->pattern->fdata, &hsys_dst->pattern->fdata, mask, CD_CALLOC, follicles_len);
+
+	/* The destination hair system should at least have valid primary CD layers,
+	 * even in cases where the source hair system does not. */
+	hair_ensure_cdlayers_primary(hsys_dst);
+	hair_ensure_cdlayers_origindex(hsys_dst);
+
+	return hsys_dst;
+}
+
+HairSystem *BKE_hair_new_nomain_from_template(
+        const HairSystem *hsys_src,
+        int verts_len, int curves_len, int follicles_len)
+{
+	return hair_new_nomain_from_template_ex(
+	        hsys_src,
+	        verts_len, curves_len, follicles_len,
+	        CD_MASK_EVERYTHING);
+}
+
+HairSystem *BKE_hair_copy_for_eval(struct HairSystem *source, bool reference)
+{
+	int flags = (LIB_ID_CREATE_NO_MAIN |
+	             LIB_ID_CREATE_NO_USER_REFCOUNT |
+	             LIB_ID_CREATE_NO_DEG_TAG |
+	             LIB_ID_COPY_NO_PREVIEW);
+
+	if (reference) {
+		flags |= LIB_ID_COPY_CD_REFERENCE;
+	}
+
+	HairSystem *result;
+	BKE_id_copy_ex(NULL, &source->id, (ID **)&result, flags, false);
+	return result;
 }
 
 void BKE_hair_make_local(Main *bmain, HairSystem *hsys, const bool lib_local)
