@@ -198,7 +198,7 @@ static void bevel_mod_harden_normals(
 							const bool has_vgroup = dvert != NULL;
 							const bool vert_of_group = (
 							        has_vgroup &&
-							        (defvert_find_index(&dvert[BM_elem_index_get(l->v)], vgroup) != NULL));
+							        (defvert_find_index(&dvert[BM_elem_index_get(lfan_pivot->v)], vgroup) != NULL));
 
 							if (vert_of_group && hnmode == MOD_BEVEL_HN_FACE) {
 								float cur[3];
@@ -377,6 +377,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	            .add_key_index = false,
 	            .use_shapekey = true,
 	            .active_shapekey = ctx->object->shapenr,
+	            .cd_mask_extra = CD_MASK_ORIGINDEX,
 	        });
 
 	if ((bmd->lim_flags & MOD_BEVEL_VGROUP) && bmd->defgrp_name[0])
@@ -485,14 +486,12 @@ ModifierTypeInfo modifierType_Bevel = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

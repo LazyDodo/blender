@@ -42,14 +42,15 @@
 #include "BLT_lang.h"
 
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_idprop.h"
 #include "BKE_layer.h"
-#include "BKE_screen.h"
-#include "BKE_global.h"
+#include "BKE_library.h"
 #include "BKE_library_override.h"
 #include "BKE_node.h"
-#include "BKE_text.h" /* for UI_OT_reports_to_text */
 #include "BKE_report.h"
+#include "BKE_screen.h"
+#include "BKE_text.h" /* for UI_OT_reports_to_text */
 
 #include "DEG_depsgraph.h"
 
@@ -823,8 +824,8 @@ static int reports_to_text_exec(bContext *C, wmOperator *UNUSED(op))
 	txt = BKE_text_add(bmain, "Recent Reports");
 
 	/* convert entire list to a display string, and add this to the text-block
-	 *	- if commandline debug option enabled, show debug reports too
-	 *	- otherwise, up to info (which is what users normally see)
+	 * - if commandline debug option enabled, show debug reports too
+	 * - otherwise, up to info (which is what users normally see)
 	 */
 	str = BKE_reports_string(reports, (G.debug & G_DEBUG) ? RPT_DEBUG : RPT_INFO);
 
@@ -1155,7 +1156,7 @@ static int edittranslation_exec(bContext *C, wmOperator *op)
 		}
 		/* Try to find a valid po file for current language... */
 		edittranslation_find_po_file(root, uilng, popath, FILE_MAX);
-/*		printf("po path: %s\n", popath);*/
+		/* printf("po path: %s\n", popath); */
 		if (popath[0] == '\0') {
 			BKE_reportf(op->reports, RPT_ERROR, "No valid po found for language '%s' under %s", uilng, root);
 			return OPERATOR_CANCELLED;
@@ -1241,6 +1242,66 @@ static void UI_OT_reloadtranslation(wmOperatorType *ot)
 
 	/* callbacks */
 	ot->exec = reloadtranslation_exec;
+}
+
+
+static ARegion *region_event_inside_for_screen(bContext *C, const int xy[2])
+{
+	bScreen *sc = CTX_wm_screen(C);
+	if (sc) {
+		for (ARegion *ar = sc->regionbase.first; ar; ar = ar->next) {
+			if (BLI_rcti_isect_pt_v(&ar->winrct, xy)) {
+				return ar;
+			}
+		}
+	}
+	return NULL;
+}
+
+static int ui_button_press_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+{
+	const bool skip_depressed = RNA_boolean_get(op->ptr, "skip_depressed");
+	ARegion *ar_prev = CTX_wm_region(C);
+	ARegion *ar = region_event_inside_for_screen(C, &event->x);
+
+	if (ar == NULL) {
+		ar = ar_prev;
+	}
+
+	CTX_wm_region_set(C, ar);
+	uiBut *but = UI_context_active_but_get(C);
+	CTX_wm_region_set(C, ar_prev);
+
+	if (but == NULL) {
+		return OPERATOR_PASS_THROUGH;
+	}
+	if (skip_depressed && (but->flag & (UI_SELECT | UI_SELECT_DRAW))) {
+		return OPERATOR_PASS_THROUGH;
+	}
+
+	/* Weak, this is a workaround for 'UI_but_is_tool', which checks the operator type,
+	 * having this avoids a minor drawing glitch. */
+	void *but_optype = but->optype;
+
+	UI_but_execute(C, but);
+
+	but->optype = but_optype;
+
+	WM_event_add_mousemove(C);
+
+	return OPERATOR_FINISHED;
+}
+
+static void UI_OT_button_execute(wmOperatorType *ot)
+{
+	ot->name = "Press Button";
+	ot->idname = "UI_OT_button_execute";
+	ot->description = "Presses active button";
+
+	ot->invoke = ui_button_press_invoke;
+	ot->flag = OPTYPE_INTERNAL;
+
+	RNA_def_boolean(ot->srna, "skip_depressed", 0, "Skip Depressed", "");
 }
 
 bool UI_drop_color_poll(struct bContext *C, wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
@@ -1356,6 +1417,7 @@ void ED_operatortypes_ui(void)
 	WM_operatortype_append(UI_OT_edittranslation_init);
 #endif
 	WM_operatortype_append(UI_OT_reloadtranslation);
+	WM_operatortype_append(UI_OT_button_execute);
 
 	/* external */
 	WM_operatortype_append(UI_OT_eyedropper_color);
@@ -1372,34 +1434,7 @@ void ED_operatortypes_ui(void)
  */
 void ED_keymap_ui(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "User Interface", 0, 0);
-	wmKeyMapItem *kmi;
-
-	/* eyedroppers - notice they all have the same shortcut, but pass the event
-	 * through until a suitable eyedropper for the active button is found */
-	WM_keymap_add_item(keymap, "UI_OT_eyedropper_color", EKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "UI_OT_eyedropper_colorband", EKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "UI_OT_eyedropper_colorband_point", EKEY, KM_PRESS, KM_ALT, 0);
-	WM_keymap_add_item(keymap, "UI_OT_eyedropper_id", EKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "UI_OT_eyedropper_depth", EKEY, KM_PRESS, 0, 0);
-
-	/* Copy Data Path */
-	WM_keymap_add_item(keymap, "UI_OT_copy_data_path_button", CKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
-	kmi = WM_keymap_add_item(keymap, "UI_OT_copy_data_path_button", CKEY, KM_PRESS, KM_CTRL | KM_SHIFT | KM_ALT, 0);
-	RNA_boolean_set(kmi->ptr, "full_path", true);
-
-	/* keyframes */
-	WM_keymap_add_item(keymap, "ANIM_OT_keyframe_insert_button", IKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_keyframe_delete_button", IKEY, KM_PRESS, KM_ALT, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_keyframe_clear_button", IKEY, KM_PRESS, KM_SHIFT | KM_ALT, 0);
-
-	/* drivers */
-	WM_keymap_add_item(keymap, "ANIM_OT_driver_button_add", DKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_driver_button_remove", DKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-
-	/* keyingsets */
-	WM_keymap_add_item(keymap, "ANIM_OT_keyingset_button_add", KKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "ANIM_OT_keyingset_button_remove", KKEY, KM_PRESS, KM_ALT, 0);
+	WM_keymap_ensure(keyconf, "User Interface", 0, 0);
 
 	eyedropper_modal_keymap(keyconf);
 	eyedropper_colorband_modal_keymap(keyconf);

@@ -716,7 +716,7 @@ static void do_lasso_select_curve(ViewContext *vc, const int mcords[][2], short 
 static void do_lasso_select_lattice__doSelect(void *userData, BPoint *bp, const float screen_co[2])
 {
 	LassoSelectUserData *data = userData;
-	const bool is_select = bp->f1 | SELECT;
+	const bool is_select = bp->f1 & SELECT;
 	const bool is_inside = (
 	        BLI_rctf_isect_pt_v(data->rect_fl, screen_co) &&
 	        BLI_lasso_is_point_inside(data->mcords, data->moves, screen_co[0], screen_co[1], IS_CLIPPED));
@@ -2169,7 +2169,8 @@ static int do_meta_box_select(
         ViewContext *vc,
         const rcti *rect, const eSelectOp sel_op)
 {
-	MetaBall *mb = (MetaBall *)vc->obedit->data;
+	Object *ob = vc->obedit;
+	MetaBall *mb = (MetaBall *)ob->data;
 	MetaElem *ml;
 	int a;
 
@@ -2184,27 +2185,50 @@ static int do_meta_box_select(
 		BKE_mball_deselect_all(mb);
 	}
 
-	for (ml = mb->editelems->first; ml; ml = ml->next) {
-		bool is_inside_1 = false;
-		bool is_inside_2 = false;
+	int metaelem_id = 0;
+	for (ml = mb->editelems->first; ml; ml = ml->next, metaelem_id += 0x10000) {
+		bool is_inside_radius = false;
+		bool is_inside_stiff = false;
+
 		for (a = 0; a < hits; a++) {
-			if (ml->selcol1 == buffer[(4 * a) + 3]) {
-				is_inside_1 = true;
+			int hitresult = buffer[(4 * a) + 3];
+
+			if (hitresult == -1) {
+				continue;
+			}
+			else if (hitresult & MBALL_NOSEL) {
+				continue;
+			}
+
+			const uint hit_object = hitresult & 0xFFFF;
+			if (vc->obedit->select_color != hit_object) {
+				continue;
+			}
+
+			if (metaelem_id != (hitresult & 0xFFFF0000 & ~(MBALLSEL_ANY))) {
+				continue;
+			}
+
+			if (hitresult & MBALLSEL_RADIUS) {
+				is_inside_radius = true;
 				break;
 			}
-			if (ml->selcol2 == buffer[(4 * a) + 3]) {
-				is_inside_2 = true;
+
+			if (hitresult & MBALLSEL_STIFF) {
+				is_inside_stiff = true;
 				break;
 			}
 		}
-		if (is_inside_1) {
+		if (is_inside_radius) {
 			ml->flag |= MB_SCALE_RAD;
 		}
-		if (is_inside_2) {
+		if (is_inside_stiff) {
 			ml->flag &= ~MB_SCALE_RAD;
 		}
+
 		const bool is_select = (ml->flag & SELECT);
-		const bool is_inside = is_inside_1 || is_inside_2;
+		const bool is_inside = is_inside_radius || is_inside_stiff;
+
 		const int sel_op_result = ED_select_op_action_deselected(sel_op, is_select, is_inside);
 		if (sel_op_result != -1) {
 			SET_FLAG_FROM_TEST(ml->flag, sel_op_result, SELECT);
@@ -2749,9 +2773,12 @@ void VIEW3D_OT_select(wmOperatorType *ot)
 	/* properties */
 	WM_operator_properties_mouse_select(ot);
 
-	RNA_def_boolean(ot->srna, "center", 0, "Center", "Use the object center when selecting, in editmode used to extend object selection");
-	RNA_def_boolean(ot->srna, "enumerate", 0, "Enumerate", "List objects under the mouse (object mode only)");
-	RNA_def_boolean(ot->srna, "object", 0, "Object", "Use object selection (editmode only)");
+	prop = RNA_def_boolean(ot->srna, "center", 0, "Center", "Use the object center when selecting, in editmode used to extend object selection");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	prop = RNA_def_boolean(ot->srna, "enumerate", 0, "Enumerate", "List objects under the mouse (object mode only)");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	prop = RNA_def_boolean(ot->srna, "object", 0, "Object", "Use object selection (editmode only)");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 
 	prop = RNA_def_int_vector(ot->srna, "location", 2, NULL, INT_MIN, INT_MAX, "Location", "Mouse location", INT_MIN, INT_MAX);
 	RNA_def_property_flag(prop, PROP_HIDDEN);

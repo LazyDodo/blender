@@ -168,7 +168,7 @@ static void splineik_init_tree_from_pchan(Scene *scene, Object *UNUSED(ob), bPos
 		 */
 		for (i = 0; i < segcount; i++) {
 			/* 'head' joints, traveling towards the root of the chain
-			 *  - 2 methods; the one chosen depends on whether we've got usable lengths
+			 * - 2 methods; the one chosen depends on whether we've got usable lengths
 			 */
 			if ((ikData->flag & CONSTRAINT_SPLINEIK_EVENSPLITS) || (totLength == 0.0f)) {
 				/* 1) equi-spaced joints */
@@ -372,7 +372,7 @@ static void splineik_evaluate_bone(
 		rangle *= tree->con->enforce;
 
 		/* construct rotation matrix from the axis-angle rotation found above
-		 *	- this call takes care to make sure that the axis provided is a unit vector first
+		 * - this call takes care to make sure that the axis provided is a unit vector first
 		 */
 		axis_angle_to_mat3(dmat, raxis, rangle);
 
@@ -495,8 +495,8 @@ static void splineik_evaluate_bone(
 	}
 	else if (tree->con->enforce < 1.0f) {
 		/* when the influence is too low
-		 *	- blend the positions for the 'root' bone
-		 *	- stick to the parent for any other
+		 * - blend the positions for the 'root' bone
+		 * - stick to the parent for any other
 		 */
 		if (pchan->parent) {
 			copy_v3_v3(poseHead, pchan->pose_head);
@@ -577,6 +577,7 @@ BLI_INLINE bPoseChannel *pose_pchan_get_indexed(Object *ob, int pchan_index)
 {
 	bPose *pose = ob->pose;
 	BLI_assert(pose != NULL);
+	BLI_assert(pose->chan_array != NULL);
 	BLI_assert(pchan_index >= 0);
 	BLI_assert(pchan_index < MEM_allocN_len(pose->chan_array) / sizeof(bPoseChannel *));
 	return pose->chan_array[pchan_index];
@@ -622,8 +623,8 @@ void BKE_pose_eval_init_ik(struct Depsgraph *depsgraph,
 	/* construct the IK tree (standard IK) */
 	BIK_initialize_tree(depsgraph, scene, ob, ctime);
 	/* construct the Spline IK trees
-	 *  - this is not integrated as an IK plugin, since it should be able
-	 *    to function in conjunction with standard IK
+	 * - this is not integrated as an IK plugin, since it should be able
+	 *   to function in conjunction with standard IK
 	 */
 	BKE_pose_splineik_init_tree(scene, ob, ctime);
 }
@@ -745,9 +746,9 @@ void BKE_pose_splineik_evaluate(struct Depsgraph *depsgraph,
 	BKE_splineik_execute_tree(depsgraph, scene, ob, rootchan, ctime);
 }
 
-void BKE_pose_eval_flush(struct Depsgraph *depsgraph,
-                         Scene *scene,
-                         Object *ob)
+void BKE_pose_eval_cleanup(struct Depsgraph *depsgraph,
+                           Scene *scene,
+                           Object *ob)
 {
 	bPose *pose = ob->pose;
 	BLI_assert(pose != NULL);
@@ -759,12 +760,11 @@ void BKE_pose_eval_flush(struct Depsgraph *depsgraph,
 	/* release the IK tree */
 	BIK_release_tree(scene, ob, ctime);
 
-	BLI_assert(pose->chan_array != NULL);
-	MEM_freeN(pose->chan_array);
-	pose->chan_array = NULL;
+	BLI_assert(pose->chan_array != NULL || BLI_listbase_is_empty(&pose->chanbase));
+	MEM_SAFE_FREE(pose->chan_array);
 }
 
-void BKE_pose_eval_proxy_pose_init(struct Depsgraph *depsgraph, Object *object)
+void BKE_pose_eval_proxy_init(struct Depsgraph *depsgraph, Object *object)
 {
 	BLI_assert(ID_IS_LINKED(object) && object->proxy_from != NULL);
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
@@ -772,7 +772,7 @@ void BKE_pose_eval_proxy_pose_init(struct Depsgraph *depsgraph, Object *object)
 	pose_pchan_index_create(object->pose);
 }
 
-void BKE_pose_eval_proxy_pose_done(struct Depsgraph *depsgraph, Object *object)
+void BKE_pose_eval_proxy_cleanup(struct Depsgraph *depsgraph, Object *object)
 {
 	BLI_assert(ID_IS_LINKED(object) && object->proxy_from != NULL);
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);

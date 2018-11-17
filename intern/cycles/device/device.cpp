@@ -203,7 +203,7 @@ bool Device::bind_fallback_display_space_shader(const float width, const float h
 		fallback_shader_program = bind_fallback_shader();
 		fallback_status = FALLBACK_SHADER_STATUS_ERROR;
 
-		if (fallback_shader_program == 0) {
+		if(fallback_shader_program == 0) {
 			return false;
 		}
 
@@ -266,7 +266,7 @@ void Device::draw_pixels(
 
 	GLint shader_program;
 	if(use_fallback_shader) {
-		if (!bind_fallback_display_space_shader(dw, dh)) {
+		if(!bind_fallback_display_space_shader(dw, dh)) {
 			return;
 		}
 		shader_program = fallback_shader_program;
@@ -504,7 +504,6 @@ DeviceInfo Device::get_multi_device(const vector<DeviceInfo>& subdevices, int th
 
 	info.has_half_images = true;
 	info.has_volume_decoupled = true;
-	info.bvh_layout_mask = BVH_LAYOUT_ALL;
 	info.has_osl = true;
 
 	foreach(const DeviceInfo &device, subdevices) {
@@ -539,7 +538,6 @@ DeviceInfo Device::get_multi_device(const vector<DeviceInfo>& subdevices, int th
 		/* Accumulate device info. */
 		info.has_half_images &= device.has_half_images;
 		info.has_volume_decoupled &= device.has_volume_decoupled;
-		info.bvh_layout_mask = device.bvh_layout_mask & info.bvh_layout_mask;
 		info.has_osl &= device.has_osl;
 	}
 

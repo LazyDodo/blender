@@ -117,7 +117,7 @@ static PyObject *bpygpu_IndexBuf_new(PyTypeObject *UNUSED(type), PyObject *args,
 			GPU_indexbuf_add_generic_vert(&builder, *buf);
 		}
 #else
-		memcpy(builder.data, pybuffer.buf, index_len * sizeof(builder.data));
+		memcpy(builder.data, pybuffer.buf, index_len * sizeof(*builder.data));
 		builder.index_len = index_len;
 #endif
 		PyBuffer_Release(&pybuffer);
@@ -196,19 +196,20 @@ static void bpygpu_IndexBuf_dealloc(BPyGPUIndexBuf *self)
 }
 
 PyDoc_STRVAR(py_gpu_element_doc,
-"GPUIndexBuf(type, seq)\n"
+".. class:: GPUIndexBuf(type, seq)\n"
 "\n"
-"Contains a VBO."
+"   Contains an index buffer.\n"
 "\n"
-"   :param prim_type:\n"
-"      One of these primitive types: {\n"
-"      'POINTS',\n"
-"      'LINES',\n"
-"      'TRIS',\n"
-"      'LINE_STRIP_ADJ'}\n"
+"   :param type: One of these primitive types: {\n"
+"      `POINTS`,\n"
+"      `LINES`,\n"
+"      `TRIS`,\n"
+"      `LINE_STRIP_ADJ` }\n"
 "   :type type: `str`\n"
-"   :param seq: Sequence of integers.\n"
-"   :type buf: `Any 1D or 2D Sequence`\n"
+"   :param seq: Indices this index buffer will contain.\n"
+"      Whether a 1D or 2D sequence is required depends on the type.\n"
+"      Optionally the sequence can support the buffer protocol.\n"
+"   :type seq: 1D or 2D sequence\n"
 );
 PyTypeObject BPyGPUIndexBuf_Type = {
 	PyVarObject_HEAD_INIT(NULL, 0)

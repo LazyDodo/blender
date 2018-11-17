@@ -608,45 +608,27 @@ void BKE_object_free(Object *ob)
 /* actual check for internal data, not context or flags */
 bool BKE_object_is_in_editmode(const Object *ob)
 {
-	if (ob->data == NULL)
+	if (ob->data == NULL) {
 		return false;
-
-	if (ob->type == OB_MESH) {
-		Mesh *me = ob->data;
-		if (me->edit_btmesh)
-			return true;
 	}
-	else if (ob->type == OB_ARMATURE) {
-		bArmature *arm = ob->data;
 
-		if (arm->edbo)
-			return true;
+	switch (ob->type) {
+		case OB_MESH:
+			return ((Mesh *)ob->data)->edit_btmesh != NULL;
+		case OB_ARMATURE:
+			return ((bArmature *)ob->data)->edbo != NULL;
+		case OB_FONT:
+			return ((Curve *)ob->data)->editfont != NULL;
+		case OB_MBALL:
+			return ((MetaBall *)ob->data)->editelems != NULL;
+		case OB_LATTICE:
+			return ((Lattice *)ob->data)->editlatt != NULL;
+		case OB_SURF:
+		case OB_CURVE:
+			return ((Curve *)ob->data)->editnurb != NULL;
+		default:
+			return false;
 	}
-	else if (ob->type == OB_FONT) {
-		Curve *cu = ob->data;
-
-		if (cu->editfont)
-			return true;
-	}
-	else if (ob->type == OB_MBALL) {
-		MetaBall *mb = ob->data;
-
-		if (mb->editelems)
-			return true;
-	}
-	else if (ob->type == OB_LATTICE) {
-		Lattice *lt = ob->data;
-
-		if (lt->editlatt)
-			return true;
-	}
-	else if (ob->type == OB_SURF || ob->type == OB_CURVE) {
-		Curve *cu = ob->data;
-
-		if (cu->editnurb)
-			return true;
-	}
-	return false;
 }
 
 bool BKE_object_is_in_editmode_vgroup(const Object *ob)
@@ -850,6 +832,10 @@ void BKE_object_init(Object *ob)
 	ob->dt = OB_TEXTURE;
 	ob->empty_drawtype = OB_PLAINAXES;
 	ob->empty_drawsize = 1.0;
+	ob->empty_image_depth = OB_EMPTY_IMAGE_DEPTH_DEFAULT;
+	ob->empty_image_visibility_flag = (
+	        OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE |
+	        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
 	if (ob->type == OB_EMPTY) {
 		copy_v2_fl(ob->ima_ofs, -0.5f);
 	}
@@ -938,7 +924,7 @@ Object *BKE_object_add(
 	BKE_collection_object_add(bmain, layer_collection->collection, ob);
 
 	base = BKE_view_layer_base_find(view_layer, ob);
-	BKE_view_layer_base_select(view_layer, base);
+	BKE_view_layer_base_select_and_set_active(view_layer, base);
 
 	return ob;
 }
@@ -959,7 +945,7 @@ Object *BKE_object_add_from(
 	BKE_collection_object_add_from(bmain, scene, ob_src, ob);
 
 	base = BKE_view_layer_base_find(view_layer, ob);
-	BKE_view_layer_base_select(view_layer, base);
+	BKE_view_layer_base_select_and_set_active(view_layer, base);
 
 	return ob;
 }
@@ -993,7 +979,7 @@ Object *BKE_object_add_for_data(
 	BKE_collection_object_add(bmain, layer_collection->collection, ob);
 
 	base = BKE_view_layer_base_find(view_layer, ob);
-	BKE_view_layer_base_select(view_layer, base);
+	BKE_view_layer_base_select_and_set_active(view_layer, base);
 
 	return ob;
 }
@@ -1079,7 +1065,14 @@ ParticleSystem *BKE_object_copy_particlesystem(ParticleSystem *psys, const int f
 	BLI_listbase_clear(&psysn->pathcachebufs);
 	BLI_listbase_clear(&psysn->childcachebufs);
 
-	psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag);
+	if (flag & LIB_ID_CREATE_NO_MAIN) {
+		BLI_assert((psys->flag & PSYS_SHARED_CACHES) == 0);
+		psysn->flag |= PSYS_SHARED_CACHES;
+		BLI_assert(psysn->pointcache != NULL);
+	}
+	else {
+		psysn->pointcache = BKE_ptcache_copy_list(&psysn->ptcaches, &psys->ptcaches, flag);
+	}
 
 	/* XXX - from reading existing code this seems correct but intended usage of
 	 * pointcache should /w cloth should be added in 'ParticleSystem' - campbell */
@@ -2515,20 +2508,29 @@ BoundBox *BKE_object_boundbox_get(Object *ob)
 {
 	BoundBox *bb = NULL;
 
-	if (ob->type == OB_MESH) {
-		bb = BKE_mesh_boundbox_get(ob);
-	}
-	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-		bb = BKE_curve_boundbox_get(ob);
-	}
-	else if (ob->type == OB_MBALL) {
-		bb = BKE_mball_boundbox_get(ob);
-	}
-	else if (ob->type == OB_LATTICE) {
-		bb = BKE_lattice_boundbox_get(ob);
-	}
-	else if (ob->type == OB_ARMATURE) {
-		bb = BKE_armature_boundbox_get(ob);
+	switch (ob->type) {
+		case OB_MESH:
+			bb = BKE_mesh_boundbox_get(ob);
+			break;
+		case OB_CURVE:
+		case OB_SURF:
+		case OB_FONT:
+			bb = BKE_curve_boundbox_get(ob);
+			break;
+		case OB_MBALL:
+			bb = BKE_mball_boundbox_get(ob);
+			break;
+		case OB_LATTICE:
+			bb = BKE_lattice_boundbox_get(ob);
+			break;
+		case OB_ARMATURE:
+			bb = BKE_armature_boundbox_get(ob);
+			break;
+		case OB_GPENCIL:
+			bb = BKE_gpencil_boundbox_get(ob);
+			break;
+		default:
+			break;
 	}
 	return bb;
 }

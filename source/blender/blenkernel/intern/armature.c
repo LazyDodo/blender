@@ -287,12 +287,12 @@ int bone_autoside_name(char name[MAXBONENAME], int UNUSED(strip_number), short a
 	BLI_strncpy(basename, name, sizeof(basename));
 
 	/* Figure out extension to append:
-	 *	- The extension to append is based upon the axis that we are working on.
-	 *	- If head happens to be on 0, then we must consider the tail position as well to decide
-	 *	  which side the bone is on
-	 *		-> If tail is 0, then it's bone is considered to be on axis, so no extension should be added
-	 *		-> Otherwise, extension is added from perspective of object based on which side tail goes to
-	 *	- If head is non-zero, extension is added from perspective of object based on side head is on
+	 * - The extension to append is based upon the axis that we are working on.
+	 * - If head happens to be on 0, then we must consider the tail position as well to decide
+	 *   which side the bone is on
+	 *   -> If tail is 0, then it's bone is considered to be on axis, so no extension should be added
+	 *   -> Otherwise, extension is added from perspective of object based on which side tail goes to
+	 * - If head is non-zero, extension is added from perspective of object based on side head is on
 	 */
 	if (axis == 2) {
 		/* z-axis - vertical (top/bottom) */
@@ -342,8 +342,8 @@ int bone_autoside_name(char name[MAXBONENAME], int UNUSED(strip_number), short a
 	}
 
 	/* Simple name truncation
-	 *	- truncate if there is an extension and it wouldn't be able to fit
-	 *	- otherwise, just append to end
+	 * - truncate if there is an extension and it wouldn't be able to fit
+	 * - otherwise, just append to end
 	 */
 	if (extension[0]) {
 		bool changed = true;
@@ -462,7 +462,7 @@ void BKE_pchan_get_bbone_handles(bPoseChannel *pchan, bPoseChannel **r_prev, bPo
 
 /* Fills the array with the desired amount of bone->segments elements.
  * This calculation is done within unit bone space. */
-void b_bone_spline_setup(bPoseChannel *pchan, int rest, Mat4 result_array[MAX_BBONE_SUBDIV])
+void b_bone_spline_setup(bPoseChannel *pchan, const bool rest, Mat4 result_array[MAX_BBONE_SUBDIV])
 {
 	bPoseChannel *next, *prev;
 	Bone *bone = pchan->bone;
@@ -821,8 +821,8 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info
 	DualQuat *b_bone_dual_quats = NULL;
 	int a;
 
-	b_bone_spline_setup(pchan, 0, b_bone);
-	b_bone_spline_setup(pchan, 1, b_bone_rest);
+	b_bone_spline_setup(pchan, false, b_bone);
+	b_bone_spline_setup(pchan, true, b_bone_rest);
 
 	/* allocate b_bone matrices and dual quats */
 	b_bone_mats = MEM_mallocN((1 + bone->segments) * sizeof(Mat4), "BBone defmats");
@@ -1953,6 +1953,8 @@ static void pose_proxy_synchronize(Object *ob, Object *from, int layer_protected
 			pchanw.parent = pchan->parent;
 			pchanw.child = pchan->child;
 			pchanw.custom_tx = pchan->custom_tx;
+			pchanw.bbone_prev = pchan->bbone_prev;
+			pchanw.bbone_next = pchan->bbone_next;
 
 			pchanw.mpath = pchan->mpath;
 			pchan->mpath = NULL;
@@ -2077,6 +2079,19 @@ void BKE_pose_remap_bone_pointers(bArmature *armature, bPose *pose)
 	BLI_ghash_free(bone_hash, NULL, NULL);
 }
 
+/** Find the matching pose channel using the bone name, if not NULL. */
+static bPoseChannel *pose_channel_find_bone(bPose *pose, Bone *bone)
+{
+	return (bone != NULL) ? BKE_pose_channel_find_name(pose, bone->name) : NULL;
+}
+
+/** Update the links for the B-Bone handles from Bone data. */
+void BKE_pchan_rebuild_bbone_handles(bPose *pose, bPoseChannel *pchan)
+{
+	pchan->bbone_prev = pose_channel_find_bone(pose, pchan->bone->bbone_prev);
+	pchan->bbone_next = pose_channel_find_bone(pose, pchan->bone->bbone_next);
+}
+
 /**
  * Only after leave editmode, duplicating, validating older files, library syncing.
  *
@@ -2117,23 +2132,15 @@ void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm, const bool do_id_
 			BKE_pose_channels_hash_free(pose);
 			BLI_freelinkN(&pose->chanbase, pchan);
 		}
-		else {
-			/* Find the custom B-Bone handles. */
-			if (pchan->bone->bbone_prev) {
-				pchan->bbone_prev = BKE_pose_channel_find_name(pose, pchan->bone->bbone_prev->name);
-			}
-			else {
-				pchan->bbone_prev = NULL;
-			}
-
-			if (pchan->bone->bbone_next) {
-				pchan->bbone_next = BKE_pose_channel_find_name(pose, pchan->bone->bbone_next->name);
-			}
-			else {
-				pchan->bbone_next = NULL;
-			}
-		}
 	}
+
+	BKE_pose_channels_hash_make(pose);
+
+	for (pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
+		/* Find the custom B-Bone handles. */
+		BKE_pchan_rebuild_bbone_handles(pose, pchan);
+	}
+
 	/* printf("rebuild pose %s, %d bones\n", ob->id.name, counter); */
 
 	/* synchronize protected layers with proxy */
@@ -2149,8 +2156,6 @@ void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm, const bool do_id_
 
 	pose->flag &= ~POSE_RECALC;
 	pose->flag |= POSE_WAS_REBUILT;
-
-	BKE_pose_channels_hash_make(pose);
 
 	/* Rebuilding poses forces us to also rebuild the dependency graph, since there is one node per pose/bone... */
 	if (bmain != NULL) {
@@ -2328,8 +2333,8 @@ void BKE_pose_where_is(struct Depsgraph *depsgraph, Scene *scene, Object *ob)
 		BIK_initialize_tree(depsgraph, scene, ob, ctime);
 
 		/* 2b. construct the Spline IK trees
-		 *  - this is not integrated as an IK plugin, since it should be able
-		 *	  to function in conjunction with standard IK
+		 * - this is not integrated as an IK plugin, since it should be able
+		 *   to function in conjunction with standard IK
 		 */
 		BKE_pose_splineik_init_tree(scene, ob, ctime);
 

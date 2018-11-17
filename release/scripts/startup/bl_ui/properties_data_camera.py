@@ -18,7 +18,7 @@
 
 # <pep8 compliant>
 import bpy
-from bpy.types import Panel, Menu
+from bpy.types import Panel
 from rna_prop_ui import PropertyPanel
 from bl_operators.presets import PresetMenu
 
@@ -450,13 +450,13 @@ classes = (
     SAFE_AREAS_PT_presets,
     DATA_PT_context_camera,
     DATA_PT_lens,
-    DATA_PT_camera,
-    DATA_PT_camera_stereoscopy,
     DATA_PT_camera_dof,
     DATA_PT_camera_dof_aperture,
-    DATA_PT_camera_display,
+    DATA_PT_camera,
+    DATA_PT_camera_stereoscopy,
     DATA_PT_camera_safe_areas,
     DATA_PT_camera_background_image,
+    DATA_PT_camera_display,
     DATA_PT_custom_props_camera,
 )
 

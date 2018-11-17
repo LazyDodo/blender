@@ -386,7 +386,8 @@ bGPDframe *BKE_gpencil_frame_addcopy(bGPDlayer *gpl, int cframe)
 /* add a new gp-layer and make it the active layer */
 bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setactive)
 {
-	bGPDlayer *gpl;
+	bGPDlayer *gpl = NULL;
+	bGPDlayer *gpl_active = NULL;
 
 	/* check that list is ok */
 	if (gpd == NULL)
@@ -395,8 +396,16 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 	/* allocate memory for frame and add to end of list */
 	gpl = MEM_callocN(sizeof(bGPDlayer), "bGPDlayer");
 
+	gpl_active = BKE_gpencil_layer_getactive(gpd);
+
 	/* add to datablock */
-	BLI_addtail(&gpd->layers, gpl);
+	if (gpl_active == NULL) {
+		BLI_addtail(&gpd->layers, gpl);
+	}
+	else {
+		/* if active layer, add after that layer */
+		BLI_insertlinkafter(&gpd->layers, gpl_active, gpl);
+	}
 
 	/* annotation vs GP Object behaviour is slightly different */
 	if (gpd->flag & GP_DATA_ANNOTATIONS) {
@@ -457,7 +466,6 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 	ARRAY_SET_ITEMS(gpd->grid.color, 0.5f, 0.5f, 0.5f); // Color
 	ARRAY_SET_ITEMS(gpd->grid.scale, 1.0f, 1.0f); // Scale
 	gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
-	gpd->grid.axis = GP_GRID_AXIS_Y;
 
 	/* onion-skinning settings (datablock level) */
 	gpd->onion_flag |= (GP_ONION_GHOST_PREVCOL | GP_ONION_GHOST_NEXTCOL);
@@ -818,8 +826,8 @@ bGPDframe *BKE_gpencil_layer_find_frame(bGPDlayer *gpl, int cframe)
 }
 
 /* get the appropriate gp-frame from a given layer
- *	- this sets the layer's actframe var (if allowed to)
- *	- extension beyond range (if first gp-frame is after all frame in interest and cannot add)
+ * - this sets the layer's actframe var (if allowed to)
+ * - extension beyond range (if first gp-frame is after all frame in interest and cannot add)
  */
 bGPDframe *BKE_gpencil_layer_getframe(bGPDlayer *gpl, int cframe, eGP_GetFrame_Mode addnew)
 {
@@ -996,11 +1004,18 @@ void BKE_gpencil_layer_setactive(bGPdata *gpd, bGPDlayer *active)
 		return;
 
 	/* loop over layers deactivating all */
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next)
+	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		gpl->flag &= ~GP_LAYER_ACTIVE;
+		if (gpd->flag & GP_DATA_AUTOLOCK_LAYERS) {
+			gpl->flag |= GP_LAYER_LOCKED;
+		}
+	}
 
 	/* set as active one */
 	active->flag |= GP_LAYER_ACTIVE;
+	if (gpd->flag & GP_DATA_AUTOLOCK_LAYERS) {
+		active->flag &= ~GP_LAYER_LOCKED;
+	}
 }
 
 /* delete the active gp-layer */
@@ -1118,8 +1133,21 @@ bool BKE_gpencil_data_minmax(Object *ob, const bGPdata *gpd, float r_min[3], flo
 	return changed;
 }
 
+bool BKE_gpencil_stroke_select_check(
+        const bGPDstroke *gps)
+{
+	const bGPDspoint *pt;
+	int i;
+	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+		if (pt->flag & GP_SPOINT_SELECT) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* compute center of bounding box */
-void BKE_gpencil_centroid_3D(bGPdata *gpd, float r_centroid[3])
+void BKE_gpencil_centroid_3d(bGPdata *gpd, float r_centroid[3])
 {
 	float min[3], max[3], tot[3];
 

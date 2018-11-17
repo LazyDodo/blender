@@ -37,10 +37,10 @@
 
 #include "BKE_appdir.h"
 #include "BKE_context.h"
-#include "BKE_screen.h"
 #include "BKE_global.h"
-#include "BKE_report.h"
 #include "BKE_main.h"
+#include "BKE_report.h"
+#include "BKE_screen.h"
 
 #ifdef WIN32
 #  include "BLI_winstuff.h"
@@ -1714,7 +1714,6 @@ static int filepath_drop_exec(bContext *C, wmOperator *op)
 void FILE_OT_filepath_drop(wmOperatorType *ot)
 {
 	ot->name = "File Selector Drop";
-	ot->description = "";
 	ot->idname = "FILE_OT_filepath_drop";
 
 	ot->exec = filepath_drop_exec;

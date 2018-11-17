@@ -116,9 +116,11 @@ static void deformStroke(
 		mmd->rng = BLI_rng_new(rng_seed);
 	}
 
-	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 3, gpl, gps,
-	        mmd->flag & GP_NOISE_INVERT_LAYER, mmd->flag & GP_NOISE_INVERT_PASS))
+	if (!is_stroke_affected_by_modifier(
+	            ob,
+	            mmd->layername, mmd->pass_index, mmd->layer_pass, 3, gpl, gps,
+	            mmd->flag & GP_NOISE_INVERT_LAYER, mmd->flag & GP_NOISE_INVERT_PASS,
+	            mmd->flag & GP_NOISE_INVERT_LAYERPASS))
 	{
 		return;
 	}
@@ -272,7 +274,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Noise = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          freeData,

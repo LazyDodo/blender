@@ -605,34 +605,28 @@ set(ICON_NAMES
 # This section is maintained by the updating script, keep BEGIN/END comments.
 set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	# BEGIN ICON_GEOM_NAMES
-	brush.gpencil.draw.eraser_hard
-	brush.gpencil.draw.eraser_soft
-	brush.gpencil.draw.eraser_stroke
-	brush.gpencil.draw_block
-	brush.gpencil.draw_fill
-	brush.gpencil.draw_ink
-	brush.gpencil.draw_marker
-	brush.gpencil.draw_noise
-	brush.gpencil.draw_pen
-	brush.gpencil.draw_pencil
+	brush.gpencil_draw.draw
+	brush.gpencil_draw.erase
+	brush.gpencil_draw.fill
 	brush.paint_texture.airbrush
 	brush.paint_texture.clone
 	brush.paint_texture.draw
 	brush.paint_texture.fill
 	brush.paint_texture.mask
+	brush.paint_texture.masklort
 	brush.paint_texture.multiply
 	brush.paint_texture.smear
 	brush.paint_texture.soften
 	brush.paint_vertex.alpha
+	brush.paint_vertex.average
 	brush.paint_vertex.blur
-	brush.paint_vertex.mix
+	brush.paint_vertex.draw
 	brush.paint_vertex.smear
+	brush.paint_weight.average
 	brush.paint_weight.blur
-	brush.paint_weight.darken
 	brush.paint_weight.draw
-	brush.paint_weight.lighten
 	brush.paint_weight.mix
-	brush.paint_weight.multiply
+	brush.paint_weight.smear
 	brush.particle.add
 	brush.particle.comb
 	brush.particle.cut
@@ -655,18 +649,17 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	brush.sculpt.pinch
 	brush.sculpt.rotate
 	brush.sculpt.scrape
+	brush.sculpt.simplify
 	brush.sculpt.smooth
 	brush.sculpt.snake_hook
 	brush.sculpt.thumb
-	brush.vertex.average
-	brush.weight.add
-	brush.weight.subtract
 	none
 	ops.armature.bone.roll
-	ops.armature.extrude.cursor
-	ops.armature.extrude
+	ops.armature.extrude_cursor
+	ops.armature.extrude_move
 	ops.curve.draw
-	ops.curve.dupli_extrude_cursor
+	ops.curve.extrude_cursor
+	ops.curve.extrude_move
 	ops.generic.cursor
 	ops.generic.select_box
 	ops.generic.select_circle
@@ -679,6 +672,9 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.gpencil.edit_mirror
 	ops.gpencil.edit_shear
 	ops.gpencil.edit_to_sphere
+	ops.gpencil.primitive_box
+	ops.gpencil.primitive_circle
+	ops.gpencil.primitive_line
 	ops.gpencil.sculpt_clone
 	ops.gpencil.sculpt_grab
 	ops.gpencil.sculpt_pinch
@@ -714,8 +710,15 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.paint.vertex_color_fill
 	ops.paint.weight_fill
 	ops.paint.weight_gradient
+	ops.paint.weight_sample
+	ops.paint.weight_sample_group
+	ops.pose.breakdowner
+	ops.pose.push
+	ops.pose.relax
 	ops.sculpt.border_hide
 	ops.sculpt.border_mask
+	ops.transform.bone_envelope
+	ops.transform.bone_size
 	ops.transform.edge_slide
 	ops.transform.push_pull
 	ops.transform.resize.cage
@@ -723,6 +726,7 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.transform.rotate
 	ops.transform.shear
 	ops.transform.shrink_fatten
+	ops.transform.tilt
 	ops.transform.tosphere
 	ops.transform.transform
 	ops.transform.translate
@@ -767,24 +771,20 @@ if(WITH_BLENDER)
 		data_to_c_simple(../../../../release/datafiles/prvicons.png SRC)
 
 		# brushes
-		data_to_c_simple(../../../../release/datafiles/brushicons/add.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/blob.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/blur.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/clay.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/claystrips.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/clone.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/crease.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/darken.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/draw.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/fill.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/flatten.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/grab.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/inflate.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/layer.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/lighten.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/mask.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/mix.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/multiply.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/nudge.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/pinch.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/scrape.png SRC)
@@ -792,13 +792,11 @@ if(WITH_BLENDER)
 		data_to_c_simple(../../../../release/datafiles/brushicons/smooth.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/snake_hook.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/soften.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/subtract.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/texdraw.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/texfill.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/texmask.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/thumb.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/twist.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/vertexdraw.png SRC)
 
 		# grease pencil sculpt
 		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_smooth.png SRC)

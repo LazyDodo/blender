@@ -77,9 +77,11 @@ static void deformStroke(
 	float mat[4][4];
 	float loc[3], rot[3], scale[3];
 
-	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 1, gpl, gps,
-	        mmd->flag & GP_OFFSET_INVERT_LAYER, mmd->flag & GP_OFFSET_INVERT_PASS))
+	if (!is_stroke_affected_by_modifier(
+	            ob,
+	            mmd->layername, mmd->pass_index, mmd->layer_pass, 1, gpl, gps,
+	            mmd->flag & GP_OFFSET_INVERT_LAYER, mmd->flag & GP_OFFSET_INVERT_PASS,
+	            mmd->flag & GP_OFFSET_INVERT_LAYERPASS))
 	{
 		return;
 	}
@@ -130,7 +132,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Offset = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

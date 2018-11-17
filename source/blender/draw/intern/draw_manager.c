@@ -1057,49 +1057,9 @@ static void drw_engines_draw_text(void)
 	}
 }
 
-#define MAX_INFO_LINES 10
-
-/**
- * Returns the offset required for the drawing of engines info.
- */
-int DRW_draw_region_engine_info_offset(void)
+/* Draw render engine info. */
+void DRW_draw_region_engine_info(int xoffset, int yoffset)
 {
-	int lines = 0;
-	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
-		DrawEngineType *engine = link->data;
-		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
-
-		/* Count the number of lines. */
-		if (data->info[0] != '\0') {
-			lines++;
-			char *c = data->info;
-			while (*c++ != '\0') {
-				if (*c == '\n') {
-					lines++;
-				}
-			}
-		}
-	}
-	return MIN2(MAX_INFO_LINES, lines) * UI_UNIT_Y;
-}
-
-/**
- * Actual drawing;
- */
-void DRW_draw_region_engine_info(void)
-{
-	const char *info_array_final[MAX_INFO_LINES + 1];
-	/* This should be maximum number of engines running at the same time. */
-	char info_array[MAX_INFO_LINES][GPU_INFO_SIZE];
-	int i = 0;
-
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	ARegion *ar = draw_ctx->ar;
-	float fill_color[4] = {0.0f, 0.0f, 0.0f, 0.25f};
-
-	UI_GetThemeColor3fv(TH_HIGH_GRAD, fill_color);
-	mul_v3_fl(fill_color, fill_color[3]);
-
 	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
 		DrawEngineType *engine = link->data;
 		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
@@ -1109,35 +1069,36 @@ void DRW_draw_region_engine_info(void)
 			char *chr_start = chr_current;
 			int line_len = 0;
 
+			const int font_id = BLF_default();
+			UI_FontThemeColor(font_id, TH_TEXT_HI);
+
+			BLF_enable(font_id, BLF_SHADOW);
+			BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
+			BLF_shadow_offset(font_id, 1, -1);
+
 			while (*chr_current++ != '\0') {
 				line_len++;
 				if (*chr_current == '\n') {
-					BLI_strncpy(info_array[i++], chr_start, line_len + 1);
+					char info[GPU_INFO_SIZE];
+					BLI_strncpy(info, chr_start, line_len + 1);
+					yoffset -= U.widget_unit;
+					BLF_draw_default(xoffset, yoffset, 0.0f, info, sizeof(info));
+
 					/* Re-start counting. */
 					chr_start = chr_current + 1;
 					line_len = -1;
 				}
 			}
 
-			BLI_strncpy(info_array[i++], chr_start, line_len + 1);
+			char info[GPU_INFO_SIZE];
+			BLI_strncpy(info, chr_start, line_len + 1);
+			yoffset -= U.widget_unit;
+			BLF_draw_default(xoffset, yoffset, 0.0f, info, sizeof(info));
 
-			if (i >= MAX_INFO_LINES) {
-				break;
-			}
+			BLF_disable(font_id, BLF_SHADOW);
 		}
 	}
-
-	for (int j = 0; j < i; j++) {
-		info_array_final[j] = info_array[j];
-	}
-	info_array_final[i] = NULL;
-
-	if (info_array[0] != NULL) {
-		ED_region_info_draw_multiline(ar, info_array_final, fill_color, true);
-	}
 }
-
-#undef MAX_INFO_LINES
 
 static void use_drw_engine(DrawEngineType *engine)
 {
@@ -1202,7 +1163,6 @@ static void drw_engines_enable_from_paint_mode(int mode)
 			use_drw_engine(&draw_engine_sculpt_type);
 			break;
 		case CTX_MODE_PAINT_WEIGHT:
-			use_drw_engine(&draw_engine_pose_type);
 			use_drw_engine(&draw_engine_paint_weight_type);
 			break;
 		case CTX_MODE_PAINT_VERTEX:
@@ -1238,20 +1198,21 @@ static void drw_engines_enable_from_mode(int mode)
 		case CTX_MODE_EDIT_LATTICE:
 			use_drw_engine(&draw_engine_edit_lattice_type);
 			break;
-		case CTX_MODE_POSE:
-			use_drw_engine(&draw_engine_pose_type);
-			break;
 		case CTX_MODE_PARTICLE:
 			use_drw_engine(&draw_engine_particle_type);
 			break;
-		case CTX_MODE_SCULPT:
+		case CTX_MODE_POSE:
 		case CTX_MODE_PAINT_WEIGHT:
+			/* The pose engine clears the depth of the default framebuffer
+			 * to draw an object with `OB_DRAWXRAY`.
+			 * (different of workbench that has its own framebuffer).
+			 * So make sure you call its `draw_scene` after all the other engines. */
+			use_drw_engine(&draw_engine_pose_type);
+			break;
+		case CTX_MODE_SCULPT:
 		case CTX_MODE_PAINT_VERTEX:
 		case CTX_MODE_PAINT_TEXTURE:
-			/* Should have already been enabled */
-			break;
 		case CTX_MODE_OBJECT:
-			break;
 		case CTX_MODE_GPENCIL_PAINT:
 		case CTX_MODE_GPENCIL_EDIT:
 		case CTX_MODE_GPENCIL_SCULPT:
@@ -1519,9 +1480,7 @@ void DRW_draw_render_loop_ex(
 
 	/* annotations - temporary drawing buffer (3d space) */
 	/* XXX: Or should we use a proper draw/overlay engine for this case? */
-	if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-	    (do_annotations))
-	{
+	if (do_annotations) {
 		glDisable(GL_DEPTH_TEST);
 		/* XXX: as scene->gpd is not copied for COW yet */
 		ED_gpencil_draw_view3d_annotations(DEG_get_input_scene(depsgraph), depsgraph, v3d, ar, true);
@@ -1652,8 +1611,8 @@ void DRW_draw_render_loop_offscreen(
 	GPU_offscreen_bind(ofs, false);
 }
 
-/* helper to check if exit object type to render */
-static bool DRW_render_check_grease_pencil(Depsgraph *depsgraph)
+/* Helper to check if exit object type to render. */
+bool DRW_render_check_grease_pencil(Depsgraph *depsgraph)
 {
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{

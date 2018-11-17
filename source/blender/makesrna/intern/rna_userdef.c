@@ -222,6 +222,11 @@ static void rna_userdef_select_mouse_set(PointerRNA *ptr, int value)
 		userdef->flag &= ~USER_LMOUSESELECT;
 }
 
+static void rna_userdef_select_mouse_update(bContext *C, Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
+{
+	WM_keyconfig_reload(C);
+}
+
 static int rna_userdef_autokeymode_get(PointerRNA *ptr)
 {
 	UserDef *userdef = (UserDef *)ptr->data;
@@ -1325,6 +1330,11 @@ static void rna_def_userdef_theme_space_common(StructRNA *srna)
 	RNA_def_property_ui_text(prop, "Region Text Highlight", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
+	prop = RNA_def_property(srna, "navigation_bar", PROP_FLOAT, PROP_COLOR_GAMMA);
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Navigation Bar Background", "");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
+
 	/* tabs */
 	prop = RNA_def_property(srna, "tab_active", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_array(prop, 3);
@@ -1728,7 +1738,7 @@ static void rna_def_userdef_theme_space_view3d(BlenderRNA *brna)
 	/* General Viewport options */
 
 	prop = RNA_def_property(srna, "grid", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_array(prop, 3);
+	RNA_def_property_array(prop, 4);
 	RNA_def_property_ui_text(prop, "Grid", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
@@ -2849,6 +2859,12 @@ static void rna_def_userdef_theme_space_action(BlenderRNA *brna)
 	RNA_def_property_array(prop, 4);
 	RNA_def_property_ui_text(prop, "Preview Range", "Color of preview range overlay");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
+
+	prop = RNA_def_property(srna, "interpolation_line", PROP_FLOAT, PROP_COLOR_GAMMA);
+	RNA_def_property_float_sdna(prop, NULL, "ds_ipoline");
+	RNA_def_property_array(prop, 4);
+	RNA_def_property_ui_text(prop, "Interpolation Line", "Color of lines showing non-bezier interpolation modes");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
 }
 
 static void rna_def_userdef_theme_space_nla(BlenderRNA *brna)
@@ -3722,8 +3738,8 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_mouse_depth_cursor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_CURSOR);
-	RNA_def_property_ui_text(prop, "Cursor Depth",
-	                         "Use the depth under the mouse when placing the cursor");
+	RNA_def_property_ui_text(prop, "Cursor Surface Project",
+	                         "Use the surface depth for cursor placement");
 
 	prop = RNA_def_property(srna, "use_cursor_lock_adjust", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_LOCK_CURSOR_ADJUST);
@@ -4014,7 +4030,7 @@ static void rna_def_userdef_edit(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "grease_pencil_default_color", PROP_FLOAT, PROP_COLOR_GAMMA);
 	RNA_def_property_float_sdna(prop, NULL, "gpencil_new_layer_col");
 	RNA_def_property_array(prop, 4);
-	RNA_def_property_ui_text(prop, "Grease Pencil Default Color", "Color of new Grease Pencil layers");
+	RNA_def_property_ui_text(prop, "Annotation Default Color", "Color of new annotation layers");
 
 	/* sculpt and paint */
 
@@ -4535,6 +4551,8 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, select_mouse_items);
 	RNA_def_property_enum_funcs(prop, NULL, "rna_userdef_select_mouse_set", NULL);
 	RNA_def_property_ui_text(prop, "Select Mouse", "Mouse button used for selection");
+	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
+	RNA_def_property_update(prop, 0, "rna_userdef_select_mouse_update");
 
 	prop = RNA_def_property(srna, "view_zoom_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "viewzoom");

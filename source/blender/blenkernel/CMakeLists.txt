@@ -128,6 +128,7 @@ set(SRC
 	intern/image_gen.c
 	intern/ipo.c
 	intern/key.c
+	intern/keyconfig.c
 	intern/lamp.c
 	intern/lattice.c
 	intern/library.c
@@ -136,6 +137,7 @@ set(SRC
 	intern/library_query.c
 	intern/library_remap.c
 	intern/linestyle.c
+	intern/main.c
 	intern/mask.c
 	intern/mask_evaluate.c
 	intern/mask_rasterize.c
@@ -168,6 +170,7 @@ set(SRC
 	intern/outliner_treehash.c
 	intern/packedFile.c
 	intern/paint.c
+	intern/paint_toolslots.c
 	intern/particle.c
 	intern/particle_child.c
 	intern/particle_distribute.c
@@ -278,6 +281,7 @@ set(SRC
 	BKE_image.h
 	BKE_ipo.h
 	BKE_key.h
+	BKE_keyconfig.h
 	BKE_lamp.h
 	BKE_lattice.h
 	BKE_library.h
@@ -544,6 +548,9 @@ if(WITH_OPENSUBDIV)
 	list(APPEND INC_SYS
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
+	if(WITH_OPENSUBDIV_MODIFIER)
+		add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
+	endif()
 endif()
 
 if(WITH_OPENVDB)

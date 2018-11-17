@@ -35,6 +35,10 @@ from bpy.props import (
 
 from bpy.app.translations import pgettext_tip as tip_
 
+# FIXME, we need a way to detect key repeat events.
+# unfortunately checking event previous values isn't reliable.
+use_toolbar_release_hack = True
+
 
 rna_path_prop = StringProperty(
     name="Context Attributes",
@@ -837,12 +841,12 @@ class WM_OT_context_modal_mouse(Operator):
         elif 'LEFTMOUSE' == event_type:
             item = next(iter(self._values.keys()))
             self._values_clear()
-            context.area.header_text_set("")
+            context.area.header_text_set(None)
             return operator_value_undo_return(item)
 
         elif event_type in {'RIGHTMOUSE', 'ESC'}:
             self._values_restore()
-            context.area.header_text_set("")
+            context.area.header_text_set(None)
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
@@ -1445,10 +1449,10 @@ class WM_OT_appconfig_activate(Operator):
 
     def execute(self, context):
         import os
-        bpy.utils.keyconfig_set(self.filepath)
-
-        filepath = self.filepath.replace("keyconfig", "interaction")
-
+        filepath = self.filepath
+        bpy.utils.keyconfig_set(filepath)
+        dirname, filename = os.path.split(filepath)
+        filepath = os.path.normpath(os.path.join(dirname, os.pardir, "interaction", filename))
         if os.path.exists(filepath):
             bpy.ops.script.execute_preset(
                 filepath=filepath,
@@ -1521,7 +1525,6 @@ class WM_OT_copy_prev_settings(Operator):
         return os.path.isfile(old_userpref) and not os.path.isfile(new_userpref)
 
     def execute(self, context):
-        import os
         import shutil
 
         shutil.copytree(self._old_path(), self._new_path(), symlinks=True)
@@ -2204,7 +2207,7 @@ class WM_OT_addon_remove(Operator):
     # lame confirmation check
     def draw(self, context):
         self.layout.label(text="Remove Add-on: %r?" % self.module)
-        path, isdir = WM_OT_addon_remove.path_from_addon(self.module)
+        path, _isdir = WM_OT_addon_remove.path_from_addon(self.module)
         self.layout.label(text="Path: %r" % path)
 
     def invoke(self, context, event):
@@ -2384,6 +2387,18 @@ class WM_OT_tool_set_by_name(Operator):
 
     space_type: rna_space_type_prop
 
+    if use_toolbar_release_hack:
+        def invoke(self, context, event):
+            # Hack :S
+            if not self.properties.is_property_set("name"):
+                WM_OT_toolbar._key_held = False
+                return {'PASS_THROUGH'}
+            elif (WM_OT_toolbar._key_held == event.type) and (event.value != 'RELEASE'):
+                return {'PASS_THROUGH'}
+            WM_OT_toolbar._key_held = None
+
+            return self.execute(context)
+
     def execute(self, context):
         from bl_ui.space_toolsystem_common import (
             activate_by_name,
@@ -2399,7 +2414,7 @@ class WM_OT_tool_set_by_name(Operator):
         if fn(context, space_type, self.name):
             return {'FINISHED'}
         else:
-            self.report({'WARNING'}, f"Tool {self.name!r} not found.")
+            self.report({'WARNING'}, f"Tool {self.name!r:s} not found for space {space_type!r:s}.")
             return {'CANCELLED'}
 
 
@@ -2411,6 +2426,12 @@ class WM_OT_toolbar(Operator):
     def poll(cls, context):
         return context.space_data is not None
 
+    if use_toolbar_release_hack:
+        _key_held = None
+        def invoke(self, context, event):
+            WM_OT_toolbar._key_held = event.type
+            return self.execute(context)
+
     def execute(self, context):
         from bl_ui.space_toolsystem_common import (
             ToolSelectPanelHelper,
@@ -2420,7 +2441,6 @@ class WM_OT_toolbar(Operator):
 
         cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
         if cls is None:
-            self.report({'WARNING'}, f"Toolbar not found for {space_type!r}")
             return {'CANCELLED'}
 
         wm = context.window_manager
@@ -2428,10 +2448,7 @@ class WM_OT_toolbar(Operator):
 
         def draw_menu(popover, context):
             layout = popover.layout
-
             layout.operator_context = 'INVOKE_REGION_WIN'
-            layout.operator("wm.search_menu", text="Search Commands...", icon='VIEWZOOM')
-
             cls.draw_cls(layout, context, detect_layout=False, scale_y=1.0)
 
         wm.popover(draw_menu, ui_units_x=8, keymap=keymap)
@@ -2548,7 +2565,11 @@ class WM_MT_splash(Menu):
     bl_label = "Splash"
 
     def draw_setup(self, context):
+        wm = context.window_manager
+        userpref = context.user_preferences
+
         layout = self.layout
+
         layout.operator_context = 'EXEC_DEFAULT'
 
         layout.label(text="Quick Setup")
@@ -2559,29 +2580,46 @@ class WM_MT_splash(Menu):
 
         col = split.column()
 
-        sub = col.column(align=True)
-        sub.label(text="Input and Shortcuts:")
-        text = bpy.path.display_name(context.window_manager.keyconfigs.active.name)
+        col.label()
+
+        sub = col.split(factor=0.35)
+        row = sub.row()
+        row.alignment = 'RIGHT'
+        row.label(text="Shortcuts")
+        text = bpy.path.display_name(wm.keyconfigs.active.name)
         if not text:
-            text = "Blender (default)"
-        sub.menu("USERPREF_MT_appconfigs", text=text)
+            text = "Blender"
+        sub.menu("USERPREF_MT_keyconfigs", text=text)
+
+        if wm.keyconfigs.active.has_select_mouse:
+            sub = col.split(factor=0.35)
+            row = sub.row()
+            row.alignment = 'RIGHT'
+            row.label(text="Select With")
+            sub.row().prop(userpref.inputs, 'select_mouse', expand=True)
 
         col.separator()
 
-        sub = col.column(align=True)
-        sub.label(text="Theme:")
+        sub = col.split(factor=0.35)
+        row = sub.row()
+        row.alignment = 'RIGHT'
+        row.label(text="Theme")
         label = bpy.types.USERPREF_MT_interface_theme_presets.bl_label
         if label == "Presets":
             label = "Blender Dark"
         sub.menu("USERPREF_MT_interface_theme_presets", text=label)
 
         # We need to make switching to a language easier first
-        #sub = col.column(align=False)
-        # sub.label(text="Language:")
+        #sub = col.split(factor=0.35)
+        #row = sub.row()
+        #row.alignment = 'RIGHT'
+        #row.label(text="Language:")
         #userpref = context.user_preferences
         #sub.prop(userpref.system, "language", text="")
 
-        col.label()
+        # Keep height constant
+        if not wm.keyconfigs.active.has_select_mouse:
+            col.label()
 
         layout.label()
 
@@ -2677,6 +2715,30 @@ class WM_MT_splash(Menu):
         layout.separator()
 
 
+class WM_OT_drop_blend_file(Operator):
+    bl_idname = "wm.drop_blend_file"
+    bl_label = "Handle dropped .blend file"
+    bl_options = {'INTERNAL'}
+
+    filepath: StringProperty()
+
+    def invoke(self, context, event):
+        context.window_manager.popup_menu(self.draw_menu, title=bpy.path.basename(self.filepath), icon='QUESTION')
+        return {"FINISHED"}
+
+    def draw_menu(self, menu, context):
+        layout = menu.layout
+
+        col = layout.column()
+        col.operator_context = 'EXEC_DEFAULT'
+        col.operator("wm.open_mainfile", text="Open", icon='FILE_FOLDER').filepath = self.filepath
+
+        layout.separator()
+        col = layout.column()
+        col.operator_context = 'INVOKE_DEFAULT'
+        col.operator("wm.link", text="Link...", icon='LINK_BLEND').filepath = self.filepath
+        col.operator("wm.append", text="Append...", icon='APPEND_BLEND').filepath = self.filepath
+
 classes = (
     BRUSH_OT_active_index_set,
     WM_OT_addon_disable,
@@ -2710,6 +2772,7 @@ classes = (
     WM_OT_copy_prev_settings,
     WM_OT_doc_view,
     WM_OT_doc_view_manual,
+    WM_OT_drop_blend_file,
     WM_OT_keyconfig_activate,
     WM_OT_keyconfig_export,
     WM_OT_keyconfig_import,

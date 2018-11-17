@@ -3,7 +3,14 @@ if(NOT WITH_BLENDER AND WITH_CYCLES_STANDALONE)
 	set(CYCLES_INSTALL_PATH "")
 else()
 	set(WITH_CYCLES_BLENDER ON)
-	set(CYCLES_INSTALL_PATH "scripts/addons/cycles")
+	# WINDOWS_PYTHON_DEBUG needs to write into the user addons folder since it will
+	# be started with --env-system-scripts pointing to the release folder, which will
+	# lack the cycles addon, and we don't want to write into it.
+	if(NOT WINDOWS_PYTHON_DEBUG)
+		set(CYCLES_INSTALL_PATH "scripts/addons/cycles")
+	else()
+		set(CYCLES_INSTALL_PATH "$ENV{appdata}/blender foundation/blender/${BLENDER_VERSION}/scripts/addons/cycles")
+	endif()
 endif()
 
 # External Libraries
@@ -207,6 +214,15 @@ if(WITH_CYCLES_OSL)
 	include_directories(
 		SYSTEM
 		${OSL_INCLUDE_DIR}
+	)
+endif()
+
+if(WITH_CYCLES_EMBREE)
+	add_definitions(-DWITH_EMBREE)
+	add_definitions(-DEMBREE_STATIC_LIB)
+	include_directories(
+		SYSTEM
+		${EMBREE_INCLUDE_DIRS}
 	)
 endif()
 

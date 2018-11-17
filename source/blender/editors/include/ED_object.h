@@ -108,13 +108,6 @@ bool ED_object_parent_set(struct ReportList *reports, const struct bContext *C, 
                           const int vert_par[3]);
 void ED_object_parent_clear(struct Object *ob, const int type);
 
-void ED_keymap_proportional_cycle(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-void ED_keymap_proportional_obmode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-void ED_keymap_proportional_maskmode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-void ED_keymap_proportional_editmode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap,
-                                     const bool do_connected);
-void ED_keymap_editmesh_elem_mode(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap);
-
 void ED_object_base_select(struct Base *base, eObjectSelect_Mode mode);
 void ED_object_base_activate(struct bContext *C, struct Base *base);
 void ED_object_base_free_and_unlink(struct Main *bmain, struct Scene *scene, struct Object *ob);
@@ -178,7 +171,8 @@ float ED_object_new_primitive_matrix(
 /* Avoid allowing too much insane values even by typing (typos can hang/crash Blender otherwise). */
 #define OBJECT_ADD_SIZE_MAXF 1.0e12f
 
-void ED_object_add_unit_props(struct wmOperatorType *ot);
+void ED_object_add_unit_props_size(struct wmOperatorType *ot);
+void ED_object_add_unit_props_radius(struct wmOperatorType *ot);
 void ED_object_add_generic_props(struct wmOperatorType *ot, bool do_editmode);
 void ED_object_add_mesh_props(struct wmOperatorType *ot);
 bool ED_object_add_generic_get_opts(struct bContext *C, struct wmOperator *op, const char view_align_axis,
@@ -217,6 +211,7 @@ bool ED_object_mode_compat_test(const struct Object *ob, eObjectMode mode);
 bool ED_object_mode_compat_set(struct bContext *C, struct Object *ob, eObjectMode mode, struct ReportList *reports);
 void ED_object_mode_toggle(struct bContext *C, eObjectMode mode);
 void ED_object_mode_set(struct bContext *C, eObjectMode mode);
+void ED_object_mode_exit(struct bContext *C);
 
 bool ED_object_mode_generic_enter(
         struct bContext *C,
@@ -228,10 +223,6 @@ void ED_object_mode_generic_exit(
 bool ED_object_mode_generic_has_data(
         struct Depsgraph *depsgraph,
         struct Object *ob);
-
-bool ED_object_mode_generic_exists(
-        struct wmWindowManager *wm, struct Object *ob,
-        eObjectMode object_mode);
 
 /* object_modifier.c */
 enum {

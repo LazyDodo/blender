@@ -563,8 +563,8 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 			stl->storage->reset_cache = false;
 		}
 
-		/* is edit mode only current object, not instances */
-		if ((draw_ctx->obact != ob) && GPENCIL_ANY_EDIT_MODE(gpd)) {
+		/* is edit mode only current object, not particle instances */
+		if ((ob->base_flag & BASE_FROMDUPLI) && GPENCIL_ANY_EDIT_MODE(gpd)) {
 			return;
 		}
 
@@ -579,8 +579,12 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 			gpencil_add_draw_data(vedata, ob);
 		}
 
-		/* draw current painting strokes */
-		if (draw_ctx->obact == ob) {
+		/* draw current painting strokes
+		* (only if region is equal to originated paint region)
+		*/
+		if ((draw_ctx->obact == ob) &&
+		    ((gpd->runtime.ar == NULL) || (gpd->runtime.ar == draw_ctx->ar)))
+		{
 			DRW_gpencil_populate_buffer_strokes(&e_data, vedata, ts, ob);
 		}
 
@@ -594,10 +598,22 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 			MEM_SAFE_FREE(e_data.batch_grid);
 
 			e_data.batch_grid = DRW_gpencil_get_grid(ob);
+
+			/* define grid orientation */
+			if (ts->gp_sculpt.lock_axis != GP_LOCKAXIS_VIEW) {
+				copy_m4_m4(stl->storage->grid_matrix, ob->obmat);
+			}
+			else {
+				/* align always to view */
+				invert_m4_m4(stl->storage->grid_matrix, draw_ctx->rv3d->viewmat);
+				/* copy ob location */
+				copy_v3_v3(stl->storage->grid_matrix[3], ob->obmat[3]);
+			}
+
 			DRW_shgroup_call_add(
-			        stl->g_data->shgrps_grid,
-			        e_data.batch_grid,
-			        ob->obmat);
+				stl->g_data->shgrps_grid,
+				e_data.batch_grid,
+				stl->storage->grid_matrix);
 		}
 	}
 }
@@ -702,14 +718,6 @@ void GPENCIL_draw_scene(void *ved)
 	}
 
 	if (DRW_state_is_fbo()) {
-		/* attach temp textures */
-		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_depth_tx_a, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->temp_fb_a, e_data.temp_color_tx_a, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->temp_fb_b, e_data.temp_depth_tx_b, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->temp_fb_b, e_data.temp_color_tx_b, 0, 0);
-
-		GPU_framebuffer_texture_attach(fbl->background_fb, e_data.background_depth_tx, 0, 0);
-		GPU_framebuffer_texture_attach(fbl->background_fb, e_data.background_color_tx, 0, 0);
 
 		/* Draw all pending objects */
 		if (stl->g_data->gp_cache_used > 0) {
@@ -775,7 +783,9 @@ void GPENCIL_draw_scene(void *ved)
 
 				/* prepare for fast drawing */
 				if (!is_render) {
-					gpencil_prepare_fast_drawing(stl, dfbl, fbl, psl->mix_pass_noblend, clearcol);
+					if (!playing) {
+						gpencil_prepare_fast_drawing(stl, dfbl, fbl, psl->mix_pass_noblend, clearcol);
+					}
 				}
 				else {
 					/* if render, the cache must be dirty for next loop */
@@ -799,17 +809,9 @@ void GPENCIL_draw_scene(void *ved)
 	/* free memory */
 	gpencil_free_obj_runtime(stl);
 
-	/* detach temp textures */
+	/* reset  */
 	if (DRW_state_is_fbo()) {
-		GPU_framebuffer_texture_detach(fbl->temp_fb_a, e_data.temp_depth_tx_a);
-		GPU_framebuffer_texture_detach(fbl->temp_fb_a, e_data.temp_color_tx_a);
-		GPU_framebuffer_texture_detach(fbl->temp_fb_b, e_data.temp_depth_tx_b);
-		GPU_framebuffer_texture_detach(fbl->temp_fb_b, e_data.temp_color_tx_b);
-
-		GPU_framebuffer_texture_detach(fbl->background_fb, e_data.background_depth_tx);
-		GPU_framebuffer_texture_detach(fbl->background_fb, e_data.background_color_tx);
-
-		/* attach again default framebuffer after detach textures */
+		/* attach again default framebuffer */
 		if (!is_render) {
 			GPU_framebuffer_bind(dfbl->default_fb);
 		}

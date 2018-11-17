@@ -85,7 +85,7 @@
 
 /* ******************* paint cursor *************** */
 
-static void wm_paintcursor_draw(bContext *C, ARegion *ar)
+static void wm_paintcursor_draw(bContext *C, ScrArea *sa, ARegion *ar)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
@@ -94,6 +94,15 @@ static void wm_paintcursor_draw(bContext *C, ARegion *ar)
 
 	if (ar->visible && ar == screen->active_region) {
 		for (pc = wm->paintcursors.first; pc; pc = pc->next) {
+
+			if ((pc->space_type != SPACE_TYPE_ANY) && (sa->spacetype != pc->space_type)) {
+				continue;
+			}
+
+			if ((pc->region_type != RGN_TYPE_ANY) && (ar->regiontype != pc->region_type)) {
+				continue;
+			}
+
 			if (pc->poll == NULL || pc->poll(C)) {
 				/* Prevent drawing outside region. */
 				glEnable(GL_SCISSOR_TEST);
@@ -452,9 +461,35 @@ void wm_draw_region_blend(ARegion *ar, int view, bool blend)
 	GPUShader *shader = GPU_shader_get_builtin_shader(GPU_SHADER_2D_IMAGE_RECT_COLOR);
 	GPU_shader_bind(shader);
 
+	rcti rect_geo = ar->winrct;
+	rect_geo.xmax += 1;
+	rect_geo.ymax += 1;
+
+	rctf rect_tex;
+	rect_tex.xmin = halfx;
+	rect_tex.ymin = halfy;
+	rect_tex.xmax = 1.0f + halfx;
+	rect_tex.ymax = 1.0f + halfy;
+
+	float alpha_easing = 1.0f - alpha;
+	alpha_easing = 1.0f - alpha_easing * alpha_easing;
+
+	/* Slide vertical panels */
+	float ofs_x = BLI_rcti_size_x(&ar->winrct) * (1.0f - alpha_easing);
+	if (ar->alignment == RGN_ALIGN_RIGHT) {
+		rect_geo.xmin += ofs_x;
+		rect_tex.xmax *= alpha_easing;
+		alpha = 1.0f;
+	}
+	else if (ar->alignment == RGN_ALIGN_LEFT) {
+		rect_geo.xmax -= ofs_x;
+		rect_tex.xmin += 1.0f - alpha_easing;
+		alpha = 1.0f;
+	}
+
 	glUniform1i(GPU_shader_get_uniform(shader, "image"), 0);
-	glUniform4f(GPU_shader_get_uniform(shader, "rect_icon"), halfx, halfy, 1.0f + halfx, 1.0f + halfy);
-	glUniform4f(GPU_shader_get_uniform(shader, "rect_geom"), ar->winrct.xmin, ar->winrct.ymin, ar->winrct.xmax + 1, ar->winrct.ymax + 1);
+	glUniform4f(GPU_shader_get_uniform(shader, "rect_icon"), rect_tex.xmin, rect_tex.ymin, rect_tex.xmax, rect_tex.ymax);
+	glUniform4f(GPU_shader_get_uniform(shader, "rect_geom"), rect_geo.xmin, rect_geo.ymin, rect_geo.xmax, rect_geo.ymax);
 	glUniform4f(GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_COLOR), alpha, alpha, alpha, alpha);
 
 	GPU_draw_primitive(GPU_PRIM_TRI_STRIP, 4);
@@ -612,7 +647,7 @@ static void wm_draw_window_onscreen(bContext *C, wmWindow *win, int view)
 					CTX_wm_region_set(C, ar);
 
 					/* make region ready for draw, scissor, pixelspace */
-					wm_paintcursor_draw(C, ar);
+					wm_paintcursor_draw(C, sa, ar);
 
 					CTX_wm_region_set(C, NULL);
 					CTX_wm_area_set(C, NULL);

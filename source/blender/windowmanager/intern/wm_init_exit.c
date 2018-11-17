@@ -61,16 +61,16 @@
 #include "BKE_blender.h"
 #include "BKE_blender_undo.h"
 #include "BKE_context.h"
-#include "BKE_screen.h"
+#include "BKE_font.h"
 #include "BKE_global.h"
 #include "BKE_icons.h"
-#include "BKE_library.h"
 #include "BKE_library_remap.h"
 #include "BKE_main.h"
 #include "BKE_mball_tessellate.h"
 #include "BKE_node.h"
 #include "BKE_report.h"
-#include "BKE_font.h"
+#include "BKE_screen.h"
+#include "BKE_keyconfig.h"
 
 #include "BKE_addon.h"
 #include "BKE_appdir.h"
@@ -208,6 +208,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 	GHOST_CreateSystemPaths();
 
 	BKE_addon_pref_type_init();
+	BKE_keyconfig_pref_type_init();
 
 	wm_operatortype_init();
 	wm_operatortypes_register();
@@ -236,7 +237,10 @@ void WM_init(bContext *C, int argc, const char **argv)
 	ED_node_init_butfuncs();
 
 	BLF_init();
+
 	BLT_lang_init();
+	/* Must call first before doing any .blend file reading, since versionning code may create new IDs... See T57066. */
+	BLT_lang_set(NULL);
 
 	/* Init icons before reading .blend files for preview icons, which can
 	 * get triggered by the depsgraph. This is also done in background mode
@@ -252,6 +256,7 @@ void WM_init(bContext *C, int argc, const char **argv)
 	/* get the default database, plus a wm */
 	wm_homefile_read(C, NULL, G.factory_startup, false, true, NULL, WM_init_state_app_template_get());
 
+	/* Call again to set from userpreferences... */
 	BLT_lang_set(NULL);
 
 	if (!G.background) {
@@ -456,7 +461,10 @@ void WM_exit_ext(bContext *C, const bool do_python)
 	}
 
 	WM_paneltype_clear();
+
 	BKE_addon_pref_type_free();
+	BKE_keyconfig_pref_type_free();
+
 	wm_operatortype_free();
 	wm_dropbox_free();
 	WM_menutype_free();

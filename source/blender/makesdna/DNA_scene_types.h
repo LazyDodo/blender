@@ -797,9 +797,28 @@ typedef struct TimeMarker {
 
 #define PAINT_MAX_INPUT_SAMPLES 64
 
+typedef struct Paint_Runtime {
+	/* Avoid having to compare with scene pointer everywhere. */
+	unsigned int tool_offset;
+	unsigned short ob_mode;
+	char _pad[2];
+} Paint_Runtime;
+
+/* We might want to store other things here. */
+typedef struct PaintToolSlot {
+	struct Brush *brush;
+} PaintToolSlot;
+
 /* Paint Tool Base */
 typedef struct Paint {
 	struct Brush *brush;
+
+	/* Each tool has it's own active brush,
+	 * The currently active tool is defined by the current 'brush'. */
+	struct PaintToolSlot *tool_slots;
+	int                   tool_slots_len;
+	char _pad1[4];
+
 	struct Palette *palette;
 	struct CurveMapping *cavity_curve; /* cavity curve */
 
@@ -819,6 +838,8 @@ typedef struct Paint {
 
 	float tile_offset[3];
 	int pad2;
+
+	struct Paint_Runtime runtime;
 } Paint;
 
 /* ------------------------------------------- */
@@ -956,12 +977,12 @@ typedef enum eGP_EditBrush_Types {
 	/* add any weight paint brush below this value. Do no mix brushes */
 
 	/* !!! Update GP_EditBrush_Data brush[###]; below !!! */
-	TOT_GP_EDITBRUSH_TYPES
+	GP_EDITBRUSH_TYPE_MAX,
 } eGP_EditBrush_Types;
 
 /* GP_BrushEdit_Settings.lock_axis */
 typedef enum eGP_Lockaxis_Types {
-	GP_LOCKAXIS_NONE = 0,
+	GP_LOCKAXIS_VIEW = 0,
 	GP_LOCKAXIS_X = 1,
 	GP_LOCKAXIS_Y = 2,
 	GP_LOCKAXIS_Z = 3
@@ -1001,7 +1022,7 @@ typedef enum eGP_EditBrush_Flag {
 
 /* GPencil Stroke Sculpting Settings */
 typedef struct GP_BrushEdit_Settings {
-	GP_EditBrush_Data brush[12];  /* TOT_GP_EDITBRUSH_TYPES */
+	GP_EditBrush_Data brush[12];  /* GP_EDITBRUSH_TYPE_MAX */
 	void *paintcursor;            /* runtime */
 
 	int brushtype;                /* eGP_EditBrush_Types (sculpt) */
@@ -1439,6 +1460,10 @@ typedef struct SceneEEVEE {
 	int gi_diffuse_bounces;
 	int gi_cubemap_resolution;
 	int gi_visibility_resolution;
+	float gi_irradiance_smoothing;
+	float gi_glossy_clamp;
+	float gi_filter_quality;
+	float pad;
 
 	float gi_cubemap_draw_size;
 	float gi_irradiance_draw_size;
@@ -1485,6 +1510,9 @@ typedef struct SceneEEVEE {
 
 	struct LightCache *light_cache;
 	char light_cache_info[64];
+
+	float overscan;
+	float light_threshold;
 } SceneEEVEE;
 
 /* *************************************************************** */
@@ -2119,6 +2147,7 @@ typedef enum eGPencil_Placement_Flags {
 	/* "Use Endpoints" */
 	GP_PROJECT_DEPTH_STROKE_ENDPOINTS = (1 << 4),
 	GP_PROJECT_CURSOR = (1 << 5),
+	GP_PROJECT_DEPTH_STROKE_FIRST = (1 << 6),
 } eGPencil_Placement_Flags;
 
 /* ToolSettings.gpencil_selectmode */
@@ -2191,6 +2220,8 @@ enum {
 	SCE_EEVEE_SHOW_IRRADIANCE		= (1 << 17),
 	SCE_EEVEE_SHOW_CUBEMAPS			= (1 << 18),
 	SCE_EEVEE_GI_AUTOBAKE			= (1 << 19),
+	SCE_EEVEE_SHADOW_SOFT			= (1 << 20),
+	SCE_EEVEE_OVERSCAN				= (1 << 21),
 };
 
 /* SceneEEVEE->shadow_method */

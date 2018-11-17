@@ -485,7 +485,11 @@ static PaintOperation *texture_paint_init(bContext *C, wmOperator *op, const flo
 	}
 
 	if ((brush->imagepaint_tool == PAINT_TOOL_FILL) && (brush->flag & BRUSH_USE_GRADIENT)) {
-		pop->cursor = WM_paint_cursor_activate(CTX_wm_manager(C), image_paint_poll, gradient_draw_line, pop);
+		pop->cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        image_paint_poll, gradient_draw_line,
+		        pop);
 	}
 
 	settings->imapaint.flag |= IMAGEPAINT_DRAWING;
@@ -766,7 +770,7 @@ void ED_space_image_paint_update(Main *bmain, wmWindowManager *wm, Scene *scene)
 	}
 
 	if (enabled) {
-		BKE_paint_init(bmain, scene, ePaintTexture2D, PAINT_CURSOR_TEXTURE_PAINT);
+		BKE_paint_init(bmain, scene, PAINT_MODE_TEXTURE_2D, PAINT_CURSOR_TEXTURE_PAINT);
 
 		paint_cursor_start_explicit(&imapaint->paint, wm, image_paint_poll);
 	}
@@ -915,7 +919,7 @@ static int sample_color_exec(bContext *C, wmOperator *op)
 
 	RNA_int_get_array(op->ptr, "location", location);
 	const bool use_palette = RNA_boolean_get(op->ptr, "palette");
-	const bool use_sample_texture = (mode == ePaintTextureProjective) && !RNA_boolean_get(op->ptr, "merged");
+	const bool use_sample_texture = (mode == PAINT_MODE_TEXTURE_3D) && !RNA_boolean_get(op->ptr, "merged");
 
 	paint_sample_color(C, ar, location[0], location[1], use_sample_texture, use_palette);
 
@@ -955,7 +959,7 @@ static int sample_color_invoke(bContext *C, wmOperator *op, const wmEvent *event
 	RNA_int_set_array(op->ptr, "location", event->mval);
 
 	ePaintMode mode = BKE_paintmode_get_active_from_context(C);
-	const bool use_sample_texture = (mode == ePaintTextureProjective) && !RNA_boolean_get(op->ptr, "merged");
+	const bool use_sample_texture = (mode == PAINT_MODE_TEXTURE_3D) && !RNA_boolean_get(op->ptr, "merged");
 
 	paint_sample_color(C, ar, event->mval[0], event->mval[1], use_sample_texture, false);
 	WM_cursor_modal_set(win, BC_EYEDROPPER_CURSOR);
@@ -989,7 +993,7 @@ static int sample_color_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	}
 
 	ePaintMode mode = BKE_paintmode_get_active_from_context(C);
-	const bool use_sample_texture = (mode == ePaintTextureProjective) && !RNA_boolean_get(op->ptr, "merged");
+	const bool use_sample_texture = (mode == PAINT_MODE_TEXTURE_3D) && !RNA_boolean_get(op->ptr, "merged");
 
 	switch (event->type) {
 		case MOUSEMOVE:
@@ -1126,7 +1130,9 @@ static int texture_paint_toggle_exec(bContext *C, wmOperator *op)
 
 		ob->mode |= mode_flag;
 
-		BKE_paint_init(bmain, scene, ePaintTextureProjective, PAINT_CURSOR_TEXTURE_PAINT);
+		BKE_paint_init(bmain, scene, PAINT_MODE_TEXTURE_3D, PAINT_CURSOR_TEXTURE_PAINT);
+
+		BKE_paint_toolslots_brush_validate(bmain, &imapaint->paint);
 
 		if (U.glreslimit != 0)
 			GPU_free_images(bmain);

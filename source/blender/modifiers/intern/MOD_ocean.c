@@ -42,6 +42,7 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_global.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
@@ -525,14 +526,12 @@ ModifierTypeInfo modifierType_Ocean = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

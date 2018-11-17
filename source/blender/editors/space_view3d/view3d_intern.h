@@ -98,7 +98,7 @@ void VIEW3D_OT_background_image_add(struct wmOperatorType *ot);
 void VIEW3D_OT_background_image_remove(struct wmOperatorType *ot);
 void VIEW3D_OT_view_orbit(struct wmOperatorType *ot);
 void VIEW3D_OT_view_roll(struct wmOperatorType *ot);
-void VIEW3D_OT_clip_border(struct wmOperatorType *ot);
+// void VIEW3D_OT_clip_border(struct wmOperatorType *ot);
 void VIEW3D_OT_cursor3d(struct wmOperatorType *ot);
 void VIEW3D_OT_render_border(struct wmOperatorType *ot);
 void VIEW3D_OT_clear_render_border(struct wmOperatorType *ot);
@@ -142,7 +142,7 @@ int view3d_effective_drawtype(const struct View3D *v3d);
 
 /* view3d_draw.c */
 void view3d_main_region_draw(const struct bContext *C, struct ARegion *ar);
-void view3d_draw_region_info(const struct bContext *C, struct ARegion *ar, const int offset);
+void view3d_draw_region_info(const struct bContext *C, struct ARegion *ar);
 
 void ED_view3d_draw_depth(
         struct Depsgraph *depsgraph,

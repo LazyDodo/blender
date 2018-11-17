@@ -80,8 +80,6 @@ extern "C" {
 #include "BKE_collision.h"
 #include "BKE_fcurve.h"
 #include "BKE_key.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_modifier.h"
@@ -89,6 +87,7 @@ extern "C" {
 #include "BKE_node.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
+#include "BKE_pointcache.h"
 #include "BKE_rigidbody.h"
 #include "BKE_shader_fx.h"
 #include "BKE_shrinkwrap.h"
@@ -186,9 +185,13 @@ static bool check_id_has_anim_component(ID *id)
 	       (!BLI_listbase_is_empty(&adt->nla_tracks));
 }
 
-static eDepsOperation_Code bone_target_opcode(ID *target, const char *subtarget, ID *id, const char *component_subdata, RootPChanMap *root_map)
+static eDepsOperation_Code bone_target_opcode(ID *target,
+                                              const char *subtarget,
+                                              ID *id,
+                                              const char *component_subdata,
+                                              RootPChanMap *root_map)
 {
-	/* same armature  */
+	/* Same armature.  */
 	if (target == id) {
 		/* Using "done" here breaks in-chain deps, while using
 		 * "ready" here breaks most production rigs instead.
@@ -199,7 +202,6 @@ static eDepsOperation_Code bone_target_opcode(ID *target, const char *subtarget,
 			return DEG_OPCODE_BONE_READY;
 		}
 	}
-
 	return DEG_OPCODE_BONE_DONE;
 }
 
@@ -283,6 +285,17 @@ void DepsgraphRelationBuilder::add_customdata_mask(const ComponentKey &key, uint
 		if (node != NULL) {
 			node->customdata_mask |= mask;
 		}
+	}
+}
+
+void DepsgraphRelationBuilder::add_special_eval_flag(ID *id, uint32_t flag)
+{
+	DEG::IDDepsNode *id_node = graph_->find_id_node(id);
+	if (id_node == NULL) {
+		BLI_assert(!"ID should always be valid");
+	}
+	else {
+		id_node->eval_flags |= flag;
 	}
 }
 
@@ -414,6 +427,9 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 		return;
 	}
 	switch (GS(id->name)) {
+		case ID_AC:
+			build_action((bAction *)id);
+			break;
 		case ID_AR:
 			build_armature((bArmature *)id);
 			break;
@@ -421,7 +437,7 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 			build_camera((Camera *)id);
 			break;
 		case ID_GR:
-			build_collection(NULL, (Collection *)id);
+			build_collection(NULL, NULL, (Collection *)id);
 			break;
 		case ID_OB:
 			build_object(NULL, (Object *)id);
@@ -473,9 +489,19 @@ void DepsgraphRelationBuilder::build_id(ID *id)
 }
 
 void DepsgraphRelationBuilder::build_collection(
+        LayerCollection *from_layer_collection,
         Object *object,
         Collection *collection)
 {
+	if (from_layer_collection != NULL) {
+		/* If we came from layer collection we don't go deeper, view layer
+		 * builder takes care of going deeper.
+		 *
+		 * NOTE: Do early output before tagging build as done, so possbile
+		 * subsequent builds from outside of the layer collection properly
+		 * recurses into all the nested objects and collections. */
+		return;
+	}
 	const bool group_done = built_map_.checkIsBuiltAndTag(collection);
 	OperationKey object_transform_final_key(object != NULL ? &object->id : NULL,
 	                                        DEG_NODE_TYPE_TRANSFORM,
@@ -487,7 +513,7 @@ void DepsgraphRelationBuilder::build_collection(
 			build_object(NULL, cob->ob);
 		}
 		LISTBASE_FOREACH (CollectionChild *, child, &collection->children) {
-			build_collection(NULL, child->collection);
+			build_collection(NULL, NULL, child->collection);
 		}
 	}
 	if (object != NULL) {
@@ -631,8 +657,10 @@ void DepsgraphRelationBuilder::build_object(Base *base, Object *object)
 	}
 	/* Object dupligroup. */
 	if (object->dup_group != NULL) {
-		build_collection(object, object->dup_group);
+		build_collection(NULL, object, object->dup_group);
 	}
+	/* Point caches. */
+	build_object_pointcache(object);
 }
 
 void DepsgraphRelationBuilder::build_object_flags(Base *base, Object *object)
@@ -670,6 +698,15 @@ void DepsgraphRelationBuilder::build_object_data(Object *object)
 		case OB_GPENCIL:
 		{
 			build_object_data_geometry(object);
+			/* TODO(sergey): Only for until we support granular
+			 * update of curves.
+			 */
+			if (object->type == OB_FONT) {
+				Curve *curve = (Curve *)object->data;
+				if (curve->textoncurve) {
+					add_special_eval_flag(&curve->textoncurve->id, DAG_EVAL_NEED_CURVE_PATH);
+				}
+			}
 			break;
 		}
 		case OB_ARMATURE:
@@ -828,11 +865,47 @@ void DepsgraphRelationBuilder::build_object_parent(Object *object)
 			break;
 		}
 	}
+}
 
-	/* exception case: parent is duplivert */
-	if ((object->type == OB_MBALL) && (object->parent->transflag & OB_DUPLIVERTS)) {
-		//dag_add_relation(dag, node2, node, DAG_RL_DATA_DATA | DAG_RL_OB_OB, "Duplivert");
+void DepsgraphRelationBuilder::build_object_pointcache(Object *object)
+{
+	ComponentKey point_cache_key(&object->id, DEG_NODE_TYPE_POINT_CACHE);
+	/* Different point caches are affecting different aspects of life of the
+	 * object. We keep track of those aspects and avoid duplicate relations. */
+	enum {
+		FLAG_TRANSFORM = (1 << 0),
+		FLAG_GEOMETRY = (1 << 1),
+		FLAG_ALL = (FLAG_TRANSFORM | FLAG_GEOMETRY),
+	};
+	ListBase ptcache_id_list;
+	BKE_ptcache_ids_from_object(&ptcache_id_list, object, scene_, 0);
+	int handled_components = 0;
+	LISTBASE_FOREACH (PTCacheID *, ptcache_id, &ptcache_id_list) {
+		/* Check which components needs the point cache. */
+		int flag;
+		if (ptcache_id->type == PTCACHE_TYPE_RIGIDBODY) {
+			flag = FLAG_TRANSFORM;
+			ComponentKey transform_key(&object->id,
+			                           DEG_NODE_TYPE_TRANSFORM);
+			add_relation(point_cache_key,
+			             transform_key,
+			             "Point Cache -> Rigid Body");
+		}
+		else {
+			flag = FLAG_GEOMETRY;
+			ComponentKey geometry_key(&object->id,
+			                           DEG_NODE_TYPE_GEOMETRY);
+			add_relation(point_cache_key,
+			             geometry_key,
+			             "Point Cache -> Geometry");
+		}
+		/* Tag that we did handle that component. */
+		handled_components |= flag;
+		if (handled_components == FLAG_ALL) {
+			break;
+		}
 	}
+	BLI_freelistN(&ptcache_id_list);
 }
 
 void DepsgraphRelationBuilder::build_constraints(ID *id,
@@ -945,7 +1018,7 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					                        opcode);
 					add_relation(target_key, constraint_op_key, cti->name);
 					/* if needs bbone shape, also reference handles */
-					if (con->flag & CONSTRAINT_BBONE_SHAPE) {
+					if (BKE_constraint_target_uses_bbone(con, ct)) {
 						bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
 						/* actually a bbone */
 						if (pchan && pchan->bone && pchan->bone->segments > 1) {
@@ -998,6 +1071,9 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 						bool track = (scon->flag & CON_SHRINKWRAP_TRACK_NORMAL) != 0;
 						if (track || BKE_shrinkwrap_needs_normals(scon->shrinkType, scon->shrinkMode)) {
 							add_customdata_mask(target_key, CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL);
+						}
+						if (scon->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+							add_special_eval_flag(&ct->tar->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
 						}
 					}
 
@@ -1169,6 +1245,11 @@ void DepsgraphRelationBuilder::build_animdata_nlastrip_targets(
 {
 	LISTBASE_FOREACH(NlaStrip *, strip, strips) {
 		if (strip->act != NULL) {
+			build_action(strip->act);
+
+			ComponentKey action_key(&strip->act->id, DEG_NODE_TYPE_ANIMATION);
+			add_relation(action_key, adt_key, "Action -> Animation");
+
 			build_animdata_curves_targets(id, adt_key,
 			                              operation_from,
 			                              &strip->act->curves);
@@ -1334,8 +1415,16 @@ void DepsgraphRelationBuilder::build_driver_data(ID *id, FCurve *fcu)
 			        rna_path);
 		}
 	}
-	else {
+	else if (rna_path != NULL && rna_path[0] != '\0') {
 		RNAPathKey target_key(id, rna_path);
+		if (RNA_pointer_is_null(&target_key.ptr)) {
+			/* TODO(sergey): This would only mean that driver is broken.
+			 * so we can't create relation anyway. However, we need to avoid
+			 * adding drivers which are known to be buggy to a dependency
+			 * graph, in order to save computational power.
+			 */
+			return;
+		}
 		add_relation(driver_key, target_key, "Driver -> Target");
 		/* Similar to the case with f-curves, driver might drive a nested
 		 * datablock, which means driver execution should wait for that
@@ -1356,25 +1445,15 @@ void DepsgraphRelationBuilder::build_driver_data(ID *id, FCurve *fcu)
 				}
 			}
 		}
-		if (RNA_pointer_is_null(&target_key.ptr)) {
-			/* TODO(sergey): This would only mean that driver is broken.
-			 * so we can't create relation anyway. However, we need to avoid
-			 * adding drivers which are known to be buggy to a dependency
-			 * graph, in order to save computational power.
-			 */
-		}
-		else {
-			if (target_key.prop != NULL &&
-			    RNA_property_is_idprop(target_key.prop))
-			{
-				OperationKey parameters_key(id,
-				                            DEG_NODE_TYPE_PARAMETERS,
-				                            DEG_OPCODE_PARAMETERS_EVAL);
-				add_relation(target_key,
-				             parameters_key,
-				             "Driver Target -> Properties");
-			}
-			add_relation(driver_key, target_key, "Driver -> Target");
+		if (target_key.prop != NULL &&
+		    RNA_property_is_idprop(target_key.prop))
+		{
+			OperationKey parameters_key(id,
+			                            DEG_NODE_TYPE_PARAMETERS,
+			                            DEG_OPCODE_PARAMETERS_EVAL);
+			add_relation(target_key,
+			             parameters_key,
+			             "Driver Target -> Properties");
 		}
 	}
 }
@@ -1441,7 +1520,7 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 				                        DEG_OPCODE_TRANSFORM_FINAL);
 				add_relation(target_key, driver_key, "Target -> Driver");
 			}
-			else if (dtar->rna_path) {
+			else if (dtar->rna_path != NULL && dtar->rna_path[0] != '\0') {
 				RNAPathKey variable_key(dtar->id, dtar->rna_path);
 				if (RNA_pointer_is_null(&variable_key.ptr)) {
 					continue;
@@ -1462,17 +1541,8 @@ void DepsgraphRelationBuilder::build_driver_variables(ID *id, FCurve *fcu)
 				}
 			}
 			else {
-				if (dtar->id == id) {
-					/* Ignore input dependency if we're driving properties of
-					 * the same ID, otherwise we'll be ending up in a cyclic
-					 * dependency here.
-					 */
-					continue;
-				}
-				/* Resolve path to get node. */
-				RNAPathKey target_key(dtar->id,
-				                      dtar->rna_path ? dtar->rna_path : "");
-				add_relation(target_key, driver_key, "RNA Target -> Driver");
+				/* If rna_path is NULL, and DTAR_FLAG_STRUCT_REF isn't set, this
+				 * is an incomplete target reference, so nothing to do here. */
 			}
 		}
 		DRIVER_TARGETS_LOOPER_END
@@ -1484,14 +1554,18 @@ void DepsgraphRelationBuilder::build_world(World *world)
 	if (built_map_.checkIsBuiltAndTag(world)) {
 		return;
 	}
+	/* animation */
 	build_animdata(&world->id);
-	/* TODO: other settings? */
 	/* world's nodetree */
 	if (world->nodetree != NULL) {
 		build_nodetree(world->nodetree);
-		ComponentKey ntree_key(&world->nodetree->id, DEG_NODE_TYPE_SHADING);
-		ComponentKey world_key(&world->id, DEG_NODE_TYPE_SHADING);
-		add_relation(ntree_key, world_key, "NTree->World Shading Update");
+		OperationKey ntree_key(&world->nodetree->id,
+		                       DEG_NODE_TYPE_SHADING,
+		                       DEG_OPCODE_MATERIAL_UPDATE);
+		OperationKey world_key(&world->id,
+		                          DEG_NODE_TYPE_SHADING,
+		                          DEG_OPCODE_WORLD_UPDATE);
+		add_relation(ntree_key, world_key, "World's NTree");
 		build_nested_nodetree(&world->id, world->nodetree);
 	}
 }
@@ -1514,7 +1588,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 
 	/* objects - simulation participants */
 	if (rbw->group) {
-		build_collection(NULL, rbw->group);
+		build_collection(NULL, NULL, rbw->group);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, object)
 		{
@@ -1696,7 +1770,7 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 				break;
 			case PART_DRAW_GR:
 				if (part->dup_group != NULL) {
-					build_collection(NULL, part->dup_group);
+					build_collection(NULL, NULL, part->dup_group);
 					LISTBASE_FOREACH (CollectionObject *, go, &part->dup_group->gobject) {
 						build_particles_visualization_object(object,
 						                                     psys,
@@ -1715,12 +1789,6 @@ void DepsgraphRelationBuilder::build_particles(Object *object)
 	 */
 	ComponentKey transform_key(&object->id, DEG_NODE_TYPE_TRANSFORM);
 	add_relation(transform_key, obdata_ubereval_key, "Partcile Eval");
-
-	OperationKey point_cache_reset_key(&object->id,
-	                                   DEG_NODE_TYPE_CACHE,
-	                                   DEG_OPCODE_POINT_CACHE_RESET);
-	add_relation(transform_key, point_cache_reset_key, "Object Transform -> Point Cache Reset");
-	add_relation(point_cache_reset_key, obdata_ubereval_key, "Point Cache Reset -> UberEval");
 }
 
 void DepsgraphRelationBuilder::build_particle_settings(ParticleSettings *part)
@@ -1752,19 +1820,6 @@ void DepsgraphRelationBuilder::build_particles_visualization_object(
 		             dup_geometry_key,
 		             "Particle MBall Visualization");
 	}
-}
-
-void DepsgraphRelationBuilder::build_cloth(Object *object,
-                                           ModifierData * /*md*/)
-{
-	OperationKey cache_key(&object->id,
-	                       DEG_NODE_TYPE_CACHE,
-	                       DEG_OPCODE_GEOMETRY_CLOTH_MODIFIER);
-	/* Cache component affects on modifier. */
-	OperationKey modifier_key(&object->id,
-	                          DEG_NODE_TYPE_GEOMETRY,
-	                          DEG_OPCODE_GEOMETRY_UBEREVAL);
-	add_relation(cache_key, modifier_key, "Cloth Cache -> Cloth");
 }
 
 /* Shapekeys */
@@ -1839,9 +1894,6 @@ void DepsgraphRelationBuilder::build_object_data_geometry(Object *object)
 			if (BKE_object_modifier_use_time(object, md)) {
 				TimeSourceKey time_src_key;
 				add_relation(time_src_key, obdata_ubereval_key, "Time Source");
-			}
-			if (md->type == eModifierType_Cloth) {
-				build_cloth(object, md);
 			}
 		}
 	}
@@ -2147,6 +2199,9 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 		else if (id_type == ID_TXT) {
 			/* Ignore script nodes. */
 		}
+		else if (id_type == ID_MSK) {
+			build_mask((Mask *)id);
+		}
 		else if (id_type == ID_MC) {
 			build_movieclip((MovieClip *)id);
 		}
@@ -2334,8 +2389,7 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 	/* XXX: This is a quick hack to make Alt-A to work. */
 	// add_relation(time_source_key, copy_on_write_key, "Fluxgate capacitor hack");
 	/* Resat of code is using rather low level trickery, so need to get some
-	 * explicit pointers.
-	 */
+	 * explicit pointers. */
 	DepsNode *node_cow = find_node(copy_on_write_key);
 	OperationDepsNode *op_cow = node_cow->get_exit_operation();
 	/* Plug any other components to this one. */
@@ -2349,7 +2403,7 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 			/* Component explicitly requests to not add relation. */
 			continue;
 		}
-		int rel_flag = DEPSREL_FLAG_NO_FLUSH;
+		int rel_flag = (DEPSREL_FLAG_NO_FLUSH | DEPSREL_FLAG_GODMODE);
 		if (id_type == ID_ME && comp_node->type == DEG_NODE_TYPE_GEOMETRY) {
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
@@ -2357,7 +2411,6 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		if (id_type == ID_MA) {
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
-
 		/* Notes on exceptions:
 		 * - Parameters component is where drivers are living. Changing any
 		 *   of the (custom) properties in the original datablock (even the
@@ -2438,7 +2491,9 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 			OperationKey data_copy_on_write_key(object_data_id,
 			                                    DEG_NODE_TYPE_COPY_ON_WRITE,
 			                                    DEG_OPCODE_COPY_ON_WRITE);
-			add_relation(data_copy_on_write_key, copy_on_write_key, "Eval Order");
+			DepsRelation *rel = add_relation(
+			        data_copy_on_write_key, copy_on_write_key, "Eval Order");
+			rel->flag |= DEPSREL_FLAG_GODMODE;
 		}
 		else {
 			BLI_assert(object->type == OB_EMPTY);
@@ -2458,17 +2513,7 @@ void DepsgraphRelationBuilder::modifier_walk(void *user_data,
 	if (id == NULL) {
 		return;
 	}
-	switch (GS(id->name)) {
-		case ID_OB:
-			data->builder->build_object(NULL, (Object *)id);
-			break;
-		case ID_TE:
-			data->builder->build_texture((Tex *)id);
-			break;
-		default:
-			/* pass */
-			break;
-	}
+	data->builder->build_id(id);
 }
 
 void DepsgraphRelationBuilder::constraint_walk(bConstraint * /*con*/,
@@ -2477,12 +2522,11 @@ void DepsgraphRelationBuilder::constraint_walk(bConstraint * /*con*/,
                                                void *user_data)
 {
 	BuilderWalkUserData *data = (BuilderWalkUserData *)user_data;
-	if (*idpoin) {
-		ID *id = *idpoin;
-		if (GS(id->name) == ID_OB) {
-			data->builder->build_object(NULL, (Object *)id);
-		}
+	ID *id = *idpoin;
+	if (id == NULL) {
+		return;
 	}
+	data->builder->build_id(id);
 }
 
 }  // namespace DEG

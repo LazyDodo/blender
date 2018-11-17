@@ -38,8 +38,8 @@
 #include "BLI_math.h"
 #include "BLI_string_utils.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_appdir.h"
 #include "BKE_armature.h"
 #include "BKE_blender_copybuffer.h"
@@ -47,9 +47,9 @@
 #include "BKE_deform.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
-#include "BKE_layer.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -137,8 +137,8 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 		copy_v3_v3(curbone->tail, pchan_eval->pose_tail);
 
 		/* fix roll:
-		 *	1. find auto-calculated roll value for this bone now
-		 *	2. remove this from the 'visual' y-rotation
+		 * 1. find auto-calculated roll value for this bone now
+		 * 2. remove this from the 'visual' y-rotation
 		 */
 		{
 			float premat[3][3], imat[3][3], pmat[3][3], tmat[3][3];
@@ -342,7 +342,7 @@ static bPoseChannel *pose_bone_do_paste(Object *ob, bPoseChannel *chan, const bo
 	/* continue? */
 	if (paste_ok) {
 		/* only loc rot size
-		 *	- only copies transform info for the pose
+		 * - only copies transform info for the pose
 		 */
 		copy_v3_v3(pchan->loc, chan->loc);
 		copy_v3_v3(pchan->size, chan->size);

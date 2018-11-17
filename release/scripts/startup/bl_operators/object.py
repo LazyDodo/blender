@@ -92,7 +92,7 @@ class SelectPattern(Operator):
                         if item_parent is not None:
                             item_parent.select_tail = True
                 else:
-                    item.select_set(action='SELECT')
+                    item.select_set(True)
 
         return {'FINISHED'}
 
@@ -139,7 +139,7 @@ class SelectCamera(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
             view_layer.objects.active = camera
             # camera.hide = False  # XXX TODO where is this now?
-            camera.select_set(action='SELECT')
+            camera.select_set(True)
             return {'FINISHED'}
 
         return {'CANCELLED'}
@@ -205,7 +205,7 @@ class SelectHierarchy(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
 
             for obj in select_new:
-                obj.select_set(action='SELECT')
+                obj.select_set(True)
 
             view_layer.objects.active = act_new
             return {'FINISHED'}
@@ -254,7 +254,7 @@ class SubdivisionSet(Operator):
                     if not relative:
                         if level > mod.total_levels:
                             sub = level - mod.total_levels
-                            for i in range(sub):
+                            for _ in range(sub):
                                 bpy.ops.object.multires_subdivide(modifier="Multires")
 
                         if obj.mode == 'SCULPT':
@@ -287,7 +287,7 @@ class SubdivisionSet(Operator):
                 if obj.mode == 'SCULPT':
                     mod = obj.modifiers.new("Multires", 'MULTIRES')
                     if level > 0:
-                        for i in range(0, level):
+                        for _ in range(level):
                             bpy.ops.object.multires_subdivide(modifier="Multires")
                 else:
                     mod = obj.modifiers.new("Subsurf", 'SUBSURF')
@@ -646,8 +646,8 @@ class MakeDupliFace(Operator):
             ob_new.use_dupli_faces_scale = True
             ob_new.dupli_faces_scale = 1.0 / SCALE_FAC
 
-            ob_inst.select_set(action='SELECT')
-            ob_new.select_set(action='SELECT')
+            ob_inst.select_set(True)
+            ob_new.select_set(True)
 
     def execute(self, context):
         self._main(context)

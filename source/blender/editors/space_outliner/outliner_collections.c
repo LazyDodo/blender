@@ -35,6 +35,7 @@
 #include "BKE_context.h"
 #include "BKE_collection.h"
 #include "BKE_layer.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 
@@ -81,7 +82,7 @@ Collection *outliner_collection_from_tree_element(const TreeElement *te)
 	TreeStoreElem *tselem = TREESTORE(te);
 
 	if (!tselem) {
-		return false;
+		return NULL;
 	}
 
 	if (tselem->type == TSE_LAYER_COLLECTION) {

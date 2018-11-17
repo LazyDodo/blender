@@ -33,13 +33,14 @@
 #include "BLI_string.h"
 
 #include "DNA_gpencil_types.h"
+#include "DNA_mesh_types.h"
+#include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
 #include "DNA_userdef_types.h"
-#include "DNA_object_types.h"
-#include "DNA_workspace_types.h"
 #include "DNA_windowmanager_types.h"
+#include "DNA_workspace_types.h"
 
 #include "BKE_colortools.h"
 #include "BKE_layer.h"
@@ -73,6 +74,9 @@ void BLO_update_defaults_userpref_blend(void)
 		bTheme *theme = U.themes.first;
 		memcpy(theme, &U_theme_default, sizeof(bTheme));
 	}
+
+	/* Leave temp directory empty, will then get appropriate value per OS. */
+	U.tempdir[0] = '\0';
 }
 
 /**
@@ -82,8 +86,8 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 {
 	/* For all startup.blend files. */
 	for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-		for (ScrArea *area = screen->areabase.first; area; area = area->next) {
-			for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
+		for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
 				/* Remove all stored panels, we want to use defaults (order, open/closed) as defined by UI code here! */
 				BKE_area_region_panels_free(&ar->panels);
 
@@ -93,17 +97,20 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 					ar->v2d.flag &= ~V2D_IS_INITIALISED;
 				}
 			}
+
+			for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+				switch (sl->spacetype) {
+					case SPACE_VIEW3D:
+					{
+						View3D *v3d = (View3D *)sl;
+						v3d->overlay.weight_paint_mode_opacity = 1.0f;
+					}
+				}
+			}
 		}
 	}
 
 	if (app_template == NULL) {
-		/* Clear all tools to use default options instead, ignore the tool saved in the file. */
-		for (WorkSpace *workspace = bmain->workspaces.first; workspace; workspace = workspace->id.next) {
-			while (!BLI_listbase_is_empty(&workspace->tools)) {
-				BKE_workspace_tool_remove(workspace, workspace->tools.first);
-			}
-		}
-
 		/* Name all screens by their workspaces (avoids 'Default.###' names). */
 		{
 			/* Default only has one window. */
@@ -173,6 +180,13 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 	                        STREQ(app_template, "Video_Editing");
 
 	if (builtin_template) {
+		/* Clear all tools to use default options instead, ignore the tool saved in the file. */
+		for (WorkSpace *workspace = bmain->workspaces.first; workspace; workspace = workspace->id.next) {
+			while (!BLI_listbase_is_empty(&workspace->tools)) {
+				BKE_workspace_tool_remove(workspace, workspace->tools.first);
+			}
+		}
+
 		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 			/* Hide channels in timelines. */
 			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
@@ -194,6 +208,12 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 			scene->r.cfra = 1.0f;
 			scene->r.displaymode = R_OUTPUT_WINDOW;
 
+			/* AV Sync break physics sim caching, disable until that is fixed. */
+			if (!(app_template && STREQ(app_template, "Video_Editing"))) {
+				scene->audio.flag &= ~AUDIO_SYNC;
+				scene->flag &= ~SCE_FRAME_DROP;
+			}
+
 			/* Don't enable compositing nodes. */
 			if (scene->nodetree) {
 				ntreeFreeTree(scene->nodetree);
@@ -204,6 +224,11 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 
 			/* Rename render layers. */
 			BKE_view_layer_rename(bmain, scene, scene->view_layers.first, "View Layer");
+		}
+
+		for (Mesh *mesh = bmain->mesh.first; mesh; mesh = mesh->id.next) {
+			/* Match default for new meshes. */
+			mesh->smoothresh = DEG2RADF(30);
 		}
 	}
 }

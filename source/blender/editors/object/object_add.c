@@ -30,6 +30,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "MEM_guardedalloc.h"
 
@@ -71,13 +72,14 @@
 #include "BKE_effect.h"
 #include "BKE_font.h"
 #include "BKE_gpencil.h"
+#include "BKE_key.h"
 #include "BKE_lamp.h"
 #include "BKE_lattice.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_library_remap.h"
-#include "BKE_key.h"
+#include "BKE_lightprobe.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
@@ -125,7 +127,6 @@ const EnumPropertyItem rna_enum_light_type_items[] = {
 	{LA_LOCAL, "POINT", ICON_LIGHT_POINT, "Point", "Omnidirectional point light source"},
 	{LA_SUN, "SUN", ICON_LIGHT_SUN, "Sun", "Constant direction parallel ray light source"},
 	{LA_SPOT, "SPOT", ICON_LIGHT_SPOT, "Spot", "Directional cone light source"},
-	{LA_HEMI, "HEMI", ICON_LIGHT_HEMI, "Hemi", "180 degree constant light source"},
 	{LA_AREA, "AREA", ICON_LIGHT_AREA, "Area", "Directional area light source"},
 	{0, NULL, 0, NULL, NULL}
 };
@@ -274,7 +275,12 @@ static void view_align_update(struct Main *UNUSED(main), struct Scene *UNUSED(sc
 	RNA_struct_idprops_unset(ptr, "rotation");
 }
 
-void ED_object_add_unit_props(wmOperatorType *ot)
+void ED_object_add_unit_props_size(wmOperatorType *ot)
+{
+	RNA_def_float_distance(ot->srna, "size", 2.0f, 0.0, OBJECT_ADD_SIZE_MAXF, "Size", "", 0.001, 100.00);
+}
+
+void ED_object_add_unit_props_radius(wmOperatorType *ot)
 {
 	RNA_def_float_distance(ot->srna, "radius", 1.0f, 0.0, OBJECT_ADD_SIZE_MAXF, "Radius", "", 0.001, 100.00);
 }
@@ -458,7 +464,7 @@ void OBJECT_OT_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	RNA_def_enum(ot->srna, "type", rna_enum_object_type_items, 0, "Type", "");
 
 	ED_object_add_generic_props(ot, true);
@@ -467,6 +473,17 @@ void OBJECT_OT_add(wmOperatorType *ot)
 /********************** Add Probe Operator **********************/
 
 /* for object add operator */
+static const char *get_lightprobe_defname(int type)
+{
+	switch (type) {
+		case LIGHTPROBE_TYPE_GRID: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "IrradianceVolume");
+		case LIGHTPROBE_TYPE_PLANAR: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "ReflectionPlane");
+		case LIGHTPROBE_TYPE_CUBE: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "ReflectionCubemap");
+		default:
+			return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "LightProbe");
+	}
+}
+
 static int lightprobe_add_exec(bContext *C, wmOperator *op)
 {
 	Object *ob;
@@ -483,8 +500,7 @@ static int lightprobe_add_exec(bContext *C, wmOperator *op)
 	type = RNA_enum_get(op->ptr, "type");
 	radius = RNA_float_get(op->ptr, "radius");
 
-	const char *name = CTX_DATA_(BLT_I18NCONTEXT_ID_OBJECT, "Light Probe");
-	ob = ED_object_add_type(C, OB_LIGHTPROBE, name, loc, rot, false);
+	ob = ED_object_add_type(C, OB_LIGHTPROBE, get_lightprobe_defname(type), loc, rot, false);
 	BKE_object_obdata_size_init(ob, radius);
 
 	probe = (LightProbe *)ob->data;
@@ -506,7 +522,7 @@ static int lightprobe_add_exec(bContext *C, wmOperator *op)
 			probe->attenuation_type = LIGHTPROBE_SHAPE_ELIPSOID;
 			break;
 		default:
-			BLI_assert(!"Lightprobe type not configured.");
+			BLI_assert(!"LightProbe type not configured.");
 			break;
 	}
 
@@ -532,7 +548,7 @@ void OBJECT_OT_lightprobe_add(wmOperatorType *ot)
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", lightprobe_type_items, 0, "Type", "");
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -600,7 +616,7 @@ void OBJECT_OT_effector_add(wmOperatorType *ot)
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", field_type_items, 0, "Type", "");
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -716,7 +732,7 @@ void OBJECT_OT_metaball_add(wmOperatorType *ot)
 
 	ot->prop = RNA_def_enum(ot->srna, "type", rna_enum_metaelem_type_items, 0, "Primitive", "");
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -758,7 +774,7 @@ void OBJECT_OT_text_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -818,7 +834,7 @@ void OBJECT_OT_armature_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -860,7 +876,7 @@ void OBJECT_OT_empty_add(wmOperatorType *ot)
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", rna_enum_object_empty_drawtype_items, 0, "Type", "");
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, false);
 }
 
@@ -1029,8 +1045,8 @@ static int object_gpencil_add_exec(bContext *C, wmOperator *op)
 void OBJECT_OT_gpencil_add(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Add GPencil";
-	ot->description = "Add a grease pencil object to the scene";
+	ot->name = "Add Grease Pencil";
+	ot->description = "Add a Grease Pencil object to the scene";
 	ot->idname = "OBJECT_OT_gpencil_add";
 
 	/* api callbacks */
@@ -1042,7 +1058,7 @@ void OBJECT_OT_gpencil_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, false);
 
 	ot->prop = RNA_def_enum(ot->srna, "type", rna_enum_object_gpencil_type_items, 0, "Type", "");
@@ -1056,7 +1072,6 @@ static const char *get_light_defname(int type)
 		case LA_LOCAL: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "Point");
 		case LA_SUN: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "Sun");
 		case LA_SPOT: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "Spot");
-		case LA_HEMI: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "Hemi");
 		case LA_AREA: return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "Area");
 		default:
 			return CTX_DATA_(BLT_I18NCONTEXT_ID_LAMP, "Light");
@@ -1122,7 +1137,7 @@ void OBJECT_OT_light_add(wmOperatorType *ot)
 	ot->prop = RNA_def_enum(ot->srna, "type", rna_enum_light_type_items, 0, "Type", "");
 	RNA_def_property_translation_context(ot->prop, BLT_I18NCONTEXT_ID_LAMP);
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, false);
 }
 
@@ -2324,6 +2339,16 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 					ID_NEW_REMAP_US2(obn->data)
 					else {
 						obn->data = ID_NEW_SET(obn->data, BKE_camera_copy(bmain, obn->data));
+						didit = 1;
+					}
+					id_us_min(id);
+				}
+				break;
+			case OB_LIGHTPROBE:
+				if (dupflag != 0) {
+					ID_NEW_REMAP_US2(obn->data)
+					else {
+						obn->data = ID_NEW_SET(obn->data, BKE_lightprobe_copy(bmain, obn->data));
 						didit = 1;
 					}
 					id_us_min(id);

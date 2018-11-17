@@ -33,6 +33,7 @@
 #include "BKE_gpencil_modifier.h"
 #include "BKE_image.h"
 #include "BKE_material.h"
+#include "BKE_paint.h"
 
 #include "ED_gpencil.h"
 #include "ED_view3d.h"
@@ -836,7 +837,8 @@ static void gpencil_draw_strokes(
 			if (gps->totpoints > 0) {
 				if ((gps->totpoints > 2) && (!stl->storage->simplify_fill) &&
 				    ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)) &&
-				    ((gps->flag & GP_STROKE_NOFILL) == 0))
+				    ((gps->flag & GP_STROKE_NOFILL) == 0) &&
+				    (gp_style->flag & GP_STYLE_FILL_SHOW))
 				{
 					stl->shgroups[id].shgrps_fill = DRW_gpencil_shgroup_fill_create(
 					        e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh, gpd, gp_style, id);
@@ -881,27 +883,32 @@ static void gpencil_draw_strokes(
 			}
 			/* stroke */
 			if (strokegrp) {
+				const float nop = ((gp_style->flag & GP_STYLE_STROKE_SHOW) == 0) || (gp_style->stroke_rgba[3] < GPENCIL_ALPHA_OPACITY_THRESH) ? 0.0f : opacity;
 				gpencil_add_stroke_shgroup(
 				        cache, strokegrp, ob, gpl, derived_gpf, gps,
-				        opacity, tintcolor, false, custonion);
+				        nop, tintcolor, false, custonion);
 			}
 		}
 
 		/* edit points (only in edit mode and not play animation not render) */
 		if ((draw_ctx->obact == ob) && (src_gps) &&
-		    (!playing) && (!is_render) && (!cache_ob->is_dup_ob) &&
-		    ((gpl->flag & GP_LAYER_LOCKED) == 0))
+		    (!playing) && (!is_render) && (!cache_ob->is_dup_ob))
 		{
-			if (!stl->g_data->shgrps_edit_line) {
-				stl->g_data->shgrps_edit_line = DRW_shgroup_create(e_data->gpencil_line_sh, psl->edit_pass);
-			}
-			if (!stl->g_data->shgrps_edit_point) {
-				stl->g_data->shgrps_edit_point = DRW_shgroup_create(e_data->gpencil_edit_point_sh, psl->edit_pass);
-				const float *viewport_size = DRW_viewport_size_get();
-				DRW_shgroup_uniform_vec2(stl->g_data->shgrps_edit_point, "Viewport", viewport_size, 1);
-			}
+			if ((gpl->flag & GP_LAYER_LOCKED) == 0) {
+				if (!stl->g_data->shgrps_edit_line) {
+					stl->g_data->shgrps_edit_line = DRW_shgroup_create(e_data->gpencil_line_sh, psl->edit_pass);
+				}
+				if (!stl->g_data->shgrps_edit_point) {
+					stl->g_data->shgrps_edit_point = DRW_shgroup_create(e_data->gpencil_edit_point_sh, psl->edit_pass);
+					const float *viewport_size = DRW_viewport_size_get();
+					DRW_shgroup_uniform_vec2(stl->g_data->shgrps_edit_point, "Viewport", viewport_size, 1);
+				}
 
-			gpencil_add_editpoints_shgroup(stl, cache, ts, ob, gpd, gpl, derived_gpf, src_gps);
+				gpencil_add_editpoints_shgroup(stl, cache, ts, ob, gpd, gpl, derived_gpf, src_gps);
+			}
+			else {
+				gpencil_batch_cache_check_free_slots(ob);
+			}
 		}
 
 		GP_SET_SRC_GPS(src_gps);
@@ -915,7 +922,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 {
 	GPENCIL_PassList *psl = ((GPENCIL_Data *)vedata)->psl;
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	Brush *brush = BKE_brush_getactive_gpencil(ts);
+	Brush *brush = BKE_paint_brush(&ts->gp_paint->paint);
 	bGPdata *gpd_eval = ob->data;
 	/* need the original to avoid cow overhead while drawing */
 	bGPdata *gpd = (bGPdata *)DEG_get_original_id(&gpd_eval->id);
@@ -972,15 +979,18 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 					        gpd, lthick);
 				}
 
-				DRW_shgroup_call_add(
-				        stl->g_data->shgrps_drawing_stroke,
-				        e_data->batch_buffer_stroke,
-				        stl->storage->unit_matrix);
+				if (gp_style->flag & GP_STYLE_STROKE_SHOW) {
+					DRW_shgroup_call_add(
+						stl->g_data->shgrps_drawing_stroke,
+						e_data->batch_buffer_stroke,
+						stl->storage->unit_matrix);
+				}
 
 				if ((gpd->runtime.sbuffer_size >= 3) &&
 				    (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
 				    ((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0) &&
-				    ((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0))
+				    ((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0) &&
+				    (gp_style->flag & GP_STYLE_FILL_SHOW))
 				{
 					/* if not solid, fill is simulated with solid color */
 					if (gpd->runtime.bfill_style > 0) {
@@ -1218,7 +1228,7 @@ void DRW_gpencil_populate_multiedit(
 	cache->is_dirty = false;
 }
 
-void static gpencil_copy_frame(bGPDframe *gpf, bGPDframe *derived_gpf)
+static void gpencil_copy_frame(bGPDframe *gpf, bGPDframe *derived_gpf)
 {
 	derived_gpf->prev = gpf->prev;
 	derived_gpf->next = gpf->next;
@@ -1244,18 +1254,25 @@ void DRW_gpencil_populate_datablock(
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
+	const ViewLayer *view_layer = DEG_get_evaluated_view_layer(draw_ctx->depsgraph);
+
 	bGPdata *gpd_eval = (bGPdata *)ob->data;
 	bGPdata *gpd = (bGPdata *)DEG_get_original_id(&gpd_eval->id);
 
 	View3D *v3d = draw_ctx->v3d;
 	int cfra_eval = (int)DEG_get_ctime(draw_ctx->depsgraph);
 	ToolSettings *ts = scene->toolsettings;
+
 	bGPDframe *derived_gpf = NULL;
 	const bool main_onion = v3d != NULL ? (v3d->gp_flag & V3D_GP_SHOW_ONION_SKIN) : true;
 	const bool do_onion = (bool)((gpd->flag & GP_DATA_STROKE_WEIGHTMODE) == 0) && main_onion;
 	const bool overlay = v3d != NULL ? (bool)((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) : true;
+	const bool time_remap = BKE_gpencil_has_time_modifiers(ob);
+
 	float opacity;
 	bGPDframe *p = NULL;
+	bGPDframe *gpf = NULL;
+	bGPDlayer *gpl_active = BKE_gpencil_layer_getactive(gpd);
 
 	/* check if playing animation */
 	bool playing = stl->storage->is_playing;
@@ -1275,24 +1292,46 @@ void DRW_gpencil_populate_datablock(
 		if (gpl->flag & GP_LAYER_HIDE)
 			continue;
 
-		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
+		/* filter view layer to gp layers in the same view layer (for compo) */
+		if ((stl->storage->is_render) && (gpl->viewlayername[0] != '\0')) {
+			if (!STREQ(view_layer->name, gpl->viewlayername)) {
+				continue;
+			}
+		}
+
+		if ((!time_remap) || (stl->storage->simplify_modif)) {
+			gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
+		}
+		else {
+			int remap_cfra = BKE_gpencil_time_modifier(
+			        draw_ctx->depsgraph, scene, ob, gpl, cfra_eval,
+			        stl->storage->is_render);
+
+			gpf = BKE_gpencil_layer_getframe(gpl, remap_cfra, GP_GETFRAME_USE_PREV);
+		}
 		if (gpf == NULL)
 			continue;
 
+		opacity = gpl->opacity;
 		/* if pose mode, maybe the overlay to fade geometry is enabled */
 		if ((draw_ctx->obact) && (draw_ctx->object_mode == OB_MODE_POSE) &&
-			(v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT))
+		    (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT))
 		{
-			opacity = gpl->opacity * v3d->overlay.bone_select_alpha;
+			opacity = opacity * v3d->overlay.bone_select_alpha;
 		}
-		else {
-			opacity = gpl->opacity;
+		/* fade no active layers */
+		if ((overlay) && (draw_ctx->object_mode == OB_MODE_GPENCIL_PAINT) &&
+		    (v3d->gp_flag & V3D_GP_FADE_NOACTIVE_LAYERS) &&
+		    (draw_ctx->obact) && (draw_ctx->obact == ob) &&
+		    (gpl != gpl_active))
+		{
+			opacity = opacity * v3d->overlay.gpencil_fade_layer;
 		}
 
 		/* create derived array data or expand */
 		if (cache_ob->data_idx + 1 > gpl->runtime.len_derived) {
 			if ((gpl->runtime.len_derived == 0) ||
-				(gpl->runtime.derived_array == NULL))
+			    (gpl->runtime.derived_array == NULL))
 			{
 				p = MEM_callocN(sizeof(struct bGPDframe), "bGPDframe array");
 				gpl->runtime.len_derived = 1;
@@ -1321,7 +1360,7 @@ void DRW_gpencil_populate_datablock(
 		/* draw onion skins */
 		if (!ID_IS_LINKED(&gpd->id)) {
 			if ((!cache_ob->is_dup_data) &&
-				(gpd->flag & GP_DATA_SHOW_ONIONSKINS) &&
+			    (gpd->flag & GP_DATA_SHOW_ONIONSKINS) &&
 			    (do_onion) && (gpl->onion_flag & GP_LAYER_ONIONSKIN) &&
 			    ((!playing) || (gpd->onion_flag & GP_ONION_GHOST_ALWAYS)) &&
 			    (!cache_ob->is_dup_ob) && (gpd->id.us <= 1))

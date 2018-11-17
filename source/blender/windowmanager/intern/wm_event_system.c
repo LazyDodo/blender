@@ -299,42 +299,39 @@ static void wm_notifier_clear(wmNotifier *note)
 void wm_event_do_depsgraph(bContext *C)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
+	/* The whole idea of locked interface is to prevent viewport and whatever
+	 * thread to modify the same data. Because of this, we can not perform
+	 * dependency graph update.
+	 */
+	if (wm->is_interface_locked) {
+		return;
+	}
+	/* Combine datamasks so 1 win doesn't disable UV's in another [#26448]. */
 	uint64_t win_combine_v3d_datamask = 0;
-
-	/* combine datamasks so 1 win doesn't disable UV's in another [#26448] */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
 		const Scene *scene = WM_window_get_active_scene(win);
 		const bScreen *screen = WM_window_get_active_screen(win);
 
 		win_combine_v3d_datamask |= ED_view3d_screen_datamask(scene, screen);
 	}
-
-	/* cached: editor refresh callbacks now, they get context */
+	/* Update all the dependency graphs of visible vew layers. */
 	for (wmWindow *win = wm->windows.first; win; win = win->next) {
 		Scene *scene = WM_window_get_active_scene(win);
 		ViewLayer *view_layer = WM_window_get_active_view_layer(win);
-
-		/* XXX make lock in future, or separated derivedmesh users in scene */
-		if (G.is_rendering == false) {
-			/* depsgraph & animation: update tagged datablocks */
-			Main *bmain = CTX_data_main(C);
-
-			/* copied to set's in scene_update_tagged_recursive() */
-			scene->customdata_mask = win_combine_v3d_datamask;
-
-			/* XXX, hack so operators can enforce datamasks [#26482], gl render */
-			scene->customdata_mask |= scene->customdata_mask_modal;
-
-			/* TODO(sergey): For now all dependency graphs which are evaluated from
-			 * workspace are considered active. This will work all fine with "locked"
-			 * view layer and time across windows. This is to be granted separately,
-			 * and for until then we have to accept ambiguities when object is shared
-			 * across visible view layers and has overrides on it.
-			 */
-			Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-			DEG_make_active(depsgraph);
-			BKE_scene_graph_update_tagged(depsgraph, bmain);
-		}
+		Main *bmain = CTX_data_main(C);
+		/* Copied to set's in scene_update_tagged_recursive() */
+		scene->customdata_mask = win_combine_v3d_datamask;
+		/* XXX, hack so operators can enforce datamasks [#26482], gl render */
+		scene->customdata_mask |= scene->customdata_mask_modal;
+		/* TODO(sergey): For now all dependency graphs which are evaluated from
+		 * workspace are considered active. This will work all fine with "locked"
+		 * view layer and time across windows. This is to be granted separately,
+		 * and for until then we have to accept ambiguities when object is shared
+		 * across visible view layers and has overrides on it.
+		 */
+		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
+		DEG_make_active(depsgraph);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 	}
 }
 
@@ -524,6 +521,9 @@ void wm_event_do_notifiers(bContext *C)
 		WM_window_cursor_keymap_status_refresh(C, win);
 		CTX_wm_window_set(C, NULL);
 	}
+
+	/* Autorun warning */
+	wm_test_autorun_warning(C);
 }
 
 static int wm_event_always_pass(const wmEvent *event)
@@ -1769,14 +1769,6 @@ void WM_event_remove_handlers(bContext *C, ListBase *handlers)
 int WM_userdef_event_map(int kmitype)
 {
 	switch (kmitype) {
-		case SELECTMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? LEFTMOUSE : RIGHTMOUSE;
-		case ACTIONMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? RIGHTMOUSE : LEFTMOUSE;
-		case EVT_TWEAK_A:
-			return (U.flag & USER_LMOUSESELECT) ? EVT_TWEAK_R : EVT_TWEAK_L;
-		case EVT_TWEAK_S:
-			return (U.flag & USER_LMOUSESELECT) ? EVT_TWEAK_L : EVT_TWEAK_R;
 		case WHEELOUTMOUSE:
 			return (U.uiflag & USER_WHEELZOOMDIR) ? WHEELUPMOUSE : WHEELDOWNMOUSE;
 		case WHEELINMOUSE:
@@ -1794,14 +1786,6 @@ int WM_userdef_event_map(int kmitype)
 int WM_userdef_event_type_from_keymap_type(int kmitype)
 {
 	switch (kmitype) {
-		case SELECTMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? LEFTMOUSE : RIGHTMOUSE;
-		case ACTIONMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? RIGHTMOUSE : LEFTMOUSE;
-		case EVT_TWEAK_S:
-			return (U.flag & USER_LMOUSESELECT) ? LEFTMOUSE : RIGHTMOUSE;
-		case EVT_TWEAK_A:
-			return (U.flag & USER_LMOUSESELECT) ? RIGHTMOUSE : LEFTMOUSE;
 		case EVT_TWEAK_L:
 			return LEFTMOUSE;
 		case EVT_TWEAK_M:
@@ -4474,7 +4458,9 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
 	/* Detect changes to the state. */
 	{
 		bToolRef *tref = NULL;
-		if (ar->regiontype == RGN_TYPE_WINDOW) {
+		if ((ar->regiontype == RGN_TYPE_WINDOW) &&
+		    ((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK))
+		{
 			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 			WorkSpace *workspace = WM_window_get_active_workspace(win);
 			const bToolKey tkey = {
@@ -4587,7 +4573,7 @@ bool WM_window_modal_keymap_status_draw(
 			}
 		}
 	}
-	if (keymap == NULL) {
+	if (keymap == NULL || keymap->modal_items == NULL) {
 		return false;
 	}
 	const EnumPropertyItem *items = keymap->modal_items;

@@ -29,7 +29,6 @@
 #include "MEM_guardedalloc.h"
 
 #include "DNA_listBase.h"
-#include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
 #include "BLI_linklist_stack.h"
@@ -189,7 +188,7 @@ BMesh *BM_mesh_create(
 /**
  * \brief BMesh Free Mesh Data
  *
- *	Frees a BMesh structure.
+ * Frees a BMesh structure.
  *
  * \note frees mesh, but not actual BMesh struct
  */
@@ -298,7 +297,7 @@ void BM_mesh_clear(BMesh *bm)
 /**
  * \brief BMesh Free Mesh
  *
- *	Frees a BMesh data and its structure.
+ * Frees a BMesh data and its structure.
  */
 void BM_mesh_free(BMesh *bm)
 {
@@ -1876,28 +1875,6 @@ void BM_mesh_elem_table_free(BMesh *bm, const char htype)
 		MEM_SAFE_FREE(bm->ftable);
 	}
 }
-
-BMVert *BM_vert_at_index(BMesh *bm, const int index)
-{
-	BLI_assert((index >= 0) && (index < bm->totvert));
-	BLI_assert((bm->elem_table_dirty & BM_VERT) == 0);
-	return bm->vtable[index];
-}
-
-BMEdge *BM_edge_at_index(BMesh *bm, const int index)
-{
-	BLI_assert((index >= 0) && (index < bm->totedge));
-	BLI_assert((bm->elem_table_dirty & BM_EDGE) == 0);
-	return bm->etable[index];
-}
-
-BMFace *BM_face_at_index(BMesh *bm, const int index)
-{
-	BLI_assert((index >= 0) && (index < bm->totface));
-	BLI_assert((bm->elem_table_dirty & BM_FACE) == 0);
-	return bm->ftable[index];
-}
-
 
 BMVert *BM_vert_at_index_find(BMesh *bm, const int index)
 {

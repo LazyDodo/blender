@@ -64,7 +64,6 @@
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_layer.h"
-#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
@@ -147,7 +146,7 @@ static const EnumPropertyItem *rna_GPConvert_mode_items(
 /* --- */
 
 /* convert the coordinates from the given stroke point into 3d-coordinates
- *	- assumes that the active space is the 3D-View
+ * - assumes that the active space is the 3D-View
  */
 static void gp_strokepoint_convertcoords(
         bContext *C, bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *source_pt,
@@ -483,7 +482,7 @@ static void gp_stroke_path_animation(bContext *C, ReportList *reports, Curve *cu
 
 	/* Ensure we have an F-Curve to add keyframes to */
 	act = verify_adt_action(bmain, (ID *)cu, true);
-	fcu = verify_fcurve(act, NULL, &ptr, "eval_time", 0, true);
+	fcu = verify_fcurve(bmain, act, NULL, &ptr, "eval_time", 0, true);
 
 	if (G.debug & G_DEBUG) {
 		printf("%s: tot len: %f\t\ttot time: %f\n", __func__, gtd->tot_dist, gtd->tot_time);
@@ -1174,7 +1173,7 @@ static void gp_layer_to_curve(
 	}
 
 	/* init the curve object (remove rotation and get curve data from it)
-	 *	- must clear transforms set on object, as those skew our results
+	 * - must clear transforms set on object, as those skew our results
 	 */
 	ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
 	cu = ob->data = BKE_curve_add(bmain, gpl->info, OB_CURVE);

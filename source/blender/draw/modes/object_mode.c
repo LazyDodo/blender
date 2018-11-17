@@ -419,14 +419,23 @@ static void OBJECT_engine_init(void *vedata)
 		e_data.outline_fade_sh = DRW_shader_create_fullscreen(datatoc_object_outline_expand_frag_glsl, NULL);
 
 		/* Empty images */
+#		define EMPTY_IMAGE_SHADER_DEFINES \
+		        "#define DEPTH_UNCHANGED " STRINGIFY(OB_EMPTY_IMAGE_DEPTH_DEFAULT) "\n" \
+		        "#define DEPTH_FRONT " STRINGIFY(OB_EMPTY_IMAGE_DEPTH_FRONT) "\n" \
+		        "#define DEPTH_BACK " STRINGIFY(OB_EMPTY_IMAGE_DEPTH_BACK) "\n"
+
 		e_data.object_empty_image_sh = DRW_shader_create(
-		           datatoc_object_empty_image_vert_glsl, NULL,
-		           datatoc_object_empty_image_frag_glsl, NULL);
+		            datatoc_object_empty_image_vert_glsl, NULL,
+		            datatoc_object_empty_image_frag_glsl,
+		            EMPTY_IMAGE_SHADER_DEFINES);
 
 		e_data.object_empty_image_wire_sh = DRW_shader_create(
-		           datatoc_object_empty_image_vert_glsl, NULL,
-		           datatoc_object_empty_image_frag_glsl,
-		           "#define USE_WIRE\n");
+		            datatoc_object_empty_image_vert_glsl, NULL,
+		            datatoc_object_empty_image_frag_glsl,
+		            EMPTY_IMAGE_SHADER_DEFINES
+		            "#define USE_WIRE\n");
+
+#		undef EMPTY_IMAGE_SHADER_DEFINES
 
 		/* Grid */
 		e_data.grid_sh = DRW_shader_create_with_lib(
@@ -502,6 +511,11 @@ static void OBJECT_engine_init(void *vedata)
 
 		}
 		else {
+			if (rv3d->view != RV3D_VIEW_USER) {
+				/* Allow 3 more subdivisions. */
+				grid_scale /= powf(v3d->gridsubdiv, 3);
+			}
+
 			float viewdist = 1.0f / max_ff(fabsf(winmat[0][0]), fabsf(winmat[1][1]));
 			grid_res = viewdist / grid_scale;
 
@@ -842,6 +856,17 @@ static void image_calc_aspect(Image *ima, ImageUser *iuser, float r_image_aspect
 	}
 }
 
+static bool is_image_empty_visible(Object *ob, RegionView3D *rv3d)
+{
+	int visibility_flag = ob->empty_image_visibility_flag;
+	if (rv3d->is_persp) {
+		return visibility_flag & OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE;
+	}
+	else {
+		return visibility_flag & OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC;
+	}
+}
+
 /* per-image shading groups for image-type empty objects */
 struct EmptyImageShadingGroupData {
 	DRWShadingGroup *shgrp_image;
@@ -850,9 +875,11 @@ struct EmptyImageShadingGroupData {
 };
 
 static void DRW_shgroup_empty_image(
-        OBJECT_ShadingGroupList *sgl, Object *ob, const float color[3])
+        OBJECT_ShadingGroupList *sgl, Object *ob, const float color[3], RegionView3D *rv3d)
 {
 	/* TODO: 'StereoViews', see draw_empty_image. */
+
+	if (!is_image_empty_visible(ob, rv3d)) return;
 
 	if (sgl->image_plane_map == NULL) {
 		sgl->image_plane_map = BLI_ghash_ptr_new(__func__);
@@ -886,6 +913,7 @@ static void DRW_shgroup_empty_image(
 			        e_data.object_empty_image_sh, sgl->non_meshes, geom, e_data.empty_image_format);
 			DRW_shgroup_uniform_texture(grp, "image", tex);
 			DRW_shgroup_uniform_vec2(grp, "aspect", empty_image_data->image_aspect, 1);
+			DRW_shgroup_uniform_int_copy(grp, "depthMode", ob->empty_image_depth);
 
 			empty_image_data->shgrp_image = grp;
 		}
@@ -905,6 +933,7 @@ static void DRW_shgroup_empty_image(
 			DRWShadingGroup *grp = DRW_shgroup_instance_create(
 			        e_data.object_empty_image_wire_sh, sgl->non_meshes, geom, e_data.empty_image_wire_format);
 			DRW_shgroup_uniform_vec2(grp, "aspect", empty_image_data->image_aspect, 1);
+			DRW_shgroup_uniform_int_copy(grp, "depthMode", ob->empty_image_depth);
 
 			empty_image_data->shgrp_wire = grp;
 		}
@@ -1044,6 +1073,7 @@ static void OBJECT_cache_init(void *vedata)
 		psl->grid = DRW_pass_create("Infinite Grid Pass", state);
 
 		struct GPUBatch *geom = DRW_cache_grid_get();
+		float grid_line_size = max_ff(0.0f, U.pixelsize - 1.0f) * 0.5f;
 		static float mat[4][4];
 		unit_m4(mat);
 
@@ -1055,6 +1085,7 @@ static void OBJECT_cache_init(void *vedata)
 		DRW_shgroup_uniform_vec3(grp, "cameraPos", e_data.camera_pos, 1);
 		DRW_shgroup_uniform_vec4(grp, "screenvecs[0]", e_data.screenvecs[0], 3);
 		DRW_shgroup_uniform_vec4(grp, "gridSettings", e_data.grid_settings, 1);
+		DRW_shgroup_uniform_float_copy(grp, "lineKernel", grid_line_size);
 		DRW_shgroup_uniform_float(grp, "gridOneOverLogSubdiv", &e_data.grid_settings[4], 1);
 		DRW_shgroup_uniform_block(grp, "globalsBlock", globals_ubo);
 		DRW_shgroup_uniform_vec2(grp, "viewportSize", DRW_viewport_size_get(), 1);
@@ -1440,12 +1471,10 @@ static void DRW_shgroup_lamp(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer
 	DRW_shgroup_call_dynamic_add(sgl->lamp_circle, ob->obmat[3], color);
 
 	/* draw dashed outer circle for shadow */
-	if (la->type != LA_HEMI) {
-		DRW_shgroup_call_dynamic_add(sgl->lamp_circle_shadow, ob->obmat[3], color);
-	}
+	DRW_shgroup_call_dynamic_add(sgl->lamp_circle_shadow, ob->obmat[3], color);
 
 	/* Distance */
-	if (ELEM(la->type, LA_HEMI, LA_SUN, LA_AREA)) {
+	if (ELEM(la->type, LA_SUN, LA_AREA)) {
 		DRW_shgroup_call_dynamic_add(sgl->lamp_distance, color, &zero, &la->dist, ob->obmat);
 	}
 
@@ -1506,10 +1535,6 @@ static void DRW_shgroup_lamp(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer
 
 		DRW_shgroup_call_dynamic_add(sgl->lamp_buflimit, color, &la->clipsta, &la->clipend, ob->obmat);
 		DRW_shgroup_call_dynamic_add(sgl->lamp_buflimit_points, color, &la->clipsta, &la->clipend, ob->obmat);
-	}
-	else if (la->type == LA_HEMI) {
-		static float hemisize = 2.0f;
-		DRW_shgroup_call_dynamic_add(sgl->lamp_hemi, color, &hemisize, shapemat);
 	}
 	else if (la->type == LA_AREA) {
 		float size[3] = {1.0f, 1.0f, 1.0f}, sizemat[4][4];
@@ -1846,7 +1871,7 @@ static void DRW_shgroup_empty_ex(
 	}
 }
 
-static void DRW_shgroup_empty(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer *view_layer)
+static void DRW_shgroup_empty(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLayer *view_layer, RegionView3D *rv3d)
 {
 	float *color;
 	DRW_object_wire_theme_get(ob, view_layer, &color);
@@ -1862,7 +1887,7 @@ static void DRW_shgroup_empty(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLaye
 			DRW_shgroup_empty_ex(sgl, ob->obmat, &ob->empty_drawsize, ob->empty_drawtype, color);
 			break;
 		case OB_EMPTY_IMAGE:
-			DRW_shgroup_empty_image(sgl, ob, color);
+			DRW_shgroup_empty_image(sgl, ob, color, rv3d);
 			break;
 	}
 }
@@ -2697,7 +2722,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			break;
 		case OB_LATTICE:
 		{
-			if (ob != draw_ctx->object_edit) {
+			if (ob != draw_ctx->object_edit && !BKE_object_is_in_editmode(ob)) {
 				if (hide_object_extra) {
 					break;
 				}
@@ -2749,7 +2774,7 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			if (hide_object_extra) {
 				break;
 			}
-			DRW_shgroup_empty(sgl, ob, view_layer);
+			DRW_shgroup_empty(sgl, ob, view_layer, rv3d);
 			break;
 		case OB_GPENCIL:
 			if (hide_object_extra) {
@@ -2978,6 +3003,13 @@ static void OBJECT_draw_scene(void *vedata)
 			GPU_framebuffer_bind(fbl->ghost_fb);
 			GPU_framebuffer_clear_depth(fbl->ghost_fb, 1.0f);
 		}
+		else if (DRW_state_is_select()) {
+			/* XXX `GPU_depth_range` is not a perfect solution
+			 * since very distant geometries can still be occluded.
+			 * Also the depth test precision of these geometries is impaired.
+			 * However solves the selection for the vast majority of cases. */
+			GPU_depth_range(0.0f, 0.01f);
+		}
 
 		DRW_draw_pass(stl->g_data->sgl_ghost.spot_shapes);
 		DRW_draw_pass(stl->g_data->sgl_ghost.bone_solid);
@@ -2985,6 +3017,10 @@ static void OBJECT_draw_scene(void *vedata)
 		DRW_draw_pass(stl->g_data->sgl_ghost.bone_outline);
 		DRW_draw_pass(stl->g_data->sgl_ghost.non_meshes);
 		DRW_draw_pass(stl->g_data->sgl_ghost.bone_axes);
+
+		if (DRW_state_is_select()) {
+			GPU_depth_range(0.0f, 1.0f);
+		}
 	}
 
 	batch_camera_path_free(&stl->g_data->sgl_ghost.camera_path);

@@ -58,15 +58,14 @@ extern "C" {
 
 #include "BKE_camera.h"
 #include "BKE_collection.h"
-#include "BKE_main.h"
+#include "BKE_fcurve.h"
+#include "BKE_global.h"
+#include "BKE_image.h"
 #include "BKE_layer.h"
 #include "BKE_lamp.h"
 #include "BKE_library.h"
-#include "BKE_fcurve.h"
-#include "BKE_scene.h"
-#include "BKE_global.h"
 #include "BKE_material.h"
-#include "BKE_image.h"
+#include "BKE_scene.h"
 
 #include "BLI_path_util.h"
 
@@ -1201,7 +1200,8 @@ bool DocumentImporter::writeLight(const COLLADAFW::Light *light)
 		switch (type) {
 			case COLLADAFW::Light::AMBIENT_LIGHT:
 			{
-				lamp->type = LA_HEMI;
+				/* TODO Fix */
+				// lamp->type = LA_HEMI;
 			}
 			break;
 			case COLLADAFW::Light::SPOT_LIGHT:

@@ -62,7 +62,7 @@ struct EnumPropertyItem;
 /* ************ Keyframing Management **************** */
 
 /* Get the active settings for keyframing settings from context (specifically the given scene)
- *	- incl_mode: include settings from keyframing mode in the result (i.e. replace only)
+ * - incl_mode: include settings from keyframing mode in the result (i.e. replace only)
  */
 short ANIM_get_keyframing_flags(struct Scene *scene, short incl_mode);
 
@@ -76,7 +76,7 @@ struct bAction *verify_adt_action(struct Main *bmain, struct ID *id, short add);
 /* Get (or add relevant data to be able to do so) F-Curve from the given Action.
  * This assumes that all the destinations are valid.
  */
-struct FCurve *verify_fcurve(struct bAction *act, const char group[], struct PointerRNA *ptr,
+struct FCurve *verify_fcurve(struct Main *bmain, struct bAction *act, const char group[], struct PointerRNA *ptr,
                              const char rna_path[], const int array_index, short add);
 
 /* -------- */
@@ -106,16 +106,16 @@ int insert_vert_fcurve(struct FCurve *fcu, float x, float y, eBezTriple_Keyframe
 /* -------- */
 
 /* Secondary Keyframing API calls:
- *	Use this to insert a keyframe using the current value being keyframed, in the
- *	nominated F-Curve (no creation of animation data performed). Returns success.
+ * Use this to insert a keyframe using the current value being keyframed, in the
+ * nominated F-Curve (no creation of animation data performed). Returns success.
  */
 bool insert_keyframe_direct(struct Depsgraph *depsgraph, struct ReportList *reports, struct PointerRNA ptr, struct PropertyRNA *prop, struct FCurve *fcu, float cfra, eBezTriple_KeyframeType keytype, eInsertKeyFlags flag);
 
 /* -------- */
 
 /* Main Keyframing API calls:
- *	Use this to create any necessary animation data, and then insert a keyframe
- *	using the current value being keyframed, in the relevant place. Returns success.
+ * Use this to create any necessary animation data, and then insert a keyframe
+ * using the current value being keyframed, in the relevant place. Returns success.
  */
 short insert_keyframe(
         struct Main *bmain, struct Depsgraph *depsgraph, struct ReportList *reports, struct ID *id, struct bAction *act,
@@ -124,7 +124,9 @@ short insert_keyframe(
 /* Main Keyframing API call:
  *  Use this to delete keyframe on current frame for relevant channel. Will perform checks just in case.
  */
-short delete_keyframe(struct ReportList *reports, struct ID *id, struct bAction *act, const char group[], const char rna_path[], int array_index, float cfra, eInsertKeyFlags flag);
+short delete_keyframe(
+        struct Main *bmain, struct ReportList *reports, struct ID *id, struct bAction *act,
+        const char group[], const char rna_path[], int array_index, float cfra, eInsertKeyFlags flag);
 
 /* ************ Keying Sets ********************** */
 
@@ -160,8 +162,8 @@ typedef struct KeyingSetInfo {
 
 	/* generate callbacks */
 	/* iterator to use to go through collections of data in context
-	 *  - this callback is separate from the 'adding' stage, allowing
-	 *    BuiltIn KeyingSets to be manually specified to use
+	 * - this callback is separate from the 'adding' stage, allowing
+	 *   BuiltIn KeyingSets to be manually specified to use
 	 */
 	cbKeyingSet_Iterator iter;
 	/* generator to use to add properties based on the data found by iterator */
@@ -310,8 +312,8 @@ bool ANIM_driver_can_paste(void);
 bool ANIM_copy_driver(struct ReportList *reports, struct ID *id, const char rna_path[], int array_index, short flag);
 
 /* Main Driver Management API calls:
- *  Add a new driver for the specified property on the given ID block or replace an existing one
- *	with the driver + driver-curve data from the buffer
+ * Add a new driver for the specified property on the given ID block or replace an existing one
+ * with the driver + driver-curve data from the buffer
  */
 bool ANIM_paste_driver(struct ReportList *reports, struct ID *id, const char rna_path[], int array_index, short flag);
 
@@ -354,22 +356,22 @@ bool autokeyframe_cfra_can_key(struct Scene *scene, struct ID *id);
 /* ************ Keyframe Checking ******************** */
 
 /* Lesser Keyframe Checking API call:
- *	- Used for the buttons to check for keyframes...
+ * - Used for the buttons to check for keyframes...
  */
 bool fcurve_frame_has_keyframe(struct FCurve *fcu, float frame, short filter);
 
 /* Main Keyframe Checking API call:
  * Checks whether a keyframe exists for the given ID-block one the given frame.
- *  - It is recommended to call this method over the other keyframe-checkers directly,
- *    in case some detail of the implementation changes...
- *	- frame: the value of this is quite often result of BKE_scene_frame_get()
+ * - It is recommended to call this method over the other keyframe-checkers directly,
+ *   in case some detail of the implementation changes...
+ * - frame: the value of this is quite often result of BKE_scene_frame_get()
  */
 bool id_frame_has_keyframe(struct ID *id, float frame, short filter);
 
 /* filter flags for id_cfra_has_keyframe
  *
  * WARNING: do not alter order of these, as also stored in files
- *	(for v3d->keyflags)
+ * (for v3d->keyflags)
  */
 typedef enum eAnimFilterFlags {
 	/* general */

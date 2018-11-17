@@ -810,7 +810,7 @@ enum {
 	TFM_MODAL_ADD_SNAP       = 16,
 	TFM_MODAL_REMOVE_SNAP    = 17,
 
-/*	18 and 19 used by numinput, defined in transform.h */
+/* 18 and 19 used by numinput, defined in transform.h */
 
 	TFM_MODAL_PROPSIZE_UP    = 20,
 	TFM_MODAL_PROPSIZE_DOWN  = 21,
@@ -940,64 +940,8 @@ wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
 
 	wmKeyMap *keymap = WM_modalkeymap_get(keyconf, "Transform Modal Map");
 
-	/* this function is called for each spacetype, only needs to add map once */
-	if (keymap && keymap->modal_items) return NULL;
-
 	keymap = WM_modalkeymap_add(keyconf, "Transform Modal Map", modal_items);
 	keymap->poll_modal_item = transform_modal_item_poll;
-
-	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE,  KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, RETKEY,     KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, PADENTER,   KM_PRESS, KM_ANY, 0, TFM_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, RIGHTMOUSE, KM_PRESS, KM_ANY, 0, TFM_MODAL_CANCEL);
-	WM_modalkeymap_add_item(keymap, ESCKEY,     KM_PRESS, KM_ANY, 0, TFM_MODAL_CANCEL);
-
-	WM_modalkeymap_add_item(keymap, XKEY, KM_PRESS, 0, 0, TFM_MODAL_AXIS_X);
-	WM_modalkeymap_add_item(keymap, YKEY, KM_PRESS, 0, 0, TFM_MODAL_AXIS_Y);
-	WM_modalkeymap_add_item(keymap, ZKEY, KM_PRESS, 0, 0, TFM_MODAL_AXIS_Z);
-
-	WM_modalkeymap_add_item(keymap, XKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PLANE_X);
-	WM_modalkeymap_add_item(keymap, YKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PLANE_Y);
-	WM_modalkeymap_add_item(keymap, ZKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PLANE_Z);
-
-	WM_modalkeymap_add_item(keymap, CKEY, KM_PRESS, 0, 0, TFM_MODAL_CONS_OFF);
-
-	WM_modalkeymap_add_item(keymap, GKEY, KM_PRESS, 0, 0, TFM_MODAL_TRANSLATE);
-	WM_modalkeymap_add_item(keymap, RKEY, KM_PRESS, 0, 0, TFM_MODAL_ROTATE);
-	WM_modalkeymap_add_item(keymap, SKEY, KM_PRESS, 0, 0, TFM_MODAL_RESIZE);
-
-	WM_modalkeymap_add_item(keymap, TABKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_SNAP_TOGGLE);
-
-	WM_modalkeymap_add_item(keymap, LEFTCTRLKEY, KM_PRESS, KM_ANY, 0, TFM_MODAL_SNAP_INV_ON);
-	WM_modalkeymap_add_item(keymap, LEFTCTRLKEY, KM_RELEASE, KM_ANY, 0, TFM_MODAL_SNAP_INV_OFF);
-
-	WM_modalkeymap_add_item(keymap, RIGHTCTRLKEY, KM_PRESS, KM_ANY, 0, TFM_MODAL_SNAP_INV_ON);
-	WM_modalkeymap_add_item(keymap, RIGHTCTRLKEY, KM_RELEASE, KM_ANY, 0, TFM_MODAL_SNAP_INV_OFF);
-
-	WM_modalkeymap_add_item(keymap, AKEY, KM_PRESS, 0, 0, TFM_MODAL_ADD_SNAP);
-	WM_modalkeymap_add_item(keymap, AKEY, KM_PRESS, KM_ALT, 0, TFM_MODAL_REMOVE_SNAP);
-
-	WM_modalkeymap_add_item(keymap, PAGEUPKEY, KM_PRESS, 0, 0, TFM_MODAL_PROPSIZE_UP);
-	WM_modalkeymap_add_item(keymap, PAGEDOWNKEY, KM_PRESS, 0, 0, TFM_MODAL_PROPSIZE_DOWN);
-	WM_modalkeymap_add_item(keymap, PAGEUPKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PROPSIZE_UP);
-	WM_modalkeymap_add_item(keymap, PAGEDOWNKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PROPSIZE_DOWN);
-	WM_modalkeymap_add_item(keymap, WHEELDOWNMOUSE, KM_PRESS, 0, 0, TFM_MODAL_PROPSIZE_UP);
-	WM_modalkeymap_add_item(keymap, WHEELUPMOUSE, KM_PRESS, 0, 0, TFM_MODAL_PROPSIZE_DOWN);
-	WM_modalkeymap_add_item(keymap, WHEELDOWNMOUSE, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PROPSIZE_UP);
-	WM_modalkeymap_add_item(keymap, WHEELUPMOUSE, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_PROPSIZE_DOWN);
-	WM_modalkeymap_add_item(keymap, MOUSEPAN, 0, 0, 0, TFM_MODAL_PROPSIZE);
-
-	WM_modalkeymap_add_item(keymap, WHEELDOWNMOUSE, KM_PRESS, KM_ALT, 0, TFM_MODAL_EDGESLIDE_UP);
-	WM_modalkeymap_add_item(keymap, WHEELUPMOUSE, KM_PRESS, KM_ALT, 0, TFM_MODAL_EDGESLIDE_DOWN);
-
-	WM_modalkeymap_add_item(keymap, PAGEUPKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_AUTOIK_LEN_INC);
-	WM_modalkeymap_add_item(keymap, PAGEDOWNKEY, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_AUTOIK_LEN_DEC);
-	WM_modalkeymap_add_item(keymap, WHEELDOWNMOUSE, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_AUTOIK_LEN_INC);
-	WM_modalkeymap_add_item(keymap, WHEELUPMOUSE, KM_PRESS, KM_SHIFT, 0, TFM_MODAL_AUTOIK_LEN_DEC);
-
-	/* node editor only */
-	WM_modalkeymap_add_item(keymap, TKEY, KM_PRESS, 0, 0, TFM_MODAL_INSERTOFS_TOGGLE_DIR);
 
 	return keymap;
 }
@@ -2218,7 +2162,13 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 			orientation = V3D_MANIP_CUSTOM + orientation_index_custom;
 			BLI_assert(orientation >= V3D_MANIP_CUSTOM);
 		}
-		RNA_enum_set(op->ptr, "constraint_orientation", orientation);
+
+		RNA_float_set_array(op->ptr, "constraint_matrix", &t->spacemtx[0][0]);
+
+		/* Use 'constraint_matrix' instead. */
+		if (orientation != V3D_MANIP_CUSTOM_MATRIX) {
+			RNA_enum_set(op->ptr, "constraint_orientation", orientation);
+		}
 
 		if (t->con.mode & CON_APPLY) {
 			if (t->con.mode & CON_AXIS0) {
@@ -2319,31 +2269,49 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		t->draw_handle_apply = ED_region_draw_cb_activate(t->ar->type, drawTransformApply, t, REGION_DRAW_PRE_VIEW);
 		t->draw_handle_view = ED_region_draw_cb_activate(t->ar->type, drawTransformView, t, REGION_DRAW_POST_VIEW);
 		t->draw_handle_pixel = ED_region_draw_cb_activate(t->ar->type, drawTransformPixel, t, REGION_DRAW_POST_PIXEL);
-		t->draw_handle_cursor = WM_paint_cursor_activate(CTX_wm_manager(C), helpline_poll, drawHelpline, t);
+		t->draw_handle_cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        helpline_poll, drawHelpline, t);
 	}
 	else if (t->spacetype == SPACE_IMAGE) {
 		t->draw_handle_view = ED_region_draw_cb_activate(t->ar->type, drawTransformView, t, REGION_DRAW_POST_VIEW);
 		//t->draw_handle_pixel = ED_region_draw_cb_activate(t->ar->type, drawTransformPixel, t, REGION_DRAW_POST_PIXEL);
-		t->draw_handle_cursor = WM_paint_cursor_activate(CTX_wm_manager(C), helpline_poll, drawHelpline, t);
+		t->draw_handle_cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        helpline_poll, drawHelpline, t);
 	}
 	else if (t->spacetype == SPACE_CLIP) {
 		t->draw_handle_view = ED_region_draw_cb_activate(t->ar->type, drawTransformView, t, REGION_DRAW_POST_VIEW);
-		t->draw_handle_cursor = WM_paint_cursor_activate(CTX_wm_manager(C), helpline_poll, drawHelpline, t);
+		t->draw_handle_cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        helpline_poll, drawHelpline, t);
 	}
 	else if (t->spacetype == SPACE_NODE) {
 		/*t->draw_handle_apply = ED_region_draw_cb_activate(t->ar->type, drawTransformApply, t, REGION_DRAW_PRE_VIEW);*/
 		t->draw_handle_view = ED_region_draw_cb_activate(t->ar->type, drawTransformView, t, REGION_DRAW_POST_VIEW);
-		t->draw_handle_cursor = WM_paint_cursor_activate(CTX_wm_manager(C), helpline_poll, drawHelpline, t);
+		t->draw_handle_cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        helpline_poll, drawHelpline, t);
 	}
 	else if (t->spacetype == SPACE_IPO) {
 		t->draw_handle_view = ED_region_draw_cb_activate(t->ar->type, drawTransformView, t, REGION_DRAW_POST_VIEW);
 		//t->draw_handle_pixel = ED_region_draw_cb_activate(t->ar->type, drawTransformPixel, t, REGION_DRAW_POST_PIXEL);
-		t->draw_handle_cursor = WM_paint_cursor_activate(CTX_wm_manager(C), helpline_poll, drawHelpline, t);
+		t->draw_handle_cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        helpline_poll, drawHelpline, t);
 	}
 	else if (t->spacetype == SPACE_ACTION) {
 		t->draw_handle_view = ED_region_draw_cb_activate(t->ar->type, drawTransformView, t, REGION_DRAW_POST_VIEW);
 		//t->draw_handle_pixel = ED_region_draw_cb_activate(t->ar->type, drawTransformPixel, t, REGION_DRAW_POST_PIXEL);
-		t->draw_handle_cursor = WM_paint_cursor_activate(CTX_wm_manager(C), helpline_poll, drawHelpline, t);
+		t->draw_handle_cursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+		        helpline_poll, drawHelpline, t);
 	}
 
 	createTransData(C, t);          // make TransData structs from selection
@@ -2866,8 +2834,8 @@ static void constraintTransLim(TransInfo *t, TransData *td)
 		float ctime = (float)(t->scene->r.cfra);
 
 		/* Make a temporary bConstraintOb for using these limit constraints
-		 *  - they only care that cob->matrix is correctly set ;-)
-		 *	- current space should be local
+		 * - they only care that cob->matrix is correctly set ;-)
+		 * - current space should be local
 		 */
 		unit_m4(cob.matrix);
 		copy_v3_v3(cob.matrix[3], td->loc);
@@ -2933,8 +2901,8 @@ static void constraintTransLim(TransInfo *t, TransData *td)
 static void constraintob_from_transdata(bConstraintOb *cob, TransData *td)
 {
 	/* Make a temporary bConstraintOb for use by limit constraints
-	 *  - they only care that cob->matrix is correctly set ;-)
-	 *	- current space should be local
+	 * - they only care that cob->matrix is correctly set ;-)
+	 * - current space should be local
 	 */
 	memset(cob, 0, sizeof(bConstraintOb));
 	if (td->ext) {
@@ -3035,8 +3003,8 @@ static void constraintSizeLim(TransInfo *t, TransData *td)
 		int i;
 
 		/* Make a temporary bConstraintOb for using these limit constraints
-		 *  - they only care that cob->matrix is correctly set ;-)
-		 *	- current space should be local
+		 * - they only care that cob->matrix is correctly set ;-)
+		 * - current space should be local
 		 */
 		if ((td->flag & TD_SINGLESIZE) && !(t->con.mode & CON_APPLY)) {
 			/* scale val and reset size */
@@ -3659,7 +3627,8 @@ static void ElementResize(TransInfo *t, TransDataContainer *tc, TransData *td, f
 		copy_v3_v3(center, tc->center_local);
 	}
 
-	if (td->ext) {
+	/* Size checked needed since the 3D cursor only uses rotation fields. */
+	if (td->ext && td->ext->size) {
 		float fsize[3];
 
 		if (t->flag & (T_OBJECT | T_TEXTURE | T_POSE)) {
@@ -4651,7 +4620,7 @@ static void initSnapSpatial(TransInfo *t, float r_snap[3])
 		if (rv3d) {
 			View3D *v3d = t->sa->spacedata.first;
 			r_snap[0] = 0.0f;
-			r_snap[1] = ED_view3d_grid_scale(t->scene, v3d, NULL) * 1.0f;
+			r_snap[1] = ED_view3d_grid_view_scale(t->scene, v3d, rv3d, NULL) * 1.0f;
 			r_snap[2] = r_snap[1] * 0.1f;
 		}
 	}
@@ -8664,7 +8633,7 @@ static short getAnimEdit_SnapMode(TransInfo *t)
 	}
 
 	/* toggle autosnap on/off
-	 *  - when toggling on, prefer nearest frame over 1.0 frame increments
+	 * - when toggling on, prefer nearest frame over 1.0 frame increments
 	 */
 	if (t->modifiers & MOD_SNAP_INVERT) {
 		if (autosnap)

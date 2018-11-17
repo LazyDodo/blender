@@ -48,6 +48,7 @@
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
+#include "BKE_action.h"
 #include "BKE_armature.h"
 #include "BKE_camera.h"
 #include "BKE_context.h"
@@ -61,7 +62,6 @@
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
-#include "BKE_action.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -582,13 +582,6 @@ void viewrotate_modal_keymap(wmKeyConfig *keyconf)
 	if (keymap && keymap->modal_items) return;
 
 	keymap = WM_modalkeymap_add(keyconf, "View3D Rotate Modal", modal_items);
-
-	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, MIDDLEMOUSE, KM_RELEASE, KM_ANY, 0, VIEW_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, ESCKEY, KM_PRESS, KM_ANY, 0, VIEW_MODAL_CONFIRM);
-
-	WM_modalkeymap_add_item(keymap, LEFTALTKEY, KM_PRESS, KM_ANY, 0, VIEWROT_MODAL_AXIS_SNAP_ENABLE);
-	WM_modalkeymap_add_item(keymap, LEFTALTKEY, KM_RELEASE, KM_ANY, 0, VIEWROT_MODAL_AXIS_SNAP_DISABLE);
 
 	/* disabled mode switching for now, can re-implement better, later on */
 #if 0
@@ -1787,10 +1780,6 @@ void viewzoom_modal_keymap(wmKeyConfig *keyconf)
 
 	keymap = WM_modalkeymap_add(keyconf, "View3D Zoom Modal", modal_items);
 
-	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, MIDDLEMOUSE, KM_RELEASE, KM_ANY, 0, VIEW_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, ESCKEY, KM_PRESS, KM_ANY, 0, VIEW_MODAL_CONFIRM);
-
 	/* disabled mode switching for now, can re-implement better, later on */
 #if 0
 	WM_modalkeymap_add_item(keymap, LEFTMOUSE, KM_RELEASE, KM_ANY, 0, VIEWROT_MODAL_SWITCH_ROTATE);
@@ -2321,10 +2310,6 @@ void viewdolly_modal_keymap(wmKeyConfig *keyconf)
 	if (keymap && keymap->modal_items) return;
 
 	keymap = WM_modalkeymap_add(keyconf, "View3D Dolly Modal", modal_items);
-
-	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, MIDDLEMOUSE, KM_RELEASE, KM_ANY, 0, VIEW_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, ESCKEY, KM_PRESS, KM_ANY, 0, VIEW_MODAL_CONFIRM);
 
 	/* disabled mode switching for now, can re-implement better, later on */
 #if 0
@@ -4565,6 +4550,8 @@ void ED_view3d_clipping_local(RegionView3D *rv3d, float mat[4][4])
 		calc_local_clipping(rv3d->clip_local, rv3d->clipbb, mat);
 }
 
+#if 0 /* TODO Missing from 2.8 drawing code. Find a solution to support clip border then uncomment it. */
+
 static int view3d_clipping_exec(bContext *C, wmOperator *op)
 {
 	ARegion *ar = CTX_wm_region(C);
@@ -4621,6 +4608,7 @@ void VIEW3D_OT_clip_border(wmOperatorType *ot)
 	/* properties */
 	WM_operator_properties_border(ot);
 }
+#endif
 
 /** \} */
 

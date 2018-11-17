@@ -66,9 +66,12 @@ static struct {
 	struct GPUTexture *util_tex;
 	struct GPUTexture *noise_tex;
 
+	struct GPUUniformBuffer *dummy_sss_profile;
+
 	uint sss_count;
 
 	float alpha_hash_offset;
+	float alpha_hash_scale;
 	float noise_offsets[3];
 } e_data = {NULL}; /* Engine data */
 
@@ -385,7 +388,7 @@ static void add_standard_uniforms(
 		DRW_shgroup_uniform_texture_ref(shgrp, "shadowCascadeTexture", &sldata->shadow_cascade_pool);
 		DRW_shgroup_uniform_texture_ref(shgrp, "maxzBuffer", &vedata->txl->maxzbuffer);
 	}
-	if ((use_diffuse || use_glossy) && !use_refract) {
+	if ((use_diffuse || use_glossy) && !use_ssrefraction) {
 		if ((vedata->stl->effects->enabled_effects & EFFECT_GTAO) != 0) {
 			DRW_shgroup_uniform_texture_ref(shgrp, "horizonBuffer", &vedata->stl->effects->gtao_horizons);
 		}
@@ -404,10 +407,11 @@ static void add_standard_uniforms(
 		DRW_shgroup_uniform_texture_ref(shgrp, "probePlanars", &vedata->txl->planar_pool);
 		DRW_shgroup_uniform_int(shgrp, "outputSsrId", ssr_id, 1);
 	}
-	if (use_refract && use_ssrefraction) {
-		BLI_assert(refract_depth != NULL);
-		DRW_shgroup_uniform_float(shgrp, "refractionDepth", refract_depth, 1);
-		DRW_shgroup_uniform_texture_ref(shgrp, "colorBuffer", &vedata->txl->refract_color);
+	if (use_refract) {
+		DRW_shgroup_uniform_float_copy(shgrp, "refractionDepth", (refract_depth) ? *refract_depth : 0.0 );
+		if (use_ssrefraction) {
+			DRW_shgroup_uniform_texture_ref(shgrp, "colorBuffer", &vedata->txl->refract_color);
+		}
 	}
 
 	if ((vedata->stl->effects->enabled_effects & EFFECT_VOLUMETRIC) != 0 &&
@@ -431,6 +435,11 @@ static void create_default_shader(int options)
 
 	MEM_freeN(defines);
 	MEM_freeN(frag_str);
+}
+
+static void eevee_init_dummys(void)
+{
+	e_data.dummy_sss_profile = GPU_material_create_sss_profile_ubo();
 }
 
 static void eevee_init_noise_texture(void)
@@ -621,17 +630,20 @@ void EEVEE_materials_init(EEVEE_ViewLayerData *sldata, EEVEE_StorageList *stl, E
 
 		eevee_init_util_texture();
 		eevee_init_noise_texture();
+		eevee_init_dummys();
 	}
 
 	if (!DRW_state_is_image_render() &&
 	    ((stl->effects->enabled_effects & EFFECT_TAA) == 0))
 	{
 		e_data.alpha_hash_offset = 0.0f;
+		e_data.alpha_hash_scale = 1.0f;
 	}
 	else {
 		double r;
 		BLI_halton_1D(5, 0.0, stl->effects->taa_current_sample - 1, &r);
 		e_data.alpha_hash_offset = (float)r;
+		e_data.alpha_hash_scale = 0.01f;
 	}
 
 	{
@@ -957,7 +969,7 @@ void EEVEE_materials_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		float *col = ts.colorBackground;
 
 		/* LookDev */
-		EEVEE_lookdev_cache_init(vedata, &grp, e_data.default_studiolight_background, psl->background_pass, wo, NULL);
+		EEVEE_lookdev_cache_init(vedata, &grp, psl->background_pass, wo, NULL);
 		/* END */
 
 		if (!grp && wo) {
@@ -1198,6 +1210,8 @@ static void material_opaque(
 				else if (ma->blend_method == MA_BM_HASHED) {
 					DRW_shgroup_uniform_float(*shgrp_depth, "hashAlphaOffset", &e_data.alpha_hash_offset, 1);
 					DRW_shgroup_uniform_float(*shgrp_depth_clip, "hashAlphaOffset", &e_data.alpha_hash_offset, 1);
+					DRW_shgroup_uniform_float_copy(*shgrp_depth, "hashAlphaScale", e_data.alpha_hash_scale);
+					DRW_shgroup_uniform_float_copy(*shgrp_depth_clip, "hashAlphaScale", e_data.alpha_hash_scale);
 				}
 			}
 		}
@@ -1244,6 +1258,19 @@ static void material_opaque(
 							/* TODO : display message. */
 							printf("Error: Too many different Subsurface shader in the scene.\n");
 						}
+					}
+					else {
+						if (use_translucency) {
+							/* NOTE: This is a nasty workaround, because the sss profile might not have been generated
+							 * but the UBO is still declared in this case even if not used. But rendering without a
+							 * bound UBO might result in crashes on certain platform. */
+							DRW_shgroup_uniform_block(*shgrp, "sssProfile", e_data.dummy_sss_profile);
+						}
+					}
+				}
+				else {
+					if (use_translucency) {
+						DRW_shgroup_uniform_block(*shgrp, "sssProfile", e_data.dummy_sss_profile);
 					}
 				}
 				break;
@@ -1776,6 +1803,7 @@ void EEVEE_materials_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.update_noise_sh);
 	DRW_TEXTURE_FREE_SAFE(e_data.util_tex);
 	DRW_TEXTURE_FREE_SAFE(e_data.noise_tex);
+	DRW_UBO_FREE_SAFE(e_data.dummy_sss_profile);
 }
 
 void EEVEE_draw_default_passes(EEVEE_PassList *psl)

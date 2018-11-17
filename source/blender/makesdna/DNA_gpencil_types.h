@@ -34,6 +34,7 @@
 #include "DNA_ID.h"
 #include "DNA_brush_types.h"
 
+struct ARegion;
 struct AnimData;
 struct CurveMapping;
 struct GHash;
@@ -48,9 +49,9 @@ struct MDeformVert;
 /* GP Stroke Points */
 
 /* Grease-Pencil Annotations - 'Stroke Point'
- *	-> Coordinates may either be 2d or 3d depending on settings at the time
- * 	-> Coordinates of point on stroke, in proportions of window size
- *	   This assumes that the bottom-left corner is (0,0)
+ * -> Coordinates may either be 2d or 3d depending on settings at the time
+ * -> Coordinates of point on stroke, in proportions of window size
+ *    This assumes that the bottom-left corner is (0,0)
  */
 typedef struct bGPDspoint {
 	float x, y, z;			/* co-ordinates of point (usually 2d, but can be 3d as well) */
@@ -78,8 +79,8 @@ typedef enum eGPDspoint_Flag {
 /* GP Fill - Triangle Tessellation Data */
 
 /* Grease-Pencil Annotations - 'Triangle'
- * 	-> A triangle contains the index of three vertices for filling the stroke
- *	   This is only used if high quality fill is enabled
+ * -> A triangle contains the index of three vertices for filling the stroke
+ *    This is only used if high quality fill is enabled
  */
 typedef struct bGPDtriangle {
 	/* indices for tessellated triangle used for GP Fill */
@@ -151,8 +152,8 @@ typedef struct bGPDstroke_Runtime {
 } bGPDstroke_Runtime;
 
 /* Grease-Pencil Annotations - 'Stroke'
- * 	-> A stroke represents a (simplified version) of the curve
- *	   drawn by the user in one 'mousedown'->'mouseup' operation
+ * -> A stroke represents a (simplified version) of the curve
+ *    drawn by the user in one 'mousedown'->'mouseup' operation
  */
 typedef struct bGPDstroke {
 	struct bGPDstroke *next, *prev;
@@ -207,7 +208,7 @@ typedef struct bGPDframe_Runtime {
 } bGPDframe_Runtime;
 
 /* Grease-Pencil Annotations - 'Frame'
- *	-> Acts as storage for the 'image' formed by strokes
+ * -> Acts as storage for the 'image' formed by strokes
  */
 typedef struct bGPDframe {
 	struct bGPDframe *next, *prev;
@@ -259,7 +260,7 @@ typedef struct bGPDlayer {
 							 * needs to be kept unique, as it's used as the layer identifier */
 
 	short thickness;		/* thickness to apply to strokes (Annotations) */
-	char pad_1[2];
+	short pass_index;       /* used to filter groups of layers in modifiers */
 
 	struct Object *parent;  /* parent object */
 	float inverse[4][4];    /* inverse matrix (only used if parented) */
@@ -269,6 +270,7 @@ typedef struct bGPDlayer {
 	short line_change;      /* Thickness adjustment */
 	float tintcolor[4];     /* Color used to tint layer, alpha value is used as factor */
 	float opacity;          /* Opacity of the layer */
+	char viewlayername[64]; /* Name of the layer used to filter render output */
 
 	bGPDlayer_Runtime runtime;
 } bGPDlayer;
@@ -306,6 +308,7 @@ typedef enum eGPDlayer_OnionFlag {
 
 /* Runtime temp data for bGPdata */
 typedef struct bGPdata_Runtime {
+	struct ARegion *ar;         /* last region where drawing was originated */
 	void *sbuffer;				/* stroke buffer (can hold GP_STROKE_BUFFER_MAX) */
 
 	/* GP Object drawing */
@@ -332,7 +335,7 @@ typedef struct bGPgrid {
 	char _pad1[4];
 
 	int   lines;
-	int   axis;
+	char pad_[4];
 } bGPgrid;
 
 /* Grease-Pencil Annotations - 'DataBlock' */
@@ -445,6 +448,8 @@ typedef enum eGPdata_Flag {
 	GP_DATA_STROKE_POLYGON = (1 << 18),
 	/* Use adaptative UV scales */
 	GP_DATA_UV_ADAPTATIVE = (1 << 19),
+	/* Autolock not active layers */
+	GP_DATA_AUTOLOCK_LAYERS = (1 << 20),
 } eGPdata_Flag;
 
 /* gpd->onion_flag */
@@ -474,14 +479,6 @@ typedef enum eGP_DepthOrdering {
 	GP_XRAY_3DSPACE = 1,
 	GP_XRAY_BACK  = 2
 } eGP_DepthOrdering;
-
-/* gpencil_grid_axis */
-enum {
-	GP_GRID_AXIS_LOCK = (1 << 0),
-	GP_GRID_AXIS_X    = (1 << 1),
-	GP_GRID_AXIS_Y    = (1 << 2),
-	GP_GRID_AXIS_Z    = (1 << 3),
-};
 
 /* ***************************************** */
 /* Mode Checking Macros */

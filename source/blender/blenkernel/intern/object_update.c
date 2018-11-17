@@ -149,6 +149,14 @@ void BKE_object_eval_done(Depsgraph *depsgraph, Object *ob)
 		copy_m4_m4(ob_orig->constinv, ob->constinv);
 		ob_orig->transflag = ob->transflag;
 		ob_orig->flag = ob->flag;
+
+		BoundBox *bb = BKE_object_boundbox_get(ob);
+		if (bb != NULL) {
+			if (ob_orig->bb == NULL) {
+				ob_orig->bb = MEM_mallocN(sizeof(*ob_orig->bb), __func__);
+			}
+			*ob_orig->bb = *bb;
+		}
 	}
 }
 
@@ -162,8 +170,7 @@ void BKE_object_handle_data_update(
 	Key *key;
 	float ctime = BKE_scene_frame_get(scene);
 
-	if (G.debug & G_DEBUG_DEPSGRAPH_EVAL)
-		printf("recalcdata %s\n", ob->id.name + 2);
+	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 
 	/* TODO(sergey): Only used by legacy depsgraph. */
 	if (adt) {
@@ -336,9 +343,9 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 	BKE_object_batch_cache_dirty_tag(ob);
 }
 
-void BKE_object_eval_cloth(Depsgraph *depsgraph,
-                           Scene *scene,
-                           Object *object)
+void BKE_object_eval_ptcache_reset(Depsgraph *depsgraph,
+                                   Scene *scene,
+                                   Object *object)
 {
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 	BKE_ptcache_object_reset(scene, object, PTCACHE_RESET_DEPSGRAPH);

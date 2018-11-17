@@ -37,8 +37,10 @@
 #include "BLI_math_vector.h"
 
 #include "BKE_global.h"
+#include "MEM_guardedalloc.h"
 
 #include "GPU_extensions.h"
+#include "GPU_framebuffer.h"
 #include "GPU_glew.h"
 #include "GPU_texture.h"
 
@@ -78,12 +80,52 @@ static struct GPUGlobal {
 	GPUDeviceType device;
 	GPUOSType os;
 	GPUDriverType driver;
+	float line_width_range[2];
 	/* workaround for different calculation of dfdy factors on GPUs. Some GPUs/drivers
 	 * calculate dfdy in shader differently when drawing to an offscreen buffer. First
 	 * number is factor on screen and second is off-screen */
 	float dfdyfactors[2];
 	float max_anisotropy;
+	/* Some Intel drivers have issues with using mips as framebuffer targets if
+	 * GL_TEXTURE_MAX_LEVEL is higher than the target mip.
+	 * We need a workaround in this cases. */
+	bool mip_render_workaround;
+	/* There is an issue with the glBlitFramebuffer on MacOS with radeon pro graphics.
+	 * Blitting depth with GL_DEPTH24_STENCIL8 is buggy so the workaround is to use
+	 * GPU_DEPTH32F_STENCIL8. Then Blitting depth will work but blitting stencil will
+	 * still be broken. */
+	bool depth_blitting_workaround;
 } GG = {1, 0};
+
+
+static void gpu_detect_mip_render_workaround(void)
+{
+	int cube_size = 2;
+	float *source_pix = MEM_callocN(sizeof(float) * 4 * 6 * cube_size * cube_size, __func__);
+	float clear_color[4] = {1.0f, 0.5f, 0.0f, 0.0f};
+
+	GPUTexture *tex = GPU_texture_create_cube(cube_size, GPU_RGBA16F, source_pix, NULL);
+	MEM_freeN(source_pix);
+
+	GPU_texture_bind(tex, 0);
+	GPU_texture_generate_mipmap(tex);
+	glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_BASE_LEVEL, 0);
+	glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_MAX_LEVEL, 0);
+	GPU_texture_unbind(tex);
+
+	GPUFrameBuffer *fb = GPU_framebuffer_create();
+	GPU_framebuffer_texture_attach(fb, tex, 0, 1);
+	GPU_framebuffer_bind(fb);
+	GPU_framebuffer_clear_color(fb, clear_color);
+	GPU_framebuffer_restore();
+	GPU_framebuffer_free(fb);
+
+	float *data = GPU_texture_read(tex, GPU_DATA_FLOAT, 1);
+	GG.mip_render_workaround = !equals_v4v4(clear_color, data);
+
+	MEM_freeN(data);
+	GPU_texture_free(tex);
+}
 
 /* GPU Types */
 
@@ -149,9 +191,24 @@ int GPU_max_ubo_size(void)
 	return GG.maxubosize;
 }
 
+float GPU_max_line_width(void)
+{
+	return GG.line_width_range[1];
+}
+
 void GPU_get_dfdy_factors(float fac[2])
 {
 	copy_v2_v2(fac, GG.dfdyfactors);
+}
+
+bool GPU_mip_render_workaround(void)
+{
+	return GG.mip_render_workaround;
+}
+
+bool GPU_depth_blitting_workaround(void)
+{
+	return GG.depth_blitting_workaround;
 }
 
 void gpu_extensions_init(void)
@@ -179,6 +236,8 @@ void gpu_extensions_init(void)
 	glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &GG.maxubobinds);
 	glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &GG.maxubosize);
 
+	glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, GG.line_width_range);
+
 #ifndef NDEBUG
 	GLint ret;
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -202,6 +261,12 @@ void gpu_extensions_init(void)
 	if (strstr(vendor, "ATI") || strstr(vendor, "AMD")) {
 		GG.device = GPU_DEVICE_ATI;
 		GG.driver = GPU_DRIVER_OFFICIAL;
+
+#if defined(__APPLE__)
+		if (strstr(renderer, "AMD Radeon Pro") || strstr(renderer, "AMD Radeon R9")) {
+			GG.depth_blitting_workaround = true;
+		}
+#endif
 	}
 	else if (strstr(vendor, "NVIDIA")) {
 		GG.device = GPU_DEVICE_NVIDIA;
@@ -253,6 +318,7 @@ void gpu_extensions_init(void)
 	GG.os = GPU_OS_UNIX;
 #endif
 
+	gpu_detect_mip_render_workaround();
 
 	/* df/dy calculation factors, those are dependent on driver */
 	if ((strstr(vendor, "ATI") && strstr(version, "3.3.10750"))) {

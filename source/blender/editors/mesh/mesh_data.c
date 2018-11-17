@@ -42,12 +42,10 @@
 #include "BLI_math.h"
 
 #include "BKE_context.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
+#include "BKE_editmesh.h"
 #include "BKE_mesh.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
-#include "BKE_editmesh.h"
 
 #include "DEG_depsgraph.h"
 
@@ -877,7 +875,7 @@ void MESH_OT_customdata_custom_splitnormals_clear(wmOperatorType *ot)
 
 /************************** Add Geometry Layers *************************/
 
-void ED_mesh_update(Mesh *mesh, bContext *C, bool calc_edges, bool calc_tessface)
+void ED_mesh_update(Mesh *mesh, bContext *C, bool calc_edges, bool calc_edges_loose, bool calc_tessface)
 {
 	bool tessface_input = false;
 
@@ -886,6 +884,10 @@ void ED_mesh_update(Mesh *mesh, bContext *C, bool calc_edges, bool calc_tessface
 
 		/* would only be converting back again, don't bother */
 		tessface_input = true;
+	}
+
+	if (calc_edges_loose && mesh->totedge) {
+		BKE_mesh_calc_edges_loose(mesh);
 	}
 
 	if (calc_edges || ((mesh->totpoly || mesh->totface) && mesh->totedge == 0))

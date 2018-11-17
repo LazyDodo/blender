@@ -66,8 +66,6 @@
 #include "BKE_object.h"
 #include "BKE_material.h"
 
-//#include "DEG_depsgraph.h"
-
 /* Functions */
 
 /** Free (or release) any data used by this mball (does not free the mball itself). */
@@ -312,6 +310,11 @@ bool BKE_mball_is_basis_for(Object *ob1, Object *ob2)
 	int basis1nr, basis2nr;
 	char basis1name[MAX_ID_NAME], basis2name[MAX_ID_NAME];
 
+	if (ob1->id.name[2] != ob2->id.name[2]) {
+		/* Quick return in case first char of both ID's names is not the same... */
+		return false;
+	}
+
 	BLI_split_name_num(basis1name, &basis1nr, ob1->id.name + 2, '.');
 	BLI_split_name_num(basis2name, &basis2nr, ob2->id.name + 2, '.');
 
@@ -327,6 +330,19 @@ bool BKE_mball_is_any_selected(const MetaBall *mb)
 {
 	for (const MetaElem *ml = mb->editelems->first; ml != NULL; ml = ml->next) {
 		if (ml->flag & SELECT) {
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool BKE_mball_is_any_selected_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+		if (BKE_mball_is_any_selected(mb)) {
 			return true;
 		}
 	}
@@ -406,7 +422,7 @@ Object *BKE_mball_basis_find(Scene *scene, Object *basis)
 	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 			Object *ob = base->object;
-			if ((ob->type == OB_MBALL) && !(base->flag & OB_FROMDUPLI)) {
+			if ((ob->type == OB_MBALL) && !(base->flag & BASE_FROMDUPLI)) {
 				if (ob != bob) {
 					BLI_split_name_num(obname, &obnr, ob->id.name + 2, '.');
 
@@ -425,17 +441,17 @@ Object *BKE_mball_basis_find(Scene *scene, Object *basis)
 	return basis;
 }
 
-bool BKE_mball_minmax_ex(MetaBall *mb, float min[3], float max[3],
-                         float obmat[4][4], const short flag)
+bool BKE_mball_minmax_ex(
+        const MetaBall *mb, float min[3], float max[3],
+        const float obmat[4][4], const short flag)
 {
 	const float scale = obmat ? mat4_to_scale(obmat) : 1.0f;
-	MetaElem *ml;
 	bool changed = false;
 	float centroid[3], vec[3];
 
 	INIT_MINMAX(min, max);
 
-	for (ml = mb->elems.first; ml; ml = ml->next) {
+	for (const MetaElem *ml = mb->elems.first; ml; ml = ml->next) {
 		if ((ml->flag & flag) == flag) {
 			const float scale_mb = (ml->rad * 0.5f) * scale;
 			int i;
@@ -462,27 +478,24 @@ bool BKE_mball_minmax_ex(MetaBall *mb, float min[3], float max[3],
 
 
 /* basic vertex data functions */
-bool BKE_mball_minmax(MetaBall *mb, float min[3], float max[3])
+bool BKE_mball_minmax(const MetaBall *mb, float min[3], float max[3])
 {
-	MetaElem *ml;
-
 	INIT_MINMAX(min, max);
 
-	for (ml = mb->elems.first; ml; ml = ml->next) {
+	for (const MetaElem *ml = mb->elems.first; ml; ml = ml->next) {
 		minmax_v3v3_v3(min, max, &ml->x);
 	}
 
 	return (BLI_listbase_is_empty(&mb->elems) == false);
 }
 
-bool BKE_mball_center_median(MetaBall *mb, float r_cent[3])
+bool BKE_mball_center_median(const MetaBall *mb, float r_cent[3])
 {
-	MetaElem *ml;
 	int total = 0;
 
 	zero_v3(r_cent);
 
-	for (ml = mb->elems.first; ml; ml = ml->next) {
+	for (const MetaElem *ml = mb->elems.first; ml; ml = ml->next) {
 		add_v3_v3(r_cent, &ml->x);
 		total++;
 	}
@@ -494,7 +507,7 @@ bool BKE_mball_center_median(MetaBall *mb, float r_cent[3])
 	return (total != 0);
 }
 
-bool BKE_mball_center_bounds(MetaBall *mb, float r_cent[3])
+bool BKE_mball_center_bounds(const MetaBall *mb, float r_cent[3])
 {
 	float min[3], max[3];
 
@@ -508,26 +521,25 @@ bool BKE_mball_center_bounds(MetaBall *mb, float r_cent[3])
 
 void BKE_mball_transform(MetaBall *mb, float mat[4][4], const bool do_props)
 {
-	MetaElem *me;
 	float quat[4];
 	const float scale = mat4_to_scale(mat);
 	const float scale_sqrt = sqrtf(scale);
 
 	mat4_to_quat(quat, mat);
 
-	for (me = mb->elems.first; me; me = me->next) {
-		mul_m4_v3(mat, &me->x);
-		mul_qt_qtqt(me->quat, quat, me->quat);
+	for (MetaElem *ml = mb->elems.first; ml; ml = ml->next) {
+		mul_m4_v3(mat, &ml->x);
+		mul_qt_qtqt(ml->quat, quat, ml->quat);
 
 		if (do_props) {
-			me->rad *= scale;
+			ml->rad *= scale;
 			/* hrmf, probably elems shouldn't be
 			 * treating scale differently - campbell */
-			if (!MB_TYPE_SIZE_SQUARED(me->type)) {
-				mul_v3_fl(&me->expx, scale);
+			if (!MB_TYPE_SIZE_SQUARED(ml->type)) {
+				mul_v3_fl(&ml->expx, scale);
 			}
 			else {
-				mul_v3_fl(&me->expx, scale_sqrt);
+				mul_v3_fl(&ml->expx, scale_sqrt);
 			}
 		}
 	}
@@ -535,38 +547,80 @@ void BKE_mball_transform(MetaBall *mb, float mat[4][4], const bool do_props)
 
 void BKE_mball_translate(MetaBall *mb, const float offset[3])
 {
-	MetaElem *ml;
-
-	for (ml = mb->elems.first; ml; ml = ml->next) {
+	for (MetaElem *ml = mb->elems.first; ml; ml = ml->next) {
 		add_v3_v3(&ml->x, offset);
 	}
 }
 
 /* *** select funcs *** */
-void BKE_mball_select_all(struct MetaBall *mb)
+int BKE_mball_select_count(const MetaBall *mb)
 {
-	MetaElem *ml;
+	int sel = 0;
+	for (const MetaElem *ml = mb->editelems->first; ml; ml = ml->next) {
+		if (ml->flag & SELECT) {
+			sel++;
+		}
+	}
+	return sel;
+}
 
-	for (ml = mb->editelems->first; ml; ml = ml->next) {
+int BKE_mball_select_count_multi(Object **objects, int objects_len)
+{
+	int sel = 0;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		const Object *obedit = objects[ob_index];
+		const MetaBall *mb = (MetaBall *)obedit->data;
+		sel += BKE_mball_select_count(mb);
+	}
+	return sel;
+}
+
+void BKE_mball_select_all(MetaBall *mb)
+{
+	for (MetaElem *ml = mb->editelems->first; ml; ml = ml->next) {
 		ml->flag |= SELECT;
+	}
+}
+
+void BKE_mball_select_all_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = obedit->data;
+		BKE_mball_select_all(mb);
 	}
 }
 
 void BKE_mball_deselect_all(MetaBall *mb)
 {
-	MetaElem *ml;
-
-	for (ml = mb->editelems->first; ml; ml = ml->next) {
+	for (MetaElem *ml = mb->editelems->first; ml; ml = ml->next) {
 		ml->flag &= ~SELECT;
 	}
 }
 
-void BKE_mball_select_swap(struct MetaBall *mb)
+void BKE_mball_deselect_all_multi(Object **objects, int objects_len)
 {
-	MetaElem *ml;
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = obedit->data;
 
-	for (ml = mb->editelems->first; ml; ml = ml->next) {
+		BKE_mball_deselect_all(mb);
+	}
+}
+
+void BKE_mball_select_swap(MetaBall *mb)
+{
+	for (MetaElem *ml = mb->editelems->first; ml; ml = ml->next) {
 		ml->flag ^= SELECT;
+	}
+}
+
+void BKE_mball_select_swap_multi(Object **objects, int objects_len)
+{
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		MetaBall *mb = (MetaBall *)obedit->data;
+		BKE_mball_select_swap(mb);
 	}
 }
 

@@ -201,11 +201,14 @@ struct DepsgraphRelationBuilder
 	                                       bool check_unique = false);
 
 	void add_customdata_mask(const ComponentKey &key, uint64_t mask);
+	void add_special_eval_flag(ID *object, uint32_t flag);
 
 	void build_id(ID *id);
 	void build_layer_collections(ListBase *lb);
 	void build_view_layer(Scene *scene, ViewLayer *view_layer);
-	void build_collection(Object *object, Collection *collection);
+	void build_collection(LayerCollection *from_layer_collection,
+	                      Object *object,
+	                      Collection *collection);
 	void build_object(Base *base, Object *object);
 	void build_object_flags(Base *base, Object *object);
 	void build_object_data(Object *object);
@@ -216,6 +219,7 @@ struct DepsgraphRelationBuilder
 	void build_object_data_lightprobe(Object *object);
 	void build_object_data_speaker(Object *object);
 	void build_object_parent(Object *object);
+	void build_object_pointcache(Object *object);
 	void build_constraints(ID *id,
 	                       eDepsNode_Type component_type,
 	                       const char *component_subdata,
@@ -243,7 +247,6 @@ struct DepsgraphRelationBuilder
 	void build_particles_visualization_object(Object *object,
 	                                          ParticleSystem *psys,
 	                                          Object *draw_object);
-	void build_cloth(Object *object, ModifierData *md);
 	void build_ik_pose(Object *object,
 	                   bPoseChannel *pchan,
 	                   bConstraint *con,

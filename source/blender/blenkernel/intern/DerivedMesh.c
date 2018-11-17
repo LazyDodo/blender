@@ -75,6 +75,7 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
+#include "BKE_shrinkwrap.h"
 
 #ifdef WITH_OPENSUBDIV
 #  include "DNA_userdef_types.h"
@@ -1783,12 +1784,7 @@ static void editbmesh_calc_modifiers(
 				mask &= ~CD_MASK_ORCO;
 				mesh_set_only_copy(me_orco, mask | CD_MASK_ORIGINDEX);
 
-				if (mti->applyModifierEM) {
-					me_next = modwrap_applyModifierEM(md, &mectx_orco, em, me_orco);
-				}
-				else {
-					me_next = modwrap_applyModifier(md, &mectx_orco, me_orco);
-				}
+				me_next = modwrap_applyModifier(md, &mectx_orco, me_orco);
 				ASSERT_IS_VALID_MESH(me_next);
 
 				if (me_next) {
@@ -1813,12 +1809,7 @@ static void editbmesh_calc_modifiers(
 				}
 			}
 
-			if (mti->applyModifierEM) {
-				me_next = modwrap_applyModifierEM(md, &mectx_cache, em, me);
-			}
-			else {
-				me_next = modwrap_applyModifier(md, &mectx_cache, me);
-			}
+			me_next = modwrap_applyModifier(md, &mectx_cache, me);
 			ASSERT_IS_VALID_MESH(me_next);
 
 			if (me_next) {
@@ -1990,6 +1981,15 @@ static void mesh_finalize_eval(Object *object)
 	}
 }
 
+static void mesh_build_extra_data(struct Depsgraph *depsgraph, Object *ob)
+{
+	uint32_t eval_flags = DEG_get_eval_flags_for_id(depsgraph, &ob->id);
+
+	if (eval_flags & DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY) {
+		BKE_shrinkwrap_compute_boundary_data(ob->runtime.mesh_eval);
+	}
+}
+
 static void mesh_build_data(
         struct Depsgraph *depsgraph, Scene *scene, Object *ob, CustomDataMask dataMask,
         const bool build_shapekey_layers, const bool need_mapping)
@@ -2026,6 +2026,8 @@ static void mesh_build_data(
 	}
 
 	BLI_assert(!(ob->derivedFinal->dirty & DM_DIRTY_NORMALS));
+
+	mesh_build_extra_data(depsgraph, ob);
 }
 
 static void editbmesh_build_data(

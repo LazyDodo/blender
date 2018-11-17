@@ -405,6 +405,7 @@ option(WITH_CYCLES					"Enable Cycles Render Engine" ON)
 option(WITH_CYCLES_STANDALONE		"Build Cycles standalone application" OFF)
 option(WITH_CYCLES_STANDALONE_GUI	"Build Cycles standalone with GUI" OFF)
 option(WITH_CYCLES_OSL				"Build Cycles with OSL support" ${_init_CYCLES_OSL})
+option(WITH_CYCLES_EMBREE			"Build Cycles with Embree support" OFF)
 option(WITH_CYCLES_OPENSUBDIV		"Build Cycles with OpenSubdiv support" ${_init_CYCLES_OPENSUBDIV})
 option(WITH_CYCLES_CUDA_BINARIES	"Build Cycles CUDA binaries" OFF)
 option(WITH_CYCLES_CUBIN_COMPILER	"Build cubins with nvrtc based compiler instead of nvcc" OFF)
@@ -567,6 +568,9 @@ if(WIN32)
 
 	option(WINDOWS_USE_VISUAL_STUDIO_FOLDERS "Organize the visual studio project according to source folders." ON)
 	mark_as_advanced(WINDOWS_USE_VISUAL_STUDIO_FOLDERS)
+
+	option(WINDOWS_PYTHON_DEBUG "Include the files needed for debugging python scripts with visual studio 2017+." OFF)
+	mark_as_advanced(WINDOWS_PYTHON_DEBUG)
 endif()
 
 # avoid using again

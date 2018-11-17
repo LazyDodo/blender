@@ -292,8 +292,10 @@ static int edbm_polybuild_face_at_cursor_invoke(
 		EDBM_mesh_normals_update(em);
 		EDBM_update_generic(em, true, true);
 
-		if (vc.view_layer->basact != basact) {
-			ED_object_base_activate(C, basact);
+		if (basact != NULL) {
+			if (vc.view_layer->basact != basact) {
+				ED_object_base_activate(C, basact);
+			}
 		}
 
 		WM_event_add_mousemove(C);
@@ -310,7 +312,6 @@ void MESH_OT_polybuild_face_at_cursor(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Poly Build Face at Cursor";
 	ot->idname = "MESH_OT_polybuild_face_at_cursor";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->invoke = edbm_polybuild_face_at_cursor_invoke;
@@ -393,7 +394,6 @@ void MESH_OT_polybuild_split_at_cursor(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Poly Build Split at Cursor";
 	ot->idname = "MESH_OT_polybuild_split_at_cursor";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->invoke = edbm_polybuild_split_at_cursor_invoke;
@@ -484,7 +484,6 @@ void MESH_OT_polybuild_dissolve_at_cursor(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Poly Build Dissolve at Cursor";
 	ot->idname = "MESH_OT_polybuild_dissolve_at_cursor";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->invoke = edbm_polybuild_dissolve_at_cursor_invoke;

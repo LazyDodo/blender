@@ -145,11 +145,12 @@ void BlenderSync::sync_light(BL::Object& b_parent,
 			light->spot_smooth = b_spot_light.spot_blend();
 			break;
 		}
-		case BL::Light::type_HEMI: {
-			light->type = LIGHT_DISTANT;
-			light->size = 0.0f;
-			break;
-		}
+		/* Hemi were removed from 2.8 */
+		// case BL::Light::type_HEMI: {
+		// 	light->type = LIGHT_DISTANT;
+		// 	light->size = 0.0f;
+		// 	break;
+		// }
 		case BL::Light::type_SUN: {
 			BL::SunLight b_sun_light(b_light);
 			light->size = b_sun_light.shadow_soft_size();
@@ -421,6 +422,23 @@ Object *BlenderSync::sync_object(BL::Depsgraph& b_depsgraph,
 	bool is_shadow_catcher = get_boolean(cobject, "is_shadow_catcher");
 	if(is_shadow_catcher != object->is_shadow_catcher) {
 		object->is_shadow_catcher = is_shadow_catcher;
+		object_updated = true;
+	}
+
+	/* sync the asset name for Cryptomatte */
+	BL::Object parent = b_ob.parent();
+	ustring parent_name;
+	if(parent) {
+		while(parent.parent()) {
+			parent = parent.parent();
+		}
+		parent_name = parent.name();
+	}
+	else {
+		parent_name = b_ob.name();
+	}
+	if(object->asset_name != parent_name) {
+		object->asset_name = parent_name;
 		object_updated = true;
 	}
 

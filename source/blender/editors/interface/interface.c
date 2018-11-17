@@ -1582,17 +1582,8 @@ int ui_but_is_pushed_ex(uiBut *but, double *value)
 				break;
 			case UI_BTYPE_ROW:
 			case UI_BTYPE_LISTROW:
-				UI_GET_BUT_VALUE_INIT(but, *value);
-				/* support for rna enum buts */
-				if (but->rnaprop && (RNA_property_flag(but->rnaprop) & PROP_ENUM_FLAG)) {
-					if ((int)*value & (int)but->hardmax) is_push = true;
-				}
-				else {
-					if (*value == (double)but->hardmax) is_push = true;
-				}
-				break;
 			case UI_BTYPE_TAB:
-				if (but->rnaprop && but->custom_data) {
+				if ((but->type == UI_BTYPE_TAB) && but->rnaprop && but->custom_data) {
 					/* uiBut.custom_data points to data this tab represents (e.g. workspace).
 					 * uiBut.rnapoin/prop store an active value (e.g. active workspace). */
 					if (RNA_property_type(but->rnaprop) == PROP_POINTER) {
@@ -1601,6 +1592,19 @@ int ui_but_is_pushed_ex(uiBut *but, double *value)
 							is_push = true;
 						}
 					}
+					break;
+				}
+				else if (but->optype) {
+					break;
+				}
+
+				UI_GET_BUT_VALUE_INIT(but, *value);
+				/* support for rna enum buts */
+				if (but->rnaprop && (RNA_property_flag(but->rnaprop) & PROP_ENUM_FLAG)) {
+					if ((int)*value & (int)but->hardmax) is_push = true;
+				}
+				else {
+					if (*value == (double)but->hardmax) is_push = true;
 				}
 				break;
 			default:
@@ -2951,7 +2955,6 @@ void ui_but_update_ex(uiBut *but, const bool validate)
 {
 	/* if something changed in the button */
 	double value = UI_BUT_VALUE_UNSET;
-//	float okwidth; // UNUSED
 
 	ui_but_update_select_flag(but, &value);
 
@@ -2986,9 +2989,12 @@ void ui_but_update_ex(uiBut *but, const bool validate)
 
 		case UI_BTYPE_ICON_TOGGLE:
 		case UI_BTYPE_ICON_TOGGLE_N:
-			if (!but->rnaprop || (RNA_property_flag(but->rnaprop) & PROP_ICONS_CONSECUTIVE)) {
-				if (but->flag & UI_SELECT) but->iconadd = 1;
-				else but->iconadd = 0;
+			if ((but->rnaprop == NULL) || (RNA_property_flag(but->rnaprop) & PROP_ICONS_CONSECUTIVE)) {
+				if (but->rnaprop && RNA_property_flag(but->rnaprop) & PROP_ICONS_REVERSE) {
+					but->drawflag |= UI_BUT_ICON_REVERSE;
+				}
+
+				but->iconadd = (but->flag & UI_SELECT) ? 1 : 0;
 			}
 			break;
 
@@ -4749,7 +4755,7 @@ void UI_but_string_info_get(bContext *C, uiBut *but, ...)
 				/* enum property */
 				ptr = &but->rnapoin;
 				prop = but->rnaprop;
-				value = (but->type == UI_BTYPE_ROW) ? (int)but->hardmax : (int)ui_but_value_get(but);
+				value = (ELEM(but->type, UI_BTYPE_ROW, UI_BTYPE_TAB)) ? (int)but->hardmax : (int)ui_but_value_get(but);
 			}
 			else if (but->optype) {
 				PointerRNA *opptr = UI_but_operator_ptr_get(but);

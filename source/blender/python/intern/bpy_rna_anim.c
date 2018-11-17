@@ -275,7 +275,7 @@ PyObject *pyrna_struct_keyframe_insert(BPy_StructRNA *self, PyObject *args, PyOb
 
 		BKE_reports_init(&reports, RPT_STORE);
 
-		BLI_assert(BKE_id_is_in_gobal_main(id));
+		BLI_assert(BKE_id_is_in_global_main(id));
 		result = insert_keyframe(G_MAIN, depsgraph, &reports, id, NULL, group_name, path_full, index, cfra, keytype, options);
 		MEM_freeN((void *)path_full);
 
@@ -386,7 +386,7 @@ PyObject *pyrna_struct_keyframe_delete(BPy_StructRNA *self, PyObject *args, PyOb
 
 		BKE_reports_init(&reports, RPT_STORE);
 
-		result = delete_keyframe(&reports, (ID *)self->ptr.id.data, NULL, group_name, path_full, index, cfra, 0);
+		result = delete_keyframe(G.main, &reports, (ID *)self->ptr.id.data, NULL, group_name, path_full, index, cfra, 0);
 		MEM_freeN((void *)path_full);
 
 		if (BPy_reports_to_error(&reports, PyExc_RuntimeError, true) == -1)

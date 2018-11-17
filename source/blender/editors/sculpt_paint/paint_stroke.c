@@ -225,7 +225,7 @@ static void paint_draw_line_cursor(bContext *C, int x, int y, void *customdata)
 static bool paint_tool_require_location(Brush *brush, ePaintMode mode)
 {
 	switch (mode) {
-		case ePaintSculpt:
+		case PAINT_MODE_SCULPT:
 			if (ELEM(brush->sculpt_tool,
 			         SCULPT_TOOL_GRAB, SCULPT_TOOL_ROTATE,
 			         SCULPT_TOOL_SNAKE_HOOK, SCULPT_TOOL_THUMB))
@@ -459,7 +459,7 @@ static bool paint_stroke_use_jitter(ePaintMode mode, Brush *brush, bool invert)
 	/* jitter-ed brush gives weird and unpredictable result for this
 	 * kinds of stroke, so manually disable jitter usage (sergey) */
 	use_jitter &= (brush->flag & (BRUSH_DRAG_DOT | BRUSH_ANCHORED)) == 0;
-	use_jitter &= (!ELEM(mode, ePaintTexture2D, ePaintTextureProjective) ||
+	use_jitter &= (!ELEM(mode, PAINT_MODE_TEXTURE_2D, PAINT_MODE_TEXTURE_3D) ||
 	               !(invert && brush->imagepaint_tool == PAINT_TOOL_CLONE));
 
 
@@ -856,13 +856,13 @@ bool paint_supports_dynamic_size(Brush *br, ePaintMode mode)
 		return false;
 
 	switch (mode) {
-		case ePaintSculpt:
+		case PAINT_MODE_SCULPT:
 			if (sculpt_is_grab_tool(br))
 				return false;
 			break;
 
-		case ePaintTexture2D: /* fall through */
-		case ePaintTextureProjective:
+		case PAINT_MODE_TEXTURE_2D: /* fall through */
+		case PAINT_MODE_TEXTURE_3D:
 			if ((br->imagepaint_tool == PAINT_TOOL_FILL) &&
 			    (br->flag & BRUSH_USE_GRADIENT))
 			{
@@ -885,7 +885,7 @@ bool paint_supports_smooth_stroke(Brush *br, ePaintMode mode)
 	}
 
 	switch (mode) {
-		case ePaintSculpt:
+		case PAINT_MODE_SCULPT:
 			if (sculpt_is_grab_tool(br))
 				return false;
 			break;
@@ -898,7 +898,7 @@ bool paint_supports_smooth_stroke(Brush *br, ePaintMode mode)
 bool paint_supports_texture(ePaintMode mode)
 {
 	/* omit: PAINT_WEIGHT, PAINT_SCULPT_UV, PAINT_INVALID */
-	return ELEM(mode, ePaintSculpt, ePaintVertex, ePaintTextureProjective, ePaintTexture2D);
+	return ELEM(mode, PAINT_MODE_SCULPT, PAINT_MODE_VERTEX, PAINT_MODE_TEXTURE_3D, PAINT_MODE_TEXTURE_2D);
 }
 
 /* return true if the brush size can change during paint (normally used for pressure) */
@@ -908,7 +908,7 @@ bool paint_supports_dynamic_tex_coords(Brush *br, ePaintMode mode)
 		return false;
 
 	switch (mode) {
-		case ePaintSculpt:
+		case PAINT_MODE_SCULPT:
 			if (sculpt_is_grab_tool(br))
 				return false;
 			break;
@@ -938,10 +938,6 @@ struct wmKeyMap *paint_stroke_modal_keymap(struct wmKeyConfig *keyconf)
 	/* this function is called for each spacetype, only needs to add map once */
 	if (!keymap) {
 		keymap = WM_modalkeymap_add(keyconf, name, modal_items);
-
-		/* items for modal map */
-		WM_modalkeymap_add_item(
-			keymap, ESCKEY, KM_PRESS, KM_ANY, 0, PAINT_STROKE_MODAL_CANCEL);
 	}
 
 	return keymap;
@@ -1201,8 +1197,10 @@ int paint_stroke_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			return OPERATOR_FINISHED;
 
 		if (paint_supports_smooth_stroke(br, mode))
-			stroke->stroke_cursor =
-			    WM_paint_cursor_activate(CTX_wm_manager(C), paint_poll, paint_draw_smooth_cursor, stroke);
+			stroke->stroke_cursor = WM_paint_cursor_activate(
+			        CTX_wm_manager(C),
+			        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+			        paint_poll, paint_draw_smooth_cursor, stroke);
 
 		stroke->stroke_init = true;
 		first_modal = true;
@@ -1220,8 +1218,10 @@ int paint_stroke_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				stroke->timer = WM_event_add_timer(CTX_wm_manager(C), CTX_wm_window(C), TIMER, stroke->brush->rate);
 
 			if (br->flag & BRUSH_LINE) {
-				stroke->stroke_cursor =
-					WM_paint_cursor_activate(CTX_wm_manager(C), paint_poll, paint_draw_line_cursor, stroke);
+				stroke->stroke_cursor = WM_paint_cursor_activate(
+				        CTX_wm_manager(C),
+				        SPACE_TYPE_ANY, RGN_TYPE_ANY,
+				        paint_poll, paint_draw_line_cursor, stroke);
 			}
 
 			first_dab = true;

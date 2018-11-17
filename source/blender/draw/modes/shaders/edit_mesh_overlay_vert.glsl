@@ -29,7 +29,7 @@ out float vFacing;
 void main()
 {
 	pPos = ModelViewProjectionMatrix * vec4(pos, 1.0);
-	pPos.z -= ofs;
+	pPos.z -= ofs * ((ProjectionMatrix[3][3] == 0.0) ? 1.0 : 0.0);
 	vData = data & dataMask;
 #  ifdef VERTEX_FACING
 	vec4 vpos = ModelViewMatrix * vec4(pos, 1.0);
@@ -59,12 +59,11 @@ out vec3 barycentric;
 void main()
 {
 	gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
-	gl_Position.z -= ofs;
+	gl_Position.z -= ofs * ((ProjectionMatrix[3][3] == 0.0) ? 1.0 : 0.0);
 
 	int v_0 = (gl_VertexID / 3) * 3;
 	int vidx = gl_VertexID % 3;
-	barycentric = vec3(0.0);
-	barycentric[vidx] = 1.0;
+	barycentric = vec3(equal(ivec3(0, 1, 2), ivec3(vidx)));
 
 	/* Edge */
 	ivec4 vData[3], data = ivec4(0);

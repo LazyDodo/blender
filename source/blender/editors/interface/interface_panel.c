@@ -134,7 +134,7 @@ static int panel_aligned(ScrArea *sa, ARegion *ar)
 		return BUT_VERTICAL;
 	else if (sa->spacetype == SPACE_IMAGE && ar->regiontype == RGN_TYPE_PREVIEW)
 		return BUT_VERTICAL;
-	else if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_TOOLS, RGN_TYPE_TOOL_PROPS, RGN_TYPE_HUD))
+	else if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_TOOLS, RGN_TYPE_TOOL_PROPS, RGN_TYPE_HUD, RGN_TYPE_NAV_BAR))
 		return BUT_VERTICAL;
 
 	return 0;
@@ -579,7 +579,7 @@ static void ui_draw_panel_dragwidget(unsigned int pos, unsigned int col, const r
 
 	const int x_min = rect->xmin;
 	const int y_min = rect->ymin;
-	const int y_ofs = max_ii(round_fl_to_int(BLI_rctf_size_y(rect) / 3.0f), px);
+	const int y_ofs = max_ii(round_fl_to_int(BLI_rctf_size_y(rect) / 2.5f), px);
 	const int x_ofs = y_ofs;
 	int i_x, i_y;
 
@@ -2382,9 +2382,9 @@ static void panel_activate_state(const bContext *C, Panel *pa, uiHandlePanelStat
 	if (state == PANEL_STATE_EXIT || state == PANEL_STATE_ANIMATION) {
 		if (data && data->state != PANEL_STATE_ANIMATION) {
 			/* XXX:
-			 *	- the panel tabbing function call below (test_add_new_tabs()) has been commented out
-			 *	  "It is too easy to do by accident when reordering panels,
-			 *     is very hard to control and use, and has no real benefit." - BillRey
+			 * - the panel tabbing function call below (test_add_new_tabs()) has been commented out
+			 *   "It is too easy to do by accident when reordering panels,
+			 *   is very hard to control and use, and has no real benefit." - BillRey
 			 * Aligorith, 2009Sep
 			 */
 			//test_add_new_tabs(ar);   // also copies locations of tabs in dragged panel

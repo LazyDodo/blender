@@ -69,9 +69,11 @@ static void deformStroke(
 	SmoothGpencilModifierData *mmd = (SmoothGpencilModifierData *)md;
 	const int def_nr = defgroup_name_index(ob, mmd->vgname);
 
-	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 3, gpl, gps,
-	        mmd->flag & GP_SMOOTH_INVERT_LAYER, mmd->flag & GP_SMOOTH_INVERT_PASS))
+	if (!is_stroke_affected_by_modifier(
+	            ob,
+	            mmd->layername, mmd->pass_index, mmd->layer_pass, 3, gpl, gps,
+	            mmd->flag & GP_SMOOTH_INVERT_LAYER, mmd->flag & GP_SMOOTH_INVERT_PASS,
+	            mmd->flag & GP_SMOOTH_INVERT_LAYERPASS))
 	{
 		return;
 	}
@@ -137,7 +139,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Smooth = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,

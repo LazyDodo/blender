@@ -67,25 +67,25 @@
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_editlattice.h"
 #include "BKE_effect.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_lattice.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_mball.h"
 #include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_softbody.h"
-#include "BKE_modifier.h"
-#include "BKE_editlattice.h"
 #include "BKE_editmesh.h"
 #include "BKE_report.h"
 #include "BKE_workspace.h"
-#include "BKE_layer.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -275,10 +275,13 @@ void OBJECT_OT_hide_view_set(wmOperatorType *ot)
 
 static int object_hide_collection_exec(bContext *C, wmOperator *op)
 {
-	int index = RNA_int_get(op->ptr, "collection_index");
-	bool extend = (CTX_wm_window(C)->eventstate->shift != 0);
+	wmWindow *win = CTX_wm_window(C);
 
-	if (CTX_wm_window(C)->eventstate->alt != 0) {
+	int index = RNA_int_get(op->ptr, "collection_index");
+	const bool extend = (win->eventstate->shift != 0) ||
+	                    RNA_boolean_get(op->ptr, "toggle");
+
+	if (win->eventstate->alt != 0) {
 		index += 10;
 	}
 
@@ -310,6 +313,10 @@ void ED_hide_collections_menu_draw(const bContext *C, uiLayout *layout)
 	for (LayerCollection *lc = lc_scene->layer_collections.first; lc; lc = lc->next) {
 		int index = BKE_layer_collection_findindex(view_layer, lc);
 		uiLayout *row = uiLayoutRow(layout, false);
+
+		if (lc->flag & LAYER_COLLECTION_EXCLUDE) {
+			continue;
+		}
 
 		if (lc->collection->flag & COLLECTION_RESTRICT_VIEW) {
 			continue;
@@ -377,6 +384,8 @@ void OBJECT_OT_hide_collection(wmOperatorType *ot)
 	PropertyRNA *prop;
 	prop = RNA_def_int(ot->srna, "collection_index", COLLECTION_INVALID_INDEX, COLLECTION_INVALID_INDEX, INT_MAX,
 	                   "Collection Index", "Index of the collection to change visibility", 0, INT_MAX);
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
+	prop = RNA_def_boolean(ot->srna, "toggle", 0, "Toggle", "Toggle visibility");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
 }
 
@@ -1279,7 +1288,7 @@ static int object_calculate_paths_invoke(bContext *C, wmOperator *op, const wmEv
 
 	/* show popup dialog to allow editing of range... */
 	/* FIXME: hardcoded dimensions here are just arbitrary */
-	return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 10 * UI_UNIT_Y);
+	return WM_operator_props_dialog_popup(C, op, 200, 200);
 }
 
 /* Calculate/recalculate whole paths (avs.path_sf to avs.path_ef) */
@@ -1960,14 +1969,7 @@ static void move_to_collection_menus_free(MoveToCollectionData **menu)
 static void move_to_collection_menu_create(bContext *UNUSED(C), uiLayout *layout, void *menu_v)
 {
 	MoveToCollectionData *menu = menu_v;
-	const char *name;
-
-	if (menu->collection->flag & COLLECTION_IS_MASTER) {
-		name = IFACE_("Scene Collection");
-	}
-	else {
-		name = menu->collection->id.name + 2;
-	}
+	const char *name = BKE_collection_ui_name_get(menu->collection);
 
 	uiItemIntO(layout,
 	           name,
@@ -2044,7 +2046,7 @@ static int move_to_collection_invoke(bContext *C, wmOperator *op, const wmEvent 
 				BKE_collection_new_name_get(collection, name);
 
 				RNA_property_string_set(op->ptr, prop, name);
-				return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 5 * UI_UNIT_Y);
+				return WM_operator_props_dialog_popup(C, op, 200, 100);
 			}
 		}
 		return move_to_collection_exec(C, op);

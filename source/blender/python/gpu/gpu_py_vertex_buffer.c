@@ -189,7 +189,7 @@ finally:
 	return ok;
 }
 
-static int bpygpu_fill_attribute(GPUVertBuf *buf, int id, PyObject *py_seq_data, const char *error_prefix)
+static int bpygpu_attr_fill(GPUVertBuf *buf, int id, PyObject *py_seq_data, const char *error_prefix)
 {
 	if (id < 0 || id >= buf->format.attr_len) {
 		PyErr_Format(PyExc_ValueError,
@@ -222,66 +222,46 @@ static int bpygpu_fill_attribute(GPUVertBuf *buf, int id, PyObject *py_seq_data,
 
 static PyObject *bpygpu_VertBuf_new(PyTypeObject *UNUSED(type), PyObject *args, PyObject *kwds)
 {
-	const char *error_prefix = "GPUVertBuf.__new__";
-
 	struct {
 		PyObject *py_fmt;
 		uint len;
 	} params;
 
 	static const char *_keywords[] = {"format", "len", NULL};
-	static _PyArg_Parser _parser = {"OI:GPUVertBuf.__new__", _keywords, 0};
+	static _PyArg_Parser _parser = {"O!I:GPUVertBuf.__new__", _keywords, 0};
 	if (!_PyArg_ParseTupleAndKeywordsFast(
 	        args, kwds, &_parser,
-	        &params.py_fmt,
+	        &BPyGPUVertFormat_Type, &params.py_fmt,
 	        &params.len))
 	{
 		return NULL;
 	}
 
-	GPUVertFormat *fmt, fmt_stack;
-
-	if (BPyGPUVertFormat_Check(params.py_fmt)) {
-		fmt = &((BPyGPUVertFormat *)params.py_fmt)->fmt;
-	}
-	else if (PyList_Check(params.py_fmt)) {
-		fmt = &fmt_stack;
-		GPU_vertformat_clear(fmt);
-		if (!bpygpu_vertformat_from_PyList(
-		        (PyListObject *)params.py_fmt, error_prefix, fmt))
-		{
-			return NULL;
-		}
-	}
-	else {
-		PyErr_SetString(PyExc_TypeError, "format not understood");
-		return NULL;
-	}
-
-	struct GPUVertBuf *vbo = GPU_vertbuf_create_with_format(fmt);
+	const GPUVertFormat *fmt = &((BPyGPUVertFormat *)params.py_fmt)->fmt;
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(fmt);
 
 	GPU_vertbuf_data_alloc(vbo, params.len);
 
 	return BPyGPUVertBuf_CreatePyObject(vbo);
 }
 
-PyDoc_STRVAR(bpygpu_VertBuf_fill_attribute_doc,
-"fill_attribute(identifier, data)\n"
+PyDoc_STRVAR(bpygpu_VertBuf_attr_fill_doc,
+".. method:: attr_fill(id, data)\n"
 "\n"
 "   Insert data into the buffer for a single attribute.\n"
 "\n"
-"   :param identifier: Either the name or the id of the attribute.\n"
-"   :type identifier: int or str\n"
+"   :param id: Either the name or the id of the attribute.\n"
+"   :type id: int or str\n"
 "   :param data: Sequence of data that should be stored in the buffer\n"
-"   :type data: sequence of individual values or tuples\n"
+"   :type data: sequence of values or tuples\n"
 );
-static PyObject *bpygpu_VertBuf_fill_attribute(BPyGPUVertBuf *self, PyObject *args, PyObject *kwds)
+static PyObject *bpygpu_VertBuf_attr_fill(BPyGPUVertBuf *self, PyObject *args, PyObject *kwds)
 {
 	PyObject *data;
 	PyObject *identifier;
 
-	static const char *_keywords[] = {"identifier", "data", NULL};
-	static _PyArg_Parser _parser = {"OO:fill_attribute", _keywords, 0};
+	static const char *_keywords[] = {"id", "data", NULL};
+	static _PyArg_Parser _parser = {"OO:attr_fill", _keywords, 0};
 	if (!_PyArg_ParseTupleAndKeywordsFast(
 	        args, kwds, &_parser,
 	        &identifier, &data))
@@ -310,7 +290,7 @@ static PyObject *bpygpu_VertBuf_fill_attribute(BPyGPUVertBuf *self, PyObject *ar
 	}
 
 
-	if (!bpygpu_fill_attribute(self->buf, id, data, "GPUVertBuf.fill_attribute")) {
+	if (!bpygpu_attr_fill(self->buf, id, data, "GPUVertBuf.attr_fill")) {
 		return NULL;
 	}
 
@@ -319,8 +299,8 @@ static PyObject *bpygpu_VertBuf_fill_attribute(BPyGPUVertBuf *self, PyObject *ar
 
 
 static struct PyMethodDef bpygpu_VertBuf_methods[] = {
-	{"fill_attribute", (PyCFunction) bpygpu_VertBuf_fill_attribute,
-	 METH_VARARGS | METH_KEYWORDS, bpygpu_VertBuf_fill_attribute_doc},
+	{"attr_fill", (PyCFunction) bpygpu_VertBuf_attr_fill,
+	 METH_VARARGS | METH_KEYWORDS, bpygpu_VertBuf_attr_fill_doc},
 	{NULL, NULL, 0, NULL}
 };
 
@@ -331,14 +311,14 @@ static void bpygpu_VertBuf_dealloc(BPyGPUVertBuf *self)
 }
 
 PyDoc_STRVAR(py_gpu_vertex_buffer_doc,
-"GPUVertBuf(len, format)\n"
+".. class:: GPUVertBuf(len, format)\n"
 "\n"
-"Contains a VBO."
+"   Contains a VBO.\n"
 "\n"
-"   :param len: number of elements to allocate\n"
+"   :param len: Amount of vertices that will fit into this buffer.\n"
 "   :type type: `int`\n"
 "   :param format: Vertex format.\n"
-"   :type buf: `gpu.types.GPUVertFormat`\n"
+"   :type buf: :class:`gpu.types.GPUVertFormat`\n"
 );
 PyTypeObject BPyGPUVertBuf_Type = {
 	PyVarObject_HEAD_INIT(NULL, 0)

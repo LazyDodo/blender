@@ -403,6 +403,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 			for (ViewLayer *view_layer_dst = sce_copy->view_layers.first; view_layer_dst; view_layer_dst = view_layer_dst->next) {
 				for (FreestyleLineSet *lineset = view_layer_dst->freestyle_config.linesets.first; lineset; lineset = lineset->next) {
 					if (lineset->linestyle) {
+						id_us_min(&lineset->linestyle->id);
 						/* XXX Not copying anim/actions here? */
 						BKE_id_copy_ex(bmain, (ID *)lineset->linestyle, (ID **)&lineset->linestyle, 0, false);
 					}
@@ -411,6 +412,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 
 			/* Full copy of world (included animations) */
 			if (sce_copy->world) {
+				id_us_min(&sce_copy->world->id);
 				BKE_id_copy_ex(bmain, (ID *)sce_copy->world, (ID **)&sce_copy->world, LIB_ID_COPY_ACTIONS, false);
 			}
 
@@ -420,6 +422,7 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 			/* Full copy of GreasePencil. */
 			/* XXX Not copying anim/actions here? */
 			if (sce_copy->gpd) {
+				id_us_min(&sce_copy->gpd->id);
 				BKE_id_copy_ex(bmain, (ID *)sce_copy->gpd, (ID **)&sce_copy->gpd, 0, false);
 			}
 		}
@@ -433,7 +436,8 @@ Scene *BKE_scene_copy(Main *bmain, Scene *sce, int type)
 		/* NOTE: part of SCE_COPY_LINK_DATA and SCE_COPY_FULL operations
 		 * are done outside of blenkernel with ED_object_single_users! */
 
-		/*  camera   */
+		/*  camera */
+		/* XXX This is most certainly useless? Object have not yet been duplicated... */
 		if (ELEM(type, SCE_COPY_LINK_DATA, SCE_COPY_FULL)) {
 			ID_NEW_REMAP(sce_copy->camera);
 		}
@@ -684,9 +688,6 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->imapaint.normal_angle = 80;
 	sce->toolsettings->imapaint.seam_bleed = 2;
 
-	/* alloc grease pencil drawing brushes */
-	sce->toolsettings->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-
 	/* grease pencil multiframe falloff curve */
 	sce->toolsettings->gp_sculpt.cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 	CurveMapping *gp_falloff_curve = sce->toolsettings->gp_sculpt.cur_falloff;
@@ -871,6 +872,8 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.gi_visibility_resolution = 32;
 	sce->eevee.gi_cubemap_draw_size = 0.3f;
 	sce->eevee.gi_irradiance_draw_size = 0.1f;
+	sce->eevee.gi_irradiance_smoothing = 0.1f;
+	sce->eevee.gi_filter_quality = 1.0f;
 
 	sce->eevee.taa_samples = 16;
 	sce->eevee.taa_render_samples = 64;
@@ -914,6 +917,9 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.shadow_cascade_size = 1024;
 
 	sce->eevee.light_cache = NULL;
+	sce->eevee.light_threshold = 0.01f;
+
+	sce->eevee.overscan = 3.0f;
 
 	sce->eevee.flag =
 	        SCE_EEVEE_VOLUMETRIC_LIGHTS |

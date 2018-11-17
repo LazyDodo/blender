@@ -32,7 +32,7 @@
  */
 
 /* defines BLI_INLINE */
-#include "BLI_utildefines.h"
+#include "BLI_compiler_compat.h"
 
 /* defines CustomDataMask */
 #include "BKE_customdata.h"
@@ -105,6 +105,7 @@ int poly_get_adj_loops_from_vert(
         unsigned int r_adj[2]);
 
 int BKE_mesh_edge_other_vert(const struct MEdge *e, int v);
+void BKE_mesh_looptri_get_real_edges(const struct Mesh *mesh, const struct MLoopTri *looptri, int r_edges[3]);
 
 void BKE_mesh_free(struct Mesh *me);
 void BKE_mesh_init(struct Mesh *me);
@@ -497,6 +498,7 @@ void BKE_mesh_strip_loose_polysloops(struct Mesh *me);
 void BKE_mesh_strip_loose_edges(struct Mesh *me);
 
 void BKE_mesh_calc_edges_legacy(struct Mesh *me, const bool use_old);
+void BKE_mesh_calc_edges_loose(struct Mesh *mesh);
 void BKE_mesh_calc_edges(struct Mesh *mesh, bool update, const bool select);
 void BKE_mesh_calc_edges_tessface(struct Mesh *mesh);
 
