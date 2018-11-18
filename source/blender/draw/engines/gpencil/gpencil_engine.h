@@ -287,6 +287,7 @@ typedef struct GpencilBatchCacheElem {
 } GpencilBatchCacheElem;
 
 typedef struct GpencilBatchGroup {
+	bGPDlayer *gpl;         /* reference to original layer */
 	bGPDframe *gpf;         /* reference to original frame */
 	bGPDstroke *gps;        /* reference to original stroke */
 	short type;             /* type of element */
@@ -360,7 +361,8 @@ struct tGPencilObjectCache *gpencil_object_cache_add(
 /* shading groups cache functions */
 struct GpencilBatchGroup *gpencil_group_cache_add(
 	struct GpencilBatchGroup *cache_array,
-	struct bGPDframe *gpf, struct bGPDstroke *gps, const short type, const bool onion,
+	struct bGPDlayer *gpl, struct bGPDframe *gpf, struct bGPDstroke *gps,
+	const short type, const bool onion,
 	const int vertex_idx,
 	int *grp_size, int *grp_used);
 

@@ -121,7 +121,8 @@ tGPencilObjectCache *gpencil_object_cache_add(
 /* add a shading group to the cache to create later */
 GpencilBatchGroup *gpencil_group_cache_add(
 	GpencilBatchGroup *cache_array,
-	bGPDframe *gpf, bGPDstroke *gps, const short type, const bool onion,
+	bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
+	const short type, const bool onion,
 	const int vertex_idx,
 	int *grp_size, int *grp_used)
 {
@@ -146,6 +147,7 @@ GpencilBatchGroup *gpencil_group_cache_add(
 	cache_elem = &cache_array[*grp_used];
 	memset(cache_elem, 0, sizeof(*cache_elem));
 
+	cache_elem->gpl = gpl;
 	cache_elem->gpf = gpf;
 	cache_elem->gps = gps;
 	cache_elem->type = type;

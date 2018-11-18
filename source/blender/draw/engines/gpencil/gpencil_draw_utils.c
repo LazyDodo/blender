@@ -489,7 +489,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 /* add fill vertex info  */
 static void gpencil_add_fill_vertexdata(
         GpencilBatchCache *cache,
-        Object *ob, bGPDframe *gpf, bGPDstroke *gps,
+        Object *ob, bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
         float opacity, const float tintcolor[4], const bool onion, const bool custonion)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
@@ -520,7 +520,7 @@ static void gpencil_add_fill_vertexdata(
 				/* add to list of groups */
 				if (old_len < cache->b_fill.vbo_len) {
 					cache->grp_cache = gpencil_group_cache_add(
-						cache->grp_cache, gpf, gps, eGpencilBatchGroupType_Fill, onion,
+						cache->grp_cache, gpl, gpf, gps, eGpencilBatchGroupType_Fill, onion,
 						cache->b_fill.vbo_len,
 						&cache->grp_size, &cache->grp_used);
 				}
@@ -575,7 +575,7 @@ static void gpencil_add_stroke_vertexdata(GpencilBatchCache *cache,
 			/* add to list of groups */
 			if (old_len < cache->b_stroke.vbo_len) {
 				cache->grp_cache = gpencil_group_cache_add(
-					cache->grp_cache, gpf, gps, eGpencilBatchGroupType_Stroke, onion,
+					cache->grp_cache, gpl, gpf, gps, eGpencilBatchGroupType_Stroke, onion,
 					cache->b_stroke.vbo_len,
 					&cache->grp_size, &cache->grp_used);
 			}
@@ -588,7 +588,7 @@ static void gpencil_add_stroke_vertexdata(GpencilBatchCache *cache,
 			/* add to list of groups */
 			if (old_len < cache->b_point.vbo_len) {
 				cache->grp_cache = gpencil_group_cache_add(
-					cache->grp_cache, gpf, gps, eGpencilBatchGroupType_Point, onion,
+					cache->grp_cache, gpl, gpf, gps, eGpencilBatchGroupType_Point, onion,
 					cache->b_point.vbo_len,
 					&cache->grp_size, &cache->grp_used);
 			}
@@ -625,7 +625,7 @@ static void gpencil_add_editpoints_vertexdata(
 
 				/* add to list of groups */
 				cache->grp_cache = gpencil_group_cache_add(
-					cache->grp_cache, gpf, gps, eGpencilBatchGroupType_Edlin, false,
+					cache->grp_cache, gpl, gpf, gps, eGpencilBatchGroupType_Edlin, false,
 					cache->b_edlin.vbo_len,
 					&cache->grp_size, &cache->grp_used);
 			}
@@ -637,7 +637,7 @@ static void gpencil_add_editpoints_vertexdata(
 
 						/* add to list of groups */
 						cache->grp_cache = gpencil_group_cache_add(
-							cache->grp_cache, gpf, gps, eGpencilBatchGroupType_Edit, false,
+							cache->grp_cache, gpl, gpf, gps, eGpencilBatchGroupType_Edit, false,
 							cache->b_edit.vbo_len,
 							&cache->grp_size, &cache->grp_used);
 					}
@@ -741,7 +741,7 @@ static void gpencil_draw_strokes(
 				(!stl->storage->simplify_fill))
 			{
 				gpencil_add_fill_vertexdata(
-				        cache, ob, derived_gpf, gps,
+				        cache, ob, gpl, derived_gpf, gps,
 				        opacity, tintcolor, false, custonion);
 			}
 			/* stroke */
@@ -1209,6 +1209,7 @@ static void DRW_gpencil_shgroups_create(
 
 	for (int i = 0; i < cache->grp_used; i++) {
 		GpencilBatchGroup *elm = &cache->grp_cache[i];
+		bGPDlayer *gpl = elm->gpl;
 		bGPDframe *gpf = elm->gpf;
 		bGPDstroke *gps = elm->gps;
 		MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
@@ -1257,7 +1258,7 @@ static void DRW_gpencil_shgroups_create(
 
 				shgrp = DRW_gpencil_shgroup_fill_create(
 					e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh,
-					gpd, gp_style, i);
+					gpd, gpl, gp_style, i);
 
 				DRW_shgroup_call_range_add(
 					shgrp, cache->b_fill.batch,
@@ -1503,7 +1504,6 @@ void DRW_gpencil_populate_particles(GPENCIL_e_data *e_data, void *vedata)
 		tGPencilObjectCache *cache_ob = &stl->g_data->gp_object_cache[i];
 		Object *ob = cache_ob->ob;
 		if (cache_ob->is_dup_ob) {
-			Object *ob_orig = (Object *)DEG_get_original_id(&ob->id);
 			bGPdata *gpd = (bGPdata *)ob->data;
 			GpencilBatchCache *cache = ob->runtime.gpencil_cache;
 			DRW_gpencil_shgroups_create(e_data, vedata, ob, gpd, cache, cache_ob);
