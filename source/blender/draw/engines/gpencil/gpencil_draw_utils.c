@@ -206,7 +206,8 @@ static void DRW_gpencil_recalc_geometry_caches(Object *ob, MaterialGPencilStyle 
 /* create shading group for filling */
 static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
         GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass,
-        GPUShader *shader, bGPdata *gpd, MaterialGPencilStyle *gp_style, int id)
+        GPUShader *shader, bGPdata *gpd, bGPDlayer *gpl,
+		MaterialGPencilStyle *gp_style, int id)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 
@@ -257,6 +258,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_fill_create(
 	DRW_shgroup_uniform_vec2(grp, "texture_scale", gp_style->texture_scale, 1);
 	DRW_shgroup_uniform_vec2(grp, "texture_offset", gp_style->texture_offset, 1);
 	DRW_shgroup_uniform_float(grp, "texture_opacity", &gp_style->texture_opacity, 1);
+	DRW_shgroup_uniform_float(grp, "layer_opacity", &gpl->opacity, 1);
 
 	stl->shgroups[id].texture_mix = gp_style->flag & GP_STYLE_COLOR_TEX_MIX ? 1 : 0;
 	DRW_shgroup_uniform_int(grp, "texture_mix", &stl->shgroups[id].texture_mix, 1);
