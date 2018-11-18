@@ -940,8 +940,14 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
 				float loc[3], rot[4], qrot[4], centr[3];
 				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob, frame);
+
 				fracture_meshisland_add(fmd, result);
 				result->id = mi->id + j;
+
+				if (fmd->use_compounds && fmd->use_dynamic && mi->id > 0) {
+					//TODOX ... does this work at all ?
+					result->rigidbody->shape = RB_SHAPE_COMPOUND;
+				}
 
 				/* process vertexgroups, if any */
 				BKE_fracture_meshisland_vertexgroups_do(fmd, ob, result);
@@ -1068,8 +1074,8 @@ static void fracture_meshisland_custom(FractureModifierData *fmd, Object *obj, M
 				}
 			}
 		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
-	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 }
 
 

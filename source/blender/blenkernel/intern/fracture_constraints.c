@@ -49,6 +49,8 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "PIL_time.h"
 
 static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsland **meshIslands, KDTree **combined_tree,
@@ -57,8 +59,29 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 static void remove_participants(RigidBodyShardCon* con, MeshIsland *mi);
 
 
+static int get_object_index(Scene *scene, Object *ob) {
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	Object *obj, *obb, *obbj;
+	int i = 0;
+	if (rbw && rbw->group) {
+
+		obb = DEG_get_original_id(ob);
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, obj)
+		{
+			obbj = DEG_get_original_id(obj);
+			if (obb == obbj) {
+				return i;
+			}
+			i++;
+		}
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
+	}
+
+	return -1;
+}
+
 static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh_islands, KDTree **combined_tree, Object *obj,
-								   MVert** mverts)
+								   MVert** mverts, Scene *scene)
 {
 	MeshIsland *mi;
 	int i = 0, ret = 0;
@@ -90,7 +113,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 	if (rmd->dm_group && rmd->use_constraint_group)
 	{
 		Object *ob;
-		int j = 0;
+		//int j = 0;
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rmd->dm_group, ob)
 		{
@@ -99,13 +122,13 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(ob, eModifierType_Fracture);
 				if (fmdi) {
 					for (mi = fmdi->shared->mesh_islands.first; mi; mi = mi->next) {
-						mi->object_index = j;
+						mi->object_index = get_object_index(scene, ob);
 						(*mesh_islands)[i] = mi;
 						i++;
 					}
 				}
 
-				j++;
+				//j++;
 			}
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
@@ -113,7 +136,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 	else {
 
 		for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-			mi->object_index = -1;
+			mi->object_index = get_object_index(scene, obj);
 			(*mesh_islands)[i] = mi;
 			i++;
 		}
@@ -215,7 +238,7 @@ static void create_constraints(FractureModifierData *rmd, Object *ob, Scene *sce
 			max_mass = mi->rigidbody->mass;
 	}
 
-	count = prepareConstraintSearch(rmd, &mesh_islands, &coord_tree, ob, &mvert);
+	count = prepareConstraintSearch(rmd, &mesh_islands, &coord_tree, ob, &mvert, scene);
 
 	for (i = 0; i < count; i++) {
 		if (rmd->constraint_target == MOD_FRACTURE_CENTROID) {
@@ -331,7 +354,7 @@ void BKE_fracture_meshislands_connect(Scene* sc, FractureModifierData *fmd, Mesh
 	bool ok = mi1 && mi1->rigidbody;
 	ok = ok && mi2 && mi2->rigidbody;
 	ok = ok && fmd->use_constraints;
-	ok = ok && ((!(fmd->dm_group && fmd->use_constraint_group) && (mi1->object_index == -1) && (mi2->object_index == -1))||
+	ok = ok && ((!(fmd->dm_group && fmd->use_constraint_group) && (mi1->object_index == mi2->object_index))||
 		 (fmd->dm_group && fmd->use_constraint_group && (mi1->object_index != mi2->object_index)));
 
 	if (ok) {
@@ -460,7 +483,7 @@ void BKE_fracture_constraint_create(Scene* scene, FractureModifierData* fmd, Mes
 
 	BLI_addtail(&fmd->shared->mesh_constraints, rbsc);
 
-	if ((mi1->object_index == -1) && (mi2->object_index == -1))
+	if ((mi1->object_index == mi2->object_index))
 	{
 		/* store constraints per meshisland too, to allow breaking percentage */
 		if (mi1->participating_constraints == NULL) {

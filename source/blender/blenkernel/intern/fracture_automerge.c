@@ -150,7 +150,7 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 
 			val = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->face_pairs, POINTER_FROM_INT(index)));
 			if (val != i && index != i) {
-				BLI_ghash_insert(fmd->shared->face_pairs, POINTER_FROM_INT(index), POINTER_FROM_INT(i));
+				BLI_ghash_insert(fmd->shared->face_pairs, POINTER_FROM_INT(i), POINTER_FROM_INT(index));
 				pairs++;
 				/*match normals...*/
 				if (fmd->fix_normals) {

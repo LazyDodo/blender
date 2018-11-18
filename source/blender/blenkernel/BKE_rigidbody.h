@@ -148,7 +148,7 @@ struct MeshIsland* BKE_rigidbody_closest_meshisland_to_point(struct FractureModi
 
 int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate);
 void BKE_rigidbody_contact_callback(struct rbContactPoint* cp, void* world);
-void BKE_rigidbody_id_callback(void *world, void* island, int* objectId, int* islandId);
+void BKE_rigidbody_id_callback(void* island, int* objectId, int* islandId);
 
 bool BKE_rigidbody_modifier_active(struct FractureModifierData *rmd);
 void BKE_rigidbody_shard_validate(struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob,

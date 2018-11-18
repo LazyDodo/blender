@@ -112,6 +112,7 @@ enum {
 	MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS     = (1 << 2),
 };
 
+#if 0
 typedef struct MeshIslandSequence {
 	struct MeshIslandSequence *next, *prev;
 	struct Mesh *visible_dm;
@@ -119,6 +120,7 @@ typedef struct MeshIslandSequence {
 	int frame;
 	int is_new;
 } MeshIslandSequence;
+#endif
 
 typedef struct FractureID {
 	struct FractureID *next, *prev;

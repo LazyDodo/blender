@@ -221,6 +221,7 @@ void btFractureDynamicsWorld::glueCallback()
 			m_idCallback(body0->getUserPointer(),&objectId0, &shardId0);
 			m_idCallback(body1->getUserPointer(),&objectId1, &shardId1);
 
+			printf("%d %d %d %d\n", objectId0, objectId1, tag0, tag1);
 			//if (!colObj0->isStaticOrKinematicObject() && !colObj1->isStaticOrKinematicObject())
 			if (objectId0 == objectId1 && objectId0 > -1 && tag0 > -1 && tag1 > -1)
 			{

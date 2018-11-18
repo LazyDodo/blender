@@ -222,10 +222,10 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         row.prop(md, "use_self_collision")
 
         col = layout.column(align=True)
-        col.prop(md, "constraint_target")
         col.prop(md, "constraint_type")
+        col.prop(md, "constraint_target")
         col = layout.column(align=True)
-        col.prop(md, "constraint_limit", text="Constraint limit, per MeshIsland")
+        col.prop(md, "constraint_limit")
         col.prop(md, "contact_dist")
 
         layout.label(text="Constraint Cluster Settings")
@@ -234,64 +234,76 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         col.prop(md, "cluster_group")
         col.prop(md, "cluster_constraint_type", text="Cluster Type")
 
-        if md.use_compounds:
-            layout.label(text="Compound Breaking Settings")
-        else:
-            layout.label(text="Constraint Breaking Settings")
+        layout.label(text="Constraint Breaking Settings")
 
         col = layout.column(align=True)
         col.prop(md, "breaking_threshold", text="Threshold")
         col.prop(md, "cluster_breaking_threshold")
 
-        if md.use_compounds:
-            #layout.label("Compound Damage Propagation Settings")
-            col = layout.column(align=True)
-            col.prop(md, "minimum_impulse")
-            #col.prop(md, "impulse_dampening")
-            #col.prop(md, "directional_factor")
-            col.prop(md, "mass_threshold_factor")
-        else:
-            layout.label(text="Constraint Special Breaking Settings")
-            col = layout.column(align=True)
-            row = col.row(align=True)
-            row.prop(md, "breaking_percentage", text="Percentage")
-            row.prop(md, "cluster_breaking_percentage", text="Cluster Percentage")
+        layout.label(text="Constraint Special Breaking Settings")
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.prop(md, "breaking_percentage", text="Percentage")
+        row.prop(md, "cluster_breaking_percentage", text="Cluster Percentage")
 
-            row = col.row(align=True)
-            row.prop(md, "breaking_angle", text="Angle")
-            row.prop(md, "cluster_breaking_angle", text="Cluster Angle")
+        row = col.row(align=True)
+        row.prop(md, "breaking_angle", text="Angle")
+        row.prop(md, "cluster_breaking_angle", text="Cluster Angle")
 
-            row = col.row(align=True)
-            row.prop(md, "breaking_distance", text="Distance")
-            row.prop(md, "cluster_breaking_distance", text="Cluster Distance")
+        row = col.row(align=True)
+        row.prop(md, "breaking_distance", text="Distance")
+        row.prop(md, "cluster_breaking_distance", text="Cluster Distance")
 
-            col = layout.column(align=True)
-            col.prop(md, "solver_iterations_override")
-            col.prop(md, "cluster_solver_iterations_override")
+        col = layout.column(align=True)
+        col.prop(md, "solver_iterations_override")
+        col.prop(md, "cluster_solver_iterations_override")
 
-            row = layout.row(align=True)
-            row.prop(md, "breaking_angle_weighted")
-            row.prop(md, "breaking_distance_weighted")
+        row = layout.row(align=True)
+        row.prop(md, "breaking_angle_weighted")
+        row.prop(md, "breaking_distance_weighted")
 
-            row = layout.row(align=True)
-            row.prop(md, "breaking_percentage_weighted")
-            row.prop(md, "use_mass_dependent_thresholds", text="Mass Dependent Thresholds")
+        row = layout.row(align=True)
+        row.prop(md, "breaking_percentage_weighted")
+        row.prop(md, "use_mass_dependent_thresholds", text="Mass Dependent Thresholds")
 
-        if not md.use_compounds:
-            layout.label(text="Constraint Deform Settings")
-            col = layout.column(align=True)
-            row = col.row(align=True)
-            row.prop(md, "deform_angle", text="Deforming Angle")
-            row.prop(md, "cluster_deform_angle", text="Cluster Deforming Angle")
+        layout.label(text="Constraint Deform Settings")
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.prop(md, "deform_angle", text="Deforming Angle")
+        row.prop(md, "cluster_deform_angle", text="Cluster Deforming Angle")
 
-            row = col.row(align=True)
-            row.prop(md, "deform_distance", text="Deforming Distance")
-            row.prop(md, "cluster_deform_distance", text="Cluster Deforming Distance")
+        row = col.row(align=True)
+        row.prop(md, "deform_distance", text="Deforming Distance")
+        row.prop(md, "cluster_deform_distance", text="Cluster Deforming Distance")
 
-            col.prop(md, "deform_weakening")
-            row = layout.row(align=True)
-            row.prop(md, "deform_angle_weighted")
-            row.prop(md, "deform_distance_weighted")
+        col.prop(md, "deform_weakening")
+        row = layout.row(align=True)
+        row.prop(md, "deform_angle_weighted")
+        row.prop(md, "deform_distance_weighted")
+
+class PHYSICS_PT_fracture_compounds(PhysicButtonsPanel, Panel):
+    bl_label = "Compounds"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'PHYSICS_PT_fracture'
+
+    @classmethod
+    def poll(cls, context):
+        md = context.fracture
+        return PhysicButtonsPanel.poll(context) # and md.fracture_mode != 'EXTERNAL'
+
+    def draw_header(self, context):
+        md = context.fracture
+        self.layout.prop(md, "use_compounds", text="")
+
+    def draw(self, context):
+        layout = self.layout
+        md = context.fracture
+        layout.label(text="Constraint building settings apply here too")
+        col = layout.column(align=True)
+        col.prop(md, "minimum_impulse")
+        col.prop(md, "mass_threshold_factor")
+        #col.prop(md, "impulse_dampening")
+        #col.prop(md, "directional_factor")
 
 
 class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
@@ -333,6 +345,7 @@ classes = (
     PHYSICS_PT_fracture_advanced,
     PHYSICS_PT_fracture_dynamic,
     PHYSICS_PT_fracture_simulation,
+    PHYSICS_PT_fracture_compounds,
     PHYSICS_PT_fracture_utilities,
     PHYSICS_PT_fracture_anim_mesh,
 )

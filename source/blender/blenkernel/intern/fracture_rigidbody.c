@@ -545,6 +545,11 @@ void BKE_rigidbody_validate_sim_shard_shape(MeshIsland *mi, Object *ob, short re
 			new_shape = BKE_rigidbody_get_shape_trimesh_from_mesh(ob, me_phys);
 			break;
 		}
+		case RB_SHAPE_COMPOUND:
+		{
+			new_shape = RB_shape_new_compound();
+			break;
+		}
 	}
 	/* assign new collision shape if creation was successful */
 	if (new_shape) {
@@ -610,8 +615,10 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 		copy_v3_v3(size, isize);
 
 		mul_v3_v3(size, ob->size);
-		rbo->shared->physics_object = RB_body_new(rbo->shared->physics_shape, loc, rot, fmd->use_compounds, fmd->impulse_dampening,
-												  fmd->directional_factor, fmd->minimum_impulse, fmd->mass_threshold_factor, size);
+		rbo->shared->physics_object = RB_body_new(rbo->shared->physics_shape, loc, rot,
+		                                          fmd->use_compounds, fmd->impulse_dampening,
+												  fmd->directional_factor, fmd->minimum_impulse,
+		                                          fmd->mass_threshold_factor, size);
 
 		RB_body_set_friction(rbo->shared->physics_object, rbo->friction);
 		RB_body_set_restitution(rbo->shared->physics_object, rbo->restitution);
@@ -1312,7 +1319,7 @@ static bool check_island_size(FractureModifierData *fmd, MeshIsland *mi)
 	BKE_mesh_minmax(mi->mesh, min, max);
 
 	sub_v3_v3v3(diff, max, min);
-	if (diff[max_axis_v3(diff)] < size)
+	if (diff[min_axis_v3(diff)] < size)
 	{
 		return false;
 	}
@@ -1386,7 +1393,7 @@ static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi,
 		force = force / mi->rigidbody->mass;
 	}
 
-	canbreak = (force > fmd->dynamic_force) || ((fmd->limit_impact || ob2) && can_break(ob2, ob1, fmd->limit_impact));
+	canbreak = (force > fmd->dynamic_force) || ((fmd->limit_impact && ob2) && can_break(ob2, ob1, fmd->limit_impact));
 
 	if (canbreak && check_constraints(fmd, mi, rbw))
 	{
@@ -1407,7 +1414,7 @@ static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi,
 		 *the pointcache thinks it is empty and a fracture is attempted ! */
 		if (check_island_size(fmd, mi) && mi->fractured == false)
 		{
-			FractureID* fid = MEM_mallocN(sizeof(FractureID), "contact_callback_fractureid");
+			FractureID* fid = MEM_mallocN(sizeof(FractureID), "lback_fractureid");
 			fid->mi = mi;
 			BLI_addtail(&fmd->shared->fracture_ids, fid);
 			fmd->shared->refresh_dynamic = true;
@@ -1461,6 +1468,21 @@ void BKE_rigidbody_contact_callback(rbContactPoint* cp, void* world)
 {
 	Scene* scene = (Scene*)DEG_get_original_id(world);
 	check_fracture(cp,scene);
+}
+
+void BKE_rigidbody_id_callback(void* island, int* objectId, int* islandId)
+{
+	MeshIsland *mi = (MeshIsland*)island;
+	//RigidBodyWorld *rbw = (RigidBodyWorld*)world;
+
+	*objectId = -1;
+	*islandId = -1;
+
+	if (mi)
+	{
+		*objectId = mi->object_index;
+		*islandId = mi->id;
+	}
 }
 
 #if 0
@@ -1667,7 +1689,7 @@ static void test_deactivate_rigidbody(RigidBodyOb *rbo, MeshIsland* mi)
 			rbo->flag |= RBO_FLAG_KINEMATIC_REBUILD;
 			rbo->flag |= RBO_FLAG_NEEDS_VALIDATE;
 
-			if (mi != NULL)
+			if ((mi != NULL) && (rbo->flag & RBO_FLAG_PROPAGATE_TRIGGER))
 			{
 				for (i = 0; i < mi->participating_constraint_count; i++)
 				{

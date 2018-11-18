@@ -151,7 +151,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			}
 
 			/*decouple from listbase because it will continue growing ... */
-			for (mi = mi_tmp, i = 0; i < count; i++)
+			for (mi = mi_tmp[0], i = 0; i < count; i++)
 			{
 				BKE_fracture_do(fmd, mi_tmp[i], ob, depsgraph, bmain, scene, true);
 				mi_tmp[i]->endframe = frame;
