@@ -38,6 +38,7 @@
 
 #include "DNA_customdata_types.h"
 #include "DNA_meshdata_types.h"
+#include "DNA_hair_types.h"
 #include "DNA_ID.h"
 
 #include "BLI_utildefines.h"
@@ -1291,6 +1292,12 @@ static const LayerTypeInfo LAYERTYPEINFO[CD_NUMTYPES] = {
 	{sizeof(short[4][3]), "", 0, NULL, NULL, NULL, NULL, layerSwap_flnor, NULL},
 	/* 41: CD_CUSTOMLOOPNORMAL */
 	{sizeof(short[2]), "vec2s", 1, NULL, NULL, NULL, NULL, NULL, NULL},
+	/* 42: CD_HAIRVERT */
+	{sizeof(HairFiberVertex), "HairFiberVertex", 1, NULL, NULL, NULL, NULL, NULL, NULL},
+	/* 43: CD_HAIRCURVE */
+	{sizeof(HairFiberCurve), "HairFiberCurve", 1, NULL, NULL, NULL, NULL, NULL, NULL},
+	/* 44: CD_HAIRFOLLICLE */
+	{sizeof(HairFollicle), "HairFollicle", 1, NULL, NULL, NULL, NULL, NULL, NULL},
 };
 
 
@@ -1307,6 +1314,7 @@ static const char *LAYERTYPENAMES[CD_NUMTYPES] = {
 	/* 35-36 */ "CDGridPaintMask", "CDMVertSkin",
 	/* 37-38 */ "CDFreestyleEdge", "CDFreestyleFace",
 	/* 39-41 */ "CDMLoopTangent", "CDTessLoopNormal", "CDCustomLoopNormal",
+	/* 42-44 */ "CDHairFiberVertex", "CDHairFiberCurve", "CDHairFollicle",
 };
 
 
