@@ -127,10 +127,10 @@ BLI_INLINE HairFiberVertex* BKE_hair_iter__verts_next(HairIterator *iter)
 
 /* Follicles */
 
-BLI_INLINE HairFollicle* BKE_hair_iter__follicles_init(HairIterator *iter, const HairPattern *pattern)
+BLI_INLINE HairFollicle* BKE_hair_iter__follicles_init(HairIterator *iter, const HairCurveData *curve_data)
 {
-	iter->data.follicles.last = pattern->follicles + pattern->num_follicles;
-	iter->data.follicles.follicle = pattern->follicles;
+	iter->data.follicles.last = curve_data->follicles + curve_data->totfollicles;
+	iter->data.follicles.follicle = curve_data->follicles;
 	return iter->data.follicles.follicle;
 }
 
@@ -147,14 +147,14 @@ BLI_INLINE HairFollicle* BKE_hair_iter__follicles_next(HairIterator *iter)
 
 /* Follicle Curves */
 
-BLI_INLINE HairFollicle* BKE_hair_iter__follicle_curves_init(HairIterator *iter, const HairPattern *pattern, const HairCurveData *curve_data)
+BLI_INLINE HairFollicle* BKE_hair_iter__follicle_curves_init(HairIterator *iter, const HairCurveData *curve_data)
 {
 	HairIter__follicle_curves *intern = &iter->data.follicle_curves;
 
-	intern->last = pattern->follicles + pattern->num_follicles;
+	intern->last = curve_data->follicles + curve_data->totfollicles;
 	intern->curves_array = curve_data->curves;
 
-	intern->follicle = pattern->follicles;
+	intern->follicle = curve_data->follicles;
 	while (intern->follicle != intern->last) {
 		if (intern->follicle->curve != HAIR_CURVE_INDEX_NONE) {
 			intern->curve = &intern->curves_array[intern->follicle->curve];
@@ -235,18 +235,18 @@ BLI_INLINE HairFiberVertex* BKE_hair_iter__curve_verts_next(HairIterator *iter)
 	     BKE_hair_iter__verts_valid(iter); \
 	     (ele) = BKE_hair_iter__verts_next(iter), ++(indexvar))
 
-#define BKE_HAIR_ITER_FOLLICLES(ele, iter, pattern) \
-	for ((ele) = BKE_hair_iter__follicles_init((iter), (pattern)); \
+#define BKE_HAIR_ITER_FOLLICLES(ele, iter, curve_data) \
+	for ((ele) = BKE_hair_iter__follicles_init((iter), (curve_data)); \
 	     BKE_hair_iter__follicles_valid(iter); \
 	     (ele) = BKE_hair_iter__follicles_next(iter))
 
-#define BKE_HAIR_ITER_FOLLICLES_INDEX(ele, iter, pattern, indexvar) \
-	for ((ele) = BKE_hair_iter__follicles_init((iter), (pattern)), (indexvar = 0); \
+#define BKE_HAIR_ITER_FOLLICLES_INDEX(ele, iter, curve_data, indexvar) \
+	for ((ele) = BKE_hair_iter__follicles_init((iter), (curve_data)), (indexvar = 0); \
 	     BKE_hair_iter__follicles_valid(iter); \
 	     (ele) = BKE_hair_iter__follicles_next(iter), ++(indexvar))
 
-#define BKE_HAIR_ITER_FOLLICLE_CURVES(ele, curvevar, iter, pattern, curve_data) \
-	for ((ele) = BKE_hair_iter__follicle_curves_init((iter), (pattern), (curve_data)), \
+#define BKE_HAIR_ITER_FOLLICLE_CURVES(ele, curvevar, iter, curve_data) \
+	for ((ele) = BKE_hair_iter__follicle_curves_init((iter), (curve_data)), \
 	         (curvevar) = (iter)->data.follicle_curves.curve; \
 	     BKE_hair_iter__follicle_curves_valid(iter); \
 	     (ele) = BKE_hair_iter__follicle_curves_next((iter)), \

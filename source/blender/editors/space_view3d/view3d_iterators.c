@@ -415,19 +415,17 @@ void hair_foreachScreenVert(
 		ED_view3d_clipping_local(vc->rv3d, obedit->obmat); /* for local clipping lookups */
 	}
 
-	if (edit->pattern) {
-		HairFollicle *follicle;
-		HairFiberCurve *curve;
-		HairFiberVertex *vert;
-		HairIterator fiter;
-		HairIterator viter;
-		BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &fiter, edit->pattern, &edit->curve_data) {
-			BKE_HAIR_ITER_CURVE_VERTS(vert, &viter, &edit->curve_data, curve) {
-				float screen_co[2];
-				if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
-				{
-					func(userData, follicle, curve, vert, screen_co);
-				}
+	HairFollicle *follicle;
+	HairFiberCurve *curve;
+	HairFiberVertex *vert;
+	HairIterator fiter;
+	HairIterator viter;
+	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &fiter, &edit->curve_data) {
+		BKE_HAIR_ITER_CURVE_VERTS(vert, &viter, &edit->curve_data, curve) {
+			float screen_co[2];
+			if (ED_view3d_project_float_object(vc->ar, vert->co, screen_co, clip_flag) == V3D_PROJ_RET_OK)
+			{
+				func(userData, follicle, curve, vert, screen_co);
 			}
 		}
 	}

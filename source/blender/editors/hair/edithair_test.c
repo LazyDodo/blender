@@ -69,7 +69,7 @@
  * Optional per-loop weights control follicle density on the scalp.
  */
 static void hair_generate_follicles_ex(
-        HairPattern *pattern,
+        HairCurveData *curve_data,
         struct Mesh *scalp,
         unsigned int seed,
         int count,
@@ -80,11 +80,11 @@ static void hair_generate_follicles_ex(
 	float density = BKE_hair_calc_density_from_count(scalp_area, count);
 	float min_distance = BKE_hair_calc_min_distance_from_density(density);
 
-	if (pattern->follicles)
+	if (curve_data->follicles)
 	{
-		MEM_freeN(pattern->follicles);
+		MEM_freeN(curve_data->follicles);
 	}
-	pattern->follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
+	curve_data->follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
 
 	{
 		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, loop_weights);
@@ -92,9 +92,9 @@ static void hair_generate_follicles_ex(
 		BKE_mesh_sample_generator_bind(gen, scalp);
 
 		static const bool use_threads = false;
-		pattern->num_follicles = BKE_mesh_sample_generate_batch_ex(
+		curve_data->totfollicles = BKE_mesh_sample_generate_batch_ex(
 		            gen,
-		            &pattern->follicles->mesh_sample,
+		            &curve_data->follicles->mesh_sample,
 		            sizeof(HairFollicle),
 		            count,
 		            use_threads);
@@ -102,8 +102,8 @@ static void hair_generate_follicles_ex(
 		BKE_mesh_sample_free_generator(gen);
 	}
 
-	for (int i = 0; i < pattern->num_follicles; ++i) {
-		HairFollicle *follicle = &pattern->follicles[i];
+	for (int i = 0; i < curve_data->totfollicles; ++i) {
+		HairFollicle *follicle = &curve_data->follicles[i];
 
 		follicle->curve = HAIR_CURVE_INDEX_NONE;
 	}
@@ -199,21 +199,20 @@ static void BKE_hair_curve_builder_discard(HairCurveBuilder *hcb)
 
 /* Generate a simple hair curve for each follicle */
 static void hair_generate_curves(
-	HairPattern *pattern,
 	HairCurveData *curve_data,
 	struct Mesh *UNUSED(scalp))
 {
 	const int numverts_per_curve = 5;
 	const float taper_thickness = 1.0;
 	const float taper_length = 1.0;
-	const int totcurves = pattern->num_follicles;
-	const int totverts = pattern->num_follicles * numverts_per_curve;
+	const int totcurves = curve_data->totfollicles;
+	const int totverts = curve_data->totfollicles * numverts_per_curve;
 
 	HairCurveBuilder hcb;
 	BKE_hair_curve_builder_init(&hcb, totcurves, totverts);
 
-	for (int i = 0; i < pattern->num_follicles; ++i) {
-		HairFollicle *follicle = &pattern->follicles[i];
+	for (int i = 0; i < curve_data->totfollicles; ++i) {
+		HairFollicle *follicle = &curve_data->follicles[i];
 
 		BKE_hair_curve_builder_add_curve(&hcb, taper_length, taper_thickness);
 		for (int j = 0; j < numverts_per_curve; ++j)
@@ -248,8 +247,8 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	const int seed = RNA_int_get(op->ptr, "seed");
 	const int count = RNA_int_get(op->ptr, "count");
 
-	hair_generate_follicles_ex(edit->pattern, scalp, seed, count, NULL);
-	hair_generate_curves(edit->pattern, &edit->curve_data, scalp);
+	hair_generate_follicles_ex(&edit->curve_data, scalp, seed, count, NULL);
+	hair_generate_curves(&edit->curve_data, scalp);
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);

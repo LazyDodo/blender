@@ -72,7 +72,6 @@ void BKE_hair_init(HairSystem *hsys)
 	hsys->bb = BKE_boundbox_alloc_unit();
 
 	BKE_hair_curve_data_init(&hsys->curve_data);
-	hsys->pattern = BKE_hair_pattern_new();
 	hsys->draw_settings = BKE_hair_draw_settings_new();
 }
 
@@ -85,39 +84,11 @@ void *BKE_hair_add(Main *bmain, const char *name)
 	return hsys;
 }
 
-HairPattern *BKE_hair_pattern_new(void)
-{
-	HairPattern *pattern = MEM_callocN(sizeof(HairPattern), "hair pattern");
-	CustomData_reset(&pattern->fdata);
-	return pattern;
-}
-
-void BKE_hair_pattern_free(HairPattern *pattern)
-{
-	if (pattern) {
-		MEM_SAFE_FREE(pattern->follicles);
-		CustomData_free(&pattern->fdata, pattern->num_follicles);
-		MEM_freeN(pattern);
-	}
-}
-
-HairPattern *BKE_hair_pattern_copy(const HairPattern *src_pattern, int flag)
-{
-	HairPattern *dst_pattern = MEM_dupallocN(src_pattern);
-	if (src_pattern) {
-		dst_pattern->follicles = MEM_dupallocN(src_pattern->follicles);
-
-		CustomDataMask mask = CD_MASK_EVERYTHING;
-		const eCDAllocType alloc_type = (flag & LIB_ID_COPY_CD_REFERENCE) ? CD_REFERENCE : CD_DUPLICATE;
-		CustomData_copy(&src_pattern->fdata, &dst_pattern->fdata, mask, alloc_type, dst_pattern->num_follicles);
-	}
-	return dst_pattern;
-}
-
 void BKE_hair_curve_data_init(HairCurveData *data)
 {
 	CustomData_reset(&data->vdata);
 	CustomData_reset(&data->cdata);
+	CustomData_reset(&data->fdata);
 }
 
 /* Does not free the data pointer itself! */
@@ -125,27 +96,33 @@ void BKE_hair_curve_data_free(HairCurveData *data)
 {
 	MEM_SAFE_FREE(data->curves);
 	MEM_SAFE_FREE(data->verts);
+	MEM_SAFE_FREE(data->follicles);
 	CustomData_free(&data->vdata, data->totverts);
 	CustomData_free(&data->cdata, data->totcurves);
+	CustomData_free(&data->fdata, data->totfollicles);
 }
 
 void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_data, int flag)
 {
-	if (src_data->curves)
-	{
+	if (src_data->curves) {
 		dst_data->curves = MEM_dupallocN(src_data->curves);
 	}
-	if (src_data->verts)
-	{
+	if (src_data->verts) {
 		dst_data->verts = MEM_dupallocN(src_data->verts);
 	}
+	if (src_data->follicles) {
+		dst_data->follicles = MEM_dupallocN(src_data->follicles);
+	}
+
 	dst_data->totcurves = src_data->totcurves;
 	dst_data->totverts = src_data->totverts;
+	dst_data->totfollicles = src_data->totfollicles;
 
 	CustomDataMask mask = CD_MASK_EVERYTHING;
 	const eCDAllocType alloc_type = (flag & LIB_ID_COPY_CD_REFERENCE) ? CD_REFERENCE : CD_DUPLICATE;
 	CustomData_copy(&src_data->vdata, &dst_data->vdata, mask, alloc_type, dst_data->totverts);
 	CustomData_copy(&src_data->cdata, &dst_data->cdata, mask, alloc_type, dst_data->totcurves);
+	CustomData_copy(&src_data->fdata, &dst_data->fdata, mask, alloc_type, dst_data->totfollicles);
 }
 
 /** Free (or release) any data used by this hair system (does not free the hair system itself). */
@@ -160,14 +137,12 @@ void BKE_hair_free(HairSystem *hsys)
 		EditHair *edit = hsys->edithair;
 
 		BKE_hair_curve_data_free(&edit->curve_data);
-		BKE_hair_pattern_free(edit->pattern);
 
 		MEM_freeN(edit);
 		hsys->edithair = NULL;
 	}
 
 	BKE_hair_curve_data_free(&hsys->curve_data);
-	BKE_hair_pattern_free(hsys->pattern);
 	MEM_SAFE_FREE(hsys->draw_settings);
 	MEM_SAFE_FREE(hsys->mat);
 
@@ -188,7 +163,6 @@ void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSys
 
 	hsys_dst->edithair = NULL;
 
-	hsys_dst->pattern = BKE_hair_pattern_copy(hsys_src->pattern, flag);
 	BKE_hair_curve_data_copy(&hsys_dst->curve_data, &hsys_src->curve_data, flag);
 
 	hsys_dst->mat = MEM_dupallocN(hsys_src->mat);
@@ -211,7 +185,7 @@ HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)
 /* Custom data layer functions; those assume that totXXX are set correctly. */
 static void hair_ensure_cdlayers_primary(HairSystem *hsys)
 {
-	// if (!CustomData_get_layer(&hsys->pattern->fdata, CD_MVERT))
+	// if (!CustomData_get_layer(&hsys->curve_data.fdata, CD_MVERT))
 	// 	CustomData_add_layer(&mesh->vdata, CD_MVERT, CD_CALLOC, NULL, mesh->totvert);
 }
 
@@ -232,13 +206,13 @@ HairSystem *BKE_hair_new_nomain(int verts_len, int curves_len, int follicles_len
 	BKE_libblock_init_empty(&hsys->id);
 
 	/* don't use CustomData_reset(...); because we dont want to touch customdata */
-	copy_vn_i(hsys->pattern->fdata.typemap, CD_NUMTYPES, -1);
+	copy_vn_i(hsys->curve_data.fdata.typemap, CD_NUMTYPES, -1);
 	copy_vn_i(hsys->curve_data.vdata.typemap, CD_NUMTYPES, -1);
 	copy_vn_i(hsys->curve_data.cdata.typemap, CD_NUMTYPES, -1);
 
 	hsys->curve_data.totverts = verts_len;
 	hsys->curve_data.totcurves = curves_len;
-	hsys->pattern->num_follicles = follicles_len;
+	hsys->curve_data.totfollicles = follicles_len;
 
 	hair_ensure_cdlayers_primary(hsys);
 	hair_ensure_cdlayers_origindex(hsys);
@@ -257,9 +231,9 @@ static HairSystem *hair_new_nomain_from_template_ex(
 
 	hsys_dst->curve_data.totverts = verts_len;
 	hsys_dst->curve_data.totcurves = curves_len;
-	hsys_dst->pattern->num_follicles = follicles_len;
+	hsys_dst->curve_data.totfollicles = follicles_len;
 
-	CustomData_copy(&hsys_src->pattern->fdata, &hsys_dst->pattern->fdata, mask, CD_CALLOC, follicles_len);
+	CustomData_copy(&hsys_src->curve_data.fdata, &hsys_dst->curve_data.fdata, mask, CD_CALLOC, follicles_len);
 	CustomData_copy(&hsys_src->curve_data.vdata, &hsys_dst->curve_data.vdata, mask, CD_CALLOC, verts_len);
 	CustomData_copy(&hsys_src->curve_data.cdata, &hsys_dst->curve_data.cdata, mask, CD_CALLOC, curves_len);
 
@@ -447,18 +421,16 @@ void BKE_hair_generate_follicles_ex(
         int count,
         const float *loop_weights)
 {
-	HairPattern *pattern = hsys->pattern;
-	
 	// Limit max_count to theoretical limit based on area
 	float scalp_area = BKE_hair_calc_surface_area(scalp);
 	float density = BKE_hair_calc_density_from_count(scalp_area, count);
 	float min_distance = BKE_hair_calc_min_distance_from_density(density);
 	
-	if (pattern->follicles)
+	if (hsys->curve_data.follicles)
 	{
-		MEM_freeN(pattern->follicles);
+		MEM_freeN(hsys->curve_data.follicles);
 	}
-	pattern->follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
+	hsys->curve_data.follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
 	
 	{
 		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, loop_weights);
@@ -466,9 +438,9 @@ void BKE_hair_generate_follicles_ex(
 		BKE_mesh_sample_generator_bind(gen, scalp);
 		
 		static const bool use_threads = false;
-		pattern->num_follicles = BKE_mesh_sample_generate_batch_ex(
+		hsys->curve_data.totfollicles = BKE_mesh_sample_generate_batch_ex(
 		            gen,
-		            &pattern->follicles->mesh_sample,
+		            &hsys->curve_data.follicles->mesh_sample,
 		            sizeof(HairFollicle),
 		            count,
 		            use_threads);
@@ -599,13 +571,13 @@ void BKE_hair_eval_geometry(const Depsgraph *depsgraph, HairSystem *hsys)
 	}
 }
 
-void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairPattern *pattern)
+void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairCurveData *curve_data)
 {
-	const int num_follicles = pattern->num_follicles;
+	const int num_follicles = curve_data->totfollicles;
 	float (*orco)[3] = NULL;
 	float (*normals)[3] = NULL;
 	float (*tangents)[3] = NULL;
-	CustomData *fdata = &pattern->fdata;
+	CustomData *fdata = &curve_data->fdata;
 	
 	if (CustomData_has_layer(fdata, CD_ORCO)) {
 		orco = CustomData_get_layer(fdata, CD_ORCO);
@@ -631,7 +603,7 @@ void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairPattern *pattern)
 	float (*co)[3] = orco;
 	float (*nor)[3] = normals;
 	float (*tang)[3] = tangents;
-	HairFollicle *follicle = pattern->follicles;
+	HairFollicle *follicle = curve_data->follicles;
 	for (int i = 0; i < num_follicles; ++i) {
 		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, co, nor, tang);
 
@@ -642,10 +614,10 @@ void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairPattern *pattern)
 	}
 }
 
-static void hair_build_data(const Mesh *scalp, HairPattern *pattern, HairCurveData *curve_data, CustomDataMask datamask)
+static void hair_build_data(const Mesh *scalp, HairCurveData *curve_data, CustomDataMask datamask)
 {
 	if (datamask & (CD_MASK_ORCO | CD_MASK_NORMAL | CD_MASK_TANGENT)) {
-		BKE_hair_ensure_follicle_space(scalp, pattern);
+		BKE_hair_ensure_follicle_space(scalp, curve_data);
 	}
 }
 
@@ -658,10 +630,10 @@ void BKE_hair_modifiers_calc(const Depsgraph *depsgraph, Scene *scene, Object *o
 	CustomDataMask datamask = CD_MASK_ORCO | CD_MASK_NORMAL | CD_MASK_TANGENT;
 
 	if (edit) {
-		hair_build_data(scalp, edit->pattern, &edit->curve_data, datamask);
+		hair_build_data(scalp, &edit->curve_data, datamask);
 	}
 	else {
-		hair_build_data(scalp, hsys->pattern, &hsys->curve_data, datamask);
+		hair_build_data(scalp, &hsys->curve_data, datamask);
 	}
 }
 
@@ -839,8 +811,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 	/* Only update invalidated parts */
 	data &= uncached;
 	
-	if (data & HAIR_EXPORT_FIBER_CURVES)
-	{
+	if (data & HAIR_EXPORT_FIBER_CURVES) {
 		/* Cache subdivided curves */
 		const int totcurves = cache->totcurves = hsys->curve_data.totcurves;
 		cache->fiber_curves = MEM_reallocN_id(cache->fiber_curves, sizeof(HairFiberCurve) * totcurves, "hair export curves");
@@ -861,8 +832,7 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 		cache->totverts = totverts;
 	}
 	
-	if (data & HAIR_EXPORT_FIBER_VERTICES)
-	{
+	if (data & HAIR_EXPORT_FIBER_VERTICES) {
 		const int totverts = cache->totverts;
 		cache->fiber_verts = MEM_reallocN_id(cache->fiber_verts, sizeof(HairFiberVertex) * totverts, "hair export verts");
 		cache->fiber_tangents = MEM_reallocN_id(cache->fiber_tangents, sizeof(float[3]) * totverts, "hair export tangents");
@@ -884,36 +854,23 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 		}
 	}
 
-	if (hsys->pattern)
-	{
-		if (data & HAIR_EXPORT_FOLLICLE_BINDING)
-		{
-			cache->follicles = hsys->pattern->follicles;
-			cache->totfollicles = hsys->pattern->num_follicles;
-		}
+	if (data & HAIR_EXPORT_FOLLICLE_BINDING) {
+		cache->follicles = hsys->curve_data.follicles;
+		cache->totfollicles = hsys->curve_data.totfollicles;
+	}
 
-		if (data & HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS)
-		{
-			cache->follicle_root_position = MEM_reallocN_id(cache->follicle_root_position, sizeof(float[3]) * cache->totfollicles, "fiber root position");
-			const HairFollicle *follicle;
-			HairIterator iter;
-			int i;
-			BKE_HAIR_ITER_FOLLICLES_INDEX(follicle, &iter, hsys->pattern, i) {
-				/* Cache fiber root position */
-				BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->follicle_root_position[i], NULL, NULL);
-			}
+	if (data & HAIR_EXPORT_FOLLICLE_ROOT_POSITIONS) {
+		cache->follicle_root_position = MEM_reallocN_id(cache->follicle_root_position, sizeof(float[3]) * cache->totfollicles, "fiber root position");
+		const HairFollicle *follicle;
+		HairIterator iter;
+		int i;
+		BKE_HAIR_ITER_FOLLICLES_INDEX(follicle, &iter, &hsys->curve_data, i) {
+			/* Cache fiber root position */
+			BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, cache->follicle_root_position[i], NULL, NULL);
 		}
 	}
-	else
-	{
-		cache->follicles = NULL;
-		cache->totfollicles = 0;
-		
-		if (cache->follicle_root_position)
-		{
-			MEM_freeN(cache->follicle_root_position);
-			cache->follicle_root_position = NULL;
-		}
+	else {
+		MEM_SAFE_FREE(cache->follicle_root_position);
 	}
 	
 	return data;

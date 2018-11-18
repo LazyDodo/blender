@@ -76,7 +76,6 @@ void ED_hair_edithair_make(Object *obedit)
 
 	hsys->edithair = MEM_callocN(sizeof(EditHair), "edithair");
 
-	hsys->edithair->pattern = BKE_hair_pattern_copy(hsys->pattern, 0);
 	BKE_hair_curve_data_copy(&hsys->edithair->curve_data, &hsys->curve_data, 0);
 }
 
@@ -84,9 +83,7 @@ void ED_hair_edithair_load(Object *obedit)
 {
 	HairSystem *hsys = obedit->data;
 	
-	BKE_hair_pattern_free(hsys->pattern);
 	BKE_hair_curve_data_free(&hsys->curve_data);
-	hsys->pattern = BKE_hair_pattern_copy(hsys->edithair->pattern, 0);
 	BKE_hair_curve_data_copy(&hsys->curve_data, &hsys->edithair->curve_data, 0);
 }
 
@@ -95,7 +92,6 @@ void ED_hair_edithair_free(Object *ob)
 	HairSystem *hsys = ob->data;
 	
 	if (hsys->edithair) {
-		BKE_hair_pattern_free(hsys->edithair->pattern);
 		BKE_hair_curve_data_free(&hsys->edithair->curve_data);
 		
 		MEM_freeN(hsys->edithair);

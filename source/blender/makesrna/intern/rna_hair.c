@@ -126,22 +126,6 @@ static void rna_def_hair_follicle(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "MeshSample");
 }
 
-static void rna_def_hair_pattern(BlenderRNA *brna)
-{
-	StructRNA *srna;
-	PropertyRNA *prop;
-	
-	srna = RNA_def_struct(brna, "HairPattern", NULL);
-	RNA_def_struct_ui_text(srna, "Hair Pattern", "Set of hair follicles distributed on a surface");
-	RNA_def_struct_sdna(srna, "HairPattern");
-	RNA_def_struct_ui_icon(srna, ICON_STRANDS);
-	
-	prop = RNA_def_property(srna, "follicles", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "follicles", "num_follicles");
-	RNA_def_property_struct_type(prop, "HairFollicle");
-	RNA_def_property_ui_text(prop, "Follicles", "Hair fiber follicles");
-}
-
 static void rna_def_hair_system(BlenderRNA *brna)
 {
 	StructRNA *srna;
@@ -152,10 +136,6 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Hair System", "Hair rendering and deformation data");
 	RNA_def_struct_sdna(srna, "HairSystem");
 	RNA_def_struct_ui_icon(srna, ICON_STRANDS);
-
-	prop = RNA_def_property(srna, "pattern", PROP_POINTER, PROP_NONE);
-	RNA_def_property_struct_type(prop, "HairPattern");
-	RNA_def_property_ui_text(prop, "Pattern", "Hair pattern");
 
 	func = RNA_def_function(srna, "get_scalp_object", "rna_HairSystem_get_scalp_object");
 	parm = RNA_def_pointer(func, "object", "Object", "Object", "Object containing the hair system");
@@ -245,7 +225,6 @@ static void rna_def_hair_draw_settings(BlenderRNA *brna)
 void RNA_def_hair(BlenderRNA *brna)
 {
 	rna_def_hair_follicle(brna);
-	rna_def_hair_pattern(brna);
 	rna_def_hair_system(brna);
 	rna_def_hair_draw_settings(brna);
 }

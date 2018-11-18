@@ -8415,17 +8415,12 @@ static void direct_link_hair(FileData *fd, HairSystem* hsys)
 	hsys->adt= newdataadr(fd, hsys->adt);
 	direct_link_animdata(fd, hsys->adt);
 
-	hsys->pattern = newdataadr(fd, hsys->pattern);
-	if ( hsys->pattern )
-	{
-		hsys->pattern->follicles = newdataadr(fd, hsys->pattern->follicles);
-		direct_link_customdata(fd, &hsys->pattern->fdata, hsys->pattern->num_follicles);
-	}
-
-	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);
 	hsys->curve_data.verts = newdataadr(fd, hsys->curve_data.verts);
+	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);
+	hsys->curve_data.follicles = newdataadr(fd, hsys->curve_data.follicles);
 	direct_link_customdata(fd, &hsys->curve_data.vdata, hsys->curve_data.totverts);
 	direct_link_customdata(fd, &hsys->curve_data.cdata, hsys->curve_data.totcurves);
+	direct_link_customdata(fd, &hsys->curve_data.fdata, hsys->curve_data.totfollicles);
 
 	hsys->mat = newdataadr(fd, hsys->mat);
 	test_pointer_array(fd, (void **)&hsys->mat);

@@ -68,7 +68,7 @@ static bool hair_has_selected_follicles(EditHair *edit)
 {
 	const HairFollicle *follicle;
 	HairIterator iter;
-	BKE_HAIR_ITER_FOLLICLES(follicle, &iter, edit->pattern) {
+	BKE_HAIR_ITER_FOLLICLES(follicle, &iter, &edit->curve_data) {
 		if (follicle->flag & HAIR_FOLLICLE_SELECT) {
 			return true;
 		}
@@ -129,7 +129,7 @@ static int hair_select_all_exec(bContext *C, wmOperator *op)
 		case HAIR_SELECT_FOLLICLES: {
 			HairFollicle *follicle;
 			HairIterator iter;
-			BKE_HAIR_ITER_FOLLICLES(follicle, &iter, edit->pattern) {
+			BKE_HAIR_ITER_FOLLICLES(follicle, &iter, &edit->curve_data) {
 				hair_follicle_select_action_apply(follicle, action);
 			}
 			break;

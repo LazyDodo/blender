@@ -50,16 +50,6 @@ typedef struct HairFollicle {
 	MeshSample mesh_sample;     /* Sample on the scalp mesh for the root vertex */
 } HairFollicle;
 
-/* Collection of hair roots on a surface */
-typedef struct HairPattern {
-	struct HairFollicle *follicles;
-	int num_follicles;
-	int pad;
-
-	/* Per follicle custom data */
-	struct CustomData fdata;
-} HairPattern;
-
 typedef struct HairFiberCurve {
 	int vertstart;                      /* Offset in the vertex array where the curve starts */
 	int numverts;                       /* Number of vertices in the curve */
@@ -82,26 +72,22 @@ typedef enum HairFiberVertexFlag
 /* Hair curve data */
 typedef struct HairCurveData
 {
-	/* Curves for shaping hair fibers */
-	struct HairFiberCurve *curves;
-	/* Control vertices on curves */
-	struct HairFiberVertex *verts;
-	/* Number of curves */
-	int totcurves;
-	/* Number of curve vertices */
-	int totverts;
+	struct HairFiberVertex *verts;      /* Control vertices on curves */
+	struct HairFiberCurve *curves;      /* Curves for shaping hair fibers */
+	struct HairFollicle *follicles;     /* Hair instances on a mesh surface */
 
-	/* Per vertex custom data */
-	struct CustomData vdata;
-	/* Per curve custom data */
-	struct CustomData cdata;
+	int totverts;                       /* Number of curve vertices */
+	int totcurves;                      /* Number of curves */
+	int totfollicles;                   /* Number of follicles */
+	int pad;
+
+	struct CustomData vdata;            /* Per vertex custom data */
+	struct CustomData cdata;            /* Per curve custom data */
+	struct CustomData fdata;            /* Per follicle custom data */
 } HairCurveData;
 
 /* Editable hair data */
 typedef struct EditHair {
-	/* Set of hair follicles on the scalp mesh */
-	struct HairPattern *pattern;
-
 	/* Curve data */
 	HairCurveData curve_data;
 } EditHair;
@@ -123,9 +109,6 @@ typedef struct HairSystem {
 
 	int flag;
 	int pad;
-
-	/* Set of hair follicles on the scalp mesh */
-	struct HairPattern *pattern;
 
 	/* Curve data */
 	HairCurveData curve_data;

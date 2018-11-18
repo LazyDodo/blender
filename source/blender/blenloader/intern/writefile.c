@@ -2240,6 +2240,7 @@ static void write_hair(WriteData *wd, HairSystem *hsys)
 	CustomDataLayer *flayers = NULL, flayers_buff[CD_TEMP_CHUNK_SIZE];
 	CustomData_file_write_prepare(&hsys->curve_data.vdata, &vlayers, vlayers_buff, ARRAY_SIZE(vlayers_buff));
 	CustomData_file_write_prepare(&hsys->curve_data.cdata, &clayers, clayers_buff, ARRAY_SIZE(clayers_buff));
+	CustomData_file_write_prepare(&hsys->curve_data.fdata, &flayers, flayers_buff, ARRAY_SIZE(flayers_buff));
 
 	writestruct_at_address(wd, ID_HA, HairSystem, 1, old_hsys, hsys);
 	write_iddata(wd, &hsys->id);
@@ -2247,33 +2248,12 @@ static void write_hair(WriteData *wd, HairSystem *hsys)
 		write_animdata(wd, hsys->adt);
 	}
 
-	if (hsys->pattern)
-	{
-		HairPattern *old_pattern = hsys->pattern;
-		HairPattern copy_pattern = *hsys->pattern;
-		HairPattern *pattern = &copy_pattern;
-
-		/**
-		 * Those calls:
-		 *   - Reduce pattern->xdata.totlayer to number of layers to write.
-		 *   - Fill xlayers with those layers to be written.
-		 * Note that pattern->xdata is from now on invalid for Blender, but this is why the whole mesh is
-		 * a temp local copy!
-		 */
-		CustomData_file_write_prepare(&pattern->fdata, &flayers, flayers_buff, ARRAY_SIZE(flayers_buff));
-
-		writestruct_at_address(wd, DATA, HairPattern, 1, old_pattern, pattern);
-		writestruct(wd, DATA, HairFollicle, pattern->num_follicles, pattern->follicles);
-
-		write_customdata(wd, &hsys->id, pattern->num_follicles, &pattern->fdata, flayers, -1, 0);
-
-		pattern = old_pattern;
-	}
-
-	writestruct(wd, DATA, HairFiberCurve, hsys->curve_data.totcurves, hsys->curve_data.curves);
 	writestruct(wd, DATA, HairFiberVertex, hsys->curve_data.totverts, hsys->curve_data.verts);
+	writestruct(wd, DATA, HairFiberCurve, hsys->curve_data.totcurves, hsys->curve_data.curves);
+	writestruct(wd, DATA, HairFollicle, hsys->curve_data.totfollicles, hsys->curve_data.follicles);
 	write_customdata(wd, &hsys->id, hsys->curve_data.totverts, &hsys->curve_data.vdata, vlayers, -1, 0);
 	write_customdata(wd, &hsys->id, hsys->curve_data.totcurves, &hsys->curve_data.cdata, clayers, -1, 0);
+	write_customdata(wd, &hsys->id, hsys->curve_data.totfollicles, &hsys->curve_data.fdata, flayers, -1, 0);
 
 	if (hsys->draw_settings)
 	{
@@ -2282,14 +2262,14 @@ static void write_hair(WriteData *wd, HairSystem *hsys)
 
 	writedata(wd, DATA, sizeof(void *) * hsys->totcol, hsys->mat);
 
-	if (flayers && flayers != flayers_buff) {
-		MEM_freeN(flayers);
-	}
 	if (vlayers && vlayers != vlayers_buff) {
 		MEM_freeN(vlayers);
 	}
 	if (clayers && clayers != clayers_buff) {
 		MEM_freeN(clayers);
+	}
+	if (flayers && flayers != flayers_buff) {
+		MEM_freeN(flayers);
 	}
 }
 
