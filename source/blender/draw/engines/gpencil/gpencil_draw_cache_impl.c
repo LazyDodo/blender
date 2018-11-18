@@ -226,7 +226,7 @@ void DRW_gpencil_get_fill_geom(struct GpencilBatchCacheElem *be, Object *ob, bGP
 		be->uvdata_id = GPU_vertformat_attr_add(&be->format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		be->vbo = GPU_vertbuf_create_with_format(&be->format);
-		GPU_vertbuf_data_alloc(be->vbo, totvertex);
+		GPU_vertbuf_data_alloc(be->vbo, GPENCIL_VBO_BLOCK_SIZE * 64);
 		be->vbo_len = 0;
 	}
 	else {

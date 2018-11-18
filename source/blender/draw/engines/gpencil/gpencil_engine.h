@@ -41,7 +41,11 @@ struct RenderLayer;
 #define GPENCIL_CACHE_BLOCK_SIZE 8
 #define GPENCIL_MAX_SHGROUPS 65536
 #define GPENCIL_GROUPS_BLOCK_SIZE 1024
-#define GPENCIL_VBO_BLOCK_SIZE 256
+
+/* the default size has a big impact in the speed, but use more GPU memory
+ * Maybe this could be a parameter
+ */
+#define GPENCIL_VBO_BLOCK_SIZE 2048
 
 #define GPENCIL_COLOR_SOLID   0
 #define GPENCIL_COLOR_TEXTURE 1
