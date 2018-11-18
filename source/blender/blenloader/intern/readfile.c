@@ -8424,6 +8424,8 @@ static void direct_link_hair(FileData *fd, HairSystem* hsys)
 
 	hsys->curve_data.curves = newdataadr(fd, hsys->curve_data.curves);
 	hsys->curve_data.verts = newdataadr(fd, hsys->curve_data.verts);
+	direct_link_customdata(fd, &hsys->curve_data.vdata, hsys->curve_data.totverts);
+	direct_link_customdata(fd, &hsys->curve_data.cdata, hsys->curve_data.totcurves);
 
 	hsys->mat = newdataadr(fd, hsys->mat);
 	test_pointer_array(fd, (void **)&hsys->mat);

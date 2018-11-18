@@ -71,6 +71,7 @@ void BKE_hair_init(HairSystem *hsys)
 
 	hsys->bb = BKE_boundbox_alloc_unit();
 
+	BKE_hair_curve_data_init(&hsys->curve_data);
 	hsys->pattern = BKE_hair_pattern_new();
 	hsys->draw_settings = BKE_hair_draw_settings_new();
 }
@@ -113,14 +114,22 @@ HairPattern *BKE_hair_pattern_copy(const HairPattern *src_pattern, int flag)
 	return dst_pattern;
 }
 
+void BKE_hair_curve_data_init(HairCurveData *data)
+{
+	CustomData_reset(&data->vdata);
+	CustomData_reset(&data->cdata);
+}
+
 /* Does not free the data pointer itself! */
 void BKE_hair_curve_data_free(HairCurveData *data)
 {
 	MEM_SAFE_FREE(data->curves);
 	MEM_SAFE_FREE(data->verts);
+	CustomData_free(&data->vdata, data->totverts);
+	CustomData_free(&data->cdata, data->totcurves);
 }
 
-void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_data)
+void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_data, int flag)
 {
 	if (src_data->curves)
 	{
@@ -132,6 +141,11 @@ void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_
 	}
 	dst_data->totcurves = src_data->totcurves;
 	dst_data->totverts = src_data->totverts;
+
+	CustomDataMask mask = CD_MASK_EVERYTHING;
+	const eCDAllocType alloc_type = (flag & LIB_ID_COPY_CD_REFERENCE) ? CD_REFERENCE : CD_DUPLICATE;
+	CustomData_copy(&src_data->vdata, &dst_data->vdata, mask, alloc_type, dst_data->totverts);
+	CustomData_copy(&src_data->cdata, &dst_data->cdata, mask, alloc_type, dst_data->totcurves);
 }
 
 /** Free (or release) any data used by this hair system (does not free the hair system itself). */
@@ -175,7 +189,7 @@ void BKE_hair_copy_data(Main *UNUSED(bmain), HairSystem *hsys_dst, const HairSys
 	hsys_dst->edithair = NULL;
 
 	hsys_dst->pattern = BKE_hair_pattern_copy(hsys_src->pattern, flag);
-	BKE_hair_curve_data_copy(&hsys_dst->curve_data, &hsys_src->curve_data);
+	BKE_hair_curve_data_copy(&hsys_dst->curve_data, &hsys_src->curve_data, flag);
 
 	hsys_dst->mat = MEM_dupallocN(hsys_src->mat);
 
@@ -219,6 +233,8 @@ HairSystem *BKE_hair_new_nomain(int verts_len, int curves_len, int follicles_len
 
 	/* don't use CustomData_reset(...); because we dont want to touch customdata */
 	copy_vn_i(hsys->pattern->fdata.typemap, CD_NUMTYPES, -1);
+	copy_vn_i(hsys->curve_data.vdata.typemap, CD_NUMTYPES, -1);
+	copy_vn_i(hsys->curve_data.cdata.typemap, CD_NUMTYPES, -1);
 
 	hsys->curve_data.totverts = verts_len;
 	hsys->curve_data.totcurves = curves_len;
@@ -244,6 +260,8 @@ static HairSystem *hair_new_nomain_from_template_ex(
 	hsys_dst->pattern->num_follicles = follicles_len;
 
 	CustomData_copy(&hsys_src->pattern->fdata, &hsys_dst->pattern->fdata, mask, CD_CALLOC, follicles_len);
+	CustomData_copy(&hsys_src->curve_data.vdata, &hsys_dst->curve_data.vdata, mask, CD_CALLOC, verts_len);
+	CustomData_copy(&hsys_src->curve_data.cdata, &hsys_dst->curve_data.cdata, mask, CD_CALLOC, curves_len);
 
 	/* The destination hair system should at least have valid primary CD layers,
 	 * even in cases where the source hair system does not. */

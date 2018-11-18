@@ -90,6 +90,11 @@ typedef struct HairCurveData
 	int totcurves;
 	/* Number of curve vertices */
 	int totverts;
+
+	/* Per vertex custom data */
+	struct CustomData vdata;
+	/* Per curve custom data */
+	struct CustomData cdata;
 } HairCurveData;
 
 /* Editable hair data */

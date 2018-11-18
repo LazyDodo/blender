@@ -78,9 +78,10 @@ struct HairPattern *BKE_hair_pattern_new(void);
 void BKE_hair_pattern_free(struct HairPattern *pattern);
 struct HairPattern *BKE_hair_pattern_copy(const struct HairPattern *src_pattern, int flag);
 
+void BKE_hair_curve_data_init(struct HairCurveData *data);
 /* Does not free the data pointer itself! */
 void BKE_hair_curve_data_free(struct HairCurveData *data);
-void BKE_hair_curve_data_copy(struct HairCurveData *dst_data, const struct HairCurveData *src_data);
+void BKE_hair_curve_data_copy(struct HairCurveData *dst_data, const struct HairCurveData *src_data, int flag);
 
 /* === Scalp object === */
 
