@@ -42,10 +42,8 @@ struct RenderLayer;
 #define GPENCIL_MAX_SHGROUPS 65536
 #define GPENCIL_GROUPS_BLOCK_SIZE 1024
 
-/* the default size has a big impact in the speed, but use more GPU memory
- * Maybe this could be a parameter
- */
-#define GPENCIL_VBO_BLOCK_SIZE 2048
+/* used to expand VBOs. Size has a big impact in the speed */
+#define GPENCIL_VBO_BLOCK_SIZE 128
 
 #define GPENCIL_COLOR_SOLID   0
 #define GPENCIL_COLOR_TEXTURE 1
@@ -88,6 +86,10 @@ typedef struct tGPencilObjectCache {
 	float obmat[4][4];
 	float zdepth;  /* z-depth value to sort gp object */
 	bool is_dup_ob;  /* flag to tag duplicate objects */
+
+	/* GPU data size */
+	int tot_vertex;
+	int tot_triangles;
 } tGPencilObjectCache;
 
   /* *********** LISTS *********** */
@@ -288,6 +290,9 @@ typedef struct GpencilBatchCacheElem {
 	uint color_id;
 	uint thickness_id;
 	uint uvdata_id;
+
+	/* size for VBO alloc */
+	int tot_vertex;
 } GpencilBatchCacheElem;
 
 typedef struct GpencilBatchGroup {

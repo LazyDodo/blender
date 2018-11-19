@@ -65,6 +65,28 @@
 
 #define GP_SET_SRC_GPS(src_gps) if (src_gps) src_gps = src_gps->next
 
+/* Get number of vertex for using in GPU VBOs */
+void gpencil_calc_vertex(tGPencilObjectCache *cache_ob, GpencilBatchCache *cache, bGPdata *gpd)
+{
+	cache_ob->tot_vertex = 0;
+	cache_ob->tot_triangles = 0;
+
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		bGPDframe *gpf = gpl->actframe;
+		if ((gpl->flag & GP_LAYER_HIDE) || (gpf == NULL)) {
+			continue;
+		}
+		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+			cache_ob->tot_vertex += gps->totpoints + 3;
+			cache_ob->tot_triangles += gps->totpoints - 1;
+		}
+	}
+
+	cache->b_fill.tot_vertex = cache_ob->tot_triangles * 3;
+	cache->b_stroke.tot_vertex = cache_ob->tot_vertex;
+	cache->b_point.tot_vertex = cache_ob->tot_vertex;
+}
+
 /* Helper for doing all the checks on whether a stroke can be drawn */
 static bool gpencil_can_draw_stroke(
         struct MaterialGPencilStyle *gp_style, const bGPDstroke *gps,
@@ -1328,6 +1350,9 @@ void DRW_gpencil_populate_multiedit(
 	/* check if playing animation */
 	bool playing = stl->storage->is_playing;
 
+	/* calc max size of VBOs */
+	gpencil_calc_vertex(cache_ob, cache, gpd);
+
 	/* draw strokes */
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* don't draw layer if hidden */
@@ -1400,6 +1425,9 @@ void DRW_gpencil_populate_datablock(
 		DRW_gpencil_shgroups_create(e_data, vedata, ob, gpd, cache, cache_ob);
 		return;
 	}
+
+	/* calc max size of VBOs */
+	gpencil_calc_vertex(cache_ob, cache, gpd);
 
 	/* init general modifiers data */
 	if (!stl->storage->simplify_modif) {
@@ -1480,7 +1508,6 @@ void DRW_gpencil_populate_datablock(
 		gpencil_draw_strokes(
 			cache, e_data, vedata, ts, ob, gpd, gpl, gpf, derived_gpf,
 			opacity, gpl->tintcolor, false, cache_ob);
-
 	}
 
 	/* clear any lattice data */
