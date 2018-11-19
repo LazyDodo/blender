@@ -66,18 +66,40 @@
 #define GP_SET_SRC_GPS(src_gps) if (src_gps) src_gps = src_gps->next
 
 /* Get number of vertex for using in GPU VBOs */
-void gpencil_calc_vertex(tGPencilObjectCache *cache_ob, GpencilBatchCache *cache, bGPdata *gpd)
+void gpencil_calc_vertex(
+	GPENCIL_StorageList *stl, tGPencilObjectCache *cache_ob,
+	GpencilBatchCache *cache, bGPdata *gpd,
+	int cfra_eval)
 {
 	Object *ob = cache_ob->ob;
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+	bGPDframe *gpf = NULL;
+
+	const bool time_remap = BKE_gpencil_has_time_modifiers(ob);
 
 	cache_ob->tot_vertex = 0;
 	cache_ob->tot_triangles = 0;
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		bGPDframe *gpf = gpl->actframe;
-		if ((gpl->flag & GP_LAYER_HIDE) || (gpf == NULL)) {
+		if (gpl->flag & GP_LAYER_HIDE) {
 			continue;
 		}
+
+		/* verify time modifiers */
+		if ((time_remap) && (!stl->storage->simplify_modif)) {
+			int remap_cfra = BKE_gpencil_time_modifier(
+				draw_ctx->depsgraph, draw_ctx->scene, ob, gpl, cfra_eval,
+				stl->storage->is_render);
+			gpf = BKE_gpencil_layer_getframe(gpl, remap_cfra, GP_GETFRAME_USE_PREV);
+		}
+		else {
+			gpf = gpl->actframe;
+		}
+		
+		if (gpf == NULL) {
+			continue;
+		}
+
 		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
 			cache_ob->tot_vertex += gps->totpoints + 3;
 			cache_ob->tot_triangles += gps->totpoints - 1;
@@ -1368,7 +1390,7 @@ void DRW_gpencil_populate_multiedit(
 	bool playing = stl->storage->is_playing;
 
 	/* calc max size of VBOs */
-	gpencil_calc_vertex(cache_ob, cache, gpd);
+	gpencil_calc_vertex(stl, cache_ob, cache, gpd, cfra_eval);
 
 	/* draw strokes */
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
@@ -1444,7 +1466,7 @@ void DRW_gpencil_populate_datablock(
 	}
 
 	/* calc max size of VBOs */
-	gpencil_calc_vertex(cache_ob, cache, gpd);
+	gpencil_calc_vertex(stl, cache_ob, cache, gpd, cfra_eval);
 
 	/* init general modifiers data */
 	if (!stl->storage->simplify_modif) {
