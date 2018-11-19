@@ -2582,10 +2582,12 @@ static int fracture_anim_bind_exec(bContext *C, wmOperator *UNUSED(op))
 		return OPERATOR_CANCELLED;
 
 	//restore kinematic here, before bind (and not afterwards !)
+#if 0
 	if (scene && scene->rigidbody_world) {
 		BKE_restoreKinematic(scene->rigidbody_world, true);
 		BKE_rigidbody_rebuild_world(depsgraph, scene, scene->rigidbody_world->shared->pointcache->startframe);
 	}
+#endif
 	BKE_fracture_animated_loc_rot(rmd, obact, true, depsgraph);
 
 	DEG_relations_tag_update(bmain);
@@ -2997,6 +2999,7 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 
 	convert_modifier_to_objects(bmain, op->reports, scene, obact, rmd, layer);
 
+#if 0
 	if (rbw) {
 		/* flatten the cache and throw away all traces of the modifiers */
 		short steps_per_second = rbw->steps_per_second;
@@ -3020,6 +3023,7 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 
 		scene->rigidbody_world = rbwn;
 	}
+#endif
 
 #if 0
 	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)

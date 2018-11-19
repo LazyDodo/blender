@@ -1097,6 +1097,10 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 	if (rbw->objects) {
 		int i;
 		int count = BLI_listbase_count(&rbw->group->gobject);
+		if (count != rbw->numbodies) {
+			rigidbody_update_ob_array(rbw);
+		}
+
 		for (i = 0; i < count; i++) {
 			func(rbw, (ID **)&rbw->objects[i], userdata, IDWALK_CB_NOP);
 		}
@@ -1639,7 +1643,7 @@ void BKE_rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool reb
 			did_modifier = BKE_rigidbody_modifier_update(scene, ob, rbw, rebuild, depsgraph);
 		}
 
-		if (!did_modifier && ob->type == OB_MESH) {
+		if ((!did_modifier) && (ob->type == OB_MESH)) {
 			/* validate that we've got valid object set up here... */
 			RigidBodyOb *rbo = ob->rigidbody_object;
 			/* update transformation matrix of the object so we don't get a frame of lag for simple animations */
@@ -1774,7 +1778,7 @@ static void rigidbody_update_simulation_post_step(Depsgraph* depsgraph, RigidBod
 						rbo = mi->rigidbody;
 						if (!rbo) continue;
 						/* reset kinematic state for transformed objects */
-						if (rbo->shared->physics_object && ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ) {
+						if (rbo->shared->physics_object && (ob->flag & SELECT) && (G.moving & G_TRANSFORM_OBJ)) {
 							RB_body_set_kinematic_state(rbo->shared->physics_object, rbo->flag & RBO_FLAG_KINEMATIC ||
 														rbo->flag & RBO_FLAG_DISABLED);
 							RB_body_set_mass(rbo->shared->physics_object, RBO_GET_MASS(rbo));
@@ -2017,16 +2021,17 @@ void BKE_rigidbody_cache_reset(Scene* scene)
 
 		if (rbw) {
 			rbw->shared->pointcache->flag |= PTCACHE_OUTDATED;
-			if (rbw->objects) {
-				for (i = 0; i < rbw->numbodies; i++) {
-					ob = rbw->objects[i];
-					if (ob) {
+			if (rbw->group) {
+				FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, ob)
+				{
+					if (ob && ob->rigidbody_object) {
 						fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 						if (fmd) {
 							BKE_fracture_clear_cache(fmd, ob, scene);
 						}
 					}
 				}
+				FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 			}
 		}
 	}
@@ -2041,37 +2046,34 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 	PointCache *cache;
 	PTCacheID pid;
-	int startframe, endframe;
+	int startframe, endframe, frame = (int)ctime;
 	int shards = 0, objects = 0;
 
 	BKE_ptcache_id_from_rigidbody(&pid, NULL, rbw);
 	BKE_ptcache_id_time(&pid, scene, ctime, &startframe, &endframe, NULL);
 	cache = rbw->shared->pointcache;
 
-	/* flag cache as outdated if we don't have a world or
-	 * number of objects in the simulation has changed */
+	/* flag cache as outdated if we don't have a world and the cache is not baked */
 
-	//rigidbody_group_count_items(&rbw->group->gobject, &shards, &objects);
-	if (rbw->shared->physics_world == NULL /*|| rbw->numbodies != (shards + objects)*/) {
+	if (rbw->shared->physics_world == NULL && !(cache->flag & PTCACHE_BAKED)) {
 		cache->flag |= PTCACHE_OUTDATED;
 	}
 
-	if (ctime == startframe + 1 && rbw->ltime == startframe)
+	if (frame == startframe + 1 && rbw->ltime == startframe)
 	{
 		if (cache->flag & PTCACHE_OUTDATED) {
-
-			//if we destroy the cache, also reset dynamic data (if not baked)
-			if (!(cache->flag & PTCACHE_BAKED))
-			{
-				//resetDynamic(rbw, true, false);
-			}
-
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
 			BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 			BKE_ptcache_validate(cache, (int)ctime);
 			cache->last_exact = 0;
 			cache->flag &= ~PTCACHE_REDO_NEEDED;
 		}
+	}
+
+	//if we destroy the cache, also reset dynamic data (if not baked)
+	if ((frame == startframe) && (rbw->ltime == startframe) && !(cache->flag & PTCACHE_BAKED))
+	{
+		BKE_rigidbody_cache_reset(scene);
 	}
 }
 
@@ -2135,11 +2137,14 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 	}
 	else if (rbw->objects == NULL)
 	{
+		rigidbody_update_ob_array(rbw);
+#if 0
 		if (!was_changed)
 		{
 			BKE_rigidbody_cache_reset(scene);
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
 		}
+#endif
 	}
 
 	/* try to read from cache */

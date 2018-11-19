@@ -186,6 +186,17 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		fmd->shared->refresh_autohide = true;
 	}
 
+	//if (scene->rigidbody_world)
+	//	BKE_rigidbody_modifier_update(scene, ob, scene->rigidbody_world, false, depsgraph);
+
+	if (fmd->use_animated_mesh && fmd->anim_mesh_ob)
+	{
+		/*update bound island positions to follow bind object, after physics ran */
+		BKE_fracture_animated_loc_rot(fmd, ob, false, depsgraph);
+	}
+
+	//BKE_rigidbody_modifier_sync((ModifierData*)fmd, ob, scene, ctime);
+
 	/* assemble mesh from transformed meshislands */
 	if (fmd->shared->mesh_islands.first)
 	{

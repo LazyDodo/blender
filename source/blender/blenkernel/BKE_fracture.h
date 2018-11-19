@@ -105,7 +105,6 @@ void BKE_fracture_do(struct FractureModifierData *fmd, struct MeshIsland *mi, st
 
 void BKE_fracture_animated_loc_rot(struct FractureModifierData *fmd, struct Object *ob, bool do_bind, struct Depsgraph *depsgraph);
 
-
 void BKE_fracture_constraints_refresh(struct FractureModifierData *fmd, struct Object *ob, struct Scene* scene);
 
 

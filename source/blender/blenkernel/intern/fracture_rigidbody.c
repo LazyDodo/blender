@@ -586,6 +586,10 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 	if (rbo == NULL)
 		return;
 
+	if (!rbw || !rbw->shared || !rbw->shared->physics_world) {
+		return;
+	}
+
 	/* at validation, reset frame count as well */
 
 	/* make sure collision shape exists */
@@ -1067,6 +1071,11 @@ static bool do_activate(Object* ob, Object *ob2, MeshIsland *mi_compare, RigidBo
 	valid = valid && (ob->rigidbody_object->flag & RBO_FLAG_IS_TRIGGERED);
 	valid = valid && ((ob2->rigidbody_object->flag & RBO_FLAG_IS_TRIGGER) || ((ob2->rigidbody_object->flag & RBO_FLAG_PROPAGATE_TRIGGER) &&
 			((mi_trigger) && (mi_trigger->rigidbody->flag & RBO_FLAG_PROPAGATE_TRIGGER))));
+
+	/*prefer dynamic trigger over trigger, and allow activation after queue is empty only (everything fractured) */
+	if (mi_trigger && mi_trigger->rigidbody->flag & RBO_FLAG_DYNAMIC_TRIGGER) {
+		valid = valid && BLI_listbase_is_empty(&fmd->shared->fracture_ids);
+	}
 
 	if (valid || antiValid)
 	{
@@ -2037,6 +2046,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 		BKE_object_where_is_calc(depsgraph, scene, ob);
 		fmd->constraint_island_count = 1;
 
+#if 0
 		if ((ob->rigidbody_object && (ob->rigidbody_object->flag & RBO_FLAG_KINEMATIC) //&&
 			 /*fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED*/)) {
 
@@ -2045,6 +2055,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				BKE_fracture_animated_loc_rot(fmd, ob, false, depsgraph);
 			}
 		}
+#endif
 
 		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
 			if (mi->rigidbody == NULL) {
@@ -2313,7 +2324,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 						break;
 				}
 				/* otherwise set rigid body transform to current obmat*/
-				else // if (!(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ))
+				else if (!(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ))
 				{
 					mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
 					mat4_to_size(size, ob->obmat);
@@ -2413,6 +2424,10 @@ bool BKE_restoreKinematic(RigidBodyWorld *rbw, bool override_bind)
 						}
 						else
 						{
+							if (fmd->use_animated_mesh) {
+								mi->rigidbody->flag |= RBO_FLAG_KINEMATIC_BOUND;
+							}
+
 							//might happen if being hit by a stop trigger, remove kinematic here in this case
 							mi->rigidbody->flag &= ~RBO_FLAG_KINEMATIC;
 						}

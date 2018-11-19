@@ -648,8 +648,10 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *p
 	ModifierData* md = ptr->data;
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 
+	FractureModifierData *fmd = (FractureModifierData*)md;
 	BKE_rigidbody_cache_reset(scene);
 
+//	fmd->shared->refresh = true;
 #if 0
 	if (md && md->type == eModifierType_Fracture)
 	{

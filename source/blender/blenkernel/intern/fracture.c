@@ -1270,15 +1270,16 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 
 	mi = fmd->shared->mesh_islands.first;
 	while (mi) {
-		if (mi->startframe > startframe ||
-			(!fmd->use_dynamic && mi->id == 0) ||
-			(fmd->use_dynamic && mi->id > 0)) {
+		if ((!fmd->use_dynamic && mi->id == 0) ||
+			(fmd->use_dynamic && mi->id > 0))
+		{
 			next = mi->next;
 			BLI_remlink(&fmd->shared->mesh_islands, mi);
 			BKE_fracture_mesh_island_free(mi, scene);
 			mi = next;
 		}
 		else {
+			/* happens after shard gets created */
 			mi->endframe = endframe;
 			MEM_freeN(mi->locs);
 			MEM_freeN(mi->rots);
@@ -1579,6 +1580,8 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 	float anim_imat[4][4], imat[4][4];
 	Object *ob_eval;
 	bool mesh_free = false;
+	Scene* scene= DEG_get_input_scene(depsgraph);
+	int frame = (int)DEG_get_ctime(depsgraph);
 
 	if (!fmd->anim_mesh_ob)
 		return;
@@ -1770,11 +1773,11 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 			}
 
 			//only let kinematic rbs do this, active ones are being taken care of by bullet
-			if (mi && mi->rigidbody && (mi->rigidbody->flag & RBO_FLAG_KINEMATIC))
+			if (mi && mi->rigidbody && (mi->rigidbody->flag & RBO_FLAG_KINEMATIC_BOUND))
 			{
 				//the 4 rot layers *should* be aligned, caller needs to ensure !
 				bool quats = quatX && quatY && quatZ && quatW;
-				float quat[4], vec[3], no[3], off[3];
+				float quat[4], vec[3], no[3], off[3], size[3] = {1, 1, 1};
 				int v = fmd->shared->anim_bind[i].v;
 				unit_qt(quat);
 
@@ -1841,6 +1844,7 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 				}
 
 				mi->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
+				BKE_rigidbody_shard_validate(scene->rigidbody_world, mi, ob, fmd, false, true, size, frame);
 				if (mi->rigidbody->shared->physics_object)
 				{
 					RB_body_set_loc_rot(mi->rigidbody->shared->physics_object, mi->rigidbody->pos, mi->rigidbody->orn);
