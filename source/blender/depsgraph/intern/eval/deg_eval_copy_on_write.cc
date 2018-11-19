@@ -57,6 +57,7 @@
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -326,6 +327,74 @@ bool scene_copy_inplace_no_main(const Scene *scene, Scene *new_scene)
 	return result;
 }
 
+/* Remove all view layers but the one which corresponds to an input one. */
+void scene_remove_unused_view_layers(const Depsgraph *depsgraph,
+                                     Scene *scene_cow)
+{
+	ViewLayer *view_layer_input = depsgraph->view_layer;
+	ViewLayer *view_layer_eval = NULL;
+	/* Find evaluated view layer. At the same time we free memory used by
+	 * all other of the view layers. */
+	for (ViewLayer *view_layer_cow =
+	             reinterpret_cast<ViewLayer *>(scene_cow->view_layers.first),
+	               *view_layer_next;
+	     view_layer_cow != NULL;
+	     view_layer_cow = view_layer_next)
+	{
+		view_layer_next = view_layer_cow->next;
+		if (STREQ(view_layer_input->name, view_layer_cow->name)) {
+			view_layer_eval = view_layer_cow;
+		}
+		else {
+			BKE_view_layer_free_ex(view_layer_cow, false);
+		}
+	}
+	BLI_assert(view_layer_eval != NULL);
+	/* Make evaluated view layer the only one in the evaluated scene. */
+	view_layer_eval->prev = view_layer_eval->next = NULL;
+	scene_cow->view_layers.first = view_layer_eval;
+	scene_cow->view_layers.last = view_layer_eval;
+}
+
+/* Makes it so given view layer only has bases corresponding to a visible
+ * objects. */
+void view_layer_remove_invisible_bases(const Depsgraph *depsgraph,
+                                       ViewLayer *view_layer)
+{
+	const int base_visible_flag = (depsgraph->mode == DAG_EVAL_VIEWPORT) ?
+		BASE_ENABLED_VIEWPORT : BASE_ENABLED_RENDER;
+	ListBase visible_bases = {NULL, NULL};
+	for (Base *base = reinterpret_cast<Base *>(view_layer->object_bases.first),
+	          *base_next;
+	     base != NULL;
+	     base = base_next)
+	{
+		base_next = base->next;
+		const bool is_object_visible = (base->flag & base_visible_flag);
+		if (is_object_visible) {
+			BLI_addtail(&visible_bases, base);
+		}
+		else {
+			if (base == view_layer->basact) {
+				view_layer->basact = NULL;
+			}
+			MEM_freeN(base);
+		}
+	}
+	view_layer->object_bases = visible_bases;
+}
+
+void scene_cleanup_view_layers(const Depsgraph *depsgraph, Scene *scene_cow)
+{
+	scene_remove_unused_view_layers(depsgraph, scene_cow);
+	view_layer_remove_invisible_bases(
+	        depsgraph,
+	        reinterpret_cast<ViewLayer *>(scene_cow->view_layers.first));
+	/* TODO(sergey): Remove objects from collections as well.
+	 * Not a HUGE deal for now, nobody is looking into those CURRENTLY.
+	 * Still not an excuse to have those. */
+}
+
 /* Check whether given ID is expanded or still a shallow copy. */
 BLI_INLINE bool check_datablock_expanded(const ID *id_cow)
 {
@@ -338,7 +407,7 @@ BLI_INLINE bool check_datablock_expanded(const ID *id_cow)
  * TODO(sergey): How to make it more robust for the future, so we don't have
  * to maintain exception lists all over the code?
  */
-static bool check_datablocks_copy_on_writable(const ID *id_orig)
+bool check_datablocks_copy_on_writable(const ID *id_orig)
 {
 	const ID_Type id_type = GS(id_orig->name);
 	/* We shouldn't bother if copied ID is same as original one. */
@@ -643,6 +712,9 @@ ID *deg_expand_copy_on_write_datablock(const Depsgraph *depsgraph,
 		case ID_SCE:
 		{
 			done = scene_copy_inplace_no_main((Scene *)id_orig, (Scene *)id_cow);
+			if (done) {
+				scene_cleanup_view_layers(depsgraph, (Scene *)id_cow);
+			}
 			break;
 		}
 		case ID_ME:
@@ -1043,6 +1115,8 @@ void deg_tag_copy_on_write_id(ID *id_cow, const ID *id_orig)
 	BLI_assert(id_cow != id_orig);
 	BLI_assert((id_orig->tag & LIB_TAG_COPIED_ON_WRITE) == 0);
 	id_cow->tag |= LIB_TAG_COPIED_ON_WRITE;
+	/* This ID is no longer localized, is a self-sustaining copy now. */
+	id_cow->tag &= ~LIB_TAG_LOCALIZED;
 	id_cow->orig_id = (ID *)id_orig;
 }
 

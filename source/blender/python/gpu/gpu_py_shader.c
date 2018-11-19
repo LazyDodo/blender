@@ -153,35 +153,6 @@ static PyObject *bpygpu_shader_bind(BPyGPUShader *self)
 	Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(bpygpu_shader_transform_feedback_enable_doc,
-".. method:: transform_feedback_enable(vbo_id)\n"
-"\n"
-"   Start transform feedback operation.\n"
-"\n"
-"   :return: true if transform feedback was succesfully enabled.\n"
-"   :rtype: `bool`\n"
-);
-static PyObject *bpygpu_shader_transform_feedback_enable(
-        BPyGPUShader *self, PyObject *arg)
-{
-	uint vbo_id;
-	if ((vbo_id = PyC_Long_AsU32(arg)) == (uint)-1) {
-		return NULL;
-	}
-	return PyBool_FromLong(GPU_shader_transform_feedback_enable(self->shader, vbo_id));
-}
-
-PyDoc_STRVAR(bpygpu_shader_transform_feedback_disable_doc,
-".. method:: transform_feedback_disable()\n"
-"\n"
-"   Disable transform feedback.\n"
-);
-static PyObject *bpygpu_transform_feedback_disable(BPyGPUShader *self)
-{
-	GPU_shader_transform_feedback_disable(self->shader);
-	Py_RETURN_NONE;
-}
-
 PyDoc_STRVAR(bpygpu_shader_uniform_from_name_doc,
 ".. method:: uniform_from_name(name)\n"
 "\n"
@@ -610,12 +581,6 @@ static PyObject *bpygpu_shader_calc_format(BPyGPUShader *self, PyObject *UNUSED(
 static struct PyMethodDef bpygpu_shader_methods[] = {
 	{"bind", (PyCFunction)bpygpu_shader_bind,
 	 METH_NOARGS, bpygpu_shader_bind_doc},
-	{"transform_feedback_enable",
-	 (PyCFunction)bpygpu_shader_transform_feedback_enable,
-	 METH_O, bpygpu_shader_transform_feedback_enable_doc},
-	{"transform_feedback_disable",
-	 (PyCFunction)bpygpu_transform_feedback_disable,
-	 METH_NOARGS, bpygpu_shader_transform_feedback_disable_doc},
 	{"uniform_from_name",
 	 (PyCFunction)bpygpu_shader_uniform_from_name,
 	 METH_O, bpygpu_shader_uniform_from_name_doc},
@@ -732,9 +697,9 @@ static PyObject *bpygpu_shader_unbind(BPyGPUShader *UNUSED(self))
 PyDoc_STRVAR(bpygpu_shader_from_builtin_doc,
 ".. function:: from_builtin(shader_name)\n"
 "\n"
-"Shaders that are embedded in the blender internal code.\n"
-"They all read the uniform 'mat4 ModelViewProjectionMatrix', which can be edited by the 'gpu.matrix' module.\n"
-"For more details, you can check the shader code with the function 'gpu.shader.code_from_builtin';\n"
+"   Shaders that are embedded in the blender internal code.\n"
+"   They all read the uniform 'mat4 ModelViewProjectionMatrix', which can be edited by the 'gpu.matrix' module.\n"
+"   For more details, you can check the shader code with the function 'gpu.shader.code_from_builtin';\n"
 "\n"
 "   :param shader_name: One of these builtin shader names: {\n"
 "       '2D_UNIFORM_COLOR',\n"
@@ -745,8 +710,8 @@ PyDoc_STRVAR(bpygpu_shader_from_builtin_doc,
 "       '3D_FLAT_COLOR',\n"
 "       '3D_SMOOTH_COLOR'}\n"
 "   :type shader_name: str\n"
-"   :return: the shader object\n"
-"   :rtype: bpy.types.GPUShader\n"
+"   :return: Shader object corresponding to the given name.\n"
+"   :rtype: :class:`bpy.types.GPUShader`\n"
 );
 static PyObject *bpygpu_shader_from_builtin(PyObject *UNUSED(self), PyObject *arg)
 {
@@ -764,7 +729,7 @@ static PyObject *bpygpu_shader_from_builtin(PyObject *UNUSED(self), PyObject *ar
 PyDoc_STRVAR(bpygpu_shader_code_from_builtin_doc,
 ".. function:: code_from_builtin(shader_name)\n"
 "\n"
-"Exposes the internal shader code for query.\n"
+"   Exposes the internal shader code for query.\n"
 "\n"
 "   :param shader_name: One of these builtin shader names: {\n"
 "       '2D_UNIFORM_COLOR',\n"
@@ -775,7 +740,7 @@ PyDoc_STRVAR(bpygpu_shader_code_from_builtin_doc,
 "       '3D_FLAT_COLOR',\n"
 "       '3D_SMOOTH_COLOR'}\n"
 "   :type shader_name: str\n"
-"   :return: vertex, fragment and geometry shader codes.\n"
+"   :return: Vertex, fragment and geometry shader codes.\n"
 "   :rtype: dict\n"
 );
 static PyObject *bpygpu_shader_code_from_builtin(BPyGPUShader *UNUSED(self), PyObject *arg)

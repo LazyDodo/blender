@@ -1769,14 +1769,6 @@ void WM_event_remove_handlers(bContext *C, ListBase *handlers)
 int WM_userdef_event_map(int kmitype)
 {
 	switch (kmitype) {
-		case SELECTMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? LEFTMOUSE : RIGHTMOUSE;
-		case ACTIONMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? RIGHTMOUSE : LEFTMOUSE;
-		case EVT_TWEAK_A:
-			return (U.flag & USER_LMOUSESELECT) ? EVT_TWEAK_R : EVT_TWEAK_L;
-		case EVT_TWEAK_S:
-			return (U.flag & USER_LMOUSESELECT) ? EVT_TWEAK_L : EVT_TWEAK_R;
 		case WHEELOUTMOUSE:
 			return (U.uiflag & USER_WHEELZOOMDIR) ? WHEELUPMOUSE : WHEELDOWNMOUSE;
 		case WHEELINMOUSE:
@@ -1794,14 +1786,6 @@ int WM_userdef_event_map(int kmitype)
 int WM_userdef_event_type_from_keymap_type(int kmitype)
 {
 	switch (kmitype) {
-		case SELECTMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? LEFTMOUSE : RIGHTMOUSE;
-		case ACTIONMOUSE:
-			return (U.flag & USER_LMOUSESELECT) ? RIGHTMOUSE : LEFTMOUSE;
-		case EVT_TWEAK_S:
-			return (U.flag & USER_LMOUSESELECT) ? LEFTMOUSE : RIGHTMOUSE;
-		case EVT_TWEAK_A:
-			return (U.flag & USER_LMOUSESELECT) ? RIGHTMOUSE : LEFTMOUSE;
 		case EVT_TWEAK_L:
 			return LEFTMOUSE;
 		case EVT_TWEAK_M:
@@ -2631,8 +2615,13 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 				if ((abs(event->x - win->eventstate->prevclickx)) >= U.tweak_threshold ||
 				    (abs(event->y - win->eventstate->prevclicky)) >= U.tweak_threshold)
 				{
+					int x = event->x;
+					int y = event->y;
 					short val = event->val;
 					short type = event->type;
+
+					event->x = win->eventstate->prevclickx;
+					event->y = win->eventstate->prevclicky;
 					event->val = KM_CLICK_DRAG;
 					event->type = win->eventstate->type;
 
@@ -2642,6 +2631,8 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 
 					event->val = val;
 					event->type = type;
+					event->x = x;
+					event->y = y;
 
 					win->eventstate->check_click = 0;
 					win->eventstate->check_drag = 0;
@@ -2684,6 +2675,13 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 					if ((abs(event->x - win->eventstate->prevclickx)) <= WM_EVENT_CLICK_WIGGLE_ROOM &&
 					    (abs(event->y - win->eventstate->prevclicky)) <= WM_EVENT_CLICK_WIGGLE_ROOM)
 					{
+						/* Position is where the actual click happens, for more
+						 * accurate selecting in case the mouse drifts a little. */
+						int x = event->x;
+						int y = event->y;
+
+						event->x = win->eventstate->prevclickx;
+						event->y = win->eventstate->prevclicky;
 						event->val = KM_CLICK;
 
 						CLOG_INFO(WM_LOG_HANDLERS, 1, "handling CLICK");
@@ -2691,6 +2689,8 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 						action |= wm_handlers_do_intern(C, event, handlers);
 
 						event->val = KM_RELEASE;
+						event->x = x;
+						event->y = y;
 					}
 					else {
 						win->eventstate->check_click = 0;

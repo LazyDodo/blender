@@ -210,23 +210,6 @@ static void rna_userdef_undo_steps_set(PointerRNA *ptr, int value)
 	userdef->undosteps = (value == 1) ? 2 : value;
 }
 
-static void rna_userdef_select_mouse_set(PointerRNA *ptr, int value)
-{
-	UserDef *userdef = (UserDef *)ptr->data;
-
-	if (value) {
-		userdef->flag |= USER_LMOUSESELECT;
-		userdef->flag &= ~USER_TWOBUTTONMOUSE;
-	}
-	else
-		userdef->flag &= ~USER_LMOUSESELECT;
-}
-
-static void rna_userdef_select_mouse_update(bContext *C, Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *UNUSED(ptr))
-{
-	WM_keyconfig_reload(C);
-}
-
 static int rna_userdef_autokeymode_get(PointerRNA *ptr)
 {
 	UserDef *userdef = (UserDef *)ptr->data;
@@ -565,34 +548,34 @@ static StructRNA *rna_AddonPref_register(
         Main *bmain, ReportList *reports, void *data, const char *identifier,
         StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
 {
-	bAddonPrefType *apt, dummyapt = {{'\0'}};
-	bAddon dummyaddon = {NULL};
-	PointerRNA dummyhtr;
+	bAddonPrefType *apt, dummy_apt = {{'\0'}};
+	bAddon dummy_addon = {NULL};
+	PointerRNA dummy_ptr;
 	// int have_function[1];
 
-	/* setup dummy header & header type to store static properties in */
-	RNA_pointer_create(NULL, &RNA_AddonPreferences, &dummyaddon, &dummyhtr);
+	/* setup dummy addon-pref & addon-pref type to store static properties in */
+	RNA_pointer_create(NULL, &RNA_AddonPreferences, &dummy_addon, &dummy_ptr);
 
 	/* validate the python class */
-	if (validate(&dummyhtr, data, NULL /* have_function */ ) != 0)
+	if (validate(&dummy_ptr, data, NULL /* have_function */ ) != 0)
 		return NULL;
 
-	BLI_strncpy(dummyapt.idname, dummyaddon.module, sizeof(dummyapt.idname));
-	if (strlen(identifier) >= sizeof(dummyapt.idname)) {
+	BLI_strncpy(dummy_apt.idname, dummy_addon.module, sizeof(dummy_apt.idname));
+	if (strlen(identifier) >= sizeof(dummy_apt.idname)) {
 		BKE_reportf(reports, RPT_ERROR, "Registering add-on preferences class: '%s' is too long, maximum length is %d",
-		            identifier, (int)sizeof(dummyapt.idname));
+		            identifier, (int)sizeof(dummy_apt.idname));
 		return NULL;
 	}
 
-	/* check if we have registered this header type before, and remove it */
-	apt = BKE_addon_pref_type_find(dummyaddon.module, true);
+	/* check if we have registered this addon-pref type before, and remove it */
+	apt = BKE_addon_pref_type_find(dummy_addon.module, true);
 	if (apt && apt->ext.srna) {
 		rna_AddonPref_unregister(bmain, apt->ext.srna);
 	}
 
-	/* create a new header type */
+	/* create a new addon-pref type */
 	apt = MEM_mallocN(sizeof(bAddonPrefType), "addonpreftype");
-	memcpy(apt, &dummyapt, sizeof(dummyapt));
+	memcpy(apt, &dummy_apt, sizeof(dummy_apt));
 	BKE_addon_pref_type_add(apt);
 
 	apt->ext.srna = RNA_def_struct_ptr(&BLENDER_RNA, identifier, &RNA_AddonPreferences);
@@ -4500,12 +4483,6 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	PropertyRNA *prop;
 	StructRNA *srna;
 
-	static const EnumPropertyItem select_mouse_items[] = {
-		{USER_LMOUSESELECT, "LEFT", 0, "Left", "Use left Mouse Button for selection"},
-		{0, "RIGHT", 0, "Right", "Use Right Mouse Button for selection"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	static const EnumPropertyItem view_rotation_items[] = {
 		{0, "TURNTABLE", 0, "Turntable", "Use turntable style rotation in the viewport"},
 		{USER_TRACKBALL, "TRACKBALL", 0, "Trackball", "Use trackball style rotation in the viewport"},
@@ -4545,14 +4522,6 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_struct_nested(brna, srna, "UserPreferences");
 	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
 	RNA_def_struct_ui_text(srna, "Input", "Settings for input devices");
-
-	prop = RNA_def_property(srna, "select_mouse", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
-	RNA_def_property_enum_items(prop, select_mouse_items);
-	RNA_def_property_enum_funcs(prop, NULL, "rna_userdef_select_mouse_set", NULL);
-	RNA_def_property_ui_text(prop, "Select Mouse", "Mouse button used for selection");
-	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
-	RNA_def_property_update(prop, 0, "rna_userdef_select_mouse_update");
 
 	prop = RNA_def_property(srna, "view_zoom_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "viewzoom");
