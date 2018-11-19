@@ -68,6 +68,8 @@
 /* Get number of vertex for using in GPU VBOs */
 void gpencil_calc_vertex(tGPencilObjectCache *cache_ob, GpencilBatchCache *cache, bGPdata *gpd)
 {
+	Object *ob = cache_ob->ob;
+
 	cache_ob->tot_vertex = 0;
 	cache_ob->tot_triangles = 0;
 
@@ -82,9 +84,24 @@ void gpencil_calc_vertex(tGPencilObjectCache *cache_ob, GpencilBatchCache *cache
 		}
 	}
 
-	cache->b_fill.tot_vertex = cache_ob->tot_triangles * 3;
+	cache->b_fill.tot_vertex = (cache_ob->tot_triangles * 3);
 	cache->b_stroke.tot_vertex = cache_ob->tot_vertex;
 	cache->b_point.tot_vertex = cache_ob->tot_vertex;
+
+	/* some modifiers can change the number of points */
+	int factor = 0;
+	GpencilModifierData *md;
+	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+		/* only modifiers that change size */
+		if (mti && mti->getDuplicationFactor) {
+			factor = mti->getDuplicationFactor(md);
+
+			cache->b_fill.tot_vertex *= factor;
+			cache->b_stroke.tot_vertex *= factor;
+			cache->b_point.tot_vertex *= factor;
+		}
+	}
 }
 
 /* Helper for doing all the checks on whether a stroke can be drawn */
