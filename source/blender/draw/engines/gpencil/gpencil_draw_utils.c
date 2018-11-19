@@ -1287,13 +1287,14 @@ static void DRW_gpencil_shgroups_create(
 
 				shgrp = DRW_gpencil_shgroup_stroke_create(
 					e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh,
-					ob, gpd, gp_style, i, elm->onion);
+					ob, gpd, gp_style, stl->storage->shgroup_id, elm->onion);
 
 				DRW_shgroup_call_range_add(
 					shgrp, cache->b_stroke.batch,
 					(!cache_ob->is_dup_ob) ? gpf->runtime.viewmatrix : cache_ob->obmat,
 					start_stroke, len);
 
+				stl->storage->shgroup_id++;
 				start_stroke = elm->vertex_idx;
 				break;
 			}
@@ -1303,13 +1304,14 @@ static void DRW_gpencil_shgroups_create(
 
 				shgrp = DRW_gpencil_shgroup_point_create(
 					e_data, vedata, psl->stroke_pass, e_data->gpencil_point_sh,
-					ob, gpd, gp_style, i, elm->onion);
+					ob, gpd, gp_style, stl->storage->shgroup_id, elm->onion);
 
 				DRW_shgroup_call_range_add(
 					shgrp, cache->b_point.batch,
 					(!cache_ob->is_dup_ob) ? gpf->runtime.viewmatrix : cache_ob->obmat,
 					start_point, len);
 
+				stl->storage->shgroup_id++;
 				start_point = elm->vertex_idx;
 				break;
 			}
@@ -1319,13 +1321,14 @@ static void DRW_gpencil_shgroups_create(
 
 				shgrp = DRW_gpencil_shgroup_fill_create(
 					e_data, vedata, psl->stroke_pass, e_data->gpencil_fill_sh,
-					gpd, gpl, gp_style, i);
+					gpd, gpl, gp_style, stl->storage->shgroup_id);
 
 				DRW_shgroup_call_range_add(
 					shgrp, cache->b_fill.batch,
 					(!cache_ob->is_dup_ob) ? gpf->runtime.viewmatrix : cache_ob->obmat,
 					start_fill, len);
 
+				stl->storage->shgroup_id++;
 				start_fill = elm->vertex_idx;
 				break;
 			}
