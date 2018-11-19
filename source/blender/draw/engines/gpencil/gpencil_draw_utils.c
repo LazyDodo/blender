@@ -84,7 +84,7 @@ void gpencil_calc_vertex(tGPencilObjectCache *cache_ob, GpencilBatchCache *cache
 		}
 	}
 
-	cache->b_fill.tot_vertex = (cache_ob->tot_triangles * 3);
+	cache->b_fill.tot_vertex = cache_ob->tot_triangles * 3;
 	cache->b_stroke.tot_vertex = cache_ob->tot_vertex;
 	cache->b_point.tot_vertex = cache_ob->tot_vertex;
 
