@@ -540,14 +540,6 @@ void GPENCIL_cache_populate(void *vedata, Object *ob)
 	if (ob->type == OB_GPENCIL && ob->data) {
 		bGPdata *gpd = (bGPdata *)ob->data;
 
-		/* if onion, set as dirty always
-		 * This reduces performance, but avoid any crash in the multiple
-		 * overlay and multiwindow options
-		 */
-		if (gpd->flag & GP_DATA_SHOW_ONIONSKINS) {
-			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-		}
-
 		/* when start/stop animation the cache must be set as dirty to reset all data */
 		if (stl->storage->reset_cache) {
 			gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
