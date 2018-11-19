@@ -5,17 +5,27 @@ from bpy.props import (
     EnumProperty,
 )
 
-userpref = bpy.context.user_preferences
-
 idname = os.path.splitext(os.path.basename(__file__))[0]
 
-def update(_self, _context):
-    _load()
+def update_fn(_self, _context):
+    load()
 
 
 class Prefs(bpy.types.KeyConfigPreferences):
     bl_idname = idname
 
+    select_mouse: EnumProperty(
+        name="Select Mouse",
+        items=(
+            ('LEFT', "Left", "Use left Mouse Button for selection"),
+            ('RIGHT', "Right", "Use Right Mouse Button for selection"),
+        ),
+        description=(
+            "Mouse button used for selection"
+        ),
+        default='RIGHT',
+        update=update_fn,
+    )
     spacebar_action: EnumProperty(
         name="Spacebar",
         items=(
@@ -33,21 +43,26 @@ class Prefs(bpy.types.KeyConfigPreferences):
             "Action when 'Space' is pressed ('Shift-Space' is used for the other action)"
         ),
         default='TOOL',
-        update=update,
+        update=update_fn,
     )
     use_select_all_toggle: BoolProperty(
         name="Select All Toggles",
         description=(
-            "Causes select-all (A-key) to de-select in the case a selection exists"
+            "Causes select-all ('A' key) to de-select in the case a selection exists"
         ),
         default=False,
-        update=update,
+        update=update_fn,
     )
 
     def draw(self, layout):
         col = layout.column(align=True)
+        col.label(text="Select With:")
+        col.row().prop(self, "select_mouse", expand=True)
+
+        col = layout.column(align=True)
         col.label(text="Spacebar Action:")
         col.row().prop(self, "spacebar_action", expand=True)
+
         layout.prop(self, "use_select_all_toggle")
 
 
@@ -56,23 +71,22 @@ from bpy_extras.keyconfig_utils import (
     keyconfig_module_from_preset,
 )
 
-mod = keyconfig_module_from_preset(os.path.join("keymap_data", "blender_default"), __file__)
+blender_default = keyconfig_module_from_preset(os.path.join("keymap_data", "blender_default"), __file__)
 
-def _load():
+def load():
     kc = bpy.context.window_manager.keyconfigs.new(idname)
     kc_prefs = kc.preferences
 
-    keyconfig_data = mod.generate_keymaps(
-        mod.KeymapParams(
-            select_mouse=userpref.inputs.select_mouse,
+    keyconfig_data = blender_default.generate_keymaps(
+        blender_default.Params(
+            select_mouse=kc_prefs.select_mouse,
             spacebar_action=kc_prefs.spacebar_action,
             use_select_all_toggle=kc_prefs.use_select_all_toggle,
         ),
     )
     keyconfig_init_from_data(kc, keyconfig_data)
-    kc.has_select_mouse = True  # Support switching select mouse
 
 
 if __name__ == "__main__":
     bpy.utils.register_class(Prefs)
-    _load()
+    load()

@@ -1075,7 +1075,7 @@ class USERPREF_PT_input(Panel):
         kc_prefs = kc.preferences
         if kc_prefs is not None:
             box = layout.box()
-            box.label(text=kc.name.replace("_", " ").title() + " Keymap Options")
+            box.label(text=kc.name.replace("_", " ").title() + " Keymap")
             # Defined by user preset, may contain mistakes out of our control.
             try:
                 kc_prefs.draw(box)
@@ -1102,11 +1102,6 @@ class USERPREF_PT_input(Panel):
         sub.prop(inputs, "use_mouse_continuous")
         sub.prop(inputs, "drag_threshold")
         sub.prop(inputs, "tweak_threshold")
-
-        wm = bpy.context.window_manager
-        if wm.keyconfigs.active.has_select_mouse:
-            sub.label(text="Select With:")
-            sub.row().prop(inputs, "select_mouse", expand=True)
 
         sub = layout.column()
         sub.label(text="Double Click:")

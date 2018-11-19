@@ -20,7 +20,7 @@
 # ------------------------------------------------------------------------------
 # Configurable Parameters
 
-class KeymapParams:
+class Params:
     __slots__ = (
         "apple",
         "legacy",
@@ -46,7 +46,6 @@ class KeymapParams:
             self,
             *,
             legacy=False,
-            select_mode='AUTO',
             select_mouse='RIGHT',
 
             # User preferences.
@@ -294,7 +293,7 @@ def km_window(params):
                 ("wm.toolbar", {"type": 'SPACE', "value": 'PRESS', "shift": True}, None),
             )
         else:
-            assert(0)
+            assert False
 
     else:
         # Old shorctus
@@ -728,8 +727,8 @@ def km_uv_editor(params):
         # Quick switch to select tool, since left select can't easily
         # select with any tool active.
         items.extend([
-           ("wm.tool_set_by_name", {"type": 'W', "value": 'PRESS'},
-            {"properties": [("name", "Select Box")]})
+            ("wm.tool_set_by_name", {"type": 'W', "value": 'PRESS'},
+             {"properties": [("name", "Select Box")]})
         ])
 
     return keymap
@@ -1060,8 +1059,8 @@ def km_view3d(params):
         # Quick switch to select tool, since left select can't easily
         # select with any tool active.
         items.extend([
-           ("wm.tool_set_by_name", {"type": 'W', "value": 'PRESS'},
-            {"properties": [("name", "Select Box")]})
+            ("wm.tool_set_by_name", {"type": 'W', "value": 'PRESS'},
+             {"properties": [("name", "Select Box")]})
         ])
 
     return keymap
@@ -2607,7 +2606,7 @@ def km_frames(params):
                 ("screen.animation_play", {"type": 'SPACE', "value": 'PRESS'}, None),
             )
         else:
-            assert(0)
+            assert False
 
         items.extend([
             ("screen.animation_play", {"type": 'SPACE', "value": 'PRESS', "shift": True, "ctrl": True},
@@ -5674,7 +5673,7 @@ def km_3d_view_tool_gpencil_edit_to_sphere(params):
 
 def generate_keymaps(params=None):
     if params is None:
-        params = KeymapParams()
+        params = Params()
     return [
         # Window, screen, area, region.
         km_window(params),
@@ -5889,7 +5888,7 @@ def generate_keymaps(params=None):
 # import pprint
 # for legacy in (False, True):
 #     with open("keymap_default.py" if not legacy else "keymap_legacy.py", 'w') as fh:
-#         fh.write(pprint.pformat(generate_keymaps(KeymapParams(legacy=legacy)), indent=2, width=80))
+#         fh.write(pprint.pformat(generate_keymaps(Params(legacy=legacy)), indent=2, width=80))
 # import sys
 # sys.exit()
 # # end code
@@ -5901,9 +5900,3 @@ def generate_keymaps(params=None):
 # Command to lint:
 #
 #    pylint release/scripts/presets/keyconfig/keymap_data/blender_default.py --disable=C0111,C0301,C0302,R0902,R0903,R0913
-
-
-if __name__ == "__main__":
-    from bpy_extras.keyconfig_utils import keyconfig_import_from_data
-    keyconfig_import_from_data("Blender", generate_keymaps())
-    keyconfig_import_from_data("Blender 27X", generate_keymaps(KeymapParams(legacy=True)))
