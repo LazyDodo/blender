@@ -43,6 +43,7 @@ extern "C" {
 struct DerivedMesh;
 struct KDTree;
 struct MeshIsland;
+struct RNG;
 
 enum {
 	MOD_RIGIDBODY_CENTROIDS = 0,
@@ -165,6 +166,9 @@ typedef struct FractureModifierData_Shared {
 	//for optimization, only refracture islands which really changed
 	struct KDTree *last_island_tree;
 	struct MeshIsland **last_islands;
+
+	//sigh, random number generator...
+	struct RNG *rng;
 
 	float splinter_matrix[4][4];
 

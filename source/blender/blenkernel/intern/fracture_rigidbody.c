@@ -82,6 +82,11 @@ void BKE_rigidbody_activate(RigidBodyOb* rbo, RigidBodyWorld *UNUSED(rbw), MeshI
 	RigidBodyShardCon *con;
 	int i;
 
+	if( !BKE_rigidbody_activate_by_size_check(ob, mi))
+	{
+		return;
+	}
+
 	if (rbo->flag & RBO_FLAG_KINEMATIC && rbo->type == RBO_TYPE_ACTIVE)
 	{
 		rbo->flag &= ~RBO_FLAG_KINEMATIC;
@@ -1072,10 +1077,14 @@ static bool do_activate(Object* ob, Object *ob2, MeshIsland *mi_compare, RigidBo
 	valid = valid && ((ob2->rigidbody_object->flag & RBO_FLAG_IS_TRIGGER) || ((ob2->rigidbody_object->flag & RBO_FLAG_PROPAGATE_TRIGGER) &&
 			((mi_trigger) && (mi_trigger->rigidbody->flag & RBO_FLAG_PROPAGATE_TRIGGER))));
 
+#if 0
 	/*prefer dynamic trigger over trigger, and allow activation after queue is empty only (everything fractured) */
 	if (mi_trigger && mi_trigger->rigidbody->flag & RBO_FLAG_DYNAMIC_TRIGGER) {
-		valid = valid && BLI_listbase_is_empty(&fmd->shared->fracture_ids);
+		//valid = valid && BLI_listbase_is_empty(&fmd->shared->fracture_ids);
+		//allow "would activate" so a collision is registered, but dont actually activate here
+		return false;
 	}
+#endif
 
 	if (valid || antiValid)
 	{
@@ -1320,7 +1329,24 @@ static bool can_break(Object* collider, Object* ob, bool limit)
 	return !limit;
 }
 
-static bool check_island_size(FractureModifierData *fmd, MeshIsland *mi)
+bool BKE_rigidbody_activate_by_size_check(Object *ob, MeshIsland *mi)
+{
+	FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
+
+	if (!fmd) {
+		return true;
+	}
+
+	if (ob->rigidbody_object->flag & (RBO_FLAG_IS_TRIGGERED | RBO_FLAG_KINEMATIC) && fmd->use_dynamic)
+	{
+		//try to keep bigger shards in place
+		return BKE_check_island_size(fmd, mi, true);
+	}
+
+	return true;
+}
+
+bool BKE_check_island_size(FractureModifierData *fmd, MeshIsland *mi, bool check_min)
 {
 	FractureID *fid;
 	float size = fmd->dynamic_min_size, diff[3], min[3], max[3];
@@ -1328,20 +1354,33 @@ static bool check_island_size(FractureModifierData *fmd, MeshIsland *mi)
 	BKE_mesh_minmax(mi->mesh, min, max);
 
 	sub_v3_v3v3(diff, max, min);
-	if (diff[min_axis_v3(diff)] < size)
-	{
+
+	if (check_min) {
+		size = 4.0f * size;
+
+		if ((diff[max_axis_v3(diff)] < size))// && (diff[1] < size) && (diff[2] < size))
+		{
+			return true;
+		}
+
 		return false;
 	}
-
-	for (fid = fmd->shared->fracture_ids.first; fid; fid = fid->next)
-	{
-		if (fid->mi->id == mi->id)
+	else {
+		if (diff[max_axis_v3(diff)] < size)
 		{
 			return false;
 		}
-	}
 
-	return true;
+		for (fid = fmd->shared->fracture_ids.first; fid; fid = fid->next)
+		{
+			if (fid->mi->id == mi->id)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
 }
 
 static bool check_constraints(FractureModifierData *fmd, MeshIsland *mi, RigidBodyWorld *rbw) {
@@ -1393,7 +1432,7 @@ static bool check_constraints(FractureModifierData *fmd, MeshIsland *mi, RigidBo
 	return false;
 }
 
-static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi, Object* ob1, Object* ob2,
+static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi, MeshIsland* mi_trigger, Object* ob1, Object* ob2,
                                       RigidBodyWorld *rbw, float contact_pos[3], float force, int frame)
 {
 	bool canbreak = false;
@@ -1421,13 +1460,16 @@ static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi,
 
 		/*only fracture on new entries, this is necessary because after loading a file
 		 *the pointcache thinks it is empty and a fracture is attempted ! */
-		if (check_island_size(fmd, mi) && mi->fractured == false)
+		if (BKE_check_island_size(fmd, mi, false) )
 		{
-			FractureID* fid = MEM_mallocN(sizeof(FractureID), "lback_fractureid");
-			fid->mi = mi;
-			BLI_addtail(&fmd->shared->fracture_ids, fid);
-			fmd->shared->refresh_dynamic = true;
-			printf("FRACTURE : %d\n", mi->id);
+			if (mi->fractured == false)
+			{
+				FractureID* fid = MEM_mallocN(sizeof(FractureID), "lback_fractureid");
+				fid->mi = mi;
+				BLI_addtail(&fmd->shared->fracture_ids, fid);
+				fmd->shared->refresh_dynamic = true;
+				printf("FRACTURE : %d\n", mi->id);
+			}
 		}
 	}
 }
@@ -1459,14 +1501,14 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 	if (fmd1 && fmd1->use_dynamic)
 	{
 		mi1 = (MeshIsland*)cp->contact_islandA;
-		check_fracture_meshisland(fmd1, mi1, ob1, ob2, rbw, cp->contact_pos_world_onA, force, frame);
+		check_fracture_meshisland(fmd1, mi1, mi2, ob1, ob2, rbw, cp->contact_pos_world_onA, force, frame);
 	}
 
 	fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
 	if (fmd2 && fmd2->use_dynamic)
 	{
 		mi2 = (MeshIsland*)cp->contact_islandB;
-		check_fracture_meshisland(fmd2, mi2, ob2, ob1, rbw, cp->contact_pos_world_onB, force, frame);
+		check_fracture_meshisland(fmd2, mi2, mi1, ob2, ob1, rbw, cp->contact_pos_world_onB, force, frame);
 	}
 
 	//free contact point ?

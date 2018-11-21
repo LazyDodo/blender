@@ -77,6 +77,7 @@
 #include "bmesh.h"
 
 #include "RBI_api.h"
+#include "PIL_time.h"
 
 /* debug timing */
 #define USE_DEBUG_TIMER
@@ -262,6 +263,22 @@ bool BKE_fracture_mesh_center_centroid_area(Mesh *shard, float cent[3])
 	return (shard->totpoly != 0);
 }
 
+static void init_random(FractureModifierData *fmd) {
+	/* Random generator, only init once. */
+	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+	rng_seed ^= POINTER_AS_UINT(fmd);
+	fmd->shared->rng = BLI_rng_new(rng_seed);
+}
+
+static float get_random(FractureModifierData *fmd)
+{
+	if(!fmd->shared->rng) {
+		init_random(fmd);
+	}
+
+	return BLI_rng_get_float(fmd->shared->rng);
+}
+
 static void calculate_fast_bisect(FractureModifierData *fmd, Mesh* me, BisectContext *ctx)
 {
 	float factor = 1 - fmd->orthogonality_factor;
@@ -272,9 +289,9 @@ static void calculate_fast_bisect(FractureModifierData *fmd, Mesh* me, BisectCon
 	BKE_fracture_mesh_boundbox_calc(me, loc, size);
 
 	//make a random vector (interpret as cutter plane)
-	vec[0] = BLI_thread_frand(0) * 2 - 1;
-	vec[1] = BLI_thread_frand(0) * 2 - 1;
-	vec[2] = BLI_thread_frand(0) * 2 - 1;
+	vec[0] = get_random(fmd) * 2 - 1;
+	vec[1] = get_random(fmd) * 2 - 1;
+	vec[2] = get_random(fmd) * 2 - 1;
 
 	//multiply two minor dimensions with a factor to emphasize the max dimension
 	max_axis = axis_dominant_v3_single(size);
@@ -311,9 +328,9 @@ static void calculate_fractal(FractureModifierData* fmd, Mesh* me, BooleanContex
 	BKE_fracture_mesh_boundbox_calc(me, loc, size);
 	radius = sqrt(size[0]*size[0] + size[1]*size[1] + size[2]*size[2]) * 1.5f;
 
-	vec[0] = BLI_thread_frand(0) * 2 - 1;
-	vec[1] = BLI_thread_frand(0) * 2 - 1;
-	vec[2] = BLI_thread_frand(0) * 2 - 1;
+	vec[0] = get_random(fmd) * 2 - 1;
+	vec[1] = get_random(fmd) * 2 - 1;
+	vec[2] = get_random(fmd) * 2 - 1;
 
 	//multiply two minor dimensions with a factor to emphasize the max dimension
 	max_axis = axis_dominant_v3_single(size);
@@ -709,7 +726,7 @@ static void stroke_to_faces(FractureModifierData *fmd, BMesh** bm, bGPDstroke *g
 
 	for (p = 0; p < gps->totpoints; p++) {
 
-		if ((BLI_thread_frand(0) < thresh) || (p == 0) || (p == gps->totpoints-1)) {
+		if ((get_random(fmd) < thresh) || (p == 0) || (p == gps->totpoints-1)) {
 			BMVert *v1, *v2;
 			float point[3] = {0, 0, 0};
 
@@ -900,7 +917,6 @@ void intersect_mesh_by_mesh(FractureModifierData* fmd, Object* ob, Mesh* meA, Me
 	}
 }
 
-
 void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, MeshIsland*mi, Mesh** temp_meshs, int count,
                             Main* bmain, Scene* scene, int frame)
 {
@@ -947,6 +963,14 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 				if (fmd->use_compounds && fmd->use_dynamic && mi->id > 0) {
 					//TODOX ... does this work at all ?
 					result->rigidbody->shape = RB_SHAPE_COMPOUND;
+				}
+
+				result->rigidbody->flag = mi->rigidbody->flag;
+
+				if (!BKE_rigidbody_activate_by_size_check(ob, mi))
+				{
+					result->rigidbody->flag |= RBO_FLAG_KINEMATIC;
+					result->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
 				}
 
 				/* process vertexgroups, if any */
@@ -1965,6 +1989,11 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 
 		fmd->shared->last_expected_islands = 0;
 	}
+
+	if (fmd->shared->rng) {
+		BLI_rng_free(fmd->shared->rng);
+		fmd->shared->rng = NULL;
+	}
 }
 
 
@@ -2015,7 +2044,7 @@ static void points_from_verts(Object **ob, int totobj, FracPointCloud *points, f
 			vert = d->mvert;
 
 			for (v = 0; v < d->totvert; v++) {
-				if (BLI_thread_frand(0) < thresh) {
+				if (get_random(emd) < thresh) {
 
 					copy_v3_v3(co, vert[v].co);
 
@@ -2087,7 +2116,7 @@ static void points_from_particles(Object **ob, int totobj, Scene *scene, FracPoi
 					bool particle_dead = pa->alive == PARS_DEAD;
 					bool particle_mask = particle_unborn || particle_alive || particle_dead;
 
-					if ((BLI_thread_frand(0) < thresh) && particle_mask) {
+					if ((get_random(fmd) < thresh) && particle_mask) {
 						float co[3];
 
 						/* birth coordinates are not sufficient in case we did pre-simulate the particles, so they are not
@@ -2151,7 +2180,7 @@ static void points_from_greasepencil(Object **ob, int totobj, FracPointCloud *po
 				for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 					for (gps = gpf->strokes.first; gps; gps = gps->next) {
 						for (p = 0; p < gps->totpoints; p++) {
-							if (BLI_thread_frand(0) < thresh) {
+							if (get_random(fmd) < thresh) {
 								float point[3] = {0, 0, 0};
 								points->points = MEM_reallocN(points->points, (pt + 1) * sizeof(FracPoint));
 
@@ -2313,6 +2342,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 			}
 		}
 
+#if 0
 		//omg, vary the seed here
 		if (emd->split_islands) {
 			BLI_thread_srandom(0, mi->id);
@@ -2321,12 +2351,13 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 		{
 			BLI_thread_srandom(0, emd->use_dynamic ? mi->id : emd->point_seed);
 		}
+#endif
 		for (i = 0; i < count; ++i) {
-			if (BLI_thread_frand(0) < thresh) {
+			if (get_random(emd) < thresh) {
 				float co[3];
-				co[0] = min[0] + (max[0] - min[0]) * BLI_thread_frand(0);
-				co[1] = min[1] + (max[1] - min[1]) * BLI_thread_frand(0);
-				co[2] = min[2] + (max[2] - min[2]) * BLI_thread_frand(0);
+				co[0] = min[0] + (max[0] - min[0]) * get_random(emd);
+				co[1] = min[1] + (max[1] - min[1]) * get_random(emd);
+				co[2] = min[2] + (max[2] - min[2]) * get_random(emd);
 
 				if (mi->id > 0 && emd->cutter_group == NULL)
 				{
