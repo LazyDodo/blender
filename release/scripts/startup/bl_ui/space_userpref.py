@@ -22,7 +22,6 @@ from bpy.types import (
     Header,
     Menu,
     Panel,
-    Operator,
 )
 from bpy.app.translations import pgettext_iface as iface_
 from bpy.app.translations import contexts as i18n_contexts
@@ -39,25 +38,25 @@ class USERPREF_HT_header(Header):
 
         userpref = context.user_preferences
 
-        layout.operator_context = 'EXEC_AREA'
-        layout.operator("wm.save_userpref")
-
-        layout.operator_context = 'INVOKE_DEFAULT'
-
         if userpref.active_section == 'INPUT':
-            layout.operator("wm.keyconfig_import")
-            layout.operator("wm.keyconfig_export")
+            layout.operator("wm.keyconfig_import", icon='IMPORT')
+            layout.operator("wm.keyconfig_export", icon='EXPORT')
         elif userpref.active_section == 'ADDONS':
             layout.operator("wm.addon_install", icon='FILEBROWSER')
             layout.operator("wm.addon_refresh", icon='FILE_REFRESH')
             layout.menu("USERPREF_MT_addons_online_resources")
         elif userpref.active_section == 'LIGHTS':
-            layout.operator('wm.studiolight_install', text="Install MatCap").orientation = 'MATCAP'
-            layout.operator('wm.studiolight_install', text="Install World HDRI").orientation = 'WORLD'
-            layout.operator('wm.studiolight_install', text="Install Camera HDRI").orientation = 'CAMERA'
+            layout.operator('wm.studiolight_install', text="Add MatCap").orientation = 'MATCAP'
+            layout.operator('wm.studiolight_install', text="Add World HDRI").orientation = 'WORLD'
+            layout.operator('wm.studiolight_install', text="Add Camera HDRI").orientation = 'CAMERA'
         elif userpref.active_section == 'THEMES':
-            layout.operator("ui.reset_default_theme")
-            layout.operator("wm.theme_install")
+            layout.operator("wm.theme_install", icon='FILEBROWSER')
+            layout.operator("ui.reset_default_theme", icon='LOOP_BACK')
+
+        layout.separator_spacer()
+
+        layout.operator_context = 'EXEC_AREA'
+        layout.operator("wm.save_userpref")
 
 
 class USERPREF_PT_tabs(Panel):
@@ -72,25 +71,6 @@ class USERPREF_PT_tabs(Panel):
         userpref = context.user_preferences
 
         layout.row().prop(userpref, "active_section", expand=True)
-
-
-class USERPREF_MT_interaction_presets(Menu):
-    bl_label = "Presets"
-    preset_subdir = "interaction"
-    preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
-
-
-class USERPREF_MT_appconfigs(Menu):
-    bl_label = "AppPresets"
-    preset_subdir = "keyconfig"
-    preset_operator = "wm.appconfig_activate"
-
-    def draw(self, context):
-        self.layout.operator("wm.appconfig_default", text="Blender (default)")
-
-        # now draw the presets
-        Menu.draw_preset(self, context)
 
 
 class USERPREF_PT_interface(Panel):
@@ -484,14 +464,15 @@ class USERPREF_PT_system(Panel):
 
         if bpy.app.build_options.international:
             column.prop(system, "use_international_fonts")
-            if system.use_international_fonts:
-                column.prop(system, "language")
-                row = column.row()
-                row.label(text="Translate:", text_ctxt=i18n_contexts.id_windowmanager)
-                row = column.row(align=True)
-                row.prop(system, "use_translate_interface", text="Interface", toggle=True)
-                row.prop(system, "use_translate_tooltips", text="Tooltips", toggle=True)
-                row.prop(system, "use_translate_new_dataname", text="New Data", toggle=True)
+            sub_col = column.column()
+            sub_col.active = system.use_international_fonts
+            sub_col.prop(system, "language")
+            row = sub_col.row()
+            row.label(text="Translate:", text_ctxt=i18n_contexts.id_windowmanager)
+            row = sub_col.row(align=True)
+            row.prop(system, "use_translate_tooltips", text="Tooltips", toggle=True)
+            row.prop(system, "use_translate_interface", text="Interface", toggle=True)
+            row.prop(system, "use_translate_new_dataname", text="New Data", toggle=True)
 
 
 class USERPREF_MT_interface_theme_presets(Menu):
@@ -1056,11 +1037,6 @@ class USERPREF_MT_keyconfigs(Menu):
     preset_operator = "wm.keyconfig_activate"
 
     def draw(self, context):
-        props = self.layout.operator("wm.context_set_value", text="Blender (default)")
-        props.data_path = "window_manager.keyconfigs.active"
-        props.value = "context.window_manager.keyconfigs.default"
-
-        # now draw the presets
         Menu.draw_preset(self, context)
 
 
@@ -1080,30 +1056,15 @@ class USERPREF_PT_input(Panel):
         import sys
 
         # General settings
-        row = layout.row()
-        col = row.column()
-
-        sub = col.column()
-        sub.label(text="Presets:")
-        subrow = sub.row(align=True)
-
-        subrow.menu("USERPREF_MT_interaction_presets", text=bpy.types.USERPREF_MT_interaction_presets.bl_label)
-        subrow.operator("wm.interaction_preset_add", text="", icon='ADD')
-        subrow.operator("wm.interaction_preset_add", text="", icon='REMOVE').remove_active = True
-        sub.separator()
+        sub = layout.column()
 
         sub.label(text="Mouse:")
-        sub1 = sub.column()
-        sub1.active = (inputs.select_mouse == 'RIGHT')
-        sub1.prop(inputs, "use_mouse_emulate_3_button")
+        sub.prop(inputs, "use_mouse_emulate_3_button")
         sub.prop(inputs, "use_mouse_continuous")
         sub.prop(inputs, "drag_threshold")
         sub.prop(inputs, "tweak_threshold")
 
-        sub.label(text="Select With:")
-        sub.row().prop(inputs, "select_mouse", expand=True)
-
-        sub = col.column()
+        sub = layout.column()
         sub.label(text="Double Click:")
         sub.prop(inputs, "mouse_double_click_time", text="Speed")
 
@@ -1126,18 +1087,18 @@ class USERPREF_PT_input(Panel):
 
         #sub.prop(inputs, "use_mouse_mmb_paste")
 
-        # col.separator()
+        # layout.separator()
 
-        sub = col.column()
+        sub = layout.column()
         sub.prop(inputs, "invert_zoom_wheel", text="Invert Wheel Zoom Direction")
         #sub.prop(view, "wheel_scroll_lines", text="Scroll Lines")
 
         if sys.platform == "darwin":
-            sub = col.column()
+            sub = layout.column()
             sub.prop(inputs, "use_trackpad_natural", text="Natural Trackpad Direction")
 
-        col.separator()
-        sub = col.column()
+        layout.separator()
+        sub = layout.column()
         sub.label(text="View Navigation:")
         sub.row().prop(inputs, "navigation_mode", expand=True)
 
@@ -1149,36 +1110,34 @@ class USERPREF_PT_input(Panel):
         sub.prop(walk, "mouse_speed")
         sub.prop(walk, "teleport_time")
 
-        sub = col.column(align=True)
+        sub = layout.column(align=True)
         sub.prop(walk, "walk_speed")
         sub.prop(walk, "walk_speed_factor")
 
         sub.separator()
         sub.prop(walk, "use_gravity")
-        sub = col.column(align=True)
+        sub = layout.column(align=True)
         sub.active = walk.use_gravity
         sub.prop(walk, "view_height")
         sub.prop(walk, "jump_height")
 
         if inputs.use_ndof:
-            col.separator()
-            col.label(text="NDOF Device:")
-            sub = col.column(align=True)
+            layout.separator()
+            layout.label(text="NDOF Device:")
+            sub = layout.column(align=True)
             sub.prop(inputs, "ndof_sensitivity", text="Pan Sensitivity")
             sub.prop(inputs, "ndof_orbit_sensitivity", text="Orbit Sensitivity")
             sub.prop(inputs, "ndof_deadzone", text="Deadzone")
 
             sub.separator()
-            col.label(text="Navigation Style:")
-            sub = col.column(align=True)
+            layout.label(text="Navigation Style:")
+            sub = layout.column(align=True)
             sub.row().prop(inputs, "ndof_view_navigate_method", expand=True)
 
             sub.separator()
-            col.label(text="Rotation Style:")
-            sub = col.column(align=True)
+            layout.label(text="Rotation Style:")
+            sub = layout.column(align=True)
             sub.row().prop(inputs, "ndof_view_rotate_method", expand=True)
-
-        row.separator()
 
     def draw(self, context):
         from rna_keymap_ui import draw_keymaps
@@ -1195,11 +1154,17 @@ class USERPREF_PT_input(Panel):
 
         split = layout.split(factor=0.25)
 
+        row = split.row()
+        col = row.column()
+
         # Input settings
-        self.draw_input_prefs(inputs, split)
+        self.draw_input_prefs(inputs, col)
+
+        row.separator()
 
         # Keymap Settings
-        draw_keymaps(context, split)
+        col = split.column()
+        draw_keymaps(context, col)
 
         #print("runtime", time.time() - start)
 
@@ -1284,8 +1249,18 @@ class USERPREF_PT_addons(Panel):
         userpref = context.user_preferences
         used_ext = {ext.module for ext in userpref.addons}
 
-        userpref_addons_folder = os.path.join(userpref.filepaths.script_directory, "addons")
-        scripts_addons_folder = bpy.utils.user_resource('SCRIPTS', "addons")
+        addon_user_dirs = tuple(
+            p for p in (
+                os.path.join(userpref.filepaths.script_directory, "addons"),
+                bpy.utils.user_resource('SCRIPTS', "addons"),
+            )
+            if p
+        )
+
+        # Development option for 2.8x, don't show users bundled addons
+        # unless they have been updated for 2.8x.
+        # Developers can turn them on with '--debug'
+        show_official_27x_addons = bpy.app.debug
 
         # collect the categories that can be filtered on
         addons = [
@@ -1347,7 +1322,7 @@ class USERPREF_PT_addons(Panel):
                     (filter == info["category"]) or
                     (filter == "Enabled" and is_enabled) or
                     (filter == "Disabled" and not is_enabled) or
-                    (filter == "User" and (mod.__file__.startswith((scripts_addons_folder, userpref_addons_folder))))
+                    (filter == "User" and (mod.__file__.startswith(addon_user_dirs)))
             ):
                 if search and search not in info["name"].lower():
                     if info["author"]:
@@ -1355,6 +1330,15 @@ class USERPREF_PT_addons(Panel):
                             continue
                     else:
                         continue
+
+                # Skip 2.7x add-ons included with Blender, unless in debug mode.
+                is_addon_27x = info.get("blender", (0,)) < (2, 80)
+                if (
+                        is_addon_27x and
+                        (not show_official_27x_addons) and
+                        (not mod.__file__.startswith(addon_user_dirs))
+                ):
+                    continue
 
                 # Addon UI Code
                 col_box = col.column()
@@ -1380,7 +1364,7 @@ class USERPREF_PT_addons(Panel):
 
                 # WARNING: 2.8x exception, may be removed
                 # use disabled state for old add-ons, chances are they are broken.
-                if info.get("blender", (0,)) < (2, 80):
+                if is_addon_27x:
                     sub.label(text="upgrade to 2.8x required")
                     sub.label(icon='ERROR')
                 # Remove code above after 2.8x migration is complete.
@@ -1506,7 +1490,7 @@ class StudioLightPanelMixin():
         userpref = context.user_preferences
         lights = self._get_lights(userpref)
         if lights:
-            flow = layout.column_flow(4)
+            flow = layout.column_flow(columns=4)
             for studio_light in lights:
                 self.draw_studio_light(flow, studio_light)
         else:
@@ -1517,7 +1501,7 @@ class StudioLightPanelMixin():
         row = box.row()
 
         row.template_icon(layout.icon(studio_light), scale=6.0)
-        op = row.operator('wm.studiolight_uninstall', text="", icon='ZOOMOUT')
+        op = row.operator('wm.studiolight_uninstall', text="", icon='REMOVE')
         op.index = studio_light.index
 
         box.label(text=studio_light.name)
@@ -1583,8 +1567,6 @@ class USERPREF_PT_studiolight_specular(Panel, StudioLightPanelMixin):
 classes = (
     USERPREF_HT_header,
     USERPREF_PT_tabs,
-    USERPREF_MT_interaction_presets,
-    USERPREF_MT_appconfigs,
     USERPREF_PT_interface,
     USERPREF_PT_edit,
     USERPREF_PT_system,

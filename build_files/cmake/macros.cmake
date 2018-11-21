@@ -435,6 +435,9 @@ function(setup_liblinks
 	if(WITH_CYCLES_OSL)
 		target_link_libraries(${target} ${OSL_LIBRARIES})
 	endif()
+	if(WITH_CYCLES_EMBREE)
+		target_link_libraries(${target} ${EMBREE_LIBRARIES})
+	endif()
 	if(WITH_BOOST)
 		target_link_libraries(${target} ${BOOST_LIBRARIES})
 		if(Boost_USE_STATIC_LIBS AND Boost_USE_ICU)
@@ -672,10 +675,10 @@ function(SETUP_BLENDER_SORTED_LIBS)
 		bf_intern_mikktspace
 		bf_intern_dualcon
 		bf_intern_cycles
+		cycles_device
 		cycles_render
 		cycles_graph
 		cycles_bvh
-		cycles_device
 		cycles_kernel
 		cycles_util
 		cycles_subd

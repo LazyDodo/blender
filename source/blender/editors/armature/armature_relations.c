@@ -373,7 +373,7 @@ int join_armature_exec(bContext *C, wmOperator *op)
 			if (ob_iter->adt) {
 				if (ob_active->adt == NULL) {
 					/* no animdata, so just use a copy of the whole thing */
-					ob_active->adt = BKE_animdata_copy(bmain, ob_iter->adt, false, true);
+					ob_active->adt = BKE_animdata_copy(bmain, ob_iter->adt, 0);
 				}
 				else {
 					/* merge in data - we'll fix the drivers manually */
@@ -384,7 +384,7 @@ int join_armature_exec(bContext *C, wmOperator *op)
 			if (curarm->adt) {
 				if (arm->adt == NULL) {
 					/* no animdata, so just use a copy of the whole thing */
-					arm->adt = BKE_animdata_copy(bmain, curarm->adt, false, true);
+					arm->adt = BKE_animdata_copy(bmain, curarm->adt, 0);
 				}
 				else {
 					/* merge in data - we'll fix the drivers manually */
@@ -439,8 +439,8 @@ static void separated_armature_fix_links(Main *bmain, Object *origArm, Object *n
 
 						for (ct = targets.first; ct; ct = ct->next) {
 							/* any targets which point to original armature are redirected to the new one only if:
-							 *	- the target isn't origArm/newArm itself
-							 *	- the target is one that can be found in newArm/origArm
+							 * - the target isn't origArm/newArm itself
+							 * - the target is one that can be found in newArm/origArm
 							 */
 							if (ct->subtarget[0] != 0) {
 								if (ct->tar == origArm) {
@@ -477,8 +477,8 @@ static void separated_armature_fix_links(Main *bmain, Object *origArm, Object *n
 
 					for (ct = targets.first; ct; ct = ct->next) {
 						/* any targets which point to original armature are redirected to the new one only if:
-						 *	- the target isn't origArm/newArm itself
-						 *	- the target is one that can be found in newArm/origArm
+						 * - the target isn't origArm/newArm itself
+						 * - the target is one that can be found in newArm/origArm
 						 */
 						if (ct->subtarget[0] != '\0') {
 							if (ct->tar == origArm) {
@@ -514,8 +514,8 @@ static void separated_armature_fix_links(Main *bmain, Object *origArm, Object *n
 }
 
 /* Helper function for armature separating - remove certain bones from the given armature
- *	sel: remove selected bones from the armature, otherwise the unselected bones are removed
- *  (ob is not in editmode)
+ * sel: remove selected bones from the armature, otherwise the unselected bones are removed
+ * (ob is not in editmode)
  */
 static void separate_armature_bones(Main *bmain, Object *ob, short sel)
 {
@@ -549,8 +549,15 @@ static void separate_armature_bones(Main *bmain, Object *ob, short sel)
 
 			/* clear the pchan->parent var of any pchan that had this as its parent */
 			for (pchn = ob->pose->chanbase.first; pchn; pchn = pchn->next) {
-				if (pchn->parent == pchan)
+				if (pchn->parent == pchan) {
 					pchn->parent = NULL;
+				}
+				if (pchn->bbone_next == pchan) {
+					pchn->bbone_next = NULL;
+				}
+				if (pchn->bbone_prev == pchan) {
+					pchn->bbone_prev = NULL;
+				}
 			}
 
 			/* free any of the extra-data this pchan might have */
@@ -596,11 +603,11 @@ static int separate_armature_exec(bContext *C, wmOperator *op)
 		Base *oldbase, *newbase;
 
 		/* we are going to do this as follows (unlike every other instance of separate):
-		 *	1. exit editmode +posemode for active armature/base. Take note of what this is.
-		 *	2. duplicate base - BASACT is the new one now
-		 *	3. for each of the two armatures, enter editmode -> remove appropriate bones -> exit editmode + recalc
-		 *	4. fix constraint links
-		 *	5. make original armature active and enter editmode
+		 * 1. exit editmode +posemode for active armature/base. Take note of what this is.
+		 * 2. duplicate base - BASACT is the new one now
+		 * 3. for each of the two armatures, enter editmode -> remove appropriate bones -> exit editmode + recalc
+		 * 4. fix constraint links
+		 * 5. make original armature active and enter editmode
 		 */
 
 		/* 1) only edit-base selected */

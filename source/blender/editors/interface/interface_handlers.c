@@ -916,6 +916,7 @@ static void ui_apply_but_TAB(bContext *C, uiBut *but, uiHandleButtonData *data)
 		ui_but_update_edited(but);
 	}
 	else {
+		ui_but_value_set(but, but->hardmax);
 		ui_apply_but_func(C, but);
 	}
 
@@ -2173,8 +2174,8 @@ static bool ui_but_has_array_value(uiBut *but)
 {
 	return (but->rnapoin.data && but->rnaprop &&
 	        ELEM(RNA_property_subtype(but->rnaprop), PROP_COLOR, PROP_TRANSLATION, PROP_DIRECTION,
-	        PROP_VELOCITY, PROP_ACCELERATION, PROP_MATRIX, PROP_EULER, PROP_QUATERNION, PROP_AXISANGLE,
-	        PROP_XYZ, PROP_XYZ_LENGTH, PROP_COLOR_GAMMA, PROP_COORDS));
+	             PROP_VELOCITY, PROP_ACCELERATION, PROP_MATRIX, PROP_EULER, PROP_QUATERNION, PROP_AXISANGLE,
+	             PROP_XYZ, PROP_XYZ_LENGTH, PROP_COLOR_GAMMA, PROP_COORDS));
 }
 
 static void ui_but_paste_normalized_vector(bContext *C, uiBut *but, char *buf_paste)
@@ -3882,7 +3883,12 @@ static bool ui_but_is_mouse_over_icon_extra(const ARegion *region, uiBut *but, c
 static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButtonData *data, const wmEvent *event)
 {
 	if (data->state == BUTTON_STATE_HIGHLIGHT) {
-		if ((event->type == LEFTMOUSE) &&
+		const int rna_type = but->rnaprop ? RNA_property_type(but->rnaprop) : 0;
+
+		if (but->rnaprop &&
+		    ELEM(rna_type, PROP_POINTER, PROP_STRING) &&
+		    (but->custom_data != NULL) &&
+		    (event->type == LEFTMOUSE) &&
 		    ((event->val == KM_DBL_CLICK) || event->ctrl))
 		{
 			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
@@ -6608,6 +6614,17 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 			return WM_UI_HANDLER_BREAK;
 		}
 
+		/* handle menu */
+		if ((event->type == RIGHTMOUSE) &&
+		    !IS_EVENT_MOD(event, shift, ctrl, alt, oskey) &&
+		    (event->val == KM_PRESS))
+		{
+			/* RMB has two options now */
+			if (ui_popup_context_menu_for_button(C, but)) {
+				return WM_UI_HANDLER_BREAK;
+			}
+		}
+
 		if (is_disabled) {
 			return WM_UI_HANDLER_CONTINUE;
 		}
@@ -6620,16 +6637,6 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 		/* handle drop */
 		if (event->type == EVT_DROP) {
 			ui_but_drop(C, event, but, data);
-		}
-		/* handle menu */
-		else if ((event->type == RIGHTMOUSE) &&
-		         !IS_EVENT_MOD(event, shift, ctrl, alt, oskey) &&
-		         (event->val == KM_PRESS))
-		{
-			/* RMB has two options now */
-			if (ui_popup_context_menu_for_button(C, but)) {
-				return WM_UI_HANDLER_BREAK;
-			}
 		}
 	}
 
@@ -8056,38 +8063,38 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 				break;
 			}
 			case MOUSEMOVE:
-				{
-					/* deselect the button when moving the mouse away */
-					/* also de-activate for buttons that only show highlights */
-					if (ui_but_contains_point_px(ar, but, event->x, event->y)) {
+			{
+				/* deselect the button when moving the mouse away */
+				/* also de-activate for buttons that only show highlights */
+				if (ui_but_contains_point_px(ar, but, event->x, event->y)) {
 
-						/* Drag on a hold button (used in the toolbar) now opens it immediately. */
-						if (data->hold_action_timer) {
-							if (but->flag & UI_SELECT) {
-								if ((abs(event->x - event->prevx)) > 2 ||
-								    (abs(event->y - event->prevy)) > 2)
-								{
-									WM_event_remove_timer(data->wm, data->window, data->hold_action_timer);
-									data->hold_action_timer = WM_event_add_timer(data->wm, data->window, TIMER, 0.0f);
-								}
+					/* Drag on a hold button (used in the toolbar) now opens it immediately. */
+					if (data->hold_action_timer) {
+						if (but->flag & UI_SELECT) {
+							if ((abs(event->x - event->prevx)) > 2 ||
+							    (abs(event->y - event->prevy)) > 2)
+							{
+								WM_event_remove_timer(data->wm, data->window, data->hold_action_timer);
+								data->hold_action_timer = WM_event_add_timer(data->wm, data->window, TIMER, 0.0f);
 							}
 						}
-
-						if (!(but->flag & UI_SELECT)) {
-							but->flag |= (UI_SELECT | UI_ACTIVE);
-							data->cancel = false;
-							ED_region_tag_redraw(data->region);
-						}
 					}
-					else {
-						if (but->flag & UI_SELECT) {
-							but->flag &= ~(UI_SELECT | UI_ACTIVE);
-							data->cancel = true;
-							ED_region_tag_redraw(data->region);
-						}
+
+					if (!(but->flag & UI_SELECT)) {
+						but->flag |= (UI_SELECT | UI_ACTIVE);
+						data->cancel = false;
+						ED_region_tag_redraw(data->region);
+					}
+				}
+				else {
+					if (but->flag & UI_SELECT) {
+						but->flag &= ~(UI_SELECT | UI_ACTIVE);
+						data->cancel = true;
+						ED_region_tag_redraw(data->region);
 					}
 				}
 				break;
+			}
 			default:
 				/* otherwise catch mouse release event */
 				ui_do_button(C, block, but, event);

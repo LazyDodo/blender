@@ -69,25 +69,24 @@
 
 #include "BIK_api.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_armature.h"
+#include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_editmesh.h"
 #include "BKE_fcurve.h"
 #include "BKE_gpencil.h"
 #include "BKE_lattice.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
-#include "BKE_nla.h"
-#include "BKE_context.h"
-#include "BKE_paint.h"
-#include "BKE_sequencer.h"
-#include "BKE_editmesh.h"
-#include "BKE_tracking.h"
-#include "BKE_mask.h"
-#include "BKE_workspace.h"
 #include "BKE_layer.h"
+#include "BKE_library.h"
+#include "BKE_mask.h"
+#include "BKE_nla.h"
+#include "BKE_paint.h"
 #include "BKE_scene.h"
+#include "BKE_sequencer.h"
+#include "BKE_tracking.h"
+#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 
@@ -274,9 +273,9 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 		return;
 
 	/* check if we need a new strip if:
-	 *  - if animtimer is running
-	 *	- we're not only keying for available channels
-	 *	- the option to add new actions for each round is not enabled
+	 * - if animtimer is running
+	 * - we're not only keying for available channels
+	 * - the option to add new actions for each round is not enabled
 	 */
 	if (IS_AUTOKEY_FLAG(scene, INSERTAVAIL) == 0 && (scene->toolsettings->autokey_flag & ANIMRECORD_FLAG_WITHNLA)) {
 		/* if playback has just looped around, we need to add a new NLA track+strip to allow a clean pass to occur */
@@ -492,7 +491,7 @@ static void recalcData_nla(TransInfo *t)
 		 * BUT only if realtime updates are enabled
 		 */
 		if ((snla->flag & SNLA_NOREALTIMEUPDATES) == 0)
-			ANIM_id_update(t->scene, tdn->id);
+			ANIM_id_update(CTX_data_main(t->context), tdn->id);
 
 		/* if canceling transform, just write the values without validating, then move on */
 		if (t->state == TRANS_CANCEL) {
@@ -536,8 +535,8 @@ static void recalcData_nla(TransInfo *t)
 
 			if ((pExceeded && nExceeded) || (iter == 4)) {
 				/* both endpoints exceeded (or iteration ping-pong'd meaning that we need a compromise)
-				 *	- simply crop strip to fit within the bounds of the strips bounding it
-				 *	- if there were no neighbors, clear the transforms (make it default to the strip's current values)
+				 * - simply crop strip to fit within the bounds of the strips bounding it
+				 * - if there were no neighbors, clear the transforms (make it default to the strip's current values)
 				 */
 				if (strip->prev && strip->next) {
 					tdn->h1[0] = strip->prev->end;
@@ -627,7 +626,7 @@ static void recalcData_nla(TransInfo *t)
 
 
 		/* now, check if we need to try and move track
-		 *	- we need to calculate both, as only one may have been altered by transform if only 1 handle moved
+		 * - we need to calculate both, as only one may have been altered by transform if only 1 handle moved
 		 */
 		delta_y1 = ((int)tdn->h1[1] / NLACHANNEL_STEP(snla) - tdn->trackIndex);
 		delta_y2 = ((int)tdn->h2[1] / NLACHANNEL_STEP(snla) - tdn->trackIndex);
@@ -785,7 +784,7 @@ static void recalcData_objects(TransInfo *t)
 				else {
 					/* Normal updating */
 					while (nu) {
-						BKE_nurb_test2D(nu);
+						BKE_nurb_test_2d(nu);
 						BKE_nurb_handles_calc(nu);
 						nu = nu->next;
 					}
@@ -1486,8 +1485,15 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		t->around = V3D_AROUND_CENTER_BOUNDS;
 	}
 
-	if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
+	if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_matrix")) &&
 	           RNA_property_is_set(op->ptr, prop)))
+	{
+		RNA_property_float_get_array(op->ptr, prop, &t->spacemtx[0][0]);
+		t->current_orientation = V3D_MANIP_CUSTOM_MATRIX;
+		t->custom_orientation = 0;
+	}
+	else if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
+	                RNA_property_is_set(op->ptr, prop)))
 	{
 		short orientation = RNA_property_enum_get(op->ptr, prop);
 		TransformOrientation *custom_orientation = NULL;

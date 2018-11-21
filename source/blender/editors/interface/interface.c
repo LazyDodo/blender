@@ -988,8 +988,8 @@ static bool ui_but_event_operator_string_from_menu(
 	IDP_AddToGroup(prop_menu, IDP_NewString(mt->idname, "name", sizeof(mt->idname)));
 
 	if (WM_key_event_operator_string(
-	        C, "WM_OT_call_menu", WM_OP_INVOKE_REGION_WIN, prop_menu, true,
-	        buf, buf_len))
+	            C, "WM_OT_call_menu", WM_OP_INVOKE_REGION_WIN, prop_menu, true,
+	            buf, buf_len))
 	{
 		found = true;
 	}
@@ -1151,8 +1151,8 @@ static bool ui_but_event_property_operator_string(
 			/* check each until one works... */
 			for (i = 0; (i < num_ops) && (ctx_toggle_opnames[i]); i++) {
 				if (WM_key_event_operator_string(
-				        C, ctx_toggle_opnames[i], WM_OP_INVOKE_REGION_WIN, prop_path, false,
-				        buf, buf_len))
+				            C, ctx_toggle_opnames[i], WM_OP_INVOKE_REGION_WIN, prop_path, false,
+				            buf, buf_len))
 				{
 					found = true;
 					break;
@@ -1510,10 +1510,10 @@ static void ui_block_message_subscribe(ARegion *ar, struct wmMsgBus *mbus, uiBlo
 		if (but->rnapoin.type && but->rnaprop) {
 			/* quick check to avoid adding buttons representing a vector, multiple times. */
 			if ((but_prev &&
-			    (but_prev->rnaprop == but->rnaprop) &&
-			    (but_prev->rnapoin.type == but->rnapoin.type) &&
-			    (but_prev->rnapoin.data == but->rnapoin.data) &&
-			    (but_prev->rnapoin.id.data == but->rnapoin.id.data)) == false)
+			     (but_prev->rnaprop == but->rnaprop) &&
+			     (but_prev->rnapoin.type == but->rnapoin.type) &&
+			     (but_prev->rnapoin.data == but->rnapoin.data) &&
+			     (but_prev->rnapoin.id.data == but->rnapoin.id.data)) == false)
 			{
 				/* TODO: could make this into utility function. */
 				WM_msg_subscribe_rna(
@@ -1582,17 +1582,8 @@ int ui_but_is_pushed_ex(uiBut *but, double *value)
 				break;
 			case UI_BTYPE_ROW:
 			case UI_BTYPE_LISTROW:
-				UI_GET_BUT_VALUE_INIT(but, *value);
-				/* support for rna enum buts */
-				if (but->rnaprop && (RNA_property_flag(but->rnaprop) & PROP_ENUM_FLAG)) {
-					if ((int)*value & (int)but->hardmax) is_push = true;
-				}
-				else {
-					if (*value == (double)but->hardmax) is_push = true;
-				}
-				break;
 			case UI_BTYPE_TAB:
-				if (but->rnaprop && but->custom_data) {
+				if ((but->type == UI_BTYPE_TAB) && but->rnaprop && but->custom_data) {
 					/* uiBut.custom_data points to data this tab represents (e.g. workspace).
 					 * uiBut.rnapoin/prop store an active value (e.g. active workspace). */
 					if (RNA_property_type(but->rnaprop) == PROP_POINTER) {
@@ -1601,6 +1592,19 @@ int ui_but_is_pushed_ex(uiBut *but, double *value)
 							is_push = true;
 						}
 					}
+					break;
+				}
+				else if (but->optype) {
+					break;
+				}
+
+				UI_GET_BUT_VALUE_INIT(but, *value);
+				/* support for rna enum buts */
+				if (but->rnaprop && (RNA_property_flag(but->rnaprop) & PROP_ENUM_FLAG)) {
+					if ((int)*value & (int)but->hardmax) is_push = true;
+				}
+				else {
+					if (*value == (double)but->hardmax) is_push = true;
 				}
 				break;
 			default:
@@ -2985,7 +2989,11 @@ void ui_but_update_ex(uiBut *but, const bool validate)
 
 		case UI_BTYPE_ICON_TOGGLE:
 		case UI_BTYPE_ICON_TOGGLE_N:
-			if (!but->rnaprop || (RNA_property_flag(but->rnaprop) & PROP_ICONS_CONSECUTIVE)) {
+			if ((but->rnaprop == NULL) || (RNA_property_flag(but->rnaprop) & PROP_ICONS_CONSECUTIVE)) {
+				if (but->rnaprop && RNA_property_flag(but->rnaprop) & PROP_ICONS_REVERSE) {
+					but->drawflag |= UI_BUT_ICON_REVERSE;
+				}
+
 				but->iconadd = (but->flag & UI_SELECT) ? 1 : 0;
 			}
 			break;
@@ -3011,8 +3019,8 @@ void ui_but_update_ex(uiBut *but, const bool validate)
 
 						EnumPropertyItem item;
 						if (RNA_property_enum_item_from_value_gettexted(
-						        but->block->evil_C,
-						        &but->rnapoin, but->rnaprop, value_enum, &item))
+						            but->block->evil_C,
+						            &but->rnapoin, but->rnaprop, value_enum, &item))
 						{
 							size_t slen = strlen(item.name);
 							ui_but_string_free_internal(but);
@@ -4747,7 +4755,7 @@ void UI_but_string_info_get(bContext *C, uiBut *but, ...)
 				/* enum property */
 				ptr = &but->rnapoin;
 				prop = but->rnaprop;
-				value = (but->type == UI_BTYPE_ROW) ? (int)but->hardmax : (int)ui_but_value_get(but);
+				value = (ELEM(but->type, UI_BTYPE_ROW, UI_BTYPE_TAB)) ? (int)but->hardmax : (int)ui_but_value_get(but);
 			}
 			else if (but->optype) {
 				PointerRNA *opptr = UI_but_operator_ptr_get(but);

@@ -42,7 +42,7 @@
 #include "DNA_scene_types.h"
 
 #include "BLI_bitmap.h"
-#include "BLI_heap.h"
+#include "BLI_heap_simple.h"
 #include "BLI_listbase.h"
 #include "BLI_linklist.h"
 #include "BLI_linklist_stack.h"
@@ -52,16 +52,17 @@
 #include "BLI_sort_utils.h"
 #include "BLI_string.h"
 
-#include "BKE_layer.h"
-#include "BKE_material.h"
+#include "BKE_editmesh.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
+#include "BKE_key.h"
+#include "BKE_layer.h"
+#include "BKE_library.h"
+#include "BKE_main.h"
+#include "BKE_material.h"
+#include "BKE_mesh.h"
 #include "BKE_report.h"
 #include "BKE_texture.h"
-#include "BKE_main.h"
-#include "BKE_mesh.h"
-#include "BKE_editmesh.h"
-#include "BKE_key.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -287,7 +288,6 @@ void MESH_OT_subdivide_edgering(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Subdivide Edge-Ring";
-	ot->description = "";
 	ot->idname = "MESH_OT_subdivide_edgering";
 
 	/* api callbacks */
@@ -3363,9 +3363,9 @@ void MESH_OT_solidify(wmOperatorType *ot)
  * Contributed by Robert Wenzlaff (Det. Thorn).
  *
  * 2.5 Revamp:
- *  - non modal (no menu before cutting)
- *  - exit on mouse release
- *  - polygon/segment drawing can become handled by WM cb later
+ * - non modal (no menu before cutting)
+ * - exit on mouse release
+ * - polygon/segment drawing can become handled by WM cb later
  *
  * bmesh port version
  */
@@ -7138,27 +7138,6 @@ wmKeyMap *point_normals_modal_keymap(wmKeyConfig *keyconf)
 
 	keymap = WM_modalkeymap_add(keyconf, keymap_name, modal_items);
 
-	/* Generic items for modal map. */
-	WM_modalkeymap_add_item(keymap, ESCKEY,     KM_PRESS, KM_ANY,     0, EDBM_CLNOR_MODAL_CANCEL);
-	WM_modalkeymap_add_item(keymap, RIGHTMOUSE, KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_CANCEL);
-
-	WM_modalkeymap_add_item(keymap, RETKEY,     KM_PRESS, KM_ANY,     0, EDBM_CLNOR_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, PADENTER,   KM_PRESS, KM_ANY,     0, EDBM_CLNOR_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE,  KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_CONFIRM);
-
-	/* Point To items for modal map */
-	WM_modalkeymap_add_item(keymap, RKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_RESET);
-	WM_modalkeymap_add_item(keymap, IKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_INVERT);
-	WM_modalkeymap_add_item(keymap, SKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_SPHERIZE);
-	WM_modalkeymap_add_item(keymap, AKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_ALIGN);
-
-	WM_modalkeymap_add_item(keymap, MKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_USE_MOUSE);
-	WM_modalkeymap_add_item(keymap, LKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_USE_PIVOT);
-	WM_modalkeymap_add_item(keymap, OKEY,       KM_PRESS, KM_NOTHING, 0, EDBM_CLNOR_MODAL_POINTTO_USE_OBJECT);
-
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE,  KM_CLICK, KM_CTRL,    0, EDBM_CLNOR_MODAL_POINTTO_SET_USE_3DCURSOR);
-	WM_modalkeymap_add_item(keymap, RIGHTMOUSE, KM_CLICK, KM_CTRL,    0, EDBM_CLNOR_MODAL_POINTTO_SET_USE_SELECTED);
-
 	WM_modalkeymap_assign(keymap, "MESH_OT_point_normals");
 
 	return keymap;
@@ -7380,6 +7359,7 @@ static int edbm_point_normals_modal(bContext *C, wmOperator *op, const wmEvent *
 				new_mode = EDBM_CLNOR_POINTTO_MODE_COORDINATES;
 				ED_view3d_cursor3d_update(C, event->mval, false, V3D_CURSOR_ORIENT_NONE);
 				copy_v3_v3(target, ED_view3d_cursor3d_get(scene, v3d)->location);
+				ret = OPERATOR_RUNNING_MODAL;
 				break;
 
 			case EDBM_CLNOR_MODAL_POINTTO_SET_USE_SELECTED:
@@ -7818,7 +7798,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 
 	BM_normals_loops_edges_tag(bm, true);
 
-	Heap *loop_weight = BLI_heap_new();
+	HeapSimple *loop_weight = BLI_heapsimple_new();
 
 	BM_ITER_MESH(f, &fiter, bm, BM_FACES_OF_MESH) {
 		l_curr = l_first = BM_FACE_FIRST_LOOP(f);
@@ -7858,7 +7838,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 							val = 1.0f / BM_loop_calc_face_angle(lfan_pivot);
 						}
 
-						BLI_heap_insert(loop_weight, val, lfan_pivot);
+						BLI_heapsimple_insert(loop_weight, val, lfan_pivot);
 
 						if (!BM_elem_flag_test(e_next, BM_ELEM_TAG) || (e_next == e_org)) {
 							break;
@@ -7868,15 +7848,15 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 
 					BLI_SMALLSTACK_DECLARE(loops, BMLoop *);
 					float wnor[3], avg_normal[3] = { 0.0f }, count = 0;
-					float val = BLI_heap_node_value(BLI_heap_top(loop_weight));
+					float val = BLI_heapsimple_top_value(loop_weight);
 
-					while (!BLI_heap_is_empty(loop_weight)) {
-						const float cur_val = BLI_heap_node_value(BLI_heap_top(loop_weight));
+					while (!BLI_heapsimple_is_empty(loop_weight)) {
+						const float cur_val = BLI_heapsimple_top_value(loop_weight);
 						if (!compare_ff(val, cur_val, threshold)) {
 							count++;
 							val = cur_val;
 						}
-						l = BLI_heap_pop_min(loop_weight);
+						l = BLI_heapsimple_pop_min(loop_weight);
 						BLI_SMALLSTACK_PUSH(loops, l);
 
 						const float n_weight = pow(weight, count);
@@ -7907,7 +7887,7 @@ static int edbm_average_normals_exec(bContext *C, wmOperator *op)
 		} while ((l_curr = l_curr->next) != l_first);
 	}
 
-	BLI_heap_free(loop_weight, NULL);
+	BLI_heapsimple_free(loop_weight, NULL);
 	EDBM_update_generic(em, true, false);
 
 	return OPERATOR_FINISHED;

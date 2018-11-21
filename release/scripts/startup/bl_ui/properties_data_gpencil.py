@@ -72,6 +72,7 @@ class GPENCIL_MT_layer_specials(Menu):
 
     def draw(self, context):
         layout = self.layout
+        gpd = context.gpencil_data
 
         layout.operator("gpencil.layer_duplicate", icon='ADD')  # XXX: needs a dedicated icon
 
@@ -84,6 +85,7 @@ class GPENCIL_MT_layer_specials(Menu):
 
         layout.operator("gpencil.lock_all", icon='LOCKED', text="Lock All")
         layout.operator("gpencil.unlock_all", icon='UNLOCKED', text="UnLock All")
+        layout.prop(gpd, "use_autolock_layers", text="Autolock Inactive Layers")
 
         layout.separator()
 
@@ -355,7 +357,6 @@ class DATA_PT_gpencil_display(DataButtonsPanel, Panel):
 
         layout.prop(gpd, "use_force_fill_recalc", text="Force Fill Update")
         layout.prop(gpd, "use_adaptative_uv", text="Adaptative UVs")
-        layout.prop(gpd, "zdepth_offset", text="Surface Offset")
 
 
 class DATA_PT_gpencil_canvas(DataButtonsPanel, Panel):
@@ -378,7 +379,6 @@ class DATA_PT_gpencil_canvas(DataButtonsPanel, Panel):
         row = layout.row(align=True)
         col = row.column()
         col.prop(grid, "lines", text="Subdivisions")
-        col.prop(grid, "axis", text="Plane")
 
 
 class DATA_PT_custom_props_gpencil(DataButtonsPanel, PropertyPanel, Panel):

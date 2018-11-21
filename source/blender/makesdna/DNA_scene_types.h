@@ -797,9 +797,28 @@ typedef struct TimeMarker {
 
 #define PAINT_MAX_INPUT_SAMPLES 64
 
+typedef struct Paint_Runtime {
+	/* Avoid having to compare with scene pointer everywhere. */
+	unsigned int tool_offset;
+	unsigned short ob_mode;
+	char _pad[2];
+} Paint_Runtime;
+
+/* We might want to store other things here. */
+typedef struct PaintToolSlot {
+	struct Brush *brush;
+} PaintToolSlot;
+
 /* Paint Tool Base */
 typedef struct Paint {
 	struct Brush *brush;
+
+	/* Each tool has it's own active brush,
+	 * The currently active tool is defined by the current 'brush'. */
+	struct PaintToolSlot *tool_slots;
+	int                   tool_slots_len;
+	char _pad1[4];
+
 	struct Palette *palette;
 	struct CurveMapping *cavity_curve; /* cavity curve */
 
@@ -819,6 +838,8 @@ typedef struct Paint {
 
 	float tile_offset[3];
 	int pad2;
+
+	struct Paint_Runtime runtime;
 } Paint;
 
 /* ------------------------------------------- */
@@ -938,103 +959,101 @@ enum {
 /* ------------------------------------------- */
 /* GPencil Stroke Sculpting */
 
-/* GP_BrushEdit_Settings.brushtype */
-typedef enum eGP_EditBrush_Types {
-	GP_EDITBRUSH_TYPE_SMOOTH    = 0,
-	GP_EDITBRUSH_TYPE_THICKNESS = 1,
-	GP_EDITBRUSH_TYPE_STRENGTH  = 2,
-	GP_EDITBRUSH_TYPE_GRAB      = 3,
-	GP_EDITBRUSH_TYPE_PUSH      = 4,
-	GP_EDITBRUSH_TYPE_TWIST     = 5,
-	GP_EDITBRUSH_TYPE_PINCH     = 6,
-	GP_EDITBRUSH_TYPE_RANDOMIZE = 7,
-	GP_EDITBRUSH_TYPE_CLONE     = 8,
-	GP_EDITBRUSH_TYPE_SUBDIVIDE = 9,
-	GP_EDITBRUSH_TYPE_SIMPLIFY  = 10,
+/* GP_Sculpt_Settings.brushtype */
+typedef enum eGP_Sculpt_Types {
+	GP_SCULPT_TYPE_SMOOTH    = 0,
+	GP_SCULPT_TYPE_THICKNESS = 1,
+	GP_SCULPT_TYPE_STRENGTH  = 2,
+	GP_SCULPT_TYPE_GRAB      = 3,
+	GP_SCULPT_TYPE_PUSH      = 4,
+	GP_SCULPT_TYPE_TWIST     = 5,
+	GP_SCULPT_TYPE_PINCH     = 6,
+	GP_SCULPT_TYPE_RANDOMIZE = 7,
+	GP_SCULPT_TYPE_CLONE     = 8,
+	GP_SCULPT_TYPE_SUBDIVIDE = 9,
+	GP_SCULPT_TYPE_SIMPLIFY  = 10,
 	/* add any sculpt brush above this value */
-	GP_EDITBRUSH_TYPE_WEIGHT    = 11,
+	GP_SCULPT_TYPE_WEIGHT    = 11,
 	/* add any weight paint brush below this value. Do no mix brushes */
 
-	/* !!! Update GP_EditBrush_Data brush[###]; below !!! */
-	TOT_GP_EDITBRUSH_TYPES
-} eGP_EditBrush_Types;
+	/* !!! Update GP_Sculpt_Data brush[###]; below !!! */
+	GP_SCULPT_TYPE_MAX,
+} eGP_Sculpt_Types;
 
-/* GP_BrushEdit_Settings.lock_axis */
+/* GP_Sculpt_Settings.lock_axis */
 typedef enum eGP_Lockaxis_Types {
-	GP_LOCKAXIS_NONE = 0,
+	GP_LOCKAXIS_VIEW = 0,
 	GP_LOCKAXIS_X = 1,
 	GP_LOCKAXIS_Y = 2,
 	GP_LOCKAXIS_Z = 3
 } eGP_Lockaxis_Types;
 
 /* Settings for a GPencil Stroke Sculpting Brush */
-typedef struct GP_EditBrush_Data {
+typedef struct GP_Sculpt_Data {
 	short size;             /* radius of brush */
-	short flag;             /* eGP_EditBrush_Flag */
+	short flag;             /* eGP_Sculpt_Flag */
 	float strength;         /* strength of effect */
 	float curcolor_add[3];  /* cursor color for add */
 	float curcolor_sub[3];  /* cursor color for sub */
-} GP_EditBrush_Data;
+	float target_weight;    /* target weight */
+	char pad_[4];
+} GP_Sculpt_Data;
 
-/* GP_EditBrush_Data.flag */
-typedef enum eGP_EditBrush_Flag {
+/* GP_Sculpt_Data.flag */
+typedef enum eGP_Sculpt_Flag {
 	/* invert the effect of the brush */
-	GP_EDITBRUSH_FLAG_INVERT       = (1 << 0),
+	GP_SCULPT_FLAG_INVERT       = (1 << 0),
 	/* adjust strength using pen pressure */
-	GP_EDITBRUSH_FLAG_USE_PRESSURE = (1 << 1),
+	GP_SCULPT_FLAG_USE_PRESSURE = (1 << 1),
 
 	/* strength of brush falls off with distance from cursor */
-	GP_EDITBRUSH_FLAG_USE_FALLOFF  = (1 << 2),
+	GP_SCULPT_FLAG_USE_FALLOFF  = (1 << 2),
 
-	/* XXX: currently unused. */
 	/* smooth brush affects pressure values as well */
-	GP_EDITBRUSH_FLAG_SMOOTH_PRESSURE  = (1 << 3),
+	GP_SCULPT_FLAG_SMOOTH_PRESSURE  = (1 << 3),
 	/* enable screen cursor */
-	GP_EDITBRUSH_FLAG_ENABLE_CURSOR = (1 << 4),
+	GP_SCULPT_FLAG_ENABLE_CURSOR = (1 << 4),
 	/* temporary invert action */
-	GP_EDITBRUSH_FLAG_TMP_INVERT = (1 << 5),
+	GP_SCULPT_FLAG_TMP_INVERT = (1 << 5),
 	/* adjust radius using pen pressure */
-	GP_EDITBRUSH_FLAG_PRESSURE_RADIUS = (1 << 6),
-} eGP_EditBrush_Flag;
-
-
+	GP_SCULPT_FLAG_PRESSURE_RADIUS = (1 << 6),
+} eGP_Sculpt_Flag;
 
 /* GPencil Stroke Sculpting Settings */
-typedef struct GP_BrushEdit_Settings {
-	GP_EditBrush_Data brush[12];  /* TOT_GP_EDITBRUSH_TYPES */
+typedef struct GP_Sculpt_Settings {
+	GP_Sculpt_Data brush[12];  /* GP_SCULPT_TYPE_MAX */
 	void *paintcursor;            /* runtime */
 
-	int brushtype;                /* eGP_EditBrush_Types (sculpt) */
-	int flag;                     /* eGP_BrushEdit_SettingsFlag */
+	int brushtype;                /* eGP_Sculpt_Types (sculpt) */
+	int flag;                     /* eGP_Sculpt_SettingsFlag */
 	int lock_axis;                /* eGP_Lockaxis_Types lock drawing to one axis */
 	char pad1[4];
 
 	/* weight paint is a submode of sculpt but use its own index. All weight paint
 	 * brushes must be defined at the end of the brush array.
 	 */
-	int weighttype;               /* eGP_EditBrush_Types (weight paint) */
+	int weighttype;               /* eGP_Sculpt_Types (weight paint) */
 	char pad[4];
 	struct CurveMapping *cur_falloff; /* multiframe edit falloff effect by frame */
-} GP_BrushEdit_Settings;
+} GP_Sculpt_Settings;
 
-/* GP_BrushEdit_Settings.flag */
-typedef enum eGP_BrushEdit_SettingsFlag {
+/* GP_Sculpt_Settings.flag */
+typedef enum eGP_Sculpt_SettingsFlag {
 	/* only affect selected points */
-	GP_BRUSHEDIT_FLAG_SELECT_MASK = (1 << 0),
+	GP_SCULPT_SETT_FLAG_SELECT_MASK = (1 << 0),
 	/* apply brush to position */
-	GP_BRUSHEDIT_FLAG_APPLY_POSITION = (1 << 1),
+	GP_SCULPT_SETT_FLAG_APPLY_POSITION = (1 << 1),
 	/* apply brush to strength */
-	GP_BRUSHEDIT_FLAG_APPLY_STRENGTH = (1 << 2),
+	GP_SCULPT_SETT_FLAG_APPLY_STRENGTH = (1 << 2),
 	/* apply brush to thickness */
-	GP_BRUSHEDIT_FLAG_APPLY_THICKNESS = (1 << 3),
+	GP_SCULPT_SETT_FLAG_APPLY_THICKNESS = (1 << 3),
 	/* apply brush to thickness */
-	GP_BRUSHEDIT_FLAG_WEIGHT_MODE = (1 << 4),
+	GP_SCULPT_SETT_FLAG_WEIGHT_MODE = (1 << 4),
 	/* enable falloff for multiframe editing */
-	GP_BRUSHEDIT_FLAG_FRAME_FALLOFF = (1 << 5),
+	GP_SCULPT_SETT_FLAG_FRAME_FALLOFF = (1 << 5),
 	/* apply brush to uv data */
-	GP_BRUSHEDIT_FLAG_APPLY_UV = (1 << 6),
-} eGP_BrushEdit_SettingsFlag;
-
+	GP_SCULPT_SETT_FLAG_APPLY_UV = (1 << 6),
+} eGP_Sculpt_SettingsFlag;
 
 /* Settings for GP Interpolation Operators */
 typedef struct GP_Interpolate_Settings {
@@ -1290,7 +1309,7 @@ typedef struct ToolSettings {
 	short gpencil_selectmode; /* stroke selection mode */
 
 	/* Grease Pencil Sculpt */
-	struct GP_BrushEdit_Settings gp_sculpt;
+	struct GP_Sculpt_Settings gp_sculpt;
 
 	/* Grease Pencil Interpolation Tool(s) */
 	struct GP_Interpolate_Settings gp_interpolate;
@@ -1439,6 +1458,10 @@ typedef struct SceneEEVEE {
 	int gi_diffuse_bounces;
 	int gi_cubemap_resolution;
 	int gi_visibility_resolution;
+	float gi_irradiance_smoothing;
+	float gi_glossy_clamp;
+	float gi_filter_quality;
+	float pad;
 
 	float gi_cubemap_draw_size;
 	float gi_irradiance_draw_size;
@@ -1485,6 +1508,9 @@ typedef struct SceneEEVEE {
 
 	struct LightCache *light_cache;
 	char light_cache_info[64];
+
+	float overscan;
+	float light_threshold;
 } SceneEEVEE;
 
 /* *************************************************************** */
@@ -2119,6 +2145,7 @@ typedef enum eGPencil_Placement_Flags {
 	/* "Use Endpoints" */
 	GP_PROJECT_DEPTH_STROKE_ENDPOINTS = (1 << 4),
 	GP_PROJECT_CURSOR = (1 << 5),
+	GP_PROJECT_DEPTH_STROKE_FIRST = (1 << 6),
 } eGPencil_Placement_Flags;
 
 /* ToolSettings.gpencil_selectmode */
@@ -2191,6 +2218,8 @@ enum {
 	SCE_EEVEE_SHOW_IRRADIANCE		= (1 << 17),
 	SCE_EEVEE_SHOW_CUBEMAPS			= (1 << 18),
 	SCE_EEVEE_GI_AUTOBAKE			= (1 << 19),
+	SCE_EEVEE_SHADOW_SOFT			= (1 << 20),
+	SCE_EEVEE_OVERSCAN				= (1 << 21),
 };
 
 /* SceneEEVEE->shadow_method */

@@ -107,6 +107,7 @@ enum eV3DCursorOrient {
 	V3D_CURSOR_ORIENT_GEOM,
 };
 
+void ED_view3d_background_color_get(const struct Scene *scene, const struct View3D *v3d, float r_color[3]);
 struct View3DCursor *ED_view3d_cursor3d_get(struct Scene *scene, struct View3D *v3d);
 void ED_view3d_cursor3d_calc_mat3(const struct Scene *scene, const struct View3D *v3d, float mat[3][3]);
 void ED_view3d_cursor3d_calc_mat4(const struct Scene *scene, const struct View3D *v3d, float mat[4][4]);
@@ -522,8 +523,10 @@ void  ED_view3d_distance_set(struct RegionView3D *rv3d, const float dist);
 
 float ED_scene_grid_scale(struct Scene *scene, const char **grid_unit);
 float ED_view3d_grid_scale(struct Scene *scene, struct View3D *v3d, const char **grid_unit);
+float ED_view3d_grid_view_scale(
+        struct Scene *scene, struct View3D *v3d, struct RegionView3D *rv3d, const char **grid_unit);
 
-void ED_scene_draw_fps(struct Scene *scene, const struct rcti *rect);
+void ED_scene_draw_fps(struct Scene *scene, int xoffset, int *yoffset);
 
 /* view matrix properties utilities */
 /* unused */

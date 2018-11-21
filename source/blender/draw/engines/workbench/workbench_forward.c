@@ -169,8 +169,8 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 		workbench_material_set_normal_world_matrix(grp, wpd, e_data.normal_world_matrix);
 		workbench_material_copy(material, &material_template);
 		if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
-			BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-			DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+			BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECT_RADIANCE_GPUTEXTURE);
+			DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirect_radiance_gputexture );
 		}
 		if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 			DRW_shgroup_uniform_vec2(grp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
@@ -363,10 +363,16 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 
 	/* Checker Depth */
 	{
+		static float noise_offset = 0.0f;
 		float blend_threshold = 0.0f;
 
+		if (DRW_state_is_image_render()) {
+			/* TODO: Should be based on the number of samples used for render. */
+			noise_offset = fmodf(noise_offset + 1.0f / 8.0f, 1.0f);
+		}
+
 		if (wpd->shading.flag & XRAY_FLAG(wpd)) {
-			blend_threshold = 0.75f - XRAY_ALPHA(wpd) * 0.5f;
+			blend_threshold = 1.0f - XRAY_ALPHA(wpd) * 0.9f;
 		}
 
 		if (wpd->shading.type == OB_WIRE) {
@@ -379,6 +385,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		grp = DRW_shgroup_create(e_data.checker_depth_sh, psl->checker_depth_pass);
 		DRW_shgroup_call_add(grp, DRW_cache_fullscreen_quad_get(), NULL);
 		DRW_shgroup_uniform_float_copy(grp, "threshold", blend_threshold);
+		DRW_shgroup_uniform_float_copy(grp, "offset", noise_offset);
 	}
 }
 
@@ -449,8 +456,8 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			float hair_alpha = XRAY_ALPHA(wpd) * 0.33f;
 			DRW_shgroup_uniform_float_copy(shgrp, "alpha", hair_alpha);
 			if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
-				BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-				DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+				BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECT_RADIANCE_GPUTEXTURE);
+				DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirect_radiance_gputexture );
 			}
 			if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 				DRW_shgroup_uniform_vec2(shgrp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);

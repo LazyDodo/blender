@@ -154,16 +154,18 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		}
 		case OB_GPENCIL:
 		{
-			bGPdata *gpd = (bGPdata *)ob->data;
-			/* GPXX Review if we can move to other place when object change
-			 * maybe to depsgraph evaluation
-			 */
-			BKE_gpencil_stats_update(gpd);
+			if (sel) {
+				bGPdata *gpd = (bGPdata *)ob->data;
+				/* GPXX Review if we can move to other place when object change
+				 * maybe to depsgraph evaluation
+				 */
+				BKE_gpencil_stats_update(gpd);
 
-			stats->totgplayer = gpd->totlayer;
-			stats->totgpframe = gpd->totframe;
-			stats->totgpstroke = gpd->totstroke;
-			stats->totgppoint = gpd->totpoint;
+				stats->totgplayer += gpd->totlayer;
+				stats->totgpframe += gpd->totframe;
+				stats->totgpstroke += gpd->totstroke;
+				stats->totgppoint += gpd->totpoint;
+			}
 			break;
 		}
 	}
@@ -431,6 +433,7 @@ static void stats_string(ViewLayer *view_layer)
 #define MAX_INFO_MEM_LEN  64
 	SceneStats *stats = view_layer->stats;
 	SceneStatsFmt stats_fmt;
+	LayerCollection *layer_collection = view_layer->active_collection;
 	Object *ob = OBACT(view_layer);
 	Object *obedit = OBEDIT_FROM_OBACT(ob);
 	eObjectMode object_mode = ob ? ob->mode : OB_MODE_OBJECT;
@@ -503,6 +506,10 @@ static void stats_string(ViewLayer *view_layer)
 	s = stats->infostr;
 	ofs = 0;
 
+	if (object_mode == OB_MODE_OBJECT) {
+		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", BKE_collection_ui_name_get(layer_collection->collection));
+	}
+
 	if (ob) {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", ob->id.name + 2);
 	}
@@ -535,8 +542,9 @@ static void stats_string(ViewLayer *view_layer)
 	}
 	else if ((ob) && (ob->type == OB_GPENCIL)) {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs,
-			IFACE_("Layers:%s | Frames:%s | Strokes:%s | Points:%s"),
-			stats_fmt.totgplayer, stats_fmt.totgpframe, stats_fmt.totgpstroke, stats_fmt.totgppoint);
+			IFACE_("Layers:%s | Frames:%s | Strokes:%s | Points:%s | Objects:%s/%s"),
+			stats_fmt.totgplayer, stats_fmt.totgpframe, stats_fmt.totgpstroke,
+			stats_fmt.totgppoint, stats_fmt.totobjsel, stats_fmt.totobj);
 
 		ofs += BLI_strncpy_rlen(s + ofs, memstr, MAX_INFO_LEN - ofs);
 		ofs += BLI_strncpy_rlen(s + ofs, gpumemstr, MAX_INFO_LEN - ofs);

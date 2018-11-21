@@ -126,6 +126,7 @@
 #include "BKE_cachefile.h"
 #include "BKE_cloth.h"
 #include "BKE_collection.h"
+#include "BKE_colortools.h"
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
@@ -134,15 +135,15 @@
 #include "BKE_global.h" // for G
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_modifier.h"
+#include "BKE_idcode.h"
+#include "BKE_idprop.h"
 #include "BKE_layer.h"
-#include "BKE_library.h" // for which_libbase
+#include "BKE_library.h"
 #include "BKE_library_idmap.h"
 #include "BKE_library_override.h"
 #include "BKE_library_query.h"
-#include "BKE_idcode.h"
-#include "BKE_idprop.h"
-#include "BKE_material.h"
 #include "BKE_main.h" // for Main
+#include "BKE_material.h"
 #include "BKE_mesh.h" // for ME_ defines (patching)
 #include "BKE_mesh_runtime.h"
 #include "BKE_modifier.h"
@@ -150,6 +151,7 @@
 #include "BKE_node.h" // for tree type defines
 #include "BKE_object.h"
 #include "BKE_ocean.h"
+#include "BKE_outliner_treehash.h"
 #include "BKE_paint.h"
 #include "BKE_particle.h"
 #include "BKE_pointcache.h"
@@ -158,9 +160,7 @@
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
 #include "BKE_shader_fx.h"
-#include "BKE_outliner_treehash.h"
 #include "BKE_sound.h"
-#include "BKE_colortools.h"
 #include "BKE_workspace.h"
 
 #include "DRW_engine.h"
@@ -674,7 +674,7 @@ static Main *blo_find_main(FileData *fd, const char *filepath, const char *relab
 
 	/* Add library datablock itself to 'main' Main, since libraries are **never** linked data.
 	 * Fixes bug where you could end with all ID_LI datablocks having the same name... */
-	lib = BKE_libblock_alloc(mainlist->first, ID_LI, "Lib", 0);
+	lib = BKE_libblock_alloc(mainlist->first, ID_LI, BLI_path_basename(filepath), 0);
 	lib->id.us = ID_FAKE_USERS(lib);  /* Important, consistency with main ID reading code from read_libblock(). */
 	BLI_strncpy(lib->name, filepath, sizeof(lib->name));
 	BLI_strncpy(lib->filepath, name1, sizeof(lib->filepath));
@@ -3501,6 +3501,14 @@ static void direct_link_constraints(FileData *fd, ListBase *lb)
 				IDP_DirectLinkGroup_OrFree(&data->prop, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
 				break;
 			}
+			case CONSTRAINT_TYPE_ARMATURE:
+			{
+				bArmatureConstraint *data= con->data;
+
+				link_list(fd, &data->targets);
+
+				break;
+			}
 			case CONSTRAINT_TYPE_SPLINEIK:
 			{
 				bSplineIKConstraint *data= con->data;
@@ -4588,12 +4596,12 @@ static void lib_link_mesh(FileData *fd, Main *main)
 			/*
 			 * Re-tessellate, even if the polys were just created from tessfaces, this
 			 * is important because it:
-			 *  - fill the CD_ORIGINDEX layer
-			 *  - gives consistency of tessface between loading from a file and
-			 *    converting an edited BMesh back into a mesh (i.e. it replaces
-			 *    quad tessfaces in a loaded mesh immediately, instead of lazily
-			 *    waiting until edit mode has been entered/exited, making it easier
-			 *    to recognize problems that would otherwise only show up after edits).
+			 * - fill the CD_ORIGINDEX layer
+			 * - gives consistency of tessface between loading from a file and
+			 *   converting an edited BMesh back into a mesh (i.e. it replaces
+			 *   quad tessfaces in a loaded mesh immediately, instead of lazily
+			 *   waiting until edit mode has been entered/exited, making it easier
+			 *   to recognize problems that would otherwise only show up after edits).
 			 */
 #ifdef USE_TESSFACE_DEFAULT
 			BKE_mesh_tessface_calc(me);
@@ -5679,7 +5687,13 @@ static void direct_link_object(FileData *fd, Object *ob)
 	CLAMP(ob->rotmode, ROT_MODE_MIN, ROT_MODE_MAX);
 
 	if (ob->sculpt) {
-		ob->sculpt = MEM_callocN(sizeof(SculptSession), "reload sculpt session");
+		if (ob->mode & OB_MODE_ALL_SCULPT) {
+			ob->sculpt = MEM_callocN(sizeof(SculptSession), "reload sculpt session");
+			ob->sculpt->mode_type = ob->mode;
+		}
+		else {
+			ob->sculpt = NULL;
+		}
 	}
 
 	link_list(fd, &ob->lodlevels);
@@ -5904,8 +5918,15 @@ static void link_paint(FileData *fd, Scene *sce, Paint *p)
 {
 	if (p) {
 		p->brush = newlibadr_us(fd, sce->id.lib, p->brush);
+		for (int i = 0; i < p->tool_slots_len; i++) {
+			if (p->tool_slots[i].brush != NULL) {
+				p->tool_slots[i].brush = newlibadr_us(fd, sce->id.lib, p->tool_slots[i].brush);
+			}
+		}
 		p->palette = newlibadr_us(fd, sce->id.lib, p->palette);
 		p->paint_cursor = NULL;
+
+		BKE_paint_runtime_init(sce->toolsettings, p);
 	}
 }
 
@@ -6189,7 +6210,7 @@ static void link_recurs_seq(FileData *fd, ListBase *lb)
 	}
 }
 
-static void direct_link_paint(FileData *fd, Paint *p)
+static void direct_link_paint(FileData *fd, const Scene *scene, Paint *p)
 {
 	if (p->num_input_samples < 1)
 		p->num_input_samples = 1;
@@ -6199,15 +6220,19 @@ static void direct_link_paint(FileData *fd, Paint *p)
 		direct_link_curvemapping(fd, p->cavity_curve);
 	else
 		BKE_paint_cavity_curve_preset(p, CURVE_PRESET_LINE);
+
+	p->tool_slots = newdataadr(fd, p->tool_slots);
+
+	BKE_paint_runtime_init(scene->toolsettings, p);
 }
 
-static void direct_link_paint_helper(FileData *fd, Paint **paint)
+static void direct_link_paint_helper(FileData *fd, const Scene *scene, Paint **paint)
 {
 	/* TODO. is this needed */
 	(*paint) = newdataadr(fd, (*paint));
 
 	if (*paint) {
-		direct_link_paint(fd, *paint);
+		direct_link_paint(fd, scene, *paint);
 	}
 }
 
@@ -6264,13 +6289,13 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 
 	sce->toolsettings= newdataadr(fd, sce->toolsettings);
 	if (sce->toolsettings) {
-		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->sculpt);
-		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->vpaint);
-		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->wpaint);
-		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->uvsculpt);
-		direct_link_paint_helper(fd, (Paint**)&sce->toolsettings->gp_paint);
+		direct_link_paint_helper(fd, sce, (Paint**)&sce->toolsettings->sculpt);
+		direct_link_paint_helper(fd, sce, (Paint**)&sce->toolsettings->vpaint);
+		direct_link_paint_helper(fd, sce, (Paint**)&sce->toolsettings->wpaint);
+		direct_link_paint_helper(fd, sce, (Paint**)&sce->toolsettings->uvsculpt);
+		direct_link_paint_helper(fd, sce, (Paint**)&sce->toolsettings->gp_paint);
 
-		direct_link_paint(fd, &sce->toolsettings->imapaint.paint);
+		direct_link_paint(fd, sce, &sce->toolsettings->imapaint.paint);
 
 		sce->toolsettings->imapaint.paintcursor = NULL;
 		sce->toolsettings->particle.paintcursor = NULL;
@@ -6587,8 +6612,6 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 
 		gpl->actframe = newdataadr(fd, gpl->actframe);
 
-		gpl->runtime.derived_array = NULL;
-		gpl->runtime.len_derived = 0;
 		gpl->runtime.icon_id = 0;
 
 		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
@@ -8887,14 +8910,9 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 	/* read all data into fd->datamap */
 	bhead = read_data_into_oldnewmap(fd, bhead, "user def");
 
-	if (user->keymaps.first) {
-		/* backwards compatibility */
-		user->user_keymaps= user->keymaps;
-		user->keymaps.first= user->keymaps.last= NULL;
-	}
-
 	link_list(fd, &user->themes);
 	link_list(fd, &user->user_keymaps);
+	link_list(fd, &user->user_keyconfig_prefs);
 	link_list(fd, &user->user_menus);
 	link_list(fd, &user->addons);
 	link_list(fd, &user->autoexec_paths);
@@ -8919,6 +8937,11 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 		for (kmi=keymap->items.first; kmi; kmi=kmi->next)
 			direct_link_keymapitem(fd, kmi);
+	}
+
+	for (wmKeyConfigPref *kpt = user->user_keyconfig_prefs.first; kpt; kpt = kpt->next) {
+		kpt->prop = newdataadr(fd, kpt->prop);
+		IDP_DirectLinkGroup_OrFree(&kpt->prop, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
 	}
 
 	for (bUserMenu *um = user->user_menus.first; um; um = um->next) {

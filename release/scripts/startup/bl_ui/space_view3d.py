@@ -65,11 +65,13 @@ class VIEW3D_HT_header(Header):
             gpd = context.gpencil_data
 
             if gpd.is_stroke_paint_mode:
-                row = layout.row(align=True)
-                row.popover(
-                    panel="VIEW3D_PT_tools_grease_pencil_shapes",
-                    text="Shapes"
-                )
+                row = layout.row()
+                sub = row.row(align=True)
+                sub.prop(tool_settings, "use_gpencil_draw_onback", text="", icon='MOD_OPACITY')
+                sub.separator(factor=0.4)
+                sub.prop(tool_settings, "use_gpencil_weight_data_add", text="", icon='WPAINT_HLT')
+                sub.separator(factor=0.4)
+                sub.prop(tool_settings, "use_gpencil_draw_additive", text="", icon='FREEZE')
 
             if gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
@@ -233,13 +235,22 @@ class VIEW3D_HT_header(Header):
 
             lk_icon = getattr(gp_lock, "icon", "BLANK1")
             lk_name = getattr(gp_lock, "name", "None")
-            layout.popover(
+            row = layout.row()
+            row.enabled = tool_settings.gpencil_stroke_placement_view3d in {'ORIGIN', 'CURSOR'}
+            row.popover(
                 panel="VIEW3D_PT_gpencil_lock",
                 text=lk_name,
                 icon=lk_icon,
             )
 
         layout.separator_spacer()
+
+        # Collection Visibility
+        layout.popover(
+            panel="VIEW3D_PT_collections",
+            icon='GROUP',
+            text="",
+        )
 
         # Viewport Settings
         layout.popover(
@@ -522,7 +533,7 @@ class VIEW3D_MT_snap(Menu):
         layout.separator()
 
         layout.operator("view3d.snap_cursor_to_selected", text="Cursor to Selected")
-        layout.operator("view3d.snap_cursor_to_center", text="Cursor to Center")
+        layout.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin")
         layout.operator("view3d.snap_cursor_to_grid", text="Cursor to Grid")
         layout.operator("view3d.snap_cursor_to_active", text="Cursor to Active")
 
@@ -620,7 +631,7 @@ class VIEW3D_MT_view(Menu):
         layout.separator()
 
         layout.operator("render.opengl", icon='RENDER_STILL')
-        layout.operator("render.opengl", text="OpenGL Render Animation", icon='RENDER_ANIMATION').animation = True
+        layout.operator("render.opengl", text="Viewport Render Animation", icon='RENDER_ANIMATION').animation = True
 
         layout.separator()
 
@@ -759,7 +770,7 @@ class VIEW3D_MT_view_borders(Menu):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("view3d.clip_border", text="Clipping Border...")
+        # layout.operator("view3d.clip_border", text="Clipping Border...")
         layout.operator("view3d.render_border", text="Render Border...")
 
         layout.separator()
@@ -1523,10 +1534,8 @@ class VIEW3D_MT_add(Menu):
         layout.menu("VIEW3D_MT_armature_add", icon='OUTLINER_OB_ARMATURE')
         layout.operator("object.add", text="Lattice", icon='OUTLINER_OB_LATTICE').type = 'LATTICE'
         layout.operator_menu_enum("object.empty_add", "type", text="Empty", icon='OUTLINER_OB_EMPTY')
+        layout.menu("VIEW3D_MT_image_add", text="Image", icon='OUTLINER_OB_IMAGE')
 
-        sublayout = layout.column()
-        sublayout.operator_context = 'INVOKE_DEFAULT'
-        sublayout.operator("object.load_image_as_empty", text="Image", icon="OUTLINER_OB_IMAGE")
         layout.separator()
 
         layout.operator("object.speaker_add", text="Speaker", icon='OUTLINER_OB_SPEAKER')
@@ -1563,6 +1572,15 @@ class VIEW3D_MT_add(Menu):
                 text="Collection Instance",
                 icon='OUTLINER_OB_GROUP_INSTANCE',
             )
+
+
+class VIEW3D_MT_image_add(Menu):
+    bl_label = "Add Image"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("object.load_reference_image", text="Reference")
+        layout.operator("object.load_background_image", text="Background")
 
 
 class VIEW3D_MT_object_relations(Menu):
@@ -2098,8 +2116,10 @@ class VIEW3D_MT_brush(Menu):
             layout.prop_menu_enum(brush, "sculpt_tool")
         elif context.image_paint_object:
             layout.prop_menu_enum(brush, "image_tool")
-        elif context.vertex_paint_object or context.weight_paint_object:
+        elif context.vertex_paint_object:
             layout.prop_menu_enum(brush, "vertex_tool")
+        elif context.weight_paint_object:
+            layout.prop_menu_enum(brush, "weight_tool")
 
         # TODO: still missing a lot of brush options here
 
@@ -2974,6 +2994,8 @@ class VIEW3D_MT_edit_mesh_edges(Menu):
     def draw(self, context):
         layout = self.layout
 
+        with_freestyle = bpy.app.build_options.freestyle
+
         layout.operator_context = 'INVOKE_REGION_WIN'
 
         layout.operator("mesh.extrude_edges_move", text="Extrude Edges"),
@@ -2998,7 +3020,29 @@ class VIEW3D_MT_edit_mesh_edges(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_edit_mesh_edges_data")
+        layout.operator("transform.edge_crease")
+        layout.operator("transform.edge_bevelweight")
+
+        layout.separator()
+
+        layout.operator("mesh.mark_seam").clear = False
+        layout.operator("mesh.mark_seam", text="Clear Seam").clear = True
+
+        layout.separator()
+
+        layout.operator("mesh.mark_sharp")
+        layout.operator("mesh.mark_sharp", text="Clear Sharp").clear = True
+
+        layout.operator("mesh.mark_sharp", text="Mark Sharp from Vertices").use_verts = True
+        props = layout.operator("mesh.mark_sharp", text="Clear Sharp from Vertices")
+        props.use_verts = True
+        props.clear = True
+
+        if with_freestyle:
+            layout.separator()
+
+            layout.operator("mesh.mark_freestyle_edge").clear = False
+            layout.operator("mesh.mark_freestyle_edge", text="Clear Freestyle Edge").clear = True
 
 
 class VIEW3D_MT_edit_mesh_faces_data(Menu):
@@ -3864,7 +3908,7 @@ class VIEW3D_MT_snap_pie(Menu):
         pie.operator("view3d.snap_selected_to_cursor", text="Selection to Cursor", icon='RESTRICT_SELECT_OFF').use_offset = False
         pie.operator("view3d.snap_selected_to_cursor", text="Selection to Cursor (Keep Offset)", icon='RESTRICT_SELECT_OFF').use_offset = True
         pie.operator("view3d.snap_selected_to_active", text="Selection to Active", icon='RESTRICT_SELECT_OFF')
-        pie.operator("view3d.snap_cursor_to_center", text="Cursor to Center", icon='PIVOT_CURSOR')
+        pie.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin", icon='PIVOT_CURSOR')
         pie.operator("view3d.snap_cursor_to_active", text="Cursor to Active", icon='PIVOT_CURSOR')
 
 
@@ -3970,6 +4014,73 @@ class VIEW3D_PT_view3d_cursor(Panel):
         layout.column().prop(view, "cursor_location", text="Location")
 
 
+class VIEW3D_PT_collections(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Collections Visibility"
+    bl_ui_units_x = 10
+
+    def _draw_collection(self, layout, view_layer, collection, index):
+        need_separator = index
+        for child in collection.children:
+            index += 1
+
+            if child.exclude:
+                continue
+
+            if child.collection.hide_viewport:
+                continue
+
+            if need_separator:
+                layout.separator()
+                need_separator = False
+
+            icon = 'BLANK1'
+            has_objects = True
+            if child.has_selected_objects(view_layer):
+                icon = 'LAYER_ACTIVE'
+            elif child.has_objects():
+                icon = 'LAYER_USED'
+            else:
+                has_objects = False
+
+            has_visible_objects = has_objects and child.has_visible_objects(view_layer)
+
+            row = layout.row()
+            sub = row.split(factor=0.98)
+            subrow = sub.row()
+            subrow.alignment = 'LEFT'
+            subrow.active = has_visible_objects
+            subrow.operator("object.hide_collection", text=child.name, icon=icon, emboss=False).collection_index = index
+
+            sub = row.split()
+            subrow = sub.row(align=True)
+            subrow.alignment = 'RIGHT'
+            icon = 'HIDE_OFF' if has_visible_objects else 'HIDE_ON'
+            props = subrow.operator("object.hide_collection", text="", icon=icon, emboss=False)
+            props.collection_index = index
+            props.toggle = True
+            subrow.prop(child.collection, "hide_select", text="", emboss=False)
+
+        for child in collection.children:
+            index = self._draw_collection(layout, view_layer, child, index)
+
+        return index
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = False
+
+        layout.label(text="Collections Visibility")
+        col = layout.column()
+
+        view_layer = context.view_layer
+        # We pass index 0 here beause the index is increased
+        # so the first real index is 1
+        # And we start with index as 1 because we skip the master collection
+        self._draw_collection(layout, view_layer, view_layer.layer_collection, 0)
+
+
 class VIEW3D_PT_object_type_visibility(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
@@ -3982,28 +4093,29 @@ class VIEW3D_PT_object_type_visibility(Panel):
 
         view = context.space_data
 
+        layout.label(text="Object Types Visibility")
         col = layout.column()
 
         attr_object_types = (
             # Geometry
-            "mesh",
-            "curve",
-            "surf",
-            "meta",
-            "font",
-            None,
+            ("mesh", "Mesh"),
+            ("curve", "Curve"),
+            ("surf", "Surface"),
+            ("meta", "Meta"),
+            ("font", "Font"),
+            (None, None),
             # Other
-            "armature",
-            "lattice",
-            "empty",
-            "grease_pencil",
-            "camera",
-            "light",
-            "light_probe",
-            "speaker",
+            ("armature", "Armature"),
+            ("lattice", "Lattice"),
+            ("empty", "Empty"),
+            ("grease_pencil", "Grease Pencil"),
+            ("camera", "Camera"),
+            ("light", "Light"),
+            ("light_probe", "Light Probe"),
+            ("speaker", "Speaker"),
         )
 
-        for attr in attr_object_types:
+        for attr, attr_name in attr_object_types:
             if attr is None:
                 col.separator()
                 continue
@@ -4011,12 +4123,17 @@ class VIEW3D_PT_object_type_visibility(Panel):
             attr_v = "show_object_viewport_" f"{attr:s}"
             attr_s = "show_object_select_" f"{attr:s}"
 
+            icon_v = 'HIDE_OFF' if getattr(view, attr_v) else 'HIDE_ON'
             icon_s = 'RESTRICT_SELECT_OFF' if getattr(view, attr_s) else 'RESTRICT_SELECT_ON'
 
             row = col.row(align=True)
-            row.prop(view, attr_v)
-            row.active = getattr(view, attr_v)
-            row.prop(view, attr_s, text="", icon=icon_s, emboss=False)
+            row.alignment = 'RIGHT'
+
+            row.label(text=attr_name)
+            row.prop(view, attr_v, text="", icon=icon_v, emboss=False)
+            rowsub = row.row(align=True)
+            rowsub.active = getattr(view, attr_v)
+            rowsub.prop(view, attr_s, text="", icon=icon_s, emboss=False)
 
 
 class VIEW3D_PT_shading(Panel):
@@ -4147,14 +4264,17 @@ class VIEW3D_PT_shading_options(Panel):
     bl_label = "Options"
     bl_parent_id = 'VIEW3D_PT_shading'
 
+    @classmethod
+    def poll(cls, context):
+        shading = VIEW3D_PT_shading.get_shading(context)
+        return shading.type in {'WIREFRAME', 'SOLID'}
+
     def draw(self, context):
         layout = self.layout
 
         shading = VIEW3D_PT_shading.get_shading(context)
 
         col = layout.column()
-
-        is_shadows = shading.show_shadows
 
         row = col.row()
 
@@ -4163,18 +4283,17 @@ class VIEW3D_PT_shading_options(Panel):
             sub = row.row()
             sub.active = shading.show_xray_wireframe
             sub.prop(shading, "xray_alpha_wireframe", text="X-Ray")
-        else:
+        elif shading.type == 'SOLID':
             row.prop(shading, "show_xray", text="")
             sub = row.row()
             sub.active = shading.show_xray
             sub.prop(shading, "xray_alpha", text="X-Ray")
 
-        if shading.type == 'SOLID':
             row = col.row()
             row.prop(shading, "show_shadows", text="")
             row.active = not shading.show_xray
             sub = row.row(align=True)
-            sub.active = is_shadows
+            sub.active = shading.show_shadows
             sub.prop(shading, "shadow_intensity", text="Shadow")
             sub.popover(
                 panel="VIEW3D_PT_shading_options_shadow",
@@ -4198,16 +4317,15 @@ class VIEW3D_PT_shading_options(Panel):
                     text=""
                 )
 
-        if shading.type in {'SOLID', 'WIREFRAME'}:
-            row = layout.split()
-            row.prop(shading, "show_object_outline")
-            sub = row.row()
-            sub.active = shading.show_object_outline
-            sub.prop(shading, "object_outline_color", text="")
+        row = layout.split()
+        row.prop(shading, "show_object_outline")
+        sub = row.row()
+        sub.active = shading.show_object_outline
+        sub.prop(shading, "object_outline_color", text="")
 
-            col = layout.column()
-            if (shading.light is not 'MATCAP') and (shading.type is not 'WIREFRAME'):
-                col.prop(shading, "show_specular_highlight")
+        col = layout.column()
+        if (shading.light is not 'MATCAP') and (shading.type is not 'WIREFRAME'):
+            col.prop(shading, "show_specular_highlight")
 
 
 class VIEW3D_PT_shading_options_shadow(Panel):
@@ -4846,10 +4964,10 @@ class VIEW3D_PT_snapping(Panel):
                 if object_mode == 'EDIT':
                     col.prop(toolsettings, "use_snap_self")
                 if object_mode in {'OBJECT', 'POSE', 'EDIT'}:
-                    col.prop(toolsettings, "use_snap_align_rotation", text="Align Rotation")
+                    col.prop(toolsettings, "use_snap_align_rotation")
 
             if 'FACE' in snap_elements:
-                col.prop(toolsettings, "use_snap_project", text="Project Elements")
+                col.prop(toolsettings, "use_snap_project")
 
             if 'VOLUME' in snap_elements:
                 col.prop(toolsettings, "use_snap_peel_object")
@@ -4886,21 +5004,36 @@ class VIEW3D_PT_gpencil_origin(Panel):
 
     def draw(self, context):
         layout = self.layout
+        ts = context.tool_settings
+        gpd = context.gpencil_data
+
         layout.label(text="Stroke Placement")
 
         row = layout.row()
         col = row.column()
-        col.prop(context.tool_settings, "gpencil_stroke_placement_view3d", expand=True)
+        col.prop(ts, "gpencil_stroke_placement_view3d", expand=True)
+
+        if ts.gpencil_stroke_placement_view3d == 'SURFACE':
+            row = layout.row()
+            row.label(text="Offset")
+            row = layout.row()
+            row.prop(gpd, "zdepth_offset", text="")
+
+        if ts.gpencil_stroke_placement_view3d == 'STROKE':
+            row = layout.row()
+            row.label(text="Target")
+            row = layout.row()
+            row.prop(ts, "gpencil_stroke_snap_mode", expand=True)
 
 
 class VIEW3D_PT_gpencil_lock(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
-    bl_label = "Lock Axis"
+    bl_label = "Drawing Plane"
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Drawing Plane Lock")
+        layout.label(text="Drawing Plane")
 
         row = layout.row()
         col = row.column()
@@ -4936,17 +5069,23 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
         col = layout.column()
         row = col.row()
+        row.prop(overlay, "use_gpencil_grid", text="")
+        sub = row.row()
+        sub.active = overlay.use_gpencil_grid
+        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas", slider=True)
+
+        row = col.row()
         row.prop(overlay, "use_gpencil_paper", text="")
         sub = row.row()
         sub.active = overlay.use_gpencil_paper
         sub.prop(overlay, "gpencil_paper_opacity", text="Fade 3D Objects", slider=True)
 
-        col = layout.column()
-        row = col.row()
-        row.prop(overlay, "use_gpencil_grid", text="")
-        sub = row.row()
-        sub.active = overlay.use_gpencil_grid
-        sub.prop(overlay, "gpencil_grid_opacity", text="Canvas", slider=True)
+        if context.object.mode == 'GPENCIL_PAINT':
+            row = col.row()
+            row.prop(overlay, "use_gpencil_fade_layers", text="")
+            sub = row.row()
+            sub.active = overlay.use_gpencil_fade_layers
+            sub.prop(overlay, "gpencil_fade_layer", text="Fade Layers", slider=True)
 
         if context.object.mode in {'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
             layout.prop(overlay, "use_gpencil_edit_lines", text="Edit Lines")
@@ -4993,6 +5132,7 @@ class VIEW3D_PT_grease_pencil(AnnotationDataPanel, Panel):
 class VIEW3D_PT_view3d_stereo(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = "View"
     bl_label = "Stereoscopy"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -5033,6 +5173,7 @@ class VIEW3D_PT_view3d_stereo(Panel):
 class VIEW3D_PT_context_properties(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = "View"
     bl_label = "Properties"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -5302,6 +5443,7 @@ classes = (
     VIEW3D_PT_view3d_properties,
     VIEW3D_PT_view3d_camera_lock,
     VIEW3D_PT_view3d_cursor,
+    VIEW3D_PT_collections,
     VIEW3D_PT_object_type_visibility,
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_gpencil_multi_frame,
@@ -5340,6 +5482,7 @@ classes = (
     VIEW3D_PT_transform_orientations,
     VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_context_properties,
+    VIEW3D_MT_image_add,
 )
 
 
