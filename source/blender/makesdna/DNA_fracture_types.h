@@ -72,10 +72,10 @@ enum {
 	MOD_FRACTURE_OWN_PARTICLES   = (1 << 1),
 	MOD_FRACTURE_EXTRA_VERTS     = (1 << 2),
 	MOD_FRACTURE_EXTRA_PARTICLES = (1 << 3),
-	MOD_FRACTURE_CUSTOM          = (1 << 4),
 	//MOD_FRACTURE_GREASEPENCIL    = (1 << 4),
 	MOD_FRACTURE_UNIFORM         = (1 << 5),
 	MOD_FRACTURE_GRID            = (1 << 6),
+	MOD_FRACTURE_CUSTOM          = (1 << 7),
 };
 
 enum {

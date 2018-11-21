@@ -128,8 +128,10 @@ class PHYSICS_PT_fracture_dynamic(PhysicButtonsPanel, Panel):
           col = layout.column(align=True)
           col.prop(md, "dynamic_new_constraints")
           row = col.row(align=True)
-          row.prop(md, "limit_impact")
+          row.prop(md, "dynamic_activation_size")
           row.prop(md, "dynamic_min_size")
+          row = col.row()
+          row.prop(md, "limit_impact")
 
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     bl_label = "Fracture"

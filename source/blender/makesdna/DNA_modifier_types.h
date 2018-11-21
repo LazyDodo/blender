@@ -1637,6 +1637,7 @@ typedef struct FractureModifierData {
 	float mass_threshold_factor;
 	float boolean_double_threshold;
 	float dynamic_min_size;
+	float dynamic_activation_size;
 	float inner_crease;
 	float orthogonality_factor;
 	float anim_bind_limit;
@@ -1692,7 +1693,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-	//char pad[4];
+	char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {

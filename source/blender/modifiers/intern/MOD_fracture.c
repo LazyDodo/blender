@@ -163,6 +163,8 @@ static void initData(ModifierData *md)
 	fmd->use_constraint_group = false;
 	fmd->activate_broken = false;
 
+	fmd->dynamic_activation_size = 1.0f;
+
 	if (!fmd->shared) {
 		fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
 		fmd->shared->last_cache_start = 0;
@@ -196,7 +198,7 @@ static void copyData(const ModifierData *md_src, ModifierData *md_dst, const int
 		fmd_dst->shared->last_cache_start = 0;
 		fmd_dst->shared->last_cache_end = 250;
 		fmd_dst->shared->refresh = true;
-		fmd_dst->shared->reset_shards = true;
+		fmd_dst->shared->reset_shards = false;
 	}
 }
 

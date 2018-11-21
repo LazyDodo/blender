@@ -428,29 +428,29 @@ static void rna_FractureModifier_frac_algorithm_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->frac_algorithm = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_point_source_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->point_source = value;
-	printf("PointSource\n");
-	rmd->shared->reset_shards = true;
+	//printf("PointSource\n");
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_point_seed_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->point_seed = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_percentage_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->percentage = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 
@@ -458,70 +458,70 @@ static void rna_FractureModifier_extra_group_set(PointerRNA* ptr, PointerRNA val
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->extra_group = value.data;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_split_islands_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->split_islands = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fix_normals_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fix_normals = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_inner_material_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->inner_material = value.data;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_use_particle_birth_coordinates_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->use_particle_birth_coordinates = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_splinter_length_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->splinter_length = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_splinter_axis_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->splinter_axis = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_cutter_axis_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cutter_axis = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_nor_range_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->nor_range = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_use_smooth_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->use_smooth = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 
@@ -529,14 +529,14 @@ static void rna_FractureModifier_fractal_cuts_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_cuts = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fractal_amount_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_amount = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 
@@ -544,49 +544,49 @@ static void rna_FractureModifier_physics_mesh_scale_set(PointerRNA* ptr, float v
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->physics_mesh_scale = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fractal_iterations_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_iterations = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_cutter_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cutter_group = value.data;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_use_greasepencil_edges_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->use_greasepencil_edges = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_grease_offset_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->grease_offset = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_grease_decimate_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->grease_decimate = value;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_dm_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->dm_group = value.data;
-	rmd->shared->reset_shards = true;
+	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_minimum_impulse_set(PointerRNA *ptr, float value)
@@ -651,24 +651,7 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *p
 	FractureModifierData *fmd = (FractureModifierData*)md;
 	BKE_rigidbody_cache_reset(scene);
 
-//	fmd->shared->refresh = true;
-#if 0
-	if (md && md->type == eModifierType_Fracture)
-	{
-		FractureModifierData *fmd = (FractureModifierData*)md;
-		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED)
-		{
-
-			if (fmd->shared->refresh)
-			{
-				return;
-			}
-		}
-	}
-
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
-	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
-#endif
+//	fmd->shared->refresh = false;
 
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |
 									DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
@@ -682,28 +665,6 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *p
 	WM_main_add_notifier(NC_WINDOW, NULL);
 	WM_main_add_notifier(NC_MATERIAL | ND_SHADING, NULL);
 }
-
-#if 0
-static void rna_Modifier_update_and_keep(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
-{
-	ModifierData* md = ptr->data;
-
-	if (md && md->type == eModifierType_Fracture)
-	{
-		FractureModifierData *fmd = (FractureModifierData*)md;
-		if (fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED || fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
-		{
-			if (fmd->shared->refresh)
-			{
-				return;
-			}
-		}
-
-		DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
-		WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
-	}
-}
-#endif
 
 #endif
 
@@ -1494,6 +1455,14 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "use_dynamic", false);
 	RNA_def_property_ui_text(prop, "Dynamic", "Dynamically fracture shards during the sim");
 	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update"); //keep cache
+
+	prop = RNA_def_property(srna, "dynamic_activation_size", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "dynamic_activation_size");
+	RNA_def_property_range(prop, 0.001f, 10000.0f);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Activation Size",  "Activation shard size in blenderunits");
+	RNA_def_property_ui_range(prop, 0.001f, 10000.0f, 0.1f, 2);
+	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	RNA_api_fracture(brna, subrna);
 }

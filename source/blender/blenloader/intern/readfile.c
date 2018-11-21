@@ -5445,7 +5445,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				fmd->shared->last_cache_start = 0;
 				fmd->shared->last_cache_end = 250;
 				fmd->shared->refresh = true;
-				fmd->shared->reset_shards = true;
+				fmd->shared->reset_shards = false;
 			}
 		}
 	}

@@ -1356,7 +1356,8 @@ bool BKE_check_island_size(FractureModifierData *fmd, MeshIsland *mi, bool check
 	sub_v3_v3v3(diff, max, min);
 
 	if (check_min) {
-		size = 4.0f * size;
+		//size = 4.0f * size;
+		size = fmd->dynamic_activation_size;
 
 		if ((diff[max_axis_v3(diff)] < size))// && (diff[1] < size) && (diff[2] < size))
 		{
