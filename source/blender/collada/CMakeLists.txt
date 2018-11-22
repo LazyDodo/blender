@@ -52,6 +52,7 @@ set(SRC
 	AnimationClipExporter.cpp
 	ArmatureExporter.cpp
 	ArmatureImporter.cpp
+	BlenderContext.cpp
 	BCAnimationCurve.cpp
 	BCAnimationSampler.cpp
 	BCSampleData.cpp
@@ -85,6 +86,7 @@ set(SRC
 	AnimationClipExporter.h
 	ArmatureExporter.h
 	ArmatureImporter.h
+	BlenderContext.h
 	BCAnimationCurve.h
 	BCAnimationSampler.h
 	BCSampleData.h

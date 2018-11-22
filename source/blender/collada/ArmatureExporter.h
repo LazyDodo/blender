@@ -57,7 +57,7 @@ class SceneExporter;
 class ArmatureExporter : public COLLADASW::LibraryControllers, protected TransformWriter, protected InstanceWriter
 {
 public:
-	ArmatureExporter(bContext *C, struct Depsgraph *depsgraph, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings);
+	ArmatureExporter(BlenderContext &blender_context, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings);
 
 	void add_armature_bones(
 		Object *ob_arm,
@@ -70,8 +70,7 @@ public:
 private:
 	UnitConverter converter;
 	const ExportSettings *export_settings;
-	bContext *mContext;
-	struct Depsgraph *depsgraph;
+	BlenderContext &blender_context;
 
 #if 0
 	std::vector<Object *> written_armatures;
@@ -86,9 +85,6 @@ private:
 	// Scene, SceneExporter and the list of child_objects
 	// are required for writing bone parented objects
 	void add_bone_node(
-		bContext *C,
-		struct Depsgraph *depsgraph,
-		ViewLayer *view_layer,
 		Bone *bone,
 		Object *ob_arm,
 		SceneExporter *se,

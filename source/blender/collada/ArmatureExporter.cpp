@@ -56,9 +56,8 @@ extern "C" {
 // XXX exporter writes wrong data for shared armatures.  A separate
 // controller should be written for each armature-mesh binding how do
 // we make controller ids then?
-ArmatureExporter::ArmatureExporter(bContext *C, Depsgraph *depsgraph, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) :
-	mContext(C),
-	depsgraph(depsgraph),
+ArmatureExporter::ArmatureExporter(BlenderContext &blender_context, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) :
+	blender_context(blender_context),
 	COLLADASW::LibraryControllers(sw), export_settings(export_settings)
 {
 }
@@ -83,7 +82,7 @@ void ArmatureExporter::add_armature_bones(
 	for (Bone *bone = (Bone *)armature->bonebase.first; bone; bone = bone->next) {
 		// start from root bones
 		if (!bone->parent) {
-			add_bone_node(mContext, depsgraph, view_layer, bone, ob_arm, se, child_objects);
+			add_bone_node(bone, ob_arm, se, child_objects);
 		}
 	}
 
@@ -166,9 +165,6 @@ void ArmatureExporter::find_objects_using_armature(Object *ob_arm, std::vector<O
 
 // parent_mat is armature-space
 void ArmatureExporter::add_bone_node(
-	bContext *C, 
-	Depsgraph *depsgraph, 
-	ViewLayer *view_layer,
 	Bone *bone,
 	Object *ob_arm,
     SceneExporter *se,
@@ -244,7 +240,7 @@ void ArmatureExporter::add_bone_node(
 						mul_m4_m4m4((*i)->parentinv, temp, (*i)->parentinv);
 					}
 
-					se->writeNodes(C, depsgraph, view_layer, *i);
+					se->writeNodes(*i);
 					copy_m4_m4((*i)->parentinv, backup_parinv);
 					child_objects.erase(i++);
 				}
@@ -252,13 +248,13 @@ void ArmatureExporter::add_bone_node(
 			}
 
 			for (Bone *child = (Bone *)bone->childbase.first; child; child = child->next) {
-				add_bone_node(C, depsgraph, view_layer, child, ob_arm, se, child_objects);
+				add_bone_node(child, ob_arm, se, child_objects);
 			}
 			node.end();
 		}
 		else {
 			for (Bone *child = (Bone *)bone->childbase.first; child; child = child->next) {
-				add_bone_node(C, depsgraph, view_layer, child, ob_arm, se, child_objects);
+				add_bone_node(child, ob_arm, se, child_objects);
 			}
 		}
 }

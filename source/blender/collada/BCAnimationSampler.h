@@ -163,8 +163,7 @@ public:
 
 class BCAnimationSampler {
 private:
-	Depsgraph * depsgraph;
-	bContext *mContext;
+	BlenderContext &blender_context;
 	BCSampleFrameContainer sample_data;
 	BCAnimationObjectMap objects;
 
@@ -179,12 +178,12 @@ private:
 	void check_property_is_animated(BCAnimation &animation, float *ref, float *val, std::string data_path, int length);
 
 public:
-	BCAnimationSampler(Depsgraph *depsgraph, bContext *C, BCObjectSet &animated_subset);
+	BCAnimationSampler(BlenderContext &blender_context, BCObjectSet &animated_subset);
 	~BCAnimationSampler();
 
 	void add_object(Object *ob);
 
-	void sample_scene(Scene *scene,
+	void sample_scene(
 		int sampling_rate,
 		int keyframe_at_end,
 		bool for_opensim,

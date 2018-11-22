@@ -50,9 +50,8 @@ extern "C" {
 static std::string EMPTY_STRING;
 static BCAnimationCurveMap BCEmptyAnimationCurves;
 
-BCAnimationSampler::BCAnimationSampler(Depsgraph *depsgraph, bContext *C, BCObjectSet &object_set):
-	depsgraph(depsgraph),
-	mContext(C)
+BCAnimationSampler::BCAnimationSampler(BlenderContext &blender_context, BCObjectSet &object_set):
+	blender_context(blender_context)
 {
 	BCObjectSet::iterator it;
 	for (it = object_set.begin(); it != object_set.end(); ++it) {
@@ -72,7 +71,7 @@ BCAnimationSampler::~BCAnimationSampler()
 
 void BCAnimationSampler::add_object(Object *ob)
 {
-	BCAnimation *animation = new BCAnimation(mContext, ob);
+	BCAnimation *animation = new BCAnimation(blender_context.get_context(), ob);
 	objects[ob] = animation;
 
 	initialize_keyframes(animation->frame_set, ob);
@@ -172,13 +171,13 @@ BCSample &BCAnimationSampler::sample_object(Object *ob, int frame_index, bool fo
 }
 
 void BCAnimationSampler::sample_scene(
-	Scene *scene,
 	int sampling_rate,
 	int keyframe_at_end,
 	bool for_opensim,
 	bool keep_keyframes,
 	BC_export_animation_type export_animation_type)
 {
+	Scene *scene = blender_context.get_scene();
 	BCFrameSet scene_sample_frames;
 	get_sample_frames(scene_sample_frames, sampling_rate, keyframe_at_end, scene);
 	BCFrameSet::iterator it;
@@ -191,7 +190,7 @@ void BCAnimationSampler::sample_scene(
 		bool is_scene_sample_frame = false;
 		bool needs_update = true;
 		if (scene_sample_frames.find(frame_index) != scene_sample_frames.end()) {
-			bc_update_scene(depsgraph, mContext, scene, frame_index);
+			bc_update_scene(blender_context, frame_index);
 			needs_update = false;
 			is_scene_sample_frame = true;
 		}
@@ -209,7 +208,7 @@ void BCAnimationSampler::sample_scene(
 			if (is_scene_sample_frame || object_keyframes.find(frame_index) != object_keyframes.end()) {
 
 				if (needs_update) {
-					bc_update_scene(depsgraph, mContext, scene, frame_index);
+					bc_update_scene(blender_context, frame_index);
 					needs_update = false;
 				}
 

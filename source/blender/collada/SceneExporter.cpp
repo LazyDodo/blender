@@ -34,24 +34,25 @@ extern "C" {
 #include "SceneExporter.h"
 #include "collada_utils.h"
 
-SceneExporter::SceneExporter(bContext *C, COLLADASW::StreamWriter *sw, ArmatureExporter *arm, const ExportSettings *export_settings):
-	mContext(C),
+SceneExporter::SceneExporter(BlenderContext &blender_context, COLLADASW::StreamWriter *sw, ArmatureExporter *arm, const ExportSettings *export_settings):
+	blender_context(blender_context),
 	COLLADASW::LibraryVisualScenes(sw), arm_exporter(arm), export_settings(export_settings)
 {
 }
 
-void SceneExporter::exportScene(bContext *C, Depsgraph *depsgraph)
+void SceneExporter::exportScene()
 {
-	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+	ViewLayer *view_layer = blender_context.get_view_layer();
+
 	// <library_visual_scenes> <visual_scene>
 	std::string name = id_name(view_layer);
 	openVisualScene(translate_id(name), encode_xml(name));
-	exportHierarchy(C, depsgraph, view_layer);
+	exportHierarchy();
 	closeVisualScene();
 	closeLibrary();
 }
 
-void SceneExporter::exportHierarchy(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer)
+void SceneExporter::exportHierarchy()
 {
 	LinkNode *node;
 	std::vector<Object *> base_objects;
@@ -84,12 +85,12 @@ void SceneExporter::exportHierarchy(bContext *C, Depsgraph *depsgraph, ViewLayer
 		Object *ob = base_objects[index];
 		if (bc_is_marked(ob)) {
 			bc_remove_mark(ob);
-			writeNodes(C, depsgraph, view_layer, ob);
+			writeNodes(ob);
 		}
 	}
 }
 
-void SceneExporter::writeNodeList(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer, std::vector<Object *> &child_objects, Object *parent)
+void SceneExporter::writeNodeList(std::vector<Object *> &child_objects, Object *parent)
 {
 	/* TODO: Handle the case where a parent is not exported
 	   Actually i am not even sure if this can be done at all
@@ -102,13 +103,15 @@ void SceneExporter::writeNodeList(bContext *C, Depsgraph *depsgraph, ViewLayer *
 		Object *child = child_objects[i];
 		if (bc_is_marked(child)) {
 			bc_remove_mark(child);
-			writeNodes(C, depsgraph, view_layer, child);
+			writeNodes(child);
 		}
 	}
 }
 
-void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *view_layer, Object *ob)
+void SceneExporter::writeNodes(Object *ob)
 {
+	ViewLayer *view_layer = blender_context.get_view_layer();
+
 	std::vector<Object *> child_objects;
 	bc_get_children(child_objects, ob, view_layer);
 	bool can_export = bc_is_in_Export_set(this->export_settings->export_set, ob, view_layer);
@@ -121,7 +124,7 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm, view_layer);
 		if (armature_exported && bc_is_marked(ob_arm)) {
 			bc_remove_mark(ob_arm);
-			writeNodes(C, depsgraph, view_layer, ob_arm);
+			writeNodes(ob_arm);
 			armature_exported = true;
 		}
 	}
@@ -232,7 +235,7 @@ void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, ViewLayer *vie
 				}
 			}
 		}
-		writeNodeList(C, depsgraph, view_layer, child_objects, ob);
+		writeNodeList(child_objects, ob);
 		colladaNode.end();
 	}
 }

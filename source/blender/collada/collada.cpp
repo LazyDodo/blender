@@ -80,10 +80,8 @@ int collada_import(bContext *C, ImportSettings *import_settings)
 int collada_export(bContext *C,
                    ExportSettings *export_settings)
 {
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Scene *scene = CTX_data_scene(C);
-
-	ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
+	BlenderContext blender_context(C);
+	ViewLayer *view_layer = blender_context.get_view_layer();
 
 	int includeFilter = OB_REL_NONE;
 	if (export_settings->include_armatures) includeFilter |= OB_REL_MOD_ARMATURE;
@@ -110,8 +108,8 @@ int collada_export(bContext *C,
 			bc_bubble_sort_by_Object_name(export_settings->export_set);
 	}
 
-	DocumentExporter exporter(depsgraph, export_settings);
-	int status = exporter.exportCurrentScene(C, scene);
+	DocumentExporter exporter(blender_context, export_settings);
+	int status = exporter.exportCurrentScene();
 
 	BLI_linklist_free(export_settings->export_set, NULL);
 

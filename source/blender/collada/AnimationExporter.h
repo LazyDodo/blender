@@ -96,22 +96,20 @@ typedef enum BC_animation_source_type {
 class AnimationExporter: COLLADASW::LibraryAnimations
 {
 private:
-	bContext *mContext;
-	Scene *scene;
-	Depsgraph *depsgraph;
+	BlenderContext &blender_context;
 	COLLADASW::StreamWriter *sw;
 
 public:
 
-	AnimationExporter(Depsgraph *depsgraph, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings):
+	AnimationExporter(BlenderContext &blender_context, COLLADASW::StreamWriter *sw, const ExportSettings *export_settings):
+		blender_context(blender_context),
 		COLLADASW::LibraryAnimations(sw),
-		depsgraph(depsgraph),
 		export_settings(export_settings)
 	{
 		this->sw = sw;
 	}
 
-	bool exportAnimations(Main *bmain, Scene *sce);
+	bool exportAnimations();
 
 	// called for each exported object
 	void operator() (Object *ob);

@@ -85,6 +85,7 @@ extern "C" {
 
 #include "collada_utils.h"
 #include "ExportSettings.h"
+#include "BlenderContext.h"
 
 float bc_get_float_value(const COLLADAFW::FloatOrDoubleArray& array, unsigned int index)
 {
@@ -222,9 +223,11 @@ std::string bc_get_action_id(std::string action_name, std::string ob_name, std::
 	return translate_id(result);
 }
 
-void bc_update_scene(Depsgraph *depsgraph, const bContext *C, Scene *scene, float ctime)
+void bc_update_scene(BlenderContext &blender_context, float ctime)
 {
-	Main *bmain = CTX_data_main(C);
+	Main *bmain = blender_context.get_main();
+	Scene *scene = blender_context.get_scene();
+	Depsgraph *depsgraph = blender_context.get_depsgraph();
 
 	/*
 	 * See remark in physics_fluid.c lines 395...)
@@ -253,7 +256,11 @@ Object *bc_add_object(Main *bmain, Scene *scene, ViewLayer *view_layer, int type
 }
 
 Mesh *bc_get_mesh_copy(
-        Depsgraph *depsgraph, Scene *scene, Object *ob, BC_export_mesh_type export_mesh_type, bool apply_modifiers, bool triangulate)
+    BlenderContext &blender_context, 
+	Object *ob,
+	BC_export_mesh_type export_mesh_type,
+	bool apply_modifiers,
+	bool triangulate)
 {
 	CustomDataMask mask = CD_MASK_MESH;
 	Mesh *mesh = (Mesh *)ob->data;
@@ -273,6 +280,8 @@ Mesh *bc_get_mesh_copy(
 			}
 		}
 #else
+		Depsgraph *depsgraph = blender_context.get_depsgraph();
+		Scene *scene = blender_context.get_scene();
 		tmpmesh = mesh_get_eval_final(depsgraph, scene, ob, mask);
 #endif
 	}

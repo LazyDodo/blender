@@ -72,6 +72,7 @@ extern "C" {
 #include "ExportSettings.h"
 #include "collada_internal.h"
 #include "BCSampleData.h"
+#include "BlenderContext.h"
 
 struct Depsgraph;
 
@@ -80,7 +81,7 @@ typedef std::map<std::string, Image*> KeyImageMap;
 typedef std::map<COLLADAFW::TextureMapId, std::vector<MTex *> > TexIndexTextureArrayMap;
 typedef std::set<Object *> BCObjectSet;
 
-extern void bc_update_scene(Depsgraph *depsgraph, const bContext *C, Scene *scene, float ctime);
+extern void bc_update_scene(BlenderContext &blender_context, float ctime);
 
 /* Action helpers */
 
@@ -140,7 +141,7 @@ extern bool bc_validateConstraints(bConstraint *con);
 extern int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space = true);
 extern Object *bc_add_object(Main *bmain, Scene *scene, ViewLayer *view_layer, int type, const char *name);
 extern Mesh *bc_get_mesh_copy(
-        Depsgraph *depsgraph, Scene *scene, Object *ob, BC_export_mesh_type export_mesh_type, bool apply_modifiers, bool triangulate);
+        BlenderContext &blender_context, Object *ob, BC_export_mesh_type export_mesh_type, bool apply_modifiers, bool triangulate);
 
 extern Object *bc_get_assigned_armature(Object *ob);
 extern Object *bc_get_highest_selected_ancestor_or_self(LinkNode *export_set, Object *ob);

@@ -15,37 +15,47 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor(s): Chingiz Dyussenov, Arystanbek Dyussenov.
+ * Contributor(s): Gaia Clary,
  *
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file DocumentExporter.h
- *  \ingroup collada
- */
+ /** \file CameraExporter.h
+  *  \ingroup collada
+  */
 
-#ifndef __DOCUMENTEXPORTER_H__
-#define __DOCUMENTEXPORTER_H__
-
-#include "collada.h"
-#include "collada_utils.h"
 #include "BlenderContext.h"
 
-extern "C" {
-#include "DNA_customdata_types.h"
-
+BlenderContext::BlenderContext(bContext *C)
+{
+	context = C;
+	main = CTX_data_main(C);
+	depsgraph = CTX_data_depsgraph(C);
+	scene = CTX_data_scene(C);
+	view_layer = DEG_get_evaluated_view_layer(depsgraph);
 }
 
-class DocumentExporter
+bContext *BlenderContext::get_context()
 {
- public:
-	DocumentExporter(BlenderContext &blender_context, const ExportSettings *export_settings);
-	int  exportCurrentScene();
-	void exportScenes(const char *filename);
-private:
-	BlenderContext &blender_context;
-	const ExportSettings *export_settings;
-	KeyImageMap key_image_map;
-};
+	return context;
+}
 
-#endif
+Depsgraph *BlenderContext::get_depsgraph()
+{
+	return depsgraph;
+}
+
+Scene *BlenderContext::get_scene()
+{
+	return scene;
+}
+
+ViewLayer *BlenderContext::get_view_layer()
+{
+	return view_layer;
+}
+
+Main *BlenderContext::get_main()
+{
+	return main;
+}

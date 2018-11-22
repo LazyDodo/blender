@@ -82,22 +82,22 @@ void AnimationExporter::close_animation_container(bool has_container)
 		closeAnimation();
 }
 
-bool AnimationExporter::exportAnimations(Main *bmain, Scene *sce)
+bool AnimationExporter::exportAnimations()
 {
+	Scene *sce = blender_context.get_scene();
+
 	LinkNode &export_set = *this->export_settings->export_set;
 	bool has_anim_data = bc_has_animations(sce, export_set);
 	int animation_count = 0;
 	if (has_anim_data) {
 
-		this->scene = sce;
-
 		BCObjectSet animated_subset;
 		BCAnimationSampler::get_animated_from_export_set(animated_subset, export_set);
 		animation_count = animated_subset.size();
-		BCAnimationSampler animation_sampler(depsgraph, mContext, animated_subset);
+		BCAnimationSampler animation_sampler(blender_context, animated_subset);
 
 		try {
-			animation_sampler.sample_scene(scene,
+			animation_sampler.sample_scene(
 				export_settings->sampling_rate,
 				/*keyframe_at_end = */ true,
 				export_settings->open_sim,
@@ -517,6 +517,7 @@ void AnimationExporter::add_source_parameters(COLLADASW::SourceBase::ParameterNa
 
 std::string AnimationExporter::collada_tangent_from_curve(COLLADASW::InputSemantic::Semantics semantic, BCAnimationCurve &curve, const std::string& anim_id, std::string axis_name)
 {
+	Scene *scene = blender_context.get_scene();
 	std::string channel = curve.get_channel_target();
 
 	const std::string source_id = anim_id + get_semantic_suffix(semantic);
@@ -562,6 +563,7 @@ std::string AnimationExporter::collada_source_from_values(
 	const std::string& anim_id,
 	const std::string axis_name)
 {
+	Scene *scene = blender_context.get_scene();
 	/* T can be float, int or double */
 
 	int stride = 1;
