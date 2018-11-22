@@ -62,7 +62,7 @@ class USERPREF_HT_header(Header):
 class USERPREF_PT_navigation(Panel):
     bl_label = ""
     bl_space_type = 'USER_PREFERENCES'
-    bl_region_type = 'UI'
+    bl_region_type = 'NAVIGATION_BAR'
     bl_options = {'HIDE_HEADER'}
 
     def draw(self, context):

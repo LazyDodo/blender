@@ -65,7 +65,7 @@ static SpaceLink *userpref_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 	ar = MEM_callocN(sizeof(ARegion), "navigation region for userpref");
 
 	BLI_addtail(&spref->regionbase, ar);
-	ar->regiontype = RGN_TYPE_UI;
+	ar->regiontype = RGN_TYPE_NAV_BAR;
 	ar->alignment = RGN_ALIGN_LEFT;
 
 	/* header */
@@ -224,7 +224,7 @@ void ED_spacetype_userpref(void)
 
 	/* regions: navigation window */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype userpref region");
-	art->regionid = RGN_TYPE_UI;
+	art->regionid = RGN_TYPE_NAV_BAR;
 	art->prefsizex = UI_NAVIGATION_REGION_WIDTH;
 	art->init = userpref_navigation_region_init;
 	art->draw = userpref_navigation_region_draw;

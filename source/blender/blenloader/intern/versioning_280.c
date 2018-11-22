@@ -2433,7 +2433,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			for (ScrArea *area = screen->areabase.first; area; area = area->next) {
 				for (SpaceLink *slink = area->spacedata.first; slink; slink = slink->next) {
 					if (slink->spacetype == SPACE_USERPREF) {
-						ARegion *navigation_region = BKE_spacedata_find_region_type(slink, area, RGN_TYPE_UI);
+						ARegion *navigation_region = BKE_spacedata_find_region_type(slink, area, RGN_TYPE_NAV_BAR);
 
 						if (!navigation_region) {
 							ListBase *regionbase = (slink == area->spacedata.first) ?
@@ -2442,7 +2442,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 							navigation_region = MEM_callocN(sizeof(ARegion), "userpref navigation-region do_versions");
 
 							BLI_addhead(regionbase, navigation_region); /* order matters, addhead not addtail! */
-							navigation_region->regiontype = RGN_TYPE_UI;
+							navigation_region->regiontype = RGN_TYPE_NAV_BAR;
 							navigation_region->alignment = RGN_ALIGN_LEFT;
 						}
 					}
