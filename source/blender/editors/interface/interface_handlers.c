@@ -1721,7 +1721,7 @@ static bool ui_but_drag_init(
 	/* prevent other WM gestures to start while we try to drag */
 	WM_gestures_remove(C);
 
-	if (ABS(data->dragstartx - event->x) + ABS(data->dragstarty - event->y) > U.dragthreshold) {
+	if (ABS(data->dragstartx - event->x) + ABS(data->dragstarty - event->y) > U.dragthreshold * U.dpi_fac) {
 
 		button_activate_state(C, but, BUTTON_STATE_EXIT);
 		data->cancel = true;
@@ -2174,8 +2174,8 @@ static bool ui_but_has_array_value(uiBut *but)
 {
 	return (but->rnapoin.data && but->rnaprop &&
 	        ELEM(RNA_property_subtype(but->rnaprop), PROP_COLOR, PROP_TRANSLATION, PROP_DIRECTION,
-	        PROP_VELOCITY, PROP_ACCELERATION, PROP_MATRIX, PROP_EULER, PROP_QUATERNION, PROP_AXISANGLE,
-	        PROP_XYZ, PROP_XYZ_LENGTH, PROP_COLOR_GAMMA, PROP_COORDS));
+	             PROP_VELOCITY, PROP_ACCELERATION, PROP_MATRIX, PROP_EULER, PROP_QUATERNION, PROP_AXISANGLE,
+	             PROP_XYZ, PROP_XYZ_LENGTH, PROP_COLOR_GAMMA, PROP_COORDS));
 }
 
 static void ui_but_paste_normalized_vector(bContext *C, uiBut *but, char *buf_paste)
@@ -3882,6 +3882,15 @@ static bool ui_but_is_mouse_over_icon_extra(const ARegion *region, uiBut *but, c
 
 static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButtonData *data, const wmEvent *event)
 {
+#ifdef USE_DRAG_TOGGLE
+	{
+		int retval;
+		if (ui_do_but_ANY_drag_toggle(C, but, data, event, &retval)) {
+			return retval;
+		}
+	}
+#endif
+
 	if (data->state == BUTTON_STATE_HIGHLIGHT) {
 		const int rna_type = but->rnaprop ? RNA_property_type(but->rnaprop) : 0;
 
@@ -3894,7 +3903,7 @@ static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButton
 			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
 			return WM_UI_HANDLER_BREAK;
 		}
-		else if (ELEM(event->type, LEFTMOUSE, PADENTER, RETKEY) && (event->val == KM_CLICK)) {
+		else if (ELEM(event->type, LEFTMOUSE, PADENTER, RETKEY) && (event->val == KM_PRESS)) {
 			button_activate_state(C, but, BUTTON_STATE_EXIT);
 			return WM_UI_HANDLER_BREAK;
 		}
@@ -6614,6 +6623,17 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 			return WM_UI_HANDLER_BREAK;
 		}
 
+		/* handle menu */
+		if ((event->type == RIGHTMOUSE) &&
+		    !IS_EVENT_MOD(event, shift, ctrl, alt, oskey) &&
+		    (event->val == KM_PRESS))
+		{
+			/* RMB has two options now */
+			if (ui_popup_context_menu_for_button(C, but)) {
+				return WM_UI_HANDLER_BREAK;
+			}
+		}
+
 		if (is_disabled) {
 			return WM_UI_HANDLER_CONTINUE;
 		}
@@ -6626,16 +6646,6 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 		/* handle drop */
 		if (event->type == EVT_DROP) {
 			ui_but_drop(C, event, but, data);
-		}
-		/* handle menu */
-		else if ((event->type == RIGHTMOUSE) &&
-		         !IS_EVENT_MOD(event, shift, ctrl, alt, oskey) &&
-		         (event->val == KM_PRESS))
-		{
-			/* RMB has two options now */
-			if (ui_popup_context_menu_for_button(C, but)) {
-				return WM_UI_HANDLER_BREAK;
-			}
 		}
 	}
 
@@ -8062,38 +8072,38 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 				break;
 			}
 			case MOUSEMOVE:
-				{
-					/* deselect the button when moving the mouse away */
-					/* also de-activate for buttons that only show highlights */
-					if (ui_but_contains_point_px(ar, but, event->x, event->y)) {
+			{
+				/* deselect the button when moving the mouse away */
+				/* also de-activate for buttons that only show highlights */
+				if (ui_but_contains_point_px(ar, but, event->x, event->y)) {
 
-						/* Drag on a hold button (used in the toolbar) now opens it immediately. */
-						if (data->hold_action_timer) {
-							if (but->flag & UI_SELECT) {
-								if ((abs(event->x - event->prevx)) > 2 ||
-								    (abs(event->y - event->prevy)) > 2)
-								{
-									WM_event_remove_timer(data->wm, data->window, data->hold_action_timer);
-									data->hold_action_timer = WM_event_add_timer(data->wm, data->window, TIMER, 0.0f);
-								}
+					/* Drag on a hold button (used in the toolbar) now opens it immediately. */
+					if (data->hold_action_timer) {
+						if (but->flag & UI_SELECT) {
+							if ((abs(event->x - event->prevx)) > 2 ||
+							    (abs(event->y - event->prevy)) > 2)
+							{
+								WM_event_remove_timer(data->wm, data->window, data->hold_action_timer);
+								data->hold_action_timer = WM_event_add_timer(data->wm, data->window, TIMER, 0.0f);
 							}
 						}
-
-						if (!(but->flag & UI_SELECT)) {
-							but->flag |= (UI_SELECT | UI_ACTIVE);
-							data->cancel = false;
-							ED_region_tag_redraw(data->region);
-						}
 					}
-					else {
-						if (but->flag & UI_SELECT) {
-							but->flag &= ~(UI_SELECT | UI_ACTIVE);
-							data->cancel = true;
-							ED_region_tag_redraw(data->region);
-						}
+
+					if (!(but->flag & UI_SELECT)) {
+						but->flag |= (UI_SELECT | UI_ACTIVE);
+						data->cancel = false;
+						ED_region_tag_redraw(data->region);
+					}
+				}
+				else {
+					if (but->flag & UI_SELECT) {
+						but->flag &= ~(UI_SELECT | UI_ACTIVE);
+						data->cancel = true;
+						ED_region_tag_redraw(data->region);
 					}
 				}
 				break;
+			}
 			default:
 				/* otherwise catch mouse release event */
 				ui_do_button(C, block, but, event);
@@ -8690,7 +8700,7 @@ float ui_block_calc_pie_segment(uiBlock *block, const float event_xy[2])
 
 	len = normalize_v2_v2(block->pie_data.pie_dir, seg2);
 
-	if (len < U.pie_menu_threshold * U.pixelsize)
+	if (len < U.pie_menu_threshold * U.dpi_fac)
 		block->pie_data.flags |= UI_PIE_INVALID_DIR;
 	else
 		block->pie_data.flags &= ~UI_PIE_INVALID_DIR;
@@ -9408,7 +9418,7 @@ static int ui_pie_handler(bContext *C, const wmEvent *event, uiPopupBlockHandle 
 					but = ui_but_find_active_in_region(menu->region);
 
 					if (but && (U.pie_menu_confirm > 0) &&
-					    (dist >= U.pie_menu_threshold + U.pie_menu_confirm))
+					    (dist >= U.dpi_fac * (U.pie_menu_threshold + U.pie_menu_confirm)))
 					{
 						if (but)
 							return ui_but_pie_menu_apply(C, menu, but, true);
@@ -9435,7 +9445,7 @@ static int ui_pie_handler(bContext *C, const wmEvent *event, uiPopupBlockHandle 
 
 						/* here instead, we use the offset location to account for the initial direction timeout */
 						if ((U.pie_menu_confirm > 0) &&
-						    (dist >= U.pie_menu_threshold + U.pie_menu_confirm))
+						    (dist >= U.dpi_fac * (U.pie_menu_threshold + U.pie_menu_confirm)))
 						{
 							block->pie_data.flags |= UI_PIE_GESTURE_END_WAIT;
 							copy_v2_v2(block->pie_data.last_pos, event_xy);

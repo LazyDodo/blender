@@ -507,7 +507,7 @@ void DepsgraphNodeBuilder::build_collection(
 		id_node = find_id_node(&collection->id);
 		if (is_collection_visible &&
 		    id_node->is_directly_visible == false &&
-			id_node->is_collection_fully_expanded == true)
+		    id_node->is_collection_fully_expanded == true)
 		{
 			/* Collection became visible, make sure nested collections and
 			 * objects are poked with the new visibility flag, since they
@@ -800,7 +800,7 @@ void DepsgraphNodeBuilder::build_object_transform(Object *object)
 
 	/* object transform is done */
 	op_node = add_operation_node(&object->id, DEG_NODE_TYPE_TRANSFORM,
-	                             function_bind(BKE_object_eval_done,
+	                             function_bind(BKE_object_eval_transform_final,
 	                                           _1,
 	                                           ob_cow),
 	                             DEG_OPCODE_TRANSFORM_FINAL);

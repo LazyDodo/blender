@@ -6612,8 +6612,6 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 
 		gpl->actframe = newdataadr(fd, gpl->actframe);
 
-		gpl->runtime.derived_array = NULL;
-		gpl->runtime.len_derived = 0;
 		gpl->runtime.icon_id = 0;
 
 		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
@@ -8795,6 +8793,11 @@ static void do_versions_userdef(FileData *fd, BlendFileData *bfd)
 	if (!DNA_struct_elem_find(fd->filesdna, "UserDef", "short", "gpencil_multisamples")) {
 		user->gpencil_multisamples = 4;
 	}
+
+	/* tablet pressure threshold */
+	if (!DNA_struct_elem_find(fd->filesdna, "UserDef", "float", "pressure_threshold_max")) {
+		user->pressure_threshold_max = 1.0f;
+	}
 }
 
 static void do_versions(FileData *fd, Library *lib, Main *main)
@@ -8912,14 +8915,9 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 	/* read all data into fd->datamap */
 	bhead = read_data_into_oldnewmap(fd, bhead, "user def");
 
-	if (user->keymaps.first) {
-		/* backwards compatibility */
-		user->user_keymaps= user->keymaps;
-		user->keymaps.first= user->keymaps.last= NULL;
-	}
-
 	link_list(fd, &user->themes);
 	link_list(fd, &user->user_keymaps);
+	link_list(fd, &user->user_keyconfig_prefs);
 	link_list(fd, &user->user_menus);
 	link_list(fd, &user->addons);
 	link_list(fd, &user->autoexec_paths);
@@ -8944,6 +8942,11 @@ static BHead *read_userdef(BlendFileData *bfd, FileData *fd, BHead *bhead)
 
 		for (kmi=keymap->items.first; kmi; kmi=kmi->next)
 			direct_link_keymapitem(fd, kmi);
+	}
+
+	for (wmKeyConfigPref *kpt = user->user_keyconfig_prefs.first; kpt; kpt = kpt->next) {
+		kpt->prop = newdataadr(fd, kpt->prop);
+		IDP_DirectLinkGroup_OrFree(&kpt->prop, (fd->flags & FD_FLAGS_SWITCH_ENDIAN), fd);
 	}
 
 	for (bUserMenu *um = user->user_menus.first; um; um = um->next) {

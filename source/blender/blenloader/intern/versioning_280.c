@@ -454,6 +454,7 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 
 	/* Handle legacy render layers. */
 	bool have_override = false;
+	const bool need_default_renderlayer = scene->r.layers.first == NULL;
 
 	for (SceneRenderLayer *srl = scene->r.layers.first; srl; srl = srl->next) {
 		ViewLayer *view_layer = BKE_view_layer_add(scene, srl->name);
@@ -541,9 +542,9 @@ static void do_version_layers_to_collections(Main *bmain, Scene *scene)
 
 	BLI_freelistN(&scene->r.layers);
 
-	/* If render layers included overrides, we also create a vanilla
-	 * viewport layer without them. */
-	if (have_override) {
+	/* If render layers included overrides, or there are no render layers,
+	 * we also create a vanilla viewport layer. */
+	if (have_override || need_default_renderlayer) {
 		ViewLayer *view_layer = BKE_view_layer_add(scene, "Viewport");
 
 		/* Make it first in the list. */
@@ -1078,12 +1079,12 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 		{
 			/* Grease pencil sculpt and paint cursors */
-			if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "weighttype")) {
+			if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "int", "weighttype")) {
 				for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 					/* sculpt brushes */
-					GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
+					GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
 					if (gset) {
-						gset->weighttype = GP_EDITBRUSH_TYPE_WEIGHT;
+						gset->weighttype = GP_SCULPT_TYPE_WEIGHT;
 					}
 				}
 			}
@@ -1092,15 +1093,15 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				float curcolor_add[3], curcolor_sub[3];
 				ARRAY_SET_ITEMS(curcolor_add, 1.0f, 0.6f, 0.6f);
 				ARRAY_SET_ITEMS(curcolor_sub, 0.6f, 0.6f, 1.0f);
-				GP_EditBrush_Data *gp_brush;
+				GP_Sculpt_Data *gp_brush;
 
 				for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 					ToolSettings *ts = scene->toolsettings;
 					/* sculpt brushes */
-					GP_BrushEdit_Settings *gset = &ts->gp_sculpt;
-					for (int i = 0; i < GP_EDITBRUSH_TYPE_MAX; ++i) {
+					GP_Sculpt_Settings *gset = &ts->gp_sculpt;
+					for (int i = 0; i < GP_SCULPT_TYPE_MAX; ++i) {
 						gp_brush = &gset->brush[i];
-						gp_brush->flag |= GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+						gp_brush->flag |= GP_SCULPT_FLAG_ENABLE_CURSOR;
 						copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 						copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 					}
@@ -1122,10 +1123,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 
 			/* Grease pencil multiframe falloff curve */
-			if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "CurveMapping", "cur_falloff")) {
+			if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "CurveMapping", "cur_falloff")) {
 				for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 					/* sculpt brushes */
-					GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
+					GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
 					if ((gset) && (gset->cur_falloff == NULL)) {
 						gset->cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 						curvemapping_initialize(gset->cur_falloff);
@@ -1962,10 +1963,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		}
 
 		/* default loc axis */
-		if (!DNA_struct_elem_find(fd->filesdna, "GP_BrushEdit_Settings", "int", "lock_axis")) {
+		if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "int", "lock_axis")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 				/* lock axis */
-				GP_BrushEdit_Settings *gset = &scene->toolsettings->gp_sculpt;
+				GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
 				if (gset) {
 					gset->lock_axis = GP_LOCKAXIS_Y;
 				}
@@ -2235,7 +2236,8 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
 			ob->empty_image_visibility_flag = (
 			        OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE |
-			        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+			        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC |
+			        OB_EMPTY_IMAGE_VISIBLE_BACKSIDE);
 		}
 
 
@@ -2252,6 +2254,42 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 	}
 
 	{
+		/* Grease pencil reset sculpt brushes after struct rename  */
+		if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "int", "weighttype")) {
+			float curcolor_add[3], curcolor_sub[3];
+			ARRAY_SET_ITEMS(curcolor_add, 1.0f, 0.6f, 0.6f);
+			ARRAY_SET_ITEMS(curcolor_sub, 0.6f, 0.6f, 1.0f);
+
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				/* sculpt brushes */
+				GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
+				if (gset) {
+					for (int i = 0; i < GP_SCULPT_TYPE_MAX; i++) {
+						GP_Sculpt_Data *gp_brush = &gset->brush[i];
+						gp_brush->size = 30;
+						gp_brush->strength = 0.5f;
+						gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
+						copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
+						copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
+					}
+				}
+			}
+		}
+
+		/* Grease pencil target weight  */
+		if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "float", "target_weight")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				/* sculpt brushes */
+				GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
+				if (gset) {
+					for (int i = 0; i < GP_SCULPT_TYPE_MAX; i++) {
+						GP_Sculpt_Data *gp_brush = &gset->brush[i];
+						gp_brush->target_weight = 1.0f;
+					}
+				}
+			}
+		}
+
 		if (!DNA_struct_elem_find(fd->filesdna, "SceneEEVEE", "float", "overscan")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 				scene->eevee.overscan = 3.0f;

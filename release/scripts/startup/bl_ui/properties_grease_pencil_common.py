@@ -140,7 +140,7 @@ class AnnotationDrawingToolsPanel:
             layout.separator()
 
             col = layout.column(align=True)
-            col.prop(gpd, "use_stroke_edit_mode", text="Enable Editing", icon='EDIT', toggle=True)
+            col.prop(gpd, "use_stroke_edit_mode", text="Enable Editing", toggle=True)  # was: icon='EDIT'
 
 
 class GreasePencilStrokeEditPanel:
@@ -573,7 +573,7 @@ class GPENCIL_MT_pie_sculpt(Menu):
         col = pie.column()
         # col.label(text="Tool:")
         col.prop(settings, "sculpt_tool", text="")
-        col.operator("gpencil.brush_paint", text="Sculpt", icon='SCULPTMODE_HLT')
+        col.operator("gpencil.sculpt_paint", text="Sculpt", icon='SCULPTMODE_HLT')
 
         # E - Common Settings
         col = pie.column(align=True)

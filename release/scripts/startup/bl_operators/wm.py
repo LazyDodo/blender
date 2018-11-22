@@ -1419,49 +1419,6 @@ class WM_OT_keyconfig_activate(Operator):
             return {'CANCELLED'}
 
 
-class WM_OT_appconfig_default(Operator):
-    bl_idname = "wm.appconfig_default"
-    bl_label = "Default Application Configuration"
-
-    def execute(self, context):
-        import os
-
-        context.window_manager.keyconfigs.active = context.window_manager.keyconfigs.default
-
-        filepath = os.path.join(bpy.utils.preset_paths("interaction")[0], "blender.py")
-
-        if os.path.exists(filepath):
-            bpy.ops.script.execute_preset(
-                filepath=filepath,
-                menu_idname="USERPREF_MT_interaction_presets",
-            )
-
-        return {'FINISHED'}
-
-
-class WM_OT_appconfig_activate(Operator):
-    bl_idname = "wm.appconfig_activate"
-    bl_label = "Activate Application Configuration"
-
-    filepath: StringProperty(
-        subtype='FILE_PATH',
-    )
-
-    def execute(self, context):
-        import os
-        filepath = self.filepath
-        bpy.utils.keyconfig_set(filepath)
-        dirname, filename = os.path.split(filepath)
-        filepath = os.path.normpath(os.path.join(dirname, os.pardir, "interaction", filename))
-        if os.path.exists(filepath):
-            bpy.ops.script.execute_preset(
-                filepath=filepath,
-                menu_idname="USERPREF_MT_interaction_presets",
-            )
-
-        return {'FINISHED'}
-
-
 class WM_OT_sysinfo(Operator):
     """Generate system information, saved into a text file"""
 
@@ -1656,7 +1613,7 @@ class WM_OT_keyconfig_export(Operator):
     )
 
     def execute(self, context):
-        from bpy_extras import keyconfig_utils
+        from bl_keymap_utils.io import keyconfig_export_as_data
 
         if not self.filepath:
             raise Exception("Filepath not set")
@@ -1666,7 +1623,7 @@ class WM_OT_keyconfig_export(Operator):
 
         wm = context.window_manager
 
-        keyconfig_utils.keyconfig_export_as_data(
+        keyconfig_export_as_data(
             wm,
             wm.keyconfigs.active,
             self.filepath,
@@ -2393,9 +2350,9 @@ class WM_OT_tool_set_by_name(Operator):
             if not self.properties.is_property_set("name"):
                 WM_OT_toolbar._key_held = False
                 return {'PASS_THROUGH'}
-            elif WM_OT_toolbar._key_held and event.value != 'RELEASE':
+            elif (WM_OT_toolbar._key_held == event.type) and (event.value != 'RELEASE'):
                 return {'PASS_THROUGH'}
-            WM_OT_toolbar._key_held = False
+            WM_OT_toolbar._key_held = None
 
             return self.execute(context)
 
@@ -2422,32 +2379,29 @@ class WM_OT_toolbar(Operator):
     bl_idname = "wm.toolbar"
     bl_label = "Toolbar"
 
-    if use_toolbar_release_hack:
-        _key_held = False
-
     @classmethod
     def poll(cls, context):
         return context.space_data is not None
 
-    def execute(self, context):
-        from bl_ui.space_toolsystem_common import (
-            ToolSelectPanelHelper,
-            keymap_from_context,
-        )
-        space_type = context.space_data.type
+    if use_toolbar_release_hack:
+        _key_held = None
+        def invoke(self, context, event):
+            WM_OT_toolbar._key_held = event.type
+            return self.execute(context)
 
+    def execute(self, context):
+        from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
+        from bl_keymap_utils import keymap_from_toolbar
+
+        space_type = context.space_data.type
         cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
         if cls is None:
             return {'CANCELLED'}
 
         wm = context.window_manager
-        keymap = keymap_from_context(context, space_type)
+        keymap = keymap_from_toolbar.generate(context, space_type)
 
         def draw_menu(popover, context):
-            if use_toolbar_release_hack:
-                # Release event sets false.
-                WM_OT_toolbar._key_held = True
-
             layout = popover.layout
             layout.operator_context = 'INVOKE_REGION_WIN'
             cls.draw_cls(layout, context, detect_layout=False, scale_y=1.0)
@@ -2592,11 +2546,17 @@ class WM_MT_splash(Menu):
             text = "Blender"
         sub.menu("USERPREF_MT_keyconfigs", text=text)
 
-        sub = col.split(factor=0.35)
-        row = sub.row()
-        row.alignment = 'RIGHT'
-        row.label(text="Select With")
-        sub.row().prop(userpref.inputs, 'select_mouse', expand=True)
+        kc = wm.keyconfigs.active
+        kc_prefs = kc.preferences
+        has_select_mouse = hasattr(kc_prefs, "select_mouse")
+        if has_select_mouse:
+            sub = col.split(factor=0.35)
+            row = sub.row()
+            row.alignment = 'RIGHT'
+            row.label(text="Select With")
+            sub.row().prop(kc_prefs, 'select_mouse', expand=True)
+            has_select_mouse = True
+
 
         col.separator()
 
@@ -2617,7 +2577,9 @@ class WM_MT_splash(Menu):
         #userpref = context.user_preferences
         #sub.prop(userpref.system, "language", text="")
 
-        col.label()
+        # Keep height constant
+        if not has_select_mouse:
+            col.label()
 
         layout.label()
 
@@ -2747,8 +2709,6 @@ classes = (
     WM_OT_addon_remove,
     WM_OT_addon_userpref_show,
     WM_OT_app_template_install,
-    WM_OT_appconfig_activate,
-    WM_OT_appconfig_default,
     WM_OT_context_collection_boolean_set,
     WM_OT_context_cycle_array,
     WM_OT_context_cycle_enum,

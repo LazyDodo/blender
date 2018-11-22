@@ -104,6 +104,7 @@ extern "C" {
 
 #include "intern/builder/deg_builder.h"
 #include "intern/builder/deg_builder_pchanmap.h"
+#include "intern/eval/deg_eval_copy_on_write.h"
 
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
@@ -303,10 +304,12 @@ DepsRelation *DepsgraphRelationBuilder::add_time_relation(
         TimeSourceDepsNode *timesrc,
         DepsNode *node_to,
         const char *description,
-        bool check_unique)
+        bool check_unique,
+        int flags)
 {
 	if (timesrc && node_to) {
-		return graph_->add_new_relation(timesrc, node_to, description, check_unique);
+		return graph_->add_new_relation(
+		        timesrc, node_to, description, check_unique, flags);
 	}
 	else {
 		DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
@@ -322,13 +325,15 @@ DepsRelation *DepsgraphRelationBuilder::add_operation_relation(
         OperationDepsNode *node_from,
         OperationDepsNode *node_to,
         const char *description,
-        bool check_unique)
+        bool check_unique,
+        int flags)
 {
 	if (node_from && node_to) {
 		return graph_->add_new_relation(node_from,
 		                                node_to,
 		                                description,
-		                                check_unique);
+		                                check_unique,
+		                                flags);
 	}
 	else {
 		DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
@@ -2389,8 +2394,7 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 	/* XXX: This is a quick hack to make Alt-A to work. */
 	// add_relation(time_source_key, copy_on_write_key, "Fluxgate capacitor hack");
 	/* Resat of code is using rather low level trickery, so need to get some
-	 * explicit pointers.
-	 */
+	 * explicit pointers. */
 	DepsNode *node_cow = find_node(copy_on_write_key);
 	OperationDepsNode *op_cow = node_cow->get_exit_operation();
 	/* Plug any other components to this one. */
@@ -2404,7 +2408,7 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 			/* Component explicitly requests to not add relation. */
 			continue;
 		}
-		int rel_flag = DEPSREL_FLAG_NO_FLUSH;
+		int rel_flag = (DEPSREL_FLAG_NO_FLUSH | DEPSREL_FLAG_GODMODE);
 		if (id_type == ID_ME && comp_node->type == DEG_NODE_TYPE_GEOMETRY) {
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
@@ -2412,7 +2416,6 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		if (id_type == ID_MA) {
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
-
 		/* Notes on exceptions:
 		 * - Parameters component is where drivers are living. Changing any
 		 *   of the (custom) properties in the original datablock (even the
@@ -2426,9 +2429,15 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		 *   to preserve that cache in copy-on-write, but for the time being
 		 *   we allow flush to layer collections component which will ensure
 		 *   that cached array fo bases exists and is up-to-date.
+		 *
+		 * - Action is allowed to flush as well, this way it's possible to
+		 *   keep current tagging in animation editors (which tags action for
+		 *   CoW update when it's changed) but yet guarantee evaluation order
+		 *   with objects which are using that action.
 		 */
 		if (comp_node->type == DEG_NODE_TYPE_PARAMETERS ||
-		    comp_node->type == DEG_NODE_TYPE_LAYER_COLLECTIONS)
+		    comp_node->type == DEG_NODE_TYPE_LAYER_COLLECTIONS ||
+		    (comp_node->type == DEG_NODE_TYPE_ANIMATION && id_type == ID_AC))
 		{
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
@@ -2490,10 +2499,15 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		Object *object = (Object *)id_orig;
 		ID *object_data_id = (ID *)object->data;
 		if (object_data_id != NULL) {
-			OperationKey data_copy_on_write_key(object_data_id,
-			                                    DEG_NODE_TYPE_COPY_ON_WRITE,
-			                                    DEG_OPCODE_COPY_ON_WRITE);
-			add_relation(data_copy_on_write_key, copy_on_write_key, "Eval Order");
+			if (deg_copy_on_write_is_needed(object_data_id)) {
+				OperationKey data_copy_on_write_key(object_data_id,
+				                                    DEG_NODE_TYPE_COPY_ON_WRITE,
+				                                    DEG_OPCODE_COPY_ON_WRITE);
+				add_relation(data_copy_on_write_key,
+				             copy_on_write_key,
+				             "Eval Order",
+				             DEPSREL_FLAG_GODMODE);
+			}
 		}
 		else {
 			BLI_assert(object->type == OB_EMPTY);

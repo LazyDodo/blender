@@ -541,7 +541,9 @@ typedef struct UserDef {
 	 * which are outside the scope of typical preferences. */
 	short app_flag;
 	short language;
-	short userpref, viewzoom;
+	short userpref;
+	char  userpref_flag;
+	char viewzoom;
 
 	int mixbufsize;
 	int audiodevice;
@@ -568,8 +570,8 @@ typedef struct UserDef {
 	struct ListBase themes;
 	struct ListBase uifonts;
 	struct ListBase uistyles;
-	struct ListBase keymaps  DNA_DEPRECATED; /* deprecated in favor of user_keymaps */
 	struct ListBase user_keymaps;
+	struct ListBase user_keyconfig_prefs; /* wmKeyConfigPref. */
 	struct ListBase addons;
 	struct ListBase autoexec_paths;
 	struct ListBase user_menus; /* bUserMenu */
@@ -615,6 +617,9 @@ typedef struct UserDef {
 	short widget_unit;		/* private, defaults to 20 for 72 DPI setting */
 	short anisotropic_filter;
 	short use_16bit_textures, use_gpu_mipmap;
+
+	float pressure_threshold_max; /* raw tablet pressure that maps to 100% */
+	float pressure_softness;      /* curve non-linearity parameter */
 
 	float ndof_sensitivity;	/* overall sensitivity of 3D mouse */
 	float ndof_orbit_sensitivity;
@@ -684,6 +689,12 @@ typedef enum eUserPref_Section {
 	USER_SECTION_LIGHT 	= 7,
 } eUserPref_Section;
 
+/* UserDef.userpref_flag (State of the user preferences UI). */
+typedef enum eUserPref_SectionFlag {
+	/* Hide/expand keymap preferences. */
+	USER_SECTION_INPUT_HIDE_UI_KEYCONFIG        = (1 << 0),
+} eUserPref_SectionFlag;
+
 /* UserDef.flag */
 typedef enum eUserPref_Flag {
 	USER_AUTOSAVE			= (1 << 0),
@@ -700,7 +711,7 @@ typedef enum eUserPref_Flag {
 	USER_TOOLTIPS			= (1 << 11),
 	USER_TWOBUTTONMOUSE		= (1 << 12),
 	USER_NONUMPAD			= (1 << 13),
-	USER_LMOUSESELECT		= (1 << 14),
+	USER_FLAG_DEPRECATED_14	= (1 << 14),  /* cleared */
 	USER_FILECOMPRESS		= (1 << 15),
 	USER_SAVE_PREVIEWS		= (1 << 16),
 	USER_CUSTOM_RANGE		= (1 << 17),

@@ -1534,10 +1534,8 @@ class VIEW3D_MT_add(Menu):
         layout.menu("VIEW3D_MT_armature_add", icon='OUTLINER_OB_ARMATURE')
         layout.operator("object.add", text="Lattice", icon='OUTLINER_OB_LATTICE').type = 'LATTICE'
         layout.operator_menu_enum("object.empty_add", "type", text="Empty", icon='OUTLINER_OB_EMPTY')
+        layout.menu("VIEW3D_MT_image_add", text="Image", icon='OUTLINER_OB_IMAGE')
 
-        sublayout = layout.column()
-        sublayout.operator_context = 'INVOKE_DEFAULT'
-        sublayout.operator("object.load_image_as_empty", text="Image", icon="OUTLINER_OB_IMAGE")
         layout.separator()
 
         layout.operator("object.speaker_add", text="Speaker", icon='OUTLINER_OB_SPEAKER')
@@ -1574,6 +1572,15 @@ class VIEW3D_MT_add(Menu):
                 text="Collection Instance",
                 icon='OUTLINER_OB_GROUP_INSTANCE',
             )
+
+
+class VIEW3D_MT_image_add(Menu):
+    bl_label = "Add Image"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("object.load_reference_image", text="Reference", icon='IMAGE_REFERENCE')
+        layout.operator("object.load_background_image", text="Background", icon='IMAGE_BACKGROUND')
 
 
 class VIEW3D_MT_object_relations(Menu):
@@ -1726,36 +1733,13 @@ class VIEW3D_MT_object_specials(Menu):
         return context.object
 
     def draw(self, context):
+
         layout = self.layout
 
         obj = context.object
-
-        layout.operator("view3d.copybuffer", text="Copy Objects", icon='COPYDOWN')
-        layout.operator("view3d.pastebuffer", text="Paste Objects", icon='PASTEDOWN')
-
-        layout.separator()
-
-        layout.operator("object.duplicate_move")
-        layout.operator("object.duplicate_move_linked")
-
-        layout.separator()
-
-        layout.menu("VIEW3D_MT_snap")
-        layout.menu("VIEW3D_MT_object_parent")
-        layout.operator_context = 'INVOKE_REGION_WIN'
-        layout.operator("object.move_to_collection")
-
-        layout.separator()
-
-        layout.operator("anim.keyframe_insert_menu", text="Insert Keyframe...")
-
-        layout.separator()
-
-        layout.operator("object.delete", text="Delete...").use_global = False
+        is_eevee = context.scene.render.engine == 'BLENDER_EEVEE'
 
         if obj.type == 'MESH':
-
-            layout.separator()
 
             layout.operator("object.shade_smooth", text="Smooth Shading")
             layout.operator("object.shade_flat", text="Flat Shading")
@@ -1834,15 +1818,21 @@ class VIEW3D_MT_object_specials(Menu):
                         emission_node = node
                         break
 
+            if is_eevee and not emission_node:
+                props = layout.operator("wm.context_modal_mouse", text="Energy")
+                props.data_path_iter = "selected_editable_objects"
+                props.data_path_item = "data.energy"
+                props.header_text = "Light Energy: %.3f"
+
             if emission_node is not None:
-                props = layout.operator("wm.context_modal_mouse", text="Strength")
+                props = layout.operator("wm.context_modal_mouse", text="Energy")
                 props.data_path_iter = "selected_editable_objects"
                 props.data_path_item = (
                     "data.node_tree"
                     ".nodes[\"" + emission_node.name + "\"]"
                     ".inputs[\"Strength\"].default_value"
                 )
-                props.header_text = "Light Strength: %.3f"
+                props.header_text = "Light Energy: %.3f"
                 props.input_scale = 0.1
 
             if light.type == 'AREA':
@@ -1858,13 +1848,14 @@ class VIEW3D_MT_object_specials(Menu):
                     props.header_text = "Light Size Y: %.3f"
 
             elif light.type in {'SPOT', 'POINT', 'SUN'}:
-                props = layout.operator("wm.context_modal_mouse", text="Size")
+                props = layout.operator("wm.context_modal_mouse", text="Radius")
                 props.data_path_iter = "selected_editable_objects"
                 props.data_path_item = "data.shadow_soft_size"
-                props.header_text = "Light Size: %.3f"
+                props.header_text = "Light Radius: %.3f"
 
             if light.type == 'SPOT':
                 layout.separator()
+
                 props = layout.operator("wm.context_modal_mouse", text="Spot Size")
                 props.data_path_iter = "selected_editable_objects"
                 props.data_path_item = "data.spot_size"
@@ -1876,6 +1867,31 @@ class VIEW3D_MT_object_specials(Menu):
                 props.data_path_item = "data.spot_blend"
                 props.input_scale = -0.01
                 props.header_text = "Spot Blend: %.2f"
+
+        layout.separator()
+
+        layout.operator("view3d.copybuffer", text="Copy Objects", icon='COPYDOWN')
+        layout.operator("view3d.pastebuffer", text="Paste Objects", icon='PASTEDOWN')
+
+        layout.separator()
+
+        layout.operator("object.duplicate_move", icon="DUPLICATE")
+        layout.operator("object.duplicate_move_linked")
+
+        layout.separator()
+
+        layout.menu("VIEW3D_MT_snap")
+        layout.menu("VIEW3D_MT_object_parent")
+        layout.operator_context = 'INVOKE_REGION_WIN'
+        layout.operator("object.move_to_collection")
+
+        layout.separator()
+
+        layout.operator("anim.keyframe_insert_menu", text="Insert Keyframe...")
+
+        layout.separator()
+
+        layout.operator("object.delete", text="Delete...").use_global = False
 
 
 class VIEW3D_MT_object_shading(Menu):
@@ -3835,24 +3851,16 @@ class VIEW3D_MT_shading_pie(Menu):
         pie.prop_enum(view.shading, "type", value='WIREFRAME')
         pie.prop_enum(view.shading, "type", value='SOLID')
 
-        if context.mode == 'POSE':
-            pie.prop(view.overlay, "show_bone_select", icon='XRAY')
+        xray_active = (
+            (context.mode in {'POSE', 'EDIT_MESH'}) or
+            (view.shading.type in {'SOLID', 'WIREFRAME'})
+        )
+        if xray_active:
+            sub = pie
         else:
-            xray_active = (
-                (context.mode in 'EDIT_MESH') or
-                (view.shading.type in {'SOLID', 'WIREFRAME'})
-            )
-
-            if xray_active:
-                sub = pie
-            else:
-                sub = pie.row()
-                sub.active = False
-
-            if view.shading.type == 'WIREFRAME':
-                sub.prop(view.shading, "show_xray_wireframe", text="Toggle X-Ray", icon='XRAY')
-            else:
-                sub.prop(view.shading, "show_xray", text="Toggle X-Ray", icon='XRAY')
+            sub = pie.row()
+            sub.active = False
+        sub.operator("view3d.toggle_xray", text="Toggle X-Ray", icon='XRAY')
 
         pie.prop(view.overlay, "show_overlays", text="Toggle Overlays", icon='OVERLAY')
         pie.prop_enum(view.shading, "type", value='MATERIAL')
@@ -5089,6 +5097,7 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 class VIEW3D_PT_quad_view(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = "View"
     bl_label = "Quad View"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -5475,6 +5484,7 @@ classes = (
     VIEW3D_PT_transform_orientations,
     VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_context_properties,
+    VIEW3D_MT_image_add,
 )
 
 

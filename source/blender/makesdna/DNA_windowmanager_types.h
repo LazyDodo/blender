@@ -171,6 +171,8 @@ enum {
 	WM_KEYCONFIG_IS_INITIALIZED = (1<<1),
 };
 
+#define WM_KEYCONFIG_STR_DEFAULT "blender"
+
 /* IME is win32 only! */
 #ifndef WIN32
 #  ifdef __GNUC__
@@ -348,6 +350,19 @@ enum {
 	KEYMAP_TOOL               = (1 << 7),  /* keymap for active tool system */
 };
 
+/**
+ * This is similar to addon-preferences,
+ * however unlike add-ons key-config's aren't saved to disk.
+ *
+ * #wmKeyConfigPref is written to DNA,
+ * #wmKeyConfigPrefType_Runtime has the RNA type.
+ */
+typedef struct wmKeyConfigPref {
+	struct wmKeyConfigPref *next, *prev;
+	char idname[64];    /* unique name */
+	IDProperty *prop;
+} wmKeyConfigPref;
+
 typedef struct wmKeyConfig {
 	struct wmKeyConfig *next, *prev;
 
@@ -355,13 +370,15 @@ typedef struct wmKeyConfig {
 	char basename[64];  /* idname of configuration this is derives from, "" if none */
 
 	ListBase keymaps;
-	int actkeymap, flag;
+	int actkeymap;
+	short flag;
+	char _pad0[2];
 } wmKeyConfig;
 
 /* wmKeyConfig.flag */
 enum {
 	KEYCONF_USER          = (1 << 1),  /* And what about (1 << 0)? */
-	KEYCONF_INIT_DEFAULT  = (1 << 2),
+	KEYCONF_INIT_DEFAULT  = (1 << 2),  /* Has default keymap been initialized? */
 };
 
 /* this one is the operator itself, stored in files for macros etc */
