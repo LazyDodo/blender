@@ -198,7 +198,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
 
-		if ((fmd->dm_group || fmd->use_dynamic || !fmd->shared->refresh))
+		if ((fmd->dm_group || !fmd->shared->refresh))
 		{
 			if (!handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
 			{
