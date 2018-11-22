@@ -607,12 +607,6 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 			RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 	}
 
-#if 0
-	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
-		return;
-	}
-#endif
-
 	if (!rbo->shared->physics_object || rebuild /*|| (fmd->use_animated_mesh && fmd->anim_mesh_ob)*/) {
 		float size[3];
 

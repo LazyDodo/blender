@@ -198,7 +198,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
 
-		if ((fmd->dm_group || !fmd->shared->refresh))
+		/*keep shards at packing and at dynamic refresh */
+		if (fmd->dm_group)
 		{
 			if (!handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
 			{
@@ -206,7 +207,10 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			}
 		}
 		else {
-			do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
+			if (BLI_listbase_is_empty(&fmd->shared->mesh_islands) || !fmd->use_dynamic) {
+				/*rebuild shards after loading and prefracture refresh*/
+				do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
+			}
 		}
 
 		fmd->shared->refresh_constraints = true;

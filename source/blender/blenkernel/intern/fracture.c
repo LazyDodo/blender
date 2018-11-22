@@ -1296,14 +1296,23 @@ void BKE_fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMas
 void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scene)
 {
 	RigidBodyWorld *rbw = scene->rigidbody_world;
-	int startframe = rbw->shared->pointcache->startframe;
-	int endframe = rbw->shared->pointcache->endframe;
+	int startframe = 1;
+	int endframe = 250;
 	int frame = 0;
 	MeshIsland *mi, *next;
 
+	if (rbw && rbw->shared) {
+		startframe = rbw->shared->pointcache->startframe;
+		endframe = rbw->shared->pointcache->endframe;
+	}
+	else {
+		return;
+	}
+
 	mi = fmd->shared->mesh_islands.first;
 	while (mi) {
-		if ((fmd->shared->refresh && fmd->use_dynamic && mi->startframe > startframe) || (!fmd->use_dynamic && mi->id == 0))
+		/*delete non-initial shards on dynamic refresh, or the non-intial prefracture shards*/
+		if ((fmd->use_dynamic && mi->startframe > startframe) || (!fmd->use_dynamic && mi->id == 0))
 		{
 			next = mi->next;
 			BLI_remlink(&fmd->shared->mesh_islands, mi);
@@ -1351,13 +1360,18 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *
 	Mesh *mesh = NULL;
 	int vertstart, polystart, loopstart, edgestart, num_verts, num_polys, num_loops, num_edges;
 	vertstart = polystart = loopstart = edgestart = num_verts = num_polys = num_loops = num_edges = 0;
+	RigidBodyWorld *rbw = scene->rigidbody_world;
+	int startframe = 1;
+
+	if (rbw && rbw->shared)
+		startframe = rbw->shared->pointcache->startframe;
 
 	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
 	{
 		RigidBodyOb *rbo = mi->rigidbody;
 
 		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
-			if (scene && mi->rigidbody->shared->physics_object) {
+			if (scene && mi->rigidbody->shared->physics_object && (mi->startframe <= (int)ctime)) {
 				BKE_rigidbody_remove_shard(scene, mi);
 				mi->rigidbody->shared->physics_object = NULL;
 			}
