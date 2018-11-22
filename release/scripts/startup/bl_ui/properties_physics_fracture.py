@@ -229,6 +229,7 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         col = layout.column(align=True)
         col.prop(md, "constraint_limit")
         col.prop(md, "contact_dist")
+        col.prop(md, "contact_size")
 
         layout.label(text="Constraint Cluster Settings")
         layout.prop(md, "cluster_count")

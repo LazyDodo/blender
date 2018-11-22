@@ -649,9 +649,9 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *p
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 
 	FractureModifierData *fmd = (FractureModifierData*)md;
-	BKE_rigidbody_cache_reset(scene);
 
-//	fmd->shared->refresh = false;
+	//fmd->shared->refresh = false;
+	BKE_rigidbody_cache_reset(scene);
 
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |
 									DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
@@ -1458,11 +1458,20 @@ void RNA_def_fracture(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "dynamic_activation_size", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "dynamic_activation_size");
-	RNA_def_property_range(prop, 0.001f, 10000.0f);
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
 	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_ui_text(prop, "Activation Size",  "Activation shard size in blenderunits");
-	RNA_def_property_ui_range(prop, 0.001f, 10000.0f, 0.1f, 2);
+	RNA_def_property_ui_range(prop, 0.001f, FLT_MAX, 0.1f, 2);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "contact_size", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "contact_size");
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_float_default(prop, 0.0f);
+	RNA_def_property_ui_text(prop, "Search Size", "Limit size of shards being connected above this value, 0 disables.");
+	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 2);
+	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
+
 
 	RNA_api_fracture(brna, subrna);
 }

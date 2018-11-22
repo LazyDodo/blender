@@ -164,6 +164,7 @@ static void initData(ModifierData *md)
 	fmd->activate_broken = false;
 
 	fmd->dynamic_activation_size = 1.0f;
+	fmd->contact_size = 0.0f;
 
 	if (!fmd->shared) {
 		fmd->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");

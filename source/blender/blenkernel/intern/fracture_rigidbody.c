@@ -607,9 +607,11 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 			RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 	}
 
+#if 0
 	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
 		return;
 	}
+#endif
 
 	if (!rbo->shared->physics_object || rebuild /*|| (fmd->use_animated_mesh && fmd->anim_mesh_ob)*/) {
 		float size[3];
@@ -1340,13 +1342,13 @@ bool BKE_rigidbody_activate_by_size_check(Object *ob, MeshIsland *mi)
 	if (ob->rigidbody_object->flag & (RBO_FLAG_IS_TRIGGERED | RBO_FLAG_KINEMATIC) && fmd->use_dynamic)
 	{
 		//try to keep bigger shards in place
-		return BKE_check_island_size(fmd, mi, true);
+		return BKE_rigidbody_check_island_size(fmd, mi, fmd->dynamic_activation_size);
 	}
 
 	return true;
 }
 
-bool BKE_check_island_size(FractureModifierData *fmd, MeshIsland *mi, bool check_min)
+bool BKE_rigidbody_check_island_size(FractureModifierData *fmd, MeshIsland *mi, float check_size)
 {
 	FractureID *fid;
 	float size = fmd->dynamic_min_size, diff[3], min[3], max[3];
@@ -1355,11 +1357,10 @@ bool BKE_check_island_size(FractureModifierData *fmd, MeshIsland *mi, bool check
 
 	sub_v3_v3v3(diff, max, min);
 
-	if (check_min) {
-		//size = 4.0f * size;
-		size = fmd->dynamic_activation_size;
+	if (check_size > -1.0f) {
+		size = check_size;
 
-		if ((diff[max_axis_v3(diff)] < size))// && (diff[1] < size) && (diff[2] < size))
+		if ((diff[max_axis_v3(diff)] < size))
 		{
 			return true;
 		}
@@ -1461,11 +1462,11 @@ static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi,
 
 		/*only fracture on new entries, this is necessary because after loading a file
 		 *the pointcache thinks it is empty and a fracture is attempted ! */
-		if (BKE_check_island_size(fmd, mi, false) )
+		if (BKE_rigidbody_check_island_size(fmd, mi, -2.0f) )
 		{
 			if (mi->fractured == false)
 			{
-				FractureID* fid = MEM_mallocN(sizeof(FractureID), "lback_fractureid");
+				FractureID* fid = MEM_mallocN(sizeof(FractureID), "callback_fractureid");
 				fid->mi = mi;
 				BLI_addtail(&fmd->shared->fracture_ids, fid);
 				fmd->shared->refresh_dynamic = true;
@@ -1577,16 +1578,16 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *o
 		return;
 	}
 
+	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
+		return;
+	}
+
 	if (rebuild /*|| (mi->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD)*/) {
 		/* World has been rebuilt so rebuild object */
 		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, true, transfer_speed, size, ctime);
 	}
 	else if (mi->rigidbody->flag & RBO_FLAG_NEEDS_VALIDATE) {
 		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, false, transfer_speed, size, ctime);
-	}
-
-	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
-		return;
 	}
 
 	/* refresh shape... */

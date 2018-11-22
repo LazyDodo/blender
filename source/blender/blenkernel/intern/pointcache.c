@@ -1358,13 +1358,13 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 		{
 			int frame = (int)cfra;
 
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
+				continue;
+			}
+
 			if (frame >= fmd->shared->last_cache_end) {
 				BKE_fracture_meshisland_check_realloc_cache(fmd, rbw, mi, frame);
 				changed = true;
-			}
-
-			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
-				continue;
 			}
 
 			rbo = mi->rigidbody;
@@ -1377,7 +1377,7 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 			}
 #endif
 			//ensure valid values here, now !!!
-			if ((frame == fmd->last_frame + 1) && ((rbw->shared->pointcache->flag & PTCACHE_BAKED) == 0))
+			if ((frame == rbw->ltime + 1) && ((rbw->shared->pointcache->flag & PTCACHE_BAKED) == 0))
 			{
 				frame = calc_frame(rbw, mi, frame);
 

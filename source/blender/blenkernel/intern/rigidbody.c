@@ -2073,7 +2073,7 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 	//if we destroy the cache, also reset dynamic data (if not baked)
 	if ((frame == startframe) && (rbw->ltime == startframe) && !(cache->flag & PTCACHE_BAKED))
 	{
-		BKE_rigidbody_cache_reset(scene);
+		//BKE_rigidbody_cache_reset(scene);
 	}
 }
 

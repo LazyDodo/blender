@@ -93,7 +93,7 @@ void BKE_rigidbody_validate_sim_shard(struct RigidBodyWorld *rbw, struct MeshIsl
 
 void BKE_rigidbody_validate_sim_shard_shape(struct MeshIsland *mi, struct Object *ob, short rebuild);
 
-bool BKE_check_island_size(struct FractureModifierData *fmd, struct MeshIsland *mi, bool check_min);
+bool BKE_rigidbody_check_island_size(struct FractureModifierData *fmd, struct MeshIsland *mi, float check_size);
 bool BKE_rigidbody_activate_by_size_check(struct Object *ob, struct MeshIsland *mi);
 
 void BKE_rigidbody_calc_center_of_mass(struct Object *ob, float r_center[3]);

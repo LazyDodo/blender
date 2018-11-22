@@ -279,6 +279,14 @@ static float get_random(FractureModifierData *fmd)
 	return BLI_rng_get_float(fmd->shared->rng);
 }
 
+static void seed_random(FractureModifierData *fmd, unsigned int seed) {
+	if(!fmd->shared->rng) {
+		init_random(fmd);
+	}
+
+	BLI_rng_seed(fmd->shared->rng, seed);
+}
+
 static void calculate_fast_bisect(FractureModifierData *fmd, Mesh* me, BisectContext *ctx)
 {
 	float factor = 1 - fmd->orthogonality_factor;
@@ -604,6 +612,7 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mi, Main* bmain
 		int k = 0;
 		for (k = 0; k < fmd->shared->last_expected_islands; k++)
 		{
+			BLI_remlink(&fmd->shared->mesh_islands, fmd->shared->last_islands[k]);
 			BKE_fracture_mesh_island_free(fmd->shared->last_islands[k], scene);
 		}
 
@@ -1294,8 +1303,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 
 	mi = fmd->shared->mesh_islands.first;
 	while (mi) {
-		if ((!fmd->use_dynamic && mi->id == 0) ||
-			(fmd->use_dynamic && mi->id > 0))
+		if ((fmd->shared->refresh && fmd->use_dynamic && mi->startframe > startframe) || (!fmd->use_dynamic && mi->id == 0))
 		{
 			next = mi->next;
 			BLI_remlink(&fmd->shared->mesh_islands, mi);
@@ -1330,14 +1338,6 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 			mi = mi->next;
 		}
 	}
-
-#if 0
-	while (fmd->shared->fracture_ids.first) {
-		FractureID* fid = fmd->shared->fracture_ids.first;
-		BLI_remlink(&fmd->shared->fracture_ids, fid);
-		MEM_freeN(fid);
-	}
-#endif
 
 	fmd->shared->last_cache_end = endframe;
 	fmd->shared->last_cache_start = startframe;
@@ -1981,6 +1981,7 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 		int j;
 		for (j = 0; j < fmd->shared->last_expected_islands; j++)
 		{
+			BLI_remlink(&fmd->shared->mesh_islands, fmd->shared->last_islands[j]);
 			BKE_fracture_mesh_island_free(fmd->shared->last_islands[j], scene);
 		}
 
@@ -2220,41 +2221,42 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 	points.points = MEM_mallocN(sizeof(FracPoint), "points");
 	points.totpoints = 0;
 
-	if (emd->point_source & (MOD_FRACTURE_EXTRA_PARTICLES | MOD_FRACTURE_EXTRA_VERTS)) {
-		if (((emd->point_source & MOD_FRACTURE_OWN_PARTICLES) && (emd->point_source & MOD_FRACTURE_EXTRA_PARTICLES)) ||
-			((emd->point_source & MOD_FRACTURE_OWN_VERTS) && (emd->point_source & MOD_FRACTURE_EXTRA_VERTS)) ||
-			((emd->point_source & MOD_FRACTURE_CUSTOM) && (emd->point_source & MOD_FRACTURE_EXTRA_PARTICLES)) ||
-			((emd->point_source & MOD_FRACTURE_CUSTOM) && (emd->point_source & MOD_FRACTURE_EXTRA_VERTS)))
-		{
-			go = MEM_reallocN(go, sizeof(Object *) * (totgroup + 1));
-			go[totgroup] = ob;
-			totgroup++;
+	if (!emd->use_dynamic) {
+		if (emd->point_source & (MOD_FRACTURE_EXTRA_PARTICLES | MOD_FRACTURE_EXTRA_VERTS)) {
+			if (((emd->point_source & MOD_FRACTURE_OWN_PARTICLES) && (emd->point_source & MOD_FRACTURE_EXTRA_PARTICLES)) ||
+				((emd->point_source & MOD_FRACTURE_OWN_VERTS) && (emd->point_source & MOD_FRACTURE_EXTRA_VERTS)) ||
+				((emd->point_source & MOD_FRACTURE_CUSTOM) && (emd->point_source & MOD_FRACTURE_EXTRA_PARTICLES)) ||
+				((emd->point_source & MOD_FRACTURE_CUSTOM) && (emd->point_source & MOD_FRACTURE_EXTRA_VERTS)))
+			{
+				go = MEM_reallocN(go, sizeof(Object *) * (totgroup + 1));
+				go[totgroup] = ob;
+				totgroup++;
+			}
+
+			totgroup = getGroupObjects(emd->extra_group, &go, totgroup);
+		}
+		else {
+			totgroup = 1;
+			go[0] = ob;
 		}
 
-		totgroup = getGroupObjects(emd->extra_group, &go, totgroup);
-	}
-	else {
-		totgroup = 1;
-		go[0] = ob;
-	}
+		if (emd->point_source & (MOD_FRACTURE_OWN_PARTICLES | MOD_FRACTURE_EXTRA_PARTICLES)) {
+			points_from_particles(go, totgroup, scene, &points, ob->obmat, thresh, emd, mi);
+		}
 
-	if (emd->point_source & (MOD_FRACTURE_OWN_PARTICLES | MOD_FRACTURE_EXTRA_PARTICLES)) {
-		points_from_particles(go, totgroup, scene, &points, ob->obmat, thresh, emd, mi);
-	}
+		if (emd->point_source & (MOD_FRACTURE_OWN_VERTS | MOD_FRACTURE_EXTRA_VERTS)) {
+			points_from_verts(go, totgroup, &points, ob->obmat, thresh, emd, ob, mi);
+		}
 
-	if (emd->point_source & (MOD_FRACTURE_OWN_VERTS | MOD_FRACTURE_EXTRA_VERTS)) {
-		points_from_verts(go, totgroup, &points, ob->obmat, thresh, emd, ob, mi);
+	#if 0
+		if (emd->point_source & MOD_FRACTURE_GREASEPENCIL && !emd->use_greasepencil_edges) {
+			points_from_greasepencil(go, totgroup, &points, ob->obmat, thresh);
+		}
+	#endif
 	}
-
-#if 0
-	if (emd->point_source & MOD_FRACTURE_GREASEPENCIL && !emd->use_greasepencil_edges) {
-		points_from_greasepencil(go, totgroup, &points, ob->obmat, thresh);
-	}
-#endif
-
 
 	/* local settings, apply per shard!!! Or globally too first. */
-	if (emd->point_source & MOD_FRACTURE_UNIFORM)
+	if ((emd->point_source & MOD_FRACTURE_UNIFORM) || (emd->use_dynamic))
 	{
 		float cent[3], bmin[3], bmax[3];
 		int count = emd->shard_count;
@@ -2342,16 +2344,14 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 			}
 		}
 
-#if 0
 		//omg, vary the seed here
 		if (emd->split_islands) {
-			BLI_thread_srandom(0, mi->id);
+			seed_random(emd, (unsigned int)mi->id);
 		}
-		else
-		{
-			BLI_thread_srandom(0, emd->use_dynamic ? mi->id : emd->point_seed);
+		else {
+			seed_random(emd, emd->use_dynamic ? (unsigned int)mi->id : (unsigned int)emd->point_seed);
 		}
-#endif
+
 		for (i = 0; i < count; ++i) {
 			if (get_random(emd) < thresh) {
 				float co[3];
@@ -2380,7 +2380,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 		}
 	}
 
-	if (emd->point_source & MOD_FRACTURE_GRID)
+	if ((emd->point_source & MOD_FRACTURE_GRID) && (!emd->use_dynamic))
 	{
 		float cent[3], bmin[3], bmax[3];
 		int x, y, z, k = 0;

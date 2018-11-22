@@ -1617,6 +1617,7 @@ typedef struct FractureModifierData {
 	float breaking_threshold;
 	float cluster_breaking_threshold;
 	float contact_dist;
+	float contact_size;
 	float autohide_dist;
 	float automerge_dist;
 	float splinter_length;
@@ -1693,7 +1694,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-	char pad[4];
+	//char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {

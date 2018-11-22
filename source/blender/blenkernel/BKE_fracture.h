@@ -173,4 +173,6 @@ void BKE_fracture_meshisland_normals_fix(struct FractureModifierData *fmd, struc
 void BKE_fracture_copy_customdata(struct CustomData* src, struct CustomData* dst, CustomDataMask mask, int src_ofs, int dst_ofs,
                               int copyelem, int totelem);
 
+bool BKE_fracture_check_valid_shard(struct FractureModifierData *fmd, struct MeshIsland *mi, struct Scene *scene);
+
 #endif /* BKE_FRACTURE_H */

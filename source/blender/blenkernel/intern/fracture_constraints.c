@@ -32,6 +32,7 @@
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
+#include "BKE_pointcache.h"
 #include "BKE_rigidbody.h"
 
 #include "BLI_kdtree.h"
@@ -65,10 +66,10 @@ static int get_object_index(Scene *scene, Object *ob) {
 	int i = 0;
 	if (rbw && rbw->group) {
 
-		obb = DEG_get_original_id(ob);
+		obb = DEG_get_original_object(ob);
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, obj)
 		{
-			obbj = DEG_get_original_id(obj);
+			obbj = DEG_get_original_object(obj);
 			if (obb == obbj) {
 				return i;
 			}
@@ -78,6 +79,28 @@ static int get_object_index(Scene *scene, Object *ob) {
 	}
 
 	return -1;
+}
+
+bool BKE_fracture_check_valid_shard(FractureModifierData *fmd, MeshIsland *mi, Scene *scene)
+{
+	//why for gods sake is the correct frame only in the original scene ?
+	Scene* sc = (Scene*)DEG_get_original_id(&scene->id);
+	int frame = BKE_scene_frame_get(sc);
+
+	return !BKE_fracture_meshisland_check_frame(fmd, mi, frame);
+}
+
+static int count_valid_shards(FractureModifierData *fmd, Scene *scene) {
+	int count = 0;
+	MeshIsland *mi;
+
+	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
+		if (BKE_fracture_check_valid_shard(fmd, mi, scene)) {
+			count++;
+		}
+	}
+
+	return count;
 }
 
 static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh_islands, KDTree **combined_tree, Object *obj,
@@ -97,7 +120,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 			{
 				FractureModifierData *fmdi = (FractureModifierData *)modifiers_findByType(ob, eModifierType_Fracture);
 				if (fmdi) {
-					islands += BLI_listbase_count(&fmdi->shared->mesh_islands);
+					islands += count_valid_shards(fmdi, scene);
 				}
 			}
 		}
@@ -105,7 +128,7 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 	}
 	else {
 
-		islands = BLI_listbase_count(&rmd->shared->mesh_islands);
+		islands = count_valid_shards(rmd, scene);
 	}
 
 	*mesh_islands = MEM_reallocN(*mesh_islands, islands * sizeof(MeshIsland *));
@@ -123,8 +146,11 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 				if (fmdi) {
 					for (mi = fmdi->shared->mesh_islands.first; mi; mi = mi->next) {
 						mi->object_index = get_object_index(scene, ob);
-						(*mesh_islands)[i] = mi;
-						i++;
+						if (BKE_fracture_check_valid_shard(fmdi, mi, scene))
+						{
+							(*mesh_islands)[i] = mi;
+							i++;
+						}
 					}
 				}
 
@@ -137,8 +163,11 @@ static int prepareConstraintSearch(FractureModifierData *rmd, MeshIsland ***mesh
 
 		for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
 			mi->object_index = get_object_index(scene, obj);
-			(*mesh_islands)[i] = mi;
-			i++;
+			if (BKE_fracture_check_valid_shard(rmd, mi, scene))
+			{
+				(*mesh_islands)[i] = mi;
+				i++;
+			}
 		}
 	}
 
@@ -275,16 +304,6 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 	dist = rmd->contact_dist;
 	//factor = rmd->mass_threshold_factor;
 
-#if 0
-	if ((rmd->fracture_mode == MOD_FRACTURE_DYNAMIC) &&
-		(rmd->dynamic_new_constraints != MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS))
-	{
-		if (mi->parent && mi->parent->id > -1) {
-			return;
-		}
-	}
-#endif
-
 	if (rmd->constraint_target == MOD_FRACTURE_CENTROID) {
 		mul_v3_m4v3(obj_centr, ob->obmat, mi->centroid);
 	}
@@ -318,23 +337,36 @@ static void search_tree_based(FractureModifierData *rmd, MeshIsland *mi, MeshIsl
 			if ((i >= limit) && (limit > 0)) {
 				break;
 			}
-#if 0
-			if ((rmd->fracture_mode == MOD_FRACTURE_DYNAMIC))
+
+			if (rmd->use_dynamic)
 			{
+				int startframe = 1;
+				if (scene->rigidbody_world) {
+					startframe = scene->rigidbody_world->shared->pointcache->startframe;
+				}
 				if (rmd->dynamic_new_constraints == MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS) {
-					//only build between old and new
-					if ((mi->parent && mi->parent->id > -1) && (mi2->parent && mi2->parent->id > -1)) {
+					//only build between old and new (old = mi startframe == pointcache startframe)
+					if (mi->startframe > startframe && mi2->startframe > startframe) {
 						continue;
 					}
 				}
-				else if (rmd->dynamic_new_constraints == MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS){
-					// dont build at all
-					if (mi2->parent && mi2->parent->id > -1) {
+
+				if (rmd->dynamic_new_constraints == MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS)
+				{	//only build between old
+					if (mi->startframe > startframe || mi2->startframe > startframe) {
 						continue;
 					}
 				}
 			}
-#endif
+
+			if (rmd->contact_size > 0.0f) {
+				//limit to shards above the size, atleast one shard must be bigger
+				if (BKE_rigidbody_check_island_size(rmd, mi, rmd->contact_size) &&
+				    BKE_rigidbody_check_island_size(rmd, mi2, rmd->contact_size))
+				{
+					continue;
+				}
+			}
 
 			BKE_fracture_constraint_create(scene, rmd, mi, mi2, con_type, thresh);
 		}
